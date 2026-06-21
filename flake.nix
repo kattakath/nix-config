@@ -135,9 +135,10 @@
 
       # ---- Multi-architecture dev shell --------------------------------------
       # `nix develop` on any target. Used as the default Devcontainer profile.
-      # The shellHook installs the git pre-commit hook automatically, and
-      # enabledPackages brings the hook tools (treefmt + nixfmt/statix/deadnix)
-      # onto PATH. nixd is the eval-aware LSP for editor completion.
+      # The shellHook installs the git pre-commit hook automatically. nixd is the
+      # eval-aware LSP for editor completion. statix/deadnix/jq are exposed as
+      # standalone binaries (NOT via preCommit.enabledPackages, which only yields
+      # the treefmt wrapper) so the .vscode lint tasks can call them directly.
       devShells = forAllSystems (
         system:
         let
@@ -153,6 +154,9 @@
                 nixd # eval-aware Nix LSP (flake/home-manager/nix-darwin completion)
                 home-manager.packages.${system}.default
                 treefmtEval.${system}.config.build.wrapper # `treefmt` / `nix fmt`
+                statix # anti-pattern linter — .vscode "nix: statix" task
+                deadnix # dead-code linter — .vscode "nix: deadnix" task
+                jq # flattens deadnix JSON for the problem matcher
               ]
               ++ preCommit.enabledPackages;
 

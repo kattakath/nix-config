@@ -3,16 +3,8 @@
 { pkgs, ... }:
 
 {
-  # Required by nix-darwin to track incompatible state migrations.
-  system.stateVersion = 5;
-
   # The platform this system configuration targets.
   nixpkgs.hostPlatform = "aarch64-darwin";
-
-  # Required by current nix-darwin whenever any `system.defaults.*` is set:
-  # names the user those user-scoped macOS defaults apply to. Matches the
-  # user declared in hosts/macbook.nix.
-  system.primaryUser = "user";
 
   # Enable flakes + the modern CLI for the daemon this config manages.
   nix.settings.experimental-features = [
@@ -26,24 +18,34 @@
     curl
   ];
 
-  # ---- macOS defaults (declarative system preferences) -------------------------
-  system.defaults = {
-    dock = {
-      autohide = true;
-      orientation = "left";
-      show-recents = false;
-      tilesize = 48;
-    };
+  system = {
+    # Required by nix-darwin to track incompatible state migrations.
+    stateVersion = 5;
 
-    finder = {
-      AppleShowAllExtensions = true;
-      FXPreferredViewStyle = "Nlsv"; # list view
-    };
+    # Required by current nix-darwin whenever any `system.defaults.*` is set:
+    # names the user those user-scoped macOS defaults apply to. Matches the
+    # user declared in hosts/macbook.nix.
+    primaryUser = "user";
 
-    NSGlobalDomain = {
-      AppleInterfaceStyle = "Dark";
-      KeyRepeat = 2;
-      InitialKeyRepeat = 15;
+    # ---- macOS defaults (declarative system preferences) -----------------------
+    defaults = {
+      dock = {
+        autohide = true;
+        orientation = "left";
+        show-recents = false;
+        tilesize = 48;
+      };
+
+      finder = {
+        AppleShowAllExtensions = true;
+        FXPreferredViewStyle = "Nlsv"; # list view
+      };
+
+      NSGlobalDomain = {
+        AppleInterfaceStyle = "Dark";
+        KeyRepeat = 2;
+        InitialKeyRepeat = 15;
+      };
     };
   };
 
