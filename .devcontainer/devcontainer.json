@@ -31,7 +31,14 @@
     // (verified in-container, claude 2.1.x) — this backs the "claude" terminal
     // profile below. Also bundles the anthropic.claude-code extension (already
     // listed in extensions, harmless duplicate).
-    "ghcr.io/devcontainers-extra/features/claude-code:1": {}
+    "ghcr.io/devcontainers-extra/features/claude-code:1": {},
+    // Official gh CLI at /usr/bin/gh (default installDirectlyFromGitHubRelease:
+    // true → official .deb, avoids the apt-keyserver failure path). No mounts /
+    // host paths, so no crash risk. Installs only the binary — auth is a runtime
+    // `gh auth login` concern. This also satisfies the `gh` binary the chezmoi
+    // gitconfig's `!gh auth git-credential` credential helper depends on; it does
+    // NOT write gitconfig, so it can't clash with the chezmoi-managed identity.
+    "ghcr.io/devcontainers/features/github-cli:1": {}
   },
 
   "workspaceFolder": "/workspaces/nix-config",
