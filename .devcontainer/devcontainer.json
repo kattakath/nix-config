@@ -16,7 +16,16 @@
     // hooks. We point the VSCode extension at that nix profile path explicitly
     // (see direnv.path.executable below), since the extension host's PATH does
     // not include the nix profile and a bare "direnv" lookup fails.
-    "ghcr.io/esimkowitz/devcontainer-features/direnv:1": {}
+    "ghcr.io/esimkowitz/devcontainer-features/direnv:1": {},
+    // Persists Claude Code state across container rebuilds via per-container
+    // Docker NAMED VOLUMES (claude-dir-${devcontainerId}, claude-json-...) —
+    // no host bind, no host-path dependency, so a missing path can't crash the
+    // container. Defaults persist ~/.claude (history/sessions/todos) but NOT
+    // ~/.claude.json (auth), so you re-login after a rebuild; set
+    // "persistClaudeJson": true if you want auth to survive too. This repo's
+    // project memory (memory/, CLAUDE.md, .claude/) is already shared via the
+    // workspace bind mount — this only adds session-state persistence.
+    "ghcr.io/esimkowitz/devcontainer-features/claude-code-persistence:1": {}
   },
 
   "workspaceFolder": "/workspaces/nix-config",
