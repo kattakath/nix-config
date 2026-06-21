@@ -1,0 +1,9 @@
+{
+  // Recommended extensions for this flake. VSCode prompts to install these
+  // when the repo is opened. Mirrors .devcontainer/devcontainer.json so the
+  // experience is identical whether opened on the host or in the container.
+  "recommendations": [
+    "jnoortheen.nix-ide", // Nix language support; drives the nixd LSP
+    "mkhl.direnv" // loads the flake devShell (nixd, treefmt, hooks) into the editor
+  ]
+}

@@ -1,0 +1,4 @@
+# Gitignored files that should still be copied into git worktrees.
+# One path per line, relative to the project root.
+.claude/settings.local.json
+.env

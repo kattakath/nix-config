@@ -1,0 +1,78 @@
+name: flake-check
+
+# Closes the loop the local Stop-gate defers: full multi-system evaluation.
+# The host running Claude Code has no `nix`, so it validates syntax only and
+# marks full evaluation "CI-deferred". This workflow IS that CI.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: flake-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Evaluate every system natively where possible. aarch64-linux is realized
+  # via emulation on the x86_64 runner so all three of the canonical triple
+  # are covered without self-hosted ARM-Linux hardware.
+  check:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: aarch64-darwin
+            os: macos-14            # Apple Silicon runner
+            emulate: false
+          - name: x86_64-linux
+            os: ubuntu-latest
+            emulate: false
+          - name: aarch64-linux
+            os: ubuntu-latest        # cross-eval via binfmt emulation
+            emulate: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable aarch64 emulation
+        if: matrix.emulate
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            ${{ matrix.emulate && 'extra-platforms = aarch64-linux' || '' }}
+
+      # Git purity: flakes ignore untracked files. CI checks out a clean tree,
+      # but assert it explicitly so a stray generated file fails loudly.
+      - name: Assert git purity (no untracked .nix)
+        run: |
+          untracked=$(git ls-files --others --exclude-standard -- '*.nix')
+          if [ -n "$untracked" ]; then
+            echo "::error::Untracked .nix files break flake evaluation:"; echo "$untracked"; exit 1
+          fi
+
+      - name: Evaluate flake for ${{ matrix.name }}
+        run: nix flake check --no-build --system ${{ matrix.name }} --show-trace
+
+  # Formatting + lint + pre-commit are all flake checks now (treefmt-nix +
+  # git-hooks.nix), so CI builds the SAME derivations developers run via
+  # `nix fmt` / the commit hook. No drifting ad-hoc tool invocations.
+  lint:
+    name: lint (treefmt: nixfmt / statix / deadnix + pre-commit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: experimental-features = nix-command flakes
+      - name: Formatting gate (fails on unformatted/lintable files)
+        run: nix build --print-build-logs .#checks.x86_64-linux.formatting
+      - name: Pre-commit hooks (sandboxed)
+        run: nix build --print-build-logs .#checks.x86_64-linux.pre-commit

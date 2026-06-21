@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "outputStyle": "nix-declarative",
+  "parallelTasksCount": 4,
+  "enableAllProjectMcpServers": true,
+  "permissions": {
+    "defaultMode": "default",
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "Bash(git add:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git commit:*)",
+      "Bash(nix flake check:*)",
+      "Bash(nix flake show:*)",
+      "Bash(nix flake update:*)",
+      "Bash(nix fmt:*)",
+      "Bash(nix develop:*)",
+      "Bash(nix-instantiate:*)",
+      "Bash(statix check:*)",
+      "Bash(deadnix:*)",
+      "Bash(home-manager build:*)",
+      "Bash(home-manager generations:*)",
+      "Agent(platform-compiler)",
+      "Agent(Explore)",
+      "Agent(Plan)",
+      "Agent(general-purpose)",
+      "mcp__context7__*",
+      "mcp__duckduckgo__*",
+      "mcp__fetch__*",
+      "mcp__sequentialthinking__*",
+      "mcp__memory__*",
+      "mcp__json-yaml-toml__*",
+      "mcp__mcp-jq__*",
+      "mcp__desktop-commander__*"
+    ],
+    "deny": [
+      "Bash(home-manager switch:*)",
+      "Bash(rm -rf:*)"
+    ]
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/superhook.js\" UserPromptSubmit -- node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/delegate-team.js\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v nix >/dev/null 2>&1 && echo 'nix present: full multi-system flake check available locally.' || echo 'nix ABSENT on host: local checks are syntax-only; full aarch64-darwin/x86_64-linux/aarch64-linux evaluation is CI-deferred to .github/workflows/flake-check.yml.'; u=$(cd \"${CLAUDE_PROJECT_DIR:-.}\" && git ls-files --others --exclude-standard -- '*.nix' 2>/dev/null); [ -n \"$u\" ] && echo \"WARNING: untracked .nix files present — run 'git add -A' before evaluating:\" && echo \"$u\" || true",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/superhook-digest.js\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/memory-loader.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Validate this file write for a Nix mono-repo. Deny if: it writes a hardcoded secret/token/private key into a .nix file (the store is world-readable), uses a path-traversal sequence (../), or targets a system path outside the project. Approve otherwise.",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/autostage-nix.js\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/superhook.js\" Stop -- node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/stop-gate.js\"",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Only applies to subagents that performed Nix flake / Home-Manager EVALUATION (e.g. the platform-compiler agent). If this subagent evaluated Nix, verify it reported results for all three target systems (aarch64-darwin, x86_64-linux, aarch64-linux) and return {\"decision\":\"block\",\"reason\":\"...\"} if a system was skipped. If the subagent did NO Nix evaluation (e.g. search, planning, documentation, or memory tasks), return {\"decision\":\"approve\"}.",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "name": "nix-config (flake devShell)",
+  "image": "mcr.microsoft.com/devcontainers/base:debian",
+
+  "features": {
+    "ghcr.io/devcontainers/features/nix:1": {
+      "version": "latest",
+      "multiUser": true,
+      "extraNixConfig": "experimental-features = nix-command flakes"
+    }
+  },
+
+  "workspaceFolder": "/workspaces/nix-config",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/nix-config,type=bind,consistency=cached",
+
+  "updateContentCommand": "nix develop --command true",
+  "postAttachCommand": "nix develop",
+
+  "containerEnv": {
+    "NIXPKGS_ALLOW_UNFREE": "1"
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "jnoortheen.nix-ide",
+        "mkhl.direnv"
+      ],
+      "settings": {
+        "nix.enableLanguageServer": true,
+        "nix.serverPath": "nixd",
+        "nix.formatterPath": "nixfmt",
+        "editor.formatOnSave": true,
+        "[nix]": {
+          "editor.defaultFormatter": "jnoortheen.nix-ide"
+        }
+      }
+    }
+  },
+
+  "remoteUser": "vscode"
+}
