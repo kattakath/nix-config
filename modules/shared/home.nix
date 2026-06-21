@@ -8,6 +8,9 @@
   secretsDir ? null,
   ...
 }:
+let
+  hasToken = secretsDir != null && builtins.pathExists "${secretsDir}/github-token.age";
+in
 
 {
   # Baseline toolset present on all hosts. git / tmux / neovim / ripgrep are
@@ -55,7 +58,7 @@
     # A login shell is required for `home-manager switch` to wire session vars.
     bash = {
       enable = true;
-      initExtra = lib.mkIf (secretsDir != null) ''
+      initExtra = lib.mkIf hasToken ''
         _tok="${config.age.secrets.github-token.path}"
         if [ -f "$_tok" ]; then
           _val=$(< "$_tok")
@@ -67,7 +70,7 @@
     };
   };
 
-  age = lib.mkIf (secretsDir != null) {
+  age = lib.mkIf hasToken {
     identityPaths = [ "${config.home.homeDirectory}/.ssh/id_ed25519" ];
     secrets.github-token.file = "${secretsDir}/github-token.age";
   };
