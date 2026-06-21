@@ -9,7 +9,38 @@
   ...
 }:
 let
-  hasToken = secretsDir != null && builtins.pathExists "${secretsDir}/github-token.age";
+  managedSecrets = {
+    "github-token" = "GH_TOKEN";
+    "hf-token" = "HF_TOKEN";
+    "claude-code-oauth-token" = "CLAUDE_CODE_OAUTH_TOKEN";
+    "aws-bearer-token-bedrock" = "AWS_BEARER_TOKEN_BEDROCK";
+    "dockerhub-username" = "DOCKERHUB_USERNAME";
+    "dockerhub-token" = "DOCKERHUB_TOKEN";
+    "cloudflare-api-token" = "CLOUDFLARE_API_TOKEN";
+    "civitai-api-token" = "CIVITAI_API_TOKEN";
+    "runpod-api-key" = "RUNPOD_API_KEY";
+    "vast-api-key" = "VAST_API_KEY";
+    "litellm-proxy-api-base" = "LITELLM_PROXY_API_BASE";
+    "litellm-proxy-api-key" = "LITELLM_PROXY_API_KEY";
+    "gitlab-token" = "GITLAB_TOKEN";
+  };
+
+  secretAliases = {
+    "ANTHROPIC_BASE_URL" = "LITELLM_PROXY_API_BASE";
+    "OPENAI_BASE_URL" = "LITELLM_PROXY_API_BASE";
+    "ANTHROPIC_API_KEY" = "LITELLM_PROXY_API_KEY";
+    "OPENAI_API_KEY" = "LITELLM_PROXY_API_KEY";
+    "GITHUB_TOKEN" = "GH_TOKEN";
+    "GLAB_TOKEN" = "GITLAB_TOKEN";
+    "CF_API_TOKEN" = "CLOUDFLARE_API_TOKEN";
+    "HUGGING_FACE_HUB_TOKEN" = "HF_TOKEN";
+  };
+
+  activeSecrets = lib.filterAttrs (
+    name: _: secretsDir != null && builtins.pathExists "${secretsDir}/${name}.age"
+  ) managedSecrets;
+
+  hasSecrets = activeSecrets != { };
 in
 
 {
@@ -58,20 +89,23 @@ in
     # A login shell is required for `home-manager switch` to wire session vars.
     bash = {
       enable = true;
-      initExtra = lib.mkIf hasToken ''
-        _tok="${config.age.secrets.github-token.path}"
-        if [ -f "$_tok" ]; then
-          _val=$(< "$_tok")
-          export GH_TOKEN="$_val"
-          unset _val
-        fi
-        unset _tok
-      '';
+      initExtra = lib.mkIf hasSecrets (
+        lib.concatStringsSep "\n" (
+          lib.mapAttrsToList (name: envVar: ''
+            if [ -f "${config.age.secrets.${name}.path}" ]; then
+              export ${envVar}=$(< "${config.age.secrets.${name}.path}")
+            fi
+          '') activeSecrets
+          ++ lib.mapAttrsToList (alias: source: ''
+            export ${alias}="''${${source}}"
+          '') secretAliases
+        )
+      );
     };
   };
 
-  age = lib.mkIf hasToken {
+  age = lib.mkIf hasSecrets {
     identityPaths = [ "${config.home.homeDirectory}/.ssh/id_ed25519" ];
-    secrets.github-token.file = "${secretsDir}/github-token.age";
+    secrets = lib.mapAttrs (name: _: { file = "${secretsDir}/${name}.age"; }) activeSecrets;
   };
 }
