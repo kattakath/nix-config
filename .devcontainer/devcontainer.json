@@ -25,7 +25,13 @@
     // "persistClaudeJson": true if you want auth to survive too. This repo's
     // project memory (memory/, CLAUDE.md, .claude/) is already shared via the
     // workspace bind mount — this only adds session-state persistence.
-    "ghcr.io/esimkowitz/devcontainer-features/claude-code-persistence:1": {}
+    "ghcr.io/esimkowitz/devcontainer-features/claude-code-persistence:1": {},
+    // Installs the Claude Code CLI. The published :1 feature installs via nvm,
+    // so the binary lands under /usr/local/share/nvm/current/bin/claude
+    // (verified in-container, claude 2.1.x) — this backs the "claude" terminal
+    // profile below. Also bundles the anthropic.claude-code extension (already
+    // listed in extensions, harmless duplicate).
+    "ghcr.io/devcontainers-extra/features/claude-code:1": {}
   },
 
   "workspaceFolder": "/workspaces/nix-config",
@@ -96,6 +102,23 @@
         "triggerTaskOnSave.showNotifications": false,
         "triggerTaskOnSave.tasks": {
           "nix: lint": ["**/*.nix"]
+        },
+
+        // --- Terminal profiles (ported from takeoff-api-infra, sans psql) ---
+        // The devcontainers-extra/claude-code feature installs via nvm, so the
+        // claude binary lives under the nvm prefix. Use the `current` symlink
+        // (current -> versions/node/<ver>), NOT a hardcoded version dir, so the
+        // path survives node version bumps. Verified in-container (claude 2.1.x).
+        "terminal.integrated.profiles.linux": {
+          "zsh": {
+            "path": "/usr/bin/zsh"
+          },
+          "claude": {
+            "path": "/usr/local/share/nvm/current/bin/claude",
+            "args": ["--permission-mode", "bypassPermissions"],
+            "icon": "claude",
+            "color": "terminal.ansiYellow"
+          }
         }
       }
     }
