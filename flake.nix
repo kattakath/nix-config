@@ -22,6 +22,9 @@
     # Git pre-commit hooks, installed automatically on `nix develop`.
     git-hooks.url = "github:cachix/git-hooks.nix";
     git-hooks.inputs.nixpkgs.follows = "nixpkgs";
+
+    agenix.url = "github:ryantm/agenix";
+    agenix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
@@ -32,6 +35,7 @@
       home-manager,
       treefmt-nix,
       git-hooks,
+      agenix,
       ...
     }:
     let
@@ -85,6 +89,9 @@
         }:
         home-manager.lib.homeManagerConfiguration {
           pkgs = pkgsFor system;
+          extraSpecialArgs = {
+            secretsDir = ./secrets;
+          };
           modules = [
             ./modules/shared/home.nix
             {
@@ -103,7 +110,7 @@
       # Built with `darwin-rebuild switch --flake .#macbook`.
       darwinConfigurations."macbook" = nix-darwin.lib.darwinSystem {
         system = "aarch64-darwin";
-        specialArgs = { inherit self home-manager; };
+        specialArgs = { inherit self home-manager agenix; };
         modules = [ ./hosts/macbook.nix ];
       };
 
@@ -112,12 +119,18 @@
       homeConfigurations = {
         "user@ubuntu-vm" = mkHome {
           system = "x86_64-linux";
-          modules = [ ./modules/linux/nix-ld.nix ];
+          modules = [
+            ./modules/linux/nix-ld.nix
+            agenix.homeManagerModules.default
+          ];
         };
 
         "user@raspberrypi" = mkHome {
           system = "aarch64-linux";
-          modules = [ ./modules/linux/nix-ld.nix ];
+          modules = [
+            ./modules/linux/nix-ld.nix
+            agenix.homeManagerModules.default
+          ];
         };
       };
 

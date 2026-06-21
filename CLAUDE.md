@@ -21,7 +21,7 @@ nix flake check .#homeConfigurations."user@ubuntu-vm"   # Evaluate a SINGLE conf
 
 ## Architecture
 
-- `flake.nix` — entry point: pins `nixpkgs` + `home-manager` + `nix-darwin` + `treefmt-nix` inputs; exports `darwinConfigurations."macbook"` (aarch64-darwin), `homeConfigurations."user@ubuntu-vm"` (x86_64-linux) and `"user@raspberrypi"` (aarch64-linux), plus `packages`/`devShells`/`checks`/`formatter` per system via a `forAllSystems` helper.
+- `flake.nix` — entry point: pins `nixpkgs` + `home-manager` + `nix-darwin` + `treefmt-nix` + `git-hooks` inputs; exports `darwinConfigurations."macbook"` (aarch64-darwin), `homeConfigurations."user@ubuntu-vm"` (x86_64-linux) and `"user@raspberrypi"` (aarch64-linux), plus `packages`/`devShells`/`checks`/`formatter` per system via a `forAllSystems` helper.
 - `flake.lock` — pinned input revisions; commit every change, never hand-edit.
 - `treefmt.nix` — single source of truth for formatting + lint-fix (nixfmt + statix + deadnix). Drives `nix fmt`, the `checks.formatting` CI gate, and the pre-commit hook — change a tool here and every entrypoint follows.
 - `.envrc` — direnv `use flake`; auto-loads the devShell (nixd, treefmt, hooks) in shell + editor. Run `direnv allow` once.
