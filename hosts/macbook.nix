@@ -2,7 +2,7 @@
 # for the "macbook" host. nix-darwin ships a home-manager module that nests a
 # standalone-style user profile inside the system rebuild, so a single
 # `darwin-rebuild switch --flake .#macbook` provisions both.
-{ home-manager, ... }:
+{ home-manager, agenix, ... }:
 
 {
   imports = [
@@ -20,8 +20,14 @@
   home-manager = {
     useGlobalPkgs = true; # reuse the system nixpkgs (DRY, one eval)
     useUserPackages = true; # install user packages into /etc/profiles
+    extraSpecialArgs = {
+      secretsDir = ../secrets;
+    };
     users.user = {
-      imports = [ ../modules/shared/home.nix ];
+      imports = [
+        ../modules/shared/home.nix
+        agenix.homeManagerModules.default
+      ];
       home.stateVersion = "24.05";
     };
   };
