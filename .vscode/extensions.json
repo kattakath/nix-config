@@ -1,9 +1,19 @@
 {
-  // Recommended extensions for this flake. VSCode prompts to install these
-  // when the repo is opened. Mirrors .devcontainer/devcontainer.json so the
-  // experience is identical whether opened on the host or in the container.
+  // HOST-side recommendations only. This file exists so that opening the repo
+  // directly in VSCode (e.g. to "Reopen in Container") prompts to install the
+  // extensions the devcontainer needs. The actual editor settings + on-save
+  // wiring live in ../.devcontainer/devcontainer.json (customizations.vscode),
+  // because they reference nixd/nixfmt from the flake devShell — which only
+  // exist inside the container, not on the nix-less host.
+  //
+  // Keep this list in sync with devcontainer.json's customizations.vscode.extensions.
   "recommendations": [
-    "jnoortheen.nix-ide", // Nix language support; drives the nixd LSP
-    "mkhl.direnv" // loads the flake devShell (nixd, treefmt, hooks) into the editor
+    "ms-vscode-remote.remote-containers", // "Reopen in Container" — the intended entry point
+    "jnoortheen.nix-ide", // Nix language support; drives the nixd LSP (in-container)
+    "mkhl.direnv", // loads the flake devShell into the editor (in-container)
+    "gruntfuggly.triggertaskonsave",
+    "fuadpashayev.bottom-terminal",
+    "anthropic.claude-code",
+    "shd101wyy.markdown-preview-enhanced" // runs the statix/deadnix lint tasks on save → Problems tab
   ]
 }

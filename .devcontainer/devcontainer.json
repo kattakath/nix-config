@@ -7,14 +7,27 @@
       "version": "latest",
       "multiUser": true,
       "extraNixConfig": "experimental-features = nix-command flakes"
+    },
+    // Installs direnv + configures shell hooks (bash/zsh/fish); ../.envrc then
+    // loads nix-direnv's `use flake` to load (and cache) the flake devShell.
+    // version:"system" installs via apt so the binary lands deterministically
+    // at /usr/bin/direnv. The default ("latest") uses direnv.net/install.sh,
+    // which drops the binary in the first WRITABLE dir on root's PATH (e.g.
+    // /usr/local/sbin) — a path the VSCode extension host often can't see,
+    // yielding "direnv: command not found". A fixed path lets us point the
+    // direnv extension at it explicitly (see direnv.path.executable below).
+    "ghcr.io/esimkowitz/devcontainer-features/direnv:1": {
+      "version": "system"
     }
   },
 
   "workspaceFolder": "/workspaces/nix-config",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/nix-config,type=bind,consistency=cached",
 
+  // Prebuild the flake devShell so the first attach (and first direnv load) is fast.
   "updateContentCommand": "nix develop --command true",
-  "postAttachCommand": "nix develop",
+  // direnv (from the feature) auto-loads the devShell on cd via built-in `use flake`.
+  "postAttachCommand": "direnv allow . || true",
 
   "containerEnv": {
     "NIXPKGS_ALLOW_UNFREE": "1"
@@ -22,17 +35,51 @@
 
   "customizations": {
     "vscode": {
+      // Installed into the container on create. The host only RECOMMENDS these
+      // (see ../.vscode/extensions.json) — they need nix + the devShell to work,
+      // which lives here in the container, not on the nix-less host.
       "extensions": [
         "jnoortheen.nix-ide",
-        "mkhl.direnv"
+        "mkhl.direnv",
+        "gruntfuggly.triggertaskonsave",
+        "fuadpashayev.bottom-terminal",
+        "Anthropic.claude-code",
+        "shd101wyy.markdown-preview-enhanced"
       ],
+      // Container-scoped settings.json. These reference nixd/nixfmt, which come
+      // from the flake devShell — only meaningful where nix exists.
       "settings": {
+        // --- Nix language server (nix-ide → nixd) ---
         "nix.enableLanguageServer": true,
         "nix.serverPath": "nixd",
         "nix.formatterPath": "nixfmt",
+        "nix.serverSettings": {
+          "nixd": {
+            "formatting": { "command": ["nixfmt"] }
+          }
+        },
+
+        // --- Format on save, nix-ide owns .nix files ---
         "editor.formatOnSave": true,
         "[nix]": {
           "editor.defaultFormatter": "jnoortheen.nix-ide"
+        },
+
+        // --- direnv extension: absolute path to the binary ---
+        // The extension host's PATH differs from the shell's, so a bare
+        // "direnv" lookup can fail with "direnv: command not found". Point it
+        // at the apt-installed binary (version:"system" above guarantees this
+        // location) so resolution never depends on the inherited PATH.
+        "direnv.path.executable": "/usr/bin/direnv",
+
+        // --- Live statix/deadnix diagnostics on save (Problems tab) ---
+        // On .nix save, runs the "nix: lint" task (../.vscode/tasks.json), whose
+        // problem matchers feed statix (anti-patterns) + deadnix (dead code) into
+        // Problems — the gap nix-ide/nixd don't cover. Needs triggertaskonsave.
+        "triggerTaskOnSave.on": true,
+        "triggerTaskOnSave.showNotifications": false,
+        "triggerTaskOnSave.tasks": {
+          "nix: lint": ["**/*.nix"]
         }
       }
     }

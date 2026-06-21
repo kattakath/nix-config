@@ -1,0 +1,71 @@
+{
+  // Lint tasks that pipe statix + deadnix into the VSCode Problems tab.
+  //
+  // WHY THIS EXISTS: nix-ide/nixd surface syntax + evaluation errors, but
+  // NEITHER runs statix (anti-patterns) or deadnix (dead code) — and no
+  // maintained extension wraps them as live diagnostics. These tasks close
+  // that gap by parsing each tool's machine output through a problemMatcher.
+  //
+  // Tools come from the flake devShell, so every command is wrapped in
+  // `nix develop -c`. This runs inside the devcontainer (where nix lives); the
+  // file stays in .vscode/ because VSCode only reads tasks from there, but the
+  // on-save trigger is configured in ../.devcontainer/devcontainer.json.
+  //
+  // Run via: Terminal → Run Task… → "nix: lint" (or bind a key). Auto-run on
+  // save is wired by devcontainer.json (triggerTaskOnSave + triggertaskonsave).
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "nix: statix",
+      "type": "shell",
+      // errfmt = one diagnostic per line on stdout: file>line:col:sev:code:msg
+      "command": "nix develop -c statix check -o errfmt .",
+      "presentation": { "reveal": "silent", "panel": "dedicated" },
+      "problemMatcher": {
+        "owner": "statix",
+        "source": "statix",
+        "fileLocation": ["autoDetect", "${workspaceFolder}"],
+        // file '>' line ':' col ':' (severity) ':' (code) ':' message
+        // statix findings are lints → fixed warning severity (the W/E field is skipped).
+        "severity": "warning",
+        "pattern": {
+          "regexp": "^(.+?)>(\\d+):(\\d+):\\w:\\d+:(.+)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "message": 4
+        }
+      }
+    },
+    {
+      "label": "nix: deadnix",
+      "type": "shell",
+      // deadnix JSON is NDJSON with multiple findings per line; jq flattens it
+      // to one `file:line:col: message` per line for a simple matcher. jq is in
+      // the devShell. `|| true` so an empty (clean) result is not a task error.
+      "command": "nix develop -c sh -c \"deadnix -o json . | jq -r '.file as $f | .results[] | \\\"\\($f):\\(.line):\\(.column): \\(.message)\\\"' || true\"",
+      "presentation": { "reveal": "silent", "panel": "dedicated" },
+      "problemMatcher": {
+        "owner": "deadnix",
+        "source": "deadnix",
+        "fileLocation": ["autoDetect", "${workspaceFolder}"],
+        "severity": "warning",
+        "pattern": {
+          "regexp": "^(.+?):(\\d+):(\\d+):\\s+(.+)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "message": 4
+        }
+      }
+    },
+    {
+      // One-shot: populate Problems with BOTH linters. Default test task.
+      "label": "nix: lint",
+      "dependsOn": ["nix: statix", "nix: deadnix"],
+      "dependsOrder": "parallel",
+      "problemMatcher": [],
+      "group": { "kind": "test", "isDefault": true }
+    }
+  ]
+}
