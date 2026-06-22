@@ -3,6 +3,11 @@
 { pkgs, username, ... }:
 
 {
+  imports = [
+    # Declarative Homebrew (taps/brews/casks) for the Mac.
+    ./homebrew.nix
+  ];
+
   # The platform this system configuration targets.
   nixpkgs.hostPlatform = "aarch64-darwin";
 
