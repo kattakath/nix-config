@@ -10,7 +10,7 @@
   };
 
   age.secrets.nixrpi-tunnel-creds = {
-    file = /. + "${secretsDir}/nixrpi-tunnel-creds.age";
+    file = "${secretsDir}/nixrpi-tunnel-creds.age";
     mode = "0400";
     owner = "root";
   };
