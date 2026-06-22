@@ -1,6 +1,6 @@
 ---
 description: Capture a Nix-project decision, finding, or value into the gitignored project memory (memory/) for future reference.
-allowed-tools: Read, Write, Edit, Bash(ls:*), Bash(cat:*)
+allowed-tools: Read, Write, Edit, Bash(ls:*)
 ---
 
 Record something worth remembering about THIS Nix flake / Home-Manager project into the

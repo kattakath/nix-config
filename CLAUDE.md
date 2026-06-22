@@ -30,6 +30,7 @@ nix build .#nixbox-image                  # Build UTM-importable nixbox qcow2 �
 - `modules/` — reusable modules split by platform: `modules/darwin/core.nix`, `modules/linux/nix-ld.nix`, `modules/shared/home.nix`, `modules/nixos/core.nix`, `modules/nixos/cloudflared.nix` (the `services.hostTunnel` module). Platform branching lives HERE behind `lib.mkIf`, not duplicated across hosts.
 - `packages/docker-image.nix` — minimal runtime container image (`dockerTools`, baseless).
 - `.claude/agents/platform-compiler.md` — subagent that validates evaluation across all three architectures.
+- `.claude/agents/vm-provisioner.md` — subagent that drives the full macOS→UTM→NixOS provisioning pipeline (VM creation, NixOS install, agenix rekey, Cloudflare tunnel).
 - `.claude/commands/` — `/eval`, `/update-input`, `/superhook-review` (triage the hook-supervisor log), `/remember-nix` (capture into project memory).
 - `.claude/rules/git-purity.md` — always-applied rule: stage `.nix` files before eval.
 - `.claude/hooks/` — `stop-gate.js` (Stop gate: blocks until configs evaluate clean) and `delegate-team.js` (UserPromptSubmit orchestration policy), both wrapped by `superhook.js` (crash-safety + loop-breaking + logging); plus `superhook-digest.js` and `memory-loader.js` (SessionStart context surfacing) and `autostage-nix.js` (PostToolUse git-purity net).
