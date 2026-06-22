@@ -6,7 +6,7 @@ let
   # Host SSH keys (from /etc/ssh/ssh_host_ed25519_key.pub on first boot).
   # System-level secrets must be encrypted to the host key so agenix can decrypt
   # them at activation (age.identityPaths = /etc/ssh/ssh_host_ed25519_key).
-  nixbox = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ8vllaJpgw3RoP9dmV4pY1sgXUqX41wEREmxbF40OGa";
+  nixbox = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBhg+82DrzIrLCQqgVSOobaduT+3hN47Jvs1IwODT30s";
 in
 {
   "github-token.age".publicKeys = userKeys;
