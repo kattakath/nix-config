@@ -37,6 +37,11 @@
 
   programs.nix-ld.enable = true;
 
+  # agenix uses the host SSH key to decrypt system-level secrets at activation.
+  # After first boot: add the host's public key to secrets/secrets.nix and
+  # re-encrypt any system secrets (e.g. *-tunnel-creds.age) to that key.
+  age.identityPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
+
   security.sudo.wheelNeedsPassword = false;
 
   environment.systemPackages = with pkgs; [

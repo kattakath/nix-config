@@ -7,9 +7,8 @@
 
   networking.useDHCP = true;
 
-  # agenix identity: same TODO as nixbox — re-encrypt nixrpi-tunnel-creds.age
-  # to /etc/ssh/ssh_host_ed25519_key.pub after first boot.
-  age.identityPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
+  # TODO: nixrpi-tunnel-creds.age is encrypted only to the user personal key.
+  # Re-encrypt to host key after first boot (same steps as nixbox).
 
   raspberry-pi-nix = {
     board = "bcm2711";
