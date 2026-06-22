@@ -52,6 +52,11 @@
   # agenix uses the host SSH key to decrypt system-level secrets at activation.
   # After first boot: add the host's public key to secrets/secrets.nix and
   # re-encrypt any system secrets (e.g. *-tunnel-creds.age) to that key.
+  #
+  # HAZARD: this SSH host key IS the age decryption identity for every
+  # host-scoped secret. Rotating/replacing it (reinstall, reimage, manual
+  # rotation) silently breaks decryption of all of them at next activation —
+  # re-run the agenix-host-rekey skill for the host after any host-key change.
   age.identityPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
 
   security.sudo.wheelNeedsPassword = false;

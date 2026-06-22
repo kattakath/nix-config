@@ -7,8 +7,16 @@
 
   networking.useDHCP = true;
 
-  # TODO: nixrpi-tunnel-creds.age is encrypted only to the user personal key.
-  # Re-encrypt to host key after first boot (same steps as nixbox).
+  # nixrpi is DURABLE hardware → use approach (a): post-boot rekey, NOT prebake.
+  # nixrpi-tunnel-creds.age ships encrypted only to the personal key (correct
+  # pre-first-boot). After the Pi's first boot, add its own
+  # /etc/ssh/ssh_host_ed25519_key.pub as a recipient in secrets/secrets.nix and
+  # re-encrypt — run the agenix-host-rekey skill. The Pi's own first-boot key is
+  # a unique per-host identity, so no key pinning/injection is needed.
+  #
+  # HAZARD: SSH host keys double as age identities — rotating/reimaging the Pi's
+  # /etc/ssh key silently breaks decryption of every host-scoped .age; re-run
+  # agenix-host-rekey after any host-key change.
 
   raspberry-pi-nix = {
     board = "bcm2711";
