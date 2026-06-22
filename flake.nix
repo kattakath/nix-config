@@ -29,6 +29,13 @@
     # Raspberry Pi 4 NixOS support: kernel, firmware, and SD-card image builder.
     raspberry-pi-nix.url = "github:nix-community/raspberry-pi-nix";
     raspberry-pi-nix.inputs.nixpkgs.follows = "nixpkgs";
+
+    # Daily-updated VS Code Marketplace + Open VSX mirror. Lets us pin editor
+    # extensions declaratively (programs.vscode). macOS-only consumer — the
+    # vscode block in modules/shared/home.nix is gated `mkIf isDarwin`, so the
+    # Linux hosts never reference it (and never receive it as a specialArg).
+    nix-vscode-extensions.url = "github:nix-community/nix-vscode-extensions";
+    nix-vscode-extensions.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
@@ -41,6 +48,7 @@
       git-hooks,
       agenix,
       raspberry-pi-nix,
+      nix-vscode-extensions,
       ...
     }:
     let
@@ -127,6 +135,7 @@
           inherit
             home-manager
             username
+            nix-vscode-extensions
             ;
         };
         modules = [ ./hosts/m3pro.nix ];

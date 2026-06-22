@@ -2,8 +2,16 @@
 # raspberry-pi-nix handles the kernel, firmware, and boot configuration.
 # Build a flashable SD card image:
 #   nix build .#nixosConfigurations.nixrpi.config.system.build.sdImage
-{ config, secretsDir, ... }: {
+{
+  config,
+  secretsDir,
+  ...
+}:
+{
   networking.hostName = "nixrpi";
+
+  # Allow unfree packages (e.g. `claude-code` in the shared HM profile).
+  nixpkgs.config.allowUnfree = true;
 
   networking.useDHCP = true;
 
