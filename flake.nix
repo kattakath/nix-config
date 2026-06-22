@@ -99,6 +99,8 @@
           modules = [
             ./hosts/${hostname}.nix
             ./modules/nixos/core.nix
+            agenix.nixosModules.default # system-level age.secrets (distinct from HM module)
+            ./modules/nixos/cloudflared.nix # enables services.cloudflared daemon
             home-manager.nixosModules.home-manager
             {
               home-manager = {

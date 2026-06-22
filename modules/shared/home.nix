@@ -65,6 +65,9 @@ in
         user.email = lib.mkDefault "ismail@kattakath.com";
         init.defaultBranch = "main";
         pull.rebase = true;
+        commit.gpgsign = true;
+        gpg.format = "ssh";
+        user.signingkey = "~/.ssh/id_ed25519.pub";
       };
     };
 
@@ -85,6 +88,20 @@ in
     };
 
     ripgrep.enable = true;
+
+    ssh = lib.mkIf pkgs.stdenv.isDarwin {
+      enable = true;
+      matchBlocks = {
+        "nixbox.kattakath.com" = {
+          user = "izzy";
+          identityFile = "~/.ssh/id_ed25519";
+        };
+        "nixrpi.kattakath.com" = {
+          user = "izzy";
+          identityFile = "~/.ssh/id_ed25519";
+        };
+      };
+    };
 
     # A login shell is required for `home-manager switch` to wire session vars.
     bash = {
