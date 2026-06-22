@@ -1,12 +1,13 @@
 ---
 name: utm-vm-provision
 description: >
-  Create and configure a UTM virtual machine on macOS, minimizing GUI work. Use when asked to
+  Create and configure a UTM virtual machine on macOS, with NO GUI required. Use when asked to
   "make a VM", "set up a UTM VM", "create an x86_64/ARM VM", provision a NixOS/Linux guest, or
-  automate UTM. The reliable path for a BOOTABLE VM is GUI-create (or import a known-good .utm),
-  then config.plist editing via plutil for headless tweaks. Covers disk sizing, VirtIO interfaces,
-  ISO attach, vmnet-shared/ARP networking, and host→guest port forwarding. Pairs with
-  nixos-flake-install for the in-guest OS install.
+  automate UTM. For a prebuilt qcow2 (e.g. nixbox), a fully CLI-authored bundle — heredoc
+  config.plist + copied disk + UTM restart — boots and SSHs end-to-end (VERIFIED, see §0); no GUI
+  or AppleScript needed. For ISO installs, GUI-create remains the reliable path. Covers disk
+  sizing, VirtIO interfaces, ISO attach, vmnet-shared/ARP networking, and host→guest port
+  forwarding. Pairs with nixos-flake-install for the in-guest OS install.
 ---
 
 # UTM VM Provisioning (macOS)
@@ -37,10 +38,137 @@ description: >
 The rest of this skill covers creating/shaping the VM bundle (needed for both paths) and the
 recovery toolkit.
 
+## 0. Create the whole VM from scratch via CLI (prebuilt qcow2) — NO GUI
+
+VERIFIED end-to-end on 2026-06-22 (UTM 4.7.5, Apple Silicon): a hand-authored bundle boots NixOS
+and accepts SSH, with the GUI never opened to *create* anything (only restarted so UTM rescans
+`Documents/`). Use this when you already have a bootable disk image (e.g. from
+**nixbox-utm-prebuild-on-devcontainer**). Idempotent-ish: it bails if the bundle already exists.
+
+```bash
+DOCS=~/Library/Containers/com.utmapp.UTM/Data/Documents
+NAME=nixbox                                   # bundle + display name
+BUNDLE="$DOCS/$NAME.utm"
+SRC=/path/to/nixbox.qcow2                      # the prebuilt, WRITABLE qcow2 (not the read-only store symlink)
+
+[ -e "$BUNDLE" ] && { echo "bundle exists: $BUNDLE — pick another NAME or delete it"; exit 1; }
+
+VM_UUID=$(uuidgen); DRIVE_UUID=$(uuidgen)
+# Locally-administered unicast MAC (2nd nibble ∈ {2,6,A,E}); deterministic so DNS/leases are stable:
+MAC="16:7C:DF:00:5C:01"
+
+mkdir -p "$BUNDLE/Data"
+cp "$SRC" "$BUNDLE/Data/$DRIVE_UUID.qcow2"     # UTM names disks by UUID; ImageName must match
+
+cat > "$BUNDLE/config.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Backend</key><string>QEMU</string>
+  <key>ConfigurationVersion</key><integer>4</integer>
+  <key>Display</key><array/>
+  <key>Drive</key><array><dict>
+    <key>Identifier</key><string>$DRIVE_UUID</string>
+    <key>ImageName</key><string>$DRIVE_UUID.qcow2</string>
+    <key>ImageType</key><string>Disk</string>
+    <key>Interface</key><string>VirtIO</string>
+    <key>InterfaceVersion</key><integer>0</integer>
+    <key>ReadOnly</key><false/>
+  </dict></array>
+  <key>Information</key><dict>
+    <key>Icon</key><string>nixos</string><key>IconCustom</key><false/>
+    <key>Name</key><string>$NAME</string><key>UUID</key><string>$VM_UUID</string>
+  </dict>
+  <key>Input</key><dict>
+    <key>MaximumUsbShare</key><integer>3</integer>
+    <key>UsbBusSupport</key><string>3.0</string><key>UsbSharing</key><false/>
+  </dict>
+  <key>Network</key><array><dict>
+    <key>Hardware</key><string>virtio-net-pci</string>
+    <key>IsolateFromHost</key><false/>
+    <key>MacAddress</key><string>$MAC</string>
+    <key>Mode</key><string>Shared</string>
+    <key>PortForward</key><array/>
+  </dict></array>
+  <key>QEMU</key><dict>
+    <key>AdditionalArguments</key><array/>
+    <key>BalloonDevice</key><false/><key>DebugLog</key><false/>
+    <key>Hypervisor</key><true/><key>PS2Controller</key><false/>
+    <key>RNGDevice</key><true/><key>RTCLocalTime</key><false/>
+    <key>TPMDevice</key><false/><key>TSO</key><false/><key>UEFIBoot</key><true/>
+  </dict>
+  <key>Serial</key><array><dict>
+    <key>Mode</key><string>Terminal</string><key>Target</key><string>Auto</string>
+    <key>Terminal</key><dict>
+      <key>BackgroundColor</key><string>#000000</string><key>CursorBlink</key><true/>
+      <key>Font</key><string>Menlo</string><key>FontSize</key><integer>12</integer>
+      <key>ForegroundColor</key><string>#ffffff</string>
+    </dict>
+  </dict></array>
+  <key>Sharing</key><dict>
+    <key>ClipboardSharing</key><true/>
+    <key>DirectoryShareMode</key><string>VirtFS</string>
+    <key>DirectoryShareReadOnly</key><false/>
+  </dict>
+  <key>System</key><dict>
+    <key>Architecture</key><string>aarch64</string><key>CPU</key><string>default</string>
+    <key>CPUCount</key><integer>0</integer>
+    <key>CPUFlagsAdd</key><array/><key>CPUFlagsRemove</key><array/>
+    <key>ForceMulticore</key><false/><key>JITCacheSize</key><integer>0</integer>
+    <key>MemorySize</key><integer>6144</integer><key>Target</key><string>virt</string>
+  </dict>
+</dict></plist>
+EOF
+
+plutil -lint "$BUNDLE/config.plist"            # MUST print "OK" — fix before continuing
+
+# UTM only discovers new bundles at launch — restart it so the VM appears to utmctl:
+osascript -e 'tell application "UTM" to quit'; sleep 3
+open -a UTM; sleep 6
+utmctl list                                    # → your NAME shows up, status "stopped"
+utmctl start "$NAME"                            # exit 0, no -2700 (Terminal serial + UEFI disk)
+```
+
+**Why each non-obvious bit matters (each cost a real failure to learn):**
+- **`Drive.ImageName` must equal the on-disk filename.** UTM stores disks as `Data/<UUID>.qcow2`;
+  the disk won't attach if `ImageName` ≠ the actual file.
+- **`MemorySize` ≥ 6144.** The <6 GB-RAM-or-silent-corruption lesson applies to the VM too, not
+  just the builder.
+- **`Serial.Mode = Terminal`** (not `Ptty`) — `Ptty` triggers `-2700` on `utmctl start`. `Auto`
+  target is correct; a `Terminal` serial is only viewable in the GUI window (no CLI console).
+- **`System.CPUCount = 0`** means "all host cores" — what the GUI writes; leave it.
+- **No `Display`/no GPU** is fine for a headless server VM — the serial + SSH are enough.
+- **Authoring with the Write tool fails** if your harness restricts writes to the project dir
+  (the bundle lives under `~/Library/Containers/…`). The heredoc via shell sidesteps that — and is
+  what makes the recipe portable anyway.
+
+Then find the IP and SSH in (see §5 for ARP; the prebuilt image has **no guest agent**, so
+`utmctl ip-address` returns `-2700` — use ARP):
+
+```bash
+MAC=$(plutil -extract Network.0.MacAddress raw "$BUNDLE/config.plist")
+sleep 45                                        # let NixOS boot + DHCP
+# ARP strips per-octet leading zeros (16:7C:DF:00:5C:01 → 16:7c:df:0:5c:1) — match loosely:
+arp -an | grep bridge100                         # read the 192.168.64.x for your MAC
+ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no izzy@192.168.64.x 'hostname; nixos-version'
+```
+
+→ Then continue with **agenix-host-rekey** (re-encrypt host secrets to this VM's new SSH host key).
+
+To tear a from-scratch VM down completely: `utmctl stop NAME; utmctl delete NAME` — `delete`
+removes the whole bundle (qcow2 included) with **no confirmation**.
+
 ## Gotchas (read first)
 
-- **Create the VM in the UTM GUI** (or `import` a known-good `.utm`), then plutil-edit
-  `config.plist` for headless tweaks, then `utmctl` to run. This is the only proven-bootable path.
+- **A 100% CLI-authored bundle BOOTS for the prebuilt-qcow2 case** (VERIFIED 2026-06-22, UTM
+  4.7.5 — see §0). Hand-write `config.plist` via heredoc, drop the qcow2 in `Data/`, restart UTM
+  so it rescans `Documents/`, then `utmctl start`. No GUI, no AppleScript. **For ISO installs**,
+  GUI-create is still the safer path (UEFI/NVRAM boot-order quirks bite there, not when the disk
+  is already a complete bootable system).
+- **UTM only rescans `Documents/` on launch.** A bundle created while UTM is running is invisible
+  to `utmctl` until you quit + reopen UTM (`osascript … quit` → `open -a UTM`). It does **not**
+  clobber a hand-authored `config.plist` on the *next* quit — it only rewrites configs it has
+  loaded and you then changed. Author while quit, or author-then-restart, and you're safe.
 - **`utmctl` controls existing VMs only** — list/status/start/stop/clone/delete/ip-address. It
   **cannot create or mutate config**. `utmctl attach` is a **non-functional stub** in UTM 4.7.5
   (`WARNING: attach command is not implemented yet!`) — there is **no CLI serial console**.
@@ -54,10 +182,14 @@ Bundle path: `~/Library/Containers/com.utmapp.UTM/Data/Documents/<name>.utm/` co
 the real VM is `NixOS.utm` running hostname `nixbox`. Paths below use `nixbox.utm` illustratively —
 substitute your actual bundle name from `ls ~/Library/Containers/com.utmapp.UTM/Data/Documents/`.
 
-## 1. Create the VM (GUI)
+## 1. Create the VM
 
-Create in the UTM GUI or `import virtual machine` a known-good `.utm`; pick architecture (aarch64,
-target `virt`). Then quit UTM and apply tweaks below.
+**Prebuilt qcow2?** Use **§0** — author the bundle entirely from the CLI; skip this section.
+
+**ISO install (or you want the GUI):** create in the UTM GUI or `import virtual machine` a
+known-good `.utm`; pick architecture (aarch64, target `virt`). Then quit UTM and apply the tweaks
+in §3–§5. (The CLI recipe in §0 also works as a starting point here — just attach an ISO per §4
+and leave the disk empty/blank instead of copying in a bootable image.)
 
 Fallback (de-emphasized — may not boot, and leaves IDE drives / `e1000` NIC / oversized qcow2 to
 fix): `osascript -e 'tell application "UTM" to make new virtual machine with properties {backend:qemu, configuration:{name:"nixbox", architecture:"aarch64", memory:6144, cpu cores:4}}'`
@@ -98,12 +230,15 @@ plutil -replace Drive.0.ImageType -string CD            "$BUNDLE/config.plist"
 ## 5. Networking — vmnet-shared gives a real routable IP (no port-forward)
 
 UTM **Shared** mode = `vmnet-shared` → guest gets a **real routable IP** (`192.168.64.x` on
-`bridge100`). SSH straight to it. The live ISO has no guest agent, so `utmctl ip-address` fails —
-find the IP via ARP using the guest MAC:
+`bridge100`). SSH straight to it. `utmctl ip-address` fails with `-2700` (`guest agent not
+running`) **on both the live ISO and the booted prebuilt nixbox image** — neither ships
+qemu-guest-agent — so find the IP via ARP using the guest MAC:
 
 ```bash
 MAC=$(plutil -extract Network.0.MacAddress raw "$PLIST")
-arp -an | grep -i "$MAC"        # → ? (192.168.64.x) at <mac> on bridge100
+# ⚠ ARP prints MACs with per-octet leading zeros STRIPPED: 16:7C:DF:00:5C:01 → 16:7c:df:0:5c:1.
+# A literal `grep "$MAC"` MISSES those — grep the bridge instead and read off your row:
+arp -an | grep bridge100        # → ? (192.168.64.x) at 16:7c:df:0:5c:1 on bridge100
 # ssh izzy@192.168.64.x   (or root@... on the live ISO)
 ```
 
