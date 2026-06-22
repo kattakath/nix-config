@@ -33,8 +33,15 @@ Use this skill to **produce the qcow2**. Use **nixbox-vm** or **utm-vm-provision
   `/nix/var/nix/profiles/default/bin/nix`.
 - **git add before nix eval**: Flakes ignore untracked files. The bind-mount means git state is
   shared — `git add -A` on the host or inside the container both work.
-- **result is a read-only symlink** into the Nix store. Copy the qcow2 before using it as a
-  writable VM disk — do not use it in place.
+- **`result` is DANGLING on the Mac.** It's a symlink to `/nix/store/...`, which exists only
+  inside the container — so `ls -L result/` and `cp result/*.qcow2` run *on macOS* fail with
+  "No such file or directory". Do the copy **inside the container** (where `/nix/store` is real),
+  writing to the bind-mounted workspace so the file lands on the Mac. The symlink itself is still
+  visible on the host (`ls -l result` without `-L`), just not followable.
+- **VirtioFS forbids guest chmod on the bind-mount.** The store source is `0444`, so any copy
+  lands read-only and `chmod`/`cp --no-preserve=mode` *inside the container* fail with "Permission
+  denied". Flip it writable from the **Mac side** (`chmod u+w`), where you own the file as your
+  host uid. Stream-copy with `cat src > dst` (not `cp`) to dodge the in-guest chmod entirely.
 - **Container identity**: the container runs as `vscode` (UID 1000). The Nix store is owned by
   root but group-accessible; `nix build` works without sudo.
 
@@ -100,24 +107,37 @@ devcontainer exec --workspace-folder ~/path/to/nix-config -- \
 The build takes 20–40 minutes under TCG emulation. The `--print-out-paths` flag shows the Nix
 store path when done.
 
-## Step 4 — Get the result on macOS
+## Step 4 — Get the result onto macOS
 
-The `result/` symlink appears directly in the workspace folder on the Mac (bind-mount):
+The `result` symlink points into the container's `/nix/store`, so it is **dangling on the Mac** —
+you cannot `cp result/*.qcow2` from the host. Copy the qcow2 out **from inside the container**
+into the bind-mounted workspace (which lands it on the Mac), then make it writable from the host.
 
 ```bash
-ls -lh ~/path/to/nix-config/result/
-# → nixos-image-efi-qcow2-<date>-aarch64-linux.qcow2  (~3 GB)
+# 1. Stream-copy inside the container (cat avoids the in-guest chmod that VirtioFS rejects):
+devcontainer exec --workspace-folder ~/path/to/nix-config -- \
+  bash -lc 'cat result/*.qcow2 > nixbox.qcow2'
+
+# 2. Verify byte-for-byte (sizes must match exactly):
+devcontainer exec --workspace-folder ~/path/to/nix-config -- bash -lc '
+  echo "src : $(stat -c%s "$(readlink -f result/*.qcow2)")"
+  echo "copy: $(stat -c%s nixbox.qcow2)"'
+
+# 3. Make it writable FROM THE MAC (the copy is 0444; chmod inside the container fails on VirtioFS):
+chmod u+w ~/path/to/nix-config/nixbox.qcow2
+ls -lh ~/path/to/nix-config/nixbox.qcow2     # → ~3 GB, rw-
 ```
 
-Copy the qcow2 before use (the symlink target is read-only):
+`nixbox.qcow2` is gitignored (alongside `result`), so it won't pollute git or flake evals. From
+there, stage it for whichever runner you want:
 
 ```bash
 # For nix run .#nixbox-vm (see nixbox-vm skill):
 mkdir -p ~/.local/state/nixbox-vm
-cp ~/path/to/nix-config/result/*.qcow2 ~/.local/state/nixbox-vm/nixbox.qcow2
+cp ~/path/to/nix-config/nixbox.qcow2 ~/.local/state/nixbox-vm/nixbox.qcow2
 
 # For UTM import (see utm-vm-provision skill):
-cp ~/path/to/nix-config/result/*.qcow2 ~/path/to/utm-bundle/Data/nixbox.qcow2
+cp ~/path/to/nix-config/nixbox.qcow2 ~/path/to/utm-bundle/Data/nixbox.qcow2
 ```
 
 ## Other useful commands
