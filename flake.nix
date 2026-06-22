@@ -93,7 +93,7 @@
         nixpkgs.lib.nixosSystem {
           inherit system;
           specialArgs = {
-            inherit agenix raspberry-pi-nix username;
+            inherit username;
             secretsDir = "${self}/secrets";
           };
           modules = [
@@ -129,7 +129,6 @@
         system = "aarch64-darwin";
         specialArgs = {
           inherit
-            self
             home-manager
             agenix
             username
