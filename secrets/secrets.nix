@@ -17,4 +17,6 @@ in
   "litellm-proxy-api-base.age".publicKeys = userKeys;
   "litellm-proxy-api-key.age".publicKeys = userKeys;
   "gitlab-token.age".publicKeys = userKeys;
+  "nixbox-tunnel-creds.age".publicKeys = userKeys;
+  "nixrpi-tunnel-creds.age".publicKeys = userKeys;
 }
