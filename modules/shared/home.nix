@@ -40,18 +40,17 @@ in
   # EVERY machine regardless of project — NOT project toolchains.
   #
   # Project toolchains (aws-cdk, awscli, node, uv, make, psql, …) now live in
-  # each repo's own root `flake.nix` devShell, auto-loaded by direnv via the
-  # repo's `.envrc` (`use flake`) — the same flake works on these nix machines
-  # and inside that repo's devcontainer (the `nix:1` feature). So the earlier
-  # "mirror the takeoff devcontainer features here" set was REMOVED: a tool
-  # needed only inside a project belongs to that project's flake, not to the
-  # global home profile. (If a project CLI is ever wanted machine-wide outside
-  # any repo, add it back here as a deliberate personal choice.)
+  # each repo's own root `flake.nix` devShell, entered with `nix develop` — the
+  # same flake works on these nix machines and inside that repo's devcontainer
+  # (the `nix:1` feature). So the earlier "mirror the takeoff devcontainer
+  # features here" set was REMOVED: a tool needed only inside a project belongs
+  # to that project's flake, not to the global home profile. (If a project CLI
+  # is ever wanted machine-wide outside any repo, add it back here as a
+  # deliberate personal choice.)
   #
-  # gh / git-lfs / direnv stay out of this list on purpose — they come from
-  # their dedicated `programs.*` modules below (listing them here too would
-  # cause a buildEnv /bin collision). `direnv` in particular is now CENTRAL: it
-  # is the mechanism that loads every project's flake devShell.
+  # gh / git-lfs stay out of this list on purpose — they come from their
+  # dedicated `programs.*` modules below (listing them here too would cause a
+  # buildEnv /bin collision).
   #
   # `claude-code` is the one CLI kept here: it is genuinely personal and used in
   # every repo, not bound to any one project. Verified attr (nixpkgs unstable):
@@ -110,13 +109,6 @@ in
 
     # GitHub CLI (`gh`) — devcontainer github-cli feature.
     gh.enable = true;
-
-    # direnv + nix-direnv — the repo `.envrc` uses `use flake`, and the
-    # devcontainer ships direnv. nix-direnv caches the flake devShell.
-    direnv = {
-      enable = true;
-      nix-direnv.enable = true;
-    };
 
     # A login shell is required for `home-manager switch` to wire session vars.
     bash = {
