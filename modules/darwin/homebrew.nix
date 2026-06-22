@@ -9,8 +9,10 @@
 #     DUPLICATES on PATH and have been removed from this file:
 #       brews removed → aws-cdk (nix aws-cdk-cli), awscli (nix awscli2),
 #         make (nix gnumake), node — UNVERSIONED (nix nodejs), uv (nix uv),
-#         gh (programs.gh), direnv (programs.direnv),
-#         git-lfs (programs.git.lfs).
+#         gh (programs.gh), git-lfs (programs.git.lfs).
+#       direnv: brew removed and NOT re-added — direnv was dropped from this
+#         repo entirely (no longer in home-manager either); reintroduce
+#         deliberately if a future devShell workflow wants it.
 #       casks removed → claude-code (nix claude-code CLI in home.packages).
 #   - Version-pinned servers/runtimes are INTENTIONALLY RETAINED in Homebrew —
 #     they are NOT plain dupes of the nixpkgs tools:
@@ -82,9 +84,9 @@ _:
     ];
 
     # ---- Formulae (brews) -------------------------------------------------
-    # All `brew "..."` entries from the Brewfile EXCEPT those now provided by
-    # the shared Home Manager profile (aws-cdk, awscli, make, node, uv, gh,
-    # direnv, git-lfs — see header). Version-pinned servers/runtimes (node@22,
+    # All `brew "..."` entries from the Brewfile EXCEPT those removed per the
+    # header (aws-cdk, awscli, make, node, uv, gh, git-lfs; direnv dropped
+    # entirely). Version-pinned servers/runtimes (node@22,
     # postgresql@14/@17) are intentionally retained. Version-pinned and
     # tap-qualified names are preserved verbatim. Entries with special options
     # use the attrset form.

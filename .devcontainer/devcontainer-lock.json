@@ -19,11 +19,6 @@
       "version": "1.0.0",
       "resolved": "ghcr.io/esimkowitz/devcontainer-features/claude-code-persistence@sha256:a69dae5fa14a7d8bcdc6d05d515d17f1ad22ce6254ed1232b5f043b8c94bcc1c",
       "integrity": "sha256:a69dae5fa14a7d8bcdc6d05d515d17f1ad22ce6254ed1232b5f043b8c94bcc1c"
-    },
-    "ghcr.io/esimkowitz/devcontainer-features/direnv:1": {
-      "version": "1.0.1",
-      "resolved": "ghcr.io/esimkowitz/devcontainer-features/direnv@sha256:24d1ec5727f4d5867e4eac7a98e8b40596ecf6c8dd62de63aa4f438fcf63a5e3",
-      "integrity": "sha256:24d1ec5727f4d5867e4eac7a98e8b40596ecf6c8dd62de63aa4f438fcf63a5e3"
     }
   }
 }

@@ -14,6 +14,9 @@ memory/
 # Nix build artifacts
 result
 result-*
+# nix-direnv's cache dir — direnv itself was removed from this repo, but the
+# devcontainer (or any stray nix-direnv run) can still regenerate .direnv/.
+# Ignored as a generated artifact so `git add -A` never sweeps it into a commit.
 .direnv/
 
 # Disk / VM images — built locally, never committed

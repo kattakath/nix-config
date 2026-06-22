@@ -1,7 +1,7 @@
 # treefmt-nix configuration — the single source of truth for Nix formatting
 # and lint-fixing across the whole repo. Wired into `nix fmt` (the wrapper),
 # `nix flake check` (the formatting gate), the pre-commit hook, and the editor
-# via direnv + nixd. Change a tool HERE and every entrypoint follows.
+# via nixd. Change a tool HERE and every entrypoint follows.
 _:
 
 {
@@ -33,7 +33,6 @@ _:
       "flake.lock"
       "result"
       "result-*"
-      ".direnv/*"
       "*.md"
     ];
   };
