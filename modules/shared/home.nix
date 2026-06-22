@@ -6,7 +6,7 @@
 # macOS the raw env-var tokens live in the login Keychain, exported by the
 # host-local ~/.zprofile; login-style tokens use one-time CLI logins
 # (gh/hf/docker/claude). agenix now covers only system/cloudflared host secrets.
-# See secrets/README.md and docs/nixos-home-manager.md.
+# See secrets/README.
 {
   pkgs,
   lib,
