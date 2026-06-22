@@ -1,6 +1,6 @@
 # nix-darwin system module — macOS-specific system preferences.
 # This is "system logic" for the Mac; user logic stays in modules/shared.
-{ pkgs, ... }:
+{ pkgs, username, ... }:
 
 {
   # The platform this system configuration targets.
@@ -25,7 +25,7 @@
     # Required by current nix-darwin whenever any `system.defaults.*` is set:
     # names the user those user-scoped macOS defaults apply to. Matches the
     # user declared in hosts/m3pro.nix.
-    primaryUser = "izzy";
+    primaryUser = username;
 
     # ---- macOS defaults (declarative system preferences) -----------------------
     defaults = {
