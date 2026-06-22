@@ -24,8 +24,6 @@ result-*
 *.ova
 *.utm
 
-# Local build outputs (images, etc.) — accessible from Mac via workspace mount
-dist/
 
 # git-hooks.nix generates this from flake.nix on `nix develop` — never commit it
 .pre-commit-config.yaml
