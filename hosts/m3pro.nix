@@ -4,7 +4,6 @@
 # `darwin-rebuild switch --flake .#m3pro` provisions both.
 {
   home-manager,
-  agenix,
   username,
   ...
 }:
@@ -25,13 +24,9 @@
   home-manager = {
     useGlobalPkgs = true; # reuse the system nixpkgs (DRY, one eval)
     useUserPackages = true; # install user packages into /etc/profiles
-    extraSpecialArgs = {
-      secretsDir = ../secrets;
-    };
     users.${username} = {
       imports = [
         ../modules/shared/home.nix
-        agenix.homeManagerModules.default
       ];
       home.stateVersion = "24.05";
     };
