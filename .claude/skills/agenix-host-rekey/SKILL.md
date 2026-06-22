@@ -4,8 +4,8 @@ description: >
   Re-encrypt host-scoped agenix secrets to a NixOS host's SSH host key after first boot, so system
   services (e.g. services.cloudflared tunnel creds) can decrypt at activation. Use when asked to
   "rekey", "add a host key to secrets", "re-encrypt for the host", or to fix an agenix secret that
-  fails to decrypt on a NixOS host. Resolves the personal-key-only → host-key chicken-and-egg left
-  by nixos-flake-install.
+  fails to decrypt on a NixOS host. Resolves the personal-key-only → host-key chicken-and-egg that
+  occurs after any fresh host provisioning (qcow2 boot or ISO install).
 ---
 
 # agenix host-key rekey
