@@ -142,11 +142,6 @@
       # Built with `nixos-rebuild switch --flake .#<hostname>`.
       # SD card image for RPi: nix build .#nixosConfigurations.nixrpi.config.system.build.sdImage
       nixosConfigurations = {
-        "nixbox" = mkNixos {
-          system = "x86_64-linux";
-          hostname = "nixbox";
-        };
-
         "nixrpi" = mkNixos {
           system = "aarch64-linux";
           hostname = "nixrpi";
@@ -156,10 +151,10 @@
           ];
         };
 
-        # Generic aarch64 NixOS VM (UTM `virt` / UEFI) — not Pi hardware.
-        "nixvm-aarch64" = mkNixos {
+        # Generic NixOS VM (UTM `virt` / UEFI) — aarch64, not Pi hardware.
+        "nixvm" = mkNixos {
           system = "aarch64-linux";
-          hostname = "nixvm-aarch64";
+          hostname = "nixvm";
         };
       };
 
