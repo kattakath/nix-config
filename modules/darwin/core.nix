@@ -24,8 +24,8 @@
 
     # Required by current nix-darwin whenever any `system.defaults.*` is set:
     # names the user those user-scoped macOS defaults apply to. Matches the
-    # user declared in hosts/macbook.nix.
-    primaryUser = "user";
+    # user declared in hosts/m3pro.nix.
+    primaryUser = "izzy";
 
     # ---- macOS defaults (declarative system preferences) -----------------------
     defaults = {
