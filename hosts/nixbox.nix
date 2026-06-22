@@ -1,6 +1,6 @@
 # NixOS VM host — x86_64-linux.
 # Replace fileSystems + boot with `nixos-generate-config` output on the real machine.
-_: {
+{ config, secretsDir, ... }: {
   networking.hostName = "nixbox";
 
   boot.loader.systemd-boot.enable = true;
@@ -21,10 +21,14 @@ _: {
 
   swapDevices = [ ];
 
-  # Tunnel credentials wired via agenix — see secrets/nixbox-tunnel-creds.age
-  # age.secrets declaration added once secrets/nixbox-tunnel-creds.age exists
+  age.secrets.nixbox-tunnel-creds = {
+    file = /. + "${secretsDir}/nixbox-tunnel-creds.age";
+    mode = "0400";
+    owner = "root";
+  };
+
   services.cloudflared.tunnels."48199503-cdee-4f62-b233-0dfa3bac4b5a" = {
-    credentialsFile = "/run/agenix/nixbox-tunnel-creds";
+    credentialsFile = config.age.secrets.nixbox-tunnel-creds.path;
     ingress."nixbox.kattakath.com" = "ssh://localhost:22";
     default = "http_status:404";
   };
