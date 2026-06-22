@@ -94,7 +94,7 @@
           inherit system;
           specialArgs = {
             inherit agenix raspberry-pi-nix username;
-            secretsDir = ./secrets;
+            secretsDir = "${self}/secrets";
           };
           modules = [
             ./hosts/${hostname}.nix
@@ -107,7 +107,7 @@
                 useGlobalPkgs = true;
                 useUserPackages = true;
                 extraSpecialArgs = {
-                  secretsDir = ./secrets;
+                  secretsDir = "${self}/secrets";
                 };
                 users.${username} = {
                   imports = [
