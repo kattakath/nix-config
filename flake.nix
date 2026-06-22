@@ -171,9 +171,9 @@
       # Built with `nixos-rebuild switch --flake .#<hostname>`.
       # SD card image for RPi: nix build .#nixosConfigurations.raspberrypi.config.system.build.sdImage
       nixosConfigurations = {
-        "nixos-vm" = mkNixos {
+        "ubuntu-vm" = mkNixos {
           system = "x86_64-linux";
-          hostname = "nixos-vm";
+          hostname = "ubuntu-vm";
         };
 
         "raspberrypi" = mkNixos {
@@ -197,13 +197,6 @@
           ];
         };
 
-        "${username}@raspberrypi" = mkHome {
-          system = "aarch64-linux";
-          modules = [
-            ./modules/linux/nix-ld.nix
-            agenix.homeManagerModules.default
-          ];
-        };
       };
 
       # ---- Minimal runtime container image -----------------------------------
