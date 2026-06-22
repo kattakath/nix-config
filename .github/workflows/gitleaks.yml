@@ -1,0 +1,36 @@
+# gitleaks secret-scanning workflow
+#
+# Gitleaks scans the full git history (and any new commits / PR diffs) for
+# accidentally committed secrets: API keys, tokens, passwords, private keys,
+# and hundreds of other credential patterns. It catches mistakes before they
+# reach production or public forks.
+#
+# Runs on every push to main, every pull request, on a weekly schedule, and
+# on demand via workflow_dispatch. Full history is checked out (fetch-depth: 0)
+# so gitleaks can audit all past commits, not just the latest one.
+
+name: gitleaks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly scan — Sunday 02:00 UTC
+    - cron: "0 2 * * 0"
+  workflow_dispatch:
+
+jobs:
+  gitleaks:
+    name: Scan for secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history required — gitleaks walks every commit
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
