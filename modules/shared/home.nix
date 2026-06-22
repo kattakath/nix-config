@@ -123,6 +123,6 @@ in
 
   age = lib.mkIf hasSecrets {
     identityPaths = [ "${config.home.homeDirectory}/.ssh/id_ed25519" ];
-    secrets = lib.mapAttrs (name: _: { file = /. + "${secretsDir}/${name}.age"; }) activeSecrets;
+    secrets = lib.mapAttrs (name: _: { file = "${secretsDir}/${name}.age"; }) activeSecrets;
   };
 }
