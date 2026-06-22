@@ -18,6 +18,17 @@
   config,
   ...
 }:
+let
+  # VS Code Marketplace mirror — provided by the nix-vscode-extensions overlay,
+  # which the darwin host (m3pro) adds to nixpkgs.overlays. Only referenced
+  # inside the `mkIf isDarwin` vscode block, so the Linux hosts (which don't
+  # apply the overlay) never touch it. CRUCIAL: reading the overlay attr off
+  # `pkgs` (rather than the flake input's `.extensions.<sys>` output) means the
+  # extensions are built against OUR nixpkgs and so respect the host's
+  # `nixpkgs.config.allowUnfree` — the input's `.extensions` output uses its own
+  # nixpkgs with default config and ignores our unfree allowance.
+  marketplace = pkgs.vscode-marketplace or null;
+in
 {
   imports = [ ../linux/nix-ld.nix ];
 
@@ -25,24 +36,38 @@
   # Essential on Linux (registers fonts with fontconfig); harmless no-op on macOS.
   fonts.fontconfig.enable = true;
 
-  # Deliberately minimal. CLI tools are NOT managed here — they stay in Homebrew
-  # on macOS (see modules/darwin/homebrew.nix); the shared profile carries only
-  # cross-host *fonts* plus the program modules below (git/ssh/bash).
+  # CLIs + fonts shared across EVERY host. The CLI set mirrors the
+  # takeoff-api-infra devcontainer features so the same toolchain travels
+  # macOS → NixOS → container (the devcontainer is the spec). gh / git-lfs /
+  # direnv are intentionally absent here — they come from their dedicated
+  # `programs.*` modules below (listing them in home.packages too would cause a
+  # buildEnv /bin collision). docker-outside-of-docker is skipped: Docker
+  # Desktop already provides it on the Mac host.
   #
-  # Fonts: promoted from Homebrew font casks (2026-06-22) so the same Nerd Fonts
-  # + Roboto family exist on EVERY host, including NixOS and devcontainers — not
-  # just macOS. The cask equivalents were removed from modules/darwin/homebrew.nix.
-  # nixpkgs unstable uses the per-font `nerd-fonts.<name>` attrs (the 24.05+
-  # restructure; lowercase-hyphenated names) — NOT the old
-  # `(nerdfonts.override { fonts = ...; })`. `roboto` is the full Roboto family
-  # and covers both font-roboto AND font-roboto-condensed.
+  # Verified attrs (nixpkgs unstable, by-name): `claude-code`, `aws-cdk-cli`
+  # (the CDK toolkit — NOT `aws-cdk`; mainProgram `cdk`), `awscli2` (NOT
+  # `awscli`). `psql` ships in `postgresql`. Some of these also exist as
+  # Homebrew brews on macOS; no collision since brew installs to /opt/homebrew
+  # (see modules/darwin/homebrew.nix — left untouched, reconciled later).
+  #
+  # Fonts: only the two actually wired to a setting are kept (cross-host: macOS
+  # + NixOS + devcontainers). nixpkgs unstable uses the per-font
+  # `nerd-fonts.<name>` attrs (the 24.05+ restructure; lowercase-hyphenated
+  # names) — NOT the old `(nerdfonts.override { fonts = ...; })`. The other
+  # Homebrew font casks (fira-code, hack, ubuntu, roboto) were dropped as unused
+  # — add one back here if you select it in an app's font picker.
   home.packages = with pkgs; [
-    # fonts
-    nerd-fonts.fira-code
-    nerd-fonts.hack
-    nerd-fonts.ubuntu
-    nerd-fonts.ubuntu-mono # "UbuntuMono Nerd Font" for the devcontainer terminal
-    roboto # Roboto family incl. Condensed
+    # CLIs (mirror devcontainer features)
+    aws-cdk-cli # `cdk` — AWS CDK toolkit
+    awscli2 # `aws`
+    claude-code
+    gnumake # `make`
+    nodejs
+    postgresql # provides `psql` client
+    uv
+    # fonts (each is referenced by a VS Code font setting below)
+    nerd-fonts.jetbrains-mono # "JetBrainsMono Nerd Font" — VS Code editor font (pairs with the JetBrains theme)
+    nerd-fonts.ubuntu-mono # "UbuntuMono Nerd Font" — VS Code terminal font (matches the devcontainer)
   ];
 
   # ---- Home Manager program modules --------------------------------------------
@@ -52,6 +77,7 @@
 
     git = {
       enable = true;
+      lfs.enable = true; # git-lfs, wired into git config (devcontainer feature)
       settings = {
         user.name = lib.mkDefault "Ismail Kattakath";
         user.email = lib.mkDefault "ismail@kattakath.com";
@@ -81,9 +107,169 @@
       };
     };
 
+    # GitHub CLI (`gh`) — devcontainer github-cli feature.
+    gh.enable = true;
+
+    # direnv + nix-direnv — the repo `.envrc` uses `use flake`, and the
+    # devcontainer ships direnv. nix-direnv caches the flake devShell.
+    direnv = {
+      enable = true;
+      nix-direnv.enable = true;
+    };
+
     # A login shell is required for `home-manager switch` to wire session vars.
     bash = {
       enable = true;
+    };
+
+    # zsh as the interactive shell — matches the devcontainer default
+    # (common-utils configureZshAsDefaultShell). Kept lean: no oh-my-zsh /
+    # framework, default prompt. bash stays enabled above for login-shell
+    # compatibility.
+    zsh = {
+      enable = true;
+      enableCompletion = true;
+      autosuggestion.enable = true;
+      syntaxHighlighting.enable = true;
+    };
+
+    # ---- VS Code (macOS only) --------------------------------------------------
+    # GUI app; the shared profile also loads on headless NixOS hosts, so the
+    # whole block is gated to darwin (like the ssh block above). Replicates the
+    # devcontainer's editor: extensions via the nix-vscode-extensions Marketplace
+    # mirror, plus the PORTABLE settings (container/workspace-specific paths are
+    # omitted — see notes below).
+    vscode = lib.mkIf pkgs.stdenv.isDarwin {
+      enable = true;
+      # Allow hand-installed / Settings-Sync extensions alongside the declared
+      # ones — lower-maintenance than a fully locked extensions dir.
+      mutableExtensionsDir = true;
+
+      profiles.default = {
+        # PERSONAL extensions only — the standing toolkit wanted in every repo,
+        # resolved from the Marketplace mirror (covers MS-proprietary + the
+        # JetBrains theme). Publisher/name are lowercased in Nix per
+        # nix-vscode-extensions' convention.
+        #
+        # Project/stack-specific extensions are intentionally NOT here — they
+        # belong to each project's devcontainer / .vscode extensions list, so
+        # they install only where that stack is used (matches the settings
+        # split). The takeoff-api-infra devcontainer, e.g., provides:
+        #   charliermarsh.ruff, ms-python.mypy-type-checker,
+        #   amazonwebservices.aws-toolkit-vscode, stripe.vscode-stripe,
+        #   ric-v.postgres-explorer, lfm.vscode-makefile-term,
+        #   github.vscode-github-actions, bruno-api-client.bruno
+        extensions = with marketplace; [
+          anthropic.claude-code # AI coding — every repo
+          github.vscode-pull-request-github # PR review — every repo
+          ms-azuretools.vscode-docker # Docker — general
+          ms-azuretools.vscode-containers # containers/devcontainers — general
+          shd101wyy.markdown-preview-enhanced # markdown — everywhere
+          fuadpashayev.bottom-terminal # terminal-in-panel UI preference
+          qvist.jetbrains-new-ui-dark-theme # the theme set in userSettings
+        ];
+
+        # Portable subset of the devcontainer settings block. OMITTED as
+        # workspace/container-specific (would be wrong on the Mac):
+        #   python.defaultInterpreterPath, ruff.interpreter, mypy-type-checker.path
+        #     — all hardcode /workspaces/.../.venv/...; belong in per-project .vscode
+        #   terminal.integrated.defaultProfile.linux + .profiles.linux
+        #     — container paths (/usr/bin/zsh, /usr/local/.../claude, /usr/bin/psql)
+        userSettings = {
+          # -- Theme --
+          "workbench.activityBar.iconSize" = "comp";
+          "workbench.colorTheme" = "JetBrains New UI Dark Theme";
+          "workbench.activityBar.compact" = true;
+          "workbench.editor.splitOnDragAndDrop" = false;
+          "workbench.settings.alwaysShowAdvancedSettings" = true;
+          "window.density.editorTabHeight" = "compact";
+          "chat.agent.enabled" = false;
+          # -- Terminal: Ubuntu 24 palette --
+          "workbench.colorCustomizations" = {
+            "terminal.background" = "#300A24";
+            "terminal.foreground" = "#FFFFFF";
+            "terminal.ansiBlack" = "#2E3436";
+            "terminal.ansiRed" = "#CC0000";
+            "terminal.ansiGreen" = "#4E9A06";
+            "terminal.ansiYellow" = "#C4A000";
+            "terminal.ansiBlue" = "#3465A4";
+            "terminal.ansiMagenta" = "#75507B";
+            "terminal.ansiCyan" = "#06989A";
+            "terminal.ansiWhite" = "#D3D7CF";
+            "terminal.ansiBrightBlack" = "#555753";
+            "terminal.ansiBrightRed" = "#EF2929";
+            "terminal.ansiBrightGreen" = "#8AE234";
+            "terminal.ansiBrightYellow" = "#FCE94F";
+            "terminal.ansiBrightBlue" = "#729FCF";
+            "terminal.ansiBrightMagenta" = "#AD7FA8";
+            "terminal.ansiBrightCyan" = "#34E2E2";
+            "terminal.ansiBrightWhite" = "#EEEEEC";
+            "statusBarItem.remoteForeground" = "#0c0a14";
+            "statusBarItem.remoteBackground" = "#3e3657";
+            "statusBarItem.remoteHoverBackground" = "#a98cf0";
+          };
+          "terminal.integrated.fontFamily" = "'UbuntuMono Nerd Font', 'Ubuntu Mono', monospace";
+          "terminal.integrated.fontSize" = 16;
+          "terminal.integrated.copyOnSelection" = true;
+          "terminal.integrated.drawBoldTextInBrightColors" = true;
+          "terminal.integrated.tabs.defaultColor" = "terminal.ansiMagenta";
+          "terminal.integrated.tabs.defaultIcon" = "terminal-ubuntu";
+          "terminal.integrated.persistentSessionReviveProcess" = "onExitAndWindowClose";
+          # -- Editor --
+          # JetBrainsMono Nerd Font (pkgs.nerd-fonts.jetbrains-mono) — pairs with
+          # the JetBrains New UI Dark theme; ligatures on. Terminal stays UbuntuMono.
+          "editor.fontFamily" = "'JetBrainsMono Nerd Font', 'JetBrains Mono', monospace";
+          "editor.fontLigatures" = true;
+          "editor.formatOnSave" = true;
+          # Visual guides + organize-imports-on-save: personal editing habits,
+          # wanted in every repo (the 88/120 columns mirror common conventions
+          # but only draw guide lines — they enforce nothing).
+          "editor.rulers" = [
+            88
+            120
+          ];
+          "editor.codeActionsOnSave" = {
+            "source.organizeImports" = "explicit";
+          };
+          # NOTE: genuinely project-specific settings (python.*/[python]/mypy,
+          # files.associations, git.defaultBranchName, and the files/search
+          # exclude blocks for build artifacts) intentionally live in each
+          # project's devcontainer / .vscode — NOT in this global personal
+          # profile, where they would wrongly apply to every repo.
+          # -- Claude Code (global prefs) --
+          "claudeCode.allowDangerouslySkipPermissions" = true;
+          "claudeCode.initialPermissionMode" = "bypassPermissions";
+          # -- Git --
+          "git.addAICoAuthor" = "off";
+          "git.autofetch" = "all";
+          "git.autoStash" = true;
+          "git.enableCommitSigning" = true; # personal — uses your ~/.ssh signing key
+          "git.branchProtectionPrompt" = "alwaysPrompt";
+          "git.closeDiffOnOperation" = true;
+          "git.detectWorktrees" = true;
+          "git.fetchOnPull" = true;
+          "git.mergeEditor" = true;
+          "git.openAfterClone" = "always";
+          "git.openRepositoryInParentFolders" = "always";
+          "git.pullBeforeCheckout" = true;
+          "git.rebaseWhenSync" = true;
+          # -- GitHub (personal PR-review UI; merge POLICY like squash /
+          # delete-branch is project-owned → lives in each repo's .vscode) --
+          "github-actions.workflows.pinned.refresh.enabled" = true;
+          "github-actions.workflows.pinned.refresh.interval" = 30;
+          "githubPullRequests.defaultDeletionMethod.selectWorktree" = true;
+          "githubPullRequests.fileListLayout" = "flat";
+          "githubPullRequests.notifications" = "pullRequests";
+          # -- Merge Conflict --
+          "merge-conflict.autoNavigateNextConflict.enabled" = true;
+          "merge-conflict.diffViewPosition" = "Beside";
+          # -- Markdown preview (personal rendering pref; ext is in the set above) --
+          "markdown-preview-enhanced.previewMode" = "Previews Only";
+          "markdown-preview-enhanced.previewColorScheme" = "editorColorScheme";
+          # -- Editor suggest UI (personal taste) --
+          "editor.suggest.showStatusBar" = true;
+        };
+      };
     };
   };
 }

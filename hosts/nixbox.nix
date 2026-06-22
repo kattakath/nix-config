@@ -12,6 +12,9 @@
 {
   networking.hostName = "nixbox";
 
+  # Allow unfree packages (e.g. `claude-code` in the shared HM profile).
+  nixpkgs.config.allowUnfree = true;
+
   # DHCP on all interfaces (UTM vmnet-shared hands out a routable IP).
   networking.useDHCP = true;
 
