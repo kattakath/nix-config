@@ -27,7 +27,7 @@ nix build .#nixbox-image                  # Build UTM-importable nixbox qcow2 �
 - `treefmt.nix` — single source of truth for formatting + lint-fix (nixfmt + statix + deadnix). Drives `nix fmt`, the `checks.formatting` CI gate, and the pre-commit hook — change a tool here and every entrypoint follows.
 - `.envrc` — direnv `use flake`; auto-loads the devShell (nixd, treefmt, hooks) in shell + editor. Run `direnv allow` once.
 - `hosts/` — per-host entry profiles (`m3pro.nix`, `nixbox.nix`, `nixrpi.nix`); composed by the flake's `darwinConfigurations`/`nixosConfigurations`.
-- `modules/` — reusable modules split by platform: `modules/darwin/core.nix`, `modules/linux/nix-ld.nix`, `modules/shared/home.nix`. Platform branching lives HERE behind `lib.mkIf`, not duplicated across hosts.
+- `modules/` — reusable modules split by platform: `modules/darwin/core.nix`, `modules/linux/nix-ld.nix`, `modules/shared/home.nix`, `modules/nixos/core.nix`, `modules/nixos/cloudflared.nix` (the `services.hostTunnel` module). Platform branching lives HERE behind `lib.mkIf`, not duplicated across hosts.
 - `packages/docker-image.nix` — minimal runtime container image (`dockerTools`, baseless).
 - `.claude/agents/platform-compiler.md` — subagent that validates evaluation across all three architectures.
 - `.claude/commands/` — `/eval`, `/update-input`, `/superhook-review` (triage the hook-supervisor log), `/remember-nix` (capture into project memory).
