@@ -151,10 +151,10 @@
           ];
         };
 
-        # Generic NixOS VM (UTM `virt` / UEFI) — aarch64, not Pi hardware.
-        "nixvm" = mkNixos {
+        # Generic NixOS VM (UTM `virt` / UEFI) — aarch64 (Apple Silicon UTM native).
+        "nixbox" = mkNixos {
           system = "aarch64-linux";
-          hostname = "nixvm";
+          hostname = "nixbox";
         };
       };
 

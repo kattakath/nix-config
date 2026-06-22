@@ -2,10 +2,10 @@
 # Architecture is chosen in flake.nix (`mkNixos { system = … }`), so this file
 # is arch-agnostic and backs the aarch64 UTM VM today. Distinct from `nixrpi`,
 # which targets real Raspberry Pi 4 hardware via raspberry-pi-nix (SD image).
-# Install with: nixos-install --flake .#nixvm
+# Install with: nixos-install --flake .#nixbox
 { config, secretsDir, ... }:
 {
-  networking.hostName = "nixvm";
+  networking.hostName = "nixbox";
 
   # DHCP on all interfaces (UTM vmnet-shared hands out a routable IP).
   networking.useDHCP = true;
