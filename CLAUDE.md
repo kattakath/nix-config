@@ -17,12 +17,13 @@ nixos-rebuild switch --flake .#nixbox         # Activate the NixOS VM config (aa
 nixos-rebuild switch --flake .#nixrpi         # Activate the Raspberry Pi config
 darwin-rebuild switch --flake .#m3pro         # Activate the macOS (nix-darwin) config
 nix eval .#nixosConfigurations.nixbox.config.system.build.toplevel   # Evaluate a SINGLE config (fast single-target check)
-nix build .#nixbox-image                  # Build UTM-importable nixbox qcow2 → ./result/
+nix build .#nixbox-image                  # Build UTM-importable nixbox qcow2 → ./result/ (requires aarch64-linux builder)
+nix run .#nixbox-vm                       # Boot nixbox in QEMU + HVF on macOS — no UTM needed (set NIXBOX_DISK= or copy qcow2 first)
 ```
 
 ## Architecture
 
-- `flake.nix` — entry point: pins `nixpkgs` + `home-manager` + `nix-darwin` + `raspberry-pi-nix` + `agenix` + `treefmt-nix` + `git-hooks` inputs; exports `darwinConfigurations."m3pro"` (aarch64-darwin), `nixosConfigurations."nixbox"` (aarch64-linux) and `"nixrpi"` (aarch64-linux), plus `packages`/`devShells`/`checks`/`formatter` per system via a `forAllSystems` helper. Username is `izzy`, defined once as a `let` binding.
+- `flake.nix` — entry point: pins `nixpkgs` + `home-manager` + `nix-darwin` + `raspberry-pi-nix` + `agenix` + `treefmt-nix` + `git-hooks` inputs; exports `darwinConfigurations."m3pro"` (aarch64-darwin), `nixosConfigurations."nixbox"` (aarch64-linux) and `"nixrpi"` (aarch64-linux), `apps.aarch64-darwin.nixbox-vm` (QEMU+HVF launcher, no UTM needed), plus `packages`/`devShells`/`checks`/`formatter` per system via a `forAllSystems` helper. Username is `izzy`, defined once as a `let` binding.
 - `flake.lock` — pinned input revisions; commit every change, never hand-edit.
 - `treefmt.nix` — single source of truth for formatting + lint-fix (nixfmt + statix + deadnix). Drives `nix fmt`, the `checks.formatting` CI gate, and the pre-commit hook — change a tool here and every entrypoint follows.
 - `.envrc` — direnv `use flake`; auto-loads the devShell (nixd, treefmt, hooks) in shell + editor. Run `direnv allow` once.
