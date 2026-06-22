@@ -1,5 +1,5 @@
 {
-  description = "All-in standalone Nix + Home Manager dev environment: macOS (Apple Silicon), Ubuntu VM (x86_64), Raspberry Pi (aarch64), and Devcontainers — no NixOS, no host Nix required for containers.";
+  description = "All-in-one Nix mono-repo: NixOS VMs + Raspberry Pi 4, macOS (nix-darwin), Home Manager for Linux/macOS/containers, and minimal Docker images — single source of truth across all hosts.";
 
   inputs = {
     # Unstable channel as the single source of truth for every platform.
@@ -25,6 +25,10 @@
 
     agenix.url = "github:ryantm/agenix";
     agenix.inputs.nixpkgs.follows = "nixpkgs";
+
+    # Raspberry Pi 4 NixOS support: kernel, firmware, and SD-card image builder.
+    raspberry-pi-nix.url = "github:nix-community/raspberry-pi-nix";
+    raspberry-pi-nix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
@@ -36,6 +40,7 @@
       treefmt-nix,
       git-hooks,
       agenix,
+      raspberry-pi-nix,
       ...
     }:
     let
@@ -104,6 +109,45 @@
           ]
           ++ modules;
         };
+
+      # ---- NixOS system builder ---------------------------------------------------
+      # Produces a full NixOS system with Home Manager embedded. Home Manager user
+      # config is the same shared profile used by standalone and darwin hosts.
+      mkNixos =
+        {
+          system,
+          hostname,
+          extraModules ? [ ],
+        }:
+        nixpkgs.lib.nixosSystem {
+          inherit system;
+          specialArgs = {
+            inherit agenix raspberry-pi-nix;
+            secretsDir = ./secrets;
+          };
+          modules = [
+            ./hosts/${hostname}.nix
+            ./modules/nixos/core.nix
+            home-manager.nixosModules.home-manager
+            {
+              home-manager = {
+                useGlobalPkgs = true;
+                useUserPackages = true;
+                extraSpecialArgs = {
+                  secretsDir = ./secrets;
+                };
+                users.user = {
+                  imports = [
+                    ./modules/shared/home.nix
+                    agenix.homeManagerModules.default
+                  ];
+                  home.stateVersion = "24.05";
+                };
+              };
+            }
+          ]
+          ++ extraModules;
+        };
     in
     {
       # ---- macOS system configuration ----------------------------------------
@@ -112,6 +156,25 @@
         system = "aarch64-darwin";
         specialArgs = { inherit self home-manager agenix; };
         modules = [ ./hosts/macbook.nix ];
+      };
+
+      # ---- NixOS system configurations -------------------------------------------
+      # Built with `nixos-rebuild switch --flake .#<hostname>`.
+      # SD card image for RPi: nix build .#nixosConfigurations.raspberrypi.config.system.build.sdImage
+      nixosConfigurations = {
+        "nixos-vm" = mkNixos {
+          system = "x86_64-linux";
+          hostname = "nixos-vm";
+        };
+
+        "raspberrypi" = mkNixos {
+          system = "aarch64-linux";
+          hostname = "raspberrypi";
+          extraModules = [
+            raspberry-pi-nix.nixosModules.raspberry-pi
+            raspberry-pi-nix.nixosModules.sd-image
+          ];
+        };
       };
 
       # ---- Standalone Home Manager configurations ----------------------------
