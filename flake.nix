@@ -170,6 +170,40 @@
         }
       );
 
+      # ---- Runnable apps -------------------------------------------------------
+      # `nix run .#build-nixbox-image` — build a UTM-importable qcow2 and drop
+      # it in dist/ so the Mac host can import it directly.
+      apps = {
+        aarch64-linux.build-nixbox-image = {
+          type = "app";
+          program = "${
+            (pkgsFor "aarch64-linux").writeShellApplication {
+              name = "build-nixbox-image";
+              runtimeInputs = with (pkgsFor "aarch64-linux"); [
+                coreutils
+                nix
+                git
+              ];
+              text = ''
+                REPO_ROOT="$(git rev-parse --show-toplevel)"
+                cd "$REPO_ROOT"
+                git add -A
+                echo "→ building nixbox qcow2 image (takes ~20 min without cache)…"
+                nix build .#nixosConfigurations.nixbox.config.system.build.images.qemu-efi \
+                  --print-build-logs
+                SRC=$(ls result/nixos-image-*.qcow2 2>/dev/null | head -1)
+                VERSION=$(basename "$SRC" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[a-f0-9]+' | head -1 || date +%Y%m%d)
+                DEST="$REPO_ROOT/dist/nixbox-aarch64-''${VERSION}.qcow2"
+                mkdir -p "$REPO_ROOT/dist"
+                cp "$SRC" "$DEST"
+                echo "✓ dist/nixbox-aarch64-''${VERSION}.qcow2 ($(du -sh "$DEST" | cut -f1))"
+                echo "  → accessible on Mac at: $DEST"
+              '';
+            }
+          }/bin/build-nixbox-image";
+        };
+      };
+
       # ---- Multi-architecture dev shell --------------------------------------
       # `nix develop` on any target. Used as the default Devcontainer profile.
       # The shellHook installs the git pre-commit hook automatically. nixd is the

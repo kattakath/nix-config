@@ -17,13 +17,12 @@ nixos-rebuild switch --flake .#nixbox         # Activate the NixOS VM config (aa
 nixos-rebuild switch --flake .#nixrpi         # Activate the Raspberry Pi config
 darwin-rebuild switch --flake .#m3pro         # Activate the macOS (nix-darwin) config
 nix eval .#nixosConfigurations.nixbox.config.system.build.toplevel   # Evaluate a SINGLE config (fast single-target check)
-# Build a UTM-importable UEFI qcow2 (native nixpkgs, run on aarch64-linux):
-nixos-rebuild build-image --flake .#nixbox --image-variant qemu-efi   # → nixos-image-efi-qcow2-*.qcow2
+nix run .#build-nixbox-image          # Build UTM-importable nixbox qcow2 → dist/ (aarch64-linux)
 ```
 
 ## Architecture
 
-- `flake.nix` — entry point: pins `nixpkgs` + `home-manager` + `nix-darwin` + `raspberry-pi-nix` + `agenix` + `treefmt-nix` + `git-hooks` inputs; exports `darwinConfigurations."m3pro"` (aarch64-darwin), `nixosConfigurations."nixbox"` (aarch64-linux) and `"nixrpi"` (aarch64-linux), plus `packages`/`devShells`/`checks`/`formatter` per system via a `forAllSystems` helper. Username is `izzy`, defined once as a `let` binding.
+- `flake.nix` — entry point: pins `nixpkgs` + `home-manager` + `nix-darwin` + `raspberry-pi-nix` + `agenix` + `treefmt-nix` + `git-hooks` inputs; exports `darwinConfigurations."m3pro"` (aarch64-darwin), `nixosConfigurations."nixbox"` (aarch64-linux) and `"nixrpi"` (aarch64-linux), plus `packages`/`apps`/`devShells`/`checks`/`formatter` per system via a `forAllSystems` helper. Username is `izzy`, defined once as a `let` binding.
 - `flake.lock` — pinned input revisions; commit every change, never hand-edit.
 - `treefmt.nix` — single source of truth for formatting + lint-fix (nixfmt + statix + deadnix). Drives `nix fmt`, the `checks.formatting` CI gate, and the pre-commit hook — change a tool here and every entrypoint follows.
 - `.envrc` — direnv `use flake`; auto-loads the devShell (nixd, treefmt, hooks) in shell + editor. Run `direnv allow` once.
