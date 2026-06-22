@@ -3,7 +3,12 @@
 # is arch-agnostic and backs the aarch64 UTM VM today. Distinct from `nixrpi`,
 # which targets real Raspberry Pi 4 hardware via raspberry-pi-nix (SD image).
 # Install with: nixos-install --flake .#nixbox
-{ config, secretsDir, ... }:
+{
+  config,
+  lib,
+  secretsDir,
+  ...
+}:
 {
   networking.hostName = "nixbox";
 
@@ -26,7 +31,9 @@
     device = "/dev/disk/by-label/nixos";
     fsType = "ext4";
   };
-  fileSystems."/boot" = {
+  # lib.mkDefault lets the image builder (qemu-efi format) override the boot
+  # label (it uses "ESP"); the installed VM always uses "boot" at runtime.
+  fileSystems."/boot" = lib.mkDefault {
     device = "/dev/disk/by-label/boot";
     fsType = "vfat";
     options = [
