@@ -11,9 +11,9 @@
   ];
 
   # Define the human user nix-darwin manages.
-  users.users.user = {
-    name = "user";
-    home = "/Users/user";
+  users.users.izzy = {
+    name = "izzy";
+    home = "/Users/izzy";
   };
 
   # Home Manager, as a nix-darwin submodule.
@@ -23,7 +23,7 @@
     extraSpecialArgs = {
       secretsDir = ../secrets;
     };
-    users.user = {
+    users.izzy = {
       imports = [
         ../modules/shared/home.nix
         agenix.homeManagerModules.default
