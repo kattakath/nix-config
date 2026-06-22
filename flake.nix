@@ -158,51 +158,23 @@
         };
       };
 
-      # ---- Minimal runtime container image -----------------------------------
-      # `nix build .#packages.<system>.dockerImage` → loadable tarball.
-      packages = forAllSystems (
-        system:
-        let
-          pkgs = pkgsFor system;
-        in
-        {
-          dockerImage = pkgs.callPackage ./packages/docker-image.nix { };
-        }
-      );
-
-      # ---- Runnable apps -------------------------------------------------------
-      # `nix run .#build-nixbox-image` — build a UTM-importable qcow2 and drop
-      # it in dist/ so the Mac host can import it directly.
-      apps = {
-        aarch64-linux.build-nixbox-image = {
-          type = "app";
-          program = "${
-            (pkgsFor "aarch64-linux").writeShellApplication {
-              name = "build-nixbox-image";
-              runtimeInputs = with (pkgsFor "aarch64-linux"); [
-                coreutils
-                nix
-                git
-              ];
-              text = ''
-                REPO_ROOT="$(git rev-parse --show-toplevel)"
-                cd "$REPO_ROOT"
-                git add -A
-                echo "→ building nixbox qcow2 image (takes ~20 min without cache)…"
-                nix build .#nixosConfigurations.nixbox.config.system.build.images.qemu-efi \
-                  --print-build-logs
-                SRC=$(ls result/nixos-image-*.qcow2 2>/dev/null | head -1)
-                VERSION=$(basename "$SRC" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[a-f0-9]+' | head -1 || date +%Y%m%d)
-                DEST="$REPO_ROOT/dist/nixbox-aarch64-''${VERSION}.qcow2"
-                mkdir -p "$REPO_ROOT/dist"
-                cp "$SRC" "$DEST"
-                echo "✓ dist/nixbox-aarch64-''${VERSION}.qcow2 ($(du -sh "$DEST" | cut -f1))"
-                echo "  → accessible on Mac at: $DEST"
-              '';
+      # ---- Packages: container image + VM image --------------------------------
+      # `nix build .#packages.<system>.dockerImage`  → loadable tarball
+      # `nix build .#nixbox-image`                   → UTM-importable qcow2 → ./result/
+      packages =
+        nixpkgs.lib.recursiveUpdate
+          (forAllSystems (
+            system:
+            let
+              pkgs = pkgsFor system;
+            in
+            {
+              dockerImage = pkgs.callPackage ./packages/docker-image.nix { };
             }
-          }/bin/build-nixbox-image";
-        };
-      };
+          ))
+          {
+            aarch64-linux.nixbox-image = self.nixosConfigurations.nixbox.config.system.build.images.qemu-efi;
+          };
 
       # ---- Multi-architecture dev shell --------------------------------------
       # `nix develop` on any target. Used as the default Devcontainer profile.
