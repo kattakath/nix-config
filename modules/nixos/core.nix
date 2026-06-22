@@ -1,7 +1,7 @@
 # Shared NixOS system configuration applied to every NixOS host.
 # Platform-specific hardware lives in hosts/<hostname>.nix.
 # User environment lives in modules/shared/home.nix (via Home Manager).
-{ pkgs, ... }:
+{ pkgs, username, ... }:
 {
   nix.settings = {
     experimental-features = [
@@ -10,11 +10,11 @@
     ];
     trusted-users = [
       "root"
-      "izzy"
+      username
     ];
   };
 
-  users.users.izzy = {
+  users.users.${username} = {
     isNormalUser = true;
     extraGroups = [ "wheel" ];
     openssh.authorizedKeys.keys = [
