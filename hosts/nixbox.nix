@@ -50,7 +50,7 @@
   # key so agenix can decrypt it at activation:
   #   1. cat /etc/ssh/ssh_host_ed25519_key.pub
   #   2. Add it as a recipient in secrets/secrets.nix
-  #   3. cd secrets && agenix -e nixbox-tunnel-creds.age   (or: re-encrypt via age)
+  #   3. cd secrets && agenix -e nixbox-tunnel-creds.age
   #   4. Commit + nixos-rebuild switch
   age.secrets.tunnel-creds = {
     file = "${secretsDir}/nixbox-tunnel-creds.age";

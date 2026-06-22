@@ -2,11 +2,10 @@
 name: vm-provisioner
 description: >
   Use this agent to provision a NixOS host end-to-end from macOS — creating and configuring a
-  UTM VM, installing NixOS from this flake (nixbox / nixrpi), rekeying agenix secrets to the
-  new host key, and bringing up the Cloudflare Tunnel that fronts SSH to the host. Delegate when
-  the user asks to "spin up a VM", "install NixOS in UTM", "bring up
-  nixbox/nixrpi", "create an x86_64/ARM guest", or automate any part of the macOS→UTM→NixOS
-  pipeline. It owns the whole flow and knows the boundaries between host-side automation and
+  UTM VM, installing NixOS from this flake (nixbox), rekeying agenix secrets to the new host key,
+  and bringing up the Cloudflare Tunnel that fronts SSH to the host. Delegate when the user asks
+  to "spin up a VM", "install NixOS in UTM", "bring up nixbox", "create an x86_64/ARM guest", or
+  automate any part of the macOS→UTM→NixOS pipeline. It owns the whole flow and knows the boundaries between host-side automation and
   in-guest steps. It does NOT activate generations on existing hosts unless explicitly asked.
 model: inherit
 color: blue
