@@ -16,6 +16,12 @@ Installs `nixosConfigurations.nixbox` (aarch64-linux, UTM/QEMU `virt`) from
 an unstable system fine. (`nixrpi` is a Raspberry Pi 4 SD-image host — **not** installable into a
 generic UEFI VM; this skill is for `nixbox`.)
 
+> **Faster alternative — skip the ISO install entirely.** Build a prebuilt qcow2 with
+> `nixos-rebuild build-image --flake .#nixbox --image-variant qemu-efi` (on aarch64-linux) and
+> import it into UTM — no partitioning, no in-guest install, no OOM-RAM pitfall. See
+> **utm-vm-provision** › "Two ways to get a running NixOS VM". Use the ISO flow below only when
+> you can't build/import an image.
+
 ## ⚠ PREREQUISITE: ≥6 GB RAM + clean wipe (LOW RAM = SILENT CORRUPTION)
 
 A `nixos-install` on a **2 GB** VM gets OOM-killed mid-build; Nix then marks the **partial store

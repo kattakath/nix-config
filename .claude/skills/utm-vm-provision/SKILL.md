@@ -11,6 +11,26 @@ description: >
 
 # UTM VM Provisioning (macOS)
 
+## Two ways to get a running NixOS VM
+
+1. **Preferred — import a prebuilt qcow2** (no ISO, no in-guest install, no OOM-RAM risk).
+   Build the disk image from the flake on an **aarch64-linux** box (the VM itself, or CI — `nix`
+   is absent on the Mac), copy it to the Mac, and point a UTM VM at it:
+   ```bash
+   # on an aarch64-linux machine with the flake:
+   nixos-rebuild build-image --flake .#nixbox --image-variant qemu-efi
+   #   → result/nixos-image-efi-qcow2-*.qcow2  (UEFI qcow2, UTM-importable)
+   ```
+   Then create a UTM VM (GUI, aarch64/`virt`, UEFI) and replace its `Data/<UUID>.qcow2` with the
+   built image (UTM quit; keep the filename or update `Drive.<disk>.ImageName`). The image already
+   contains the full `nixbox` system — boot straight into it, no partitioning or `nixos-install`.
+2. **Install from ISO** — create a VM, boot the minimal ISO, partition + `nixos-install` over SSH.
+   Slower and has the ≥6 GB-RAM-or-corruption pitfall; use only if you can't build the image.
+   See **nixos-flake-install** for the full ISO flow.
+
+The rest of this skill covers creating/shaping the VM bundle (needed for both paths) and the
+recovery toolkit.
+
 ## Gotchas (read first)
 
 - **Create the VM in the UTM GUI** (or `import` a known-good `.utm`), then plutil-edit
