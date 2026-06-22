@@ -175,6 +175,81 @@
             aarch64-linux.nixbox-image = self.nixosConfigurations.nixbox.config.system.build.images.qemu-efi;
           };
 
+      # ---- Apps: native VM launcher (macOS only) -----------------------------
+      # `nix run .#nixbox-vm` — boots the nixbox qcow2 in QEMU with Apple HVF
+      # acceleration. No UTM required. User-mode networking with hostfwd 2222→22
+      # for direct SSH before the Cloudflare tunnel is active.
+      #
+      # Prerequisites:
+      #   1. Build qcow2 on an aarch64-linux builder: nix build .#nixbox-image
+      #   2. Copy to the default disk path (or set NIXBOX_DISK=/path/to/qcow2):
+      #        cp result/*.qcow2 ~/.local/state/nixbox-vm/nixbox.qcow2
+      apps.aarch64-darwin.nixbox-vm =
+        let
+          pkgs = pkgsFor "aarch64-darwin";
+          script = pkgs.writeShellScript "run-nixbox-vm" ''
+            set -euo pipefail
+
+            STATE="''${XDG_STATE_HOME:-$HOME/.local/state}/nixbox-vm"
+            DISK="''${NIXBOX_DISK:-$STATE/nixbox.qcow2}"
+            VARS="$STATE/OVMF_VARS.fd"
+
+            FIRMWARE_CODE="${pkgs.qemu}/share/qemu/edk2-aarch64-code.fd"
+            FIRMWARE_VARS="${pkgs.qemu}/share/qemu/edk2-aarch64-vars.fd"
+
+            if [ ! -f "$FIRMWARE_CODE" ]; then
+              echo "error: aarch64 UEFI firmware not found at $FIRMWARE_CODE" >&2
+              echo "hint: check that pkgs.qemu ships edk2-aarch64-code.fd on aarch64-darwin" >&2
+              exit 1
+            fi
+
+            if [ ! -f "$DISK" ]; then
+              echo "error: nixbox disk image not found: $DISK" >&2
+              echo "" >&2
+              echo "Build it (requires an aarch64-linux builder or remote builder):" >&2
+              echo "  nix build .#nixbox-image && cp result/*.qcow2 $DISK" >&2
+              echo "" >&2
+              echo "Or point to an existing qcow2:  NIXBOX_DISK=/path/to/nixbox.qcow2 nix run .#nixbox-vm" >&2
+              exit 1
+            fi
+
+            mkdir -p "$STATE"
+
+            # Copy UEFI vars on first run so boot-order changes persist across reboots.
+            if [ ! -f "$VARS" ] && [ -f "$FIRMWARE_VARS" ]; then
+              cp "$FIRMWARE_VARS" "$VARS"
+            fi
+
+            PFLASH_VARS=""
+            if [ -f "$VARS" ]; then
+              PFLASH_VARS="-drive if=pflash,format=raw,file=$VARS"
+            fi
+
+            echo "nixbox-vm: booting $DISK" >&2
+            echo "  SSH (direct):  ssh -p 2222 izzy@localhost" >&2
+            echo "  SSH (tunnel):  ssh izzy@nixbox.kattakath.com  (once tunnel is active)" >&2
+            echo "  QEMU monitor:  Ctrl-a c  (then 'quit' to exit)" >&2
+
+            exec ${pkgs.qemu}/bin/qemu-system-aarch64 \
+              -machine virt,accel=hvf \
+              -cpu host \
+              -m "''${NIXBOX_MEMORY:-2048}" \
+              -smp "''${NIXBOX_CPUS:-4}" \
+              -drive if=pflash,format=raw,file="$FIRMWARE_CODE",readonly=on \
+              $PFLASH_VARS \
+              -drive file="$DISK",format=qcow2,if=virtio \
+              -netdev user,id=net0,hostfwd=tcp::2222-:22 \
+              -device virtio-net-pci,netdev=net0 \
+              -serial mon:stdio \
+              -nographic
+          '';
+        in
+        {
+          type = "app";
+          program = "${script}";
+          meta.description = "Boot nixbox qcow2 in QEMU with Apple HVF — no UTM needed (aarch64-darwin only)";
+        };
+
       # ---- Multi-architecture dev shell --------------------------------------
       # `nix develop` on any target. Used as the default Devcontainer profile.
       # The shellHook installs the git pre-commit hook automatically. nixd is the
