@@ -21,5 +21,13 @@ _: {
 
   swapDevices = [ ];
 
+  # Tunnel credentials wired via agenix — see secrets/nixbox-tunnel-creds.age
+  # age.secrets declaration added once secrets/nixbox-tunnel-creds.age exists
+  services.cloudflared.tunnels."48199503-cdee-4f62-b233-0dfa3bac4b5a" = {
+    credentialsFile = "/run/agenix/nixbox-tunnel-creds";
+    ingress."nixbox.kattakath.com" = "ssh://localhost:22";
+    default = "http_status:404";
+  };
+
   system.stateVersion = "24.05";
 }
