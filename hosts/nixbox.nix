@@ -46,12 +46,17 @@
 
   # Cloudflare Tunnel — reuses the existing tunnel cred (UUID + DNS CNAME live
   # on Cloudflare as nixbox.kattakath.com; the secret keeps its nixbox-* name to
-  # avoid re-encryption). After first boot, re-encrypt the cred to this host's
-  # key so agenix can decrypt it at activation:
-  #   1. cat /etc/ssh/ssh_host_ed25519_key.pub
-  #   2. Add it as a recipient in secrets/secrets.nix
-  #   3. cd secrets && agenix -e nixbox-tunnel-creds.age
-  #   4. Commit + nixos-rebuild switch
+  # avoid re-encryption). agenix decrypts it at activation with the host key
+  # (age.identityPaths = /etc/ssh/ssh_host_ed25519_key in modules/nixos/core.nix).
+  #
+  # Two ways to make that key match the secret's recipient:
+  #   (a) post-boot rekey — boot, collect the new host key, re-encrypt, rebuild
+  #       (skill: agenix-host-rekey). Note: an in-VM `nixos-rebuild switch` is too
+  #       heavy for the TCG-emulated VM and can crash it; prefer (b) for VMs.
+  #   (b) PREBAKE (verified) — pin a host keypair offline, encrypt the cred to its
+  #       public half, and inject the private half into the image's /etc/ssh/
+  #       before first boot so the tunnel is up at boot with zero logins and no
+  #       in-VM rebuild (skill: nixbox-prebake-hostkey).
   age.secrets.tunnel-creds = {
     file = "${secretsDir}/nixbox-tunnel-creds.age";
     mode = "0400";
