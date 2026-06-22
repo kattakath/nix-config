@@ -14,13 +14,19 @@ description: >
 ## Two ways to get a running NixOS VM
 
 1. **Preferred — import a prebuilt qcow2** (no ISO, no in-guest install, no OOM-RAM risk).
-   Build the disk image from the flake on an **aarch64-linux** box (the VM itself, or CI — `nix`
-   is absent on the Mac), copy it to the Mac, and point a UTM VM at it:
+   Build the disk image from the flake on **any Nix-on-Linux box that targets aarch64-linux**,
+   copy it to the Mac, and point a UTM VM at it:
    ```bash
-   # on an aarch64-linux machine with the flake:
+   # on an aarch64-linux machine with nix+flakes:
    nixos-rebuild build-image --flake .#nixbox --image-variant qemu-efi
    #   → result/nixos-image-efi-qcow2-*.qcow2  (UEFI qcow2, UTM-importable)
    ```
+   **Full NixOS is NOT required — just Nix + flakes on Linux for the right arch.** This repo's
+   **devcontainer** qualifies (`nix:1` feature, `nix-command flakes`, Debian base): on an M3 Mac it
+   builds aarch64 natively. Also fine: the `nixbox` VM itself, or CI. Only a bare macOS host can't
+   (no nix, not Linux). Caveats: the builder spins up its own QEMU guest — without `/dev/kvm` it
+   uses slow TCG emulation, and (per the RAM lesson) give the container enough memory + a few GB of
+   scratch disk.
    Then create a UTM VM (GUI, aarch64/`virt`, UEFI) and replace its `Data/<UUID>.qcow2` with the
    built image (UTM quit; keep the filename or update `Drive.<disk>.ImageName`). The image already
    contains the full `nixbox` system — boot straight into it, no partitioning or `nixos-install`.
