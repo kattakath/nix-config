@@ -81,37 +81,6 @@
           };
         };
 
-      # ---- Home Manager builder (user logic, 100% reused) ---------------------
-      # One helper produces a standalone homeConfiguration for any (system, user,
-      # homeDirectory). Platform-specific modules are appended per call so the
-      # shared profile stays pure. This is the DRY seam: system logic lives in
-      # modules/{linux,darwin}, user logic lives in modules/shared.
-      mkHome =
-        {
-          system,
-          homeDirectory ? (
-            if nixpkgs.lib.hasSuffix "darwin" system then "/Users/${username}" else "/home/${username}"
-          ),
-          modules ? [ ],
-        }:
-        home-manager.lib.homeManagerConfiguration {
-          pkgs = pkgsFor system;
-          extraSpecialArgs = {
-            secretsDir = ./secrets;
-          };
-          modules = [
-            ./modules/shared/home.nix
-            {
-              home = {
-                inherit username homeDirectory;
-                # Keep in lockstep with nixpkgs; bump deliberately.
-                stateVersion = "24.05";
-              };
-            }
-          ]
-          ++ modules;
-        };
-
       # ---- NixOS system builder ---------------------------------------------------
       # Produces a full NixOS system with Home Manager embedded. Home Manager user
       # config is the same shared profile used by standalone and darwin hosts.
@@ -171,9 +140,9 @@
       # Built with `nixos-rebuild switch --flake .#<hostname>`.
       # SD card image for RPi: nix build .#nixosConfigurations.raspberrypi.config.system.build.sdImage
       nixosConfigurations = {
-        "ubuntu-vm" = mkNixos {
+        "vm" = mkNixos {
           system = "x86_64-linux";
-          hostname = "ubuntu-vm";
+          hostname = "vm";
         };
 
         "raspberrypi" = mkNixos {
@@ -184,19 +153,6 @@
             raspberry-pi-nix.nixosModules.sd-image
           ];
         };
-      };
-
-      # ---- Standalone Home Manager configurations ----------------------------
-      # Built with `home-manager switch --flake .#user@<host>`.
-      homeConfigurations = {
-        "${username}@ubuntu-vm" = mkHome {
-          system = "x86_64-linux";
-          modules = [
-            ./modules/linux/nix-ld.nix
-            agenix.homeManagerModules.default
-          ];
-        };
-
       };
 
       # ---- Minimal runtime container image -----------------------------------
