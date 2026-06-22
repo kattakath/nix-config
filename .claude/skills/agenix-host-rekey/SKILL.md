@@ -20,7 +20,7 @@ fails to activate on first boot. This skill adds the host key and re-encrypts.
 
 > **Names kept intentionally:** the secret file stays `nixbox-tunnel-creds.age` and the DNS host
 > stays `nixbox.kattakath.com` (renaming the `.age` would force a needless re-encryption). The
-> host that **owns** the tunnel is now `nixvm` (`hosts/nixvm.nix`), exposed as
+> host that **owns** the tunnel is now `nixbox` (`hosts/nixbox.nix`), exposed as
 > `age.secrets.tunnel-creds`.
 
 Background: agenix `.age` files are plain `age` files encrypted to the recipients in
@@ -45,11 +45,11 @@ still re-encrypt) **and** the host key (so the host can decrypt):
 ```nix
 let
   userKeys = [ "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAq9VAL…STGsS" ];
-  nixvm    = "ssh-ed25519 AAAA…<the host key you just copied>";
+  nixbox    = "ssh-ed25519 AAAA…<the host key you just copied>";
   nixrpi   = "ssh-ed25519 AAAA…<nixrpi host key>";
 in {
   # …existing entries unchanged…
-  "nixbox-tunnel-creds.age".publicKeys = userKeys ++ [ nixvm ];   # .age filename kept; host is nixvm
+  "nixbox-tunnel-creds.age".publicKeys = userKeys ++ [ nixbox ];   # .age filename kept; host is nixbox
   "nixrpi-tunnel-creds.age".publicKeys = userKeys ++ [ nixrpi ];
 }
 ```
@@ -99,7 +99,7 @@ run the eval gate (`/eval`) or rely on CI for the formatting/lint pass.
 ## Step 6 — Activate on the host
 
 ```bash
-ssh izzy@<host-ip> 'sudo nixos-rebuild switch --flake github:ismailkattakath/nix-config#nixvm'
+ssh izzy@<host-ip> 'sudo nixos-rebuild switch --flake github:ismailkattakath/nix-config#nixbox'
 ```
 
 `services.cloudflared` should now find a decryptable `credentialsFile` and the tunnel comes up.
