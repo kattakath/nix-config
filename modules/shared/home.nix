@@ -36,19 +36,26 @@ in
   # Essential on Linux (registers fonts with fontconfig); harmless no-op on macOS.
   fonts.fontconfig.enable = true;
 
-  # CLIs + fonts shared across EVERY host. The CLI set mirrors the
-  # takeoff-api-infra devcontainer features so the same toolchain travels
-  # macOS → NixOS → container (the devcontainer is the spec). gh / git-lfs /
-  # direnv are intentionally absent here — they come from their dedicated
-  # `programs.*` modules below (listing them in home.packages too would cause a
-  # buildEnv /bin collision). docker-outside-of-docker is skipped: Docker
-  # Desktop already provides it on the Mac host.
+  # PERSONAL, cross-host packages only. This profile holds tools wanted on
+  # EVERY machine regardless of project — NOT project toolchains.
   #
-  # Verified attrs (nixpkgs unstable, by-name): `claude-code`, `aws-cdk-cli`
-  # (the CDK toolkit — NOT `aws-cdk`; mainProgram `cdk`), `awscli2` (NOT
-  # `awscli`). `psql` ships in `postgresql`. Some of these also exist as
-  # Homebrew brews on macOS; no collision since brew installs to /opt/homebrew
-  # (see modules/darwin/homebrew.nix — left untouched, reconciled later).
+  # Project toolchains (aws-cdk, awscli, node, uv, make, psql, …) now live in
+  # each repo's own root `flake.nix` devShell, auto-loaded by direnv via the
+  # repo's `.envrc` (`use flake`) — the same flake works on these nix machines
+  # and inside that repo's devcontainer (the `nix:1` feature). So the earlier
+  # "mirror the takeoff devcontainer features here" set was REMOVED: a tool
+  # needed only inside a project belongs to that project's flake, not to the
+  # global home profile. (If a project CLI is ever wanted machine-wide outside
+  # any repo, add it back here as a deliberate personal choice.)
+  #
+  # gh / git-lfs / direnv stay out of this list on purpose — they come from
+  # their dedicated `programs.*` modules below (listing them here too would
+  # cause a buildEnv /bin collision). `direnv` in particular is now CENTRAL: it
+  # is the mechanism that loads every project's flake devShell.
+  #
+  # `claude-code` is the one CLI kept here: it is genuinely personal and used in
+  # every repo, not bound to any one project. Verified attr (nixpkgs unstable):
+  # `claude-code`.
   #
   # Fonts: only the two actually wired to a setting are kept (cross-host: macOS
   # + NixOS + devcontainers). nixpkgs unstable uses the per-font
@@ -57,14 +64,8 @@ in
   # Homebrew font casks (fira-code, hack, ubuntu, roboto) were dropped as unused
   # — add one back here if you select it in an app's font picker.
   home.packages = with pkgs; [
-    # CLIs (mirror devcontainer features)
-    aws-cdk-cli # `cdk` — AWS CDK toolkit
-    awscli2 # `aws`
+    # personal CLI — used in every repo, not project-bound
     claude-code
-    gnumake # `make`
-    nodejs
-    postgresql # provides `psql` client
-    uv
     # fonts (each is referenced by a VS Code font setting below)
     nerd-fonts.jetbrains-mono # "JetBrainsMono Nerd Font" — VS Code editor font (pairs with the JetBrains theme)
     nerd-fonts.ubuntu-mono # "UbuntuMono Nerd Font" — VS Code terminal font (matches the devcontainer)
