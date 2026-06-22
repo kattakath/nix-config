@@ -10,7 +10,6 @@
   "recommendations": [
     "ms-vscode-remote.remote-containers", // "Reopen in Container" — the intended entry point
     "jnoortheen.nix-ide", // Nix language support; drives the nixd LSP (in-container)
-    "mkhl.direnv", // loads the flake devShell into the editor (in-container)
     "gruntfuggly.triggertaskonsave",
     "fuadpashayev.bottom-terminal",
     "anthropic.claude-code",
