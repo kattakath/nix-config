@@ -44,13 +44,16 @@ let
 in
 
 {
+  imports = [ ../linux/nix-ld.nix ];
+
   # Baseline toolset present on all hosts. git / tmux / neovim / ripgrep are
   # NOT listed here — each is installed by its `programs.*` module below, and
   # listing it twice collides on /bin/<tool> in the Home Manager buildEnv.
+  # curl is omitted — covered by system packages on all hosts (nixos/core.nix,
+  # darwin/core.nix); including it here would add a redundant user-profile copy.
   home.packages = with pkgs; [
     fd
     jq
-    curl
   ];
 
   # ---- Home Manager program modules --------------------------------------------
@@ -93,11 +96,11 @@ in
       enable = true;
       matchBlocks = {
         "nixbox.kattakath.com" = {
-          user = "izzy";
+          user = config.home.username;
           identityFile = "~/.ssh/id_ed25519";
         };
         "nixrpi.kattakath.com" = {
-          user = "izzy";
+          user = config.home.username;
           identityFile = "~/.ssh/id_ed25519";
         };
       };
