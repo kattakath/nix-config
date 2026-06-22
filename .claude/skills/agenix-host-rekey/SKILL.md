@@ -18,6 +18,11 @@ activation a NixOS host decrypts system secrets with its **host** key. But secre
 `secrets/secrets.nix`. The host isn't a recipient yet, so the secret (and `services.cloudflared`)
 fails to activate on first boot. This skill adds the host key and re-encrypts.
 
+> **Names kept intentionally:** the secret file stays `nixbox-tunnel-creds.age` and the DNS host
+> stays `nixbox.kattakath.com` (renaming the `.age` would force a needless re-encryption). The
+> host that **owns** the tunnel is now `nixvm` (`hosts/nixvm.nix`), exposed as
+> `age.secrets.tunnel-creds`.
+
 Background: agenix `.age` files are plain `age` files encrypted to the recipients in
 `secrets/secrets.nix`; see the project memory finding on encrypting with plain `age` when nix is
 absent. The host's `ssh_host_ed25519_key.pub` is a normal age recipient.
@@ -40,11 +45,11 @@ still re-encrypt) **and** the host key (so the host can decrypt):
 ```nix
 let
   userKeys = [ "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAq9VAL…STGsS" ];
-  nixbox   = "ssh-ed25519 AAAA…<the host key you just copied>";
+  nixvm    = "ssh-ed25519 AAAA…<the host key you just copied>";
   nixrpi   = "ssh-ed25519 AAAA…<nixrpi host key>";
 in {
   # …existing entries unchanged…
-  "nixbox-tunnel-creds.age".publicKeys = userKeys ++ [ nixbox ];
+  "nixbox-tunnel-creds.age".publicKeys = userKeys ++ [ nixvm ];   # .age filename kept; host is nixvm
   "nixrpi-tunnel-creds.age".publicKeys = userKeys ++ [ nixrpi ];
 }
 ```
@@ -94,7 +99,7 @@ run the eval gate (`/eval`) or rely on CI for the formatting/lint pass.
 ## Step 6 — Activate on the host
 
 ```bash
-ssh izzy@<host-ip> 'sudo nixos-rebuild switch --flake github:ismailkattakath/nix-config#nixbox'
+ssh izzy@<host-ip> 'sudo nixos-rebuild switch --flake github:ismailkattakath/nix-config#nixvm'
 ```
 
 `services.cloudflared` should now find a decryptable `credentialsFile` and the tunnel comes up.
