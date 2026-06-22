@@ -61,8 +61,8 @@ in
     git = {
       enable = true;
       settings = {
-        user.name = lib.mkDefault "user";
-        user.email = lib.mkDefault "user@example.com";
+        user.name = lib.mkDefault "Ismail Kattakath";
+        user.email = lib.mkDefault "ismail@kattakath.com";
         init.defaultBranch = "main";
         pull.rebase = true;
       };
