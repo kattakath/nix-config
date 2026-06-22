@@ -138,16 +138,16 @@
 
       # ---- NixOS system configurations -------------------------------------------
       # Built with `nixos-rebuild switch --flake .#<hostname>`.
-      # SD card image for RPi: nix build .#nixosConfigurations.nixpi.config.system.build.sdImage
+      # SD card image for RPi: nix build .#nixosConfigurations.nixrpi.config.system.build.sdImage
       nixosConfigurations = {
         "nixbox" = mkNixos {
           system = "x86_64-linux";
           hostname = "nixbox";
         };
 
-        "nixpi" = mkNixos {
+        "nixrpi" = mkNixos {
           system = "aarch64-linux";
-          hostname = "nixpi";
+          hostname = "nixrpi";
           extraModules = [
             raspberry-pi-nix.nixosModules.raspberry-pi
             raspberry-pi-nix.nixosModules.sd-image
