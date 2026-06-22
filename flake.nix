@@ -106,13 +106,9 @@
               home-manager = {
                 useGlobalPkgs = true;
                 useUserPackages = true;
-                extraSpecialArgs = {
-                  secretsDir = "${self}/secrets";
-                };
                 users.${username} = {
                   imports = [
                     ./modules/shared/home.nix
-                    agenix.homeManagerModules.default
                   ];
                   home.stateVersion = "24.05";
                 };
@@ -130,7 +126,6 @@
         specialArgs = {
           inherit
             home-manager
-            agenix
             username
             ;
         };

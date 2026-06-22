@@ -8,33 +8,25 @@ let
   # lets agenix decrypt host-scoped secrets at first-boot activation with ZERO
   # logins and no in-VM rebuild. The private half lives only as ciphertext in
   # secrets/nixbox-hostkey.age (encrypted to userKeys); it is injected into the
-  # image's ext4 root post-build (see the nixbox prebake skill). NEVER commit the
-  # plaintext private key and NEVER add nixbox-hostkey.age to any host's
-  # age.secrets (it is build-time-only material).
+  # image's ext4 root post-build (see the nixbox-prebake-hostkey skill). NEVER
+  # commit the plaintext private key and NEVER add nixbox-hostkey.age to any
+  # host's age.secrets (it is build-time-only material).
   nixbox = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBr/13nhmuy8jClbBf+yPFaiy2j8VELUCVbNaG4fnlGG root@nixbox";
 in
 {
-  "github-token.age".publicKeys = userKeys;
-  "hf-token.age".publicKeys = userKeys;
-  "claude-code-oauth-token.age".publicKeys = userKeys;
-  "aws-bearer-token-bedrock.age".publicKeys = userKeys;
-  "dockerhub-username.age".publicKeys = userKeys;
-  "dockerhub-token.age".publicKeys = userKeys;
-  "cloudflare-api-token.age".publicKeys = userKeys;
-  "civitai-api-token.age".publicKeys = userKeys;
-  "runpod-api-key.age".publicKeys = userKeys;
-  "vast-api-key.age".publicKeys = userKeys;
-  "litellm-proxy-api-base.age".publicKeys = userKeys;
-  "litellm-proxy-api-key.age".publicKeys = userKeys;
-  "gitlab-token.age".publicKeys = userKeys;
+  # agenix manages ONLY system/cloudflared host-scoped secrets. Personal tokens
+  # are intentionally NOT here — they live in the macOS login Keychain (raw env
+  # vars, exported by host-local ~/.zprofile) or via one-time CLI logins
+  # (gh/hf/docker/claude). Dropped from agenix to avoid version-control churn on
+  # rotation. See secrets/README.md.
 
   # Build-time only: the pinned host PRIVATE key, encrypted to the personal key
   # so it can be decrypted and injected into the image. Do NOT wire this into
   # any host's age.secrets.
   "nixbox-hostkey.age".publicKeys = userKeys;
 
-  # Host-scoped: both the personal key (so we can re-encrypt) and the pinned host
-  # key (so nixbox can decrypt at activation for services.cloudflared).
+  # Host-scoped tunnel creds: personal key (so we can re-encrypt) + the host key
+  # (so the host decrypts at activation for services.cloudflared).
   "nixbox-tunnel-creds.age".publicKeys = userKeys ++ [ nixbox ];
   "nixrpi-tunnel-creds.age".publicKeys = userKeys;
 }

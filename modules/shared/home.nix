@@ -1,48 +1,18 @@
 # Unified user profile — loaded on EVERY machine (macOS, Ubuntu, Pi, container).
 # This is the single home of "user logic". Nothing platform-specific belongs here;
 # platform branches live in modules/linux and modules/darwin.
+# Personal tokens are intentionally NOT managed here. agenix was dropped for
+# user secrets (each rotation = a committed .age = version-control churn). On
+# macOS the raw env-var tokens live in the login Keychain, exported by the
+# host-local ~/.zprofile; login-style tokens use one-time CLI logins
+# (gh/hf/docker/claude). agenix now covers only system/cloudflared host secrets.
+# See secrets/README.md and docs/nixos-home-manager.md.
 {
   pkgs,
   lib,
   config,
-  secretsDir ? null,
   ...
 }:
-let
-  managedSecrets = {
-    "github-token" = "GH_TOKEN";
-    "hf-token" = "HF_TOKEN";
-    "claude-code-oauth-token" = "CLAUDE_CODE_OAUTH_TOKEN";
-    "aws-bearer-token-bedrock" = "AWS_BEARER_TOKEN_BEDROCK";
-    "dockerhub-username" = "DOCKERHUB_USERNAME";
-    "dockerhub-token" = "DOCKERHUB_TOKEN";
-    "cloudflare-api-token" = "CLOUDFLARE_API_TOKEN";
-    "civitai-api-token" = "CIVITAI_API_TOKEN";
-    "runpod-api-key" = "RUNPOD_API_KEY";
-    "vast-api-key" = "VAST_API_KEY";
-    "litellm-proxy-api-base" = "LITELLM_PROXY_API_BASE";
-    "litellm-proxy-api-key" = "LITELLM_PROXY_API_KEY";
-    "gitlab-token" = "GITLAB_TOKEN";
-  };
-
-  secretAliases = {
-    "ANTHROPIC_BASE_URL" = "LITELLM_PROXY_API_BASE";
-    "OPENAI_BASE_URL" = "LITELLM_PROXY_API_BASE";
-    "ANTHROPIC_API_KEY" = "LITELLM_PROXY_API_KEY";
-    "OPENAI_API_KEY" = "LITELLM_PROXY_API_KEY";
-    "GITHUB_TOKEN" = "GH_TOKEN";
-    "GLAB_TOKEN" = "GITLAB_TOKEN";
-    "CF_API_TOKEN" = "CLOUDFLARE_API_TOKEN";
-    "HUGGING_FACE_HUB_TOKEN" = "HF_TOKEN";
-  };
-
-  activeSecrets = lib.filterAttrs (
-    name: _: secretsDir != null && builtins.pathExists "${secretsDir}/${name}.age"
-  ) managedSecrets;
-
-  hasSecrets = activeSecrets != { };
-in
-
 {
   imports = [ ../linux/nix-ld.nix ];
 
@@ -113,23 +83,6 @@ in
     # A login shell is required for `home-manager switch` to wire session vars.
     bash = {
       enable = true;
-      initExtra = lib.mkIf hasSecrets (
-        lib.concatStringsSep "\n" (
-          lib.mapAttrsToList (name: envVar: ''
-            if [ -f "${config.age.secrets.${name}.path}" ]; then
-              export ${envVar}=$(< "${config.age.secrets.${name}.path}")
-            fi
-          '') activeSecrets
-          ++ lib.mapAttrsToList (alias: source: ''
-            export ${alias}="''${${source}}"
-          '') secretAliases
-        )
-      );
     };
-  };
-
-  age = lib.mkIf hasSecrets {
-    identityPaths = [ "${config.home.homeDirectory}/.ssh/id_ed25519" ];
-    secrets = lib.mapAttrs (name: _: { file = "${secretsDir}/${name}.age"; }) activeSecrets;
   };
 }
