@@ -86,7 +86,7 @@
       mkHome =
         {
           system,
-          username ? "user",
+          username ? "izzy",
           homeDirectory ? (
             if nixpkgs.lib.hasSuffix "darwin" system then "/Users/${username}" else "/home/${username}"
           ),
@@ -136,7 +136,7 @@
                 extraSpecialArgs = {
                   secretsDir = ./secrets;
                 };
-                users.user = {
+                users.izzy = {
                   imports = [
                     ./modules/shared/home.nix
                     agenix.homeManagerModules.default
@@ -180,7 +180,7 @@
       # ---- Standalone Home Manager configurations ----------------------------
       # Built with `home-manager switch --flake .#user@<host>`.
       homeConfigurations = {
-        "user@ubuntu-vm" = mkHome {
+        "izzy@ubuntu-vm" = mkHome {
           system = "x86_64-linux";
           modules = [
             ./modules/linux/nix-ld.nix
@@ -188,7 +188,7 @@
           ];
         };
 
-        "user@raspberrypi" = mkHome {
+        "izzy@raspberrypi" = mkHome {
           system = "aarch64-linux";
           modules = [
             ./modules/linux/nix-ld.nix

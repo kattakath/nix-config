@@ -10,11 +10,11 @@
     ];
     trusted-users = [
       "root"
-      "user"
+      "izzy"
     ];
   };
 
-  users.users.user = {
+  users.users.izzy = {
     isNormalUser = true;
     extraGroups = [ "wheel" ];
     openssh.authorizedKeys.keys = [
