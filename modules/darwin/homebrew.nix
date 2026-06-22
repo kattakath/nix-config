@@ -4,15 +4,25 @@
 # nix-darwin's `homebrew` module, sourced from ~/Brewfile (regenerated 2026-06-22).
 #
 # Split of responsibilities:
-#   - ALL CLI formulae stay in Homebrew. An earlier pass migrated ~13 of them to
-#     the shared Home Manager profile, but that was reverted: the shared profile
-#     is kept deliberately minimal (the operator uses VSCode/Cursor and prefers a
-#     lean nix layer). The win here is making Homebrew DECLARATIVE, not replacing
-#     it with nixpkgs.
-#   - The ONLY thing promoted to nixpkgs is FONTS (cross-host: macOS + NixOS +
-#     devcontainers) — see modules/shared/home.nix. Their 6 cask equivalents were
-#     removed from the `casks` list below.
-#   - GUI apps (casks) and all CLI formulae are managed here.
+#   - nixpkgs is the SINGLE SOURCE for the tools now provided by the shared Home
+#     Manager profile (modules/shared/home.nix). Their Homebrew equivalents were
+#     DUPLICATES on PATH and have been removed from this file:
+#       brews removed → aws-cdk (nix aws-cdk-cli), awscli (nix awscli2),
+#         make (nix gnumake), node — UNVERSIONED (nix nodejs), uv (nix uv),
+#         gh (programs.gh), direnv (programs.direnv),
+#         git-lfs (programs.git.lfs).
+#       casks removed → claude-code (nix claude-code CLI in home.packages).
+#   - Version-pinned servers/runtimes are INTENTIONALLY RETAINED in Homebrew —
+#     they are NOT plain dupes of the nixpkgs tools:
+#       node@22                     — deliberate pinned Node version
+#                                     (nix provides only unversioned nodejs).
+#       postgresql@14, postgresql@17 — version-pinned DATABASE SERVERS with
+#                                     data dirs/services; the nix `postgresql`
+#                                     is only the psql client.
+#   - FONTS were promoted to nixpkgs (cross-host: macOS + NixOS + devcontainers)
+#     — see modules/shared/home.nix. Their 6 cask equivalents were removed from
+#     the `casks` list below.
+#   - All remaining GUI apps (casks) and CLI formulae are managed here.
 #
 # Hard nixpkgs-misses intentionally kept as brews:
 #   - cline       → brew formula, stays in homebrew.brews
@@ -72,13 +82,13 @@ _:
     ];
 
     # ---- Formulae (brews) -------------------------------------------------
-    # All `brew "..."` entries from the Brewfile EXCEPT the 17 migrated to
-    # nixpkgs/home-manager (listed in the header). Version-pinned and
+    # All `brew "..."` entries from the Brewfile EXCEPT those now provided by
+    # the shared Home Manager profile (aws-cdk, awscli, make, node, uv, gh,
+    # direnv, git-lfs — see header). Version-pinned servers/runtimes (node@22,
+    # postgresql@14/@17) are intentionally retained. Version-pinned and
     # tap-qualified names are preserved verbatim. Entries with special options
     # use the attrset form.
     brews = [
-      # Returned to Homebrew after reverting the nixpkgs CLI migration (the
-      # shared HM profile is kept minimal). These were in the original Brewfile.
       "age"
       "chezmoi"
       "duf"
@@ -86,18 +96,14 @@ _:
       "kubernetes-cli"
       "ncdu"
       "nmap"
-      "node"
       "shellcheck"
       "tree"
-      "uv"
       "wget"
       "yq"
 
       "act"
       "zstd"
-      "aws-cdk"
       "aws-vault"
-      "awscli"
       "gettext"
       "bfg"
       "bruno-cli"
@@ -112,7 +118,6 @@ _:
       "openjdk@21"
       "cypher-shell" # nixpkgs miss — kept as brew
       "devcontainer"
-      "direnv"
       "docker"
       "docker-buildx"
       "docker-compose"
@@ -123,10 +128,8 @@ _:
       "flyctl"
       "fswatch"
       "gemini-cli"
-      "gh"
       "git"
       "git-filter-repo"
-      "git-lfs"
       "git-xet"
       "glab"
       "go-task"
@@ -140,7 +143,6 @@ _:
       "imagemagick"
       "img2pdf"
       "jupyterlab"
-      "make"
       "midnight-commander"
       "nats-server"
       # `brew "neo4j", restart_service: :changed` → restart only when the
@@ -190,15 +192,19 @@ _:
       "nats-io/nats-tools/nats" # TODO: special opt `trusted: true` not representable on a brew entry
     ];
 
-    # ---- Casks (53) -------------------------------------------------------
-    # All `cask "..."` entries from the Brewfile. Version-pinned names
+    # ---- Casks (52) -------------------------------------------------------
+    # All `cask "..."` entries from the Brewfile EXCEPT claude-code (now the
+    # nixpkgs claude-code CLI in home.packages). The "claude" cask below is the
+    # separate Claude DESKTOP app and is intentionally retained. Version-pinned names
     # (figma@beta, visual-studio-code@insiders) and tap-qualified names
     # (viarotel-org/escrcpy/escrcpy, dail8859/notepadnext/notepadnext) are
     # preserved verbatim as full strings.
-    # The 6 font casks (font-fira-code-nerd-font, font-hack-nerd-font,
+    # All 6 font casks (font-fira-code-nerd-font, font-hack-nerd-font,
     # font-roboto, font-roboto-condensed, font-ubuntu-mono-nerd-font,
-    # font-ubuntu-nerd-font) moved to nixpkgs (see modules/shared/home.nix) so
-    # the same fonts exist on every host, not just macOS.
+    # font-ubuntu-nerd-font) were removed. Of these, only the two actually used
+    # are kept — now via nixpkgs, cross-host (see modules/shared/home.nix):
+    # nerd-fonts.ubuntu-mono (terminal) + nerd-fonts.jetbrains-mono (editor).
+    # The rest were dropped as unused.
     casks = [
       "android-commandlinetools"
       "android-platform-tools"
@@ -211,7 +217,6 @@ _:
       "capcut"
       "chatgpt"
       "claude"
-      "claude-code"
       "cursor"
       "devpod"
       "docker-desktop"
