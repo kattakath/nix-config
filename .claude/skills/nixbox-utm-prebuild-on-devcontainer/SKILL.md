@@ -1,5 +1,5 @@
 ---
-name: devcontainer-build
+name: nixbox-utm-prebuild-on-devcontainer
 description: >
   Build the nixbox qcow2 image from macOS using the repo's devcontainer CLI — no separate Linux
   machine or CI runner needed. Use when asked to "build nixbox image from Mac", "use devcontainer
