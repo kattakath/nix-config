@@ -33,6 +33,18 @@
   networking.firewall = {
     enable = true;
     allowedTCPPorts = [ 22 ];
+    allowedUDPPorts = [ 5353 ]; # mDNS
+  };
+
+  # mDNS — makes <hostname>.local resolvable on the LAN without a DNS server.
+  services.avahi = {
+    enable = true;
+    nssmdns4 = true;
+    publish = {
+      enable = true;
+      addresses = true;
+      workstation = true;
+    };
   };
 
   programs.nix-ld.enable = true;
