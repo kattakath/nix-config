@@ -8,15 +8,6 @@
       "multiUser": true,
       "extraNixConfig": "experimental-features = nix-command flakes"
     },
-    // Configures the direnv shell hooks (bash/zsh/fish); ../.envrc then loads
-    // nix-direnv's `use flake` to load (and cache) the flake devShell. NOTE:
-    // the direnv *binary* is not what this feature provides in practice — it
-    // comes from the nix layer at /nix/var/nix/profiles/default/bin/direnv
-    // (verified in-container, v2.37.1). The feature's job here is the shell
-    // hooks. We point the VSCode extension at that nix profile path explicitly
-    // (see direnv.path.executable below), since the extension host's PATH does
-    // not include the nix profile and a bare "direnv" lookup fails.
-    "ghcr.io/esimkowitz/devcontainer-features/direnv:1": {},
     // Persists Claude Code state across container rebuilds via per-container
     // Docker NAMED VOLUMES (claude-dir-${devcontainerId}, claude-json-...) —
     // no host bind, no host-path dependency, so a missing path can't crash the
@@ -44,17 +35,9 @@
   "workspaceFolder": "/workspaces/nix-config",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/nix-config,type=bind,consistency=cached",
 
-  // The direnv feature deploys ~/.config/direnv/direnvrc containing the single
-  // line `load_dotenv` — but that function was removed from direnv years ago,
-  // so it errors "load_dotenv: command not found" on every load. Rewrite it to
-  // the modern equivalent (dotenv_if_exists) to keep the feature's .env support
-  // while silencing the noise. Idempotent; runs once at container creation.
-  "onCreateCommand": "printf 'dotenv_if_exists\\n' > \"${HOME}/.config/direnv/direnvrc\"",
-  // Prebuild the flake devShell so the first attach (and first direnv load) is fast.
+  // Prebuild the flake devShell so the first `nix develop` is fast. Enter the
+  // devShell manually with `nix develop` (direnv auto-load was removed).
   "updateContentCommand": "nix develop --command true",
-  // direnv (from the feature) auto-loads the flake devShell on cd; ../.envrc
-  // uses nix-direnv's cached `use flake`. Pre-approve so the env loads on attach.
-  "postAttachCommand": "direnv allow . || true",
 
   "containerEnv": {
     "NIXPKGS_ALLOW_UNFREE": "1"
@@ -67,7 +50,6 @@
       // which lives here in the container, not on the nix-less host.
       "extensions": [
         "jnoortheen.nix-ide",
-        "mkhl.direnv",
         "gruntfuggly.triggertaskonsave",
         "fuadpashayev.bottom-terminal",
         "Anthropic.claude-code",
@@ -91,15 +73,6 @@
         "[nix]": {
           "editor.defaultFormatter": "jnoortheen.nix-ide"
         },
-
-        // --- direnv extension: absolute path to the binary ---
-        // The extension host's PATH does not include the nix profile, so a bare
-        // "direnv" lookup fails with "direnv: command not found". Point it at
-        // the nix profile path (verified in-container) so resolution never
-        // depends on the inherited PATH. This is the stable `default ->
-        // per-user/root/profile` indirection, NOT a raw /nix/store/<hash> path,
-        // so it survives rebuilds.
-        "direnv.path.executable": "/nix/var/nix/profiles/default/bin/direnv",
 
         // --- Live statix/deadnix diagnostics on save (Problems tab) ---
         // On .nix save, runs the "nix: lint" task (../.vscode/tasks.json), whose
