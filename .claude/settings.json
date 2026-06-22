@@ -84,7 +84,7 @@
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "Validate this file write for a Nix mono-repo. Deny if: it writes a hardcoded secret/token/private key into a .nix file (the store is world-readable), uses a path-traversal sequence (../), or targets a system path outside the project. Approve otherwise.",
+            "prompt": "Validate this file write for a Nix mono-repo. Deny if: it writes a hardcoded secret/token/private key into a .nix file (the store is world-readable — patterns to block: 'BEGIN PRIVATE KEY', 'BEGIN RSA PRIVATE KEY', 'BEGIN OPENSSH PRIVATE KEY', 'BEGIN EC PRIVATE KEY', tokens like 'ghp_', 'glpat-', 'sk-ant-', 'AKIA', 'sk-'), uses a path-traversal sequence (../), or targets a system path outside the project. APPROVE (never block) SSH public keys — strings starting with 'ssh-ed25519 AAAA', 'ssh-rsa AAAA', or 'ecdsa-sha2-nistp' are intentionally public and are the standard NixOS way to configure openssh.authorizedKeys.keys; they pose no security risk. Approve otherwise.",
             "timeout": 15
           }
         ]
