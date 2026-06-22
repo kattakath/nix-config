@@ -44,6 +44,9 @@
       ...
     }:
     let
+      # ---- Single source of truth for the human username ----------------------
+      username = "izzy";
+
       # ---- DRY system mapping -------------------------------------------------
       # The canonical set of architectures this repo targets. Every package /
       # devShell output is generated for all of them via forAllSystems.
@@ -86,7 +89,6 @@
       mkHome =
         {
           system,
-          username ? "izzy",
           homeDirectory ? (
             if nixpkgs.lib.hasSuffix "darwin" system then "/Users/${username}" else "/home/${username}"
           ),
@@ -122,7 +124,7 @@
         nixpkgs.lib.nixosSystem {
           inherit system;
           specialArgs = {
-            inherit agenix raspberry-pi-nix;
+            inherit agenix raspberry-pi-nix username;
             secretsDir = ./secrets;
           };
           modules = [
@@ -136,7 +138,7 @@
                 extraSpecialArgs = {
                   secretsDir = ./secrets;
                 };
-                users.izzy = {
+                users.${username} = {
                   imports = [
                     ./modules/shared/home.nix
                     agenix.homeManagerModules.default
@@ -154,7 +156,14 @@
       # Built with `darwin-rebuild switch --flake .#macbook`.
       darwinConfigurations."macbook" = nix-darwin.lib.darwinSystem {
         system = "aarch64-darwin";
-        specialArgs = { inherit self home-manager agenix; };
+        specialArgs = {
+          inherit
+            self
+            home-manager
+            agenix
+            username
+            ;
+        };
         modules = [ ./hosts/macbook.nix ];
       };
 
@@ -180,7 +189,7 @@
       # ---- Standalone Home Manager configurations ----------------------------
       # Built with `home-manager switch --flake .#user@<host>`.
       homeConfigurations = {
-        "izzy@ubuntu-vm" = mkHome {
+        "${username}@ubuntu-vm" = mkHome {
           system = "x86_64-linux";
           modules = [
             ./modules/linux/nix-ld.nix
@@ -188,7 +197,7 @@
           ];
         };
 
-        "izzy@raspberrypi" = mkHome {
+        "${username}@raspberrypi" = mkHome {
           system = "aarch64-linux";
           modules = [
             ./modules/linux/nix-ld.nix

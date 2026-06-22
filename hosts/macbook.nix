@@ -2,7 +2,12 @@
 # for the "macbook" host. nix-darwin ships a home-manager module that nests a
 # standalone-style user profile inside the system rebuild, so a single
 # `darwin-rebuild switch --flake .#macbook` provisions both.
-{ home-manager, agenix, ... }:
+{
+  home-manager,
+  agenix,
+  username,
+  ...
+}:
 
 {
   imports = [
@@ -11,9 +16,9 @@
   ];
 
   # Define the human user nix-darwin manages.
-  users.users.izzy = {
-    name = "izzy";
-    home = "/Users/izzy";
+  users.users.${username} = {
+    name = username;
+    home = "/Users/${username}";
   };
 
   # Home Manager, as a nix-darwin submodule.
@@ -23,7 +28,7 @@
     extraSpecialArgs = {
       secretsDir = ../secrets;
     };
-    users.izzy = {
+    users.${username} = {
       imports = [
         ../modules/shared/home.nix
         agenix.homeManagerModules.default
