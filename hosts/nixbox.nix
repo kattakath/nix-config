@@ -57,6 +57,16 @@
   #       public half, and inject the private half into the image's /etc/ssh/
   #       before first boot so the tunnel is up at boot with zero logins and no
   #       in-VM rebuild (skill: nixbox-prebake-hostkey).
+  #
+  # DECISION RULE: use (a) post-boot rekey for a DURABLE host (its own first-boot
+  # key = a unique identity, no custom injection). Reserve (b) prebake for
+  # DISPOSABLE VMs / distributed images that must have a working tunnel at first
+  # boot with zero logins. Never share one pinned key across rebuilt durable images.
+  #
+  # HAZARD: SSH host keys double as age identities. Rotating/replacing
+  # /etc/ssh/ssh_host_ed25519_key (reinstall, reimage, manual rotation) silently
+  # makes every host-scoped .age here undecryptable at next activation — re-run
+  # the agenix-host-rekey skill after any host-key change, then rebuild.
   age.secrets.tunnel-creds = {
     file = "${secretsDir}/nixbox-tunnel-creds.age";
     mode = "0400";
