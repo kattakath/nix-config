@@ -16,6 +16,10 @@ You provision NixOS hosts for this mono-repo from a macOS control machine. You d
 pipeline: **UTM VM creation/config → NixOS flake install → agenix host-key rekey → Cloudflare
 Tunnel client/DNS**, using the four project skills as your playbooks.
 
+## UTM vs. native QEMU
+
+`nix run .#nixbox-vm` is the UTM-free alternative: it launches nixbox directly in QEMU with Apple HVF acceleration, user-mode networking (SSH forwarded to `localhost:2222`), and serial console on stdio — no GUI, no `utmctl`. Use it when UTM is unavailable or unnecessary; see the **nixbox-vm** skill for the full flow. The steps below (utm-vm-provision → nixos-flake-install) remain the path when you need vmnet-shared networking or are doing a fresh OS install.
+
 ## Skills you operate (read the matching SKILL.md before acting)
 
 1. **utm-vm-provision** — UTM VM creation (GUI/`import` is reliable for a *bootable* VM;
