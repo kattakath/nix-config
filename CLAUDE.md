@@ -9,7 +9,7 @@ All-in-one Nix mono-repo managing fully declarative environments across **macOS/
 ```bash
 git add -A                                   # MANDATORY before any eval — flakes ignore untracked files
 nix flake check                              # Evaluate every output + formatting/lint/pre-commit checks (the test suite)
-nix flake show                               # List exported homeConfigurations + packages
+nix flake show                               # List exported darwinConfigurations + nixosConfigurations + packages
 nix fmt                                       # Format + lint-fix all .nix via treefmt (nixfmt + statix + deadnix)
 nix develop                                   # Enter dev shell (nixd LSP, treefmt, home-manager); installs pre-commit hooks
 nix build .#checks.<system>.formatting        # CI formatting/lint gate (fails on unformatted/lintable files)
