@@ -18,6 +18,11 @@ jobs:
   # Evaluate every system natively where possible. aarch64-linux is realized
   # via emulation on the x86_64 runner so all three of the canonical triple
   # are covered without self-hosted ARM-Linux hardware.
+  #
+  # NOTE: `nix flake check --system <arch>` does NOT filter outputs by system —
+  # `--system` sets the Nix evaluator's own host system (a config key), and is
+  # silently ignored for untrusted users in CI. Each job instead evaluates the
+  # system-specific top-level derivations directly via `nix eval --no-build`.
   check:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -43,7 +48,7 @@ jobs:
         with:
           platforms: arm64
 
-      - uses: cachix/install-nix-action@v27
+      - uses: cachix/install-nix-action@v31
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
@@ -58,8 +63,34 @@ jobs:
             echo "::error::Untracked .nix files break flake evaluation:"; echo "$untracked"; exit 1
           fi
 
-      - name: Evaluate flake for ${{ matrix.name }}
-        run: nix flake check --no-build --system ${{ matrix.name }} --show-trace
+      - name: Evaluate aarch64-darwin outputs
+        if: matrix.name == 'aarch64-darwin'
+        run: |
+          nix eval --no-build --show-trace \
+            .#darwinConfigurations.m3pro.config.system.build.toplevel \
+            .#checks.aarch64-darwin.formatting \
+            .#checks.aarch64-darwin.pre-commit \
+            .#devShells.aarch64-darwin.default
+
+      - name: Evaluate x86_64-linux outputs
+        if: matrix.name == 'x86_64-linux'
+        run: |
+          nix eval --no-build --show-trace \
+            .#packages.x86_64-linux.dockerImage \
+            .#checks.x86_64-linux.formatting \
+            .#checks.x86_64-linux.pre-commit \
+            .#devShells.x86_64-linux.default
+
+      - name: Evaluate aarch64-linux outputs
+        if: matrix.name == 'aarch64-linux'
+        run: |
+          nix eval --no-build --show-trace \
+            .#nixosConfigurations.nixbox.config.system.build.toplevel \
+            .#nixosConfigurations.nixrpi.config.system.build.toplevel \
+            .#packages.aarch64-linux.dockerImage \
+            .#checks.aarch64-linux.formatting \
+            .#checks.aarch64-linux.pre-commit \
+            .#devShells.aarch64-linux.default
 
   # Formatting + lint + pre-commit are all flake checks now (treefmt-nix +
   # git-hooks.nix), so CI builds the SAME derivations developers run via
@@ -69,7 +100,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: cachix/install-nix-action@v27
+      - uses: cachix/install-nix-action@v31
         with:
           extra_nix_config: experimental-features = nix-command flakes
       - name: Formatting gate (fails on unformatted/lintable files)
