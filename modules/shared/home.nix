@@ -7,6 +7,11 @@
 # host-local ~/.zprofile; login-style tokens use one-time CLI logins
 # (gh/hf/docker/claude). agenix now covers only system/cloudflared host secrets.
 # See secrets/README.
+#
+# Deliberately MINIMAL: editor/multiplexer/prompt niceties (nixvim, tmux,
+# starship, …) are intentionally NOT managed here — the operator uses VSCode/
+# Cursor and prefers a lean, low-noise profile. Add tools only when there's a
+# clear cross-host need.
 {
   pkgs,
   lib,
@@ -16,14 +21,28 @@
 {
   imports = [ ../linux/nix-ld.nix ];
 
-  # Baseline toolset present on all hosts. git / tmux / neovim / ripgrep are
-  # NOT listed here — each is installed by its `programs.*` module below, and
-  # listing it twice collides on /bin/<tool> in the Home Manager buildEnv.
-  # curl is omitted — covered by system packages on all hosts (nixos/core.nix,
-  # darwin/core.nix); including it here would add a redundant user-profile copy.
+  # Make Home-Manager-installed font packages discoverable by applications.
+  # Essential on Linux (registers fonts with fontconfig); harmless no-op on macOS.
+  fonts.fontconfig.enable = true;
+
+  # Deliberately minimal. CLI tools are NOT managed here — they stay in Homebrew
+  # on macOS (see modules/darwin/homebrew.nix); the shared profile carries only
+  # cross-host *fonts* plus the program modules below (git/ssh/bash).
+  #
+  # Fonts: promoted from Homebrew font casks (2026-06-22) so the same Nerd Fonts
+  # + Roboto family exist on EVERY host, including NixOS and devcontainers — not
+  # just macOS. The cask equivalents were removed from modules/darwin/homebrew.nix.
+  # nixpkgs unstable uses the per-font `nerd-fonts.<name>` attrs (the 24.05+
+  # restructure; lowercase-hyphenated names) — NOT the old
+  # `(nerdfonts.override { fonts = ...; })`. `roboto` is the full Roboto family
+  # and covers both font-roboto AND font-roboto-condensed.
   home.packages = with pkgs; [
-    fd
-    jq
+    # fonts
+    nerd-fonts.fira-code
+    nerd-fonts.hack
+    nerd-fonts.ubuntu
+    nerd-fonts.ubuntu-mono # "UbuntuMono Nerd Font" for the devcontainer terminal
+    roboto # Roboto family incl. Condensed
   ];
 
   # ---- Home Manager program modules --------------------------------------------
@@ -43,24 +62,6 @@
         user.signingkey = "~/.ssh/id_ed25519.pub";
       };
     };
-
-    neovim = {
-      enable = true;
-      defaultEditor = true;
-      viAlias = true;
-      vimAlias = true;
-      withRuby = false;
-      withPython3 = false;
-    };
-
-    tmux = {
-      enable = true;
-      baseIndex = 1;
-      keyMode = "vi";
-      terminal = "tmux-256color";
-    };
-
-    ripgrep.enable = true;
 
     ssh = lib.mkIf pkgs.stdenv.isDarwin {
       enable = true;
