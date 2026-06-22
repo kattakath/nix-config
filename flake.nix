@@ -155,6 +155,12 @@
             raspberry-pi-nix.nixosModules.sd-image
           ];
         };
+
+        # Generic aarch64 NixOS VM (UTM `virt` / UEFI) — not Pi hardware.
+        "nixvm-aarch64" = mkNixos {
+          system = "aarch64-linux";
+          hostname = "nixvm-aarch64";
+        };
       };
 
       # ---- Minimal runtime container image -----------------------------------
