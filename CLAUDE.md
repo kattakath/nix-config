@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-All-in-one Nix mono-repo managing fully declarative environments across **macOS/nix-darwin (`m3pro`)**, **NixOS VM (`nixbox`, x86_64-linux)**, **NixOS Raspberry Pi 4 (`nixrpi`, aarch64-linux)**, and **Devcontainers**. Single source of truth; platform divergence lives in `modules/`, never in ad-hoc shell.
+All-in-one Nix mono-repo managing fully declarative environments across **macOS/nix-darwin (`m3pro`)**, **NixOS VM (`nixvm`, aarch64-linux — UTM/QEMU `virt`)**, **NixOS Raspberry Pi 4 (`nixrpi`, aarch64-linux)**, and **Devcontainers**. Single source of truth; platform divergence lives in `modules/`, never in ad-hoc shell.
 
 ## Build / Test / Lint
 
@@ -13,19 +13,19 @@ nix flake show                               # List exported homeConfigurations 
 nix fmt                                       # Format + lint-fix all .nix via treefmt (nixfmt + statix + deadnix)
 nix develop                                   # Enter dev shell (nixd LSP, treefmt, home-manager); installs pre-commit hooks
 nix build .#checks.<system>.formatting        # CI formatting/lint gate (fails on unformatted/lintable files)
-nixos-rebuild switch --flake .#nixbox         # Activate the NixOS VM config
+nixos-rebuild switch --flake .#nixvm          # Activate the NixOS VM config (aarch64 UTM/QEMU)
 nixos-rebuild switch --flake .#nixrpi         # Activate the Raspberry Pi config
 darwin-rebuild switch --flake .#m3pro         # Activate the macOS (nix-darwin) config
-nix eval .#nixosConfigurations.nixbox.config.system.build.toplevel   # Evaluate a SINGLE config (fast single-target check)
+nix eval .#nixosConfigurations.nixvm.config.system.build.toplevel   # Evaluate a SINGLE config (fast single-target check)
 ```
 
 ## Architecture
 
-- `flake.nix` — entry point: pins `nixpkgs` + `home-manager` + `nix-darwin` + `raspberry-pi-nix` + `agenix` + `treefmt-nix` + `git-hooks` inputs; exports `darwinConfigurations."m3pro"` (aarch64-darwin), `nixosConfigurations."nixbox"` (x86_64-linux) and `"nixrpi"` (aarch64-linux), plus `packages`/`devShells`/`checks`/`formatter` per system via a `forAllSystems` helper. Username is `izzy`, defined once as a `let` binding.
+- `flake.nix` — entry point: pins `nixpkgs` + `home-manager` + `nix-darwin` + `raspberry-pi-nix` + `agenix` + `treefmt-nix` + `git-hooks` inputs; exports `darwinConfigurations."m3pro"` (aarch64-darwin), `nixosConfigurations."nixvm"` and `"nixrpi"` (both aarch64-linux), plus `packages`/`devShells`/`checks`/`formatter` per system via a `forAllSystems` helper. Username is `izzy`, defined once as a `let` binding.
 - `flake.lock` — pinned input revisions; commit every change, never hand-edit.
 - `treefmt.nix` — single source of truth for formatting + lint-fix (nixfmt + statix + deadnix). Drives `nix fmt`, the `checks.formatting` CI gate, and the pre-commit hook — change a tool here and every entrypoint follows.
 - `.envrc` — direnv `use flake`; auto-loads the devShell (nixd, treefmt, hooks) in shell + editor. Run `direnv allow` once.
-- `hosts/` — per-host entry profiles (`m3pro.nix`, `nixbox.nix`, `nixrpi.nix`); composed by the flake's `darwinConfigurations`/`nixosConfigurations`.
+- `hosts/` — per-host entry profiles (`m3pro.nix`, `nixvm.nix`, `nixrpi.nix`); composed by the flake's `darwinConfigurations`/`nixosConfigurations`.
 - `modules/` — reusable modules split by platform: `modules/darwin/core.nix`, `modules/linux/nix-ld.nix`, `modules/shared/home.nix`. Platform branching lives HERE behind `lib.mkIf`, not duplicated across hosts.
 - `packages/docker-image.nix` — minimal runtime container image (`dockerTools`, baseless).
 - `.claude/agents/platform-compiler.md` — subagent that validates evaluation across all three architectures.
