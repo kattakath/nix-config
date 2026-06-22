@@ -22,7 +22,7 @@
   swapDevices = [ ];
 
   age.secrets.nixbox-tunnel-creds = {
-    file = /. + "${secretsDir}/nixbox-tunnel-creds.age";
+    file = "${secretsDir}/nixbox-tunnel-creds.age";
     mode = "0400";
     owner = "root";
   };
