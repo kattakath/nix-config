@@ -36,7 +36,7 @@ GUI):
 ```bash
 osascript <<'EOF'
 tell application "UTM"
-  set vmConfig to {backend:qemu, configuration:{name:"nixvm", architecture:"aarch64", memory:6144, cpu cores:4}}
+  set vmConfig to {backend:qemu, configuration:{name:"nixbox", architecture:"aarch64", memory:6144, cpu cores:4}}
   set newVM to make new virtual machine with properties vmConfig
   get name of newVM
 end tell
@@ -60,10 +60,14 @@ The bundle lives at:
 `~/Library/Containers/com.utmapp.UTM/Data/Documents/<name>.utm/`
 with `config.plist` and `Data/<UUID>.qcow2` + `efi_vars.fd` inside.
 
+> `<name>` is the UTM **display name**, independent of the NixOS hostname. The realized VM is
+> named `NixOS.utm` even though its installed hostname is `nixbox` — the `nixbox.utm` paths below
+> are illustrative; substitute your actual bundle name (`ls ~/Library/Containers/com.utmapp.UTM/Data/Documents/`).
+
 ## Step 3 — Configure via plutil
 
 ```bash
-PLIST=~/Library/Containers/com.utmapp.UTM/Data/Documents/nixvm.utm/config.plist
+PLIST=~/Library/Containers/com.utmapp.UTM/Data/Documents/nixbox.utm/config.plist
 
 # Disk → VirtIO (guest device becomes /dev/vda); CD over USB boots reliably
 plutil -replace Drive.1.Interface -string VirtIO "$PLIST"   # index 1 = the disk
@@ -87,7 +91,7 @@ capability table). Do not expect to drive the serial console from the terminal.
 UTM references removable media by `ImageName` inside the bundle's `Data/` dir:
 
 ```bash
-BUNDLE=~/Library/Containers/com.utmapp.UTM/Data/Documents/nixvm.utm
+BUNDLE=~/Library/Containers/com.utmapp.UTM/Data/Documents/nixbox.utm
 cp /path/to/installer.iso "$BUNDLE/Data/installer.iso"
 plutil -replace Drive.0.ImageName -string installer.iso "$BUNDLE/config.plist"
 plutil -replace Drive.0.ImageType -string CD            "$BUNDLE/config.plist"
@@ -146,9 +150,9 @@ default-larger disk is usually fine to leave alone (≥ requested size is harmle
 
 ```bash
 open -a UTM; sleep 5; utmctl list          # reopen so it picks up your edits
-utmctl start nixvm                           # with a Terminal-mode serial this does NOT throw -2700
-utmctl status nixvm                          # → started
-utmctl ip-address nixvm                      # ⚠ empty on a live installer ISO (no guest agent) — use ARP (Step 5)
+utmctl start nixbox                           # with a Terminal-mode serial this does NOT throw -2700
+utmctl status nixbox                          # → started
+utmctl ip-address nixbox                      # ⚠ empty on a live installer ISO (no guest agent) — use ARP (Step 5)
 ```
 
 ## Recovery toolkit (UTM-side)

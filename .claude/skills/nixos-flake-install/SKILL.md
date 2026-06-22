@@ -2,7 +2,7 @@
 name: nixos-flake-install
 description: >
   Install NixOS onto a freshly-booted machine/VM from this flake repo (nixosConfigurations
-  nixvm / nixrpi). Use when asked to "install NixOS", run nixos-install, partition a disk for
+  nixbox / nixrpi). Use when asked to "install NixOS", run nixos-install, partition a disk for
   NixOS, or bring up a new host from the flake. Covers driving the install over SSH from the
   live ISO, label-based partitioning (boot/nixos), the ≥6 GB RAM prerequisite (low RAM causes
   silent install corruption), installing a private flake via rsync, and post-install host-key
@@ -29,13 +29,13 @@ Also: a swapfile created on `/mnt` lands on the **target root** — remove it be
 
 ## What the host configs expect (verified against the repo)
 
-- **Partitions by LABEL** (`hosts/nixvm.nix`, `hosts/nixrpi.nix`):
+- **Partitions by LABEL** (`hosts/nixbox.nix`, `hosts/nixrpi.nix`):
   `/dev/disk/by-label/nixos` (ext4 root) and `/dev/disk/by-label/boot` (vfat EFI).
 - **User** `izzy`: wheel, passwordless sudo, the project SSH key; **key-only SSH, no root login**
   (`modules/nixos/core.nix`).
 - **DHCP** on all interfaces; **systemd-boot** + EFI.
-- `hosts/nixvm.nix` already bakes in the **VirtIO initrd + UEFI `fileSystems`** (see Step 4) — no
-  patch needed for `nixvm`.
+- `hosts/nixbox.nix` already bakes in the **VirtIO initrd + UEFI `fileSystems`** (see Step 4) — no
+  patch needed for `nixbox`.
 - One known gap to handle (below): the **agenix host-key chicken-and-egg** for `*-tunnel-creds.age`.
 
 ## Step 1 — Reach a shell on the target
@@ -116,11 +116,11 @@ git config --global --add safe.directory /tmp/nixcfg
 cd /tmp/nixcfg && git add -A
 ```
 
-## Step 4 — VirtIO initrd: already baked into `nixvm`
+## Step 4 — VirtIO initrd: already baked into `nixbox`
 
-`hosts/nixvm.nix` **already** includes the VirtIO initrd and UEFI `fileSystems`:
+`hosts/nixbox.nix` **already** includes the VirtIO initrd and UEFI `fileSystems`:
 `boot.initrd.availableKernelModules = [ "virtio_pci" "virtio_blk" "virtio_scsi" "ahci" "sd_mod" ]`
-plus systemd-boot. **No patch is needed for `nixvm`.**
+plus systemd-boot. **No patch is needed for `nixbox`.**
 
 The patch guidance below applies **only if you are creating a brand-new generic host** that lacks
 these modules — without them, the root won't mount at boot on VirtIO. Either generate hardware
@@ -128,14 +128,14 @@ config (`nixos-generate-config --root /mnt` and import its output), or add inlin
 installing, then stage (`git add -A` inside /tmp/nixcfg):
 
 ```nix
-# add to a NEW hosts/<host>.nix that lacks initrd modules (NOT needed for nixvm)
+# add to a NEW hosts/<host>.nix that lacks initrd modules (NOT needed for nixbox)
 boot.initrd.availableKernelModules = [ "virtio_pci" "virtio_blk" "virtio_scsi" "ahci" "sd_mod" ];
 ```
 
 ## Step 5 — Install
 
 ```bash
-nixos-install --flake /tmp/nixcfg#nixvm --no-root-passwd
+nixos-install --flake /tmp/nixcfg#nixbox --no-root-passwd
 reboot
 ```
 
