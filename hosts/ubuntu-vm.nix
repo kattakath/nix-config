@@ -1,7 +1,7 @@
-# NixOS VM host — x86_64-linux.
-# Replace fileSystems + boot with `nixos-generate-config` output on the real VM.
+# NixOS host for the Ubuntu VM — x86_64-linux.
+# Replace fileSystems + boot with `nixos-generate-config` output on the real machine.
 _: {
-  networking.hostName = "nixos-vm";
+  networking.hostName = "ubuntu-vm";
 
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
