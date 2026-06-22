@@ -3,6 +3,21 @@
 { config, secretsDir, ... }: {
   networking.hostName = "nixbox";
 
+  # Basic networking — DHCP on all interfaces.
+  networking.useDHCP = true;
+
+  # agenix system-level identity: use the host's SSH key to decrypt system secrets.
+  # TODO: nixbox-tunnel-creds.age is currently encrypted only to userKeys (the user's
+  # personal ed25519 key in secrets/secrets.nix). The agenix NixOS module decrypts
+  # system secrets using the HOST ssh key (/etc/ssh/ssh_host_ed25519_key), which is
+  # a DIFFERENT key — so decryption will fail at activation time until the .age file
+  # is re-encrypted to the host's public key. Steps to fix after first boot:
+  #   1. cat /etc/ssh/ssh_host_ed25519_key.pub   # get the host key
+  #   2. Add it to secrets/secrets.nix as a hostKey for nixbox
+  #   3. Re-run: cd secrets && agenix -e nixbox-tunnel-creds.age
+  #   4. Commit the updated .age file and secrets.nix
+  age.identityPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
+
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
