@@ -18,30 +18,49 @@ three project skills as your playbooks.
 
 ## Skills you operate (read the matching SKILL.md before acting)
 
-1. **utm-vm-provision** — headless UTM VM creation (AppleScript `make`), `config.plist` editing
-   via `plutil`, VirtIO disk/NIC, ISO attach, port-forward, disk sizing. Host-side only.
-2. **nixos-flake-install** — partition by label (`boot`/`nixos`), VirtIO initrd patch, drive
+1. **utm-vm-provision** — UTM VM creation (GUI/`import` is reliable for a *bootable* VM;
+   AppleScript `make` is unreliable and de-emphasized), `config.plist` editing via `plutil`,
+   VirtIO disk/NIC, ISO attach, vmnet-shared/ARP networking, disk sizing. Host-side only.
+2. **nixos-flake-install** — partition by label (`boot`/`nixos`), drive
    `nixos-install --flake .#<host>` over SSH from the live ISO, verify, grab the host key.
+   `nixbox` already bakes in the VirtIO initrd + UEFI fileSystems (no patch needed).
 3. **agenix-host-rekey** — add the host's `ssh_host_ed25519_key.pub` as an age recipient,
    re-encrypt host-scoped secrets (e.g. `*-tunnel-creds.age`), commit, activate.
 
 ## Repo facts you rely on (verify, don't assume)
 
-- Targets: `nixosConfigurations.nixbox` (x86_64-linux) and `nixrpi` (aarch64-linux).
-- Partition labels: `nixos` (ext4 root) + `boot` (vfat EFI) — `hosts/<host>.nix`.
+- Targets: `nixosConfigurations.nixbox` (aarch64-linux, generic UTM/QEMU UEFI VM) and `nixrpi`
+  (aarch64-linux, Raspberry Pi 4 / SD-image only). The realized VM is **aarch64 / UTM target
+  `virt`**, not x86_64/q35.
+- Partition labels: `nixos` (ext4 root) + `boot` (vfat EFI) — `hosts/nixbox.nix`.
 - User `izzy`: wheel, passwordless sudo, project SSH key; key-only SSH, no root login.
 - Flake tracks `nixos-unstable` → installer ISO version is irrelevant.
-- `hosts/<host>.nix` has **no hardware-config / VirtIO initrd** — you MUST add the initrd
-  modules (or `nixos-generate-config`) before install, or the VM won't boot.
+- `hosts/nixbox.nix` **already** includes the VirtIO initrd (`virtio_pci`/`virtio_blk`/
+  `virtio_scsi`/`ahci`/`sd_mod`) + UEFI `fileSystems` + systemd-boot — **no patch needed**. The
+  initrd patch only applies if you create a brand-new generic host that lacks it. (`nixrpi` is
+  Pi-only / SD-image and is not a UTM VM target.)
+- **≥6 GB RAM, clean wipe.** A 2 GB VM OOM-kills `nixos-install` mid-build; Nix marks the partial
+  store paths valid, so retries (even with swap + `--cores 1 -j 1`) finish `toplevel` without
+  rebuilding the damaged paths → boots but journald/udevd/networkd loop, no NIC, unreachable.
+- **Private repo** → the VM can't fetch `github:owner/repo` anonymously (404). rsync the working
+  tree in (`--exclude '.git/hooks' --exclude 'memory/' --exclude 'result'`), `git add -A` on the
+  VM (flakes ignore untracked files), then `nixos-install --flake /tmp/nixcfg#nixbox`.
 - `age.identityPaths = ["/etc/ssh/ssh_host_ed25519_key"]` → host secrets need the host key as a
   recipient (the rekey skill); expect `cloudflared` to fail on first boot until then.
 
 ## Hard boundaries (state them; don't fake past them)
 
+- **`utmctl attach` is a non-functional stub** (UTM 4.7.5: `WARNING: attach command is not
+  implemented yet!`) — there is NO CLI serial console. A `Terminal`-mode serial (which avoids the
+  `-2700` start error) is only reachable in the UTM GUI window.
 - **You cannot run commands inside a live NixOS ISO** — it has no QEMU guest agent, so
-  `utmctl exec`/`ip-address` don't work. Either the user types at the UTM console, or they start
-  `sshd` + set a temp root password in the live env so you SSH in via the port-forward and drive
-  the install yourself. Ask which they prefer.
+  `utmctl ip-address`/`exec` don't work. The user sets a root password at the UTM console (the ISO
+  has no preset password; login is `root`, not `nixos`) and starts `sshd`; then you SSH in. Under
+  UTM **Shared** (`vmnet-shared`) the guest has a **real routable IP** (`192.168.64.x` on
+  `bridge100`) — discover it via `arp -an | grep <Network.0.MacAddress>` and SSH directly; no
+  port-forward needed. (macOS `ssh` can't pipe a password — use `sshpass`.)
+- **AppleScript `make` is unreliable for a bootable VM** — prefer GUI-create or `import`; use
+  plutil only for headless tweaks.
 - **Edit `config.plist` only while UTM is quit** — it clobbers external edits on exit.
 - **Partitioning and `nixos-install` are destructive and slow under emulation.** Confirm the
   target device (`lsblk`) before `parted`/`mkfs`. Never partition a disk you haven't verified.
