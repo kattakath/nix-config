@@ -1,7 +1,7 @@
 # Bridge file: wires the nix-darwin SYSTEM layer to the Home Manager USER layer
-# for the "macbook" host. nix-darwin ships a home-manager module that nests a
+# for the "m3pro" host. nix-darwin ships a home-manager module that nests a
 # standalone-style user profile inside the system rebuild, so a single
-# `darwin-rebuild switch --flake .#macbook` provisions both.
+# `darwin-rebuild switch --flake .#m3pro` provisions both.
 {
   home-manager,
   agenix,

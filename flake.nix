@@ -122,8 +122,8 @@
     in
     {
       # ---- macOS system configuration ----------------------------------------
-      # Built with `darwin-rebuild switch --flake .#macbook`.
-      darwinConfigurations."macbook" = nix-darwin.lib.darwinSystem {
+      # Built with `darwin-rebuild switch --flake .#m3pro`.
+      darwinConfigurations."m3pro" = nix-darwin.lib.darwinSystem {
         system = "aarch64-darwin";
         specialArgs = {
           inherit
@@ -133,21 +133,21 @@
             username
             ;
         };
-        modules = [ ./hosts/macbook.nix ];
+        modules = [ ./hosts/m3pro.nix ];
       };
 
       # ---- NixOS system configurations -------------------------------------------
       # Built with `nixos-rebuild switch --flake .#<hostname>`.
-      # SD card image for RPi: nix build .#nixosConfigurations.raspberrypi.config.system.build.sdImage
+      # SD card image for RPi: nix build .#nixosConfigurations.nixpi.config.system.build.sdImage
       nixosConfigurations = {
-        "vm" = mkNixos {
+        "nixbox" = mkNixos {
           system = "x86_64-linux";
-          hostname = "vm";
+          hostname = "nixbox";
         };
 
-        "raspberrypi" = mkNixos {
+        "nixpi" = mkNixos {
           system = "aarch64-linux";
-          hostname = "raspberrypi";
+          hostname = "nixpi";
           extraModules = [
             raspberry-pi-nix.nixosModules.raspberry-pi
             raspberry-pi-nix.nixosModules.sd-image
