@@ -208,6 +208,26 @@ in
           "terminal.integrated.tabs.defaultColor" = "terminal.ansiMagenta";
           "terminal.integrated.tabs.defaultIcon" = "terminal-ubuntu";
           "terminal.integrated.persistentSessionReviveProcess" = "onExitAndWindowClose";
+          # Personal "claude" terminal profile — a one-click Claude Code session
+          # with permission prompts skipped (mirrors claudeCode.* prefs below).
+          # `.osx` (not `.linux`): this whole block is darwin-gated, so it must
+          # target the macOS host. `path` points at the exact `claude-code`
+          # derivation HM installs (same store-path style as the cloudflared
+          # ssh proxyCommand above) — robust against PATH ordering, no reliance
+          # on home.packages being on PATH. Moved here from the takeoff-api-infra
+          # devcontainer — it's a personal choice, not project config (the
+          # container's bare `claude` path became this).
+          "terminal.integrated.profiles.osx" = {
+            "claude" = {
+              "path" = "${pkgs.claude-code}/bin/claude";
+              "args" = [
+                "--permission-mode"
+                "bypassPermissions"
+              ];
+              "icon" = "claude";
+              "color" = "terminal.ansiYellow";
+            };
+          };
           # -- Editor --
           # JetBrainsMono Nerd Font (pkgs.nerd-fonts.jetbrains-mono) — pairs with
           # the JetBrains New UI Dark theme; ligatures on. Terminal stays UbuntuMono.
