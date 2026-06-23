@@ -1,43 +1,36 @@
 {
-  "name": "nix-config (flake devShell)",
-  "image": "mcr.microsoft.com/devcontainers/base:debian",
-
-  "features": {
-    "ghcr.io/devcontainers/features/nix:1": {
-      "version": "latest",
-      "multiUser": true,
-      "extraNixConfig": "experimental-features = nix-command flakes"
-    },
-    // Persists Claude Code state across container rebuilds via per-container
-    // Docker NAMED VOLUMES (claude-dir-${devcontainerId}, claude-json-...) —
-    // no host bind, no host-path dependency, so a missing path can't crash the
-    // container. Defaults persist ~/.claude (history/sessions/todos) but NOT
-    // ~/.claude.json (auth), so you re-login after a rebuild; set
-    // "persistClaudeJson": true if you want auth to survive too. This repo's
-    // project memory (memory/, CLAUDE.md, .claude/) is already shared via the
-    // workspace bind mount — this only adds session-state persistence.
-    "ghcr.io/esimkowitz/devcontainer-features/claude-code-persistence:1": {},
-    // Installs the Claude Code CLI. The published :1 feature installs via nvm,
-    // so the binary lands under /usr/local/share/nvm/current/bin/claude
-    // (verified in-container, claude 2.1.x) — this backs the "claude" terminal
-    // profile below. Also bundles the anthropic.claude-code extension (already
-    // listed in extensions, harmless duplicate).
-    "ghcr.io/devcontainers-extra/features/claude-code:1": {},
-    // Official gh CLI at /usr/bin/gh (default installDirectlyFromGitHubRelease:
-    // true → official .deb, avoids the apt-keyserver failure path). No mounts /
-    // host paths, so no crash risk. Installs only the binary — auth is a runtime
-    // `gh auth login` concern. This also satisfies the `gh` binary the chezmoi
-    // gitconfig's `!gh auth git-credential` credential helper depends on; it does
-    // NOT write gitconfig, so it can't clash with the chezmoi-managed identity.
-    "ghcr.io/devcontainers/features/github-cli:1": {}
-  },
+  // nix-config devcontainer — now a PREBUILT image, not a features stack.
+  //
+  // The image (.devcontainer/Dockerfile) bakes in nix + the pre-warmed flake
+  // devShell + claude-code + gh, so first `nix develop` is instant and there is
+  // no per-create feature install. Built + published multi-arch to Docker Hub;
+  // see .github/workflows (phase 2) — for now build locally with:
+  //   docker buildx build --platform linux/arm64 -f .devcontainer/Dockerfile \
+  //     -t nix-config-devcontainer:local --load .
+  // and point "image" at the local tag to smoke-test.
+  //
+  // Phase 2 swaps the Dockerfile for a baseless dockerTools image; ONLY the
+  // "image" tag below changes.
+  "name": "nix-config (flake devShell — prebuilt)",
+  "image": "docker.io/ismailkattakath/nix-config-devcontainer:latest",
 
   "workspaceFolder": "/workspaces/nix-config",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/nix-config,type=bind,consistency=cached",
 
-  // Prebuild the flake devShell so the first `nix develop` is fast. Enter the
-  // devShell manually with `nix develop` (direnv auto-load was removed).
+  // The devShell closure is PREBUILT into the image. This re-runs the warm on
+  // create — cheap (closure already cached) — and installs the real
+  // .git/hooks/pre-commit against the bind-mounted workspace (the build-time
+  // hook lived in a throwaway tree, see Dockerfile §3).
   "updateContentCommand": "nix develop --command true",
+
+  // Replaces the claude-code-persistence feature: a named volume persists
+  // ~/.claude (history/sessions/todos) across rebuilds. Uncomment the second
+  // mount to also persist auth (~/.claude.json) — the feature did NOT by default,
+  // so you re-login after a rebuild unless you opt in here.
+  "mounts": [
+    "source=claude-dir-${devcontainerId},target=/home/vscode/.claude,type=volume"
+    // ,"source=claude-json-${devcontainerId},target=/home/vscode/.claude.json,type=volume"
+  ],
 
   "containerEnv": {
     "NIXPKGS_ALLOW_UNFREE": "1"
@@ -47,7 +40,7 @@
     "vscode": {
       // Installed into the container on create. The host only RECOMMENDS these
       // (see ../.vscode/extensions.json) — they need nix + the devShell to work,
-      // which lives here in the container, not on the nix-less host.
+      // which lives in this image, not on the nix-less host.
       "extensions": [
         "jnoortheen.nix-ide",
         "gruntfuggly.triggertaskonsave",
@@ -55,10 +48,12 @@
         "Anthropic.claude-code",
         "shd101wyy.markdown-preview-enhanced"
       ],
-      // Container-scoped settings.json. These reference nixd/nixfmt, which come
-      // from the flake devShell — only meaningful where nix exists.
       "settings": {
         // --- Nix language server (nix-ide → nixd) ---
+        // nixd/nixfmt come from the devShell PATH. If nix-ide can't find them
+        // outside an active `nix develop`, either add a global
+        // `nix profile install nixpkgs#nixd nixpkgs#nixfmt-rfc-style` to the
+        // Dockerfile or set absolute store paths here. (Verify in-container.)
         "nix.enableLanguageServer": true,
         "nix.serverPath": "nixd",
         "nix.formatterPath": "nixfmt",
@@ -84,11 +79,11 @@
           "nix: lint": ["**/*.nix"]
         },
 
-        // --- Terminal profiles (ported from takeoff-api-infra, sans psql) ---
-        // The devcontainers-extra/claude-code feature installs via nvm, so the
-        // claude binary lives under the nvm prefix. Use the `current` symlink
-        // (current -> versions/node/<ver>), NOT a hardcoded version dir, so the
-        // path survives node version bumps. Verified in-container (claude 2.1.x).
+        // --- Terminal profiles ---
+        // claude-code is installed via nvm in the image, so the binary lives
+        // under the nvm `current` symlink (current -> versions/node/<ver>) — NOT
+        // a hardcoded version dir, so the path survives node bumps. Phase 2
+        // (claude-code from nixpkgs) changes this to /bin/claude.
         "terminal.integrated.profiles.linux": {
           "zsh": {
             "path": "/usr/bin/zsh"
