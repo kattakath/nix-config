@@ -1,0 +1,166 @@
+name: Test Devcontainer
+
+# Prebuild + verify the nix-config devcontainer image, mirroring the
+# takeoff-api-infra convention (native amd64/arm64 matrix via devcontainers/ci,
+# SHA-pinned actions, GHCR). PRs build + verify only (push: never). On push to
+# main, each arch is published under a per-arch suffix tag and a final job
+# assembles the multi-arch `:latest` manifest — that is the image the
+# devcontainer.json `build.cacheFrom` pulls cached layers from.
+#
+# Image URL: ghcr.io/ismailkattakath/devcontainers/nix-config
+
+on:
+  pull_request:
+    paths:
+      - '.devcontainer/**'
+      - 'flake.nix'
+      - 'flake.lock'
+      - 'treefmt.nix'
+      - '.github/workflows/test-devcontainer.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - '.devcontainer/**'
+      - 'flake.nix'
+      - 'flake.lock'
+      - 'treefmt.nix'
+      - '.github/workflows/test-devcontainer.yml'
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: devcontainers/nix-config
+
+jobs:
+  test-devcontainer:
+    name: Test Devcontainer (${{ matrix.label }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux/amd64
+            suffix: linux-amd64
+            label: Linux AMD64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            suffix: linux-arm64
+            label: Linux ARM64
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v4.3.0
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee  # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5  # v3.7.1
+        with:
+          use: true
+
+      - name: Compute image name
+        id: img
+        run: |
+          NAME="ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/${{ env.IMAGE_NAME }}"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      # Publish the per-arch image on push to main; never on PRs.
+      - name: Decide push behavior
+        id: push
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "mode=never" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=always" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and test devcontainer
+        uses: devcontainers/ci@v0.3
+        env:
+          SHELL: /bin/bash
+        with:
+          imageName: ${{ steps.img.outputs.name }}
+          # No imageTag: with useNativeRunner the action auto-derives the
+          # per-arch suffix (linux/amd64 → :latest-linux-amd64), so setting it
+          # manually would double the suffix.
+          cacheFrom: ${{ steps.img.outputs.name }}:latest-${{ matrix.suffix }}
+          platform: ${{ matrix.platform }}
+          useNativeRunner: true
+          push: ${{ steps.push.outputs.mode }}
+          runCmd: |
+            set -e
+            echo "=== nix-config devcontainer verification ==="
+            echo ""
+            echo "User:" && id -un
+            echo ""
+            echo "Nix:" && nix --version
+            echo ""
+            echo "Flakes enabled:"
+            nix config show 2>/dev/null | grep -i experimental-features \
+              || nix show-config 2>/dev/null | grep -i experimental-features
+            echo ""
+            echo "=== devShell warm-hit (PREBAKED closure → no downloads) ==="
+            # Fail loudly if the warmed closure isn't in the image store: any
+            # `copying path`/`downloading` line means the pre-warm regressed.
+            OUT=$(nix develop .#default --command true 2>&1) || { echo "$OUT"; exit 1; }
+            if echo "$OUT" | grep -Eq 'copying path|downloading'; then
+              echo "✗ devShell NOT pre-warmed — store miss:"; echo "$OUT"; exit 1
+            fi
+            echo "✓ devShell resolved from baked store (no downloads)"
+            echo ""
+            echo "claude-code:" && test -x /usr/local/share/nvm/current/bin/claude \
+              && /usr/local/share/nvm/current/bin/claude --version
+            echo ""
+            echo "gh:" && command -v gh && gh --version | head -1
+            echo ""
+            echo "Unfree allowed: NIXPKGS_ALLOW_UNFREE=$NIXPKGS_ALLOW_UNFREE"
+            echo ""
+            echo "Git:" && git --version
+            echo ""
+            echo "=== all checks passed ==="
+
+  # Assemble the multi-arch manifest from the per-arch images pushed above, so
+  # `cacheFrom: ghcr.io/.../nix-config` (→ :latest) resolves and `docker pull`
+  # auto-selects amd64/arm64. Uses the official devcontainers/ci/merge action,
+  # which combines the auto-derived per-arch suffix tags into :latest. Only
+  # runs on push to main (when the per-arch images exist).
+  manifest:
+    name: Multi-arch manifest (:latest)
+    needs: test-devcontainer
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee  # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5  # v3.7.1
+        with:
+          use: true
+
+      - name: Compute image name
+        id: img
+        run: |
+          NAME="ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/${{ env.IMAGE_NAME }}"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Merge per-arch images into the :latest manifest
+        uses: devcontainers/ci/merge@v0.3
+        with:
+          imageName: ${{ steps.img.outputs.name }}
+          platforms: linux/amd64,linux/arm64
