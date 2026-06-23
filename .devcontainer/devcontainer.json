@@ -1,18 +1,27 @@
 {
-  // nix-config devcontainer — now a PREBUILT image, not a features stack.
+  // nix-config devcontainer — a PREBUILT image, not a features stack.
   //
   // The image (.devcontainer/Dockerfile) bakes in nix + the pre-warmed flake
   // devShell + claude-code + gh, so first `nix develop` is instant and there is
-  // no per-create feature install. Built + published multi-arch to Docker Hub;
-  // see .github/workflows (phase 2) — for now build locally with:
-  //   docker buildx build --platform linux/arm64 -f .devcontainer/Dockerfile \
-  //     -t nix-config-devcontainer:local --load .
-  // and point "image" at the local tag to smoke-test.
+  // no per-create feature install. Built + published multi-arch to GHCR by
+  // .github/workflows/test-devcontainer.yml (prebuild + verify), mirroring the
+  // takeoff-api-infra convention → image URL:
+  //   ghcr.io/ismailkattakath/devcontainers/nix-config
   //
-  // Phase 2 swaps the Dockerfile for a baseless dockerTools image; ONLY the
-  // "image" tag below changes.
+  // Official devcontainer PREBUILD pattern: `build.cacheFrom` points at that
+  // published image, so opening the container pulls cached layers (instant)
+  // instead of re-running the nix install + devShell warm. It stays buildable
+  // locally before the image is published. `context: ".."` = repo root, because
+  // the Dockerfile copies the root flake files (flake.nix/flake.lock/treefmt.nix).
+  //
+  // Phase 2 swaps the Dockerfile for a baseless dockerTools image; the
+  // build/cacheFrom below is unaffected (only the Dockerfile changes).
   "name": "nix-config (flake devShell — prebuilt)",
-  "image": "docker.io/ismailkattakath/nix-config-devcontainer:latest",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "..",
+    "cacheFrom": "ghcr.io/ismailkattakath/devcontainers/nix-config"
+  },
 
   "workspaceFolder": "/workspaces/nix-config",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/nix-config,type=bind,consistency=cached",
