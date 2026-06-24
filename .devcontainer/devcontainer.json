@@ -55,7 +55,8 @@
         "gruntfuggly.triggertaskonsave",
         "fuadpashayev.bottom-terminal",
         "Anthropic.claude-code",
-        "shd101wyy.markdown-preview-enhanced"
+        "shd101wyy.markdown-preview-enhanced",
+        "ms-azuretools.vscode-containers"
       ],
       "settings": {
         // --- Nix language server (nix-ide → nixd) ---
