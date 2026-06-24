@@ -6,6 +6,8 @@
   imports = [
     # Declarative Homebrew (taps/brews/casks) for the Mac.
     ./homebrew.nix
+    # Hourly LaunchAgent that rotates ~/Pictures/Screengrab (>24h → ~/.Trash).
+    ./screengrab-rotate.nix
   ];
 
   # The platform this system configuration targets.
