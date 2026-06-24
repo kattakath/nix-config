@@ -54,6 +54,16 @@ jobs:
             experimental-features = nix-command flakes
             ${{ matrix.emulate && 'extra-platforms = aarch64-linux' || '' }}
 
+      # Cachix: pull from + push to the public `ismailkattakath` cache. The
+      # action installs a post-build hook, so every store path realized below
+      # is pushed automatically. authToken is a write-only credential held only
+      # as a repo secret; when absent (e.g. forks) push is skipped and the cache
+      # is still used read-only — so this is safe to merge before the secret exists.
+      - uses: cachix/cachix-action@v15
+        with:
+          name: ismailkattakath
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
       # Git purity: flakes ignore untracked files. CI checks out a clean tree,
       # but assert it explicitly so a stray generated file fails loudly.
       - name: Assert git purity (no untracked .nix)
@@ -72,6 +82,12 @@ jobs:
             .#checks.aarch64-darwin.pre-commit \
             .#devShells.aarch64-darwin.default
 
+      # Realize the devShell closure so the Cachix post-build hook pushes it —
+      # this is exactly the closure the devcontainer's `cachix use` pulls.
+      - name: Build devShell (populate cache)
+        if: matrix.name == 'aarch64-darwin'
+        run: nix build --print-build-logs --no-link .#devShells.aarch64-darwin.default
+
       - name: Evaluate x86_64-linux outputs
         if: matrix.name == 'x86_64-linux'
         run: |
@@ -80,6 +96,10 @@ jobs:
             .#checks.x86_64-linux.formatting \
             .#checks.x86_64-linux.pre-commit \
             .#devShells.x86_64-linux.default
+
+      - name: Build devShell (populate cache)
+        if: matrix.name == 'x86_64-linux'
+        run: nix build --print-build-logs --no-link .#devShells.x86_64-linux.default
 
       - name: Evaluate aarch64-linux outputs
         if: matrix.name == 'aarch64-linux'
@@ -92,6 +112,12 @@ jobs:
             .#checks.aarch64-linux.pre-commit \
             .#devShells.aarch64-linux.default
 
+      # aarch64-linux is what the devcontainer runs — caching this emulated
+      # closure once here is the highest-value push (saves the slow QEMU rebuild).
+      - name: Build devShell (populate cache)
+        if: matrix.name == 'aarch64-linux'
+        run: nix build --print-build-logs --no-link .#devShells.aarch64-linux.default
+
   # Formatting + lint + pre-commit are all flake checks now (treefmt-nix +
   # git-hooks.nix), so CI builds the SAME derivations developers run via
   # `nix fmt` / the commit hook. No drifting ad-hoc tool invocations.
@@ -103,6 +129,10 @@ jobs:
       - uses: cachix/install-nix-action@v31
         with:
           extra_nix_config: experimental-features = nix-command flakes
+      - uses: cachix/cachix-action@v15
+        with:
+          name: ismailkattakath
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
       - name: Formatting gate (fails on unformatted/lintable files)
         run: nix build --print-build-logs .#checks.x86_64-linux.formatting
       - name: Pre-commit hooks (sandboxed)
