@@ -27,7 +27,8 @@ jobs:
   # NOTE: `nix flake check --system <arch>` does NOT filter outputs by system —
   # `--system` sets the Nix evaluator's own host system (a config key), and is
   # silently ignored for untrusted users in CI. Each job instead evaluates the
-  # system-specific top-level derivations directly via `nix eval --no-build`.
+  # system-specific top-level derivations directly via `nix eval` (which only
+  # evaluates, never builds — the separate `nix build` steps populate the cache).
   check:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -83,11 +84,17 @@ jobs:
       - name: Evaluate aarch64-darwin outputs
         if: matrix.name == 'aarch64-darwin'
         run: |
-          nix eval --no-build --show-trace \
+          # `nix eval` takes ONE installable, so loop. `.drvPath` forces the
+          # derivation to evaluate without building it.
+          for t in \
             .#darwinConfigurations.m3pro.config.system.build.toplevel \
             .#checks.aarch64-darwin.formatting \
             .#checks.aarch64-darwin.pre-commit \
-            .#devShells.aarch64-darwin.default
+            .#devShells.aarch64-darwin.default; do
+            echo "::group::eval $t"
+            nix eval --show-trace "$t.drvPath"
+            echo "::endgroup::"
+          done
 
       # Realize the devShell closure so the Cachix post-build hook pushes it —
       # this is exactly the closure the devcontainer's `cachix use` pulls.
@@ -98,11 +105,15 @@ jobs:
       - name: Evaluate x86_64-linux outputs
         if: matrix.name == 'x86_64-linux'
         run: |
-          nix eval --no-build --show-trace \
+          for t in \
             .#packages.x86_64-linux.dockerImage \
             .#checks.x86_64-linux.formatting \
             .#checks.x86_64-linux.pre-commit \
-            .#devShells.x86_64-linux.default
+            .#devShells.x86_64-linux.default; do
+            echo "::group::eval $t"
+            nix eval --show-trace "$t.drvPath"
+            echo "::endgroup::"
+          done
 
       - name: Build devShell (populate cache)
         if: matrix.name == 'x86_64-linux'
@@ -111,13 +122,17 @@ jobs:
       - name: Evaluate aarch64-linux outputs
         if: matrix.name == 'aarch64-linux'
         run: |
-          nix eval --no-build --show-trace \
+          for t in \
             .#nixosConfigurations.nixbox.config.system.build.toplevel \
             .#nixosConfigurations.nixrpi.config.system.build.toplevel \
             .#packages.aarch64-linux.dockerImage \
             .#checks.aarch64-linux.formatting \
             .#checks.aarch64-linux.pre-commit \
-            .#devShells.aarch64-linux.default
+            .#devShells.aarch64-linux.default; do
+            echo "::group::eval $t"
+            nix eval --show-trace "$t.drvPath"
+            echo "::endgroup::"
+          done
 
       # aarch64-linux is what the devcontainer runs — caching this emulated
       # closure once here is the highest-value push (saves the slow QEMU rebuild).
