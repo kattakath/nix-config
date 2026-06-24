@@ -38,7 +38,7 @@ FROM mcr.microsoft.com/devcontainers/base:noble
 # (Dockerfile has no inline comments — `#` is only a comment at line start —
 # so these notes must live on their own lines, NOT after the ARG values.)
 ARG NIX_INSTALLER_VERSION=v3.5.2
-ARG CACHIX_CACHE=
+ARG CACHIX_CACHE=ismailkattakath
 ARG NODE_MAJOR=22
 
 # --- 1. Nix (Determinate installer, single-user, no daemon) ------------------
@@ -108,9 +108,10 @@ RUN git init -q . \
  && git config user.name warm \
  && git add -A
 
-# Optional Cachix: off by default (empty CACHIX_CACHE). Pass --build-arg
-# CACHIX_CACHE=<name> to turn the warm into a download instead of a build —
-# important for the QEMU-emulated cross-arch leg.
+# Cachix: defaults to the public `ismailkattakath` cache so the warm becomes a
+# download instead of a from-source build (important for the QEMU-emulated
+# cross-arch leg). Public read needs NO token — `cachix use` only writes the
+# substituter URL + public key. Pass --build-arg CACHIX_CACHE= to disable.
 RUN if [ -n "${CACHIX_CACHE}" ]; then \
       nix profile install nixpkgs#cachix && cachix use "${CACHIX_CACHE}" || true ; \
     fi

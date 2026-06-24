@@ -45,6 +45,7 @@ nix run .#nixbox-vm                       # Boot nixbox in QEMU + HVF on macOS �
 - **Systems:** the canonical triple is `aarch64-darwin`, `x86_64-linux`, `aarch64-linux`. Every new output must evaluate on all three or be explicitly gated.
 - **Inputs:** bump only via `nix flake update` (or `update-input <name>`); commit the resulting `flake.lock`.
 - **No secrets in Nix:** the store is world-readable. Secrets split by consumer: **system/service** creds (e.g. the cloudflared tunnel cred) use **agenix**, host-key scoped, decrypted at boot; **personal tokens** are NOT in Nix or git — they live in the macOS login Keychain (exported by host-local `~/.zprofile`) or via one-time CLI logins (`gh`/`hf`/`docker`). agenix was dropped for personal secrets to avoid version-control churn on rotation. Never literals in `.nix`. See `secrets/README`.
+- **Binary cache (Cachix):** the public `ismailkattakath` cache is consumed by every host (`modules/shared/nix-cache.nix`, wired in via the flake's module lists) and the devcontainer (`CACHIX_CACHE` build arg). Read is public — only the substituter URL + public key, NO token on any consumer. The write credential `CACHIX_AUTH_TOKEN` is a **GitHub Actions secret only** (used by `cachix/cachix-action` in `flake-check.yml` to push the per-system devShell closures); never in Nix, git, or any consumer.
 
 ## Important Notes
 
