@@ -42,7 +42,7 @@ in
   # Project toolchains (aws-cdk, awscli, node, uv, make, psql, …) now live in
   # each repo's own root `flake.nix` devShell, entered with `nix develop` — the
   # same flake works on these nix machines and inside that repo's devcontainer
-  # (the `nix:1` feature). So the earlier "mirror the takeoff devcontainer
+  # (the `nix:1` feature). So the earlier "mirror a project devcontainer's
   # features here" set was REMOVED: a tool needed only inside a project belongs
   # to that project's flake, not to the global home profile. (If a project CLI
   # is ever wanted machine-wide outside any repo, add it back here as a
@@ -147,7 +147,7 @@ in
         # Project/stack-specific extensions are intentionally NOT here — they
         # belong to each project's devcontainer / .vscode extensions list, so
         # they install only where that stack is used (matches the settings
-        # split). The takeoff-api-infra devcontainer, e.g., provides:
+        # split). A stack-specific devcontainer might add, e.g.:
         #   charliermarsh.ruff, ms-python.mypy-type-checker,
         #   amazonwebservices.aws-toolkit-vscode, stripe.vscode-stripe,
         #   ric-v.postgres-explorer, lfm.vscode-makefile-term,
@@ -215,9 +215,8 @@ in
           # target the macOS host. `path` points at the exact `claude-code`
           # derivation HM installs (same store-path style as the cloudflared
           # ssh proxyCommand above) — robust against PATH ordering, no reliance
-          # on home.packages being on PATH. Moved here from the takeoff-api-infra
-          # devcontainer — it's a personal choice, not project config (the
-          # container's bare `claude` path became this).
+          # on home.packages being on PATH. It's a personal choice, not project
+          # config — the devcontainer's bare `claude` path became this.
           "terminal.integrated.profiles.osx" = {
             "claude" = {
               "path" = "${pkgs.claude-code}/bin/claude";

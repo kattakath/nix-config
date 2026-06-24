@@ -4,8 +4,7 @@
   // The image (.devcontainer/Dockerfile) bakes in nix + the pre-warmed flake
   // devShell + claude-code + gh, so first `nix develop` is instant and there is
   // no per-create feature install. Built + published multi-arch to GHCR by
-  // .github/workflows/test-devcontainer.yml (prebuild + verify), mirroring the
-  // takeoff-api-infra convention → image URL:
+  // .github/workflows/test-devcontainer.yml (prebuild + verify) → image URL:
   //   ghcr.io/ismailkattakath/devcontainers/nix-config
   //
   // Official devcontainer PREBUILD pattern: `build.cacheFrom` points at that

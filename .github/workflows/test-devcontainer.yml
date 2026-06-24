@@ -1,11 +1,11 @@
 name: Test Devcontainer
 
-# Prebuild + verify the nix-config devcontainer image, mirroring the
-# takeoff-api-infra convention (native amd64/arm64 matrix via devcontainers/ci,
-# SHA-pinned actions, GHCR). PRs build + verify only (push: never). On push to
-# main, each arch is published under a per-arch suffix tag and a final job
-# assembles the multi-arch `:latest` manifest — that is the image the
-# devcontainer.json `build.cacheFrom` pulls cached layers from.
+# Prebuild + verify the nix-config devcontainer image: a native amd64/arm64
+# matrix via devcontainers/ci, SHA-pinned actions, published to GHCR. PRs build
+# + verify only (push: never). On push to main, each arch is published under a
+# per-arch suffix tag and a final job assembles the multi-arch `:latest`
+# manifest — that is the image the devcontainer.json `build.cacheFrom` pulls
+# cached layers from.
 #
 # Image URL: ghcr.io/ismailkattakath/devcontainers/nix-config
 
@@ -30,6 +30,12 @@ on:
 
 env:
   IMAGE_NAME: devcontainers/nix-config
+
+# Serialize per ref. Don't cancel in-progress on main: a cancelled run could
+# abort a GHCR publish mid-push and leave the manifest half-assembled.
+concurrency:
+  group: test-devcontainer-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   test-devcontainer:
@@ -58,7 +64,7 @@ jobs:
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee  # v4.2.0
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
@@ -83,7 +89,7 @@ jobs:
           fi
 
       - name: Build and test devcontainer
-        uses: devcontainers/ci@v0.3
+        uses: devcontainers/ci@513af61f4de4f75d37e4438f184ba4358f0fc1ca # v0.3
         env:
           SHELL: /bin/bash
         with:
@@ -145,7 +151,7 @@ jobs:
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee  # v4.2.0
         with:
           registry: ghcr.io
-          username: ${{ github.actor }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
@@ -160,7 +166,7 @@ jobs:
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
 
       - name: Merge per-arch images into the :latest manifest
-        uses: devcontainers/ci/merge@v0.3
+        uses: devcontainers/ci/merge@513af61f4de4f75d37e4438f184ba4358f0fc1ca # v0.3
         with:
           imageName: ${{ steps.img.outputs.name }}
           platforms: linux/amd64,linux/arm64
