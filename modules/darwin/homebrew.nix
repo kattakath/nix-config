@@ -92,7 +92,6 @@ _:
     # use the attrset form.
     brews = [
       "age"
-      "chezmoi"
       "duf"
       "go"
       "kubernetes-cli"
