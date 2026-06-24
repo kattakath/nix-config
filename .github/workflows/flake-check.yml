@@ -14,6 +14,11 @@ concurrency:
   group: flake-check-${{ github.ref }}
   cancel-in-progress: true
 
+# Least-privilege GITHUB_TOKEN: this workflow only reads the checkout. Cachix
+# push uses CACHIX_AUTH_TOKEN (a repo secret), not GITHUB_TOKEN.
+permissions:
+  contents: read
+
 jobs:
   # Evaluate every system natively where possible. aarch64-linux is realized
   # via emulation on the x86_64 runner so all three of the canonical triple
@@ -26,6 +31,8 @@ jobs:
   check:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+    # Cap so an emulated-aarch64 QEMU stall fails fast instead of hanging 6h.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -34,21 +41,21 @@ jobs:
             os: macos-14            # Apple Silicon runner
             emulate: false
           - name: x86_64-linux
-            os: ubuntu-latest
+            os: ubuntu-24.04
             emulate: false
           - name: aarch64-linux
-            os: ubuntu-latest        # cross-eval via binfmt emulation
+            os: ubuntu-24.04         # cross-eval via binfmt emulation
             emulate: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Enable aarch64 emulation
         if: matrix.emulate
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
         with:
           platforms: arm64
 
-      - uses: cachix/install-nix-action@v31
+      - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
@@ -59,7 +66,7 @@ jobs:
       # is pushed automatically. authToken is a write-only credential held only
       # as a repo secret; when absent (e.g. forks) push is skipped and the cache
       # is still used read-only — so this is safe to merge before the secret exists.
-      - uses: cachix/cachix-action@v15
+      - uses: cachix/cachix-action@ad2ddac53f961de1989924296a1f236fcfbaa4fc # v15
         with:
           name: ismailkattakath
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
@@ -122,14 +129,15 @@ jobs:
   # git-hooks.nix), so CI builds the SAME derivations developers run via
   # `nix fmt` / the commit hook. No drifting ad-hoc tool invocations.
   lint:
-    name: lint (treefmt: nixfmt / statix / deadnix + pre-commit)
-    runs-on: ubuntu-latest
+    name: "lint (treefmt: nixfmt / statix / deadnix + pre-commit)"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: cachix/install-nix-action@v31
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31
         with:
           extra_nix_config: experimental-features = nix-command flakes
-      - uses: cachix/cachix-action@v15
+      - uses: cachix/cachix-action@ad2ddac53f961de1989924296a1f236fcfbaa4fc # v15
         with:
           name: ismailkattakath
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
