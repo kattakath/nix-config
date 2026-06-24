@@ -11,6 +11,12 @@
 # Gitignored on purpose: this is the "why" behind the repo, not committed documentation.
 memory/
 
+# macOS Finder cruft
+.DS_Store
+.DS_Store?
+.AppleDouble
+._*
+
 # Nix build artifacts
 result
 result-*
