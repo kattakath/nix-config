@@ -107,6 +107,7 @@
           modules = [
             ./hosts/${hostname}.nix
             ./modules/nixos/core.nix
+            ./modules/shared/nix-cache.nix # Cachix binary cache (read)
             agenix.nixosModules.default # system-level age.secrets (distinct from HM module)
             ./modules/nixos/cloudflared.nix # enables services.cloudflared daemon
             home-manager.nixosModules.home-manager
@@ -138,7 +139,10 @@
             nix-vscode-extensions
             ;
         };
-        modules = [ ./hosts/m3pro.nix ];
+        modules = [
+          ./hosts/m3pro.nix
+          ./modules/shared/nix-cache.nix # Cachix binary cache (read)
+        ];
       };
 
       # ---- NixOS system configurations -------------------------------------------
