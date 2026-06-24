@@ -173,6 +173,7 @@ in
           "workbench.activityBar.iconSize" = "comp";
           "workbench.colorTheme" = "JetBrains New UI Dark Theme";
           "workbench.activityBar.compact" = true;
+          "workbench.activityBar.iconClickBehavior" = "toggle";
           "workbench.editor.splitOnDragAndDrop" = false;
           "workbench.settings.alwaysShowAdvancedSettings" = true;
           "window.density.editorTabHeight" = "compact";
@@ -234,13 +235,6 @@ in
           "editor.fontFamily" = "'JetBrainsMono Nerd Font', 'JetBrains Mono', monospace";
           "editor.fontLigatures" = true;
           "editor.formatOnSave" = true;
-          # Visual guides + organize-imports-on-save: personal editing habits,
-          # wanted in every repo (the 88/120 columns mirror common conventions
-          # but only draw guide lines — they enforce nothing).
-          "editor.rulers" = [
-            88
-            120
-          ];
           "editor.codeActionsOnSave" = {
             "source.organizeImports" = "explicit";
           };
