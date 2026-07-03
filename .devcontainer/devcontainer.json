@@ -1,6 +1,6 @@
 {
   // nix-config devcontainer: a PREBUILT, Nix-built image. The whole toolchain —
-  // a working single-user nix (flakes + public Cachix), the warm devShell
+  // a working multi-user nix (flakes + public Cachix), the warm devShell
   // closure (nixd/nixfmt/treefmt/statix/deadnix/home-manager), node, claude-code,
   // gh — is baked into the image by this repo's flake.nix
   // (packages/devcontainer-image.nix, dockerTools.streamLayeredImage) and
@@ -16,11 +16,10 @@
   "name": "nix-config (prebuilt Nix devcontainer image)",
   "image": "ghcr.io/ismailkattakath/devcontainer:latest",
 
-  // Multi-user Nix: the image runs as ROOT and its entrypoint starts the
-  // nix-daemon; VS Code drops to the non-root `vscode` user for terminals, which
-  // reach the daemon over the socket (NIX_REMOTE=daemon is baked in). This is
-  // Nix's official multi-user model + the devcontainers/nix Feature's non-root
-  // path — the baked store stays root-owned by design, no chown/sudo needed.
+  // Multi-user Nix: the image runs as ROOT (entrypoint starts the nix-daemon) and
+  // VS Code drops to the non-root `vscode` user, which reaches the daemon over the
+  // socket (NIX_REMOTE=daemon, baked in). Full rationale — why the store stays
+  // root-owned, no chown/sudo — lives in packages/devcontainer-image.nix.
   "remoteUser": "vscode",
 
   // The image ships a fixed uid/gid 1000 vscode user via fakeNss (read-only
@@ -33,7 +32,7 @@
   "overrideCommand": false,
 
   "workspaceFolder": "/workspaces/nix-config",
-  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/nix-config,type=bind,consistency=cached",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/nix-config,type=bind",
 
   // IMPORTANT: no mount over /nix — that would shadow the baked, warm store the
   // image ships. The container's own overlay makes /nix/store writable for new
