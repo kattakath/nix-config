@@ -13,7 +13,7 @@ A single Nix flake that manages complete, reproducible system configurations acr
 
 | Host | Platform | System | Role |
 |------|----------|--------|------|
-| `nixcon` | macOS via [nix-darwin](https://github.com/LnL7/nix-darwin) | `aarch64-darwin` | Apple Silicon workstation |
+| `nixcon` | macOS via [nix-darwin](https://github.com/LnL7/nix-darwin) | `aarch64-darwin` | Apple Silicon Mac |
 | `nixtel` | macOS via [nix-darwin](https://github.com/LnL7/nix-darwin) | `x86_64-darwin` | Apple Intel Mac |
 | `nixarm` | NixOS VM (UTM / QEMU) | `aarch64-linux` | Local Linux VM |
 | `nixamd` | NixOS | `x86_64-linux` | x86_64 NixOS host (config-only / CI-eval) |
