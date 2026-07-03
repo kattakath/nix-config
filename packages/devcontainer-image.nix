@@ -190,7 +190,9 @@ dockerTools.streamLayeredImage {
     # serving TRUSTED clients (trusted-users below) and removes the whole nixbld
     # failure class (matches the single-user-in-container posture that works).
     # trusted-users: let vscode add substituters / import paths interactively.
-    # Cachix key is a verification key (also in modules/shared/nix-cache.nix).
+    # Substituter key is a verification key (also in modules/shared/nix-cache.nix):
+    # ismailkattakath.cachix.org (the CI devShell/build closure cache).
+    # Public-read, no token baked in.
     mkdir -p etc/nix
     cat > etc/nix/nix.conf <<'NIXCONF'
     experimental-features = nix-command flakes
