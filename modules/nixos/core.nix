@@ -55,15 +55,8 @@
   # fires for standalone HM on non-NixOS Linux.)
   programs.nix-ld = {
     enable = true;
-    libraries = with pkgs; [
-      stdenv.cc.cc # libstdc++, libgcc_s
-      glibc
-      zlib
-      openssl
-      curl
-      util-linux
-      libGL
-    ];
+    # Shared list — same set the HM shim and the devcontainer image use.
+    libraries = import ../shared/nix-ld-libraries.nix pkgs;
   };
 
   # agenix uses the host SSH key to decrypt system-level secrets at activation.
