@@ -1,6 +1,6 @@
 ---
 name: platform-compiler
-description: "Use this agent whenever a .nix file, flake.nix, flake.lock, or Home-Manager module changes and you need to confirm it evaluates cleanly across ALL target architectures (aarch64-darwin, x86_64-linux, aarch64-linux). Delegate before declaring any Nix change complete, when adding a new homeConfiguration or module, after bumping flake inputs, or when an evaluation error mentions a system that differs from the host. This agent owns cross-platform evaluation validation — it does not activate generations."
+description: "Use this agent whenever a .nix file, flake.nix, flake.lock, or Home-Manager module changes and you need to confirm it evaluates cleanly across ALL target architectures (aarch64-darwin, x86_64-linux, aarch64-linux). Delegate before declaring any Nix change complete, when adding a new host config or module, after bumping flake inputs, or when an evaluation error mentions a system that differs from the host. This agent owns cross-platform evaluation validation — it does not activate generations."
 model: inherit
 color: yellow
 tools: ["Read", "Glob", "Grep", "Bash"]
@@ -26,9 +26,10 @@ You validate; you never activate (`home-manager switch` is out of scope).
 
 **Process:**
 1. `git add -A` (purity gate), then `git status --porcelain '*.nix'` to confirm a clean tree.
-2. Run `nix flake show` to enumerate exported `homeConfigurations` and their systems.
+2. Run `nix flake show` to enumerate exported `darwinConfigurations` / `nixosConfigurations` and their systems.
 3. Run `nix flake check` for full multi-system evaluation. For targeted speed, evaluate single
-   configs with `nix flake check .#homeConfigurations.<name>` or
+   configs with `nix eval .#darwinConfigurations.nixcon.config.system.build.toplevel`,
+   `nix eval .#nixosConfigurations.nixbox.config.system.build.toplevel` (or the `nixrpi` analog), or
    `nix-instantiate --eval --strict` / `--parse` on individual files.
 4. If `nix` is unavailable on the host, fall back to `nix-instantiate --parse` for syntax
    validation on each changed file and clearly report that full evaluation must run in CI or
