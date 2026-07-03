@@ -2,7 +2,7 @@
 name: agenix-host-rekey
 description: >
   Re-encrypt host-scoped agenix secrets to a NixOS host's SSH host key after first boot, so system
-  services (e.g. services.cloudflared tunnel creds) can decrypt at activation. Use when asked to
+  services (e.g. the cloudflared connector token) can decrypt at activation. Use when asked to
   "rekey", "add a host key to secrets", "re-encrypt for the host", or to fix an agenix secret that
   fails to decrypt on a NixOS host. Resolves the personal-key-only → host-key chicken-and-egg that
   occurs after any fresh host provisioning (qcow2 boot or ISO install).
@@ -13,14 +13,16 @@ description: >
 ## Why (read first)
 
 `modules/nixos/core.nix` sets `age.identityPaths = [ "/etc/ssh/ssh_host_ed25519_key" ]`, so at
-activation the host decrypts system secrets with its **host** key. But `nixarm-tunnel-creds.age` was
+activation the host decrypts system secrets with its **host** key. But `nixarm-tunnel-token.age` was
 encrypted only to the **personal** `userKeys` recipient in `secrets/secrets.nix` — the host isn't a
-recipient yet, so the secret (and `services.cloudflared`) fails on first boot. This skill adds the
-host key as an age recipient and re-encrypts.
+recipient yet, so the secret (and the `cloudflared-connector` unit) fails on first boot. This skill
+adds the host key as an age recipient and re-encrypts.
 
-- **Keep names unchanged**: secret file `nixarm-tunnel-creds.age`, DNS `nixarm.kattakath.com`,
-  tunnel UUID `48199503-cdee-4f62-b233-0dfa3bac4b5a` (renaming the `.age` forces needless
-  re-encryption). Owning host is `nixarm` (`hosts/nixarm.nix`), attr `age.secrets.tunnel-creds`.
+- **Keep names unchanged**: secret file `nixarm-tunnel-token.age`, DNS `nixarm.kattakath.com`
+  (renaming the `.age` forces needless re-encryption). Owning host is `nixarm` (`hosts/nixarm.nix`),
+  attr `age.secrets."nixarm-tunnel-token"`.
+- The secret is a remotely-managed connector **token**: a single line `TUNNEL_TOKEN=…`, consumed by
+  `modules/nixos/cloudflared.nix` via `EnvironmentFile` (not a credentials JSON, not a tunnel UUID).
 - `.age` files are plain `age` files encrypted to the recipients in `secrets/secrets.nix`; the
   host's `ssh_host_ed25519_key.pub` is a normal age recipient.
 
@@ -41,7 +43,7 @@ let
   nixarm   = "ssh-ed25519 AAAA…<the host key you just copied>";
 in {
   # …existing entries unchanged…
-  "nixarm-tunnel-creds.age".publicKeys = userKeys ++ [ nixarm ];
+  "nixarm-tunnel-token.age".publicKeys = userKeys ++ [ nixarm ];
 }
 ```
 
@@ -50,22 +52,24 @@ in {
 With `agenix`/`nix` present (re-encrypts in place to the updated `publicKeys`):
 
 ```bash
-cd secrets && nix run github:ryantm/agenix -- -e nixarm-tunnel-creds.age
+cd secrets && nix run github:ryantm/agenix -- -e nixarm-tunnel-token.age
 ```
 
 Without nix/agenix (common on the Mac) — re-encrypt with plain `age` to **all** recipients (repeated
-`-r`), sourcing plaintext from the original creds (never echo it):
+`-r`), sourcing the plaintext token (a single `TUNNEL_TOKEN=…` line from `scripts/cf-one-provision.sh`;
+never echo it):
 
 ```bash
+# $TOKEN_FILE holds the one line: TUNNEL_TOKEN=…
 age -r "<userKey>" -r "<host key>" \
-    -o secrets/nixarm-tunnel-creds.age \
-    < ~/.cloudflared/48199503-cdee-4f62-b233-0dfa3bac4b5a.json
+    -o secrets/nixarm-tunnel-token.age \
+    < "$TOKEN_FILE"
 ```
 
 ## 4. Verify both recipients can decrypt
 
 ```bash
-age -d -i ~/.ssh/id_ed25519 secrets/nixarm-tunnel-creds.age >/dev/null && echo "personal: OK"
+age -d -i ~/.ssh/id_ed25519 secrets/nixarm-tunnel-token.age >/dev/null && echo "personal: OK"
 # host-key decrypt is proven on the host at next activation
 ```
 
@@ -74,8 +78,8 @@ Compare against the source by sha256, not by printing the value.
 ## 5. Commit + push (so the host can pull)
 
 ```bash
-git add secrets/nixarm-tunnel-creds.age secrets/secrets.nix
-git commit --no-verify -m "secrets: rekey nixarm tunnel creds to host key"
+git add secrets/nixarm-tunnel-token.age secrets/secrets.nix
+git commit --no-verify -m "secrets: rekey nixarm tunnel token to host key"
 git push
 ```
 
@@ -88,4 +92,5 @@ binary `.age` + a `.nix` recipient list. If `secrets.nix` changed, run `/eval` o
 ssh izzy@<host-ip> 'sudo nixos-rebuild switch --flake github:ismailkattakath/nix-config#nixarm'
 ```
 
-`services.cloudflared` now finds a decryptable `credentialsFile` and the tunnel comes up.
+The `cloudflared-connector` unit now finds a decryptable `EnvironmentFile` (its `TUNNEL_TOKEN`) and
+the tunnel comes up.

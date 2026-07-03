@@ -40,7 +40,7 @@ wipe.** Do **not** limp along with swap — it cannot save an already-poisoned s
   nixarm** (see step 4 — patch is only for a brand-new generic host lacking these).
 - **User `izzy`**: wheel, passwordless sudo, project SSH key; **key-only SSH, no root login**
   (`modules/nixos/core.nix`) — applies to the *installed* system, not the live ISO.
-- One gap handled post-boot: the **agenix host-key chicken-and-egg** for `*-tunnel-creds.age`.
+- One gap handled post-boot: the **agenix host-key chicken-and-egg** for `*-tunnel-token.age`.
 
 ## 1. Reach a shell on the target (SSH from the live ISO)
 
@@ -127,10 +127,10 @@ nixos-install --flake /tmp/nixcfg#nixarm --no-root-passwd
 reboot
 ```
 
-`--no-root-passwd` is correct — login is izzy's SSH key. Any `cloudflared` / `*-tunnel-creds` agenix
-unit will **fail on first boot** (secret encrypted only to the personal key, not the host key yet);
-SSH login is unaffected. **Remove any swapfile you created on `/mnt` before finalizing** — it ships
-on the target root.
+`--no-root-passwd` is correct — login is izzy's SSH key. The `cloudflared-connector` unit reading its
+`*-tunnel-token` agenix secret will **fail on first boot** (secret encrypted only to the personal key,
+not the host key yet); SSH login is unaffected. **Remove any swapfile you created on `/mnt` before
+finalizing** — it ships on the target root.
 
 ## 6. Verify + hand off the host key
 
@@ -140,7 +140,7 @@ cat /etc/ssh/ssh_host_ed25519_key.pub        # needed for the next step
 ```
 
 → Run the **agenix-host-rekey** skill to add this host key as a recipient and re-encrypt the
-tunnel creds so `services.cloudflared` activates on the next rebuild.
+tunnel token so the `cloudflared-connector` unit activates on the next rebuild.
 
 ## Recovery toolkit
 
