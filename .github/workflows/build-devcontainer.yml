@@ -7,9 +7,7 @@ name: build-devcontainer
 # heavyweight toolchain (a working nix + the warm devShell closure + node +
 # claude-code + gh) is baked in, so create-time setup is near-zero.
 #
-# PRs build-only; push to main publishes :latest + :<sha12> as ONE self-contained
-# OCI image index (podman manifest push --all → index + both children uploaded
-# atomically, so children can never be independently GC'd). Every leg also
+# PRs build-only; push to main publishes :latest + :<sha12>. Every leg also
 # smoke-tests the freshly-built image (nix develop from the warm store).
 #
 # This REPLACES the old features-based test-devcontainer.yml (deleted in the
@@ -278,55 +276,78 @@ jobs:
             echo "=== smoke test passed ==="
           '
 
-      # Publish path runs only on a main push whose image CONTENT changed.
+      # Publish (login + push) runs only on a main push whose image CONTENT changed.
       # The build + smoke test ABOVE stay unconditional — they are the cheap safety
       # net (Cachix substitutes the warm closure), so PRs and even no-op main pushes
       # still prove the image builds and `nix develop` resolves. Only the expensive
-      # part — materialising the multi-GB archive + uploading it + the downstream
-      # single-shot manifest push — is gated on gate.outputs.changed.
-      #
-      # SELF-CONTAINED PUBLISH (see the manifest job): this build job no longer
-      # pushes a per-arch `:<sha12>-<arch>` tag to GHCR. Instead it hands the raw
-      # per-arch archive to the manifest job as a workflow artifact. The manifest
-      # job assembles ONE OCI image index with `podman manifest` and pushes it with
-      # `--all`, so the index AND both children upload as a single atomic artifact.
-      # Nothing on GHCR is left as a separate arch-tagged reference that could be
-      # untagged/retagged away, which is what previously let the children get
-      # garbage-collected out from under the index (the dangling-index bug, #22).
-      #
-      # `streamLayeredImage` emits an UNCOMPRESSED docker-archive tar; materialise
-      # it to a file (NOT a pipe) — the old `./result | gzip --fast | …` stage both
-      # corrupted the docker-archive transport and, under bash `pipefail`, turned an
-      # early consumer exit into a spurious `gzip: … Broken pipe` failure. A file
-      # removes the pipe entirely. gzip the file for transport between jobs only
-      # (artifact upload is the sole consumer; podman reads the decompressed tar).
-      - name: Materialise per-arch archive
+      # part — the multi-GB skopeo uploads (and, downstream, the manifest job + the
+      # scarce arm64 runner's push) — is gated on gate.outputs.changed.
+      - name: Login to GHCR
         if: needs.config.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
-        run: |
-          ./result > "image-${{ matrix.arch }}.tar"
-          gzip -1 "image-${{ matrix.arch }}.tar"
-
-      - name: Upload per-arch archive artifact
-        if: needs.config.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v3
         with:
-          name: devcontainer-image-${{ matrix.arch }}
-          path: image-${{ matrix.arch }}.tar.gz
-          retention-days: 1
-          if-no-files-found: error
-          compression-level: 0 # already gzipped
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Daemonless push (nixpkgs-manual idiom). skopeo reads the docker config
+      # that docker/login-action wrote.
+      #
+      # Two deliberate choices here:
+      #  1. Materialise the archive to a file, then `copy docker-archive:image.tar`
+      #     — NOT `./result | … docker-archive:/dev/stdin`. `streamLayeredImage`
+      #     emits an UNCOMPRESSED docker-archive tar; the old `| gzip --fast |`
+      #     stage both corrupted that transport (skopeo expects a plain tar on
+      #     `docker-archive:`) and, under bash `pipefail`, turned skopeo's own
+      #     early exit into a spurious `gzip: … Broken pipe` step failure. A file
+      #     removes the pipe entirely — no SIGPIPE race, no pipefail fragility.
+      #  2. Point skopeo at our OWN registries.conf via CONTAINERS_REGISTRIES_CONF.
+      #     nixpkgs skopeo (containers/image ≥ v2 only) otherwise reads the GitHub
+      #     runner's host /etc/containers/registries.conf, which is still v1, and
+      #     aborts with "registries.conf must be in v2 format but is in v1" before
+      #     it ever reads the archive. An empty v2 file (registry defaults only)
+      #     sidesteps the incompatible host config.
+      #  3. `--format oci` converts each per-arch manifest from the v2s2 Docker
+      #     Schema 2 that streamLayeredImage emits to OCI
+      #     (application/vnd.oci.image.manifest.v1+json). This is LOAD-BEARING for
+      #     the manifest job's index annotations: with OCI children, `docker buildx
+      #     imagetools create` assembles an OCI image index
+      #     (application/vnd.oci.image.index.v1+json), which HAS an `annotations`
+      #     field. Without it the children stay v2s2 and imagetools falls back to a
+      #     Docker manifest list (vnd.docker.distribution.manifest.list.v2+json)
+      #     that has NO annotations field — so the index:org.opencontainers.image.*
+      #     annotations are SILENTLY DROPPED and GHCR's About panel renders nothing.
+      #     `oci` is a documented skopeo-copy --format value (oci|v2s1|v2s2).
+      #  4. The `:<sha12>-<arch>` tag this pushes is LOAD-BEARING and must be
+      #     RETAINED permanently — it is what keeps the per-arch child manifest
+      #     alive. `docker buildx imagetools create` (manifest job) copies each
+      #     child into the OCI index BY DIGEST but does NOT create any durable
+      #     reference of its own to those children; the arch tag is the only
+      #     thing holding them. GHCR garbage-collects UNTAGGED manifests, so if
+      #     these arch tags ever went away the index children would be pruned and
+      #     `:latest` would become a dangling index (200 for the index, 404 for
+      #     both children) — a `docker pull` then fails for EVERY consumer
+      #     (Codespaces prebuilds, local .devcontainer users, CI). That is exactly
+      #     the regression this workflow shipped once. DO NOT add a step that
+      #     deletes/untags `:<sha12>-<arch>`; keep them as permanent versions. The
+      #     manifest job asserts both children still resolve after assembly.
+      - name: Push per-arch image
+        if: needs.config.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
+        env:
+          CONTAINERS_REGISTRIES_CONF: ${{ runner.temp }}/registries.conf
+        run: |
+          printf 'unqualified-search-registries = ["docker.io"]\n' \
+            > "${CONTAINERS_REGISTRIES_CONF}"
+          ./result > image.tar
+          nix run nixpkgs#skopeo -- --insecure-policy copy --format oci \
+            docker-archive:image.tar \
+            "docker://${{ steps.ref.outputs.ref }}:${{ steps.ref.outputs.sha12 }}-${{ matrix.arch }}"
 
   manifest:
     needs: [config, gate, build]
     if: needs.config.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
     runs-on: ubuntu-24.04
     steps:
-      - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            accept-flake-config = true
-
       - name: Login to GHCR
         uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v3
         with:
@@ -344,127 +365,55 @@ jobs:
           echo "ref=ghcr.io/${OWNER}/${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
           echo "sha12=$(echo '${{ github.sha }}' | cut -c1-12)" >> "$GITHUB_OUTPUT"
 
-      - name: Download per-arch archives
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          pattern: devcontainer-image-*
-          merge-multiple: true
-
-      # SELF-CONTAINED OCI INDEX — the structural fix for the dangling-index bug.
-      #
-      # ROOT CAUSE (shipped once, healed by #22): the old flow pushed each per-arch
-      # child under a throwaway `:<sha12>-<arch>` tag, then `docker buildx imagetools
-      # create` assembled the index by COPYING each child BY DIGEST. imagetools
-      # created no durable reference of its own to those children — the arch tag was
-      # the ONLY thing holding them. A registry garbage-collects manifests that are
-      # both untagged AND unreferenced; because those children lived as independent
-      # top-level tags rather than *inside* the pushed index artifact, losing the
-      # arch tags orphaned them and `:latest` became a dangling index (200 for the
-      # index, 404 for both children) — `docker pull` then failed for EVERY consumer.
-      # Retention hinged on keeping separate child tags forever: fragile by design.
-      #
-      # THE FIX: assemble the index LOCALLY with `podman manifest`, then push it with
-      # `podman manifest push --all`. `--all` (podman-manifest-push(1), default true)
-      # "push[es] the images mentioned in the manifest list or image index, IN
-      # ADDITION to the list or index itself" — so the index and BOTH children upload
-      # as ONE artifact in a single push. There are no separate child tags to lose:
-      # the children are part of the index push, so a child can never be
-      # independently GC'd. This eliminates the dangling-index class of bug at the
-      # source rather than papering over it with permanent arch tags + a guard.
-      #
-      # ANNOTATIONS (protect #15): index-level OCI annotations are set with
-      # `podman manifest annotate --index --annotation k=v <list>`
-      # (podman-manifest-annotate(1): --index "treats arguments to the --annotation
-      # option as annotation values to be set on the image index itself rather than
-      # on an entry"). `--format oci` on push emits an OCI image index
-      # (application/vnd.oci.image.index.v1+json), whose top-level `annotations` field
-      # carries them — exactly where GHCR reads the About panel from. This is the same
-      # placement `docker buildx imagetools create --annotation index:…` targeted; we
-      # keep description/source/licenses in lockstep with the repo via expressions.
-      #
-      # Children are added straight from the docker-archive tars via
-      # `podman manifest add <list> docker-archive:image.tar`
-      # (podman-manifest-add(1) documents docker-archive/oci-archive transports) — no
-      # intermediate registry round-trip, no skopeo format conversion: podman emits
-      # OCI children when it builds the index for an --format oci push.
-      - name: Assemble + push self-contained OCI index (:latest + :<sha12>)
-        env:
-          # nixpkgs podman/skopeo (containers/image ≥ v2) otherwise reads the runner
-          # host's still-v1 /etc/containers/registries.conf and aborts before it
-          # touches the archive. An empty v2 file (registry defaults only) sidesteps
-          # the incompatible host config.
-          CONTAINERS_REGISTRIES_CONF: ${{ runner.temp }}/registries.conf
+      - name: Assemble multi-arch manifest (:latest + :<sha12>)
         run: |
-          set -euo pipefail
           REF="${{ steps.ref.outputs.ref }}"
           SHA="${{ steps.ref.outputs.sha12 }}"
-          printf 'unqualified-search-registries = ["docker.io"]\n' \
-            > "${CONTAINERS_REGISTRIES_CONF}"
-
-          gunzip image-amd64.tar.gz image-arm64.tar.gz
-          LIST="devcontainer-index"
-
-          # Run podman as ROOT (via sudo), NOT rootless. The nix-provided podman
-          # cannot set up a rootless user namespace on the GHA runner — it lacks the
-          # setuid newuidmap/newgidmap shadow helpers, so `nix run nixpkgs#podman`
-          # dies with `failed to reexec: Permission denied` before it does anything
-          # (containers/podman#24642). As root (uid 0) podman SKIPS the rootless
-          # reexec entirely — no user namespace, no newuidmap — and uses the real
-          # root store. Manifest assembly + push is pure metadata/blob work (no
-          # container is ever executed), so running it as root is both correct and
-          # the reliable path here.
-          #
-          # Build the podman closure ONCE as the runner user (its nix, its cache),
-          # capture the store path, then invoke that exact binary under sudo. The nix
-          # store is world-readable so root can exec it; root's store is writable so
-          # podman's local graph root lands under /root. CONTAINERS_REGISTRIES_CONF is
-          # passed EXPLICITLY into the sudo env (below) and registry auth via
-          # --authfile — under sudo $HOME would be /root, so podman's default
-          # ~/.docker/config.json fallback would miss the runner user's login.
-          PODMAN="$(nix build --no-link --print-out-paths nixpkgs#podman)/bin/podman"
-          AUTHFILE="${HOME}/.docker/config.json"
-          # Pass CONTAINERS_REGISTRIES_CONF explicitly INTO the sudo env (don't rely on
-          # -E surviving the runner's env_reset sudoers policy).
-          run_podman() {
-            sudo "CONTAINERS_REGISTRIES_CONF=${CONTAINERS_REGISTRIES_CONF}" \
-              "${PODMAN}" "$@"
-          }
-
-          run_podman manifest create "${LIST}"
-          run_podman manifest add "${LIST}" docker-archive:image-amd64.tar
-          run_podman manifest add "${LIST}" docker-archive:image-arm64.tar
-
-          # Index-level OCI annotations (GHCR About panel; --index targets the list).
-          run_podman manifest annotate --index \
-            --annotation "org.opencontainers.image.description=Multi-arch distroless devcontainer with a working Nix daemon and a warm devShell built from ${{ github.repository }}" \
-            --annotation "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
-            --annotation "org.opencontainers.image.licenses=MIT" \
-            "${LIST}"
-
-          # ONE push per tag; --all uploads index + BOTH children as a single artifact.
-          for TAG in latest "${SHA}"; do
-            run_podman manifest push --all --format oci \
-              --authfile "${AUTHFILE}" \
-              "${LIST}" "docker://${REF}:${TAG}"
-          done
+          # RFC3339 UTC build timestamp for org.opencontainers.image.created.
+          CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          # index:-prefixed annotations attach to the MANIFEST LIST (the OCI image
+          # index), not the child per-arch manifests — the only place metadata lands
+          # on a multi-arch image (OCI-style labels don't apply to an index). GHCR
+          # renders the package "About" panel from these index annotations. This is a
+          # PUBLIC devcontainer base image, so we set the full standard OCI predefined
+          # annotation set (image-spec annotations.md): description/source/licenses
+          # plus revision (the exact commit), created (build time), and version (the
+          # immutable :sha12 tag). All keyed to the repo/build via expressions so they
+          # stay in lockstep. Takes effect on the next push-to-main publish, not a PR.
+          docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.description=Multi-arch distroless devcontainer with a working Nix daemon and a warm devShell built from ${{ github.repository }}" \
+            --annotation "index:org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
+            --annotation "index:org.opencontainers.image.revision=${{ github.sha }}" \
+            --annotation "index:org.opencontainers.image.created=${CREATED}" \
+            --annotation "index:org.opencontainers.image.version=${SHA}" \
+            -t "${REF}:latest" \
+            -t "${REF}:${SHA}" \
+            "${REF}:${SHA}-amd64" \
+            "${REF}:${SHA}-arm64"
+          docker buildx imagetools inspect "${REF}:latest"
 
       # HARD POST-PUBLISH GUARD — fail the publish if `:latest` is not actually
       # pullable. The old pipeline shipped a DANGLING INDEX: the OCI index served
       # HTTP 200 but both per-arch children 404'd, so every `docker pull` failed
       # (Codespaces prebuilds, local .devcontainer users, CI). `imagetools inspect`
-      # alone does NOT catch this — it reads the index descriptors, not the child
-      # bodies. The self-contained `--all` push above makes this structurally
-      # impossible, but the guard STAYS as a hard assertion: it proves the invariant
-      # every publish rather than trusting it, and would catch any future regression
-      # (e.g. someone reintroducing separate child tags). It does three things a
-      # dangling index cannot survive:
+      # above does NOT catch this — it reads the index descriptors, not the child
+      # bodies. This step does FOUR things a dangling (or soon-to-dangle) index
+      # cannot survive:
       #   1. a REAL `docker pull :latest`, which resolves + fetches a platform
       #      child (the amd64 child, on this ubuntu-24.04 runner) — 404 ⇒ failure;
       #   2. an explicit resolve of EVERY child digest the index references, so a
       #      broken child on the arch the runner did NOT pull (arm64) is still
       #      caught — a registry GET per child, 404 ⇒ failure;
-      #   3. re-assert #15's index annotation survived, so a future change that
-      #      silently drops it also fails here.
+      #   3. re-assert #15's index annotation survived, so a future imagetools
+      #      change that silently drops it also fails here.
+      #   4. assert the per-arch `:<sha12>-<arch>` child TAGS still resolve — these
+      #      are the ONLY thing anchoring the index children against GHCR's
+      #      untagged-manifest GC, so verifying them turns a future "someone untagged
+      #      the children" time-bomb (which #22 originally shipped) into an immediate
+      #      publish failure instead of a delayed dangling index.
+      # Without this, a dangling index shipped silently and only surfaced in a
+      # downstream Codespaces prebuild. Now it fails CI at publish time.
       - name: Verify :latest is durably pullable (children resolve)
         run: |
           set -euo pipefail
@@ -496,11 +445,30 @@ jobs:
           done
           echo "✓ all ${COUNT} child manifests resolve"
 
-          # Protect PR #15: the index must still carry the OCI description annotation.
-          printf '%s' "$RAW" \
-            | jq -e '.annotations["org.opencontainers.image.description"]' >/dev/null \
-            || { echo "✗ index lost org.opencontainers.image.description annotation (#15 regression)"; exit 1; }
-          echo "✓ index annotations intact (org.opencontainers.image.description present)"
+          # Protect the index annotation set: assert the load-bearing ones survived
+          # assembly (#15 for description; revision guards the enriched OCI set). A
+          # future imagetools change that silently drops annotations fails here.
+          for KEY in description revision; do
+            printf '%s' "$RAW" \
+              | jq -e --arg k "org.opencontainers.image.${KEY}" '.annotations[$k]' >/dev/null \
+              || { echo "✗ index lost org.opencontainers.image.${KEY} annotation"; echo "$RAW"; exit 1; }
+          done
+          echo "✓ index annotations intact (description + revision present)"
+
+          # RETENTION ASSERTION (hardening) — the index children stay alive ONLY
+          # because the per-arch `:<sha12>-<arch>` TAGS keep them referenced (see the
+          # build job's "Push per-arch image" note). Assert those tags actually
+          # resolve, so if anything ever untags/deletes them the publish FAILS here
+          # instead of silently leaving a time-bomb that GHCR GC turns into a dangling
+          # index later. This is the load-bearing invariant of this publish design;
+          # test it every publish rather than trust it.
+          SHA="${{ steps.ref.outputs.sha12 }}"
+          for ARCH in amd64 arm64; do
+            echo "→ resolving retained child tag ${REF}:${SHA}-${ARCH}"
+            docker buildx imagetools inspect "${REF}:${SHA}-${ARCH}" >/dev/null \
+              || { echo "✗ child tag ${SHA}-${ARCH} does NOT resolve — the retention anchor for the index child is GONE; :latest will dangle after GC"; exit 1; }
+          done
+          echo "✓ both per-arch child tags retained (index children durably anchored)"
           echo "=== :latest is durably pullable ==="
 
       # Record the baseline ONLY after a fully successful publish, so a failed push
