@@ -85,11 +85,15 @@ let
     else
       throw "devcontainer-image: unsupported host platform ${hostPlat.system} — add its glibc loader name/dir";
 
-  # gcc runtime libs (libstdc++.so.6, libgcc_s.so.1) the VS Code Server node needs
-  # once the loader resolves. Put on LD_LIBRARY_PATH in config.Env (below) — the
-  # only mechanism the store-isolated nixpkgs loader honors; scoped to this one
-  # narrow dir so it doesn't perturb the co-installed Nix binaries.
-  gccLib = pkgs.stdenv.cc.cc.lib;
+  # nix-ld contract: the library search path exposed to FOREIGN (non-Nix) glibc
+  # binaries (the VS Code Server's node, prebuilt language servers, …) via
+  # NIX_LD_LIBRARY_PATH / LD_LIBRARY_PATH in config.Env. Imported from the shared
+  # list the repo's NixOS hosts already use (modules/nixos/core.nix) so image and
+  # hosts never drift — and so the NEXT foreign binary that needs zlib/openssl/
+  # libGL just works with no image change. This is the ONE place the set grows,
+  # instead of a per-soname shim added after each breakage.
+  nixLdLibraries = import ../modules/shared/nix-ld-libraries.nix pkgs;
+  nixLdLibraryPath = lib.makeLibraryPath nixLdLibraries;
 
   # Everything that must be a VALID store path so `nix develop` skips build +
   # download; its `registration` is loaded into the image's Nix DB below.
@@ -111,13 +115,25 @@ let
   # command. Plain backgrounded process, no systemd — the standard container
   # pattern, mirroring devcontainers/features/nix's nix-entrypoint.sh.
   entrypoint = pkgs.writeShellScript "nix-daemon-entrypoint" ''
-    if [ ! -S /nix/var/nix/daemon-socket/socket ]; then
+    socket=/nix/var/nix/daemon-socket/socket
+    # LIVENESS, not mere presence: a crashed daemon leaves the socket INODE behind,
+    # so the old `[ ! -S socket ]` file test saw a dead socket, skipped the restart,
+    # and every client then got "Connection refused". Probe an actual store ping
+    # (the same liveness check the CI smoke test uses); a stale inode fails it and
+    # we reclaim it before rebinding.
+    daemon_alive() {
+      [ -S "$socket" ] && NIX_REMOTE=daemon ${pkgs.nix}/bin/nix store ping >/dev/null 2>&1
+    }
+    if ! daemon_alive; then
+      rm -f "$socket"
       # CRITICAL: the image sets NIX_REMOTE=daemon for CLIENTS, but the daemon
       # itself must NOT inherit it — otherwise it opens a RemoteStore pointing at
       # its own socket and proxies to itself (binds the socket, then resets every
       # request → "Connection reset by peer"). Run the daemon with NIX_REMOTE
       # empty so it drives the LOCAL store directly.
       NIX_REMOTE= ${pkgs.nix}/bin/nix-daemon > /tmp/nix-daemon.log 2>&1 &
+      # Bounded wait until it actually LISTENS (not merely until the file appears).
+      for _ in $(seq 1 50); do daemon_alive && break; done
     fi
     exec "$@"
   '';
@@ -137,20 +153,68 @@ dockerTools.streamLayeredImage {
   fakeRootCommands = ''
     set -eu
 
-    # /bin/sh — many tools (and the entrypoint's exec target) hardcode it.
-    mkdir -p bin
-    ln -sf ${pkgs.bashInteractive}/bin/bash bin/sh
+    # ==========================================================================
+    # FHS compat contract for the FOREIGN VS Code Server
+    # --------------------------------------------------------------------------
+    # This distroless image has NO base distro — glibc, a shell, and coreutils
+    # live only under /nix/store. The VS Code Server (and other prebuilt binaries)
+    # are generic-glibc FOREIGN binaries that make hardcoded FHS assumptions.
+    # Every such assumption is satisfied HERE, deliberately in one place, instead
+    # of reactively one breakage at a time. There are exactly three kinds:
+    #
+    #   (1) ELF loader — the nix-ld contract. Foreign binaries hardcode the
+    #       STANDARD loader path in PT_INTERP; without it the kernel refuses them
+    #       (exit 127). We OWN /lib*/ld-linux-* on a distroless image (no system
+    #       loader to protect), so we point it straight at nixpkgs glibc. The libs
+    #       those binaries then need at runtime are exposed via NIX_LD_LIBRARY_PATH
+    #       / LD_LIBRARY_PATH in config.Env — NOT via /lib symlinks or
+    #       /etc/ld.so.cache, which the nixpkgs-patched loader ignores (SYSTEM_DIRS
+    #       = the glibc store path; dont-use-system-ld-so-cache.patch).
+    #   (2) Interpreter PATHS the kernel resolves BEFORE any ELF loader runs — a
+    #       `#!/usr/bin/env sh` shebang and hardcoded `/bin/sh`. nix-ld cannot help
+    #       here (this is path resolution, not dynamic loading); they must exist.
+    #   (3) Distro identity — /etc/os-release, probed by the devcontainer runtime
+    #       on every `devcontainer up`; ID=nixos also short-circuits the server's
+    #       check-requirements.sh glibc-version probe.
+    # ==========================================================================
 
-    # /usr/bin/env — the VS Code Server bootstrap scripts (check-requirements.sh
-    # and its siblings) start with `#!/usr/bin/env sh`; on this distroless Nix
-    # image /usr/bin/env is absent, so the kernel rejects the shebang with
-    # "/usr/bin/env: bad interpreter: No such file or directory" (exit 126) and
-    # the server never installs — `devcontainer up` / Remote-Containers attach
-    # then aborts. env resolves the real interpreter (sh/bash/node) via the
-    # container PATH, which already carries the store bins plus /bin.
-    mkdir -p usr/bin
+    # (1) ELF loader: standard path -> nixpkgs glibc loader. Arch-derived name,
+    #     mirrored across /lib <-> /lib64 for binaries that probe the sibling dir.
+    mkdir -p lib lib64
+    ln -sf ${pkgs.glibc}/lib/${loaderInfo.name} ${loaderInfo.libDir}/${loaderInfo.name}
+    ${
+      lib.optionalString (loaderInfo.libDir == "lib") ''
+        ln -sf ${pkgs.glibc}/lib/${loaderInfo.name} lib64/${loaderInfo.name}
+      ''
+    }${
+      lib.optionalString (loaderInfo.libDir == "lib64") ''
+        ln -sf ${pkgs.glibc}/lib/${loaderInfo.name} lib/${loaderInfo.name}
+      ''
+    }
+
+    # (2) Interpreter paths. /bin/sh: hardcoded by many tools + the entrypoint's
+    #     exec target. /usr/bin/env: the VS Code Server bootstrap scripts
+    #     (check-requirements.sh and siblings) use `#!/usr/bin/env sh`; without it
+    #     the kernel rejects the shebang (exit 126) and the server never installs.
+    #     env resolves the real interpreter (sh/bash/node) via the container PATH.
+    mkdir -p bin usr/bin
+    ln -sf ${pkgs.bashInteractive}/bin/bash bin/sh
     ln -sf ${pkgs.coreutils}/bin/env usr/bin/env
 
+    # (3) Distro identity — silences the devcontainer distro probe; ID=nixos also
+    #     short-circuits the server's check-requirements.sh glibc-version check.
+    mkdir -p etc usr/lib
+    cat > etc/os-release <<'OSRELEASE'
+    NAME="nix-config devcontainer"
+    ID=nixos
+    ID_LIKE=nixos
+    PRETTY_NAME="nix-config devcontainer (distroless)"
+    VERSION_ID="unstable"
+    HOME_URL="https://github.com/ismailkattakath/nix-config"
+    OSRELEASE
+    ln -sf /etc/os-release usr/lib/os-release
+
+    # --- runtime writable dirs -----------------------------------------------
     # writable HOME for vscode (gh config, ~/.claude, npm cache).
     mkdir -p home/${username}
     chown -R ${toString uid}:${toString gid} home/${username}
@@ -195,50 +259,6 @@ dockerTools.streamLayeredImage {
     extra-substituters = https://ismailkattakath.cachix.org
     extra-trusted-public-keys = ismailkattakath.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I=
     NIXCONF
-
-    # --- make FOREIGN (non-Nix) glibc binaries runnable ----------------------
-    # The VS Code Server's generic-glibc `node` has its PT_INTERP set to the
-    # standard loader path (/lib/ld-linux-aarch64.so.1 or
-    # /lib64/ld-linux-x86-64.so.2), which a distroless Nix image lacks — so the
-    # server exits 127 and never starts. Symlink the standard loader path to
-    # nixpkgs glibc's loader so the kernel can exec these binaries.
-    mkdir -p lib lib64
-    ln -sf ${pkgs.glibc}/lib/${loaderInfo.name} ${loaderInfo.libDir}/${loaderInfo.name}
-    # Also mirror into the sibling dir (/lib <-> /lib64) for binaries that probe it.
-    ${
-      lib.optionalString (loaderInfo.libDir == "lib") ''
-        ln -sf ${pkgs.glibc}/lib/${loaderInfo.name} lib64/${loaderInfo.name}
-      ''
-    }${
-      lib.optionalString (loaderInfo.libDir == "lib64") ''
-        ln -sf ${pkgs.glibc}/lib/${loaderInfo.name} lib/${loaderInfo.name}
-      ''
-    }
-
-    # NOTE: libstdc++.so.6 / libgcc_s.so.1 for the foreign binary are resolved by
-    # LD_LIBRARY_PATH in config.Env (below), NOT here. Two alternatives were
-    # PROVEN not to work with the nixpkgs-patched loader:
-    #   * /etc/ld.so.cache — nixpkgs' dont-use-system-ld-so-cache.patch repoints
-    #     the loader's cache into the glibc store path, so /etc/ld.so.cache is
-    #     never consulted;
-    #   * symlinking libs into /lib,/lib64 — the loader's default search dirs
-    #     (SYSTEM_DIRS) are the glibc STORE path (prefix=$out), not FHS /lib.
-    # Both left "libstdc++.so.6: cannot open shared object file". LD_LIBRARY_PATH
-    # is the mechanism the store-isolated loader honors.
-
-    # --- minimal /etc/os-release --------------------------------------------
-    # Silences the devcontainer runtime's distro probe, which otherwise logs a
-    # failure on every `devcontainer up`.
-    cat > etc/os-release <<'OSRELEASE'
-    NAME="nix-config devcontainer"
-    ID=nixos
-    ID_LIKE=nixos
-    PRETTY_NAME="nix-config devcontainer (distroless)"
-    VERSION_ID="unstable"
-    HOME_URL="https://github.com/ismailkattakath/nix-config"
-    OSRELEASE
-    mkdir -p usr/lib
-    ln -sf /etc/os-release usr/lib/os-release
   '';
 
   config = {
@@ -272,15 +292,22 @@ dockerTools.streamLayeredImage {
       "GIT_SSL_CAINFO=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
       "LANG=C.UTF-8"
       "DEVCONTAINER=true"
-      # Make libstdc++.so.6 / libgcc_s.so.1 resolvable to FOREIGN (non-Nix)
-      # glibc binaries (the VS Code Server's `node`), which otherwise die with
-      # "libstdc++.so.6: cannot open shared object file" once the loader symlink
-      # lets them exec (see fakeRootCommands for why this is the only mechanism).
-      # Scoped to the one narrow gcc-lib dir so the shadow surface is just
-      # libstdc++/libgcc_s — safe for the co-installed Nix binaries, since those
-      # sonames are the SAME gcc's ABI-identical store libs and every other lib
-      # they need has a distinct soname absent from this dir.
-      "LD_LIBRARY_PATH=${lib.makeLibraryPath [ gccLib ]}"
+      # nix-ld env contract for FOREIGN (non-Nix) glibc binaries (the VS Code
+      # Server's node, prebuilt language servers): the /lib*/ld-linux-*.so.*
+      # symlink (fakeRootCommands) lets the kernel EXEC them; these vars let the
+      # loader FIND their shared libs. Baking the broad SHARED library set — the
+      # same one the NixOS hosts use (modules/shared/nix-ld-libraries.nix) — means
+      # the next foreign binary needing zlib/openssl/libGL runs with no image
+      # change, ending the per-soname whack-a-mole. LD_LIBRARY_PATH mirrors
+      # NIX_LD_LIBRARY_PATH because we symlink the standard loader straight to
+      # nixpkgs glibc (distroless: no system loader to protect), so the REAL loader
+      # — not a nix-ld shim binary — reads LD_LIBRARY_PATH. These are the same
+      # store paths the co-installed Nix binaries already resolve via their own
+      # RUNPATH (ABI-identical), so the global shadow is benign; the CI smoke test
+      # (nix store ping / nix build) confirms it.
+      "NIX_LD=${pkgs.stdenv.cc.bintools.dynamicLinker}"
+      "NIX_LD_LIBRARY_PATH=${nixLdLibraryPath}"
+      "LD_LIBRARY_PATH=${nixLdLibraryPath}"
     ];
   };
 }
