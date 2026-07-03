@@ -37,7 +37,7 @@ permissions:
   packages: write # push the image to GHCR via GITHUB_TOKEN — no extra secret
 
 env:
-  IMAGE_NAME: devcontainers
+  IMAGE_NAME: devcontainer
 
 concurrency:
   group: build-devcontainer-${{ github.ref }}
