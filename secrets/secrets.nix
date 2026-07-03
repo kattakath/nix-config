@@ -18,7 +18,7 @@ in
   # are intentionally NOT here — they live in the macOS login Keychain (raw env
   # vars, exported by host-local ~/.zprofile) or via one-time CLI logins
   # (gh/hf/docker/claude). Dropped from agenix to avoid version-control churn on
-  # rotation. See secrets/README.md.
+  # rotation. See secrets/README.
 
   # Build-time only: the pinned host PRIVATE key, encrypted to the personal key
   # so it can be decrypted and injected into the image. Do NOT wire this into
