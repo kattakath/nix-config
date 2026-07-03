@@ -51,7 +51,14 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       has_cachix: ${{ steps.probe.outputs.has_cachix }}
-      is_publish: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+      # Publish on a main push OR a manual dispatch (from any ref). A manual
+      # workflow_dispatch is the intended force-republish path: it pairs with the
+      # gate's workflow_dispatch→changed=true bypass so a maintainer can always
+      # republish (e.g. after a metadata-only change like an annotation reword that
+      # leaves the image drvPath — and thus the gate — unchanged). Without dispatch
+      # here, is_publish stayed false on dispatch and the publish+manifest were
+      # skipped despite changed=true, so a forced republish never actually happened.
+      is_publish: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch' }}
     steps:
       - id: probe
         env:
