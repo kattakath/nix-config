@@ -25,8 +25,16 @@ in
   # any host's age.secrets.
   "nixarm-hostkey.age".publicKeys = userKeys;
 
-  # Host-scoped tunnel creds: personal key (so we can re-encrypt) + the host key
-  # (so the host decrypts at activation for services.cloudflared).
-  "nixarm-tunnel-creds.age".publicKeys = userKeys ++ [ nixarm ];
-  "nixrpi-tunnel-creds.age".publicKeys = userKeys;
+  # Host-scoped cloudflared CONNECTOR TOKEN (remotely-managed tunnel): one line
+  # `TUNNEL_TOKEN=…`, decrypted at boot and handed to the hardened
+  # cloudflared-connector unit via EnvironmentFile (modules/nixos/cloudflared.nix).
+  # Recipients: the personal key (so we can re-encrypt/rotate) + the host key (so
+  # the host itself decrypts at activation). nixarm PINS its host key offline
+  # (prebake), so its token is encrypted to that pinned key now. nixrpi is DURABLE
+  # hardware — pre-first-boot its token is encrypted to the personal key only, and
+  # the Pi's own /etc/ssh host key is added as a recipient post-boot via the
+  # agenix-host-rekey skill. nixrpi-tunnel-token.age does not exist until nixrpi is
+  # provisioned; a missing .age is inert at eval and only matters at activation.
+  "nixarm-tunnel-token.age".publicKeys = userKeys ++ [ nixarm ];
+  "nixrpi-tunnel-token.age".publicKeys = userKeys;
 }

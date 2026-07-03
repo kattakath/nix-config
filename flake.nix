@@ -155,7 +155,7 @@
             ./modules/nixos/core.nix
             ./modules/shared/nix-cache.nix # Cachix binary cache (read)
             agenix.nixosModules.default # system-level age.secrets (distinct from HM module)
-            ./modules/nixos/cloudflared.nix # enables services.cloudflared daemon
+            ./modules/nixos/cloudflared.nix # boot-time loginless cloudflared token connector (custom systemd unit)
             home-manager.nixosModules.home-manager
             {
               home-manager = {
