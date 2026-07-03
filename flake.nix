@@ -258,24 +258,20 @@
             # nixd/treefmt/statix/deadnix/jq/home-manager set never drifts.
             packages = devPackagesFor system ++ preCommit.enabledPackages;
 
-            # git-hooks.nix's installer (${preCommit.shellHook}) writes into the
-            # repo: it symlinks .pre-commit-config.yaml, runs `git config`, and
-            # installs .git/hooks/pre-commit. In the prebuilt devcontainer,
-            # `nix develop` runs as the non-root `vscode` user against a
-            # bind-mounted workspace owned by a different uid (host owner / CI
-            # runner), so every one of those writes fails with "Permission
-            # denied" — non-fatal but it spams each shell entry and the hook is
-            # silently not installed anyway. So we only run the installer when
-            # .git is actually writable by the current user; otherwise we skip it
-            # with a one-line notice. On a normally-owned checkout .git is
-            # writable, so the hook still installs exactly as before.
+            # We deliberately DO NOT run git-hooks.nix's installer
+            # (${preCommit.shellHook}). That installer would symlink
+            # .pre-commit-config.yaml, run `git config core.hooksPath`, and write
+            # .git/hooks/pre-commit with a /nix/store bash shebang. But `.git/` is
+            # bind-mounted and shared between this Nix devcontainer and the Nix-less
+            # macOS host (see .devcontainer/devcontainer.json workspaceMount): a
+            # store-path hook installed here makes host-side `git commit` fail with
+            # `fatal: cannot exec` — the kernel cannot resolve the /nix/store
+            # interpreter off-Nix. A single hook file cannot be correct in both a Nix
+            # and a non-Nix environment, so we skip local install entirely. The
+            # `checks.pre-commit` CI gate + `nix fmt` run the same treefmt pass, so no
+            # coverage is lost; run `nix fmt` before committing.
             shellHook = ''
-              if [ -w .git ]; then
-                ${preCommit.shellHook}
-                echo "nix-config devShell ready on ${system} — pre-commit hooks installed"
-              else
-                echo "nix-config devShell ready on ${system} — pre-commit install skipped (.git not writable by $(id -un))"
-              fi
+              echo "nix-config devShell ready on ${system} — run 'nix fmt' before committing (pre-commit auto-install disabled: .git is shared with a Nix-less host; CI enforces the gate)"
             '';
           };
         }
