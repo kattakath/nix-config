@@ -29,16 +29,9 @@
 }:
 
 let
-  # Libraries most prebuilt Linux binaries expect at runtime.
-  nixLdLibraries = with pkgs; [
-    stdenv.cc.cc # libstdc++, libgcc_s
-    glibc
-    zlib
-    openssl
-    curl
-    util-linux
-    libGL
-  ];
+  # Libraries most prebuilt Linux binaries expect at runtime — shared source of
+  # truth (same set the native NixOS module and the devcontainer image use).
+  nixLdLibraries = import ../shared/nix-ld-libraries.nix pkgs;
 in
 {
   options.hmStandalone = lib.mkOption {

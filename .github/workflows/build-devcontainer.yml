@@ -361,6 +361,70 @@ jobs:
           done
           echo "=== /usr/bin/env bootstrap guard passed ==="
 
+      # REGRESSION GUARD — the nix-ld library contract. The image exposes foreign
+      # (non-Nix) glibc binaries' shared libs via NIX_LD_LIBRARY_PATH / LD_LIBRARY_PATH
+      # sourced from the SHARED list (modules/shared/nix-ld-libraries.nix), widened
+      # beyond the old gcc-lib-only set so the next foreign binary needing
+      # zlib/openssl/libGL runs with no image change. This asserts the contract is
+      # wired: NIX_LD points at a real loader, and a discriminator soname that is
+      # ONLY present because of the widening (libz.so.1 — the old set had libstdc++
+      # only) resolves on the path. A regression to the narrow set fails here.
+      - name: Guard — nix-ld library contract wired (foreign-binary lib resolution)
+        run: |
+          set -euo pipefail
+          CID=$(docker run -d nix-config-devcontainer:latest)
+          trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
+
+          docker exec "$CID" sh -c 'test -n "$NIX_LD" && test -e "$NIX_LD"' \
+            || { echo "✗ NIX_LD unset or its loader path missing"; exit 1; }
+          echo "✓ NIX_LD resolves to a real loader"
+
+          # libstdc++.so.6 = the old contract; libz.so.1 = proof of the widening.
+          for SO in libstdc++.so.6 libz.so.1; do
+            docker exec "$CID" sh -c '
+              IFS=:; found=; for d in $NIX_LD_LIBRARY_PATH; do [ -e "$d/'"$SO"'" ] && found=1; done
+              [ -n "$found" ]' \
+              || { echo "✗ '"$SO"' not on NIX_LD_LIBRARY_PATH — nix-ld set regressed to narrow"; exit 1; }
+            echo "✓ $SO resolves on NIX_LD_LIBRARY_PATH"
+          done
+          echo "=== nix-ld library contract guard passed ==="
+
+      # REGRESSION GUARD — daemon stale-socket self-heal. A crashed nix-daemon
+      # leaves the socket INODE behind; the old entrypoint's `[ ! -S socket ]` file
+      # test then saw a dead socket, skipped the restart, and every client got
+      # "Connection refused" (hit in production). The entrypoint now probes real
+      # liveness (`nix store ping`) and reclaims a stale inode on container start.
+      # This reproduces the exact scenario: bring the daemon up, kill it (leaving a
+      # stale socket), `docker restart` (re-runs the entrypoint), and assert the
+      # client can reach the daemon again.
+      - name: Guard — daemon recovers from a stale socket on restart
+        run: |
+          set -euo pipefail
+          CID=$(docker run -d nix-config-devcontainer:latest)
+          trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
+
+          alive() { docker exec "$CID" sh -c 'NIX_REMOTE=daemon nix store ping >/dev/null 2>&1'; }
+          for _ in $(seq 1 50); do alive && break; sleep 0.2; done
+          alive || { echo "✗ daemon never came up on first start"; exit 1; }
+          echo "✓ daemon up on first start"
+
+          # Kill the daemon (no procps in the image — scan /proc), leaving the socket.
+          docker exec -u 0 "$CID" bash -c '
+            for c in /proc/[0-9]*/comm; do
+              read -r name < "$c" 2>/dev/null || continue
+              [ "$name" = nix-daemon ] && kill "$(basename "$(dirname "$c")")" 2>/dev/null || true
+            done'
+          for _ in $(seq 1 25); do alive || break; sleep 0.2; done
+          alive && { echo "✗ daemon still answering after kill — test setup failed"; exit 1; }
+          docker exec "$CID" test -S /nix/var/nix/daemon-socket/socket \
+            || { echo "✗ socket inode gone — not the stale-socket scenario"; exit 1; }
+          echo "✓ reproduced stale socket (dead daemon, socket inode present)"
+
+          docker restart "$CID" >/dev/null
+          for _ in $(seq 1 50); do alive && break; sleep 0.2; done
+          alive || { echo "✗ daemon did NOT self-heal from the stale socket on restart"; exit 1; }
+          echo "=== daemon stale-socket self-heal guard passed ==="
+
       # The whole `build` job runs only when `is_publish` is true (merge to main or
       # manual dispatch) — PRs are eval-only via the `gate` job, so the build + smoke
       # test ABOVE no longer run on PRs. On a publish-capable run the build + smoke are
