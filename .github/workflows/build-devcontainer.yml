@@ -7,8 +7,9 @@ name: build-devcontainer
 # heavyweight toolchain (a working nix + the warm devShell closure + node +
 # claude-code + gh) is baked in, so create-time setup is near-zero.
 #
-# PRs build-only; push to main publishes :latest + :<sha12>. Every leg also
-# smoke-tests the freshly-built image (nix develop from the warm store).
+# PRs eval-only (the `gate` job's pure drvPath eval); push to main builds the
+# multi-arch image and publishes :latest + :<sha12>. Every merge/dispatch build
+# leg also smoke-tests the freshly-built image (nix develop from the warm store).
 #
 # This REPLACES the old features-based test-devcontainer.yml (deleted in the
 # same change): that workflow built the now-removed Features stack via
@@ -148,6 +149,14 @@ jobs:
 
   build:
     needs: [gate]
+    # PR = eval-only (the `gate` job's pure `nix eval` of the image drvPath is the
+    # PR signal, mirroring nix-ci.yml's host-config evals). The expensive multi-arch
+    # build + smoke + publish run ONLY at merge (push to main) or manual dispatch —
+    # `is_publish` is true for exactly those events. A build break therefore surfaces
+    # on the post-merge main run (publish just fails; existing :latest is untouched),
+    # not on every PR. build-devcontainer jobs are not required checks, so PRs stay
+    # mergeable with only `gate` having run.
+    if: needs.gate.outputs.is_publish == 'true'
     # NATIVE runners per arch — no QEMU. Streaming a full-devShell nix closure
     # under emulation would be brutally slow, and aarch64 is what the Apple
     # Silicon devcontainer actually runs.
@@ -178,8 +187,9 @@ jobs:
           nix build -L ".#packages.${{ matrix.system }}.devcontainerImage"
           test -x ./result
 
-      # Smoke test the FRESHLY-BUILT image locally — every PR + push, no GHCR
-      # needed. Proves the MULTI-USER model end to end exactly as the devcontainer
+      # Smoke test the FRESHLY-BUILT image locally — every publish run (push to
+      # main / dispatch), no GHCR needed. Proves the MULTI-USER model end to end
+      # exactly as the devcontainer
       # runs it: start the container as root (its entrypoint launches nix-daemon;
       # the sleep-infinity Cmd keeps it alive), then run the checks as the NON-ROOT
       # vscode user via `docker exec` — nix reaches the root daemon over the socket
@@ -313,12 +323,14 @@ jobs:
             || { echo "✗ node produced no version string — libstdc++ likely unresolved"; exit 1; }
           echo "=== foreign-glibc execution guard passed ==="
 
-      # Publish (login + push) runs only on a main push whose image CONTENT changed.
-      # The build + smoke test ABOVE stay unconditional — they are the cheap safety
-      # net (Cachix substitutes the warm closure), so PRs and even no-op main pushes
-      # still prove the image builds and `nix develop` resolves. Only the expensive
-      # part — the multi-GB skopeo uploads (and, downstream, the manifest job + the
-      # scarce arm64 runner's push) — is gated on gate.outputs.changed.
+      # The whole `build` job runs only when `is_publish` is true (merge to main or
+      # manual dispatch) — PRs are eval-only via the `gate` job, so the build + smoke
+      # test ABOVE no longer run on PRs. On a publish-capable run the build + smoke are
+      # the cheap safety net (Cachix substitutes the warm closure), proving the image
+      # builds and `nix develop` resolves even for a no-op main push. Publish itself
+      # (login + push) is further gated on gate.outputs.changed, so the expensive part
+      # — the multi-GB skopeo uploads (and, downstream, the manifest job + the scarce
+      # arm64 runner's push) — is skipped when the image CONTENT is unchanged.
       - name: Login to GHCR
         if: needs.gate.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
         uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v3
