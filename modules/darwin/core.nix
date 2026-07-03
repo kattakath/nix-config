@@ -64,6 +64,15 @@
     };
   };
 
+  # Enable macOS Remote Login (Apple's built-in sshd) declaratively — no GUI,
+  # no Full Disk Access. nix-darwin's services.openssh flips it on via
+  # `launchctl enable/bootstrap system/com.openssh.sshd` (deliberately NOT
+  # `systemsetup -setremotelogin`, which is TCC/FDA-gated) and is idempotent:
+  # activation only acts when Remote Login is currently Off. Required so the
+  # boot-time cloudflared connector's `ssh://localhost:22` ingress actually
+  # reaches a listening sshd on both nixcon and nixtel.
+  services.openssh.enable = true;
+
   # Window manager placeholder — uncomment and configure when adopted:
   # services.yabai.enable = true;
   # services.skhd.enable = true;
