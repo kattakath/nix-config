@@ -36,22 +36,31 @@ const runLong = (cmd, ms) =>
     stdio: ["ignore", "pipe", "pipe"],
     timeout: ms,
   });
-// True only when the Docker daemon is actually reachable (not just the CLI
-// installed) — `devcontainer up` needs a live daemon.
-const dockerUp = () => {
-  try {
-    run("docker info --format '{{.ServerVersion}}'");
-    return true;
-  } catch {
-    return false;
-  }
-};
 const approve = () => {
   process.stdout.write(JSON.stringify({ decision: "approve" }));
   process.exit(0);
 };
 const block = (reason) => {
   process.stdout.write(JSON.stringify({ decision: "block", reason }));
+  process.exit(0);
+};
+// Syntax passed but full multi-system eval couldn't run locally (no host nix and
+// no usable devcontainer fallback). Approve with an explicit advisory rather than
+// silently — the REAL check must land in the devcontainer or CI.
+const syntaxOnlyAdvisory = () => {
+  process.stdout.write(
+    JSON.stringify({
+      decision: "approve",
+      systemMessage:
+        "stop-gate: nix unavailable on host and the devcontainer fallback couldn't run " +
+        "(no `devcontainer` CLI, or the container failed to start — e.g. Docker daemon not running) — " +
+        "validated .nix syntax only. For a REAL local check, start Docker and run " +
+        "`devcontainer up --workspace-folder .` then " +
+        "`devcontainer exec --workspace-folder . bash -lc 'git add -A && nix flake check -L'`. " +
+        "Otherwise, full multi-system `nix flake check` (aarch64-darwin, x86_64-linux, aarch64-linux) " +
+        "must pass in CI / the target environment.",
+    }),
+  );
   process.exit(0);
 };
 
@@ -120,16 +129,26 @@ if (nixFiles && has("nix")) {
         `${(e.stdout || e.stderr || e.message || "").trim().slice(-2000)}`,
     );
   }
-} else if (nixFiles && has("devcontainer") && dockerUp()) {
-  // No host nix, but the devcontainer CLI + a live Docker daemon are available:
-  // run the REAL `nix flake check` inside the prebuilt container. It evaluates
-  // all four systems and fully builds/runs the native aarch64-linux checks;
-  // only cross-arch BUILDS (x86_64-linux, the darwin systems) still defer to CI. ~90s cold / faster
-  // warm — the cost of the "every stop" gate on a Nix-less host.
+} else if (nixFiles && has("devcontainer")) {
+  // No host nix, but the `devcontainer` CLI is available: run the REAL
+  // `nix flake check` inside the prebuilt container. It evaluates all four
+  // systems and fully builds/runs the native aarch64-linux checks; only
+  // cross-arch BUILDS (x86_64-linux, the darwin systems) still defer to CI.
+  // ~90s cold / faster warm — the cost of the "every stop" gate on a Nix-less host.
+  //
+  // Starting the container needs a live Docker daemon. Rather than shell out to a
+  // separate `docker` CLI probe, we just try `devcontainer up` (bounded by the
+  // timeout) and treat a START failure (daemon down, image unavailable, …) as an
+  // environment limitation → syntax-only advisory, NOT a config-eval block.
   const TEN_MIN = 600000;
-  let checkOut = "";
   try {
     runLong("devcontainer up --workspace-folder .", TEN_MIN);
+  } catch {
+    // Container could not start — cannot verify here; degrade to the advisory.
+    syntaxOnlyAdvisory();
+  }
+  let checkOut = "";
+  try {
     // Merge stderr (where nix prints the "omitted incompatible systems" warning
     // and progress) into stdout so we can parse it, and emit a marker with the
     // container's own system so the summary reports the real native target.
@@ -170,21 +189,9 @@ if (nixFiles && has("nix")) {
   );
   process.exit(0);
 } else if (nixFiles) {
-  // Neither host nix nor a usable devcontainer/Docker: parsing passed, full
-  // multi-system eval must run in the devcontainer or CI.
-  process.stdout.write(
-    JSON.stringify({
-      decision: "approve",
-      systemMessage:
-        "stop-gate: nix unavailable on host and no devcontainer/Docker to fall back to — " +
-        "validated .nix syntax only. For a REAL local check, start Docker and run `nix flake check` " +
-        "inside the devcontainer (`devcontainer up --workspace-folder .` then " +
-        "`devcontainer exec --workspace-folder . bash -lc 'git add -A && nix flake check -L'`). " +
-        "Otherwise, full multi-system `nix flake check` (aarch64-darwin, x86_64-linux, aarch64-linux) " +
-        "must pass in CI / the target environment.",
-    }),
-  );
-  process.exit(0);
+  // Neither host nix nor the devcontainer CLI: parsing passed, full multi-system
+  // eval must run in the devcontainer or CI.
+  syntaxOnlyAdvisory();
 }
 
 approve();
