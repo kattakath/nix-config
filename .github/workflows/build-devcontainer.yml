@@ -135,7 +135,7 @@ jobs:
       # Restore-only probe: a HIT means this exact drvPair was already published.
       - name: Probe published baseline
         id: probe
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .gate-marker
           key: ${{ steps.key.outputs.cache_key }}
@@ -383,7 +383,7 @@ jobs:
         run: echo "${{ needs.gate.outputs.cache_key }} @ ${{ github.sha }}" > .gate-marker
 
       - name: Record published baseline (gate cache)
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .gate-marker
           key: ${{ needs.gate.outputs.cache_key }}
