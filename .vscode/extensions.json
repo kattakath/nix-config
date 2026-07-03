@@ -10,9 +10,9 @@
   "recommendations": [
     "ms-vscode-remote.remote-containers", // "Reopen in Container" — the intended entry point
     "jnoortheen.nix-ide", // Nix language support; drives the nixd LSP (in-container)
-    "gruntfuggly.triggertaskonsave",
+    "gruntfuggly.triggertaskonsave", // runs the statix/deadnix lint tasks on save → Problems tab
     "fuadpashayev.bottom-terminal",
     "anthropic.claude-code",
-    "shd101wyy.markdown-preview-enhanced" // runs the statix/deadnix lint tasks on save → Problems tab
+    "shd101wyy.markdown-preview-enhanced" // Markdown renderer (in-editor preview)
   ]
 }
