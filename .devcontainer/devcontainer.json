@@ -15,7 +15,7 @@
   // name (this is the repo's sole/default devcontainer).
   "name": "nix-config (prebuilt Nix devcontainer image)",
   "image": "ghcr.io/ismailkattakath/devcontainer:latest",
-
+    
   // Multi-user Nix: the image runs as ROOT (entrypoint starts the nix-daemon) and
   // VS Code drops to the non-root `vscode` user, which reaches the daemon over the
   // socket (NIX_REMOTE=daemon, baked in). Full rationale — why the store stays
