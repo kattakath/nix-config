@@ -1,17 +1,25 @@
 # nix-darwin system module — macOS-specific system preferences.
 # This is "system logic" for the Mac; user logic stays in modules/shared.
-{ pkgs, username, ... }:
+{
+  pkgs,
+  lib,
+  username,
+  ...
+}:
 
 {
   imports = [
     # Declarative Homebrew (taps/brews/casks) for the Mac.
     ./homebrew.nix
+    # Install Homebrew itself at the arch-correct prefix (nix-homebrew).
+    ./nix-homebrew.nix
     # Hourly LaunchAgent that rotates ~/Pictures/Screengrab (>24h → ~/.Trash).
     ./screengrab-rotate.nix
   ];
 
-  # The platform this system configuration targets.
-  nixpkgs.hostPlatform = "aarch64-darwin";
+  # NOTE: hostPlatform is set per-host from the darwinSystem `system` arg (via
+  # the mkDarwin helper in flake.nix), NOT hardcoded here — so this shared module
+  # serves both the aarch64-darwin (nixcon) and x86_64-darwin (nixtel) Macs.
 
   # Enable flakes + the modern CLI for the daemon this config manages.
   nix.settings.experimental-features = [
@@ -31,7 +39,7 @@
 
     # Required by current nix-darwin whenever any `system.defaults.*` is set:
     # names the user those user-scoped macOS defaults apply to. Matches the
-    # user declared in hosts/nixcon.nix.
+    # user declared in each darwin host profile (hosts/nixcon.nix, hosts/nixtel.nix).
     primaryUser = username;
 
     # ---- macOS defaults (declarative system preferences) -----------------------
@@ -60,6 +68,7 @@
   # services.yabai.enable = true;
   # services.skhd.enable = true;
 
-  # Use Touch ID for sudo (quality-of-life on Apple Silicon laptops).
-  security.pam.services.sudo_local.touchIdAuth = true;
+  # Touch ID for sudo — Apple-Silicon laptops only. The Apple Intel Mac
+  # (`nixtel`) has no Touch ID sensor, so gate this off there.
+  security.pam.services.sudo_local.touchIdAuth = lib.mkIf pkgs.stdenv.hostPlatform.isAarch64 true;
 }

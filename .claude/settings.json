@@ -154,7 +154,7 @@
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "Only applies to subagents that performed Nix flake / Home-Manager EVALUATION (e.g. the platform-compiler agent). If this subagent evaluated Nix, verify it reported results for all three target systems (aarch64-darwin, x86_64-linux, aarch64-linux) and return {\"decision\":\"block\",\"reason\":\"...\"} if a system was skipped. If the subagent did NO Nix evaluation (e.g. search, planning, documentation, or memory tasks), return {\"decision\":\"approve\"}.",
+            "prompt": "Only applies to subagents that performed Nix flake / Home-Manager EVALUATION (e.g. the platform-compiler agent). If this subagent evaluated Nix, verify it reported results for all four target systems (aarch64-darwin, x86_64-darwin, x86_64-linux, aarch64-linux) and return {\"decision\":\"block\",\"reason\":\"...\"} if a system was skipped. If the subagent did NO Nix evaluation (e.g. search, planning, documentation, or memory tasks), return {\"decision\":\"approve\"}.",
             "timeout": 20
           }
         ]

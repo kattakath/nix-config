@@ -1,71 +1,37 @@
-# nix-darwin Homebrew module — make Homebrew DECLARATIVE on macOS (nixcon).
+# Declarative Homebrew taps/brews/casks for the Macs (sourced from ~/Brewfile).
+# nix-homebrew (./nix-homebrew.nix) installs brew itself; this module only
+# declares its contents.
 #
-# This module brings the operator's previously-imperative Homebrew state under
-# nix-darwin's `homebrew` module, sourced from ~/Brewfile (regenerated 2026-06-22).
+# What is DELIBERATELY NOT here (nixpkgs/Home Manager is the single source, and
+# a duplicate on PATH causes buildEnv collisions): aws-cdk, awscli, make, node
+# (unversioned), uv, gh, git-lfs, the claude-code cask, and 6 font casks — see
+# modules/shared/home.nix. direnv was dropped from the repo entirely; reintroduce
+# deliberately if a devShell ever needs it.
 #
-# Split of responsibilities:
-#   - nixpkgs is the SINGLE SOURCE for the tools now provided by the shared Home
-#     Manager profile (modules/shared/home.nix). Their Homebrew equivalents were
-#     DUPLICATES on PATH and have been removed from this file:
-#       brews removed → aws-cdk (nix aws-cdk-cli), awscli (nix awscli2),
-#         make (nix gnumake), node — UNVERSIONED (nix nodejs), uv (nix uv),
-#         gh (programs.gh), git-lfs (programs.git.lfs).
-#       direnv: brew removed and NOT re-added — direnv was dropped from this
-#         repo entirely (no longer in home-manager either); reintroduce
-#         deliberately if a future devShell workflow wants it.
-#       casks removed → claude-code (nix claude-code CLI in home.packages).
-#   - Version-pinned servers/runtimes are INTENTIONALLY RETAINED in Homebrew —
-#     they are NOT plain dupes of the nixpkgs tools:
-#       node@22                     — deliberate pinned Node version
-#                                     (nix provides only unversioned nodejs).
-#       postgresql@14, postgresql@17 — version-pinned DATABASE SERVERS with
-#                                     data dirs/services; the nix `postgresql`
-#                                     is only the psql client.
-#   - FONTS were promoted to nixpkgs (cross-host: macOS + NixOS + devcontainers)
-#     — see modules/shared/home.nix. Their 6 cask equivalents were removed from
-#     the `casks` list below.
-#   - All remaining GUI apps (casks) and CLI formulae are managed here.
-#
-# Hard nixpkgs-misses intentionally kept as brews:
-#   - cline       → brew formula, stays in homebrew.brews
-#   - cypher-shell → brew formula, stays in homebrew.brews
-#   (nodecg is an npm global, NOT a brew — so it is NOT declared here at all.)
-#
-# nix-darwin only MANAGES Homebrew here; it does not INSTALL Homebrew itself.
-# `brew` must already be present on the host (it is, on nixcon).
+# What is INTENTIONALLY KEPT as a brew (not a nixpkgs dupe):
+#   node@22, postgresql@14/@17 — version-pinned runtime/DB servers with their own
+#     data dirs and services (nix `postgresql` is only the psql client).
+#   cline, cypher-shell        — genuine nixpkgs misses.
+#   (nodecg is an npm global, not a brew, so it is not declared at all.)
 _:
 
 {
   homebrew = {
     enable = true;
 
-    # ---- Activation behaviour: deliberately CONSERVATIVE first pass --------
-    #
-    # These are the SAFE, NON-destructive defaults for the initial rollout.
-    # The operator can tighten them later.
-    #
-    #   cleanup trade-off:
-    #     "none" (current) — ADDITIVE/SAFE. nix-darwin installs anything
-    #         declared here but NEVER uninstalls packages it doesn't know
-    #         about. Existing hand-installed brews/casks are left untouched.
-    #     "zap"            — FULLY REPRODUCIBLE but DESTRUCTIVE. nix-darwin
-    #         uninstalls (and zaps the data of) ANY brew/cask/tap not declared
-    #         in this file on every rebuild. This is the "the Brewfile is law"
-    #         mode — only flip to it once this list is known-complete, or it
-    #         will silently remove undeclared software. Operator's choice later.
-    #     "uninstall"      — like "zap" but leaves app data behind.
-    #
-    # autoUpdate/upgrade are OFF so a `darwin-rebuild switch` stays fast and
-    # predictable and never silently bumps formula/cask versions underfoot.
+    # Conservative activation: additive and fast. cleanup = "none" installs
+    # declared items but never uninstalls undeclared ones (flipping to "zap"
+    # would make the Brewfile law and silently remove anything not listed here).
+    # autoUpdate/upgrade off so a rebuild never silently bumps versions.
     onActivation = {
-      autoUpdate = false; # don't `brew update` on every rebuild
-      upgrade = false; # don't `brew upgrade` formulae/casks on every rebuild
-      cleanup = "none"; # do NOT uninstall undeclared items (safe / additive)
+      autoUpdate = false;
+      upgrade = false;
+      cleanup = "none";
     };
 
-    # ---- Taps (11) --------------------------------------------------------
-    # Plain "owner/repo" taps are strings. Taps that point at a custom git
-    # URL use the attrset form with `clone_target`.
+    # ---- Taps --------------------------------------------------------------
+    # Plain "owner/repo" taps are strings; a custom-git-URL tap uses the
+    # attrset form with `clone_target`.
     taps = [
       {
         name = "comfy-org/comfy-cli";
@@ -83,13 +49,9 @@ _:
       "viarotel-org/escrcpy"
     ];
 
-    # ---- Formulae (brews) -------------------------------------------------
-    # All `brew "..."` entries from the Brewfile EXCEPT those removed per the
-    # header (aws-cdk, awscli, make, node, uv, gh, git-lfs; direnv dropped
-    # entirely). Version-pinned servers/runtimes (node@22,
-    # postgresql@14/@17) are intentionally retained. Version-pinned and
-    # tap-qualified names are preserved verbatim. Entries with special options
-    # use the attrset form.
+    # ---- Formulae (brews) --------------------------------------------------
+    # See header for what was removed and what is intentionally kept. Entries
+    # with special options use the attrset form.
     brews = [
       "age"
       "duf"
@@ -136,7 +98,7 @@ _:
       "go-task"
       "gollama"
       "graphviz"
-      # `brew "hf", link: false` → don't symlink into the brew prefix.
+      # link = false → don't symlink into the brew prefix.
       {
         name = "hf";
         link = false;
@@ -146,15 +108,13 @@ _:
       "jupyterlab"
       "midnight-commander"
       "nats-server"
-      # `brew "neo4j", restart_service: :changed` → restart only when the
-      # formula changes. nix-darwin accepts the "changed" string here.
+      # restart_service = "changed" → restart only when the formula changes.
       {
         name = "neo4j";
         restart_service = "changed";
       }
       "node@22"
       "ocrmypdf"
-      # `brew "ollama", restart_service: :changed`
       {
         name = "ollama";
         restart_service = "changed";
@@ -169,7 +129,6 @@ _:
       "pyenv"
       "python@3.12"
       "qwen-code"
-      # `brew "redis", restart_service: :changed`
       {
         name = "redis";
         restart_service = "changed";
@@ -186,26 +145,14 @@ _:
       "xcodes"
       "ykman"
       "yt-dlp"
-      # `brew "nats-io/nats-tools/nats", trusted: true` — tap-qualified.
-      # nix-darwin has no `trusted` key on a brew entry; `trusted` is a
-      # `brew tap` security flag, and the nats-io/nats-tools tap is already
-      # declared above. Declared here as the plain tap-qualified formula.
-      "nats-io/nats-tools/nats" # TODO: special opt `trusted: true` not representable on a brew entry
+      # Tap-qualified. The Brewfile's `trusted: true` is a `brew tap` flag with
+      # no equivalent on a nix-darwin brew entry; the tap is already declared above.
+      "nats-io/nats-tools/nats"
     ];
 
-    # ---- Casks (52) -------------------------------------------------------
-    # All `cask "..."` entries from the Brewfile EXCEPT claude-code (now the
-    # nixpkgs claude-code CLI in home.packages). The "claude" cask below is the
-    # separate Claude DESKTOP app and is intentionally retained. Version-pinned names
-    # (figma@beta, visual-studio-code@insiders) and tap-qualified names
-    # (viarotel-org/escrcpy/escrcpy, dail8859/notepadnext/notepadnext) are
-    # preserved verbatim as full strings.
-    # All 6 font casks (font-fira-code-nerd-font, font-hack-nerd-font,
-    # font-roboto, font-roboto-condensed, font-ubuntu-mono-nerd-font,
-    # font-ubuntu-nerd-font) were removed. Of these, only the two actually used
-    # are kept — now via nixpkgs, cross-host (see modules/shared/home.nix):
-    # nerd-fonts.ubuntu-mono (terminal) + nerd-fonts.jetbrains-mono (editor).
-    # The rest were dropped as unused.
+    # ---- Casks -------------------------------------------------------------
+    # The "claude" cask is the Claude DESKTOP app (the claude-code CLI cask was
+    # dropped for nixpkgs — see header). Font casks moved to nixpkgs too.
     casks = [
       "android-commandlinetools"
       "android-platform-tools"
@@ -261,12 +208,10 @@ _:
       "zoom"
     ];
 
-    # ---- Mac App Store apps (masApps) -------------------------------------
-    # Only the app's PUBLIC numeric App Store ID (from the apps.apple.com URL,
-    # e.g. .../id497799835) plus a cosmetic label live here — NEVER the Apple
-    # ID/credentials. nix-darwin installs the `mas` CLI to drive installs, but
-    # the App Store app must already be signed in with an Apple ID (the GUI
-    # sign-in cannot be automated, and the apps must already be "owned").
+    # ---- Mac App Store apps (masApps) --------------------------------------
+    # Only the public numeric App Store ID + a label — never Apple credentials.
+    # nix-darwin drives installs via `mas`, but the App Store must already be
+    # signed in and the apps already "owned" (GUI sign-in can't be automated).
     masApps = {
       "Xcode" = 497799835;
       "Plash" = 1494023538;

@@ -4,15 +4,20 @@ description: >
   Fetch, read, grep, or download a Garnix CI build log headlessly (no browser) to diagnose a
   failing Garnix check. Use when the user (or Claude) needs to inspect an app.garnix.io/build/<id>
   failure, read a Garnix build log, tail a CI log for a red status check, or grep build output for
-  an error. Garnix is this repo's CI (garnix.yaml). Runs garnix-log.sh <build-id> against the
-  Garnix API using a session JWT read from the GARNIX_JWT_COOKIE env var.
+  an error. RETIRED: Garnix is no longer this repo's CI — GitHub Actions (nix-ci.yml) replaced it,
+  and Garnix deletes all build data 2026-07-15. Kept only to read archived logs before then. Runs
+  garnix-log.sh <build-id> against the Garnix API using a session JWT read from the
+  GARNIX_JWT_COOKIE env var.
 ---
 
 # garnix-logs — fetch Garnix CI build logs via curl
 
-Garnix (https://garnix.io) is this repo's sole multi-system CI (see `garnix.yaml`). It builds each
-flake output on native builders and reports one GitHub status check per output. When a check goes
-red, use this skill to pull the build log headlessly instead of opening a browser.
+> **Retired.** Garnix is no longer this repo's CI — GitHub Actions (`.github/workflows/nix-ci.yml`)
+> replaced it, and Garnix deletes all build data on 2026-07-15. This skill remains only to read
+> archived Garnix logs before that cutoff; for live CI failures use the GitHub Actions logs via `gh`.
+
+Garnix (https://garnix.io) built each flake output on native builders and reported one GitHub status
+check per output. To pull an old build log headlessly instead of opening a browser:
 
 ## How to use
 

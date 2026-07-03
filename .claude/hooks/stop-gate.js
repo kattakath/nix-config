@@ -123,8 +123,8 @@ if (nixFiles && has("nix")) {
 } else if (nixFiles && has("devcontainer") && dockerUp()) {
   // No host nix, but the devcontainer CLI + a live Docker daemon are available:
   // run the REAL `nix flake check` inside the prebuilt container. It evaluates
-  // all three systems and fully builds/runs the native aarch64-linux checks;
-  // only cross-arch BUILDS (x86_64-linux) still defer to CI. ~90s cold / faster
+  // all four systems and fully builds/runs the native aarch64-linux checks;
+  // only cross-arch BUILDS (x86_64-linux, the darwin systems) still defer to CI. ~90s cold / faster
   // warm — the cost of the "every stop" gate on a Nix-less host.
   const TEN_MIN = 600000;
   let checkOut = "";

@@ -10,11 +10,8 @@
 #   Codespaces, etc.), where `programs.nix-ld` does not exist and would fail
 #   evaluation with "The option `programs.nix-ld' does not exist".
 #
-#   nix-ld's runtime contract is two env vars:
-#     NIX_LD                  → path to the dynamic loader (ld-linux)
-#     NIX_LD_LIBRARY_PATH     → extra shared libraries to expose
-#   Setting them from Home Manager is the portable, standalone-correct way to
-#   get the same effect without root or a NixOS system rebuild.
+#   Setting NIX_LD / NIX_LD_LIBRARY_PATH from Home Manager is the portable,
+#   standalone-correct way to get nix-ld's effect without root or a system rebuild.
 #
 #   `hmStandalone` selects that path. It is a declared module option (NOT a
 #   function-arg default): the module system resolves named function arguments

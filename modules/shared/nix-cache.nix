@@ -1,19 +1,13 @@
-# Binary cache (Cachix) consumed by every Nix host — macOS (nix-darwin) and
-# NixOS alike. The option shape (`nix.settings.substituters` /
-# `trusted-public-keys`) is identical on both, so this lives once here and is
-# wired directly into the flake's module lists (darwinConfigurations."nixcon"
-# and the shared mkNixos builder in flake.nix).
+# Binary cache (Cachix) consumed by every Nix host — macOS and NixOS alike.
+# The option shape is identical on both, so it lives once here and is wired into
+# the flake's module lists.
 #
-# READ is public: only the substituter URL + public signing key are needed —
-# NO auth token on any consumer. The CACHIX_AUTH_TOKEN is a write-only
-# credential and lives solely as a GitHub Actions secret, used by the Nix CI
-# workflow (cachix/cachix-action in .github/workflows/nix-ci.yml) to push the
-# per-system build closures; never in Nix or git.
-#
-# ismailkattakath.cachix.org is the single public CI cache: once the GitHub
-# Actions matrix builds the flake outputs, every host substitutes those paths
-# (host toplevels, devShells, images) from it instead of rebuilding. Public-read,
-# no token.
+# ismailkattakath.cachix.org is the single public CI cache: GitHub Actions
+# (cachix/cachix-action in .github/workflows/nix-ci.yml) builds the flake outputs
+# and pushes their closures, then every host substitutes them instead of
+# rebuilding. READ is public (only the URL + public key below — NO token on any
+# consumer); the write credential CACHIX_AUTH_TOKEN is a GitHub Actions secret
+# only, never in Nix or git.
 {
   nix.settings = {
     # Appended to (not replacing) the default cache.nixos.org substituter.
