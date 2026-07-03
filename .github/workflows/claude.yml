@@ -1,0 +1,62 @@
+# Claude Code Action — owner-only, comment-triggered, hardened.
+#
+# WHY THIS SHAPE (public repo, single maintainer `ismailkattakath`):
+#   * Comment-driven only. We deliberately do NOT auto-run on `pull_request: opened`.
+#     A fork PR can carry a malicious diff / prompt-injection payload; auto-running on
+#     it would hand an untrusted actor a Claude turn with repo write scope. Requiring an
+#     explicit `@claude` mention keeps the trigger surface minimal.
+#   * Owner-only gate. The job `if:` requires BOTH `@claude` in the comment body AND the
+#     commenter being the repo owner. On a public repo anyone can comment `@claude`, so
+#     the login check is what actually stops third parties from spending our API budget
+#     or steering Claude. `issue_comment` and `pull_request_review_comment` expose the
+#     same `.comment.body` / `.comment.user.login` payload paths, so one condition covers
+#     both triggers.
+#   * SHA-pinned action. `anthropics/claude-code-action` is pinned to a commit SHA for a
+#     release >= v1.0.94 — the release that patched the disclosed prompt-injection /
+#     secret-exfiltration vulnerability. A floating `@v1`/`@beta` tag is mutable and could
+#     silently ship a regression or a compromised ref; matches this repo's SHA-pin
+#     convention (`owner/action@<sha> # vX.Y.Z`).
+#   * Hardening: least-privilege top-level `permissions:` (only what the action needs);
+#     `show_full_output` left at its default (false) so tool output / tokens are not
+#     exposed in this repo's public Actions logs; no `allowed_bots: '*'`; the action is
+#     never fed an untrusted PR head checked out into the workspace root.
+#
+# INERT UNTIL the maintainer completes TWO manual prerequisites (Claude/Nix/git never
+# touch the key — mirrors the CACHIX_AUTH_TOKEN secret-only model):
+#   1. Add `ANTHROPIC_API_KEY` as a repo Actions secret
+#      (Settings -> Secrets and variables -> Actions).
+#   2. Install the Claude GitHub App on this repo (https://github.com/apps/claude) so
+#      `@claude` mentions are delivered to this workflow.
+# Until both are done, this workflow simply never does anything.
+
+name: Claude Code
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+# Least-privilege, top-level. `contents: read` (inspect the tree), `issues`/
+# `pull-requests: write` (post Claude's replies), `id-token: write` (OIDC the action
+# uses for auth). Nothing broader.
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  claude:
+    # Owner-only + @claude gate. Both events share these payload paths.
+    if: >-
+      contains(github.event.comment.body, '@claude') &&
+      github.event.comment.user.login == github.repository_owner
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@769e3bdff9bb7ecfb51bad4c9cba23d6f5fc5ea5 # v1.0.163
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # No `prompt:` — for comment triggers the action responds to the @claude
+          # mention. show_full_output / allowed_bots intentionally left at defaults.
