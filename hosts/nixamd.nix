@@ -6,14 +6,14 @@
 # hardware output (real disk-by-uuid, actual kernel modules, etc.).
 #
 # Modeled on hosts/nixarm.nix. The Cloudflare tunnel is PRE-WIRED but INERT:
-# nixamd has no provisioned SSH host key yet, so there is no agenix recipient to
-# encrypt a connector token to, and the nixamd-tunnel-token.age file does not
-# exist. The token secret below is therefore gated behind `tunnelReady` (default
-# false) so eval/CI never hard-fails on a missing .age. Once a real host exists:
+# the CF tunnel + DNS (nixamd.kattakath.com) are already reserved and
+# secrets/nixamd-tunnel-token.age exists (encrypted to the PERSONAL key only).
+# But nixamd has no provisioned SSH host key yet, so it could not decrypt that
+# token at activation. The connector is therefore gated behind `tunnelReady`
+# (default false) so it stays off. Once a real host exists:
 #   1. boot it, collect /etc/ssh/ssh_host_ed25519_key.pub,
 #   2. add it as a recipient in secrets/secrets.nix,
-#   3. run scripts/cf-one-provision.sh nixamd → encrypt the token as
-#      secrets/nixamd-tunnel-token.age (skill: agenix-host-rekey),
+#   3. re-encrypt the existing token adding that host key (skill: agenix-host-rekey),
 #   4. flip `tunnelReady` to true.
 # modules/nixos/cloudflared.nix (imported globally) then runs the hardened
 # systemd connector at boot by picking up the "nixamd-tunnel-token" secret.
@@ -23,9 +23,10 @@
   ...
 }:
 let
-  # Flip to true once nixamd is a real, provisioned host with an existing
-  # secrets/nixamd-tunnel-token.age. Keeping it false makes the token secret a
-  # no-op so `nix flake check` never fails on the missing .age file.
+  # Kept false: the CF tunnel + secrets/nixamd-tunnel-token.age already exist,
+  # but nixamd has no host key among the recipients, so it could not decrypt the
+  # token at activation. Flip to true once a real nixamd's /etc/ssh host key is
+  # added as a recipient and the token re-encrypted (agenix-host-rekey).
   tunnelReady = false;
 in
 {
