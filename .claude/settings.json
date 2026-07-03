@@ -11,6 +11,7 @@
       "Write",
       "Glob",
       "Grep",
+      "mcp__desktop-commander__*",
       "Bash(git add:*)",
       "Bash(git status:*)",
       "Bash(git diff:*)",
@@ -69,8 +70,7 @@
       "mcp__sequentialthinking__*",
       "mcp__memory__*",
       "mcp__json-yaml-toml__*",
-      "mcp__mcp-jq__*",
-      "mcp__desktop-commander__*"
+      "mcp__mcp-jq__*"
     ],
     "deny": [
       "Bash(home-manager switch:*)",
@@ -113,6 +113,16 @@
       }
     ],
     "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Before running this Bash command, check whether a mcp__desktop-commander__* tool is the better fit. BLOCK and instruct the model to use desktop-commander for: running a generic command or script as a managed process (start_process), listing a directory (list_directory instead of ls/find), reading file metadata (get_file_info instead of stat/ls -la), managing processes (list_processes/kill_process instead of ps/kill). APPROVE without question any command whose leading token is a domain-specific CLI with no desktop-commander equivalent: git, nix, nix-instantiate, nix-build, nix-store, darwin-rebuild, nixos-rebuild, nixos-install, nixos-enter, home-manager, cloudflared, ssh, scp, sshpass, ssh-keygen, ssh-keyscan, rsync, age, curl, dig, host, nc, ping, arp, brew, open, osascript, plutil, qemu-img, parted, mkfs.fat, mkfs.ext4, lsblk, blkid, wipefs, udevadm, sudo, statix, deadnix, utmctl, gh, jq, node, python3, bash, zsh. When uncertain, APPROVE.",
+            "timeout": 15
+          }
+        ]
+      },
       {
         "matcher": "Write|Edit",
         "hooks": [

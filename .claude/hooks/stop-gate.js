@@ -52,7 +52,7 @@ const syntaxOnlyAdvisory = () => {
     JSON.stringify({
       decision: "approve",
       systemMessage:
-        "stop-gate: nix unavailable on host and the devcontainer fallback couldn't run " +
+        "⚠︎ stop-gate: nix unavailable on host and the devcontainer fallback couldn't run " +
         "(no `devcontainer` CLI, or the container failed to start — e.g. Docker daemon not running) — " +
         "validated .nix syntax only. For a REAL local check, start Docker and run " +
         "`devcontainer up --workspace-folder .` then " +
@@ -95,7 +95,7 @@ try {
 }
 if (untracked) {
   block(
-    `Git purity violation: untracked .nix files are invisible to flake evaluation. ` +
+    `✘ Git purity violation: untracked .nix files are invisible to flake evaluation. ` +
       `Run \`git add -A\` before finishing. Untracked:\n${untracked}`,
   );
 }
@@ -125,10 +125,14 @@ if (nixFiles && has("nix")) {
     run("nix flake check --no-build 2>&1");
   } catch (e) {
     block(
-      `\`nix flake check\` failed — configuration does not evaluate across all systems:\n` +
+      `✘ \`nix flake check\` failed — configuration does not evaluate across all systems:\n` +
         `${(e.stdout || e.stderr || e.message || "").trim().slice(-2000)}`,
     );
   }
+  process.stdout.write(
+    JSON.stringify({ decision: "approve", systemMessage: "✔︎ stop-gate: `nix flake check` passed on host." }),
+  );
+  process.exit(0);
 } else if (nixFiles && has("devcontainer")) {
   // No host nix, but the `devcontainer` CLI is available: run the REAL
   // `nix flake check` inside the prebuilt container. It evaluates all four
@@ -161,7 +165,7 @@ if (nixFiles && has("nix")) {
     );
   } catch (e) {
     block(
-      `\`nix flake check\` (run in the devcontainer) failed — configuration does not evaluate:\n` +
+      `✘ \`nix flake check\` (run in the devcontainer) failed — configuration does not evaluate:\n` +
         `${(e.stdout || e.stderr || e.message || "").trim().slice(-2000)}`,
     );
   }
@@ -184,7 +188,7 @@ if (nixFiles && has("nix")) {
   process.stdout.write(
     JSON.stringify({
       decision: "approve",
-      systemMessage: `stop-gate: ran \`nix flake check\` in the devcontainer — ${nativeNote}; ${deferredNote}.`,
+      systemMessage: `✔︎ stop-gate: ran \`nix flake check\` in the devcontainer — ${nativeNote}; ${deferredNote}.`,
     }),
   );
   process.exit(0);
