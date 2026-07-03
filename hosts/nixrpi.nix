@@ -3,7 +3,6 @@
 # Build a flashable SD card image:
 #   nix build .#nixosConfigurations.nixrpi.config.system.build.sdImage
 {
-  config,
   lib,
   secretsDir,
   ...
@@ -28,8 +27,15 @@
 
   networking.useDHCP = true;
 
+  # Cloudflare Tunnel — REMOTELY-MANAGED (token) connector. The tunnel, its
+  # public-hostname ingress (nixrpi.kattakath.com → ssh://localhost:22) and the
+  # proxied CNAME live in the Cloudflare account (provisioned once by
+  # scripts/cf-one-provision.sh). This host only carries the connector token
+  # (one line `TUNNEL_TOKEN=…`) via agenix; modules/nixos/cloudflared.nix
+  # (imported globally) runs the hardened systemd unit at boot — no login.
+  #
   # nixrpi is DURABLE hardware → use approach (a): post-boot rekey, NOT prebake.
-  # nixrpi-tunnel-creds.age ships encrypted only to the personal key (correct
+  # nixrpi-tunnel-token.age ships encrypted only to the personal key (correct
   # pre-first-boot). After the Pi's first boot, add its own
   # /etc/ssh/ssh_host_ed25519_key.pub as a recipient in secrets/secrets.nix and
   # re-encrypt — run the agenix-host-rekey skill. The Pi's own first-boot key is
@@ -43,17 +49,7 @@
     board = "bcm2711";
   };
 
-  age.secrets.nixrpi-tunnel-creds = {
-    file = "${secretsDir}/nixrpi-tunnel-creds.age";
-    mode = "0400";
-    owner = "root";
-  };
-
-  services.cloudflared.tunnels."41e4c439-83d7-43a0-9a03-bba58eb9e66d" = {
-    credentialsFile = config.age.secrets.nixrpi-tunnel-creds.path;
-    ingress."nixrpi.kattakath.com" = "ssh://localhost:22";
-    default = "http_status:404";
-  };
+  age.secrets."nixrpi-tunnel-token".file = "${secretsDir}/nixrpi-tunnel-token.age";
 
   system.stateVersion = "24.05";
 }
