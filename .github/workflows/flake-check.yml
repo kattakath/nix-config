@@ -5,20 +5,31 @@ name: flake-check
 # marks full evaluation "CI-deferred". This workflow IS that CI.
 #
 # ---------------------------------------------------------------------------
+# DERIVATION-LEVEL EVALUATION (nix-fast-build)
+# ---------------------------------------------------------------------------
+# Each matrix leg (and the lint job) drives `nix-fast-build --skip-cached` —
+# it runs `nix-eval-jobs` to evaluate a flake attrset in parallel and starts
+# building each derivation the moment it evaluates, skipping any store path
+# already in the `ismailkattakath` Cachix. This REPLACES the hand-rolled
+# `nix eval …drvPath` loops + separate `nix build` devShell steps: one tool now
+# evaluates AND realizes each target, in parallel, and the cachix-action
+# post-build hook still pushes every realized path. There is intentionally NO
+# path filter — the operator does not want a path list to maintain; every PR
+# runs the full matrix (and `--skip-cached` keeps unchanged closures cheap).
+# Invoked via `nix run nixpkgs#nix-fast-build --` (pinned through the flake's
+# nixpkgs), mirroring the repo's `nix run nixpkgs#skopeo` idiom.
+#
+# ---------------------------------------------------------------------------
 # REQUIRED-CHECK DESIGN — read before touching job names or branch protection.
 # ---------------------------------------------------------------------------
-# The heavy legs here (aarch64-darwin, x86_64-linux, aarch64-linux, lint) are
-# skipped at JOB level on PRs that cannot affect the flake verdict — decided by
-# the `changes` path-filter job below. A JOB-level `if:`-skipped required check
-# reports SUCCESS to a PR; a WORKFLOW-level `paths:` skip leaves the required
-# check *pending forever* and wedges the PR. So we gate at job level and expose
-# a single always-run aggregate, `flake-check-result`, as the required check.
+# The single always-run aggregate job `flake-check-result` is the required
+# status check, NOT the individual legs. It passes iff every needed job is
+# success OR skipped and fails on any failure/cancelled — one stable context to
+# anchor branch protection regardless of how the matrix evolves.
 #
 # BRANCH PROTECTION: the required status check MUST be `flake-check-result`,
-# NOT the four legs. `flake-check-result` passes iff every needed leg is
-# success OR skipped, and fails on any failure/cancelled — so a docs-only PR
-# that skips the legs still reports a green required check and stays mergeable.
-# (`Scan for secrets` / gitleaks remains a separate required check untouched.)
+# NOT the four legs. (`Scan for secrets` / gitleaks remains a separate required
+# check untouched.)
 # ---------------------------------------------------------------------------
 
 on:
@@ -37,49 +48,19 @@ permissions:
   contents: read
 
 jobs:
-  # Cheap gate: which verdict-affecting paths changed? Its `nix` output drives
-  # the job-level `if:` on the heavy legs. The filter is INTENTIONALLY
-  # over-inclusive (bias toward RUNNING) — a false negative would silently skip
-  # a real regression, so we err on the side of a wasted run. On non-PR events
-  # the legs ignore this and always run (see their `if:`), so this is a no-op
-  # cost there (dorny/paths-filter reports all-true when there is no base ref).
-  changes:
-    name: changes
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    outputs:
-      nix: ${{ steps.filter.outputs.nix }}
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
-        id: filter
-        with:
-          filters: |
-            nix:
-              - '**/*.nix'
-              - 'flake.lock'
-              - 'treefmt.nix'
-              - '.pre-commit-config.*'
-              - '.editorconfig'
-              - '.gitignore'
-              - '.github/workflows/flake-check.yml'
-
-  # Evaluate every system natively where possible. aarch64-linux is realized
-  # via emulation on the x86_64 runner so all three of the canonical triple
-  # are covered without self-hosted ARM-Linux hardware.
+  # Evaluate + build every system natively where possible. aarch64-linux is
+  # realized via emulation on the x86_64 runner so all three of the canonical
+  # triple are covered without self-hosted ARM-Linux hardware.
   #
-  # NOTE: `nix flake check --system <arch>` does NOT filter outputs by system —
-  # `--system` sets the Nix evaluator's own host system (a config key), and is
-  # silently ignored for untrusted users in CI. Each job instead evaluates the
-  # system-specific top-level derivations directly via `nix eval` (which only
-  # evaluates, never builds — the separate `nix build` steps populate the cache).
-  #
-  # Runs when a verdict-affecting path changed OR on any non-PR event
-  # (push-to-main, workflow_dispatch) — never skipped off a PR.
+  # Each leg runs nix-fast-build against the SAME targets the old eval loops
+  # covered (1:1 map documented per step). `--skip-cached` avoids rebuilding
+  # closures already in Cachix; the cachix-action post-build hook pushes the
+  # rest. The system-specific toplevels are deep config paths (not a walkable
+  # derivation attrset), so nix-fast-build targets the `checks`, `packages`, and
+  # `devShells` attrsets and the toplevels are realized with an explicit
+  # `nix build` — preserving coverage without contorting the flake's outputs.
   check:
     name: ${{ matrix.name }}
-    needs: changes
-    if: ${{ needs.changes.outputs.nix == 'true' || github.event_name != 'pull_request' }}
     runs-on: ${{ matrix.os }}
     # Cap so an emulated-aarch64 QEMU stall fails fast instead of hanging 6h.
     timeout-minutes: 60
@@ -130,83 +111,83 @@ jobs:
             echo "::error::Untracked .nix files break flake evaluation:"; echo "$untracked"; exit 1
           fi
 
-      - name: Evaluate aarch64-darwin outputs
+      # aarch64-darwin coverage (1:1 with the old eval loop + build step):
+      #   checks.aarch64-darwin.{formatting,pre-commit}  -> nix-fast-build .#checks.aarch64-darwin
+      #   packages.aarch64-darwin.nixbox-vm              -> nix-fast-build .#packages.aarch64-darwin
+      #   devShells.aarch64-darwin.default               -> nix-fast-build .#devShells.aarch64-darwin
+      #   darwinConfigurations.nixcon…toplevel           -> nix build (deep config path)
+      # nix-fast-build builds nixbox-vm too, so its writeShellApplication
+      # shellcheck runs at build time exactly as before.
+      - name: Evaluate + build aarch64-darwin (nix-fast-build --skip-cached)
         if: matrix.name == 'aarch64-darwin'
         run: |
-          # `nix eval` takes ONE installable, so loop. `.drvPath` forces the
-          # derivation to evaluate without building it.
-          for t in \
-            .#darwinConfigurations.nixcon.config.system.build.toplevel \
-            .#packages.aarch64-darwin.nixbox-vm \
-            .#checks.aarch64-darwin.formatting \
-            .#checks.aarch64-darwin.pre-commit \
-            .#devShells.aarch64-darwin.default; do
-            echo "::group::eval $t"
-            nix eval --show-trace "$t.drvPath"
+          for attr in \
+            .#checks.aarch64-darwin \
+            .#packages.aarch64-darwin \
+            .#devShells.aarch64-darwin; do
+            echo "::group::nix-fast-build $attr"
+            nix run nixpkgs#nix-fast-build -- \
+              --skip-cached --no-nom \
+              --flake "$attr" --systems aarch64-darwin
             echo "::endgroup::"
           done
-
-      # Realize the devShell closure so the Cachix post-build hook pushes it —
-      # this is exactly the closure the devcontainer's `cachix use` pulls.
-      # Build the devShell (populate cache) AND the nixbox-vm launcher — the
-      # writeShellApplication's shellcheck only runs at BUILD time, so `nix eval`
-      # above does not exercise it; this build does.
-      - name: Build devShell + nixbox-vm (populate cache; runs shellcheck)
+      - name: Build darwin toplevel (deep config path)
         if: matrix.name == 'aarch64-darwin'
         run: |
           nix build --print-build-logs --no-link \
-            .#devShells.aarch64-darwin.default \
-            .#packages.aarch64-darwin.nixbox-vm
+            .#darwinConfigurations.nixcon.config.system.build.toplevel
 
-      - name: Evaluate x86_64-linux outputs
+      # x86_64-linux coverage (1:1):
+      #   packages.x86_64-linux.{dockerImage,devcontainerImage} -> nix-fast-build .#packages.x86_64-linux
+      #   checks.x86_64-linux.{formatting,pre-commit}           -> nix-fast-build .#checks.x86_64-linux
+      #   devShells.x86_64-linux.default                        -> nix-fast-build .#devShells.x86_64-linux
+      - name: Evaluate + build x86_64-linux (nix-fast-build --skip-cached)
         if: matrix.name == 'x86_64-linux'
         run: |
-          for t in \
-            .#packages.x86_64-linux.dockerImage \
-            .#packages.x86_64-linux.devcontainerImage \
-            .#checks.x86_64-linux.formatting \
-            .#checks.x86_64-linux.pre-commit \
-            .#devShells.x86_64-linux.default; do
-            echo "::group::eval $t"
-            nix eval --show-trace "$t.drvPath"
+          for attr in \
+            .#checks.x86_64-linux \
+            .#packages.x86_64-linux \
+            .#devShells.x86_64-linux; do
+            echo "::group::nix-fast-build $attr"
+            nix run nixpkgs#nix-fast-build -- \
+              --skip-cached --no-nom \
+              --flake "$attr" --systems x86_64-linux
             echo "::endgroup::"
           done
 
-      - name: Build devShell (populate cache)
-        if: matrix.name == 'x86_64-linux'
-        run: nix build --print-build-logs --no-link .#devShells.x86_64-linux.default
-
-      - name: Evaluate aarch64-linux outputs
+      # aarch64-linux coverage (1:1, EMULATED — QEMU + extra-platforms above):
+      #   packages.aarch64-linux.{dockerImage,devcontainerImage} -> nix-fast-build .#packages.aarch64-linux
+      #   checks.aarch64-linux.{formatting,pre-commit}           -> nix-fast-build .#checks.aarch64-linux
+      #   devShells.aarch64-linux.default                        -> nix-fast-build .#devShells.aarch64-linux
+      #   nixosConfigurations.{nixbox,nixrpi}…toplevel           -> nix build (deep config paths)
+      - name: Evaluate + build aarch64-linux (nix-fast-build --skip-cached)
         if: matrix.name == 'aarch64-linux'
         run: |
-          for t in \
+          for attr in \
+            .#checks.aarch64-linux \
+            .#packages.aarch64-linux \
+            .#devShells.aarch64-linux; do
+            echo "::group::nix-fast-build $attr"
+            nix run nixpkgs#nix-fast-build -- \
+              --skip-cached --no-nom \
+              --flake "$attr" --systems aarch64-linux
+            echo "::endgroup::"
+          done
+      - name: Build aarch64-linux toplevels (deep config paths)
+        if: matrix.name == 'aarch64-linux'
+        run: |
+          nix build --print-build-logs --no-link \
             .#nixosConfigurations.nixbox.config.system.build.toplevel \
-            .#nixosConfigurations.nixrpi.config.system.build.toplevel \
-            .#packages.aarch64-linux.dockerImage \
-            .#packages.aarch64-linux.devcontainerImage \
-            .#checks.aarch64-linux.formatting \
-            .#checks.aarch64-linux.pre-commit \
-            .#devShells.aarch64-linux.default; do
-            echo "::group::eval $t"
-            nix eval --show-trace "$t.drvPath"
-            echo "::endgroup::"
-          done
-
-      # aarch64-linux is what the devcontainer runs — caching this emulated
-      # closure once here is the highest-value push (saves the slow QEMU rebuild).
-      - name: Build devShell (populate cache)
-        if: matrix.name == 'aarch64-linux'
-        run: nix build --print-build-logs --no-link .#devShells.aarch64-linux.default
+            .#nixosConfigurations.nixrpi.config.system.build.toplevel
 
   # Formatting + lint + pre-commit are all flake checks now (treefmt-nix +
   # git-hooks.nix), so CI builds the SAME derivations developers run via
-  # `nix fmt` / the commit hook. No drifting ad-hoc tool invocations.
-  #
-  # Same gate as `check`: run on a verdict-affecting change OR any non-PR event.
+  # `nix fmt` / the commit hook. nix-fast-build over `.#checks.x86_64-linux`
+  # evaluates + realizes both `formatting` and `pre-commit` in parallel.
+  # (The `check` matrix also covers these per system; this dedicated lint job
+  # is the historical fast x86_64 gate and stays a distinct signal.)
   lint:
     name: "lint (treefmt: nixfmt / statix / deadnix + pre-commit)"
-    needs: changes
-    if: ${{ needs.changes.outputs.nix == 'true' || github.event_name != 'pull_request' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -218,20 +199,22 @@ jobs:
         with:
           name: ismailkattakath
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
-      - name: Formatting gate (fails on unformatted/lintable files)
-        run: nix build --print-build-logs .#checks.x86_64-linux.formatting
-      - name: Pre-commit hooks (sandboxed)
-        run: nix build --print-build-logs .#checks.x86_64-linux.pre-commit
+      # Covers checks.x86_64-linux.{formatting,pre-commit} (1:1 with the old two
+      # `nix build …formatting` / `…pre-commit` steps).
+      - name: Lint gate (nix-fast-build .#checks.x86_64-linux --skip-cached)
+        run: |
+          nix run nixpkgs#nix-fast-build -- \
+            --skip-cached --no-nom \
+            --flake .#checks.x86_64-linux --systems x86_64-linux
 
-  # Aggregate required check. Exists so the heavy legs above can be SKIPPED on
-  # verdict-irrelevant PRs without wedging branch protection: a job-level-skipped
-  # required check reports pending forever, but THIS job always runs (if: always())
-  # and reports one stable status. It passes iff every needed job is success OR
-  # skipped, and fails on any failure/cancelled. Branch protection's required
-  # status check MUST be this job (`flake-check-result`), not the four legs.
+  # Aggregate required check. This single always-run job is the branch-protection
+  # anchor: it reports one stable status (`flake-check-result`) regardless of how
+  # the matrix legs evolve, and (via re-actors/alls-green) passes iff every needed
+  # job is success OR skipped and fails on any failure/cancelled. Branch
+  # protection's required status check MUST be this job, not the individual legs.
   flake-check-result:
     name: flake-check-result
-    needs: [changes, check, lint]
+    needs: [check, lint]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
