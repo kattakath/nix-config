@@ -64,6 +64,38 @@ let
 
   contents = devPackages ++ extraTools;
 
+  # Foreign (non-Nix) glibc binaries — e.g. the VS Code Server's bundled generic
+  # `node` — hardcode the STANDARD ELF interpreter path in their PT_INTERP and are
+  # refused by the kernel (exit 127, "cannot execute: required file not found")
+  # when it is absent. Our distroless image has glibc + libstdc++ only under
+  # /nix/store, so the standard loader path and library dirs must be populated.
+  #
+  # The image is built multi-arch (x86_64-linux + aarch64-linux), so the loader
+  # FILENAME is arch-specific and MUST be derived from the target platform — never
+  # hardcoded. glibc names it ld-linux-aarch64.so.1 on aarch64 (canonically in
+  # /lib) and ld-linux-x86-64.so.2 on x86_64 (canonically in /lib64). We also
+  # mirror the loader into the sibling of /lib,/lib64 since some binaries look
+  # there.
+  hostPlat = pkgs.stdenv.hostPlatform;
+  loaderInfo =
+    if hostPlat.isAarch64 then
+      {
+        name = "ld-linux-aarch64.so.1";
+        libDir = "lib";
+      }
+    else if hostPlat.isx86_64 then
+      {
+        name = "ld-linux-x86-64.so.2";
+        libDir = "lib64";
+      }
+    else
+      throw "devcontainer-image: unsupported host platform ${hostPlat.system} — add its glibc loader name/dir";
+
+  # gcc runtime libs (libstdc++.so.6, libgcc_s.so.1) the VS Code Server node needs
+  # once the loader resolves. Made discoverable via an ldconfig cache (below)
+  # rather than a global LD_LIBRARY_PATH, which can perturb the Nix binaries.
+  gccLib = pkgs.stdenv.cc.cc.lib;
+
   # Everything that must be a VALID store path so `nix develop` skips build +
   # download. `registration` below is loaded into the image's Nix DB.
   closure = pkgs.closureInfo { rootPaths = contents; };
@@ -167,6 +199,51 @@ dockerTools.streamLayeredImage {
     extra-substituters = https://ismailkattakath.cachix.org
     extra-trusted-public-keys = ismailkattakath.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I=
     NIXCONF
+
+    # --- make FOREIGN (non-Nix) glibc binaries runnable ----------------------
+    # The VS Code Server ships a generic-glibc `node`; its PT_INTERP is the
+    # standard loader path (/lib/ld-linux-aarch64.so.1 or /lib64/ld-linux-x86-64.so.2),
+    # which a distroless Nix image lacks — so the server exits 127 and never
+    # starts (the exact regression that hid behind a green prebuild/smoke test:
+    # the prebuild never launches the server and the old smoke test only ran
+    # Nix-store binaries). Symlink the standard loader path to nixpkgs glibc's
+    # loader so the kernel can exec these binaries. Arch-gated filename + dir.
+    mkdir -p lib lib64
+    ln -sf ${pkgs.glibc}/lib/${loaderInfo.name} ${loaderInfo.libDir}/${loaderInfo.name}
+    # Also mirror into the sibling dir (/lib <-> /lib64) for binaries that probe it.
+    ${lib.optionalString (loaderInfo.libDir == "lib") ''
+      ln -sf ${pkgs.glibc}/lib/${loaderInfo.name} lib64/${loaderInfo.name}
+    ''}${lib.optionalString (loaderInfo.libDir == "lib64") ''
+      ln -sf ${pkgs.glibc}/lib/${loaderInfo.name} lib/${loaderInfo.name}
+    ''}
+
+    # Resolve libstdc++.so.6 / libgcc_s.so.1 (needed by the server node once the
+    # loader runs) via an ldconfig CACHE — NOT a global LD_LIBRARY_PATH, which
+    # would leak into the Nix binaries' environment and can break them. The Nix
+    # binaries keep using their own store loader + RUNPATH and are unaffected by
+    # this default-search-path cache. glibc's own lib dir is included so the
+    # loader's companion libs (libc.so.6 …) resolve for foreign binaries too.
+    mkdir -p etc
+    cat > etc/ld.so.conf <<LDCONF
+    ${gccLib}/lib
+    ${pkgs.glibc}/lib
+    LDCONF
+    ${pkgs.glibc.bin}/bin/ldconfig -f etc/ld.so.conf -C etc/ld.so.cache
+
+    # --- minimal /etc/os-release --------------------------------------------
+    # Silences the devcontainer runtime's distro probe
+    # (cat /etc/os-release || cat /usr/lib/os-release), which otherwise logs a
+    # failure on every `devcontainer up`. Cosmetic but trivial.
+    cat > etc/os-release <<'OSRELEASE'
+    NAME="nix-config devcontainer"
+    ID=nixos
+    ID_LIKE=nixos
+    PRETTY_NAME="nix-config devcontainer (distroless)"
+    VERSION_ID="unstable"
+    HOME_URL="https://github.com/ismailkattakath/nix-config"
+    OSRELEASE
+    mkdir -p usr/lib
+    ln -sf /etc/os-release usr/lib/os-release
   '';
 
   config = {

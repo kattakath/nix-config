@@ -276,6 +276,68 @@ jobs:
             echo "=== smoke test passed ==="
           '
 
+      # REGRESSION GUARD (see fix/devcontainer-glibc-loader): prove a FOREIGN,
+      # standard-FHS glibc binary — one whose ELF PT_INTERP is the standard
+      # loader path and which links libstdc++ — actually EXECUTES in the image.
+      # This is the exact breakage that hid behind a green prebuild + the
+      # Nix-only smoke test above: the distroless image had glibc/libstdc++ only
+      # under /nix/store, so the VS Code Server's bundled generic `node` died
+      # with exit 127 ("cannot execute: required file not found") and the server
+      # never started. The subject under test is the REAL VS Code Server node
+      # for this runner's arch — not a Nix-store binary (which uses its own
+      # store loader + RUNPATH and would pass even if the standard loader
+      # regressed). If the arch-gated /lib*/ld-linux-*.so.* symlink or the
+      # libstdc++ ldconfig cache regresses, this step fails CI.
+      - name: Guard — foreign glibc binary (VS Code Server node) executes
+        run: |
+          set -euo pipefail
+          ARCH="${{ matrix.arch }}"          # amd64 | arm64 — matches server-linux-<arch>
+          case "$ARCH" in
+            amd64) LOADER_GLOB='/lib64/ld-linux-x86-64.so.2' ;;
+            arm64) LOADER_GLOB='/lib/ld-linux-aarch64.so.1'  ;;
+            *) echo "✗ unknown matrix arch $ARCH"; exit 1 ;;
+          esac
+
+          # Fetch the REAL VS Code Server (the foreign generic-glibc payload the
+          # devcontainer runtime downloads at connect time) for this arch.
+          echo "::group::download VS Code Server (server-linux-${ARCH})"
+          curl -fSL --retry 3 -o /tmp/vscode-server.tgz \
+            "https://update.code.visualstudio.com/latest/server-linux-${ARCH}/stable"
+          mkdir -p /tmp/vscs && tar -xzf /tmp/vscode-server.tgz -C /tmp/vscs
+          NODE="$(find /tmp/vscs -maxdepth 2 -type f -name node | head -1)"
+          test -n "$NODE" || { echo "✗ could not locate bundled node in VS Code Server"; exit 1; }
+          echo "bundled node: $NODE"
+          # Sanity: on THIS host (no loader shim) the foreign node cannot exec —
+          # confirms it genuinely depends on the standard loader we provide.
+          "$NODE" --version >/dev/null 2>&1 \
+            && echo "note: host happened to run it (host has a standard loader)" \
+            || echo "confirmed: foreign node needs the standard loader (fails on a bare distroless rootfs)"
+          echo "::endgroup::"
+
+          CID=$(docker run -d \
+            -v /tmp/vscs:/vscs:ro \
+            nix-config-devcontainer:latest)
+          trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
+
+          # 1) the arch-appropriate standard loader path must resolve (symlink → glibc).
+          docker exec "$CID" test -e "$LOADER_GLOB" \
+            || { echo "✗ standard loader ${LOADER_GLOB} is MISSING in the image"; exit 1; }
+          echo "✓ standard loader ${LOADER_GLOB} resolves"
+
+          # 2) the FOREIGN node must actually EXECUTE inside the image (loader +
+          #    libstdc++ both resolve). This is the exit-127 regression guard.
+          BUNDLED="/vscs/$(cd /tmp/vscs && find . -maxdepth 2 -type f -name node | head -1 | sed 's#^\./##')"
+          OUT="$(docker exec "$CID" "$BUNDLED" --version 2>&1)" || {
+            echo "✗ foreign VS Code Server node FAILED to execute in the image:"; echo "$OUT"
+            echo "  → the standard glibc loader and/or libstdc++ path has regressed."; exit 1; }
+          echo "✓ foreign glibc node executed in the image: $OUT"
+
+          # 3) prove libstdc++ specifically is discoverable (node links it; a bare
+          #    loader with no libstdc++ would fail here with 'cannot open libstdc++.so.6').
+          echo "$OUT" | grep -Eq '^v[0-9]' \
+            || { echo "✗ node produced no version string — libstdc++ likely unresolved"; exit 1; }
+          echo "=== foreign-glibc execution guard passed ==="
+
       # Publish (login + push) runs only on a main push whose image CONTENT changed.
       # The build + smoke test ABOVE stay unconditional — they are the cheap safety
       # net (Cachix substitutes the warm closure), so PRs and even no-op main pushes
