@@ -146,30 +146,26 @@ if (nixFiles && has("nix")) {
         `${(e.stdout || e.stderr || e.message || "").trim().slice(-2000)}`,
     );
   }
-  // Compose the success message from what the run ACTUALLY reported — never
-  // hardcode the system list (it would drift when a system is added/removed):
+  // Compose the success message from what the run ACTUALLY did — never hardcode
+  // the system list (it would drift when a system is added/removed). Be strictly
+  // truthful: `nix flake check` in the container only BUILDS the native system's
+  // checks; the "omitted" systems were NOT built/verified here and defer to CI.
   //   native   = the container's own system (STOPGATE_NATIVE marker)
-  //   deferred = nix's "omitted these incompatible systems" warning (builds only)
-  //   evaluated = native + deferred (flake check EVALUATES all, BUILDS native)
+  //   deferred = nix's "omitted these incompatible systems" warning (not built)
   const native = (checkOut.match(/STOPGATE_NATIVE=(\S+)/) || [])[1] || "";
   const deferred = ((checkOut.match(/omitted these incompatible systems:\s*([^\n]+)/i) || [])[1] || "")
     .split(/[,\s]+/)
     .map((s) => s.trim())
     .filter(Boolean);
-  const evaluated = [native, ...deferred].filter(Boolean);
-  const evaluatedNote =
-    evaluated.length > 0
-      ? `evaluated ${evaluated.length} system${evaluated.length === 1 ? "" : "s"} (${evaluated.join(", ")})`
-      : "evaluated the flake";
-  const nativeNote = native ? `native ${native} checks built & ran clean` : "native checks built & ran clean";
+  const nativeNote = native ? `native ${native} checks built & passed` : "native checks built & passed";
   const deferredNote =
     deferred.length > 0
-      ? `cross-arch builds (${deferred.join(", ")}) defer to CI`
-      : "all systems built locally — nothing deferred";
+      ? `builds for ${deferred.join(", ")} omitted as incompatible (not verified here) → defer to CI`
+      : "all buildable checks passed — nothing omitted";
   process.stdout.write(
     JSON.stringify({
       decision: "approve",
-      systemMessage: `stop-gate: verified via devcontainer — \`nix flake check\` ${evaluatedNote}; ${nativeNote}. ${deferredNote}.`,
+      systemMessage: `stop-gate: ran \`nix flake check\` in the devcontainer — ${nativeNote}; ${deferredNote}.`,
     }),
   );
   process.exit(0);
