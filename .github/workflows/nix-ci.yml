@@ -1,0 +1,127 @@
+name: nix-ci
+
+# Self-owned, native multi-system Nix CI — the replacement for hosted Garnix.
+#
+# Builds EVERY flake output for each system on its OWN NATIVE runner (no QEMU),
+# and pushes the resulting store paths to the public `ismailkattakath` Cachix
+# cache so hosts and the devcontainer substitute instead of rebuilding.
+#
+#   x86_64-linux   -> ubuntu-24.04       (GitHub-hosted, native x86_64)
+#   aarch64-linux  -> ubuntu-24.04-arm   (GitHub-hosted arm64 — GA, free for
+#                                          public repos, NATIVE, no emulation)
+#   aarch64-darwin -> macos-15           (Apple Silicon, free for public repos)
+#
+# The unit of work per leg is `.#checks.<system>` — the flake's full check set
+# (formatting, pre-commit, and the host toplevels nixcon/nixbox/nixrpi). We drive
+# the build with nix-fast-build (parallel, per-derivation) and let it push each
+# realized path to Cachix as it goes.
+#
+# READ from the cache is public (substituter URL + public key only, configured
+# below via extra_nix_config). WRITE requires CACHIX_AUTH_TOKEN, a GitHub Actions
+# secret — absent on fork PRs, where cachix-action gracefully no-ops the push and
+# the pull still works.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref (matches sibling workflows).
+concurrency:
+  group: nix-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least-privilege: we only read the checked-out tree. Cachix push auth comes
+# from the CACHIX_AUTH_TOKEN secret, not the GITHUB_TOKEN.
+permissions:
+  contents: read
+
+jobs:
+  # Native per-system build matrix. fail-fast:false so one system's failure does
+  # not cancel the others — the aggregate gate below decides the overall result.
+  build:
+    name: build (${{ matrix.system }})
+    runs-on: ${{ matrix.runs-on }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: x86_64-linux
+            runs-on: ubuntu-24.04
+            # Base nix.conf: flakes + the public ismailkattakath substituter.
+            extra-nix-config: |
+              experimental-features = nix-command flakes
+              extra-substituters = https://ismailkattakath.cachix.org
+              extra-trusted-public-keys = ismailkattakath.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I=
+          - system: aarch64-linux
+            runs-on: ubuntu-24.04-arm
+            extra-nix-config: |
+              experimental-features = nix-command flakes
+              extra-substituters = https://ismailkattakath.cachix.org
+              extra-trusted-public-keys = ismailkattakath.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I=
+          - system: aarch64-darwin
+            runs-on: macos-15
+            # sandbox = relaxed is REQUIRED on darwin: the unfree claude-code
+            # derivation sets __noChroot, which only takes effect under a relaxed
+            # sandbox. Without it, that derivation fails to build.
+            extra-nix-config: |
+              experimental-features = nix-command flakes
+              sandbox = relaxed
+              extra-substituters = https://ismailkattakath.cachix.org
+              extra-trusted-public-keys = ismailkattakath.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I=
+    steps:
+      - uses: actions/checkout@v4
+
+      # UPSTREAM Nix (NOT DeterminateSystems/nix-installer-action — that installs
+      # Determinate Nix only, as of 2026-01-01). Per-leg nix.conf is driven from
+      # the matrix so the darwin leg gets `sandbox = relaxed`.
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: ${{ matrix.extra-nix-config }}
+
+      # Configure the Cachix push hook. authToken is a write-only credential held
+      # only as a repo secret; when absent (fork PRs) push is skipped and the
+      # cache is still used read-only — safe to run before the secret exists.
+      - uses: cachix/cachix-action@v15
+        with:
+          name: ismailkattakath
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      # Flakes evaluate the git tree, not the working dir — stage everything
+      # BEFORE any nix invocation (see .claude/rules/git-purity.md). Untracked
+      # .nix files are otherwise invisible and produce stale/failed evals.
+      - name: Stage tree (git purity)
+        run: git add -A
+
+      # Build every check for THIS system and push realized paths to Cachix.
+      # --skip-cached avoids rebuilding paths already in the cache; --no-nom keeps
+      # plain CI logs; --cachix-cache pushes as it builds (needs CACHIX_AUTH_TOKEN).
+      - name: Build .#checks.${{ matrix.system }} + push to Cachix
+        env:
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+        run: |
+          nix run github:Mic92/nix-fast-build -- \
+            --skip-cached \
+            --no-nom \
+            --flake ".#checks.${{ matrix.system }}" \
+            --cachix-cache ismailkattakath
+
+  # Aggregate gate. This is the ONE stable-named required check that branch
+  # protection anchors to — the matrix leg names can change freely without ever
+  # re-anchoring the ruleset. It runs even when a leg fails (if: always()) and
+  # fails if ANY leg failed or was cancelled.
+  required-checks:
+    name: required-checks
+    needs: [build]
+    runs-on: ubuntu-24.04
+    if: always()
+    steps:
+      - name: Verify all build legs passed
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "✗ One or more build legs failed or were cancelled."
+            exit 1
+          fi
+          echo "✓ All build legs passed."

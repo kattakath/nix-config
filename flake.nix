@@ -283,9 +283,23 @@
       # ---- Checks: `nix flake check` enforces formatting + lint + hooks ------
       # `formatting` fails on any unformatted/lintable file; `pre-commit` runs
       # the configured hooks in the sandbox so CI mirrors local commits.
-      checks = forAllSystems (system: {
-        formatting = treefmtEval.${system}.config.build.check self;
-        pre-commit = preCommitFor system;
-      });
+      checks = forAllSystems (
+        system:
+        {
+          formatting = treefmtEval.${system}.config.build.check self;
+          pre-commit = preCommitFor system;
+        }
+        # Expose each host's toplevel as a check so `nix-fast-build
+        # --flake .#checks.<system>` BUILDS the real system closures in CI —
+        # gated to the one system that can build each (nix-darwin toplevel is
+        # the `.system` attr; NixOS is `config.system.build.toplevel`).
+        // nixpkgs.lib.optionalAttrs (system == "aarch64-darwin") {
+          nixcon = self.darwinConfigurations.nixcon.system;
+        }
+        // nixpkgs.lib.optionalAttrs (system == "aarch64-linux") {
+          nixbox = self.nixosConfigurations.nixbox.config.system.build.toplevel;
+          nixrpi = self.nixosConfigurations.nixrpi.config.system.build.toplevel;
+        }
+      );
     };
 }

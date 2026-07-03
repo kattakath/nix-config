@@ -6,23 +6,22 @@
 #
 # READ is public: only the substituter URL + public signing key are needed —
 # NO auth token on any consumer. The CACHIX_AUTH_TOKEN is a write-only
-# credential and lives solely as a GitHub Actions secret, used by the remaining
-# workflows (cachix/cachix-action in build-devcontainer.yml) to push build
-# closures; never in Nix or git. Garnix pushes its own builds to cache.garnix.io.
+# credential and lives solely as a GitHub Actions secret, used by the Nix CI
+# workflow (cachix/cachix-action in .github/workflows/nix-ci.yml) to push the
+# per-system build closures; never in Nix or git.
 #
-# cache.garnix.io is Garnix's public CI cache (see garnix.yaml): once Garnix
-# builds the flake outputs, every host substitutes those paths (host toplevels,
-# devShells, images) from it instead of rebuilding. Also public-read, no token.
+# ismailkattakath.cachix.org is the single public CI cache: once the GitHub
+# Actions matrix builds the flake outputs, every host substitutes those paths
+# (host toplevels, devShells, images) from it instead of rebuilding. Public-read,
+# no token.
 {
   nix.settings = {
     # Appended to (not replacing) the default cache.nixos.org substituter.
     extra-substituters = [
       "https://ismailkattakath.cachix.org"
-      "https://cache.garnix.io"
     ];
     extra-trusted-public-keys = [
       "ismailkattakath.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I="
-      "cache.garnix.io:CTFPyKSLcx5RMJKfLo5EEPUObbA78b0YQ2DTCJXqr9g="
     ];
   };
 }

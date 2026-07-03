@@ -190,17 +190,17 @@ dockerTools.streamLayeredImage {
     # serving TRUSTED clients (trusted-users below) and removes the whole nixbld
     # failure class (matches the single-user-in-container posture that works).
     # trusted-users: let vscode add substituters / import paths interactively.
-    # Substituter keys are verification keys (also in modules/shared/nix-cache.nix):
-    # ismailkattakath.cachix.org (devShell closure) + cache.garnix.io (Garnix CI
-    # cache, see garnix.yaml). Both public-read, no token baked in.
+    # Substituter key is a verification key (also in modules/shared/nix-cache.nix):
+    # ismailkattakath.cachix.org (the CI devShell/build closure cache).
+    # Public-read, no token baked in.
     mkdir -p etc/nix
     cat > etc/nix/nix.conf <<'NIXCONF'
     experimental-features = nix-command flakes
     build-users-group =
     sandbox = false
     trusted-users = root vscode
-    extra-substituters = https://ismailkattakath.cachix.org https://cache.garnix.io
-    extra-trusted-public-keys = ismailkattakath.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I= cache.garnix.io:CTFPyKSLcx5RMJKfLo5EEPUObbA78b0YQ2DTCJXqr9g=
+    extra-substituters = https://ismailkattakath.cachix.org
+    extra-trusted-public-keys = ismailkattakath.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I=
     NIXCONF
 
     # --- make FOREIGN (non-Nix) glibc binaries runnable ----------------------

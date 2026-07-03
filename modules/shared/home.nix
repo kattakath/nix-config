@@ -29,8 +29,8 @@ let
   # nixpkgs with default config and ignores our unfree allowance.
   marketplace = pkgs.vscode-marketplace or null;
   # #80: on aarch64-darwin, upstream claude-code sets `__noChroot = isDarwin`
-  # (pkgs/by-name/cl/claude-code/package.nix), which Garnix's strict-sandbox
-  # darwin builder (macMini1, sandbox=true) rejects at derivation instantiation
+  # (pkgs/by-name/cl/claude-code/package.nix), which a strict-sandbox darwin
+  # builder (nix `sandbox = true`) rejects at derivation instantiation
   # ("has '__noChroot' set, but that's not allowed when 'sandbox' is 'true'").
   # The __noChroot exemption only exists so the versionCheckHook install-check
   # can run the bun binary at build time; with doInstallCheck=false the darwin
