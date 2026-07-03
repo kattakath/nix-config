@@ -88,6 +88,7 @@ jobs:
           # derivation to evaluate without building it.
           for t in \
             .#darwinConfigurations.m3pro.config.system.build.toplevel \
+            .#packages.aarch64-darwin.nixbox-vm \
             .#checks.aarch64-darwin.formatting \
             .#checks.aarch64-darwin.pre-commit \
             .#devShells.aarch64-darwin.default; do
@@ -98,9 +99,15 @@ jobs:
 
       # Realize the devShell closure so the Cachix post-build hook pushes it —
       # this is exactly the closure the devcontainer's `cachix use` pulls.
-      - name: Build devShell (populate cache)
+      # Build the devShell (populate cache) AND the nixbox-vm launcher — the
+      # writeShellApplication's shellcheck only runs at BUILD time, so `nix eval`
+      # above does not exercise it; this build does.
+      - name: Build devShell + nixbox-vm (populate cache; runs shellcheck)
         if: matrix.name == 'aarch64-darwin'
-        run: nix build --print-build-logs --no-link .#devShells.aarch64-darwin.default
+        run: |
+          nix build --print-build-logs --no-link \
+            .#devShells.aarch64-darwin.default \
+            .#packages.aarch64-darwin.nixbox-vm
 
       - name: Evaluate x86_64-linux outputs
         if: matrix.name == 'x86_64-linux'

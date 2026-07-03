@@ -74,10 +74,12 @@
       # Unfree-permitting nixpkgs, ONLY for the devcontainer image (claude-code is
       # unfree). legacyPackages has unfree disabled, so the image derivation needs
       # its own instance. Deliberately scoped here — no other output imports it.
-      pkgsUnfreeFor = system: import nixpkgs {
-        inherit system;
-        config.allowUnfree = true;
-      };
+      pkgsUnfreeFor =
+        system:
+        import nixpkgs {
+          inherit system;
+          config.allowUnfree = true;
+        };
 
       # ---- Formatting / lint (treefmt-nix) ------------------------------------
       # Evaluate ./treefmt.nix per system. The wrapper backs `nix fmt`; the
@@ -212,15 +214,19 @@
             # Devcontainer image is a Linux OCI artifact — gate to the linux triple.
             # Built with unfree pkgs (claude-code) and the SHARED dev toolchain, so
             # `nix develop` inside the container resolves from the baked store.
-            (nixpkgs.lib.genAttrs linuxSystems (
-              system: {
+            (
+              nixpkgs.lib.genAttrs linuxSystems (system: {
                 devcontainerImage = (pkgsUnfreeFor system).callPackage ./packages/devcontainer-image.nix {
                   devPackages = devPackagesFor system;
                 };
-              }
-            )))
+              })
+            )
+          )
           {
             aarch64-linux.nixbox-image = self.nixosConfigurations.nixbox.config.system.build.images.qemu-efi;
+            # Exposed as a package (not just wrapped in the app) so CI can build
+            # it — that build is what runs the writeShellApplication shellcheck.
+            aarch64-darwin.nixbox-vm = (pkgsFor "aarch64-darwin").callPackage ./packages/nixbox-vm.nix { };
           };
 
       # ---- Apps: native VM launcher (macOS only) -----------------------------
@@ -232,15 +238,11 @@
       #   1. Build qcow2 on an aarch64-linux builder: nix build .#nixbox-image
       #   2. Copy to the default disk path (or set NIXBOX_DISK=/path/to/qcow2):
       #        cp result/*.qcow2 ~/.local/state/nixbox-vm/nixbox.qcow2
-      apps.aarch64-darwin.nixbox-vm =
-        let
-          nixbox-vm = (pkgsFor "aarch64-darwin").callPackage ./packages/nixbox-vm.nix { };
-        in
-        {
-          type = "app";
-          program = "${nixbox-vm}/bin/run-nixbox-vm";
-          meta.description = "Boot nixbox qcow2 in QEMU with Apple HVF — no UTM needed (aarch64-darwin only)";
-        };
+      apps.aarch64-darwin.nixbox-vm = {
+        type = "app";
+        program = "${self.packages.aarch64-darwin.nixbox-vm}/bin/run-nixbox-vm";
+        meta.description = "Boot nixbox qcow2 in QEMU with Apple HVF — no UTM needed (aarch64-darwin only)";
+      };
 
       # ---- Multi-architecture dev shell --------------------------------------
       # `nix develop` on any target. Used as the default Devcontainer profile.
