@@ -1,5 +1,6 @@
 ---
 description: Capture a Nix-project decision, finding, or value into the gitignored project memory (memory/) for future reference.
+argument-hint: "<decision | finding | value | note to remember>"
 allowed-tools: Read, Write, Edit, Bash(ls:*)
 ---
 
