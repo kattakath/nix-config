@@ -47,7 +47,24 @@
     };
   };
 
-  programs.nix-ld.enable = true;
+  # nix-ld gives dynamically-linked, non-Nix binaries (VS Code Server, prebuilt
+  # language servers, downloaded toolchains) a glibc loader + a library search
+  # path. This native NixOS module OWNS nix-ld on every NixOS host; `libraries`
+  # merges with nix-ld's baseLibraries and is exposed via NIX_LD_LIBRARY_PATH.
+  # (The Home-Manager shim in modules/linux/nix-ld.nix stays inert here and only
+  # fires for standalone HM on non-NixOS Linux.)
+  programs.nix-ld = {
+    enable = true;
+    libraries = with pkgs; [
+      stdenv.cc.cc # libstdc++, libgcc_s
+      glibc
+      zlib
+      openssl
+      curl
+      util-linux
+      libGL
+    ];
+  };
 
   # agenix uses the host SSH key to decrypt system-level secrets at activation.
   # After first boot: add the host's public key to secrets/secrets.nix and
