@@ -404,7 +404,31 @@ jobs:
           gunzip image-amd64.tar.gz image-arm64.tar.gz
           LIST="devcontainer-index"
 
-          run_podman() { nix run nixpkgs#podman -- "$@"; }
+          # Run podman as ROOT (via sudo), NOT rootless. The nix-provided podman
+          # cannot set up a rootless user namespace on the GHA runner — it lacks the
+          # setuid newuidmap/newgidmap shadow helpers, so `nix run nixpkgs#podman`
+          # dies with `failed to reexec: Permission denied` before it does anything
+          # (containers/podman#24642). As root (uid 0) podman SKIPS the rootless
+          # reexec entirely — no user namespace, no newuidmap — and uses the real
+          # root store. Manifest assembly + push is pure metadata/blob work (no
+          # container is ever executed), so running it as root is both correct and
+          # the reliable path here.
+          #
+          # Build the podman closure ONCE as the runner user (its nix, its cache),
+          # capture the store path, then invoke that exact binary under sudo. The nix
+          # store is world-readable so root can exec it; root's store is writable so
+          # podman's local graph root lands under /root. CONTAINERS_REGISTRIES_CONF is
+          # passed EXPLICITLY into the sudo env (below) and registry auth via
+          # --authfile — under sudo $HOME would be /root, so podman's default
+          # ~/.docker/config.json fallback would miss the runner user's login.
+          PODMAN="$(nix build --no-link --print-out-paths nixpkgs#podman)/bin/podman"
+          AUTHFILE="${HOME}/.docker/config.json"
+          # Pass CONTAINERS_REGISTRIES_CONF explicitly INTO the sudo env (don't rely on
+          # -E surviving the runner's env_reset sudoers policy).
+          run_podman() {
+            sudo "CONTAINERS_REGISTRIES_CONF=${CONTAINERS_REGISTRIES_CONF}" \
+              "${PODMAN}" "$@"
+          }
 
           run_podman manifest create "${LIST}"
           run_podman manifest add "${LIST}" docker-archive:image-amd64.tar
@@ -418,11 +442,9 @@ jobs:
             "${LIST}"
 
           # ONE push per tag; --all uploads index + BOTH children as a single artifact.
-          # podman authenticates from the docker config docker/login-action wrote
-          # (REGISTRY_AUTH_FILE points podman at docker's config.json location).
-          export REGISTRY_AUTH_FILE="${HOME}/.docker/config.json"
           for TAG in latest "${SHA}"; do
             run_podman manifest push --all --format oci \
+              --authfile "${AUTHFILE}" \
               "${LIST}" "docker://${REF}:${TAG}"
           done
 
