@@ -208,6 +208,17 @@ jobs:
       #     aborts with "registries.conf must be in v2 format but is in v1" before
       #     it ever reads the archive. An empty v2 file (registry defaults only)
       #     sidesteps the incompatible host config.
+      #  3. `--format oci` converts each per-arch manifest from the v2s2 Docker
+      #     Schema 2 that streamLayeredImage emits to OCI
+      #     (application/vnd.oci.image.manifest.v1+json). This is LOAD-BEARING for
+      #     the manifest job's index annotations: with OCI children, `docker buildx
+      #     imagetools create` assembles an OCI image index
+      #     (application/vnd.oci.image.index.v1+json), which HAS an `annotations`
+      #     field. Without it the children stay v2s2 and imagetools falls back to a
+      #     Docker manifest list (vnd.docker.distribution.manifest.list.v2+json)
+      #     that has NO annotations field — so the index:org.opencontainers.image.*
+      #     annotations are SILENTLY DROPPED and GHCR's About panel renders nothing.
+      #     `oci` is a documented skopeo-copy --format value (oci|v2s1|v2s2).
       - name: Push per-arch image
         if: needs.config.outputs.is_publish == 'true'
         env:
@@ -216,7 +227,7 @@ jobs:
           printf 'unqualified-search-registries = ["docker.io"]\n' \
             > "${CONTAINERS_REGISTRIES_CONF}"
           ./result > image.tar
-          nix run nixpkgs#skopeo -- --insecure-policy copy \
+          nix run nixpkgs#skopeo -- --insecure-policy copy --format oci \
             docker-archive:image.tar \
             "docker://${{ steps.ref.outputs.ref }}:${{ steps.ref.outputs.sha12 }}-${{ matrix.arch }}"
 
