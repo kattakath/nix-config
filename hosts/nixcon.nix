@@ -1,7 +1,7 @@
 # Bridge file: wires the nix-darwin SYSTEM layer to the Home Manager USER layer
-# for the "silicon" host. nix-darwin ships a home-manager module that nests a
+# for the "nixcon" host. nix-darwin ships a home-manager module that nests a
 # standalone-style user profile inside the system rebuild, so a single
-# `darwin-rebuild switch --flake .#silicon` provisions both.
+# `darwin-rebuild switch --flake .#nixcon` provisions both.
 {
   home-manager,
   username,

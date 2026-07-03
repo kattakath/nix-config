@@ -87,7 +87,7 @@ jobs:
           # `nix eval` takes ONE installable, so loop. `.drvPath` forces the
           # derivation to evaluate without building it.
           for t in \
-            .#darwinConfigurations.silicon.config.system.build.toplevel \
+            .#darwinConfigurations.nixcon.config.system.build.toplevel \
             .#packages.aarch64-darwin.nixbox-vm \
             .#checks.aarch64-darwin.formatting \
             .#checks.aarch64-darwin.pre-commit \
