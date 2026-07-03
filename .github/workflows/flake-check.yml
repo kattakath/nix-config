@@ -5,40 +5,37 @@ name: flake-check
 # marks full evaluation "CI-deferred". This workflow IS that CI.
 #
 # ---------------------------------------------------------------------------
-# DERIVATION-LEVEL EVALUATION (nix-fast-build)
+# DRVPATH CONTENT GATE — skip the expensive matrix when NOTHING changed.
 # ---------------------------------------------------------------------------
-# Each matrix leg (and the lint job) drives `nix-fast-build --skip-cached` —
-# it runs `nix-eval-jobs` to evaluate a flake attrset in parallel and starts
-# building each derivation the moment it evaluates, skipping any store path
-# already in the `ismailkattakath` Cachix. This REPLACES the hand-rolled
-# `nix eval …drvPath` loops + separate `nix build` devShell steps: one tool now
-# evaluates AND realizes each target, in parallel, and the cachix-action
-# post-build hook still pushes every realized path. There is intentionally NO
-# path filter — the operator does not want a path list to maintain; every PR
-# runs the full matrix (and `--skip-cached` keeps unchanged closures cheap).
-# Invoked via `nix run nixpkgs#nix-fast-build --` (pinned through the flake's
-# nixpkgs), mirroring the repo's `nix run nixpkgs#skopeo` idiom.
+# The `gate` job (mirroring build-devcontainer.yml's gate) asks Nix what every
+# target the matrix verifies EVALUATES to — its input-addressed `.drvPath`, a
+# pure eval, NO build — across all three systems, sha256s them into one cache
+# key, and probes actions/cache for that key. A HIT means this exact flake
+# closure was already validated green on main ⇒ the `check` matrix + `lint` job
+# skip (saves the darwin runner, the QEMU aarch64 runner, and all builds). A
+# MISS (new/changed closure, first run), a workflow_dispatch, or a diff that
+# touches THIS workflow file all force `changed=true` so we never skip without
+# a recorded baseline. Cross-system drvPath eval works fine on x86_64 (no arm
+# runner needed for the arm64 drvPath) — build-devcontainer proves this.
 #
-# PARALLELISM/MEMORY TUNING (nix-fast-build defaults to core-count eval-workers
-# + unbounded build jobs, which OOMs — worst under QEMU on the emulated
-# aarch64-linux leg): every invocation caps `--eval-workers`/`-j` and sets a
-# `--eval-max-memory-size 3072` per-worker ceiling. Native legs use 2/2; the
-# emulated leg serializes to 1/1 with `--option cores 2`. All invocations pass
-# `--option eval-cache false` — the shared ~/.cache/nix/eval-cache-v6/*.sqlite
-# buys nothing on ephemeral runners and its concurrent access emits benign
-# `... is busy` noise.
+# The baseline key is SAVED only after a fully-green matrix on a PUSH TO MAIN
+# (the `baseline-save` job), so a red run never poisons the skip into a false
+# green. Bias is conservative: drvPath can flip without behavior changing (a
+# harmless re-validate) but can never stay the same when a target changes — so
+# the gate may over-run, never under-run.
 #
 # ---------------------------------------------------------------------------
 # REQUIRED-CHECK DESIGN — read before touching job names or branch protection.
 # ---------------------------------------------------------------------------
-# The single always-run aggregate job `flake-check-result` is the required
-# status check, NOT the individual legs. It passes iff every needed job is
-# success OR skipped and fails on any failure/cancelled — one stable context to
-# anchor branch protection regardless of how the matrix evolves.
+# The `check`/`lint` legs are gated at JOB level (`if: needs.gate...`). A
+# JOB-level-skipped required check reports SUCCESS; a WORKFLOW-level skip would
+# leave it pending forever and wedge the PR. So the single always-run aggregate
+# `flake-check-result` is the required status check — it passes iff every needed
+# job is success OR skipped, and fails on any failure/cancelled.
 #
 # BRANCH PROTECTION: the required status check MUST be `flake-check-result`,
-# NOT the four legs. (`Scan for secrets` / gitleaks remains a separate required
-# check untouched.)
+# NOT the individual legs. (`Scan for secrets` / gitleaks stays a separate
+# required check, untouched.)
 # ---------------------------------------------------------------------------
 
 on:
@@ -57,19 +54,138 @@ permissions:
   contents: read
 
 jobs:
-  # Evaluate + build every system natively where possible. aarch64-linux is
-  # realized via emulation on the x86_64 runner so all three of the canonical
-  # triple are covered without self-hosted ARM-Linux hardware.
+  # GATE: does the flake's evaluated content actually differ from the last
+  # green baseline? Pure drvPath eval of EVERY matrix target across all three
+  # systems (no build, no realisation) → one sha256 key → actions/cache probe.
+  gate:
+    runs-on: ubuntu-24.04 # eval only — cheapest runner; no arm needed for arm64 drvPath
+    outputs:
+      changed: ${{ steps.decide.outputs.changed }}
+      cache_key: ${{ steps.key.outputs.cache_key }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          # Need the base commit to diff against for the workflow-file guard.
+          fetch-depth: 0
+
+      - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      # Flakes ignore untracked files; stage before any eval (git-purity).
+      - name: Stage tree (git purity)
+        run: git add -A
+
+      # Did this PR/push touch the workflow file itself? If so we ALWAYS
+      # re-validate (a workflow edit changes what/how we verify, but does not
+      # move any target's drvPath — so the drvPath key alone would wrongly HIT).
+      - name: Detect workflow-file change
+        id: wf
+        run: |
+          BASE=""
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            BASE="${{ github.event.before }}"
+          fi
+          touched=false
+          if [ -n "$BASE" ] && git cat-file -e "$BASE" 2>/dev/null; then
+            if git diff --name-only "$BASE" "${{ github.sha }}" \
+                 | grep -qx '.github/workflows/flake-check.yml'; then
+              touched=true
+            fi
+          else
+            # No usable base (shallow/first push) → be conservative, force run.
+            touched=true
+          fi
+          echo "touched=$touched" >> "$GITHUB_OUTPUT"
+          echo "::notice::flake-check.yml touched in this diff: $touched"
+
+      # drvPath is input-addressed and per-system: evaluate the FULL set of
+      # targets every matrix leg verifies, on all three systems, from this one
+      # x86_64 runner (cross-system drvPath eval never builds). --raw prints the
+      # .drv store path only. The sha256 of the concatenation is the baseline key.
+      - name: Evaluate all matrix drvPaths (pure eval, no build)
+        id: key
+        run: |
+          targets=(
+            # aarch64-darwin
+            .#darwinConfigurations.nixcon.config.system.build.toplevel
+            .#packages.aarch64-darwin.nixbox-vm
+            .#checks.aarch64-darwin.formatting
+            .#checks.aarch64-darwin.pre-commit
+            .#devShells.aarch64-darwin.default
+            # x86_64-linux
+            .#packages.x86_64-linux.dockerImage
+            .#packages.x86_64-linux.devcontainerImage
+            .#checks.x86_64-linux.formatting
+            .#checks.x86_64-linux.pre-commit
+            .#devShells.x86_64-linux.default
+            # aarch64-linux
+            .#nixosConfigurations.nixbox.config.system.build.toplevel
+            .#nixosConfigurations.nixrpi.config.system.build.toplevel
+            .#packages.aarch64-linux.dockerImage
+            .#packages.aarch64-linux.devcontainerImage
+            .#checks.aarch64-linux.formatting
+            .#checks.aarch64-linux.pre-commit
+            .#devShells.aarch64-linux.default
+          )
+          : > /tmp/drvpaths
+          for t in "${targets[@]}"; do
+            drv="$(nix eval --raw "$t.drvPath")"
+            echo "$t -> $drv"
+            printf '%s\n' "$drv" >> /tmp/drvpaths
+          done
+          COMBINED="$(sha256sum /tmp/drvpaths | cut -d' ' -f1)"
+          echo "cache_key=flake-check-drv-v1-${COMBINED}" >> "$GITHUB_OUTPUT"
+
+      # Restore-only probe: a HIT means this exact drv-set was already validated
+      # green on main and its baseline marker was recorded.
+      - name: Probe green baseline
+        id: probe
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .gate-marker
+          key: ${{ steps.key.outputs.cache_key }}
+          lookup-only: true
+
+      - name: Decide changed
+        id: decide
+        env:
+          HIT: ${{ steps.probe.outputs.cache-hit }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' }}
+          WF_TOUCHED: ${{ steps.wf.outputs.touched }}
+        run: |
+          # Skip ONLY on a genuine cache HIT with no override. Force a full run on:
+          # manual dispatch, a workflow-file edit, or a MISS (new/changed closure
+          # or first-ever run) — we never skip without a recorded green baseline.
+          if [ "${FORCE}" = "true" ] || [ "${WF_TOUCHED}" = "true" ] || [ "${HIT}" != "true" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::flake content CHANGED (or forced/workflow-edit/first-run) — running full matrix."
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::flake drvPaths unchanged vs green baseline — SKIPPING matrix + lint."
+          fi
+
+  # Evaluate every system natively where possible. aarch64-linux is realized
+  # via emulation on the x86_64 runner so all three of the canonical triple
+  # are covered without self-hosted ARM-Linux hardware.
   #
-  # Each leg runs nix-fast-build against the SAME targets the old eval loops
-  # covered (1:1 map documented per step). `--skip-cached` avoids rebuilding
-  # closures already in Cachix; the cachix-action post-build hook pushes the
-  # rest. The system-specific toplevels are deep config paths (not a walkable
-  # derivation attrset), so nix-fast-build targets the `checks`, `packages`, and
-  # `devShells` attrsets and the toplevels are realized with an explicit
-  # `nix build` — preserving coverage without contorting the flake's outputs.
+  # NOTE: `nix flake check --system <arch>` does NOT filter outputs by system —
+  # `--system` sets the Nix evaluator's own host system (a config key), and is
+  # silently ignored for untrusted users in CI. Each job instead evaluates the
+  # system-specific top-level derivations directly via `nix eval` (which only
+  # evaluates, never builds — the separate `nix build` steps populate the cache).
+  #
+  # Gated behind the drvPath content gate: runs only when gate.changed is true.
+  # EVAL-ONLY on every leg (drvPath eval + devShell build to warm Cachix) — no
+  # heavy package builds, so the emulated aarch64-linux leg never OOMs.
   check:
     name: ${{ matrix.name }}
+    needs: gate
+    if: needs.gate.outputs.changed == 'true'
     runs-on: ${{ matrix.os }}
     # Cap so an emulated-aarch64 QEMU stall fails fast instead of hanging 6h.
     timeout-minutes: 60
@@ -120,102 +236,83 @@ jobs:
             echo "::error::Untracked .nix files break flake evaluation:"; echo "$untracked"; exit 1
           fi
 
-      # aarch64-darwin coverage (1:1 with the old eval loop + build step):
-      #   checks.aarch64-darwin.{formatting,pre-commit}  -> nix-fast-build .#checks.aarch64-darwin
-      #   packages.aarch64-darwin.nixbox-vm              -> nix-fast-build .#packages.aarch64-darwin
-      #   devShells.aarch64-darwin.default               -> nix-fast-build .#devShells.aarch64-darwin
-      #   darwinConfigurations.nixcon…toplevel           -> nix build (deep config path)
-      # nix-fast-build builds nixbox-vm too, so its writeShellApplication
-      # shellcheck runs at build time exactly as before.
-      # Native leg: cap eval-workers + build jobs to 2 (avoids the unbounded
-      # core-count parallelism that OOMs) and disable Nix's shared eval-cache
-      # SQLite (buys nothing on ephemeral CI, and its concurrent access emits
-      # the benign `... eval-cache-v6/*.sqlite is busy` noise).
-      - name: Evaluate + build aarch64-darwin (nix-fast-build --skip-cached)
+      - name: Evaluate aarch64-darwin outputs
         if: matrix.name == 'aarch64-darwin'
         run: |
-          for attr in \
-            .#checks.aarch64-darwin \
-            .#packages.aarch64-darwin \
-            .#devShells.aarch64-darwin; do
-            echo "::group::nix-fast-build $attr"
-            nix run nixpkgs#nix-fast-build -- \
-              --skip-cached --no-nom \
-              --flake "$attr" --systems aarch64-darwin \
-              --eval-workers 2 -j 2 \
-              --eval-max-memory-size 3072 \
-              --option eval-cache false
+          # `nix eval` takes ONE installable, so loop. `.drvPath` forces the
+          # derivation to evaluate without building it.
+          for t in \
+            .#darwinConfigurations.nixcon.config.system.build.toplevel \
+            .#packages.aarch64-darwin.nixbox-vm \
+            .#checks.aarch64-darwin.formatting \
+            .#checks.aarch64-darwin.pre-commit \
+            .#devShells.aarch64-darwin.default; do
+            echo "::group::eval $t"
+            nix eval --show-trace "$t.drvPath"
             echo "::endgroup::"
           done
-      - name: Build darwin toplevel (deep config path)
+
+      # Realize the devShell closure so the Cachix post-build hook pushes it —
+      # this is exactly the closure the devcontainer's `cachix use` pulls.
+      # Build the devShell (populate cache) AND the nixbox-vm launcher — the
+      # writeShellApplication's shellcheck only runs at BUILD time, so `nix eval`
+      # above does not exercise it; this build does.
+      - name: Build devShell + nixbox-vm (populate cache; runs shellcheck)
         if: matrix.name == 'aarch64-darwin'
         run: |
           nix build --print-build-logs --no-link \
-            .#darwinConfigurations.nixcon.config.system.build.toplevel
+            .#devShells.aarch64-darwin.default \
+            .#packages.aarch64-darwin.nixbox-vm
 
-      # x86_64-linux coverage (1:1):
-      #   packages.x86_64-linux.{dockerImage,devcontainerImage} -> nix-fast-build .#packages.x86_64-linux
-      #   checks.x86_64-linux.{formatting,pre-commit}           -> nix-fast-build .#checks.x86_64-linux
-      #   devShells.x86_64-linux.default                        -> nix-fast-build .#devShells.x86_64-linux
-      # Native leg: same parallelism/eval-cache caps as the darwin leg.
-      - name: Evaluate + build x86_64-linux (nix-fast-build --skip-cached)
+      - name: Evaluate x86_64-linux outputs
         if: matrix.name == 'x86_64-linux'
         run: |
-          for attr in \
-            .#checks.x86_64-linux \
-            .#packages.x86_64-linux \
-            .#devShells.x86_64-linux; do
-            echo "::group::nix-fast-build $attr"
-            nix run nixpkgs#nix-fast-build -- \
-              --skip-cached --no-nom \
-              --flake "$attr" --systems x86_64-linux \
-              --eval-workers 2 -j 2 \
-              --eval-max-memory-size 3072 \
-              --option eval-cache false
+          for t in \
+            .#packages.x86_64-linux.dockerImage \
+            .#packages.x86_64-linux.devcontainerImage \
+            .#checks.x86_64-linux.formatting \
+            .#checks.x86_64-linux.pre-commit \
+            .#devShells.x86_64-linux.default; do
+            echo "::group::eval $t"
+            nix eval --show-trace "$t.drvPath"
             echo "::endgroup::"
           done
 
-      # aarch64-linux coverage (1:1, EMULATED — QEMU + extra-platforms above):
-      #   packages.aarch64-linux.{dockerImage,devcontainerImage} -> nix-fast-build .#packages.aarch64-linux
-      #   checks.aarch64-linux.{formatting,pre-commit}           -> nix-fast-build .#checks.aarch64-linux
-      #   devShells.aarch64-linux.default                        -> nix-fast-build .#devShells.aarch64-linux
-      #   nixosConfigurations.{nixbox,nixrpi}…toplevel           -> nix build (deep config paths)
-      # EMULATED leg (tightest caps): QEMU multiplies per-process RSS, so serialize
-      # to a single eval worker + single build job and cap Nix build cores to 2
-      # (`--option cores 2`; nix-fast-build has no native --cores). This is the leg
-      # that OOM'd (`Cannot allocate memory`) under default core-count parallelism.
-      - name: Evaluate + build aarch64-linux (nix-fast-build --skip-cached)
+      - name: Build devShell (populate cache)
+        if: matrix.name == 'x86_64-linux'
+        run: nix build --print-build-logs --no-link .#devShells.x86_64-linux.default
+
+      - name: Evaluate aarch64-linux outputs
         if: matrix.name == 'aarch64-linux'
         run: |
-          for attr in \
-            .#checks.aarch64-linux \
-            .#packages.aarch64-linux \
-            .#devShells.aarch64-linux; do
-            echo "::group::nix-fast-build $attr"
-            nix run nixpkgs#nix-fast-build -- \
-              --skip-cached --no-nom \
-              --flake "$attr" --systems aarch64-linux \
-              --eval-workers 1 -j 1 \
-              --option cores 2 \
-              --eval-max-memory-size 3072 \
-              --option eval-cache false
+          for t in \
+            .#nixosConfigurations.nixbox.config.system.build.toplevel \
+            .#nixosConfigurations.nixrpi.config.system.build.toplevel \
+            .#packages.aarch64-linux.dockerImage \
+            .#packages.aarch64-linux.devcontainerImage \
+            .#checks.aarch64-linux.formatting \
+            .#checks.aarch64-linux.pre-commit \
+            .#devShells.aarch64-linux.default; do
+            echo "::group::eval $t"
+            nix eval --show-trace "$t.drvPath"
             echo "::endgroup::"
           done
-      - name: Build aarch64-linux toplevels (deep config paths)
+
+      # aarch64-linux is what the devcontainer runs — caching this emulated
+      # closure once here is the highest-value push (saves the slow QEMU rebuild).
+      - name: Build devShell (populate cache)
         if: matrix.name == 'aarch64-linux'
-        run: |
-          nix build --print-build-logs --no-link \
-            .#nixosConfigurations.nixbox.config.system.build.toplevel \
-            .#nixosConfigurations.nixrpi.config.system.build.toplevel
+        run: nix build --print-build-logs --no-link .#devShells.aarch64-linux.default
 
   # Formatting + lint + pre-commit are all flake checks now (treefmt-nix +
   # git-hooks.nix), so CI builds the SAME derivations developers run via
-  # `nix fmt` / the commit hook. nix-fast-build over `.#checks.x86_64-linux`
-  # evaluates + realizes both `formatting` and `pre-commit` in parallel.
-  # (The `check` matrix also covers these per system; this dedicated lint job
-  # is the historical fast x86_64 gate and stays a distinct signal.)
+  # `nix fmt` / the commit hook. No drifting ad-hoc tool invocations.
+  #
+  # Gated behind the same drvPath content gate as the matrix.
   lint:
     name: "lint (treefmt: nixfmt / statix / deadnix + pre-commit)"
+    needs: gate
+    if: needs.gate.outputs.changed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -227,26 +324,19 @@ jobs:
         with:
           name: ismailkattakath
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
-      # Covers checks.x86_64-linux.{formatting,pre-commit} (1:1 with the old two
-      # `nix build …formatting` / `…pre-commit` steps).
-      # Native x86_64: same parallelism/eval-cache caps as the matrix native legs.
-      - name: Lint gate (nix-fast-build .#checks.x86_64-linux --skip-cached)
-        run: |
-          nix run nixpkgs#nix-fast-build -- \
-            --skip-cached --no-nom \
-            --flake .#checks.x86_64-linux --systems x86_64-linux \
-            --eval-workers 2 -j 2 \
-            --eval-max-memory-size 3072 \
-            --option eval-cache false
+      - name: Formatting gate (fails on unformatted/lintable files)
+        run: nix build --print-build-logs .#checks.x86_64-linux.formatting
+      - name: Pre-commit hooks (sandboxed)
+        run: nix build --print-build-logs .#checks.x86_64-linux.pre-commit
 
-  # Aggregate required check. This single always-run job is the branch-protection
-  # anchor: it reports one stable status (`flake-check-result`) regardless of how
-  # the matrix legs evolve, and (via re-actors/alls-green) passes iff every needed
-  # job is success OR skipped and fails on any failure/cancelled. Branch
-  # protection's required status check MUST be this job, not the individual legs.
+  # Aggregate required check. The single always-run branch-protection anchor:
+  # it reports one stable status (`flake-check-result`) whether the legs ran or
+  # were skipped by the gate. Via re-actors/alls-green it passes iff every needed
+  # job is success OR skipped and fails on any failure/cancelled — so a gate-skip
+  # still reports a green required check and keeps the PR mergeable.
   flake-check-result:
     name: flake-check-result
-    needs: [check, lint]
+    needs: [gate, check, lint]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -255,3 +345,24 @@ jobs:
         uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # v1.2.2
         with:
           jobs: ${{ toJSON(needs) }}
+
+  # Record the GREEN baseline for the gate — ONLY after a fully-successful matrix
+  # on a PUSH TO MAIN. Never save on red (would poison the skip into a false
+  # green) and never on a PR (a PR's green is not the main baseline). On the next
+  # run the gate restores this exact key: a HIT ⇒ this drv-set is already known
+  # green ⇒ skip the matrix. The marker file content is irrelevant — presence of
+  # the KEY is the signal. `needs` the aggregate too, so the save waits on the
+  # whole verdict, not just the raw legs.
+  baseline-save:
+    needs: [gate, check, lint, flake-check-result]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.check.result == 'success' && needs.lint.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Create gate marker
+        run: echo "${{ needs.gate.outputs.cache_key }} @ ${{ github.sha }}" > .gate-marker
+      - name: Record green baseline (gate cache)
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .gate-marker
+          key: ${{ needs.gate.outputs.cache_key }}
