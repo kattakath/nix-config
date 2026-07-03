@@ -59,7 +59,7 @@ nix run .#nixbox-vm     # QEMU + Apple HVF; SSH forwarded to localhost:2222
 The devcontainer image is prebuilt and published — pull it directly:
 
 ```bash
-docker pull ghcr.io/ismailkattakath/devcontainers:latest
+docker pull ghcr.io/ismailkattakath/devcontainer:latest
 ```
 
 Or just open the repo in a devcontainer-aware editor; `.devcontainer/devcontainer.json` references the same published image.
