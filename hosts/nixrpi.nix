@@ -19,7 +19,7 @@
   # (boot.initrd.allowMissingModules defaults false) — so the missing module is a
   # FATAL `modprobe: Module tpm-crb not found`, failing linux-rpi-*-modules-shrunk.
   # The Pi 4 has no TPM, so disable initrd TPM2 support at the source (removes
-  # both modules). nixbox is untouched: it never imports this profile, and its
+  # both modules). nixarm is untouched: it never imports this profile, and its
   # generic kernel builds the full TPM stack anyway.
   boot.initrd.systemd.tpm2.enable = lib.mkForce false;
 

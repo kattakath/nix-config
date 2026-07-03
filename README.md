@@ -14,7 +14,8 @@ A single Nix flake that manages complete, reproducible system configurations acr
 | Host | Platform | System | Role |
 |------|----------|--------|------|
 | `nixcon` | macOS via [nix-darwin](https://github.com/LnL7/nix-darwin) | `aarch64-darwin` | Apple Silicon workstation |
-| `nixbox` | NixOS VM (UTM / QEMU) | `aarch64-linux` | Local Linux VM |
+| `nixarm` | NixOS VM (UTM / QEMU) | `aarch64-linux` | Local Linux VM |
+| `nixamd` | NixOS | `x86_64-linux` | x86_64 NixOS host (config-only / CI-eval) |
 | `nixrpi` | NixOS on Raspberry Pi 4 | `aarch64-linux` | Headless Pi |
 | devcontainer | Nix-built OCI image | multi-arch | Reproducible dev environment |
 
@@ -43,14 +44,15 @@ nix flake show
 
 ```bash
 darwin-rebuild switch --flake .#nixcon   # macOS
-nixos-rebuild  switch --flake .#nixbox    # NixOS VM
+nixos-rebuild  switch --flake .#nixarm    # NixOS VM (aarch64)
+nixos-rebuild  switch --flake .#nixamd    # NixOS x86_64 host
 nixos-rebuild  switch --flake .#nixrpi    # Raspberry Pi
 ```
 
 ### Boot the NixOS VM (no UTM needed)
 
 ```bash
-nix run .#nixbox-vm     # QEMU + Apple HVF; SSH forwarded to localhost:2222
+nix run .#nixarm-vm     # QEMU + Apple HVF; SSH forwarded to localhost:2222
 ```
 
 ### Use the devcontainer
@@ -69,7 +71,7 @@ Or just open the repo in a devcontainer-aware editor; `.devcontainer/devcontaine
 flake.nix       Entry point: inputs, darwin/nixos configurations, packages, devShells, checks
 flake.lock      Pinned input revisions (bumped via `nix flake update`, never hand-edited)
 treefmt.nix     Single source of truth for formatting + lint (drives nix fmt, CI, and the hook)
-hosts/          Per-host entry profiles (nixcon.nix, nixbox.nix, nixrpi.nix)
+hosts/          Per-host entry profiles (nixcon.nix, nixarm.nix, nixamd.nix, nixrpi.nix)
 modules/        Reusable modules, split by platform (darwin/ linux/ nixos/ shared/)
 packages/       Nix-built artifacts (runtime container image, devcontainer image, VM launcher)
 secrets/        agenix-encrypted, host-scoped service credentials (no plaintext secrets)
