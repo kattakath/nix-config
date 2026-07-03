@@ -1,18 +1,18 @@
 ---
-name: nixbox-utm-prebuild-on-devcontainer
+name: nixarm-utm-prebuild-on-devcontainer
 description: >
-  Build the nixbox qcow2 image from macOS using the repo's devcontainer CLI — no separate Linux
-  machine or CI runner needed. Use when asked to "build nixbox image from Mac", "use devcontainer
-  CLI to build", "build without a Linux machine", "devcontainer exec nix build", or "build nixbox-image
+  Build the nixarm qcow2 image from macOS using the repo's devcontainer CLI — no separate Linux
+  machine or CI runner needed. Use when asked to "build nixarm image from Mac", "use devcontainer
+  CLI to build", "build without a Linux machine", "devcontainer exec nix build", or "build nixarm-image
   in the devcontainer". The repo's devcontainer runs on aarch64 (Apple Silicon Docker Desktop), has Nix
   + flakes pre-installed, and bind-mounts the workspace so result/ lands directly on the Mac.
 ---
 
-# devcontainer-build — build nixbox-image from macOS via devcontainer CLI
+# devcontainer-build — build nixarm-image from macOS via devcontainer CLI
 
 ## This vs other build paths
 
-| | **devcontainer-build** (this skill) | **nixbox-vm** | **utm-vm-provision** |
+| | **devcontainer-build** (this skill) | **nixarm-vm** | **utm-vm-provision** |
 |---|---|---|---|
 | Build location | Repo devcontainer (aarch64 Docker) | Needs qcow2 already built | Needs qcow2 already built |
 | macOS requirement | Docker Desktop + devcontainer CLI | Apple Silicon + HVF | Apple Silicon + UTM |
@@ -20,11 +20,11 @@ description: >
 | result/ location | `<workspace>/result/` on Mac | N/A | N/A |
 | CI equivalent | Yes — same as `.github/workflows/` | No | No |
 
-Use this skill to **produce the qcow2**. Use **nixbox-vm** or **utm-vm-provision** to run it afterward.
+Use this skill to **produce the qcow2**. Use **nixarm-vm** or **utm-vm-provision** to run it afterward.
 
 ## Gotchas (read first)
 
-- **TCG = slow**: The devcontainer has no `/dev/kvm`. The `nixbox-image` build runs under QEMU TCG
+- **TCG = slow**: The devcontainer has no `/dev/kvm`. The `nixarm-image` build runs under QEMU TCG
   emulation (needed for the aarch64-linux image). Expect 20–40 minutes for a clean build.
 - **Docker Desktop must be running** with VirtioFS or gRPC-FUSE file sharing enabled for the
   workspace bind-mount to work.
@@ -90,18 +90,18 @@ Or run this on the macOS host — the bind-mount makes git state shared:
 cd ~/path/to/nix-config && git add -A
 ```
 
-## Step 3 — Build the nixbox qcow2
+## Step 3 — Build the nixarm qcow2
 
 ```bash
 devcontainer exec --workspace-folder ~/path/to/nix-config -- \
-  nix build .#nixbox-image --print-out-paths
+  nix build .#nixarm-image --print-out-paths
 ```
 
 If `nix` is not on PATH inside exec, use the full path:
 
 ```bash
 devcontainer exec --workspace-folder ~/path/to/nix-config -- \
-  /nix/var/nix/profiles/default/bin/nix build .#nixbox-image --print-out-paths
+  /nix/var/nix/profiles/default/bin/nix build .#nixarm-image --print-out-paths
 ```
 
 The build takes 20–40 minutes under TCG emulation. The `--print-out-paths` flag shows the Nix
@@ -116,28 +116,28 @@ into the bind-mounted workspace (which lands it on the Mac), then make it writab
 ```bash
 # 1. Stream-copy inside the container (cat avoids the in-guest chmod that VirtioFS rejects):
 devcontainer exec --workspace-folder ~/path/to/nix-config -- \
-  bash -lc 'cat result/*.qcow2 > nixbox.qcow2'
+  bash -lc 'cat result/*.qcow2 > nixarm.qcow2'
 
 # 2. Verify byte-for-byte (sizes must match exactly):
 devcontainer exec --workspace-folder ~/path/to/nix-config -- bash -lc '
   echo "src : $(stat -c%s "$(readlink -f result/*.qcow2)")"
-  echo "copy: $(stat -c%s nixbox.qcow2)"'
+  echo "copy: $(stat -c%s nixarm.qcow2)"'
 
 # 3. Make it writable FROM THE MAC (the copy is 0444; chmod inside the container fails on VirtioFS):
-chmod u+w ~/path/to/nix-config/nixbox.qcow2
-ls -lh ~/path/to/nix-config/nixbox.qcow2     # → ~3 GB, rw-
+chmod u+w ~/path/to/nix-config/nixarm.qcow2
+ls -lh ~/path/to/nix-config/nixarm.qcow2     # → ~3 GB, rw-
 ```
 
-`nixbox.qcow2` is gitignored (alongside `result`), so it won't pollute git or flake evals. From
+`nixarm.qcow2` is gitignored (alongside `result`), so it won't pollute git or flake evals. From
 there, stage it for whichever runner you want:
 
 ```bash
-# For nix run .#nixbox-vm (see nixbox-vm skill):
-mkdir -p ~/.local/state/nixbox-vm
-cp ~/path/to/nix-config/nixbox.qcow2 ~/.local/state/nixbox-vm/nixbox.qcow2
+# For nix run .#nixarm-vm (see nixarm-vm skill):
+mkdir -p ~/.local/state/nixarm-vm
+cp ~/path/to/nix-config/nixarm.qcow2 ~/.local/state/nixarm-vm/nixarm.qcow2
 
 # For UTM import (see utm-vm-provision skill):
-cp ~/path/to/nix-config/nixbox.qcow2 ~/path/to/utm-bundle/Data/nixbox.qcow2
+cp ~/path/to/nix-config/nixarm.qcow2 ~/path/to/utm-bundle/Data/nixarm.qcow2
 ```
 
 ## Other useful commands
@@ -158,6 +158,6 @@ docker stop $(docker ps -q --filter "label=devcontainer.local_folder=$(realpath 
 
 ## Cross-references
 
-- **nixbox-vm** skill — run the built qcow2 in QEMU with HVF acceleration (no UTM needed).
+- **nixarm-vm** skill — run the built qcow2 in QEMU with HVF acceleration (no UTM needed).
 - **utm-vm-provision** skill — import the qcow2 into UTM for vmnet-shared networking and the GUI.
 - **agenix-host-rekey** skill — re-encrypt host secrets to the new VM's SSH host key after first boot.

@@ -2,9 +2,9 @@
 name: vm-provisioner
 description: >
   Use this agent to provision a NixOS host end-to-end from macOS — creating and configuring a
-  UTM VM, installing NixOS from this flake (nixbox), rekeying agenix secrets to the new host key,
+  UTM VM, installing NixOS from this flake (nixarm), rekeying agenix secrets to the new host key,
   and bringing up the Cloudflare Tunnel that fronts SSH to the host. Delegate when the user asks
-  to "spin up a VM", "install NixOS in UTM", "bring up nixbox", "create an x86_64/ARM guest", or
+  to "spin up a VM", "install NixOS in UTM", "bring up nixarm", "create an x86_64/ARM guest", or
   automate any part of the macOS→UTM→NixOS pipeline. It owns the whole flow and knows the boundaries between host-side automation and
   in-guest steps. It does NOT activate generations on existing hosts unless explicitly asked.
 model: inherit
@@ -18,7 +18,7 @@ Tunnel client/DNS**, using the four project skills as your playbooks.
 
 ## UTM vs. native QEMU
 
-`nix run .#nixbox-vm` is the UTM-free alternative: it launches nixbox directly in QEMU with Apple HVF acceleration, user-mode networking (SSH forwarded to `localhost:2222`), and serial console on stdio — no GUI, no `utmctl`. Use it when UTM is unavailable or unnecessary; see the **nixbox-vm** skill for the full flow. The steps below (utm-vm-provision → nixos-flake-install) remain the path when you need vmnet-shared networking or are doing a fresh OS install.
+`nix run .#nixarm-vm` is the UTM-free alternative: it launches nixarm directly in QEMU with Apple HVF acceleration, user-mode networking (SSH forwarded to `localhost:2222`), and serial console on stdio — no GUI, no `utmctl`. Use it when UTM is unavailable or unnecessary; see the **nixarm-vm** skill for the full flow. The steps below (utm-vm-provision → nixos-flake-install) remain the path when you need vmnet-shared networking or are doing a fresh OS install.
 
 ## Skills you operate (read the matching SKILL.md before acting)
 
@@ -27,7 +27,7 @@ Tunnel client/DNS**, using the four project skills as your playbooks.
    VirtIO disk/NIC, ISO attach, vmnet-shared/ARP networking, disk sizing. Host-side only.
 2. **nixos-flake-install** — partition by label (`boot`/`nixos`), drive
    `nixos-install --flake .#<host>` over SSH from the live ISO, verify, grab the host key.
-   `nixbox` already bakes in the VirtIO initrd + UEFI fileSystems (no patch needed).
+   `nixarm` already bakes in the VirtIO initrd + UEFI fileSystems (no patch needed).
 3. **agenix-host-rekey** — add the host's `ssh_host_ed25519_key.pub` as an age recipient,
    re-encrypt host-scoped secrets (e.g. `*-tunnel-creds.age`), commit, activate.
 4. **cloudflared-tunnel** — client/DNS side of the Cloudflare Tunnel that fronts SSH:
@@ -37,13 +37,13 @@ Tunnel client/DNS**, using the four project skills as your playbooks.
 
 ## Repo facts you rely on (verify, don't assume)
 
-- Targets: `nixosConfigurations.nixbox` (aarch64-linux, generic UTM/QEMU UEFI VM) and `nixrpi`
+- Targets: `nixosConfigurations.nixarm` (aarch64-linux, generic UTM/QEMU UEFI VM) and `nixrpi`
   (aarch64-linux, Raspberry Pi 4 / SD-image only). The realized VM is **aarch64 / UTM target
   `virt`**, not x86_64/q35.
-- Partition labels: `nixos` (ext4 root) + `boot` (vfat EFI) — `hosts/nixbox.nix`.
+- Partition labels: `nixos` (ext4 root) + `boot` (vfat EFI) — `hosts/nixarm.nix`.
 - User `izzy`: wheel, passwordless sudo, project SSH key; key-only SSH, no root login.
 - Flake tracks `nixos-unstable` → installer ISO version is irrelevant.
-- `hosts/nixbox.nix` **already** includes the VirtIO initrd (`virtio_pci`/`virtio_blk`/
+- `hosts/nixarm.nix` **already** includes the VirtIO initrd (`virtio_pci`/`virtio_blk`/
   `virtio_scsi`/`ahci`/`sd_mod`) + UEFI `fileSystems` + systemd-boot — **no patch needed**. The
   initrd patch only applies if you create a brand-new generic host that lacks it. (`nixrpi` is
   Pi-only / SD-image and is not a UTM VM target.)
@@ -52,7 +52,7 @@ Tunnel client/DNS**, using the four project skills as your playbooks.
   rebuilding the damaged paths → boots but journald/udevd/networkd loop, no NIC, unreachable.
 - **Private repo** → the VM can't fetch `github:owner/repo` anonymously (404). rsync the working
   tree in (`--exclude '.git/hooks' --exclude 'memory/' --exclude 'result'`), `git add -A` on the
-  VM (flakes ignore untracked files), then `nixos-install --flake /tmp/nixcfg#nixbox`.
+  VM (flakes ignore untracked files), then `nixos-install --flake /tmp/nixcfg#nixarm`.
 - `age.identityPaths = ["/etc/ssh/ssh_host_ed25519_key"]` → host secrets need the host key as a
   recipient (the rekey skill); expect `cloudflared` to fail on first boot until then.
 
