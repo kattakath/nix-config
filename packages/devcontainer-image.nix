@@ -62,7 +62,7 @@ let
     openssh
   ];
 
-  contents = devPackages ++ extraTools;
+  basePackages = devPackages ++ extraTools;
 
   # Foreign (non-Nix) glibc binaries — e.g. the VS Code Server's bundled generic
   # `node` — hardcode the STANDARD ELF interpreter path in their PT_INTERP and are
@@ -99,7 +99,7 @@ let
 
   # Everything that must be a VALID store path so `nix develop` skips build +
   # download. `registration` below is loaded into the image's Nix DB.
-  closure = pkgs.closureInfo { rootPaths = contents; };
+  closure = pkgs.closureInfo { rootPaths = basePackages; };
 
   # Real `vscode` user only. fakeNss yields a READ-ONLY /etc/passwd — hence
   # updateRemoteUserUID:false in the JSON. No nixbld build users: with an empty
@@ -134,7 +134,7 @@ dockerTools.streamLayeredImage {
   name = "nix-config-devcontainer";
   tag = "latest";
 
-  contents = contents ++ [ nss ];
+  contents = basePackages ++ [ nss ];
 
   # Good store-path -> layer fan-out; cache-friendly across rebuilds. Stays
   # under dockerTools' 125-layer ceiling with headroom.
@@ -271,7 +271,10 @@ dockerTools.streamLayeredImage {
     ];
 
     Env = [
-      "PATH=${lib.makeBinPath contents}:/usr/local/bin:/usr/bin:/bin"
+      # /bin holds the /bin/sh symlink (created in fakeRootCommands); the FHS
+      # /usr/local/bin:/usr/bin dirs are never created in this distroless Nix
+      # image, so they were dead PATH entries and are omitted.
+      "PATH=${lib.makeBinPath basePackages}:/bin"
       "HOME=/home/${username}"
       "USER=${username}"
       # Multi-user: clients talk to the root daemon over the socket.
