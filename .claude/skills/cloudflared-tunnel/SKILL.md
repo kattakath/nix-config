@@ -1,58 +1,54 @@
 ---
 name: cloudflared-tunnel
 description: >
-  Set up the Cloudflare Tunnel CLIENT path on macOS — create a named tunnel with `cloudflared`,
-  route DNS to it, and reach a NixOS host over SSH via a ProxyCommand. Use when asked to "set up a
-  cloudflare tunnel", "expose SSH over cloudflare", "reach a host over the tunnel", configure a
-  "cloudflared proxycommand", or fix `cloudflared tunnel login` failing with API error 10000. Pairs
-  with agenix-host-rekey (the host-side tunnel-creds secret) and the nixarm host profile.
+  Set up the Cloudflare Tunnel CLIENT path on macOS — provision a remotely-managed (token) tunnel
+  for a host via `scripts/cf-one-provision.sh`, and reach a NixOS host over SSH via a ProxyCommand.
+  Use when asked to "set up a cloudflare tunnel", "expose SSH over cloudflare", "reach a host over
+  the tunnel", or configure a "cloudflared proxycommand". Pairs with agenix-host-rekey (the
+  host-side tunnel-token secret) and the nixarm host profile.
 ---
 
 # Cloudflare Tunnel (client + DNS + SSH ProxyCommand)
 
 ## Gotchas (read first)
 
-- **`cloudflared tunnel login` API error 10000** = a stale/short `~/.cloudflared/cert.pem`. A healthy
-  cert is multi-KB; a corrupt one is often **~266 B**. Back it up and re-login (step 1).
+- **Remotely-managed (token) tunnels — no interactive login.** This repo does NOT use
+  `cloudflared tunnel login` / `cert.pem` / a local credentials JSON. Each host's tunnel, connector
+  token, and proxied CNAME `<host>.kattakath.com` are provisioned in the Cloudflare account via the
+  Cloudflare API by `scripts/cf-one-provision.sh`. There is no `~/.cloudflared/cert.pem` to babysit.
 - **Direct port 22 is NOT reachable and that is expected.** `nixarm.kattakath.com` resolves to a
   Cloudflare edge IP (`172.64.x.x`), not the host. Traffic only flows through the tunnel — never
   diagnose the tunnel by `nc -z host 22` against the public name.
 - **Verified-working signature:** once connected, `$SSH_CONNECTION` on the host shows `::1` —
   cloudflared terminates the tunnel and the SSH session arrives on the host as `localhost:22`.
-- The NixOS side and the agenix host-key handoff live in sibling skills — don't re-derive them here.
+- The NixOS/macOS host side and the agenix host-key handoff live in sibling skills — don't
+  re-derive them here.
 
-## 1. Authenticate (writes ~/.cloudflared/cert.pem)
+## 1. Provision the tunnel + token + DNS (Cloudflare API)
 
-```bash
-ls -l ~/.cloudflared/cert.pem 2>/dev/null      # healthy = multi-KB; ~266 B = corrupt
-mv ~/.cloudflared/cert.pem ~/.cloudflared/cert.pem.bak 2>/dev/null || true   # only if stale
-cloudflared tunnel login                       # opens browser → pick the kattakath.com zone
-```
-
-## 2. Create the tunnel (writes ~/.cloudflared/<UUID>.json credentials)
+Provision the per-host tunnel, its connector token, and the proxied CNAME `<host>.kattakath.com`
+entirely in the Cloudflare account — no browser login, no `cert.pem`:
 
 ```bash
-cloudflared tunnel create nixarm               # prints the tunnel UUID + creds path
-cloudflared tunnel list                        # confirm name → UUID
-```
-
-The `~/.cloudflared/<UUID>.json` is the **credentialsFile** the host needs — it becomes the agenix
-secret `nixarm-tunnel-creds.age` (encrypt + rekey via the **agenix-host-rekey** skill).
-
-## 3. Route DNS (adds the CNAME on the zone)
-
-```bash
-cloudflared tunnel route dns nixarm nixarm.kattakath.com
+scripts/cf-one-provision.sh nixarm             # creates tunnel + token + nixarm.kattakath.com CNAME
 dig +short nixarm.kattakath.com                # → a 172.64.x edge IP (NOT the host) — expected
 ```
 
-## 4. NixOS host side (cross-reference)
+The connector **token** (a single `TUNNEL_TOKEN=…` line) is what the host needs. It becomes:
+- **NixOS:** the agenix secret `nixarm-tunnel-token.age`, decrypted at boot and fed to the connector
+  via `EnvironmentFile` (encrypt + rekey via the **agenix-host-rekey** skill).
+- **macOS:** a `0600 root:wheel` file at `/var/root/.cloudflared/tunnel-token` (no agenix on macOS).
 
-`hosts/nixarm.nix` runs `services.cloudflared.tunnels."<UUID>"` with
-`credentialsFile = config.age.secrets.tunnel-creds.path` and an ingress rule
-`ssh://localhost:22`. The secret must be re-encrypted to the host's SSH host key before
-`services.cloudflared` can decrypt it at activation — that is the **agenix-host-rekey** skill.
-Do not edit `hosts/` or `*.nix` from this skill; it is the client/DNS playbook.
+## 2. Host side (cross-reference)
+
+`modules/nixos/cloudflared.nix` runs a hardened `systemd.services.cloudflared-connector`
+(`cloudflared --no-autoupdate tunnel run`) that reads `TUNNEL_TOKEN` from the agenix-decrypted
+`EnvironmentFile` (`config.age.secrets."<host>-tunnel-token".path`); the ingress `ssh://localhost:22`
+lives in the Cloudflare account. The secret must be re-encrypted to the host's SSH host key before
+the connector can decrypt it at activation — that is the **agenix-host-rekey** skill. On macOS,
+`modules/darwin/cloudflared.nix` is the equivalent `launchd.daemons.cloudflared-connector` reading a
+`0600 root:wheel` token file. Do not edit `hosts/` or `*.nix` from this skill; it is the client/DNS
+playbook.
 
 ## 5. macOS client — reach the host via SSH ProxyCommand
 

@@ -15,8 +15,9 @@ description: >
 
 agenix decrypts host-scoped secrets at **activation** using `/etc/ssh/ssh_host_ed25519_key`
 (`modules/nixos/core.nix` → `age.identityPaths`). A fresh NixOS image regenerates that host key
-on first boot, so a secret encrypted to any *previous* key can never decrypt → `services.cloudflared`
-dies with `status=243/CREDENTIALS`. Two ways out:
+on first boot, so a secret encrypted to any *previous* key can never decrypt → the
+`cloudflared-connector` unit dies with `status=243/CREDENTIALS` (its `EnvironmentFile` is unreadable).
+Two ways out:
 
 - **agenix-host-rekey** (the other skill): boot → collect the new host key → re-encrypt → `nixos-rebuild`.
   **Pitfall proven 2026-06-22:** an in-VM `nixos-rebuild switch` on the TCG-emulated VM is too heavy —
@@ -60,19 +61,19 @@ Then in `secrets/secrets.nix`:
 - add `"nixarm-hostkey.age".publicKeys = userKeys;`  (**build-time only — never wire into any
   host's `age.secrets`**; it would needlessly copy a host private key into a running system).
 
-Re-encrypt the tunnel creds to the new recipient set (decrypt with your personal key — you're still
+Re-encrypt the tunnel token to the new recipient set (decrypt with your personal key — you're still
 a recipient — then re-encrypt to both):
 
 ```bash
-TMP=$(mktemp); age -d -i ~/.ssh/id_ed25519 secrets/nixarm-tunnel-creds.age > "$TMP"
-age -r "$USERKEY" -r "$PUB" -o secrets/nixarm-tunnel-creds.age "$TMP"
+TMP=$(mktemp); age -d -i ~/.ssh/id_ed25519 secrets/nixarm-tunnel-token.age > "$TMP"
+age -r "$USERKEY" -r "$PUB" -o secrets/nixarm-tunnel-token.age "$TMP"
 # verify BOTH recipients decrypt, compare sha256 to the source, then:
 shred -u "$TMP"
 ```
 
 Verify the **pinned host key itself** can decrypt (this is the whole point):
 ```bash
-age -d -i "$WORK/ssh_host_ed25519_key" secrets/nixarm-tunnel-creds.age | sha256sum   # must match source
+age -d -i "$WORK/ssh_host_ed25519_key" secrets/nixarm-tunnel-token.age | sha256sum   # must match source
 ```
 
 `git add -A` and commit (pinning is one-time; skip all of the above on later rebuilds).
@@ -126,8 +127,8 @@ diff <(ssh-keyscan -t ed25519 <ip> 2>/dev/null | grep -o 'ssh-ed25519 [A-Za-z0-9
      <(grep -o 'ssh-ed25519 [A-Za-z0-9+/]*' "$WORK/ssh_host_ed25519_key.pub") && echo "pinned-key OK"
 
 # (b) tunnel up at boot — registered with the edge BEFORE any login:
-ssh izzy@<ip> 'systemctl is-active cloudflared-tunnel-48199503-cdee-4f62-b233-0dfa3bac4b5a.service
-  sudo journalctl -u cloudflared-tunnel-48199503-cdee-4f62-b233-0dfa3bac4b5a.service | grep "Registered tunnel connection"'
+ssh izzy@<ip> 'systemctl is-active cloudflared-connector.service
+  sudo journalctl -u cloudflared-connector.service | grep "Registered tunnel connection"'
 # → active + 4 "Registered tunnel connection" lines (yyz01/04/06). An initial
 #   "network is unreachable" line is just the pre-DHCP race; it connects ~6s in.
 ```
@@ -138,7 +139,8 @@ the injection is what fixes it.
 ## Re-pin / revert
 
 - **Re-pin** (key compromise / lost Mac without the .age): regenerate the keypair, redo the one-time
-  steps, rebuild + reinject. Cloudflare UUID/DNS/creds are unchanged — only the age wrapping changes.
+  steps, rebuild + reinject. The Cloudflare tunnel/DNS/connector token are unchanged — only the age
+  wrapping changes.
 - **Revert to post-boot rekey**: drop `nixarm-hostkey.age`, restore the old comment, use
   **agenix-host-rekey**. The only durable repo change here is the recipient wrapping + the extra .age.
 
