@@ -85,7 +85,7 @@ NIXARM_DISK=~/vms/nixarm-dev.qcow2 NIXARM_MEMORY=8192 NIXARM_CPUS=6 nix run .#ni
 
 ## Step 3 — First-boot SSH and agenix rekey
 
-On first boot the host generates a fresh `ssh_host_ed25519_key`. The `nixarm-tunnel-creds.age` secret is encrypted only to the personal key placeholder — `services.cloudflared` will fail to decrypt and will not start. This is expected.
+On first boot the host generates a fresh `ssh_host_ed25519_key`. The `nixarm-tunnel-token.age` secret is encrypted only to the personal key placeholder — the `cloudflared-connector` unit will fail to decrypt its `EnvironmentFile` and will not start. This is expected.
 
 SSH into the running VM:
 
@@ -105,14 +105,14 @@ Grab the host public key:
 ssh -p 2222 izzy@localhost 'cat /etc/ssh/ssh_host_ed25519_key.pub'
 ```
 
-Then run the **agenix-host-rekey** skill to add this key as an age recipient and re-encrypt `nixarm-tunnel-creds.age`. That skill covers the full flow: editing `secrets/secrets.nix`, re-encrypting, committing, and activating on the host.
+Then run the **agenix-host-rekey** skill to add this key as an age recipient and re-encrypt `nixarm-tunnel-token.age`. That skill covers the full flow: editing `secrets/secrets.nix`, re-encrypting, committing, and activating on the host.
 
 ## Step 4 — After the tunnel is active
 
-Once agenix-host-rekey is done and `nixos-rebuild switch` has run on the host, `services.cloudflared` starts the tunnel. Verify:
+Once agenix-host-rekey is done and `nixos-rebuild switch` has run on the host, the `cloudflared-connector` unit starts the tunnel. Verify:
 
 ```bash
-ssh -p 2222 izzy@localhost 'systemctl status cloudflared'
+ssh -p 2222 izzy@localhost 'systemctl status cloudflared-connector'
 ```
 
 After the tunnel is up, SSH via Cloudflare ProxyCommand (see **cloudflared-tunnel** skill):
