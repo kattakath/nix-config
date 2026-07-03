@@ -12,6 +12,8 @@
       "Glob",
       "Grep",
       "mcp__desktop-commander__*",
+      "mcp__cloudflare__*",
+      "mcp__cloudflare-docs__*",
       "Bash(git add:*)",
       "Bash(git status:*)",
       "Bash(git diff:*)",
@@ -118,7 +120,7 @@
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "Before running this Bash command, check whether a mcp__desktop-commander__* tool is the better fit. BLOCK and instruct the model to use desktop-commander for: running a generic command or script as a managed process (start_process), listing a directory (list_directory instead of ls/find), reading file metadata (get_file_info instead of stat/ls -la), managing processes (list_processes/kill_process instead of ps/kill). APPROVE without question any command whose leading token is a domain-specific CLI with no desktop-commander equivalent: git, nix, nix-instantiate, nix-build, nix-store, darwin-rebuild, nixos-rebuild, nixos-install, nixos-enter, home-manager, cloudflared, ssh, scp, sshpass, ssh-keygen, ssh-keyscan, rsync, age, curl, dig, host, nc, ping, arp, brew, open, osascript, plutil, qemu-img, parted, mkfs.fat, mkfs.ext4, lsblk, blkid, wipefs, udevadm, sudo, statix, deadnix, utmctl, gh, jq, node, python3, bash, zsh. When uncertain, APPROVE.",
+            "prompt": "Before running this Bash command, apply these checks in order:\n\n1. CLOUDFLARE API/MANAGEMENT: BLOCK and redirect to mcp__cloudflare__execute (or mcp__cloudflare__search) for any Cloudflare API or management operation — wrangler commands (Workers, Pages, D1, KV, R2, Queues), curl/http requests to api.cloudflare.com or any Cloudflare REST API endpoint, zone/account/DNS/tunnel management. Exception: cloudflared (the tunnel daemon) is APPROVED — it has no MCP equivalent.\n\n2. CLOUDFLARE DOCS: BLOCK and redirect to mcp__cloudflare-docs__search_cloudflare_documentation for Cloudflare documentation lookups.\n\n3. DESKTOP-COMMANDER: BLOCK and redirect to mcp__desktop-commander__* for: generic process/script management (start_process instead of bash -c / sh -c / node script.js), listing a directory (list_directory instead of ls/find), reading file metadata (get_file_info instead of stat/ls -la), managing processes (list_processes/kill_process instead of ps/kill).\n\n4. APPROVED CLIs (never block): git, nix, nix-instantiate, nix-build, nix-store, darwin-rebuild, nixos-rebuild, nixos-install, nixos-enter, home-manager, cloudflared, ssh, scp, sshpass, ssh-keygen, ssh-keyscan, rsync, age, curl, dig, host, nc, ping, arp, brew, open, osascript, plutil, qemu-img, parted, mkfs.fat, mkfs.ext4, lsblk, blkid, wipefs, udevadm, sudo, statix, deadnix, utmctl, gh, jq, node, python3, bash, zsh. When uncertain, APPROVE.",
             "timeout": 15
           }
         ]
@@ -128,7 +130,7 @@
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "Validate this file write for a Nix mono-repo. Deny if: it writes a hardcoded secret/token/private key into a .nix file (the store is world-readable — patterns to block: 'BEGIN PRIVATE KEY', 'BEGIN RSA PRIVATE KEY', 'BEGIN OPENSSH PRIVATE KEY', 'BEGIN EC PRIVATE KEY', tokens like 'ghp_', 'glpat-', 'sk-ant-', 'AKIA', 'sk-'), uses a path-traversal sequence (../), or targets a system path outside the project. APPROVE (never block) SSH public keys — strings starting with 'ssh-ed25519 AAAA', 'ssh-rsa AAAA', or 'ecdsa-sha2-nistp' are intentionally public and are the standard NixOS way to configure openssh.authorizedKeys.keys; they pose no security risk. Approve otherwise.",
+            "prompt": "Validate this file write for a Nix mono-repo. Deny if: it writes a hardcoded secret/token/private key into a .nix file (the store is world-readable — patterns to block: 'BEGIN PRIVATE KEY', 'BEGIN RSA PRIVATE KEY', 'BEGIN OPENSSH PRIVATE KEY', 'BEGIN EC PRIVATE KEY', tokens like 'ghp_', 'glpat-', 'sk-ant-', 'AKIA', 'sk-'), uses a path-traversal sequence (../), or targets an OS system path (/etc/, /usr/, /var/, /tmp/, /System/, /Library/, /private/etc/, /private/var/). APPROVE user-owned paths outside the project (e.g. ~/.claude/, ~/.config/, /Users/<name>/.claude/) — these are legitimate config files, not system paths. APPROVE (never block) SSH public keys — strings starting with 'ssh-ed25519 AAAA', 'ssh-rsa AAAA', or 'ecdsa-sha2-nistp' are intentionally public and are the standard NixOS way to configure openssh.authorizedKeys.keys; they pose no security risk. Approve otherwise.",
             "timeout": 15
           }
         ]
