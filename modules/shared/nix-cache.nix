@@ -6,8 +6,9 @@
 #
 # READ is public: only the substituter URL + public signing key are needed —
 # NO auth token on any consumer. The CACHIX_AUTH_TOKEN is a write-only
-# credential and lives solely as a GitHub Actions secret (CI push), never in
-# Nix or git. See .github/workflows/flake-check.yml.
+# credential and lives solely as a GitHub Actions secret, used by the remaining
+# workflows (cachix/cachix-action in build-devcontainer.yml) to push build
+# closures; never in Nix or git. Garnix pushes its own builds to cache.garnix.io.
 #
 # cache.garnix.io is Garnix's public CI cache (see garnix.yaml): once Garnix
 # builds the flake outputs, every host substitutes those paths (host toplevels,

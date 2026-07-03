@@ -2,7 +2,6 @@
 
 > One declarative Nix flake for every machine I run — my Mac, my NixOS VM, a Raspberry Pi, and a prebuilt devcontainer.
 
-[![flake-check](https://github.com/ismailkattakath/nix-config/actions/workflows/flake-check.yml/badge.svg)](https://github.com/ismailkattakath/nix-config/actions/workflows/flake-check.yml)
 [![build-devcontainer](https://github.com/ismailkattakath/nix-config/actions/workflows/build-devcontainer.yml/badge.svg)](https://github.com/ismailkattakath/nix-config/actions/workflows/build-devcontainer.yml)
 [![gitleaks](https://github.com/ismailkattakath/nix-config/actions/workflows/gitleaks.yml/badge.svg)](https://github.com/ismailkattakath/nix-config/actions/workflows/gitleaks.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
@@ -81,7 +80,7 @@ Platform branching lives in `modules/` behind `lib.mkIf`, so host profiles stay 
 
 ## How CI works
 
-The [`flake-check`](https://github.com/ismailkattakath/nix-config/actions/workflows/flake-check.yml) workflow evaluates the whole flake across the canonical system triple — `aarch64-darwin`, `x86_64-linux`, and `aarch64-linux` (the last via QEMU emulation) — plus a `treefmt` + `pre-commit` lint gate that builds the same derivations `nix fmt` and the commit hook run locally. A public [Cachix](https://www.cachix.org/) cache (`ismailkattakath`) is consumed read-only by every host and populated by CI on `main`.
+CI runs on [**Garnix**](https://garnix.io) (hosted Nix CI). It builds the whole flake across the canonical system triple — `aarch64-darwin`, `x86_64-linux`, and `aarch64-linux` — on **native** builders (no QEMU), reporting one status check per output plus an `All Garnix checks` aggregate. [`garnix.yaml`](./garnix.yaml) selects what's built: the host toplevels, packages, devShells, and the `treefmt` + `pre-commit` `checks` (the same derivations `nix fmt` and the commit hook run locally). Two public caches are consumed read-only by every host: [Cachix](https://www.cachix.org/) (`ismailkattakath`) and Garnix's own `cache.garnix.io`.
 
 - [`build-devcontainer`](https://github.com/ismailkattakath/nix-config/actions/workflows/build-devcontainer.yml) builds, smoke-tests, and publishes the multi-arch devcontainer image to GHCR.
 - [`gitleaks`](https://github.com/ismailkattakath/nix-config/actions/workflows/gitleaks.yml) scans every push and PR (and weekly) for leaked secrets.

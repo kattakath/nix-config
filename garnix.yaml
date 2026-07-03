@@ -3,8 +3,8 @@
 # Garnix (https://garnix.io) builds the flake outputs listed below on its own
 # NATIVE builders (real aarch64-linux + aarch64-darwin, no QEMU) and reports one
 # GitHub status check per built output. This is what lets CI actually BUILD the
-# aarch64 host toplevels that .github/workflows/flake-check.yml could only
-# evaluate — a QEMU build of a full NixOS toplevel would OOM. See issue #56.
+# aarch64 host toplevels that the old QEMU-based `.github/workflows/flake-check.yml`
+# could only evaluate — a QEMU build of a full NixOS toplevel would OOM. See issue #56.
 #
 # Matcher semantics: a matcher only matches outputs with the SAME number of
 # path components. Wildcards span the system axis, so `checks.*` / `devShells.*`
@@ -13,9 +13,9 @@
 # default. The host configs are named explicitly; a 1-place matcher builds their
 # default `config.system.build.toplevel`.
 #
-# NOTE: while this lands, `.github/workflows/flake-check.yml` stays in place and
-# runs alongside Garnix (dual-run). It is removed only after Garnix is verified
-# green — see issues #59 (validation) and #60 (cutover).
+# Garnix is now the SOLE multi-system CI: the previous QEMU matrix workflow
+# `.github/workflows/flake-check.yml` has been removed (dual-run cutover complete)
+# — see issues #59 (validation) and #60 (cutover).
 builds:
   include:
     - 'checks.*'

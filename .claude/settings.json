@@ -96,7 +96,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "command -v nix >/dev/null 2>&1 && echo 'nix present: full multi-system flake check available locally.' || echo 'nix ABSENT on host: local checks are syntax-only; full aarch64-darwin/x86_64-linux/aarch64-linux evaluation is CI-deferred to .github/workflows/flake-check.yml.'; u=$(cd \"${CLAUDE_PROJECT_DIR:-.}\" && git ls-files --others --exclude-standard -- '*.nix' 2>/dev/null); [ -n \"$u\" ] && echo \"WARNING: untracked .nix files present — run 'git add -A' before evaluating:\" && echo \"$u\" || true",
+            "command": "command -v nix >/dev/null 2>&1 && echo 'nix present: full multi-system flake check available locally.' || echo 'nix ABSENT on host: local checks are syntax-only; full aarch64-darwin/x86_64-linux/aarch64-linux evaluation is CI-deferred to Garnix (garnix.yaml).'; u=$(cd \"${CLAUDE_PROJECT_DIR:-.}\" && git ls-files --others --exclude-standard -- '*.nix' 2>/dev/null); [ -n \"$u\" ] && echo \"WARNING: untracked .nix files present — run 'git add -A' before evaluating:\" && echo \"$u\" || true",
             "timeout": 10
           },
           {

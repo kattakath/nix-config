@@ -28,6 +28,8 @@ let
   # `nixpkgs.config.allowUnfree` — the input's `.extensions` output uses its own
   # nixpkgs with default config and ignores our unfree allowance.
   marketplace = pkgs.vscode-marketplace or null;
+  # #80: skip claude-code install-check — its prebuilt bun run fails on the aarch64-darwin (Garnix) builder; harmless on linux.
+  claudeCode = pkgs.claude-code.overrideAttrs (_: { doInstallCheck = false; });
 in
 {
   imports = [ ../linux/nix-ld.nix ];
@@ -64,7 +66,7 @@ in
   # — add one back here if you select it in an app's font picker.
   home.packages = with pkgs; [
     # personal CLI — used in every repo, not project-bound
-    claude-code
+    claudeCode
     # fonts (each is referenced by a VS Code font setting below)
     nerd-fonts.jetbrains-mono # "JetBrainsMono Nerd Font" — VS Code editor font (pairs with the JetBrains theme)
     nerd-fonts.ubuntu-mono # "UbuntuMono Nerd Font" — VS Code terminal font (matches the devcontainer)
@@ -219,7 +221,7 @@ in
           # config — the devcontainer's bare `claude` path became this.
           "terminal.integrated.profiles.osx" = {
             "claude" = {
-              "path" = "${pkgs.claude-code}/bin/claude";
+              "path" = "${claudeCode}/bin/claude";
               "args" = [
                 "--permission-mode"
                 "bypassPermissions"
