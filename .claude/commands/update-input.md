@@ -1,6 +1,6 @@
 ---
 description: Bump a flake input, stage the regenerated flake.lock, and re-evaluate across all target systems.
-allowed-tools: ["Bash(nix flake update:*)", "Bash(git add:*)", "Bash(git diff:*)", "Agent(platform-compiler)"]
+allowed-tools: Bash(nix flake update:*), Bash(git add:*), Bash(git diff:*), Agent(platform-compiler)
 ---
 
 Update a flake input safely. `$ARGUMENTS` is the input name (e.g. `nixpkgs`, `home-manager`); if empty, update all inputs.
