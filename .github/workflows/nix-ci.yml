@@ -2,53 +2,25 @@ name: nix-ci
 
 # Self-owned, native multi-system Nix CI — the replacement for hosted Garnix.
 #
-# Builds EVERY flake output for each system on its OWN NATIVE runner (no QEMU),
-# and pushes the resulting store paths to the public `ismailkattakath` Cachix
-# cache so hosts and the devcontainer substitute instead of rebuilding.
+# LEAN MERGE CI: this workflow does NOT build the host system toplevels
+# (nixcon / nixbox / nixrpi). Building them — especially the cold linux-rpi
+# kernel (~1h, not in cache.nixos.org) — is a RELEASE-time concern handled later
+# against `nixosConfigurations.*` / `darwinConfigurations.*` directly. Per PR, we:
 #
-#   x86_64-linux   -> ubuntu-24.04       (GitHub-hosted, native x86_64)
-#   aarch64-linux  -> ubuntu-24.04-arm   (GitHub-hosted arm64 — GA, free for
-#                                          public repos, NATIVE, no emulation)
-#   aarch64-darwin -> macos-15           (Apple Silicon, free for public repos)
+#   1. BUILD the flake's lint/format checks (`.#checks.<system>` = formatting +
+#      pre-commit) on each system's OWN NATIVE runner, and
+#   2. EVALUATE each host config's toplevel (cheap: forces full module eval,
+#      catching config/option/type errors) WITHOUT building it.
 #
-# The unit of work per leg is a flake attribute path under `.#checks.<system>`.
-# nix-fast-build's `--flake` takes exactly ONE attribute path (it does NOT
-# iterate over multiple names), so to split a system's check set we either point
-# at a leaf attr or use `--select` to prune members from the parent attrset.
+# Runners (all GitHub-hosted, native, free for public repos — no QEMU):
+#   x86_64-linux   -> ubuntu-24.04
+#   aarch64-linux  -> ubuntu-24.04-arm   (nixbox + nixrpi eval here)
+#   aarch64-darwin -> macos-15           (nixcon eval here)
 #
-# The aarch64-linux check set is DELIBERATELY SPLIT into independent matrix legs:
-#
-#   * aarch64-linux (fast) -> `.#checks.aarch64-linux` MINUS nixrpi, via
-#     `--select` (builds formatting + pre-commit + nixbox). Keeps on-arch lint
-#     coverage and the nixbox toplevel out from behind the slow Pi build.
-#   * aarch64-linux-nixrpi -> `.#checks.aarch64-linux.nixrpi` ALONE. The Pi
-#     kernel (linux-rpi) is NOT in cache.nixos.org and compiles from source cold,
-#     so isolating it means the nixbox *check* no longer waits behind it. NOTE:
-#     this improves per-host signal + latency, NOT merge-gate latency —
-#     `required-checks` still needs every leg (incl. nixrpi) before the PR is
-#     mergeable. Cold, this leg's Pi-kernel build runs ~1h, so it gets a longer
-#     timeout (matrix `timeout`, below). Once built, it's pushed to Cachix and
-#     every later run substitutes it — the cache is warmed reactively by this
-#     workflow's own push-to-main run (which builds + pushes every toplevel), so
-#     no separate scheduled warm job is needed. nix-fast-build --skip-cached then
-#     skips any path already in the cache.
-#
-# x86_64-linux and aarch64-darwin remain whole-set legs (darwin still builds
-# `.#checks.aarch64-darwin`, incl. the nixcon toplevel).
-#
-# READ from the cache is public (substituter URL + public key only, configured
-# below via extra_nix_config). WRITE requires CACHIX_AUTH_TOKEN, a GitHub Actions
-# secret — absent on fork PRs, where cachix-action gracefully no-ops the push and
-# the pull still works.
-#
-# The linux legs ALSO add the public nix-community Cachix cache as an extra
-# substituter: raspberry-pi-nix's CI pushes kernel builds there. It's a best-
-# effort speedup for nixrpi only (this repo overrides rpi-nix's nixpkgs to follow
-# nixos-unstable, so the input-addressed drvPath can diverge from what nix-
-# community cached — a hit is NOT guaranteed). Read is public; no token needed.
-# The dependable warm path is this workflow's own push-to-main run: it builds and
-# pushes every toplevel to ismailkattakath, so the next PR substitutes instead of
-# recompiling. Warming is thus reactive to merges — no scheduled job.
+# READ from the ismailkattakath Cachix cache is public (substituter + key below).
+# WRITE needs CACHIX_AUTH_TOKEN (a repo secret; absent on fork PRs, where the push
+# just no-ops). The cache is warmed reactively by this workflow's push-to-main run
+# and by release builds — no scheduled job.
 
 on:
   pull_request:
@@ -56,128 +28,89 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Cancel superseded runs on the same ref (matches sibling workflows).
 concurrency:
   group: nix-ci-${{ github.ref }}
   cancel-in-progress: true
 
-# Least-privilege: we only read the checked-out tree. Cachix push auth comes
-# from the CACHIX_AUTH_TOKEN secret, not the GITHUB_TOKEN.
 permissions:
   contents: read
 
 jobs:
-  # Native per-system build matrix. fail-fast:false so one system's failure does
-  # not cancel the others — the aggregate gate below decides the overall result.
-  #
-  # Each `include` entry is its own status check `build (<name>)`; the aggregate
-  # required-checks job (needs: [build]) is the single stable branch-protection
-  # anchor, so splitting/renaming legs never requires re-anchoring the ruleset.
+  # Native per-system matrix. fail-fast:false so one system's failure doesn't
+  # cancel the others — the aggregate required-checks job decides the result.
+  # Each entry is its own status check `build (<name>)`; required-checks
+  # (needs: [build]) is the single stable branch-protection anchor.
   build:
     name: build (${{ matrix.name }})
     runs-on: ${{ matrix.runs-on }}
-    # Per-leg cap: fast legs default to 60m; the nixrpi leg sets matrix.timeout=120
-    # because a COLD linux-rpi kernel build runs ~1h on the free 4-vCPU arm runner
-    # (once cached, later runs finish in seconds and never approach the cap).
-    timeout-minutes: ${{ matrix.timeout || 60 }}
+    timeout-minutes: 30 # lint + eval only; no toplevel builds
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: x86_64-linux
             runs-on: ubuntu-24.04
-            # Whole check set for this system (formatting + pre-commit).
-            flake-attr: .#checks.x86_64-linux
-            # Base nix.conf: flakes + the public ismailkattakath substituter +
-            # the public nix-community cache (best-effort rpi kernel hits).
-            extra-nix-config: |
-              experimental-features = nix-command flakes
-              extra-substituters = https://ismailkattakath.cachix.org https://nix-community.cachix.org
-              extra-trusted-public-keys = ismailkattakath.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=
-
-          # aarch64-linux FAST leg: the whole check set MINUS nixrpi (i.e.
-          # formatting + pre-commit + nixbox). `--select` prunes nixrpi from the
-          # attrset before nix-eval-jobs traverses it, so nixbox never waits
-          # behind the slow Pi kernel build.
+            # no host config targets x86_64-linux -> lint only, no eval
           - name: aarch64-linux
             runs-on: ubuntu-24.04-arm
-            flake-attr: .#checks.aarch64-linux
-            select: 'c: builtins.removeAttrs c ["nixrpi"]'
-            extra-nix-config: |
-              experimental-features = nix-command flakes
-              extra-substituters = https://ismailkattakath.cachix.org https://nix-community.cachix.org
-              extra-trusted-public-keys = ismailkattakath.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=
-
-          # aarch64-linux SLOW leg: nixrpi ALONE (the cold linux-rpi kernel
-          # compile). Isolated so it never blocks the nixbox check; nix-fast-build
-          # --skip-cached still avoids rebuilding paths already in the cache.
-          - name: aarch64-linux-nixrpi
-            runs-on: ubuntu-24.04-arm
-            flake-attr: .#checks.aarch64-linux.nixrpi
-            timeout: 120 # cold linux-rpi kernel build runs ~1h; give headroom
-            extra-nix-config: |
-              experimental-features = nix-command flakes
-              extra-substituters = https://ismailkattakath.cachix.org https://nix-community.cachix.org
-              extra-trusted-public-keys = ismailkattakath.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=
-
+            eval-attrs: >-
+              .#nixosConfigurations.nixbox.config.system.build.toplevel.drvPath
+              .#nixosConfigurations.nixrpi.config.system.build.toplevel.drvPath
           - name: aarch64-darwin
             runs-on: macos-15
-            # Whole check set for this system (formatting + pre-commit + nixcon).
-            flake-attr: .#checks.aarch64-darwin
-            # sandbox = relaxed is REQUIRED on darwin: the unfree claude-code
-            # derivation sets __noChroot, which only takes effect under a relaxed
-            # sandbox. Without it, that derivation fails to build. (nix-community
-            # is linux-only kernel content, so it's omitted here.)
-            extra-nix-config: |
-              experimental-features = nix-command flakes
-              sandbox = relaxed
-              extra-substituters = https://ismailkattakath.cachix.org
-              extra-trusted-public-keys = ismailkattakath.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I=
+            eval-attrs: .#darwinConfigurations.nixcon.system.drvPath
     steps:
       - uses: actions/checkout@v4
 
       # UPSTREAM Nix (NOT DeterminateSystems/nix-installer-action — that installs
-      # Determinate Nix only, as of 2026-01-01). Per-leg nix.conf is driven from
-      # the matrix so the darwin leg gets `sandbox = relaxed`.
+      # Determinate Nix only, as of 2026-01-01).
       - uses: cachix/install-nix-action@v31
         with:
-          extra_nix_config: ${{ matrix.extra-nix-config }}
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            extra-substituters = https://ismailkattakath.cachix.org
+            extra-trusted-public-keys = ismailkattakath.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I=
 
-      # Configure the Cachix push hook. authToken is a write-only credential held
-      # only as a repo secret; when absent (fork PRs) push is skipped and the
-      # cache is still used read-only — safe to run before the secret exists.
       - uses: cachix/cachix-action@v15
         with:
           name: ismailkattakath
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
       # Flakes evaluate the git tree, not the working dir — stage everything
-      # BEFORE any nix invocation (see .claude/rules/git-purity.md). Untracked
-      # .nix files are otherwise invisible and produce stale/failed evals.
+      # BEFORE any nix invocation (see .claude/rules/git-purity.md).
       - name: Stage tree (git purity)
         run: git add -A
 
-      # Build this leg's attr and push realized paths to Cachix. --skip-cached
-      # avoids rebuilding paths already in a cache; --no-nom keeps plain CI logs;
-      # --cachix-cache pushes as it builds (needs CACHIX_AUTH_TOKEN). --select
-      # (when set) prunes members from the target attrset before traversal.
-      - name: Build ${{ matrix.flake-attr }} + push to Cachix
+      # Build the lint/format checks for this system and push to Cachix.
+      - name: Build .#checks.${{ matrix.name }} + push to Cachix
         env:
           CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
-          FLAKE_ATTR: ${{ matrix.flake-attr }}
-          SELECT: ${{ matrix.select }}
+        run: |
+          nix run github:Mic92/nix-fast-build -- \
+            --skip-cached --no-nom \
+            --flake ".#checks.${{ matrix.name }}" \
+            --cachix-cache ismailkattakath
+
+      # EVALUATE (not build) the host configs that target this system. Resolving
+      # each toplevel's .drvPath forces a full module-system eval, so a broken
+      # config (bad option, type error, missing module) fails CI in seconds —
+      # without paying for the actual build. Building is deferred to release.
+      - name: Evaluate host configs (no build)
+        if: matrix.eval-attrs != ''
+        env:
+          EVAL_ATTRS: ${{ matrix.eval-attrs }}
         run: |
           set -euo pipefail
-          args=(--skip-cached --no-nom --flake "$FLAKE_ATTR" --cachix-cache ismailkattakath)
-          if [ -n "${SELECT}" ]; then
-            args+=(--select "${SELECT}")
-          fi
-          nix run github:Mic92/nix-fast-build -- "${args[@]}"
+          for a in $EVAL_ATTRS; do
+            echo "::group::eval $a"
+            nix eval --raw "$a" && echo
+            echo "::endgroup::"
+          done
+          echo "✓ host configs evaluate."
 
-  # Aggregate gate. This is the ONE stable-named required check that branch
-  # protection anchors to — the matrix leg names can change freely without ever
-  # re-anchoring the ruleset. It runs even when a leg fails (if: always()) and
-  # fails if ANY leg failed or was cancelled.
+  # Aggregate gate — the ONE stable-named required check branch protection anchors
+  # to. Runs even if a leg fails (if: always()) and fails if any leg failed or was
+  # cancelled. Splitting/renaming build legs never requires re-anchoring the ruleset.
   required-checks:
     name: required-checks
     needs: [build]
