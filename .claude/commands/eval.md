@@ -9,4 +9,4 @@ Run the canonical evaluation gate for this Nix mono-repo, in order:
 2. **Cross-platform evaluation** — delegate to the `platform-compiler` agent to evaluate every flake output across `aarch64-darwin`, `x86_64-linux`, and `aarch64-linux`.
 3. **Report** — relay the agent's per-system pass/fail table and final `READY` / `BLOCKED` verdict verbatim. If `nix` is unavailable locally, state clearly that results are syntax-only and full evaluation is CI-deferred to `.github/workflows/flake-check.yml`.
 
-$ARGUMENTS may name a single config (e.g. `user@host`) to scope the evaluation; pass it through to the agent.
+$ARGUMENTS may name a single config (e.g. `nixcon`, `nixbox`, `nixrpi`) to scope the evaluation; pass it through to the agent.
