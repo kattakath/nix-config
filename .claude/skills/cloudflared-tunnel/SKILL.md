@@ -34,10 +34,11 @@ scripts/cf-one-provision.sh nixarm             # creates tunnel + token + nixarm
 dig +short nixarm.kattakath.com                # → a 172.64.x edge IP (NOT the host) — expected
 ```
 
-The connector **token** (a single `TUNNEL_TOKEN=…` line) is what the host needs. It becomes:
-- **NixOS:** the agenix secret `nixarm-tunnel-token.age`, decrypted at boot and fed to the connector
-  via `EnvironmentFile` (encrypt + rekey via the **agenix-host-rekey** skill).
-- **macOS:** a `0600 root:wheel` file at `/var/root/.cloudflared/tunnel-token` (no agenix on macOS).
+The connector **token** (a single `TUNNEL_TOKEN=…` line) is what the tunnel-TARGET host needs. Only
+the **NixOS** hosts (`nixarm`/`nixrpi`/`nixamd`) run a connector: the token becomes the agenix secret
+`nixarm-tunnel-token.age`, decrypted at boot and fed to the connector via `EnvironmentFile` (encrypt +
+rekey via the **agenix-host-rekey** skill). The **macOS** hosts (`nixcon`/`nixtel`) are tunnel
+CLIENTS only — they run no connector and no sshd, so they need no token; see §5 for the client path.
 
 ## 2. Host side (cross-reference)
 
@@ -45,9 +46,9 @@ The connector **token** (a single `TUNNEL_TOKEN=…` line) is what the host need
 (`cloudflared --no-autoupdate tunnel run`) that reads `TUNNEL_TOKEN` from the agenix-decrypted
 `EnvironmentFile` (`config.age.secrets."<host>-tunnel-token".path`); the ingress `ssh://localhost:22`
 lives in the Cloudflare account. The secret must be re-encrypted to the host's SSH host key before
-the connector can decrypt it at activation — that is the **agenix-host-rekey** skill. On macOS,
-`modules/darwin/cloudflared.nix` is the equivalent `launchd.daemons.cloudflared-connector` reading a
-`0600 root:wheel` token file. Do not edit `hosts/` or `*.nix` from this skill; it is the client/DNS
+the connector can decrypt it at activation — that is the **agenix-host-rekey** skill. This connector
+runs on the NixOS hosts only; the macOS hosts (`nixcon`/`nixtel`) run no connector and no sshd — they
+are tunnel CLIENTS (see §5). Do not edit `hosts/` or `*.nix` from this skill; it is the client/DNS
 playbook.
 
 ## 5. macOS client — reach the host via SSH ProxyCommand
