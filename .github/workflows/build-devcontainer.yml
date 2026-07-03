@@ -158,6 +158,15 @@ jobs:
             else
               echo "✓ devShell resolved without a from-source build"
             fi
+            echo "=== real from-scratch build through the daemon (exercises the build path) ==="
+            # The warm-store checks above only READ the store; a store query never
+            # acquires a build user. This proves the daemon can actually REALIZE a
+            # derivation (build-users-group empty → builds as the root daemon uid).
+            # nixpkgs#hello is tiny; substituted from cache.nixos.org if available,
+            # built locally otherwise — either way it flows through the daemon.
+            nix build --no-link --print-build-logs nixpkgs#hello \
+              || { echo "✗ from-scratch build through the daemon FAILED"; exit 1; }
+            echo "✓ daemon realized nixpkgs#hello"
             echo "=== smoke test passed ==="
           '
 

@@ -39,18 +39,6 @@ let
   gid = 1000;
   workdir = "/workspaces/nix-config";
 
-  # Multi-user Nix build users: the root daemon drops privileges to these to run
-  # builds. Without them a build fails with "build users group 'nixbld' has no
-  # members". A warm baked closure rarely builds, but ship them so the first real
-  # build works. 32 users mirrors the upstream --daemon install.
-  buildUserIds = lib.range 1 32;
-  nixbldGid = 30000;
-  nixbldPasswdLines = map (
-    i:
-    "nixbld${toString i}:x:${toString (nixbldGid + i)}:${toString nixbldGid}:Nix build user ${toString i}:/var/empty:${pkgs.shadow}/bin/nologin"
-  ) buildUserIds;
-  nixbldMembers = lib.concatMapStringsSep "," (i: "nixbld${toString i}") buildUserIds;
-
   # Pieces the removed devcontainer Features provided, plus base userland. `nix`
   # is the whole point; `nodejs` is required because Claude Code's JS hooks run
   # bare `node` under /bin/sh; `claude-code` is UNFREE (image is built with the
@@ -67,7 +55,6 @@ let
     gawk
     findutils
     which
-    shadow # provides nologin (the nixbld build users' shell)
     cacert # CA bundle for every https client (nix substituters, gh, git)
     gnutar
     gzip
@@ -81,16 +68,16 @@ let
   # download. `registration` below is loaded into the image's Nix DB.
   closure = pkgs.closureInfo { rootPaths = contents; };
 
-  # Real `vscode` user + the nixbld build-user group/members. fakeNss yields a
-  # READ-ONLY /etc/passwd — hence updateRemoteUserUID:false in the JSON.
+  # Real `vscode` user only. fakeNss yields a READ-ONLY /etc/passwd — hence
+  # updateRemoteUserUID:false in the JSON. No nixbld build users: with an empty
+  # build-users-group (below) the daemon runs builds as its own uid (root), so
+  # the whole nixbld group/user machinery is unused and dropped.
   nss = pkgs.fakeNss.override {
     extraPasswdLines = [
       "${username}:x:${toString uid}:${toString gid}:${username}:/home/${username}:${pkgs.bashInteractive}/bin/bash"
-    ]
-    ++ nixbldPasswdLines;
+    ];
     extraGroupLines = [
       "${username}:x:${toString gid}:"
-      "nixbld:x:${toString nixbldGid}:${nixbldMembers}"
     ];
   };
 
@@ -150,20 +137,30 @@ dockerTools.streamLayeredImage {
     # multi-user: only the root daemon writes it). CRITICAL: do NOT bind-mount a
     # volume over /nix in devcontainer.json — it would shadow this baked warm
     # store. The container overlay makes the store writable for the root daemon.
-    mkdir -p nix/var/nix/db nix/var/nix/profiles nix/var/nix/gcroots nix/var/nix/temproots
+    # Pre-create daemon-socket/ with the perms the upstream --daemon installer
+    # sets — rather than relying on the daemon to mkdir it at runtime over the
+    # baked-immutable /nix (a runtime-permission variable that can crash the
+    # worker after the listen socket is already visible).
+    mkdir -p nix/var/nix/db nix/var/nix/profiles nix/var/nix/gcroots nix/var/nix/temproots \
+             nix/var/nix/daemon-socket
+    chmod 0755 nix/var/nix/daemon-socket
     export NIX_STATE_DIR=/nix/var/nix
     export NIX_REMOTE=
     ${pkgs.nix}/bin/nix-store --load-db < ${closure}/registration
 
     # --- baked nix.conf: multi-user daemon + flakes + public Cachix (read) ----
     # sandbox=false: the build sandbox doesn't work nested in a container.
-    # build-users-group=nixbld: the daemon drops to the baked build users.
+    # build-users-group= (EMPTY): documented behavior — with NIX_REMOTE=daemon
+    # and an empty group, builds run as the daemon's own uid (root); no
+    # setuid-to-nixbld step. This is the sound, documented choice for a daemon
+    # serving TRUSTED clients (trusted-users below) and removes the whole nixbld
+    # failure class (matches the single-user-in-container posture that works).
     # trusted-users: let vscode add substituters / import paths interactively.
     # Cachix key is a verification key (also in modules/shared/nix-cache.nix).
     mkdir -p etc/nix
     cat > etc/nix/nix.conf <<'NIXCONF'
     experimental-features = nix-command flakes
-    build-users-group = nixbld
+    build-users-group =
     sandbox = false
     trusted-users = root vscode
     extra-substituters = https://ismailkattakath.cachix.org
