@@ -14,7 +14,7 @@ A single Nix flake that manages complete, reproducible system configurations acr
 
 | Host | Platform | System | Role |
 |------|----------|--------|------|
-| `silicon` | macOS via [nix-darwin](https://github.com/LnL7/nix-darwin) | `aarch64-darwin` | Apple Silicon workstation |
+| `nixcon` | macOS via [nix-darwin](https://github.com/LnL7/nix-darwin) | `aarch64-darwin` | Apple Silicon workstation |
 | `nixbox` | NixOS VM (UTM / QEMU) | `aarch64-linux` | Local Linux VM |
 | `nixrpi` | NixOS on Raspberry Pi 4 | `aarch64-linux` | Headless Pi |
 | devcontainer | Nix-built OCI image | multi-arch | Reproducible dev environment |
@@ -43,7 +43,7 @@ nix flake show
 ### Activate a host
 
 ```bash
-darwin-rebuild switch --flake .#silicon   # macOS
+darwin-rebuild switch --flake .#nixcon   # macOS
 nixos-rebuild  switch --flake .#nixbox    # NixOS VM
 nixos-rebuild  switch --flake .#nixrpi    # Raspberry Pi
 ```
@@ -70,7 +70,7 @@ Or just open the repo in a devcontainer-aware editor; `.devcontainer/devcontaine
 flake.nix       Entry point: inputs, darwin/nixos configurations, packages, devShells, checks
 flake.lock      Pinned input revisions (bumped via `nix flake update`, never hand-edited)
 treefmt.nix     Single source of truth for formatting + lint (drives nix fmt, CI, and the hook)
-hosts/          Per-host entry profiles (silicon.nix, nixbox.nix, nixrpi.nix)
+hosts/          Per-host entry profiles (nixcon.nix, nixbox.nix, nixrpi.nix)
 modules/        Reusable modules, split by platform (darwin/ linux/ nixos/ shared/)
 packages/       Nix-built artifacts (runtime container image, devcontainer image, VM)
 secrets/        agenix-encrypted, host-scoped service credentials (no plaintext secrets)
