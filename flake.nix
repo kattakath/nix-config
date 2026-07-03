@@ -119,6 +119,51 @@
           };
         };
 
+      # ---- Single source of truth for the CI target set -----------------------
+      # The EXACT installables `.github/workflows/flake-check.yml` verifies, per
+      # system. Both the workflow's `gate` (which sha256s every target's .drvPath
+      # into a skip key) and its per-system `check` legs read THIS list via
+      # `nix eval --json .#legacyPackages.<system>.ciTargets`, so the gate and the
+      # legs can never drift from a hand-maintained duplicate.
+      #
+      # These are plain installable STRINGS, never derivations — `nix flake check`
+      # neither builds them nor warns on them: they live under `legacyPackages`,
+      # whose `flake check` branch validates only the system key and never descends
+      # into the leaves (verified: Nix flake.cc legacyPackages handling). Keeping
+      # them out of `checks` is deliberate — `nix flake check` BUILDS everything in
+      # `checks`, which would force the multi-GB/cross-system toplevels+images to
+      # build locally and in the devcontainer. `checks` stays light (formatting +
+      # pre-commit) so the documented `nix flake check` + devcontainer flow holds
+      # and the emulated aarch64-linux CI leg never OOMs.
+      ciTargetsFor =
+        system:
+        {
+          "aarch64-darwin" = [
+            ".#darwinConfigurations.nixcon.config.system.build.toplevel"
+            ".#packages.aarch64-darwin.nixbox-vm"
+            ".#checks.aarch64-darwin.formatting"
+            ".#checks.aarch64-darwin.pre-commit"
+            ".#devShells.aarch64-darwin.default"
+          ];
+          "x86_64-linux" = [
+            ".#packages.x86_64-linux.dockerImage"
+            ".#packages.x86_64-linux.devcontainerImage"
+            ".#checks.x86_64-linux.formatting"
+            ".#checks.x86_64-linux.pre-commit"
+            ".#devShells.x86_64-linux.default"
+          ];
+          "aarch64-linux" = [
+            ".#nixosConfigurations.nixbox.config.system.build.toplevel"
+            ".#nixosConfigurations.nixrpi.config.system.build.toplevel"
+            ".#packages.aarch64-linux.dockerImage"
+            ".#packages.aarch64-linux.devcontainerImage"
+            ".#checks.aarch64-linux.formatting"
+            ".#checks.aarch64-linux.pre-commit"
+            ".#devShells.aarch64-linux.default"
+          ];
+        }
+        .${system};
+
       # ---- NixOS system builder ---------------------------------------------------
       # Produces a full NixOS system with Home Manager embedded. Home Manager user
       # config is the same shared profile used by standalone and darwin hosts.
@@ -276,6 +321,16 @@
           };
         }
       );
+
+      # ---- CI target manifest (single source of truth) ------------------------
+      # Exposed under `legacyPackages` on purpose: `nix flake check` validates only
+      # the system key here and never descends into the leaf, so this list of
+      # installable STRINGS is neither built nor flagged as an unknown output.
+      # flake-check.yml's gate + per-system legs both read it — one source, no drift.
+      #   nix eval --json .#legacyPackages.<system>.ciTargets
+      legacyPackages = forAllSystems (system: {
+        ciTargets = ciTargetsFor system;
+      });
 
       # ---- Formatter: `nix fmt` runs treefmt (nixfmt + statix + deadnix) ------
       formatter = forAllSystems (system: treefmtEval.${system}.config.build.wrapper);

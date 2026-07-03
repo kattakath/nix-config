@@ -75,6 +75,7 @@ jobs:
   # changes. So the gate may over-publish, never under-publish — the correct bias.
   gate:
     runs-on: ubuntu-24.04 # eval only — cheapest runner; no arm needed for arm64 drvPath
+    timeout-minutes: 15
     outputs:
       changed: ${{ steps.decide.outputs.changed }}
       cache_key: ${{ steps.key.outputs.cache_key }}
@@ -93,7 +94,12 @@ jobs:
       # always-running gate job rather than a dedicated job of its own.
       is_publish: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch' }}
     steps:
+      # Checkout must precede the local composite action.
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      # Eval-only gate: Nix + git-purity stage, NO Cachix (no build/push).
+      - uses: ./.github/actions/nix-setup
+        with:
+          configure-cachix: "false"
 
       - name: Compute image ref
         id: ref
@@ -101,16 +107,6 @@ jobs:
           OWNER="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
           echo "ref=ghcr.io/${OWNER}/${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
           echo "sha12=$(echo '${{ github.sha }}' | cut -c1-12)" >> "$GITHUB_OUTPUT"
-
-      - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            accept-flake-config = true
-
-      # Flakes ignore untracked files; stage before any eval (git-purity).
-      - name: Stage tree (git purity)
-        run: git add -A
 
       - name: Evaluate per-arch image drvPaths (pure eval, no build)
         id: key
@@ -168,27 +164,12 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     steps:
+      # Checkout must precede the local composite action.
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31
+      # Nix + Cachix (pull/push, graceful on forks) + git-purity stage.
+      - uses: ./.github/actions/nix-setup
         with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            accept-flake-config = true
-
-      # Cachix: pull from + push to the public `ismailkattakath` cache. The action
-      # installs a post-build hook, so every store path realized below is pushed
-      # automatically. authToken is a write-only credential held only as a repo
-      # secret; when absent (e.g. forks) push is skipped and the cache is still used
-      # read-only — so this runs UNCONDITIONALLY and is safe on forks.
-      - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
-        with:
-          name: ismailkattakath
-          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
-
-      # Flakes ignore untracked files; stage everything before any eval/build.
-      - name: Stage tree (git purity)
-        run: git add -A
+          cachix-auth-token: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
       # streamLayeredImage evaluates to a STREAM SCRIPT (not a tarball). unfree
       # (claude-code) is permitted via flake.nix's pkgsUnfreeFor.
@@ -403,6 +384,7 @@ jobs:
     needs: [gate, build]
     if: needs.gate.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - name: Login to GHCR
         uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v3

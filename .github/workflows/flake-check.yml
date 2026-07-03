@@ -63,20 +63,15 @@ jobs:
       changed: ${{ steps.decide.outputs.changed }}
       cache_key: ${{ steps.key.outputs.cache_key }}
     steps:
+      # Checkout must precede the local composite action (the runner needs the
+      # action files on disk first). fetch-depth 0 for the workflow-file diff guard.
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          # Need the base commit to diff against for the workflow-file guard.
           fetch-depth: 0
-
-      - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31
+      # Eval-only gate: Nix + git-purity stage, NO Cachix (never builds or pushes).
+      - uses: ./.github/actions/nix-setup
         with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            accept-flake-config = true
-
-      # Flakes ignore untracked files; stage before any eval (git-purity).
-      - name: Stage tree (git purity)
-        run: git add -A
+          configure-cachix: "false"
 
       # Did this PR/push touch the workflow file itself? If so we ALWAYS
       # re-validate (a workflow edit changes what/how we verify, but does not
@@ -105,41 +100,29 @@ jobs:
 
       # drvPath is input-addressed and per-system: evaluate the FULL set of
       # targets every matrix leg verifies, on all three systems, from this one
-      # x86_64 runner (cross-system drvPath eval never builds). --raw prints the
-      # .drv store path only. The sha256 of the concatenation is the baseline key.
+      # x86_64 runner (cross-system drvPath eval never builds). The target set is
+      # NOT hand-listed here — it is enumerated from flake.nix's single source,
+      # `legacyPackages.<system>.ciTargets`, so the gate and the per-system `check`
+      # legs (which read the SAME source) can never drift. --raw prints the .drv
+      # store path only. The sha256 of the concatenation is the baseline key.
       - name: Evaluate all matrix drvPaths (pure eval, no build)
         id: key
         run: |
-          targets=(
-            # aarch64-darwin
-            .#darwinConfigurations.nixcon.config.system.build.toplevel
-            .#packages.aarch64-darwin.nixbox-vm
-            .#checks.aarch64-darwin.formatting
-            .#checks.aarch64-darwin.pre-commit
-            .#devShells.aarch64-darwin.default
-            # x86_64-linux
-            .#packages.x86_64-linux.dockerImage
-            .#packages.x86_64-linux.devcontainerImage
-            .#checks.x86_64-linux.formatting
-            .#checks.x86_64-linux.pre-commit
-            .#devShells.x86_64-linux.default
-            # aarch64-linux
-            .#nixosConfigurations.nixbox.config.system.build.toplevel
-            .#nixosConfigurations.nixrpi.config.system.build.toplevel
-            .#packages.aarch64-linux.dockerImage
-            .#packages.aarch64-linux.devcontainerImage
-            .#checks.aarch64-linux.formatting
-            .#checks.aarch64-linux.pre-commit
-            .#devShells.aarch64-linux.default
-          )
           : > /tmp/drvpaths
-          for t in "${targets[@]}"; do
-            drv="$(nix eval --raw "$t.drvPath")"
-            echo "$t -> $drv"
-            printf '%s\n' "$drv" >> /tmp/drvpaths
+          for system in aarch64-darwin x86_64-linux aarch64-linux; do
+            # Read the single-source target list for this system, one installable
+            # per line. jq -r splits the JSON array into raw strings.
+            while IFS= read -r t; do
+              [ -n "$t" ] || continue
+              drv="$(nix eval --raw "$t.drvPath")"
+              echo "$t -> $drv"
+              printf '%s\n' "$drv" >> /tmp/drvpaths
+            done < <(nix eval --json ".#legacyPackages.${system}.ciTargets" | jq -r '.[]')
           done
           COMBINED="$(sha256sum /tmp/drvpaths | cut -d' ' -f1)"
-          echo "cache_key=flake-check-drv-v1-${COMBINED}" >> "$GITHUB_OUTPUT"
+          # v2: the enumeration source changed (hand list → ciTargets); the first
+          # post-merge run MISSes, forcing a full run that re-saves the baseline.
+          echo "cache_key=flake-check-drv-v2-${COMBINED}" >> "$GITHUB_OUTPUT"
 
       # Restore-only probe: a HIT means this exact drv-set was already validated
       # green on main and its baseline marker was recorded.
@@ -203,29 +186,22 @@ jobs:
             os: ubuntu-24.04         # cross-eval via binfmt emulation
             emulate: true
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
+      # binfmt registration for the emulated aarch64-linux leg — must precede any
+      # emulated build. Stays in the job (docker-specific, not part of nix-setup).
       - name: Enable aarch64 emulation
         if: matrix.emulate
         uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
         with:
           platforms: arm64
 
-      - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31
+      # Checkout must precede the local composite action.
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      # Nix (+ extra-platforms on the emulated leg) + Cachix (pull/push,
+      # graceful on forks) + git-purity stage.
+      - uses: ./.github/actions/nix-setup
         with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            ${{ matrix.emulate && 'extra-platforms = aarch64-linux' || '' }}
-
-      # Cachix: pull from + push to the public `ismailkattakath` cache. The
-      # action installs a post-build hook, so every store path realized below
-      # is pushed automatically. authToken is a write-only credential held only
-      # as a repo secret; when absent (e.g. forks) push is skipped and the cache
-      # is still used read-only — so this is safe to merge before the secret exists.
-      - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
-        with:
-          name: ismailkattakath
-          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          cachix-auth-token: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          extra-nix-config: ${{ matrix.emulate && 'extra-platforms = aarch64-linux' || '' }}
 
       # Git purity: flakes ignore untracked files. CI checks out a clean tree,
       # but assert it explicitly so a stray generated file fails loudly.
@@ -239,14 +215,12 @@ jobs:
       - name: Evaluate aarch64-darwin outputs
         if: matrix.name == 'aarch64-darwin'
         run: |
-          # `nix eval` takes ONE installable, so loop. `.drvPath` forces the
-          # derivation to evaluate without building it.
-          for t in \
-            .#darwinConfigurations.nixcon.config.system.build.toplevel \
-            .#packages.aarch64-darwin.nixbox-vm \
-            .#checks.aarch64-darwin.formatting \
-            .#checks.aarch64-darwin.pre-commit \
-            .#devShells.aarch64-darwin.default; do
+          # Targets come from flake.nix's single source (ciTargets) — same list the
+          # gate keys on, so the two can't drift. `nix eval` takes ONE installable,
+          # so loop; `.drvPath` forces the derivation to evaluate without building.
+          nix eval --json '.#legacyPackages.aarch64-darwin.ciTargets' | jq -r '.[]' \
+          | while IFS= read -r t; do
+            [ -n "$t" ] || continue
             echo "::group::eval $t"
             nix eval --show-trace "$t.drvPath"
             echo "::endgroup::"
@@ -267,12 +241,10 @@ jobs:
       - name: Evaluate x86_64-linux outputs
         if: matrix.name == 'x86_64-linux'
         run: |
-          for t in \
-            .#packages.x86_64-linux.dockerImage \
-            .#packages.x86_64-linux.devcontainerImage \
-            .#checks.x86_64-linux.formatting \
-            .#checks.x86_64-linux.pre-commit \
-            .#devShells.x86_64-linux.default; do
+          # Single-source target list (ciTargets) — shared with the gate, no drift.
+          nix eval --json '.#legacyPackages.x86_64-linux.ciTargets' | jq -r '.[]' \
+          | while IFS= read -r t; do
+            [ -n "$t" ] || continue
             echo "::group::eval $t"
             nix eval --show-trace "$t.drvPath"
             echo "::endgroup::"
@@ -285,14 +257,13 @@ jobs:
       - name: Evaluate aarch64-linux outputs
         if: matrix.name == 'aarch64-linux'
         run: |
-          for t in \
-            .#nixosConfigurations.nixbox.config.system.build.toplevel \
-            .#nixosConfigurations.nixrpi.config.system.build.toplevel \
-            .#packages.aarch64-linux.dockerImage \
-            .#packages.aarch64-linux.devcontainerImage \
-            .#checks.aarch64-linux.formatting \
-            .#checks.aarch64-linux.pre-commit \
-            .#devShells.aarch64-linux.default; do
+          # Single-source target list (ciTargets) — shared with the gate, no drift.
+          # EVAL-ONLY (.drvPath) even for the heavy toplevels/images: this is the
+          # emulated leg, so we must never `nix build` them here (QEMU OOM). Only
+          # the devShell is built (below) to warm Cachix.
+          nix eval --json '.#legacyPackages.aarch64-linux.ciTargets' | jq -r '.[]' \
+          | while IFS= read -r t; do
+            [ -n "$t" ] || continue
             echo "::group::eval $t"
             nix eval --show-trace "$t.drvPath"
             echo "::endgroup::"
@@ -316,14 +287,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
+      # Checkout must precede the local composite action.
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31
+      # Nix + Cachix (pull/push, graceful on forks) + git-purity stage.
+      - uses: ./.github/actions/nix-setup
         with:
-          extra_nix_config: experimental-features = nix-command flakes
-      - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
-        with:
-          name: ismailkattakath
-          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          cachix-auth-token: ${{ secrets.CACHIX_AUTH_TOKEN }}
       - name: Formatting gate (fails on unformatted/lintable files)
         run: nix build --print-build-logs .#checks.x86_64-linux.formatting
       - name: Pre-commit hooks (sandboxed)
