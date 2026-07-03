@@ -29,7 +29,7 @@ You validate; you never activate (`home-manager switch` is out of scope).
 2. Run `nix flake show` to enumerate exported `darwinConfigurations` / `nixosConfigurations` and their systems.
 3. Run `nix flake check` for full multi-system evaluation. For targeted speed, evaluate single
    configs with `nix eval .#darwinConfigurations.nixcon.config.system.build.toplevel`,
-   `nix eval .#nixosConfigurations.nixbox.config.system.build.toplevel` (or the `nixrpi` analog), or
+   `nix eval .#nixosConfigurations.nixarm.config.system.build.toplevel` (or the `nixamd`/`nixrpi` analog), or
    `nix-instantiate --eval --strict` / `--parse` on individual files.
 4. If `nix` is unavailable on the host, fall back to `nix-instantiate --parse` for syntax
    validation on each changed file and clearly report that full evaluation must run in CI or

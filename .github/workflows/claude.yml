@@ -22,9 +22,11 @@
 #     never fed an untrusted PR head checked out into the workspace root.
 #
 # INERT UNTIL the maintainer completes TWO manual prerequisites (Claude/Nix/git never
-# touch the key — mirrors the CACHIX_AUTH_TOKEN secret-only model):
-#   1. Add `ANTHROPIC_API_KEY` as a repo Actions secret
-#      (Settings -> Secrets and variables -> Actions).
+# touch the token — mirrors the CACHIX_AUTH_TOKEN secret-only model):
+#   1. Add `CLAUDE_CODE_OAUTH_TOKEN` as a repo Actions secret — generate it locally with
+#      `claude setup-token` (Claude Pro/Max; non-expiring), then add under Settings ->
+#      Secrets and variables -> Actions. Auth uses the Claude subscription, not a
+#      metered API key.
 #   2. Install the Claude GitHub App on this repo (https://github.com/apps/claude) so
 #      `@claude` mentions are delivered to this workflow.
 # Until both are done, this workflow simply never does anything.
@@ -57,6 +59,6 @@ jobs:
       - name: Run Claude Code
         uses: anthropics/claude-code-action@769e3bdff9bb7ecfb51bad4c9cba23d6f5fc5ea5 # v1.0.163
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # No `prompt:` — for comment triggers the action responds to the @claude
           # mention. show_full_output / allowed_bots intentionally left at defaults.

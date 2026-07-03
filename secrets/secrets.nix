@@ -7,11 +7,11 @@ let
   # the matching private key pre-injected at /etc/ssh/ssh_host_ed25519_key. This
   # lets agenix decrypt host-scoped secrets at first-boot activation with ZERO
   # logins and no in-VM rebuild. The private half lives only as ciphertext in
-  # secrets/nixbox-hostkey.age (encrypted to userKeys); it is injected into the
-  # image's ext4 root post-build (see the nixbox-prebake-hostkey skill). NEVER
-  # commit the plaintext private key and NEVER add nixbox-hostkey.age to any
+  # secrets/nixarm-hostkey.age (encrypted to userKeys); it is injected into the
+  # image's ext4 root post-build (see the nixarm-prebake-hostkey skill). NEVER
+  # commit the plaintext private key and NEVER add nixarm-hostkey.age to any
   # host's age.secrets (it is build-time-only material).
-  nixbox = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBr/13nhmuy8jClbBf+yPFaiy2j8VELUCVbNaG4fnlGG root@nixbox";
+  nixarm = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBr/13nhmuy8jClbBf+yPFaiy2j8VELUCVbNaG4fnlGG root@nixarm";
 in
 {
   # agenix manages ONLY system/cloudflared host-scoped secrets. Personal tokens
@@ -23,10 +23,10 @@ in
   # Build-time only: the pinned host PRIVATE key, encrypted to the personal key
   # so it can be decrypted and injected into the image. Do NOT wire this into
   # any host's age.secrets.
-  "nixbox-hostkey.age".publicKeys = userKeys;
+  "nixarm-hostkey.age".publicKeys = userKeys;
 
   # Host-scoped tunnel creds: personal key (so we can re-encrypt) + the host key
   # (so the host decrypts at activation for services.cloudflared).
-  "nixbox-tunnel-creds.age".publicKeys = userKeys ++ [ nixbox ];
+  "nixarm-tunnel-creds.age".publicKeys = userKeys ++ [ nixarm ];
   "nixrpi-tunnel-creds.age".publicKeys = userKeys;
 }

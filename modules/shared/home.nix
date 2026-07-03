@@ -107,7 +107,7 @@ in
       matchBlocks = {
         # Reach the NixOS hosts over their Cloudflare Tunnel: ssh routes through
         # `cloudflared access ssh` (no public port; the tunnel forwards to localhost:22).
-        "nixbox.kattakath.com" = {
+        "nixarm.kattakath.com" = {
           user = config.home.username;
           identityFile = "~/.ssh/id_ed25519";
           proxyCommand = "${pkgs.cloudflared}/bin/cloudflared access ssh --hostname %h";

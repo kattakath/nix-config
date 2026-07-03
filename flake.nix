@@ -189,16 +189,25 @@
         };
 
         # Generic NixOS VM (UTM `virt` / UEFI) — aarch64 (Apple Silicon UTM native).
-        "nixbox" = mkNixos {
+        "nixarm" = mkNixos {
           system = "aarch64-linux";
-          hostname = "nixbox";
+          hostname = "nixarm";
+        };
+
+        # Generic NixOS host — x86_64 (config-only / CI-eval; no VM launcher,
+        # since x86_64 on Apple Silicon runs under slow TCG). No cloudflared /
+        # agenix secret yet (no provisioned host key) — adding a tunnel is a
+        # follow-up once a host key exists.
+        "nixamd" = mkNixos {
+          system = "x86_64-linux";
+          hostname = "nixamd";
         };
       };
 
       # ---- Packages: container images + VM image -------------------------------
       # `nix build .#packages.<system>.dockerImage`        → minimal runtime tarball
       # `nix build .#packages.<linux>.devcontainerImage`   → devcontainer stream script (Linux only)
-      # `nix build .#nixbox-image`                         → UTM-importable qcow2 → ./result/
+      # `nix build .#nixarm-image`                         → UTM-importable qcow2 → ./result/
       # Merge the per-system base with the system-specific extras in one fold —
       # flatter than nesting recursiveUpdate calls, and the merge order reads
       # top-to-bottom: base (all systems) → devcontainer (linux) → single-system.
@@ -218,26 +227,26 @@
         }))
 
         {
-          aarch64-linux.nixbox-image = self.nixosConfigurations.nixbox.config.system.build.images.qemu-efi;
+          aarch64-linux.nixarm-image = self.nixosConfigurations.nixarm.config.system.build.images.qemu-efi;
           # Exposed as a package (not just wrapped in the app) so CI can build
           # it — that build is what runs the writeShellApplication shellcheck.
-          aarch64-darwin.nixbox-vm = (pkgsFor "aarch64-darwin").callPackage ./packages/nixbox-vm.nix { };
+          aarch64-darwin.nixarm-vm = (pkgsFor "aarch64-darwin").callPackage ./packages/nixarm-vm.nix { };
         }
       ];
 
       # ---- Apps: native VM launcher (macOS only) -----------------------------
-      # `nix run .#nixbox-vm` — boots the nixbox qcow2 in QEMU with Apple HVF
+      # `nix run .#nixarm-vm` — boots the nixarm qcow2 in QEMU with Apple HVF
       # acceleration. No UTM required. User-mode networking with hostfwd 2222→22
       # for direct SSH before the Cloudflare tunnel is active.
       #
       # Prerequisites:
-      #   1. Build qcow2 on an aarch64-linux builder: nix build .#nixbox-image
-      #   2. Copy to the default disk path (or set NIXBOX_DISK=/path/to/qcow2):
-      #        cp result/*.qcow2 ~/.local/state/nixbox-vm/nixbox.qcow2
-      apps.aarch64-darwin.nixbox-vm = {
+      #   1. Build qcow2 on an aarch64-linux builder: nix build .#nixarm-image
+      #   2. Copy to the default disk path (or set NIXARM_DISK=/path/to/qcow2):
+      #        cp result/*.qcow2 ~/.local/state/nixarm-vm/nixarm.qcow2
+      apps.aarch64-darwin.nixarm-vm = {
         type = "app";
-        program = "${self.packages.aarch64-darwin.nixbox-vm}/bin/run-nixbox-vm";
-        meta.description = "Boot nixbox qcow2 in QEMU with Apple HVF — no UTM needed (aarch64-darwin only)";
+        program = "${self.packages.aarch64-darwin.nixarm-vm}/bin/run-nixarm-vm";
+        meta.description = "Boot nixarm qcow2 in QEMU with Apple HVF — no UTM needed (aarch64-darwin only)";
       };
 
       # ---- Multi-architecture dev shell --------------------------------------

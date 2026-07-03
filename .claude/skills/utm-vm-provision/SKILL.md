@@ -3,7 +3,7 @@ name: utm-vm-provision
 description: >
   Create and configure a UTM virtual machine on macOS, with NO GUI required. Use when asked to
   "make a VM", "set up a UTM VM", "create an x86_64/ARM VM", provision a NixOS/Linux guest, or
-  automate UTM. For a prebuilt qcow2 (e.g. nixbox), a fully CLI-authored bundle — heredoc
+  automate UTM. For a prebuilt qcow2 (e.g. nixarm), a fully CLI-authored bundle — heredoc
   config.plist + copied disk + UTM restart — boots and SSHs end-to-end (VERIFIED, see §0); no GUI
   or AppleScript needed. For ISO installs, GUI-create remains the reliable path. Covers disk
   sizing, VirtIO interfaces, ISO attach, vmnet-shared/ARP networking, and host→guest port
@@ -19,18 +19,18 @@ description: >
    copy it to the Mac, and point a UTM VM at it:
    ```bash
    # on an aarch64-linux machine with nix+flakes:
-   nixos-rebuild build-image --flake .#nixbox --image-variant qemu-efi
+   nixos-rebuild build-image --flake .#nixarm --image-variant qemu-efi
    #   → result/nixos-image-efi-qcow2-*.qcow2  (UEFI qcow2, UTM-importable)
    ```
    **Full NixOS is NOT required — just Nix + flakes on Linux for the right arch.** This repo's
    **devcontainer** qualifies (`nix:1` feature, `nix-command flakes`, Debian base): on an M3 Mac it
-   builds aarch64 natively. Also fine: the `nixbox` VM itself, or CI. Only a bare macOS host can't
+   builds aarch64 natively. Also fine: the `nixarm` VM itself, or CI. Only a bare macOS host can't
    (no nix, not Linux). Caveats: the builder spins up its own QEMU guest — without `/dev/kvm` it
    uses slow TCG emulation, and (per the RAM lesson) give the container enough memory + a few GB of
    scratch disk.
    Then create a UTM VM (GUI, aarch64/`virt`, UEFI) and replace its `Data/<UUID>.qcow2` with the
    built image (UTM quit; keep the filename or update `Drive.<disk>.ImageName`). The image already
-   contains the full `nixbox` system — boot straight into it, no partitioning or `nixos-install`.
+   contains the full `nixarm` system — boot straight into it, no partitioning or `nixos-install`.
 2. **Install from ISO** — create a VM, boot the minimal ISO, partition + `nixos-install` over SSH.
    Slower and has the ≥6 GB-RAM-or-corruption pitfall; use only if you can't build the image.
    See **nixos-flake-install** for the full ISO flow.
@@ -43,13 +43,13 @@ recovery toolkit.
 VERIFIED end-to-end on 2026-06-22 (UTM 4.7.5, Apple Silicon): a hand-authored bundle boots NixOS
 and accepts SSH, with the GUI never opened to *create* anything (only restarted so UTM rescans
 `Documents/`). Use this when you already have a bootable disk image (e.g. from
-**nixbox-utm-prebuild-on-devcontainer**). Idempotent-ish: it bails if the bundle already exists.
+**nixarm-utm-prebuild-on-devcontainer**). Idempotent-ish: it bails if the bundle already exists.
 
 ```bash
 DOCS=~/Library/Containers/com.utmapp.UTM/Data/Documents
-NAME=nixbox                                   # bundle + display name
+NAME=nixarm                                   # bundle + display name
 BUNDLE="$DOCS/$NAME.utm"
-SRC=/path/to/nixbox.qcow2                      # the prebuilt, WRITABLE qcow2 (not the read-only store symlink)
+SRC=/path/to/nixarm.qcow2                      # the prebuilt, WRITABLE qcow2 (not the read-only store symlink)
 
 [ -e "$BUNDLE" ] && { echo "bundle exists: $BUNDLE — pick another NAME or delete it"; exit 1; }
 
@@ -179,7 +179,7 @@ removes the whole bundle (qcow2 included) with **no confirmation**.
 
 Bundle path: `~/Library/Containers/com.utmapp.UTM/Data/Documents/<name>.utm/` containing
 `config.plist`, `Data/<UUID>.qcow2`, `efi_vars.fd`. The **bundle display name ≠ NixOS hostname**:
-the real VM is `NixOS.utm` running hostname `nixbox`. Paths below use `nixbox.utm` illustratively —
+the real VM is `NixOS.utm` running hostname `nixarm`. Paths below use `nixarm.utm` illustratively —
 substitute your actual bundle name from `ls ~/Library/Containers/com.utmapp.UTM/Data/Documents/`.
 
 ## 1. Create the VM
@@ -192,7 +192,7 @@ in §3–§5. (The CLI recipe in §0 also works as a starting point here — jus
 and leave the disk empty/blank instead of copying in a bootable image.)
 
 Fallback (de-emphasized — may not boot, and leaves IDE drives / `e1000` NIC / oversized qcow2 to
-fix): `osascript -e 'tell application "UTM" to make new virtual machine with properties {backend:qemu, configuration:{name:"nixbox", architecture:"aarch64", memory:6144, cpu cores:4}}'`
+fix): `osascript -e 'tell application "UTM" to make new virtual machine with properties {backend:qemu, configuration:{name:"nixarm", architecture:"aarch64", memory:6144, cpu cores:4}}'`
 
 ## 2. Quit UTM before editing
 
@@ -204,7 +204,7 @@ sleep 3; pgrep -x UTM && echo "still running — wait" || echo "quit OK"
 ## 3. Configure via plutil
 
 ```bash
-PLIST=~/Library/Containers/com.utmapp.UTM/Data/Documents/nixbox.utm/config.plist
+PLIST=~/Library/Containers/com.utmapp.UTM/Data/Documents/nixarm.utm/config.plist
 
 plutil -replace Drive.1.Interface  -string VirtIO          "$PLIST"  # disk → /dev/vda
 plutil -replace Drive.0.Interface  -string USB             "$PLIST"  # CD over USB boots reliably
@@ -221,7 +221,7 @@ console (`utmctl attach` is a stub).
 ## 4. Attach an ISO
 
 ```bash
-BUNDLE=~/Library/Containers/com.utmapp.UTM/Data/Documents/nixbox.utm
+BUNDLE=~/Library/Containers/com.utmapp.UTM/Data/Documents/nixarm.utm
 cp /path/to/installer.iso "$BUNDLE/Data/installer.iso"
 plutil -replace Drive.0.ImageName -string installer.iso "$BUNDLE/config.plist"
 plutil -replace Drive.0.ImageType -string CD            "$BUNDLE/config.plist"
@@ -231,7 +231,7 @@ plutil -replace Drive.0.ImageType -string CD            "$BUNDLE/config.plist"
 
 UTM **Shared** mode = `vmnet-shared` → guest gets a **real routable IP** (`192.168.64.x` on
 `bridge100`). SSH straight to it. `utmctl ip-address` fails with `-2700` (`guest agent not
-running`) **on both the live ISO and the booted prebuilt nixbox image** — neither ships
+running`) **on both the live ISO and the booted prebuilt nixarm image** — neither ships
 qemu-guest-agent — so find the IP via ARP using the guest MAC:
 
 ```bash
@@ -270,9 +270,9 @@ qcow2 is sparse, so an oversized virtual disk is harmless — leave it alone.
 
 ```bash
 open -a UTM; sleep 5; utmctl list   # reopen so it picks up edits
-utmctl start  nixbox                # Terminal-mode serial → no -2700
-utmctl status nixbox                # → started
-utmctl ip-address nixbox            # ⚠ empty on live ISO (no guest agent) — use ARP (step 5)
+utmctl start  nixarm                # Terminal-mode serial → no -2700
+utmctl status nixarm                # → started
+utmctl ip-address nixarm            # ⚠ empty on live ISO (no guest agent) — use ARP (step 5)
 ```
 
 → Continue with **nixos-flake-install** for the in-guest OS install.
