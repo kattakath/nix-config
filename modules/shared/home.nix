@@ -86,18 +86,41 @@ in
 
     ssh = lib.mkIf pkgs.stdenv.isDarwin {
       enable = true;
-      matchBlocks = {
+
+      # Forward-compat with the home-manager `programs.ssh` deprecation: the module
+      # is dropping its implicit `settings."*"` defaults (and warns while they remain
+      # on by default), and `matchBlocks` is now a deprecated alias for `settings`.
+      # We opt out with `enableDefaultConfig = false`, re-declare the exact 10 defaults
+      # ourselves under `settings."*"`, and move the per-host blocks to `settings` so
+      # generated ~/.ssh/config stays byte-identical while both warnings are silenced.
+      enableDefaultConfig = false;
+
+      settings = {
+        # The former implicit defaults, re-stated verbatim (OpenSSH directive names).
+        "*" = {
+          ForwardAgent = false;
+          AddKeysToAgent = "no";
+          Compression = false;
+          ServerAliveInterval = 0;
+          ServerAliveCountMax = 3;
+          HashKnownHosts = false;
+          UserKnownHostsFile = "~/.ssh/known_hosts";
+          ControlMaster = "no";
+          ControlPath = "~/.ssh/master-%r@%n:%p";
+          ControlPersist = "no";
+        };
+
         # Reach the NixOS hosts over their Cloudflare Tunnel: ssh routes through
         # `cloudflared access ssh` (no public port; the tunnel forwards to localhost:22).
         "nixarm.kattakath.com" = {
-          user = config.home.username;
-          identityFile = "~/.ssh/id_ed25519";
-          proxyCommand = "${pkgs.cloudflared}/bin/cloudflared access ssh --hostname %h";
+          User = config.home.username;
+          IdentityFile = "~/.ssh/id_ed25519";
+          ProxyCommand = "${pkgs.cloudflared}/bin/cloudflared access ssh --hostname %h";
         };
         "nixrpi.kattakath.com" = {
-          user = config.home.username;
-          identityFile = "~/.ssh/id_ed25519";
-          proxyCommand = "${pkgs.cloudflared}/bin/cloudflared access ssh --hostname %h";
+          User = config.home.username;
+          IdentityFile = "~/.ssh/id_ed25519";
+          ProxyCommand = "${pkgs.cloudflared}/bin/cloudflared access ssh --hostname %h";
         };
       };
     };
