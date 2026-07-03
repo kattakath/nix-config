@@ -1,7 +1,7 @@
 name: nix-setup
 description: >-
   Install Nix + (optionally) configure Cachix + stage the tree (git-purity),
-  the sequence every flake-check / build-devcontainer job repeats.
+  the sequence the build-devcontainer job repeats.
   Centralizes the install-nix / cachix SHA pins so a bump happens in ONE place.
 
 # Local composite action. It CANNOT own the initial `actions/checkout`: the
