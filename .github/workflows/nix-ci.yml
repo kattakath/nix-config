@@ -82,18 +82,18 @@ jobs:
             checks-system: aarch64-darwin
             eval-attrs: .#darwinConfigurations.nixcon.system.drvPath
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       # UPSTREAM Nix (NOT DeterminateSystems/nix-installer-action — that installs
       # Determinate Nix only, as of 2026-01-01).
-      - uses: cachix/install-nix-action@v31
+      - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
             extra-substituters = https://ismailkattakath.cachix.org
             extra-trusted-public-keys = ismailkattakath.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I=
 
-      - uses: cachix/cachix-action@v15
+      - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
         with:
           name: ismailkattakath
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
