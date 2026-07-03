@@ -94,7 +94,9 @@ jobs:
       # always-running gate job rather than a dedicated job of its own.
       is_publish: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch' }}
     steps:
-      # Eval-only gate: checkout + Nix + git-purity stage, NO Cachix (no build/push).
+      # Checkout must precede the local composite action.
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      # Eval-only gate: Nix + git-purity stage, NO Cachix (no build/push).
       - uses: ./.github/actions/nix-setup
         with:
           configure-cachix: "false"
@@ -162,7 +164,9 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     steps:
-      # checkout + Nix + Cachix (pull/push, graceful on forks) + git-purity stage.
+      # Checkout must precede the local composite action.
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      # Nix + Cachix (pull/push, graceful on forks) + git-purity stage.
       - uses: ./.github/actions/nix-setup
         with:
           cachix-auth-token: ${{ secrets.CACHIX_AUTH_TOKEN }}

@@ -63,12 +63,15 @@ jobs:
       changed: ${{ steps.decide.outputs.changed }}
       cache_key: ${{ steps.key.outputs.cache_key }}
     steps:
-      # Eval-only gate: checkout (fetch-depth 0 for the workflow-file diff guard)
-      # + Nix + git-purity stage, NO Cachix (this job never builds or pushes).
+      # Checkout must precede the local composite action (the runner needs the
+      # action files on disk first). fetch-depth 0 for the workflow-file diff guard.
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+      # Eval-only gate: Nix + git-purity stage, NO Cachix (never builds or pushes).
       - uses: ./.github/actions/nix-setup
         with:
           configure-cachix: "false"
-          fetch-depth: "0"
 
       # Did this PR/push touch the workflow file itself? If so we ALWAYS
       # re-validate (a workflow edit changes what/how we verify, but does not
@@ -191,7 +194,9 @@ jobs:
         with:
           platforms: arm64
 
-      # checkout + Nix (+ extra-platforms on the emulated leg) + Cachix (pull/push,
+      # Checkout must precede the local composite action.
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      # Nix (+ extra-platforms on the emulated leg) + Cachix (pull/push,
       # graceful on forks) + git-purity stage.
       - uses: ./.github/actions/nix-setup
         with:
@@ -282,7 +287,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      # checkout + Nix + Cachix (pull/push, graceful on forks) + git-purity stage.
+      # Checkout must precede the local composite action.
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      # Nix + Cachix (pull/push, graceful on forks) + git-purity stage.
       - uses: ./.github/actions/nix-setup
         with:
           cachix-auth-token: ${{ secrets.CACHIX_AUTH_TOKEN }}

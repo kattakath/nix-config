@@ -1,11 +1,17 @@
 name: nix-setup
 description: >-
-  Checkout + install Nix + (optionally) configure Cachix + stage the tree
-  (git-purity), the sequence every flake-check / build-devcontainer job repeats.
-  Centralizes the action SHA pins so a bump happens in ONE place.
+  Install Nix + (optionally) configure Cachix + stage the tree (git-purity),
+  the sequence every flake-check / build-devcontainer job repeats.
+  Centralizes the install-nix / cachix SHA pins so a bump happens in ONE place.
 
-# Local composite action. Docker-specific steps (setup-qemu / buildx) and any
-# nix eval/build steps stay in the calling job — this only owns the shared setup.
+# Local composite action. It CANNOT own the initial `actions/checkout`: the
+# runner must fetch this action's own files from the workspace on disk before it
+# can run it, so the checkout has to happen in the calling job FIRST (otherwise:
+# "Can't find 'action.yml' … Did you forget to run actions/checkout"). Each
+# caller therefore runs actions/checkout (with its own fetch-depth) as its first
+# step, then invokes this composite. Docker-specific steps (setup-qemu / buildx)
+# and any nix eval/build steps also stay in the calling job — this owns only the
+# shared install-nix + cachix + git-purity stage.
 
 inputs:
   configure-cachix:
@@ -28,20 +34,10 @@ inputs:
       experimental-features + accept-flake-config.
     required: false
     default: ""
-  fetch-depth:
-    description: >-
-      actions/checkout fetch-depth. Default 1 (shallow); the flake-check `gate`
-      passes 0 so it can diff against the base commit for its workflow-file guard.
-    required: false
-    default: "1"
 
 runs:
   using: composite
   steps:
-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      with:
-        fetch-depth: ${{ inputs.fetch-depth }}
-
     - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31
       with:
         extra_nix_config: |
