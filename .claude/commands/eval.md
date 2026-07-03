@@ -1,5 +1,6 @@
 ---
 description: Stage all .nix files then evaluate the flake across all three target systems via the platform-compiler agent.
+argument-hint: "[config]  # optional: nixcon | nixbox | nixrpi"
 allowed-tools: Bash(git add:*), Bash(git status:*), Agent(platform-compiler)
 ---
 
