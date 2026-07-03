@@ -103,7 +103,8 @@ dockerTools.streamLayeredImage {
 
   contents = contents ++ [ nss ];
 
-  # Good store-path -> layer fan-out; cache-friendly across rebuilds. Cap 125.
+  # Good store-path -> layer fan-out; cache-friendly across rebuilds. Stays
+  # under dockerTools' 125-layer ceiling with headroom.
   maxLayers = 120;
 
   # enableFakechroot lets fakeRootCommands see the merged rootfs (so store paths
