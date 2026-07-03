@@ -24,9 +24,12 @@ concurrency:
   group: gitleaks-${{ github.ref }}
   cancel-in-progress: true
 
-# Least-privilege: gitleaks only needs to read the checked-out history.
+# Least-privilege: read the checked-out history, plus PR commits — on
+# pull_request events gitleaks-action lists the PR's commits via the API,
+# which requires pull-requests:read (else it 403s before scanning).
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   gitleaks:

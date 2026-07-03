@@ -1,0 +1,222 @@
+name: build-devcontainer
+
+# Nix-built, multi-arch devcontainer image for nix-config.
+# The image is produced by `pkgs.dockerTools.streamLayeredImage`, exposed as
+# packages.<linux>.devcontainerImage in flake.nix, and published to GHCR.
+# .devcontainer/devcontainer.json just pulls the `image:` this builds — the
+# heavyweight toolchain (a working nix + the warm devShell closure + node +
+# claude-code + gh) is baked in, so create-time setup is near-zero.
+#
+# PRs build-only; push to main publishes :latest + :<sha12>. Every leg also
+# smoke-tests the freshly-built image (nix develop from the warm store).
+#
+# This REPLACES the old features-based test-devcontainer.yml (deleted in the
+# same change): that workflow built the now-removed Features stack via
+# devcontainers/ci and asserted an nvm claude path that no longer exists.
+
+on:
+  pull_request:
+    paths:
+      - "flake.nix"
+      - "flake.lock"
+      - "packages/**"
+      - ".devcontainer/**"
+      - ".github/workflows/build-devcontainer.yml"
+  push:
+    branches: [main]
+    paths:
+      - "flake.nix"
+      - "flake.lock"
+      - "packages/**"
+      - ".devcontainer/**"
+      - ".github/workflows/build-devcontainer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write # push the image to GHCR via GITHUB_TOKEN — no extra secret
+
+env:
+  IMAGE_NAME: devcontainers/nix-config
+
+concurrency:
+  group: build-devcontainer-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # GATE: evaluate the OPTIONAL Cachix token ONCE (secrets.* is not reliable in
+  # every `if:` context). The build fully succeeds with or without it — no token
+  # means build against cache.nixos.org + the public ismailkattakath cache only.
+  config:
+    runs-on: ubuntu-24.04
+    outputs:
+      has_cachix: ${{ steps.probe.outputs.has_cachix }}
+      is_publish: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    steps:
+      - id: probe
+        env:
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+        run: |
+          if [ -n "${CACHIX_AUTH_TOKEN}" ]; then
+            echo "has_cachix=true"  >> "$GITHUB_OUTPUT"
+          else
+            echo "has_cachix=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::CACHIX_AUTH_TOKEN absent — read-only cache, no push."
+          fi
+
+  build:
+    needs: config
+    # NATIVE runners per arch — no QEMU. Streaming a full-devShell nix closure
+    # under emulation would be brutally slow, and aarch64 is what the Apple
+    # Silicon devcontainer actually runs.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            system: x86_64-linux
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            system: aarch64-linux
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - uses: cachix/cachix-action@ad2ddac53f961de1989924296a1f236fcfbaa4fc # v15
+        if: needs.config.outputs.has_cachix == 'true'
+        with:
+          name: ismailkattakath
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      # Flakes ignore untracked files; stage everything before any eval/build.
+      - name: Stage tree (git purity)
+        run: git add -A
+
+      - name: Compute image ref
+        id: ref
+        run: |
+          OWNER="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          echo "ref=ghcr.io/${OWNER}/${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "sha12=$(echo '${{ github.sha }}' | cut -c1-12)" >> "$GITHUB_OUTPUT"
+
+      # streamLayeredImage evaluates to a STREAM SCRIPT (not a tarball). unfree
+      # (claude-code) is permitted via flake.nix's pkgsUnfreeFor.
+      - name: Build devcontainer image (stream script)
+        run: |
+          nix build -L ".#packages.${{ matrix.system }}.devcontainerImage"
+          test -x ./result
+
+      # Smoke test the FRESHLY-BUILT image locally — every PR + push, no GHCR
+      # needed. Proves the MULTI-USER model end to end exactly as the devcontainer
+      # runs it: start the container as root (its entrypoint launches nix-daemon;
+      # the sleep-infinity Cmd keeps it alive), then run the checks as the NON-ROOT
+      # vscode user via `docker exec` — nix reaches the root daemon over the socket
+      # (NIX_REMOTE=daemon) and `nix develop` resolves from the warm baked store.
+      - name: Smoke test (multi-user nix works in the baked image)
+        run: |
+          ./result | docker load
+          CID=$(docker run -d \
+            -v "$PWD:/workspaces/nix-config" \
+            -w /workspaces/nix-config \
+            nix-config-devcontainer:latest)
+          dump() {
+            echo "--- nix-daemon.log ---"
+            docker exec "$CID" cat /tmp/nix-daemon.log 2>/dev/null || true
+            echo "--- container logs ---"
+            docker logs "$CID" 2>&1 | tail -20 || true
+            docker rm -f "$CID" >/dev/null 2>&1 || true
+          }
+          trap dump EXIT
+          # Wait for the daemon socket the root entrypoint creates.
+          for _ in $(seq 1 50); do
+            docker exec "$CID" test -S /nix/var/nix/daemon-socket/socket && break
+            sleep 0.2
+          done
+          docker exec -u 1000:1000 "$CID" bash -lc '
+            set -e
+            echo "user: $(id -un) ($(id -u):$(id -g)); NIX_REMOTE=$NIX_REMOTE"
+            git config --global --add safe.directory /workspaces/nix-config
+            nix --version
+            nix store ping                       # proves the client reaches the root daemon
+            nix config show | grep -qi ismailkattakath.cachix.org \
+              || { echo "✗ cachix substituter missing from baked nix.conf"; exit 1; }
+            command -v node  >/dev/null && node --version
+            command -v gh    >/dev/null && gh --version | head -1
+            command -v claude >/dev/null && echo "✓ claude on PATH" || { echo "✗ claude missing"; exit 1; }
+            echo "=== devShell warm (should resolve from baked store via daemon, not build) ==="
+            OUT=$(nix develop .#default --command true 2>&1) || { echo "$OUT"; exit 1; }
+            if echo "$OUT" | grep -Eq "^building .|building of "; then
+              echo "⚠ devShell built from source — warm-store miss:"; echo "$OUT"
+            else
+              echo "✓ devShell resolved without a from-source build"
+            fi
+            echo "=== real from-scratch build through the daemon (exercises the build path) ==="
+            # The warm-store checks above only READ the store; a store query never
+            # acquires a build user. This proves the daemon can actually REALIZE a
+            # derivation (build-users-group empty → builds as the root daemon uid).
+            # nixpkgs#hello is tiny; substituted from cache.nixos.org if available,
+            # built locally otherwise — either way it flows through the daemon.
+            nix build --no-link --print-build-logs nixpkgs#hello \
+              || { echo "✗ from-scratch build through the daemon FAILED"; exit 1; }
+            echo "✓ daemon realized nixpkgs#hello"
+            echo "=== smoke test passed ==="
+          '
+
+      - name: Login to GHCR
+        if: needs.config.outputs.is_publish == 'true'
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Daemonless push (nixpkgs-manual idiom). skopeo reads the docker config
+      # that docker/login-action wrote.
+      - name: Push per-arch image
+        if: needs.config.outputs.is_publish == 'true'
+        run: |
+          ./result | gzip --fast | \
+            nix run nixpkgs#skopeo -- --insecure-policy copy \
+              docker-archive:/dev/stdin \
+              "docker://${{ steps.ref.outputs.ref }}:${{ steps.ref.outputs.sha12 }}-${{ matrix.arch }}"
+
+  manifest:
+    needs: [config, build]
+    if: needs.config.outputs.is_publish == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Login to GHCR
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3
+
+      - name: Compute image ref
+        id: ref
+        run: |
+          OWNER="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          echo "ref=ghcr.io/${OWNER}/${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "sha12=$(echo '${{ github.sha }}' | cut -c1-12)" >> "$GITHUB_OUTPUT"
+
+      - name: Assemble multi-arch manifest (:latest + :<sha12>)
+        run: |
+          REF="${{ steps.ref.outputs.ref }}"
+          SHA="${{ steps.ref.outputs.sha12 }}"
+          docker buildx imagetools create \
+            -t "${REF}:latest" \
+            -t "${REF}:${SHA}" \
+            "${REF}:${SHA}-amd64" \
+            "${REF}:${SHA}-arm64"
+          docker buildx imagetools inspect "${REF}:latest"

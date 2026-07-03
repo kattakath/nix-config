@@ -71,10 +71,40 @@
       # Per-system nixpkgs accessor (legacyPackages avoids a redundant eval).
       pkgsFor = system: nixpkgs.legacyPackages.${system};
 
+      # Unfree-permitting nixpkgs, ONLY for the devcontainer image (claude-code is
+      # unfree). legacyPackages has unfree disabled, so the image derivation needs
+      # its own instance. Deliberately scoped here — no other output imports it.
+      pkgsUnfreeFor =
+        system:
+        import nixpkgs {
+          inherit system;
+          config.allowUnfree = true;
+        };
+
       # ---- Formatting / lint (treefmt-nix) ------------------------------------
       # Evaluate ./treefmt.nix per system. The wrapper backs `nix fmt`; the
       # `.config.build.check` derivation backs the CI formatting gate.
       treefmtEval = forAllSystems (system: treefmt-nix.lib.evalModule (pkgsFor system) ./treefmt.nix);
+
+      # ---- Shared dev toolchain -----------------------------------------------
+      # Single source of truth for the pinned dev tools, consumed by BOTH the
+      # `nix develop` devShell AND the prebuilt devcontainer image — so the two
+      # can never drift. (preCommit.enabledPackages is added on the devShell side
+      # only; the image bakes the treefmt wrapper directly.)
+      devPackagesFor =
+        system:
+        let
+          pkgs = pkgsFor system;
+        in
+        [
+          pkgs.git
+          pkgs.nixd # eval-aware Nix LSP
+          home-manager.packages.${system}.default
+          treefmtEval.${system}.config.build.wrapper # `treefmt` / `nix fmt`
+          pkgs.statix # anti-pattern linter — .vscode "nix: statix" task
+          pkgs.deadnix # dead-code linter — .vscode "nix: deadnix" task
+          pkgs.jq # flattens deadnix JSON for the problem matcher
+        ];
 
       # ---- Pre-commit hooks (git-hooks.nix) -----------------------------------
       # A single hook runs the treefmt wrapper, so the commit-time tool list can
@@ -165,22 +195,38 @@
         };
       };
 
-      # ---- Packages: container image + VM image --------------------------------
-      # `nix build .#packages.<system>.dockerImage`  → loadable tarball
-      # `nix build .#nixbox-image`                   → UTM-importable qcow2 → ./result/
+      # ---- Packages: container images + VM image -------------------------------
+      # `nix build .#packages.<system>.dockerImage`        → minimal runtime tarball
+      # `nix build .#packages.<linux>.devcontainerImage`   → devcontainer stream script (Linux only)
+      # `nix build .#nixbox-image`                         → UTM-importable qcow2 → ./result/
       packages =
         nixpkgs.lib.recursiveUpdate
-          (forAllSystems (
-            system:
-            let
-              pkgs = pkgsFor system;
-            in
-            {
-              dockerImage = pkgs.callPackage ./packages/docker-image.nix { };
-            }
-          ))
+          (nixpkgs.lib.recursiveUpdate
+            (forAllSystems (
+              system:
+              let
+                pkgs = pkgsFor system;
+              in
+              {
+                dockerImage = pkgs.callPackage ./packages/docker-image.nix { };
+              }
+            ))
+            # Devcontainer image is a Linux OCI artifact — gate to the linux triple.
+            # Built with unfree pkgs (claude-code) and the SHARED dev toolchain, so
+            # `nix develop` inside the container resolves from the baked store.
+            (
+              nixpkgs.lib.genAttrs linuxSystems (system: {
+                devcontainerImage = (pkgsUnfreeFor system).callPackage ./packages/devcontainer-image.nix {
+                  devPackages = devPackagesFor system;
+                };
+              })
+            )
+          )
           {
             aarch64-linux.nixbox-image = self.nixosConfigurations.nixbox.config.system.build.images.qemu-efi;
+            # Exposed as a package (not just wrapped in the app) so CI can build
+            # it — that build is what runs the writeShellApplication shellcheck.
+            aarch64-darwin.nixbox-vm = (pkgsFor "aarch64-darwin").callPackage ./packages/nixbox-vm.nix { };
           };
 
       # ---- Apps: native VM launcher (macOS only) -----------------------------
@@ -192,71 +238,11 @@
       #   1. Build qcow2 on an aarch64-linux builder: nix build .#nixbox-image
       #   2. Copy to the default disk path (or set NIXBOX_DISK=/path/to/qcow2):
       #        cp result/*.qcow2 ~/.local/state/nixbox-vm/nixbox.qcow2
-      apps.aarch64-darwin.nixbox-vm =
-        let
-          pkgs = pkgsFor "aarch64-darwin";
-          script = pkgs.writeShellScript "run-nixbox-vm" ''
-            set -euo pipefail
-
-            STATE="''${XDG_STATE_HOME:-$HOME/.local/state}/nixbox-vm"
-            DISK="''${NIXBOX_DISK:-$STATE/nixbox.qcow2}"
-            VARS="$STATE/OVMF_VARS.fd"
-
-            FIRMWARE_CODE="${pkgs.qemu}/share/qemu/edk2-aarch64-code.fd"
-            FIRMWARE_VARS="${pkgs.qemu}/share/qemu/edk2-aarch64-vars.fd"
-
-            if [ ! -f "$FIRMWARE_CODE" ]; then
-              echo "error: aarch64 UEFI firmware not found at $FIRMWARE_CODE" >&2
-              echo "hint: check that pkgs.qemu ships edk2-aarch64-code.fd on aarch64-darwin" >&2
-              exit 1
-            fi
-
-            if [ ! -f "$DISK" ]; then
-              echo "error: nixbox disk image not found: $DISK" >&2
-              echo "" >&2
-              echo "Build it (requires an aarch64-linux builder or remote builder):" >&2
-              echo "  nix build .#nixbox-image && cp result/*.qcow2 $DISK" >&2
-              echo "" >&2
-              echo "Or point to an existing qcow2:  NIXBOX_DISK=/path/to/nixbox.qcow2 nix run .#nixbox-vm" >&2
-              exit 1
-            fi
-
-            mkdir -p "$STATE"
-
-            # Copy UEFI vars on first run so boot-order changes persist across reboots.
-            if [ ! -f "$VARS" ] && [ -f "$FIRMWARE_VARS" ]; then
-              cp "$FIRMWARE_VARS" "$VARS"
-            fi
-
-            PFLASH_VARS=""
-            if [ -f "$VARS" ]; then
-              PFLASH_VARS="-drive if=pflash,format=raw,file=$VARS"
-            fi
-
-            echo "nixbox-vm: booting $DISK" >&2
-            echo "  SSH (direct):  ssh -p 2222 izzy@localhost" >&2
-            echo "  SSH (tunnel):  ssh izzy@nixbox.kattakath.com  (once tunnel is active)" >&2
-            echo "  QEMU monitor:  Ctrl-a c  (then 'quit' to exit)" >&2
-
-            exec ${pkgs.qemu}/bin/qemu-system-aarch64 \
-              -machine virt,accel=hvf \
-              -cpu host \
-              -m "''${NIXBOX_MEMORY:-2048}" \
-              -smp "''${NIXBOX_CPUS:-4}" \
-              -drive if=pflash,format=raw,file="$FIRMWARE_CODE",readonly=on \
-              $PFLASH_VARS \
-              -drive file="$DISK",format=qcow2,if=virtio \
-              -netdev user,id=net0,hostfwd=tcp::2222-:22 \
-              -device virtio-net-pci,netdev=net0 \
-              -serial mon:stdio \
-              -nographic
-          '';
-        in
-        {
-          type = "app";
-          program = "${script}";
-          meta.description = "Boot nixbox qcow2 in QEMU with Apple HVF — no UTM needed (aarch64-darwin only)";
-        };
+      apps.aarch64-darwin.nixbox-vm = {
+        type = "app";
+        program = "${self.packages.aarch64-darwin.nixbox-vm}/bin/run-nixbox-vm";
+        meta.description = "Boot nixbox qcow2 in QEMU with Apple HVF — no UTM needed (aarch64-darwin only)";
+      };
 
       # ---- Multi-architecture dev shell --------------------------------------
       # `nix develop` on any target. Used as the default Devcontainer profile.
@@ -272,18 +258,9 @@
         in
         {
           default = pkgs.mkShell {
-            packages =
-              with pkgs;
-              [
-                git
-                nixd # eval-aware Nix LSP (flake/home-manager/nix-darwin completion)
-                home-manager.packages.${system}.default
-                treefmtEval.${system}.config.build.wrapper # `treefmt` / `nix fmt`
-                statix # anti-pattern linter — .vscode "nix: statix" task
-                deadnix # dead-code linter — .vscode "nix: deadnix" task
-                jq # flattens deadnix JSON for the problem matcher
-              ]
-              ++ preCommit.enabledPackages;
+            # Shared with the devcontainer image (devPackagesFor) so the pinned
+            # nixd/treefmt/statix/deadnix/jq/home-manager set never drifts.
+            packages = devPackagesFor system ++ preCommit.enabledPackages;
 
             shellHook = ''
               ${preCommit.shellHook}
