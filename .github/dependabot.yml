@@ -1,0 +1,23 @@
+# Dependabot version updates.
+#
+# Scope: GitHub Actions only. This repo SHA-pins every action (SHA + `# vX`
+# comment); left to entropy those pins silently rot onto deprecated runtimes
+# (e.g. the Node 20 -> Node 24 deprecation). Dependabot keeps them current
+# automatically so we never hand-chase Node-runtime warnings again.
+#
+# Nix flake inputs are NOT managed here — Dependabot has no Nix ecosystem.
+# Those are bumped via `nix flake update` / the repo's `/update-input`
+# command, which regenerates and commits flake.lock.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    # Workflow files live in the default .github/workflows location; "/" covers them.
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      # Collapse every github-actions bump into ONE grouped PR instead of
+      # a separate PR per action — one review, one CI run.
+      github-actions:
+        patterns:
+          - "*"
