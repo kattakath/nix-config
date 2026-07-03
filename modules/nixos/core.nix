@@ -25,7 +25,11 @@
   services.openssh = {
     enable = true;
     settings = {
+      # Keys-only: the SSH endpoint is reachable over the Cloudflare tunnel with
+      # no Access/identity layer in front, so it must not accept any password or
+      # keyboard-interactive path.
       PasswordAuthentication = false;
+      KbdInteractiveAuthentication = false;
       PermitRootLogin = "no";
     };
   };
