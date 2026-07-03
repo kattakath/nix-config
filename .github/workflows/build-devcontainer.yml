@@ -189,8 +189,8 @@ jobs:
 
       # Smoke test the FRESHLY-BUILT image locally — every publish run (push to
       # main / dispatch), no GHCR needed. Proves the MULTI-USER model end to end
-      # exactly as the devcontainer
-      # runs it: start the container as root (its entrypoint launches nix-daemon;
+      # exactly as the devcontainer runs it: start the container as root (its
+      # entrypoint launches nix-daemon;
       # the sleep-infinity Cmd keeps it alive), then run the checks as the NON-ROOT
       # vscode user via `docker exec` — nix reaches the root daemon over the socket
       # (NIX_REMOTE=daemon) and `nix develop` resolves from the warm baked store.

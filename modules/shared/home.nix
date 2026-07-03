@@ -1,17 +1,15 @@
 # Unified user profile — loaded on EVERY machine (macOS, Ubuntu, Pi, container).
-# This is the single home of "user logic". Nothing platform-specific belongs here;
-# platform branches live in modules/linux and modules/darwin.
-# Personal tokens are intentionally NOT managed here. agenix was dropped for
-# user secrets (each rotation = a committed .age = version-control churn). On
-# macOS the raw env-var tokens live in the login Keychain, exported by the
-# host-local ~/.zprofile; login-style tokens use one-time CLI logins
-# (gh/hf/docker/claude). agenix now covers only system/cloudflared host secrets.
-# See secrets/README.
+# The single home of "user logic"; platform branches live in modules/linux and
+# modules/darwin.
 #
-# Deliberately MINIMAL: editor/multiplexer/prompt niceties (nixvim, tmux,
-# starship, …) are intentionally NOT managed here — the operator uses VSCode/
-# Cursor and prefers a lean, low-noise profile. Add tools only when there's a
-# clear cross-host need.
+# Personal tokens are intentionally NOT managed here — agenix was dropped for
+# user secrets (each rotation = a committed .age = churn). On macOS raw env-var
+# tokens live in the login Keychain (exported by ~/.zprofile); the rest use
+# one-time CLI logins (gh/hf/docker/claude). agenix now covers only
+# system/cloudflared host secrets. See secrets/README.
+#
+# Deliberately MINIMAL: no nixvim/tmux/starship — the operator uses VSCode/Cursor
+# and prefers a lean profile. Add tools only for a clear cross-host need.
 {
   pkgs,
   lib,
@@ -49,32 +47,16 @@ in
   # Essential on Linux (registers fonts with fontconfig); harmless no-op on macOS.
   fonts.fontconfig.enable = true;
 
-  # PERSONAL, cross-host packages only. This profile holds tools wanted on
-  # EVERY machine regardless of project — NOT project toolchains.
+  # PERSONAL, cross-host packages only — tools wanted on EVERY machine, not
+  # project toolchains (those live in each repo's own devShell). claude-code is
+  # the one CLI kept here: genuinely personal, used in every repo.
   #
-  # Project toolchains (aws-cdk, awscli, node, uv, make, psql, …) now live in
-  # each repo's own root `flake.nix` devShell, entered with `nix develop` — the
-  # same flake works on these nix machines and inside that repo's devcontainer
-  # (the `nix:1` feature). So the earlier "mirror a project devcontainer's
-  # features here" set was REMOVED: a tool needed only inside a project belongs
-  # to that project's flake, not to the global home profile. (If a project CLI
-  # is ever wanted machine-wide outside any repo, add it back here as a
-  # deliberate personal choice.)
+  # gh / git-lfs stay OUT of this list — they come from their `programs.*`
+  # modules below (listing them here too would be a buildEnv /bin collision).
   #
-  # gh / git-lfs stay out of this list on purpose — they come from their
-  # dedicated `programs.*` modules below (listing them here too would cause a
-  # buildEnv /bin collision).
-  #
-  # `claude-code` is the one CLI kept here: it is genuinely personal and used in
-  # every repo, not bound to any one project. Verified attr (nixpkgs unstable):
-  # `claude-code`.
-  #
-  # Fonts: only the two actually wired to a setting are kept (cross-host: macOS
-  # + NixOS + devcontainers). nixpkgs unstable uses the per-font
-  # `nerd-fonts.<name>` attrs (the 24.05+ restructure; lowercase-hyphenated
-  # names) — NOT the old `(nerdfonts.override { fonts = ...; })`. The other
-  # Homebrew font casks (fira-code, hack, ubuntu, roboto) were dropped as unused
-  # — add one back here if you select it in an app's font picker.
+  # Fonts: only the two wired to a VS Code setting are kept. nixpkgs unstable
+  # uses the per-font `nerd-fonts.<name>` attrs (24.05+ restructure), not the
+  # old `(nerdfonts.override { ... })`.
   home.packages = with pkgs; [
     # personal CLI — used in every repo, not project-bound
     claudeCode
@@ -153,18 +135,9 @@ in
 
       profiles.default = {
         # PERSONAL extensions only — the standing toolkit wanted in every repo,
-        # resolved from the Marketplace mirror (covers MS-proprietary + the
-        # JetBrains theme). Publisher/name are lowercased in Nix per
-        # nix-vscode-extensions' convention.
-        #
-        # Project/stack-specific extensions are intentionally NOT here — they
-        # belong to each project's devcontainer / .vscode extensions list, so
-        # they install only where that stack is used (matches the settings
-        # split). A stack-specific devcontainer might add, e.g.:
-        #   charliermarsh.ruff, ms-python.mypy-type-checker,
-        #   amazonwebservices.aws-toolkit-vscode, stripe.vscode-stripe,
-        #   ric-v.postgres-explorer, lfm.vscode-makefile-term,
-        #   github.vscode-github-actions, bruno-api-client.bruno
+        # resolved from the Marketplace mirror. Publisher/name are lowercased in
+        # Nix per nix-vscode-extensions' convention. Project/stack-specific
+        # extensions belong in each project's devcontainer / .vscode instead.
         extensions = with marketplace; [
           anthropic.claude-code # AI coding — every repo
           github.vscode-pull-request-github # PR review — every repo
@@ -222,14 +195,10 @@ in
           "terminal.integrated.tabs.defaultColor" = "terminal.ansiMagenta";
           "terminal.integrated.tabs.defaultIcon" = "terminal-ubuntu";
           "terminal.integrated.persistentSessionReviveProcess" = "onExitAndWindowClose";
-          # Personal "claude" terminal profile — a one-click Claude Code session
-          # with permission prompts skipped (mirrors claudeCode.* prefs below).
-          # `.osx` (not `.linux`): this whole block is darwin-gated, so it must
-          # target the macOS host. `path` points at the exact `claude-code`
-          # derivation HM installs (same store-path style as the cloudflared
-          # ssh proxyCommand above) — robust against PATH ordering, no reliance
-          # on home.packages being on PATH. It's a personal choice, not project
-          # config — the devcontainer's bare `claude` path became this.
+          # Personal "claude" terminal profile — one-click Claude Code with
+          # permission prompts skipped. `.osx` (not `.linux`) because the whole
+          # block is darwin-gated. `path` is the exact store path of the
+          # claude-code derivation HM installs, so it resolves regardless of PATH.
           "terminal.integrated.profiles.osx" = {
             "claude" = {
               "path" = "${claudeCode}/bin/claude";
