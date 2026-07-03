@@ -32,11 +32,22 @@ nix run .#nixbox-vm                       # Boot nixbox in QEMU + HVF on macOS �
 - `packages/docker-image.nix` — minimal runtime container image (`dockerTools`, baseless).
 - `.claude/agents/platform-compiler.md` — subagent that validates evaluation across all three architectures.
 - `.claude/agents/vm-provisioner.md` — subagent that drives the full macOS→UTM→NixOS provisioning pipeline (VM creation, NixOS install, agenix rekey, Cloudflare tunnel).
+- `.claude/agents/nix-researcher.md` — read-only research/root-cause subagent (locate options, trace value flow across `flake.nix`/`hosts/`/`modules/`, diagnose failures, look up upstream option semantics).
+- `.claude/agents/ci-release-driver.md` — subagent that owns the push→CI→iterate→merge loop against `flake-check.yml` (never merges without approval).
 - `.claude/commands/` — `/eval`, `/update-input`, `/superhook-review` (triage the hook-supervisor log), `/remember-nix` (capture into project memory).
 - `.claude/rules/git-purity.md` — always-applied rule: stage `.nix` files before eval.
 - `.claude/hooks/` — `stop-gate.js` (Stop gate: blocks until configs evaluate clean) and `delegate-team.js` (UserPromptSubmit orchestration policy), both wrapped by `superhook.js` (crash-safety + loop-breaking + logging); plus `superhook-digest.js` and `memory-loader.js` (SessionStart context surfacing) and `autostage-nix.js` (PostToolUse git-purity net).
 - `memory/` — **gitignored** project memory (decisions/findings/values/evolution): the candid "why" behind the repo, surfaced each session by `memory-loader.js`. Never `git add`.
 - `.github/workflows/flake-check.yml` — CI matrix evaluating all three systems (aarch64-linux via QEMU) + lint; this is where the locally-deferred full `nix flake check` actually runs.
+
+### Orchestration model
+
+This repo operates **orchestrator-first**. The main agent is a decision-maker, not the worker:
+
+- **Delegate substantive work.** Any multi-step task, cross-file change, research, or root-cause investigation is decomposed and handed to background expert subagents (`Agent` tool, `run_in_background: true`), picking the fitting `subagent_type` per piece and launching independent pieces concurrently in one message. Only trivial replies and one-line edits are done inline.
+- **Delegation is recursive.** Subagents may form their own sub-hierarchies — a delegated agent whose slice is itself substantive spawns its own background sub-team.
+- **Never idle-wait.** If the main agent is waiting on a background agent, that is the signal it should have delegated the next piece; it stays free to accept work and react to agent interrupts/completions (`SendMessage` to continue a specific agent).
+- **Enforced by the hook.** `.claude/hooks/delegate-team.js` (UserPromptSubmit, wrapped by `superhook.js`) injects this policy every turn — it is the source of truth for the operating mode. Reusable expert agents live in `.claude/agents/`.
 
 ## Conventions
 
