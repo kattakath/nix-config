@@ -1,4 +1,4 @@
-# Bridge file for the "nixtel" host — a real 2017 MacBook Air (x86_64-darwin, Intel).
+# Bridge file for the "nixtel" host — a real Apple Intel Mac (x86_64-darwin).
 #
 # Mirrors hosts/nixcon.nix (the same shared darwin core + Home Manager profile).
 # The host platform is set by the mkDarwin helper in flake.nix from the `system`

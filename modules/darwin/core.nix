@@ -68,7 +68,7 @@
   # services.yabai.enable = true;
   # services.skhd.enable = true;
 
-  # Touch ID for sudo — Apple-Silicon laptops only. The 2017 Intel MacBook Air
+  # Touch ID for sudo — Apple-Silicon laptops only. The Apple Intel Mac
   # (`nixtel`) has no Touch ID sensor, so gate this off there.
   security.pam.services.sudo_local.touchIdAuth = lib.mkIf pkgs.stdenv.hostPlatform.isAarch64 true;
 }

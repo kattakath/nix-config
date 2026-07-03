@@ -14,7 +14,7 @@ A single Nix flake that manages complete, reproducible system configurations acr
 | Host | Platform | System | Role |
 |------|----------|--------|------|
 | `nixcon` | macOS via [nix-darwin](https://github.com/LnL7/nix-darwin) | `aarch64-darwin` | Apple Silicon workstation |
-| `nixtel` | macOS via [nix-darwin](https://github.com/LnL7/nix-darwin) | `x86_64-darwin` | Intel Mac (2017 MacBook Air) |
+| `nixtel` | macOS via [nix-darwin](https://github.com/LnL7/nix-darwin) | `x86_64-darwin` | Apple Intel Mac |
 | `nixarm` | NixOS VM (UTM / QEMU) | `aarch64-linux` | Local Linux VM |
 | `nixamd` | NixOS | `x86_64-linux` | x86_64 NixOS host (config-only / CI-eval) |
 | `nixrpi` | NixOS on Raspberry Pi 4 | `aarch64-linux` | Headless Pi |
@@ -45,7 +45,7 @@ nix flake show
 
 ```bash
 darwin-rebuild switch --flake .#nixcon   # macOS (Apple Silicon)
-darwin-rebuild switch --flake .#nixtel   # macOS (Intel — 2017 MacBook Air)
+darwin-rebuild switch --flake .#nixtel   # macOS (Apple Intel)
 nixos-rebuild  switch --flake .#nixarm    # NixOS VM (aarch64)
 nixos-rebuild  switch --flake .#nixamd    # NixOS x86_64 host
 nixos-rebuild  switch --flake .#nixrpi    # Raspberry Pi

@@ -15,7 +15,7 @@ name: nix-ci
 # Runners (all GitHub-hosted, native, free for public repos — no QEMU):
 #   x86_64-linux   -> ubuntu-24.04       (nixamd eval here)
 #   aarch64-linux  -> ubuntu-24.04-arm   (nixarm + nixrpi eval here)
-#   aarch64-darwin -> macos-15           (nixcon eval here)
+#   aarch64-darwin -> macos-15           (nixcon + nixtel eval here)
 #
 # READ from the ismailkattakath Cachix cache is public (substituter + key below).
 # WRITE needs CACHIX_AUTH_TOKEN (a repo secret; absent on fork PRs, where the push

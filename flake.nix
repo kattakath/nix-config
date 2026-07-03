@@ -204,7 +204,7 @@
           hostname = "nixcon";
         };
 
-        # Intel Mac (x86_64-darwin) — a real 2017 MacBook Air. Homebrew installs
+        # Intel Mac (x86_64-darwin) — a real Apple Intel Mac. Homebrew installs
         # to /usr/local automatically (nix-homebrew keys the prefix off the host
         # platform); Touch ID is gated off in modules/darwin/core.nix (no sensor).
         "nixtel" = mkDarwin {

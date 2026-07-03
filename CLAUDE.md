@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-All-in-one Nix mono-repo managing fully declarative environments across **macOS/nix-darwin (`nixcon`, aarch64-darwin; `nixtel`, x86_64-darwin — 2017 Intel MacBook Air)**, **NixOS VM (`nixarm`, aarch64-linux — UTM/QEMU `virt`)**, **NixOS x86_64 host (`nixamd`, x86_64-linux — config-only / CI-eval)**, **NixOS Raspberry Pi 4 (`nixrpi`, aarch64-linux)**, and **Devcontainers**. Single source of truth; platform divergence lives in `modules/`, never in ad-hoc shell.
+All-in-one Nix mono-repo managing fully declarative environments across **macOS/nix-darwin (`nixcon`, aarch64-darwin; `nixtel`, x86_64-darwin — Apple Intel)**, **NixOS VM (`nixarm`, aarch64-linux — UTM/QEMU `virt`)**, **NixOS x86_64 host (`nixamd`, x86_64-linux — config-only / CI-eval)**, **NixOS Raspberry Pi 4 (`nixrpi`, aarch64-linux)**, and **Devcontainers**. Single source of truth; platform divergence lives in `modules/`, never in ad-hoc shell.
 
 ## Build / Test / Lint
 
@@ -17,7 +17,7 @@ nixos-rebuild switch --flake .#nixarm         # Activate the NixOS VM config (aa
 nixos-rebuild switch --flake .#nixamd         # Activate the NixOS x86_64 host config
 nixos-rebuild switch --flake .#nixrpi         # Activate the Raspberry Pi config
 darwin-rebuild switch --flake .#nixcon       # Activate the macOS (nix-darwin) config (Apple Silicon)
-darwin-rebuild switch --flake .#nixtel       # Activate the Intel macOS config (2017 MacBook Air)
+darwin-rebuild switch --flake .#nixtel       # Activate the Intel macOS config (Apple Intel)
 nix eval .#nixosConfigurations.nixarm.config.system.build.toplevel   # Evaluate a SINGLE config (fast single-target check)
 nix build .#nixarm-image                  # Build UTM-importable nixarm qcow2 → ./result/ (requires aarch64-linux builder)
 nix run .#nixarm-vm                       # Boot nixarm in QEMU + HVF on macOS — no UTM needed (set NIXARM_DISK= or copy qcow2 first)
