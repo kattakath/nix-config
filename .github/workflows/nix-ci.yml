@@ -1,0 +1,126 @@
+name: nix-ci
+
+# Self-owned, native multi-system Nix CI — the replacement for hosted Garnix.
+#
+# LEAN MERGE CI: this workflow does NOT build the host system toplevels
+# (nixcon / nixbox / nixrpi). Building them — especially the cold linux-rpi
+# kernel (~1h, not in cache.nixos.org) — is a RELEASE-time concern handled later
+# against `nixosConfigurations.*` / `darwinConfigurations.*` directly. Per PR, we:
+#
+#   1. BUILD the flake's lint/format checks (`.#checks.<system>` = formatting +
+#      pre-commit) on each system's OWN NATIVE runner, and
+#   2. EVALUATE each host config's toplevel (cheap: forces full module eval,
+#      catching config/option/type errors) WITHOUT building it.
+#
+# Runners (all GitHub-hosted, native, free for public repos — no QEMU):
+#   x86_64-linux   -> ubuntu-24.04
+#   aarch64-linux  -> ubuntu-24.04-arm   (nixbox + nixrpi eval here)
+#   aarch64-darwin -> macos-15           (nixcon eval here)
+#
+# READ from the ismailkattakath Cachix cache is public (substituter + key below).
+# WRITE needs CACHIX_AUTH_TOKEN (a repo secret; absent on fork PRs, where the push
+# just no-ops). The cache is warmed reactively by this workflow's push-to-main run
+# and by release builds — no scheduled job.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: nix-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Native per-system matrix. fail-fast:false so one system's failure doesn't
+  # cancel the others — the aggregate required-checks job decides the result.
+  # Each entry is its own status check `build (<name>)`; required-checks
+  # (needs: [build]) is the single stable branch-protection anchor.
+  build:
+    name: build (${{ matrix.name }})
+    runs-on: ${{ matrix.runs-on }}
+    timeout-minutes: 30 # lint + eval only; no toplevel builds
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: x86_64-linux
+            runs-on: ubuntu-24.04
+            # no host config targets x86_64-linux -> lint only, no eval
+          - name: aarch64-linux
+            runs-on: ubuntu-24.04-arm
+            eval-attrs: >-
+              .#nixosConfigurations.nixbox.config.system.build.toplevel.drvPath
+              .#nixosConfigurations.nixrpi.config.system.build.toplevel.drvPath
+          - name: aarch64-darwin
+            runs-on: macos-15
+            eval-attrs: .#darwinConfigurations.nixcon.system.drvPath
+    steps:
+      - uses: actions/checkout@v4
+
+      # UPSTREAM Nix (NOT DeterminateSystems/nix-installer-action — that installs
+      # Determinate Nix only, as of 2026-01-01).
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            extra-substituters = https://ismailkattakath.cachix.org
+            extra-trusted-public-keys = ismailkattakath.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I=
+
+      - uses: cachix/cachix-action@v15
+        with:
+          name: ismailkattakath
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      # Flakes evaluate the git tree, not the working dir — stage everything
+      # BEFORE any nix invocation (see .claude/rules/git-purity.md).
+      - name: Stage tree (git purity)
+        run: git add -A
+
+      # Build the lint/format checks for this system and push to Cachix.
+      - name: Build .#checks.${{ matrix.name }} + push to Cachix
+        env:
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+        run: |
+          nix run github:Mic92/nix-fast-build -- \
+            --skip-cached --no-nom \
+            --flake ".#checks.${{ matrix.name }}" \
+            --cachix-cache ismailkattakath
+
+      # EVALUATE (not build) the host configs that target this system. Resolving
+      # each toplevel's .drvPath forces a full module-system eval, so a broken
+      # config (bad option, type error, missing module) fails CI in seconds —
+      # without paying for the actual build. Building is deferred to release.
+      - name: Evaluate host configs (no build)
+        if: matrix.eval-attrs != ''
+        env:
+          EVAL_ATTRS: ${{ matrix.eval-attrs }}
+        run: |
+          set -euo pipefail
+          for a in $EVAL_ATTRS; do
+            echo "::group::eval $a"
+            nix eval --raw "$a" && echo
+            echo "::endgroup::"
+          done
+          echo "✓ host configs evaluate."
+
+  # Aggregate gate — the ONE stable-named required check branch protection anchors
+  # to. Runs even if a leg fails (if: always()) and fails if any leg failed or was
+  # cancelled. Splitting/renaming build legs never requires re-anchoring the ruleset.
+  required-checks:
+    name: required-checks
+    needs: [build]
+    runs-on: ubuntu-24.04
+    if: always()
+    steps:
+      - name: Verify all build legs passed
+        run: |
+          if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "✗ One or more build legs failed or were cancelled."
+            exit 1
+          fi
+          echo "✓ All build legs passed."

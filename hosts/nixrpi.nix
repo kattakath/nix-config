@@ -4,11 +4,24 @@
 #   nix build .#nixosConfigurations.nixrpi.config.system.build.sdImage
 {
   config,
+  lib,
   secretsDir,
   ...
 }:
 {
   networking.hostName = "nixrpi";
+
+  # nixpkgs enables systemd stage-1 by default (boot.initrd.systemd.enable), and
+  # its TPM2 support (nixos/modules/system/boot/systemd/tpm2.nix) forces the
+  # `tpm-tis` + `tpm-crb` kernel modules into boot.initrd.availableKernelModules.
+  # The raspberry-pi-nix `linux-rpi` kernel builds neither as a loadable module,
+  # and makeModulesClosure treats availableKernelModules as REQUIRED root modules
+  # (boot.initrd.allowMissingModules defaults false) — so the missing module is a
+  # FATAL `modprobe: Module tpm-crb not found`, failing linux-rpi-*-modules-shrunk.
+  # The Pi 4 has no TPM, so disable initrd TPM2 support at the source (removes
+  # both modules). nixbox is untouched: it never imports this profile, and its
+  # generic kernel builds the full TPM stack anyway.
+  boot.initrd.systemd.tpm2.enable = lib.mkForce false;
 
   # Allow unfree packages (e.g. `claude-code` in the shared HM profile).
   nixpkgs.config.allowUnfree = true;
