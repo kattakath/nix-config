@@ -199,35 +199,31 @@
       # `nix build .#packages.<system>.dockerImage`        → minimal runtime tarball
       # `nix build .#packages.<linux>.devcontainerImage`   → devcontainer stream script (Linux only)
       # `nix build .#nixbox-image`                         → UTM-importable qcow2 → ./result/
-      packages =
-        nixpkgs.lib.recursiveUpdate
-          (nixpkgs.lib.recursiveUpdate
-            (forAllSystems (
-              system:
-              let
-                pkgs = pkgsFor system;
-              in
-              {
-                dockerImage = pkgs.callPackage ./packages/docker-image.nix { };
-              }
-            ))
-            # Devcontainer image is a Linux OCI artifact — gate to the linux triple.
-            # Built with unfree pkgs (claude-code) and the SHARED dev toolchain, so
-            # `nix develop` inside the container resolves from the baked store.
-            (
-              nixpkgs.lib.genAttrs linuxSystems (system: {
-                devcontainerImage = (pkgsUnfreeFor system).callPackage ./packages/devcontainer-image.nix {
-                  devPackages = devPackagesFor system;
-                };
-              })
-            )
-          )
-          {
-            aarch64-linux.nixbox-image = self.nixosConfigurations.nixbox.config.system.build.images.qemu-efi;
-            # Exposed as a package (not just wrapped in the app) so CI can build
-            # it — that build is what runs the writeShellApplication shellcheck.
-            aarch64-darwin.nixbox-vm = (pkgsFor "aarch64-darwin").callPackage ./packages/nixbox-vm.nix { };
+      # Merge the per-system base with the system-specific extras in one fold —
+      # flatter than nesting recursiveUpdate calls, and the merge order reads
+      # top-to-bottom: base (all systems) → devcontainer (linux) → single-system.
+      packages = nixpkgs.lib.foldl' nixpkgs.lib.recursiveUpdate { } [
+        # Base: minimal runtime container image, per system.
+        (forAllSystems (system: {
+          dockerImage = (pkgsFor system).callPackage ./packages/docker-image.nix { };
+        }))
+
+        # Devcontainer image is a Linux OCI artifact — gate to the linux triple.
+        # Built with unfree pkgs (claude-code) and the SHARED dev toolchain, so
+        # `nix develop` inside the container resolves from the baked store.
+        (nixpkgs.lib.genAttrs linuxSystems (system: {
+          devcontainerImage = (pkgsUnfreeFor system).callPackage ./packages/devcontainer-image.nix {
+            devPackages = devPackagesFor system;
           };
+        }))
+
+        {
+          aarch64-linux.nixbox-image = self.nixosConfigurations.nixbox.config.system.build.images.qemu-efi;
+          # Exposed as a package (not just wrapped in the app) so CI can build
+          # it — that build is what runs the writeShellApplication shellcheck.
+          aarch64-darwin.nixbox-vm = (pkgsFor "aarch64-darwin").callPackage ./packages/nixbox-vm.nix { };
+        }
+      ];
 
       # ---- Apps: native VM launcher (macOS only) -----------------------------
       # `nix run .#nixbox-vm` — boots the nixbox qcow2 in QEMU with Apple HVF

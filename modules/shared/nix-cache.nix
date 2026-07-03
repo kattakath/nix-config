@@ -1,7 +1,8 @@
 # Binary cache (Cachix) consumed by every Nix host — macOS (nix-darwin) and
 # NixOS alike. The option shape (`nix.settings.substituters` /
 # `trusted-public-keys`) is identical on both, so this lives once here and is
-# imported by modules/darwin/core.nix and modules/nixos/core.nix.
+# wired directly into the flake's module lists (darwinConfigurations."m3pro"
+# and the shared mkNixos builder in flake.nix).
 #
 # READ is public: only the substituter URL + public signing key are needed —
 # NO auth token on any consumer. The CACHIX_AUTH_TOKEN is a write-only
