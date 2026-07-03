@@ -2,7 +2,7 @@
 # Architecture is chosen in flake.nix (`mkNixos { system = … }`), so this file
 # is arch-agnostic and backs the aarch64 UTM VM today. Distinct from `nixrpi`,
 # which targets real Raspberry Pi 4 hardware via raspberry-pi-nix (SD image).
-# Install with: nixos-install --flake .#nixbox
+# Install with: nixos-install --flake .#nixarm
 {
   config,
   lib,
@@ -10,7 +10,7 @@
   ...
 }:
 {
-  networking.hostName = "nixbox";
+  networking.hostName = "nixarm";
 
   # Allow unfree packages (e.g. `claude-code` in the shared HM profile).
   nixpkgs.config.allowUnfree = true;
@@ -48,8 +48,8 @@
   swapDevices = [ ];
 
   # Cloudflare Tunnel — reuses the existing tunnel cred (UUID + DNS CNAME live
-  # on Cloudflare as nixbox.kattakath.com; the secret keeps its nixbox-* name to
-  # avoid re-encryption). agenix decrypts it at activation with the host key
+  # on Cloudflare as nixarm.kattakath.com; the secret keeps its nixarm-* name).
+  # agenix decrypts it at activation with the host key
   # (age.identityPaths = /etc/ssh/ssh_host_ed25519_key in modules/nixos/core.nix).
   #
   # Two ways to make that key match the secret's recipient:
@@ -59,7 +59,7 @@
   #   (b) PREBAKE (verified) — pin a host keypair offline, encrypt the cred to its
   #       public half, and inject the private half into the image's /etc/ssh/
   #       before first boot so the tunnel is up at boot with zero logins and no
-  #       in-VM rebuild (skill: nixbox-prebake-hostkey).
+  #       in-VM rebuild (skill: nixarm-prebake-hostkey).
   #
   # DECISION RULE: use (a) post-boot rekey for a DURABLE host (its own first-boot
   # key = a unique identity, no custom injection). Reserve (b) prebake for
@@ -71,14 +71,14 @@
   # makes every host-scoped .age here undecryptable at next activation — re-run
   # the agenix-host-rekey skill after any host-key change, then rebuild.
   age.secrets.tunnel-creds = {
-    file = "${secretsDir}/nixbox-tunnel-creds.age";
+    file = "${secretsDir}/nixarm-tunnel-creds.age";
     mode = "0400";
     owner = "root";
   };
 
   services.cloudflared.tunnels."48199503-cdee-4f62-b233-0dfa3bac4b5a" = {
     credentialsFile = config.age.secrets.tunnel-creds.path;
-    ingress."nixbox.kattakath.com" = "ssh://localhost:22";
+    ingress."nixarm.kattakath.com" = "ssh://localhost:22";
     default = "http_status:404";
   };
 

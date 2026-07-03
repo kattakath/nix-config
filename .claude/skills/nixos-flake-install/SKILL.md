@@ -1,7 +1,7 @@
 ---
 name: nixos-flake-install
 description: >
-  Install NixOS onto a freshly-booted machine/VM from this flake repo (nixosConfigurations nixbox).
+  Install NixOS onto a freshly-booted machine/VM from this flake repo (nixosConfigurations nixarm).
   Use when asked to "install NixOS", run nixos-install, partition a disk for NixOS, or bring up a
   new host from the flake. Covers driving the install over SSH from the live ISO, label-based
   partitioning (boot/nixos), the ≥6 GB RAM prerequisite (low RAM causes silent install corruption),
@@ -10,14 +10,14 @@ description: >
 
 # NixOS flake install (this repo)
 
-Installs `nixosConfigurations.nixbox` (aarch64-linux, UTM/QEMU `virt`) from
+Installs `nixosConfigurations.nixarm` (aarch64-linux, UTM/QEMU `virt`) from
 `github:ismailkattakath/nix-config`. `nixos-install` pulls nixpkgs from the **flake's own lock**
 (tracks `nixos-unstable`), so the installer ISO version is irrelevant — a 25.05 minimal ISO installs
 an unstable system fine. (`nixrpi` is a Raspberry Pi 4 SD-image host — **not** installable into a
-generic UEFI VM; this skill is for `nixbox`.)
+generic UEFI VM; this skill is for `nixarm`.)
 
 > **Faster alternative — skip the ISO install entirely.** Build a prebuilt qcow2 with
-> `nixos-rebuild build-image --flake .#nixbox --image-variant qemu-efi` (on aarch64-linux) and
+> `nixos-rebuild build-image --flake .#nixarm --image-variant qemu-efi` (on aarch64-linux) and
 > import it into UTM — no partitioning, no in-guest install, no OOM-RAM pitfall. See
 > **utm-vm-provision** › "Two ways to get a running NixOS VM". Use the ISO flow below only when
 > you can't build/import an image.
@@ -31,13 +31,13 @@ rebuilding the damaged paths**. Result: the system *boots* but journald / udevd 
 wipe.** Do **not** limp along with swap — it cannot save an already-poisoned store. A swapfile on
 `/mnt` also lands on the **target root** — remove it before finalizing.
 
-## What `hosts/nixbox.nix` expects (verified)
+## What `hosts/nixarm.nix` expects (verified)
 
 - **Partitions by LABEL**: `boot` (vfat EFI) + `nixos` (ext4 root).
 - **systemd-boot + UEFI**; **DHCP** on all interfaces.
 - **Already bakes in VirtIO initrd + UEFI `fileSystems`** — `boot.initrd.availableKernelModules =
   [ "virtio_pci" "virtio_blk" "virtio_scsi" "ahci" "sd_mod" ]`. **No initrd patch needed for
-  nixbox** (see step 4 — patch is only for a brand-new generic host lacking these).
+  nixarm** (see step 4 — patch is only for a brand-new generic host lacking these).
 - **User `izzy`**: wheel, passwordless sudo, project SSH key; **key-only SSH, no root login**
   (`modules/nixos/core.nix`) — applies to the *installed* system, not the live ISO.
 - One gap handled post-boot: the **agenix host-key chicken-and-egg** for `*-tunnel-creds.age`.
@@ -110,9 +110,9 @@ cd /tmp/nixcfg && git add -A
 (Public-repo only: `nix --extra-experimental-features 'nix-command flakes' flake clone
 github:ismailkattakath/nix-config --dest /tmp/nixcfg`.)
 
-## 4. VirtIO initrd — already baked into `nixbox`
+## 4. VirtIO initrd — already baked into `nixarm`
 
-**No patch needed for `nixbox`.** Only for a **brand-new generic host** lacking VirtIO modules
+**No patch needed for `nixarm`.** Only for a **brand-new generic host** lacking VirtIO modules
 (root won't mount on VirtIO without them): either `nixos-generate-config --root /mnt` and import its
 output, or add inline and `git add -A`:
 
@@ -123,7 +123,7 @@ boot.initrd.availableKernelModules = [ "virtio_pci" "virtio_blk" "virtio_scsi" "
 ## 5. Install
 
 ```bash
-nixos-install --flake /tmp/nixcfg#nixbox --no-root-passwd
+nixos-install --flake /tmp/nixcfg#nixarm --no-root-passwd
 reboot
 ```
 

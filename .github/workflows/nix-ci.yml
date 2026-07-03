@@ -3,7 +3,7 @@ name: nix-ci
 # Self-owned, native multi-system Nix CI — the replacement for hosted Garnix.
 #
 # LEAN MERGE CI: this workflow does NOT build the host system toplevels
-# (nixcon / nixbox / nixrpi). Building them — especially the cold linux-rpi
+# (nixcon / nixarm / nixamd / nixrpi). Building them — especially the cold linux-rpi
 # kernel (~1h, not in cache.nixos.org) — is a RELEASE-time concern handled later
 # against `nixosConfigurations.*` / `darwinConfigurations.*` directly. Per PR, we:
 #
@@ -13,8 +13,8 @@ name: nix-ci
 #      catching config/option/type errors) WITHOUT building it.
 #
 # Runners (all GitHub-hosted, native, free for public repos — no QEMU):
-#   x86_64-linux   -> ubuntu-24.04
-#   aarch64-linux  -> ubuntu-24.04-arm   (nixbox + nixrpi eval here)
+#   x86_64-linux   -> ubuntu-24.04       (nixamd eval here)
+#   aarch64-linux  -> ubuntu-24.04-arm   (nixarm + nixrpi eval here)
 #   aarch64-darwin -> macos-15           (nixcon eval here)
 #
 # READ from the ismailkattakath Cachix cache is public (substituter + key below).
@@ -50,11 +50,11 @@ jobs:
         include:
           - name: x86_64-linux
             runs-on: ubuntu-24.04
-            # no host config targets x86_64-linux -> lint only, no eval
+            eval-attrs: .#nixosConfigurations.nixamd.config.system.build.toplevel.drvPath
           - name: aarch64-linux
             runs-on: ubuntu-24.04-arm
             eval-attrs: >-
-              .#nixosConfigurations.nixbox.config.system.build.toplevel.drvPath
+              .#nixosConfigurations.nixarm.config.system.build.toplevel.drvPath
               .#nixosConfigurations.nixrpi.config.system.build.toplevel.drvPath
           - name: aarch64-darwin
             runs-on: macos-15

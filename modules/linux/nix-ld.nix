@@ -3,7 +3,7 @@
 # servers, downloaded toolchains) find a glibc loader without root.
 #
 # OWNERSHIP — read before "fixing" this:
-#   On NixOS hosts (nixbox, nixrpi) the native `programs.nix-ld` module
+#   On NixOS hosts (nixarm, nixrpi) the native `programs.nix-ld` module
 #   (modules/nixos/core.nix) owns nix-ld and now carries the `libraries` list;
 #   it is the single source of truth there. THIS shim is therefore GATED OFF on
 #   NixOS and fires ONLY for standalone Home Manager on non-NixOS Linux (Ubuntu,

@@ -1,4 +1,4 @@
-# `nix run .#nixbox-vm` — boot the nixbox qcow2 in QEMU with Apple HVF
+# `nix run .#nixarm-vm` — boot the nixarm qcow2 in QEMU with Apple HVF
 # acceleration. No UTM required. User-mode networking with hostfwd 2222→22 for
 # direct SSH before the Cloudflare tunnel is active.
 #
@@ -8,21 +8,21 @@
 # (coreutils + qemu) instead of leaning on the caller's environment.
 #
 # Prerequisites:
-#   1. Build qcow2 on an aarch64-linux builder: nix build .#nixbox-image
-#   2. Copy to the default disk path (or set NIXBOX_DISK=/path/to/qcow2):
-#        cp result/*.qcow2 ~/.local/state/nixbox-vm/nixbox.qcow2
+#   1. Build qcow2 on an aarch64-linux builder: nix build .#nixarm-image
+#   2. Copy to the default disk path (or set NIXARM_DISK=/path/to/qcow2):
+#        cp result/*.qcow2 ~/.local/state/nixarm-vm/nixarm.qcow2
 { pkgs }:
 
 pkgs.writeShellApplication {
-  name = "run-nixbox-vm";
+  name = "run-nixarm-vm";
   runtimeInputs = [
     pkgs.coreutils # mkdir / cp — hermetic, not the caller's PATH
     pkgs.qemu # qemu-system-aarch64
   ];
   # writeShellApplication injects `set -euo pipefail` and runs shellcheck.
   text = ''
-    STATE="''${XDG_STATE_HOME:-$HOME/.local/state}/nixbox-vm"
-    DISK="''${NIXBOX_DISK:-$STATE/nixbox.qcow2}"
+    STATE="''${XDG_STATE_HOME:-$HOME/.local/state}/nixarm-vm"
+    DISK="''${NIXARM_DISK:-$STATE/nixarm.qcow2}"
     VARS="$STATE/OVMF_VARS.fd"
 
     FIRMWARE_CODE="${pkgs.qemu}/share/qemu/edk2-aarch64-code.fd"
@@ -35,12 +35,12 @@ pkgs.writeShellApplication {
     fi
 
     if [ ! -f "$DISK" ]; then
-      echo "error: nixbox disk image not found: $DISK" >&2
+      echo "error: nixarm disk image not found: $DISK" >&2
       echo "" >&2
       echo "Build it (requires an aarch64-linux builder or remote builder):" >&2
-      echo "  nix build .#nixbox-image && cp result/*.qcow2 $DISK" >&2
+      echo "  nix build .#nixarm-image && cp result/*.qcow2 $DISK" >&2
       echo "" >&2
-      echo "Or point to an existing qcow2:  NIXBOX_DISK=/path/to/nixbox.qcow2 nix run .#nixbox-vm" >&2
+      echo "Or point to an existing qcow2:  NIXARM_DISK=/path/to/nixarm.qcow2 nix run .#nixarm-vm" >&2
       exit 1
     fi
 
@@ -59,16 +59,16 @@ pkgs.writeShellApplication {
       pflash_vars=(-drive "if=pflash,format=raw,file=$VARS")
     fi
 
-    echo "nixbox-vm: booting $DISK" >&2
+    echo "nixarm-vm: booting $DISK" >&2
     echo "  SSH (direct):  ssh -p 2222 izzy@localhost" >&2
-    echo "  SSH (tunnel):  ssh izzy@nixbox.kattakath.com  (once tunnel is active)" >&2
+    echo "  SSH (tunnel):  ssh izzy@nixarm.kattakath.com  (once tunnel is active)" >&2
     echo "  QEMU monitor:  Ctrl-a c  (then 'quit' to exit)" >&2
 
     exec qemu-system-aarch64 \
       -machine virt,accel=hvf \
       -cpu host \
-      -m "''${NIXBOX_MEMORY:-2048}" \
-      -smp "''${NIXBOX_CPUS:-4}" \
+      -m "''${NIXARM_MEMORY:-2048}" \
+      -smp "''${NIXARM_CPUS:-4}" \
       -drive "if=pflash,format=raw,file=$FIRMWARE_CODE,readonly=on" \
       "''${pflash_vars[@]}" \
       -drive "file=$DISK,format=qcow2,if=virtio" \

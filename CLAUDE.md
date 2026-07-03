@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-All-in-one Nix mono-repo managing fully declarative environments across **macOS/nix-darwin (`nixcon`)**, **NixOS VM (`nixbox`, aarch64-linux — UTM/QEMU `virt`)**, **NixOS Raspberry Pi 4 (`nixrpi`, aarch64-linux)**, and **Devcontainers**. Single source of truth; platform divergence lives in `modules/`, never in ad-hoc shell.
+All-in-one Nix mono-repo managing fully declarative environments across **macOS/nix-darwin (`nixcon`)**, **NixOS VM (`nixarm`, aarch64-linux — UTM/QEMU `virt`)**, **NixOS x86_64 host (`nixamd`, x86_64-linux — config-only / CI-eval)**, **NixOS Raspberry Pi 4 (`nixrpi`, aarch64-linux)**, and **Devcontainers**. Single source of truth; platform divergence lives in `modules/`, never in ad-hoc shell.
 
 ## Build / Test / Lint
 
@@ -13,23 +13,24 @@ nix flake show                               # List exported darwinConfiguration
 nix fmt                                       # Format + lint-fix all .nix via treefmt (nixfmt + statix + deadnix)
 nix develop                                   # Enter dev shell (nixd LSP, treefmt, home-manager); installs pre-commit hooks
 nix build .#checks.<system>.formatting        # CI formatting/lint gate (fails on unformatted/lintable files)
-nixos-rebuild switch --flake .#nixbox         # Activate the NixOS VM config (aarch64 UTM/QEMU)
+nixos-rebuild switch --flake .#nixarm         # Activate the NixOS VM config (aarch64 UTM/QEMU)
+nixos-rebuild switch --flake .#nixamd         # Activate the NixOS x86_64 host config
 nixos-rebuild switch --flake .#nixrpi         # Activate the Raspberry Pi config
 darwin-rebuild switch --flake .#nixcon       # Activate the macOS (nix-darwin) config
-nix eval .#nixosConfigurations.nixbox.config.system.build.toplevel   # Evaluate a SINGLE config (fast single-target check)
-nix build .#nixbox-image                  # Build UTM-importable nixbox qcow2 → ./result/ (requires aarch64-linux builder)
-nix run .#nixbox-vm                       # Boot nixbox in QEMU + HVF on macOS — no UTM needed (set NIXBOX_DISK= or copy qcow2 first)
+nix eval .#nixosConfigurations.nixarm.config.system.build.toplevel   # Evaluate a SINGLE config (fast single-target check)
+nix build .#nixarm-image                  # Build UTM-importable nixarm qcow2 → ./result/ (requires aarch64-linux builder)
+nix run .#nixarm-vm                       # Boot nixarm in QEMU + HVF on macOS — no UTM needed (set NIXARM_DISK= or copy qcow2 first)
 ```
 
 ## Architecture
 
-- `flake.nix` — entry point: pins `nixpkgs` + `home-manager` + `nix-darwin` + `raspberry-pi-nix` + `agenix` + `treefmt-nix` + `git-hooks` inputs; exports `darwinConfigurations."nixcon"` (aarch64-darwin), `nixosConfigurations."nixbox"` (aarch64-linux) and `"nixrpi"` (aarch64-linux), `apps.aarch64-darwin.nixbox-vm` (QEMU+HVF launcher, no UTM needed), plus `packages`/`devShells`/`checks`/`formatter` per system via a `forAllSystems` helper. Username is `izzy`, defined once as a `let` binding.
+- `flake.nix` — entry point: pins `nixpkgs` + `home-manager` + `nix-darwin` + `raspberry-pi-nix` + `agenix` + `treefmt-nix` + `git-hooks` inputs; exports `darwinConfigurations."nixcon"` (aarch64-darwin), `nixosConfigurations."nixarm"` (aarch64-linux), `"nixamd"` (x86_64-linux) and `"nixrpi"` (aarch64-linux), `apps.aarch64-darwin.nixarm-vm` (QEMU+HVF launcher, no UTM needed), plus `packages`/`devShells`/`checks`/`formatter` per system via a `forAllSystems` helper. Username is `izzy`, defined once as a `let` binding.
 - `flake.lock` — pinned input revisions; commit every change, never hand-edit.
 - `treefmt.nix` — single source of truth for formatting + lint-fix (nixfmt + statix + deadnix). Drives `nix fmt`, the `checks.formatting` CI gate, and the pre-commit hook — change a tool here and every entrypoint follows.
 - The devShell is entered with `nix develop` (in the devcontainer or on a nix host). There is no `.envrc`/direnv auto-load — it was removed; run `nix develop` explicitly.
-- `hosts/` — per-host entry profiles (`nixcon.nix`, `nixbox.nix`, `nixrpi.nix`); composed by the flake's `darwinConfigurations`/`nixosConfigurations`.
+- `hosts/` — per-host entry profiles (`nixcon.nix`, `nixarm.nix`, `nixamd.nix`, `nixrpi.nix`); composed by the flake's `darwinConfigurations`/`nixosConfigurations`.
 - `modules/` — reusable modules split by platform: `modules/darwin/core.nix`, `modules/linux/nix-ld.nix`, `modules/shared/home.nix`, `modules/nixos/core.nix`, `modules/nixos/cloudflared.nix` (enables the `services.cloudflared` daemon; per-host tunnels defined in `hosts/*.nix`). Platform branching lives HERE behind `lib.mkIf`, not duplicated across hosts.
-- `packages/` — `docker-image.nix` (minimal baseless runtime image, `dockerTools`), `devcontainer-image.nix` (multi-arch devcontainer image, Linux-only, published to GHCR), `nixbox-vm.nix` (QEMU+HVF launcher). The `nixbox-image` qcow2 is derived inline in `flake.nix`, not a file here.
+- `packages/` — `docker-image.nix` (minimal baseless runtime image, `dockerTools`), `devcontainer-image.nix` (multi-arch devcontainer image, Linux-only, published to GHCR), `nixarm-vm.nix` (QEMU+HVF launcher). The `nixarm-image` qcow2 is derived inline in `flake.nix`, not a file here.
 - `.claude/agents/platform-compiler.md` — subagent that validates evaluation across all three architectures.
 - `.claude/agents/vm-provisioner.md` — subagent that drives the full macOS→UTM→NixOS provisioning pipeline (VM creation, NixOS install, agenix rekey, Cloudflare tunnel).
 - `.claude/agents/nix-researcher.md` — read-only research/root-cause subagent (locate options, trace value flow across `flake.nix`/`hosts/`/`modules/`, diagnose failures, look up upstream option semantics).
