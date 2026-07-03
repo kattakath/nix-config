@@ -58,6 +58,8 @@
       "Bash(sudo:*)",
       "Agent(platform-compiler)",
       "Agent(vm-provisioner)",
+      "Agent(nix-researcher)",
+      "Agent(ci-release-driver)",
       "Agent(Explore)",
       "Agent(Plan)",
       "Agent(general-purpose)",
