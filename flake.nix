@@ -112,6 +112,11 @@
           pkgs.nixd # eval-aware Nix LSP
           home-manager.packages.${system}.default
           treefmtEval.${system}.config.build.wrapper # `treefmt` / `nix fmt`
+          # nixfmt as a standalone bin so bare `nixfmt` resolves on PATH for the
+          # editor (devcontainer.json's nix.formatterPath + nixd formatting.command
+          # both invoke it directly). Sourced from treefmt's own resolved package so
+          # it can NEVER drift from the binary the wrapper/CI/pre-commit run.
+          treefmtEval.${system}.config.programs.nixfmt.package
           pkgs.statix # anti-pattern linter — .vscode "nix: statix" task
           pkgs.deadnix # dead-code linter — .vscode "nix: deadnix" task
           pkgs.jq # flattens deadnix JSON for the problem matcher
