@@ -58,7 +58,12 @@ jobs:
               .#nixosConfigurations.nixrpi.config.system.build.toplevel.drvPath
           - name: aarch64-darwin
             runs-on: macos-15
-            eval-attrs: .#darwinConfigurations.nixcon.system.drvPath
+            # nixtel is x86_64-darwin, but resolving its .drvPath is build-free
+            # and cross-arch-safe on this arm64 runner (same trick the
+            # build-devcontainer gate uses to eval both arches on one runner).
+            eval-attrs: >-
+              .#darwinConfigurations.nixcon.system.drvPath
+              .#darwinConfigurations.nixtel.system.drvPath
     steps:
       - uses: actions/checkout@v4
 

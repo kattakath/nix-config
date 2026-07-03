@@ -10,8 +10,9 @@
     ./screengrab-rotate.nix
   ];
 
-  # The platform this system configuration targets.
-  nixpkgs.hostPlatform = "aarch64-darwin";
+  # NOTE: hostPlatform is set per-host from the darwinSystem `system` arg (via
+  # the mkDarwin helper in flake.nix), NOT hardcoded here — so this shared module
+  # serves both the aarch64-darwin (nixcon) and x86_64-darwin (nixtel) Macs.
 
   # Enable flakes + the modern CLI for the daemon this config manages.
   nix.settings.experimental-features = [

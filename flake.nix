@@ -156,23 +156,51 @@
           ]
           ++ extraModules;
         };
+
+      # ---- nix-darwin system builder ------------------------------------------
+      # Mirrors mkNixos for macOS hosts. hostPlatform is driven from `system`
+      # (NOT hardcoded in modules/darwin/core.nix), so one shared darwin module
+      # set serves both the aarch64-darwin (nixcon) and x86_64-darwin (nixtel) Macs.
+      mkDarwin =
+        {
+          system,
+          hostname,
+          extraModules ? [ ],
+        }:
+        nix-darwin.lib.darwinSystem {
+          inherit system;
+          specialArgs = {
+            inherit
+              home-manager
+              username
+              nix-vscode-extensions
+              ;
+          };
+          modules = [
+            { nixpkgs.hostPlatform = system; }
+            ./hosts/${hostname}.nix
+            ./modules/shared/nix-cache.nix # Cachix binary cache (read)
+          ]
+          ++ extraModules;
+        };
     in
     {
-      # ---- macOS system configuration ----------------------------------------
-      # Built with `darwin-rebuild switch --flake .#nixcon`.
-      darwinConfigurations."nixcon" = nix-darwin.lib.darwinSystem {
-        system = "aarch64-darwin";
-        specialArgs = {
-          inherit
-            home-manager
-            username
-            nix-vscode-extensions
-            ;
+      # ---- macOS system configurations ---------------------------------------
+      # Built with `darwin-rebuild switch --flake .#<hostname>`.
+      darwinConfigurations = {
+        # Apple Silicon Mac (aarch64-darwin).
+        "nixcon" = mkDarwin {
+          system = "aarch64-darwin";
+          hostname = "nixcon";
         };
-        modules = [
-          ./hosts/nixcon.nix
-          ./modules/shared/nix-cache.nix # Cachix binary cache (read)
-        ];
+
+        # Intel Mac (x86_64-darwin) — CONFIG-ONLY / CI-eval today (not activated
+        # on a real machine yet). Homebrew's prefix differs on Intel (/usr/local
+        # vs /opt/homebrew) — an activation detail, not an eval concern.
+        "nixtel" = mkDarwin {
+          system = "x86_64-darwin";
+          hostname = "nixtel";
+        };
       };
 
       # ---- NixOS system configurations -------------------------------------------
