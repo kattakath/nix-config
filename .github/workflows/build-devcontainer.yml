@@ -136,6 +136,7 @@ jobs:
               command -v node  >/dev/null && node --version
               command -v gh    >/dev/null && gh --version | head -1
               command -v claude >/dev/null && echo "✓ claude on PATH" || { echo "✗ claude missing"; exit 1; }
+              echo "store dir perms (diagnostic):" && ls -ld /nix /nix/store /nix/var/nix
               echo "=== devShell warm (should resolve from baked store, not build) ==="
               OUT=$(nix develop .#default --command true 2>&1) || { echo "$OUT"; exit 1; }
               if echo "$OUT" | grep -Eq "^building .|building of "; then

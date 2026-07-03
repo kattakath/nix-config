@@ -113,13 +113,14 @@ dockerTools.streamLayeredImage {
     export NIX_REMOTE=
     ${pkgs.nix}/bin/nix-store --load-db < ${closure}/registration
 
-    # The container runs as uid ${toString uid} (vscode), but the baked store is
-    # root-owned — so single-user nix can't create /nix/store/.links, new store
-    # paths, or write the db/gcroots at runtime ("Permission denied"). Give the
-    # vscode user the MUTABLE dirs: the /nix + /nix/store DIR NODES (non-recursive
-    # — existing store paths stay root-owned and read-only, so the layer stays
-    # small) and all of /nix/var (db, profiles, gcroots — small).
-    chown ${toString uid}:${toString gid} nix nix/store
+    # The container runs as uid ${toString uid} (vscode) but the baked store is
+    # root-owned, so single-user nix can't create /nix/store/.links or new paths
+    # ("Permission denied"). Widen the MUTABLE dir nodes only — baked store PATHS
+    # stay root-owned/read-only, so the layer stays small. Use chmod 1777 on the
+    # store dir (world-writable + sticky) so it works regardless of how the layer
+    # records dir OWNERSHIP; chown /nix/var (db/profiles/gcroots — small).
+    chown ${toString uid}:${toString gid} nix nix/store || true
+    chmod 1777 nix/store
     chown -R ${toString uid}:${toString gid} nix/var
 
     # --- baked nix.conf: flakes on + the public Cachix substituter (read only) -
