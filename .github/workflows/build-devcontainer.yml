@@ -356,7 +356,7 @@ jobs:
           # index annotations. Expressions keep description/source in lockstep with the
           # repo. Takes effect on the next push-to-main publish, not this PR.
           docker buildx imagetools create \
-            --annotation "index:org.opencontainers.image.description=Multi-arch distroless devcontainer with a working Nix daemon and a warm devShell — ${{ github.repository }}" \
+            --annotation "index:org.opencontainers.image.description=Multi-arch distroless devcontainer with a working Nix daemon and a warm devShell built from ${{ github.repository }}" \
             --annotation "index:org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
             --annotation "index:org.opencontainers.image.licenses=MIT" \
             -t "${REF}:latest" \
