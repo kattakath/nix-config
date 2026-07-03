@@ -159,8 +159,8 @@
     in
     {
       # ---- macOS system configuration ----------------------------------------
-      # Built with `darwin-rebuild switch --flake .#silicon`.
-      darwinConfigurations."silicon" = nix-darwin.lib.darwinSystem {
+      # Built with `darwin-rebuild switch --flake .#nixcon`.
+      darwinConfigurations."nixcon" = nix-darwin.lib.darwinSystem {
         system = "aarch64-darwin";
         specialArgs = {
           inherit
@@ -170,7 +170,7 @@
             ;
         };
         modules = [
-          ./hosts/silicon.nix
+          ./hosts/nixcon.nix
           ./modules/shared/nix-cache.nix # Cachix binary cache (read)
         ];
       };
