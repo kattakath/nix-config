@@ -37,4 +37,10 @@ in
   # provisioned; a missing .age is inert at eval and only matters at activation.
   "nixarm-tunnel-token.age".publicKeys = userKeys ++ [ nixarm ];
   "nixrpi-tunnel-token.age".publicKeys = userKeys;
+
+  # nixamd: CF tunnel + DNS reserved now, token encrypted to the personal key
+  # only (no real host / host key yet). hosts/nixamd.nix keeps tunnelReady=false
+  # so the connector stays inert; when nixamd becomes a real host, add its
+  # /etc/ssh host key here and re-encrypt (agenix-host-rekey), then flip the flag.
+  "nixamd-tunnel-token.age".publicKeys = userKeys;
 }
