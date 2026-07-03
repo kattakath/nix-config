@@ -193,13 +193,32 @@ jobs:
 
       # Daemonless push (nixpkgs-manual idiom). skopeo reads the docker config
       # that docker/login-action wrote.
+      #
+      # Two deliberate choices here:
+      #  1. Materialise the archive to a file, then `copy docker-archive:image.tar`
+      #     — NOT `./result | … docker-archive:/dev/stdin`. `streamLayeredImage`
+      #     emits an UNCOMPRESSED docker-archive tar; the old `| gzip --fast |`
+      #     stage both corrupted that transport (skopeo expects a plain tar on
+      #     `docker-archive:`) and, under bash `pipefail`, turned skopeo's own
+      #     early exit into a spurious `gzip: … Broken pipe` step failure. A file
+      #     removes the pipe entirely — no SIGPIPE race, no pipefail fragility.
+      #  2. Point skopeo at our OWN registries.conf via CONTAINERS_REGISTRIES_CONF.
+      #     nixpkgs skopeo (containers/image ≥ v2 only) otherwise reads the GitHub
+      #     runner's host /etc/containers/registries.conf, which is still v1, and
+      #     aborts with "registries.conf must be in v2 format but is in v1" before
+      #     it ever reads the archive. An empty v2 file (registry defaults only)
+      #     sidesteps the incompatible host config.
       - name: Push per-arch image
         if: needs.config.outputs.is_publish == 'true'
+        env:
+          CONTAINERS_REGISTRIES_CONF: ${{ runner.temp }}/registries.conf
         run: |
-          ./result | gzip --fast | \
-            nix run nixpkgs#skopeo -- --insecure-policy copy \
-              docker-archive:/dev/stdin \
-              "docker://${{ steps.ref.outputs.ref }}:${{ steps.ref.outputs.sha12 }}-${{ matrix.arch }}"
+          printf 'unqualified-search-registries = ["docker.io"]\n' \
+            > "${CONTAINERS_REGISTRIES_CONF}"
+          ./result > image.tar
+          nix run nixpkgs#skopeo -- --insecure-policy copy \
+            docker-archive:image.tar \
+            "docker://${{ steps.ref.outputs.ref }}:${{ steps.ref.outputs.sha12 }}-${{ matrix.arch }}"
 
   manifest:
     needs: [config, build]
