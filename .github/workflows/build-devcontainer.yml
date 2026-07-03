@@ -106,8 +106,19 @@ jobs:
     outputs:
       changed: ${{ steps.decide.outputs.changed }}
       cache_key: ${{ steps.key.outputs.cache_key }}
+      # Computed ONCE here and consumed by both `build` and `manifest` (both already
+      # `needs: gate`), so the image ref + short sha are not duplicated across jobs.
+      ref: ${{ steps.ref.outputs.ref }}
+      sha12: ${{ steps.ref.outputs.sha12 }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Compute image ref
+        id: ref
+        run: |
+          OWNER="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          echo "ref=ghcr.io/${OWNER}/${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "sha12=$(echo '${{ github.sha }}' | cut -c1-12)" >> "$GITHUB_OUTPUT"
 
       - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31
         with:
@@ -192,13 +203,6 @@ jobs:
       # Flakes ignore untracked files; stage everything before any eval/build.
       - name: Stage tree (git purity)
         run: git add -A
-
-      - name: Compute image ref
-        id: ref
-        run: |
-          OWNER="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
-          echo "ref=ghcr.io/${OWNER}/${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
-          echo "sha12=$(echo '${{ github.sha }}' | cut -c1-12)" >> "$GITHUB_OUTPUT"
 
       # streamLayeredImage evaluates to a STREAM SCRIPT (not a tarball). unfree
       # (claude-code) is permitted via flake.nix's pkgsUnfreeFor.
@@ -359,7 +363,7 @@ jobs:
       # Daemonless push (nixpkgs-manual idiom). skopeo reads the docker config
       # that docker/login-action wrote.
       #
-      # Two deliberate choices here:
+      # Four deliberate choices here:
       #  1. Materialise the archive to a file, then `copy docker-archive:image.tar`
       #     — NOT `./result | … docker-archive:/dev/stdin`. `streamLayeredImage`
       #     emits an UNCOMPRESSED docker-archive tar; the old `| gzip --fast |`
@@ -407,7 +411,7 @@ jobs:
           ./result > image.tar
           nix run nixpkgs#skopeo -- --insecure-policy copy --format oci \
             docker-archive:image.tar \
-            "docker://${{ steps.ref.outputs.ref }}:${{ steps.ref.outputs.sha12 }}-${{ matrix.arch }}"
+            "docker://${{ needs.gate.outputs.ref }}:${{ needs.gate.outputs.sha12 }}-${{ matrix.arch }}"
 
   manifest:
     needs: [config, gate, build]
@@ -424,17 +428,10 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v3
 
-      - name: Compute image ref
-        id: ref
-        run: |
-          OWNER="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
-          echo "ref=ghcr.io/${OWNER}/${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
-          echo "sha12=$(echo '${{ github.sha }}' | cut -c1-12)" >> "$GITHUB_OUTPUT"
-
       - name: Assemble multi-arch manifest (:latest + :<sha12>)
         run: |
-          REF="${{ steps.ref.outputs.ref }}"
-          SHA="${{ steps.ref.outputs.sha12 }}"
+          REF="${{ needs.gate.outputs.ref }}"
+          SHA="${{ needs.gate.outputs.sha12 }}"
           # RFC3339 UTC build timestamp for org.opencontainers.image.created.
           CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           # index:-prefixed annotations attach to the MANIFEST LIST (the OCI image
@@ -483,7 +480,7 @@ jobs:
       - name: Verify :latest is durably pullable (children resolve)
         run: |
           set -euo pipefail
-          REF="${{ steps.ref.outputs.ref }}"
+          REF="${{ needs.gate.outputs.ref }}"
 
           echo "::group::real docker pull ${REF}:latest (fetches a platform child)"
           docker pull "${REF}:latest"
@@ -528,7 +525,7 @@ jobs:
           # instead of silently leaving a time-bomb that GHCR GC turns into a dangling
           # index later. This is the load-bearing invariant of this publish design;
           # test it every publish rather than trust it.
-          SHA="${{ steps.ref.outputs.sha12 }}"
+          SHA="${{ needs.gate.outputs.sha12 }}"
           for ARCH in amd64 arm64; do
             echo "→ resolving retained child tag ${REF}:${SHA}-${ARCH}"
             docker buildx imagetools inspect "${REF}:${SHA}-${ARCH}" >/dev/null \
