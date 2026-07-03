@@ -100,7 +100,12 @@ let
   # devcontainers/features/nix's nix-entrypoint.sh.
   entrypoint = pkgs.writeShellScript "nix-daemon-entrypoint" ''
     if [ ! -S /nix/var/nix/daemon-socket/socket ]; then
-      ${pkgs.nix}/bin/nix-daemon > /tmp/nix-daemon.log 2>&1 &
+      # CRITICAL: the image sets NIX_REMOTE=daemon for CLIENTS, but the daemon
+      # itself must NOT inherit it — otherwise it opens a RemoteStore pointing at
+      # its own socket and proxies to itself (binds the socket, then resets every
+      # request → "Connection reset by peer"). Run the daemon with NIX_REMOTE
+      # empty so it drives the LOCAL store directly.
+      NIX_REMOTE= ${pkgs.nix}/bin/nix-daemon > /tmp/nix-daemon.log 2>&1 &
     fi
     exec "$@"
   '';
