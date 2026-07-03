@@ -72,7 +72,7 @@ flake.lock      Pinned input revisions (bumped via `nix flake update`, never han
 treefmt.nix     Single source of truth for formatting + lint (drives nix fmt, CI, and the hook)
 hosts/          Per-host entry profiles (nixcon.nix, nixbox.nix, nixrpi.nix)
 modules/        Reusable modules, split by platform (darwin/ linux/ nixos/ shared/)
-packages/       Nix-built artifacts (runtime container image, devcontainer image, VM)
+packages/       Nix-built artifacts (runtime container image, devcontainer image, VM launcher)
 secrets/        agenix-encrypted, host-scoped service credentials (no plaintext secrets)
 .claude/        Repo-local Claude Code agents, commands, hooks, and rules
 ```
