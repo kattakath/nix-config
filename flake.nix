@@ -262,9 +262,24 @@
             # nixd/treefmt/statix/deadnix/jq/home-manager set never drifts.
             packages = devPackagesFor system ++ preCommit.enabledPackages;
 
+            # git-hooks.nix's installer (${preCommit.shellHook}) writes into the
+            # repo: it symlinks .pre-commit-config.yaml, runs `git config`, and
+            # installs .git/hooks/pre-commit. In the prebuilt devcontainer,
+            # `nix develop` runs as the non-root `vscode` user against a
+            # bind-mounted workspace owned by a different uid (host owner / CI
+            # runner), so every one of those writes fails with "Permission
+            # denied" — non-fatal but it spams each shell entry and the hook is
+            # silently not installed anyway. So we only run the installer when
+            # .git is actually writable by the current user; otherwise we skip it
+            # with a one-line notice. On a normally-owned checkout .git is
+            # writable, so the hook still installs exactly as before.
             shellHook = ''
-              ${preCommit.shellHook}
-              echo "nix-config devShell ready on ${system} — pre-commit hooks installed"
+              if [ -w .git ]; then
+                ${preCommit.shellHook}
+                echo "nix-config devShell ready on ${system} — pre-commit hooks installed"
+              else
+                echo "nix-config devShell ready on ${system} — pre-commit install skipped (.git not writable by $(id -un))"
+              fi
             '';
           };
         }
