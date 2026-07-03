@@ -106,7 +106,11 @@ if (nixFiles && has("nix")) {
       decision: "approve",
       systemMessage:
         "stop-gate: nix unavailable on host — validated .nix syntax only. " +
-        "Full multi-system `nix flake check` (aarch64-darwin, x86_64-linux, aarch64-linux) " +
+        "For a REAL local check, run `nix flake check` inside the devcontainer " +
+        "(`devcontainer up --workspace-folder .` then `devcontainer exec --workspace-folder . " +
+        "bash -lc 'git add -A && nix flake check -L'`): it evaluates all three systems and fully " +
+        "checks the container's native aarch64-linux — only cross-arch BUILDS (x86_64-linux) still need CI. " +
+        "Otherwise, full multi-system `nix flake check` (aarch64-darwin, x86_64-linux, aarch64-linux) " +
         "must pass in CI / the target environment.",
     }),
   );
