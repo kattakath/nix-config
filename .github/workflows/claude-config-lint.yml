@@ -1,0 +1,52 @@
+# claude-config-lint — validate the repo's .claude/ configuration
+#
+# Runs @carlrannaberg/cclint over the Claude Code project config so malformed
+# agent/command frontmatter, bad CLAUDE.md structure, or invalid config land as
+# a red check instead of silently degrading the assistant experience.
+#
+# Scope note: cclint has four sub-linters (agents, commands, context, settings).
+# We run agents + commands + context with --fail-on error. We deliberately do
+# NOT run the `settings` sub-linter: cclint's bundled schema (0.2.x) only knows
+# the { "type": "command" } hook shape and rejects { "type": "prompt" } hooks,
+# which are a current, supported Claude Code feature that .claude/settings.json
+# uses (PreToolUse/SubagentStop validators). Running `settings` would fail the
+# gate on a linter false positive. Editor-side validation of settings.json is
+# instead provided by its "$schema" key (json.schemastore.org). Revisit and add
+# `cclint settings` here once upstream recognizes prompt hooks.
+#
+# Triggers: every PR, every push to main, and on demand.
+
+name: claude-config-lint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: claude-config-lint-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least-privilege: only needs to read the checked-out tree.
+permissions:
+  contents: read
+
+jobs:
+  cclint:
+    name: Lint .claude config
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+
+      # cclint pinned to an exact published version for reproducible runs.
+      - name: Lint agents, commands, and CLAUDE.md context
+        run: |
+          npx --yes @carlrannaberg/cclint@0.2.10 agents   --fail-on error
+          npx --yes @carlrannaberg/cclint@0.2.10 commands --fail-on error
+          npx --yes @carlrannaberg/cclint@0.2.10 context  --fail-on error
