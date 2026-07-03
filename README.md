@@ -11,13 +11,14 @@ A single Nix flake that manages complete, reproducible system configurations acr
 
 ## What it manages
 
-| Host | Platform | System | Role |
-|------|----------|--------|------|
-| `nixcon` | macOS via [nix-darwin](https://github.com/LnL7/nix-darwin) | `aarch64-darwin` | Apple Silicon workstation |
-| `nixarm` | NixOS VM (UTM / QEMU) | `aarch64-linux` | Local Linux VM |
-| `nixamd` | NixOS | `x86_64-linux` | x86_64 NixOS host (config-only / CI-eval) |
-| `nixrpi` | NixOS on Raspberry Pi 4 | `aarch64-linux` | Headless Pi |
-| devcontainer | Nix-built OCI image | multi-arch | Reproducible dev environment |
+| Host | Type | System | Machine |
+|------|------|--------|---------|
+| `nixcon` | [nix-darwin](https://github.com/LnL7/nix-darwin) | `aarch64-darwin` | Apple Silicon Mac |
+| `nixtel` | [nix-darwin](https://github.com/LnL7/nix-darwin) | `x86_64-darwin` | Apple Intel Mac |
+| `nixarm` | NixOS | `aarch64-linux` | Linux VM (UTM / QEMU) |
+| `nixamd` | NixOS | `x86_64-linux` | Linux host (config-only — no hardware yet) |
+| `nixrpi` | NixOS | `aarch64-linux` | Raspberry Pi 4 |
+| `devcontainer` | OCI image | multi-arch | Dev container (published to GHCR) |
 
 User environments are layered on with [Home-Manager](https://github.com/nix-community/home-manager), and the devcontainer image is prebuilt and published to GHCR so it starts with a warm Nix store.
 
@@ -43,7 +44,8 @@ nix flake show
 ### Activate a host
 
 ```bash
-darwin-rebuild switch --flake .#nixcon   # macOS
+darwin-rebuild switch --flake .#nixcon   # macOS (Apple Silicon)
+darwin-rebuild switch --flake .#nixtel   # macOS (Apple Intel)
 nixos-rebuild  switch --flake .#nixarm    # NixOS VM (aarch64)
 nixos-rebuild  switch --flake .#nixamd    # NixOS x86_64 host
 nixos-rebuild  switch --flake .#nixrpi    # Raspberry Pi
@@ -71,7 +73,7 @@ Or just open the repo in a devcontainer-aware editor; `.devcontainer/devcontaine
 flake.nix       Entry point: inputs, darwin/nixos configurations, packages, devShells, checks
 flake.lock      Pinned input revisions (bumped via `nix flake update`, never hand-edited)
 treefmt.nix     Single source of truth for formatting + lint (drives nix fmt, CI, and the hook)
-hosts/          Per-host entry profiles (nixcon.nix, nixarm.nix, nixamd.nix, nixrpi.nix)
+hosts/          Per-host entry profiles (nixcon.nix, nixtel.nix, nixarm.nix, nixamd.nix, nixrpi.nix)
 modules/        Reusable modules, split by platform (darwin/ linux/ nixos/ shared/)
 packages/       Nix-built artifacts (runtime container image, devcontainer image, VM launcher)
 secrets/        agenix-encrypted, host-scoped service credentials (no plaintext secrets)
@@ -82,7 +84,7 @@ Platform branching lives in `modules/` behind `lib.mkIf`, so host profiles stay 
 
 ## How CI works
 
-CI runs on **GitHub Actions** ([`nix-ci.yml`](./.github/workflows/nix-ci.yml)). It builds the whole flake across the canonical system triple — `aarch64-darwin`, `x86_64-linux`, and `aarch64-linux` — on **native** GitHub-hosted runners (`macos-15`, `ubuntu-24.04`, `ubuntu-24.04-arm`; no QEMU), using [`nix-fast-build`](https://github.com/Mic92/nix-fast-build) to build every output (the host toplevels exposed under `checks`, packages, devShells, and the `treefmt` + `pre-commit` `checks` — the same derivations `nix fmt` and the commit hook run locally). Results are pushed to the [Cachix](https://www.cachix.org/) (`ismailkattakath`) cache consumed read-only by every host. Branch protection requires the aggregate `required-checks` job.
+CI runs on **GitHub Actions** ([`nix-ci.yml`](./.github/workflows/nix-ci.yml)) across all four target systems — `aarch64-darwin`, `x86_64-darwin`, `x86_64-linux`, and `aarch64-linux` — on **native**, one-per-host GitHub-hosted runners (`macos-latest`, `macos-15-intel`, `ubuntu-24.04`, `ubuntu-24.04-arm`; no QEMU). Each leg does two things: it *builds* the flake's lint/format `checks` (`treefmt` + `pre-commit` — the same derivations `nix fmt` and the commit hook run locally) with [`nix-fast-build`](https://github.com/Mic92/nix-fast-build), and it *evaluates* each host config's toplevel `drvPath` (a full module-system eval that catches config/type errors in seconds) **without building it** — the expensive toplevel builds (notably the ~1h `linux-rpi` kernel) are a release-time concern. Built check results are pushed to the [Cachix](https://www.cachix.org/) (`ismailkattakath`) cache consumed read-only by every host. Branch protection requires the aggregate `required-checks` job.
 
 - [`build-devcontainer`](https://github.com/ismailkattakath/nix-config/actions/workflows/build-devcontainer.yml) builds, smoke-tests, and publishes the multi-arch devcontainer image to GHCR.
 - [`gitleaks`](https://github.com/ismailkattakath/nix-config/actions/workflows/gitleaks.yml) scans every push and PR (and weekly) for leaked secrets.

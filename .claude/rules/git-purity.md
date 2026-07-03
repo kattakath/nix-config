@@ -35,7 +35,7 @@ that silently use a previous version of a file.
 3. **After `nix flake update`**, stage the regenerated `flake.lock` before re-evaluating.
 
 4. **Never** run `nix flake check` while `git status` shows untracked `.nix` files — the result
-   is not trustworthy. Run `git status` first; if untracked `.nix` files exist, stage them.
+   is not trustworthy.
 
 ## Quick check
 

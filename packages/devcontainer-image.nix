@@ -4,15 +4,14 @@
 # IS a working Nix plus the DB-registered devShell closure: inside the
 # container, `nix develop` realizes nothing (no build, no download).
 #
-# STORE ACCESS MODEL — Nix's official MULTI-USER model (not single-user):
-#   `dockerTools.streamLayeredImage` bakes /nix/store IMMUTABLY root-owned (it
-#   reconstructs the store dir from the store-path layers and discards any
-#   chown/chmod of it — verified). A root-owned store is not a bug: it is the
-#   PRECONDITION of Nix multi-user. So the container starts a root `nix-daemon`
-#   (via the entrypoint) and unprivileged `vscode` reaches it over the socket
-#   (`NIX_REMOTE=daemon`) — the daemon performs all privileged store writes.
-#   This is both Nix's documented multi-user model AND the exact non-root path
-#   the first-party devcontainers/features/nix uses. No chown hacks, no sudo.
+# STORE ACCESS MODEL — Nix's MULTI-USER model (not single-user):
+#   `streamLayeredImage` bakes /nix/store IMMUTABLY root-owned (it rebuilds the
+#   store dir from the store-path layers and discards any chown/chmod of it).
+#   That is the PRECONDITION of Nix multi-user, not a bug: the container starts
+#   a root `nix-daemon` (via the entrypoint) and unprivileged `vscode` reaches
+#   it over the socket (`NIX_REMOTE=daemon`), so the daemon does all privileged
+#   store writes. Mirrors the first-party devcontainers/features/nix path — no
+#   chown hacks, no sudo.
 #
 # Built by CI (.github/workflows/build-devcontainer.yml), pushed multi-arch to
 # GHCR, referenced verbatim by .devcontainer/devcontainer.json (remoteUser
@@ -65,17 +64,12 @@ let
   basePackages = devPackages ++ extraTools;
 
   # Foreign (non-Nix) glibc binaries — e.g. the VS Code Server's bundled generic
-  # `node` — hardcode the STANDARD ELF interpreter path in their PT_INTERP and are
-  # refused by the kernel (exit 127, "cannot execute: required file not found")
-  # when it is absent. Our distroless image has glibc + libstdc++ only under
-  # /nix/store, so the standard loader path and library dirs must be populated.
-  #
-  # The image is built multi-arch (x86_64-linux + aarch64-linux), so the loader
-  # FILENAME is arch-specific and MUST be derived from the target platform — never
-  # hardcoded. glibc names it ld-linux-aarch64.so.1 on aarch64 (canonically in
-  # /lib) and ld-linux-x86-64.so.2 on x86_64 (canonically in /lib64). We also
-  # mirror the loader into the sibling of /lib,/lib64 since some binaries look
-  # there.
+  # `node` — hardcode the STANDARD ELF interpreter path in their PT_INTERP; the
+  # kernel refuses them (exit 127) when it is absent, and this distroless image
+  # has glibc only under /nix/store. So the standard loader path must be
+  # populated. The image is multi-arch, so the loader FILENAME is derived from
+  # the target platform, never hardcoded: ld-linux-aarch64.so.1 (canonically in
+  # /lib) on aarch64, ld-linux-x86-64.so.2 (in /lib64) on x86_64.
   hostPlat = pkgs.stdenv.hostPlatform;
   loaderInfo =
     if hostPlat.isAarch64 then
@@ -98,13 +92,12 @@ let
   gccLib = pkgs.stdenv.cc.cc.lib;
 
   # Everything that must be a VALID store path so `nix develop` skips build +
-  # download. `registration` below is loaded into the image's Nix DB.
+  # download; its `registration` is loaded into the image's Nix DB below.
   closure = pkgs.closureInfo { rootPaths = basePackages; };
 
   # Real `vscode` user only. fakeNss yields a READ-ONLY /etc/passwd — hence
   # updateRemoteUserUID:false in the JSON. No nixbld build users: with an empty
-  # build-users-group (below) the daemon runs builds as its own uid (root), so
-  # the whole nixbld group/user machinery is unused and dropped.
+  # build-users-group (below) the daemon builds as its own uid (root).
   nss = pkgs.fakeNss.override {
     extraPasswdLines = [
       "${username}:x:${toString uid}:${toString gid}:${username}:/home/${username}:${pkgs.bashInteractive}/bin/bash"
@@ -114,10 +107,9 @@ let
     ];
   };
 
-  # Container entrypoint: start the root nix-daemon (idempotent) then hand off to
-  # the command. Runs as root (config.User = root); the daemon is a plain
-  # backgrounded process (no systemd) — the standard container pattern, mirroring
-  # devcontainers/features/nix's nix-entrypoint.sh.
+  # Container entrypoint: start the root nix-daemon (idempotent) then exec the
+  # command. Plain backgrounded process, no systemd — the standard container
+  # pattern, mirroring devcontainers/features/nix's nix-entrypoint.sh.
   entrypoint = pkgs.writeShellScript "nix-daemon-entrypoint" ''
     if [ ! -S /nix/var/nix/daemon-socket/socket ]; then
       # CRITICAL: the image sets NIX_REMOTE=daemon for CLIENTS, but the daemon
@@ -136,8 +128,7 @@ dockerTools.streamLayeredImage {
 
   contents = basePackages ++ [ nss ];
 
-  # Good store-path -> layer fan-out; cache-friendly across rebuilds. Stays
-  # under dockerTools' 125-layer ceiling with headroom.
+  # Store-path -> layer fan-out, under dockerTools' 125-layer ceiling.
   maxLayers = 120;
 
   # enableFakechroot lets fakeRootCommands see the merged rootfs (so store paths
@@ -163,18 +154,13 @@ dockerTools.streamLayeredImage {
     chown -R ${toString uid}:${toString gid} workspaces
 
     # --- register the baked closure in the store DB --------------------------
-    # Without --load-db the /nix/store paths are PRESENT but INVALID, so the
-    # daemon would try to rebuild/redownload everything. The daemon (root) reads
-    # this same root-owned db. Mirrors dockerTools.buildImageWithNixDb.
-    #
-    # /nix/store stays root-owned (immutable in this image type — and correct for
-    # multi-user: only the root daemon writes it). CRITICAL: do NOT bind-mount a
-    # volume over /nix in devcontainer.json — it would shadow this baked warm
-    # store. The container overlay makes the store writable for the root daemon.
-    # Pre-create daemon-socket/ with the perms the upstream --daemon installer
-    # sets — rather than relying on the daemon to mkdir it at runtime over the
-    # baked-immutable /nix (a runtime-permission variable that can crash the
-    # worker after the listen socket is already visible).
+    # Without --load-db the /nix/store paths are PRESENT but INVALID and the
+    # daemon rebuilds/redownloads everything. Mirrors buildImageWithNixDb.
+    # CRITICAL: do NOT bind-mount a volume over /nix in devcontainer.json — it
+    # shadows this baked warm store. Pre-create daemon-socket/ with the upstream
+    # --daemon installer's perms rather than letting the daemon mkdir it at
+    # runtime over baked-immutable /nix (which can crash the worker after the
+    # listen socket is already visible).
     mkdir -p nix/var/nix/db nix/var/nix/profiles nix/var/nix/gcroots nix/var/nix/temproots \
              nix/var/nix/daemon-socket
     chmod 0755 nix/var/nix/daemon-socket
@@ -184,15 +170,12 @@ dockerTools.streamLayeredImage {
 
     # --- baked nix.conf: multi-user daemon + flakes + public Cachix (read) ----
     # sandbox=false: the build sandbox doesn't work nested in a container.
-    # build-users-group= (EMPTY): documented behavior — with NIX_REMOTE=daemon
-    # and an empty group, builds run as the daemon's own uid (root); no
-    # setuid-to-nixbld step. This is the sound, documented choice for a daemon
-    # serving TRUSTED clients (trusted-users below) and removes the whole nixbld
-    # failure class (matches the single-user-in-container posture that works).
-    # trusted-users: let vscode add substituters / import paths interactively.
-    # Substituter key is a verification key (also in modules/shared/nix-cache.nix):
-    # ismailkattakath.cachix.org (the CI devShell/build closure cache).
-    # Public-read, no token baked in.
+    # build-users-group= (EMPTY): with NIX_REMOTE=daemon and an empty group,
+    # builds run as the daemon's own uid (root), removing the whole nixbld
+    # failure class — sound for a daemon serving TRUSTED clients (trusted-users).
+    # trusted-users lets vscode add substituters / import paths interactively.
+    # The Cachix key is public-read (verification key, mirrored in
+    # modules/shared/nix-cache.nix) — no token baked in.
     mkdir -p etc/nix
     cat > etc/nix/nix.conf <<'NIXCONF'
     experimental-features = nix-command flakes
@@ -204,13 +187,11 @@ dockerTools.streamLayeredImage {
     NIXCONF
 
     # --- make FOREIGN (non-Nix) glibc binaries runnable ----------------------
-    # The VS Code Server ships a generic-glibc `node`; its PT_INTERP is the
-    # standard loader path (/lib/ld-linux-aarch64.so.1 or /lib64/ld-linux-x86-64.so.2),
-    # which a distroless Nix image lacks — so the server exits 127 and never
-    # starts (the exact regression that hid behind a green prebuild/smoke test:
-    # the prebuild never launches the server and the old smoke test only ran
-    # Nix-store binaries). Symlink the standard loader path to nixpkgs glibc's
-    # loader so the kernel can exec these binaries. Arch-gated filename + dir.
+    # The VS Code Server's generic-glibc `node` has its PT_INTERP set to the
+    # standard loader path (/lib/ld-linux-aarch64.so.1 or
+    # /lib64/ld-linux-x86-64.so.2), which a distroless Nix image lacks — so the
+    # server exits 127 and never starts. Symlink the standard loader path to
+    # nixpkgs glibc's loader so the kernel can exec these binaries.
     mkdir -p lib lib64
     ln -sf ${pkgs.glibc}/lib/${loaderInfo.name} ${loaderInfo.libDir}/${loaderInfo.name}
     # Also mirror into the sibling dir (/lib <-> /lib64) for binaries that probe it.
@@ -224,26 +205,20 @@ dockerTools.streamLayeredImage {
       ''
     }
 
-    # NOTE: libstdc++.so.6 / libgcc_s.so.1 resolution for the foreign binary is
-    # handled by LD_LIBRARY_PATH in config.Env (see the Env block below), NOT
-    # here. Two other mechanisms were tried and PROVEN not to work with the
-    # nixpkgs-patched loader:
-    #   * an /etc/ld.so.cache built by ldconfig — nixpkgs' dont-use-system-ld-
-    #     so-cache.patch repoints the loader's cache to
-    #     <glibc-store-path>/etc/ld.so.cache and deletes it, so /etc/ld.so.cache
-    #     is never consulted;
-    #   * symlinking the libs into /lib,/lib64 — the nixpkgs glibc loader's
-    #     built-in default search dirs (SYSTEM_DIRS) are the glibc STORE path
-    #     (glibc is configured with prefix=$out), NOT the FHS /lib,/lib64, so a
-    #     foreign binary's loader never looks there.
-    # Both surfaced as "libstdc++.so.6: cannot open shared object file" once the
-    # loader itself resolved. LD_LIBRARY_PATH is the mechanism the store-isolated
-    # loader honors.
+    # NOTE: libstdc++.so.6 / libgcc_s.so.1 for the foreign binary are resolved by
+    # LD_LIBRARY_PATH in config.Env (below), NOT here. Two alternatives were
+    # PROVEN not to work with the nixpkgs-patched loader:
+    #   * /etc/ld.so.cache — nixpkgs' dont-use-system-ld-so-cache.patch repoints
+    #     the loader's cache into the glibc store path, so /etc/ld.so.cache is
+    #     never consulted;
+    #   * symlinking libs into /lib,/lib64 — the loader's default search dirs
+    #     (SYSTEM_DIRS) are the glibc STORE path (prefix=$out), not FHS /lib.
+    # Both left "libstdc++.so.6: cannot open shared object file". LD_LIBRARY_PATH
+    # is the mechanism the store-isolated loader honors.
 
     # --- minimal /etc/os-release --------------------------------------------
-    # Silences the devcontainer runtime's distro probe
-    # (cat /etc/os-release || cat /usr/lib/os-release), which otherwise logs a
-    # failure on every `devcontainer up`. Cosmetic but trivial.
+    # Silences the devcontainer runtime's distro probe, which otherwise logs a
+    # failure on every `devcontainer up`.
     cat > etc/os-release <<'OSRELEASE'
     NAME="nix-config devcontainer"
     ID=nixos
@@ -288,18 +263,13 @@ dockerTools.streamLayeredImage {
       "LANG=C.UTF-8"
       "DEVCONTAINER=true"
       # Make libstdc++.so.6 / libgcc_s.so.1 resolvable to FOREIGN (non-Nix)
-      # glibc binaries — the VS Code Server's bundled generic `node` links them
-      # and, once our standard-loader symlink lets it exec, dies with
-      # "libstdc++.so.6: cannot open shared object file" otherwise. This is the
-      # ONLY mechanism the nixpkgs-patched loader honors: its default search
-      # dirs are the glibc STORE path (not /lib,/lib64) and it never reads
-      # /etc/ld.so.cache (see the fakeRootCommands note). Scoped to the single
-      # narrow gcc-lib dir — NOT a broad profile — so the shadow surface is just
-      # libstdc++/libgcc_s. Safe for the co-installed Nix binaries: those two
-      # sonames are the SAME gcc's ABI-identical store libs (shadowing is a
-      # no-op), and every OTHER RUNPATH lib they need (openssl, icu, …) has a
-      # distinct soname absent from this dir, so the loader falls through to
-      # their DT_RUNPATH untouched.
+      # glibc binaries (the VS Code Server's `node`), which otherwise die with
+      # "libstdc++.so.6: cannot open shared object file" once the loader symlink
+      # lets them exec (see fakeRootCommands for why this is the only mechanism).
+      # Scoped to the one narrow gcc-lib dir so the shadow surface is just
+      # libstdc++/libgcc_s — safe for the co-installed Nix binaries, since those
+      # sonames are the SAME gcc's ABI-identical store libs and every other lib
+      # they need has a distinct soname absent from this dir.
       "LD_LIBRARY_PATH=${lib.makeLibraryPath [ gccLib ]}"
     ];
   };
