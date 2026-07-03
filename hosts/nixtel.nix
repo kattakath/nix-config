@@ -16,7 +16,6 @@
 {
   imports = [
     ../modules/darwin/core.nix
-    ../modules/darwin/cloudflared.nix # boot-time loginless Cloudflare token connector
     home-manager.darwinModules.home-manager
   ];
 
