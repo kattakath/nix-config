@@ -3,19 +3,21 @@ name: nix-ci
 # Self-owned, native multi-system Nix CI — the replacement for hosted Garnix.
 #
 # LEAN MERGE CI: this workflow does NOT build the host system toplevels
-# (nixcon / nixarm / nixamd / nixrpi). Building them — especially the cold linux-rpi
-# kernel (~1h, not in cache.nixos.org) — is a RELEASE-time concern handled later
-# against `nixosConfigurations.*` / `darwinConfigurations.*` directly. Per PR, we:
+# (nixcon / nixtel / nixarm / nixamd / nixrpi). Building them — especially the cold
+# linux-rpi kernel (~1h, not in cache.nixos.org) — is a RELEASE-time concern handled
+# later against `nixosConfigurations.*` / `darwinConfigurations.*` directly. Per PR, we:
 #
 #   1. BUILD the flake's lint/format checks (`.#checks.<system>` = formatting +
-#      pre-commit) on each system's OWN NATIVE runner, and
+#      pre-commit) once per SYSTEM on that system's own native runner, and
 #   2. EVALUATE each host config's toplevel (cheap: forces full module eval,
 #      catching config/option/type errors) WITHOUT building it.
 #
-# Runners (all GitHub-hosted, native, free for public repos — no QEMU):
-#   x86_64-linux   -> ubuntu-24.04       (nixamd eval here)
-#   aarch64-linux  -> ubuntu-24.04-arm   (nixarm + nixrpi eval here)
-#   aarch64-darwin -> macos-15           (nixcon + nixtel eval here)
+# ONE LEG PER HOST, each on its ARCH-NATIVE GitHub-hosted runner (free for public
+# repos, no QEMU) — so reintroducing a real toplevel BUILD later is a native build:
+#   nixamd (x86_64-linux)   -> ubuntu-24.04
+#   nixarm (aarch64-linux)  -> ubuntu-24.04-arm    (also evaluates nixrpi — same system/runner)
+#   nixtel (x86_64-darwin)  -> macos-13            (Intel)
+#   nixcon (aarch64-darwin) -> macos-latest        (Apple Silicon / arm64)
 #
 # READ from the ismailkattakath Cachix cache is public (substituter + key below).
 # WRITE needs CACHIX_AUTH_TOKEN (a repo secret; absent on fork PRs, where the push
@@ -36,10 +38,16 @@ permissions:
   contents: read
 
 jobs:
-  # Native per-system matrix. fail-fast:false so one system's failure doesn't
-  # cancel the others — the aggregate required-checks job decides the result.
-  # Each entry is its own status check `build (<name>)`; required-checks
-  # (needs: [build]) is the single stable branch-protection anchor.
+  # One leg per host, on its arch-native runner. fail-fast:false so one host's
+  # failure doesn't cancel the others — the aggregate required-checks job decides
+  # the overall result. Each entry is its own status check `build (<host>)`;
+  # required-checks (needs: [build]) is the single stable branch-protection anchor,
+  # so renaming/adding legs never requires re-anchoring the ruleset.
+  #
+  # `checks-system` names the flake system whose `.#checks.<system>` lint set this
+  # leg builds (once per system). Legs without it (nixtel → x86_64-darwin, which is
+  # deliberately NOT in forAllSystems; nixrpi → aarch64-linux checks already built
+  # on the nixarm leg) skip the build step and only evaluate their host config.
   build:
     name: build (${{ matrix.name }})
     runs-on: ${{ matrix.runs-on }}
@@ -48,22 +56,30 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: x86_64-linux
+          # nixamd — x86_64-linux; also builds the x86_64-linux lint checks.
+          - name: nixamd
             runs-on: ubuntu-24.04
+            checks-system: x86_64-linux
             eval-attrs: .#nixosConfigurations.nixamd.config.system.build.toplevel.drvPath
-          - name: aarch64-linux
+          # nixarm — aarch64-linux; builds the aarch64-linux lint checks and also
+          # evaluates nixrpi (same system + same native runner — no extra runner).
+          - name: nixarm
             runs-on: ubuntu-24.04-arm
+            checks-system: aarch64-linux
             eval-attrs: >-
               .#nixosConfigurations.nixarm.config.system.build.toplevel.drvPath
               .#nixosConfigurations.nixrpi.config.system.build.toplevel.drvPath
-          - name: aarch64-darwin
-            runs-on: macos-15
-            # nixtel is x86_64-darwin, but resolving its .drvPath is build-free
-            # and cross-arch-safe on this arm64 runner (same trick the
-            # build-devcontainer gate uses to eval both arches on one runner).
-            eval-attrs: >-
-              .#darwinConfigurations.nixcon.system.drvPath
-              .#darwinConfigurations.nixtel.system.drvPath
+          # nixtel — x86_64-darwin on a NATIVE Intel runner (macos-13), so a future
+          # real build is native. x86_64-darwin isn't in forAllSystems → no
+          # checks.x86_64-darwin to build → eval-only (no `checks-system`).
+          - name: nixtel
+            runs-on: macos-13
+            eval-attrs: .#darwinConfigurations.nixtel.system.drvPath
+          # nixcon — aarch64-darwin (Apple Silicon); also builds the aarch64-darwin checks.
+          - name: nixcon
+            runs-on: macos-latest
+            checks-system: aarch64-darwin
+            eval-attrs: .#darwinConfigurations.nixcon.system.drvPath
     steps:
       - uses: actions/checkout@v4
 
@@ -86,21 +102,24 @@ jobs:
       - name: Stage tree (git purity)
         run: git add -A
 
-      # Build the lint/format checks for this system and push to Cachix.
-      - name: Build .#checks.${{ matrix.name }} + push to Cachix
+      # Build this leg's SYSTEM lint/format checks and push to Cachix. Skipped on
+      # legs with no `checks-system` (nixtel; and nixrpi, whose aarch64-linux checks
+      # the nixarm leg already builds).
+      - name: Build lint checks + push to Cachix
+        if: matrix.checks-system != ''
         env:
           CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
         run: |
           nix run github:Mic92/nix-fast-build -- \
             --skip-cached --no-nom \
-            --flake ".#checks.${{ matrix.name }}" \
+            --flake ".#checks.${{ matrix.checks-system }}" \
             --cachix-cache ismailkattakath
 
-      # EVALUATE (not build) the host configs that target this system. Resolving
-      # each toplevel's .drvPath forces a full module-system eval, so a broken
-      # config (bad option, type error, missing module) fails CI in seconds —
-      # without paying for the actual build. Building is deferred to release.
-      - name: Evaluate host configs (no build)
+      # EVALUATE (not build) this leg's host config(s). Resolving each toplevel's
+      # .drvPath forces a full module-system eval, so a broken config (bad option,
+      # type error, missing module) fails CI in seconds — without paying for the
+      # actual build. Building is deferred to release / on-machine activation.
+      - name: Evaluate host config(s) (no build)
         if: matrix.eval-attrs != ''
         env:
           EVAL_ATTRS: ${{ matrix.eval-attrs }}
@@ -111,11 +130,11 @@ jobs:
             nix eval --raw "$a" && echo
             echo "::endgroup::"
           done
-          echo "✓ host configs evaluate."
+          echo "✓ host config(s) evaluate."
 
   # Aggregate gate — the ONE stable-named required check branch protection anchors
   # to. Runs even if a leg fails (if: always()) and fails if any leg failed or was
-  # cancelled. Splitting/renaming build legs never requires re-anchoring the ruleset.
+  # cancelled. Renaming/adding build legs never requires re-anchoring the ruleset.
   required-checks:
     name: required-checks
     needs: [build]
