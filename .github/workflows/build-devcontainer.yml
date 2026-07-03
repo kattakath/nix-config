@@ -246,7 +246,16 @@ jobs:
         run: |
           REF="${{ steps.ref.outputs.ref }}"
           SHA="${{ steps.ref.outputs.sha12 }}"
+          # index:-prefixed annotations attach to the MANIFEST LIST (the OCI image
+          # index), not the child per-arch manifests — the only place metadata lands
+          # on a multi-arch image (OCI-style labels don't apply to an index). GHCR
+          # renders the package "About" panel (description/source/licenses) from these
+          # index annotations. Expressions keep description/source in lockstep with the
+          # repo. Takes effect on the next push-to-main publish, not this PR.
           docker buildx imagetools create \
+            --annotation "index:org.opencontainers.image.description=Multi-arch distroless devcontainer with a working Nix daemon and a warm devShell — ${{ github.repository }}" \
+            --annotation "index:org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+            --annotation "index:org.opencontainers.image.licenses=MIT" \
             -t "${REF}:latest" \
             -t "${REF}:${SHA}" \
             "${REF}:${SHA}-amd64" \
