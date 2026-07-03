@@ -39,6 +39,16 @@
       "type": "stdio",
       "command": "npx",
       "args": ["-y", "@wonderwhy-er/desktop-commander@latest"]
+    },
+    "cloudflare-docs": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://docs.mcp.cloudflare.com/mcp"]
+    },
+    "cloudflare": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://mcp.cloudflare.com/mcp"]
     }
   }
 }
