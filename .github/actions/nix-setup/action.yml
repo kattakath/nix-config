@@ -1,0 +1,63 @@
+name: nix-setup
+description: >-
+  Install Nix + (optionally) configure Cachix + stage the tree (git-purity),
+  the sequence every flake-check / build-devcontainer job repeats.
+  Centralizes the install-nix / cachix SHA pins so a bump happens in ONE place.
+
+# Local composite action. It CANNOT own the initial `actions/checkout`: the
+# runner must fetch this action's own files from the workspace on disk before it
+# can run it, so the checkout has to happen in the calling job FIRST (otherwise:
+# "Can't find 'action.yml' … Did you forget to run actions/checkout"). Each
+# caller therefore runs actions/checkout (with its own fetch-depth) as its first
+# step, then invokes this composite. Docker-specific steps (setup-qemu / buildx)
+# and any nix eval/build steps also stay in the calling job — this owns only the
+# shared install-nix + cachix + git-purity stage.
+
+inputs:
+  configure-cachix:
+    description: >-
+      Wire up the `ismailkattakath` Cachix substituter (pull) + push hook.
+      Set false for eval-only `gate` jobs that neither build nor push.
+    required: false
+    default: "true"
+  cachix-auth-token:
+    description: >-
+      Cachix write token (a repo secret). Absent on fork PRs → push is skipped
+      and the cache is still used read-only (graceful). Only read when
+      configure-cachix is true.
+    required: false
+    default: ""
+  extra-nix-config:
+    description: >-
+      Extra lines appended to nix.conf (e.g. `extra-platforms = aarch64-linux`
+      for the emulated aarch64-linux leg). Merged with the always-on
+      experimental-features + accept-flake-config.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31
+      with:
+        extra_nix_config: |
+          experimental-features = nix-command flakes
+          accept-flake-config = true
+          ${{ inputs.extra-nix-config }}
+
+    # Cachix: pull from + push to the public `ismailkattakath` cache. The action
+    # installs a post-build hook, so every store path realized later is pushed
+    # automatically. authToken is a write-only credential held only as a repo
+    # secret; when absent (e.g. forks) push is skipped and the cache is still used
+    # read-only — so this is safe to run before the secret exists. Skipped entirely
+    # for eval-only gate jobs (configure-cachix=false), which never build or push.
+    - if: inputs.configure-cachix == 'true'
+      uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
+      with:
+        name: ismailkattakath
+        authToken: ${{ inputs.cachix-auth-token }}
+
+    # Flakes ignore untracked files; stage before any eval/build (git-purity).
+    - name: Stage tree (git purity)
+      shell: bash
+      run: git add -A
