@@ -22,6 +22,6 @@ nix flake check     # evaluate every output + run the lint / pre-commit checks
 
 ## What CI validates
 
-Every PR runs the `flake-check` workflow, which evaluates the flake across all three canonical systems (`aarch64-darwin`, `x86_64-linux`, `aarch64-linux`) plus a `treefmt` + `pre-commit` lint gate. A change that evaluates cleanly on one platform can still break another, so let CI go green before expecting a review. The `gitleaks` workflow also scans for leaked secrets, and `build-devcontainer` verifies the devcontainer image still builds.
+Every PR is built by [Garnix](https://garnix.io) (configured in `garnix.yaml`), which builds the flake's outputs on native builders across all three canonical systems (`aarch64-darwin`, `x86_64-linux`, `aarch64-linux`) — reporting one status check per output, including the host configs (`darwinConfig nixcon`, `nixosConfig nixbox`, `nixosConfig nixrpi`), the flake eval (`Evaluate flake.nix`), and the `treefmt` + `pre-commit` `checks.*`. A change that evaluates cleanly on one platform can still break another, so let CI go green before expecting a review. The `gitleaks` workflow (`Scan for secrets`) also scans for leaked secrets, and `build-devcontainer` verifies the devcontainer image still builds. Branch protection requires the per-config Garnix checks plus `Scan for secrets`.
 
 Keep changes lean and accurate, and never commit secrets (see [SECURITY.md](./SECURITY.md)).
