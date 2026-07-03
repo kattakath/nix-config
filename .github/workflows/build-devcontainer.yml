@@ -127,7 +127,14 @@ jobs:
             -v "$PWD:/workspaces/nix-config" \
             -w /workspaces/nix-config \
             nix-config-devcontainer:latest)
-          trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
+          dump() {
+            echo "--- nix-daemon.log ---"
+            docker exec "$CID" cat /tmp/nix-daemon.log 2>/dev/null || true
+            echo "--- container logs ---"
+            docker logs "$CID" 2>&1 | tail -20 || true
+            docker rm -f "$CID" >/dev/null 2>&1 || true
+          }
+          trap dump EXIT
           # Wait for the daemon socket the root entrypoint creates.
           for _ in $(seq 1 50); do
             docker exec "$CID" test -S /nix/var/nix/daemon-socket/socket && break
