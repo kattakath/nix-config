@@ -2,6 +2,7 @@
 .claude/settings.local.json
 *.local.md
 .claude/worktrees/
+.worktrees/
 
 # superhook runtime artifacts
 .claude/hooks/superhook.log
