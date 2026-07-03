@@ -44,33 +44,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # GATE: evaluate the OPTIONAL Cachix token ONCE (secrets.* is not reliable in
-  # every `if:` context). The build fully succeeds with or without it — no token
-  # means build against cache.nixos.org + the public ismailkattakath cache only.
-  config:
-    runs-on: ubuntu-24.04
-    outputs:
-      has_cachix: ${{ steps.probe.outputs.has_cachix }}
-      # Publish on a main push OR a manual dispatch (from any ref). A manual
-      # workflow_dispatch is the intended force-republish path: it pairs with the
-      # gate's workflow_dispatch→changed=true bypass so a maintainer can always
-      # republish (e.g. after a metadata-only change like an annotation reword that
-      # leaves the image drvPath — and thus the gate — unchanged). Without dispatch
-      # here, is_publish stayed false on dispatch and the publish+manifest were
-      # skipped despite changed=true, so a forced republish never actually happened.
-      is_publish: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch' }}
-    steps:
-      - id: probe
-        env:
-          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
-        run: |
-          if [ -n "${CACHIX_AUTH_TOKEN}" ]; then
-            echo "has_cachix=true"  >> "$GITHUB_OUTPUT"
-          else
-            echo "has_cachix=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::CACHIX_AUTH_TOKEN absent — read-only cache, no push."
-          fi
-
   # GATE: publish only when the image's CONTENT actually changed.
   #
   # The trigger is a path filter on flake.nix/flake.lock/packages/**, but flake.nix
@@ -101,7 +74,6 @@ jobs:
   # changing (a harmless re-publish), but it can NEVER stay the same when the output
   # changes. So the gate may over-publish, never under-publish — the correct bias.
   gate:
-    needs: config
     runs-on: ubuntu-24.04 # eval only — cheapest runner; no arm needed for arm64 drvPath
     outputs:
       changed: ${{ steps.decide.outputs.changed }}
@@ -110,6 +82,16 @@ jobs:
       # `needs: gate`), so the image ref + short sha are not duplicated across jobs.
       ref: ${{ steps.ref.outputs.ref }}
       sha12: ${{ steps.ref.outputs.sha12 }}
+      # Publish on a main push OR a manual dispatch (from any ref). A manual
+      # workflow_dispatch is the intended force-republish path: it pairs with the
+      # gate's workflow_dispatch→changed=true bypass so a maintainer can always
+      # republish (e.g. after a metadata-only change like an annotation reword that
+      # leaves the image drvPath — and thus the gate — unchanged). Without dispatch
+      # here, is_publish stayed false on dispatch and the publish+manifest were
+      # skipped despite changed=true, so a forced republish never actually happened.
+      # Pure github-context expression — no secret probe, so it lives on this
+      # always-running gate job rather than a dedicated job of its own.
+      is_publish: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch' }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
@@ -169,7 +151,7 @@ jobs:
           fi
 
   build:
-    needs: [config, gate]
+    needs: [gate]
     # NATIVE runners per arch — no QEMU. Streaming a full-devShell nix closure
     # under emulation would be brutally slow, and aarch64 is what the Apple
     # Silicon devcontainer actually runs.
@@ -194,8 +176,12 @@ jobs:
             experimental-features = nix-command flakes
             accept-flake-config = true
 
+      # Cachix: pull from + push to the public `ismailkattakath` cache. The action
+      # installs a post-build hook, so every store path realized below is pushed
+      # automatically. authToken is a write-only credential held only as a repo
+      # secret; when absent (e.g. forks) push is skipped and the cache is still used
+      # read-only — so this runs UNCONDITIONALLY and is safe on forks.
       - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
-        if: needs.config.outputs.has_cachix == 'true'
         with:
           name: ismailkattakath
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
@@ -353,7 +339,7 @@ jobs:
       # part — the multi-GB skopeo uploads (and, downstream, the manifest job + the
       # scarce arm64 runner's push) — is gated on gate.outputs.changed.
       - name: Login to GHCR
-        if: needs.config.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
+        if: needs.gate.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
         uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v3
         with:
           registry: ghcr.io
@@ -402,7 +388,7 @@ jobs:
       #     deletes/untags `:<sha12>-<arch>`; keep them as permanent versions. The
       #     manifest job asserts both children still resolve after assembly.
       - name: Push per-arch image
-        if: needs.config.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
+        if: needs.gate.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
         env:
           CONTAINERS_REGISTRIES_CONF: ${{ runner.temp }}/registries.conf
         run: |
@@ -414,8 +400,8 @@ jobs:
             "docker://${{ needs.gate.outputs.ref }}:${{ needs.gate.outputs.sha12 }}-${{ matrix.arch }}"
 
   manifest:
-    needs: [config, gate, build]
-    if: needs.config.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
+    needs: [gate, build]
+    if: needs.gate.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
     runs-on: ubuntu-24.04
     steps:
       - name: Login to GHCR
