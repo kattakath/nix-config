@@ -1,68 +1,54 @@
 {
-  // nix-config devcontainer — a PREBUILT image, not a features stack.
+  // nix-config devcontainer: a PREBUILT, Nix-built image. The whole toolchain —
+  // a working single-user nix (flakes + public Cachix), the warm devShell
+  // closure (nixd/nixfmt/treefmt/statix/deadnix/home-manager), node, claude-code,
+  // gh — is baked into the image by this repo's flake.nix
+  // (packages/devcontainer-image.nix, dockerTools.streamLayeredImage) and
+  // published multi-arch to GHCR by .github/workflows/build-devcontainer.yml.
+  // Inside the container, `nix develop` resolves from the baked, DB-registered
+  // /nix/store: no build, no download.
   //
-  // The image (.devcontainer/Dockerfile) bakes in nix + the pre-warmed flake
-  // devShell + claude-code + gh, so first `nix develop` is instant and there is
-  // no per-create feature install. Built + published multi-arch to GHCR by
-  // .github/workflows/test-devcontainer.yml (prebuild + verify) → image URL:
-  //   ghcr.io/ismailkattakath/devcontainers/nix-config
-  //
-  // Official devcontainer PREBUILD pattern: `build.cacheFrom` points at that
-  // published image, so opening the container pulls cached layers (instant)
-  // instead of re-running the nix install + devShell warm. It stays buildable
-  // locally before the image is published. `context: ".."` = repo root, because
-  // the Dockerfile copies the root flake files (flake.nix/flake.lock/treefmt.nix).
-  //
-  // Phase 2 swaps the Dockerfile for a baseless dockerTools image; the
-  // build/cacheFrom below is unaffected (only the Dockerfile changes).
-  "name": "nix-config (flake devShell — prebuilt)",
-  "build": {
-    "dockerfile": "Dockerfile",
-    "context": "..",
-    "cacheFrom": "ghcr.io/ismailkattakath/devcontainers/nix-config"
-  },
+  // This file keeps ONLY what an image cannot carry: the workspace mount, the
+  // VS Code extensions/settings, and the terminal profiles.
+  "name": "nix-config (prebuilt Nix devcontainer image)",
+  "image": "ghcr.io/ismailkattakath/devcontainers/nix-config:latest",
+
+  // Multi-user Nix: the image runs as ROOT and its entrypoint starts the
+  // nix-daemon; VS Code drops to the non-root `vscode` user for terminals, which
+  // reach the daemon over the socket (NIX_REMOTE=daemon is baked in). This is
+  // Nix's official multi-user model + the devcontainers/nix Feature's non-root
+  // path — the baked store stays root-owned by design, no chown/sudo needed.
+  "remoteUser": "vscode",
+
+  // The image ships a fixed uid/gid 1000 vscode user via fakeNss (read-only
+  // /etc/passwd), so VS Code's default UID-remap (usermod) can't run — disable it.
+  "updateRemoteUserUID": false,
+
+  // Respect the image ENTRYPOINT (which launches nix-daemon then execs the
+  // keepalive Cmd). With the default (true) VS Code would replace it and the
+  // daemon would never start.
+  "overrideCommand": false,
 
   "workspaceFolder": "/workspaces/nix-config",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/nix-config,type=bind,consistency=cached",
 
-  // The devShell closure is PREBUILT into the image. This re-runs the warm on
-  // create — cheap (closure already cached) — and installs the real
-  // .git/hooks/pre-commit against the bind-mounted workspace (the build-time
-  // hook lived in a throwaway tree, see Dockerfile §3).
-  "updateContentCommand": "nix develop --command true",
-
-  // Replaces the claude-code-persistence feature: a named volume persists
-  // ~/.claude (history/sessions/todos) across rebuilds. Uncomment the second
-  // mount to also persist auth (~/.claude.json) — the feature did NOT by default,
-  // so you re-login after a rebuild unless you opt in here.
-  "mounts": [
-    "source=claude-dir-${devcontainerId},target=/home/vscode/.claude,type=volume"
-    // ,"source=claude-json-${devcontainerId},target=/home/vscode/.claude.json,type=volume"
-  ],
-
-  "containerEnv": {
-    "NIXPKGS_ALLOW_UNFREE": "1"
-  },
+  // IMPORTANT: no mount over /nix — that would shadow the baked, warm store the
+  // image ships. The container's own overlay makes /nix/store writable for new
+  // builds. Project memory (`memory/`) rides the workspaceMount bind (gitignored,
+  // host<->container). No volume for ~/.claude (deliberate — don't re-add one).
 
   "customizations": {
     "vscode": {
-      // Installed into the container on create. The host only RECOMMENDS these
-      // (see ../.vscode/extensions.json) — they need nix + the devShell to work,
-      // which lives in this image, not on the nix-less host.
+      // anthropic.claude-code is registered by the baked claude-code toolchain.
       "extensions": [
         "jnoortheen.nix-ide",
         "gruntfuggly.triggertaskonsave",
         "fuadpashayev.bottom-terminal",
-        "Anthropic.claude-code",
         "shd101wyy.markdown-preview-enhanced",
         "ms-azuretools.vscode-containers"
       ],
       "settings": {
-        // --- Nix language server (nix-ide → nixd) ---
-        // nixd/nixfmt come from the devShell PATH. If nix-ide can't find them
-        // outside an active `nix develop`, either add a global
-        // `nix profile install nixpkgs#nixd nixpkgs#nixfmt-rfc-style` to the
-        // Dockerfile or set absolute store paths here. (Verify in-container.)
+        // nixd/nixfmt resolve from the baked PATH.
         "nix.enableLanguageServer": true,
         "nix.serverPath": "nixd",
         "nix.formatterPath": "nixfmt",
@@ -72,33 +58,32 @@
           }
         },
 
-        // --- Format on save, nix-ide owns .nix files ---
         "editor.formatOnSave": true,
         "[nix]": {
           "editor.defaultFormatter": "jnoortheen.nix-ide"
         },
 
-        // --- Live statix/deadnix diagnostics on save (Problems tab) ---
-        // On .nix save, runs the "nix: lint" task (../.vscode/tasks.json), whose
-        // problem matchers feed statix (anti-patterns) + deadnix (dead code) into
-        // Problems — the gap nix-ide/nixd don't cover. Needs triggertaskonsave.
+        // On .nix save, run the "nix: lint" task (statix/deadnix -> Problems).
         "triggerTaskOnSave.on": true,
         "triggerTaskOnSave.showNotifications": false,
         "triggerTaskOnSave.tasks": {
           "nix: lint": ["**/*.nix"]
         },
 
-        // --- Terminal profiles ---
-        // claude-code is installed via nvm in the image, so the binary lives
-        // under the nvm `current` symlink (current -> versions/node/<ver>) — NOT
-        // a hardcoded version dir, so the path survives node bumps. Phase 2
-        // (claude-code from nixpkgs) changes this to /bin/claude.
+        // Default terminal enters the flake devShell so the pinned
+        // nixd/nixfmt/statix/deadnix are on PATH (the on-convention alternative
+        // to direnv). Because the closure is baked, `nix develop` is instant.
+        // "zsh" is the recovery shell if a broken flake eval fails the devShell.
+        "terminal.integrated.defaultProfile.linux": "nix develop",
         "terminal.integrated.profiles.linux": {
-          "zsh": {
-            "path": "/usr/bin/zsh"
+          "bash": { "path": "bash" },
+          "nix develop": {
+            "path": "bash",
+            "args": ["-lc", "exec nix develop"],
+            "icon": "beaker"
           },
           "claude": {
-            "path": "/usr/local/share/nvm/current/bin/claude",
+            "path": "claude",
             "args": ["--permission-mode", "bypassPermissions"],
             "icon": "claude",
             "color": "terminal.ansiYellow"
@@ -106,7 +91,5 @@
         }
       }
     }
-  },
-
-  "remoteUser": "vscode"
+  }
 }
