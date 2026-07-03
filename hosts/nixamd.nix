@@ -5,15 +5,29 @@
 # replace the boot/fileSystems stanza below with `nixos-generate-config`
 # hardware output (real disk-by-uuid, actual kernel modules, etc.).
 #
-# Modeled on hosts/nixarm.nix, but WITHOUT the Cloudflare tunnel: nixamd has no
-# provisioned SSH host key yet, so there is no agenix recipient to encrypt a
-# tunnel credential to. Adding a tunnel is a follow-up once a host key exists
-# (mint the key, add it to secrets/secrets.nix, encrypt an nixamd-tunnel-creds
-# secret, then wire services.cloudflared here like nixarm does).
+# Modeled on hosts/nixarm.nix. The Cloudflare tunnel is PRE-WIRED but INERT:
+# nixamd has no provisioned SSH host key yet, so there is no agenix recipient to
+# encrypt a connector token to, and the nixamd-tunnel-token.age file does not
+# exist. The token secret below is therefore gated behind `tunnelReady` (default
+# false) so eval/CI never hard-fails on a missing .age. Once a real host exists:
+#   1. boot it, collect /etc/ssh/ssh_host_ed25519_key.pub,
+#   2. add it as a recipient in secrets/secrets.nix,
+#   3. run scripts/cf-one-provision.sh nixamd → encrypt the token as
+#      secrets/nixamd-tunnel-token.age (skill: agenix-host-rekey),
+#   4. flip `tunnelReady` to true.
+# modules/nixos/cloudflared.nix (imported globally) then runs the hardened
+# systemd connector at boot by picking up the "nixamd-tunnel-token" secret.
 {
   lib,
+  secretsDir,
   ...
 }:
+let
+  # Flip to true once nixamd is a real, provisioned host with an existing
+  # secrets/nixamd-tunnel-token.age. Keeping it false makes the token secret a
+  # no-op so `nix flake check` never fails on the missing .age file.
+  tunnelReady = false;
+in
 {
   networking.hostName = "nixamd";
 
@@ -51,12 +65,14 @@
 
   swapDevices = [ ];
 
-  # No Cloudflare tunnel yet (no host key → no agenix recipient). The shared
-  # modules/nixos/cloudflared.nix enables the daemon unconditionally; override
-  # it off here so eval/activation never expects a credentials file that does
-  # not exist. Flip this on (and add the tunnel + secret) once nixamd has a
-  # provisioned host key — see the header note.
-  services.cloudflared.enable = lib.mkForce false;
+  # Cloudflare Tunnel — PRE-WIRED but inert (see the header note). Gated on
+  # `tunnelReady` so the missing nixamd-tunnel-token.age never breaks eval; when
+  # false the "nixamd-tunnel-token" secret is undeclared, so
+  # modules/nixos/cloudflared.nix (which guards on the secret's presence) leaves
+  # the connector unit off. Flip `tunnelReady` to true once the .age exists.
+  age.secrets = lib.mkIf tunnelReady {
+    "nixamd-tunnel-token".file = "${secretsDir}/nixamd-tunnel-token.age";
+  };
 
   system.stateVersion = "24.05";
 }

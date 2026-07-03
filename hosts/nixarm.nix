@@ -4,7 +4,6 @@
 # which targets real Raspberry Pi 4 hardware via raspberry-pi-nix (SD image).
 # Install with: nixos-install --flake .#nixarm
 {
-  config,
   lib,
   secretsDir,
   ...
@@ -47,16 +46,21 @@
 
   swapDevices = [ ];
 
-  # Cloudflare Tunnel — reuses the existing tunnel cred (UUID + DNS CNAME live
-  # on Cloudflare as nixarm.kattakath.com; the secret keeps its nixarm-* name).
-  # agenix decrypts it at activation with the host key
-  # (age.identityPaths = /etc/ssh/ssh_host_ed25519_key in modules/nixos/core.nix).
+  # Cloudflare Tunnel — REMOTELY-MANAGED (token) connector. The tunnel, its
+  # public-hostname ingress (nixarm.kattakath.com → ssh://localhost:22) and the
+  # proxied CNAME all live in the Cloudflare account (provisioned once by
+  # scripts/cf-one-provision.sh). All this host needs is the connector token,
+  # delivered as one line `TUNNEL_TOKEN=…` via agenix. modules/nixos/cloudflared.nix
+  # (imported globally in flake.nix) picks up this secret by name and runs the
+  # hardened systemd unit at boot — no login, no cert.pem, no in-repo ingress.
   #
+  # agenix decrypts this at activation with the host key
+  # (age.identityPaths = /etc/ssh/ssh_host_ed25519_key in modules/nixos/core.nix).
   # Two ways to make that key match the secret's recipient:
   #   (a) post-boot rekey — boot, collect the new host key, re-encrypt, rebuild
   #       (skill: agenix-host-rekey). Note: an in-VM `nixos-rebuild switch` is too
   #       heavy for the TCG-emulated VM and can crash it; prefer (b) for VMs.
-  #   (b) PREBAKE (verified) — pin a host keypair offline, encrypt the cred to its
+  #   (b) PREBAKE (verified) — pin a host keypair offline, encrypt the token to its
   #       public half, and inject the private half into the image's /etc/ssh/
   #       before first boot so the tunnel is up at boot with zero logins and no
   #       in-VM rebuild (skill: nixarm-prebake-hostkey).
@@ -70,17 +74,7 @@
   # /etc/ssh/ssh_host_ed25519_key (reinstall, reimage, manual rotation) silently
   # makes every host-scoped .age here undecryptable at next activation — re-run
   # the agenix-host-rekey skill after any host-key change, then rebuild.
-  age.secrets.tunnel-creds = {
-    file = "${secretsDir}/nixarm-tunnel-creds.age";
-    mode = "0400";
-    owner = "root";
-  };
-
-  services.cloudflared.tunnels."48199503-cdee-4f62-b233-0dfa3bac4b5a" = {
-    credentialsFile = config.age.secrets.tunnel-creds.path;
-    ingress."nixarm.kattakath.com" = "ssh://localhost:22";
-    default = "http_status:404";
-  };
+  age.secrets."nixarm-tunnel-token".file = "${secretsDir}/nixarm-tunnel-token.age";
 
   system.stateVersion = "24.05";
 }
