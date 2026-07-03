@@ -159,8 +159,8 @@
     in
     {
       # ---- macOS system configuration ----------------------------------------
-      # Built with `darwin-rebuild switch --flake .#m3pro`.
-      darwinConfigurations."m3pro" = nix-darwin.lib.darwinSystem {
+      # Built with `darwin-rebuild switch --flake .#silicon`.
+      darwinConfigurations."silicon" = nix-darwin.lib.darwinSystem {
         system = "aarch64-darwin";
         specialArgs = {
           inherit
@@ -170,7 +170,7 @@
             ;
         };
         modules = [
-          ./hosts/m3pro.nix
+          ./hosts/silicon.nix
           ./modules/shared/nix-cache.nix # Cachix binary cache (read)
         ];
       };

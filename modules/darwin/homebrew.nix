@@ -1,4 +1,4 @@
-# nix-darwin Homebrew module — make Homebrew DECLARATIVE on macOS (m3pro).
+# nix-darwin Homebrew module — make Homebrew DECLARATIVE on macOS (silicon).
 #
 # This module brings the operator's previously-imperative Homebrew state under
 # nix-darwin's `homebrew` module, sourced from ~/Brewfile (regenerated 2026-06-22).
@@ -32,7 +32,7 @@
 #   (nodecg is an npm global, NOT a brew — so it is NOT declared here at all.)
 #
 # nix-darwin only MANAGES Homebrew here; it does not INSTALL Homebrew itself.
-# `brew` must already be present on the host (it is, on m3pro).
+# `brew` must already be present on the host (it is, on silicon).
 _:
 
 {

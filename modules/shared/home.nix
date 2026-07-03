@@ -20,7 +20,7 @@
 }:
 let
   # VS Code Marketplace mirror — provided by the nix-vscode-extensions overlay,
-  # which the darwin host (m3pro) adds to nixpkgs.overlays. Only referenced
+  # which the darwin host (silicon) adds to nixpkgs.overlays. Only referenced
   # inside the `mkIf isDarwin` vscode block, so the Linux hosts (which don't
   # apply the overlay) never touch it. CRUCIAL: reading the overlay attr off
   # `pkgs` (rather than the flake input's `.extensions.<sys>` output) means the
