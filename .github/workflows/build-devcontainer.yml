@@ -318,6 +318,19 @@ jobs:
       #     that has NO annotations field — so the index:org.opencontainers.image.*
       #     annotations are SILENTLY DROPPED and GHCR's About panel renders nothing.
       #     `oci` is a documented skopeo-copy --format value (oci|v2s1|v2s2).
+      #  4. The `:<sha12>-<arch>` tag this pushes is LOAD-BEARING and must be
+      #     RETAINED permanently — it is what keeps the per-arch child manifest
+      #     alive. `docker buildx imagetools create` (manifest job) copies each
+      #     child into the OCI index BY DIGEST but does NOT create any durable
+      #     reference of its own to those children; the arch tag is the only
+      #     thing holding them. GHCR garbage-collects UNTAGGED manifests, so if
+      #     these arch tags ever went away the index children would be pruned and
+      #     `:latest` would become a dangling index (200 for the index, 404 for
+      #     both children) — a `docker pull` then fails for EVERY consumer
+      #     (Codespaces prebuilds, local .devcontainer users, CI). That is exactly
+      #     the regression this workflow shipped once. DO NOT add a step that
+      #     deletes/untags `:<sha12>-<arch>`; keep them as permanent versions. The
+      #     manifest job asserts both children still resolve after assembly.
       - name: Push per-arch image
         if: needs.config.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
         env:
@@ -371,6 +384,59 @@ jobs:
             "${REF}:${SHA}-amd64" \
             "${REF}:${SHA}-arm64"
           docker buildx imagetools inspect "${REF}:latest"
+
+      # HARD POST-PUBLISH GUARD — fail the publish if `:latest` is not actually
+      # pullable. The old pipeline shipped a DANGLING INDEX: the OCI index served
+      # HTTP 200 but both per-arch children 404'd, so every `docker pull` failed
+      # (Codespaces prebuilds, local .devcontainer users, CI). `imagetools inspect`
+      # above does NOT catch this — it reads the index descriptors, not the child
+      # bodies. This step does three things a dangling index cannot survive:
+      #   1. a REAL `docker pull :latest`, which resolves + fetches a platform
+      #      child (the amd64 child, on this ubuntu-24.04 runner) — 404 ⇒ failure;
+      #   2. an explicit resolve of EVERY child digest the index references, so a
+      #      broken child on the arch the runner did NOT pull (arm64) is still
+      #      caught — a registry GET per child, 404 ⇒ failure;
+      #   3. re-assert #15's index annotation survived, so a future imagetools
+      #      change that silently drops it also fails here.
+      # Without this, a dangling index shipped silently and only surfaced in a
+      # downstream Codespaces prebuild. Now it fails CI at publish time.
+      - name: Verify :latest is durably pullable (children resolve)
+        run: |
+          set -euo pipefail
+          REF="${{ steps.ref.outputs.ref }}"
+
+          echo "::group::real docker pull ${REF}:latest (fetches a platform child)"
+          docker pull "${REF}:latest"
+          echo "::endgroup::"
+
+          RAW="$(docker buildx imagetools inspect --raw "${REF}:latest")"
+
+          # Resolve EVERY child manifest the index references. jq extracts the
+          # image (platform) children; attestation/unknown descriptors have
+          # platform.architecture == "unknown" and are skipped. A dangling child
+          # makes `imagetools inspect <ref>@<digest>` return non-zero (registry
+          # 404) and, under set -e, fails the job. Portable `while read` loop
+          # (no `mapfile`) so bash version can't matter.
+          DIGESTS="$(printf '%s' "$RAW" \
+            | jq -r '.manifests[] | select((.platform.architecture // "") != "unknown") | .digest')"
+          COUNT="$(printf '%s\n' "$DIGESTS" | grep -c '^sha256:')"
+          if [ "${COUNT}" -lt 2 ]; then
+            echo "✗ expected >=2 platform children in the index, found ${COUNT}"; echo "$RAW"; exit 1
+          fi
+          printf '%s\n' "$DIGESTS" | while IFS= read -r d; do
+            [ -n "$d" ] || continue
+            echo "→ resolving child ${d}"
+            docker buildx imagetools inspect "${REF}@${d}" >/dev/null \
+              || { echo "✗ child ${d} does NOT resolve — :latest is a DANGLING INDEX"; exit 1; }
+          done
+          echo "✓ all ${COUNT} child manifests resolve"
+
+          # Protect PR #15: the index must still carry the OCI description annotation.
+          printf '%s' "$RAW" \
+            | jq -e '.annotations["org.opencontainers.image.description"]' >/dev/null \
+            || { echo "✗ index lost org.opencontainers.image.description annotation (#15 regression)"; exit 1; }
+          echo "✓ index annotations intact (org.opencontainers.image.description present)"
+          echo "=== :latest is durably pullable ==="
 
       # Record the baseline ONLY after a fully successful publish, so a failed push
       # never poisons the cache into skipping the next (needed) republish. On the
