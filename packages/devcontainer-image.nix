@@ -141,6 +141,16 @@ dockerTools.streamLayeredImage {
     mkdir -p bin
     ln -sf ${pkgs.bashInteractive}/bin/bash bin/sh
 
+    # /usr/bin/env — the VS Code Server bootstrap scripts (check-requirements.sh
+    # and its siblings) start with `#!/usr/bin/env sh`; on this distroless Nix
+    # image /usr/bin/env is absent, so the kernel rejects the shebang with
+    # "/usr/bin/env: bad interpreter: No such file or directory" (exit 126) and
+    # the server never installs — `devcontainer up` / Remote-Containers attach
+    # then aborts. env resolves the real interpreter (sh/bash/node) via the
+    # container PATH, which already carries the store bins plus /bin.
+    mkdir -p usr/bin
+    ln -sf ${pkgs.coreutils}/bin/env usr/bin/env
+
     # writable HOME for vscode (gh config, ~/.claude, npm cache).
     mkdir -p home/${username}
     chown -R ${toString uid}:${toString gid} home/${username}

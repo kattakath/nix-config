@@ -323,6 +323,44 @@ jobs:
             || { echo "✗ node produced no version string — libstdc++ likely unresolved"; exit 1; }
           echo "=== foreign-glibc execution guard passed ==="
 
+      # REGRESSION GUARD (see fix/devcontainer-usr-bin-env): prove /usr/bin/env
+      # resolves so the VS Code Server bootstrap scripts can exec. Those scripts
+      # (check-requirements.sh and its siblings under
+      # ~/.vscode-server/bin/<commit>/bin/helpers/) start with a `#!/usr/bin/env sh`
+      # shebang; on a distroless Nix image /usr/bin/env is absent, so the kernel
+      # rejects the shebang with "/usr/bin/env: bad interpreter: No such file or
+      # directory" (exit 126) and the server never installs — Remote-Containers /
+      # `devcontainer up` then fails to attach. This is the EXACT breakage that hid
+      # behind a green build + the Nix-only smoke test (nix binaries hardcode their
+      # own store shebang, never /usr/bin/env, so they pass even when it is gone).
+      # Subject under test is a script whose interpreter is resolved via env — not a
+      # Nix binary. If the fakeRootCommands /usr/bin/env symlink regresses, this fails.
+      - name: Guard — /usr/bin/env resolves (VS Code Server shebang bootstrap)
+        run: |
+          set -euo pipefail
+          CID=$(docker run -d nix-config-devcontainer:latest)
+          trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
+
+          # 1) the /usr/bin/env path must exist and resolve to an executable.
+          docker exec "$CID" test -x /usr/bin/env \
+            || { echo "✗ /usr/bin/env is MISSING or non-executable in the image"; exit 1; }
+          echo "✓ /usr/bin/env resolves"
+
+          # 2) a script with the exact VS Code Server shebang must EXECUTE (exit 0),
+          #    not die with the "bad interpreter" (126). env must find `sh` on PATH.
+          docker exec "$CID" sh -c \
+            'printf "#!/usr/bin/env sh\nexit 0\n" > /tmp/req.sh && chmod +x /tmp/req.sh && /tmp/req.sh' \
+            || { echo "✗ '\''#!/usr/bin/env sh'\'' script failed to exec — the bootstrap-blocking regression is back"; exit 1; }
+          echo "✓ #!/usr/bin/env sh script executed (exit 0)"
+
+          # 3) env must also resolve the other interpreters the server scripts use
+          #    (bash, node) via the container PATH — a partial PATH would half-break it.
+          for INTERP in bash node; do
+            docker exec "$CID" /usr/bin/env "$INTERP" --version >/dev/null 2>&1 \
+              || { echo "✗ /usr/bin/env could not resolve/run '\''$INTERP'\'' via PATH"; exit 1; }
+          done
+          echo "=== /usr/bin/env bootstrap guard passed ==="
+
       # The whole `build` job runs only when `is_publish` is true (merge to main or
       # manual dispatch) — PRs are eval-only via the `gate` job, so the build + smoke
       # test ABOVE no longer run on PRs. On a publish-capable run the build + smoke are
