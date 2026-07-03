@@ -193,13 +193,25 @@ jobs:
 
       # Daemonless push (nixpkgs-manual idiom). skopeo reads the docker config
       # that docker/login-action wrote.
+      #
+      # We stage the streamLayeredImage output to a real file first, then feed
+      # skopeo a SEEKABLE docker-archive — deliberately NOT piped through gzip
+      # into docker-archive:/dev/stdin. The pipe form stalled for ~30 min and
+      # died with "gzip: stdout: Broken pipe": skopeo's docker-archive reader
+      # needs to seek within the tar (manifest handling), so a non-seekable
+      # compressed stream makes it buffer/hang, and Actions' pipefail turns
+      # gzip's SIGPIPE into a step failure. A staged file removes both hazards
+      # (no gzip → no SIGPIPE; seekable tar → no reader stall) and is typically
+      # faster for docker-archive. The image tar fits well within the runner's
+      # free disk (~14 GB on / — a full-devShell closure tar is a few GB).
       - name: Push per-arch image
         if: needs.config.outputs.is_publish == 'true'
         run: |
-          ./result | gzip --fast | \
-            nix run nixpkgs#skopeo -- --insecure-policy copy \
-              docker-archive:/dev/stdin \
-              "docker://${{ steps.ref.outputs.ref }}:${{ steps.ref.outputs.sha12 }}-${{ matrix.arch }}"
+          ./result > image.tar
+          nix run nixpkgs#skopeo -- --insecure-policy copy \
+            docker-archive:image.tar \
+            "docker://${{ steps.ref.outputs.ref }}:${{ steps.ref.outputs.sha12 }}-${{ matrix.arch }}"
+          rm -f image.tar
 
   manifest:
     needs: [config, build]
