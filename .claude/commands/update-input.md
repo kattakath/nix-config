@@ -1,5 +1,6 @@
 ---
 description: Bump a flake input, stage the regenerated flake.lock, and re-evaluate across all target systems.
+argument-hint: "[input]  # optional: nixpkgs | home-manager | ... (empty = all inputs)"
 allowed-tools: Bash(nix flake update:*), Bash(git add:*), Bash(git diff:*), Agent(platform-compiler)
 ---
 
