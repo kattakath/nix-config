@@ -1,6 +1,6 @@
 ---
 description: Stage all .nix files then evaluate the flake across all three target systems via the platform-compiler agent.
-allowed-tools: ["Bash(git add:*)", "Bash(git status:*)", "Agent(platform-compiler)"]
+allowed-tools: Bash(git add:*), Bash(git status:*), Agent(platform-compiler)
 ---
 
 Run the canonical evaluation gate for this Nix mono-repo, in order:
