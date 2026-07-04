@@ -145,8 +145,36 @@ if (nixFiles && has("nix")) {
   // timeout) and treat a START failure (daemon down, image unavailable, …) as an
   // environment limitation → syntax-only advisory, NOT a config-eval block.
   const TEN_MIN = 600000;
+
+  // Linked git worktrees (e.g. .claude/worktrees/<branch>) have a `.git` FILE,
+  // not a directory, pointing at the main repo's git-common-dir via an
+  // ABSOLUTE host path — and that common dir's `worktrees/<name>/gitdir`
+  // backlink points back to this checkout via another absolute host path.
+  // `devcontainer up`'s workspaceMount only bind-mounts the checkout folder
+  // at /workspaces/nix-config, so neither absolute pointer resolves inside
+  // the container → git (and libgit2, used by nix's `git+file://` self
+  // input) fails with "fatal: not a git repository: (null)". Fix: when in a
+  // worktree, bind-mount the main repo's `.git` dir AND this checkout's own
+  // real host path at their identical absolute paths, mirroring the host
+  // layout inside the container so both pointer chains resolve.
+  let extraMountArgs = "";
+  let extraSafeDirs = "";
   try {
-    runLong("devcontainer up --workspace-folder .", TEN_MIN);
+    const fs = require("node:fs");
+    const path = require("node:path");
+    if (fs.statSync(path.join(projectDir, ".git")).isFile()) {
+      const commonDir = path.resolve(projectDir, run("git rev-parse --git-common-dir").trim());
+      extraMountArgs =
+        ` --mount "type=bind,source=${commonDir},target=${commonDir}"` +
+        ` --mount "type=bind,source=${projectDir},target=${projectDir}"`;
+      extraSafeDirs = `git config --global --add safe.directory ${commonDir}; git config --global --add safe.directory ${projectDir}; `;
+    }
+  } catch {
+    /* main checkout (`.git` is a directory) or detection failed — no extra mounts needed */
+  }
+
+  try {
+    runLong(`devcontainer up --workspace-folder .${extraMountArgs}`, TEN_MIN);
   } catch {
     // Container could not start — cannot verify here; degrade to the advisory.
     syntaxOnlyAdvisory();
@@ -158,7 +186,7 @@ if (nixFiles && has("nix")) {
     // container's own system so the summary reports the real native target.
     checkOut = runLong(
       "devcontainer exec --workspace-folder . bash -lc " +
-        "'git config --global --add safe.directory /workspaces/nix-config; " +
+        `'git config --global --add safe.directory /workspaces/nix-config; ${extraSafeDirs}` +
         "git add -A && nix flake check -L 2>&1 && " +
         'printf "\\nSTOPGATE_NATIVE=%s\\n" "$(nix eval --raw --impure --expr builtins.currentSystem)"\'',
       TEN_MIN,
