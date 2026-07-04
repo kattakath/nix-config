@@ -265,8 +265,10 @@ One identical runbook covers **all three** NixOS hosts (`nixarm`, `nixrpi`, `nix
 Each ships with a personal-key-only token that the host itself **cannot** decrypt until
 its own first-boot host key is added as a recipient. The sequence:
 
-1. **Boot.** On the LAN the host publishes `<host>.local` via avahi; the `nixarm` QEMU
-   VM also forwards SSH to `localhost:2222` (see the `nixarm-vm` skill).
+1. **Install + Boot.** For a fresh disk, disko handles partitioning declaratively before
+   `nixos-install` — one command replaces manual `parted`/`mkfs`/`mount` (see **nixos-flake-install**
+   skill § 2). On the LAN the host publishes `<host>.local` via avahi; the `nixarm` QEMU VM also
+   forwards SSH to `localhost:2222` (see the `nixarm-vm` skill).
 
 2. **SSH in with the personal key** (the break-glass path — no tunnel yet):
    ```bash
