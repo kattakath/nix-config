@@ -3,9 +3,10 @@ name: nixos-flake-install
 description: >
   Install NixOS onto a freshly-booted machine/VM from this flake repo (nixosConfigurations nixarm).
   Use when asked to "install NixOS", run nixos-install, partition a disk for NixOS, or bring up a
-  new host from the flake. Covers driving the install over SSH from the live ISO, label-based
-  partitioning (boot/nixos), the ≥6 GB RAM prerequisite (low RAM causes silent install corruption),
-  installing a private flake via rsync, and post-install host-key handoff to agenix-host-rekey.
+  new host from the flake. Covers driving the install over SSH from the live ISO, disko declarative
+  disk partitioning (one command replaces manual parted/mkfs/mount), the ≥6 GB RAM prerequisite
+  (low RAM causes silent install corruption), installing a private flake via rsync, and post-install
+  host-key handoff to agenix-host-rekey.
 ---
 
 # NixOS flake install (this repo)
@@ -33,9 +34,11 @@ wipe.** Do **not** limp along with swap — it cannot save an already-poisoned s
 
 ## What `hosts/nixarm.nix` expects (verified)
 
-- **Partitions by LABEL**: `boot` (vfat EFI) + `nixos` (ext4 root).
+- **Disk layout declared via disko** in `disko.devices`: GPT, 512 MiB ESP (vfat, label `boot`) +
+  rest ext4 (label `nixos`). Run `disko --mode disko` (step 2) — it partitions, formats, and mounts
+  in one step. No manual `parted`/`mkfs`/`mount` needed.
 - **systemd-boot + UEFI**; **DHCP** on all interfaces.
-- **Already bakes in VirtIO initrd + UEFI `fileSystems`** — `boot.initrd.availableKernelModules =
+- **Already bakes in VirtIO initrd** — `boot.initrd.availableKernelModules =
   [ "virtio_pci" "virtio_blk" "virtio_scsi" "ahci" "sd_mod" ]`. **No initrd patch needed for
   nixarm** (see step 4 — patch is only for a brand-new generic host lacking these).
 - **User `izzy`**: wheel, passwordless sudo, project SSH key; **key-only SSH, no root login**
@@ -71,44 +74,42 @@ ssh root@192.168.64.x 'mkdir -p /root/.ssh && cat >> /root/.ssh/authorized_keys'
 (Port-forward `2222→22` → `ssh -p 2222 root@localhost` is an alternative; the direct vmnet-shared IP
 is what the verified install used. See **utm-vm-provision** for networking setup.)
 
-## 2. Partition (UEFI, GPT, labels)
+## 2. Partition, format, and mount (disko)
 
-Disk is `/dev/vda` on VirtIO (`lsblk` to confirm). **Destructive — verify the device first.**
+Disk is `/dev/vda` on VirtIO (`lsblk` to confirm). The layout is declared in
+`hosts/nixarm.nix` (`disko.devices`): GPT, 512 MiB ESP (vfat, label `boot`) + rest
+ext4 (label `nixos`). **Destructive — verify the device is correct first.**
 
 ```bash
-parted /dev/vda -- mklabel gpt
-parted /dev/vda -- mkpart ESP fat32 1MiB 512MiB
-parted /dev/vda -- set 1 esp on
-parted /dev/vda -- mkpart primary 512MiB 100%
-
-mkfs.fat -F32 -n boot  /dev/vda1     # LABEL=boot  → fileSystems."/boot"
-mkfs.ext4      -L nixos /dev/vda2     # LABEL=nixos → fileSystems."/"
-
-mount /dev/disk/by-label/nixos /mnt
-mkdir -p /mnt/boot
-mount /dev/disk/by-label/boot /mnt/boot
+sudo nix --extra-experimental-features 'nix-command flakes' \
+  run github:nix-community/disko -- --mode disko ~/nix-config#nixarm
 ```
+
+This single command partitions `/dev/vda`, formats both partitions, and mounts them at
+`/mnt` and `/mnt/boot` — ready for `nixos-install`. No manual `parted`/`mkfs`/`mount`
+needed.
 
 ## 3. Get the flake
 
-**Private repo (this one)** — the VM **cannot** fetch `github:owner/repo` anonymously (GitHub API
-returns **404**). rsync your working tree in, then stage (flakes ignore untracked files). From the
-Mac:
+The repo is **public** — clone directly on the VM:
+
+```bash
+git clone https://github.com/ismailkattakath/nix-config ~/nix-config
+cd ~/nix-config
+```
+
+`git add -A` is **not needed** after a fresh clone — all files are already tracked. Only run it if
+you make local edits before installing.
+
+**If you need to install from an unpublished local branch** (e.g. testing a WIP change), rsync your
+working tree in from the Mac instead:
 
 ```bash
 rsync -az --delete --exclude '.git/hooks' --exclude 'memory/' --exclude 'result' \
-  -e "ssh -i ~/.ssh/id_ed25519" ./ root@<ip>:/tmp/nixcfg/
+  -e "ssh -i ~/.ssh/id_ed25519" ./ nixos@<ip>:~/nix-config/
 ```
 
-On the VM:
-
-```bash
-git config --global --add safe.directory /tmp/nixcfg
-cd /tmp/nixcfg && git add -A
-```
-
-(Public-repo only: `nix --extra-experimental-features 'nix-command flakes' flake clone
-github:ismailkattakath/nix-config --dest /tmp/nixcfg`.)
+Then on the VM: `cd ~/nix-config && git add -A` (flakes ignore untracked files).
 
 ## 4. VirtIO initrd — already baked into `nixarm`
 
@@ -123,7 +124,7 @@ boot.initrd.availableKernelModules = [ "virtio_pci" "virtio_blk" "virtio_scsi" "
 ## 5. Install
 
 ```bash
-nixos-install --flake /tmp/nixcfg#nixarm --no-root-passwd
+sudo nixos-install --flake ~/nix-config#nixarm --no-root-passwd
 reboot
 ```
 
