@@ -5,6 +5,9 @@ let
   # nixarm first-boot host key (agenix-host-rekey): recipient for host-scoped
   # secrets so the host itself can decrypt at activation.
   nixarm = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIWZWAUCsEbxBJmyzy2kaTyKN+Ibyy6xJNBPPkkrcKsA root@nixarm";
+  # nixamd first-boot host key (agenix-host-rekey 2026-07-04): recipient for
+  # host-scoped secrets so the host itself can decrypt at activation.
+  nixamd = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH/WOx3M/kSmHikRA+TfVttCkFCpqsxC3yJcsA6jAGOl root@nixamd";
 in
 {
   # agenix manages ONLY system/cloudflared host-scoped secrets. Personal tokens
@@ -27,11 +30,10 @@ in
   "nixarm-tunnel-token.age".publicKeys = userKeys ++ [ nixarm ];
   "nixrpi-tunnel-token.age".publicKeys = userKeys;
 
-  # nixamd: CF tunnel + DNS reserved now, token encrypted to the personal key
-  # only (no real host / host key yet). hosts/nixamd.nix keeps tunnelReady=false
-  # so the connector stays inert; when nixamd becomes a real host, add its
-  # /etc/ssh host key here and re-encrypt (agenix-host-rekey), then flip the flag.
-  "nixamd-tunnel-token.age".publicKeys = userKeys;
+  # nixamd: CF tunnel + DNS reserved, token re-encrypted to BOTH the personal key
+  # and nixamd's live host key (agenix-host-rekey 2026-07-04). hosts/nixamd.nix
+  # tunnelReady=true; connector activates at boot.
+  "nixamd-tunnel-token.age".publicKeys = userKeys ++ [ nixamd ];
 
   # GitHub Actions self-hosted runner token for nixarm (fine-grained PAT,
   # one raw token line — NO KEY=VALUE wrapper). Encrypted to the personal key
