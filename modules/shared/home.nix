@@ -14,6 +14,7 @@
   pkgs,
   lib,
   config,
+  domain,
   ...
 }:
 let
@@ -110,15 +111,24 @@ in
           ControlPersist = "no";
         };
 
+        # Local NixOS hosts (mDNS .local) — agent forwarding on so agenix rekey
+        # can run on the host using the Mac's key via the forwarded agent.
+        "*.local" = {
+          User = config.home.username;
+          IdentityFile = "~/.ssh/id_ed25519";
+          ForwardAgent = true;
+        };
+
         # Reach any tunnelled host over its public Cloudflare hostname: ssh routes
         # through `cloudflared access ssh` (no public port; the tunnel forwards to
-        # localhost:22). One wildcard block covers every `<host>.kattakath.com`
+        # localhost:22). One wildcard block covers every `<host>.${domain}`
         # connector (nixarm/nixrpi/nixamd/nixcon/nixtel) — no per-host duplication.
         # Loginless: the public hostname has no Access policy in front, so auth is
         # SSH key only (no WARP, no interactive login).
-        "*.kattakath.com" = {
+        "*.${domain}" = {
           User = config.home.username;
           IdentityFile = "~/.ssh/id_ed25519";
+          ForwardAgent = true;
           ProxyCommand = "${pkgs.cloudflared}/bin/cloudflared access ssh --hostname %h";
         };
       };

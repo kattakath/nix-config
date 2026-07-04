@@ -9,6 +9,7 @@
 {
   home-manager,
   username,
+  domain,
   nix-vscode-extensions,
   ...
 }:
@@ -34,6 +35,7 @@
 
   # Home Manager, as a nix-darwin submodule.
   home-manager = {
+    extraSpecialArgs = { inherit domain; }; # thread domain into HM modules
     useGlobalPkgs = true;
     useUserPackages = true;
     users.${username} = {
