@@ -29,4 +29,10 @@ in
   # so the connector stays inert; when nixamd becomes a real host, add its
   # /etc/ssh host key here and re-encrypt (agenix-host-rekey), then flip the flag.
   "nixamd-tunnel-token.age".publicKeys = userKeys;
+
+  # GitHub Actions self-hosted runner token for nixarm (fine-grained PAT,
+  # one raw token line — NO KEY=VALUE wrapper). Encrypted to the personal key
+  # pre-first-boot; re-encrypt to nixarm's host key after first boot
+  # (agenix-host-rekey) so the runner service can decrypt at activation.
+  "nixarm-github-runner-token.age".publicKeys = userKeys;
 }
