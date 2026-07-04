@@ -26,6 +26,11 @@
     agenix.url = "github:ryantm/agenix";
     agenix.inputs.nixpkgs.follows = "nixpkgs";
 
+    # Declarative disk partitioning for NixOS installs. Replaces the manual
+    # parted/mkfs/mount steps with a single `disko --mode disko` command.
+    disko.url = "github:nix-community/disko";
+    disko.inputs.nixpkgs.follows = "nixpkgs";
+
     # Raspberry Pi 4 NixOS support: kernel, firmware, and SD-card image builder.
     raspberry-pi-nix.url = "github:nix-community/raspberry-pi-nix";
     raspberry-pi-nix.inputs.nixpkgs.follows = "nixpkgs";
@@ -58,6 +63,7 @@
       raspberry-pi-nix,
       nix-vscode-extensions,
       nix-homebrew,
+      disko,
       ...
     }:
     let
@@ -238,6 +244,9 @@
         "nixarm" = mkNixos {
           system = "aarch64-linux";
           hostname = "nixarm";
+          extraModules = [
+            disko.nixosModules.disko
+          ];
         };
 
         # Generic NixOS host — x86_64 (config-only / CI-eval; no VM launcher,
