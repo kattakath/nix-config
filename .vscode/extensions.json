@@ -12,7 +12,6 @@
     "jnoortheen.nix-ide", // Nix language support; drives the nixd LSP (in-container)
     "gruntfuggly.triggertaskonsave", // runs the statix/deadnix lint tasks on save → Problems tab
     "fuadpashayev.bottom-terminal",
-    "anthropic.claude-code",
     "shd101wyy.markdown-preview-enhanced" // Markdown renderer (in-editor preview)
   ]
 }
