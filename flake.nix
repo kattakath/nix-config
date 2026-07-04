@@ -156,6 +156,7 @@
             ./modules/shared/nix-cache.nix # Cachix binary cache (read)
             agenix.nixosModules.default # system-level age.secrets (distinct from HM module)
             ./modules/nixos/cloudflared.nix # boot-time loginless cloudflared token connector (custom systemd unit)
+            ./modules/nixos/github-runner.nix # ephemeral self-hosted GitHub Actions runner (no-op on hosts without the token secret)
             home-manager.nixosModules.home-manager
             {
               home-manager = {
