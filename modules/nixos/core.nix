@@ -83,6 +83,19 @@
   # UTM audit finding (2026-07). Applies to all NixOS hosts.
   zramSwap.enable = true;
 
+  # Automatic store GC + on-the-fly reclaim — these NixOS hosts double as
+  # self-hosted CI runners (building e.g. nixrpi SD images), so the store must
+  # self-trim or it fills the disk. UTM audit follow-up (2026-07).
+  nix.gc = {
+    automatic = true;
+    dates = "weekly";
+    options = "--delete-older-than 30d";
+  };
+  # Daemon frees store paths mid-build when free space drops below min-free,
+  # up to max-free — prevents ENOSPC during large builds.
+  nix.settings.min-free = 3 * 1024 * 1024 * 1024; # 3 GiB
+  nix.settings.max-free = 10 * 1024 * 1024 * 1024; # 10 GiB
+
   environment.systemPackages = with pkgs; [
     git
     curl
