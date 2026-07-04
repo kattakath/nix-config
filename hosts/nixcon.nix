@@ -5,6 +5,7 @@
 {
   home-manager,
   username,
+  domain,
   nix-vscode-extensions,
   ...
 }:
@@ -36,6 +37,7 @@
 
   # Home Manager, as a nix-darwin submodule.
   home-manager = {
+    extraSpecialArgs = { inherit domain; }; # thread domain into HM modules
     useGlobalPkgs = true; # reuse the system nixpkgs (DRY, one eval)
     useUserPackages = true; # install user packages into /etc/profiles
     users.${username} = {
