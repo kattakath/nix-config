@@ -3,11 +3,11 @@
 # taps/brews/casks. Shared by both Macs; nix-homebrew auto-selects the prefix
 # from the host platform — nixcon (aarch64) → /opt/homebrew, nixtel (x86_64) →
 # /usr/local — so no per-host branching is needed (mkDarwin sets hostPlatform).
-{ username, ... }:
+{ userName, ... }:
 {
   nix-homebrew = {
     enable = true; # install/manage brew at the host's default (arch-correct) prefix
-    user = username; # account that owns the prefix directories
+    user = userName; # account that owns the prefix directories
     # nixtel is NATIVE Intel (not Rosetta) and nixcon needs no x86 brew; the
     # module also asserts enableRosetta => isAarch64, so it must stay false here.
     enableRosetta = false;

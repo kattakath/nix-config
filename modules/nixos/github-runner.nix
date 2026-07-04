@@ -19,6 +19,7 @@
   config,
   lib,
   pkgs,
+  handleName,
   ...
 }:
 let
@@ -29,7 +30,7 @@ in
   config = lib.mkIf haveSecret {
     services.github-runners.nixci = {
       enable = true;
-      url = "https://github.com/ismailkattakath/nix-config";
+      url = "https://github.com/${handleName}/nix-config";
       tokenFile = config.age.secrets.${secretName}.path;
       # "access" passes --pat to the runner config script; correct for any PAT
       # including fine-grained PATs (github_pat_…). Do NOT use "registration" —

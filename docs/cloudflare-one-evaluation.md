@@ -36,8 +36,8 @@ The three NixOS hosts — `nixarm` (aarch64 UTM/QEMU VM), `nixrpi` (Raspberry Pi
 | **Connectivity** (packets reach sshd) | Per-host remotely-managed (token) Cloudflare Tunnel. A hardened `systemd.services.cloudflared-connector` runs `cloudflared --no-autoupdate tunnel run`, `TUNNEL_TOKEN` from an agenix `EnvironmentFile`. | `modules/nixos/cloudflared.nix`; per-host `age.secrets."<host>-tunnel-token"` in `hosts/<host>.nix` |
 | **Authorization** (are you allowed) | **None.** The public hostname has no Access policy — reaching the tunnel is gated purely by possession of the ed25519 private key. This is _why_ sshd is locked keys-only. | Cloudflare account (ingress `<host>.kattakath.com → ssh://localhost:22`) |
 | **Identity** (who are you) | **None.** | — |
-| **Credential** (what sshd trusts) | A single static key: `users.users.izzy.openssh.authorizedKeys.keys = [ "ssh-ed25519 …STGsS" ]`, with `PasswordAuthentication = false`, `KbdInteractiveAuthentication = false`, `PermitRootLogin = "no"`. | `modules/nixos/core.nix` |
-| **Client reach** | darwin-only `ProxyCommand = "cloudflared access ssh --hostname %h"` on `*.kattakath.com`. Loginless: no WARP, no interactive auth. `ssh izzy@<host>.kattakath.com` just works. | `modules/shared/home.nix` |
+| **Credential** (what sshd trusts) | A single static key: `users.users.ismail.openssh.authorizedKeys.keys = [ "ssh-ed25519 …STGsS" ]`, with `PasswordAuthentication = false`, `KbdInteractiveAuthentication = false`, `PermitRootLogin = "no"`. | `modules/nixos/core.nix` |
+| **Client reach** | darwin-only `ProxyCommand = "cloudflared access ssh --hostname %h"` on `*.kattakath.com`. Loginless: no WARP, no interactive auth. `ssh ismail@<host>.kattakath.com` just works. | `modules/shared/home.nix` |
 | **Break-glass** | avahi/mDNS publishes `<host>.local` on the LAN; LAN SSH with the same key bypasses Cloudflare entirely. | `modules/nixos/core.nix` (`services.avahi`) |
 
 **What ZTIA changes:** it inserts an **identity** layer (an IdP login) and an **authorization** layer (an Access policy) in front of SSH, and replaces the static authorized key with **short-lived certificates** minted per-login by a **Cloudflare-hosted SSH CA**. The static key stops being the credential; your Access identity becomes the credential.
@@ -59,8 +59,8 @@ ZTIA decomposes SSH into three independent layers that compose on top of connect
 
 ```
                                         ┌─────────────────── Cloudflare edge ───────────────────┐
-  izzy@mac                              │                                                        │
-  ssh izzy@nixarm                       │  Access (Infra app) ── policy: allow izzy@… ──> ALLOW  │
+  ismail@mac                              │                                                        │
+  ssh ismail@nixarm                       │  Access (Infra app) ── policy: allow ismail@… ──> ALLOW  │
      │  WARP client (Traffic+DNS)       │        │                                               │
      │  intercepts TCP:22 to target IP  │        ▼                                               │
      ├────────────────────────────────► │   SSH CA signs a SHORT-LIVED cert                      │
@@ -71,12 +71,12 @@ ZTIA decomposes SSH into three independent layers that compose on top of connect
      └──────────────────────────────────────────────────────────────────────────┼──────────────┘
                                                                                   ▼
                                                               nixarm sshd: TrustedUserCAKeys /etc/ssh/ca.pub
-                                                              validates cert → principal maps to unix user izzy
+                                                              validates cert → principal maps to unix user ismail
                                                               (no authorized_keys entry needed)
 ```
 
 1. Device enrolled in WARP; user logged into the IdP once → WARP holds an Access session.
-2. `ssh izzy@<target>`; WARP intercepts the connection to the target IP.
+2. `ssh ismail@<target>`; WARP intercepts the connection to the target IP.
 3. Access evaluates the Infra app policy for this identity + target + SSH user.
 4. On allow, the CA mints a short-lived cert whose principal is the permitted UNIX username.
 5. sshd trusts the CA (`TrustedUserCAKeys`), validates the cert, logs the user in. No static key involved.
@@ -104,11 +104,11 @@ For a solo operator, groups are moot: policies can match your **email** directly
 - **Type:** Infrastructure (Zero Trust → Access controls → Applications → Create new application → **Infrastructure**).
 - **Targets** (Zero Trust → Access controls → **Targets** → Add a target): one per host — `nixarm`, `nixrpi`, `nixamd` — each pinned to its **IP address(es) + virtual network**. Doc constraint: an IP + virtual-network pairing is unique to one target and **cannot be reused**.
 - **Protocol/port:** SSH on port **22** per target. Doc: "Access for Infrastructure only supports assigning one protocol per port."
-- **Connection context / SSH user:** the permitted UNIX usernames — here `izzy` (optionally the "log in as email alias" toggle). Doc: "Cloudflare will not create new users on the target. UNIX users must already be present on the server." `izzy` already exists on all three via `users.users.${username}` in `modules/nixos/core.nix`.
+- **Connection context / SSH user:** the permitted UNIX usernames — here `ismail` (optionally the "log in as email alias" toggle). Doc: "Cloudflare will not create new users on the target. UNIX users must already be present on the server." `ismail` already exists on all three via `users.users.${username}` in `modules/nixos/core.nix`.
 
 ### Access policy
 
-- **One Allow policy:** match **Emails = your address** (or the GitHub identity). On allow, permit SSH user `izzy`.
+- **One Allow policy:** match **Emails = your address** (or the GitHub identity). On allow, permit SSH user `ismail`.
 - **Default-deny:** Access is default-deny — a target with routes but no matching Allow policy blocks all access. No explicit deny rule is needed.
 - **(Optional later):** a Gateway Network policy with the **Audit SSH** action to log SSH commands — requires the session proxied through Cloudflare, which ZTIA already does.
 
@@ -165,16 +165,16 @@ NixOS renders `sshd_config` from the module's `settings`; `TrustedUserCAKeys` vi
 
 ### Principal / user mapping
 
-Under ZTIA the cert principal is the permitted **SSH user** from the Access policy (here `izzy`). sshd validates the cert against `TrustedUserCAKeys` and matches the principal to the login user. **No `AuthorizedPrincipalsCommand` / `AuthorizedPrincipalsFile` is documented as required** for the Infrastructure-Access path — the principal _is_ the UNIX username. (This differs from the older self-hosted `cloudflared access ssh-gen` short-lived-cert flow, which did use principals files; that legacy path's exact directives are unconfirmed.) The UNIX user must pre-exist: it does, via `users.users.${username}`.
+Under ZTIA the cert principal is the permitted **SSH user** from the Access policy (here `ismail`). sshd validates the cert against `TrustedUserCAKeys` and matches the principal to the login user. **No `AuthorizedPrincipalsCommand` / `AuthorizedPrincipalsFile` is documented as required** for the Infrastructure-Access path — the principal _is_ the UNIX username. (This differs from the older self-hosted `cloudflared access ssh-gen` short-lived-cert flow, which did use principals files; that legacy path's exact directives are unconfirmed.) The UNIX user must pre-exist: it does, via `users.users.${username}`.
 
 ### Coexist, then replace `authorizedKeys` (two phases)
 
-- **Phase 1 — coexist (recommended pilot).** Keep `users.users.izzy.openssh.authorizedKeys.keys = [ ed25519 ]` **and** add `TrustedUserCAKeys`. sshd accepts either a valid CA-signed cert **or** the static key. This is the safe migration state: ZTIA works while the old key remains as break-glass.
+- **Phase 1 — coexist (recommended pilot).** Keep `users.users.ismail.openssh.authorizedKeys.keys = [ ed25519 ]` **and** add `TrustedUserCAKeys`. sshd accepts either a valid CA-signed cert **or** the static key. This is the safe migration state: ZTIA works while the old key remains as break-glass.
 - **Phase 2 — replace.** Remove the `authorizedKeys.keys` entry so the **only** accepted credential is a CA-signed cert. Do this **per-host**, only after Phase 1 is proven, and **never on all three at once**.
 
 ### Connectivity: keep the token tunnel, or move to WARP Connector?
 
-- ZTIA's documented model is **WARP client (Traffic + DNS) on the operator's device + a connector on the host side**, with the target reached by **IP** (`ssh izzy@<target-ip>`), not by the public `<host>.kattakath.com` hostname + `cloudflared access ssh` ProxyCommand used today.
+- ZTIA's documented model is **WARP client (Traffic + DNS) on the operator's device + a connector on the host side**, with the target reached by **IP** (`ssh ismail@<target-ip>`), not by the public `<host>.kattakath.com` hostname + `cloudflared access ssh` ProxyCommand used today.
 - The existing **token tunnel can stay as the host-side connector**; ZTIA layers Access + CA on top. Whether the current public-hostname ingress is reused or replaced by an Infra-target IP/network route is a **routing decision to confirm live** — the Infra app matches targets (IP + virtual network), so a **network/private-IP route** is the natural fit, and the public-hostname SSH ingress may become redundant.
 - The `ProxyCommand` in `modules/shared/home.nix` would be **removed** for ZTIA hosts (WARP handles interception); it stays only for any host still on the loginless path.
 
@@ -243,7 +243,7 @@ Verify these against live docs / the CF account before ever building:
 3. **Connectivity model — tunnel reuse vs IP/network route.** Confirm whether the existing token tunnel + public-hostname ingress is reused, or whether ZTIA requires a **network / private-IP route** (target = IP + virtual network) and the public SSH hostname becomes redundant. Confirm the split-tunnel Include entry aligns with the tunnel route.
 4. **CA-for-logging split.** Confirm that only the **`gateway_ca` API-generated** CA enables SSH command logging and a dashboard-generated CA does not — decide API vs dashboard generation accordingly.
 5. **sshd directive ordering under NixOS.** The doc says put `PubkeyAuthentication` / `TrustedUserCAKeys` "above all other directives"; NixOS **appends** `extraConfig`. Verify the rendered `sshd_config` on the nixarm pilot accepts the cert — and whether an `AuthorizedPrincipalsCommand` / `AuthorizedPrincipalsFile` is actually needed for the Infra path (docs imply principal = SSH user, no principals file).
-6. **Email-alias principal.** If enabling "log in as email alias," confirm the lowercased email prefix resolves to an existing UNIX user or maps to `izzy` — otherwise logins fail (no user auto-creation).
+6. **Email-alias principal.** If enabling "log in as email alias," confirm the lowercased email prefix resolves to an existing UNIX user or maps to `ismail` — otherwise logins fail (no user auto-creation).
 7. **aarch64 target support.** Confirm ZTIA SSH has no arch caveats for aarch64 hosts (`nixarm`/`nixrpi`) — nothing in the docs suggested arch limits, but verify before relying on it for the Pi.
 8. **IdP re-auth ergonomics.** If choosing GitHub OIDC, confirm silent re-auth behavior; OTP's emailed-code friction is confirmed and makes it a fallback only.
 

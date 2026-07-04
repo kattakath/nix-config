@@ -90,7 +90,7 @@ On first boot the host generates a fresh `ssh_host_ed25519_key`. The `nixarm-tun
 SSH into the running VM:
 
 ```bash
-ssh -p 2222 izzy@localhost
+ssh -p 2222 ismail@localhost
 ```
 
 If the host key changed (rebuild or fresh qcow2), clear the old entry first:
@@ -102,7 +102,7 @@ ssh-keygen -R '[localhost]:2222'
 Grab the host public key:
 
 ```bash
-ssh -p 2222 izzy@localhost 'cat /etc/ssh/ssh_host_ed25519_key.pub'
+ssh -p 2222 ismail@localhost 'cat /etc/ssh/ssh_host_ed25519_key.pub'
 ```
 
 Then run the **agenix-host-rekey** skill to add this key as an age recipient and re-encrypt `nixarm-tunnel-token.age`. That skill covers the full flow: editing `secrets/secrets.nix`, re-encrypting, committing, and activating on the host.
@@ -112,13 +112,13 @@ Then run the **agenix-host-rekey** skill to add this key as an age recipient and
 Once agenix-host-rekey is done and `nixos-rebuild switch` has run on the host, the `cloudflared-connector` unit starts the tunnel. Verify:
 
 ```bash
-ssh -p 2222 izzy@localhost 'systemctl status cloudflared-connector'
+ssh -p 2222 ismail@localhost 'systemctl status cloudflared-connector'
 ```
 
 After the tunnel is up, SSH via Cloudflare ProxyCommand (see **cloudflared-tunnel** skill):
 
 ```bash
-ssh izzy@nixarm.kattakath.com
+ssh ismail@nixarm.kattakath.com
 ```
 
 The `localhost:2222` port-forward remains available as a fallback for as long as the QEMU process is running.
@@ -139,5 +139,5 @@ pkill -TERM qemu-system-aarch64
 For a clean guest shutdown from another terminal:
 
 ```bash
-ssh -p 2222 izzy@localhost 'sudo shutdown now'
+ssh -p 2222 ismail@localhost 'sudo shutdown now'
 ```
