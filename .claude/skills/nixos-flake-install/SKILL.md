@@ -82,7 +82,7 @@ ext4 (label `nixos`). **Destructive — verify the device is correct first.**
 
 ```bash
 sudo nix --extra-experimental-features 'nix-command flakes' \
-  run github:nix-community/disko -- --mode disko ~/nix-config#nixarm
+  run github:nix-community/disko -- --mode disko --flake "$HOME/nix-config#nixarm"
 ```
 
 This single command partitions `/dev/vda`, formats both partitions, and mounts them at

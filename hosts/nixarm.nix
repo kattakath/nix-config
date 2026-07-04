@@ -3,7 +3,7 @@
 # is arch-agnostic and backs the aarch64 UTM VM today. Distinct from `nixrpi`,
 # which targets real Raspberry Pi 4 hardware via raspberry-pi-nix (SD image).
 # Install with (from live ISO — clone to ~/nix-config, then):
-#   sudo nix run github:nix-community/disko -- --mode disko ~/nix-config#nixarm
+#   sudo nix run github:nix-community/disko -- --mode disko --flake "$HOME/nix-config#nixarm"
 #   sudo nixos-install --flake ~/nix-config#nixarm --no-root-passwd
 {
   lib,
