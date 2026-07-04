@@ -33,9 +33,13 @@ on:
       - ".github/workflows/build-devcontainer.yml"
   workflow_dispatch:
 
+# Default token scope is READ-ONLY for every job. `packages: write` is NOT granted
+# at the top level — it is scoped per-job to ONLY the jobs that push to GHCR (`build`
+# and `manifest`) via their own `permissions:` blocks below (defense-in-depth). The
+# eval-only `gate` job and the PR (non-publish) path therefore never receive a
+# write-capable token.
 permissions:
   contents: read
-  packages: write # push the image to GHCR via GITHUB_TOKEN — no extra secret
 
 env:
   IMAGE_NAME: devcontainer
@@ -149,6 +153,13 @@ jobs:
 
   build:
     needs: [gate]
+    # This job PUSHES per-arch images to GHCR (the "Push per-arch image" step), so it
+    # needs a write-capable token — scoped HERE rather than at the top level so no
+    # other job inherits it. `contents: read` is restated so the job token is not
+    # otherwise widened.
+    permissions:
+      contents: read
+      packages: write # push the per-arch image to GHCR via GITHUB_TOKEN — no extra secret
     # PR = eval-only (the `gate` job's pure `nix eval` of the image drvPath is the
     # PR signal, mirroring nix-ci.yml's host-config evals). The expensive multi-arch
     # build + smoke + publish run ONLY at merge (push to main) or manual dispatch —
@@ -496,6 +507,11 @@ jobs:
 
   manifest:
     needs: [gate, build]
+    # This job assembles + pushes the multi-arch manifest (:latest + :<sha12>) to
+    # GHCR, so it also needs a write-capable token — scoped HERE, same as `build`.
+    permissions:
+      contents: read
+      packages: write # push the multi-arch manifest to GHCR via GITHUB_TOKEN — no extra secret
     if: needs.gate.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
