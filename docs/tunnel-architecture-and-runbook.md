@@ -136,7 +136,7 @@ services.openssh = {
 ```
 
 The single authorized identity is the operator's ed25519 key, declared on
-`users.users.izzy.openssh.authorizedKeys.keys` (`modules/nixos/core.nix:17-23`). This
+`users.users.ismail.openssh.authorizedKeys.keys` (`modules/nixos/core.nix:17-23`). This
 is the same public key that serves as the personal agenix recipient (`userKeys` in
 `secrets/secrets.nix`).
 
@@ -175,7 +175,7 @@ The outbound SSH config lives in `modules/shared/home.nix:87-125`, gated to darw
 
 ```nix
 "*.kattakath.com" = {
-  User = config.home.username;              # izzy
+  User = config.home.username;              # ismail
   IdentityFile = "~/.ssh/id_ed25519";
   ProxyCommand = "${pkgs.cloudflared}/bin/cloudflared access ssh --hostname %h";
 };
@@ -187,7 +187,7 @@ no interactive login: the public hostname has no Access policy, so the connectio
 succeeds on the SSH key alone. One block covers `nixarm`/`nixrpi`/`nixamd` (and would
 cover the Macs if they were ever targets) with no per-host duplication.
 
-On the LAN you can skip the tunnel entirely and `ssh izzy@<host>.local`.
+On the LAN you can skip the tunnel entirely and `ssh ismail@<host>.local`.
 
 ---
 
@@ -272,8 +272,8 @@ its own first-boot host key is added as a recipient. The sequence:
 
 2. **SSH in with the personal key** (the break-glass path — no tunnel yet):
    ```bash
-   ssh izzy@nixarm.local        # or nixrpi.local / nixamd.local
-   ssh -p 2222 izzy@localhost   # nixarm QEMU VM alternative
+   ssh ismail@nixarm.local        # or nixrpi.local / nixamd.local
+   ssh -p 2222 ismail@localhost   # nixarm QEMU VM alternative
    ```
 
 3. **Rekey** — add the host's own `/etc/ssh/ssh_host_ed25519_key.pub` as a recipient in
@@ -321,7 +321,7 @@ Once a host is online, there is nothing to babysit:
   `cloudflared access ssh --hostname %h` as its `ProxyCommand`
   (`modules/shared/home.nix:119-123`); the tunnel forwards to the host's
   `localhost:22`. No public port, no prompt.
-- **On the LAN:** `ssh izzy@nixarm.local` skips the tunnel entirely (mDNS).
+- **On the LAN:** `ssh ismail@nixarm.local` skips the tunnel entirely (mDNS).
 - **Boot / reboot:** the connector is `wantedBy = multi-user.target`
   (`modules/nixos/cloudflared.nix:41`) and auto-starts. A reboot needs **nothing** —
   the token decrypts from the host key and the tunnel re-registers on its own.
@@ -346,7 +346,7 @@ Once a host is online, there is nothing to babysit:
 | Connector unit + guard + hardening | `modules/nixos/cloudflared.nix` |
 | Module imported for every NixOS host | `flake.nix:158` |
 | sshd keys-only, no root/password | `modules/nixos/core.nix:25-35` |
-| Authorized SSH key (`izzy`) | `modules/nixos/core.nix:20-22` |
+| Authorized SSH key (`ismail`) | `modules/nixos/core.nix:20-22` |
 | mDNS `<host>.local` (avahi) + UDP 5353 | `modules/nixos/core.nix:40, 44-52` |
 | agenix host identity (host SSH key) | `modules/nixos/core.nix:74` |
 | `nixarm` token (personal key only) | `hosts/nixarm.nix:77`; `secrets/secrets.nix` |

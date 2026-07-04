@@ -3,7 +3,7 @@
 {
   pkgs,
   lib,
-  username,
+  userName,
   ...
 }:
 
@@ -40,7 +40,7 @@
     # Required by current nix-darwin whenever any `system.defaults.*` is set:
     # names the user those user-scoped macOS defaults apply to. Matches the
     # user declared in each darwin host profile (hosts/nixcon.nix, hosts/nixtel.nix).
-    primaryUser = username;
+    primaryUser = userName;
 
     # ---- macOS defaults (declarative system preferences) -----------------------
     defaults = {

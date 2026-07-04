@@ -60,8 +60,8 @@ pkgs.writeShellApplication {
     fi
 
     echo "nixarm-vm: booting $DISK" >&2
-    echo "  SSH (direct):  ssh -p 2222 izzy@localhost" >&2
-    echo "  SSH (tunnel):  ssh izzy@nixarm.kattakath.com  (once tunnel is active)" >&2
+    echo "  SSH (direct):  ssh -p 2222 ismail@localhost" >&2
+    echo "  SSH (tunnel):  ssh ismail@nixarm.kattakath.com  (once tunnel is active)" >&2
     echo "  QEMU monitor:  Ctrl-a c  (then 'quit' to exit)" >&2
 
     exec qemu-system-aarch64 \

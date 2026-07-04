@@ -8,14 +8,15 @@
 # rebuilding. READ is public (only the URL + public key below — NO token on any
 # consumer); the write credential CACHIX_AUTH_TOKEN is a GitHub Actions secret
 # only, never in Nix or git.
+{ handleName, ... }:
 {
   nix.settings = {
     # Appended to (not replacing) the default cache.nixos.org substituter.
     extra-substituters = [
-      "https://ismailkattakath.cachix.org"
+      "https://${handleName}.cachix.org"
     ];
     extra-trusted-public-keys = [
-      "ismailkattakath.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I="
+      "${handleName}.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I="
     ];
   };
 }
