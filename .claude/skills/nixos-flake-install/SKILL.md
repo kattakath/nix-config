@@ -1,21 +1,25 @@
 ---
 name: nixos-flake-install
 description: >
-  Install NixOS onto a freshly-booted machine/VM from this flake repo (nixosConfigurations nixarm).
-  Use when asked to "install NixOS", run nixos-install, partition a disk for NixOS, or bring up a
-  new host from the flake. Covers driving the install over SSH from the live ISO, disko declarative
-  disk partitioning (one command replaces manual parted/mkfs/mount), the ≥6 GB RAM prerequisite
-  (low RAM causes silent install corruption), installing a private flake via rsync, and post-install
-  host-key handoff to agenix-host-rekey.
+  Bootstrap NixOS onto a freshly-booted VM from this flake repo. Use when asked to "install NixOS",
+  bootstrap a host, partition a disk for NixOS, or bring up nixarm/nixamd from the flake. A single
+  `nix run github:ismailkattakath/nix-config#<hostname>` command (the flake's bootstrap app) replaces
+  the old three-step sequence of disko + git clone + nixos-install. Covers driving the bootstrap over
+  SSH from the live ISO, the ≥6 GB RAM prerequisite, and post-install host-key handoff to agenix-host-rekey.
 ---
 
-# NixOS flake install (this repo)
+# NixOS flake bootstrap (this repo)
 
-Installs `nixosConfigurations.nixarm` (aarch64-linux, UTM/QEMU `virt`) from
-`github:ismailkattakath/nix-config`. `nixos-install` pulls nixpkgs from the **flake's own lock**
-(tracks `nixos-unstable`), so the installer ISO version is irrelevant — a 25.05 minimal ISO installs
-an unstable system fine. (`nixrpi` is a Raspberry Pi 4 SD-image host — **not** installable into a
-generic UEFI VM; this skill is for `nixarm`.)
+Bootstraps a NixOS host from `github:ismailkattakath/nix-config` via a single command. Two hosts
+support this flow:
+
+- **`nixarm`** — aarch64-linux, UTM/QEMU `virt` (Apple Silicon). Run from an **aarch64 live ISO**.
+- **`nixamd`** — x86_64-linux, QEMU TCG emulation (slow but functional on Apple Silicon). Run from
+  an **x86_64 live ISO**.
+
+`nixos-install` pulls nixpkgs from the **flake's own lock** (tracks `nixos-unstable`), so the
+installer ISO version is irrelevant. (`nixrpi` is a Raspberry Pi 4 SD-image host — not installable
+via this flow.)
 
 > **Faster alternative — skip the ISO install entirely.** Build a prebuilt qcow2 with
 > `nixos-rebuild build-image --flake .#nixarm --image-variant qemu-efi` (on aarch64-linux) and
@@ -74,66 +78,36 @@ ssh root@192.168.64.x 'mkdir -p /root/.ssh && cat >> /root/.ssh/authorized_keys'
 (Port-forward `2222→22` → `ssh -p 2222 root@localhost` is an alternative; the direct vmnet-shared IP
 is what the verified install used. See **utm-vm-provision** for networking setup.)
 
-## 2. Partition, format, and mount (disko)
+## 2. Bootstrap (single command)
 
-Disk is `/dev/vda` on VirtIO (`lsblk` to confirm). The layout is declared in
-`hosts/nixarm.nix` (`disko.devices`): GPT, 512 MiB ESP (vfat, label `boot`) + rest
-ext4 (label `nixos`). **Destructive — verify the device is correct first.**
-
-```bash
-sudo nix --extra-experimental-features 'nix-command flakes' \
-  run github:nix-community/disko -- --mode disko --flake "$HOME/nix-config#nixarm"
-```
-
-This single command partitions `/dev/vda`, formats both partitions, and mounts them at
-`/mnt` and `/mnt/boot` — ready for `nixos-install`. No manual `parted`/`mkfs`/`mount`
-needed.
-
-## 3. Get the flake
-
-The repo is **public** — clone directly on the VM:
+The flake exposes a per-host bootstrap app that calls `disko-install` — partitions, formats, mounts,
+and runs `nixos-install` in one shot. No git clone, no separate disko step, no `--no-root-passwd` to
+remember (hardcoded by `disko-install`). **Destructive — verify `/dev/vda` is the target disk first.**
 
 ```bash
-git clone https://github.com/ismailkattakath/nix-config ~/nix-config
-cd ~/nix-config
+# nixarm (aarch64 ISO):
+nix --extra-experimental-features 'nix-command flakes' run github:ismailkattakath/nix-config#nixarm
+
+# nixamd (x86_64 ISO):
+nix --extra-experimental-features 'nix-command flakes' run github:ismailkattakath/nix-config#nixamd
 ```
 
-`git add -A` is **not needed** after a fresh clone — all files are already tracked. Only run it if
-you make local edits before installing.
+`--extra-experimental-features` is required on the bare ISO (flakes not enabled by default); once the
+configured system boots it is no longer needed. The command fetches the flake from GitHub directly —
+no local clone required.
 
-**If you need to install from an unpublished local branch** (e.g. testing a WIP change), rsync your
-working tree in from the Mac instead:
+**If you need to bootstrap from an unpublished local branch**, clone + rsync from the Mac, then pass
+the local path to `disko-install` manually:
 
 ```bash
 rsync -az --delete --exclude '.git/hooks' --exclude 'memory/' --exclude 'result' \
-  -e "ssh -i ~/.ssh/id_ed25519" ./ nixos@<ip>:~/nix-config/
+  -e "ssh -i ~/.ssh/id_ed25519" ./ root@<ip>:~/nix-config/
+# on the VM:
+sudo nix --extra-experimental-features 'nix-command flakes' run \
+  github:nix-community/disko#disko-install -- --flake ~/nix-config#nixarm --disk vda /dev/vda
 ```
 
-Then on the VM: `cd ~/nix-config && git add -A` (flakes ignore untracked files).
-
-## 4. VirtIO initrd — already baked into `nixarm`
-
-**No patch needed for `nixarm`.** Only for a **brand-new generic host** lacking VirtIO modules
-(root won't mount on VirtIO without them): either `nixos-generate-config --root /mnt` and import its
-output, or add inline and `git add -A`:
-
-```nix
-boot.initrd.availableKernelModules = [ "virtio_pci" "virtio_blk" "virtio_scsi" "ahci" "sd_mod" ];
-```
-
-## 5. Install
-
-```bash
-sudo nixos-install --flake ~/nix-config#nixarm --no-root-passwd
-reboot
-```
-
-`--no-root-passwd` is correct — login is ismail's SSH key. The `cloudflared-connector` unit reading its
-`*-tunnel-token` agenix secret will **fail on first boot** (secret encrypted only to the personal key,
-not the host key yet); SSH login is unaffected. **Remove any swapfile you created on `/mnt` before
-finalizing** — it ships on the target root.
-
-## 6. Verify + hand off the host key
+## 3. Verify + hand off the host key
 
 ```bash
 ssh ismail@<VM-IP> -i ~/.ssh/id_ed25519
