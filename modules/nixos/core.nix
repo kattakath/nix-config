@@ -78,6 +78,11 @@
 
   security.sudo.wheelNeedsPassword = false;
 
+  # zram compressed swap — cheap in-RAM overflow so a build/memory spike degrades
+  # instead of triggering a hard OOM-kill (swapDevices is empty on these guests).
+  # UTM audit finding (2026-07). Applies to all NixOS hosts.
+  zramSwap.enable = true;
+
   environment.systemPackages = with pkgs; [
     git
     curl

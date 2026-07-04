@@ -31,6 +31,15 @@ in
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
+  # Serial console (out-of-band access): tty0 keeps the display working while the
+  # virtio-vga device is still attached; ttyS0 is LAST so it is the primary console
+  # and gets a login getty. Pairs with the Serial device in the nixamd UTM envelope.
+  # UTM audit finding (2026-07).
+  boot.kernelParams = [
+    "console=tty0"
+    "console=ttyS0,115200"
+  ];
+
   # VirtIO initrd modules — required for the root disk to mount in a QEMU VM.
   boot.initrd.availableKernelModules = [
     "virtio_pci"
