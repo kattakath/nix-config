@@ -194,7 +194,9 @@ On the LAN you can skip the tunnel entirely and `ssh ismail@<host>.local`.
 ## 7. Secret model per host
 
 Every host's connector token is `secrets/<host>-tunnel-token.age`, an agenix file
-containing one line `TUNNEL_TOKEN=…`. agenix decrypts it at activation using the host's
+containing one line `TUNNEL_TOKEN=…` (a host may also declare *other* host-scoped
+secrets alongside it — e.g. `nixarm` adds `secrets/nixarm-github-runner-token.age` —
+and every one must be rekeyed to the host key together, see §8 step 3). agenix decrypts it at activation using the host's
 SSH host key — `age.identityPaths = [ "/etc/ssh/ssh_host_ed25519_key" ]`
 (`modules/nixos/core.nix:74`). The recipient set of each `.age`
 (`secrets/secrets.nix`) is what differs per host, and it drives the provisioning path.
@@ -295,6 +297,17 @@ its own first-boot host key is added as a recipient. The sequence:
    `secrets/secrets.nix` and re-encrypt `<host>-tunnel-token.age` to include it. Use the
    **`agenix-host-rekey`** skill, which automates collecting the key and re-encrypting.
    For `nixamd`, also flip `tunnelReady = true` in `hosts/nixamd.nix`.
+
+   > **Rekey ALL host-scoped secrets, not just the tunnel token.** agenix activates
+   > secrets as a single batch (`agenixInstall`). If *any* host-scoped `.age` for this
+   > host is still personal-key-only — not yet rekeyed to the live host key — the whole
+   > batch aborts at activation with `no identity matched any of the recipients`, and
+   > `nixos-rebuild switch` returns non-zero, **even if the tunnel token itself decrypts
+   > fine**. So rekey *every* host-scoped `.age` for the host to the live host key in the
+   > SAME pass. `nixarm`, for example, declares two: `secrets/nixarm-tunnel-token.age`
+   > **and** `secrets/nixarm-github-runner-token.age` — both must include the host key or
+   > activation fails. (Verified 2026-07-04: the runner token blocked activation until it
+   > too was rekeyed; fixed in commit 718c654.)
 
 4. **Stage the changed files** — flakes evaluate the git tree, not the working
    directory, so the re-encrypted `.age` (and any `.nix` edits) **must** be staged:
