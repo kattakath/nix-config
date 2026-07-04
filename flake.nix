@@ -304,7 +304,7 @@
           # Exposed as packages (not just wrapped in apps) so CI can build them —
           # that build is what runs the writeShellApplication shellcheck on each script.
           aarch64-darwin.nixarm-vm = (pkgsFor "aarch64-darwin").callPackage ./packages/nixarm-vm.nix { };
-          aarch64-linux.install = (pkgsFor "aarch64-linux").callPackage ./packages/install.nix {
+          aarch64-linux.bootstrap = (pkgsFor "aarch64-linux").callPackage ./packages/bootstrap.nix {
             diskoInstall = disko.packages.aarch64-linux.disko-install;
             inherit handleName;
           };
@@ -325,10 +325,10 @@
         program = "${self.packages.aarch64-darwin.nixarm-vm}/bin/run-nixarm-vm";
         meta.description = "Boot nixarm qcow2 in QEMU with Apple HVF — no UTM needed (aarch64-darwin only)";
       };
-      apps.aarch64-linux.install = {
+      apps.aarch64-linux.bootstrap = {
         type = "app";
-        program = "${self.packages.aarch64-linux.install}/bin/nixarm-install";
-        meta.description = "Install NixOS nixarm on aarch64-linux from the live ISO via disko-install";
+        program = "${self.packages.aarch64-linux.bootstrap}/bin/nixarm-bootstrap";
+        meta.description = "Bootstrap NixOS nixarm on aarch64-linux from the live ISO via disko-install";
       };
 
       # ---- Multi-architecture dev shell --------------------------------------
