@@ -4,10 +4,10 @@ let
   ];
   # nixarm first-boot host key (agenix-host-rekey): recipient for host-scoped
   # secrets so the host itself can decrypt at activation.
-  nixarm = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIWZWAUCsEbxBJmyzy2kaTyKN+Ibyy6xJNBPPkkrcKsA root@nixarm";
+  nixarm = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHYPpSbmVt442jdPPCix1D9wuUhVgt2qhUXloDOntPSy root@nixarm";
   # nixamd first-boot host key (agenix-host-rekey 2026-07-04): recipient for
   # host-scoped secrets so the host itself can decrypt at activation.
-  nixamd = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH/WOx3M/kSmHikRA+TfVttCkFCpqsxC3yJcsA6jAGOl root@nixamd";
+  nixamd = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH3O+WDH0QvQSLS7WtRHtZl3m2av/AtD0fcjjtLYLGoG root@nixamd";
 in
 {
   # agenix manages ONLY system/cloudflared host-scoped secrets. Personal tokens
