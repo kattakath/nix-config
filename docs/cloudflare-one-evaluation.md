@@ -180,8 +180,8 @@ Under ZTIA the cert principal is the permitted **SSH user** from the Access poli
 
 ### Per-host notes
 
-- **nixarm** (aarch64 UTM/QEMU VM): ideal **pilot**. Disposable, most-exercised tunnel host, and the `nixarm-vm` / prebake tooling makes rebuild-and-retry cheap. Change here first.
-- **nixrpi** (Pi 4, durable hardware): durable → do **not** prebake anything host-specific; adopt only after nixarm proves out. WARP is client-side, so the Pi only runs the connector + sshd (cost unchanged).
+- **nixarm** (aarch64 UTM/QEMU VM): ideal **pilot**. Disposable, most-exercised tunnel host, and the `nixarm-vm` tooling makes rebuild-and-retry cheap. Change here first.
+- **nixrpi** (Pi 4, durable hardware): adopt only after nixarm proves out. WARP is client-side, so the Pi only runs the connector + sshd (cost unchanged).
 - **nixamd** (future x86_64 hardware): config-only today, `tunnelReady = false`. ZTIA wiring can be added inert (behind the same `let … = false` gate) so it evaluates but stays off until real hardware exists.
 
 ---
