@@ -205,46 +205,26 @@ SSH host key — `age.identityPaths = [ "/etc/ssh/ssh_host_ed25519_key" ]`
 > the `agenix-host-rekey` skill after any host-key change. (See `modules/nixos/core.nix:66-73`
 > and the per-host header comments.)
 
-### `nixarm` — PREBAKE (approach b), zero-touch first boot
+### Uniform model — personal-key-only, post-boot rekey (all three hosts)
 
-`nixarm` is a disposable VM / distributed image, so its host key is **pinned offline**.
-`secrets/secrets.nix` encrypts the token to the personal key **plus** the pinned
-`nixarm` host key:
-
-```nix
-"nixarm-tunnel-token.age".publicKeys = userKeys ++ [ nixarm ];
-```
-
-The matching private half is shipped as build-time-only material
-(`nixarm-hostkey.age`, encrypted to the personal key) and injected into the image's
-`/etc/ssh/` before first boot. Because the token is already encrypted to the pinned key
-that the image boots with, the connector comes up **at first boot with zero logins and
-no in-VM rebuild**. Wired in `hosts/nixarm.nix:77`:
+All three NixOS hosts (`nixarm`, `nixrpi`, `nixamd`) follow the **same** flow: NO
+prebake, NO pinned host key baked into any image. Each host's image is generic and
+generates its own `/etc/ssh` host key at first boot. Pre-first-boot, each token is
+encrypted to the **personal key only**:
 
 ```nix
-age.secrets."nixarm-tunnel-token".file = "${secretsDir}/nixarm-tunnel-token.age";
-```
-
-> Prebake is reserved for disposable VMs / distributed images. **Never share one pinned
-> key across rebuilt durable images.** For a durable host, use post-boot rekey below.
-> (An in-VM `nixos-rebuild switch` is also too heavy for the TCG-emulated VM and can
-> crash it — another reason `nixarm` prebakes rather than rekeys. See
-> `hosts/nixarm.nix:60-71`.)
-
-### `nixrpi` — personal-key-only, post-boot rekey (approach a)
-
-`nixrpi` is **durable hardware**, so it uses its own unique first-boot host key rather
-than a pinned one. Pre-first-boot, its token is encrypted to the personal key only:
-
-```nix
+"nixarm-tunnel-token.age".publicKeys = userKeys;
 "nixrpi-tunnel-token.age".publicKeys = userKeys;
+"nixamd-tunnel-token.age".publicKeys = userKeys;
 ```
 
-Wired in `hosts/nixrpi.nix:52`. After the Pi's first boot you add its own
-`/etc/ssh/ssh_host_ed25519_key.pub` as a recipient and re-encrypt via the
-`agenix-host-rekey` skill (the runbook in §8). No key pinning or injection.
+Wired in `hosts/nixarm.nix:77`, `hosts/nixrpi.nix:52`, and (gated) `hosts/nixamd.nix`.
+After a host's first boot you add its own `/etc/ssh/ssh_host_ed25519_key.pub` as a
+recipient and re-encrypt via the `agenix-host-rekey` skill (the runbook in §8). Each
+host's first-boot key is a unique per-host identity, so no key pinning or injection is
+ever needed.
 
-### `nixamd` — reserved but inert
+### `nixamd` — reserved but inert (still the same flow)
 
 `nixamd` is config-only today (no real hardware; x86_64 under TCG on Apple Silicon is
 too slow to boot locally — `hosts/nixamd.nix:1-6`). Its CF tunnel + DNS are reserved and
@@ -281,30 +261,17 @@ into `<host>-tunnel-token.age`.
 
 ## 8. RUNBOOK — bringing a host online
 
-### `nixarm` (prebake VM) — zero-touch
+One identical runbook covers **all three** NixOS hosts (`nixarm`, `nixrpi`, `nixamd`).
+Each ships with a personal-key-only token that the host itself **cannot** decrypt until
+its own first-boot host key is added as a recipient. The sequence:
 
-Nothing to do at boot. The pinned host key + pre-encrypted token mean the connector
-starts automatically on first boot. Build the image, boot it, done. Verify:
+1. **Boot.** On the LAN the host publishes `<host>.local` via avahi; the `nixarm` QEMU
+   VM also forwards SSH to `localhost:2222` (see the `nixarm-vm` skill).
 
-```bash
-ssh izzy@nixarm.local systemctl is-active cloudflared-connector   # → active
-# or, over the tunnel from anywhere:
-ssh nixarm.kattakath.com systemctl is-active cloudflared-connector
-```
-
-(For building/booting the VM, see the `nixarm-prebake-hostkey`, `nixarm-vm`, and
-`utm-vm-provision` skills.)
-
-### `nixrpi` / `nixamd` — post-boot rekey
-
-These durable/future hosts ship with a personal-key-only token that the host itself
-**cannot** decrypt until its host key is added as a recipient. The sequence:
-
-1. **Boot on the LAN.** The host publishes `<host>.local` via avahi.
-
-2. **SSH in over `.local`** (the break-glass path — no tunnel yet):
+2. **SSH in with the personal key** (the break-glass path — no tunnel yet):
    ```bash
-   ssh izzy@nixrpi.local        # or nixamd.local
+   ssh izzy@nixarm.local        # or nixrpi.local / nixamd.local
+   ssh -p 2222 izzy@localhost   # nixarm QEMU VM alternative
    ```
 
 3. **Rekey** — add the host's own `/etc/ssh/ssh_host_ed25519_key.pub` as a recipient in
@@ -320,14 +287,14 @@ These durable/future hosts ship with a personal-key-only token that the host its
 
 5. **Rebuild** to activate the connector with the now-decryptable token:
    ```bash
-   nixos-rebuild switch --flake .#nixrpi     # or .#nixamd
+   nixos-rebuild switch --flake .#nixarm     # or .#nixrpi / .#nixamd
    ```
 
 6. **Verify:**
    ```bash
    systemctl is-active cloudflared-connector   # → active
    ```
-   Then confirm the tunnel path from a client: `ssh nixrpi.kattakath.com`.
+   Then confirm the tunnel path from a client: `ssh nixarm.kattakath.com`.
 
 #### Build on the host for `nixamd` (x86_64)
 
@@ -380,7 +347,7 @@ Once a host is online, there is nothing to babysit:
 | Authorized SSH key (`izzy`) | `modules/nixos/core.nix:20-22` |
 | mDNS `<host>.local` (avahi) + UDP 5353 | `modules/nixos/core.nix:40, 44-52` |
 | agenix host identity (host SSH key) | `modules/nixos/core.nix:74` |
-| `nixarm` token (personal + pinned host key) | `hosts/nixarm.nix:77`; `secrets/secrets.nix` |
+| `nixarm` token (personal key only) | `hosts/nixarm.nix:77`; `secrets/secrets.nix` |
 | `nixrpi` token (personal key only) | `hosts/nixrpi.nix:52`; `secrets/secrets.nix` |
 | `nixamd` token (gated `tunnelReady`) | `hosts/nixamd.nix:30, 74-76`; `secrets/secrets.nix` |
 | Client `ProxyCommand` (`*.kattakath.com`) | `modules/shared/home.nix:119-123` |
@@ -388,7 +355,6 @@ Once a host is online, there is nothing to babysit:
 
 ### Related skills
 
-- `agenix-host-rekey` — re-encrypt a host-scoped secret to the host's SSH key after first boot.
-- `nixarm-prebake-hostkey` — pin + inject the host key so the tunnel is up at first boot.
+- `agenix-host-rekey` — re-encrypt a host-scoped secret to the host's SSH key after first boot (the uniform post-boot step for all three NixOS hosts).
 - `cloudflared-tunnel` — client-side setup + `scripts/cf-one-provision.sh` (token provisioning).
 - `nixarm-vm` / `utm-vm-provision` / `nixos-flake-install` — bring up the VM/host itself.
