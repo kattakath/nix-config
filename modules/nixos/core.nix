@@ -16,6 +16,7 @@
 
   users.users.${userName} = {
     isNormalUser = true;
+    shell = pkgs.zsh;
     extraGroups = [ "wheel" ];
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAq9VALx6Y6OERWlWWvudcTUEO29BMFl3bbGwoVSTGsS"
@@ -72,6 +73,8 @@
   # rotation) silently breaks decryption of all of them at next activation —
   # re-run the agenix-host-rekey skill for the host after any host-key change.
   age.identityPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
+
+  programs.zsh.enable = true;
 
   security.sudo.wheelNeedsPassword = false;
 
