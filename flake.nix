@@ -67,9 +67,11 @@
       ...
     }:
     let
-      # ---- Single source of truth for the human username and domain ----------
-      username = "izzy";
-      domain = "kattakath.com";
+      # ---- Single source of truth for the human identity ---------------------
+      userName = "ismail";
+      domainName = "kattakath.com";
+      fullName = "Ismail Kattakath";
+      handleName = "ismailkattakath";
 
       # ---- DRY system mapping -------------------------------------------------
       # The four architectures this repo targets. Every package / devShell
@@ -154,7 +156,12 @@
         nixpkgs.lib.nixosSystem {
           inherit system;
           specialArgs = {
-            inherit username domain;
+            inherit
+              userName
+              domainName
+              fullName
+              handleName
+              ;
             secretsDir = "${self}/secrets";
           };
           modules = [
@@ -169,7 +176,15 @@
               home-manager = {
                 useGlobalPkgs = true;
                 useUserPackages = true;
-                users.${username} = {
+                extraSpecialArgs = {
+                  inherit
+                    userName
+                    domainName
+                    fullName
+                    handleName
+                    ;
+                };
+                users.${userName} = {
                   imports = [
                     ./modules/shared/home.nix
                   ];
@@ -196,8 +211,10 @@
           specialArgs = {
             inherit
               home-manager
-              username
-              domain
+              userName
+              domainName
+              fullName
+              handleName
               nix-vscode-extensions
               ;
           };

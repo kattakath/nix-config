@@ -14,7 +14,7 @@ correctness, or activate generations.
 **Repo shape you rely on (verify, don't assume):**
 - `flake.nix` composes `darwinConfigurations."nixcon"` (aarch64-darwin) / `"nixtel"`
   (x86_64-darwin, real Intel Mac) and `nixosConfigurations."nixarm"`/`"nixrpi"` (aarch64-linux),
-  `"nixamd"` (x86_64-linux); username `izzy` is a `let` binding.
+  `"nixamd"` (x86_64-linux); username `ismail` is a `let` binding.
 - Host entry profiles live in `hosts/`; reusable, platform-branched logic lives in `modules/`
   (`darwin/`, `linux/`, `nixos/`, `shared/`) behind `lib.mkIf`. Platform divergence belongs in
   `modules/`, never duplicated across hosts — flag it when you find divergence that doesn't.

@@ -8,8 +8,10 @@
 # Activate on the machine with: darwin-rebuild switch --flake .#nixtel
 {
   home-manager,
-  username,
-  domain,
+  userName,
+  domainName,
+  fullName,
+  handleName,
   nix-vscode-extensions,
   ...
 }:
@@ -28,17 +30,24 @@
   nixpkgs.config.allowUnfree = true;
 
   # The human user nix-darwin manages.
-  users.users.${username} = {
-    name = username;
-    home = "/Users/${username}";
+  users.users.${userName} = {
+    name = userName;
+    home = "/Users/${userName}";
   };
 
   # Home Manager, as a nix-darwin submodule.
   home-manager = {
-    extraSpecialArgs = { inherit domain; }; # thread domain into HM modules
+    extraSpecialArgs = {
+      inherit
+        userName
+        domainName
+        fullName
+        handleName
+        ;
+    }; # thread identity into HM modules
     useGlobalPkgs = true;
     useUserPackages = true;
-    users.${username} = {
+    users.${userName} = {
       imports = [
         ../modules/shared/home.nix
       ];
