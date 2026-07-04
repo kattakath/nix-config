@@ -275,6 +275,9 @@
         "nixamd" = mkNixos {
           system = "x86_64-linux";
           hostname = "nixamd";
+          extraModules = [
+            disko.nixosModules.disko
+          ];
         };
       };
 
@@ -304,8 +307,12 @@
           # Exposed as packages (not just wrapped in apps) so CI can build them —
           # that build is what runs the writeShellApplication shellcheck on each script.
           aarch64-darwin.nixarm-vm = (pkgsFor "aarch64-darwin").callPackage ./packages/nixarm-vm.nix { };
-          aarch64-linux.bootstrap = (pkgsFor "aarch64-linux").callPackage ./packages/bootstrap.nix {
+          aarch64-linux.nixarm = (pkgsFor "aarch64-linux").callPackage ./packages/nixarm.nix {
             diskoInstall = disko.packages.aarch64-linux.disko-install;
+            inherit handleName;
+          };
+          x86_64-linux.nixamd = (pkgsFor "x86_64-linux").callPackage ./packages/nixamd.nix {
+            diskoInstall = disko.packages.x86_64-linux.disko-install;
             inherit handleName;
           };
         }
@@ -325,10 +332,15 @@
         program = "${self.packages.aarch64-darwin.nixarm-vm}/bin/run-nixarm-vm";
         meta.description = "Boot nixarm qcow2 in QEMU with Apple HVF — no UTM needed (aarch64-darwin only)";
       };
-      apps.aarch64-linux.bootstrap = {
+      apps.aarch64-linux.nixarm = {
         type = "app";
-        program = "${self.packages.aarch64-linux.bootstrap}/bin/nixarm-bootstrap";
+        program = "${self.packages.aarch64-linux.nixarm}/bin/nixarm";
         meta.description = "Bootstrap NixOS nixarm on aarch64-linux from the live ISO via disko-install";
+      };
+      apps.x86_64-linux.nixamd = {
+        type = "app";
+        program = "${self.packages.x86_64-linux.nixamd}/bin/nixamd";
+        meta.description = "Bootstrap NixOS nixamd on x86_64-linux from the live ISO via disko-install";
       };
 
       # ---- Multi-architecture dev shell --------------------------------------

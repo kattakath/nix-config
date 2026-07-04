@@ -3,7 +3,7 @@
 # is arch-agnostic and backs the aarch64 UTM VM today. Distinct from `nixrpi`,
 # which targets real Raspberry Pi 4 hardware via raspberry-pi-nix (SD image).
 # Install (from live ISO — single command):
-#   nix --extra-experimental-features 'nix-command flakes' run github:ismailkattakath/nix-config#bootstrap
+#   nix --extra-experimental-features 'nix-command flakes' run github:ismailkattakath/nix-config#nixarm
 {
   lib,
   secretsDir,

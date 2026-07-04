@@ -1,9 +1,7 @@
 # Generic x86_64-linux NixOS host — UEFI + systemd-boot + VirtIO.
-# CONFIG-ONLY / CI-eval today: there is no VM launcher, because x86_64 on Apple
-# Silicon runs under slow TCG emulation (not sensible to boot locally). This
-# host exists so the flake evaluates the x86_64-linux path; a real machine must
-# replace the boot/fileSystems stanza below with `nixos-generate-config`
-# hardware output (real disk-by-uuid, actual kernel modules, etc.).
+# Runs under QEMU TCG emulation on Apple Silicon (slow but functional).
+# Bootstrap (from live ISO — single command):
+#   nix --extra-experimental-features 'nix-command flakes' run github:ismailkattakath/nix-config#nixamd
 #
 # Modeled on hosts/nixarm.nix. The Cloudflare tunnel is PRE-WIRED but INERT:
 # the CF tunnel + DNS (nixamd.kattakath.com) are already reserved and
@@ -42,7 +40,6 @@ in
   boot.loader.efi.canTouchEfiVariables = true;
 
   # VirtIO initrd modules — required for the root disk to mount in a QEMU VM.
-  # A real machine needs its own nixos-generate-config hardware output here.
   boot.initrd.availableKernelModules = [
     "virtio_pci"
     "virtio_blk"
@@ -50,6 +47,51 @@ in
     "ahci"
     "sd_mod"
   ];
+
+  # Declarative disk layout for `disko-install` at bootstrap time.
+  # Mirrors nixarm: disko.enableConfig = false keeps fileSystems ownership here,
+  # avoiding any merge conflict if an image builder is added later.
+  disko.enableConfig = false;
+  disko.devices = {
+    disk.vda = {
+      type = "disk";
+      device = "/dev/vda";
+      content = {
+        type = "gpt";
+        partitions = {
+          ESP = {
+            size = "512M";
+            type = "EF00";
+            content = {
+              type = "filesystem";
+              format = "vfat";
+              mountpoint = "/boot";
+              mountOptions = [
+                "fmask=0077"
+                "dmask=0077"
+              ];
+              extraArgs = [
+                "-n"
+                "boot"
+              ];
+            };
+          };
+          root = {
+            size = "100%";
+            content = {
+              type = "filesystem";
+              format = "ext4";
+              mountpoint = "/";
+              extraArgs = [
+                "-L"
+                "nixos"
+              ];
+            };
+          };
+        };
+      };
+    };
+  };
 
   fileSystems."/" = {
     device = "/dev/disk/by-label/nixos";
