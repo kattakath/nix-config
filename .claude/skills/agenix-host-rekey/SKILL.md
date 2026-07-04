@@ -29,7 +29,7 @@ adds the host key as an age recipient and re-encrypts.
 ## 1. Collect the host public key (post-boot)
 
 ```bash
-ssh izzy@<host-ip> -i ~/.ssh/id_ed25519 'cat /etc/ssh/ssh_host_ed25519_key.pub'
+ssh ismail@<host-ip> -i ~/.ssh/id_ed25519 'cat /etc/ssh/ssh_host_ed25519_key.pub'
 ```
 
 ## 2. Declare the host key in `secrets/secrets.nix`
@@ -89,7 +89,7 @@ binary `.age` + a `.nix` recipient list. If `secrets.nix` changed, run `/eval` o
 ## 6. Activate on the host
 
 ```bash
-ssh izzy@<host-ip> 'sudo nixos-rebuild switch --flake github:ismailkattakath/nix-config#nixarm'
+ssh ismail@<host-ip> 'sudo nixos-rebuild switch --flake github:ismailkattakath/nix-config#nixarm'
 ```
 
 The `cloudflared-connector` unit now finds a decryptable `EnvironmentFile` (its `TUNNEL_TOKEN`) and

@@ -1,10 +1,10 @@
 # nix-darwin user LaunchAgent: rotate ~/Pictures/Screengrab.
 # Moves any top-level file older than 24h into ~/.Trash (recoverable),
 # checked hourly. Declarative replacement for a hand-maintained plist.
-{ pkgs, username, ... }:
+{ pkgs, userName, ... }:
 
 let
-  home = "/Users/${username}";
+  home = "/Users/${userName}";
 
   # writeShellApplication yields a store binary literally named
   # "screengrab-rotate" — that basename is what macOS Background Activity

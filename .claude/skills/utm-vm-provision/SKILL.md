@@ -150,7 +150,7 @@ MAC=$(plutil -extract Network.0.MacAddress raw "$BUNDLE/config.plist")
 sleep 45                                        # let NixOS boot + DHCP
 # ARP strips per-octet leading zeros (16:7C:DF:00:5C:01 → 16:7c:df:0:5c:1) — match loosely:
 arp -an | grep bridge100                         # read the 192.168.64.x for your MAC
-ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no izzy@192.168.64.x 'hostname; nixos-version'
+ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no ismail@192.168.64.x 'hostname; nixos-version'
 ```
 
 → Then continue with **agenix-host-rekey** (re-encrypt host secrets to this VM's new SSH host key).
@@ -239,7 +239,7 @@ MAC=$(plutil -extract Network.0.MacAddress raw "$PLIST")
 # ⚠ ARP prints MACs with per-octet leading zeros STRIPPED: 16:7C:DF:00:5C:01 → 16:7c:df:0:5c:1.
 # A literal `grep "$MAC"` MISSES those — grep the bridge instead and read off your row:
 arp -an | grep bridge100        # → ? (192.168.64.x) at 16:7c:df:0:5c:1 on bridge100
-# ssh izzy@192.168.64.x   (or root@... on the live ISO)
+# ssh ismail@192.168.64.x   (or root@... on the live ISO)
 ```
 
 **Alternative — port-forward `2222→22`** (then `ssh -p 2222 root@localhost`):

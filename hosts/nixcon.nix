@@ -4,8 +4,10 @@
 # `darwin-rebuild switch --flake .#nixcon` provisions both.
 {
   home-manager,
-  username,
-  domain,
+  userName,
+  domainName,
+  fullName,
+  handleName,
   nix-vscode-extensions,
   ...
 }:
@@ -30,17 +32,24 @@
   nixpkgs.config.allowUnfree = true;
 
   # Define the human user nix-darwin manages.
-  users.users.${username} = {
-    name = username;
-    home = "/Users/${username}";
+  users.users.${userName} = {
+    name = userName;
+    home = "/Users/${userName}";
   };
 
   # Home Manager, as a nix-darwin submodule.
   home-manager = {
-    extraSpecialArgs = { inherit domain; }; # thread domain into HM modules
+    extraSpecialArgs = {
+      inherit
+        userName
+        domainName
+        fullName
+        handleName
+        ;
+    }; # thread identity into HM modules
     useGlobalPkgs = true; # reuse the system nixpkgs (DRY, one eval)
     useUserPackages = true; # install user packages into /etc/profiles
-    users.${username} = {
+    users.${userName} = {
       imports = [
         ../modules/shared/home.nix
       ];

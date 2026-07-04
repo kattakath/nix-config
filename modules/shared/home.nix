@@ -14,7 +14,9 @@
   pkgs,
   lib,
   config,
-  domain,
+  domainName,
+  fullName,
+  userName,
   ...
 }:
 let
@@ -75,8 +77,8 @@ in
       enable = true;
       lfs.enable = true; # git-lfs, wired into git config (devcontainer feature)
       settings = {
-        user.name = lib.mkDefault "Ismail Kattakath";
-        user.email = lib.mkDefault "ismail@kattakath.com";
+        user.name = lib.mkDefault fullName;
+        user.email = lib.mkDefault "${userName}@${domainName}";
         init.defaultBranch = "main";
         pull.rebase = true;
         commit.gpgsign = true;
@@ -121,11 +123,11 @@ in
 
         # Reach any tunnelled host over its public Cloudflare hostname: ssh routes
         # through `cloudflared access ssh` (no public port; the tunnel forwards to
-        # localhost:22). One wildcard block covers every `<host>.${domain}`
+        # localhost:22). One wildcard block covers every `<host>.${domainName}`
         # connector (nixarm/nixrpi/nixamd/nixcon/nixtel) — no per-host duplication.
         # Loginless: the public hostname has no Access policy in front, so auth is
         # SSH key only (no WARP, no interactive login).
-        "*.${domain}" = {
+        "*.${domainName}" = {
           User = config.home.username;
           IdentityFile = "~/.ssh/id_ed25519";
           ForwardAgent = true;

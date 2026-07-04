@@ -57,7 +57,7 @@ Declarative (Home-Manager, in `modules/shared/home.nix`-style config):
 
 ```nix
 programs.ssh.matchBlocks."nixarm.kattakath.com" = {
-  user = "izzy";
+  user = "ismail";
   proxyCommand = "${pkgs.cloudflared}/bin/cloudflared access ssh --hostname %h";
 };
 ```
@@ -65,13 +65,13 @@ programs.ssh.matchBlocks."nixarm.kattakath.com" = {
 Ad-hoc test (no config change):
 
 ```bash
-ssh -o ProxyCommand="cloudflared access ssh --hostname %h" izzy@nixarm.kattakath.com
+ssh -o ProxyCommand="cloudflared access ssh --hostname %h" ismail@nixarm.kattakath.com
 ```
 
 Verify it actually went through the tunnel:
 
 ```bash
-ssh izzy@nixarm.kattakath.com 'echo $SSH_CONNECTION'    # → ::1 ...  (localhost = tunnel-terminated)
+ssh ismail@nixarm.kattakath.com 'echo $SSH_CONNECTION'    # → ::1 ...  (localhost = tunnel-terminated)
 ```
 
 ## Phase 2 (optional) — Cloudflare Access policy
