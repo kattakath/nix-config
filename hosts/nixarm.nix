@@ -65,6 +65,7 @@
   # /etc/ssh key silently breaks decryption of every host-scoped .age; re-run
   # agenix-host-rekey after any host-key change.
   age.secrets."nixarm-tunnel-token".file = "${secretsDir}/nixarm-tunnel-token.age";
+  age.secrets."nixarm-github-runner-token".file = "${secretsDir}/nixarm-github-runner-token.age";
 
   system.stateVersion = "24.05";
 }
