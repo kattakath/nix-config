@@ -37,5 +37,5 @@ in
   # one raw token line — NO KEY=VALUE wrapper). Encrypted to the personal key
   # pre-first-boot; re-encrypt to nixarm's host key after first boot
   # (agenix-host-rekey) so the runner service can decrypt at activation.
-  "nixarm-github-runner-token.age".publicKeys = userKeys;
+  "nixarm-github-runner-token.age".publicKeys = userKeys ++ [ nixarm ];
 }
