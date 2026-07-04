@@ -17,6 +17,7 @@ memory/
 .DS_Store?
 .AppleDouble
 ._*
+tmp
 
 # Nix build artifacts
 result
