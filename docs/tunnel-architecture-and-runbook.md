@@ -276,6 +276,21 @@ its own first-boot host key is added as a recipient. The sequence:
    ssh -p 2222 ismail@localhost   # nixarm QEMU VM alternative
    ```
 
+   > **Reprovision gotcha (stale host key):** a fresh host generates a NEW
+   > `/etc/ssh/ssh_host_ed25519_key` at first boot, but it reuses the same
+   > `<host>.local` mDNS name (and, for the VM, `[localhost]:2222`). If a prior
+   > host by that name is still cached in your Mac's `~/.ssh/known_hosts`, SSH
+   > aborts with `WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!` /
+   > `Host key verification failed.` — this is expected on every reprovision, not
+   > an attack. Clear the stale entry, then reconnect:
+   > ```bash
+   > ssh-keygen -R nixarm.local            # or nixrpi.local / nixamd.local
+   > ssh-keygen -R '[localhost]:2222'      # nixarm QEMU VM alternative
+   > ssh ismail@nixarm.local               # re-accepts the new host key
+   > ```
+   > Old hosts may leave BOTH an `ssh-ed25519` and a legacy `ssh-rsa` line —
+   > `ssh-keygen -R` removes every entry for the name in one shot.
+
 3. **Rekey** — add the host's own `/etc/ssh/ssh_host_ed25519_key.pub` as a recipient in
    `secrets/secrets.nix` and re-encrypt `<host>-tunnel-token.age` to include it. Use the
    **`agenix-host-rekey`** skill, which automates collecting the key and re-encrypting.
