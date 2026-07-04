@@ -2,6 +2,9 @@ let
   userKeys = [
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAq9VALx6Y6OERWlWWvudcTUEO29BMFl3bbGwoVSTGsS"
   ];
+  # nixarm first-boot host key (agenix-host-rekey): recipient for host-scoped
+  # secrets so the host itself can decrypt at activation.
+  nixarm = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIWZWAUCsEbxBJmyzy2kaTyKN+Ibyy6xJNBPPkkrcKsA root@nixarm";
 in
 {
   # agenix manages ONLY system/cloudflared host-scoped secrets. Personal tokens
@@ -21,7 +24,7 @@ in
   # a recipient and re-encrypt the token (run the agenix-host-rekey skill), so the
   # host itself can decrypt at activation. A `<host>-tunnel-token.age` that isn't
   # yet host-rekeyed is inert at eval — it only matters at activation.
-  "nixarm-tunnel-token.age".publicKeys = userKeys;
+  "nixarm-tunnel-token.age".publicKeys = userKeys ++ [ nixarm ];
   "nixrpi-tunnel-token.age".publicKeys = userKeys;
 
   # nixamd: CF tunnel + DNS reserved now, token encrypted to the personal key
