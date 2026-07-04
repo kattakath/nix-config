@@ -71,3 +71,8 @@ This repo operates **orchestrator-first**. The main agent is a decision-maker, n
 - Prefer the `/eval` and `/update-input` commands over retyping the stage→check→evaluate sequence by hand.
 - `home-manager switch` activates and is hard to reverse; prefer `build` to verify, and `switch` only when explicitly asked. List generations with `home-manager generations`; roll back with `home-manager rollback`.
 - Run `nix flake check` (all systems) before declaring any change done — a config that evaluates on one system can still break another.
+
+## Documentation
+
+- [`docs/tunnel-architecture-and-runbook.md`](docs/tunnel-architecture-and-runbook.md) — the finalized loginless remotely-managed (token) Cloudflare Tunnel design: per-NixOS-host `cloudflared-connector`, Macs as clients only, the `<host>.local` (mDNS) + `<host>.kattakath.com` two-name model, the prebake (nixarm) vs post-boot `agenix-host-rekey` (nixrpi/nixamd) split, the per-host bring-up runbook, and the steady-state UX.
+- [`docs/cloudflare-one-evaluation.md`](docs/cloudflare-one-evaluation.md) — evaluation of Cloudflare One Zero Trust Infrastructure Access (short-lived SSH certs) as an alternative to static keys, and the decision **not to adopt** at current solo/3-host scale (keep the loginless key model). Includes the "keys to reach my stuff vs tokens for other people's stuff" model, the resource plan + NixOS change if ever revisited, the revisit triggers, and open flags to verify live.
