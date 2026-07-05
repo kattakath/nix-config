@@ -170,9 +170,37 @@ in
 
     # The container waits for Postgres to be up (prisma migrate deploy runs at
     # boot). Both are systemd units; order the container after postgresql.
+    #
+    # BOOT-SAFETY (root cause of the earlier Pi boot wedge): the upstream
+    # oci-containers unit ships `TimeoutStartSec = 0` (INFINITE) with `Type=notify`,
+    # and is `wantedBy = multi-user.target`. `podman run` pulls the (large, official
+    # arm64) image inline; on the Pi that pull stalled, so the notify-typed start job
+    # never completed and — with no start timeout — `multi-user.target` waited on it
+    # forever. Two overrides make it impossible to wedge boot again:
+    #   1. FINITE TimeoutStartSec (120s): a stalled pull/migrate now FAILS the job
+    #      instead of blocking indefinitely; the boot transaction proceeds.
+    #   2. DefaultDependencies-preserving Restart with a delay + a start-limit so a
+    #      failing container backs off instead of hot-looping the boot transaction.
+    # We deliberately do NOT keep any `Before=<boot target>` ordering (upstream adds
+    # none; we add none) — the container is a leaf service that must never gate the
+    # rest of userspace. Postgres ordering (after/requires) is kept: correct and
+    # bounded because postgresql itself starts quickly.
     systemd.services."podman-litellm" = {
       after = [ "postgresql.service" ];
       requires = [ "postgresql.service" ];
+      # Never let this leaf service block the boot transaction.
+      before = lib.mkForce [ ];
+      serviceConfig = {
+        # Finite start timeout — a stalled image pull / prisma migrate now fails the
+        # job (releasing multi-user.target) instead of hanging boot forever.
+        TimeoutStartSec = lib.mkForce 120;
+        # Back off on failure instead of hot-looping; the start-limit trips the unit
+        # into `failed` after repeated fast failures rather than churning at boot.
+        Restart = lib.mkForce "on-failure";
+        RestartSec = 15;
+      };
+      startLimitIntervalSec = 300;
+      startLimitBurst = 5;
     };
 
     # ---- Dedicated cloudflared connector for the litellm tunnel ----------------
