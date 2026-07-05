@@ -6,7 +6,6 @@
 #   nix --extra-experimental-features 'nix-command flakes' run github:ismailkattakath/nix-config#nixarm
 {
   lib,
-  secretsDir,
   ...
 }:
 {
@@ -94,27 +93,6 @@
   };
 
   swapDevices = [ ];
-
-  # Cloudflare Tunnel — REMOTELY-MANAGED (token) connector. The tunnel, its
-  # public-hostname ingress (nixarm.kattakath.com → ssh://localhost:22) and the
-  # proxied CNAME all live in the Cloudflare account (provisioned once by
-  # scripts/cf-one-provision.sh). This host only carries the connector token
-  # (one line `TUNNEL_TOKEN=…`) via agenix; modules/nixos/cloudflared.nix
-  # (imported globally) runs the hardened systemd unit at boot — no login.
-  #
-  # nixarm uses the SAME post-boot rekey flow as nixrpi — NO prebake, NO pinned
-  # host key baked into any image. nixarm-tunnel-token.age ships encrypted only to
-  # the personal key (correct pre-first-boot). The nixarm image is generic and
-  # generates its own /etc/ssh host key at first boot; after that first boot, add
-  # its own /etc/ssh/ssh_host_ed25519_key.pub as a recipient in secrets/secrets.nix
-  # and re-encrypt — run the agenix-host-rekey skill. Its first-boot key is a
-  # unique per-image identity, so no key pinning/injection is needed.
-  #
-  # HAZARD: SSH host keys double as age identities — rotating/reimaging the VM's
-  # /etc/ssh key silently breaks decryption of every host-scoped .age; re-run
-  # agenix-host-rekey after any host-key change.
-  age.secrets."nixarm-tunnel-token".file = "${secretsDir}/nixarm-tunnel-token.age";
-  age.secrets."nixarm-github-runner-token".file = "${secretsDir}/nixarm-github-runner-token.age";
 
   system.stateVersion = "24.05";
 }

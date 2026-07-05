@@ -38,7 +38,7 @@ let
   accountId = "726e0b2aa2bc2c6944f96a042e3c461b";
   zoneId = "6e28971881e488941d052bbbf50d69cd"; # kattakath.com
   hostname = "litellm.kattakath.com";
-  originService = "http://localhost:4000"; # loopback origin: LiteLLM binds 127.0.0.1:4000 on the nixrpi host (--network=host)
+  originService = "http://127.0.0.1:4000"; # loopback origin: LiteLLM binds 127.0.0.1:4000 on the nixrpi host (--network=host); IPv4 literal — localhost resolves ::1 first on the Pi and litellm binds IPv4-only
   # Browser/dashboard allow policy is scoped to the whole Google Workspace
   # DOMAIN, not a single email. This is what lets LiteLLM's own Google SSO work
   # behind Access: the Google -> https://litellm.kattakath.com/sso/callback

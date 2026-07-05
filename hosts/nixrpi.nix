@@ -2,12 +2,22 @@
 # raspberry-pi-nix handles the kernel, firmware, and boot configuration.
 # Build a flashable SD card image:
 #   nix build .#nixosConfigurations.nixrpi.config.system.build.sdImage
+#
+# SSH ACCESS: via mDNS (nixrpi.local) directly — no Cloudflare SSH tunnel needed.
+# Service tokens (LiteLLM tunnel, landing tunnel) live at /etc/secrets/ — place
+# manually after provisioning. The connector units retry on failure (Restart=on-failure)
+# so dropping files in after first boot self-heals without a rebuild.
 {
   lib,
-  secretsDir,
   ...
 }:
 {
+  imports = [
+    ../modules/nixos/cloudflared.nix
+    ../modules/nixos/litellm-host.nix
+    ../modules/nixos/landing.nix
+  ];
+
   networking.hostName = "nixrpi";
 
   # nixpkgs enables systemd stage-1 by default (boot.initrd.systemd.enable), and
@@ -36,29 +46,14 @@
 
   networking.useDHCP = true;
 
-  # Cloudflare Tunnel — REMOTELY-MANAGED (token) connector. The tunnel, its
-  # public-hostname ingress (nixrpi.kattakath.com → ssh://localhost:22) and the
-  # proxied CNAME live in the Cloudflare account (provisioned once by
-  # scripts/cf-one-provision.sh). This host only carries the connector token
-  # (one line `TUNNEL_TOKEN=…`) via agenix; modules/nixos/cloudflared.nix
-  # (imported globally) runs the hardened systemd unit at boot — no login.
-  #
-  # nixrpi is DURABLE hardware → use approach (a): post-boot rekey, NOT prebake.
-  # nixrpi-tunnel-token.age ships encrypted only to the personal key (correct
-  # pre-first-boot). After the Pi's first boot, add its own
-  # /etc/ssh/ssh_host_ed25519_key.pub as a recipient in secrets/secrets.nix and
-  # re-encrypt — run the agenix-host-rekey skill. The Pi's own first-boot key is
-  # a unique per-host identity, so no key pinning/injection is needed.
-  #
-  # HAZARD: SSH host keys double as age identities — rotating/reimaging the Pi's
-  # /etc/ssh key silently breaks decryption of every host-scoped .age; re-run
-  # agenix-host-rekey after any host-key change.
-
   raspberry-pi-nix = {
     board = "bcm2711";
   };
 
-  age.secrets."nixrpi-tunnel-token".file = "${secretsDir}/nixrpi-tunnel-token.age";
+  # SSH via mDNS (nixrpi.local) — no Cloudflare tunnel connector needed for SSH.
+  # Enable this and provision a token at /etc/secrets/cloudflared-token if a
+  # dedicated SSH tunnel is ever added.
+  services.cloudflared-connector.enable = false;
 
   # LiteLLM stack — native Postgres + the official DB-capable LiteLLM image as a
   # podman oci-container + a DEDICATED cloudflared connector for the `litellm`
@@ -67,28 +62,20 @@
   # and the connector reaches it over that loopback origin (the tunnel ingress in
   # infra/cloudflare/litellm.nix points at http://localhost:4000).
   #
-  # SECRETS (both encrypted to the PERSONAL key only, pre-first-boot — the SD image
-  # builds fine without the Pi host key). After the Pi's first boot, add its own
-  # /etc/ssh/ssh_host_ed25519_key.pub as a recipient in secrets/secrets.nix and
-  # re-encrypt BOTH (run the agenix-host-rekey skill), so the connector + container
-  # can decrypt at activation:
-  #   - litellm-tunnel-token.age : one line `TUNNEL_TOKEN=…` (dedicated tunnel).
-  #   - litellm-env.age          : the SECRET env only (OPENAI_API_KEY,
-  #                                LITELLM_MASTER_KEY, GOOGLE_CLIENT_SECRET). The
-  #                                non-secret env is inline in the module.
-  # Until rekeyed both secrets are inert at eval; the module is no-op-safe on a
-  # host that hasn't declared/decrypted them.
+  # SECRETS: place files manually after first boot — do NOT commit to git.
+  #   /etc/secrets/litellm-tunnel-token  — one line: TUNNEL_TOKEN=<token>
+  #   /etc/secrets/litellm-env           — KEY=VALUE pairs: OPENAI_API_KEY,
+  #                                        LITELLM_MASTER_KEY, GOOGLE_CLIENT_SECRET
+  # Both units retry on failure so placing files after first boot self-heals.
   services.litellm-host.enable = true;
-  age.secrets."litellm-tunnel-token".file = "${secretsDir}/litellm-tunnel-token.age";
-  age.secrets."litellm-env".file = "${secretsDir}/litellm-env.age";
 
   # Public landing page (Caddy static site on loopback:8787). Served immediately;
-  # exposure needs a SEPARATE, DEDICATED "landing" tunnel — provision it and its
-  # token per the runbook in infra/cloudflare/landing.nix, then uncomment the
-  # secret below (the connector is a no-op until it exists). To move the page to a
-  # different host, relocate these two lines.
+  # exposure needs a SEPARATE, DEDICATED "landing" tunnel — provision it and place
+  # its token at /etc/secrets/landing-tunnel-token (one line: TUNNEL_TOKEN=<token>)
+  # per the runbook in infra/cloudflare/landing.nix. The connector retries until
+  # the file appears — no rebuild needed. To move the page to a different host,
+  # relocate these lines.
   services.landing-page.enable = true;
-  # age.secrets."landing-tunnel-token".file = "${secretsDir}/landing-tunnel-token.age";
 
   system.stateVersion = "24.05";
 }

@@ -121,18 +121,6 @@ in
           ForwardAgent = true;
         };
 
-        # Reach any tunnelled host over its public Cloudflare hostname: ssh routes
-        # through `cloudflared access ssh` (no public port; the tunnel forwards to
-        # localhost:22). One wildcard block covers every `<host>.${domainName}`
-        # connector (nixarm/nixrpi/nixamd/nixcon/nixtel) — no per-host duplication.
-        # Loginless: the public hostname has no Access policy in front, so auth is
-        # SSH key only (no WARP, no interactive login).
-        "*.${domainName}" = {
-          User = config.home.username;
-          IdentityFile = "~/.ssh/id_ed25519";
-          ForwardAgent = true;
-          ProxyCommand = "${pkgs.cloudflared}/bin/cloudflared access ssh --hostname %h";
-        };
       };
     };
 

@@ -4,12 +4,11 @@
 # TLS terminates at the Cloudflare edge, so Caddy speaks plain HTTP on localhost;
 # the connector reaches it over the loopback origin the tunnel ingress points at.
 #
-# NO-OP SAFE: imported for ALL NixOS hosts via flake.nix, but everything is gated
-# behind `services.landing-page.enable` (default false). Enabling it starts Caddy;
-# the tunnel connector additionally requires the host to declare the
-# `landing-tunnel-token` agenix secret (see the runbook in the CF infra file) —
-# until then the page is served locally but not exposed (a graceful partial
-# bring-up, same guard style as modules/nixos/cloudflared.nix's haveToken).
+# NO-OP SAFE: everything is gated behind `services.landing-page.enable` (default
+# false). Enabling it starts Caddy; the tunnel connector additionally requires
+# the host to provide a token file at `tunnelTokenFile` (default
+# /etc/secrets/landing-tunnel-token) — until then the page is served locally but
+# not exposed (a graceful partial bring-up).
 {
   config,
   lib,
@@ -18,10 +17,6 @@
 }:
 let
   cfg = config.services.landing-page;
-  # A DEDICATED tunnel token, distinct from the host connector's
-  # "<hostname>-tunnel-token". Only wire the connector once the host provides it.
-  tokenSecretName = "landing-tunnel-token";
-  haveToken = lib.hasAttr tokenSecretName config.age.secrets;
 in
 {
   options.services.landing-page = {
@@ -44,12 +39,24 @@ in
         connector (same host) is the sole client.
       '';
     };
+
+    tunnelTokenFile = lib.mkOption {
+      type = lib.types.path;
+      default = "/etc/secrets/landing-tunnel-token";
+      description = ''
+        Path to a file containing `TUNNEL_TOKEN=<token>` for the dedicated landing
+        Cloudflare tunnel connector. Place manually after provisioning — do NOT
+        commit to git. The unit retries on failure so placing the file after first
+        boot self-heals without a rebuild. If the file is absent, Caddy still
+        serves locally but the site is not exposed publicly.
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {
     services.caddy = {
       enable = true;
-      # Port-only site address: HTTP (no hostname ⇒ no auto-HTTPS/cert, TLS is at
+      # Port-only site address: HTTP (no hostname => no auto-HTTPS/cert, TLS is at
       # the CF edge) AND host-agnostic — cloudflared forwards the original
       # `Host: kattakath.com`, so a `localhost`-keyed site would 404. `bind`
       # restricts the listener to loopback (connector-only; never on the LAN).
@@ -83,17 +90,17 @@ in
 
     # Dedicated connector for the landing tunnel (coexists with the per-host
     # connector in modules/nixos/cloudflared.nix — separate unit, separate token).
-    # Hardening mirrors that module; the token arrives via an agenix EnvironmentFile
+    # Hardening mirrors that module; the token arrives via a manually-placed file
     # (TUNNEL_TOKEN=…) so it never hits argv or the world-readable /nix/store.
-    systemd.services.cloudflared-landing = lib.mkIf haveToken {
-      description = "Cloudflare Tunnel connector for the landing page (remotely-managed, token from agenix)";
+    systemd.services.cloudflared-landing = {
+      description = "Cloudflare Tunnel connector for the landing page (remotely-managed, token from file)";
       after = [ "network-online.target" ];
       wants = [ "network-online.target" ];
       wantedBy = [ "multi-user.target" ];
 
       serviceConfig = {
         ExecStart = "${pkgs.cloudflared}/bin/cloudflared --no-autoupdate tunnel run";
-        EnvironmentFile = config.age.secrets.${tokenSecretName}.path;
+        EnvironmentFile = cfg.tunnelTokenFile;
 
         Restart = "on-failure";
         RestartSec = 5;
