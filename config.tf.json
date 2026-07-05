@@ -1,0 +1,123 @@
+{
+  "data": {
+    "cloudflare_zero_trust_tunnel_cloudflared_token": {
+      "litellm": {
+        "account_id": "726e0b2aa2bc2c6944f96a042e3c461b",
+        "tunnel_id": "${cloudflare_zero_trust_tunnel_cloudflared.litellm.id}"
+      }
+    }
+  },
+  "output": {
+    "service_token_client_id": {
+      "sensitive": true,
+      "value": "${cloudflare_zero_trust_access_service_token.litellm.client_id}"
+    },
+    "service_token_client_secret": {
+      "sensitive": true,
+      "value": "${cloudflare_zero_trust_access_service_token.litellm.client_secret}"
+    },
+    "tunnel_token": {
+      "sensitive": true,
+      "value": "${data.cloudflare_zero_trust_tunnel_cloudflared_token.litellm.token}"
+    }
+  },
+  "provider": {
+    "cloudflare": {}
+  },
+  "resource": {
+    "cloudflare_dns_record": {
+      "litellm": {
+        "content": "${cloudflare_zero_trust_tunnel_cloudflared.litellm.id}.cfargotunnel.com",
+        "name": "litellm.kattakath.com",
+        "proxied": true,
+        "ttl": 1,
+        "type": "CNAME",
+        "zone_id": "6e28971881e488941d052bbbf50d69cd"
+      }
+    },
+    "cloudflare_zero_trust_access_application": {
+      "litellm": {
+        "account_id": "726e0b2aa2bc2c6944f96a042e3c461b",
+        "app_launcher_visible": false,
+        "domain": "litellm.kattakath.com",
+        "name": "litellm",
+        "policies": [
+          {
+            "id": "${cloudflare_zero_trust_access_policy.allow_email.id}",
+            "precedence": 1
+          },
+          {
+            "id": "${cloudflare_zero_trust_access_policy.service_auth.id}",
+            "precedence": 2
+          }
+        ],
+        "session_duration": "24h",
+        "type": "self_hosted"
+      }
+    },
+    "cloudflare_zero_trust_access_policy": {
+      "allow_email": {
+        "account_id": "726e0b2aa2bc2c6944f96a042e3c461b",
+        "decision": "allow",
+        "include": [
+          {
+            "email_domain": {
+              "domain": "kattakath.com"
+            }
+          }
+        ],
+        "name": "Allow Workspace domain (browser SSO)"
+      },
+      "service_auth": {
+        "account_id": "726e0b2aa2bc2c6944f96a042e3c461b",
+        "decision": "non_identity",
+        "include": [
+          {
+            "service_token": {
+              "token_id": "${cloudflare_zero_trust_access_service_token.litellm.id}"
+            }
+          }
+        ],
+        "name": "Allow API service token"
+      }
+    },
+    "cloudflare_zero_trust_access_service_token": {
+      "litellm": {
+        "account_id": "726e0b2aa2bc2c6944f96a042e3c461b",
+        "name": "litellm-api-client"
+      }
+    },
+    "cloudflare_zero_trust_tunnel_cloudflared": {
+      "litellm": {
+        "account_id": "726e0b2aa2bc2c6944f96a042e3c461b",
+        "config_src": "cloudflare",
+        "name": "litellm"
+      }
+    },
+    "cloudflare_zero_trust_tunnel_cloudflared_config": {
+      "litellm": {
+        "account_id": "726e0b2aa2bc2c6944f96a042e3c461b",
+        "config": {
+          "ingress": [
+            {
+              "hostname": "litellm.kattakath.com",
+              "service": "http://litellm:4000"
+            },
+            {
+              "service": "http_status:404"
+            }
+          ]
+        },
+        "tunnel_id": "${cloudflare_zero_trust_tunnel_cloudflared.litellm.id}"
+      }
+    }
+  },
+  "terraform": {
+    "required_providers": {
+      "cloudflare": {
+        "source": "cloudflare/cloudflare",
+        "version": ">= 5.0.0"
+      }
+    }
+  }
+}
