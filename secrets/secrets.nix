@@ -8,6 +8,9 @@ let
   # nixamd first-boot host key (agenix-host-rekey 2026-07-04): recipient for
   # host-scoped secrets so the host itself can decrypt at activation.
   nixamd = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH3O+WDH0QvQSLS7WtRHtZl3m2av/AtD0fcjjtLYLGoG root@nixamd";
+  # nixrpi first-boot host key (agenix-host-rekey): recipient for host-scoped
+  # secrets so the Pi itself can decrypt at activation.
+  nixrpi = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP2teMSvADfA6m6tXemm5HdXU1GdMm4LEjngg7O+YC/i root@nixrpi";
 in
 {
   # agenix manages ONLY system/cloudflared host-scoped secrets. Personal tokens
@@ -28,7 +31,7 @@ in
   # host itself can decrypt at activation. A `<host>-tunnel-token.age` that isn't
   # yet host-rekeyed is inert at eval — it only matters at activation.
   "nixarm-tunnel-token.age".publicKeys = userKeys ++ [ nixarm ];
-  "nixrpi-tunnel-token.age".publicKeys = userKeys;
+  "nixrpi-tunnel-token.age".publicKeys = userKeys ++ [ nixrpi ];
 
   # LiteLLM stack secrets — hosted on nixrpi (services.litellm-host). Both are
   # encrypted to the PERSONAL key ONLY pre-first-boot (so the SD image builds and
@@ -41,8 +44,8 @@ in
   #                                nixrpi-tunnel-token).
   #   - litellm-env.age          : the SECRET env only (OPENAI_API_KEY,
   #                                LITELLM_MASTER_KEY, GOOGLE_CLIENT_SECRET).
-  "litellm-tunnel-token.age".publicKeys = userKeys;
-  "litellm-env.age".publicKeys = userKeys;
+  "litellm-tunnel-token.age".publicKeys = userKeys ++ [ nixrpi ];
+  "litellm-env.age".publicKeys = userKeys ++ [ nixrpi ];
 
   # nixamd: CF tunnel + DNS reserved, token re-encrypted to BOTH the personal key
   # and nixamd's live host key (agenix-host-rekey 2026-07-04). hosts/nixamd.nix
