@@ -26,6 +26,13 @@
     agenix.url = "github:ryantm/agenix";
     agenix.inputs.nixpkgs.follows = "nixpkgs";
 
+    # Nix → OpenTofu/Terraform JSON. Renders infra/cloudflare/*.nix to a
+    # config.tf.json consumed by the cf-litellm-apply/destroy apps (OpenTofu +
+    # the Cloudflare provider). Pure-eval lib; follows the parent nixpkgs so it
+    # never pulls a second copy.
+    terranix.url = "github:terranix/terranix";
+    terranix.inputs.nixpkgs.follows = "nixpkgs";
+
     # Declarative disk partitioning for NixOS installs. Replaces the manual
     # parted/mkfs/mount steps with a single `disko --mode disko` command.
     disko.url = "github:nix-community/disko";
@@ -60,6 +67,7 @@
       treefmt-nix,
       git-hooks,
       agenix,
+      terranix,
       raspberry-pi-nix,
       nix-vscode-extensions,
       nix-homebrew,
@@ -99,6 +107,83 @@
         import nixpkgs {
           inherit system;
           config.allowUnfree = true;
+        };
+
+      # ---- Cloudflare provisioning (terranix → OpenTofu) ----------------------
+      # Renders infra/cloudflare/litellm.nix to a config.tf.json store path, per
+      # system. The cf-litellm-apply/destroy wrappers `cp` it into the CWD and run
+      # `tofu init` + apply/destroy against the Cloudflare account.
+      cfLitellmConfig =
+        system:
+        terranix.lib.terranixConfiguration {
+          inherit system;
+          modules = [ ./infra/cloudflare/litellm.nix ];
+        };
+
+      # writeShellApplication wrapper around `tofu <action>` for the rendered
+      # LiteLLM Cloudflare config. Requires CLOUDFLARE_API_TOKEN in the env (the
+      # Cloudflare provider reads it as its api_token). The generated
+      # config.tf.json is a read-only store copy, so we `rm -f` any previous copy
+      # before re-copying; tofu state then lands beside where you run the app.
+      mkCfLitellmTofu =
+        {
+          system,
+          name,
+          action,
+        }:
+        let
+          pkgs = pkgsFor system;
+        in
+        pkgs.writeShellApplication {
+          inherit name;
+          runtimeInputs = [ pkgs.opentofu ];
+          text = ''
+            if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
+              echo "ERROR: CLOUDFLARE_API_TOKEN is unset. Export a token with" >&2
+              echo "  Account Cloudflare Tunnel:Edit, Zone DNS:Edit," >&2
+              echo "  Account Access Apps+Policies:Edit, Account Access Service Tokens:Edit." >&2
+              exit 1
+            fi
+            rm -f config.tf.json
+            cp ${cfLitellmConfig system} config.tf.json
+            tofu init
+            tofu ${action}
+          '';
+        };
+
+      # Landing-page Cloudflare provisioning — parallels the LiteLLM helpers above
+      # but renders infra/cloudflare/landing.nix: a dedicated PUBLIC tunnel (no
+      # Access). Same CLOUDFLARE_API_TOKEN requirement + read-only-store-copy dance.
+      cfLandingConfig =
+        system:
+        terranix.lib.terranixConfiguration {
+          inherit system;
+          modules = [ ./infra/cloudflare/landing.nix ];
+        };
+
+      mkCfLandingTofu =
+        {
+          system,
+          name,
+          action,
+        }:
+        let
+          pkgs = pkgsFor system;
+        in
+        pkgs.writeShellApplication {
+          inherit name;
+          runtimeInputs = [ pkgs.opentofu ];
+          text = ''
+            if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
+              echo "ERROR: CLOUDFLARE_API_TOKEN is unset. Export a token with" >&2
+              echo "  Account Cloudflare Tunnel:Edit and Zone DNS:Edit on kattakath.com." >&2
+              exit 1
+            fi
+            rm -f config.tf.json
+            cp ${cfLandingConfig system} config.tf.json
+            tofu init
+            tofu ${action}
+          '';
         };
 
       # ---- Formatting / lint (treefmt-nix) ------------------------------------
@@ -171,6 +256,9 @@
             agenix.nixosModules.default # system-level age.secrets (distinct from HM module)
             ./modules/nixos/cloudflared.nix # boot-time loginless cloudflared token connector (custom systemd unit)
             ./modules/nixos/github-runner.nix # ephemeral self-hosted GitHub Actions runner (no-op on hosts without the token secret)
+            ./modules/nixos/litellm.nix # LiteLLM OpenAI-compatible proxy (disabled by default; opt-in per host)
+            ./modules/nixos/litellm-host.nix # full LiteLLM stack: native Postgres + oci-container + dedicated CF tunnel (disabled by default; opt-in per host)
+            ./modules/nixos/landing.nix # public landing page — Caddy behind a dedicated CF tunnel (disabled by default; opt-in per host)
             home-manager.nixosModules.home-manager
             {
               home-manager = {
@@ -284,6 +372,7 @@
       # ---- Packages: container images + VM image -------------------------------
       # `nix build .#packages.<system>.dockerImage`        → minimal runtime tarball
       # `nix build .#packages.<linux>.devcontainerImage`   → devcontainer stream script (Linux only)
+      # `nix build .#packages.<linux>.litellmImage`        → LiteLLM proxy OCI image (Linux only)
       # `nix build .#packages.<linux>.inkmcpImage`         → inkmcp container stream script (Linux only)
       # `nix build .#nixarm-image`                         → UTM-importable qcow2 → ./result/
       # One fold merges base (all systems) → devcontainer (linux) → single-system,
@@ -294,6 +383,50 @@
           dockerImage = (pkgsFor system).callPackage ./packages/docker-image.nix { };
         }))
 
+        # Nix-rendered docker-compose for the LiteLLM proxy + cloudflared
+        # connector (packages/litellm-compose.nix, pkgs.formats.yaml). Plain
+        # arch-agnostic text, so expose it for every system.
+        #   nix build .#packages.<system>.litellmCompose
+        (forAllSystems (system: {
+          litellmCompose = (pkgsFor system).callPackage ./packages/litellm-compose.nix { };
+        }))
+
+        # Cloudflare provisioning apps (terranix → OpenTofu). Exposed as packages
+        # too — like nixarm/nixamd — so `nix flake check` builds them and runs the
+        # writeShellApplication shellcheck on each wrapper.
+        (forAllSystems (system: {
+          cf-litellm-apply = mkCfLitellmTofu {
+            inherit system;
+            name = "cf-litellm-apply";
+            action = "apply";
+          };
+          cf-litellm-destroy = mkCfLitellmTofu {
+            inherit system;
+            name = "cf-litellm-destroy";
+            action = "destroy";
+          };
+        }))
+
+        # The public landing page — a content-pinned static asset copy, so it
+        # builds on every system.  nix build .#landing
+        (forAllSystems (system: {
+          landing = (pkgsFor system).callPackage ./packages/landing.nix { };
+        }))
+
+        # Landing-page Cloudflare provisioning apps (parallels cf-litellm-* above).
+        (forAllSystems (system: {
+          cf-landing-apply = mkCfLandingTofu {
+            inherit system;
+            name = "cf-landing-apply";
+            action = "apply";
+          };
+          cf-landing-destroy = mkCfLandingTofu {
+            inherit system;
+            name = "cf-landing-destroy";
+            action = "destroy";
+          };
+        }))
+
         # Devcontainer image is a Linux OCI artifact — gate to the linux triple.
         # Built with unfree pkgs (claude-code) and the SHARED dev toolchain, so
         # `nix develop` inside the container resolves from the baked store.
@@ -301,6 +434,12 @@
           devcontainerImage = (pkgsUnfreeFor system).callPackage ./packages/devcontainer-image.nix {
             devPackages = devPackagesFor system;
           };
+        }))
+
+        # LiteLLM proxy image is an OCI (Linux) artifact — gate to the linux
+        # triple like devcontainerImage; OCI images never target darwin.
+        (nixpkgs.lib.genAttrs linuxSystems (system: {
+          litellmImage = (pkgsFor system).callPackage ./packages/litellm-image.nix { };
         }))
 
         # inkmcp container image is a Linux OCI artifact — gate to the linux
@@ -336,21 +475,62 @@
       #   1. Build qcow2 on an aarch64-linux builder: nix build .#nixarm-image
       #   2. Copy to the default disk path (or set NIXARM_DISK=/path/to/qcow2):
       #        cp result/*.qcow2 ~/.local/state/nixarm-vm/nixarm.qcow2
-      apps.aarch64-darwin.nixarm-vm = {
-        type = "app";
-        program = "${self.packages.aarch64-darwin.nixarm-vm}/bin/run-nixarm-vm";
-        meta.description = "Boot nixarm qcow2 in QEMU with Apple HVF — no UTM needed (aarch64-darwin only)";
-      };
-      apps.aarch64-linux.nixarm = {
-        type = "app";
-        program = "${self.packages.aarch64-linux.nixarm}/bin/nixarm";
-        meta.description = "Bootstrap NixOS nixarm on aarch64-linux from the live ISO via disko-install";
-      };
-      apps.x86_64-linux.nixamd = {
-        type = "app";
-        program = "${self.packages.x86_64-linux.nixamd}/bin/nixamd";
-        meta.description = "Bootstrap NixOS nixamd on x86_64-linux from the live ISO via disko-install";
-      };
+      # The per-system nixarm/nixamd launchers plus the terranix cf-litellm apps.
+      # Merged with recursiveUpdate so the static single-system entries and the
+      # forAllSystems cf apps coexist under one `apps` attribute (a bare
+      # `apps.x.y = …` alongside `apps = …` is a duplicate-definition error).
+      #
+      # cf-litellm-apply/destroy — `nix run .#cf-litellm-apply`:
+      #   render infra/cloudflare/litellm.nix (terranix) then `tofu init` + apply
+      #   (destroy for the other). Both need a live token in the environment:
+      #     CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-litellm-apply
+      #   Token scopes: Account Cloudflare Tunnel:Edit, Zone DNS:Edit,
+      #     Account Access Apps+Policies:Edit, Account Access Service Tokens:Edit.
+      #   Exposed on all four systems (aarch64-darwin for the user's Mac + the
+      #   linux triple), matching the packages fold that builds the wrappers.
+      apps =
+        nixpkgs.lib.recursiveUpdate
+          {
+            aarch64-darwin.nixarm-vm = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.nixarm-vm}/bin/run-nixarm-vm";
+              meta.description = "Boot nixarm qcow2 in QEMU with Apple HVF — no UTM needed (aarch64-darwin only)";
+            };
+            aarch64-linux.nixarm = {
+              type = "app";
+              program = "${self.packages.aarch64-linux.nixarm}/bin/nixarm";
+              meta.description = "Bootstrap NixOS nixarm on aarch64-linux from the live ISO via disko-install";
+            };
+            x86_64-linux.nixamd = {
+              type = "app";
+              program = "${self.packages.x86_64-linux.nixamd}/bin/nixamd";
+              meta.description = "Bootstrap NixOS nixamd on x86_64-linux from the live ISO via disko-install";
+            };
+          }
+          (
+            forAllSystems (system: {
+              cf-litellm-apply = {
+                type = "app";
+                program = "${self.packages.${system}.cf-litellm-apply}/bin/cf-litellm-apply";
+                meta.description = "Render infra/cloudflare/litellm.nix (terranix) and tofu apply it (needs CLOUDFLARE_API_TOKEN)";
+              };
+              cf-litellm-destroy = {
+                type = "app";
+                program = "${self.packages.${system}.cf-litellm-destroy}/bin/cf-litellm-destroy";
+                meta.description = "tofu destroy the LiteLLM Cloudflare resources (needs CLOUDFLARE_API_TOKEN)";
+              };
+              cf-landing-apply = {
+                type = "app";
+                program = "${self.packages.${system}.cf-landing-apply}/bin/cf-landing-apply";
+                meta.description = "Render infra/cloudflare/landing.nix (terranix) and tofu apply it (needs CLOUDFLARE_API_TOKEN)";
+              };
+              cf-landing-destroy = {
+                type = "app";
+                program = "${self.packages.${system}.cf-landing-destroy}/bin/cf-landing-destroy";
+                meta.description = "tofu destroy the landing-page Cloudflare resources (needs CLOUDFLARE_API_TOKEN)";
+              };
+            })
+          );
 
       # ---- Multi-architecture dev shell --------------------------------------
       # `nix develop` on any target. Used as the default Devcontainer profile.

@@ -367,6 +367,58 @@ Once a host is online, there is nothing to babysit:
 
 ---
 
+## 9a. Sibling path — HTTP ingress + Access (the LiteLLM container)
+
+Everything above describes the **per-host SSH connector** model: one tunnel per
+NixOS host, `ssh://localhost:22` ingress, **no Access** (auth is the SSH key). The
+repo also ships a *different* tunnel shape for a containerized HTTP service — the
+LiteLLM proxy — and it is worth calling out how it diverges, so the two are not
+conflated.
+
+| Aspect | Per-host SSH (this doc, §1–9) | LiteLLM container (`deploy/litellm/`) |
+|---|---|---|
+| Tunnel | one per host (`nixarm`, …) | **one dedicated** tunnel named `litellm` |
+| Ingress `service` | `ssh://localhost:22` | `http://litellm:4000` (**docker-DNS name**, not localhost) |
+| Where the connector runs | NixOS `cloudflared-connector` systemd unit | a `cloudflared` **container** beside the app + a `postgres` container (compose) |
+| Token secret | agenix `<host>-tunnel-token.age` (host-key scoped) | `TUNNEL_TOKEN` in `deploy/litellm/.env` (gitignored) |
+| Identity layer | **none** — SSH key only | **Cloudflare Access** (allow `kattakath.com` email-domain + service-token policy) |
+| App auth | SSH key | humans: LiteLLM **Google SSO** (`/sso/callback`); API clients: **virtual keys** (master key stays server-only) |
+| Public name | `<host>.kattakath.com` | `litellm.kattakath.com` |
+| Provisioner | `scripts/cf-one-provision.sh` | `infra/cloudflare/litellm.nix` (terranix) via `nix run .#cf-litellm-apply` (OpenTofu) |
+| Compose file | n/a (systemd unit) | Nix-rendered from `packages/litellm-compose.nix` |
+
+Two points make the HTTP path genuinely different from the SSH path:
+
+1. **The ingress URL is a docker-DNS name, not `localhost`.** The connector runs
+   in a container sharing an internal network with the litellm container, so the
+   account-side ingress `service` is `http://litellm:4000` (the compose service
+   name), resolved inside the connector's own namespace — whereas the SSH
+   connector runs on the host and points at the host's `localhost:22`.
+
+2. **Access sits in front, and Google SSO runs behind it.** The SSH endpoints
+   deliberately have *no* Access policy (§5, §9 "What you never do"). The LiteLLM
+   app deliberately *does*: a self-hosted Access application with an **allow**
+   policy scoped to the `kattakath.com` **email domain** and a **non_identity**
+   (service-token) policy. Humans clear Access with Google, then complete
+   LiteLLM's own Google SSO — the Google→`/sso/callback` redirect survives Access
+   precisely because the browser is already an allowed `@kattakath.com` identity
+   (a domain-allow policy, *not* a `/sso/*` bypass, which would open an
+   unauthenticated hole). API clients pass Access via `CF-Access-Client-Id` /
+   `CF-Access-Client-Secret` and then present a **virtual key** to the proxy; the
+   master key is never distributed. The Admin UI, virtual keys and SSO user table
+   need a database, so the compose stack also runs a `postgres` container
+   (internal-only, named volume). This does not change the SSH model — it is a
+   separate application object in the same Cloudflare account.
+
+Full runbook, compose file, and client call examples live in
+[`deploy/litellm/README.md`](../deploy/litellm/README.md). The account-side
+provisioning is the terranix module `infra/cloudflare/litellm.nix`, applied with
+`nix run .#cf-litellm-apply` (OpenTofu; needs a live `CLOUDFLARE_API_TOKEN`) and
+torn down with `nix run .#cf-litellm-destroy`; the compose file is Nix-rendered
+from `packages/litellm-compose.nix`.
+
+---
+
 ## 10. Wiring reference
 
 | Concern | File:line |
