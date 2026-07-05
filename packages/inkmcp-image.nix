@@ -62,12 +62,18 @@ let
       hash = "sha256-TvnBZHTSuhdcdDQMtlM6G/Amz3z177cc/k5dVSFwPGM=";
     };
     nativeBuildInputs = [ pkgs.unzip ];
-    # unzip setup-hook auto-unpacks the .zip into the build dir preserving the
-    # top-level layout; copy the tree verbatim into $out.
+    # The release zip has THREE top-level entries: inkscape_mcp.py and
+    # inkscape_mcp.inx (the Inkscape effect-extension registration) plus the
+    # inkmcp/ package dir. Nix's default unpackPhase picks the lone inkmcp/
+    # SUBDIR as sourceRoot and silently DROPS the two top-level files — so we
+    # disable it and unzip straight into $out, preserving the exact layout
+    # Inkscape's extensions dir expects (top-level .py/.inx + inkmcp/).
+    dontUnpack = true;
     installPhase = ''
       runHook preInstall
       mkdir -p "$out"
-      cp -r . "$out"
+      cd "$out"
+      unzip -q "$src"
       runHook postInstall
     '';
   };
@@ -81,7 +87,7 @@ let
     inkscape
     glib.bin # gdbus
     dbus # dbus-launch + dbus-daemon
-    xorg.xvfb # Xvfb
+    xvfb # Xvfb
     bashInteractive
     coreutils
     gnugrep
@@ -137,10 +143,33 @@ let
     mkdir -p /var/lib/dbus
     ln -sf /etc/machine-id /var/lib/dbus/machine-id
 
-    # 4. Start a D-Bus SESSION bus; export its address so BOTH Inkscape and the
-    #    server inherit the SAME bus (required for name registration + calls).
-    eval "$(dbus-launch --sh-syntax)"
-    export DBUS_SESSION_BUS_ADDRESS DBUS_SESSION_BUS_PID
+    # 4. Start a D-Bus SESSION bus at a known address; export it so BOTH Inkscape
+    #    and the server share the SAME bus (required for name registration +
+    #    calls). We DON'T use `dbus-launch` (nixpkgs patches it to a NixOS-only
+    #    /run/current-system daemon path) NOR `dbus-daemon --session` (whose
+    #    nixpkgs session.conf resolves to no usable <listen> in a non-NixOS
+    #    container: "Configuration file needs one or more <listen> elements").
+    #    Instead we hand dbus-daemon a minimal, self-contained config with an
+    #    explicit <listen> at our address and a permissive session policy.
+    cat > /tmp/inkmcp-dbus-session.conf <<DBUSCONF
+    <!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN" "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+    <busconfig>
+      <type>session</type>
+      <listen>unix:path=$XDG_RUNTIME_DIR/bus</listen>
+      <policy context="default">
+        <allow send_destination="*" eavesdrop="true"/>
+        <allow eavesdrop="true"/>
+        <allow own="*"/>
+      </policy>
+    </busconfig>
+    DBUSCONF
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+    dbus-daemon --config-file=/tmp/inkmcp-dbus-session.conf --nofork --nopidfile &
+    for _ in $(seq 1 50); do
+      [ -S "$XDG_RUNTIME_DIR/bus" ] && break
+      sleep 0.1
+    done
+    [ -S "$XDG_RUNTIME_DIR/bus" ] || { echo "inkmcp: D-Bus session bus failed to start" >&2; exit 1; }
 
     # 5. Virtual framebuffer + DISPLAY (Inkscape is a GUI app even headless).
     Xvfb :99 -screen 0 1024x768x24 >/tmp/xvfb.log 2>&1 &
