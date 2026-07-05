@@ -30,6 +30,20 @@ in
   "nixarm-tunnel-token.age".publicKeys = userKeys ++ [ nixarm ];
   "nixrpi-tunnel-token.age".publicKeys = userKeys;
 
+  # LiteLLM stack secrets — hosted on nixrpi (services.litellm-host). Both are
+  # encrypted to the PERSONAL key ONLY pre-first-boot (so the SD image builds and
+  # they can be re-encrypted/rotated); NO Pi host key is baked in. After the Pi's
+  # first boot, add its own /etc/ssh/ssh_host_ed25519_key.pub as a recipient here
+  # and re-encrypt BOTH (agenix-host-rekey skill) so the dedicated cloudflared
+  # connector + the litellm container can decrypt at activation.
+  #   - litellm-tunnel-token.age : one line `TUNNEL_TOKEN=…` (dedicated `litellm`
+  #                                tunnel f76db401-…, distinct from the per-host
+  #                                nixrpi-tunnel-token).
+  #   - litellm-env.age          : the SECRET env only (OPENAI_API_KEY,
+  #                                LITELLM_MASTER_KEY, GOOGLE_CLIENT_SECRET).
+  "litellm-tunnel-token.age".publicKeys = userKeys;
+  "litellm-env.age".publicKeys = userKeys;
+
   # nixamd: CF tunnel + DNS reserved, token re-encrypted to BOTH the personal key
   # and nixamd's live host key (agenix-host-rekey 2026-07-04). hosts/nixamd.nix
   # tunnelReady=true; connector activates at boot.
