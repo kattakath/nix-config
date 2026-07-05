@@ -284,6 +284,7 @@
       # ---- Packages: container images + VM image -------------------------------
       # `nix build .#packages.<system>.dockerImage`        → minimal runtime tarball
       # `nix build .#packages.<linux>.devcontainerImage`   → devcontainer stream script (Linux only)
+      # `nix build .#packages.<linux>.inkmcpImage`         → inkmcp container stream script (Linux only)
       # `nix build .#nixarm-image`                         → UTM-importable qcow2 → ./result/
       # One fold merges base (all systems) → devcontainer (linux) → single-system,
       # flatter than nesting recursiveUpdate calls.
@@ -300,6 +301,14 @@
           devcontainerImage = (pkgsUnfreeFor system).callPackage ./packages/devcontainer-image.nix {
             devPackages = devPackagesFor system;
           };
+        }))
+
+        # inkmcp container image is a Linux OCI artifact — gate to the linux
+        # triple. FREE deps only, so it uses pkgsFor (mirrors dockerImage), not
+        # the unfree devcontainer fold. streamLayeredImage/enableFakechroot are
+        # Darwin-forbidden, so this genAttrs linuxSystems is the required gate.
+        (nixpkgs.lib.genAttrs linuxSystems (system: {
+          inkmcpImage = (pkgsFor system).callPackage ./packages/inkmcp-image.nix { };
         }))
 
         {
