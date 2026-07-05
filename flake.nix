@@ -307,7 +307,12 @@
                 useGlobalPkgs = true;
                 useUserPackages = true;
                 extraSpecialArgs = {
-                  inherit userName domainName fullName handleName;
+                  inherit
+                    userName
+                    domainName
+                    fullName
+                    handleName
+                    ;
                 };
                 users.${userName} = {
                   imports = [ ./modules/shared/home.nix ];
