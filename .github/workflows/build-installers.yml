@@ -1,0 +1,90 @@
+name: build-installers
+
+# Build and publish installer images only when installer-related files change.
+# These images are stable and rarely need rebuilding — path-filtering avoids
+# wasting CI minutes on unrelated pushes.
+#
+# nixarm-installer: aarch64-linux ISO (ubuntu-24.04-arm native runner)
+# nixamd-installer: x86_64-linux ISO (ubuntu-24.04 native runner)
+# nixrpi-installer: aarch64-linux SD card image (ubuntu-24.04-arm native runner)
+#
+# Published to the rolling installer-latest GitHub pre-release so the images
+# are always downloadable at a stable URL without tag-per-commit churn.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "flake.nix"
+      - "flake.lock"
+      - "hosts/nixarm-installer.nix"
+      - "hosts/nixamd-installer.nix"
+      - "hosts/nixrpi-installer.nix"
+      - ".github/workflows/build-installers.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: build-installers-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build (${{ matrix.name }})
+    runs-on: ${{ matrix.runs-on }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: nixarm-installer
+            runs-on: ubuntu-24.04-arm
+            package: ".#packages.aarch64-linux.nixarm-installer-iso"
+            asset-glob: "result/iso/*.iso"
+          - name: nixamd-installer
+            runs-on: ubuntu-24.04
+            package: ".#packages.x86_64-linux.nixamd-installer-iso"
+            asset-glob: "result/iso/*.iso"
+          - name: nixrpi-installer
+            runs-on: ubuntu-24.04-arm
+            package: ".#packages.aarch64-linux.nixrpi-installer-image"
+            asset-glob: "result/sd-image/*.img*"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            extra-substituters = https://ismailkattakath.cachix.org
+            extra-trusted-public-keys = ismailkattakath.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I=
+
+      - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
+        with:
+          name: ismailkattakath
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      - name: Stage tree (git purity)
+        run: git add -A
+
+      - name: Build ${{ matrix.name }}
+        run: nix build ${{ matrix.package }} --out-link result
+
+      - name: Publish to installer-latest release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: installer-latest
+          name: "Installer Images (latest)"
+          body: |
+            Rolling installer images built from `${{ github.sha }}`.
+
+            | Image | Architecture | Use |
+            |---|---|---|
+            | `nixarm-installer.iso` | aarch64-linux | Boot in UTM/QEMU, `ssh nixos@nixarm-installer.local`, run `nix run github:ismailkattakath/nix-config#nixarm` |
+            | `nixamd-installer.iso` | x86_64-linux | Boot on x86_64, `ssh nixos@nixamd-installer.local`, run `nix run github:ismailkattakath/nix-config#nixamd` |
+            | `nixrpi-installer.img*` | aarch64-linux (RPi 4) | Flash to SD card, `ssh nixos@nixrpi-installer.local`, run `sudo nixos-rebuild switch --flake github:ismailkattakath/nix-config#nixrpi` |
+          prerelease: true
+          make_latest: false
+          files: ${{ matrix.asset-glob }}

@@ -3,22 +3,11 @@
 # Bootstrap (from live ISO — single command):
 #   nix --extra-experimental-features 'nix-command flakes' run github:ismailkattakath/nix-config#nixamd
 #
-# Modeled on hosts/nixarm.nix. The Cloudflare tunnel is ACTIVE:
-# the CF tunnel + DNS (nixamd.kattakath.com) are reserved and
-# secrets/nixamd-tunnel-token.age is rekeyed to nixamd's live SSH host key
-# (agenix-host-rekey 2026-07-04). The connector unit runs at boot via
-# modules/nixos/cloudflared.nix, which picks up the "nixamd-tunnel-token" secret.
+# Modeled on hosts/nixarm.nix. No Cloudflare tunnel — accessed via mDNS (nixamd.local).
 {
   lib,
-  secretsDir,
   ...
 }:
-let
-  # nixamd host key added as recipient and token re-encrypted 2026-07-04
-  # (agenix-host-rekey). Connector activates at boot via the rekeyed
-  # nixamd-tunnel-token secret.
-  tunnelReady = true;
-in
 {
   networking.hostName = "nixamd";
 
@@ -99,14 +88,6 @@ in
   };
 
   swapDevices = [ ];
-
-  # Cloudflare Tunnel — active. tunnelReady=true enables the nixamd-tunnel-token
-  # secret; modules/nixos/cloudflared.nix (which guards on the secret's presence)
-  # starts the hardened cloudflared-connector unit at boot.
-  # Token rekeyed to the nixamd host key 2026-07-04 (agenix-host-rekey).
-  age.secrets = lib.mkIf tunnelReady {
-    "nixamd-tunnel-token".file = "${secretsDir}/nixamd-tunnel-token.age";
-  };
 
   system.stateVersion = "24.05";
 }
