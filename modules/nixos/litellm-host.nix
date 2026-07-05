@@ -10,27 +10,22 @@
 #     ghcr.io/berriai/litellm-database image (bundles Prisma + engines, runs
 #     `prisma migrate deploy` at boot). `--network=host` so it reaches native
 #     Postgres on 127.0.0.1:5432 and binds the proxy on 127.0.0.1:4000. Config is
-#     nix-generated and mounted read-only; secrets arrive via an agenix
+#     nix-generated and mounted read-only; secrets arrive via a manually-placed
 #     EnvironmentFile (never argv, never the store).
 #   - a DEDICATED cloudflared connector for the `litellm` tunnel — a hardened
-#     systemd unit mirroring modules/nixos/cloudflared.nix, token via agenix
-#     EnvironmentFile. Reaches the proxy over the loopback origin the tunnel
+#     systemd unit mirroring modules/nixos/cloudflared.nix, token from a
+#     manually-placed file. Reaches the proxy over the loopback origin the tunnel
 #     ingress points at (http://localhost:4000).
 #
-# NO-OP SAFE: imported for ALL NixOS hosts via flake.nix, but everything is gated
-# behind `services.litellm-host.enable` (default false). Even with it enabled, the
-# dedicated connector only wires when the host declares the `litellm-tunnel-token`
-# agenix secret AND the litellm container only receives its secret env file when
-# the `litellm-env` agenix secret is declared — so a missing secret is a graceful
-# partial bring-up, never an activation failure.
+# NO-OP SAFE: gated behind `services.litellm-host.enable` (default false).
 #
 # SECRET HANDLING (never in argv / never in the store): the /nix/store is
 # world-readable, so real keys must never appear in `settings` or inline env. The
 # nix-generated config.yaml uses `os.environ/VAR` placeholders; the actual
 # OPENAI_API_KEY / LITELLM_MASTER_KEY / GOOGLE_CLIENT_SECRET arrive via an
-# agenix-decrypted EnvironmentFile (litellm-env). Non-secret env (PROXY_BASE_URL,
-# DATABASE_URL with no password, GOOGLE_CLIENT_ID, …) is inline — harmless in the
-# store.
+# EnvironmentFile read from `envFile` (default /etc/secrets/litellm-env). Non-secret
+# env (PROXY_BASE_URL, DATABASE_URL with no password, GOOGLE_CLIENT_ID, …) is
+# inline — harmless in the store.
 {
   config,
   lib,
@@ -39,16 +34,6 @@
 }:
 let
   cfg = config.services.litellm-host;
-
-  # Dedicated tunnel token, distinct from the per-host connector's
-  # "<hostname>-tunnel-token". Only wire the connector once the host provides it.
-  tunnelTokenSecret = "litellm-tunnel-token";
-  haveTunnelToken = lib.hasAttr tunnelTokenSecret config.age.secrets;
-
-  # The container's secret env file (OPENAI_API_KEY / LITELLM_MASTER_KEY /
-  # GOOGLE_CLIENT_SECRET). Only mount it when the host declares the secret.
-  envSecret = "litellm-env";
-  haveEnvFile = lib.hasAttr envSecret config.age.secrets;
 
   # LiteLLM proxy config — nix-generated, mounted read-only into the official
   # image. Only `os.environ/VAR` placeholders; real keys arrive from the env.
@@ -98,9 +83,45 @@ in
       default = "litellm";
       description = "Name of the native Postgres database (and its owning role).";
     };
+
+    tunnelTokenFile = lib.mkOption {
+      type = lib.types.path;
+      default = "/etc/secrets/litellm-tunnel-token";
+      description = ''
+        Path to a file containing `TUNNEL_TOKEN=<token>` for the dedicated LiteLLM
+        Cloudflare tunnel connector. Place manually after provisioning — do NOT commit
+        to git. The unit retries on failure so placing the file after first boot
+        self-heals without a rebuild.
+      '';
+    };
+
+    envFile = lib.mkOption {
+      type = lib.types.nullOr lib.types.path;
+      default = "/etc/secrets/litellm-env";
+      description = ''
+        Path to a KEY=VALUE environment file supplying secret env vars
+        (OPENAI_API_KEY, LITELLM_MASTER_KEY, GOOGLE_CLIENT_SECRET). Place
+        manually after provisioning — do NOT commit to git. If null, the
+        container starts without secret env (partial bring-up only).
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {
+    # Warn at activation if secret files are missing.
+    system.activationScripts.check-litellm-secrets = lib.stringAfter [ "etc" ] ''
+      if [ ! -f "${cfg.tunnelTokenFile}" ]; then
+        echo "WARNING: litellm-host: tunnelTokenFile '${cfg.tunnelTokenFile}' does not exist." >&2
+        echo "  Place a file with 'TUNNEL_TOKEN=<token>' at that path after provisioning." >&2
+      fi
+      ${lib.optionalString (cfg.envFile != null) ''
+        if [ ! -f "${cfg.envFile}" ]; then
+          echo "WARNING: litellm-host: envFile '${cfg.envFile}' does not exist." >&2
+          echo "  Place a KEY=VALUE env file (OPENAI_API_KEY, LITELLM_MASTER_KEY, GOOGLE_CLIENT_SECRET) there." >&2
+        fi
+      ''}
+    '';
+
     # ---- Native Postgres --------------------------------------------------------
     # Loopback-only listener with `trust` auth on 127.0.0.1/32 + ::1 ONLY.
     # TRADEOFF: `trust` means any local process connecting over loopback as the
@@ -110,7 +131,7 @@ in
     # litellm container (via --network=host → 127.0.0.1). It lets DATABASE_URL omit
     # a password (postgresql://litellm@localhost:5432/litellm), so no DB credential
     # lives in the store or an env file. If this host ever gains other local users,
-    # switch this to scram-sha-256 + a password in the agenix env file.
+    # switch this to scram-sha-256 + a password in the env file.
     services.postgresql = {
       enable = true;
       enableTCPIP = true; # listen on TCP loopback so the container reaches 127.0.0.1:5432
@@ -155,7 +176,7 @@ in
       ];
       # NON-SECRET env inline (harmless in the store). DATABASE_URL carries NO
       # password (loopback trust auth). Secret env (OPENAI_API_KEY,
-      # LITELLM_MASTER_KEY, GOOGLE_CLIENT_SECRET) comes from the agenix env file.
+      # LITELLM_MASTER_KEY, GOOGLE_CLIENT_SECRET) comes from the env file.
       environment = {
         DATABASE_URL = "postgresql://${cfg.database}@localhost:5432/${cfg.database}";
         PROXY_BASE_URL = "https://litellm.kattakath.com";
@@ -163,9 +184,9 @@ in
         STORE_MODEL_IN_DB = "True";
         GOOGLE_CLIENT_ID = "305924238191-fdluaucv5603t0o2pb57elgf6dnu35r8.apps.googleusercontent.com";
       };
-      # agenix-decrypted KEY=VALUE file with the SECRET env only. Gated: mounted
-      # solely when the host declares the secret, so a missing secret is a no-op.
-      environmentFiles = lib.optional haveEnvFile config.age.secrets.${envSecret}.path;
+      # KEY=VALUE file with the SECRET env only. Placed manually at envFile path
+      # after provisioning — never committed to git.
+      environmentFiles = lib.optional (cfg.envFile != null) cfg.envFile;
     };
 
     # The container waits for Postgres to be up (prisma migrate deploy runs at
@@ -205,17 +226,17 @@ in
 
     # ---- Dedicated cloudflared connector for the litellm tunnel ----------------
     # Mirrors modules/nixos/cloudflared.nix. Coexists with the per-host connector
-    # (separate unit, separate token). Gated no-op until the host provides the
-    # `litellm-tunnel-token` agenix secret (one line TUNNEL_TOKEN=…).
-    systemd.services.cloudflared-litellm = lib.mkIf haveTunnelToken {
-      description = "Cloudflare Tunnel connector for LiteLLM (remotely-managed, token from agenix)";
+    # (separate unit, separate token). Token read from tunnelTokenFile (manually
+    # placed, one line TUNNEL_TOKEN=…).
+    systemd.services.cloudflared-litellm = {
+      description = "Cloudflare Tunnel connector for LiteLLM (remotely-managed, token from file)";
       after = [ "network-online.target" ];
       wants = [ "network-online.target" ];
       wantedBy = [ "multi-user.target" ];
 
       serviceConfig = {
         ExecStart = "${pkgs.cloudflared}/bin/cloudflared --no-autoupdate tunnel run";
-        EnvironmentFile = config.age.secrets.${tunnelTokenSecret}.path;
+        EnvironmentFile = cfg.tunnelTokenFile;
 
         Restart = "on-failure";
         RestartSec = 5;
