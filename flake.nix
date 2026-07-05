@@ -23,9 +23,6 @@
     git-hooks.url = "github:cachix/git-hooks.nix";
     git-hooks.inputs.nixpkgs.follows = "nixpkgs";
 
-    agenix.url = "github:ryantm/agenix";
-    agenix.inputs.nixpkgs.follows = "nixpkgs";
-
     # Nix → OpenTofu/Terraform JSON. Renders infra/cloudflare/*.nix to a
     # config.tf.json consumed by the cf-litellm-apply/destroy apps (OpenTofu +
     # the Cloudflare provider). Pure-eval lib; follows the parent nixpkgs so it
@@ -66,7 +63,6 @@
       home-manager,
       treefmt-nix,
       git-hooks,
-      agenix,
       terranix,
       raspberry-pi-nix,
       nix-vscode-extensions,
@@ -247,17 +243,11 @@
               fullName
               handleName
               ;
-            secretsDir = "${self}/secrets";
           };
           modules = [
             ./hosts/${hostname}.nix
             ./modules/nixos/core.nix
             ./modules/shared/nix-cache.nix # Cachix binary cache (read)
-            agenix.nixosModules.default # system-level age.secrets (distinct from HM module)
-            ./modules/nixos/cloudflared.nix # boot-time loginless cloudflared token connector (custom systemd unit)
-            ./modules/nixos/litellm.nix # LiteLLM OpenAI-compatible proxy (disabled by default; opt-in per host)
-            ./modules/nixos/litellm-host.nix # full LiteLLM stack: native Postgres + oci-container + dedicated CF tunnel (disabled by default; opt-in per host)
-            ./modules/nixos/landing.nix # public landing page — Caddy behind a dedicated CF tunnel (disabled by default; opt-in per host)
             home-manager.nixosModules.home-manager
             {
               home-manager = {
