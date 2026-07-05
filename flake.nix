@@ -23,9 +23,6 @@
     git-hooks.url = "github:cachix/git-hooks.nix";
     git-hooks.inputs.nixpkgs.follows = "nixpkgs";
 
-    agenix.url = "github:ryantm/agenix";
-    agenix.inputs.nixpkgs.follows = "nixpkgs";
-
     # Nix → OpenTofu/Terraform JSON. Renders infra/cloudflare/*.nix to a
     # config.tf.json consumed by the cf-litellm-apply/destroy apps (OpenTofu +
     # the Cloudflare provider). Pure-eval lib; follows the parent nixpkgs so it
@@ -66,7 +63,6 @@
       home-manager,
       treefmt-nix,
       git-hooks,
-      agenix,
       terranix,
       raspberry-pi-nix,
       nix-vscode-extensions,
@@ -247,18 +243,11 @@
               fullName
               handleName
               ;
-            secretsDir = "${self}/secrets";
           };
           modules = [
             ./hosts/${hostname}.nix
             ./modules/nixos/core.nix
             ./modules/shared/nix-cache.nix # Cachix binary cache (read)
-            agenix.nixosModules.default # system-level age.secrets (distinct from HM module)
-            ./modules/nixos/cloudflared.nix # boot-time loginless cloudflared token connector (custom systemd unit)
-            ./modules/nixos/github-runner.nix # ephemeral self-hosted GitHub Actions runner (no-op on hosts without the token secret)
-            ./modules/nixos/litellm.nix # LiteLLM OpenAI-compatible proxy (disabled by default; opt-in per host)
-            ./modules/nixos/litellm-host.nix # full LiteLLM stack: native Postgres + oci-container + dedicated CF tunnel (disabled by default; opt-in per host)
-            ./modules/nixos/landing.nix # public landing page — Caddy behind a dedicated CF tunnel (disabled by default; opt-in per host)
             home-manager.nixosModules.home-manager
             {
               home-manager = {
@@ -298,19 +287,39 @@
           inherit system;
           specialArgs = {
             inherit
-              home-manager
               userName
               domainName
               fullName
               handleName
-              nix-vscode-extensions
               ;
           };
           modules = [
-            { nixpkgs.hostPlatform = system; }
+            {
+              nixpkgs.hostPlatform = system;
+              nixpkgs.overlays = [ nix-vscode-extensions.overlays.default ];
+            }
             nix-homebrew.darwinModules.nix-homebrew # declaratively install brew (arch-correct prefix)
             ./hosts/${hostname}.nix
             ./modules/shared/nix-cache.nix # Cachix binary cache (read)
+            home-manager.darwinModules.home-manager
+            {
+              home-manager = {
+                useGlobalPkgs = true;
+                useUserPackages = true;
+                extraSpecialArgs = {
+                  inherit
+                    userName
+                    domainName
+                    fullName
+                    handleName
+                    ;
+                };
+                users.${userName} = {
+                  imports = [ ./modules/shared/home.nix ];
+                  home.stateVersion = "24.05";
+                };
+              };
+            }
           ]
           ++ extraModules;
         };
@@ -365,6 +374,37 @@
           hostname = "nixamd";
           extraModules = [
             disko.nixosModules.disko
+          ];
+        };
+
+        # Minimal installer ISO for nixarm — boot from this on UTM/QEMU,
+        # SSH as nixos@nixarm-installer.local, then run the nixarm bootstrap app.
+        "nixarm-installer" = nixpkgs.lib.nixosSystem {
+          system = "aarch64-linux";
+          modules = [
+            "${nixpkgs}/nixos/modules/installer/cd-dvd/installation-cd-minimal.nix"
+            ./hosts/nixarm-installer.nix
+          ];
+        };
+
+        # Minimal installer ISO for nixamd — boot from this, SSH as
+        # nixos@nixamd-installer.local, then run the nixamd bootstrap app.
+        "nixamd-installer" = nixpkgs.lib.nixosSystem {
+          system = "x86_64-linux";
+          modules = [
+            "${nixpkgs}/nixos/modules/installer/cd-dvd/installation-cd-minimal.nix"
+            ./hosts/nixamd-installer.nix
+          ];
+        };
+
+        # Minimal installer SD image for nixrpi — flash to SD card, boot,
+        # SSH as nixos@nixrpi-installer.local, then switch to the nixrpi config.
+        "nixrpi-installer" = nixpkgs.lib.nixosSystem {
+          system = "aarch64-linux";
+          modules = [
+            raspberry-pi-nix.nixosModules.raspberry-pi
+            raspberry-pi-nix.nixosModules.sd-image
+            ./hosts/nixrpi-installer.nix
           ];
         };
       };
@@ -463,6 +503,12 @@
             diskoInstall = disko.packages.x86_64-linux.disko-install;
             inherit handleName;
           };
+          aarch64-linux.nixarm-installer-iso =
+            self.nixosConfigurations.nixarm-installer.config.system.build.isoImage;
+          x86_64-linux.nixamd-installer-iso =
+            self.nixosConfigurations.nixamd-installer.config.system.build.isoImage;
+          aarch64-linux.nixrpi-installer-image =
+            self.nixosConfigurations.nixrpi-installer.config.system.build.sdImage;
         }
       ];
 
