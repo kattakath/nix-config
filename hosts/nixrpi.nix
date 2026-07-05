@@ -22,6 +22,15 @@
   # generic kernel builds the full TPM stack anyway.
   boot.initrd.systemd.tpm2.enable = lib.mkForce false;
 
+  # CONFIRMED BOOT FIX: use the SCRIPTED (bash) initrd, not systemd-initrd.
+  # nixpkgs enables systemd stage-1 (boot.initrd.systemd.enable) by default, but on
+  # the raspberry-pi-nix `linux-rpi` kernel it HANGS stage-1 mounting the real root
+  # at /sysroot (the Pi never reaches stage-2 / a login). The classic scripted
+  # initrd mounts /sysroot and hands off reliably on this kernel, so force it off.
+  # mkForce because nixpkgs sets the default to true; keep this OFF forever — a
+  # config that reintroduces systemd-initrd will not reboot on this hardware.
+  boot.initrd.systemd.enable = lib.mkForce false;
+
   # Allow unfree packages (e.g. `claude-code` in the shared HM profile).
   nixpkgs.config.allowUnfree = true;
 
