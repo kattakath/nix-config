@@ -1,5 +1,9 @@
 # Cloudflare Tunnel + ZTIA SSH Architecture & Host Runbook
 
+> See [`docs/ztia-rollout-runbook.md`](ztia-rollout-runbook.md) for the
+> concrete, step-by-step operator walkthrough of the rollout order summarized
+> in §9 below (token scopes, dashboard paths, verification commands).
+
 This document describes the **Cloudflare Access for Infrastructure (ZTIA)**
 SSH design for this repo's 3-host aarch64 fleet (`macos`, `nixpi`, `nixvm`).
 It supersedes the prior "static SSH key over a loginless tunnel" model: `nixpi`
@@ -359,6 +363,7 @@ executing the runbook in §9.)
 | terranix input + `cf-ssh-apply`/`cf-ssh-destroy` apps | `flake.nix` |
 | Token file (operator-placed, plain, unchanged) | `/etc/secrets/cloudflared-token` on `nixpi` |
 | Legacy tunnel + DNS provisioning script (unaffected) | `scripts/cf-one-provision.sh` |
+| Concrete step-by-step rollout walkthrough (this doc's §9, expanded) | `docs/ztia-rollout-runbook.md` |
 
 ### Related skills
 
