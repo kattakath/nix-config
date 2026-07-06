@@ -59,7 +59,6 @@ let
           description = "Extra Caddyfile directives appended inside this vhost's block.";
         };
       };
-
     }
   );
 in
