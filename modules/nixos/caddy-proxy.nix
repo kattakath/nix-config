@@ -60,15 +60,6 @@ let
         };
       };
 
-      config = {
-        assertions = [
-          {
-            assertion =
-              (cfg.virtualHosts.${name}.reverseProxyTo != null) != (cfg.virtualHosts.${name}.root != null);
-            message = "services.caddy-proxy.virtualHosts.${name}: set exactly one of `reverseProxyTo` or `root`.";
-          }
-        ];
-      };
     }
   );
 in
@@ -96,30 +87,38 @@ in
     };
   };
 
-  config = lib.mkIf cfg.enable {
-    networking.firewall.allowedTCPPorts = [
-      80
-      443
-    ];
-
-    services.caddy = {
-      enable = true;
-      inherit (cfg) email;
-
-      virtualHosts = lib.mapAttrs (_hostname: vhost: {
-        extraConfig =
-          (
-            if vhost.reverseProxyTo != null then
-              "reverse_proxy ${vhost.reverseProxyTo}"
-            else
-              ''
-                root * ${vhost.root}
-                file_server
-              ''
-          )
-          + "\n"
-          + vhost.extraConfig;
+  config = lib.mkMerge [
+    {
+      assertions = lib.mapAttrsToList (name: vhost: {
+        assertion = (vhost.reverseProxyTo != null) != (vhost.root != null);
+        message = "services.caddy-proxy.virtualHosts.${name}: set exactly one of `reverseProxyTo` or `root`.";
       }) cfg.virtualHosts;
-    };
-  };
+    }
+    (lib.mkIf cfg.enable {
+      networking.firewall.allowedTCPPorts = [
+        80
+        443
+      ];
+
+      services.caddy = {
+        enable = true;
+        inherit (cfg) email;
+
+        virtualHosts = lib.mapAttrs (_hostname: vhost: {
+          extraConfig =
+            (
+              if vhost.reverseProxyTo != null then
+                "reverse_proxy ${vhost.reverseProxyTo}"
+              else
+                ''
+                  root * ${vhost.root}
+                  file_server
+                ''
+            )
+            + "\n"
+            + vhost.extraConfig;
+        }) cfg.virtualHosts;
+      };
+    })
+  ];
 }
