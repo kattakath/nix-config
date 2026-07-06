@@ -5,8 +5,9 @@
 # runs `cloudflared tunnel run <uuid>`. It has NO token support. This repo uses
 # REMOTELY-managed (token) tunnels so every host's connector comes up at boot
 # with zero interactive login (no `cloudflared tunnel login`, no cert.pem) and
-# its ingress/DNS live in the Cloudflare account (provisioned by
-# scripts/cf-one-provision.sh), not here. So we run our own hardened unit.
+# its ingress/DNS live in the Cloudflare account (provisioned declaratively via
+# terranix — `nix run .#cf-tunnel-apply`, see infra/cloudflare/nixpi-tunnel.nix),
+# not here. So we run our own hardened unit.
 #
 # TOKEN HANDLING (never in argv / never in the store): the connector token is a
 # secret. It is delivered as `TUNNEL_TOKEN=…` via an EnvironmentFile — a file
