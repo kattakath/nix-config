@@ -368,5 +368,5 @@ executing the runbook in §9.)
 ### Related skills
 
 - `cloudflare-one` — general Cloudflare One / ZTIA guidance this doc draws on.
-- `cloudflared-tunnel` — client-side tunnel setup (being superseded for `nixpi` by WARP + ZTIA; still relevant for the connector itself).
+- `cloudflared-tunnel` — the ZTIA SSH setup playbook for `nixpi` itself (CA provisioning, terranix apply, host-side wiring, WARP client enrollment); this doc is its authoritative cross-reference for the full rollout order.
 - `nixos-flake-install` / `utm-vm-provision` / `nixvm-utm-prebuild-on-devcontainer` — bring up `nixvm` itself (unaffected by this cutover).
