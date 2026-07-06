@@ -14,7 +14,7 @@ A single Nix flake that manages complete, reproducible system configurations acr
 | Host | Type | System | Machine | Role |
 |------|------|--------|---------|------|
 | `macos` | [nix-darwin](https://github.com/LnL7/nix-darwin) | `aarch64-darwin` | Apple Silicon Mac | Client only — no remote/incoming traffic |
-| `nixpi` | NixOS | `aarch64-linux` | Raspberry Pi 4 | **LIVE server** — SSH over a Cloudflare Tunnel + Caddy landing page |
+| `nixpi` | NixOS | `aarch64-linux` | Raspberry Pi 4 | **LIVE server** — ZTIA SSH (short-lived certs over a Cloudflare Tunnel connector) + Caddy landing page |
 | `nixvm` | NixOS | `aarch64-linux` | UTM/QEMU sandbox VM | Minimal — boot/SSH/disko only, no public ingress |
 | `devcontainer` | OCI image | `aarch64-linux` | Dev container (published to GHCR) | — |
 
