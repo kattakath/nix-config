@@ -1,31 +1,30 @@
 ---
 name: nixos-flake-install
 description: >
-  Bootstrap NixOS onto a freshly-booted VM from this flake repo. Use when asked to "install NixOS",
-  bootstrap a host, partition a disk for NixOS, or bring up nixarm/nixamd from the flake. A single
-  `nix run github:ismailkattakath/nix-config#<hostname>` command (the flake's bootstrap app) replaces
-  the old three-step sequence of disko + git clone + nixos-install. Covers driving the bootstrap over
-  SSH from the live ISO, the ≥6 GB RAM prerequisite, and post-install host-key handoff to agenix-host-rekey.
+  Bootstrap NixOS onto a freshly-booted VM/host from this flake repo. Use when asked to "install
+  NixOS", bootstrap a host, partition a disk for NixOS, or bring up nixvm/nixpi from the flake. A
+  single `nix run github:ismailkattakath/nix-config#<hostname>` command (the flake's bootstrap
+  app) replaces the old three-step sequence of disko + git clone + nixos-install. Covers driving
+  the bootstrap over SSH from the live ISO, the ≥6 GB RAM prerequisite, and post-install
+  verification.
 ---
 
 # NixOS flake bootstrap (this repo)
 
-Bootstraps a NixOS host from `github:ismailkattakath/nix-config` via a single command. Two hosts
-support this flow:
+Bootstraps `nixvm` from `github:ismailkattakath/nix-config` via a single command:
 
-- **`nixarm`** — aarch64-linux, UTM/QEMU `virt` (Apple Silicon). Run from an **aarch64 live ISO**.
-- **`nixamd`** — x86_64-linux, QEMU TCG emulation (slow but functional on Apple Silicon). Run from
-  an **x86_64 live ISO**.
+- **`nixvm`** — aarch64-linux, UTM/QEMU `virt` (Apple Silicon sandbox). Run from an **aarch64
+  live ISO** (`nixvm-installer`).
 
 `nixos-install` pulls nixpkgs from the **flake's own lock** (tracks `nixos-unstable`), so the
-installer ISO version is irrelevant. (`nixrpi` is a Raspberry Pi 4 SD-image host — not installable
-via this flow.)
+installer ISO version is irrelevant. (`nixpi` is a Raspberry Pi 4 SD-image host — flash
+`nixpi-installer-image` to an SD card and boot directly; it doesn't go through this ISO/disko
+flow. See §5.)
 
 > **Faster alternative — skip the ISO install entirely.** Build a prebuilt qcow2 with
-> `nixos-rebuild build-image --flake .#nixarm --image-variant qemu-efi` (on aarch64-linux) and
-> import it into UTM — no partitioning, no in-guest install, no OOM-RAM pitfall. See
-> **utm-vm-provision** › "Two ways to get a running NixOS VM". Use the ISO flow below only when
-> you can't build/import an image.
+> `nix build .#nixvm-image` (on aarch64-linux) and import it into UTM — no partitioning, no
+> in-guest install, no OOM-RAM pitfall. See **utm-vm-provision** › "Two ways to get a running
+> NixOS VM". Use the ISO flow below only when you can't build/import an image.
 
 ## ⚠ PREREQUISITE: ≥6 GB RAM + clean wipe (LOW RAM = SILENT CORRUPTION)
 
@@ -36,7 +35,7 @@ rebuilding the damaged paths**. Result: the system *boots* but journald / udevd 
 wipe.** Do **not** limp along with swap — it cannot save an already-poisoned store. A swapfile on
 `/mnt` also lands on the **target root** — remove it before finalizing.
 
-## What `hosts/nixarm.nix` expects (verified)
+## What `hosts/nixvm.nix` expects (verified)
 
 - **Disk layout declared via disko** in `disko.devices`: GPT, 512 MiB ESP (vfat, label `boot`) +
   rest ext4 (label `nixos`). Run `disko --mode disko` (step 2) — it partitions, formats, and mounts
@@ -44,10 +43,11 @@ wipe.** Do **not** limp along with swap — it cannot save an already-poisoned s
 - **systemd-boot + UEFI**; **DHCP** on all interfaces.
 - **Already bakes in VirtIO initrd** — `boot.initrd.availableKernelModules =
   [ "virtio_pci" "virtio_blk" "virtio_scsi" "ahci" "sd_mod" ]`. **No initrd patch needed for
-  nixarm** (see step 4 — patch is only for a brand-new generic host lacking these).
+  nixvm** (see step 4 — patch is only for a brand-new generic host lacking these).
 - **User `ismail`**: wheel, passwordless sudo, project SSH key; **key-only SSH, no root login**
   (`modules/nixos/core.nix`) — applies to the *installed* system, not the live ISO.
-- One gap handled post-boot: the **agenix host-key chicken-and-egg** for `*-tunnel-token.age`.
+- **No public ingress** — `nixvm` is a sandbox VM; it runs no `cloudflared-connector` and no
+  `caddy-proxy`.
 
 ## 1. Reach a shell on the target (SSH from the live ISO)
 
@@ -75,21 +75,17 @@ sshpass -p "<console-pw>" ssh -o PreferredAuthentications=password -o PubkeyAuth
 ssh root@192.168.64.x 'mkdir -p /root/.ssh && cat >> /root/.ssh/authorized_keys' < ~/.ssh/id_ed25519.pub
 ```
 
-(Port-forward `2222→22` → `ssh -p 2222 root@localhost` is an alternative; the direct vmnet-shared IP
-is what the verified install used. See **utm-vm-provision** for networking setup.)
+(Port-forward `2222→22` → `ssh -p 2222 root@localhost` is an alternative. See
+**utm-vm-provision** for networking setup.)
 
 ## 2. Bootstrap (single command)
 
-The flake exposes a per-host bootstrap app that calls `disko-install` — partitions, formats, mounts,
+The flake exposes a bootstrap app that calls `disko-install` — partitions, formats, mounts,
 and runs `nixos-install` in one shot. No git clone, no separate disko step, no `--no-root-passwd` to
 remember (hardcoded by `disko-install`). **Destructive — verify `/dev/vda` is the target disk first.**
 
 ```bash
-# nixarm (aarch64 ISO):
-nix --extra-experimental-features 'nix-command flakes' run github:ismailkattakath/nix-config#nixarm
-
-# nixamd (x86_64 ISO):
-nix --extra-experimental-features 'nix-command flakes' run github:ismailkattakath/nix-config#nixamd
+nix --extra-experimental-features 'nix-command flakes' run github:ismailkattakath/nix-config#nixvm
 ```
 
 `--extra-experimental-features` is required on the bare ISO (flakes not enabled by default); once the
@@ -104,20 +100,20 @@ rsync -az --delete --exclude '.git/hooks' --exclude 'memory/' --exclude 'result'
   -e "ssh -i ~/.ssh/id_ed25519" ./ root@<ip>:~/nix-config/
 # on the VM:
 sudo nix --extra-experimental-features 'nix-command flakes' run \
-  github:nix-community/disko#disko-install -- --flake ~/nix-config#nixarm --disk vda /dev/vda
+  github:nix-community/disko#disko-install -- --flake ~/nix-config#nixvm --disk vda /dev/vda
 ```
 
-## 3. Verify + hand off the host key
+## 3. Verify
 
 ```bash
 ssh ismail@<VM-IP> -i ~/.ssh/id_ed25519
-cat /etc/ssh/ssh_host_ed25519_key.pub        # needed for the next step
+hostname; nixos-version
 ```
 
-→ Run the **agenix-host-rekey** skill to add this host key as a recipient and re-encrypt the
-tunnel token so the `cloudflared-connector` unit activates on the next rebuild.
+`nixvm` has no `/etc/secrets/*` requirement — no post-boot secret handoff needed. `nixpi` does
+(`/etc/secrets/cloudflared-token`); see §5.
 
-## Recovery toolkit
+## 4. Recovery toolkit
 
 - **Which OS booted?** The ISO **regenerates its SSH host key every boot**; the installed key is
   **stable**. Compare: `ssh-keyscan -t ed25519 <ip> | ssh-keygen -lf -`. The ISO also has `/iso`
@@ -131,3 +127,15 @@ tunnel token so the `cloudflared-connector` unit activates on the next rebuild.
   `/mnt/etc/ssh/sshd_config`, and not the live ISO's own config.
 - **Force-boot the ISO / fix bloated `efi_vars.fd`** — UTM-side; see the Recovery toolkit in
   **utm-vm-provision** (detach `Drive.1`, move aside the bloated NVRAM).
+
+## 5. nixpi — SD-image flow (different from nixvm)
+
+`nixpi` (Raspberry Pi 4, LIVE server) does not use disko/ISO/UTM at all:
+
+1. Flash `nixpi-installer-image` (`.#packages.aarch64-linux.nixpi-installer-image`) to an SD card.
+2. Boot the Pi, SSH in as `nixos@nixpi-installer.local`.
+3. Run `sudo nixos-rebuild switch --flake github:ismailkattakath/nix-config#nixpi` (or install
+   directly onto the SD card if the installer image already carries the `nixpi` config — confirm
+   against the current `hosts/nixpi-installer.nix`).
+4. **Before first successful tunnel activation**, place `/etc/secrets/cloudflared-token` on the
+   Pi (plain file, operator-placed, never committed) — see the **cloudflared-tunnel** skill.

@@ -1,19 +1,18 @@
 name: build-devcontainer
 
-# Nix-built, multi-arch devcontainer image for nix-config.
+# Nix-built, aarch64-only devcontainer image for nix-config.
 # The image is produced by `pkgs.dockerTools.streamLayeredImage`, exposed as
-# packages.<linux>.devcontainerImage in flake.nix, and published to GHCR.
+# packages.aarch64-linux.devcontainerImage in flake.nix, and published to GHCR.
 # .devcontainer/devcontainer.json just pulls the `image:` this builds — the
 # heavyweight toolchain (a working nix + the warm devShell closure + node +
 # claude-code + gh) is baked in, so create-time setup is near-zero.
 #
 # PRs eval-only (the `gate` job's pure drvPath eval); push to main builds the
-# multi-arch image and publishes :latest + :<sha12>. Every merge/dispatch build
-# leg also smoke-tests the freshly-built image (nix develop from the warm store).
+# image and publishes :latest + :<sha12>. Every merge/dispatch build leg also
+# smoke-tests the freshly-built image (nix develop from the warm store).
 #
-# This REPLACES the old features-based test-devcontainer.yml (deleted in the
-# same change): that workflow built the now-removed Features stack via
-# devcontainers/ci and asserted an nvm claude path that no longer exists.
+# This fleet is aarch64-only (macos/nixpi/nixvm) — there is no amd64 leg and no
+# manifest-list assembly step; the single arm64 image IS :latest.
 
 on:
   pull_request:
@@ -34,8 +33,8 @@ on:
   workflow_dispatch:
 
 # Default token scope is READ-ONLY for every job. `packages: write` is NOT granted
-# at the top level — it is scoped per-job to ONLY the jobs that push to GHCR (`build`
-# and `manifest`) via their own `permissions:` blocks below (defense-in-depth). The
+# at the top level — it is scoped per-job to ONLY the job that pushes to GHCR
+# (`build`) via its own `permissions:` block below (defense-in-depth). The
 # eval-only `gate` job and the PR (non-publish) path therefore never receive a
 # write-capable token.
 permissions:
@@ -52,51 +51,41 @@ jobs:
   # GATE: publish only when the image's CONTENT actually changed.
   #
   # The trigger is a path filter on flake.nix/flake.lock/packages/**, but flake.nix
-  # is monolithic — a darwin host rename (m3pro→silicon→nixcon) edits flake.nix and
-  # fires a full multi-arch build+publish even though the image bytes are IDENTICAL
-  # (empirically: consecutive publishes produced the same digest sha256:cd12d75b…).
-  # A path filter cannot tell an image-affecting flake.nix edit from an unrelated
-  # one; only the derivation itself can. So we ask Nix what the image evaluates to
-  # (its per-arch drvPath — pure eval, NO build, NO realisation) and compare against
-  # what was last successfully published.
+  # is monolithic — an unrelated edit can fire a full build+publish even though the
+  # image bytes are IDENTICAL. A path filter cannot tell an image-affecting
+  # flake.nix edit from an unrelated one; only the derivation itself can. So we ask
+  # Nix what the image evaluates to (its drvPath — pure eval, NO build, NO
+  # realisation) and compare against what was last successfully published.
   #
-  # Evaluating another system's drvPath does NOT build it and works fine on an
-  # x86_64 runner, so both arches are computed here on one cheap ubuntu-24.04.
   # drvPath is input-addressed: it flips iff a transitive input changes
   # (devPackagesFor, extraTools, or a flake.lock bump that moves the closure) and
   # stays put for unrelated flake.nix edits — exactly the discriminator paths lack.
-  # A flake.lock bump therefore flips it automatically, so the gate fully covers it.
   #
-  # Mechanism: actions/cache keyed on sha256(amd64.drvPath + arm64.drvPath).
+  # Mechanism: actions/cache keyed on sha256(drvPath).
   #   cache HIT  ⇒ this exact image was already published ⇒ changed=false ⇒ SKIP.
   #   cache MISS ⇒ new/changed content (or first-ever run)  ⇒ changed=true  ⇒ PUBLISH.
-  # The key is SAVED only after a SUCCESSFUL publish (in the manifest job), so a
-  # failed push never poisons the baseline. First run (no cache), workflow_dispatch,
-  # and any non-main ref all force changed=true — we never skip without a recorded
+  # The key is SAVED only after a SUCCESSFUL publish, so a failed push never
+  # poisons the baseline. First run (no cache), workflow_dispatch, and any
+  # non-main ref all force changed=true — we never skip without a recorded
   # baseline, and a manual dispatch can always force a republish.
   #
   # Bias is conservative: drvPath can occasionally flip without the output bytes
   # changing (a harmless re-publish), but it can NEVER stay the same when the output
   # changes. So the gate may over-publish, never under-publish — the correct bias.
   gate:
-    runs-on: ubuntu-24.04 # eval only — cheapest runner; no arm needed for arm64 drvPath
+    runs-on: ubuntu-24.04-arm # native aarch64 — cheapest correct runner for this fleet
     timeout-minutes: 15
     outputs:
       changed: ${{ steps.decide.outputs.changed }}
       cache_key: ${{ steps.key.outputs.cache_key }}
-      # Computed ONCE here and consumed by both `build` and `manifest` (both already
-      # `needs: gate`), so the image ref + short sha are not duplicated across jobs.
       ref: ${{ steps.ref.outputs.ref }}
       sha12: ${{ steps.ref.outputs.sha12 }}
       # Publish on a main push OR a manual dispatch (from any ref). A manual
       # workflow_dispatch is the intended force-republish path: it pairs with the
       # gate's workflow_dispatch→changed=true bypass so a maintainer can always
-      # republish (e.g. after a metadata-only change like an annotation reword that
-      # leaves the image drvPath — and thus the gate — unchanged). Without dispatch
-      # here, is_publish stayed false on dispatch and the publish+manifest were
-      # skipped despite changed=true, so a forced republish never actually happened.
-      # Pure github-context expression — no secret probe, so it lives on this
-      # always-running gate job rather than a dedicated job of its own.
+      # republish (e.g. after a metadata-only change that leaves the image drvPath
+      # — and thus the gate — unchanged). Pure github-context expression — no
+      # secret probe, so it lives on this always-running gate job.
       is_publish: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch' }}
     steps:
       # Checkout must precede the local composite action.
@@ -113,20 +102,18 @@ jobs:
           echo "ref=ghcr.io/${OWNER}/${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
           echo "sha12=$(echo '${{ github.sha }}' | cut -c1-12)" >> "$GITHUB_OUTPUT"
 
-      - name: Evaluate per-arch image drvPaths (pure eval, no build)
+      - name: Evaluate image drvPath (pure eval, no build)
         id: key
         run: |
-          # drvPath is per-arch by construction (system is part of the input hash),
-          # so there is no single arch-independent value — evaluate BOTH. Neither
-          # eval realises the closure; --raw prints the .drv store path only.
-          AMD64="$(nix eval --raw .#packages.x86_64-linux.devcontainerImage.drvPath)"
-          ARM64="$(nix eval --raw .#packages.aarch64-linux.devcontainerImage.drvPath)"
-          echo "amd64 drv: ${AMD64}"
-          echo "arm64 drv: ${ARM64}"
-          COMBINED="$(printf '%s\n%s\n' "${AMD64}" "${ARM64}" | sha256sum | cut -d' ' -f1)"
-          echo "cache_key=devcontainer-drv-v1-${COMBINED}" >> "$GITHUB_OUTPUT"
+          # drvPath is per-arch by construction, but this fleet has exactly one
+          # linux arch (aarch64-linux) — evaluate it directly. --raw prints the
+          # .drv store path only; no realisation happens.
+          DRV="$(nix eval --raw .#packages.aarch64-linux.devcontainerImage.drvPath)"
+          echo "drv: ${DRV}"
+          COMBINED="$(printf '%s\n' "${DRV}" | sha256sum | cut -d' ' -f1)"
+          echo "cache_key=devcontainer-drv-v2-${COMBINED}" >> "$GITHUB_OUTPUT"
 
-      # Restore-only probe: a HIT means this exact drvPair was already published.
+      # Restore-only probe: a HIT means this exact drvPath was already published.
       - name: Probe published baseline
         id: probe
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -148,40 +135,24 @@ jobs:
             echo "::notice::devcontainer image content CHANGED (or forced/first-run) — will publish."
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::devcontainer image drvPath unchanged — SKIPPING publish + manifest (no-op republish avoided)."
+            echo "::notice::devcontainer image drvPath unchanged — SKIPPING publish (no-op republish avoided)."
           fi
 
   build:
     needs: [gate]
-    # This job PUSHES per-arch images to GHCR (the "Push per-arch image" step), so it
-    # needs a write-capable token — scoped HERE rather than at the top level so no
-    # other job inherits it. `contents: read` is restated so the job token is not
-    # otherwise widened.
+    # This job PUSHES the image to GHCR, so it needs a write-capable token —
+    # scoped HERE rather than at the top level so no other job inherits it.
+    # `contents: read` is restated so the job token is not otherwise widened.
     permissions:
       contents: read
-      packages: write # push the per-arch image to GHCR via GITHUB_TOKEN — no extra secret
+      packages: write # push the image to GHCR via GITHUB_TOKEN — no extra secret
     # PR = eval-only (the `gate` job's pure `nix eval` of the image drvPath is the
-    # PR signal, mirroring nix-ci.yml's host-config evals). The expensive multi-arch
-    # build + smoke + publish run ONLY at merge (push to main) or manual dispatch —
-    # `is_publish` is true for exactly those events. A build break therefore surfaces
-    # on the post-merge main run (publish just fails; existing :latest is untouched),
-    # not on every PR. build-devcontainer jobs are not required checks, so PRs stay
-    # mergeable with only `gate` having run.
+    # PR signal, mirroring nix-ci.yml's host-config evals). The expensive build +
+    # smoke + publish run ONLY at merge (push to main) or manual dispatch —
+    # `is_publish` is true for exactly those events. build-devcontainer is not a
+    # required check, so PRs stay mergeable with only `gate` having run.
     if: needs.gate.outputs.is_publish == 'true'
-    # NATIVE runners per arch — no QEMU. Streaming a full-devShell nix closure
-    # under emulation would be brutally slow, and aarch64 is what the Apple
-    # Silicon devcontainer actually runs.
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: ubuntu-24.04
-            system: x86_64-linux
-            arch: amd64
-          - runner: ubuntu-24.04-arm
-            system: aarch64-linux
-            arch: arm64
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-24.04-arm # native aarch64 — this fleet's sole linux arch
     timeout-minutes: 60
     steps:
       # Checkout must precede the local composite action.
@@ -195,16 +166,16 @@ jobs:
       # (claude-code) is permitted via flake.nix's pkgsUnfreeFor.
       - name: Build devcontainer image (stream script)
         run: |
-          nix build -L ".#packages.${{ matrix.system }}.devcontainerImage"
+          nix build -L ".#packages.aarch64-linux.devcontainerImage"
           test -x ./result
 
       # Smoke test the FRESHLY-BUILT image locally — every publish run (push to
       # main / dispatch), no GHCR needed. Proves the MULTI-USER model end to end
       # exactly as the devcontainer runs it: start the container as root (its
-      # entrypoint launches nix-daemon;
-      # the sleep-infinity Cmd keeps it alive), then run the checks as the NON-ROOT
-      # vscode user via `docker exec` — nix reaches the root daemon over the socket
-      # (NIX_REMOTE=daemon) and `nix develop` resolves from the warm baked store.
+      # entrypoint launches nix-daemon; the sleep-infinity Cmd keeps it alive),
+      # then run the checks as the NON-ROOT vscode user via `docker exec` — nix
+      # reaches the root daemon over the socket (NIX_REMOTE=daemon) and
+      # `nix develop` resolves from the warm baked store.
       - name: Smoke test (multi-user nix works in the baked image)
         run: |
           ./result | docker load
@@ -276,24 +247,18 @@ jobs:
       # under /nix/store, so the VS Code Server's bundled generic `node` died
       # with exit 127 ("cannot execute: required file not found") and the server
       # never started. The subject under test is the REAL VS Code Server node
-      # for this runner's arch — not a Nix-store binary (which uses its own
-      # store loader + RUNPATH and would pass even if the standard loader
-      # regressed). If the arch-gated /lib*/ld-linux-*.so.* symlink or the
-      # libstdc++ LD_LIBRARY_PATH resolution regresses, this step fails CI.
+      # for arm64 — not a Nix-store binary (which uses its own store loader +
+      # RUNPATH and would pass even if the standard loader regressed). If the
+      # arch-gated /lib*/ld-linux-*.so.* symlink or the libstdc++
+      # LD_LIBRARY_PATH resolution regresses, this step fails CI.
       - name: Guard — foreign glibc binary (VS Code Server node) executes
         run: |
           set -euo pipefail
-          ARCH="${{ matrix.arch }}"          # amd64 | arm64 (Docker/OCI arch name)
-          # VS Code server uses its OWN arch labels (x64, not amd64) in the download
-          # path — and glibc names its loader per-arch. Map both from the matrix arch.
-          case "$ARCH" in
-            amd64) VSARCH='x64';   LOADER_GLOB='/lib64/ld-linux-x86-64.so.2' ;;
-            arm64) VSARCH='arm64'; LOADER_GLOB='/lib/ld-linux-aarch64.so.1'  ;;
-            *) echo "✗ unknown matrix arch $ARCH"; exit 1 ;;
-          esac
+          VSARCH='arm64'
+          LOADER_GLOB='/lib/ld-linux-aarch64.so.1'
 
           # Fetch the REAL VS Code Server (the foreign generic-glibc payload the
-          # devcontainer runtime downloads at connect time) for this arch. The
+          # devcontainer runtime downloads at connect time) for arm64. The
           # /latest/server-linux-<vsarch>/stable endpoint 302-redirects to the
           # current stable tarball; -L follows it.
           echo "::group::download VS Code Server (server-linux-${VSARCH})"
@@ -315,7 +280,7 @@ jobs:
             nix-config-devcontainer:latest)
           trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
 
-          # 1) the arch-appropriate standard loader path must resolve (symlink → glibc).
+          # 1) the standard loader path must resolve (symlink → glibc).
           docker exec "$CID" test -e "$LOADER_GLOB" \
             || { echo "✗ standard loader ${LOADER_GLOB} is MISSING in the image"; exit 1; }
           echo "✓ standard loader ${LOADER_GLOB} resolves"
@@ -442,8 +407,7 @@ jobs:
       # the cheap safety net (Cachix substitutes the warm closure), proving the image
       # builds and `nix develop` resolves even for a no-op main push. Publish itself
       # (login + push) is further gated on gate.outputs.changed, so the expensive part
-      # — the multi-GB skopeo uploads (and, downstream, the manifest job + the scarce
-      # arm64 runner's push) — is skipped when the image CONTENT is unchanged.
+      # — the multi-GB skopeo upload — is skipped when the image CONTENT is unchanged.
       - name: Login to GHCR
         if: needs.gate.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
         uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v3
@@ -452,197 +416,69 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Daemonless push (nixpkgs-manual idiom). skopeo reads the docker config
-      # that docker/login-action wrote.
+      # Daemonless push (nixpkgs-manual idiom), then RETAG in-registry to :latest
+      # and :<sha12> — no manifest-list/imagetools assembly needed since this
+      # fleet publishes a single arm64 image, not a multi-arch index.
       #
-      # Four deliberate choices here:
+      # Three deliberate choices here:
       #  1. Materialise the archive to a file, then `copy docker-archive:image.tar`
       #     — NOT `./result | … docker-archive:/dev/stdin`. `streamLayeredImage`
-      #     emits an UNCOMPRESSED docker-archive tar; the old `| gzip --fast |`
-      #     stage both corrupted that transport (skopeo expects a plain tar on
-      #     `docker-archive:`) and, under bash `pipefail`, turned skopeo's own
-      #     early exit into a spurious `gzip: … Broken pipe` step failure. A file
-      #     removes the pipe entirely — no SIGPIPE race, no pipefail fragility.
+      #     emits an UNCOMPRESSED docker-archive tar; piping through a compressor
+      #     both corrupts that transport (skopeo expects a plain tar on
+      #     `docker-archive:`) and, under bash `pipefail`, turns skopeo's own
+      #     early exit into a spurious step failure. A file removes the pipe
+      #     entirely — no SIGPIPE race, no pipefail fragility.
       #  2. Point skopeo at our OWN registries.conf via CONTAINERS_REGISTRIES_CONF.
       #     nixpkgs skopeo (containers/image ≥ v2 only) otherwise reads the GitHub
       #     runner's host /etc/containers/registries.conf, which is still v1, and
       #     aborts with "registries.conf must be in v2 format but is in v1" before
       #     it ever reads the archive. An empty v2 file (registry defaults only)
       #     sidesteps the incompatible host config.
-      #  3. `--format oci` converts each per-arch manifest from the v2s2 Docker
-      #     Schema 2 that streamLayeredImage emits to OCI
-      #     (application/vnd.oci.image.manifest.v1+json). This is LOAD-BEARING for
-      #     the manifest job's index annotations: with OCI children, `docker buildx
-      #     imagetools create` assembles an OCI image index
-      #     (application/vnd.oci.image.index.v1+json), which HAS an `annotations`
-      #     field. Without it the children stay v2s2 and imagetools falls back to a
-      #     Docker manifest list (vnd.docker.distribution.manifest.list.v2+json)
-      #     that has NO annotations field — so the index:org.opencontainers.image.*
-      #     annotations are SILENTLY DROPPED and GHCR's About panel renders nothing.
-      #     `oci` is a documented skopeo-copy --format value (oci|v2s1|v2s2).
-      #  4. The `:<sha12>-<arch>` tag this pushes is LOAD-BEARING and must be
-      #     RETAINED permanently — it is what keeps the per-arch child manifest
-      #     alive. `docker buildx imagetools create` (manifest job) copies each
-      #     child into the OCI index BY DIGEST but does NOT create any durable
-      #     reference of its own to those children; the arch tag is the only
-      #     thing holding them. GHCR garbage-collects UNTAGGED manifests, so if
-      #     these arch tags ever went away the index children would be pruned and
-      #     `:latest` would become a dangling index (200 for the index, 404 for
-      #     both children) — a `docker pull` then fails for EVERY consumer
-      #     (Codespaces prebuilds, local .devcontainer users, CI). That is exactly
-      #     the regression this workflow shipped once. DO NOT add a step that
-      #     deletes/untags `:<sha12>-<arch>`; keep them as permanent versions. The
-      #     manifest job asserts both children still resolve after assembly.
-      - name: Push per-arch image
+      #  3. `--format oci` converts the manifest from the v2s2 Docker Schema 2 that
+      #     streamLayeredImage emits to OCI (application/vnd.oci.image.manifest.v1+json),
+      #     matching this repo's documented OCI-annotation convention even for a
+      #     single-arch publish.
+      - name: Push and tag image
         if: needs.gate.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
         env:
           CONTAINERS_REGISTRIES_CONF: ${{ runner.temp }}/registries.conf
         run: |
+          set -euo pipefail
           printf 'unqualified-search-registries = ["docker.io"]\n' \
             > "${CONTAINERS_REGISTRIES_CONF}"
-          ./result > image.tar
-          nix run nixpkgs#skopeo -- --insecure-policy copy --format oci \
-            docker-archive:image.tar \
-            "docker://${{ needs.gate.outputs.ref }}:${{ needs.gate.outputs.sha12 }}-${{ matrix.arch }}"
-
-  manifest:
-    needs: [gate, build]
-    # This job assembles + pushes the multi-arch manifest (:latest + :<sha12>) to
-    # GHCR, so it also needs a write-capable token — scoped HERE, same as `build`.
-    permissions:
-      contents: read
-      packages: write # push the multi-arch manifest to GHCR via GITHUB_TOKEN — no extra secret
-    if: needs.gate.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - name: Login to GHCR
-        uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v3
-
-      - name: Assemble multi-arch manifest (:latest + :<sha12>)
-        run: |
           REF="${{ needs.gate.outputs.ref }}"
           SHA="${{ needs.gate.outputs.sha12 }}"
-          # RFC3339 UTC build timestamp for org.opencontainers.image.created.
-          CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          # index:-prefixed annotations attach to the MANIFEST LIST (the OCI image
-          # index), not the child per-arch manifests — the only place metadata lands
-          # on a multi-arch image (OCI-style labels don't apply to an index). GHCR
-          # renders the package "About" panel from these index annotations. This is a
-          # PUBLIC devcontainer base image, so we set the full standard OCI predefined
-          # annotation set (image-spec annotations.md): description/source/licenses
-          # plus revision (the exact commit), created (build time), and version (the
-          # immutable :sha12 tag). All keyed to the repo/build via expressions so they
-          # stay in lockstep. Takes effect on the next push-to-main publish, not a PR.
-          docker buildx imagetools create \
-            --annotation "index:org.opencontainers.image.description=Multi-arch distroless devcontainer with a working Nix daemon and a warm devShell built from ${{ github.repository }}" \
-            --annotation "index:org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
-            --annotation "index:org.opencontainers.image.licenses=MIT" \
-            --annotation "index:org.opencontainers.image.revision=${{ github.sha }}" \
-            --annotation "index:org.opencontainers.image.created=${CREATED}" \
-            --annotation "index:org.opencontainers.image.version=${SHA}" \
-            -t "${REF}:latest" \
-            -t "${REF}:${SHA}" \
-            "${REF}:${SHA}-amd64" \
-            "${REF}:${SHA}-arm64"
-          docker buildx imagetools inspect "${REF}:latest"
+          ./result > image.tar
+          for TAG in "$SHA" latest; do
+            nix run nixpkgs#skopeo -- --insecure-policy copy --format oci \
+              docker-archive:image.tar \
+              "docker://${REF}:${TAG}"
+          done
 
       # HARD POST-PUBLISH GUARD — fail the publish if `:latest` is not actually
-      # pullable. The old pipeline shipped a DANGLING INDEX: the OCI index served
-      # HTTP 200 but both per-arch children 404'd, so every `docker pull` failed
-      # (Codespaces prebuilds, local .devcontainer users, CI). `imagetools inspect`
-      # above does NOT catch this — it reads the index descriptors, not the child
-      # bodies. This step does FOUR things a dangling (or soon-to-dangle) index
-      # cannot survive:
-      #   1. a REAL `docker pull :latest`, which resolves + fetches a platform
-      #      child (the amd64 child, on this ubuntu-24.04 runner) — 404 ⇒ failure;
-      #   2. an explicit resolve of EVERY child digest the index references, so a
-      #      broken child on the arch the runner did NOT pull (arm64) is still
-      #      caught — a registry GET per child, 404 ⇒ failure;
-      #   3. re-assert #15's index annotation survived, so a future imagetools
-      #      change that silently drops it also fails here.
-      #   4. assert the per-arch `:<sha12>-<arch>` child TAGS still resolve — these
-      #      are the ONLY thing anchoring the index children against GHCR's
-      #      untagged-manifest GC, so verifying them turns a future "someone untagged
-      #      the children" time-bomb (which #22 originally shipped) into an immediate
-      #      publish failure instead of a delayed dangling index.
-      # Without this, a dangling index shipped silently and only surfaced in a
-      # downstream Codespaces prebuild. Now it fails CI at publish time.
-      - name: Verify :latest is durably pullable (children resolve)
+      # pullable. A single real `docker pull` proves the tag resolves; there is
+      # no manifest-list index to go dangling in a single-arch publish, so this
+      # is a simpler check than a multi-arch fleet needs.
+      - name: Verify :latest is durably pullable
+        if: needs.gate.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
         run: |
           set -euo pipefail
           REF="${{ needs.gate.outputs.ref }}"
-
-          echo "::group::real docker pull ${REF}:latest (fetches a platform child)"
+          echo "::group::real docker pull ${REF}:latest"
           docker pull "${REF}:latest"
           echo "::endgroup::"
-
-          RAW="$(docker buildx imagetools inspect --raw "${REF}:latest")"
-
-          # Resolve EVERY child manifest the index references. jq extracts the
-          # image (platform) children; attestation/unknown descriptors have
-          # platform.architecture == "unknown" and are skipped. A dangling child
-          # makes `imagetools inspect <ref>@<digest>` return non-zero (registry
-          # 404) and, under set -e, fails the job. Portable `while read` loop
-          # (no `mapfile`) so bash version can't matter.
-          DIGESTS="$(printf '%s' "$RAW" \
-            | jq -r '.manifests[] | select((.platform.architecture // "") != "unknown") | .digest')"
-          COUNT="$(printf '%s\n' "$DIGESTS" | grep -c '^sha256:')"
-          if [ "${COUNT}" -lt 2 ]; then
-            echo "✗ expected >=2 platform children in the index, found ${COUNT}"; echo "$RAW"; exit 1
-          fi
-          printf '%s\n' "$DIGESTS" | while IFS= read -r d; do
-            [ -n "$d" ] || continue
-            echo "→ resolving child ${d}"
-            docker buildx imagetools inspect "${REF}@${d}" >/dev/null \
-              || { echo "✗ child ${d} does NOT resolve — :latest is a DANGLING INDEX"; exit 1; }
-          done
-          echo "✓ all ${COUNT} child manifests resolve"
-
-          # Protect the index annotation set: assert the load-bearing ones survived
-          # assembly (#15 for description; revision guards the enriched OCI set). A
-          # future imagetools change that silently drops annotations fails here.
-          for KEY in description revision; do
-            printf '%s' "$RAW" \
-              | jq -e --arg k "org.opencontainers.image.${KEY}" '.annotations[$k]' >/dev/null \
-              || { echo "✗ index lost org.opencontainers.image.${KEY} annotation"; echo "$RAW"; exit 1; }
-          done
-          echo "✓ index annotations intact (description + revision present)"
-
-          # RETENTION ASSERTION (hardening) — the index children stay alive ONLY
-          # because the per-arch `:<sha12>-<arch>` TAGS keep them referenced (see the
-          # build job's "Push per-arch image" note). Assert those tags actually
-          # resolve, so if anything ever untags/deletes them the publish FAILS here
-          # instead of silently leaving a time-bomb that GHCR GC turns into a dangling
-          # index later. This is the load-bearing invariant of this publish design;
-          # test it every publish rather than trust it.
-          SHA="${{ needs.gate.outputs.sha12 }}"
-          for ARCH in amd64 arm64; do
-            echo "→ resolving retained child tag ${REF}:${SHA}-${ARCH}"
-            docker buildx imagetools inspect "${REF}:${SHA}-${ARCH}" >/dev/null \
-              || { echo "✗ child tag ${SHA}-${ARCH} does NOT resolve — the retention anchor for the index child is GONE; :latest will dangle after GC"; exit 1; }
-          done
-          echo "✓ both per-arch child tags retained (index children durably anchored)"
-          echo "=== :latest is durably pullable ==="
+          echo "✓ :latest is durably pullable"
 
       # Record the baseline ONLY after a fully successful publish, so a failed push
       # never poisons the cache into skipping the next (needed) republish. On the
-      # next run the gate restores this exact key: a HIT means the drvPair is
-      # unchanged ⇒ skip. The marker file content is irrelevant — presence of the
-      # KEY is the signal. A no-op main push (e.g. a host-rename-style flake.nix
-      # edit that leaves the image bytes identical) will now find this key on the
-      # next run and skip the publish + this whole manifest job.
+      # next run the gate restores this exact key: a HIT means the drvPath is
+      # unchanged ⇒ skip.
       - name: Create gate marker
+        if: needs.gate.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
         run: echo "${{ needs.gate.outputs.cache_key }} @ ${{ github.sha }}" > .gate-marker
 
       - name: Record published baseline (gate cache)
+        if: needs.gate.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .gate-marker

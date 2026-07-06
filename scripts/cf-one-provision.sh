@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 #
-# cf-one-provision.sh — idempotently provision remotely-managed (token)
-# Cloudflare Tunnels for the nix-config hosts, with a public-hostname SSH
-# ingress and a proxied CNAME, using the Cloudflare API only. NO interactive
+# cf-one-provision.sh — idempotently provision a remotely-managed (token)
+# Cloudflare Tunnel for nixpi, with a public-hostname SSH ingress and a
+# proxied CNAME, using the Cloudflare API only. NO interactive
 # `cloudflared login`, NO cert.pem, NO Zero Trust org init, NO WARP.
+#
+# This fleet has exactly ONE tunnelled host: nixpi (the Raspberry Pi 4 LIVE
+# server). macos is a client only (no tunnel); nixvm is a sandbox VM with no
+# public ingress. The script still accepts a host-name argument so it can be
+# reused if a future host ever needs a tunnel, but the default list is nixpi
+# alone.
 #
 # For each host it:
 #   (a) finds-or-creates a remotely-managed tunnel named "<host>"
@@ -16,18 +22,20 @@
 #   (d) UPSERTs a proxied CNAME  <host>.kattakath.com -> <id>.cfargotunnel.com.
 #
 # It PRINTS each host's connector token to STDOUT, clearly labeled, so the
-# operator can pipe it into agenix (NixOS) or the root token file (macOS).
+# operator can place it in the plain, root-only secrets file the NixOS host
+# reads at boot.
 #
 # !!! THE TOKEN IS A SECRET !!!  This script deliberately NEVER writes a token to
 # any file in the repo. Do not redirect its output into a tracked file. Feed the
-# token straight into `agenix -e <host>-tunnel-token.age` (content:
-# `TUNNEL_TOKEN=<token>`) or into /var/root/.cloudflared/tunnel-token on a Mac.
+# token straight into `/etc/secrets/cloudflared-token` on the target NixOS host
+# (content: `TUNNEL_TOKEN=<token>`, root-only, never committed — this repo has no
+# agenix/encryption step, just a plain operator-placed file).
 #
 # USAGE:
 #   CF_API_TOKEN=<token-with-Tunnels:Edit+DNS:Edit> ./scripts/cf-one-provision.sh [host...]
 #
 #   With no args, provisions the default HOSTS list. Pass host names to override,
-#   e.g.  ./scripts/cf-one-provision.sh nixarm nixrpi
+#   e.g.  ./scripts/cf-one-provision.sh nixpi
 #
 # REQUIREMENTS: bash, curl, jq. The API token needs Account:Cloudflare Tunnel:Edit
 # and Zone:DNS:Edit on kattakath.com.
@@ -39,8 +47,9 @@ ZONE_ID="6e28971881e488941d052bbbf50d69cd" # kattakath.com
 ZONE_NAME="kattakath.com"
 API="https://api.cloudflare.com/client/v4"
 
-# Default host list (override via "$@").
-DEFAULT_HOSTS=(nixarm nixrpi nixamd nixcon nixtel)
+# Default host list (override via "$@"). Only nixpi runs a connector today —
+# macos is a client only, nixvm is a sandbox with no public ingress.
+DEFAULT_HOSTS=(nixpi)
 
 # ---- Preconditions ----------------------------------------------------------
 if [ "${CF_API_TOKEN:-}" = "" ]; then
@@ -135,7 +144,7 @@ provision_host() {
   fi
 
   # Emit the token on STDOUT, clearly labeled. SECRET — do not persist to a repo file.
-  echo "----- CONNECTOR TOKEN for ${host} (SECRET — pipe into agenix / root token file) -----"
+  echo "----- CONNECTOR TOKEN for ${host} (SECRET — place at /etc/secrets/cloudflared-token on the host) -----"
   echo "TUNNEL_TOKEN=${token}"
   echo "----- end ${host} -----"
 }

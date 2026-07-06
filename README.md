@@ -1,26 +1,24 @@
 # nix-config
 
-> One declarative Nix flake for every machine I run — my Mac, my NixOS VM, a Raspberry Pi, and a prebuilt devcontainer.
+> One declarative Nix flake for my aarch64 fleet — my Mac, a Raspberry Pi server, a UTM/QEMU sandbox VM, and a prebuilt devcontainer.
 
 [![build-devcontainer](https://github.com/ismailkattakath/nix-config/actions/workflows/build-devcontainer.yml/badge.svg)](https://github.com/ismailkattakath/nix-config/actions/workflows/build-devcontainer.yml)
 [![gitleaks](https://github.com/ismailkattakath/nix-config/actions/workflows/gitleaks.yml/badge.svg)](https://github.com/ismailkattakath/nix-config/actions/workflows/gitleaks.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Built with Nix](https://img.shields.io/badge/built%20with-Nix-5277C3.svg?logo=nixos&logoColor=white)](https://nixos.org)
 
-A single Nix flake that manages complete, reproducible system configurations across several hosts and one container image. There is one source of truth for everything — packages, dotfiles, services, and system settings — and per-platform differences live in composable modules rather than ad-hoc shell scripts.
+A single Nix flake that manages complete, reproducible system configurations across a small aarch64-only fleet and one container image. There is one source of truth for everything — packages, dotfiles, services, and system settings — and per-platform differences live in composable modules rather than ad-hoc shell scripts.
 
 ## What it manages
 
-| Host | Type | System | Machine |
-|------|------|--------|---------|
-| `nixcon` | [nix-darwin](https://github.com/LnL7/nix-darwin) | `aarch64-darwin` | Apple Silicon Mac |
-| `nixtel` | [nix-darwin](https://github.com/LnL7/nix-darwin) | `x86_64-darwin` | Apple Intel Mac |
-| `nixarm` | NixOS | `aarch64-linux` | Linux VM (UTM / QEMU) |
-| `nixamd` | NixOS | `x86_64-linux` | Linux host (config-only — no hardware yet) |
-| `nixrpi` | NixOS | `aarch64-linux` | Raspberry Pi 4 |
-| `devcontainer` | OCI image | multi-arch | Dev container (published to GHCR) |
+| Host | Type | System | Machine | Role |
+|------|------|--------|---------|------|
+| `macos` | [nix-darwin](https://github.com/LnL7/nix-darwin) | `aarch64-darwin` | Apple Silicon Mac | Client only — no remote/incoming traffic |
+| `nixpi` | NixOS | `aarch64-linux` | Raspberry Pi 4 | **LIVE server** — SSH over a Cloudflare Tunnel + Caddy landing page |
+| `nixvm` | NixOS | `aarch64-linux` | UTM/QEMU sandbox VM | Minimal — boot/SSH/disko only, no public ingress |
+| `devcontainer` | OCI image | `aarch64-linux` | Dev container (published to GHCR) | — |
 
-User environments are layered on with [Home-Manager](https://github.com/nix-community/home-manager), and the devcontainer image is prebuilt and published to GHCR so it starts with a warm Nix store.
+User environments are layered on with [Home-Manager](https://github.com/nix-community/home-manager), and the devcontainer image is prebuilt and published to GHCR so it starts with a warm Nix store. This is an **aarch64-only** fleet — there is no x86_64 host anywhere, including the devcontainer.
 
 ## Quick start
 
@@ -44,17 +42,19 @@ nix flake show
 ### Activate a host
 
 ```bash
-darwin-rebuild switch --flake .#nixcon   # macOS (Apple Silicon)
-darwin-rebuild switch --flake .#nixtel   # macOS (Apple Intel)
-nixos-rebuild  switch --flake .#nixarm    # NixOS VM (aarch64)
-nixos-rebuild  switch --flake .#nixamd    # NixOS x86_64 host
-nixos-rebuild  switch --flake .#nixrpi    # Raspberry Pi
+darwin-rebuild switch --flake .#macos   # macOS (Apple Silicon) — client only
+nixos-rebuild  switch --flake .#nixpi   # Raspberry Pi 4 — the live server
+nixos-rebuild  switch --flake .#nixvm   # UTM/QEMU sandbox VM
 ```
 
-### Boot the NixOS VM (no UTM needed)
+### Bring up the sandbox VM
+
+`nixvm` has no bespoke QEMU+HVF launcher — it runs in UTM. Build the qcow2 and import it (see the
+`utm-vm-provision` and `nixvm-utm-prebuild-on-devcontainer` skills under `.claude/skills/` for the
+full flow):
 
 ```bash
-nix run .#nixarm-vm     # QEMU + Apple HVF; SSH forwarded to localhost:2222
+nix build .#nixvm-image     # → ./result — UTM-importable qcow2
 ```
 
 ### Use the devcontainer
@@ -73,25 +73,25 @@ Or just open the repo in a devcontainer-aware editor; `.devcontainer/devcontaine
 flake.nix       Entry point: inputs, darwin/nixos configurations, packages, devShells, checks
 flake.lock      Pinned input revisions (bumped via `nix flake update`, never hand-edited)
 treefmt.nix     Single source of truth for formatting + lint (drives nix fmt, CI, and the hook)
-hosts/          Per-host entry profiles (nixcon.nix, nixtel.nix, nixarm.nix, nixamd.nix, nixrpi.nix)
+hosts/          Per-host entry profiles (macos.nix, nixpi.nix, nixvm.nix, +installers)
 modules/        Reusable modules, split by platform (darwin/ linux/ nixos/ shared/)
-packages/       Nix-built artifacts (runtime container image, devcontainer image, VM launcher)
-secrets/        agenix-encrypted, host-scoped service credentials (no plaintext secrets)
-.claude/        Repo-local Claude Code agents, commands, hooks, and rules
+packages/       Nix-built artifacts (devcontainer image, nixvm bootstrap script, landing page)
+.claude/        Repo-local Claude Code agents, commands, hooks, skills, and rules
 ```
 
 Platform branching lives in `modules/` behind `lib.mkIf`, so host profiles stay declarative and platform-agnostic.
 
 ## How CI works
 
-CI runs on **GitHub Actions** ([`nix-ci.yml`](./.github/workflows/nix-ci.yml)) across all four target systems — `aarch64-darwin`, `x86_64-darwin`, `x86_64-linux`, and `aarch64-linux` — on **native**, one-per-host GitHub-hosted runners (`macos-latest`, `macos-15-intel`, `ubuntu-24.04`, `ubuntu-24.04-arm`; no QEMU). Each leg does two things: it *builds* the flake's lint/format `checks` (`treefmt` + `pre-commit` — the same derivations `nix fmt` and the commit hook run locally) with [`nix-fast-build`](https://github.com/Mic92/nix-fast-build), and it *evaluates* each host config's toplevel `drvPath` (a full module-system eval that catches config/type errors in seconds) **without building it** — the expensive toplevel builds (notably the ~1h `linux-rpi` kernel) are a release-time concern. Built check results are pushed to the [Cachix](https://www.cachix.org/) (`ismailkattakath`) cache consumed read-only by every host. Branch protection requires the aggregate `required-checks` job.
+CI runs on **GitHub Actions** ([`nix-ci.yml`](./.github/workflows/nix-ci.yml)) across both target systems — `aarch64-darwin` and `aarch64-linux` — on **native**, one-per-system GitHub-hosted runners (`macos-latest`, `ubuntu-24.04-arm`; no QEMU). Each leg does two things: it *builds* the flake's lint/format `checks` (`treefmt` + `pre-commit` — the same derivations `nix fmt` and the commit hook run locally) with [`nix-fast-build`](https://github.com/Mic92/nix-fast-build), and it *evaluates* each host config's toplevel `drvPath` (a full module-system eval that catches config/type errors in seconds) **without building it** — the expensive toplevel builds (notably the Pi SD image) are a release-time concern. Built check results are pushed to the [Cachix](https://www.cachix.org/) (`ismailkattakath`) cache consumed read-only by every host. Branch protection requires the aggregate `required-checks` job.
 
-- [`build-devcontainer`](https://github.com/ismailkattakath/nix-config/actions/workflows/build-devcontainer.yml) builds, smoke-tests, and publishes the multi-arch devcontainer image to GHCR.
+- [`build-devcontainer`](https://github.com/ismailkattakath/nix-config/actions/workflows/build-devcontainer.yml) builds, smoke-tests, and publishes the aarch64 devcontainer image to GHCR.
+- [`build-installers`](https://github.com/ismailkattakath/nix-config/actions/workflows/build-installers.yml) builds and publishes the `nixvm`/`nixpi` installer images to a rolling pre-release.
 - [`gitleaks`](https://github.com/ismailkattakath/nix-config/actions/workflows/gitleaks.yml) scans every push and PR (and weekly) for leaked secrets.
 
 ## Secrets
 
-No plaintext secrets live in this repo. System/service credentials are encrypted with [agenix](https://github.com/ryantm/agenix), scoped to a host's SSH key and decrypted at activation; personal tokens stay out of Nix and git entirely. The Cachix substituter is public and read-only (URL + public key, no token). See [SECURITY.md](./SECURITY.md) for the full model.
+No plaintext secrets live in this repo. The one system credential this fleet needs — `nixpi`'s Cloudflare Tunnel connector token — is a plain, root-only file placed manually at `/etc/secrets/cloudflared-token` after provisioning, never committed; personal tokens stay out of Nix and git entirely. The Cachix substituter is public and read-only (URL + public key, no token). See [SECURITY.md](./SECURITY.md) for the full model.
 
 ## Contributing
 
