@@ -92,6 +92,7 @@ _:
       "camo-studio"
       "capcut"
       "claude"
+      "cloudflare-warp" # Cloudflare One Client — required for ZTIA SSH (WARP enrollment)
       "cursor"
       "docker-desktop"
       "viarotel-org/escrcpy/escrcpy"
