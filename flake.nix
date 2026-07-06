@@ -46,6 +46,13 @@
     # modules/darwin/homebrew.nix). No `nixpkgs` input to follow — the module
     # uses the consumer's pkgs.
     nix-homebrew.url = "github:zhaofengli/nix-homebrew";
+
+    # Nix -> OpenTofu/Terraform JSON renderer for the Cloudflare-side ZTIA SSH
+    # objects (infra/cloudflare/nixpi-ssh.nix). Re-added after being dropped
+    # with LiteLLM (#109/greenfield rewrite) — now backs the SSH cutover
+    # instead, mirroring the retired cf-litellm-apply/destroy pattern.
+    terranix.url = "github:terranix/terranix";
+    terranix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
@@ -60,6 +67,7 @@
       nix-vscode-extensions,
       nix-homebrew,
       disko,
+      terranix,
       ...
     }:
     let
@@ -94,6 +102,49 @@
         import nixpkgs {
           inherit system;
           config.allowUnfree = true;
+        };
+
+      # ---- Cloudflare provisioning (terranix -> OpenTofu) ---------------------
+      # Renders infra/cloudflare/nixpi-ssh.nix (the ZTIA SSH target/application/
+      # policy for nixpi) to a config.tf.json store path, per system. Mirrors the
+      # retired cfLitellmConfig/mkCfLitellmTofu pattern byte-for-byte (see
+      # `git show main:flake.nix`) — same rendering + wrapper shape, now backing
+      # SSH instead of the LiteLLM proxy.
+      cfSshConfig =
+        system:
+        terranix.lib.terranixConfiguration {
+          inherit system;
+          modules = [ ./infra/cloudflare/nixpi-ssh.nix ];
+        };
+
+      # writeShellApplication wrapper around `tofu <action>` for the rendered
+      # nixpi ZTIA config. Requires CLOUDFLARE_API_TOKEN in the env (the
+      # Cloudflare provider reads it as its api_token). The generated
+      # config.tf.json is a read-only store copy, so we `rm -f` any previous copy
+      # before re-copying; tofu state then lands beside where you run the app.
+      mkCfSshTofu =
+        {
+          system,
+          name,
+          action,
+        }:
+        let
+          pkgs = pkgsFor system;
+        in
+        pkgs.writeShellApplication {
+          inherit name;
+          runtimeInputs = [ pkgs.opentofu ];
+          text = ''
+            if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
+              echo "ERROR: CLOUDFLARE_API_TOKEN is unset. Export a token with" >&2
+              echo "  Account Zero Trust:Edit (Access apps+policies, Infrastructure targets)." >&2
+              exit 1
+            fi
+            rm -f config.tf.json
+            cp ${cfSshConfig system} config.tf.json
+            tofu init
+            tofu ${action}
+          '';
         };
 
       # ---- Formatting / lint (treefmt-nix) ------------------------------------
@@ -321,18 +372,59 @@
           aarch64-linux.nixpi-installer-image =
             self.nixosConfigurations.nixpi-installer.config.system.build.sdImage;
         }
+
+        # Cloudflare ZTIA-SSH provisioning apps (terranix -> OpenTofu), exposed
+        # as packages too so `nix flake check` builds them and runs the
+        # writeShellApplication shellcheck on each wrapper. Mirrors the retired
+        # cf-litellm-apply/destroy pattern (`git show main:flake.nix`).
+        (forAllSystems (system: {
+          cf-ssh-apply = mkCfSshTofu {
+            inherit system;
+            name = "cf-ssh-apply";
+            action = "apply";
+          };
+          cf-ssh-destroy = mkCfSshTofu {
+            inherit system;
+            name = "cf-ssh-destroy";
+            action = "destroy";
+          };
+        }))
       ];
 
-      # ---- Apps: bootstrap installer -----------------------------------------
+      # ---- Apps: bootstrap installer + Cloudflare ZTIA-SSH provisioning -------
       # `nix run .#nixvm` (on an aarch64-linux builder, from the live installer
       # ISO) — disko-install bootstrap for the nixvm sandbox VM.
-      apps = {
+      #
+      # `nix run .#cf-ssh-apply` / `.#cf-ssh-destroy` — render
+      # infra/cloudflare/nixpi-ssh.nix (terranix) then `tofu init` + apply
+      # (destroy for the other) against the Cloudflare account. Both need a
+      # live token in the environment:
+      #   CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-ssh-apply
+      # Token scope: Account Zero Trust:Edit (covers Access apps/policies and
+      # Infrastructure targets). Merged with recursiveUpdate so the static
+      # nixvm entry and the forAllSystems cf-ssh apps coexist under one `apps`
+      # attribute (a bare `apps.x.y = …` alongside `apps = …` is a
+      # duplicate-definition error).
+      apps = nixpkgs.lib.recursiveUpdate {
         aarch64-linux.nixvm = {
           type = "app";
           program = "${self.packages.aarch64-linux.nixvm}/bin/nixvm";
           meta.description = "Bootstrap NixOS nixvm on aarch64-linux from the live ISO via disko-install";
         };
-      };
+      } (
+        forAllSystems (system: {
+          cf-ssh-apply = {
+            type = "app";
+            program = "${self.packages.${system}.cf-ssh-apply}/bin/cf-ssh-apply";
+            meta.description = "Render infra/cloudflare/nixpi-ssh.nix (terranix) and tofu apply it (needs CLOUDFLARE_API_TOKEN)";
+          };
+          cf-ssh-destroy = {
+            type = "app";
+            program = "${self.packages.${system}.cf-ssh-destroy}/bin/cf-ssh-destroy";
+            meta.description = "tofu destroy the nixpi ZTIA-SSH Cloudflare resources (needs CLOUDFLARE_API_TOKEN)";
+          };
+        })
+      );
 
       # ---- Multi-architecture dev shell --------------------------------------
       # `nix develop` on any target. Used as the default Devcontainer profile.

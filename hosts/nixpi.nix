@@ -8,6 +8,17 @@
 # on the LAN. Service tokens live at /etc/secrets/ — place manually after
 # provisioning. The connector unit retries on failure (Restart=on-failure) so
 # dropping the file in after first boot self-heals without a rebuild.
+#
+# ZTIA CUTOVER (Cloudflare Access for Infrastructure — short-lived SSH certs):
+# `services.openssh-ca-trust.enable = true` below makes sshd trust Cloudflare's
+# hosted SSH CA (modules/nixos/core.nix, TrustedUserCAKeys pointed at the
+# committed modules/nixos/cloudflare-ssh-ca.pub). `removeStaticKey` is left
+# OFF here deliberately — see the LOCKOUT-SAFETY comment on that option in
+# modules/nixos/core.nix and the rollout order in
+# docs/tunnel-architecture-and-runbook.md. Flip it to true ONLY after an
+# end-to-end ZTIA login has been verified from an enrolled client; physical
+# console (getty) is unaffected either way and remains the break-glass path.
+# `nixvm` does NOT import this option — it stays on the static key.
 {
   lib,
   ...
@@ -53,6 +64,13 @@
   # token at /etc/secrets/cloudflared-token after provisioning; the unit retries
   # on failure so dropping the file in after first boot self-heals.
   services.cloudflared-connector.enable = true;
+
+  # ZTIA: trust Cloudflare's SSH CA for short-lived certificates. Coexists
+  # with the static key above until the CA-cert path is verified end-to-end —
+  # see the header comment and docs/tunnel-architecture-and-runbook.md.
+  # removeStaticKey stays false (default) until then; this is the LAST step,
+  # not this one.
+  services.openssh-ca-trust.enable = true;
 
   # Local reverse-proxy/router, sitting behind the tunnel. Today it serves only
   # the public kattakath.com static landing page; future services front new

@@ -6,6 +6,8 @@ We evaluated **Cloudflare One Zero Trust Infrastructure Access (ZTIA)** — iden
 
 **Decision: do NOT adopt at the current solo / two-NixOS-host scale. Keep the loginless static-key model.**
 
+> **SUPERSEDED (see `docs/tunnel-architecture-and-runbook.md`):** this "decline" verdict has since been revisited and reversed for `nixpi`. Two of the setup-cost premises below have changed — SSH CA generation is now a one-click dashboard action (was API-only) and Infrastructure Access is confirmed available on all Zero Trust plans (was assumed possibly gated) — and the owner's stated goal shifted to explicitly wanting device-enrollment-based SSH. `docs/tunnel-architecture-and-runbook.md` is now the authoritative, current design and rollout runbook for `nixpi`'s SSH; this document is kept for its historical cost/benefit analysis and the mental model in the section below, both of which remain useful context.
+
 At one operator, one key, two low-value personal NixOS hosts, and a working LAN break-glass, ZTIA's audit / revocation / central-policy benefits are largely theoretical, while the costs (a hard IdP + WARP + Access + CA login dependency, more moving parts to own, periodic browser re-auth, an unconfirmed machine/CI path) are real. This document records **what ZTIA would look like if built**, **why we passed**, and **the concrete triggers that would make us revisit** — so a future reader (or future us) doesn't have to re-derive it.
 
 **Nothing in this evaluation has been applied.** No Cloudflare resource was created; no `.nix` file was changed. All Nix snippets below are illustrative.

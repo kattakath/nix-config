@@ -1,92 +1,103 @@
-# Cloudflare Tunnel Architecture & Host Runbook
+# Cloudflare Tunnel + ZTIA SSH Architecture & Host Runbook
 
-This document describes the loginless Cloudflare Tunnel design for this repo's
-3-host aarch64 fleet (`macos`, `nixpi`, `nixvm`). It is the authoritative
-reference for how `nixpi` reaches the world over a tunnel, how the connector
-token is provisioned, and the exact steps to bring it online.
+This document describes the **Cloudflare Access for Infrastructure (ZTIA)**
+SSH design for this repo's 3-host aarch64 fleet (`macos`, `nixpi`, `nixvm`).
+It supersedes the prior "static SSH key over a loginless tunnel" model: `nixpi`
+now authenticates SSH via **short-lived certificates** minted by Cloudflare's
+hosted SSH CA, gated by an Access policy tied to the operator's identity,
+delivered over a Cloudflare One Client (WARP) connection — not a static key
+possession check.
 
 Everything here is grounded in the repo files:
 
-- `modules/nixos/cloudflared.nix` — the hardened systemd connector unit
+- `modules/nixos/cloudflared.nix` — the hardened systemd Tunnel connector unit (unchanged by this cutover)
+- `modules/nixos/core.nix` — SSH, mDNS, firewall, and the new `services.openssh-ca-trust` option
+- `modules/nixos/cloudflare-ssh-ca.pub` — the committed Cloudflare SSH CA public key (placeholder until first apply)
 - `modules/nixos/caddy-proxy.nix` — the local reverse-proxy/router behind the tunnel
-- `modules/nixos/core.nix` — SSH, mDNS, firewall
-- `hosts/nixpi.nix` — the only host that enables the connector + Caddy
-- `hosts/nixvm.nix` — the sandbox VM (no tunnel, no public ingress)
+- `hosts/nixpi.nix` — the only host that enables the connector + Caddy + `openssh-ca-trust`
+- `hosts/nixvm.nix` — the sandbox VM (no tunnel, no ZTIA, static key retained)
 - `hosts/macos.nix` — the client Mac (no tunnel, no incoming traffic at all)
-- `scripts/cf-one-provision.sh` — Cloudflare-account-side provisioning
-- `flake.nix` — how the modules are wired into the NixOS hosts
+- `infra/cloudflare/nixpi-ssh.nix` — terranix: the ZTIA target/application/policy for `nixpi`
+- `flake.nix` — the `terranix` input + `cf-ssh-apply`/`cf-ssh-destroy` apps
+- `scripts/cf-one-provision.sh` — legacy Cloudflare-account-side tunnel provisioning (tunnel/DNS only; unaffected)
 
 ---
 
 ## 1. Model at a glance
 
-**Remotely-managed (token) Cloudflare Tunnel — one host, `nixpi`.** `nixpi`
-runs a hardened `cloudflared` connector as a systemd service that executes
-`cloudflared tunnel run` with a `TUNNEL_TOKEN` supplied from
-`/etc/secrets/cloudflared-token` via `EnvironmentFile`. The tunnel definition,
-its public-hostname ingress, and the proxied DNS record all live in the
-**Cloudflare account** — provisioned by `scripts/cf-one-provision.sh` via the
-Cloudflare API — **not** in this repo.
+**Cloudflare Tunnel (unchanged) + Access for Infrastructure (new) — one host,
+`nixpi`.** `nixpi` still runs the hardened `cloudflared` connector as a
+systemd service (`cloudflared tunnel run`, token from
+`/etc/secrets/cloudflared-token`) — ZTIA does **not** replace the tunnel, it
+adds an identity + certificate layer on top of the same tunnel connectivity.
 
-This is deliberately **not** the upstream `services.cloudflared` NixOS module.
-That module only drives *locally*-managed tunnels: it wants a credentials JSON
-plus an in-repo `ingress` block and runs `cloudflared tunnel run <uuid>`. It
-has **no token support**. Since this repo uses a remotely-managed (token)
-tunnel so the connector comes up at boot with zero interactive login (no
-`cloudflared tunnel login`, no `cert.pem`), we run our own unit instead. See
-the header comment in `modules/nixos/cloudflared.nix:1-21`.
+What changed is **how SSH authenticates**:
 
-### Loginless
+| | Before (retired) | Now (ZTIA) |
+|---|---|---|
+| Client requirement | `cloudflared` CLI only | **Cloudflare One Client (WARP)**, enrolled in the Zero Trust org |
+| SSH auth | static ed25519 key in `authorizedKeys` | short-lived certificate, minted per-session by Cloudflare's SSH CA |
+| Identity check | none (tunnel = pure TCP carrier) | IdP login → Access policy → cert principal = allowed UNIX username |
+| Revocation | rotate/delete the key file | disable the Access policy — no host touch needed |
+| Command audit | none | optional HPKE-encrypted SSH command logs (Access controls → Service credentials → SSH) |
 
-- **No `cloudflared tunnel login`**, no `cert.pem`, no interactive browser step.
-- **No WARP client**, no IdP, no Cloudflare Access policy in front of SSH.
-- Authentication to `nixpi` is **static SSH keys only**.
+This is **method (b)** of the four current Cloudflare SSH patterns — see
+`docs/cloudflare-one-evaluation.md` for the full method comparison and why the
+prior "decline ZTIA" verdict was superseded (SSH CA generation is now a
+one-click dashboard action and Infrastructure Access is confirmed available on
+all Zero Trust plans).
 
-The connector token is the only secret the host needs, and it never touches
-the tunnel login flow.
+### Still loginless at the connector layer
+
+- **No `cloudflared tunnel login`**, no `cert.pem`, no interactive browser step
+  for the *tunnel* itself — that part is exactly as before.
+- **WARP enrollment replaces "no client-side identity at all"** — this is the
+  one new hard client-side dependency.
 
 ---
 
 ## 2. Host roles: one target, one sandbox, one client
 
-| Host | Platform | Role | Connector? | sshd? | Public ingress? |
-|---|---|---|---|---|---|
-| `nixpi` | aarch64-linux (Raspberry Pi 4) | **LIVE server / SSH target** | yes | yes | yes (SSH + Caddy landing page) |
-| `nixvm` | aarch64-linux (UTM/QEMU sandbox VM) | sandbox, no ingress | no | yes (LAN/vmnet only) | no |
-| `macos` | aarch64-darwin (MacBook) | **client only** | no | no | no |
+| Host | Platform | Role | Connector? | ZTIA SSH? | sshd? | Public ingress? |
+|---|---|---|---|---|---|---|
+| `nixpi` | aarch64-linux (Raspberry Pi 4) | **LIVE server / SSH target** | yes | **yes** | yes | yes (SSH + Caddy landing page) |
+| `nixvm` | aarch64-linux (UTM/QEMU sandbox VM) | sandbox, no ingress | no | **no — static key retained** | yes (LAN/vmnet only) | no |
+| `macos` | aarch64-darwin (MacBook) | **client only** | no | n/a (client, not target) | no | no |
 
-### `nixpi` is the fleet's sole SSH target and only public-facing host
+### `nixpi` is the fleet's sole ZTIA target and only public-facing host
 
-`nixpi` runs sshd (`services.openssh`, `modules/nixos/core.nix:26-36`) and the
-`cloudflared-connector` unit that carries its SSH port out over the tunnel. It
-also runs `caddy-proxy` (`modules/nixos/caddy-proxy.nix`), a local
-reverse-proxy sitting **behind** the same tunnel, currently serving only the
-static `kattakath.com` landing page (`hosts/nixpi.nix:60-63`, content at
-`packages/landing`).
+`nixpi` runs sshd (`services.openssh`, `modules/nixos/core.nix`), the
+`cloudflared-connector` unit, **and** `services.openssh-ca-trust.enable = true`
+(`hosts/nixpi.nix`) — wiring `TrustedUserCAKeys` to the committed
+`modules/nixos/cloudflare-ssh-ca.pub`. It also runs `caddy-proxy`
+(`modules/nixos/caddy-proxy.nix`), unrelated to SSH, serving the static
+`kattakath.com` landing page.
 
-### `nixvm` is a sandbox — no public ingress
+### `nixvm` deliberately stays on the static key — NOT part of this cutover
 
-`nixvm` (`hosts/nixvm.nix`) is a minimal UTM/QEMU VM: it boots, has a serial
-console, and runs sshd — reachable only on the LAN (vmnet-shared IP or mDNS).
-It imports neither `cloudflared.nix` nor `caddy-proxy.nix`. GUI / remote
-desktop is explicitly deferred to a follow-up; today it is boot + SSH + disko
-only.
+`nixvm` (`hosts/nixvm.nix`) does **not** set `services.openssh-ca-trust.enable`
+and keeps `removeStaticKey` at its default `false`, so it authenticates
+exactly as before: the shared static ed25519 key from `core.nix`. It is a
+sandbox VM reachable only on the LAN (vmnet-shared IP or mDNS) — deliberately
+excluded from the ZTIA cutover so a sandbox misconfiguration can never lock out
+the one host that actually needs the fallback. Its serial console
+(`serial-getty@ttyAMA0`) and LAN access remain untouched.
 
-### `macos` is a client only
+### `macos` is a ZTIA client, not a target
 
-`macos` (`hosts/macos.nix`) runs **no connector, no sshd, and no tunnel** — it
-imports only `modules/darwin/core.nix` and Home Manager. Its only involvement
-with the tunnel is *outbound*: reaching `nixpi` over SSH (see §6). There is no
-server-side module wired into the darwin host profile at all.
+`macos` (`hosts/macos.nix`) runs no connector, no sshd, and no tunnel. Its
+involvement is entirely as the **enrolled client** reaching `nixpi`: it needs
+the Cloudflare One Client (WARP) installed and enrolled — see §7.
 
 ---
 
-## 3. The connector unit
+## 3. The connector unit (unchanged)
 
 `modules/nixos/cloudflared.nix` defines the opt-in
 `services.cloudflared-connector` option and, when enabled, a single hardened
-systemd service, `cloudflared-connector`. Only `nixpi` enables it
-(`hosts/nixpi.nix:55`); `nixvm` and `macos` never import the module.
+systemd service. **Nothing in this module changed for the ZTIA cutover** —
+ZTIA layers Access + a CA on top of the same tunnel connectivity; see the
+header comment in `infra/cloudflare/nixpi-ssh.nix` for why.
 
 ### Token handling — never in argv, never in the store
 
@@ -95,279 +106,262 @@ ExecStart = "${pkgs.cloudflared}/bin/cloudflared --no-autoupdate tunnel run";
 EnvironmentFile = cfg.tokenFile;   # default: /etc/secrets/cloudflared-token
 ```
 
-(`modules/nixos/cloudflared.nix:71-73`). `cloudflared tunnel run` with **no**
-name or UUID picks up `TUNNEL_TOKEN` from the environment for a
-remotely-managed tunnel. The token is a plain, operator-placed file — `/etc/secrets/cloudflared-token`,
-containing one line `TUNNEL_TOKEN=…` — placed manually after provisioning and
-**never committed to git**. There is no agenix, no sops, no encryption step in
-this repo: system/service secrets are plain root-only files under
-`/etc/secrets/`. A boot-time activation script warns (but does not abort) if
-the file is missing (`modules/nixos/cloudflared.nix:54-60`); the unit itself
-retries on failure (`Restart = "on-failure"`, `RestartSec = 5`), so dropping
-the file in after first boot self-heals without a rebuild.
-
-### Hardening
-
-The unit runs under `DynamicUser = true` with a full systemd sandbox
-(`modules/nixos/cloudflared.nix:78-104`): `ProtectSystem = "strict"`,
-`ProtectHome`, `NoNewPrivileges`, `PrivateTmp`, `PrivateDevices`,
-`ProtectKernelTunables`/`Modules`/`ControlGroups`, `RestrictNamespaces`/
-`Realtime`/`SUIDSGID`, `LockPersonality`, `MemoryDenyWriteExecute`,
-`RestrictAddressFamilies = [ AF_INET AF_INET6 AF_UNIX ]`, a `@system-service`
-`SystemCallFilter` (minus `@privileged`/`@resources`), and native-only
-`SystemCallArchitectures`. It waits on `network-online.target`.
+Unchanged from before — see `modules/nixos/cloudflared.nix:71-73`.
 
 ---
 
-## 4. Caddy — behind the tunnel, not in front of it
+## 4. Caddy — behind the tunnel, not in front of it (unchanged)
 
-`modules/nixos/caddy-proxy.nix` is a generic, opt-in local reverse-proxy/router
-wrapping upstream `services.caddy`. The topology is **tunnel → Caddy →
-service**: `cloudflared-connector` terminates the tunnel and forwards to Caddy
-on loopback; Caddy then routes to the right local service by Host header
-(`modules/nixos/caddy-proxy.nix:7-18`). This means no public IP or
-port-forward is ever required, and Cloudflare Access could front any vhost
-independently in the future without this module having an opinion about it.
-
-Each `virtualHosts.<name>` entry is either `reverseProxyTo` (an upstream URL)
-or `root` (a static-file directory) — never both (enforced by an assertion,
-`modules/nixos/caddy-proxy.nix:64-69`). Today `nixpi` declares exactly one
-vhost:
-
-```nix
-services.caddy-proxy = {
-  enable = true;
-  virtualHosts."kattakath.com".root = ../packages/landing;
-};
-```
-
-(`hosts/nixpi.nix:60-63`) — the static `kattakath.com` landing page. Future
-services front new `virtualHosts` entries on the same Caddy instance rather
-than provisioning a new tunnel per service.
+`modules/nixos/caddy-proxy.nix` is unaffected by this cutover. See the module
+header and `hosts/nixpi.nix` for the single `kattakath.com` vhost it serves.
 
 ---
 
-## 5. Authentication: static SSH keys only
+## 5. Authentication: ZTIA short-lived certificates (SSH-only cutover)
 
-The SSH endpoint is reachable over the tunnel with **no Access/identity layer
-in front**, so `modules/nixos/core.nix:26-36` locks sshd down to keys only:
+`modules/nixos/core.nix` now declares an opt-in
+`services.openssh-ca-trust` option:
 
 ```nix
-services.openssh = {
-  enable = true;
-  settings = {
-    PasswordAuthentication = false;
-    KbdInteractiveAuthentication = false;
-    PermitRootLogin = "no";
+options.services.openssh-ca-trust = {
+  enable = lib.mkEnableOption "trust Cloudflare's SSH CA ...";
+  caKeyFile = lib.mkOption {
+    default = ../nixos/cloudflare-ssh-ca.pub;
+    ...
   };
+  removeStaticKey = lib.mkEnableOption "remove the shared static ed25519 ...";
 };
 ```
 
-The single authorized identity is the operator's ed25519 key, declared on
-`users.users.${userName}.openssh.authorizedKeys.keys`
-(`modules/nixos/core.nix:21-23`) — shared by every NixOS host (`nixpi` and
-`nixvm` alike).
-
-There is no password path, no root login, no WARP, no IdP, and no Access — the
-tunnel carries the port; the SSH key is the entire authentication story.
-
----
-
-## 6. Two names for `nixpi`
-
-`nixpi` is reachable two ways:
-
-1. **`nixpi.local`** — mDNS, published by `services.avahi`
-   (`modules/nixos/core.nix:44-53`, with `nssmdns4 = true` and address/
-   workstation publishing; UDP 5353 is opened in the firewall at
-   `core.nix:41`). This is the **LAN path and the break-glass path** — it
-   works with no tunnel and no Cloudflare involvement at all.
-
-2. **`nixpi.kattakath.com`** — a proxied CNAME that rides the Cloudflare
-   tunnel, reachable from **anywhere**. Cloudflare forwards it to the
-   connector, which forwards to `localhost:22` on the host. The
-   public-hostname ingress and DNS record are provisioned in the Cloudflare
-   account by `scripts/cf-one-provision.sh`.
-
-The firewall opens only TCP 22 and UDP 5353 by default
-(`modules/nixos/core.nix:38-42`); `caddy-proxy` additionally opens TCP 80/443
-when enabled (`modules/nixos/caddy-proxy.nix:99-102`). The public hostname has
-**no Access policy** in front of it, so auth over the tunnel is SSH key only —
-matching the `.local` LAN path.
-
-`nixvm` has no public hostname at all — only its LAN/vmnet-shared IP or
-`nixvm.local` (mDNS), same as any other host on `core.nix`.
-
----
-
-## 7. Client side (`macos`)
-
-`macos` is the only client. Home Manager's `modules/shared/home.nix` currently
-declares an SSH `settings` block only for `*.local` (agent forwarding on for
-interactive LAN admin work, `modules/shared/home.nix:117-125`with the shared
-defaults at `:102-115`). There is **no `*.kattakath.com` ProxyCommand block
-wired yet** — reaching `nixpi.kattakath.com` today means either an ad-hoc
-`cloudflared access ssh` invocation or adding a `settings."nixpi.kattakath.com"`
-block declaratively:
+When enabled (`nixpi` only), it wires:
 
 ```nix
-programs.ssh.settings."nixpi.kattakath.com" = {
-  User = config.home.username;
-  IdentityFile = "~/.ssh/id_ed25519";
-  ProxyCommand = "${pkgs.cloudflared}/bin/cloudflared access ssh --hostname %h";
-};
+services.openssh.extraConfig = ''
+  TrustedUserCAKeys ${caCfg.caKeyFile}
+'';
 ```
 
-Ad-hoc test (no config change):
+sshd then accepts a short-lived certificate whose **principal** (the allowed
+UNIX login, set by the Access policy's `connection_rules.ssh.usernames`) is
+matched against the local user automatically — **no
+`AuthorizedPrincipalsFile`/`AuthorizedPrincipalsCommand` needed**. This
+differs from the older, now-deprecated "self-hosted short-lived certificates"
+flow, which Cloudflare's own docs flag as incompatible with the Gateway SSH
+proxy — the CA used here is generated via the dedicated `gateway_ca` endpoint,
+a distinct mechanism.
 
-```bash
-ssh -o ProxyCommand="cloudflared access ssh --hostname %h" ismail@nixpi.kattakath.com
-```
+The static key (`users.users.${userName}.openssh.authorizedKeys.keys`) is
+still present on **every** host by default — it is only dropped when a host
+sets `services.openssh-ca-trust.removeStaticKey = true`. `nixpi` does **not**
+set this yet (see §9, rollout order); `nixvm` never will.
 
-Verify it actually went through the tunnel:
-
-```bash
-ssh ismail@nixpi.kattakath.com 'echo $SSH_CONNECTION'    # → ::1 ...  (localhost = tunnel-terminated)
-```
-
-On the LAN you can skip the tunnel entirely and `ssh ismail@nixpi.local`.
+**Verify live** (flagged as unconfirmed in the underlying research): whether
+NixOS's append-after-`settings` rendering of `extraConfig` still authenticates
+correctly with `TrustedUserCAKeys` — there is no competing
+`AuthorizedKeys*`/`AuthorizedPrincipals*` override here, so it is expected to
+work, but confirm end-to-end on `nixpi` before flipping `removeStaticKey`.
 
 ---
 
-## 8. Secret model
+## 6. Two names for `nixpi` (tunnel path unchanged; ZTIA path is different)
 
-`/etc/secrets/cloudflared-token` on `nixpi` is a plain, root-only,
-operator-placed file — never generated, encrypted, or committed by this repo.
-This repo does **not** use agenix or sops (removed entirely; see
-`memory/agenix-removed-etc-secrets.md` for the historical PR that dropped it —
-gitignored, not part of this doc's authority). The convention is documented in
-`CLAUDE.md`'s secrets model: system/service credentials live at
-`/etc/secrets/<name>` on each host, placed manually after provisioning.
+`nixpi` is reachable multiple ways depending on which layer you're using:
 
-There is no host-key rekey step for `cloudflared-token` — it is not
-identity-scoped to any key, just a plain file the host reads at boot. If the
-Pi is ever reimaged, the runbook (§9) is simply: reprovision the tunnel, place
-the new token file, rebuild.
+1. **`nixpi.local`** — mDNS (avahi), unchanged. LAN + break-glass path, works
+   with no Cloudflare involvement at all, and still authenticates with
+   whichever key/cert path sshd currently trusts (static key today; ZTIA cert
+   too, once `TrustedUserCAKeys` is live — the CA doesn't care how you routed
+   to the host).
 
-### Provisioning the tunnel
+2. **The Cloudflare Tunnel's public hostname** (if one is still configured for
+   plain client-side `cloudflared access ssh`) — this is **method (a)**, the
+   legacy pattern, and is no longer the primary path once ZTIA is live. It can
+   coexist during migration but is not the target end state.
 
-The Cloudflare-side objects — the tunnel, its public-hostname ingress
-(`nixpi.kattakath.com` → `ssh://localhost:22`), the proxied CNAME, and the
-connector token itself — are created by **`scripts/cf-one-provision.sh`**
-against the Cloudflare API. This uses **no `cloudflared login`** and produces
-the token you place at `/etc/secrets/cloudflared-token`.
+3. **ZTIA path (target end state):** no public hostname or port at all. The
+   Cloudflare One Client (WARP), enrolled and running in Traffic-and-DNS mode,
+   intercepts a plain `ssh ismail@<nixpi-private-ip>` connection to the IP
+   declared as the Infrastructure Access **target**
+   (`infra/cloudflare/nixpi-ssh.nix`), routed through a Tunnel CIDR route bound
+   to the same connector. **Live-verify**: whether the existing tunnel ingress
+   can double as this route, or whether a distinct private route must be
+   added (the ZTIA docs model targets by IP + virtual network, which suggests
+   the latter — see the flags list in §11).
 
 ---
 
-## 9. RUNBOOK — bringing `nixpi` online
+## 7. Client side (`macos`) — WARP replaces the ProxyCommand
 
-1. **Install + Boot.** Flash `nixpi-installer-image`
-   (`.#packages.aarch64-linux.nixpi-installer-image`) to an SD card, boot the
-   Pi. On the LAN the host publishes `nixpi.local` via avahi.
+For the ZTIA path, `macos` needs:
 
-2. **SSH in with the personal key** (the break-glass path — no tunnel yet):
+1. **Cloudflare One Client (WARP)** installed, enrolled in the Zero Trust org,
+   running in **Traffic-and-DNS mode** with the Gateway TCP proxy turned on,
+   and a split-tunnel entry covering `nixpi`'s private IP/CIDR.
+2. **No `~/.ssh/config` ProxyCommand at all** for `nixpi` once WARP is active
+   — plain `ssh ismail@<nixpi-private-ip>` is transparently intercepted.
+   `modules/shared/home.nix` does not declare a `cloudflared access ssh`
+   ProxyCommand today (this repo's greenfield rewrite never wired one back
+   in); no client-side Nix change is needed to adopt ZTIA.
+
+Verify device/target visibility with `warp-cli target list` (or the
+equivalent Cloudflare One Client UI) before attempting the first ZTIA login.
+
+Ad-hoc verification once WARP is enrolled and the route is live:
+
+```bash
+ssh ismail@<nixpi-private-ip> 'echo $SSH_CONNECTION'
+```
+
+On the LAN, `ssh ismail@nixpi.local` continues to work as the zero-cloud
+break-glass path regardless of ZTIA status.
+
+---
+
+## 8. Secret / trust model
+
+- **`/etc/secrets/cloudflared-token`** — unchanged: a plain, root-only,
+  operator-placed file backing the tunnel connector. See
+  `memory/agenix-removed-etc-secrets.md` — this repo has no agenix/sops.
+- **The Cloudflare SSH CA's private key never leaves Cloudflare.** Only its
+  **public** key round-trips into this repo, committed at
+  `modules/nixos/cloudflare-ssh-ca.pub` — safe to commit (a CA public key
+  grants no access by itself; it only lets sshd verify certs Cloudflare
+  signs). The file ships with a clear placeholder line until the real CA is
+  generated and its public key captured (§9, step 2).
+- **The Access policy, not a file on disk, is the revocation lever.** Disabling
+  or editing `infra/cloudflare/nixpi-ssh.nix`'s policy and re-applying is how
+  you cut someone off — no host rebuild needed.
+
+---
+
+## 9. RUNBOOK — ZTIA rollout order (read before touching anything)
+
+**Do these in order. Do not skip to step 6 (static-key removal) before step 5
+(verified login) — that is the lockout risk this runbook exists to prevent.**
+
+1. **Terranix apply — create the CF-side objects** (target, Infrastructure
+   Access application, Access policy):
    ```bash
-   ssh ismail@nixpi.local
+   CLOUDFLARE_API_TOKEN=<scoped token> nix run .#cf-ssh-apply
+   ```
+   Token scope: **Account Zero Trust:Edit** (covers Access apps/policies and
+   Infrastructure targets). This does **not** create the SSH CA — see next
+   step.
+
+   **Before this step matters:** `infra/cloudflare/nixpi-ssh.nix` currently
+   has PLACEHOLDER values for `targetIp` and `virtualNetworkId` — fill in
+   `nixpi`'s real routed private IP and virtual network ID first (see the
+   live-verify flag in §6.3 about whether a distinct Tunnel CIDR route is
+   needed).
+
+2. **Generate the SSH CA and capture its public key** (one-time, dashboard or
+   API — there is no Terraform resource for this):
+   - Dashboard: Zero Trust → Access controls → Service credentials → SSH →
+     **Generate SSH CA** → select **SSH with Access for Infrastructure** →
+     copy the **CA public key**.
+   - Or API: `POST /accounts/$ACCOUNT_ID/access/gateway_ca` (idempotent — if
+     it already exists, `GET` the same endpoint instead).
+
+3. **Commit the CA public key**, replacing the placeholder:
+   ```bash
+   # Edit modules/nixos/cloudflare-ssh-ca.pub — replace the placeholder
+   # ssh-rsa line with the real CA public key copied in step 2.
+   git add modules/nixos/cloudflare-ssh-ca.pub
    ```
 
-   > **Reprovision gotcha (stale host key):** a fresh Pi generates a NEW
-   > `/etc/ssh/ssh_host_ed25519_key` at first boot, but it reuses the same
-   > `nixpi.local` mDNS name. If a prior host by that name is still cached in
-   > your Mac's `~/.ssh/known_hosts`, SSH aborts with `WARNING: REMOTE HOST
-   > IDENTIFICATION HAS CHANGED!` — this is expected on every reprovision, not
-   > an attack. Clear the stale entry, then reconnect:
-   > ```bash
-   > ssh-keygen -R nixpi.local
-   > ssh ismail@nixpi.local               # re-accepts the new host key
-   > ```
-
-3. **Provision the tunnel + token** (Cloudflare account side):
+4. **Rebuild `nixpi`** (this activates `TrustedUserCAKeys` — the static key
+   stays in place too, since `removeStaticKey` is still `false`):
    ```bash
-   CF_API_TOKEN=<token-with-Tunnels:Edit+DNS:Edit> ./scripts/cf-one-provision.sh nixpi
-   ```
-   This prints a `TUNNEL_TOKEN=…` line to stdout — a secret, never written to
-   a repo file.
-
-4. **Place the token file on the host:**
-   ```bash
-   ssh ismail@nixpi.local 'sudo tee /etc/secrets/cloudflared-token >/dev/null' <<< "TUNNEL_TOKEN=<token>"
-   ssh ismail@nixpi.local 'sudo chmod 600 /etc/secrets/cloudflared-token'
-   ```
-
-5. **Rebuild (if not already active) or just restart the unit** — the
-   activation script only warns; the service itself retries once the file
-   exists:
-   ```bash
-   ssh ismail@nixpi.local 'sudo systemctl restart cloudflared-connector'
-   # or, if the module was just enabled for the first time:
    ssh ismail@nixpi.local 'sudo nixos-rebuild switch --flake github:ismailkattakath/nix-config#nixpi'
    ```
 
-6. **Verify:**
+5. **Enroll a client and verify ZTIA login end-to-end** — install the
+   Cloudflare One Client (WARP) on `macos`, enroll it in the Zero Trust org,
+   confirm the target is visible (`warp-cli target list` or UI), then:
    ```bash
-   ssh ismail@nixpi.local 'systemctl is-active cloudflared-connector'   # → active
+   ssh ismail@<nixpi-private-ip>
    ```
-   Then confirm the tunnel path from a client: `ssh nixpi.kattakath.com` (or the ad-hoc
-   `cloudflared access ssh` ProxyCommand from §7).
+   Confirm this succeeds **without** using the static key (e.g. temporarily
+   remove `~/.ssh/id_ed25519` from the agent, or watch `journalctl -u sshd` on
+   `nixpi` for a certificate-based accept line) before proceeding.
+
+6. **Only then**, flip the static key off:
+   ```nix
+   # hosts/nixpi.nix
+   services.openssh-ca-trust.removeStaticKey = true;
+   ```
+   Rebuild again. From this point, `nixpi`'s network SSH is ZTIA-cert-only.
+   **Physical console (getty) is never affected by this option** — it remains
+   the hardware break-glass path if ZTIA and mDNS both become unreachable.
 
 ---
 
-## 10. Day-in-the-life (steady state)
+## 10. Day-in-the-life (steady state, post-cutover)
 
-Once `nixpi` is online, there is nothing to babysit:
-
-- **Reach it from anywhere:** `ssh nixpi.kattakath.com` (via a ProxyCommand —
-  see §7). No public port, no prompt.
-- **On the LAN:** `ssh ismail@nixpi.local` skips the tunnel entirely (mDNS).
-- **Boot / reboot:** the connector is `wantedBy = multi-user.target`
-  (`modules/nixos/cloudflared.nix:66`) and auto-starts. A reboot needs
-  **nothing** — the token file survives on disk and the tunnel re-registers on
-  its own.
+- **Reach `nixpi` from anywhere enrolled:** `ssh ismail@<nixpi-private-ip>`
+  via WARP — no ProxyCommand, no prompt beyond the IdP session Cloudflare
+  already holds.
+- **On the LAN:** `ssh ismail@nixpi.local` skips Cloudflare entirely (mDNS) —
+  authenticates via whatever sshd currently trusts (cert-only, post step 6).
+- **Revoke access:** disable/edit the Access policy in
+  `infra/cloudflare/nixpi-ssh.nix` and re-apply — no host touch.
+- **Boot / reboot:** the connector auto-starts exactly as before; ZTIA needs
+  nothing at boot beyond the already-rebuilt `TrustedUserCAKeys` config.
 
 ### What you never do
 
-- **Never** run `cloudflared tunnel login` or manage a `cert.pem` — this is a
-  remotely-managed (token) tunnel; there is no origin-cert login flow.
-- **Never** install WARP, an IdP, or a Cloudflare Access policy in front of SSH
-  — auth is the SSH key, full stop (unless/until Phase 2 below is adopted).
-- **Never** perform an interactive login at boot or when SSHing.
-- **Never** put a token in argv or in Nix/the store — it is only ever a plain
-  `/etc/secrets/cloudflared-token` `EnvironmentFile`.
+- **Never** commit the CA's private key — it never leaves Cloudflare; only the
+  public half goes in `modules/nixos/cloudflare-ssh-ca.pub`.
+- **Never** flip `removeStaticKey` before completing step 5 above.
+- **Never** touch `nixvm`'s SSH config as part of this cutover — it is
+  explicitly out of scope, kept as a key-based sandbox.
+- **Never** put a Cloudflare API token in Nix, git, or argv — `cf-ssh-apply`/
+  `cf-ssh-destroy` read `CLOUDFLARE_API_TOKEN` from the environment only.
 
 ---
 
-## 11. Where this is headed — Cloudflare One for MCP aggregation
+## 11. Flags requiring live verification before/while implementing
 
-The LiteLLM proxy container (a previous iteration of this repo) is **gone
-entirely** — no litellm module, image, terranix, or compose file exists on
-this branch. It is being replaced by a **Cloudflare One-native** option for
-aggregating MCP tool access, still to be designed. See the **cloudflare-one**
-skill (`.claude/skills/cloudflare-one/SKILL.md`) for the general CF One
-guidance this repo will draw on, and
-[`docs/cloudflare-one-evaluation.md`](cloudflare-one-evaluation.md) for the
-existing ZTIA (SSH-specific) evaluation and its "declined for now, revisit
-triggers" decision — which is a separate question from the MCP-aggregation
-direction referenced here.
+(Carried forward from the underlying ZTIA research — re-check before/while
+executing the runbook in §9.)
+
+- Whether `nixpi`'s existing tunnel ingress can double as the ZTIA target's
+  connectivity, or whether a **distinct private Tunnel CIDR route** must be
+  added (Networking → Routes → Create route → Tunnel CIDR) — the docs model
+  targets by IP + virtual network, suggesting the latter.
+- Exact WARP session-duration/re-auth cadence for SSH (docs state a ~10-hour
+  max session; the exact configurable field wasn't fully confirmed).
+- NixOS's `extraConfig`-appends-last rendering of `TrustedUserCAKeys` — very
+  likely fine given no conflicting directives, but confirmed only by a live
+  test on `nixpi` (§9 step 5).
+- Command-log **Logpush export to SIEM/S3 is Enterprise-only**; the
+  downloadable HPKE-encrypted log via dashboard is available on all plans —
+  fine for a solo operator, just no automatic export.
+- No Terraform resource exists for the SSH CA itself (`gateway_ca`) — confirmed
+  absent from the current provider docs; step 2 of the runbook is
+  dashboard/API-only by necessity, not an oversight in
+  `infra/cloudflare/nixpi-ssh.nix`.
 
 ---
 
 ## 12. Wiring reference
 
-| Concern | File:line |
+| Concern | File |
 |---|---|
-| Connector option + unit + hardening | `modules/nixos/cloudflared.nix` |
-| Local reverse-proxy/router (behind the tunnel) | `modules/nixos/caddy-proxy.nix` |
-| sshd keys-only, no root/password | `modules/nixos/core.nix:26-36` |
-| Authorized SSH key (`ismail`) | `modules/nixos/core.nix:21-23` |
-| mDNS `<host>.local` (avahi) + UDP 5353 | `modules/nixos/core.nix:38-53` |
-| `nixpi` enables the connector + Caddy | `hosts/nixpi.nix:55-63` |
-| `nixvm` — no tunnel, no Caddy (sandbox) | `hosts/nixvm.nix` |
-| `macos` — client only, no server modules | `hosts/macos.nix` |
-| Token file (operator-placed, plain) | `/etc/secrets/cloudflared-token` on `nixpi` |
-| Tunnel + DNS provisioning script | `scripts/cf-one-provision.sh` |
+| Connector option + unit + hardening (unchanged) | `modules/nixos/cloudflared.nix` |
+| Local reverse-proxy/router (behind the tunnel, unchanged) | `modules/nixos/caddy-proxy.nix` |
+| sshd baseline + `openssh-ca-trust` option (`TrustedUserCAKeys`, `removeStaticKey`) | `modules/nixos/core.nix` |
+| Committed Cloudflare SSH CA public key (placeholder until step 2/3 of §9) | `modules/nixos/cloudflare-ssh-ca.pub` |
+| `nixpi` enables the connector + Caddy + ZTIA trust | `hosts/nixpi.nix` |
+| `nixvm` — no tunnel, no ZTIA, static key retained (sandbox) | `hosts/nixvm.nix` |
+| `macos` — ZTIA client (WARP), no server modules | `hosts/macos.nix` |
+| Cloudflare-side ZTIA objects (target/application/policy) | `infra/cloudflare/nixpi-ssh.nix` |
+| terranix input + `cf-ssh-apply`/`cf-ssh-destroy` apps | `flake.nix` |
+| Token file (operator-placed, plain, unchanged) | `/etc/secrets/cloudflared-token` on `nixpi` |
+| Legacy tunnel + DNS provisioning script (unaffected) | `scripts/cf-one-provision.sh` |
 
 ### Related skills
 
-- `cloudflared-tunnel` — client-side setup + `scripts/cf-one-provision.sh` (token provisioning).
-- `nixos-flake-install` / `utm-vm-provision` / `nixvm-utm-prebuild-on-devcontainer` — bring up `nixvm` itself.
-- `cloudflare-one` — general Cloudflare One guidance for the upcoming MCP-aggregation direction.
+- `cloudflare-one` — general Cloudflare One / ZTIA guidance this doc draws on.
+- `cloudflared-tunnel` — client-side tunnel setup (being superseded for `nixpi` by WARP + ZTIA; still relevant for the connector itself).
+- `nixos-flake-install` / `utm-vm-provision` / `nixvm-utm-prebuild-on-devcontainer` — bring up `nixvm` itself (unaffected by this cutover).
