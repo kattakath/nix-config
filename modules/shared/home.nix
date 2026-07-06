@@ -1,15 +1,16 @@
-# Unified user profile — loaded on EVERY machine (macOS, Ubuntu, Pi, container).
+# Unified user profile — loaded on EVERY machine (macOS, Pi, sandbox VM).
 # The single home of "user logic"; platform branches live in modules/linux and
 # modules/darwin.
 #
-# Personal tokens are intentionally NOT managed here — agenix was dropped for
-# user secrets (each rotation = a committed .age = churn). On macOS raw env-var
+# Personal tokens are intentionally NOT managed here. On macOS raw env-var
 # tokens live in the login Keychain (exported by ~/.zprofile); the rest use
-# one-time CLI logins (gh/hf/docker/claude). agenix now covers only
-# system/cloudflared host secrets. See secrets/README.
+# one-time CLI logins (gh/hf/docker/claude). System/service secrets (e.g. the
+# cloudflared tunnel token) are operator-placed `/etc/secrets/*` root-only
+# files on each host — no agenix, nothing managed from this repo.
 #
-# Deliberately MINIMAL: no nixvim/tmux/starship — the operator uses VSCode/Cursor
-# and prefers a lean profile. Add tools only for a clear cross-host need.
+# Deliberately MINIMAL: no nixvim/tmux — the operator uses VSCode/Cursor and
+# prefers a lean profile with starship for the shell prompt. Add tools only for
+# a clear cross-host need.
 {
   pkgs,
   lib,
@@ -21,7 +22,7 @@
 }:
 let
   # VS Code Marketplace mirror — provided by the nix-vscode-extensions overlay,
-  # which the darwin host (nixcon) adds to nixpkgs.overlays. Only referenced
+  # which the darwin host (macos) adds to nixpkgs.overlays. Only referenced
   # inside the `mkIf isDarwin` vscode block, so the Linux hosts (which don't
   # apply the overlay) never touch it. CRUCIAL: reading the overlay attr off
   # `pkgs` (rather than the flake input's `.extensions.<sys>` output) means the
@@ -113,8 +114,8 @@ in
           ControlPersist = "no";
         };
 
-        # Local NixOS hosts (mDNS .local) — agent forwarding on so agenix rekey
-        # can run on the host using the Mac's key via the forwarded agent.
+        # Local NixOS hosts (mDNS .local) — agent forwarding on for interactive
+        # admin work over SSH from the Mac.
         "*.local" = {
           User = config.home.username;
           IdentityFile = "~/.ssh/id_ed25519";

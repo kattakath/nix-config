@@ -64,9 +64,6 @@
     libraries = import ../shared/nix-ld-libraries.nix pkgs;
   };
 
-  # agenix uses the host SSH key to decrypt system-level secrets at activation.
-  # After first boot: add the host's public key to secrets/secrets.nix and
-  # re-encrypt any system secrets (e.g. *-tunnel-token.age) to that key.
   programs.zsh.enable = true;
 
   security.sudo.wheelNeedsPassword = false;
@@ -77,7 +74,7 @@
   zramSwap.enable = true;
 
   # Automatic store GC + on-the-fly reclaim — these NixOS hosts double as
-  # self-hosted CI runners (building e.g. nixrpi SD images), so the store must
+  # self-hosted CI runners (building e.g. nixpi SD images), so the store must
   # self-trim or it fills the disk. UTM audit follow-up (2026-07).
   nix.gc = {
     automatic = true;

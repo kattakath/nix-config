@@ -2,7 +2,6 @@
 # This is "system logic" for the Mac; user logic stays in modules/shared.
 {
   pkgs,
-  lib,
   userName,
   ...
 }:
@@ -19,7 +18,7 @@
 
   # NOTE: hostPlatform is set per-host from the darwinSystem `system` arg (via
   # the mkDarwin helper in flake.nix), NOT hardcoded here — so this shared module
-  # serves both the aarch64-darwin (nixcon) and x86_64-darwin (nixtel) Macs.
+  # serves the aarch64-darwin (macos) Mac.
 
   # Enable flakes + the modern CLI for the daemon this config manages.
   nix.settings.experimental-features = [
@@ -39,7 +38,7 @@
 
     # Required by current nix-darwin whenever any `system.defaults.*` is set:
     # names the user those user-scoped macOS defaults apply to. Matches the
-    # user declared in each darwin host profile (hosts/nixcon.nix, hosts/nixtel.nix).
+    # user declared in the darwin host profile (hosts/macos.nix).
     primaryUser = userName;
 
     # ---- macOS defaults (declarative system preferences) -----------------------
@@ -68,7 +67,6 @@
   # services.yabai.enable = true;
   # services.skhd.enable = true;
 
-  # Touch ID for sudo — Apple-Silicon laptops only. The Apple Intel Mac
-  # (`nixtel`) has no Touch ID sensor, so gate this off there.
-  security.pam.services.sudo_local.touchIdAuth = lib.mkIf pkgs.stdenv.hostPlatform.isAarch64 true;
+  # Touch ID for sudo — this fleet's sole Mac is Apple Silicon with a sensor.
+  security.pam.services.sudo_local.touchIdAuth = true;
 }
