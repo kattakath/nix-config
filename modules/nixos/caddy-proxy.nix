@@ -29,38 +29,35 @@
 let
   cfg = config.services.caddy-proxy;
 
-  virtualHostSubmodule = lib.types.submodule (
-    { name, ... }:
-    {
-      options = {
-        reverseProxyTo = lib.mkOption {
-          type = lib.types.nullOr lib.types.str;
-          default = null;
-          description = ''
-            Upstream URL to reverse-proxy this vhost to (e.g.
-            "http://127.0.0.1:4000"). Mutually exclusive with `root` — set
-            exactly one per virtual host.
-          '';
-        };
-
-        root = lib.mkOption {
-          type = lib.types.nullOr lib.types.path;
-          default = null;
-          description = ''
-            Directory of static files to serve for this vhost (via
-            `file_server`). Mutually exclusive with `reverseProxyTo` — set
-            exactly one per virtual host.
-          '';
-        };
-
-        extraConfig = lib.mkOption {
-          type = lib.types.lines;
-          default = "";
-          description = "Extra Caddyfile directives appended inside this vhost's block.";
-        };
+  virtualHostSubmodule = lib.types.submodule (_: {
+    options = {
+      reverseProxyTo = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = ''
+          Upstream URL to reverse-proxy this vhost to (e.g.
+          "http://127.0.0.1:4000"). Mutually exclusive with `root` — set
+          exactly one per virtual host.
+        '';
       };
-    }
-  );
+
+      root = lib.mkOption {
+        type = lib.types.nullOr lib.types.path;
+        default = null;
+        description = ''
+          Directory of static files to serve for this vhost (via
+          `file_server`). Mutually exclusive with `reverseProxyTo` — set
+          exactly one per virtual host.
+        '';
+      };
+
+      extraConfig = lib.mkOption {
+        type = lib.types.lines;
+        default = "";
+        description = "Extra Caddyfile directives appended inside this vhost's block.";
+      };
+    };
+  });
 in
 {
   options.services.caddy-proxy = {
