@@ -147,6 +147,59 @@
           '';
         };
 
+      # ---- Cloudflare TUNNEL provisioning (terranix -> OpenTofu) --------------
+      # Renders infra/cloudflare/nixpi-tunnel.nix (the remotely-managed tunnel +
+      # ingress + proxied CNAME + connector-token output for nixpi) to its own
+      # config.tf.json, per system. Separate stack/state from the ZTIA SSH
+      # config (cfSshConfig) — the tunnel is provisioned independently of the
+      # Access/CA objects layered on top of it.
+      cfTunnelConfig =
+        system:
+        terranix.lib.terranixConfiguration {
+          inherit system;
+          modules = [ ./infra/cloudflare/nixpi-tunnel.nix ];
+        };
+
+      # writeShellApplication wrapper around `tofu <action>` for the rendered
+      # nixpi tunnel config. Mirrors mkCfSshTofu (same token guard, same
+      # read-only-store-copy handling). On `apply`, it additionally prints the
+      # SENSITIVE connector token (a sensitive tofu output) to STDOUT, clearly
+      # labeled, so the operator can place it at /etc/secrets/cloudflared-token.
+      # The token is NEVER written to git or the /nix/store — only echoed to the
+      # operator's terminal, exactly as the retired cf-one-provision.sh did.
+      mkCfTunnelTofu =
+        {
+          system,
+          name,
+          action,
+        }:
+        let
+          pkgs = pkgsFor system;
+          printToken = ''
+
+            echo "----- CONNECTOR TOKEN for nixpi (SECRET) -----"
+            echo "Place the line below at /etc/secrets/cloudflared-token on nixpi (root-only, NEVER commit):"
+            echo "TUNNEL_TOKEN=$(tofu output -raw nixpi_connector_token)"
+            echo "----- end nixpi -----"
+          '';
+        in
+        pkgs.writeShellApplication {
+          inherit name;
+          runtimeInputs = [ pkgs.opentofu ];
+          text = ''
+            if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
+              echo "ERROR: CLOUDFLARE_API_TOKEN is unset. Export a token with" >&2
+              echo "  Account Cloudflare Tunnel:Edit + Zone DNS:Edit on kattakath.com." >&2
+              exit 1
+            fi
+            rm -f config.tf.json
+            cp ${cfTunnelConfig system} config.tf.json
+            tofu init
+            tofu ${action}
+          ''
+          + nixpkgs.lib.optionalString (action == "apply") printToken;
+        };
+
       # ---- Formatting / lint (treefmt-nix) ------------------------------------
       # The wrapper backs `nix fmt`; the `.config.build.check` derivation backs
       # the CI formatting gate.
@@ -388,23 +441,42 @@
             name = "cf-ssh-destroy";
             action = "destroy";
           };
+          cf-tunnel-apply = mkCfTunnelTofu {
+            inherit system;
+            name = "cf-tunnel-apply";
+            action = "apply";
+          };
+          cf-tunnel-destroy = mkCfTunnelTofu {
+            inherit system;
+            name = "cf-tunnel-destroy";
+            action = "destroy";
+          };
         }))
       ];
 
-      # ---- Apps: bootstrap installer + Cloudflare ZTIA-SSH provisioning -------
+      # ---- Apps: bootstrap installer + Cloudflare provisioning ---------------
       # `nix run .#nixvm` (on an aarch64-linux builder, from the live installer
       # ISO) — disko-install bootstrap for the nixvm sandbox VM.
       #
       # `nix run .#cf-ssh-apply` / `.#cf-ssh-destroy` — render
       # infra/cloudflare/nixpi-ssh.nix (terranix) then `tofu init` + apply
-      # (destroy for the other) against the Cloudflare account. Both need a
-      # live token in the environment:
-      #   CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-ssh-apply
-      # Token scope: Account Zero Trust:Edit (covers Access apps/policies and
-      # Infrastructure targets). Merged with recursiveUpdate so the static
-      # nixvm entry and the forAllSystems cf-ssh apps coexist under one `apps`
-      # attribute (a bare `apps.x.y = …` alongside `apps = …` is a
-      # duplicate-definition error).
+      # (destroy for the other) against the Cloudflare account. Token scope:
+      # Account Zero Trust:Edit (covers Access apps/policies + Infrastructure
+      # targets).
+      #
+      # `nix run .#cf-tunnel-apply` / `.#cf-tunnel-destroy` — render
+      # infra/cloudflare/nixpi-tunnel.nix (terranix) then `tofu init` + apply
+      # (destroy). Provisions nixpi's remotely-managed tunnel + ingress +
+      # proxied CNAME; cf-tunnel-apply additionally PRINTS the connector token
+      # for manual placement at /etc/secrets/cloudflared-token (never written to
+      # git/store). This replaces the retired scripts/cf-one-provision.sh. Token
+      # scope: Account Cloudflare Tunnel:Edit + Zone DNS:Edit on kattakath.com.
+      #
+      # All need a live token in the environment, e.g.
+      #   CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-tunnel-apply
+      # Merged with recursiveUpdate so the static nixvm entry and the
+      # forAllSystems cf-* apps coexist under one `apps` attribute (a bare
+      # `apps.x.y = …` alongside `apps = …` is a duplicate-definition error).
       apps =
         nixpkgs.lib.recursiveUpdate
           {
@@ -425,6 +497,16 @@
                 type = "app";
                 program = "${self.packages.${system}.cf-ssh-destroy}/bin/cf-ssh-destroy";
                 meta.description = "tofu destroy the nixpi ZTIA-SSH Cloudflare resources (needs CLOUDFLARE_API_TOKEN)";
+              };
+              cf-tunnel-apply = {
+                type = "app";
+                program = "${self.packages.${system}.cf-tunnel-apply}/bin/cf-tunnel-apply";
+                meta.description = "Render infra/cloudflare/nixpi-tunnel.nix (terranix), tofu apply it, and print the connector token (needs CLOUDFLARE_API_TOKEN)";
+              };
+              cf-tunnel-destroy = {
+                type = "app";
+                program = "${self.packages.${system}.cf-tunnel-destroy}/bin/cf-tunnel-destroy";
+                meta.description = "tofu destroy the nixpi Cloudflare tunnel/ingress/CNAME (needs CLOUDFLARE_API_TOKEN)";
               };
             })
           );
