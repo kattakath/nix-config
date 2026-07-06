@@ -18,6 +18,7 @@ nixos-rebuild switch --flake .#nixpi         # Activate the Raspberry Pi config 
 nixos-rebuild switch --flake .#nixvm         # Activate the UTM/QEMU sandbox VM config
 nix eval .#nixosConfigurations.nixpi.config.system.build.toplevel   # Evaluate a SINGLE config (fast single-target check)
 nix build .#nixosConfigurations.nixpi.config.system.build.sdImage  # Build the flashable Pi SD image
+# Flashing: do a FULL verified write (confirm dd's ~5.6GB byte count) — see docs/nixpi-sd-flashing-runbook.md
 nix build .#nixvm-image                       # Build UTM-importable nixvm qcow2 → ./result/
 nix run .#nixvm                               # disko-install bootstrap for nixvm — run FROM the live installer ISO, not from macOS
 ```
