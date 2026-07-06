@@ -57,7 +57,7 @@ const syntaxOnlyAdvisory = () => {
         "validated .nix syntax only. For a REAL local check, start Docker and run " +
         "`devcontainer up --workspace-folder .` then " +
         "`devcontainer exec --workspace-folder . bash -lc 'git add -A && nix flake check -L'`. " +
-        "Otherwise, full multi-system `nix flake check` (aarch64-darwin, x86_64-linux, aarch64-linux) " +
+        "Otherwise, full two-system `nix flake check` (aarch64-darwin, aarch64-linux) " +
         "must pass in CI / the target environment.",
     }),
   );
@@ -135,9 +135,9 @@ if (nixFiles && has("nix")) {
   process.exit(0);
 } else if (nixFiles && has("devcontainer")) {
   // No host nix, but the `devcontainer` CLI is available: run the REAL
-  // `nix flake check` inside the prebuilt container. It evaluates all four
-  // systems and fully builds/runs the native aarch64-linux checks; only
-  // cross-arch BUILDS (x86_64-linux, the darwin systems) still defer to CI.
+  // `nix flake check` inside the prebuilt container. It evaluates both
+  // systems and fully builds/runs the native aarch64-linux checks; only the
+  // cross-arch BUILD (aarch64-darwin) still defers to CI.
   // ~90s cold / faster warm — the cost of the "every stop" gate on a Nix-less host.
   //
   // Starting the container needs a live Docker daemon. Rather than shell out to a

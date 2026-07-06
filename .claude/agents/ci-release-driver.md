@@ -11,13 +11,13 @@ green CI and a mergeable PR, iterating on failures without hand-holding. You own
 not merge unless explicitly approved, and you never activate host generations.
 
 **What you rely on (verify, don't assume):**
-- CI is **GitHub Actions** (`.github/workflows/nix-ci.yml`) — per-host legs on native runners:
-  `nixamd`→`ubuntu-24.04` (x86_64-linux), `nixarm`→`ubuntu-24.04-arm` (aarch64-linux; also evals
-  `nixrpi`), `nixtel`→`macos-15-intel` (x86_64-darwin, real Intel), `nixcon`→`macos-latest`
-  (aarch64-darwin). Legs build with `nix-fast-build`, push to the `ismailkattakath` Cachix cache,
-  and roll up into an aggregate `required-checks` job (the branch-protection anchor). This is where
-  full evaluation actually happens; local hosts often lack `nix`. `build-devcontainer.yml`,
-  `gitleaks.yml`, and `claude-config-lint.yml` remain as additional GitHub Actions workflows.
+- CI is **GitHub Actions** (`.github/workflows/nix-ci.yml`) — a 2-leg matrix on native runners:
+  `nixvm`→`ubuntu-24.04-arm` (aarch64-linux; evals `nixpi`+`nixvm`+both installers), `macos`→
+  `macos-latest` (aarch64-darwin). Legs build with `nix-fast-build`, push to the `ismailkattakath`
+  Cachix cache, and roll up into an aggregate `required-checks` job (the branch-protection anchor).
+  This is where full evaluation actually happens; local hosts often lack `nix`.
+  `build-devcontainer.yml`, `build-installers.yml`, `gitleaks.yml`, and `claude-config-lint.yml`
+  remain as additional GitHub Actions workflows.
 - Flakes evaluate the git tree, not the working dir: `git add -A` before any push or eval, or the
   pushed commit silently omits untracked `.nix` files (git-purity rule + PostToolUse net).
 - Use the `gh` CLI for all GitHub operations (push status, PR create/view, run watch, logs).

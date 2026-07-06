@@ -1,15 +1,17 @@
-# Generic NixOS VM (UTM `virt` machine / QEMU) — UEFI + systemd-boot + VirtIO.
-# Architecture is chosen in flake.nix (`mkNixos { system = … }`), so this file
-# is arch-agnostic and backs the aarch64 UTM VM today. Distinct from `nixrpi`,
-# which targets real Raspberry Pi 4 hardware via raspberry-pi-nix (SD image).
+# NixOS sandbox VM (UTM `virt` machine / QEMU HVF) — UEFI + systemd-boot +
+# VirtIO. Architecture is chosen in flake.nix (`mkNixos { system = … }`), so
+# this file is arch-agnostic and backs the aarch64 UTM VM today. Distinct from
+# `nixpi`, which targets real Raspberry Pi 4 hardware via raspberry-pi-nix (SD
+# image). MINIMAL for now — boots, serial console, SSH, disko; no desktop
+# environment / no remote-desktop module yet (deferred to a follow-up).
 # Install (from live ISO — single command):
-#   nix --extra-experimental-features 'nix-command flakes' run github:ismailkattakath/nix-config#nixarm
+#   nix --extra-experimental-features 'nix-command flakes' run github:ismailkattakath/nix-config#nixvm
 {
   lib,
   ...
 }:
 {
-  networking.hostName = "nixarm";
+  networking.hostName = "nixvm";
 
   # Allow unfree packages (e.g. `claude-code` in the shared HM profile).
   nixpkgs.config.allowUnfree = true;
@@ -28,6 +30,9 @@
     "ahci"
     "sd_mod"
   ];
+
+  # Serial console — UTM/QEMU headless access before/without a display.
+  systemd.services."serial-getty@ttyAMA0".enable = true;
 
   # Declarative disk layout for `disko --mode disko` at install time.
   # disko.enableConfig = false: disko owns the partition/format step but does NOT

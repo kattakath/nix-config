@@ -1,0 +1,8 @@
+# PLACEHOLDER — replace with the real Cloudflare SSH CA public key output by
+# `nix run .#cf-ssh-apply` before dropping the static key; see docs/runbook
+# (docs/tunnel-architecture-and-runbook.md). The CA itself is generated
+# out-of-band (dashboard: Access controls > Service credentials > SSH >
+# Generate SSH CA, or `POST /accounts/$ACCOUNT_ID/access/gateway_ca`) — there
+# is no Terraform resource for it, so this file is filled in by hand, not by
+# terranix. Only the CA's PUBLIC key belongs here; it is safe to commit.
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDPLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDERPLACEHOLDERx placeholder-cloudflare-ssh-ca

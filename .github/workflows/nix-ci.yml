@@ -1,28 +1,26 @@
 name: nix-ci
 
-# Self-owned, native multi-system Nix CI (replaced the former hosted Garnix).
+# Self-owned, native multi-system Nix CI.
 #
 # LEAN MERGE CI: this workflow does NOT build the host system toplevels
-# (nixcon / nixtel / nixarm / nixamd / nixrpi). Building them — especially the cold
-# linux-rpi kernel (~1h, not in cache.nixos.org) — is a RELEASE-time concern handled
-# later against `nixosConfigurations.*` / `darwinConfigurations.*` directly. Per PR, we:
+# (macos / nixpi / nixvm). Building them — especially the cold linux-rpi
+# kernel — is a RELEASE-time concern handled later against
+# `nixosConfigurations.*` / `darwinConfigurations.*` directly. Per PR, we:
 #
 #   1. BUILD the flake's lint/format checks (`.#checks.<system>` = formatting +
 #      pre-commit) once per SYSTEM on that system's own native runner, and
 #   2. EVALUATE each host config's toplevel (cheap: forces full module eval,
 #      catching config/option/type errors) WITHOUT building it.
 #
-# ONE LEG PER HOST, each on its ARCH-NATIVE GitHub-hosted runner (free for public
-# repos, no QEMU) — so reintroducing a real toplevel BUILD later is a native build:
-#   nixamd (x86_64-linux)   -> ubuntu-24.04
-#   nixarm (aarch64-linux)  -> ubuntu-24.04-arm    (also evaluates nixrpi — same system/runner)
-#   nixtel (x86_64-darwin)  -> macos-15-intel      (Intel)
-#   nixcon (aarch64-darwin) -> macos-latest        (Apple Silicon / arm64)
+# ONE LEG PER SYSTEM, each on its ARCH-NATIVE GitHub-hosted runner (free for
+# public repos, no QEMU) — this is a 3-host, TWO-system aarch64-only fleet:
+#   aarch64-linux  -> ubuntu-24.04-arm   (evaluates nixpi + nixvm + both installers)
+#   aarch64-darwin -> macos-latest       (evaluates the macos darwinConfiguration)
 #
 # READ from the ismailkattakath Cachix cache is public (substituter + key below).
-# WRITE needs CACHIX_AUTH_TOKEN (a repo secret; absent on fork PRs, where the push
-# just no-ops). The cache is warmed reactively by this workflow's push-to-main run
-# and by release builds — no scheduled job.
+# WRITE needs CACHIX_AUTH_TOKEN (a repo secret; absent on fork PRs, where the
+# push just no-ops). The cache is warmed reactively by this workflow's push-to-main
+# run and by release builds — no scheduled job.
 
 on:
   pull_request:
@@ -38,15 +36,15 @@ permissions:
   contents: read
 
 jobs:
-  # One leg per host, on its arch-native runner. fail-fast:false so one host's
-  # failure doesn't cancel the others — the aggregate required-checks job decides
-  # the overall result. Each entry is its own status check `build (<host>)`;
-  # required-checks (needs: [build]) is the single stable branch-protection anchor,
-  # so renaming/adding legs never requires re-anchoring the ruleset.
+  # One leg per system, on its arch-native runner. fail-fast:false so one
+  # leg's failure doesn't cancel the other — the aggregate required-checks
+  # job decides the overall result. Each entry is its own status check
+  # `build (<name>)`; required-checks (needs: [build]) is the single stable
+  # branch-protection anchor, so renaming/adding legs never requires
+  # re-anchoring the ruleset.
   #
-  # `checks-system` names the flake system whose `.#checks.<system>` lint set this
-  # leg builds (once per system). The nixrpi leg omits it — its aarch64-linux
-  # checks are already built on the nixarm leg — and only evaluates its host config.
+  # `checks-system` names the flake system whose `.#checks.<system>` lint set
+  # this leg builds.
   build:
     name: build (${{ matrix.name }})
     runs-on: ${{ matrix.runs-on }}
@@ -55,36 +53,22 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # nixamd — x86_64-linux; also builds the x86_64-linux lint checks.
-          - name: nixamd
-            runs-on: ubuntu-24.04
-            checks-system: x86_64-linux
-            eval-attrs: >-
-              .#nixosConfigurations.nixamd.config.system.build.toplevel.drvPath
-              .#nixosConfigurations.nixamd-installer.config.system.build.toplevel.drvPath
-          # nixarm — aarch64-linux; builds the aarch64-linux lint checks and also
-          # evaluates nixrpi (same system + same native runner — no extra runner).
-          - name: nixarm
+          # aarch64-linux — evaluates both NixOS hosts (nixpi, nixvm) and both
+          # installer images; also builds the aarch64-linux lint checks.
+          - name: nixvm
             runs-on: ubuntu-24.04-arm
             checks-system: aarch64-linux
             eval-attrs: >-
-              .#nixosConfigurations.nixarm.config.system.build.toplevel.drvPath
-              .#nixosConfigurations.nixrpi.config.system.build.toplevel.drvPath
-              .#nixosConfigurations.nixarm-installer.config.system.build.toplevel.drvPath
-              .#nixosConfigurations.nixrpi-installer.config.system.build.toplevel.drvPath
-          # nixtel — x86_64-darwin on a NATIVE Intel runner (macos-15-intel — the
-          # last Intel image; macos-13 was retired 2025-12-04, and x86_64 macOS
-          # ends when macos-15 sunsets ~2027). Builds the x86_64-darwin lint checks
-          # (x86_64-darwin is in forAllSystems) AND evaluates the nixtel toplevel.
-          - name: nixtel
-            runs-on: macos-15-intel
-            checks-system: x86_64-darwin
-            eval-attrs: .#darwinConfigurations.nixtel.system.drvPath
-          # nixcon — aarch64-darwin (Apple Silicon); also builds the aarch64-darwin checks.
-          - name: nixcon
+              .#nixosConfigurations.nixpi.config.system.build.toplevel.drvPath
+              .#nixosConfigurations.nixvm.config.system.build.toplevel.drvPath
+              .#nixosConfigurations.nixpi-installer.config.system.build.toplevel.drvPath
+              .#nixosConfigurations.nixvm-installer.config.system.build.toplevel.drvPath
+          # aarch64-darwin (Apple Silicon) — the sole darwin host; also builds
+          # the aarch64-darwin lint checks.
+          - name: macos
             runs-on: macos-latest
             checks-system: aarch64-darwin
-            eval-attrs: .#darwinConfigurations.nixcon.system.drvPath
+            eval-attrs: .#darwinConfigurations.macos.system.drvPath
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
@@ -107,8 +91,7 @@ jobs:
       - name: Stage tree (git purity)
         run: git add -A
 
-      # Build this leg's SYSTEM lint/format checks and push to Cachix. Skipped on
-      # the nixrpi leg (its aarch64-linux checks are already built on the nixarm leg).
+      # Build this leg's SYSTEM lint/format checks and push to Cachix.
       - name: Build lint checks + push to Cachix
         if: matrix.checks-system != ''
         env:
