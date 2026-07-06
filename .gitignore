@@ -47,3 +47,12 @@ result-*
 *.key
 *.crt
 *.secrets
+
+# OpenTofu/Terraform working files — generated beside where a cf-*-apply app is
+# run (the rendered config.tf.json is a store copy; state + the provider plugin
+# dir must never be committed, and state can contain the sensitive tunnel token).
+config.tf.json
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl

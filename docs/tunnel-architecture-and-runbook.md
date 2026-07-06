@@ -23,7 +23,7 @@ Everything here is grounded in the repo files:
 - `hosts/macos.nix` — the client Mac (no tunnel, no incoming traffic at all)
 - `infra/cloudflare/nixpi-ssh.nix` — terranix: the ZTIA target/application/policy for `nixpi`
 - `flake.nix` — the `terranix` input + `cf-ssh-apply`/`cf-ssh-destroy` apps
-- `scripts/cf-one-provision.sh` — legacy Cloudflare-account-side tunnel provisioning (tunnel/DNS only; unaffected)
+- `infra/cloudflare/nixpi-tunnel.nix` — terranix: the remotely-managed tunnel + ingress + proxied CNAME + connector-token output (`cf-tunnel-apply`; tunnel/DNS only, unaffected by ZTIA)
 
 ---
 
@@ -362,7 +362,7 @@ executing the runbook in §9.)
 | Cloudflare-side ZTIA objects (target/application/policy) | `infra/cloudflare/nixpi-ssh.nix` |
 | terranix input + `cf-ssh-apply`/`cf-ssh-destroy` apps | `flake.nix` |
 | Token file (operator-placed, plain, unchanged) | `/etc/secrets/cloudflared-token` on `nixpi` |
-| Legacy tunnel + DNS provisioning script (unaffected) | `scripts/cf-one-provision.sh` |
+| Tunnel + ingress + DNS provisioning (terranix, `cf-tunnel-apply`; unaffected by ZTIA) | `infra/cloudflare/nixpi-tunnel.nix` |
 | Concrete step-by-step rollout walkthrough (this doc's §9, expanded) | `docs/ztia-rollout-runbook.md` |
 
 ### Related skills
