@@ -63,7 +63,8 @@ let
       config = {
         assertions = [
           {
-            assertion = (cfg.virtualHosts.${name}.reverseProxyTo != null) != (cfg.virtualHosts.${name}.root != null);
+            assertion =
+              (cfg.virtualHosts.${name}.reverseProxyTo != null) != (cfg.virtualHosts.${name}.root != null);
             message = "services.caddy-proxy.virtualHosts.${name}: set exactly one of `reverseProxyTo` or `root`.";
           }
         ];
