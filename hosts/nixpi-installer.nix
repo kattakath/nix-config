@@ -1,9 +1,9 @@
-# Minimal installer SD image for nixrpi (aarch64-linux / Raspberry Pi 4).
-# Flash to SD card, boot, SSH as nixos@nixrpi-installer.local, then run:
-#   sudo nixos-rebuild switch --flake github:ismailkattakath/nix-config#nixrpi
-# Reboot → ssh ismail@nixrpi.local → rekey agenix secrets (agenix-host-rekey skill)
+# Minimal installer SD image for nixpi (aarch64-linux / Raspberry Pi 4).
+# Flash to SD card, boot, SSH as nixos@nixpi-installer.local, then run:
+#   sudo nixos-rebuild switch --flake github:ismailkattakath/nix-config#nixpi
+# Reboot → ssh ismail@nixpi.local (mDNS) to confirm the LIVE config came up.
 _: {
-  networking.hostName = "nixrpi-installer";
+  networking.hostName = "nixpi-installer";
 
   raspberry-pi-nix.board = "bcm2711";
 

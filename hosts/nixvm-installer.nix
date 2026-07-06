@@ -1,9 +1,9 @@
-# Minimal NixOS installer ISO for nixamd (x86_64-linux).
-# Boot from this ISO, SSH as nixos@nixamd-installer.local, then run:
-#   nix --extra-experimental-features 'nix-command flakes' run github:ismailkattakath/nix-config#nixamd
-# Reboot → ssh ismail@nixamd.local
+# Minimal NixOS installer ISO for nixvm (aarch64-linux / UTM QEMU VM).
+# Boot from this ISO, SSH as nixos@nixvm-installer.local, then run:
+#   nix --extra-experimental-features 'nix-command flakes' run github:ismailkattakath/nix-config#nixvm
+# Reboot → ssh ismail@nixvm.local
 _: {
-  networking.hostName = "nixamd-installer";
+  networking.hostName = "nixvm-installer";
 
   services.openssh.enable = true;
 

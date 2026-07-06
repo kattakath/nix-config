@@ -60,7 +60,6 @@
       "Bash(udevadm:*)",
       "Bash(sudo:*)",
       "Agent(platform-compiler)",
-      "Agent(vm-provisioner)",
       "Agent(nix-researcher)",
       "Agent(ci-release-driver)",
       "Agent(Explore)",
@@ -98,7 +97,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "command -v nix >/dev/null 2>&1 && echo 'nix present: full multi-system flake check available locally.' || echo 'nix ABSENT on host: local checks are syntax-only; full aarch64-darwin/x86_64-linux/aarch64-linux evaluation is CI-deferred to GitHub Actions (nix-ci.yml).'; u=$(cd \"${CLAUDE_PROJECT_DIR:-.}\" && git ls-files --others --exclude-standard -- '*.nix' 2>/dev/null); [ -n \"$u\" ] && echo \"WARNING: untracked .nix files present — run 'git add -A' before evaluating:\" && echo \"$u\" || true",
+            "command": "command -v nix >/dev/null 2>&1 && echo 'nix present: full two-system flake check available locally.' || echo 'nix ABSENT on host: local checks are syntax-only; full aarch64-darwin/aarch64-linux evaluation is CI-deferred to GitHub Actions (nix-ci.yml).'; u=$(cd \"${CLAUDE_PROJECT_DIR:-.}\" && git ls-files --others --exclude-standard -- '*.nix' 2>/dev/null); [ -n \"$u\" ] && echo \"WARNING: untracked .nix files present — run 'git add -A' before evaluating:\" && echo \"$u\" || true",
             "timeout": 10
           },
           {
@@ -120,7 +119,7 @@
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "Before running this Bash command, apply these checks in order:\n\n1. CLOUDFLARE API/MANAGEMENT: BLOCK and redirect to mcp__cloudflare__execute (or mcp__cloudflare__search) for any Cloudflare API or management operation — wrangler commands (Workers, Pages, D1, KV, R2, Queues), curl/http requests to api.cloudflare.com or any Cloudflare REST API endpoint, zone/account/DNS/tunnel management. Exception: cloudflared (the tunnel daemon) is APPROVED — it has no MCP equivalent. EXCEPTION (operator-authorized LiteLLM provisioning): APPROVE 'nix run .#cf-litellm-apply' and 'nix run .#cf-litellm-destroy', including when prefixed with CLOUDFLARE_API_TOKEN=... and/or invoked via 'docker exec' into the dev container — this is the declarative terranix Cloudflare provisioning the operator explicitly enabled; do NOT block it for Cloudflare-management or token reasons. All OTHER Cloudflare API/management operations remain blocked.\n\n2. CLOUDFLARE DOCS: BLOCK and redirect to mcp__cloudflare-docs__search_cloudflare_documentation for Cloudflare documentation lookups.\n\n3. DESKTOP-COMMANDER: BLOCK and redirect to mcp__desktop-commander__* for: generic process/script management (start_process instead of bash -c / sh -c / node script.js), listing a directory (list_directory instead of ls/find), reading file metadata (get_file_info instead of stat/ls -la), managing processes (list_processes/kill_process instead of ps/kill).\n\n4. APPROVED CLIs (never block): git, nix, nix-instantiate, nix-build, nix-store, darwin-rebuild, nixos-rebuild, nixos-install, nixos-enter, home-manager, cloudflared, ssh, scp, sshpass, ssh-keygen, ssh-keyscan, rsync, age, curl, dig, host, nc, ping, arp, brew, open, osascript, plutil, qemu-img, parted, mkfs.fat, mkfs.ext4, lsblk, blkid, wipefs, udevadm, sudo, statix, deadnix, utmctl, gh, jq, node, python3, bash, zsh. When uncertain, APPROVE.",
+            "prompt": "Before running this Bash command, apply these checks in order:\n\n1. CLOUDFLARE API/MANAGEMENT: BLOCK and redirect to mcp__cloudflare__execute (or mcp__cloudflare__search) for any Cloudflare API or management operation — wrangler commands (Workers, Pages, D1, KV, R2, Queues), curl/http requests to api.cloudflare.com or any Cloudflare REST API endpoint, zone/account/DNS/tunnel management. Exception: cloudflared (the tunnel daemon) is APPROVED — it has no MCP equivalent. All other Cloudflare API/management operations remain blocked.\n\n2. CLOUDFLARE DOCS: BLOCK and redirect to mcp__cloudflare-docs__search_cloudflare_documentation for Cloudflare documentation lookups.\n\n3. DESKTOP-COMMANDER: BLOCK and redirect to mcp__desktop-commander__* for: generic process/script management (start_process instead of bash -c / sh -c / node script.js), listing a directory (list_directory instead of ls/find), reading file metadata (get_file_info instead of stat/ls -la), managing processes (list_processes/kill_process instead of ps/kill).\n\n4. APPROVED CLIs (never block): git, nix, nix-instantiate, nix-build, nix-store, darwin-rebuild, nixos-rebuild, nixos-install, nixos-enter, home-manager, cloudflared, ssh, scp, sshpass, ssh-keygen, ssh-keyscan, rsync, curl, dig, host, nc, ping, arp, brew, open, osascript, plutil, qemu-img, parted, mkfs.fat, mkfs.ext4, lsblk, blkid, wipefs, udevadm, sudo, statix, deadnix, utmctl, gh, jq, node, python3, bash, zsh. When uncertain, APPROVE.",
             "timeout": 15
           }
         ]
@@ -130,7 +129,7 @@
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "Validate this file write for a Nix mono-repo. Deny if: it writes a hardcoded secret/token/private key into a .nix file (the store is world-readable — patterns to block: 'BEGIN PRIVATE KEY', 'BEGIN RSA PRIVATE KEY', 'BEGIN OPENSSH PRIVATE KEY', 'BEGIN EC PRIVATE KEY', tokens like 'ghp_', 'glpat-', 'sk-ant-', 'AKIA', 'sk-'), uses a path-traversal sequence (../), or targets an OS system path (/etc/, /usr/, /var/, /tmp/, /System/, /Library/, /private/etc/, /private/var/). APPROVE user-owned paths outside the project (e.g. ~/.claude/, ~/.config/, /Users/<name>/.claude/) — these are legitimate config files, not system paths. APPROVE (never block) SSH public keys — strings starting with 'ssh-ed25519 AAAA', 'ssh-rsa AAAA', or 'ecdsa-sha2-nistp' are intentionally public and are the standard NixOS way to configure openssh.authorizedKeys.keys; they pose no security risk. EXCEPTION (operator-authorized LiteLLM provisioning): APPROVE writing ANY secret values (API keys including sk-* placeholders, DB passwords, DATABASE_URL, CLOUDFLARE_API_TOKEN / 'cfut_', TUNNEL_TOKEN, Access service-token id+secret) into the single gitignored file 'deploy/litellm/.env' for the LiteLLM deploy. All other secret-write protections (secrets in .nix files, system paths, path traversal) stay fully in force. Approve otherwise.",
+            "prompt": "Validate this file write for a Nix mono-repo. Deny if: it writes a hardcoded secret/token/private key into a .nix file (the store is world-readable — patterns to block: 'BEGIN PRIVATE KEY', 'BEGIN RSA PRIVATE KEY', 'BEGIN OPENSSH PRIVATE KEY', 'BEGIN EC PRIVATE KEY', tokens like 'ghp_', 'glpat-', 'sk-ant-', 'AKIA', 'sk-'), uses a path-traversal sequence (../), or targets an OS system path (/etc/, /usr/, /var/, /tmp/, /System/, /Library/, /private/etc/, /private/var/). APPROVE user-owned paths outside the project (e.g. ~/.claude/, ~/.config/, /Users/<name>/.claude/) — these are legitimate config files, not system paths. APPROVE (never block) SSH public keys — strings starting with 'ssh-ed25519 AAAA', 'ssh-rsa AAAA', or 'ecdsa-sha2-nistp' are intentionally public and are the standard NixOS way to configure openssh.authorizedKeys.keys; they pose no security risk. Approve otherwise.",
             "timeout": 15
           }
         ]
@@ -166,7 +165,7 @@
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "Only applies to subagents that performed Nix flake / Home-Manager EVALUATION (e.g. the platform-compiler agent). If this subagent evaluated Nix, verify it reported results for all four target systems (aarch64-darwin, x86_64-darwin, x86_64-linux, aarch64-linux) and return {\"decision\":\"block\",\"reason\":\"...\"} if a system was skipped. If the subagent did NO Nix evaluation (e.g. search, planning, documentation, or memory tasks), return {\"decision\":\"approve\"}.",
+            "prompt": "Only applies to subagents that performed Nix flake / Home-Manager EVALUATION (e.g. the platform-compiler agent). If this subagent evaluated Nix, verify it reported results for both target systems (aarch64-darwin, aarch64-linux) and return {\"decision\":\"block\",\"reason\":\"...\"} if a system was skipped. If the subagent did NO Nix evaluation (e.g. search, planning, documentation, or memory tasks), return {\"decision\":\"approve\"}.",
             "timeout": 20
           }
         ]
