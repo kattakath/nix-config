@@ -4,11 +4,13 @@
 
 We evaluated **Cloudflare One Zero Trust Infrastructure Access (ZTIA)** — identity-gated SSH backed by **short-lived, CA-signed certificates** — as an alternative to the current static-key model for the NixOS hosts.
 
-**Decision: do NOT adopt at the current solo / three-host scale. Keep the loginless static-key model.**
+**Decision: do NOT adopt at the current solo / two-NixOS-host scale. Keep the loginless static-key model.**
 
-At one operator, one key, three low-value personal hosts, and a working LAN break-glass, ZTIA's audit / revocation / central-policy benefits are largely theoretical, while the costs (a hard IdP + WARP + Access + CA login dependency, more moving parts to own, periodic browser re-auth, an unconfirmed machine/CI path) are real. This document records **what ZTIA would look like if built**, **why we passed**, and **the concrete triggers that would make us revisit** — so a future reader (or future us) doesn't have to re-derive it.
+At one operator, one key, two low-value personal NixOS hosts, and a working LAN break-glass, ZTIA's audit / revocation / central-policy benefits are largely theoretical, while the costs (a hard IdP + WARP + Access + CA login dependency, more moving parts to own, periodic browser re-auth, an unconfirmed machine/CI path) are real. This document records **what ZTIA would look like if built**, **why we passed**, and **the concrete triggers that would make us revisit** — so a future reader (or future us) doesn't have to re-derive it.
 
 **Nothing in this evaluation has been applied.** No Cloudflare resource was created; no `.nix` file was changed. All Nix snippets below are illustrative.
+
+> **Update:** Cloudflare One is separately being adopted in this repo for **MCP (Model Context Protocol) tool aggregation** — an unrelated use case that is the reason the earlier LiteLLM proxy container path was dropped. That adoption does not change or revisit the ZTIA-for-SSH decision recorded below: this document's evaluation and "do not adopt" verdict for SSH access still holds as-is. Treat the two as independent decisions about the same vendor, not a single evolving plan.
 
 > Doc-retrieval note: every Cloudflare-specific claim below was checked against current Cloudflare One docs on **2026-07-03**; cited URLs are inline (see [Sources](#sources)). Items that could not be confirmed are flagged in [Open flags](#open-flags-need-live-verification) rather than asserted from memory. The single most important such flag: **Access service tokens are documented for HTTP apps only** — the machine/CI path over ZTIA SSH is an open question, not a confirmed capability.
 
@@ -23,21 +25,21 @@ The clearest way to reason about this decision:
 - **In scope for ZTIA:** SSH into my own hosts. Today that is a static ed25519 key; ZTIA would swap it for _identity + a short-lived certificate_ minted per login.
 - **Out of scope, unchanged:** every credential for third-party services — `gh` / `docker` / `hf` / `claude` logins, the Cachix write token (a GitHub Actions secret), and the git SSH **signing** key. Those stay exactly where they are (macOS login Keychain, one-time CLI logins, GitHub Actions secrets). ZTIA touches **SSH login auth only**; nothing else in the [secrets model](../CLAUDE.md) moves.
 
-This framing matters because it bounds the blast radius: adopting ZTIA is a change to _one credential type on three hosts_, not a re-architecture of the repo's secrets strategy.
+This framing matters because it bounds the blast radius: adopting ZTIA is a change to _one credential type on the NixOS hosts_, not a re-architecture of the repo's secrets strategy.
 
 ---
 
 ## Today's baseline (what ZTIA would change)
 
-The three NixOS hosts — `nixarm` (aarch64 UTM/QEMU VM), `nixrpi` (Raspberry Pi 4, aarch64), `nixamd` (x86_64, config-only until real hardware) — reach SSH like this:
+This fleet has two NixOS hosts — `nixpi` (Raspberry Pi 4, aarch64, the live server with a public Cloudflare Tunnel + Caddy) and `nixvm` (aarch64 UTM/QEMU sandbox VM, no tunnel, no public ingress by design) — plus `macos` (aarch64-darwin, MacBook client only; it never accepts inbound SSH). Only `nixpi` reaches SSH over Cloudflare today; `nixvm` is LAN/local-only. SSH into `nixpi` looks like this:
 
 | Layer | Today | Where it lives |
 |---|---|---|
-| **Connectivity** (packets reach sshd) | Per-host remotely-managed (token) Cloudflare Tunnel. A hardened `systemd.services.cloudflared-connector` runs `cloudflared --no-autoupdate tunnel run`, `TUNNEL_TOKEN` from an agenix `EnvironmentFile`. | `modules/nixos/cloudflared.nix`; per-host `age.secrets."<host>-tunnel-token"` in `hosts/<host>.nix` |
+| **Connectivity** (packets reach sshd) | Remotely-managed (token) Cloudflare Tunnel on `nixpi` only. A hardened `systemd.services.cloudflared-connector` runs `cloudflared --no-autoupdate tunnel run`, with the tunnel token read from a plain operator-placed environment file (no encryption, no rekey step — see the repo's [secrets model](../CLAUDE.md) for the `/etc/secrets` convention). | `modules/nixos/cloudflared.nix`; operator-placed secret file on `nixpi` |
 | **Authorization** (are you allowed) | **None.** The public hostname has no Access policy — reaching the tunnel is gated purely by possession of the ed25519 private key. This is _why_ sshd is locked keys-only. | Cloudflare account (ingress `<host>.kattakath.com → ssh://localhost:22`) |
 | **Identity** (who are you) | **None.** | — |
 | **Credential** (what sshd trusts) | A single static key: `users.users.ismail.openssh.authorizedKeys.keys = [ "ssh-ed25519 …STGsS" ]`, with `PasswordAuthentication = false`, `KbdInteractiveAuthentication = false`, `PermitRootLogin = "no"`. | `modules/nixos/core.nix` |
-| **Client reach** | darwin-only `ProxyCommand = "cloudflared access ssh --hostname %h"` on `*.kattakath.com`. Loginless: no WARP, no interactive auth. `ssh ismail@<host>.kattakath.com` just works. | `modules/shared/home.nix` |
+| **Client reach** | An ad-hoc (not yet declaratively wired) `ProxyCommand = "cloudflared access ssh --hostname %h"` reaches `nixpi.kattakath.com`. Loginless: no WARP, no interactive auth. | `modules/shared/home.nix` (currently declares only a `*.local` block; see `docs/tunnel-architecture-and-runbook.md` §7) |
 | **Break-glass** | avahi/mDNS publishes `<host>.local` on the LAN; LAN SSH with the same key bypasses Cloudflare entirely. | `modules/nixos/core.nix` (`services.avahi`) |
 
 **What ZTIA changes:** it inserts an **identity** layer (an IdP login) and an **authorization** layer (an Access policy) in front of SSH, and replaces the static authorized key with **short-lived certificates** minted per-login by a **Cloudflare-hosted SSH CA**. The static key stops being the credential; your Access identity becomes the credential.
@@ -60,7 +62,7 @@ ZTIA decomposes SSH into three independent layers that compose on top of connect
 ```
                                         ┌─────────────────── Cloudflare edge ───────────────────┐
   ismail@mac                              │                                                        │
-  ssh ismail@nixarm                       │  Access (Infra app) ── policy: allow ismail@… ──> ALLOW  │
+  ssh ismail@nixpi                        │  Access (Infra app) ── policy: allow ismail@… ──> ALLOW  │
      │  WARP client (Traffic+DNS)       │        │                                               │
      │  intercepts TCP:22 to target IP  │        ▼                                               │
      ├────────────────────────────────► │   SSH CA signs a SHORT-LIVED cert                      │
@@ -70,7 +72,7 @@ ZTIA decomposes SSH into three independent layers that compose on top of connect
      │                                  │   forwards to host connector ──────────┐               │
      └──────────────────────────────────────────────────────────────────────────┼──────────────┘
                                                                                   ▼
-                                                              nixarm sshd: TrustedUserCAKeys /etc/ssh/ca.pub
+                                                              nixpi sshd: TrustedUserCAKeys /etc/ssh/ca.pub
                                                               validates cert → principal maps to unix user ismail
                                                               (no authorized_keys entry needed)
 ```
@@ -99,12 +101,12 @@ Intended: CI/automation authenticates with an Access **service token** (`CF-Acce
 
 For a solo operator, groups are moot: policies can match your **email** directly, so IdP choice is really about login ergonomics. **Pick one primary IdP (GitHub) and optionally add OTP as break-glass.** (OTP is not on by default and lacks group membership; switching auth methods drops IdP group evaluation.)
 
-### One Infrastructure Access application covering all three hosts
+### One Infrastructure Access application covering both NixOS hosts
 
 - **Type:** Infrastructure (Zero Trust → Access controls → Applications → Create new application → **Infrastructure**).
-- **Targets** (Zero Trust → Access controls → **Targets** → Add a target): one per host — `nixarm`, `nixrpi`, `nixamd` — each pinned to its **IP address(es) + virtual network**. Doc constraint: an IP + virtual-network pairing is unique to one target and **cannot be reused**.
+- **Targets** (Zero Trust → Access controls → **Targets** → Add a target): one per host — `nixpi`, `nixvm` — each pinned to its **IP address(es) + virtual network**. Doc constraint: an IP + virtual-network pairing is unique to one target and **cannot be reused**.
 - **Protocol/port:** SSH on port **22** per target. Doc: "Access for Infrastructure only supports assigning one protocol per port."
-- **Connection context / SSH user:** the permitted UNIX usernames — here `ismail` (optionally the "log in as email alias" toggle). Doc: "Cloudflare will not create new users on the target. UNIX users must already be present on the server." `ismail` already exists on all three via `users.users.${username}` in `modules/nixos/core.nix`.
+- **Connection context / SSH user:** the permitted UNIX usernames — here `ismail` (optionally the "log in as email alias" toggle). Doc: "Cloudflare will not create new users on the target. UNIX users must already be present on the server." `ismail` already exists on both via `users.users.${username}` in `modules/nixos/core.nix`.
 
 ### Access policy
 
@@ -116,7 +118,7 @@ For a solo operator, groups are moot: policies can match your **email** directly
 
 - Generate the **Cloudflare SSH CA**: Zero Trust → Access controls → **Service credentials** → **SSH** → Add a certificate → "SSH with Access for Infrastructure" → **Generate SSH CA**. Copy the **CA public key**.
 - **For SSH command logging you must create the CA via the `gateway_ca` API endpoint** (`POST /accounts/$ACCOUNT_ID/access/gateway_ca`) — the dashboard-generated CA does **not** enable logging. Response field: `public_key`.
-- The CA public key is **public** (format `ecdsa-sha2-nistp256 <key> open-ssh-ca@cloudflareaccess.org`) → **safe to commit to Nix**, unlike the tunnel token. No agenix needed for it.
+- The CA public key is **public** (format `ecdsa-sha2-nistp256 <key> open-ssh-ca@cloudflareaccess.org`) → **safe to commit to Nix**, unlike the tunnel token (which stays a plain operator-placed secret file, never committed).
 
 ### WARP enrollment + session duration
 
@@ -134,7 +136,7 @@ Create one Access service token (Service credentials → **Service Tokens** → 
 
 ### Trust the Cloudflare SSH CA in sshd (`modules/nixos/core.nix`)
 
-The CA public key is public → embed it directly in Nix (no agenix). sshd must trust it via `TrustedUserCAKeys`:
+The CA public key is public → embed it directly in Nix (no secret-handling mechanism needed at all — public keys are safe in the world-readable store). sshd must trust it via `TrustedUserCAKeys`:
 
 ```nix
 # modules/nixos/core.nix — ILLUSTRATIVE, NOT APPLIED
@@ -170,19 +172,20 @@ Under ZTIA the cert principal is the permitted **SSH user** from the Access poli
 ### Coexist, then replace `authorizedKeys` (two phases)
 
 - **Phase 1 — coexist (recommended pilot).** Keep `users.users.ismail.openssh.authorizedKeys.keys = [ ed25519 ]` **and** add `TrustedUserCAKeys`. sshd accepts either a valid CA-signed cert **or** the static key. This is the safe migration state: ZTIA works while the old key remains as break-glass.
-- **Phase 2 — replace.** Remove the `authorizedKeys.keys` entry so the **only** accepted credential is a CA-signed cert. Do this **per-host**, only after Phase 1 is proven, and **never on all three at once**.
+- **Phase 2 — replace.** Remove the `authorizedKeys.keys` entry so the **only** accepted credential is a CA-signed cert. Do this **per-host**, only after Phase 1 is proven, and **never on both NixOS hosts at once**.
 
 ### Connectivity: keep the token tunnel, or move to WARP Connector?
 
 - ZTIA's documented model is **WARP client (Traffic + DNS) on the operator's device + a connector on the host side**, with the target reached by **IP** (`ssh ismail@<target-ip>`), not by the public `<host>.kattakath.com` hostname + `cloudflared access ssh` ProxyCommand used today.
-- The existing **token tunnel can stay as the host-side connector**; ZTIA layers Access + CA on top. Whether the current public-hostname ingress is reused or replaced by an Infra-target IP/network route is a **routing decision to confirm live** — the Infra app matches targets (IP + virtual network), so a **network/private-IP route** is the natural fit, and the public-hostname SSH ingress may become redundant.
-- The `ProxyCommand` in `modules/shared/home.nix` would be **removed** for ZTIA hosts (WARP handles interception); it stays only for any host still on the loginless path.
+- The existing **token tunnel (on `nixpi` only) can stay as the host-side connector**; ZTIA layers Access + CA on top. Whether the current public-hostname ingress is reused or replaced by an Infra-target IP/network route is a **routing decision to confirm live** — the Infra app matches targets (IP + virtual network), so a **network/private-IP route** is the natural fit, and the public-hostname SSH ingress may become redundant.
+- The `ProxyCommand` (once wired declaratively, or used ad-hoc as today) would be **removed** for a ZTIA host (WARP handles interception); it stays only for any host still on the loginless path.
+- `nixvm` has no tunnel or public ingress today, so a ZTIA Infra target for it implies **adding** connectivity (WARP Connector or a new tunnel) where none exists now — a bigger first step than `nixpi`, which already has a connector to layer on top of.
 
 ### Per-host notes
 
-- **nixarm** (aarch64 UTM/QEMU VM): ideal **pilot**. Disposable, most-exercised tunnel host, and the `nixarm-vm` tooling makes rebuild-and-retry cheap. Change here first.
-- **nixrpi** (Pi 4, durable hardware): adopt only after nixarm proves out. WARP is client-side, so the Pi only runs the connector + sshd (cost unchanged).
-- **nixamd** (future x86_64 hardware): config-only today, `tunnelReady = false`. ZTIA wiring can be added inert (behind the same `let … = false` gate) so it evaluates but stays off until real hardware exists.
+- **nixpi** (Raspberry Pi 4, durable hardware, the only host with a live tunnel today): the natural **pilot** — it already has a connector to layer Access + CA on top of, no new connectivity required.
+- **nixvm** (aarch64 UTM/QEMU sandbox VM, no tunnel/no public ingress by design): adopt only after `nixpi` proves out, and only if this VM's isolation posture is meant to change — ZTIA would require standing up connectivity (WARP Connector or a tunnel) that intentionally does not exist today.
+- **macos** is a client only; it never runs sshd or accepts inbound connections, so it has no per-host ZTIA notes of its own — it only needs the WARP client / `cloudflared access ssh` on the operator side.
 
 ---
 
@@ -192,9 +195,9 @@ Under ZTIA the cert principal is the permitted **SSH user** from the Access poli
 
 1. **Add, don't replace (Phase 1).** Add `TrustedUserCAKeys` while keeping `authorizedKeys`. Both credentials valid.
 2. **Keep `.local` as break-glass.** LAN SSH via mDNS + static key never goes through Cloudflare — the deliberate escape hatch if Access/WARP/CA/IdP is down. Do not remove it during migration.
-3. **Pilot on ONE host — nixarm only.** Provision the Infra app/target/policy/CA + sshd trust for nixarm alone. Prove: authorized login works, unauthorized identity is denied, static-key break-glass still works, `.local` still works.
+3. **Pilot on ONE host — nixpi only.** Provision the Infra app/target/policy/CA + sshd trust for nixpi alone (it already has a tunnel connector to layer on top of). Prove: authorized login works, unauthorized identity is denied, static-key break-glass still works, `.local` still works.
 
-**Safe pilot sequence:** (1) generate SSH CA via API if you want Audit SSH; (2) create Infra app + nixarm target + Allow policy; (3) set up WARP enrollment + your device; (4) add `TrustedUserCAKeys` to nixarm (Phase 1, coexist), rebuild the VM; (5) test all four outcomes; (6) only then consider Phase 2 and other hosts.
+**Safe pilot sequence:** (1) generate SSH CA via API if you want Audit SSH; (2) create Infra app + nixpi target + Allow policy; (3) set up WARP enrollment + your device; (4) add `TrustedUserCAKeys` to nixpi (Phase 1, coexist), rebuild; (5) test all four outcomes; (6) only then consider Phase 2 and nixvm (which would first need connectivity stood up, since it has none today).
 
 **Rollback:**
 
@@ -217,9 +220,9 @@ Under ZTIA the cert principal is the permitted **SSH user** from the Access poli
 - **A hard login dependency.** SSH now depends on IdP + WARP + Access + CA all being up and your device enrolled. Today's model has _zero_ such dependency (the `.local` break-glass mitigates this only on-LAN).
 - **Cloudflare becomes a chokepoint** for remote access — an outage or account issue blocks SSH (mitigated only by break-glass).
 - **Friction:** periodic browser re-auth; WARP installed and running on every client device; the machine/CI path is unconfirmed and may be awkward.
-- **Setup + maintenance surface:** an IdP, an Infra app, targets, a policy, a CA, WARP enrollment, device profiles, split-tunnel routing — a lot of moving parts for one operator and three hosts.
+- **Setup + maintenance surface:** an IdP, an Infra app, targets, a policy, a CA, WARP enrollment, device profiles, split-tunnel routing — a lot of moving parts for one operator and two NixOS hosts.
 
-**Why we passed:** at solo scale with three low-value personal hosts, the audit/revocation/central-policy benefits are largely theoretical — one user, one key, a working break-glass. The current loginless key model is simpler, has no cloud auth dependency, and is already hardened (keys-only, no passwords, no root, tunnel not publicly routable). ZTIA's payoff appears with multiple users, contractors, compliance requirements, or many hosts — none of which apply today.
+**Why we passed:** at solo scale with two low-value personal NixOS hosts (only one of which is even tunnel-reachable today), the audit/revocation/central-policy benefits are largely theoretical — one user, one key, a working break-glass. The current loginless key model is simpler, has no cloud auth dependency, and is already hardened (keys-only, no passwords, no root, tunnel not publicly routable). ZTIA's payoff appears with multiple users, contractors, compliance requirements, or many hosts — none of which apply today.
 
 ### Revisit ZTIA when any of these become true
 
@@ -242,9 +245,9 @@ Verify these against live docs / the CF account before ever building:
 2. **WARP session duration field + max for SSH.** Docs state a ~10h max SSH session; the exact re-auth/session-duration setting name and bounds were not confirmed. Verify in device-enrollment / session settings.
 3. **Connectivity model — tunnel reuse vs IP/network route.** Confirm whether the existing token tunnel + public-hostname ingress is reused, or whether ZTIA requires a **network / private-IP route** (target = IP + virtual network) and the public SSH hostname becomes redundant. Confirm the split-tunnel Include entry aligns with the tunnel route.
 4. **CA-for-logging split.** Confirm that only the **`gateway_ca` API-generated** CA enables SSH command logging and a dashboard-generated CA does not — decide API vs dashboard generation accordingly.
-5. **sshd directive ordering under NixOS.** The doc says put `PubkeyAuthentication` / `TrustedUserCAKeys` "above all other directives"; NixOS **appends** `extraConfig`. Verify the rendered `sshd_config` on the nixarm pilot accepts the cert — and whether an `AuthorizedPrincipalsCommand` / `AuthorizedPrincipalsFile` is actually needed for the Infra path (docs imply principal = SSH user, no principals file).
+5. **sshd directive ordering under NixOS.** The doc says put `PubkeyAuthentication` / `TrustedUserCAKeys` "above all other directives"; NixOS **appends** `extraConfig`. Verify the rendered `sshd_config` on the nixpi pilot accepts the cert — and whether an `AuthorizedPrincipalsCommand` / `AuthorizedPrincipalsFile` is actually needed for the Infra path (docs imply principal = SSH user, no principals file).
 6. **Email-alias principal.** If enabling "log in as email alias," confirm the lowercased email prefix resolves to an existing UNIX user or maps to `ismail` — otherwise logins fail (no user auto-creation).
-7. **aarch64 target support.** Confirm ZTIA SSH has no arch caveats for aarch64 hosts (`nixarm`/`nixrpi`) — nothing in the docs suggested arch limits, but verify before relying on it for the Pi.
+7. **aarch64 target support.** Confirm ZTIA SSH has no arch caveats for aarch64 hosts (`nixpi`/`nixvm` — this fleet is aarch64-only) — nothing in the docs suggested arch limits, but verify before relying on it for the Pi.
 8. **IdP re-auth ergonomics.** If choosing GitHub OIDC, confirm silent re-auth behavior; OTP's emailed-code friction is confirmed and makes it a fallback only.
 
 ---
@@ -263,8 +266,8 @@ Retrieved 2026-07-03:
 
 ### Repo cross-references
 
-- `modules/nixos/core.nix` — sshd hardening, the static `authorizedKeys` entry, avahi `.local` break-glass, `age.identityPaths`.
-- `modules/nixos/cloudflared.nix` — the hardened token-connector systemd unit (no-op unless the host declares `age.secrets."<host>-tunnel-token"`).
-- `modules/shared/home.nix` — the darwin-only `cloudflared access ssh` `ProxyCommand` on `*.kattakath.com`.
-- `hosts/nixarm.nix`, `hosts/nixrpi.nix`, `hosts/nixamd.nix` — per-host tunnel wiring and the `tunnelReady` gate on nixamd.
-- `CLAUDE.md` — the secrets model (agenix for system/service creds; Keychain / one-time CLI logins for personal tokens; Cachix write token as a GitHub Actions secret only).
+- `modules/nixos/core.nix` — sshd hardening, the static `authorizedKeys` entry, avahi `.local` break-glass.
+- `modules/nixos/cloudflared.nix` — the hardened token-connector systemd unit (no-op unless the host sets `services.cloudflared-connector.enable = true`; reads its token from a plain operator-placed file, default `/etc/secrets/cloudflared-token` — no encryption, no rekey step).
+- `modules/shared/home.nix` — the darwin-only SSH config; a `cloudflared access ssh` `ProxyCommand` for `nixpi.kattakath.com` is documented but not yet declaratively wired (see `docs/tunnel-architecture-and-runbook.md` §7).
+- `hosts/nixvm.nix`, `hosts/nixpi.nix` — per-host tunnel wiring; only `nixpi` enables the connector.
+- `CLAUDE.md` — the secrets model (plain operator-placed files at `/etc/secrets/<name>` for system/service creds, never committed; Keychain / one-time CLI logins for personal tokens; Cachix write token as a GitHub Actions secret only).
