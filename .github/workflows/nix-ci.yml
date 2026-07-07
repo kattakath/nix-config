@@ -97,7 +97,10 @@ jobs:
         env:
           CACHIX_AUTH_TOKEN: ${{ github.event_name == 'push' && secrets.CACHIX_AUTH_TOKEN || '' }}
         run: |
-          nix run github:Mic92/nix-fast-build -- \
+          # Pinned to a specific rev (as of 2026-07-05; no newer release tag
+          # exists yet) rather than the default branch, matching this repo's
+          # convention of not executing unpinned upstream refs in CI.
+          nix run github:Mic92/nix-fast-build/561be51b96d376c9c6c49a063cfdc83af81f4929 -- \
             --skip-cached --no-nom \
             --flake ".#checks.${{ matrix.checks-system }}" \
             --cachix-cache ismailkattakath

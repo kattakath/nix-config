@@ -23,7 +23,10 @@ on:
 
 concurrency:
   group: build-installers-${{ github.ref }}
-  cancel-in-progress: true
+  # false: this workflow publishes a matched pair of images to the same rolling
+  # release. Cancelling one matrix leg mid-upload on a rapid double-push could
+  # leave installer-latest with one image updated and the other stale.
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -55,10 +58,15 @@ jobs:
             extra-substituters = https://ismailkattakath.cachix.org
             extra-trusted-public-keys = ismailkattakath.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I=
 
+      # skipPush: the two matrix jobs share overlapping closure paths (firmware/
+      # regdb packages); cachix-action's implicit post-job auto-push races between
+      # them and intermittently 403s. Push explicitly below, wrapped in a retry —
+      # Cachix store paths are content-addressed, so a retried push is safe.
       - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
         with:
           name: ismailkattakath
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          skipPush: true
 
       - name: Stage tree (git purity)
         run: git add -A
@@ -66,8 +74,16 @@ jobs:
       - name: Build ${{ matrix.name }}
         run: nix build ${{ matrix.package }} --out-link result
 
+      - name: Push to Cachix
+        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 15
+          command: cachix push ismailkattakath result
+
       - name: Publish to installer-latest release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: installer-latest
           name: "Installer Images (latest)"
