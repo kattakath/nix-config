@@ -4,6 +4,20 @@ Don't fragment a working session's output across multiple small PRs. When a PR i
 already open for the current session's work, push follow-up commits onto that
 same branch instead of branching off `main` again for the next change.
 
+## Why
+
+This repo's CI builds are expensive (Nix closure builds pushed to Cachix, plus
+installer/devcontainer image publishes), and the costliest workflow does **not**
+supersede its own in-flight runs. `build-installers.yml` sets its `concurrency`
+group to `cancel-in-progress: false`, so a new push does not cancel an already
+running installer publish — the runs **queue** and each one completes in full.
+(The cheaper workflows — `nix-ci.yml`, `build-devcontainer.yml`, `gitleaks.yml`,
+`claude-config-lint.yml` — do set `cancel-in-progress: true` and self-supersede.)
+Because of that non-cancellable release workflow, every extra PR or push spawns
+another costly pipeline run that piles up rather than replacing the previous one.
+Consolidating a session's work onto one open PR avoids triggering redundant
+expensive, non-cancellable runs.
+
 ## Mandatory behavior
 
 1. **Before opening a new PR**, check whether a PR from earlier in this session is
