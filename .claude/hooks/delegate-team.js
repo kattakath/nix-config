@@ -4,9 +4,11 @@
  *
  * Fires on every user prompt and injects a standing instruction steering the
  * main agent to act as an orchestrator/decision-maker ONLY: substantive tasks
- * are decomposed and delegated to a background team of specialized subagents
- * (Agent tool, run_in_background:true) — which may themselves nest sub-teams —
- * the main thread never idle-waits (if it's waiting, it should have delegated),
+ * are routed to a single persistent background 'manager' agent (Agent tool,
+ * run_in_background:true) — reused via SendMessage for the rest of the
+ * session once spawned, never duplicated — which itself owns decomposing and
+ * fanning out to specialized subagents and may nest further sub-teams. The
+ * main thread never idle-waits (if it's waiting, it should have delegated),
  * and background agents' interrupts / questions are answered as they arrive.
  *
  * Protocol: reads the UserPromptSubmit event JSON from stdin (ignored), prints
@@ -23,18 +25,32 @@ try {
 
 const additionalContext = [
   "ORCHESTRATION POLICY (background team) — this repo operates orchestrator-first:",
-  "- You are the ORCHESTRATOR and decision-maker, not the worker. For any",
-  "  SUBSTANTIVE task — multi-step work, a change spanning more than one file,",
-  "  research, root-cause investigation, or anything non-trivial — do NOT do the",
-  "  work inline. Decompose it and delegate to a background team of specialized",
-  "  subagents via the Agent tool with run_in_background: true, choosing the most",
-  "  fitting subagent_type per piece (e.g. Explore or nix-researcher for search",
-  "  and root-cause, platform-compiler for Nix evaluation, ci-release-driver for",
-  "  push→CI→merge loops, Plan for design, general-purpose otherwise). Launch",
-  "  independent pieces in a SINGLE message so they run concurrently.",
-  "- Delegation is RECURSIVE: subagents may form their own sub-hierarchies. A",
-  "  delegated agent whose slice is itself substantive is expected to further",
-  "  decompose and spawn its own background sub-team rather than grind alone.",
+  "- You are the ORCHESTRATOR and decision-maker, not the worker — and not a",
+  "  fan-out point either. For any SUBSTANTIVE task — multi-step work, a change",
+  "  spanning more than one file, research, root-cause investigation, or anything",
+  "  non-trivial — do NOT do the work inline, and do NOT spawn multiple",
+  "  independent top-level subagents yourself. Route it through a single MANAGER",
+  "  AGENT instead (below).",
+  "- MANAGER AGENT: maintain exactly ONE persistent background 'manager' agent",
+  "  per session; do not create a second one.",
+  "  - Before dispatching any substantive task, check whether you already",
+  "    spawned a manager earlier this session (you will have its agentId from",
+  "    that spawn's tool result).",
+  "  - If a manager already exists: hand the new instruction to it via",
+  "    SendMessage (to: its agentId) instead of creating a duplicate manager or",
+  "    a new top-level agent.",
+  "  - If none exists yet: spawn exactly ONE (subagent_type: general-purpose,",
+  "    run_in_background: true, description mentioning 'manager'), remember its",
+  "    agentId for the rest of the session, and give it this task.",
+  "  - The manager OWNS fan-out: it picks the fitting subagent_type per piece",
+  "    (Explore or nix-researcher for search and root-cause, platform-compiler",
+  "    for Nix evaluation, ci-release-driver for push→CI→merge loops, Plan for",
+  "    design, general-purpose otherwise), launches independent pieces in a",
+  "    single message so they run concurrently, and reports back to you.",
+  "- Delegation is RECURSIVE: the manager (or any agent it spawns) may form its",
+  "  own sub-hierarchies. A delegated agent whose slice is itself substantive is",
+  "  expected to further decompose and spawn its own background sub-team rather",
+  "  than grind alone.",
   "- NEVER sit idle waiting on a background agent. If you are waiting, that is the",
   "  signal you should have delegated — delegate the next independent piece",
   "  instead of blocking or idle-polling. Keep the main thread free to accept the",
