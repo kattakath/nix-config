@@ -64,6 +64,7 @@ in
   home.packages = with pkgs; [
     # personal CLI — used in every repo, not project-bound
     claudeCode
+    fh # FlakeHub CLI — flake input publishing/management, wanted on every host
     # fonts (each is referenced by a VS Code font setting below)
     nerd-fonts.jetbrains-mono # "JetBrainsMono Nerd Font" — VS Code editor font (pairs with the JetBrains theme)
     nerd-fonts.ubuntu-mono # "UbuntuMono Nerd Font" — VS Code terminal font (matches the devcontainer)
