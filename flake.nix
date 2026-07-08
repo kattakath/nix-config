@@ -300,7 +300,13 @@
           extraModules ? [ ],
         }:
         nixpkgs.lib.nixosSystem {
-          inherit system;
+          # Set the platform via the MODERN `nixpkgs.hostPlatform` module option
+          # (below), NOT nixosSystem's legacy `system` arg — that arg only sets
+          # the deprecated `nixpkgs.system`, leaving `nixpkgs.hostPlatform`
+          # undefined. Modules such as github-nix-ci read
+          # `config.nixpkgs.hostPlatform.system` and would otherwise fail with
+          # "option `nixpkgs.hostPlatform' was accessed but has no value". The two
+          # cannot both be set (nixpkgs forbids it), so we drop the arg entirely.
           specialArgs = {
             inherit
               userName
@@ -315,6 +321,7 @@
               ;
           };
           modules = [
+            { nixpkgs.hostPlatform = system; }
             ./hosts/${hostname}.nix
             ./modules/nixos/core.nix
             ./modules/shared/nix-cache.nix # Cachix binary cache (read)
