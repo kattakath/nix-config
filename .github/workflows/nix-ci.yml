@@ -36,6 +36,20 @@ permissions:
   contents: read
 
 jobs:
+  # Advisory input-freshness gate — the FlakeHub "keep your inputs fresh" best
+  # practice (https://docs.determinate.systems/flakehub/best-practices/). Warns
+  # (does NOT fail; fail-mode defaults off) when the nixos-unstable input in
+  # flake.lock drifts stale or off a supported branch. Deliberately NOT in
+  # required-checks' `needs` — it's advisory, pairing with the scheduled
+  # update-flake-lock.yml that actually cuts the bump PR.
+  flake-checker:
+    name: flake-checker
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: DeterminateSystems/flake-checker-action@3164002371bc90729c68af0e24d5aacf20d7c9f6 # v12
+
   # One leg per system, on its arch-native runner. fail-fast:false so one
   # leg's failure doesn't cancel the other — the aggregate required-checks
   # job decides the overall result. Each entry is its own status check
