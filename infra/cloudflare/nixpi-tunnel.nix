@@ -12,8 +12,9 @@
 #       (cloudflare_zero_trust_tunnel_cloudflared_config): the public-hostname
 #       SSH route, the kattakath.com -> local Caddy route, and the required
 #       catch-all 404 rule;
-#   (c) a proxied CNAME  <hostname> -> <tunnel-id>.cfargotunnel.com
-#       (cloudflare_dns_record);
+#   (c) proxied CNAMEs -> <tunnel-id>.cfargotunnel.com (cloudflare_dns_record):
+#       nixpi.kattakath.com (the SSH ingress host) AND the apex kattakath.com
+#       (so the Caddy landing-page ingress rule is publicly reachable);
 #   (d) the connector token, surfaced as a SENSITIVE `output` via the
 #       cloudflare_zero_trust_tunnel_cloudflared_token data source, so
 #       `nix run .#cf-tunnel-apply` prints it for the operator to place at
@@ -108,6 +109,20 @@ in
   resource.cloudflare_dns_record.nixpi = {
     zone_id = zoneId;
     name = publicHostname;
+    type = "CNAME";
+    content = "${tunnelId}.cfargotunnel.com";
+    proxied = true;
+    ttl = 1;
+  };
+
+  # ---- (c2) Proxied CNAME  kattakath.com (apex) -> the same tunnel -----------
+  # Without this the apex ingress rule (b) is unreachable — the tunnel maps
+  # kattakath.com -> local Caddy, but nothing resolves kattakath.com to the
+  # tunnel. Cloudflare CNAME-flattens the apex, so a proxied CNAME at the zone
+  # root is valid here. This is what makes the public landing page live.
+  resource.cloudflare_dns_record.nixpi_apex = {
+    zone_id = zoneId;
+    name = apexHostname;
     type = "CNAME";
     content = "${tunnelId}.cfargotunnel.com";
     proxied = true;
