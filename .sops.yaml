@@ -1,0 +1,35 @@
+# sops-nix recipients + creation rules for this repo's encrypted secrets.
+#
+# Each secret in ./secrets/ is age-encrypted to TWO recipients:
+#   - the target HOST, so it can decrypt at activation using its own SSH host
+#     key (sops-nix reads /etc/ssh/ssh_host_ed25519_key; the age recipient below
+#     is that host key run through `ssh-to-age`), and
+#   - the OPERATOR, so secrets can be edited later. This age recipient is derived
+#     from ~/.ssh/id_ed25519.pub (ssh-to-age) — the same key backed up off-machine
+#     and authorized on the fleet. Losing it means losing edit access (the host
+#     can still decrypt), so keep it backed up.
+#
+# Regenerate a recipient:  ssh-to-age < key.pub     (or on a host key:
+#   ssh-keyscan <host> | ssh-to-age). Rotate by re-encrypting: `sops updatekeys
+#   secrets/<file>.yaml` after editing the recipients here.
+keys:
+  # nixpi host key (/etc/ssh/ssh_host_ed25519_key.pub -> ssh-to-age)
+  - &nixpi age1t6x97zam8nfaavq9v6e98g3uwx4wcpr2u6a2usa94mh9tzlgvguqqptv42
+  # nixvm host key (/etc/ssh/ssh_host_ed25519_key.pub -> ssh-to-age)
+  - &nixvm age1w3ljw2twxvkr36ldhvr2yltrk8dmzdjzdrkzclytjsfkg3w5mezsz2x4fu
+  # operator (ismail) — ~/.ssh/id_ed25519.pub -> ssh-to-age
+  - &operator age1ss878af7jha24xmx47c9sk9u7j6d4jmux09k4q8dy7yxp6xz7qhspvxk7y
+
+creation_rules:
+  # nixpi's service secrets (today: the Cloudflare Tunnel connector token).
+  - path_regex: secrets/nixpi\.yaml$
+    key_groups:
+      - age:
+          - *nixpi
+          - *operator
+  # nixvm's service secrets (today: the GitHub Actions self-hosted runner PAT).
+  - path_regex: secrets/nixvm\.yaml$
+    key_groups:
+      - age:
+          - *nixvm
+          - *operator

@@ -58,6 +58,24 @@
     # the Nix daemon and owns /etc/nix/nix.conf (nix.enable = false there). The
     # NixOS hosts stay on standard `nix.settings`. Sourced from FlakeHub.
     determinate.url = "https://flakehub.com/f/DeterminateSystems/determinate/*";
+
+    # sops-nix — encrypted secrets committed to THIS repo, decrypted at
+    # activation. Each NixOS host decrypts with its own SSH host key (age,
+    # derived via ssh-to-age); recipients live in ./.sops.yaml, ciphertext in
+    # ./secrets/. Supersedes the manual operator-placed /etc/secrets/* model for
+    # in-repo service secrets (today: nixpi's cloudflared connector token).
+    #
+    # DELIBERATELY NOT `inputs.nixpkgs.follows = "nixpkgs"` (the fleet-wide norm):
+    # sops-nix's `sops-install-secrets` is a Go program whose committed vendor dir
+    # must match the Go toolchain it is built with. Forcing it onto our
+    # nixpkgs-unstable Go tripped Go's vendor-consistency check ("golang.org/x/
+    # net@v0.55.0: explicitly required in go.mod, but not marked as explicit in
+    # vendor/modules.txt"). Letting sops-nix keep its OWN (tested) nixpkgs fixes it
+    # — VERIFIED: master builds sops-install-secrets cleanly this way on a healthy
+    # aarch64-linux builder (the nixarm/nixvm VM). `sops.package` (in mkNixos) then
+    # points the module at that build so it isn't rebuilt against our nixpkgs. A
+    # small extra closure — the upstream-recommended wiring. No rev pin needed.
+    sops-nix.url = "github:Mic92/sops-nix";
   };
 
   outputs =
@@ -74,6 +92,7 @@
       disko,
       terranix,
       determinate,
+      sops-nix,
       ...
     }:
     let
@@ -241,6 +260,11 @@
           pkgs.statix # anti-pattern linter — .vscode "nix: statix" task
           pkgs.deadnix # dead-code linter — .vscode "nix: deadnix" task
           pkgs.jq # flattens deadnix JSON for the problem matcher
+          # sops-nix secret editing: `sops secrets/<host>.yaml` (age recipients
+          # in .sops.yaml). ssh-to-age derives an age recipient from an SSH key.
+          pkgs.sops
+          pkgs.age
+          pkgs.ssh-to-age
         ];
 
       # ---- Pre-commit hooks (git-hooks.nix) -----------------------------------
@@ -284,6 +308,15 @@
             ./hosts/${hostname}.nix
             ./modules/nixos/core.nix
             ./modules/shared/nix-cache.nix # Cachix binary cache (read)
+            sops-nix.nixosModules.sops # encrypted in-repo secrets (./secrets, ./.sops.yaml)
+            {
+              # Use sops-nix's OWN prebuilt sops-install-secrets, built against
+              # sops-nix's nixpkgs (Go toolchain matching its vendored deps).
+              # The module otherwise builds it from THIS system's nixpkgs, whose
+              # newer Go fails Go's vendor-consistency check — see the sops-nix
+              # input comment above. `system` + `sops-nix` are in mkNixos scope.
+              sops.package = sops-nix.packages.${system}.sops-install-secrets;
+            }
             home-manager.nixosModules.home-manager
             {
               home-manager = {

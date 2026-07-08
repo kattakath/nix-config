@@ -93,7 +93,7 @@ CI runs on **GitHub Actions** ([`nix-ci.yml`](./.github/workflows/nix-ci.yml)) a
 
 ## Secrets
 
-No plaintext secrets live in this repo. The one system credential this fleet needs — `nixpi`'s Cloudflare Tunnel connector token — is a plain, root-only file placed manually at `/etc/secrets/cloudflared-token` after provisioning, never committed; personal tokens stay out of Nix and git entirely. The Cachix substituter is public and read-only (URL + public key, no token). See [SECURITY.md](./SECURITY.md) for the full model.
+No plaintext secrets live in this repo. System/service credentials are committed **encrypted** with [sops-nix](https://github.com/Mic92/sops-nix) (`.sops.yaml` + `secrets/<host>.yaml`) and decrypted at activation using each host's own SSH host key — today `nixpi`'s Cloudflare Tunnel connector token and `nixvm`'s GitHub Actions runner PAT. Personal tokens stay out of Nix and git entirely (macOS Keychain / CLI logins). The Cachix substituter is public and read-only (URL + public key, no token). See [SECURITY.md](./SECURITY.md) for the full model.
 
 ## Contributing
 
