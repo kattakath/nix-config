@@ -25,6 +25,7 @@
 {
   lib,
   config,
+  pkgs,
   ...
 }:
 let
@@ -183,6 +184,9 @@ in
       tokenFile = config.age.secrets."gh-runner-token-nixvm".path;
     };
   };
+  # github-nix-ci's runner PATH ships nix/nixci/cachix/jq but NOT git, which
+  # actions/checkout and the nix-ci "git add -A" git-purity step both require.
+  services.github-nix-ci.runnerSettings.extraPackages = [ pkgs.git ];
 
   system.stateVersion = "24.05";
 }
