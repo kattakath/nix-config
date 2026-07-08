@@ -12,15 +12,26 @@ name: nix-ci
 #   2. EVALUATE each host config's toplevel (cheap: forces full module eval,
 #      catching config/option/type errors) WITHOUT building it.
 #
-# ONE LEG PER SYSTEM, each on its ARCH-NATIVE GitHub-hosted runner (free for
-# public repos, no QEMU) — this is a 3-host, TWO-system aarch64-only fleet:
-#   aarch64-linux  -> ubuntu-24.04-arm   (evaluates nixpi + nixvm + both installers)
-#   aarch64-darwin -> macos-latest       (evaluates the macos darwinConfiguration)
+# ONE LEG PER SYSTEM, on an arch-native runner:
+#   aarch64-linux  -> ubuntu-24.04-arm (GitHub-hosted, free, no QEMU) — evaluates
+#                     nixpi + nixvm + both installers.
+#   aarch64-darwin -> the SELF-HOSTED `macos` runner (this fleet's Mac) for
+#                     trusted events; GitHub-hosted `macos-latest` for FORK PRs.
 #
-# READ from the ismailkattakath Cachix cache is public (substituter + key below).
-# WRITE needs CACHIX_AUTH_TOKEN (a repo secret; absent on fork PRs, where the
-# push just no-ops). The cache is warmed reactively by this workflow's push-to-main
-# run and by release builds — no scheduled job.
+# FORK SAFETY: the repo is PUBLIC, so a fork PR must NEVER land on the self-hosted
+# runner (it would execute untrusted code on the Mac). The darwin leg's `runs-on`
+# therefore falls back to `macos-latest` whenever the PR head is a fork; only
+# same-repo pushes/PRs and workflow_dispatch reach `[self-hosted, macOS]`.
+#
+# On the self-hosted runner Nix is already present (Determinate) and the
+# ismailkattakath substituter is pre-configured, so install-nix-action +
+# cachix-action are SKIPPED there — they run only on GitHub-hosted runners
+# (`runner.environment == 'github-hosted'`). nix/git/cachix are on the runner's
+# launchd PATH (modules/darwin/github-runner.nix).
+#
+# READ from the ismailkattakath Cachix cache is public. WRITE needs
+# CACHIX_AUTH_TOKEN (a repo secret; absent on fork PRs → push no-ops). The cache
+# is warmed reactively by this workflow's push-to-main run and by release builds.
 
 on:
   pull_request:
@@ -77,23 +88,31 @@ jobs:
               .#nixosConfigurations.nixpi-installer.config.system.build.toplevel.drvPath
               .#nixosConfigurations.nixvm-installer.config.system.build.toplevel.drvPath
           # aarch64-darwin (Apple Silicon) — the sole darwin host; also builds
-          # the aarch64-darwin lint checks.
+          # the aarch64-darwin lint checks. Runs on the SELF-HOSTED `macos` runner
+          # for trusted events, but falls back to GitHub-hosted `macos-latest` for
+          # FORK PRs (never run untrusted fork code on the Mac — see header).
           - name: aarch64-darwin
-            runs-on: macos-latest
+            runs-on: ${{ github.event.pull_request.head.repo.fork && 'macos-latest' || fromJSON('["self-hosted", "macOS"]') }}
             eval-attrs: .#darwinConfigurations.macos.system.drvPath
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       # UPSTREAM Nix (NOT DeterminateSystems/nix-installer-action — that installs
-      # Determinate Nix only, as of 2026-01-01).
+      # Determinate Nix only, as of 2026-01-01). SKIPPED on the self-hosted macos
+      # runner, which already runs Determinate Nix (installing again would clash).
       - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31
+        if: runner.environment == 'github-hosted'
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
             extra-substituters = https://ismailkattakath.cachix.org
             extra-trusted-public-keys = ismailkattakath.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I=
 
+      # SKIPPED on self-hosted: the ismailkattakath substituter is already in the
+      # Mac's system nix.conf (Determinate customSettings) and the push step reads
+      # CACHIX_AUTH_TOKEN from the env directly (cachix is on the runner's PATH).
       - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
+        if: runner.environment == 'github-hosted'
         with:
           name: ismailkattakath
           authToken: ${{ github.event_name == 'push' && secrets.CACHIX_AUTH_TOKEN || '' }}
