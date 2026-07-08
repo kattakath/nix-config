@@ -58,6 +58,14 @@
     # the Nix daemon and owns /etc/nix/nix.conf (nix.enable = false there). The
     # NixOS hosts stay on standard `nix.settings`. Sourced from FlakeHub.
     determinate.url = "https://flakehub.com/f/DeterminateSystems/determinate/*";
+
+    # sops-nix — encrypted secrets committed to THIS repo, decrypted at
+    # activation. Each NixOS host decrypts with its own SSH host key (age,
+    # derived via ssh-to-age); recipients live in ./.sops.yaml, ciphertext in
+    # ./secrets/. Supersedes the manual operator-placed /etc/secrets/* model for
+    # in-repo service secrets (today: nixpi's cloudflared connector token).
+    sops-nix.url = "github:Mic92/sops-nix";
+    sops-nix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
@@ -74,6 +82,7 @@
       disko,
       terranix,
       determinate,
+      sops-nix,
       ...
     }:
     let
@@ -241,6 +250,11 @@
           pkgs.statix # anti-pattern linter — .vscode "nix: statix" task
           pkgs.deadnix # dead-code linter — .vscode "nix: deadnix" task
           pkgs.jq # flattens deadnix JSON for the problem matcher
+          # sops-nix secret editing: `sops secrets/<host>.yaml` (age recipients
+          # in .sops.yaml). ssh-to-age derives an age recipient from an SSH key.
+          pkgs.sops
+          pkgs.age
+          pkgs.ssh-to-age
         ];
 
       # ---- Pre-commit hooks (git-hooks.nix) -----------------------------------
@@ -284,6 +298,7 @@
             ./hosts/${hostname}.nix
             ./modules/nixos/core.nix
             ./modules/shared/nix-cache.nix # Cachix binary cache (read)
+            sops-nix.nixosModules.sops # encrypted in-repo secrets (./secrets, ./.sops.yaml)
             home-manager.nixosModules.home-manager
             {
               home-manager = {
