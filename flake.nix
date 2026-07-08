@@ -65,19 +65,17 @@
     # ./secrets/. Supersedes the manual operator-placed /etc/secrets/* model for
     # in-repo service secrets (today: nixpi's cloudflared connector token).
     #
-    # PINNED to a pre-2026-07-03 rev on purpose: sops-nix master (through
-    # f1406619, 2026-07-04) bumped golang.org/x/net 0.52->0.55 in go.mod WITHOUT
-    # re-running `go mod vendor`, so `sops-install-secrets`' committed
-    # vendor/modules.txt is inconsistent and the Go build fails ("golang.org/x/
+    # DELIBERATELY NOT `inputs.nixpkgs.follows = "nixpkgs"` (the fleet-wide norm):
+    # sops-nix's `sops-install-secrets` is a Go program whose committed vendor dir
+    # must match the Go toolchain it is built with. Forcing it onto our
+    # nixpkgs-unstable Go tripped Go's vendor-consistency check ("golang.org/x/
     # net@v0.55.0: explicitly required in go.mod, but not marked as explicit in
-    # vendor/modules.txt"). c7447821 (2026-06-28) predates that bump and builds
-    # cleanly. Revisit once upstream re-vendors (track Mic92/sops-nix master).
-    #
-    # Also DELIBERATELY NOT `inputs.nixpkgs.follows = "nixpkgs"` (the fleet-wide
-    # norm): the NixOS module is nixpkgs-version-agnostic, and letting sops-nix
-    # keep its own (pinned) nixpkgs guarantees the Go toolchain matches the
-    # vendored deps. A small extra closure — the correct, upstream-recommended wiring.
-    sops-nix.url = "github:Mic92/sops-nix/c7447821f3bf526d8bee82701c10f649366a40de";
+    # vendor/modules.txt"). Letting sops-nix keep its OWN (tested) nixpkgs fixes it
+    # — VERIFIED: master builds sops-install-secrets cleanly this way on a healthy
+    # aarch64-linux builder (the nixarm/nixvm VM). `sops.package` (in mkNixos) then
+    # points the module at that build so it isn't rebuilt against our nixpkgs. A
+    # small extra closure — the upstream-recommended wiring. No rev pin needed.
+    sops-nix.url = "github:Mic92/sops-nix";
   };
 
   outputs =
