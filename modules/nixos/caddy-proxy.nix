@@ -100,20 +100,29 @@ in
         enable = true;
         inherit (cfg) email;
 
-        virtualHosts = lib.mapAttrs (_hostname: vhost: {
-          extraConfig =
-            (
-              if vhost.reverseProxyTo != null then
-                "reverse_proxy ${vhost.reverseProxyTo}"
-              else
-                ''
-                  root * ${vhost.root}
-                  file_server
-                ''
-            )
-            + "\n"
-            + vhost.extraConfig;
-        }) cfg.virtualHosts;
+        # Behind the Cloudflare Tunnel, Caddy receives PLAIN HTTP on :80 (TLS is
+        # terminated at Cloudflare's edge). Address each site as `http://<host>`
+        # so Caddy serves HTTP only and DISABLES automatic HTTPS — otherwise
+        # Caddy 308-redirects http->https, and since the tunnel re-delivers that
+        # as http, it loops forever (the apex kattakath.com hit exactly this once
+        # its DNS record finally existed).
+        virtualHosts = lib.mapAttrs' (
+          hostname: vhost:
+          lib.nameValuePair "http://${hostname}" {
+            extraConfig =
+              (
+                if vhost.reverseProxyTo != null then
+                  "reverse_proxy ${vhost.reverseProxyTo}"
+                else
+                  ''
+                    root * ${vhost.root}
+                    file_server
+                  ''
+              )
+              + "\n"
+              + vhost.extraConfig;
+          }
+        ) cfg.virtualHosts;
       };
     })
   ];
