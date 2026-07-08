@@ -14,5 +14,4 @@
 # two-account setup (e.g. a nix-darwin *system* daemon, or gated to the active
 # GUI user), this module is a NO-OP so activation succeeds. Claude Code continues
 # to work with its own MCP configuration; nothing here is load-bearing.
-_:
-{ }
+_: { }
