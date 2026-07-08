@@ -11,14 +11,15 @@
 # unit retries on failure (Restart=on-failure) so a token refresh self-heals.
 #
 # ZTIA CUTOVER (Cloudflare Access for Infrastructure — short-lived SSH certs):
-# `services.openssh-ca-trust.enable = true` below makes sshd trust Cloudflare's
-# hosted SSH CA (modules/nixos/core.nix, TrustedUserCAKeys pointed at the
-# committed modules/nixos/cloudflare-ssh-ca.pub). `removeStaticKey` is left
-# OFF here deliberately — see the LOCKOUT-SAFETY comment on that option in
-# modules/nixos/core.nix and the rollout order in
-# docs/tunnel-architecture-and-runbook.md. Flip it to true ONLY after an
-# end-to-end ZTIA login has been verified from an enrolled client; physical
-# console (getty) is unaffected either way and remains the break-glass path.
+# COMPLETE. `services.openssh-ca-trust.enable = true` below makes sshd trust
+# Cloudflare's hosted SSH CA (modules/nixos/core.nix, TrustedUserCAKeys pointed
+# at the committed modules/nixos/cloudflare-ssh-ca.pub), and
+# `removeStaticKey = true` drops the legacy static key so network SSH is
+# cert-only. This was flipped on ONLY after an end-to-end ZTIA login was
+# verified from the enrolled macos WARP client (2026-07-08) — see the
+# LOCKOUT-SAFETY comment on the option in modules/nixos/core.nix and the rollout
+# order in docs/tunnel-architecture-and-runbook.md. Physical console (getty) is
+# unaffected and remains the break-glass path.
 # `nixvm` does NOT import this option — it stays on the static key.
 {
   config,
@@ -76,12 +77,14 @@
   # Editing: `agenix -e secrets/cloudflared-token.age` (recipients in secrets/secrets.nix).
   age.secrets."cloudflared-token".file = ../secrets/cloudflared-token.age;
 
-  # ZTIA: trust Cloudflare's SSH CA for short-lived certificates. Coexists
-  # with the static key above until the CA-cert path is verified end-to-end —
-  # see the header comment and docs/tunnel-architecture-and-runbook.md.
-  # removeStaticKey stays false (default) until then; this is the LAST step,
-  # not this one.
+  # ZTIA: trust Cloudflare's SSH CA for short-lived certificates AND drop the
+  # legacy static key, making network SSH cert-only. End-to-end ZTIA login was
+  # verified 2026-07-08 (WARP -> Cloudflare -> tunnel -> nixpi, authenticated by
+  # the CA-signed short-lived cert with NO local key offered), so per the rollout
+  # order in docs/tunnel-architecture-and-runbook.md this final step is now safe.
+  # Physical console (getty) is unaffected and remains the break-glass path.
   services.openssh-ca-trust.enable = true;
+  services.openssh-ca-trust.removeStaticKey = true;
 
   # Local reverse-proxy/router, sitting behind the tunnel. Today it serves only
   # the public kattakath.com static landing page; future services front new

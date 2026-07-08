@@ -45,7 +45,10 @@ let
   });
 in
 {
-  imports = [ ../linux/nix-ld.nix ];
+  imports = [
+    ../linux/nix-ld.nix
+    ./mcp.nix # darwin-gated MCP server registry for Claude Code
+  ];
 
   # Make Home-Manager-installed font packages discoverable by applications.
   # Essential on Linux (registers fonts with fontconfig); harmless no-op on macOS.
@@ -61,19 +64,35 @@ in
   # Fonts: only the two wired to a VS Code setting are kept. nixpkgs unstable
   # uses the per-font `nerd-fonts.<name>` attrs (24.05+ restructure), not the
   # old `(nerdfonts.override { ... })`.
-  home.packages = with pkgs; [
-    # personal CLI — used in every repo, not project-bound
-    claudeCode
-    fh # FlakeHub CLI — flake input publishing/management, wanted on every host
-    # fonts (each is referenced by a VS Code font setting below)
-    nerd-fonts.jetbrains-mono # "JetBrainsMono Nerd Font" — VS Code editor font (pairs with the JetBrains theme)
-    nerd-fonts.ubuntu-mono # "UbuntuMono Nerd Font" — VS Code terminal font (matches the devcontainer)
-  ];
+  home.packages =
+    with pkgs;
+    [
+      fh # FlakeHub CLI — flake input publishing/management, wanted on every host
+      # fonts (each is referenced by a VS Code font setting below)
+      nerd-fonts.jetbrains-mono # "JetBrainsMono Nerd Font" — VS Code editor font (pairs with the JetBrains theme)
+      nerd-fonts.ubuntu-mono # "UbuntuMono Nerd Font" — VS Code terminal font (matches the devcontainer)
+    ]
+    # claude-code: on darwin it is installed by the programs.claude-code module
+    # below (so the mcp-servers-nix integration can inject the shared MCP
+    # registry — see ./mcp.nix). On the Linux hosts we don't enable that module,
+    # so install the bare CLI here instead. Avoids a buildEnv /bin collision.
+    ++ lib.optionals (!stdenv.isDarwin) [ claudeCode ];
 
   # ---- Home Manager program modules --------------------------------------------
   programs = {
     # Let Home Manager manage itself.
     home-manager.enable = true;
+
+    # Claude Code CLI. On darwin we manage it via the module (not just as a bare
+    # package) so ./mcp.nix can attach `mcpServers` — the localhost MCP gateway's
+    # SSE endpoints (+ desktop-commander stdio) — into a managed .mcp.json.
+    # `package` preserves our darwin strict-sandbox override (claudeCode above,
+    # also used by the VS Code "claude" terminal profile). On the Linux hosts
+    # claude-code stays a plain home.packages entry with no MCP wiring.
+    claude-code = lib.mkIf pkgs.stdenv.isDarwin {
+      enable = true;
+      package = claudeCode;
+    };
 
     git = {
       enable = true;
