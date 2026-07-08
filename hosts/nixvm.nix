@@ -24,8 +24,18 @@
 #   nix --extra-experimental-features 'nix-command flakes' run github:ismailkattakath/nix-config#nixvm
 {
   lib,
+  config,
   ...
 }:
+let
+  # The self-hosted GitHub Actions runner is GATED on its agenix token existing.
+  # Flakes only see committed files, so `pathExists` is false until
+  # secrets/gh-runner-token-nixvm.age is created + committed — the config thus
+  # evaluates cleanly now (runner absent) and the runner activates automatically
+  # once the operator lands the secret. See the runner block near the bottom.
+  runnerTokenFile = ../secrets/gh-runner-token-nixvm.age;
+  runnerEnabled = builtins.pathExists runnerTokenFile;
+in
 {
   imports = [ ../modules/nixos/desktop-vm.nix ];
 
@@ -139,6 +149,38 @@
       qemu.options = [ "-device virtio-gpu-pci" ];
       # NOTE: no explicit `-display` flag — QEMU on macOS defaults to a native
       # Cocoa window. On a Linux host you'd add `-display gtk` here instead.
+    };
+  };
+
+  # ---- Self-hosted GitHub Actions runner (github-nix-ci) --------------------
+  # NixOS-native runner via `services.github-runners` (wrapped by github-nix-ci).
+  # Works here because nixvm is plain NixOS — unlike the macos host, where
+  # Determinate sets nix.enable = false and forces the hand-rolled launchd runner
+  # (modules/darwin/github-runner.nix). github-nix-ci runs the runner as the
+  # `github-runner` system user; with noDefaultLabels its labels are `nixvm` +
+  # `aarch64-linux`, so CI targets it with `runs-on: [nixvm, aarch64-linux]`.
+  #
+  # OPERATOR STEPS to bring it online (secrets/ is not editable from this repo
+  # tooling — do these by hand):
+  #   1. Mint a GitHub PAT (repo scope + manage self-hosted runners) for
+  #      ismailkattakath/nix-config.
+  #   2. Add nixvm's SSH host key + the operator key as recipients for
+  #      `gh-runner-token-nixvm.age` in secrets/secrets.nix.
+  #   3. `agenix -e secrets/gh-runner-token-nixvm.age`, paste the PAT, save.
+  #   4. Commit the .age — `runnerEnabled` flips true; `nixos-rebuild switch
+  #      --flake .#nixvm` on a RUNNING nixvm registers the ephemeral runner.
+  #   5. Flip the aarch64-linux CI legs to `runs-on: [nixvm, aarch64-linux]`
+  #      (keep the fork guard — the repo is public).
+  age.secrets = lib.mkIf runnerEnabled {
+    "gh-runner-token-nixvm" = {
+      file = runnerTokenFile;
+      owner = "github-runner"; # user github-nix-ci runs the runner as (Linux)
+    };
+  };
+  services.github-nix-ci.personalRunners = lib.mkIf runnerEnabled {
+    "ismailkattakath/nix-config" = {
+      num = 1;
+      tokenFile = config.age.secrets."gh-runner-token-nixvm".path;
     };
   };
 
