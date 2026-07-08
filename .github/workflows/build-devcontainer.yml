@@ -410,7 +410,7 @@ jobs:
       # — the multi-GB skopeo upload — is skipped when the image CONTENT is unchanged.
       - name: Login to GHCR
         if: needs.gate.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
-        uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v3
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
