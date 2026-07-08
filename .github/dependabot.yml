@@ -6,8 +6,10 @@
 # automatically so we never hand-chase Node-runtime warnings again.
 #
 # Nix flake inputs are NOT managed here — Dependabot has no Nix ecosystem.
-# Those are bumped via `nix flake update` / the repo's `/update-input`
-# command, which regenerates and commits flake.lock.
+# They are bumped by `.github/workflows/update-flake-lock.yml` (scheduled
+# `nix flake update` -> automated PR, the FlakeHub input-freshness best
+# practice) and, on demand, by the repo's `/update-input` command — both
+# regenerate and commit flake.lock.
 version: 2
 updates:
   - package-ecosystem: "github-actions"

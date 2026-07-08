@@ -1,0 +1,73 @@
+name: update-flake-lock
+
+# Automated flake-input freshness — the FlakeHub "keep your inputs fresh" best
+# practice (https://docs.determinate.systems/flakehub/best-practices/).
+#
+# This is the SCHEDULED counterpart to the manual `/update-input` command: every
+# Monday it runs `nix flake update`, regenerates flake.lock, and opens a PR with
+# the bump. Dependabot (`.github/dependabot.yml`) covers GitHub Actions but has
+# no Nix ecosystem, so flake inputs were previously bumped only by hand — this
+# closes that gap.
+#
+# WHY A GITHUB APP (not the default GITHUB_TOKEN): PRs opened by the built-in
+# GITHUB_TOKEN cannot trigger other workflows (a GitHub safeguard against
+# recursive CI), so nix-ci would NOT auto-run on the bump PR — defeating the
+# point of an automated lockfile bump you still want evaluated before merge. A
+# dedicated GitHub App mints a SHORT-LIVED installation token at run time
+# (create-github-app-token below); PRs it opens trigger nix-ci normally, and
+# nothing long-lived or personal is stored (matches the repo's OIDC posture).
+#
+# One-time owner setup (register the App, then wire its credentials into the
+# repo's Actions settings) is documented in docs/flakehub-input-freshness.md.
+# Until it is done the token step fails fast and no PR is cut — the scheduled
+# run simply no-ops.
+
+on:
+  schedule:
+    # Mondays 04:00 UTC — same weekly cadence as the dependabot actions group,
+    # staggered so the two bump PRs don't land at the same minute.
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  # Never cut two lockfile PRs in parallel; a newer run supersedes an older one.
+  group: update-flake-lock
+  cancel-in-progress: true
+
+# GITHUB_TOKEN permissions are moot here — the App token below carries the
+# push/PR rights — but scope the default token to read-only defensively.
+permissions:
+  contents: read
+
+jobs:
+  lockfile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      # Mint a short-lived installation token from the GitHub App. Its id lives
+      # in a repo Variable, its signing key in a repo Secret (see the header
+      # comment / docs). Outputs `token`, used by checkout + update-flake-lock so
+      # the resulting PR is authored by the App and DOES trigger nix-ci.
+      - id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.CI_BOT_APP_ID }}
+          private-key: ${{ secrets.CI_BOT_APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+      # UPSTREAM Nix (NOT DeterminateSystems/nix-installer-action — that installs
+      # Determinate Nix only), matching nix-ci.yml / flakehub-publish.yml.
+      - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - uses: DeterminateSystems/update-flake-lock@834c491b2ece4de0bbd00d85214bb5e83b4da5c6 # v28
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          pr-title: "chore: bump flake inputs (automated nix flake update)"
+          pr-labels: dependencies
+          commit-msg: "chore: bump flake inputs"
