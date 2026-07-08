@@ -107,7 +107,9 @@ in
   };
 
   # ---- (a) Infrastructure Access target: hostname label + IP + VNet ---------
-  resource.cloudflare_zero_trust_infrastructure_access_target.nixpi = {
+  # v5 resource name is cloudflare_zero_trust_access_infrastructure_target
+  # (NOT ..._infrastructure_access_target — the words are swapped).
+  resource.cloudflare_zero_trust_access_infrastructure_target.nixpi = {
     account_id = accountId;
     hostname = targetHostname;
     ip = {
@@ -127,39 +129,39 @@ in
       {
         port = sshPort;
         protocol = "SSH";
-        target_attributes = [
-          {
-            name = "hostname";
-            values = [ targetHostname ];
-          }
-        ];
-      }
-    ];
-  };
-
-  # ---- (c) Access policy: owner's identity + allowed UNIX login -------------
-  # decision = "allow"; connection_rules.ssh.usernames is the ZTIA-specific
-  # field naming which cert principal(s) this policy permits — sshd then
-  # matches the cert principal against the login user with just
-  # TrustedUserCAKeys set (no AuthorizedPrincipalsFile/Command needed).
-  resource.cloudflare_zero_trust_access_policy.nixpi_ssh_allow = {
-    account_id = accountId;
-    application_id = applicationId;
-    name = "Allow ${allowEmailDomain} as ${sshUsername}";
-    decision = "allow";
-    precedence = 1;
-    include = [
-      {
-        email_domain = {
-          domain = allowEmailDomain;
+        # v5: target_attributes is a MAP of attribute name -> list of values,
+        # NOT a list of { name, values } objects.
+        target_attributes = {
+          hostname = [ targetHostname ];
         };
       }
     ];
-    connection_rules = {
-      ssh = {
-        usernames = [ sshUsername ];
-      };
-    };
+    # v5: an infrastructure app defines its policy INLINE (every policies[] field
+    # is optional; no separate reusable policy resource is needed). `include` is
+    # the identity gate (owner's Workspace domain); `connection_rules.ssh.usernames`
+    # names which UNIX login(s) the short-lived cert may assert — sshd matches the
+    # cert principal to the login user with just TrustedUserCAKeys set (no
+    # AuthorizedPrincipalsFile/Command needed). `include` is REQUIRED whenever
+    # `connection_rules` is present.
+    policies = [
+      {
+        name = "Allow ${allowEmailDomain} as ${sshUsername}";
+        decision = "allow";
+        precedence = 1;
+        include = [
+          {
+            email_domain = {
+              domain = allowEmailDomain;
+            };
+          }
+        ];
+        connection_rules = {
+          ssh = {
+            usernames = [ sshUsername ];
+          };
+        };
+      }
+    ];
   };
 
   # ---- Outputs -----------------------------------------------------------------
@@ -167,6 +169,6 @@ in
     value = applicationId;
   };
   output.nixpi_ssh_target_id = {
-    value = "\${cloudflare_zero_trust_infrastructure_access_target.nixpi.id}";
+    value = "\${cloudflare_zero_trust_access_infrastructure_target.nixpi.id}";
   };
 }

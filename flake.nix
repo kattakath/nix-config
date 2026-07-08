@@ -66,6 +66,17 @@
     # Pure age/SSH — no ssh-to-age step, no Go build. Follows our nixpkgs.
     agenix.url = "github:ryantm/agenix";
     agenix.inputs.nixpkgs.follows = "nixpkgs";
+
+    # MCP (Model Context Protocol) server packaging for Claude Code. We use its
+    # `lib.mkConfig` to render a PINNED {mcpServers:{…}} JSON (the 4 packaged
+    # servers become reproducible store-path commands) that our localhost
+    # mcp-proxy gateway consumes via --named-server-config. Threaded to
+    # modules/shared/mcp.nix (darwin-gated) through extraSpecialArgs — NOT as a
+    # home-manager module (the client side uses upstream
+    # `programs.claude-code.mcpServers` directly). Follows our nixpkgs so we
+    # never pull a second package set.
+    mcp-servers-nix.url = "github:natsukium/mcp-servers-nix";
+    mcp-servers-nix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
@@ -83,6 +94,7 @@
       terranix,
       determinate,
       agenix,
+      mcp-servers-nix,
       ...
     }:
     let
@@ -308,6 +320,7 @@
                     domainName
                     fullName
                     handleName
+                    mcp-servers-nix
                     ;
                 };
                 users.${userName} = {
@@ -390,6 +403,7 @@
                     domainName
                     fullName
                     handleName
+                    mcp-servers-nix
                     ;
                 };
                 users.${userName} = {
