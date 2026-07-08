@@ -184,9 +184,17 @@ in
       tokenFile = config.age.secrets."gh-runner-token-nixvm".path;
     };
   };
-  # github-nix-ci's runner PATH ships nix/nixci/cachix/jq but NOT git, which
-  # actions/checkout and the nix-ci "git add -A" git-purity step both require.
-  services.github-nix-ci.runnerSettings.extraPackages = [ pkgs.git ];
+  # Extra tools the CI workflows invoke directly on this runner (github-nix-ci's
+  # default runner PATH does NOT include them):
+  #   - git:    actions/checkout + the "git add -A" git-purity step.
+  #   - cachix: the build-installers "Push to Cachix" step runs `cachix push`
+  #             directly (cachix-action is skipped on self-hosted). nix-ci's leg
+  #             gets cachix via `nix run` on nix-fast-build, but the installer
+  #             workflow calls the bare binary, so it must be on PATH.
+  services.github-nix-ci.runnerSettings.extraPackages = [
+    pkgs.git
+    pkgs.cachix
+  ];
 
   system.stateVersion = "24.05";
 }
