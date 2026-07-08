@@ -27,6 +27,7 @@
   config,
   lib,
   pkgs,
+  handleName,
   ...
 }:
 {
@@ -138,7 +139,7 @@
   # This module only STANDS UP the runner; nix-ci.yml is not rewired to use it yet.
   services.github-runners.nixvm = {
     enable = true;
-    url = "https://github.com/ismailkattakath/nix-config";
+    url = "https://github.com/${handleName}/nix-config";
     tokenFile = config.sops.secrets."gh-runner-token".path;
     ephemeral = true;
     replace = true;
