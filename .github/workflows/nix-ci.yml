@@ -57,8 +57,8 @@ jobs:
   # branch-protection anchor, so renaming/adding legs never requires
   # re-anchoring the ruleset.
   #
-  # `checks-system` names the flake system whose `.#checks.<system>` lint set
-  # this leg builds.
+  # `matrix.name` is the flake system this leg targets — it both titles the
+  # check (`build (<system>)`) and selects `.#checks.<system>`.
   build:
     name: build (${{ matrix.name }})
     runs-on: ${{ matrix.runs-on }}
@@ -71,7 +71,6 @@ jobs:
           # installer images; also builds the aarch64-linux lint checks.
           - name: aarch64-linux
             runs-on: ubuntu-24.04-arm
-            checks-system: aarch64-linux
             eval-attrs: >-
               .#nixosConfigurations.nixpi.config.system.build.toplevel.drvPath
               .#nixosConfigurations.nixvm.config.system.build.toplevel.drvPath
@@ -81,7 +80,6 @@ jobs:
           # the aarch64-darwin lint checks.
           - name: aarch64-darwin
             runs-on: macos-latest
-            checks-system: aarch64-darwin
             eval-attrs: .#darwinConfigurations.macos.system.drvPath
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -107,7 +105,6 @@ jobs:
 
       # Build this leg's SYSTEM lint/format checks and push to Cachix.
       - name: Build lint checks + push to Cachix
-        if: matrix.checks-system != ''
         env:
           CACHIX_AUTH_TOKEN: ${{ github.event_name == 'push' && secrets.CACHIX_AUTH_TOKEN || '' }}
         run: |
@@ -116,7 +113,7 @@ jobs:
           # convention of not executing unpinned upstream refs in CI.
           nix run github:Mic92/nix-fast-build/561be51b96d376c9c6c49a063cfdc83af81f4929 -- \
             --skip-cached --no-nom \
-            --flake ".#checks.${{ matrix.checks-system }}" \
+            --flake ".#checks.${{ matrix.name }}" \
             --cachix-cache ismailkattakath
 
       # EVALUATE (not build) this leg's host config(s). Resolving each toplevel's
