@@ -34,7 +34,6 @@ Use `stderr` as the summary for `crash-safe` rows and `blockedReason` for `loop-
 For each incident group with **count >= 2**, map the event to its inner hook script and read it:
 
 - `Stop` -> `.claude/hooks/stop-gate.js`
-- `UserPromptSubmit` -> `.claude/hooks/delegate-team.js`
 
 (Note: only `command`-type hooks route through `superhook.js`. The `prompt`-type
 gates — `PreToolUse` and `SubagentStop` — are evaluated by the model, never pass
