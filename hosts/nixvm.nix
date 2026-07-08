@@ -2,8 +2,25 @@
 # VirtIO. Architecture is chosen in flake.nix (`mkNixos { system = … }`), so
 # this file is arch-agnostic and backs the aarch64 UTM VM today. Distinct from
 # `nixpi`, which targets real Raspberry Pi 4 hardware via raspberry-pi-nix (SD
-# image). MINIMAL for now — boots, serial console, SSH, disko; no desktop
-# environment / no remote-desktop module yet (deferred to a follow-up).
+# image). The base config stays MINIMAL — boots, serial console, SSH, disko; no
+# desktop in the installed image.
+#
+# GUI WITHOUT UTM: the graphical desktop lives ONLY in the `build-vm` variant
+# (virtualisation.vmVariant, below) via the opt-in modules/nixos/desktop-vm.nix.
+# Build+run a windowed QEMU VM straight from the flake — no UTM, no VM config
+# maintained outside Nix:
+#   nix run .#nixvm-gui                       # builds config.system.build.vm then boots it
+#   nixos-rebuild build-vm --flake .#nixvm    # equivalent; ./result/bin/run-nixvm-vm
+# The runner's QEMU is macOS-native (host.pkgs = aarch64-darwin, set in
+# flake.nix), but the GUEST is aarch64-linux, so building it on the Mac needs an
+# aarch64-linux builder. On the `macos` host that means Determinate's native
+# Linux builder — a FlakeHub/account feature enabled via https://dtr.mn/features
+# (verify: `determinate-nixd version`), NOT a flake setting and NOT nix-darwin's
+# `nix.linux-builder` (which needs nix.enable = true; Determinate disables it —
+# nix-darwin#1505). Until it is enabled, build the guest on the `nixvm` CI runner
+# (remote builder) or pull from Cachix. The installed image and CI runner are
+# unaffected and stay headless.
+#
 # Install (from live ISO — single command):
 #   nix --extra-experimental-features 'nix-command flakes' run github:ismailkattakath/nix-config#nixvm
 {
@@ -13,6 +30,8 @@
   ...
 }:
 {
+  imports = [ ../modules/nixos/desktop-vm.nix ];
+
   networking.hostName = "nixvm";
 
   # Allow unfree packages (e.g. `claude-code` in the shared HM profile).
@@ -144,6 +163,31 @@
     age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
     secrets."gh-runner-token" = {
       restartUnits = [ "github-runner-nixvm.service" ];
+    };
+  };
+
+  # ---- Graphical `build-vm` variant (GUI without UTM) -----------------------
+  # Everything under virtualisation.vmVariant applies ONLY when building the VM
+  # runner (`nix run .#nixvm-gui` / `nixos-rebuild build-vm`), never to the
+  # installed image or the CI runner. host.pkgs (the QEMU that RUNS the script)
+  # is set to aarch64-darwin in flake.nix so the runner is macOS-native.
+  virtualisation.vmVariant = {
+    # Turn the desktop on for the windowed VM only (base nixvm stays headless).
+    services.desktopVm.enable = true;
+
+    virtualisation = {
+      graphics = true; # open a QEMU display window instead of serial-only
+      cores = 4;
+      memorySize = 4096; # MiB of guest RAM
+      diskSize = 8192; # MiB writable scratch overlay for the throwaway session
+      resolution = {
+        x = 1440;
+        y = 900;
+      };
+      # Guest video device X's modesetting driver binds for the desktop.
+      qemu.options = [ "-device virtio-gpu-pci" ];
+      # NOTE: no explicit `-display` flag — QEMU on macOS defaults to a native
+      # Cocoa window. On a Linux host you'd add `-display gtk` here instead.
     };
   };
 

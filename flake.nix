@@ -382,6 +382,19 @@
                 extra-substituters = [ cachixUrl ];
                 extra-trusted-public-keys = [ cachixKey ];
               };
+              # LINUX BUILDS ON macOS (for `nix run .#nixvm-gui`, `.#nixvm`,
+              # `.#nixpi`): use Determinate's NATIVE Linux builder (Apple
+              # Virtualization framework — no UTM, no remote builder, no Docker).
+              # It is NOT configured from Nix: `external-builders` is a reserved
+              # setting that Determinate manages and `determinateNix.customSettings`
+              # rejects it (asserts at eval). It is a FlakeHub/account-level
+              # feature — enable it via https://dtr.mn/features and verify with
+              # `determinate-nixd version` (look for `native-linux-builder`; today
+              # this host shows only `lazy-trees`). nix-darwin's
+              # `nix.linux-builder` is unusable here — it requires
+              # `nix.enable = true`, which Determinate turns off (nix-darwin#1505).
+              # Until the native builder is enabled, build the aarch64-linux guest
+              # on the `nixvm` CI runner (remote builder) or pull from Cachix.
             }
             nix-homebrew.darwinModules.nix-homebrew # declaratively install brew (arch-correct prefix)
             ./hosts/${hostname}.nix
@@ -439,6 +452,13 @@
           hostname = "nixvm";
           extraModules = [
             disko.nixosModules.disko
+            # Graphical `build-vm` variant runs on the aarch64-darwin Mac, so its
+            # QEMU runner must be macOS-native. host.pkgs is the pkgs whose qemu
+            # the generated run-nixvm-vm executes — point it at aarch64-darwin.
+            # LAZY: only the `system.build.vm` path forces this, so the
+            # aarch64-linux toplevel eval (CI) never pulls in darwin pkgs. The
+            # rest of the variant (graphics, desktop) lives in hosts/nixvm.nix.
+            { virtualisation.vmVariant.virtualisation.host.pkgs = nixpkgs.legacyPackages."aarch64-darwin"; }
           ];
         };
 
@@ -524,6 +544,12 @@
       # `nix run .#nixvm` (on an aarch64-linux builder, from the live installer
       # ISO) — disko-install bootstrap for the nixvm sandbox VM.
       #
+      # `nix run .#nixvm-gui` (on the aarch64-darwin Mac) — build the graphical
+      # build-vm variant and boot it in a native QEMU window, no UTM. The runner
+      # wrapper itself is darwin (host.pkgs override above); the aarch64-linux
+      # guest needs a Linux builder — Determinate's native Linux builder on the
+      # Mac (see the macos block above) or the nixvm CI runner / Cachix.
+      #
       # `nix run .#cf-ssh-apply` / `.#cf-ssh-destroy` — render
       # infra/cloudflare/nixpi-ssh.nix (terranix) then `tofu init` + apply
       # (destroy for the other) against the Cloudflare account. Token scope:
@@ -550,6 +576,18 @@
               type = "app";
               program = "${self.packages.aarch64-linux.nixvm}/bin/nixvm";
               meta.description = "Bootstrap NixOS nixvm on aarch64-linux from the live ISO via disko-install";
+            };
+
+            # `nix run .#nixvm-gui` — build the graphical build-vm variant and
+            # boot it in a native macOS QEMU window (no UTM). The runner wrapper
+            # is a darwin derivation (host.pkgs = aarch64-darwin); the
+            # aarch64-linux guest closure needs a Linux builder (Determinate's
+            # native Linux builder — see the macos block — or the nixvm CI runner
+            # / Cachix). run-nixvm-vm is the qemu-vm.nix script name for "nixvm".
+            aarch64-darwin.nixvm-gui = {
+              type = "app";
+              program = "${self.nixosConfigurations.nixvm.config.system.build.vm}/bin/run-nixvm-vm";
+              meta.description = "Boot the nixvm sandbox with an XFCE desktop in a QEMU window (no UTM; needs an aarch64-linux builder)";
             };
           }
           (
