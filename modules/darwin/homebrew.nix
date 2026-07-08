@@ -27,12 +27,10 @@ _:
     };
 
     # ---- Taps --------------------------------------------------------------
-    # Plain "owner/repo" taps are strings; a custom-git-URL tap uses the
-    # attrset form with `clone_target`.
-    taps = [
-      # escrcpy cask lives here; nats-server is homebrew-core (no tap needed).
-      "viarotel-org/escrcpy"
-    ];
+    # No third-party taps. escrcpy (viarotel-org/escrcpy) was removed — its cask
+    # emitted a deprecated `depends_on macos:` warning on every activation.
+    # nats-server is homebrew-core, so no tap is needed.
+    taps = [ ];
 
     # ---- Formulae (brews) --------------------------------------------------
     # See header for what was removed and what is intentionally kept. Entries
@@ -96,7 +94,6 @@ _:
       "cloudflare-warp" # Cloudflare One Client — required for ZTIA SSH (WARP enrollment)
       "cursor"
       "docker-desktop"
-      "viarotel-org/escrcpy/escrcpy"
       "gcloud-cli"
       "google-chrome"
       "inkscape"

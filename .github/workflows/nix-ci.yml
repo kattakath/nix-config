@@ -12,22 +12,25 @@ name: nix-ci
 #   2. EVALUATE each host config's toplevel (cheap: forces full module eval,
 #      catching config/option/type errors) WITHOUT building it.
 #
-# ONE LEG PER SYSTEM, on an arch-native runner:
-#   aarch64-linux  -> ubuntu-24.04-arm (GitHub-hosted, free, no QEMU) — evaluates
-#                     nixpi + nixvm + both installers.
-#   aarch64-darwin -> the SELF-HOSTED `macos` runner (this fleet's Mac) for
-#                     trusted events; GitHub-hosted `macos-latest` for FORK PRs.
+# ONE LEG PER SYSTEM, on an arch-native runner. Both legs run on SELF-HOSTED
+# fleet runners for trusted events, falling back to GitHub-hosted for FORK PRs:
+#   aarch64-linux  -> SELF-HOSTED `nixvm` (github-nix-ci runner); GitHub-hosted
+#                     `ubuntu-24.04-arm` for forks. Evaluates nixpi + nixvm +
+#                     both installers.
+#   aarch64-darwin -> SELF-HOSTED `macos` (this fleet's Mac); GitHub-hosted
+#                     `macos-latest` for forks.
 #
-# FORK SAFETY: the repo is PUBLIC, so a fork PR must NEVER land on the self-hosted
-# runner (it would execute untrusted code on the Mac). The darwin leg's `runs-on`
-# therefore falls back to `macos-latest` whenever the PR head is a fork; only
-# same-repo pushes/PRs and workflow_dispatch reach `[self-hosted, macOS]`.
+# FORK SAFETY: the repo is PUBLIC, so a fork PR must NEVER land on a self-hosted
+# runner (it would execute untrusted code on our hardware). Each leg's `runs-on`
+# falls back to a GitHub-hosted runner whenever the PR head is a fork; only
+# same-repo pushes/PRs and workflow_dispatch reach the self-hosted runners.
 #
-# On the self-hosted runner Nix is already present (Determinate) and the
-# ismailkattakath substituter is pre-configured, so install-nix-action +
-# cachix-action are SKIPPED there — they run only on GitHub-hosted runners
-# (`runner.environment == 'github-hosted'`). nix/git/cachix are on the runner's
-# launchd PATH (modules/darwin/github-runner.nix).
+# On EITHER self-hosted runner Nix is already present (macos: Determinate; nixvm:
+# NixOS) with the ismailkattakath substituter pre-configured, so
+# install-nix-action + cachix-action are SKIPPED there — they run only on
+# GitHub-hosted runners (`runner.environment == 'github-hosted'`). nix/git/cachix
+# are on the runner PATH (macos: modules/darwin/github-runner.nix launchd; nixvm:
+# github-nix-ci extraPackages + runnerSettings.extraPackages = [ git ]).
 #
 # READ from the ismailkattakath Cachix cache is public. WRITE needs
 # CACHIX_AUTH_TOKEN (a repo secret; absent on fork PRs → push no-ops). The cache
@@ -81,7 +84,11 @@ jobs:
           # aarch64-linux — evaluates both NixOS hosts (nixpi, nixvm) and both
           # installer images; also builds the aarch64-linux lint checks.
           - name: aarch64-linux
-            runs-on: ubuntu-24.04-arm
+            # SELF-HOSTED `nixvm` runner (github-nix-ci, labels nixvm+aarch64-linux)
+            # for trusted events; GitHub-hosted `ubuntu-24.04-arm` for FORK PRs —
+            # same fork-safety fallback as the darwin leg (never run untrusted fork
+            # code on our hardware). Requires nixvm to be running.
+            runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04-arm' || fromJSON('["nixvm", "aarch64-linux"]') }}
             eval-attrs: >-
               .#nixosConfigurations.nixpi.config.system.build.toplevel.drvPath
               .#nixosConfigurations.nixvm.config.system.build.toplevel.drvPath
