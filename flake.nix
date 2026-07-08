@@ -53,6 +53,11 @@
     # instead, mirroring the retired cf-litellm-apply/destroy pattern.
     terranix.url = "github:terranix/terranix";
     terranix.inputs.nixpkgs.follows = "nixpkgs";
+
+    # Determinate Nix — on the `macos` host ONLY, `determinate-nixd` takes over
+    # the Nix daemon and owns /etc/nix/nix.conf (nix.enable = false there). The
+    # NixOS hosts stay on standard `nix.settings`. Sourced from FlakeHub.
+    determinate.url = "https://flakehub.com/f/DeterminateSystems/determinate/*";
   };
 
   outputs =
@@ -68,6 +73,7 @@
       nix-homebrew,
       disko,
       terranix,
+      determinate,
       ...
     }:
     let
@@ -76,6 +82,13 @@
       domainName = "kattakath.com";
       fullName = "Ismail Kattakath";
       handleName = "ismailkattakath";
+
+      # ---- Single source of truth for the Cachix binary cache ----------------
+      # The public read-only CI cache, consumed by every host. Threaded into the
+      # NixOS builder's specialArgs (modules/shared/nix-cache.nix) and into the
+      # macOS host's Determinate customSettings — one literal, no duplication.
+      cachixUrl = "https://${handleName}.cachix.org";
+      cachixKey = "${handleName}.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I=";
 
       # ---- DRY system mapping -------------------------------------------------
       # A 3-host aarch64-only fleet: no x86_64 anywhere (devcontainer aarch64-only
@@ -260,6 +273,11 @@
               domainName
               fullName
               handleName
+              # Public Cachix substituter URL + trusted-PUBLIC-key (verification
+              # key, safe to expose — NOT a secret/token). Consumed by
+              # modules/shared/nix-cache.nix.
+              cachixUrl
+              cachixKey
               ;
           };
           modules = [
@@ -316,9 +334,24 @@
               nixpkgs.hostPlatform = system;
               nixpkgs.overlays = [ nix-vscode-extensions.overlays.default ];
             }
+            # Determinate Nix owns the daemon + /etc/nix/nix.conf on macOS
+            # (implies nix.enable = false). Route the Cachix cache through
+            # /etc/nix/nix.custom.conf via customSettings — NEVER hand-write
+            # environment.etc."nix/nix.custom.conf" (that aborts the 2nd rebuild
+            # with "custom settings in /etc/nix/nix.custom.conf, aborting
+            # activation"). Replaces ./modules/shared/nix-cache.nix here (that
+            # module is now NixOS-only, since nix.settings is unavailable once
+            # Determinate manages Nix).
+            determinate.darwinModules.default
+            {
+              determinateNix.enable = true; # implies nix.enable = false
+              determinateNix.customSettings = {
+                extra-substituters = [ cachixUrl ];
+                extra-trusted-public-keys = [ cachixKey ];
+              };
+            }
             nix-homebrew.darwinModules.nix-homebrew # declaratively install brew (arch-correct prefix)
             ./hosts/${hostname}.nix
-            ./modules/shared/nix-cache.nix # Cachix binary cache (read)
             home-manager.darwinModules.home-manager
             {
               home-manager = {
