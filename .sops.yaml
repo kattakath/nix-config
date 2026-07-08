@@ -15,6 +15,8 @@
 keys:
   # nixpi host key (/etc/ssh/ssh_host_ed25519_key.pub -> ssh-to-age)
   - &nixpi age1t6x97zam8nfaavq9v6e98g3uwx4wcpr2u6a2usa94mh9tzlgvguqqptv42
+  # nixvm host key (/etc/ssh/ssh_host_ed25519_key.pub -> ssh-to-age)
+  - &nixvm age1w3ljw2twxvkr36ldhvr2yltrk8dmzdjzdrkzclytjsfkg3w5mezsz2x4fu
   # operator (ismail) — ~/.ssh/id_ed25519.pub -> ssh-to-age
   - &operator age1ss878af7jha24xmx47c9sk9u7j6d4jmux09k4q8dy7yxp6xz7qhspvxk7y
 
@@ -24,4 +26,10 @@ creation_rules:
     key_groups:
       - age:
           - *nixpi
+          - *operator
+  # nixvm's service secrets (today: the GitHub Actions self-hosted runner PAT).
+  - path_regex: secrets/nixvm\.yaml$
+    key_groups:
+      - age:
+          - *nixvm
           - *operator
