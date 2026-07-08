@@ -14,6 +14,8 @@ let
   nixpi = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIApnN4kP6/o3RRZTN1iJKq9lLdMFuhvcxKwxDjvL9Anh";
   # macos host key (/etc/ssh/ssh_host_ed25519_key.pub).
   macos = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICFzzmGorwyIsRIoS6IPSb/eJDrcbdRzWRAqLw8WOew6";
+  # nixvm host key (/etc/ssh/ssh_host_ed25519_key.pub) — via ssh-keyscan 2026-07-08.
+  nixvm = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHYPpSbmVt442jdPPCix1D9wuUhVgt2qhUXloDOntPSy";
 in
 {
   # nixpi's Cloudflare Tunnel connector token (EnvironmentFile: TUNNEL_TOKEN=…).
@@ -25,5 +27,10 @@ in
   "gh-runner-token.age".publicKeys = [
     operator
     macos
+  ];
+  # nixvm self-hosted GitHub Actions runner PAT (github-nix-ci).
+  "gh-runner-token-nixvm.age".publicKeys = [
+    operator
+    nixvm
   ];
 }
