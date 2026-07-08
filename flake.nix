@@ -497,6 +497,10 @@
         (nixpkgs.lib.genAttrs linuxSystems (system: {
           devcontainerImage = (pkgsUnfreeFor system).callPackage ./packages/devcontainer-image.nix {
             devPackages = devPackagesFor system;
+            # Identity single-sources (not in pkgs, so callPackage can't autofill):
+            # the image's os-release HOME_URL + baked nix.conf Cachix lines reuse
+            # these instead of re-hardcoding the handle/cache.
+            inherit handleName cachixUrl cachixKey;
           };
         }))
 
