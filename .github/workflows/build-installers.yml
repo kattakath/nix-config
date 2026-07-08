@@ -72,10 +72,20 @@ jobs:
         run: git add -A
 
       - name: Build ${{ matrix.name }}
-        run: nix build ${{ matrix.package }} --out-link result
+        # -L / --print-build-logs surfaces builder stderr directly in the CI log,
+        # so a failing derivation (e.g. the RPi kernel modules-shrunk) is
+        # diagnosable without a separate `nix log` on the ephemeral runner.
+        run: nix build ${{ matrix.package }} --out-link result --print-build-logs
 
       - name: Push to Cachix
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
+        env:
+          # cachix-action ran with skipPush:true (to dodge the concurrent-push
+          # race between the two matrix legs), which means it left NO push auth
+          # for this separate `cachix push` invocation — it would 403 "not
+          # authorized". cachix reads the token from CACHIX_AUTH_TOKEN, so supply
+          # it explicitly here.
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
         with:
           timeout_minutes: 15
           max_attempts: 3
