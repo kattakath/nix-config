@@ -594,6 +594,22 @@
               program = "${self.nixosConfigurations.nixvm.config.system.build.vm}/bin/run-nixvm-vm";
               meta.description = "Boot the nixvm sandbox with an XFCE desktop in a QEMU window (no UTM; needs an aarch64-linux builder)";
             };
+
+            # `nix run github:ismailkattakath/nix-config#macos` — one-line first
+            # activation of the macos nix-darwin host straight from the flake: the
+            # darwin analog of `nix run .#nixvm` (and of nixpi's
+            # `nixos-rebuild switch --flake …#nixpi`). After Determinate Nix is
+            # installed but before darwin-rebuild is on PATH, this builds
+            # darwin-rebuild from the flake and `switch`es against this SAME
+            # revision (${self}); darwin-rebuild self-elevates via sudo/Touch ID.
+            # Subsequent rebuilds just use `darwin-rebuild switch --flake .#macos`.
+            aarch64-darwin.macos = {
+              type = "app";
+              program = "${(pkgsFor "aarch64-darwin").writeShellScript "activate-macos" ''
+                exec ${self.darwinConfigurations.macos.config.system.build.darwin-rebuild}/bin/darwin-rebuild switch --flake "${self}#macos" "$@"
+              ''}";
+              meta.description = "First activation of the macos nix-darwin host from the flake (after Determinate Nix)";
+            };
           }
           (
             forAllSystems (system: {
