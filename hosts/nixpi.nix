@@ -5,10 +5,10 @@
 #
 # SSH ACCESS: over the Cloudflare Tunnel connector below (remotely-managed,
 # token-based — no port-forward, no public IP). mDNS (nixpi.local) also works
-# on the LAN. The connector token is delivered by sops-nix (encrypted in
-# ../secrets/nixpi.yaml, committed to git, decrypted at activation with nixpi's
-# own SSH host key) — no hand-placed /etc/secrets file. The connector unit
-# retries on failure (Restart=on-failure) so a token refresh self-heals.
+# on the LAN. The connector token is delivered by agenix (encrypted in
+# ../secrets/cloudflared-token.age, committed to git, decrypted at activation
+# with nixpi's own SSH host key) — no hand-placed /etc/secrets file. The connector
+# unit retries on failure (Restart=on-failure) so a token refresh self-heals.
 #
 # ZTIA CUTOVER (Cloudflare Access for Infrastructure — short-lived SSH certs):
 # `services.openssh-ca-trust.enable = true` below makes sshd trust Cloudflare's
@@ -63,25 +63,18 @@
   };
 
   # SSH over the Cloudflare Tunnel — loginless, token-based connector. The
-  # connector token is now delivered by sops-nix (committed encrypted in
-  # ../secrets/nixpi.yaml, decrypted at activation with nixpi's own SSH host key)
-  # instead of a hand-placed /etc/secrets file — see below.
+  # connector token is delivered by agenix (committed encrypted in
+  # ../secrets/cloudflared-token.age, decrypted at activation with nixpi's own
+  # SSH host key) instead of a hand-placed /etc/secrets file — see below.
   services.cloudflared-connector.enable = true;
-  services.cloudflared-connector.tokenFile = config.sops.secrets."cloudflared-token".path;
+  services.cloudflared-connector.tokenFile = config.age.secrets."cloudflared-token".path;
 
-  # sops-nix: decrypt ../secrets/nixpi.yaml at activation using this host's SSH
-  # host key (converted to an age identity at runtime). The `cloudflared-token`
-  # secret materialises at /run/secrets/cloudflared-token (root-only, mode 0400)
-  # as `TUNNEL_TOKEN=<token>`, consumed as the connector unit's EnvironmentFile.
-  # Editing: `sops secrets/nixpi.yaml` from the devShell (recipients in .sops.yaml).
-  sops = {
-    defaultSopsFile = ../secrets/nixpi.yaml;
-    age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
-    secrets."cloudflared-token" = {
-      # Restart the connector when the token changes (e.g. tunnel re-provisioned).
-      restartUnits = [ "cloudflared-connector.service" ];
-    };
-  };
+  # agenix: decrypt ../secrets/cloudflared-token.age at activation using this
+  # host's SSH host key (/etc/ssh/ssh_host_ed25519_key, an age identity via SSH).
+  # It materialises at /run/agenix/cloudflared-token (root-only, mode 0400) as
+  # `TUNNEL_TOKEN=<token>`, consumed as the connector unit's EnvironmentFile.
+  # Editing: `agenix -e secrets/cloudflared-token.age` (recipients in secrets/secrets.nix).
+  age.secrets."cloudflared-token".file = ../secrets/cloudflared-token.age;
 
   # ZTIA: trust Cloudflare's SSH CA for short-lived certificates. Coexists
   # with the static key above until the CA-cert path is verified end-to-end —
