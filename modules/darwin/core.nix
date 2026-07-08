@@ -35,11 +35,10 @@ in
   # the mkDarwin helper in flake.nix), NOT hardcoded here — so this shared module
   # serves the aarch64-darwin (macos) Mac.
 
-  # Enable flakes + the modern CLI for the daemon this config manages.
-  nix.settings.experimental-features = [
-    "nix-command"
-    "flakes"
-  ];
+  # NOTE: no `nix.settings.experimental-features` here. This host runs Determinate
+  # Nix (determinateNix.enable in flake.nix → nix.enable = false), which enables
+  # flakes + nix-command by default and OWNS /etc/nix/nix.conf — the `nix.*`
+  # options are unavailable once Determinate manages the daemon.
 
   # System-level packages (distinct from per-user Home Manager packages).
   environment.systemPackages = with pkgs; [
