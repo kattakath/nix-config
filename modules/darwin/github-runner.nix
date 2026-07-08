@@ -9,7 +9,7 @@
 # else differs — same `_github-runner` user, `RUNNER_ROOT` state dir, ephemeral
 # re-registration via launchd `KeepAlive.SuccessfulExit`.
 #
-# AUTH: the GitHub PAT from sops-nix (`config.sops.secrets."gh-runner-token"`,
+# AUTH: the GitHub PAT from agenix (`config.age.secrets."gh-runner-token"`,
 # wired in hosts/macos.nix with `owner = "_github-runner"` so the daemon can read
 # it). OUTBOUND-only — the runner polls GitHub, opens no port.
 #
@@ -30,7 +30,7 @@ let
   workDir = "${stateDir}/_work";
   logDir = "/var/log/github-runner-${name}";
   runner = pkgs.github-runner;
-  tokenFile = config.sops.secrets."gh-runner-token".path;
+  tokenFile = config.age.secrets."gh-runner-token".path;
 
   configure = pkgs.writeShellApplication {
     name = "configure-github-runner-${name}";
