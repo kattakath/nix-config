@@ -83,6 +83,16 @@ in
     account_id = accountId;
     tunnel_id = tunnelId;
     config = {
+      # ZTIA (Access for Infrastructure) reaches nixpi over a PRIVATE network
+      # route (WARP client -> Cloudflare -> this tunnel -> nixpi's LAN IP:22),
+      # not the public-hostname SSH ingress. warp-routing must be enabled for
+      # the tunnel to accept that private-network traffic; the /32 Tunnel CIDR
+      # route itself (10.0.0.37/32 -> this tunnel) is provisioned out of band
+      # (dashboard / scoped-token API — no terraform resource; see
+      # infra/cloudflare/nixpi-ssh.nix).
+      warp_routing = {
+        enabled = true;
+      };
       ingress = [
         # SSH ingress — nixpi.kattakath.com -> local sshd (the ZTIA target).
         {
