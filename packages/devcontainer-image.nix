@@ -28,6 +28,9 @@
   pkgs,
   lib,
   devPackages,
+  handleName,
+  cachixUrl,
+  cachixKey,
 }:
 
 let
@@ -210,7 +213,7 @@ dockerTools.streamLayeredImage {
     ID_LIKE=nixos
     PRETTY_NAME="nix-config devcontainer (distroless)"
     VERSION_ID="unstable"
-    HOME_URL="https://github.com/ismailkattakath/nix-config"
+    HOME_URL="https://github.com/${handleName}/nix-config"
     OSRELEASE
     ln -sf /etc/os-release usr/lib/os-release
 
@@ -256,8 +259,8 @@ dockerTools.streamLayeredImage {
     build-users-group =
     sandbox = false
     trusted-users = root vscode
-    extra-substituters = https://ismailkattakath.cachix.org
-    extra-trusted-public-keys = ismailkattakath.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I=
+    extra-substituters = ${cachixUrl}
+    extra-trusted-public-keys = ${cachixKey}
     NIXCONF
   '';
 

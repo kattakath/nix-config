@@ -17,17 +17,13 @@
 # Linux builder — a FlakeHub/account feature enabled via https://dtr.mn/features
 # (verify: `determinate-nixd version`), NOT a flake setting and NOT nix-darwin's
 # `nix.linux-builder` (which needs nix.enable = true; Determinate disables it —
-# nix-darwin#1505). Until it is enabled, build the guest on the `nixvm` CI runner
-# (remote builder) or pull from Cachix. The installed image and CI runner are
-# unaffected and stay headless.
+# nix-darwin#1505). Until it is enabled, build the guest on any aarch64-linux
+# builder or pull from Cachix. The installed image stays headless.
 #
 # Install (from live ISO — single command):
 #   nix --extra-experimental-features 'nix-command flakes' run github:ismailkattakath/nix-config#nixvm
 {
-  config,
   lib,
-  pkgs,
-  handleName,
   ...
 }:
 {
@@ -120,52 +116,6 @@
   };
 
   swapDevices = [ ];
-
-  # ---- Self-hosted GitHub Actions runner (aarch64-linux) --------------------
-  # Native `services.github-runners` (nixpkgs) — deliberately NOT
-  # juspay/github-nix-ci, which wraps this SAME module but couples the token to
-  # agenix; this fleet uses sops-nix (and agenix is banned). Registers ONE runner
-  # against the nix-config repo so the aarch64-linux CI leg can build on this VM
-  # (native, reliable) rather than the flaky Pi.
-  #
-  # TOKEN: a fine-grained GitHub PAT (repo Administration: read+write) delivered
-  # by sops-nix at /run/secrets/gh-runner-token. The runner self-registers with
-  # it and refreshes its own registration tokens.
-  #
-  # SECURITY: `ephemeral = true` — the runner runs ONE job then deregisters; the
-  # unit re-registers a fresh runner, so nothing persists between jobs. This repo
-  # is PUBLIC: do NOT point fork-PR workflows at this runner. Only wire trusted
-  # jobs (push to your own branches) to `runs-on: [self-hosted, aarch64-linux]`.
-  # This module only STANDS UP the runner; nix-ci.yml is not rewired to use it yet.
-  services.github-runners.nixvm = {
-    enable = true;
-    url = "https://github.com/${handleName}/nix-config";
-    tokenFile = config.sops.secrets."gh-runner-token".path;
-    ephemeral = true;
-    replace = true;
-    extraLabels = [
-      "nix"
-      "nixvm"
-    ];
-    # On PATH for workflows, beyond the runner's bundled node: nix + git, plus
-    # cachix to push build closures to the ismailkattakath cache.
-    extraPackages = with pkgs; [
-      nix
-      git
-      cachix
-    ];
-  };
-
-  # sops-nix: decrypt ../secrets/nixvm.yaml at activation with this host's SSH
-  # host key. `gh-runner-token` → /run/secrets/gh-runner-token (root-only 0400),
-  # consumed as the runner's tokenFile. Edit: `sops secrets/nixvm.yaml`.
-  sops = {
-    defaultSopsFile = ../secrets/nixvm.yaml;
-    age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
-    secrets."gh-runner-token" = {
-      restartUnits = [ "github-runner-nixvm.service" ];
-    };
-  };
 
   # ---- Graphical `build-vm` variant (GUI without UTM) -----------------------
   # Everything under virtualisation.vmVariant applies ONLY when building the VM
