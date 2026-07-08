@@ -99,7 +99,13 @@ jobs:
           timeout_minutes: 15
           max_attempts: 3
           retry_wait_seconds: 15
-          command: cachix push ismailkattakath result
+          # `nix run nixpkgs#cachix`, NOT bare `cachix`: nick-fields/retry spawns
+          # with the system PATH (which has `nix`) but NOT the github-nix-ci
+          # runner's extraPackages PATH (which has `cachix`), so bare `cachix` is
+          # "command not found" (127) on the self-hosted nixvm runner even though
+          # it is installed. Routing through `nix` sidesteps that; also works on
+          # GitHub-hosted runners.
+          command: nix run nixpkgs#cachix -- push ismailkattakath result
 
       - name: Publish to installer-latest release
         uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
