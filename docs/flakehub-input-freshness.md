@@ -42,7 +42,7 @@ is cut — the scheduled run simply no-ops, so leaving it unconfigured is safe.
    - **Repository permissions:** `Contents` → *Read and write*, `Pull requests`
      → *Read and write*. Leave everything else *No access*.
    - Uncheck **Active** under *Webhook* (no webhook needed).
-   - Create the App, then note its numeric **App ID**.
+   - Create the App, then note its **Client ID**.
 2. **Generate the App's private signing key** (the "Generate a private key"
    button on the App's page). A `.pem` downloads — this is the only copy, so
    handle it like any credential and delete the local file once step 4 is done.
@@ -53,10 +53,10 @@ is cut — the scheduled run simply no-ops, so leaving it unconfigured is safe.
 
    | Kind         | Name                 | Value                                    |
    | ------------ | -------------------- | ---------------------------------------- |
-   | **Variable** | `CI_BOT_APP_ID`  | the numeric App ID from step 1           |
+   | **Variable** | `CI_BOT_CLIENT_ID`  | the App's Client ID from step 1           |
    | **Secret**   | `CI_BOT_APP_PRIVATE_KEY` | the full contents of the `.pem` from step 2 |
 
-   The App ID is not sensitive, so it is a **Variable**; the signing key is, so it
+   The Client ID is not sensitive, so it is a **Variable**; the signing key is, so it
    is a **Secret** — injected into the workflow only via `${{ secrets.* }}` at run
    time, never committed to git or the Nix store.
 
@@ -81,6 +81,6 @@ receive `token: ${{ steps.app-token.outputs.token }}`.
   `CI_BOT_APP_PRIVATE_KEY` secret, delete the old key from the App. No workflow edit
   needed.
 - **Disable the automation entirely:** uninstall the App from the repo (or delete
-  the `CI_BOT_APP_ID` variable). The scheduled run then no-ops on the
+  the `CI_BOT_CLIENT_ID` variable). The scheduled run then no-ops on the
   fail-fast token step; `flake-checker` and the manual `/update-input` path are
   unaffected.
