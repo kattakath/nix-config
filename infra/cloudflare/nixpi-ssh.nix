@@ -82,10 +82,13 @@ let
   # Tunnel CIDR route bound to the SAME tunnel `cloudflared-connector` runs.
   # This is NOT nixpi's LAN DHCP address by default — confirm the exact
   # address the Tunnel CIDR route publishes before applying.
-  targetIp = "192.0.2.10"; # PLACEHOLDER — replace with nixpi's routed private IP
-  # The virtual network the tunnel route lives in. Dashboard: Networking >
-  # Virtual Networks (or the default VNet if only one tunnel/route exists).
-  virtualNetworkId = "00000000-0000-0000-0000-000000000000"; # PLACEHOLDER
+  # nixpi's LAN IP (its default-route source), to be published as a /32 Tunnel
+  # CIDR route through the nixpi tunnel (ca03b113-…). Confirmed via
+  # `ssh nixpi 'ip route get 1.1.1.1'` on 2026-07-08.
+  targetIp = "10.0.0.37";
+  # The account's only virtual network ("default"), fetched live via the
+  # Cloudflare API (GET /accounts/…/teamnet/virtual_networks) 2026-07-08.
+  virtualNetworkId = "b6c33d6d-4a9d-47c3-9ec1-d15321469b72";
 
   targetHostname = "nixpi"; # label only — NOT used for DNS resolution
   sshPort = 22;
