@@ -77,6 +77,15 @@
     # never pull a second package set.
     mcp-servers-nix.url = "github:natsukium/mcp-servers-nix";
     mcp-servers-nix.inputs.nixpkgs.follows = "nixpkgs";
+
+    # github-nix-ci — declarative self-hosted GitHub Actions runners for NixOS.
+    # Used ONLY on nixvm (aarch64-linux): it wraps nixpkgs `services.github-runners`,
+    # which needs a nix-daemon-managed Nix — fine on NixOS, but NOT on the macos
+    # host (Determinate sets nix.enable = false; that is exactly why
+    # modules/darwin/github-runner.nix hand-rolls a launchd runner instead).
+    # Module-only flake (no nixpkgs input of its own — it uses the consumer's
+    # pkgs), so there is nothing to `follows`.
+    github-nix-ci.url = "github:juspay/github-nix-ci";
   };
 
   outputs =
@@ -95,6 +104,7 @@
       determinate,
       agenix,
       mcp-servers-nix,
+      github-nix-ci,
       ...
     }:
     let
@@ -447,6 +457,10 @@
           hostname = "nixvm";
           extraModules = [
             disko.nixosModules.disko
+            # Self-hosted GitHub Actions runner (aarch64-linux) — the NixOS-native
+            # counterpart to the macOS host's hand-rolled launchd runner. Config +
+            # agenix token live in hosts/nixvm.nix (gated on the token existing).
+            github-nix-ci.nixosModules.default
             # Graphical `build-vm` variant runs on the aarch64-darwin Mac, so its
             # QEMU runner must be macOS-native. host.pkgs is the pkgs whose qemu
             # the generated run-nixvm-vm executes — point it at aarch64-darwin.
