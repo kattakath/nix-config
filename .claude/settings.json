@@ -59,9 +59,6 @@
       "Bash(wipefs:*)",
       "Bash(udevadm:*)",
       "Bash(sudo:*)",
-      "Agent(platform-compiler)",
-      "Agent(nix-researcher)",
-      "Agent(ci-release-driver)",
       "Agent(Explore)",
       "Agent(Plan)",
       "Agent(general-purpose)",
@@ -79,18 +76,6 @@
     ]
   },
   "hooks": {
-    "UserPromptSubmit": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/superhook.js\" UserPromptSubmit -- node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/delegate-team.js\"",
-            "timeout": 15
-          }
-        ]
-      }
-    ],
     "SessionStart": [
       {
         "matcher": "*",
@@ -155,18 +140,6 @@
             "type": "command",
             "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/superhook.js\" Stop -- node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/stop-gate.js\"",
             "timeout": 60
-          }
-        ]
-      }
-    ],
-    "SubagentStop": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "prompt",
-            "prompt": "Only applies to subagents that performed Nix flake / Home-Manager EVALUATION (e.g. the platform-compiler agent). If this subagent evaluated Nix, verify it reported results for both target systems (aarch64-darwin, aarch64-linux) and return {\"decision\":\"block\",\"reason\":\"...\"} if a system was skipped. If the subagent did NO Nix evaluation (e.g. search, planning, documentation, or memory tasks), return {\"decision\":\"approve\"}.",
-            "timeout": 20
           }
         ]
       }
