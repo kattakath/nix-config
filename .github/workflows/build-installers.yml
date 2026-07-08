@@ -4,8 +4,12 @@ name: build-installers
 # These images are stable and rarely need rebuilding — path-filtering avoids
 # wasting CI minutes on unrelated pushes.
 #
-# nixvm-installer: aarch64-linux ISO (ubuntu-24.04-arm native runner)
-# nixpi-installer: aarch64-linux SD card image (ubuntu-24.04-arm native runner)
+# Both legs build aarch64-linux images on the SELF-HOSTED `nixvm` runner
+# (github-nix-ci, labels nixvm+aarch64-linux):
+#   nixvm-installer: aarch64-linux ISO
+#   nixpi-installer: aarch64-linux SD card image (cold RPi kernel — heavy build)
+# Requires nixvm to be running. install-nix/cachix-action are skipped there
+# (NixOS already ships Nix + the ismailkattakath substituter).
 #
 # Published to the rolling installer-latest GitHub pre-release so the images
 # are always downloadable at a stable URL without tag-per-commit churn.
@@ -34,24 +38,28 @@ permissions:
 jobs:
   build:
     name: build (${{ matrix.name }})
-    runs-on: ${{ matrix.runs-on }}
+    # Both legs on the SELF-HOSTED nixvm runner (labels nixvm + aarch64-linux). No
+    # fork guard is needed here — this workflow only runs on push-to-main and
+    # workflow_dispatch (never fork PRs), so no untrusted code reaches the runner.
+    runs-on: [nixvm, aarch64-linux]
     timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: nixvm-installer
-            runs-on: ubuntu-24.04-arm
             package: ".#packages.aarch64-linux.nixvm-installer-iso"
             asset-glob: "result/iso/*.iso"
           - name: nixpi-installer
-            runs-on: ubuntu-24.04-arm
             package: ".#packages.aarch64-linux.nixpi-installer-image"
             asset-glob: "result/sd-image/*.img*"
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
+      # SKIPPED on the self-hosted nixvm runner — NixOS already provides Nix and
+      # the ismailkattakath substituter; only GitHub-hosted runners need this.
       - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31
+        if: runner.environment == 'github-hosted'
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
@@ -63,6 +71,7 @@ jobs:
       # them and intermittently 403s. Push explicitly below, wrapped in a retry —
       # Cachix store paths are content-addressed, so a retried push is safe.
       - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
+        if: runner.environment == 'github-hosted'
         with:
           name: ismailkattakath
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
