@@ -397,6 +397,7 @@
               # on the `nixvm` CI runner (remote builder) or pull from Cachix.
             }
             nix-homebrew.darwinModules.nix-homebrew # declaratively install brew (arch-correct prefix)
+            sops-nix.darwinModules.default # encrypted in-repo secrets (./secrets/macos.yaml)
             ./hosts/${hostname}.nix
             home-manager.darwinModules.home-manager
             {
