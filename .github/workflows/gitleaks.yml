@@ -24,12 +24,11 @@ concurrency:
   group: gitleaks-${{ github.ref }}
   cancel-in-progress: true
 
-# Least-privilege: read the checked-out history, plus PR commits — on
-# pull_request events gitleaks-action lists the PR's commits via the API,
-# which requires pull-requests:read (else it 403s before scanning).
+# Least-privilege: gitleaks only reads the checked-out history. (The old
+# gitleaks-ACTION also needed pull-requests:read to list PR commits over the API;
+# the CLI walks the local git history instead, so that grant is gone.)
 permissions:
   contents: read
-  pull-requests: read
 
 jobs:
   gitleaks:
@@ -42,7 +41,20 @@ jobs:
           # Full history required — gitleaks walks every commit
           fetch-depth: 0
 
+      # The gitleaks CLI, NOT gitleaks/gitleaks-action.
+      #
+      # The ACTION is free only for personal accounts: against an organization it
+      # hard-fails with "[kattakath] is an organization. License key is required"
+      # and demands a paid GITLEAKS_LICENSE. Moving this repo under the org tripped
+      # exactly that. The gitleaks BINARY is MIT-licensed and unrestricted — only
+      # the wrapper is gated — so run it directly and drop the third-party action
+      # (one less supply-chain edge, and it is pinned by our own flake.lock).
+      - uses: cachix/install-nix-action@a49548c11d9846ad46ecc0115273879b045f001c # v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
       - name: Run gitleaks
-        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # `detect` walks the whole local history (fetch-depth: 0 above);
+        # --redact keeps any finding out of the public CI log.
+        run: nix run nixpkgs#gitleaks -- detect --source . --redact --verbose --exit-code 1

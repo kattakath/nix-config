@@ -109,17 +109,44 @@
     }:
     let
       # ---- Single source of truth for the human identity ---------------------
+      # userName is the POSIX ACCOUNT on every host (users.users.${userName},
+      # home-manager.users.${userName}, /Users/ismail on the Mac) — NOT a label.
+      # It is deliberately NOT the GitHub handle: renaming it would repoint
+      # home-manager at a user that does not exist on the machine.
       userName = "ismail";
       domainName = "kattakath.com";
       fullName = "Ismail Kattakath";
+
+      # The human's GitHub handle. Since the fleet moved under the `kattakath`
+      # org this is NO LONGER the repo owner — it is just the person.
       handleName = "ismailkattakath";
+
+      # Git identity. Its own binding rather than "${userName}@${domainName}",
+      # so the commit address can be GitHub's noreply (which never leaks a real
+      # mailbox) without dragging the POSIX account name along with it.
+      userEmail = "8927166+${handleName}@users.noreply.github.com";
+
+      # ---- Single source of truth for the GitHub owner -----------------------
+      # The org that owns the repo, the Cachix cache and the self-hosted runners.
+      # Split from handleName so the two can never be confused again: everything
+      # that says "who publishes this" is orgName; everything that says "who is
+      # the person" is handleName/userName.
+      orgName = "kattakath";
+      repoName = "nix-config";
+      flakeRef = "github:${orgName}/${repoName}";
 
       # ---- Single source of truth for the Cachix binary cache ----------------
       # The public read-only CI cache, consumed by every host. Threaded into the
       # NixOS builder's specialArgs (modules/shared/nix-cache.nix) and into the
       # macOS host's Determinate customSettings — one literal, no duplication.
-      cachixUrl = "https://${handleName}.cachix.org";
-      cachixKey = "${handleName}.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I=";
+      cachixUrl = "https://${orgName}.cachix.org";
+      cachixKey = "${orgName}.cachix.org-1:y/w6wnb4ZArdlbfWJ82c81uCXeYgG/sGDUYCszavmEw=";
+
+      # The retired personal cache, kept as a READ-ONLY fallback substituter so
+      # the org cache does not have to be warmed from cold. Nothing pushes here
+      # any more; drop this once kattakath.cachix.org has the fleet's closures.
+      legacyCachixUrl = "https://${handleName}.cachix.org";
+      legacyCachixKey = "${handleName}.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I=";
 
       # ---- DRY system mapping -------------------------------------------------
       # A 3-host aarch64-only fleet: no x86_64 anywhere (devcontainer aarch64-only
@@ -313,11 +340,17 @@
               domainName
               fullName
               handleName
+              orgName
+              userEmail
               # Public Cachix substituter URL + trusted-PUBLIC-key (verification
               # key, safe to expose — NOT a secret/token). Consumed by
-              # modules/shared/nix-cache.nix.
+              # modules/shared/nix-cache.nix. legacy* is the retired personal
+              # cache, kept read-only so the new org cache need not be warmed
+              # from cold.
               cachixUrl
               cachixKey
+              legacyCachixUrl
+              legacyCachixKey
               ;
           };
           modules = [
@@ -337,6 +370,8 @@
                     domainName
                     fullName
                     handleName
+                    orgName
+                    userEmail
                     mcp-servers-nix
                     ;
                 };
@@ -370,6 +405,10 @@
               domainName
               fullName
               handleName
+              # orgName feeds modules/darwin/github-runner.nix, which registers
+              # the runner at github.com/${orgName} (org-level, not per-repo).
+              orgName
+              userEmail
               ;
           };
           modules = [
@@ -389,8 +428,14 @@
             {
               determinateNix.enable = true; # implies nix.enable = false
               determinateNix.customSettings = {
-                extra-substituters = [ cachixUrl ];
-                extra-trusted-public-keys = [ cachixKey ];
+                extra-substituters = [
+                  cachixUrl
+                  legacyCachixUrl
+                ];
+                extra-trusted-public-keys = [
+                  cachixKey
+                  legacyCachixKey
+                ];
               };
               # LINUX BUILDS ON macOS (for `nix run .#nixvm-gui`, `.#nixpi`):
               # use Determinate's NATIVE Linux builder (Apple Virtualization
@@ -423,6 +468,8 @@
                     domainName
                     fullName
                     handleName
+                    orgName
+                    userEmail
                     mcp-servers-nix
                     ;
                 };
@@ -536,7 +583,7 @@
             # Identity single-sources (not in pkgs, so callPackage can't autofill):
             # the image's os-release HOME_URL + baked nix.conf Cachix lines reuse
             # these instead of re-hardcoding the handle/cache.
-            inherit handleName cachixUrl cachixKey;
+            inherit orgName cachixUrl cachixKey;
           };
         }))
 
@@ -552,8 +599,8 @@
               # The PINNED agenix, not `nix run github:ryantm/agenix` at runtime:
               # a recovery must not depend on whatever agenix master is that day.
               agenix = agenix.packages.${system}.default;
-              inherit handleName;
-              flakeRef = "github:${handleName}/nix-config";
+              inherit orgName;
+              inherit flakeRef;
             };
           in
           {
@@ -565,7 +612,7 @@
           # BREAK-GLASS ONLY (see the apps block): superseded by nixos-anywhere.
           aarch64-linux.nixvm = (pkgsFor "aarch64-linux").callPackage ./packages/nixvm.nix {
             diskoInstall = disko.packages.aarch64-linux.disko-install;
-            inherit handleName;
+            inherit orgName;
           };
           aarch64-linux.nixvm-installer-iso =
             self.nixosConfigurations.nixvm-installer.config.system.build.isoImage;
@@ -661,7 +708,7 @@
               meta.description = "Boot a THROWAWAY nixvm with an XFCE desktop in a QEMU window (not the installed disk; needs an aarch64-linux builder)";
             };
 
-            # `nix run github:ismailkattakath/nix-config#macos` — one-line first
+            # `nix run github:kattakath/nix-config#macos` — one-line first
             # activation of the macos nix-darwin host straight from the flake: the
             # darwin analog of `nix run .#nixvm` (and of nixpi's
             # `nixos-rebuild switch --flake …#nixpi`). After Determinate Nix is

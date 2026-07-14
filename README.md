@@ -2,9 +2,9 @@
 
 > One declarative Nix flake for my aarch64 fleet — my Mac, a Raspberry Pi server, a UTM/QEMU sandbox VM, and a prebuilt devcontainer.
 
-[![build-devcontainer](https://github.com/ismailkattakath/nix-config/actions/workflows/build-devcontainer.yml/badge.svg)](https://github.com/ismailkattakath/nix-config/actions/workflows/build-devcontainer.yml)
-[![gitleaks](https://github.com/ismailkattakath/nix-config/actions/workflows/gitleaks.yml/badge.svg)](https://github.com/ismailkattakath/nix-config/actions/workflows/gitleaks.yml)
-[![FlakeHub](https://img.shields.io/endpoint?url=https://flakehub.com/f/ismailkattakath/nix-config/badge)](https://flakehub.com/flake/ismailkattakath/nix-config)
+[![build-devcontainer](https://github.com/kattakath/nix-config/actions/workflows/build-devcontainer.yml/badge.svg)](https://github.com/kattakath/nix-config/actions/workflows/build-devcontainer.yml)
+[![gitleaks](https://github.com/kattakath/nix-config/actions/workflows/gitleaks.yml/badge.svg)](https://github.com/kattakath/nix-config/actions/workflows/gitleaks.yml)
+[![FlakeHub](https://img.shields.io/endpoint?url=https://flakehub.com/f/kattakath/nix-config/badge)](https://flakehub.com/flake/kattakath/nix-config)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Built with Nix](https://img.shields.io/badge/built%20with-Nix-5277C3.svg?logo=nixos&logoColor=white)](https://nixos.org)
 
@@ -63,7 +63,7 @@ nix build .#nixvm-image     # → ./result — UTM-importable qcow2
 The devcontainer image is prebuilt and published — pull it directly:
 
 ```bash
-docker pull ghcr.io/ismailkattakath/devcontainer:latest
+docker pull ghcr.io/kattakath/devcontainer:latest
 ```
 
 Or just open the repo in a devcontainer-aware editor; `.devcontainer/devcontainer.json` references the same published image.
@@ -86,10 +86,10 @@ Platform branching lives in `modules/` behind `lib.mkIf`, so host profiles stay 
 
 CI runs on **GitHub Actions** ([`nix-ci.yml`](./.github/workflows/nix-ci.yml)) across both target systems — `aarch64-darwin` and `aarch64-linux` — on **native**, one-per-system GitHub-hosted runners (`macos-latest`, `ubuntu-24.04-arm`; no QEMU). Each leg does two things: it *builds* the flake's lint/format `checks` (`treefmt` + `pre-commit` — the same derivations `nix fmt` and the commit hook run locally) with [`nix-fast-build`](https://github.com/Mic92/nix-fast-build), and it *evaluates* each host config's toplevel `drvPath` (a full module-system eval that catches config/type errors in seconds) **without building it** — the expensive toplevel builds (notably the Pi SD image) are a release-time concern. Built check results are pushed to the [Cachix](https://www.cachix.org/) (`ismailkattakath`) cache consumed read-only by every host. Branch protection requires the aggregate `required-checks` job.
 
-- [`build-devcontainer`](https://github.com/ismailkattakath/nix-config/actions/workflows/build-devcontainer.yml) builds, smoke-tests, and publishes the aarch64 devcontainer image to GHCR.
-- [`build-installers`](https://github.com/ismailkattakath/nix-config/actions/workflows/build-installers.yml) builds and publishes the `nixvm`/`nixpi` installer images to a rolling pre-release.
-- [`gitleaks`](https://github.com/ismailkattakath/nix-config/actions/workflows/gitleaks.yml) scans every push and PR (and weekly) for leaked secrets.
-- [`flakehub-publish`](https://github.com/ismailkattakath/nix-config/actions/workflows/flakehub-publish.yml) publishes each push to `main` as a rolling release to [FlakeHub](https://flakehub.com/flake/ismailkattakath/nix-config) via [`flakehub-push`](https://github.com/DeterminateSystems/flakehub-push). Auth is OIDC (`id-token: write`) — no long-lived token. Per FlakeHub's [trusted-platform model](https://docs.determinate.systems/flakehub/publishing/), flakes publish only from CI, never ad-hoc from a laptop.
+- [`build-devcontainer`](https://github.com/kattakath/nix-config/actions/workflows/build-devcontainer.yml) builds, smoke-tests, and publishes the aarch64 devcontainer image to GHCR.
+- [`build-installers`](https://github.com/kattakath/nix-config/actions/workflows/build-installers.yml) builds and publishes the `nixvm`/`nixpi` installer images to a rolling pre-release.
+- [`gitleaks`](https://github.com/kattakath/nix-config/actions/workflows/gitleaks.yml) scans every push and PR (and weekly) for leaked secrets.
+- [`flakehub-publish`](https://github.com/kattakath/nix-config/actions/workflows/flakehub-publish.yml) publishes each push to `main` as a rolling release to [FlakeHub](https://flakehub.com/flake/kattakath/nix-config) via [`flakehub-push`](https://github.com/DeterminateSystems/flakehub-push). Auth is OIDC (`id-token: write`) — no long-lived token. Per FlakeHub's [trusted-platform model](https://docs.determinate.systems/flakehub/publishing/), flakes publish only from CI, never ad-hoc from a laptop.
 
 ## Secrets
 

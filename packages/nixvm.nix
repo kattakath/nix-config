@@ -3,11 +3,11 @@
 {
   pkgs,
   diskoInstall,
-  handleName,
+  orgName,
 }:
 pkgs.writeShellApplication {
   name = "nixvm";
   text = ''
-    sudo ${diskoInstall}/bin/disko-install --flake github:${handleName}/nix-config#nixvm --disk vda /dev/vda
+    sudo ${diskoInstall}/bin/disko-install --flake github:${orgName}/nix-config#nixvm --disk vda /dev/vda
   '';
 }
