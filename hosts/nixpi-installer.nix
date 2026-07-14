@@ -1,6 +1,6 @@
 # Minimal installer SD image for nixpi (aarch64-linux / Raspberry Pi 4).
 # Flash to SD card, boot, SSH as nixos@nixpi-installer.local, then run:
-#   sudo nixos-rebuild switch --flake github:ismailkattakath/nix-config#nixpi
+#   sudo nixos-rebuild switch --flake github:kattakath/nix-config#nixpi
 # Reboot → ssh ismail@nixpi.local (mDNS) to confirm the LIVE config came up.
 { lib, ... }:
 {

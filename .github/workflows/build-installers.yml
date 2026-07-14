@@ -38,10 +38,15 @@ permissions:
 jobs:
   build:
     name: build (${{ matrix.name }})
-    # Both legs on the SELF-HOSTED nixvm runner (labels nixvm + aarch64-linux). No
-    # fork guard is needed here — this workflow only runs on push-to-main and
-    # workflow_dispatch (never fork PRs), so no untrusted code reaches the runner.
-    runs-on: [nixvm, aarch64-linux]
+    # GitHub-hosted aarch64, deliberately NOT the self-hosted nixvm runner:
+    #
+    #   1. CIRCULARITY. This workflow builds the nixvm INSTALLER ISO. Running it
+    #      on nixvm means the only machine that can rebuild the VM is the VM —
+    #      worthless precisely when the VM is gone (which is how a Mac reset left
+    #      the fleet with no way back).
+    #   2. STARVATION. The cold Raspberry Pi kernel here takes ~1h. On the shared
+    #      runner it blocked every PR in the repo three times in one afternoon.
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 180
     strategy:
       fail-fast: false
@@ -56,26 +61,24 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      # SKIPPED on the self-hosted nixvm runner — NixOS already provides Nix and
-      # the ismailkattakath substituter; only GitHub-hosted runners need this.
       - uses: cachix/install-nix-action@a49548c11d9846ad46ecc0115273879b045f001c # v31
-        if: runner.environment == 'github-hosted'
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
-            extra-substituters = https://ismailkattakath.cachix.org
-            extra-trusted-public-keys = ismailkattakath.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I=
+            extra-substituters = https://kattakath.cachix.org https://ismailkattakath.cachix.org
+            extra-trusted-public-keys = kattakath.cachix.org-1:y/w6wnb4ZArdlbfWJ82c81uCXeYgG/sGDUYCszavmEw= ismailkattakath.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I=
 
-      # skipPush: the two matrix jobs share overlapping closure paths (firmware/
-      # regdb packages); cachix-action's implicit post-job auto-push races between
-      # them and intermittently 403s. Push explicitly below, wrapped in a retry —
-      # Cachix store paths are content-addressed, so a retried push is safe.
       - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
-        if: runner.environment == 'github-hosted'
         with:
-          name: ismailkattakath
+          name: kattakath
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
-          skipPush: true
+          # Push the BUILD closure (the ~1h RPi kernel and friends) but NOT the
+          # finished images: a compressed .iso/.img has no store references, so
+          # pushing it cached one multi-GB blob and none of the expensive
+          # intermediates. The images ship via the installer-latest release,
+          # which is where something you `dd` belongs.
+          pushFilter: "(-nixos-sd-image-|-nixos-minimal-.*\\.iso|\\.img)"
+          skipPush: false
 
       - name: Stage tree (git purity)
         run: git add -A
@@ -85,27 +88,6 @@ jobs:
         # so a failing derivation (e.g. the RPi kernel modules-shrunk) is
         # diagnosable without a separate `nix log` on the ephemeral runner.
         run: nix build ${{ matrix.package }} --out-link result --print-build-logs
-
-      - name: Push to Cachix
-        uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
-        env:
-          # cachix-action ran with skipPush:true (to dodge the concurrent-push
-          # race between the two matrix legs), which means it left NO push auth
-          # for this separate `cachix push` invocation — it would 403 "not
-          # authorized". cachix reads the token from CACHIX_AUTH_TOKEN, so supply
-          # it explicitly here.
-          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
-        with:
-          timeout_minutes: 15
-          max_attempts: 3
-          retry_wait_seconds: 15
-          # `nix run nixpkgs#cachix`, NOT bare `cachix`: nick-fields/retry spawns
-          # with the system PATH (which has `nix`) but NOT the github-nix-ci
-          # runner's extraPackages PATH (which has `cachix`), so bare `cachix` is
-          # "command not found" (127) on the self-hosted nixvm runner even though
-          # it is installed. Routing through `nix` sidesteps that; also works on
-          # GitHub-hosted runners.
-          command: nix run nixpkgs#cachix -- push ismailkattakath result
 
       - name: Publish to installer-latest release
         uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
@@ -117,8 +99,8 @@ jobs:
 
             | Image | Architecture | Use |
             |---|---|---|
-            | `nixvm-installer.iso` | aarch64-linux | Boot in UTM/QEMU, `ssh nixos@nixvm-installer.local`, run `nix run github:ismailkattakath/nix-config#nixvm` |
-            | `nixpi-installer.img*` | aarch64-linux (RPi 4) | Flash to SD card, `ssh nixos@nixpi-installer.local`, run `sudo nixos-rebuild switch --flake github:ismailkattakath/nix-config#nixpi` |
+            | `nixvm-installer.iso` | aarch64-linux | Boot in UTM/QEMU, `ssh nixos@nixvm-installer.local`, run `nix run github:kattakath/nix-config#nixvm` |
+            | `nixpi-installer.img*` | aarch64-linux (RPi 4) | Flash to SD card, `ssh nixos@nixpi-installer.local`, run `sudo nixos-rebuild switch --flake github:kattakath/nix-config#nixpi` |
           prerelease: true
           make_latest: false
           files: ${{ matrix.asset-glob }}

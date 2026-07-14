@@ -31,7 +31,12 @@
 let
   cfg = config.services.nixvm-qemu;
 
-  vmDir = "/Users/${userName}/nixvm";
+  # /var/lib, NOT the user's home. A 50 GB CI runner VM owned by a launchd DAEMON
+  # has no business living inside someone's home directory: it makes the whole CI
+  # runner a casualty of any account change, and deleting the user would delete
+  # the VM. Keeping it under /var/lib means a user rename/removal only changes
+  # ownership, never the path.
+  vmDir = "/var/lib/nixvm";
   disk = "${vmDir}/disk.qcow2";
   efivars = "${vmDir}/efivars.fd";
 
@@ -100,9 +105,9 @@ in
   config = lib.mkIf cfg.enable {
     launchd.daemons.nixvm-qemu = {
       # A DAEMON, not a user agent: the CI runner must come up on boot without
-      # anyone logging in. It still runs AS the user, because the qcow2 lives in
-      # the user's home and HVF needs no root — only the hypervisor entitlement,
-      # which nixpkgs' qemu binary already carries.
+      # anyone logging in. It runs AS the user (HVF needs no root — only the
+      # hypervisor entitlement, which nixpkgs' qemu binary already carries), but
+      # its state lives in /var/lib/nixvm, so the VM outlives any one account.
       serviceConfig = {
         ProgramArguments = qemuArgs;
         UserName = userName;
@@ -115,9 +120,17 @@ in
       };
     };
 
-    # Fail loudly at activation if the VM was never provisioned, instead of
-    # letting launchd crash-loop QEMU against a missing disk forever.
+    # Own the state dir on every activation. This is what lets the VM survive a
+    # user rename/removal: the PATH is fixed (/var/lib/nixvm) and only the owner
+    # follows userName, so switching accounts is a chown — not a 50 GB migration
+    # and not a destroyed CI runner.
     system.activationScripts.extraActivation.text = lib.mkAfter ''
+      mkdir -p ${vmDir}
+      chown -R ${userName}:staff ${vmDir}
+      chmod 700 ${vmDir}
+
+      # Fail loudly if the VM was never provisioned, instead of letting launchd
+      # crash-loop QEMU against a missing disk forever.
       if [ ! -f "${disk}" ]; then
         echo "warning: services.nixvm-qemu is enabled but ${disk} does not exist."
         echo "         nixvm has not been provisioned on this Mac yet — the launchd"

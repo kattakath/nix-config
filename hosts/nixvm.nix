@@ -21,7 +21,7 @@
 # builder or pull from Cachix. The installed image stays headless.
 #
 # Install (from live ISO — single command):
-#   nix --extra-experimental-features 'nix-command flakes' run github:ismailkattakath/nix-config#nixvm
+#   nix --extra-experimental-features 'nix-command flakes' run github:kattakath/nix-config#nixvm
 {
   lib,
   config,
@@ -174,7 +174,7 @@ in
   # OPERATOR STEPS to bring it online (secrets/ is not editable from this repo
   # tooling — do these by hand):
   #   1. Mint a GitHub PAT (repo scope + manage self-hosted runners) for
-  #      ismailkattakath/nix-config.
+  #      the kattakath org (needs admin:org to register org-level runners).
   #   2. Add nixvm's SSH host key + the operator key as recipients for
   #      `gh-runner-token-nixvm.age` in secrets/secrets.nix.
   #   3. `agenix -e secrets/gh-runner-token-nixvm.age`, paste the PAT, save.
@@ -188,9 +188,16 @@ in
       owner = "github-runner"; # user github-nix-ci runs the runner as (Linux)
     };
   };
-  services.github-nix-ci.personalRunners = lib.mkIf runnerEnabled {
-    "ismailkattakath/nix-config" = {
-      num = 1;
+  # ORG runners, not personalRunners: registered against github.com/kattakath so
+  # this one VM serves every repo in the org. github-nix-ci names them
+  # "<host>-<org>-<NN>" → nixvm-kattakath-01.
+  #
+  # num = 2, learned the hard way: with a single runner one long job (the ~1h
+  # cold Raspberry Pi kernel in build-installers) starves ALL other CI on the
+  # fleet — it blocked every PR three times in one afternoon.
+  services.github-nix-ci.orgRunners = lib.mkIf runnerEnabled {
+    "kattakath" = {
+      num = 2;
       tokenFile = config.age.secrets."gh-runner-token-nixvm".path;
     };
   };
