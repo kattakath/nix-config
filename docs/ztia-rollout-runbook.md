@@ -22,7 +22,7 @@ when the org was created.
 conns, ingress today is bare `ssh://localhost:22`) — find via: Zero Trust
 dashboard → **Networking** → **Tunnels**, or
 `GET /accounts/<ACCOUNT_ID>/cfd_tunnel` and match by name.
-**Repo**: `~/ismailkattakath/nix-config` (branch `main`,
+**Repo**: `~/kattakath/nix-config` (branch `main`,
 greenfield fleet rewrite)
 
 This is a documentation-only runbook. Nothing in it was executed by the agent
@@ -181,7 +181,7 @@ do not generate a second — just copy the existing public key.
 Replace the placeholder in the repo:
 
 ```bash
-cd ~/ismailkattakath/nix-config
+cd ~/kattakath/nix-config
 ```
 
 Edit `modules/nixos/cloudflare-ssh-ca.pub` — replace the entire placeholder
@@ -300,7 +300,7 @@ is just a label on the Access target, unrelated to the tunnel's own name).
 Once §3's placeholders are real values and staged:
 
 ```bash
-cd ~/ismailkattakath/nix-config
+cd ~/kattakath/nix-config
 git add -A   # git-purity: stage everything before any flake evaluation
 CLOUDFLARE_API_TOKEN=<your-scoped-token-from-1a> nix run .#cf-ssh-apply
 ```
@@ -387,10 +387,10 @@ keeps `services.cloudflared-connector.enable = true` untouched. Once §2's
 real CA public key is committed and staged, rebuild:
 
 ```bash
-cd ~/ismailkattakath/nix-config
+cd ~/kattakath/nix-config
 git add -A   # git-purity: stage everything before eval
 nix flake check   # sanity check both systems evaluate before touching the live Pi
-ssh ismail@nixpi.local 'sudo nixos-rebuild switch --flake github:ismailkattakath/nix-config#nixpi'
+ssh ismail@nixpi.local 'sudo nixos-rebuild switch --flake github:kattakath/nix-config#nixpi'
 ```
 
 (Using `nixpi.local` mDNS over the LAN — or your existing static-key path —
@@ -471,10 +471,10 @@ services.openssh-ca-trust.removeStaticKey = true;   # ADD this line
 Then:
 
 ```bash
-cd ~/ismailkattakath/nix-config
+cd ~/kattakath/nix-config
 git add -A
 nix flake check
-ssh ismail@nixpi.local 'sudo nixos-rebuild switch --flake github:ismailkattakath/nix-config#nixpi'
+ssh ismail@nixpi.local 'sudo nixos-rebuild switch --flake github:kattakath/nix-config#nixpi'
 ```
 
 **Do this rebuild while you still have a working session** (either the

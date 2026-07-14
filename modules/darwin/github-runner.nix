@@ -20,20 +20,26 @@
   config,
   pkgs,
   lib,
-  handleName,
+  orgName,
   ...
 }:
 let
-  name = "macos";
+  # ORG-level registration (github.com/<org>, not <org>/<repo>): one runner per
+  # host serves EVERY repo in the org, which is the whole point of moving the
+  # fleet under `kattakath`. Requires the PAT to carry admin:org — it does.
+  host = "macos";
+  # Uniform with github-nix-ci's naming on nixvm ("<host>-<org>-<NN>"), so the
+  # two runners read as one fleet in the GitHub UI instead of two conventions.
+  name = "${host}-${orgName}-01";
   user = "_github-runner";
-  stateDir = "/var/lib/github-runner-${name}";
+  stateDir = "/var/lib/github-runner-${host}";
   workDir = "${stateDir}/_work";
-  logDir = "/var/log/github-runner-${name}";
+  logDir = "/var/log/github-runner-${host}";
   runner = pkgs.github-runner;
   tokenFile = config.age.secrets."gh-runner-token".path;
 
   configure = pkgs.writeShellApplication {
-    name = "configure-github-runner-${name}";
+    name = "configure-github-runner-${host}";
     runtimeInputs = [ runner ];
     text = ''
       export RUNNER_ROOT
@@ -41,8 +47,8 @@ let
         --unattended
         --disableupdate
         --work ${lib.escapeShellArg workDir}
-        --url ${lib.escapeShellArg "https://github.com/${handleName}/nix-config"}
-        --labels 'nix,${name}'
+        --url ${lib.escapeShellArg "https://github.com/${orgName}"}
+        --labels 'nix,${host}'
         --name ${lib.escapeShellArg name}
         --replace
         --ephemeral
@@ -84,7 +90,7 @@ in
     ${lib.getExe' pkgs.coreutils "chown"} ${user}:${user} ${stateDir} ${workDir} ${logDir}
   '';
 
-  launchd.daemons."github-runner-${name}" = {
+  launchd.daemons."github-runner-${host}" = {
     # Minimal PATH for actions/checkout + Nix workflows. `pkgs.nix` (a daemon
     # client) replaces `config.nix.package`, which is unset under Determinate.
     path = with pkgs; [

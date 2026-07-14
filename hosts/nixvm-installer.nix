@@ -1,6 +1,6 @@
 # Minimal NixOS installer ISO for nixvm (aarch64-linux / UTM QEMU VM).
 # Boot from this ISO, SSH as nixos@nixvm-installer.local, then run:
-#   nix --extra-experimental-features 'nix-command flakes' run github:ismailkattakath/nix-config#nixvm
+#   nix --extra-experimental-features 'nix-command flakes' run github:kattakath/nix-config#nixvm
 # Reboot → ssh ismail@nixvm.local
 _: {
   networking.hostName = "nixvm-installer";

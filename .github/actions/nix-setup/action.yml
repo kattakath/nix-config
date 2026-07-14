@@ -54,7 +54,7 @@ runs:
     - if: inputs.configure-cachix == 'true'
       uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
       with:
-        name: ismailkattakath
+        name: kattakath
         authToken: ${{ inputs.cachix-auth-token }}
 
     # Flakes ignore untracked files; stage before any eval/build (git-purity).

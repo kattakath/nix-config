@@ -3,7 +3,7 @@ name: nixos-flake-install
 description: >
   Bootstrap NixOS onto a freshly-booted VM/host from this flake repo. Use when asked to "install
   NixOS", bootstrap a host, partition a disk for NixOS, or bring up nixvm/nixpi from the flake. A
-  single `nix run github:ismailkattakath/nix-config#<hostname>` command (the flake's bootstrap
+  single `nix run github:kattakath/nix-config#<hostname>` command (the flake's bootstrap
   app) replaces the old three-step sequence of disko + git clone + nixos-install. Covers driving
   the bootstrap over SSH from the live ISO, the ≥6 GB RAM prerequisite, and post-install
   verification.
@@ -11,7 +11,7 @@ description: >
 
 # NixOS flake bootstrap (this repo)
 
-Bootstraps `nixvm` from `github:ismailkattakath/nix-config` via a single command:
+Bootstraps `nixvm` from `github:kattakath/nix-config` via a single command:
 
 - **`nixvm`** — aarch64-linux, UTM/QEMU `virt` (Apple Silicon sandbox). Run from an **aarch64
   live ISO** (`nixvm-installer`).
@@ -85,7 +85,7 @@ and runs `nixos-install` in one shot. No git clone, no separate disko step, no `
 remember (hardcoded by `disko-install`). **Destructive — verify `/dev/vda` is the target disk first.**
 
 ```bash
-nix --extra-experimental-features 'nix-command flakes' run github:ismailkattakath/nix-config#nixvm
+nix --extra-experimental-features 'nix-command flakes' run github:kattakath/nix-config#nixvm
 ```
 
 `--extra-experimental-features` is required on the bare ISO (flakes not enabled by default); once the
@@ -134,7 +134,7 @@ hostname; nixos-version
 
 1. Flash `nixpi-installer-image` (`.#packages.aarch64-linux.nixpi-installer-image`) to an SD card.
 2. Boot the Pi, SSH in as `nixos@nixpi-installer.local`.
-3. Run `sudo nixos-rebuild switch --flake github:ismailkattakath/nix-config#nixpi` (or install
+3. Run `sudo nixos-rebuild switch --flake github:kattakath/nix-config#nixpi` (or install
    directly onto the SD card if the installer image already carries the `nixpi` config — confirm
    against the current `hosts/nixpi-installer.nix`).
 4. **Before first successful tunnel activation**, place `/etc/secrets/cloudflared-token` on the

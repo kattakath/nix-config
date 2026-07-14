@@ -11,10 +11,10 @@
   // This file keeps ONLY what an image cannot carry: the workspace mount, the
   // VS Code extensions/settings, and the terminal profiles.
   //
-  // Published under the short, unnamespaced ghcr.io/ismailkattakath/devcontainer
+  // Published under the short, unnamespaced ghcr.io/kattakath/devcontainer
   // name (this is the repo's sole/default devcontainer).
   "name": "nix-config (prebuilt Nix devcontainer image)",
-  "image": "ghcr.io/ismailkattakath/devcontainer:latest",
+  "image": "ghcr.io/kattakath/devcontainer:latest",
     
   // Multi-user Nix: the image runs as ROOT (entrypoint starts the nix-daemon) and
   // VS Code drops to the non-root `vscode` user, which reaches the daemon over the
