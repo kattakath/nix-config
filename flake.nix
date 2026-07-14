@@ -171,6 +171,16 @@
       # actual hosts rely on.
       devcontainerSystems = linuxSystems ++ [ "x86_64-linux" ];
 
+      # Dev-tooling outputs (devShell + its treefmt eval) must cover every arch a
+      # human might DEVELOP on: the fleet arches PLUS the devcontainer's x86_64.
+      # `devcontainer.json` runs `nix develop .#default` as its terminal, so a
+      # Codespaces user on x86_64 needs devShells.x86_64-linux.default to exist —
+      # without it the container's shell errors out (and the CI smoke test does
+      # too). This is NOT the fleet: no host/check/config is generated for x86_64,
+      # only the dev environment. CI builds .#checks.<system> (aarch64 only), never
+      # a full `nix flake check`, so no aarch64 runner tries to build this.
+      devToolingSystems = nixpkgs.lib.unique (allSystems ++ devcontainerSystems);
+
       forAllSystems = f: nixpkgs.lib.genAttrs allSystems f;
 
       # Per-system nixpkgs accessor (legacyPackages avoids a redundant eval).
@@ -290,7 +300,7 @@
       # into the image, so the x86_64 image needs an x86_64 treefmt eval. This is
       # a pure eval and feeds nothing else x86 — `checks`/`packages` keep their own
       # forAllSystems (allSystems) fold, so the fleet stays aarch64-only.
-      treefmtEval = nixpkgs.lib.genAttrs (nixpkgs.lib.unique (allSystems ++ devcontainerSystems)) (
+      treefmtEval = nixpkgs.lib.genAttrs devToolingSystems (
         system: treefmt-nix.lib.evalModule (pkgsFor system) ./treefmt.nix
       );
 
@@ -792,7 +802,10 @@
       # statix/deadnix/jq are exposed as standalone binaries (NOT via
       # preCommit.enabledPackages, which only yields the treefmt wrapper) so the
       # .vscode lint tasks can call them directly.
-      devShells = forAllSystems (
+      # devToolingSystems (fleet + x86_64), NOT forAllSystems: the x86_64
+      # devcontainer's terminal runs `nix develop .#default`, so that arch needs a
+      # devShell output or the container shell errors. See devToolingSystems above.
+      devShells = nixpkgs.lib.genAttrs devToolingSystems (
         system:
         let
           pkgs = pkgsFor system;
