@@ -42,7 +42,7 @@ jobs:
       # UPSTREAM Nix (NOT DeterminateSystems/nix-installer-action — that installs
       # Determinate Nix only), matching nix-ci.yml. flakehub-push needs a Nix with
       # flakes to evaluate the flake's metadata/outputs before upload.
-      - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31
+      - uses: cachix/install-nix-action@a49548c11d9846ad46ecc0115273879b045f001c # v31
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
