@@ -26,13 +26,13 @@ name: nix-ci
 # same-repo pushes/PRs and workflow_dispatch reach the self-hosted runners.
 #
 # On EITHER self-hosted runner Nix is already present (macos: Determinate; nixvm:
-# NixOS) with the ismailkattakath substituter pre-configured, so
+# NixOS) with the kattakath substituter pre-configured, so
 # install-nix-action + cachix-action are SKIPPED there — they run only on
 # GitHub-hosted runners (`runner.environment == 'github-hosted'`). nix/git/cachix
 # are on the runner PATH (macos: modules/darwin/github-runner.nix launchd; nixvm:
 # github-nix-ci extraPackages + runnerSettings.extraPackages = [ git ]).
 #
-# READ from the ismailkattakath Cachix cache is public. WRITE needs
+# READ from the kattakath Cachix cache is public. WRITE needs
 # CACHIX_AUTH_TOKEN (a repo secret; absent on fork PRs → push no-ops). The cache
 # is warmed reactively by this workflow's push-to-main run and by release builds.
 
@@ -115,7 +115,7 @@ jobs:
             extra-substituters = https://kattakath.cachix.org https://ismailkattakath.cachix.org
             extra-trusted-public-keys = kattakath.cachix.org-1:y/w6wnb4ZArdlbfWJ82c81uCXeYgG/sGDUYCszavmEw= ismailkattakath.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I=
 
-      # SKIPPED on self-hosted: the ismailkattakath substituter is already in the
+      # SKIPPED on self-hosted: the kattakath substituter is already in the
       # Mac's system nix.conf (Determinate customSettings) and the push step reads
       # CACHIX_AUTH_TOKEN from the env directly (cachix is on the runner's PATH).
       - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
@@ -140,7 +140,7 @@ jobs:
           nix run github:Mic92/nix-fast-build/561be51b96d376c9c6c49a063cfdc83af81f4929 -- \
             --skip-cached --no-nom \
             --flake ".#checks.${{ matrix.name }}" \
-            --cachix-cache ismailkattakath
+            --cachix-cache kattakath
 
       # EVALUATE (not build) this leg's host config(s). Resolving each toplevel's
       # .drvPath forces a full module-system eval, so a broken config (bad option,

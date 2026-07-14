@@ -16,7 +16,7 @@ description: >-
 inputs:
   configure-cachix:
     description: >-
-      Wire up the `ismailkattakath` Cachix substituter (pull) + push hook.
+      Wire up the `kattakath` Cachix substituter (pull) + push hook.
       Set false for eval-only `gate` jobs that neither build nor push.
     required: false
     default: "true"
@@ -45,7 +45,7 @@ runs:
           accept-flake-config = true
           ${{ inputs.extra-nix-config }}
 
-    # Cachix: pull from + push to the public `ismailkattakath` cache. The action
+    # Cachix: pull from + push to the public `kattakath` cache. The action
     # installs a post-build hook, so every store path realized later is pushed
     # automatically. authToken is a write-only credential held only as a repo
     # secret; when absent (e.g. forks) push is skipped and the cache is still used
