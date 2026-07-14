@@ -9,7 +9,7 @@ name: build-installers
 #   nixvm-installer: aarch64-linux ISO
 #   nixpi-installer: aarch64-linux SD card image (cold RPi kernel — heavy build)
 # Requires nixvm to be running. install-nix/cachix-action are skipped there
-# (NixOS already ships Nix + the ismailkattakath substituter).
+# (NixOS already ships Nix + the kattakath substituter).
 #
 # Published to the rolling installer-latest GitHub pre-release so the images
 # are always downloadable at a stable URL without tag-per-commit churn.
