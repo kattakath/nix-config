@@ -93,11 +93,50 @@ Or run this on the macOS host — the bind-mount makes git state shared:
 cd ~/path/to/nix-config && git add -A
 ```
 
-## Step 3 — Build the nixvm qcow2
+## ⚠ Step 3 does NOT work on Docker Desktop for macOS — read this first
+
+`nixvm-image` is a `nixos-disk-image` derivation, and `make-disk-image` builds **inside a Linux
+VM**, so the derivation carries `requiredSystemFeatures = [ "kvm" ]`:
+
+```
+error: Cannot build 'nixos-disk-image.drv'.
+       Reason: missing system features
+       Required features: {kvm}
+       Available features: {benchmark, big-parallel, nixos-test, uid-range}
+```
+
+Docker Desktop on macOS does **not** expose `/dev/kvm` to containers — not even on an M3 Pro,
+where nested virtualisation is physically possible. Verify before assuming otherwise:
+
+```bash
+devcontainer exec --workspace-folder ~/nix-config bash -lc 'ls -l /dev/kvm'   # → No such file
+```
+
+**So the devcontainer cannot produce the qcow2.** What it *can* build is the installer ISO, which
+requires no special features at all — check for yourself rather than trusting either claim:
+
+```bash
+nix derivation show "$(nix eval --raw .#packages.aarch64-linux.nixvm-installer-iso.drvPath)" \
+  | grep requiredSystemFeatures     # → absent
+```
+
+Use the ISO to install nixvm the canonical way (`CLAUDE.md`): boot it in UTM and run the
+disko-install bootstrap **in the guest** (`nix run .#nixvm`). The prebuilt-qcow2 shortcut in
+**utm-vm-provision §0** is only usable if you obtain the qcow2 from somewhere with KVM — a real
+Linux box or a CI runner that has it — not from this devcontainer.
+
+## Step 3 — Build the installer ISO (works; no KVM needed)
 
 ```bash
 devcontainer exec --workspace-folder ~/path/to/nix-config -- \
-  nix build .#nixvm-image --print-out-paths
+  nix build .#packages.aarch64-linux.nixvm-installer-iso --print-out-paths
+```
+
+The original qcow2 command is kept below **only** for use on a builder that actually has KVM:
+
+```bash
+devcontainer exec --workspace-folder ~/path/to/nix-config -- \
+  nix build .#nixvm-image --print-out-paths   # ← fails on Docker Desktop/macOS, see above
 ```
 
 If `nix` is not on PATH inside exec, use the full path:
