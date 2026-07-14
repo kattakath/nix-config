@@ -126,7 +126,17 @@ in
     ];
   };
 
-  swapDevices = [ ];
+  # A swapFILE, not a swap partition: disko gives root `size = "100%"`, so adding a
+  # swap partition would mean repartitioning an already-installed disk. A file is
+  # idempotent and survives `qemu-img resize` + growfs. 4 GiB is a cushion for
+  # link-heavy Nix builds on a 16 GiB guest — it is not there to be used routinely;
+  # if the runner leans on it, raise services.nixvm-qemu.memoryMiB instead.
+  swapDevices = [
+    {
+      device = "/swapfile";
+      size = 4096; # MiB
+    }
+  ];
 
   # ---- Graphical `build-vm` variant (GUI without UTM) -----------------------
   # Everything under virtualisation.vmVariant applies ONLY when building the VM
