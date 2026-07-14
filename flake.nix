@@ -149,9 +149,11 @@
       legacyCachixKey = "${handleName}.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I=";
 
       # ---- DRY system mapping -------------------------------------------------
-      # A 3-host aarch64-only fleet: no x86_64 anywhere (devcontainer aarch64-only
-      # too). Every package / devShell output is generated for both via
-      # forAllSystems.
+      # A 3-host aarch64-only FLEET: no x86_64 HOST anywhere. Every package /
+      # devShell / check output is generated for the fleet systems via
+      # forAllSystems. (The devcontainer IMAGE is the one multi-arch output — it
+      # adds x86_64-linux via devcontainerSystems below, for Codespaces; that is a
+      # dev tool, not a fleet host, so the invariant holds where it matters.)
       linuxSystems = [
         "aarch64-linux"
       ];
@@ -159,6 +161,15 @@
         "aarch64-darwin"
       ];
       allSystems = linuxSystems ++ darwinSystems;
+
+      # The devcontainer image — and ONLY the image — is multi-arch. The FLEET
+      # stays aarch64-only (linuxSystems), but the devcontainer is a dev tool, not
+      # a host: GitHub Codespaces is x86_64-only, and an arm64-only image qemu-
+      # emulates (which breaks the nix-daemon container), so the image is built for
+      # both. Kept OUT of linuxSystems on purpose — adding x86_64 there would spawn
+      # x86 devShells/checks/formatter and break the single-arch invariant that the
+      # actual hosts rely on.
+      devcontainerSystems = linuxSystems ++ [ "x86_64-linux" ];
 
       forAllSystems = f: nixpkgs.lib.genAttrs allSystems f;
 
@@ -274,7 +285,14 @@
       # ---- Formatting / lint (treefmt-nix) ------------------------------------
       # The wrapper backs `nix fmt`; the `.config.build.check` derivation backs
       # the CI formatting gate.
-      treefmtEval = forAllSystems (system: treefmt-nix.lib.evalModule (pkgsFor system) ./treefmt.nix);
+      # Evaluated for the fleet systems PLUS the devcontainer's extra arch
+      # (x86_64-linux): devPackagesFor bakes treefmtEval.<system>.build.wrapper
+      # into the image, so the x86_64 image needs an x86_64 treefmt eval. This is
+      # a pure eval and feeds nothing else x86 — `checks`/`packages` keep their own
+      # forAllSystems (allSystems) fold, so the fleet stays aarch64-only.
+      treefmtEval = nixpkgs.lib.genAttrs (nixpkgs.lib.unique (allSystems ++ devcontainerSystems)) (
+        system: treefmt-nix.lib.evalModule (pkgsFor system) ./treefmt.nix
+      );
 
       # ---- Shared dev toolchain -----------------------------------------------
       # Pinned dev tools consumed by BOTH the `nix develop` devShell AND the
@@ -577,7 +595,7 @@
         # (aarch64-only in this fleet). Built with unfree pkgs (claude-code) and
         # the SHARED dev toolchain, so `nix develop` inside the container resolves
         # from the baked store.
-        (nixpkgs.lib.genAttrs linuxSystems (system: {
+        (nixpkgs.lib.genAttrs devcontainerSystems (system: {
           devcontainerImage = (pkgsUnfreeFor system).callPackage ./packages/devcontainer-image.nix {
             devPackages = devPackagesFor system;
             # Identity single-sources (not in pkgs, so callPackage can't autofill):
