@@ -520,6 +520,27 @@
           };
         }))
 
+        # Key-recovery kit (macOS only). Exposed as packages so `nix flake check`
+        # BUILDS them — which is what runs writeShellApplication's shellcheck on
+        # key-backup/key-recover and the explicit shellcheck on the no-Nix
+        # bootstrap script. Before this, the recovery scripts lived as loose bash
+        # in an iCloud folder that nothing linted and nothing evaluated.
+        (nixpkgs.lib.genAttrs darwinSystems (
+          system:
+          let
+            kit = (pkgsFor system).callPackage ./packages/key-recovery.nix {
+              # The PINNED agenix, not `nix run github:ryantm/agenix` at runtime:
+              # a recovery must not depend on whatever agenix master is that day.
+              agenix = agenix.packages.${system}.default;
+              inherit handleName;
+              flakeRef = "github:${handleName}/nix-config";
+            };
+          in
+          {
+            inherit (kit) key-backup key-recover key-recovery-bootstrap;
+          }
+        ))
+
         {
           aarch64-linux.nixvm-image = self.nixosConfigurations.nixvm.config.system.build.images.qemu-efi;
           aarch64-linux.nixvm = (pkgsFor "aarch64-linux").callPackage ./packages/nixvm.nix {
@@ -618,6 +639,26 @@
             # darwin-rebuild from the flake and `switch`es against this SAME
             # revision (${self}); darwin-rebuild self-elevates via sudo/Touch ID.
             # Subsequent rebuilds just use `darwin-rebuild switch --flake .#macos`.
+            # `nix run .#key-backup` — on a HEALTHY Mac, before you wipe it:
+            # publishes the passphrase-encrypted operator key + the bootstrap
+            # script + a (non-secret) fingerprint manifest into iCloud.
+            aarch64-darwin.key-backup = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.key-backup}/bin/key-backup";
+              meta.description = "Publish the encrypted key-recovery kit to iCloud (run BEFORE resetting this Mac)";
+            };
+
+            # `nix run .#key-recover` — stage 2 of recovery. bootstrap.sh execs
+            # this once Determinate Nix exists: decrypt the operator key, clone,
+            # re-key agenix to the new host key, activate. Stage 1 (the stale-Nix
+            # preflight + the installer itself) cannot run under Nix and lives in
+            # packages/key-recovery/bootstrap.sh.
+            aarch64-darwin.key-recover = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.key-recover}/bin/key-recover";
+              meta.description = "Restore the operator SSH key, re-key agenix to this Mac's host key, and activate";
+            };
+
             aarch64-darwin.macos = {
               type = "app";
               program = "${(pkgsFor "aarch64-darwin").writeShellScript "activate-macos" ''
