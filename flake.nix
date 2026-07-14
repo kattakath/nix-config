@@ -142,12 +142,6 @@
       cachixUrl = "https://${orgName}.cachix.org";
       cachixKey = "${orgName}.cachix.org-1:y/w6wnb4ZArdlbfWJ82c81uCXeYgG/sGDUYCszavmEw=";
 
-      # The retired personal cache, kept as a READ-ONLY fallback substituter so
-      # the org cache does not have to be warmed from cold. Nothing pushes here
-      # any more; drop this once kattakath.cachix.org has the fleet's closures.
-      legacyCachixUrl = "https://${handleName}.cachix.org";
-      legacyCachixKey = "${handleName}.cachix.org-1:7BbEvLpASY7aNUZfpzRMWir1zjU3nqmllBTl8p7gr2I=";
-
       # ---- DRY system mapping -------------------------------------------------
       # A 3-host aarch64-only FLEET: no x86_64 HOST anywhere. Every package /
       # devShell / check output is generated for the fleet systems via
@@ -372,13 +366,9 @@
               userEmail
               # Public Cachix substituter URL + trusted-PUBLIC-key (verification
               # key, safe to expose — NOT a secret/token). Consumed by
-              # modules/shared/nix-cache.nix. legacy* is the retired personal
-              # cache, kept read-only so the new org cache need not be warmed
-              # from cold.
+              # modules/shared/nix-cache.nix.
               cachixUrl
               cachixKey
-              legacyCachixUrl
-              legacyCachixKey
               ;
           };
           modules = [
@@ -456,14 +446,8 @@
             {
               determinateNix.enable = true; # implies nix.enable = false
               determinateNix.customSettings = {
-                extra-substituters = [
-                  cachixUrl
-                  legacyCachixUrl
-                ];
-                extra-trusted-public-keys = [
-                  cachixKey
-                  legacyCachixKey
-                ];
+                extra-substituters = [ cachixUrl ];
+                extra-trusted-public-keys = [ cachixKey ];
               };
               # LINUX BUILDS ON macOS (for `nix run .#nixvm-gui`, `.#nixpi`):
               # use Determinate's NATIVE Linux builder (Apple Virtualization

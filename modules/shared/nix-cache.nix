@@ -18,22 +18,12 @@
 {
   cachixUrl,
   cachixKey,
-  legacyCachixUrl,
-  legacyCachixKey,
   ...
 }:
 {
   nix.settings = {
     # Appended to (not replacing) the default cache.nixos.org substituter.
-    # legacy* is the retired personal cache: READ-ONLY, kept only so the new org
-    # cache does not have to be warmed from cold. Nothing pushes to it any more.
-    extra-substituters = [
-      cachixUrl
-      legacyCachixUrl
-    ];
-    extra-trusted-public-keys = [
-      cachixKey
-      legacyCachixKey
-    ];
+    extra-substituters = [ cachixUrl ];
+    extra-trusted-public-keys = [ cachixKey ];
   };
 }
