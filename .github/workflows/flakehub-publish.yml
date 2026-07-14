@@ -5,7 +5,7 @@ name: flakehub-publish
 # FlakeHub follows a TRUSTED-PLATFORM model: flakes may be published ONLY from a
 # CI platform, never ad-hoc from a laptop or cloud box
 # (https://docs.determinate.systems/flakehub/publishing/). This workflow is that
-# trusted platform for `ismailkattakath/nix-config`.
+# trusted platform for `kattakath/nix-config`.
 #
 # AUTH is OIDC — `permissions: id-token: write` lets flakehub-push mint a
 # short-lived token against FlakeHub. There is NO long-lived FlakeHub secret to
@@ -49,6 +49,6 @@ jobs:
 
       - uses: DeterminateSystems/flakehub-push@71f57208810a5d299fc6545350981de98fdbc860 # v6
         with:
-          name: ismailkattakath/nix-config
+          name: kattakath/nix-config
           visibility: public
           rolling: true

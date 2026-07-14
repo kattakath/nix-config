@@ -28,7 +28,7 @@
   pkgs,
   lib,
   devPackages,
-  handleName,
+  orgName,
   cachixUrl,
   cachixKey,
 }:
@@ -213,7 +213,7 @@ dockerTools.streamLayeredImage {
     ID_LIKE=nixos
     PRETTY_NAME="nix-config devcontainer (distroless)"
     VERSION_ID="unstable"
-    HOME_URL="https://github.com/${handleName}/nix-config"
+    HOME_URL="https://github.com/${orgName}/nix-config"
     OSRELEASE
     ln -sf /etc/os-release usr/lib/os-release
 

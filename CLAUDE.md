@@ -13,7 +13,7 @@ nix flake show                               # List exported darwinConfiguration
 nix fmt                                       # Format + lint-fix all .nix via treefmt (nixfmt + statix + deadnix)
 nix develop                                   # Enter dev shell (nixd LSP, treefmt, home-manager); installs pre-commit hooks
 nix build .#checks.<system>.formatting        # CI formatting/lint gate (fails on unformatted/lintable files)
-nix run github:ismailkattakath/nix-config#macos   # FIRST activation of macos straight from the flake (after Determinate Nix, before darwin-rebuild is on PATH); mirrors `nix run .#nixvm`
+nix run github:kattakath/nix-config#macos   # FIRST activation of macos straight from the flake (after Determinate Nix, before darwin-rebuild is on PATH); mirrors `nix run .#nixvm`
 darwin-rebuild switch --flake .#macos        # Activate the macOS (nix-darwin) config (Apple Silicon)
 nixos-rebuild switch --flake .#nixpi         # Activate the Raspberry Pi config (LIVE server)
 nixos-rebuild switch --flake .#nixvm         # Activate the UTM/QEMU sandbox VM config

@@ -46,7 +46,7 @@ is cut — the scheduled run simply no-ops, so leaving it unconfigured is safe.
 2. **Generate the App's private signing key** (the "Generate a private key"
    button on the App's page). A `.pem` downloads — this is the only copy, so
    handle it like any credential and delete the local file once step 4 is done.
-3. **Install the App** on `ismailkattakath/nix-config`: the App's *Install App*
+3. **Install the App** on `kattakath/nix-config`: the App's *Install App*
    tab → install on **Only select repositories** → this repo.
 4. **Wire the two values into the repo's Actions settings** — repo **Settings →
    Secrets and variables → Actions**:

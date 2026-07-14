@@ -35,7 +35,7 @@
   coreutils,
   agenix,
   shellcheck,
-  handleName,
+  orgName,
   flakeRef,
 }:
 let
@@ -204,7 +204,7 @@ in
 
             KIT="${kitDir}"
             REPO_DIR="$HOME/nix-config"
-            REPO="git@github.com:${handleName}/nix-config.git"
+            REPO="git@github.com:${orgName}/nix-config.git"
             CHECK=0
             REDECRYPT=0
             FIX_ETC=0
@@ -285,7 +285,7 @@ in
 
             ssh-keygen -y -f "$HOME/.ssh/id_ed25519" > "$HOME/.ssh/id_ed25519.pub"
             chmod 644 "$HOME/.ssh/id_ed25519.pub"
-            printf '%s %s\n' "${handleName}@users.noreply.github.com" \
+            printf '%s %s\n' "${orgName}@users.noreply.github.com" \
               "$(cat "$HOME/.ssh/id_ed25519.pub")" > "$HOME/.ssh/allowed_signers"
             chmod 600 "$HOME/.ssh/allowed_signers"
 

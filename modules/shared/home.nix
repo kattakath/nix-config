@@ -15,9 +15,8 @@
   pkgs,
   lib,
   config,
-  domainName,
   fullName,
-  userName,
+  userEmail,
   ...
 }:
 let
@@ -99,7 +98,7 @@ in
       lfs.enable = true; # git-lfs, wired into git config (devcontainer feature)
       settings = {
         user.name = lib.mkDefault fullName;
-        user.email = lib.mkDefault "${userName}@${domainName}";
+        user.email = lib.mkDefault userEmail;
         init.defaultBranch = "main";
         pull.rebase = true;
         commit.gpgsign = true;

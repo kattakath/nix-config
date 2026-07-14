@@ -4,7 +4,7 @@
 
 If you find a security issue in this repository, please report it privately rather than opening a public issue.
 
-- Preferred: open a [GitHub private security advisory](https://github.com/ismailkattakath/nix-config/security/advisories/new).
+- Preferred: open a [GitHub private security advisory](https://github.com/kattakath/nix-config/security/advisories/new).
 - Alternatively, email **8927166+ismailkattakath@users.noreply.github.com**.
 
 Please include enough detail to reproduce the issue. I'll acknowledge the report and work with you on a fix and disclosure timeline.
