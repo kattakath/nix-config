@@ -58,7 +58,7 @@ jobs:
 
       # SKIPPED on the self-hosted nixvm runner — NixOS already provides Nix and
       # the ismailkattakath substituter; only GitHub-hosted runners need this.
-      - uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31
+      - uses: cachix/install-nix-action@a49548c11d9846ad46ecc0115273879b045f001c # v31
         if: runner.environment == 'github-hosted'
         with:
           extra_nix_config: |
