@@ -276,7 +276,7 @@ break-glass path regardless of ZTIA status.
 4. **Rebuild `nixpi`** (this activates `TrustedUserCAKeys` — the static key
    stays in place too, since `removeStaticKey` is still `false`):
    ```bash
-   ssh ismail@nixpi.local 'sudo nixos-rebuild switch --flake github:ismailkattakath/nix-config#nixpi'
+   ssh ismail@nixpi.local 'sudo nixos-rebuild switch --flake github:kattakath/nix-config#nixpi'
    ```
 
 5. **Enroll a client and verify ZTIA login end-to-end** — install the

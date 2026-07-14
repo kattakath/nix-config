@@ -65,7 +65,7 @@ Full procedure: the **nixvm-qemu-provision** skill. Shape of it:
 sudo launchctl kickstart -k system/org.nixos.nixvm-qemu   # restart the VM
 tail -f ~/nixvm/serial.log                                # guest console
 ssh -p 2222 ismail@localhost                              # get in
-nix run nixpkgs#gh -- api repos/ismailkattakath/nix-config/actions/runners \
+nix run nixpkgs#gh -- api repos/kattakath/nix-config/actions/runners \
   --jq '.runners[] | "\(.name) \(.status)"'               # is it registered?
 ```
 

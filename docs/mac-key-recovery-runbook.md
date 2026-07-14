@@ -43,7 +43,7 @@ installs Nix cannot be run by Nix. It does the irreducible minimum —
 2. install Determinate Nix (curl CLI installer, **not** the `.pkg`),
 3. move the installer's `/etc/nix/nix.custom.conf` aside,
 
-— and then hands off to `nix run github:ismailkattakath/nix-config#key-recover`,
+— and then hands off to `nix run github:kattakath/nix-config#key-recover`,
 which does everything else (decrypt → clone → agenix re-key → activate).
 
 Both scripts live in this repo. `key-backup` copies `bootstrap.sh` into the kit
