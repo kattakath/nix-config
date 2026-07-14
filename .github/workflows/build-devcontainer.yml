@@ -202,7 +202,7 @@ jobs:
             git config --global --add safe.directory /workspaces/nix-config
             nix --version
             nix store ping                       # proves the client reaches the root daemon
-            nix config show | grep -qi ismailkattakath.cachix.org \
+            nix config show | grep -qi kattakath.cachix.org \
               || { echo "✗ cachix substituter missing from baked nix.conf"; exit 1; }
             command -v node  >/dev/null && node --version
             command -v gh    >/dev/null && gh --version | head -1
