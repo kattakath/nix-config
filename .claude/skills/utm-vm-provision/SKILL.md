@@ -195,7 +195,31 @@ arp -an | grep bridge100                         # read the 192.168.64.x for you
 ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no ismail@192.168.64.x 'hostname; nixos-version'
 ```
 
-`nixvm` needs no post-boot secret handoff (no tunnel, no `/etc/secrets/*`) — it's ready to use
+### ⚠ A REBUILT `nixvm` DOES need a post-boot re-key (this used to say it didn't)
+
+A fresh NixOS guest generates a **new SSH host key on first boot**. `nixvm` now hosts the
+self-hosted CI runner, whose PAT (`secrets/gh-runner-token-nixvm.age`) is agenix-encrypted to the
+`nixvm` host key recorded in `secrets/secrets.nix`. After a rebuild that recipient is stale, so:
+
+- agenix cannot decrypt the runner PAT on the new VM,
+- `github-nix-ci`'s runner service never starts,
+- and every PR's `build (aarch64-linux)` leg — `runs-on: [nixvm, aarch64-linux]` — queues forever.
+
+The VM boots and SSHs perfectly the whole time, so this fails **silently**. Re-key it:
+
+```bash
+ssh ismail@<vm-ip> 'cut -d" " -f1,2 /etc/ssh/ssh_host_ed25519_key.pub'   # the NEW host key
+# in the repo: set `nixvm = "ssh-ed25519 …"` in secrets/secrets.nix, then
+nix run github:ryantm/agenix -- -r -i ~/.ssh/id_ed25519    # from secrets/
+# commit + push, then on the VM: nixos-rebuild switch --flake github:…#nixvm
+```
+
+Note `agenix -r` re-keys **every** secret and age never re-encrypts byte-identically (fresh
+ephemeral keys), so secrets not encrypted to `nixvm` come back "modified" with no semantic change
+— revert that churn so the commit is only the nixvm re-key. `packages/key-recovery.nix` does the
+same thing for `macos` and derives the keep-list from `secrets.nix`.
+
+Otherwise `nixvm` needs no secret handoff (no tunnel, no `/etc/secrets/*`) — it's ready to use
 as soon as SSH answers.
 
 To tear a from-scratch VM down completely: `utmctl stop NAME; utmctl delete NAME` — `delete`

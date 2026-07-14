@@ -1,5 +1,5 @@
 {
-  description = "Greenfield aarch64 Nix mono-repo: macOS (nix-darwin) client, a Raspberry Pi 4 NixOS server (nixpi), and a UTM/QEMU NixOS sandbox VM (nixvm) — single source of truth across the fleet.";
+  description = "Greenfield aarch64 Nix mono-repo: macOS (nix-darwin) client, a Raspberry Pi 4 NixOS server (nixpi), and a headless QEMU/HVF NixOS sandbox VM (nixvm) — single source of truth across the fleet.";
 
   inputs = {
     # Unstable channel as the single source of truth for every platform.
@@ -392,9 +392,12 @@
                 extra-substituters = [ cachixUrl ];
                 extra-trusted-public-keys = [ cachixKey ];
               };
-              # LINUX BUILDS ON macOS (for `nix run .#nixvm-gui`, `.#nixvm`,
-              # `.#nixpi`): use Determinate's NATIVE Linux builder (Apple
-              # Virtualization framework — no UTM, no remote builder, no Docker).
+              # LINUX BUILDS ON macOS (for `nix run .#nixvm-gui`, `.#nixpi`):
+              # use Determinate's NATIVE Linux builder (Apple Virtualization
+              # framework — no remote builder, no Docker).
+              # NOTE: installing `nixvm` itself does NOT need any of this —
+              # nixos-anywhere runs with `--build-on remote`, so the guest
+              # builds its own closure and the Mac never needs a Linux builder.
               # It is NOT configured from Nix: `external-builders` is a reserved
               # setting that Determinate manages and `determinateNix.customSettings`
               # rejects it (asserts at eval). It is a FlakeHub/account-level
@@ -458,7 +461,14 @@
           ];
         };
 
-        # UTM/QEMU HVF sandbox VM (aarch64, Apple Silicon UTM native).
+        # Headless QEMU/HVF sandbox VM (aarch64), run as a plain qemu-system-aarch64
+        # process on the Mac and kept alive by a launchd daemon
+        # (modules/darwin/nixvm-qemu.nix). NOT a UTM VM any more: UTM was dropped
+        # after a Mac reset proved it is not CLI-provisionable (utmctl never sees a
+        # hand-authored bundle, and the osascript fallback is blocked by TCC, error
+        # -1728 — a permission that cannot be granted programmatically).
+        # Installed with nixos-anywhere against the ISO-booted VM; see
+        # docs/nixvm-qemu-runbook.md.
         "nixvm" = mkNixos {
           system = "aarch64-linux";
           hostname = "nixvm";
@@ -489,8 +499,10 @@
           ];
         };
 
-        # Minimal installer ISO for nixvm — boot from this on UTM/QEMU,
-        # SSH as nixos@nixvm-installer.local, then run the nixvm bootstrap app.
+        # Minimal installer ISO for nixvm. Boot the (otherwise empty) QEMU VM from
+        # this ISO; it is the SSH-reachable Linux that nixos-anywhere installs
+        # *through*. Still load-bearing — a blank qcow2 has nothing to kexec from,
+        # so the ISO is the entry point for every (re)install of nixvm.
         "nixvm-installer" = nixpkgs.lib.nixosSystem {
           system = "aarch64-linux";
           modules = [
@@ -500,11 +512,19 @@
         };
       };
 
-      # ---- Packages: container images + VM image -------------------------------
+      # ---- Packages: container images + installer images ------------------------
       # `nix build .#packages.aarch64-linux.devcontainerImage` → devcontainer stream script
-      # `nix build .#nixvm-image`                              → UTM-importable qcow2 → ./result/
+      # `nix build .#nixvm-installer-iso`                      → nixvm installer ISO → ./result/
       # One fold merges base (all systems) → single-system, flatter than nesting
       # recursiveUpdate calls.
+      #
+      # REMOVED: `nixvm-image` (= nixosConfigurations.nixvm.…build.images.qemu-efi,
+      # a prebuilt qcow2). It existed only to be imported into UTM, and UTM is gone
+      # — nixvm is now installed by nixos-anywhere onto a blank `qemu-img create`
+      # disk. It was also unbuildable ANYWHERE in this fleet: make-disk-image is
+      # requiredSystemFeatures = ["kvm"], macOS has no /dev/kvm, Docker Desktop does
+      # not expose one (verified on M3 Pro), and there is no other Linux builder. It
+      # is not coming back; do not re-add it "for convenience".
       packages = nixpkgs.lib.foldl' nixpkgs.lib.recursiveUpdate { } [
         # Devcontainer image is a Linux OCI artifact — gate to the linux triple
         # (aarch64-only in this fleet). Built with unfree pkgs (claude-code) and
@@ -542,7 +562,7 @@
         ))
 
         {
-          aarch64-linux.nixvm-image = self.nixosConfigurations.nixvm.config.system.build.images.qemu-efi;
+          # BREAK-GLASS ONLY (see the apps block): superseded by nixos-anywhere.
           aarch64-linux.nixvm = (pkgsFor "aarch64-linux").callPackage ./packages/nixvm.nix {
             diskoInstall = disko.packages.aarch64-linux.disko-install;
             inherit handleName;
@@ -582,14 +602,24 @@
       ];
 
       # ---- Apps: bootstrap installer + Cloudflare provisioning ---------------
-      # `nix run .#nixvm` (on an aarch64-linux builder, from the live installer
-      # ISO) — disko-install bootstrap for the nixvm sandbox VM.
+      # `nix run .#nixvm` — BREAK-GLASS ONLY. Ran from *inside* the live installer
+      # ISO, it disko-installs nixvm onto /dev/vda. The SUPPORTED install path is
+      # now nixos-anywhere, driven from the Mac against the ISO-booted VM:
+      #   nix run github:nix-community/nixos-anywhere -- --flake .#nixvm \
+      #     --build-on remote --extra-files <dir> --target-host root@localhost --ssh-port 2222
+      # `--build-on remote` is why no Linux builder is needed on the Mac, and
+      # `--extra-files` is what plants the PRE-GENERATED SSH host key so agenix can
+      # decrypt gh-runner-token-nixvm.age on FIRST boot. This app does neither, so
+      # a VM installed with it comes up with a self-generated host key and the CI
+      # runner silently never registers. See docs/nixvm-qemu-runbook.md.
       #
       # `nix run .#nixvm-gui` (on the aarch64-darwin Mac) — build the graphical
-      # build-vm variant and boot it in a native QEMU window, no UTM. The runner
-      # wrapper itself is darwin (host.pkgs override above); the aarch64-linux
-      # guest needs a Linux builder — Determinate's native Linux builder on the
-      # Mac (see the macos block above) or the nixvm CI runner / Cachix.
+      # build-vm variant and boot it in a native QEMU window. Unrelated to the
+      # installed VM: it boots a THROWAWAY overlay, not ~/nixvm/disk.qcow2. The
+      # runner wrapper itself is darwin (host.pkgs override above); the
+      # aarch64-linux guest needs a Linux builder — Determinate's native Linux
+      # builder on the Mac (see the macos block above) or the nixvm CI runner /
+      # Cachix.
       #
       # `nix run .#cf-ssh-apply` / `.#cf-ssh-destroy` — render
       # infra/cloudflare/nixpi-ssh.nix (terranix) then `tofu init` + apply
@@ -616,19 +646,19 @@
             aarch64-linux.nixvm = {
               type = "app";
               program = "${self.packages.aarch64-linux.nixvm}/bin/nixvm";
-              meta.description = "Bootstrap NixOS nixvm on aarch64-linux from the live ISO via disko-install";
+              meta.description = "BREAK-GLASS: disko-install nixvm from inside the live ISO (no host-key planting — prefer nixos-anywhere)";
             };
 
             # `nix run .#nixvm-gui` — build the graphical build-vm variant and
-            # boot it in a native macOS QEMU window (no UTM). The runner wrapper
-            # is a darwin derivation (host.pkgs = aarch64-darwin); the
-            # aarch64-linux guest closure needs a Linux builder (Determinate's
-            # native Linux builder — see the macos block — or the nixvm CI runner
-            # / Cachix). run-nixvm-vm is the qemu-vm.nix script name for "nixvm".
+            # boot it in a native macOS QEMU window. The runner wrapper is a
+            # darwin derivation (host.pkgs = aarch64-darwin); the aarch64-linux
+            # guest closure needs a Linux builder (Determinate's native Linux
+            # builder — see the macos block — or the nixvm CI runner / Cachix).
+            # run-nixvm-vm is the qemu-vm.nix script name for "nixvm".
             aarch64-darwin.nixvm-gui = {
               type = "app";
               program = "${self.nixosConfigurations.nixvm.config.system.build.vm}/bin/run-nixvm-vm";
-              meta.description = "Boot the nixvm sandbox with an XFCE desktop in a QEMU window (no UTM; needs an aarch64-linux builder)";
+              meta.description = "Boot a THROWAWAY nixvm with an XFCE desktop in a QEMU window (not the installed disk; needs an aarch64-linux builder)";
             };
 
             # `nix run github:ismailkattakath/nix-config#macos` — one-line first

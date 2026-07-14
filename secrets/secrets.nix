@@ -14,8 +14,14 @@ let
   nixpi = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIApnN4kP6/o3RRZTN1iJKq9lLdMFuhvcxKwxDjvL9Anh";
   # macos host key (/etc/ssh/ssh_host_ed25519_key.pub).
   macos = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBVj8AMmTJYHMe8zJCfvTEHEog8E+FEiE5Fob3uhwiau";
-  # nixvm host key (/etc/ssh/ssh_host_ed25519_key.pub) — via ssh-keyscan 2026-07-08.
-  nixvm = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHYPpSbmVt442jdPPCix1D9wuUhVgt2qhUXloDOntPSy";
+  # nixvm host key (/etc/ssh/ssh_host_ed25519_key.pub). PRE-GENERATED on the Mac and
+  # planted at install time via `nixos-anywhere --extra-files`, rather than read off a
+  # running VM. That ordering is the whole trick: the recipient here is correct BEFORE
+  # nixvm first boots, so agenix can decrypt gh-runner-token-nixvm.age on boot #1 and
+  # the CI runner self-registers. Let the VM generate its own key instead and the
+  # recipient is stale, agenix cannot decrypt, and the runner silently never starts
+  # while the VM otherwise looks perfectly healthy.
+  nixvm = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII6m9mWQfHBabBEDrKCmWs+n8zldLH9sVAu+nRDwR0vL";
 in
 {
   # nixpi's Cloudflare Tunnel connector token (EnvironmentFile: TUNNEL_TOKEN=…).
