@@ -37,12 +37,14 @@ jobs:
     #   1. CIRCULARITY — GONE. Building the nixvm ISO on nixvm meant the VM was the
     #      only thing that could rebuild itself (useless once the VM is dead). But
     #      nixvm building *nixpi*'s image is not circular — different host.
-    #   2. STARVATION — ACCEPTED + BOUNDED. A ~1h COLD build occupies the sole nixvm
-    #      runner, blocking nix-ci's aarch64-linux leg for any concurrent job. But
-    #      build-installers fires only on MAIN-PUSH affecting the nixpi closure (not
-    #      per-PR), and nixvm's PERSISTENT store keeps the RPi kernel warm between
-    #      runs — so it is ~1h cold once, then minutes. (If nixvm is offline the run
-    #      simply queues until it returns — the intended tradeoff for a personal fleet.)
+    #   2. STARVATION — MITIGATED by nixvm's 2-runner pool. A ~1h COLD build occupies
+    #      ONE of nixvm's TWO github-nix-ci runners (hosts/nixvm.nix sets `num = 2`
+    #      for exactly this reason), leaving the OTHER free for nix-ci's aarch64-linux
+    #      leg — so a long build no longer blocks other CI on the fleet. It also fires
+    #      only on MAIN-PUSH affecting the nixpi closure (not per-PR), and nixvm's
+    #      PERSISTENT store keeps the RPi kernel warm between runs (~1h cold once, then
+    #      minutes). (If nixvm is entirely offline the run queues until it returns —
+    #      the intended tradeoff for a personal fleet.)
     #
     # Because the runner is self-hosted it already ships Nix (flakes enabled) AND the
     # kattakath substituter (modules/shared/nix-cache.nix) — so, unlike the old
