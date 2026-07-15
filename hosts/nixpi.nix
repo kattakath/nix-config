@@ -13,22 +13,15 @@
 # see docs/nixpi-sd-flashing-runbook.md) and copied into a root-only /run file by
 # a oneshot before the connector starts. This deliberately does NOT use agenix:
 # agenix binds the token to nixpi's SSH host key, but a fresh SD flash mints a new
-# host key, so the agenix ciphertext stops decrypting and the tunnel dies — and
-# with SSH being cert-only over that tunnel, unrecoverably (the reflash lockout).
+# host key, so the agenix ciphertext stops decrypting and the tunnel dies — and the
+# tunnel is the only remote path in, so that is unrecoverable (the reflash lockout).
 # The connector unit retries on failure (Restart=on-failure) so a token refresh
 # self-heals.
 #
-# ZTIA CUTOVER (Cloudflare Access for Infrastructure — short-lived SSH certs):
-# COMPLETE. `services.openssh-ca-trust.enable = true` below makes sshd trust
-# Cloudflare's hosted SSH CA (modules/nixos/core.nix, TrustedUserCAKeys pointed
-# at the committed modules/nixos/cloudflare-ssh-ca.pub), and
-# `removeStaticKey = true` drops the legacy static key so network SSH is
-# cert-only. This was flipped on ONLY after an end-to-end ZTIA login was
-# verified from the enrolled macos WARP client (2026-07-08) — see the
-# LOCKOUT-SAFETY comment on the option in modules/nixos/core.nix and the rollout
-# order in docs/tunnel-architecture-and-runbook.md. Physical console (getty) is
-# unaffected and remains the break-glass path.
-# `nixvm` does NOT import this option — it stays on the static key.
+# NETWORK SSH is the operator's static key (modules/nixos/core.nix) over the tunnel,
+# reached client-side with `cloudflared access ssh --hostname nixpi.kattakath.com`
+# (keys-only, no password). Physical console (getty) is the independent break-glass
+# path.
 {
   lib,
   pkgs,
@@ -126,15 +119,6 @@
       RestartSec = 5;
     };
   };
-
-  # ZTIA: trust Cloudflare's SSH CA for short-lived certificates AND drop the
-  # legacy static key, making network SSH cert-only. End-to-end ZTIA login was
-  # verified 2026-07-08 (WARP -> Cloudflare -> tunnel -> nixpi, authenticated by
-  # the CA-signed short-lived cert with NO local key offered), so per the rollout
-  # order in docs/tunnel-architecture-and-runbook.md this final step is now safe.
-  # Physical console (getty) is unaffected and remains the break-glass path.
-  services.openssh-ca-trust.enable = true;
-  services.openssh-ca-trust.removeStaticKey = true;
 
   # Local reverse-proxy/router, sitting behind the tunnel. Today it serves only
   # the public kattakath.com static landing page; future services front new

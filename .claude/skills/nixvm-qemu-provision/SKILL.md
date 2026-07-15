@@ -220,7 +220,7 @@ Delete `$EXTRA` (it holds the private host key) once you are done.
   different, older path than `nixos-anywhere`, and it is not what this skill uses. Don't confuse the
   two.
 - `nixvm` needs no other secret handoff — it's a sandbox with no tunnel and no public ingress
-  (contrast `nixpi`, which needs `/etc/secrets/cloudflared-token`; see **cloudflared-tunnel**).
+  (contrast `nixpi`, whose connector token is planted on the FAT FIRMWARE partition; see **nixpi-firmware-provision**).
 
 ## Cross-references
 

@@ -26,8 +26,8 @@ copying each into a root-only `/run` file before its consumer starts:
 
 agenix encrypts to nixpi's SSH **host key**, but a NixOS SD image ships none, so every
 fresh flash mints a new random host key — after which the agenix ciphertext no longer
-decrypts, the tunnel never comes up, and (SSH being cert-only **over** that tunnel)
-there is no remote way back in. The FAT partition is the one thing macOS can write, so
+decrypts, the tunnel never comes up, and (the tunnel being the only remote path in)
+there is no way back in. The FAT partition is the one thing macOS can write, so
 host-key-independent secrets live there. `secrets/cloudflared-token.age` stays the
 operator-only **vault** of the token; the operator decrypts it to plant, the Pi never
 decrypts it on-device.

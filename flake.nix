@@ -47,10 +47,9 @@
     # uses the consumer's pkgs.
     nix-homebrew.url = "github:zhaofengli/nix-homebrew";
 
-    # Nix -> OpenTofu/Terraform JSON renderer for the Cloudflare-side ZTIA SSH
-    # objects (infra/cloudflare/nixpi-ssh.nix). Re-added after being dropped
-    # with LiteLLM (#109/greenfield rewrite) — now backs the SSH cutover
-    # instead, mirroring the retired cf-litellm-apply/destroy pattern.
+    # Nix -> OpenTofu/Terraform JSON renderer for the Cloudflare-side tunnel
+    # objects (infra/cloudflare/nixpi-tunnel.nix — the remotely-managed tunnel +
+    # ingress + proxied CNAME + connector-token output).
     terranix.url = "github:terranix/terranix";
     terranix.inputs.nixpkgs.follows = "nixpkgs";
 
@@ -143,11 +142,10 @@
       cachixKey = "${orgName}.cachix.org-1:y/w6wnb4ZArdlbfWJ82c81uCXeYgG/sGDUYCszavmEw=";
 
       # ---- Single source of truth for the Cloudflare account/zone ------------
-      # Threaded (with domainName) into BOTH terranix stacks — cfSshConfig and
-      # cfTunnelConfig — via `_module.args`, so the account/zone ids and the
-      # domain live in ONE place instead of being re-hardcoded per file. These
-      # are IDENTIFIERS, not credentials (safe to commit); the API token stays
-      # in the CLOUDFLARE_API_TOKEN env var, never here.
+      # Threaded (with domainName) into the cfTunnelConfig terranix stack via
+      # `_module.args`, so the account/zone ids and the domain live in ONE place
+      # instead of being re-hardcoded. These are IDENTIFIERS, not credentials
+      # (safe to commit); the API token stays in the CLOUDFLARE_API_TOKEN env var.
       cloudflareAccountId = "726e0b2aa2bc2c6944f96a042e3c461b";
       cloudflareZoneId = "6e28971881e488941d052bbbf50d69cd"; # the domainName zone
 
@@ -199,72 +197,16 @@
           config.allowUnfree = true;
         };
 
-      # ---- Cloudflare provisioning (terranix -> OpenTofu) ---------------------
-      # Renders infra/cloudflare/nixpi-ssh.nix (the ZTIA SSH target/application/
-      # policy for nixpi) to a config.tf.json store path, per system. Mirrors the
-      # retired cfLitellmConfig/mkCfLitellmTofu pattern byte-for-byte (see
-      # `git show main:flake.nix`) — same rendering + wrapper shape, now backing
-      # SSH instead of the LiteLLM proxy.
-      cfSshConfig =
-        system:
-        terranix.lib.terranixConfiguration {
-          inherit system;
-          # Thread the shared identity/account bindings in (one source of truth):
-          # userName so the asserted SSH login tracks `users.users.${userName}`,
-          # domainName for the Access email-domain gate, accountId for the account.
-          modules = [
-            ./infra/cloudflare/nixpi-ssh.nix
-            {
-              _module.args = {
-                inherit userName domainName;
-                accountId = cloudflareAccountId;
-              };
-            }
-          ];
-        };
-
-      # writeShellApplication wrapper around `tofu <action>` for the rendered
-      # nixpi ZTIA config. Requires CLOUDFLARE_API_TOKEN in the env (the
-      # Cloudflare provider reads it as its api_token). The generated
-      # config.tf.json is a read-only store copy, so we `rm -f` any previous copy
-      # before re-copying; tofu state then lands beside where you run the app.
-      mkCfSshTofu =
-        {
-          system,
-          name,
-          action,
-        }:
-        let
-          pkgs = pkgsFor system;
-        in
-        pkgs.writeShellApplication {
-          inherit name;
-          runtimeInputs = [ pkgs.opentofu ];
-          text = ''
-            if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
-              echo "ERROR: CLOUDFLARE_API_TOKEN is unset. Export a token with" >&2
-              echo "  Account Zero Trust:Edit (Access apps+policies, Infrastructure targets)." >&2
-              exit 1
-            fi
-            rm -f config.tf.json
-            cp ${cfSshConfig system} config.tf.json
-            tofu init
-            tofu ${action}
-          '';
-        };
-
       # ---- Cloudflare TUNNEL provisioning (terranix -> OpenTofu) --------------
       # Renders infra/cloudflare/nixpi-tunnel.nix (the remotely-managed tunnel +
       # ingress + proxied CNAME + connector-token output for nixpi) to its own
-      # config.tf.json, per system. Separate stack/state from the ZTIA SSH
-      # config (cfSshConfig) — the tunnel is provisioned independently of the
-      # Access/CA objects layered on top of it.
+      # config.tf.json, per system.
       cfTunnelConfig =
         system:
         terranix.lib.terranixConfiguration {
           inherit system;
-          # Same shared bindings as cfSshConfig: domainName is the zone name, plus
-          # the account/zone ids — one source of truth across both terranix stacks.
+          # domainName is the zone name, plus the account/zone ids — threaded from
+          # the single flake bindings above (one source of truth, no re-hardcoding).
           modules = [
             ./infra/cloudflare/nixpi-tunnel.nix
             {
@@ -683,21 +625,10 @@
             self.nixosConfigurations.nixpi-installer.config.system.build.sdImage;
         }
 
-        # Cloudflare ZTIA-SSH provisioning apps (terranix -> OpenTofu), exposed
-        # as packages too so `nix flake check` builds them and runs the
-        # writeShellApplication shellcheck on each wrapper. Mirrors the retired
-        # cf-litellm-apply/destroy pattern (`git show main:flake.nix`).
+        # Cloudflare tunnel provisioning apps (terranix -> OpenTofu), exposed as
+        # packages too so `nix flake check` builds them and runs the
+        # writeShellApplication shellcheck on each wrapper.
         (forAllSystems (system: {
-          cf-ssh-apply = mkCfSshTofu {
-            inherit system;
-            name = "cf-ssh-apply";
-            action = "apply";
-          };
-          cf-ssh-destroy = mkCfSshTofu {
-            inherit system;
-            name = "cf-ssh-destroy";
-            action = "destroy";
-          };
           cf-tunnel-apply = mkCfTunnelTofu {
             inherit system;
             name = "cf-tunnel-apply";
@@ -730,12 +661,6 @@
       # aarch64-linux guest needs a Linux builder — Determinate's native Linux
       # builder on the Mac (see the macos block above) or the nixvm CI runner /
       # Cachix.
-      #
-      # `nix run .#cf-ssh-apply` / `.#cf-ssh-destroy` — render
-      # infra/cloudflare/nixpi-ssh.nix (terranix) then `tofu init` + apply
-      # (destroy for the other) against the Cloudflare account. Token scope:
-      # Account Zero Trust:Edit (covers Access apps/policies + Infrastructure
-      # targets).
       #
       # `nix run .#cf-tunnel-apply` / `.#cf-tunnel-destroy` — render
       # infra/cloudflare/nixpi-tunnel.nix (terranix) then `tofu init` + apply
@@ -835,16 +760,6 @@
           }
           (
             forAllSystems (system: {
-              cf-ssh-apply = {
-                type = "app";
-                program = "${self.packages.${system}.cf-ssh-apply}/bin/cf-ssh-apply";
-                meta.description = "Render infra/cloudflare/nixpi-ssh.nix (terranix) and tofu apply it (needs CLOUDFLARE_API_TOKEN)";
-              };
-              cf-ssh-destroy = {
-                type = "app";
-                program = "${self.packages.${system}.cf-ssh-destroy}/bin/cf-ssh-destroy";
-                meta.description = "tofu destroy the nixpi ZTIA-SSH Cloudflare resources (needs CLOUDFLARE_API_TOKEN)";
-              };
               cf-tunnel-apply = {
                 type = "app";
                 program = "${self.packages.${system}.cf-tunnel-apply}/bin/cf-tunnel-apply";

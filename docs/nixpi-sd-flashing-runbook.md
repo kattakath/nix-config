@@ -11,7 +11,7 @@ Everything here is grounded in the repo files:
 
 - `flake.nix` — exports `nixosConfigurations.nixpi` (the `sdImage` build target) and the `nixpi-installer` variant
 - `hosts/nixpi.nix` — the LIVE Pi profile, including the **scripted-initrd boot fix** (`boot.initrd.systemd.enable = lib.mkForce false`) that is the *other* thing that can hang stage-1
-- `docs/tunnel-architecture-and-runbook.md` — what `nixpi` does once it is booted (tunnel + ZTIA SSH + Caddy)
+- `hosts/nixpi.nix` + `modules/nixos/cloudflared.nix` — what `nixpi` does once booted (the Cloudflare Tunnel connector carrying static-key SSH + the Caddy landing page)
 
 ---
 
@@ -160,8 +160,8 @@ nix run .#nixpi-provision -- --wifi       # just refresh Wi-Fi from this Mac's n
   token → `nix run .#nixpi-vault-token` re-encrypts it into the vault → re-plant.
   This deliberately does NOT use agenix: agenix binds the token to nixpi's SSH host
   key, but a fresh flash mints a new host key, so the ciphertext would stop
-  decrypting and the tunnel would die — and with SSH being cert-only over that
-  tunnel, unrecoverably. A file on the macOS-writable FAT partition is immune.
+  decrypting and the tunnel would die — and the tunnel is the only remote path in,
+  so unrecoverably. A file on the macOS-writable FAT partition is immune.
 - **Wi-Fi** — `nixpi-provision --wifi` writes a `wpa_supplicant.conf` from this Mac's
   current network (`nix run .#nixpi-wifi-creds`; pass `--ssid`/`--psk` for a
   band-split network the keychain saved under a different name). It must carry
@@ -192,11 +192,11 @@ Insert the card and power the Pi with an adequate supply (**5V / 3A** — see §
 ssh-keygen -R nixpi.local   # clear any stale host key first
 ```
 
-The **live** `nixpi` image is cert-only (`removeStaticKey = true`) — LAN static-key
-`ssh …@nixpi.local` does **not** work. Confirm the boot over ZTIA (WARP) per
-[`tunnel-architecture-and-runbook.md`](tunnel-architecture-and-runbook.md), or via the
-physical serial/HDMI console. (The `nixpi-installer` image, by contrast, keeps the
-`nixos` user + static key: `ssh nixos@nixpi-installer.local`.)
+SSH is the operator's static key (keys-only). On the LAN once mDNS is up:
+`ssh ismailkattakath@nixpi.local`. Remotely (e.g. travelling), over the tunnel:
+`ssh ismailkattakath@nixpi.kattakath.com` with a `ProxyCommand cloudflared access ssh
+--hostname %h` in `~/.ssh/config`. The physical serial/HDMI console is the break-glass
+path. (The `nixpi-installer` image uses the `nixos` user: `ssh nixos@nixpi-installer.local`.)
 
 (Same stale-host-key gotcha every reprovision hits — the name is stable, the key
 is not.)
@@ -268,8 +268,7 @@ ext4 errors, the card or write is corrupt.
   A config that reintroduces systemd-initrd will not reboot on this hardware,
   and eval / generic-kernel QEMU will not catch it — only a real Pi (or serial)
   does.
-- **What `nixpi` does once booted:**
-  [`docs/tunnel-architecture-and-runbook.md`](tunnel-architecture-and-runbook.md)
-  — the Cloudflare Tunnel connector, ZTIA SSH (short-lived certs), and Caddy
-  serving the `kattakath.com` landing page. First-boot SSH here uses the static
-  key over `nixpi.local`; ZTIA layers on afterward per that runbook.
+- **What `nixpi` does once booted:** `hosts/nixpi.nix` +
+  `modules/nixos/cloudflared.nix` — the Cloudflare Tunnel connector carrying
+  static-key SSH (`ssh://localhost:22`) and Caddy serving the `kattakath.com`
+  landing page. Token + Wi-Fi are planted per §4b (nixpi-firmware-provision skill).

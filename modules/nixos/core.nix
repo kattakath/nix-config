@@ -1,53 +1,12 @@
 # Shared NixOS system configuration applied to every NixOS host.
 # Platform-specific hardware lives in hosts/<hostname>.nix.
 # User environment lives in modules/shared/home.nix (via Home Manager).
-#
-# ZTIA (Cloudflare Access for Infrastructure) SSH trust — OPT-IN, per host.
-# `services.openssh-ca-trust.enable` wires `TrustedUserCAKeys` so sshd accepts
-# short-lived certificates minted by Cloudflare's hosted SSH CA in place of
-# (or alongside, during coexistence) a static key. `nixpi` opts in
-# (hosts/nixpi.nix); `nixvm` does NOT — it stays on the static key as a
-# LAN/serial-console sandbox, deliberately untouched by this cutover. See
-# docs/tunnel-architecture-and-runbook.md for the full rollout order and
-# infra/cloudflare/nixpi-ssh.nix for the Cloudflare-side terranix objects.
 {
-  config,
-  lib,
   pkgs,
   userName,
   ...
 }:
-let
-  caCfg = config.services.openssh-ca-trust;
-in
 {
-  options.services.openssh-ca-trust = {
-    enable = lib.mkEnableOption "trust Cloudflare's SSH CA for short-lived ZTIA certificates (TrustedUserCAKeys)";
-
-    caKeyFile = lib.mkOption {
-      type = lib.types.path;
-      default = ../nixos/cloudflare-ssh-ca.pub;
-      description = ''
-        Path to the committed Cloudflare SSH CA public key
-        (modules/nixos/cloudflare-ssh-ca.pub). Safe to commit — it is a public
-        key; TrustedUserCAKeys only ever needs the CA's PUBLIC half. Replace
-        the placeholder in that file with the real CA public key output by
-        `nix run .#cf-ssh-apply`'s companion CA-generation step (see
-        docs/tunnel-architecture-and-runbook.md) BEFORE removing the static
-        key on any host.
-      '';
-    };
-
-    removeStaticKey = lib.mkEnableOption ''
-      remove the shared static ed25519 authorizedKeys entry on this host,
-      making ZTIA short-lived certificates the ONLY way in over the network.
-      LOCKOUT-SAFETY: only flip this after verifying an end-to-end ZTIA login
-      from an enrolled client — physical console (getty) and LAN mDNS remain
-      regardless, but this is the step that actually retires the network key.
-      This is the LAST step of the rollout, not the first
-    '';
-  };
-
   config = {
     nix.settings = {
       experimental-features = [
@@ -64,13 +23,11 @@ in
       isNormalUser = true;
       shell = pkgs.zsh;
       extraGroups = [ "wheel" ];
-      # Static network key — the legacy authentication path. Removed ONLY when
-      # a host explicitly opts into `services.openssh-ca-trust.removeStaticKey`
-      # (nixpi, at the end of its ZTIA rollout). Every other host (nixvm) keeps
-      # this key untouched: it is a LAN/serial-console sandbox, not part of the
-      # ZTIA cutover. Physical console access (getty) is never affected by this
-      # option either way — it is a break-glass path independent of sshd.
-      openssh.authorizedKeys.keys = lib.mkIf (!caCfg.removeStaticKey) [
+      # The operator's SSH public key — the network login credential. sshd is
+      # reachable over the Cloudflare tunnel (nixpi) or the LAN (nixvm); key-only,
+      # no password (settings below). Physical console (getty) is an independent
+      # break-glass path.
+      openssh.authorizedKeys.keys = [
         "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAq9VALx6Y6OERWlWWvudcTUEO29BMFl3bbGwoVSTGsS"
       ];
     };
@@ -78,22 +35,13 @@ in
     services.openssh = {
       enable = true;
       settings = {
-        # Keys-only: the SSH endpoint is reachable over the Cloudflare tunnel with
-        # no Access/identity layer in front (unless openssh-ca-trust is enabled),
-        # so it must not accept any password or keyboard-interactive path.
+        # Keys-only: the SSH endpoint is reachable over the Cloudflare tunnel
+        # (nixpi) with no identity layer in front, so it must never accept a
+        # password or keyboard-interactive path — the operator key is the boundary.
         PasswordAuthentication = false;
         KbdInteractiveAuthentication = false;
         PermitRootLogin = "no";
       };
-      # TrustedUserCAKeys is emitted via extraConfig (no native `settings`
-      # field for it) — verify live that NixOS's append-after-`settings`
-      # rendering still authenticates correctly on nixpi once applied; flagged
-      # as unconfirmed in the ZTIA research (no conflicting AuthorizedKeys*/
-      # AuthorizedPrincipals* directive exists here, so it is expected to work,
-      # but test end-to-end before flipping removeStaticKey).
-      extraConfig = lib.mkIf caCfg.enable ''
-        TrustedUserCAKeys ${caCfg.caKeyFile}
-      '';
     };
 
     networking.firewall = {
