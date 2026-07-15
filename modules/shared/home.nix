@@ -352,4 +352,28 @@ in
     };
   };
 
+  # ---- Terminal.app "Ubuntu" profile (macOS only) ---------------------------
+  # Installs ./terminal/Ubuntu.terminal — an Ubuntu-GNOME-look profile whose
+  # colors + font mirror the VS Code integrated-terminal palette above.
+  #
+  # Terminal.app OWNS com.apple.Terminal and rewrites it from memory while it is
+  # running, so a plain `defaults write` gets clobbered. The reliable path is to
+  # let the running Terminal import the profile itself via `open`, which persists.
+  # Guarded on absence so it runs ONCE (first activation on a fresh Mac) — later
+  # rebuilds are a no-op and never pop a window. Setting it as the default is
+  # best-effort (again, Terminal may overwrite while running): if it doesn't
+  # stick, select Ubuntu → "Default" in Terminal ▸ Settings ▸ Profiles once.
+  home.activation = lib.mkIf pkgs.stdenv.isDarwin {
+    ubuntuTerminalProfile = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      if ! /usr/bin/defaults read com.apple.Terminal "Window Settings" 2>/dev/null \
+           | /usr/bin/grep -q 'name = Ubuntu;'; then
+        $DRY_RUN_CMD /usr/bin/open ${./terminal/Ubuntu.terminal}
+        $DRY_RUN_CMD /usr/bin/defaults write com.apple.Terminal \
+          "Default Window Settings" -string "Ubuntu" || true
+        $DRY_RUN_CMD /usr/bin/defaults write com.apple.Terminal \
+          "Startup Window Settings" -string "Ubuntu" || true
+      fi
+    '';
+  };
+
 }
