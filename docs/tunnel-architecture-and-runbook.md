@@ -1,8 +1,12 @@
 # Cloudflare Tunnel + ZTIA SSH Architecture & Host Runbook
 
-> See [`docs/ztia-rollout-runbook.md`](ztia-rollout-runbook.md) for the
-> concrete, step-by-step operator walkthrough of the rollout order summarized
-> in §9 below (token scopes, dashboard paths, verification commands).
+> **STATUS: cutover COMPLETE on `nixpi` (2026-07-08).** `hosts/nixpi.nix` sets
+> `services.openssh-ca-trust.enable = true` **and** `removeStaticKey = true`, so
+> network SSH is **cert-only** and the legacy static key is gone. The rollout
+> steps below are retained as the design record + re-run/break-glass reference,
+> not a pending to-do. (The former step-by-step `ztia-rollout-runbook.md` — the
+> executed 2026-07-08 procedure — has been folded away; §9 below is the rollout
+> order, and git history preserves the detailed one-time commands.)
 
 This document describes the **Cloudflare Access for Infrastructure (ZTIA)**
 SSH design for this repo's 3-host aarch64 fleet (`macos`, `nixpi`, `nixvm`).
@@ -223,9 +227,11 @@ break-glass path regardless of ZTIA status.
 
 ## 8. Secret / trust model
 
-- **`/etc/secrets/cloudflared-token`** — unchanged: a plain, root-only,
-  operator-placed file backing the tunnel connector. See
-  `memory/agenix-removed-etc-secrets.md` — this repo has no agenix/sops.
+- **`secrets/cloudflared-token.age`** (agenix) — committed encrypted to `nixpi`'s
+  SSH host key + the operator key (`secrets/secrets.nix`), decrypted at activation
+  to `/run/agenix/cloudflared-token`; `hosts/nixpi.nix` points
+  `services.cloudflared-connector.tokenFile` there. (`/etc/secrets/cloudflared-token`
+  is only the module default for hosts that don't opt into agenix — not `nixpi`.)
 - **The Cloudflare SSH CA's private key never leaves Cloudflare.** Only its
   **public** key round-trips into this repo, committed at
   `modules/nixos/cloudflare-ssh-ca.pub` — safe to commit (a CA public key
@@ -361,12 +367,10 @@ executing the runbook in §9.)
 | `macos` — ZTIA client (WARP), no server modules | `hosts/macos.nix` |
 | Cloudflare-side ZTIA objects (target/application/policy) | `infra/cloudflare/nixpi-ssh.nix` |
 | terranix input + `cf-ssh-apply`/`cf-ssh-destroy` apps | `flake.nix` |
-| Token file (operator-placed, plain, unchanged) | `/etc/secrets/cloudflared-token` on `nixpi` |
+| Tunnel token (agenix) | `secrets/cloudflared-token.age` → `/run/agenix/cloudflared-token` on `nixpi` |
 | Tunnel + ingress + DNS provisioning (terranix, `cf-tunnel-apply`; unaffected by ZTIA) | `infra/cloudflare/nixpi-tunnel.nix` |
-| Concrete step-by-step rollout walkthrough (this doc's §9, expanded) | `docs/ztia-rollout-runbook.md` |
-
 ### Related skills
 
 - `cloudflare-one` — general Cloudflare One / ZTIA guidance this doc draws on.
 - `cloudflared-tunnel` — the ZTIA SSH setup playbook for `nixpi` itself (CA provisioning, terranix apply, host-side wiring, WARP client enrollment); this doc is its authoritative cross-reference for the full rollout order.
-- `nixos-flake-install` / `utm-vm-provision` / `nixvm-utm-prebuild-on-devcontainer` — bring up `nixvm` itself (unaffected by this cutover).
+- `nixos-flake-install` / `nixvm-qemu-provision` — bring up `nixvm` itself (unaffected by this cutover).
