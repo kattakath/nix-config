@@ -7,14 +7,14 @@ description: >
   the aarch64-linux CI runner VM", or "install NixOS in QEMU on the Mac". Covers the pre-generated
   SSH host key that agenix depends on, the installer ISO, the EDK2 NVRAM reset that stops the VM
   dropping to the UEFI Shell after install, and detaching the ISO before the second boot. This is
-  the CURRENT, VERIFIED path — it supersedes utm-vm-provision.
+  the CURRENT, VERIFIED path — it supersedes the older UTM-based provisioning.
 ---
 
 # nixvm provisioning — headless QEMU + HVF on macOS
 
 `nixvm` is the fleet's **aarch64-linux sandbox VM** and the **only aarch64-linux CI runner**. It
 runs on the Mac as an ordinary `qemu-system-aarch64` process with HVF acceleration. **UTM is not
-involved.** (The old `utm-vm-provision` skill is kept only for UTM-specific reference material; its
+involved.** (The old UTM-based flow has been removed; its
 "create the VM from the CLI, NO GUI required — VERIFIED" claim is **false on a fresh Mac** —
 `utmctl` never sees a hand-authored bundle, and the `osascript` restart-UTM workaround is blocked by
 TCC with error **-1728** "not allowed assistive access", which cannot be granted programmatically.)
@@ -198,14 +198,14 @@ VERIFIED: with both done, the VM boots the installed system and the CI runner co
 ## 6. Verify
 
 ```bash
-ssh -p 2222 ismail@localhost 'hostname; nproc; free -h; systemctl is-active github-runner-*'
+ssh -p 2222 ismailkattakath@localhost 'hostname; nproc; free -h; systemctl is-active github-runner-*'
 ```
 
 Expected end state (this is what a healthy `nixvm` looks like):
 
 - 8 vCPU, ~15 GB RAM, ~7 GB swap in the guest.
-- GitHub → repo → Settings → Actions → Runners shows
-  **`nixvm-ismailkattakath-nix-config-01` ONLINE**, labels `[nixvm, aarch64-linux]`.
+- GitHub → org (`kattakath`) → Settings → Actions → Runners shows
+  **`nixvm-kattakath-01` and `nixvm-kattakath-02` ONLINE** (org runners, `num = 2`), labels `[nixvm, aarch64-linux]`.
 
 If the runner is **absent** rather than offline, you almost certainly skipped §1 — agenix could not
 decrypt `gh-runner-token-nixvm.age`. Check `journalctl -u agenix* -b` in the guest.
@@ -224,7 +224,7 @@ Delete `$EXTRA` (it holds the private host key) once you are done.
 
 ## Cross-references
 
-- **utm-vm-provision** — SUPERSEDED by this skill. Retained only for UTM-specific reference
-  (qcow2 sizing, `vmnet-shared`/ARP, UEFI boot-order quirks).
+- The old **utm-vm-provision** / **nixvm-utm-prebuild-on-devcontainer** (UTM-based) skills have
+  been **removed** — this skill replaces them.
 - **nixos-flake-install** — the manual in-guest `nixos-install` flow; `nixos-anywhere` replaces it
   here.
