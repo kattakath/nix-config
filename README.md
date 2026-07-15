@@ -16,7 +16,7 @@ A single Nix flake that manages complete, reproducible system configurations acr
 |------|------|--------|---------|------|
 | `macos` | [nix-darwin](https://github.com/LnL7/nix-darwin) | `aarch64-darwin` | Apple Silicon Mac | Client only — no remote/incoming traffic |
 | `nixpi` | NixOS | `aarch64-linux` | Raspberry Pi 4 | **LIVE server** — ZTIA SSH (short-lived certs over a Cloudflare Tunnel connector) + Caddy landing page |
-| `nixvm` | NixOS | `aarch64-linux` | UTM/QEMU sandbox VM | Minimal — boot/SSH/disko only, no public ingress |
+| `nixvm` | NixOS | `aarch64-linux` | Headless QEMU/HVF VM on the Mac | The **aarch64-linux CI runner** — no public ingress |
 | `devcontainer` | OCI image | `aarch64-linux` + `x86_64-linux` | Dev container (multi-arch manifest, published to GHCR) | — |
 
 User environments are layered on with [Home-Manager](https://github.com/nix-community/home-manager), and the devcontainer image is prebuilt and published to GHCR so it starts with a warm Nix store. This is an **aarch64-only** fleet — there is no x86_64 *host* anywhere. The devcontainer image is the one exception: it is published multi-arch (arm64 + amd64) so it also runs on x86_64 GitHub Codespaces.
@@ -50,12 +50,15 @@ nixos-rebuild  switch --flake .#nixvm   # UTM/QEMU sandbox VM
 
 ### Bring up the sandbox VM
 
-`nixvm` has no bespoke QEMU+HVF launcher — it runs in UTM. Build the qcow2 and import it (see the
-`utm-vm-provision` and `nixvm-utm-prebuild-on-devcontainer` skills under `.claude/skills/` for the
-full flow):
+`nixvm` runs as a headless QEMU/HVF process managed by a launchd daemon on the Mac
+(`services.nixvm-qemu` — `modules/darwin/nixvm-qemu.nix`), no UTM and no GUI. It's provisioned
+with `nixos-anywhere`; see the `nixvm-qemu-provision` skill under `.claude/skills/` and
+[`docs/nixvm-qemu-runbook.md`](./docs/nixvm-qemu-runbook.md) for the full flow.
+
+For a throwaway graphical VM (XFCE in a native QEMU window; needs a Linux builder):
 
 ```bash
-nix build .#nixvm-image     # → ./result — UTM-importable qcow2
+nix run .#nixvm-gui
 ```
 
 ### Use the devcontainer
@@ -76,7 +79,7 @@ flake.lock      Pinned input revisions (bumped via `nix flake update`, never han
 treefmt.nix     Single source of truth for formatting + lint (drives nix fmt, CI, and the hook)
 hosts/          Per-host entry profiles (macos.nix, nixpi.nix, nixvm.nix, +installers)
 modules/        Reusable modules, split by platform (darwin/ linux/ nixos/ shared/)
-packages/       Nix-built artifacts (devcontainer image, nixvm bootstrap script, landing page)
+packages/       Nix-built artifacts (devcontainer image, nixvm bootstrap, key-recovery kit, landing page)
 .claude/        Repo-local Claude Code agents, commands, hooks, skills, and rules
 ```
 
@@ -84,7 +87,7 @@ Platform branching lives in `modules/` behind `lib.mkIf`, so host profiles stay 
 
 ## How CI works
 
-CI runs on **GitHub Actions** ([`nix-ci.yml`](./.github/workflows/nix-ci.yml)) across both target systems — `aarch64-darwin` and `aarch64-linux` — on **native**, one-per-system GitHub-hosted runners (`macos-latest`, `ubuntu-24.04-arm`; no QEMU). Each leg does two things: it *builds* the flake's lint/format `checks` (`treefmt` + `pre-commit` — the same derivations `nix fmt` and the commit hook run locally) with [`nix-fast-build`](https://github.com/Mic92/nix-fast-build), and it *evaluates* each host config's toplevel `drvPath` (a full module-system eval that catches config/type errors in seconds) **without building it** — the expensive toplevel builds (notably the Pi SD image) are a release-time concern. Built check results are pushed to the [Cachix](https://www.cachix.org/) (`ismailkattakath`) cache consumed read-only by every host. Branch protection requires the aggregate `required-checks` job.
+CI runs on **GitHub Actions** ([`nix-ci.yml`](./.github/workflows/nix-ci.yml)) across both target systems — `aarch64-darwin` and `aarch64-linux` — on **native**, one-per-system GitHub-hosted runners (`macos-latest`, `ubuntu-24.04-arm`; no QEMU). Each leg does two things: it *builds* the flake's lint/format `checks` (`treefmt` + `pre-commit` — the same derivations `nix fmt` and the commit hook run locally) with [`nix-fast-build`](https://github.com/Mic92/nix-fast-build), and it *evaluates* each host config's toplevel `drvPath` (a full module-system eval that catches config/type errors in seconds) **without building it** — the expensive toplevel builds (notably the Pi SD image) are a release-time concern. Built check results are pushed to the [Cachix](https://www.cachix.org/) (`kattakath`) cache consumed read-only by every host. Branch protection requires the aggregate `required-checks` job.
 
 - [`build-devcontainer`](https://github.com/kattakath/nix-config/actions/workflows/build-devcontainer.yml) builds, smoke-tests, and publishes the multi-arch (arm64 + amd64) devcontainer image to GHCR as a manifest list.
 - [`build-installers`](https://github.com/kattakath/nix-config/actions/workflows/build-installers.yml) builds and publishes the `nixvm`/`nixpi` installer images to a rolling pre-release.
@@ -93,7 +96,7 @@ CI runs on **GitHub Actions** ([`nix-ci.yml`](./.github/workflows/nix-ci.yml)) a
 
 ## Secrets
 
-No plaintext secrets live in this repo. System/service credentials are committed **encrypted** with [sops-nix](https://github.com/Mic92/sops-nix) (`.sops.yaml` + `secrets/<host>.yaml`) and decrypted at activation using each host's own SSH host key — today `nixpi`'s Cloudflare Tunnel connector token and `nixvm`'s GitHub Actions runner PAT. Personal tokens stay out of Nix and git entirely (macOS Keychain / CLI logins). The Cachix substituter is public and read-only (URL + public key, no token). See [SECURITY.md](./SECURITY.md) for the full model.
+No plaintext secrets live in this repo. System/service credentials are committed **encrypted** with [agenix](https://github.com/ryantm/agenix) (`secrets/*.age`, recipients declared in `secrets/secrets.nix`) and decrypted at activation into `/run/agenix/` using each host's own SSH host key — today `nixpi`'s Cloudflare Tunnel connector token and the `macos` + `nixvm` GitHub Actions runner PATs. Personal tokens stay out of Nix and git entirely (macOS Keychain / CLI logins). The Cachix substituter is public and read-only (URL + public key, no token). See [SECURITY.md](./SECURITY.md) for the full model.
 
 ## Contributing
 
