@@ -5,6 +5,15 @@
 # either moved to ~/.Trash (recoverable, the default) or deleted outright.
 # Each entry becomes one `launchd.user.agent` running a small shell script.
 #
+# The agent's short label is DERIVED, not spelled out: "<action>-<folder>",
+# where <folder> is the path's basename lowercased with every non-[a-z0-9]
+# character stripped (e.g. path ~/Pictures/Screengrab + action "trash" →
+# "trash-screengrab", full launchd label
+# "com.kattakath.file-rotation.trash-screengrab"). The (action, folder-basename)
+# pair is assumed unique across paths; if two entries collide — or a basename
+# has no alphanumerics to derive from — evaluation FAILS with a clear message
+# (see the guards in `config`) rather than silently dropping an agent.
+#
 # The rotation script uses ONLY stock macOS tools under /usr/bin and /bin
 # (find, mv, mkdir, date, basename) — no Nix store runtime inputs — so the
 # work it performs has zero closure beyond the launchd `.script` interpreter
@@ -22,10 +31,17 @@ let
     mkOption
     mkIf
     types
-    imap0
     concatStringsSep
+    concatStrings
     reverseList
     splitString
+    stringToCharacters
+    toLower
+    filter
+    last
+    unique
+    count
+    throwIf
     ;
 
   cfg = config.services.fileRotation;
@@ -37,15 +53,30 @@ let
   # than a personal handle: "kattakath.com" → "com.kattakath".
   rdns = concatStringsSep "." (reverseList (splitString "." domainName));
 
+  # Last non-empty path component: "~/Pictures/Screengrab/" → "Screengrab".
+  baseComponent =
+    p:
+    let
+      parts = filter (x: x != "") (splitString "/" p);
+    in
+    if parts == [ ] then "" else last parts;
+
+  # Lowercase, then keep only [a-z0-9]: "Screen Grab!" → "screengrab".
+  sanitize =
+    s: concatStrings (filter (c: builtins.match "[a-z0-9]" c != null) (stringToCharacters (toLower s)));
+
+  # Derived short label component: "<action>-<sanitized-basename>".
+  sanitizedBase = entry: sanitize (baseComponent entry.path);
+  shortNameOf = entry: "${entry.action}-${sanitizedBase entry}";
+
   # Build one launchd user agent (a { name; value; } pair) per rotation entry.
   mkAgent =
-    index: entry:
+    entry:
     let
-      # Short, human-readable name for logs: caller-supplied, else positional.
-      shortName = if entry.name != null then entry.name else toString index;
+      shortName = shortNameOf entry;
 
       # launchd Label under the domain-derived reverse-DNS namespace, e.g.
-      # "com.kattakath.file-rotation.screengrab-rotate".
+      # "com.kattakath.file-rotation.trash-screengrab".
       label = "${rdns}.file-rotation.${shortName}";
 
       # maxAgeDays=1 ⇒ "older than 24h" ⇒ find -mmin +1440.
@@ -114,6 +145,27 @@ let
         '';
       };
     };
+
+  # ---- Eval-time safety nets -------------------------------------------------
+  # Names are derived, so two paths could collide (same action + same sanitized
+  # basename, e.g. ~/a/logs and ~/b/logs both as "trash-logs"), and a basename
+  # with no alphanumerics (e.g. "~") would derive an empty component. Either case
+  # would silently collapse/mangle agents under listToAttrs — so fail loudly.
+  shortNames = map shortNameOf cfg.paths;
+  emptyBase = filter (e: sanitizedBase e == "") cfg.paths;
+  dupes = unique (filter (n: count (x: x == n) shortNames > 1) shortNames);
+
+  guard =
+    v:
+    throwIf (emptyBase != [ ])
+      "services.fileRotation: cannot derive an agent name from path(s) [${
+        concatStringsSep ", " (map (e: ''"${e.path}"'') emptyBase)
+      }] — the folder basename has no [a-z0-9] characters. Rotate a directory whose name contains letters/digits."
+      (
+        throwIf (dupes != [ ])
+          "services.fileRotation: duplicate derived agent name(s) [${concatStringsSep ", " dupes}]. The (action, folder-basename) pair must be unique across paths; give the colliding entries distinct folder names or actions."
+          v
+      );
 in
 {
   options.services.fileRotation.paths = mkOption {
@@ -122,7 +174,7 @@ in
         options = {
           path = mkOption {
             type = types.str;
-            description = "Directory whose top-level files are rotated (absolute, ~, or home-relative).";
+            description = "Directory whose top-level files are rotated (absolute, ~, or home-relative). Its basename derives the agent name.";
           };
           maxAgeDays = mkOption {
             type = types.int;
@@ -139,21 +191,19 @@ in
               "delete"
             ];
             default = "trash";
-            description = "Move rotated files to ~/.Trash (recoverable) or delete them outright.";
-          };
-          name = mkOption {
-            type = types.nullOr types.str;
-            default = null;
-            description = "Short label component under the domain rDNS namespace (e.g. <rdns>.file-rotation.<name>); defaults to the positional index when null.";
+            description = "Move rotated files to ~/.Trash (recoverable) or delete them outright. Also the first component of the derived agent name (<action>-<folder>).";
           };
         };
       }
     );
     default = [ ];
-    description = "Declarative per-directory file-rotation LaunchAgents (macOS).";
+    description = "Declarative per-directory file-rotation LaunchAgents (macOS). Each agent's label is derived as <action>-<sanitized-folder-basename>.";
   };
 
+  # Guard wraps the agents VALUE (not the whole config attrset) so the config's
+  # top-level keys stay static — wrapping the attrset itself makes its keys
+  # depend on config values and the module system infinite-recurses.
   config = mkIf (cfg.paths != [ ]) {
-    launchd.user.agents = builtins.listToAttrs (imap0 mkAgent cfg.paths);
+    launchd.user.agents = guard (builtins.listToAttrs (map mkAgent cfg.paths));
   };
 }
