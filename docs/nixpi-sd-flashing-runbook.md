@@ -149,9 +149,14 @@ Insert the card and power the Pi with an adequate supply (**5V / 3A** — see §
   warning:
 
 ```bash
-ssh-keygen -R nixpi.local
-ssh ismail@nixpi.local
+ssh-keygen -R nixpi.local   # clear any stale host key first
 ```
+
+The **live** `nixpi` image is cert-only (`removeStaticKey = true`) — LAN static-key
+`ssh …@nixpi.local` does **not** work. Confirm the boot over ZTIA (WARP) per
+[`tunnel-architecture-and-runbook.md`](tunnel-architecture-and-runbook.md), or via the
+physical serial/HDMI console. (The `nixpi-installer` image, by contrast, keeps the
+`nixos` user + static key: `ssh nixos@nixpi-installer.local`.)
 
 (Same stale-host-key gotcha every reprovision hits — the name is stable, the key
 is not.)

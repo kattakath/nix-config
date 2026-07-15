@@ -1,5 +1,11 @@
 # Cloudflare Tunnel + ZTIA SSH Architecture & Host Runbook
 
+> **STATUS: cutover COMPLETE on `nixpi` (2026-07-08).** `hosts/nixpi.nix` sets
+> `services.openssh-ca-trust.enable = true` **and** `removeStaticKey = true`, so
+> network SSH is **cert-only** and the legacy static key is gone. The rollout
+> steps below are retained as the design record + re-run/break-glass reference,
+> not a pending to-do.
+
 > See [`docs/ztia-rollout-runbook.md`](ztia-rollout-runbook.md) for the
 > concrete, step-by-step operator walkthrough of the rollout order summarized
 > in §9 below (token scopes, dashboard paths, verification commands).
@@ -223,9 +229,11 @@ break-glass path regardless of ZTIA status.
 
 ## 8. Secret / trust model
 
-- **`/etc/secrets/cloudflared-token`** — unchanged: a plain, root-only,
-  operator-placed file backing the tunnel connector. See
-  `memory/agenix-removed-etc-secrets.md` — this repo has no agenix/sops.
+- **`secrets/cloudflared-token.age`** (agenix) — committed encrypted to `nixpi`'s
+  SSH host key + the operator key (`secrets/secrets.nix`), decrypted at activation
+  to `/run/agenix/cloudflared-token`; `hosts/nixpi.nix` points
+  `services.cloudflared-connector.tokenFile` there. (`/etc/secrets/cloudflared-token`
+  is only the module default for hosts that don't opt into agenix — not `nixpi`.)
 - **The Cloudflare SSH CA's private key never leaves Cloudflare.** Only its
   **public** key round-trips into this repo, committed at
   `modules/nixos/cloudflare-ssh-ca.pub` — safe to commit (a CA public key

@@ -55,7 +55,7 @@ Full procedure: the **nixvm-qemu-provision** skill. Shape of it:
 - **Reset the EDK2 NVRAM after installing.** The install leaves a boot entry the
   firmware cannot follow, and EDK2 drops to the **UEFI Shell** instead of falling
   back to `\EFI\BOOT\BOOTAA64.EFI`. Symptom: `Shell>` on the serial console and SSH
-  never comes up. Fix: `cp $(nix build --print-out-paths nixpkgs#qemu)/share/qemu/edk2-arm-vars.fd ~/nixvm/efivars.fd`.
+  never comes up. Fix: `sudo cp $(nix build --print-out-paths nixpkgs#qemu)/share/qemu/edk2-arm-vars.fd /var/lib/nixvm/efivars.fd`.
 - **Detach the ISO for the second boot.** Leave the CD attached and the firmware
   prefers it, so the VM boots the installer again instead of the system you built.
 
@@ -63,15 +63,15 @@ Full procedure: the **nixvm-qemu-provision** skill. Shape of it:
 
 ```sh
 sudo launchctl kickstart -k system/org.nixos.nixvm-qemu   # restart the VM
-tail -f ~/nixvm/serial.log                                # guest console
-ssh -p 2222 ismail@localhost                              # get in
-nix run nixpkgs#gh -- api repos/kattakath/nix-config/actions/runners \
-  --jq '.runners[] | "\(.name) \(.status)"'               # is it registered?
+sudo tail -f /var/lib/nixvm/serial.log                    # guest console
+ssh -p 2222 ismailkattakath@localhost                     # get in
+nix run nixpkgs#gh -- api orgs/kattakath/actions/runners \
+  --jq '.runners[] | "\(.name) \(.status)"'               # are they registered?
 ```
 
-The runner name is `nixvm-ismailkattakath-nix-config-01` — github-nix-ci hardcodes
-`<host>-<owner>-<repo>-<NN>` (`nix/module.nix:180`); it is not configurable. Harmless:
-workflows dispatch on **labels**, never on the name.
+The runners are `nixvm-kattakath-01` and `nixvm-kattakath-02` (`num = 2`) — these are
+**org** runners, which github-nix-ci names `<host>-<org>-<NN>`; not configurable. Harmless:
+workflows dispatch on **labels** (`nixvm`/`aarch64-linux`), never on the name.
 
 ## Resize
 
@@ -79,7 +79,7 @@ The qcow2 is sparse — a big virtual disk costs nothing until used. Growing it 
 the guest to follow, because disko gives root `size = "100%"`:
 
 ```sh
-qemu-img resize ~/nixvm/disk.qcow2 128G     # VM stopped
+sudo qemu-img resize /var/lib/nixvm/disk.qcow2 128G     # VM stopped
 # in-guest, after boot:
 sudo growpart /dev/vda 2 && sudo resize2fs /dev/vda2
 ```

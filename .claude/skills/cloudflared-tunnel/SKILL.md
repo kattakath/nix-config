@@ -29,11 +29,11 @@ description: >
   current Cloudflare Terraform provider docs. `infra/cloudflare/nixpi-ssh.nix`
   therefore only provisions the target/application/policy; the CA public key
   is captured by hand and committed to `modules/nixos/cloudflare-ssh-ca.pub`.
-- **Rollout is ORDERED and has a lockout risk.** Never flip
-  `services.openssh-ca-trust.removeStaticKey = true` on `nixpi` before
-  verifying an end-to-end ZTIA login from an enrolled client. See the full
-  runbook in `docs/tunnel-architecture-and-runbook.md` §9 — this skill
-  summarizes it, that doc is authoritative.
+- **Cutover COMPLETE on `nixpi` (2026-07-08).** `hosts/nixpi.nix` already sets
+  `services.openssh-ca-trust.removeStaticKey = true` — network SSH is cert-only
+  and the static key is gone. The ordered-rollout rule (never flip `removeStaticKey`
+  before verifying an end-to-end ZTIA login) is retained as historical context in
+  `docs/tunnel-architecture-and-runbook.md`, not a pending action.
 - **`nixvm` is explicitly excluded.** It keeps the shared static SSH key and
   never sets `services.openssh-ca-trust.enable` — it's a LAN/serial-console
   sandbox, not part of this cutover. Do not add ZTIA to `hosts/nixvm.nix`.

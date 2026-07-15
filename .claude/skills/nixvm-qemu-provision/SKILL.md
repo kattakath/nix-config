@@ -37,7 +37,8 @@ TCC with error **-1728** "not allowed assistive access", which cannot be granted
   deploy target, not a builder), and not the repo devcontainer — Docker Desktop on macOS does not
   expose `/dev/kvm` to containers, verified even on an M3 Pro (`ls -l /dev/kvm` → No such file).
   A whole skill (`nixvm-utm-prebuild-on-devcontainer`) was built on the premise that the
-  devcontainer could produce that qcow2; it could not, and has been deleted. **We do not need a
+  devcontainer could produce that qcow2; it could not, and is now marked SUPERSEDED/defunct (it
+  still lives under `.claude/skills/` for reference). **We do not need a
   prebuilt qcow2 at all any more** — `nixos-anywhere --build-on remote` makes the guest build
   itself, so an empty disk plus the installer ISO is enough.
 - The installer ISO (`packages.aarch64-linux.nixvm-installer-iso`) has **no** `requiredSystemFeatures`
@@ -198,14 +199,14 @@ VERIFIED: with both done, the VM boots the installed system and the CI runner co
 ## 6. Verify
 
 ```bash
-ssh -p 2222 ismail@localhost 'hostname; nproc; free -h; systemctl is-active github-runner-*'
+ssh -p 2222 ismailkattakath@localhost 'hostname; nproc; free -h; systemctl is-active github-runner-*'
 ```
 
 Expected end state (this is what a healthy `nixvm` looks like):
 
 - 8 vCPU, ~15 GB RAM, ~7 GB swap in the guest.
-- GitHub → repo → Settings → Actions → Runners shows
-  **`nixvm-ismailkattakath-nix-config-01` ONLINE**, labels `[nixvm, aarch64-linux]`.
+- GitHub → org (`kattakath`) → Settings → Actions → Runners shows
+  **`nixvm-kattakath-01` and `nixvm-kattakath-02` ONLINE** (org runners, `num = 2`), labels `[nixvm, aarch64-linux]`.
 
 If the runner is **absent** rather than offline, you almost certainly skipped §1 — agenix could not
 decrypt `gh-runner-token-nixvm.age`. Check `journalctl -u agenix* -b` in the guest.

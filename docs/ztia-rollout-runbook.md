@@ -1,5 +1,16 @@
 # ZTIA SSH Rollout Runbook — `nixpi` (Cloudflare Access for Infrastructure)
 
+> **STATUS: executed 2026-07-08 — cutover COMPLETE.** `hosts/nixpi.nix` has
+> `removeStaticKey = true` (network SSH is cert-only); the Cloudflare objects, the
+> CA public key (`modules/nixos/cloudflare-ssh-ca.pub`), and the `targetIp`
+> (`10.0.0.37`) / `virtualNetworkId` in `infra/cloudflare/nixpi-ssh.nix` are all
+> provisioned. The imperative steps below are the executed procedure + re-run
+> reference — historical, not pending. NB the live `usernames` list is currently
+> `["ismail","ismailkattakath"]` — a temporary dual-name lockout guard during the
+> in-progress nixpi reflash; it collapses to `["ismailkattakath"]` afterward. The
+> v5 resource is `cloudflare_zero_trust_access_infrastructure_target` and the Allow
+> policy is **inline** in the application (`policies[]`), not a separate resource.
+
 > Complements [`docs/tunnel-architecture-and-runbook.md`](tunnel-architecture-and-runbook.md)
 > (the generic ZTIA design + condensed rollout order in its §9). This document
 > is the concrete, step-by-step operator walkthrough for executing that

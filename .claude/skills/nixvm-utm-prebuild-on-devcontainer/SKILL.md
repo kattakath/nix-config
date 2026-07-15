@@ -1,6 +1,8 @@
 ---
 name: nixvm-utm-prebuild-on-devcontainer
 description: >
+  SUPERSEDED / DEFUNCT — the .#nixvm-image attribute was removed and the devcontainer has no
+  /dev/kvm, so this path no longer works; use nixvm-qemu-provision (nixos-anywhere) instead.
   Build the nixvm qcow2 image from macOS using the repo's devcontainer CLI — no separate Linux
   machine or CI runner needed. Use when asked to "build nixvm image from Mac", "use devcontainer
   CLI to build", "build without a Linux machine", "devcontainer exec nix build", or "build

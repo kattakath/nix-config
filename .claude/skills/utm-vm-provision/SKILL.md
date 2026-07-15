@@ -1,6 +1,9 @@
 ---
 name: utm-vm-provision
 description: >
+  SUPERSEDED by nixvm-qemu-provision — nixvm now runs as a headless QEMU/HVF launchd daemon
+  (modules/darwin/nixvm-qemu.nix), NOT UTM, and the .#nixvm-image attribute was removed. Retained
+  only for UTM-specific reference material; do not use for provisioning nixvm.
   Create and configure a UTM virtual machine on macOS, with NO GUI required, and drive the full
   macOS→UTM→NixOS pipeline for the nixvm sandbox VM. Use when asked to "make a VM", "set up a UTM
   VM", "provision a NixOS/Linux guest", "spin up nixvm", "install NixOS in UTM", or automate UTM.

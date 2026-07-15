@@ -21,10 +21,10 @@ installer ISO version is irrelevant. (`nixpi` is a Raspberry Pi 4 SD-image host 
 `nixpi-installer-image` to an SD card and boot directly; it doesn't go through this ISO/disko
 flow. See §5.)
 
-> **Faster alternative — skip the ISO install entirely.** Build a prebuilt qcow2 with
-> `nix build .#nixvm-image` (on aarch64-linux) and import it into UTM — no partitioning, no
-> in-guest install, no OOM-RAM pitfall. See **utm-vm-provision** › "Two ways to get a running
-> NixOS VM". Use the ISO flow below only when you can't build/import an image.
+> **Current path — use nixos-anywhere, not this ISO flow.** `nixvm` is now provisioned by
+> `nixos-anywhere --build-on remote` onto a headless QEMU/HVF VM — see the **nixvm-qemu-provision**
+> skill. (`nix build .#nixvm-image` was removed and UTM is gone.) The in-guest ISO/disko flow
+> below is retained as the break-glass alternative.
 
 ## ⚠ PREREQUISITE: ≥6 GB RAM + clean wipe (LOW RAM = SILENT CORRUPTION)
 
