@@ -145,6 +145,7 @@ jobs:
   # arch's image, smoke-tests it, runs every regression guard, and pushes a
   # per-arch tag :<sha12>-<arch>. The `manifest` job stitches them into :latest.
   build:
+    name: build (linux/${{ matrix.arch }})
     needs: [gate]
     permissions:
       contents: read
