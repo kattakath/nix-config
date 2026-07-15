@@ -50,7 +50,7 @@ This renders `infra/cloudflare/nixpi-ssh.nix` and applies:
 
 - a `cloudflare_zero_trust_infrastructure_access_target` (hostname label + IP + virtual network — **fill in the placeholder `targetIp`/`virtualNetworkId` in that file first**),
 - a `cloudflare_zero_trust_access_application` (`type = "infrastructure"`, SSH/22, `target_criteria`),
-- a `cloudflare_zero_trust_access_policy` (`decision = "allow"`, the owner's `email_domain`, plus `connection_rules.ssh.usernames = ["ismail"]`).
+- a `cloudflare_zero_trust_access_policy` (`decision = "allow"`, the owner's `email_domain`, plus `connection_rules.ssh.usernames = ["ismailkattakath"]`).
 
 Tear down with `nix run .#cf-ssh-destroy` (same token requirement).
 
