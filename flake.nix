@@ -631,12 +631,25 @@
           }
         ))
 
+        # nixvm installer-ISO provisioner (macOS only). Exposed as a package so
+        # `nix flake check` BUILDS it — running writeShellApplication's shellcheck.
+        # Downloads the CI-prebuilt nixvm ISO from installer-latest + lays down the
+        # QEMU disk/efivars. See packages/nixvm-provision-iso.nix.
+        (nixpkgs.lib.genAttrs darwinSystems (system: {
+          nixvm-provision-iso = (pkgsFor system).callPackage ./packages/nixvm-provision-iso.nix { };
+        }))
+
         {
           # BREAK-GLASS ONLY (see the apps block): superseded by nixos-anywhere.
           aarch64-linux.nixvm = (pkgsFor "aarch64-linux").callPackage ./packages/nixvm.nix {
             diskoInstall = disko.packages.aarch64-linux.disko-install;
             inherit orgName;
           };
+          # The nixvm installer ISO: prebuilt in CI (build-installers) and published
+          # to the installer-latest release alongside the nixpi image, so
+          # `nix run .#nixvm-provision-iso` DOWNLOADS it instead of building locally
+          # (the Mac has no aarch64-linux builder). Secret-free (installation-cd-minimal
+          # + hosts/nixvm-installer.nix, which bakes only the operator PUBLIC key).
           aarch64-linux.nixvm-installer-iso =
             self.nixosConfigurations.nixvm-installer.config.system.build.isoImage;
           # The LIVE nixpi SD image (not a separate installer): prebuilt in CI
@@ -781,6 +794,18 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.nixpi-vault-token}/bin/nixpi-vault-token";
               meta.description = "Re-encrypt a new connector token (stdin/$TUNNEL_TOKEN) into secrets/cloudflared-token.age (run from the repo root)";
+            };
+
+            # nixvm installer-ISO provisioner (macOS). DOWNLOAD the CI-prebuilt ISO
+            # from installer-latest + create disk.qcow2 + seed efivars — the
+            # acquire+prep step for a nixos-anywhere (re)install, so the Mac needs no
+            # local ISO build (no Docker, no Determinate Linux builder). The operator
+            # then re-keys agenix + runs nixos-anywhere. See packages/nixvm-provision-iso.nix
+            # + docs/nixvm-qemu-runbook.md + the nixvm-qemu-provision skill.
+            aarch64-darwin.nixvm-provision-iso = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.nixvm-provision-iso}/bin/nixvm-provision-iso";
+              meta.description = "Download the prebuilt nixvm ISO (installer-latest) + create disk.qcow2 + seed efivars for a nixos-anywhere install";
             };
           }
           (

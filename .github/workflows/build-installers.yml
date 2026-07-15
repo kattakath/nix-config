@@ -7,16 +7,20 @@ name: build-installers
 # firing; the drvPath gate then suppresses the no-op runs a monolithic flake.nix
 # would otherwise trigger.
 #
-# ONE leg builds the aarch64-linux nixpi sdImage — the flashable artifact itself,
-# not a bootstrap installer (the image is secret-free, so it is a pure function of
-# the flake and safe to publish; token + Wi-Fi are planted post-flash on the
-# FIRMWARE partition). It runs on the SELF-HOSTED `nixvm` runner: policy is that no
-# heavy build ever runs on a (paid) GitHub-hosted runner, and the two reasons the
-# old nixvm-ISO leg lived on GitHub-hosted (CIRCULARITY + STARVATION) no longer
-# apply — see the build job in build-installers-impl.yml.
-# (The old nixvm-installer ISO leg was removed — the ISO is still buildable on demand
-# via `nix build .#packages.aarch64-linux.nixvm-installer-iso` for a nixvm reinstall,
-# it just no longer needs a prebuilt, published copy.)
+# TWO legs (a matrix in build-installers-impl.yml) build the two prebuilt aarch64-linux
+# artifacts, both secret-free and thus pure functions of the flake, safe to publish:
+#   1. the LIVE nixpi sdImage — the flashable artifact itself, not a bootstrap
+#      installer (token + Wi-Fi are planted post-flash on the FIRMWARE partition);
+#   2. the nixvm-installer ISO — the SSH-reachable Linux nixos-anywhere installs nixvm
+#      THROUGH, so `nix run .#nixvm-provision-iso` can DOWNLOAD it instead of building
+#      one on the (Linux-builder-less) Mac.
+# Both legs run on the SELF-HOSTED `nixvm` runner: policy is that no heavy build ever
+# runs on a (paid) GitHub-hosted runner. Building the nixvm ISO on nixvm is a mild
+# self-dependency (CIRCULARITY) the old GitHub-hosted leg avoided; we accept it now
+# because the ISO's whole value is that a prebuilt copy is ALREADY on the release, so
+# recovering a dead nixvm downloads the last-published ISO rather than building one.
+# STARVATION is mitigated by nixvm's 2-runner pool — see the build job's comment in
+# build-installers-impl.yml for the full rationale.
 #
 # SPLIT BY WEIGHT: the heavy BUILD runs on self-hosted nixvm (above), but the two
 # LIGHTWEIGHT jobs here — `gate` (a pure `nix eval` drvPath, seconds) and
@@ -44,6 +48,9 @@ on:
       - "modules/nixos/**"
       - "modules/shared/**"
       - "packages/landing/**"
+      # The nixvm-installer ISO bypasses mkNixos (installation-cd-minimal + this one
+      # host file), so this is its only closure input beyond flake.nix/flake.lock.
+      - "hosts/nixvm-installer.nix"
       - ".github/workflows/build-installers.yml"
       - ".github/workflows/build-installers-impl.yml"
   workflow_dispatch:
@@ -132,19 +139,26 @@ jobs:
       - name: Stage tree (git purity)
         run: git add -A
 
-      - name: Evaluate the nixpi image drvPath (pure eval, no build)
+      - name: Evaluate both prebuilt drvPaths (pure eval, no build)
         id: key
         run: |
           set -euo pipefail
           DRV_IMG="$(nix eval --raw .#packages.aarch64-linux.nixpi-sd-image.drvPath)"
+          DRV_ISO="$(nix eval --raw .#packages.aarch64-linux.nixvm-installer-iso.drvPath)"
           echo "drv nixpi-img: ${DRV_IMG}"
-          COMBINED="$(printf '%s\n' "${DRV_IMG}" | sha256sum | cut -d' ' -f1)"
-          # v3: dropped the nixvm-installer ISO leg — the gate now keys on the nixpi
-          # image drvPath ALONE (v2 combined it with the ISO drvPath). Bumping the
-          # version guarantees the first run under single-leg semantics can't be
-          # skipped by a stale two-leg HIT. Bump again (v4, …) on any future change
-          # to what is gated here.
-          echo "cache_key=installers-drv-v3-${COMBINED}" >> "$GITHUB_OUTPUT"
+          echo "drv nixvm-iso: ${DRV_ISO}"
+          # Fold BOTH artifacts' drvPaths into the gate key: a change to EITHER (the
+          # nixpi image or the nixvm ISO) must retrigger the build+publish, so the key
+          # must move when either drv moves. Order is fixed (img then iso) for a stable
+          # hash. drvPath can flip without the output bytes changing (a harmless
+          # re-publish) but can never stay put when an output changes — never under-publish.
+          COMBINED="$(printf '%s\n%s\n' "${DRV_IMG}" "${DRV_ISO}" | sha256sum | cut -d' ' -f1)"
+          # v4: RE-ADDED the nixvm-installer ISO drvPath to the combined key (v3 keyed
+          # on the nixpi image ALONE after the ISO leg was dropped; v2 had combined
+          # both). Bumping the version guarantees the first run under two-leg semantics
+          # can't be skipped by a stale single-leg (v3) HIT. Bump again (v5, …) on any
+          # future change to what is gated here.
+          echo "cache_key=installers-drv-v4-${COMBINED}" >> "$GITHUB_OUTPUT"
 
       - name: Probe published baseline
         id: probe
@@ -162,17 +176,18 @@ jobs:
         run: |
           if [ "${FORCE}" = "true" ] || [ "${HIT}" != "true" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::nixpi image CHANGED (or forced/first-run) — will build+publish."
+            echo "::notice::nixpi image or nixvm ISO CHANGED (or forced/first-run) — will build+publish both."
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::nixpi image drvPath unchanged — SKIPPING build+publish (no-op re-upload avoided)."
+            echo "::notice::nixpi image + nixvm ISO drvPaths unchanged — SKIPPING build+publish (no-op re-upload avoided)."
           fi
 
   # BUILD: delegated to the reusable build-installers-impl.yml so the build job is
-  # gated by ONE `if:`. (Retained from the two-leg design: a matrix job skipped by a
-  # job-level `if:` renders its name UNEXPANDED; routing through a reusable workflow
-  # means the skip shows a single clean `installers` job, and a run shows
-  # `installers / build (nixpi-sd-img)`.) `contents: write` (the installer-latest
+  # gated by ONE `if:`. This is WHY the two-leg matrix lives in the called workflow:
+  # a matrix job skipped by a job-level `if:` renders its name UNEXPANDED, so gating
+  # HERE (one `if:` on `installers`) keeps a skip as a single clean `installers` job,
+  # while a run expands both cells — `installers / build (nixpi-sd-img)` and
+  # `installers / build (nixvm-live-iso)`. `contents: write` (the installer-latest
   # Release upload) is granted here and caps the called workflow's token; the
   # eval-only `gate` and cache-only `record-baseline` jobs never receive it.
   installers:
@@ -206,16 +221,22 @@ jobs:
       # SUPPRESS the next, still-needed republish. Confirm a real .img* is actually
       # attached to installer-latest before trusting the publish enough to bake its
       # drvPath into the gate baseline.
-      - name: Verify installer-latest actually has the nixpi image
+      - name: Verify installer-latest actually has BOTH prebuilt artifacts
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           names="$(gh release view installer-latest -R "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')"
           echo "installer-latest assets:"; printf '%s\n' "$names" | sed 's/^/  /'
+          # BOTH must be present before we trust the publish enough to bake its drvPath
+          # into the gate baseline — a partial upload (only one artifact landed) would
+          # otherwise record a baseline and SUPPRESS the next, still-needed republish of
+          # the missing one.
           printf '%s\n' "$names" | grep -Eq '\.img' \
             || { echo "::error::no .img asset on installer-latest — refusing to record the gate baseline"; exit 1; }
-          echo "✓ nixpi image present on installer-latest"
+          printf '%s\n' "$names" | grep -Eq '\.iso' \
+            || { echo "::error::no .iso asset on installer-latest — refusing to record the gate baseline"; exit 1; }
+          echo "✓ nixpi image + nixvm ISO both present on installer-latest"
 
       - name: Create gate marker
         run: echo "${{ needs.gate.outputs.cache_key }} @ ${{ github.sha }}" > .gate-marker
