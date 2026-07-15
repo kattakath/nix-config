@@ -157,24 +157,37 @@ in
   # a launchd user agent with RunAtLoad — version-controlled and wipe-proof. For
   # each app below, its OWN "launch at login" toggle must be turned OFF so it
   # doesn't also re-register itself. See docs/macos-settings-surface.md.
+  #
+  # `open -g -j -a <App>` launches in the BACKGROUND (`-g`, no focus steal) and
+  # HIDDEN (`-j`, no window) — so the app comes up as a menu-bar agent only, no
+  # GUI window at login. Menu-bar (status-bar) icons are unaffected by `-j`.
   launchd.user.agents = {
     # Clipboard manager (cask) — replaces Maccy's in-app "Launch at login".
+    # Maccy is already a menu-bar-only agent (LSUIElement); the flags are just
+    # belt-and-suspenders.
     open-maccy.serviceConfig = {
       ProgramArguments = [
         "/usr/bin/open"
+        "-g"
+        "-j"
         "-a"
         "Maccy"
       ];
       RunAtLoad = true;
     };
     # Docker Desktop (cask) — replaces "Start Docker Desktop when you sign in".
-    # That checkbox registers the com.docker.helper BACKGROUND item via
-    # SMAppService (hence it appears under "Allow in the Background", not the
-    # "Open at Login" apps list). The privileged com.docker.vmnetd system daemon
-    # is installed separately and is unaffected by any of this.
+    # `-g -j` keeps it from popping the Dashboard window / stealing focus at
+    # login; it still starts the engine and shows the whale menu-bar icon.
+    # (Docker's own "Open Docker Dashboard at startup" setting can also suppress
+    # the window — belt-and-suspenders.) That checkbox registered the
+    # com.docker.helper BACKGROUND item via SMAppService (hence it appeared under
+    # "Allow in the Background", not the "Open at Login" apps list); the
+    # privileged com.docker.vmnetd system daemon is separate and unaffected.
     open-docker.serviceConfig = {
       ProgramArguments = [
         "/usr/bin/open"
+        "-g"
+        "-j"
         "-a"
         "Docker"
       ];
