@@ -21,6 +21,69 @@ A single Nix flake that manages complete, reproducible system configurations acr
 
 User environments are layered on with [Home-Manager](https://github.com/nix-community/home-manager), and the devcontainer image is prebuilt and published to GHCR so it starts with a warm Nix store. This is an **aarch64-only** fleet — there is no x86_64 *host* anywhere. The devcontainer image is the one exception: it is published multi-arch (arm64 + amd64) so it also runs on x86_64 GitHub Codespaces.
 
+## Bootstrap or recover a Mac (the first thing on a clean machine)
+
+On a new or freshly-reset Mac there is no Nix yet, so a single zero-dependency script
+([`bootstrap.sh`](./bootstrap.sh)) does the irreducible minimum — installs Determinate
+Nix, then hands off to the flake. Run it straight from the repo over TLS, like
+Determinate's own installer (it **auto-detects** an iCloud recovery kit):
+
+```bash
+# Dry run — reports exactly what it would do, changes nothing:
+curl -fsSL https://raw.githubusercontent.com/kattakath/nix-config/main/bootstrap.sh | bash -s -- --check
+
+# Real run:
+curl -fsSL https://raw.githubusercontent.com/kattakath/nix-config/main/bootstrap.sh | bash
+```
+
+It clones the flake, verifies your macOS login equals the flake's `userName` (hard-fails
+with fork instructions if not), then:
+
+- **recovery kit present** (`~/Library/Mobile Documents/com~apple~CloudDocs/nix-key-recovery`,
+  published beforehand by `nix run .#key-backup`) → restores your operator key, re-keys
+  agenix to this Mac's new host key, activates `#macos`;
+- **no kit** → **founds** a brand-new operator identity (a fresh keypair, agenix re-keyed
+  to it, the macOS service secret re-initialised to a placeholder), then activates `#macos`.
+  Afterward: register `~/.ssh/id_ed25519.pub` on GitHub (auth + signing), set the real PAT
+  (`agenix -e secrets/gh-runner-token.age`), and `nix run .#key-backup`. Add `--fresh` to
+  skip the confirmation on a headless box.
+
+Prefer not to trust the raw URL? The kit ships the same (CI-linted) `bootstrap.sh` — run the
+on-disk copy, `./bootstrap.sh`. (It still needs network: it downloads the Determinate
+installer and `nix run`s the flake — it is not fully offline.)
+
+### Fork this for your own fleet
+
+This is personal config with `userName = "ismailkattakath"` baked into `flake.nix` (it is
+your POSIX account — `/Users/<userName>` and `home-manager.users.<userName>`). To run your
+own fleet from it:
+
+1. **Fork** the repo on GitHub.
+2. In `flake.nix`, set `userName` to **your macOS login** (`id -un`), and set `orgName` /
+   `handleName` / `domainName` to your own. Commit and push. (Running the offline copy? Also
+   set `FLAKE_DEFAULT` in `bootstrap.sh`.)
+3. On your fresh Mac, run **pointing at your fork**:
+
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/<you>/nix-config/main/bootstrap.sh \
+     | bash -s -- --flake=github:<you>/nix-config
+   ```
+
+   With no kit it **founds your own keys** and activates `#macos`.
+
+The `userName` guard is what makes this safe: if your login does not match the flake's
+`userName`, bootstrap stops **before** activating and tells you to fork and set `userName` —
+rather than half-activating home-manager for a user that does not exist.
+
+> **Trust model.** You are piping remote code into `bash`, and it uses `sudo`. The anchor is
+> the repo over TLS from `raw.githubusercontent.com` (**your own fork**, in the fork flow —
+> pin a commit SHA in place of `/main/` for a stronger guarantee). `bootstrap.sh` is the exact
+> bytes CI shellchecks (the `key-recovery-bootstrap` derivation) and that `nix run .#key-backup`
+> publishes into the kit; a truncated download runs nothing (it is brace-guarded). **No secret
+> transits the pipe** — passphrases are read from `/dev/tty`, `osascript` is only ever used for
+> notices, and privilege escalation goes through `sudo` / Touch ID. Founding mode mints a **new**
+> identity: old service-secret contents are unrecoverable (and revocable).
+
 ## Quick start
 
 Everything below assumes [Nix with flakes enabled](https://nixos.org/download).
@@ -74,6 +137,7 @@ Or just open the repo in a devcontainer-aware editor; `.devcontainer/devcontaine
 ## Repository layout
 
 ```
+bootstrap.sh    No-Nix curl entrypoint: install Determinate Nix, then hand off to the flake
 flake.nix       Entry point: inputs, darwin/nixos configurations, packages, devShells, checks
 flake.lock      Pinned input revisions (bumped via `nix flake update`, never hand-edited)
 treefmt.nix     Single source of truth for formatting + lint (drives nix fmt, CI, and the hook)
@@ -96,7 +160,7 @@ CI runs on **GitHub Actions** ([`nix-ci.yml`](./.github/workflows/nix-ci.yml)) a
 
 ## Secrets
 
-No plaintext secrets live in this repo. System/service credentials are committed **encrypted** with [agenix](https://github.com/ryantm/agenix) (`secrets/*.age`, recipients declared in `secrets/secrets.nix`) and decrypted at activation into `/run/agenix/` using each host's own SSH host key — today `nixpi`'s Cloudflare Tunnel connector token and the `macos` + `nixvm` GitHub Actions runner PATs. Personal tokens stay out of Nix and git entirely (macOS Keychain / CLI logins). The Cachix substituter is public and read-only (URL + public key, no token). See [SECURITY.md](./SECURITY.md) for the full model.
+No plaintext secrets live in this repo. System/service credentials are committed **encrypted** with [agenix](https://github.com/ryantm/agenix) (`secrets/*.age`, recipients declared in `secrets/secrets.nix`) and decrypted at activation into `/run/agenix/` using each host's own SSH host key — today the `macos` + `nixvm` GitHub Actions runner PATs. **`nixpi`'s Cloudflare Tunnel token is the deliberate exception**: it is an operator-only vault planted on the SD card's FAT `FIRMWARE` partition and copied into a `/run` file at boot, **never** decrypted on `nixpi` — because a fresh SD flash rotates the host key, which would break host-key decryption and kill the only remote path in. Personal tokens stay out of Nix and git entirely (macOS Keychain / CLI logins). The Cachix substituter is public and read-only (URL + public key, no token). See [SECURITY.md](./SECURITY.md) for the full model.
 
 ## Contributing
 
