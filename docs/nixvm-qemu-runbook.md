@@ -43,12 +43,20 @@ cd secrets && agenix -r -i ~/.ssh/id_ed25519
 
 Full procedure: the **nixvm-qemu-provision** skill. Shape of it:
 
-1. Build the installer ISO (`nix build .#nixvm-installer-iso`) — needs no KVM.
-2. Boot a blank qcow2 + the ISO under QEMU, headless, `hostfwd=tcp::2222-:22`.
+0. Stop the daemon so it stops crash-looping QEMU during the install:
+   `sudo launchctl bootout system/org.nixos.nixvm-qemu`.
+1. `nix run .#nixvm-provision-iso` — DOWNLOADS the prebuilt ISO from the rolling
+   `installer-latest` release (asset `nixos-minimal-*.iso`) and lays down the
+   `disk.qcow2` + `efivars.fd` in the state dir. No local ISO build, so no Docker and
+   no Determinate Linux builder. (Fallback: `nix build .#nixvm-installer-iso` on any
+   aarch64-linux box — needs no KVM.)
+2. Boot the blank qcow2 + the ISO under QEMU, headless, `hostfwd=tcp::2222-:22`.
 3. Pre-generate the host key and re-key agenix (above).
 4. `nixos-anywhere --flake .#nixvm --build-on remote --extra-files <dir> --target-host root@localhost --ssh-port 2222`.
    `--build-on remote` means the **guest builds its own closure** — the Mac never
-   needs an aarch64-linux builder, so no Determinate Linux builder and no Docker.
+   needs an aarch64-linux builder either, so the whole flow is Docker-free and
+   Determinate-Linux-builder-free.
+5. Reset the EDK2 NVRAM and re-bootstrap the daemon (which boots disk-only) — see below.
 
 ### Two traps, both hit for real
 

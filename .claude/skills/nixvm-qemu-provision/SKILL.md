@@ -5,9 +5,11 @@ description: >
   NixOS into it with nixos-anywhere --build-on remote. Use when asked to "make the VM", "rebuild
   nixvm", "recreate nixvm", "provision the sandbox VM", "reinstall nixvm", "nixvm is gone", "set up
   the aarch64-linux CI runner VM", or "install NixOS in QEMU on the Mac". Covers the pre-generated
-  SSH host key that agenix depends on, the installer ISO, the EDK2 NVRAM reset that stops the VM
-  dropping to the UEFI Shell after install, and detaching the ISO before the second boot. This is
-  the CURRENT, VERIFIED path — it supersedes the older UTM-based provisioning.
+  SSH host key that agenix depends on, downloading the prebuilt installer ISO
+  (`nix run .#nixvm-provision-iso`), stopping/re-bootstrapping the org.nixos.nixvm-qemu launchd
+  daemon, the EDK2 NVRAM reset that stops the VM dropping to the UEFI Shell after install, and
+  detaching the ISO before the second boot. This is the CURRENT, VERIFIED path — it supersedes the
+  older UTM-based provisioning.
 ---
 
 # nixvm provisioning — headless QEMU + HVF on macOS
@@ -40,18 +42,25 @@ TCC with error **-1728** "not allowed assistive access", which cannot be granted
   devcontainer could produce that qcow2; it could not, and has been deleted. **We do not need a
   prebuilt qcow2 at all any more** — `nixos-anywhere --build-on remote` makes the guest build
   itself, so an empty disk plus the installer ISO is enough.
-- The installer ISO (`packages.aarch64-linux.nixvm-installer-iso`) has **no** `requiredSystemFeatures`
-  and builds anywhere aarch64-linux is available. Check rather than trust:
+- The installer ISO (`packages.aarch64-linux.nixvm-installer-iso`) is now **prebuilt in CI and
+  published to the rolling `installer-latest` GitHub pre-release** (the `build-installers` two-leg
+  matrix, alongside the nixpi image; asset `nixos-minimal-*.iso`). So you normally **download** it —
+  no local build, no Docker, no Determinate Linux builder. `nix run .#nixvm-provision-iso` (§2) does
+  the download for you. **Fallback:** if the release asset is missing/stale, or you need a *fresh*
+  ISO for an ISO-affecting flake change while `nixvm` is offline (the accepted circularity — the ISO
+  leg builds on `nixvm` itself), build it on ANY aarch64-linux box with Nix
+  (`nix build .#nixvm-installer-iso`): the devcontainer, a cloud arm runner, another NixOS host. It
+  carries **no** `requiredSystemFeatures` (unlike the removed qcow2), so it builds anywhere aarch64
+  Linux runs — check rather than trust:
   ```bash
   nix derivation show "$(nix eval --raw .#packages.aarch64-linux.nixvm-installer-iso.drvPath)" \
     | grep requiredSystemFeatures     # → absent
   ```
-  **Bootstrap note:** the ISO is **not** prebuilt/published anywhere any more (the
-  `build-installers` nixvm-ISO leg was removed — only the live nixpi image is published now).
-  It builds on demand on ANY aarch64-linux box with Nix (`nix build .#nixvm-installer-iso`) —
-  the devcontainer, a cloud arm runner, another NixOS host. `nix-ci` only *evaluates* it on the
-  `nixvm` runner, so if `nixvm` is dead, just build the ISO on any other aarch64-linux builder;
-  you are never blocked on the VM to recreate the VM.
+- **Stop the launchd daemon first.** `nixvm` normally runs as the `org.nixos.nixvm-qemu` launchd
+  daemon (`modules/darwin/nixvm-qemu.nix`), which `KeepAlive`-restarts QEMU against
+  `/var/lib/nixvm/disk.qcow2`. Before (re)provisioning, boot it out so it does not crash-loop or
+  fight your install QEMU for `localhost:2222`:
+  `sudo launchctl bootout system/org.nixos.nixvm-qemu`. You re-bootstrap it in §5.
 - `nixpkgs`' `qemu` on darwin **is codesigned with `com.apple.security.hypervisor`**, so
   `-accel hvf` works out of the box. No Homebrew QEMU, no manual `codesign`.
 - Destructive: `nixos-anywhere` wipes the target disk. It only ever touches the qcow2 you point it
@@ -95,38 +104,52 @@ keep-list from `secrets.nix`.)
 Never echo the private half. `$EXTRA` is handed to `nixos-anywhere` in §4 and should be deleted
 after.
 
-## 2. Create the disk and the firmware variable store
+## 2. Acquire the ISO and create the disk + firmware store
+
+One command downloads the prebuilt ISO and lays down the disk + EDK2 NVRAM store the daemon boots
+from (default state dir `/var/lib/nixvm`):
 
 ```bash
-mkdir -p ~/nixvm
-QEMU=$(nix build --no-link --print-out-paths nixpkgs#qemu)
-
-# Empty sparse disk. 128G VIRTUAL is fine — qcow2 only allocates what's written (~4G actual).
-qemu-img create -f qcow2 ~/nixvm/disk.qcow2 128G
-
-# EDK2 firmware: CODE is read-only from the store; VARS must be a private WRITABLE copy.
-cp "$QEMU/share/qemu/edk2-arm-vars.fd" ~/nixvm/efivars.fd
-chmod u+w ~/nixvm/efivars.fd
+nix run .#nixvm-provision-iso        # --force to recreate a blank disk over an existing one
 ```
+
+It writes `nixvm-installer.iso`, `disk.qcow2`, and `efivars.fd` into the state dir. The disk is
+**guarded**: it refuses to overwrite an existing `disk.qcow2` (an installed VM) unless you pass
+`--force` — so, when reinstalling, stop the daemon (§0) and `--force`. `--iso FILE` skips the
+download; `--dir` targets a different location.
+
+<details><summary>Manual fallback (no app, or a custom dir)</summary>
+
+```bash
+STATE=/var/lib/nixvm
+QEMU=$(nix build --no-link --print-out-paths nixpkgs#qemu)
+qemu-img create -f qcow2 "$STATE/disk.qcow2" 128G           # sparse — ~4G actual
+cp "$QEMU/share/qemu/edk2-arm-vars.fd" "$STATE/efivars.fd"  # VARS = writable copy
+chmod u+w "$STATE/efivars.fd"
+gh release download installer-latest -R kattakath/nix-config \
+  -p 'nixos-minimal-*.iso' -D "$STATE"                      # or nix build .#nixvm-installer-iso
+```
+</details>
 
 ## 3. Boot the installer ISO
 
 ```bash
+STATE=/var/lib/nixvm
 QEMU=$(nix build --no-link --print-out-paths nixpkgs#qemu)
-ISO=/path/to/nixvm-installer.iso        # see §0 note — build on any aarch64-linux box: nix build .#nixvm-installer-iso
+ISO="$STATE/nixvm-installer.iso"        # placed by `nix run .#nixvm-provision-iso` (§2)
 
 "$QEMU/bin/qemu-system-aarch64" \
   -M virt -accel hvf -cpu host -smp 8 -m 16384 \
   -drive if=pflash,format=raw,readonly=on,file="$QEMU/share/qemu/edk2-aarch64-code.fd" \
-  -drive if=pflash,format=raw,file="$HOME/nixvm/efivars.fd" \
-  -drive if=virtio,format=qcow2,file="$HOME/nixvm/disk.qcow2" \
+  -drive if=pflash,format=raw,file="$STATE/efivars.fd" \
+  -drive if=virtio,format=qcow2,file="$STATE/disk.qcow2" \
   -drive if=virtio,format=raw,readonly=on,file="$ISO" \
   -netdev user,id=n0,hostfwd=tcp::2222-:22 -device virtio-net-pci,netdev=n0 \
-  -display none -serial file:"$HOME/nixvm/serial.log" &
+  -display none -serial file:"$STATE/serial.log" &
 ```
 
 - `-accel hvf -cpu host` — native Apple Silicon virtualisation. Without `-cpu host`, HVF refuses.
-- `-display none -serial file:…` — fully headless; `~/nixvm/serial.log` is your only console. Tail
+- `-display none -serial file:…` — fully headless; `$STATE/serial.log` is your only console. Tail
   it when something goes wrong; it is where you will see the UEFI Shell prompt in §5.
 - `-netdev user … hostfwd=tcp::2222-:22` — SLIRP user networking. The guest has **no routable IP**
   on the host (unlike UTM's `vmnet-shared`), so **everything goes through `localhost:2222`**. Do not
@@ -166,26 +189,37 @@ expected. Go to §5.**
 After the install-and-reboot, the EDK2 variable store (`efivars.fd`) is left holding a boot entry it
 cannot follow. Instead of falling back to the removable-media path `\EFI\BOOT\BOOTAA64.EFI`, the
 firmware drops to the **UEFI Shell** and just sits there. From the outside the VM looks hung; the
-only evidence is `~/nixvm/serial.log`. This cost real debugging time.
+only evidence is `$STATE/serial.log`. This cost real debugging time.
 
-**Fix: wipe NVRAM back to the pristine template and boot with the ISO DETACHED.**
+**Fix: wipe NVRAM back to the pristine template and boot with the ISO DETACHED.** The cleanest way
+to boot disk-only is to hand back to the launchd daemon — its `ProgramArguments`
+(`modules/darwin/nixvm-qemu.nix`) already omit the ISO drive, so re-bootstrapping it IS the
+"same command minus the ISO":
 
 ```bash
-pkill -f qemu-system-aarch64            # stop the VM first
+STATE=/var/lib/nixvm
+pkill -f qemu-system-aarch64            # stop the install QEMU first
 QEMU=$(nix build --no-link --print-out-paths nixpkgs#qemu)
 
-cp "$QEMU/share/qemu/edk2-arm-vars.fd" ~/nixvm/efivars.fd   # ← reset the variable store
-chmod u+w ~/nixvm/efivars.fd
+cp "$QEMU/share/qemu/edk2-arm-vars.fd" "$STATE/efivars.fd"   # ← reset the variable store
+chmod u+w "$STATE/efivars.fd"
 
-# Boot the INSTALLED system: same command as §3 MINUS the ISO drive.
+# Boot the INSTALLED system disk-only via the daemon (§0 booted it out):
+sudo launchctl bootstrap system /Library/LaunchDaemons/org.nixos.nixvm-qemu.plist
+```
+
+<details><summary>Or boot it by hand (same command as §3 MINUS the ISO drive)</summary>
+
+```bash
 "$QEMU/bin/qemu-system-aarch64" \
   -M virt -accel hvf -cpu host -smp 8 -m 16384 \
   -drive if=pflash,format=raw,readonly=on,file="$QEMU/share/qemu/edk2-aarch64-code.fd" \
-  -drive if=pflash,format=raw,file="$HOME/nixvm/efivars.fd" \
-  -drive if=virtio,format=qcow2,file="$HOME/nixvm/disk.qcow2" \
+  -drive if=pflash,format=raw,file="$STATE/efivars.fd" \
+  -drive if=virtio,format=qcow2,file="$STATE/disk.qcow2" \
   -netdev user,id=n0,hostfwd=tcp::2222-:22 -device virtio-net-pci,netdev=n0 \
-  -display none -serial file:"$HOME/nixvm/serial.log" &
+  -display none -serial file:"$STATE/serial.log" &
 ```
+</details>
 
 Two things matter and both are load-bearing:
 
@@ -193,7 +227,8 @@ Two things matter and both are load-bearing:
    `edk2-aarch64-code.fd`, the VARS template is `edk2-**arm**-vars.fd`. With a clean store, EDK2
    enumerates the disk and finds `BOOTAA64.EFI`.
 2. **Detach the ISO.** Leave it attached and the firmware happily boots the installer again, and you
-   will think the install failed when it did not.
+   will think the install failed when it did not. (The daemon never attaches it, so re-bootstrapping
+   is inherently ISO-free.)
 
 VERIFIED: with both done, the VM boots the installed system and the CI runner comes online.
 
