@@ -42,6 +42,29 @@ byte-identical, CI-linted copy.
 
 That is the whole procedure. It is idempotent — re-run it as often as you like.
 
+### If the first run reboots (expected on a reset Mac)
+
+On a Mac that was wiped/reset, the **first** run usually finds a leftover `Nix
+Store` APFS volume — plus stale `/nix` entries in `/etc/synthetic.conf` and
+`/etc/fstab` — left behind by the erase. It deletes them and then **reboots**,
+because macOS only re-evaluates the `/nix` firmlink at boot and the Determinate
+installer cannot mount `/nix` until it does. This is the designed happy path, not
+a failure — output like:
+
+```
+==> Leftover 'Nix Store' APFS volume disk3s7 (24576 bytes) — from a previous/partial install
+==>   deleting APFS volume disk3s7
+==> Removing the stale /nix entry from /etc/synthetic.conf
+==> Removing the stale /nix entry from /etc/fstab
+==> A reboot is required: macOS only re-evaluates the /nix firmlink at boot.
+```
+
+means it worked. When the Mac comes back up, **run the exact same command again**.
+The second pass finds a clean machine, installs Determinate Nix, and hands off to
+`key-recover`. The script does **not** auto-resume across the reboot — a `curl … |
+bash` stream cannot survive a restart, and nothing is installed as a login hook to
+continue it — so the manual re-run is intentional, and safe to repeat.
+
 `bootstrap.sh` installs Determinate Nix, then hands off to `nix run <flake>#key-recover`,
 which **clones the flake (HTTPS — no key needed) and verifies your macOS login (`id -un`)
 equals the flake's `userName`** (reading `nix eval --raw <flake>#identity.userName`)
