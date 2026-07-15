@@ -14,18 +14,21 @@
 {
   imports = [
     ../modules/darwin/core.nix
-    # Self-hosted GitHub Actions runner. Hand-rolled as a launchd daemon because
-    # nix-darwin's `services.github-runners` requires `nix.enable = true`, which
-    # is incompatible with this host's Determinate Nix (nix.enable = false).
+    # On-demand self-hosted GitHub Actions runners — both DISABLED / not-auto-started
+    # by default now that CI runs on GitHub-hosted runners (see nix-ci.yml). Kept as
+    # break-glass / local-builder infrastructure.
+    #   macos runner: hand-rolled launchd daemon (nix-darwin's services.github-runners
+    #     needs nix.enable = true, incompatible with this host's Determinate Nix).
+    #     Disabled by default; enable via services.macosGithubRunner.enable.
     ../modules/darwin/github-runner.nix
-    # The OTHER runner: nixvm, the aarch64-linux leg of CI, as a headless
-    # QEMU/HVF guest kept alive by launchd. The Mac hosts it, so the Mac declares
-    # it. Without this the VM only lives as long as whoever last typed `qemu`.
+    #   nixvm: the aarch64-linux QEMU/HVF guest. autoStart defaults false, so it is an
+    #     on-demand local builder (kickstart it when needed) — see the module.
     ../modules/darwin/nixvm-qemu.nix
   ];
 
-  # 8 vCPU / 16 GiB of the M3 Pro's 12 cores / 36 GiB. NOT 12 vCPU: the guest
-  # would size `nix build -j` to match and starve macOS.
+  # Define the nixvm daemon (8 vCPU / 16 GiB of the M3 Pro's 12 cores / 36 GiB — NOT
+  # 12 vCPU, or the guest would size `nix build -j` to match and starve macOS).
+  # autoStart defaults false: on-demand only, brought up with `launchctl kickstart`.
   services.nixvm-qemu.enable = true;
 
   nixpkgs.config.allowUnfree = true;
@@ -35,14 +38,9 @@
     home = "/Users/${userName}";
   };
 
-  # agenix: decrypt secrets/gh-runner-token.age at activation using this Mac's SSH
-  # host key (/etc/ssh/ssh_host_ed25519_key, an age identity via SSH). The runner's
-  # PAT is owned by `_github-runner` so the launchd daemon (which runs as that
-  # user) can read it. Edit the secret with:
+  # NOTE: the `macos` runner's agenix secret (gh-runner-token) is declared BY the
+  # runner module under its enable guard (modules/darwin/github-runner.nix), so it
+  # only materialises when that on-demand runner is enabled — no dangling
+  # `_github-runner`-owned secret while it is disabled. Edit it with:
   #   agenix -e secrets/gh-runner-token.age   (recipients in secrets/secrets.nix)
-  age.secrets."gh-runner-token" = {
-    file = ../secrets/gh-runner-token.age;
-    owner = "_github-runner";
-    mode = "0400";
-  };
 }

@@ -14,8 +14,9 @@ description: >
 
 # nixvm provisioning — headless QEMU + HVF on macOS
 
-`nixvm` is the fleet's **aarch64-linux sandbox VM** and the **only aarch64-linux CI runner**. It
-runs on the Mac as an ordinary `qemu-system-aarch64` process with HVF acceleration. **UTM is not
+`nixvm` is the fleet's **on-demand aarch64-linux builder VM** — a local Linux build sandbox and a
+break-glass self-hosted runner (CI itself runs on GitHub-hosted runners now, so the VM is not needed
+for PRs). It runs on the Mac as an ordinary `qemu-system-aarch64` process with HVF acceleration. **UTM is not
 involved.** (The old UTM-based flow has been removed; its
 "create the VM from the CLI, NO GUI required — VERIFIED" claim is **false on a fresh Mac** —
 `utmctl` never sees a hand-authored bundle, and the `osascript` restart-UTM workaround is blocked by
@@ -75,9 +76,10 @@ VM first boots*.
 
 **If you skip this and let the fresh guest generate its own host key**, the recipient in
 `secrets.nix` is stale → agenix cannot decrypt the PAT → `github-nix-ci`'s runner service **never
-starts** → every PR's `build (aarch64-linux)` leg queues forever. The VM boots fine, SSH answers,
-`systemctl` looks healthy. **It fails completely silently.** That is why the key is planted, not
-harvested.
+starts** → the on-demand runners never register when you bring the VM up (your break-glass fallback
+is silently unavailable). The VM boots fine, SSH answers, `systemctl` looks healthy. **It fails
+completely silently.** That is why the key is planted, not harvested. (Only matters if you use nixvm
+as a runner — CI is hosted, but planting the key correctly keeps the fallback usable.)
 
 ```bash
 # 1. Generate the host key pair on the Mac (no passphrase — sshd needs it unencrypted).

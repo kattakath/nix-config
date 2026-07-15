@@ -14,22 +14,13 @@ name: build-installers
 #   2. the nixvm-installer ISO — the SSH-reachable Linux nixos-anywhere installs nixvm
 #      THROUGH, so `nix run .#nixvm-provision-iso` can DOWNLOAD it instead of building
 #      one on the (Linux-builder-less) Mac.
-# Both legs run on the SELF-HOSTED `nixvm` runner: policy is that no heavy build ever
-# runs on a (paid) GitHub-hosted runner. Building the nixvm ISO on nixvm is a mild
-# self-dependency (CIRCULARITY) the old GitHub-hosted leg avoided; we accept it now
-# because the ISO's whole value is that a prebuilt copy is ALREADY on the release, so
-# recovering a dead nixvm downloads the last-published ISO rather than building one.
-# STARVATION is mitigated by nixvm's 2-runner pool — see the build job's comment in
-# build-installers-impl.yml for the full rationale.
-#
-# SPLIT BY WEIGHT: the heavy BUILD runs on self-hosted nixvm (above), but the two
-# LIGHTWEIGHT jobs here — `gate` (a pure `nix eval` drvPath, seconds) and
-# `record-baseline` (a `gh release view` + cache save) — stay on GitHub-hosted
-# `ubuntu-24.04-arm`. They are cheap, must run even to DECIDE whether to occupy a
-# nixvm runner slot at all, and keeping them off nixvm avoids consuming one of its
-# two runner slots for trivial work. So `gate` installs Nix itself (install-nix-action
-# below) purely for the eval;
-# the build job needs no such setup (nixvm already ships Nix + the substituter).
+# ALL THREE jobs run on GitHub-hosted `ubuntu-24.04-arm` (free & unlimited on public
+# repos): `gate` (a pure `nix eval` drvPath, seconds), the reusable `installers` BUILD
+# (build-installers-impl.yml — installs Nix + Cachix itself), and `record-baseline` (a
+# `gh release view` + cache save). The build moved OFF the self-hosted `nixvm` runner
+# with the rest of CI (see nix-ci.yml header): hosted removes the availability SPOF and
+# the old self-hosted circularity (nixvm building its own installer ISO). The cold RPi
+# kernel fits inside hosted's 6h job limit, and Cachix serves the warmed closure.
 #
 # Published to the rolling installer-latest GitHub pre-release so the image is
 # always downloadable at a stable URL without tag-per-commit churn (this is the
