@@ -127,10 +127,15 @@ jobs:
           CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
         run: |
           set -euo pipefail
-          # Full Determinate path (not bare `nix`) for launchd-context PATH
-          # determinism on the macos runner; also the exact binary the devcontainer
-          # prebuild skill uses. Works identically on nixvm.
-          NIX=/nix/var/nix/profiles/default/bin/nix
+          # Resolve nix from PATH — it lives at a DIFFERENT absolute path on each
+          # self-hosted runner: the macOS runner is Determinate
+          # (/nix/var/nix/profiles/default/bin/nix), but the nixvm runner is NixOS
+          # (/nix/store/…-nix/bin, which github-nix-ci puts on the service PATH and
+          # where the Determinate path does NOT exist). Hardcoding the Determinate
+          # path passed on macOS and died exit 127 on nixvm. cachix is reached via
+          # `nix run nixpkgs#cachix`, so only nix itself needs to resolve.
+          NIX="$(command -v nix)"
+          [ -n "$NIX" ] || { echo "::error::nix not found on PATH on this runner"; exit 1; }
 
           push_closure() {
             # `cachix push` uploads the FULL closure of the given store path (exactly
