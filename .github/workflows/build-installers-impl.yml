@@ -10,8 +10,7 @@ name: build-installers-impl
 # says nothing changed (the cold RPi kernel — see build-installers.yml's gate).
 # Isolating the write-token'd build in its own called workflow lets the caller gate
 # it with a single `if:` on ONE job (`installers`): skipped ⇒ one clean `installers`
-# job in the UI; running ⇒ `installers / build (nixpi-sd-img)`. Caller passes the
-# Cachix token via `secrets: inherit` and grants `contents: write`.
+# job in the UI; running ⇒ `installers / build (nixpi-sd-img)`.
 # (Was a two-leg matrix when it also published the nixvm-installer ISO; that leg was
 # removed — the ISO is built on demand for a nixvm reinstall, not prebuilt/published.)
 
@@ -29,41 +28,36 @@ jobs:
     # The ONLY job that writes GitHub state (the installer-latest Release upload).
     permissions:
       contents: write
-    # GitHub-hosted aarch64, deliberately NOT the self-hosted nixvm runner:
+    # SELF-HOSTED `nixvm` (aarch64-linux). Policy: NO heavy build ever runs on a
+    # (paid) GitHub-hosted runner — long nix builds belong on our own hardware.
     #
-    #   1. CIRCULARITY. This workflow builds a fleet artifact (the nixpi image, and
-    #      the nixvm ISO on demand). Building it on nixvm means the only machine that
-    #      can rebuild the fleet is the fleet VM — worthless precisely when the VM is
-    #      gone (which is how a Mac reset left the fleet with no way back).
-    #   2. STARVATION. The cold Raspberry Pi kernel here takes ~1h. On the shared
-    #      runner it blocked every PR in the repo three times in one afternoon.
-    runs-on: ubuntu-24.04-arm
+    # This was GitHub-hosted (`ubuntu-24.04-arm`) back when the leg built the nixvm
+    # INSTALLER ISO, for two reasons that NO LONGER hold now it builds the nixpi
+    # image instead:
+    #   1. CIRCULARITY — GONE. Building the nixvm ISO on nixvm meant the VM was the
+    #      only thing that could rebuild itself (useless once the VM is dead). But
+    #      nixvm building *nixpi*'s image is not circular — different host.
+    #   2. STARVATION — ACCEPTED + BOUNDED. A ~1h COLD build occupies the sole nixvm
+    #      runner, blocking nix-ci's aarch64-linux leg for any concurrent job. But
+    #      build-installers fires only on MAIN-PUSH affecting the nixpi closure (not
+    #      per-PR), and nixvm's PERSISTENT store keeps the RPi kernel warm between
+    #      runs — so it is ~1h cold once, then minutes. (If nixvm is offline the run
+    #      simply queues until it returns — the intended tradeoff for a personal fleet.)
+    #
+    # Because the runner is self-hosted it already ships Nix (flakes enabled) AND the
+    # kattakath substituter (modules/shared/nix-cache.nix) — so, unlike the old
+    # GitHub-hosted setup, there is NO install-nix-action and NO cachix-action here.
+    # We also do NOT push to Cachix: nixvm's local store IS the warm, and the ~1.6 GB
+    # image must stay out of the 5 GB free Cachix tier — it ships via the Release
+    # (what `nixpi-flash --release` downloads), which is where a `dd`-able artifact
+    # belongs. Nothing pushed ⇒ the tier is a non-issue.
+    #
+    # NOTE (operational): building the ~5.7 GB decompressed sdImage needs disk
+    # headroom in nixvm's store — if a run dies on ENOSPC, grow the VM disk or GC.
+    runs-on: [nixvm, aarch64-linux]
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - uses: cachix/install-nix-action@a49548c11d9846ad46ecc0115273879b045f001c # v31
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            extra-substituters = https://kattakath.cachix.org
-            extra-trusted-public-keys = kattakath.cachix.org-1:y/w6wnb4ZArdlbfWJ82c81uCXeYgG/sGDUYCszavmEw=
-
-      - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
-        with:
-          name: kattakath
-          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
-          # Push the BUILD closure (the ~1h RPi kernel and friends) but NOT the
-          # finished image: a compressed .img has no store references, so pushing it
-          # cached one multi-GB blob and none of the expensive intermediates.
-          # Critically, the kattakath Cachix is on the 5 GB FREE tier — the live
-          # nixpi sdImage (~1.6 GB compressed) would blow it — so the
-          # `-nixos-sd-image-` output stays excluded here and ships via the
-          # installer-latest release instead (where something you `dd` belongs, and
-          # what `nixpi-flash --release` downloads). Cachix warms only the kernel +
-          # intermediates, the real speedup for the on-demand / nixvm-side build path.
-          pushFilter: "(-nixos-sd-image-|\\.img)"
-          skipPush: false
 
       - name: Stage tree (git purity)
         run: git add -A

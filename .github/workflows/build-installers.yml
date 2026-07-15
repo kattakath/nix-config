@@ -7,21 +7,24 @@ name: build-installers
 # firing; the drvPath gate then suppresses the no-op runs a monolithic flake.nix
 # would otherwise trigger.
 #
-# ONE leg builds the aarch64-linux nixpi sdImage on GitHub-hosted `ubuntu-24.04-arm`
-# (native aarch64) — deliberately NOT the self-hosted `nixvm` runner; see the build
-# job for the CIRCULARITY (the VM must not be the only thing that can rebuild the
-# fleet) and STARVATION (the ~1h Pi kernel blocked every PR) reasons it was moved
-# off nixvm:
-#   nixpi (LIVE system): aarch64-linux SD card image (cold RPi kernel — heavy build)
-# The nixpi leg builds the LIVE nixpi sdImage — the flashable artifact itself, not a
-# bootstrap installer (the image is secret-free, so it is a pure function of the flake
-# and safe to publish; token + Wi-Fi are planted post-flash on the FIRMWARE partition).
+# ONE leg builds the aarch64-linux nixpi sdImage — the flashable artifact itself,
+# not a bootstrap installer (the image is secret-free, so it is a pure function of
+# the flake and safe to publish; token + Wi-Fi are planted post-flash on the
+# FIRMWARE partition). It runs on the SELF-HOSTED `nixvm` runner: policy is that no
+# heavy build ever runs on a (paid) GitHub-hosted runner, and the two reasons the
+# old nixvm-ISO leg lived on GitHub-hosted (CIRCULARITY + STARVATION) no longer
+# apply — see the build job in build-installers-impl.yml.
 # (The old nixvm-installer ISO leg was removed — the ISO is still buildable on demand
 # via `nix build .#packages.aarch64-linux.nixvm-installer-iso` for a nixvm reinstall,
 # it just no longer needs a prebuilt, published copy.)
-# Being GitHub-hosted, this workflow installs Nix and configures the kattakath
-# substituter itself (install-nix-action + cachix-action below) — unlike the
-# self-hosted runners, which already ship both.
+#
+# SPLIT BY WEIGHT: the heavy BUILD runs on self-hosted nixvm (above), but the two
+# LIGHTWEIGHT jobs here — `gate` (a pure `nix eval` drvPath, seconds) and
+# `record-baseline` (a `gh release view` + cache save) — stay on GitHub-hosted
+# `ubuntu-24.04-arm`. They are cheap, must run even to DECIDE whether to occupy the
+# nixvm runner at all, and keeping them off nixvm avoids blocking it for trivial
+# work. So `gate` installs Nix itself (install-nix-action below) purely for the eval;
+# the build job needs no such setup (nixvm already ships Nix + the substituter).
 #
 # Published to the rolling installer-latest GitHub pre-release so the image is
 # always downloadable at a stable URL without tag-per-commit churn (this is the
