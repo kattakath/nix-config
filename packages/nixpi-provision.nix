@@ -260,7 +260,7 @@ let
 
       echo "nixpi-flash: decompressing $image …"
       zstd -d -q -f "$image" -o "$tmp/nixpi.img"
-      size=$(stat -f%z "$tmp/nixpi.img")
+      size=$(/usr/bin/stat -f%z "$tmp/nixpi.img")
 
       model=$(/usr/sbin/diskutil info "$disk" | sed -n 's/.*Device \/ Media Name: *//p')
       human=$(/usr/sbin/diskutil info "$disk" | sed -n 's/.*Disk Size: *\([^(]*\).*/\1/p')
