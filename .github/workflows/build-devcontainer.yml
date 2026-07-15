@@ -15,15 +15,22 @@ name: build-devcontainer
 # ONLY for the image (devcontainerSystems), so the single-arch host invariant is
 # intact — see the devcontainerSystems comment in flake.nix.
 #
-# SHAPE. Each arch builds + smoke-tests + runs the regression guards on its OWN
-# NATIVE runner (arm64 on ubuntu-24.04-arm, amd64 on ubuntu-24.04) — no emulation
-# — and pushes a per-arch tag :<sha12>-<arch>. A final `manifest` job assembles
-# :latest + :<sha12> as a manifest list over both, so a puller (Codespaces on
-# amd64, an Apple-Silicon Mac on arm64) transparently gets the right arch.
+# SHAPE. `gate` (eval) → `images` (the per-arch build matrix) → `manifest`. Each
+# arch builds + smoke-tests + runs the regression guards on its OWN NATIVE runner
+# (arm64 on ubuntu-24.04-arm, amd64 on ubuntu-24.04) — no emulation — and pushes a
+# per-arch tag :<sha12>-<arch>. The final `manifest` job assembles :latest + :<sha12>
+# as a manifest list over both, so a puller (Codespaces on amd64, an Apple-Silicon
+# Mac on arm64) transparently gets the right arch.
 #
-# PRs eval-only (the `gate` job's pure drvPath eval, now over BOTH arches); push
-# to main builds+publishes. build-devcontainer is not a required check, so PRs
-# stay mergeable with only `gate` having run.
+# The build matrix lives in the REUSABLE build-devcontainer-impl.yml, called by the
+# `images` job here. That is deliberate: on a PR the matrix is gated off, and a
+# matrix job skipped by a job-level `if:` renders its name UNEXPANDED
+# (`build (linux/${{ matrix.arch }})`); the reusable-workflow indirection makes the
+# skip show a single clean `images` job instead (the fix build-installers also uses).
+#
+# PRs eval-only (the `gate` job's pure drvPath eval, over BOTH arches); push to main
+# builds+publishes. build-devcontainer is not a required check, so PRs stay mergeable
+# with only `gate` having run.
 
 on:
   pull_request:
@@ -141,265 +148,36 @@ jobs:
             echo "::notice::devcontainer image drvPath unchanged — SKIPPING publish (no-op republish avoided)."
           fi
 
-  # BUILD: one leg PER ARCH, each on its NATIVE runner (no emulation). Builds the
-  # arch's image, smoke-tests it, runs every regression guard, and pushes a
-  # per-arch tag :<sha12>-<arch>. The `manifest` job stitches them into :latest.
-  build:
-    name: build (linux/${{ matrix.arch }})
+  # IMAGES: the per-arch build matrix, delegated to the reusable
+  # build-devcontainer-impl.yml so the whole matrix is gated by ONE `if:` on ONE job.
+  # A matrix job skipped by a job-level `if:` renders its `${{ matrix.arch }}` name
+  # UNEXPANDED (`build (linux/${{ matrix.arch }})`); routing through a reusable
+  # workflow instead means a PR (eval-only) shows a single clean `images` job, and a
+  # publish run shows `images / build (linux/arm64)` + `images / build (linux/amd64)`.
+  # (Same fix build-installers uses for its skipped matrix leg.) `packages: write` is
+  # granted here and caps the called workflow's token; the gate outputs the matrix
+  # steps need come in as `with:` inputs, and secrets via `secrets: inherit`.
+  images:
     needs: [gate]
     permissions:
       contents: read
-      packages: write # push the per-arch image to GHCR via GITHUB_TOKEN
+      packages: write
     # PR = eval-only (the `gate` job's pure eval is the PR signal). The expensive
     # build+smoke+publish run ONLY at merge (push to main) or manual dispatch.
     if: needs.gate.outputs.is_publish == 'true'
-    runs-on: ${{ matrix.runs-on }}
-    timeout-minutes: 90 # x86_64 has a COLD Cachix cache (CI only pushed aarch64) → first build compiles from source
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # arch      : the GHCR/OCI platform arch (docker's name)
-          # nix-system: the flake output system
-          # vsarch    : VS Code Server's download arch slug (arm64 | x64)
-          # loader    : the standard glibc loader path for that arch
-          - arch: arm64
-            runs-on: ubuntu-24.04-arm
-            nix-system: aarch64-linux
-            vsarch: arm64
-            loader: /lib/ld-linux-aarch64.so.1
-          - arch: amd64
-            runs-on: ubuntu-24.04
-            nix-system: x86_64-linux
-            vsarch: x64
-            loader: /lib64/ld-linux-x86-64.so.2
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: ./.github/actions/nix-setup
-        with:
-          cachix-auth-token: ${{ secrets.CACHIX_AUTH_TOKEN }}
-
-      - name: Build devcontainer image (stream script)
-        run: |
-          nix build -L ".#packages.${{ matrix.nix-system }}.devcontainerImage"
-          test -x ./result
-
-      - name: Smoke test (multi-user nix works in the baked image)
-        run: |
-          ./result | docker load
-          CID=$(docker run -d \
-            -v "$PWD:/workspaces/nix-config" \
-            -w /workspaces/nix-config \
-            nix-config-devcontainer:latest)
-          dump() {
-            echo "--- nix-daemon.log ---"
-            docker exec "$CID" cat /tmp/nix-daemon.log 2>/dev/null || true
-            echo "--- container logs ---"
-            docker logs "$CID" 2>&1 | tail -20 || true
-            docker rm -f "$CID" >/dev/null 2>&1 || true
-          }
-          trap dump EXIT
-          for _ in $(seq 1 50); do
-            docker exec "$CID" test -S /nix/var/nix/daemon-socket/socket && break
-            sleep 0.2
-          done
-          docker exec -u 1000:1000 "$CID" bash -lc '
-            set -e
-            echo "user: $(id -un) ($(id -u):$(id -g)); NIX_REMOTE=$NIX_REMOTE"
-            git config --global --add safe.directory /workspaces/nix-config
-            nix --version
-            nix store ping                       # proves the client reaches the root daemon
-            nix config show | grep -qi kattakath.cachix.org \
-              || { echo "✗ cachix substituter missing from baked nix.conf"; exit 1; }
-            command -v node  >/dev/null && node --version
-            command -v gh    >/dev/null && gh --version | head -1
-            command -v claude >/dev/null && echo "✓ claude on PATH" || { echo "✗ claude missing"; exit 1; }
-            echo "=== devShell warm (should resolve from baked store via daemon, not build) ==="
-            OUT=$(nix develop .#default --command true 2>&1) || { echo "$OUT"; exit 1; }
-            echo "$OUT"
-            if echo "$OUT" | grep -Eiq "permission denied|could not lock config file|creating symlink .*\.pre-commit-config"; then
-              echo "✗ shellHook emitted a pre-commit/permission error — the [ -w .git ] guard regressed:"; echo "$OUT"; exit 1
-            fi
-            echo "✓ shellHook clean (pre-commit install guarded on non-writable .git)"
-            if echo "$OUT" | grep -Eq "^building .|building of "; then
-              echo "⚠ devShell built from source — warm-store miss:"; echo "$OUT"
-            else
-              echo "✓ devShell resolved without a from-source build"
-            fi
-            echo "=== real from-scratch build through the daemon (exercises the build path) ==="
-            nix build --no-link --print-build-logs nixpkgs#hello \
-              || { echo "✗ from-scratch build through the daemon FAILED"; exit 1; }
-            echo "✓ daemon realized nixpkgs#hello"
-            echo "=== smoke test passed ==="
-          '
-
-      # REGRESSION GUARD (see fix/devcontainer-glibc-loader): prove a FOREIGN,
-      # standard-FHS glibc binary — the REAL VS Code Server node, whose ELF
-      # PT_INTERP is the standard loader path and which links libstdc++ — actually
-      # EXECUTES in the image. This is the exact breakage that hid behind a green
-      # prebuild + the Nix-only smoke test: the distroless image had glibc/libstdc++
-      # only under /nix/store, so the server's bundled generic `node` died exit 127
-      # and the server never started. Runs on THIS arch's native runner against
-      # THIS arch's VS Code Server payload.
-      - name: Guard — foreign glibc binary (VS Code Server node) executes
-        run: |
-          set -euo pipefail
-          VSARCH='${{ matrix.vsarch }}'
-          LOADER_GLOB='${{ matrix.loader }}'
-
-          echo "::group::download VS Code Server (server-linux-${VSARCH})"
-          curl -fSL --retry 3 -o /tmp/vscode-server.tgz \
-            "https://update.code.visualstudio.com/latest/server-linux-${VSARCH}/stable"
-          mkdir -p /tmp/vscs && tar -xzf /tmp/vscode-server.tgz -C /tmp/vscs
-          NODE="$(find /tmp/vscs -maxdepth 2 -type f -name node | head -1)"
-          test -n "$NODE" || { echo "✗ could not locate bundled node in VS Code Server"; exit 1; }
-          echo "bundled node: $NODE"
-          "$NODE" --version >/dev/null 2>&1 \
-            && echo "note: host happened to run it (host has a standard loader)" \
-            || echo "confirmed: foreign node needs the standard loader (fails on a bare distroless rootfs)"
-          echo "::endgroup::"
-
-          CID=$(docker run -d \
-            -v /tmp/vscs:/vscs:ro \
-            nix-config-devcontainer:latest)
-          trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
-
-          docker exec "$CID" test -e "$LOADER_GLOB" \
-            || { echo "✗ standard loader ${LOADER_GLOB} is MISSING in the image"; exit 1; }
-          echo "✓ standard loader ${LOADER_GLOB} resolves"
-
-          BUNDLED="/vscs/$(cd /tmp/vscs && find . -maxdepth 2 -type f -name node | head -1 | sed 's#^\./##')"
-          OUT="$(docker exec "$CID" "$BUNDLED" --version 2>&1)" || {
-            echo "✗ foreign VS Code Server node FAILED to execute in the image:"; echo "$OUT"
-            echo "  → the standard glibc loader and/or libstdc++ path has regressed."; exit 1; }
-          echo "✓ foreign glibc node executed in the image: $OUT"
-
-          echo "$OUT" | grep -Eq '^v[0-9]' \
-            || { echo "✗ node produced no version string — libstdc++ likely unresolved"; exit 1; }
-          echo "=== foreign-glibc execution guard passed (${{ matrix.arch }}) ==="
-
-      # REGRESSION GUARD (see fix/devcontainer-usr-bin-env): prove /usr/bin/env
-      # resolves so the VS Code Server bootstrap scripts (#!/usr/bin/env sh) can
-      # exec. On a distroless Nix image /usr/bin/env is absent → the kernel rejects
-      # the shebang (exit 126) and the server never installs. Nix binaries hardcode
-      # their own store shebang, so the Nix-only smoke test passes even when this
-      # regresses — hence a dedicated guard.
-      - name: Guard — /usr/bin/env resolves (VS Code Server shebang bootstrap)
-        run: |
-          set -euo pipefail
-          CID=$(docker run -d nix-config-devcontainer:latest)
-          trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
-
-          docker exec "$CID" test -x /usr/bin/env \
-            || { echo "✗ /usr/bin/env is MISSING or non-executable in the image"; exit 1; }
-          echo "✓ /usr/bin/env resolves"
-
-          docker exec "$CID" sh -c \
-            'printf "#!/usr/bin/env sh\nexit 0\n" > /tmp/req.sh && chmod +x /tmp/req.sh && /tmp/req.sh' \
-            || { echo "✗ '\''#!/usr/bin/env sh'\'' script failed to exec — the bootstrap-blocking regression is back"; exit 1; }
-          echo "✓ #!/usr/bin/env sh script executed (exit 0)"
-
-          for INTERP in bash node; do
-            docker exec "$CID" /usr/bin/env "$INTERP" --version >/dev/null 2>&1 \
-              || { echo "✗ /usr/bin/env could not resolve/run '\''$INTERP'\'' via PATH"; exit 1; }
-          done
-          echo "=== /usr/bin/env bootstrap guard passed (${{ matrix.arch }}) ==="
-
-      # REGRESSION GUARD — the nix-ld library contract. The image exposes foreign
-      # glibc binaries' shared libs via NIX_LD_LIBRARY_PATH sourced from the SHARED
-      # list (modules/shared/nix-ld-libraries.nix). Asserts NIX_LD points at a real
-      # loader and a discriminator soname from the WIDENING (libz.so.1 — the old set
-      # had libstdc++ only) resolves. A regression to the narrow set fails here.
-      - name: Guard — nix-ld library contract wired (foreign-binary lib resolution)
-        run: |
-          set -euo pipefail
-          CID=$(docker run -d nix-config-devcontainer:latest)
-          trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
-
-          docker exec "$CID" sh -c 'test -n "$NIX_LD" && test -e "$NIX_LD"' \
-            || { echo "✗ NIX_LD unset or its loader path missing"; exit 1; }
-          echo "✓ NIX_LD resolves to a real loader"
-
-          for SO in libstdc++.so.6 libz.so.1; do
-            docker exec "$CID" sh -c '
-              IFS=:; found=; for d in $NIX_LD_LIBRARY_PATH; do [ -e "$d/'"$SO"'" ] && found=1; done
-              [ -n "$found" ]' \
-              || { echo "✗ '"$SO"' not on NIX_LD_LIBRARY_PATH — nix-ld set regressed to narrow"; exit 1; }
-            echo "✓ $SO resolves on NIX_LD_LIBRARY_PATH"
-          done
-          echo "=== nix-ld library contract guard passed (${{ matrix.arch }}) ==="
-
-      # REGRESSION GUARD — daemon stale-socket self-heal. A crashed nix-daemon
-      # leaves the socket INODE behind; the entrypoint now probes real liveness
-      # (`nix store ping`) and reclaims a stale inode on container start. Reproduce:
-      # bring the daemon up, kill it (leaving a stale socket), `docker restart`, and
-      # assert the client can reach the daemon again.
-      - name: Guard — daemon recovers from a stale socket on restart
-        run: |
-          set -euo pipefail
-          CID=$(docker run -d nix-config-devcontainer:latest)
-          trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
-
-          alive() { docker exec "$CID" sh -c 'NIX_REMOTE=daemon nix store ping >/dev/null 2>&1'; }
-          for _ in $(seq 1 50); do alive && break; sleep 0.2; done
-          alive || { echo "✗ daemon never came up on first start"; exit 1; }
-          echo "✓ daemon up on first start"
-
-          docker exec -u 0 "$CID" bash -c '
-            for c in /proc/[0-9]*/comm; do
-              read -r name < "$c" 2>/dev/null || continue
-              [ "$name" = nix-daemon ] && kill "$(basename "$(dirname "$c")")" 2>/dev/null || true
-            done'
-          for _ in $(seq 1 25); do alive || break; sleep 0.2; done
-          alive && { echo "✗ daemon still answering after kill — test setup failed"; exit 1; }
-          docker exec "$CID" test -S /nix/var/nix/daemon-socket/socket \
-            || { echo "✗ socket inode gone — not the stale-socket scenario"; exit 1; }
-          echo "✓ reproduced stale socket (dead daemon, socket inode present)"
-
-          docker restart "$CID" >/dev/null
-          for _ in $(seq 1 50); do alive && break; sleep 0.2; done
-          alive || { echo "✗ daemon did NOT self-heal from the stale socket on restart"; exit 1; }
-          echo "=== daemon stale-socket self-heal guard passed (${{ matrix.arch }}) ==="
-
-      # Push ONLY this arch's image, tagged :<sha12>-<arch>. The `manifest` job
-      # assembles :latest and :<sha12> as a manifest list over both arch tags.
-      # Gated on gate.changed so an unchanged image skips the multi-GB upload.
-      #
-      # skopeo choices (unchanged from the single-arch era): materialise the
-      # archive to a file (streamLayeredImage emits an UNCOMPRESSED docker-archive
-      # tar; piping corrupts the transport and trips pipefail); point at our OWN
-      # v2 registries.conf (nixpkgs skopeo rejects the runner's v1 host config);
-      # --format oci for the annotation convention.
-      - name: Login to GHCR
-        if: needs.gate.outputs.changed == 'true'
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Push per-arch image
-        if: needs.gate.outputs.changed == 'true'
-        env:
-          CONTAINERS_REGISTRIES_CONF: ${{ runner.temp }}/registries.conf
-        run: |
-          set -euo pipefail
-          printf 'unqualified-search-registries = ["docker.io"]\n' \
-            > "${CONTAINERS_REGISTRIES_CONF}"
-          REF="${{ needs.gate.outputs.ref }}"
-          SHA="${{ needs.gate.outputs.sha12 }}"
-          ./result > image.tar
-          nix run nixpkgs#skopeo -- --insecure-policy copy --format oci \
-            docker-archive:image.tar \
-            "docker://${REF}:${SHA}-${{ matrix.arch }}"
-          echo "pushed ${REF}:${SHA}-${{ matrix.arch }}"
+    uses: ./.github/workflows/build-devcontainer-impl.yml
+    with:
+      ref: ${{ needs.gate.outputs.ref }}
+      sha12: ${{ needs.gate.outputs.sha12 }}
+      changed: ${{ needs.gate.outputs.changed }}
+    secrets: inherit
 
   # MANIFEST: stitch the per-arch tags into the manifest lists :latest + :<sha12>,
   # verify BOTH platforms resolve, then record the gate baseline. Runs only after
   # both arch legs succeed, so a half-published list can never be tagged :latest
   # and a failed arch never records a baseline that would skip the next republish.
   manifest:
-    needs: [gate, build]
+    needs: [gate, images]
     if: needs.gate.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
     runs-on: ubuntu-24.04
     permissions:
