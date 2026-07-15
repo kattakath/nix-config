@@ -1,0 +1,99 @@
+name: build-installers-impl
+
+# REUSABLE workflow: builds + publishes the two installer images (one matrix leg
+# each) to the rolling installer-latest GitHub release. Called ONLY by
+# build-installers.yml, and ONLY when its `gate` job decides the installers
+# changed. Nothing triggers this file directly — `on: workflow_call` means it
+# never appears as its own run in the Actions list.
+#
+# WHY A REUSABLE WORKFLOW. The build is a matrix (one leg per installer), but it
+# must be SKIPPED wholesale when the gate says nothing changed (the cold RPi
+# kernel is ~1h — see build-installers.yml's gate). A matrix job skipped by a
+# job-level `if:` renders in the UI with its name template UNEXPANDED
+# (`build (${{ matrix.name }})`), because the matrix never expands. Extracting the
+# matrix here lets the caller gate the whole thing with a single `if:` on ONE
+# job: skipped ⇒ one clean `installers` job; running ⇒ `installers / build
+# (nixvm-live-iso)` / `installers / build (nixpi-sd-img)`. Caller passes the
+# Cachix token via `secrets: inherit` and grants `contents: write`.
+
+on:
+  workflow_call:
+
+# READ-ONLY by default; the Release upload's `contents: write` is scoped to the
+# build job only (and is capped by the caller's own grant).
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build (${{ matrix.name }})
+    # The ONLY job that writes GitHub state (the installer-latest Release upload).
+    permissions:
+      contents: write
+    # GitHub-hosted aarch64, deliberately NOT the self-hosted nixvm runner:
+    #
+    #   1. CIRCULARITY. This workflow builds the nixvm INSTALLER ISO. Running it
+    #      on nixvm means the only machine that can rebuild the VM is the VM —
+    #      worthless precisely when the VM is gone (which is how a Mac reset left
+    #      the fleet with no way back).
+    #   2. STARVATION. The cold Raspberry Pi kernel here takes ~1h. On the shared
+    #      runner it blocked every PR in the repo three times in one afternoon.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # name: the artifact this leg builds (titles the check + the Build step)
+          - name: nixvm-live-iso
+            package: ".#packages.aarch64-linux.nixvm-installer-iso"
+            asset-glob: "result/iso/*.iso"
+          - name: nixpi-sd-img
+            package: ".#packages.aarch64-linux.nixpi-installer-image"
+            asset-glob: "result/sd-image/*.img*"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: cachix/install-nix-action@a49548c11d9846ad46ecc0115273879b045f001c # v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            extra-substituters = https://kattakath.cachix.org
+            extra-trusted-public-keys = kattakath.cachix.org-1:y/w6wnb4ZArdlbfWJ82c81uCXeYgG/sGDUYCszavmEw=
+
+      - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
+        with:
+          name: kattakath
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          # Push the BUILD closure (the ~1h RPi kernel and friends) but NOT the
+          # finished images: a compressed .iso/.img has no store references, so
+          # pushing it cached one multi-GB blob and none of the expensive
+          # intermediates. The images ship via the installer-latest release,
+          # which is where something you `dd` belongs.
+          pushFilter: "(-nixos-sd-image-|-nixos-minimal-.*\\.iso|\\.img)"
+          skipPush: false
+
+      - name: Stage tree (git purity)
+        run: git add -A
+
+      - name: Build ${{ matrix.name }}
+        # -L / --print-build-logs surfaces builder stderr directly in the CI log,
+        # so a failing derivation (e.g. the RPi kernel modules-shrunk) is
+        # diagnosable without a separate `nix log` on the ephemeral runner.
+        run: nix build ${{ matrix.package }} --out-link result --print-build-logs
+
+      - name: Publish to installer-latest release
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        with:
+          tag_name: installer-latest
+          name: "Installer Images (latest)"
+          body: |
+            Rolling installer images built from `${{ github.sha }}`.
+
+            | Image | Architecture | Use |
+            |---|---|---|
+            | `nixvm-installer.iso` | aarch64-linux | Boot in UTM/QEMU, `ssh nixos@nixvm-installer.local`, run `nix run github:kattakath/nix-config#nixvm` |
+            | `nixpi-installer.img*` | aarch64-linux (RPi 4) | Flash to SD card, `ssh nixos@nixpi-installer.local`, run `sudo nixos-rebuild switch --flake github:kattakath/nix-config#nixpi` |
+          prerelease: true
+          make_latest: false
+          files: ${{ matrix.asset-glob }}
