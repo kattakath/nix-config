@@ -23,7 +23,7 @@
 #
 set -euo pipefail
 
-FLAKE_DEFAULT="github:ismailkattakath/nix-config"
+FLAKE_DEFAULT="github:kattakath/nix-config"
 KIT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # A leftover "Nix Store" volume holds only APFS metadata (~25 KB); a real store
