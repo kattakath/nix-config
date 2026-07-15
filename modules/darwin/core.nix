@@ -180,7 +180,8 @@ in
   # Hourly LaunchAgent that rotates ~/Pictures/Screengrab (>24h → ~/.Trash).
   services.fileRotation.paths = [
     {
-      name = "screengrab-rotate";
+      # Agent label is derived: action "trash" + basename "Screengrab" →
+      # "trash-screengrab" (com.kattakath.file-rotation.trash-screengrab).
       path = screengrabDir;
       maxAgeDays = 1;
       action = "trash";
