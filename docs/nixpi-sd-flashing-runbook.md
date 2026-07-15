@@ -47,9 +47,8 @@ If you remember one thing from this doc: **confirm the ~5.6 GB byte count.**
 ## 2. Build the image
 
 `nix` is absent on the client Mac (`macos`), so build on an aarch64-linux
-builder — the repo's **devcontainer** (see the
-`nixvm-utm-prebuild-on-devcontainer` skill, same Nix-in-Docker setup) or an
-aarch64-linux CI runner / host.
+builder — the repo's **devcontainer** (Nix-in-Docker on Apple Silicon) or the
+`nixvm` aarch64-linux CI runner / any aarch64-linux host.
 
 ```bash
 git add -A                                                            # flakes ignore untracked files
@@ -149,9 +148,14 @@ Insert the card and power the Pi with an adequate supply (**5V / 3A** — see §
   warning:
 
 ```bash
-ssh-keygen -R nixpi.local
-ssh ismail@nixpi.local
+ssh-keygen -R nixpi.local   # clear any stale host key first
 ```
+
+The **live** `nixpi` image is cert-only (`removeStaticKey = true`) — LAN static-key
+`ssh …@nixpi.local` does **not** work. Confirm the boot over ZTIA (WARP) per
+[`tunnel-architecture-and-runbook.md`](tunnel-architecture-and-runbook.md), or via the
+physical serial/HDMI console. (The `nixpi-installer` image, by contrast, keeps the
+`nixos` user + static key: `ssh nixos@nixpi-installer.local`.)
 
 (Same stale-host-key gotcha every reprovision hits — the name is stable, the key
 is not.)
