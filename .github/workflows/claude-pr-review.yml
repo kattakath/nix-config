@@ -1,0 +1,106 @@
+# claude-pr-review — automatic, advisory doc/comment-drift reviewer.
+#
+# WHY THIS EXISTS
+#   Complements `claude.yml` (the on-demand, `@claude`-mention workflow). This one
+#   is "set and forget": it runs on EVERY own-branch PR with no mention needed and
+#   posts ADVISORY comments only. It never edits files, commits, or pushes — you
+#   remain the sole author and the sole merger. The PR stays the review gate; an
+#   LLM is kept strictly on the advisory side of it (code is the source of truth).
+#
+#   Purpose: flag where a PR's diff leaves prose out of sync with the code —
+#   stale inline comments, redundant/duplicated docs, ambiguous explanations, and
+#   drift in CLAUDE.md / docs/ / .claude/*. Deterministic gates (nix flake check,
+#   treefmt, statix, deadnix, cclint) enforce mechanical integrity; this covers the
+#   SEMANTIC integrity they can't, without ever becoming a merge gate itself.
+#
+# WHY THIS SHAPE (public repo, single maintainer `ismailkattakath`)
+#   * Own-branch PRs only. The job `if:` requires the PR head to live in THIS repo,
+#     so fork PRs (untrusted diffs / prompt-injection payloads) never trigger a run
+#     with repo scope or secrets. Mirrors `claude.yml`'s injection-safety stance.
+#     Drafts are skipped to avoid reviewing work-in-progress.
+#   * Advisory only, enforced by the toolset. `--allowedTools` grants ONLY inline-
+#     comment posting + read-only `gh pr` reads. No Edit/Write/MultiEdit and no
+#     git — so "no file changes, no commits" is a hard capability boundary, not a
+#     prompt request.
+#   * SHA-pinned action, same pin as `claude.yml` (>= v1.0.94, the release that
+#     patched the disclosed prompt-injection / secret-exfiltration issue).
+#   * Least-privilege `permissions:` + per-PR `cancel-in-progress` concurrency, so
+#     a rapid push supersedes its own in-flight review (a cheap, self-superseding
+#     workflow — see .claude/rules/pr-consolidation.md).
+#   * Claude-app identity. No `github_token:` is passed, so comments post as the
+#     Claude GitHub App (via OIDC, hence `id-token: write`), not github-actions[bot].
+#
+# INERT UNLESS both prerequisites (already satisfied) hold — same as `claude.yml`:
+#   1. `CLAUDE_CODE_OAUTH_TOKEN` repo Actions secret (`claude setup-token`).
+#   2. The Claude GitHub App installed on this repo.
+
+name: Claude PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# Least-privilege: read the tree, post PR comments, OIDC for the Claude-app token.
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: claude-pr-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # Own-branch, non-draft PRs only — never fork PRs (untrusted), never drafts.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+
+      - name: Advisory doc/comment-drift review
+        uses: anthropics/claude-code-action@f1bd27ca5b54584506e40e17884d90bdaaa1a9b3 # v1.0.173
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            You are an ADVISORY reviewer for this pull request. The CODE is the
+            source of truth; comments and docs exist to serve it. Your ONLY job is
+            to flag where THIS PR's diff leaves prose out of sync with the code.
+            You MUST NOT edit files, commit, or push — comment only.
+
+            Read the diff (`gh pr diff`) and the changed files, then flag ONLY
+            high-confidence issues in these categories:
+
+            1. STALE — an inline comment, docstring, or doc (CLAUDE.md, docs/*,
+               README, .claude/*) that this diff makes factually wrong.
+            2. REDUNDANT — a comment that merely restates the code, or duplicates
+               another comment/doc. Anything violating LEAN & DRY.
+            3. AMBIGUOUS — a comment/doc whose meaning is unclear or now
+               contradicts the code it describes.
+
+            Keep this LEAN — respect the maintainer's time:
+            - Only flag drift CAUSED or EXPOSED by this diff. Do not audit
+              untouched code.
+            - High confidence only. If unsure, stay silent. Prefer zero comments
+              over noise.
+            - At most ~5 comments; fold trivial items together.
+            - For each: post an inline comment naming the drift and the exact
+              suggested wording — but DO NOT edit the file yourself.
+            - If nothing is genuinely out of sync, post ONE short top-level
+              comment: "No doc/comment drift detected." and stop.
+
+            This repo prizes LEAN, DRY, unambiguous docs with the code as source
+            of truth. Bias toward fewer, higher-signal comments.
+          # Advisory boundary: post inline comments + read-only `gh pr` reads only.
+          # No Edit/Write/MultiEdit, no git — file mutation is not in the toolset.
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*)"
+            --max-turns 15
