@@ -11,6 +11,24 @@ let
   # Screenshots land here and are rotated by services.fileRotation below.
   screengrabDir = "${config.users.users.${userName}.home}/Pictures/Screengrab";
 
+  # Background login launcher: `open -g -j -a <App>` wrapped in a script with a
+  # descriptive basename. macOS's Login Items ▸ "Allow in the Background" list
+  # names each item by its executable's basename (verified via `sfltool
+  # dumpbtm`), so a bare /usr/bin/open agent shows up as a generic,
+  # indistinguishable "open". Running a named wrapper instead makes the entry
+  # read e.g. "login-maccy". `-g` = background (no focus steal), `-j` = launch
+  # hidden (no window; the menu-bar icon is unaffected).
+  mkLoginAgent = suffix: appName: {
+    serviceConfig = {
+      ProgramArguments = [
+        "${pkgs.writeShellScriptBin "login-${suffix}" ''
+          exec /usr/bin/open -g -j -a "${appName}"
+        ''}/bin/login-${suffix}"
+      ];
+      RunAtLoad = true;
+    };
+  };
+
   # ---- Finder "Show View Options" default template (list view) --------------
   # This is the nested dict that Finder's "Use as Defaults" button writes and
   # that governs any folder WITHOUT its own saved (.DS_Store) view state:
@@ -308,81 +326,27 @@ in
   # ---- Launch-at-login agents (declarative "Open at Login") ------------------
   # macOS's System Settings > Login Items list is NOT declaratively manageable
   # (it's SMAppService-backed, protected like TCC). The Nix-native equivalent is
-  # a launchd user agent with RunAtLoad — version-controlled and wipe-proof. For
-  # each app below, its OWN "launch at login" toggle must be turned OFF so it
-  # doesn't also re-register itself. See docs/macos-settings-surface.md.
+  # a launchd user agent with RunAtLoad — version-controlled and wipe-proof. Each
+  # runs a NAMED wrapper (mkLoginAgent, above) so the "Allow in the Background"
+  # list shows "login-<app>" rather than five indistinguishable "open"s. For each
+  # app, turn OFF its OWN "launch at login" toggle so it doesn't self-register.
+  # See docs/macos-settings-surface.md.
   #
-  # `open -g -j -a <App>` launches in the BACKGROUND (`-g`, no focus steal) and
-  # HIDDEN (`-j`, no window) — so the app comes up as a menu-bar agent only, no
-  # GUI window at login. Menu-bar (status-bar) icons are unaffected by `-j`.
+  # Notes: Maccy is a menu-bar-only agent (LSUIElement) — the flags are just
+  # belt-and-suspenders. Docker's own "Start when you sign in" registered the
+  # com.docker.helper background item via SMAppService; disabling it there and
+  # driving startup here keeps one declarative source (the privileged
+  # com.docker.vmnetd system daemon is separate and unaffected). Slack/Mail/
+  # Messages are full GUI apps, so `-j` starts them hidden but a Dock icon still
+  # shows while running; Mail/Messages resolve by name from /System/Applications.
+  # The agent attr names (open-*) are kept as the launchd Labels so the existing
+  # "Allow in the Background" toggle state is preserved across this change.
   launchd.user.agents = {
-    # Clipboard manager (cask) — replaces Maccy's in-app "Launch at login".
-    # Maccy is already a menu-bar-only agent (LSUIElement); the flags are just
-    # belt-and-suspenders.
-    open-maccy.serviceConfig = {
-      ProgramArguments = [
-        "/usr/bin/open"
-        "-g"
-        "-j"
-        "-a"
-        "Maccy"
-      ];
-      RunAtLoad = true;
-    };
-    # Docker Desktop (cask) — replaces "Start Docker Desktop when you sign in".
-    # `-g -j` keeps it from popping the Dashboard window / stealing focus at
-    # login; it still starts the engine and shows the whale menu-bar icon.
-    # (Docker's own "Open Docker Dashboard at startup" setting can also suppress
-    # the window — belt-and-suspenders.) That checkbox registered the
-    # com.docker.helper BACKGROUND item via SMAppService (hence it appeared under
-    # "Allow in the Background", not the "Open at Login" apps list); the
-    # privileged com.docker.vmnetd system daemon is separate and unaffected.
-    open-docker.serviceConfig = {
-      ProgramArguments = [
-        "/usr/bin/open"
-        "-g"
-        "-j"
-        "-a"
-        "Docker"
-      ];
-      RunAtLoad = true;
-    };
-    # Communication apps — full GUI apps (unlike Maccy), so `-g -j` starts them
-    # hidden in the background: they run + receive notifications with no window
-    # brought forward at login (a Dock icon still shows while running). Turn OFF
-    # each app's OWN "open/launch at login" setting (notably Slack's) so it
-    # doesn't re-register itself in the Login Items list. Mail and Messages are
-    # system apps under /System/Applications; `open -a <name>` resolves by name.
-    open-slack.serviceConfig = {
-      ProgramArguments = [
-        "/usr/bin/open"
-        "-g"
-        "-j"
-        "-a"
-        "Slack"
-      ];
-      RunAtLoad = true;
-    };
-    open-mail.serviceConfig = {
-      ProgramArguments = [
-        "/usr/bin/open"
-        "-g"
-        "-j"
-        "-a"
-        "Mail"
-      ];
-      RunAtLoad = true;
-    };
-    open-messages.serviceConfig = {
-      ProgramArguments = [
-        "/usr/bin/open"
-        "-g"
-        "-j"
-        "-a"
-        "Messages"
-      ];
-      RunAtLoad = true;
-    };
+    open-maccy = mkLoginAgent "maccy" "Maccy";
+    open-docker = mkLoginAgent "docker" "Docker";
+    open-slack = mkLoginAgent "slack" "Slack";
+    open-mail = mkLoginAgent "mail" "Mail";
+    open-messages = mkLoginAgent "messages" "Messages";
   };
 
   # `screencapture` silently reverts to ~/Desktop if its target dir is missing,
