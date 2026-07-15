@@ -10,6 +10,128 @@
 let
   # Screenshots land here and are rotated by services.fileRotation below.
   screengrabDir = "${config.users.users.${userName}.home}/Pictures/Screengrab";
+
+  # ---- Finder "Show View Options" default template (list view) --------------
+  # This is the nested dict that Finder's "Use as Defaults" button writes and
+  # that governs any folder WITHOUT its own saved (.DS_Store) view state:
+  #   • 32px icons, 16pt text, relative dates + icon preview on
+  #   • columns: Name, Kind, Tags (identifier "label"), Date Last Opened;
+  #     Date Modified / Date Created / Size OFF
+  #   • within the Kind grouping, items sort by Date Modified (FXArrangeGroupViewBy)
+  # `defaults write` REPLACES the whole key, so IconViewSettings is reproduced
+  # verbatim (current values) to avoid wiping icon-view defaults. Both the modern
+  # ExtendedListViewSettingsV2 (what Finder reads first) and the legacy
+  # ListViewSettings are set so they stay consistent.
+  listCol = ascending: identifier: visible: width: {
+    inherit
+      ascending
+      identifier
+      visible
+      width
+      ;
+  };
+  listViewTop = {
+    calculateAllSizes = 0;
+    iconSize = 32;
+    showIconPreview = 1;
+    sortColumn = "dateModified";
+    textSize = 16;
+    useRelativeDates = 1;
+    viewOptionsVersion = 1;
+  };
+  finderStandardViewSettings = {
+    SettingsType = "FK_StandardViewSettings";
+    ExtendedListViewSettingsV2 = listViewTop // {
+      columns = [
+        (listCol 1 "name" 1 300)
+        (listCol 0 "dateModified" 0 181)
+        (listCol 0 "dateCreated" 0 181)
+        (listCol 0 "size" 0 97)
+        (listCol 1 "kind" 1 115)
+        (listCol 1 "label" 1 100) # Tags
+        (listCol 1 "version" 0 75)
+        (listCol 1 "comments" 0 300)
+        (listCol 0 "dateLastOpened" 1 200)
+        (listCol 0 "shareOwner" 0 200)
+        (listCol 0 "shareLastEditor" 0 200)
+      ];
+    };
+    ListViewSettings = listViewTop // {
+      columns = {
+        name = {
+          ascending = 1;
+          index = 0;
+          visible = 1;
+          width = 300;
+        };
+        dateModified = {
+          ascending = 0;
+          index = 1;
+          visible = 0;
+          width = 181;
+        };
+        dateCreated = {
+          ascending = 0;
+          index = 2;
+          visible = 0;
+          width = 181;
+        };
+        size = {
+          ascending = 0;
+          index = 3;
+          visible = 0;
+          width = 97;
+        };
+        kind = {
+          ascending = 1;
+          index = 4;
+          visible = 1;
+          width = 115;
+        };
+        label = {
+          ascending = 1;
+          index = 5;
+          visible = 1;
+          width = 100;
+        };
+        version = {
+          ascending = 1;
+          index = 6;
+          visible = 0;
+          width = 75;
+        };
+        comments = {
+          ascending = 1;
+          index = 7;
+          visible = 0;
+          width = 300;
+        };
+        dateLastOpened = {
+          ascending = 0;
+          index = 8;
+          visible = 1;
+          width = 200;
+        };
+      };
+    };
+    # Icon-view defaults carried through unchanged (colors are plist <real>s).
+    IconViewSettings = {
+      arrangeBy = "none";
+      backgroundColorBlue = 1.0;
+      backgroundColorGreen = 1.0;
+      backgroundColorRed = 1.0;
+      backgroundType = 0;
+      gridOffsetX = 0;
+      gridOffsetY = 0;
+      gridSpacing = 54;
+      iconSize = 64;
+      labelOnBottom = 1;
+      showIconPreview = 1;
+      showItemInfo = 0;
+      textSize = 12;
+      viewOptionsVersion = 1;
+    };
+  };
 in
 {
   imports = [
@@ -139,9 +261,13 @@ in
       # group *headers* (Kind → one section per file type); FXArrangeGroupViewBy
       # sets the *sort order* of items within the arrangement (Date Modified →
       # newest first). Together: "grouped by kind, sorted by date modified".
+      # The list-view "Show View Options" default template (32px icons, 16pt
+      # text, the Name/Kind/Tags/Date-Last-Opened column set) governs every
+      # folder that has no saved .DS_Store view state — see the let binding above.
       CustomUserPreferences."com.apple.finder" = {
         FXPreferredGroupBy = "Kind";
         FXArrangeGroupViewBy = "Date Modified";
+        FK_StandardViewSettings = finderStandardViewSettings;
       };
     };
 
