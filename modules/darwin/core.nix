@@ -151,6 +151,37 @@ in
     enableStealthMode = true;
   };
 
+  # ---- Launch-at-login agents (declarative "Open at Login") ------------------
+  # macOS's System Settings > Login Items list is NOT declaratively manageable
+  # (it's SMAppService-backed, protected like TCC). The Nix-native equivalent is
+  # a launchd user agent with RunAtLoad — version-controlled and wipe-proof. For
+  # each app below, its OWN "launch at login" toggle must be turned OFF so it
+  # doesn't also re-register itself. See docs/macos-settings-surface.md.
+  launchd.user.agents = {
+    # Clipboard manager (cask) — replaces Maccy's in-app "Launch at login".
+    open-maccy.serviceConfig = {
+      ProgramArguments = [
+        "/usr/bin/open"
+        "-a"
+        "Maccy"
+      ];
+      RunAtLoad = true;
+    };
+    # Docker Desktop (cask) — replaces "Start Docker Desktop when you sign in".
+    # That checkbox registers the com.docker.helper BACKGROUND item via
+    # SMAppService (hence it appears under "Allow in the Background", not the
+    # "Open at Login" apps list). The privileged com.docker.vmnetd system daemon
+    # is installed separately and is unaffected by any of this.
+    open-docker.serviceConfig = {
+      ProgramArguments = [
+        "/usr/bin/open"
+        "-a"
+        "Docker"
+      ];
+      RunAtLoad = true;
+    };
+  };
+
   # `screencapture` silently reverts to ~/Desktop if its target dir is missing,
   # so guarantee it exists (and is user-owned) at activation. Activation runs as
   # root in current nix-darwin, hence the explicit chown.
