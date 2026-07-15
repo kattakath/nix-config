@@ -44,7 +44,7 @@ wipe.** Do **not** limp along with swap — it cannot save an already-poisoned s
 - **Already bakes in VirtIO initrd** — `boot.initrd.availableKernelModules =
   [ "virtio_pci" "virtio_blk" "virtio_scsi" "ahci" "sd_mod" ]`. **No initrd patch needed for
   nixvm** (see step 4 — patch is only for a brand-new generic host lacking these).
-- **User `ismail`**: wheel, passwordless sudo, project SSH key; **key-only SSH, no root login**
+- **User `ismailkattakath`**: wheel, passwordless sudo, project SSH key; **key-only SSH, no root login**
   (`modules/nixos/core.nix`) — applies to the *installed* system, not the live ISO.
 - **No public ingress** — `nixvm` is a sandbox VM; it runs no `cloudflared-connector` and no
   `caddy-proxy`.
