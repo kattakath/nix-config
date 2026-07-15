@@ -73,12 +73,18 @@
 #     side, not nixpi; no NixOS or per-host terranix equivalent.
 #   - Gateway network policy ("Access Infrastructure Target is Present ->
 #     Allow") — optional, dashboard/API only, unrelated to this module.
-# userName is threaded from flake.nix's single identity binding (via _module.args
-# in cfSshConfig), so the SSH login the cert may assert always tracks the actual
-# `users.users.${userName}` on nixpi — no hand-maintained duplicate to drift.
-{ userName, ... }:
+# userName / domainName / accountId are threaded from flake.nix's single sources of
+# truth (via _module.args in cfSshConfig), so the SSH login the cert may assert
+# tracks the actual `users.users.${userName}` on nixpi, the Access email-domain gate
+# tracks `domainName`, and the account id is shared with the tunnel stack — no
+# hand-maintained duplicates to drift.
+{
+  userName,
+  domainName,
+  accountId,
+  ...
+}:
 let
-  accountId = "726e0b2aa2bc2c6944f96a042e3c461b";
 
   # ---- PLACEHOLDERS — fill in with live values before `nix run .#cf-ssh-apply` ----
   # nixpi's private IP as it is (or will be) routed through the Cloudflare
@@ -95,7 +101,7 @@ let
 
   targetHostname = "nixpi"; # label only — NOT used for DNS resolution
   sshPort = 22;
-  allowEmailDomain = "kattakath.com"; # operator's Google Workspace domain — repo convention (infra/cloudflare/litellm.nix)
+  allowEmailDomain = domainName; # operator's Google Workspace domain (flake.nix domainName)
   sshUsername = userName; # the UNIX login on nixpi (users.users.${userName}) the cert may assert
 
   applicationId = "\${cloudflare_zero_trust_access_application.nixpi_ssh.id}";

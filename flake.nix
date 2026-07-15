@@ -142,6 +142,15 @@
       cachixUrl = "https://${orgName}.cachix.org";
       cachixKey = "${orgName}.cachix.org-1:y/w6wnb4ZArdlbfWJ82c81uCXeYgG/sGDUYCszavmEw=";
 
+      # ---- Single source of truth for the Cloudflare account/zone ------------
+      # Threaded (with domainName) into BOTH terranix stacks — cfSshConfig and
+      # cfTunnelConfig — via `_module.args`, so the account/zone ids and the
+      # domain live in ONE place instead of being re-hardcoded per file. These
+      # are IDENTIFIERS, not credentials (safe to commit); the API token stays
+      # in the CLOUDFLARE_API_TOKEN env var, never here.
+      cloudflareAccountId = "726e0b2aa2bc2c6944f96a042e3c461b";
+      cloudflareZoneId = "6e28971881e488941d052bbbf50d69cd"; # the domainName zone
+
       # ---- DRY system mapping -------------------------------------------------
       # A 3-host aarch64-only FLEET: no x86_64 HOST anywhere. Every package /
       # devShell / check output is generated for the fleet systems via
@@ -200,11 +209,17 @@
         system:
         terranix.lib.terranixConfiguration {
           inherit system;
-          # Thread the single identity binding in so the ZTIA SSH login the cert may
-          # assert always tracks `users.users.${userName}` on nixpi (no drift).
+          # Thread the shared identity/account bindings in (one source of truth):
+          # userName so the asserted SSH login tracks `users.users.${userName}`,
+          # domainName for the Access email-domain gate, accountId for the account.
           modules = [
             ./infra/cloudflare/nixpi-ssh.nix
-            { _module.args.userName = userName; }
+            {
+              _module.args = {
+                inherit userName domainName;
+                accountId = cloudflareAccountId;
+              };
+            }
           ];
         };
 
@@ -248,7 +263,18 @@
         system:
         terranix.lib.terranixConfiguration {
           inherit system;
-          modules = [ ./infra/cloudflare/nixpi-tunnel.nix ];
+          # Same shared bindings as cfSshConfig: domainName is the zone name, plus
+          # the account/zone ids — one source of truth across both terranix stacks.
+          modules = [
+            ./infra/cloudflare/nixpi-tunnel.nix
+            {
+              _module.args = {
+                inherit domainName;
+                accountId = cloudflareAccountId;
+                zoneId = cloudflareZoneId;
+              };
+            }
+          ];
         };
 
       # writeShellApplication wrapper around `tofu <action>` for the rendered
@@ -271,9 +297,10 @@
             echo "----- CONNECTOR TOKEN for nixpi (SECRET) -----"
             echo "TUNNEL_TOKEN=$(tofu output -raw nixpi_connector_token)"
             echo ""
-            echo "Store it in the vault, then plant it on the card (from the repo root):"
-            echo "  printf 'TUNNEL_TOKEN=%s\\n' \"\$(tofu output -raw nixpi_connector_token)\" | nix run .#nixpi-vault-token"
-            echo "  nix run .#nixpi-provision --token      # onto a mounted card (or reflash)"
+            echo "Store it (from the repo root): pipe the TUNNEL_TOKEN= line above into"
+            echo "  nix run .#nixpi-vault-token"
+            echo "then plant it on a mounted card with"
+            echo "  nix run .#nixpi-provision --token        # (or reflash)"
             echo "----- end nixpi -----"
           '';
         in

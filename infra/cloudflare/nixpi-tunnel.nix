@@ -41,11 +41,17 @@
 #     ttl = 1 (automatic).
 #   - data.cloudflare_zero_trust_tunnel_cloudflared_token: required { account_id,
 #     tunnel_id }; the token is the sensitive `.token` attribute.
-_:
+# accountId / zoneId / domainName are threaded from flake.nix's single sources of
+# truth (via _module.args in cfTunnelConfig) — the same account/zone the SSH stack
+# uses, so there is no per-file duplicate to drift.
+{
+  domainName,
+  accountId,
+  zoneId,
+  ...
+}:
 let
-  accountId = "726e0b2aa2bc2c6944f96a042e3c461b";
-  zoneId = "6e28971881e488941d052bbbf50d69cd"; # kattakath.com
-  zoneName = "kattakath.com";
+  zoneName = domainName;
 
   # nixpi is the only tunnelled host: macos is a client only, nixvm has no
   # public ingress. This mirrors the sole-host DEFAULT_HOSTS=(nixpi) of the
