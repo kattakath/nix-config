@@ -2,7 +2,8 @@
 # modules/nixos/firmware-provisioning.nix. Returns four `writeShellApplication`s
 # (shellcheck'd at `nix flake check`), wired as flake apps in flake.nix:
 #
-#   nix run .#nixpi-flash       — build + verified dd + auto-plant (fresh reflash)
+#   nix run .#nixpi-flash       — acquire image (--release download / --image / build)
+#                                 + verified dd + auto-plant (fresh reflash)
 #   nix run .#nixpi-provision   — plant token/wifi onto a mounted card (update either)
 #   nix run .#nixpi-wifi-creds  — emit a wpa_supplicant.conf from the Mac's Wi-Fi
 #   nix run .#nixpi-vault-token — re-encrypt a new connector token into the vault (rotate)
@@ -25,6 +26,7 @@
   gnugrep,
   gnused,
   gawk,
+  gh,
 }:
 let
   operatorKey = "$HOME/.ssh/id_ed25519";
@@ -188,15 +190,24 @@ let
       zstd
       coreutils
       gnused
+      gh
     ];
     text = ''
-      # Fresh reflash: build (or --image) → decompress → verified dd → auto-plant.
-      # Requires an aarch64-linux builder for the build step (see the runbook); pass
-      # --image PATH to a prebuilt *.img.zst to skip building.
+      # Fresh reflash: acquire the image → decompress → verified dd → auto-plant.
+      # Three ways to acquire it, in precedence order:
+      #   --image FILE.img.zst  a prebuilt image on disk (skips build/download)
+      #   --release             download the latest CI-built image from the
+      #                         installer-latest GitHub release (needs `gh` auth; NO
+      #                         Nix, NO aarch64-linux builder — the Mac path)
+      #   (default)             `nix build` the sdImage. With the kattakath Cachix
+      #                         warm this substitutes the kernel/intermediates, but
+      #                         the final image assembly still needs an aarch64-linux
+      #                         builder — so on the builder-less Mac, prefer --release.
       ${firmwareMountFn}
 
       disk=""
       image=""
+      use_release=""
       wifi_conf=""
       ssid=""
       psk=""
@@ -205,11 +216,12 @@ let
         case "$1" in
           --disk) disk="''${2:?}"; shift 2 ;;
           --image) image="''${2:?}"; shift 2 ;;
+          --release) use_release=1; shift ;;
           --wifi-conf) wifi_conf="''${2:?}"; shift 2 ;;
           --ssid) ssid="''${2:?}"; shift 2 ;;
           --psk) psk="''${2:?}"; shift 2 ;;
           --country) country="''${2:?}"; shift 2 ;;
-          -h | --help) echo "usage: nixpi-flash --disk /dev/diskN [--image FILE.img.zst] [--wifi-conf FILE | --ssid SSID [--psk PSK] [--country CC]]"; exit 0 ;;
+          -h | --help) echo "usage: nixpi-flash --disk /dev/diskN [--image FILE.img.zst | --release] [--wifi-conf FILE | --ssid SSID [--psk PSK] [--country CC]]"; exit 0 ;;
           *) echo "nixpi-flash: unknown argument: $1" >&2; exit 1 ;;
         esac
       done
@@ -220,8 +232,25 @@ let
         *) echo "nixpi-flash: --disk must be /dev/diskN." >&2; exit 1 ;;
       esac
 
+      tmp=$(mktemp -d)
+      trap 'rm -rf "$tmp"' EXIT
+
+      if [ -n "$image" ] && [ -n "$use_release" ]; then
+        echo "nixpi-flash: --image and --release are mutually exclusive." >&2; exit 1
+      fi
+      if [ -z "$image" ] && [ -n "$use_release" ]; then
+        echo "nixpi-flash: downloading the latest prebuilt nixpi image (installer-latest release)…"
+        # The sdImage asset is named nixos-sd-image-<label>-aarch64-linux.img.zst
+        # (no host in the name); the nixvm ISO on the same release is nixos-minimal-*.iso,
+        # so this .img.zst glob uniquely selects the nixpi image.
+        gh release download installer-latest -R kattakath/nix-config \
+          -p 'nixos-sd-image-*.img.zst' -D "$tmp" --clobber
+        set -- "$tmp"/nixos-sd-image-*.img.zst
+        image="$1"
+        [ -f "$image" ] || { echo "nixpi-flash: no nixpi image asset found on installer-latest." >&2; exit 1; }
+      fi
       if [ -z "$image" ]; then
-        echo "nixpi-flash: building the sdImage (needs an aarch64-linux builder)…"
+        echo "nixpi-flash: building the sdImage (needs an aarch64-linux builder — see --release)…"
         out=$(nix build --no-link --print-out-paths \
           ".#nixosConfigurations.nixpi.config.system.build.sdImage")
         set -- "$out"/sd-image/*.img.zst
@@ -229,8 +258,6 @@ let
       fi
       [ -f "$image" ] || { echo "nixpi-flash: image not found: $image" >&2; exit 1; }
 
-      tmp=$(mktemp -d)
-      trap 'rm -rf "$tmp"' EXIT
       echo "nixpi-flash: decompressing $image …"
       zstd -d -q -f "$image" -o "$tmp/nixpi.img"
       size=$(stat -f%z "$tmp/nixpi.img")

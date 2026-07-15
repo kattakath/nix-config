@@ -13,7 +13,10 @@ name: build-installers
 # rebuild the VM) and STARVATION (the ~1h Pi kernel blocked every PR) reasons it
 # was moved off nixvm:
 #   nixvm-installer: aarch64-linux ISO
-#   nixpi-installer: aarch64-linux SD card image (cold RPi kernel — heavy build)
+#   nixpi (LIVE system): aarch64-linux SD card image (cold RPi kernel — heavy build)
+# The nixpi leg builds the LIVE nixpi sdImage — the flashable artifact itself, not a
+# bootstrap installer (the image is secret-free, so it is a pure function of the flake
+# and safe to publish; token + Wi-Fi are planted post-flash on the FIRMWARE partition).
 # Being GitHub-hosted, this workflow installs Nix and configures the kattakath
 # substituter itself (install-nix-action + cachix-action below) — unlike the
 # self-hosted runners, which already ship both.
@@ -28,7 +31,13 @@ on:
       - "flake.nix"
       - "flake.lock"
       - "hosts/nixvm-installer.nix"
-      - "hosts/nixpi-installer.nix"
+      # The nixpi leg now builds the LIVE nixpi sdImage, so its inputs are the
+      # whole nixpi closure — trigger on anything it pulls in. This over-fires the
+      # cheap gate eval (fine); the drvPath gate below still suppresses no-op builds.
+      - "hosts/nixpi.nix"
+      - "modules/nixos/**"
+      - "modules/shared/**"
+      - "packages/landing/**"
       - ".github/workflows/build-installers.yml"
       - ".github/workflows/build-installers-impl.yml"
   workflow_dispatch:
@@ -50,7 +59,8 @@ jobs:
   # GATE: build + re-upload the installer images only when their CONTENT changed.
   #
   # The trigger is a path filter on flake.nix/flake.lock/hosts/nixvm-installer.nix/
-  # hosts/nixpi-installer.nix, but flake.nix is monolithic — an unrelated edit can
+  # hosts/nixpi.nix + the modules the live nixpi image pulls in, but flake.nix is
+  # monolithic and the module globs are broad — an unrelated edit can
   # fire a full ~1h build AND a full multi-GB GitHub-Release re-upload even though
   # the image bytes are IDENTICAL. Unlike a deduping registry (GHCR/Cachix skip a
   # blob they already hold), softprops/action-gh-release re-uploads the ENTIRE
@@ -127,14 +137,15 @@ jobs:
         run: |
           set -euo pipefail
           DRV_ISO="$(nix eval --raw .#packages.aarch64-linux.nixvm-installer-iso.drvPath)"
-          DRV_IMG="$(nix eval --raw .#packages.aarch64-linux.nixpi-installer-image.drvPath)"
+          DRV_IMG="$(nix eval --raw .#packages.aarch64-linux.nixpi-sd-image.drvPath)"
           echo "drv nixvm-iso: ${DRV_ISO}"
           echo "drv nixpi-img: ${DRV_IMG}"
           COMBINED="$(printf '%s\n%s\n' "${DRV_ISO}" "${DRV_IMG}" | sha256sum | cut -d' ' -f1)"
-          # v1: initial two-installer key. Bump (v2, …) if a gated installer drvPath
-          # is ever added/removed/renamed, so a stale HIT under old semantics can't
-          # skip the first run under new semantics.
-          echo "cache_key=installers-drv-v1-${COMBINED}" >> "$GITHUB_OUTPUT"
+          # v2: the nixpi leg switched from the (removed) nixpi-installer-image to
+          # the live nixpi-sd-image — a renamed/changed gated drvPath, so bump the
+          # version (was v1) to guarantee the first run under new semantics can't be
+          # skipped by a stale HIT. Bump again (v3, …) on any future add/remove/rename.
+          echo "cache_key=installers-drv-v2-${COMBINED}" >> "$GITHUB_OUTPUT"
 
       - name: Probe published baseline
         id: probe

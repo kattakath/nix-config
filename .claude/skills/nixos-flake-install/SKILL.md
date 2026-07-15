@@ -17,8 +17,8 @@ Bootstraps `nixvm` from `github:kattakath/nix-config` via a single command:
   live ISO** (`nixvm-installer`).
 
 `nixos-install` pulls nixpkgs from the **flake's own lock** (tracks `nixos-unstable`), so the
-installer ISO version is irrelevant. (`nixpi` is a Raspberry Pi 4 SD-image host — flash
-`nixpi-installer-image` to an SD card and boot directly; it doesn't go through this ISO/disko
+installer ISO version is irrelevant. (`nixpi` is a Raspberry Pi 4 SD-image host — flash the
+LIVE `nixpi` sdImage to an SD card and boot directly; it doesn't go through this ISO/disko
 flow. See §5.)
 
 > **Current path — use nixos-anywhere, not this ISO flow.** `nixvm` is now provisioned by
@@ -130,13 +130,17 @@ SD card's FAT `FIRMWARE` partition instead — see §5 and the **nixpi-firmware-
 
 ## 5. nixpi — SD-image flow (different from nixvm)
 
-`nixpi` (Raspberry Pi 4, LIVE server) does not use disko/ISO/UTM at all:
+`nixpi` (Raspberry Pi 4, LIVE server) does not use disko/ISO/UTM at all, and there is **no
+separate installer image** — the LIVE `nixpi` sdImage is itself the flashable artifact (it
+bakes no secrets; the token + Wi-Fi are planted post-flash on the FAT `FIRMWARE` partition).
+One command does the whole thing:
 
-1. Flash `nixpi-installer-image` (`.#packages.aarch64-linux.nixpi-installer-image`) to an SD card.
-2. Boot the Pi, SSH in as `nixos@nixpi-installer.local`.
-3. Run `sudo nixos-rebuild switch --flake github:kattakath/nix-config#nixpi` (or install
-   directly onto the SD card if the installer image already carries the `nixpi` config — confirm
-   against the current `hosts/nixpi-installer.nix`).
-4. **Before first boot**, plant the connector token (and optional Wi-Fi) on the card's FAT
-   `FIRMWARE` partition: `nix run .#nixpi-flash` does it end-to-end, or `nix run
-   .#nixpi-provision` onto a mounted card — see the **nixpi-firmware-provision** skill.
+```bash
+nix run .#nixpi-flash -- --disk /dev/diskN --release   # download prebuilt image + dd + plant
+```
+
+`--release` pulls the CI-prebuilt image off the `installer-latest` GitHub release (no Nix
+build, no aarch64-linux builder — the Mac path); drop it to `nix build` locally on a Linux
+builder, or `--image FILE.img.zst` for a local file. It flashes, then auto-plants the
+connector token (and Wi-Fi) — see the **nixpi-firmware-provision** skill for token/Wi-Fi
+details, rotation, and the band-split-Wi-Fi gotcha.
