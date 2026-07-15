@@ -127,6 +127,12 @@ set -euo pipefail
   offer_reboot() {
     say "A reboot is required: macOS only re-evaluates the /nix firmlink at boot."
     if confirm "Nix recovery cleared a stale Nix install. Restart this Mac now, then re-run the kit?"; then
+      # The reboot ends THIS process — a `curl … | bash` stream can't auto-resume,
+      # so the finish is a manual re-run. Print + notify before restarting so the
+      # instruction survives in the restored terminal session and (if GUI) a banner.
+      say "Rebooting now. When the Mac is back up, RE-RUN this installer to finish —"
+      say "the SAME 'curl … | bash' command, or ./bootstrap.sh from the kit folder."
+      notify "Rebooting to finish Nix setup. Re-run the installer after restart."
       /usr/bin/osascript -e 'tell application "System Events" to restart' >/dev/null 2>&1 && exit 0
       sudo /sbin/shutdown -r now
       exit 0
