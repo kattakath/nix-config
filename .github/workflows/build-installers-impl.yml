@@ -48,8 +48,13 @@ jobs:
           - name: nixvm-live-iso
             package: ".#packages.aarch64-linux.nixvm-installer-iso"
             asset-glob: "result/iso/*.iso"
+          # The LIVE nixpi system sdImage (secret-free — token + Wi-Fi are planted
+          # post-flash on the FIRMWARE partition). Shipped via the Release for
+          # `nixpi-flash --release`; the image itself is EXCLUDED from the Cachix
+          # push below (it would blow the 5 GB free tier), so Cachix only warms the
+          # expensive RPi kernel + intermediates for the nixvm-side build path.
           - name: nixpi-sd-img
-            package: ".#packages.aarch64-linux.nixpi-installer-image"
+            package: ".#packages.aarch64-linux.nixpi-sd-image"
             asset-glob: "result/sd-image/*.img*"
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -68,8 +73,12 @@ jobs:
           # Push the BUILD closure (the ~1h RPi kernel and friends) but NOT the
           # finished images: a compressed .iso/.img has no store references, so
           # pushing it cached one multi-GB blob and none of the expensive
-          # intermediates. The images ship via the installer-latest release,
-          # which is where something you `dd` belongs.
+          # intermediates. Critically, the kattakath Cachix is on the 5 GB FREE
+          # tier — the live nixpi sdImage (~1.6 GB compressed) would blow it — so
+          # the `-nixos-sd-image-` output stays excluded here and ships via the
+          # installer-latest release instead (where something you `dd` belongs, and
+          # what `nixpi-flash --release` downloads). Cachix warms only the kernel +
+          # intermediates, which is the real speedup for the nixvm-side build path.
           pushFilter: "(-nixos-sd-image-|-nixos-minimal-.*\\.iso|\\.img)"
           skipPush: false
 
@@ -86,14 +95,14 @@ jobs:
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           tag_name: installer-latest
-          name: "Installer Images (latest)"
+          name: "Fleet Images (latest)"
           body: |
-            Rolling installer images built from `${{ github.sha }}`.
+            Rolling images built from `${{ github.sha }}`.
 
             | Image | Architecture | Use |
             |---|---|---|
-            | `nixvm-installer.iso` | aarch64-linux | Boot in UTM/QEMU, `ssh nixos@nixvm-installer.local`, run `nix run github:kattakath/nix-config#nixvm` |
-            | `nixpi-installer.img*` | aarch64-linux (RPi 4) | Flash to SD card, `ssh nixos@nixpi-installer.local`, run `sudo nixos-rebuild switch --flake github:kattakath/nix-config#nixpi` |
+            | `nixvm-installer.iso` | aarch64-linux | INSTALLER — boot in UTM/QEMU, `ssh nixos@nixvm-installer.local`, run `nix run github:kattakath/nix-config#nixvm` |
+            | `nixos-sd-image-*.img.zst` | aarch64-linux (RPi 4) | LIVE nixpi system (not an installer). `nix run github:kattakath/nix-config#nixpi-flash -- --disk /dev/diskN --release` flashes THIS + plants the token/Wi-Fi. Secret-free: token + Wi-Fi land on the FIRMWARE partition post-flash. |
           prerelease: true
           make_latest: false
           files: ${{ matrix.asset-glob }}

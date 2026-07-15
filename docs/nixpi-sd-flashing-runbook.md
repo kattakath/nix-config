@@ -9,7 +9,7 @@ one command.
 
 Everything here is grounded in the repo files:
 
-- `flake.nix` — exports `nixosConfigurations.nixpi` (the `sdImage` build target) and the `nixpi-installer` variant
+- `flake.nix` — exports `nixosConfigurations.nixpi` (the `sdImage` build target), also surfaced as the `nixpi-sd-image` package that CI prebuilds and publishes to the `installer-latest` release
 - `hosts/nixpi.nix` — the LIVE Pi profile, including the **scripted-initrd boot fix** (`boot.initrd.systemd.enable = lib.mkForce false`) that is the *other* thing that can hang stage-1
 - `hosts/nixpi.nix` + `modules/nixos/cloudflared.nix` — what `nixpi` does once booted (the Cloudflare Tunnel connector carrying static-key SSH + the Caddy landing page)
 
@@ -44,11 +44,26 @@ If you remember one thing from this doc: **confirm the ~5.6 GB byte count.**
 
 ---
 
-## 2. Build the image
+## 2. Get the image — prebuilt (preferred) or build it yourself
 
-`nix` is absent on the client Mac (`macos`), so build on an aarch64-linux
-builder — the repo's **devcontainer** (Nix-in-Docker on Apple Silicon) or the
-`nixvm` aarch64-linux CI runner / any aarch64-linux host.
+The nixpi sdImage bakes **no secrets** (the tunnel token + Wi-Fi are planted on
+the FAT `FIRMWARE` partition *after* the flash — see §4b), so it is a pure
+function of the flake. CI (`build-installers`) prebuilds it and publishes it to
+the rolling `installer-latest` GitHub release, and warms the expensive RPi kernel
+into the kattakath Cachix. **You almost never build it by hand.**
+
+The one-command path (`nix run .#nixpi-flash`, §4) handles acquisition for you:
+
+- **`--release`** — download the CI-prebuilt image off `installer-latest`. Needs
+  `gh` auth but **no Nix build and no aarch64-linux builder**, so this is the
+  normal path on the client Mac (which has neither). This is what you want.
+- **default (no flag)** — `nix build` the sdImage. The Cachix warm substitutes the
+  kernel/intermediates, but the *final* image assembly is an aarch64-linux build,
+  so this only completes where such a builder exists (`nixvm`, the devcontainer,
+  or Determinate's native Linux builder if enabled).
+- **`--image FILE.img.zst`** — flash a local prebuilt image you already have.
+
+To build it manually on an aarch64-linux builder (the old default):
 
 ```bash
 git add -A                                                            # flakes ignore untracked files
@@ -59,14 +74,6 @@ ls -lh result/sd-image/                                              # the compr
 The build output is a **zstd-compressed** `*.img.zst` under
 `result/sd-image/`. Decompressed it is **~5.6 GB** (a full FAT boot partition +
 a multi-GB ext4 root) — that is the size you must see land on the card in §4.
-
-**Alternative — the installer image.** `flake.nix` also exports a
-`nixpi-installer` config whose image is built with
-`nix build .#nixosConfigurations.nixpi-installer.config.system.build.sdImage`
-(or the `nixpi-installer-image` package). That image boots as
-`nixos@nixpi-installer.local` for an SSH-driven bootstrap rather than being the
-final system; the flashing procedure below is identical, only the file and its
-size differ.
 
 ---
 
@@ -199,7 +206,7 @@ SSH is the operator's static key (keys-only). On the LAN once mDNS is up:
 `ssh ismailkattakath@nixpi.local`. Remotely (e.g. travelling), over the tunnel:
 `ssh ismailkattakath@nixpi.kattakath.com` with a `ProxyCommand cloudflared access ssh
 --hostname %h` in `~/.ssh/config`. The physical serial/HDMI console is the break-glass
-path. (The `nixpi-installer` image uses the `nixos` user: `ssh nixos@nixpi-installer.local`.)
+path.
 
 (Same stale-host-key gotcha every reprovision hits — the name is stable, the key
 is not.)
