@@ -132,6 +132,17 @@ in
         type = "png";
         disable-shadow = true;
       };
+
+      # Finder grouping + sort. nix-darwin's typed `finder` options don't model
+      # these two keys, so they go through the CustomUserPreferences escape hatch
+      # (a raw `defaults write` into com.apple.finder). FXPreferredGroupBy sets the
+      # group *headers* (Kind → one section per file type); FXArrangeGroupViewBy
+      # sets the *sort order* of items within the arrangement (Date Modified →
+      # newest first). Together: "grouped by kind, sorted by date modified".
+      CustomUserPreferences."com.apple.finder" = {
+        FXPreferredGroupBy = "Kind";
+        FXArrangeGroupViewBy = "Date Modified";
+      };
     };
 
     # Keyboard remapping is available (system.keyboard.*) but intentionally left
