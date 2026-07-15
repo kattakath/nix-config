@@ -1,10 +1,8 @@
 # infra/cloudflare/nixpi-tunnel.nix — terranix (Nix -> OpenTofu/Terraform JSON)
 # module provisioning nixpi's REMOTELY-MANAGED Cloudflare Tunnel itself.
 #
-# This is the declarative replacement for the retired loose shell script
-# `scripts/cf-one-provision.sh` (see `git show main:scripts/cf-one-provision.sh`).
-# It provisions the SAME four things that script did, now as Terraform state
-# instead of imperative `curl` calls:
+# It provisions four things as Terraform state (declaratively, no imperative
+# `curl` calls):
 #
 #   (a) a remotely-managed tunnel named "nixpi"
 #       (cloudflare_zero_trust_tunnel_cloudflared, config_src = "cloudflare");
@@ -54,8 +52,7 @@ let
   zoneName = domainName;
 
   # nixpi is the only tunnelled host: macos is a client only, nixvm has no
-  # public ingress. This mirrors the sole-host DEFAULT_HOSTS=(nixpi) of the
-  # retired cf-one-provision.sh.
+  # public ingress.
   tunnelName = "nixpi";
   publicHostname = "${tunnelName}.${zoneName}"; # nixpi.kattakath.com — the SSH ingress host
   apexHostname = zoneName; # kattakath.com — the Caddy landing-page host

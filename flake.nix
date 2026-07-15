@@ -223,9 +223,9 @@
       # nixpi tunnel config. Mirrors mkCfSshTofu (same token guard, same
       # read-only-store-copy handling). On `apply`, it additionally prints the
       # SENSITIVE connector token (a sensitive tofu output) to STDOUT, clearly
-      # labeled, so the operator can place it at /etc/secrets/cloudflared-token.
-      # The token is NEVER written to git or the /nix/store — only echoed to the
-      # operator's terminal, exactly as the retired cf-one-provision.sh did.
+      # labeled, so the operator can store it in the vault (`nix run
+      # .#nixpi-vault-token`) and plant it on nixpi's FIRMWARE partition. The token
+      # is NEVER written to git or the /nix/store — only echoed to the terminal.
       mkCfTunnelTofu =
         {
           system,
@@ -665,10 +665,10 @@
       # `nix run .#cf-tunnel-apply` / `.#cf-tunnel-destroy` — render
       # infra/cloudflare/nixpi-tunnel.nix (terranix) then `tofu init` + apply
       # (destroy). Provisions nixpi's remotely-managed tunnel + ingress +
-      # proxied CNAME; cf-tunnel-apply additionally PRINTS the connector token
-      # for manual placement at /etc/secrets/cloudflared-token (never written to
-      # git/store). This replaces the retired scripts/cf-one-provision.sh. Token
-      # scope: Account Cloudflare Tunnel:Edit + Zone DNS:Edit on kattakath.com.
+      # proxied CNAME; cf-tunnel-apply additionally PRINTS the connector token to be
+      # stored in the vault (`nix run .#nixpi-vault-token`) and planted on the
+      # FIRMWARE partition (never written to git/store). Token scope: Account
+      # Cloudflare Tunnel:Edit + Zone DNS:Edit on kattakath.com.
       #
       # All need a live token in the environment, e.g.
       #   CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-tunnel-apply
