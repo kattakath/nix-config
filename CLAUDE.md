@@ -83,3 +83,4 @@ nix run .#nixpi-provision                     # Plant token + Wi-Fi onto a mount
 - [`docs/nixpi-sd-flashing-runbook.md`](docs/nixpi-sd-flashing-runbook.md) — flashing the `nixpi` Raspberry Pi 4 SD card (full verified `dd` write).
 - [`docs/mac-key-recovery-runbook.md`](docs/mac-key-recovery-runbook.md) — rebuilding `macos` from a wiped Mac + the iCloud key-recovery kit.
 - [`docs/flakehub-input-freshness.md`](docs/flakehub-input-freshness.md) — the automated weekly `flake.lock` bump flow (flake-checker advisory + update-flake-lock).
+- [`docs/macos-settings-surface.md`](docs/macos-settings-surface.md) — map of what macOS settings the `macos` host can configure declaratively (the four layers, the full `system.defaults` surface vs. the curated slice set today, the escape hatches, and the TCC/FileVault walls).
