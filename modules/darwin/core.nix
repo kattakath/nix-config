@@ -39,8 +39,7 @@ let
     useRelativeDates = 1;
     viewOptionsVersion = 1;
   };
-  finderStandardViewSettings = {
-    SettingsType = "FK_StandardViewSettings";
+  finderViewSubsettings = {
     ExtendedListViewSettingsV2 = listViewTop // {
       columns = [
         (listCol 1 "name" 1 300)
@@ -129,6 +128,23 @@ let
       showIconPreview = 1;
       showItemInfo = 0;
       textSize = 12;
+      viewOptionsVersion = 1;
+    };
+  };
+  # Finder keeps TWO parallel default-template keys — the modern
+  # FK_StandardViewSettings and the legacy StandardViewSettings — and current
+  # macOS still honors the legacy one for list-view icon/text size + columns.
+  # Setting only FK_ left the old values winning, so set BOTH from one base.
+  finderStandardViewSettings = finderViewSubsettings // {
+    SettingsType = "FK_StandardViewSettings";
+  };
+  finderLegacyViewSettings = finderViewSubsettings // {
+    SettingsType = "StandardViewSettings";
+    # Gallery-view sub-dict exists only in the legacy blob; carried through as-is.
+    GalleryViewSettings = {
+      arrangeBy = "name";
+      iconSize = 48;
+      showIconPreview = 1;
       viewOptionsVersion = 1;
     };
   };
@@ -268,6 +284,7 @@ in
         FXPreferredGroupBy = "Kind";
         FXArrangeGroupViewBy = "Date Modified";
         FK_StandardViewSettings = finderStandardViewSettings;
+        StandardViewSettings = finderLegacyViewSettings;
       };
     };
 
