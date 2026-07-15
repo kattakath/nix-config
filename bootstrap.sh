@@ -154,12 +154,28 @@ set -euo pipefail
   # Device id of every APFS volume named EXACTLY "Nix Store". Tracks the enclosing
   # "+-> Volume diskXsY" header so a name can never be paired with the wrong
   # device, and matches the name exactly — "Old Nix Store Backup" is not a hit.
+  #
+  # `diskutil apfs list` renders a TREE: every detail line of a volume that has a
+  # sibling below it is drawn with a leading "|" tree-line ("|   Name: Nix Store"),
+  # while the LAST volume in a container is indented with plain spaces. So the
+  # patterns MUST tolerate a leading run of spaces AND "|" — anchoring on
+  # whitespace only ("^[[:space:]]*Name:") silently matched just the last volume
+  # per container, making a leftover "Nix Store" that any other volume follows
+  # invisible. That is the exact gap that let a post-reset leftover volume slip
+  # past this preflight and crash the installer at `diskutil mount "Nix Store"`.
+  # The device is pulled out by regex (not $3) for the same reason: a "|" prefix
+  # shifts the awk fields.
   nix_store_devs() {
     diskutil apfs list 2>/dev/null | awk '
-      /\+-> Volume /  { dev = $3; next }
-      /^[[:space:]]*Name:[[:space:]]/ {
+      /\+-> Volume / {
+        dev = $0
+        sub(/^.*\+-> Volume[[:space:]]+/, "", dev)  # drop the tree prefix + label
+        sub(/[[:space:]].*$/, "", dev)              # keep the diskXsY token only
+        next
+      }
+      /^[[:space:]|]*Name:[[:space:]]/ {
         name = $0
-        sub(/^[[:space:]]*Name:[[:space:]]*/, "", name)
+        sub(/^[[:space:]|]*Name:[[:space:]]*/, "", name)
         sub(/[[:space:]]*\(Case-[A-Za-z]*sensitive\)[[:space:]]*$/, "", name)
         sub(/[[:space:]]*$/, "", name)
         if (name == "Nix Store" && dev != "") print dev
