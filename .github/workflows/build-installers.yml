@@ -30,6 +30,7 @@ on:
       - "hosts/nixvm-installer.nix"
       - "hosts/nixpi-installer.nix"
       - ".github/workflows/build-installers.yml"
+      - ".github/workflows/build-installers-impl.yml"
   workflow_dispatch:
 
 concurrency:
@@ -157,92 +158,33 @@ jobs:
             echo "::notice::installer drvPaths unchanged — SKIPPING build+publish (no-op re-upload avoided)."
           fi
 
-  build:
-    name: build (${{ matrix.name }})
+  # BUILD: delegated to the reusable build-installers-impl.yml so the whole matrix
+  # (one leg per installer) is gated by ONE `if:` on ONE job. A matrix job skipped
+  # by a job-level `if:` renders its `${{ matrix.name }}` name UNEXPANDED; routing
+  # through a reusable workflow instead means the skip shows a single clean
+  # `installers` job, and a run shows `installers / build (nixvm-live-iso)` /
+  # `installers / build (nixpi-sd-img)`. `contents: write` (the installer-latest
+  # Release upload) is granted here and caps the called workflow's token; the
+  # eval-only `gate` and cache-only `record-baseline` jobs never receive it.
+  installers:
     needs: [gate]
-    # The ONLY job that writes GitHub state (the installer-latest Release upload),
-    # so `contents: write` is scoped here rather than inherited fleet-wide.
     permissions:
       contents: write
     # Skip BOTH the ~1h build and the non-idempotent multi-GB upload when the
     # installers are unchanged. is_publish is always true for this workflow's
     # triggers; the load-bearing guard is changed (see the gate comment).
     if: needs.gate.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
-    # GitHub-hosted aarch64, deliberately NOT the self-hosted nixvm runner:
-    #
-    #   1. CIRCULARITY. This workflow builds the nixvm INSTALLER ISO. Running it
-    #      on nixvm means the only machine that can rebuild the VM is the VM —
-    #      worthless precisely when the VM is gone (which is how a Mac reset left
-    #      the fleet with no way back).
-    #   2. STARVATION. The cold Raspberry Pi kernel here takes ~1h. On the shared
-    #      runner it blocked every PR in the repo three times in one afternoon.
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 180
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: nixvm-installer
-            package: ".#packages.aarch64-linux.nixvm-installer-iso"
-            asset-glob: "result/iso/*.iso"
-          - name: nixpi-installer
-            package: ".#packages.aarch64-linux.nixpi-installer-image"
-            asset-glob: "result/sd-image/*.img*"
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-
-      - uses: cachix/install-nix-action@a49548c11d9846ad46ecc0115273879b045f001c # v31
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            extra-substituters = https://kattakath.cachix.org
-            extra-trusted-public-keys = kattakath.cachix.org-1:y/w6wnb4ZArdlbfWJ82c81uCXeYgG/sGDUYCszavmEw=
-
-      - uses: cachix/cachix-action@5f2d7c5294214f71b873db4b969586b980625e71 # v17
-        with:
-          name: kattakath
-          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
-          # Push the BUILD closure (the ~1h RPi kernel and friends) but NOT the
-          # finished images: a compressed .iso/.img has no store references, so
-          # pushing it cached one multi-GB blob and none of the expensive
-          # intermediates. The images ship via the installer-latest release,
-          # which is where something you `dd` belongs.
-          pushFilter: "(-nixos-sd-image-|-nixos-minimal-.*\\.iso|\\.img)"
-          skipPush: false
-
-      - name: Stage tree (git purity)
-        run: git add -A
-
-      - name: Build ${{ matrix.name }}
-        # -L / --print-build-logs surfaces builder stderr directly in the CI log,
-        # so a failing derivation (e.g. the RPi kernel modules-shrunk) is
-        # diagnosable without a separate `nix log` on the ephemeral runner.
-        run: nix build ${{ matrix.package }} --out-link result --print-build-logs
-
-      - name: Publish to installer-latest release
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
-        with:
-          tag_name: installer-latest
-          name: "Installer Images (latest)"
-          body: |
-            Rolling installer images built from `${{ github.sha }}`.
-
-            | Image | Architecture | Use |
-            |---|---|---|
-            | `nixvm-installer.iso` | aarch64-linux | Boot in UTM/QEMU, `ssh nixos@nixvm-installer.local`, run `nix run github:kattakath/nix-config#nixvm` |
-            | `nixpi-installer.img*` | aarch64-linux (RPi 4) | Flash to SD card, `ssh nixos@nixpi-installer.local`, run `sudo nixos-rebuild switch --flake github:kattakath/nix-config#nixpi` |
-          prerelease: true
-          make_latest: false
-          files: ${{ matrix.asset-glob }}
+    uses: ./.github/workflows/build-installers-impl.yml
+    secrets: inherit
 
   # RECORD-BASELINE: save the gate marker ONLY after a fully successful publish, so
-  # the next run's gate probe can SKIP an unchanged pair. `needs: [build]` on a
-  # matrix job waits for EVERY leg to succeed, so a failed leg → this job skips →
-  # the baseline is never poisoned into skipping a still-needed republish. One
-  # combined key over both installers (matching the gate), one save job — do not
-  # split into per-leg saves, or the shared-key model breaks.
+  # the next run's gate probe can SKIP an unchanged pair. `needs: [installers]`
+  # waits for the reusable build workflow's EVERY leg to succeed, so a failed leg →
+  # this job skips → the baseline is never poisoned into skipping a still-needed
+  # republish. One combined key over both installers (matching the gate), one save
+  # job — do not split into per-leg saves, or the shared-key model breaks.
   record-baseline:
-    needs: [gate, build]
+    needs: [gate, installers]
     if: needs.gate.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
     runs-on: ubuntu-24.04-arm
     # Read-only: this job reads the release to verify assets, then writes only a
