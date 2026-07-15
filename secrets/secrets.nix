@@ -24,7 +24,7 @@ let
   # the CI runner self-registers. Let the VM generate its own key instead and the
   # recipient is stale, agenix cannot decrypt, and the runner silently never starts
   # while the VM otherwise looks perfectly healthy.
-  nixvm = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII6m9mWQfHBabBEDrKCmWs+n8zldLH9sVAu+nRDwR0vL";
+  nixvm = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEkOW4JVIL/o0DLCqntvghcc/3i1HqfJxXQ3/x+9/oQs";
 in
 {
   # nixpi's Cloudflare Tunnel connector token (TUNNEL_TOKEN=…). OPERATOR-ONLY: the
