@@ -190,11 +190,14 @@ lib.mkIf pkgs.stdenv.isDarwin {
 
   # ---- Client side B: VS Code (home-manager-managed → pure declarative file) --
   # VS Code is managed here (programs.vscode in modules/shared/home.nix), so its
-  # MCP config is just a Nix-written file at the user mcp.json. VS Code speaks
-  # `type = "http"` natively, so it connects to the SAME gateway processes — no
-  # extra server instances. Read-only/Nix-managed: add servers in the gateway's
-  # `hostedServerNames` above, not the VS Code UI.
-  home.file."Library/Application Support/Code/User/mcp.json".text = vscodeMcpJson;
+  # MCP config is just a Nix-written file at the user mcp.json (coexists with the
+  # settings.json HM already writes there). VS Code speaks `type = "http"` natively,
+  # so it connects to the SAME gateway processes — no extra server instances.
+  # GATED on programs.vscode.enable: drop VS Code and this file is never written (no
+  # stray Code/User/ dir). Read-only/Nix-managed: add servers to `hostedServerNames`.
+  home.file = lib.mkIf config.programs.vscode.enable {
+    "Library/Application Support/Code/User/mcp.json".text = vscodeMcpJson;
+  };
 
   # ---- Client side C: Claude Desktop (NO home-manager module → merge activation)
   # claude_desktop_config.json is a STATEFUL file the app itself writes
@@ -205,16 +208,19 @@ lib.mkIf pkgs.stdenv.isDarwin {
   # in the shared gateway, but Claude Desktop spawns one thin bridge per server (the
   # unavoidable cost of a stdio-only client). `mcpServers` becomes Nix-managed —
   # edit it in `hostedServerNames`, not in the app.
+  # GATED on the app being installed (/Applications/Claude.app) — uninstall Claude
+  # Desktop and this writes/creates nothing.
   home.activation.claudeDesktopMcp = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     cfg="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
-    if [ -f "$cfg" ]; then
+    if [ ! -d "/Applications/Claude.app" ]; then
+      : # Claude Desktop not installed — nothing to configure, no stray files.
+    elif [ -f "$cfg" ]; then
       ${pkgs.jq}/bin/jq --slurpfile m ${claudeDesktopMcpServers} \
-        '.mcpServers = $m[0]' "$cfg" > "$cfg.tmp" && mv "$cfg.tmp" "$cfg"
+        '.mcpServers = $m[0]' "$cfg" > "$cfg.tmp" && mv "$cfg.tmp" "$cfg" && chmod 600 "$cfg"
     else
       mkdir -p "$(dirname "$cfg")"
       ${pkgs.jq}/bin/jq -n --slurpfile m ${claudeDesktopMcpServers} \
-        '{ mcpServers: $m[0] }' > "$cfg"
+        '{ mcpServers: $m[0] }' > "$cfg" && chmod 600 "$cfg"
     fi
-    chmod 600 "$cfg"
   '';
 }
