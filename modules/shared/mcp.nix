@@ -17,15 +17,15 @@
 # account owns the GUI session, `darwin-rebuild switch` cannot load the agent.
 #
 # SERVER SIDE (this box, 127.0.0.1:8096)
-#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 9 servers, each
+#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 10 servers, each
 #   reachable at /servers/<name>/sse. `gatewayConfig` is rendered by
 #   mcp-servers-nix's `lib.mkConfig`, so the 4 packaged servers
 #   (context7/fetch/memory/sequential-thinking) are PINNED store-path commands;
-#   the 5 without a module fall back to pinned npx/uvx launchers (still a runtime
+#   the 6 without a module fall back to pinned npx/uvx launchers (still a runtime
 #   fetch, but acceptable on the Mac where Node/uv already live).
 #
 # CLIENT SIDE (programs.claude-code.mcpServers)
-#   The 9 hosted servers are wired as `type = "http"` (Streamable HTTP — the
+#   The 10 hosted servers are wired as `type = "http"` (Streamable HTTP — the
 #   current MCP standard; the legacy HTTP+SSE transport was deprecated in the
 #   2025-03-26 spec) pointing at /servers/<name>/mcp; desktop-commander stays
 #   `type = "stdio"`. The claude-code module writes these into a managed
@@ -55,7 +55,7 @@ let
   npx = lib.getExe' pkgs.nodejs "npx";
   uvx = lib.getExe' pkgs.uv "uvx";
 
-  # The 5 servers with no mcp-servers-nix module, as raw stdio commands. Merged
+  # The 6 servers with no mcp-servers-nix module, as raw stdio commands. Merged
   # into the gateway config via mkConfig's `settings.servers`.
   customStdioServers = {
     duckduckgo = {
@@ -86,9 +86,21 @@ let
         "https://mcp.cloudflare.com/mcp"
       ];
     };
+    # Browser automation via Kapture's Chrome DevTools extension. `bridge` is the
+    # stdio<->WebSocket MCP server command — NOT `setup` (that auto-edits each
+    # client's config, which we own declaratively here). Inert until the Kapture
+    # Chrome extension is installed and its DevTools panel is open on a tab.
+    kapture = {
+      command = npx;
+      args = [
+        "-y"
+        "kapture-mcp"
+        "bridge"
+      ];
+    };
   };
 
-  # Every server NAME the gateway hosts (4 packaged + 5 custom). Single source
+  # Every server NAME the gateway hosts (4 packaged + 6 custom). Single source
   # for the client SSE URLs, so the two sides can never drift.
   packagedServerNames = [
     "context7"
@@ -100,7 +112,7 @@ let
 
   # SERVER SIDE: a {mcpServers:{name:{command,args,env}}} JSON that mcp-proxy
   # consumes via --named-server-config. mkConfig PINS the 4 packaged servers;
-  # settings.servers carries the 5 custom ones verbatim. flavor "claude-code"
+  # settings.servers carries the 6 custom ones verbatim. flavor "claude-code"
   # emits the `mcpServers` key mcp-proxy expects (it ignores any extra fields).
   gatewayConfig = mcp-servers-nix.lib.mkConfig pkgs {
     flavor = "claude-code";
@@ -132,7 +144,7 @@ let
 
   # VS Code uses `servers` as the top-level key (NOT `mcpServers` — a mismatch VS
   # Code silently ignores) and takes `type = "http"` directly, so it connects to
-  # the SAME gateway processes as claude-code. Same 9 servers, no desktop-commander.
+  # the SAME gateway processes as claude-code. Same 10 servers, no desktop-commander.
   vscodeMcpJson = builtins.toJSON { servers = httpEntries; };
 
   # Claude Desktop's config is stdio-oriented, so each gateway server is reached
