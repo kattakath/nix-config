@@ -120,6 +120,40 @@
     };
   };
 
+  # ── Extra bulk storage ──────────────────────────────────────────────────────
+  # Two USB flash sticks combined into ONE ~18 GB btrfs volume (single data
+  # profile ⇒ usable capacity is the SUM of both devices; NO redundancy — either
+  # stick dying loses the whole volume). Mounted at /mnt/storage.
+  #
+  # SAFETY (nixpi is remote-only, reachable ONLY via the tunnel): `nofail` + a
+  # short device timeout mean a dead, corrupt, or unplugged stick can NEVER block
+  # boot. The Pi always comes up — and the tunnel with it — even if the volume is
+  # absent, so a failed USB mount can't cause the reflash-style remote lockout.
+  # The volume is referenced by btrfs LABEL / by-id, never by sdX node, because
+  # USB enumeration order is not stable across reboots (sda/sdb can swap).
+  #
+  # ONE-TIME format (wipes both drives), done out-of-band once after this deploys:
+  #   sudo mkfs.btrfs -f -L nixpi-storage -d single -m single \
+  #     /dev/disk/by-id/usb-SanDisk_Cruzer_Blade_2004452693051B00F0C6-0:0 \
+  #     /dev/disk/by-id/usb-SanDisk_Cruzer_Spark_4C530000040815117535-0:0
+  boot.supportedFilesystems = [ "btrfs" ];
+  environment.systemPackages = [ pkgs.btrfs-progs ];
+
+  fileSystems."/mnt/storage" = {
+    device = "/dev/disk/by-label/nixpi-storage";
+    fsType = "btrfs";
+    options = [
+      "nofail" # remote-only Pi: a missing/dead stick must never block boot
+      "x-systemd.device-timeout=10s" # fail fast instead of hanging on an absent device
+      "compress=zstd" # transparent compression — kinder to slow, low-endurance flash
+      "noatime" # fewer metadata writes (endurance) on cheap USB flash
+      # Name both members explicitly so btrfs assembles the multi-device volume
+      # regardless of which sdX node udev happened to label first.
+      "device=/dev/disk/by-id/usb-SanDisk_Cruzer_Blade_2004452693051B00F0C6-0:0"
+      "device=/dev/disk/by-id/usb-SanDisk_Cruzer_Spark_4C530000040815117535-0:0"
+    ];
+  };
+
   # Local reverse-proxy/router, sitting behind the tunnel. Today it serves only
   # the public kattakath.com static landing page; future services front new
   # virtualHosts entries here rather than a new tunnel per-service.

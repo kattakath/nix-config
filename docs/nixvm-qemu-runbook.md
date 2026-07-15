@@ -1,11 +1,20 @@
 # nixvm runbook — headless QEMU/HVF, no UTM
 
-`nixvm` is the `aarch64-linux` self-hosted CI runner. `.github/workflows/nix-ci.yml`
-targets it with `runs-on: [nixvm, aarch64-linux]`, so **when nixvm is down, every PR
-blocks on a job that can never be scheduled** — it queues forever rather than failing.
+`nixvm` is the fleet's **on-demand `aarch64-linux` builder VM** — a local Linux build
+sandbox and break-glass self-hosted runner. **CI no longer depends on it:** the GitHub
+Actions workflows all run on GitHub-hosted runners (see `nix-ci.yml`), so a stopped or
+unprovisioned nixvm never blocks a PR.
 
-It runs as a plain `qemu-system-aarch64` process kept alive by a launchd daemon
-(`modules/darwin/nixvm-qemu.nix`), declared by the Mac that hosts it.
+It runs as a plain `qemu-system-aarch64` process under a launchd daemon
+(`modules/darwin/nixvm-qemu.nix`), declared by the Mac that hosts it. The daemon is
+**not auto-started** (`autoStart` defaults false) — bring it up on demand:
+
+```sh
+sudo launchctl kickstart -k system/org.nixos.nixvm-qemu
+```
+
+When it boots, the guest's `github-nix-ci` registers its runners, so the self-hosted
+runners come online only while the VM is deliberately running.
 
 ## Why not UTM (and why not "bare metal")
 

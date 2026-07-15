@@ -1,8 +1,13 @@
-# nixvm — the aarch64-linux CI runner VM, as a plain QEMU/HVF launchd daemon.
+# nixvm — the aarch64-linux ON-DEMAND local builder VM, as a plain QEMU/HVF launchd
+# daemon (defined but NOT auto-started; see the `autoStart` option below).
 #
 # WHY THIS EXISTS (and why it is NOT UTM any more)
-# nixvm's only job is to be the `aarch64-linux` self-hosted runner that
-# .github/workflows/nix-ci.yml targets with `runs-on: [nixvm, aarch64-linux]`.
+# nixvm is an on-demand `aarch64-linux` build sandbox on the Mac — used for local
+# Linux builds (`nix run .#nixvm-gui`, ad-hoc closures) and as a break-glass
+# self-hosted GitHub runner if a heavy build ever needs one. CI itself runs on
+# GitHub-hosted runners now (see .github/workflows/nix-ci.yml), so this VM no longer
+# has to be up for CI to pass. When it IS brought up, the guest's github-nix-ci
+# registers its runners, so they come online on-demand.
 # It used to be a UTM VM. A macOS reset proved that unworkable: UTM cannot be
 # provisioned from the CLI (utmctl never sees a hand-authored bundle, and the
 # osascript fallback is blocked by TCC — error -1728, a permission that cannot be
@@ -76,7 +81,23 @@ let
 in
 {
   options.services.nixvm-qemu = {
-    enable = lib.mkEnableOption "the nixvm aarch64-linux CI runner VM (headless QEMU/HVF)";
+    enable = lib.mkEnableOption "the nixvm aarch64-linux local builder VM (headless QEMU/HVF)";
+
+    autoStart = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Whether launchd boots the VM automatically (RunAtLoad + KeepAlive). DEFAULT
+        FALSE: nixvm is an ON-DEMAND local aarch64-linux builder now, NOT a persistent
+        CI runner (CI moved to GitHub-hosted runners — see nix-ci.yml). The daemon and
+        its /var/lib/nixvm state dir are still DEFINED (so the VM can be brought up
+        without a rebuild), but it does not run at Mac startup. Bring it up on demand:
+          sudo launchctl kickstart -k system/org.nixos.nixvm-qemu
+        On boot the guest's github-nix-ci registers its runners, so the self-hosted
+        runners come online only while the VM is deliberately running. Set true to
+        restore always-on boot (e.g. if you re-add a self-hosted CI workflow).
+      '';
+    };
 
     vcpus = lib.mkOption {
       type = lib.types.int;
@@ -104,15 +125,20 @@ in
 
   config = lib.mkIf cfg.enable {
     launchd.daemons.nixvm-qemu = {
-      # A DAEMON, not a user agent: the CI runner must come up on boot without
-      # anyone logging in. It runs AS the user (HVF needs no root — only the
-      # hypervisor entitlement, which nixpkgs' qemu binary already carries), but
-      # its state lives in /var/lib/nixvm, so the VM outlives any one account.
+      # A DAEMON, not a user agent: a system daemon so the VM can be kickstarted
+      # without a login session (and, with autoStart = true, come up on boot). It
+      # runs AS the user (HVF needs no root — only the hypervisor entitlement, which
+      # nixpkgs' qemu binary already carries), but its state lives in /var/lib/nixvm,
+      # so the VM outlives any one account.
       serviceConfig = {
         ProgramArguments = qemuArgs;
         UserName = userName;
-        RunAtLoad = true;
-        KeepAlive = true; # a crashed VM is a dead CI runner; always bring it back
+        # On-demand by default (autoStart = false): the VM does not boot at Mac
+        # startup and is not restarted if it exits — bring it up with `launchctl
+        # kickstart` when you need the local aarch64-linux builder. autoStart = true
+        # restores always-on boot + restart-on-exit.
+        RunAtLoad = cfg.autoStart;
+        KeepAlive = cfg.autoStart;
         StandardOutPath = "${vmDir}/qemu.out.log";
         StandardErrorPath = "${vmDir}/qemu.err.log";
         WorkingDirectory = vmDir;
@@ -123,19 +149,20 @@ in
     # Own the state dir on every activation. This is what lets the VM survive a
     # user rename/removal: the PATH is fixed (/var/lib/nixvm) and only the owner
     # follows userName, so switching accounts is a chown — not a 50 GB migration
-    # and not a destroyed CI runner.
+    # and not a destroyed VM.
     system.activationScripts.extraActivation.text = lib.mkAfter ''
       mkdir -p ${vmDir}
       chown -R ${userName}:staff ${vmDir}
       chmod 700 ${vmDir}
 
-      # Fail loudly if the VM was never provisioned, instead of letting launchd
-      # crash-loop QEMU against a missing disk forever.
+      # Note (not an error) if the VM was never provisioned. With autoStart = false
+      # (the default) nothing crash-loops — the daemon simply won't start until the
+      # disk exists and you kickstart it.
       if [ ! -f "${disk}" ]; then
-        echo "warning: services.nixvm-qemu is enabled but ${disk} does not exist."
-        echo "         nixvm has not been provisioned on this Mac yet — the launchd"
-        echo "         daemon will keep restarting QEMU until it is. Provision with"
-        echo "         the nixvm-qemu-provision skill (see docs/nixvm-qemu-runbook.md)."
+        echo "note: services.nixvm-qemu is enabled but ${disk} does not exist —"
+        echo "      nixvm is not provisioned on this Mac. Provision with the"
+        echo "      nixvm-qemu-provision skill (see docs/nixvm-qemu-runbook.md),"
+        echo "      then bring it up: sudo launchctl kickstart -k system/org.nixos.nixvm-qemu"
       fi
     '';
   };
