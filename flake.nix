@@ -113,7 +113,7 @@
       # home-manager.users.${userName}, /Users/ismail on the Mac) — NOT a label.
       # It is deliberately NOT the GitHub handle: renaming it would repoint
       # home-manager at a user that does not exist on the machine.
-      userName = "ismail";
+      userName = "ismailkattakath";
       domainName = "kattakath.com";
       fullName = "Ismail Kattakath";
 
