@@ -1,0 +1,173 @@
+name: cache-toplevels
+
+# Warm the three HOST SYSTEM TOPLEVELS into the kattakath Cachix cache on every
+# push to main, so an on-machine `nixos-rebuild switch` / `darwin-rebuild switch`
+# (and the imminent account cutover) SUBSTITUTES the finished system closure
+# instead of recompiling it locally — most importantly the ~1h cold linux-rpi
+# kernel on nixpi.
+#
+#   macos : .#darwinConfigurations.macos.system                       (aarch64-darwin)
+#   nixpi : .#nixosConfigurations.nixpi.config.system.build.toplevel   (aarch64-linux)
+#   nixvm : .#nixosConfigurations.nixvm.config.system.build.toplevel   (aarch64-linux)
+#
+# WHY NO GATE (contrast build-installers, which DOES gate). build + `cachix push`
+# are ALREADY self-idempotent, so a no-op run is already cheap and a drvPath gate
+# would add machinery for no benefit:
+#   * `nix build` substitutes an UNCHANGED toplevel from kattakath in seconds
+#     (no recompile), because the cache is the only configured substituter and it
+#     is baked into each self-hosted runner's system nix.conf.
+#   * `cachix push` is a DEDUPING registry — it skips every store path it already
+#     holds. (This is exactly what build-installers does NOT get: softprops
+#     action-gh-release re-uploads the full multi-GB ISO/img every run, which is
+#     why THAT workflow needs a gate and this one does not.)
+# This push is also load-bearing for keeping the "warm store" warm: the fleet GCs
+# weekly, so a kernel evicted between runs re-SUBSTITUTES from kattakath instead
+# of recompiling — the workflow is self-healing against eviction.
+#
+# BUILD PURITY. A toplevel build is a pure store realisation: agenix secrets are
+# decrypted at ACTIVATION (their identity is the runtime-only host SSH key, absent
+# from the build sandbox), never at build, so no secrets / sudo / root are needed.
+# This workflow BUILDS and PUSHES only — it never activates (no `nixos-rebuild
+# switch` / `darwin-rebuild activate`), which would need root and could restart
+# the very github-runner service running the job.
+#
+# SELF-HOSTED ONLY — push-to-main + workflow_dispatch, NO pull_request. The repo
+# is PUBLIC; fork-PR code must never execute on the self-hosted fleet runners
+# (same fork-safety reasoning as build-installers). Because it never lands on a
+# github-hosted runner, install-nix-action / cachix-action are OMITTED entirely:
+# both self-hosted runners already ship Nix + the kattakath substituter in their
+# system nix.conf, with git/nix/cachix on PATH (macos: Determinate +
+# modules/darwin/github-runner.nix launchd; nixvm: NixOS + github-nix-ci).
+
+on:
+  push:
+    branches: [main]
+    # Anything that can move a host's system closure. Intentionally BROADER than
+    # build-installers' filter (whole hosts/** + modules/**), because any host
+    # module edit can change a toplevel; over-firing here is cheap (an unchanged
+    # toplevel just substitutes + a deduped push no-ops — see "WHY NO GATE").
+    paths:
+      - "flake.nix"
+      - "flake.lock"
+      - "hosts/**"
+      - "modules/**"
+      - ".github/workflows/cache-toplevels.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: cache-toplevels-${{ github.ref }}
+  # false: the heavy leg is a ~1h cold RPi kernel build with no intra-derivation
+  # checkpoint. cancel-in-progress:true would let a second push to main restart that
+  # build from scratch, so a push storm could keep the cache perpetually UN-warmed.
+  # Letting each run finish warms kattakath at least once; a superseding run then
+  # substitutes the (now-cached) toplevels in seconds. Cachix's dedup makes the
+  # extra push a near-no-op, so the only cost of false here is a short queue.
+  cancel-in-progress: false
+
+# READ-ONLY GitHub token: this workflow only pushes to Cachix (write auth is the
+# CACHIX_AUTH_TOKEN secret, not the GitHub token) and touches no GitHub state.
+permissions:
+  contents: read
+
+jobs:
+  # One leg per architecture, each on its OWN self-hosted native runner. The two
+  # legs are independent cache-warmers; fail-fast:false so a slow/failed linux leg
+  # never cancels the darwin leg (or vice versa). The array-valued `runs-on`
+  # (a label SET, e.g. ["nixvm","aarch64-linux"]) follows nix-ci.yml's fromJSON
+  # self-hosted legs — NOT build-devcontainer, whose matrix runs-on are plain
+  # github-hosted strings. Keep them arrays: a single string would target a
+  # nonexistent single-label runner.
+  cache:
+    name: cache (${{ matrix.name }})
+    runs-on: ${{ matrix.runs-on }}
+    timeout-minutes: ${{ matrix.timeout }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # aarch64-linux — builds BOTH NixOS toplevels on the SELF-HOSTED `nixvm`
+          # runner (github-nix-ci, labels nixvm+aarch64-linux). The store is WARM,
+          # so nixpi's linux-rpi kernel is incremental; 180 min guards the one-time
+          # COLD case (first run, or a nixpkgs/raspberry-pi-nix bump that moves the
+          # kernel closure). nixvm builds its OWN toplevel here — that is the normal
+          # `nixos-rebuild switch --flake .#nixvm` case, NOT the build-installers
+          # circularity (which built the ISO that recreates the VM); building the
+          # system closure the VM switches INTO is not a bootstrap loop.
+          - name: aarch64-linux
+            runs-on: ["nixvm", "aarch64-linux"]
+            timeout: 180
+            toplevels: >-
+              .#nixosConfigurations.nixpi.config.system.build.toplevel
+              .#nixosConfigurations.nixvm.config.system.build.toplevel
+          # aarch64-darwin — builds the darwin toplevel on the SELF-HOSTED `macos`
+          # runner (the operator Mac). `nix build .#darwinConfigurations.macos.system`
+          # merely REALISES that store path through determinate-nixd as user
+          # `_github-runner`; it does not activate, touch launchd, or mutate
+          # /etc/nix, so nix.enable=false (nix-darwin not managing the daemon) is
+          # irrelevant to a plain build. Landing the closure in the LIVE store is
+          # the point: the operator's next `darwin-rebuild switch` substitutes it.
+          - name: aarch64-darwin
+            runs-on: ["self-hosted", "macOS"]
+            timeout: 60
+            toplevels: .#darwinConfigurations.macos.system
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      # Flakes evaluate the git tree, not the working dir — stage everything BEFORE
+      # any nix build (see .claude/rules/git-purity.md).
+      - name: Stage tree (git purity)
+        run: git add -A
+
+      # Build each toplevel and push its full closure to kattakath. No
+      # install-nix/cachix-action: both self-hosted runners already have Nix + the
+      # substituter; CACHIX_AUTH_TOKEN is the only credential the push needs.
+      - name: Build host toplevel(s) + push closures to Cachix
+        env:
+          TOPLEVELS: ${{ matrix.toplevels }}
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Full Determinate path (not bare `nix`) for launchd-context PATH
+          # determinism on the macos runner; also the exact binary the devcontainer
+          # prebuild skill uses. Works identically on nixvm.
+          NIX=/nix/var/nix/profiles/default/bin/nix
+
+          push_closure() {
+            # `cachix push` uploads the FULL closure of the given store path (exactly
+            # what we want to cache) and is idempotent — it SKIPS paths already in
+            # the cache and exits 0. Bounded retry (3) rides out a TRANSIENT
+            # Cachix/network blip. A push that STILL fails is NOT transient — it means
+            # a rotated/invalid CACHIX_AUTH_TOKEN or a renamed cache, i.e. the warm is
+            # silently not happening. Fail the job LOUDLY rather than swallow it: a
+            # green cache-warm that never warms is false confidence, worse than a red
+            # X that tells you to fix the token.
+            local path="$1" n=1
+            while true; do
+              if "$NIX" run nixpkgs#cachix -- push kattakath "$path"; then
+                return 0
+              fi
+              if [ "$n" -ge 3 ]; then
+                echo "::error::cachix push failed after ${n} attempts for ${path} — check CACHIX_AUTH_TOKEN / cache name."
+                return 1
+              fi
+              echo "::notice::cachix push attempt ${n} failed for ${path}; retrying in 5s…"
+              n=$((n + 1))
+              sleep 5
+            done
+          }
+
+          # Attrs are whitespace-separated (folded YAML) and contain no glob/space
+          # chars, so unquoted word-splitting is the intended expansion.
+          for attr in $TOPLEVELS; do
+            echo "::group::build+push ${attr}"
+            # SUBSTITUTES an unchanged toplevel from kattakath in seconds (the whole
+            # point); only a genuinely changed closure realises locally. --no-link +
+            # --print-out-paths keeps the persistent self-hosted checkout clean (no
+            # `result` symlink to dirty the next run's git-purity stage) while
+            # yielding the store path to push. -L streams builder logs to the CI log.
+            out="$("$NIX" build "$attr" --no-link --print-out-paths --print-build-logs)"
+            echo "realised: ${out}"
+            push_closure "$out"
+            echo "::endgroup::"
+          done
+          echo "✓ toplevel(s) built and pushed to kattakath."
