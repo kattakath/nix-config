@@ -124,6 +124,28 @@ let
     type = "http";
     url = endpointFor name "mcp";
   });
+
+  jsonFormat = pkgs.formats.json { };
+
+  # VS Code uses `servers` as the top-level key (NOT `mcpServers` — a mismatch VS
+  # Code silently ignores) and takes `type = "http"` directly, so it connects to
+  # the SAME gateway processes as claude-code. Same 9 servers, no desktop-commander.
+  vscodeMcpJson = builtins.toJSON { servers = httpClientEntries; };
+
+  # Claude Desktop's config is stdio-oriented, so each gateway server is reached
+  # via an `mcp-remote` stdio<->HTTP bridge (npx absolute-pathed — Claude Desktop
+  # launches from the GUI with a minimal PATH). Key is `mcpServers` here (Claude
+  # Desktop / Cursor convention — the opposite of VS Code's `servers`).
+  claudeDesktopMcpServers = jsonFormat.generate "claude-desktop-mcpservers.json" (
+    lib.genAttrs hostedServerNames (name: {
+      command = npx;
+      args = [
+        "-y"
+        "mcp-remote"
+        (endpointFor name "mcp")
+      ];
+    })
+  );
 in
 lib.mkIf pkgs.stdenv.isDarwin {
   # ---- Server side: the mcp-proxy launchd user agent -------------------------
@@ -153,7 +175,7 @@ lib.mkIf pkgs.stdenv.isDarwin {
     };
   };
 
-  # ---- Client side: point Claude Code at the gateway -------------------------
+  # ---- Client side A: Claude Code (home-manager module) ----------------------
   programs.claude-code.mcpServers = httpClientEntries // {
     # NOT hosted — a shell/RCE surface stays a per-client stdio server.
     desktop-commander = {
@@ -165,4 +187,34 @@ lib.mkIf pkgs.stdenv.isDarwin {
       ];
     };
   };
+
+  # ---- Client side B: VS Code (home-manager-managed → pure declarative file) --
+  # VS Code is managed here (programs.vscode in modules/shared/home.nix), so its
+  # MCP config is just a Nix-written file at the user mcp.json. VS Code speaks
+  # `type = "http"` natively, so it connects to the SAME gateway processes — no
+  # extra server instances. Read-only/Nix-managed: add servers in the gateway's
+  # `hostedServerNames` above, not the VS Code UI.
+  home.file."Library/Application Support/Code/User/mcp.json".text = vscodeMcpJson;
+
+  # ---- Client side C: Claude Desktop (NO home-manager module → merge activation)
+  # claude_desktop_config.json is a STATEFUL file the app itself writes
+  # (preferences, coworkUserFilesPath, …), and there is no `programs.claude-desktop`
+  # module, so we cannot own the whole file. Instead an activation script MERGES
+  # only the `mcpServers` key via jq, preserving everything else. Each entry is an
+  # mcp-remote stdio<->HTTP bridge to the gateway: the heavy servers still run once
+  # in the shared gateway, but Claude Desktop spawns one thin bridge per server (the
+  # unavoidable cost of a stdio-only client). `mcpServers` becomes Nix-managed —
+  # edit it in `hostedServerNames`, not in the app.
+  home.activation.claudeDesktopMcp = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    cfg="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
+    if [ -f "$cfg" ]; then
+      ${pkgs.jq}/bin/jq --slurpfile m ${claudeDesktopMcpServers} \
+        '.mcpServers = $m[0]' "$cfg" > "$cfg.tmp" && mv "$cfg.tmp" "$cfg"
+    else
+      mkdir -p "$(dirname "$cfg")"
+      ${pkgs.jq}/bin/jq -n --slurpfile m ${claudeDesktopMcpServers} \
+        '{ mcpServers: $m[0] }' > "$cfg"
+    fi
+    chmod 600 "$cfg"
+  '';
 }
