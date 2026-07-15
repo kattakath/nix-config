@@ -49,13 +49,11 @@
   ...
 }:
 let
-  zoneName = domainName;
-
   # nixpi is the only tunnelled host: macos is a client only, nixvm has no
   # public ingress.
   tunnelName = "nixpi";
-  publicHostname = "${tunnelName}.${zoneName}"; # nixpi.kattakath.com — the SSH ingress host
-  apexHostname = zoneName; # kattakath.com — the Caddy landing-page host
+  publicHostname = "${tunnelName}.${domainName}"; # nixpi.kattakath.com — the SSH ingress host
+  apexHostname = domainName; # kattakath.com — the Caddy landing-page host (the zone apex)
 
   tunnelId = "\${cloudflare_zero_trust_tunnel_cloudflared.nixpi.id}";
 in
