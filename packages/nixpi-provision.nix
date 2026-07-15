@@ -197,11 +197,19 @@ let
 
       disk=""
       image=""
+      wifi_conf=""
+      ssid=""
+      psk=""
+      country=""
       while [ $# -gt 0 ]; do
         case "$1" in
           --disk) disk="''${2:?}"; shift 2 ;;
           --image) image="''${2:?}"; shift 2 ;;
-          -h | --help) echo "usage: nixpi-flash --disk /dev/diskN [--image FILE.img.zst]"; exit 0 ;;
+          --wifi-conf) wifi_conf="''${2:?}"; shift 2 ;;
+          --ssid) ssid="''${2:?}"; shift 2 ;;
+          --psk) psk="''${2:?}"; shift 2 ;;
+          --country) country="''${2:?}"; shift 2 ;;
+          -h | --help) echo "usage: nixpi-flash --disk /dev/diskN [--image FILE.img.zst] [--wifi-conf FILE | --ssid SSID [--psk PSK] [--country CC]]"; exit 0 ;;
           *) echo "nixpi-flash: unknown argument: $1" >&2; exit 1 ;;
         esac
       done
@@ -250,7 +258,19 @@ let
       echo "nixpi-flash: verified full write ($copied bytes)."
 
       /usr/sbin/diskutil mount "''${disk}s1" >/dev/null 2>&1 || true
-      ${provision}/bin/nixpi-provision --all
+      # On a BAND-SPLIT network (e.g. joined to `FOO-5G` but the keychain stores the
+      # base `FOO` PSK) nixpi-provision's auto Wi-Fi detect fails — pin it with --ssid
+      # or a prebuilt --wifi-conf. Build the conf here when --ssid is given.
+      if [ -z "$wifi_conf" ] && [ -n "$ssid" ]; then
+        wifi_conf="$tmp/wpa.conf"
+        wc_args=(--ssid "$ssid")
+        [ -n "$psk" ] && wc_args+=(--psk "$psk")
+        [ -n "$country" ] && wc_args+=(--country "$country")
+        ${wifi-creds}/bin/nixpi-wifi-creds "''${wc_args[@]}" > "$wifi_conf"
+      fi
+      prov_args=(--all)
+      [ -n "$wifi_conf" ] && prov_args+=(--wifi-conf "$wifi_conf")
+      ${provision}/bin/nixpi-provision "''${prov_args[@]}"
       /usr/sbin/diskutil eject "$disk"
       echo "nixpi-flash: done. Insert the card and boot the Pi."
     '';

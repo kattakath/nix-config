@@ -34,8 +34,10 @@ decrypts it on-device.
 
 ## The tools (all macOS flake apps)
 
-- `nix run .#nixpi-flash -- --disk /dev/diskN` — fresh reflash: build (or `--image
-  FILE.img.zst`) → verified `dd` (byte-count checked) → auto-plant token + Wi-Fi.
+- `nix run .#nixpi-flash -- --disk /dev/diskN [--ssid NAME | --wifi-conf FILE]` — fresh
+  reflash: build (or `--image FILE.img.zst`) → verified `dd` (byte-count checked) →
+  auto-plant token + Wi-Fi. Wi-Fi is auto-detected unless you pass `--ssid`/`--wifi-conf`
+  (needed on a band-split network — see gotchas).
 - `nix run .#nixpi-provision [--all|--token|--wifi]` — plant onto an already-mounted card.
 - `nix run .#nixpi-wifi-creds [--ssid S] [--psk P] [--country CC]` — emit a
   `wpa_supplicant.conf` from this Mac's current Wi-Fi (SSID + keychain PSK + locale country).
@@ -55,8 +57,13 @@ Run them from the repo root (they read the vault at `secrets/cloudflared-token.a
 
 - **Re-plant every flash** — `dd` wipes the FAT partition. `nixpi-flash` does it for you.
 - **Wi-Fi needs `country=`** — the Pi 4 radio is rfkill-blocked without a regulatory domain.
-- **Band-split SSID** — a `<name>-5G` may be saved in the keychain under a different name
-  than you flash; pass `--ssid`/`--psk` to `nixpi-wifi-creds`.
+- **Band-split SSID** — if the Mac is joined to `<name>-5G` but the keychain stores the
+  base `<name>` PSK, Wi-Fi auto-detect (used by `nixpi-flash`/`nixpi-provision` with no
+  Wi-Fi args) fails ("no saved password"). Pin it:
+  `nix run .#nixpi-flash -- --disk /dev/diskN --ssid <name>` (the 2.4 GHz `<name>` also
+  gives a headless Pi better range), or plant separately —
+  `nix run .#nixpi-wifi-creds -- --ssid <name> > wpa.conf` then
+  `nix run .#nixpi-provision -- --wifi --wifi-conf wpa.conf`. Verified 2026-07-15 on `BELL044`.
 - **The token is plaintext on the FAT partition at rest** — accepted tradeoff for
   unattended first-boot; mitigate with physical security + rotate on card loss. The
   `/run` copy is root-only (0600).
