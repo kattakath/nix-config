@@ -21,9 +21,10 @@ name: build-installers
 # SPLIT BY WEIGHT: the heavy BUILD runs on self-hosted nixvm (above), but the two
 # LIGHTWEIGHT jobs here — `gate` (a pure `nix eval` drvPath, seconds) and
 # `record-baseline` (a `gh release view` + cache save) — stay on GitHub-hosted
-# `ubuntu-24.04-arm`. They are cheap, must run even to DECIDE whether to occupy the
-# nixvm runner at all, and keeping them off nixvm avoids blocking it for trivial
-# work. So `gate` installs Nix itself (install-nix-action below) purely for the eval;
+# `ubuntu-24.04-arm`. They are cheap, must run even to DECIDE whether to occupy a
+# nixvm runner slot at all, and keeping them off nixvm avoids consuming one of its
+# two runner slots for trivial work. So `gate` installs Nix itself (install-nix-action
+# below) purely for the eval;
 # the build job needs no such setup (nixvm already ships Nix + the substituter).
 #
 # Published to the rolling installer-latest GitHub pre-release so the image is
