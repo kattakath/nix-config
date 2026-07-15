@@ -99,8 +99,13 @@ jobs:
 
             This repo prizes LEAN, DRY, unambiguous docs with the code as source
             of truth. Bias toward fewer, higher-signal comments.
-          # Advisory boundary: post inline comments + read-only `gh pr` reads only.
-          # No Edit/Write/MultiEdit, no git — file mutation is not in the toolset.
+          # Advisory boundary, enforced as a capability limit (allowlist = deny all
+          # else): read-only inspection (Read/Grep/Glob) + inline-comment posting +
+          # read-only `gh pr` reads. The read tools are REQUIRED — the prompt tells
+          # Claude to read the diff and changed files; without them it burns every
+          # turn on permission denials and the action fails (error_max_turns).
+          # Edit/Write/MultiEdit and git are deliberately absent, so Claude can read
+          # and comment but never mutate files or commit.
           claude_args: |
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*)"
-            --max-turns 15
+            --allowedTools "Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*)"
+            --max-turns 30
