@@ -227,11 +227,15 @@ break-glass path regardless of ZTIA status.
 
 ## 8. Secret / trust model
 
-- **`secrets/cloudflared-token.age`** (agenix) — committed encrypted to `nixpi`'s
-  SSH host key + the operator key (`secrets/secrets.nix`), decrypted at activation
-  to `/run/agenix/cloudflared-token`; `hosts/nixpi.nix` points
-  `services.cloudflared-connector.tokenFile` there. (`/etc/secrets/cloudflared-token`
-  is only the module default for hosts that don't opt into agenix — not `nixpi`.)
+- **`secrets/cloudflared-token.age`** — the OPERATOR-ONLY vault of the connector
+  token (`secrets/secrets.nix`). nixpi does NOT decrypt it on-device: a fresh SD
+  flash rotates the SSH host key, which would break host-key-encrypted agenix and,
+  SSH being cert-only over the tunnel, lock us out. Instead the operator decrypts it
+  on the Mac and plants it on the card's FAT `FIRMWARE` partition (`nix run
+  .#nixpi-provision --token`); on boot `services.firmwareProvisioning`
+  (`modules/nixos/firmware-provisioning.nix`) copies it to `/run/cloudflared-token`,
+  which `services.cloudflared-connector.tokenFile` reads. Wi-Fi is provisioned the
+  same way. See docs/nixpi-sd-flashing-runbook.md §4b + the nixpi-firmware-provision skill.
 - **The Cloudflare SSH CA's private key never leaves Cloudflare.** Only its
   **public** key round-trips into this repo, committed at
   `modules/nixos/cloudflare-ssh-ca.pub` — safe to commit (a CA public key
@@ -367,7 +371,7 @@ executing the runbook in §9.)
 | `macos` — ZTIA client (WARP), no server modules | `hosts/macos.nix` |
 | Cloudflare-side ZTIA objects (target/application/policy) | `infra/cloudflare/nixpi-ssh.nix` |
 | terranix input + `cf-ssh-apply`/`cf-ssh-destroy` apps | `flake.nix` |
-| Tunnel token (agenix) | `secrets/cloudflared-token.age` → `/run/agenix/cloudflared-token` on `nixpi` |
+| Tunnel token (operator-only vault → FIRMWARE plant) | `secrets/cloudflared-token.age` → `/boot/firmware/cloudflared-token` → `/run/cloudflared-token` on `nixpi` |
 | Tunnel + ingress + DNS provisioning (terranix, `cf-tunnel-apply`; unaffected by ZTIA) | `infra/cloudflare/nixpi-tunnel.nix` |
 ### Related skills
 

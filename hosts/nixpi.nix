@@ -38,6 +38,7 @@
   imports = [
     ../modules/nixos/cloudflared.nix
     ../modules/nixos/caddy-proxy.nix
+    ../modules/nixos/firmware-provisioning.nix
   ];
 
   networking.hostName = "nixpi";
@@ -71,96 +72,53 @@
     board = "bcm2711";
   };
 
-  # SSH over the Cloudflare Tunnel — loginless, token-based connector. The
-  # connector token is delivered from the SD card's FAT FIRMWARE partition, NOT
-  # via agenix. WHY NOT agenix: agenix encrypts the token to nixpi's SSH HOST key,
-  # but a NixOS SD image ships no host key, so every fresh flash mints a brand-new
-  # random one — after which the agenix ciphertext no longer decrypts and the
-  # tunnel never comes up. Network SSH is cert-only OVER that same tunnel, so a
-  # dead tunnel means no remote way back in (exactly the reflash lockout we hit).
-  # A token file on the FIRMWARE partition sidesteps the host-key coupling: macOS
-  # can write that FAT partition, so the operator re-plants the token after each
-  # flash (see docs/nixpi-sd-flashing-runbook.md) and the connector comes up on
-  # first boot regardless of the freshly-generated host key.
-  #
-  # The FAT mount is world-readable, so a oneshot copies the token off it into a
-  # root-only /run file (0600) BEFORE the connector starts; the connector reads
-  # that as its EnvironmentFile (so the secret is never world-readable at rest on
-  # the running system, and never on argv / in the store).
+  # SSH over the Cloudflare Tunnel — loginless, token-based connector. Both the
+  # connector token AND the Wi-Fi credentials are delivered from the SD card's FAT
+  # FIRMWARE partition via `services.firmwareProvisioning`
+  # (modules/nixos/firmware-provisioning.nix), NOT agenix. WHY NOT agenix: it
+  # encrypts to nixpi's SSH HOST key, but a fresh SD flash mints a new host key, so
+  # the ciphertext stops decrypting and the tunnel dies — and with SSH being
+  # cert-only OVER that tunnel, unrecoverably (the reflash lockout). A file on the
+  # macOS-writable FAT partition is immune to host-key rotation; the operator
+  # re-plants it per flash (the `nixpi-provision` flake app — see
+  # docs/nixpi-sd-flashing-runbook.md). Each planted file is copied into a root-only
+  # /run file before its consumer starts, so the secret is never world-readable at
+  # rest, on argv, or in the store.
   services.cloudflared-connector.enable = true;
   services.cloudflared-connector.tokenFile = "/run/cloudflared-token";
 
-  systemd.services.cloudflared-token-install = {
-    description = "Install the Cloudflare connector token from the FIRMWARE partition";
-    # Ordered before + pulled in by the connector, and gated on /boot/firmware
-    # being mounted (a stage-2 systemd mount, so this all runs well after the FAT
-    # partition is available — unlike agenix, which runs pre-systemd).
-    before = [ "cloudflared-connector.service" ];
-    requiredBy = [ "cloudflared-connector.service" ];
-    unitConfig.RequiresMountsFor = "/boot/firmware";
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
+  services.firmwareProvisioning.files = {
+    # Connector token (`TUNNEL_TOKEN=<token>`). REQUIRED — the connector cannot start
+    # without it, so the install unit fails (and blocks the connector) if it is absent.
+    cloudflared-token = {
+      source = "cloudflared-token";
+      target = "/run/cloudflared-token";
+      required = true;
+      before = [ "cloudflared-connector.service" ];
+      requiredBy = [ "cloudflared-connector.service" ];
     };
-    # The planted file holds a single line `TUNNEL_TOKEN=<token>` (the same shape
-    # agenix produced). Copied to a root-only 0600 file the connector consumes.
-    script = ''
-      src=/boot/firmware/cloudflared-token
-      dst=/run/cloudflared-token
-      if [ -f "$src" ]; then
-        install -m600 "$src" "$dst"
-      else
-        echo "cloudflared-token-install: $src not found — plant a file containing" >&2
-        echo "  TUNNEL_TOKEN=<token> on the FIRMWARE partition (see the flashing runbook)." >&2
-        exit 1
-      fi
-    '';
+    # Wi-Fi so a headless nixpi (no LAN/keyboard/monitor) associates and reaches
+    # nixpi.kattakath.com from first boot. Plant a standard wpa_supplicant.conf that
+    # carries `country=` (the Pi 4 radio is rfkill-blocked without a regulatory
+    # domain) and a `network={ ssid=…; psk=… }` block. OPTIONAL: absent ⇒ the units
+    # skip cleanly, leaving LAN-only (eth0 stays DHCP as a fallback). The Pi 4
+    # brcmfmac driver + 43455 firmware/NVRAM already ship in the closure; only the
+    # credentials are planted.
+    wifi = {
+      source = "wpa_supplicant.conf";
+      target = "/run/wpa_supplicant-firmware.conf";
+      before = [ "wpa_supplicant-firmware.service" ];
+      postInstall = "${pkgs.util-linux}/bin/rfkill unblock wifi || true";
+    };
   };
 
-  # WIFI from the FIRMWARE partition — the SAME plant-a-file model as the token, so
-  # a headless nixpi with NO LAN cable (and no keyboard/monitor) still associates
-  # to Wi-Fi and brings the tunnel up from first boot. The Pi 4's brcmfmac driver +
-  # 43455 firmware/NVRAM already ship in the closure (hardware.enableRedistributable-
-  # Firmware, set by raspberry-pi-nix); all that's missing is credentials, which we
-  # keep OUT of the image and read at runtime from the card.
-  #
-  # Plant a standard wpa_supplicant.conf at /boot/firmware/wpa_supplicant.conf
-  # (must include `country=` — the Pi 4 radio stays rfkill-blocked without a
-  # regulatory domain — plus a `network={ ssid=…; psk=… }` block). A oneshot copies
-  # it to a root-only /run file; our wpa_supplicant unit associates wlan0; dhcpcd
-  # (networking.useDHCP) then leases it. eth0 stays DHCP whenever a cable is present,
-  # so LAN remains a fallback and neither path is mandatory. Wi-Fi is OPTIONAL: with
-  # no conf planted the units skip cleanly (no failed units), leaving LAN-only.
-  # Change networks by rewriting the file and rebooting.
-  systemd.services.wifi-provision = {
-    description = "Install wpa_supplicant.conf from the FIRMWARE partition";
-    before = [ "wpa_supplicant-firmware.service" ];
-    wantedBy = [ "multi-user.target" ];
-    unitConfig.RequiresMountsFor = "/boot/firmware";
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-    };
-    # exit 0 even when absent — Wi-Fi is optional; the wpa_supplicant unit's
-    # ConditionPathExists gates whether it actually starts.
-    script = ''
-      src=/boot/firmware/wpa_supplicant.conf
-      dst=/run/wpa_supplicant-firmware.conf
-      if [ -f "$src" ]; then
-        install -m600 "$src" "$dst"
-        ${pkgs.util-linux}/bin/rfkill unblock wifi || true
-      else
-        echo "wifi-provision: $src not found — no Wi-Fi configured (LAN only)." >&2
-      fi
-    '';
-  };
-
+  # Wi-Fi consumer: associate wlan0 from the planted config; dhcpcd (networking.useDHCP)
+  # then leases it. Skips cleanly (ConditionPathExists) when no config was planted.
   systemd.services.wpa_supplicant-firmware = {
     description = "wpa_supplicant on wlan0 (config planted on FIRMWARE)";
-    after = [ "wifi-provision.service" ];
-    wants = [ "wifi-provision.service" ];
+    after = [ "firmware-file-wifi.service" ];
+    wants = [ "firmware-file-wifi.service" ];
     wantedBy = [ "multi-user.target" ];
-    # Skip cleanly (not a failure) when no Wi-Fi config was planted.
     unitConfig.ConditionPathExists = "/run/wpa_supplicant-firmware.conf";
     serviceConfig = {
       ExecStart = "${pkgs.wpa_supplicant}/bin/wpa_supplicant -c /run/wpa_supplicant-firmware.conf -i wlan0";

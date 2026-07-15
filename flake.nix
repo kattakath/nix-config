@@ -264,8 +264,11 @@
           printToken = ''
 
             echo "----- CONNECTOR TOKEN for nixpi (SECRET) -----"
-            echo "Place the line below at /etc/secrets/cloudflared-token on nixpi (root-only, NEVER commit):"
             echo "TUNNEL_TOKEN=$(tofu output -raw nixpi_connector_token)"
+            echo ""
+            echo "Store it in the vault, then plant it on the card (from the repo root):"
+            echo "  printf 'TUNNEL_TOKEN=%s\\n' \"\$(tofu output -raw nixpi_connector_token)\" | nix run .#nixpi-vault-token"
+            echo "  nix run .#nixpi-provision --token      # onto a mounted card (or reflash)"
             echo "----- end nixpi -----"
           '';
         in
@@ -620,6 +623,22 @@
           }
         ))
 
+        # nixpi SD-card provisioning toolkit (macOS only). Exposed as packages so
+        # `nix flake check` BUILDS them — running writeShellApplication's shellcheck
+        # on each of the four apps. See packages/nixpi-provision.nix.
+        (nixpkgs.lib.genAttrs darwinSystems (
+          system:
+          let
+            kit = (pkgsFor system).callPackage ./packages/nixpi-provision.nix { };
+          in
+          {
+            nixpi-wifi-creds = kit.wifi-creds;
+            nixpi-provision = kit.provision;
+            nixpi-flash = kit.flash;
+            nixpi-vault-token = kit.vault-token;
+          }
+        ))
+
         {
           # BREAK-GLASS ONLY (see the apps block): superseded by nixos-anywhere.
           aarch64-linux.nixvm = (pkgsFor "aarch64-linux").callPackage ./packages/nixvm.nix {
@@ -754,6 +773,32 @@
                 exec ${self.darwinConfigurations.macos.config.system.build.darwin-rebuild}/bin/darwin-rebuild switch --flake "${self}#macos" "$@"
               ''}";
               meta.description = "First activation of the macos nix-darwin host from the flake (after Determinate Nix)";
+            };
+
+            # nixpi SD-card provisioning (macOS). The executable runbook: build +
+            # verified dd + plant token/wifi (nixpi-flash), plant onto a mounted card
+            # (nixpi-provision), emit a wpa_supplicant.conf from this Mac's Wi-Fi
+            # (nixpi-wifi-creds), and re-encrypt a rotated token into the vault
+            # (nixpi-vault-token). See packages/nixpi-provision.nix + the flashing runbook.
+            aarch64-darwin.nixpi-flash = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.nixpi-flash}/bin/nixpi-flash";
+              meta.description = "Fresh reflash: build (or --image) → verified dd → auto-plant token+wifi (--disk /dev/diskN)";
+            };
+            aarch64-darwin.nixpi-provision = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.nixpi-provision}/bin/nixpi-provision";
+              meta.description = "Plant the connector token and/or wpa_supplicant.conf onto a mounted nixpi FIRMWARE partition (--all|--token|--wifi)";
+            };
+            aarch64-darwin.nixpi-wifi-creds = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.nixpi-wifi-creds}/bin/nixpi-wifi-creds";
+              meta.description = "Emit a wpa_supplicant.conf from this Mac's current Wi-Fi network (SSID + keychain PSK + locale country)";
+            };
+            aarch64-darwin.nixpi-vault-token = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.nixpi-vault-token}/bin/nixpi-vault-token";
+              meta.description = "Re-encrypt a new connector token (stdin/$TUNNEL_TOKEN) into secrets/cloudflared-token.age (run from the repo root)";
             };
           }
           (

@@ -132,6 +132,47 @@ Notes:
 
 ---
 
+## 4b. Plant the connector token + Wi-Fi on the FIRMWARE partition
+
+**Do this after every flash, before first boot.** A fresh flash wipes the whole
+card, so the connector token (and Wi-Fi config, if used) must be re-planted onto the
+FAT `FIRMWARE` partition each time. `hosts/nixpi.nix` reads them on boot via
+`services.firmwareProvisioning` (`modules/nixos/firmware-provisioning.nix`): each
+planted file is copied into a root-only `/run` file before its consumer starts.
+
+**One command does §2–§4b** — build, verified write, and plant, with an `osascript`
+confirm dialog:
+
+```bash
+nix run .#nixpi-flash -- --disk /dev/diskN            # add --image FILE.img.zst to skip the build
+```
+
+**Or plant onto an already-flashed, mounted card:**
+
+```bash
+nix run .#nixpi-provision                 # token + Wi-Fi (default --all)
+nix run .#nixpi-provision -- --token      # just re-plant the token (e.g. after a rotation)
+nix run .#nixpi-provision -- --wifi       # just refresh Wi-Fi from this Mac's network
+```
+
+- **Token** — decrypted from the operator-only vault `secrets/cloudflared-token.age`
+  and written as `cloudflared-token`. To rotate it: `cf-tunnel-apply` prints a new
+  token → `nix run .#nixpi-vault-token` re-encrypts it into the vault → re-plant.
+  This deliberately does NOT use agenix: agenix binds the token to nixpi's SSH host
+  key, but a fresh flash mints a new host key, so the ciphertext would stop
+  decrypting and the tunnel would die — and with SSH being cert-only over that
+  tunnel, unrecoverably. A file on the macOS-writable FAT partition is immune.
+- **Wi-Fi** — `nixpi-provision --wifi` writes a `wpa_supplicant.conf` from this Mac's
+  current network (`nix run .#nixpi-wifi-creds`; pass `--ssid`/`--psk` for a
+  band-split network the keychain saved under a different name). It must carry
+  `country=` (the Pi 4 radio is rfkill-blocked without a regulatory domain). Wi-Fi is
+  OPTIONAL — without it the Pi is LAN-only. With it, a headless Pi reaches
+  `nixpi.kattakath.com` from first boot with no LAN cable, keyboard, or monitor.
+
+If you skip planting, the Pi still boots and is reachable on the LAN (`nixpi.local`),
+but the Cloudflare tunnel / public `kattakath.com` stays down until you plant the
+token and reboot.
+
 ## 5. First-boot expectations (don't mistake a slow-but-healthy boot for failure)
 
 Insert the card and power the Pi with an adequate supply (**5V / 3A** — see §6).
