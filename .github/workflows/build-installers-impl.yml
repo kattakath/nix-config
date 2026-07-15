@@ -47,10 +47,20 @@ jobs:
     # Because the runner is self-hosted it already ships Nix (flakes enabled) AND the
     # kattakath substituter (modules/shared/nix-cache.nix) — so, unlike the old
     # GitHub-hosted setup, there is NO install-nix-action and NO cachix-action here.
-    # We also do NOT push to Cachix: nixvm's local store IS the warm, and the ~1.6 GB
-    # image must stay out of the 5 GB free Cachix tier — it ships via the Release
-    # (what `nixpi-flash --release` downloads), which is where a `dd`-able artifact
-    # belongs. Nothing pushed ⇒ the tier is a non-issue.
+    #
+    # CACHIX WARM FOR ON-PI ACTIVATION. We DO push — but the nixpi SYSTEM CLOSURE
+    # (the toplevel), not the image. This is the payoff nix-ci CANNOT give: nix-ci
+    # only *evaluates* nixpi, never builds its toplevel, so the custom RPi kernel +
+    # unfree claude-code that a `nixos-rebuild switch --flake .#nixpi` on the Pi 4
+    # needs are otherwise built ON the Pi (brutally slow). We push via nix-fast-build
+    # `--cachix-cache` (the SAME mechanism nix-ci uses on this runner), which pushes
+    # ONLY paths built locally that aren't already substitutable — i.e. it skips
+    # cache.nixos.org base paths AND anything already in kattakath (so nothing nix-ci
+    # pushed is re-pushed). The pushed delta is just the kernel + unfree bits (a few
+    # hundred MB), comfortably inside the 5 GB free tier. The ~1.6 GB IMAGE is built
+    # SEPARATELY below (plain `nix build`, no push) and stays OUT of Cachix — it ships
+    # via the Release (what `nixpi-flash --release` downloads), where a `dd`-able
+    # artifact belongs.
     #
     # NOTE (operational): building the ~5.7 GB decompressed sdImage needs disk
     # headroom in nixvm's store — if a run dies on ENOSPC, grow the VM disk or GC.
@@ -62,7 +72,21 @@ jobs:
       - name: Stage tree (git purity)
         run: git add -A
 
-      - name: Build the nixpi sdImage
+      # Build the nixpi TOPLEVEL (the on-Pi activation closure) and push its
+      # locally-built delta to Cachix. Done FIRST so it does the heavy kernel build +
+      # the push; the sdImage build below then reuses the toplevel and only adds the
+      # image assembly. Pin matches nix-ci's (Mic92/nix-fast-build, 2026-07-05) —
+      # this repo does not execute unpinned upstream refs in CI.
+      - name: Warm Cachix with the nixpi system closure (for on-Pi activation)
+        env:
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+        run: |
+          nix run github:Mic92/nix-fast-build/561be51b96d376c9c6c49a063cfdc83af81f4929 -- \
+            --skip-cached --no-nom \
+            --flake ".#nixosConfigurations.nixpi.config.system.build.toplevel" \
+            --cachix-cache kattakath
+
+      - name: Build the nixpi sdImage (for the Release; reuses the toplevel above)
         # -L / --print-build-logs surfaces builder stderr directly in the CI log,
         # so a failing derivation (e.g. the RPi kernel modules-shrunk) is
         # diagnosable without a separate `nix log` on the ephemeral runner.
