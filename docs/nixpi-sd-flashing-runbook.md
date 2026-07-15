@@ -144,7 +144,7 @@ planted file is copied into a root-only `/run` file before its consumer starts.
 confirm dialog:
 
 ```bash
-nix run .#nixpi-flash -- --disk /dev/diskN            # add --image FILE.img.zst to skip the build
+nix run .#nixpi-flash -- --disk /dev/diskN            # + --image FILE.img.zst to skip build; + --ssid NAME on a band-split Wi-Fi (see below)
 ```
 
 **Or plant onto an already-flashed, mounted card:**
@@ -163,8 +163,11 @@ nix run .#nixpi-provision -- --wifi       # just refresh Wi-Fi from this Mac's n
   decrypting and the tunnel would die — and the tunnel is the only remote path in,
   so unrecoverably. A file on the macOS-writable FAT partition is immune.
 - **Wi-Fi** — `nixpi-provision --wifi` writes a `wpa_supplicant.conf` from this Mac's
-  current network (`nix run .#nixpi-wifi-creds`; pass `--ssid`/`--psk` for a
-  band-split network the keychain saved under a different name). It must carry
+  current network (`nix run .#nixpi-wifi-creds`). **Band-split gotcha:** if the Mac is
+  joined to `<name>-5G` but the keychain holds the base `<name>` PSK, auto-detect fails
+  ("no saved password"); pin it with `nixpi-flash … --ssid <name>` (or
+  `nixpi-wifi-creds --ssid <name> > wpa.conf` → `nixpi-provision --wifi --wifi-conf wpa.conf`).
+  The 2.4 GHz `<name>` also gives a headless Pi better range. It must carry
   `country=` (the Pi 4 radio is rfkill-blocked without a regulatory domain). Wi-Fi is
   OPTIONAL — without it the Pi is LAN-only. With it, a headless Pi reaches
   `nixpi.kattakath.com` from first boot with no LAN cable, keyboard, or monitor.

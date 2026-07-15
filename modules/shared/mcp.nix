@@ -89,7 +89,9 @@ let
     # Browser automation via Kapture's Chrome DevTools extension. `bridge` is the
     # stdio<->WebSocket MCP server command — NOT `setup` (that auto-edits each
     # client's config, which we own declaratively here). Inert until the Kapture
-    # Chrome extension is installed and its DevTools panel is open on a tab.
+    # Chrome extension is installed and its DevTools panel is open on a tab. Under
+    # launchd it can't spawn its detached :61822 server (restricted /tmp — logs an
+    # EACCES) and falls back to hosting it IN-PROCESS; expected, fine for one gateway.
     kapture = {
       command = npx;
       args = [
