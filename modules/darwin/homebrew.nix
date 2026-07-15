@@ -102,6 +102,7 @@ _:
       "microsoft-teams"
       "obs"
       "obsidian"
+      "proton-drive"
       "raspberry-pi-imager"
       "slack"
       "telegram"
