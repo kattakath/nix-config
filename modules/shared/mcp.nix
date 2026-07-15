@@ -44,6 +44,8 @@
   ...
 }:
 let
+  cfg = config.services.mcpGateway;
+
   # localhost-only gateway endpoint.
   gatewayHost = "127.0.0.1";
   gatewayPort = 8096;
@@ -119,50 +121,138 @@ let
   endpointFor =
     name: transport: "http://${gatewayHost}:${toString gatewayPort}/servers/${name}/${transport}";
 
-  # CLIENT SIDE: each hosted server as a Streamable HTTP entry.
-  httpClientEntries = lib.genAttrs hostedServerNames (name: {
+  # CLIENT SIDE: shape each hosted URL into a Streamable HTTP entry. The URL is
+  # already built (in the `endpoints` option); this only wraps it as data.
+  httpEntries = lib.mapAttrs (_: url: {
     type = "http";
-    url = endpointFor name "mcp";
-  });
-in
-lib.mkIf pkgs.stdenv.isDarwin {
-  # ---- Server side: the mcp-proxy launchd user agent -------------------------
-  launchd.agents.mcp-gateway = {
-    enable = true;
-    config = {
-      ProgramArguments = [
-        (lib.getExe' pkgs.mcp-proxy "mcp-proxy")
-        "--host"
-        gatewayHost
-        "--port"
-        (toString gatewayPort)
-        "--named-server-config"
-        "${gatewayConfig}"
-      ];
-      RunAtLoad = true;
-      KeepAlive = true;
-      # npx/uvx children need Node/uv on PATH (mcp-proxy itself is absolute above).
-      EnvironmentVariables.PATH =
-        lib.makeBinPath [
-          pkgs.nodejs
-          pkgs.uv
-        ]
-        + ":/usr/bin:/bin";
-      StandardOutPath = "${config.home.homeDirectory}/Library/Logs/mcp-gateway.log";
-      StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/mcp-gateway.log";
-    };
-  };
+    inherit url;
+  }) cfg.endpoints;
 
-  # ---- Client side: point Claude Code at the gateway -------------------------
-  programs.claude-code.mcpServers = httpClientEntries // {
-    # NOT hosted — a shell/RCE surface stays a per-client stdio server.
-    desktop-commander = {
-      type = "stdio";
+  jsonFormat = pkgs.formats.json { };
+
+  # VS Code uses `servers` as the top-level key (NOT `mcpServers` — a mismatch VS
+  # Code silently ignores) and takes `type = "http"` directly, so it connects to
+  # the SAME gateway processes as claude-code. Same 9 servers, no desktop-commander.
+  vscodeMcpJson = builtins.toJSON { servers = httpEntries; };
+
+  # Claude Desktop's config is stdio-oriented, so each gateway server is reached
+  # via an `mcp-remote` stdio<->HTTP bridge (npx absolute-pathed — Claude Desktop
+  # launches from the GUI with a minimal PATH). Key is `mcpServers` here (Claude
+  # Desktop / Cursor convention — the opposite of VS Code's `servers`).
+  claudeDesktopMcpServers = jsonFormat.generate "claude-desktop-mcpservers.json" (
+    lib.mapAttrs (_: url: {
       command = npx;
       args = [
         "-y"
-        "@wonderwhy-er/desktop-commander@latest"
+        "mcp-remote"
+        url
       ];
+    }) cfg.endpoints
+  );
+in
+{
+  options.services.mcpGateway = {
+    enable =
+      lib.mkEnableOption "the localhost MCP gateway (a sparfenyuk mcp-proxy launchd user agent hosting the shared packaged + custom MCP servers on 127.0.0.1)"
+      // {
+        # The Mac is the sole MCP client host; inert (nothing emitted) on the Pi/VM.
+        # Reproduces today's `lib.mkIf pkgs.stdenv.isDarwin` gate exactly.
+        default = pkgs.stdenv.isDarwin;
+      };
+
+    endpoints = lib.mkOption {
+      type = lib.types.attrsOf lib.types.str;
+      readOnly = true;
+      internal = true;
+      # THE single source of truth every client consumes as DATA (name -> url) and
+      # the ONE place a gateway URL is constructed: `endpointFor` is invoked here
+      # and nowhere else. desktop-commander is deliberately absent (stdio, claude-
+      # code only). readOnly => the default IS the value (never reassigned).
+      default = lib.genAttrs hostedServerNames (name: endpointFor name "mcp");
+      description = ''
+        Read-only map of hosted MCP server name -> its 127.0.0.1 Streamable-HTTP
+        (/mcp) gateway URL. Populated once from `endpointFor`; consumed as data by
+        every client (claude-code / VS Code / Claude Desktop), none of which
+        re-derive a URL.
+      '';
     };
+  };
+
+  config = lib.mkIf cfg.enable {
+    # ---- Server side: the mcp-proxy launchd user agent -------------------------
+    launchd.agents.mcp-gateway = {
+      enable = true;
+      config = {
+        ProgramArguments = [
+          (lib.getExe' pkgs.mcp-proxy "mcp-proxy")
+          "--host"
+          gatewayHost
+          "--port"
+          (toString gatewayPort)
+          "--named-server-config"
+          "${gatewayConfig}"
+        ];
+        RunAtLoad = true;
+        KeepAlive = true;
+        # npx/uvx children need Node/uv on PATH (mcp-proxy itself is absolute above).
+        EnvironmentVariables.PATH =
+          lib.makeBinPath [
+            pkgs.nodejs
+            pkgs.uv
+          ]
+          + ":/usr/bin:/bin";
+        StandardOutPath = "${config.home.homeDirectory}/Library/Logs/mcp-gateway.log";
+        StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/mcp-gateway.log";
+      };
+    };
+
+    # ---- Client side A: Claude Code (home-manager module) ----------------------
+    programs.claude-code.mcpServers = httpEntries // {
+      # NOT hosted — a shell/RCE surface stays a per-client stdio server.
+      desktop-commander = {
+        type = "stdio";
+        command = npx;
+        args = [
+          "-y"
+          "@wonderwhy-er/desktop-commander@latest"
+        ];
+      };
+    };
+
+    # ---- Client side B: VS Code (home-manager-managed → pure declarative file) --
+    # VS Code is managed here (programs.vscode in modules/shared/home.nix), so its
+    # MCP config is just a Nix-written file at the user mcp.json (coexists with the
+    # settings.json HM already writes there). VS Code speaks `type = "http"` natively,
+    # so it connects to the SAME gateway processes — no extra server instances.
+    # GATED on programs.vscode.enable: drop VS Code and this file is never written (no
+    # stray Code/User/ dir). Read-only/Nix-managed: add servers to `hostedServerNames`.
+    home.file = lib.mkIf config.programs.vscode.enable {
+      "Library/Application Support/Code/User/mcp.json".text = vscodeMcpJson;
+    };
+
+    # ---- Client side C: Claude Desktop (NO home-manager module → merge activation)
+    # claude_desktop_config.json is a STATEFUL file the app itself writes
+    # (preferences, coworkUserFilesPath, …), and there is no `programs.claude-desktop`
+    # module, so we cannot own the whole file. Instead an activation script MERGES
+    # only the `mcpServers` key via jq, preserving everything else. Each entry is an
+    # mcp-remote stdio<->HTTP bridge to the gateway: the heavy servers still run once
+    # in the shared gateway, but Claude Desktop spawns one thin bridge per server (the
+    # unavoidable cost of a stdio-only client). `mcpServers` becomes Nix-managed —
+    # edit it in `hostedServerNames`, not in the app.
+    # GATED on the app being installed (/Applications/Claude.app) — uninstall Claude
+    # Desktop and this writes/creates nothing.
+    home.activation.claudeDesktopMcp = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      cfg="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
+      if [ ! -d "/Applications/Claude.app" ]; then
+        : # Claude Desktop not installed — nothing to configure, no stray files.
+      elif [ -f "$cfg" ]; then
+        ${pkgs.jq}/bin/jq --slurpfile m ${claudeDesktopMcpServers} \
+          '.mcpServers = $m[0]' "$cfg" > "$cfg.tmp" && mv "$cfg.tmp" "$cfg" && chmod 600 "$cfg"
+      else
+        mkdir -p "$(dirname "$cfg")"
+        ${pkgs.jq}/bin/jq -n --slurpfile m ${claudeDesktopMcpServers} \
+          '{ mcpServers: $m[0] }' > "$cfg" && chmod 600 "$cfg"
+      fi
+    '';
   };
 }
