@@ -62,9 +62,9 @@ in
     defaults = {
       dock = {
         autohide = true;
-        orientation = "left";
+        orientation = "right";
         show-recents = false;
-        tilesize = 48;
+        tilesize = 24;
         # Don't reorder Spaces by most-recent-use — a stable Mission Control
         # layout keeps keyboard space-switching predictable.
         mru-spaces = false;
