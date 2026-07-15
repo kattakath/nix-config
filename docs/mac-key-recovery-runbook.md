@@ -24,14 +24,55 @@ immediately instead of surfacing later as an undecryptable agenix secret.
 
 ## Recovering
 
-After Setup Assistant and signing in to iCloud, from the kit folder:
+After Setup Assistant and signing in to iCloud, run the curl entrypoint — it
+**auto-detects** the iCloud kit, so the same command recovers (kit present) or
+founds a fresh identity (no kit):
 
 ```sh
-./bootstrap.sh            # recover this Mac
-./bootstrap.sh --check    # report state, change nothing
+# Dry run — reports the plan, changes nothing:
+curl -fsSL https://raw.githubusercontent.com/kattakath/nix-config/main/bootstrap.sh | bash -s -- --check
+
+# Real run:
+curl -fsSL https://raw.githubusercontent.com/kattakath/nix-config/main/bootstrap.sh | bash
 ```
 
+Offline / air-gapped: the kit ships the same `bootstrap.sh`, so from the kit folder
+`./bootstrap.sh` (or `./bootstrap.sh --check`) does exactly the same thing — it is the
+byte-identical, CI-linted copy.
+
 That is the whole procedure. It is idempotent — re-run it as often as you like.
+
+`bootstrap.sh` installs Determinate Nix, then hands off to `nix run <flake>#key-recover`,
+which **clones the flake (HTTPS — no key needed) and verifies your macOS login (`id -un`)
+equals the flake's `userName`** (reading `nix eval --raw <flake>#identity.userName`)
+*before it restores or founds any keys, or activates* — a mismatched Mac stops there
+having changed nothing but a throwaway clone. A mismatch hard-fails with fork
+instructions; it will not half-activate home-manager for a user that does not exist. See
+the "Fresh Mac / founding mode" note below and the README "Fork this for your own fleet"
+section. (`bootstrap.sh --check` runs the guard against the *remote* flake, so it warns
+you of a mismatch without cloning at all.)
+
+### Fresh Mac / founding mode (no kit)
+
+If there is **no** recovery kit (a brand-new Mac, or you forked this repo for your own
+fleet), `bootstrap.sh` runs `key-recover --fresh` — it **founds** a new identity rather
+than failing:
+
+- generates a fresh operator keypair (`~/.ssh/id_ed25519`),
+- points BOTH the `operator` and `macos` recipients in `secrets/secrets.nix` at the new
+  operator key + this Mac's host key,
+- **re-initialises the `macos` service secret (`gh-runner-token.age`) to a placeholder** —
+  the old ciphertext is unrecoverable without the lost key (it is a revocable runner PAT),
+  done with `rm` + `agenix -e` via an `EDITOR=cp` shim (agenix reads content from `$EDITOR`,
+  not stdin). The still-host-decryptable `gh-runner-token-nixvm.age` and the operator-only
+  `cloudflared-token.age` vault are left untouched (never `agenix -r` here — it would fail
+  decrypting those orphaned blobs),
+- activates `#macos`.
+
+Afterward `key-recover` prints the finishing steps: register `~/.ssh/id_ed25519.pub` on
+GitHub (authentication + signing), set the real PAT with `agenix -e secrets/gh-runner-token.age`,
+commit + push, and `nix run .#key-backup` so the machine is keyed next time. Add `--fresh`
+to skip the confirmation on a headless box.
 
 ## Why recovery is split in two
 

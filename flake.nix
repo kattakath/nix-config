@@ -473,6 +473,27 @@
         };
     in
     {
+      # ---- Machine-readable identity ------------------------------------------
+      # The flake's single-source `let` identity bindings, surfaced so `bootstrap.sh`
+      # can guard on them BEFORE activating. `key-recover` reads
+      #   nix eval --raw <flake>#identity.userName
+      # right after cloning and HARD-FAILS if it does not equal the macOS login
+      # (`id -un`): a mismatch would half-activate home-manager for a POSIX user that
+      # does not exist and build /Users/<wrong> paths. This attrset references NO
+      # flake inputs, so the eval is instant and fetches nothing — unlike reading
+      # `darwinConfigurations.macos.config.system.primaryUser` (which equals userName
+      # by construction, core.nix, but forces the whole darwin module fixpoint and
+      # every input) and is hostname-independent (does not depend on the "macos" attr
+      # key). A forker who sets `userName` here is exactly who the guard lets through.
+      identity = {
+        inherit
+          userName
+          orgName
+          domainName
+          handleName
+          ;
+      };
+
       # ---- macOS system configurations ---------------------------------------
       # Built with `darwin-rebuild switch --flake .#macos`.
       darwinConfigurations = {
@@ -714,15 +735,18 @@
               meta.description = "Publish the encrypted key-recovery kit to iCloud (run BEFORE resetting this Mac)";
             };
 
-            # `nix run .#key-recover` — stage 2 of recovery. bootstrap.sh execs
-            # this once Determinate Nix exists: decrypt the operator key, clone,
-            # re-key agenix to the new host key, activate. Stage 1 (the stale-Nix
-            # preflight + the installer itself) cannot run under Nix and lives in
-            # packages/key-recovery/bootstrap.sh.
+            # `nix run .#key-recover` — stage 2 of recovery/founding. bootstrap.sh
+            # execs this once Determinate Nix exists. It clones, verifies the macOS
+            # login == this flake's `userName` (#identity.userName), then either
+            # (kit) decrypts the operator key + re-keys agenix to the new host key,
+            # or (--fresh, no kit) FOUNDS a new operator identity + re-initialises
+            # the macos service secret to a placeholder — then activates #macos.
+            # Stage 1 (the stale-Nix preflight + the installer itself) cannot run
+            # under Nix and lives in bootstrap.sh at the repo root.
             aarch64-darwin.key-recover = {
               type = "app";
               program = "${self.packages.aarch64-darwin.key-recover}/bin/key-recover";
-              meta.description = "Restore the operator SSH key, re-key agenix to this Mac's host key, and activate";
+              meta.description = "Restore (kit) or found (--fresh) the operator key, re-key agenix to this Mac's host key, and activate #macos";
             };
 
             aarch64-darwin.macos = {
