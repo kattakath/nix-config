@@ -20,7 +20,7 @@ description: >
   remote-desktop deferred, no public ingress). The realized VM is **aarch64 / UTM target `virt`**,
   not x86_64/q35.
 - Partition labels: `nixos` (ext4 root) + `boot` (vfat EFI) — `hosts/nixvm.nix`.
-- User `ismail`: wheel, passwordless sudo, project SSH key; key-only SSH, no root login.
+- User `ismailkattakath`: wheel, passwordless sudo, project SSH key; key-only SSH, no root login.
 - Flake tracks `nixos-unstable` → installer ISO version is irrelevant.
 - `hosts/nixvm.nix` **already** includes the VirtIO initrd (`virtio_pci`/`virtio_blk`/
   `virtio_scsi`/`ahci`/`sd_mod`) + UEFI `fileSystems` + systemd-boot — **no patch needed**. The
