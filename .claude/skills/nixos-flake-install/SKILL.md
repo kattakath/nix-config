@@ -110,8 +110,8 @@ ssh ismail@<VM-IP> -i ~/.ssh/id_ed25519
 hostname; nixos-version
 ```
 
-`nixvm` has no `/etc/secrets/*` requirement — no post-boot secret handoff needed. `nixpi` does
-(`/etc/secrets/cloudflared-token`); see §5.
+`nixvm` needs no post-boot secret handoff. `nixpi` gets its connector token (and Wi-Fi) from the
+SD card's FAT `FIRMWARE` partition instead — see §5 and the **nixpi-firmware-provision** skill.
 
 ## 4. Recovery toolkit
 
@@ -137,5 +137,6 @@ hostname; nixos-version
 3. Run `sudo nixos-rebuild switch --flake github:kattakath/nix-config#nixpi` (or install
    directly onto the SD card if the installer image already carries the `nixpi` config — confirm
    against the current `hosts/nixpi-installer.nix`).
-4. **Before first successful tunnel activation**, place `/etc/secrets/cloudflared-token` on the
-   Pi (plain file, operator-placed, never committed) — see the **cloudflared-tunnel** skill.
+4. **Before first boot**, plant the connector token (and optional Wi-Fi) on the card's FAT
+   `FIRMWARE` partition: `nix run .#nixpi-flash` does it end-to-end, or `nix run
+   .#nixpi-provision` onto a mounted card — see the **nixpi-firmware-provision** skill.

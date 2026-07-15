@@ -1,10 +1,8 @@
 # infra/cloudflare/nixpi-tunnel.nix — terranix (Nix -> OpenTofu/Terraform JSON)
 # module provisioning nixpi's REMOTELY-MANAGED Cloudflare Tunnel itself.
 #
-# This is the declarative replacement for the retired loose shell script
-# `scripts/cf-one-provision.sh` (see `git show main:scripts/cf-one-provision.sh`).
-# It provisions the SAME four things that script did, now as Terraform state
-# instead of imperative `curl` calls:
+# It provisions four things as Terraform state (declaratively, no imperative
+# `curl` calls):
 #
 #   (a) a remotely-managed tunnel named "nixpi"
 #       (cloudflare_zero_trust_tunnel_cloudflared, config_src = "cloudflare");
@@ -41,18 +39,21 @@
 #     ttl = 1 (automatic).
 #   - data.cloudflare_zero_trust_tunnel_cloudflared_token: required { account_id,
 #     tunnel_id }; the token is the sensitive `.token` attribute.
-_:
+# accountId / zoneId / domainName are threaded from flake.nix's single sources of
+# truth (via _module.args in cfTunnelConfig) — the same account/zone the SSH stack
+# uses, so there is no per-file duplicate to drift.
+{
+  domainName,
+  accountId,
+  zoneId,
+  ...
+}:
 let
-  accountId = "726e0b2aa2bc2c6944f96a042e3c461b";
-  zoneId = "6e28971881e488941d052bbbf50d69cd"; # kattakath.com
-  zoneName = "kattakath.com";
-
   # nixpi is the only tunnelled host: macos is a client only, nixvm has no
-  # public ingress. This mirrors the sole-host DEFAULT_HOSTS=(nixpi) of the
-  # retired cf-one-provision.sh.
+  # public ingress.
   tunnelName = "nixpi";
-  publicHostname = "${tunnelName}.${zoneName}"; # nixpi.kattakath.com — the SSH ingress host
-  apexHostname = zoneName; # kattakath.com — the Caddy landing-page host
+  publicHostname = "${tunnelName}.${domainName}"; # nixpi.kattakath.com — the SSH ingress host
+  apexHostname = domainName; # kattakath.com — the Caddy landing-page host (the zone apex)
 
   tunnelId = "\${cloudflare_zero_trust_tunnel_cloudflared.nixpi.id}";
 in
@@ -83,18 +84,10 @@ in
     account_id = accountId;
     tunnel_id = tunnelId;
     config = {
-      # ZTIA (Access for Infrastructure) reaches nixpi over a PRIVATE network
-      # route (WARP client -> Cloudflare -> this tunnel -> nixpi's LAN IP:22),
-      # not the public-hostname SSH ingress. warp-routing must be enabled for
-      # the tunnel to accept that private-network traffic; the /32 Tunnel CIDR
-      # route itself (10.0.0.37/32 -> this tunnel) is provisioned out of band
-      # (dashboard / scoped-token API — no terraform resource; see
-      # infra/cloudflare/nixpi-ssh.nix).
-      warp_routing = {
-        enabled = true;
-      };
       ingress = [
-        # SSH ingress — nixpi.kattakath.com -> local sshd (the ZTIA target).
+        # SSH ingress — nixpi.kattakath.com -> local sshd. Reached client-side with
+        # `cloudflared access ssh --hostname nixpi.kattakath.com` (keys-only, the
+        # operator's static key in modules/nixos/core.nix). No Access/identity layer.
         {
           hostname = publicHostname;
           service = "ssh://localhost:22";
