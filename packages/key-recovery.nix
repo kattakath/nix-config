@@ -7,11 +7,12 @@
 # writeShellApplication — which runs shellcheck at BUILD time, so `nix flake
 # check` gates both scripts (same trick as the cf-* wrappers).
 #
-# THE ONE PART THAT CANNOT: ./key-recovery/bootstrap.sh. On a wiped Mac there is
-# no Nix, so the thing that installs Nix cannot be run by Nix. It stays plain
-# bash, is shellchecked here as a derivation anyway, and `key-backup` publishes
-# it into the iCloud kit beside the encrypted key — so the copy on the wiped Mac
-# is always the one CI linted. Single source of truth, no drift.
+# THE ONE PART THAT CANNOT: ../bootstrap.sh (repo root — the curl-pipe entrypoint,
+# `curl -fsSL …/main/bootstrap.sh | bash`). On a wiped Mac there is no Nix, so the
+# thing that installs Nix cannot be run by Nix. It stays plain bash, is
+# shellchecked here as a derivation anyway, and `key-backup` also publishes it into
+# the iCloud kit beside the encrypted key as the OFFLINE fallback — so both the
+# curl copy and the on-disk copy are always the ones CI linted. No drift.
 #
 # SECURITY POSTURE
 #   * The passphrase is read by `age` itself from /dev/tty. It never transits
@@ -70,10 +71,14 @@ let
           >/dev/null 2>&1 && return 0
         return 1
       fi
-      [ -t 0 ] || return 1
-      printf '    %s [y/N] ' "$1"
+      # bootstrap.sh execs us under `curl | bash`, so our stdin is the SPENT pipe,
+      # not a terminal — read the prompt from /dev/tty or there is nothing to answer
+      # with (a bare `read` would hit EOF and silently decline). No tty → safe "No".
+      { exec 3<>/dev/tty; } 2>/dev/null || return 1
+      exec 3>&-
+      printf '    %s [y/N] ' "$1" >/dev/tty
       local reply
-      read -r reply
+      read -r reply </dev/tty
       case "$reply" in [yY] | [yY][eE][sS]) return 0 ;; *) return 1 ;; esac
     }
 
@@ -149,7 +154,7 @@ in
 
       # The bootstrap script that a wiped Mac will actually run, straight from
       # the store — i.e. the exact bytes CI shellchecked.
-      install -m 755 ${./key-recovery/bootstrap.sh} "$KIT/bootstrap.sh"
+      install -m 755 ${../bootstrap.sh} "$KIT/bootstrap.sh"
 
       # MANIFEST is deliberately NON-SECRET: a fingerprint is public. It lets
       # key-recover prove the blob decrypted to the key it expected, instead of
@@ -166,7 +171,7 @@ in
         "created      = $(date -u +%Y-%m-%dT%H:%M:%SZ)" \
         "operator_fp  = $FP" \
         "flake        = ${flakeRef}" \
-        "recover_with = ./bootstrap.sh" \
+        "recover_with = curl -fsSL https://raw.githubusercontent.com/${orgName}/nix-config/main/bootstrap.sh | bash   (offline: ./bootstrap.sh)" \
         > "$KIT/MANIFEST"
       chmod 644 "$KIT/MANIFEST"
 
@@ -205,25 +210,166 @@ in
             KIT="${kitDir}"
             REPO_DIR="$HOME/nix-config"
             REPO="git@github.com:${orgName}/nix-config.git"
+            REPO_HTTPS="https://github.com/${orgName}/nix-config.git"
+            NIX_BIN=/nix/var/nix/profiles/default/bin/nix # nix is NOT on the writeShellApplication PATH
             CHECK=0
             REDECRYPT=0
             FIX_ETC=0
+            FRESH=0
 
-            export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new"
+            # GUARD: the macOS login MUST equal this flake's userName, or activation
+            # half-builds home-manager for a user that does not exist and /Users/<wrong>
+            # paths. Reads the cheap `#identity` output (references no inputs → instant,
+            # fetches nothing; hostname-independent). Fork-aware: a forker who set
+            # userName to their own login passes; anyone else is told to fork.
+            # $1 = a flake path/ref (the cloned repo, or the remote ref in --check).
+            assert_login_matches_flake() {
+              local want got
+              got="$(id -un)"
+              want="$("$NIX_BIN" eval --raw "$1#identity.userName" 2>/dev/null)" \
+                || die "could not read the flake's userName (nix eval $1#identity.userName failed).
+      Is $1 a checkout of THIS flake? If you forked, point --flake at your fork."
+              [ -n "$want" ] || die "the flake exposes an empty identity.userName."
+              if [ "$got" != "$want" ]; then
+                die "LOGIN / userName MISMATCH — refusing to activate.
+
+        this Mac's login account (id -un): $got
+        the flake's userName:             $want
+
+      This flake builds /Users/$want and targets home-manager.users.$want; activating
+      it as '$got' would half-activate. If you OWN this config: log in as '$want' (or
+      set userName in flake.nix) and re-run. If you are FORKING for your OWN fleet:
+        1. Fork the repo on GitHub (to your account, GH below = your GitHub owner).
+        2. In flake.nix set  userName = \"$got\";  (your macOS login) and set orgName to
+           your GitHub owner GH (plus handleName/domainName) — commit and push.
+        3. Re-run pointing --flake at YOUR fork (replace GH with your GitHub owner):
+             curl -fsSL https://raw.githubusercontent.com/GH/nix-config/main/bootstrap.sh | bash -s -- --flake=github:GH/nix-config
+      See the README 'Fork this for your own fleet' section."
+              fi
+              say "Login '$got' matches the flake's userName — proceeding."
+            }
 
             while [ $# -gt 0 ]; do
               case "$1" in
                 --kit) KIT="$2"; shift 2 ;;
                 --check | --dry-run) CHECK=1; shift ;;
+                --fresh) FRESH=1; shift ;;
                 --redecrypt) REDECRYPT=1; shift ;;
                 --fix-etc) FIX_ETC=1; shift ;;
                 -h | --help)
-                  echo "key-recover [--kit DIR] [--check] [--redecrypt] [--fix-etc]"
+                  echo "key-recover [--kit DIR | --fresh] [--check] [--redecrypt] [--fix-etc]"
+                  echo "  --kit DIR  restore an existing operator identity from an iCloud kit (default)"
+                  echo "  --fresh    no kit: FOUND a brand-new operator identity (public / fork setup)"
                   exit 0 ;;
                 *) die "unknown argument: $1" ;;
               esac
             done
 
+            if [ "$FRESH" -eq 1 ]; then
+              # ==== FOUNDING MODE (no kit): stand up a fresh operator identity ======
+              # Public / fork path: there is no key to restore, so MINT one and re-init
+              # the macos service secret to a placeholder (founding steps printed at end).
+
+              if [ "$CHECK" -eq 1 ]; then
+                say "DRY RUN — founding mode (no kit). Verifying your login matches the flake…"
+                assert_login_matches_flake "${flakeRef}" # evals the REMOTE flake; no clone, no mutation
+                printf '%s\n' \
+                  "  A real run would (nothing has changed yet):" \
+                  "  [plan] ssh-keygen -A (host key) + clone $REPO_HTTPS -> $REPO_DIR" \
+                  "  [plan] generate ~/.ssh/id_ed25519 — your NEW operator identity" \
+                  "  [plan] point the macos + operator recipients in secrets/secrets.nix at the new keys" \
+                  "  [plan] re-initialise the macos secret(s) to a PLACEHOLDER (skipped if already founded here)" \
+                  "  [plan] sudo -H nix run .#macos"
+                exit 0
+              fi
+
+              # host key first — it becomes the new `macos` agenix recipient.
+              say "Ensuring this Mac has an SSH host key"
+              sudo ssh-keygen -A
+              [ -f /etc/ssh/ssh_host_ed25519_key.pub ] \
+                || die "/etc/ssh/ssh_host_ed25519_key.pub missing after ssh-keygen -A."
+              NEWHOST="$(cut -d' ' -f1,2 /etc/ssh/ssh_host_ed25519_key.pub)"
+
+              # clone over HTTPS — the fresh operator key is not on GitHub yet.
+              if [ ! -d "$REPO_DIR/.git" ]; then
+                say "Cloning (HTTPS) $REPO_HTTPS -> $REPO_DIR"
+                git clone "$REPO_HTTPS" "$REPO_DIR"
+              fi
+              cd "$REPO_DIR" || die "cannot cd into $REPO_DIR"
+
+              assert_login_matches_flake "$REPO_DIR"
+
+              # 1. fresh operator identity (only if absent/invalid).
+              mkdir -p "$HOME/.ssh"
+              chmod 700 "$HOME/.ssh"
+              if [ ! -f "$HOME/.ssh/id_ed25519" ] \
+                || ! ssh-keygen -y -f "$HOME/.ssh/id_ed25519" >/dev/null 2>&1; then
+                say "Generating a NEW operator key — founding your own identity (no kit to restore)"
+                ssh-keygen -t ed25519 -N "" \
+                  -C "operator (founded $(date -u +%F), no recovery kit)" \
+                  -f "$HOME/.ssh/id_ed25519"
+              fi
+              chmod 600 "$HOME/.ssh/id_ed25519"
+              ssh-keygen -y -f "$HOME/.ssh/id_ed25519" > "$HOME/.ssh/id_ed25519.pub"
+              chmod 644 "$HOME/.ssh/id_ed25519.pub"
+              printf '%s %s\n' "${orgName}@users.noreply.github.com" \
+                "$(cat "$HOME/.ssh/id_ed25519.pub")" > "$HOME/.ssh/allowed_signers"
+              chmod 600 "$HOME/.ssh/allowed_signers"
+              NEWOP="$(cut -d' ' -f1,2 "$HOME/.ssh/id_ed25519.pub")"
+
+              # 2. Point agenix at your NEW operator + this Mac's host key. Idempotent:
+              #    re-running the sed when the line already holds the new key is a no-op,
+              #    so a partial/interrupted run always re-completes (the per-file gate
+              #    below decides what to re-encrypt — not a single up-front marker).
+              say "Pointing agenix at your NEW operator + this Mac's host key"
+              sed -i "s|^  macos = \"ssh-ed25519 [A-Za-z0-9+/=]*\";|  macos = \"$NEWHOST\";|" secrets/secrets.nix
+              sed -i "s|^  operator = \"ssh-ed25519 [A-Za-z0-9+/=]*\";|  operator = \"$NEWOP\";|" secrets/secrets.nix
+              grep -qF "$NEWHOST" secrets/secrets.nix \
+                || die "secrets/secrets.nix macos recipient not updated (line reformatted?). Expected: $NEWHOST"
+              grep -qF "$NEWOP" secrets/secrets.nix \
+                || die "secrets/secrets.nix operator recipient not updated (line reformatted?). Expected: $NEWOP"
+
+              # macos-recipient secrets (same awk the kit path uses below).
+              KEEP="$(awk '
+                /^[[:space:]]*"[^"]+\.age"\.publicKeys[[:space:]]*=/ {
+                  name = $0
+                  sub(/^[[:space:]]*"/, "", name); sub(/\.age".*$/, "", name)
+                  cur = name; inblock = 1; next
+                }
+                inblock && /^[[:space:]]*macos[[:space:]]*$/ { print cur ".age" }
+                inblock && /\]/ { inblock = 0 }
+              ' secrets/secrets.nix)"
+
+              # Re-INITIALISE each macos secret to a placeholder — but ONLY if it does not
+              # already decrypt under your NEW operator key. That per-file test IS the
+              # idempotency guard (not a single up-front marker): a real PAT you set later
+              # with `agenix -e` (also encrypted to your operator key) is PRESERVED, while
+              # a stale owner-blob or a half-finished prior run is (re-)initialised, so an
+              # interrupted run always re-completes. No root needed — it tests the OPERATOR
+              # private key (~/.ssh/id_ed25519), not the root-only host key.
+              #
+              # `agenix -e` with stdin NOT a tty runs its OWN `cp -- /dev/stdin <tmpfile>`
+              # (agenix 0.15.0) and IGNORES a caller-set EDITOR — so PIPE the placeholder in
+              # on stdin (this is the founding flow: key-recover was exec'd under curl|bash).
+              # `rm` first so agenix skips decrypt (no old key needed). Only macos-recipient
+              # blobs are touched; gh-runner-token-nixvm.age (still host-decryptable on
+              # nixvm) and the operator-only cloudflared vault are left ALONE. NEVER `agenix
+              # -r` here — it would fail decrypting those orphaned blobs.
+              for f in $KEEP; do
+                if [ -f "secrets/$f" ] \
+                  && age -d -i "$HOME/.ssh/id_ed25519" "secrets/$f" >/dev/null 2>&1; then
+                  say "secrets/$f already decrypts under your operator key — keeping it (change it with: agenix -e)"
+                else
+                  say "Re-initialising secrets/$f (placeholder — old content unrecoverable)"
+                  rm -f "secrets/$f"
+                  printf 'PLACEHOLDER — founded WITHOUT a recovery kit; set the real value with: agenix -e\n' \
+                    | ( cd secrets && agenix -e "$f" )
+                fi
+              done
+
+              git add -A                        # flakes evaluate the git tree
+              git remote set-url origin "$REPO" # future pushes over SSH (your new key)
+            else
             BLOB="$KIT/${blobName}"
             icloud_ready
             icloud_materialise "$BLOB"
@@ -237,6 +383,7 @@ in
 
             if [ "$CHECK" -eq 1 ]; then
               say "DRY RUN — verifying the kit; nothing will be changed."
+              assert_login_matches_flake "${flakeRef}" # early login/userName mismatch warning (remote flake; no clone)
               echo "  [ok]  blob: $BLOB ($(wc -c < "$BLOB" | tr -d ' ') bytes)"
               echo "  [ok]  expected operator fingerprint: ''${WANT_FP:-<no MANIFEST>}"
               TMPD="$(mktemp -d)"
@@ -256,6 +403,23 @@ in
               fi
               exit 0
             fi
+
+            # ---- 0. clone + GUARD before touching any key ----------------------------
+            # Clone over HTTPS (public repo, needs no key) so the login/userName guard
+            # runs BEFORE we decrypt the operator PRIVATE key or generate a host key — a
+            # mismatched Mac stops here having changed nothing but a throwaway clone.
+            if [ ! -d "$REPO_DIR/.git" ]; then
+              say "Cloning (HTTPS) $REPO_HTTPS -> $REPO_DIR"
+              git clone "$REPO_HTTPS" "$REPO_DIR"
+            fi
+            cd "$REPO_DIR" || die "cannot cd into $REPO_DIR"
+            git remote set-url origin "$REPO" # future pushes over SSH (your restored key)
+            assert_login_matches_flake "$REPO_DIR"
+
+            say "Ensuring this Mac has an SSH host key"
+            sudo ssh-keygen -A
+            [ -f /etc/ssh/ssh_host_ed25519_key.pub ] \
+              || die "/etc/ssh/ssh_host_ed25519_key.pub missing after ssh-keygen -A — cannot re-key agenix."
 
             # ---- 1. operator key -----------------------------------------------------
             mkdir -p "$HOME/.ssh"
@@ -289,19 +453,7 @@ in
               "$(cat "$HOME/.ssh/id_ed25519.pub")" > "$HOME/.ssh/allowed_signers"
             chmod 600 "$HOME/.ssh/allowed_signers"
 
-            # ---- 2. host key + clone -------------------------------------------------
-            say "Ensuring this Mac has an SSH host key"
-            sudo ssh-keygen -A
-            [ -f /etc/ssh/ssh_host_ed25519_key.pub ] \
-              || die "/etc/ssh/ssh_host_ed25519_key.pub missing after ssh-keygen -A — cannot re-key agenix."
-
-            if [ ! -d "$REPO_DIR/.git" ]; then
-              say "Cloning $REPO -> $REPO_DIR"
-              git clone "$REPO" "$REPO_DIR"
-            fi
-            cd "$REPO_DIR" || die "cannot cd into $REPO_DIR"
-
-            # ---- 3. agenix re-key ----------------------------------------------------
+            # ---- 2. agenix re-key ----------------------------------------------------
             # A reinstalled Mac has a NEW host key, so its recipient in secrets.nix must
             # be updated and every secret encrypted to it re-encrypted. The operator key
             # (restored above) is the other recipient, which is what lets agenix decrypt
@@ -345,15 +497,17 @@ in
             done
             git add -A
             say "Re-keyed to this Mac: ''${KEEP:-<none>} (other secrets reverted as no-op churn)"
+            fi
 
-            # ---- 4. activation -------------------------------------------------------
+            # ---- 4. activation (SHARED: founding + kit) -----------------------------
             # Through the flake's OWN #macos app, so this uses the PINNED nix-darwin
             # from flake.lock. The previous kit called github:LnL7/nix-darwin unpinned,
             # which is exactly how the removal of darwin-rebuild's sudo self-elevation
             # broke a recovery mid-flight. Must run as root: nix-darwin no longer
             # self-elevates. sudo -H, else nix warns that $HOME is not owned by root.
+            # Either branch above has re-keyed the macos secret to THIS host key, so
+            # the darwin agenix activation now decrypts and `set -e` does not trip.
             say "Activating this Mac (darwin-rebuild switch, as root)"
-            NIX_BIN=/nix/var/nix/profiles/default/bin/nix
             LOG="$(mktemp)"
             trap 'rm -f "$LOG"' EXIT INT TERM
 
@@ -403,21 +557,43 @@ in
             [ "$RC" -eq 0 ] || die "darwin-rebuild switch failed (see output above)."
 
             # ---- 5. what is left for a human ----------------------------------------
-            notify "This Mac is recovered and activated."
-            say "Recovered. Remaining steps:"
             # printf, not a here-doc: a here-doc body inside a Nix indented string
             # is subject to Nix's dedent, which can leave the terminator indented
             # (SC1039) or silently prepend spaces to the body.
-            printf '\n%s\n' \
-              "  # Persist the re-key (signed with your restored key):" \
-              "  cd $REPO_DIR && git commit -m 're-key to reinstalled host key' && git push" \
-              "" \
-              "  # Optional logins:" \
-              "  determinate-nixd login     # FlakeHub — native Linux builder" \
-              "  gh auth login" \
-              "" \
-              "  # SECURITY — the kit is a private key in iCloud. Once you are satisfied:" \
-              "  rm -rf '$KIT'             # then empty iCloud 'Recently Deleted' (~30 days)"
+            if [ "$FRESH" -eq 1 ]; then
+              notify "This Mac is founded and activated."
+              say "Founded your own operator identity. Remaining steps:"
+              printf '\n%s\n' \
+                "  # 1. Register your NEW operator PUBLIC key on YOUR GitHub account" \
+                "  #    (add as BOTH an Authentication AND a Signing key):" \
+                "  cat ~/.ssh/id_ed25519.pub" \
+                "" \
+                "  # 2. Set the real runner PAT (a placeholder was installed), then persist + reactivate:" \
+                "  cd $REPO_DIR && agenix -e secrets/gh-runner-token.age" \
+                "  git commit -am 'found fresh operator identity + re-key macos to this host' && git push" \
+                "  darwin-rebuild switch --flake .#macos" \
+                "" \
+                "  # 3. Publish a recovery kit so THIS machine is keyed next time:" \
+                "  nix run .#key-backup" \
+                "" \
+                "  # 4. Other hosts' secrets were NOT re-keyed (no old operator key to decrypt them)." \
+                "  #    secrets.nix now names your NEW operator; re-establish those from source when you" \
+                "  #    bring the hosts up: cloudflared-token via cf-tunnel-apply + nixpi-vault-token;" \
+                "  #    gh-runner-token-nixvm when you next rebuild/provision nixvm."
+            else
+              notify "This Mac is recovered and activated."
+              say "Recovered. Remaining steps:"
+              printf '\n%s\n' \
+                "  # Persist the re-key (signed with your restored key):" \
+                "  cd $REPO_DIR && git commit -m 're-key to reinstalled host key' && git push" \
+                "" \
+                "  # Optional logins:" \
+                "  determinate-nixd login     # FlakeHub — native Linux builder" \
+                "  gh auth login" \
+                "" \
+                "  # SECURITY — the kit is a private key in iCloud. Once you are satisfied:" \
+                "  rm -rf '$KIT'             # then empty iCloud 'Recently Deleted' (~30 days)"
+            fi
     '';
   };
 
@@ -426,7 +602,7 @@ in
   # would otherwise be the one file in this repo nothing lints — which is exactly
   # how it drifted before.
   key-recovery-bootstrap = runCommand "key-recovery-bootstrap" { } ''
-    ${lib.getExe shellcheck} --shell=bash --severity=style ${./key-recovery/bootstrap.sh}
-    install -Dm755 ${./key-recovery/bootstrap.sh} "$out/bin/key-recovery-bootstrap"
+    ${lib.getExe shellcheck} --shell=bash --severity=style ${../bootstrap.sh}
+    install -Dm755 ${../bootstrap.sh} "$out/bin/key-recovery-bootstrap"
   '';
 }
