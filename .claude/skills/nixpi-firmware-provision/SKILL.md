@@ -34,10 +34,14 @@ decrypts it on-device.
 
 ## The tools (all macOS flake apps)
 
-- `nix run .#nixpi-flash -- --disk /dev/diskN [--ssid NAME | --wifi-conf FILE]` — fresh
-  reflash: build (or `--image FILE.img.zst`) → verified `dd` (byte-count checked) →
-  auto-plant token + Wi-Fi. Wi-Fi is auto-detected unless you pass `--ssid`/`--wifi-conf`
-  (needed on a band-split network — see gotchas).
+- `nix run .#nixpi-flash -- --disk /dev/diskN [--release | --image FILE.img.zst] [--ssid NAME | --wifi-conf FILE]`
+  — fresh reflash: acquire the image → verified `dd` (byte-count checked) → auto-plant
+  token + Wi-Fi. Image source, in precedence: `--image` (local file); `--release`
+  (download the latest CI-built image off the `installer-latest` GitHub release — needs
+  `gh` auth, but **no Nix build and no aarch64-linux builder**, so this is the Mac path);
+  default = `nix build` the sdImage (Cachix-warms the kernel, but the final assembly still
+  needs an aarch64-linux builder). Wi-Fi is auto-detected unless you pass
+  `--ssid`/`--wifi-conf` (needed on a band-split network — see gotchas).
 - `nix run .#nixpi-provision [--all|--token|--wifi]` — plant onto an already-mounted card.
 - `nix run .#nixpi-wifi-creds [--ssid S] [--psk P] [--country CC]` — emit a
   `wpa_supplicant.conf` from this Mac's current Wi-Fi (SSID + keychain PSK + locale country).
@@ -47,7 +51,10 @@ Run them from the repo root (they read the vault at `secrets/cloudflared-token.a
 
 ## Scenarios
 
-1. **Fresh reflash** → `nix run .#nixpi-flash -- --disk /dev/diskN`, then insert + boot.
+1. **Fresh reflash** → `nix run .#nixpi-flash -- --disk /dev/diskN --release`, then insert +
+   boot. (`--release` downloads the CI-prebuilt image; drop it to `nix build` locally instead —
+   only works where an aarch64-linux builder exists. The image is secret-free, so the public
+   release artifact is safe.)
 2. **Update the tunnel token** (rotation): `CLOUDFLARE_API_TOKEN=… nix run .#cf-tunnel-apply`
    prints a new token → pipe it to `nix run .#nixpi-vault-token` → commit the vault →
    `nix run .#nixpi-provision -- --token` on a mounted card (or reflash), reboot.
