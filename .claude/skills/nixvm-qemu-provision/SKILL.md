@@ -46,10 +46,12 @@ TCC with error **-1728** "not allowed assistive access", which cannot be granted
   nix derivation show "$(nix eval --raw .#packages.aarch64-linux.nixvm-installer-iso.drvPath)" \
     | grep requiredSystemFeatures     # → absent
   ```
-  **Bootstrap warning:** CI builds that ISO with `runs-on: [nixvm, aarch64-linux]` — i.e. the VM is
-  the only machine that can build the thing that recreates the VM. If `nixvm` is already dead, CI
-  cannot help you; get the ISO from a prior artifact, from Cachix, or from any other aarch64-linux
-  box with Nix.
+  **Bootstrap note:** the ISO is **not** prebuilt/published anywhere any more (the
+  `build-installers` nixvm-ISO leg was removed — only the live nixpi image is published now).
+  It builds on demand on ANY aarch64-linux box with Nix (`nix build .#nixvm-installer-iso`) —
+  the devcontainer, a cloud arm runner, another NixOS host. `nix-ci` only *evaluates* it on the
+  `nixvm` runner, so if `nixvm` is dead, just build the ISO on any other aarch64-linux builder;
+  you are never blocked on the VM to recreate the VM.
 - `nixpkgs`' `qemu` on darwin **is codesigned with `com.apple.security.hypervisor`**, so
   `-accel hvf` works out of the box. No Homebrew QEMU, no manual `codesign`.
 - Destructive: `nixos-anywhere` wipes the target disk. It only ever touches the qcow2 you point it
@@ -111,7 +113,7 @@ chmod u+w ~/nixvm/efivars.fd
 
 ```bash
 QEMU=$(nix build --no-link --print-out-paths nixpkgs#qemu)
-ISO=/path/to/nixvm-installer.iso        # see §0 note — CI artifact or any aarch64-linux builder
+ISO=/path/to/nixvm-installer.iso        # see §0 note — build on any aarch64-linux box: nix build .#nixvm-installer-iso
 
 "$QEMU/bin/qemu-system-aarch64" \
   -M virt -accel hvf -cpu host -smp 8 -m 16384 \
