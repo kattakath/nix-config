@@ -16,7 +16,7 @@ let
   # below is operator-only and the operator plants the token on the FAT FIRMWARE
   # partition instead — see modules/nixos/firmware-provisioning.nix + nixpi-provision.
   # macos host key (/etc/ssh/ssh_host_ed25519_key.pub).
-  macos = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBVj8AMmTJYHMe8zJCfvTEHEog8E+FEiE5Fob3uhwiau";
+  macos = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHztHf3AmsM7Yr6xsP0bv96AyGtdolPvfmRw3RHAaFOB";
   # nixvm host key (/etc/ssh/ssh_host_ed25519_key.pub). PRE-GENERATED on the Mac and
   # planted at install time via `nixos-anywhere --extra-files`, rather than read off a
   # running VM. That ordering is the whole trick: the recipient here is correct BEFORE
