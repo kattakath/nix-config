@@ -5,10 +5,15 @@
 #
 # SSH ACCESS: over the Cloudflare Tunnel connector below (remotely-managed,
 # token-based — no port-forward, no public IP). mDNS (nixpi.local) also works
-# on the LAN. The connector token is delivered by agenix (encrypted in
-# ../secrets/cloudflared-token.age, committed to git, decrypted at activation
-# with nixpi's own SSH host key) — no hand-placed /etc/secrets file. The connector
-# unit retries on failure (Restart=on-failure) so a token refresh self-heals.
+# on the LAN. The connector token is planted on the SD card's FAT FIRMWARE
+# partition (re-planted by the operator after each flash — macOS can write FAT;
+# see docs/nixpi-sd-flashing-runbook.md) and copied into a root-only /run file by
+# a oneshot before the connector starts. This deliberately does NOT use agenix:
+# agenix binds the token to nixpi's SSH host key, but a fresh SD flash mints a new
+# host key, so the agenix ciphertext stops decrypting and the tunnel dies — and
+# with SSH being cert-only over that tunnel, unrecoverably (the reflash lockout).
+# The connector unit retries on failure (Restart=on-failure) so a token refresh
+# self-heals.
 #
 # ZTIA CUTOVER (Cloudflare Access for Infrastructure — short-lived SSH certs):
 # COMPLETE. `services.openssh-ca-trust.enable = true` below makes sshd trust
@@ -22,7 +27,6 @@
 # unaffected and remains the break-glass path.
 # `nixvm` does NOT import this option — it stays on the static key.
 {
-  config,
   lib,
   ...
 }:
@@ -64,18 +68,50 @@
   };
 
   # SSH over the Cloudflare Tunnel — loginless, token-based connector. The
-  # connector token is delivered by agenix (committed encrypted in
-  # ../secrets/cloudflared-token.age, decrypted at activation with nixpi's own
-  # SSH host key) instead of a hand-placed /etc/secrets file — see below.
+  # connector token is delivered from the SD card's FAT FIRMWARE partition, NOT
+  # via agenix. WHY NOT agenix: agenix encrypts the token to nixpi's SSH HOST key,
+  # but a NixOS SD image ships no host key, so every fresh flash mints a brand-new
+  # random one — after which the agenix ciphertext no longer decrypts and the
+  # tunnel never comes up. Network SSH is cert-only OVER that same tunnel, so a
+  # dead tunnel means no remote way back in (exactly the reflash lockout we hit).
+  # A token file on the FIRMWARE partition sidesteps the host-key coupling: macOS
+  # can write that FAT partition, so the operator re-plants the token after each
+  # flash (see docs/nixpi-sd-flashing-runbook.md) and the connector comes up on
+  # first boot regardless of the freshly-generated host key.
+  #
+  # The FAT mount is world-readable, so a oneshot copies the token off it into a
+  # root-only /run file (0600) BEFORE the connector starts; the connector reads
+  # that as its EnvironmentFile (so the secret is never world-readable at rest on
+  # the running system, and never on argv / in the store).
   services.cloudflared-connector.enable = true;
-  services.cloudflared-connector.tokenFile = config.age.secrets."cloudflared-token".path;
+  services.cloudflared-connector.tokenFile = "/run/cloudflared-token";
 
-  # agenix: decrypt ../secrets/cloudflared-token.age at activation using this
-  # host's SSH host key (/etc/ssh/ssh_host_ed25519_key, an age identity via SSH).
-  # It materialises at /run/agenix/cloudflared-token (root-only, mode 0400) as
-  # `TUNNEL_TOKEN=<token>`, consumed as the connector unit's EnvironmentFile.
-  # Editing: `agenix -e secrets/cloudflared-token.age` (recipients in secrets/secrets.nix).
-  age.secrets."cloudflared-token".file = ../secrets/cloudflared-token.age;
+  systemd.services.cloudflared-token-install = {
+    description = "Install the Cloudflare connector token from the FIRMWARE partition";
+    # Ordered before + pulled in by the connector, and gated on /boot/firmware
+    # being mounted (a stage-2 systemd mount, so this all runs well after the FAT
+    # partition is available — unlike agenix, which runs pre-systemd).
+    before = [ "cloudflared-connector.service" ];
+    requiredBy = [ "cloudflared-connector.service" ];
+    unitConfig.RequiresMountsFor = "/boot/firmware";
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    # The planted file holds a single line `TUNNEL_TOKEN=<token>` (the same shape
+    # agenix produced). Copied to a root-only 0600 file the connector consumes.
+    script = ''
+      src=/boot/firmware/cloudflared-token
+      dst=/run/cloudflared-token
+      if [ -f "$src" ]; then
+        install -m600 "$src" "$dst"
+      else
+        echo "cloudflared-token-install: $src not found — plant a file containing" >&2
+        echo "  TUNNEL_TOKEN=<token> on the FIRMWARE partition (see the flashing runbook)." >&2
+        exit 1
+      fi
+    '';
+  };
 
   # ZTIA: trust Cloudflare's SSH CA for short-lived certificates AND drop the
   # legacy static key, making network SSH cert-only. End-to-end ZTIA login was
