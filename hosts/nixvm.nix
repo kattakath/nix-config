@@ -26,6 +26,7 @@
   lib,
   config,
   pkgs,
+  orgName,
   ...
 }:
 let
@@ -196,7 +197,9 @@ in
   # cold Raspberry Pi kernel in build-installers) starves ALL other CI on the
   # fleet — it blocked every PR three times in one afternoon.
   services.github-nix-ci.orgRunners = lib.mkIf runnerEnabled {
-    "kattakath" = {
+    # keyed by the GitHub org (flake.nix orgName, threaded via specialArgs) — one
+    # source of truth, matches the Cachix cache + runner naming.
+    ${orgName} = {
       num = 2;
       tokenFile = config.age.secrets."gh-runner-token-nixvm".path;
     };
