@@ -524,16 +524,13 @@
           ];
         };
 
-        # Minimal installer SD image for nixpi — flash to SD card, boot,
-        # SSH as nixos@nixpi-installer.local, then run the nixpi bootstrap.
-        "nixpi-installer" = nixpkgs.lib.nixosSystem {
-          system = "aarch64-linux";
-          modules = [
-            raspberry-pi-nix.nixosModules.raspberry-pi
-            raspberry-pi-nix.nixosModules.sd-image
-            ./hosts/nixpi-installer.nix
-          ];
-        };
+        # (There is no separate `nixpi-installer`. The LIVE `nixpi` sdImage above
+        # IS the flashable artifact — it bakes NO secrets (the tunnel token + Wi-Fi
+        # are planted on the FAT FIRMWARE partition post-flash by nixpi-flash), so
+        # it is a pure function of the flake and is prebuilt in CI, published to the
+        # installer-latest release, and Cachix-warmed. `nix run .#nixpi-flash`
+        # flashes it in one step — the old two-step "boot a minimal installer, ssh
+        # nixos@nixpi-installer.local, nixos-rebuild" image was redundant and removed.)
 
         # Minimal installer ISO for nixvm. Boot the (otherwise empty) QEMU VM from
         # this ISO; it is the SSH-reachable Linux that nixos-anywhere installs
@@ -621,8 +618,12 @@
           };
           aarch64-linux.nixvm-installer-iso =
             self.nixosConfigurations.nixvm-installer.config.system.build.isoImage;
-          aarch64-linux.nixpi-installer-image =
-            self.nixosConfigurations.nixpi-installer.config.system.build.sdImage;
+          # The LIVE nixpi SD image (not a separate installer): prebuilt in CI
+          # (build-installers), published to the installer-latest release, and
+          # Cachix-warmed so `nixpi-flash` substitutes it instead of building.
+          # Secret-free — token + Wi-Fi are planted post-flash on the FIRMWARE
+          # partition, so this public artifact carries only the operator PUBLIC key.
+          aarch64-linux.nixpi-sd-image = self.nixosConfigurations.nixpi.config.system.build.sdImage;
         }
 
         # Cloudflare tunnel provisioning apps (terranix -> OpenTofu), exposed as

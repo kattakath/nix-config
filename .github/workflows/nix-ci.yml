@@ -81,8 +81,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # aarch64-linux — evaluates both NixOS hosts (nixpi, nixvm) and both
-          # installer images; also builds the aarch64-linux lint checks.
+          # aarch64-linux — evaluates both NixOS hosts (nixpi, nixvm) and the nixvm
+          # installer ISO; also builds the aarch64-linux lint checks. (The nixpi
+          # sdImage is the live `nixpi` toplevel already evaluated here; its image
+          # drvPath is gated separately in build-installers.yml.)
           - name: aarch64-linux
             # SELF-HOSTED `nixvm` runner (github-nix-ci, labels nixvm+aarch64-linux)
             # for trusted events; GitHub-hosted `ubuntu-24.04-arm` for FORK PRs —
@@ -92,7 +94,6 @@ jobs:
             eval-attrs: >-
               .#nixosConfigurations.nixpi.config.system.build.toplevel.drvPath
               .#nixosConfigurations.nixvm.config.system.build.toplevel.drvPath
-              .#nixosConfigurations.nixpi-installer.config.system.build.toplevel.drvPath
               .#nixosConfigurations.nixvm-installer.config.system.build.toplevel.drvPath
           # aarch64-darwin (Apple Silicon) — the sole darwin host; also builds
           # the aarch64-darwin lint checks. Runs on the SELF-HOSTED `macos` runner
