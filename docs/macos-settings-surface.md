@@ -214,6 +214,31 @@ has a commented `services.yabai`/`services.skhd` placeholder.
 
 ---
 
+## 5a. Login items → launchd agents
+
+The System Settings **Login Items** list ("Open at Login") is **not** declaratively
+manageable — it's `SMAppService`-backed and protected like TCC (§7). The Nix-native
+way to "start X at login" is a **launchd user agent** with `RunAtLoad`
+(version-controlled, wipe-proof). This repo drives Maccy and Docker Desktop this way
+(`launchd.user.agents.open-maccy` / `open-docker` in `core.nix`):
+
+```nix
+launchd.user.agents.open-maccy.serviceConfig = {
+  ProgramArguments = [ "/usr/bin/open" "-a" "Maccy" ];
+  RunAtLoad = true;
+};
+```
+
+Two things to know:
+- **Turn off the app's own "launch at login."** Modern apps self-register via
+  `SMAppService`; if left on, the app re-adds itself and you get both mechanisms.
+- **Where an app's checkbox files itself varies.** A full-app login item (Maccy)
+  shows in the **"Open at Login"** list. A **background helper** (Docker Desktop's
+  `com.docker.helper`) shows under **"Allow in the Background"** instead — which is
+  why "Start Docker Desktop when you sign in" is checked yet Docker never appears in
+  the top list. Docker's privileged `com.docker.vmnetd` daemon is separate (installed
+  at install time) and unaffected.
+
 ## 6. Ecosystem projects (for the toolbox)
 
 | Project | Role | When to reach for it |
