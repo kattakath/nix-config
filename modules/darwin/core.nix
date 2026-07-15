@@ -193,6 +193,42 @@ in
       ];
       RunAtLoad = true;
     };
+    # Communication apps — full GUI apps (unlike Maccy), so `-g -j` starts them
+    # hidden in the background: they run + receive notifications with no window
+    # brought forward at login (a Dock icon still shows while running). Turn OFF
+    # each app's OWN "open/launch at login" setting (notably Slack's) so it
+    # doesn't re-register itself in the Login Items list. Mail and Messages are
+    # system apps under /System/Applications; `open -a <name>` resolves by name.
+    open-slack.serviceConfig = {
+      ProgramArguments = [
+        "/usr/bin/open"
+        "-g"
+        "-j"
+        "-a"
+        "Slack"
+      ];
+      RunAtLoad = true;
+    };
+    open-mail.serviceConfig = {
+      ProgramArguments = [
+        "/usr/bin/open"
+        "-g"
+        "-j"
+        "-a"
+        "Mail"
+      ];
+      RunAtLoad = true;
+    };
+    open-messages.serviceConfig = {
+      ProgramArguments = [
+        "/usr/bin/open"
+        "-g"
+        "-j"
+        "-a"
+        "Messages"
+      ];
+      RunAtLoad = true;
+    };
   };
 
   # `screencapture` silently reverts to ~/Desktop if its target dir is missing,
