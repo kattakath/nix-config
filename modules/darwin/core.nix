@@ -3,6 +3,7 @@
 {
   config,
   pkgs,
+  lib,
   userName,
   ...
 }:
@@ -11,23 +12,75 @@ let
   # Screenshots land here and are rotated by services.fileRotation below.
   screengrabDir = "${config.users.users.${userName}.home}/Pictures/Screengrab";
 
-  # Background login launcher: `open -g -j -a <App>` wrapped in a script with a
-  # descriptive basename. macOS's Login Items ▸ "Allow in the Background" list
-  # names each item by its executable's basename (verified via `sfltool
-  # dumpbtm`), so a bare /usr/bin/open agent shows up as a generic,
-  # indistinguishable "open". Running a named wrapper instead makes the entry
-  # read e.g. "login-maccy". `-g` = background (no focus steal), `-j` = launch
-  # hidden (no window; the menu-bar icon is unaffected).
-  mkLoginAgent = suffix: appName: {
-    serviceConfig = {
-      ProgramArguments = [
-        "${pkgs.writeShellScriptBin "login-${suffix}" ''
-          exec /usr/bin/open -g -j -a "${appName}"
-        ''}/bin/login-${suffix}"
-      ];
-      RunAtLoad = true;
+  # Multi-resolution macOS icon built from the committed SVG (the single source
+  # of truth): resvg rasterizes it to the standard size ladder and png2icns
+  # (libicns) packs them into a .icns. Both tools are cross-platform, so this
+  # still builds under CI's darwin evaluation.
+  flakeIcns =
+    pkgs.runCommand "org.icns"
+      {
+        nativeBuildInputs = [
+          pkgs.resvg
+          pkgs.libicns
+        ];
+      }
+      ''
+        for s in 16 32 48 128 256 512 1024; do
+          resvg --width "$s" --height "$s" ${./icon.svg} "icon_$s.png"
+        done
+        png2icns "$out" icon_16.png icon_32.png icon_48.png icon_128.png \
+          icon_256.png icon_512.png icon_1024.png
+      '';
+
+  # Wrap a shell command in a minimal .app bundle carrying the flake icon.
+  # macOS's Login Items ▸ "Allow in the Background" list reads an item's icon
+  # from the executable's containing .app bundle; a bare binary has none, hence
+  # the generic monochrome "exec" glyph. Routing each agent through a tiny
+  # bundle makes the list show OUR icon. The store path itself is the "<bin>.app"
+  # (dir ending in .app + Contents/Info.plist ⇒ a valid bundle). NOTE: the bundle
+  # is unsigned, so the "Item from unidentified developer" subtitle stays — that
+  # needs a Developer ID cert and is independent of the icon.
+  mkIconApp =
+    bin: command:
+    let
+      exe = pkgs.writeShellScript bin command;
+      plist = pkgs.writeText "Info.plist" (
+        lib.generators.toPlist { } {
+          CFBundleExecutable = bin;
+          CFBundleIconFile = "org";
+          CFBundleIdentifier = "com.kattakath.login.${bin}";
+          CFBundleInfoDictionaryVersion = "6.0";
+          CFBundleName = bin;
+          CFBundlePackageType = "APPL";
+          CFBundleShortVersionString = "1.0";
+          LSUIElement = true; # launcher itself is agent-only (no Dock icon)
+        }
+      );
+    in
+    pkgs.runCommand "${bin}.app" { } ''
+      mkdir -p "$out/Contents/MacOS" "$out/Contents/Resources"
+      cp ${flakeIcns} "$out/Contents/Resources/org.icns"
+      cp ${plist} "$out/Contents/Info.plist"
+      cp ${exe} "$out/Contents/MacOS/${bin}"
+      chmod +x "$out/Contents/MacOS/${bin}"
+    '';
+
+  # Background login launcher: `open -g -j -a <App>` in an iconized .app bundle.
+  # macOS's "Allow in the Background" list names each item by its executable's
+  # basename (verified via `sfltool dumpbtm`) and shows the bundle icon, so the
+  # entry reads e.g. "login-maccy" with the flake icon. `-g` = background (no
+  # focus steal), `-j` = launch hidden (no window; menu-bar icon unaffected).
+  mkLoginAgent =
+    suffix: appName:
+    let
+      app = mkIconApp "login-${suffix}" ''exec /usr/bin/open -g -j -a "${appName}"'';
+    in
+    {
+      serviceConfig = {
+        ProgramArguments = [ "${app}/Contents/MacOS/login-${suffix}" ];
+        RunAtLoad = true;
+      };
     };
-  };
 
   # ---- Finder "Show View Options" default template (list view) --------------
   # This is the nested dict that Finder's "Use as Defaults" button writes and
