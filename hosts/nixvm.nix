@@ -1,11 +1,12 @@
-# NixOS sandbox VM (UTM `virt` machine / QEMU HVF) — UEFI + systemd-boot +
-# VirtIO. Architecture is chosen in flake.nix (`mkNixos { system = … }`), so
-# this file is arch-agnostic and backs the aarch64 UTM VM today. Distinct from
+# NixOS sandbox VM (headless QEMU/HVF, run as a plain qemu-system-aarch64 process
+# kept alive by a launchd daemon — modules/darwin/nixvm-qemu.nix; no UTM) — UEFI +
+# systemd-boot + VirtIO. Architecture is chosen in flake.nix (`mkNixos { system = … }`),
+# so this file is arch-agnostic and backs the aarch64 VM today. Distinct from
 # `nixpi`, which targets real Raspberry Pi 4 hardware via raspberry-pi-nix (SD
 # image). The base config stays MINIMAL — boots, serial console, SSH, disko; no
 # desktop in the installed image.
 #
-# GUI WITHOUT UTM: the graphical desktop lives ONLY in the `build-vm` variant
+# GRAPHICAL VARIANT: the desktop lives ONLY in the `build-vm` variant
 # (virtualisation.vmVariant, below) via the opt-in modules/nixos/desktop-vm.nix.
 # Build+run a windowed QEMU VM straight from the flake — no UTM, no VM config
 # maintained outside Nix:
@@ -46,13 +47,13 @@ in
   # Allow unfree packages (e.g. `claude-code` in the shared HM profile).
   nixpkgs.config.allowUnfree = true;
 
-  # DHCP on all interfaces (UTM vmnet-shared hands out a routable IP).
+  # DHCP on all interfaces (QEMU user-mode networking hands out a 10.0.2.x lease).
   networking.useDHCP = true;
 
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  # VirtIO initrd modules — required for the root disk to mount in a QEMU/UTM VM.
+  # VirtIO initrd modules — required for the root disk to mount in the QEMU VM.
   boot.initrd.availableKernelModules = [
     "virtio_pci"
     "virtio_blk"
@@ -61,7 +62,7 @@ in
     "sd_mod"
   ];
 
-  # Serial console — UTM/QEMU headless access before/without a display.
+  # Serial console — headless QEMU access before/without a display.
   systemd.services."serial-getty@ttyAMA0".enable = true;
 
   # Declarative disk layout for `disko --mode disko` at install time.
@@ -215,6 +216,4 @@ in
     pkgs.git
     pkgs.cachix
   ];
-
-  system.stateVersion = "24.05";
 }

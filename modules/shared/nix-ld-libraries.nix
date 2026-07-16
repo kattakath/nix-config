@@ -3,9 +3,8 @@
 # language servers, downloaded toolchains) expect to find at runtime.
 #
 # A `pkgs`-taking function so every consumer imports the SAME list and they
-# never drift. Three consumers:
+# never drift. Two consumers:
 #   modules/nixos/core.nix          → programs.nix-ld.libraries (NixOS hosts)
-#   modules/linux/nix-ld.nix        → NIX_LD_LIBRARY_PATH (standalone HM on non-NixOS)
 #   packages/devcontainer-image.nix → NIX_LD_LIBRARY_PATH / LD_LIBRARY_PATH (distroless image)
 #
 # Widen HERE and all three follow — this is the one place that grows if a future

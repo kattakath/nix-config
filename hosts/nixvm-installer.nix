@@ -1,8 +1,8 @@
-# Minimal NixOS installer ISO for nixvm (aarch64-linux / UTM QEMU VM).
-# Boot from this ISO, SSH as nixos@nixvm-installer.local, then run:
-#   nix --extra-experimental-features 'nix-command flakes' run github:kattakath/nix-config#nixvm
-# Reboot → ssh ismailkattakath@nixvm.local
-_: {
+# Minimal NixOS installer ISO for nixvm (aarch64-linux, headless QEMU/HVF VM).
+# Boot the empty QEMU VM from this ISO; it is the SSH-reachable Linux that
+# nixos-anywhere installs *through* (see docs/nixvm-qemu-runbook.md + the
+# nixvm-qemu-provision skill). Reboot → ssh ismailkattakath@nixvm.local
+{
   networking.hostName = "nixvm-installer";
 
   services.openssh.enable = true;
@@ -16,7 +16,9 @@ _: {
     };
   };
 
+  # Operator PUBLIC key, single-sourced (see secrets/operator-key.nix). PUBLIC-only,
+  # so the installer ISO stays secret-free.
   users.users.nixos.openssh.authorizedKeys.keys = [
-    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAq9VALx6Y6OERWlWWvudcTUEO29BMFl3bbGwoVSTGsS"
+    (import ../secrets/operator-key.nix)
   ];
 }
