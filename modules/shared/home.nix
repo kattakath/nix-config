@@ -62,6 +62,48 @@ let
   # (encrypted at rest) and registers it in an in-Keychain index. macOS-only.
   setSecret = pkgs.callPackage ../../packages/set-secret.nix { };
 
+  # `android-emu [avd-name] [emulator-args…]` — boot an Android emulator,
+  # provisioning on first run. If the SDK packages or the AVD are missing it
+  # installs them via the Homebrew `sdkmanager`/`avdmanager` (the
+  # android-commandlinetools cask + ANDROID_HOME set below), then launches.
+  # Uses a native arm64 system image (fast on Apple Silicon). macOS-only.
+  androidEmu = pkgs.writeShellApplication {
+    name = "android-emu";
+    runtimeInputs = [
+      pkgs.coreutils
+      pkgs.gnugrep
+    ];
+    text = ''
+      ANDROID_HOME="''${ANDROID_HOME:-/opt/homebrew/share/android-commandlinetools}"
+      export ANDROID_HOME
+      image="system-images;android-35;google_apis;arm64-v8a"
+      avd="''${1:-pixel}"
+      sdkmanager="/opt/homebrew/bin/sdkmanager"
+      avdmanager="/opt/homebrew/bin/avdmanager"
+      emulator="$ANDROID_HOME/emulator/emulator"
+
+      if [ ! -x "$sdkmanager" ]; then
+        echo "android-emu: sdkmanager not found — run 'darwin-rebuild switch' to install the android-commandlinetools cask" >&2
+        exit 1
+      fi
+
+      # First run: accept licenses + install emulator/platform-tools/system image.
+      if [ ! -x "$emulator" ] || [ ! -d "$ANDROID_HOME/system-images" ]; then
+        echo "android-emu: installing SDK packages (first run, a few GB)…" >&2
+        yes | "$sdkmanager" --licenses >/dev/null || true
+        "$sdkmanager" "platform-tools" "emulator" "$image"
+      fi
+
+      # Create the AVD on first use (decline the custom-hardware prompt).
+      if ! "$avdmanager" list avd -c | grep -qx "$avd"; then
+        echo "android-emu: creating AVD '$avd'…" >&2
+        echo "no" | "$avdmanager" create avd -n "$avd" -k "$image"
+      fi
+
+      exec "$emulator" -avd "$avd" "''${@:2}"
+    '';
+  };
+
   # Shell login init for the Keychain-backed secret store (macOS only). Two jobs:
   #   1. EXPORT every registered secret from the login Keychain into this login
   #      shell (the source of truth is the Keychain; nothing plaintext on disk).
@@ -143,17 +185,18 @@ in
     ++ lib.optionals (!stdenv.isDarwin) [ claudeCode ]
     # set-secret: Keychain-backed secret writer, macOS-only (see the let block).
     # On PATH so the `set-secret` shell function can call `command set-secret`.
-    ++ lib.optionals stdenv.isDarwin [ setSecret ];
+    ++ lib.optionals stdenv.isDarwin [
+      setSecret
+      androidEmu
+    ];
 
   # ---- Android SDK (macOS only) ------------------------------------------------
   # The `android-commandlinetools` Homebrew cask installs sdkmanager/avdmanager
   # under the Homebrew prefix. Point ANDROID_HOME there so `sdkmanager` downloads
   # the emulator + system images into it, and put the emulator/platform-tools
   # bins on PATH (adb itself also comes from the `android-platform-tools` cask).
-  # One-time after switching: accept licenses + install an image, e.g.
-  #   sdkmanager "platform-tools" "emulator" "system-images;android-35;google_apis;arm64-v8a"
-  #   avdmanager create avd -n pixel -k "system-images;android-35;google_apis;arm64-v8a"
-  #   emulator -avd pixel
+  # After switching, just run `android-emu` (the helper in the let block) — it
+  # installs the SDK packages + creates the AVD on first run, then boots it.
   home.sessionVariables = lib.mkIf pkgs.stdenv.isDarwin {
     ANDROID_HOME = "/opt/homebrew/share/android-commandlinetools";
   };
