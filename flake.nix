@@ -675,6 +675,13 @@
             action = "destroy";
           };
         }))
+
+        # `set-secret <KEY> [VALUE]` — store a secret in the macOS login Keychain
+        # (encrypted at rest) and register it for the login export loop
+        # (modules/shared/home.nix). DARWIN-ONLY: the Keychain is macOS-only.
+        (nixpkgs.lib.genAttrs darwinSystems (system: {
+          set-secret = (pkgsFor system).callPackage ./packages/set-secret.nix { };
+        }))
       ];
 
       # ---- Apps: bootstrap installer + Cloudflare provisioning ---------------
@@ -768,6 +775,17 @@
                 exec ${self.darwinConfigurations.macos.config.system.build.darwin-rebuild}/bin/darwin-rebuild switch --flake "${self}#macos" "$@"
               ''}";
               meta.description = "First activation of the macos nix-darwin host from the flake (after Determinate Nix)";
+            };
+
+            # `nix run .#set-secret -- KEY [VALUE]` — store a secret in the macOS
+            # login Keychain (encrypted at rest) + register it for the login
+            # export loop. Bare `nix run` only persists; the `set-secret` shell
+            # function (modules/shared/home.nix) also applies it to the current
+            # shell. Darwin-only (Keychain).
+            aarch64-darwin.set-secret = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.set-secret}/bin/set-secret";
+              meta.description = "Store KEY=VALUE in the macOS login Keychain (encrypted) and register it for login-shell export; omit VALUE for a hidden prompt";
             };
 
             # nixpi SD-card provisioning (macOS). The executable runbook: build +
