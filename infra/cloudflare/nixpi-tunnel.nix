@@ -12,7 +12,10 @@
 #       catch-all 404 rule;
 #   (c) proxied CNAMEs -> <tunnel-id>.cfargotunnel.com (cloudflare_dns_record):
 #       nixpi.kattakath.com (the SSH ingress host) AND the apex kattakath.com
-#       (so the Caddy landing-page ingress rule is publicly reachable);
+#       (so the Caddy landing-page ingress rule is publicly reachable), PLUS a
+#       proxied www.kattakath.com -> apex CNAME and a Single Redirect ruleset
+#       (cloudflare_ruleset, http_request_dynamic_redirect phase) that 301s
+#       www -> apex at the edge (canonical host; www is NOT a tunnel ingress);
 #   (d) the connector token, surfaced as a SENSITIVE `output` via the
 #       cloudflare_zero_trust_tunnel_cloudflared_token data source, so
 #       `nix run .#cf-tunnel-apply` prints it for the operator to store in the
@@ -51,6 +54,7 @@ let
   tunnelName = "nixpi";
   publicHostname = "${tunnelName}.${domainName}"; # nixpi.kattakath.com — the SSH ingress host
   apexHostname = domainName; # kattakath.com — the Caddy landing-page host (the zone apex)
+  wwwHostname = "www.${domainName}"; # www.kattakath.com — 301-redirected to the apex at Cloudflare's edge
 
   tunnelId = "\${cloudflare_zero_trust_tunnel_cloudflared.nixpi.id}";
 in
@@ -127,6 +131,56 @@ in
     content = "${tunnelId}.cfargotunnel.com";
     proxied = true;
     ttl = 1;
+  };
+
+  # ---- (c3) Proxied CNAME  www.kattakath.com -> apex ------------------------
+  # www must be PROXIED (orange-cloud) for the edge Single Redirect below to fire
+  # — an unproxied record would resolve straight to origin and skip the ruleset.
+  # Content is the apex itself (Cloudflare CNAME-flattens same-zone targets); the
+  # request never actually reaches origin because the http_request_dynamic_redirect
+  # rule returns a 301 at the edge first. There is deliberately NO www ingress rule
+  # on the tunnel (b): www is a pure edge redirect, not a second Caddy vhost.
+  resource.cloudflare_dns_record.nixpi_www = {
+    zone_id = zoneId;
+    name = wwwHostname;
+    type = "CNAME";
+    content = apexHostname;
+    proxied = true;
+    ttl = 1;
+  };
+
+  # ---- (c4) Single Redirect: www -> apex (301) -------------------------------
+  # A zone-level ruleset in the http_request_dynamic_redirect phase (Cloudflare's
+  # "Single Redirects"), which executes at the edge BEFORE any origin/tunnel fetch
+  # (and before URL Rewrites / Cache Rules). One rule: any request whose Host is
+  # www.kattakath.com gets a permanent 301 to the same path on the apex, query
+  # string preserved. This is the canonical-hostname redirect — www is not served
+  # directly, it forwards to kattakath.com (which the tunnel routes to Caddy).
+  # provider v5 schema: rules is a LIST OF OBJECTS (not nested blocks);
+  # action_parameters.from_value.target_url.expression builds the destination.
+  resource.cloudflare_ruleset.redirect_www = {
+    zone_id = zoneId;
+    name = "redirect-www-to-apex";
+    kind = "zone";
+    phase = "http_request_dynamic_redirect";
+    rules = [
+      {
+        ref = "redirect_www_to_apex";
+        description = "301 www.${domainName} -> ${domainName} (canonical host)";
+        expression = ''(http.host eq "${wwwHostname}")'';
+        action = "redirect";
+        enabled = true;
+        action_parameters = {
+          from_value = {
+            status_code = 301;
+            preserve_query_string = true;
+            target_url = {
+              expression = ''concat("https://${apexHostname}", http.request.uri.path)'';
+            };
+          };
+        };
+      }
+    ];
   };
 
   # ---- (d) Connector token (data source) -------------------------------------
