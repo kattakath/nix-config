@@ -233,6 +233,9 @@ in
         minimize-to-application = true;
         # The little dot under running apps.
         show-process-indicators = true;
+        # Show ONLY running apps — the Dock rebuilds from the running set, so
+        # nothing is pinned (launch via Spotlight/Raycast instead).
+        static-only = true;
         # Hot corners are all left unset (null = system default). To assign one,
         # set the relevant wvous-<pos>-corner (e.g. wvous-bl-corner = 1; disables
         # the bottom-left corner; 2 = Mission Control, 4 = Desktop, 5 = screensaver).
