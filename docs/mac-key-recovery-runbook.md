@@ -87,9 +87,8 @@ than failing:
 - **re-initialises the `macos` service secret (`gh-runner-token.age`) to a placeholder** —
   the old ciphertext is unrecoverable without the lost key (it is a revocable runner PAT),
   done with `rm` + `agenix -e` via an `EDITOR=cp` shim (agenix reads content from `$EDITOR`,
-  not stdin). The still-host-decryptable `gh-runner-token-nixvm.age` and the operator-only
-  `cloudflared-token.age` vault are left untouched (never `agenix -r` here — it would fail
-  decrypting those orphaned blobs),
+  not stdin). The operator-only `cloudflared-token.age` vault is left untouched (never
+  `agenix -r` here — it would fail decrypting that orphaned blob),
 - activates `#macos`.
 
 Afterward `key-recover` prints the finishing steps: register `~/.ssh/id_ed25519.pub` on
@@ -146,7 +145,7 @@ recipient in `secrets/secrets.nix` is stale and every secret encrypted to it mus
 be re-encrypted. Your operator key is the other recipient, which is what lets
 agenix decrypt in order to re-key at all. Note that `agenix -r` re-keys *every*
 secret and age emits different bytes each time (fresh ephemeral keys), so secrets
-**not** encrypted to `macos` (nixpi's `cloudflared-token`, nixvm's runner token)
+**not** encrypted to `macos` (nixpi's operator-only `cloudflared-token` vault)
 come back "modified" with no semantic change; `key-recover` reverts that churn so
 the commit is exactly this Mac's re-key.
 

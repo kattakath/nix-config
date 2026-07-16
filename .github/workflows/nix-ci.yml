@@ -13,20 +13,19 @@ name: nix-ci
 #      catching config/option/type errors) WITHOUT building it.
 #
 # ONE LEG PER SYSTEM, on its arch-native GitHub-HOSTED runner:
-#   aarch64-linux  -> `ubuntu-24.04-arm`. Evaluates nixpi + nixvm + the nixvm
-#                     installer.
+#   aarch64-linux  -> `ubuntu-24.04-arm`. Evaluates nixpi + nixvm.
 #   aarch64-darwin -> `macos-latest` (Apple Silicon; a free STANDARD runner on a
 #                     public repo).
 #
 # ALL-HOSTED (no self-hosted runners). The fleet's self-hosted runners were retired
 # from CI: hosted native-ARM + macOS STANDARD runners are free & unlimited for
 # public repos, Cachix serves the warmed closure so cold builds stay fast, and going
-# hosted removes both the availability SPOF (a dead nixvm no longer queues every PR
-# forever) AND the public-repo fork-PR RCE surface (untrusted fork code never lands
-# on our hardware). So every leg installs Nix + the kattakath substituter itself —
-# no `runner.environment` guard, no fork-PR runner fallback. The self-hosted runners
-# survive only as disabled-by-default, on-demand local builders (see
-# modules/darwin/{github-runner,nixvm-qemu}.nix).
+# hosted removes both the availability SPOF AND the public-repo fork-PR RCE surface
+# (untrusted fork code never lands on our hardware). So every leg installs Nix + the
+# kattakath substituter itself — no `runner.environment` guard, no fork-PR runner
+# fallback. The `macos` self-hosted runner survives only as disabled-by-default,
+# on-demand break-glass infra (modules/darwin/github-runner.nix); day-to-day local
+# aarch64-linux builds use Determinate's native Linux builder on the Mac.
 #
 # READ from the kattakath Cachix cache is public. WRITE needs
 # CACHIX_AUTH_TOKEN (a repo secret; absent on fork PRs → push no-ops). The cache
@@ -77,17 +76,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # aarch64-linux — evaluates both NixOS hosts (nixpi, nixvm) and the nixvm
-          # installer ISO; also builds the aarch64-linux lint checks. (The nixpi
-          # sdImage is the live `nixpi` toplevel already evaluated here; its image
-          # drvPath is gated separately in build-installers.yml.)
+          # aarch64-linux — evaluates both NixOS hosts (nixpi, nixvm); also builds
+          # the aarch64-linux lint checks. (The nixpi sdImage is the live `nixpi`
+          # toplevel already evaluated here; its image drvPath is gated separately in
+          # build-installers.yml.)
           - name: aarch64-linux
             # GitHub-hosted native ARM (free & unlimited on public repos).
             runs-on: ubuntu-24.04-arm
             eval-attrs: >-
               .#nixosConfigurations.nixpi.config.system.build.toplevel.drvPath
               .#nixosConfigurations.nixvm.config.system.build.toplevel.drvPath
-              .#nixosConfigurations.nixvm-installer.config.system.build.toplevel.drvPath
           # aarch64-darwin (Apple Silicon) — the sole darwin host; also builds
           # the aarch64-darwin lint checks. GitHub-hosted `macos-latest` (a free
           # STANDARD macOS runner on a public repo).

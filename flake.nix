@@ -23,11 +23,6 @@
     git-hooks.url = "github:cachix/git-hooks.nix";
     git-hooks.inputs.nixpkgs.follows = "nixpkgs";
 
-    # Declarative disk partitioning for NixOS installs. Replaces the manual
-    # parted/mkfs/mount steps with a single `disko --mode disko` command.
-    disko.url = "github:nix-community/disko";
-    disko.inputs.nixpkgs.follows = "nixpkgs";
-
     # Raspberry Pi 4 NixOS support: kernel, firmware, and SD-card image builder.
     raspberry-pi-nix.url = "github:nix-community/raspberry-pi-nix";
     raspberry-pi-nix.inputs.nixpkgs.follows = "nixpkgs";
@@ -77,14 +72,22 @@
     mcp-servers-nix.url = "github:natsukium/mcp-servers-nix";
     mcp-servers-nix.inputs.nixpkgs.follows = "nixpkgs";
 
-    # github-nix-ci — declarative self-hosted GitHub Actions runners for NixOS.
-    # Used ONLY on nixvm (aarch64-linux): it wraps nixpkgs `services.github-runners`,
-    # which needs a nix-daemon-managed Nix — fine on NixOS, but NOT on the macos
-    # host (Determinate sets nix.enable = false; that is exactly why
-    # modules/darwin/github-runner.nix hand-rolls a launchd runner instead).
-    # Module-only flake (no nixpkgs input of its own — it uses the consumer's
-    # pkgs), so there is nothing to `follows`.
-    github-nix-ci.url = "github:juspay/github-nix-ci";
+    # ---- Agent skills for Claude Code (source-only, flake = false) -------------
+    # Placed at ~/.claude/skills/<name>/ declaratively by programs.claude-code.skills
+    # (modules/shared/home.nix, darwin-gated). Pinned in flake.lock, bumped via
+    # `nix flake update` — the reproducible replacement for imperative
+    # `npx skills add --global`, with NO vendored copies committed here.
+    # find-skills: skill discovery from skills.sh.
+    agent-skills-vercel = {
+      url = "github:vercel-labs/skills";
+      flake = false;
+    };
+    # Anthropic's official claude-code repo — source of the plugin-dev + hookify
+    # AUTHORING skills (agent/skill/plugin/hook development) for smarter setup.
+    agent-skills-anthropic = {
+      url = "github:anthropics/claude-code";
+      flake = false;
+    };
   };
 
   outputs =
@@ -98,12 +101,12 @@
       raspberry-pi-nix,
       nix-vscode-extensions,
       nix-homebrew,
-      disko,
       terranix,
       determinate,
       agenix,
       mcp-servers-nix,
-      github-nix-ci,
+      agent-skills-vercel,
+      agent-skills-anthropic,
       ...
     }:
     let
@@ -143,10 +146,9 @@
 
       # ---- Single source of truth for the operator SSH public key ------------
       # The sole network login credential on every NixOS host AND the agenix
-      # "keep editable" recipient. Public, so the secret-free sdImage/installer
-      # embed it freely. Threaded to core.nix via mkNixos specialArgs and read
-      # directly by secrets/secrets.nix + hosts/nixvm-installer.nix — one file to
-      # edit on rotation instead of four (see secrets/operator-key.nix).
+      # "keep editable" recipient. Public, so the secret-free sdImage embeds it
+      # freely. Threaded to core.nix via mkNixos specialArgs and read directly by
+      # secrets/secrets.nix — one file to edit on rotation (see secrets/operator-key.nix).
       operatorSshKey = import ./secrets/operator-key.nix;
 
       # ---- Single source of truth for the Cloudflare account/zone ------------
@@ -349,7 +351,11 @@
           useGlobalPkgs = true;
           useUserPackages = true;
           extraSpecialArgs = identityArgs // {
-            inherit mcp-servers-nix;
+            inherit
+              mcp-servers-nix
+              agent-skills-vercel
+              agent-skills-anthropic
+              ;
           };
           users.${userName} = {
             imports = [ ./modules/shared/home.nix ];
@@ -371,10 +377,10 @@
           # Set the platform via the MODERN `nixpkgs.hostPlatform` module option
           # (below), NOT nixosSystem's legacy `system` arg — that arg only sets
           # the deprecated `nixpkgs.system`, leaving `nixpkgs.hostPlatform`
-          # undefined. Modules such as github-nix-ci read
-          # `config.nixpkgs.hostPlatform.system` and would otherwise fail with
-          # "option `nixpkgs.hostPlatform' was accessed but has no value". The two
-          # cannot both be set (nixpkgs forbids it), so we drop the arg entirely.
+          # undefined. Modules that read `config.nixpkgs.hostPlatform.system`
+          # would otherwise fail with "option `nixpkgs.hostPlatform' was accessed
+          # but has no value". The two cannot both be set (nixpkgs forbids it), so
+          # we drop the arg entirely.
           # Cachix substituter URL + trusted-PUBLIC-key (verification key, safe to
           # expose — NOT a secret) consumed by modules/shared/nix-cache.nix;
           # operatorSshKey (the authorizedKeys credential) by modules/nixos/core.nix.
@@ -430,21 +436,19 @@
                 extra-trusted-public-keys = [ cachixKey ];
               };
               # LINUX BUILDS ON macOS (for `nix run .#nixvm-gui`, `.#nixpi`):
-              # use Determinate's NATIVE Linux builder (Apple Virtualization
-              # framework — no remote builder, no Docker).
-              # NOTE: installing `nixvm` itself does NOT need any of this —
-              # nixos-anywhere runs with `--build-on remote`, so the guest
-              # builds its own closure and the Mac never needs a Linux builder.
-              # It is NOT configured from Nix: `external-builders` is a reserved
-              # setting that Determinate manages and `determinateNix.customSettings`
-              # rejects it (asserts at eval). It is a FlakeHub/account-level
-              # feature — enable it via https://dtr.mn/features and verify with
-              # `determinate-nixd version` (look for `native-linux-builder`; today
-              # this host shows only `lazy-trees`). nix-darwin's
-              # `nix.linux-builder` is unusable here — it requires
-              # `nix.enable = true`, which Determinate turns off (nix-darwin#1505).
-              # Until the native builder is enabled, build the aarch64-linux guest
-              # on the `nixvm` CI runner (remote builder) or pull from Cachix.
+              # Determinate's NATIVE Linux builder (Apple Virtualization framework —
+              # no remote builder, no Docker) is ENABLED on this host, so aarch64-linux
+              # and x86_64-linux derivations build locally on-demand. Verify with
+              # `determinate-nixd version` (shows `native-linux-builder`); it appears
+              # as an `external-builders` entry in `nix config show`. It is NOT
+              # configured from Nix — `external-builders` is a reserved setting
+              # Determinate manages and `determinateNix.customSettings` rejects it
+              # (asserts at eval); it is a FlakeHub/account-level feature enabled
+              # out-of-band via https://dtr.mn/features. It is a build-only, ephemeral,
+              # 1-CPU/8GB sandbox — heavy multi-core builds (e.g. the cold RPi kernel)
+              # are still best done in the GitHub-hosted CI. nix-darwin's
+              # `nix.linux-builder` is unusable here — it requires `nix.enable = true`,
+              # which Determinate turns off (nix-darwin#1505).
             }
             nix-homebrew.darwinModules.nix-homebrew # declaratively install brew (arch-correct prefix)
             agenix.darwinModules.default # encrypted in-repo secrets (./secrets/*.age)
@@ -501,29 +505,22 @@
           ];
         };
 
-        # Headless QEMU/HVF sandbox VM (aarch64), run as a plain qemu-system-aarch64
-        # process on the Mac and kept alive by a launchd daemon
-        # (modules/darwin/nixvm-qemu.nix). NOT a UTM VM any more: UTM was dropped
-        # after a Mac reset proved it is not CLI-provisionable (utmctl never sees a
-        # hand-authored bundle, and the osascript fallback is blocked by TCC, error
-        # -1728 — a permission that cannot be granted programmatically).
-        # Installed with nixos-anywhere against the ISO-booted VM; see
-        # docs/nixvm-qemu-runbook.md.
+        # Throwaway aarch64-linux dev VM, materialised ONLY as the graphical
+        # `build-vm` variant behind `nix run .#nixvm-gui` (an XFCE desktop in a
+        # native QEMU window — it boots a THROWAWAY overlay, never an installed
+        # disk). Since Determinate's native Linux builder is now enabled on the
+        # macos host, the aarch64-linux guest closure builds locally with NO
+        # provisioning — there is no installed nixvm, no builder VM, no runner.
         "nixvm" = mkNixos {
           system = "aarch64-linux";
           hostname = "nixvm";
           extraModules = [
-            disko.nixosModules.disko
-            # Self-hosted GitHub Actions runner (aarch64-linux) — the NixOS-native
-            # counterpart to the macOS host's hand-rolled launchd runner. Config +
-            # agenix token live in hosts/nixvm.nix (gated on the token existing).
-            github-nix-ci.nixosModules.default
-            # Graphical `build-vm` variant runs on the aarch64-darwin Mac, so its
-            # QEMU runner must be macOS-native. host.pkgs is the pkgs whose qemu
-            # the generated run-nixvm-vm executes — point it at aarch64-darwin.
-            # LAZY: only the `system.build.vm` path forces this, so the
-            # aarch64-linux toplevel eval (CI) never pulls in darwin pkgs. The
-            # rest of the variant (graphics, desktop) lives in hosts/nixvm.nix.
+            # The `build-vm` variant runs on the aarch64-darwin Mac, so its QEMU
+            # runner must be macOS-native. host.pkgs is the pkgs whose qemu the
+            # generated run-nixvm-vm executes — point it at aarch64-darwin. LAZY:
+            # only the `system.build.vm` path forces this, so the aarch64-linux
+            # toplevel eval (CI) never pulls in darwin pkgs. The rest of the variant
+            # (graphics, desktop) lives in hosts/nixvm.nix.
             { virtualisation.vmVariant.virtualisation.host.pkgs = nixpkgs.legacyPackages."aarch64-darwin"; }
           ];
         };
@@ -535,33 +532,13 @@
         # installer-latest release, and Cachix-warmed. `nix run .#nixpi-flash`
         # flashes it in one step — the old two-step "boot a minimal installer, ssh
         # nixos@nixpi-installer.local, nixos-rebuild" image was redundant and removed.)
-
-        # Minimal installer ISO for nixvm. Boot the (otherwise empty) QEMU VM from
-        # this ISO; it is the SSH-reachable Linux that nixos-anywhere installs
-        # *through*. Still load-bearing — a blank qcow2 has nothing to kexec from,
-        # so the ISO is the entry point for every (re)install of nixvm.
-        "nixvm-installer" = nixpkgs.lib.nixosSystem {
-          system = "aarch64-linux";
-          modules = [
-            "${nixpkgs}/nixos/modules/installer/cd-dvd/installation-cd-minimal.nix"
-            ./hosts/nixvm-installer.nix
-          ];
-        };
       };
 
       # ---- Packages: container images + installer images ------------------------
       # `nix build .#packages.aarch64-linux.devcontainerImage` → devcontainer stream script
-      # `nix build .#nixvm-installer-iso`                      → nixvm installer ISO → ./result/
+      # `nix build .#nixpi-sd-image`                           → nixpi SD image → ./result/
       # One fold merges base (all systems) → single-system, flatter than nesting
       # recursiveUpdate calls.
-      #
-      # REMOVED: `nixvm-image` (= nixosConfigurations.nixvm.…build.images.qemu-efi,
-      # a prebuilt qcow2). It existed only to be imported into UTM, and UTM is gone
-      # — nixvm is now installed by nixos-anywhere onto a blank `qemu-img create`
-      # disk. It was also unbuildable ANYWHERE in this fleet: make-disk-image is
-      # requiredSystemFeatures = ["kvm"], macOS has no /dev/kvm, Docker Desktop does
-      # not expose one (verified on M3 Pro), and there is no other Linux builder. It
-      # is not coming back; do not re-add it "for convenience".
       packages = nixpkgs.lib.foldl' nixpkgs.lib.recursiveUpdate { } [
         # Devcontainer image is a Linux OCI artifact — gate to the linux triple
         # (aarch64-only in this fleet). Built with unfree pkgs (claude-code) and
@@ -616,29 +593,7 @@
           }
         ))
 
-        # nixvm installer-ISO provisioner (macOS only). Exposed as a package so
-        # `nix flake check` BUILDS it — running writeShellApplication's shellcheck.
-        # Downloads the CI-prebuilt nixvm ISO from installer-latest + lays down the
-        # QEMU disk/efivars. See packages/nixvm-provision-iso.nix.
-        (nixpkgs.lib.genAttrs darwinSystems (system: {
-          nixvm-provision-iso = (pkgsFor system).callPackage ./packages/nixvm-provision-iso.nix {
-            inherit orgName repoName;
-          };
-        }))
-
         {
-          # BREAK-GLASS ONLY (see the apps block): superseded by nixos-anywhere.
-          aarch64-linux.nixvm = (pkgsFor "aarch64-linux").callPackage ./packages/nixvm.nix {
-            diskoInstall = disko.packages.aarch64-linux.disko-install;
-            inherit orgName;
-          };
-          # The nixvm installer ISO: prebuilt in CI (build-installers) and published
-          # to the installer-latest release alongside the nixpi image, so
-          # `nix run .#nixvm-provision-iso` DOWNLOADS it instead of building locally
-          # (the Mac has no aarch64-linux builder). Secret-free (installation-cd-minimal
-          # + hosts/nixvm-installer.nix, which bakes only the operator PUBLIC key).
-          aarch64-linux.nixvm-installer-iso =
-            self.nixosConfigurations.nixvm-installer.config.system.build.isoImage;
           # The LIVE nixpi SD image (not a separate installer): prebuilt in CI
           # (build-installers), published to the installer-latest release, and
           # Cachix-warmed so `nixpi-flash` substitutes it instead of building.
@@ -671,25 +626,13 @@
         }))
       ];
 
-      # ---- Apps: bootstrap installer + Cloudflare provisioning ---------------
-      # `nix run .#nixvm` — BREAK-GLASS ONLY. Ran from *inside* the live installer
-      # ISO, it disko-installs nixvm onto /dev/vda. The SUPPORTED install path is
-      # now nixos-anywhere, driven from the Mac against the ISO-booted VM:
-      #   nix run github:nix-community/nixos-anywhere -- --flake .#nixvm \
-      #     --build-on remote --extra-files <dir> --target-host root@localhost --ssh-port 2222
-      # `--build-on remote` is why no Linux builder is needed on the Mac, and
-      # `--extra-files` is what plants the PRE-GENERATED SSH host key so agenix can
-      # decrypt gh-runner-token-nixvm.age on FIRST boot. This app does neither, so
-      # a VM installed with it comes up with a self-generated host key and the CI
-      # runner silently never registers. See docs/nixvm-qemu-runbook.md.
-      #
+      # ---- Apps: dev VM + Cloudflare provisioning ----------------------------
       # `nix run .#nixvm-gui` (on the aarch64-darwin Mac) — build the graphical
-      # build-vm variant and boot it in a native QEMU window. Unrelated to the
-      # installed VM: it boots a THROWAWAY overlay, not ~/nixvm/disk.qcow2. The
-      # runner wrapper itself is darwin (host.pkgs override above); the
-      # aarch64-linux guest needs a Linux builder — Determinate's native Linux
-      # builder on the Mac (see the macos block above) or the nixvm CI runner /
-      # Cachix.
+      # build-vm variant and boot it in a native QEMU window: a THROWAWAY XFCE dev
+      # VM, no installed disk, no provisioning. The runner wrapper is a darwin
+      # derivation (host.pkgs override above); the aarch64-linux guest closure now
+      # builds locally on Determinate's native Linux builder (enabled on the macos
+      # host — see the macos block above), or is substituted from Cachix.
       #
       # `nix run .#cf-tunnel-apply` / `.#cf-tunnel-destroy` — render
       # infra/cloudflare/nixpi-tunnel.nix (terranix) then `tofu init` + apply
@@ -701,34 +644,29 @@
       #
       # All need a live token in the environment, e.g.
       #   CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-tunnel-apply
-      # Merged with recursiveUpdate so the static nixvm entry and the
+      # Merged with recursiveUpdate so the static darwin entries and the
       # forAllSystems cf-* apps coexist under one `apps` attribute (a bare
       # `apps.x.y = …` alongside `apps = …` is a duplicate-definition error).
       apps =
         nixpkgs.lib.recursiveUpdate
           {
-            aarch64-linux.nixvm = {
-              type = "app";
-              program = "${self.packages.aarch64-linux.nixvm}/bin/nixvm";
-              meta.description = "BREAK-GLASS: disko-install nixvm from inside the live ISO (no host-key planting — prefer nixos-anywhere)";
-            };
-
             # `nix run .#nixvm-gui` — build the graphical build-vm variant and
-            # boot it in a native macOS QEMU window. The runner wrapper is a
-            # darwin derivation (host.pkgs = aarch64-darwin); the aarch64-linux
-            # guest closure needs a Linux builder (Determinate's native Linux
-            # builder — see the macos block — or the nixvm CI runner / Cachix).
-            # run-nixvm-vm is the qemu-vm.nix script name for "nixvm".
+            # boot it in a native macOS QEMU window: a THROWAWAY XFCE dev VM (no
+            # installed disk, no provisioning). The runner wrapper is a darwin
+            # derivation (host.pkgs = aarch64-darwin); the aarch64-linux guest
+            # closure builds on Determinate's native Linux builder (enabled on the
+            # macos host) or is substituted from Cachix. run-nixvm-vm is the
+            # qemu-vm.nix script name for "nixvm".
             aarch64-darwin.nixvm-gui = {
               type = "app";
               program = "${self.nixosConfigurations.nixvm.config.system.build.vm}/bin/run-nixvm-vm";
-              meta.description = "Boot a THROWAWAY nixvm with an XFCE desktop in a QEMU window (not the installed disk; needs an aarch64-linux builder)";
+              meta.description = "Boot a THROWAWAY nixvm dev VM with an XFCE desktop in a QEMU window (builds locally on the native Linux builder)";
             };
 
             # `nix run github:kattakath/nix-config#macos` — one-line first
-            # activation of the macos nix-darwin host straight from the flake: the
-            # darwin analog of `nix run .#nixvm` (and of nixpi's
-            # `nixos-rebuild switch --flake …#nixpi`). After Determinate Nix is
+            # activation of the macos nix-darwin host straight from the flake (the
+            # darwin analog of nixpi's `nixos-rebuild switch --flake …#nixpi`).
+            # After Determinate Nix is
             # installed but before darwin-rebuild is on PATH, this builds
             # darwin-rebuild from the flake and `switch`es against this SAME
             # revision (${self}); darwin-rebuild self-elevates via sudo/Touch ID.
@@ -801,17 +739,6 @@
               meta.description = "Re-encrypt a new connector token (stdin/$TUNNEL_TOKEN) into secrets/cloudflared-token.age (run from the repo root)";
             };
 
-            # nixvm installer-ISO provisioner (macOS). DOWNLOAD the CI-prebuilt ISO
-            # from installer-latest + create disk.qcow2 + seed efivars — the
-            # acquire+prep step for a nixos-anywhere (re)install, so the Mac needs no
-            # local ISO build (no Docker, no Determinate Linux builder). The operator
-            # then re-keys agenix + runs nixos-anywhere. See packages/nixvm-provision-iso.nix
-            # + docs/nixvm-qemu-runbook.md + the nixvm-qemu-provision skill.
-            aarch64-darwin.nixvm-provision-iso = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.nixvm-provision-iso}/bin/nixvm-provision-iso";
-              meta.description = "Download the prebuilt nixvm ISO (installer-latest) + create disk.qcow2 + seed efivars for a nixos-anywhere install";
-            };
           }
           (
             forAllSystems (system: {

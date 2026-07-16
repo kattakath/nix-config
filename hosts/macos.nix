@@ -6,30 +6,23 @@
 # this file only provides host-specific settings.
 #
 # First activation (after Determinate Nix is installed, before darwin-rebuild is
-# on PATH) — a single line straight from the flake, the darwin analog of
-# `nix run .#nixvm` (see flake.nix apps.aarch64-darwin.macos):
+# on PATH) — a single line straight from the flake (the darwin analog of nixpi's
+# `nixos-rebuild switch --flake .#nixpi`; see flake.nix apps.aarch64-darwin.macos):
 #   nix run github:kattakath/nix-config#macos
 # Thereafter: darwin-rebuild switch --flake .#macos
 { userName, ... }:
 {
   imports = [
     ../modules/darwin/core.nix
-    # On-demand self-hosted GitHub Actions runners — both DISABLED / not-auto-started
-    # by default now that CI runs on GitHub-hosted runners (see nix-ci.yml). Kept as
-    # break-glass / local-builder infrastructure.
-    #   macos runner: hand-rolled launchd daemon (nix-darwin's services.github-runners
-    #     needs nix.enable = true, incompatible with this host's Determinate Nix).
-    #     Disabled by default; enable via services.macosGithubRunner.enable.
+    # On-demand self-hosted `macos` GitHub Actions runner — DISABLED / not
+    # auto-started by default now that CI runs on GitHub-hosted runners (see
+    # nix-ci.yml), and local aarch64-linux builds use Determinate's native Linux
+    # builder (see the macos block in flake.nix). Kept as break-glass infra: a
+    # hand-rolled launchd daemon (nix-darwin's services.github-runners needs
+    # nix.enable = true, incompatible with Determinate). Enable via
+    # services.macosGithubRunner.enable.
     ../modules/darwin/github-runner.nix
-    #   nixvm: the aarch64-linux QEMU/HVF guest. autoStart defaults false, so it is an
-    #     on-demand local builder (kickstart it when needed) — see the module.
-    ../modules/darwin/nixvm-qemu.nix
   ];
-
-  # Define the nixvm daemon (8 vCPU / 16 GiB of the M3 Pro's 12 cores / 36 GiB — NOT
-  # 12 vCPU, or the guest would size `nix build -j` to match and starve macOS).
-  # autoStart defaults false: on-demand only, brought up with `launchctl kickstart`.
-  services.nixvm-qemu.enable = true;
 
   nixpkgs.config.allowUnfree = true;
 
