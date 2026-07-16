@@ -1,44 +1,18 @@
-# NixOS sandbox VM (headless QEMU/HVF, run as a plain qemu-system-aarch64 process
-# kept alive by a launchd daemon — modules/darwin/nixvm-qemu.nix; no UTM) — UEFI +
-# systemd-boot + VirtIO. Architecture is chosen in flake.nix (`mkNixos { system = … }`),
-# so this file is arch-agnostic and backs the aarch64 VM today. Distinct from
-# `nixpi`, which targets real Raspberry Pi 4 hardware via raspberry-pi-nix (SD
-# image). The base config stays MINIMAL — boots, serial console, SSH, disko; no
-# desktop in the installed image.
+# Throwaway aarch64-linux DEV VM — materialised ONLY as the graphical `build-vm`
+# variant behind `nix run .#nixvm-gui` (an XFCE desktop in a native QEMU/Cocoa
+# window on macOS). It boots a THROWAWAY overlay, never an installed disk: there
+# is no installed nixvm, no builder VM, no self-hosted runner — CI is GitHub-hosted
+# and local aarch64-linux builds use Determinate's native Linux builder (enabled on
+# the macos host, see flake.nix). Distinct from `nixpi`, which targets real
+# Raspberry Pi 4 hardware via raspberry-pi-nix.
 #
-# GRAPHICAL VARIANT: the desktop lives ONLY in the `build-vm` variant
-# (virtualisation.vmVariant, below) via the opt-in modules/nixos/desktop-vm.nix.
-# Build+run a windowed QEMU VM straight from the flake — no UTM, no VM config
-# maintained outside Nix:
 #   nix run .#nixvm-gui                       # builds config.system.build.vm then boots it
 #   nixos-rebuild build-vm --flake .#nixvm    # equivalent; ./result/bin/run-nixvm-vm
-# The runner's QEMU is macOS-native (host.pkgs = aarch64-darwin, set in
-# flake.nix), but the GUEST is aarch64-linux, so building it on the Mac needs an
-# aarch64-linux builder. On the `macos` host that means Determinate's native
-# Linux builder — a FlakeHub/account feature enabled via https://dtr.mn/features
-# (verify: `determinate-nixd version`), NOT a flake setting and NOT nix-darwin's
-# `nix.linux-builder` (which needs nix.enable = true; Determinate disables it —
-# nix-darwin#1505). Until it is enabled, build the guest on any aarch64-linux
-# builder or pull from Cachix. The installed image stays headless.
 #
-# Install (from live ISO — single command):
-#   nix --extra-experimental-features 'nix-command flakes' run github:kattakath/nix-config#nixvm
-{
-  lib,
-  config,
-  pkgs,
-  orgName,
-  ...
-}:
-let
-  # The self-hosted GitHub Actions runner is GATED on its agenix token existing.
-  # Flakes only see committed files, so `pathExists` is false until
-  # secrets/gh-runner-token-nixvm.age is created + committed — the config thus
-  # evaluates cleanly now (runner absent) and the runner activates automatically
-  # once the operator lands the secret. See the runner block near the bottom.
-  runnerTokenFile = ../secrets/gh-runner-token-nixvm.age;
-  runnerEnabled = builtins.pathExists runnerTokenFile;
-in
+# The runner's QEMU is macOS-native (host.pkgs = aarch64-darwin, set in flake.nix);
+# the aarch64-linux guest closure builds on the native Linux builder or is
+# substituted from Cachix.
+{ lib, ... }:
 {
   imports = [ ../modules/nixos/desktop-vm.nix ];
 
@@ -50,10 +24,12 @@ in
   # DHCP on all interfaces (QEMU user-mode networking hands out a 10.0.2.x lease).
   networking.useDHCP = true;
 
+  # The base (non-vmVariant) config is kept a valid, bootable NixOS system so its
+  # toplevel evaluates (CI) and `build.vm` has a coherent substrate — the build-vm
+  # overlay supplies the actual throwaway root at run time (overriding fileSystems).
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
-
-  # VirtIO initrd modules — required for the root disk to mount in the QEMU VM.
+  # VirtIO initrd modules — the root disk device class in QEMU.
   boot.initrd.availableKernelModules = [
     "virtio_pci"
     "virtio_blk"
@@ -61,64 +37,14 @@ in
     "ahci"
     "sd_mod"
   ];
-
   # Serial console — headless QEMU access before/without a display.
   systemd.services."serial-getty@ttyAMA0".enable = true;
-
-  # Declarative disk layout for `disko --mode disko` at install time.
-  # disko.enableConfig = false: disko owns the partition/format step but does NOT
-  # generate fileSystems entries — the qemu-efi image builder (disk-image.nix)
-  # declares fileSystems."/" at the same priority, causing a merge conflict if
-  # both emit that option. The manual fileSystems blocks below are the runtime
-  # declarations; disko.devices is consumed only by the disko CLI.
-  disko.enableConfig = false;
-  disko.devices = {
-    disk.vda = {
-      type = "disk";
-      device = "/dev/vda";
-      content = {
-        type = "gpt";
-        partitions = {
-          ESP = {
-            size = "512M";
-            type = "EF00";
-            content = {
-              type = "filesystem";
-              format = "vfat";
-              mountpoint = "/boot";
-              mountOptions = [
-                "fmask=0077"
-                "dmask=0077"
-              ];
-              extraArgs = [
-                "-n"
-                "boot"
-              ];
-            };
-          };
-          root = {
-            size = "100%";
-            content = {
-              type = "filesystem";
-              format = "ext4";
-              mountpoint = "/";
-              extraArgs = [
-                "-L"
-                "nixos"
-              ];
-            };
-          };
-        };
-      };
-    };
-  };
 
   fileSystems."/" = {
     device = "/dev/disk/by-label/nixos";
     fsType = "ext4";
   };
-  # lib.mkDefault lets the image builder (qemu-efi) override the /boot label
-  # (it uses "ESP"); the installed VM always uses "boot" at runtime.
+  # mkDefault lets the build-vm image builder override the /boot label (it uses "ESP").
   fileSystems."/boot" = lib.mkDefault {
     device = "/dev/disk/by-label/boot";
     fsType = "vfat";
@@ -128,23 +54,11 @@ in
     ];
   };
 
-  # A swapFILE, not a swap partition: disko gives root `size = "100%"`, so adding a
-  # swap partition would mean repartitioning an already-installed disk. A file is
-  # idempotent and survives `qemu-img resize` + growfs. 4 GiB is a cushion for
-  # link-heavy Nix builds on a 16 GiB guest — it is not there to be used routinely;
-  # if the runner leans on it, raise services.nixvm-qemu.memoryMiB instead.
-  swapDevices = [
-    {
-      device = "/swapfile";
-      size = 4096; # MiB
-    }
-  ];
-
-  # ---- Graphical `build-vm` variant (GUI without UTM) -----------------------
+  # ---- Graphical `build-vm` variant -----------------------------------------
   # Everything under virtualisation.vmVariant applies ONLY when building the VM
-  # runner (`nix run .#nixvm-gui` / `nixos-rebuild build-vm`), never to the
-  # installed image or the CI runner. host.pkgs (the QEMU that RUNS the script)
-  # is set to aarch64-darwin in flake.nix so the runner is macOS-native.
+  # runner (`nix run .#nixvm-gui` / `nixos-rebuild build-vm`), never to the base
+  # toplevel. host.pkgs (the QEMU that RUNS the script) is set to aarch64-darwin in
+  # flake.nix so the runner is macOS-native.
   virtualisation.vmVariant = {
     # Turn the desktop on for the windowed VM only (base nixvm stays headless).
     services.desktopVm.enable = true;
@@ -164,56 +78,4 @@ in
       # Cocoa window. On a Linux host you'd add `-display gtk` here instead.
     };
   };
-
-  # ---- Self-hosted GitHub Actions runner (github-nix-ci) --------------------
-  # NixOS-native runner via `services.github-runners` (wrapped by github-nix-ci).
-  # Works here because nixvm is plain NixOS — unlike the macos host, where
-  # Determinate sets nix.enable = false and forces the hand-rolled launchd runner
-  # (modules/darwin/github-runner.nix). github-nix-ci runs the runner as the
-  # `github-runner` system user; with noDefaultLabels its labels are `nixvm` +
-  # `aarch64-linux`, so CI targets it with `runs-on: [nixvm, aarch64-linux]`.
-  #
-  # OPERATOR STEPS to bring it online (secrets/ is not editable from this repo
-  # tooling — do these by hand):
-  #   1. Mint a GitHub PAT (repo scope + manage self-hosted runners) for
-  #      the kattakath org (needs admin:org to register org-level runners).
-  #   2. Add nixvm's SSH host key + the operator key as recipients for
-  #      `gh-runner-token-nixvm.age` in secrets/secrets.nix.
-  #   3. `agenix -e secrets/gh-runner-token-nixvm.age`, paste the PAT, save.
-  #   4. Commit the .age — `runnerEnabled` flips true; `nixos-rebuild switch
-  #      --flake .#nixvm` on a RUNNING nixvm registers the ephemeral runner.
-  #   5. Flip the aarch64-linux CI legs to `runs-on: [nixvm, aarch64-linux]`
-  #      (keep the fork guard — the repo is public).
-  age.secrets = lib.mkIf runnerEnabled {
-    "gh-runner-token-nixvm" = {
-      file = runnerTokenFile;
-      owner = "github-runner"; # user github-nix-ci runs the runner as (Linux)
-    };
-  };
-  # ORG runners, not personalRunners: registered against github.com/kattakath so
-  # this one VM serves every repo in the org. github-nix-ci names them
-  # "<host>-<org>-<NN>" → nixvm-kattakath-01.
-  #
-  # num = 2, learned the hard way: with a single runner one long job (the ~1h
-  # cold Raspberry Pi kernel in build-installers) starves ALL other CI on the
-  # fleet — it blocked every PR three times in one afternoon.
-  services.github-nix-ci.orgRunners = lib.mkIf runnerEnabled {
-    # keyed by the GitHub org (flake.nix orgName, threaded via specialArgs) — one
-    # source of truth, matches the Cachix cache + runner naming.
-    ${orgName} = {
-      num = 2;
-      tokenFile = config.age.secrets."gh-runner-token-nixvm".path;
-    };
-  };
-  # Extra tools the CI workflows invoke directly on this runner (github-nix-ci's
-  # default runner PATH does NOT include them):
-  #   - git:    actions/checkout + the "git add -A" git-purity step.
-  #   - cachix: the build-installers "Push to Cachix" step runs `cachix push`
-  #             directly (cachix-action is skipped on self-hosted). nix-ci's leg
-  #             gets cachix via `nix run` on nix-fast-build, but the installer
-  #             workflow calls the bare binary, so it must be on PATH.
-  services.github-nix-ci.runnerSettings.extraPackages = [
-    pkgs.git
-    pkgs.cachix
-  ];
 }

@@ -24,6 +24,10 @@
   config,
   fullName,
   userEmail,
+  # Source-only flake inputs holding Claude Code skills (see programs.claude-code
+  # below). flake.nix pins them; nothing is vendored into this repo.
+  agent-skills-vercel,
+  agent-skills-anthropic,
   ...
 }:
 let
@@ -139,6 +143,29 @@ in
     claude-code = lib.mkIf pkgs.stdenv.isDarwin {
       enable = true;
       package = claudeCode;
+
+      # Flake-managed GLOBAL skills for Claude Code — the declarative, reproducible
+      # replacement for `npx skills add --global` (which drops a loose symlink into
+      # ~/.claude/skills). Each entry writes ~/.claude/skills/<name>/ at activation
+      # from a PINNED flake input (flake.nix), so a `darwin-rebuild switch`
+      # reproduces the exact skills on any machine and `nix flake update` bumps
+      # them — nothing vendored. (Repo-SPECIFIC skills stay in .claude/skills/ and
+      # activate only when working in this repo.)
+      skills = {
+        # Skill discovery from skills.sh (vercel-labs/skills).
+        find-skills = "${agent-skills-vercel}/skills/find-skills";
+        # Anthropic's official authoring toolkit for smarter claude-code project
+        # setup — the full plugin-dev skill set (agent/skill/command/hook/plugin/
+        # mcp authoring) plus hookify (hook rules).
+        agent-development = "${agent-skills-anthropic}/plugins/plugin-dev/skills/agent-development";
+        skill-development = "${agent-skills-anthropic}/plugins/plugin-dev/skills/skill-development";
+        command-development = "${agent-skills-anthropic}/plugins/plugin-dev/skills/command-development";
+        hook-development = "${agent-skills-anthropic}/plugins/plugin-dev/skills/hook-development";
+        mcp-integration = "${agent-skills-anthropic}/plugins/plugin-dev/skills/mcp-integration";
+        plugin-structure = "${agent-skills-anthropic}/plugins/plugin-dev/skills/plugin-structure";
+        plugin-settings = "${agent-skills-anthropic}/plugins/plugin-dev/skills/plugin-settings";
+        writing-hookify-rules = "${agent-skills-anthropic}/plugins/hookify/skills/writing-rules";
+      };
     };
 
     git = {
@@ -430,6 +457,19 @@ in
           "Default Window Settings" -string "Ubuntu" || true
         $DRY_RUN_CMD /usr/bin/defaults write com.apple.Terminal \
           "Startup Window Settings" -string "Ubuntu" || true
+      fi
+    '';
+
+    # Point Plash (masApps, modules/darwin/homebrew.nix) at the local live-wallpaper
+    # server (modules/darwin/core.nix) so the page is the desktop wallpaper. Plash
+    # stores its site list in its OWN prefs (not a file we manage), so this is a
+    # one-time GUI-scheme call guarded on absence — it runs once on a fresh Mac and
+    # is a no-op afterward. Best-effort (needs Plash installed + able to launch).
+    plashWallpaper = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      if ! /usr/bin/defaults read com.sindresorhus.Plash websites 2>/dev/null \
+           | /usr/bin/grep -q '127.0.0.1:8765'; then
+        $DRY_RUN_CMD /usr/bin/open -ga Plash || true
+        $DRY_RUN_CMD /usr/bin/open "plash:add?url=http%3A%2F%2F127.0.0.1%3A8765" || true
       fi
     '';
   };

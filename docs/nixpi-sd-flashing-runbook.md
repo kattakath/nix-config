@@ -55,15 +55,18 @@ into the kattakath Cachix. **You almost never build it by hand.**
 The one-command path (`nix run .#nixpi-flash`, §4) handles acquisition for you:
 
 - **`--release`** — download the CI-prebuilt image off `installer-latest`. Needs
-  `gh` auth but **no Nix build and no aarch64-linux builder**, so this is the
-  normal path on the client Mac (which has neither). This is what you want.
+  `gh` auth but **no Nix build at all**, so it is fast and cheap. This is the
+  normal path and what you want — the Mac *can* build the image itself now (next
+  bullet), but this skips a heavy multi-GB build.
 - **default (no flag)** — `nix build` the sdImage. The Cachix warm substitutes the
-  kernel/intermediates, but the *final* image assembly is an aarch64-linux build,
-  so this only completes where such a builder exists (`nixvm`, the devcontainer,
-  or Determinate's native Linux builder if enabled).
+  kernel/intermediates, but the *final* image assembly is an `aarch64-linux` build.
+  The client Mac can now do this locally on **Determinate's native Linux builder**,
+  but that runs on a small ephemeral ~1-CPU/8 GB VM, so a full SD-image assembly is
+  slow there — prefer `--release` unless you specifically want a from-source image.
+  (It also completes on any other aarch64-linux builder, e.g. the devcontainer.)
 - **`--image FILE.img.zst`** — flash a local prebuilt image you already have.
 
-To build it manually on an aarch64-linux builder (the old default):
+To build it manually on an aarch64-linux builder:
 
 ```bash
 git add -A                                                            # flakes ignore untracked files
@@ -79,8 +82,14 @@ a multi-GB ext4 root) — that is the size you must see land on the card in §4.
 
 ## 3. Move the image to the Mac and verify it survived the copy
 
-Copy the compressed image over and confirm the checksum matches the builder —
-so a corrupt *transfer* isn't mistaken for a bad *write* later.
+This step only applies if you built the image on a **separate** aarch64-linux
+builder. If you used `--release` or built locally on the Mac (via Determinate's
+native Linux builder), the image is already on this machine — there is no copy to
+verify, so skip straight to §4.
+
+When you did build on a remote box, copy the compressed image over and confirm the
+checksum matches the builder — so a corrupt *transfer* isn't mistaken for a bad
+*write* later.
 
 ```bash
 # on the builder:
