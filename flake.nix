@@ -260,7 +260,7 @@
           text = ''
             if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
               echo "ERROR: CLOUDFLARE_API_TOKEN is unset. Export a token with" >&2
-              echo "  Account Cloudflare Tunnel:Edit + Zone DNS:Edit on kattakath.com." >&2
+              echo "  Account Cloudflare Tunnel:Edit + Zone DNS:Edit on ${domainName}." >&2
               exit 1
             fi
             rm -f config.tf.json
@@ -328,15 +328,16 @@
       # Threaded into BOTH builders (mkNixos + mkDarwin) so system specialArgs and
       # the embedded Home-Manager block can never drift. Only args with a live
       # module consumer are carried: userName (core/host), fullName+userEmail
-      # (home.nix), orgName (github-runner/nixvm). handleName has no consumer (it
-      # only builds userEmail above); domainName is a terranix zone name, not a
-      # module arg — both are deliberately NOT threaded.
+      # (home.nix), orgName (github-runner/nixvm), domainName (nixpi's Caddy vhost
+      # + the darwin file-rotation launchd label). handleName has NO consumer — it
+      # only builds userEmail above — so it is deliberately NOT threaded.
       identityArgs = {
         inherit
           userName
           fullName
           orgName
           userEmail
+          domainName
           ;
       };
 
@@ -603,7 +604,9 @@
         (nixpkgs.lib.genAttrs darwinSystems (
           system:
           let
-            kit = (pkgsFor system).callPackage ./packages/nixpi-provision.nix { };
+            kit = (pkgsFor system).callPackage ./packages/nixpi-provision.nix {
+              inherit orgName repoName;
+            };
           in
           {
             nixpi-wifi-creds = kit.wifi-creds;
@@ -618,7 +621,9 @@
         # Downloads the CI-prebuilt nixvm ISO from installer-latest + lays down the
         # QEMU disk/efivars. See packages/nixvm-provision-iso.nix.
         (nixpkgs.lib.genAttrs darwinSystems (system: {
-          nixvm-provision-iso = (pkgsFor system).callPackage ./packages/nixvm-provision-iso.nix { };
+          nixvm-provision-iso = (pkgsFor system).callPackage ./packages/nixvm-provision-iso.nix {
+            inherit orgName repoName;
+          };
         }))
 
         {

@@ -25,6 +25,7 @@
 {
   lib,
   pkgs,
+  domainName,
   ...
 }:
 {
@@ -162,7 +163,7 @@
     # Address the site as `http://<host>` so Caddy serves plain HTTP and DISABLES
     # automatic HTTPS — TLS is terminated at Cloudflare's edge, and an http→https
     # redirect would loop back through the tunnel forever.
-    virtualHosts."http://kattakath.com".extraConfig = ''
+    virtualHosts."http://${domainName}".extraConfig = ''
       root * ${../packages/landing}
       file_server
     '';

@@ -2,8 +2,10 @@
 # This is "system logic" for the Mac; user logic stays in modules/shared.
 {
   config,
+  lib,
   pkgs,
   userName,
+  domainName,
   ...
 }:
 
@@ -11,6 +13,9 @@ let
   home = config.users.users.${userName}.home;
   # Screenshots land here and are rotated hourly by the launchd agent below.
   screengrabDir = "${home}/Pictures/Screengrab";
+  # Reverse-DNS namespace derived from the fleet domain (kattakath.com → com.kattakath)
+  # for the file-rotation launchd label, rather than hardcoding it.
+  rdns = lib.concatStringsSep "." (lib.reverseList (lib.splitString "." domainName));
 
   # Background login launcher: `open -g -j -a <App>` wrapped in a script with a
   # descriptive basename. macOS's Login Items ▸ "Allow in the Background" list
@@ -356,7 +361,7 @@ in
     # safely (spaces/newlines) with no bashisms, so it runs under /bin/sh or bash.
     file-rotation-screengrab = {
       serviceConfig = {
-        Label = "com.kattakath.file-rotation.trash-screengrab";
+        Label = "${rdns}.file-rotation.trash-screengrab";
         StartInterval = 3600;
         RunAtLoad = true;
         StandardOutPath = "${home}/Library/Logs/file-rotation-trash-screengrab.log";
