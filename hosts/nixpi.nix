@@ -25,12 +25,12 @@
 {
   lib,
   pkgs,
+  domainName,
   ...
 }:
 {
   imports = [
     ../modules/nixos/cloudflared.nix
-    ../modules/nixos/caddy-proxy.nix
     ../modules/nixos/firmware-provisioning.nix
   ];
 
@@ -154,13 +154,18 @@
     ];
   };
 
-  # Local reverse-proxy/router, sitting behind the tunnel. Today it serves only
-  # the public kattakath.com static landing page; future services front new
-  # virtualHosts entries here rather than a new tunnel per-service.
-  services.caddy-proxy = {
+  # Static landing page, served by upstream Caddy sitting BEHIND the Cloudflare
+  # tunnel (tunnel → Caddy on :80). Future services add more `virtualHosts` here
+  # rather than a new tunnel per-service; no public IP / port-forward is needed.
+  networking.firewall.allowedTCPPorts = [ 80 ]; # 443 omitted: TLS terminates at Cloudflare's edge
+  services.caddy = {
     enable = true;
-    virtualHosts."kattakath.com".root = ../packages/landing;
+    # Address the site as `http://<host>` so Caddy serves plain HTTP and DISABLES
+    # automatic HTTPS — TLS is terminated at Cloudflare's edge, and an http→https
+    # redirect would loop back through the tunnel forever.
+    virtualHosts."http://${domainName}".extraConfig = ''
+      root * ${../packages/landing}
+      file_server
+    '';
   };
-
-  system.stateVersion = "24.05";
 }

@@ -2,14 +2,20 @@
 # This is "system logic" for the Mac; user logic stays in modules/shared.
 {
   config,
+  lib,
   pkgs,
   userName,
+  domainName,
   ...
 }:
 
 let
-  # Screenshots land here and are rotated by services.fileRotation below.
-  screengrabDir = "${config.users.users.${userName}.home}/Pictures/Screengrab";
+  home = config.users.users.${userName}.home;
+  # Screenshots land here and are rotated hourly by the launchd agent below.
+  screengrabDir = "${home}/Pictures/Screengrab";
+  # Reverse-DNS namespace derived from the fleet domain (kattakath.com → com.kattakath)
+  # for the file-rotation launchd label, rather than hardcoding it.
+  rdns = lib.concatStringsSep "." (lib.reverseList (lib.splitString "." domainName));
 
   # Background login launcher: `open -g -j -a <App>` wrapped in a script with a
   # descriptive basename. macOS's Login Items ▸ "Allow in the Background" list
@@ -183,19 +189,6 @@ in
     ./homebrew.nix
     # Install Homebrew itself at the arch-correct prefix (nix-homebrew).
     ./nix-homebrew.nix
-    # Generic per-directory file-rotation LaunchAgents (used for screenshots).
-    ./file-rotation.nix
-  ];
-
-  # Hourly LaunchAgent that rotates ~/Pictures/Screengrab (>24h → ~/.Trash).
-  services.fileRotation.paths = [
-    {
-      # Agent label is derived: action "trash" + basename "Screengrab" →
-      # "trash-screengrab" (com.kattakath.file-rotation.trash-screengrab).
-      path = screengrabDir;
-      maxAgeDays = 1;
-      action = "trash";
-    }
   ];
 
   # NOTE: hostPlatform is set per-host from the darwinSystem `system` arg (via
@@ -358,6 +351,34 @@ in
     open-slack = mkLoginAgent "slack" "Slack";
     open-mail = mkLoginAgent "mail" "Mail";
     open-messages = mkLoginAgent "messages" "Messages";
+
+    # Hourly rotation of ~/Pictures/Screengrab: top-level files older than 24h are
+    # moved to ~/.Trash (recoverable). Uses ONLY stock macOS tools under /usr/bin
+    # and /bin (find/basename/date/mv/mkdir) — zero Nix runtime closure. The
+    # explicit Label keeps the domain-derived rDNS name (not nix-darwin's default
+    # org.nixos.* prefix) so the existing "Allow in the Background" state persists.
+    # The `-exec sh -c 'for f do …' _ {} +` form batches matches and iterates them
+    # safely (spaces/newlines) with no bashisms, so it runs under /bin/sh or bash.
+    file-rotation-screengrab = {
+      serviceConfig = {
+        Label = "${rdns}.file-rotation.trash-screengrab";
+        StartInterval = 3600;
+        RunAtLoad = true;
+        StandardOutPath = "${home}/Library/Logs/file-rotation-trash-screengrab.log";
+        StandardErrorPath = "${home}/Library/Logs/file-rotation-trash-screengrab.log";
+      };
+      script = ''
+        set -eu
+        /bin/mkdir -p "${home}/Library/Logs" "${home}/.Trash" "${screengrabDir}"
+        /usr/bin/find "${screengrabDir}" -maxdepth 1 -type f ! -name '.DS_Store' -mmin +1440 \
+          -exec /bin/sh -c 'for f do
+            dest="${home}/.Trash/$(/usr/bin/basename "$f")"
+            # Never clobber an existing trashed file of the same name.
+            [ -e "$dest" ] && dest="$dest.$(/bin/date +%Y%m%d%H%M%S)"
+            /bin/mv -- "$f" "$dest"
+          done' _ {} +
+      '';
+    };
   };
 
   # `screencapture` silently reverts to ~/Desktop if its target dir is missing,

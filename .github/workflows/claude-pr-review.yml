@@ -64,6 +64,14 @@ jobs:
           fetch-depth: 1
 
       - name: Advisory doc/comment-drift review
+        # ADVISORY only — it must NEVER gate the merge (see the header). The action
+        # exits non-zero when the agent runs out of turns before finishing
+        # (error_max_turns) or otherwise errors; on a large diff that would redden
+        # an advisory check that has no business blocking a PR. continue-on-error
+        # keeps the job green regardless — the review's value is the comments it
+        # posts, not its exit code. (`--max-turns` below is generous so it usually
+        # DOES finish and post; this is the belt to that suspenders.)
+        continue-on-error: true
         uses: anthropics/claude-code-action@f1bd27ca5b54584506e40e17884d90bdaaa1a9b3 # v1.0.173
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -108,4 +116,4 @@ jobs:
           # and comment but never mutate files or commit.
           claude_args: |
             --allowedTools "Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment,Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*)"
-            --max-turns 30
+            --max-turns 60

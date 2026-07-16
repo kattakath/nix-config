@@ -27,6 +27,8 @@
   gnused,
   gawk,
   gh,
+  orgName,
+  repoName,
 }:
 let
   operatorKey = "$HOME/.ssh/id_ed25519";
@@ -243,7 +245,7 @@ let
         # The sdImage asset is named nixos-sd-image-<label>-aarch64-linux.img.zst
         # (no host in the name); the nixvm ISO on the same release is nixos-minimal-*.iso,
         # so this .img.zst glob uniquely selects the nixpi image.
-        gh release download installer-latest -R kattakath/nix-config \
+        gh release download installer-latest -R ${orgName}/${repoName} \
           -p 'nixos-sd-image-*.img.zst' -D "$tmp" --clobber
         set -- "$tmp"/nixos-sd-image-*.img.zst
         image="$1"

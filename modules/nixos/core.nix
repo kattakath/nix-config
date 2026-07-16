@@ -3,7 +3,9 @@
 # User environment lives in modules/shared/home.nix (via Home Manager).
 {
   pkgs,
+  lib,
   userName,
+  operatorSshKey,
   ...
 }:
 {
@@ -27,9 +29,7 @@
       # reachable over the Cloudflare tunnel (nixpi) or the LAN (nixvm); key-only,
       # no password (settings below). Physical console (getty) is an independent
       # break-glass path.
-      openssh.authorizedKeys.keys = [
-        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAq9VALx6Y6OERWlWWvudcTUEO29BMFl3bbGwoVSTGsS"
-      ];
+      openssh.authorizedKeys.keys = [ operatorSshKey ];
     };
 
     services.openssh = {
@@ -65,8 +65,6 @@
     # language servers, downloaded toolchains) a glibc loader + a library search
     # path. This native NixOS module OWNS nix-ld on every NixOS host; `libraries`
     # merges with nix-ld's baseLibraries and is exposed via NIX_LD_LIBRARY_PATH.
-    # (The Home-Manager shim in modules/linux/nix-ld.nix stays inert here and only
-    # fires for standalone HM on non-NixOS Linux.)
     programs.nix-ld = {
       enable = true;
       # Shared list — same set the HM shim and the devcontainer image use.
@@ -99,5 +97,9 @@
       git
       curl
     ];
+
+    # Shared install-era stateVersion for every NixOS host (both import this
+    # module). mkDefault lets a future host pin a different one if ever needed.
+    system.stateVersion = lib.mkDefault "24.05";
   };
 }

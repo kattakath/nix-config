@@ -21,6 +21,8 @@
   coreutils,
   gh,
   qemu,
+  orgName,
+  repoName,
 }:
 writeShellApplication {
   name = "nixvm-provision-iso";
@@ -67,7 +69,7 @@ writeShellApplication {
       echo "nixvm-provision-iso: downloading the prebuilt nixvm ISO (installer-latest release)…"
       # The ISO asset is nixos-minimal-<label>-aarch64-linux.iso; the nixpi image on
       # the same release is *.img.zst, so this .iso glob uniquely selects the ISO.
-      gh release download installer-latest -R kattakath/nix-config \
+      gh release download installer-latest -R ${orgName}/${repoName} \
         -p 'nixos-minimal-*.iso' -D "$tmp" --clobber
       set -- "$tmp"/nixos-minimal-*.iso
       iso="$1"
