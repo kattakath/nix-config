@@ -105,6 +105,6 @@ in
   };
 
   config = lib.mkIf (cfg.files != { }) {
-    systemd.services = lib.listToAttrs (lib.mapAttrsToList mkService cfg.files);
+    systemd.services = lib.mapAttrs' mkService cfg.files;
   };
 }

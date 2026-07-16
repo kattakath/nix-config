@@ -15,16 +15,14 @@
 #       (so the Caddy landing-page ingress rule is publicly reachable);
 #   (d) the connector token, surfaced as a SENSITIVE `output` via the
 #       cloudflare_zero_trust_tunnel_cloudflared_token data source, so
-#       `nix run .#cf-tunnel-apply` prints it for the operator to place at
-#       /etc/secrets/cloudflared-token — NEVER written to git or the store.
-#
-# This is DISTINCT from and orthogonal to `infra/cloudflare/nixpi-ssh.nix` (the
-# ZTIA SSH Access target/application/policy). ZTIA layers Access + a CA on top
-# of THIS tunnel; it does not provision the tunnel. The two are separate
-# OpenTofu stacks with separate state (cf-tunnel-apply vs cf-ssh-apply).
+#       `nix run .#cf-tunnel-apply` prints it for the operator to store in the
+#       vault (`nix run .#nixpi-vault-token` → secrets/cloudflared-token.age) and
+#       plant on the FIRMWARE partition — NEVER written to git or the store.
 #
 # The runtime connector unit (`modules/nixos/cloudflared.nix`) is UNTOUCHED: it
-# reads the token this stack emits from /etc/secrets/cloudflared-token at boot.
+# reads the token at /run/cloudflared-token, which services.firmwareProvisioning
+# copies off the FAT FIRMWARE partition at boot (host-key-independent, so a fresh
+# SD flash does not lock out the tunnel — see hosts/nixpi.nix).
 #
 # Schemas verified against the current Cloudflare Terraform provider v5 docs
 # (cloudflare/terraform-provider-cloudflare, docs/resources + docs/data-sources):
@@ -40,8 +38,7 @@
 #   - data.cloudflare_zero_trust_tunnel_cloudflared_token: required { account_id,
 #     tunnel_id }; the token is the sensitive `.token` attribute.
 # accountId / zoneId / domainName are threaded from flake.nix's single sources of
-# truth (via _module.args in cfTunnelConfig) — the same account/zone the SSH stack
-# uses, so there is no per-file duplicate to drift.
+# truth (via _module.args in cfTunnelConfig), so there is no per-file duplicate to drift.
 {
   domainName,
   accountId,
@@ -93,7 +90,7 @@ in
           service = "ssh://localhost:22";
         }
         # Caddy landing page — kattakath.com -> local Caddy on :80
-        # (modules/nixos/caddy-proxy.nix serves packages/landing here).
+        # (hosts/nixpi.nix's services.caddy serves packages/landing here).
         {
           hostname = apexHostname;
           service = "http://localhost:80";
@@ -135,8 +132,8 @@ in
   # ---- (d) Connector token (data source) -------------------------------------
   # The token authenticates the `cloudflared` connector unit. It is a SECRET:
   # surfaced only as a sensitive output so `cf-tunnel-apply` prints it to the
-  # operator's terminal for manual placement at /etc/secrets/cloudflared-token.
-  # It is NEVER written into git or a /nix/store path.
+  # operator's terminal for storage in the vault (secrets/cloudflared-token.age)
+  # and planting on the FIRMWARE partition. It is NEVER written into git or a store path.
   data.cloudflare_zero_trust_tunnel_cloudflared_token.nixpi = {
     account_id = accountId;
     tunnel_id = tunnelId;
@@ -146,7 +143,7 @@ in
   output.nixpi_tunnel_id = {
     value = tunnelId;
   };
-  # SECRET — printed by cf-tunnel-apply for manual /etc/secrets placement.
+  # SECRET — printed by cf-tunnel-apply for storage in the vault + FIRMWARE plant.
   # `tofu output -raw nixpi_connector_token` yields the bare token.
   output.nixpi_connector_token = {
     value = "\${data.cloudflare_zero_trust_tunnel_cloudflared_token.nixpi.token}";

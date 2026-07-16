@@ -1,15 +1,19 @@
 # Unified user profile — loaded on EVERY machine (macOS, Pi, sandbox VM).
-# The single home of "user logic"; platform branches live in modules/linux and
-# modules/darwin.
+# The single home of "user logic"; system-level platform specifics live in
+# modules/darwin and modules/nixos.
 #
 # Personal token VALUES are intentionally NOT managed here. On macOS they live
 # in the login Keychain (encrypted at rest) — stored/registered by `set-secret`
 # (packages/set-secret.nix) and exported into login shells by the darwin-only
 # secretsKeychainInit hook in the let block below. Nothing plaintext is written
 # to disk. The Keychain is macOS-only, so the Linux hosts get no personal-token
-# mechanism here (use one-time CLI logins: gh/hf/docker/claude). System/service
-# secrets (e.g. the cloudflared tunnel token) are operator-placed `/etc/secrets/*`
-# root-only files on each host — no agenix, nothing managed from this repo.
+# mechanism here (use one-time CLI logins: gh/hf/docker/claude).
+#
+# SYSTEM/SERVICE secrets are separate from this profile: committed encrypted via
+# agenix (secrets/*.age → /run/agenix/<name> at activation, e.g. the macos/nixvm
+# runner PATs). The exception is nixpi's Cloudflare tunnel token, planted on the
+# FAT FIRMWARE partition → /run/cloudflared-token (agenix would bind it to the SSH
+# host key a fresh SD flash rotates — see hosts/nixpi.nix).
 #
 # Deliberately MINIMAL: no nixvim/tmux — the operator uses VSCode/Cursor and
 # prefers a lean profile with starship for the shell prompt. Add tools only for
@@ -87,7 +91,6 @@ let
 in
 {
   imports = [
-    ../linux/nix-ld.nix
     ./mcp.nix # darwin-gated MCP server registry for Claude Code
   ];
 

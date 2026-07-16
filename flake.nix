@@ -141,6 +141,14 @@
       cachixUrl = "https://${orgName}.cachix.org";
       cachixKey = "${orgName}.cachix.org-1:y/w6wnb4ZArdlbfWJ82c81uCXeYgG/sGDUYCszavmEw=";
 
+      # ---- Single source of truth for the operator SSH public key ------------
+      # The sole network login credential on every NixOS host AND the agenix
+      # "keep editable" recipient. Public, so the secret-free sdImage/installer
+      # embed it freely. Threaded to core.nix via mkNixos specialArgs and read
+      # directly by secrets/secrets.nix + hosts/nixvm-installer.nix — one file to
+      # edit on rotation instead of four (see secrets/operator-key.nix).
+      operatorSshKey = import ./secrets/operator-key.nix;
+
       # ---- Single source of truth for the Cloudflare account/zone ------------
       # Threaded (with domainName) into the cfTunnelConfig terranix stack via
       # `_module.args`, so the account/zone ids and the domain live in ONE place
@@ -220,8 +228,8 @@
         };
 
       # writeShellApplication wrapper around `tofu <action>` for the rendered
-      # nixpi tunnel config. Mirrors mkCfSshTofu (same token guard, same
-      # read-only-store-copy handling). On `apply`, it additionally prints the
+      # nixpi tunnel config (guards on CLOUDFLARE_API_TOKEN, copies the read-only
+      # rendered config out of the store first). On `apply`, it additionally prints the
       # SENSITIVE connector token (a sensitive tofu output) to STDOUT, clearly
       # labeled, so the operator can store it in the vault (`nix run
       # .#nixpi-vault-token`) and plant it on nixpi's FIRMWARE partition. The token
@@ -252,7 +260,7 @@
           text = ''
             if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
               echo "ERROR: CLOUDFLARE_API_TOKEN is unset. Export a token with" >&2
-              echo "  Account Cloudflare Tunnel:Edit + Zone DNS:Edit on kattakath.com." >&2
+              echo "  Account Cloudflare Tunnel:Edit + Zone DNS:Edit on ${domainName}." >&2
               exit 1
             fi
             rm -f config.tf.json
@@ -316,6 +324,40 @@
           };
         };
 
+      # ---- Shared identity + Home-Manager module ------------------------------
+      # Threaded into BOTH builders (mkNixos + mkDarwin) so system specialArgs and
+      # the embedded Home-Manager block can never drift. Only args with a live
+      # module consumer are carried: userName (core/host), fullName+userEmail
+      # (home.nix), orgName (github-runner/nixvm), domainName (nixpi's Caddy vhost
+      # + the darwin file-rotation launchd label). handleName has NO consumer — it
+      # only builds userEmail above — so it is deliberately NOT threaded.
+      identityArgs = {
+        inherit
+          userName
+          fullName
+          orgName
+          userEmail
+          domainName
+          ;
+      };
+
+      # The Home-Manager sub-module embedded identically in every host, defined
+      # once here instead of inline in each builder. extraSpecialArgs adds
+      # mcp-servers-nix (consumed by modules/shared/mcp.nix) to the identity set.
+      homeManagerModule = {
+        home-manager = {
+          useGlobalPkgs = true;
+          useUserPackages = true;
+          extraSpecialArgs = identityArgs // {
+            inherit mcp-servers-nix;
+          };
+          users.${userName} = {
+            imports = [ ./modules/shared/home.nix ];
+            home.stateVersion = "24.05";
+          };
+        };
+      };
+
       # ---- NixOS system builder -----------------------------------------------
       # Full NixOS system with Home Manager embedded, using the same shared user
       # profile as the darwin host.
@@ -333,20 +375,12 @@
           # `config.nixpkgs.hostPlatform.system` and would otherwise fail with
           # "option `nixpkgs.hostPlatform' was accessed but has no value". The two
           # cannot both be set (nixpkgs forbids it), so we drop the arg entirely.
-          specialArgs = {
-            inherit
-              userName
-              domainName
-              fullName
-              handleName
-              orgName
-              userEmail
-              # Public Cachix substituter URL + trusted-PUBLIC-key (verification
-              # key, safe to expose — NOT a secret/token). Consumed by
-              # modules/shared/nix-cache.nix.
-              cachixUrl
-              cachixKey
-              ;
+          # Cachix substituter URL + trusted-PUBLIC-key (verification key, safe to
+          # expose — NOT a secret) consumed by modules/shared/nix-cache.nix;
+          # operatorSshKey (the authorizedKeys credential) by modules/nixos/core.nix.
+          # Both are NixOS-only, so they are not in mkDarwin's specialArgs.
+          specialArgs = identityArgs // {
+            inherit cachixUrl cachixKey operatorSshKey;
           };
           modules = [
             { nixpkgs.hostPlatform = system; }
@@ -355,29 +389,7 @@
             ./modules/shared/nix-cache.nix # Cachix binary cache (read)
             agenix.nixosModules.default # encrypted in-repo secrets (./secrets/*.age)
             home-manager.nixosModules.home-manager
-            {
-              home-manager = {
-                useGlobalPkgs = true;
-                useUserPackages = true;
-                extraSpecialArgs = {
-                  inherit
-                    userName
-                    domainName
-                    fullName
-                    handleName
-                    orgName
-                    userEmail
-                    mcp-servers-nix
-                    ;
-                };
-                users.${userName} = {
-                  imports = [
-                    ./modules/shared/home.nix
-                  ];
-                  home.stateVersion = "24.05";
-                };
-              };
-            }
+            homeManagerModule
           ]
           ++ extraModules;
         };
@@ -394,18 +406,9 @@
         }:
         nix-darwin.lib.darwinSystem {
           inherit system;
-          specialArgs = {
-            inherit
-              userName
-              domainName
-              fullName
-              handleName
-              # orgName feeds modules/darwin/github-runner.nix, which registers
-              # the runner at github.com/${orgName} (org-level, not per-repo).
-              orgName
-              userEmail
-              ;
-          };
+          # Shared identity set (orgName feeds modules/darwin/github-runner.nix,
+          # which registers the runner at github.com/${orgName}, org-level).
+          specialArgs = identityArgs;
           modules = [
             {
               nixpkgs.hostPlatform = system;
@@ -447,27 +450,7 @@
             agenix.darwinModules.default # encrypted in-repo secrets (./secrets/*.age)
             ./hosts/${hostname}.nix
             home-manager.darwinModules.home-manager
-            {
-              home-manager = {
-                useGlobalPkgs = true;
-                useUserPackages = true;
-                extraSpecialArgs = {
-                  inherit
-                    userName
-                    domainName
-                    fullName
-                    handleName
-                    orgName
-                    userEmail
-                    mcp-servers-nix
-                    ;
-                };
-                users.${userName} = {
-                  imports = [ ./modules/shared/home.nix ];
-                  home.stateVersion = "24.05";
-                };
-              };
-            }
+            homeManagerModule
           ]
           ++ extraModules;
         };
@@ -621,7 +604,9 @@
         (nixpkgs.lib.genAttrs darwinSystems (
           system:
           let
-            kit = (pkgsFor system).callPackage ./packages/nixpi-provision.nix { };
+            kit = (pkgsFor system).callPackage ./packages/nixpi-provision.nix {
+              inherit orgName repoName;
+            };
           in
           {
             nixpi-wifi-creds = kit.wifi-creds;
@@ -636,7 +621,9 @@
         # Downloads the CI-prebuilt nixvm ISO from installer-latest + lays down the
         # QEMU disk/efivars. See packages/nixvm-provision-iso.nix.
         (nixpkgs.lib.genAttrs darwinSystems (system: {
-          nixvm-provision-iso = (pkgsFor system).callPackage ./packages/nixvm-provision-iso.nix { };
+          nixvm-provision-iso = (pkgsFor system).callPackage ./packages/nixvm-provision-iso.nix {
+            inherit orgName repoName;
+          };
         }))
 
         {
