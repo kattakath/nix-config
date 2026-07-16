@@ -1,7 +1,7 @@
 # Optional lightweight desktop for the nixvm dev VM — X11 + XFCE with passwordless
 # autologin and QEMU/SPICE guest integration. Opt-in via `services.desktopVm.enable`;
 # hosts/nixvm.nix enables it ONLY inside `virtualisation.vmVariant`, so the XFCE
-# desktop materialises for the graphical `build-vm` / `nix run .#nixvm-gui` path,
+# desktop materialises for the graphical `build-vm` / `nix run .#nixvm` path,
 # while the base nixvm toplevel (which exists only as the build-vm eval substrate,
 # see hosts/nixvm.nix) stays headless/minimal.
 #

@@ -1,5 +1,5 @@
 {
-  description = "Greenfield aarch64 Nix mono-repo: macOS (nix-darwin) client, a Raspberry Pi 4 NixOS server (nixpi), and a throwaway aarch64-linux NixOS dev VM (nixvm) booted only via `nix run .#nixvm-gui` — single source of truth across the fleet.";
+  description = "Greenfield aarch64 Nix mono-repo: macOS (nix-darwin) client, a Raspberry Pi 4 NixOS server (nixpi), and a throwaway aarch64-linux NixOS dev VM (nixvm) booted only via `nix run .#nixvm` — single source of truth across the fleet.";
 
   inputs = {
     # Unstable channel as the single source of truth for every platform.
@@ -448,7 +448,7 @@
                 extra-substituters = [ cachixUrl ];
                 extra-trusted-public-keys = [ cachixKey ];
               };
-              # LINUX BUILDS ON macOS (for `nix run .#nixvm-gui`, `.#nixpi`):
+              # LINUX BUILDS ON macOS (for `nix run .#nixvm`, `.#nixpi`):
               # Determinate's NATIVE Linux builder (Apple Virtualization framework —
               # no remote builder, no Docker) is ENABLED on this host, so aarch64-linux
               # and x86_64-linux derivations build locally on-demand. Verify with
@@ -519,7 +519,7 @@
         };
 
         # Throwaway aarch64-linux dev VM, materialised ONLY as the graphical
-        # `build-vm` variant behind `nix run .#nixvm-gui` (an XFCE desktop in a
+        # `build-vm` variant behind `nix run .#nixvm` (an XFCE desktop in a
         # native QEMU window — it boots a THROWAWAY overlay, never an installed
         # disk). Since Determinate's native Linux builder is now enabled on the
         # macos host, the aarch64-linux guest closure builds locally with NO
@@ -640,7 +640,7 @@
       ];
 
       # ---- Apps: dev VM + Cloudflare provisioning ----------------------------
-      # `nix run .#nixvm-gui` (on the aarch64-darwin Mac) — build the graphical
+      # `nix run .#nixvm` (on the aarch64-darwin Mac) — build the graphical
       # build-vm variant and boot it in a native QEMU window: a THROWAWAY XFCE dev
       # VM, no installed disk, no provisioning. The runner wrapper is a darwin
       # derivation (host.pkgs override above); the aarch64-linux guest closure now
@@ -663,14 +663,14 @@
       apps =
         nixpkgs.lib.recursiveUpdate
           {
-            # `nix run .#nixvm-gui` — build the graphical build-vm variant and
+            # `nix run .#nixvm` — build the graphical build-vm variant and
             # boot it in a native macOS QEMU window: a THROWAWAY XFCE dev VM (no
             # installed disk, no provisioning). The runner wrapper is a darwin
             # derivation (host.pkgs = aarch64-darwin); the aarch64-linux guest
             # closure builds on Determinate's native Linux builder (enabled on the
             # macos host) or is substituted from Cachix. run-nixvm-vm is the
             # qemu-vm.nix script name for "nixvm".
-            aarch64-darwin.nixvm-gui = {
+            aarch64-darwin.nixvm = {
               type = "app";
               program = "${self.nixosConfigurations.nixvm.config.system.build.vm}/bin/run-nixvm-vm";
               meta.description = "Boot a THROWAWAY nixvm dev VM with an XFCE desktop in a QEMU window (builds locally on the native Linux builder)";
