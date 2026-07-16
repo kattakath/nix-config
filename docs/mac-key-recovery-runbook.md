@@ -82,19 +82,14 @@ fleet), `bootstrap.sh` runs `key-recover --fresh` — it **founds** a new identi
 than failing:
 
 - generates a fresh operator keypair (`~/.ssh/id_ed25519`),
-- points BOTH the `operator` and `macos` recipients in `secrets/secrets.nix` at the new
-  operator key + this Mac's host key,
-- **re-initialises the `macos` service secret (`gh-runner-token.age`) to a placeholder** —
-  the old ciphertext is unrecoverable without the lost key (it is a revocable runner PAT),
-  done with `rm` + `agenix -e` via an `EDITOR=cp` shim (agenix reads content from `$EDITOR`,
-  not stdin). The operator-only `cloudflared-token.age` vault is left untouched (never
-  `agenix -r` here — it would fail decrypting that orphaned blob),
+- points the `operator` recipient in `secrets/secrets.nix` at the new operator key,
+- leaves the operator-only `cloudflared-token.age` vault untouched (never `agenix -r`
+  here — it would fail decrypting that orphaned blob, encrypted to the lost key),
 - activates `#macos`.
 
 Afterward `key-recover` prints the finishing steps: register `~/.ssh/id_ed25519.pub` on
-GitHub (authentication + signing), set the real PAT with `agenix -e secrets/gh-runner-token.age`,
-commit + push, and `nix run .#key-backup` so the machine is keyed next time. Add `--fresh`
-to skip the confirmation on a headless box.
+GitHub (authentication + signing), commit + push, and `nix run .#key-backup` so the machine
+is keyed next time. Add `--fresh` to skip the confirmation on a headless box.
 
 ## Why recovery is split in two
 
