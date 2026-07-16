@@ -33,7 +33,9 @@
 #   - cloudflare_zero_trust_access_application (self_hosted): required { domain,
 #     type = "self_hosted" } + account_id; policies is a LIST OF OBJECTS
 #     ({ id, precedence }); oauth_configuration = { enabled,
-#     dynamic_client_registration = { enabled } }.
+#     dynamic_client_registration = { enabled, allowed_uris, allow_any_on_localhost,
+#     allow_any_on_loopback } } — allowed_uris is REQUIRED for any non-loopback
+#     client (e.g. grok.com), or Access rejects its dynamic registration.
 #   - cloudflare_zero_trust_access_policy: required { account_id, name, decision };
 #     include is a set of objects — email match is { email = { email = "<addr>" } }.
 # accountId / zoneId / domainName / operatorEmail / publicPort are threaded from
@@ -132,6 +134,13 @@ in
       enabled = true;
       dynamic_client_registration = {
         enabled = true;
+        # Access only accepts a DCR request whose redirect_uri is localhost/loopback
+        # or listed HERE; everything else is rejected before the login screen, which
+        # surfaces in the client as a bare "problem connecting to this MCP server".
+        # This is grok.com's exact connector redirect_uri, captured from its DCR body
+        # during the OAuth probe. Keep it exact rather than a https://grok.com/*
+        # wildcard so only the connector callback can be registered.
+        allowed_uris = [ "https://grok.com/connectors-oauth-exchange-code/" ];
       };
     };
     policies = [
