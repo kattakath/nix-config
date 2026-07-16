@@ -308,6 +308,14 @@ in
         FK_StandardViewSettings = finderStandardViewSettings;
         StandardViewSettings = finderLegacyViewSettings;
       };
+
+      # Plash (the live-wallpaper app, masApps in homebrew.nix). Extend the
+      # wallpaper UNDER the menu bar so it turns translucent (the wallpaper shows
+      # through) instead of an opaque tinted bar, and render it on every Space.
+      CustomUserPreferences."com.sindresorhus.Plash" = {
+        extendPlashBelowMenuBar = true;
+        showOnAllSpaces = true;
+      };
     };
 
     # Keyboard remapping is available (system.keyboard.*) but intentionally left
@@ -351,6 +359,36 @@ in
     open-slack = mkLoginAgent "slack" "Slack";
     open-mail = mkLoginAgent "mail" "Mail";
     open-messages = mkLoginAgent "messages" "Messages";
+    # Plash (the live-wallpaper app) at login — its own "Launch at login" stays OFF
+    # so this agent is the single source (its wallpaper prefs are set declaratively
+    # in system.defaults.CustomUserPreferences below).
+    open-plash = mkLoginAgent "plash" "Plash";
+
+    # Local static server for the wallpaper page (packages/live-wallpaper/index.html,
+    # vendored into the flake so it is version-controlled + reproducible — served
+    # from its immutable /nix/store copy, so changing the wallpaper means editing
+    # that file and rebuilding). Loopback-only. Plash (masApps, homebrew.nix) points
+    # at http://127.0.0.1:8765 rather than a file:// URL, so the page gets a real
+    # http origin — its localStorage/state work (WKWebView disables them on file://).
+    # darkhttpd is a ~50 KB static server (leaner than python http.server); it serves
+    # index.html at /.
+    live-wallpaper-server = {
+      serviceConfig = {
+        Label = "${rdns}.live-wallpaper-server";
+        ProgramArguments = [
+          "${pkgs.darkhttpd}/bin/darkhttpd"
+          "${../../packages/live-wallpaper}"
+          "--addr"
+          "127.0.0.1"
+          "--port"
+          "8765"
+        ];
+        RunAtLoad = true;
+        KeepAlive = true;
+        StandardOutPath = "${home}/Library/Logs/live-wallpaper-server.log";
+        StandardErrorPath = "${home}/Library/Logs/live-wallpaper-server.log";
+      };
+    };
 
     # Hourly rotation of ~/Pictures/Screengrab: top-level files older than 24h are
     # moved to ~/.Trash (recoverable). Uses ONLY stock macOS tools under /usr/bin
