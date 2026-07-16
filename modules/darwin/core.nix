@@ -308,6 +308,14 @@ in
         FK_StandardViewSettings = finderStandardViewSettings;
         StandardViewSettings = finderLegacyViewSettings;
       };
+
+      # Plash (the live-wallpaper app, masApps in homebrew.nix). Extend the
+      # wallpaper UNDER the menu bar so it turns translucent (the wallpaper shows
+      # through) instead of an opaque tinted bar, and render it on every Space.
+      CustomUserPreferences."com.sindresorhus.Plash" = {
+        extendPlashBelowMenuBar = true;
+        showOnAllSpaces = true;
+      };
     };
 
     # Keyboard remapping is available (system.keyboard.*) but intentionally left
@@ -351,6 +359,10 @@ in
     open-slack = mkLoginAgent "slack" "Slack";
     open-mail = mkLoginAgent "mail" "Mail";
     open-messages = mkLoginAgent "messages" "Messages";
+    # Plash (the live-wallpaper app) at login — its own "Launch at login" stays OFF
+    # so this agent is the single source (its wallpaper prefs are set declaratively
+    # in system.defaults.CustomUserPreferences below).
+    open-plash = mkLoginAgent "plash" "Plash";
 
     # Local static server for the ~/Documents/learning-lab live-wallpaper page,
     # loopback-only. Plash (a `plash` cask, modules/darwin/homebrew.nix) points at
