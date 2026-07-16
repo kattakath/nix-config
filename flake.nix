@@ -676,10 +676,10 @@
           };
         }))
 
-        # `set-secret <KEY> [VALUE]` — write an env-var export into the
-        # host-local ~/.secrets file sourced at login (modules/shared/home.nix).
-        # Both fleet systems; pure nixpkgs deps, so callPackage autofills.
-        (forAllSystems (system: {
+        # `set-secret <KEY> [VALUE]` — store a secret in the macOS login Keychain
+        # (encrypted at rest) and register it for the login export loop
+        # (modules/shared/home.nix). DARWIN-ONLY: the Keychain is macOS-only.
+        (nixpkgs.lib.genAttrs darwinSystems (system: {
           set-secret = (pkgsFor system).callPackage ./packages/set-secret.nix { };
         }))
       ];
@@ -777,6 +777,17 @@
               meta.description = "First activation of the macos nix-darwin host from the flake (after Determinate Nix)";
             };
 
+            # `nix run .#set-secret -- KEY [VALUE]` — store a secret in the macOS
+            # login Keychain (encrypted at rest) + register it for the login
+            # export loop. Bare `nix run` only persists; the `set-secret` shell
+            # function (modules/shared/home.nix) also applies it to the current
+            # shell. Darwin-only (Keychain).
+            aarch64-darwin.set-secret = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.set-secret}/bin/set-secret";
+              meta.description = "Store KEY=VALUE in the macOS login Keychain (encrypted) and register it for login-shell export; omit VALUE for a hidden prompt";
+            };
+
             # nixpi SD-card provisioning (macOS). The executable runbook: build +
             # verified dd + plant token/wifi (nixpi-flash), plant onto a mounted card
             # (nixpi-provision), emit a wpa_supplicant.conf from this Mac's Wi-Fi
@@ -826,11 +837,6 @@
                 type = "app";
                 program = "${self.packages.${system}.cf-tunnel-destroy}/bin/cf-tunnel-destroy";
                 meta.description = "tofu destroy the nixpi Cloudflare tunnel/ingress/CNAME (needs CLOUDFLARE_API_TOKEN)";
-              };
-              set-secret = {
-                type = "app";
-                program = "${self.packages.${system}.set-secret}/bin/set-secret";
-                meta.description = "Write 'export KEY=VALUE' into the host-local ~/.secrets file (sourced at login); omit VALUE for a hidden prompt";
               };
             })
           );

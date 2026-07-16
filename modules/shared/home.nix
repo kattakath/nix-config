@@ -2,14 +2,14 @@
 # The single home of "user logic"; platform branches live in modules/linux and
 # modules/darwin.
 #
-# Personal token VALUES are intentionally NOT managed here. Raw env-var tokens
-# (e.g. CIVITAI_TOKEN) live in a host-local, chmod-600 `~/.secrets` file that is
-# git-ignored and never enters the world-readable store; the zsh block below
-# only sources it at login (`. ~/.secrets`, guarded so it is a no-op where the
-# file is absent). The rest use one-time CLI logins (gh/hf/docker/claude).
-# System/service secrets (e.g. the cloudflared tunnel token) are operator-placed
-# `/etc/secrets/*` root-only files on each host — no agenix, nothing managed
-# from this repo.
+# Personal token VALUES are intentionally NOT managed here. On macOS they live
+# in the login Keychain (encrypted at rest) — stored/registered by `set-secret`
+# (packages/set-secret.nix) and exported into login shells by the darwin-only
+# secretsKeychainInit hook in the let block below. Nothing plaintext is written
+# to disk. The Keychain is macOS-only, so the Linux hosts get no personal-token
+# mechanism here (use one-time CLI logins: gh/hf/docker/claude). System/service
+# secrets (e.g. the cloudflared tunnel token) are operator-placed `/etc/secrets/*`
+# root-only files on each host — no agenix, nothing managed from this repo.
 #
 # Deliberately MINIMAL: no nixvim/tmux — the operator uses VSCode/Cursor and
 # prefers a lean profile with starship for the shell prompt. Add tools only for
@@ -45,6 +45,45 @@ let
     doInstallCheck = false;
     __noChroot = false;
   });
+
+  # `set-secret <KEY> [VALUE]` — stores a secret in the macOS login Keychain
+  # (encrypted at rest) and registers it in an in-Keychain index. macOS-only.
+  setSecret = pkgs.callPackage ../../packages/set-secret.nix { };
+
+  # Shell login init for the Keychain-backed secret store (macOS only). Two jobs:
+  #   1. EXPORT every registered secret from the login Keychain into this login
+  #      shell (the source of truth is the Keychain; nothing plaintext on disk).
+  #   2. Define a `set-secret` FUNCTION that persists via the binary AND exports
+  #      the value into the CURRENT shell immediately (a bare binary can't touch
+  #      its parent's env). Shared verbatim by the zsh and bash profileExtra.
+  # Empty string on non-darwin hosts, so this is a pure macOS feature.
+  secretsKeychainInit = lib.optionalString pkgs.stdenv.isDarwin ''
+    __ss_account="$(id -un)"
+    __ss_index="$(/usr/bin/security find-generic-password -a "$__ss_account" -s __set_secret_index__ -w 2>/dev/null || true)"
+    # Split the SPACE-separated index by peeling one token at a time with POSIX
+    # parameter expansion — identical in zsh and bash (whereas `for k in $index`
+    # does NOT word-split in zsh). No subshell, so the exports land in THIS shell.
+    __ss_rest="$__ss_index"
+    while [ -n "$__ss_rest" ]; do
+      __ss_k="''${__ss_rest%% *}" # first token
+      __ss_rest="''${__ss_rest#"$__ss_k"}" # drop it
+      __ss_rest="''${__ss_rest# }" # trim one leading space
+      [ -n "$__ss_k" ] || continue
+      __ss_v="$(/usr/bin/security find-generic-password -a "$__ss_account" -s "$__ss_k" -w 2>/dev/null)" \
+        && export "$__ss_k=$__ss_v"
+    done
+    unset __ss_account __ss_index __ss_rest __ss_k __ss_v
+
+    # Wrapper: persist to the Keychain, then apply to THIS shell right away.
+    set-secret() {
+      command set-secret "$@" || return
+      case "''${1:-}" in
+        [A-Za-z_]*)
+          export "$1=$(/usr/bin/security find-generic-password -a "$(id -un)" -s "$1" -w 2>/dev/null)"
+          ;;
+      esac
+    }
+  '';
 in
 {
   imports = [
@@ -78,7 +117,10 @@ in
     # below (so the mcp-servers-nix integration can inject the shared MCP
     # registry — see ./mcp.nix). On the Linux hosts we don't enable that module,
     # so install the bare CLI here instead. Avoids a buildEnv /bin collision.
-    ++ lib.optionals (!stdenv.isDarwin) [ claudeCode ];
+    ++ lib.optionals (!stdenv.isDarwin) [ claudeCode ]
+    # set-secret: Keychain-backed secret writer, macOS-only (see the let block).
+    # On PATH so the `set-secret` shell function can call `command set-secret`.
+    ++ lib.optionals stdenv.isDarwin [ setSecret ];
 
   # ---- Home Manager program modules --------------------------------------------
   programs = {
@@ -160,12 +202,9 @@ in
     # A login shell is required for `home-manager switch` to wire session vars.
     bash = {
       enable = true;
-      # Twin of the zsh profileExtra below: source the host-local ~/.secrets on
-      # a bash login too, so personal-token env vars (e.g. CIVITAI_TOKEN) are
-      # present regardless of which login shell is used. `-r` guards absence.
-      profileExtra = ''
-        [ -r "$HOME/.secrets" ] && . "$HOME/.secrets"
-      '';
+      # macOS: load Keychain-backed secrets + define set-secret on a bash login
+      # too. Empty on non-darwin (see secretsKeychainInit in the let block).
+      profileExtra = secretsKeychainInit;
     };
 
     # zsh as the interactive shell — matches the devcontainer default
@@ -220,16 +259,12 @@ in
       autosuggestion.enable = true;
       syntaxHighlighting.enable = true;
 
-      # Source host-local personal-token env vars at login. `~/.secrets` is a
-      # chmod-600 file placed by hand on each machine, git-ignored and NEVER
-      # committed, so the token values stay out of the world-readable Nix store.
+      # macOS: at login, export every secret registered in the login Keychain
+      # and define the `set-secret` function (persist + apply to this shell).
       # We can't hand-edit ~/.zprofile (home-manager owns it as a read-only
-      # store symlink), so the sourcing hook must live here. Login-shell scope
-      # (.zprofile) so GUI apps inherit the vars too; the `-r` test makes it a
-      # clean no-op on any host that has no ~/.secrets.
-      profileExtra = ''
-        [ -r "$HOME/.secrets" ] && . "$HOME/.secrets"
-      '';
+      # store symlink), so the hook lives here. Login-shell scope (.zprofile).
+      # Empty on non-darwin (see secretsKeychainInit in the let block).
+      profileExtra = secretsKeychainInit;
     };
 
     # ---- VS Code (macOS only) --------------------------------------------------

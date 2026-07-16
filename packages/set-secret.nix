@@ -1,17 +1,21 @@
-# `set-secret <KEY> <VALUE>` — idempotently write an env-var export into the
-# host-local ~/.secrets file that the shared home profile sources at login
-# (modules/shared/home.nix, programs.{zsh,bash}.profileExtra). This is the
-# convenience writer for the plaintext-token strategy: it keeps ~/.secrets
-# chmod-600 and replaces any existing export of the same KEY in place, so
-# re-running with a rotated value updates rather than duplicates.
+# `set-secret <KEY> [VALUE]` — store a secret in the macOS login Keychain
+# (encrypted at rest) and register it so login shells export it. macOS-ONLY:
+# the Keychain is the single source of truth — nothing secret (not even the key
+# NAMES) is ever written to disk in plaintext.
 #
-# After writing it RE-SOURCES ~/.secrets in a clean subshell and echoes the
-# first few characters of the resolved value, proving the export round-trips to
-# a shell (login shells pick it up next start).
+# A companion shell FUNCTION (modules/shared/home.nix) wraps this binary so a
+# `set-secret KEY VALUE` at the prompt ALSO exports the value into the CURRENT
+# shell immediately; new login shells load every registered secret via the
+# export loop in that same module. Run bare (`nix run .#set-secret`) it only
+# persists — a child process cannot mutate its parent shell's environment.
 #
-# NOT agenix and NOT committed: ~/.secrets is a host-local plaintext file. The
-# VALUE is a positional arg, so it lands in shell history / `ps` — for a hidden
-# entry, omit it and the app prompts (read -rs). Runs on both fleet systems.
+# Managed items (login Keychain, account = `id -un`):
+#   service = <KEY>                 -> the secret value
+#   service = __set_secret_index__  -> space-separated list of managed KEYs,
+#                                      read by the login export loop
+#
+# Testing / advanced: export SET_SECRET_KEYCHAIN=/path/to.keychain to target a
+# keychain other than the default login one (used by the self-test).
 {
   writeShellApplication,
   coreutils,
@@ -24,13 +28,22 @@ writeShellApplication {
     gnugrep
   ];
   text = ''
-    file="$HOME/.secrets"
+    security=/usr/bin/security
+    account="$(id -un)"
+    index_service="__set_secret_index__"
+
+    # Optional non-default keychain (positional trailing arg to `security`).
+    kc=()
+    if [ -n "''${SET_SECRET_KEYCHAIN:-}" ]; then
+      kc=("$SET_SECRET_KEYCHAIN")
+    fi
 
     if [ "''${1:-}" = "-h" ] || [ "''${1:-}" = "--help" ]; then
       echo "usage: set-secret <KEY> [VALUE]"
-      echo "  Writes 'export KEY=VALUE' into ~/.secrets (chmod 600), replacing any"
-      echo "  existing KEY. Omit VALUE to be prompted without echo. KEY must be a"
-      echo "  valid shell env-var name."
+      echo "  Stores KEY=VALUE in the macOS login Keychain (encrypted at rest) and"
+      echo "  registers KEY so login shells export it. Omit VALUE for a hidden"
+      echo "  prompt. Use the set-secret shell function to also apply it to the"
+      echo "  current shell immediately."
       exit 0
     fi
 
@@ -52,36 +65,35 @@ writeShellApplication {
       IFS= read -rs value
       printf '\n' >&2
       if [ -z "$value" ]; then
-        echo "set-secret: empty value; nothing written." >&2
+        echo "set-secret: empty value; nothing stored." >&2
         exit 1
       fi
     fi
 
-    # Create the file private if it does not exist yet.
-    if [ ! -e "$file" ]; then
-      ( umask 077; : > "$file" )
-    fi
-    chmod 600 "$file"
+    # Store the secret encrypted. -U updates the item in place if it exists.
+    "$security" add-generic-password -U -a "$account" -s "$key" -w "$value" "''${kc[@]}"
 
-    # Rewrite atomically in the same dir (preserves fs + perms): drop any prior
-    # export of this KEY, then append the new one with %q-safe quoting.
-    tmp="$(mktemp "$file.XXXXXX")"
-    chmod 600 "$tmp"
-    grep -vE "^export ''${key}=" "$file" > "$tmp" || true
-    printf 'export %s=%q\n' "$key" "$value" >> "$tmp"
-    mv "$tmp" "$file"
+    # Register KEY in the in-Keychain index if not already there. SPACE-separated
+    # (not newline): `security -w` returns any value containing a newline as HEX,
+    # which would corrupt the index. KEYs match [A-Za-z0-9_]+ so they never
+    # contain a space — the login loop splits on spaces via POSIX parameter
+    # expansion (portable across zsh/bash).
+    index="$("$security" find-generic-password -a "$account" -s "$index_service" -w "''${kc[@]}" 2>/dev/null || true)"
+    case " $index " in
+      *" $key "*) : ;; # already registered
+      *)
+        if [ -n "$index" ]; then index="$index $key"; else index="$key"; fi
+        "$security" add-generic-password -U -a "$account" -s "$index_service" -w "$index" "''${kc[@]}"
+        ;;
+    esac
 
-    # Prove it reached a shell: source the file fresh and read the var back by
-    # indirect expansion, then show only the first few characters.
-    got="$(
-      # shellcheck disable=SC1090
-      . "$file" >/dev/null 2>&1
-      printf '%s' "''${!key}"
-    )"
+    # Verify the value round-trips back out of the Keychain, then show only the
+    # first few characters as proof (never the whole secret).
+    got="$("$security" find-generic-password -a "$account" -s "$key" -w "''${kc[@]}" 2>/dev/null || true)"
     if [ "$got" != "$value" ]; then
-      echo "set-secret: WARNING — $key did not round-trip when sourcing $file." >&2
+      echo "set-secret: WARNING — $key did not round-trip out of the Keychain." >&2
       exit 1
     fi
-    echo "set-secret: wrote $key to $file — sourced OK (value starts with ''${got:0:4}…). Full value applies at next login."
+    echo "set-secret: stored $key in the login Keychain (value starts with ''${got:0:4}…)."
   '';
 }
