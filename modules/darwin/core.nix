@@ -352,6 +352,31 @@ in
     open-mail = mkLoginAgent "mail" "Mail";
     open-messages = mkLoginAgent "messages" "Messages";
 
+    # Local static server for the ~/Documents/learning-lab live-wallpaper page,
+    # loopback-only. Plash (a `plash` cask, modules/darwin/homebrew.nix) points at
+    # http://127.0.0.1:8765 rather than a file:// URL, so the page gets a real
+    # http origin — its localStorage/state work (WKWebView disables them on
+    # file://). darkhttpd is a ~50 KB static server (leaner than python http.server);
+    # it serves index.html at /. KeepAlive keeps it up; edits to the page show on
+    # a Plash reload, so the wallpaper stays "live".
+    learning-lab-server = {
+      serviceConfig = {
+        Label = "${rdns}.learning-lab-server";
+        ProgramArguments = [
+          "${pkgs.darkhttpd}/bin/darkhttpd"
+          "${home}/Documents/learning-lab"
+          "--addr"
+          "127.0.0.1"
+          "--port"
+          "8765"
+        ];
+        RunAtLoad = true;
+        KeepAlive = true;
+        StandardOutPath = "${home}/Library/Logs/learning-lab-server.log";
+        StandardErrorPath = "${home}/Library/Logs/learning-lab-server.log";
+      };
+    };
+
     # Hourly rotation of ~/Pictures/Screengrab: top-level files older than 24h are
     # moved to ~/.Trash (recoverable). Uses ONLY stock macOS tools under /usr/bin
     # and /bin (find/basename/date/mv/mkdir) — zero Nix runtime closure. The

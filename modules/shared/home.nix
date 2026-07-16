@@ -459,6 +459,19 @@ in
           "Startup Window Settings" -string "Ubuntu" || true
       fi
     '';
+
+    # Point Plash (masApps, modules/darwin/homebrew.nix) at the local learning-lab
+    # server (modules/darwin/core.nix) so the page is the desktop wallpaper. Plash
+    # stores its site list in its OWN prefs (not a file we manage), so this is a
+    # one-time GUI-scheme call guarded on absence — it runs once on a fresh Mac and
+    # is a no-op afterward. Best-effort (needs Plash installed + able to launch).
+    plashWallpaper = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      if ! /usr/bin/defaults read com.sindresorhus.Plash websites 2>/dev/null \
+           | /usr/bin/grep -q '127.0.0.1:8765'; then
+        $DRY_RUN_CMD /usr/bin/open -ga Plash || true
+        $DRY_RUN_CMD /usr/bin/open "plash:add?url=http%3A%2F%2F127.0.0.1%3A8765" || true
+      fi
+    '';
   };
 
 }

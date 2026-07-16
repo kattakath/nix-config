@@ -62,6 +62,10 @@ _:
       "imagemagick"
       "img2pdf"
       "kubernetes-cli"
+      # Mac App Store CLI — drives `masApps` below (Plash). Requires being signed
+      # into the App Store; `mas install` pulls apps already in the Apple ID's
+      # library (Plash was previously installed on this ID, so it is).
+      "mas"
       "nats-server"
       "ncdu"
       "ocrmypdf"
@@ -112,8 +116,13 @@ _:
     ];
 
     # ---- Mac App Store apps (masApps) --------------------------------------
-    # Empty: Xcode now comes via the `xcodes` brew above (no `mas`/App-Store
-    # sign-in needed); Plash was dropped entirely.
-    masApps = { };
+    # Plash (com.sindresorhus.Plash) — renders a web page as the desktop wallpaper,
+    # pointed at the local learning-lab HTTP server (modules/darwin/core.nix) so
+    # the page gets a real http:// origin (its localStorage/state break on file://).
+    # App-Store-only (no Homebrew cask), so it comes via `mas` (brew above) — needs
+    # a one-time App Store sign-in. (Xcode still comes via the `xcodes` brew, not mas.)
+    masApps = {
+      Plash = 1494023538;
+    };
   };
 }
