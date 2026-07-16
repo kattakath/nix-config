@@ -360,10 +360,6 @@ in
     open-slack = mkLoginAgent "slack" "Slack";
     open-mail = mkLoginAgent "mail" "Mail";
     open-messages = mkLoginAgent "messages" "Messages";
-    # Plash (the live-wallpaper app) at login — its own "Launch at login" stays OFF
-    # so this agent is the single source (its wallpaper prefs are set declaratively
-    # in system.defaults.CustomUserPreferences below).
-    open-plash = mkLoginAgent "plash" "Plash";
 
     # Local static server for the wallpaper page (packages/live-wallpaper/index.html,
     # vendored into the flake so it is version-controlled + reproducible — served
