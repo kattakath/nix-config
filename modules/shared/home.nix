@@ -67,40 +67,81 @@ let
   # installs them via the Homebrew `sdkmanager`/`avdmanager` (the
   # android-commandlinetools cask + ANDROID_HOME set below), then launches.
   # Uses a native arm64 system image (fast on Apple Silicon). macOS-only.
+  #
+  # The AVD name selects the system image: a name containing "play" (e.g.
+  # `android-emu pixel_play`) gets the Google Play image (has the Play Store,
+  # not rootable); any other name gets Google APIs (no Play Store, dev-friendly).
+  #
+  # Launch defaults that make the emulator actually usable on Apple Silicon:
+  #   -gpu swiftshader_indirect  software rendering; host-GPU emulation renders a
+  #                              gray screen here, so we force software.
+  #   -no-snapshot               always cold boot; a corrupt saved snapshot is
+  #                              what makes the *second* launch hang on gray.
+  # Both are also baked into each AVD's config.ini (alongside hw.keyboard=yes so
+  # the Mac keyboard types into Android). Extra args after the name override the
+  # emulator flags, so `android-emu pixel -gpu host` still works.
   androidEmu = pkgs.writeShellApplication {
     name = "android-emu";
     runtimeInputs = [
       pkgs.coreutils
       pkgs.gnugrep
+      pkgs.gnused
     ];
     text = ''
       ANDROID_HOME="''${ANDROID_HOME:-/opt/homebrew/share/android-commandlinetools}"
       export ANDROID_HOME
-      image="system-images;android-35;google_apis;arm64-v8a"
       avd="''${1:-pixel}"
       sdkmanager="/opt/homebrew/bin/sdkmanager"
       avdmanager="/opt/homebrew/bin/avdmanager"
       emulator="$ANDROID_HOME/emulator/emulator"
+
+      # Google Play image for *play* AVDs, Google APIs otherwise.
+      case "$avd" in
+        *play*) image="system-images;android-35;google_apis_playstore;arm64-v8a" ;;
+        *)      image="system-images;android-35;google_apis;arm64-v8a" ;;
+      esac
 
       if [ ! -x "$sdkmanager" ]; then
         echo "android-emu: sdkmanager not found — run 'darwin-rebuild switch' to install the android-commandlinetools cask" >&2
         exit 1
       fi
 
-      # First run: accept licenses + install emulator/platform-tools/system image.
-      if [ ! -x "$emulator" ] || [ ! -d "$ANDROID_HOME/system-images" ]; then
+      # First run: accept licenses + install the emulator and platform-tools.
+      if [ ! -x "$emulator" ]; then
         echo "android-emu: installing SDK packages (first run, a few GB)…" >&2
         yes | "$sdkmanager" --licenses >/dev/null || true
-        "$sdkmanager" "platform-tools" "emulator" "$image"
+        "$sdkmanager" "platform-tools" "emulator"
       fi
 
-      # Create the AVD on first use (decline the custom-hardware prompt).
+      # Ensure the chosen system image is present (~1.5 GB per image).
+      if [ ! -d "$ANDROID_HOME/''${image//;//}" ]; then
+        echo "android-emu: downloading system image ($image)…" >&2
+        yes | "$sdkmanager" --licenses >/dev/null || true
+        "$sdkmanager" "$image"
+      fi
+
+      # Create the AVD on first use (decline the custom-hardware prompt), then
+      # persist the settings that make it work: software GPU + hardware keyboard,
+      # and PlayStore.enabled for play images.
       if ! "$avdmanager" list avd -c | grep -qx "$avd"; then
         echo "android-emu: creating AVD '$avd'…" >&2
-        echo "no" | "$avdmanager" create avd -n "$avd" -k "$image"
+        echo "no" | "$avdmanager" create avd -n "$avd" -k "$image" -d pixel
+
+        cfg="$HOME/.android/avd/$avd.avd/config.ini"
+        set_key() {
+          if grep -q "^$1=" "$cfg"; then
+            sed -i "s|^$1=.*|$1=$2|" "$cfg"
+          else
+            echo "$1=$2" >> "$cfg"
+          fi
+        }
+        set_key hw.gpu.enabled yes
+        set_key hw.gpu.mode swiftshader_indirect
+        set_key hw.keyboard yes
+        case "$avd" in *play*) set_key PlayStore.enabled yes ;; esac
       fi
 
-      exec "$emulator" -avd "$avd" "''${@:2}"
+      exec "$emulator" -avd "$avd" -no-snapshot -gpu swiftshader_indirect "''${@:2}"
     '';
   };
 
