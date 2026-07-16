@@ -1,12 +1,12 @@
 # Throwaway aarch64-linux DEV VM — materialised ONLY as the graphical `build-vm`
-# variant behind `nix run .#nixvm-gui` (an XFCE desktop in a native QEMU/Cocoa
+# variant behind `nix run .#nixvm` (an XFCE desktop in a native QEMU/Cocoa
 # window on macOS). It boots a THROWAWAY overlay, never an installed disk: there
 # is no installed nixvm, no builder VM, no self-hosted runner — CI is GitHub-hosted
 # and local aarch64-linux builds use Determinate's native Linux builder (enabled on
 # the macos host, see flake.nix). Distinct from `nixpi`, which targets real
 # Raspberry Pi 4 hardware via raspberry-pi-nix.
 #
-#   nix run .#nixvm-gui                       # builds config.system.build.vm then boots it
+#   nix run .#nixvm                       # builds config.system.build.vm then boots it
 #   nixos-rebuild build-vm --flake .#nixvm    # equivalent; ./result/bin/run-nixvm-vm
 #
 # The runner's QEMU is macOS-native (host.pkgs = aarch64-darwin, set in flake.nix);
@@ -53,7 +53,7 @@
 
   # ---- Graphical `build-vm` variant -----------------------------------------
   # Everything under virtualisation.vmVariant applies ONLY when building the VM
-  # runner (`nix run .#nixvm-gui` / `nixos-rebuild build-vm`), never to the base
+  # runner (`nix run .#nixvm` / `nixos-rebuild build-vm`), never to the base
   # toplevel. host.pkgs (the QEMU that RUNS the script) is set to aarch64-darwin in
   # flake.nix so the runner is macOS-native.
   virtualisation.vmVariant = {
