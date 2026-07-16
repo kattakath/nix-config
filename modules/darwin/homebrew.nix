@@ -87,6 +87,7 @@ _:
     # The "claude" cask is the Claude DESKTOP app (the claude-code CLI cask was
     # dropped for nixpkgs — see header). Font casks moved to nixpkgs too.
     casks = [
+      "android-commandlinetools"
       "android-platform-tools"
       "applite"
       "blackhole-2ch"
