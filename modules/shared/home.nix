@@ -10,8 +10,8 @@
 # mechanism here (use one-time CLI logins: gh/hf/docker/claude).
 #
 # SYSTEM/SERVICE secrets are separate from this profile: committed encrypted via
-# agenix (secrets/*.age → /run/agenix/<name> at activation, e.g. the macos/nixvm
-# runner PATs). The exception is nixpi's Cloudflare tunnel token, planted on the
+# agenix (secrets/*.age → /run/agenix/<name> at activation, e.g. the macos
+# runner PAT). The exception is nixpi's Cloudflare tunnel token, planted on the
 # FAT FIRMWARE partition → /run/cloudflared-token (agenix would bind it to the SSH
 # host key a fresh SD flash rotates — see hosts/nixpi.nix).
 #
@@ -28,6 +28,9 @@
   # below). flake.nix pins them; nothing is vendored into this repo.
   agent-skills-vercel,
   agent-skills-anthropic,
+  # Live-wallpaper loopback port (single-sourced in flake.nix) — the darwin-gated
+  # Plash activation below points Plash at it; inert on the NixOS hosts.
+  wallpaperPort,
   ...
 }:
 let
@@ -467,9 +470,9 @@ in
     # is a no-op afterward. Best-effort (needs Plash installed + able to launch).
     plashWallpaper = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       if ! /usr/bin/defaults read com.sindresorhus.Plash websites 2>/dev/null \
-           | /usr/bin/grep -q '127.0.0.1:8765'; then
+           | /usr/bin/grep -q '127.0.0.1:${toString wallpaperPort}'; then
         $DRY_RUN_CMD /usr/bin/open -ga Plash || true
-        $DRY_RUN_CMD /usr/bin/open "plash:add?url=http%3A%2F%2F127.0.0.1%3A8765" || true
+        $DRY_RUN_CMD /usr/bin/open "plash:add?url=http%3A%2F%2F127.0.0.1%3A${toString wallpaperPort}" || true
       fi
     '';
   };

@@ -43,10 +43,9 @@ with fork instructions if not), then:
   published beforehand by `nix run .#key-backup`) → restores your operator key, re-keys
   agenix to this Mac's new host key, activates `#macos`;
 - **no kit** → **founds** a brand-new operator identity (a fresh keypair, agenix re-keyed
-  to it, the macOS service secret re-initialised to a placeholder), then activates `#macos`.
-  Afterward: register `~/.ssh/id_ed25519.pub` on GitHub (auth + signing), set the real PAT
-  (`agenix -e secrets/gh-runner-token.age`), and `nix run .#key-backup`. Add `--fresh` to
-  skip the confirmation on a headless box.
+  to it), then activates `#macos`. Afterward: register `~/.ssh/id_ed25519.pub` on GitHub
+  (auth + signing) and `nix run .#key-backup`. Add `--fresh` to skip the confirmation on a
+  headless box.
 
 Prefer not to trust the raw URL? The kit ships the same (CI-linted) `bootstrap.sh` — run the
 on-disk copy, `./bootstrap.sh`. (It still needs network: it downloads the Determinate
@@ -158,7 +157,7 @@ CI runs on **GitHub Actions** ([`nix-ci.yml`](./.github/workflows/nix-ci.yml)) a
 
 ## Secrets
 
-No plaintext secrets live in this repo. System/service credentials are committed **encrypted** with [agenix](https://github.com/ryantm/agenix) (`secrets/*.age`, recipients declared in `secrets/secrets.nix`) and decrypted at activation into `/run/agenix/` using each host's own SSH host key — today the `macos` GitHub Actions runner PAT. **`nixpi`'s Cloudflare Tunnel token is the deliberate exception**: it is an operator-only vault planted on the SD card's FAT `FIRMWARE` partition and copied into a `/run` file at boot, **never** decrypted on `nixpi` — because a fresh SD flash rotates the host key, which would break host-key decryption and kill the only remote path in. Personal tokens stay out of Nix and git entirely (macOS Keychain / CLI logins). The Cachix substituter is public and read-only (URL + public key, no token). See [SECURITY.md](./SECURITY.md) for the full model.
+No plaintext secrets live in this repo. The one committed secret — `nixpi`'s Cloudflare Tunnel token — is encrypted with [agenix](https://github.com/ryantm/agenix) (`secrets/cloudflared-token.age`, recipient declared in `secrets/secrets.nix`) to the **operator's key alone**, so agenix is effectively an **operator-only vault**: the operator decrypts it on the Mac and plants it on the SD card's FAT `FIRMWARE` partition, from where it is copied into a `/run` file at boot — it is **never** decrypted on `nixpi` (a fresh SD flash rotates the host key, which would break host-key decryption and kill the only remote path in). No secret is host-decrypted into `/run/agenix/` anymore, and there are no runner PATs — the fleet's self-hosted runners are retired and CI is fully GitHub-hosted. Personal tokens stay out of Nix and git entirely (macOS Keychain / CLI logins). The Cachix substituter is public and read-only (URL + public key, no token). See [SECURITY.md](./SECURITY.md) for the full model.
 
 ## Contributing
 
