@@ -29,7 +29,8 @@
   agent-skills-vercel,
   agent-skills-anthropic,
   # Live-wallpaper loopback port (single-sourced in flake.nix) — the darwin-gated
-  # Plash activation below points Plash at it; inert on the NixOS hosts.
+  # Plash activation below points Plash at it; inert on the NixOS hosts. Kept as
+  # the opt-in live-wallpaper path alongside the default static wallpaper.
   wallpaperPort,
   ...
 }:
@@ -463,11 +464,23 @@ in
       fi
     '';
 
-    # Point Plash (masApps, modules/darwin/homebrew.nix) at the local live-wallpaper
-    # server (modules/darwin/core.nix) so the page is the desktop wallpaper. Plash
-    # stores its site list in its OWN prefs (not a file we manage), so this is a
-    # one-time GUI-scheme call guarded on absence — it runs once on a fresh Mac and
-    # is a no-op afterward. Best-effort (needs Plash installed + able to launch).
+    # Static desktop wallpaper (the DEFAULT): the vendored wallpaper.png
+    # (./wallpaper/wallpaper.png, version-controlled → served from its immutable
+    # /nix/store copy). macOS keeps the desktop picture in a sqlite db that
+    # `defaults` can't reliably read/write, so drive it via System Events, which
+    # sets it for every display. Re-run each activation (cheap, idempotent — it
+    # just re-points at the same store path).
+    setWallpaper = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      $DRY_RUN_CMD /usr/bin/osascript -e \
+        'tell application "System Events" to tell every desktop to set picture to "${./wallpaper/wallpaper.png}"' || true
+    '';
+
+    # OPT-IN live wallpaper: point Plash (masApps, modules/darwin/homebrew.nix) at
+    # the local live-wallpaper server (modules/darwin/core.nix). Plash stores its
+    # site list in its OWN prefs (not a file we manage), so this is a one-time
+    # GUI-scheme call guarded on absence — it configures Plash once, then is a
+    # no-op. Plash is no longer launched at login (see modules/darwin/core.nix), so
+    # the static wallpaper above wins by default; open Plash to use the live one.
     plashWallpaper = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       if ! /usr/bin/defaults read com.sindresorhus.Plash websites 2>/dev/null \
            | /usr/bin/grep -q '127.0.0.1:${toString wallpaperPort}'; then
