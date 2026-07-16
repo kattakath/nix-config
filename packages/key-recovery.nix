@@ -352,9 +352,8 @@ in
               # (agenix 0.15.0) and IGNORES a caller-set EDITOR — so PIPE the placeholder in
               # on stdin (this is the founding flow: key-recover was exec'd under curl|bash).
               # `rm` first so agenix skips decrypt (no old key needed). Only macos-recipient
-              # blobs are touched; gh-runner-token-nixvm.age (still host-decryptable on
-              # nixvm) and the operator-only cloudflared vault are left ALONE. NEVER `agenix
-              # -r` here — it would fail decrypting those orphaned blobs.
+              # blobs are touched; the operator-only cloudflared vault is left ALONE. NEVER
+              # `agenix -r` here — it would fail decrypting that orphaned blob.
               for f in $KEEP; do
                 if [ -f "secrets/$f" ] \
                   && age -d -i "$HOME/.ssh/id_ed25519" "secrets/$f" >/dev/null 2>&1; then
@@ -578,8 +577,7 @@ in
                 "" \
                 "  # 4. Other hosts' secrets were NOT re-keyed (no old operator key to decrypt them)." \
                 "  #    secrets.nix now names your NEW operator; re-establish those from source when you" \
-                "  #    bring the hosts up: cloudflared-token via cf-tunnel-apply + nixpi-vault-token;" \
-                "  #    gh-runner-token-nixvm when you next rebuild/provision nixvm."
+                "  #    bring the hosts up: cloudflared-token via cf-tunnel-apply + nixpi-vault-token."
             else
               notify "This Mac is recovered and activated."
               say "Recovered. Remaining steps:"

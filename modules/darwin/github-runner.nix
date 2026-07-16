@@ -37,8 +37,7 @@ let
   # host serves EVERY repo in the org, which is the whole point of moving the
   # fleet under `kattakath`. Requires the PAT to carry admin:org — it does.
   host = "macos";
-  # Uniform with github-nix-ci's naming on nixvm ("<host>-<org>-<NN>"), so the
-  # two runners read as one fleet in the GitHub UI instead of two conventions.
+  # "<host>-<org>-<NN>" naming so the runner reads clearly in the GitHub UI.
   name = "${host}-${orgName}-01";
   user = "_github-runner";
   stateDir = "/var/lib/github-runner-${host}";

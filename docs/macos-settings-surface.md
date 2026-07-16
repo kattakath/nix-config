@@ -54,8 +54,6 @@ slice**, not the ceiling — §2 shows how much more is reachable.
 - `services.fileRotation` (`modules/darwin/file-rotation.nix`) — turns directories
   into launchd user agents that rotate old files to Trash. Used for
   `~/Pictures/Screengrab`.
-- `services.nixvm-qemu` (`modules/darwin/nixvm-qemu.nix`) — the QEMU builder VM as
-  a launchd daemon (on-demand, `autoStart=false`).
 - `services.macosGithubRunner` (`modules/darwin/github-runner.nix`) — hand-rolled
   launchd runner (disabled by default).
 - `launchd.agents.mcp-gateway` (`modules/shared/mcp.nix`, Home-Manager side) — the
