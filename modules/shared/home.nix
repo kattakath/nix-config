@@ -145,6 +145,23 @@ in
     # On PATH so the `set-secret` shell function can call `command set-secret`.
     ++ lib.optionals stdenv.isDarwin [ setSecret ];
 
+  # ---- Android SDK (macOS only) ------------------------------------------------
+  # The `android-commandlinetools` Homebrew cask installs sdkmanager/avdmanager
+  # under the Homebrew prefix. Point ANDROID_HOME there so `sdkmanager` downloads
+  # the emulator + system images into it, and put the emulator/platform-tools
+  # bins on PATH (adb itself also comes from the `android-platform-tools` cask).
+  # One-time after switching: accept licenses + install an image, e.g.
+  #   sdkmanager "platform-tools" "emulator" "system-images;android-35;google_apis;arm64-v8a"
+  #   avdmanager create avd -n pixel -k "system-images;android-35;google_apis;arm64-v8a"
+  #   emulator -avd pixel
+  home.sessionVariables = lib.mkIf pkgs.stdenv.isDarwin {
+    ANDROID_HOME = "/opt/homebrew/share/android-commandlinetools";
+  };
+  home.sessionPath = lib.optionals pkgs.stdenv.isDarwin [
+    "/opt/homebrew/share/android-commandlinetools/emulator"
+    "/opt/homebrew/share/android-commandlinetools/platform-tools"
+  ];
+
   # ---- Home Manager program modules --------------------------------------------
   programs = {
     # Let Home Manager manage itself.
