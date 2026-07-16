@@ -12,7 +12,7 @@
 # The runner's QEMU is macOS-native (host.pkgs = aarch64-darwin, set in flake.nix);
 # the aarch64-linux guest closure builds on the native Linux builder or is
 # substituted from Cachix.
-{ lib, ... }:
+{ ... }:
 {
   imports = [ ../modules/nixos/desktop-vm.nix ];
 
@@ -37,21 +37,18 @@
     "ahci"
     "sd_mod"
   ];
-  # Serial console — headless QEMU access before/without a display.
+  # Serial console — a getty on ttyAMA0 (harmless; the base config exists only as
+  # the build-vm eval substrate, so it never actually serves a login).
   systemd.services."serial-getty@ttyAMA0".enable = true;
 
+  # Root filesystem: a PLACEHOLDER that only satisfies NixOS's "you must define a
+  # root fileSystem" eval requirement for the base toplevel. There is no on-disk
+  # layout anymore (disko was dropped with the installed nixvm); the build-vm
+  # variant overrides fileSystems via mkVMOverride (qemu-vm.nix) to boot a
+  # throwaway scratch overlay.
   fileSystems."/" = {
     device = "/dev/disk/by-label/nixos";
     fsType = "ext4";
-  };
-  # mkDefault lets the build-vm image builder override the /boot label (it uses "ESP").
-  fileSystems."/boot" = lib.mkDefault {
-    device = "/dev/disk/by-label/boot";
-    fsType = "vfat";
-    options = [
-      "fmask=0077"
-      "dmask=0077"
-    ];
   };
 
   # ---- Graphical `build-vm` variant -----------------------------------------

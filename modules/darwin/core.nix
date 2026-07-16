@@ -6,6 +6,7 @@
   pkgs,
   userName,
   domainName,
+  wallpaperPort,
   ...
 }:
 
@@ -367,8 +368,9 @@ in
     # Local static server for the wallpaper page (packages/live-wallpaper/index.html,
     # vendored into the flake so it is version-controlled + reproducible — served
     # from its immutable /nix/store copy, so changing the wallpaper means editing
-    # that file and rebuilding). Loopback-only. Plash (masApps, homebrew.nix) points
-    # at http://127.0.0.1:8765 rather than a file:// URL, so the page gets a real
+    # that file and rebuilding). Loopback-only on wallpaperPort (single-sourced in
+    # flake.nix). Plash (masApps, homebrew.nix) is pointed at http://127.0.0.1:<port>
+    # by the home.nix activation rather than a file:// URL, so the page gets a real
     # http origin — its localStorage/state work (WKWebView disables them on file://).
     # darkhttpd is a ~50 KB static server (leaner than python http.server); it serves
     # index.html at /.
@@ -381,7 +383,7 @@ in
           "--addr"
           "127.0.0.1"
           "--port"
-          "8765"
+          (toString wallpaperPort)
         ];
         RunAtLoad = true;
         KeepAlive = true;

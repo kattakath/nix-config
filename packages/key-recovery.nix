@@ -283,12 +283,6 @@ in
                 exit 0
               fi
 
-              # host key first — it becomes the new `macos` agenix recipient.
-              say "Ensuring this Mac has an SSH host key"
-              sudo ssh-keygen -A
-              [ -f /etc/ssh/ssh_host_ed25519_key.pub ] \
-                || die "/etc/ssh/ssh_host_ed25519_key.pub missing after ssh-keygen -A."
-              NEWHOST="$(cut -d' ' -f1,2 /etc/ssh/ssh_host_ed25519_key.pub)"
 
               # clone over HTTPS — the fresh operator key is not on GitHub yet.
               if [ ! -d "$REPO_DIR/.git" ]; then
@@ -317,54 +311,21 @@ in
               chmod 600 "$HOME/.ssh/allowed_signers"
               NEWOP="$(cut -d' ' -f1,2 "$HOME/.ssh/id_ed25519.pub")"
 
-              # 2. Point agenix at your NEW operator + this Mac's host key. Idempotent:
-              #    re-running the sed when the line already holds the new key is a no-op,
-              #    so a partial/interrupted run always re-completes (the per-file gate
-              #    below decides what to re-encrypt — not a single up-front marker).
-              say "Pointing agenix at your NEW operator + this Mac's host key"
-              sed -i "s|^  macos = \"ssh-ed25519 [A-Za-z0-9+/=]*\";|  macos = \"$NEWHOST\";|" secrets/secrets.nix
-              sed -i "s|^  operator = \"ssh-ed25519 [A-Za-z0-9+/=]*\";|  operator = \"$NEWOP\";|" secrets/secrets.nix
-              grep -qF "$NEWHOST" secrets/secrets.nix \
-                || die "secrets/secrets.nix macos recipient not updated (line reformatted?). Expected: $NEWHOST"
-              grep -qF "$NEWOP" secrets/secrets.nix \
-                || die "secrets/secrets.nix operator recipient not updated (line reformatted?). Expected: $NEWOP"
+              # 2. Point agenix at your NEW operator by rewriting the single-source
+              #    operator key (secrets/operator-key.nix — a bare quoted key string).
+              #    Idempotent: re-running the sed when the line already holds the new key
+              #    is a no-op, so a partial/interrupted run always re-completes. agenix is
+              #    an OPERATOR-ONLY vault now (no host-key recipients), so there is nothing
+              #    to re-key to this Mac's host key.
+              say "Pointing agenix at your NEW operator key"
+              sed -i "s|^\"ssh-ed25519 [A-Za-z0-9+/=]*\"\$|\"$NEWOP\"|" secrets/operator-key.nix
+              grep -qF "$NEWOP" secrets/operator-key.nix \
+                || die "secrets/operator-key.nix not updated (line reformatted?). Expected: $NEWOP"
 
-              # macos-recipient secrets (same awk the kit path uses below).
-              KEEP="$(awk '
-                /^[[:space:]]*"[^"]+\.age"\.publicKeys[[:space:]]*=/ {
-                  name = $0
-                  sub(/^[[:space:]]*"/, "", name); sub(/\.age".*$/, "", name)
-                  cur = name; inblock = 1; next
-                }
-                inblock && /^[[:space:]]*macos[[:space:]]*$/ { print cur ".age" }
-                inblock && /\]/ { inblock = 0 }
-              ' secrets/secrets.nix)"
-
-              # Re-INITIALISE each macos secret to a placeholder — but ONLY if it does not
-              # already decrypt under your NEW operator key. That per-file test IS the
-              # idempotency guard (not a single up-front marker): a real PAT you set later
-              # with `agenix -e` (also encrypted to your operator key) is PRESERVED, while
-              # a stale owner-blob or a half-finished prior run is (re-)initialised, so an
-              # interrupted run always re-completes. No root needed — it tests the OPERATOR
-              # private key (~/.ssh/id_ed25519), not the root-only host key.
-              #
-              # `agenix -e` with stdin NOT a tty runs its OWN `cp -- /dev/stdin <tmpfile>`
-              # (agenix 0.15.0) and IGNORES a caller-set EDITOR — so PIPE the placeholder in
-              # on stdin (this is the founding flow: key-recover was exec'd under curl|bash).
-              # `rm` first so agenix skips decrypt (no old key needed). Only macos-recipient
-              # blobs are touched; the operator-only cloudflared vault is left ALONE. NEVER
-              # `agenix -r` here — it would fail decrypting that orphaned blob.
-              for f in $KEEP; do
-                if [ -f "secrets/$f" ] \
-                  && age -d -i "$HOME/.ssh/id_ed25519" "secrets/$f" >/dev/null 2>&1; then
-                  say "secrets/$f already decrypts under your operator key — keeping it (change it with: agenix -e)"
-                else
-                  say "Re-initialising secrets/$f (placeholder — old content unrecoverable)"
-                  rm -f "secrets/$f"
-                  printf 'PLACEHOLDER — founded WITHOUT a recovery kit; set the real value with: agenix -e\n' \
-                    | ( cd secrets && agenix -e "$f" )
-                fi
-              done
+              # The sole agenix secret (cloudflared-token.age) is operator-only and was
+              # encrypted to the OLD operator, so your NEW key cannot decrypt it. Leave it
+              # as-is and re-establish it from source once nixpi is up (cf-tunnel-apply →
+              # nixpi-vault-token). NEVER `agenix -r` here — it would fail on that blob.
 
               git add -A                        # flakes evaluate the git tree
               git remote set-url origin "$REPO" # future pushes over SSH (your new key)
@@ -452,50 +413,12 @@ in
               "$(cat "$HOME/.ssh/id_ed25519.pub")" > "$HOME/.ssh/allowed_signers"
             chmod 600 "$HOME/.ssh/allowed_signers"
 
-            # ---- 2. agenix re-key ----------------------------------------------------
-            # A reinstalled Mac has a NEW host key, so its recipient in secrets.nix must
-            # be updated and every secret encrypted to it re-encrypted. The operator key
-            # (restored above) is the other recipient, which is what lets agenix decrypt
-            # in order to re-key at all.
-            say "Re-keying this Mac's agenix secrets to its new host key"
-            NEWKEY="$(cut -d' ' -f1,2 /etc/ssh/ssh_host_ed25519_key.pub)"
-            sed -i "s|^  macos = \"ssh-ed25519 [A-Za-z0-9+/=]*\";|  macos = \"$NEWKEY\";|" secrets/secrets.nix
-            # That sed is formatting-sensitive. If it silently matched nothing, agenix
-            # would re-encrypt to the OLD recipient and the failure would surface much
-            # later as an undecryptable secret at activation. Assert instead.
-            grep -qF "$NEWKEY" secrets/secrets.nix \
-              || die "secrets/secrets.nix was not updated with this Mac's host key.
-      The 'macos = \"ssh-ed25519 ...\";' line may have been reformatted. Expected:
-          $NEWKEY"
-
-            (cd secrets && agenix -r -i "$HOME/.ssh/id_ed25519")
-
-            # agenix -r re-keys EVERY secret, and age re-encryption emits different
-            # bytes each time (fresh ephemeral keys) even when the recipients are
-            # identical. Secrets NOT encrypted to `macos` therefore come back "modified"
-            # with no semantic change. Drop that churn so the commit is exactly this
-            # Mac's re-key. The keep-list is derived from secrets.nix, so adding a
-            # secret later needs no edit here.
-            KEEP="$(awk '
-              /^[[:space:]]*"[^"]+\.age"\.publicKeys[[:space:]]*=/ {
-                name = $0
-                sub(/^[[:space:]]*"/, "", name); sub(/\.age".*$/, "", name)
-                cur = name; inblock = 1; next
-              }
-              inblock && /^[[:space:]]*macos[[:space:]]*$/ { print cur ".age" }
-              inblock && /\]/ { inblock = 0 }
-            ' secrets/secrets.nix)"
-            for f in secrets/*.age; do
-              case " $KEEP " in
-                *" $(basename "$f") "*) : ;;
-                # `git checkout HEAD --`, not `git checkout --`: a previous run may have
-                # already STAGED this churn, and the plain form restores from the index
-                # (i.e. the churn), silently keeping it. HEAD is the only fixed point.
-                *) git checkout HEAD -- "$f" 2>/dev/null || true ;;
-              esac
-            done
-            git add -A
-            say "Re-keyed to this Mac: ''${KEEP:-<none>} (other secrets reverted as no-op churn)"
+            # ---- 2. agenix: nothing to re-key ---------------------------------------
+            # agenix is an OPERATOR-ONLY vault now — no host-key recipients. You just
+            # restored your ORIGINAL operator key, which is the sole recipient of the only
+            # secret (cloudflared-token.age), so it already decrypts; there is nothing to
+            # re-encrypt to this reinstalled Mac (its new host key is irrelevant to agenix).
+            say "agenix is operator-only — your restored key already decrypts the vault; no re-key needed"
             fi
 
             # ---- 4. activation (SHARED: founding + kit) -----------------------------
@@ -567,15 +490,15 @@ in
                 "  #    (add as BOTH an Authentication AND a Signing key):" \
                 "  cat ~/.ssh/id_ed25519.pub" \
                 "" \
-                "  # 2. Set the real runner PAT (a placeholder was installed), then persist + reactivate:" \
-                "  cd $REPO_DIR && agenix -e secrets/gh-runner-token.age" \
-                "  git commit -am 'found fresh operator identity + re-key macos to this host' && git push" \
+                "  # 2. Persist the new operator key (secrets/operator-key.nix) + reactivate:" \
+                "  cd $REPO_DIR" \
+                "  git commit -am 'found fresh operator identity' && git push" \
                 "  darwin-rebuild switch --flake .#macos" \
                 "" \
                 "  # 3. Publish a recovery kit so THIS machine is keyed next time:" \
                 "  nix run .#key-backup" \
                 "" \
-                "  # 4. Other hosts' secrets were NOT re-keyed (no old operator key to decrypt them)." \
+                "  # 4. The cloudflared vault was NOT re-keyed (no old operator key to decrypt it)." \
                 "  #    secrets.nix now names your NEW operator; re-establish those from source when you" \
                 "  #    bring the hosts up: cloudflared-token via cf-tunnel-apply + nixpi-vault-token."
             else
