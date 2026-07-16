@@ -102,6 +102,18 @@ in
     ./mcp.nix # darwin-gated MCP server registry for Claude Code
   ];
 
+  # Expose the kapture browser-automation server PUBLICLY as an OAuth-gated MCP
+  # connector (Cloudflare Access Managed OAuth in front, provisioned by
+  # infra/cloudflare/macos-mcp-tunnel.nix). Darwin-only — the gateway itself is
+  # darwin-gated. This starts a kapture-only mcp-proxy + the Mac cloudflared
+  # connector, but NOTHING is exposed until the operator runs `nix run
+  # .#cf-mcp-apply` and stores the printed token with `set-secret MCP_TUNNEL_TOKEN
+  # <token>` (the connector is inert without it). See docs/mcp-connector-oauth-runbook.md.
+  services.mcpGateway = lib.mkIf pkgs.stdenv.isDarwin {
+    publicServers = [ "kapture" ];
+    publicTunnel.enable = true;
+  };
+
   # Make Home-Manager-installed font packages discoverable by applications.
   # Essential on Linux (registers fonts with fontconfig); harmless no-op on macOS.
   fonts.fontconfig.enable = true;

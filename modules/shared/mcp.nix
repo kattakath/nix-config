@@ -40,6 +40,10 @@
   lib,
   config,
   mcp-servers-nix,
+  # Loopback port for the SEPARATE public (OAuth-gated) mcp-proxy. Single-sourced
+  # in flake.nix and threaded here + into infra/cloudflare/macos-mcp-tunnel.nix so
+  # the tunnel ingress and this proxy can never drift.
+  mcpPublicPort,
   ...
 }:
 let
@@ -48,6 +52,10 @@ let
   # localhost-only gateway endpoint.
   gatewayHost = "127.0.0.1";
   gatewayPort = 8096;
+
+  # The PUBLIC proxy binds a different loopback port; only the Mac cloudflared
+  # connector (also loopback) reaches it, and Cloudflare Access gates the edge.
+  publicPort = mcpPublicPort;
 
   # Pinned launchers for the servers mcp-servers-nix does not package. Absolute
   # store paths so they resolve under launchd's minimal PATH.
@@ -127,6 +135,41 @@ let
     settings.servers = customStdioServers;
   };
 
+  # ---- PUBLIC exposure: a SEPARATE kapture-only mcp-proxy + OAuth tunnel ------
+  # cfg.publicServers names the subset of hosted servers to expose publicly. They
+  # run in their OWN mcp-proxy on publicPort — the personal :8096 gateway
+  # (memory/cloudflare/fetch/…) is NEVER on the public port. Split the names the
+  # same way the private gateway does: packaged servers via mkConfig `programs`,
+  # custom stdio servers via `settings.servers`.
+  publicPackaged = builtins.filter (n: builtins.elem n packagedServerNames) cfg.publicServers;
+  publicCustom = lib.filterAttrs (n: _: builtins.elem n cfg.publicServers) customStdioServers;
+  publicGatewayConfig = mcp-servers-nix.lib.mkConfig pkgs {
+    flavor = "claude-code";
+    fileName = "mcp-gateway-public.json";
+    programs = lib.genAttrs publicPackaged (_: {
+      enable = true;
+    });
+    settings.servers = publicCustom;
+  };
+
+  # The Mac cloudflared connector, run as a launchd user agent so it can read the
+  # tunnel token from the login Keychain (a system daemon cannot). The token is
+  # fetched at launch via `security` (never in argv / never in the store) and
+  # handed to cloudflared as TUNNEL_TOKEN in the environment. Absent token => the
+  # unit fails and launchd retries, self-healing once `set-secret` stores it.
+  cloudflaredConnector = pkgs.writeShellScript "mcp-tunnel-connector" ''
+    set -eu
+    token="$(/usr/bin/security find-generic-password -a "$(id -un)" -s "${cfg.publicTunnel.tokenKeychainKey}" -w 2>/dev/null || true)"
+    if [ -z "$token" ]; then
+      echo "mcp-tunnel-connector: no '${cfg.publicTunnel.tokenKeychainKey}' in the login Keychain." >&2
+      echo "  Provision the tunnel (nix run .#cf-mcp-apply) then store the printed token:" >&2
+      echo "    set-secret ${cfg.publicTunnel.tokenKeychainKey} <token>" >&2
+      exit 1
+    fi
+    export TUNNEL_TOKEN="$token"
+    exec ${lib.getExe pkgs.cloudflared} --no-autoupdate tunnel run
+  '';
+
   # Gateway URL for a server + transport path. transport "mcp" = Streamable HTTP
   # (current standard); "sse" = legacy, still served for SSE-only clients (Grok
   # et al.) — point their own config at `endpointFor <name> "sse"`. Single source
@@ -189,6 +232,38 @@ in
         re-derive a URL.
       '';
     };
+
+    publicServers = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [ "kapture" ];
+      description = ''
+        Subset of hosted server names to expose PUBLICLY as OAuth-gated MCP
+        connectors. Each runs in a SEPARATE mcp-proxy on the public loopback port
+        (isolated from the personal :8096 gateway), reached only via the Mac
+        cloudflared connector behind Cloudflare Access Managed OAuth. Empty => no
+        public proxy is started. Must be a subset of the hosted servers.
+      '';
+    };
+
+    publicTunnel = {
+      enable = lib.mkEnableOption ''
+        the Mac cloudflared connector that exposes the public mcp-proxy through a
+        remotely-managed Cloudflare Tunnel (provisioned by
+        infra/cloudflare/macos-mcp-tunnel.nix via `nix run .#cf-mcp-apply`). The
+        connector token is read from the login Keychain, so nothing is exposed
+        until the operator both provisions the tunnel AND stores the token'';
+
+      tokenKeychainKey = lib.mkOption {
+        type = lib.types.str;
+        default = "MCP_TUNNEL_TOKEN";
+        description = ''
+          Login-Keychain secret name (stored via `set-secret <KEY> <token>`)
+          holding the bare Cloudflare Tunnel connector token. Read at launch by
+          the connector agent — never in argv or the /nix/store.
+        '';
+      };
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -216,6 +291,54 @@ in
           + ":/usr/bin:/bin";
         StandardOutPath = "${config.home.homeDirectory}/Library/Logs/mcp-gateway.log";
         StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/mcp-gateway.log";
+      };
+    };
+
+    # ---- Public side A: the kapture-only OAuth-exposed mcp-proxy ----------------
+    # A SECOND mcp-proxy hosting ONLY cfg.publicServers on publicPort, bound to
+    # loopback. Only started when publicServers is non-empty. Cloudflare Access
+    # (Managed OAuth) gates the edge; this proxy itself does no auth (Access
+    # enforces before the request reaches the tunnel). Isolated from the personal
+    # :8096 gateway so memory/cloudflare/fetch are never on the public port.
+    launchd.agents.mcp-gateway-public = lib.mkIf (cfg.publicServers != [ ]) {
+      enable = true;
+      config = {
+        ProgramArguments = [
+          (lib.getExe' pkgs.mcp-proxy "mcp-proxy")
+          "--host"
+          gatewayHost
+          "--port"
+          (toString publicPort)
+          "--named-server-config"
+          "${publicGatewayConfig}"
+        ];
+        RunAtLoad = true;
+        KeepAlive = true;
+        EnvironmentVariables.PATH =
+          lib.makeBinPath [
+            pkgs.nodejs
+            pkgs.uv
+          ]
+          + ":/usr/bin:/bin";
+        StandardOutPath = "${config.home.homeDirectory}/Library/Logs/mcp-gateway-public.log";
+        StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/mcp-gateway-public.log";
+      };
+    };
+
+    # ---- Public side B: the Mac cloudflared connector --------------------------
+    # Dials OUT to Cloudflare (opens no inbound port on the Mac) and exposes the
+    # public mcp-proxy as mcp.<domain>, gated by the Access app. Token from the
+    # login Keychain (see cloudflaredConnector). Inert without the token, so
+    # enabling this never exposes anything until the operator provisions + stores.
+    launchd.agents.mcp-tunnel-connector = lib.mkIf cfg.publicTunnel.enable {
+      enable = true;
+      config = {
+        ProgramArguments = [ "${cloudflaredConnector}" ];
+        RunAtLoad = true;
+        KeepAlive = true;
+        EnvironmentVariables.PATH = "/usr/bin:/bin";
+        StandardOutPath = "${config.home.homeDirectory}/Library/Logs/mcp-tunnel-connector.log";
+        StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/mcp-tunnel-connector.log";
       };
     };
 

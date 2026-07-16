@@ -158,6 +158,19 @@
       # binding threaded to both rather than a literal duplicated across files.
       wallpaperPort = 8765;
 
+      # ---- Single source of truth for the public (OAuth-gated) MCP port ------
+      # The kapture-only mcp-proxy (modules/shared/mcp.nix) binds this loopback
+      # port and the Mac tunnel ingress (infra/cloudflare/macos-mcp-tunnel.nix)
+      # forwards mcp.<domain> to it. Threaded to BOTH so they cannot drift.
+      mcpPublicPort = 8099;
+
+      # ---- Operator identity email for the MCP Access policy ------------------
+      # The Google-IdP email allowed by the Cloudflare Access policy on
+      # mcp.<domain> (infra/cloudflare/macos-mcp-tunnel.nix). This is the real
+      # login identity, distinct from `userEmail` (the GitHub noreply commit
+      # address). Not a secret.
+      operatorEmail = "ismail@${domainName}";
+
       # ---- Single source of truth for the Cloudflare account/zone ------------
       # Threaded (with domainName) into the cfTunnelConfig terranix stack via
       # `_module.args`, so the account/zone ids and the domain live in ONE place
@@ -237,6 +250,26 @@
           ];
         };
 
+      # Renders infra/cloudflare/macos-mcp-tunnel.nix (the Mac's OAuth-gated MCP
+      # tunnel + Cloudflare Access Managed-OAuth app + policy + connector-token
+      # output) to its own config.tf.json, per system.
+      cfMcpConfig =
+        system:
+        terranix.lib.terranixConfiguration {
+          inherit system;
+          modules = [
+            ./infra/cloudflare/macos-mcp-tunnel.nix
+            {
+              _module.args = {
+                inherit domainName operatorEmail;
+                accountId = cloudflareAccountId;
+                zoneId = cloudflareZoneId;
+                publicPort = mcpPublicPort;
+              };
+            }
+          ];
+        };
+
       # writeShellApplication wrapper around `tofu <action>` for the rendered
       # nixpi tunnel config (guards on CLOUDFLARE_API_TOKEN, copies the read-only
       # rendered config out of the store first). On `apply`, it additionally prints the
@@ -275,6 +308,47 @@
             fi
             rm -f config.tf.json
             cp ${cfTunnelConfig system} config.tf.json
+            tofu init
+            tofu ${action}
+          ''
+          + nixpkgs.lib.optionalString (action == "apply") printToken;
+        };
+
+      # writeShellApplication wrapper around `tofu <action>` for the rendered Mac
+      # MCP tunnel config. Like mkCfTunnelTofu, but on `apply` it prints the
+      # connector token with the Keychain-store instruction (the Mac connector
+      # reads MCP_TUNNEL_TOKEN from the login Keychain — see modules/shared/mcp.nix).
+      mkCfMcpTofu =
+        {
+          system,
+          name,
+          action,
+        }:
+        let
+          pkgs = pkgsFor system;
+          printToken = ''
+
+            echo "----- CONNECTOR TOKEN for the Mac MCP tunnel (SECRET) -----"
+            echo "Store it in the login Keychain (the connector reads it there):"
+            echo "  set-secret MCP_TUNNEL_TOKEN $(tofu output -raw macos_mcp_connector_token)"
+            echo ""
+            echo "Then the mcp-tunnel-connector agent picks it up (or: launchctl kickstart)."
+            echo "Connector URL for Grok:  https://mcp.${domainName}/servers/kapture/sse"
+            echo "----- end Mac MCP tunnel -----"
+          '';
+        in
+        pkgs.writeShellApplication {
+          inherit name;
+          runtimeInputs = [ pkgs.opentofu ];
+          text = ''
+            if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
+              echo "ERROR: CLOUDFLARE_API_TOKEN is unset. Export a token with" >&2
+              echo "  Account: Cloudflare Tunnel:Edit + Access: Apps and Policies:Edit," >&2
+              echo "  Zone DNS:Edit on ${domainName}." >&2
+              exit 1
+            fi
+            rm -f config.tf.json
+            cp ${cfMcpConfig system} config.tf.json
             tofu init
             tofu ${action}
           ''
@@ -366,6 +440,9 @@
               # wallpaperPort: consumed by the darwin-gated Plash activation in
               # home.nix (inert on the NixOS hosts).
               wallpaperPort
+              # mcpPublicPort: the public (OAuth-gated) mcp-proxy port consumed by
+              # modules/shared/mcp.nix (inert on the NixOS hosts).
+              mcpPublicPort
               ;
           };
           users.${userName} = {
@@ -629,6 +706,16 @@
             name = "cf-tunnel-destroy";
             action = "destroy";
           };
+          cf-mcp-apply = mkCfMcpTofu {
+            inherit system;
+            name = "cf-mcp-apply";
+            action = "apply";
+          };
+          cf-mcp-destroy = mkCfMcpTofu {
+            inherit system;
+            name = "cf-mcp-destroy";
+            action = "destroy";
+          };
         }))
 
         # `set-secret <KEY> [VALUE]` — store a secret in the macOS login Keychain
@@ -764,6 +851,16 @@
                 type = "app";
                 program = "${self.packages.${system}.cf-tunnel-destroy}/bin/cf-tunnel-destroy";
                 meta.description = "tofu destroy the nixpi Cloudflare tunnel/ingress/CNAME (needs CLOUDFLARE_API_TOKEN)";
+              };
+              cf-mcp-apply = {
+                type = "app";
+                program = "${self.packages.${system}.cf-mcp-apply}/bin/cf-mcp-apply";
+                meta.description = "Render infra/cloudflare/macos-mcp-tunnel.nix (terranix), tofu apply the Mac MCP tunnel + Access Managed-OAuth app, and print the connector token (needs CLOUDFLARE_API_TOKEN)";
+              };
+              cf-mcp-destroy = {
+                type = "app";
+                program = "${self.packages.${system}.cf-mcp-destroy}/bin/cf-mcp-destroy";
+                meta.description = "tofu destroy the Mac MCP tunnel + Cloudflare Access app/policy (needs CLOUDFLARE_API_TOKEN)";
               };
             })
           );
