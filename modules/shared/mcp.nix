@@ -34,8 +34,7 @@
 #   client (e.g. Grok) just points its OWN config at `endpointFor <name> "sse"`.
 #
 # SCOPE: darwin only (the Mac is the sole MCP client host; keeps the Pi/VM lean).
-# The ./.mcp.json in this repo is project-scoped and overlaps by name — prune it
-# if the duplication grates (the gateway's user-scope entries are what Claude uses).
+# There is no project ./.mcp.json — this user-scope gateway is the single source.
 {
   pkgs,
   lib,

@@ -98,10 +98,6 @@ let
   nixLdLibraries = import ../modules/shared/nix-ld-libraries.nix pkgs;
   nixLdLibraryPath = lib.makeLibraryPath nixLdLibraries;
 
-  # Everything that must be a VALID store path so `nix develop` skips build +
-  # download; its `registration` is loaded into the image's Nix DB below.
-  closure = pkgs.closureInfo { rootPaths = basePackages; };
-
   # Real `vscode` user only. fakeNss yields a READ-ONLY /etc/passwd — hence
   # updateRemoteUserUID:false in the JSON. No nixbld build users: with an empty
   # build-users-group (below) the daemon builds as its own uid (root).
@@ -145,10 +141,23 @@ dockerTools.streamLayeredImage {
   name = "nix-config-devcontainer";
   tag = "latest";
 
-  contents = basePackages ++ [ nss ];
+  # binSh / usrBinEnv are upstream dockerTools helpers that symlink /bin/sh ->
+  # bashInteractive and /usr/bin/env -> coreutils env (see the FHS contract in
+  # fakeRootCommands), replacing hand-rolled `ln -sf`.
+  contents = basePackages ++ [
+    nss
+    dockerTools.binSh
+    dockerTools.usrBinEnv
+  ];
 
   # Store-path -> layer fan-out, under dockerTools' 125-layer ceiling.
   maxLayers = 120;
+
+  # Register the closure of `contents` in the image's Nix DB so `nix develop`
+  # sees VALID store paths (no rebuild/redownload). Upstream mechanism, replacing
+  # a manual `nix-store --load-db`; also resets registrationTime to
+  # SOURCE_DATE_EPOCH for reproducibility.
+  includeNixDB = true;
 
   # enableFakechroot lets fakeRootCommands see the merged rootfs (so store paths
   # and /bin/sh resolve) via fakechroot+proot — forbidden on Darwin, fine in CI.
@@ -195,14 +204,13 @@ dockerTools.streamLayeredImage {
       ''
     }
 
-    # (2) Interpreter paths. /bin/sh: hardcoded by many tools + the entrypoint's
-    #     exec target. /usr/bin/env: the VS Code Server bootstrap scripts
-    #     (check-requirements.sh and siblings) use `#!/usr/bin/env sh`; without it
-    #     the kernel rejects the shebang (exit 126) and the server never installs.
-    #     env resolves the real interpreter (sh/bash/node) via the container PATH.
-    mkdir -p bin usr/bin
-    ln -sf ${pkgs.bashInteractive}/bin/bash bin/sh
-    ln -sf ${pkgs.coreutils}/bin/env usr/bin/env
+    # (2) Interpreter paths /bin/sh + /usr/bin/env come from dockerTools.binSh /
+    #     dockerTools.usrBinEnv in `contents` (byte-identical symlinks to
+    #     bashInteractive/bin/bash and coreutils/bin/env). /bin/sh is hardcoded by
+    #     many tools + the entrypoint's exec target; the VS Code Server bootstrap
+    #     scripts (check-requirements.sh and siblings) use `#!/usr/bin/env sh`, so
+    #     without /usr/bin/env the kernel rejects the shebang (exit 126) and the
+    #     server never installs.
 
     # (3) Distro identity — silences the devcontainer distro probe; ID=nixos also
     #     short-circuits the server's check-requirements.sh glibc-version check.
@@ -230,20 +238,17 @@ dockerTools.streamLayeredImage {
     mkdir -p .${workdir}
     chown -R ${toString uid}:${toString gid} workspaces
 
-    # --- register the baked closure in the store DB --------------------------
-    # Without --load-db the /nix/store paths are PRESENT but INVALID and the
-    # daemon rebuilds/redownloads everything. Mirrors buildImageWithNixDb.
-    # CRITICAL: do NOT bind-mount a volume over /nix in devcontainer.json — it
-    # shadows this baked warm store. Pre-create daemon-socket/ with the upstream
-    # --daemon installer's perms rather than letting the daemon mkdir it at
-    # runtime over baked-immutable /nix (which can crash the worker after the
-    # listen socket is already visible).
+    # --- runtime Nix state dirs ----------------------------------------------
+    # The store DB itself is baked by `includeNixDB = true` above (registers the
+    # closure of `contents`); it also creates db/ + gcroots/. We still pre-create
+    # daemon-socket/, profiles/ and temproots/ (with the upstream --daemon
+    # installer's perms) so the daemon never has to mkdir them at runtime over
+    # baked-immutable /nix — which can crash the worker after the listen socket is
+    # already visible. CRITICAL: do NOT bind-mount a volume over /nix in
+    # devcontainer.json — it shadows this baked warm store.
     mkdir -p nix/var/nix/db nix/var/nix/profiles nix/var/nix/gcroots nix/var/nix/temproots \
              nix/var/nix/daemon-socket
     chmod 0755 nix/var/nix/daemon-socket
-    export NIX_STATE_DIR=/nix/var/nix
-    export NIX_REMOTE=
-    ${pkgs.nix}/bin/nix-store --load-db < ${closure}/registration
 
     # --- baked nix.conf: multi-user daemon + flakes + public Cachix (read) ----
     # sandbox=false: the build sandbox doesn't work nested in a container.
