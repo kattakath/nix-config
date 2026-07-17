@@ -178,12 +178,15 @@ let
       # runtype=args PRESERVES the base image's ENTRYPOINT — unlike ssh/jupyter, which
       # replace it with /.launch. With the entrypoint intact, supervisord starts Caddy +
       # the Instance Portal AND the /etc/vast_boot.d phase auto-runs PROVISIONING_SCRIPT.
-      # So we get the "Open" button (web Apps/Logs/Terminal) + native auto-provisioning
-      # (no onstart hack) + SSH via the base image's own sshd on :22. Map the portal
-      # (1111), ComfyUI (8188), and ssh (22); PORTAL_CONFIG lists the apps
-      # (hostname:external:internal:path:name|… — no spaces in names, since the value
-      # rides inside the -e docker-options string).
-      env_str="-e PROVISIONING_SCRIPT=${bootstrapUrl} -e PROVISION_HOST=$host -e PROVISION_REPO=$repo -e PROVISION_REF=$ref -e PROVISION_ENTRYPOINT=$entry -e PORTAL_CONFIG=localhost:1111:11111:/:Portal|localhost:8188:18188:/:ComfyUI -p 1111:1111 -p 8188:8188 -p 22:22"
+      # So we get native auto-provisioning (no onstart hack). OPEN_BUTTON_PORT=1111 is
+      # what makes the dashboard render the "Open" button under args (jupyter/ssh set it
+      # implicitly; args does not) → Open → Instance Portal (web Apps/Logs/Terminal).
+      # PORTAL_CONFIG lists apps (hostname:external:internal:path:name|… — no spaces in
+      # names, since the value rides in the -e docker-options string). SSH_PUBKEY_B64
+      # carries the operator public key base64'd (no spaces) so provision.sh can plant it
+      # for sshd — Vast's own ssh-key injection is tied to runtype=ssh and won't run here.
+      pubkey_b64="$(base64 < "$HOME/.ssh/id_ed25519.pub" 2>/dev/null | tr -d '\n' || true)"
+      env_str="-e PROVISIONING_SCRIPT=${bootstrapUrl} -e PROVISION_HOST=$host -e PROVISION_REPO=$repo -e PROVISION_REF=$ref -e PROVISION_ENTRYPOINT=$entry -e OPEN_BUTTON_PORT=1111 -e PORTAL_CONFIG=localhost:1111:11111:/:Portal|localhost:8188:18188:/:ComfyUI -e SSH_PUBKEY_B64=$pubkey_b64 -p 1111:1111 -p 8188:8188 -p 22:22"
 
       body="$(jq -n \
         --arg name "$name" --arg image "$image" --arg tag "$tag" \
