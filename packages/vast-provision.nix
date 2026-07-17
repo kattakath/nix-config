@@ -274,6 +274,57 @@ let
     '';
   };
 
+  # Register the operator's SSH public key on the Vast account (idempotent) so
+  # every instance gets passwordless root SSH. Vast auto-injects account SSH keys
+  # into instances; register BEFORE creating instances. The reproducible analog of a
+  # manual `vastai create ssh-key` — needed after a key rotation / new machine /
+  # account reset.
+  ssh-key-set = writeShellApplication {
+    name = "vast-ssh-key-set";
+    runtimeInputs = [
+      curl
+      jq
+      coreutils
+    ];
+    text = ''
+      security=/usr/bin/security
+      account="$(id -un)"
+      apikey="$("$security" find-generic-password -a "$account" -s VAST_API_KEY -w 2>/dev/null || true)"
+      if [ -z "$apikey" ]; then
+        echo "vast-ssh-key-set: VAST_API_KEY not in the login Keychain." >&2
+        exit 1
+      fi
+
+      keyfile="$HOME/.ssh/id_ed25519.pub"
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --key) keyfile="''${2:?}"; shift 2 ;;
+          -h | --help) echo "usage: vast-ssh-key-set [--key PATH.pub]  (default ~/.ssh/id_ed25519.pub)"; exit 0 ;;
+          *) echo "vast-ssh-key-set: unknown argument: $1" >&2; exit 1 ;;
+        esac
+      done
+      [ -f "$keyfile" ] || { echo "vast-ssh-key-set: no public key at $keyfile" >&2; exit 1; }
+
+      pub="$(cat "$keyfile")"
+      body="$(cut -d' ' -f2 < "$keyfile")"   # key material, ignoring type + comment
+
+      list="$(curl -fsS -H "Authorization: Bearer $apikey" "${api}/ssh/" 2>/dev/null || true)"
+      if printf '%s' "$list" | jq -r '(if type=="array" then . else (.ssh_keys // .keys // []) end)[] | (.public_key // .ssh_key // .)' 2>/dev/null | grep -qF "$body"; then
+        echo "vast-ssh-key-set: already registered ($(/usr/bin/ssh-keygen -lf "$keyfile" 2>/dev/null | awk '{print $2}'))."
+        exit 0
+      fi
+
+      resp="$(jq -n --arg k "$pub" '{ssh_key: $k}' | curl -fsS -X POST "${api}/ssh/" \
+               -H "Authorization: Bearer $apikey" -H "Content-Type: application/json" --data @- 2>/dev/null || true)"
+      if [ "$(printf '%s' "$resp" | jq -r '.success // false' 2>/dev/null)" = true ]; then
+        echo "vast-ssh-key-set: registered $keyfile on the Vast account."
+      else
+        echo "vast-ssh-key-set: FAILED — $(printf '%s' "$resp" | jq -rc '{success, msg, error}' 2>/dev/null || printf '%s' "$resp")" >&2
+        exit 1
+      fi
+    '';
+  };
+
   # Scaffold a new provisioner repo from the generic provisioner-template, on either
   # forge, public or private. The check is structural (not provenance), so this is a
   # convenience — a valid provisioner repo is just one containing provision.sh + the
@@ -376,6 +427,7 @@ in
     template-apply
     repo-check
     account-vars-set
+    ssh-key-set
     init-repo
     scripts-lint
     ;

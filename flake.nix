@@ -742,6 +742,7 @@
             vast-template-apply = kit.template-apply;
             vast-repo-check = kit.repo-check;
             vast-account-vars-set = kit.account-vars-set;
+            vast-ssh-key-set = kit.ssh-key-set;
             vast-init-repo = kit.init-repo;
             vast-scripts-lint = kit.scripts-lint;
           }
@@ -880,6 +881,11 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.vast-account-vars-set}/bin/vast-account-vars-set";
               meta.description = "Sync read-only VAST_* Keychain tokens to Vast.ai account-level env vars (GITLAB_TOKEN/HF_TOKEN/CIVITAI_TOKEN/GH_TOKEN)";
+            };
+            aarch64-darwin.vast-ssh-key-set = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.vast-ssh-key-set}/bin/vast-ssh-key-set";
+              meta.description = "Register the operator SSH public key on the Vast.ai account (idempotent) for passwordless root SSH into instances";
             };
             aarch64-darwin.vast-init-repo = {
               type = "app";
