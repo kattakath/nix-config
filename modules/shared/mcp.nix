@@ -127,7 +127,27 @@ let
     flavor = "claude-code";
     fileName = "mcp-gateway.json";
     programs = {
-      context7.enable = true;
+      context7 = {
+        enable = true;
+        # An API key raises context7's rate limits. Fetched at gateway LAUNCH from
+        # the login Keychain (`set-secret CONTEXT7_API_KEY <key>`) by the module's
+        # passwordCommand wrapper, which does `export CONTEXT7_API_KEY=$(security …)`
+        # then execs context7-mcp — so the value is NEVER in argv or the /nix/store
+        # (same pattern as the cloudflared connector above). context7-mcp reads the
+        # env var (`cliOptions.apiKey || process.env.CONTEXT7_API_KEY`); an absent
+        # key => empty export => it runs unauthenticated exactly as before. No
+        # ~/.zprofile export is needed — the wrapper reads the Keychain itself, and
+        # launchd user agents don't source login shells anyway.
+        passwordCommand.CONTEXT7_API_KEY = [
+          "/usr/bin/security"
+          "find-generic-password"
+          "-a"
+          "$(id -un)"
+          "-s"
+          "CONTEXT7_API_KEY"
+          "-w"
+        ];
+      };
       fetch.enable = true;
       memory.enable = true;
       sequential-thinking.enable = true;
