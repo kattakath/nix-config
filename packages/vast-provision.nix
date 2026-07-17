@@ -4,19 +4,23 @@
 # (shellcheck'd at `nix flake check`) plus a lint derivation for the committed
 # instance-side scripts, wired as flake apps in flake.nix:
 #
-#   nix run .#vast-template-apply    — create/update (reconcile-by-name) a Vast.ai
-#                                      template that boots via PROVISIONING_SCRIPT;
+#   nix run .#vast-template-apply    — create/REPLACE (reconcile by name — delete+create)
+#                                      a Vast.ai template that boots via PROVISIONING_SCRIPT;
 #                                      gated by vast-repo-check unless --skip-check
 #   nix run .#vast-repo-check        — validate that a repo is a legit provisioner
 #                                      repo (structural: .provisioner-template.json
 #                                      marker + required files; forge-agnostic)
 #   nix run .#vast-account-vars-set  — sync read-only VAST_* Keychain tokens to Vast
 #                                      ACCOUNT-level env vars
+#   nix run .#vast-ssh-key-set       — register the operator SSH public key on the Vast
+#                                      account (idempotent)
+#   nix run .#vast-init-repo         — scaffold a provisioner repo from the baked
+#                                      vast-templates/provisioner/ (GitHub or GitLab)
 #
 # Design (see the doc): no custom image, no registry auth; PROVISIONING_SCRIPT ->
 # committed public bootstrap (pinned to THIS flake's rev) -> clone the target repo
-# (public/private, token from account vars) -> run its constant provision.sh (a thin
-# shim inherited from a template) -> fetch+run the pinned engine. Secrets NEVER touch
+# (public/private, token from account vars) -> run its constant, self-contained
+# provision.sh. Secrets NEVER touch
 # the template. macOS-only: VAST_API_KEY + VAST_* tokens live in the login Keychain
 # (`/usr/bin/security`); curl/jq/sed pinned via runtimeInputs.
 {
@@ -122,7 +126,7 @@ let
       coreutils
     ];
     text = ''
-      # Reconcile (create or update, BY NAME) a Vast.ai template whose instances boot
+      # Reconcile (create or REPLACE, by name) a Vast.ai template whose instances boot
       # via PROVISIONING_SCRIPT -> bootstrap -> clone target repo -> run provision.sh.
       # Gated by vast-repo-check (skip with --skip-check). No secrets in the template.
       security=/usr/bin/security
@@ -298,11 +302,12 @@ let
     '';
   };
 
-  # Register the operator's SSH public key on the Vast account (idempotent) so
-  # every instance gets passwordless root SSH. Vast auto-injects account SSH keys
-  # into instances; register BEFORE creating instances. The reproducible analog of a
-  # manual `vastai create ssh-key` — needed after a key rotation / new machine /
-  # account reset.
+  # Register the operator's SSH public key on the Vast account (idempotent). The
+  # reproducible analog of a manual `vastai create ssh-key` — needed after a key
+  # rotation / new machine / account reset. CAVEAT: Vast's auto-injection of account
+  # SSH keys into instances is runtype=ssh ONLY; our runtype=args templates instead
+  # plant the operator key via SSH_PUBKEY_B64 (provision.sh starts sshd). So this app
+  # is for account registration, NOT the args SSH path.
   ssh-key-set = writeShellApplication {
     name = "vast-ssh-key-set";
     runtimeInputs = [
