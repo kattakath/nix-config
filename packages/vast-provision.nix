@@ -34,6 +34,7 @@
   glab,
   git,
   shellcheck,
+  yq-go,
   orgName,
   repoName,
   userName,
@@ -46,6 +47,9 @@ let
   bootstrapUrl = "https://raw.githubusercontent.com/${orgName}/${repoName}/${rev}/packages/vast-bootstrap.sh?v=${rev}";
   # The shared, never-false-positive engine, pinned to this rev; the bootstrap fetches it.
   libUrl = "https://raw.githubusercontent.com/${orgName}/${repoName}/${rev}/packages/vast-templates/provisioner/provision-lib.sh";
+  # Pinned raw base for manifest-mode artifacts (provisioning.yaml + workflow JSON) — the
+  # committed file can't know its own rev, so vast-template-apply builds rev-pinned URLs here.
+  rawBase = "https://raw.githubusercontent.com/${orgName}/${repoName}/${rev}";
 
   # Validate that a repo is a legitimate provisioner repo — structurally (forge
   # provenance is asymmetric: GitHub has template_repository, GitLab has nothing),
@@ -146,8 +150,12 @@ let
       repo=""
       ref="main"
       entry="provision.sh"
-      image="vastai/base-image"
-      disk="64"
+      manifest=""
+      workflow=""
+      image=""
+      disk=""
+      host=""
+      tag=""
       dryrun=""
       skipcheck=""
       while [ $# -gt 0 ]; do
@@ -156,51 +164,59 @@ let
           --repo) repo="''${2:?}"; shift 2 ;;
           --ref) ref="''${2:?}"; shift 2 ;;
           --entrypoint) entry="''${2:?}"; shift 2 ;;
+          --manifest) manifest="''${2:?}"; shift 2 ;;
+          --workflow) workflow="''${2:?}"; shift 2 ;;
           --image) image="''${2:?}"; shift 2 ;;
           --disk) disk="''${2:?}"; shift 2 ;;
           --dry-run) dryrun=1; shift ;;
           --skip-check) skipcheck=1; shift ;;
           -h | --help)
-            echo "usage: vast-template-apply --template-name NAME --repo [github:|gitlab:]owner/repo \\"
-            echo "         [--ref REF] [--entrypoint PATH] [--image IMG[:TAG]] [--disk GB] [--dry-run] [--skip-check]"
+            echo "usage: vast-template-apply --template-name NAME (--repo OWNER/REPO | --manifest PATH --workflow PATH) \\"
+            echo "  repo mode:     --repo [github:|gitlab:]owner/repo [--ref REF] [--entrypoint PATH]  (bash engine on vastai/base-image)"
+            echo "  manifest mode: --manifest packages/…/provisioning.yaml --workflow packages/…/workflow.json  (native provisioner on vastai/comfy)"
+            echo "  common:        [--image IMG[:TAG]] [--disk GB] [--dry-run] [--skip-check]"
             exit 0 ;;
           *) echo "vast-template-apply: unknown argument: $1" >&2; exit 1 ;;
         esac
       done
       [ -n "$name" ] || { echo "vast-template-apply: --template-name is required." >&2; exit 1; }
-      [ -n "$repo" ] || { echo "vast-template-apply: --repo is required." >&2; exit 1; }
 
-      # Forge scheme -> host. Bare owner/repo defaults to github.com.
-      host="github.com"
-      case "$repo" in
-        gitlab:*) host="gitlab.com"; repo="''${repo#gitlab:}" ;;
-        github:*) host="github.com"; repo="''${repo#github:}" ;;
-      esac
-
-      # image[:tag] -> image + tag. NOTE: vastai/base-image has NO ":latest" tag —
-      # a manifest-unknown pull failure — so default to a valid auto-CUDA tag.
-      tag="cuda-12.6.3-auto"
-      case "$image" in
-        *:*) tag="''${image##*:}"; image="''${image%:*}" ;;
-      esac
-
-      # runtype=args PRESERVES the base image's ENTRYPOINT — unlike ssh/jupyter, which
-      # replace it with /.launch. With the entrypoint intact, supervisord starts Caddy +
-      # the Instance Portal AND the /etc/vast_boot.d phase auto-runs PROVISIONING_SCRIPT.
-      # So we get native auto-provisioning (no onstart hack). OPEN_BUTTON_PORT=1111 is
-      # what makes the dashboard render the "Open" button under args (jupyter/ssh set it
-      # implicitly; args does not) → Open → Instance Portal (web Apps/Logs/Terminal).
-      # PORTAL_CONFIG lists apps (hostname:external:internal:path:name|… — no spaces in
-      # names, since the value rides in the -e docker-options string). SSH_PUBKEY_B64
-      # carries the operator public key base64'd (no spaces) so provision.sh can plant it
-      # for sshd — Vast's own ssh-key injection is tied to runtype=ssh and won't run here.
       pubkey_b64="$(base64 < "$HOME/.ssh/id_ed25519.pub" 2>/dev/null | tr -d '\n' || true)"
-      # Fail LOUDLY rather than shipping an empty SSH_PUBKEY_B64 (which would silently
-      # yield an instance with no SSH login).
+      # Fail LOUDLY rather than shipping an empty SSH_PUBKEY_B64 (a login-less instance).
       [ -n "$pubkey_b64" ] || { echo "vast-template-apply: ~/.ssh/id_ed25519.pub not found — cannot inject SSH_PUBKEY_B64" >&2; exit 1; }
-      # PROVISION_LIB_URL: the pinned engine the bootstrap fetches. PROVISIONER_FAILURE_ACTION
-      # + PROVISION_MAX_SECONDS drive the engine's fail-closed funnel (stop the box + watchdog).
-      env_str="-e PROVISIONING_SCRIPT=${bootstrapUrl} -e PROVISION_LIB_URL=${libUrl} -e PROVISION_HOST=$host -e PROVISION_REPO=$repo -e PROVISION_REF=$ref -e PROVISION_ENTRYPOINT=$entry -e PROVISIONER_FAILURE_ACTION=stop -e PROVISION_MAX_SECONDS=5400 -e OPEN_BUTTON_PORT=1111 -e PORTAL_CONFIG=localhost:1111:11111:/:Portal|localhost:8188:18188:/:ComfyUI -e SSH_PUBKEY_B64=$pubkey_b64 -p 1111:1111 -p 8188:8188 -p 22:22"
+
+      # Two modes. Both use runtype=args (base image entrypoint intact: supervisord + Instance
+      # Portal + the /etc/vast_boot.d provisioning hook). OPEN_BUTTON_PORT=1111 renders the Open
+      # button; PORTAL_CONFIG lists apps; SSH_PUBKEY_B64 is planted for sshd.
+      if [ -n "$manifest" ]; then
+        # MANIFEST MODE — Vast's NATIVE provisioner (PROVISIONING_MANIFEST) on the pre-baked
+        # vastai/comfy image (ComfyUI + venv + comfyui service already there). No bootstrap,
+        # no engine lib; the manifest + a rev-pinned WORKFLOW_URL drive everything. No repo to
+        # legitimacy-check. The manifest/workflow are committed here, served at THIS flake rev.
+        [ -n "$workflow" ] || { echo "vast-template-apply: --workflow is required in manifest mode." >&2; exit 1; }
+        [ -z "$image" ] && image="vastai/comfy"
+        tag="v0.28.0-cuda-12.9-py312"
+        case "$image" in *:*) tag="''${image##*:}"; image="''${image%:*}" ;; esac
+        [ -z "$disk" ] && disk="100"
+        manifest_url="${rawBase}/$manifest?v=${rev}"
+        workflow_url="${rawBase}/$workflow?v=${rev}"
+        env_str="-e PROVISIONING_MANIFEST=$manifest_url -e WORKFLOW_URL=$workflow_url -e PROVISIONER_FAILURE_ACTION=stop -e OPEN_BUTTON_PORT=1111 -e PORTAL_CONFIG=localhost:1111:11111:/:Portal|localhost:8188:18188:/:ComfyUI -e SSH_PUBKEY_B64=$pubkey_b64 -p 1111:1111 -p 8188:8188 -p 22:22"
+        skipcheck=1
+      else
+        # REPO MODE — clone a provisioner repo + run its provision.sh via our bash engine
+        # (the legacy path for stacks not yet migrated to a native manifest).
+        [ -n "$repo" ] || { echo "vast-template-apply: --repo (or --manifest) is required." >&2; exit 1; }
+        host="github.com"
+        case "$repo" in
+          gitlab:*) host="gitlab.com"; repo="''${repo#gitlab:}" ;;
+          github:*) host="github.com"; repo="''${repo#github:}" ;;
+        esac
+        [ -z "$image" ] && image="vastai/base-image"
+        tag="cuda-12.6.3-auto"   # vastai/base-image has no :latest — pin a valid auto-CUDA tag
+        case "$image" in *:*) tag="''${image##*:}"; image="''${image%:*}" ;; esac
+        [ -z "$disk" ] && disk="64"
+        env_str="-e PROVISIONING_SCRIPT=${bootstrapUrl} -e PROVISION_LIB_URL=${libUrl} -e PROVISION_HOST=$host -e PROVISION_REPO=$repo -e PROVISION_REF=$ref -e PROVISION_ENTRYPOINT=$entry -e PROVISIONER_FAILURE_ACTION=stop -e PROVISION_MAX_SECONDS=5400 -e OPEN_BUTTON_PORT=1111 -e PORTAL_CONFIG=localhost:1111:11111:/:Portal|localhost:8188:18188:/:ComfyUI -e SSH_PUBKEY_B64=$pubkey_b64 -p 1111:1111 -p 8188:8188 -p 22:22"
+      fi
 
       body="$(jq -n \
         --arg name "$name" --arg image "$image" --arg tag "$tag" \
@@ -557,14 +573,31 @@ let
   };
 
   # Lint the committed instance-side scripts at `nix flake check` (served as raw
-  # files / fetched at boot, so they can't be writeShellApplications).
-  scripts-lint = runCommand "vast-scripts-lint" { nativeBuildInputs = [ shellcheck ]; } ''
-    shellcheck \
-      ${./vast-bootstrap.sh} \
-      ${./vast-templates/provisioner/provision-lib.sh} \
-      ${./vast-templates/provisioner/provision.sh}
-    touch "$out"
-  '';
+  # files / fetched at boot, so they can't be writeShellApplications) + validate the
+  # native-manifest stack (YAML parses, the embedded gate shellchecks, workflow is JSON).
+  scripts-lint =
+    runCommand "vast-scripts-lint"
+      {
+        nativeBuildInputs = [
+          shellcheck
+          yq-go
+          jq
+        ];
+      }
+      ''
+        shellcheck \
+          ${./vast-bootstrap.sh} \
+          ${./vast-templates/provisioner/provision-lib.sh} \
+          ${./vast-templates/provisioner/provision.sh}
+        # Native-manifest stack (vastai/comfy): YAML must parse + carry the required keys,
+        # the embedded provision-gate.sh must shellcheck, and the workflow must be valid JSON.
+        manifest=${./vast-templates/bfs-flux-klein/provisioning.yaml}
+        yq eval 'has("version") and has("post_commands") and has("write_files")' "$manifest" | grep -qx true
+        yq eval '.write_files[] | select(.path == "/workspace/provision-gate.sh") | .content' "$manifest" > gate.sh
+        shellcheck gate.sh
+        jq empty ${./vast-templates/bfs-flux-klein/comfyui/BFS_FluxKlein9b_FaceSwap.json}
+        touch "$out"
+      '';
 in
 {
   inherit
