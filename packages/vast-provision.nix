@@ -199,9 +199,17 @@ let
         fi
       fi
 
-      # Reconcile by name: find an existing template of this name, then PUT (update
-      # with its hash_id) else POST (create).
-      list="$(curl -fsS -H "Authorization: Bearer $apikey" "${api}/template/?select_cols=%5B%22%2A%22%5D" 2>/dev/null || true)"
+      # Reconcile by name among MY templates. The unfiltered /template/ list is the
+      # global public catalog (capped, excludes your private templates), so filter by
+      # creator_id (this user's id). PUT (update) if a same-named one exists, else POST.
+      myid="$(curl -fsS -H "Authorization: Bearer $apikey" "${api}/users/current/" 2>/dev/null | jq -r '.id // empty')"
+      if [ -z "$myid" ]; then
+        echo "vast-template-apply: could not resolve the Vast user id for reconcile." >&2
+        exit 1
+      fi
+      list="$(curl -fsS -G -H "Authorization: Bearer $apikey" "${api}/template/" \
+               --data-urlencode 'select_cols=["*"]' \
+               --data-urlencode "select_filters={\"creator_id\":{\"eq\":$myid}}" 2>/dev/null || true)"
       hash_id="$(printf '%s' "$list" | jq -r --arg n "$name" '(.templates // []) | map(select(.name==$n)) | (.[0].hash_id // empty)')"
 
       if [ -n "$hash_id" ]; then
