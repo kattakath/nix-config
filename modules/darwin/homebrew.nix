@@ -92,7 +92,6 @@ _:
       "android-platform-tools"
       "applite"
       "blackhole-2ch"
-      "blender"
       "brave-browser"
       "bruno"
       "camo-studio"
