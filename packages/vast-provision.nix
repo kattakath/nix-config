@@ -177,10 +177,18 @@ let
 
       env_str="-e PROVISIONING_SCRIPT=${bootstrapUrl} -e PROVISION_HOST=$host -e PROVISION_REPO=$repo -e PROVISION_REF=$ref -e PROVISION_ENTRYPOINT=$entry"
 
+      # Vast's runtype=ssh replaces the base-image entrypoint with /.launch, so the
+      # base image's supervisord/portal and its PROVISIONING_SCRIPT phase never run.
+      # So TRIGGER the bootstrap from onstart (which DOES run under /.launch, with the
+      # account env vars — GITLAB_TOKEN etc. — in scope), backgrounded + logged to
+      # /var/log/provision.log. Also fix /root/.ssh perms so operator SSH works (the
+      # base image ships authorized_keys with modes sshd's StrictModes rejects).
+      onstart="chmod 700 /root/.ssh 2>/dev/null || true; chmod 600 /root/.ssh/authorized_keys 2>/dev/null || true; nohup bash -c 'curl -fsSL ${bootstrapUrl} | bash' >/var/log/provision.log 2>&1 &"
+
       body="$(jq -n \
         --arg name "$name" --arg image "$image" --arg tag "$tag" \
-        --arg env "$env_str" --argjson disk "$disk" '
-        { name: $name, image: $image, tag: $tag, env: $env, onstart: "",
+        --arg env "$env_str" --arg onstart "$onstart" --argjson disk "$disk" '
+        { name: $name, image: $image, tag: $tag, env: $env, onstart: $onstart,
           runtype: "ssh", use_ssh: true, ssh_direct: true,
           recommended_disk_space: $disk, private: true }')"
 
