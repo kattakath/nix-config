@@ -734,7 +734,7 @@
           system:
           let
             kit = (pkgsFor system).callPackage ./packages/vast-provision.nix {
-              inherit orgName repoName;
+              inherit orgName repoName userName;
               rev = self.rev or "main";
             };
           in
@@ -744,6 +744,7 @@
             vast-account-vars-set = kit.account-vars-set;
             vast-ssh-key-set = kit.ssh-key-set;
             vast-init-repo = kit.init-repo;
+            vast-rent = kit.rent;
             vast-scripts-lint = kit.scripts-lint;
           }
         ))
