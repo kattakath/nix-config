@@ -546,11 +546,11 @@ let
         gpujson="$(printf '%s' "$gpus" | jq -R 'split(",") | map(gsub("^ +| +$";""))')"
         q="$(jq -n --argjson gpu "$gpujson" --argjson disk "$disk" \
              '{q:{verified:{eq:true},rentable:{eq:true},gpu_name:{in:$gpu},num_gpus:{eq:1},
-                  disk_space:{gte:($disk+6)},inet_down:{gte:500},order:[["dph_total","asc"]],type:"on-demand"}}')"
+                  disk_space:{gte:($disk+6)},inet_down:{gte:1000},order:[["dph_total","asc"]],type:"on-demand"}}')"
         offers="$(printf '%s' "$q" | curl -fsS -X PUT "${api}/search/asks/" \
                    -H "Authorization: Bearer $apikey" -H "Content-Type: application/json" --data @- 2>/dev/null || true)"
         offer="$(printf '%s' "$offers" | jq -r --arg mp "$maxprice" '
-          (.offers // []) | map(select(.reliability2 >= 0.98))
+          (.offers // []) | map(select(.reliability2 >= 0.99))
           | (if $mp != "" then map(select(.dph_total <= ($mp | tonumber))) else . end)
           | sort_by(.dph_total) | (.[0].id // empty)')"
         [ -n "$offer" ] || { echo "vast-rent: no matching offer (gpu=$gpus disk>=$disk)." >&2; exit 1; }
