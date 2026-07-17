@@ -724,6 +724,27 @@
         (nixpkgs.lib.genAttrs darwinSystems (system: {
           set-secret = (pkgsFor system).callPackage ./packages/set-secret.nix { };
         }))
+
+        # Vast.ai template-provisioning toolkit (macOS only) — exposed as packages
+        # so `nix flake check` BUILDS them (writeShellApplication shellcheck) and
+        # lints the committed public bootstrap. The bootstrap's raw URL is pinned to
+        # THIS flake's rev. See packages/vast-provision.nix +
+        # docs/vastai-template-provisioning.md.
+        (nixpkgs.lib.genAttrs darwinSystems (
+          system:
+          let
+            kit = (pkgsFor system).callPackage ./packages/vast-provision.nix {
+              inherit orgName repoName;
+              rev = self.rev or "main";
+            };
+          in
+          {
+            vast-template-apply = kit.template-apply;
+            vast-repo-check = kit.repo-check;
+            vast-account-vars-set = kit.account-vars-set;
+            vast-scripts-lint = kit.scripts-lint;
+          }
+        ))
       ];
 
       # ---- Apps: dev VM + Cloudflare provisioning ----------------------------
@@ -837,6 +858,27 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.nixpi-vault-token}/bin/nixpi-vault-token";
               meta.description = "Re-encrypt a new connector token (stdin/$TUNNEL_TOKEN) into secrets/cloudflared-token.age (run from the repo root)";
+            };
+
+            # Vast.ai template provisioning (macOS). vast-template-apply reconciles
+            # (create/update BY NAME) a template that boots via PROVISIONING_SCRIPT ->
+            # the committed bootstrap -> clone the target repo (public/private) + run
+            # its entrypoint; vast-account-vars-set syncs read-only VAST_* Keychain
+            # tokens to Vast account env vars. See docs/vastai-template-provisioning.md.
+            aarch64-darwin.vast-template-apply = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.vast-template-apply}/bin/vast-template-apply";
+              meta.description = "Create/update (reconcile-by-name) a Vast.ai template that boots via the PROVISIONING_SCRIPT bootstrap (--template-name, --repo [github:|gitlab:]owner/repo)";
+            };
+            aarch64-darwin.vast-repo-check = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.vast-repo-check}/bin/vast-repo-check";
+              meta.description = "Validate a repo is a legit provisioner repo (structural: .provisioner-template.json marker + required files; github:/gitlab:)";
+            };
+            aarch64-darwin.vast-account-vars-set = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.vast-account-vars-set}/bin/vast-account-vars-set";
+              meta.description = "Sync read-only VAST_* Keychain tokens to Vast.ai account-level env vars (GITLAB_TOKEN/HF_TOKEN/CIVITAI_TOKEN/GH_TOKEN)";
             };
 
           }
