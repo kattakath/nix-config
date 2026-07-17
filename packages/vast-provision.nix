@@ -175,21 +175,21 @@ let
         *:*) tag="''${image##*:}"; image="''${image%:*}" ;;
       esac
 
-      env_str="-e PROVISIONING_SCRIPT=${bootstrapUrl} -e PROVISION_HOST=$host -e PROVISION_REPO=$repo -e PROVISION_REF=$ref -e PROVISION_ENTRYPOINT=$entry"
-
-      # Vast's runtype=ssh replaces the base-image entrypoint with /.launch, so the
-      # base image's supervisord/portal and its PROVISIONING_SCRIPT phase never run.
-      # So TRIGGER the bootstrap from onstart (which DOES run under /.launch, with the
-      # account env vars — GITLAB_TOKEN etc. — in scope), backgrounded + logged to
-      # /var/log/provision.log. Also fix /root/.ssh perms so operator SSH works (the
-      # base image ships authorized_keys with modes sshd's StrictModes rejects).
-      onstart="chmod 700 /root/.ssh 2>/dev/null || true; chmod 600 /root/.ssh/authorized_keys 2>/dev/null || true; nohup bash -c 'curl -fsSL ${bootstrapUrl} | bash' >/var/log/provision.log 2>&1 &"
+      # runtype=args PRESERVES the base image's ENTRYPOINT — unlike ssh/jupyter, which
+      # replace it with /.launch. With the entrypoint intact, supervisord starts Caddy +
+      # the Instance Portal AND the /etc/vast_boot.d phase auto-runs PROVISIONING_SCRIPT.
+      # So we get the "Open" button (web Apps/Logs/Terminal) + native auto-provisioning
+      # (no onstart hack) + SSH via the base image's own sshd on :22. Map the portal
+      # (1111), ComfyUI (8188), and ssh (22); PORTAL_CONFIG lists the apps
+      # (hostname:external:internal:path:name|… — no spaces in names, since the value
+      # rides inside the -e docker-options string).
+      env_str="-e PROVISIONING_SCRIPT=${bootstrapUrl} -e PROVISION_HOST=$host -e PROVISION_REPO=$repo -e PROVISION_REF=$ref -e PROVISION_ENTRYPOINT=$entry -e PORTAL_CONFIG=localhost:1111:11111:/:Portal|localhost:8188:18188:/:ComfyUI -p 1111:1111 -p 8188:8188 -p 22:22"
 
       body="$(jq -n \
         --arg name "$name" --arg image "$image" --arg tag "$tag" \
-        --arg env "$env_str" --arg onstart "$onstart" --argjson disk "$disk" '
-        { name: $name, image: $image, tag: $tag, env: $env, onstart: $onstart,
-          runtype: "ssh", use_ssh: true, ssh_direct: true,
+        --arg env "$env_str" --argjson disk "$disk" '
+        { name: $name, image: $image, tag: $tag, env: $env, onstart: "",
+          runtype: "args",
           recommended_disk_space: $disk, private: true }')"
 
       if [ -n "$dryrun" ]; then
