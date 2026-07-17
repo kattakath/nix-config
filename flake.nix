@@ -88,18 +88,6 @@
       url = "github:anthropics/claude-code";
       flake = false;
     };
-
-    # BlenderMCP-VSE — a stdio MCP server (`blender-mcp`) that drives Blender's
-    # Video Sequence Editor over a localhost socket, plus its single-file Blender
-    # `addon.py`. Source-only (flake = false): the gateway runs it via
-    # `uvx --from ${blenderMcpSrc} blender-mcp` (modules/shared/mcp.nix) and the
-    # darwin Blender module symlinks its addon into Blender's user scripts
-    # (modules/darwin/blender.nix) — one pinned rev for BOTH the server and the
-    # addon, bumped by `nix flake update`. Nothing vendored.
-    blender-mcp-vse = {
-      url = "github:anan0110692/blender-mcp-vse";
-      flake = false;
-    };
   };
 
   outputs =
@@ -119,7 +107,6 @@
       mcp-servers-nix,
       agent-skills-vercel,
       agent-skills-anthropic,
-      blender-mcp-vse,
       ...
     }:
     let
@@ -446,11 +433,6 @@
           useGlobalPkgs = true;
           useUserPackages = true;
           extraSpecialArgs = identityArgs // {
-            # blenderMcpSrc: the pinned BlenderMCP-VSE source, consumed by BOTH
-            # modules/shared/mcp.nix (the gateway server) and
-            # modules/darwin/blender.nix (the addon placement). Both darwin-gated,
-            # inert on the NixOS hosts (the arg is still threaded there, unused).
-            blenderMcpSrc = blender-mcp-vse;
             inherit
               mcp-servers-nix
               agent-skills-vercel

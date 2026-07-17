@@ -44,10 +44,6 @@
   # in flake.nix and threaded here + into infra/cloudflare/macos-mcp-tunnel.nix so
   # the tunnel ingress and this proxy can never drift.
   mcpPublicPort,
-  # Pinned BlenderMCP-VSE source (flake = false input) — the gateway runs its
-  # `blender-mcp` stdio server from this exact store path via `uvx --from`, so the
-  # server rev is single-sourced with the Blender addon (modules/darwin/blender.nix).
-  blenderMcpSrc,
   ...
 }:
 let
@@ -151,25 +147,6 @@ let
         "-y"
         "@mobilenext/mobile-mcp@latest"
       ];
-    };
-    # BlenderMCP-VSE — AI-driven Blender Video Sequence Editor over a localhost
-    # socket. Run OFFLINE from the PINNED flake source (blenderMcpSrc), not
-    # `uvx --from git+…` (no per-launch GitHub fetch, rev single-sourced with the
-    # addon in modules/darwin/blender.nix). uv builds it into ~/.cache/uv on first
-    # launch (cpython + deps), then reuses it. It connects OUT to Blender's addon
-    # server on 127.0.0.1:9876 — until that addon is running it logs a harmless
-    # "Connection refused" and stays alive (mcp-proxy keeps stdin open), connecting
-    # lazily when a Blender/VSE tool is first called. Telemetry off (the pinned
-    # server bundles a supabase client). git is on the gateway PATH (/usr/bin) but
-    # unused here since we build from the local path, not a git URL.
-    blender = {
-      command = uvx;
-      args = [
-        "--from"
-        "${blenderMcpSrc}"
-        "blender-mcp"
-      ];
-      env.DISABLE_TELEMETRY = "true";
     };
   };
 
