@@ -168,8 +168,9 @@ let
         github:*) host="github.com"; repo="''${repo#github:}" ;;
       esac
 
-      # image[:tag] -> image + tag (default latest).
-      tag="latest"
+      # image[:tag] -> image + tag. NOTE: vastai/base-image has NO ":latest" tag —
+      # a manifest-unknown pull failure — so default to a valid auto-CUDA tag.
+      tag="cuda-12.6.3-auto"
       case "$image" in
         *:*) tag="''${image##*:}"; image="''${image%:*}" ;;
       esac
