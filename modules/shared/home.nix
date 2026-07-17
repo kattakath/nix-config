@@ -68,9 +68,11 @@ let
   # android-commandlinetools cask + ANDROID_HOME set below), then launches.
   # Uses a native arm64 system image (fast on Apple Silicon). macOS-only.
   #
-  # The AVD name selects the system image: a name containing "play" (e.g.
-  # `android-emu pixel_play`) gets the Google Play image (has the Play Store,
-  # not rootable); any other name gets Google APIs (no Play Store, dev-friendly).
+  # The AVD name selects the system image: a name containing "play" — the DEFAULT
+  # `pixel_play`, launched by a bare `android-emu` — gets the Google Play image (has
+  # the Play Store, not rootable); any other name (e.g. `android-emu pixel`) gets
+  # Google APIs (no Play Store, dev-friendly). Each AVD is created with a 64G data
+  # partition (the `pixel` device default of 6G fills up fast).
   #
   # Launch defaults that make the emulator actually usable on Apple Silicon:
   #   -gpu swiftshader_indirect  software rendering; host-GPU emulation renders a
@@ -90,7 +92,7 @@ let
     text = ''
       ANDROID_HOME="''${ANDROID_HOME:-/opt/homebrew/share/android-commandlinetools}"
       export ANDROID_HOME
-      avd="''${1:-pixel}"
+      avd="''${1:-pixel_play}"
       sdkmanager="/opt/homebrew/bin/sdkmanager"
       avdmanager="/opt/homebrew/bin/avdmanager"
       emulator="$ANDROID_HOME/emulator/emulator"
@@ -138,6 +140,10 @@ let
         set_key hw.gpu.enabled yes
         set_key hw.gpu.mode swiftshader_indirect
         set_key hw.keyboard yes
+        # Serious internal-storage bump: the `pixel` device profile defaults to a
+        # cramped 6G data partition (fills up fast once the Play Store + a few apps
+        # land). 64G is sparse (qcow2), so it costs real disk only as it fills.
+        set_key disk.dataPartition.size 64G
         case "$avd" in *play*) set_key PlayStore.enabled yes ;; esac
       fi
 
