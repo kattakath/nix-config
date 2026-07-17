@@ -59,11 +59,14 @@ in
       [ -n "$pubkey" ] || { echo "runpod-template-apply: ~/.ssh/id_ed25519.pub not found — cannot set PUBLIC_KEY." >&2; exit 1; }
 
       # dockerStartCmd wrapper (runs in the POD): clone the workflow repo with GITLAB_TOKEN
-      # (a RunPod secret, expanded at pod launch) then exec the workflow's runpod/provision.sh.
-      # $repo/$wfname are baked here; ''${GITLAB_TOKEN} is DELIBERATELY kept literal (single
-      # quotes) so the POD — not this app — expands it at launch. Hence SC2016 is expected.
+      # (a RunPod secret, expanded at pod launch), run the workflow's runpod/provision.sh, then
+      # ALWAYS exec /start.sh. RunPod auto-restarts an EXITED container (desiredStatus=RUNNING),
+      # so a non-zero exit would crash-loop — instead, on a provisioning failure we start
+      # ComfyUI/SSH anyway (debuggable, no loop) after a loud banner. $repo/$wfname are baked
+      # here; ''${GITLAB_TOKEN} is DELIBERATELY kept literal (single quotes) so the POD — not
+      # this app — expands it at launch. Hence SC2016 is expected.
       # shellcheck disable=SC2016
-      wrapper="$(printf 'set -e; export GIT_TERMINAL_PROMPT=0; rm -rf /tmp/prov; git clone --depth=1 "https://oauth2:''${GITLAB_TOKEN}@%s.git" /tmp/prov; exec bash "/tmp/prov/workflows/%s/runpod/provision.sh"' "$repo" "$wfname")"
+      wrapper="$(printf 'export GIT_TERMINAL_PROMPT=0; rm -rf /tmp/prov; git clone --depth=1 "https://oauth2:''${GITLAB_TOKEN}@%s.git" /tmp/prov && bash "/tmp/prov/workflows/%s/runpod/provision.sh" || echo "!!! RUNPOD PROVISION FAILED - see log above; starting ComfyUI/SSH for debug !!!"; exec /start.sh' "$repo" "$wfname")"
 
       body="$(jq -n \
         --arg name "$wfname" --arg image "$image" --arg pubkey "$pubkey" \
