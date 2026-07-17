@@ -152,6 +152,7 @@ let
       entry="provision.sh"
       manifest=""
       workflow=""
+      wfname=""
       image=""
       disk=""
       host=""
@@ -166,15 +167,17 @@ let
           --entrypoint) entry="''${2:?}"; shift 2 ;;
           --manifest) manifest="''${2:?}"; shift 2 ;;
           --workflow) workflow="''${2:?}"; shift 2 ;;
+          --workflow-name) wfname="''${2:?}"; shift 2 ;;
           --image) image="''${2:?}"; shift 2 ;;
           --disk) disk="''${2:?}"; shift 2 ;;
           --dry-run) dryrun=1; shift ;;
           --skip-check) skipcheck=1; shift ;;
           -h | --help)
             echo "usage: vast-template-apply --template-name NAME (--repo OWNER/REPO | --manifest PATH --workflow PATH) \\"
-            echo "  repo mode:     --repo [github:|gitlab:]owner/repo [--ref REF] [--entrypoint PATH]  (bash engine on vastai/base-image)"
-            echo "  manifest mode: --manifest packages/…/provisioning.yaml --workflow packages/…/workflow.json  (native provisioner on vastai/comfy)"
-            echo "  common:        [--image IMG[:TAG]] [--disk GB] [--dry-run] [--skip-check]"
+            echo "  repo mode (legacy):  --repo [github:|gitlab:]owner/repo [--ref REF] [--entrypoint PATH]  (bash engine on vastai/base-image)"
+            echo "  aggregator mode:     --repo gitlab:owner/comfyui-workflows --workflow-name NAME  (native provisioner on vastai/comfy; private OK)"
+            echo "  manifest mode:       --manifest packages/…/provisioning.yaml --workflow packages/…/workflow.json  (native provisioner from a public URL)"
+            echo "  common:              [--image IMG[:TAG]] [--disk GB] [--dry-run] [--skip-check]"
             exit 0 ;;
           *) echo "vast-template-apply: unknown argument: $1" >&2; exit 1 ;;
         esac
@@ -203,19 +206,32 @@ let
         env_str="-e PROVISIONING_MANIFEST=$manifest_url -e WORKFLOW_URL=$workflow_url -e PROVISIONER_FAILURE_ACTION=stop -e OPEN_BUTTON_PORT=1111 -e PORTAL_CONFIG=localhost:1111:11111:/:Portal|localhost:8188:18188:/:ComfyUI -e SSH_PUBKEY_B64=$pubkey_b64 -p 1111:1111 -p 8188:8188 -p 22:22"
         skipcheck=1
       else
-        # REPO MODE — clone a provisioner repo + run its provision.sh via our bash engine
-        # (the legacy path for stacks not yet migrated to a native manifest).
+        # REPO MODE — the bootstrap clones a provisioner repo (public OR private, via
+        # GITLAB_TOKEN/GH_TOKEN) and runs its provision.sh. Two flavours:
+        #   * aggregator (--workflow-name): provision.sh runs Vast's NATIVE provisioner on the
+        #     named workflow's manifest, on the pre-baked vastai/comfy image (no bash engine).
+        #     This is how a PRIVATE workflow repo is provisioned — cloned with the token, manifest
+        #     run locally, so no public raw URL is needed.
+        #   * legacy (no --workflow-name): our bash engine (PROVISION_LIB_URL) on vastai/base-image.
         [ -n "$repo" ] || { echo "vast-template-apply: --repo (or --manifest) is required." >&2; exit 1; }
         host="github.com"
         case "$repo" in
           gitlab:*) host="gitlab.com"; repo="''${repo#gitlab:}" ;;
           github:*) host="github.com"; repo="''${repo#github:}" ;;
         esac
-        [ -z "$image" ] && image="vastai/base-image"
-        tag="cuda-12.6.3-auto"   # vastai/base-image has no :latest — pin a valid auto-CUDA tag
-        case "$image" in *:*) tag="''${image##*:}"; image="''${image%:*}" ;; esac
-        [ -z "$disk" ] && disk="64"
-        env_str="-e PROVISIONING_SCRIPT=${bootstrapUrl} -e PROVISION_LIB_URL=${libUrl} -e PROVISION_HOST=$host -e PROVISION_REPO=$repo -e PROVISION_REF=$ref -e PROVISION_ENTRYPOINT=$entry -e PROVISIONER_FAILURE_ACTION=stop -e PROVISION_MAX_SECONDS=5400 -e OPEN_BUTTON_PORT=1111 -e PORTAL_CONFIG=localhost:1111:11111:/:Portal|localhost:8188:18188:/:ComfyUI -e SSH_PUBKEY_B64=$pubkey_b64 -p 1111:1111 -p 8188:8188 -p 22:22"
+        if [ -n "$wfname" ]; then
+          [ -z "$image" ] && image="vastai/comfy"
+          case "$image" in *:*) tag="''${image##*:}"; image="''${image%:*}" ;; *) tag="v0.28.0-cuda-12.9-py312" ;; esac
+          [ -z "$disk" ] && disk="100"
+          # No PROVISION_LIB_URL — the aggregator's provision.sh is self-contained (runs the
+          # native provisioner). WORKFLOW_NAME selects which workflow's manifest to run.
+          env_str="-e PROVISIONING_SCRIPT=${bootstrapUrl} -e PROVISION_HOST=$host -e PROVISION_REPO=$repo -e PROVISION_REF=$ref -e PROVISION_ENTRYPOINT=$entry -e WORKFLOW_NAME=$wfname -e PROVISIONER_FAILURE_ACTION=stop -e OPEN_BUTTON_PORT=1111 -e PORTAL_CONFIG=localhost:1111:11111:/:Portal|localhost:8188:18188:/:ComfyUI -e SSH_PUBKEY_B64=$pubkey_b64 -p 1111:1111 -p 8188:8188 -p 22:22"
+        else
+          [ -z "$image" ] && image="vastai/base-image"
+          case "$image" in *:*) tag="''${image##*:}"; image="''${image%:*}" ;; *) tag="cuda-12.6.3-auto" ;; esac
+          [ -z "$disk" ] && disk="64"
+          env_str="-e PROVISIONING_SCRIPT=${bootstrapUrl} -e PROVISION_LIB_URL=${libUrl} -e PROVISION_HOST=$host -e PROVISION_REPO=$repo -e PROVISION_REF=$ref -e PROVISION_ENTRYPOINT=$entry -e PROVISIONER_FAILURE_ACTION=stop -e PROVISION_MAX_SECONDS=5400 -e OPEN_BUTTON_PORT=1111 -e PORTAL_CONFIG=localhost:1111:11111:/:Portal|localhost:8188:18188:/:ComfyUI -e SSH_PUBKEY_B64=$pubkey_b64 -p 1111:1111 -p 8188:8188 -p 22:22"
+        fi
       fi
 
       body="$(jq -n \
