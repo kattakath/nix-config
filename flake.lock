@@ -55,6 +55,22 @@
         "type": "github"
       }
     },
+    "blender-mcp-vse": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1769806541,
+        "narHash": "sha256-/I4y3POVfFcJNd7goYH9lWycvfoqa2F8SOoqallWC9s=",
+        "owner": "anan0110692",
+        "repo": "blender-mcp-vse",
+        "rev": "4d18ba7ac25c8c8b542b8f3c0749edcb84ee2aba",
+        "type": "github"
+      },
+      "original": {
+        "owner": "anan0110692",
+        "repo": "blender-mcp-vse",
+        "type": "github"
+      }
+    },
     "brew-src": {
       "flake": false,
       "locked": {
@@ -556,6 +572,7 @@
         "agenix": "agenix",
         "agent-skills-anthropic": "agent-skills-anthropic",
         "agent-skills-vercel": "agent-skills-vercel",
+        "blender-mcp-vse": "blender-mcp-vse",
         "determinate": "determinate",
         "git-hooks": "git-hooks",
         "home-manager": "home-manager_2",
