@@ -56,7 +56,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      - uses: DeterminateSystems/flake-checker-action@3164002371bc90729c68af0e24d5aacf20d7c9f6 # v12
+      - uses: DeterminateSystems/flake-checker-action@de924abd783455e8429c858962b9e43062d19da1 # v13
 
   # One leg per system, on its arch-native runner. fail-fast:false so one
   # leg's failure doesn't cancel the other — the aggregate required-checks
@@ -96,7 +96,7 @@ jobs:
 
       # UPSTREAM Nix (NOT DeterminateSystems/nix-installer-action — that installs
       # Determinate Nix only, as of 2026-01-01).
-      - uses: cachix/install-nix-action@a49548c11d9846ad46ecc0115273879b045f001c # v31
+      - uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342 # v31
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
