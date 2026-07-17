@@ -27,10 +27,11 @@ _:
     };
 
     # ---- Taps --------------------------------------------------------------
-    # runpod/runpodctl provides the runpodctl brew (RunPod GPU CLI) — not in
-    # homebrew-core, so the tap is required. escrcpy (viarotel-org/escrcpy) was
-    # removed — its cask emitted a deprecated `depends_on macos:` warning.
-    taps = [ "runpod/runpodctl" ];
+    # No third-party taps. escrcpy (viarotel-org/escrcpy) was removed — its cask
+    # emitted a deprecated `depends_on macos:` warning on every activation.
+    # nats-server is homebrew-core, so no tap is needed. (runpodctl comes from
+    # nixpkgs via home.nix, not a tap — Homebrew now refuses untrusted taps.)
+    taps = [ ];
 
     # ---- Formulae (brews) --------------------------------------------------
     # See header for what was removed and what is intentionally kept. Entries
@@ -71,9 +72,6 @@ _:
       "ocrmypdf"
       "poppler"
       "pyenv"
-      # RunPod GPU CLI (from the runpod/runpodctl tap above) — for RunPod as a
-      # second ComfyUI-workflow provider alongside Vast.
-      "runpodctl"
       "scrcpy"
       "shellcheck"
       "starship"
