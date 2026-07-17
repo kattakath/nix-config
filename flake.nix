@@ -748,6 +748,19 @@
             vast-scripts-lint = kit.scripts-lint;
           }
         ))
+
+        # RunPod pod-template provisioning (macOS only) — the RunPod analogue of the
+        # vast-* apps. Creates a RunPod POD template on runpod/comfyui for a comfyui-workflows
+        # workflow, provisioned at boot via dockerStartCmd. See packages/runpod-provision.nix.
+        (nixpkgs.lib.genAttrs darwinSystems (
+          system:
+          let
+            kit = (pkgsFor system).callPackage ./packages/runpod-provision.nix { };
+          in
+          {
+            runpod-template-apply = kit.template-apply;
+          }
+        ))
       ];
 
       # ---- Apps: dev VM + Cloudflare provisioning ----------------------------
