@@ -40,7 +40,11 @@
 }:
 let
   api = "https://console.vast.ai/api/v0";
-  bootstrapUrl = "https://raw.githubusercontent.com/${orgName}/${repoName}/${rev}/packages/vast-bootstrap.sh";
+  # ?v=${rev} makes the URL change on every content change, defeating the base image's
+  # Phase-9 URL-hash idempotency skip (so a fixed bootstrap actually re-runs).
+  bootstrapUrl = "https://raw.githubusercontent.com/${orgName}/${repoName}/${rev}/packages/vast-bootstrap.sh?v=${rev}";
+  # The shared, never-false-positive engine, pinned to this rev; the bootstrap fetches it.
+  libUrl = "https://raw.githubusercontent.com/${orgName}/${repoName}/${rev}/packages/vast-templates/provisioner/provision-lib.sh";
 
   # Validate that a repo is a legitimate provisioner repo — structurally (forge
   # provenance is asymmetric: GitHub has template_repository, GitLab has nothing),
@@ -142,7 +146,7 @@ let
       ref="main"
       entry="provision.sh"
       image="vastai/base-image"
-      disk="32"
+      disk="64"
       dryrun=""
       skipcheck=""
       while [ $# -gt 0 ]; do
@@ -190,7 +194,12 @@ let
       # carries the operator public key base64'd (no spaces) so provision.sh can plant it
       # for sshd — Vast's own ssh-key injection is tied to runtype=ssh and won't run here.
       pubkey_b64="$(base64 < "$HOME/.ssh/id_ed25519.pub" 2>/dev/null | tr -d '\n' || true)"
-      env_str="-e PROVISIONING_SCRIPT=${bootstrapUrl} -e PROVISION_HOST=$host -e PROVISION_REPO=$repo -e PROVISION_REF=$ref -e PROVISION_ENTRYPOINT=$entry -e OPEN_BUTTON_PORT=1111 -e PORTAL_CONFIG=localhost:1111:11111:/:Portal|localhost:8188:18188:/:ComfyUI -e SSH_PUBKEY_B64=$pubkey_b64 -p 1111:1111 -p 8188:8188 -p 22:22"
+      # Fail LOUDLY rather than shipping an empty SSH_PUBKEY_B64 (which would silently
+      # yield an instance with no SSH login).
+      [ -n "$pubkey_b64" ] || { echo "vast-template-apply: ~/.ssh/id_ed25519.pub not found — cannot inject SSH_PUBKEY_B64" >&2; exit 1; }
+      # PROVISION_LIB_URL: the pinned engine the bootstrap fetches. PROVISIONER_FAILURE_ACTION
+      # + PROVISION_MAX_SECONDS drive the engine's fail-closed funnel (stop the box + watchdog).
+      env_str="-e PROVISIONING_SCRIPT=${bootstrapUrl} -e PROVISION_LIB_URL=${libUrl} -e PROVISION_HOST=$host -e PROVISION_REPO=$repo -e PROVISION_REF=$ref -e PROVISION_ENTRYPOINT=$entry -e PROVISIONER_FAILURE_ACTION=stop -e PROVISION_MAX_SECONDS=5400 -e OPEN_BUTTON_PORT=1111 -e PORTAL_CONFIG=localhost:1111:11111:/:Portal|localhost:8188:18188:/:ComfyUI -e SSH_PUBKEY_B64=$pubkey_b64 -p 1111:1111 -p 8188:8188 -p 22:22"
 
       body="$(jq -n \
         --arg name "$name" --arg image "$image" --arg tag "$tag" \
@@ -447,6 +456,7 @@ let
   scripts-lint = runCommand "vast-scripts-lint" { nativeBuildInputs = [ shellcheck ]; } ''
     shellcheck \
       ${./vast-bootstrap.sh} \
+      ${./vast-templates/provisioner/provision-lib.sh} \
       ${./vast-templates/provisioner/provision.sh}
     touch "$out"
   '';
