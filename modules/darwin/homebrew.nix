@@ -95,6 +95,7 @@ _:
       "brave-browser"
       "bruno"
       "camo-studio"
+      "capcut"
       "claude"
       "cursor"
       "docker-desktop"
