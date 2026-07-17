@@ -455,9 +455,9 @@ let
   # Rent a Vast instance from one of our templates WITH authenticated Docker Hub
   # registry login. Vast has NO account-level registry store and templates provably
   # cannot carry credentials (the /template/ body keeps only docker_login_repo, not
-  # user/pass — verified against vast-python), so the read-only Docker Hub PAT can
+  # user/pass — verified against vast-python), so the Docker Hub PAT can
   # ONLY ride the per-instance create call's `image_login`. This app is that single
-  # honest home: it reads VAST_DOCKERHUB_TOKEN from the Keychain and userName as the
+  # honest home: it reads DOCKERHUB_TOKEN from the Keychain and userName as the
   # Docker Hub username, and injects `-u <user> -p <pat> docker.io` so the base-image
   # pull uses OUR account rate budget instead of the shared-per-IP anonymous limit
   # (whose exhaustion stalls the pull — layers stuck "Waiting", pull restarting).
@@ -473,8 +473,8 @@ let
       account="$(id -un)"
       apikey="$("$security" find-generic-password -a "$account" -s VAST_API_KEY -w 2>/dev/null || true)"
       [ -n "$apikey" ] || { echo "vast-rent: VAST_API_KEY not in the login Keychain." >&2; exit 1; }
-      # Read-only Docker Hub PAT (optional but recommended); username = flake identity.
-      dhtoken="$("$security" find-generic-password -a "$account" -s VAST_DOCKERHUB_TOKEN -w 2>/dev/null || true)"
+      # Docker Hub PAT from the Keychain (optional but recommended); username = flake identity.
+      dhtoken="$("$security" find-generic-password -a "$account" -s DOCKERHUB_TOKEN -w 2>/dev/null || true)"
       dhuser="${userName}"
 
       tname=""; thash=""; offer=""; gpus="RTX 4090,RTX 5090"; disk="64"; maxprice=""; dryrun=""
@@ -490,7 +490,7 @@ let
           -h | --help)
             echo "usage: vast-rent (--template-name NAME | --template-hash HASH) \\"
             echo "         [--offer ID] [--gpu \"RTX 4090,RTX 5090\"] [--disk GB] [--max-price DPH] [--dry-run]"
-            echo "Injects authenticated Docker Hub image_login (user=${userName}) from VAST_DOCKERHUB_TOKEN to beat pull rate limits."
+            echo "Injects authenticated Docker Hub image_login (user=${userName}) from DOCKERHUB_TOKEN to beat pull rate limits."
             exit 0 ;;
           *) echo "vast-rent: unknown argument: $1" >&2; exit 1 ;;
         esac
@@ -533,7 +533,7 @@ let
         login="-u $dhuser -p $dhtoken docker.io"
         echo "vast-rent: authenticated Docker Hub pull as '$dhuser'."
       else
-        echo "vast-rent: WARN — no VAST_DOCKERHUB_TOKEN in the Keychain; anonymous pull may hit Docker Hub rate limits." >&2
+        echo "vast-rent: WARN — no DOCKERHUB_TOKEN in the Keychain; anonymous pull may hit Docker Hub rate limits." >&2
       fi
       body="$(LOGIN="$login" jq -n --arg h "$thash" --argjson disk "$disk" \
         '{template_hash_id: $h, disk: $disk} + (if ($ENV.LOGIN | length) > 0 then {image_login: $ENV.LOGIN} else {} end)')"
