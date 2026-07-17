@@ -49,7 +49,7 @@ jobs:
       # exactly that. The gitleaks BINARY is MIT-licensed and unrestricted — only
       # the wrapper is gated — so run it directly and drop the third-party action
       # (one less supply-chain edge, and it is pinned by our own flake.lock).
-      - uses: cachix/install-nix-action@a49548c11d9846ad46ecc0115273879b045f001c # v31
+      - uses: cachix/install-nix-action@630ae543ea3a38a9a4166f03376c02c50f408342 # v31
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
