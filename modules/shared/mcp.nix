@@ -225,6 +225,31 @@ let
       ];
     }) cfg.endpoints
   );
+
+  # Grok CLI (xAI, grok 0.2.x) is a 4th MCP client living OUTSIDE Nix: a self-updating
+  # binary at ~/.grok/bin/grok (on PATH via home.sessionPath), config at ~/.grok/config.toml.
+  # That file is STATEFUL (grok writes [cli] installer/channel, UI prefs, sessions; auth is
+  # in a sibling auth.json), so — exactly like Claude Desktop — we never own the whole file:
+  # we delegate the MERGE to the tool that authors the format. `grok mcp add` is add-or-update
+  # (idempotent), runs purely OFFLINE (exit 0, no daemon — it only writes TOML), and rewrites
+  # ONLY the [mcp_servers.<name>] table. Grok speaks Streamable HTTP natively (--transport http),
+  # so it consumes the SAME cfg.endpoints /mcp URLs every other client uses (no SSE fallback).
+  # Reuses cfg.endpoints, so Grok can never drift from the gateway.
+  grokBin = "${config.home.homeDirectory}/.grok/bin/grok";
+  # Loopback gateway URL prefix — the marker identifying entries WE manage, so stale-entry
+  # pruning below never touches a user's own (non-gateway) MCP servers.
+  grokGatewayPrefix = "http://${gatewayHost}:${toString gatewayPort}/servers/";
+  # One idempotent `grok mcp add` per endpoint. `|| true` keeps a rebuild from aborting on a
+  # transient grok error (best-effort, self-heals next switch; `mcp add` only writes TOML, so
+  # a down gateway does NOT make it fail).
+  grokAddLines = lib.concatStringsSep "\n" (
+    lib.mapAttrsToList (
+      name: url:
+      ''"$grok" mcp add --transport http --scope user ${lib.escapeShellArg name} ${lib.escapeShellArg url} >/dev/null 2>&1 || true''
+    ) cfg.endpoints
+  );
+  # Space-padded desired-name set for the prune membership test.
+  grokDesiredNames = lib.concatStringsSep " " (builtins.attrNames cfg.endpoints);
 in
 {
   options.services.mcpGateway = {
@@ -408,6 +433,44 @@ in
         mkdir -p "$(dirname "$cfg")"
         ${pkgs.jq}/bin/jq -n --slurpfile m ${claudeDesktopMcpServers} \
           '{ mcpServers: $m[0] }' > "$cfg" && chmod 600 "$cfg"
+      fi
+    '';
+
+    # ---- Client side D: Grok CLI (stateful ~/.grok/config.toml → grok owns the merge)
+    # No `programs.grok` HM module and a stateful config.toml, so — like Claude Desktop — an
+    # activation script merges ONLY the [mcp_servers] tables via grok's OWN CLI, which stays
+    # robust to grok's TOML schema (the `enabled` flag, --scope, future keys) since grok, not
+    # us, renders it. USER scope (not project) so the servers aren't blocked by grok's
+    # folder-trust gate. GATED on the grok binary existing (~/.grok/bin/grok) — no grok
+    # installed, nothing runs and no stray files are created (mirrors Claude Desktop's
+    # /Applications/Claude.app test). We do NOT lean on grok's [compat.claude] mcps=true scan
+    # of ~/.claude.json: the claude-code module writes the gateway to a MANAGED plugin .mcp.json
+    # (not ~/.claude.json), which grok does not read — so explicit wiring here is the single
+    # source of truth. Reuses cfg.endpoints, so grok can never drift from the gateway.
+    home.activation.grokMcp = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      grok="${grokBin}"
+      if [ ! -x "$grok" ]; then
+        : # Grok CLI not installed — nothing to configure, no stray files.
+      else
+        # 1) Add/update every gateway endpoint (idempotent: `mcp add` = add-or-update).
+        ${grokAddLines}
+        # 2) Prune stale gateway entries we no longer manage. Only touch servers whose URL is
+        #    under OUR loopback gateway prefix, so a user's own MCP servers are never removed;
+        #    drop any such entry no longer present in cfg.endpoints.
+        desired=" ${grokDesiredNames} "
+        "$grok" mcp list 2>/dev/null | while IFS= read -r line; do
+          name="''${line%%:*}"
+          name="''${name#"''${name%%[![:space:]]*}"}"   # strip leading whitespace
+          url="''${line#*: }"
+          case "$url" in
+            ${grokGatewayPrefix}*) ;;                     # a gateway entry we own
+            *) continue ;;                                # foreign server — leave it
+          esac
+          case "$desired" in
+            *" $name "*) ;;                               # still desired — keep
+            *) "$grok" mcp remove --scope user "$name" >/dev/null 2>&1 || true ;;
+          esac
+        done
       fi
     '';
   };
