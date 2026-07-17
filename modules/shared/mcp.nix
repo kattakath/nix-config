@@ -53,6 +53,12 @@ let
   gatewayHost = "127.0.0.1";
   gatewayPort = 8096;
 
+  # Android SDK root — the android-commandlinetools Homebrew cask install prefix
+  # (mirrors ANDROID_HOME in modules/shared/home.nix). mobile-mcp locates `adb`
+  # via $ANDROID_HOME/platform-tools, so the gateway launchd agent below puts this
+  # on PATH + exports ANDROID_HOME (unlike osascript, adb is NOT in the base PATH).
+  androidSdkHome = "/opt/homebrew/share/android-commandlinetools";
+
   # The PUBLIC proxy binds a different loopback port; only the Mac cloudflared
   # connector (also loopback) reaches it, and Cloudflare Access gates the edge.
   publicPort = mcpPublicPort;
@@ -125,6 +131,21 @@ let
         "--package"
         "@steipete/macos-automator-mcp"
         "macos-automator-mcp"
+      ];
+    };
+    # Cross-platform mobile automation — drives Android EMULATORS and physical
+    # devices over ADB (plus iOS), accessibility-first (native a11y tree: no vision
+    # model, no API key, no image tokens), falling back to screenshots+coordinates.
+    # mobile-next/mobile-mcp (5.5k★, Apache-2.0, ~79k dl/mo). Needs `adb` + the
+    # Android SDK, so the gateway agent below adds ${androidSdkHome}/platform-tools to
+    # PATH and exports ANDROID_HOME. Drives any booted `android-emu`
+    # (modules/shared/home.nix) or a USB device with debugging authorized — the adb
+    # server (:5037) is shared per-user, so the gateway and the emulator see each other.
+    mobile-mcp = {
+      command = npx;
+      args = [
+        "-y"
+        "@mobilenext/mobile-mcp@latest"
       ];
     };
   };
@@ -347,13 +368,18 @@ in
         ];
         RunAtLoad = true;
         KeepAlive = true;
-        # npx/uvx children need Node/uv on PATH (mcp-proxy itself is absolute above).
-        EnvironmentVariables.PATH =
-          lib.makeBinPath [
-            pkgs.nodejs
-            pkgs.uv
-          ]
-          + ":/usr/bin:/bin";
+        EnvironmentVariables = {
+          # npx/uvx children need Node/uv on PATH (mcp-proxy itself is absolute above);
+          # mobile-mcp additionally needs `adb` (platform-tools) + the emulator binary.
+          PATH =
+            lib.makeBinPath [
+              pkgs.nodejs
+              pkgs.uv
+            ]
+            + ":${androidSdkHome}/platform-tools:${androidSdkHome}/emulator:/usr/bin:/bin";
+          # mobile-mcp resolves adb via $ANDROID_HOME/platform-tools/adb.
+          ANDROID_HOME = androidSdkHome;
+        };
         StandardOutPath = "${config.home.homeDirectory}/Library/Logs/mcp-gateway.log";
         StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/mcp-gateway.log";
       };
