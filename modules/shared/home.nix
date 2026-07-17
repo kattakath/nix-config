@@ -189,6 +189,7 @@ in
 {
   imports = [
     ./mcp.nix # darwin-gated MCP server registry for Claude Code
+    ../darwin/blender.nix # darwin-gated BlenderMCP-VSE addon install (pairs with the `blender` gateway server)
   ];
 
   # Expose the kapture browser-automation server PUBLICLY as an OAuth-gated MCP
