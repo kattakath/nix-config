@@ -199,9 +199,11 @@ let
         fi
       fi
 
-      # Reconcile by name among MY templates. The unfiltered /template/ list is the
-      # global public catalog (capped, excludes your private templates), so filter by
-      # creator_id (this user's id). PUT (update) if a same-named one exists, else POST.
+      # Reconcile by name among MY templates: replace = delete existing + create. The
+      # update (PUT) endpoint is broken server-side (returns "Invalid Creator ID" even
+      # with the CLI's exact auth), and delete+create yields the same idempotent
+      # end-state (templates only affect NEW instances, so replacing is safe). The
+      # unfiltered /template/ list is the global public catalog, so filter by creator_id.
       myid="$(curl -fsS -H "Authorization: Bearer $apikey" "${api}/users/current/" 2>/dev/null | jq -r '.id // empty')"
       if [ -z "$myid" ]; then
         echo "vast-template-apply: could not resolve the Vast user id for reconcile." >&2
@@ -210,18 +212,20 @@ let
       list="$(curl -fsS -G -H "Authorization: Bearer $apikey" "${api}/template/" \
                --data-urlencode 'select_cols=["*"]' \
                --data-urlencode "select_filters={\"creator_id\":{\"eq\":$myid}}" 2>/dev/null || true)"
-      hash_id="$(printf '%s' "$list" | jq -r --arg n "$name" '(.templates // []) | map(select(.name==$n)) | (.[0].hash_id // empty)')"
+      existing_id="$(printf '%s' "$list" | jq -r --arg n "$name" '(.templates // []) | map(select(.name==$n)) | (.[0].id // empty)')"
 
-      if [ -n "$hash_id" ]; then
-        full="$(printf '%s' "$body" | jq --arg h "$hash_id" '. + {hash_id: $h}')"
-        resp="$(printf '%s' "$full" | curl -fsS -X PUT "${api}/template/" \
-                 -H "Authorization: Bearer $apikey" -H "Content-Type: application/json" --data @- 2>/dev/null || true)"
-        action="updated"
-      else
-        resp="$(printf '%s' "$body" | curl -fsS -X POST "${api}/template/" \
-                 -H "Authorization: Bearer $apikey" -H "Content-Type: application/json" --data @- 2>/dev/null || true)"
-        action="created"
+      action="created"
+      if [ -n "$existing_id" ]; then
+        del="$(curl -fsS -X DELETE "${api}/template/" -H "Authorization: Bearer $apikey" \
+                -H "Content-Type: application/json" --data "{\"template_id\":$existing_id}" 2>/dev/null || true)"
+        if [ "$(printf '%s' "$del" | jq -r '.success // false' 2>/dev/null)" != true ]; then
+          echo "vast-template-apply: failed to delete existing template $existing_id for replace — $(printf '%s' "$del" | jq -rc '{msg,error}' 2>/dev/null)" >&2
+          exit 1
+        fi
+        action="replaced"
       fi
+      resp="$(printf '%s' "$body" | curl -fsS -X POST "${api}/template/" \
+               -H "Authorization: Bearer $apikey" -H "Content-Type: application/json" --data @- 2>/dev/null || true)"
 
       summary="$(printf '%s' "$resp" | jq -rc '{success, name: (.template.name // .name), id: (.template.id // .id), hash_id: (.template.hash_id // .hash_id)}' 2>/dev/null || true)"
       if [ "$(printf '%s' "$resp" | jq -r '.success // false' 2>/dev/null)" = true ]; then
