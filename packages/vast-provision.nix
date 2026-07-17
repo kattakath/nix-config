@@ -36,6 +36,7 @@
   shellcheck,
   orgName,
   repoName,
+  userName,
   rev,
 }:
 let
@@ -451,6 +452,110 @@ let
     '';
   };
 
+  # Rent a Vast instance from one of our templates WITH authenticated Docker Hub
+  # registry login. Vast has NO account-level registry store and templates provably
+  # cannot carry credentials (the /template/ body keeps only docker_login_repo, not
+  # user/pass — verified against vast-python), so the read-only Docker Hub PAT can
+  # ONLY ride the per-instance create call's `image_login`. This app is that single
+  # honest home: it reads VAST_DOCKERHUB_TOKEN from the Keychain and userName as the
+  # Docker Hub username, and injects `-u <user> -p <pat> docker.io` so the base-image
+  # pull uses OUR account rate budget instead of the shared-per-IP anonymous limit
+  # (whose exhaustion stalls the pull — layers stuck "Waiting", pull restarting).
+  rent = writeShellApplication {
+    name = "vast-rent";
+    runtimeInputs = [
+      curl
+      jq
+      coreutils
+    ];
+    text = ''
+      security=/usr/bin/security
+      account="$(id -un)"
+      apikey="$("$security" find-generic-password -a "$account" -s VAST_API_KEY -w 2>/dev/null || true)"
+      [ -n "$apikey" ] || { echo "vast-rent: VAST_API_KEY not in the login Keychain." >&2; exit 1; }
+      # Read-only Docker Hub PAT (optional but recommended); username = flake identity.
+      dhtoken="$("$security" find-generic-password -a "$account" -s VAST_DOCKERHUB_TOKEN -w 2>/dev/null || true)"
+      dhuser="${userName}"
+
+      tname=""; thash=""; offer=""; gpus="RTX 4090,RTX 5090"; disk="64"; maxprice=""; dryrun=""
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --template-name) tname="''${2:?}"; shift 2 ;;
+          --template-hash) thash="''${2:?}"; shift 2 ;;
+          --offer) offer="''${2:?}"; shift 2 ;;
+          --gpu) gpus="''${2:?}"; shift 2 ;;
+          --disk) disk="''${2:?}"; shift 2 ;;
+          --max-price) maxprice="''${2:?}"; shift 2 ;;
+          --dry-run) dryrun=1; shift ;;
+          -h | --help)
+            echo "usage: vast-rent (--template-name NAME | --template-hash HASH) \\"
+            echo "         [--offer ID] [--gpu \"RTX 4090,RTX 5090\"] [--disk GB] [--max-price DPH] [--dry-run]"
+            echo "Injects authenticated Docker Hub image_login (user=${userName}) from VAST_DOCKERHUB_TOKEN to beat pull rate limits."
+            exit 0 ;;
+          *) echo "vast-rent: unknown argument: $1" >&2; exit 1 ;;
+        esac
+      done
+
+      # Resolve the template hash by name among MY templates (filter by creator_id).
+      if [ -z "$thash" ]; then
+        [ -n "$tname" ] || { echo "vast-rent: --template-name or --template-hash is required." >&2; exit 1; }
+        myid="$(curl -fsS -H "Authorization: Bearer $apikey" "${api}/users/current/" 2>/dev/null | jq -r '.id // empty')"
+        [ -n "$myid" ] || { echo "vast-rent: could not resolve the Vast user id." >&2; exit 1; }
+        list="$(curl -fsS -G -H "Authorization: Bearer $apikey" "${api}/template/" \
+                 --data-urlencode 'select_cols=["*"]' \
+                 --data-urlencode "select_filters={\"creator_id\":{\"eq\":$myid}}" 2>/dev/null || true)"
+        thash="$(printf '%s' "$list" | jq -r --arg n "$tname" '(.templates // []) | map(select(.name==$n)) | (.[0].hash_id // empty)')"
+        [ -n "$thash" ] || { echo "vast-rent: no template named '$tname' on this account." >&2; exit 1; }
+      fi
+
+      # Auto-select an offer if none given: verified (secure cloud), rentable, matching
+      # GPU, enough disk + headroom, decent inet, high reliability, cheapest.
+      if [ -z "$offer" ]; then
+        gpujson="$(printf '%s' "$gpus" | jq -R 'split(",") | map(gsub("^ +| +$";""))')"
+        q="$(jq -n --argjson gpu "$gpujson" --argjson disk "$disk" \
+             '{q:{verified:{eq:true},rentable:{eq:true},gpu_name:{in:$gpu},num_gpus:{eq:1},
+                  disk_space:{gte:($disk+6)},inet_down:{gte:500},order:[["dph_total","asc"]],type:"on-demand"}}')"
+        offers="$(printf '%s' "$q" | curl -fsS -X PUT "${api}/search/asks/" \
+                   -H "Authorization: Bearer $apikey" -H "Content-Type: application/json" --data @- 2>/dev/null || true)"
+        offer="$(printf '%s' "$offers" | jq -r --arg mp "$maxprice" '
+          (.offers // []) | map(select(.reliability2 >= 0.98))
+          | (if $mp != "" then map(select(.dph_total <= ($mp | tonumber))) else . end)
+          | sort_by(.dph_total) | (.[0].id // empty)')"
+        [ -n "$offer" ] || { echo "vast-rent: no matching offer (gpu=$gpus disk>=$disk)." >&2; exit 1; }
+        echo "vast-rent: selected offer $(printf '%s' "$offers" | jq -rc --argjson id "$offer" '(.offers // []) | map(select(.id==$id)) | .[0] | {id,gpu_name,dph_total,reliability2,inet_down,geolocation}')"
+      fi
+
+      # image_login rides ONLY the create call (no account/template cred store on Vast).
+      # Passed to jq via env ($ENV.LOGIN) and to curl via stdin, so the token never
+      # appears in any process's argv.
+      login=""
+      if [ -n "$dhtoken" ]; then
+        login="-u $dhuser -p $dhtoken docker.io"
+        echo "vast-rent: authenticated Docker Hub pull as '$dhuser'."
+      else
+        echo "vast-rent: WARN — no VAST_DOCKERHUB_TOKEN in the Keychain; anonymous pull may hit Docker Hub rate limits." >&2
+      fi
+      body="$(LOGIN="$login" jq -n --arg h "$thash" --argjson disk "$disk" \
+        '{template_hash_id: $h, disk: $disk} + (if ($ENV.LOGIN | length) > 0 then {image_login: $ENV.LOGIN} else {} end)')"
+
+      if [ -n "$dryrun" ]; then
+        echo "vast-rent: DRY RUN — would PUT ${api}/asks/$offer/ with body (login redacted):"
+        printf '%s\n' "$body" | jq '(.image_login) |= (if . then "-u '"$dhuser"' -p <redacted> docker.io" else . end)'
+        exit 0
+      fi
+
+      resp="$(printf '%s' "$body" | curl -fsS -X PUT "${api}/asks/$offer/" \
+               -H "Authorization: Bearer $apikey" -H "Content-Type: application/json" --data @- 2>/dev/null || true)"
+      if [ "$(printf '%s' "$resp" | jq -r '.success // false' 2>/dev/null)" = true ]; then
+        iid="$(printf '%s' "$resp" | jq -r '.new_contract // empty')"
+        echo "vast-rent: rented instance $iid (template $thash, offer $offer). Watch the Vast console Logs for the PROVISION-OUTCOME line."
+      else
+        echo "vast-rent: FAILED — $(printf '%s' "$resp" | jq -rc '{success, msg, error}' 2>/dev/null || printf '%s' "$resp")" >&2
+        exit 1
+      fi
+    '';
+  };
+
   # Lint the committed instance-side scripts at `nix flake check` (served as raw
   # files / fetched at boot, so they can't be writeShellApplications).
   scripts-lint = runCommand "vast-scripts-lint" { nativeBuildInputs = [ shellcheck ]; } ''
@@ -468,6 +573,7 @@ in
     account-vars-set
     ssh-key-set
     init-repo
+    rent
     scripts-lint
     ;
 }
