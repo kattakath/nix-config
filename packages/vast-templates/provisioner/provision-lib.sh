@@ -288,20 +288,25 @@ disk_probe() {
 }
 
 supervisor_probe() {
-  command -v supervisorctl >/dev/null 2>&1 || { echo "supervisorctl not found"; return 1; }
-  local conf=""
-  for c in /etc/supervisor/supervisord.conf /etc/supervisord.conf; do [ -f "$c" ] && { conf="$c"; break; }; done
-  [ -n "$conf" ] || { echo "supervisord.conf not found"; return 1; }
-  SUPERVISORD_CONF="$conf"
-  SUPERVISOR_CONFD="$(awk -F= '/^\[include\]/{i=1;next} i&&/^files/{gsub(/[ *]/,"",$2); print $2; exit}' "$conf" 2>/dev/null)"
-  case "$SUPERVISOR_CONFD" in
-    /*) SUPERVISOR_CONFD="$(dirname "$SUPERVISOR_CONFD")" ;;
-    *) SUPERVISOR_CONFD="$(dirname "$conf")/$(dirname "${SUPERVISOR_CONFD:-conf.d/x}")" ;;
-  esac
-  [ -d "$SUPERVISOR_CONFD" ] || SUPERVISOR_CONFD="/etc/supervisor/conf.d"
+  # Authoritative paths from vast-ai/base-image: master config + drop-in conf.d, and a
+  # ROOT-ONLY socket at /var/run/supervisor.sock that is ONLY discoverable via -c (the
+  # bare `supervisorctl` default looks at ./ or /etc/supervisord.conf and never finds it).
+  SUPERVISORD_CONF=/etc/supervisor/supervisord.conf
+  SUPERVISOR_CONFD=/etc/supervisor/conf.d
+  command -v supervisorctl >/dev/null 2>&1 || { echo "supervisorctl not found on PATH"; return 1; }
+  [ -f "$SUPERVISORD_CONF" ] || { echo "missing $SUPERVISORD_CONF (not the vastai base image?)"; return 1; }
   mkdir -p "$SUPERVISOR_CONFD"
-  supervisorctl -c "$SUPERVISORD_CONF" status >/dev/null 2>&1 || supervisorctl status >/dev/null 2>&1 \
-    || { echo "supervisorctl cannot reach daemon"; return 1; }
+  # supervisord is launched (backgrounded) by vast_boot.d just before the Phase-9
+  # provisioning script, so briefly retry the socket. Reachability is tested with `pid`
+  # (returns supervisord's PID, exit 0 iff the daemon is reachable) — NOT `status`, which
+  # exits non-zero whenever ANY program is down (e.g. a base service still starting), which
+  # is not a reachability failure. This was the bug that failed preflight:supervisor.
+  local i=0
+  until supervisorctl -c "$SUPERVISORD_CONF" pid >/dev/null 2>&1; do
+    i=$((i + 1))
+    [ "$i" -ge 8 ] && { echo "supervisorctl -c $SUPERVISORD_CONF cannot reach the daemon (socket /var/run/supervisor.sock is root-only)"; return 1; }
+    sleep 3
+  done
   # step runs us in a subshell, so `export` here would not reach the parent — persist the
   # resolved paths to a file the parent sources after the step.
   printf 'SUPERVISORD_CONF=%q\nSUPERVISOR_CONFD=%q\n' "$SUPERVISORD_CONF" "$SUPERVISOR_CONFD" >"$LOG_DIR/supervisor.env"
@@ -344,7 +349,6 @@ preflight() {
 # ComfyUI engine
 # ---------------------------------------------------------------------------
 _pip() { if [ -x "$VENV/bin/pip" ]; then "$VENV/bin/pip" "$@"; else python3 -m pip "$@"; fi; }
-_py() { if [ -x "$VENV/bin/python" ]; then echo "$VENV/bin/python"; else echo python3; fi; }
 
 _clone_comfyui() {
   local tmpc; tmpc="$(mktemp -d)"
@@ -463,28 +467,47 @@ port_open() { # <host> <port>
 
 start_services() {
   log "── SERVICES ──"
-  step "svc:ssh-key" 1 -- setup_ssh
+  # SSH is a debugging convenience — the Instance Portal is the primary access path, and
+  # the base image may not run sshd under runtype=args. Plant the key + probe :22, but
+  # keep both OPTIONAL so an SSH gap yields `partial`, never a failed provision. ComfyUI
+  # (svc:comfyui-up) is the REQUIRED deliverable.
+  step "svc:ssh-key" 0 -- setup_ssh
   local scripts_dir=/opt/supervisor-scripts confd="${SUPERVISOR_CONFD:-/etc/supervisor/conf.d}"
   mkdir -p "$scripts_dir" "$confd"
+  # Wrapper: activate the base image's venv and exec ComfyUI in the FOREGROUND so
+  # supervisord tracks its direct child (backgrounding is what got services reaped
+  # before). Log to /dev/stdout so output reaches the Vast logs + Instance Portal.
   cat >"$scripts_dir/comfyui.sh" <<EOF
 #!/usr/bin/env bash
+source "${VENV}/bin/activate"
 cd "$COMFY"
-exec "$(_py)" main.py --listen 127.0.0.1 --port 18188 --enable-cors-header
+exec python main.py --listen 127.0.0.1 --port 18188
 EOF
   chmod +x "$scripts_dir/comfyui.sh"
+  # Program stanza modelled on the base image's own conf.d entries (autorestart on
+  # unexpected exit, start-group semantics, stdout to the log pipeline).
   cat >"$confd/comfyui.conf" <<EOF
 [program:comfyui]
+environment=PROC_NAME="%(program_name)s"
 command=$scripts_dir/comfyui.sh
 autostart=true
-autorestart=true
+autorestart=unexpected
+exitcodes=0
+startsecs=5
+stopasgroup=true
+killasgroup=true
+stopsignal=TERM
+stopwaitsecs=10
 stdout_logfile=/dev/stdout
-stdout_logfile_maxbytes=0
 redirect_stderr=true
+stdout_events_enabled=true
+stdout_logfile_maxbytes=0
+stdout_logfile_backups=0
 EOF
   step "svc:reload" 1 -- supervisorctl -c "${SUPERVISORD_CONF:-/etc/supervisor/supervisord.conf}" reread
   step "svc:update" 1 -- supervisorctl -c "${SUPERVISORD_CONF:-/etc/supervisor/supervisord.conf}" update
   step "svc:comfyui-up" 1 -- comfyui_ready 60
-  step "svc:sshd-up" 1 -- port_open 127.0.0.1 22
+  step "svc:sshd-up" 0 -- port_open 127.0.0.1 22
 }
 
 # ---------------------------------------------------------------------------
