@@ -254,6 +254,13 @@ in
   home.sessionPath = lib.optionals pkgs.stdenv.isDarwin [
     "/opt/homebrew/share/android-commandlinetools/emulator"
     "/opt/homebrew/share/android-commandlinetools/platform-tools"
+    # xAI Grok CLI: a self-updating prebuilt binary installed to ~/.grok/bin by
+    # `curl -fsSL https://x.ai/cli/install.sh | bash` (no nixpkgs/brew package
+    # exists, and `grok` updates itself, so pinning it in Nix would fight its
+    # updater). It lives outside the Nix store and /opt/homebrew, so Homebrew's
+    # cleanup="uninstall" never touches it; this line is the declarative PATH
+    # entry (the source of truth over the installer's own ~/.zshrc edit).
+    "$HOME/.grok/bin"
   ];
 
   # ---- Home Manager program modules --------------------------------------------
