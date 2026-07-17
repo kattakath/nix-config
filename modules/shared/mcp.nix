@@ -107,6 +107,26 @@ let
         "bridge"
       ];
     };
+    # Native macOS automation: run AppleScript AND JXA (JavaScript for Automation)
+    # through osascript, plus a built-in knowledge base of ready scripts, via the
+    # `execute_script` tool. steipete/macos-automator-mcp (854★, actively maintained;
+    # clear provenance — the unscoped `applescript-mcp` npm pkg lists no repo). This
+    # is a POWERFUL surface (execute_script can `do shell script` and drive any app) —
+    # but localhost-only like the rest of the gateway (127.0.0.1, no off-box exposure),
+    # and unlike desktop-commander we DO share it across clients (incl. Grok) by
+    # request. First control of another app triggers a one-time macOS TCC "Automation"
+    # consent prompt. `--package … <bin>` is the maintainer's recommended npx form
+    # (sidesteps scoped-package bin inference). Runs under the gateway's GUI launchd
+    # agent, so osascript has a real user session.
+    macos-automator = {
+      command = npx;
+      args = [
+        "-y"
+        "--package"
+        "@steipete/macos-automator-mcp"
+        "macos-automator-mcp"
+      ];
+    };
   };
 
   # Every server NAME the gateway hosts (4 packaged + 6 custom). Single source
