@@ -26,6 +26,9 @@
   jq,
   gnused,
   coreutils,
+  gh,
+  glab,
+  git,
   shellcheck,
   orgName,
   repoName,
@@ -271,6 +274,145 @@ let
     '';
   };
 
+  # Register the operator's SSH public key on the Vast account (idempotent) so
+  # every instance gets passwordless root SSH. Vast auto-injects account SSH keys
+  # into instances; register BEFORE creating instances. The reproducible analog of a
+  # manual `vastai create ssh-key` — needed after a key rotation / new machine /
+  # account reset.
+  ssh-key-set = writeShellApplication {
+    name = "vast-ssh-key-set";
+    runtimeInputs = [
+      curl
+      jq
+      coreutils
+    ];
+    text = ''
+      security=/usr/bin/security
+      account="$(id -un)"
+      apikey="$("$security" find-generic-password -a "$account" -s VAST_API_KEY -w 2>/dev/null || true)"
+      if [ -z "$apikey" ]; then
+        echo "vast-ssh-key-set: VAST_API_KEY not in the login Keychain." >&2
+        exit 1
+      fi
+
+      keyfile="$HOME/.ssh/id_ed25519.pub"
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --key) keyfile="''${2:?}"; shift 2 ;;
+          -h | --help) echo "usage: vast-ssh-key-set [--key PATH.pub]  (default ~/.ssh/id_ed25519.pub)"; exit 0 ;;
+          *) echo "vast-ssh-key-set: unknown argument: $1" >&2; exit 1 ;;
+        esac
+      done
+      [ -f "$keyfile" ] || { echo "vast-ssh-key-set: no public key at $keyfile" >&2; exit 1; }
+
+      pub="$(cat "$keyfile")"
+      body="$(cut -d' ' -f2 < "$keyfile")"   # key material, ignoring type + comment
+
+      list="$(curl -fsS -H "Authorization: Bearer $apikey" "${api}/ssh/" 2>/dev/null || true)"
+      if printf '%s' "$list" | jq -r '(if type=="array" then . else (.ssh_keys // .keys // []) end)[] | (.public_key // .ssh_key // .)' 2>/dev/null | grep -qF "$body"; then
+        echo "vast-ssh-key-set: already registered ($(/usr/bin/ssh-keygen -lf "$keyfile" 2>/dev/null | awk '{print $2}'))."
+        exit 0
+      fi
+
+      resp="$(jq -n --arg k "$pub" '{ssh_key: $k}' | curl -fsS -X POST "${api}/ssh/" \
+               -H "Authorization: Bearer $apikey" -H "Content-Type: application/json" --data @- 2>/dev/null || true)"
+      if [ "$(printf '%s' "$resp" | jq -r '.success // false' 2>/dev/null)" = true ]; then
+        echo "vast-ssh-key-set: registered $keyfile on the Vast account."
+      else
+        echo "vast-ssh-key-set: FAILED — $(printf '%s' "$resp" | jq -rc '{success, msg, error}' 2>/dev/null || printf '%s' "$resp")" >&2
+        exit 1
+      fi
+    '';
+  };
+
+  # Scaffold a new provisioner repo from the generic provisioner-template, on either
+  # forge, public or private. The check is structural (not provenance), so this is a
+  # convenience — a valid provisioner repo is just one containing provision.sh + the
+  # marker. --template also flips is_template (GitHub only).
+  init-repo = writeShellApplication {
+    name = "vast-init-repo";
+    runtimeInputs = [
+      gh
+      glab
+      git
+      coreutils
+    ];
+    text = ''
+      security=/usr/bin/security
+      account="$(id -un)"
+
+      repo=""
+      vis="--private"
+      desc="Vast.ai provisioner repo (scaffolded from provisioner-template)"
+      astemplate=""
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --repo) repo="''${2:?}"; shift 2 ;;
+          --private) vis="--private"; shift ;;
+          --public) vis="--public"; shift ;;
+          --desc) desc="''${2:?}"; shift 2 ;;
+          --template) astemplate=1; shift ;;
+          -h | --help)
+            echo "usage: vast-init-repo --repo [github:|gitlab:]owner/name [--public|--private] [--desc TEXT] [--template]"
+            exit 0 ;;
+          *) echo "vast-init-repo: unknown argument: $1" >&2; exit 1 ;;
+        esac
+      done
+      [ -n "$repo" ] || { echo "vast-init-repo: --repo is required." >&2; exit 1; }
+
+      host="github.com"
+      case "$repo" in
+        gitlab:*) host="gitlab.com"; repo="''${repo#gitlab:}" ;;
+        github:*) host="github.com"; repo="''${repo#github:}" ;;
+      esac
+
+      # Seed a temp git repo with the baked scaffold files.
+      tmp="$(mktemp -d)"
+      trap 'rm -rf "$tmp"' EXIT
+      cp ${./vast-templates/provisioner/provision.sh} "$tmp/provision.sh"
+      cp ${./vast-templates/provisioner/.provisioner-template.json} "$tmp/.provisioner-template.json"
+      cp ${./vast-templates/provisioner/README.md} "$tmp/README.md"
+      chmod +x "$tmp/provision.sh"
+      git -C "$tmp" init -q -b main
+      git -C "$tmp" add -A
+      git -C "$tmp" -c user.email="vast-init-repo@localhost" -c user.name="$account" \
+        commit -q -m "Initialize from provisioner-template"
+
+      case "$host" in
+        github.com)
+          ghtok="$("$security" find-generic-password -a "$account" -s GH_TOKEN -w 2>/dev/null || true)"
+          [ -n "$ghtok" ] || { echo "vast-init-repo: GH_TOKEN not in Keychain." >&2; exit 1; }
+          export GH_TOKEN="$ghtok"
+          echo "vast-init-repo: creating github.com/$repo ($vis)"
+          gh repo create "$repo" "$vis" --description "$desc"
+          git -C "$tmp" remote add origin "https://github.com/$repo.git"
+          # shellcheck disable=SC2016
+          TOK="$ghtok" git -C "$tmp" -c credential.helper='!f(){ echo username=oauth2; echo "password=$TOK"; };f' \
+            push -u origin main
+          if [ -n "$astemplate" ]; then
+            gh api -X PATCH "repos/$repo" -f is_template=true >/dev/null && echo "vast-init-repo: marked as template repository."
+          fi
+          echo "vast-init-repo: done -> https://github.com/$repo"
+          ;;
+        gitlab.com)
+          gltok="$("$security" find-generic-password -a "$account" -s GITLAB_TOKEN -w 2>/dev/null || true)"
+          [ -n "$gltok" ] || { echo "vast-init-repo: GITLAB_TOKEN not in Keychain." >&2; exit 1; }
+          export GITLAB_TOKEN="$gltok"
+          gvis="private"
+          [ "$vis" = "--public" ] && gvis="public"
+          echo "vast-init-repo: creating gitlab.com/$repo ($gvis)"
+          glab repo create "$repo" "--$gvis" --description "$desc" >/dev/null
+          git -C "$tmp" remote add origin "https://gitlab.com/$repo.git"
+          # shellcheck disable=SC2016
+          TOK="$gltok" git -C "$tmp" -c credential.helper='!f(){ echo username=oauth2; echo "password=$TOK"; };f' \
+            push -u origin main
+          [ -n "$astemplate" ] && echo "vast-init-repo: NOTE — GitLab has no per-repo template flag; use group custom project templates."
+          echo "vast-init-repo: done -> https://gitlab.com/$repo"
+          ;;
+      esac
+    '';
+  };
+
   # Lint the committed instance-side scripts at `nix flake check` (served as raw
   # files / fetched at boot, so they can't be writeShellApplications).
   scripts-lint = runCommand "vast-scripts-lint" { nativeBuildInputs = [ shellcheck ]; } ''
@@ -285,6 +427,8 @@ in
     template-apply
     repo-check
     account-vars-set
+    ssh-key-set
+    init-repo
     scripts-lint
     ;
 }
