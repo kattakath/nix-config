@@ -230,6 +230,7 @@ in
       setSecret
       androidEmu
       jdk17 # JRE for the Android sdkmanager/avdmanager (JVM tools); emulator itself needs no Java
+      runpodctl # RunPod GPU CLI — RunPod as a second ComfyUI-workflow provider alongside Vast (from nixpkgs, not the untrusted brew tap)
     ];
 
   # ---- Android SDK (macOS only) ------------------------------------------------
