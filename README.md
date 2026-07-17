@@ -140,7 +140,7 @@ flake.lock      Pinned input revisions (bumped via `nix flake update`, never han
 treefmt.nix     Single source of truth for formatting + lint (drives nix fmt, CI, and the hook)
 hosts/          Per-host entry profiles (macos.nix, nixpi.nix, nixvm.nix)
 modules/        Reusable modules, split by platform (darwin/ linux/ nixos/ shared/)
-packages/       Nix-built artifacts (devcontainer image, key-recovery kit, landing page)
+packages/       Nix-built artifacts (devcontainer image, key-recovery kit, landing page; also vast-provision.nix — the vast-* apps —, vast-bootstrap.sh, vast-templates/provisioner/)
 .claude/        Repo-local Claude Code agents, commands, hooks, skills, and rules
 ```
 
@@ -154,6 +154,10 @@ CI runs on **GitHub Actions** ([`nix-ci.yml`](./.github/workflows/nix-ci.yml)) a
 - [`build-installers`](https://github.com/kattakath/nix-config/actions/workflows/build-installers.yml) builds and publishes the `nixpi` SD image to a rolling pre-release.
 - [`gitleaks`](https://github.com/kattakath/nix-config/actions/workflows/gitleaks.yml) scans every push and PR (and weekly) for leaked secrets.
 - [`flakehub-publish`](https://github.com/kattakath/nix-config/actions/workflows/flakehub-publish.yml) publishes each push to `main` as a rolling release to [FlakeHub](https://flakehub.com/flake/kattakath/nix-config) via [`flakehub-push`](https://github.com/DeterminateSystems/flakehub-push). Auth is OIDC (`id-token: write`) — no long-lived token. Per FlakeHub's [trusted-platform model](https://docs.determinate.systems/flakehub/publishing/), flakes publish only from CI, never ad-hoc from a laptop.
+
+## Vast.ai GPU provisioning
+
+Off-fleet control-plane tooling — a set of `vast-*` darwin flake apps (parallel to the Cloudflare `cf-tunnel-*` apps) that run **on the Mac** to provision external x86_64 cloud GPUs on [Vast.ai](https://vast.ai). Vast is **not** a fleet host — this stays an aarch64-only fleet; the tooling merely reaches out from `macos` to stand up reproducible Vast.ai templates. Each template boots `vastai/base-image`, clones a private provisioner repo, and runs its self-contained `provision.sh` (e.g. a ComfyUI stack). Secrets are never baked into the template — they live as Vast account-level env vars (`vast-account-vars-set`), and `vast-template-apply` / `vast-repo-check` / `vast-ssh-key-set` / `vast-init-repo` cover create-or-replace, repo validation, SSH-key registration, and repo scaffolding. See [`docs/vastai-template-provisioning.md`](docs/vastai-template-provisioning.md).
 
 ## Secrets
 
