@@ -299,6 +299,11 @@ in
         plugin-structure = "${agent-skills-anthropic}/plugins/plugin-dev/skills/plugin-structure";
         plugin-settings = "${agent-skills-anthropic}/plugins/plugin-dev/skills/plugin-settings";
         writing-hookify-rules = "${agent-skills-anthropic}/plugins/hookify/skills/writing-rules";
+        # Personal: a thin GLOBAL pointer to the Brags personal-branding review flow whose
+        # authoritative SKILL.md + engine live in the private ~/Documents/brags repo (so it
+        # tracks that repo, and the heavy logic isn't vendored here). Makes "run my brags
+        # review" invocable by name in any Claude Code / Claude Desktop session.
+        brags-review = "${../../skills/brags-review}";
       };
     };
 
