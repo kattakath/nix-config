@@ -124,6 +124,17 @@ let
     # consent prompt. `--package … <bin>` is the maintainer's recommended npx form
     # (sidesteps scoped-package bin inference). Runs under the gateway's GUI launchd
     # agent, so osascript has a real user session.
+    #
+    # ACCESSIBILITY (TCC): System Events UI scripting additionally needs an
+    # Accessibility grant for /usr/bin/osascript — the stable, Apple-signed binary
+    # this server's PATH resolves `osascript` to (nothing earlier on the gateway
+    # PATH provides it). No app in the launchd chain can raise the consent prompt,
+    # so it is a ONE-TIME manual grant (⇧⌘G → /usr/bin/osascript in System Settings
+    # ▸ Privacy & Security ▸ Accessibility). It survives every rebuild because the
+    # grant target is a fixed system path, NOT a store path — see the preflight in
+    # `home.activation.macosAutomatorAccessibilityCheck` below and the full
+    # rationale (incl. why no stable-path launchd wrapper helps) in
+    # docs/mcp-gateway-accessibility-tcc.md.
     macos-automator = {
       command = npx;
       args = [
@@ -517,6 +528,35 @@ in
             *) "$grok" mcp remove --scope user "$name" >/dev/null 2>&1 || true ;;
           esac
         done
+      fi
+    '';
+
+    # ---- macos-automator Accessibility (TCC) preflight — non-fatal nudge -------
+    # The macos-automator server drives System Events UI scripting via
+    # /usr/bin/osascript, which needs an Accessibility (TCC) grant. Nothing in the
+    # gateway's launchd chain can raise the consent prompt, so the grant is a
+    # one-time manual step (docs/mcp-gateway-accessibility-tcc.md). This probes it
+    # and prints the exact fix ONLY when TCC has denied osascript assistive access;
+    # it NEVER blocks activation. The match on the specific "assistive access"
+    # denial string means a headless/as-root activation (where osascript fails with
+    # a DIFFERENT error — no GUI session) stays silent, so this can't false-warn on
+    # every rebuild. The grant survives rebuilds (a fixed system path, not a store
+    # path), so this is a nudge until granted, then permanently silent.
+    home.activation.macosAutomatorAccessibilityCheck = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      if probe="$(/usr/bin/osascript -e 'tell application "System Events" to get name of first process' 2>&1)"; then
+        : # osascript already has Accessibility — nothing to warn about.
+      else
+        case "$probe" in
+          *"not allowed assistive access"*)
+            echo "" >&2
+            echo "  ⚠ MCP gateway: the macos-automator server needs Accessibility for /usr/bin/osascript." >&2
+            echo "    UI-scripting MCP calls fail until you grant it (one-time; survives rebuilds):" >&2
+            echo "      System Settings → Privacy & Security → Accessibility → +  →  ⇧⌘G  →  /usr/bin/osascript  → enable" >&2
+            echo "    Verify:  osascript -e 'tell application \"System Events\" to get name of first process'" >&2
+            echo "    Details: docs/mcp-gateway-accessibility-tcc.md" >&2
+            ;;
+          *) : ;; # headless/as-root/transient failure (different error) — don't nag.
+        esac
       fi
     '';
   };
