@@ -62,6 +62,10 @@ let
   # (encrypted at rest) and registers it in an in-Keychain index. macOS-only.
   setSecret = pkgs.callPackage ../../packages/set-secret.nix { };
 
+  # `mermaid-ascii` — render Mermaid graphs as ASCII in the terminal. Packaged from
+  # upstream (not in nixpkgs); see packages/mermaid-ascii.nix.
+  mermaidAscii = pkgs.callPackage ../../packages/mermaid-ascii.nix { };
+
   # `android-emu [avd-name] [emulator-args…]` — boot an Android emulator,
   # provisioning on first run. If the SDK packages or the AVD are missing it
   # installs them via the Homebrew `sdkmanager`/`avdmanager` (the
@@ -235,6 +239,7 @@ in
     ++ lib.optionals stdenv.isDarwin [
       setSecret
       androidEmu
+      mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       jdk17 # JRE for the Android sdkmanager/avdmanager (JVM tools); emulator itself needs no Java
       runpodctl # RunPod GPU CLI — RunPod as a second ComfyUI-workflow provider alongside Vast (from nixpkgs, not the untrusted brew tap)
     ];
