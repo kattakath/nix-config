@@ -98,6 +98,7 @@ _:
       "cursor"
       "docker-desktop"
       "gcloud-cli"
+      "gimp"
       "google-chrome"
       "inkscape"
       "lm-studio"
