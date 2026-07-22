@@ -193,6 +193,7 @@ in
 {
   imports = [
     ./mcp.nix # darwin-gated MCP server registry for Claude Code
+    ./photogimp.nix # darwin-gated Photoshop-like GIMP profile patch
   ];
 
   # Expose the kapture browser-automation server PUBLICLY as an OAuth-gated MCP
