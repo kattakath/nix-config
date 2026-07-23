@@ -195,6 +195,7 @@ in
     ./mcp.nix # darwin-gated MCP server registry for Claude Code
     ./photogimp.nix # darwin-gated Photoshop-like GIMP profile patch
     ./postgres-pgvector.nix # darwin-gated local Postgres + pgvector (backs the `postgres` MCP server)
+    ./ollama.nix # darwin-gated local Ollama (embedding runtime for the RAG stack)
   ];
 
   # Expose the kapture browser-automation server PUBLICLY as an OAuth-gated MCP
@@ -311,6 +312,9 @@ in
         # tracks that repo, and the heavy logic isn't vendored here). Makes "run my brags
         # review" invocable by name in any Claude Code / Claude Desktop session.
         brags-review = "${../../skills/brags-review}";
+        # Local RAG over the pgvector store: how to ingest + query via the `postgres`
+        # MCP server and the in-DB embed() function (modules/shared/{postgres-pgvector,ollama}.nix).
+        rag = "${../../skills/rag}";
       };
     };
 
