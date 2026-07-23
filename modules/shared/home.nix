@@ -330,6 +330,20 @@ in
         gpg.format = "ssh";
         user.signingkey = "~/.ssh/id_ed25519.pub";
       };
+
+      # Per-directory identity, keyed on the ~/Developer/<host>/<owner>/ layout.
+      # Any repo under the Infin8 client org's path uses the work identity instead
+      # of the personal default above, so client commits never carry the personal
+      # email/key by accident. The work email itself is NOT committed to this public
+      # repo — it lives in ~/.config/git/infin8.inc (a plain, git-ignored-by-location
+      # file the operator fills). Git silently ignores the include if that file is
+      # absent or comment-only, so the fallback is simply the personal default.
+      includes = [
+        {
+          condition = "gitdir:~/Developer/github.com/Infin8-Information-Technologies/";
+          path = "~/.config/git/infin8.inc";
+        }
+      ];
     };
 
     ssh = lib.mkIf pkgs.stdenv.isDarwin {
