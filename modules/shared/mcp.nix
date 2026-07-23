@@ -159,6 +159,24 @@ let
         "@mobilenext/mobile-mcp@latest"
       ];
     };
+    # Local Postgres + pgvector, for vector-similarity / RAG work. crystaldba's
+    # `postgres-mcp` ("Postgres MCP Pro", actively maintained) — a general SQL
+    # executor, so every pgvector op (`<->`/`<=>` distance, HNSW indexes) is just
+    # SQL it can run. (The official @modelcontextprotocol/server-postgres is ARCHIVED
+    # with an unpatched read-only-bypass SQL-injection CVE — deliberately avoided.)
+    # `--access-mode=unrestricted` lets it create tables + insert/query vectors; the
+    # blast radius is bounded not by that flag but by DATABASE_URI's role `mcp`, which
+    # owns ONLY `ragdb` and connects loopback-trust with no secret. The DB is a
+    # loopback launchd agent — see modules/shared/postgres-pgvector.nix, which
+    # single-sources the URI via services.pgvectorGateway.databaseUri.
+    postgres = {
+      command = uvx;
+      args = [
+        "postgres-mcp"
+        "--access-mode=unrestricted"
+      ];
+      env.DATABASE_URI = config.services.pgvectorGateway.databaseUri;
+    };
   };
 
   # Every server NAME the gateway hosts (4 packaged + 6 custom). Single source
