@@ -750,8 +750,9 @@
         ))
 
         # RunPod pod-template provisioning (macOS only) — the RunPod analogue of the
-        # vast-* apps. Creates a RunPod POD template on runpod/comfyui for a comfyui-workflows
-        # workflow, provisioned at boot via dockerStartCmd. See packages/runpod-provision.nix.
+        # vast-* apps. Creates a RunPod POD template on runpod/comfyui for a workflow from
+        # the --repo workflows repo, provisioned at boot via dockerStartCmd. See
+        # packages/runpod-provision.nix.
         (nixpkgs.lib.genAttrs darwinSystems (
           system:
           let

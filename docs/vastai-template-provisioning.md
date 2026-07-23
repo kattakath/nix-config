@@ -2,8 +2,8 @@
 
 Status: **design / not yet implemented.** A flake-based tool that provisions
 [Vast.ai](https://vast.ai) GPU templates from this mono-repo. Driving use case: the
-ComfyUI stack repos (e.g.
-`gitlab.com/ismailkattakath/comfyui-stack-bfs-flux-klein-faceswap`).
+ComfyUI workflow repo (e.g.
+`gitlab.com/ismailkattakath/comfyui-workflows`), passed in per-run as `--repo`.
 
 > **Architecture note (revised):** an earlier draft baked private code into a custom
 > Docker image. That is **dropped.** We use `PROVISIONING_SCRIPT` exclusively, and
