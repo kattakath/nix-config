@@ -25,14 +25,66 @@
   ...
 }:
 let
-  # postgresql WITH pgvector on its extension path (so `CREATE EXTENSION vector` resolves).
-  pgPkg = pkgs.postgresql_16.withPackages (ps: [ ps.pgvector ]);
+  # postgresql WITH pgvector (`CREATE EXTENSION vector`) AND pgsql-http (`CREATE
+  # EXTENSION http`) — the latter lets the in-DB embed() function POST to local Ollama.
+  pgPkg = pkgs.postgresql_16.withPackages (ps: [
+    ps.pgvector
+    ps.pgsql-http
+  ]);
 
   # Non-standard port to avoid clashing with a possible Homebrew/other postgres on 5432.
   port = 5433;
   role = "mcp"; # non-superuser, owns ragdb only
   db = "ragdb";
   dataDir = "${config.home.homeDirectory}/.local/share/postgres-pgvector";
+
+  # Local Ollama coordinates (single-sourced from modules/shared/ollama.nix).
+  ollama = config.services.ollamaLocal;
+
+  # RAG bootstrap SQL, applied to `ragdb` (as superuser) whenever it changes. Makes the
+  # `postgres` MCP server a complete RAG endpoint via plain SQL:
+  #   * `public.embed(text) -> vector` — SECURITY DEFINER, calls local Ollama over loopback
+  #     HTTP and returns the embedding. The http extension lives in a private `ext` schema
+  #     that `${role}` has NO access to, so retrieved/untrusted content can't trick the LLM
+  #     into arbitrary HTTP via SQL — only this fixed-URL wrapper is exposed to `${role}`.
+  #   * `public.docs` — the conventional store (content + jsonb metadata + a
+  #     vector(${toString ollama.embedDim}) column) with an HNSW cosine index.
+  # So ingest is `INSERT INTO docs (content, embedding) VALUES ($1, embed($1))` and query is
+  # `... ORDER BY embedding <=> embed('question') LIMIT k` — the client never handles vectors.
+  ragSql = pkgs.writeText "rag-bootstrap.sql" ''
+    CREATE EXTENSION IF NOT EXISTS vector;
+    CREATE SCHEMA IF NOT EXISTS ext;
+    CREATE EXTENSION IF NOT EXISTS http SCHEMA ext;
+
+    CREATE OR REPLACE FUNCTION public.embed(input text) RETURNS public.vector
+      LANGUAGE sql
+      SECURITY DEFINER
+      SET search_path = pg_temp
+    AS $embed$
+      SELECT (
+        (ext.http_post(
+          'http://${ollama.host}:${toString ollama.port}/api/embeddings',
+          pg_catalog.json_build_object('model', '${ollama.embedModel}', 'prompt', input)::text,
+          'application/json'
+        )).content::jsonb -> 'embedding'
+      )::text::public.vector;
+    $embed$;
+
+    CREATE TABLE IF NOT EXISTS public.docs (
+      id        bigserial PRIMARY KEY,
+      content   text NOT NULL,
+      metadata  jsonb NOT NULL DEFAULT '{}',
+      embedding public.vector(${toString ollama.embedDim})
+    );
+    CREATE INDEX IF NOT EXISTS docs_embedding_hnsw
+      ON public.docs USING hnsw (embedding public.vector_cosine_ops);
+
+    -- Lock the raw http surface away from ${role}; expose only the fixed-URL embed().
+    REVOKE ALL ON SCHEMA ext FROM PUBLIC;
+    GRANT EXECUTE ON FUNCTION public.embed(text) TO ${role};
+    GRANT ALL ON public.docs TO ${role};
+    GRANT USAGE, SELECT ON SEQUENCE public.docs_id_seq TO ${role};
+  '';
 
   runScript = pkgs.writeShellApplication {
     name = "postgres-pgvector-run";
@@ -58,8 +110,11 @@ let
         printf '%s\n' "host    ${db}   ${role}   ::1/128   trust"
       } > "$DATADIR/pg_hba.conf"
 
-      # One-time: create the scoped role + database + pgvector extension.
-      if [ ! -f "$DATADIR/.mcp-bootstrapped" ]; then
+      # Ensure the scoped role + database + RAG schema. Re-runs when the role/db is
+      # missing OR the RAG bootstrap SQL changed (stamp = its store path), so schema
+      # edits re-apply on rebuild; otherwise skipped for a fast launch. All idempotent.
+      if [ ! -f "$DATADIR/.mcp-bootstrapped" ] \
+         || [ "$(cat "$DATADIR/.rag-sql" 2>/dev/null || true)" != "${ragSql}" ]; then
         pg_ctl -D "$DATADIR" -w \
           -o "-p $PORT -c listen_addresses=127.0.0.1 -c unix_socket_directories=$DATADIR" start
         if ! psql -h "$DATADIR" -p "$PORT" -U "$OSUSER" -d postgres -tAc \
@@ -71,10 +126,11 @@ let
           createdb -h "$DATADIR" -p "$PORT" -U "$OSUSER" -O ${role} ${db}
         fi
         psql -h "$DATADIR" -p "$PORT" -U "$OSUSER" -d ${db} -v ON_ERROR_STOP=1 \
-          -c "CREATE EXTENSION IF NOT EXISTS vector;" \
-          -c "GRANT ALL ON SCHEMA public TO ${role};"
+          -c "GRANT ALL ON SCHEMA public TO ${role};" \
+          -f ${ragSql}
         pg_ctl -D "$DATADIR" -w stop
         touch "$DATADIR/.mcp-bootstrapped"
+        printf '%s\n' "${ragSql}" > "$DATADIR/.rag-sql"
       fi
 
       exec postgres -D "$DATADIR" -p "$PORT" \
