@@ -208,7 +208,7 @@ in
             ${prelude}
 
             KIT="${kitDir}"
-            REPO_DIR="$HOME/nix-config"
+            REPO_DIR="$HOME/Developer/github.com/${orgName}/nix-config"
             REPO="git@github.com:${orgName}/nix-config.git"
             REPO_HTTPS="https://github.com/${orgName}/nix-config.git"
             NIX_BIN=/nix/var/nix/profiles/default/bin/nix # nix is NOT on the writeShellApplication PATH
@@ -287,6 +287,7 @@ in
               # clone over HTTPS — the fresh operator key is not on GitHub yet.
               if [ ! -d "$REPO_DIR/.git" ]; then
                 say "Cloning (HTTPS) $REPO_HTTPS -> $REPO_DIR"
+                mkdir -p "''${REPO_DIR%/*}" # deep ~/Developer/<host>/<owner> parent
                 git clone "$REPO_HTTPS" "$REPO_DIR"
               fi
               cd "$REPO_DIR" || die "cannot cd into $REPO_DIR"
@@ -370,6 +371,7 @@ in
             # mismatched Mac stops here having changed nothing but a throwaway clone.
             if [ ! -d "$REPO_DIR/.git" ]; then
               say "Cloning (HTTPS) $REPO_HTTPS -> $REPO_DIR"
+              mkdir -p "''${REPO_DIR%/*}" # deep ~/Developer/<host>/<owner> parent
               git clone "$REPO_HTTPS" "$REPO_DIR"
             fi
             cd "$REPO_DIR" || die "cannot cd into $REPO_DIR"
