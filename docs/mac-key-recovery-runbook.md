@@ -163,7 +163,7 @@ the commit is exactly this Mac's re-key.
 ## Afterwards
 
 ```sh
-cd ~/nix-config && git commit -m 're-key to reinstalled host key' && git push
+cd ~/Developer/github.com/kattakath/nix-config && git commit -m 're-key to reinstalled host key' && git push
 rm -rf ~/Library/Mobile\ Documents/com~apple~CloudDocs/nix-key-recovery
 ```
 
