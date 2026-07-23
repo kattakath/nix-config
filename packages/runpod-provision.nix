@@ -31,7 +31,7 @@ in
       [ -n "$apikey" ] || { echo "runpod-template-apply: RUNPOD_API_KEY not in the login Keychain." >&2; exit 1; }
 
       wfname=""
-      repo="gitlab.com/ismailkattakath/comfyui-workflows"
+      repo=""
       image="runpod/comfyui:cuda12.8"
       cdisk="30"
       vdisk="80"
@@ -45,15 +45,18 @@ in
           --volume-disk) vdisk="''${2:?}"; shift 2 ;;
           --dry-run) dryrun=1; shift ;;
           -h | --help)
-            echo "usage: runpod-template-apply --workflow-name NAME \\"
-            echo "         [--repo host/owner/repo] [--image IMG] [--container-disk GB] [--volume-disk GB] [--dry-run]"
+            echo "usage: runpod-template-apply --workflow-name NAME --repo host/owner/repo \\"
+            echo "         [--image IMG] [--container-disk GB] [--volume-disk GB] [--dry-run]"
             echo "Creates a RunPod POD template (name == workflow name) on runpod/comfyui, provisioned at boot"
-            echo "from the private comfyui-workflows repo. Needs RunPod account secrets: gitlab_token, hf_token, civitai_token."
+            echo "from the given private workflows repo. Needs RunPod account secrets: gitlab_token, hf_token, civitai_token."
             exit 0 ;;
           *) echo "runpod-template-apply: unknown argument: $1" >&2; exit 1 ;;
         esac
       done
       [ -n "$wfname" ] || { echo "runpod-template-apply: --workflow-name is required." >&2; exit 1; }
+      # --repo is REQUIRED (host/owner/repo, e.g. gitlab.com/owner/comfyui-workflows) — no
+      # personal default is baked in, matching the vast-* apps: the repo is provisioning input.
+      [ -n "$repo" ] || { echo "runpod-template-apply: --repo (host/owner/repo) is required." >&2; exit 1; }
 
       pubkey="$(cat "$HOME/.ssh/id_ed25519.pub" 2>/dev/null || true)"
       [ -n "$pubkey" ] || { echo "runpod-template-apply: ~/.ssh/id_ed25519.pub not found — cannot set PUBLIC_KEY." >&2; exit 1; }
