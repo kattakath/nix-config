@@ -169,9 +169,18 @@ let
     # owns ONLY `ragdb` and connects loopback-trust with no secret. The DB is a
     # loopback launchd agent — see modules/shared/postgres-pgvector.nix, which
     # single-sources the URI via services.pgvectorGateway.databaseUri.
+    #
+    # `--python 3.12` is LOAD-BEARING: postgres-mcp depends on pglast, whose current
+    # release ships no wheel for CPython 3.14 (uv's default newest interpreter) and
+    # fails to source-build it, so an unpinned `uvx postgres-mcp` dies on install —
+    # and since mcp-proxy spawns every named server at startup, that ONE failure
+    # crashes the whole gateway (nothing binds :8096, ALL servers go dark). Pinning to
+    # 3.12 selects a Python with prebuilt pglast wheels, so it installs in ms and runs.
     postgres = {
       command = uvx;
       args = [
+        "--python"
+        "3.12"
         "postgres-mcp"
         "--access-mode=unrestricted"
       ];
