@@ -194,6 +194,7 @@ in
   imports = [
     ./mcp.nix # darwin-gated MCP server registry for Claude Code
     ./photogimp.nix # darwin-gated Photoshop-like GIMP profile patch
+    ./postgres-pgvector.nix # darwin-gated local Postgres + pgvector (backs the `postgres` MCP server)
   ];
 
   # Expose the kapture browser-automation server PUBLICLY as an OAuth-gated MCP
