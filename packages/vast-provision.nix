@@ -191,6 +191,15 @@ let
       # Two modes. Both use runtype=args (base image entrypoint intact: supervisord + Instance
       # Portal + the /etc/vast_boot.d provisioning hook). OPEN_BUTTON_PORT=1111 renders the Open
       # button; PORTAL_CONFIG lists apps; SSH_PUBKEY_B64 is planted for sshd.
+      #
+      # PORTAL_CONFIG entry FORMAT: hostname:external_port:internal_port:/path:Name — external is the
+      # Caddy TLS+auth listen port Vast publishes (1111/8188, matched by the -p flags below); internal
+      # is the raw loopback the app binds (11111/18188, NEVER published). The first entry MUST be named
+      # "Instance Portal": the base image's instance_portal supervisor wrapper greps /etc/portal.yaml
+      # (generated from these NAMES) for the case-insensitive substring "instance portal" and, absent a
+      # match, SKIPS launching the portal FastAPI backend on 127.0.0.1:11111 — leaving Caddy on :1111 to
+      # 502 every request and the console's Open button stuck on "Connecting..." forever. A plain "Portal"
+      # does not match. (Root-caused from the live instance log + vast-ai/base-image source.)
       if [ -n "$manifest" ]; then
         # MANIFEST MODE — Vast's NATIVE provisioner (PROVISIONING_MANIFEST) on the pre-baked
         # vastai/comfy image (ComfyUI + venv + comfyui service already there). No bootstrap,
@@ -203,7 +212,7 @@ let
         [ -z "$disk" ] && disk="100"
         manifest_url="${rawBase}/$manifest?v=${rev}"
         workflow_url="${rawBase}/$workflow?v=${rev}"
-        env_str="-e PROVISIONING_MANIFEST=$manifest_url -e WORKFLOW_URL=$workflow_url -e PROVISIONER_FAILURE_ACTION=stop -e OPEN_BUTTON_PORT=1111 -e PORTAL_CONFIG=localhost:1111:11111:/:Portal|localhost:8188:18188:/:ComfyUI -e SSH_PUBKEY_B64=$pubkey_b64 -p 1111:1111 -p 8188:8188 -p 22:22"
+        env_str="-e PROVISIONING_MANIFEST=$manifest_url -e WORKFLOW_URL=$workflow_url -e PROVISIONER_FAILURE_ACTION=stop -e OPEN_BUTTON_PORT=1111 -e PORTAL_CONFIG=localhost:1111:11111:/:Instance Portal|localhost:8188:18188:/:ComfyUI -e SSH_PUBKEY_B64=$pubkey_b64 -p 1111:1111 -p 8188:8188 -p 22:22"
         skipcheck=1
       else
         # REPO MODE — the bootstrap clones a provisioner repo (public OR private, via
@@ -225,12 +234,12 @@ let
           [ -z "$disk" ] && disk="100"
           # No PROVISION_LIB_URL — the aggregator's provision.sh is self-contained (runs the
           # native provisioner). WORKFLOW_NAME selects which workflow's manifest to run.
-          env_str="-e PROVISIONING_SCRIPT=${bootstrapUrl} -e PROVISION_HOST=$host -e PROVISION_REPO=$repo -e PROVISION_REF=$ref -e PROVISION_ENTRYPOINT=$entry -e WORKFLOW_NAME=$wfname -e PROVISIONER_FAILURE_ACTION=stop -e OPEN_BUTTON_PORT=1111 -e PORTAL_CONFIG=localhost:1111:11111:/:Portal|localhost:8188:18188:/:ComfyUI -e SSH_PUBKEY_B64=$pubkey_b64 -p 1111:1111 -p 8188:8188 -p 22:22"
+          env_str="-e PROVISIONING_SCRIPT=${bootstrapUrl} -e PROVISION_HOST=$host -e PROVISION_REPO=$repo -e PROVISION_REF=$ref -e PROVISION_ENTRYPOINT=$entry -e WORKFLOW_NAME=$wfname -e PROVISIONER_FAILURE_ACTION=stop -e OPEN_BUTTON_PORT=1111 -e PORTAL_CONFIG=localhost:1111:11111:/:Instance Portal|localhost:8188:18188:/:ComfyUI -e SSH_PUBKEY_B64=$pubkey_b64 -p 1111:1111 -p 8188:8188 -p 22:22"
         else
           [ -z "$image" ] && image="vastai/base-image"
           case "$image" in *:*) tag="''${image##*:}"; image="''${image%:*}" ;; *) tag="cuda-12.6.3-auto" ;; esac
           [ -z "$disk" ] && disk="64"
-          env_str="-e PROVISIONING_SCRIPT=${bootstrapUrl} -e PROVISION_LIB_URL=${libUrl} -e PROVISION_HOST=$host -e PROVISION_REPO=$repo -e PROVISION_REF=$ref -e PROVISION_ENTRYPOINT=$entry -e PROVISIONER_FAILURE_ACTION=stop -e PROVISION_MAX_SECONDS=5400 -e OPEN_BUTTON_PORT=1111 -e PORTAL_CONFIG=localhost:1111:11111:/:Portal|localhost:8188:18188:/:ComfyUI -e SSH_PUBKEY_B64=$pubkey_b64 -p 1111:1111 -p 8188:8188 -p 22:22"
+          env_str="-e PROVISIONING_SCRIPT=${bootstrapUrl} -e PROVISION_LIB_URL=${libUrl} -e PROVISION_HOST=$host -e PROVISION_REPO=$repo -e PROVISION_REF=$ref -e PROVISION_ENTRYPOINT=$entry -e PROVISIONER_FAILURE_ACTION=stop -e PROVISION_MAX_SECONDS=5400 -e OPEN_BUTTON_PORT=1111 -e PORTAL_CONFIG=localhost:1111:11111:/:Instance Portal|localhost:8188:18188:/:ComfyUI -e SSH_PUBKEY_B64=$pubkey_b64 -p 1111:1111 -p 8188:8188 -p 22:22"
         fi
       fi
 
