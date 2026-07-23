@@ -97,6 +97,7 @@ _:
       "claude"
       "cursor"
       "docker-desktop"
+      "dropbox"
       "gcloud-cli"
       "gimp"
       "google-chrome"
