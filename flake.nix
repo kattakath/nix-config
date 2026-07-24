@@ -750,6 +750,11 @@
             remove-secret = (pkgsFor system).callPackage ./packages/remove-secret.nix {
               set-secret = setSecret;
             };
+            # `secret <set|get|rm|list|load>` — the primary noun-verb interface;
+            # set-secret/remove-secret above are its back-compat aliases.
+            secret = (pkgsFor system).callPackage ./packages/secret.nix {
+              set-secret = setSecret;
+            };
           }
         ))
 
@@ -887,6 +892,16 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.remove-secret}/bin/remove-secret";
               meta.description = "Delete KEY from the macOS login Keychain and unregister it from the set-secret index (alias for set-secret --remove)";
+            };
+
+            # `nix run .#secret -- <set|get|rm|list> …` — the primary noun-verb
+            # interface to the Keychain secret store (set-secret/remove-secret are
+            # its aliases). `secret load` is shell-function-only (mutates the
+            # current shell); the app covers the Keychain-only verbs.
+            aarch64-darwin.secret = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.secret}/bin/secret";
+              meta.description = "Keychain secret store: secret set|get|rm|list (primary interface; set-secret/remove-secret are aliases)";
             };
 
             # nixpi SD-card provisioning (macOS). The executable runbook: build +
