@@ -442,6 +442,12 @@
         home-manager = {
           useGlobalPkgs = true;
           useUserPackages = true;
+          # Back up (don't abort on) any pre-existing UNMANAGED file that a newly
+          # Nix-managed home.file would clobber — e.g. ~/.claude/settings.json and
+          # ~/.claude/plugins/known_marketplaces.json, now owned by the
+          # programs.claude-code marketplaces/settings options. Without this, HM
+          # activation hard-fails on the first such collision.
+          backupFileExtension = "hm-bak";
           extraSpecialArgs = identityArgs // {
             inherit
               mcp-servers-nix
