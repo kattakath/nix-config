@@ -77,6 +77,13 @@
     keychain-secrets.inputs.nixpkgs.follows = "nixpkgs";
     keychain-secrets.inputs.home-manager.follows = "home-manager";
 
+    # cloudflared-connector — the loginless token Cloudflare Tunnel connector NixOS
+    # module, EXTRACTED FROM THIS REPO into a standalone MIT flake
+    # (github.com/ismailkattakath/nix-cloudflared-connector). nixpi consumes its
+    # nixosModule instead of the vendored copy — dogfooding. Pure (config/lib/pkgs).
+    cloudflared-connector.url = "github:ismailkattakath/nix-cloudflared-connector";
+    cloudflared-connector.inputs.nixpkgs.follows = "nixpkgs";
+
     # MCP (Model Context Protocol) server packaging for Claude Code. We use its
     # `lib.mkConfig` to render a PINNED {mcpServers:{…}} JSON (the 4 packaged
     # servers become reproducible store-path commands) that our localhost
@@ -131,6 +138,7 @@
       agenix,
       firmware-secrets,
       keychain-secrets,
+      cloudflared-connector,
       mcp-servers-nix,
       agent-skills-vercel,
       agent-skills-anthropic,
@@ -515,6 +523,7 @@
               cachixKey
               operatorSshKey
               firmware-secrets
+              cloudflared-connector
               ;
           };
           modules = [

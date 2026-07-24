@@ -11,7 +11,7 @@ Everything here is grounded in the repo files:
 
 - `flake.nix` — exports `nixosConfigurations.nixpi` (the `sdImage` build target), also surfaced as the `nixpi-sd-image` package that CI prebuilds and publishes to the `installer-latest` release
 - `hosts/nixpi.nix` — the LIVE Pi profile, including the **scripted-initrd boot fix** (`boot.initrd.systemd.enable = lib.mkForce false`) that is the *other* thing that can hang stage-1
-- `hosts/nixpi.nix` + `modules/nixos/cloudflared.nix` — what `nixpi` does once booted (the Cloudflare Tunnel connector carrying static-key SSH + the Caddy landing page)
+- `hosts/nixpi.nix` + the `nix-cloudflared-connector` flake — what `nixpi` does once booted (the Cloudflare Tunnel connector carrying static-key SSH + the Caddy landing page)
 
 ---
 
@@ -288,6 +288,6 @@ ext4 errors, the card or write is corrupt.
   and eval / generic-kernel QEMU will not catch it — only a real Pi (or serial)
   does.
 - **What `nixpi` does once booted:** `hosts/nixpi.nix` +
-  `modules/nixos/cloudflared.nix` — the Cloudflare Tunnel connector carrying
+  the `nix-cloudflared-connector` flake — the Cloudflare Tunnel connector carrying
   static-key SSH (`ssh://localhost:22`) and Caddy serving the `kattakath.com`
   landing page. Token + Wi-Fi are planted per §4b (nixpi-firmware-provision skill).
