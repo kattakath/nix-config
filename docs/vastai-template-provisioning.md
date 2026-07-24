@@ -218,8 +218,8 @@ and the three boot-time unknowns above.
 
 ## References
 
-- `packages/set-secret.nix`, `packages/nixpi-provision.nix` — Keychain-read + flake-app
-  patterns to mirror.
+- the `nix-keychain-secrets` flake's `secret`/`set-secret` CLIs and `packages/nixpi-provision.nix`
+  — Keychain-read + flake-app patterns to mirror.
 - Vast docs: instances/docker-environment#user-account-variables,
   templates/template-settings#docker-repository-and-environment,
   templates/advanced-setup, instances/storage/{volumes,types,data-movement}.
