@@ -441,6 +441,29 @@
         "type": "github"
       }
     },
+    "local-rag": {
+      "inputs": {
+        "home-manager": [
+          "home-manager"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1784916512,
+        "narHash": "sha256-8e2PE+f0/MKw5ZnXMZMsjTZDaOf7utCDdNDveFea0RE=",
+        "owner": "ismailkattakath",
+        "repo": "nix-local-rag",
+        "rev": "42fce72b6986d28dc5ac4785ceb3c8b7d34932c0",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ismailkattakath",
+        "repo": "nix-local-rag",
+        "type": "github"
+      }
+    },
     "mcp-servers-nix": {
       "inputs": {
         "nixpkgs": [
@@ -657,6 +680,7 @@
         "grok-build-plugin-cc": "grok-build-plugin-cc",
         "home-manager": "home-manager_2",
         "keychain-secrets": "keychain-secrets",
+        "local-rag": "local-rag",
         "mcp-servers-nix": "mcp-servers-nix",
         "nix-darwin": "nix-darwin",
         "nix-homebrew": "nix-homebrew",
