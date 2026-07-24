@@ -124,7 +124,12 @@ _:
     # the page gets a real http:// origin (its localStorage/state break on file://).
     # App-Store-only (no Homebrew cask), so it comes via `mas` (brew above) — needs
     # a one-time App Store sign-in. (Xcode still comes via the `xcodes` brew, not mas.)
+    #
+    # DaVinci Resolve (Blackmagic Design) — the free NLE/colour-grading app. No
+    # Homebrew cask exists (Blackmagic gates downloads behind a registration form),
+    # so the free build comes from the Mac App Store via `mas`.
     masApps = {
+      "DaVinci Resolve" = 571213070;
       Plash = 1494023538;
     };
   };
