@@ -151,6 +151,26 @@
         "url": "https://install.determinate.systems/determinate-nixd/tag/v3.21.7/x86_64-linux"
       }
     },
+    "firmware-secrets": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1784909350,
+        "narHash": "sha256-AZY1OwsEqpLUm1OWThHjBsrswjGyrKixnMtPHYRAKzk=",
+        "owner": "ismailkattakath",
+        "repo": "firmware-secrets",
+        "rev": "6e0d200459262b3226f60ead10cca7acb1016dcf",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ismailkattakath",
+        "repo": "firmware-secrets",
+        "type": "github"
+      }
+    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -588,6 +608,7 @@
         "agent-skills-anthropic": "agent-skills-anthropic",
         "agent-skills-vercel": "agent-skills-vercel",
         "determinate": "determinate",
+        "firmware-secrets": "firmware-secrets",
         "git-hooks": "git-hooks",
         "grok-build-plugin-cc": "grok-build-plugin-cc",
         "home-manager": "home-manager_2",
