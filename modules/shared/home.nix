@@ -30,6 +30,9 @@
   agent-skills-vercel,
   agent-skills-anthropic,
   grok-build-plugin-cc,
+  # The extracted local-rag flake (services.ollamaLocal + services.pgvectorLocal);
+  # its two home-manager modules replace the vendored ollama/postgres-pgvector.
+  local-rag,
   # The extracted keychain-secrets flake (macOS `secret` CLI + every-shell loader);
   # its home-manager module replaces the vendored packages/loader below.
   keychain-secrets,
@@ -168,8 +171,12 @@ in
   imports = [
     ./mcp.nix # darwin-gated MCP server registry for Claude Code
     ./photogimp.nix # darwin-gated Photoshop-like GIMP profile patch
-    ./postgres-pgvector.nix # darwin-gated local Postgres + pgvector (backs the `postgres` MCP server)
-    ./ollama.nix # darwin-gated local Ollama (embedding runtime for the RAG stack)
+    # Local-first RAG stack (loopback launchd Postgres+pgvector + Ollama + in-DB
+    # embed()), from the extracted flake (github:ismailkattakath/nix-local-rag).
+    # Both modules are internally gated on (enable && isDarwin) — a clean no-op on
+    # the NixOS hosts. Replaces the vendored modules/shared/{postgres-pgvector,ollama}.nix;
+    # enabled just below. The pgvector store backs the `postgres` MCP server (mcp.nix).
+    local-rag.homeManagerModules.default
     # macOS login-Keychain `secret` CLI + every-shell loader — the extracted flake
     # (github:ismailkattakath/keychain-secrets), installed via its HM module below.
     # Internally darwin-gated, so it's a clean no-op on the NixOS hosts.
@@ -179,6 +186,15 @@ in
   # Enable the extracted keychain-secrets module (installs the secret/set-secret/
   # remove-secret CLIs + the ~/.config/secrets/loader.sh every-shell loader).
   programs.keychainSecrets.enable = true;
+
+  # Enable the extracted local-rag modules: the launchd Ollama embed runtime and
+  # the pgvector Postgres that backs the `postgres` MCP server. Both are gated on
+  # (enable && isDarwin) inside the flake, so this is inert on the NixOS hosts.
+  # Defaults match the former vendored modules exactly (port 5433, role mcp, db
+  # ragdb, ~/.local/share/postgres-pgvector, nomic-embed-text/768), so the
+  # generated launchd agents are byte-identical.
+  services.ollamaLocal.enable = true;
+  services.pgvectorLocal.enable = true;
 
   # Expose the kapture browser-automation server PUBLICLY as an OAuth-gated MCP
   # connector (Cloudflare Access Managed OAuth in front, provisioned by
@@ -223,6 +239,7 @@ in
     # (the keychain-secrets flake's HM module), not this list.
     ++ lib.optionals stdenv.isDarwin [
       androidEmu
+      awscli2 # AWS CLI v2 — SSO login into the Infin8 accounts; profiles live in ~/.aws/config (uncommitted, has account IDs/SSO URL — not this public repo)
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       jdk17 # JRE for the Android sdkmanager/avdmanager (JVM tools); emulator itself needs no Java
       runpodctl # RunPod GPU CLI — RunPod as a second ComfyUI-workflow provider alongside Vast (from nixpkgs, not the untrusted brew tap)

@@ -84,6 +84,16 @@
     cloudflared-connector.url = "github:ismailkattakath/nix-cloudflared-connector";
     cloudflared-connector.inputs.nixpkgs.follows = "nixpkgs";
 
+    # local-rag — the local-first RAG stack (loopback launchd Postgres+pgvector +
+    # a local Ollama embed model + an in-DB embed() function for plain-SQL RAG),
+    # EXTRACTED FROM THIS REPO into a standalone MIT flake
+    # (github.com/ismailkattakath/nix-local-rag). The macos host consumes its two
+    # home-manager modules (services.ollamaLocal + services.pgvectorLocal) instead
+    # of the vendored modules/shared/{ollama,postgres-pgvector}.nix — dogfooding.
+    local-rag.url = "github:ismailkattakath/nix-local-rag";
+    local-rag.inputs.nixpkgs.follows = "nixpkgs";
+    local-rag.inputs.home-manager.follows = "home-manager";
+
     # MCP (Model Context Protocol) server packaging for Claude Code. We use its
     # `lib.mkConfig` to render a PINNED {mcpServers:{…}} JSON (the 4 packaged
     # servers become reproducible store-path commands) that our localhost
@@ -139,6 +149,7 @@
       firmware-secrets,
       keychain-secrets,
       cloudflared-connector,
+      local-rag,
       mcp-servers-nix,
       agent-skills-vercel,
       agent-skills-anthropic,
@@ -481,6 +492,7 @@
               agent-skills-anthropic
               grok-build-plugin-cc
               keychain-secrets
+              local-rag
               # wallpaperPort: consumed by the darwin-gated Plash activation in
               # home.nix (inert on the NixOS hosts).
               wallpaperPort
@@ -774,11 +786,9 @@
         # dogfooding. The home-manager module (modules/shared/home.nix) installs the
         # same CLIs + the every-shell loader; these apps just expose `nix run`.
         # DARWIN-ONLY: the Keychain is macOS-only.
-        (nixpkgs.lib.genAttrs darwinSystems (
-          system: {
-            inherit (keychain-secrets.packages.${system}) set-secret remove-secret secret;
-          }
-        ))
+        (nixpkgs.lib.genAttrs darwinSystems (system: {
+          inherit (keychain-secrets.packages.${system}) set-secret remove-secret secret;
+        }))
 
         # Vast.ai template-provisioning toolkit (macOS only) — exposed as packages
         # so `nix flake check` BUILDS them (writeShellApplication shellcheck) and
