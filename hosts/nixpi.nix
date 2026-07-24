@@ -27,14 +27,15 @@
   pkgs,
   domainName,
   firmware-secrets,
+  cloudflared-connector,
   ...
 }:
 {
   imports = [
-    ../modules/nixos/cloudflared.nix
-    # `services.firmwareProvisioning` now comes from the standalone flake we
-    # extracted (github:ismailkattakath/firmware-secrets), not a vendored copy —
-    # same option surface, threaded in via mkNixos specialArgs (flake.nix).
+    # `services.cloudflared-connector` + `services.firmwareProvisioning` now come
+    # from standalone flakes we extracted (github:ismailkattakath/nix-*), not
+    # vendored copies — same option surfaces, threaded via mkNixos specialArgs.
+    cloudflared-connector.nixosModules.default
     firmware-secrets.nixosModules.default
   ];
 

@@ -22,7 +22,7 @@
 #       vault (`nix run .#nixpi-vault-token` → secrets/cloudflared-token.age) and
 #       plant on the FIRMWARE partition — NEVER written to git or the store.
 #
-# The runtime connector unit (`modules/nixos/cloudflared.nix`) is UNTOUCHED: it
+# The runtime connector unit (the `nix-cloudflared-connector` flake) is UNTOUCHED: it
 # reads the token at /run/cloudflared-token, which services.firmwareProvisioning
 # copies off the FAT FIRMWARE partition at boot (host-key-independent, so a fresh
 # SD flash does not lock out the tunnel — see hosts/nixpi.nix).
