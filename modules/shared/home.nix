@@ -3,12 +3,12 @@
 # modules/darwin and modules/nixos.
 #
 # Personal token VALUES are intentionally NOT managed here. On macOS they live
-# in the login Keychain (encrypted at rest) — stored/registered by `set-secret`
-# (packages/set-secret.nix) and exported into EVERY shell (not just login ones)
-# by the darwin-only secret loader in the let block below (secretsLoaderBody),
-# which loads once per process tree and lets descendants inherit. Nothing
-# plaintext is written to disk. The Keychain is macOS-only, so the Linux hosts
-# get no personal-token mechanism here (use one-time CLI logins: gh/hf/docker/claude).
+# in the login Keychain (encrypted at rest) — stored/registered by `secret set`
+# and exported into EVERY shell (not just login ones) by the darwin-only loader
+# from the keychain-secrets flake (programs.keychainSecrets), which loads once per
+# process tree and lets descendants inherit. Nothing plaintext is written to disk.
+# The Keychain is macOS-only, so the Linux hosts get no personal-token mechanism
+# here (use one-time CLI logins: gh/hf/docker/claude).
 #
 # SYSTEM/SERVICE secrets are separate from this profile: committed encrypted via
 # agenix (secrets/*.age → /run/agenix/<name> at activation, e.g. the macos
@@ -30,6 +30,9 @@
   agent-skills-vercel,
   agent-skills-anthropic,
   grok-build-plugin-cc,
+  # The extracted keychain-secrets flake (macOS `secret` CLI + every-shell loader);
+  # its home-manager module replaces the vendored packages/loader below.
+  keychain-secrets,
   # Live-wallpaper loopback port (single-sourced in flake.nix) — the darwin-gated
   # Plash activation below points Plash at it; inert on the NixOS hosts. Kept as
   # the opt-in live-wallpaper path alongside the default static wallpaper.
@@ -66,16 +69,6 @@ let
   # (home.activation.claudeCodePlugins). Each id is "<plugin>@<marketplace>"; adding
   # a plugin = pin its marketplace input + marketplaces entry, then append its id here.
   claudePluginIds = [ "grok-build@xai-grok-build" ];
-
-  # `set-secret <KEY> [VALUE]` — stores a secret in the macOS login Keychain
-  # (encrypted at rest) and registers it in an in-Keychain index. macOS-only.
-  setSecret = pkgs.callPackage ../../packages/set-secret.nix { };
-  # `remove-secret <KEY>` — the inverse: delete + unregister. Thin alias for
-  # `set-secret --remove`; the logic lives once in setSecret. macOS-only.
-  removeSecret = pkgs.callPackage ../../packages/remove-secret.nix { set-secret = setSecret; };
-  # `secret <set|get|rm|ls|load>` — the primary noun-verb interface; set-secret
-  # / remove-secret are its aliases. Forwards mutations to setSecret. macOS-only.
-  secretCmd = pkgs.callPackage ../../packages/secret.nix { set-secret = setSecret; };
 
   # `mermaid-ascii` — render Mermaid graphs as ASCII in the terminal. Packaged from
   # upstream (not in nixpkgs); see packages/mermaid-ascii.nix.
@@ -170,152 +163,6 @@ let
     '';
   };
 
-  # Keychain-backed secret store loader (macOS only).
-  #
-  # A REAL FILE (not just inline shell) sourced by EVERY shell — zsh via
-  # .zshenv/envExtra, bash via profile + .bashrc, and non-interactive bash via
-  # $BASH_ENV (its ONLY startup hook, which must name a file). This is the fix
-  # for the login-only bug: profileExtra rendered into ~/.zprofile / ~/.bash_profile,
-  # which are sourced for LOGIN shells only, so every non-login shell (Claude
-  # Code's Bash tool, `zsh -c` from scripts/Makefiles, VS Code tasks, launchd,
-  # direnv, docker exec, CI runners…) silently got ZERO secrets.
-  #
-  # Two jobs:
-  #   1. Load every registered secret from the login Keychain into the
-  #      environment — but AT MOST ONCE per process tree. Reading the Keychain
-  #      costs ~31ms per secret (~470ms for the full set), so the first shell in
-  #      a tree reads it and exports each value PLUS a dedicated sentinel
-  #      (__SECRETS_KEYCHAIN_LOADED); every descendant inherits both through the
-  #      environment and short-circuits on the sentinel. The cost is paid once at
-  #      the tree root, never per shell.
-  #   2. Define `set-secret` (persist via the binary AND apply to THIS shell — a
-  #      bare binary can't touch its parent's env) and a `secret <NAME>` lazy
-  #      read-only accessor. Both are defined UNCONDITIONALLY (shell functions
-  #      are not inherited across processes) but touch the Keychain only when
-  #      actually called, so they add nothing to startup.
-  #
-  # Diagnostics: SECRETS_DEBUG=1 emits a stderr report of what loaded / what
-  # failed — NAMES, lengths and exit codes only, never values. Quiet by default.
-  # Unlike the old __HM_ZSH_SESS_VARS_SOURCED (set to 1 and inherited even when
-  # zero secrets loaded — the exact misleading signal that made this bug hard to
-  # diagnose), the sentinel here is set ONLY after the index was actually read;
-  # an unreadable index (locked Keychain) leaves the tree un-cached so a later
-  # shell retries instead of inheriting an empty, "already-loaded" environment.
-  secretsLoaderRelPath = ".config/secrets/loader.sh";
-  secretsLoaderPath = "${config.home.homeDirectory}/${secretsLoaderRelPath}";
-  secretsLoaderBody = ''
-    # -- one-time-per-tree Keychain load ------------------------------------
-    if [ -z "''${__SECRETS_KEYCHAIN_LOADED:-}" ]; then
-      __ss_dbg() {
-        if [ -n "''${SECRETS_DEBUG:-}" ]; then printf 'secrets: %s\n' "$1" >&2; fi
-        return 0
-      }
-      __ss_account="$(/usr/bin/id -un)"
-      # Capture the index read's exit code: rc != 0 means the index item is
-      # UNREADABLE (Keychain locked, or nothing registered yet) — distinct from a
-      # readable-but-empty index. Only a readable index sets the sentinel.
-      __ss_index="$(/usr/bin/security find-generic-password -a "$__ss_account" -s __set_secret_index__ -w 2>/dev/null)"
-      __ss_rc=$?
-      if [ "$__ss_rc" -ne 0 ]; then
-        __ss_dbg "index unreadable (rc=$__ss_rc): Keychain locked or no secrets registered; NOT caching — a later shell will retry"
-      else
-        __ss_loaded=0
-        __ss_failed=0
-        # Peel the SPACE-separated index one token at a time with POSIX parameter
-        # expansion — identical in zsh and bash (a `for k in $index` would NOT
-        # word-split in zsh). No subshell, so exports land in THIS shell.
-        __ss_rest="$__ss_index"
-        while [ -n "$__ss_rest" ]; do
-          __ss_k="''${__ss_rest%% *}" # first token
-          __ss_rest="''${__ss_rest#"$__ss_k"}" # drop it
-          __ss_rest="''${__ss_rest# }" # trim one leading space
-          [ -n "$__ss_k" ] || continue
-          if __ss_v="$(/usr/bin/security find-generic-password -a "$__ss_account" -s "$__ss_k" -w 2>/dev/null)"; then
-            export "$__ss_k=$__ss_v"
-            __ss_loaded=$((__ss_loaded + 1))
-            __ss_dbg "loaded $__ss_k (len=''${#__ss_v})"
-          else
-            __ss_failed=$((__ss_failed + 1))
-            __ss_dbg "MISSING $__ss_k (listed in index but not found in Keychain)"
-          fi
-        done
-        # Sentinel = "index consulted, every listed secret attempted". Set on a
-        # readable index even if empty (nothing to load is a valid loaded state)
-        # and EXPORTED so descendants skip this whole block.
-        #
-        # CAVEAT (by design): the sentinel is per-secret-set, not per-secret. If a
-        # child shell drops a single var (`unset FOO`, or is spawned with
-        # `env -u FOO`), this loader will NOT restore it — the inherited sentinel
-        # short-circuits the whole block. To get FOO back, either open a shell
-        # without the sentinel, or force a reload in place:
-        #   unset __SECRETS_KEYCHAIN_LOADED && source ~/.config/secrets/loader.sh
-        # (a fresh login shell / new process tree always reloads from scratch).
-        export __SECRETS_KEYCHAIN_LOADED=1
-        # Non-interactive bash's only startup hook is $BASH_ENV — propagate it so
-        # bash descendants of this (possibly zsh) shell also self-load / short-circuit.
-        export BASH_ENV="${secretsLoaderPath}"
-        __ss_dbg "done: $__ss_loaded loaded, $__ss_failed missing (sentinel set)"
-        unset __ss_loaded __ss_failed
-      fi
-      unset __ss_account __ss_index __ss_rc __ss_rest __ss_k __ss_v
-      unset -f __ss_dbg 2>/dev/null || true
-    fi
-
-    # -- interactive helpers (defined always; touch the Keychain only if called) --
-    # Persist to (or remove from) the Keychain, then apply the change to THIS
-    # shell right away (a bare binary can't mutate its parent's env): an add
-    # re-exports the value, a --remove unsets it here too.
-    set-secret() {
-      command set-secret "$@" || return
-      case "''${1:-}" in
-        --remove | -r)
-          case "''${2:-}" in
-            [A-Za-z_]*) unset "$2" 2>/dev/null || true ;;
-          esac
-          ;;
-        [A-Za-z_]*)
-          export "$1=$(/usr/bin/security find-generic-password -a "$(/usr/bin/id -un)" -s "$1" -w 2>/dev/null)"
-          ;;
-      esac
-    }
-    # Inverse of set-secret: delete + unregister, and unset it from THIS shell.
-    # Delegates to the set-secret function so the --remove/unset path is shared.
-    remove-secret() {
-      set-secret --remove "$@"
-    }
-    # Primary noun-verb interface: `secret <set|get|rm|ls|load|KEY>`. The
-    # mutating verbs update THIS shell (set→export, rm→unset) by delegating to the
-    # set-secret/remove-secret functions above; `load` re-reads the whole store
-    # into the current shell (the fix for a manually-unset var — see the sentinel
-    # caveat above); get/ls/help fall through to the `secret` binary. A bare
-    # `secret KEY` is shorthand for `secret get KEY`.
-    secret() {
-      case "''${1:-}" in
-        set)
-          shift
-          set-secret "$@"
-          ;;
-        rm | remove | unset)
-          shift
-          remove-secret "$@"
-          ;;
-        load)
-          unset __SECRETS_KEYCHAIN_LOADED
-          [ -r "${secretsLoaderPath}" ] && . "${secretsLoaderPath}" || true
-          ;;
-        get | ls | list | -h | --help | "")
-          command secret "$@"
-          ;;
-        *)
-          command secret get "$1"
-          ;;
-      esac
-    }
-  '';
-  # Source line wired into each shell's startup file (macOS only; empty elsewhere).
-  sourceSecretsLoader = lib.optionalString pkgs.stdenv.isDarwin ''
-    [ -r "${secretsLoaderPath}" ] && . "${secretsLoaderPath}" || true
-  '';
 in
 {
   imports = [
@@ -323,7 +170,15 @@ in
     ./photogimp.nix # darwin-gated Photoshop-like GIMP profile patch
     ./postgres-pgvector.nix # darwin-gated local Postgres + pgvector (backs the `postgres` MCP server)
     ./ollama.nix # darwin-gated local Ollama (embedding runtime for the RAG stack)
+    # macOS login-Keychain `secret` CLI + every-shell loader — the extracted flake
+    # (github:ismailkattakath/keychain-secrets), installed via its HM module below.
+    # Internally darwin-gated, so it's a clean no-op on the NixOS hosts.
+    keychain-secrets.homeManagerModules.default
   ];
+
+  # Enable the extracted keychain-secrets module (installs the secret/set-secret/
+  # remove-secret CLIs + the ~/.config/secrets/loader.sh every-shell loader).
+  programs.keychainSecrets.enable = true;
 
   # Expose the kapture browser-automation server PUBLICLY as an OAuth-gated MCP
   # connector (Cloudflare Access Managed OAuth in front, provisioned by
@@ -364,13 +219,9 @@ in
     # registry — see ./mcp.nix). On the Linux hosts we don't enable that module,
     # so install the bare CLI here instead. Avoids a buildEnv /bin collision.
     ++ lib.optionals (!stdenv.isDarwin) [ claudeCode ]
-    # set-secret / remove-secret: Keychain-backed secret writer + its inverse,
-    # macOS-only (see the let block). On PATH so the shell functions can call the
-    # underlying `command set-secret` / `command remove-secret`.
+    # secret/set-secret/remove-secret now come from programs.keychainSecrets
+    # (the keychain-secrets flake's HM module), not this list.
     ++ lib.optionals stdenv.isDarwin [
-      setSecret
-      removeSecret
-      secretCmd
       androidEmu
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       jdk17 # JRE for the Android sdkmanager/avdmanager (JVM tools); emulator itself needs no Java
@@ -388,18 +239,10 @@ in
     ANDROID_HOME = "/opt/homebrew/share/android-commandlinetools";
     # sdkmanager/avdmanager are JVM tools; point them at the nixpkgs JDK 17.
     JAVA_HOME = pkgs.jdk17.home;
-    # Point non-interactive bash at the secret loader — $BASH_ENV is the ONLY
-    # startup hook such a shell reads. Sourced by login shells (which export it),
-    # so bash descendants of a login tree self-load; the loader re-exports it too.
-    BASH_ENV = secretsLoaderPath;
+    # BASH_ENV (the secret loader) + the loader file itself are now set by
+    # programs.keychainSecrets (the keychain-secrets flake's HM module).
   };
 
-  # Install the Keychain secret loader (macOS only). Sourced by every shell via
-  # the zsh envExtra / bash profile+bashrc / $BASH_ENV wiring below; loads at
-  # most once per process tree. See secretsLoaderBody in the let block.
-  home.file = lib.mkIf pkgs.stdenv.isDarwin {
-    ${secretsLoaderRelPath}.text = secretsLoaderBody;
-  };
   home.sessionPath = lib.optionals pkgs.stdenv.isDarwin [
     "/opt/homebrew/share/android-commandlinetools/emulator"
     "/opt/homebrew/share/android-commandlinetools/platform-tools"
@@ -570,14 +413,8 @@ in
     # A login shell is required for `home-manager switch` to wire session vars.
     bash = {
       enable = true;
-      # macOS: source the Keychain secret loader on bash too. Three hooks, since
-      # bash has no single .zshenv equivalent — profileExtra (.bash_profile,
-      # LOGIN) + bashrcExtra (.bashrc, INTERACTIVE non-login); NON-interactive
-      # non-login bash is reached only via $BASH_ENV (set in home.sessionVariables
-      # above and re-exported by the loader). The sentinel makes multi-source
-      # idempotent. Empty on non-darwin (sourceSecretsLoader in the let block).
-      profileExtra = sourceSecretsLoader;
-      bashrcExtra = sourceSecretsLoader;
+      # macOS Keychain secret loader is wired into bash's profileExtra/bashrcExtra
+      # by programs.keychainSecrets (the keychain-secrets flake's HM module).
     };
 
     # zsh as the interactive shell — matches the devcontainer default
@@ -632,13 +469,8 @@ in
       autosuggestion.enable = true;
       syntaxHighlighting.enable = true;
 
-      # macOS: source the Keychain secret loader from .zshenv (envExtra), which
-      # runs for EVERY zsh — login, non-login, interactive or not — so scripts
-      # and `zsh -c` subshells get the secrets too (the old profileExtra →
-      # .zprofile path fired for LOGIN shells only). The loader is sentinel-
-      # guarded, so only the first shell in a process tree pays the Keychain read;
-      # descendants inherit and short-circuit. Empty on non-darwin.
-      envExtra = sourceSecretsLoader;
+      # macOS Keychain secret loader is wired into zsh's envExtra (.zshenv) by
+      # programs.keychainSecrets (the keychain-secrets flake's HM module).
     };
 
     # ---- VS Code (macOS only) --------------------------------------------------
