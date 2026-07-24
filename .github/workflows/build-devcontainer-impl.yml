@@ -70,7 +70,7 @@ jobs:
             vsarch: x64
             loader: /lib64/ld-linux-x86-64.so.2
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/nix-setup
         with:
           cachix-auth-token: ${{ secrets.CACHIX_AUTH_TOKEN }}
@@ -268,7 +268,7 @@ jobs:
       # --format oci for the annotation convention.
       - name: Login to GHCR
         if: inputs.changed == 'true'
-        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v3
+        uses: docker/login-action@06fb636fac595d6fb4b28a5dfcb21a6f5091859c # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
