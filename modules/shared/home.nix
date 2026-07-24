@@ -60,6 +60,13 @@ let
     __noChroot = false;
   });
 
+  # Claude Code plugins to install from their Nix-pinned marketplaces (see the
+  # programs.claude-code.marketplaces + settings.enabledPlugins below). SINGLE
+  # SOURCE for both the enabledPlugins flags and the idempotent install activation
+  # (home.activation.claudeCodePlugins). Each id is "<plugin>@<marketplace>"; adding
+  # a plugin = pin its marketplace input + marketplaces entry, then append its id here.
+  claudePluginIds = [ "grok-build@xai-grok-build" ];
+
   # `set-secret <KEY> [VALUE]` — stores a secret in the macOS login Keychain
   # (encrypted at rest) and registers it in an in-Keychain index. macOS-only.
   setSecret = pkgs.callPackage ../../packages/set-secret.nix { };
@@ -229,6 +236,14 @@ let
         # Sentinel = "index consulted, every listed secret attempted". Set on a
         # readable index even if empty (nothing to load is a valid loaded state)
         # and EXPORTED so descendants skip this whole block.
+        #
+        # CAVEAT (by design): the sentinel is per-secret-set, not per-secret. If a
+        # child shell drops a single var (`unset FOO`, or is spawned with
+        # `env -u FOO`), this loader will NOT restore it — the inherited sentinel
+        # short-circuits the whole block. To get FOO back, either open a shell
+        # without the sentinel, or force a reload in place:
+        #   unset __SECRETS_KEYCHAIN_LOADED && source ~/.config/secrets/loader.sh
+        # (a fresh login shell / new process tree always reloads from scratch).
         export __SECRETS_KEYCHAIN_LOADED=1
         # Non-interactive bash's only startup hook is $BASH_ENV — propagate it so
         # bash descendants of this (possibly zsh) shell also self-load / short-circuit.
@@ -241,10 +256,17 @@ let
     fi
 
     # -- interactive helpers (defined always; touch the Keychain only if called) --
-    # Persist to the Keychain, then apply to THIS shell right away.
+    # Persist to (or remove from) the Keychain, then apply the change to THIS
+    # shell right away (a bare binary can't mutate its parent's env): an add
+    # re-exports the value, a --remove unsets it here too.
     set-secret() {
       command set-secret "$@" || return
       case "''${1:-}" in
+        --remove | -r)
+          case "''${2:-}" in
+            [A-Za-z_]*) unset "$2" 2>/dev/null || true ;;
+          esac
+          ;;
         [A-Za-z_]*)
           export "$1=$(/usr/bin/security find-generic-password -a "$(/usr/bin/id -un)" -s "$1" -w 2>/dev/null)"
           ;;
@@ -402,7 +424,7 @@ in
         skipWorkflowUsageWarning = true;
         inputNeededNotifEnabled = true;
         agentPushNotifEnabled = true;
-        enabledPlugins."grok-build@xai-grok-build" = true;
+        enabledPlugins = lib.genAttrs claudePluginIds (_: true);
       };
 
       # Flake-managed GLOBAL skills for Claude Code — the declarative, reproducible
@@ -738,6 +760,32 @@ in
   # best-effort (again, Terminal may overwrite while running): if it doesn't
   # stick, select Ubuntu → "Default" in Terminal ▸ Settings ▸ Profiles once.
   home.activation = lib.mkIf pkgs.stdenv.isDarwin {
+    # Materialise the DECLARED Claude Code plugins (claudePluginIds) from their
+    # Nix-pinned marketplaces. We deliberately do NOT put ~/.claude/plugins/
+    # installed_plugins.json under Nix — it is Claude's own MUTABLE state file whose
+    # schema + cache layout are an internal impl detail (making it read-only would break
+    # `claude plugin install/uninstall/update`). Instead we DELEGATE the install to
+    # `claude plugin install`, idempotently — the same "let the tool author its own
+    # state" pattern as home.activation.grokMcp / claudeDesktopMcp (modules/shared/mcp.nix).
+    # Runs AFTER linkGeneration so the Nix-managed known_marketplaces.json + settings.json
+    # (which already carries enabledPlugins = true) are in place; best-effort so it never
+    # aborts a switch and self-heals on the next one. This is the one manual
+    # `claude plugin install` step, automated (verified: install succeeds even though
+    # settings.json is a read-only Nix symlink, since enabledPlugins is already set).
+    claudeCodePlugins = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+      claude="${claudeCode}/bin/claude"
+      if [ -x "$claude" ]; then
+        for id in ${lib.escapeShellArgs claudePluginIds}; do
+          if "$claude" plugin list 2>/dev/null | grep -qF "$id"; then
+            : # already installed — idempotent skip
+          else
+            echo "claude-code: installing plugin $id from its pinned marketplace…" >&2
+            "$claude" plugin install "$id" >/dev/null 2>&1 || true
+          fi
+        done
+      fi
+    '';
+
     ubuntuTerminalProfile = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       if ! /usr/bin/defaults read com.apple.Terminal "Window Settings" 2>/dev/null \
            | /usr/bin/grep -q 'name = Ubuntu;'; then
