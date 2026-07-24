@@ -167,8 +167,9 @@ let
     # `--access-mode=unrestricted` lets it create tables + insert/query vectors; the
     # blast radius is bounded not by that flag but by DATABASE_URI's role `mcp`, which
     # owns ONLY `ragdb` and connects loopback-trust with no secret. The DB is a
-    # loopback launchd agent — see modules/shared/postgres-pgvector.nix, which
-    # single-sources the URI via services.pgvectorGateway.databaseUri.
+    # loopback launchd agent — from the extracted local-rag flake
+    # (github:ismailkattakath/nix-local-rag), which single-sources the URI via
+    # services.pgvectorLocal.databaseUri.
     #
     # `--python 3.12` is LOAD-BEARING: postgres-mcp depends on pglast, whose current
     # release ships no wheel for CPython 3.14 (uv's default newest interpreter) and
@@ -184,7 +185,7 @@ let
         "postgres-mcp"
         "--access-mode=unrestricted"
       ];
-      env.DATABASE_URI = config.services.pgvectorGateway.databaseUri;
+      env.DATABASE_URI = config.services.pgvectorLocal.databaseUri;
     };
   };
 
