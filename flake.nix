@@ -63,11 +63,19 @@
 
     # firmware-secrets — the reflash-safe FAT-firmware-partition secret provisioning
     # module, EXTRACTED FROM THIS REPO and published as a standalone MIT flake
-    # (github.com/ismailkattakath/firmware-secrets). nixpi now consumes its
+    # (github.com/ismailkattakath/nix-firmware-secrets). nixpi now consumes its
     # nixosModule instead of the vendored copy — dogfooding our own extraction.
     # The module is pure (config/lib only), so follows our nixpkgs to avoid a 2nd copy.
-    firmware-secrets.url = "github:ismailkattakath/firmware-secrets";
+    firmware-secrets.url = "github:ismailkattakath/nix-firmware-secrets";
     firmware-secrets.inputs.nixpkgs.follows = "nixpkgs";
+
+    # keychain-secrets — the macOS login-Keychain `secret` CLI + every-shell loader,
+    # EXTRACTED FROM THIS REPO into a standalone MIT flake
+    # (github.com/ismailkattakath/nix-keychain-secrets). The macos host consumes its
+    # home-manager module instead of the vendored packages + loader — dogfooding.
+    keychain-secrets.url = "github:ismailkattakath/nix-keychain-secrets";
+    keychain-secrets.inputs.nixpkgs.follows = "nixpkgs";
+    keychain-secrets.inputs.home-manager.follows = "home-manager";
 
     # MCP (Model Context Protocol) server packaging for Claude Code. We use its
     # `lib.mkConfig` to render a PINNED {mcpServers:{…}} JSON (the 4 packaged
@@ -122,6 +130,7 @@
       determinate,
       agenix,
       firmware-secrets,
+      keychain-secrets,
       mcp-servers-nix,
       agent-skills-vercel,
       agent-skills-anthropic,
@@ -463,6 +472,7 @@
               agent-skills-vercel
               agent-skills-anthropic
               grok-build-plugin-cc
+              keychain-secrets
               # wallpaperPort: consumed by the darwin-gated Plash activation in
               # home.nix (inert on the NixOS hosts).
               wallpaperPort
@@ -749,26 +759,15 @@
           };
         }))
 
-        # `set-secret <KEY> [VALUE]` / `remove-secret <KEY>` — store or delete a
-        # secret in the macOS login Keychain and (un)register it for the shell
-        # export loop (modules/shared/home.nix). remove-secret forwards to
-        # `set-secret --remove`, so the logic lives once. DARWIN-ONLY: the
-        # Keychain is macOS-only.
+        # `secret <set|get|rm|ls|load>` / `set-secret` / `remove-secret` — the
+        # macOS login-Keychain CLI. NOW sourced from the extracted keychain-secrets
+        # flake (github:ismailkattakath/nix-keychain-secrets), not vendored packages —
+        # dogfooding. The home-manager module (modules/shared/home.nix) installs the
+        # same CLIs + the every-shell loader; these apps just expose `nix run`.
+        # DARWIN-ONLY: the Keychain is macOS-only.
         (nixpkgs.lib.genAttrs darwinSystems (
-          system:
-          let
-            setSecret = (pkgsFor system).callPackage ./packages/set-secret.nix { };
-          in
-          {
-            set-secret = setSecret;
-            remove-secret = (pkgsFor system).callPackage ./packages/remove-secret.nix {
-              set-secret = setSecret;
-            };
-            # `secret <set|get|rm|list|load>` — the primary noun-verb interface;
-            # set-secret/remove-secret above are its back-compat aliases.
-            secret = (pkgsFor system).callPackage ./packages/secret.nix {
-              set-secret = setSecret;
-            };
+          system: {
+            inherit (keychain-secrets.packages.${system}) set-secret remove-secret secret;
           }
         ))
 
