@@ -72,6 +72,26 @@
         "type": "github"
       }
     },
+    "cloudflared-connector": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1784915057,
+        "narHash": "sha256-0HA83LSKkKVdp5223iNAn9UeDGkQ94KWrT92kSK7nGU=",
+        "owner": "ismailkattakath",
+        "repo": "nix-cloudflared-connector",
+        "rev": "b626ce3710a6bb5f8654932fba5fff017a17a130",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ismailkattakath",
+        "repo": "nix-cloudflared-connector",
+        "type": "github"
+      }
+    },
     "darwin": {
       "inputs": {
         "nixpkgs": [
@@ -630,6 +650,7 @@
         "agenix": "agenix",
         "agent-skills-anthropic": "agent-skills-anthropic",
         "agent-skills-vercel": "agent-skills-vercel",
+        "cloudflared-connector": "cloudflared-connector",
         "determinate": "determinate",
         "firmware-secrets": "firmware-secrets",
         "git-hooks": "git-hooks",
