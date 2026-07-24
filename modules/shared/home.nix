@@ -240,6 +240,7 @@ in
     ++ lib.optionals stdenv.isDarwin [
       androidEmu
       awscli2 # AWS CLI v2 — SSO login into the Infin8 accounts; profiles live in ~/.aws/config (uncommitted, has account IDs/SSO URL — not this public repo)
+      codecov-cli # Codecov CLI (`codecovcli`) — upload coverage reports / local upload from CI; reads the CODECOV_TOKEN env var (a Keychain secret, never in this repo)
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       jdk17 # JRE for the Android sdkmanager/avdmanager (JVM tools); emulator itself needs no Java
       runpodctl # RunPod GPU CLI — RunPod as a second ComfyUI-workflow provider alongside Vast (from nixpkgs, not the untrusted brew tap)
