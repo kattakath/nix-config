@@ -73,6 +73,9 @@ let
   # `remove-secret <KEY>` — the inverse: delete + unregister. Thin alias for
   # `set-secret --remove`; the logic lives once in setSecret. macOS-only.
   removeSecret = pkgs.callPackage ../../packages/remove-secret.nix { set-secret = setSecret; };
+  # `secret <set|get|rm|list|load>` — the primary noun-verb interface; set-secret
+  # / remove-secret are its aliases. Forwards mutations to setSecret. macOS-only.
+  secretCmd = pkgs.callPackage ../../packages/secret.nix { set-secret = setSecret; };
 
   # `mermaid-ascii` — render Mermaid graphs as ASCII in the terminal. Packaged from
   # upstream (not in nixpkgs); see packages/mermaid-ascii.nix.
@@ -280,14 +283,33 @@ let
     remove-secret() {
       set-secret --remove "$@"
     }
-    # Lazy read-only accessor: print a secret on demand WITHOUT keeping it
-    # ambient, e.g.  export CIVITAI_TOKEN="$(secret CIVITAI_TOKEN)".
+    # Primary noun-verb interface: `secret <set|get|rm|list|load|KEY>`. The
+    # mutating verbs update THIS shell (set→export, rm→unset) by delegating to the
+    # set-secret/remove-secret functions above; `load` re-reads the whole store
+    # into the current shell (the fix for a manually-unset var — see the sentinel
+    # caveat above); get/list/help fall through to the `secret` binary. A bare
+    # `secret KEY` is shorthand for `secret get KEY`.
     secret() {
-      [ -n "''${1:-}" ] || {
-        echo "secret: usage: secret <NAME>" >&2
-        return 2
-      }
-      /usr/bin/security find-generic-password -a "$(/usr/bin/id -un)" -s "$1" -w 2>/dev/null
+      case "''${1:-}" in
+        set)
+          shift
+          set-secret "$@"
+          ;;
+        rm | remove | unset)
+          shift
+          remove-secret "$@"
+          ;;
+        load)
+          unset __SECRETS_KEYCHAIN_LOADED
+          [ -r "${secretsLoaderPath}" ] && . "${secretsLoaderPath}" || true
+          ;;
+        get | list | -h | --help | "")
+          command secret "$@"
+          ;;
+        *)
+          command secret get "$1"
+          ;;
+      esac
     }
   '';
   # Source line wired into each shell's startup file (macOS only; empty elsewhere).
@@ -348,6 +370,7 @@ in
     ++ lib.optionals stdenv.isDarwin [
       setSecret
       removeSecret
+      secretCmd
       androidEmu
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       jdk17 # JRE for the Android sdkmanager/avdmanager (JVM tools); emulator itself needs no Java
