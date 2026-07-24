@@ -1,5 +1,5 @@
 # nixpi provisioning toolkit — the macOS-side, all-Nix companion to
-# modules/nixos/firmware-provisioning.nix. Returns four `writeShellApplication`s
+# the firmware-secrets flake. Returns four `writeShellApplication`s
 # (shellcheck'd at `nix flake check`), wired as flake apps in flake.nix:
 #
 #   nix run .#nixpi-flash       — acquire image (--release download / --image / build)
