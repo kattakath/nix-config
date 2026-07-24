@@ -158,16 +158,16 @@
         ]
       },
       "locked": {
-        "lastModified": 1784909350,
-        "narHash": "sha256-AZY1OwsEqpLUm1OWThHjBsrswjGyrKixnMtPHYRAKzk=",
+        "lastModified": 1784913233,
+        "narHash": "sha256-nDBF5Jhehfk+rDhR++hONMtJJODIWUxxo3WCFhlVcuk=",
         "owner": "ismailkattakath",
-        "repo": "firmware-secrets",
-        "rev": "6e0d200459262b3226f60ead10cca7acb1016dcf",
+        "repo": "nix-firmware-secrets",
+        "rev": "5559553e254462056f3aa4f55dbdea3d364ee061",
         "type": "github"
       },
       "original": {
         "owner": "ismailkattakath",
-        "repo": "firmware-secrets",
+        "repo": "nix-firmware-secrets",
         "type": "github"
       }
     },
@@ -361,6 +361,29 @@
       "original": {
         "owner": "vic",
         "repo": "import-tree",
+        "type": "github"
+      }
+    },
+    "keychain-secrets": {
+      "inputs": {
+        "home-manager": [
+          "home-manager"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1784913234,
+        "narHash": "sha256-ggBigxuLlJyl2KrW4pRvvC1g87FmOYQOc/XwfOgw9Ow=",
+        "owner": "ismailkattakath",
+        "repo": "nix-keychain-secrets",
+        "rev": "ee1167e49adddcbeb55e813481a7d25310a8fc78",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ismailkattakath",
+        "repo": "nix-keychain-secrets",
         "type": "github"
       }
     },
@@ -612,6 +635,7 @@
         "git-hooks": "git-hooks",
         "grok-build-plugin-cc": "grok-build-plugin-cc",
         "home-manager": "home-manager_2",
+        "keychain-secrets": "keychain-secrets",
         "mcp-servers-nix": "mcp-servers-nix",
         "nix-darwin": "nix-darwin",
         "nix-homebrew": "nix-homebrew",
