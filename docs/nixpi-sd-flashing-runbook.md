@@ -153,7 +153,7 @@ Notes:
 **Do this after every flash, before first boot.** A fresh flash wipes the whole
 card, so the connector token (and Wi-Fi config, if used) must be re-planted onto the
 FAT `FIRMWARE` partition each time. `hosts/nixpi.nix` reads them on boot via
-`services.firmwareProvisioning` (`modules/nixos/firmware-provisioning.nix`): each
+`services.firmwareProvisioning` (`the firmware-secrets flake`): each
 planted file is copied into a root-only `/run` file before its consumer starts.
 
 **One command does §2–§4b** — build, verified write, and plant, with an `osascript`

@@ -26,12 +26,16 @@
   lib,
   pkgs,
   domainName,
+  firmware-secrets,
   ...
 }:
 {
   imports = [
     ../modules/nixos/cloudflared.nix
-    ../modules/nixos/firmware-provisioning.nix
+    # `services.firmwareProvisioning` now comes from the standalone flake we
+    # extracted (github:ismailkattakath/firmware-secrets), not a vendored copy —
+    # same option surface, threaded in via mkNixos specialArgs (flake.nix).
+    firmware-secrets.nixosModules.default
   ];
 
   networking.hostName = "nixpi";
@@ -68,7 +72,7 @@
   # SSH over the Cloudflare Tunnel — loginless, token-based connector. Both the
   # connector token AND the Wi-Fi credentials are delivered from the SD card's FAT
   # FIRMWARE partition via `services.firmwareProvisioning`
-  # (modules/nixos/firmware-provisioning.nix), NOT agenix. WHY NOT agenix: it
+  # (the firmware-secrets flake), NOT agenix. WHY NOT agenix: it
   # encrypts to nixpi's SSH HOST key, but a fresh SD flash mints a new host key, so
   # the ciphertext stops decrypting and the tunnel dies — and with SSH being
   # cert-only OVER that tunnel, unrecoverably (the reflash lockout). A file on the

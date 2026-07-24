@@ -7,14 +7,14 @@ description: >
   connector token", "rotate the tunnel key", "set up / change nixpi Wi-Fi", or "nixpi
   can't reach the tunnel after a reflash". Everything is an all-Nix flake app
   (`nix run .#nixpi-*`) on the macOS host; pairs with
-  modules/nixos/firmware-provisioning.nix, hosts/nixpi.nix, and
+  the firmware-secrets flake, hosts/nixpi.nix, and
   docs/nixpi-sd-flashing-runbook.md.
 ---
 
 # nixpi firmware provisioning
 
 nixpi reads two operator-planted files off the SD card's FAT `FIRMWARE` partition at
-boot (`services.firmwareProvisioning`, `modules/nixos/firmware-provisioning.nix`),
+boot (`services.firmwareProvisioning`, `the firmware-secrets flake`),
 copying each into a root-only `/run` file before its consumer starts:
 
 | Planted file (`/boot/firmware/…`) | → `/run/…` | Consumer |

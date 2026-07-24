@@ -61,6 +61,14 @@
     agenix.url = "github:ryantm/agenix";
     agenix.inputs.nixpkgs.follows = "nixpkgs";
 
+    # firmware-secrets — the reflash-safe FAT-firmware-partition secret provisioning
+    # module, EXTRACTED FROM THIS REPO and published as a standalone MIT flake
+    # (github.com/ismailkattakath/firmware-secrets). nixpi now consumes its
+    # nixosModule instead of the vendored copy — dogfooding our own extraction.
+    # The module is pure (config/lib only), so follows our nixpkgs to avoid a 2nd copy.
+    firmware-secrets.url = "github:ismailkattakath/firmware-secrets";
+    firmware-secrets.inputs.nixpkgs.follows = "nixpkgs";
+
     # MCP (Model Context Protocol) server packaging for Claude Code. We use its
     # `lib.mkConfig` to render a PINNED {mcpServers:{…}} JSON (the 4 packaged
     # servers become reproducible store-path commands) that our localhost
@@ -113,6 +121,7 @@
       terranix,
       determinate,
       agenix,
+      firmware-secrets,
       mcp-servers-nix,
       agent-skills-vercel,
       agent-skills-anthropic,
@@ -491,7 +500,12 @@
           # operatorSshKey (the authorizedKeys credential) by modules/nixos/core.nix.
           # Both are NixOS-only, so they are not in mkDarwin's specialArgs.
           specialArgs = identityArgs // {
-            inherit cachixUrl cachixKey operatorSshKey;
+            inherit
+              cachixUrl
+              cachixKey
+              operatorSshKey
+              firmware-secrets
+              ;
           };
           modules = [
             { nixpkgs.hostPlatform = system; }
