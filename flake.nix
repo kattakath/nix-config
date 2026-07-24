@@ -735,12 +735,23 @@
           };
         }))
 
-        # `set-secret <KEY> [VALUE]` — store a secret in the macOS login Keychain
-        # (encrypted at rest) and register it for the login export loop
-        # (modules/shared/home.nix). DARWIN-ONLY: the Keychain is macOS-only.
-        (nixpkgs.lib.genAttrs darwinSystems (system: {
-          set-secret = (pkgsFor system).callPackage ./packages/set-secret.nix { };
-        }))
+        # `set-secret <KEY> [VALUE]` / `remove-secret <KEY>` — store or delete a
+        # secret in the macOS login Keychain and (un)register it for the shell
+        # export loop (modules/shared/home.nix). remove-secret forwards to
+        # `set-secret --remove`, so the logic lives once. DARWIN-ONLY: the
+        # Keychain is macOS-only.
+        (nixpkgs.lib.genAttrs darwinSystems (
+          system:
+          let
+            setSecret = (pkgsFor system).callPackage ./packages/set-secret.nix { };
+          in
+          {
+            set-secret = setSecret;
+            remove-secret = (pkgsFor system).callPackage ./packages/remove-secret.nix {
+              set-secret = setSecret;
+            };
+          }
+        ))
 
         # Vast.ai template-provisioning toolkit (macOS only) — exposed as packages
         # so `nix flake check` BUILDS them (writeShellApplication shellcheck) and
@@ -866,6 +877,16 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.set-secret}/bin/set-secret";
               meta.description = "Store KEY=VALUE in the macOS login Keychain (encrypted) and register it for login-shell export; omit VALUE for a hidden prompt";
+            };
+
+            # `nix run .#remove-secret -- KEY` — delete KEY from the macOS login
+            # Keychain and unregister it (alias for `set-secret --remove`). Bare
+            # `nix run` only mutates the Keychain; the remove-secret shell function
+            # (modules/shared/home.nix) also unsets it from the current shell.
+            aarch64-darwin.remove-secret = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.remove-secret}/bin/remove-secret";
+              meta.description = "Delete KEY from the macOS login Keychain and unregister it from the set-secret index (alias for set-secret --remove)";
             };
 
             # nixpi SD-card provisioning (macOS). The executable runbook: build +

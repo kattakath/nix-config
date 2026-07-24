@@ -70,6 +70,9 @@ let
   # `set-secret <KEY> [VALUE]` — stores a secret in the macOS login Keychain
   # (encrypted at rest) and registers it in an in-Keychain index. macOS-only.
   setSecret = pkgs.callPackage ../../packages/set-secret.nix { };
+  # `remove-secret <KEY>` — the inverse: delete + unregister. Thin alias for
+  # `set-secret --remove`; the logic lives once in setSecret. macOS-only.
+  removeSecret = pkgs.callPackage ../../packages/remove-secret.nix { set-secret = setSecret; };
 
   # `mermaid-ascii` — render Mermaid graphs as ASCII in the terminal. Packaged from
   # upstream (not in nixpkgs); see packages/mermaid-ascii.nix.
@@ -272,6 +275,11 @@ let
           ;;
       esac
     }
+    # Inverse of set-secret: delete + unregister, and unset it from THIS shell.
+    # Delegates to the set-secret function so the --remove/unset path is shared.
+    remove-secret() {
+      set-secret --remove "$@"
+    }
     # Lazy read-only accessor: print a secret on demand WITHOUT keeping it
     # ambient, e.g.  export CIVITAI_TOKEN="$(secret CIVITAI_TOKEN)".
     secret() {
@@ -334,10 +342,12 @@ in
     # registry — see ./mcp.nix). On the Linux hosts we don't enable that module,
     # so install the bare CLI here instead. Avoids a buildEnv /bin collision.
     ++ lib.optionals (!stdenv.isDarwin) [ claudeCode ]
-    # set-secret: Keychain-backed secret writer, macOS-only (see the let block).
-    # On PATH so the `set-secret` shell function can call `command set-secret`.
+    # set-secret / remove-secret: Keychain-backed secret writer + its inverse,
+    # macOS-only (see the let block). On PATH so the shell functions can call the
+    # underlying `command set-secret` / `command remove-secret`.
     ++ lib.optionals stdenv.isDarwin [
       setSecret
+      removeSecret
       androidEmu
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       jdk17 # JRE for the Android sdkmanager/avdmanager (JVM tools); emulator itself needs no Java
