@@ -272,6 +272,22 @@
         "url": "https://flakehub.com/f/cachix/git-hooks.nix/0.1.941"
       }
     },
+    "grok-build-plugin-cc": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1783718345,
+        "narHash": "sha256-J+JVYPX7cV8aKFiTNmXE2KwvxROFjxHQfRODWlobKng=",
+        "owner": "xai-org",
+        "repo": "grok-build-plugin-cc",
+        "rev": "5a9f924a8d1ca802b3e6dc0ce0e1a602fb35ec9e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "xai-org",
+        "repo": "grok-build-plugin-cc",
+        "type": "github"
+      }
+    },
     "home-manager": {
       "inputs": {
         "nixpkgs": [
@@ -573,6 +589,7 @@
         "agent-skills-vercel": "agent-skills-vercel",
         "determinate": "determinate",
         "git-hooks": "git-hooks",
+        "grok-build-plugin-cc": "grok-build-plugin-cc",
         "home-manager": "home-manager_2",
         "mcp-servers-nix": "mcp-servers-nix",
         "nix-darwin": "nix-darwin",
