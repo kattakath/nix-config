@@ -287,16 +287,38 @@ in
       enable = true;
       package = claudeCode;
 
-      # xAI's OFFICIAL Grok Build <-> Claude Code bridge plugin (pinned flake
-      # input grok-build-plugin-cc). The repo root is a marketplace; the plugin
-      # itself is the self-contained plugins/grok-build/ subdir, installed here as
-      # a personal plugin (claude-code >= 2.1.157 links it into ~/.claude). Adds
-      # the /grok-build:{review,critique,delegate,import,check,runs,show,stop}
-      # commands + a grok-delegate agent. Runtime deps: grok on PATH
-      # (home.sessionPath ~/.grok/bin) + Node >= 18.18; grok must be authenticated
-      # (`grok models` succeeds). The declarative replacement for the imperative
-      # `claude plugin marketplace add` / `claude plugin install grok-build@xai-grok-build`.
-      plugins = [ "${grok-build-plugin-cc}/plugins/grok-build" ];
+      # xAI's OFFICIAL Grok Build <-> Claude Code bridge, registered as a pinned
+      # MARKETPLACE (the flake-input repo root has .claude-plugin/marketplace.json).
+      # NOT the `plugins` option: on this claude-code (>= 2.1.157) that installs a
+      # "skills-dir plugin", which loads only the plugin's skills+hooks — NOT its
+      # slash commands or agent (verified live: `/grok-build:check` => "Unknown
+      # command", `plugin details` => Agents (0), no commands). The marketplace
+      # source is the pinned flake input, so `nix flake update` bumps it and the
+      # store path stays GC-protected. The plugin is then activated ONCE per machine
+      # with `claude plugin install grok-build@xai-grok-build` — persisted user state
+      # in ~/.claude (like the gh/hf/docker/claude one-time logins) — which DOES load
+      # the full /grok-build:{review,critique,delegate,import,check,runs,show,stop}
+      # commands + the grok-delegate agent. Runtime deps: grok on PATH (~/.grok/bin)
+      # + Node; grok must be authenticated (`grok models` succeeds).
+      marketplaces.xai-grok-build = "${grok-build-plugin-cc}";
+
+      # Claude Code user settings, now Nix-owned (the marketplaces option above
+      # takes over ~/.claude/settings.json wholesale, so everything must live here
+      # or it is lost on activation). extraKnownMarketplaces is injected by the
+      # marketplaces option; the module writes settings.json = these `settings` //
+      # { extraKnownMarketplaces }. enabledPlugins keeps the grok-build plugin
+      # switched ON once `claude plugin install grok-build@xai-grok-build` has run.
+      # NOTE: editing any of these in the Claude UI won't persist — a rebuild
+      # reverts them; change them HERE instead.
+      settings = {
+        theme = "auto";
+        tui = "fullscreen";
+        skipDangerousModePermissionPrompt = true;
+        skipWorkflowUsageWarning = true;
+        inputNeededNotifEnabled = true;
+        agentPushNotifEnabled = true;
+        enabledPlugins."grok-build@xai-grok-build" = true;
+      };
 
       # Flake-managed GLOBAL skills for Claude Code — the declarative, reproducible
       # replacement for `npx skills add --global` (which drops a loose symlink into
