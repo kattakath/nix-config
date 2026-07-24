@@ -28,6 +28,7 @@
   # below). flake.nix pins them; nothing is vendored into this repo.
   agent-skills-vercel,
   agent-skills-anthropic,
+  grok-build-plugin-cc,
   # Live-wallpaper loopback port (single-sourced in flake.nix) — the darwin-gated
   # Plash activation below points Plash at it; inert on the NixOS hosts. Kept as
   # the opt-in live-wallpaper path alongside the default static wallpaper.
@@ -285,6 +286,17 @@ in
     claude-code = lib.mkIf pkgs.stdenv.isDarwin {
       enable = true;
       package = claudeCode;
+
+      # xAI's OFFICIAL Grok Build <-> Claude Code bridge plugin (pinned flake
+      # input grok-build-plugin-cc). The repo root is a marketplace; the plugin
+      # itself is the self-contained plugins/grok-build/ subdir, installed here as
+      # a personal plugin (claude-code >= 2.1.157 links it into ~/.claude). Adds
+      # the /grok-build:{review,critique,delegate,import,check,runs,show,stop}
+      # commands + a grok-delegate agent. Runtime deps: grok on PATH
+      # (home.sessionPath ~/.grok/bin) + Node >= 18.18; grok must be authenticated
+      # (`grok models` succeeds). The declarative replacement for the imperative
+      # `claude plugin marketplace add` / `claude plugin install grok-build@xai-grok-build`.
+      plugins = [ "${grok-build-plugin-cc}/plugins/grok-build" ];
 
       # Flake-managed GLOBAL skills for Claude Code — the declarative, reproducible
       # replacement for `npx skills add --global` (which drops a loose symlink into

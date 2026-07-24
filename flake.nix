@@ -88,6 +88,15 @@
       url = "github:anthropics/claude-code";
       flake = false;
     };
+    # xAI's OFFICIAL Claude Code plugin (grok-build-plugin-cc) — the sanctioned
+    # Grok Build <-> Claude Code bridge (/grok-build:{review,critique,delegate,
+    # import,...}). Pinned flake=false; its self-contained plugin dir is wired into
+    # programs.claude-code.plugins (modules/shared/home.nix, darwin-gated). Needs
+    # grok on PATH (home.sessionPath ~/.grok/bin) + Node; grok must be authenticated.
+    grok-build-plugin-cc = {
+      url = "github:xai-org/grok-build-plugin-cc";
+      flake = false;
+    };
   };
 
   outputs =
@@ -107,6 +116,7 @@
       mcp-servers-nix,
       agent-skills-vercel,
       agent-skills-anthropic,
+      grok-build-plugin-cc,
       ...
     }:
     let
@@ -437,6 +447,7 @@
               mcp-servers-nix
               agent-skills-vercel
               agent-skills-anthropic
+              grok-build-plugin-cc
               # wallpaperPort: consumed by the darwin-gated Plash activation in
               # home.nix (inert on the NixOS hosts).
               wallpaperPort
