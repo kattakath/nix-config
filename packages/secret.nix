@@ -4,7 +4,7 @@
 #   secret set  <KEY> [VALUE]   store/rotate (hidden prompt if no VALUE)
 #   secret get  <KEY>           print one value on demand (lazy read)
 #   secret rm   <KEY>           delete + unregister
-#   secret list                 list every registered KEY (from the index)
+#   secret ls                   list every registered KEY (from the index; `list` also accepted)
 #   secret load                 reload secrets into the CURRENT shell — SHELL-FUNCTION ONLY
 #   secret <KEY>                shorthand for `secret get <KEY>`
 #
@@ -34,7 +34,7 @@ writeShellApplication {
         "  secret set  <KEY> [VALUE]   store/rotate a secret (hidden prompt if no VALUE)" \
         "  secret get  <KEY>           print a secret's value (lazy read)" \
         "  secret rm   <KEY>           delete a secret and unregister it" \
-        "  secret list                 list every registered secret name" \
+        "  secret ls                   list every registered secret name (alias: list)" \
         "  secret load                 reload secrets into the current shell (shell function only)" \
         "  secret <KEY>                shorthand for 'secret get <KEY>'" \
         "aliases: set-secret == 'secret set'  -  remove-secret == 'secret rm'" >&2
@@ -70,7 +70,7 @@ writeShellApplication {
         fi
         "$security" find-generic-password -a "$account" -s "$1" -w 2>/dev/null
         ;;
-      list)
+      ls | list)
         # Print each registered KEY on its own line. Peel the space-separated
         # index with POSIX parameter expansion (no unquoted word-split, so the
         # linter stays happy under writeShellApplication's `set -euo pipefail`).

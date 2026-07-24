@@ -73,7 +73,7 @@ let
   # `remove-secret <KEY>` — the inverse: delete + unregister. Thin alias for
   # `set-secret --remove`; the logic lives once in setSecret. macOS-only.
   removeSecret = pkgs.callPackage ../../packages/remove-secret.nix { set-secret = setSecret; };
-  # `secret <set|get|rm|list|load>` — the primary noun-verb interface; set-secret
+  # `secret <set|get|rm|ls|load>` — the primary noun-verb interface; set-secret
   # / remove-secret are its aliases. Forwards mutations to setSecret. macOS-only.
   secretCmd = pkgs.callPackage ../../packages/secret.nix { set-secret = setSecret; };
 
@@ -283,11 +283,11 @@ let
     remove-secret() {
       set-secret --remove "$@"
     }
-    # Primary noun-verb interface: `secret <set|get|rm|list|load|KEY>`. The
+    # Primary noun-verb interface: `secret <set|get|rm|ls|load|KEY>`. The
     # mutating verbs update THIS shell (set→export, rm→unset) by delegating to the
     # set-secret/remove-secret functions above; `load` re-reads the whole store
     # into the current shell (the fix for a manually-unset var — see the sentinel
-    # caveat above); get/list/help fall through to the `secret` binary. A bare
+    # caveat above); get/ls/help fall through to the `secret` binary. A bare
     # `secret KEY` is shorthand for `secret get KEY`.
     secret() {
       case "''${1:-}" in
@@ -303,7 +303,7 @@ let
           unset __SECRETS_KEYCHAIN_LOADED
           [ -r "${secretsLoaderPath}" ] && . "${secretsLoaderPath}" || true
           ;;
-        get | list | -h | --help | "")
+        get | ls | list | -h | --help | "")
           command secret "$@"
           ;;
         *)
