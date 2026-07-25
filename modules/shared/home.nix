@@ -260,6 +260,15 @@ in
     JAVA_HOME = pkgs.jdk17.home;
     # BASH_ENV (the secret loader) + the loader file itself are now set by
     # programs.keychainSecrets (the keychain-secrets flake's HM module).
+
+    # resume-cli (jsonresume.org, an npm global) renders PDFs via puppeteer, whose
+    # bundled Chromium auto-download is flaky (its chrome-headless-shell fetch
+    # corrupts). Point puppeteer at the installed google-chrome cask instead, so
+    # `resume export resume.pdf` just works. Harmless for other puppeteer tools
+    # (they get system Chrome too); Remotion is unaffected — it resolves its own
+    # browser, not this var. The resume THEME still installs per-project (local
+    # node_modules), e.g. `npm i jsonresume-theme-macchiato`.
+    PUPPETEER_EXECUTABLE_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
   };
 
   home.sessionPath = lib.optionals pkgs.stdenv.isDarwin [
