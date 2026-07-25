@@ -299,6 +299,15 @@ in
     "$HOME/.grok/bin"
   ];
 
+  # GLOBAL Claude Code instructions — user-level rules loaded in every project/session
+  # on this Mac (the sole Claude Code client host). Declarative equivalent of hand-writing
+  # ~/.claude/CLAUDE.md; the strict "decisions/confirmations = AskUserQuestion options"
+  # rule + reuse-over-rebuild preference live here so they apply everywhere, not just in
+  # this repo. Darwin-only (claude-code runs only on macos in this fleet).
+  home.file.".claude/CLAUDE.md" = lib.mkIf pkgs.stdenv.isDarwin {
+    source = ../../claude/CLAUDE.md;
+  };
+
   # ---- Home Manager program modules --------------------------------------------
   programs = {
     # Let Home Manager manage itself.
