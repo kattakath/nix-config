@@ -2,17 +2,20 @@
 # to PDF. A thin, self-contained wrapper around the npm `resume` CLI (resume-cli):
 #
 #   jsonresume download [--url URL] [--destination DIR]
-#       Download resume.json. --url overrides $JSONRESUME_GIST_URL; if neither is set
-#       it errors. Writes <DIR>/resume.json (DIR defaults to the current directory).
+#       Download resume.json. --url overrides the baked-in default URL; if there is
+#       neither it errors. Writes <DIR>/resume.json (DIR defaults to the cwd).
 #
 #   jsonresume print [--path FILE] [--theme NAME] [--destination DIR]
 #       Render a JSON Resume to <DIR>/resume.pdf (DIR defaults to cwd). The input is
-#       --path if given, else resume.json downloaded to /tmp from $JSONRESUME_GIST_URL
-#       (errors if that is unset too). The theme is taken from the file's meta.theme
+#       --path if given, else resume.json downloaded to /tmp from the default URL
+#       (errors if there is no default). The theme is taken from the file's meta.theme
 #       (errors if missing) unless --theme overrides it. resume-cli resolves themes
 #       from the CWD's node_modules, so the theme package is installed on the fly into
 #       a throwaway workdir before exporting.
 #
+# `defaultUrl` is baked in at build time (composed in flake.nix as `jsonResumeUrl`
+# from jsonResumeGistId + handleName) — so there is NO ambient env var: the one
+# consumer carries its own default, and `--url`/`--path` override per-invocation.
 # curl/jq/coreutils are PINNED from Nix; node/npm/resume come from the CALLER's PATH
 # (the fnm-managed Node + the globally-installed resume-cli — `npm i -g resume-cli`).
 # PDF rendering drives puppeteer via $PUPPETEER_EXECUTABLE_PATH (set in the darwin
@@ -22,7 +25,13 @@
   curl,
   jq,
   coreutils,
+  # Default resume URL baked in at build time (flake.nix jsonResumeUrl). null → no
+  # default, so download/print require an explicit --url / --path.
+  defaultUrl ? null,
 }:
+let
+  bakedUrl = if defaultUrl == null then "" else defaultUrl;
+in
 writeShellApplication {
   name = "jsonresume";
   runtimeInputs = [
@@ -32,6 +41,7 @@ writeShellApplication {
   ];
   text = ''
     prog=jsonresume
+    default_url="${bakedUrl}"
 
     die() {
       echo "$prog: error: $*" >&2
@@ -44,22 +54,22 @@ writeShellApplication {
       jsonresume download [--url URL] [--destination DIR]
       jsonresume print    [--path FILE] [--theme NAME] [--destination DIR]
 
-    download  Fetch resume.json (--url, else $JSONRESUME_GIST_URL) into DIR (default: .).
+    download  Fetch resume.json (--url, else the built-in default) into DIR (default: .).
     print     Render a JSON Resume to <DIR>/resume.pdf (default DIR: .). Input is --path,
-              else downloaded to /tmp from $JSONRESUME_GIST_URL. Theme is --theme, else
-              the file's meta.theme (error if both absent).
+              else downloaded to /tmp from the built-in default URL. Theme is --theme,
+              else the file's meta.theme (error if both absent).
     EOF
     }
 
-    # Resolve the source URL: an explicit value wins, else $JSONRESUME_GIST_URL.
+    # Resolve the source URL: an explicit value wins, else the baked-in default.
     # Returns non-zero (empty) if neither is available.
     resolve_url() {
       if [ -n "$1" ]; then
         printf '%s' "$1"
         return 0
       fi
-      if [ -n "''${JSONRESUME_GIST_URL:-}" ]; then
-        printf '%s' "$JSONRESUME_GIST_URL"
+      if [ -n "$default_url" ]; then
+        printf '%s' "$default_url"
         return 0
       fi
       return 1
@@ -90,7 +100,7 @@ writeShellApplication {
           esac
         done
 
-        url="$(resolve_url "$url")" || die "no --url given and JSONRESUME_GIST_URL is unset"
+        url="$(resolve_url "$url")" || die "no --url given and no built-in default (set jsonResumeGistId in flake.nix)"
         mkdir -p "$dest"
         out="$dest/resume.json"
         curl -fsSL "$url" -o "$out" || die "download failed: $url"
@@ -116,12 +126,12 @@ writeShellApplication {
         command -v resume >/dev/null 2>&1 || die "resume-cli not on PATH — install it: npm i -g resume-cli"
         command -v npm >/dev/null 2>&1 || die "npm not on PATH (is fnm / Node active?)"
 
-        # Resolve the input JSON Resume: --path, else download to /tmp from the env URL.
+        # Resolve the input JSON Resume: --path, else download to /tmp from the default.
         if [ -n "$path" ]; then
           [ -f "$path" ] || die "no such file: $path"
           input="$path"
         else
-          url="$(resolve_url "")" || die "no --path given and JSONRESUME_GIST_URL is unset"
+          url="$(resolve_url "")" || die "no --path given and no built-in default URL (set jsonResumeGistId in flake.nix)"
           input="$(mktemp /tmp/jsonresume.XXXXXX.json)"
           curl -fsSL "$url" -o "$input" || die "download failed: $url"
         fi

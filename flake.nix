@@ -177,12 +177,20 @@
 
       # ---- Optional: JSON Resume gist ----------------------------------------
       # The GitHub Gist ID hosting resume.json (jsonresume.org). OPTIONAL — set to
-      # null to disable. When non-null, the darwin home profile
-      # (modules/shared/home.nix) exports the RAW resume.json URL
-      #   JSONRESUME_GIST_URL=https://gist.githubusercontent.com/<handleName>/<id>/raw/resume.json
-      # (owner is the GitHub handle, not the POSIX userName) into every shell for the
-      # resume-cli tooling; when null the env var is simply omitted (lib.optionalAttrs).
+      # null to disable. When non-null it composes jsonResumeUrl below (the raw
+      # resume.json URL), which is BAKED into the `jsonresume` package as its default
+      # --url (packages/jsonresume.nix) — no ambient env var, since that package is
+      # its only consumer. Owner is the GitHub handle (handleName), not the POSIX userName.
       jsonResumeGistId = "5fc44006a632f8466f09b61749129a88";
+
+      # The raw resume.json URL, derived from the gist id + handle (null when the id is
+      # null). Threaded to the jsonresume package (via home.nix + the packages fold) as
+      # its baked-in default --url — the composition lives here, in one place.
+      jsonResumeUrl =
+        if jsonResumeGistId == null then
+          null
+        else
+          "https://gist.githubusercontent.com/${handleName}/${jsonResumeGistId}/raw/resume.json";
 
       # ---- Single source of truth for the GitHub owner -----------------------
       # The org that owns the repo, the Cachix cache and the self-hosted runners.
@@ -508,12 +516,10 @@
               # mcpPublicPort: the public (OAuth-gated) mcp-proxy port consumed by
               # modules/shared/mcp.nix (inert on the NixOS hosts).
               mcpPublicPort
-              # handleName: the GitHub handle — the gist OWNER half of JSONRESUME_GIST_URL
-              # (a gist URL is keyed by GitHub username, not the POSIX userName).
-              handleName
-              # jsonResumeGistId: optional gist id → JSONRESUME_GIST_URL env var in the
-              # darwin-gated home.sessionVariables (null-safe there; inert on NixOS).
-              jsonResumeGistId
+              # jsonResumeUrl: the raw resume.json URL (or null), consumed by home.nix
+              # to bake into the jsonresume package as its default --url (darwin
+              # home.packages; inert on the NixOS hosts).
+              jsonResumeUrl
               ;
           };
           users.${userName} = {
@@ -848,7 +854,9 @@
         # BUILDS it (writeShellApplication shellcheck). Also on PATH via home.packages
         # and runnable with `nix run .#jsonresume`. See packages/jsonresume.nix.
         (nixpkgs.lib.genAttrs darwinSystems (system: {
-          jsonresume = (pkgsFor system).callPackage ./packages/jsonresume.nix { };
+          jsonresume = (pkgsFor system).callPackage ./packages/jsonresume.nix {
+            defaultUrl = jsonResumeUrl;
+          };
         }))
       ];
 
@@ -1021,7 +1029,7 @@
             aarch64-darwin.jsonresume = {
               type = "app";
               program = "${self.packages.aarch64-darwin.jsonresume}/bin/jsonresume";
-              meta.description = "Fetch a JSON Resume (--url/$JSONRESUME_GIST_URL) and render it to PDF (theme from meta.theme): jsonresume download|print";
+              meta.description = "Fetch a JSON Resume (--url, else the baked-in default) and render it to PDF (theme from meta.theme): jsonresume download|print";
             };
 
           }

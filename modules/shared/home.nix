@@ -25,9 +25,6 @@
   config,
   fullName,
   userEmail,
-  # GitHub handle (single-sourced in flake.nix) — the gist OWNER half of
-  # JSONRESUME_GIST_URL below (a gist URL is keyed by GitHub username, not userName).
-  handleName,
   # Source-only flake inputs holding Claude Code skills (see programs.claude-code
   # below). flake.nix pins them; nothing is vendored into this repo.
   agent-skills-vercel,
@@ -43,9 +40,9 @@
   # Plash activation below points Plash at it; inert on the NixOS hosts. Kept as
   # the opt-in live-wallpaper path alongside the default static wallpaper.
   wallpaperPort,
-  # Optional JSON Resume gist id (single-sourced in flake.nix; null to disable) —
-  # combined with handleName into the JSONRESUME_GIST_URL env var below.
-  jsonResumeGistId,
+  # Raw resume.json URL (single-sourced in flake.nix as jsonResumeUrl; null to
+  # disable) — baked into the jsonresume package below as its default --url.
+  jsonResumeUrl,
   ...
 }:
 let
@@ -84,8 +81,11 @@ let
   mermaidAscii = pkgs.callPackage ../../packages/mermaid-ascii.nix { };
 
   # `jsonresume <download|print>` — fetch a JSON Resume and render it to PDF via the
-  # npm resume CLI (reads JSONRESUME_GIST_URL set below). See packages/jsonresume.nix.
-  jsonresume = pkgs.callPackage ../../packages/jsonresume.nix { };
+  # npm resume CLI. jsonResumeUrl (from flake.nix) is baked in as its default --url,
+  # so there is no ambient env var. See packages/jsonresume.nix.
+  jsonresume = pkgs.callPackage ../../packages/jsonresume.nix {
+    defaultUrl = jsonResumeUrl;
+  };
 
   # `android-emu [avd-name] [emulator-args…]` — boot an Android emulator,
   # provisioning on first run. If the SDK packages or the AVD are missing it
@@ -252,7 +252,7 @@ in
       awscli2 # AWS CLI v2 — SSO login into the Infin8 accounts; profiles live in ~/.aws/config (uncommitted, has account IDs/SSO URL — not this public repo)
       codecov-cli # Codecov CLI (`codecovcli`) — upload coverage reports / local upload from CI; reads the CODECOV_TOKEN env var (a Keychain secret, never in this repo)
       fnm # Fast Node Manager — per-project Node version switching honoring .nvmrc/.node-version; the `fnm env --use-on-cd` shell hook is wired into zsh/bash below. No `programs.fnm` HM module in this pinned home-manager, so it's a bare package + hand-wired init.
-      jsonresume # `jsonresume download|print` — fetch a JSON Resume (JSONRESUME_GIST_URL) + render to PDF via resume-cli (packages/jsonresume.nix)
+      jsonresume # `jsonresume download|print` — fetch a JSON Resume (baked-in default URL from jsonResumeUrl, or --url) + render to PDF via resume-cli (packages/jsonresume.nix)
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       jdk17 # JRE for the Android sdkmanager/avdmanager (JVM tools); emulator itself needs no Java
       runpodctl # RunPod GPU CLI — RunPod as a second ComfyUI-workflow provider alongside Vast (from nixpkgs, not the untrusted brew tap)
@@ -265,36 +265,27 @@ in
   # bins on PATH (adb itself also comes from the `android-platform-tools` cask).
   # After switching, just run `android-emu` (the helper in the let block) — it
   # installs the SDK packages + creates the AVD on first run, then boots it.
-  home.sessionVariables = lib.mkIf pkgs.stdenv.isDarwin (
-    {
-      ANDROID_HOME = "/opt/homebrew/share/android-commandlinetools";
-      # sdkmanager/avdmanager are JVM tools; point them at the nixpkgs JDK 17.
-      JAVA_HOME = pkgs.jdk17.home;
-      # BASH_ENV (the secret loader) + the loader file itself are now set by
-      # programs.keychainSecrets (the keychain-secrets flake's HM module).
+  home.sessionVariables = lib.mkIf pkgs.stdenv.isDarwin {
+    ANDROID_HOME = "/opt/homebrew/share/android-commandlinetools";
+    # sdkmanager/avdmanager are JVM tools; point them at the nixpkgs JDK 17.
+    JAVA_HOME = pkgs.jdk17.home;
+    # BASH_ENV (the secret loader) + the loader file itself are now set by
+    # programs.keychainSecrets (the keychain-secrets flake's HM module).
 
-      # resume-cli (jsonresume.org, an npm global) renders PDFs via puppeteer, whose
-      # bundled Chromium auto-download is flaky (its chrome-headless-shell fetch
-      # corrupts, failing the `npm i`). These two vars form one coherent policy —
-      # NEVER download puppeteer's own browser, ALWAYS use the installed google-chrome
-      # cask:
-      #   SKIP_DOWNLOAD    — any `npm i` that pulls puppeteer skips the browser fetch
-      #                      (so a resume-cli reinstall / theme install never breaks).
-      #   EXECUTABLE_PATH  — puppeteer launches system Chrome at runtime instead.
-      # Harmless for other puppeteer tools (they get system Chrome too); Remotion is
-      # unaffected — it resolves its own browser, not these vars. The resume THEME
-      # still installs per-project (local node_modules), e.g. `npm i jsonresume-theme-macchiato`.
-      PUPPETEER_SKIP_DOWNLOAD = "true";
-      PUPPETEER_EXECUTABLE_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-    }
-    # JSONRESUME_GIST_URL — the RAW resume.json URL on GitHub Gist, built from handleName
-    # + optional jsonResumeGistId (null → omitted). The /raw/ path (no commit sha)
-    # always resolves to the latest revision, so the resume-cli tooling can
-    # `curl "$JSONRESUME_GIST_URL"` for the canonical resume without hardcoding it.
-    // lib.optionalAttrs (jsonResumeGistId != null) {
-      JSONRESUME_GIST_URL = "https://gist.githubusercontent.com/${handleName}/${jsonResumeGistId}/raw/resume.json";
-    }
-  );
+    # resume-cli (jsonresume.org, an npm global) renders PDFs via puppeteer, whose
+    # bundled Chromium auto-download is flaky (its chrome-headless-shell fetch
+    # corrupts, failing the `npm i`). These two vars form one coherent policy —
+    # NEVER download puppeteer's own browser, ALWAYS use the installed google-chrome
+    # cask:
+    #   SKIP_DOWNLOAD    — any `npm i` that pulls puppeteer skips the browser fetch
+    #                      (so a resume-cli reinstall / theme install never breaks).
+    #   EXECUTABLE_PATH  — puppeteer launches system Chrome at runtime instead.
+    # Harmless for other puppeteer tools (they get system Chrome too); Remotion is
+    # unaffected — it resolves its own browser, not these vars. The resume THEME
+    # still installs per-project (local node_modules), e.g. `npm i jsonresume-theme-macchiato`.
+    PUPPETEER_SKIP_DOWNLOAD = "true";
+    PUPPETEER_EXECUTABLE_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+  };
 
   home.sessionPath = lib.optionals pkgs.stdenv.isDarwin [
     "/opt/homebrew/share/android-commandlinetools/emulator"
