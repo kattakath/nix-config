@@ -23,10 +23,11 @@
   pkgs,
   lib,
   config,
-  # POSIX account name (single-sourced in flake.nix); half of JSONRESUME_GIST below.
-  userName,
   fullName,
   userEmail,
+  # GitHub handle (single-sourced in flake.nix) — the gist OWNER half of
+  # JSONRESUME_GIST below (a gist URL is keyed by GitHub username, not userName).
+  handleName,
   # Source-only flake inputs holding Claude Code skills (see programs.claude-code
   # below). flake.nix pins them; nothing is vendored into this repo.
   agent-skills-vercel,
@@ -43,7 +44,7 @@
   # the opt-in live-wallpaper path alongside the default static wallpaper.
   wallpaperPort,
   # Optional JSON Resume gist id (single-sourced in flake.nix; null to disable) —
-  # combined with userName into the JSONRESUME_GIST env var below.
+  # combined with handleName into the JSONRESUME_GIST env var below.
   jsonResumeGistId,
   ...
 }:
@@ -285,7 +286,7 @@ in
     # the flake's userName + optional jsonResumeGistId (null → omitted). Consumed by
     # the resume-cli tooling to locate the canonical resume without hardcoding a URL.
     // lib.optionalAttrs (jsonResumeGistId != null) {
-      JSONRESUME_GIST = "${userName}/${jsonResumeGistId}";
+      JSONRESUME_GIST = "${handleName}/${jsonResumeGistId}";
     }
   );
 

@@ -177,11 +177,12 @@
 
       # ---- Optional: JSON Resume gist ----------------------------------------
       # The GitHub Gist ID hosting resume.json (jsonresume.org, served at
-      # gist.githubusercontent.com/<userName>/<id>/raw/resume.json). OPTIONAL —
+      # gist.githubusercontent.com/<handleName>/<id>/raw/resume.json). OPTIONAL —
       # set to null to disable. When non-null, the darwin home profile
-      # (modules/shared/home.nix) exports JSONRESUME_GIST="<userName>/<id>" (the
-      # gist owner/id path) into every shell for the resume-cli tooling; when
-      # null the env var is simply omitted (lib.optionalAttrs).
+      # (modules/shared/home.nix) exports JSONRESUME_GIST="<handleName>/<id>" (the
+      # gist owner/id path — owner is the GitHub handle, not the POSIX userName)
+      # into every shell for the resume-cli tooling; when null the env var is
+      # simply omitted (lib.optionalAttrs).
       jsonResumeGistId = "5fc44006a632f8466f09b61749129a88";
 
       # ---- Single source of truth for the GitHub owner -----------------------
@@ -508,6 +509,9 @@
               # mcpPublicPort: the public (OAuth-gated) mcp-proxy port consumed by
               # modules/shared/mcp.nix (inert on the NixOS hosts).
               mcpPublicPort
+              # handleName: the GitHub handle — the gist OWNER half of JSONRESUME_GIST
+              # (a gist URL is keyed by GitHub username, not the POSIX userName).
+              handleName
               # jsonResumeGistId: optional gist id → JSONRESUME_GIST env var in the
               # darwin-gated home.sessionVariables (null-safe there; inert on NixOS).
               jsonResumeGistId
