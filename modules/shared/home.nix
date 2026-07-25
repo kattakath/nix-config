@@ -241,6 +241,7 @@ in
       androidEmu
       awscli2 # AWS CLI v2 — SSO login into the Infin8 accounts; profiles live in ~/.aws/config (uncommitted, has account IDs/SSO URL — not this public repo)
       codecov-cli # Codecov CLI (`codecovcli`) — upload coverage reports / local upload from CI; reads the CODECOV_TOKEN env var (a Keychain secret, never in this repo)
+      fnm # Fast Node Manager — per-project Node version switching honoring .nvmrc/.node-version; the `fnm env --use-on-cd` shell hook is wired into zsh/bash below. No `programs.fnm` HM module in this pinned home-manager, so it's a bare package + hand-wired init.
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       jdk17 # JRE for the Android sdkmanager/avdmanager (JVM tools); emulator itself needs no Java
       runpodctl # RunPod GPU CLI — RunPod as a second ComfyUI-workflow provider alongside Vast (from nixpkgs, not the untrusted brew tap)
@@ -433,6 +434,15 @@ in
       enable = true;
       # macOS Keychain secret loader is wired into bash's profileExtra/bashrcExtra
       # by programs.keychainSecrets (the keychain-secrets flake's HM module).
+
+      # fnm (Fast Node Manager) shell hook — darwin-only (node dev is Mac-only; the
+      # servers stay lean). `--use-on-cd` auto-switches Node on `cd` into a dir with
+      # a .nvmrc/.node-version. Absolute store path so it resolves before the nix
+      # profile is on PATH. When no project version is active/installed, PATH falls
+      # through to the Homebrew node (an inert dependency of bruno-cli/devcontainer).
+      initExtra = lib.mkIf pkgs.stdenv.isDarwin ''
+        eval "$(${pkgs.fnm}/bin/fnm env --use-on-cd --shell bash)"
+      '';
     };
 
     # zsh as the interactive shell — matches the devcontainer default
@@ -489,6 +499,14 @@ in
 
       # macOS Keychain secret loader is wired into zsh's envExtra (.zshenv) by
       # programs.keychainSecrets (the keychain-secrets flake's HM module).
+
+      # fnm (Fast Node Manager) shell hook — darwin-only. Lives in initContent
+      # (.zshrc, interactive) not envExtra, because `--use-on-cd` installs a chpwd
+      # hook that only makes sense in an interactive shell. Honors .nvmrc and
+      # .node-version; falls through to the Homebrew node when no version is active.
+      initContent = lib.mkIf pkgs.stdenv.isDarwin ''
+        eval "$(${pkgs.fnm}/bin/fnm env --use-on-cd --shell zsh)"
+      '';
     };
 
     # ---- VS Code (macOS only) --------------------------------------------------
