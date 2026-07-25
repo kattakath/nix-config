@@ -23,6 +23,8 @@
   pkgs,
   lib,
   config,
+  # POSIX account name (single-sourced in flake.nix); half of JSONRESUME_GIST below.
+  userName,
   fullName,
   userEmail,
   # Source-only flake inputs holding Claude Code skills (see programs.claude-code
@@ -40,6 +42,9 @@
   # Plash activation below points Plash at it; inert on the NixOS hosts. Kept as
   # the opt-in live-wallpaper path alongside the default static wallpaper.
   wallpaperPort,
+  # Optional JSON Resume gist id (single-sourced in flake.nix; null to disable) —
+  # combined with userName into the JSONRESUME_GIST env var below.
+  jsonResumeGistId,
   ...
 }:
 let
@@ -254,27 +259,35 @@ in
   # bins on PATH (adb itself also comes from the `android-platform-tools` cask).
   # After switching, just run `android-emu` (the helper in the let block) — it
   # installs the SDK packages + creates the AVD on first run, then boots it.
-  home.sessionVariables = lib.mkIf pkgs.stdenv.isDarwin {
-    ANDROID_HOME = "/opt/homebrew/share/android-commandlinetools";
-    # sdkmanager/avdmanager are JVM tools; point them at the nixpkgs JDK 17.
-    JAVA_HOME = pkgs.jdk17.home;
-    # BASH_ENV (the secret loader) + the loader file itself are now set by
-    # programs.keychainSecrets (the keychain-secrets flake's HM module).
+  home.sessionVariables = lib.mkIf pkgs.stdenv.isDarwin (
+    {
+      ANDROID_HOME = "/opt/homebrew/share/android-commandlinetools";
+      # sdkmanager/avdmanager are JVM tools; point them at the nixpkgs JDK 17.
+      JAVA_HOME = pkgs.jdk17.home;
+      # BASH_ENV (the secret loader) + the loader file itself are now set by
+      # programs.keychainSecrets (the keychain-secrets flake's HM module).
 
-    # resume-cli (jsonresume.org, an npm global) renders PDFs via puppeteer, whose
-    # bundled Chromium auto-download is flaky (its chrome-headless-shell fetch
-    # corrupts, failing the `npm i`). These two vars form one coherent policy —
-    # NEVER download puppeteer's own browser, ALWAYS use the installed google-chrome
-    # cask:
-    #   SKIP_DOWNLOAD    — any `npm i` that pulls puppeteer skips the browser fetch
-    #                      (so a resume-cli reinstall / theme install never breaks).
-    #   EXECUTABLE_PATH  — puppeteer launches system Chrome at runtime instead.
-    # Harmless for other puppeteer tools (they get system Chrome too); Remotion is
-    # unaffected — it resolves its own browser, not these vars. The resume THEME
-    # still installs per-project (local node_modules), e.g. `npm i jsonresume-theme-macchiato`.
-    PUPPETEER_SKIP_DOWNLOAD = "true";
-    PUPPETEER_EXECUTABLE_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-  };
+      # resume-cli (jsonresume.org, an npm global) renders PDFs via puppeteer, whose
+      # bundled Chromium auto-download is flaky (its chrome-headless-shell fetch
+      # corrupts, failing the `npm i`). These two vars form one coherent policy —
+      # NEVER download puppeteer's own browser, ALWAYS use the installed google-chrome
+      # cask:
+      #   SKIP_DOWNLOAD    — any `npm i` that pulls puppeteer skips the browser fetch
+      #                      (so a resume-cli reinstall / theme install never breaks).
+      #   EXECUTABLE_PATH  — puppeteer launches system Chrome at runtime instead.
+      # Harmless for other puppeteer tools (they get system Chrome too); Remotion is
+      # unaffected — it resolves its own browser, not these vars. The resume THEME
+      # still installs per-project (local node_modules), e.g. `npm i jsonresume-theme-macchiato`.
+      PUPPETEER_SKIP_DOWNLOAD = "true";
+      PUPPETEER_EXECUTABLE_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+    }
+    # JSONRESUME_GIST — "<owner>/<gist-id>" path for the resume.json gist, built from
+    # the flake's userName + optional jsonResumeGistId (null → omitted). Consumed by
+    # the resume-cli tooling to locate the canonical resume without hardcoding a URL.
+    // lib.optionalAttrs (jsonResumeGistId != null) {
+      JSONRESUME_GIST = "${userName}/${jsonResumeGistId}";
+    }
+  );
 
   home.sessionPath = lib.optionals pkgs.stdenv.isDarwin [
     "/opt/homebrew/share/android-commandlinetools/emulator"

@@ -175,6 +175,15 @@
       # mailbox) without dragging the POSIX account name along with it.
       userEmail = "8927166+${handleName}@users.noreply.github.com";
 
+      # ---- Optional: JSON Resume gist ----------------------------------------
+      # The GitHub Gist ID hosting resume.json (jsonresume.org, served at
+      # gist.githubusercontent.com/<userName>/<id>/raw/resume.json). OPTIONAL —
+      # set to null to disable. When non-null, the darwin home profile
+      # (modules/shared/home.nix) exports JSONRESUME_GIST="<userName>/<id>" (the
+      # gist owner/id path) into every shell for the resume-cli tooling; when
+      # null the env var is simply omitted (lib.optionalAttrs).
+      jsonResumeGistId = "5fc44006a632f8466f09b61749129a88";
+
       # ---- Single source of truth for the GitHub owner -----------------------
       # The org that owns the repo, the Cachix cache and the self-hosted runners.
       # Split from handleName so the two can never be confused again: everything
@@ -499,6 +508,9 @@
               # mcpPublicPort: the public (OAuth-gated) mcp-proxy port consumed by
               # modules/shared/mcp.nix (inert on the NixOS hosts).
               mcpPublicPort
+              # jsonResumeGistId: optional gist id → JSONRESUME_GIST env var in the
+              # darwin-gated home.sessionVariables (null-safe there; inert on NixOS).
+              jsonResumeGistId
               ;
           };
           users.${userName} = {
