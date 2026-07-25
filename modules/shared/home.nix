@@ -282,11 +282,12 @@ in
       PUPPETEER_SKIP_DOWNLOAD = "true";
       PUPPETEER_EXECUTABLE_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
     }
-    # JSONRESUME_GIST — "<owner>/<gist-id>" path for the resume.json gist, built from
-    # the flake's userName + optional jsonResumeGistId (null → omitted). Consumed by
-    # the resume-cli tooling to locate the canonical resume without hardcoding a URL.
+    # JSONRESUME_GIST — the RAW resume.json URL on GitHub Gist, built from handleName
+    # + optional jsonResumeGistId (null → omitted). The /raw/ path (no commit sha)
+    # always resolves to the latest revision, so the resume-cli tooling can
+    # `curl "$JSONRESUME_GIST"` for the canonical resume without hardcoding it.
     // lib.optionalAttrs (jsonResumeGistId != null) {
-      JSONRESUME_GIST = "${handleName}/${jsonResumeGistId}";
+      JSONRESUME_GIST = "https://gist.githubusercontent.com/${handleName}/${jsonResumeGistId}/raw/resume.json";
     }
   );
 
