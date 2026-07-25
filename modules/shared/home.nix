@@ -40,6 +40,9 @@
   # Plash activation below points Plash at it; inert on the NixOS hosts. Kept as
   # the opt-in live-wallpaper path alongside the default static wallpaper.
   wallpaperPort,
+  # Raw resume.json URL (single-sourced in flake.nix as jsonResumeUrl; null to
+  # disable) — baked into the jsonresume package below as its default --url.
+  jsonResumeUrl,
   ...
 }:
 let
@@ -76,6 +79,13 @@ let
   # `mermaid-ascii` — render Mermaid graphs as ASCII in the terminal. Packaged from
   # upstream (not in nixpkgs); see packages/mermaid-ascii.nix.
   mermaidAscii = pkgs.callPackage ../../packages/mermaid-ascii.nix { };
+
+  # `jsonresume <download|print>` — fetch a JSON Resume and render it to PDF via the
+  # npm resume CLI. jsonResumeUrl (from flake.nix) is baked in as its default --url,
+  # so there is no ambient env var. See packages/jsonresume.nix.
+  jsonresume = pkgs.callPackage ../../packages/jsonresume.nix {
+    defaultUrl = jsonResumeUrl;
+  };
 
   # `android-emu [avd-name] [emulator-args…]` — boot an Android emulator,
   # provisioning on first run. If the SDK packages or the AVD are missing it
@@ -241,6 +251,8 @@ in
       androidEmu
       awscli2 # AWS CLI v2 — SSO login into the Infin8 accounts; profiles live in ~/.aws/config (uncommitted, has account IDs/SSO URL — not this public repo)
       codecov-cli # Codecov CLI (`codecovcli`) — upload coverage reports / local upload from CI; reads the CODECOV_TOKEN env var (a Keychain secret, never in this repo)
+      fnm # Fast Node Manager — per-project Node version switching honoring .nvmrc/.node-version; the `fnm env --use-on-cd` shell hook is wired into zsh/bash below. No `programs.fnm` HM module in this pinned home-manager, so it's a bare package + hand-wired init.
+      jsonresume # `jsonresume download|print` — fetch a JSON Resume (baked-in default URL from jsonResumeUrl, or --url) + render to PDF via resume-cli (packages/jsonresume.nix)
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       jdk17 # JRE for the Android sdkmanager/avdmanager (JVM tools); emulator itself needs no Java
       runpodctl # RunPod GPU CLI — RunPod as a second ComfyUI-workflow provider alongside Vast (from nixpkgs, not the untrusted brew tap)
@@ -259,6 +271,20 @@ in
     JAVA_HOME = pkgs.jdk17.home;
     # BASH_ENV (the secret loader) + the loader file itself are now set by
     # programs.keychainSecrets (the keychain-secrets flake's HM module).
+
+    # resume-cli (jsonresume.org, an npm global) renders PDFs via puppeteer, whose
+    # bundled Chromium auto-download is flaky (its chrome-headless-shell fetch
+    # corrupts, failing the `npm i`). These two vars form one coherent policy —
+    # NEVER download puppeteer's own browser, ALWAYS use the installed google-chrome
+    # cask:
+    #   SKIP_DOWNLOAD    — any `npm i` that pulls puppeteer skips the browser fetch
+    #                      (so a resume-cli reinstall / theme install never breaks).
+    #   EXECUTABLE_PATH  — puppeteer launches system Chrome at runtime instead.
+    # Harmless for other puppeteer tools (they get system Chrome too); Remotion is
+    # unaffected — it resolves its own browser, not these vars. The resume THEME
+    # still installs per-project (local node_modules), e.g. `npm i jsonresume-theme-macchiato`.
+    PUPPETEER_SKIP_DOWNLOAD = "true";
+    PUPPETEER_EXECUTABLE_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
   };
 
   home.sessionPath = lib.optionals pkgs.stdenv.isDarwin [
@@ -433,6 +459,15 @@ in
       enable = true;
       # macOS Keychain secret loader is wired into bash's profileExtra/bashrcExtra
       # by programs.keychainSecrets (the keychain-secrets flake's HM module).
+
+      # fnm (Fast Node Manager) shell hook — darwin-only (node dev is Mac-only; the
+      # servers stay lean). `--use-on-cd` auto-switches Node on `cd` into a dir with
+      # a .nvmrc/.node-version. Absolute store path so it resolves before the nix
+      # profile is on PATH. When no project version is active/installed, PATH falls
+      # through to the Homebrew node (an inert dependency of bruno-cli/devcontainer).
+      initExtra = lib.mkIf pkgs.stdenv.isDarwin ''
+        eval "$(${pkgs.fnm}/bin/fnm env --use-on-cd --shell bash)"
+      '';
     };
 
     # zsh as the interactive shell — matches the devcontainer default
@@ -489,6 +524,14 @@ in
 
       # macOS Keychain secret loader is wired into zsh's envExtra (.zshenv) by
       # programs.keychainSecrets (the keychain-secrets flake's HM module).
+
+      # fnm (Fast Node Manager) shell hook — darwin-only. Lives in initContent
+      # (.zshrc, interactive) not envExtra, because `--use-on-cd` installs a chpwd
+      # hook that only makes sense in an interactive shell. Honors .nvmrc and
+      # .node-version; falls through to the Homebrew node when no version is active.
+      initContent = lib.mkIf pkgs.stdenv.isDarwin ''
+        eval "$(${pkgs.fnm}/bin/fnm env --use-on-cd --shell zsh)"
+      '';
     };
 
     # ---- VS Code (macOS only) --------------------------------------------------
