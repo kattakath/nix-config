@@ -849,8 +849,9 @@
           }
         ))
 
-        # `jsonresume <download|print>` (macOS only) — fetch a JSON Resume and render
-        # it to PDF via the npm resume CLI. Exposed as a package so `nix flake check`
+        # `jsonresume <download|print|markdown|text>` (macOS only) — fetch a JSON Resume
+        # and render it (PDF via a theme, or theme-less Markdown/plain text to stdout)
+        # via the npm resume CLI. Exposed as a package so `nix flake check`
         # BUILDS it (writeShellApplication shellcheck). Also on PATH via home.packages
         # and runnable with `nix run .#jsonresume`. See packages/jsonresume.nix.
         (nixpkgs.lib.genAttrs darwinSystems (system: {
@@ -1024,12 +1025,13 @@
               meta.description = "Scaffold a new provisioner repo from provisioner-template on GitHub/GitLab, public/private (--repo, --template)";
             };
 
-            # `nix run .#jsonresume -- <download|print> …` — fetch a JSON Resume and
-            # render it to PDF via the npm resume CLI (also on PATH via home.packages).
+            # `nix run .#jsonresume -- <download|print|markdown|text> …` — fetch a JSON
+            # Resume and render it (PDF, or theme-less Markdown/text to stdout) via the
+            # npm resume CLI (also on PATH via home.packages).
             aarch64-darwin.jsonresume = {
               type = "app";
               program = "${self.packages.aarch64-darwin.jsonresume}/bin/jsonresume";
-              meta.description = "Fetch a JSON Resume (--url, else the baked-in default) and render it to PDF (theme from meta.theme): jsonresume download|print";
+              meta.description = "Fetch a JSON Resume (--url, else the baked-in default) and render it — PDF (theme from meta.theme), or Markdown/plain text to stdout: jsonresume download|print|markdown|text";
             };
 
           }

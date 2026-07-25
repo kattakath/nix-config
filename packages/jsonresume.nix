@@ -1,5 +1,5 @@
-# `jsonresume <download|print>` — fetch a JSON Resume (jsonresume.org) and render it
-# to PDF. A thin, self-contained wrapper around the npm `resume` CLI (resume-cli):
+# `jsonresume <download|print|markdown|text>` — fetch a JSON Resume (jsonresume.org)
+# and render it. A thin, self-contained wrapper around the npm `resume` CLI (resume-cli):
 #
 #   jsonresume download [--url URL] [--destination DIR]
 #       Download resume.json. --url overrides the baked-in default URL; if there is
@@ -12,6 +12,15 @@
 #       (errors if missing) unless --theme overrides it. resume-cli resolves themes
 #       from the CWD's node_modules, so the theme package is installed on the fly into
 #       a throwaway workdir before exporting.
+#
+#   jsonresume markdown [--path FILE] [--url URL] [--destination DIR] [--no-validate]
+#   jsonresume text     [--path FILE] [--url URL] [--destination DIR] [--no-validate]
+#       Render a JSON Resume to Markdown / plain text. Neither format needs a theme.
+#       By DESIGN there is no stored .md/.txt to drift: output goes to STDOUT (so it is
+#       a derived, on-demand artifact regenerated from resume.json each time) unless
+#       --destination writes <DIR>/resume.md|resume.txt. Input is --path, else the
+#       default/--url URL downloaded to a throwaway workdir. Schema-validates the input
+#       (`resume validate`) first unless --no-validate. Aliases: md, txt.
 #
 # `defaultUrl` is baked in at build time (composed in flake.nix as `jsonResumeUrl`
 # from jsonResumeGistId + handleName) — so there is NO ambient env var: the one
@@ -53,11 +62,17 @@ writeShellApplication {
     Usage:
       jsonresume download [--url URL] [--destination DIR]
       jsonresume print    [--path FILE] [--theme NAME] [--destination DIR]
+      jsonresume markdown [--path FILE] [--url URL] [--destination DIR] [--no-validate]
+      jsonresume text     [--path FILE] [--url URL] [--destination DIR] [--no-validate]
 
     download  Fetch resume.json (--url, else the built-in default) into DIR (default: .).
     print     Render a JSON Resume to <DIR>/resume.pdf (default DIR: .). Input is --path,
               else downloaded to /tmp from the built-in default URL. Theme is --theme,
               else the file's meta.theme (error if both absent).
+    markdown  Render to Markdown (no theme). Prints to STDOUT unless --destination writes
+              <DIR>/resume.md. Input is --path, else the built-in default/--url URL.
+              Schema-validates the input first unless --no-validate. Alias: md.
+    text      As markdown, but plain text → STDOUT or <DIR>/resume.txt. Alias: txt.
     EOF
     }
 
@@ -81,6 +96,60 @@ writeShellApplication {
         jsonresume-theme-*) printf '%s' "$1" ;;
         *) printf 'jsonresume-theme-%s' "$1" ;;
       esac
+    }
+
+    # Render a JSON Resume to a THEME-LESS flat format (md or txt). Shared by the
+    # `markdown`/`text` subcommands — identical but for the extension. Output defaults
+    # to stdout (ephemeral, nothing stored) unless --destination writes a file.
+    render_flat() {
+      fmt="$1"; shift   # md | txt
+      path="" ; url="" ; dest="" ; validate=1
+      while [ "$#" -gt 0 ]; do
+        case "$1" in
+          --path) [ "$#" -ge 2 ] || die "--path needs a value"; path="$2"; shift 2 ;;
+          --path=*) path="''${1#*=}"; shift ;;
+          --url) [ "$#" -ge 2 ] || die "--url needs a value"; url="$2"; shift 2 ;;
+          --url=*) url="''${1#*=}"; shift ;;
+          --destination) [ "$#" -ge 2 ] || die "--destination needs a value"; dest="$2"; shift 2 ;;
+          --destination=*) dest="''${1#*=}"; shift ;;
+          --no-validate) validate=0; shift ;;
+          -h|--help) usage; exit 0 ;;
+          *) die "unknown flag for $fmt export: $1" ;;
+        esac
+      done
+
+      command -v resume >/dev/null 2>&1 || die "resume-cli not on PATH — install it: npm i -g resume-cli"
+      command -v node >/dev/null 2>&1 || die "node not on PATH (is fnm / Node active?)"
+
+      # Everything happens in a throwaway workdir named resume.json, so both
+      # `resume validate` and `resume export` find their default input there.
+      work="$(mktemp -d /tmp/jsonresume-flat.XXXXXX)"
+      trap 'rm -rf "$work"' EXIT
+
+      if [ -n "$path" ]; then
+        [ -f "$path" ] || die "no such file: $path"
+        cp "$path" "$work/resume.json"
+      else
+        url="$(resolve_url "$url")" || die "no --path/--url given and no built-in default URL (set jsonResumeGistId in flake.nix)"
+        curl -fsSL "$url" -o "$work/resume.json" || die "download failed: $url"
+      fi
+      jq -e . "$work/resume.json" >/dev/null 2>&1 || die "input is not valid JSON"
+
+      if [ "$validate" -eq 1 ]; then
+        ( cd "$work" && resume validate resume.json >/dev/null 2>&1 ) \
+          || die "JSON Resume schema validation failed (resume validate); pass --no-validate to skip"
+      fi
+
+      ( cd "$work" && resume export "out.$fmt" --resume resume.json --format "$fmt" >/dev/null 2>&1 ) \
+        || die "resume export failed (format: $fmt)"
+
+      if [ -n "$dest" ]; then
+        mkdir -p "$dest"
+        mv "$work/out.$fmt" "$dest/resume.$fmt"
+        echo "exported → $dest/resume.$fmt" >&2
+      else
+        cat "$work/out.$fmt"
+      fi
     }
 
     cmd="''${1:-}"
@@ -159,6 +228,14 @@ writeShellApplication {
         echo "exported → $dest/resume.pdf (theme: $pkg)"
         ;;
 
+      markdown|md)
+        render_flat md "$@"
+        ;;
+
+      text|txt)
+        render_flat txt "$@"
+        ;;
+
       -h|--help)
         usage
         exit 0
@@ -168,7 +245,7 @@ writeShellApplication {
         exit 1
         ;;
       *)
-        die "unknown command: $cmd (expected: download | print)"
+        die "unknown command: $cmd (expected: download | print | markdown | text)"
         ;;
     esac
   '';
