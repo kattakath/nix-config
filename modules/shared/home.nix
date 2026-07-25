@@ -83,6 +83,10 @@ let
   # upstream (not in nixpkgs); see packages/mermaid-ascii.nix.
   mermaidAscii = pkgs.callPackage ../../packages/mermaid-ascii.nix { };
 
+  # `jsonresume <download|print>` — fetch a JSON Resume and render it to PDF via the
+  # npm resume CLI (reads JSONRESUME_GIST_URL set below). See packages/jsonresume.nix.
+  jsonresume = pkgs.callPackage ../../packages/jsonresume.nix { };
+
   # `android-emu [avd-name] [emulator-args…]` — boot an Android emulator,
   # provisioning on first run. If the SDK packages or the AVD are missing it
   # installs them via the Homebrew `sdkmanager`/`avdmanager` (the
@@ -248,6 +252,7 @@ in
       awscli2 # AWS CLI v2 — SSO login into the Infin8 accounts; profiles live in ~/.aws/config (uncommitted, has account IDs/SSO URL — not this public repo)
       codecov-cli # Codecov CLI (`codecovcli`) — upload coverage reports / local upload from CI; reads the CODECOV_TOKEN env var (a Keychain secret, never in this repo)
       fnm # Fast Node Manager — per-project Node version switching honoring .nvmrc/.node-version; the `fnm env --use-on-cd` shell hook is wired into zsh/bash below. No `programs.fnm` HM module in this pinned home-manager, so it's a bare package + hand-wired init.
+      jsonresume # `jsonresume download|print` — fetch a JSON Resume (JSONRESUME_GIST_URL) + render to PDF via resume-cli (packages/jsonresume.nix)
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       jdk17 # JRE for the Android sdkmanager/avdmanager (JVM tools); emulator itself needs no Java
       runpodctl # RunPod GPU CLI — RunPod as a second ComfyUI-workflow provider alongside Vast (from nixpkgs, not the untrusted brew tap)
