@@ -1,0 +1,31 @@
+# Fork notes — `/brag` skill
+
+Vendored (not `curl | bash`-installed) from **[kammradt/brag-skill](https://github.com/kammradt/brag-skill)**
+(MIT, © Vinicius Kammradt — see `README.md`) so it installs **declaratively** via
+`programs.claude-code.skills` (`modules/shared/home.nix`, darwin-gated), the same
+reproducible path as the other global skills — no imperative `install.sh`.
+
+## The only change from upstream
+
+Upstream writes its data (`config.json`, `impact.md`, `developer-value.md`) into the
+**skill's own directory** (`$SKILL_DIR`, resolved via `readlink`). Under Home Manager the
+skill dir is a **read-only `/nix/store` symlink**, so those writes would fail.
+
+So every data path was redirected from `$SKILL_DIR` to an overridable **`BRAG_DATA_DIR`**:
+
+```bash
+BRAG_DATA_DIR="${BRAG_DATA_DIR:-$HOME/Developer/local/brags}"
+```
+
+`$HOME/Developer/local/brags` is the working checkout of the **private `kattakath/brags`
+repo** — where `impact.md` / `developer-value.md` / `config.json` live and are version-
+controlled (backup + history). Override via the `BRAG_DATA_DIR` env var if the checkout moves.
+
+Nothing else was modified — the mining logic, modes, templates, and `reference/` are upstream verbatim.
+
+## Where it sits in the rebuilt brags pipeline
+
+`/brag` is the **mine → ledger** stage (replaces the old bespoke `engine/*.py`). Downstream,
+the private repo still owns the two custom, novel stages the research found no reuse for:
+the fail-closed **redaction gate** and the human-gated **LinkedIn curate** loop.
+See project memory `brag-docs-reusable-tools` / `prefer-off-the-shelf`.

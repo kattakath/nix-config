@@ -376,6 +376,12 @@ in
         # Local RAG over the pgvector store: how to ingest + query via the `postgres`
         # MCP server and the in-DB embed() function (modules/shared/{postgres-pgvector,ollama}.nix).
         rag = "${../../skills/rag}";
+        # `/brag` — the MINE→LEDGER stage of the rebuilt brag-doc pipeline: mines GitHub
+        # PRs/commits + Claude Code sessions (+ optional MCP) into impact.md/developer-value.md.
+        # Vendored from kammradt/brag-skill (MIT), data paths redirected to the private
+        # kattakath/brags repo checkout so it works under the read-only Nix skill install —
+        # see skills/brag/FORK-NOTES.md. Replaces the retired bespoke ~/Developer/local/brags engine.
+        brag = "${../../skills/brag}";
       };
     };
 
