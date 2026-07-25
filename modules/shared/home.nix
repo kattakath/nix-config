@@ -26,7 +26,7 @@
   fullName,
   userEmail,
   # GitHub handle (single-sourced in flake.nix) — the gist OWNER half of
-  # JSONRESUME_GIST below (a gist URL is keyed by GitHub username, not userName).
+  # JSONRESUME_GIST_URL below (a gist URL is keyed by GitHub username, not userName).
   handleName,
   # Source-only flake inputs holding Claude Code skills (see programs.claude-code
   # below). flake.nix pins them; nothing is vendored into this repo.
@@ -44,7 +44,7 @@
   # the opt-in live-wallpaper path alongside the default static wallpaper.
   wallpaperPort,
   # Optional JSON Resume gist id (single-sourced in flake.nix; null to disable) —
-  # combined with handleName into the JSONRESUME_GIST env var below.
+  # combined with handleName into the JSONRESUME_GIST_URL env var below.
   jsonResumeGistId,
   ...
 }:
@@ -282,12 +282,12 @@ in
       PUPPETEER_SKIP_DOWNLOAD = "true";
       PUPPETEER_EXECUTABLE_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
     }
-    # JSONRESUME_GIST — the RAW resume.json URL on GitHub Gist, built from handleName
+    # JSONRESUME_GIST_URL — the RAW resume.json URL on GitHub Gist, built from handleName
     # + optional jsonResumeGistId (null → omitted). The /raw/ path (no commit sha)
     # always resolves to the latest revision, so the resume-cli tooling can
-    # `curl "$JSONRESUME_GIST"` for the canonical resume without hardcoding it.
+    # `curl "$JSONRESUME_GIST_URL"` for the canonical resume without hardcoding it.
     // lib.optionalAttrs (jsonResumeGistId != null) {
-      JSONRESUME_GIST = "https://gist.githubusercontent.com/${handleName}/${jsonResumeGistId}/raw/resume.json";
+      JSONRESUME_GIST_URL = "https://gist.githubusercontent.com/${handleName}/${jsonResumeGistId}/raw/resume.json";
     }
   );
 
