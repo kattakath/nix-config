@@ -263,11 +263,16 @@ in
 
     # resume-cli (jsonresume.org, an npm global) renders PDFs via puppeteer, whose
     # bundled Chromium auto-download is flaky (its chrome-headless-shell fetch
-    # corrupts). Point puppeteer at the installed google-chrome cask instead, so
-    # `resume export resume.pdf` just works. Harmless for other puppeteer tools
-    # (they get system Chrome too); Remotion is unaffected — it resolves its own
-    # browser, not this var. The resume THEME still installs per-project (local
-    # node_modules), e.g. `npm i jsonresume-theme-macchiato`.
+    # corrupts, failing the `npm i`). These two vars form one coherent policy —
+    # NEVER download puppeteer's own browser, ALWAYS use the installed google-chrome
+    # cask:
+    #   SKIP_DOWNLOAD    — any `npm i` that pulls puppeteer skips the browser fetch
+    #                      (so a resume-cli reinstall / theme install never breaks).
+    #   EXECUTABLE_PATH  — puppeteer launches system Chrome at runtime instead.
+    # Harmless for other puppeteer tools (they get system Chrome too); Remotion is
+    # unaffected — it resolves its own browser, not these vars. The resume THEME
+    # still installs per-project (local node_modules), e.g. `npm i jsonresume-theme-macchiato`.
+    PUPPETEER_SKIP_DOWNLOAD = "true";
     PUPPETEER_EXECUTABLE_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
   };
 
