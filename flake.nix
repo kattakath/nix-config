@@ -175,6 +175,23 @@
       # mailbox) without dragging the POSIX account name along with it.
       userEmail = "8927166+${handleName}@users.noreply.github.com";
 
+      # ---- Optional: JSON Resume gist ----------------------------------------
+      # The GitHub Gist ID hosting resume.json (jsonresume.org). OPTIONAL — set to
+      # null to disable. When non-null it composes jsonResumeUrl below (the raw
+      # resume.json URL), which is BAKED into the `jsonresume` package as its default
+      # --url (packages/jsonresume.nix) — no ambient env var, since that package is
+      # its only consumer. Owner is the GitHub handle (handleName), not the POSIX userName.
+      jsonResumeGistId = "5fc44006a632f8466f09b61749129a88";
+
+      # The raw resume.json URL, derived from the gist id + handle (null when the id is
+      # null). Threaded to the jsonresume package (via home.nix + the packages fold) as
+      # its baked-in default --url — the composition lives here, in one place.
+      jsonResumeUrl =
+        if jsonResumeGistId == null then
+          null
+        else
+          "https://gist.githubusercontent.com/${handleName}/${jsonResumeGistId}/raw/resume.json";
+
       # ---- Single source of truth for the GitHub owner -----------------------
       # The org that owns the repo, the Cachix cache and the self-hosted runners.
       # Split from handleName so the two can never be confused again: everything
@@ -499,6 +516,10 @@
               # mcpPublicPort: the public (OAuth-gated) mcp-proxy port consumed by
               # modules/shared/mcp.nix (inert on the NixOS hosts).
               mcpPublicPort
+              # jsonResumeUrl: the raw resume.json URL (or null), consumed by home.nix
+              # to bake into the jsonresume package as its default --url (darwin
+              # home.packages; inert on the NixOS hosts).
+              jsonResumeUrl
               ;
           };
           users.${userName} = {
@@ -827,6 +848,16 @@
             runpod-template-apply = kit.template-apply;
           }
         ))
+
+        # `jsonresume <download|print>` (macOS only) — fetch a JSON Resume and render
+        # it to PDF via the npm resume CLI. Exposed as a package so `nix flake check`
+        # BUILDS it (writeShellApplication shellcheck). Also on PATH via home.packages
+        # and runnable with `nix run .#jsonresume`. See packages/jsonresume.nix.
+        (nixpkgs.lib.genAttrs darwinSystems (system: {
+          jsonresume = (pkgsFor system).callPackage ./packages/jsonresume.nix {
+            defaultUrl = jsonResumeUrl;
+          };
+        }))
       ];
 
       # ---- Apps: dev VM + Cloudflare provisioning ----------------------------
@@ -991,6 +1022,14 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.vast-init-repo}/bin/vast-init-repo";
               meta.description = "Scaffold a new provisioner repo from provisioner-template on GitHub/GitLab, public/private (--repo, --template)";
+            };
+
+            # `nix run .#jsonresume -- <download|print> …` — fetch a JSON Resume and
+            # render it to PDF via the npm resume CLI (also on PATH via home.packages).
+            aarch64-darwin.jsonresume = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.jsonresume}/bin/jsonresume";
+              meta.description = "Fetch a JSON Resume (--url, else the baked-in default) and render it to PDF (theme from meta.theme): jsonresume download|print";
             };
 
           }
