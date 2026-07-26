@@ -21,13 +21,18 @@
 #   grok                                             # first run authenticates
 # The shared home.nix already puts ~/.grok/bin on PATH, provides Node, and wires
 # the grok-build Claude Code plugin — so no Nix app-list entry is needed.
-{ userName, ... }:
+{ userName, lib, ... }:
 {
   imports = [
     ../modules/darwin/core.nix
   ];
 
   nixpkgs.config.allowUnfree = true;
+
+  # Dock at the BOTTOM on the VM (override core.nix's shared `orientation = "right"`;
+  # mkForce because both set the same option). Everything else about the Dock
+  # (autohide, tilesize, …) is inherited from core.nix.
+  system.defaults.dock.orientation = lib.mkForce "bottom";
 
   users.users.${userName} = {
     name = userName;
