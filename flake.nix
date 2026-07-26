@@ -215,13 +215,6 @@
       # secrets/secrets.nix — one file to edit on rotation (see secrets/operator-key.nix).
       operatorSshKey = import ./secrets/operator-key.nix;
 
-      # ---- Single source of truth for the live-wallpaper loopback port -------
-      # The darkhttpd server (modules/darwin/core.nix) serves packages/live-wallpaper
-      # on this port and Plash is pointed at it by the home.nix activation. Two
-      # module systems (nix-darwin + home-manager) that MUST agree, so it is one
-      # binding threaded to both rather than a literal duplicated across files.
-      wallpaperPort = 8765;
-
       # ---- Single source of truth for the public (OAuth-gated) MCP port ------
       # The kapture-only mcp-proxy (modules/shared/mcp.nix) binds this loopback
       # port and the Mac tunnel ingress (infra/cloudflare/macos-mcp-tunnel.nix)
@@ -489,10 +482,14 @@
           ;
       };
 
-      # The Home-Manager sub-module embedded identically in every host, defined
-      # once here instead of inline in each builder. extraSpecialArgs adds
-      # mcp-servers-nix (consumed by modules/shared/mcp.nix) to the identity set.
-      homeManagerModule = {
+      # The Home-Manager sub-module embedded in every host, built from an identity
+      # attrset (`idArgs` = { userName; fullName; userEmail; domainName; }) so a host
+      # can carry a PER-HOST persona (e.g. macvm's `aloshy`) rather than the single
+      # global identity. Called with `identityArgs` by default; hosts that override
+      # (mkDarwin's `identity` arg) pass their own. The home-manager profile keys on
+      # idArgs.userName, and extraSpecialArgs threads that same identity into
+      # modules/shared/home.nix. extraSpecialArgs also adds mcp-servers-nix etc.
+      mkHomeManagerModule = idArgs: {
         home-manager = {
           useGlobalPkgs = true;
           useUserPackages = true;
@@ -502,7 +499,7 @@
           # programs.claude-code marketplaces/settings options. Without this, HM
           # activation hard-fails on the first such collision.
           backupFileExtension = "hm-bak";
-          extraSpecialArgs = identityArgs // {
+          extraSpecialArgs = idArgs // {
             inherit
               mcp-servers-nix
               agent-skills-vercel
@@ -510,9 +507,6 @@
               grok-build-plugin-cc
               keychain-secrets
               local-rag
-              # wallpaperPort: consumed by the darwin-gated Plash activation in
-              # home.nix (inert on the NixOS hosts).
-              wallpaperPort
               # mcpPublicPort: the public (OAuth-gated) mcp-proxy port consumed by
               # modules/shared/mcp.nix (inert on the NixOS hosts).
               mcpPublicPort
@@ -522,7 +516,7 @@
               jsonResumeUrl
               ;
           };
-          users.${userName} = {
+          users.${idArgs.userName} = {
             imports = [ ./modules/shared/home.nix ];
             home.stateVersion = "24.05";
           };
@@ -566,7 +560,7 @@
             ./modules/shared/nix-cache.nix # Cachix binary cache (read)
             agenix.nixosModules.default # encrypted in-repo secrets (./secrets/*.age)
             home-manager.nixosModules.home-manager
-            homeManagerModule
+            (mkHomeManagerModule identityArgs) # NixOS hosts use the global identity
           ]
           ++ extraModules;
         };
@@ -575,19 +569,20 @@
       # Mirrors mkNixos for the Mac. hostPlatform is driven from `system` (NOT
       # hardcoded in modules/darwin/core.nix) even though this fleet has a single
       # darwin host today.
+      # `identity` defaults to the global identityArgs; a host passes its own to run
+      # under a PER-HOST persona (e.g. macvm → the `aloshy` account: different
+      # userName/fullName/userEmail/domainName). It flows to the system modules via
+      # specialArgs AND to home-manager via mkHomeManagerModule, so the two agree.
       mkDarwin =
         {
           system,
           hostname,
+          identity ? identityArgs,
           extraModules ? [ ],
         }:
         nix-darwin.lib.darwinSystem {
           inherit system;
-          # Shared identity set + wallpaperPort → modules/darwin/core.nix's
-          # darkhttpd live-wallpaper server.
-          specialArgs = identityArgs // {
-            inherit wallpaperPort;
-          };
+          specialArgs = identity;
           modules = [
             {
               nixpkgs.hostPlatform = system;
@@ -627,7 +622,7 @@
             agenix.darwinModules.default # encrypted in-repo secrets (./secrets/*.age)
             ./hosts/${hostname}.nix
             home-manager.darwinModules.home-manager
-            homeManagerModule
+            (mkHomeManagerModule identity)
           ]
           ++ extraModules;
         };
@@ -661,6 +656,23 @@
         "macos" = mkDarwin {
           system = "aarch64-darwin";
           hostname = "macos";
+        };
+
+        # A UTM guest VM (aarch64-darwin) — the darwin analogue of `nixvm`: the
+        # full shared stack as `macos`, but a leaner Homebrew set and the MCP
+        # gateway trimmed off (see hosts/macvm.nix). Runs under a SEPARATE persona
+        # (the `aloshy` / aloshy.ai account) — same person, isolated local identity —
+        # via the per-host `identity` override. Activated INSIDE the VM, whose macOS
+        # login account must be `aloshy`.
+        "macvm" = mkDarwin {
+          system = "aarch64-darwin";
+          hostname = "macvm";
+          identity = {
+            userName = "aloshy";
+            fullName = "aloshy";
+            userEmail = "hi@aloshy.ai";
+            domainName = "aloshy.ai";
+          };
         };
       };
 
@@ -958,6 +970,17 @@
                 exec ${self.darwinConfigurations.macos.config.system.build.darwin-rebuild}/bin/darwin-rebuild switch --flake "${self}#macos" "$@"
               ''}";
               meta.description = "First activation of the macos nix-darwin host from the flake (after Determinate Nix)";
+            };
+
+            # First activation of the macvm UTM guest (run INSIDE the VM, whose
+            # login account must be `ismailkattakath`), before darwin-rebuild is
+            # on PATH. Thereafter: darwin-rebuild switch --flake .#macvm
+            aarch64-darwin.macvm = {
+              type = "app";
+              program = "${(pkgsFor "aarch64-darwin").writeShellScript "activate-macvm" ''
+                exec ${self.darwinConfigurations.macvm.config.system.build.darwin-rebuild}/bin/darwin-rebuild switch --flake "${self}#macvm" "$@"
+              ''}";
+              meta.description = "First activation of the macvm nix-darwin UTM guest from the flake (after Determinate Nix)";
             };
 
             # `nix run .#set-secret -- KEY [VALUE]` — store a secret in the macOS
