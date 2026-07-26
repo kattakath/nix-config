@@ -17,11 +17,11 @@
 # account owns the GUI session, `darwin-rebuild switch` cannot load the agent.
 #
 # SERVER SIDE (this box, 127.0.0.1:8096)
-#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 10 servers, each
+#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 14 servers, each
 #   reachable at /servers/<name>/sse. `gatewayConfig` is rendered by
 #   mcp-servers-nix's `lib.mkConfig`, so the 4 packaged servers
 #   (context7/fetch/memory/sequential-thinking) are PINNED store-path commands;
-#   the 6 without a module fall back to pinned npx/uvx launchers (still a runtime
+#   the 10 without a module fall back to pinned npx/uvx launchers (still a runtime
 #   fetch, but acceptable on the Mac where Node/uv already live).
 #
 # CLIENT SIDE (programs.claude-code.mcpServers)
@@ -68,7 +68,7 @@ let
   npx = lib.getExe' pkgs.nodejs "npx";
   uvx = lib.getExe' pkgs.uv "uvx";
 
-  # The 6 servers with no mcp-servers-nix module, as raw stdio commands. Merged
+  # The 10 servers with no mcp-servers-nix module, as raw stdio commands. Merged
   # into the gateway config via mkConfig's `settings.servers`.
   customStdioServers = {
     duckduckgo = {
@@ -159,6 +159,27 @@ let
         "@mobilenext/mobile-mcp@latest"
       ];
     };
+    # Programmatic browser automation — Microsoft's OFFICIAL Playwright MCP
+    # (microsoft/playwright-mcp). Accessibility-tree driven (structured page
+    # snapshots, no vision model / image tokens), so it complements kapture:
+    # kapture drives YOUR live Chrome tab via a DevTools extension, while Playwright
+    # spins up a CONTROLLED browser for scripted navigation, scraping, and tests.
+    # `--browser chrome` uses the installed Google Chrome cask (Playwright's `chrome`
+    # channel) so there is NO ~150MB Chromium download — which matters because
+    # mcp-proxy spawns EVERY server at startup and a failed browser-install would
+    # crash the whole gateway (same failure mode as the postgres note below).
+    # `--headless` stops the background launchd agent from popping visible windows on
+    # tool calls (use kapture when you want to watch your real browser instead).
+    playwright = {
+      command = npx;
+      args = [
+        "-y"
+        "@playwright/mcp@latest"
+        "--browser"
+        "chrome"
+        "--headless"
+      ];
+    };
     # Local Postgres + pgvector, for vector-similarity / RAG work. crystaldba's
     # `postgres-mcp` ("Postgres MCP Pro", actively maintained) — a general SQL
     # executor, so every pgvector op (`<->`/`<=>` distance, HNSW indexes) is just
@@ -189,7 +210,7 @@ let
     };
   };
 
-  # Every server NAME the gateway hosts (4 packaged + 6 custom). Single source
+  # Every server NAME the gateway hosts (4 packaged + 10 custom). Single source
   # for the client SSE URLs, so the two sides can never drift.
   packagedServerNames = [
     "context7"
@@ -201,7 +222,7 @@ let
 
   # SERVER SIDE: a {mcpServers:{name:{command,args,env}}} JSON that mcp-proxy
   # consumes via --named-server-config. mkConfig PINS the 4 packaged servers;
-  # settings.servers carries the 6 custom ones verbatim. flavor "claude-code"
+  # settings.servers carries the 10 custom ones verbatim. flavor "claude-code"
   # emits the `mcpServers` key mcp-proxy expects (it ignores any extra fields).
   gatewayConfig = mcp-servers-nix.lib.mkConfig pkgs {
     flavor = "claude-code";

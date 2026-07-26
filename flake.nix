@@ -859,6 +859,14 @@
             defaultUrl = jsonResumeUrl;
           };
         }))
+
+        # `jobspy` (macOS only) — scrape jobs from LinkedIn/Indeed/Glassdoor/etc. into
+        # CSV/JSON via the off-the-shelf python-jobspy library, run in an ephemeral uv
+        # env. Exposed as a package so `nix flake check` BUILDS it (writeShellApplication
+        # shellcheck); on PATH via home.packages + `nix run .#jobspy`. See packages/jobspy.nix.
+        (nixpkgs.lib.genAttrs darwinSystems (system: {
+          jobspy = (pkgsFor system).callPackage ./packages/jobspy.nix { };
+        }))
       ];
 
       # ---- Apps: dev VM + Cloudflare provisioning ----------------------------
@@ -1032,6 +1040,14 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.jsonresume}/bin/jsonresume";
               meta.description = "Fetch a JSON Resume (--url, else the baked-in default) and render it — PDF (theme from meta.theme), or Markdown/plain text to stdout: jsonresume download|print|markdown|text";
+            };
+
+            # `nix run .#jobspy -- --search "…" --location "…" …` — scrape jobs from
+            # multiple boards into CSV/JSON via python-jobspy (also on PATH via home.packages).
+            aarch64-darwin.jobspy = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.jobspy}/bin/jobspy";
+              meta.description = "Scrape jobs (LinkedIn/Indeed/Glassdoor/…) into CSV/JSON via python-jobspy: jobspy --search … --location … [--sites …] [--results N] [--remote]";
             };
 
           }
