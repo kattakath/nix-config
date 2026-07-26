@@ -96,6 +96,10 @@ let
   # FB_PERSISTENT_STREAM_KEY from the login Keychain at run time. See packages/obs-fb-setup.nix.
   obs-fb-setup = pkgs.callPackage ../../packages/obs-fb-setup.nix { };
 
+  # `chrome-automation` — launch a dedicated logged-in Chrome (own profile + CDP port) for
+  # the Playwright MCP server to attach to. See packages/chrome-automation.nix.
+  chrome-automation = pkgs.callPackage ../../packages/chrome-automation.nix { };
+
   # `android-emu [avd-name] [emulator-args…]` — boot an Android emulator,
   # provisioning on first run. If the SDK packages or the AVD are missing it
   # installs them via the Homebrew `sdkmanager`/`avdmanager` (the
@@ -264,6 +268,7 @@ in
       jsonresume # `jsonresume download|print` — fetch a JSON Resume (baked-in default URL from jsonResumeUrl, or --url) + render to PDF via resume-cli (packages/jsonresume.nix)
       jobspy # `jobspy --search … --location …` — scrape jobs (LinkedIn/Indeed/…) into CSV/JSON via python-jobspy in an ephemeral uv env (packages/jobspy.nix)
       obs-fb-setup # `obs-fb-setup` — write an OBS "Facebook" profile for Facebook Live, injecting FB_PERSISTENT_STREAM_KEY from the login Keychain (packages/obs-fb-setup.nix)
+      chrome-automation # `chrome-automation` — launch a dedicated logged-in Chrome (own profile + CDP port 9222) for the Playwright MCP server to attach to (packages/chrome-automation.nix)
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       jdk17 # JRE for the Android sdkmanager/avdmanager (JVM tools); emulator itself needs no Java
       runpodctl # RunPod GPU CLI — RunPod as a second ComfyUI-workflow provider alongside Vast (from nixpkgs, not the untrusted brew tap)

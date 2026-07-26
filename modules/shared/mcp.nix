@@ -160,24 +160,26 @@ let
       ];
     };
     # Programmatic browser automation — Microsoft's OFFICIAL Playwright MCP
-    # (microsoft/playwright-mcp). Accessibility-tree driven (structured page
-    # snapshots, no vision model / image tokens), so it complements kapture:
-    # kapture drives YOUR live Chrome tab via a DevTools extension, while Playwright
-    # spins up a CONTROLLED browser for scripted navigation, scraping, and tests.
-    # `--browser chrome` uses the installed Google Chrome cask (Playwright's `chrome`
-    # channel) so there is NO ~150MB Chromium download — which matters because
-    # mcp-proxy spawns EVERY server at startup and a failed browser-install would
-    # crash the whole gateway (same failure mode as the postgres note below).
-    # `--headless` stops the background launchd agent from popping visible windows on
-    # tool calls (use kapture when you want to watch your real browser instead).
+    # (microsoft/playwright-mcp). Accessibility-tree driven (structured page snapshots,
+    # no vision model / image tokens).
+    #
+    # ATTACH mode via `--cdp-endpoint`: instead of launching its own isolated, session-less
+    # browser, Playwright attaches to the DEDICATED "automation" Chrome you start with
+    # `chrome-automation` (packages/chrome-automation.nix) — a separate profile (log into
+    # your sites once) + remote-debugging port 9222. That gives a LOGGED-IN browser the
+    # agent drives IN PARALLEL with your main Chrome, in a window you keep open and glance
+    # at whenever (kapture, by contrast, hijacks your foreground tab). `--cdp-endpoint`
+    # connects LAZILY (verified: a dead endpoint does NOT crash the server at startup, so
+    # the gateway is safe even when the automation Chrome isn't running — the playwright
+    # TOOLS just fail until you run `chrome-automation`). No --browser/--headless: those are
+    # ignored in attach mode.
     playwright = {
       command = npx;
       args = [
         "-y"
         "@playwright/mcp@latest"
-        "--browser"
-        "chrome"
-        "--headless"
+        "--cdp-endpoint"
+        "http://127.0.0.1:9222"
       ];
     };
     # Local Postgres + pgvector, for vector-similarity / RAG work. crystaldba's
