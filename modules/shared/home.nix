@@ -280,6 +280,12 @@ in
     ANDROID_HOME = "/opt/homebrew/share/android-commandlinetools";
     # sdkmanager/avdmanager are JVM tools; point them at the nixpkgs JDK 17.
     JAVA_HOME = pkgs.jdk17.home;
+
+    # SINGLE SOURCE OF TRUTH for where the brag pipeline reads/writes its data (the
+    # kattakath/brags checkout). The `/brag` + `brags-review` skills read $BRAG_DATA_DIR
+    # and error if it is unset — no hardcoded path scattered across the skills. Kept
+    # $HOME-relative (username-portable); change the checkout location here, in ONE place.
+    BRAG_DATA_DIR = "$HOME/Developer/local/brags";
     # BASH_ENV (the secret loader) + the loader file itself are now set by
     # programs.keychainSecrets (the keychain-secrets flake's HM module).
 

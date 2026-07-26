@@ -114,7 +114,7 @@ Then ask source-specific questions using AskUserQuestion:
 
 ### Phase 3: Write Config
 
-Write `config.json` into the brag data directory — `BRAG_DATA_DIR` (default `$HOME/Developer/local/brags`, the version-controlled private brags repo; NOT this Nix-managed skill dir). See [config.json.example](config.json.example) for the schema.
+Write `config.json` into the brag data directory — `$BRAG_DATA_DIR` (the version-controlled private brags repo checkout; set once in nix-config `home.nix` `home.sessionVariables`, NOT this Nix-managed skill dir). See [config.json.example](config.json.example) for the schema.
 
 Set `"enabled": false` for undetected sources. After writing, display a summary and stop — do NOT proceed to generate a report.
 
@@ -126,7 +126,7 @@ If `$ARGUMENTS` starts with `impact`, handle it here and stop — do NOT continu
 
 ```bash
 # Data lives in the version-controlled private brags repo, NOT this Nix-managed skill dir.
-BRAG_DATA_DIR="${BRAG_DATA_DIR:-$HOME/Developer/local/brags}"
+BRAG_DATA_DIR="${BRAG_DATA_DIR:?set once in nix-config home.nix home.sessionVariables — the kattakath/brags checkout}"
 mkdir -p "$BRAG_DATA_DIR"
 IMPACT_PATH="$BRAG_DATA_DIR/impact.md"
 ```
@@ -219,7 +219,7 @@ If `$ARGUMENTS` starts with `value`, handle it here and stop — do NOT continue
 
 ```bash
 # Data lives in the version-controlled private brags repo, NOT this Nix-managed skill dir.
-BRAG_DATA_DIR="${BRAG_DATA_DIR:-$HOME/Developer/local/brags}"
+BRAG_DATA_DIR="${BRAG_DATA_DIR:?set once in nix-config home.nix home.sessionVariables — the kattakath/brags checkout}"
 mkdir -p "$BRAG_DATA_DIR"
 VALUE_PATH="$BRAG_DATA_DIR/developer-value.md"
 ```
@@ -280,7 +280,7 @@ last_updated: {TODAY}
 
 ### Load Config (if exists)
 
-Check for `config.json` in the brag data directory — `BRAG_DATA_DIR` (default `$HOME/Developer/local/brags`). If it exists:
+Check for `config.json` in the brag data directory — `$BRAG_DATA_DIR` (set once in nix-config `home.nix`). If it exists:
 - Use `defaults.time_range` when no time range in `$ARGUMENTS`
 - Use `defaults.mode` when no mode flag in `$ARGUMENTS`
 - Use `defaults.short` when no `--short` flag in `$ARGUMENTS`
@@ -350,7 +350,7 @@ After generating a NARRATIVE or NARRATIVE SHORT report (not LOG or ANNOUNCE), ch
 
 ```bash
 # Data lives in the version-controlled private brags repo, NOT this Nix-managed skill dir.
-BRAG_DATA_DIR="${BRAG_DATA_DIR:-$HOME/Developer/local/brags}"
+BRAG_DATA_DIR="${BRAG_DATA_DIR:?set once in nix-config home.nix home.sessionVariables — the kattakath/brags checkout}"
 mkdir -p "$BRAG_DATA_DIR"
 IMPACT_PATH="$BRAG_DATA_DIR/impact.md"
 VALUE_PATH="$BRAG_DATA_DIR/developer-value.md"

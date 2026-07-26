@@ -16,15 +16,18 @@ generation the module owns. (The dir happens to be writable — the read-only bi
 *files*, not the dir — so it wouldn't hard-fail, which is exactly why the correct home
 matters: data belongs in the private repo, not scattered into a managed skill dir.)
 
-So every data path was redirected from `$SKILL_DIR` to an overridable **`BRAG_DATA_DIR`**:
+So every data path was redirected from `$SKILL_DIR` to **`$BRAG_DATA_DIR`**, which the skill
+now *requires* (errors if unset — no hardcoded path baked into the skill prose):
 
 ```bash
-BRAG_DATA_DIR="${BRAG_DATA_DIR:-$HOME/Developer/local/brags}"
+BRAG_DATA_DIR="${BRAG_DATA_DIR:?set once in nix-config home.nix home.sessionVariables}"
 ```
 
-`$HOME/Developer/local/brags` is the working checkout of the **private `kattakath/brags`
-repo** — where `impact.md` / `developer-value.md` / `config.json` live and are version-
-controlled (backup + history). Override via the `BRAG_DATA_DIR` env var if the checkout moves.
+`$BRAG_DATA_DIR` is defined in **ONE place** — `modules/shared/home.nix`
+(`home.sessionVariables.BRAG_DATA_DIR`, `$HOME`-relative) — and points at the working
+checkout of the private **`kattakath/brags`** repo, where `impact.md` /
+`developer-value.md` / `config.json` live (version-controlled backup + history). Change the
+location there, in one place; nothing else hardcodes it.
 
 Nothing else was modified — the mining logic, modes, templates, and `reference/` are upstream verbatim.
 
