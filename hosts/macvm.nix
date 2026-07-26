@@ -56,6 +56,19 @@
     local.desktopAesthetics.enable = false;
   };
 
+  # ---- Distinct accent colour = a FULLSCREEN-proof tell -----------------------
+  # Wallpaper/Dock/Terminal don't show in a fullscreen app, but the macOS accent +
+  # highlight colour tint buttons, selections, checkboxes and menu highlights
+  # EVERYWHERE (including inside fullscreen apps). macos leaves it unset (the
+  # default multicolour/blue); macvm goes RED so the sandbox is unmistakable at a
+  # glance. Set via CustomUserPreferences (untyped keys) into the global domain —
+  # AppleAccentColor: -1=graphite 0=red 1=orange 2=yellow 3=green 4=blue 5=purple
+  # 6=pink (absent = default). Takes full effect after the next login.
+  system.defaults.CustomUserPreferences.NSGlobalDomain = {
+    AppleAccentColor = 0; # red
+    AppleHighlightColor = "1.000000 0.733333 0.721569 Red";
+  };
+
   # ---- Homebrew apps for THIS host --------------------------------------------
   # The framework (enable/onActivation/taps) lives in modules/darwin/homebrew.nix;
   # this is macvm's leaner set. onActivation.cleanup = "uninstall" removes anything
