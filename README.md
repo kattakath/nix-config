@@ -15,6 +15,7 @@ A single Nix flake that manages complete, reproducible system configurations acr
 | Host | Type | System | Machine | Role |
 |------|------|--------|---------|------|
 | `macos` | [nix-darwin](https://github.com/LnL7/nix-darwin) | `aarch64-darwin` | Apple Silicon Mac | Client only — no remote/incoming traffic |
+| `macvm` | [nix-darwin](https://github.com/LnL7/nix-darwin) | `aarch64-darwin` | UTM guest VM on the Mac | Sandbox — shares macos's stack with a leaner Homebrew set + MCP gateway trimmed off; activated inside the VM |
 | `nixpi` | NixOS | `aarch64-linux` | Raspberry Pi 4 | **LIVE server** — static-key SSH over a Cloudflare Tunnel connector + Caddy landing page |
 | `nixvm` | NixOS | `aarch64-linux` | Throwaway QEMU dev VM on the Mac | Ephemeral XFCE desktop via `nix run .#nixvm` — not installed |
 | `devcontainer` | OCI image | `aarch64-linux` + `x86_64-linux` | Dev container (multi-arch manifest, published to GHCR) | — |

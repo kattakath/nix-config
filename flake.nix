@@ -215,13 +215,6 @@
       # secrets/secrets.nix — one file to edit on rotation (see secrets/operator-key.nix).
       operatorSshKey = import ./secrets/operator-key.nix;
 
-      # ---- Single source of truth for the live-wallpaper loopback port -------
-      # The darkhttpd server (modules/darwin/core.nix) serves packages/live-wallpaper
-      # on this port and Plash is pointed at it by the home.nix activation. Two
-      # module systems (nix-darwin + home-manager) that MUST agree, so it is one
-      # binding threaded to both rather than a literal duplicated across files.
-      wallpaperPort = 8765;
-
       # ---- Single source of truth for the public (OAuth-gated) MCP port ------
       # The kapture-only mcp-proxy (modules/shared/mcp.nix) binds this loopback
       # port and the Mac tunnel ingress (infra/cloudflare/macos-mcp-tunnel.nix)
@@ -510,9 +503,6 @@
               grok-build-plugin-cc
               keychain-secrets
               local-rag
-              # wallpaperPort: consumed by the darwin-gated Plash activation in
-              # home.nix (inert on the NixOS hosts).
-              wallpaperPort
               # mcpPublicPort: the public (OAuth-gated) mcp-proxy port consumed by
               # modules/shared/mcp.nix (inert on the NixOS hosts).
               mcpPublicPort
@@ -583,11 +573,7 @@
         }:
         nix-darwin.lib.darwinSystem {
           inherit system;
-          # Shared identity set + wallpaperPort → modules/darwin/core.nix's
-          # darkhttpd live-wallpaper server.
-          specialArgs = identityArgs // {
-            inherit wallpaperPort;
-          };
+          specialArgs = identityArgs;
           modules = [
             {
               nixpkgs.hostPlatform = system;
@@ -661,6 +647,14 @@
         "macos" = mkDarwin {
           system = "aarch64-darwin";
           hostname = "macos";
+        };
+
+        # A UTM guest VM (aarch64-darwin) — the darwin analogue of `nixvm`: the
+        # full shared stack as `macos`, but a leaner Homebrew set and the MCP
+        # gateway trimmed off (see hosts/macvm.nix). Activated INSIDE the VM.
+        "macvm" = mkDarwin {
+          system = "aarch64-darwin";
+          hostname = "macvm";
         };
       };
 
@@ -958,6 +952,17 @@
                 exec ${self.darwinConfigurations.macos.config.system.build.darwin-rebuild}/bin/darwin-rebuild switch --flake "${self}#macos" "$@"
               ''}";
               meta.description = "First activation of the macos nix-darwin host from the flake (after Determinate Nix)";
+            };
+
+            # First activation of the macvm UTM guest (run INSIDE the VM, whose
+            # login account must be `ismailkattakath`), before darwin-rebuild is
+            # on PATH. Thereafter: darwin-rebuild switch --flake .#macvm
+            aarch64-darwin.macvm = {
+              type = "app";
+              program = "${(pkgsFor "aarch64-darwin").writeShellScript "activate-macvm" ''
+                exec ${self.darwinConfigurations.macvm.config.system.build.darwin-rebuild}/bin/darwin-rebuild switch --flake "${self}#macvm" "$@"
+              ''}";
+              meta.description = "First activation of the macvm nix-darwin UTM guest from the flake (after Determinate Nix)";
             };
 
             # `nix run .#set-secret -- KEY [VALUE]` — store a secret in the macOS

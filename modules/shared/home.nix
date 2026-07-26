@@ -36,10 +36,6 @@
   # The extracted keychain-secrets flake (macOS `secret` CLI + every-shell loader);
   # its home-manager module replaces the vendored packages/loader below.
   keychain-secrets,
-  # Live-wallpaper loopback port (single-sourced in flake.nix) — the darwin-gated
-  # Plash activation below points Plash at it; inert on the NixOS hosts. Kept as
-  # the opt-in live-wallpaper path alongside the default static wallpaper.
-  wallpaperPort,
   # Raw resume.json URL (single-sourced in flake.nix as jsonResumeUrl; null to
   # disable) — baked into the jsonresume package below as its default --url.
   jsonResumeUrl,
@@ -193,7 +189,6 @@ in
 {
   imports = [
     ./mcp.nix # darwin-gated MCP server registry for Claude Code
-    ./photogimp.nix # darwin-gated Photoshop-like GIMP profile patch
     # Local-first RAG stack (loopback launchd Postgres+pgvector + Ollama + in-DB
     # embed()), from the extracted flake (github:ismailkattakath/nix-local-rag).
     # Both modules are internally gated on (enable && isDarwin) — a clean no-op on
@@ -769,20 +764,6 @@ in
     setWallpaper = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       $DRY_RUN_CMD /usr/bin/osascript -e \
         'tell application "System Events" to tell every desktop to set picture to "${./wallpaper/wallpaper.png}"' || true
-    '';
-
-    # OPT-IN live wallpaper: point Plash (masApps, modules/darwin/homebrew.nix) at
-    # the local live-wallpaper server (modules/darwin/core.nix). Plash stores its
-    # site list in its OWN prefs (not a file we manage), so this is a one-time
-    # GUI-scheme call guarded on absence — it configures Plash once, then is a
-    # no-op. Plash is no longer launched at login (see modules/darwin/core.nix), so
-    # the static wallpaper above wins by default; open Plash to use the live one.
-    plashWallpaper = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-      if ! /usr/bin/defaults read com.sindresorhus.Plash websites 2>/dev/null \
-           | /usr/bin/grep -q '127.0.0.1:${toString wallpaperPort}'; then
-        $DRY_RUN_CMD /usr/bin/open -ga Plash || true
-        $DRY_RUN_CMD /usr/bin/open "plash:add?url=http%3A%2F%2F127.0.0.1%3A${toString wallpaperPort}" || true
-      fi
     '';
   };
 
