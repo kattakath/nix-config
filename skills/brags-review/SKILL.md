@@ -15,7 +15,7 @@ means articulating from the entry's own captured content only.
 ## Data location
 
 ```bash
-BRAG_DATA_DIR="${BRAG_DATA_DIR:-$HOME/Developer/local/brags}"   # the private kattakath/brags repo checkout
+BRAG_DATA_DIR="${BRAG_DATA_DIR:?set once in nix-config home.nix home.sessionVariables}"   # the kattakath/brags checkout
 IMPACT_PATH="$BRAG_DATA_DIR/impact.md"
 REDACT="$BRAG_DATA_DIR/engine/redact.py"
 ```
