@@ -20,4 +20,98 @@
     name = userName;
     home = "/Users/${userName}";
   };
+
+  # ---- Homebrew apps for THIS host --------------------------------------------
+  # The framework (enable/onActivation/taps) lives in modules/darwin/homebrew.nix;
+  # this is macos's app set. onActivation.cleanup = "uninstall" removes anything
+  # installed but not listed here. macvm carries its own (leaner) list.
+  homebrew = {
+    # ---- Formulae (brews) ----------------------------------------------------
+    # Entries with special options use the attrset form.
+    brews = [
+      "age"
+      "aws-vault"
+      "btop"
+      "bruno-cli"
+      "cloudflared"
+      "cmake"
+      "devcontainer"
+      "docker"
+      "docker-buildx"
+      "docker-compose"
+      "duf"
+      "ffmpeg"
+      "gettext"
+      "git"
+      "git-filter-repo"
+      "glab"
+      "go"
+      "graphviz"
+      # link = false → don't symlink into the brew prefix.
+      {
+        name = "hf";
+        link = false;
+      }
+      "imagemagick"
+      "img2pdf"
+      "kubernetes-cli"
+      # Mac App Store CLI. Kept for on-demand App Store installs even though
+      # masApps is currently empty; `mas install` needs an App Store sign-in.
+      "mas"
+      "nats-server"
+      "ncdu"
+      "ocrmypdf"
+      "poppler"
+      "pyenv"
+      # scrcpy — mirror/control a PHYSICAL Android phone on the Mac (pulls its own
+      # adb; the android-platform-tools cask provides the adb mobile-mcp uses).
+      "scrcpy"
+      "shellcheck"
+      "starship"
+      "switchaudio-osx"
+      "tree"
+      "wget"
+      "xcodes"
+      "yq"
+      "yt-dlp"
+      "zstd"
+    ];
+
+    # ---- Casks ---------------------------------------------------------------
+    # The "claude" cask (Claude DESKTOP) was dropped; the claude-code CLI comes
+    # from nixpkgs. Font casks moved to nixpkgs too.
+    casks = [
+      # Android SDK cmdline tools (sdkmanager/avdmanager) — backs `android-emu`
+      # (modules/shared/home.nix), which boots VIRTUAL Android emulators.
+      "android-commandlinetools"
+      # adb/fastboot — the bridge mobile-mcp drives to automate a physical phone.
+      "android-platform-tools"
+      "blackhole-2ch"
+      "bruno"
+      "docker-desktop"
+      "dropbox"
+      "google-chrome"
+      "inkscape"
+      "maccy"
+      "microsoft-auto-update"
+      "microsoft-teams"
+      # OBS Studio. Its macOS Virtual Camera ships as a system extension
+      # (com.obsproject.obs-studio.mac-camera-extension), installed on first launch
+      # and persisting independently of OBS.app.
+      "obs"
+      "obsidian"
+      "proton-drive"
+      "raspberry-pi-imager"
+      "slack"
+      "telegram"
+      "utm"
+      "visual-studio-code"
+      "whatsapp"
+    ];
+
+    # ---- Mac App Store apps (masApps) ----------------------------------------
+    # Empty: Plash (live wallpaper) and DaVinci Resolve were removed. `mas` stays
+    # (above) so App Store apps can be added here later.
+    masApps = { };
+  };
 }
