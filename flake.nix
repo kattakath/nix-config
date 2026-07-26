@@ -327,6 +327,29 @@
           ];
         };
 
+      # ---- HyperFrames self-host (terranix -> OpenTofu) -----------------------
+      # Renders infra/hyperframes/stack.nix: stamps VM .env + docker compose up
+      # for Kinocut+HyperFrames behind mcp-auth-proxy, Caddy, and Tailscale Funnel
+      # (Funnel runs on the Linux VM only — Darwin host stays isolated).
+      # Public non-Nix tree: packages/hyperframes-selfhost/ (see docs/hyperframes-selfhost.md).
+      hfStackConfig =
+        system:
+        terranix.lib.terranixConfiguration {
+          inherit system;
+          modules = [
+            ./infra/hyperframes/stack.nix
+            {
+              _module.args = {
+                inherit operatorEmail;
+                # Overridden at apply via TF_VAR_stack_dir (absolute path on the VM).
+                stackDir = ".";
+                externalUrl = "";
+                tsHostname = "hyperframes";
+              };
+            }
+          ];
+        };
+
       # writeShellApplication wrapper around `tofu <action>` for the rendered
       # nixpi tunnel config (guards on CLOUDFLARE_API_TOKEN, copies the read-only
       # rendered config out of the store first). On `apply`, it additionally prints the
@@ -813,6 +836,25 @@
           };
         }))
 
+        # HyperFrames self-host (Kinocut + mcp-auth-proxy + Caddy + Funnel on a
+        # Linux VM). Public tree under packages/hyperframes-selfhost/; terranix
+        # plan from infra/hyperframes/stack.nix. See docs/hyperframes-selfhost.md.
+        (forAllSystems (
+          system:
+          let
+            kit = (pkgsFor system).callPackage ./packages/hyperframes-selfhost.nix {
+              hfStackConfig = hfStackConfig system;
+              inherit operatorEmail;
+              hyperframesSelfhostSrc = ./packages/hyperframes-selfhost;
+            };
+          in
+          {
+            hf-export = kit.hf-export;
+            hf-apply = kit.hf-apply;
+            hf-doctor = kit.hf-doctor;
+          }
+        ))
+
         # `secret <set|get|rm|ls|load>` / `set-secret` / `remove-secret` — the
         # macOS login-Keychain CLI. NOW sourced from the extracted keychain-secrets
         # flake (github:ismailkattakath/nix-keychain-secrets), not vendored packages —
@@ -1126,6 +1168,21 @@
                 type = "app";
                 program = "${self.packages.${system}.cf-mcp-destroy}/bin/cf-mcp-destroy";
                 meta.description = "tofu destroy the Mac MCP tunnel + Cloudflare Access app/policy (needs CLOUDFLARE_API_TOKEN)";
+              };
+              hf-export = {
+                type = "app";
+                program = "${self.packages.${system}.hf-export}/bin/hf-export";
+                meta.description = "Export the HyperFrames self-host public tree (+ terranix config.tf.json) for a Linux VM or public repo";
+              };
+              hf-apply = {
+                type = "app";
+                program = "${self.packages.${system}.hf-apply}/bin/hf-apply";
+                meta.description = "On the Linux VM: tofu apply the HyperFrames stack (needs TF_VAR_ts_authkey + Google OAuth vars + HF_STACK_DIR)";
+              };
+              hf-doctor = {
+                type = "app";
+                program = "${self.packages.${system}.hf-doctor}/bin/hf-doctor";
+                meta.description = "Run the HyperFrames self-host doctor script against HF_STACK_DIR (or CWD)";
               };
             })
           );
