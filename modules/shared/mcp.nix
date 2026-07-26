@@ -307,27 +307,10 @@ let
     inherit url;
   }) cfg.endpoints;
 
-  jsonFormat = pkgs.formats.json { };
-
   # VS Code uses `servers` as the top-level key (NOT `mcpServers` — a mismatch VS
   # Code silently ignores) and takes `type = "http"` directly, so it connects to
   # the SAME gateway processes as claude-code. Same 10 servers, no desktop-commander.
   vscodeMcpJson = builtins.toJSON { servers = httpEntries; };
-
-  # Claude Desktop's config is stdio-oriented, so each gateway server is reached
-  # via an `mcp-remote` stdio<->HTTP bridge (npx absolute-pathed — Claude Desktop
-  # launches from the GUI with a minimal PATH). Key is `mcpServers` here (Claude
-  # Desktop / Cursor convention — the opposite of VS Code's `servers`).
-  claudeDesktopMcpServers = jsonFormat.generate "claude-desktop-mcpservers.json" (
-    lib.mapAttrs (_: url: {
-      command = npx;
-      args = [
-        "-y"
-        "mcp-remote"
-        url
-      ];
-    }) cfg.endpoints
-  );
 
   # Grok CLI (xAI, grok 0.2.x) is a 4th MCP client living OUTSIDE Nix: a self-updating
   # binary at ~/.grok/bin/grok (on PATH via home.sessionPath), config at ~/.grok/config.toml.
@@ -519,39 +502,13 @@ in
       "Library/Application Support/Code/User/mcp.json".text = vscodeMcpJson;
     };
 
-    # ---- Client side C: Claude Desktop (NO home-manager module → merge activation)
-    # claude_desktop_config.json is a STATEFUL file the app itself writes
-    # (preferences, coworkUserFilesPath, …), and there is no `programs.claude-desktop`
-    # module, so we cannot own the whole file. Instead an activation script MERGES
-    # only the `mcpServers` key via jq, preserving everything else. Each entry is an
-    # mcp-remote stdio<->HTTP bridge to the gateway: the heavy servers still run once
-    # in the shared gateway, but Claude Desktop spawns one thin bridge per server (the
-    # unavoidable cost of a stdio-only client). `mcpServers` becomes Nix-managed —
-    # edit it in `hostedServerNames`, not in the app.
-    # GATED on the app being installed (/Applications/Claude.app) — uninstall Claude
-    # Desktop and this writes/creates nothing.
-    home.activation.claudeDesktopMcp = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-      cfg="$HOME/Library/Application Support/Claude/claude_desktop_config.json"
-      if [ ! -d "/Applications/Claude.app" ]; then
-        : # Claude Desktop not installed — nothing to configure, no stray files.
-      elif [ -f "$cfg" ]; then
-        ${pkgs.jq}/bin/jq --slurpfile m ${claudeDesktopMcpServers} \
-          '.mcpServers = $m[0]' "$cfg" > "$cfg.tmp" && mv "$cfg.tmp" "$cfg" && chmod 600 "$cfg"
-      else
-        mkdir -p "$(dirname "$cfg")"
-        ${pkgs.jq}/bin/jq -n --slurpfile m ${claudeDesktopMcpServers} \
-          '{ mcpServers: $m[0] }' > "$cfg" && chmod 600 "$cfg"
-      fi
-    '';
-
-    # ---- Client side D: Grok CLI (stateful ~/.grok/config.toml → grok owns the merge)
-    # No `programs.grok` HM module and a stateful config.toml, so — like Claude Desktop — an
-    # activation script merges ONLY the [mcp_servers] tables via grok's OWN CLI, which stays
-    # robust to grok's TOML schema (the `enabled` flag, --scope, future keys) since grok, not
-    # us, renders it. USER scope (not project) so the servers aren't blocked by grok's
-    # folder-trust gate. GATED on the grok binary existing (~/.grok/bin/grok) — no grok
-    # installed, nothing runs and no stray files are created (mirrors Claude Desktop's
-    # /Applications/Claude.app test). We do NOT lean on grok's [compat.claude] mcps=true scan
+    # ---- Client side C: Grok CLI (stateful ~/.grok/config.toml → grok owns the merge)
+    # No `programs.grok` HM module and a stateful config.toml, so an activation script merges
+    # ONLY the [mcp_servers] tables via grok's OWN CLI, which stays robust to grok's TOML schema
+    # (the `enabled` flag, --scope, future keys) since grok, not us, renders it. USER scope (not
+    # project) so the servers aren't blocked by grok's folder-trust gate. GATED on the grok binary
+    # existing (~/.grok/bin/grok) — no grok installed, nothing runs and no stray files are created.
+    # We do NOT lean on grok's [compat.claude] mcps=true scan
     # of ~/.claude.json: the claude-code module writes the gateway to a MANAGED plugin .mcp.json
     # (not ~/.claude.json), which grok does not read — so explicit wiring here is the single
     # source of truth. Reuses cfg.endpoints, so grok can never drift from the gateway.
