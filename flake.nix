@@ -849,9 +849,9 @@
             };
           in
           {
-            hf-export = kit.hf-export;
-            hf-apply = kit.hf-apply;
-            hf-doctor = kit.hf-doctor;
+            inherit (kit) hf-export;
+            inherit (kit) hf-apply;
+            inherit (kit) hf-doctor;
           }
         ))
 
