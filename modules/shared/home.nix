@@ -299,6 +299,15 @@ in
     "$HOME/.grok/bin"
   ];
 
+  # GLOBAL Claude Code instructions — user-level rules loaded in every project/session
+  # on this Mac (the sole Claude Code client host). Declarative equivalent of hand-writing
+  # ~/.claude/CLAUDE.md; the strict "decisions/confirmations = AskUserQuestion options"
+  # rule + reuse-over-rebuild preference live here so they apply everywhere, not just in
+  # this repo. Darwin-only (claude-code runs only on macos in this fleet).
+  home.file.".claude/CLAUDE.md" = lib.mkIf pkgs.stdenv.isDarwin {
+    source = ../../claude/CLAUDE.md;
+  };
+
   # ---- Home Manager program modules --------------------------------------------
   programs = {
     # Let Home Manager manage itself.
@@ -376,6 +385,12 @@ in
         # Local RAG over the pgvector store: how to ingest + query via the `postgres`
         # MCP server and the in-DB embed() function (modules/shared/{postgres-pgvector,ollama}.nix).
         rag = "${../../skills/rag}";
+        # `/brag` — the MINE→LEDGER stage of the rebuilt brag-doc pipeline: mines GitHub
+        # PRs/commits + Claude Code sessions (+ optional MCP) into impact.md/developer-value.md.
+        # Vendored from kammradt/brag-skill (MIT), data paths redirected to the private
+        # kattakath/brags repo checkout so it works under the read-only Nix skill install —
+        # see skills/brag/FORK-NOTES.md. Replaces the retired bespoke ~/Developer/local/brags engine.
+        brag = "${../../skills/brag}";
       };
     };
 
