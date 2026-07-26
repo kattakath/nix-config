@@ -106,6 +106,11 @@ _:
       "maccy"
       "microsoft-auto-update"
       "microsoft-teams"
+      # OBS Studio. Its macOS Virtual Camera ships as a system extension
+      # (com.obsproject.obs-studio.mac-camera-extension), installed on first launch and
+      # persisting independently of OBS.app — so it survived the earlier cask removal and
+      # is reused on reinstall (a newer OBS may prompt a one-time extension-update approval).
+      "obs"
       "obsidian"
       "opera-gx"
       "proton-drive"
