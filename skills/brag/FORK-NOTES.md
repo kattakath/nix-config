@@ -8,8 +8,13 @@ reproducible path as the other global skills — no imperative `install.sh`.
 ## The only change from upstream
 
 Upstream writes its data (`config.json`, `impact.md`, `developer-value.md`) into the
-**skill's own directory** (`$SKILL_DIR`, resolved via `readlink`). Under Home Manager the
-skill dir is a **read-only `/nix/store` symlink**, so those writes would fail.
+**skill's own directory** (`$SKILL_DIR`, resolved via `readlink`). Under Home Manager that
+directory is **Nix-managed** — its files are `/nix/store` symlinks and the dir is rewritten
+on every `darwin-rebuild switch` (linkGeneration / orphan-link cleanup). Writing user data
+into it is wrong: it isn't version-controlled or backed up, and it collides with the
+generation the module owns. (The dir happens to be writable — the read-only bit is the
+*files*, not the dir — so it wouldn't hard-fail, which is exactly why the correct home
+matters: data belongs in the private repo, not scattered into a managed skill dir.)
 
 So every data path was redirected from `$SKILL_DIR` to an overridable **`BRAG_DATA_DIR`**:
 

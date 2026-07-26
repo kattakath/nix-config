@@ -114,7 +114,7 @@ Then ask source-specific questions using AskUserQuestion:
 
 ### Phase 3: Write Config
 
-Write `config.json` into the brag data directory — `BRAG_DATA_DIR` (default `$HOME/Developer/local/brags`, the writable private brags repo; NOT this read-only Nix-managed skill dir). See [config.json.example](config.json.example) for the schema.
+Write `config.json` into the brag data directory — `BRAG_DATA_DIR` (default `$HOME/Developer/local/brags`, the version-controlled private brags repo; NOT this Nix-managed skill dir). See [config.json.example](config.json.example) for the schema.
 
 Set `"enabled": false` for undetected sources. After writing, display a summary and stop — do NOT proceed to generate a report.
 
@@ -125,7 +125,7 @@ If `$ARGUMENTS` starts with `impact`, handle it here and stop — do NOT continu
 ### Determine Skill Directory
 
 ```bash
-# Data lives in the writable private brags repo, NOT this (read-only, Nix-managed) skill dir.
+# Data lives in the version-controlled private brags repo, NOT this Nix-managed skill dir.
 BRAG_DATA_DIR="${BRAG_DATA_DIR:-$HOME/Developer/local/brags}"
 mkdir -p "$BRAG_DATA_DIR"
 IMPACT_PATH="$BRAG_DATA_DIR/impact.md"
@@ -218,7 +218,7 @@ If `$ARGUMENTS` starts with `value`, handle it here and stop — do NOT continue
 ### Determine Skill Directory
 
 ```bash
-# Data lives in the writable private brags repo, NOT this (read-only, Nix-managed) skill dir.
+# Data lives in the version-controlled private brags repo, NOT this Nix-managed skill dir.
 BRAG_DATA_DIR="${BRAG_DATA_DIR:-$HOME/Developer/local/brags}"
 mkdir -p "$BRAG_DATA_DIR"
 VALUE_PATH="$BRAG_DATA_DIR/developer-value.md"
@@ -349,7 +349,7 @@ After generating a NARRATIVE or NARRATIVE SHORT report (not LOG or ANNOUNCE), ch
 1. Determine the skill directory:
 
 ```bash
-# Data lives in the writable private brags repo, NOT this (read-only, Nix-managed) skill dir.
+# Data lives in the version-controlled private brags repo, NOT this Nix-managed skill dir.
 BRAG_DATA_DIR="${BRAG_DATA_DIR:-$HOME/Developer/local/brags}"
 mkdir -p "$BRAG_DATA_DIR"
 IMPACT_PATH="$BRAG_DATA_DIR/impact.md"
