@@ -1,0 +1,9 @@
+# Copy to terraform.tfvars (gitignored) or pass -var / TF_VAR_*.
+stack_dir            = ".."
+external_url         = "https://hyperframes.tailXXXX.ts.net"
+ts_hostname          = "hyperframes"
+ts_authkey           = "tskey-auth-…"
+google_client_id     = "….apps.googleusercontent.com"
+google_client_secret = "…"
+google_allowed_users = "you@example.com"
+workspace_dir        = "./workspace"
