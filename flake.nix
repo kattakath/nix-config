@@ -874,6 +874,14 @@
         (nixpkgs.lib.genAttrs darwinSystems (system: {
           obs-fb-setup = (pkgsFor system).callPackage ./packages/obs-fb-setup.nix { };
         }))
+
+        # `chrome-automation` (macOS only) — launch a dedicated, logged-in Chrome (own
+        # profile + CDP debug port) that the Playwright MCP server attaches to, so an agent
+        # drives a session-aware browser in parallel. Package so `nix flake check`
+        # shellchecks it; on PATH + `nix run .#chrome-automation`.
+        (nixpkgs.lib.genAttrs darwinSystems (system: {
+          chrome-automation = (pkgsFor system).callPackage ./packages/chrome-automation.nix { };
+        }))
       ];
 
       # ---- Apps: dev VM + Cloudflare provisioning ----------------------------
@@ -1063,6 +1071,14 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.obs-fb-setup}/bin/obs-fb-setup";
               meta.description = "Write an OBS 'Facebook' profile for Facebook Live, injecting FB_PERSISTENT_STREAM_KEY from the login Keychain (never in git)";
+            };
+
+            # `nix run .#chrome-automation` — launch the dedicated logged-in Chrome (own
+            # profile + CDP port 9222) that the Playwright MCP server attaches to.
+            aarch64-darwin.chrome-automation = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.chrome-automation}/bin/chrome-automation";
+              meta.description = "Launch a dedicated automation Chrome (separate profile + CDP debug port 9222) for the Playwright MCP server to attach to";
             };
 
           }
