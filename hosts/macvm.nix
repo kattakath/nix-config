@@ -39,14 +39,22 @@
     home = "/Users/${userName}";
   };
 
-  # ---- Trim the MCP gateway on the VM -----------------------------------------
-  # The localhost MCP gateway (modules/shared/mcp.nix) spawns ~14 servers at login
-  # and a single startup failure crashes the whole proxy — heavier than a sandbox
-  # VM needs, and several servers depend on apps this host doesn't carry. Disabling
-  # the option removes the gateway launchd agent AND the claude-code MCP wiring
-  # (config = mkIf cfg.enable). The real Mac (macos) keeps it (option default is
-  # `pkgs.stdenv.isDarwin`, i.e. on).
-  home-manager.users.${userName}.services.mcpGateway.enable = false;
+  # ---- Per-host home-manager tweaks for the VM --------------------------------
+  home-manager.users.${userName} = {
+    # Trim the MCP gateway (modules/shared/mcp.nix): it spawns ~14 servers at login
+    # and one startup failure crashes the whole proxy — heavier than a sandbox VM
+    # needs, and several servers depend on apps this host doesn't carry. Disabling
+    # the option removes the gateway launchd agent AND the claude-code MCP wiring
+    # (config = mkIf cfg.enable). macos keeps it (default = pkgs.stdenv.isDarwin).
+    services.mcpGateway.enable = false;
+
+    # Keep the VM visually DISTINCT from the real Mac: opt out of the operator's
+    # custom desktop look (modules/shared/desktop-aesthetics.nix) — no custom
+    # wallpaper, no Terminal.app "Ubuntu" profile. The VM falls back to the stock
+    # macOS wallpaper + default Terminal, so it's recognisable at a glance as the
+    # sandbox (even in fullscreen) instead of looking identical to macos.
+    local.desktopAesthetics.enable = false;
+  };
 
   # ---- Homebrew apps for THIS host --------------------------------------------
   # The framework (enable/onActivation/taps) lives in modules/darwin/homebrew.nix;

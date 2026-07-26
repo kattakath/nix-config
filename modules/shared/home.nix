@@ -189,6 +189,7 @@ in
 {
   imports = [
     ./mcp.nix # darwin-gated MCP server registry for Claude Code
+    ./desktop-aesthetics.nix # macOS wallpaper + Terminal profile (opt-out per host; macvm opts out)
     # Local-first RAG stack (loopback launchd Postgres+pgvector + Ollama + in-DB
     # embed()), from the extracted flake (github:ismailkattakath/nix-local-rag).
     # Both modules are internally gated on (enable && isDarwin) — a clean no-op on
@@ -706,17 +707,9 @@ in
     };
   };
 
-  # ---- Terminal.app "Ubuntu" profile (macOS only) ---------------------------
-  # Installs ./terminal/Ubuntu.terminal — an Ubuntu-GNOME-look profile whose
-  # colors + font mirror the VS Code integrated-terminal palette above.
-  #
-  # Terminal.app OWNS com.apple.Terminal and rewrites it from memory while it is
-  # running, so a plain `defaults write` gets clobbered. The reliable path is to
-  # let the running Terminal import the profile itself via `open`, which persists.
-  # Guarded on absence so it runs ONCE (first activation on a fresh Mac) — later
-  # rebuilds are a no-op and never pop a window. Setting it as the default is
-  # best-effort (again, Terminal may overwrite while running): if it doesn't
-  # stick, select Ubuntu → "Default" in Terminal ▸ Settings ▸ Profiles once.
+  # NOTE: the custom desktop wallpaper + Terminal.app "Ubuntu" profile used to live
+  # here; they moved to ./desktop-aesthetics.nix (imported above) so a host can opt
+  # out of them — macvm does, to stay visually distinct from macos.
   home.activation = lib.mkIf pkgs.stdenv.isDarwin {
     # Materialise the DECLARED Claude Code plugins (claudePluginIds) from their
     # Nix-pinned marketplaces. We deliberately do NOT put ~/.claude/plugins/
@@ -742,28 +735,6 @@ in
           fi
         done
       fi
-    '';
-
-    ubuntuTerminalProfile = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-      if ! /usr/bin/defaults read com.apple.Terminal "Window Settings" 2>/dev/null \
-           | /usr/bin/grep -q 'name = Ubuntu;'; then
-        $DRY_RUN_CMD /usr/bin/open ${./terminal/Ubuntu.terminal}
-        $DRY_RUN_CMD /usr/bin/defaults write com.apple.Terminal \
-          "Default Window Settings" -string "Ubuntu" || true
-        $DRY_RUN_CMD /usr/bin/defaults write com.apple.Terminal \
-          "Startup Window Settings" -string "Ubuntu" || true
-      fi
-    '';
-
-    # Static desktop wallpaper (the DEFAULT): the vendored wallpaper.png
-    # (./wallpaper/wallpaper.png, version-controlled → served from its immutable
-    # /nix/store copy). macOS keeps the desktop picture in a sqlite db that
-    # `defaults` can't reliably read/write, so drive it via System Events, which
-    # sets it for every display. Re-run each activation (cheap, idempotent — it
-    # just re-points at the same store path).
-    setWallpaper = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-      $DRY_RUN_CMD /usr/bin/osascript -e \
-        'tell application "System Events" to tell every desktop to set picture to "${./wallpaper/wallpaper.png}"' || true
     '';
   };
 
