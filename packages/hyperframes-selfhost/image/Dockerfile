@@ -2,8 +2,9 @@
 # aarch64/amd64 multi-arch friendly (Debian bookworm base).
 
 FROM node:22-bookworm-slim AS hyperframes-cli
-# Official HyperFrames CLI (npm). Renderer deps (Chromium) pull at first render if needed.
-RUN npm install -g hyperframes@latest \
+# Pin the 0.x HyperFrames CLI — floating @latest is not reproducible.
+ARG HYPERFRAMES_VERSION=0.7.73
+RUN npm install -g "hyperframes@${HYPERFRAMES_VERSION}" \
   && command -v hyperframes \
   && (hyperframes --help >/dev/null 2>&1 || true)
 
@@ -41,12 +42,20 @@ RUN apt-get update \
     xz-utils \
   && rm -rf /var/lib/apt/lists/*
 
-# Node 22 runtime + HyperFrames CLI from the builder stage
-COPY --from=hyperframes-cli /usr/local /usr/local
+# Copy only Node + HyperFrames from the builder — do NOT overlay entire
+# /usr/local onto Python's prefix (that can clobber the interpreter).
+COPY --from=hyperframes-cli /usr/local/bin/node /usr/local/bin/node
+COPY --from=hyperframes-cli /usr/local/bin/npm /usr/local/bin/npm
+COPY --from=hyperframes-cli /usr/local/bin/npx /usr/local/bin/npx
+COPY --from=hyperframes-cli /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN if [ -e /usr/local/lib/node_modules/hyperframes ]; then \
+      ln -sfn /usr/local/lib/node_modules/hyperframes/bin/hyperframes /usr/local/bin/hyperframes \
+      || ln -sfn ../lib/node_modules/.bin/hyperframes /usr/local/bin/hyperframes \
+      || true; \
+    fi
 
 # Kinocut (MCP video surface + HyperFrames tools)
 RUN pip install --no-cache-dir "kinocut[image]==1.11.1"
-
 # mcp-auth-proxy static binary (release assets are plain binaries, not archives)
 RUN set -eux; \
   arch="${TARGETARCH:-amd64}"; \
