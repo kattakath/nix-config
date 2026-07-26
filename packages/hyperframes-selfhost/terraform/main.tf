@@ -1,9 +1,10 @@
-# Plain OpenTofu/Terraform for non-Nix users.
-# Materializes nothing exotic: validates required vars, writes a stamped env
-# file if requested, and runs `docker compose up -d --build` via local-exec.
+# DEPRECATED in the public export path.
+# Terranix (infra/hyperframes/stack.nix) forges terraform/config.tf.json;
+# `nix run .#hf-export` ships THAT file and excludes this main.tf so the two
+# never collide. Prefer ../install.sh. Kept in the monorepo only as a readable
+# HCL twin for local experiments — do not commit both into the public repo.
 #
-# Prefer ../install.sh for interactive first-time setup. Use this when you want
-# IaC-style apply/destroy from CI or automation.
+# Prefer ../install.sh for interactive first-time setup.
 
 terraform {
   required_version = ">= 1.6.0"

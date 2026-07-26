@@ -38,38 +38,43 @@ cd hyperframes-selfhost
 ./install.sh
 ```
 
-`install.sh` will:
+`install.sh` will (two-phase):
 
 1. Check Docker + compose
-2. Copy `.env.example` → `.env` if missing
-3. Prompt for Google OAuth client + allowlisted emails + Tailscale auth key
-4. `docker compose up -d --build`
-5. Print the public Funnel URL and connector instructions
+2. Copy `.env.example` → `.env` if missing; prompt for secrets
+3. Start **Tailscale only** → wait for MagicDNS
+4. Write `EXTERNAL_URL=https://<host>.ts.net`
+5. Build/start Caddy + mcp-auth-proxy + Kinocut
+6. Enable Funnel → `:8080` (or print the tailnet Funnel enable URL)
+7. Print MCP URL + Google redirect URI
+
+Full checklist: [docs/hyperframes-selfhost.md](../../docs/hyperframes-selfhost.md) in the nix-config monorepo.
 
 ## Prerequisites
 
-### On the Linux VM (aarch64 recommended)
+### Runtime
 
-- Docker Engine 24+ and Compose v2
-- Outbound internet (pull images, Google OAuth, Funnel)
-- A [Tailscale](https://tailscale.com) account with **Funnel enabled** for the tailnet
+- Docker Engine 24+ and Compose v2 (**Linux**, or Docker Desktop’s Linux engine on Mac)
+- Outbound internet
+- Tailscale account; **Funnel enabled** on the tailnet (one-time admin click)
 
-### Google OAuth (Testing mode)
+### Google OAuth (Web application)
 
-1. [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials
-2. Create **OAuth client ID** → type **Web application**
-3. **Authorized redirect URI** (install will print the exact value):
+1. [Google Cloud Console](https://console.cloud.google.com/) → Google Auth Platform
+2. Audience **External** (Internal needs Workspace)
+3. Create **OAuth client ID** → type **Web application** (not Desktop)
+4. After install prints the hostname, set **Authorized redirect URI**:
    ```
-   https://<your-vm-magicdns>.ts.net/.auth/google/callback
+   https://<your-magicdns>.ts.net/.auth/google/callback
    ```
-   (mcp-auth-proxy’s documented Google callback path)
-4. Publishing status: **Testing**
-5. Add test users (the same emails you put in `GOOGLE_ALLOWED_USERS`)
+5. Prefer **Production** for long-lived MCP tokens (scopes are only openid/email/profile).  
+   **Testing** is fine for smoke tests; add the same emails as Test users.
+6. `GOOGLE_ALLOWED_USERS` must be **non-empty** comma-separated emails (proxy fail-open if empty).
 
-Email allowlisting is enforced **twice**:
+Allowlisting:
 
-- Google OAuth **Testing** test-user list (Google side)
-- `GOOGLE_ALLOWED_USERS` on mcp-auth-proxy (proxy side)
+- Proxy: `GOOGLE_ALLOWED_USERS` (authoritative for who may use the MCP)
+- Google Testing test-user list: only if you stay in Testing mode
 
 ## Configuration
 
@@ -117,18 +122,11 @@ Rotate Google secret: update `.env` → `docker compose up -d mcp`.
 
 Disable public access: `docker compose stop tailscale` (or remove Funnel in the Tailscale admin console). The stack stays reachable on the **tailnet only** if you switch Serve without Funnel.
 
-## Terraform / OpenTofu (optional)
+## Terraform / OpenTofu (optional, demoted)
 
-Non-Nix users who prefer Terraform:
-
-```bash
-cd terraform
-cp ../.env.example ../.env   # fill secrets
-tofu init
-tofu apply
-```
-
-This materializes config files and runs `docker compose up -d --build` via a local-exec provisioner. Pure Docker users can ignore this directory.
+**Prefer `./install.sh`.** The `terraform/` directory is a secondary helper only.
+Do not place terranix `config.tf.json` next to `main.tf` (duplicate resources).
+Secrets in local tfstate are a risk — use install.sh for v1 operations.
 
 ## Nix operators (source of truth)
 
@@ -147,7 +145,7 @@ Runbook: `docs/hyperframes-selfhost.md` in nix-config.
 
 - **Darwin host**: no Funnel, no public ports, no HyperFrames service.
 - **Linux VM**: sole Funnel origin; Caddy only binds loopback shared with Tailscale.
-- **Auth**: MCP OAuth 2.1 via mcp-auth-proxy; Google Testing + explicit email allowlist.
+- **Auth**: MCP OAuth 2.1 via mcp-auth-proxy; Google OAuth + explicit `GOOGLE_ALLOWED_USERS` allowlist (never empty).
 - **Media**: workspace volume is local to the VM; no cloud render credits.
 
 ## License

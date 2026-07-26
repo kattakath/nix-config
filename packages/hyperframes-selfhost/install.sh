@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# One-command installer for HyperFrames self-host on a Linux VM.
-# Safe to re-run (idempotent compose up). Never prints secret values.
+# One-command installer for HyperFrames self-host on Linux (or Docker Desktop
+# aarch64/amd64 Linux VM). Safe to re-run. Never prints secret values.
+#
+# Proven cold path (2026-07-26): two-phase start — Tailscale first for MagicDNS,
+# then set EXTERNAL_URL, then build/start Caddy + mcp-auth-proxy + Kinocut.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -13,18 +16,37 @@ die()  { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
 need_cmd() { command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"; }
 
+set_env_var() {
+  local var="$1" val="$2"
+  local tmp
+  tmp="$(mktemp)"
+  if grep -qE "^${var}=" .env 2>/dev/null; then
+    awk -v k="$var" -v v="$val" 'BEGIN{FS=OFS="="} $1==k{$0=k"="v} {print}' .env >"$tmp"
+  else
+    cat .env >"$tmp" 2>/dev/null || true
+    printf '%s=%s\n' "$var" "$val" >>"$tmp"
+  fi
+  mv "$tmp" .env
+  export "${var}=${val}"
+}
+
 bold "HyperFrames self-host installer"
 info "Root: $ROOT"
 
 # ---- Preflight ---------------------------------------------------------------
-[[ "$(uname -s)" == "Linux" ]] || warn "This installer targets a Linux VM (you are on $(uname -s))"
+# Docker Desktop on macOS is fine: the engine is still Linux (arm64/amd64).
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  warn "Host is macOS — expecting Docker Desktop Linux engine (not native Darwin containers)"
+fi
 
 need_cmd docker
 docker compose version >/dev/null 2>&1 || die "Docker Compose v2 required (docker compose)"
+docker info >/dev/null 2>&1 || die "Docker daemon not running (start Docker Desktop / dockerd)"
 
 if [[ ! -f .env ]]; then
   info "Creating .env from .env.example"
   cp .env.example .env
+  chmod 600 .env || true
 fi
 
 # shellcheck disable=SC1091
@@ -49,16 +71,7 @@ prompt_if_empty() {
     read -r -p "$label: " cur
   fi
   [[ -n "$cur" ]] || die "$var still empty"
-  # Persist without echoing
-  if grep -qE "^${var}=" .env; then
-    # portable-ish in-place replace
-    tmp="$(mktemp)"
-    awk -v k="$var" -v v="$cur" 'BEGIN{FS=OFS="="} $1==k{$0=k"="v} {print}' .env >"$tmp"
-    mv "$tmp" .env
-  else
-    printf '%s=%s\n' "$var" "$cur" >>.env
-  fi
-  export "$var=$cur"
+  set_env_var "$var" "$cur"
 }
 
 prompt_if_empty TS_AUTHKEY "Tailscale auth key (tskey-auth-…)" 1
@@ -67,79 +80,112 @@ prompt_if_empty GOOGLE_CLIENT_SECRET "Google OAuth client secret" 1
 prompt_if_empty GOOGLE_ALLOWED_USERS "Allowlisted emails (comma-separated)"
 
 TS_HOSTNAME="${TS_HOSTNAME:-hyperframes}"
+set_env_var TS_HOSTNAME "$TS_HOSTNAME"
 
-# EXTERNAL_URL: prefer explicit; otherwise leave a placeholder until tailscale is up
-if [[ -z "${EXTERNAL_URL:-}" ]]; then
-  info "EXTERNAL_URL empty — will set after Tailscale joins the tailnet"
+# compose requires EXTERNAL_URL at parse time — bootstrap then replace after DNS.
+if [[ -z "${EXTERNAL_URL:-}" || "$EXTERNAL_URL" == "https://bootstrap.invalid" ]]; then
+  info "EXTERNAL_URL empty — using temporary bootstrap; will rewrite after MagicDNS"
+  set_env_var EXTERNAL_URL "https://bootstrap.invalid"
 fi
 
 mkdir -p "${WORKSPACE_DIR:-./workspace}" config
+chmod +x image/entrypoint.sh scripts/doctor.sh 2>/dev/null || true
 
-# ---- Build & start -----------------------------------------------------------
-bold "Building images and starting stack"
-docker compose pull tailscale caddy || true
-docker compose up -d --build
+# ---- Phase 1: Tailscale only (join + MagicDNS) ------------------------------
+bold "Phase 1: Tailscale join"
+docker compose pull tailscale || true
+docker compose up -d tailscale
 
-# ---- Wait for Tailscale, resolve MagicDNS ------------------------------------
-info "Waiting for Tailscale to come online…"
-deadline=$((SECONDS + 120))
+info "Waiting for Tailscale MagicDNS…"
+deadline=$((SECONDS + 180))
 dns_name=""
-while (( SECONDS < deadline )); do
-  if dns_name="$(docker exec hf-tailscale tailscale status --json 2>/dev/null \
-      | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("Self",{}).get("DNSName","").rstrip("."))' 2>/dev/null)"; then
+while ((SECONDS < deadline)); do
+  if dns_name="$(
+    docker exec hf-tailscale tailscale status --json 2>/dev/null \
+      | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("Self",{}).get("DNSName","").rstrip("."))' 2>/dev/null
+  )"; then
     if [[ -n "$dns_name" ]]; then
       break
     fi
   fi
-  sleep 3
+  st="$(docker inspect -f '{{.State.Status}}' hf-tailscale 2>/dev/null || echo missing)"
+  if [[ "$st" == "restarting" ]]; then
+    warn "hf-tailscale restarting — last logs:"
+    docker compose logs --tail 20 tailscale || true
+  fi
+  sleep 4
 done
 
 if [[ -z "$dns_name" ]]; then
-  warn "Could not resolve MagicDNS name yet. Check: docker compose logs tailscale"
-  warn "Once online, set EXTERNAL_URL=https://<node>.ts.net and: docker compose up -d mcp"
-else
-  url="https://${dns_name}"
-  info "Tailscale DNS: $dns_name"
-  if [[ -z "${EXTERNAL_URL:-}" || "$EXTERNAL_URL" != "$url" ]]; then
-    tmp="$(mktemp)"
-    if grep -qE '^EXTERNAL_URL=' .env; then
-      awk -v v="$url" 'BEGIN{FS=OFS="="} $1=="EXTERNAL_URL"{$0="EXTERNAL_URL="v} {print}' .env >"$tmp"
-    else
-      cat .env >"$tmp"
-      printf 'EXTERNAL_URL=%s\n' "$url" >>"$tmp"
-    fi
-    mv "$tmp" .env
-    export EXTERNAL_URL="$url"
-    info "Set EXTERNAL_URL=$url — restarting mcp"
-    docker compose up -d mcp
+  docker compose logs --tail 80 tailscale || true
+  die "Could not resolve MagicDNS. Check TS_AUTHKEY and: docker compose logs tailscale"
+fi
+
+url="https://${dns_name}"
+info "MagicDNS: $dns_name"
+set_env_var EXTERNAL_URL "$url"
+
+# ---- Phase 2: Caddy + mcp-auth-proxy + Kinocut ------------------------------
+bold "Phase 2: build + start Caddy and MCP"
+# Re-source so compose sees the new EXTERNAL_URL
+set -a
+# shellcheck source=/dev/null
+source .env
+set +a
+
+docker compose pull caddy || true
+docker compose up -d --build
+
+# ---- Funnel (public HTTPS) ---------------------------------------------------
+info "Ensuring Tailscale Funnel → 127.0.0.1:8080…"
+if ! docker exec hf-tailscale tailscale funnel status 2>/dev/null | grep -q 'Funnel on'; then
+  if ! docker exec hf-tailscale tailscale funnel --bg http://127.0.0.1:8080 2>/dev/null; then
+    warn "Funnel not enabled on this tailnet yet."
+    warn "Open the URL printed by: docker exec hf-tailscale tailscale funnel --bg http://127.0.0.1:8080"
+    warn "Typically: https://login.tailscale.com/f/funnel?node=…"
   fi
 fi
 
-# ---- Funnel note -------------------------------------------------------------
-info "Ensuring Funnel is advertised (serve config mounts AllowFunnel)…"
-docker exec hf-tailscale tailscale funnel status 2>/dev/null || \
-  warn "Funnel status unavailable yet — enable Funnel for your tailnet if needed: https://tailscale.com/docs/features/tailscale-funnel"
+# ---- Wait for mcp health -----------------------------------------------------
+info "Waiting for mcp-auth-proxy healthz…"
+ok=0
+for _ in $(seq 1 40); do
+  if docker exec hf-tailscale wget -qO- http://127.0.0.1:8090/healthz 2>/dev/null | grep -q ok; then
+    ok=1
+    break
+  fi
+  sleep 3
+done
+if [[ "$ok" -ne 1 ]]; then
+  warn "healthz not ready — check: docker logs hf-mcp"
+  docker logs hf-mcp 2>&1 | tail -40 || true
+fi
 
 # ---- Summary -----------------------------------------------------------------
 bold "Install complete"
 cat <<EOF
 
-Public MCP URL (after Funnel is active):
-  ${EXTERNAL_URL:-https://<your-node>.ts.net}/mcp
+Public base URL:
+  ${EXTERNAL_URL}
 
-Google OAuth redirect URI to register in Cloud Console (Web client):
-  ${EXTERNAL_URL:-https://<your-node>.ts.net}/.auth/google/callback
+MCP connector URL (Claude / Grok / Cursor):
+  ${EXTERNAL_URL}/mcp
 
-Allowlisted emails:
+Google OAuth redirect URI (Web client → Authorized redirect URIs):
+  ${EXTERNAL_URL}/.auth/google/callback
+
+Allowlisted emails (mcp-auth-proxy --google-allowed-users, CSV-split):
   ${GOOGLE_ALLOWED_USERS}
 
-Next steps:
-  1. Confirm Google OAuth client is in Testing mode with those test users.
-  2. Add the MCP connector in Claude/Grok with URL above.
-  3. Complete Google login once; only allowlisted emails pass.
+Also add the same emails as Google OAuth consent **Test users** while in Testing,
+or publish the app to Production (basic openid/email/profile scopes).
 
 Ops:
+  docker compose ps
   docker compose logs -f
   ./scripts/doctor.sh
+  # Public probe (use a public DNS resolver if host MagicDNS fails):
+  #   dig +short ${dns_name} @8.8.8.8
+  #   curl -i -X POST ${EXTERNAL_URL}/mcp -H 'content-type: application/json' -d '{}'
 
 EOF
