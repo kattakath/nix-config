@@ -200,6 +200,9 @@ in
     # (github:ismailkattakath/keychain-secrets), installed via its HM module below.
     # Internally darwin-gated, so it's a clean no-op on the NixOS hosts.
     keychain-secrets.homeManagerModules.default
+    # Voice companion: Ollama (uncensored chat) + Whisper STT + Piper TTS — see
+    # modules/shared/voice-companion.nix. Darwin-gated no-op on NixOS hosts.
+    ./voice-companion.nix
   ];
 
   # Enable the extracted keychain-secrets module (installs the secret/set-secret/
@@ -214,6 +217,12 @@ in
   # generated launchd agents are byte-identical.
   services.ollamaLocal.enable = true;
   services.pgvectorLocal.enable = true;
+
+  # Local voice companion on the Mac: pulls dolphin-mistral (uncensored), creates
+  # a `companion` Modelfile tag, installs whisper-cpp (Metal/CoreML) + piper-tts
+  # with declarative model/voice assets, and exposes `voice-companion` on PATH.
+  # Requires ollamaLocal above. Darwin-only (mic + launchd + Metal).
+  services.voiceCompanion.enable = pkgs.stdenv.isDarwin;
 
   # Expose the kapture browser-automation server PUBLICLY as an OAuth-gated MCP
   # connector (Cloudflare Access Managed OAuth in front, provisioned by
