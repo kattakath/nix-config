@@ -5,7 +5,12 @@
 # Homebrew app set and the localhost MCP gateway turned OFF (see below). Think of
 # it as the darwin analogue of `nixvm`: a sandbox host, distinct from the real Mac.
 #
-# Activate INSIDE the VM (the guest's login account MUST be `ismailkattakath`, or
+# SEPARATE PERSONA: this host runs under the `aloshy` / aloshy.ai account (same
+# person, isolated local identity), set via the per-host `identity` override at
+# the mkDarwin call in flake.nix — so `userName` here resolves to `aloshy`, NOT the
+# global `ismailkattakath`.
+#
+# Activate INSIDE the VM (the guest's login account MUST be `aloshy`, or
 # home-manager builds /Users/<wrong> paths):
 #   nix run github:kattakath/nix-config#macvm    # first activation (before darwin-rebuild is on PATH)
 #   darwin-rebuild switch --flake .#macvm         # thereafter
