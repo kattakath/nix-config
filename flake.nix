@@ -867,6 +867,13 @@
         (nixpkgs.lib.genAttrs darwinSystems (system: {
           jobspy = (pkgsFor system).callPackage ./packages/jobspy.nix { };
         }))
+
+        # `obs-fb-setup` (macOS only) — write an OBS "Facebook" profile for Facebook Live,
+        # injecting FB_PERSISTENT_STREAM_KEY from the login Keychain at run time (never in
+        # git/store). Package so `nix flake check` shellchecks it; on PATH + `nix run`.
+        (nixpkgs.lib.genAttrs darwinSystems (system: {
+          obs-fb-setup = (pkgsFor system).callPackage ./packages/obs-fb-setup.nix { };
+        }))
       ];
 
       # ---- Apps: dev VM + Cloudflare provisioning ----------------------------
@@ -1048,6 +1055,14 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.jobspy}/bin/jobspy";
               meta.description = "Scrape jobs (LinkedIn/Indeed/Glassdoor/…) into CSV/JSON via python-jobspy: jobspy --search … --location … [--sites …] [--results N] [--remote]";
+            };
+
+            # `nix run .#obs-fb-setup` — write an OBS "Facebook" profile for Facebook Live,
+            # injecting FB_PERSISTENT_STREAM_KEY from the login Keychain (also on PATH).
+            aarch64-darwin.obs-fb-setup = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.obs-fb-setup}/bin/obs-fb-setup";
+              meta.description = "Write an OBS 'Facebook' profile for Facebook Live, injecting FB_PERSISTENT_STREAM_KEY from the login Keychain (never in git)";
             };
 
           }
