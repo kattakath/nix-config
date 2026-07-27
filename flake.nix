@@ -512,39 +512,51 @@
       # (mkDarwin's `identity` arg) pass their own. The home-manager profile keys on
       # idArgs.userName, and extraSpecialArgs threads that same identity into
       # modules/shared/home.nix. extraSpecialArgs also adds mcp-servers-nix etc.
-      mkHomeManagerModule = idArgs: {
-        home-manager = {
-          useGlobalPkgs = true;
-          useUserPackages = true;
-          # Back up (don't abort on) any pre-existing UNMANAGED file that a newly
-          # Nix-managed home.file would clobber — e.g. ~/.claude/settings.json and
-          # ~/.claude/plugins/known_marketplaces.json, now owned by the
-          # programs.claude-code marketplaces/settings options. Without this, HM
-          # activation hard-fails on the first such collision.
-          backupFileExtension = "hm-bak";
-          extraSpecialArgs = idArgs // {
-            inherit
-              mcp-servers-nix
-              agent-skills-vercel
-              agent-skills-anthropic
-              grok-build-plugin-cc
-              keychain-secrets
-              local-rag
-              # mcpPublicPort: the public (OAuth-gated) mcp-proxy port consumed by
-              # modules/shared/mcp.nix (inert on the NixOS hosts).
-              mcpPublicPort
-              # jsonResumeUrl: the raw resume.json URL (or null), consumed by home.nix
-              # to bake into the jsonresume package as its default --url (darwin
-              # home.packages; inert on the NixOS hosts).
-              jsonResumeUrl
-              ;
-          };
-          users.${idArgs.userName} = {
-            imports = [ ./modules/shared/home.nix ];
-            home.stateVersion = "24.05";
+      #
+      # `extraHomeModules` is the public COMPOSITION HOOK for private (or third-party)
+      # home-manager modules — same role as `provision.sh` for Vast stacks: this
+      # flake owns the contract, never the private stack. Callers (typically a
+      # private flake that re-exports `darwinConfigurations.macos` via `lib.mkDarwin`)
+      # pass zero or more modules; the public tree ships none. See
+      # docs/private-home-modules.md.
+      mkHomeManagerModule =
+        {
+          idArgs,
+          extraHomeModules ? [ ],
+        }:
+        {
+          home-manager = {
+            useGlobalPkgs = true;
+            useUserPackages = true;
+            # Back up (don't abort on) any pre-existing UNMANAGED file that a newly
+            # Nix-managed home.file would clobber — e.g. ~/.claude/settings.json and
+            # ~/.claude/plugins/known_marketplaces.json, now owned by the
+            # programs.claude-code marketplaces/settings options. Without this, HM
+            # activation hard-fails on the first such collision.
+            backupFileExtension = "hm-bak";
+            extraSpecialArgs = idArgs // {
+              inherit
+                mcp-servers-nix
+                agent-skills-vercel
+                agent-skills-anthropic
+                grok-build-plugin-cc
+                keychain-secrets
+                local-rag
+                # mcpPublicPort: the public (OAuth-gated) mcp-proxy port consumed by
+                # modules/shared/mcp.nix (inert on the NixOS hosts).
+                mcpPublicPort
+                # jsonResumeUrl: the raw resume.json URL (or null), consumed by home.nix
+                # to bake into the jsonresume package as its default --url (darwin
+                # home.packages; inert on the NixOS hosts).
+                jsonResumeUrl
+                ;
+            };
+            users.${idArgs.userName} = {
+              imports = [ ./modules/shared/home.nix ] ++ extraHomeModules;
+              home.stateVersion = "24.05";
+            };
           };
         };
-      };
 
       # ---- NixOS system builder -----------------------------------------------
       # Full NixOS system with Home Manager embedded, using the same shared user
@@ -583,7 +595,7 @@
             ./modules/shared/nix-cache.nix # Cachix binary cache (read)
             agenix.nixosModules.default # encrypted in-repo secrets (./secrets/*.age)
             home-manager.nixosModules.home-manager
-            (mkHomeManagerModule identityArgs) # NixOS hosts use the global identity
+            (mkHomeManagerModule { idArgs = identityArgs; }) # NixOS hosts use the global identity
           ]
           ++ extraModules;
         };
@@ -602,6 +614,9 @@
           hostname,
           identity ? identityArgs,
           extraModules ? [ ],
+          # Private / third-party home-manager modules (see docs/private-home-modules.md).
+          # Public hosts pass nothing; a private composition flake passes its modules here.
+          extraHomeModules ? [ ],
         }:
         nix-darwin.lib.darwinSystem {
           inherit system;
@@ -645,12 +660,28 @@
             agenix.darwinModules.default # encrypted in-repo secrets (./secrets/*.age)
             ./hosts/${hostname}.nix
             home-manager.darwinModules.home-manager
-            (mkHomeManagerModule identity)
+            (mkHomeManagerModule {
+              idArgs = identity;
+              inherit extraHomeModules;
+            })
           ]
           ++ extraModules;
         };
     in
     {
+      # ---- Composition API (private flakes, local overrides) --------------------
+      # Mirrors the Vast provisioner contract: this public flake is the engine;
+      # private stacks plug in via `extraHomeModules` without forking hosts/.
+      # Consumers: a private flake calls `nix-config.lib.mkDarwin { …; extraHomeModules = [ … ]; }`.
+      lib = {
+        inherit
+          mkDarwin
+          mkNixos
+          mkHomeManagerModule
+          identityArgs
+          ;
+      };
+
       # ---- Machine-readable identity ------------------------------------------
       # The flake's single-source `let` identity bindings, surfaced so `bootstrap.sh`
       # can guard on them BEFORE activating. `key-recover` reads
