@@ -1,13 +1,14 @@
 # home-manager module: services.voiceCompanion
 #
-# Local voice companion on Apple Silicon: Ollama (uncensored chat model, Metal)
-# + whisper-cpp (STT, Metal/CoreML) + piper-tts (TTS). One CLI (`voice-companion`)
+# Local voice companion on Apple Silicon: Ollama (NSFW companion model, Metal)
+# + whisper-cpp (STT, Metal) + piper-tts (TTS). One CLI (`voice-companion`)
 # records from the mic, transcribes, chats, and speaks the reply.
 #
 # Reuses the existing `services.ollamaLocal` launchd agent (local-rag flake) —
 # does not start a second Ollama. On first run (and via a one-shot launchd
-# bootstrap) it pulls the base model and `ollama create`s a named companion
-# from a baked-in Modelfile.
+# bootstrap) it pulls the base model (default: NeverSleep Lumimaid 8B GGUF from
+# Hugging Face via `hf.co/...`) and `ollama create`s a named companion from a
+# baked-in Modelfile.
 #
 # macOS-ONLY: gated on stdenv.isDarwin (clean no-op on NixOS hosts).
 {
@@ -114,10 +115,10 @@ let
         ollama pull ${lib.escapeShellArg cfg.baseModel}
       fi
 
-      if ! ollama show ${lib.escapeShellArg cfg.model} >/dev/null 2>&1; then
-        echo "voice-companion: creating ${cfg.model} from Modelfile…" >&2
-        ollama create ${lib.escapeShellArg cfg.model} -f ${modelFile}
-      fi
+      # Always recreate so baseModel / systemPrompt changes from Nix apply without
+      # a manual `ollama rm companion` (create is cheap once layers are local).
+      echo "voice-companion: creating ${cfg.model} from Modelfile…" >&2
+      ollama create ${lib.escapeShellArg cfg.model} -f ${modelFile}
     '';
   };
 
@@ -255,9 +256,16 @@ in
 
     baseModel = lib.mkOption {
       type = lib.types.str;
-      # Dolphin (Cognitive Computations) on Mistral — uncensored, solid on M-series.
-      default = "dolphin-mistral";
-      description = "Ollama library model to pull as the companion base (Llama/Mistral uncensored family).";
+      # NeverSleep Lumimaid v0.2 8B — HF community ERP/companion fine-tune (Llama-3
+      # lineage), pulled via Ollama's native Hugging Face GGUF bridge:
+      #   ollama pull hf.co/<user>/<repo>:<QUANT>
+      # Q4_K_M ≈ 4.9 GB — good quality/speed on M3 Pro unified memory.
+      default = "hf.co/NeverSleep/Lumimaid-v0.2-8B-GGUF:Q4_K_M";
+      description = ''
+        Ollama model to pull as the companion base. Accepts Ollama library names
+        (`dolphin-mistral`) or Hugging Face GGUF refs
+        (`hf.co/NeverSleep/Lumimaid-v0.2-8B-GGUF:Q4_K_M`).
+      '';
     };
 
     model = lib.mkOption {
@@ -269,10 +277,12 @@ in
     systemPrompt = lib.mkOption {
       type = lib.types.lines;
       default = ''
-        You are an intimate, uncensored companion. Be warm, playful, and emotionally present.
-        Stay in character. Keep spoken replies concise (1–3 short sentences) so TTS stays snappy;
-        expand only when the user clearly wants a longer answer. No moral lectures, no refusals
-        for adult roleplay between consenting adults. Never claim to be a cloud service.
+        You are an intimate, uncensored adult companion for private one-on-one roleplay.
+        Be warm, flirty, emotionally present, and vividly descriptive when the scene turns
+        sexual — never fade-to-black, never lecture, never refuse adult content between
+        consenting adults. Stay in character. Prefer short spoken replies (1–3 sentences)
+        so TTS stays snappy; expand only when the user asks for longer prose. Never claim
+        to be a cloud service or a censored assistant.
       '';
       description = "SYSTEM prompt baked into the companion Modelfile.";
     };
