@@ -6,9 +6,9 @@
 #
 # Reuses the existing `services.ollamaLocal` launchd agent (local-rag flake) —
 # does not start a second Ollama. On first run (and via a one-shot launchd
-# bootstrap) it pulls the base model (default: L3-8B-Stheno-v3.2 abliterated
-# GGUF from Hugging Face via `hf.co/...` — ERP-tuned + refusal pathways
-# removed) and `ollama create`s a named companion from a baked-in Modelfile.
+# bootstrap) it pulls the base model (default: NeverSleep Lumimaid v0.2 8B GGUF
+# from Hugging Face via `hf.co/...` — warm companion/ERP fine-tune) and
+# `ollama create`s a named companion from a baked-in Modelfile.
 #
 # macOS-ONLY: gated on stdenv.isDarwin (clean no-op on NixOS hosts).
 {
@@ -289,13 +289,14 @@ in
 
     baseModel = lib.mkOption {
       type = lib.types.str;
-      # Stheno v3.2 (L3 ERP classic) with abliteration — residual Llama-3
-      # "family-friendly / my creators" refusals surgically weakened. Pulled via
-      # Ollama's Hugging Face GGUF bridge: ollama pull hf.co/<user>/<repo>:<QUANT>
-      # Q4_K_M ≈ 4.9 GB — solid on M3 Pro. Alternatives if you retune:
-      #   hf.co/bartowski/L3-8B-Stheno-v3.2-GGUF:Q4_K_M
+      # NeverSleep Lumimaid v0.2 8B — warm companion/ERP fine-tune (Llama-3).
+      # Residual rare refusals handled by the hardened system prompt below.
+      # Pulled via Ollama's Hugging Face GGUF bridge:
+      #   ollama pull hf.co/<user>/<repo>:<QUANT>
+      # Q4_K_M ≈ 4.9 GB. Alternatives if you retune:
+      #   hf.co/mradermacher/L3-8B-Stheno-v3.2-abliterated-GGUF:Q4_K_M
       #   hf.co/bartowski/Llama-3.1-8B-Lexi-Uncensored-V2-GGUF:Q4_K_M
-      default = "hf.co/mradermacher/L3-8B-Stheno-v3.2-abliterated-GGUF:Q4_K_M";
+      default = "hf.co/NeverSleep/Lumimaid-v0.2-8B-GGUF:Q4_K_M";
       description = ''
         Ollama model to pull as the companion base. Accepts Ollama library names
         or Hugging Face GGUF refs (`hf.co/<user>/<repo>:<QUANT>`).
