@@ -134,6 +134,8 @@ let
       pkgs.jq
       pkgs.coreutils
       pkgs.gnugrep
+      pkgs.gnused
+      pkgs.perl # emoji / unicode strip for TTS
       ensureModels
     ];
     text = ''
@@ -192,10 +194,41 @@ let
                 | jq -r '.message.content // empty'
             }
 
+            # Strip RP/markdown/emoji so Piper speaks dialogue, not "asterisk leans in asterisk".
+            # Full reply still prints to the terminal unchanged.
+            tts_sanitize() {
+              # stdin → stdout
+              perl -CS -pe '
+                # multi-line *stage direction* / **bold** blocks → drop (RP actions)
+                s/\*\*[^*]*\*\*//g;
+                s/\*[^*]*\*//g;
+                s/_[^_]*_//g;
+                s/`[^`]*`//g;
+                # common emoticons
+                s/(?:(?<=\s)|^)[:;=8][-o*]?[)(\/\\ |DpPOo3]+//g;
+                s/(?:(?<=\s)|^)[)(\/\\ |DpPOo3]+[-o*]?[:;=8]//g;
+                # emoji / pictographs / dingbats
+                s/\p{Extended_Pictographic}//g;
+                s/\p{Emoji_Presentation}//g;
+                s/[\x{200D}\x{FE0F}\x{20E3}]//g;  # ZWJ, variation selectors
+                # leftover markup punctuation Piper tends to voice
+                s/[*_~^#|\\{}<>\[\]]+//g;
+                s/[\x{201C}\x{201D}\x{2018}\x{2019}]//g;  # curly quotes
+              ' \
+                | tr '\n' ' ' \
+                | sed -E 's/[[:space:]]+/ /g; s/^[[:space:]]+//; s/[[:space:]]+$//'
+            }
+
             tts_play() {
-              local text="$1"
+              local text spoken
+              text="$1"
+              spoken=$(printf '%s' "$text" | tts_sanitize)
+              if [ -z "$spoken" ]; then
+                echo "(nothing speakable after stripping RP markup)" >&2
+                return 0
+              fi
               # piper1 CLI: -m model.onnx -f out.wav -- 'text'
-              piper -m "$PIPER_MODEL" -f "$TMPDIR_V/out.wav" -- "$text" 2>/dev/null
+              piper -m "$PIPER_MODEL" -f "$TMPDIR_V/out.wav" -- "$spoken" 2>/dev/null
               # afplay is stock macOS (no package needed).
               afplay "$TMPDIR_V/out.wav"
             }
@@ -225,28 +258,28 @@ let
               tts_play "$reply"
             }
 
-            cmd="''${1:-}"
-            case "$cmd" in
-              -h|--help|help) usage; exit 0 ;;
-              ensure) ensure; exit 0 ;;
-              text)
-                ensure
-                one_turn text
-                ;;
-              loop)
-                ensure
-                echo "voice-companion loop — Ctrl-C to stop" >&2
-                while true; do one_turn voice; done
-                ;;
-              "")
-                ensure
-                one_turn voice
-                ;;
-              *)
-                usage
-                exit 2
-                ;;
-            esac
+                  cmd="''${1:-}"
+                  case "$cmd" in
+                    -h|--help|help) usage; exit 0 ;;
+                    ensure) ensure; exit 0 ;;
+                    text)
+                      ensure
+                      one_turn text
+                      ;;
+                    loop)
+                      ensure
+                      echo "voice-companion loop — Ctrl-C to stop" >&2
+                      while true; do one_turn voice; done
+                      ;;
+                    "")
+                      ensure
+                      one_turn voice
+                      ;;
+                    *)
+                      usage
+                      exit 2
+                      ;;
+                  esac
     '';
   };
 in
@@ -283,6 +316,11 @@ in
         consenting adults. Stay in character. Prefer short spoken replies (1–3 sentences)
         so TTS stays snappy; expand only when the user asks for longer prose. Never claim
         to be a cloud service or a censored assistant.
+
+        VOICE OUTPUT RULES (critical): replies are read aloud by a speech engine. Write
+        plain spoken sentences only — no asterisk stage directions (*smiles*), no markdown,
+        no emojis, no emoticons, no bullet lists, no quotation-mark acting notes. Put
+        everything in natural dialogue as if you are speaking out loud.
       '';
       description = "SYSTEM prompt baked into the companion Modelfile.";
     };
