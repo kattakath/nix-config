@@ -341,52 +341,49 @@ in
   # (those wrap as /bin/sh -c wait4path and show as phantom "sh").
   # See docs/macos-settings-surface.md.
   #
-  # Host scope: GUI login openers are **macos only** (real Mac app set). The
-  # UTM sandbox (macvm) must not inherit Docker/Maccy/Slack/Mail/Messages agents.
-  # Screengrab rotation is fine on every darwin host that uses this module.
-  launchd.user.agents = lib.mkMerge [
-    (lib.mkIf (config.networking.hostName == "macos") {
-      # Agent attr names (open-*) keep launchd Labels stable so existing BTM
-      # toggle state is preserved. Turn OFF each app's own "Open at Login".
-      open-maccy = mkNixAgent "maccy" "Maccy";
-      open-docker = mkNixAgent "docker" "Docker";
-      open-slack = mkNixAgent "slack" "Slack";
-      open-mail = mkNixAgent "mail" "Mail";
-      open-messages = mkNixAgent "messages" "Messages";
-    })
+  # Host scope: GUI login openers + Screengrab rotation are **macos only**.
+  # macvm mounts the host's Screengrab via UTM VirtioFS (see hosts/macvm.nix +
+  # macvm-utm-share-screengrab) — rotating it on the guest would trash host files
+  # into the guest's ~/.Trash.
+  launchd.user.agents = lib.mkIf (config.networking.hostName == "macos") {
+    # Agent attr names (open-*) keep launchd Labels stable so existing BTM
+    # toggle state is preserved. Turn OFF each app's own "Open at Login".
+    open-maccy = mkNixAgent "maccy" "Maccy";
+    open-docker = mkNixAgent "docker" "Docker";
+    open-slack = mkNixAgent "slack" "Slack";
+    open-mail = mkNixAgent "mail" "Mail";
+    open-messages = mkNixAgent "messages" "Messages";
 
-    {
-      # Hourly rotation of ~/Pictures/Screengrab → ~/.Trash (recoverable).
-      # Stock /bin + /usr/bin only (no Nix runtime). Direct ProgramArguments
-      # with a nix-* basename — do NOT use `script =` (forces /bin/sh wrapper).
-      file-rotation-screengrab = {
-        serviceConfig = {
-          Label = "${rdns}.file-rotation.trash-screengrab";
-          ProgramArguments = [
-            "${pkgs.writeShellScriptBin "nix-file-rotation-screengrab" ''
-              set -eu
-              /bin/mkdir -p "${home}/Library/Logs" "${home}/.Trash" "${screengrabDir}"
-              /usr/bin/find "${screengrabDir}" -maxdepth 1 -type f ! -name '.DS_Store' -mmin +1440 \
-                -exec /bin/sh -c 'for f do
-                  dest="${home}/.Trash/$(/usr/bin/basename "$f")"
-                  [ -e "$dest" ] && dest="$dest.$(/bin/date +%Y%m%d%H%M%S)"
-                  /bin/mv -- "$f" "$dest"
-                done' _ {} +
-            ''}/bin/nix-file-rotation-screengrab"
-          ];
-          StartInterval = 3600;
-          RunAtLoad = true;
-          StandardOutPath = "${home}/Library/Logs/file-rotation-trash-screengrab.log";
-          StandardErrorPath = "${home}/Library/Logs/file-rotation-trash-screengrab.log";
-        };
+    # Hourly rotation of ~/Pictures/Screengrab → ~/.Trash (recoverable).
+    # Stock /bin + /usr/bin only (no Nix runtime). Direct ProgramArguments
+    # with a nix-* basename — do NOT use `script =` (forces /bin/sh wrapper).
+    # Path is atomic with system.defaults.screencapture.location above.
+    file-rotation-screengrab = {
+      serviceConfig = {
+        Label = "${rdns}.file-rotation.trash-screengrab";
+        ProgramArguments = [
+          "${pkgs.writeShellScriptBin "nix-file-rotation-screengrab" ''
+            set -eu
+            /bin/mkdir -p "${home}/Library/Logs" "${home}/.Trash" "${screengrabDir}"
+            /usr/bin/find "${screengrabDir}" -maxdepth 1 -type f ! -name '.DS_Store' -mmin +1440 \
+              -exec /bin/sh -c 'for f do
+                dest="${home}/.Trash/$(/usr/bin/basename "$f")"
+                [ -e "$dest" ] && dest="$dest.$(/bin/date +%Y%m%d%H%M%S)"
+                /bin/mv -- "$f" "$dest"
+              done' _ {} +
+          ''}/bin/nix-file-rotation-screengrab"
+        ];
+        StartInterval = 3600;
+        RunAtLoad = true;
+        StandardOutPath = "${home}/Library/Logs/file-rotation-trash-screengrab.log";
+        StandardErrorPath = "${home}/Library/Logs/file-rotation-trash-screengrab.log";
       };
-    }
-  ];
+    };
+  };
 
-  # `screencapture` silently reverts to ~/Desktop if its target dir is missing,
-  # so guarantee it exists (and is user-owned) at activation. Activation runs as
-  # root in current nix-darwin, hence the explicit chown.
-  system.activationScripts.postActivation.text = ''
+  # Real Screengrab dir only on macos (owner of the files). macvm uses a symlink
+  # to the UTM VirtioFS share (hosts/macvm.nix) — do not mkdir a local dir there.
+  system.activationScripts.postActivation.text = lib.mkIf (config.networking.hostName == "macos") ''
     mkdir -p "${screengrabDir}"
     chown ${userName} "${screengrabDir}"
   '';

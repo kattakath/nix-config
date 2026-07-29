@@ -168,4 +168,88 @@ in
     ];
     masApps = { };
   };
+
+  # ---- Host Screengrab via UTM VirtioFS --------------------------------------
+  # Host path (single source with macos screencapture + file-rotation):
+  #   /Users/ismailkattakath/Pictures/Screengrab
+  # UTM Registry SharedDirectories (R/W) exposes it; Apple automounts as
+  #   /Volumes/My Shared Files/Screengrab
+  # We keep ~/Pictures/Screengrab → that share (same path shape as macos).
+  # Host: `nix run .#macvm-utm-share-screengrab` (registers share + bookmark).
+  # Do NOT run file-rotation here (core.nix gates it to hostname macos).
+  launchd.user.agents.nix-screengrab-share = {
+    serviceConfig = {
+      Label = "org.nixos.nix-screengrab-share";
+      ProgramArguments = [
+        "${pkgs.writeShellScriptBin "nix-screengrab-share" ''
+          set -euo pipefail
+          shared="/Volumes/My Shared Files/Screengrab"
+          local="${
+            # Keep in sync with modules/darwin/core.nix screengrabDir shape.
+            "/Users/${userName}/Pictures/Screengrab"
+          }"
+          # VirtioFS may appear after login; wait up to ~2 min.
+          i=0
+          while [ ! -d "$shared" ] && [ "$i" -lt 60 ]; do
+            sleep 2
+            i=$((i + 1))
+          done
+          if [ ! -d "$shared" ]; then
+            echo "nix-screengrab-share: $shared not present (host share + UTM SharedDirectories?)" >&2
+            exit 0
+          fi
+          /bin/mkdir -p "$(/usr/bin/dirname "$local")"
+          if [ -L "$local" ]; then
+            cur="$(/usr/bin/readlink "$local" || true)"
+            if [ "$cur" = "$shared" ]; then
+              exit 0
+            fi
+            /bin/rm -f "$local"
+          elif [ -d "$local" ]; then
+            # Replace empty local dir; back up if it has content.
+            count="$(/usr/bin/find "$local" -mindepth 1 ! -name '.DS_Store' 2>/dev/null | /usr/bin/wc -l | /usr/bin/tr -d ' ')"
+            if [ "''${count:-0}" -eq 0 ]; then
+              /bin/rm -rf "$local"
+            else
+              /bin/mv "$local" "''${local}.local-backup.$(/bin/date +%Y%m%d%H%M%S)"
+            fi
+          elif [ -e "$local" ]; then
+            /bin/mv "$local" "''${local}.local-backup.$(/bin/date +%Y%m%d%H%M%S)"
+          fi
+          /bin/ln -sfn "$shared" "$local"
+          echo "nix-screengrab-share: $local -> $shared"
+        ''}/bin/nix-screengrab-share"
+      ];
+      RunAtLoad = true;
+      KeepAlive = false;
+      StandardOutPath = "/Users/${userName}/Library/Logs/nix-screengrab-share.log";
+      StandardErrorPath = "/Users/${userName}/Library/Logs/nix-screengrab-share.log";
+    };
+  };
+
+  system.activationScripts.postActivation.text = lib.mkAfter ''
+    # Best-effort symlink at activation (agent retries after VirtioFS automount).
+    shared="/Volumes/My Shared Files/Screengrab"
+    local="/Users/${userName}/Pictures/Screengrab"
+    if [ -d "$shared" ]; then
+      /bin/mkdir -p "/Users/${userName}/Pictures"
+      if [ -L "$local" ] && [ "$(/usr/bin/readlink "$local" 2>/dev/null)" = "$shared" ]; then
+        :
+      else
+        if [ -d "$local" ] && [ ! -L "$local" ]; then
+          count="$(/usr/bin/find "$local" -mindepth 1 ! -name '.DS_Store' 2>/dev/null | /usr/bin/wc -l | /usr/bin/tr -d ' ')"
+          if [ "''${count:-0}" -eq 0 ]; then
+            /bin/rm -rf "$local"
+          else
+            /bin/mv "$local" "''${local}.local-backup.$(/bin/date +%Y%m%d%H%M%S)"
+          fi
+        fi
+        /bin/ln -sfn "$shared" "$local"
+        /usr/sbin/chown -h ${userName}:staff "$local" 2>/dev/null || true
+        echo "macvm: Screengrab -> $shared" >&2
+      fi
+    else
+      echo "macvm: VirtioFS Screengrab not mounted yet (agent will retry; host: macvm-utm-share-screengrab)" >&2
+    fi
+  '';
 }

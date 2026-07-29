@@ -238,7 +238,7 @@ would be needed for a custom icon/signing); the **name** is what we control.
 |---|---|
 | `open-maccy` / `open-docker` / `open-slack` / `open-mail` / `open-messages` | **macos only** |
 | MCP gateway + public tunnel + RAG (`ollama-local`, `postgres-pgvector`) | **macos only** |
-| `nix-file-rotation-screengrab` | every darwin host using `core.nix` |
+| `nix-file-rotation-screengrab` | **macos only** (path shared R/W to macvm via VirtioFS; guest must not rotate) |
 
 Gate with `networking.hostName` (`macos` / `macvm` set in `hosts/*.nix`).
 
