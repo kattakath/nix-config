@@ -75,8 +75,8 @@ as a path, not as a URL. The public `flake.lock` never locks a private repo.
 ### Day-to-day activate (with private modules)
 
 ```bash
-# macos
-sudo nix run ~/Developer/gitlab.com/ismailkattakath/nix-personal#macos
+# macos (private #macos app escalates and sets root HOME)
+nix run ~/Developer/gitlab.com/ismailkattakath/nix-personal#macos
 
 # macvm (from the host) — guest usually has no GitLab SSH, so sync the private
 # clone then activate the path flake:
@@ -84,7 +84,7 @@ NP=~/Developer/gitlab.com/ismailkattakath/nix-personal
 CFG=~/Developer/github.com/kattakath/nix-config
 tar -C "$NP" --exclude result --exclude .direnv -cf - . |
   nix run "$CFG#macvm-tart-ssh" -- 'mkdir -p ~/nix-personal && tar -C ~/nix-personal -xf -'
-nix run "$CFG#macvm-tart-ssh" -- sudo nix run /Users/aloshy/nix-personal#macvm
+nix run "$CFG#macvm-tart-ssh" -- nix run /Users/aloshy/nix-personal#macvm
 ```
 
 Fleet-only (no private modules): `github:kattakath/nix-config#macos` / `#macvm`.

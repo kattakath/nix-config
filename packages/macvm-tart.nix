@@ -13,7 +13,6 @@
   findutils,
   gnugrep,
   gnused,
-  gawk,
   tart,
 }:
 let
@@ -27,10 +26,10 @@ let
     1. Login account: aloshy  (must match flake identity)
     2. Enable Remote Login (SSH) in System Settings if not already on
     3. Determinate Nix if missing: https://docs.determinate.systems
-    4. First activation:
-         sudo nix run github:kattakath/nix-config#macvm
+    4. First activation (app handles sudo + root HOME — do not bare sudo darwin-rebuild):
+         nix run github:kattakath/nix-config#macvm
     5. Thereafter (from host):
-         nix run .#macvm-tart-ssh -- sudo darwin-rebuild switch --flake .#macvm
+         nix run .#macvm-tart-ssh -- nix run --refresh github:kattakath/nix-config#macvm
 
     Host-side:
          nix run .#macvm-tart-doctor | start | stop | ssh | create
@@ -101,7 +100,6 @@ let
     findutils
     gnugrep
     gnused
-    gawk
   ];
 
   mkApp =
@@ -134,7 +132,7 @@ let
 
       if vm_exists; then
         echo "vm: present ($VM_NAME)"
-        "$TART" list 2>/dev/null | awk -v n="$VM_NAME" 'NR==1 || $2==n {print}'
+        "$TART" list 2>/dev/null | /usr/bin/awk -v n="$VM_NAME" 'NR==1 || $2==n {print}'
         if vm_running; then
           echo "state: running"
           ip=$(guest_ip 0 || true)
@@ -202,7 +200,7 @@ let
       info "created. Next:"
       echo "  1. nix run .#macvm-tart-start     # opens Tart UI; finish Setup as aloshy"
       echo "  2. Enable Remote Login (SSH) in the guest if needed"
-      echo "  3. In guest: sudo nix run github:kattakath/nix-config#macvm"
+      echo "  3. In guest: nix run github:kattakath/nix-config#macvm"
       echo "  4. nix run .#macvm-tart-ssh -- uname -a"
       cat ${bootstrapText}
     '';
@@ -214,7 +212,7 @@ let
       # Exit 0: VM exists. Exit 2: missing (print create help).
       if vm_exists; then
         info "macvm present — ok"
-        "$TART" list 2>/dev/null | awk -v n="$VM_NAME" 'NR==1 || $2==n {print}'
+        "$TART" list 2>/dev/null | /usr/bin/awk -v n="$VM_NAME" 'NR==1 || $2==n {print}'
         exit 0
       fi
       info "macvm missing — create from IPSW with Tart"

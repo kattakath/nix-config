@@ -115,7 +115,7 @@ Private home modules (path-sync, not guest GitLab SSH):
 # From private flake checkout on host:
 #   tar -C ~/path/to/nix-personal -cf - . | \
 #     nix run .#macvm-tart-ssh -- 'mkdir -p ~/nix-personal && tar -C ~/nix-personal -xf -'
-#   nix run .#macvm-tart-ssh -- sudo nix run /Users/aloshy/nix-personal#macvm
+#   nix run .#macvm-tart-ssh -- nix run /Users/aloshy/nix-personal#macvm
 ```
 
 ## Screengrab share

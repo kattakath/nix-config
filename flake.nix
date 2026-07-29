@@ -1089,7 +1089,7 @@
             # Thereafter: darwin-rebuild switch --flake .#macvm
             # Host-side Tart control plane: nix run .#macvm-tart-* (packages/macvm-tart.nix).
             #
-            # Two first-boot footguns this wrapper fixes (also bit the old UTM path):
+            # First-boot footguns this wrapper fixes:
             # 1. `sudo` preserves HOME=/Users/aloshy while uid=0 → home-manager aborts
             #    with "$HOME is not owned by you" and the user profile never activates.
             #    Force HOME=/var/root for the root rebuild; nix-darwin still activates

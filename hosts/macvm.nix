@@ -5,9 +5,8 @@
 # Disk under ~/.tart/ — never in this flake.
 #
 # Persona: `aloshy` (mkDarwin `identity` override in flake.nix). The guest login
-# account MUST be that user. Activate *inside* the VM:
-#   sudo nix run github:kattakath/nix-config#macvm
-#   sudo darwin-rebuild switch --flake .#macvm
+# account MUST be that user. Activate *inside* the VM (app handles sudo + root HOME):
+#   nix run github:kattakath/nix-config#macvm
 # Optional Grok CLI (once, not Homebrew): curl -fsSL https://x.ai/cli/install.sh | bash
 {
   loginName,
@@ -186,7 +185,7 @@ in
   };
 
   # Passwordless sudo for the guest admin: host agents activate via
-  # `nix run .#macvm-tart-ssh -- sudo nix run …#macvm` (no interactive TTY).
+  # `nix run .#macvm-tart-ssh -- nix run …#macvm` (app escalates; no interactive TTY).
   # Acceptable on this sandbox — keys-only SSH on the shared net, not the real Mac.
   security.sudo.extraConfig = ''
     ${loginName} ALL=(ALL) NOPASSWD: ALL
