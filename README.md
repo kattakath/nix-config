@@ -37,14 +37,15 @@ curl -fsSL https://raw.githubusercontent.com/kattakath/nix-config/main/bootstrap
 curl -fsSL https://raw.githubusercontent.com/kattakath/nix-config/main/bootstrap.sh | bash
 ```
 
-It clones the flake, verifies your macOS login equals the flake's `userName` (hard-fails
+It clones the flake, verifies your macOS login equals the flake's `loginName` (hard-fails
 with fork instructions if not), then:
 
 - **recovery kit present** (`~/Library/Mobile Documents/com~apple~CloudDocs/nix-key-recovery`,
-  published beforehand by `nix run .#key-backup`) → restores your operator key, re-keys
-  agenix to this Mac's new host key, activates `#macos`;
-- **no kit** → **founds** a brand-new operator identity (a fresh keypair, agenix re-keyed
-  to it), then activates `#macos`. Afterward: register `~/.ssh/id_ed25519.pub` on GitHub
+  published beforehand by `nix run .#key-backup`) → restores your operator key,
+  activates `#macos`;
+- **no kit** → **founds** a brand-new operator identity (a fresh keypair; the agenix
+  recipient is repointed to it — the old vault ciphertext stays encrypted to the lost
+  key, see the trust model), then activates `#macos`. Afterward: register `~/.ssh/id_ed25519.pub` on GitHub
   (auth + signing) and `nix run .#key-backup`. Add `--fresh` to skip the confirmation on a
   headless box.
 
@@ -54,13 +55,13 @@ installer and `nix run`s the flake — it is not fully offline.)
 
 ### Fork this for your own fleet
 
-This is personal config with `userName = "ismailkattakath"` baked into `flake.nix` (it is
-your POSIX account — `/Users/<userName>` and `home-manager.users.<userName>`). To run your
+This is personal config with `loginName = "ismail"` baked into `flake.nix` (it is
+your POSIX account — `/Users/<loginName>` and `home-manager.users.<loginName>`). To run your
 own fleet from it:
 
 1. **Fork** the repo on GitHub.
-2. In `flake.nix`, set `userName` to **your macOS login** (`id -un`), and set `orgName` /
-   `handleName` / `domainName` to your own. Commit and push. (Running the offline copy? Also
+2. In `flake.nix`, set `loginName` to **your macOS login** (`id -un`), and set `orgName` /
+   `userName` / `domainName` to your own. Commit and push. (Running the offline copy? Also
    set `FLAKE_DEFAULT` in `bootstrap.sh`.)
 3. On your fresh Mac, run **pointing at your fork**:
 
@@ -71,8 +72,8 @@ own fleet from it:
 
    With no kit it **founds your own keys** and activates `#macos`.
 
-The `userName` guard is what makes this safe: if your login does not match the flake's
-`userName`, bootstrap stops **before** activating and tells you to fork and set `userName` —
+The `loginName` guard is what makes this safe: if your login does not match the flake's
+`loginName`, bootstrap stops **before** activating and tells you to fork and set `loginName` —
 rather than half-activating home-manager for a user that does not exist.
 
 > **Trust model.** You are piping remote code into `bash`, and it uses `sudo`. The anchor is
@@ -140,7 +141,7 @@ flake.nix       Entry point: inputs, darwin/nixos configurations, packages, devS
 flake.lock      Pinned input revisions (bumped via `nix flake update`, never hand-edited)
 treefmt.nix     Single source of truth for formatting + lint (drives nix fmt, CI, and the hook)
 hosts/          Per-host entry profiles (macos.nix, macvm.nix, nixpi.nix, nixvm.nix)
-modules/        Reusable modules, split by platform (darwin/ linux/ nixos/ shared/)
+modules/        Reusable modules, split by platform (darwin/ nixos/ shared/)
 packages/       Nix-built artifacts (devcontainer image, key-recovery kit, landing page; also vast-provision.nix — the vast-* apps —, vast-bootstrap.sh, vast-templates/provisioner/)
 .claude/        Repo-local Claude Code agents, commands, hooks, skills, and rules
 ```
