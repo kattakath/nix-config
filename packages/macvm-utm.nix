@@ -1,8 +1,7 @@
-# macvm UTM control-plane toolkit (host Mac only).
+# macvm UTM control-plane (host Mac only).
 #
-# Guest OS config is darwinConfigurations.macvm — activate INSIDE the VM as
-# aloshy. This kit only manages the UTM hypervisor side on macos.
-# Disk images and IPSWs are NEVER put in the Nix store (docs/macvm-utm-runbook.md).
+# Guest OS: darwinConfigurations.macvm — activate inside the VM as aloshy.
+# Disks/IPSWs never enter the Nix store. See docs/macvm-utm-runbook.md.
 {
   writeShellApplication,
   writeText,
@@ -88,40 +87,30 @@ let
   bootstrapText = writeText "macvm-utm-bootstrap.txt" ''
     macvm guest bootstrap (run INSIDE the UTM VM)
 
-    1. Create / use macOS login account: aloshy  (must match flake identity)
-    2. Install Determinate Nix (if missing): https://docs.determinate.systems
-    3. First activation (before darwin-rebuild is on PATH):
-         nix run github:kattakath/nix-config#macvm
+    1. Login account: aloshy  (must match flake identity)
+    2. Determinate Nix if missing: https://docs.determinate.systems
+    3. First activation:
+         sudo nix run github:kattakath/nix-config#macvm
     4. Thereafter:
-         darwin-rebuild switch --flake .#macvm
-         # or: nix run github:kattakath/nix-config#macvm
+         sudo darwin-rebuild switch --flake .#macvm
 
-    Host-side (this Mac, outside the guest):
-         nix run .#macvm-utm-doctor
-         nix run .#macvm-utm-start
-         nix run .#macvm-utm-ensure   # doctor + create guidance if missing
+    Host-side (outside the guest):
+         nix run .#macvm-utm-doctor | start | ssh | ensure
 
-    Disk images are NOT in the flake — only this checklist + guest nix-darwin config.
-    See docs/macvm-utm-runbook.md
+    Disks are NOT in the flake. See docs/macvm-utm-runbook.md
   '';
 
   createText = writeText "macvm-utm-create.txt" ''
     Create the macvm UTM guest (host Mac — one-time GUI)
 
-    utmctl cannot create Apple Virtualization macOS guests; UTM UI is required once.
+    utmctl cannot create Apple Virtualization macOS guests.
 
     1. nix run .#macvm-utm-open
     2. UTM → "+" → Virtualize → macOS (Apple Virtualization)
     3. Name the VM exactly: macvm
-    4. Complete install; create login user: aloshy
-    5. On the host: nix run .#macvm-utm-doctor
-    6. Inside the guest: see nix run .#macvm-utm-bootstrap-print
-
-    Optional shape (match an existing healthy guest roughly):
-      Architecture aarch64 / Apple backend
-      Memory ~8 GiB (or more)
-      Display ~1920x1200 dynamic resolution
-      Network Shared
+    4. Network: Shared; login user: aloshy
+    5. Host: nix run .#macvm-utm-doctor
+    6. Guest: nix run .#macvm-utm-bootstrap-print
 
     NEVER put IPSW or .img into the Nix store or this git repo.
   '';
@@ -367,13 +356,12 @@ let
     '';
   };
 
-  # Phase 2 conclusion: no unattended create via utmctl. ensure = doctor + guide.
+  # utmctl has no create for macOS AVF guests → ensure = health check or guide.
   ensure = mkApp {
     name = "macvm-utm-ensure";
     text = ''
-      # Exit 0 if a healthy single macvm exists.
-      # Exit 2 if missing (prints create steps, opens UTM).
-      # Exit 1 on errors (duplicates, broken package, missing UTM).
+      # Exit 0: healthy single macvm. Exit 2: missing (print create, open UTM).
+      # Exit 1: errors (duplicates, broken package, missing UTM).
       if [ ! -x "$UTMCTL" ]; then
         die "UTM missing — activate macos (utm cask) first"
       fi
@@ -404,46 +392,41 @@ let
     '';
   };
 
-  # SSH into the guest over UTM Shared networking (host bridge100 ≈ 192.168.64.0/24).
-  # Discovers the guest by probing :22 on the shared subnet (and optional MAC from
-  # config.plist). Guest must have services.openssh.enable + authorizedKeys.
+  # SSH over UTM Shared (host bridge100 ≈ 192.168.64.0/24). Guest: services.openssh
+  # + operator authorized_keys (hosts/macvm.nix). Discover :22 on the shared subnet.
   sshApp = mkApp {
     name = "macvm-utm-ssh";
     runtimeInputs = baseInputs ++ [ python3 ];
     text = ''
-            # usage: macvm-utm-ssh [--ip ADDR] [ssh-args…]
-            # Default user: aloshy (macvm persona). Identity: ~/.ssh/id_ed25519
-            user=aloshy
-            identity="''${MACVM_SSH_IDENTITY:-$HOME/.ssh/id_ed25519}"
-            ip="''${MACVM_SSH_IP:-}"
-            while [ $# -gt 0 ]; do
-              case "$1" in
-                --ip) ip="''${2:?}"; shift 2 ;;
-                --user) user="''${2:?}"; shift 2 ;;
-                -h|--help)
-                  echo "usage: macvm-utm-ssh [--ip ADDR] [--user USER] [ssh-args…]"
-                  echo "  Discovers macvm on UTM Shared net (192.168.64.0/24) and sshes as aloshy."
-                  exit 0
-                  ;;
-                --) shift; break ;;
-                *) break ;;
-              esac
-            done
+      # usage: macvm-utm-ssh [--ip ADDR] [--user USER] [ssh-args…]
+      user=aloshy
+      identity="''${MACVM_SSH_IDENTITY:-$HOME/.ssh/id_ed25519}"
+      ip="''${MACVM_SSH_IP:-}"
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --ip) ip="''${2:?}"; shift 2 ;;
+          --user) user="''${2:?}"; shift 2 ;;
+          -h|--help)
+            echo "usage: macvm-utm-ssh [--ip ADDR] [--user USER] [ssh-args…]"
+            echo "  Discovers macvm on UTM Shared net (192.168.64.0/24); default user aloshy."
+            exit 0
+            ;;
+          --) shift; break ;;
+          *) break ;;
+        esac
+      done
 
-            if [ -z "$ip" ]; then
-              # Prefer MAC from package config when present (stable across reboots).
-              mac=""
-              if [ -f "$UTM_PKG/config.plist" ]; then
-                # Network is an array; extract first MacAddress if present (plutil may fail).
-                mac=$(${plutil} -extract Network.0.MacAddress raw "$UTM_PKG/config.plist" 2>/dev/null || true)
-              fi
-              export MACVM_HINT_MAC="$mac"
-              ip=$(
-                ${python3}/bin/python3 - <<'PY'
+      if [ -z "$ip" ]; then
+        mac=""
+        if [ -f "$UTM_PKG/config.plist" ]; then
+          mac=$(${plutil} -extract Network.0.MacAddress raw "$UTM_PKG/config.plist" 2>/dev/null || true)
+        fi
+        export MACVM_HINT_MAC="$mac"
+        ip=$(
+          ${python3}/bin/python3 - <<'PY'
       import os, re, socket, subprocess, sys
 
       hint = (os.environ.get("MACVM_HINT_MAC") or "").lower().replace("-", ":")
-      # arp -an lines like: ? (192.168.64.4) at 1a:29:d7:d8:f5:cc on bridge100 ...
       try:
           arp = subprocess.check_output(["/usr/sbin/arp", "-an"], text=True, errors="replace")
       except Exception:
@@ -462,7 +445,6 @@ let
               sys.exit(0)
           candidates.append(ip)
 
-      # Probe :22 on candidates then whole /24 tail
       probe = candidates + [f"192.168.64.{i}" for i in range(2, 32)]
       seen = set()
       for ip in probe:
@@ -481,37 +463,25 @@ let
               s.close()
       sys.exit(1)
       PY
-              ) || true
-            fi
+        ) || true
+      fi
 
-            if [ -z "''${ip:-}" ]; then
-              die "could not find macvm SSH (is the VM started and Remote Login enabled? re-activate guest with services.openssh.enable)"
-            fi
+      if [ -z "''${ip:-}" ]; then
+        die "no SSH on UTM Shared net — start the VM, activate guest (#macvm), check ALF off"
+      fi
 
-            info "ssh $user@$ip"
-            exec /usr/bin/ssh \
-              -o "IdentityFile=$identity" \
-              -o IdentitiesOnly=yes \
-              -o StrictHostKeyChecking=accept-new \
-              -o "UserKnownHostsFile=$HOME/.ssh/known_hosts" \
-              "$user@$ip" "$@"
+      info "ssh $user@$ip"
+      exec /usr/bin/ssh \
+        -o "IdentityFile=$identity" \
+        -o IdentitiesOnly=yes \
+        -o StrictHostKeyChecking=accept-new \
+        -o "UserKnownHostsFile=$HOME/.ssh/known_hosts" \
+        "$user@$ip" "$@"
     '';
   };
 
 in
 {
-  inherit
-    doctor
-    list
-    openApp
-    start
-    stop
-    registry-dedupe
-    bootstrap-print
-    create-print
-    ensure
-    sshApp
-    ;
   macvm-utm-doctor = doctor;
   macvm-utm-list = list;
   macvm-utm-open = openApp;
