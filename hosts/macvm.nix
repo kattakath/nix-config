@@ -80,13 +80,15 @@ in
   # Stable identity for host-gated modules (no macos login openers / RAG stack).
   networking.hostName = "macvm";
 
-  # Dock: bottom (core.nix uses right). core.nix also sets static-only = true
-  # (running apps only) — force off so pinned apps stay when not running.
+  # Dock: always visible at bottom (core.nix: right + autohide). static-only
+  # off so pinned apps stay when not running.
   system.defaults.dock = {
+    autohide = lib.mkForce false;
     orientation = lib.mkForce "bottom";
     static-only = lib.mkForce false;
     persistent-apps = [
       "/System/Applications/Utilities/Terminal.app"
+      "/Applications/CapCut.app"
       "/Applications/WhatsApp.app"
       "/Applications/Opera.app"
     ];
