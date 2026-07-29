@@ -46,8 +46,24 @@ Complete macOS setup in the Tart window. Create login user **`aloshy`** (must ma
 Inside the guest as **`aloshy`**, with Determinate Nix installed:
 
 ```bash
-sudo nix run github:kattakath/nix-config#macvm
+# Prefer the flake app (handles sudo HOME + Determinate conf handoff):
+nix run github:kattakath/nix-config#macvm
+# or, once darwin-rebuild is on PATH:
+sudo env HOME=/var/root darwin-rebuild switch --flake github:kattakath/nix-config#macvm
 ```
+
+**Do not** use bare `sudo nix run …` / `sudo darwin-rebuild` with a preserved
+`HOME=/Users/aloshy` — macOS `sudo` keeps your HOME by default, so the process
+is **uid 0** with a home directory **owned by aloshy**. home-manager then prints
+`$HOME (/Users/aloshy) is not owned by you` and **skips the user profile**
+(system half activates; HM does not). The `#macvm` app forces `HOME=/var/root`
+for the root rebuild so HM still runs for `aloshy`.
+
+**Determinate `nix.custom.conf`:** the installer writes an unmanaged
+`/etc/nix/nix.custom.conf`. nix-darwin (determinate module) aborts if it would
+clobber that file. The `#macvm` app moves it to
+`nix.custom.conf.before-nix-darwin` once if it is not already a symlink. Manual
+equivalent: `sudo mv /etc/nix/nix.custom.conf /etc/nix/nix.custom.conf.before-nix-darwin`.
 
 That lands Apple’s `sshd` (keys-only, operator pubkey via nix-darwin), passwordless sudo, Screengrab symlink agent, lean Homebrew.
 
@@ -57,9 +73,21 @@ That lands Apple’s `sshd` (keys-only, operator pubkey via nix-darwin), passwor
 nix run .#macvm-tart-start
 nix run .#macvm-tart-ip
 nix run .#macvm-tart-ssh -- uname -a
-nix run .#macvm-tart-ssh -- sudo nix run --refresh github:kattakath/nix-config#macvm
+# Host-driven re-activate (flake app sets root HOME; --refresh picks latest main):
+nix run .#macvm-tart-ssh -- nix run --refresh github:kattakath/nix-config#macvm
 nix run .#macvm-tart-stop
 nix run .#macvm-tart-doctor
+```
+
+### Repair half-activation (system OK, no HM)
+
+Symptoms: `$HOME is not owned by you`, no `Activating home-manager configuration for aloshy`, missing `~/.nix-profile` / HM state.
+
+```bash
+# From host — re-run with the fixed activate wrapper (or force root HOME):
+nix run .#macvm-tart-ssh -- 'sudo env HOME=/var/root darwin-rebuild switch --flake github:kattakath/nix-config#macvm'
+# Expect a line: Activating home-manager configuration for aloshy
+nix run .#macvm-tart-ssh -- 'test -e ~/.nix-profile && echo hm:ok || echo hm:missing'
 ```
 
 Private home modules (path-sync, not guest GitLab SSH):

@@ -1088,12 +1088,43 @@
             # login account must be `aloshy`), before darwin-rebuild is on PATH.
             # Thereafter: darwin-rebuild switch --flake .#macvm
             # Host-side Tart control plane: nix run .#macvm-tart-* (packages/macvm-tart.nix).
+            #
+            # Two first-boot footguns this wrapper fixes (also bit the old UTM path):
+            # 1. `sudo` preserves HOME=/Users/aloshy while uid=0 → home-manager aborts
+            #    with "$HOME is not owned by you" and the user profile never activates.
+            #    Force HOME=/var/root for the root rebuild; nix-darwin still activates
+            #    HM for aloshy under the correct user.
+            # 2. Determinate's installer leaves an unmanaged /etc/nix/nix.custom.conf
+            #    that nix-darwin refuses to clobber — move it aside once if not a symlink.
             aarch64-darwin.macvm = {
               type = "app";
               program = "${(pkgsFor "aarch64-darwin").writeShellScript "activate-macvm" ''
-                exec ${self.darwinConfigurations.macvm.config.system.build.darwin-rebuild}/bin/darwin-rebuild switch --flake "${self}#macvm" "$@"
+                set -euo pipefail
+                rebuild="${self.darwinConfigurations.macvm.config.system.build.darwin-rebuild}/bin/darwin-rebuild"
+                flake="${self}#macvm"
+
+                # Determinate installer → nix-darwin handoff (idempotent).
+                if [ -e /etc/nix/nix.custom.conf ] && [ ! -L /etc/nix/nix.custom.conf ]; then
+                  echo "macvm: moving unmanaged /etc/nix/nix.custom.conf → nix.custom.conf.before-nix-darwin" >&2
+                  /bin/mv /etc/nix/nix.custom.conf /etc/nix/nix.custom.conf.before-nix-darwin
+                fi
+
+                run_as_root() {
+                  # Root-owned HOME so HM does not refuse activation (sudo keeps
+                  # HOME=/Users/aloshy by default on macOS).
+                  exec /usr/bin/env HOME=/var/root USER=root LOGNAME=root \
+                    "$rebuild" switch --flake "$flake" "$@"
+                }
+
+                if [ "$(/usr/bin/id -u)" -eq 0 ]; then
+                  run_as_root "$@"
+                else
+                  # Re-exec under sudo with a root HOME (not sudo's preserved HOME).
+                  exec /usr/bin/sudo /usr/bin/env HOME=/var/root USER=root LOGNAME=root \
+                    "$rebuild" switch --flake "$flake" "$@"
+                fi
               ''}";
-              meta.description = "First activation of the macvm nix-darwin Tart guest from the flake (run INSIDE the VM as aloshy, after Determinate Nix)";
+              meta.description = "Activate macvm (Tart guest) as aloshy; safe under sudo (fixes HOME ownership + Determinate nix.custom.conf handoff)";
             };
 
             # Host-side Tart lifecycle for macvm (Apple Virtualization + IPSW).

@@ -20,18 +20,22 @@ Canonical detail: [`docs/macvm-tart-runbook.md`](../../../docs/macvm-tart-runboo
 ## Greenfield
 
 1. `nix run .#macvm-tart-create` → IPSW install; Setup Assistant user **`aloshy`**; Remote Login on.
-2. Guest: Determinate Nix, then `sudo nix run github:kattakath/nix-config#macvm`.
+2. Guest: Determinate Nix, then **`nix run github:kattakath/nix-config#macvm`**
+   (not bare `sudo darwin-rebuild` — sudo keeps `HOME=/Users/aloshy` as root and
+   home-manager skips the user profile). The app also moves unmanaged
+   `/etc/nix/nix.custom.conf` aside for Determinate → nix-darwin handoff.
 3. Host: `nix run .#macvm-tart-start` (Screengrab VirtioFS), then SSH.
-4. Verify: `nix run .#macvm-tart-doctor`.
+4. Verify: `nix run .#macvm-tart-doctor`; guest has `~/.nix-profile` after HM.
 
 ## Day-to-day
 
 ```bash
 nix run .#macvm-tart-ensure | doctor | start | stop | ssh | ip
-nix run .#macvm-tart-ssh -- sudo nix run --refresh github:kattakath/nix-config#macvm
+nix run .#macvm-tart-ssh -- nix run --refresh github:kattakath/nix-config#macvm
 ```
 
 ## Do not
 
 - Put IPSW / Tart disks in git or the Nix store.
 - Use the host `#macvm` app to create the VM (guest activate only).
+- `sudo darwin-rebuild` without `HOME=/var/root` (half-activates system, skips HM).
