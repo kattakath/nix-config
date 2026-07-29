@@ -47,7 +47,7 @@ slice**, not the ceiling — §2 shows how much more is reachable.
 | `security.pam.services.sudo_local.touchIdAuth` | `true` | Touch ID for `sudo` (this is the *current* option name; older configs used the now-deprecated `security.pam.enableSudoTouchIdAuth`) |
 | `networking.applicationFirewall.enable` + `.enableStealthMode` | `true` | App firewall + stealth mode — reinforces the "no incoming traffic" posture |
 | `environment.systemPackages` | `coreutils`, `curl` | system-wide packages |
-| `system.stateVersion` / `system.primaryUser` | `5` / `userName` | migration tracking + who user-defaults apply to |
+| `system.stateVersion` / `system.primaryUser` | `5` / `loginName` | migration tracking + who user-defaults apply to |
 
 ### Custom services this repo built (launchd)
 

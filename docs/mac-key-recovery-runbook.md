@@ -67,7 +67,7 @@ continue it — so the manual re-run is intentional, and safe to repeat.
 
 `bootstrap.sh` installs Determinate Nix, then hands off to `nix run <flake>#key-recover`,
 which **clones the flake (HTTPS — no key needed) and verifies your macOS login (`id -un`)
-equals the flake's `userName`** (reading `nix eval --raw <flake>#identity.userName`)
+equals the flake's `loginName`** (reading `nix eval --raw <flake>#identity.loginName`)
 *before it restores or founds any keys, or activates* — a mismatched Mac stops there
 having changed nothing but a throwaway clone. A mismatch hard-fails with fork
 instructions; it will not half-activate home-manager for a user that does not exist. See

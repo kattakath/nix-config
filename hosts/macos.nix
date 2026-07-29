@@ -8,7 +8,7 @@
 # `nixos-rebuild switch --flake .#nixpi`; see flake.nix apps.aarch64-darwin.macos):
 #   nix run github:kattakath/nix-config#macos
 # Thereafter: darwin-rebuild switch --flake .#macos
-{ userName, ... }:
+{ loginName, ... }:
 {
   imports = [
     ../modules/darwin/core.nix
@@ -19,9 +19,9 @@
   # Stable identity for host-gated modules (login openers, RAG launchd, …).
   networking.hostName = "macos";
 
-  users.users.${userName} = {
-    name = userName;
-    home = "/Users/${userName}";
+  users.users.${loginName} = {
+    name = loginName;
+    home = "/Users/${loginName}";
   };
 
   # ---- Homebrew apps for THIS host --------------------------------------------

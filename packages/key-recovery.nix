@@ -217,36 +217,36 @@ in
             FIX_ETC=0
             FRESH=0
 
-            # GUARD: the macOS login MUST equal this flake's userName, or activation
+            # GUARD: the macOS login MUST equal this flake's loginName, or activation
             # half-builds home-manager for a user that does not exist and /Users/<wrong>
             # paths. Reads the cheap `#identity` output (references no inputs → instant,
             # fetches nothing; hostname-independent). Fork-aware: a forker who set
-            # userName to their own login passes; anyone else is told to fork.
+            # loginName to their own login passes; anyone else is told to fork.
             # $1 = a flake path/ref (the cloned repo, or the remote ref in --check).
             assert_login_matches_flake() {
               local want got
               got="$(id -un)"
-              want="$("$NIX_BIN" eval --raw "$1#identity.userName" 2>/dev/null)" \
-                || die "could not read the flake's userName (nix eval $1#identity.userName failed).
+              want="$("$NIX_BIN" eval --raw "$1#identity.loginName" 2>/dev/null)" \
+                || die "could not read the flake's loginName (nix eval $1#identity.loginName failed).
       Is $1 a checkout of THIS flake? If you forked, point --flake at your fork."
-              [ -n "$want" ] || die "the flake exposes an empty identity.userName."
+              [ -n "$want" ] || die "the flake exposes an empty identity.loginName."
               if [ "$got" != "$want" ]; then
-                die "LOGIN / userName MISMATCH — refusing to activate.
+                die "LOGIN / loginName MISMATCH — refusing to activate.
 
         this Mac's login account (id -un): $got
-        the flake's userName:             $want
+        the flake's loginName:             $want
 
       This flake builds /Users/$want and targets home-manager.users.$want; activating
       it as '$got' would half-activate. If you OWN this config: log in as '$want' (or
-      set userName in flake.nix) and re-run. If you are FORKING for your OWN fleet:
+      set loginName in flake.nix) and re-run. If you are FORKING for your OWN fleet:
         1. Fork the repo on GitHub (to your account, GH below = your GitHub owner).
-        2. In flake.nix set  userName = \"$got\";  (your macOS login) and set orgName to
-           your GitHub owner GH (plus handleName/domainName) — commit and push.
+        2. In flake.nix set  loginName = \"$got\";  (your macOS login) and set orgName to
+           your GitHub owner GH (plus userName/domainName) — commit and push.
         3. Re-run pointing --flake at YOUR fork (replace GH with your GitHub owner):
              curl -fsSL https://raw.githubusercontent.com/GH/nix-config/main/bootstrap.sh | bash -s -- --flake=github:GH/nix-config
       See the README 'Fork this for your own fleet' section."
               fi
-              say "Login '$got' matches the flake's userName — proceeding."
+              say "Login '$got' matches the flake's loginName — proceeding."
             }
 
             while [ $# -gt 0 ]; do
@@ -344,7 +344,7 @@ in
 
             if [ "$CHECK" -eq 1 ]; then
               say "DRY RUN — verifying the kit; nothing will be changed."
-              assert_login_matches_flake "${flakeRef}" # early login/userName mismatch warning (remote flake; no clone)
+              assert_login_matches_flake "${flakeRef}" # early login/loginName mismatch warning (remote flake; no clone)
               echo "  [ok]  blob: $BLOB ($(wc -c < "$BLOB" | tr -d ' ') bytes)"
               echo "  [ok]  expected operator fingerprint: ''${WANT_FP:-<no MANIFEST>}"
               TMPD="$(mktemp -d)"
@@ -366,7 +366,7 @@ in
             fi
 
             # ---- 0. clone + GUARD before touching any key ----------------------------
-            # Clone over HTTPS (public repo, needs no key) so the login/userName guard
+            # Clone over HTTPS (public repo, needs no key) so the login/loginName guard
             # runs BEFORE we decrypt the operator PRIVATE key or generate a host key — a
             # mismatched Mac stops here having changed nothing but a throwaway clone.
             if [ ! -d "$REPO_DIR/.git" ]; then

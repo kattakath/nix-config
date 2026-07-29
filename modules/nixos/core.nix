@@ -4,7 +4,7 @@
 {
   pkgs,
   lib,
-  userName,
+  loginName,
   operatorSshKey,
   ...
 }:
@@ -17,11 +17,11 @@
       ];
       trusted-users = [
         "root"
-        userName
+        loginName
       ];
     };
 
-    users.users.${userName} = {
+    users.users.${loginName} = {
       isNormalUser = true;
       shell = pkgs.zsh;
       extraGroups = [ "wheel" ];

@@ -21,7 +21,7 @@
 #        - NO KIT -> FOUND a fresh operator identity (new keypair, agenix
 #          re-keyed to it + this host key, the macos service secret re-initialised
 #          to a placeholder), then activate #macos.
-#      key-recover first verifies your macOS login == the flake's userName and
+#      key-recover first verifies your macOS login == the flake's loginName and
 #      HARD-FAILS with fork instructions if it does not.
 #
 # Everything after step 3 lives in the flake (packages/key-recovery.nix), where

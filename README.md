@@ -37,7 +37,7 @@ curl -fsSL https://raw.githubusercontent.com/kattakath/nix-config/main/bootstrap
 curl -fsSL https://raw.githubusercontent.com/kattakath/nix-config/main/bootstrap.sh | bash
 ```
 
-It clones the flake, verifies your macOS login equals the flake's `userName` (hard-fails
+It clones the flake, verifies your macOS login equals the flake's `loginName` (hard-fails
 with fork instructions if not), then:
 
 - **recovery kit present** (`~/Library/Mobile Documents/com~apple~CloudDocs/nix-key-recovery`,
@@ -54,13 +54,13 @@ installer and `nix run`s the flake — it is not fully offline.)
 
 ### Fork this for your own fleet
 
-This is personal config with `userName = "ismail"` baked into `flake.nix` (it is
-your POSIX account — `/Users/<userName>` and `home-manager.users.<userName>`). To run your
+This is personal config with `loginName = "ismail"` baked into `flake.nix` (it is
+your POSIX account — `/Users/<loginName>` and `home-manager.users.<loginName>`). To run your
 own fleet from it:
 
 1. **Fork** the repo on GitHub.
-2. In `flake.nix`, set `userName` to **your macOS login** (`id -un`), and set `orgName` /
-   `handleName` / `domainName` to your own. Commit and push. (Running the offline copy? Also
+2. In `flake.nix`, set `loginName` to **your macOS login** (`id -un`), and set `orgName` /
+   `userName` / `domainName` to your own. Commit and push. (Running the offline copy? Also
    set `FLAKE_DEFAULT` in `bootstrap.sh`.)
 3. On your fresh Mac, run **pointing at your fork**:
 
@@ -71,8 +71,8 @@ own fleet from it:
 
    With no kit it **founds your own keys** and activates `#macos`.
 
-The `userName` guard is what makes this safe: if your login does not match the flake's
-`userName`, bootstrap stops **before** activating and tells you to fork and set `userName` —
+The `loginName` guard is what makes this safe: if your login does not match the flake's
+`loginName`, bootstrap stops **before** activating and tells you to fork and set `loginName` —
 rather than half-activating home-manager for a user that does not exist.
 
 > **Trust model.** You are piping remote code into `bash`, and it uses `sudo`. The anchor is

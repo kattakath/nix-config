@@ -37,7 +37,7 @@
   yq-go,
   orgName,
   repoName,
-  userName,
+  loginName,
   rev,
 }:
 let
@@ -505,7 +505,7 @@ let
   # cannot carry credentials (the /template/ body keeps only docker_login_repo, not
   # user/pass — verified against vast-python), so the Docker Hub PAT can
   # ONLY ride the per-instance create call's `image_login`. This app is that single
-  # honest home: it reads DOCKERHUB_TOKEN from the Keychain and userName as the
+  # honest home: it reads DOCKERHUB_TOKEN from the Keychain and loginName as the
   # Docker Hub username, and injects `-u <user> -p <pat> docker.io` so the base-image
   # pull uses OUR account rate budget instead of the shared-per-IP anonymous limit
   # (whose exhaustion stalls the pull — layers stuck "Waiting", pull restarting).
@@ -523,7 +523,7 @@ let
       [ -n "$apikey" ] || { echo "vast-rent: VAST_API_KEY not in the login Keychain." >&2; exit 1; }
       # Docker Hub PAT from the Keychain (optional but recommended); username = flake identity.
       dhtoken="$("$security" find-generic-password -a "$account" -s DOCKERHUB_TOKEN -w 2>/dev/null || true)"
-      dhuser="${userName}"
+      dhuser="${loginName}"
 
       tname=""; thash=""; offer=""; gpus="RTX 4090,RTX 5090"; disk="64"; maxprice=""; dryrun=""
       while [ $# -gt 0 ]; do
@@ -538,7 +538,7 @@ let
           -h | --help)
             echo "usage: vast-rent (--template-name NAME | --template-hash HASH) \\"
             echo "         [--offer ID] [--gpu \"RTX 4090,RTX 5090\"] [--disk GB] [--max-price DPH] [--dry-run]"
-            echo "Injects authenticated Docker Hub image_login (user=${userName}) from DOCKERHUB_TOKEN to beat pull rate limits."
+            echo "Injects authenticated Docker Hub image_login (user=${loginName}) from DOCKERHUB_TOKEN to beat pull rate limits."
             exit 0 ;;
           *) echo "vast-rent: unknown argument: $1" >&2; exit 1 ;;
         esac
