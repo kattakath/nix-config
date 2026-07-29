@@ -234,6 +234,43 @@ let
             echo "clipboard sharing: OFF — enable in UTM VM settings, or: nix run .#macvm-utm-clipboard-on"
             rc=1
           fi
+          # Screengrab shared folder (Registry SharedDirectories, R/W).
+          # Same path as macos screencapture + file-rotation: ~/Pictures/Screengrab
+          screengrab="''${MACVM_HOST_SCREENGRAB:-$HOME/Pictures/Screengrab}"
+          share_ok=$(
+            MACVM_CHECK_SCREENGRAB="$screengrab" MACVM_PKG_PATH="$UTM_PKG" ${python3}/bin/python3 - <<'PY'
+      import os, plistlib, subprocess, sys
+      path = os.environ["MACVM_CHECK_SCREENGRAB"]
+      pkg = os.environ["MACVM_PKG_PATH"]
+      raw = subprocess.check_output(["/usr/bin/defaults", "export", "com.utmapp.UTM", "-"])
+      pl = plistlib.loads(raw)
+      reg = pl.get("Registry") or {}
+      for _uuid, meta in reg.items():
+          p = ((meta.get("Package") or {}).get("Path") or "")
+          if p.rstrip("/") == pkg.rstrip("/") or (meta.get("Name") or "") == "macvm":
+              for s in meta.get("SharedDirectories") or []:
+                  sp = (s.get("Path") or "").rstrip("/")
+                  if sp == path.rstrip("/") or sp.endswith("/Screengrab"):
+                      ro = s.get("ReadOnly")
+                      print(f"path={s.get('Path')} readOnly={ro}")
+                      sys.exit(0 if (ro is False or ro == 0 or ro is None) else 2)
+      print("missing")
+      sys.exit(1)
+      PY
+          ) || true
+          case "''${share_ok:-missing}" in
+            path=*)
+              echo "screengrab share: $share_ok"
+              if echo "$share_ok" | grep -qi 'readOnly=True'; then
+                echo "screengrab share: ERROR — must be read/write"
+                rc=1
+              fi
+              ;;
+            *)
+              echo "screengrab share: MISSING — nix run .#macvm-utm-share-screengrab"
+              rc=1
+              ;;
+          esac
         else
           echo "config.plist: MISSING"
           rc=1
@@ -326,6 +363,88 @@ let
 
       echo "guest persona: aloshy (activate with nix run …#macvm inside the VM)"
       exit "$rc"
+    '';
+  };
+
+  # Register host ~/Pictures/Screengrab as a R/W UTM SharedDirectory for macvm
+  # (security-scoped bookmark in com.utmapp.UTM Registry). Guest automounts as
+  # /Volumes/My Shared Files/Screengrab and hosts/macvm.nix symlinks ~/Pictures/Screengrab.
+  # Atomic with macos screencapture.location + file-rotation (same path).
+  share-screengrab = mkApp {
+    name = "macvm-utm-share-screengrab";
+    runtimeInputs = baseInputs ++ [ python3 ];
+    text = ''
+      screengrab="''${MACVM_HOST_SCREENGRAB:-$HOME/Pictures/Screengrab}"
+      /bin/mkdir -p "$screengrab"
+
+      if [ ! -f "$UTM_PKG/config.plist" ]; then
+        die "missing $UTM_PKG/config.plist — create the guest first"
+      fi
+      canon=$(package_canon_uuid)
+      [ -n "$canon" ] || die "could not read package UUID"
+
+      # Security-scoped bookmark (UTM stores these in Registry, not config.plist).
+      bookmark_b64=$(
+        /usr/bin/swift -e '
+          import Foundation
+          let path = CommandLine.arguments[1]
+          let url = URL(fileURLWithPath: path)
+          do {
+            let data = try url.bookmarkData(
+              options: [.withSecurityScope],
+              includingResourceValuesForKeys: nil,
+              relativeTo: nil
+            )
+            print(data.base64EncodedString())
+          } catch {
+            fputs("bookmark error: \(error)\n", stderr)
+            exit(1)
+          }
+        ' "$screengrab"
+      ) || die "failed to create security-scoped bookmark for $screengrab"
+
+      export MACVM_CANON="$canon"
+      export MACVM_SCREENGRAB="$screengrab"
+      export MACVM_BOOKMARK_B64="$bookmark_b64"
+      export MACVM_PREFS_DOMAIN="com.utmapp.UTM"
+      ${python3}/bin/python3 - <<'PY'
+      import base64, os, plistlib, subprocess, sys
+
+      canon = os.environ["MACVM_CANON"]
+      path = os.environ["MACVM_SCREENGRAB"]
+      bookmark = base64.b64decode(os.environ["MACVM_BOOKMARK_B64"])
+      domain = os.environ["MACVM_PREFS_DOMAIN"]
+
+      raw = subprocess.check_output(["/usr/bin/defaults", "export", domain, "-"])
+      pl = plistlib.loads(raw)
+      reg = pl.get("Registry") or {}
+      if canon not in reg:
+          print(f"macvm-utm: UUID {canon} not in UTM Registry", file=sys.stderr)
+          sys.exit(1)
+
+      entry = reg[canon]
+      shares = list(entry.get("SharedDirectories") or [])
+      # Replace any existing Screengrab / same-path share; keep others.
+      def is_screengrab(s):
+          p = (s.get("Path") or "").rstrip("/")
+          return p == path.rstrip("/") or p.endswith("/Screengrab")
+
+      shares = [s for s in shares if not is_screengrab(s)]
+      shares.append({"Path": path, "ReadOnly": False, "Bookmark": bookmark})
+      entry["SharedDirectories"] = shares
+      reg[canon] = entry
+      pl["Registry"] = reg
+
+      import tempfile, pathlib
+      tmp = pathlib.Path(tempfile.mkdtemp()) / "utm.plist"
+      tmp.write_bytes(plistlib.dumps(pl))
+      subprocess.check_call(["/usr/bin/defaults", "import", domain, str(tmp)])
+      print(f"SharedDirectories for macvm ({canon}):")
+      for s in shares:
+          print(f"  path={s.get('Path')} readOnly={s.get('ReadOnly')}")
+      print("Guest automount: /Volumes/My Shared Files/Screengrab")
+      print("Restart the macvm guest if it was already running so the share attaches.")
+      PY
     '';
   };
 
@@ -601,4 +720,5 @@ in
   macvm-utm-ensure = ensure;
   macvm-utm-ssh = sshApp;
   macvm-utm-clipboard-on = clipboard-on;
+  macvm-utm-share-screengrab = share-screengrab;
 }
