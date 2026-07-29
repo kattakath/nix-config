@@ -88,6 +88,7 @@ in
     static-only = lib.mkForce false;
     persistent-apps = [
       "/System/Applications/Utilities/Terminal.app"
+      "/Applications/CapCut.app"
       "/Applications/WhatsApp.app"
       "/Applications/Opera.app"
     ];
