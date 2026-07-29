@@ -71,10 +71,11 @@ let
   # which makes macOS Login Items ▸ "Allow in the Background" show a generic
   # "sh" (or "python3") basename for every agent (verified via `sfltool dumpbtm`).
   #
-  # FLEET RULE: BTM display names must be `login-<activity>` — same convention as
-  # modules/darwin/core.nix mkLoginAgent. We keep wait4path, but put it inside a
-  # named store wrapper so ProgramArguments[0]'s basename is login-*.
-  # Vendored from home-manager modules/launchd; only this function differs.
+  # FLEET RULE: BTM display names must be `nix-<activity>` — tags agents as from
+  # this nix-config (same convention as modules/darwin/core.nix mkNixAgent). Keep
+  # wait4path, but put it inside a named store wrapper so ProgramArguments[0]'s
+  # basename is nix-*. Vendored from home-manager modules/launchd; only this
+  # function differs.
   mutateConfig =
     cnf:
     let
@@ -91,7 +92,7 @@ let
           stripped
         else
           lib.replaceStrings [ "." ] [ "-" ] label;
-      wrapperName = "login-${short}";
+      wrapperName = "nix-${short}";
       wrapper = pkgs.writeShellScriptBin wrapperName ''
         set -euo pipefail
         /bin/wait4path /nix/store
