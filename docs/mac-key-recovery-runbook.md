@@ -67,7 +67,7 @@ continue it — so the manual re-run is intentional, and safe to repeat.
 
 `bootstrap.sh` installs Determinate Nix, then hands off to `nix run <flake>#key-recover`,
 which **clones the flake (HTTPS — no key needed) and verifies your macOS login (`id -un`)
-equals the flake's `userName`** (reading `nix eval --raw <flake>#identity.userName`)
+equals the flake's `loginName`** (reading `nix eval --raw <flake>#identity.loginName`)
 *before it restores or founds any keys, or activates* — a mismatched Mac stops there
 having changed nothing but a throwaway clone. A mismatch hard-fails with fork
 instructions; it will not half-activate home-manager for a user that does not exist. See
@@ -102,7 +102,7 @@ installs Nix cannot be run by Nix. It does the irreducible minimum —
 3. move the installer's `/etc/nix/nix.custom.conf` aside,
 
 — and then hands off to `nix run github:kattakath/nix-config#key-recover`,
-which does everything else (decrypt → clone → agenix re-key → activate).
+which does everything else (decrypt → clone → activate).
 
 Both scripts live in this repo. `key-backup` copies `bootstrap.sh` into the kit
 straight from the Nix store, so the copy sitting on the wiped Mac is byte-for-byte
@@ -135,15 +135,6 @@ This is **deterministic on every fresh install**, so `bootstrap.sh` moves the
 stub aside up front rather than reacting to a failed switch. The original is
 kept as `.before-nix-darwin.<timestamp>`.
 
-**The agenix re-key.** A reinstalled Mac has a *new* SSH host key, so the `macos`
-recipient in `secrets/secrets.nix` is stale and every secret encrypted to it must
-be re-encrypted. Your operator key is the other recipient, which is what lets
-agenix decrypt in order to re-key at all. Note that `agenix -r` re-keys *every*
-secret and age emits different bytes each time (fresh ephemeral keys), so secrets
-**not** encrypted to `macos` (nixpi's operator-only `cloudflared-token` vault)
-come back "modified" with no semantic change; `key-recover` reverts that churn so
-the commit is exactly this Mac's re-key.
-
 ## Conventions worth not re-litigating
 
 - **Determinate Nix via the curl CLI installer, never the `.pkg`.**
@@ -170,12 +161,12 @@ rm -rf ~/Library/Mobile\ Documents/com~apple~CloudDocs/nix-key-recovery
 Then empty iCloud's **Recently Deleted** (~30-day retention). The ciphertext is
 strong, but a private key need not linger in iCloud once it has done its job.
 
-Deleting the kit leaves the operator key in exactly one place: this Mac. That is
-recoverable but tedious if the machine dies unexpectedly — each host can still
-decrypt its *own* secret with its host key, so you could pull the plaintexts off
-the live hosts and re-key to a fresh operator key. If that trade sounds bad, keep
-a copy of `id_ed25519.age` somewhere durable and offline (it is still
-passphrase-encrypted) before deleting the iCloud copy.
+Deleting the kit leaves the operator key in exactly one place: this Mac. Under
+the operator-only vault only that key decrypts `secrets/cloudflared-token.age` —
+no host holds a decryptable copy — so if the machine dies unexpectedly there is
+no plaintext to pull off the fleet. Keep a copy of `id_ed25519.age` somewhere
+durable and offline (it is still passphrase-encrypted) before deleting the
+iCloud copy.
 
 ## Manual steps Nix can't do
 

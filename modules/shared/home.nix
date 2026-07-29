@@ -10,11 +10,12 @@
 # The Keychain is macOS-only, so the Linux hosts get no personal-token mechanism
 # here (use one-time CLI logins: gh/hf/docker/claude).
 #
-# SYSTEM/SERVICE secrets are separate from this profile: committed encrypted via
-# agenix (secrets/*.age → /run/agenix/<name> at activation, e.g. the macos
-# runner PAT). The exception is nixpi's Cloudflare tunnel token, planted on the
-# FAT FIRMWARE partition → /run/cloudflared-token (agenix would bind it to the SSH
-# host key a fresh SD flash rotates — see hosts/nixpi.nix).
+# SYSTEM/SERVICE secrets are separate from this profile: the sole one — nixpi's
+# Cloudflare tunnel token (secrets/cloudflared-token.age) — is committed encrypted
+# via agenix as an operator-only vault (encrypted to the operator's key alone,
+# decrypted on the Mac), then planted on the FAT FIRMWARE partition →
+# /run/cloudflared-token. Nothing is host-decrypted into /run/agenix — agenix would
+# bind the token to the SSH host key a fresh SD flash rotates (see hosts/nixpi.nix).
 #
 # Deliberately MINIMAL: no nixvim/tmux — the operator uses VSCode/Cursor and
 # prefers a lean profile with starship for the shell prompt. Add tools only for
@@ -220,7 +221,9 @@ in
   programs.keychainSecrets.enable = true;
 
   # WireGuard confs: sync ~/.local/share/wireguard-configs → ~/.config/wireguard
-  # on macos + macvm. Confs stay outside git (private keys). No autostart.
+  # on macos + macvm. Confs stay outside git (private keys). Copy-only — it NEVER
+  # runs wg-quick / starts a tunnel. On macos (GUI-only, no CLI) these are there
+  # to IMPORT into WireGuard.app; on macvm the CLI `vpn` operator uses them.
   local.wireguardConfigs.enable = pkgs.stdenv.isDarwin;
 
   # RAG stack (Ollama + pgvector) backs the postgres MCP server — real Mac only.
@@ -275,9 +278,14 @@ in
       obs-fb-setup # `obs-fb-setup` — write an OBS "Facebook" profile for Facebook Live, injecting FB_PERSISTENT_STREAM_KEY from the login Keychain (packages/obs-fb-setup.nix)
       chrome-automation # `chrome-automation` — launch a dedicated logged-in Chrome (own profile + CDP port 9222) for the Playwright MCP server to attach to (packages/chrome-automation.nix)
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
-      vpn # `vpn list|status|up|down|switch` — WireGuard operator for ~/.config/wireguard (packages/vpn.nix)
       jdk17 # JRE for the Android sdkmanager/avdmanager (JVM tools); emulator itself needs no Java
       runpodctl # RunPod GPU CLI — RunPod as a second ComfyUI-workflow provider alongside Vast (from nixpkgs, not the untrusted brew tap)
+    ]
+    # WireGuard `vpn` operator — macvm ONLY (it has no App Store, so the CLI is
+    # its only option). macos is GUI-only and ships no VPN CLI on purpose — see
+    # the rationale on the dropped wireguard-tools brew in hosts/macos.nix.
+    ++ lib.optionals (stdenv.isDarwin && !isMacosHost) [
+      vpn # `vpn list|status|up|down|switch` — WireGuard operator for ~/.config/wireguard (packages/vpn.nix)
     ];
 
   # ---- Android SDK (macOS only) ------------------------------------------------
@@ -331,7 +339,7 @@ in
   # on this Mac (the sole Claude Code client host). Declarative equivalent of hand-writing
   # ~/.claude/CLAUDE.md; the strict "decisions/confirmations = AskUserQuestion options"
   # rule + reuse-over-rebuild preference live here so they apply everywhere, not just in
-  # this repo. Darwin-only (claude-code runs only on macos in this fleet).
+  # this repo. Darwin-only (claude-code runs on both darwin hosts, macos + macvm).
   home.file.".claude/CLAUDE.md" = lib.mkIf pkgs.stdenv.isDarwin {
     source = ../../claude/CLAUDE.md;
   };

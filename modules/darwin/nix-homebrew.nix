@@ -2,11 +2,11 @@
 # built-in `homebrew.*` module (./homebrew.nix), which still owns the
 # taps/brews/casks. nix-homebrew auto-selects the prefix from the host
 # platform — this fleet's Mac (aarch64) → /opt/homebrew.
-{ userName, ... }:
+{ loginName, ... }:
 {
   nix-homebrew = {
     enable = true; # install/manage brew at the host's default (arch-correct) prefix
-    user = userName; # account that owns the prefix directories
+    user = loginName; # account that owns the prefix directories
     # This fleet's Mac needs no x86 brew, so Rosetta stays off; the module also
     # asserts enableRosetta => isAarch64, so it must stay false here.
     enableRosetta = false;

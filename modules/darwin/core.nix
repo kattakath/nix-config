@@ -4,13 +4,13 @@
   config,
   lib,
   pkgs,
-  userName,
+  loginName,
   domainName,
   ...
 }:
 
 let
-  home = config.users.users.${userName}.home;
+  home = config.users.users.${loginName}.home;
   # Screenshots land here and are rotated hourly by the launchd agent below.
   screengrabDir = "${home}/Pictures/Screengrab";
   # Reverse-DNS namespace derived from the fleet domain (kattakath.com → com.kattakath)
@@ -233,7 +233,7 @@ in
 
   # NOTE: hostPlatform is set per-host from the darwinSystem `system` arg (via
   # the mkDarwin helper in flake.nix), NOT hardcoded here — so this shared module
-  # serves the aarch64-darwin (macos) Mac.
+  # serves both aarch64-darwin hosts (macos and macvm).
 
   # NOTE: no `nix.settings.experimental-features` here. This host runs Determinate
   # Nix (determinateNix.enable in flake.nix → nix.enable = false), which enables
@@ -253,7 +253,7 @@ in
     # Required by current nix-darwin whenever any `system.defaults.*` is set:
     # names the user those user-scoped macOS defaults apply to. Matches the
     # user declared in the darwin host profile (hosts/macos.nix).
-    primaryUser = userName;
+    primaryUser = loginName;
 
     # ---- macOS defaults (declarative system preferences) -----------------------
     # Deliberately a CURATED slice, not exhaustive. nix-darwin models far more of
@@ -446,7 +446,7 @@ in
   # to the UTM VirtioFS share (hosts/macvm.nix) — do not mkdir a local dir there.
   system.activationScripts.postActivation.text = lib.mkIf (config.networking.hostName == "macos") ''
         mkdir -p "${screengrabDir}"
-        chown ${userName} "${screengrabDir}"
+        chown ${loginName} "${screengrabDir}"
 
         # Docker Desktop "Start when you log in" (settings-store AutoStart) races our
         # quiet open-docker agent and opens the dashboard. Keep AutoStart false so
@@ -469,7 +469,7 @@ in
         f.write("\n")
     print("docker: AutoStart forced off (open-docker owns login start)", file=sys.stderr)
     PY
-          chown ${userName}:staff "$docker_settings" 2>/dev/null || true
+          chown ${loginName}:staff "$docker_settings" 2>/dev/null || true
         fi
   '';
 

@@ -1,9 +1,10 @@
 ---
 name: wireguard-vpn
 description: >
-  Operate WireGuard tunnels on macos/macvm with the fleet vpn CLI (list, status,
-  up, down, switch, restart, doctor). Use when the user asks to connect VPN,
-  switch endpoint (BANGKOK/DUBAI/…), disconnect, or diagnose WireGuard.
+  Operate WireGuard tunnels on macvm with the fleet vpn CLI (list, status, up,
+  down, switch, restart, doctor). Use when the user asks to connect VPN, switch
+  endpoint (BANGKOK/DUBAI/…), disconnect, or diagnose WireGuard. NOTE: macos has
+  NO vpn CLI — it uses the WireGuard.app GUI only; this skill is macvm-scoped.
 ---
 
 # WireGuard VPN operator
@@ -17,6 +18,9 @@ Canonical docs: [`docs/wireguard-vpn.md`](../../../docs/wireguard-vpn.md).
 - Conf files live outside git; plant `~/.local/share/wireguard-configs`, activate
   to sync `~/.config/wireguard`.
 - Do not start tunnels at login unless the user explicitly asks.
+- **macos has no CLI**: it manages WireGuard via `WireGuard.app` (GUI) only — no
+  `wireguard-tools`, no `vpn`. All CLI commands below are **macvm-only**. (On
+  macos even `nix run .#vpn` is inert: it finds no `wg`/`wg-quick` and refuses.)
 
 ## Commands
 

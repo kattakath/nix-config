@@ -212,8 +212,8 @@ ssh-keygen -R nixpi.local   # clear any stale host key first
 ```
 
 SSH is the operator's static key (keys-only). On the LAN once mDNS is up:
-`ssh ismailkattakath@nixpi.local`. Remotely (e.g. travelling), over the tunnel:
-`ssh ismailkattakath@nixpi.kattakath.com` with a `ProxyCommand cloudflared access ssh
+`ssh ismail@nixpi.local`. Remotely (e.g. travelling), over the tunnel:
+`ssh ismail@nixpi.kattakath.com` with a `ProxyCommand cloudflared access ssh
 --hostname %h` in `~/.ssh/config`. The physical serial/HDMI console is the break-glass
 path.
 
