@@ -85,12 +85,15 @@ jobs:
             eval-attrs: >-
               .#nixosConfigurations.nixpi.config.system.build.toplevel.drvPath
               .#nixosConfigurations.nixvm.config.system.build.toplevel.drvPath
-          # aarch64-darwin (Apple Silicon) — the sole darwin host; also builds
-          # the aarch64-darwin lint checks. GitHub-hosted `macos-latest` (a free
-          # STANDARD macOS runner on a public repo).
+          # aarch64-darwin (Apple Silicon) — both darwin hosts (macos + macvm
+          # UTM guest config); also builds the aarch64-darwin lint checks.
+          # GitHub-hosted `macos-latest` (a free STANDARD macOS runner on a
+          # public repo). Eval only — no toplevel builds.
           - name: aarch64-darwin
             runs-on: macos-latest
-            eval-attrs: .#darwinConfigurations.macos.system.drvPath
+            eval-attrs: >-
+              .#darwinConfigurations.macos.system.drvPath
+              .#darwinConfigurations.macvm.system.drvPath
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
