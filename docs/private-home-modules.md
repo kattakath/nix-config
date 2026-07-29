@@ -75,16 +75,16 @@ as a path, not as a URL. The public `flake.lock` never locks a private repo.
 ### Day-to-day activate (with private modules)
 
 ```bash
-# macos
-sudo nix run ~/Developer/gitlab.com/[redacted]#macos
+# macos (private #macos app escalates and sets root HOME)
+nix run ~/Developer/gitlab.com/[redacted]#macos
 
 # macvm (from the host) — guest usually has no GitLab SSH, so sync the private
 # clone then activate the path flake:
 NP=~/Developer/gitlab.com/[redacted]
 CFG=~/Developer/github.com/kattakath/nix-config
 tar -C "$NP" --exclude result --exclude .direnv -cf - . |
-  nix run "$CFG#macvm-utm-ssh" -- 'mkdir -p ~/[redacted] && tar -C ~/[redacted] -xf -'
-nix run "$CFG#macvm-utm-ssh" -- sudo nix run /Users/aloshy/[redacted]#macvm
+  nix run "$CFG#macvm-tart-ssh" -- 'mkdir -p ~/[redacted] && tar -C ~/[redacted] -xf -'
+nix run "$CFG#macvm-tart-ssh" -- nix run /Users/aloshy/[redacted]#macvm
 ```
 
 Fleet-only (no private modules): `github:kattakath/nix-config#macos` / `#macvm`.
@@ -111,7 +111,7 @@ Prefer:
 2. Or a private flake that only ships the *module* and still `cp`s from a host-local
    path at activation.
 
-See `docs/macvm-utm-runbook.md` (WireGuard section).
+See `docs/macvm-tart-runbook.md` (WireGuard section).
 
 ## What this is not
 
