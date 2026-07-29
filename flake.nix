@@ -858,6 +858,12 @@
           }
         ))
 
+        # WireGuard operator (darwin) — confs stay outside the store; tool is public.
+        # Also on PATH via home.packages on darwin (modules/shared/home.nix).
+        (nixpkgs.lib.genAttrs darwinSystems (system: {
+          vpn = (pkgsFor system).callPackage ./packages/vpn.nix { };
+        }))
+
         {
           # The LIVE nixpi SD image (not a separate installer): prebuilt in CI
           # (build-installers), published to the installer-latest release, and
@@ -1148,6 +1154,13 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.macvm-utm-secret-copy}/bin/macvm-utm-secret-copy";
               meta.description = "Copy login-Keychain secrets from macos host → macvm guest (aloshy); --list / --rm";
+            };
+
+            # WireGuard operator — confs in ~/.config/wireguard (not in the store).
+            aarch64-darwin.vpn = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.vpn}/bin/vpn";
+              meta.description = "WireGuard operator: vpn list|status|up|down|switch|restart|doctor (idempotent, no key leak)";
             };
 
             # `nix run .#set-secret -- KEY [VALUE]` — store a secret in the macOS
