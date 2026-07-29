@@ -85,27 +85,35 @@ in
     };
   };
 
-  # After nix-darwin installs the plist, force-load/kickstart it (new daemons
-  # can sit unloaded until reboot otherwise). Label is org.nixos.macvm-sshd.
-  system.activationScripts.extraActivation.text = lib.mkAfter ''
-    echo "macvm: loading org.nixos.macvm-sshd…"
+  # MUST be postActivation: extraActivation runs BEFORE launchd plists are
+  # installed to /Library/LaunchDaemons, so bootstrap there always no-ops.
+  # nix-darwin still uses deprecated `launchctl load` which fails on modern
+  # macOS; re-bootstrap with the modern API after the link exists.
+  system.activationScripts.postActivation.text = lib.mkAfter ''
+    echo "macvm: postActivation — bootstrap org.nixos.macvm-sshd…"
     plist=/Library/LaunchDaemons/org.nixos.macvm-sshd.plist
-    /bin/ls -la /Library/LaunchDaemons/org.nixos.macvm* 2>/dev/null || true
-    if [ -e "$plist" ]; then
+    /bin/ls -la /Library/LaunchDaemons/org.nixos.macvm* 2>/dev/null || echo "macvm: no org.nixos.macvm* plists yet"
+    if [ -e "$plist" ] || [ -L "$plist" ]; then
       /bin/launchctl bootout system/org.nixos.macvm-sshd 2>/dev/null || true
       /bin/launchctl bootout system "$plist" 2>/dev/null || true
-      /bin/launchctl bootstrap system "$plist" 2>/dev/null \
-        || /bin/launchctl load -w "$plist" 2>/dev/null \
-        || true
+      /bin/launchctl unload "$plist" 2>/dev/null || true
+      if /bin/launchctl bootstrap system "$plist"; then
+        echo "macvm: bootstrap ok"
+      else
+        echo "macvm: bootstrap failed, trying load -w…"
+        /bin/launchctl load -w "$plist" || echo "macvm: load -w also failed" >&2
+      fi
       /bin/launchctl enable system/org.nixos.macvm-sshd 2>/dev/null || true
       /bin/launchctl kickstart -k system/org.nixos.macvm-sshd 2>/dev/null || true
-      /bin/launchctl print system/org.nixos.macvm-sshd 2>/dev/null | /usr/bin/head -15 || true
+      echo "macvm: launchctl print:"
+      /bin/launchctl print system/org.nixos.macvm-sshd 2>&1 | /usr/bin/head -20 || true
     else
-      echo "macvm: WARNING — $plist missing after activation" >&2
+      echo "macvm: ERROR — $plist missing (launchd.daemons.macvm-sshd not installed)" >&2
     fi
     /usr/bin/sleep 1
-    /usr/sbin/lsof -iTCP:22 -sTCP:LISTEN 2>/dev/null || true
-    # Remote Login flag is cosmetic for us; may stay Off without FDA.
+    echo "macvm: listeners on :22:"
+    /usr/sbin/lsof -iTCP:22 -sTCP:LISTEN 2>/dev/null || echo "(none)"
+    # Remote Login flag is cosmetic; may stay Off. Our sshd is org.nixos.macvm-sshd.
     /usr/sbin/systemsetup -f -setremotelogin on 2>/dev/null || true
     /usr/sbin/systemsetup -getremotelogin 2>/dev/null || true
   '';
