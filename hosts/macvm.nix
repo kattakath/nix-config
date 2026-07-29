@@ -172,11 +172,16 @@ in
   # ---- Host Screengrab via UTM VirtioFS --------------------------------------
   # Host path (single source with macos screencapture + file-rotation):
   #   /Users/ismailkattakath/Pictures/Screengrab
-  # UTM Registry SharedDirectories (R/W) exposes it; Apple automounts as
+  # UTM Registry SharedDirectories (R/W) → Apple automount:
   #   /Volumes/My Shared Files/Screengrab
-  # We keep ~/Pictures/Screengrab → that share (same path shape as macos).
-  # Host: `nix run .#macvm-utm-share-screengrab` (registers share + bookmark).
-  # Do NOT run file-rotation here (core.nix gates it to hostname macos).
+  # Guest keeps the same path shape as macos:
+  #   ~/Pictures/Screengrab → that automount
+  # screencapture.location (core.nix) already points at that path, so guest
+  # screenshots land in the shared folder once the symlink is healthy.
+  # Host: `nix run .#macvm-utm-share-screengrab`. Rotation stays macos-only.
+  #
+  # Hardening: StartInterval re-heals after boot race / remount; dangling
+  # symlinks are removed so captures don't vanish into a broken path.
   launchd.user.agents.nix-screengrab-share = {
     serviceConfig = {
       Label = "org.nixos.nix-screengrab-share";
@@ -184,59 +189,78 @@ in
         "${pkgs.writeShellScriptBin "nix-screengrab-share" ''
           set -euo pipefail
           shared="/Volumes/My Shared Files/Screengrab"
-          local="${
-            # Keep in sync with modules/darwin/core.nix screengrabDir shape.
-            "/Users/${userName}/Pictures/Screengrab"
-          }"
-          # VirtioFS may appear after login; wait up to ~2 min.
-          i=0
-          while [ ! -d "$shared" ] && [ "$i" -lt 60 ]; do
-            sleep 2
-            i=$((i + 1))
-          done
-          if [ ! -d "$shared" ]; then
-            echo "nix-screengrab-share: $shared not present (host share + UTM SharedDirectories?)" >&2
-            exit 0
-          fi
-          /bin/mkdir -p "$(/usr/bin/dirname "$local")"
-          if [ -L "$local" ]; then
-            cur="$(/usr/bin/readlink "$local" || true)"
-            if [ "$cur" = "$shared" ]; then
-              exit 0
-            fi
-            /bin/rm -f "$local"
-          elif [ -d "$local" ]; then
-            # Replace empty local dir; back up if it has content.
-            count="$(/usr/bin/find "$local" -mindepth 1 ! -name '.DS_Store' 2>/dev/null | /usr/bin/wc -l | /usr/bin/tr -d ' ')"
-            if [ "''${count:-0}" -eq 0 ]; then
-              /bin/rm -rf "$local"
-            else
+          # Keep in sync with modules/darwin/core.nix screengrabDir shape.
+          local="/Users/${userName}/Pictures/Screengrab"
+          log() { echo "nix-screengrab-share: $*" >&2; }
+
+          ensure_symlink() {
+            /bin/mkdir -p "$(/usr/bin/dirname "$local")"
+            if [ -L "$local" ]; then
+              cur="$(/usr/bin/readlink "$local" || true)"
+              if [ "$cur" = "$shared" ] && [ -d "$shared" ]; then
+                return 0
+              fi
+              # Wrong or dangling symlink — remove so we can heal.
+              /bin/rm -f "$local"
+            elif [ -d "$local" ]; then
+              count="$(/usr/bin/find "$local" -mindepth 1 ! -name '.DS_Store' 2>/dev/null | /usr/bin/wc -l | /usr/bin/tr -d ' ')"
+              if [ "''${count:-0}" -eq 0 ]; then
+                /bin/rm -rf "$local"
+              else
+                /bin/mv "$local" "''${local}.local-backup.$(/bin/date +%Y%m%d%H%M%S)"
+                log "backed up non-empty local dir"
+              fi
+            elif [ -e "$local" ]; then
               /bin/mv "$local" "''${local}.local-backup.$(/bin/date +%Y%m%d%H%M%S)"
             fi
-          elif [ -e "$local" ]; then
-            /bin/mv "$local" "''${local}.local-backup.$(/bin/date +%Y%m%d%H%M%S)"
+            /bin/ln -sfn "$shared" "$local"
+            log "$local -> $shared"
+          }
+
+          if [ -d "$shared" ]; then
+            ensure_symlink
+            # Prove R/W (fail closed: if share is read-only, log loudly).
+            probe="$shared/.nix-screengrab-share-probe"
+            if /bin/echo ok >"$probe" 2>/dev/null; then
+              /bin/rm -f "$probe"
+              log "ok (writable)"
+            else
+              log "WARNING — share present but not writable"
+              exit 1
+            fi
+            exit 0
           fi
-          /bin/ln -sfn "$shared" "$local"
-          echo "nix-screengrab-share: $local -> $shared"
+
+          # Share not up yet: clear dangling symlink so screencapture won't
+          # write into a broken path (it falls back to Desktop until we heal).
+          if [ -L "$local" ] && [ ! -d "$local" ]; then
+            /bin/rm -f "$local"
+            log "removed dangling symlink (waiting for VirtioFS)"
+          fi
+          log "waiting for $shared (host: macvm-utm-share-screengrab + restart guest if needed)"
+          exit 0
         ''}/bin/nix-screengrab-share"
       ];
       RunAtLoad = true;
-      KeepAlive = false;
+      # Re-heal after boot race, sleep/wake, or share re-attach (idempotent).
+      StartInterval = 30;
       StandardOutPath = "/Users/${userName}/Library/Logs/nix-screengrab-share.log";
       StandardErrorPath = "/Users/${userName}/Library/Logs/nix-screengrab-share.log";
     };
   };
 
   system.activationScripts.postActivation.text = lib.mkAfter ''
-    # Best-effort symlink at activation (agent retries after VirtioFS automount).
+    # Best-effort heal at activation; agent keeps retrying every 30s.
     shared="/Volumes/My Shared Files/Screengrab"
     local="/Users/${userName}/Pictures/Screengrab"
     if [ -d "$shared" ]; then
       /bin/mkdir -p "/Users/${userName}/Pictures"
-      if [ -L "$local" ] && [ "$(/usr/bin/readlink "$local" 2>/dev/null)" = "$shared" ]; then
-        :
+      if [ -L "$local" ] && [ "$(/usr/bin/readlink "$local" 2>/dev/null)" = "$shared" ] && [ -d "$local" ]; then
+        echo "macvm: Screengrab symlink ok" >&2
       else
-        if [ -d "$local" ] && [ ! -L "$local" ]; then
+        if [ -L "$local" ]; then
+          /bin/rm -f "$local"
+        elif [ -d "$local" ]; then
           count="$(/usr/bin/find "$local" -mindepth 1 ! -name '.DS_Store' 2>/dev/null | /usr/bin/wc -l | /usr/bin/tr -d ' ')"
           if [ "''${count:-0}" -eq 0 ]; then
             /bin/rm -rf "$local"
@@ -249,7 +273,11 @@ in
         echo "macvm: Screengrab -> $shared" >&2
       fi
     else
-      echo "macvm: VirtioFS Screengrab not mounted yet (agent will retry; host: macvm-utm-share-screengrab)" >&2
+      if [ -L "$local" ] && [ ! -d "$local" ]; then
+        /bin/rm -f "$local"
+        echo "macvm: removed dangling Screengrab symlink (VirtioFS not up yet)" >&2
+      fi
+      echo "macvm: VirtioFS Screengrab not mounted yet (agent retries every 30s)" >&2
     fi
   '';
 }
