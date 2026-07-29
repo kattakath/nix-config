@@ -19,18 +19,71 @@ let
 
   # BTM names ProgramArguments[0] basename (`sfltool dumpbtm`) — use `nix-<app>`
   # not bare `open`. No custom .app icon: unsigned store paths always show
-  # "unidentified developer" without a paid Developer ID. `-g` no focus steal,
-  # `-j` launch hidden.
-  mkNixAgent = suffix: appName: {
-    serviceConfig = {
-      ProgramArguments = [
-        "${pkgs.writeShellScriptBin "nix-${suffix}" ''
-          exec /usr/bin/open -g -j -a "${appName}"
-        ''}/bin/nix-${suffix}"
-      ];
-      RunAtLoad = true;
+  # "unidentified developer" without a paid Developer ID.
+  #
+  # Quiet login launch: `open -g -j` alone is not enough — Slack/Messages/Mail/
+  # Docker (and most Electron apps) ignore `-j` and raise a window after init.
+  # We still pass -g/-j, then re-hide the process via System Events for ~12s so
+  # late window raises never steal focus. Dock / menu-bar icons stay; only the
+  # window is suppressed. Needs Accessibility for /usr/bin/osascript (already
+  # granted for the MCP gateway — hide is best-effort if missing).
+  #
+  #   mkNixAgent { suffix = "slack"; app = "Slack"; }
+  #   mkNixAgent {
+  #     suffix = "docker"; app = "Docker";
+  #     processNames = [ "Docker" "Docker Desktop" ];
+  #     extraOpenArgs = [ "--unattended" ];
+  #   }
+  mkNixAgent =
+    {
+      suffix,
+      app,
+      # System Events process name(s) to force-hide (may differ from `open -a`).
+      processNames ? [ app ],
+      # Extra args after `open … --args` (app-specific, e.g. Docker --unattended).
+      extraOpenArgs ? [ ],
+    }:
+    let
+      # AppleScript list literal: {"Slack", "Docker Desktop"}
+      procList = lib.concatMapStringsSep ", " (n: ''"${n}"'') processNames;
+      openArgsShell = lib.concatMapStringsSep " " lib.escapeShellArg extraOpenArgs;
+      openCmd =
+        if extraOpenArgs == [ ] then
+          ''/usr/bin/open -g -j -a ${lib.escapeShellArg app}''
+        else
+          ''/usr/bin/open -g -j -a ${lib.escapeShellArg app} --args ${openArgsShell}'';
+    in
+    {
+      serviceConfig = {
+        ProgramArguments = [
+          "${pkgs.writeShellScriptBin "nix-${suffix}" ''
+            set -eu
+            ${openCmd}
+            # Re-hide while the app finishes starting (Electron often shows late).
+            hide() {
+              /usr/bin/osascript -e '
+                tell application "System Events"
+                  repeat with procName in {${procList}}
+                    try
+                      if exists process (procName as text) then
+                        set visible of process (procName as text) to false
+                      end if
+                    end try
+                  end repeat
+                end tell
+              ' 2>/dev/null || true
+            }
+            i=0
+            while [ "$i" -lt 24 ]; do
+              hide
+              /bin/sleep 0.5
+              i=$((i + 1))
+            done
+          ''}/bin/nix-${suffix}"
+        ];
+        RunAtLoad = true;
+      };
     };
-  };
 
   # ---- Finder "Show View Options" default template (list view) --------------
   # This is the nested dict that Finder's "Use as Defaults" button writes and
@@ -333,12 +386,34 @@ in
   # into the guest's ~/.Trash.
   launchd.user.agents = lib.mkIf (config.networking.hostName == "macos") {
     # Agent attr names (open-*) keep launchd Labels stable so existing BTM
-    # toggle state is preserved. Turn OFF each app's own "Open at Login".
-    open-maccy = mkNixAgent "maccy" "Maccy";
-    open-docker = mkNixAgent "docker" "Docker";
-    open-slack = mkNixAgent "slack" "Slack";
-    open-mail = mkNixAgent "mail" "Mail";
-    open-messages = mkNixAgent "messages" "Messages";
+    # toggle state is preserved. Turn OFF each app's own "Open at Login" so we
+    # don't double-start (Docker AutoStart is also forced off at activation).
+    open-maccy = mkNixAgent {
+      suffix = "maccy";
+      app = "Maccy";
+    }; # menu-bar only (LSUIElement)
+    open-docker = mkNixAgent {
+      suffix = "docker";
+      app = "Docker";
+      processNames = [
+        "Docker"
+        "Docker Desktop"
+      ];
+      # Backend-first start; dashboard still may flash — re-hide covers it.
+      extraOpenArgs = [ "--unattended" ];
+    };
+    open-slack = mkNixAgent {
+      suffix = "slack";
+      app = "Slack";
+    };
+    open-mail = mkNixAgent {
+      suffix = "mail";
+      app = "Mail";
+    };
+    open-messages = mkNixAgent {
+      suffix = "messages";
+      app = "Messages";
+    };
 
     # Hourly rotation of ~/Pictures/Screengrab → ~/.Trash (recoverable).
     # Stock /bin + /usr/bin only (no Nix runtime). Direct ProgramArguments
@@ -372,6 +447,30 @@ in
   system.activationScripts.postActivation.text = lib.mkIf (config.networking.hostName == "macos") ''
     mkdir -p "${screengrabDir}"
     chown ${userName} "${screengrabDir}"
+
+    # Docker Desktop "Start when you log in" (settings-store AutoStart) races our
+    # quiet open-docker agent and opens the dashboard. Keep AutoStart false so
+    # only org.nixos.open-docker drives login start (menu-bar / no UI flash).
+    docker_settings="${home}/Library/Group Containers/group.com.docker/settings-store.json"
+    if [ -f "$docker_settings" ]; then
+      /usr/bin/python3 - "$docker_settings" <<'PY' || true
+import json, sys
+path = sys.argv[1]
+try:
+    with open(path) as f:
+        data = json.load(f)
+except Exception:
+    sys.exit(0)
+if data.get("AutoStart") is False:
+    sys.exit(0)
+data["AutoStart"] = False
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+print("docker: AutoStart forced off (open-docker owns login start)", file=sys.stderr)
+PY
+      chown ${userName}:staff "$docker_settings" 2>/dev/null || true
+    fi
   '';
 
   # Window manager placeholder — uncomment and configure when adopted:
