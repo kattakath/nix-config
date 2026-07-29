@@ -58,6 +58,104 @@ let
     }
   '';
 
+  # Shared: decrypt secrets/cloudflared-token.age with the operator SSH key.
+  # age prompts on /dev/tty for an encrypted key — that fails in agent/non-TTY
+  # shells ("/dev/tty: device not configured"), which is exactly how a reflash
+  # often runs. Order:
+  #   1) unencrypted key → age -d directly
+  #   2) TTY available → age prompts natively on /dev/tty
+  #   3) no TTY (macOS) → osascript hidden dialog, temp-unlock a key copy via
+  #      ssh-keygen -p, age -d, then wipe the copy (never log the passphrase)
+  decryptVaultFn = ''
+        decrypt_operator_vault() {
+          # $1 = destination path for plaintext (TUNNEL_TOKEN=…)
+          local dest="''${1:?}"
+          local key="${operatorKey}"
+          local vault_path="${vault}"
+          local tmpkey="" pass=""
+
+          if [ ! -f "$key" ]; then
+            echo "nixpi: operator key not found: $key" >&2
+            return 1
+          fi
+          if [ ! -f "$vault_path" ]; then
+            echo "nixpi: vault not found: $vault_path (run from repo root)." >&2
+            return 1
+          fi
+
+          _nixpi_vault_cleanup() {
+            if [ -n "''${tmpkey:-}" ] && [ -f "$tmpkey" ]; then
+              # Best-effort overwrite then unlink (macOS has no shred by default).
+              /bin/dd if=/dev/urandom of="$tmpkey" bs=1024 count=4 conv=notrunc >/dev/null 2>&1 || true
+              rm -f "$tmpkey"
+            fi
+            unset pass tmpkey 2>/dev/null || true
+          }
+
+          # Unencrypted private key: no passphrase needed.
+          if SSH_ASKPASS_REQUIRE=force SSH_ASKPASS=/usr/bin/false DISPLAY=dummy \
+            /usr/bin/ssh-keygen -y -f "$key" </dev/null >/dev/null 2>&1; then
+            age -d -i "$key" "$vault_path" >"$dest"
+            return 0
+          fi
+
+          # Encrypted key + real TTY: let age prompt (never capture the passphrase).
+          if [ -r /dev/tty ] && [ -w /dev/tty ]; then
+            # age reads the passphrase from the controlling terminal.
+            if age -d -i "$key" "$vault_path" >"$dest" </dev/tty 2>/dev/tty; then
+              return 0
+            fi
+            echo "nixpi: vault decrypt failed (wrong passphrase or corrupt vault?)." >&2
+            return 1
+          fi
+
+          # No TTY (Claude Code Bash, launchd, piped CI, …): macOS GUI prompt.
+          if [ ! -x /usr/bin/osascript ]; then
+            echo "nixpi: operator key is passphrase-protected and no TTY is available." >&2
+            echo "nixpi: re-run in Terminal.app, or unlock is not possible headless here." >&2
+            return 1
+          fi
+
+          pass=$(/usr/bin/osascript <<'APPLESCRIPT'
+    try
+      text returned of (display dialog "Passphrase for ~/.ssh/id_ed25519" & return & "(decrypts the nixpi Cloudflare tunnel token vault)" with title "nixpi-provision" default answer "" with hidden answer buttons {"Cancel", "OK"} default button "OK")
+    on error number -128
+      return ""
+    on error
+      return ""
+    end try
+    APPLESCRIPT
+    ) || true
+
+          if [ -z "''${pass:-}" ]; then
+            echo "nixpi: vault decrypt cancelled (no passphrase)." >&2
+            return 1
+          fi
+
+          # Explicit cleanup only — do NOT install EXIT/RETURN traps here: nixpi-flash
+          # already owns EXIT for its image tmpdir, and a nested trap would clobber it.
+          tmpkey=$(mktemp "''${TMPDIR:-/tmp}/nixpi-opkey.XXXXXX")
+          /bin/cp "$key" "$tmpkey"
+          /bin/chmod 600 "$tmpkey"
+          # Unlock a throwaway copy (empty passphrase) so age needs no TTY.
+          # -P is briefly visible in ps(1); accepted for this short-lived GUI path.
+          if ! /usr/bin/ssh-keygen -p -f "$tmpkey" -P "$pass" -N "" -q; then
+            echo "nixpi: wrong passphrase (or ssh-keygen could not unlock the key)." >&2
+            _nixpi_vault_cleanup
+            return 1
+          fi
+          unset pass
+
+          if ! age -d -i "$tmpkey" "$vault_path" >"$dest"; then
+            echo "nixpi: vault decrypt failed after unlock." >&2
+            _nixpi_vault_cleanup
+            return 1
+          fi
+          _nixpi_vault_cleanup
+          return 0
+        }
+  '';
+
   wifi-creds = writeShellApplication {
     name = "nixpi-wifi-creds";
     runtimeInputs = [
@@ -159,7 +257,8 @@ let
 
       if [ "$what" = "token" ] || [ "$what" = "all" ]; then
         require_repo_root
-        age -d -i "${operatorKey}" ${vault} > "$mnt/cloudflared-token"
+        ${decryptVaultFn}
+        decrypt_operator_vault "$mnt/cloudflared-token"
         if ! grep -q '^TUNNEL_TOKEN=' "$mnt/cloudflared-token"; then
           echo "nixpi-provision: decrypted token is malformed (no TUNNEL_TOKEN= line)." >&2
           exit 1
