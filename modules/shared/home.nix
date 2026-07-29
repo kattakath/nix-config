@@ -26,6 +26,9 @@
   config,
   fullName,
   userEmail,
+  # Fleet operator ed25519 PUBLIC key (secrets/operator-key.nix) — single source
+  # for authorizedKeys + agenix recipient + git SSH allowed_signers principal.
+  operatorSshKey,
   # Source-only flake inputs holding Claude Code skills (see programs.claude-code
   # below). flake.nix pins them; nothing is vendored into this repo.
   agent-skills-vercel,
@@ -79,6 +82,20 @@ let
   # (home.activation.claudeCodePlugins). Each id is "<plugin>@<marketplace>"; adding
   # a plugin = pin its marketplace input + marketplaces entry, then append its id here.
   claudePluginIds = [ "grok-build@xai-grok-build" ];
+
+  # Absolute operator SSH paths under $HOME. Git treats a non-absolute
+  # gpg.ssh.allowedSignersFile as worktree-relative (would look in <repo>/.ssh/).
+  sshDir = "${config.home.homeDirectory}/.ssh";
+  operatorPrivateKey = "${sshDir}/id_ed25519";
+  operatorPublicKey = "${sshDir}/id_ed25519.pub";
+  allowedSignersFile = "${sshDir}/allowed_signers";
+
+  # Shared by bash/zsh interactive init (GUI apps use launchd.agents.ssh-keychain-load).
+  sshKeychainLoadShell = ''
+    if command -v ssh-add >/dev/null 2>&1 && ! ssh-add -l >/dev/null 2>&1; then
+      ssh-add --apple-load-keychain 2>/dev/null || true
+    fi
+  '';
 
   # `mermaid-ascii` — render Mermaid graphs as ASCII in the terminal. Packaged from
   # upstream (not in nixpkgs); see packages/mermaid-ascii.nix.
@@ -344,6 +361,12 @@ in
     source = ../../claude/CLAUDE.md;
   };
 
+  # Git SSH allowed_signers (principal = userEmail, key = operatorSshKey).
+  # HM target is home-relative; programs.git uses absolute allowedSignersFile.
+  home.file.".ssh/allowed_signers".text = ''
+    ${userEmail} namespaces="git" ${operatorSshKey}
+  '';
+
   # ---- Home Manager program modules --------------------------------------------
   programs = {
     # Let Home Manager manage itself.
@@ -438,22 +461,23 @@ in
         user.email = lib.mkDefault userEmail;
         init.defaultBranch = "main";
         pull.rebase = true;
+        # SSH commit/tag signing (GitHub/GitLab Verified). Absolute $HOME paths —
+        # non-absolute allowedSignersFile is worktree-relative. Forge still needs
+        # the pubkey as a *Signing* key (docs/mac-key-recovery-runbook.md).
         commit.gpgsign = true;
+        tag.gpgsign = true;
         gpg.format = "ssh";
-        user.signingkey = "~/.ssh/id_ed25519.pub";
+        user.signingkey = operatorPublicKey;
+        gpg.ssh.allowedSignersFile = allowedSignersFile;
       };
 
-      # Per-directory identity, keyed on the ~/Developer/<host>/<owner>/ layout.
-      # Any repo under the Infin8 client org's path uses the work identity instead
-      # of the personal default above, so client commits never carry the personal
-      # email/key by accident. The work email itself is NOT committed to this public
-      # repo — it lives in ~/.config/git/infin8.inc (a plain, git-ignored-by-location
-      # file the operator fills). Git silently ignores the include if that file is
-      # absent or comment-only, so the fallback is simply the personal default.
+      # Per-directory identity under ~/Developer/<host>/<owner>/. Work email lives
+      # in ~/.config/git/infin8.inc (not in this public repo); missing include is a
+      # silent no-op. Paths absolute under $HOME.
       includes = [
         {
-          condition = "gitdir:~/Developer/github.com/Infin8-Information-Technologies/";
-          path = "~/.config/git/infin8.inc";
+          condition = "gitdir:${config.home.homeDirectory}/Developer/github.com/Infin8-Information-Technologies/";
+          path = "${config.home.homeDirectory}/.config/git/infin8.inc";
         }
       ];
     };
@@ -464,23 +488,27 @@ in
       # Forward-compat with the home-manager `programs.ssh` deprecation: the module
       # is dropping its implicit `settings."*"` defaults (and warns while they remain
       # on by default), and `matchBlocks` is now a deprecated alias for `settings`.
-      # We opt out with `enableDefaultConfig = false`, re-declare the exact 10 defaults
-      # ourselves under `settings."*"`, and move the per-host blocks to `settings` so
-      # generated ~/.ssh/config stays byte-identical while both warnings are silenced.
+      # We opt out with `enableDefaultConfig = false`, re-declare the former defaults
+      # under `settings."*"` (with fleet overrides for agent/Keychain — see below),
+      # and move the per-host blocks to `settings` so both deprecation warnings stay
+      # silenced.
       enableDefaultConfig = false;
 
       settings = {
-        # The former implicit defaults, re-stated verbatim (OpenSSH directive names).
+        # Defaults + Keychain-backed agent for git SSH signing / non-interactive SSH.
+        # Paths absolute under $HOME.
         "*" = {
           ForwardAgent = false;
-          AddKeysToAgent = "no";
+          AddKeysToAgent = "yes";
+          UseKeychain = "yes";
+          IdentityFile = operatorPrivateKey;
           Compression = false;
           ServerAliveInterval = 0;
           ServerAliveCountMax = 3;
           HashKnownHosts = false;
-          UserKnownHostsFile = "~/.ssh/known_hosts";
+          UserKnownHostsFile = "${sshDir}/known_hosts";
           ControlMaster = "no";
-          ControlPath = "~/.ssh/master-%r@%n:%p";
+          ControlPath = "${sshDir}/master-%r@%n:%p";
           ControlPersist = "no";
         };
 
@@ -488,7 +516,7 @@ in
         # admin work over SSH from the Mac.
         "*.local" = {
           User = config.home.username;
-          IdentityFile = "~/.ssh/id_ed25519";
+          IdentityFile = operatorPrivateKey;
           ForwardAgent = true;
         };
 
@@ -496,7 +524,7 @@ in
         # This Host is for a fixed HostName / macvm.local; user is always aloshy.
         "macvm" = {
           User = "aloshy";
-          IdentityFile = "~/.ssh/id_ed25519";
+          IdentityFile = operatorPrivateKey;
           ForwardAgent = true;
           StrictHostKeyChecking = "accept-new";
         };
@@ -527,6 +555,7 @@ in
       # through to the Homebrew node (an inert dependency of bruno-cli/devcontainer).
       initExtra = lib.mkIf pkgs.stdenv.isDarwin ''
         eval "$(${pkgs.fnm}/bin/fnm env --use-on-cd --shell bash)"
+        ${sshKeychainLoadShell}
       '';
     };
 
@@ -591,6 +620,7 @@ in
       # .node-version; falls through to the Homebrew node when no version is active.
       initContent = lib.mkIf pkgs.stdenv.isDarwin ''
         eval "$(${pkgs.fnm}/bin/fnm env --use-on-cd --shell zsh)"
+        ${sshKeychainLoadShell}
       '';
     };
 
@@ -734,9 +764,28 @@ in
     };
   };
 
-  # NOTE: the custom desktop wallpaper + Terminal.app "Ubuntu" profile used to live
-  # here; they moved to ./desktop-aesthetics.nix (imported above) so a host can opt
-  # out of them — macvm does, to stay visually distinct from macos.
+  # Login oneshot: load Keychain SSH identities into the agent for GUI git signing
+  # (shells use sshKeychainLoadShell). First-time: ssh-add --apple-use-keychain
+  # on the operator private key (key-recover does this). hm-launchd → nix-ssh-keychain-load.
+  launchd.agents.ssh-keychain-load = lib.mkIf pkgs.stdenv.isDarwin {
+    enable = true;
+    config = {
+      ProgramArguments = [
+        (pkgs.writeShellScript "ssh-keychain-load" ''
+          set -eu
+          /usr/bin/ssh-add --apple-load-keychain 2>/dev/null || true
+          key="${operatorPrivateKey}"
+          if [ -f "$key" ] && ! /usr/bin/ssh-add -l >/dev/null 2>&1; then
+            /usr/bin/ssh-add --apple-use-keychain "$key" 2>/dev/null || true
+          fi
+        '')
+      ];
+      RunAtLoad = true;
+      StandardOutPath = "${config.home.homeDirectory}/Library/Logs/ssh-keychain-load.log";
+      StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/ssh-keychain-load.log";
+    };
+  };
+
   home.activation = lib.mkIf pkgs.stdenv.isDarwin {
     # Materialise the DECLARED Claude Code plugins (claudePluginIds) from their
     # Nix-pinned marketplaces. We deliberately do NOT put ~/.claude/plugins/

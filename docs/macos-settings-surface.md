@@ -172,10 +172,15 @@ arch prefix. Rule of thumb enforced in the header: tools available in nixpkgs st
 ## 4. Home Manager layer (`modules/shared/home.nix`)
 
 Per-user config; the GUI/macOS blocks are gated `lib.mkIf pkgs.stdenv.isDarwin`.
-Configured today: `programs.git` (SSH commit signing), `programs.ssh` (full
-`~/.ssh/config`), `programs.zsh` + `starship` + `bash`, `programs.gh`,
-`programs.direnv`, `programs.vscode` (declarative extensions + ~80 `userSettings`),
-`programs.claude-code` + the MCP gateway, `fonts.fontconfig`, `home.packages`.
+Configured today: `programs.git` (SSH commit/tag signing + `gpg.ssh.allowedSignersFile`),
+`home.file.".ssh/allowed_signers"` (operator pubkey × `userEmail`), `programs.ssh`
+(`UseKeychain` / `AddKeysToAgent` / `IdentityFile` on Darwin), login
+`launchd.agents.ssh-keychain-load` (loads Keychain identities into the agent for
+GUI git signing), `programs.zsh` + `starship` + `bash`, `programs.gh`,
+`programs.direnv`, `programs.vscode` (declarative extensions + ~80 `userSettings`,
+including `git.enableCommitSigning`), `programs.claude-code` + the MCP gateway,
+`fonts.fontconfig`, `home.packages`. GitHub/GitLab **Verified** still requires the
+same pubkey registered as a *Signing* key on the forge (not only Authentication).
 
 **Available but unused, worth knowing:**
 - **`targets.darwin.defaults`** — set **user** defaults from the Home-Manager side

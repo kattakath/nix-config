@@ -552,6 +552,10 @@
                 # to bake into the jsonresume package as its default --url (darwin
                 # home.packages; inert on the NixOS hosts).
                 jsonResumeUrl
+                # operatorSshKey: fleet operator public key — home.nix writes
+                # ~/.ssh/allowed_signers from it so git can verify SSH commit sigs
+                # (and the file stays in lockstep with secrets/operator-key.nix).
+                operatorSshKey
                 ;
             };
             users.${idArgs.loginName} = {
@@ -806,8 +810,7 @@
               # The PINNED agenix, not `nix run github:ryantm/agenix` at runtime:
               # a recovery must not depend on whatever agenix master is that day.
               agenix = agenix.packages.${system}.default;
-              inherit orgName;
-              inherit flakeRef;
+              inherit orgName flakeRef userEmail;
             };
           in
           {
