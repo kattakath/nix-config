@@ -88,6 +88,20 @@ Symptoms: `$HOME is not owned by you`, no `Activating home-manager configuration
 1. **`sudo` preserved `HOME=/Users/aloshy` as root** → HM refuses the user profile.  
 2. **Homebrew bundle failed** (e.g. no Xcode CLT while installing a formula) → activation aborts *before* HM. macvm keeps `brews = [ ]` and uses nixpkgs `wireguard-tools` so formulae are not required; optional GUI casks still need network.
 
+### Xcode Command Line Tools (best-effort)
+
+Activation runs a **non-fatal** best-effort install *before* Homebrew
+(`softwareupdate` for the “Command Line Tools…” label when the catalog lists
+one). It never aborts `switch` if CLT is missing.
+
+- Already present → log path and continue.  
+- Catalog install works → silent enough for SSH-only activates.  
+- Catalog empty / offline / needs GUI → log a warning; one-time  
+  `xcode-select --install` (or accept the System Settings popup) is still OK.
+
+CLT is **not required** for the current macvm Brewfile (casks only). It helps
+if you later add brew formulae or compile locally.
+
 ```bash
 # From host — re-run with root HOME (and a flake that includes the fixes):
 nix run .#macvm-tart-ssh -- 'sudo env HOME=/var/root darwin-rebuild switch --flake github:kattakath/nix-config#macvm'

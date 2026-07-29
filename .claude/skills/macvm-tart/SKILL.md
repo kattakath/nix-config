@@ -34,6 +34,12 @@ nix run .#macvm-tart-ensure | doctor | start | stop | ssh | ip
 nix run .#macvm-tart-ssh -- nix run --refresh github:kattakath/nix-config#macvm
 ```
 
+## Xcode CLT
+
+Best-effort `softwareupdate` install runs before Homebrew on activate (never
+fails switch). Not required for current cask-only Brewfile. GUI fallback:
+`xcode-select --install`.
+
 ## Do not
 
 - Put IPSW / Tart disks in git or the Nix store.

@@ -120,6 +120,58 @@ in
     fi
   '';
 
+  # Best-effort Apple Command Line Tools *before* Homebrew (mkBefore on the
+  # homebrew activation script). Never aborts switch: headless catalog install
+  # can fail (no UI, wrong label, offline). GUI fallback: xcode-select --install.
+  # macvm keeps brews empty so activation does not *require* CLT; this is for
+  # ad-hoc brew formulae / local compiles after first boot.
+  system.activationScripts.homebrew.text = lib.mkBefore ''
+    clt_ok() {
+      /usr/bin/xcode-select -p >/dev/null 2>&1 \
+        && [ -d "$(/usr/bin/xcode-select -p 2>/dev/null)" ]
+    }
+
+    if clt_ok; then
+      echo "macvm: Xcode CLT present ($(/usr/bin/xcode-select -p))" >&2
+    else
+      echo "macvm: Xcode CLT missing — best-effort softwareupdate install…" >&2
+      # Touch marker so softwareupdate lists the CLT product (Apple installondemand).
+      /usr/bin/touch /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress 2>/dev/null || true
+      # Labels look like: "Command Line Tools for Xcode-16.2" (changes every OS).
+      label="$(
+        /usr/sbin/softwareupdate -l 2>/dev/null \
+          | /usr/bin/sed -n 's/^[* ]*Label: \(Command Line Tools.*\)/\1/p' \
+          | /usr/bin/head -n 1
+      )"
+      if [ -z "''${label:-}" ]; then
+        # Older softwareupdate list format (star + product name).
+        label="$(
+          /usr/sbin/softwareupdate -l 2>/dev/null \
+            | /usr/bin/grep -F 'Command Line Tools' \
+            | /usr/bin/head -n 1 \
+            | /usr/bin/sed -E 's/^[[:space:]]*\*[[:space:]]*//' \
+            | /usr/bin/sed -E 's/^Label:[[:space:]]*//'
+        )"
+      fi
+      if [ -n "''${label:-}" ]; then
+        echo "macvm: installing via softwareupdate: $label" >&2
+        # --agree-to-license is ignored on older hosts; never fail activation.
+        /usr/sbin/softwareupdate -i "$label" --agree-to-license 2>/dev/null \
+          || /usr/sbin/softwareupdate -i "$label" 2>/dev/null \
+          || echo "macvm: WARNING — softwareupdate CLT install failed (non-fatal)" >&2
+      else
+        echo "macvm: WARNING — no CLT package in softwareupdate catalog (non-fatal)" >&2
+        echo "macvm:   GUI once: xcode-select --install  (or accept the System popup)" >&2
+      fi
+      /bin/rm -f /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress 2>/dev/null || true
+      if clt_ok; then
+        echo "macvm: Xcode CLT ready ($(/usr/bin/xcode-select -p))" >&2
+      else
+        echo "macvm: Xcode CLT still missing — brew formulae may fail until installed" >&2
+      fi
+    fi
+  '';
+
   # core.nix enables Application Firewall + stealth on the real Mac; that blocks
   # host→guest SSH on the shared bridge. Sandbox: leave the wall open.
   networking.applicationFirewall = {
