@@ -74,6 +74,8 @@
       "switchaudio-osx"
       "tree"
       "wget"
+      # CLI (wg / wg-quick); GUI is masApps.WireGuard. Both can coexist.
+      "wireguard-tools"
       "xcodes"
       "yq"
       "yt-dlp"
