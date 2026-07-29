@@ -83,10 +83,15 @@ nix run .#macvm-tart-doctor
 
 Symptoms: `$HOME is not owned by you`, no `Activating home-manager configuration for aloshy`, missing `~/.nix-profile` / HM state.
 
+**Causes (both can apply):**
+
+1. **`sudo` preserved `HOME=/Users/aloshy` as root** → HM refuses the user profile.  
+2. **Homebrew bundle failed** (e.g. no Xcode CLT while installing a formula) → activation aborts *before* HM. macvm keeps `brews = [ ]` and uses nixpkgs `wireguard-tools` so formulae are not required; optional GUI casks still need network.
+
 ```bash
-# From host — re-run with the fixed activate wrapper (or force root HOME):
+# From host — re-run with root HOME (and a flake that includes the fixes):
 nix run .#macvm-tart-ssh -- 'sudo env HOME=/var/root darwin-rebuild switch --flake github:kattakath/nix-config#macvm'
-# Expect a line: Activating home-manager configuration for aloshy
+# Expect: Activating home-manager configuration for aloshy
 nix run .#macvm-tart-ssh -- 'test -e ~/.nix-profile && echo hm:ok || echo hm:missing'
 ```
 

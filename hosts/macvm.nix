@@ -154,11 +154,15 @@ in
     AppleHighlightColor = "1.000000 0.733333 0.721569 Red";
   };
 
+  # WireGuard CLI from nixpkgs (not Homebrew). Brew formulae need Xcode CLT;
+  # a fresh Tart guest often has none, and a failed brew bundle aborts
+  # activation *before* home-manager runs. Casks below are prebuilt binaries.
+  # Official WireGuard.app is App Store–only (macos masApps); macvm has no Apple ID.
+  environment.systemPackages = [ pkgs.wireguard-tools ];
+
   # Lean Homebrew set (framework in modules/darwin/homebrew.nix).
   homebrew = {
-    # CLI WireGuard (wg / wg-quick + wireguard-go). Official WireGuard.app is
-    # App Store–only and unusable here (no Apple ID on macvm); see macos masApps.
-    brews = [ "wireguard-tools" ];
+    brews = [ ];
     casks = [
       "opera"
       "whatsapp"
