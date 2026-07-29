@@ -729,6 +729,183 @@ let
     '';
   };
 
+  # Copy login-Keychain secrets host (macos) → guest (macvm / aloshy).
+  # Plain SSH cannot write the guest login Keychain ("User interaction is not
+  # allowed"); we must run set-secret inside the Aqua session via
+  # `sudo launchctl asuser <aloshy-uid>`. See docs/macvm-utm-runbook.md.
+  secret-copy = mkApp {
+    name = "macvm-utm-secret-copy";
+    runtimeInputs = baseInputs ++ [ sshApp ];
+    excludeShellChecks = [
+      "SC2034"
+      "SC2329"
+      "SC2016" # intentional single-quoted remote scripts
+    ];
+    text = ''
+      usage() {
+        cat >&2 <<'EOF'
+      usage: macvm-utm-secret-copy KEY [KEY…]
+             macvm-utm-secret-copy --rm KEY [KEY…]
+             macvm-utm-secret-copy --list
+
+      Copy login-Keychain secrets from the macos host into the macvm guest
+      (aloshy persona). Host and guest Keychains are separate.
+
+        KEY…     copy each KEY (must exist on host) → guest
+        --rm     remove KEY(s) from the guest Keychain only
+        --list   list secret names registered on the guest
+
+      Never prints secret values. Guest GUI session must be logged in (aloshy).
+      EOF
+      }
+
+      host_get() {
+        local key="$1" val=""
+        if command -v secret >/dev/null 2>&1; then
+          val=$(secret get "$key" 2>/dev/null || true)
+        fi
+        if [ -z "$val" ]; then
+          val=$(/usr/bin/security find-generic-password -a "$(/usr/bin/id -un)" -s "$key" -w 2>/dev/null || true)
+        fi
+        # strip a single trailing newline security sometimes adds
+        val=$(printf '%s' "$val" | /usr/bin/tr -d '\r')
+        printf '%s' "$val"
+      }
+
+      guest_asuser() {
+        # Run a script as aloshy inside the Aqua session (Keychain unlocked).
+        # Stage body as base64 on the guest, then launchctl asuser (same path as copy).
+        local body="$1" b64 remote
+        b64=$(printf '%s' "$body" | /usr/bin/base64 | /usr/bin/tr -d '\n')
+        remote="/tmp/macvm-utm-secret-asuser-$$.sh"
+        printf '%s' "$b64" | /usr/bin/base64 -d | macvm-utm-ssh -- "sudo /usr/bin/tee $remote >/dev/null"
+        macvm-utm-ssh -- "sudo /bin/chmod 700 $remote && sudo /usr/sbin/chown aloshy:staff $remote"
+        macvm-utm-ssh -- "sudo /bin/bash -c 'uid=\$(/usr/bin/id -u aloshy); /bin/launchctl asuser \"\$uid\" /usr/bin/sudo -u aloshy /bin/bash $remote; ec=\$?; /bin/rm -f $remote; exit \$ec'"
+      }
+
+      mode="copy"
+      keys=()
+      while [ "$#" -gt 0 ]; do
+        case "$1" in
+          -h | --help)
+            usage
+            exit 0
+            ;;
+          --list)
+            mode="list"
+            shift
+            ;;
+          --rm | --remove)
+            mode="rm"
+            shift
+            ;;
+          --)
+            shift
+            keys+=("$@")
+            break
+            ;;
+          -*)
+            die "unknown flag: $1"
+            ;;
+          *)
+            keys+=("$1")
+            shift
+            ;;
+        esac
+      done
+
+      case "$mode" in
+        list)
+          guest_asuser 'secret ls 2>/dev/null || command secret ls 2>/dev/null || true'
+          exit 0
+          ;;
+        rm)
+          [ "''${#keys[@]}" -gt 0 ] || die "usage: macvm-utm-secret-copy --rm KEY [KEY…]"
+          for key in "''${keys[@]}"; do
+            case "$key" in
+              [A-Za-z_][A-Za-z0-9_]*) ;;
+              *) die "invalid KEY name: $key" ;;
+            esac
+            info "removing $key from macvm…"
+            guest_asuser "secret rm $(printf '%q' "$key") 2>/dev/null || true; /usr/bin/security delete-generic-password -a \"\$(/usr/bin/id -un)\" -s $(printf '%q' "$key") 2>/dev/null || true; echo removed:$key"
+          done
+          exit 0
+          ;;
+        copy)
+          [ "''${#keys[@]}" -gt 0 ] || {
+            usage
+            exit 2
+          }
+          ;;
+      esac
+
+      tmp=$(/usr/bin/mktemp -d)
+      trap 'rm -rf "$tmp"' EXIT
+
+      for key in "''${keys[@]}"; do
+        case "$key" in
+          [A-Za-z_][A-Za-z0-9_]*) ;;
+          *) die "invalid KEY name: $key" ;;
+        esac
+
+        val=$(host_get "$key")
+        if [ -z "$val" ]; then
+          die "host has no value for $key (secret get / Keychain miss)"
+        fi
+        host_len=''${#val}
+        host_sha=$(printf '%s' "$val" | /usr/bin/shasum -a 256 | /usr/bin/awk '{print $1}')
+        info "copying $key (len=$host_len) host → macvm…"
+
+        b64file="$tmp/$key.b64"
+        printf '%s' "$val" | /usr/bin/base64 | /usr/bin/tr -d '\n' >"$b64file"
+        unset val
+
+        # Stage base64 on guest (no plaintext in argv).
+        remote_b64="/tmp/macvm-utm-secret-$key.b64"
+        remote_helper="/tmp/macvm-utm-secret-set-$key.sh"
+        macvm-utm-ssh -- "sudo /usr/bin/tee $remote_b64 >/dev/null && sudo /usr/sbin/chown aloshy:staff $remote_b64 && sudo /bin/chmod 600 $remote_b64" <"$b64file"
+        /bin/rm -f "$b64file"
+
+        # Remote helper (no shebang — invoked as `bash helper`; never print value).
+        # shellcheck disable=SC2087
+        macvm-utm-ssh -- "sudo /usr/bin/tee $remote_helper >/dev/null" <<EOF
+      set -euo pipefail
+      key=$(printf '%q' "$key")
+      b64f=$(printf '%q' "$remote_b64")
+      want_sha=$(printf '%q' "$host_sha")
+      want_len=$(printf '%q' "$host_len")
+      val=\$(/usr/bin/base64 -d < "\$b64f")
+      /bin/rm -f "\$b64f"
+      if [ "\''${#val}" -ne "\$want_len" ]; then
+        echo "macvm-utm-secret-copy: decode len mismatch for \$key" >&2
+        exit 1
+      fi
+      got_sha=\$(printf '%s' "\$val" | /usr/bin/shasum -a 256 | /usr/bin/awk '{print \$1}')
+      if [ "\$got_sha" != "\$want_sha" ]; then
+        echo "macvm-utm-secret-copy: decode sha mismatch for \$key" >&2
+        exit 1
+      fi
+      /usr/bin/security delete-generic-password -a "\$(/usr/bin/id -un)" -s "\$key" 2>/dev/null || true
+      if command -v set-secret >/dev/null 2>&1; then
+        command set-secret "\$key" "\$val"
+      else
+        /usr/bin/security add-generic-password -a "\$(/usr/bin/id -un)" -s "\$key" -w "\$val" -U -T ""
+      fi
+      stored=\$(/usr/bin/security find-generic-password -a "\$(/usr/bin/id -un)" -s "\$key" -w | /usr/bin/tr -d '\r\n')
+      store_sha=\$(printf '%s' "\$stored" | /usr/bin/shasum -a 256 | /usr/bin/awk '{print \$1}')
+      if [ "\$store_sha" != "\$want_sha" ]; then
+        echo "macvm-utm-secret-copy: VERIFY FAIL \$key (Keychain sha mismatch)" >&2
+        exit 1
+      fi
+      echo "ok:\$key len=\$want_len"
+      EOF
+        macvm-utm-ssh -- "sudo /bin/chmod 700 $remote_helper && sudo /usr/sbin/chown aloshy:staff $remote_helper"
+        macvm-utm-ssh -- "sudo /bin/bash -c 'uid=\$(/usr/bin/id -u aloshy); /bin/launchctl asuser \"\$uid\" /usr/bin/sudo -u aloshy /bin/bash $remote_helper; ec=\$?; /bin/rm -f $remote_helper $remote_b64; exit \$ec'"
+        info "ok $key"
+      done
+    '';
+  };
+
 in
 {
   macvm-utm-doctor = doctor;
@@ -743,4 +920,5 @@ in
   macvm-utm-ssh = sshApp;
   macvm-utm-clipboard-on = clipboard-on;
   macvm-utm-share-screengrab = share-screengrab;
+  macvm-utm-secret-copy = secret-copy;
 }
