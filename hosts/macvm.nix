@@ -46,6 +46,16 @@ in
   # and `nix run .#macvm-utm-ssh`.
   services.openssh.enable = true;
 
+  # core.nix turns the Application Firewall + stealth mode ON for the real Mac
+  # (no incoming traffic). That posture breaks host→guest SSH on the UTM Shared
+  # bridge (stealth drops probes; ALF can block sshd unless Remote Login was
+  # flipped via System Settings). macvm is a throwaway sandbox — disable ALF
+  # here so openssh is reachable from macos only.
+  networking.applicationFirewall = {
+    enable = lib.mkForce false;
+    enableStealthMode = lib.mkForce false;
+  };
+
   users.users.${userName} = {
     name = userName;
     home = "/Users/${userName}";
