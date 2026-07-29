@@ -8,4 +8,4 @@
 #   flake.nix                  → operatorSshKey → mkNixos specialArgs
 #   modules/nixos/core.nix     → users.users.<op>.openssh.authorizedKeys.keys
 #   secrets/secrets.nix        → the `operator` agenix recipient
-"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAq9VALx6Y6OERWlWWvudcTUEO29BMFl3bbGwoVSTGsS"
+"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKzKz1KIVlsRD4uxpG0QgM2SCy4pI+fwjf57U12AH2vY ismail@kattakath.com"
