@@ -848,6 +848,8 @@
               macvm-utm-stop
               macvm-utm-registry-dedupe
               macvm-utm-bootstrap-print
+              macvm-utm-create-print
+              macvm-utm-ensure
               ;
           }
         ))
@@ -1112,6 +1114,16 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.macvm-utm-bootstrap-print}/bin/macvm-utm-bootstrap-print";
               meta.description = "Print the in-guest macvm bootstrap checklist (aloshy + Determinate + activate)";
+            };
+            aarch64-darwin.macvm-utm-create-print = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.macvm-utm-create-print}/bin/macvm-utm-create-print";
+              meta.description = "Print one-time UTM GUI create steps (utmctl cannot create macOS AVF guests)";
+            };
+            aarch64-darwin.macvm-utm-ensure = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.macvm-utm-ensure}/bin/macvm-utm-ensure";
+              meta.description = "Ensure macvm is registered (exit 0) or open UTM + print create steps (exit 2)";
             };
 
             # `nix run .#set-secret -- KEY [VALUE]` — store a secret in the macOS

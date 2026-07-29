@@ -1,13 +1,11 @@
 # macvm UTM control-plane toolkit (host Mac only).
 #
 # Guest OS config is darwinConfigurations.macvm — activate INSIDE the VM as
-# aloshy. This kit only manages the UTM hypervisor side on macos:
-#   doctor / list / open / start / stop / registry-dedupe / bootstrap-print
-#
+# aloshy. This kit only manages the UTM hypervisor side on macos.
 # Disk images and IPSWs are NEVER put in the Nix store (docs/macvm-utm-runbook.md).
-# Pattern: packages/nixpi-provision.nix — writeShellApplication kit → flake apps.
 {
   writeShellApplication,
+  writeText,
   coreutils,
   findutils,
   gnugrep,
@@ -23,7 +21,111 @@ let
   pgrep = "/usr/bin/pgrep";
   osascript = "/usr/bin/osascript";
 
-  # Shared preamble (vars + die/info + require_utm only — keep shellcheck clean).
+  dedupePy = writeText "macvm-utm-registry-dedupe.py" ''
+    import os, subprocess, plistlib, pathlib, datetime, sys
+
+    canon = os.environ["MACVM_CANON"]
+    pkg = os.environ["MACVM_PKG_PATH"]
+    apply = os.environ.get("MACVM_APPLY") == "1"
+    domain = os.environ["MACVM_PREFS_DOMAIN"]
+
+    raw = subprocess.check_output(["/usr/bin/defaults", "export", domain, "-"])
+    pl = plistlib.loads(raw)
+    reg = pl.get("Registry") or {}
+    if not isinstance(reg, dict):
+        print("macvm-utm: no Registry in prefs", file=sys.stderr)
+        sys.exit(1)
+
+    same = []
+    for uuid, meta in list(reg.items()):
+        path = (meta.get("Package") or {}).get("Path") or ""
+        name = meta.get("Name") or ""
+        if name == "macvm" or path == pkg or path.rstrip("/") == pkg.rstrip("/"):
+            same.append((uuid, name, path))
+
+    print(f"canonical config UUID: {canon}")
+    print(f"package path: {pkg}")
+    print(f"matching registry entries: {len(same)}")
+    for u, n, p in same:
+        mark = "KEEP" if u == canon else "DROP"
+        print(f"  [{mark}] {u} name={n} path={p}")
+
+    if canon not in reg:
+        print(
+            "macvm-utm: REFUSING — canonical UUID not in registry; fix package first",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    drop = [u for u, _, _ in same if u != canon]
+    if not drop:
+        print("nothing to de-dupe")
+        sys.exit(0)
+
+    if not apply:
+        print("dry-run only — re-run with --apply to remove DROP entries")
+        sys.exit(0)
+
+    stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    backup_dir = (
+        pathlib.Path.home() / "Library/Application Support" / f"utm-registry-backup-{stamp}"
+    )
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    before = backup_dir / "com.utmapp.UTM.before.plist"
+    with open(before, "wb") as f:
+        f.write(raw)
+    for u in drop:
+        del reg[u]
+    pl["Registry"] = reg
+    after = backup_dir / "com.utmapp.UTM.after.plist"
+    with open(after, "wb") as f:
+        plistlib.dump(pl, f)
+    subprocess.check_call(["/usr/bin/defaults", "import", domain, str(after)])
+    print(f"applied; backup: {backup_dir}")
+    print(f"registry size now: {len(reg)}")
+  '';
+
+  bootstrapText = writeText "macvm-utm-bootstrap.txt" ''
+    macvm guest bootstrap (run INSIDE the UTM VM)
+
+    1. Create / use macOS login account: aloshy  (must match flake identity)
+    2. Install Determinate Nix (if missing): https://docs.determinate.systems
+    3. First activation (before darwin-rebuild is on PATH):
+         nix run github:kattakath/nix-config#macvm
+    4. Thereafter:
+         darwin-rebuild switch --flake .#macvm
+         # or: nix run github:kattakath/nix-config#macvm
+
+    Host-side (this Mac, outside the guest):
+         nix run .#macvm-utm-doctor
+         nix run .#macvm-utm-start
+         nix run .#macvm-utm-ensure   # doctor + create guidance if missing
+
+    Disk images are NOT in the flake — only this checklist + guest nix-darwin config.
+    See docs/macvm-utm-runbook.md
+  '';
+
+  createText = writeText "macvm-utm-create.txt" ''
+    Create the macvm UTM guest (host Mac — one-time GUI)
+
+    utmctl cannot create Apple Virtualization macOS guests; UTM UI is required once.
+
+    1. nix run .#macvm-utm-open
+    2. UTM → "+" → Virtualize → macOS (Apple Virtualization)
+    3. Name the VM exactly: macvm
+    4. Complete install; create login user: aloshy
+    5. On the host: nix run .#macvm-utm-doctor
+    6. Inside the guest: see nix run .#macvm-utm-bootstrap-print
+
+    Optional shape (match an existing healthy guest roughly):
+      Architecture aarch64 / Apple backend
+      Memory ~8 GiB (or more)
+      Display ~1920x1200 dynamic resolution
+      Network Shared
+
+    NEVER put IPSW or .img into the Nix store or this git repo.
+  '';
+
   preamble = ''
     set -euo pipefail
     VM_NAME="${vmName}"
@@ -39,11 +141,7 @@ let
         die "UTM not found at $UTMCTL — install the utm cask (hosts/macos.nix) and re-activate"
       fi
     }
-  '';
 
-  resolveFn = ''
-    # Print UUID of the single registered VM named macvm, or empty if none.
-    # Dies if more than one match (duplicate sidebar bug).
     resolve_macvm_uuid() {
       require_utm
       local out n
@@ -58,9 +156,7 @@ let
       fi
       printf '%s\n' "$out" | awk '{print $1}'
     }
-  '';
 
-  quitFn = ''
     utm_running() {
       ${pgrep} -xq UTM 2>/dev/null || ${pgrep} -f 'com.utmapp.UTM' >/dev/null 2>&1
     }
@@ -77,9 +173,7 @@ let
         die "UTM still running — quit it and retry"
       fi
     }
-  '';
 
-  packageUuidFn = ''
     package_canon_uuid() {
       if [ ! -f "$UTM_PKG/config.plist" ]; then
         return 0
@@ -104,7 +198,6 @@ let
     }:
     writeShellApplication {
       inherit name runtimeInputs;
-      # Shared preamble defines helpers/vars not every app uses (SC2034/SC2329).
       excludeShellChecks = [
         "SC2034"
         "SC2329"
@@ -114,9 +207,7 @@ let
 
   doctor = mkApp {
     name = "macvm-utm-doctor";
-    text = packageUuidFn + ''
-      # Health check for the host-side macvm UTM guest. Exit 0 if healthy or
-      # simply absent (not yet created); exit 1 on duplicates / broken package.
+    text = ''
       rc=0
       echo "=== macvm-utm doctor ==="
       if [ -x "$UTMCTL" ]; then
@@ -147,7 +238,7 @@ let
           echo "disk images: WARNING — package has no .img (incomplete install?)"
         fi
       else
-        echo "package:  absent ($UTM_PKG) — create a blank Apple Silicon guest named macvm in UTM UI"
+        echo "package:  absent ($UTM_PKG) — run: nix run .#macvm-utm-ensure"
       fi
 
       if [ -x "$UTMCTL" ]; then
@@ -196,11 +287,11 @@ let
 
   start = mkApp {
     name = "macvm-utm-start";
-    text = resolveFn + ''
+    text = ''
       require_utm
       uuid=$(resolve_macvm_uuid || true)
       if [ -z "''${uuid:-}" ]; then
-        die "no UTM VM named '$VM_NAME' — create it in UTM (Apple Virtualization / Virtualize macOS), then re-run doctor"
+        die "no UTM VM named '$VM_NAME' — run: nix run .#macvm-utm-ensure"
       fi
       info "starting $VM_NAME ($uuid)"
       exec "$UTMCTL" start "$uuid"
@@ -209,7 +300,7 @@ let
 
   stop = mkApp {
     name = "macvm-utm-stop";
-    text = resolveFn + ''
+    text = ''
       require_utm
       uuid=$(resolve_macvm_uuid || true)
       if [ -z "''${uuid:-}" ]; then
@@ -223,128 +314,93 @@ let
   registry-dedupe = mkApp {
     name = "macvm-utm-registry-dedupe";
     runtimeInputs = baseInputs ++ [ python3 ];
-    text =
-      packageUuidFn
-      + quitFn
-      + ''
-                # Remove stale UTM Registry prefs entries that duplicate the same macvm
-                # package path. Keeps the entry whose UUID matches config.plist.
-                # Default: dry-run. Pass --apply to write. Never deletes .img / .utm files.
-                apply=0
-                yes=0
-                while [ $# -gt 0 ]; do
-                  case "$1" in
-                    --apply) apply=1; shift ;;
-                    --yes|-y) yes=1; shift ;;
-                    -h|--help)
-                      echo "usage: macvm-utm-registry-dedupe [--apply] [--yes]"
-                      echo "  dry-run by default; --apply mutates com.utmapp.UTM prefs"
-                      exit 0
-                      ;;
-                    *) die "unknown arg: $1" ;;
-                  esac
-                done
+    text = ''
+      apply=0
+      yes=0
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --apply) apply=1; shift ;;
+          --yes|-y) yes=1; shift ;;
+          -h|--help)
+            echo "usage: macvm-utm-registry-dedupe [--apply] [--yes]"
+            echo "  dry-run by default; --apply mutates com.utmapp.UTM prefs"
+            exit 0
+            ;;
+          *) die "unknown arg: $1" ;;
+        esac
+      done
 
-                if [ ! -f "$UTM_PKG/config.plist" ]; then
-                  die "package config missing: $UTM_PKG/config.plist"
-                fi
-                canon=$(package_canon_uuid)
-                [ -n "$canon" ] || die "could not read Information.UUID from config.plist"
+      if [ ! -f "$UTM_PKG/config.plist" ]; then
+        die "package config missing: $UTM_PKG/config.plist"
+      fi
+      canon=$(package_canon_uuid)
+      [ -n "$canon" ] || die "could not read Information.UUID from config.plist"
 
-                if [ "$apply" -eq 1 ]; then
-                  if utm_running && [ "$yes" -eq 0 ]; then
-                    die "UTM is running — quit it, or re-run with --yes to auto-quit"
-                  fi
-                  if [ "$yes" -eq 1 ]; then
-                    quit_utm
-                  fi
-                fi
+      if [ "$apply" -eq 1 ]; then
+        if utm_running && [ "$yes" -eq 0 ]; then
+          die "UTM is running — quit it, or re-run with --yes to auto-quit"
+        fi
+        if [ "$yes" -eq 1 ]; then
+          quit_utm
+        fi
+      fi
 
-                export MACVM_CANON="$canon"
-                export MACVM_PKG_PATH="$UTM_PKG"
-                export MACVM_APPLY="$apply"
-                export MACVM_PREFS_DOMAIN="com.utmapp.UTM"
-                ${python3}/bin/python3 - <<'PY'
-        import os, subprocess, plistlib, pathlib, datetime, sys
-
-        canon = os.environ["MACVM_CANON"]
-        pkg = os.environ["MACVM_PKG_PATH"]
-        apply = os.environ.get("MACVM_APPLY") == "1"
-        domain = os.environ["MACVM_PREFS_DOMAIN"]
-
-        raw = subprocess.check_output(["/usr/bin/defaults", "export", domain, "-"])
-        pl = plistlib.loads(raw)
-        reg = pl.get("Registry") or {}
-        if not isinstance(reg, dict):
-            print("macvm-utm: no Registry in prefs", file=sys.stderr)
-            sys.exit(1)
-
-        same = []
-        for uuid, meta in list(reg.items()):
-            path = (meta.get("Package") or {}).get("Path") or ""
-            name = meta.get("Name") or ""
-            if name == "macvm" or path == pkg or path.rstrip("/") == pkg.rstrip("/"):
-                same.append((uuid, name, path))
-
-        print(f"canonical config UUID: {canon}")
-        print(f"package path: {pkg}")
-        print(f"matching registry entries: {len(same)}")
-        for u, n, p in same:
-            mark = "KEEP" if u == canon else "DROP"
-            print(f"  [{mark}] {u} name={n} path={p}")
-
-        if canon not in reg:
-            print("macvm-utm: REFUSING — canonical UUID not in registry; fix package first", file=sys.stderr)
-            sys.exit(1)
-
-        drop = [u for u, _, _ in same if u != canon]
-        if not drop:
-            print("nothing to de-dupe")
-            sys.exit(0)
-
-        if not apply:
-            print("dry-run only — re-run with --apply to remove DROP entries")
-            sys.exit(0)
-
-        backup_dir = pathlib.Path.home() / "Library/Application Support" / f"utm-registry-backup-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
-        backup_dir.mkdir(parents=True, exist_ok=True)
-        before = backup_dir / "com.utmapp.UTM.before.plist"
-        with open(before, "wb") as f:
-            f.write(raw)
-        for u in drop:
-            del reg[u]
-        pl["Registry"] = reg
-        after = backup_dir / "com.utmapp.UTM.after.plist"
-        with open(after, "wb") as f:
-            plistlib.dump(pl, f)
-        subprocess.check_call(["/usr/bin/defaults", "import", domain, str(after)])
-        print(f"applied; backup: {backup_dir}")
-        print(f"registry size now: {len(reg)}")
-        PY
-      '';
+      export MACVM_CANON="$canon"
+      export MACVM_PKG_PATH="$UTM_PKG"
+      export MACVM_APPLY="$apply"
+      export MACVM_PREFS_DOMAIN="com.utmapp.UTM"
+      exec ${python3}/bin/python3 ${dedupePy}
+    '';
   };
 
   bootstrap-print = mkApp {
     name = "macvm-utm-bootstrap-print";
     text = ''
-            cat <<'EOF'
-      macvm guest bootstrap (run INSIDE the UTM VM)
+      exec cat ${bootstrapText}
+    '';
+  };
 
-      1. Create / use macOS login account: aloshy  (must match flake identity)
-      2. Install Determinate Nix (if missing): https://docs.determinate.systems
-      3. First activation (before darwin-rebuild is on PATH):
-           nix run github:kattakath/nix-config#macvm
-      4. Thereafter:
-           darwin-rebuild switch --flake .#macvm
-           # or: nix run github:kattakath/nix-config#macvm
+  create-print = mkApp {
+    name = "macvm-utm-create-print";
+    text = ''
+      exec cat ${createText}
+    '';
+  };
 
-      Host-side (this Mac, outside the guest):
-           nix run .#macvm-utm-doctor
-           nix run .#macvm-utm-start
+  # Phase 2 conclusion: no unattended create via utmctl. ensure = doctor + guide.
+  ensure = mkApp {
+    name = "macvm-utm-ensure";
+    text = ''
+      # Exit 0 if a healthy single macvm exists.
+      # Exit 2 if missing (prints create steps, opens UTM).
+      # Exit 1 on errors (duplicates, broken package, missing UTM).
+      if [ ! -x "$UTMCTL" ]; then
+        die "UTM missing — activate macos (utm cask) first"
+      fi
 
-      Disk images are NOT in the flake — only this checklist + guest nix-darwin config.
-      See docs/macvm-utm-runbook.md
-      EOF
+      matches=$("$UTMCTL" list 2>/dev/null | grep -E "[[:space:]]''${VM_NAME}[[:space:]]*$" || true)
+      n=$(printf '%s\n' "$matches" | grep -c . || true)
+
+      if [ "''${n:-0}" -gt 1 ]; then
+        printf '%s\n' "$matches" >&2
+        die "duplicate '$VM_NAME' entries — nix run .#macvm-utm-registry-dedupe -- --apply --yes"
+      fi
+
+      if [ "''${n:-0}" -eq 1 ] && [ -d "$UTM_PKG" ] && [ -f "$UTM_PKG/config.plist" ]; then
+        info "macvm present and registered — ok"
+        uuid=$(printf '%s\n' "$matches" | awk '{print $1}')
+        st=$("$UTMCTL" status "$uuid" 2>/dev/null || true)
+        echo "uuid=$uuid status=''${st:-unknown}"
+        exit 0
+      fi
+
+      info "macvm not ready — create path is UTM GUI (utmctl has no create for macOS AVF)"
+      cat ${createText}
+      if [ -d /Applications/UTM.app ]; then
+        info "opening UTM…"
+        ${openBin} -a UTM || true
+      fi
+      exit 2
     '';
   };
 
@@ -358,6 +414,8 @@ in
     stop
     registry-dedupe
     bootstrap-print
+    create-print
+    ensure
     ;
   macvm-utm-doctor = doctor;
   macvm-utm-list = list;
@@ -366,4 +424,6 @@ in
   macvm-utm-stop = stop;
   macvm-utm-registry-dedupe = registry-dedupe;
   macvm-utm-bootstrap-print = bootstrap-print;
+  macvm-utm-create-print = create-print;
+  macvm-utm-ensure = ensure;
 }

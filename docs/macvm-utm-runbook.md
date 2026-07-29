@@ -21,6 +21,7 @@ by the flake. **macvm is not nixvm.**
 ## Host-side flake apps
 
 ```bash
+nix run .#macvm-utm-ensure              # 0 if ready; else open UTM + create steps (exit 2)
 nix run .#macvm-utm-doctor              # health: UTM, package, single registry entry
 nix run .#macvm-utm-list                # utmctl list
 nix run .#macvm-utm-open                # open UTM.app
@@ -28,6 +29,7 @@ nix run .#macvm-utm-start               # start the registered macvm
 nix run .#macvm-utm-stop                # stop it
 nix run .#macvm-utm-registry-dedupe     # dry-run de-dupe of UTM prefs
 nix run .#macvm-utm-registry-dedupe -- --apply --yes   # fix double-sidebar ghosts
+nix run .#macvm-utm-create-print        # one-time UTM GUI create steps
 nix run .#macvm-utm-bootstrap-print     # print in-guest checklist
 ```
 
@@ -40,14 +42,19 @@ Env overrides (optional):
 
 **Never** put IPSWs or `.img` files in the Nix store or this git tree.
 
-## First-time create (still GUI)
+## First-time create (GUI — Phase 2 conclusion)
 
-`utmctl` has no create. Once:
+**`utmctl` has no create** for Apple Virtualization macOS guests. Unattended
+scaffold of a bootable guest is **not viable** without shipping IPSW/disk into
+the store (explicit non-goal). Permanent create path:
 
-1. Open UTM → **Virtualize** → **macOS** (Apple Virtualization).
-2. Name the VM **`macvm`** (must match hostname / glue name).
-3. Finish install; create login account **`aloshy`** (matches flake identity).
-4. On the host: `nix run .#macvm-utm-doctor` (expect one match, package present).
+1. `nix run .#macvm-utm-ensure` — if missing, opens UTM and prints steps
+   (or `nix run .#macvm-utm-create-print`).
+2. UTM → **Virtualize** → **macOS** (Apple Virtualization).
+3. Name the VM **`macvm`** (must match hostname / glue name).
+4. Finish install; create login account **`aloshy`** (matches flake identity).
+5. On the host: `nix run .#macvm-utm-doctor` / `nix run .#macvm-utm-ensure`
+   (expect exit 0, one match, package present).
 
 ## In-guest activation
 
