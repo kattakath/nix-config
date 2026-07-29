@@ -21,50 +21,37 @@ Canonical detail: [`docs/macvm-utm-runbook.md`](../../../docs/macvm-utm-runbook.
 | SSH | Host → guest Shared net | `nix run .#macvm-utm-ssh` |
 | Screengrab | Host path shared R/W | `~/Pictures/Screengrab` ↔ guest symlink |
 
-`macvm` ≠ `nixvm` (NixOS/QEMU throwaway).
+`macvm` ≠ `nixvm`. **Do not wipe a healthy guest** (`macvm-utm-doctor` exit 0 → keep).
 
-## Host (run on macos)
+## Greenfield (ordered)
+
+1. `nix run .#macvm-utm-ensure` → UTM GUI: Virtualize macOS, name **`macvm`**, user **`aloshy`**, Shared net, Clipboard Sharing on.
+2. In guest (once): `sudo nix run github:kattakath/nix-config#macvm` (password once → NOPASSWD).
+3. Host: `nix run .#macvm-utm-share-screengrab` then **restart** guest.
+4. Day-to-day: `nix run .#macvm-utm-ssh -- sudo nix run --refresh github:kattakath/nix-config#macvm`
+5. Verify: `nix run .#macvm-utm-doctor`
+
+## Host apps
 
 ```bash
-nix run .#macvm-utm-ensure              # ready (0) or open UTM + create steps (2)
-nix run .#macvm-utm-doctor              # package, share, spice, clipboard, Screengrab
-nix run .#macvm-utm-start
-nix run .#macvm-utm-ssh                 # aloshy + operator id_ed25519
-nix run .#macvm-utm-share-screengrab    # register host Screengrab R/W (restart guest after)
+nix run .#macvm-utm-ensure | doctor | start | stop | ssh
+nix run .#macvm-utm-share-screengrab
 nix run .#macvm-utm-clipboard-on -- --yes
-nix run .#macvm-utm-registry-dedupe -- --apply --yes   # only if duplicate sidebar rows
+nix run .#macvm-utm-registry-dedupe -- --apply --yes   # duplicate sidebar only
 ```
 
-Create is **GUI once** (`utmctl` cannot create macOS AVF guests). Name VM `macvm`;
-login user `aloshy`. Enable **Virtualization → Clipboard Sharing** (or clipboard-on).
-
-## Activate guest (prefer host-driven over SSH)
-
-After `aloshy` has passwordless sudo (`hosts/macvm.nix`), **do not ask the user to
-type in the guest** — run from the host:
-
-```bash
-nix run .#macvm-utm-start   # if needed
-nix run .#macvm-utm-ssh -- sudo nix run --refresh github:kattakath/nix-config#macvm
-```
-
-First bootstrap only (or if `sudo -n` fails): password once in-guest so NOPASSWD lands.
-
-## Guest features (declarative in `#macvm`)
+## Guest (declarative `#macvm`)
 
 | Feature | Mechanism |
 |---|---|
-| SSH | Apple's `com.openssh.sshd`, keys-only, ALF off |
-| Guest tools / clipboard | Pinned spice-vdagent pkg + launchd |
-| Screengrab | Symlink `~/Pictures/Screengrab` → VirtioFS; heal agent every 30s |
-| No RAG/MCP/login openers | Host-gated lean sandbox |
-
-Diagnose: `nix run .#macvm-utm-doctor`; guest `readlink ~/Pictures/Screengrab`,
-`launchctl print system/com.openssh.sshd`, `pkgutil --pkg-info com.redhat.spice.vdagent`.
+| SSH | Apple's sshd, keys-only, ALF off, passwordless sudo |
+| Clipboard | Pinned spice-vdagent |
+| Screengrab | VirtioFS share + symlink heal every 30s |
+| Lean | No RAG / MCP / macos login openers |
 
 ## Do not
 
 - Put IPSW/`.img`/`.utm` in git or the Nix store.
-- Activate `#macvm` on the host Mac (wrong persona/paths).
-- Run file-rotation on the guest (host owns Screengrab aging).
-- Expect key-recovery / rebuild to restore the guest disk — recreate + re-activate.
+- Activate `#macvm` on the host Mac.
+- Rotate Screengrab on the guest (host owns aging).
+- Expect rebuild/key-recovery to restore the guest disk.
