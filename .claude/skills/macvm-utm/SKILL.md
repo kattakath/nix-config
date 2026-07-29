@@ -48,7 +48,9 @@ First bootstrap only (or if `sudo -n` fails): user must enter the password once
 in-guest so NOPASSWD lands; then host-driven activation is enough.
 
 SSH is Apple’s sshd: keys-only, ALF off.
-Diagnose: `launchctl print system/com.openssh.sshd`, `lsof -iTCP:22 -sTCP:LISTEN`.
+Guest Tools: `hosts/macvm.nix` installs pinned spice-vdagent (clipboard); enable
+Clipboard Sharing in UTM VM settings. Diagnose: `pkgutil --pkg-info com.redhat.spice.vdagent`,
+`launchctl print system/com.openssh.sshd`, `lsof -iTCP:22 -sTCP:LISTEN`.
 
 ## Do not
 

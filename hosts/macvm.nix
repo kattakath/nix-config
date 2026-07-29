@@ -10,11 +10,22 @@
 {
   userName,
   lib,
+  pkgs,
   ...
 }:
 let
   # Operator ed25519 public key — sole network login credential (same as nixpi/nixvm).
   operatorSshKey = import ../secrets/operator-key.nix;
+
+  # UTM macOS guest tools (spice-vdagent) — clipboard sharing host↔guest when
+  # both are macOS 15+ and Virtualization → Clipboard Sharing is on in UTM.
+  # Official pkg from utmapp/vd_agent (same bits as “Install Guest Tools” CD).
+  # Bump version + hash together when UTM ships a new release.
+  spiceVdagentVersion = "0.22.1";
+  spiceVdagentPkg = pkgs.fetchurl {
+    url = "https://github.com/utmapp/vd_agent/releases/download/spice-vdagent-${spiceVdagentVersion}-macOS/spice-vdagent-${spiceVdagentVersion}.pkg";
+    hash = "sha256-x1iz/0PpqSCnhZH1NRTZl/r8r3prjYZOVVuB/d7eSAk=";
+  };
 in
 {
   imports = [ ../modules/darwin/core.nix ];
@@ -45,6 +56,9 @@ in
   # uses a one-shot path that can leave the job unloaded. If the job is missing,
   # load it with modern launchctl (append after launchd activation so plists exist).
   # Do not kickstart every switch — that drops live SSH sessions.
+  #
+  # Same block also ensures UTM guest tools (spice-vdagent) are installed and
+  # loaded — replaces the one-shot “Install Guest Tools” CD flow.
   system.activationScripts.launchd.text = lib.mkAfter ''
     if ! /bin/launchctl print system/com.openssh.sshd >/dev/null 2>&1; then
       echo "macvm: loading com.openssh.sshd" >&2
@@ -52,6 +66,39 @@ in
       /bin/launchctl bootstrap system /System/Library/LaunchDaemons/ssh.plist 2>/dev/null \
         || /bin/launchctl load -w /System/Library/LaunchDaemons/ssh.plist 2>/dev/null \
         || echo "macvm: WARNING — could not load com.openssh.sshd" >&2
+    fi
+
+    # ---- UTM Guest Tools (spice-vdagent ${spiceVdagentVersion}) --------------
+    spice_ver="${spiceVdagentVersion}"
+    spice_pkg="${spiceVdagentPkg}"
+    spice_id="com.redhat.spice.vdagent"
+    cur="$(/usr/sbin/pkgutil --pkg-info "$spice_id" 2>/dev/null | /usr/bin/awk '/^version:/{print $2}')"
+    if [ "$cur" != "$spice_ver" ]; then
+      echo "macvm: installing UTM guest tools (spice-vdagent $spice_ver; was ''${cur:-none})" >&2
+      /usr/sbin/installer -pkg "$spice_pkg" -target / || \
+        echo "macvm: WARNING — spice-vdagent installer failed" >&2
+    fi
+    # Daemon (system) + agent (gui user). Vendor plists use spice-vdagent basenames
+    # (fine for BTM — not bare sh). First-ever run may need a one-time Privacy
+    # prompt to allow spice-vdagent / spice-vdagentd (Gatekeeper).
+    if [ -f /Library/LaunchDaemons/com.redhat.spice.vdagentd.plist ]; then
+      if ! /bin/launchctl print system/com.redhat.spice.vdagentd >/dev/null 2>&1; then
+        echo "macvm: loading com.redhat.spice.vdagentd" >&2
+        /bin/launchctl bootstrap system /Library/LaunchDaemons/com.redhat.spice.vdagentd.plist 2>/dev/null \
+          || /bin/launchctl load -w /Library/LaunchDaemons/com.redhat.spice.vdagentd.plist 2>/dev/null \
+          || true
+      fi
+    fi
+    if [ -f /Library/LaunchAgents/com.redhat.spice.vdagent.plist ]; then
+      uid="$(/usr/bin/id -u ${userName} 2>/dev/null || true)"
+      if [ -n "''${uid:-}" ] && ! /bin/launchctl print "gui/$uid/com.redhat.spice.vdagent" >/dev/null 2>&1; then
+        echo "macvm: loading com.redhat.spice.vdagent (gui/$uid)" >&2
+        /bin/launchctl asuser "$uid" /bin/launchctl bootstrap "gui/$uid" \
+          /Library/LaunchAgents/com.redhat.spice.vdagent.plist 2>/dev/null \
+          || /bin/launchctl asuser "$uid" /bin/launchctl load -w \
+            /Library/LaunchAgents/com.redhat.spice.vdagent.plist 2>/dev/null \
+          || true
+      fi
     fi
   '';
 
