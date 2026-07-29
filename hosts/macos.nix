@@ -116,8 +116,8 @@
     ];
 
     # ---- Mac App Store apps (masApps) ----------------------------------------
-    # Empty: Plash (live wallpaper) and DaVinci Resolve were removed. `mas` stays
-    # (above) so App Store apps can be added here later.
+    # Shared baseline (WireGuard) lives in modules/darwin/homebrew.nix. Host-only
+    # MAS apps go here; attrs merge. `mas` brew stays for on-demand installs.
     masApps = { };
   };
 }

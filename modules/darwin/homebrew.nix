@@ -34,7 +34,15 @@ _:
     # nixpkgs via home.nix, not a tap — Homebrew now refuses untrusted taps.)
     taps = [ ];
 
-    # ---- brews / casks / masApps ------------------------------------------
+    # ---- brews / casks ----------------------------------------------------
     # Set per host in hosts/<host>.nix (e.g. hosts/macos.nix, hosts/macvm.nix).
+
+    # ---- masApps (shared across every darwin host) --------------------------
+    # Official WireGuard client is App Store–only (no Homebrew cask). attrs merge
+    # with any per-host masApps. Requires an App Store sign-in for first install;
+    # later activates are no-ops if already present (mas install skip-if-installed).
+    masApps = {
+      WireGuard = 1451685025;
+    };
   };
 }
