@@ -58,8 +58,8 @@
       "imagemagick"
       "img2pdf"
       "kubernetes-cli"
-      # Mac App Store CLI. Kept for on-demand App Store installs even though
-      # masApps is currently empty; `mas install` needs an App Store sign-in.
+      # Mac App Store CLI. Kept for on-demand installs alongside masApps;
+      # `mas install` needs an App Store sign-in.
       "mas"
       "nats-server"
       "ncdu"
@@ -118,12 +118,16 @@
     ];
 
     # ---- Mac App Store apps (masApps) ----------------------------------------
-    # macos only — macvm cannot sign into an Apple ID / App Store. `mas` brew
-    # stays for on-demand installs; anything listed here is also protected from
-    # onActivation.cleanup = "uninstall" (undeclared MAS apps get removed).
+    # macos only — macvm cannot sign into an Apple ID / App Store login, so any
+    # masApps entry fails brew bundle there (hosts/macvm.nix keeps masApps = { }).
+    # `mas` brew stays for on-demand installs; anything listed here is also
+    # protected from onActivation.cleanup = "uninstall" (undeclared MAS apps
+    # get removed — that is how Xcode was wiped before this entry).
     masApps = {
       # Official client is App Store–only (no Homebrew cask).
       WireGuard = 1451685025;
+      # Full Xcode IDE from the Mac App Store (not the CLI tools alone).
+      Xcode = 497799835;
     };
   };
 }
