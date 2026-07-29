@@ -21,6 +21,9 @@ in
 
   nixpkgs.config.allowUnfree = true;
 
+  # Stable identity for host-gated modules (no macos login openers / RAG stack).
+  networking.hostName = "macvm";
+
   # Dock bottom on the VM (core.nix uses right on the real Mac).
   system.defaults.dock.orientation = lib.mkForce "bottom";
 

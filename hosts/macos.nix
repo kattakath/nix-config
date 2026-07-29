@@ -16,6 +16,9 @@
 
   nixpkgs.config.allowUnfree = true;
 
+  # Stable identity for host-gated modules (login openers, RAG launchd, …).
+  networking.hostName = "macos";
+
   users.users.${userName} = {
     name = userName;
     home = "/Users/${userName}";

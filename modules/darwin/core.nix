@@ -331,58 +331,56 @@ in
   };
 
   # ---- Launch-at-login agents (declarative "Open at Login") ------------------
-  # macOS's System Settings > Login Items list is NOT declaratively manageable
-  # (it's SMAppService-backed, protected like TCC). The Nix-native equivalent is
-  # a launchd user agent with RunAtLoad — version-controlled and wipe-proof. Each
-  # runs a NAMED wrapper (mkLoginAgent, above) so the "Allow in the Background"
-  # list shows "login-<app>" rather than five indistinguishable "open"s. For each
-  # app, turn OFF its OWN "launch at login" toggle so it doesn't self-register.
+  # macOS System Settings ▸ Login Items is NOT declaratively manageable
+  # (SMAppService / TCC-like). Nix-native: launchd user agents with RunAtLoad.
+  #
+  # BTM RULE: "Allow in the Background" names each item by ProgramArguments[0]
+  # basename (`sfltool dumpbtm`). Always use a `login-<activity>` wrapper
+  # (mkLoginAgent) — never bare /usr/bin/open, /bin/sh, or nix-darwin `script =`
+  # (those wrap as /bin/sh -c wait4path and show as phantom "sh").
   # See docs/macos-settings-surface.md.
   #
-  # Notes: Maccy is a menu-bar-only agent (LSUIElement) — the flags are just
-  # belt-and-suspenders. Docker's own "Start when you sign in" registered the
-  # com.docker.helper background item via SMAppService; disabling it there and
-  # driving startup here keeps one declarative source (the privileged
-  # com.docker.vmnetd system daemon is separate and unaffected). Slack/Mail/
-  # Messages are full GUI apps, so `-j` starts them hidden but a Dock icon still
-  # shows while running; Mail/Messages resolve by name from /System/Applications.
-  # The agent attr names (open-*) are kept as the launchd Labels so the existing
-  # "Allow in the Background" toggle state is preserved across this change.
-  launchd.user.agents = {
-    open-maccy = mkLoginAgent "maccy" "Maccy";
-    open-docker = mkLoginAgent "docker" "Docker";
-    open-slack = mkLoginAgent "slack" "Slack";
-    open-mail = mkLoginAgent "mail" "Mail";
-    open-messages = mkLoginAgent "messages" "Messages";
+  # Host scope: GUI login openers are **macos only** (real Mac app set). The
+  # UTM sandbox (macvm) must not inherit Docker/Maccy/Slack/Mail/Messages agents.
+  # Screengrab rotation is fine on every darwin host that uses this module.
+  launchd.user.agents = lib.mkMerge [
+    (lib.mkIf (config.networking.hostName == "macos") {
+      # Agent attr names (open-*) keep launchd Labels stable so existing BTM
+      # toggle state is preserved. Turn OFF each app's own "Open at Login".
+      open-maccy = mkLoginAgent "maccy" "Maccy";
+      open-docker = mkLoginAgent "docker" "Docker";
+      open-slack = mkLoginAgent "slack" "Slack";
+      open-mail = mkLoginAgent "mail" "Mail";
+      open-messages = mkLoginAgent "messages" "Messages";
+    })
 
-    # Hourly rotation of ~/Pictures/Screengrab: top-level files older than 24h are
-    # moved to ~/.Trash (recoverable). Uses ONLY stock macOS tools under /usr/bin
-    # and /bin (find/basename/date/mv/mkdir) — zero Nix runtime closure. The
-    # explicit Label keeps the domain-derived rDNS name (not nix-darwin's default
-    # org.nixos.* prefix) so the existing "Allow in the Background" state persists.
-    # The `-exec sh -c 'for f do …' _ {} +` form batches matches and iterates them
-    # safely (spaces/newlines) with no bashisms, so it runs under /bin/sh or bash.
-    file-rotation-screengrab = {
-      serviceConfig = {
-        Label = "${rdns}.file-rotation.trash-screengrab";
-        StartInterval = 3600;
-        RunAtLoad = true;
-        StandardOutPath = "${home}/Library/Logs/file-rotation-trash-screengrab.log";
-        StandardErrorPath = "${home}/Library/Logs/file-rotation-trash-screengrab.log";
+    {
+      # Hourly rotation of ~/Pictures/Screengrab → ~/.Trash (recoverable).
+      # Stock /bin + /usr/bin only (no Nix runtime). Direct ProgramArguments
+      # with a login-* basename — do NOT use `script =` (forces /bin/sh wrapper).
+      file-rotation-screengrab = {
+        serviceConfig = {
+          Label = "${rdns}.file-rotation.trash-screengrab";
+          ProgramArguments = [
+            "${pkgs.writeShellScriptBin "login-file-rotation-screengrab" ''
+              set -eu
+              /bin/mkdir -p "${home}/Library/Logs" "${home}/.Trash" "${screengrabDir}"
+              /usr/bin/find "${screengrabDir}" -maxdepth 1 -type f ! -name '.DS_Store' -mmin +1440 \
+                -exec /bin/sh -c 'for f do
+                  dest="${home}/.Trash/$(/usr/bin/basename "$f")"
+                  [ -e "$dest" ] && dest="$dest.$(/bin/date +%Y%m%d%H%M%S)"
+                  /bin/mv -- "$f" "$dest"
+                done' _ {} +
+            ''}/bin/login-file-rotation-screengrab"
+          ];
+          StartInterval = 3600;
+          RunAtLoad = true;
+          StandardOutPath = "${home}/Library/Logs/file-rotation-trash-screengrab.log";
+          StandardErrorPath = "${home}/Library/Logs/file-rotation-trash-screengrab.log";
+        };
       };
-      script = ''
-        set -eu
-        /bin/mkdir -p "${home}/Library/Logs" "${home}/.Trash" "${screengrabDir}"
-        /usr/bin/find "${screengrabDir}" -maxdepth 1 -type f ! -name '.DS_Store' -mmin +1440 \
-          -exec /bin/sh -c 'for f do
-            dest="${home}/.Trash/$(/usr/bin/basename "$f")"
-            # Never clobber an existing trashed file of the same name.
-            [ -e "$dest" ] && dest="$dest.$(/bin/date +%Y%m%d%H%M%S)"
-            /bin/mv -- "$f" "$dest"
-          done' _ {} +
-      '';
-    };
-  };
+    }
+  ];
 
   # `screencapture` silently reverts to ~/Desktop if its target dir is missing,
   # so guarantee it exists (and is user-owned) at activation. Activation runs as
