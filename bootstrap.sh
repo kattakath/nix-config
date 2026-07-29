@@ -16,11 +16,13 @@
 #   1. install Determinate Nix (curl CLI installer — NOT the .pkg)
 #   2. move the installer's /etc/nix/nix.custom.conf aside (nix-darwin owns it)
 #   3. hand off to `nix run <flake>#key-recover`, which does everything else:
-#        - KIT PRESENT (iCloud recovery kit) -> restore your operator key,
-#          re-key agenix to this Mac's new host key, activate #macos.
-#        - NO KIT -> FOUND a fresh operator identity (new keypair, agenix
-#          re-keyed to it + this host key, the macos service secret re-initialised
-#          to a placeholder), then activate #macos.
+#        - KIT PRESENT (iCloud recovery kit) -> restore your operator key; agenix
+#          is operator-only, so the restored key already decrypts the vault (no
+#          re-key), then activate #macos.
+#        - NO KIT -> FOUND a fresh operator identity (new keypair; agenix's
+#          recipient in secrets/operator-key.nix repointed to it; the old vault
+#          ciphertext stays encrypted to the lost key, unrecoverable), then
+#          activate #macos.
 #      key-recover first verifies your macOS login == the flake's loginName and
 #      HARD-FAILS with fork instructions if it does not.
 #
@@ -403,8 +405,8 @@ To delete it anyway (DESTRUCTIVE): --force-clean-nix-volume"
   fi
 
   # 3. Hand off to the flake. Everything from here (decrypt/found, clone, agenix
-  # re-key, darwin-rebuild) is a writeShellApplication in packages/key-recovery.nix,
-  # lint-gated at build time and evaluated by CI, unlike this file. The repo is
+  # recipient repoint on founding, darwin-rebuild) is a writeShellApplication in
+  # packages/key-recovery.nix, lint-gated at build time + evaluated by CI. The repo is
   # public, so this needs no key — the key is what it restores (or founds).
   if [ "$KIT_PRESENT" -eq 1 ]; then
     say "Recovery kit found at $KIT_DIR — restoring your operator identity."
@@ -415,9 +417,11 @@ To delete it anyway (DESTRUCTIVE): --force-clean-nix-volume"
     say "No recovery kit found (looked in $KIT_DIR)."
     warn "FOUNDING MODE: there is no operator identity to restore, so this will"
     warn "GENERATE a brand-new operator keypair and stand up your OWN ecosystem —"
-    warn "agenix re-keyed to the new operator + this Mac's host key, and the macos"
-    warn "service secret re-initialised to a placeholder you then populate."
-    warn "(The only lost content is a runner PAT — revocable and re-issuable.)"
+    warn "agenix's operator recipient (secrets/operator-key.nix) is repointed to the"
+    warn "new key. agenix is an operator-only vault, so there is NO host-key re-key;"
+    warn "the old vault ciphertext (cloudflared-token.age) stays encrypted to the lost"
+    warn "key and is unrecoverable — re-establish it from source (cf-tunnel-apply +"
+    warn "nixpi-vault-token) once your hosts are up."
     if [ "$FORCE_FRESH" -ne 1 ]; then
       confirm "No kit found. Found a NEW operator identity for this flake and activate #macos?" \
         || die "aborted — no kit and you declined founding mode. Nix is installed; nothing else changed.
