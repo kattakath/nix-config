@@ -1,11 +1,14 @@
-# macvm — UTM aarch64-darwin guest (sandbox analogue of nixvm).
+# macvm — aarch64-darwin guest (sandbox analogue of nixvm).
+#
+# Host hypervisor is Apple Virtualization.framework; pick one front-end:
+#   UTM  → docs/macvm-utm-runbook.md  (`nix run .#macvm-utm-*`)
+#   Tart → docs/macvm-tart-runbook.md (`nix run .#macvm-tart-*`, IPSW create)
+# Disks stay on the host (UTM package or ~/.tart/) — never in this flake.
 #
 # Persona: `aloshy` (mkDarwin `identity` override in flake.nix). The guest login
 # account MUST be that user. Activate *inside* the VM:
 #   sudo nix run github:kattakath/nix-config#macvm
 #   sudo darwin-rebuild switch --flake .#macvm
-#
-# Host-side UTM + SSH: docs/macvm-utm-runbook.md (`nix run .#macvm-utm-*`).
 # Optional Grok CLI (once, not Homebrew): curl -fsSL https://x.ai/cli/install.sh | bash
 {
   loginName,
@@ -76,7 +79,7 @@ let
       /bin/rm -f "$local"
       log "removed dangling symlink (waiting for VirtioFS)"
     fi
-    log "waiting for $shared (host: macvm-utm-share-screengrab + restart guest if needed)"
+    log "waiting for $shared (host: macvm-utm-share-screengrab or macvm-tart-start + restart guest if needed)"
     exit 0
   '';
 in

@@ -862,6 +862,34 @@
           }
         ))
 
+        # macvm Tart control-plane (host Mac only) — Apple Virtualization + IPSW,
+        # no UTM. Disks under ~/.tart/ (never the store). Parallel to macvm-utm-*.
+        # tart is unfree; pkgsFor (legacyPackages) may not allow it, so import
+        # nixpkgs with allowUnfree for this kit only.
+        (nixpkgs.lib.genAttrs darwinSystems (
+          system:
+          let
+            pkgsUnfree = import nixpkgs {
+              inherit system;
+              config.allowUnfree = true;
+            };
+            kit = pkgsUnfree.callPackage ./packages/macvm-tart.nix { };
+          in
+          {
+            inherit (kit)
+              macvm-tart-doctor
+              macvm-tart-list
+              macvm-tart-create
+              macvm-tart-ensure
+              macvm-tart-start
+              macvm-tart-stop
+              macvm-tart-ip
+              macvm-tart-ssh
+              macvm-tart-bootstrap-print
+              ;
+          }
+        ))
+
         # WireGuard operator (darwin) — confs stay outside the store; tool is public.
         # Also on PATH via home.packages on darwin (modules/shared/home.nix).
         (nixpkgs.lib.genAttrs darwinSystems (system: {
@@ -1158,6 +1186,53 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.macvm-utm-secret-copy}/bin/macvm-utm-secret-copy";
               meta.description = "Copy login-Keychain secrets from macos host → macvm guest (aloshy); --list / --rm";
+            };
+
+            # Host-side Tart lifecycle for macvm (Apple Virtualization + IPSW; no UTM).
+            aarch64-darwin.macvm-tart-doctor = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.macvm-tart-doctor}/bin/macvm-tart-doctor";
+              meta.description = "Health-check the host Tart macvm guest (Apple Virtualization)";
+            };
+            aarch64-darwin.macvm-tart-list = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.macvm-tart-list}/bin/macvm-tart-list";
+              meta.description = "List Tart VMs";
+            };
+            aarch64-darwin.macvm-tart-create = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.macvm-tart-create}/bin/macvm-tart-create";
+              meta.description = "Create macvm from Apple IPSW via Tart (disk under ~/.tart)";
+            };
+            aarch64-darwin.macvm-tart-ensure = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.macvm-tart-ensure}/bin/macvm-tart-ensure";
+              meta.description = "Ensure Tart macvm exists (exit 0) or print create help (exit 2)";
+            };
+            aarch64-darwin.macvm-tart-start = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.macvm-tart-start}/bin/macvm-tart-start";
+              meta.description = "Start Tart macvm with Screengrab VirtioFS share";
+            };
+            aarch64-darwin.macvm-tart-stop = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.macvm-tart-stop}/bin/macvm-tart-stop";
+              meta.description = "Stop Tart macvm";
+            };
+            aarch64-darwin.macvm-tart-ip = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.macvm-tart-ip}/bin/macvm-tart-ip";
+              meta.description = "Print Tart macvm guest IP (tart ip)";
+            };
+            aarch64-darwin.macvm-tart-ssh = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.macvm-tart-ssh}/bin/macvm-tart-ssh";
+              meta.description = "SSH into Tart macvm (aloshy + operator key)";
+            };
+            aarch64-darwin.macvm-tart-bootstrap-print = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.macvm-tart-bootstrap-print}/bin/macvm-tart-bootstrap-print";
+              meta.description = "Print in-guest macvm bootstrap checklist for Tart";
             };
 
             # WireGuard operator — confs in ~/.config/wireguard (not in the store).
