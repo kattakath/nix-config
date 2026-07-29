@@ -91,6 +91,9 @@ nix run .#macvm-utm-create-print | bootstrap-print
 nix run .#macvm-utm-ssh [-- --ip 192.168.64.N]
 nix run .#macvm-utm-share-screengrab
 nix run .#macvm-utm-clipboard-on -- --yes
+nix run .#macvm-utm-secret-copy -- KEY [KEY…]   # host Keychain → guest (aloshy)
+nix run .#macvm-utm-secret-copy -- --list
+nix run .#macvm-utm-secret-copy -- --rm KEY
 ```
 
 | Variable | Default |
@@ -127,6 +130,65 @@ No need for the UTM toolbar “Install Guest Tools” CD after a successful acti
 ## SSH (detail)
 
 Single path: Apple’s sshd via `services.openssh` (keys-only; operator ed25519). ALF forced off on macvm. Diagnose: guest `launchctl print system/com.openssh.sshd`, host `arp -an | grep 192.168.64`.
+
+## Keychain secrets (host ↔ guest)
+
+Both **macos** and **macvm** install `programs.keychainSecrets` (`secret` / `set-secret` /
+`remove-secret` from the [nix-keychain-secrets](https://github.com/ismailkattakath/nix-keychain-secrets)
+flake). The command name is **`secret`** (singular) — there is no `secrets` CLI.
+
+| Host | Persona / Keychain | Notes |
+|---|---|---|
+| `macos` | `ismailkattakath` login Keychain | Operator’s tokens (Civitai, Vast, GH, …) |
+| `macvm` | `aloshy` login Keychain | **Separate** store — nothing is shared automatically |
+
+### Why plain SSH cannot `secret set`
+
+macOS blocks Keychain **writes** (and often **reads**) from an SSH session with:
+
+```text
+security: … User interaction is not allowed.
+```
+
+even when the guest GUI user is logged in. The login Keychain is unlocked for the
+**Aqua session**, not for arbitrary SSH TTYs.
+
+### Correct path (codified)
+
+```bash
+# On the host Mac — copy one or more KEY names that already exist on macos:
+nix run .#macvm-utm-secret-copy -- CIVITAI_TOKEN
+
+nix run .#macvm-utm-secret-copy -- --list          # guest index (names only)
+nix run .#macvm-utm-secret-copy -- --rm OLD_KEY    # guest only
+```
+
+What the app does (agents: do **not** invent a shorter path):
+
+1. Read `KEY` from the **host** Keychain (`secret get` / `security find-generic-password`).
+2. Base64-stage the value to the guest (no plaintext in `ssh` argv).
+3. On the guest: `sudo launchctl asuser $(id -u aloshy) sudo -u aloshy … set-secret`
+   so `security` runs inside aloshy’s Aqua session.
+4. Verify with SHA-256 length match — **never** prints secret values.
+
+Requirements: macvm **running**, **aloshy logged into the GUI**, guest activated
+(`#macvm` so `secret` / `set-secret` exist).
+
+### In-guest use (after copy)
+
+In a **GUI Terminal** on macvm (or any session that loads `~/.config/secrets/loader.sh`):
+
+```bash
+secret ls
+secret get CIVITAI_TOKEN   # may still fail over plain SSH; prefer GUI Terminal
+```
+
+### Do not
+
+- Expect host Keychain items to appear on macvm without an explicit copy.
+- Run `secret set` over raw `macvm-utm-ssh` and assume it worked (index may update
+  while the Keychain write fails).
+- Put token values in git, flake apps’ source, or shell history when avoidable.
 
 ## Registry duplicates
 
