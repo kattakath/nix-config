@@ -228,7 +228,9 @@ in
       "capcut"
       "iina"
     ];
-    # Shared MAS baseline (WireGuard) in modules/darwin/homebrew.nix; merge here.
+    # Always empty: macvm has no Apple ID / App Store login — any masApps entry
+    # fails brew bundle and aborts activation. WireGuard (and other MAS apps)
+    # live on macos only (hosts/macos.nix).
     masApps = { };
   };
 
