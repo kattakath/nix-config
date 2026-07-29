@@ -131,6 +131,44 @@ No need for the UTM toolbar “Install Guest Tools” CD after a successful acti
 
 Single path: Apple’s sshd via `services.openssh` (keys-only; operator ed25519). ALF forced off on macvm. Diagnose: guest `launchctl print system/com.openssh.sshd`, host `arp -an | grep 192.168.64`.
 
+## WireGuard configs (private; no autostart)
+
+Both **macos** and **macvm** install `wireguard-tools` (CLI). Official
+`WireGuard.app` is **macos-only** (`masApps` — macvm has no Apple ID).
+
+Interface configs (`*.conf` with private keys) are **not** in this public flake
+(Nix would put them in the world-readable store). Instead:
+
+| Path | Role |
+|---|---|
+| `~/.local/share/wireguard-configs/*.conf` | Operator plant (outside git) |
+| `~/.config/wireguard/*.conf` | Synced at HM activation (`local.wireguardConfigs`, mode 600) |
+
+```bash
+# Plant once (host example), then activate so HM copies into ~/.config/wireguard
+mkdir -p ~/.local/share/wireguard-configs
+cp ~/Downloads/{BANGKOK,BANGLORE,DUBAI,JAKARTA,MANILA}.conf ~/.local/share/wireguard-configs/
+chmod 600 ~/.local/share/wireguard-configs/*.conf
+
+# macvm: copy the same files into aloshy's source dir, then re-activate #macvm
+# (or use a private composition flake — docs/private-home-modules.md)
+
+# Bring a tunnel up ONLY when you want it (not on login):
+sudo wg-quick up ~/.config/wireguard/BANGKOK.conf
+sudo wg-quick down ~/.config/wireguard/BANGKOK.conf
+```
+
+**Privacy options** (pick one; never commit plaintext keys to the public tree):
+
+1. **Operator plant dir** (what this module uses) — confs only on disk, gitignored /
+   never in the flake. Sync host → macvm with `scp` / `macvm-utm-ssh` when they change.
+2. **Private GitLab flake** — owns a thin HM module or re-exports `#macos`/`#macvm`
+   via `lib.mkDarwin { extraHomeModules = … }` (`docs/private-home-modules.md`).
+   Still: prefer activation `cp` from outside the store, not `home.file.source = ./secret.conf`
+   (that copies secrets into `/nix/store`).
+3. **agenix** — ciphertext in a repo is OK; host-decrypt at activation is a policy
+   choice (this fleet currently avoids host-decrypted secrets).
+
 ## Keychain secrets (host ↔ guest)
 
 Both **macos** and **macvm** install `programs.keychainSecrets` (`secret` / `set-secret` /
