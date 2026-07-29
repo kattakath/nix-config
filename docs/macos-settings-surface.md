@@ -214,26 +214,40 @@ has a commented `services.yabai`/`services.skhd` placeholder.
 
 The System Settings **Login Items** list ("Open at Login") is **not** declaratively
 manageable — it's `SMAppService`-backed and protected like TCC (§7). The Nix-native
-way to "start X at login" is a **launchd user agent** with `RunAtLoad`
-(version-controlled, wipe-proof). This repo drives Maccy and Docker Desktop this way
-(`launchd.user.agents.open-maccy` / `open-docker` in `core.nix`):
+way to "start X at login" is a **launchd user agent** with `RunAtLoad`.
+
+### BTM naming rule (`login-*`)
+
+**Allow in the Background** names each item by `ProgramArguments[0]`'s **basename**
+(verify with `sfltool dumpbtm`). Fleet rule: that basename **must** be
+`login-<activity>` (e.g. `login-maccy`, `login-mcp-gateway`).
+
+| Bad (shows as phantom `sh` / `python3` / `open`) | Good |
+|---|---|
+| nix-darwin `script = ''…''` (wraps `/bin/sh -c wait4path`) | `ProgramArguments = [ "${writeShellScriptBin "login-…"}/bin/login-…" ]` |
+| stock home-manager launchd (always `/bin/sh -c wait4path`) | `modules/shared/hm-launchd` (vendored HM launchd; wait4path inside `login-*`) |
+| bare `/usr/bin/open -a App` | `mkLoginAgent` in `modules/darwin/core.nix` |
+
+"Unidentified developer" is expected for unsigned `/nix/store` wrappers (Developer ID
+would be needed for a custom icon/signing); the **name** is what we control.
+
+### Host scope
+
+| Agents | Host |
+|---|---|
+| `open-maccy` / `open-docker` / `open-slack` / `open-mail` / `open-messages` | **macos only** |
+| MCP gateway + public tunnel + RAG (`ollama-local`, `postgres-pgvector`) | **macos only** |
+| `login-file-rotation-screengrab` | every darwin host using `core.nix` |
+
+Gate with `networking.hostName` (`macos` / `macvm` set in `hosts/*.nix`).
 
 ```nix
-launchd.user.agents.open-maccy.serviceConfig = {
-  ProgramArguments = [ "/usr/bin/open" "-a" "Maccy" ];
-  RunAtLoad = true;
-};
+# core.nix pattern (GUI openers)
+open-maccy = mkLoginAgent "maccy" "Maccy";  # → …/bin/login-maccy
 ```
 
-Two things to know:
-- **Turn off the app's own "launch at login."** Modern apps self-register via
-  `SMAppService`; if left on, the app re-adds itself and you get both mechanisms.
-- **Where an app's checkbox files itself varies.** A full-app login item (Maccy)
-  shows in the **"Open at Login"** list. A **background helper** (Docker Desktop's
-  `com.docker.helper`) shows under **"Allow in the Background"** instead — which is
-  why "Start Docker Desktop when you sign in" is checked yet Docker never appears in
-  the top list. Docker's privileged `com.docker.vmnetd` daemon is separate (installed
-  at install time) and unaffected.
+Also: turn OFF each app's own "Open at Login" / SMAppService toggle so you don't
+get double registration. Docker's privileged `com.docker.vmnetd` is separate.
 
 ## 6. Ecosystem projects (for the toolbox)
 
