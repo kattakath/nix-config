@@ -832,6 +832,26 @@
           }
         ))
 
+        # macvm UTM control-plane (host Mac only). Disk images stay out of the
+        # store — see packages/macvm-utm.nix + docs/macvm-utm-runbook.md.
+        (nixpkgs.lib.genAttrs darwinSystems (
+          system:
+          let
+            kit = (pkgsFor system).callPackage ./packages/macvm-utm.nix { };
+          in
+          {
+            inherit (kit)
+              macvm-utm-doctor
+              macvm-utm-list
+              macvm-utm-open
+              macvm-utm-start
+              macvm-utm-stop
+              macvm-utm-registry-dedupe
+              macvm-utm-bootstrap-print
+              ;
+          }
+        ))
+
         {
           # The LIVE nixpi SD image (not a separate installer): prebuilt in CI
           # (build-installers), published to the installer-latest release, and
@@ -1046,14 +1066,52 @@
             };
 
             # First activation of the macvm UTM guest (run INSIDE the VM, whose
-            # login account must be `ismailkattakath`), before darwin-rebuild is
-            # on PATH. Thereafter: darwin-rebuild switch --flake .#macvm
+            # login account must be `aloshy`), before darwin-rebuild is on PATH.
+            # Thereafter: darwin-rebuild switch --flake .#macvm
+            # Host-side UTM control plane: nix run .#macvm-utm-* (see packages/macvm-utm.nix).
             aarch64-darwin.macvm = {
               type = "app";
               program = "${(pkgsFor "aarch64-darwin").writeShellScript "activate-macvm" ''
                 exec ${self.darwinConfigurations.macvm.config.system.build.darwin-rebuild}/bin/darwin-rebuild switch --flake "${self}#macvm" "$@"
               ''}";
-              meta.description = "First activation of the macvm nix-darwin UTM guest from the flake (after Determinate Nix)";
+              meta.description = "First activation of the macvm nix-darwin UTM guest from the flake (run INSIDE the VM as aloshy, after Determinate Nix)";
+            };
+
+            # Host-side UTM lifecycle for macvm (no disk images in the flake).
+            aarch64-darwin.macvm-utm-doctor = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.macvm-utm-doctor}/bin/macvm-utm-doctor";
+              meta.description = "Health-check the host UTM macvm guest (duplicates, package, utmctl)";
+            };
+            aarch64-darwin.macvm-utm-list = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.macvm-utm-list}/bin/macvm-utm-list";
+              meta.description = "List UTM VMs (utmctl list)";
+            };
+            aarch64-darwin.macvm-utm-open = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.macvm-utm-open}/bin/macvm-utm-open";
+              meta.description = "Open the UTM app";
+            };
+            aarch64-darwin.macvm-utm-start = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.macvm-utm-start}/bin/macvm-utm-start";
+              meta.description = "Start the registered macvm UTM guest";
+            };
+            aarch64-darwin.macvm-utm-stop = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.macvm-utm-stop}/bin/macvm-utm-stop";
+              meta.description = "Stop the registered macvm UTM guest";
+            };
+            aarch64-darwin.macvm-utm-registry-dedupe = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.macvm-utm-registry-dedupe}/bin/macvm-utm-registry-dedupe";
+              meta.description = "De-dupe UTM registry entries for macvm (dry-run; --apply to write)";
+            };
+            aarch64-darwin.macvm-utm-bootstrap-print = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.macvm-utm-bootstrap-print}/bin/macvm-utm-bootstrap-print";
+              meta.description = "Print the in-guest macvm bootstrap checklist (aloshy + Determinate + activate)";
             };
 
             # `nix run .#set-secret -- KEY [VALUE]` — store a secret in the macOS
