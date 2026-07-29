@@ -193,18 +193,9 @@ one-time steps are inherently manual — do these after activating a fresh Mac:
   logins and any Keychain-stored personal tokens are re-established by hand (Nix
   manages only the *service* secrets via agenix — see the "Secrets — agenix"
   convention in `CLAUDE.md`, not personal logins).
-- **The `macvm` UTM guest is NOT restored by a rebuild — recreate it.** A UTM VM
-  lives as a multi-GB `.utm` bundle inside UTM's sandbox container
-  (`~/Library/Containers/com.utmapp.UTM/Data/Documents/`); it is user data, tracked
-  by neither this repo nor the iCloud key kit, so a wiped/rebuilt Mac comes up with
-  an **empty UTM library** and the old guest gone (it does not go to Trash — the
-  fresh container simply never had it). This is by design: `macvm` is a *throwaway*
-  guest whose config is fully reproducible from the flake. To bring it back, create
-  a blank Apple-Silicon UTM guest named **`macvm`**, log into it as the **`aloshy`**
-  account, then from inside the VM run `nix run github:kattakath/nix-config#macvm`
-  (first activation, before `darwin-rebuild` is on PATH), and `darwin-rebuild switch
-  --flake .#macvm` thereafter. On the **host**, after UTM is installed: `nix run
-  .#macvm-utm-doctor` / `nix run .#macvm-utm-start` (see
-  [`docs/macvm-utm-runbook.md`](macvm-utm-runbook.md)). If a VM ever holds
-  irreplaceable in-guest state, back that `.utm` bundle up separately — nothing
-  here does it for you.
+- **The `macvm` UTM guest is NOT restored by a rebuild — recreate it.** The multi-GB
+  `.utm` bundle lives only under UTM’s sandbox; neither this repo nor the key kit
+  tracks it. Recreate via the GUI (name **`macvm`**, login **`aloshy`**), activate
+  inside with `sudo nix run github:kattakath/nix-config#macvm`, host control with
+  `nix run .#macvm-utm-*`. Full steps: [`macvm-utm-runbook.md`](macvm-utm-runbook.md).
+  Optional external backup of the `.utm` is operator-owned.
