@@ -139,7 +139,7 @@ bootstrap.sh    No-Nix curl entrypoint: install Determinate Nix, then hand off t
 flake.nix       Entry point: inputs, darwin/nixos configurations, packages, devShells, checks
 flake.lock      Pinned input revisions (bumped via `nix flake update`, never hand-edited)
 treefmt.nix     Single source of truth for formatting + lint (drives nix fmt, CI, and the hook)
-hosts/          Per-host entry profiles (macos.nix, nixpi.nix, nixvm.nix)
+hosts/          Per-host entry profiles (macos.nix, macvm.nix, nixpi.nix, nixvm.nix)
 modules/        Reusable modules, split by platform (darwin/ linux/ nixos/ shared/)
 packages/       Nix-built artifacts (devcontainer image, key-recovery kit, landing page; also vast-provision.nix — the vast-* apps —, vast-bootstrap.sh, vast-templates/provisioner/)
 .claude/        Repo-local Claude Code agents, commands, hooks, skills, and rules
