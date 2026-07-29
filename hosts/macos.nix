@@ -136,6 +136,9 @@
       # (or on activation) ever starts a tunnel.
       WireGuard = 1451685025;
       # Full Xcode IDE from the Mac App Store (not the CLI tools alone).
+      # License is accepted *before* brew bundle by modules/darwin/xcode-license.nix
+      # (Brewfile installs brews before masApps — without that, formulae fail with
+      # "You have not agreed to the Xcode license" on first activation).
       Xcode = 497799835;
     };
   };
