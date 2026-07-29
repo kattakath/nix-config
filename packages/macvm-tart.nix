@@ -75,11 +75,16 @@ let
       "$TART" list --quiet 2>/dev/null | grep -qx "$VM_NAME"
     }
 
-    # Running if DHCP has issued an IP (tart ip succeeds without wait).
+    # Prefer tart list/get state — tart ip can still resolve after stop (stale DHCP).
     vm_running() {
       require_tart
-      ip=$("$TART" ip "$VM_NAME" --wait 0 2>/dev/null || true)
-      [ -n "''${ip:-}" ]
+      "$TART" list 2>/dev/null | /usr/bin/awk -v n="$VM_NAME" '
+        NR>1 && $2==n {
+          st=tolower($NF)
+          exit (st=="running" || st=="suspended") ? 0 : 1
+        }
+        END { if (NR==0) exit 1 }
+      '
     }
 
     guest_ip() {
