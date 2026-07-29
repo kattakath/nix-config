@@ -88,8 +88,17 @@ in
   # Stable identity for host-gated modules (no macos login openers / RAG stack).
   networking.hostName = "macvm";
 
-  # Dock bottom on the VM (core.nix uses right on the real Mac).
-  system.defaults.dock.orientation = lib.mkForce "bottom";
+  # Dock: bottom (core.nix uses right). core.nix also sets static-only = true
+  # (running apps only) — force off so pinned apps stay when not running.
+  system.defaults.dock = {
+    orientation = lib.mkForce "bottom";
+    static-only = lib.mkForce false;
+    persistent-apps = [
+      "/System/Applications/Utilities/Terminal.app"
+      "/Applications/WhatsApp.app"
+      "/Applications/Opera.app"
+    ];
+  };
 
   # ---- SSH: host → guest over UTM Shared (bridge100 ≈ 192.168.64.0/24) --------
   # One path: Apple's sshd via services.openssh (Remote Login). Keys-only;
