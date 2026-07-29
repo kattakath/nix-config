@@ -51,15 +51,23 @@ Network: **Shared** (host `bridge100`, typically `192.168.64.0/24`).
 
 ## In-guest activation
 
-```bash
-# First time (Determinate Nix installed):
-sudo nix run github:kattakath/nix-config#macvm
+Guest must be logged in as **`aloshy`**. Prefer driving activation **from the host**
+over SSH (passwordless sudo for `aloshy` is set on this sandbox):
 
-# Thereafter:
-sudo darwin-rebuild switch --flake .#macvm
+```bash
+# From the host Mac (after guest is started and has been activated at least once
+# with a password, so NOPASSWD is on disk):
+nix run .#macvm-utm-ssh -- sudo nix run --refresh github:kattakath/nix-config#macvm
+# or, with a local checkout on the guest:
+nix run .#macvm-utm-ssh -- sudo darwin-rebuild switch --flake /path/to/nix-config#macvm
 ```
 
-Wrong login user → wrong home-manager paths. Guest must be **`aloshy`**.
+First-time / bootstrap (console or SSH with a password still required until
+`security.sudo.extraConfig` lands):
+
+```bash
+sudo nix run github:kattakath/nix-config#macvm
+```
 
 ## SSH (host → guest)
 
