@@ -49,9 +49,9 @@ let
       openArgsShell = lib.concatMapStringsSep " " lib.escapeShellArg extraOpenArgs;
       openCmd =
         if extraOpenArgs == [ ] then
-          ''/usr/bin/open -g -j -a ${lib.escapeShellArg app}''
+          "/usr/bin/open -g -j -a ${lib.escapeShellArg app}"
         else
-          ''/usr/bin/open -g -j -a ${lib.escapeShellArg app} --args ${openArgsShell}'';
+          "/usr/bin/open -g -j -a ${lib.escapeShellArg app} --args ${openArgsShell}";
     in
     {
       serviceConfig = {
@@ -445,32 +445,32 @@ in
   # Real Screengrab dir only on macos (owner of the files). macvm uses a symlink
   # to the UTM VirtioFS share (hosts/macvm.nix) — do not mkdir a local dir there.
   system.activationScripts.postActivation.text = lib.mkIf (config.networking.hostName == "macos") ''
-    mkdir -p "${screengrabDir}"
-    chown ${userName} "${screengrabDir}"
+        mkdir -p "${screengrabDir}"
+        chown ${userName} "${screengrabDir}"
 
-    # Docker Desktop "Start when you log in" (settings-store AutoStart) races our
-    # quiet open-docker agent and opens the dashboard. Keep AutoStart false so
-    # only org.nixos.open-docker drives login start (menu-bar / no UI flash).
-    docker_settings="${home}/Library/Group Containers/group.com.docker/settings-store.json"
-    if [ -f "$docker_settings" ]; then
-      /usr/bin/python3 - "$docker_settings" <<'PY' || true
-import json, sys
-path = sys.argv[1]
-try:
-    with open(path) as f:
-        data = json.load(f)
-except Exception:
-    sys.exit(0)
-if data.get("AutoStart") is False:
-    sys.exit(0)
-data["AutoStart"] = False
-with open(path, "w") as f:
-    json.dump(data, f, indent=2)
-    f.write("\n")
-print("docker: AutoStart forced off (open-docker owns login start)", file=sys.stderr)
-PY
-      chown ${userName}:staff "$docker_settings" 2>/dev/null || true
-    fi
+        # Docker Desktop "Start when you log in" (settings-store AutoStart) races our
+        # quiet open-docker agent and opens the dashboard. Keep AutoStart false so
+        # only org.nixos.open-docker drives login start (menu-bar / no UI flash).
+        docker_settings="${home}/Library/Group Containers/group.com.docker/settings-store.json"
+        if [ -f "$docker_settings" ]; then
+          /usr/bin/python3 - "$docker_settings" <<'PY' || true
+    import json, sys
+    path = sys.argv[1]
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except Exception:
+        sys.exit(0)
+    if data.get("AutoStart") is False:
+        sys.exit(0)
+    data["AutoStart"] = False
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+    print("docker: AutoStart forced off (open-docker owns login start)", file=sys.stderr)
+    PY
+          chown ${userName}:staff "$docker_settings" 2>/dev/null || true
+        fi
   '';
 
   # Window manager placeholder — uncomment and configure when adopted:
