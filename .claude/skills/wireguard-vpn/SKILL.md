@@ -41,9 +41,9 @@ nix run .#vpn -- status
 On **macvm** via host SSH:
 
 ```bash
-nix run .#macvm-utm-ssh -- /opt/homebrew/bin/vpn status
+nix run .#macvm-tart-ssh -- /opt/homebrew/bin/vpn status
 # after darwin activate, vpn is on PATH in login shells:
-nix run .#macvm-utm-ssh -- bash -lc 'vpn list'
+nix run .#macvm-tart-ssh -- bash -lc 'vpn list'
 ```
 
 ## Endpoints (operator plant)

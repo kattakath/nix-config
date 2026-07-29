@@ -49,7 +49,7 @@
   ...
 }:
 let
-  # Real client Mac vs UTM sandbox (hosts/*/networking.hostName). Used to keep
+  # Real client Mac vs Tart sandbox (hosts/*/networking.hostName). Used to keep
   # heavy darwin-only agents (RAG stack, MCP public tunnel extras) off macvm.
   isMacosHost = (osConfig.networking.hostName or "") == "macos";
 
@@ -520,7 +520,7 @@ in
           ForwardAgent = true;
         };
 
-        # UTM macvm guest. Prefer `nix run .#macvm-utm-ssh` (IP discovery).
+        # Tart macvm guest. Prefer `nix run .#macvm-tart-ssh` (IP discovery).
         # This Host is for a fixed HostName / macvm.local; user is always aloshy.
         "macvm" = {
           User = "aloshy";
