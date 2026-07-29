@@ -78,9 +78,11 @@ nix run .#macvm-utm-start
 # Fleet-only (public engine, no private HM modules)
 nix run .#macvm-utm-ssh -- sudo nix run --refresh github:kattakath/nix-config#macvm
 
-# With private personal modules (GitLab nix-personal — preferred for day-to-day)
-nix run .#macvm-utm-ssh -- sudo nix run --refresh \
-  'git+ssh://git@gitlab.com/ismailkattakath/nix-personal#macvm'
+# With private personal modules (preferred day-to-day). Guest has no GitLab SSH
+# by default — sync the private clone, then activate the path flake:
+#   tar -C ~/Developer/gitlab.com/ismailkattakath/nix-personal --exclude result -cf - . |
+#     nix run .#macvm-utm-ssh -- 'mkdir -p ~/nix-personal && tar -C ~/nix-personal -xf -'
+#   nix run .#macvm-utm-ssh -- sudo nix run /Users/aloshy/nix-personal#macvm
 
 nix run .#macvm-utm-ssh                 # interactive shell as aloshy
 nix run .#macvm-utm-doctor              # health: UTM + spice + clipboard + Screengrab
