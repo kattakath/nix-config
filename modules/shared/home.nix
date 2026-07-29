@@ -194,12 +194,12 @@ let
 
 in
 {
-  # Replace HM's stock launchd module so agents use login-* BTM basenames
+  # Replace HM's stock launchd module so agents use nix-* BTM basenames
   # (modules/shared/hm-launchd — wait4path kept inside the named wrapper).
   disabledModules = [ "launchd/default.nix" ];
 
   imports = [
-    ./hm-launchd # patched home-manager launchd (login-* ProgramArguments)
+    ./hm-launchd # patched home-manager launchd (nix-* ProgramArguments)
     ./mcp.nix # darwin-gated MCP server registry for Claude Code
     ./desktop-aesthetics.nix # macOS wallpaper + Terminal profile (opt-out per host; macvm opts out)
     # Local-first RAG stack (loopback launchd Postgres+pgvector + Ollama + in-DB
