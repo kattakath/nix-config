@@ -1,12 +1,10 @@
 # macvm Tart control-plane (host Mac only).
 #
-# Hypervisor: Apple Virtualization.framework (same as UTM's macOS backend).
-# Front-end: Tart (CLI) — create from Apple IPSW, no UTM GUI required.
+# Hypervisor: Apple Virtualization.framework.
+# Front-end: Tart (CLI) — create from Apple IPSW.
 # Guest OS: darwinConfigurations.macvm — activate inside the VM as aloshy.
 # Disks/IPSWs never enter the Nix store (~/.tart/vms/<name>).
 # See docs/macvm-tart-runbook.md.
-#
-# Parallel to packages/macvm-utm.nix — pick one host backend; guest flake is shared.
 {
   lib,
   writeShellApplication,
@@ -16,7 +14,6 @@
   gnugrep,
   gnused,
   gawk,
-  python3,
   tart,
 }:
 let
@@ -79,33 +76,9 @@ let
       "$TART" list --quiet 2>/dev/null | grep -qx "$VM_NAME"
     }
 
+    # Running if DHCP has issued an IP (tart ip succeeds without wait).
     vm_running() {
       require_tart
-      # Prefer JSON; fall back to "tart ip" (works only when DHCP has a lease).
-      if "$TART" list --format json 2>/dev/null | ${python3}/bin/python3 -c '
-import json, sys
-n = sys.argv[1]
-raw = sys.stdin.read().strip()
-if not raw:
-    sys.exit(1)
-data = json.loads(raw)
-items = data if isinstance(data, list) else (
-    data.get("VMs") or data.get("vms") or data.get("local") or []
-)
-if isinstance(items, dict):
-    items = list(items.values()) if items else []
-for v in items:
-    if not isinstance(v, dict):
-        continue
-    name = v.get("Name") or v.get("name") or ""
-    state = str(v.get("State") or v.get("state") or v.get("Status") or v.get("status") or "").lower()
-    if name == n and ("run" in state or "suspend" in state):
-        sys.exit(0)
-sys.exit(1)
-' "$VM_NAME"
-      then
-        return 0
-      fi
       ip=$("$TART" ip "$VM_NAME" --wait 0 2>/dev/null || true)
       [ -n "''${ip:-}" ]
     }
@@ -117,7 +90,7 @@ sys.exit(1)
     }
 
     dir_share_args() {
-      # Same guest path as UTM VirtioFS: /Volumes/My Shared Files/Screengrab
+      # Guest mount: /Volumes/My Shared Files/Screengrab (VirtioFS automount).
       /bin/mkdir -p "$SCREENGRAB"
       printf '%s' "--dir=Screengrab:$SCREENGRAB"
     }
@@ -129,7 +102,6 @@ sys.exit(1)
     gnugrep
     gnused
     gawk
-    python3
   ];
 
   mkApp =
@@ -164,11 +136,11 @@ sys.exit(1)
         echo "vm: present ($VM_NAME)"
         "$TART" list 2>/dev/null | awk -v n="$VM_NAME" 'NR==1 || $2==n {print}'
         if vm_running; then
-          echo "state: running/suspended"
+          echo "state: running"
           ip=$(guest_ip 0 || true)
           echo "ip: ''${ip:-unknown}"
         else
-          echo "state: stopped"
+          echo "state: stopped (or no DHCP lease yet)"
         fi
       else
         echo "vm: ABSENT — nix run .#macvm-tart-create"
@@ -178,7 +150,7 @@ sys.exit(1)
       echo "screengrab host path: $SCREENGRAB ($( [ -d "$SCREENGRAB" ] && echo present || echo MISSING ))"
       echo "guest mount (when running with start): /Volumes/My Shared Files/Screengrab"
       echo "guest persona: aloshy (activate #macvm inside the VM)"
-      echo "backend: Tart → Apple Virtualization.framework (no UTM)"
+      echo "backend: Tart → Apple Virtualization.framework"
       exit "$rc"
     '';
   };

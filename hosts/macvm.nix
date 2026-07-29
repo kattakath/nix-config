@@ -1,9 +1,8 @@
 # macvm — aarch64-darwin guest (sandbox analogue of nixvm).
 #
-# Host hypervisor is Apple Virtualization.framework; pick one front-end:
-#   UTM  → docs/macvm-utm-runbook.md  (`nix run .#macvm-utm-*`)
-#   Tart → docs/macvm-tart-runbook.md (`nix run .#macvm-tart-*`, IPSW create)
-# Disks stay on the host (UTM package or ~/.tart/) — never in this flake.
+# Host: Apple Virtualization.framework via Tart (IPSW create).
+#   docs/macvm-tart-runbook.md  —  nix run .#macvm-tart-*
+# Disk under ~/.tart/ — never in this flake.
 #
 # Persona: `aloshy` (mkDarwin `identity` override in flake.nix). The guest login
 # account MUST be that user. Activate *inside* the VM:
@@ -20,17 +19,8 @@ let
   # Operator ed25519 public key — sole network login credential (same as nixpi/nixvm).
   operatorSshKey = import ../secrets/operator-key.nix;
 
-  # UTM macOS guest tools (spice-vdagent) — clipboard sharing host↔guest when
-  # both are macOS 15+ and Virtualization → Clipboard Sharing is on in UTM.
-  # Official pkg from utmapp/vd_agent (same bits as “Install Guest Tools” CD).
-  # Bump version + hash together when UTM ships a new release.
-  spiceVdagentVersion = "0.22.1";
-  spiceVdagentPkg = pkgs.fetchurl {
-    url = "https://github.com/utmapp/vd_agent/releases/download/spice-vdagent-${spiceVdagentVersion}-macOS/spice-vdagent-${spiceVdagentVersion}.pkg";
-    hash = "sha256-x1iz/0PpqSCnhZH1NRTZl/r8r3prjYZOVVuB/d7eSAk=";
-  };
-
   # Single ensure script for launchd + activation (path shape = core.nix screengrabDir).
+  # Tart mounts host Screengrab as /Volumes/My Shared Files/Screengrab (VirtioFS).
   screengrabShare = "/Volumes/My Shared Files/Screengrab";
   screengrabLocal = "/Users/${loginName}/Pictures/Screengrab";
   nixScreengrabShare = pkgs.writeShellScriptBin "nix-screengrab-share" ''
@@ -79,7 +69,7 @@ let
       /bin/rm -f "$local"
       log "removed dangling symlink (waiting for VirtioFS)"
     fi
-    log "waiting for $shared (host: macvm-utm-share-screengrab or macvm-tart-start + restart guest if needed)"
+    log "waiting for $shared (host: macvm-tart-start with Screengrab dir share)"
     exit 0
   '';
 in
@@ -103,10 +93,9 @@ in
     ];
   };
 
-  # ---- SSH: host → guest over UTM Shared (bridge100 ≈ 192.168.64.0/24) --------
-  # One path: Apple's sshd via services.openssh (Remote Login). Keys-only;
-  # authorized_keys + host keys from nix-darwin. Host entrypoint:
-  # `nix run .#macvm-utm-ssh`.
+  # ---- SSH: host → guest over Tart shared net (bridge100 ≈ 192.168.64.0/24) --
+  # Apple's sshd via services.openssh (Remote Login). Keys-only; authorized_keys
+  # + host keys from nix-darwin. Host entrypoint: `nix run .#macvm-tart-ssh`.
   services.openssh = {
     enable = true;
     extraConfig = ''
@@ -121,9 +110,6 @@ in
   # uses a one-shot path that can leave the job unloaded. If the job is missing,
   # load it with modern launchctl (append after launchd activation so plists exist).
   # Do not kickstart every switch — that drops live SSH sessions.
-  #
-  # Same block also ensures UTM guest tools (spice-vdagent) are installed and
-  # loaded — replaces the one-shot “Install Guest Tools” CD flow.
   system.activationScripts.launchd.text = lib.mkAfter ''
     if ! /bin/launchctl print system/com.openssh.sshd >/dev/null 2>&1; then
       echo "macvm: loading com.openssh.sshd" >&2
@@ -132,64 +118,10 @@ in
         || /bin/launchctl load -w /System/Library/LaunchDaemons/ssh.plist 2>/dev/null \
         || echo "macvm: WARNING — could not load com.openssh.sshd" >&2
     fi
-
-    # ---- UTM Guest Tools (spice-vdagent ${spiceVdagentVersion}) --------------
-    # Clipboard host↔guest (macOS 15+ both sides; UTM Virtualization.ClipboardSharing).
-    # Replaces the one-shot “Install Guest Tools” CD. Vendor plists use spice-*
-    # basenames (fine for BTM). First install may need a one-time Gatekeeper allow.
-    spice_ver="${spiceVdagentVersion}"
-    spice_pkg="${spiceVdagentPkg}"
-    spice_id="com.redhat.spice.vdagent"
-    cur="$(/usr/sbin/pkgutil --pkg-info "$spice_id" 2>/dev/null | /usr/bin/awk '/^version:/{print $2}')"
-    if [ "$cur" != "$spice_ver" ]; then
-      echo "macvm: installing UTM guest tools (spice-vdagent $spice_ver; was ''${cur:-none})" >&2
-      /usr/sbin/installer -pkg "$spice_pkg" -target / || \
-        echo "macvm: WARNING — spice-vdagent installer failed" >&2
-    else
-      echo "macvm: spice-vdagent $spice_ver already installed" >&2
-    fi
-
-    ensure_job() {
-      # usage: ensure_job <domain/label> <plist>
-      local target="$1" plist="$2"
-      if [ ! -f "$plist" ]; then
-        echo "macvm: WARNING — missing $plist" >&2
-        return 1
-      fi
-      if /bin/launchctl print "$target" >/dev/null 2>&1; then
-        # Already loaded; kickstart only if not running (state not "running").
-        if ! /bin/launchctl print "$target" 2>/dev/null | /usr/bin/grep -q 'state = running'; then
-          echo "macvm: kickstart $target" >&2
-          /bin/launchctl kickstart -k "$target" 2>/dev/null || true
-        fi
-        return 0
-      fi
-      echo "macvm: bootstrap $target" >&2
-      /bin/launchctl bootstrap "''${target%/*}" "$plist" 2>/dev/null \
-        || /bin/launchctl load -w "$plist" 2>/dev/null \
-        || true
-    }
-
-    ensure_job system/com.redhat.spice.vdagentd /Library/LaunchDaemons/com.redhat.spice.vdagentd.plist
-    uid="$(/usr/bin/id -u ${loginName} 2>/dev/null || true)"
-    if [ -n "''${uid:-}" ]; then
-      ensure_job "gui/$uid/com.redhat.spice.vdagent" /Library/LaunchAgents/com.redhat.spice.vdagent.plist
-    fi
-
-    if [ -c /dev/tty.com.redhat.spice.0 ]; then
-      echo "macvm: spice virtio channel present" >&2
-    else
-      echo "macvm: WARNING — /dev/tty.com.redhat.spice.0 missing (enable Clipboard Sharing in UTM; reboot guest)" >&2
-    fi
-    if /bin/launchctl print system/com.redhat.spice.vdagentd 2>/dev/null | /usr/bin/grep -q 'state = running'; then
-      echo "macvm: spice-vdagentd running" >&2
-    else
-      echo "macvm: WARNING — spice-vdagentd not running" >&2
-    fi
   '';
 
   # core.nix enables Application Firewall + stealth on the real Mac; that blocks
-  # host→guest SSH on the UTM Shared bridge. Sandbox: leave the wall open.
+  # host→guest SSH on the shared bridge. Sandbox: leave the wall open.
   networking.applicationFirewall = {
     enable = lib.mkForce false;
     enableStealthMode = lib.mkForce false;
@@ -202,8 +134,8 @@ in
   };
 
   # Passwordless sudo for the guest admin: host agents activate via
-  # `nix run .#macvm-utm-ssh -- sudo nix run …#macvm` (no interactive TTY).
-  # Acceptable on this sandbox — keys-only SSH on UTM Shared, not the real Mac.
+  # `nix run .#macvm-tart-ssh -- sudo nix run …#macvm` (no interactive TTY).
+  # Acceptable on this sandbox — keys-only SSH on the shared net, not the real Mac.
   security.sudo.extraConfig = ''
     ${loginName} ALL=(ALL) NOPASSWD: ALL
   '';
@@ -238,9 +170,9 @@ in
     masApps = { };
   };
 
-  # ---- Host Screengrab via UTM VirtioFS --------------------------------------
-  # Path shape matches core.nix screengrabDir; host registers share with
-  # `nix run .#macvm-utm-share-screengrab`. Rotation stays macos-only.
+  # ---- Host Screengrab via Tart VirtioFS ------------------------------------
+  # Path shape matches core.nix screengrabDir; host attaches share with
+  # `macvm-tart-start` (--dir=Screengrab:…). Rotation stays macos-only.
   # StartInterval re-heals after boot race / remount; dangling symlinks cleared.
   launchd.user.agents.nix-screengrab-share = {
     serviceConfig = {

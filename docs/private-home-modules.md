@@ -83,8 +83,8 @@ sudo nix run ~/Developer/gitlab.com/ismailkattakath/nix-personal#macos
 NP=~/Developer/gitlab.com/ismailkattakath/nix-personal
 CFG=~/Developer/github.com/kattakath/nix-config
 tar -C "$NP" --exclude result --exclude .direnv -cf - . |
-  nix run "$CFG#macvm-utm-ssh" -- 'mkdir -p ~/nix-personal && tar -C ~/nix-personal -xf -'
-nix run "$CFG#macvm-utm-ssh" -- sudo nix run /Users/aloshy/nix-personal#macvm
+  nix run "$CFG#macvm-tart-ssh" -- 'mkdir -p ~/nix-personal && tar -C ~/nix-personal -xf -'
+nix run "$CFG#macvm-tart-ssh" -- sudo nix run /Users/aloshy/nix-personal#macvm
 ```
 
 Fleet-only (no private modules): `github:kattakath/nix-config#macos` / `#macvm`.
@@ -111,7 +111,7 @@ Prefer:
 2. Or a private flake that only ships the *module* and still `cp`s from a host-local
    path at activation.
 
-See `docs/macvm-utm-runbook.md` (WireGuard section).
+See `docs/macvm-tart-runbook.md` (WireGuard section).
 
 ## What this is not
 

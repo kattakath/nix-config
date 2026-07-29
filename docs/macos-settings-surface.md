@@ -53,7 +53,7 @@ slice**, not the ceiling — §2 shows how much more is reachable.
 
 - `launchd.user.agents.file-rotation-screengrab` (`modules/darwin/core.nix`,
   **macos only**) — hourly Trash of files older than 24h in `~/Pictures/Screengrab`
-  (same path as `screencapture.location`). Shared R/W into macvm via UTM VirtioFS;
+  (same path as `screencapture.location`). Shared R/W into macvm via Tart VirtioFS;
   the guest must **not** rotate it.
 - `launchd.agents.mcp-gateway` (`modules/shared/mcp.nix`, Home-Manager side) — the
   localhost MCP gateway (macos only; macvm disables the gateway option).
