@@ -244,12 +244,19 @@ would be needed for a custom icon/signing); the **name** is what we control.
 Gate with `networking.hostName` (`macos` / `macvm` set in `hosts/*.nix`).
 
 ```nix
-# core.nix pattern (GUI openers)
-open-maccy = mkNixAgent "maccy" "Maccy";  # → …/bin/nix-maccy
+# core.nix pattern (GUI openers — quiet: dock/menu-bar OK, no window flash)
+open-maccy = mkNixAgent { suffix = "maccy"; app = "Maccy"; };  # → …/bin/nix-maccy
 ```
 
+Each opener runs `open -g -j`, then re-hides the process via System Events for
+~12s (Slack/Messages/Mail/Docker ignore `-j` and raise a window after init).
+Dock icons and menu-bar extras stay; only the window is suppressed. Needs
+Accessibility for `/usr/bin/osascript` (same grant as the MCP gateway).
+
 Also: turn OFF each app's own "Open at Login" / SMAppService toggle so you don't
-get double registration. Docker's privileged `com.docker.vmnetd` is separate.
+get double registration. Docker's `settings-store.json` `AutoStart` is forced
+**false** at activation (our `open-docker` owns login start, with
+`--unattended` + re-hide). Docker's privileged `com.docker.vmnetd` is separate.
 
 ## 6. Ecosystem projects (for the toolbox)
 
