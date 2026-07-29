@@ -853,6 +853,7 @@
               macvm-utm-ssh
               macvm-utm-clipboard-on
               macvm-utm-share-screengrab
+              macvm-utm-secret-copy
               ;
           }
         ))
@@ -1142,6 +1143,11 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.macvm-utm-share-screengrab}/bin/macvm-utm-share-screengrab";
               meta.description = "Share host ~/Pictures/Screengrab R/W into macvm via UTM VirtioFS";
+            };
+            aarch64-darwin.macvm-utm-secret-copy = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.macvm-utm-secret-copy}/bin/macvm-utm-secret-copy";
+              meta.description = "Copy login-Keychain secrets from macos host → macvm guest (aloshy); --list / --rm";
             };
 
             # `nix run .#set-secret -- KEY [VALUE]` — store a secret in the macOS
