@@ -5,141 +5,159 @@ Two layers — do not conflate:
 | Layer | Owner | Notes |
 |---|---|---|
 | **Hypervisor + disk** | UTM on the **macos** host | `macvm.utm` under UTM’s sandbox — **never** in this flake / Nix store |
-| **Guest nix-darwin** | `darwinConfigurations.macvm` | Activate **inside** the VM as **`aloshy`** |
+| **Guest nix-darwin** | `darwinConfigurations.macvm` | Activate as **`aloshy`** (prefer host-driven SSH after first bootstrap) |
 
 `nix run .#nixvm` is a different product (throwaway NixOS/QEMU). **macvm ≠ nixvm.**
+
+**Do not wipe a healthy guest.** If `nix run .#macvm-utm-doctor` exits 0 (share, spice, clipboard, Screengrab), keep the disk and only re-activate when config changes. Rebuild only for corruption, wrong login persona, or a deliberate greenfield test (see [Optional full rebuild](#optional-full-rebuild)).
 
 ## Prerequisites (host)
 
 - `macos` activated (`utm` cask from `hosts/macos.nix`).
-- Run `macvm-utm-*` apps on the **host**, not in the guest.
+- Operator SSH key at `~/.ssh/id_ed25519` (same public key as nixpi/nixvm).
+- Run all `macvm-utm-*` apps on the **host**, not in the guest.
 
-## Host apps
+## Greenfield path (ordered)
+
+Use this for a **new** guest or after an intentional wipe. Order matters.
+
+### 1. Create the VM (GUI once)
+
+`utmctl` cannot create Apple Virtualization macOS guests.
 
 ```bash
-nix run .#macvm-utm-ensure              # 0 if ready; else open UTM + create steps (exit 2)
-nix run .#macvm-utm-doctor              # UTM, share, spice, clipboard, Screengrab probe
-nix run .#macvm-utm-list                # utmctl list
-nix run .#macvm-utm-open                # open UTM.app
-nix run .#macvm-utm-start | stop
-nix run .#macvm-utm-registry-dedupe     # dry-run; add -- --apply --yes to write
-nix run .#macvm-utm-create-print        # one-time GUI create checklist
-nix run .#macvm-utm-bootstrap-print     # in-guest activate checklist
-nix run .#macvm-utm-ssh                 # SSH as aloshy (discovers guest IP)
-nix run .#macvm-utm-ssh -- --ip 192.168.64.4
-nix run .#macvm-utm-share-screengrab    # host ~/Pictures/Screengrab → guest VirtioFS R/W
-nix run .#macvm-utm-clipboard-on -- --yes   # Virtualization.ClipboardSharing=true
+nix run .#macvm-utm-ensure    # opens UTM + prints steps if missing
+# or: nix run .#macvm-utm-create-print
+```
+
+In UTM:
+
+1. **+** → **Virtualize** → **macOS** (Apple Virtualization).
+2. Name exactly **`macvm`**.
+3. Network: **Shared** (host `bridge100` ≈ `192.168.64.0/24`).
+4. Finish install; create login user **`aloshy`** (must match flake identity).
+5. VM settings → **Virtualization → Enable Clipboard Sharing** (macOS 15+ both sides),  
+   or later: `nix run .#macvm-utm-clipboard-on -- --yes` (quit UTM first / `--yes` auto-quits).
+
+```bash
+nix run .#macvm-utm-doctor    # expect: one match, package present, clipboard on
+```
+
+### 2. First guest activation (console, once)
+
+Inside the guest as **`aloshy`**, with Determinate Nix installed:
+
+```bash
+sudo nix run github:kattakath/nix-config#macvm
+```
+
+Enter the password **once**. That lands:
+
+- SSH (Apple’s `com.openssh.sshd`, keys-only, ALF off)
+- Passwordless sudo for `aloshy` (host-driven activates thereafter)
+- Pinned **spice-vdagent** guest tools + launchd
+- Screengrab symlink agent (heals when VirtioFS appears)
+- Lean Homebrew / no MCP / no host login openers
+
+Allow **spice-vdagent** / **spice-vdagentd** if Gatekeeper prompts (once).
+
+### 3. Host: share Screengrab + start guest
+
+```bash
+nix run .#macvm-utm-share-screengrab    # Registry SharedDirectories R/W bookmark
+nix run .#macvm-utm-stop                # if already running — re-attach VirtioFS
+nix run .#macvm-utm-start
+```
+
+**Atomic path:** host `~/Pictures/Screengrab` (macos screencapture + 24h rotation only)  
+↔ guest `/Volumes/My Shared Files/Screengrab` ↔ guest `~/Pictures/Screengrab` (symlink).
+
+### 4. Day-to-day activate / SSH (host-driven)
+
+```bash
+nix run .#macvm-utm-ssh -- sudo nix run --refresh github:kattakath/nix-config#macvm
+nix run .#macvm-utm-ssh                 # interactive shell as aloshy
+nix run .#macvm-utm-doctor              # health: UTM + spice + clipboard + Screengrab
+```
+
+## Host apps (reference)
+
+```bash
+nix run .#macvm-utm-ensure
+nix run .#macvm-utm-doctor
+nix run .#macvm-utm-list | open | start | stop
+nix run .#macvm-utm-registry-dedupe              # dry-run; -- --apply --yes to write
+nix run .#macvm-utm-create-print | bootstrap-print
+nix run .#macvm-utm-ssh [-- --ip 192.168.64.N]
+nix run .#macvm-utm-share-screengrab
+nix run .#macvm-utm-clipboard-on -- --yes
 ```
 
 | Variable | Default |
 |---|---|
 | `MACVM_UTM_PATH` | `~/Library/Containers/com.utmapp.UTM/Data/Documents/macvm.utm` |
 | `MACVM_UTM_DOCS` | parent Documents directory |
-| `MACVM_SSH_IP` | (auto-discover on `192.168.64.0/24`) |
+| `MACVM_HOST_SCREENGRAB` | `$HOME/Pictures/Screengrab` |
+| `MACVM_SSH_IP` | auto on `192.168.64.0/24` |
 | `MACVM_SSH_IDENTITY` | `~/.ssh/id_ed25519` |
 
-**Never** put IPSWs or `.img` files in the Nix store or this git tree.
+**Never** put IPSWs or `.img` / `.utm` into the Nix store or this git tree.
 
-## First-time create (GUI, once)
-
-`utmctl` cannot create Apple Virtualization macOS guests. Create path is UTM UI only:
-
-1. `nix run .#macvm-utm-ensure` (opens UTM + prints steps if missing).
-2. UTM → **Virtualize** → **macOS**. Name the VM exactly **`macvm`**.
-3. Finish install; login account **`aloshy`** (matches flake identity).
-4. UTM VM settings: **Virtualization → Enable Clipboard Sharing** (macOS 15+).
-5. Host: `nix run .#macvm-utm-doctor` (one match, package present).
-6. Activate guest (declaratively installs UTM Guest Tools / spice-vdagent).
-
-Network: **Shared** (host `bridge100`, typically `192.168.64.0/24`).
-
-## Shared Screengrab (host ↔ guest, R/W)
-
-**Single path (atomic with macos):** `~/Pictures/Screengrab` on the host
-(`modules/darwin/core.nix` — `screencapture.location` + hourly file-rotation).
+## Shared Screengrab (detail)
 
 | Layer | What |
 |---|---|
-| Host UTM share | `nix run .#macvm-utm-share-screengrab` → Registry `SharedDirectories` (R/W bookmark) |
-| Guest automount | `/Volumes/My Shared Files/Screengrab` (Apple VirtioFS) |
-| Guest home path | `~/Pictures/Screengrab` → symlink to that automount (`hosts/macvm.nix`) |
-| Rotation | **macos only** (must not trash host files from the guest) |
+| Host path | `~/Pictures/Screengrab` — `screencapture.location` + rotation (**macos only**) |
+| UTM share | `macvm-utm-share-screengrab` → Registry `SharedDirectories` (`ReadOnly=false`) |
+| Guest automount | `/Volumes/My Shared Files/Screengrab` |
+| Guest home | `~/Pictures/Screengrab` → symlink; agent re-heals every 30s |
 
-After (re)registering the share, **restart the macvm guest** so VirtioFS attaches.
-Guest agent `nix-screengrab-share` re-heals the symlink every 30s (boot race /
-remount); dangling symlinks are removed until the share is up so captures don’t
-vanish. Verify: `nix run .#macvm-utm-doctor` (symlink + R/W + clipboard).
+Restart the guest after (re)registering the share so VirtioFS attaches.
 
-## UTM Guest Tools (clipboard)
-
-macOS guests need **spice-vdagent** for host↔guest clipboard (requires **macOS 15+**
-on both sides and UTM **Virtualization → Enable Clipboard Sharing**).
+## Guest tools / clipboard (detail)
 
 | Layer | How |
 |---|---|
-| Host UTM setting | `Virtualization.ClipboardSharing` in `macvm.utm` — set in UI, or `nix run .#macvm-utm-clipboard-on -- --yes` |
-| Guest package + launchd | `darwinConfigurations.macvm` activation installs pinned [utmapp/vd_agent](https://github.com/utmapp/vd_agent/releases) pkg and loads jobs |
-| Verify | `nix run .#macvm-utm-doctor` (pkg, channel, host→guest paste probe) |
+| Host | Clipboard Sharing on (UI or `macvm-utm-clipboard-on`) |
+| Guest | `#macvm` activation installs pinned [utmapp/vd_agent](https://github.com/utmapp/vd_agent/releases) spice-vdagent |
+| Verify | `macvm-utm-doctor` host→guest paste probe |
 
-No need for the UTM toolbar “Install Guest Tools” CD once the guest has been
-activated. First install may still prompt once in the guest GUI to allow
-**spice-vdagent** / **spice-vdagentd** (Gatekeeper). Shared folders use
-`mount_virtiofs` ([docs](https://docs.getutm.app/guest-support/macos/)), not spice-webdav.
+No need for the UTM toolbar “Install Guest Tools” CD after a successful activate.
 
-## In-guest activation
+## SSH (detail)
 
-Guest must be logged in as **`aloshy`**. Prefer driving activation **from the host**
-over SSH (passwordless sudo for `aloshy` is set on this sandbox):
-
-```bash
-# From the host Mac (after guest is started and has been activated at least once
-# with a password, so NOPASSWD is on disk):
-nix run .#macvm-utm-ssh -- sudo nix run --refresh github:kattakath/nix-config#macvm
-# or, with a local checkout on the guest:
-nix run .#macvm-utm-ssh -- sudo darwin-rebuild switch --flake /path/to/nix-config#macvm
-```
-
-First-time / bootstrap (console or SSH with a password still required until
-`security.sudo.extraConfig` lands):
-
-```bash
-sudo nix run github:kattakath/nix-config#macvm
-```
-
-## SSH (host → guest)
-
-**Single path on the guest:** Apple’s sshd via `services.openssh.enable` (keys-only;
-operator ed25519 in `users.users.aloshy.openssh.authorizedKeys` — same key as
-nixpi/nixvm). Application Firewall is forced **off** on macvm so UTM Shared is
-not blocked (core.nix turns ALF on for the real Mac).
-
-```bash
-nix run .#macvm-utm-start          # if stopped
-nix run .#macvm-utm-ssh            # discovers :22 on the shared net
-# or: ssh -i ~/.ssh/id_ed25519 aloshy@192.168.64.N
-```
-
-If it times out: guest not activated / not started, wrong IP
-(`arp -an | grep 192.168.64`), or `launchctl print system/com.openssh.sshd` empty
-inside the guest (re-activate).
+Single path: Apple’s sshd via `services.openssh` (keys-only; operator ed25519). ALF forced off on macvm. Diagnose: guest `launchctl print system/com.openssh.sshd`, host `arp -an | grep 192.168.64`.
 
 ## Registry duplicates
 
-Two sidebar `macvm` rows, same disk → ghost UTM prefs:
+Two sidebar `macvm` rows, same disk:
 
 ```bash
 nix run .#macvm-utm-registry-dedupe
 nix run .#macvm-utm-registry-dedupe -- --apply --yes
 ```
 
-Keeps the UUID matching `macvm.utm/config.plist`. Prefs backup under
-`~/Library/Application Support/utm-registry-backup-*/`. Does **not** delete the disk.
+Backs up prefs under `~/Library/Application Support/utm-registry-backup-*/`. Does **not** delete the disk.
+
+## Optional full rebuild
+
+Only if the guest is corrupt, wrong persona, or you are validating greenfield:
+
+```bash
+# Host — destructive
+nix run .#macvm-utm-stop
+# UTM UI: remove VM "macvm", or delete the package directory under
+#   ~/Library/Containers/com.utmapp.UTM/Data/Documents/macvm.utm
+# Optional: nix run .#macvm-utm-registry-dedupe -- --apply --yes
+```
+
+Then follow [Greenfield path](#greenfield-path-ordered) from step 1.
 
 ## Mac rebuild / key recovery
 
-A wiped Mac gets an empty UTM library. Recreate the guest (GUI) then re-activate
-inside. See [`mac-key-recovery-runbook.md`](mac-key-recovery-runbook.md). Optional
-`.utm` backup is operator-owned — not part of the key kit.
+A wiped Mac gets an empty UTM library. Recreate via greenfield. See
+[`mac-key-recovery-runbook.md`](mac-key-recovery-runbook.md). Optional `.utm`
+backup is operator-owned — not part of the key kit.
 
 ## Source map
 
@@ -147,6 +165,6 @@ inside. See [`mac-key-recovery-runbook.md`](mac-key-recovery-runbook.md). Option
 |---|---|
 | Guest profile | `hosts/macvm.nix` |
 | Host toolkit | `packages/macvm-utm.nix` |
-| Flake apps / `#macvm` activate | `flake.nix` |
+| Flake apps / `#macvm` | `flake.nix` |
 | Host `ssh macvm` stub | `modules/shared/home.nix` |
 | Agent skill | `.claude/skills/macvm-utm/SKILL.md` |
