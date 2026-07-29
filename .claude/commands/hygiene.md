@@ -21,7 +21,7 @@ Examples:
 
 - `/hygiene` → fix, full repo judgment with focus on dirty/recent surfaces
 - `/hygiene audit` → report only
-- `/hygiene fix macvm` → fix scoped to macvm/UTM/Screengrab-related tree
+- `/hygiene fix macvm` → fix scoped to macvm/Tart/Screengrab-related tree
 - `/hygiene audit docs` → docs↔flake drift only
 
 ## Required sequence
@@ -33,7 +33,7 @@ Examples:
    - `git add -A`
    - `nix fmt` (then stage again)
    - `nix flake check` — or scoped `nix eval` of affected host toplevels if full check is too heavy; state what you ran
-5. If scope touched macvm/UTM: `nix run .#macvm-utm-doctor` when the host can reach the guest (non-fatal if VM down — note skipped).
+5. If scope touched macvm/Tart: `nix run .#macvm-tart-doctor` when the host can reach the guest (non-fatal if VM down — note skipped).
 6. End with the skill’s **Hygiene report** block (Mode, Scope, Findings, Gates, Verdict).
 
 ## Do not
