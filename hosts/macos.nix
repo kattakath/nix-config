@@ -16,12 +16,10 @@
 
   nixpkgs.config.allowUnfree = true;
 
-  # Stable identity for host-gated modules (login openers, RAG launchd, …), and
-  # the machine's declared name. On activation nix-darwin runs:
-  #   hostName      → scutil --set HostName      "macos"
-  #   computerName  → scutil --set ComputerName  "macos"  (Settings ▸ About ▸ Name)
-  #   localHostName → scutil --set LocalHostName "macos"  (defaults from hostName)
-  # so the About name + `.local` name are config-owned, not manual drift.
+  # Stable identity for host-gated modules (login openers, RAG launchd, …) AND the
+  # machine's declared name, so it's config-owned rather than manual scutil drift.
+  # computerName is the Settings ▸ About ▸ Name; localHostName (the `.local` name)
+  # defaults from hostName, so these two cover all three scutil names.
   networking.hostName = "macos";
   networking.computerName = "macos";
 

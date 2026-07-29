@@ -280,11 +280,9 @@ in
       jdk17 # JRE for the Android sdkmanager/avdmanager (JVM tools); emulator itself needs no Java
       runpodctl # RunPod GPU CLI — RunPod as a second ComfyUI-workflow provider alongside Vast (from nixpkgs, not the untrusted brew tap)
     ]
-    # WireGuard `vpn` operator — macvm ONLY. macos manages WireGuard through the
-    # GUI (masApps.WireGuard) exclusively and deliberately ships no VPN CLI, so a
-    # tunnel can never be brought up from a shell there (no-internet safety on the
-    # sole client Mac). macvm has no App Store, so it keeps the CLI operator (its
-    # wireguard-tools live in hosts/macvm.nix).
+    # WireGuard `vpn` operator — macvm ONLY (it has no App Store, so the CLI is
+    # its only option). macos is GUI-only and ships no VPN CLI on purpose — see
+    # the rationale on the dropped wireguard-tools brew in hosts/macos.nix.
     ++ lib.optionals (stdenv.isDarwin && !isMacosHost) [
       vpn # `vpn list|status|up|down|switch` — WireGuard operator for ~/.config/wireguard (packages/vpn.nix)
     ];

@@ -28,13 +28,16 @@ you want personal HM modules; plant dirs are the same. See
 
 ## Install / activate
 
-After `darwin-rebuild` / private flake activate on a darwin host:
+The `vpn` CLI is **macvm-only**. After activating macvm (`darwin-rebuild` /
+private flake):
 
 ```bash
 vpn doctor    # or: nix run .#vpn -- doctor
 ```
 
-`vpn` is on PATH (darwin `home.packages`) and as `nix run .#vpn -- …`.
+`vpn` is on PATH (macvm `home.packages`) and as `nix run .#vpn -- …`. On **macos**
+there is no `vpn` CLI (GUI-only); even `nix run .#vpn` is inert there — it finds no
+`wg`/`wg-quick` and refuses.
 
 ## Commands
 
