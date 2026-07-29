@@ -69,6 +69,9 @@ in
     fi
 
     # ---- UTM Guest Tools (spice-vdagent ${spiceVdagentVersion}) --------------
+    # Clipboard host↔guest (macOS 15+ both sides; UTM Virtualization.ClipboardSharing).
+    # Replaces the one-shot “Install Guest Tools” CD. Vendor plists use spice-*
+    # basenames (fine for BTM). First install may need a one-time Gatekeeper allow.
     spice_ver="${spiceVdagentVersion}"
     spice_pkg="${spiceVdagentPkg}"
     spice_id="com.redhat.spice.vdagent"
@@ -77,28 +80,46 @@ in
       echo "macvm: installing UTM guest tools (spice-vdagent $spice_ver; was ''${cur:-none})" >&2
       /usr/sbin/installer -pkg "$spice_pkg" -target / || \
         echo "macvm: WARNING — spice-vdagent installer failed" >&2
+    else
+      echo "macvm: spice-vdagent $spice_ver already installed" >&2
     fi
-    # Daemon (system) + agent (gui user). Vendor plists use spice-vdagent basenames
-    # (fine for BTM — not bare sh). First-ever run may need a one-time Privacy
-    # prompt to allow spice-vdagent / spice-vdagentd (Gatekeeper).
-    if [ -f /Library/LaunchDaemons/com.redhat.spice.vdagentd.plist ]; then
-      if ! /bin/launchctl print system/com.redhat.spice.vdagentd >/dev/null 2>&1; then
-        echo "macvm: loading com.redhat.spice.vdagentd" >&2
-        /bin/launchctl bootstrap system /Library/LaunchDaemons/com.redhat.spice.vdagentd.plist 2>/dev/null \
-          || /bin/launchctl load -w /Library/LaunchDaemons/com.redhat.spice.vdagentd.plist 2>/dev/null \
-          || true
+
+    ensure_job() {
+      # usage: ensure_job <domain/label> <plist>
+      local target="$1" plist="$2"
+      if [ ! -f "$plist" ]; then
+        echo "macvm: WARNING — missing $plist" >&2
+        return 1
       fi
+      if /bin/launchctl print "$target" >/dev/null 2>&1; then
+        # Already loaded; kickstart only if not running (state not "running").
+        if ! /bin/launchctl print "$target" 2>/dev/null | /usr/bin/grep -q 'state = running'; then
+          echo "macvm: kickstart $target" >&2
+          /bin/launchctl kickstart -k "$target" 2>/dev/null || true
+        fi
+        return 0
+      fi
+      echo "macvm: bootstrap $target" >&2
+      /bin/launchctl bootstrap "''${target%/*}" "$plist" 2>/dev/null \
+        || /bin/launchctl load -w "$plist" 2>/dev/null \
+        || true
+    }
+
+    ensure_job system/com.redhat.spice.vdagentd /Library/LaunchDaemons/com.redhat.spice.vdagentd.plist
+    uid="$(/usr/bin/id -u ${userName} 2>/dev/null || true)"
+    if [ -n "''${uid:-}" ]; then
+      ensure_job "gui/$uid/com.redhat.spice.vdagent" /Library/LaunchAgents/com.redhat.spice.vdagent.plist
     fi
-    if [ -f /Library/LaunchAgents/com.redhat.spice.vdagent.plist ]; then
-      uid="$(/usr/bin/id -u ${userName} 2>/dev/null || true)"
-      if [ -n "''${uid:-}" ] && ! /bin/launchctl print "gui/$uid/com.redhat.spice.vdagent" >/dev/null 2>&1; then
-        echo "macvm: loading com.redhat.spice.vdagent (gui/$uid)" >&2
-        /bin/launchctl asuser "$uid" /bin/launchctl bootstrap "gui/$uid" \
-          /Library/LaunchAgents/com.redhat.spice.vdagent.plist 2>/dev/null \
-          || /bin/launchctl asuser "$uid" /bin/launchctl load -w \
-            /Library/LaunchAgents/com.redhat.spice.vdagent.plist 2>/dev/null \
-          || true
-      fi
+
+    if [ -c /dev/tty.com.redhat.spice.0 ]; then
+      echo "macvm: spice virtio channel present" >&2
+    else
+      echo "macvm: WARNING — /dev/tty.com.redhat.spice.0 missing (enable Clipboard Sharing in UTM; reboot guest)" >&2
+    fi
+    if /bin/launchctl print system/com.redhat.spice.vdagentd 2>/dev/null | /usr/bin/grep -q 'state = running'; then
+      echo "macvm: spice-vdagentd running" >&2
+    else
+      echo "macvm: WARNING — spice-vdagentd not running" >&2
     fi
   '';
 
