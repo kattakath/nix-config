@@ -200,8 +200,11 @@ one-time steps are inherently manual — do these after activating a fresh Mac:
   an **empty UTM library** and the old guest gone (it does not go to Trash — the
   fresh container simply never had it). This is by design: `macvm` is a *throwaway*
   guest whose config is fully reproducible from the flake. To bring it back, create
-  a blank Apple-Silicon UTM guest, log into it as the **`aloshy`** account, then
-  from inside the VM run `nix run github:kattakath/nix-config#macvm` (first
-  activation, before `darwin-rebuild` is on PATH), and `darwin-rebuild switch
-  --flake .#macvm` thereafter. If a VM ever holds irreplaceable in-guest state,
-  back that `.utm` bundle up separately — nothing here does it for you.
+  a blank Apple-Silicon UTM guest named **`macvm`**, log into it as the **`aloshy`**
+  account, then from inside the VM run `nix run github:kattakath/nix-config#macvm`
+  (first activation, before `darwin-rebuild` is on PATH), and `darwin-rebuild switch
+  --flake .#macvm` thereafter. On the **host**, after UTM is installed: `nix run
+  .#macvm-utm-doctor` / `nix run .#macvm-utm-start` (see
+  [`docs/macvm-utm-runbook.md`](macvm-utm-runbook.md)). If a VM ever holds
+  irreplaceable in-guest state, back that `.utm` bundle up separately — nothing
+  here does it for you.
