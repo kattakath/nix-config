@@ -1,7 +1,9 @@
 # macOS host config for "macos" (Apple Silicon, aarch64-darwin) — the fleet's
-# sole client Mac. NO incoming traffic: no tunnel, no listening services, no
-# self-hosted runner. Home Manager and the nix-vscode-extensions overlay are wired
-# centrally by mkDarwin in flake.nix — this file only provides host-specific settings.
+# sole client Mac. No public tunnel / inbound SSH from the internet; the machine
+# may still run local agent services (MCP gateway) and a self-hosted GitLab CI
+# runner for private pipelines (civitai-live-wallpaper — see gitlab-runner brew).
+# Home Manager and the nix-vscode-extensions overlay are wired centrally by
+# mkDarwin in flake.nix — this file only provides host-specific settings.
 #
 # First activation (after Determinate Nix is installed, before darwin-rebuild is
 # on PATH) — a single line straight from the flake (the darwin analog of nixpi's
@@ -50,7 +52,9 @@
       "ffmpeg"
       "gettext"
       "git"
+      "git-cliff" # release stage — changelog / release notes (GitLab CI)
       "git-filter-repo"
+      "gitlab-runner" # self-hosted GitLab CI runner (civitai pipeline on this host)
       "glab"
       "go"
       "graphviz"
@@ -75,6 +79,7 @@
       "scrcpy"
       "shellcheck"
       "starship"
+      "swiftlint" # lint stage — SwiftLint --strict gate (GitLab CI)
       "switchaudio-osx"
       "tree"
       "wget"
