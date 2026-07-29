@@ -9,8 +9,7 @@
 # What is DELIBERATELY NOT installed via Homebrew on any host (nixpkgs/Home
 # Manager is the single source, and a duplicate on PATH causes buildEnv
 # collisions): aws-cdk, awscli, make, node (unversioned), uv, gh, git-lfs, the
-# claude-code cask, and 6 font casks — see modules/shared/home.nix. direnv was
-# dropped from the repo entirely; reintroduce deliberately if a devShell needs it.
+# claude-code cask, and 6 font casks — see modules/shared/home.nix.
 _:
 
 {

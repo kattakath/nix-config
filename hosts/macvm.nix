@@ -8,7 +8,7 @@
 # Host-side UTM + SSH: docs/macvm-utm-runbook.md (`nix run .#macvm-utm-*`).
 # Optional Grok CLI (once, not Homebrew): curl -fsSL https://x.ai/cli/install.sh | bash
 {
-  userName,
+  loginName,
   lib,
   pkgs,
   ...
@@ -29,7 +29,7 @@ let
 
   # Single ensure script for launchd + activation (path shape = core.nix screengrabDir).
   screengrabShare = "/Volumes/My Shared Files/Screengrab";
-  screengrabLocal = "/Users/${userName}/Pictures/Screengrab";
+  screengrabLocal = "/Users/${loginName}/Pictures/Screengrab";
   nixScreengrabShare = pkgs.writeShellScriptBin "nix-screengrab-share" ''
     set -euo pipefail
     shared="${screengrabShare}"
@@ -168,7 +168,7 @@ in
     }
 
     ensure_job system/com.redhat.spice.vdagentd /Library/LaunchDaemons/com.redhat.spice.vdagentd.plist
-    uid="$(/usr/bin/id -u ${userName} 2>/dev/null || true)"
+    uid="$(/usr/bin/id -u ${loginName} 2>/dev/null || true)"
     if [ -n "''${uid:-}" ]; then
       ensure_job "gui/$uid/com.redhat.spice.vdagent" /Library/LaunchAgents/com.redhat.spice.vdagent.plist
     fi
@@ -192,9 +192,9 @@ in
     enableStealthMode = lib.mkForce false;
   };
 
-  users.users.${userName} = {
-    name = userName;
-    home = "/Users/${userName}";
+  users.users.${loginName} = {
+    name = loginName;
+    home = "/Users/${loginName}";
     openssh.authorizedKeys.keys = [ operatorSshKey ];
   };
 
@@ -202,11 +202,11 @@ in
   # `nix run .#macvm-utm-ssh -- sudo nix run …#macvm` (no interactive TTY).
   # Acceptable on this sandbox — keys-only SSH on UTM Shared, not the real Mac.
   security.sudo.extraConfig = ''
-    ${userName} ALL=(ALL) NOPASSWD: ALL
+    ${loginName} ALL=(ALL) NOPASSWD: ALL
   '';
 
   # ---- Per-host home-manager (sandbox trims) ---------------------------------
-  home-manager.users.${userName} = {
+  home-manager.users.${loginName} = {
     # MCP gateway (~14 servers) is macos-only weight; disable agent + client wiring.
     services.mcpGateway.enable = false;
     # Stock wallpaper + Terminal so the VM is visually distinct from macos.
@@ -245,20 +245,20 @@ in
       ProgramArguments = [ (lib.getExe nixScreengrabShare) ];
       RunAtLoad = true;
       StartInterval = 30;
-      StandardOutPath = "/Users/${userName}/Library/Logs/nix-screengrab-share.log";
-      StandardErrorPath = "/Users/${userName}/Library/Logs/nix-screengrab-share.log";
+      StandardOutPath = "/Users/${loginName}/Library/Logs/nix-screengrab-share.log";
+      StandardErrorPath = "/Users/${loginName}/Library/Logs/nix-screengrab-share.log";
     };
   };
 
   system.activationScripts.postActivation.text = lib.mkAfter ''
     # Same ensure as the user agent (root can create the symlink).
     ${lib.getExe nixScreengrabShare} || true
-    /usr/sbin/chown -h ${userName}:staff ${lib.escapeShellArg screengrabLocal} 2>/dev/null || true
+    /usr/sbin/chown -h ${loginName}:staff ${lib.escapeShellArg screengrabLocal} 2>/dev/null || true
 
     # Residual macos-only login openers (open-mail / Slack / …) leave launchd
     # "enabled" ghosts after host-scoping to macos — they once auto-launched
     # Mail at login so it stuck on the Dock while running. Boot out + disable.
-    uid="$(/usr/bin/id -u ${userName} 2>/dev/null || true)"
+    uid="$(/usr/bin/id -u ${loginName} 2>/dev/null || true)"
     if [ -n "$uid" ]; then
       for lab in org.nixos.open-mail org.nixos.open-messages org.nixos.open-slack \
                  org.nixos.open-maccy org.nixos.open-docker; do

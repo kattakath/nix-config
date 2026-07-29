@@ -10,5 +10,7 @@ Default actions when the user is vague:
 2. Prefer `vpn switch <NAME>` to change full-tunnel endpoint
 3. Never print private keys
 
-On macvm, run through `nix run .#macvm-utm-ssh -- bash -lc 'vpn …'` after activate
-(or `/opt/homebrew/bin/vpn` if PATH is thin).
+The `vpn` CLI is **macvm-only** — macos manages WireGuard through the
+`WireGuard.app` GUI (no CLI). On macvm, run through
+`nix run .#macvm-utm-ssh -- bash -lc 'vpn …'` after activate (or
+`/opt/homebrew/bin/vpn` if PATH is thin).

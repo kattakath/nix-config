@@ -23,7 +23,7 @@
 #       (`resume validate`) first unless --no-validate. Aliases: md, txt.
 #
 # `defaultUrl` is baked in at build time (composed in flake.nix as `jsonResumeUrl`
-# from jsonResumeGistId + handleName) — so there is NO ambient env var: the one
+# from jsonResumeGistId + userName) — so there is NO ambient env var: the one
 # consumer carries its own default, and `--url`/`--path` override per-invocation.
 # curl/jq/coreutils are PINNED from Nix; node/npm/resume come from the CALLER's PATH
 # (the fnm-managed Node + the globally-installed resume-cli — `npm i -g resume-cli`).
