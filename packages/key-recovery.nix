@@ -38,6 +38,9 @@
   shellcheck,
   orgName,
   flakeRef,
+  # Git commit author email (same as flake identityArgs.userEmail) — principal
+  # for ~/.ssh/allowed_signers so local git SSH signature verify matches commits.
+  userEmail,
 }:
 let
   # The opinionated, single-source location of the kit inside iCloud Drive.
@@ -217,6 +220,16 @@ in
             FIX_ETC=0
             FRESH=0
 
+            # Interim allowed_signers + Keychain unlock (HM rewrites allowed_signers
+            # on activate from operator-key.nix × userEmail). Principal must match
+            # programs.git user.email or local SSH signature verify stays broken.
+            seed_git_ssh_signing() {
+              printf '%s namespaces="git" %s\n' "${userEmail}" \
+                "$(cat "$HOME/.ssh/id_ed25519.pub")" > "$HOME/.ssh/allowed_signers"
+              chmod 600 "$HOME/.ssh/allowed_signers"
+              ssh-add --apple-use-keychain "$HOME/.ssh/id_ed25519" 2>/dev/null || true
+            }
+
             # GUARD: the macOS login MUST equal this flake's loginName, or activation
             # half-builds home-manager for a user that does not exist and /Users/<wrong>
             # paths. Reads the cheap `#identity` output (references no inputs → instant,
@@ -307,9 +320,7 @@ in
               chmod 600 "$HOME/.ssh/id_ed25519"
               ssh-keygen -y -f "$HOME/.ssh/id_ed25519" > "$HOME/.ssh/id_ed25519.pub"
               chmod 644 "$HOME/.ssh/id_ed25519.pub"
-              printf '%s %s\n' "${orgName}@users.noreply.github.com" \
-                "$(cat "$HOME/.ssh/id_ed25519.pub")" > "$HOME/.ssh/allowed_signers"
-              chmod 600 "$HOME/.ssh/allowed_signers"
+              seed_git_ssh_signing
               NEWOP="$(cut -d' ' -f1,2 "$HOME/.ssh/id_ed25519.pub")"
 
               # 2. Point agenix at your NEW operator by rewriting the single-source
@@ -411,9 +422,7 @@ in
 
             ssh-keygen -y -f "$HOME/.ssh/id_ed25519" > "$HOME/.ssh/id_ed25519.pub"
             chmod 644 "$HOME/.ssh/id_ed25519.pub"
-            printf '%s %s\n' "${orgName}@users.noreply.github.com" \
-              "$(cat "$HOME/.ssh/id_ed25519.pub")" > "$HOME/.ssh/allowed_signers"
-            chmod 600 "$HOME/.ssh/allowed_signers"
+            seed_git_ssh_signing
 
             # ---- 2. agenix: nothing to re-key ---------------------------------------
             # agenix is an OPERATOR-ONLY vault now — no host-key recipients. You just
@@ -487,8 +496,10 @@ in
               say "Founded your own operator identity. Remaining steps:"
               printf '\n%s\n' \
                 "  # 1. Register your NEW operator PUBLIC key on YOUR GitHub account" \
-                "  #    (add as BOTH an Authentication AND a Signing key):" \
-                "  cat ~/.ssh/id_ed25519.pub" \
+                "  #    as BOTH Authentication AND Signing (Verified commits need Signing):" \
+                "  gh ssh-key add --type authentication -t \"operator@$(hostname -s)\" ~/.ssh/id_ed25519.pub" \
+                "  gh ssh-key add --type signing        -t \"operator-signing@$(hostname -s)\" ~/.ssh/id_ed25519.pub" \
+                "  # GitLab (if used): Preferences → SSH Keys → same pubkey for signing." \
                 "" \
                 "  # 2. Persist the new operator key (secrets/operator-key.nix) + reactivate:" \
                 "  cd $REPO_DIR" \
@@ -507,6 +518,9 @@ in
               printf '\n%s\n' \
                 "  # Persist the re-key (signed with your restored key):" \
                 "  cd $REPO_DIR && git commit -m 're-key to reinstalled host key' && git push" \
+                "" \
+                "  # Ensure GitHub still has this key as a *Signing* key (Auth alone is not enough):" \
+                "  gh ssh-key add --type signing -t \"operator-signing@$(hostname -s)\" ~/.ssh/id_ed25519.pub || true" \
                 "" \
                 "  # Optional logins:" \
                 "  determinate-nixd login     # FlakeHub — native Linux builder" \

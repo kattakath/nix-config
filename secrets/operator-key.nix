@@ -5,7 +5,11 @@
 #
 # Imported as a plain string (this file evaluates to the bare key) by every
 # consumer, so rotating the key touches ONE file instead of several in lockstep:
-#   flake.nix                  → operatorSshKey → mkNixos specialArgs
+#   flake.nix                  → operatorSshKey → mkNixos specialArgs + HM
 #   modules/nixos/core.nix     → users.users.<op>.openssh.authorizedKeys.keys
+#   modules/shared/home.nix    → ~/.ssh/allowed_signers (git SSH signature trust)
 #   secrets/secrets.nix        → the `operator` agenix recipient
+#
+# After rotation also re-register the pubkey on GitHub as a *Signing* key
+# (`gh ssh-key add --type signing …`) — Authentication alone does not verify commits.
 "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKzKz1KIVlsRD4uxpG0QgM2SCy4pI+fwjf57U12AH2vY"
