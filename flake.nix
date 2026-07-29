@@ -54,10 +54,11 @@
     determinate.url = "https://flakehub.com/f/DeterminateSystems/determinate/*";
 
     # agenix — encrypted secrets committed to THIS repo (age, SSH-key based).
-    # Each secret in ./secrets/*.age is encrypted to its target host's SSH host
-    # key (so the host decrypts at activation with /etc/ssh/ssh_host_ed25519_key)
-    # plus the operator's key; recipients are declared in ./secrets/secrets.nix.
-    # Pure age/SSH — no ssh-to-age step, no Go build. Follows our nixpkgs.
+    # The sole secret (./secrets/cloudflared-token.age) is encrypted to the
+    # operator's ~/.ssh/id_ed25519 ALONE — an operator-only vault: decrypted on
+    # the Mac to plant on nixpi's SD FIRMWARE partition, never on any host.
+    # Recipients are declared in ./secrets/secrets.nix. Pure age/SSH — no
+    # ssh-to-age step, no Go build. Follows our nixpkgs.
     agenix.url = "github:ryantm/agenix";
     agenix.inputs.nixpkgs.follows = "nixpkgs";
 
@@ -158,29 +159,31 @@
     }:
     let
       # ---- Single source of truth for the human identity ---------------------
-      # userName is the POSIX ACCOUNT on every host (users.users.${userName},
-      # home-manager.users.${userName}, /Users/ismail on the Mac) — NOT a label.
+      # loginName is the POSIX ACCOUNT on every host (users.users.${loginName},
+      # home-manager.users.${loginName}, /Users/ismail on the Mac) — NOT a label.
       # It is deliberately NOT the GitHub handle: renaming it would repoint
       # home-manager at a user that does not exist on the machine.
-      userName = "ismailkattakath";
+      loginName = "ismail";
       domainName = "kattakath.com";
       fullName = "Ismail Kattakath";
 
-      # The human's GitHub handle. Since the fleet moved under the `kattakath`
-      # org this is NO LONGER the repo owner — it is just the person.
-      handleName = "ismailkattakath";
+      # userName is the human's cross-service HANDLE — the "username" field on
+      # GitHub, GitLab, HuggingFace, LinkedIn, … (all the same string today). It is
+      # NOT the POSIX login (that's loginName) and, since the fleet moved under the
+      # `kattakath` org, NO LONGER the repo owner (that's orgName) — just the person.
+      userName = "ismailkattakath";
 
-      # Git identity. Its own binding rather than "${userName}@${domainName}",
+      # Git identity. Its own binding rather than "${loginName}@${domainName}",
       # so the commit address can be GitHub's noreply (which never leaks a real
       # mailbox) without dragging the POSIX account name along with it.
-      userEmail = "8927166+${handleName}@users.noreply.github.com";
+      userEmail = "8927166+${userName}@users.noreply.github.com";
 
       # ---- Optional: JSON Resume gist ----------------------------------------
       # The GitHub Gist ID hosting resume.json (jsonresume.org). OPTIONAL — set to
       # null to disable. When non-null it composes jsonResumeUrl below (the raw
       # resume.json URL), which is BAKED into the `jsonresume` package as its default
       # --url (packages/jsonresume.nix) — no ambient env var, since that package is
-      # its only consumer. Owner is the GitHub handle (handleName), not the POSIX userName.
+      # its only consumer. Owner is the GitHub handle (userName), not the POSIX loginName.
       jsonResumeGistId = "5fc44006a632f8466f09b61749129a88";
 
       # The raw resume.json URL, derived from the gist id + handle (null when the id is
@@ -190,13 +193,13 @@
         if jsonResumeGistId == null then
           null
         else
-          "https://gist.githubusercontent.com/${handleName}/${jsonResumeGistId}/raw/resume.json";
+          "https://gist.githubusercontent.com/${userName}/${jsonResumeGistId}/raw/resume.json";
 
       # ---- Single source of truth for the GitHub owner -----------------------
-      # The org that owns the repo, the Cachix cache and the self-hosted runners.
-      # Split from handleName so the two can never be confused again: everything
+      # The org that owns the repo and the Cachix cache.
+      # Split from userName so the two can never be confused again: everything
       # that says "who publishes this" is orgName; everything that says "who is
-      # the person" is handleName/userName.
+      # the person" is userName/loginName.
       orgName = "kattakath";
       repoName = "nix-config";
       flakeRef = "github:${orgName}/${repoName}";
@@ -237,7 +240,7 @@
       cloudflareZoneId = "6e28971881e488941d052bbbf50d69cd"; # the domainName zone
 
       # ---- DRY system mapping -------------------------------------------------
-      # A 2-host aarch64-only FLEET (macos + nixpi; nixvm is a throwaway build-vm):
+      # A 2-SYSTEM aarch64-only FLEET (aarch64-darwin: macos + macvm; aarch64-linux: nixpi + nixvm):
       # no x86_64 HOST anywhere. Every package /
       # devShell / check output is generated for the fleet systems via
       # forAllSystems. (The devcontainer IMAGE is the one multi-arch output — it
@@ -491,14 +494,14 @@
       # ---- Shared identity + Home-Manager module ------------------------------
       # Threaded into BOTH builders (mkNixos + mkDarwin) so system specialArgs and
       # the embedded Home-Manager block can never drift. Only args with a live
-      # module consumer are carried: userName (core/host), fullName+userEmail
+      # module consumer are carried: loginName (core/host), fullName+userEmail
       # (home.nix), domainName (nixpi's Caddy vhost + the darwin file-rotation
-      # launchd label). handleName only builds userEmail above, and orgName is
+      # launchd label). userName only builds userEmail above, and orgName is
       # consumed only by PACKAGES (via callPackage, not specialArgs) now that the
       # self-hosted runners are gone — so neither is threaded.
       identityArgs = {
         inherit
-          userName
+          loginName
           fullName
           userEmail
           domainName
@@ -506,11 +509,11 @@
       };
 
       # The Home-Manager sub-module embedded in every host, built from an identity
-      # attrset (`idArgs` = { userName; fullName; userEmail; domainName; }) so a host
+      # attrset (`idArgs` = { loginName; fullName; userEmail; domainName; }) so a host
       # can carry a PER-HOST persona (e.g. macvm's `aloshy`) rather than the single
       # global identity. Called with `identityArgs` by default; hosts that override
       # (mkDarwin's `identity` arg) pass their own. The home-manager profile keys on
-      # idArgs.userName, and extraSpecialArgs threads that same identity into
+      # idArgs.loginName, and extraSpecialArgs threads that same identity into
       # modules/shared/home.nix. extraSpecialArgs also adds mcp-servers-nix etc.
       #
       # `extraHomeModules` is the public COMPOSITION HOOK for private (or third-party)
@@ -551,7 +554,7 @@
                 jsonResumeUrl
                 ;
             };
-            users.${idArgs.userName} = {
+            users.${idArgs.loginName} = {
               imports = [ ./modules/shared/home.nix ] ++ extraHomeModules;
               home.stateVersion = "24.05";
             };
@@ -593,7 +596,6 @@
             ./hosts/${hostname}.nix
             ./modules/nixos/core.nix
             ./modules/shared/nix-cache.nix # Cachix binary cache (read)
-            agenix.nixosModules.default # encrypted in-repo secrets (./secrets/*.age)
             home-manager.nixosModules.home-manager
             (mkHomeManagerModule { idArgs = identityArgs; }) # NixOS hosts use the global identity
           ]
@@ -606,7 +608,7 @@
       # darwin host today.
       # `identity` defaults to the global identityArgs; a host passes its own to run
       # under a PER-HOST persona (e.g. macvm → the `aloshy` account: different
-      # userName/fullName/userEmail/domainName). It flows to the system modules via
+      # loginName/fullName/userEmail/domainName). It flows to the system modules via
       # specialArgs AND to home-manager via mkHomeManagerModule, so the two agree.
       mkDarwin =
         {
@@ -657,7 +659,6 @@
               # which Determinate turns off (nix-darwin#1505).
             }
             nix-homebrew.darwinModules.nix-homebrew # declaratively install brew (arch-correct prefix)
-            agenix.darwinModules.default # encrypted in-repo secrets (./secrets/*.age)
             ./hosts/${hostname}.nix
             home-manager.darwinModules.home-manager
             (mkHomeManagerModule {
@@ -685,21 +686,21 @@
       # ---- Machine-readable identity ------------------------------------------
       # The flake's single-source `let` identity bindings, surfaced so `bootstrap.sh`
       # can guard on them BEFORE activating. `key-recover` reads
-      #   nix eval --raw <flake>#identity.userName
+      #   nix eval --raw <flake>#identity.loginName
       # right after cloning and HARD-FAILS if it does not equal the macOS login
       # (`id -un`): a mismatch would half-activate home-manager for a POSIX user that
       # does not exist and build /Users/<wrong> paths. This attrset references NO
       # flake inputs, so the eval is instant and fetches nothing — unlike reading
-      # `darwinConfigurations.macos.config.system.primaryUser` (which equals userName
+      # `darwinConfigurations.macos.config.system.primaryUser` (which equals loginName
       # by construction, core.nix, but forces the whole darwin module fixpoint and
       # every input) and is hostname-independent (does not depend on the "macos" attr
-      # key). A forker who sets `userName` here is exactly who the guard lets through.
+      # key). A forker who sets `loginName` here is exactly who the guard lets through.
       identity = {
         inherit
-          userName
+          loginName
           orgName
           domainName
-          handleName
+          userName
           ;
       };
 
@@ -722,7 +723,7 @@
           system = "aarch64-darwin";
           hostname = "macvm";
           identity = {
-            userName = "aloshy";
+            loginName = "aloshy";
             fullName = "aloshy";
             userEmail = "hi@aloshy.ai";
             domainName = "aloshy.ai";
@@ -1057,7 +1058,7 @@
 
             # `nix run .#key-recover` — stage 2 of recovery/founding. bootstrap.sh
             # execs this once Determinate Nix exists. It clones, verifies the macOS
-            # login == this flake's `userName` (#identity.userName), then either
+            # login == this flake's `loginName` (#identity.loginName), then either
             # (kit) decrypts the operator key + re-keys agenix to the new host key,
             # or (--fresh, no kit) FOUNDS a new operator identity + re-initialises
             # the macos service secret to a placeholder — then activates #macos.

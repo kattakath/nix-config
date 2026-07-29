@@ -29,7 +29,7 @@ Do not restate the whole fleet map; open CLAUDE.md when unsure.
 | Before a big PR merge | Full pass + `/review` optional |
 | Docs feel wrong | Docs-surface only |
 
-**Not for:** pure "does it evaluate?" → `/eval`. Pure "did this session finish?" → `/check-work`. Pure PR review without fix → `/review`.
+**Not for:** pure "does it evaluate?" → `/eval`. Pure PR review without fix → `/review`.
 
 ## Modes
 
@@ -119,7 +119,7 @@ If `nix` unavailable: `nix-instantiate --parse` on changed `.nix` + state CI-def
 ### H. Optional second opinions
 
 - Structural harshness: global **code-review** skill on the diff.
-- Session completeness after fix: `/check-work`.
+- Behavior check after fix: `/verify`.
 - PR findings only: `/review`.
 
 ## Fix policy
@@ -158,6 +158,6 @@ If `nix` unavailable: `nix-instantiate --parse` on changed `.nix` + state CI-def
 ```
 /hygiene [scope]     → this skill (audit+fix+gate)
 /eval                → eval only
-/check-work          → verify session did what was asked
+/verify              → drive the change end-to-end to confirm it works
 /review              → read-only review of diff/PR
 ```

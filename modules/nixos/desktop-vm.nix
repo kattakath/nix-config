@@ -15,7 +15,7 @@
   config,
   lib,
   pkgs,
-  userName,
+  loginName,
   ...
 }:
 let
@@ -38,7 +38,7 @@ in
     # session, nixpkgs auto-selects it, so `defaultSession` is unnecessary.
     services.displayManager.autoLogin = {
       enable = true;
-      user = userName;
+      user = loginName;
     };
 
     # Guest integrations: qemu-guest-agent (host<->guest control) and

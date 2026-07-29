@@ -12,8 +12,8 @@
 #
 # REQUIREMENT: a launchd USER (GUI) agent lives in the `gui/<uid>` domain, which
 # only exists while that uid has an active GUI login. This targets the flake
-# `userName` (uid 502), so that account must be the one logged into the Mac —
-# which it is (the active console user is `ismailkattakath`). If a different
+# `loginName` (uid 502), so that account must be the one logged into the Mac —
+# which it is (the active console user is `ismail`). If a different
 # account owns the GUI session, `darwin-rebuild switch` cannot load the agent.
 #
 # SERVER SIDE (this box, 127.0.0.1:8096)
