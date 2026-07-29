@@ -220,6 +220,16 @@ in
             FIX_ETC=0
             FRESH=0
 
+            # Interim allowed_signers + Keychain unlock (HM rewrites allowed_signers
+            # on activate from operator-key.nix × userEmail). Principal must match
+            # programs.git user.email or local SSH signature verify stays broken.
+            seed_git_ssh_signing() {
+              printf '%s namespaces="git" %s\n' "${userEmail}" \
+                "$(cat "$HOME/.ssh/id_ed25519.pub")" > "$HOME/.ssh/allowed_signers"
+              chmod 600 "$HOME/.ssh/allowed_signers"
+              ssh-add --apple-use-keychain "$HOME/.ssh/id_ed25519" 2>/dev/null || true
+            }
+
             # GUARD: the macOS login MUST equal this flake's loginName, or activation
             # half-builds home-manager for a user that does not exist and /Users/<wrong>
             # paths. Reads the cheap `#identity` output (references no inputs → instant,
@@ -310,15 +320,7 @@ in
               chmod 600 "$HOME/.ssh/id_ed25519"
               ssh-keygen -y -f "$HOME/.ssh/id_ed25519" > "$HOME/.ssh/id_ed25519.pub"
               chmod 644 "$HOME/.ssh/id_ed25519.pub"
-              # Interim allowed_signers until the next HM activation rewrites it
-              # from secrets/operator-key.nix + userEmail (home.file). Principal
-              # MUST match programs.git user.email or local verify stays broken.
-              printf '%s namespaces="git" %s\n' "${userEmail}" \
-                "$(cat "$HOME/.ssh/id_ed25519.pub")" > "$HOME/.ssh/allowed_signers"
-              chmod 600 "$HOME/.ssh/allowed_signers"
-              # Store passphrase in macOS Keychain (empty passphrase is fine) so
-              # launchd ssh-keychain-load + git SSH signing work without a TTY.
-              ssh-add --apple-use-keychain "$HOME/.ssh/id_ed25519" 2>/dev/null || true
+              seed_git_ssh_signing
               NEWOP="$(cut -d' ' -f1,2 "$HOME/.ssh/id_ed25519.pub")"
 
               # 2. Point agenix at your NEW operator by rewriting the single-source
@@ -420,11 +422,7 @@ in
 
             ssh-keygen -y -f "$HOME/.ssh/id_ed25519" > "$HOME/.ssh/id_ed25519.pub"
             chmod 644 "$HOME/.ssh/id_ed25519.pub"
-            printf '%s namespaces="git" %s\n' "${userEmail}" \
-              "$(cat "$HOME/.ssh/id_ed25519.pub")" > "$HOME/.ssh/allowed_signers"
-            chmod 600 "$HOME/.ssh/allowed_signers"
-            # Unlock into agent + Keychain so post-recover commits sign immediately.
-            ssh-add --apple-use-keychain "$HOME/.ssh/id_ed25519" 2>/dev/null || true
+            seed_git_ssh_signing
 
             # ---- 2. agenix: nothing to re-key ---------------------------------------
             # agenix is an OPERATOR-ONLY vault now — no host-key recipients. You just

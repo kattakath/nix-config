@@ -99,10 +99,10 @@ gh ssh-key add --type signing        -t "operator-signing@$(hostname -s)" ~/.ssh
 ssh-add --apple-use-keychain ~/.ssh/id_ed25519
 ```
 
-Home Manager then owns the durable signing surface (`commit.gpgsign`, `gpg.format=ssh`,
-`gpg.ssh.allowedSignersFile` → `~/.ssh/allowed_signers` from `secrets/operator-key.nix`,
-login `ssh-keychain-load` LaunchAgent). Add `--fresh` to skip the confirmation on a
-headless box.
+Home Manager then owns the durable signing surface (`commit.gpgsign` / `tag.gpgsign`,
+`gpg.format=ssh`, absolute `$HOME/.ssh/…` signingkey + `allowedSignersFile` from
+`secrets/operator-key.nix` × `userEmail`, login `ssh-keychain-load` LaunchAgent).
+Add `--fresh` to skip the confirmation on a headless box.
 
 ## Why recovery is split in two
 

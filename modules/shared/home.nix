@@ -83,13 +83,19 @@ let
   # a plugin = pin its marketplace input + marketplaces entry, then append its id here.
   claudePluginIds = [ "grok-build@xai-grok-build" ];
 
-  # Absolute operator SSH paths under $HOME — never relative to a flake checkout
-  # or git worktree. Git treats a non-absolute gpg.ssh.allowedSignersFile as
-  # worktree-relative, which would wrongly look inside e.g. nix-config/.ssh/.
+  # Absolute operator SSH paths under $HOME. Git treats a non-absolute
+  # gpg.ssh.allowedSignersFile as worktree-relative (would look in <repo>/.ssh/).
   sshDir = "${config.home.homeDirectory}/.ssh";
   operatorPrivateKey = "${sshDir}/id_ed25519";
   operatorPublicKey = "${sshDir}/id_ed25519.pub";
   allowedSignersFile = "${sshDir}/allowed_signers";
+
+  # Shared by bash/zsh interactive init (GUI apps use launchd.agents.ssh-keychain-load).
+  sshKeychainLoadShell = ''
+    if command -v ssh-add >/dev/null 2>&1 && ! ssh-add -l >/dev/null 2>&1; then
+      ssh-add --apple-load-keychain 2>/dev/null || true
+    fi
+  '';
 
   # `mermaid-ascii` — render Mermaid graphs as ASCII in the terminal. Packaged from
   # upstream (not in nixpkgs); see packages/mermaid-ascii.nix.
@@ -355,12 +361,8 @@ in
     source = ../../claude/CLAUDE.md;
   };
 
-  # Git SSH signature trust store (gpg.ssh.allowedSignersFile). Principal is the
-  # commit author email; key is the fleet operator pubkey. Rotating
-  # secrets/operator-key.nix + switch keeps this file in lockstep — no hand-edit.
-  # namespaces="git" limits trust to git commit/tag signatures only.
-  # Target is home-relative (HM API); the git *setting* below points at the
-  # absolute $HOME path so verification never depends on the current worktree.
+  # Git SSH allowed_signers (principal = userEmail, key = operatorSshKey).
+  # HM target is home-relative; programs.git uses absolute allowedSignersFile.
   home.file.".ssh/allowed_signers".text = ''
     ${userEmail} namespaces="git" ${operatorSshKey}
   '';
@@ -459,29 +461,19 @@ in
         user.email = lib.mkDefault userEmail;
         init.defaultBranch = "main";
         pull.rebase = true;
-        # ---- SSH commit / tag signing (GitHub/GitLab "Verified") ----------------
-        # Format is SSH (not OpenPGP). Paths are absolute under $HOME so git never
-        # resolves them relative to a worktree (e.g. this flake checkout).
-        # Public half is also secrets/operator-key.nix → allowed_signers (above).
-        # GitHub still needs the same pubkey registered as a *Signing* key
-        # (not only Authentication) — see docs/mac-key-recovery-runbook.md.
+        # SSH commit/tag signing (GitHub/GitLab Verified). Absolute $HOME paths —
+        # non-absolute allowedSignersFile is worktree-relative. Forge still needs
+        # the pubkey as a *Signing* key (docs/mac-key-recovery-runbook.md).
         commit.gpgsign = true;
         tag.gpgsign = true;
         gpg.format = "ssh";
         user.signingkey = operatorPublicKey;
-        # Local verify (`git log --show-signature`); without this file git reports
-        # "gpg.ssh.allowedSignersFile needs to be configured" for every SSH sig.
         gpg.ssh.allowedSignersFile = allowedSignersFile;
       };
 
-      # Per-directory identity, keyed on the ~/Developer/<host>/<owner>/ layout.
-      # Any repo under the Infin8 client org's path uses the work identity instead
-      # of the personal default above, so client commits never carry the personal
-      # email/key by accident. The work email itself is NOT committed to this public
-      # repo — it lives in ~/.config/git/infin8.inc (a plain, git-ignored-by-location
-      # file the operator fills). Git silently ignores the include if that file is
-      # absent or comment-only, so the fallback is simply the personal default.
-      # Paths are absolute under $HOME (not relative to any checkout).
+      # Per-directory identity under ~/Developer/<host>/<owner>/. Work email lives
+      # in ~/.config/git/infin8.inc (not in this public repo); missing include is a
+      # silent no-op. Paths absolute under $HOME.
       includes = [
         {
           condition = "gitdir:${config.home.homeDirectory}/Developer/github.com/Infin8-Information-Technologies/";
@@ -503,12 +495,8 @@ in
       enableDefaultConfig = false;
 
       settings = {
-        # Former implicit defaults, plus durable signing/auth key availability:
-        #   AddKeysToAgent + UseKeychain + IdentityFile so passphrase-protected
-        #   $HOME/.ssh/id_ed25519 unlocks from the macOS Keychain and stays in the
-        #   agent — required for `git commit` SSH signing (`ssh-keygen -Y sign`)
-        #   and for non-interactive tools (VS Code/Cursor) that do not prompt.
-        # Identity/known_hosts paths are absolute under $HOME (never worktree-relative).
+        # Defaults + Keychain-backed agent for git SSH signing / non-interactive SSH.
+        # Paths absolute under $HOME.
         "*" = {
           ForwardAgent = false;
           AddKeysToAgent = "yes";
@@ -567,12 +555,7 @@ in
       # through to the Homebrew node (an inert dependency of bruno-cli/devcontainer).
       initExtra = lib.mkIf pkgs.stdenv.isDarwin ''
         eval "$(${pkgs.fnm}/bin/fnm env --use-on-cd --shell bash)"
-        # SSH agent: load Keychain-backed identities if the agent is empty so
-        # `git commit` SSH signing works in this shell (GUI apps use the
-        # launchd.agents.ssh-keychain-load oneshot at login instead).
-        if command -v ssh-add >/dev/null 2>&1 && ! ssh-add -l >/dev/null 2>&1; then
-          ssh-add --apple-load-keychain 2>/dev/null || true
-        fi
+        ${sshKeychainLoadShell}
       '';
     };
 
@@ -637,12 +620,7 @@ in
       # .node-version; falls through to the Homebrew node when no version is active.
       initContent = lib.mkIf pkgs.stdenv.isDarwin ''
         eval "$(${pkgs.fnm}/bin/fnm env --use-on-cd --shell zsh)"
-        # SSH agent: load Keychain-backed identities if the agent is empty so
-        # `git commit` SSH signing works in this shell (GUI apps use the
-        # launchd.agents.ssh-keychain-load oneshot at login instead).
-        if command -v ssh-add >/dev/null 2>&1 && ! ssh-add -l >/dev/null 2>&1; then
-          ssh-add --apple-load-keychain 2>/dev/null || true
-        fi
+        ${sshKeychainLoadShell}
       '';
     };
 
@@ -786,30 +764,21 @@ in
     };
   };
 
-  # NOTE: the custom desktop wallpaper + Terminal.app "Ubuntu" profile used to live
-  # here; they moved to ./desktop-aesthetics.nix (imported above) so a host can opt
-  # out of them — macvm does, to stay visually distinct from macos.
-  # Login oneshot: put Keychain-stored SSH identities into the user agent so
-  # GUI tools (VS Code/Cursor `git.enableCommitSigning`) can sign without a TTY
-  # passphrase prompt. Shell init does the same if a terminal starts before
-  # this agent has run. First-time passphrase → Keychain needs a one-shot
-  # `ssh-add --apple-use-keychain ~/.ssh/id_ed25519` (key-recover prints it).
-  # BTM basename is nix-ssh-keychain-load (hm-launchd wait4path wrapper).
+  # Login oneshot: load Keychain SSH identities into the agent for GUI git signing
+  # (shells use sshKeychainLoadShell). First-time: ssh-add --apple-use-keychain
+  # on the operator private key (key-recover does this). hm-launchd → nix-ssh-keychain-load.
   launchd.agents.ssh-keychain-load = lib.mkIf pkgs.stdenv.isDarwin {
     enable = true;
     config = {
       ProgramArguments = [
-        "${pkgs.writeShellScriptBin "nix-ssh-keychain-load-inner" ''
+        (pkgs.writeShellScript "ssh-keychain-load" ''
           set -eu
-          # Prefer bulk load of previously stored Keychain identities.
           /usr/bin/ssh-add --apple-load-keychain 2>/dev/null || true
-          # If the agent is still empty and the operator key exists, try once
-          # with UseKeychain (non-interactive: no-op when passphrase is unknown).
           key="${operatorPrivateKey}"
           if [ -f "$key" ] && ! /usr/bin/ssh-add -l >/dev/null 2>&1; then
             /usr/bin/ssh-add --apple-use-keychain "$key" 2>/dev/null || true
           fi
-        ''}/bin/nix-ssh-keychain-load-inner"
+        '')
       ];
       RunAtLoad = true;
       StandardOutPath = "${config.home.homeDirectory}/Library/Logs/ssh-keychain-load.log";
