@@ -1,116 +1,107 @@
 # macvm + UTM runbook
 
-Host-side lifecycle for the **macvm** Apple Silicon guest under UTM, plus
-in-guest activation of `darwinConfigurations.macvm`.
+Two layers — do not conflate:
 
-## Two layers (do not conflate)
-
-| Layer | Who owns it | How |
+| Layer | Owner | Notes |
 |---|---|---|
-| **Hypervisor + disk** | UTM on the **macos** host | Multi-GB `macvm.utm` under UTM’s sandbox — **not** in this flake |
-| **Guest nix-darwin config** | This repo (`#macvm`) | Activate **inside** the VM as user **`aloshy`** |
+| **Hypervisor + disk** | UTM on the **macos** host | `macvm.utm` under UTM’s sandbox — **never** in this flake / Nix store |
+| **Guest nix-darwin** | `darwinConfigurations.macvm` | Activate **inside** the VM as **`aloshy`** |
 
-`nix run .#nixvm` is a different product: throwaway NixOS/QEMU, fully materialised
-by the flake. **macvm is not nixvm.**
+`nix run .#nixvm` is a different product (throwaway NixOS/QEMU). **macvm ≠ nixvm.**
 
 ## Prerequisites (host)
 
-- `macos` activated so the **`utm`** Homebrew cask is present (`hosts/macos.nix`).
-- Run glue apps on the **host** Mac (not inside the guest).
+- `macos` activated (`utm` cask from `hosts/macos.nix`).
+- Run `macvm-utm-*` apps on the **host**, not in the guest.
 
-## Host-side flake apps
+## Host apps
 
 ```bash
 nix run .#macvm-utm-ensure              # 0 if ready; else open UTM + create steps (exit 2)
-nix run .#macvm-utm-doctor              # health: UTM, package, single registry entry
+nix run .#macvm-utm-doctor              # UTM, package, single registry entry
 nix run .#macvm-utm-list                # utmctl list
 nix run .#macvm-utm-open                # open UTM.app
-nix run .#macvm-utm-start               # start the registered macvm
-nix run .#macvm-utm-stop                # stop it
-nix run .#macvm-utm-registry-dedupe     # dry-run de-dupe of UTM prefs
-nix run .#macvm-utm-registry-dedupe -- --apply --yes   # fix double-sidebar ghosts
-nix run .#macvm-utm-create-print        # one-time UTM GUI create steps
-nix run .#macvm-utm-bootstrap-print     # print in-guest checklist
+nix run .#macvm-utm-start | stop
+nix run .#macvm-utm-registry-dedupe     # dry-run; add -- --apply --yes to write
+nix run .#macvm-utm-create-print        # one-time GUI create checklist
+nix run .#macvm-utm-bootstrap-print     # in-guest activate checklist
 nix run .#macvm-utm-ssh                 # SSH as aloshy (discovers guest IP)
 nix run .#macvm-utm-ssh -- --ip 192.168.64.4
 ```
-
-Env overrides (optional):
 
 | Variable | Default |
 |---|---|
 | `MACVM_UTM_PATH` | `~/Library/Containers/com.utmapp.UTM/Data/Documents/macvm.utm` |
 | `MACVM_UTM_DOCS` | parent Documents directory |
+| `MACVM_SSH_IP` | (auto-discover on `192.168.64.0/24`) |
+| `MACVM_SSH_IDENTITY` | `~/.ssh/id_ed25519` |
 
 **Never** put IPSWs or `.img` files in the Nix store or this git tree.
 
-## First-time create (GUI — Phase 2 conclusion)
+## First-time create (GUI, once)
 
-**`utmctl` has no create** for Apple Virtualization macOS guests. Unattended
-scaffold of a bootable guest is **not viable** without shipping IPSW/disk into
-the store (explicit non-goal). Permanent create path:
+`utmctl` cannot create Apple Virtualization macOS guests. Create path is UTM UI only:
 
-1. `nix run .#macvm-utm-ensure` — if missing, opens UTM and prints steps
-   (or `nix run .#macvm-utm-create-print`).
-2. UTM → **Virtualize** → **macOS** (Apple Virtualization).
-3. Name the VM **`macvm`** (must match hostname / glue name).
-4. Finish install; create login account **`aloshy`** (matches flake identity).
-5. On the host: `nix run .#macvm-utm-doctor` / `nix run .#macvm-utm-ensure`
-   (expect exit 0, one match, package present).
+1. `nix run .#macvm-utm-ensure` (opens UTM + prints steps if missing).
+2. UTM → **Virtualize** → **macOS**. Name the VM exactly **`macvm`**.
+3. Finish install; login account **`aloshy`** (matches flake identity).
+4. Host: `nix run .#macvm-utm-doctor` (one match, package present).
+
+Network: **Shared** (host `bridge100`, typically `192.168.64.0/24`).
 
 ## In-guest activation
 
 ```bash
-# First time (Determinate Nix installed, before darwin-rebuild is on PATH):
+# First time (Determinate Nix installed):
 sudo nix run github:kattakath/nix-config#macvm
 
 # Thereafter:
 sudo darwin-rebuild switch --flake .#macvm
-# or: sudo nix run github:kattakath/nix-config#macvm
 ```
 
-Guest must be logged in as **`aloshy`**. Wrong login user → wrong home paths.
+Wrong login user → wrong home-manager paths. Guest must be **`aloshy`**.
 
-## SSH from host → macvm
+## SSH (host → guest)
 
-UTM **Shared** networking puts the guest on the host’s `bridge100` subnet
-(typically `192.168.64.0/24`; host is often `192.168.64.1`).
+**Single path on the guest:** Apple’s sshd via `services.openssh.enable` (keys-only;
+operator ed25519 in `users.users.aloshy.openssh.authorizedKeys` — same key as
+nixpi/nixvm). Application Firewall is forced **off** on macvm so UTM Shared is
+not blocked (core.nix turns ALF on for the real Mac).
 
-1. **Guest** (already in `#macvm` config): `services.openssh.enable = true` and
-   the operator ed25519 public key in `users.users.aloshy.openssh.authorizedKeys`.
-   Re-activate inside the guest after that lands on the flake you pin.
-2. **Host**:
-   ```bash
-   nix run .#macvm-utm-start          # if stopped
-   nix run .#macvm-utm-ssh            # discovers :22 on the shared net
-   # or: ssh -i ~/.ssh/id_ed25519 aloshy@192.168.64.4
-   ```
+```bash
+nix run .#macvm-utm-start          # if stopped
+nix run .#macvm-utm-ssh            # discovers :22 on the shared net
+# or: ssh -i ~/.ssh/id_ed25519 aloshy@192.168.64.N
+```
 
-Keys-only (no password). If connection times out: guest Remote Login not up yet
-(re-activate), wrong IP (`arp -an | grep 192.168.64`), or VM stopped.
+If it times out: guest not activated / not started, wrong IP
+(`arp -an | grep 192.168.64`), or `launchctl print system/com.openssh.sshd` empty
+inside the guest (re-activate).
 
 ## Registry duplicates
 
-UTM can list the same package twice if prefs grow ghost entries. Symptoms: two
-`macvm` rows in the sidebar, same disk.
+Two sidebar `macvm` rows, same disk → ghost UTM prefs:
 
 ```bash
-nix run .#macvm-utm-registry-dedupe              # see KEEP vs DROP
+nix run .#macvm-utm-registry-dedupe
 nix run .#macvm-utm-registry-dedupe -- --apply --yes
 ```
 
-Keeps the entry whose UUID matches `macvm.utm/config.plist`. Backs up prefs under
-`~/Library/Application Support/utm-registry-backup-*/`. **Does not delete** the disk.
+Keeps the UUID matching `macvm.utm/config.plist`. Prefs backup under
+`~/Library/Application Support/utm-registry-backup-*/`. Does **not** delete the disk.
 
 ## Mac rebuild / key recovery
 
-A wiped Mac gets an **empty** UTM library (container recreated). Recreate the
-guest (GUI) then re-activate inside as above. See
-[`docs/mac-key-recovery-runbook.md`](mac-key-recovery-runbook.md). Optional
-external backup of the `.utm` bundle is operator-owned — not part of the key kit.
+A wiped Mac gets an empty UTM library. Recreate the guest (GUI) then re-activate
+inside. See [`mac-key-recovery-runbook.md`](mac-key-recovery-runbook.md). Optional
+`.utm` backup is operator-owned — not part of the key kit.
 
-## Implementation
+## Source map
 
-- Package kit: `packages/macvm-utm.nix`
-- Guest host profile: `hosts/macvm.nix`
-- Apps wired in `flake.nix` (`apps.aarch64-darwin.macvm-utm-*`)
+| Concern | Path |
+|---|---|
+| Guest profile | `hosts/macvm.nix` |
+| Host toolkit | `packages/macvm-utm.nix` |
+| Flake apps / `#macvm` activate | `flake.nix` |
+| Host `ssh macvm` stub | `modules/shared/home.nix` |
+| Agent skill | `.claude/skills/macvm-utm/SKILL.md` |
