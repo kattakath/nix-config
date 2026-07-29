@@ -75,6 +75,31 @@ jobs:
         # a separate `nix log` on the runner.
         run: nix build .#packages.aarch64-linux.nixpi-sd-image --out-link result --print-build-logs
 
+      # softprops/action-gh-release UPLOADS by filename but does not remove older
+      # assets when the nixos-sd-image-*.img.zst basename changes (nixpkgs rev in
+      # the name). installer-latest is a single rolling slot — leave only the new
+      # image so `nixpi-flash --release` cannot pick a stale pubkey-bearing image
+      # via glob order. Non-sd-image assets (if any) are left alone.
+      - name: Retire stale nixpi SD image assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # No release yet (first publish) ⇒ nothing to retire.
+          if ! gh release view installer-latest --json assets >/dev/null 2>&1; then
+            echo "No installer-latest release yet; skip retire."
+            exit 0
+          fi
+          gh release view installer-latest --json assets --jq '
+            .assets[]
+            | select(.name | test("^nixos-sd-image-.*\\.img(\\.zst)?$"))
+            | .apiUrl
+          ' | while IFS= read -r url; do
+            [ -n "$url" ] || continue
+            echo "Deleting stale asset: $url"
+            gh api -X DELETE "$url"
+          done
+
       - name: Publish to installer-latest release
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
