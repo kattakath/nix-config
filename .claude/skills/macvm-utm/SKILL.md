@@ -21,7 +21,7 @@ Canonical detail: [`docs/macvm-utm-runbook.md`](../../../docs/macvm-utm-runbook.
 | Guest OS config | **Inside VM** as `aloshy` | `darwinConfigurations.macvm` |
 | SSH | Host → guest Shared net | `nix run .#macvm-utm-ssh` |
 | Screengrab | Host path shared R/W | `~/Pictures/Screengrab` ↔ guest symlink |
-| Keychain secrets | **Separate** per host | macos `ismailkattakath` ≠ macvm `aloshy` |
+| Keychain secrets | **Separate** per host | macos `ismail` ≠ macvm `aloshy` |
 
 `macvm` ≠ `nixvm`. **Do not wipe a healthy guest** (`macvm-utm-doctor` exit 0 → keep).
 

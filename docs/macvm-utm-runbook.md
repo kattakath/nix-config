@@ -191,7 +191,7 @@ flake). The command name is **`secret`** (singular) — there is no `secrets` CL
 
 | Host | Persona / Keychain | Notes |
 |---|---|---|
-| `macos` | `ismailkattakath` login Keychain | Operator’s tokens (Civitai, Vast, GH, …) |
+| `macos` | `ismail` login Keychain | Operator’s tokens (Civitai, Vast, GH, …) |
 | `macvm` | `aloshy` login Keychain | **Separate** store — nothing is shared automatically |
 
 ### Why plain SSH cannot `secret set`

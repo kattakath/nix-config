@@ -54,7 +54,7 @@ installer and `nix run`s the flake — it is not fully offline.)
 
 ### Fork this for your own fleet
 
-This is personal config with `userName = "ismailkattakath"` baked into `flake.nix` (it is
+This is personal config with `userName = "ismail"` baked into `flake.nix` (it is
 your POSIX account — `/Users/<userName>` and `home-manager.users.<userName>`). To run your
 own fleet from it:
 

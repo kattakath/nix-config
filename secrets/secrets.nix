@@ -8,7 +8,7 @@
 # Edit a secret:   nix run github:ryantm/agenix -- -e secrets/<name>.age
 # Re-key after changing recipients:  … -- -r
 let
-  # operator (ismailkattakath) — ~/.ssh/id_ed25519.pub; backed up off-machine, kept
+  # operator (ismail) — ~/.ssh/id_ed25519.pub; backed up off-machine, kept
   # editable. Single-sourced in ./operator-key.nix (also the fleet's authorizedKeys
   # via flake.nix → core.nix), so a key rotation is one edit there, not four.
   operator = import ./operator-key.nix;
