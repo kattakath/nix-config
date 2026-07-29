@@ -770,15 +770,16 @@ in
   launchd.agents.ssh-keychain-load = lib.mkIf pkgs.stdenv.isDarwin {
     enable = true;
     config = {
+      # ProgramArguments entries must be strings (not raw derivations).
       ProgramArguments = [
-        (pkgs.writeShellScript "ssh-keychain-load" ''
+        "${pkgs.writeShellScript "ssh-keychain-load" ''
           set -eu
           /usr/bin/ssh-add --apple-load-keychain 2>/dev/null || true
           key="${operatorPrivateKey}"
           if [ -f "$key" ] && ! /usr/bin/ssh-add -l >/dev/null 2>&1; then
             /usr/bin/ssh-add --apple-use-keychain "$key" 2>/dev/null || true
           fi
-        '')
+        ''}"
       ];
       RunAtLoad = true;
       StandardOutPath = "${config.home.homeDirectory}/Library/Logs/ssh-keychain-load.log";
