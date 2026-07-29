@@ -202,6 +202,7 @@ in
     ./hm-launchd # patched home-manager launchd (nix-* ProgramArguments)
     ./mcp.nix # darwin-gated MCP server registry for Claude Code
     ./desktop-aesthetics.nix # macOS wallpaper + Terminal profile (opt-out per host; macvm opts out)
+    ./wireguard-configs.nix # operator-managed WG confs → ~/.config/wireguard (no autostart)
     # Local-first RAG stack (loopback launchd Postgres+pgvector + Ollama + in-DB
     # embed()), from the extracted flake (github:ismailkattakath/nix-local-rag).
     # Both modules are internally gated on (enable && isDarwin) — a clean no-op on
@@ -216,6 +217,10 @@ in
   # Enable the extracted keychain-secrets module (installs the secret/set-secret/
   # remove-secret CLIs + the ~/.config/secrets/loader.sh every-shell loader).
   programs.keychainSecrets.enable = true;
+
+  # WireGuard confs: sync ~/.local/share/wireguard-configs → ~/.config/wireguard
+  # on macos + macvm. Confs stay outside git (private keys). No autostart.
+  local.wireguardConfigs.enable = pkgs.stdenv.isDarwin;
 
   # RAG stack (Ollama + pgvector) backs the postgres MCP server — real Mac only.
   # macvm is a lean sandbox; no need for embed/DB launchd agents there.

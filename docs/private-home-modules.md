@@ -78,6 +78,21 @@ as a path, not as a URL. The public `flake.lock` never locks a private repo.
 | Template holds no secrets | Public tree holds no private module URLs |
 | Activate instance via Vast | Activate Mac via private flake `#macos` |
 
+## WireGuard (and other private *files*)
+
+Private **keys / `.conf` bodies** should not use `home.file.source = ./secret.conf`
+even in a private flake — Nix copies them into the **world-readable store**.
+
+Prefer:
+
+1. Operator plant directory outside git (this fleet: `~/.local/share/wireguard-configs`
+   → HM activation sync to `~/.config/wireguard` via `local.wireguardConfigs` in the
+   public engine — confs never evaluated as Nix paths).
+2. Or a private flake that only ships the *module* and still `cp`s from a host-local
+   path at activation.
+
+See `docs/macvm-utm-runbook.md` (WireGuard section).
+
 ## What this is not
 
 - Not an in-tree `private/` directory (that is still a public git trace).
