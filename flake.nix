@@ -852,6 +852,7 @@
               macvm-utm-ensure
               macvm-utm-ssh
               macvm-utm-clipboard-on
+              macvm-utm-share-screengrab
               ;
           }
         ))
@@ -1136,6 +1137,11 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.macvm-utm-clipboard-on}/bin/macvm-utm-clipboard-on";
               meta.description = "Set Virtualization.ClipboardSharing=true on macvm.utm (quit UTM first, or --yes)";
+            };
+            aarch64-darwin.macvm-utm-share-screengrab = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.macvm-utm-share-screengrab}/bin/macvm-utm-share-screengrab";
+              meta.description = "Share host ~/Pictures/Screengrab R/W into macvm via UTM VirtioFS";
             };
 
             # `nix run .#set-secret -- KEY [VALUE]` — store a secret in the macOS

@@ -51,6 +51,21 @@ nix run .#macvm-utm-ssh -- --ip 192.168.64.4
 
 Network: **Shared** (host `bridge100`, typically `192.168.64.0/24`).
 
+## Shared Screengrab (host ↔ guest, R/W)
+
+**Single path (atomic with macos):** `~/Pictures/Screengrab` on the host
+(`modules/darwin/core.nix` — `screencapture.location` + hourly file-rotation).
+
+| Layer | What |
+|---|---|
+| Host UTM share | `nix run .#macvm-utm-share-screengrab` → Registry `SharedDirectories` (R/W bookmark) |
+| Guest automount | `/Volumes/My Shared Files/Screengrab` (Apple VirtioFS) |
+| Guest home path | `~/Pictures/Screengrab` → symlink to that automount (`hosts/macvm.nix`) |
+| Rotation | **macos only** (must not trash host files from the guest) |
+
+After (re)registering the share, **restart the macvm guest** so VirtioFS attaches.
+Verify: `nix run .#macvm-utm-doctor` and on guest `ls -la ~/Pictures/Screengrab`.
+
 ## UTM Guest Tools (clipboard)
 
 macOS guests need **spice-vdagent** for host↔guest clipboard (requires **macOS 15+**
