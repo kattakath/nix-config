@@ -45,9 +45,26 @@ nix run .#macvm-utm-ssh -- --ip 192.168.64.4
 1. `nix run .#macvm-utm-ensure` (opens UTM + prints steps if missing).
 2. UTM → **Virtualize** → **macOS**. Name the VM exactly **`macvm`**.
 3. Finish install; login account **`aloshy`** (matches flake identity).
-4. Host: `nix run .#macvm-utm-doctor` (one match, package present).
+4. UTM VM settings: **Virtualization → Enable Clipboard Sharing** (macOS 15+).
+5. Host: `nix run .#macvm-utm-doctor` (one match, package present).
+6. Activate guest (declaratively installs UTM Guest Tools / spice-vdagent).
 
 Network: **Shared** (host `bridge100`, typically `192.168.64.0/24`).
+
+## UTM Guest Tools (clipboard)
+
+macOS guests need **spice-vdagent** for host↔guest clipboard (requires **macOS 15+**
+on both sides and UTM **Virtualization → Enable Clipboard Sharing**).
+
+`darwinConfigurations.macvm` installs the official pkg from
+[utmapp/vd_agent](https://github.com/utmapp/vd_agent/releases) on activation
+(pinned version in `hosts/macvm.nix`) and loads the vendor launchd jobs. No need
+for the UTM toolbar “Install Guest Tools” CD once the guest has been activated.
+
+First install may still prompt once in the guest GUI to allow **spice-vdagent** /
+**spice-vdagentd** (Gatekeeper). Shared folders on Apple Virtualization use
+`mount_virtiofs` (see [UTM macOS guest docs](https://docs.getutm.app/guest-support/macos/)),
+not spice-webdav.
 
 ## In-guest activation
 

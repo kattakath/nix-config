@@ -89,7 +89,7 @@ let
 
     1. Login account: aloshy  (must match flake identity)
     2. Determinate Nix if missing: https://docs.determinate.systems
-    3. First activation:
+    3. First activation (also installs UTM Guest Tools / spice-vdagent):
          sudo nix run github:kattakath/nix-config#macvm
     4. Thereafter:
          sudo darwin-rebuild switch --flake .#macvm
@@ -109,8 +109,10 @@ let
     2. UTM → "+" → Virtualize → macOS (Apple Virtualization)
     3. Name the VM exactly: macvm
     4. Network: Shared; login user: aloshy
-    5. Host: nix run .#macvm-utm-doctor
-    6. Guest: nix run .#macvm-utm-bootstrap-print
+    5. UTM settings: Virtualization → Enable Clipboard Sharing (macOS 15+)
+    6. Host: nix run .#macvm-utm-doctor
+    7. Guest activate (installs spice-vdagent Guest Tools automatically):
+         nix run .#macvm-utm-ssh -- sudo nix run github:kattakath/nix-config#macvm
 
     NEVER put IPSW or .img into the Nix store or this git repo.
   '';
