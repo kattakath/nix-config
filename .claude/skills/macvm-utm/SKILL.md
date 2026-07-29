@@ -30,9 +30,10 @@ Canonical detail: [`docs/macvm-utm-runbook.md`](../../../docs/macvm-utm-runbook.
 1. `nix run .#macvm-utm-ensure` → UTM GUI: Virtualize macOS, name **`macvm`**, user **`aloshy`**, Shared net, Clipboard Sharing on.
 2. In guest (once): `sudo nix run github:kattakath/nix-config#macvm` (password once → NOPASSWD).
 3. Host: `nix run .#macvm-utm-share-screengrab` then **restart** guest.
-4. Day-to-day activate (prefer **private** composition flake when personal HM modules matter):
-   `nix run .#macvm-utm-ssh -- sudo nix run --refresh 'git+ssh://git@gitlab.com/ismailkattakath/nix-personal#macvm'`
-   Fleet-only: `… github:kattakath/nix-config#macvm`
+4. Day-to-day activate (prefer **private** `nix-personal` when personal HM modules matter):
+   sync clone → guest `~/nix-personal`, then  
+   `nix run .#macvm-utm-ssh -- sudo nix run /Users/aloshy/nix-personal#macvm`  
+   (guest usually has no GitLab SSH). Fleet-only: `… github:kattakath/nix-config#macvm`
 5. Verify: `nix run .#macvm-utm-doctor`
 6. Optional tokens: `nix run .#macvm-utm-secret-copy -- KEY` (see below)
 
