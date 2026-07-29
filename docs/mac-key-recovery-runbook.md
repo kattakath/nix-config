@@ -88,8 +88,21 @@ than failing:
 - activates `#macos`.
 
 Afterward `key-recover` prints the finishing steps: register `~/.ssh/id_ed25519.pub` on
-GitHub (authentication + signing), commit + push, and `nix run .#key-backup` so the machine
-is keyed next time. Add `--fresh` to skip the confirmation on a headless box.
+GitHub as **both** an Authentication and a **Signing** key (the Verified badge needs
+Signing — Auth alone is not enough), commit + push, and `nix run .#key-backup` so the
+machine is keyed next time. Prefer the CLI (idempotent if the key already exists):
+
+```bash
+gh ssh-key add --type authentication -t "operator@$(hostname -s)" ~/.ssh/id_ed25519.pub
+gh ssh-key add --type signing        -t "operator-signing@$(hostname -s)" ~/.ssh/id_ed25519.pub
+# one-time: store passphrase in Keychain so login agent + git signing stay non-interactive
+ssh-add --apple-use-keychain ~/.ssh/id_ed25519
+```
+
+Home Manager then owns the durable signing surface (`commit.gpgsign`, `gpg.format=ssh`,
+`gpg.ssh.allowedSignersFile` → `~/.ssh/allowed_signers` from `secrets/operator-key.nix`,
+login `ssh-keychain-load` LaunchAgent). Add `--fresh` to skip the confirmation on a
+headless box.
 
 ## Why recovery is split in two
 

@@ -26,6 +26,9 @@
   config,
   fullName,
   userEmail,
+  # Fleet operator ed25519 PUBLIC key (secrets/operator-key.nix) — single source
+  # for authorizedKeys + agenix recipient + git SSH allowed_signers principal.
+  operatorSshKey,
   # Source-only flake inputs holding Claude Code skills (see programs.claude-code
   # below). flake.nix pins them; nothing is vendored into this repo.
   agent-skills-vercel,
@@ -344,6 +347,14 @@ in
     source = ../../claude/CLAUDE.md;
   };
 
+  # Git SSH signature trust store (gpg.ssh.allowedSignersFile). Principal is the
+  # commit author email; key is the fleet operator pubkey. Rotating
+  # secrets/operator-key.nix + switch keeps this file in lockstep — no hand-edit.
+  # namespaces="git" limits trust to git commit/tag signatures only.
+  home.file.".ssh/allowed_signers".text = ''
+    ${userEmail} namespaces="git" ${operatorSshKey}
+  '';
+
   # ---- Home Manager program modules --------------------------------------------
   programs = {
     # Let Home Manager manage itself.
@@ -438,9 +449,18 @@ in
         user.email = lib.mkDefault userEmail;
         init.defaultBranch = "main";
         pull.rebase = true;
+        # ---- SSH commit / tag signing (GitHub/GitLab "Verified") ----------------
+        # Format is SSH (not OpenPGP). Private key stays at ~/.ssh/id_ed25519;
+        # public half is secrets/operator-key.nix + ~/.ssh/allowed_signers below.
+        # GitHub still needs the same pubkey registered as a *Signing* key
+        # (not only Authentication) — see docs/mac-key-recovery-runbook.md.
         commit.gpgsign = true;
+        tag.gpgsign = true;
         gpg.format = "ssh";
         user.signingkey = "~/.ssh/id_ed25519.pub";
+        # Local verify (`git log --show-signature`); without this file git reports
+        # "gpg.ssh.allowedSignersFile needs to be configured" for every SSH sig.
+        gpg.ssh.allowedSignersFile = "~/.ssh/allowed_signers";
       };
 
       # Per-directory identity, keyed on the ~/Developer/<host>/<owner>/ layout.
@@ -464,16 +484,23 @@ in
       # Forward-compat with the home-manager `programs.ssh` deprecation: the module
       # is dropping its implicit `settings."*"` defaults (and warns while they remain
       # on by default), and `matchBlocks` is now a deprecated alias for `settings`.
-      # We opt out with `enableDefaultConfig = false`, re-declare the exact 10 defaults
-      # ourselves under `settings."*"`, and move the per-host blocks to `settings` so
-      # generated ~/.ssh/config stays byte-identical while both warnings are silenced.
+      # We opt out with `enableDefaultConfig = false`, re-declare the former defaults
+      # under `settings."*"` (with fleet overrides for agent/Keychain — see below),
+      # and move the per-host blocks to `settings` so both deprecation warnings stay
+      # silenced.
       enableDefaultConfig = false;
 
       settings = {
-        # The former implicit defaults, re-stated verbatim (OpenSSH directive names).
+        # Former implicit defaults, plus durable signing/auth key availability:
+        #   AddKeysToAgent + UseKeychain + IdentityFile so passphrase-protected
+        #   ~/.ssh/id_ed25519 unlocks from the macOS Keychain and stays in the
+        #   agent — required for `git commit` SSH signing (`ssh-keygen -Y sign`)
+        #   and for non-interactive tools (VS Code/Cursor) that do not prompt.
         "*" = {
           ForwardAgent = false;
-          AddKeysToAgent = "no";
+          AddKeysToAgent = "yes";
+          UseKeychain = "yes";
+          IdentityFile = "~/.ssh/id_ed25519";
           Compression = false;
           ServerAliveInterval = 0;
           ServerAliveCountMax = 3;
@@ -527,6 +554,12 @@ in
       # through to the Homebrew node (an inert dependency of bruno-cli/devcontainer).
       initExtra = lib.mkIf pkgs.stdenv.isDarwin ''
         eval "$(${pkgs.fnm}/bin/fnm env --use-on-cd --shell bash)"
+        # SSH agent: load Keychain-backed identities if the agent is empty so
+        # `git commit` SSH signing works in this shell (GUI apps use the
+        # launchd.agents.ssh-keychain-load oneshot at login instead).
+        if command -v ssh-add >/dev/null 2>&1 && ! ssh-add -l >/dev/null 2>&1; then
+          ssh-add --apple-load-keychain 2>/dev/null || true
+        fi
       '';
     };
 
@@ -591,6 +624,12 @@ in
       # .node-version; falls through to the Homebrew node when no version is active.
       initContent = lib.mkIf pkgs.stdenv.isDarwin ''
         eval "$(${pkgs.fnm}/bin/fnm env --use-on-cd --shell zsh)"
+        # SSH agent: load Keychain-backed identities if the agent is empty so
+        # `git commit` SSH signing works in this shell (GUI apps use the
+        # launchd.agents.ssh-keychain-load oneshot at login instead).
+        if command -v ssh-add >/dev/null 2>&1 && ! ssh-add -l >/dev/null 2>&1; then
+          ssh-add --apple-load-keychain 2>/dev/null || true
+        fi
       '';
     };
 
@@ -737,6 +776,33 @@ in
   # NOTE: the custom desktop wallpaper + Terminal.app "Ubuntu" profile used to live
   # here; they moved to ./desktop-aesthetics.nix (imported above) so a host can opt
   # out of them — macvm does, to stay visually distinct from macos.
+  # Login oneshot: put Keychain-stored SSH identities into the user agent so
+  # GUI tools (VS Code/Cursor `git.enableCommitSigning`) can sign without a TTY
+  # passphrase prompt. Shell init does the same if a terminal starts before
+  # this agent has run. First-time passphrase → Keychain needs a one-shot
+  # `ssh-add --apple-use-keychain ~/.ssh/id_ed25519` (key-recover prints it).
+  # BTM basename is nix-ssh-keychain-load (hm-launchd wait4path wrapper).
+  launchd.agents.ssh-keychain-load = lib.mkIf pkgs.stdenv.isDarwin {
+    enable = true;
+    config = {
+      ProgramArguments = [
+        "${pkgs.writeShellScriptBin "nix-ssh-keychain-load-inner" ''
+          set -eu
+          # Prefer bulk load of previously stored Keychain identities.
+          /usr/bin/ssh-add --apple-load-keychain 2>/dev/null || true
+          # If the agent is still empty and the operator key exists, try once
+          # with UseKeychain (non-interactive: no-op when passphrase is unknown).
+          if [ -f "$HOME/.ssh/id_ed25519" ] && ! /usr/bin/ssh-add -l >/dev/null 2>&1; then
+            /usr/bin/ssh-add --apple-use-keychain "$HOME/.ssh/id_ed25519" 2>/dev/null || true
+          fi
+        ''}/bin/nix-ssh-keychain-load-inner"
+      ];
+      RunAtLoad = true;
+      StandardOutPath = "${config.home.homeDirectory}/Library/Logs/ssh-keychain-load.log";
+      StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/ssh-keychain-load.log";
+    };
+  };
+
   home.activation = lib.mkIf pkgs.stdenv.isDarwin {
     # Materialise the DECLARED Claude Code plugins (claudePluginIds) from their
     # Nix-pinned marketplaces. We deliberately do NOT put ~/.claude/plugins/
