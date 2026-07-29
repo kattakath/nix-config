@@ -88,10 +88,7 @@ let
         let
           stripped = lib.removePrefix "org.nix-community.home." label;
         in
-        if stripped != label then
-          stripped
-        else
-          lib.replaceStrings [ "." ] [ "-" ] label;
+        if stripped != label then stripped else lib.replaceStrings [ "." ] [ "-" ] label;
       wrapperName = "nix-${short}";
       wrapper = pkgs.writeShellScriptBin wrapperName ''
         set -euo pipefail
