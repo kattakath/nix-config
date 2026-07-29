@@ -1,17 +1,19 @@
 # WireGuard VPN operator
 
-Professional, **atomic / idempotent / graceful** control of WireGuard tunnels on
-**macos** and **macvm**. The public flake ships tools + conf **sync**; private
-keys never enter git or the Nix store.
+Professional, **atomic / idempotent / graceful** control of WireGuard tunnels —
+the CLI operator runs on **macvm only**. **macos manages WireGuard through the
+GUI (`WireGuard.app`) exclusively**: no `wireguard-tools`, no `vpn` CLI, so no
+shell can bring a tunnel up (a botched tunnel = no-internet on the sole client
+Mac). Both hosts sync confs for use; private keys never enter git or the store.
 
 ## Pieces
 
-| Piece | Role |
-|---|---|
-| `wireguard-tools` (Homebrew) | `wg` / `wg-quick` (+ wireguard-go) |
-| `local.wireguardConfigs` | HM activation: plant dir → `~/.config/wireguard` (mode 600, **no** autostart) |
-| **`vpn`** CLI | Operator: list / status / up / down / switch / restart / doctor |
-| Official `WireGuard.app` | **macos only** (`masApps`) — GUI optional; not on macvm |
+| Piece | Role | Host |
+|---|---|---|
+| `wireguard-tools` (Homebrew) | `wg` / `wg-quick` (+ wireguard-go) | **macvm only** |
+| **`vpn`** CLI | Operator: list / status / up / down / switch / restart / doctor | **macvm only** |
+| `local.wireguardConfigs` | HM activation: plant dir → `~/.config/wireguard` (mode 600, **no** autostart) | macos + macvm |
+| Official `WireGuard.app` | GUI — import a synced conf, connect manually | **macos only** (`masApps`) — the ONLY interface there |
 
 Plant directory (outside git):
 
@@ -85,6 +87,7 @@ switch endpoint, or diagnose tunnels.
 
 | Path | What |
 |---|---|
-| `packages/vpn.nix` | CLI |
-| `modules/shared/wireguard-configs.nix` | conf sync |
-| `hosts/macos.nix` / `macvm.nix` | brew `wireguard-tools`; MAS GUI on macos only |
+| `packages/vpn.nix` | CLI (installed on macvm only — `modules/shared/home.nix` gates it `!isMacosHost`) |
+| `modules/shared/wireguard-configs.nix` | conf sync (copy-only, both hosts) |
+| `hosts/macvm.nix` | brew `wireguard-tools` (macvm's CLI) |
+| `hosts/macos.nix` | `masApps.WireGuard` GUI only — no `wireguard-tools`, no `vpn` |

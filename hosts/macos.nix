@@ -74,8 +74,12 @@
       "switchaudio-osx"
       "tree"
       "wget"
-      # CLI (wg / wg-quick); GUI is masApps.WireGuard. Both can coexist.
-      "wireguard-tools"
+      # NB: no `wireguard-tools` here — macos manages WireGuard through the GUI
+      # (masApps.WireGuard) ONLY. Deliberately no `wg`/`wg-quick` CLI and no `vpn`
+      # operator on this host, so nothing can bring a tunnel up from a shell (a
+      # botched tunnel = no-internet on the sole client Mac). Confs are synced for
+      # IMPORT into the app, never run (local.wireguardConfigs, home.nix). macvm —
+      # which has no App Store — keeps the CLI (hosts/macvm.nix).
       "xcodes"
       "yq"
       "yt-dlp"
@@ -124,7 +128,10 @@
     # protected from onActivation.cleanup = "uninstall" (undeclared MAS apps
     # get removed — that is how Xcode was wiped before this entry).
     masApps = {
-      # Official client is App Store–only (no Homebrew cask).
+      # Official client is App Store–only (no Homebrew cask). This GUI is the
+      # ONLY way macos touches WireGuard — no CLI tools, no vpn operator. The
+      # user imports a synced conf and connects manually in-app; nothing here
+      # (or on activation) ever starts a tunnel.
       WireGuard = 1451685025;
       # Full Xcode IDE from the Mac App Store (not the CLI tools alone).
       Xcode = 497799835;

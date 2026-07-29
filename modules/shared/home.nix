@@ -220,7 +220,9 @@ in
   programs.keychainSecrets.enable = true;
 
   # WireGuard confs: sync ~/.local/share/wireguard-configs → ~/.config/wireguard
-  # on macos + macvm. Confs stay outside git (private keys). No autostart.
+  # on macos + macvm. Confs stay outside git (private keys). Copy-only — it NEVER
+  # runs wg-quick / starts a tunnel. On macos (GUI-only, no CLI) these are there
+  # to IMPORT into WireGuard.app; on macvm the CLI `vpn` operator uses them.
   local.wireguardConfigs.enable = pkgs.stdenv.isDarwin;
 
   # RAG stack (Ollama + pgvector) backs the postgres MCP server — real Mac only.
@@ -275,9 +277,16 @@ in
       obs-fb-setup # `obs-fb-setup` — write an OBS "Facebook" profile for Facebook Live, injecting FB_PERSISTENT_STREAM_KEY from the login Keychain (packages/obs-fb-setup.nix)
       chrome-automation # `chrome-automation` — launch a dedicated logged-in Chrome (own profile + CDP port 9222) for the Playwright MCP server to attach to (packages/chrome-automation.nix)
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
-      vpn # `vpn list|status|up|down|switch` — WireGuard operator for ~/.config/wireguard (packages/vpn.nix)
       jdk17 # JRE for the Android sdkmanager/avdmanager (JVM tools); emulator itself needs no Java
       runpodctl # RunPod GPU CLI — RunPod as a second ComfyUI-workflow provider alongside Vast (from nixpkgs, not the untrusted brew tap)
+    ]
+    # WireGuard `vpn` operator — macvm ONLY. macos manages WireGuard through the
+    # GUI (masApps.WireGuard) exclusively and deliberately ships no VPN CLI, so a
+    # tunnel can never be brought up from a shell there (no-internet safety on the
+    # sole client Mac). macvm has no App Store, so it keeps the CLI operator (its
+    # wireguard-tools live in hosts/macvm.nix).
+    ++ lib.optionals (stdenv.isDarwin && !isMacosHost) [
+      vpn # `vpn list|status|up|down|switch` — WireGuard operator for ~/.config/wireguard (packages/vpn.nix)
     ];
 
   # ---- Android SDK (macOS only) ------------------------------------------------
