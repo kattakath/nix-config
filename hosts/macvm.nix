@@ -21,7 +21,12 @@
 #   grok                                             # first run authenticates
 # The shared home.nix already puts ~/.grok/bin on PATH, provides Node, and wires
 # the grok-build Claude Code plugin — so no Nix app-list entry is needed.
-{ userName, lib, ... }:
+{
+  userName,
+  lib,
+  pkgs,
+  ...
+}:
 let
   # Operator ed25519 public key — sole network login credential (same key as
   # nixpi/nixvm). Safe to commit; imported as a bare string.
@@ -40,37 +45,53 @@ in
   system.defaults.dock.orientation = lib.mkForce "bottom";
 
   # ---- SSH from the macos host (UTM Shared network) --------------------------
-  # Enable Apple's built-in Remote Login (sshd) so the host can `ssh aloshy@…`.
-  # Keys-only via authorizedKeys (operator key). Networking is UTM "Shared"
-  # (bridge100 on host, typically 192.168.64.0/24) — see docs/macvm-utm-runbook.md
-  # and `nix run .#macvm-utm-ssh`.
+  # Host → guest admin over UTM Shared (bridge100 ≈ 192.168.64.0/24).
+  # See docs/macvm-utm-runbook.md and `nix run .#macvm-utm-ssh`.
   #
-  # nix-darwin's services.openssh only launchctl-bootstraps when systemsetup
-  # reports Off — and deliberately skips `systemsetup -setremotelogin` (FDA on
-  # some hosts). On macvm that left Remote Login: Off and port 22 closed. Force
-  # both the plist AND systemsetup (-f = no prompt) on every activation.
-  services.openssh.enable = true;
+  # Apple's "Remote Login" (systemsetup / com.openssh.sshd) is unreliable under
+  # nix-darwin on this guest — after activation getremotelogin stayed Off and
+  # :22 stayed closed. Keep services.openssh for host-key generation +
+  # authorized_keys.d wiring, but run **nixpkgs sshd** as our own launchd
+  # daemon so SSH does not depend on the Remote Login flag.
+  services.openssh = {
+    enable = true; # host keys + sshd_config.d fragments
+    extraConfig = ''
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PubkeyAuthentication yes
+      PermitRootLogin no
+    '';
+  };
 
+  # Independent of System Settings → Remote Login. Listens on :22 with the same
+  # /etc/ssh/sshd_config (+ nix-darwin drop-ins for AuthorizedKeysCommand).
+  launchd.daemons.macvm-sshd = {
+    serviceConfig = {
+      Label = "org.nix-darwin.macvm-sshd";
+      ProgramArguments = [
+        "${pkgs.openssh}/bin/sshd"
+        "-D"
+        "-e"
+      ];
+      RunAtLoad = true;
+      KeepAlive = true;
+      StandardErrorPath = "/var/log/macvm-sshd.err.log";
+      StandardOutPath = "/var/log/macvm-sshd.out.log";
+    };
+  };
+
+  # Still try to flip Apple's Remote Login (best-effort; may stay Off without FDA).
   system.activationScripts.extraActivation.text = lib.mkAfter ''
-    echo "macvm: forcing Remote Login / sshd on…"
-    # Prefer systemsetup so System Settings + getremotelogin agree.
+    echo "macvm: ensuring sshd host keys + best-effort Remote Login…"
     /usr/sbin/systemsetup -f -setremotelogin on 2>/dev/null || true
     /bin/launchctl enable system/com.openssh.sshd 2>/dev/null || true
-    if ! /bin/launchctl print system/com.openssh.sshd >/dev/null 2>&1; then
-      /bin/launchctl bootstrap system /System/Library/LaunchDaemons/ssh.plist 2>/dev/null \
-        || /bin/launchctl load -w /System/Library/LaunchDaemons/ssh.plist 2>/dev/null \
-        || true
-    else
-      /bin/launchctl kickstart -k system/com.openssh.sshd 2>/dev/null || true
-    fi
+    # Prefer our nixpkgs daemon; don't fight if Apple's is already up.
+    /bin/launchctl kickstart -k system/org.nix-darwin.macvm-sshd 2>/dev/null || true
     /usr/sbin/systemsetup -getremotelogin 2>/dev/null || true
   '';
 
-  # core.nix turns the Application Firewall + stealth mode ON for the real Mac
-  # (no incoming traffic). That posture breaks host→guest SSH on the UTM Shared
-  # bridge (stealth drops probes; ALF can block sshd unless Remote Login was
-  # flipped via System Settings). macvm is a throwaway sandbox — disable ALF
-  # here so openssh is reachable from macos only.
+  # core.nix turns Application Firewall + stealth ON for the real Mac. That
+  # blocks host→guest SSH on the UTM Shared bridge — disable on this sandbox.
   networking.applicationFirewall = {
     enable = lib.mkForce false;
     enableStealthMode = lib.mkForce false;
