@@ -31,6 +31,8 @@ nix run .#macvm-utm-registry-dedupe     # dry-run de-dupe of UTM prefs
 nix run .#macvm-utm-registry-dedupe -- --apply --yes   # fix double-sidebar ghosts
 nix run .#macvm-utm-create-print        # one-time UTM GUI create steps
 nix run .#macvm-utm-bootstrap-print     # print in-guest checklist
+nix run .#macvm-utm-ssh                 # SSH as aloshy (discovers guest IP)
+nix run .#macvm-utm-ssh -- --ip 192.168.64.4
 ```
 
 Env overrides (optional):
@@ -60,13 +62,32 @@ the store (explicit non-goal). Permanent create path:
 
 ```bash
 # First time (Determinate Nix installed, before darwin-rebuild is on PATH):
-nix run github:kattakath/nix-config#macvm
+sudo nix run github:kattakath/nix-config#macvm
 
 # Thereafter:
-darwin-rebuild switch --flake .#macvm
+sudo darwin-rebuild switch --flake .#macvm
+# or: sudo nix run github:kattakath/nix-config#macvm
 ```
 
 Guest must be logged in as **`aloshy`**. Wrong login user → wrong home paths.
+
+## SSH from host → macvm
+
+UTM **Shared** networking puts the guest on the host’s `bridge100` subnet
+(typically `192.168.64.0/24`; host is often `192.168.64.1`).
+
+1. **Guest** (already in `#macvm` config): `services.openssh.enable = true` and
+   the operator ed25519 public key in `users.users.aloshy.openssh.authorizedKeys`.
+   Re-activate inside the guest after that lands on the flake you pin.
+2. **Host**:
+   ```bash
+   nix run .#macvm-utm-start          # if stopped
+   nix run .#macvm-utm-ssh            # discovers :22 on the shared net
+   # or: ssh -i ~/.ssh/id_ed25519 aloshy@192.168.64.4
+   ```
+
+Keys-only (no password). If connection times out: guest Remote Login not up yet
+(re-activate), wrong IP (`arp -an | grep 192.168.64`), or VM stopped.
 
 ## Registry duplicates
 
