@@ -186,18 +186,25 @@ let
       name,
       text,
       runtimeInputs ? baseInputs,
-    }:
-    writeShellApplication {
-      inherit name runtimeInputs;
-      excludeShellChecks = [
+      excludeShellChecks ? [
         "SC2034"
         "SC2329"
-      ];
+      ],
+    }:
+    writeShellApplication {
+      inherit name runtimeInputs excludeShellChecks;
       text = preamble + "\n" + text;
     };
 
   doctor = mkApp {
     name = "macvm-utm-doctor";
+    runtimeInputs = baseInputs ++ [ python3 ];
+    # Remote guest snippet intentionally single-quoted (runs on guest, not host).
+    excludeShellChecks = [
+      "SC2034"
+      "SC2329"
+      "SC2016"
+    ];
     text = ''
       rc=0
       echo "=== macvm-utm doctor ==="
@@ -219,6 +226,14 @@ let
         if [ -f "$UTM_PKG/config.plist" ]; then
           cu=$(package_canon_uuid || true)
           echo "config UUID: ''${cu:-unknown}"
+          # Clipboard sharing (host UTM setting — required for spice-vdagent).
+          clip=$(${plutil} -extract Virtualization.ClipboardSharing raw "$UTM_PKG/config.plist" 2>/dev/null || true)
+          if [ "$clip" = "true" ] || [ "$clip" = "1" ]; then
+            echo "clipboard sharing: on (Virtualization.ClipboardSharing)"
+          else
+            echo "clipboard sharing: OFF — enable in UTM VM settings, or: nix run .#macvm-utm-clipboard-on"
+            rc=1
+          fi
         else
           echo "config.plist: MISSING"
           rc=1
@@ -253,8 +268,99 @@ let
           echo "status: ''${st:-unknown}"
         fi
       fi
+
+      # Live guest checks when SSH works (spice-vdagent + clipboard probe).
+      echo "--- guest tools (via SSH) ---"
+      guest_ip="''${MACVM_SSH_IP:-}"
+      if [ -z "$guest_ip" ]; then
+        guest_ip=$(
+          ${python3}/bin/python3 - <<'PY'
+      import re, socket, subprocess, sys
+      try:
+          arp = subprocess.check_output(["/usr/sbin/arp", "-an"], text=True, errors="replace")
+      except Exception:
+          arp = ""
+      cands = []
+      for line in arp.splitlines():
+          m = re.search(r"\((192\.168\.64\.\d+)\)\s+at\s+([0-9a-f:]+)", line, re.I)
+          if m and m.group(2).lower() not in ("(incomplete)", "incomplete"):
+              cands.append(m.group(1))
+      for ip in cands + [f"192.168.64.{i}" for i in range(2, 32)]:
+          s = socket.socket()
+          s.settimeout(0.35)
+          try:
+              s.connect((ip, 22))
+              print(ip)
+              sys.exit(0)
+          except Exception:
+              pass
+          finally:
+              s.close()
+      sys.exit(1)
+      PY
+        ) || true
+      fi
+      idfile="''${MACVM_SSH_IDENTITY:-$HOME/.ssh/id_ed25519}"
+      ssh_base=(/usr/bin/ssh -o BatchMode=yes -o ConnectTimeout=4 -o StrictHostKeyChecking=accept-new
+        -o "IdentityFile=$idfile" -o IdentitiesOnly=yes)
+      if [ -n "''${guest_ip:-}" ] && guest_out=$(
+        "''${ssh_base[@]}" "aloshy@$guest_ip" \
+          '/usr/sbin/pkgutil --pkg-info com.redhat.spice.vdagent 2>/dev/null | /usr/bin/awk "/^version:/{print \"spice-vdagent pkg: \" \$2}";
+           /bin/launchctl print system/com.redhat.spice.vdagentd 2>/dev/null | /usr/bin/grep -q "state = running" && echo "spice-vdagentd: running" || { echo "spice-vdagentd: NOT running"; exit 2; };
+           [ -c /dev/tty.com.redhat.spice.0 ] && echo "spice channel: present" || { echo "spice channel: MISSING"; exit 3; }' 2>/dev/null
+      ); then
+        printf '%s\n' "$guest_out"
+        marker="macvm-utm-clip-probe-$$"
+        printf '%s' "$marker" | /usr/bin/pbcopy
+        sleep 1
+        got=$("''${ssh_base[@]}" "aloshy@$guest_ip" /usr/bin/pbpaste 2>/dev/null || true)
+        if [ "$got" = "$marker" ]; then
+          echo "clipboard host→guest: OK"
+        else
+          echo "clipboard host→guest: FAIL (got: ''${got:-empty})"
+          rc=1
+        fi
+      else
+        echo "guest tools: SSH unreachable (start VM + activate #macvm) — skipped live checks"
+      fi
+
       echo "guest persona: aloshy (activate with nix run …#macvm inside the VM)"
       exit "$rc"
+    '';
+  };
+
+  # Ensure UTM Virtualization.ClipboardSharing is true on the macvm package.
+  # Edits config.plist; quit UTM first if the VM is running so the write sticks.
+  clipboard-on = mkApp {
+    name = "macvm-utm-clipboard-on";
+    runtimeInputs = baseInputs ++ [ python3 ];
+    text = ''
+      if [ ! -f "$UTM_PKG/config.plist" ]; then
+        die "missing $UTM_PKG/config.plist — create the guest first"
+      fi
+      if utm_running; then
+        info "UTM is running — quit it so ClipboardSharing write is not overwritten"
+        if [ "''${1:-}" = "--yes" ] || [ "''${1:-}" = "-y" ]; then
+          quit_utm
+        else
+          die "re-run with --yes to auto-quit UTM, or quit UTM and retry"
+        fi
+      fi
+      export MACVM_PKG_PATH="$UTM_PKG"
+      ${python3}/bin/python3 - <<'PY'
+      import os, plistlib, pathlib, sys
+      p = pathlib.Path(os.environ["MACVM_PKG_PATH"]) / "config.plist"
+      pl = plistlib.loads(p.read_bytes())
+      v = pl.setdefault("Virtualization", {})
+      if not isinstance(v, dict):
+          print("macvm-utm: Virtualization is not a dict", file=sys.stderr)
+          sys.exit(1)
+      before = v.get("ClipboardSharing")
+      v["ClipboardSharing"] = True
+      pl["Virtualization"] = v
+      p.write_bytes(plistlib.dumps(pl))
+      print(f"ClipboardSharing: {before!r} → True")
+      PY
     '';
   };
 
@@ -494,4 +600,5 @@ in
   macvm-utm-create-print = create-print;
   macvm-utm-ensure = ensure;
   macvm-utm-ssh = sshApp;
+  macvm-utm-clipboard-on = clipboard-on;
 }
