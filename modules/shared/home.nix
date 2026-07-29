@@ -474,9 +474,8 @@ in
           ForwardAgent = true;
         };
 
-        # UTM macvm guest (Shared network). Prefer `nix run .#macvm-utm-ssh` which
-        # discovers the guest IP; this Host entry works once HostName is known or
-        # when macvm.local resolves. User is always the guest persona `aloshy`.
+        # UTM macvm guest. Prefer `nix run .#macvm-utm-ssh` (IP discovery).
+        # This Host is for a fixed HostName / macvm.local; user is always aloshy.
         "macvm" = {
           User = "aloshy";
           IdentityFile = "~/.ssh/id_ed25519";
