@@ -242,14 +242,24 @@ let
       fi
       if [ -z "$image" ] && [ -n "$use_release" ]; then
         echo "nixpi-flash: downloading the latest prebuilt nixpi image (installer-latest release)…"
-        # The sdImage asset is named nixos-sd-image-<label>-aarch64-linux.img.zst
-        # (no host in the name); the nixvm ISO on the same release is nixos-minimal-*.iso,
-        # so this .img.zst glob uniquely selects the nixpi image.
+        # Pick by updatedAt (newest wins), not shell glob order. installer-latest is
+        # a rolling slot that can briefly hold multiple nixos-sd-image-*.img.zst
+        # names (nixpkgs rev in the basename); alphabetical $1 would flash the
+        # OLDEST — e.g. a pre-key-rotate image — and lock the operator out.
+        # Download only that one asset (multi-GB). The publish path also retires
+        # stale assets; this is defense in depth for residual multi-asset slots.
+        asset=$(gh release view installer-latest -R ${orgName}/${repoName} --json assets \
+          --jq '[.assets[] | select(.name | test("^nixos-sd-image-.*\\.img\\.zst$"))]
+                | if length == 0 then empty else sort_by(.updatedAt) | last | .name end')
+        if [ -z "''${asset:-}" ]; then
+          echo "nixpi-flash: no nixpi image asset found on installer-latest." >&2
+          exit 1
+        fi
+        echo "nixpi-flash: selected asset: $asset"
         gh release download installer-latest -R ${orgName}/${repoName} \
-          -p 'nixos-sd-image-*.img.zst' -D "$tmp" --clobber
-        set -- "$tmp"/nixos-sd-image-*.img.zst
-        image="$1"
-        [ -f "$image" ] || { echo "nixpi-flash: no nixpi image asset found on installer-latest." >&2; exit 1; }
+          -p "$asset" -D "$tmp" --clobber
+        image="$tmp/$asset"
+        [ -f "$image" ] || { echo "nixpi-flash: download failed: $image" >&2; exit 1; }
       fi
       if [ -z "$image" ]; then
         echo "nixpi-flash: building the sdImage (needs an aarch64-linux builder — see --release)…"

@@ -35,6 +35,13 @@ on:
       - "modules/nixos/**"
       - "modules/shared/**"
       - "packages/landing/**"
+      # Baked into the image as users.users.<login>.openssh.authorizedKeys (via
+      # flake.nix operatorSshKey → modules/nixos/core.nix). A rotate that only
+      # touches this file MUST republish the image, or a reflash ships the old
+      # pubkey and Permission denied (publickey) locks the operator out. Do NOT
+      # add secrets/*.age here — the vault (e.g. cloudflared-token.age) is
+      # operator-planted on FIRMWARE post-flash and is not an image input.
+      - "secrets/operator-key.nix"
       - ".github/workflows/build-installers.yml"
       - ".github/workflows/build-installers-impl.yml"
   workflow_dispatch:
