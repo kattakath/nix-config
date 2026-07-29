@@ -75,7 +75,13 @@ nix run .#macvm-utm-start
 ### 4. Day-to-day activate / SSH (host-driven)
 
 ```bash
+# Fleet-only (public engine, no private HM modules)
 nix run .#macvm-utm-ssh -- sudo nix run --refresh github:kattakath/nix-config#macvm
+
+# With private personal modules (GitLab nix-personal — preferred for day-to-day)
+nix run .#macvm-utm-ssh -- sudo nix run --refresh \
+  'git+ssh://git@gitlab.com/ismailkattakath/nix-personal#macvm'
+
 nix run .#macvm-utm-ssh                 # interactive shell as aloshy
 nix run .#macvm-utm-doctor              # health: UTM + spice + clipboard + Screengrab
 ```

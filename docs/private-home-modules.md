@@ -61,13 +61,29 @@ as a path, not as a URL. The public `flake.lock` never locks a private repo.
 ## Ops checklist
 
 1. Create a **private** repo on GitLab (or GitHub); do not put personal modules here.
-2. Export `homeManagerModules.*` and a `darwinConfigurations.macos` that calls
-   `nix-config.lib.mkDarwin { extraHomeModules = [ … ]; }`.
+   This fleet’s private composition flake is **`gitlab.com/ismailkattakath/nix-personal`**
+   (never a flake input of the public tree — activate *from* that repo).
+2. Export `homeManagerModules.*` and `darwinConfigurations.macos` / `macvm` that call
+   `nix-config.lib.mkDarwin { extraHomeModules = [ … ]; }` (macvm needs the aloshy
+   `identity` override — copy from public `flake.nix`).
 3. Prefer `git+ssh://…` flake URLs so credentials never appear in `flake.lock` URLs.
 4. Pin `nix-config` by revision in the private `flake.lock` (same discipline as other inputs).
 5. When the private stack grows, keep **one** private composition flake (or a small
    set of `homeManagerModules.*` attrs) — do not re-open a public PR for personal
    modules.
+
+### Day-to-day activate (with private modules)
+
+```bash
+# macos
+sudo darwin-rebuild switch --flake ~/Developer/gitlab.com/ismailkattakath/nix-personal#macos
+
+# macvm (from the host)
+nix run ~/Developer/github.com/kattakath/nix-config#macvm-utm-ssh -- \
+  sudo nix run --refresh 'git+ssh://git@gitlab.com/ismailkattakath/nix-personal#macvm'
+```
+
+Fleet-only (no private modules): `github:kattakath/nix-config#macos` / `#macvm`.
 
 ## Analogy to Vast provisioners
 
