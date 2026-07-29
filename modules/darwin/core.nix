@@ -21,7 +21,8 @@ let
   # descriptive basename. macOS's Login Items ▸ "Allow in the Background" list
   # names each item by its executable's basename (verified via `sfltool
   # dumpbtm`), so a bare /usr/bin/open agent shows as a generic, indistinguishable
-  # "open"; a named wrapper makes the entry read e.g. "login-maccy".
+  # "open"; a named wrapper makes the entry read e.g. "nix-maccy" (fleet tag:
+  # from this nix-config, not third-party Dropbox/Google/etc.).
   #
   # A custom ICON is deliberately NOT attempted: macOS renders a background
   # item's icon only for code-signed, LaunchServices-recognized apps. Wrapping
@@ -34,12 +35,12 @@ let
   #
   # `-g` = background (no focus steal), `-j` = launch hidden (no window; the
   # menu-bar icon is unaffected).
-  mkLoginAgent = suffix: appName: {
+  mkNixAgent = suffix: appName: {
     serviceConfig = {
       ProgramArguments = [
-        "${pkgs.writeShellScriptBin "login-${suffix}" ''
+        "${pkgs.writeShellScriptBin "nix-${suffix}" ''
           exec /usr/bin/open -g -j -a "${appName}"
-        ''}/bin/login-${suffix}"
+        ''}/bin/nix-${suffix}"
       ];
       RunAtLoad = true;
     };
@@ -335,8 +336,8 @@ in
   # (SMAppService / TCC-like). Nix-native: launchd user agents with RunAtLoad.
   #
   # BTM RULE: "Allow in the Background" names each item by ProgramArguments[0]
-  # basename (`sfltool dumpbtm`). Always use a `login-<activity>` wrapper
-  # (mkLoginAgent) — never bare /usr/bin/open, /bin/sh, or nix-darwin `script =`
+  # basename (`sfltool dumpbtm`). Always use a `nix-<activity>` wrapper
+  # (mkNixAgent) — never bare /usr/bin/open, /bin/sh, or nix-darwin `script =`
   # (those wrap as /bin/sh -c wait4path and show as phantom "sh").
   # See docs/macos-settings-surface.md.
   #
@@ -347,22 +348,22 @@ in
     (lib.mkIf (config.networking.hostName == "macos") {
       # Agent attr names (open-*) keep launchd Labels stable so existing BTM
       # toggle state is preserved. Turn OFF each app's own "Open at Login".
-      open-maccy = mkLoginAgent "maccy" "Maccy";
-      open-docker = mkLoginAgent "docker" "Docker";
-      open-slack = mkLoginAgent "slack" "Slack";
-      open-mail = mkLoginAgent "mail" "Mail";
-      open-messages = mkLoginAgent "messages" "Messages";
+      open-maccy = mkNixAgent "maccy" "Maccy";
+      open-docker = mkNixAgent "docker" "Docker";
+      open-slack = mkNixAgent "slack" "Slack";
+      open-mail = mkNixAgent "mail" "Mail";
+      open-messages = mkNixAgent "messages" "Messages";
     })
 
     {
       # Hourly rotation of ~/Pictures/Screengrab → ~/.Trash (recoverable).
       # Stock /bin + /usr/bin only (no Nix runtime). Direct ProgramArguments
-      # with a login-* basename — do NOT use `script =` (forces /bin/sh wrapper).
+      # with a nix-* basename — do NOT use `script =` (forces /bin/sh wrapper).
       file-rotation-screengrab = {
         serviceConfig = {
           Label = "${rdns}.file-rotation.trash-screengrab";
           ProgramArguments = [
-            "${pkgs.writeShellScriptBin "login-file-rotation-screengrab" ''
+            "${pkgs.writeShellScriptBin "nix-file-rotation-screengrab" ''
               set -eu
               /bin/mkdir -p "${home}/Library/Logs" "${home}/.Trash" "${screengrabDir}"
               /usr/bin/find "${screengrabDir}" -maxdepth 1 -type f ! -name '.DS_Store' -mmin +1440 \
@@ -371,7 +372,7 @@ in
                   [ -e "$dest" ] && dest="$dest.$(/bin/date +%Y%m%d%H%M%S)"
                   /bin/mv -- "$f" "$dest"
                 done' _ {} +
-            ''}/bin/login-file-rotation-screengrab"
+            ''}/bin/nix-file-rotation-screengrab"
           ];
           StartInterval = 3600;
           RunAtLoad = true;

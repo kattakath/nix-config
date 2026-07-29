@@ -280,8 +280,8 @@ let
   # fetched at launch via `security` (never in argv / never in the store) and
   # handed to cloudflared as TUNNEL_TOKEN in the environment. Absent token => the
   # unit fails and launchd retries, self-healing once `set-secret` stores it.
-  # Basename must be login-* for BTM (hm-launchd wraps this further with wait4path).
-  cloudflaredConnector = pkgs.writeShellScriptBin "login-mcp-tunnel-connector" ''
+  # Basename must be nix-* for BTM (hm-launchd wraps this further with wait4path).
+  cloudflaredConnector = pkgs.writeShellScriptBin "nix-mcp-tunnel-connector" ''
     set -eu
     token="$(/usr/bin/security find-generic-password -a "$(id -un)" -s "${cfg.publicTunnel.tokenKeychainKey}" -w 2>/dev/null || true)"
     if [ -z "$token" ]; then

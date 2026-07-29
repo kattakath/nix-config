@@ -216,17 +216,18 @@ The System Settings **Login Items** list ("Open at Login") is **not** declarativ
 manageable — it's `SMAppService`-backed and protected like TCC (§7). The Nix-native
 way to "start X at login" is a **launchd user agent** with `RunAtLoad`.
 
-### BTM naming rule (`login-*`)
+### BTM naming rule (`nix-*`)
 
 **Allow in the Background** names each item by `ProgramArguments[0]`'s **basename**
 (verify with `sfltool dumpbtm`). Fleet rule: that basename **must** be
-`login-<activity>` (e.g. `login-maccy`, `login-mcp-gateway`).
+`nix-<activity>` (e.g. `nix-maccy`, `nix-mcp-gateway`) so items are obviously
+from this nix-config, not bare `sh`/`python3` or third-party helpers.
 
 | Bad (shows as phantom `sh` / `python3` / `open`) | Good |
 |---|---|
-| nix-darwin `script = ''…''` (wraps `/bin/sh -c wait4path`) | `ProgramArguments = [ "${writeShellScriptBin "login-…"}/bin/login-…" ]` |
-| stock home-manager launchd (always `/bin/sh -c wait4path`) | `modules/shared/hm-launchd` (vendored HM launchd; wait4path inside `login-*`) |
-| bare `/usr/bin/open -a App` | `mkLoginAgent` in `modules/darwin/core.nix` |
+| nix-darwin `script = ''…''` (wraps `/bin/sh -c wait4path`) | `ProgramArguments = [ "${writeShellScriptBin "nix-…"}/bin/nix-…" ]` |
+| stock home-manager launchd (always `/bin/sh -c wait4path`) | `modules/shared/hm-launchd` (vendored HM launchd; wait4path inside `nix-*`) |
+| bare `/usr/bin/open -a App` | `mkNixAgent` in `modules/darwin/core.nix` |
 
 "Unidentified developer" is expected for unsigned `/nix/store` wrappers (Developer ID
 would be needed for a custom icon/signing); the **name** is what we control.
@@ -237,13 +238,13 @@ would be needed for a custom icon/signing); the **name** is what we control.
 |---|---|
 | `open-maccy` / `open-docker` / `open-slack` / `open-mail` / `open-messages` | **macos only** |
 | MCP gateway + public tunnel + RAG (`ollama-local`, `postgres-pgvector`) | **macos only** |
-| `login-file-rotation-screengrab` | every darwin host using `core.nix` |
+| `nix-file-rotation-screengrab` | every darwin host using `core.nix` |
 
 Gate with `networking.hostName` (`macos` / `macvm` set in `hosts/*.nix`).
 
 ```nix
 # core.nix pattern (GUI openers)
-open-maccy = mkLoginAgent "maccy" "Maccy";  # → …/bin/login-maccy
+open-maccy = mkNixAgent "maccy" "Maccy";  # → …/bin/nix-maccy
 ```
 
 Also: turn OFF each app's own "Open at Login" / SMAppService toggle so you don't
