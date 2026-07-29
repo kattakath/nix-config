@@ -17,8 +17,16 @@
 const { execSync } = require("node:child_process");
 
 const projectDir = process.env.CLAUDE_PROJECT_DIR || process.cwd();
+// Large enough for verbose `nix flake check` progress (default 1 MiB is tight
+// under concurrent eval noise and can throw maxBuffer → false "check failed").
+const BIG_BUF = 20 * 1024 * 1024;
 const run = (cmd) =>
-  execSync(cmd, { cwd: projectDir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  execSync(cmd, {
+    cwd: projectDir,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    maxBuffer: BIG_BUF,
+  });
 const has = (bin) => {
   try {
     run(`command -v ${bin}`);
@@ -35,7 +43,20 @@ const runLong = (cmd, ms) =>
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
     timeout: ms,
+    maxBuffer: BIG_BUF,
   });
+/** Prefer real error lines over the last N chars of progress spam. */
+const formatCheckFailure = (e) => {
+  const raw = `${e.stdout || ""}\n${e.stderr || ""}\n${e.message || ""}`.trim();
+  const lines = raw.split("\n");
+  const hits = lines.filter((l) => /error:|failed|assertion|trace:/i.test(l));
+  const body = (hits.length ? hits.join("\n") : raw).slice(-2500);
+  const timedOut = /ETIMEDOUT|timed out/i.test(String(e.message || e.stderr || ""));
+  if (timedOut) {
+    return `timed out — re-run \`nix flake check --no-build\` manually (cold eval can exceed the gate budget).\n${body}`;
+  }
+  return body;
+};
 const approve = () => {
   process.stdout.write(JSON.stringify({ decision: "approve" }));
   process.exit(0);
@@ -120,17 +141,23 @@ if (nixFiles && has("nix-instantiate")) {
 // 3. Full evaluation. Prefer host nix; else run the REAL check inside the
 //    prebuilt devcontainer; else degrade to the syntax-only advisory.
 if (nixFiles && has("nix")) {
-  // Host has nix — evaluate directly.
+  // Host has nix — evaluate directly. Budget matches superhook Stop timeout (10m).
+  // Note: this only fully evaluates/builds checks for the *host* system; other
+  // systems are omitted unless --all-systems (CI covers aarch64-linux).
   try {
-    run("nix flake check --no-build 2>&1");
+    runLong("nix flake check --no-build 2>&1", 600_000);
   } catch (e) {
     block(
-      `✘ \`nix flake check\` failed — configuration does not evaluate across all systems:\n` +
-        `${(e.stdout || e.stderr || e.message || "").trim().slice(-2000)}`,
+      `✘ \`nix flake check --no-build\` failed on host:\n` + `${formatCheckFailure(e)}`,
     );
   }
   process.stdout.write(
-    JSON.stringify({ decision: "approve", systemMessage: "✔︎ stop-gate: `nix flake check` passed on host." }),
+    JSON.stringify({
+      decision: "approve",
+      systemMessage:
+        "✔︎ stop-gate: `nix flake check --no-build` passed on host " +
+        "(other systems deferred to CI when omitted as incompatible).",
+    }),
   );
   process.exit(0);
 } else if (nixFiles && has("devcontainer")) {
