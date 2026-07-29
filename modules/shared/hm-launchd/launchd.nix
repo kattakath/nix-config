@@ -785,7 +785,7 @@ in
     };
 
     LaunchEvents = mkOption {
-      type = types.nullOr (types.attrs);
+      type = types.nullOr types.attrs;
       default = null;
       description = ''
         Specifies higher-level event types to be used as launch-on-demand event

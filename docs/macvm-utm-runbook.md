@@ -18,7 +18,7 @@ Two layers — do not conflate:
 
 ```bash
 nix run .#macvm-utm-ensure              # 0 if ready; else open UTM + create steps (exit 2)
-nix run .#macvm-utm-doctor              # UTM, package, single registry entry
+nix run .#macvm-utm-doctor              # UTM, share, spice, clipboard, Screengrab probe
 nix run .#macvm-utm-list                # utmctl list
 nix run .#macvm-utm-open                # open UTM.app
 nix run .#macvm-utm-start | stop
@@ -27,6 +27,8 @@ nix run .#macvm-utm-create-print        # one-time GUI create checklist
 nix run .#macvm-utm-bootstrap-print     # in-guest activate checklist
 nix run .#macvm-utm-ssh                 # SSH as aloshy (discovers guest IP)
 nix run .#macvm-utm-ssh -- --ip 192.168.64.4
+nix run .#macvm-utm-share-screengrab    # host ~/Pictures/Screengrab → guest VirtioFS R/W
+nix run .#macvm-utm-clipboard-on -- --yes   # Virtualization.ClipboardSharing=true
 ```
 
 | Variable | Default |
