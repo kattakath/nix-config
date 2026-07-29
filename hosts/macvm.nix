@@ -228,6 +228,7 @@ in
       "capcut"
       "iina"
     ];
+    # Shared MAS baseline (WireGuard) in modules/darwin/homebrew.nix; merge here.
     masApps = { };
   };
 
