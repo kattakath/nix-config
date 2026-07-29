@@ -110,15 +110,17 @@ in
       /bin/launchctl kickstart -k system/org.nixos.macvm-sshd 2>/dev/null || true
       echo "macvm: launchctl print:" >&2
       /bin/launchctl print system/org.nixos.macvm-sshd 2>&1 | /usr/bin/head -20 || true
-      /usr/bin/sleep 1
+      # Prefer bare names (activation PATH has /bin:/usr/bin); absolute
+      # /usr/bin/sleep is missing on some macOS guests and aborts under set -e.
+      sleep 1 || true
       echo "macvm: listeners on :22:" >&2
-      /usr/sbin/lsof -iTCP:22 -sTCP:LISTEN 2>/dev/null || echo "(none)" >&2
+      lsof -iTCP:22 -sTCP:LISTEN 2>/dev/null || echo "(none)" >&2
     else
       echo "macvm: ERROR — $plist missing after launchd activation" >&2
     fi
     # Remote Login flag is cosmetic; may stay Off. Our sshd is org.nixos.macvm-sshd.
-    /usr/sbin/systemsetup -f -setremotelogin on 2>/dev/null || true
-    /usr/sbin/systemsetup -getremotelogin 2>/dev/null || true
+    systemsetup -f -setremotelogin on 2>/dev/null || true
+    systemsetup -getremotelogin 2>/dev/null || true
   '';
 
   # core.nix turns Application Firewall + stealth ON for the real Mac. That
