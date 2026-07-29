@@ -221,7 +221,9 @@ in
 
   # Lean Homebrew set (framework in modules/darwin/homebrew.nix).
   homebrew = {
-    brews = [ ];
+    # CLI WireGuard (wg / wg-quick + wireguard-go). Official WireGuard.app is
+    # App Store–only and unusable here (no Apple ID on macvm); see macos masApps.
+    brews = [ "wireguard-tools" ];
     casks = [
       "opera"
       "whatsapp"
@@ -229,8 +231,7 @@ in
       "iina"
     ];
     # Always empty: macvm has no Apple ID / App Store login — any masApps entry
-    # fails brew bundle and aborts activation. WireGuard (and other MAS apps)
-    # live on macos only (hosts/macos.nix).
+    # fails brew bundle and aborts activation. Official WireGuard.app is macos-only.
     masApps = { };
   };
 
