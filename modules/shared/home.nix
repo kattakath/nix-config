@@ -39,9 +39,16 @@
   # Raw resume.json URL (single-sourced in flake.nix as jsonResumeUrl; null to
   # disable) — baked into the jsonresume package below as its default --url.
   jsonResumeUrl,
+  # nix-darwin system config when this profile is embedded via
+  # home-manager.darwinModules (absent on pure NixOS HM / standalone).
+  osConfig ? { },
   ...
 }:
 let
+  # Real client Mac vs UTM sandbox (hosts/*/networking.hostName). Used to keep
+  # heavy darwin-only agents (RAG stack, MCP public tunnel extras) off macvm.
+  isMacosHost = (osConfig.networking.hostName or "") == "macos";
+
   # VS Code Marketplace mirror — provided by the nix-vscode-extensions overlay,
   # which the darwin host (macos) adds to nixpkgs.overlays. Only referenced
   # inside the `mkIf isDarwin` vscode block, so the Linux hosts (which don't
@@ -187,14 +194,18 @@ let
 
 in
 {
+  # Replace HM's stock launchd module so agents use login-* BTM basenames
+  # (modules/shared/hm-launchd — wait4path kept inside the named wrapper).
+  disabledModules = [ "launchd/default.nix" ];
+
   imports = [
+    ./hm-launchd # patched home-manager launchd (login-* ProgramArguments)
     ./mcp.nix # darwin-gated MCP server registry for Claude Code
     ./desktop-aesthetics.nix # macOS wallpaper + Terminal profile (opt-out per host; macvm opts out)
     # Local-first RAG stack (loopback launchd Postgres+pgvector + Ollama + in-DB
     # embed()), from the extracted flake (github:ismailkattakath/nix-local-rag).
     # Both modules are internally gated on (enable && isDarwin) — a clean no-op on
-    # the NixOS hosts. Replaces the vendored modules/shared/{postgres-pgvector,ollama}.nix;
-    # enabled just below. The pgvector store backs the `postgres` MCP server (mcp.nix).
+    # the NixOS hosts. Enabled only on the real Mac host below (not macvm).
     local-rag.homeManagerModules.default
     # macOS login-Keychain `secret` CLI + every-shell loader — the extracted flake
     # (github:ismailkattakath/keychain-secrets), installed via its HM module below.
@@ -206,23 +217,15 @@ in
   # remove-secret CLIs + the ~/.config/secrets/loader.sh every-shell loader).
   programs.keychainSecrets.enable = true;
 
-  # Enable the extracted local-rag modules: the launchd Ollama embed runtime and
-  # the pgvector Postgres that backs the `postgres` MCP server. Both are gated on
-  # (enable && isDarwin) inside the flake, so this is inert on the NixOS hosts.
-  # Defaults match the former vendored modules exactly (port 5433, role mcp, db
-  # ragdb, ~/.local/share/postgres-pgvector, nomic-embed-text/768), so the
-  # generated launchd agents are byte-identical.
-  services.ollamaLocal.enable = true;
-  services.pgvectorLocal.enable = true;
+  # RAG stack (Ollama + pgvector) backs the postgres MCP server — real Mac only.
+  # macvm is a lean sandbox; no need for embed/DB launchd agents there.
+  services.ollamaLocal.enable = isMacosHost;
+  services.pgvectorLocal.enable = isMacosHost;
 
-  # Expose the kapture browser-automation server PUBLICLY as an OAuth-gated MCP
-  # connector (Cloudflare Access Managed OAuth in front, provisioned by
-  # infra/cloudflare/macos-mcp-tunnel.nix). Darwin-only — the gateway itself is
-  # darwin-gated. This starts a kapture-only mcp-proxy + the Mac cloudflared
-  # connector, but NOTHING is exposed until the operator runs `nix run
-  # .#cf-mcp-apply` and stores the printed token with `set-secret MCP_TUNNEL_TOKEN
-  # <token>` (the connector is inert without it). See docs/mcp-connector-oauth-runbook.md.
-  services.mcpGateway = lib.mkIf pkgs.stdenv.isDarwin {
+  # Public kapture MCP connector (Cloudflare Access) — real Mac only.
+  # macvm already sets services.mcpGateway.enable = false; keep public extras
+  # off that host even if the gateway is re-enabled later.
+  services.mcpGateway = lib.mkIf isMacosHost {
     publicServers = [ "kapture" ];
     publicTunnel.enable = true;
   };
