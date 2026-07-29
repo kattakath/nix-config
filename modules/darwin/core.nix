@@ -229,6 +229,8 @@ in
     ./homebrew.nix
     # Install Homebrew itself at the arch-correct prefix (nix-homebrew).
     ./nix-homebrew.nix
+    # macos: accept Xcode license (and pre-install Xcode.app) before brew bundle.
+    ./xcode-license.nix
   ];
 
   # NOTE: hostPlatform is set per-host from the darwinSystem `system` arg (via
