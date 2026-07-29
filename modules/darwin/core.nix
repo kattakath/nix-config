@@ -17,24 +17,10 @@ let
   # for the file-rotation launchd label, rather than hardcoding it.
   rdns = lib.concatStringsSep "." (lib.reverseList (lib.splitString "." domainName));
 
-  # Background login launcher: `open -g -j -a <App>` wrapped in a script with a
-  # descriptive basename. macOS's Login Items ▸ "Allow in the Background" list
-  # names each item by its executable's basename (verified via `sfltool
-  # dumpbtm`), so a bare /usr/bin/open agent shows as a generic, indistinguishable
-  # "open"; a named wrapper makes the entry read e.g. "nix-maccy" (fleet tag:
-  # from this nix-config, not third-party Dropbox/Google/etc.).
-  #
-  # A custom ICON is deliberately NOT attempted: macOS renders a background
-  # item's icon only for code-signed, LaunchServices-recognized apps. Wrapping
-  # each agent in a minimal .app bundle (with a proper .icns) was tried and even
-  # LaunchServices-registered — the list still showed the generic "exec" glyph,
-  # because an unsigned /nix/store bundle isn't "recognized" (same reason every
-  # entry reads "unidentified developer" with a reveal button). Clearing that
-  # needs a paid Developer ID cert, so the bundle added complexity for no visible
-  # gain and was reverted to this plain named wrapper.
-  #
-  # `-g` = background (no focus steal), `-j` = launch hidden (no window; the
-  # menu-bar icon is unaffected).
+  # BTM names ProgramArguments[0] basename (`sfltool dumpbtm`) — use `nix-<app>`
+  # not bare `open`. No custom .app icon: unsigned store paths always show
+  # "unidentified developer" without a paid Developer ID. `-g` no focus steal,
+  # `-j` launch hidden.
   mkNixAgent = suffix: appName: {
     serviceConfig = {
       ProgramArguments = [
