@@ -91,8 +91,6 @@
     ];
 
     # ---- Casks ---------------------------------------------------------------
-    # The "claude" cask is Claude DESKTOP (the chat GUI); the claude-code CLI is
-    # separate and comes from nixpkgs. Font casks moved to nixpkgs too.
     casks = [
       # Android SDK cmdline tools (sdkmanager/avdmanager) — backs `android-emu`
       # (modules/shared/home.nix), which boots VIRTUAL Android emulators.

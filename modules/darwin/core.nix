@@ -233,7 +233,7 @@ in
 
   # NOTE: hostPlatform is set per-host from the darwinSystem `system` arg (via
   # the mkDarwin helper in flake.nix), NOT hardcoded here — so this shared module
-  # serves the aarch64-darwin (macos) Mac.
+  # serves both aarch64-darwin hosts (macos and macvm).
 
   # NOTE: no `nix.settings.experimental-features` here. This host runs Determinate
   # Nix (determinateNix.enable in flake.nix → nix.enable = false), which enables

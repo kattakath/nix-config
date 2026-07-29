@@ -80,9 +80,8 @@
     # UTM audit finding (2026-07). Applies to all NixOS hosts.
     zramSwap.enable = true;
 
-    # Automatic store GC + on-the-fly reclaim — these NixOS hosts double as
-    # self-hosted CI runners (building e.g. nixpi SD images), so the store must
-    # self-trim or it fills the disk. UTM audit follow-up (2026-07).
+    # Automatic store GC + on-the-fly reclaim — a long-lived host (nixpi's SD
+    # card) must self-trim or the store fills the disk. UTM audit follow-up (2026-07).
     nix.gc = {
       automatic = true;
       dates = "weekly";

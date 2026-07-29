@@ -1,7 +1,7 @@
 # Single source of truth for the OPERATOR's ed25519 SSH PUBLIC key — the sole
 # network login credential across the fleet AND the agenix "keep editable"
 # recipient. This is a PUBLIC key (safe to commit; publishing it grants nothing),
-# so the secret-free nixpi sdImage and nixvm installer ISO embed it freely.
+# so the secret-free nixpi sdImage embeds it freely.
 #
 # Imported as a plain string (this file evaluates to the bare key) by every
 # consumer, so rotating the key touches ONE file instead of several in lockstep:

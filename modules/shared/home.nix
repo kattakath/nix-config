@@ -10,11 +10,12 @@
 # The Keychain is macOS-only, so the Linux hosts get no personal-token mechanism
 # here (use one-time CLI logins: gh/hf/docker/claude).
 #
-# SYSTEM/SERVICE secrets are separate from this profile: committed encrypted via
-# agenix (secrets/*.age → /run/agenix/<name> at activation, e.g. the macos
-# runner PAT). The exception is nixpi's Cloudflare tunnel token, planted on the
-# FAT FIRMWARE partition → /run/cloudflared-token (agenix would bind it to the SSH
-# host key a fresh SD flash rotates — see hosts/nixpi.nix).
+# SYSTEM/SERVICE secrets are separate from this profile: the sole one — nixpi's
+# Cloudflare tunnel token (secrets/cloudflared-token.age) — is committed encrypted
+# via agenix as an operator-only vault (encrypted to the operator's key alone,
+# decrypted on the Mac), then planted on the FAT FIRMWARE partition →
+# /run/cloudflared-token. Nothing is host-decrypted into /run/agenix — agenix would
+# bind the token to the SSH host key a fresh SD flash rotates (see hosts/nixpi.nix).
 #
 # Deliberately MINIMAL: no nixvim/tmux — the operator uses VSCode/Cursor and
 # prefers a lean profile with starship for the shell prompt. Add tools only for
@@ -338,7 +339,7 @@ in
   # on this Mac (the sole Claude Code client host). Declarative equivalent of hand-writing
   # ~/.claude/CLAUDE.md; the strict "decisions/confirmations = AskUserQuestion options"
   # rule + reuse-over-rebuild preference live here so they apply everywhere, not just in
-  # this repo. Darwin-only (claude-code runs only on macos in this fleet).
+  # this repo. Darwin-only (claude-code runs on both darwin hosts, macos + macvm).
   home.file.".claude/CLAUDE.md" = lib.mkIf pkgs.stdenv.isDarwin {
     source = ../../claude/CLAUDE.md;
   };

@@ -54,10 +54,11 @@
     determinate.url = "https://flakehub.com/f/DeterminateSystems/determinate/*";
 
     # agenix — encrypted secrets committed to THIS repo (age, SSH-key based).
-    # Each secret in ./secrets/*.age is encrypted to its target host's SSH host
-    # key (so the host decrypts at activation with /etc/ssh/ssh_host_ed25519_key)
-    # plus the operator's key; recipients are declared in ./secrets/secrets.nix.
-    # Pure age/SSH — no ssh-to-age step, no Go build. Follows our nixpkgs.
+    # The sole secret (./secrets/cloudflared-token.age) is encrypted to the
+    # operator's ~/.ssh/id_ed25519 ALONE — an operator-only vault: decrypted on
+    # the Mac to plant on nixpi's SD FIRMWARE partition, never on any host.
+    # Recipients are declared in ./secrets/secrets.nix. Pure age/SSH — no
+    # ssh-to-age step, no Go build. Follows our nixpkgs.
     agenix.url = "github:ryantm/agenix";
     agenix.inputs.nixpkgs.follows = "nixpkgs";
 
@@ -195,7 +196,7 @@
           "https://gist.githubusercontent.com/${userName}/${jsonResumeGistId}/raw/resume.json";
 
       # ---- Single source of truth for the GitHub owner -----------------------
-      # The org that owns the repo, the Cachix cache and the self-hosted runners.
+      # The org that owns the repo and the Cachix cache.
       # Split from userName so the two can never be confused again: everything
       # that says "who publishes this" is orgName; everything that says "who is
       # the person" is userName/loginName.
@@ -239,7 +240,7 @@
       cloudflareZoneId = "6e28971881e488941d052bbbf50d69cd"; # the domainName zone
 
       # ---- DRY system mapping -------------------------------------------------
-      # A 2-host aarch64-only FLEET (macos + nixpi; nixvm is a throwaway build-vm):
+      # A 2-SYSTEM aarch64-only FLEET (aarch64-darwin: macos + macvm; aarch64-linux: nixpi + nixvm):
       # no x86_64 HOST anywhere. Every package /
       # devShell / check output is generated for the fleet systems via
       # forAllSystems. (The devcontainer IMAGE is the one multi-arch output — it
@@ -595,7 +596,6 @@
             ./hosts/${hostname}.nix
             ./modules/nixos/core.nix
             ./modules/shared/nix-cache.nix # Cachix binary cache (read)
-            agenix.nixosModules.default # encrypted in-repo secrets (./secrets/*.age)
             home-manager.nixosModules.home-manager
             (mkHomeManagerModule { idArgs = identityArgs; }) # NixOS hosts use the global identity
           ]
@@ -659,7 +659,6 @@
               # which Determinate turns off (nix-darwin#1505).
             }
             nix-homebrew.darwinModules.nix-homebrew # declaratively install brew (arch-correct prefix)
-            agenix.darwinModules.default # encrypted in-repo secrets (./secrets/*.age)
             ./hosts/${hostname}.nix
             home-manager.darwinModules.home-manager
             (mkHomeManagerModule {
@@ -939,7 +938,7 @@
           system:
           let
             kit = (pkgsFor system).callPackage ./packages/vast-provision.nix {
-              inherit orgName repoName loginName;
+              inherit orgName repoName userName;
               rev = self.rev or "main";
             };
           in

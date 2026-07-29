@@ -381,7 +381,7 @@ in
             say "Ensuring this Mac has an SSH host key"
             sudo ssh-keygen -A
             [ -f /etc/ssh/ssh_host_ed25519_key.pub ] \
-              || die "/etc/ssh/ssh_host_ed25519_key.pub missing after ssh-keygen -A — cannot re-key agenix."
+              || die "/etc/ssh/ssh_host_ed25519_key.pub missing after ssh-keygen -A — sshd needs a host key."
 
             # ---- 1. operator key -----------------------------------------------------
             mkdir -p "$HOME/.ssh"
@@ -429,8 +429,6 @@ in
             # which is exactly how the removal of darwin-rebuild's sudo self-elevation
             # broke a recovery mid-flight. Must run as root: nix-darwin no longer
             # self-elevates. sudo -H, else nix warns that $HOME is not owned by root.
-            # Either branch above has re-keyed the macos secret to THIS host key, so
-            # the darwin agenix activation now decrypts and `set -e` does not trip.
             say "Activating this Mac (darwin-rebuild switch, as root)"
             LOG="$(mktemp)"
             trap 'rm -f "$LOG"' EXIT INT TERM

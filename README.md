@@ -41,8 +41,8 @@ It clones the flake, verifies your macOS login equals the flake's `loginName` (h
 with fork instructions if not), then:
 
 - **recovery kit present** (`~/Library/Mobile Documents/com~apple~CloudDocs/nix-key-recovery`,
-  published beforehand by `nix run .#key-backup`) → restores your operator key, re-keys
-  agenix to this Mac's new host key, activates `#macos`;
+  published beforehand by `nix run .#key-backup`) → restores your operator key,
+  activates `#macos`;
 - **no kit** → **founds** a brand-new operator identity (a fresh keypair, agenix re-keyed
   to it), then activates `#macos`. Afterward: register `~/.ssh/id_ed25519.pub` on GitHub
   (auth + signing) and `nix run .#key-backup`. Add `--fresh` to skip the confirmation on a
