@@ -250,5 +250,17 @@ in
     # Same ensure as the user agent (root can create the symlink).
     ${lib.getExe nixScreengrabShare} || true
     /usr/sbin/chown -h ${userName}:staff ${lib.escapeShellArg screengrabLocal} 2>/dev/null || true
+
+    # Residual macos-only login openers (open-mail / Slack / …) leave launchd
+    # "enabled" ghosts after host-scoping to macos — they once auto-launched
+    # Mail at login so it stuck on the Dock while running. Boot out + disable.
+    uid="$(/usr/bin/id -u ${userName} 2>/dev/null || true)"
+    if [ -n "$uid" ]; then
+      for lab in org.nixos.open-mail org.nixos.open-messages org.nixos.open-slack \
+                 org.nixos.open-maccy org.nixos.open-docker; do
+        /bin/launchctl bootout "gui/$uid/$lab" 2>/dev/null || true
+        /bin/launchctl disable "gui/$uid/$lab" 2>/dev/null || true
+      done
+    fi
   '';
 }
