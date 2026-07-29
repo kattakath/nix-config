@@ -34,14 +34,20 @@ nix run .#macvm-utm-registry-dedupe -- --apply --yes   # only if duplicate sideb
 Create is **GUI once** (`utmctl` cannot create macOS AVF guests). Name VM `macvm`;
 login user `aloshy`.
 
-## Guest (run inside VM as aloshy)
+## Activate guest (prefer host-driven over SSH)
+
+After `aloshy` has passwordless sudo (set in `hosts/macvm.nix`), **do not ask the
+user to type in the guest** — run from the host:
 
 ```bash
-sudo nix run github:kattakath/nix-config#macvm
-# later: sudo darwin-rebuild switch --flake .#macvm
+nix run .#macvm-utm-start   # if needed
+nix run .#macvm-utm-ssh -- sudo nix run --refresh github:kattakath/nix-config#macvm
 ```
 
-SSH is Apple’s sshd (`services.openssh` in `hosts/macvm.nix`): keys-only, ALF off.
+First bootstrap only (or if `sudo -n` fails): user must enter the password once
+in-guest so NOPASSWD lands; then host-driven activation is enough.
+
+SSH is Apple’s sshd: keys-only, ALF off.
 Diagnose: `launchctl print system/com.openssh.sshd`, `lsof -iTCP:22 -sTCP:LISTEN`.
 
 ## Do not

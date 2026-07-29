@@ -65,6 +65,13 @@ in
     openssh.authorizedKeys.keys = [ operatorSshKey ];
   };
 
+  # Passwordless sudo for the guest admin: host agents activate via
+  # `nix run .#macvm-utm-ssh -- sudo nix run …#macvm` (no interactive TTY).
+  # Acceptable on this sandbox — keys-only SSH on UTM Shared, not the real Mac.
+  security.sudo.extraConfig = ''
+    ${userName} ALL=(ALL) NOPASSWD: ALL
+  '';
+
   # ---- Per-host home-manager (sandbox trims) ---------------------------------
   home-manager.users.${userName} = {
     # MCP gateway (~14 servers) is macos-only weight; disable agent + client wiring.
