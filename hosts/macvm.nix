@@ -44,7 +44,27 @@ in
   # Keys-only via authorizedKeys (operator key). Networking is UTM "Shared"
   # (bridge100 on host, typically 192.168.64.0/24) — see docs/macvm-utm-runbook.md
   # and `nix run .#macvm-utm-ssh`.
+  #
+  # nix-darwin's services.openssh only launchctl-bootstraps when systemsetup
+  # reports Off — and deliberately skips `systemsetup -setremotelogin` (FDA on
+  # some hosts). On macvm that left Remote Login: Off and port 22 closed. Force
+  # both the plist AND systemsetup (-f = no prompt) on every activation.
   services.openssh.enable = true;
+
+  system.activationScripts.extraActivation.text = lib.mkAfter ''
+    echo "macvm: forcing Remote Login / sshd on…"
+    # Prefer systemsetup so System Settings + getremotelogin agree.
+    /usr/sbin/systemsetup -f -setremotelogin on 2>/dev/null || true
+    /bin/launchctl enable system/com.openssh.sshd 2>/dev/null || true
+    if ! /bin/launchctl print system/com.openssh.sshd >/dev/null 2>&1; then
+      /bin/launchctl bootstrap system /System/Library/LaunchDaemons/ssh.plist 2>/dev/null \
+        || /bin/launchctl load -w /System/Library/LaunchDaemons/ssh.plist 2>/dev/null \
+        || true
+    else
+      /bin/launchctl kickstart -k system/com.openssh.sshd 2>/dev/null || true
+    fi
+    /usr/sbin/systemsetup -getremotelogin 2>/dev/null || true
+  '';
 
   # core.nix turns the Application Firewall + stealth mode ON for the real Mac
   # (no incoming traffic). That posture breaks host→guest SSH on the UTM Shared
