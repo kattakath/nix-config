@@ -97,6 +97,8 @@ if (!innerCmd) {
 }
 
 // ---- run the inner hook -----------------------------------------------------
+// Stop gate runs `nix flake check` (often >55s cold). Other hooks stay short.
+const innerTimeoutMs = event === "Stop" ? 600_000 : 55_000;
 let res;
 try {
   res = spawnSync(innerCmd, {
@@ -104,7 +106,8 @@ try {
     shell: true,
     input: stdin,
     encoding: "utf8",
-    timeout: 55_000,
+    timeout: innerTimeoutMs,
+    maxBuffer: 20 * 1024 * 1024,
   });
 } catch (e) {
   res = { status: -1, stdout: "", stderr: String(e && e.message) };
