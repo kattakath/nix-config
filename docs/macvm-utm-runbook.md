@@ -161,10 +161,16 @@ chmod 600 ~/.local/share/wireguard-configs/*.conf
 # macvm: copy the same files into aloshy's source dir, then re-activate #macvm
 # (or use a private composition flake — docs/private-home-modules.md)
 
-# Bring a tunnel up ONLY when you want it (not on login):
-sudo wg-quick up ~/.config/wireguard/BANGKOK.conf
-sudo wg-quick down ~/.config/wireguard/BANGKOK.conf
+# Operate tunnels with the fleet CLI (atomic / idempotent — prefer switch):
+vpn doctor
+vpn list
+vpn switch BANGKOK
+vpn status
+vpn down
+# low-level: sudo wg-quick up ~/.config/wireguard/BANGKOK.conf
 ```
+
+Full operator reference: [`docs/wireguard-vpn.md`](wireguard-vpn.md).
 
 **Privacy options** (pick one; never commit plaintext keys to the public tree):
 
