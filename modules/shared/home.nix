@@ -83,6 +83,14 @@ let
   # a plugin = pin its marketplace input + marketplaces entry, then append its id here.
   claudePluginIds = [ "grok-build@xai-grok-build" ];
 
+  # Absolute operator SSH paths under $HOME — never relative to a flake checkout
+  # or git worktree. Git treats a non-absolute gpg.ssh.allowedSignersFile as
+  # worktree-relative, which would wrongly look inside e.g. nix-config/.ssh/.
+  sshDir = "${config.home.homeDirectory}/.ssh";
+  operatorPrivateKey = "${sshDir}/id_ed25519";
+  operatorPublicKey = "${sshDir}/id_ed25519.pub";
+  allowedSignersFile = "${sshDir}/allowed_signers";
+
   # `mermaid-ascii` — render Mermaid graphs as ASCII in the terminal. Packaged from
   # upstream (not in nixpkgs); see packages/mermaid-ascii.nix.
   mermaidAscii = pkgs.callPackage ../../packages/mermaid-ascii.nix { };
@@ -351,6 +359,8 @@ in
   # commit author email; key is the fleet operator pubkey. Rotating
   # secrets/operator-key.nix + switch keeps this file in lockstep — no hand-edit.
   # namespaces="git" limits trust to git commit/tag signatures only.
+  # Target is home-relative (HM API); the git *setting* below points at the
+  # absolute $HOME path so verification never depends on the current worktree.
   home.file.".ssh/allowed_signers".text = ''
     ${userEmail} namespaces="git" ${operatorSshKey}
   '';
@@ -450,17 +460,18 @@ in
         init.defaultBranch = "main";
         pull.rebase = true;
         # ---- SSH commit / tag signing (GitHub/GitLab "Verified") ----------------
-        # Format is SSH (not OpenPGP). Private key stays at ~/.ssh/id_ed25519;
-        # public half is secrets/operator-key.nix + ~/.ssh/allowed_signers below.
+        # Format is SSH (not OpenPGP). Paths are absolute under $HOME so git never
+        # resolves them relative to a worktree (e.g. this flake checkout).
+        # Public half is also secrets/operator-key.nix → allowed_signers (above).
         # GitHub still needs the same pubkey registered as a *Signing* key
         # (not only Authentication) — see docs/mac-key-recovery-runbook.md.
         commit.gpgsign = true;
         tag.gpgsign = true;
         gpg.format = "ssh";
-        user.signingkey = "~/.ssh/id_ed25519.pub";
+        user.signingkey = operatorPublicKey;
         # Local verify (`git log --show-signature`); without this file git reports
         # "gpg.ssh.allowedSignersFile needs to be configured" for every SSH sig.
-        gpg.ssh.allowedSignersFile = "~/.ssh/allowed_signers";
+        gpg.ssh.allowedSignersFile = allowedSignersFile;
       };
 
       # Per-directory identity, keyed on the ~/Developer/<host>/<owner>/ layout.
@@ -470,10 +481,11 @@ in
       # repo — it lives in ~/.config/git/infin8.inc (a plain, git-ignored-by-location
       # file the operator fills). Git silently ignores the include if that file is
       # absent or comment-only, so the fallback is simply the personal default.
+      # Paths are absolute under $HOME (not relative to any checkout).
       includes = [
         {
-          condition = "gitdir:~/Developer/github.com/Infin8-Information-Technologies/";
-          path = "~/.config/git/infin8.inc";
+          condition = "gitdir:${config.home.homeDirectory}/Developer/github.com/Infin8-Information-Technologies/";
+          path = "${config.home.homeDirectory}/.config/git/infin8.inc";
         }
       ];
     };
@@ -493,21 +505,22 @@ in
       settings = {
         # Former implicit defaults, plus durable signing/auth key availability:
         #   AddKeysToAgent + UseKeychain + IdentityFile so passphrase-protected
-        #   ~/.ssh/id_ed25519 unlocks from the macOS Keychain and stays in the
+        #   $HOME/.ssh/id_ed25519 unlocks from the macOS Keychain and stays in the
         #   agent — required for `git commit` SSH signing (`ssh-keygen -Y sign`)
         #   and for non-interactive tools (VS Code/Cursor) that do not prompt.
+        # Identity/known_hosts paths are absolute under $HOME (never worktree-relative).
         "*" = {
           ForwardAgent = false;
           AddKeysToAgent = "yes";
           UseKeychain = "yes";
-          IdentityFile = "~/.ssh/id_ed25519";
+          IdentityFile = operatorPrivateKey;
           Compression = false;
           ServerAliveInterval = 0;
           ServerAliveCountMax = 3;
           HashKnownHosts = false;
-          UserKnownHostsFile = "~/.ssh/known_hosts";
+          UserKnownHostsFile = "${sshDir}/known_hosts";
           ControlMaster = "no";
-          ControlPath = "~/.ssh/master-%r@%n:%p";
+          ControlPath = "${sshDir}/master-%r@%n:%p";
           ControlPersist = "no";
         };
 
@@ -515,7 +528,7 @@ in
         # admin work over SSH from the Mac.
         "*.local" = {
           User = config.home.username;
-          IdentityFile = "~/.ssh/id_ed25519";
+          IdentityFile = operatorPrivateKey;
           ForwardAgent = true;
         };
 
@@ -523,7 +536,7 @@ in
         # This Host is for a fixed HostName / macvm.local; user is always aloshy.
         "macvm" = {
           User = "aloshy";
-          IdentityFile = "~/.ssh/id_ed25519";
+          IdentityFile = operatorPrivateKey;
           ForwardAgent = true;
           StrictHostKeyChecking = "accept-new";
         };
@@ -792,8 +805,9 @@ in
           /usr/bin/ssh-add --apple-load-keychain 2>/dev/null || true
           # If the agent is still empty and the operator key exists, try once
           # with UseKeychain (non-interactive: no-op when passphrase is unknown).
-          if [ -f "$HOME/.ssh/id_ed25519" ] && ! /usr/bin/ssh-add -l >/dev/null 2>&1; then
-            /usr/bin/ssh-add --apple-use-keychain "$HOME/.ssh/id_ed25519" 2>/dev/null || true
+          key="${operatorPrivateKey}"
+          if [ -f "$key" ] && ! /usr/bin/ssh-add -l >/dev/null 2>&1; then
+            /usr/bin/ssh-add --apple-use-keychain "$key" 2>/dev/null || true
           fi
         ''}/bin/nix-ssh-keychain-load-inner"
       ];
