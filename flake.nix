@@ -717,12 +717,13 @@
           hostname = "macos";
         };
 
-        # A UTM guest VM (aarch64-darwin) — the darwin analogue of `nixvm`: the
-        # full shared stack as `macos`, but a leaner Homebrew set and the MCP
-        # gateway trimmed off (see hosts/macvm.nix). Runs under a SEPARATE persona
-        # (the `aloshy` / aloshy.ai account) — same person, isolated local identity —
-        # via the per-host `identity` override. Activated INSIDE the VM, whose macOS
-        # login account must be `aloshy`.
+        # A Tart guest VM (aarch64-darwin, Apple Virtualization + IPSW) — the
+        # darwin analogue of `nixvm`: the full shared stack as `macos`, but a
+        # leaner Homebrew set and the MCP gateway trimmed off (see hosts/macvm.nix).
+        # Runs under a SEPARATE persona (the `aloshy` / aloshy.ai account) — same
+        # person, isolated local identity — via the per-host `identity` override.
+        # Activated INSIDE the VM, whose macOS login account must be `aloshy`.
+        # Host control plane: nix run .#macvm-tart-* (packages/macvm-tart.nix).
         "macvm" = mkDarwin {
           system = "aarch64-darwin";
           hostname = "macvm";
@@ -836,28 +837,30 @@
           }
         ))
 
-        # macvm UTM control-plane (host Mac only). Disk images stay out of the
-        # store — see packages/macvm-utm.nix + docs/macvm-utm-runbook.md.
+        # macvm Tart control-plane (host Mac only) — Apple Virtualization + IPSW.
+        # Disks under ~/.tart/ (never the store). See packages/macvm-tart.nix.
+        # tart is unfree; pkgsFor (legacyPackages) may not allow it, so import
+        # nixpkgs with allowUnfree for this kit only.
         (nixpkgs.lib.genAttrs darwinSystems (
           system:
           let
-            kit = (pkgsFor system).callPackage ./packages/macvm-utm.nix { };
+            pkgsUnfree = import nixpkgs {
+              inherit system;
+              config.allowUnfree = true;
+            };
+            kit = pkgsUnfree.callPackage ./packages/macvm-tart.nix { };
           in
           {
             inherit (kit)
-              macvm-utm-doctor
-              macvm-utm-list
-              macvm-utm-open
-              macvm-utm-start
-              macvm-utm-stop
-              macvm-utm-registry-dedupe
-              macvm-utm-bootstrap-print
-              macvm-utm-create-print
-              macvm-utm-ensure
-              macvm-utm-ssh
-              macvm-utm-clipboard-on
-              macvm-utm-share-screengrab
-              macvm-utm-secret-copy
+              macvm-tart-doctor
+              macvm-tart-list
+              macvm-tart-create
+              macvm-tart-ensure
+              macvm-tart-start
+              macvm-tart-stop
+              macvm-tart-ip
+              macvm-tart-ssh
+              macvm-tart-bootstrap-print
               ;
           }
         ))
@@ -1081,83 +1084,94 @@
               meta.description = "First activation of the macos nix-darwin host from the flake (after Determinate Nix)";
             };
 
-            # First activation of the macvm UTM guest (run INSIDE the VM, whose
+            # First activation of the macvm Tart guest (run INSIDE the VM, whose
             # login account must be `aloshy`), before darwin-rebuild is on PATH.
             # Thereafter: darwin-rebuild switch --flake .#macvm
-            # Host-side UTM control plane: nix run .#macvm-utm-* (see packages/macvm-utm.nix).
+            # Host-side Tart control plane: nix run .#macvm-tart-* (packages/macvm-tart.nix).
+            #
+            # First-boot footguns this wrapper fixes:
+            # 1. `sudo` preserves HOME=/Users/aloshy while uid=0 → home-manager aborts
+            #    with "$HOME is not owned by you" and the user profile never activates.
+            #    Force HOME=/var/root for the root rebuild; nix-darwin still activates
+            #    HM for aloshy under the correct user.
+            # 2. Determinate's installer leaves an unmanaged /etc/nix/nix.custom.conf
+            #    that nix-darwin refuses to clobber — move it aside once if not a symlink.
             aarch64-darwin.macvm = {
               type = "app";
               program = "${(pkgsFor "aarch64-darwin").writeShellScript "activate-macvm" ''
-                exec ${self.darwinConfigurations.macvm.config.system.build.darwin-rebuild}/bin/darwin-rebuild switch --flake "${self}#macvm" "$@"
+                set -euo pipefail
+                rebuild="${self.darwinConfigurations.macvm.config.system.build.darwin-rebuild}/bin/darwin-rebuild"
+                flake="${self}#macvm"
+
+                # Determinate installer → nix-darwin handoff (idempotent).
+                if [ -e /etc/nix/nix.custom.conf ] && [ ! -L /etc/nix/nix.custom.conf ]; then
+                  echo "macvm: moving unmanaged /etc/nix/nix.custom.conf → nix.custom.conf.before-nix-darwin" >&2
+                  /bin/mv /etc/nix/nix.custom.conf /etc/nix/nix.custom.conf.before-nix-darwin
+                fi
+
+                run_as_root() {
+                  # Root-owned HOME so HM does not refuse activation (sudo keeps
+                  # HOME=/Users/aloshy by default on macOS).
+                  exec /usr/bin/env HOME=/var/root USER=root LOGNAME=root \
+                    "$rebuild" switch --flake "$flake" "$@"
+                }
+
+                if [ "$(/usr/bin/id -u)" -eq 0 ]; then
+                  run_as_root "$@"
+                else
+                  # Re-exec under sudo with a root HOME (not sudo's preserved HOME).
+                  exec /usr/bin/sudo /usr/bin/env HOME=/var/root USER=root LOGNAME=root \
+                    "$rebuild" switch --flake "$flake" "$@"
+                fi
               ''}";
-              meta.description = "First activation of the macvm nix-darwin UTM guest from the flake (run INSIDE the VM as aloshy, after Determinate Nix)";
+              meta.description = "Activate macvm (Tart guest) as aloshy; safe under sudo (fixes HOME ownership + Determinate nix.custom.conf handoff)";
             };
 
-            # Host-side UTM lifecycle for macvm (no disk images in the flake).
-            aarch64-darwin.macvm-utm-doctor = {
+            # Host-side Tart lifecycle for macvm (Apple Virtualization + IPSW).
+            aarch64-darwin.macvm-tart-doctor = {
               type = "app";
-              program = "${self.packages.aarch64-darwin.macvm-utm-doctor}/bin/macvm-utm-doctor";
-              meta.description = "Health-check the host UTM macvm guest (duplicates, package, utmctl)";
+              program = "${self.packages.aarch64-darwin.macvm-tart-doctor}/bin/macvm-tart-doctor";
+              meta.description = "Health-check the host Tart macvm guest (Apple Virtualization)";
             };
-            aarch64-darwin.macvm-utm-list = {
+            aarch64-darwin.macvm-tart-list = {
               type = "app";
-              program = "${self.packages.aarch64-darwin.macvm-utm-list}/bin/macvm-utm-list";
-              meta.description = "List UTM VMs (utmctl list)";
+              program = "${self.packages.aarch64-darwin.macvm-tart-list}/bin/macvm-tart-list";
+              meta.description = "List Tart VMs";
             };
-            aarch64-darwin.macvm-utm-open = {
+            aarch64-darwin.macvm-tart-create = {
               type = "app";
-              program = "${self.packages.aarch64-darwin.macvm-utm-open}/bin/macvm-utm-open";
-              meta.description = "Open the UTM app";
+              program = "${self.packages.aarch64-darwin.macvm-tart-create}/bin/macvm-tart-create";
+              meta.description = "Create macvm from Apple IPSW via Tart (disk under ~/.tart)";
             };
-            aarch64-darwin.macvm-utm-start = {
+            aarch64-darwin.macvm-tart-ensure = {
               type = "app";
-              program = "${self.packages.aarch64-darwin.macvm-utm-start}/bin/macvm-utm-start";
-              meta.description = "Start the registered macvm UTM guest";
+              program = "${self.packages.aarch64-darwin.macvm-tart-ensure}/bin/macvm-tart-ensure";
+              meta.description = "Ensure Tart macvm exists (exit 0) or print create help (exit 2)";
             };
-            aarch64-darwin.macvm-utm-stop = {
+            aarch64-darwin.macvm-tart-start = {
               type = "app";
-              program = "${self.packages.aarch64-darwin.macvm-utm-stop}/bin/macvm-utm-stop";
-              meta.description = "Stop the registered macvm UTM guest";
+              program = "${self.packages.aarch64-darwin.macvm-tart-start}/bin/macvm-tart-start";
+              meta.description = "Start Tart macvm with Screengrab VirtioFS share";
             };
-            aarch64-darwin.macvm-utm-registry-dedupe = {
+            aarch64-darwin.macvm-tart-stop = {
               type = "app";
-              program = "${self.packages.aarch64-darwin.macvm-utm-registry-dedupe}/bin/macvm-utm-registry-dedupe";
-              meta.description = "De-dupe UTM registry entries for macvm (dry-run; --apply to write)";
+              program = "${self.packages.aarch64-darwin.macvm-tart-stop}/bin/macvm-tart-stop";
+              meta.description = "Stop Tart macvm";
             };
-            aarch64-darwin.macvm-utm-bootstrap-print = {
+            aarch64-darwin.macvm-tart-ip = {
               type = "app";
-              program = "${self.packages.aarch64-darwin.macvm-utm-bootstrap-print}/bin/macvm-utm-bootstrap-print";
-              meta.description = "Print the in-guest macvm bootstrap checklist (aloshy + Determinate + activate)";
+              program = "${self.packages.aarch64-darwin.macvm-tart-ip}/bin/macvm-tart-ip";
+              meta.description = "Print Tart macvm guest IP (tart ip)";
             };
-            aarch64-darwin.macvm-utm-create-print = {
+            aarch64-darwin.macvm-tart-ssh = {
               type = "app";
-              program = "${self.packages.aarch64-darwin.macvm-utm-create-print}/bin/macvm-utm-create-print";
-              meta.description = "Print one-time UTM GUI create steps (utmctl cannot create macOS AVF guests)";
+              program = "${self.packages.aarch64-darwin.macvm-tart-ssh}/bin/macvm-tart-ssh";
+              meta.description = "SSH into Tart macvm (aloshy + operator key)";
             };
-            aarch64-darwin.macvm-utm-ensure = {
+            aarch64-darwin.macvm-tart-bootstrap-print = {
               type = "app";
-              program = "${self.packages.aarch64-darwin.macvm-utm-ensure}/bin/macvm-utm-ensure";
-              meta.description = "Ensure macvm is registered (exit 0) or open UTM + print create steps (exit 2)";
-            };
-            aarch64-darwin.macvm-utm-ssh = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.macvm-utm-ssh}/bin/macvm-utm-ssh";
-              meta.description = "SSH into macvm guest over UTM Shared net (discovers IP; user aloshy)";
-            };
-            aarch64-darwin.macvm-utm-clipboard-on = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.macvm-utm-clipboard-on}/bin/macvm-utm-clipboard-on";
-              meta.description = "Set Virtualization.ClipboardSharing=true on macvm.utm (quit UTM first, or --yes)";
-            };
-            aarch64-darwin.macvm-utm-share-screengrab = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.macvm-utm-share-screengrab}/bin/macvm-utm-share-screengrab";
-              meta.description = "Share host ~/Pictures/Screengrab R/W into macvm via UTM VirtioFS";
-            };
-            aarch64-darwin.macvm-utm-secret-copy = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.macvm-utm-secret-copy}/bin/macvm-utm-secret-copy";
-              meta.description = "Copy login-Keychain secrets from macos host → macvm guest (aloshy); --list / --rm";
+              program = "${self.packages.aarch64-darwin.macvm-tart-bootstrap-print}/bin/macvm-tart-bootstrap-print";
+              meta.description = "Print in-guest macvm bootstrap checklist for Tart";
             };
 
             # WireGuard operator — confs in ~/.config/wireguard (not in the store).

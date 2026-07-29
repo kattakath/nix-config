@@ -383,8 +383,8 @@ in
   # See docs/macos-settings-surface.md.
   #
   # Host scope: GUI login openers + Screengrab rotation are **macos only**.
-  # macvm mounts the host's Screengrab via UTM VirtioFS (see hosts/macvm.nix +
-  # macvm-utm-share-screengrab) — rotating it on the guest would trash host files
+  # macvm mounts the host's Screengrab via Tart VirtioFS (see hosts/macvm.nix +
+  # macvm-tart-start) — rotating it on the guest would trash host files
   # into the guest's ~/.Trash.
   launchd.user.agents = lib.mkIf (config.networking.hostName == "macos") {
     # Agent attr names (open-*) keep launchd Labels stable so existing BTM
@@ -445,7 +445,7 @@ in
   };
 
   # Real Screengrab dir only on macos (owner of the files). macvm uses a symlink
-  # to the UTM VirtioFS share (hosts/macvm.nix) — do not mkdir a local dir there.
+  # to the Tart VirtioFS share (hosts/macvm.nix) — do not mkdir a local dir there.
   system.activationScripts.postActivation.text = lib.mkIf (config.networking.hostName == "macos") ''
         mkdir -p "${screengrabDir}"
         chown ${loginName} "${screengrabDir}"

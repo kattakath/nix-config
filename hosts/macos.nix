@@ -123,7 +123,6 @@
       "raspberry-pi-imager"
       "slack"
       "telegram"
-      "utm"
       "visual-studio-code"
       "whatsapp"
     ];

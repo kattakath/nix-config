@@ -112,7 +112,7 @@ If `nix` unavailable: `nix-instantiate --parse` on changed `.nix` + state CI-def
 
 | Scope | Command |
 |---|---|
-| macvm / UTM / Screengrab share | `nix run .#macvm-utm-doctor` |
+| macvm / Tart / Screengrab share | `nix run .#macvm-tart-doctor` |
 | nixpi flash/provision | skill `nixpi-firmware-provision` |
 | Vast templates | skill / docs as needed |
 

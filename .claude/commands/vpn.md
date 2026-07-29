@@ -12,5 +12,5 @@ Default actions when the user is vague:
 
 The `vpn` CLI is **macvm-only** — macos manages WireGuard through the
 `WireGuard.app` GUI (no CLI). On macvm, run through
-`nix run .#macvm-utm-ssh -- bash -lc 'vpn …'` after activate (or
+`nix run .#macvm-tart-ssh -- bash -lc 'vpn …'` after activate (or
 `/opt/homebrew/bin/vpn` if PATH is thin).

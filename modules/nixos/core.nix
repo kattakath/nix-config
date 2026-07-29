@@ -77,11 +77,11 @@
 
     # zram compressed swap — cheap in-RAM overflow so a build/memory spike degrades
     # instead of triggering a hard OOM-kill (swapDevices is empty on these guests).
-    # UTM audit finding (2026-07). Applies to all NixOS hosts.
+    # audit finding (2026-07). Applies to all NixOS hosts.
     zramSwap.enable = true;
 
     # Automatic store GC + on-the-fly reclaim — a long-lived host (nixpi's SD
-    # card) must self-trim or the store fills the disk. UTM audit follow-up (2026-07).
+    # card) must self-trim or the store fills the disk. audit follow-up (2026-07).
     nix.gc = {
       automatic = true;
       dates = "weekly";

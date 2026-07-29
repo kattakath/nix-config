@@ -197,9 +197,4 @@ one-time steps are inherently manual — do these after activating a fresh Mac:
   logins and any Keychain-stored personal tokens are re-established by hand (Nix
   manages only the *service* secrets via agenix — see the "Secrets — agenix"
   convention in `CLAUDE.md`, not personal logins).
-- **The `macvm` UTM guest is NOT restored by a rebuild — recreate it.** The multi-GB
-  `.utm` bundle lives only under UTM’s sandbox; neither this repo nor the key kit
-  tracks it. Recreate via the GUI (name **`macvm`**, login **`aloshy`**), activate
-  inside with `sudo nix run github:kattakath/nix-config#macvm`, host control with
-  `nix run .#macvm-utm-*`. Full steps: [`macvm-utm-runbook.md`](macvm-utm-runbook.md).
-  Optional external backup of the `.utm` is operator-owned.
+- **The `macvm` Tart guest is NOT restored by a rebuild — recreate it.** Disk lives under `~/.tart/`; neither this repo nor the key kit restores it. Recreate after recovery with `nix run .#macvm-tart-*`. Full steps: [`macvm-tart-runbook.md`](macvm-tart-runbook.md).
