@@ -116,8 +116,12 @@
     ];
 
     # ---- Mac App Store apps (masApps) ----------------------------------------
-    # Shared baseline (WireGuard) lives in modules/darwin/homebrew.nix. Host-only
-    # MAS apps go here; attrs merge. `mas` brew stays for on-demand installs.
-    masApps = { };
+    # macos only — macvm cannot sign into an Apple ID / App Store. `mas` brew
+    # stays for on-demand installs; anything listed here is also protected from
+    # onActivation.cleanup = "uninstall" (undeclared MAS apps get removed).
+    masApps = {
+      # Official client is App Store–only (no Homebrew cask).
+      WireGuard = 1451685025;
+    };
   };
 }

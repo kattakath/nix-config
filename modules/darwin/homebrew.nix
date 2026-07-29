@@ -17,10 +17,11 @@ _:
   homebrew = {
     enable = true;
 
-    # Lean activation: cleanup = "uninstall" removes any installed brew/cask/tap
-    # not declared by the host (but never touches the App Store apps `zap` would
-    # also wipe app data for — "uninstall" is the safer of the two enforcing
-    # modes). autoUpdate/upgrade stay off so a rebuild never silently bumps versions.
+    # Lean activation: cleanup = "uninstall" removes brew/cask/tap **and** MAS
+    # apps not declared in the host's Brewfile (so undeclared App Store apps
+    # installed by hand get uninstalled on next switch — list them in masApps
+    # or reinstall after rebuild). autoUpdate/upgrade stay off so a rebuild
+    # never silently bumps versions.
     onActivation = {
       autoUpdate = false;
       upgrade = false;
@@ -34,15 +35,9 @@ _:
     # nixpkgs via home.nix, not a tap — Homebrew now refuses untrusted taps.)
     taps = [ ];
 
-    # ---- brews / casks ----------------------------------------------------
+    # ---- brews / casks / masApps ------------------------------------------
     # Set per host in hosts/<host>.nix (e.g. hosts/macos.nix, hosts/macvm.nix).
-
-    # ---- masApps (shared across every darwin host) --------------------------
-    # Official WireGuard client is App Store–only (no Homebrew cask). attrs merge
-    # with any per-host masApps. Requires an App Store sign-in for first install;
-    # later activates are no-ops if already present (mas install skip-if-installed).
-    masApps = {
-      WireGuard = 1451685025;
-    };
+    # masApps: **macos only** — macvm has no Apple ID / App Store login, so any
+    # MAS install fails activation there. Keep hosts/macvm.nix masApps = { }.
   };
 }
