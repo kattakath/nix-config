@@ -344,7 +344,20 @@ let
         "''${ssh_base[@]}" "aloshy@$guest_ip" \
           '/usr/sbin/pkgutil --pkg-info com.redhat.spice.vdagent 2>/dev/null | /usr/bin/awk "/^version:/{print \"spice-vdagent pkg: \" \$2}";
            /bin/launchctl print system/com.redhat.spice.vdagentd 2>/dev/null | /usr/bin/grep -q "state = running" && echo "spice-vdagentd: running" || { echo "spice-vdagentd: NOT running"; exit 2; };
-           [ -c /dev/tty.com.redhat.spice.0 ] && echo "spice channel: present" || { echo "spice channel: MISSING"; exit 3; }' 2>/dev/null
+           [ -c /dev/tty.com.redhat.spice.0 ] && echo "spice channel: present" || { echo "spice channel: MISSING"; exit 3; };
+           shared="/Volumes/My Shared Files/Screengrab"
+           local="$HOME/Pictures/Screengrab"
+           if [ -d "$shared" ]; then echo "screengrab virtiofs: present"; else echo "screengrab virtiofs: MISSING"; exit 4; fi
+           if [ -L "$local" ] && [ "$(/usr/bin/readlink "$local")" = "$shared" ] && [ -d "$local" ]; then
+             echo "screengrab symlink: ok"
+           else
+             echo "screengrab symlink: BAD (want $local -> $shared)"
+             exit 5
+           fi
+           probe="$local/.macvm-utm-doctor-probe-$$"
+           /bin/echo ok >"$probe" 2>/dev/null || { echo "screengrab write: FAIL"; exit 6; }
+           /bin/rm -f "$probe"
+           echo "screengrab write: OK"' 2>/dev/null
       ); then
         printf '%s\n' "$guest_out"
         marker="macvm-utm-clip-probe-$$"
@@ -358,7 +371,16 @@ let
           rc=1
         fi
       else
-        echo "guest tools: SSH unreachable (start VM + activate #macvm) — skipped live checks"
+        echo "guest tools: SSH unreachable or guest checks failed (start VM + activate #macvm; share-screengrab)"
+        # Still try to show partial remote output if any
+        if [ -n "''${guest_ip:-}" ]; then
+          "''${ssh_base[@]}" "aloshy@$guest_ip" \
+            'shared="/Volumes/My Shared Files/Screengrab"; local="$HOME/Pictures/Screengrab";
+             echo "virtiofs: $( [ -d "$shared" ] && echo present || echo MISSING )";
+             echo "symlink: $( /usr/bin/readlink "$local" 2>/dev/null || echo none )";
+             /usr/sbin/pkgutil --pkg-info com.redhat.spice.vdagent 2>/dev/null | /usr/bin/awk "/^version:/{print}"' 2>/dev/null || true
+        fi
+        rc=1
       fi
 
       echo "guest persona: aloshy (activate with nix run …#macvm inside the VM)"

@@ -64,7 +64,9 @@ Network: **Shared** (host `bridge100`, typically `192.168.64.0/24`).
 | Rotation | **macos only** (must not trash host files from the guest) |
 
 After (re)registering the share, **restart the macvm guest** so VirtioFS attaches.
-Verify: `nix run .#macvm-utm-doctor` and on guest `ls -la ~/Pictures/Screengrab`.
+Guest agent `nix-screengrab-share` re-heals the symlink every 30s (boot race /
+remount); dangling symlinks are removed until the share is up so captures don’t
+vanish. Verify: `nix run .#macvm-utm-doctor` (symlink + R/W + clipboard).
 
 ## UTM Guest Tools (clipboard)
 
