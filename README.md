@@ -43,8 +43,9 @@ with fork instructions if not), then:
 - **recovery kit present** (`~/Library/Mobile Documents/com~apple~CloudDocs/nix-key-recovery`,
   published beforehand by `nix run .#key-backup`) → restores your operator key,
   activates `#macos`;
-- **no kit** → **founds** a brand-new operator identity (a fresh keypair, agenix re-keyed
-  to it), then activates `#macos`. Afterward: register `~/.ssh/id_ed25519.pub` on GitHub
+- **no kit** → **founds** a brand-new operator identity (a fresh keypair; the agenix
+  recipient is repointed to it — the old vault ciphertext stays encrypted to the lost
+  key, see the trust model), then activates `#macos`. Afterward: register `~/.ssh/id_ed25519.pub` on GitHub
   (auth + signing) and `nix run .#key-backup`. Add `--fresh` to skip the confirmation on a
   headless box.
 
@@ -140,7 +141,7 @@ flake.nix       Entry point: inputs, darwin/nixos configurations, packages, devS
 flake.lock      Pinned input revisions (bumped via `nix flake update`, never hand-edited)
 treefmt.nix     Single source of truth for formatting + lint (drives nix fmt, CI, and the hook)
 hosts/          Per-host entry profiles (macos.nix, macvm.nix, nixpi.nix, nixvm.nix)
-modules/        Reusable modules, split by platform (darwin/ linux/ nixos/ shared/)
+modules/        Reusable modules, split by platform (darwin/ nixos/ shared/)
 packages/       Nix-built artifacts (devcontainer image, key-recovery kit, landing page; also vast-provision.nix — the vast-* apps —, vast-bootstrap.sh, vast-templates/provisioner/)
 .claude/        Repo-local Claude Code agents, commands, hooks, skills, and rules
 ```
