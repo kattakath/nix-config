@@ -850,6 +850,7 @@
               macvm-utm-bootstrap-print
               macvm-utm-create-print
               macvm-utm-ensure
+              macvm-utm-ssh
               ;
           }
         ))
@@ -1124,6 +1125,11 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.macvm-utm-ensure}/bin/macvm-utm-ensure";
               meta.description = "Ensure macvm is registered (exit 0) or open UTM + print create steps (exit 2)";
+            };
+            aarch64-darwin.macvm-utm-ssh = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.macvm-utm-ssh}/bin/macvm-utm-ssh";
+              meta.description = "SSH into macvm guest over UTM Shared net (discovers IP; user aloshy)";
             };
 
             # `nix run .#set-secret -- KEY [VALUE]` — store a secret in the macOS

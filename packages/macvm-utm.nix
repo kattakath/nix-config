@@ -404,6 +404,100 @@ let
     '';
   };
 
+  # SSH into the guest over UTM Shared networking (host bridge100 ≈ 192.168.64.0/24).
+  # Discovers the guest by probing :22 on the shared subnet (and optional MAC from
+  # config.plist). Guest must have services.openssh.enable + authorizedKeys.
+  sshApp = mkApp {
+    name = "macvm-utm-ssh";
+    runtimeInputs = baseInputs ++ [ python3 ];
+    text = ''
+            # usage: macvm-utm-ssh [--ip ADDR] [ssh-args…]
+            # Default user: aloshy (macvm persona). Identity: ~/.ssh/id_ed25519
+            user=aloshy
+            identity="''${MACVM_SSH_IDENTITY:-$HOME/.ssh/id_ed25519}"
+            ip="''${MACVM_SSH_IP:-}"
+            while [ $# -gt 0 ]; do
+              case "$1" in
+                --ip) ip="''${2:?}"; shift 2 ;;
+                --user) user="''${2:?}"; shift 2 ;;
+                -h|--help)
+                  echo "usage: macvm-utm-ssh [--ip ADDR] [--user USER] [ssh-args…]"
+                  echo "  Discovers macvm on UTM Shared net (192.168.64.0/24) and sshes as aloshy."
+                  exit 0
+                  ;;
+                --) shift; break ;;
+                *) break ;;
+              esac
+            done
+
+            if [ -z "$ip" ]; then
+              # Prefer MAC from package config when present (stable across reboots).
+              mac=""
+              if [ -f "$UTM_PKG/config.plist" ]; then
+                # Network is an array; extract first MacAddress if present (plutil may fail).
+                mac=$(${plutil} -extract Network.0.MacAddress raw "$UTM_PKG/config.plist" 2>/dev/null || true)
+              fi
+              export MACVM_HINT_MAC="$mac"
+              ip=$(
+                ${python3}/bin/python3 - <<'PY'
+      import os, re, socket, subprocess, sys
+
+      hint = (os.environ.get("MACVM_HINT_MAC") or "").lower().replace("-", ":")
+      # arp -an lines like: ? (192.168.64.4) at 1a:29:d7:d8:f5:cc on bridge100 ...
+      try:
+          arp = subprocess.check_output(["/usr/sbin/arp", "-an"], text=True, errors="replace")
+      except Exception:
+          arp = ""
+
+      candidates = []
+      for line in arp.splitlines():
+          m = re.search(r"\((192\.168\.64\.\d+)\)\s+at\s+([0-9a-f:]+)", line, re.I)
+          if not m:
+              continue
+          ip, mac = m.group(1), m.group(2).lower()
+          if mac in ("(incomplete)", "incomplete"):
+              continue
+          if hint and mac == hint:
+              print(ip)
+              sys.exit(0)
+          candidates.append(ip)
+
+      # Probe :22 on candidates then whole /24 tail
+      probe = candidates + [f"192.168.64.{i}" for i in range(2, 32)]
+      seen = set()
+      for ip in probe:
+          if ip in seen:
+              continue
+          seen.add(ip)
+          s = socket.socket()
+          s.settimeout(0.4)
+          try:
+              s.connect((ip, 22))
+              print(ip)
+              sys.exit(0)
+          except Exception:
+              pass
+          finally:
+              s.close()
+      sys.exit(1)
+      PY
+              ) || true
+            fi
+
+            if [ -z "''${ip:-}" ]; then
+              die "could not find macvm SSH (is the VM started and Remote Login enabled? re-activate guest with services.openssh.enable)"
+            fi
+
+            info "ssh $user@$ip"
+            exec /usr/bin/ssh \
+              -o "IdentityFile=$identity" \
+              -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=accept-new \
+              -o "UserKnownHostsFile=$HOME/.ssh/known_hosts" \
+              "$user@$ip" "$@"
+    '';
+  };
+
 in
 {
   inherit
@@ -416,6 +510,7 @@ in
     bootstrap-print
     create-print
     ensure
+    sshApp
     ;
   macvm-utm-doctor = doctor;
   macvm-utm-list = list;
@@ -426,4 +521,5 @@ in
   macvm-utm-bootstrap-print = bootstrap-print;
   macvm-utm-create-print = create-print;
   macvm-utm-ensure = ensure;
+  macvm-utm-ssh = sshApp;
 }

@@ -22,6 +22,11 @@
 # The shared home.nix already puts ~/.grok/bin on PATH, provides Node, and wires
 # the grok-build Claude Code plugin — so no Nix app-list entry is needed.
 { userName, lib, ... }:
+let
+  # Operator ed25519 public key — sole network login credential (same key as
+  # nixpi/nixvm). Safe to commit; imported as a bare string.
+  operatorSshKey = import ../secrets/operator-key.nix;
+in
 {
   imports = [
     ../modules/darwin/core.nix
@@ -34,9 +39,17 @@
   # (autohide, tilesize, …) is inherited from core.nix.
   system.defaults.dock.orientation = lib.mkForce "bottom";
 
+  # ---- SSH from the macos host (UTM Shared network) --------------------------
+  # Enable Apple's built-in Remote Login (sshd) so the host can `ssh aloshy@…`.
+  # Keys-only via authorizedKeys (operator key). Networking is UTM "Shared"
+  # (bridge100 on host, typically 192.168.64.0/24) — see docs/macvm-utm-runbook.md
+  # and `nix run .#macvm-utm-ssh`.
+  services.openssh.enable = true;
+
   users.users.${userName} = {
     name = userName;
     home = "/Users/${userName}";
+    openssh.authorizedKeys.keys = [ operatorSshKey ];
   };
 
   # ---- Per-host home-manager tweaks for the VM --------------------------------
