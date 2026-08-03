@@ -44,7 +44,14 @@ in
     home.activation.ubuntuTerminalProfile = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       if ! /usr/bin/defaults read com.apple.Terminal "Window Settings" 2>/dev/null \
            | /usr/bin/grep -q 'name = Ubuntu;'; then
-        $DRY_RUN_CMD /usr/bin/open ${./terminal/Ubuntu.terminal}
+        # `open` names the imported profile after the FILE basename. Opening the store
+        # path directly imported it as "<hash>-Ubuntu", which this guard's `name = Ubuntu;`
+        # never matched — so the step re-fired (popping a blank window) on EVERY activation,
+        # and "Default/Startup Window Settings = Ubuntu" pointed at a profile that didn't
+        # exist. Copy to a stable-named Ubuntu.terminal first so it imports as "Ubuntu".
+        tmp="$(/usr/bin/mktemp -d)"
+        $DRY_RUN_CMD /bin/cp ${./terminal/Ubuntu.terminal} "$tmp/Ubuntu.terminal"
+        $DRY_RUN_CMD /usr/bin/open "$tmp/Ubuntu.terminal"
         $DRY_RUN_CMD /usr/bin/defaults write com.apple.Terminal \
           "Default Window Settings" -string "Ubuntu" || true
         $DRY_RUN_CMD /usr/bin/defaults write com.apple.Terminal \
