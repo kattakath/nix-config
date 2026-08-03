@@ -267,16 +267,17 @@ in
   # gh / git-lfs stay OUT of this list — they come from their `programs.*`
   # modules below (listing them here too would be a buildEnv /bin collision).
   #
-  # Fonts: only the two wired to a VS Code setting are kept. nixpkgs unstable
-  # uses the per-font `nerd-fonts.<name>` attrs (24.05+ restructure), not the
-  # old `(nerdfonts.override { ... })`.
+  # Fonts: the two Nerd Fonts wired to VS Code settings, plus Inter as a general
+  # proportional UI face. nixpkgs unstable uses the per-font `nerd-fonts.<name>`
+  # attrs (24.05+ restructure), not the old `(nerdfonts.override { ... })`.
   home.packages =
     with pkgs;
     [
       fh # FlakeHub CLI — flake input publishing/management, wanted on every host
-      # fonts (each is referenced by a VS Code font setting below)
+      # fonts
       nerd-fonts.jetbrains-mono # "JetBrainsMono Nerd Font" — VS Code editor font (pairs with the JetBrains theme)
       nerd-fonts.ubuntu-mono # "UbuntuMono Nerd Font" — VS Code terminal font (matches the devcontainer)
+      inter # "Inter" — proportional UI font; no Nerd Font variant exists (NF only patches monospace fonts), so this is the plain upstream package
     ]
     # claude-code: on darwin it is installed by the programs.claude-code module
     # below (so the mcp-servers-nix integration can inject the shared MCP
