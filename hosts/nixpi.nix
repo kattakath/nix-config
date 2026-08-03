@@ -172,5 +172,13 @@
       root * ${../packages/landing}
       file_server
     '';
+    # snoringirl.com — the "Collage" Civitai slideshow (packages/snoringirl/index.html).
+    # Same pattern as the apex above: http:// so TLS terminates at Cloudflare's edge.
+    # www.snoringirl.com is a 301 edge redirect to the apex (infra/cloudflare/nixpi-tunnel.nix),
+    # so only the apex reaches Caddy here — no separate www vhost needed.
+    virtualHosts."http://snoringirl.com".extraConfig = ''
+      root * ${../packages/snoringirl}
+      file_server
+    '';
   };
 }

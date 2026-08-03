@@ -56,6 +56,13 @@ let
   apexHostname = domainName; # kattakath.com — the Caddy landing-page host (the zone apex)
   wwwHostname = "www.${domainName}"; # www.kattakath.com — 301-redirected to the apex at Cloudflare's edge
 
+  # snoringirl.com — a SECOND static site on the SAME nixpi tunnel (packages/snoringirl,
+  # the "Collage" slideshow). Its zone is in the same Cloudflare account; zone IDs are
+  # non-secret identifiers (resolved via the cloudflare MCP `/zones` lookup).
+  snoringirlDomain = "snoringirl.com";
+  snoringirlZoneId = "21de2a6be1b268b2b151ae0b3592e562";
+  snoringirlWww = "www.${snoringirlDomain}";
+
   tunnelId = "\${cloudflare_zero_trust_tunnel_cloudflared.nixpi.id}";
 in
 {
@@ -97,6 +104,11 @@ in
         # (hosts/nixpi.nix's services.caddy serves packages/landing here).
         {
           hostname = apexHostname;
+          service = "http://localhost:80";
+        }
+        # snoringirl.com -> the SAME local Caddy (a second vhost serving packages/snoringirl).
+        {
+          hostname = snoringirlDomain;
           service = "http://localhost:80";
         }
         # Required catch-all: any unmatched request returns 404.
@@ -176,6 +188,51 @@ in
             preserve_query_string = true;
             target_url = {
               expression = ''concat("https://${apexHostname}", http.request.uri.path)'';
+            };
+          };
+        };
+      }
+    ];
+  };
+
+  # ---- snoringirl.com (second site, its own zone, same tunnel) ---------------
+  # apex CNAME -> the SAME tunnel (proxied) — makes the snoringirl.com ingress rule (b) live.
+  resource.cloudflare_dns_record.snoringirl_apex = {
+    zone_id = snoringirlZoneId;
+    name = snoringirlDomain;
+    type = "CNAME";
+    content = "${tunnelId}.cfargotunnel.com";
+    proxied = true;
+    ttl = 1;
+  };
+  # www.snoringirl.com CNAME -> apex (proxied, so the edge Single Redirect below fires).
+  resource.cloudflare_dns_record.snoringirl_www = {
+    zone_id = snoringirlZoneId;
+    name = snoringirlWww;
+    type = "CNAME";
+    content = snoringirlDomain;
+    proxied = true;
+    ttl = 1;
+  };
+  # Single Redirect: www.snoringirl.com -> snoringirl.com (301) at the edge.
+  resource.cloudflare_ruleset.redirect_www_snoringirl = {
+    zone_id = snoringirlZoneId;
+    name = "redirect-www-to-apex-snoringirl";
+    kind = "zone";
+    phase = "http_request_dynamic_redirect";
+    rules = [
+      {
+        ref = "redirect_www_to_apex_snoringirl";
+        description = "301 ${snoringirlWww} -> ${snoringirlDomain} (canonical host)";
+        expression = ''(http.host eq "${snoringirlWww}")'';
+        action = "redirect";
+        enabled = true;
+        action_parameters = {
+          from_value = {
+            status_code = 301;
+            preserve_query_string = true;
+            target_url = {
+              expression = ''concat("https://${snoringirlDomain}", http.request.uri.path)'';
             };
           };
         };
