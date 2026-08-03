@@ -17,15 +17,15 @@
 # account owns the GUI session, `darwin-rebuild switch` cannot load the agent.
 #
 # SERVER SIDE (this box, 127.0.0.1:8096)
-#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 14 servers, each
+#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 17 servers, each
 #   reachable at /servers/<name>/sse. `gatewayConfig` is rendered by
-#   mcp-servers-nix's `lib.mkConfig`, so the 4 packaged servers
-#   (context7/fetch/memory/sequential-thinking) are PINNED store-path commands;
-#   the 10 without a module fall back to pinned npx/uvx launchers (still a runtime
-#   fetch, but acceptable on the Mac where Node/uv already live).
+#   mcp-servers-nix's `lib.mkConfig`, so the 7 packaged servers
+#   (context7/fetch/memory/sequential-thinking/nixos/terraform/github) are PINNED
+#   store-path commands; the 10 without a module fall back to pinned npx/uvx
+#   launchers (still a runtime fetch, but acceptable on the Mac where Node/uv already live).
 #
 # CLIENT SIDE (programs.claude-code.mcpServers)
-#   The 10 hosted servers are wired as `type = "http"` (Streamable HTTP — the
+#   The 17 hosted servers are wired as `type = "http"` (Streamable HTTP — the
 #   current MCP standard; the legacy HTTP+SSE transport was deprecated in the
 #   2025-03-26 spec) pointing at /servers/<name>/mcp; desktop-commander stays
 #   `type = "stdio"`. The claude-code module writes these into a managed
@@ -212,13 +212,17 @@ let
     };
   };
 
-  # Every server NAME the gateway hosts (4 packaged + 10 custom). Single source
-  # for the client SSE URLs, so the two sides can never drift.
+  # Every server NAME the gateway hosts (7 packaged + 10 custom). Single source
+  # for the client SSE URLs, so the two sides can never drift. Order/names MUST
+  # match the packaged servers enabled in `gatewayConfig.programs` below.
   packagedServerNames = [
     "context7"
     "fetch"
     "memory"
     "sequential-thinking"
+    "nixos"
+    "terraform"
+    "github"
   ];
   hostedServerNames = packagedServerNames ++ builtins.attrNames customStdioServers;
 
@@ -254,6 +258,33 @@ let
       fetch.enable = true;
       memory.enable = true;
       sequential-thinking.enable = true;
+      # Grounded, READ-ONLY nixpkgs/NixOS/Home-Manager/nix-darwin option+package lookup
+      # (utensils/mcp-nixos). This repo authors config for exactly those three module
+      # surfaces every session; a real lookup kills hallucinated package/option names.
+      # No token.
+      nixos.enable = true;
+      # Terraform Registry provider/module/policy schema docs (hashicorp/terraform-mcp-server)
+      # for the terranix → Cloudflare IaC under infra/. Registry-docs only (no HCP/TFE token
+      # supplied) => read-only. mcp-proxy hosts it like the rest.
+      terraform.enable = true;
+      # GitHub's official MCP server (typed PR/CI/issue/code-search tools) — more reliable
+      # than scraping `gh` output for the one-PR-per-session + GitHub-hosted-CI flow. The PAT
+      # is fetched at gateway LAUNCH from the login Keychain via passwordCommand (same pattern
+      # as context7 above), so it is NEVER in argv or the /nix/store. Set it once with
+      # `secret set GITHUB_PERSONAL_ACCESS_TOKEN <pat>`; an absent key => empty export => the
+      # server starts but its calls fail auth until a token is present (it degrades, not crashes).
+      github = {
+        enable = true;
+        passwordCommand.GITHUB_PERSONAL_ACCESS_TOKEN = [
+          "/usr/bin/security"
+          "find-generic-password"
+          "-a"
+          "$(id -un)"
+          "-s"
+          "GITHUB_PERSONAL_ACCESS_TOKEN"
+          "-w"
+        ];
+      };
     };
     settings.servers = customStdioServers;
   };
@@ -310,7 +341,7 @@ let
 
   # VS Code uses `servers` as the top-level key (NOT `mcpServers` — a mismatch VS
   # Code silently ignores) and takes `type = "http"` directly, so it connects to
-  # the SAME gateway processes as claude-code. Same 10 servers, no desktop-commander.
+  # the SAME gateway processes as claude-code. Same 17 servers, no desktop-commander.
   vscodeMcpJson = builtins.toJSON { servers = httpEntries; };
 
   # Grok CLI (xAI, grok 0.2.x) is a 4th MCP client living OUTSIDE Nix: a self-updating
