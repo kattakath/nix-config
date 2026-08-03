@@ -267,7 +267,14 @@ let
           "-w"
         ];
       };
-      fetch.enable = true;
+      # The framework's DEFAULT mcp-server-fetch is 2026.1.26, which calls httpx
+      # `AsyncClient(proxies=…)` — a kwarg httpx 0.28 renamed to `proxy` — so every fetch
+      # crashed ("unexpected keyword argument 'proxies'"). This flake's top-level nixpkgs
+      # ships mcp-server-fetch 2026.7.10, already fixed to `proxy=`; use that build instead.
+      fetch = {
+        enable = true;
+        package = pkgs.mcp-server-fetch;
+      };
       memory.enable = true;
       sequential-thinking.enable = true;
       # Grounded, READ-ONLY nixpkgs/NixOS/Home-Manager/nix-darwin option+package lookup
