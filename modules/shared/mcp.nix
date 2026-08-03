@@ -261,8 +261,17 @@ let
       # Grounded, READ-ONLY nixpkgs/NixOS/Home-Manager/nix-darwin option+package lookup
       # (utensils/mcp-nixos). This repo authors config for exactly those three module
       # surfaces every session; a real lookup kills hallucinated package/option names.
-      # No token.
-      nixos.enable = true;
+      # No token. Kept Nix-built/pinned (not a uvx runtime fetch) for reproducibility;
+      # mcp-nixos 2.4.3's `test_read_text_file` is brittle on aarch64-darwin (it asserts
+      # a sampled /nix/store text file contains no "Error" substring — a false positive,
+      # unrelated to the server), so doCheck is disabled just to let it build.
+      nixos = {
+        enable = true;
+        package = pkgs.mcp-nixos.overrideAttrs (_: {
+          doCheck = false;
+          doInstallCheck = false;
+        });
+      };
       # Terraform Registry provider/module/policy schema docs (hashicorp/terraform-mcp-server)
       # for the terranix → Cloudflare IaC under infra/. Registry-docs only (no HCP/TFE token
       # supplied) => read-only. mcp-proxy hosts it like the rest.
