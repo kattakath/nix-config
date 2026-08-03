@@ -194,17 +194,29 @@ let
     # (github:ismailkattakath/nix-local-rag), which single-sources the URI via
     # services.pgvectorLocal.databaseUri.
     #
-    # `--python 3.12` is LOAD-BEARING: postgres-mcp depends on pglast, whose current
-    # release ships no wheel for CPython 3.14 (uv's default newest interpreter) and
-    # fails to source-build it, so an unpinned `uvx postgres-mcp` dies on install —
-    # and since mcp-proxy spawns every named server at startup, that ONE failure
-    # crashes the whole gateway (nothing binds :8096, ALL servers go dark). Pinning to
-    # 3.12 selects a Python with prebuilt pglast wheels, so it installs in ms and runs.
+    # This server is a `uvx` RUNTIME fetch (no nixpkgs/mcp-servers-nix package exists),
+    # so its resolution can DRIFT — and because mcp-proxy spawns every named server at
+    # startup, ONE server that fails to install/import crashes the whole gateway (nothing
+    # binds :8096, ALL servers go dark). Two load-bearing pins guard the two ways it drifts:
+    #
+    # 1. `--python 3.12`: postgres-mcp depends on pglast, whose current release ships no
+    #    wheel for CPython 3.14 (uv's default newest interpreter) and fails to source-build
+    #    it. 3.12 selects a Python with prebuilt pglast wheels, so it installs in ms.
+    # 2. `--with mcp<2` + `--from postgres-mcp==0.3.0`: mcp 2.0.0 (2026-08) REMOVED the
+    #    vendored `mcp.server.fastmcp`, but postgres-mcp 0.3.0 still does
+    #    `from mcp.server.fastmcp import FastMCP`. Unbounded `uvx postgres-mcp` grabbed the
+    #    fresh mcp 2.0 and every import crashed → gateway dark. Constrain mcp to 1.x (which
+    #    still ships fastmcp) and pin the postgres-mcp version so the pair stays deterministic.
+    #    Bump both together deliberately once postgres-mcp supports mcp 2.x.
     postgres = {
       command = uvx;
       args = [
         "--python"
         "3.12"
+        "--with"
+        "mcp<2"
+        "--from"
+        "postgres-mcp==0.3.0"
         "postgres-mcp"
         "--access-mode=unrestricted"
       ];
