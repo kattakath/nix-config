@@ -299,6 +299,26 @@
       cloudflareAccountId = "726e0b2aa2bc2c6944f96a042e3c461b";
       cloudflareZoneId = "6e28971881e488941d052bbbf50d69cd"; # the domainName zone
 
+      # ---- Sites served on the ONE nixpi tunnel (single source) ---------------
+      # Each entry is a static site behind nixpi's Cloudflare tunnel:
+      #   { domain; zoneId; root }  (root = the package dir Caddy file_servers).
+      # hosts/nixpi.nix maps each -> a Caddy vhost; infra/cloudflare/nixpi-tunnel.nix
+      # maps each -> a tunnel ingress rule + apex/www CNAMEs + a www->apex 301 edge
+      # redirect. Adding a site is ONE entry here (no copy-paste). zoneIds are
+      # non-secret identifiers, all in the same Cloudflare account as kattakath.com.
+      hostedSites = [
+        {
+          domain = domainName; # kattakath.com — also the SSH/primary zone
+          zoneId = cloudflareZoneId;
+          root = ./packages/landing;
+        }
+        {
+          domain = "snoringirl.com";
+          zoneId = "21de2a6be1b268b2b151ae0b3592e562";
+          root = ./packages/snoringirl;
+        }
+      ];
+
       # ---- DRY system mapping -------------------------------------------------
       # A 2-SYSTEM aarch64-only FLEET (aarch64-darwin: macos + macvm; aarch64-linux: nixpi + nixvm):
       # no x86_64 HOST anywhere. Every package /
@@ -362,7 +382,7 @@
             ./infra/cloudflare/nixpi-tunnel.nix
             {
               _module.args = {
-                inherit domainName;
+                inherit domainName hostedSites;
                 accountId = cloudflareAccountId;
                 zoneId = cloudflareZoneId;
               };
@@ -661,6 +681,7 @@
               operatorSshKey
               firmware-secrets
               cloudflared-connector
+              hostedSites
               ;
           };
           modules = [
