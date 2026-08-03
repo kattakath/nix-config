@@ -164,6 +164,25 @@
       url = "github:coleam00/excalidraw-diagram-skill";
       flake = false;
     };
+    agent-skills-trailofbits = {
+      # Trail of Bits security skills (CC-BY-SA-4.0): gh-cli (prefer authenticated gh over raw curl) +
+      # supply-chain-risk-auditor (dependency takeover/typosquat risk scoring). Wired in programs.claude-code.skills.
+      url = "github:trailofbits/skills";
+      flake = false;
+    };
+    agent-skills-superpowers = {
+      # obra/superpowers (MIT): ONLY the systematic-debugging skill is pinned (cherry-picked subpath, NOT the
+      # whole 14-skill plugin) — a hypothesis-driven debugging methodology. Keeps the always-loaded set lean.
+      url = "github:obra/superpowers";
+      flake = false;
+    };
+    # Anthropic's OFFICIAL first-party plugin marketplace (Apache-2.0). Pinned to enable the in-repo
+    # `security-guidance` plugin (hook-driven secret/injection warnings + Stop-hook diff review) via
+    # programs.claude-code.marketplaces + enabledPlugins — the same declarative path as grok-build.
+    claude-plugins-official = {
+      url = "github:anthropics/claude-plugins-official";
+      flake = false;
+    };
   };
 
   outputs =
@@ -192,6 +211,9 @@
       agent-skills-jeffallan,
       agent-skills-mac-automation,
       agent-skills-excalidraw,
+      agent-skills-trailofbits,
+      agent-skills-superpowers,
+      claude-plugins-official,
       grok-build-plugin-cc,
       ...
     }:
@@ -585,6 +607,9 @@
                 agent-skills-jeffallan
                 agent-skills-mac-automation
                 agent-skills-excalidraw
+                agent-skills-trailofbits
+                agent-skills-superpowers
+                claude-plugins-official
                 grok-build-plugin-cc
                 keychain-secrets
                 local-rag

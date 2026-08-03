@@ -119,6 +119,38 @@
         "type": "github"
       }
     },
+    "agent-skills-superpowers": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785266736,
+        "narHash": "sha256-fnl+HbPL2qD5Zgz8a1NctjFJSqu6UsyHJAhQMLQNXXc=",
+        "owner": "obra",
+        "repo": "superpowers",
+        "rev": "44c9b2d6e889982ac18c27d05a19fefe335194e1",
+        "type": "github"
+      },
+      "original": {
+        "owner": "obra",
+        "repo": "superpowers",
+        "type": "github"
+      }
+    },
+    "agent-skills-trailofbits": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785780747,
+        "narHash": "sha256-vLm6/zaFTomMFaPFxEBDT6j5BTGE5K2JlERF+bZdyIs=",
+        "owner": "trailofbits",
+        "repo": "skills",
+        "rev": "9ea55c598763f7cb87ab56933d773d7dc34344a0",
+        "type": "github"
+      },
+      "original": {
+        "owner": "trailofbits",
+        "repo": "skills",
+        "type": "github"
+      }
+    },
     "agent-skills-vercel": {
       "flake": false,
       "locked": {
@@ -149,6 +181,22 @@
         "owner": "Homebrew",
         "ref": "6.0.11",
         "repo": "brew",
+        "type": "github"
+      }
+    },
+    "claude-plugins-official": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785780839,
+        "narHash": "sha256-4SFS1J8lpRD7h2KoWZO+SFuJFju+BWPt9D20w77FLQo=",
+        "owner": "anthropics",
+        "repo": "claude-plugins-official",
+        "rev": "f073362786e1a697d96c2f1e0eff319e22fff0fe",
+        "type": "github"
+      },
+      "original": {
+        "owner": "anthropics",
+        "repo": "claude-plugins-official",
         "type": "github"
       }
     },
@@ -757,7 +805,10 @@
         "agent-skills-excalidraw": "agent-skills-excalidraw",
         "agent-skills-jeffallan": "agent-skills-jeffallan",
         "agent-skills-mac-automation": "agent-skills-mac-automation",
+        "agent-skills-superpowers": "agent-skills-superpowers",
+        "agent-skills-trailofbits": "agent-skills-trailofbits",
         "agent-skills-vercel": "agent-skills-vercel",
+        "claude-plugins-official": "claude-plugins-official",
         "cloudflared-connector": "cloudflared-connector",
         "determinate": "determinate",
         "firmware-secrets": "firmware-secrets",

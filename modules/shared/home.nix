@@ -38,6 +38,9 @@
   agent-skills-jeffallan,
   agent-skills-mac-automation,
   agent-skills-excalidraw,
+  agent-skills-trailofbits,
+  agent-skills-superpowers,
+  claude-plugins-official,
   grok-build-plugin-cc,
   # The extracted local-rag flake (services.ollamaLocal + services.pgvectorLocal);
   # its two home-manager modules replace the vendored ollama/postgres-pgvector.
@@ -86,7 +89,13 @@ let
   # SOURCE for both the enabledPlugins flags and the idempotent install activation
   # (home.activation.claudeCodePlugins). Each id is "<plugin>@<marketplace>"; adding
   # a plugin = pin its marketplace input + marketplaces entry, then append its id here.
-  claudePluginIds = [ "grok-build@xai-grok-build" ];
+  claudePluginIds = [
+    "grok-build@xai-grok-build"
+    # Anthropic first-party security-review plugin (hook-driven): PostToolUse secret/injection
+    # warnings + a Stop-hook LLM diff review. Its marketplace is claude-plugins-official (below);
+    # the plugin's code is in-repo (source "./plugins/security-guidance"), so it is fully pinned.
+    "security-guidance@claude-plugins-official"
+  ];
 
   # Absolute operator SSH paths under $HOME. Git treats a non-absolute
   # gpg.ssh.allowedSignersFile as worktree-relative (would look in <repo>/.ssh/).
@@ -402,6 +411,11 @@ in
       # commands + the grok-delegate agent. Runtime deps: grok on PATH (~/.grok/bin)
       # + Node; grok must be authenticated (`grok models` succeeds).
       marketplaces.xai-grok-build = "${grok-build-plugin-cc}";
+      # Anthropic's official first-party plugin marketplace (repo root has
+      # .claude-plugin/marketplace.json). Pinned so `security-guidance@claude-plugins-official`
+      # (enabledPlugins above) installs from a fixed rev; the plugin's hooks self-register once
+      # `claude plugin install` has run (home.activation.claudeCodePlugins). Needs python3 (present on macos).
+      marketplaces.claude-plugins-official = "${claude-plugins-official}";
 
       # Claude Code user settings, now Nix-owned (the marketplaces option above
       # takes over ~/.claude/settings.json wholesale, so everything must live here
@@ -468,6 +482,16 @@ in
         # Community: generate .excalidraw diagrams — pairs with the Excalidraw connector.
         # Root-level SKILL.md, so the whole repo is the skill dir.
         excalidraw-diagram = "${agent-skills-excalidraw}";
+        # ---- Security / methodology skills (from the audit) ----
+        # Trail of Bits (CC-BY-SA-4.0): prefer authenticated `gh` over raw GitHub curl/WebFetch —
+        # fits the heavy gh/PR flow (pr-consolidation, /review, brag PR mining).
+        gh-cli = "${agent-skills-trailofbits}/plugins/gh-cli/skills/gh-cli";
+        # Trail of Bits: score dependencies for takeover/typosquat/bus-factor risk — matches the
+        # flake-pin provenance discipline (every input is pinned + provenance-checked).
+        supply-chain-risk-auditor = "${agent-skills-trailofbits}/plugins/supply-chain-risk-auditor/skills/supply-chain-risk-auditor";
+        # obra/superpowers (MIT): the SINGLE systematic-debugging skill (cherry-picked subpath, NOT
+        # the whole 14-skill plugin) — a hypothesis-driven debugging methodology.
+        systematic-debugging = "${agent-skills-superpowers}/skills/systematic-debugging";
         # Personal: a thin GLOBAL pointer to the Brags personal-branding review flow whose
         # authoritative SKILL.md + engine live in the private ~/Documents/brags repo (so it
         # tracks that repo, and the heavy logic isn't vendored here). Makes "run my brags
