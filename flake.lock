@@ -39,6 +39,86 @@
         "type": "github"
       }
     },
+    "agent-skills-anthropic-official": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1784923954,
+        "narHash": "sha256-RH2B03gj4kzw1j5LORezgUZPPu8mW+mWb+Kl2U7WUbY=",
+        "owner": "anthropics",
+        "repo": "skills",
+        "rev": "b29e7cf65e5cb78a5ac33d582270551bc74a14eb",
+        "type": "github"
+      },
+      "original": {
+        "owner": "anthropics",
+        "repo": "skills",
+        "type": "github"
+      }
+    },
+    "agent-skills-cloudflare": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1784918553,
+        "narHash": "sha256-iccg8z3hPKWAhQ6Q5kmw8s5fRopoN/U3opJqYjlpiXs=",
+        "owner": "cloudflare",
+        "repo": "skills",
+        "rev": "30553f89ae1ef1e3c2917cd09d72dac992bb4e9a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "cloudflare",
+        "repo": "skills",
+        "type": "github"
+      }
+    },
+    "agent-skills-excalidraw": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1772372175,
+        "narHash": "sha256-X0GEwn/1n6jxmnaF0YMMBWpEOaQ8XOy3yigLXkBDi/w=",
+        "owner": "coleam00",
+        "repo": "excalidraw-diagram-skill",
+        "rev": "8646fcc9f74f38539c6cdb4c969723336a96ddcd",
+        "type": "github"
+      },
+      "original": {
+        "owner": "coleam00",
+        "repo": "excalidraw-diagram-skill",
+        "type": "github"
+      }
+    },
+    "agent-skills-jeffallan": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1779284027,
+        "narHash": "sha256-uvMrO8E2DkWMEqcE3zJ45+BNkZEtO7ZlV7yNrz3O5Jk=",
+        "owner": "Jeffallan",
+        "repo": "claude-skills",
+        "rev": "e8be415bc94d8d6ebddc2fb50e5d03c6e27d4319",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Jeffallan",
+        "repo": "claude-skills",
+        "type": "github"
+      }
+    },
+    "agent-skills-mac-automation": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1768434068,
+        "narHash": "sha256-90zUqOazTvl9iFitDwDzAuvoiwLvwOMi2cafViGIOIc=",
+        "owner": "SpillwaveSolutions",
+        "repo": "automating-mac-apps-plugin",
+        "rev": "313fc9b3d752e120ffc25039ed4d0e262dbc7cd7",
+        "type": "github"
+      },
+      "original": {
+        "owner": "SpillwaveSolutions",
+        "repo": "automating-mac-apps-plugin",
+        "type": "github"
+      }
+    },
     "agent-skills-vercel": {
       "flake": false,
       "locked": {
@@ -672,6 +752,11 @@
       "inputs": {
         "agenix": "agenix",
         "agent-skills-anthropic": "agent-skills-anthropic",
+        "agent-skills-anthropic-official": "agent-skills-anthropic-official",
+        "agent-skills-cloudflare": "agent-skills-cloudflare",
+        "agent-skills-excalidraw": "agent-skills-excalidraw",
+        "agent-skills-jeffallan": "agent-skills-jeffallan",
+        "agent-skills-mac-automation": "agent-skills-mac-automation",
         "agent-skills-vercel": "agent-skills-vercel",
         "cloudflared-connector": "cloudflared-connector",
         "determinate": "determinate",

@@ -131,6 +131,39 @@
       url = "github:xai-org/grok-build-plugin-cc";
       flake = false;
     };
+    # ---- Additional third-party skill collections (source-only, flake = false) --
+    # Wired into programs.claude-code.skills alongside the two above. Chosen to
+    # DRIVE tools this fleet already has (Cloudflare Tunnel + cloudflare/cloudflare-docs
+    # MCP, the playwright/postgres/macos-automator MCP servers, the Excalidraw
+    # connector, the Google Drive connector). Bumped via `nix flake update`; nothing vendored.
+    agent-skills-cloudflare = {
+      # OFFICIAL Cloudflare (Apache-2.0): `cloudflare` + `cloudflare-one` (Access/Tunnel) product reference.
+      url = "github:cloudflare/skills";
+      flake = false;
+    };
+    agent-skills-anthropic-official = {
+      # Anthropic's official skills marketplace (source-available): mcp-builder, webapp-testing,
+      # pdf/docx/pptx/xlsx. DISTINCT from `agent-skills-anthropic` (= anthropics/claude-code, the
+      # plugin-dev + hookify AUTHORING skills) — this is the anthropics/skills content repo.
+      url = "github:anthropics/skills";
+      flake = false;
+    };
+    agent-skills-jeffallan = {
+      # MIT: `postgres-pro` (senior-Postgres skill) — pairs with the postgres MCP server + local pgvector RAG.
+      url = "github:Jeffallan/claude-skills";
+      flake = false;
+    };
+    agent-skills-mac-automation = {
+      # MIT: `automating-mac-apps` foundation (AppleScript/JXA) — pairs with the macos-automator MCP server.
+      url = "github:SpillwaveSolutions/automating-mac-apps-plugin";
+      flake = false;
+    };
+    agent-skills-excalidraw = {
+      # Generates .excalidraw diagrams (Playwright render-loop) — pairs with the Excalidraw connector.
+      # Root-level SKILL.md, so the whole repo IS the skill dir. No LICENSE file (source-available; personal pin only).
+      url = "github:coleam00/excalidraw-diagram-skill";
+      flake = false;
+    };
   };
 
   outputs =
@@ -154,6 +187,11 @@
       mcp-servers-nix,
       agent-skills-vercel,
       agent-skills-anthropic,
+      agent-skills-cloudflare,
+      agent-skills-anthropic-official,
+      agent-skills-jeffallan,
+      agent-skills-mac-automation,
+      agent-skills-excalidraw,
       grok-build-plugin-cc,
       ...
     }:
@@ -542,6 +580,11 @@
                 mcp-servers-nix
                 agent-skills-vercel
                 agent-skills-anthropic
+                agent-skills-cloudflare
+                agent-skills-anthropic-official
+                agent-skills-jeffallan
+                agent-skills-mac-automation
+                agent-skills-excalidraw
                 grok-build-plugin-cc
                 keychain-secrets
                 local-rag

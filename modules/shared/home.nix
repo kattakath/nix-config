@@ -33,6 +33,11 @@
   # below). flake.nix pins them; nothing is vendored into this repo.
   agent-skills-vercel,
   agent-skills-anthropic,
+  agent-skills-cloudflare,
+  agent-skills-anthropic-official,
+  agent-skills-jeffallan,
+  agent-skills-mac-automation,
+  agent-skills-excalidraw,
   grok-build-plugin-cc,
   # The extracted local-rag flake (services.ollamaLocal + services.pgvectorLocal);
   # its two home-manager modules replace the vendored ollama/postgres-pgvector.
@@ -437,6 +442,32 @@ in
         plugin-structure = "${agent-skills-anthropic}/plugins/plugin-dev/skills/plugin-structure";
         plugin-settings = "${agent-skills-anthropic}/plugins/plugin-dev/skills/plugin-settings";
         writing-hookify-rules = "${agent-skills-anthropic}/plugins/hookify/skills/writing-rules";
+
+        # ---- Tool-driver skills: each pairs with an MCP server / connector this
+        # fleet already runs (see flake.nix `agent-skills-*` inputs). Additive,
+        # git-pinned, bumped via `nix flake update`. ----
+        # OFFICIAL Cloudflare (Apache-2.0): drive the cloudflare/cloudflare-docs MCP
+        # servers + the live Cloudflare Tunnel/terranix stack. `cloudflare-one` covers Access/Tunnel.
+        cloudflare = "${agent-skills-cloudflare}/skills/cloudflare";
+        cloudflare-one = "${agent-skills-cloudflare}/skills/cloudflare-one";
+        # Anthropic official (source-available): mcp-builder tool-design guidance for the
+        # whole MCP gateway; webapp-testing drives the `playwright` MCP server.
+        mcp-builder = "${agent-skills-anthropic-official}/skills/mcp-builder";
+        webapp-testing = "${agent-skills-anthropic-official}/skills/webapp-testing";
+        # Anthropic document skills: pair with the Google Drive connector (fetch → edit → store).
+        # NOTE heavy runtime deps (LibreOffice/poppler/pandoc/qpdf) must be on PATH to actually run.
+        pdf = "${agent-skills-anthropic-official}/skills/pdf";
+        docx = "${agent-skills-anthropic-official}/skills/docx";
+        pptx = "${agent-skills-anthropic-official}/skills/pptx";
+        xlsx = "${agent-skills-anthropic-official}/skills/xlsx";
+        # Community (MIT, 10.9k★): senior-Postgres skill — pairs with the `postgres` MCP + pgvector RAG.
+        postgres-pro = "${agent-skills-jeffallan}/skills/postgres-pro";
+        # Community (MIT): AppleScript/JXA foundation — pairs with the `macos-automator` MCP server.
+        # Foundation skill only (the 15 per-app skills can be added later) to keep the global set lean.
+        automating-mac-apps = "${agent-skills-mac-automation}/plugins/automating-mac-apps-plugin/skills/automating-mac-apps";
+        # Community: generate .excalidraw diagrams — pairs with the Excalidraw connector.
+        # Root-level SKILL.md, so the whole repo is the skill dir.
+        excalidraw-diagram = "${agent-skills-excalidraw}";
         # Personal: a thin GLOBAL pointer to the Brags personal-branding review flow whose
         # authoritative SKILL.md + engine live in the private ~/Documents/brags repo (so it
         # tracks that repo, and the heavy logic isn't vendored here). Makes "run my brags
