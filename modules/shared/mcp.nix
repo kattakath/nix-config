@@ -457,6 +457,12 @@ in
       config = {
         ProgramArguments = [
           (lib.getExe' pkgs.mcp-proxy "mcp-proxy")
+          # Kapture emits a non-spec `kapture/tabs_changed` notification the mcp lib
+          # rejects with ~20 pydantic validation errors, logged at WARNING every ~2s
+          # per connected tab — it had flooded the gateway log to millions of lines.
+          # --log-level ERROR drops that (and INFO) noise while keeping real failures.
+          "--log-level"
+          "ERROR"
           "--host"
           gatewayHost
           "--port"
@@ -494,6 +500,12 @@ in
       config = {
         ProgramArguments = [
           (lib.getExe' pkgs.mcp-proxy "mcp-proxy")
+          # Kapture emits a non-spec `kapture/tabs_changed` notification the mcp lib
+          # rejects with ~20 pydantic validation errors, logged at WARNING every ~2s
+          # per connected tab — it had flooded the gateway log to millions of lines.
+          # --log-level ERROR drops that (and INFO) noise while keeping real failures.
+          "--log-level"
+          "ERROR"
           "--host"
           gatewayHost
           "--port"
