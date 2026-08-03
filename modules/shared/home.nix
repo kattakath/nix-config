@@ -33,6 +33,14 @@
   # below). flake.nix pins them; nothing is vendored into this repo.
   agent-skills-vercel,
   agent-skills-anthropic,
+  agent-skills-cloudflare,
+  agent-skills-anthropic-official,
+  agent-skills-jeffallan,
+  agent-skills-mac-automation,
+  agent-skills-excalidraw,
+  agent-skills-trailofbits,
+  agent-skills-superpowers,
+  claude-plugins-official,
   grok-build-plugin-cc,
   # The extracted local-rag flake (services.ollamaLocal + services.pgvectorLocal);
   # its two home-manager modules replace the vendored ollama/postgres-pgvector.
@@ -81,7 +89,13 @@ let
   # SOURCE for both the enabledPlugins flags and the idempotent install activation
   # (home.activation.claudeCodePlugins). Each id is "<plugin>@<marketplace>"; adding
   # a plugin = pin its marketplace input + marketplaces entry, then append its id here.
-  claudePluginIds = [ "grok-build@xai-grok-build" ];
+  claudePluginIds = [
+    "grok-build@xai-grok-build"
+    # Anthropic first-party security-review plugin (hook-driven): PostToolUse secret/injection
+    # warnings + a Stop-hook LLM diff review. Its marketplace is claude-plugins-official (below);
+    # the plugin's code is in-repo (source "./plugins/security-guidance"), so it is fully pinned.
+    "security-guidance@claude-plugins-official"
+  ];
 
   # Absolute operator SSH paths under $HOME. Git treats a non-absolute
   # gpg.ssh.allowedSignersFile as worktree-relative (would look in <repo>/.ssh/).
@@ -267,16 +281,17 @@ in
   # gh / git-lfs stay OUT of this list — they come from their `programs.*`
   # modules below (listing them here too would be a buildEnv /bin collision).
   #
-  # Fonts: only the two wired to a VS Code setting are kept. nixpkgs unstable
-  # uses the per-font `nerd-fonts.<name>` attrs (24.05+ restructure), not the
-  # old `(nerdfonts.override { ... })`.
+  # Fonts: the two Nerd Fonts wired to VS Code settings, plus Inter as a general
+  # proportional UI face. nixpkgs unstable uses the per-font `nerd-fonts.<name>`
+  # attrs (24.05+ restructure), not the old `(nerdfonts.override { ... })`.
   home.packages =
     with pkgs;
     [
       fh # FlakeHub CLI — flake input publishing/management, wanted on every host
-      # fonts (each is referenced by a VS Code font setting below)
+      # fonts
       nerd-fonts.jetbrains-mono # "JetBrainsMono Nerd Font" — VS Code editor font (pairs with the JetBrains theme)
       nerd-fonts.ubuntu-mono # "UbuntuMono Nerd Font" — VS Code terminal font (matches the devcontainer)
+      inter # "Inter" — proportional UI font; no Nerd Font variant exists (NF only patches monospace fonts), so this is the plain upstream package
     ]
     # claude-code: on darwin it is installed by the programs.claude-code module
     # below (so the mcp-servers-nix integration can inject the shared MCP
@@ -396,6 +411,11 @@ in
       # commands + the grok-delegate agent. Runtime deps: grok on PATH (~/.grok/bin)
       # + Node; grok must be authenticated (`grok models` succeeds).
       marketplaces.xai-grok-build = "${grok-build-plugin-cc}";
+      # Anthropic's official first-party plugin marketplace (repo root has
+      # .claude-plugin/marketplace.json). Pinned so `security-guidance@claude-plugins-official`
+      # (enabledPlugins above) installs from a fixed rev; the plugin's hooks self-register once
+      # `claude plugin install` has run (home.activation.claudeCodePlugins). Needs python3 (present on macos).
+      marketplaces.claude-plugins-official = "${claude-plugins-official}";
 
       # Claude Code user settings, now Nix-owned (the marketplaces option above
       # takes over ~/.claude/settings.json wholesale, so everything must live here
@@ -436,6 +456,42 @@ in
         plugin-structure = "${agent-skills-anthropic}/plugins/plugin-dev/skills/plugin-structure";
         plugin-settings = "${agent-skills-anthropic}/plugins/plugin-dev/skills/plugin-settings";
         writing-hookify-rules = "${agent-skills-anthropic}/plugins/hookify/skills/writing-rules";
+
+        # ---- Tool-driver skills: each pairs with an MCP server / connector this
+        # fleet already runs (see flake.nix `agent-skills-*` inputs). Additive,
+        # git-pinned, bumped via `nix flake update`. ----
+        # OFFICIAL Cloudflare (Apache-2.0): drive the cloudflare/cloudflare-docs MCP
+        # servers + the live Cloudflare Tunnel/terranix stack. `cloudflare-one` covers Access/Tunnel.
+        cloudflare = "${agent-skills-cloudflare}/skills/cloudflare";
+        cloudflare-one = "${agent-skills-cloudflare}/skills/cloudflare-one";
+        # Anthropic official (source-available): mcp-builder tool-design guidance for the
+        # whole MCP gateway; webapp-testing drives the `playwright` MCP server.
+        mcp-builder = "${agent-skills-anthropic-official}/skills/mcp-builder";
+        webapp-testing = "${agent-skills-anthropic-official}/skills/webapp-testing";
+        # Anthropic document skills: pair with the Google Drive connector (fetch → edit → store).
+        # NOTE heavy runtime deps (LibreOffice/poppler/pandoc/qpdf) must be on PATH to actually run.
+        pdf = "${agent-skills-anthropic-official}/skills/pdf";
+        docx = "${agent-skills-anthropic-official}/skills/docx";
+        pptx = "${agent-skills-anthropic-official}/skills/pptx";
+        xlsx = "${agent-skills-anthropic-official}/skills/xlsx";
+        # Community (MIT, 10.9k★): senior-Postgres skill — pairs with the `postgres` MCP + pgvector RAG.
+        postgres-pro = "${agent-skills-jeffallan}/skills/postgres-pro";
+        # Community (MIT): AppleScript/JXA foundation — pairs with the `macos-automator` MCP server.
+        # Foundation skill only (the 15 per-app skills can be added later) to keep the global set lean.
+        automating-mac-apps = "${agent-skills-mac-automation}/plugins/automating-mac-apps-plugin/skills/automating-mac-apps";
+        # Community: generate .excalidraw diagrams — pairs with the Excalidraw connector.
+        # Root-level SKILL.md, so the whole repo is the skill dir.
+        excalidraw-diagram = "${agent-skills-excalidraw}";
+        # ---- Security / methodology skills (from the audit) ----
+        # Trail of Bits (CC-BY-SA-4.0): prefer authenticated `gh` over raw GitHub curl/WebFetch —
+        # fits the heavy gh/PR flow (pr-consolidation, /review, brag PR mining).
+        gh-cli = "${agent-skills-trailofbits}/plugins/gh-cli/skills/gh-cli";
+        # Trail of Bits: score dependencies for takeover/typosquat/bus-factor risk — matches the
+        # flake-pin provenance discipline (every input is pinned + provenance-checked).
+        supply-chain-risk-auditor = "${agent-skills-trailofbits}/plugins/supply-chain-risk-auditor/skills/supply-chain-risk-auditor";
+        # obra/superpowers (MIT): the SINGLE systematic-debugging skill (cherry-picked subpath, NOT
+        # the whole 14-skill plugin) — a hypothesis-driven debugging methodology.
+        systematic-debugging = "${agent-skills-superpowers}/skills/systematic-debugging";
         # Personal: a thin GLOBAL pointer to the Brags personal-branding review flow whose
         # authoritative SKILL.md + engine live in the private ~/Documents/brags repo (so it
         # tracks that repo, and the heavy logic isn't vendored here). Makes "run my brags

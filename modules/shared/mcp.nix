@@ -17,15 +17,15 @@
 # account owns the GUI session, `darwin-rebuild switch` cannot load the agent.
 #
 # SERVER SIDE (this box, 127.0.0.1:8096)
-#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 14 servers, each
+#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 17 servers, each
 #   reachable at /servers/<name>/sse. `gatewayConfig` is rendered by
-#   mcp-servers-nix's `lib.mkConfig`, so the 4 packaged servers
-#   (context7/fetch/memory/sequential-thinking) are PINNED store-path commands;
-#   the 10 without a module fall back to pinned npx/uvx launchers (still a runtime
-#   fetch, but acceptable on the Mac where Node/uv already live).
+#   mcp-servers-nix's `lib.mkConfig`, so the 7 packaged servers
+#   (context7/fetch/memory/sequential-thinking/nixos/terraform/github) are PINNED
+#   store-path commands; the 10 without a module fall back to pinned npx/uvx
+#   launchers (still a runtime fetch, but acceptable on the Mac where Node/uv already live).
 #
 # CLIENT SIDE (programs.claude-code.mcpServers)
-#   The 10 hosted servers are wired as `type = "http"` (Streamable HTTP — the
+#   The 17 hosted servers are wired as `type = "http"` (Streamable HTTP — the
 #   current MCP standard; the legacy HTTP+SSE transport was deprecated in the
 #   2025-03-26 spec) pointing at /servers/<name>/mcp; desktop-commander stays
 #   `type = "stdio"`. The claude-code module writes these into a managed
@@ -194,17 +194,29 @@ let
     # (github:ismailkattakath/nix-local-rag), which single-sources the URI via
     # services.pgvectorLocal.databaseUri.
     #
-    # `--python 3.12` is LOAD-BEARING: postgres-mcp depends on pglast, whose current
-    # release ships no wheel for CPython 3.14 (uv's default newest interpreter) and
-    # fails to source-build it, so an unpinned `uvx postgres-mcp` dies on install —
-    # and since mcp-proxy spawns every named server at startup, that ONE failure
-    # crashes the whole gateway (nothing binds :8096, ALL servers go dark). Pinning to
-    # 3.12 selects a Python with prebuilt pglast wheels, so it installs in ms and runs.
+    # This server is a `uvx` RUNTIME fetch (no nixpkgs/mcp-servers-nix package exists),
+    # so its resolution can DRIFT — and because mcp-proxy spawns every named server at
+    # startup, ONE server that fails to install/import crashes the whole gateway (nothing
+    # binds :8096, ALL servers go dark). Two load-bearing pins guard the two ways it drifts:
+    #
+    # 1. `--python 3.12`: postgres-mcp depends on pglast, whose current release ships no
+    #    wheel for CPython 3.14 (uv's default newest interpreter) and fails to source-build
+    #    it. 3.12 selects a Python with prebuilt pglast wheels, so it installs in ms.
+    # 2. `--with mcp<2` + `--from postgres-mcp==0.3.0`: mcp 2.0.0 (2026-08) REMOVED the
+    #    vendored `mcp.server.fastmcp`, but postgres-mcp 0.3.0 still does
+    #    `from mcp.server.fastmcp import FastMCP`. Unbounded `uvx postgres-mcp` grabbed the
+    #    fresh mcp 2.0 and every import crashed → gateway dark. Constrain mcp to 1.x (which
+    #    still ships fastmcp) and pin the postgres-mcp version so the pair stays deterministic.
+    #    Bump both together deliberately once postgres-mcp supports mcp 2.x.
     postgres = {
       command = uvx;
       args = [
         "--python"
         "3.12"
+        "--with"
+        "mcp<2"
+        "--from"
+        "postgres-mcp==0.3.0"
         "postgres-mcp"
         "--access-mode=unrestricted"
       ];
@@ -212,13 +224,17 @@ let
     };
   };
 
-  # Every server NAME the gateway hosts (4 packaged + 10 custom). Single source
-  # for the client SSE URLs, so the two sides can never drift.
+  # Every server NAME the gateway hosts (7 packaged + 10 custom). Single source
+  # for the client SSE URLs, so the two sides can never drift. Order/names MUST
+  # match the packaged servers enabled in `gatewayConfig.programs` below.
   packagedServerNames = [
     "context7"
     "fetch"
     "memory"
     "sequential-thinking"
+    "nixos"
+    "terraform"
+    "github"
   ];
   hostedServerNames = packagedServerNames ++ builtins.attrNames customStdioServers;
 
@@ -251,9 +267,52 @@ let
           "-w"
         ];
       };
-      fetch.enable = true;
+      # The framework's DEFAULT mcp-server-fetch is 2026.1.26, which calls httpx
+      # `AsyncClient(proxies=…)` — a kwarg httpx 0.28 renamed to `proxy` — so every fetch
+      # crashed ("unexpected keyword argument 'proxies'"). This flake's top-level nixpkgs
+      # ships mcp-server-fetch 2026.7.10, already fixed to `proxy=`; use that build instead.
+      fetch = {
+        enable = true;
+        package = pkgs.mcp-server-fetch;
+      };
       memory.enable = true;
       sequential-thinking.enable = true;
+      # Grounded, READ-ONLY nixpkgs/NixOS/Home-Manager/nix-darwin option+package lookup
+      # (utensils/mcp-nixos). This repo authors config for exactly those three module
+      # surfaces every session; a real lookup kills hallucinated package/option names.
+      # No token. Kept Nix-built/pinned (not a uvx runtime fetch) for reproducibility;
+      # mcp-nixos 2.4.3's `test_read_text_file` is brittle on aarch64-darwin (it asserts
+      # a sampled /nix/store text file contains no "Error" substring — a false positive,
+      # unrelated to the server), so doCheck is disabled just to let it build.
+      nixos = {
+        enable = true;
+        package = pkgs.mcp-nixos.overrideAttrs (_: {
+          doCheck = false;
+          doInstallCheck = false;
+        });
+      };
+      # Terraform Registry provider/module/policy schema docs (hashicorp/terraform-mcp-server)
+      # for the terranix → Cloudflare IaC under infra/. Registry-docs only (no HCP/TFE token
+      # supplied) => read-only. mcp-proxy hosts it like the rest.
+      terraform.enable = true;
+      # GitHub's official MCP server (typed PR/CI/issue/code-search tools) — more reliable
+      # than scraping `gh` output for the one-PR-per-session + GitHub-hosted-CI flow. The PAT
+      # is fetched at gateway LAUNCH from the login Keychain via passwordCommand (same pattern
+      # as context7 above), so it is NEVER in argv or the /nix/store. Set it once with
+      # `secret set GITHUB_PERSONAL_ACCESS_TOKEN <pat>`; an absent key => empty export => the
+      # server starts but its calls fail auth until a token is present (it degrades, not crashes).
+      github = {
+        enable = true;
+        passwordCommand.GITHUB_PERSONAL_ACCESS_TOKEN = [
+          "/usr/bin/security"
+          "find-generic-password"
+          "-a"
+          "$(id -un)"
+          "-s"
+          "GITHUB_PERSONAL_ACCESS_TOKEN"
+          "-w"
+        ];
+      };
     };
     settings.servers = customStdioServers;
   };
@@ -310,7 +369,7 @@ let
 
   # VS Code uses `servers` as the top-level key (NOT `mcpServers` — a mismatch VS
   # Code silently ignores) and takes `type = "http"` directly, so it connects to
-  # the SAME gateway processes as claude-code. Same 10 servers, no desktop-commander.
+  # the SAME gateway processes as claude-code. Same 17 servers, no desktop-commander.
   vscodeMcpJson = builtins.toJSON { servers = httpEntries; };
 
   # Grok CLI (xAI, grok 0.2.x) is a 4th MCP client living OUTSIDE Nix: a self-updating
@@ -405,6 +464,12 @@ in
       config = {
         ProgramArguments = [
           (lib.getExe' pkgs.mcp-proxy "mcp-proxy")
+          # Kapture emits a non-spec `kapture/tabs_changed` notification the mcp lib
+          # rejects with ~20 pydantic validation errors, logged at WARNING every ~2s
+          # per connected tab — it had flooded the gateway log to millions of lines.
+          # --log-level ERROR drops that (and INFO) noise while keeping real failures.
+          "--log-level"
+          "ERROR"
           "--host"
           gatewayHost
           "--port"
@@ -442,6 +507,12 @@ in
       config = {
         ProgramArguments = [
           (lib.getExe' pkgs.mcp-proxy "mcp-proxy")
+          # Kapture emits a non-spec `kapture/tabs_changed` notification the mcp lib
+          # rejects with ~20 pydantic validation errors, logged at WARNING every ~2s
+          # per connected tab — it had flooded the gateway log to millions of lines.
+          # --log-level ERROR drops that (and INFO) noise while keeping real failures.
+          "--log-level"
+          "ERROR"
           "--host"
           gatewayHost
           "--port"
