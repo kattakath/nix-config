@@ -1,26 +1,28 @@
 # infra/cloudflare/nixpi-tunnel.nix — terranix (Nix -> OpenTofu/Terraform JSON)
 # module provisioning nixpi's REMOTELY-MANAGED Cloudflare Tunnel itself.
 #
-# It provisions four things as Terraform state (declaratively, no imperative
-# `curl` calls):
-#
+# It provisions declaratively (no imperative `curl`):
 #   (a) a remotely-managed tunnel named "nixpi"
 #       (cloudflare_zero_trust_tunnel_cloudflared, config_src = "cloudflare");
-#   (b) the tunnel's ingress config
-#       (cloudflare_zero_trust_tunnel_cloudflared_config): the public-hostname
-#       SSH route, the kattakath.com -> local Caddy route, and the required
-#       catch-all 404 rule;
-#   (c) proxied CNAMEs -> <tunnel-id>.cfargotunnel.com (cloudflare_dns_record):
-#       nixpi.kattakath.com (the SSH ingress host) AND the apex kattakath.com
-#       (so the Caddy landing-page ingress rule is publicly reachable), PLUS a
-#       proxied www.kattakath.com -> apex CNAME and a Single Redirect ruleset
-#       (cloudflare_ruleset, http_request_dynamic_redirect phase) that 301s
-#       www -> apex at the edge (canonical host; www is NOT a tunnel ingress);
+#   (b) the tunnel ingress: the SSH route (nixpi.<domain> -> local sshd), ONE
+#       web route per hosted site (<domain> -> local Caddy on :80), and the
+#       mandatory catch-all 404;
+#   (c) per hosted site: a proxied apex CNAME -> <tunnel-id>.cfargotunnel.com
+#       (so the ingress rule is reachable), a proxied www CNAME -> apex, and a
+#       www->apex 301 edge Single Redirect (cloudflare_ruleset,
+#       http_request_dynamic_redirect); PLUS the SSH host's own proxied CNAME;
 #   (d) the connector token, surfaced as a SENSITIVE `output` via the
 #       cloudflare_zero_trust_tunnel_cloudflared_token data source, so
 #       `nix run .#cf-tunnel-apply` prints it for the operator to store in the
-#       vault (`nix run .#nixpi-vault-token` → secrets/cloudflared-token.age) and
+#       vault (`nix run .#nixpi-vault-token` -> secrets/cloudflared-token.age) and
 #       plant on the FIRMWARE partition — NEVER written to git or the store.
+#
+# The SITES it serves are single-sourced as `hostedSites` in flake.nix
+# ([ { domain; zoneId; root } ]) and threaded here via _module.args, so adding a
+# site is ONE list entry — the ingress rule, apex/www CNAMEs, and www redirect are
+# all generated below. hosts/nixpi.nix generates the matching Caddy vhost from the
+# same list. accountId / zoneId (the SSH host's zone) / domainName also come from
+# flake.nix's single sources (via _module.args in cfTunnelConfig).
 #
 # The runtime connector unit (the `nix-cloudflared-connector` flake) is UNTOUCHED: it
 # reads the token at /run/cloudflared-token, which services.firmwareProvisioning
@@ -28,24 +30,12 @@
 # SD flash does not lock out the tunnel — see hosts/nixpi.nix).
 #
 # Schemas verified against the current Cloudflare Terraform provider v5 docs
-# (cloudflare/terraform-provider-cloudflare, docs/resources + docs/data-sources):
-#   - cloudflare_zero_trust_tunnel_cloudflared: required { account_id, name };
-#     config_src = "cloudflare" selects a remotely-managed tunnel. tunnel_secret
-#     is ONLY for locally-managed tunnels — omitted here on purpose.
-#   - cloudflare_zero_trust_tunnel_cloudflared_config: required { account_id,
-#     tunnel_id }; config.ingress is a list of { hostname?, service } with a
-#     trailing catch-all { service = "http_status:404" }.
-#   - cloudflare_dns_record: required { zone_id, name, type, ttl }; proxied
-#     CNAME uses content = "<tunnel-id>.cfargotunnel.com", proxied = true,
-#     ttl = 1 (automatic).
-#   - data.cloudflare_zero_trust_tunnel_cloudflared_token: required { account_id,
-#     tunnel_id }; the token is the sensitive `.token` attribute.
-# accountId / zoneId / domainName are threaded from flake.nix's single sources of
-# truth (via _module.args in cfTunnelConfig), so there is no per-file duplicate to drift.
+# (cloudflare/terraform-provider-cloudflare, docs/resources + docs/data-sources).
 {
   domainName,
   accountId,
   zoneId,
+  hostedSites,
   ...
 }:
 let
@@ -53,17 +43,94 @@ let
   # public ingress.
   tunnelName = "nixpi";
   publicHostname = "${tunnelName}.${domainName}"; # nixpi.kattakath.com — the SSH ingress host
-  apexHostname = domainName; # kattakath.com — the Caddy landing-page host (the zone apex)
-  wwwHostname = "www.${domainName}"; # www.kattakath.com — 301-redirected to the apex at Cloudflare's edge
-
-  # snoringirl.com — a SECOND static site on the SAME nixpi tunnel (packages/snoringirl,
-  # the "Collage" slideshow). Its zone is in the same Cloudflare account; zone IDs are
-  # non-secret identifiers (resolved via the cloudflare MCP `/zones` lookup).
-  snoringirlDomain = "snoringirl.com";
-  snoringirlZoneId = "21de2a6be1b268b2b151ae0b3592e562";
-  snoringirlWww = "www.${snoringirlDomain}";
 
   tunnelId = "\${cloudflare_zero_trust_tunnel_cloudflared.nixpi.id}";
+
+  # A stable Terraform resource key from a domain: kattakath.com -> kattakath_com.
+  siteKey = domain: builtins.replaceStrings [ "." "-" ] [ "_" "_" ] domain;
+
+  # ---- Per-site generation (one entry in flake.nix's hostedSites -> all of this) ----
+  # Web ingress rule: <domain> -> the local Caddy on :80.
+  siteIngress = map (s: {
+    hostname = s.domain;
+    service = "http://localhost:80";
+  }) hostedSites;
+
+  # Proxied apex CNAME -> tunnel (makes the ingress rule reachable) + proxied
+  # www CNAME -> apex (so the edge redirect below fires). ttl = 1 == automatic
+  # (required for proxied records).
+  siteDnsRecords = builtins.listToAttrs (
+    builtins.concatMap (
+      s:
+      let
+        k = siteKey s.domain;
+      in
+      [
+        {
+          name = "${k}_apex";
+          value = {
+            zone_id = s.zoneId;
+            name = s.domain;
+            type = "CNAME";
+            content = "${tunnelId}.cfargotunnel.com";
+            proxied = true;
+            ttl = 1;
+          };
+        }
+        {
+          name = "${k}_www";
+          value = {
+            zone_id = s.zoneId;
+            name = "www.${s.domain}";
+            type = "CNAME";
+            content = s.domain;
+            proxied = true;
+            ttl = 1;
+          };
+        }
+      ]
+    ) hostedSites
+  );
+
+  # Single Redirect (http_request_dynamic_redirect phase) per site: any request whose
+  # Host is www.<domain> gets a permanent 301 to the apex, query string preserved.
+  # Executes at Cloudflare's edge BEFORE any origin/tunnel fetch — www is never served
+  # directly, so there is deliberately no www ingress rule on the tunnel.
+  siteRulesets = builtins.listToAttrs (
+    map (
+      s:
+      let
+        k = siteKey s.domain;
+      in
+      {
+        name = "redirect_www_${k}";
+        value = {
+          zone_id = s.zoneId;
+          name = "redirect-www-to-apex-${k}";
+          kind = "zone";
+          phase = "http_request_dynamic_redirect";
+          rules = [
+            {
+              ref = "redirect_www_to_apex_${k}";
+              description = "301 www.${s.domain} -> ${s.domain} (canonical host)";
+              expression = ''(http.host eq "www.${s.domain}")'';
+              action = "redirect";
+              enabled = true;
+              action_parameters = {
+                from_value = {
+                  status_code = 301;
+                  preserve_query_string = true;
+                  target_url = {
+                    expression = ''concat("https://${s.domain}", http.request.uri.path)'';
+                  };
+                };
+              };
+            }
+          ];
+        };
+      }
+    ) hostedSites
+  );
 in
 {
   # ---- Provider: API token from the CLOUDFLARE_API_TOKEN env var --------------
@@ -85,160 +152,46 @@ in
   };
 
   # ---- (b) The tunnel ingress ------------------------------------------------
-  # Equivalent to the script's PUT .../configurations, extended to the current
-  # topology: SSH to the public hostname, the apex kattakath.com to the local
-  # Caddy (packages/landing served on :80), and the mandatory catch-all 404.
+  # SSH to the public hostname, one web route per hosted site (-> local Caddy),
+  # and the mandatory trailing catch-all 404.
   resource.cloudflare_zero_trust_tunnel_cloudflared_config.nixpi = {
     account_id = accountId;
     tunnel_id = tunnelId;
     config = {
       ingress = [
-        # SSH ingress — nixpi.kattakath.com -> local sshd. Reached client-side with
-        # `cloudflared access ssh --hostname nixpi.kattakath.com` (keys-only, the
-        # operator's static key in modules/nixos/core.nix). No Access/identity layer.
+        # SSH ingress — nixpi.<domain> -> local sshd. Reached client-side with
+        # `cloudflared access ssh --hostname nixpi.<domain>` (keys-only, the operator's
+        # static key in modules/nixos/core.nix). No Access/identity layer.
         {
           hostname = publicHostname;
           service = "ssh://localhost:22";
         }
-        # Caddy landing page — kattakath.com -> local Caddy on :80
-        # (hosts/nixpi.nix's services.caddy serves packages/landing here).
-        {
-          hostname = apexHostname;
-          service = "http://localhost:80";
-        }
-        # snoringirl.com -> the SAME local Caddy (a second vhost serving packages/snoringirl).
-        {
-          hostname = snoringirlDomain;
-          service = "http://localhost:80";
-        }
+      ]
+      ++ siteIngress
+      ++ [
         # Required catch-all: any unmatched request returns 404.
-        {
-          service = "http_status:404";
-        }
+        { service = "http_status:404"; }
       ];
     };
   };
 
-  # ---- (c) Proxied CNAME  <hostname> -> <tunnel-id>.cfargotunnel.com ----------
-  # ttl = 1 is "automatic" (required for a proxied record). Matches the UPSERTed
-  # CNAME the script created for the SSH public hostname.
-  resource.cloudflare_dns_record.nixpi = {
-    zone_id = zoneId;
-    name = publicHostname;
-    type = "CNAME";
-    content = "${tunnelId}.cfargotunnel.com";
-    proxied = true;
-    ttl = 1;
-  };
+  # ---- (c) DNS: SSH host CNAME + per-site apex/www CNAMEs ---------------------
+  # The SSH host's proxied CNAME lives in the primary zone (`zoneId`); the per-site
+  # apex/www records live in each site's own zone (s.zoneId), all -> the same tunnel.
+  resource.cloudflare_dns_record = {
+    nixpi = {
+      zone_id = zoneId;
+      name = publicHostname;
+      type = "CNAME";
+      content = "${tunnelId}.cfargotunnel.com";
+      proxied = true;
+      ttl = 1;
+    };
+  }
+  // siteDnsRecords;
 
-  # ---- (c2) Proxied CNAME  kattakath.com (apex) -> the same tunnel -----------
-  # Without this the apex ingress rule (b) is unreachable — the tunnel maps
-  # kattakath.com -> local Caddy, but nothing resolves kattakath.com to the
-  # tunnel. Cloudflare CNAME-flattens the apex, so a proxied CNAME at the zone
-  # root is valid here. This is what makes the public landing page live.
-  resource.cloudflare_dns_record.nixpi_apex = {
-    zone_id = zoneId;
-    name = apexHostname;
-    type = "CNAME";
-    content = "${tunnelId}.cfargotunnel.com";
-    proxied = true;
-    ttl = 1;
-  };
-
-  # ---- (c3) Proxied CNAME  www.kattakath.com -> apex ------------------------
-  # www must be PROXIED (orange-cloud) for the edge Single Redirect below to fire
-  # — an unproxied record would resolve straight to origin and skip the ruleset.
-  # Content is the apex itself (Cloudflare CNAME-flattens same-zone targets); the
-  # request never actually reaches origin because the http_request_dynamic_redirect
-  # rule returns a 301 at the edge first. There is deliberately NO www ingress rule
-  # on the tunnel (b): www is a pure edge redirect, not a second Caddy vhost.
-  resource.cloudflare_dns_record.nixpi_www = {
-    zone_id = zoneId;
-    name = wwwHostname;
-    type = "CNAME";
-    content = apexHostname;
-    proxied = true;
-    ttl = 1;
-  };
-
-  # ---- (c4) Single Redirect: www -> apex (301) -------------------------------
-  # A zone-level ruleset in the http_request_dynamic_redirect phase (Cloudflare's
-  # "Single Redirects"), which executes at the edge BEFORE any origin/tunnel fetch
-  # (and before URL Rewrites / Cache Rules). One rule: any request whose Host is
-  # www.kattakath.com gets a permanent 301 to the same path on the apex, query
-  # string preserved. This is the canonical-hostname redirect — www is not served
-  # directly, it forwards to kattakath.com (which the tunnel routes to Caddy).
-  # provider v5 schema: rules is a LIST OF OBJECTS (not nested blocks);
-  # action_parameters.from_value.target_url.expression builds the destination.
-  resource.cloudflare_ruleset.redirect_www = {
-    zone_id = zoneId;
-    name = "redirect-www-to-apex";
-    kind = "zone";
-    phase = "http_request_dynamic_redirect";
-    rules = [
-      {
-        ref = "redirect_www_to_apex";
-        description = "301 www.${domainName} -> ${domainName} (canonical host)";
-        expression = ''(http.host eq "${wwwHostname}")'';
-        action = "redirect";
-        enabled = true;
-        action_parameters = {
-          from_value = {
-            status_code = 301;
-            preserve_query_string = true;
-            target_url = {
-              expression = ''concat("https://${apexHostname}", http.request.uri.path)'';
-            };
-          };
-        };
-      }
-    ];
-  };
-
-  # ---- snoringirl.com (second site, its own zone, same tunnel) ---------------
-  # apex CNAME -> the SAME tunnel (proxied) — makes the snoringirl.com ingress rule (b) live.
-  resource.cloudflare_dns_record.snoringirl_apex = {
-    zone_id = snoringirlZoneId;
-    name = snoringirlDomain;
-    type = "CNAME";
-    content = "${tunnelId}.cfargotunnel.com";
-    proxied = true;
-    ttl = 1;
-  };
-  # www.snoringirl.com CNAME -> apex (proxied, so the edge Single Redirect below fires).
-  resource.cloudflare_dns_record.snoringirl_www = {
-    zone_id = snoringirlZoneId;
-    name = snoringirlWww;
-    type = "CNAME";
-    content = snoringirlDomain;
-    proxied = true;
-    ttl = 1;
-  };
-  # Single Redirect: www.snoringirl.com -> snoringirl.com (301) at the edge.
-  resource.cloudflare_ruleset.redirect_www_snoringirl = {
-    zone_id = snoringirlZoneId;
-    name = "redirect-www-to-apex-snoringirl";
-    kind = "zone";
-    phase = "http_request_dynamic_redirect";
-    rules = [
-      {
-        ref = "redirect_www_to_apex_snoringirl";
-        description = "301 ${snoringirlWww} -> ${snoringirlDomain} (canonical host)";
-        expression = ''(http.host eq "${snoringirlWww}")'';
-        action = "redirect";
-        enabled = true;
-        action_parameters = {
-          from_value = {
-            status_code = 301;
-            preserve_query_string = true;
-            target_url = {
-              expression = ''concat("https://${snoringirlDomain}", http.request.uri.path)'';
-            };
-          };
-        };
-      }
-    ];
-  };
+  # ---- (c2) Single Redirects: www.<domain> -> <domain> (301) per site --------
+  resource.cloudflare_ruleset = siteRulesets;
 
   # ---- (d) Connector token (data source) -------------------------------------
   # The token authenticates the `cloudflared` connector unit. It is a SECRET:
