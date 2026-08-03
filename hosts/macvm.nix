@@ -81,9 +81,11 @@ in
   networking.hostName = "macvm";
 
   # Dock: always visible at bottom (core.nix: right + autohide). static-only
-  # off so pinned apps stay when not running.
+  # off so pinned apps stay when not running. Note: macOS may still hide the
+  # Dock in *fullscreen* app spaces — that is OS UI, not autohide.
   system.defaults.dock = {
     autohide = lib.mkForce false;
+    autohide-delay = lib.mkForce 0.0;
     orientation = lib.mkForce "bottom";
     static-only = lib.mkForce false;
     persistent-apps = [
