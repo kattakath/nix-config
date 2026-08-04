@@ -1125,6 +1125,17 @@
           };
         }))
 
+        # `design-tokens` (macOS only) — transform the same gist tokens.json (baked
+        # tokensUrl) into SCSS/CSS/JS via Style Dictionary (v4, via npx), so any consumer
+        # builds from one source of truth. Exposed as a package so `nix flake check` BUILDS
+        # it (writeShellApplication shellcheck); on PATH via home.packages + `nix run
+        # .#design-tokens`. See packages/design-tokens/ (default.nix).
+        (nixpkgs.lib.genAttrs darwinSystems (system: {
+          design-tokens = (pkgsFor system).callPackage ./packages/design-tokens {
+            inherit tokensUrl;
+          };
+        }))
+
         # `jobspy` (macOS only) — scrape jobs from LinkedIn/Indeed/Glassdoor/etc. into
         # CSV/JSON via the off-the-shelf python-jobspy library, run in an ephemeral uv
         # env. Exposed as a package so `nix flake check` BUILDS it (writeShellApplication
@@ -1426,6 +1437,15 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.email-signature}/bin/email-signature";
               meta.description = "Render a paste-ready HTML email signature from your JSON Resume (--url, else baked default) + bundled logo into ~/.local/share/email-signature/signature.html";
+            };
+
+            # `nix run .#design-tokens -- [--tokens-url URL] [--out DIR]` — transform the gist
+            # DTCG tokens.json into SCSS/CSS/JS via Style Dictionary (also on PATH via
+            # home.packages).
+            aarch64-darwin.design-tokens = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.design-tokens}/bin/design-tokens";
+              meta.description = "Transform the gist brand tokens.json (--tokens-url, else baked default) into SCSS/CSS/JS via Style Dictionary, into ~/.local/share/design-tokens/";
             };
 
             # `nix run .#jobspy -- --search "…" --location "…" …` — scrape jobs from

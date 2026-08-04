@@ -135,6 +135,13 @@ let
     inherit logoUrl tokensUrl;
   };
 
+  # `design-tokens` — transform the same gist tokens.json (tokensUrl) into SCSS/CSS/JS via
+  # Style Dictionary, so the website / component library build from one source of truth.
+  # `nix run .#design-tokens`. See packages/design-tokens/ (default.nix).
+  design-tokens = pkgs.callPackage ../../packages/design-tokens {
+    inherit tokensUrl;
+  };
+
   # `jobspy --search "…" --location "…"` — scrape jobs from multiple boards into
   # CSV/JSON via the off-the-shelf python-jobspy library (run in an ephemeral uv env).
   # See packages/jobspy.nix.
@@ -319,6 +326,7 @@ in
       fnm # Fast Node Manager — per-project Node version switching honoring .nvmrc/.node-version; the `fnm env --use-on-cd` shell hook is wired into zsh/bash below. No `programs.fnm` HM module in this pinned home-manager, so it's a bare package + hand-wired init.
       jsonresume # `jsonresume download|print|validate|markdown|text` — fetch a JSON Resume (default URL from jsonResumeUrl, or --url) + render PDF via resumed (fallback resume-cli); md/text via resume-cli (packages/jsonresume.nix)
       email-signature # `email-signature [--url URL] [--logo-url URL] [--out DIR]` — render a self-contained HTML email signature (JSON Resume + gist logo, base64-embedded) to ~/.local/share/email-signature/signature.html; also regenerated on activation (packages/email-signature/)
+      design-tokens # `design-tokens [--tokens-url URL] [--out DIR]` — transform the gist DTCG tokens.json into SCSS/CSS/JS via Style Dictionary, to ~/.local/share/design-tokens/ (packages/design-tokens/)
       jobspy # `jobspy --search … --location …` — scrape jobs (LinkedIn/Indeed/…) into CSV/JSON via python-jobspy in an ephemeral uv env (packages/jobspy.nix)
       obs-fb-setup # `obs-fb-setup` — write an OBS "Facebook" profile for Facebook Live, injecting FB_PERSISTENT_STREAM_KEY from the login Keychain (packages/obs-fb-setup.nix)
       chrome-automation # `chrome-automation` — launch a dedicated logged-in Chrome (own profile + CDP port 9222) for the Playwright MCP server to attach to (packages/chrome-automation.nix)
