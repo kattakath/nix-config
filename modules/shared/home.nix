@@ -40,6 +40,7 @@
   agent-skills-excalidraw,
   agent-skills-trailofbits,
   agent-skills-superpowers,
+  agent-skills-jsonresume,
   claude-plugins-official,
   grok-build-plugin-cc,
   # The extracted local-rag flake (services.ollamaLocal + services.pgvectorLocal);
@@ -305,7 +306,7 @@ in
       awscli2 # AWS CLI v2 — SSO login into the Infin8 accounts; profiles live in ~/.aws/config (uncommitted, has account IDs/SSO URL — not this public repo)
       codecov-cli # Codecov CLI (`codecovcli`) — upload coverage reports / local upload from CI; reads the CODECOV_TOKEN env var (a Keychain secret, never in this repo)
       fnm # Fast Node Manager — per-project Node version switching honoring .nvmrc/.node-version; the `fnm env --use-on-cd` shell hook is wired into zsh/bash below. No `programs.fnm` HM module in this pinned home-manager, so it's a bare package + hand-wired init.
-      jsonresume # `jsonresume download|print` — fetch a JSON Resume (baked-in default URL from jsonResumeUrl, or --url) + render to PDF via resume-cli (packages/jsonresume.nix)
+      jsonresume # `jsonresume download|print|validate|markdown|text` — fetch a JSON Resume (default URL from jsonResumeUrl, or --url) + render PDF via resumed (fallback resume-cli); md/text via resume-cli (packages/jsonresume.nix)
       jobspy # `jobspy --search … --location …` — scrape jobs (LinkedIn/Indeed/…) into CSV/JSON via python-jobspy in an ephemeral uv env (packages/jobspy.nix)
       obs-fb-setup # `obs-fb-setup` — write an OBS "Facebook" profile for Facebook Live, injecting FB_PERSISTENT_STREAM_KEY from the login Keychain (packages/obs-fb-setup.nix)
       chrome-automation # `chrome-automation` — launch a dedicated logged-in Chrome (own profile + CDP port 9222) for the Playwright MCP server to attach to (packages/chrome-automation.nix)
@@ -340,13 +341,14 @@ in
     # BASH_ENV (the secret loader) + the loader file itself are now set by
     # programs.keychainSecrets (the keychain-secrets flake's HM module).
 
-    # resume-cli (jsonresume.org, an npm global) renders PDFs via puppeteer, whose
-    # bundled Chromium auto-download is flaky (its chrome-headless-shell fetch
+    # The JSON Resume CLIs (jsonresume.org, npm globals: `resumed` — the maintained
+    # tool this repo prefers — and legacy `resume-cli`) render PDFs via puppeteer,
+    # whose bundled Chromium auto-download is flaky (its chrome-headless-shell fetch
     # corrupts, failing the `npm i`). These two vars form one coherent policy —
     # NEVER download puppeteer's own browser, ALWAYS use the installed google-chrome
     # cask:
     #   SKIP_DOWNLOAD    — any `npm i` that pulls puppeteer skips the browser fetch
-    #                      (so a resume-cli reinstall / theme install never breaks).
+    #                      (so `npm i -g resumed puppeteer` / a theme install never breaks).
     #   EXECUTABLE_PATH  — puppeteer launches system Chrome at runtime instead.
     # Harmless for other puppeteer tools (they get system Chrome too); Remotion is
     # unaffected — it resolves its own browser, not these vars. The resume THEME
@@ -492,6 +494,16 @@ in
         # obra/superpowers (MIT): the SINGLE systematic-debugging skill (cherry-picked subpath, NOT
         # the whole 14-skill plugin) — a hypothesis-driven debugging methodology.
         systematic-debugging = "${agent-skills-superpowers}/skills/systematic-debugging";
+        # ---- Job-search skills (Paramchoudhary/ResumeSkills, MIT) ----
+        # A LEAN, complementary slice of the 21-skill pack — the text-based job-search steps that
+        # AREN'T resume.json-specific. resume-tailor is deliberately OMITTED: the json-native
+        # .claude/skills/jsonresume-tailor (this repo) supersedes it, reading/writing real resume.json
+        # and rendering via the `jsonresume` wrapper. These pair with the jobspy + Indeed connectors.
+        job-description-analyzer = "${agent-skills-jsonresume}/skills/job-description-analyzer";
+        resume-ats-optimizer = "${agent-skills-jsonresume}/skills/resume-ats-optimizer";
+        cover-letter-generator = "${agent-skills-jsonresume}/skills/cover-letter-generator";
+        interview-prep-generator = "${agent-skills-jsonresume}/skills/interview-prep-generator";
+        salary-negotiation-prep = "${agent-skills-jsonresume}/skills/salary-negotiation-prep";
         # Personal: a thin GLOBAL pointer to the Brags personal-branding review flow whose
         # authoritative SKILL.md + engine live in the private ~/Documents/brags repo (so it
         # tracks that repo, and the heavy logic isn't vendored here). Makes "run my brags
