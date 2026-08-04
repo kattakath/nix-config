@@ -264,6 +264,27 @@
         else
           "https://gist.githubusercontent.com/${userName}/${jsonResumeGistId}/raw/resume.json";
 
+      # The raw logo.svg URL, from the SAME gist — one canonical source of truth for
+      # identity assets (resume + logo). null when the gist id is null. Baked into the
+      # email-signature package as its default --logo-url; the generator fetches it, caches
+      # it locally (~/.local/share/email-signature/logo.svg), and rasterizes it. Kept here
+      # so the composition lives in one place, alongside jsonResumeUrl.
+      logoUrl =
+        if jsonResumeGistId == null then
+          null
+        else
+          "https://gist.githubusercontent.com/${userName}/${jsonResumeGistId}/raw/logo.svg";
+
+      # The raw brand design-tokens URL (W3C DTCG), from the SAME gist. null when the gist id
+      # is null. Baked into the email-signature package as its default --tokens-url; the
+      # generator reads colors + font family from it (falling back to built-in defaults when
+      # unavailable), so the palette/typography stay in one canonical place.
+      tokensUrl =
+        if jsonResumeGistId == null then
+          null
+        else
+          "https://gist.githubusercontent.com/${userName}/${jsonResumeGistId}/raw/tokens.json";
+
       # ---- Single source of truth for the GitHub owner -----------------------
       # The org that owns the repo and the Cachix cache.
       # Split from userName so the two can never be confused again: everything
@@ -650,6 +671,14 @@
                 # to bake into the jsonresume package as its default --url (darwin
                 # home.packages; inert on the NixOS hosts).
                 jsonResumeUrl
+                # logoUrl: the raw logo.svg URL from the same gist (or null), consumed by
+                # home.nix to bake into the email-signature package as its default
+                # --logo-url (darwin only; inert on the NixOS hosts).
+                logoUrl
+                # tokensUrl: the raw tokens.json (DTCG brand tokens) URL from the same gist
+                # (or null), baked into the email-signature package as its default
+                # --tokens-url (darwin only; inert on the NixOS hosts).
+                tokensUrl
                 # operatorSshKey: fleet operator public key — home.nix writes
                 # ~/.ssh/allowed_signers from it so git can verify SSH commit sigs
                 # (and the file stays in lockstep with secrets/operator-key.nix).
@@ -1083,6 +1112,19 @@
           };
         }))
 
+        # `email-signature` (macOS only) — render a paste-ready HTML email signature from
+        # the same JSON Resume (baked jsonResumeUrl) plus the logo.svg fetched from the same
+        # gist (baked logoUrl), rasterized via librsvg. Exposed as a package so `nix flake
+        # check` BUILDS it (writeShellApplication
+        # shellcheck); on PATH via home.packages, run on activation, and `nix run
+        # .#email-signature`. See packages/email-signature/ (default.nix).
+        (nixpkgs.lib.genAttrs darwinSystems (system: {
+          email-signature = (pkgsFor system).callPackage ./packages/email-signature {
+            defaultUrl = jsonResumeUrl;
+            inherit logoUrl tokensUrl;
+          };
+        }))
+
         # `jobspy` (macOS only) — scrape jobs from LinkedIn/Indeed/Glassdoor/etc. into
         # CSV/JSON via the off-the-shelf python-jobspy library, run in an ephemeral uv
         # env. Exposed as a package so `nix flake check` BUILDS it (writeShellApplication
@@ -1375,6 +1417,15 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.jsonresume}/bin/jsonresume";
               meta.description = "Fetch a JSON Resume (--url, else the baked-in default) and render it — PDF (theme from meta.theme), or Markdown/plain text to stdout: jsonresume download|print|markdown|text";
+            };
+
+            # `nix run .#email-signature -- [--url URL] [--out DIR]` — render a self-contained
+            # HTML email signature from the JSON Resume + bundled logo (also on PATH via
+            # home.packages, and regenerated on activation).
+            aarch64-darwin.email-signature = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.email-signature}/bin/email-signature";
+              meta.description = "Render a paste-ready HTML email signature from your JSON Resume (--url, else baked default) + bundled logo into ~/.local/share/email-signature/signature.html";
             };
 
             # `nix run .#jobspy -- --search "…" --location "…" …` — scrape jobs from

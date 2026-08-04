@@ -52,6 +52,8 @@
   # Raw resume.json URL (single-sourced in flake.nix as jsonResumeUrl; null to
   # disable) — baked into the jsonresume package below as its default --url.
   jsonResumeUrl,
+  logoUrl,
+  tokensUrl,
   # nix-darwin system config when this profile is embedded via
   # home-manager.darwinModules (absent on pure NixOS HM / standalone).
   osConfig ? { },
@@ -122,6 +124,15 @@ let
   # so there is no ambient env var. See packages/jsonresume.nix.
   jsonresume = pkgs.callPackage ../../packages/jsonresume.nix {
     defaultUrl = jsonResumeUrl;
+  };
+
+  # `email-signature` — render a paste-ready HTML email signature from the same JSON Resume
+  # (jsonResumeUrl baked as its default --url) plus the logo.svg fetched from the same gist
+  # (logoUrl), rasterized via librsvg. Also run on activation (home.activation.emailSignature)
+  # and `nix run .#email-signature`. See packages/email-signature/ (default.nix).
+  email-signature = pkgs.callPackage ../../packages/email-signature {
+    defaultUrl = jsonResumeUrl;
+    inherit logoUrl tokensUrl;
   };
 
   # `jobspy --search "…" --location "…"` — scrape jobs from multiple boards into
@@ -307,6 +318,7 @@ in
       codecov-cli # Codecov CLI (`codecovcli`) — upload coverage reports / local upload from CI; reads the CODECOV_TOKEN env var (a Keychain secret, never in this repo)
       fnm # Fast Node Manager — per-project Node version switching honoring .nvmrc/.node-version; the `fnm env --use-on-cd` shell hook is wired into zsh/bash below. No `programs.fnm` HM module in this pinned home-manager, so it's a bare package + hand-wired init.
       jsonresume # `jsonresume download|print|validate|markdown|text` — fetch a JSON Resume (default URL from jsonResumeUrl, or --url) + render PDF via resumed (fallback resume-cli); md/text via resume-cli (packages/jsonresume.nix)
+      email-signature # `email-signature [--url URL] [--logo-url URL] [--out DIR]` — render a self-contained HTML email signature (JSON Resume + gist logo, base64-embedded) to ~/.local/share/email-signature/signature.html; also regenerated on activation (packages/email-signature/)
       jobspy # `jobspy --search … --location …` — scrape jobs (LinkedIn/Indeed/…) into CSV/JSON via python-jobspy in an ephemeral uv env (packages/jobspy.nix)
       obs-fb-setup # `obs-fb-setup` — write an OBS "Facebook" profile for Facebook Live, injecting FB_PERSISTENT_STREAM_KEY from the login Keychain (packages/obs-fb-setup.nix)
       chrome-automation # `chrome-automation` — launch a dedicated logged-in Chrome (own profile + CDP port 9222) for the Playwright MCP server to attach to (packages/chrome-automation.nix)
@@ -880,6 +892,16 @@ in
           fi
         done
       fi
+    '';
+
+    # Regenerate the HTML email signature (JSON Resume + bundled logo) into
+    # ~/.local/share/email-signature/signature.html. Best-effort: the generator fetches
+    # resume.json over the network and self-skips (keeping any existing artifact) when
+    # offline, and `|| true` ensures a failed fetch never aborts a switch — it self-heals on
+    # the next activation. Same "let the tool own its fetched, mutable state" pattern as
+    # claudeCodePlugins / grokMcp.
+    emailSignature = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      $DRY_RUN_CMD ${email-signature}/bin/email-signature || true
     '';
   };
 
