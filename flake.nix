@@ -176,6 +176,14 @@
       url = "github:obra/superpowers";
       flake = false;
     };
+    agent-skills-jsonresume = {
+      # Paramchoudhary/ResumeSkills (MIT, 1.4k★): 21 job-search agent skills. We cherry-pick a LEAN,
+      # complementary subset in programs.claude-code.skills (JD analysis / ATS / cover-letter / interview /
+      # salary) — NOT resume-tailor, which the json-native .claude/skills/jsonresume-tailor supersedes.
+      # These are plain-markdown workflows over pasted text; they DON'T touch resume.json / resume-cli.
+      url = "github:Paramchoudhary/ResumeSkills";
+      flake = false;
+    };
     # Anthropic's OFFICIAL first-party plugin marketplace (Apache-2.0). Pinned to enable the in-repo
     # `security-guidance` plugin (hook-driven secret/injection warnings + Stop-hook diff review) via
     # programs.claude-code.marketplaces + enabledPlugins — the same declarative path as grok-build.
@@ -213,6 +221,7 @@
       agent-skills-excalidraw,
       agent-skills-trailofbits,
       agent-skills-superpowers,
+      agent-skills-jsonresume,
       claude-plugins-official,
       grok-build-plugin-cc,
       ...
@@ -629,6 +638,7 @@
                 agent-skills-excalidraw
                 agent-skills-trailofbits
                 agent-skills-superpowers
+                agent-skills-jsonresume
                 claude-plugins-official
                 grok-build-plugin-cc
                 keychain-secrets

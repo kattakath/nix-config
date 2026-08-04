@@ -103,6 +103,22 @@
         "type": "github"
       }
     },
+    "agent-skills-jsonresume": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1781853629,
+        "narHash": "sha256-Mv1rSfP5TzeQiyt5+KLSJqPWBr7w6dEgqt4PuGE3hAc=",
+        "owner": "Paramchoudhary",
+        "repo": "ResumeSkills",
+        "rev": "74ae19e7c62b0516d1c298328e5544976c12da5d",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Paramchoudhary",
+        "repo": "ResumeSkills",
+        "type": "github"
+      }
+    },
     "agent-skills-mac-automation": {
       "flake": false,
       "locked": {
@@ -804,6 +820,7 @@
         "agent-skills-cloudflare": "agent-skills-cloudflare",
         "agent-skills-excalidraw": "agent-skills-excalidraw",
         "agent-skills-jeffallan": "agent-skills-jeffallan",
+        "agent-skills-jsonresume": "agent-skills-jsonresume",
         "agent-skills-mac-automation": "agent-skills-mac-automation",
         "agent-skills-superpowers": "agent-skills-superpowers",
         "agent-skills-trailofbits": "agent-skills-trailofbits",
