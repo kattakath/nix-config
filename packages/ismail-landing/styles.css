@@ -115,6 +115,40 @@ a:focus-visible {
 .dc-invert :focus-visible {
   outline-color: var(--ground);
 }
+/* Inverted surfaces: flip component borders (and the timeline fill) to ground so
+   cards, tables and the career bars read correctly on an ink section. Regular
+   chips already use currentColor, so they invert for free. */
+.dc-invert .section-head,
+.dc-invert .card,
+.dc-invert .matrix,
+.dc-invert .matrix > *,
+.dc-invert .stack,
+.dc-invert .stack-group,
+.dc-invert .work-item,
+.dc-invert .work-head,
+.dc-invert .fact,
+.dc-invert .metric,
+.dc-invert .stat,
+.dc-invert .timeline,
+.dc-invert .tl-bar,
+.dc-invert .dc-table-wrap,
+.dc-invert .dc-table caption,
+.dc-invert .dc-table th,
+.dc-invert .dc-table td,
+.dc-invert .dc-table thead th,
+.dc-invert .evidence-teaser {
+  border-color: var(--ground);
+}
+.dc-invert .tl-row {
+  border-top-color: var(--ground);
+}
+.dc-invert .tl-fill {
+  background: var(--ground);
+}
+/* an inverted full-section reads as a band, so it needs symmetric padding */
+.section.dc-invert {
+  padding-bottom: var(--sec-y);
+}
 
 /* ---------- Layer 2: type primitives ---------- */
 .dc-label {
