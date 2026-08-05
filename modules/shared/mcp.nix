@@ -17,15 +17,16 @@
 # account owns the GUI session, `darwin-rebuild switch` cannot load the agent.
 #
 # SERVER SIDE (this box, 127.0.0.1:8096)
-#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 17 servers, each
-#   reachable at /servers/<name>/sse. `gatewayConfig` is rendered by
-#   mcp-servers-nix's `lib.mkConfig`, so the 7 packaged servers
-#   (context7/fetch/memory/sequential-thinking/nixos/terraform/github) are PINNED
-#   store-path commands; the 10 without a module fall back to pinned npx/uvx
-#   launchers (still a runtime fetch, but acceptable on the Mac where Node/uv already live).
+#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 17 servers (18 with
+#   the opt-in `telegram` server), each reachable at /servers/<name>/sse.
+#   `gatewayConfig` is rendered by mcp-servers-nix's `lib.mkConfig`, so the 7 packaged
+#   servers (context7/fetch/memory/sequential-thinking/nixos/terraform/github) are
+#   PINNED store-path commands; the 10 without a module (+ telegram when enabled) fall
+#   back to pinned npx/uvx launchers (still a runtime fetch, but acceptable on the Mac
+#   where Node/uv already live).
 #
 # CLIENT SIDE (programs.claude-code.mcpServers)
-#   The 17 hosted servers are wired as `type = "http"` (Streamable HTTP — the
+#   The 17 hosted servers (18 with `telegram`) are wired as `type = "http"` (Streamable HTTP — the
 #   current MCP standard; the legacy HTTP+SSE transport was deprecated in the
 #   2025-03-26 spec) pointing at /servers/<name>/mcp; desktop-commander stays
 #   `type = "stdio"`. The claude-code module writes these into a managed
@@ -68,8 +69,46 @@ let
   npx = lib.getExe' pkgs.nodejs "npx";
   uvx = lib.getExe' pkgs.uv "uvx";
 
-  # The 10 servers with no mcp-servers-nix module, as raw stdio commands. Merged
-  # into the gateway config via mkConfig's `settings.servers`.
+  # chaindead/telegram-mcp (Go, MIT) speaks MTProto as YOUR Telegram USER account —
+  # it reads/triages DMs, private groups and channels, and DRAFTS replies
+  # (`messages.saveDraft`; you press send — nothing posts under your name). It needs
+  # the TG_APP_ID/TG_API_HASH application pair (from my.telegram.org) plus a one-time
+  # phone-code login that writes a SESSION file. Those are account credentials, so —
+  # like the cloudflared connector and the context7/github tokens — the API pair is
+  # read from the login Keychain at LAUNCH by this wrapper (never in argv or the
+  # /nix/store) and exported before exec. The session file is host-key-independent
+  # local state at ~/.telegram-mcp/session.json (pinned via TG_SESSION_PATH so the
+  # launchd subprocess finds it regardless of its cwd; HOME is set for the same
+  # reason). The server REFUSES to start without a session, so this is opt-in
+  # (services.mcpGateway.telegram.enable) and must be enabled only AFTER the one-time
+  # auth below — a server that exits at startup could dark the whole gateway. Basename
+  # nix-* for the BTM origin rule. Store the pair + auth once:
+  #     secret set TG_APP_ID <app_id> ; secret set TG_API_HASH <api_hash>
+  #     npx -y @chaindead/telegram-mcp auth --app-id <id> --api-hash <hash> --phone +<number>
+  telegramMcp = pkgs.writeShellScriptBin "nix-telegram-mcp" ''
+    set -eu
+    app_id="$(/usr/bin/security find-generic-password -a "$(id -un)" -s TG_APP_ID -w 2>/dev/null || true)"
+    api_hash="$(/usr/bin/security find-generic-password -a "$(id -un)" -s TG_API_HASH -w 2>/dev/null || true)"
+    session="${config.home.homeDirectory}/.telegram-mcp/session.json"
+    if [ -z "$app_id" ] || [ -z "$api_hash" ] || [ ! -f "$session" ]; then
+      echo "telegram-mcp: missing TG_APP_ID/TG_API_HASH in the login Keychain and/or the session file." >&2
+      echo "  1) Get an API pair at https://my.telegram.org (API development tools), then:" >&2
+      echo "       secret set TG_APP_ID <app_id>" >&2
+      echo "       secret set TG_API_HASH <api_hash>" >&2
+      echo "  2) Authenticate ONCE (phone code) — creates $session:" >&2
+      echo "       ${npx} -y @chaindead/telegram-mcp auth --app-id <app_id> --api-hash <api_hash> --phone +<number>" >&2
+      exit 1
+    fi
+    export TG_APP_ID="$app_id"
+    export TG_API_HASH="$api_hash"
+    export HOME="${config.home.homeDirectory}"
+    export TG_SESSION_PATH="$session"
+    exec ${npx} -y @chaindead/telegram-mcp
+  '';
+
+  # The servers with no mcp-servers-nix module, as raw stdio commands. Merged into
+  # the gateway config via mkConfig's `settings.servers` (telegram appended below,
+  # opt-in). The 10 base ones fall back to pinned npx/uvx launchers.
   customStdioServers = {
     duckduckgo = {
       command = uvx;
@@ -222,6 +261,16 @@ let
       ];
       env.DATABASE_URI = config.services.pgvectorLocal.databaseUri;
     };
+  }
+  # Opt-in (default off): the Telegram USER-account server. Its command is the
+  # Keychain-exporting wrapper above, so no secret ever lands in the gateway JSON.
+  # Excluded from `hostedServerNames` entirely when disabled, so its absence costs
+  # nothing and it can't dark the gateway before the one-time auth is done.
+  // lib.optionalAttrs cfg.telegram.enable {
+    telegram = {
+      command = lib.getExe telegramMcp;
+      args = [ ];
+    };
   };
 
   # Every server NAME the gateway hosts (7 packaged + 10 custom). Single source
@@ -369,7 +418,7 @@ let
 
   # VS Code uses `servers` as the top-level key (NOT `mcpServers` — a mismatch VS
   # Code silently ignores) and takes `type = "http"` directly, so it connects to
-  # the SAME gateway processes as claude-code. Same 17 servers, no desktop-commander.
+  # the SAME gateway processes as claude-code. Same hosted servers, no desktop-commander.
   vscodeMcpJson = builtins.toJSON { servers = httpEntries; };
 
   # Grok CLI (xAI, grok 0.2.x) is a 4th MCP client living OUTSIDE Nix: a self-updating
@@ -423,6 +472,17 @@ in
         re-derive a URL.
       '';
     };
+
+    telegram.enable = lib.mkEnableOption ''
+      the chaindead/telegram-mcp server in the gateway — MTProto USER-account access
+      to your OWN Telegram (read/triage DMs + private groups + channels; DRAFT-only
+      send, you press send). OFF by default because it needs BOTH the
+      TG_APP_ID/TG_API_HASH pair in the login Keychain AND a one-time phone-code login
+      creating ~/.telegram-mcp/session.json; the server refuses to start without a
+      session, so enabling it before that is done would add a server that exits at
+      startup. Turn ON only AFTER completing the auth (see the wrapper's steps).
+      Reads your personal account — keep the agent to read-and-draft (ToS: spam-shaped
+      automation risks the account)'';
 
     publicServers = lib.mkOption {
       type = lib.types.listOf lib.types.str;
