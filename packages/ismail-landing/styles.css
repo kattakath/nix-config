@@ -48,6 +48,9 @@
      (WCAG 2.4.11 Focus Not Obscured; 2.4.1). site.js keeps this accurate to the
      REAL header height at every width, so a taller header never obscures a jump. */
   --header-h: 76px;
+  /* Masthead height: ~2x on desktop (136px), ~1.25x on mobile (83px), fluid between.
+     Header AND footer both use it, so the two logos grow equally. */
+  --header-size: clamp(83px, 60px + 6vw, 136px);
 }
 
 /* ---------- Layer 2: base ---------- */
@@ -237,17 +240,19 @@ a:focus-visible {
   z-index: 30;
   background: var(--ink);
   color: var(--ground);
-  border-bottom: var(--rule-base) solid var(--ground);
+  min-height: var(--header-size);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
   flex-wrap: nowrap;
-  padding: 14px var(--pad-x);
+  padding: 0 var(--pad-x);
 }
-/* Inverted header: white content on black; the black wordmark reads white. */
+/* Inverted header: white content on black; the black wordmark reads white and
+   auto-grows to half the masthead height (footer logo matches). */
 .site-header .brand img {
   filter: invert(1);
+  height: calc(var(--header-size) * 0.5);
 }
 .site-header a {
   color: var(--ground);
@@ -697,7 +702,8 @@ a:focus-visible {
 .site-footer {
   margin-top: var(--sec-y);
   border-top: var(--rule-bar) solid var(--ink);
-  padding: 28px var(--pad-x);
+  min-height: var(--header-size); /* same height as the header so logos match */
+  padding: 12px var(--pad-x);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -705,7 +711,7 @@ a:focus-visible {
   flex-wrap: wrap;
 }
 .site-footer img {
-  height: clamp(32px, 3.8vw, 44px);
+  height: calc(var(--header-size) * 0.5); /* grows equally with the header logo */
   width: auto;
 }
 .footer-links {
