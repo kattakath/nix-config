@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>The evidence — every number on this site, sourced · Ismail Kattakath</title>
+<meta name="description" content="Every quantitative claim on ismail.kattakath.com, traced to the work behind it: what it measures, where, and how I know it. Two honest grades — proven, and self-measured.">
+<link rel="canonical" href="https://ismail.kattakath.com/evidence/">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="author" content="Ismail Kattakath">
+<meta name="theme-color" content="#000000">
+
+<!-- Open Graph -->
+<meta property="og:type" content="article">
+<meta property="og:title" content="The evidence — every number on this site, sourced">
+<meta property="og:description" content="Each quantitative claim, what it measures, and how I know it. Proven vs. self-measured, stated plainly.">
+<meta property="og:url" content="https://ismail.kattakath.com/evidence/">
+<meta property="og:image" content="https://ismail.kattakath.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:site_name" content="Ismail Kattakath">
+<meta property="og:locale" content="en_CA">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="The evidence — every number on this site, sourced">
+<meta name="twitter:description" content="Each quantitative claim, what it measures, and how I know it. Proven vs. self-measured.">
+<meta name="twitter:image" content="https://ismail.kattakath.com/og.png">
+
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="mask-icon" href="/favicon.svg" color="#000000">
+<link rel="apple-touch-icon" href="/favicon.svg">
+
+<link rel="stylesheet" href="../styles.css">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebPage",
+      "@id": "https://ismail.kattakath.com/evidence/",
+      "url": "https://ismail.kattakath.com/evidence/",
+      "name": "The evidence — every number on this site, sourced",
+      "description": "Every quantitative claim on the site, with what it measures and how it is known.",
+      "isPartOf": { "@type": "WebSite", "url": "https://ismail.kattakath.com", "name": "Ismail Kattakath" },
+      "author": { "@type": "Person", "name": "Ismail Kattakath", "url": "https://ismail.kattakath.com" }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ismail.kattakath.com/" },
+        { "@type": "ListItem", "position": 2, "name": "Evidence", "item": "https://ismail.kattakath.com/evidence/" }
+      ]
+    }
+  ]
+}
+</script>
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-header" role="banner">
+  <a class="brand" href="/" aria-label="Ismail Kattakath — home">
+    <img src="/logo.svg" alt="Ismail Kattakath" width="1120" height="460">
+  </a>
+  <nav class="nav" aria-label="Primary">
+    <a href="/#work">Selected work</a>
+    <a href="/#stack">Stack</a>
+    <a href="/evidence/" aria-current="page">Evidence</a>
+    <a class="dc-btn" href="https://calendly.com/ismailkattakath/google-meet" target="_blank" rel="noopener">Book a call</a>
+  </nav>
+</header>
+
+<main id="main" tabindex="-1">
+
+  <section class="section" aria-labelledby="ev-h">
+    <nav aria-label="Breadcrumb" class="dc-meta" style="margin-bottom:18px">
+      <a href="/">Home</a> <span aria-hidden="true">/</span> Evidence
+    </nav>
+    <div class="section-head">
+      <h1 id="ev-h" style="font-size:clamp(30px,4.2vw,54px);font-weight:700;line-height:1.05;letter-spacing:-0.02em;margin:0">The numbers, sourced.</h1>
+      <span class="dc-label">Evidence ledger</span>
+    </div>
+
+    <div class="grid-body prose-block">
+      <p style="font-size:clamp(18px,1.9vw,26px);font-weight:300;line-height:1.35;max-width:42ch;margin:0">
+        Every quantitative claim on this site traces to work I shipped. Here is each one — what it
+        measures, where, and how I know it.
+      </p>
+      <p style="margin:22px 0 0;max-width:60ch;font-size:clamp(17px,1.5vw,19px);line-height:1.55">
+        I grade each number two ways, and I don't blur them:
+      </p>
+      <div class="stack" style="margin-top:22px">
+        <div class="stack-group">
+          <span class="dc-chip dc-chip--on" style="margin-bottom:14px">Proven</span>
+          <p style="margin:0;font-size:clamp(16px,1.4vw,18px);line-height:1.5">A verifiable production outcome or a plain count — availability, users, partners, a migration that shipped without downtime.</p>
+        </div>
+        <div class="stack-group">
+          <span class="dc-chip" style="margin-bottom:14px">Self-measured</span>
+          <p style="margin:0;font-size:clamp(16px,1.4vw,18px);line-height:1.5">I measured it in a single production environment. Real, but scoped to that platform — not an independently-audited benchmark, and I say so.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="ev-sc-h">
+    <div class="section-head">
+      <h2 id="ev-sc-h">GenAI inference infrastructure</h2>
+      <span class="dc-label">Silver Creek Insights · 2024—2026</span>
+    </div>
+    <div class="dc-table-wrap">
+      <table class="dc-table">
+        <caption>Multi-GPU serving on vLLM / Kubernetes</caption>
+        <thead>
+          <tr><th scope="col">Claim</th><th scope="col">Value</th><th scope="col">How it's measured</th><th scope="col">Grade</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Inference cost reduction</td>
+            <td class="val">~25%</td>
+            <td>Before/after on the same inference workload after moving multi-GPU serving to vLLM on Kubernetes — cost per request. One platform, one environment; the résumé's "on that platform" holds here verbatim.</td>
+            <td><span class="dc-chip">Self-measured</span></td>
+          </tr>
+          <tr>
+            <td>Serving latency reduction</td>
+            <td class="val">~40%</td>
+            <td>Same before/after, same platform — request serving latency. A single-environment measurement, not an external benchmark.</td>
+            <td><span class="dc-chip">Self-measured</span></td>
+          </tr>
+          <tr>
+            <td>App vendors on the image pipeline</td>
+            <td class="val">80+</td>
+            <td>Count of distinct app vendors consuming the shared, optimized image-manipulation pipeline. It's a headcount of consumers, not a performance figure.</td>
+            <td><span class="dc-chip dc-chip--on">Proven</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="ev-hw-h">
+    <div class="section-head">
+      <h2 id="ev-hw-h">National digital-health platform</h2>
+      <span class="dc-label">Homewood Health · 2017—2024</span>
+    </div>
+    <div class="dc-table-wrap">
+      <table class="dc-table">
+        <caption>EFAP / CBT platform — inherited abandoned, rebuilt</caption>
+        <thead>
+          <tr><th scope="col">Claim</th><th scope="col">Value</th><th scope="col">How it's measured</th><th scope="col">Grade</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Users served</td>
+            <td class="val">100k+</td>
+            <td>Employee population reachable by the EFAP/CBT platform across client organizations — platform scale, not a vanity metric.</td>
+            <td><span class="dc-chip dc-chip--on">Proven</span></td>
+          </tr>
+          <tr>
+            <td>Platform uptime after the rebuild</td>
+            <td class="val">99.5%</td>
+            <td>Availability of the revitalized platform, self-monitored in production. Self-measured — there's no third-party SLA report behind the figure.</td>
+            <td><span class="dc-chip">Self-measured</span></td>
+          </tr>
+          <tr>
+            <td>Users on OAuth 2.0 PKCE SSO</td>
+            <td class="val">25k+</td>
+            <td>Accounts on the rebuilt SSO integrated with the Microsoft Identity Platform.</td>
+            <td><span class="dc-chip dc-chip--on">Proven</span></td>
+          </tr>
+          <tr>
+            <td>Partner organizations federated (SAML 2.0)</td>
+            <td class="val">5+</td>
+            <td>Distinct partner organizations configured for federated login.</td>
+            <td><span class="dc-chip dc-chip--on">Proven</span></td>
+          </tr>
+          <tr>
+            <td>Deploy time</td>
+            <td class="val">4h → 20min</td>
+            <td>Wall-clock of the release pipeline before and after establishing CI/CD. Self-measured from the pipeline itself.</td>
+            <td><span class="dc-chip">Self-measured</span></td>
+          </tr>
+          <tr>
+            <td>DigitalOcean → AWS migration</td>
+            <td class="val">Zero&nbsp;downtime</td>
+            <td>Terraform-driven migration to AWS (EC2, RDS, S3, CloudFront, VPC) completed with no service interruption — a shipped outcome.</td>
+            <td><span class="dc-chip dc-chip--on">Proven</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="ev-cr-h">
+    <div class="section-head">
+      <h2 id="ev-cr-h">Career</h2>
+      <span class="dc-label">2010 — today</span>
+    </div>
+    <div class="dc-table-wrap">
+      <table class="dc-table">
+        <caption>Span</caption>
+        <thead>
+          <tr><th scope="col">Claim</th><th scope="col">Value</th><th scope="col">How it's measured</th><th scope="col">Grade</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Years shipping systems end to end</td>
+            <td class="val">15+</td>
+            <td>Continuous professional engineering since 2010, across seven teams — the full run is on the <a href="/#work">career timeline</a>.</td>
+            <td><span class="dc-chip dc-chip--on">Proven</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="ev-note-h">
+    <div class="contact dc-invert">
+      <div>
+        <p class="dc-label" style="margin-bottom:20px">Why this page exists</p>
+        <h2 id="ev-note-h">Numbers you can press on.</h2>
+        <p>A claim you can't inspect is marketing. Everything here I can walk you through — the measurement, the environment, and where it stops being provable.</p>
+      </div>
+      <div class="contact-actions">
+        <a class="dc-btn dc-btn--lg" href="https://calendly.com/ismailkattakath/google-meet" target="_blank" rel="noopener">Book a 30-min call</a>
+        <a class="dc-btn dc-btn--lg" href="mailto:ismail@kattakath.com">ismail@kattakath.com</a>
+        <a class="dc-btn" href="/">Back to the overview</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer" role="contentinfo">
+  <a class="brand" href="/" aria-label="Ismail Kattakath — home">
+    <img src="/logo.svg" alt="Ismail Kattakath" width="1120" height="460">
+  </a>
+  <div class="footer-links">
+    <a class="dc-meta" href="/">Overview</a>
+    <a class="dc-meta" href="https://linkedin.com/in/ismailkattakath" target="_blank" rel="noopener">LinkedIn</a>
+    <a class="dc-meta" href="https://github.com/ismailkattakath" target="_blank" rel="noopener">GitHub</a>
+  </div>
+</footer>
+
+</body>
+</html>
