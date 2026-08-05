@@ -35,6 +35,9 @@
   /* page rhythm — defined once, reused everywhere (DRY) */
   --pad-x: clamp(18px, 4vw, 48px);
   --sec-y: clamp(48px, 6vw, 84px);
+  /* sticky-header height — offsets anchor jumps so targets clear the header
+     (WCAG 2.4.11 Focus Not Obscured; 2.4.1 in-page targets) */
+  --header-h: 76px;
 }
 
 /* ---------- Layer 2: base ---------- */
@@ -45,6 +48,11 @@
 }
 html {
   scroll-behavior: smooth;
+  scroll-padding-top: var(--header-h);
+}
+/* every anchor target clears the sticky header when jumped to (WCAG 2.4.11) */
+[id] {
+  scroll-margin-top: var(--header-h);
 }
 body {
   margin: 0;
@@ -110,6 +118,11 @@ a:focus-visible {
 .dc-num {
   font-family: var(--font-mono);
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+/* data figures / dates column-align (mono, lining, tabular) */
+.dc-meta {
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- Layer 2: buttons ---------- */
@@ -278,7 +291,7 @@ a:focus-visible {
 }
 .hero-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
   gap: clamp(28px, 4vw, 56px);
   align-items: stretch;
 }
@@ -329,7 +342,7 @@ a:focus-visible {
 /* ---------- Layer 3: stat band ---------- */
 .stat-band {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
   border-top: var(--rule-loud) solid var(--ink);
   border-bottom: var(--rule-loud) solid var(--ink);
   margin-top: 0;
@@ -354,7 +367,7 @@ a:focus-visible {
 /* ---------- Layer 3: cards (mandates) ---------- */
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   gap: clamp(18px, 2.4vw, 28px);
 }
 .card {
@@ -387,7 +400,7 @@ a:focus-visible {
 /* ---------- Layer 3: selected work ---------- */
 .work-item {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   border: var(--rule-base) solid var(--ink);
 }
 .work-item + .work-item {
@@ -465,7 +478,7 @@ a:focus-visible {
 /* ---------- Layer 3: principles (bordered matrix) ---------- */
 .matrix {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
   border-top: var(--rule-base) solid var(--ink);
   border-left: var(--rule-base) solid var(--ink);
 }
@@ -539,7 +552,7 @@ a:focus-visible {
 /* ---------- Layer 3: stack matrix ---------- */
 .stack {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
   border-top: var(--rule-base) solid var(--ink);
   border-left: var(--rule-base) solid var(--ink);
 }
@@ -558,7 +571,7 @@ a:focus-visible {
 .contact {
   padding: clamp(32px, 4.6vw, 68px) clamp(24px, 3.6vw, 56px);
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
   gap: clamp(28px, 4vw, 56px);
   align-items: center;
 }
@@ -614,9 +627,44 @@ a:focus-visible {
   align-items: center;
 }
 
+/* ---------- hero motion toggle (WCAG 2.2.2 Pause, Stop, Hide) ----------
+   A control for ALL users, not only those with the OS reduced-motion flag.
+   Lives OUTSIDE the aria-hidden <hatch-field>, so it is exposed to AT. */
+.hatch-toggle {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  z-index: 2;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  background: var(--ground);
+  color: var(--ink);
+  border: var(--rule-base) solid var(--ground);
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.hatch-toggle:hover,
+.hatch-toggle:focus-visible {
+  background: var(--ink);
+  color: var(--ground);
+}
+.hatch-toggle[hidden] {
+  display: none;
+}
+
 /* ---------- reduced motion (WCAG 2.3.3 / the design's standing rule) ---------- */
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+  /* neutralise every transition/animation, not just smooth scroll */
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }
