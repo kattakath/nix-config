@@ -757,11 +757,21 @@ a:focus-visible {
 
 /* ---------- Layer 3: contact ---------- */
 .contact {
+  position: relative;
+  overflow: hidden;
   padding: clamp(32px, 4.6vw, 68px) clamp(24px, 3.6vw, 56px);
   display: grid;
   grid-template-columns: 1fr;
   gap: clamp(28px, 4vw, 56px);
   align-items: center;
+}
+/* Copy sits on solid-ink knockouts above the ambient dither-field, so text never
+   rides the dithered texture (opacity/scrim is banned — occlusion is the only way). */
+.contact-copy,
+.contact-actions {
+  position: relative;
+  z-index: 1;
+  background: var(--ink);
 }
 .contact h2 {
   margin: 0 0 18px;
