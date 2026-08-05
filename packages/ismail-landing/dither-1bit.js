@@ -349,7 +349,36 @@ void main(){
     get maxDPR() { return 1.75; } // 1/d² metaballs are fill-rate bound — clamp DPR below the base 2
     get usesPointer() { return true; }
     get pointerHome() { return [0.5, 1.8]; } // idle: attractor parked off the top edge (negligible charge)
-    get toggleAttr() { return 'data-hatch-toggle'; } // reuse the hero's existing Pause button
+    get preserveBuffer() { return true; }    // static at rest → the resting frame must survive repaints
+
+    // INTERACTION-GATED (no Pause button needed): the orbit clock advances ONLY while
+    // the pointer is in the panel, so it's a still composition at rest and comes alive
+    // under the cursor, then settles. User-initiated motion → sidesteps WCAG 2.2.2.
+    onInit() {
+      this._clock = 6.0;   // fixed resting composition; advances only while active
+      this._energy = 0;
+      this._active = false;
+      const wake = () => { this._active = true; this._paused = false; };
+      this.addEventListener('pointerenter', wake);
+      this.addEventListener('pointermove', wake);
+      this.addEventListener('pointerleave', () => { this._active = false; }); // let it ease + settle
+    }
+
+    // Always render from the self-advanced clock (ignore the base's wall-clock arg).
+    draw() { super.draw(this._clock); }
+
+    beforeFrame() {
+      const tgt = this._active ? 1 : 0;
+      this._energy += (tgt - this._energy) * (this._active ? 0.10 : 0.05); // bloom fast, ease out gently
+      if ((this._active || this._energy > 0.004) && !this._reduced) {
+        this._clock += 0.010;  // ~0.6/s drift while interacting/easing; frozen otherwise
+        this._paused = false;
+      } else if (!this._paused) {
+        this._energy = 0;
+        this.draw();           // one final resting frame (persists via preserveDrawingBuffer)
+        this._paused = true;
+      }
+    }
   }
 
   // ── <card-field> — cursor-reactive "ink clearing" for the #own mandate cards ─
