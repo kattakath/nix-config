@@ -41,6 +41,16 @@
     # modules/darwin/homebrew.nix). No `nixpkgs` input to follow — the module
     # uses the consumer's pkgs.
     nix-homebrew.url = "github:zhaofengli/nix-homebrew";
+    # Pin the brew CLI nix-homebrew installs to 6.0.15 (latest, 2026-08-03),
+    # overriding nix-homebrew's default 6.0.11. The Homebrew cask JSON API advanced
+    # to a new artifact stanza (`command_wrapper`/`generated_script`) that 6.0.11
+    # doesn't implement, so `brew bundle` crashed parsing casks like inkscape/obs/vlc
+    # ("undefined method 'command_wrapper'"), blocking activation. The nix-managed
+    # brew can't self-update, so we bump the source pin. brew-src is a non-flake source.
+    nix-homebrew.inputs.brew-src = {
+      url = "github:Homebrew/brew/6.0.15";
+      flake = false;
+    };
 
     # Nix -> OpenTofu/Terraform JSON renderer for the Cloudflare-side tunnel
     # objects (infra/cloudflare/nixpi-tunnel.nix — the remotely-managed tunnel +
