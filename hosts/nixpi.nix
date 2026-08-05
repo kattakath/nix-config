@@ -176,6 +176,17 @@
         value.extraConfig = ''
           root * ${site.root}
           file_server
+
+          # Cache policy. Caddy set no Cache-Control, so Cloudflare applied its default
+          # 4h Browser Cache TTL to css/js — which let a stale stylesheet orphan freshly
+          # deployed markup (the mobile-nav regression). Cloudflare honours these origin
+          # headers instead: by default everything revalidates (cheap ETag 304s) so a
+          # deploy is picked up immediately; content-stable media caches for a day.
+          # (Content-hash fingerprinting for long-immutable css/js caching is a later step.)
+          @static path *.woff2 *.svg *.png *.ico *.webmanifest *.jpg *.webp
+          @mutable not path *.woff2 *.svg *.png *.ico *.webmanifest *.jpg *.webp
+          header @mutable Cache-Control "no-cache"
+          header @static Cache-Control "public, max-age=86400"
         '';
       }) hostedSites
     );
