@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Things I reach for — the patterns behind the systems · Ismail Kattakath</title>
+<meta name="description" content="The recurring engineering patterns I reach for: idempotency as a contract, advisory-locked migrations, a fail-closed cost governor, tenancy by construction, keyless CI, reuse over rebuild. Each with the problem it solves, where it shipped, and the invariant it enforces.">
+<link rel="canonical" href="https://ismail.kattakath.com/patterns/">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="author" content="Ismail Kattakath">
+<meta name="theme-color" content="#000000">
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="Things I reach for — the patterns behind the systems">
+<meta property="og:description" content="Recurring engineering patterns — the problem each solves, where it shipped, and the invariant it enforces. Idempotency, advisory locks, fail-closed cost, tenancy by construction, keyless CI.">
+<meta property="og:url" content="https://ismail.kattakath.com/patterns/">
+<meta property="og:image" content="https://ismail.kattakath.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Ismail Kattakath — engineering patterns">
+<meta property="og:site_name" content="Ismail Kattakath">
+<meta property="og:locale" content="en_CA">
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Things I reach for — the patterns behind the systems">
+<meta name="twitter:description" content="Recurring engineering patterns — the problem each solves, where it shipped, and the invariant it enforces.">
+<meta name="twitter:image" content="https://ismail.kattakath.com/og.png">
+<meta name="twitter:image:alt" content="Ismail Kattakath — engineering patterns">
+
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="mask-icon" href="/favicon.svg" color="#000000">
+<link rel="apple-touch-icon" href="/favicon.svg">
+
+<link rel="stylesheet" href="../styles.css">
+<script src="../site.js" defer></script>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "CollectionPage",
+      "@id": "https://ismail.kattakath.com/patterns/",
+      "url": "https://ismail.kattakath.com/patterns/",
+      "name": "Things I reach for — the patterns behind the systems",
+      "description": "The recurring engineering patterns Ismail Kattakath reaches for, each with the problem it solves, where it shipped, and the invariant it enforces.",
+      "isPartOf": { "@type": "WebSite", "url": "https://ismail.kattakath.com", "name": "Ismail Kattakath" },
+      "author": {
+        "@type": "Person",
+        "name": "Ismail Kattakath",
+        "url": "https://ismail.kattakath.com",
+        "jobTitle": "Principal Software Engineer"
+      },
+      "mainEntity": {
+        "@type": "ItemList",
+        "itemListOrder": "https://schema.org/ItemListUnordered",
+        "numberOfItems": 6,
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Idempotency as a contract" },
+          { "@type": "ListItem", "position": 2, "name": "Advisory-locked migrations" },
+          { "@type": "ListItem", "position": 3, "name": "Fail-closed cost governor" },
+          { "@type": "ListItem", "position": 4, "name": "Tenancy by construction" },
+          { "@type": "ListItem", "position": 5, "name": "Keyless CI" },
+          { "@type": "ListItem", "position": 6, "name": "Reuse over rebuild" }
+        ]
+      }
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ismail.kattakath.com/" },
+        { "@type": "ListItem", "position": 2, "name": "Patterns", "item": "https://ismail.kattakath.com/patterns/" }
+      ]
+    }
+  ]
+}
+</script>
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-header" role="banner">
+  <a class="brand" href="/" aria-label="Ismail Kattakath — home"><img src="/logo.svg" alt="Ismail Kattakath" width="1120" height="460"></a>
+  <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-nav" hidden>
+    <span class="nav-toggle-glyph" aria-hidden="true"></span><span class="nav-toggle-text">Menu</span>
+  </button>
+  <nav id="primary-nav" class="nav" aria-label="Primary">
+    <a href="/#work">Selected work</a>
+    <a href="/patterns/" aria-current="page">Patterns</a>
+    <a href="/notes/">Notes</a>
+    <a href="/evidence/">Evidence</a>
+    <a class="dc-btn nav-cta" href="https://calendly.com/ismailkattakath/google-meet" target="_blank" rel="noopener">Book a call</a>
+  </nav>
+</header>
+
+<main id="main" tabindex="-1">
+
+  <section class="section" aria-labelledby="pat-h">
+    <nav aria-label="Breadcrumb" class="dc-meta" style="margin-bottom:18px">
+      <a href="/">Home</a> <span aria-hidden="true">/</span> Patterns
+    </nav>
+    <div class="section-head">
+      <h1 id="pat-h" style="font-size:clamp(30px,4.2vw,54px);font-weight:700;line-height:1.05;letter-spacing:-0.02em;margin:0">Things I reach for.</h1>
+      <span class="dc-label">Recurring patterns</span>
+    </div>
+
+    <div class="grid-body prose-block">
+      <p style="font-size:clamp(18px,1.9vw,26px);font-weight:300;line-height:1.35;max-width:44ch;margin:0">
+        The same handful of shapes keep earning their place across production systems. Each one turns
+        a class of incident into an invariant the code cannot violate.
+      </p>
+      <p style="margin:22px 0 0;max-width:62ch;font-size:clamp(17px,1.5vw,19px);line-height:1.55">
+        These aren't slideware. Every pattern below is cited to a system I actually shipped — the
+        problem it answers, where it runs, and the guarantee it holds. For the measured outcomes those
+        systems produced, see the <a href="/evidence/">evidence ledger</a>.
+      </p>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="pat-matrix-h">
+    <div class="section-head">
+      <h2 id="pat-matrix-h">The pattern matrix</h2>
+      <span class="dc-label">Problem → System → Invariant</span>
+    </div>
+    <div class="dc-table-wrap">
+      <table class="dc-table">
+        <caption>Six patterns, each grounded in a real system</caption>
+        <thead>
+          <tr>
+            <th scope="col">Pattern</th>
+            <th scope="col">The problem it solves</th>
+            <th scope="col">Where I shipped it</th>
+            <th scope="col">The invariant it enforces</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <strong>Idempotency as a contract</strong>
+              <span class="dc-label" style="display:block;margin-top:8px">Idempotency</span>
+            </td>
+            <td>At-least-once delivery and automatic retries mean the same message can be processed twice — double-charging a customer, indexing a document twice, re-firing a webhook.</td>
+            <td><a href="/#work">Takeoff</a> — a platform-wide contract across the whole AWS Lambda fleet at Infin8.</td>
+            <td>Running a handler twice on the same input has the same effect as running it once. A duplicate is a no-op, never a second side effect.</td>
+          </tr>
+          <tr>
+            <td>
+              <strong>Advisory-locked migrations</strong>
+              <span class="dc-label" style="display:block;margin-top:8px">Migrations</span>
+            </td>
+            <td>Two deploys landing at once can run the same schema migration concurrently — interleaving, deadlocking, or corrupting the database.</td>
+            <td><a href="/#work">Takeoff</a> — Aurora Serverless v2 behind an IAM-authenticated RDS Proxy at Infin8.</td>
+            <td>A migration takes an advisory lock before it runs. Exactly one migration executes at a time; it cannot race another deploy.</td>
+          </tr>
+          <tr>
+            <td>
+              <strong>Fail-closed cost governor</strong>
+              <span class="dc-label" style="display:block;margin-top:8px">Kill-switch</span>
+            </td>
+            <td>An autonomous inference fleet can silently run up unbounded provider spend before a human ever notices the graph.</td>
+            <td><a href="/#work">Takeoff</a> — the Document-AI worker fleet (batch OCR / vision on LiteLLM) at Infin8.</td>
+            <td>When the budget is exceeded — or the check itself can't be evaluated — the fleet stops. The default is denial, not "keep going".</td>
+          </tr>
+          <tr>
+            <td>
+              <strong>Tenancy by construction</strong>
+              <span class="dc-label" style="display:block;margin-top:8px">Isolation</span>
+            </td>
+            <td>In multi-tenant SaaS a single flawed authorization check can let one tenant read or act on another tenant's data.</td>
+            <td><a href="/#work">Takeoff</a> — dual Cognito pools with JWT audience isolation and token authorizers at Infin8.</td>
+            <td>A token minted for tenant A is rejected for tenant B by its audience. Cross-tenant escalation is structurally impossible, not merely checked.</td>
+          </tr>
+          <tr>
+            <td>
+              <strong>Keyless CI</strong>
+              <span class="dc-label" style="display:block;margin-top:8px">GitHub OIDC</span>
+            </td>
+            <td>Long-lived cloud credentials stored in CI are a standing theft surface — one leaked secret and an attacker holds your account.</td>
+            <td><a href="/#work">Takeoff</a> deploys via GitHub Actions OIDC at Infin8; this site's own <a href="https://github.com/kattakath/nix-config" target="_blank" rel="noopener">nix-config repo</a> publishes to FlakeHub over OIDC with no stored token.</td>
+            <td>No long-lived secret lives in CI. Every deploy authenticates with a short-lived, workload-scoped OIDC token, staging a required gate.</td>
+          </tr>
+          <tr>
+            <td>
+              <strong>Reuse over rebuild</strong>
+              <span class="dc-label" style="display:block;margin-top:8px">Less surface</span>
+            </td>
+            <td>Custom infrastructure you build is infrastructure someone has to keep maintaining — forever, after you've moved on.</td>
+            <td>The public <a href="https://github.com/kattakath/nix-config" target="_blank" rel="noopener">nix-config mono-repo</a> — a bespoke ~40-file engine deleted in favour of one maintained dependency.</td>
+            <td>Build to learn a domain, then delete what an off-the-shelf tool already does. Every line kept must earn its maintenance cost.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="thread-h">
+    <div class="section-head">
+      <h2 id="thread-h">The common thread</h2>
+      <span class="dc-label">Why these six</span>
+    </div>
+    <div class="matrix grid-body">
+      <div>
+        <h3>Incidents become invariants</h3>
+        <p>Every postmortem ends as a guard the CI pipeline enforces — idempotency, an advisory lock, a fail-closed default — so the same failure cannot recur quietly the next quarter.</p>
+      </div>
+      <div class="dc-invert">
+        <h3>Structural over procedural</h3>
+        <p>I prefer a boundary the system cannot cross to a check a reviewer has to remember: isolation by token audience, denial by default, one migration by lock. The guarantee lives in the shape, not the vigilance.</p>
+      </div>
+      <div>
+        <h3>Public and reproducible</h3>
+        <p>This very site is served from that one declarative Nix mono-repo. The patterns aren't diagrams on a slide — they run in production, and the ones I own personally are open to read.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="pat-cta-h">
+    <div class="contact dc-invert">
+      <div>
+        <p class="dc-label" style="margin-bottom:20px">Where these came from</p>
+        <h2 id="pat-cta-h">Every pattern has a system behind it.</h2>
+        <p>See the work these shipped in, or the numbers they produced — then bring me the hardest guarantee your stack still can't make.</p>
+      </div>
+      <div class="contact-actions">
+        <a class="dc-btn dc-btn--lg" href="/#work">See the work</a>
+        <a class="dc-btn dc-btn--lg" href="/evidence/">The evidence ledger</a>
+        <a class="dc-btn" href="https://calendly.com/ismailkattakath/google-meet" target="_blank" rel="noopener">Book a call</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer" role="contentinfo">
+  <a class="brand" href="/" aria-label="Ismail Kattakath — home">
+    <img src="/logo.svg" alt="Ismail Kattakath" width="1120" height="460">
+  </a>
+  <div class="footer-links">
+    <a class="dc-meta" href="/">Overview</a>
+    <a class="dc-meta" href="/evidence/">Evidence</a>
+    <a class="dc-meta" href="https://linkedin.com/in/ismailkattakath" target="_blank" rel="noopener">LinkedIn</a>
+    <a class="dc-meta" href="https://github.com/ismailkattakath" target="_blank" rel="noopener">GitHub</a>
+  </div>
+</footer>
+
+</body>
+</html>

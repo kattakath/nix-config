@@ -1,8 +1,8 @@
 /* Ismail Kattakath — landing page styles.
-   Layer 1: self-hosted fonts. Layer 2: the Duochrome design system (verbatim —
-   ink #000 / ground #fff, one typeface, no greys/gradients/shadows/radii).
-   Layer 3: the page component layer — every repeated inline style hoisted into a
-   class (DRY). Reuses dc-* primitives; adds only layout the DS doesn't own. */
+   Layer 1: self-hosted fonts (+ metric-matched fallbacks). Layer 2: the Duochrome
+   design system (verbatim — ink #000 / ground #fff, two type roles, no
+   greys/gradients/shadows/radii). Layer 3: page components. Layer 4: responsive
+   system + accessible mobile nav + a restrained motion layer. */
 
 /* ---------- Layer 1: fonts (self-hosted woff2, variable weight) ---------- */
 @font-face {
@@ -19,12 +19,21 @@
   font-display: swap;
   src: url("./fonts/roboto-mono.woff2") format("woff2");
 }
+/* Metric-matched fallback so the swap from Arial -> Roboto reflows ~0px (CLS). */
+@font-face {
+  font-family: "Roboto Fallback";
+  src: local("Arial");
+  ascent-override: 92.7%;
+  descent-override: 24.4%;
+  line-gap-override: 0%;
+  size-adjust: 100.3%;
+}
 
 /* ---------- Layer 2: Duochrome tokens ---------- */
 :root {
   --ink: #000;
   --ground: #fff;
-  --font-sans: Roboto, Helvetica, Arial, sans-serif;
+  --font-sans: Roboto, "Roboto Fallback", Helvetica, Arial, sans-serif;
   --font-mono: "Roboto Mono", ui-monospace, monospace;
   --rule-hair: 1px;
   --rule-base: 2px;
@@ -36,7 +45,8 @@
   --pad-x: clamp(18px, 4vw, 48px);
   --sec-y: clamp(48px, 6vw, 84px);
   /* sticky-header height — offsets anchor jumps so targets clear the header
-     (WCAG 2.4.11 Focus Not Obscured; 2.4.1 in-page targets) */
+     (WCAG 2.4.11 Focus Not Obscured; 2.4.1). site.js keeps this accurate to the
+     REAL header height at every width, so a taller header never obscures a jump. */
   --header-h: 76px;
 }
 
@@ -76,6 +86,7 @@ a {
   color: inherit;
   text-decoration: underline;
   text-underline-offset: 3px;
+  transition: background 70ms linear, color 70ms linear;
 }
 a:hover,
 a:focus-visible {
@@ -114,14 +125,11 @@ a:focus-visible {
   font-family: var(--font-mono);
   font-size: 13px;
   letter-spacing: 0.14em;
+  font-variant-numeric: tabular-nums;
 }
 .dc-num {
   font-family: var(--font-mono);
   font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-/* data figures / dates column-align (mono, lining, tabular) */
-.dc-meta {
   font-variant-numeric: tabular-nums;
 }
 
@@ -139,6 +147,7 @@ a:focus-visible {
   background: var(--ground);
   color: var(--ink);
   cursor: pointer;
+  transition: background 70ms linear, color 70ms linear;
 }
 .dc-btn:hover,
 .dc-btn:focus-visible {
@@ -220,7 +229,7 @@ a:focus-visible {
   left: 0;
 }
 
-/* ---------- Layer 3: header + nav ---------- */
+/* ---------- Layer 3: header + nav (desktop base; mobile in Layer 4) ---------- */
 .site-header {
   position: sticky;
   top: 0;
@@ -231,7 +240,7 @@ a:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   padding: 14px var(--pad-x);
 }
 .brand {
@@ -250,15 +259,64 @@ a:focus-visible {
   display: flex;
   align-items: center;
   gap: clamp(10px, 2vw, 26px);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 .nav a {
   font-family: var(--font-mono);
   font-size: 14px;
   letter-spacing: 0.1em;
   text-decoration: none;
-  padding: 8px 4px; /* >=24px tap target (WCAG 2.5.8) */
+  padding: 8px 4px;
+  /* active-section indicator is a drawn rule, not colour (Duochrome) */
+  border-bottom: var(--rule-base) solid transparent;
 }
+.nav a[aria-current="page"],
+.nav a[aria-current="true"] {
+  border-bottom-color: currentColor;
+}
+.nav a.dc-btn {
+  border: var(--rule-base) solid currentColor;
+}
+/* the hamburger — drawn from rules, no icon font, no colour */
+.nav-toggle {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  background: var(--ground);
+  color: var(--ink);
+  border: var(--rule-base) solid var(--ink);
+  padding: 10px 14px;
+  min-height: 44px;
+  cursor: pointer;
+}
+.nav-toggle:hover,
+.nav-toggle:focus-visible {
+  background: var(--ink);
+  color: var(--ground);
+}
+.nav-toggle-glyph {
+  position: relative;
+  display: inline-block;
+  width: 20px;
+  height: 2px;
+  background: currentColor;
+}
+.nav-toggle-glyph::before,
+.nav-toggle-glyph::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  width: 20px;
+  height: 2px;
+  background: currentColor;
+}
+.nav-toggle-glyph::before { top: -6px; }
+.nav-toggle-glyph::after { top: 6px; }
 
 /* ---------- Layer 3: section shell ---------- */
 .section {
@@ -291,7 +349,7 @@ a:focus-visible {
 }
 .hero-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
+  grid-template-columns: 1fr;
   gap: clamp(28px, 4vw, 56px);
   align-items: stretch;
 }
@@ -304,7 +362,7 @@ a:focus-visible {
 }
 .hero-title {
   margin: 0 0 clamp(22px, 2.6vw, 30px);
-  font-size: clamp(40px, 6.6vw, 92px);
+  font-size: clamp(38px, 6.6vw, 92px);
   font-weight: 700;
   line-height: 1;
   letter-spacing: -0.03em;
@@ -326,7 +384,7 @@ a:focus-visible {
   position: relative;
   min-width: 0;
   border: var(--rule-base) solid var(--ground);
-  min-height: clamp(300px, 34vw, 480px);
+  min-height: clamp(200px, 42vw, 480px);
   background: var(--ink);
 }
 .hero-tag {
@@ -342,20 +400,19 @@ a:focus-visible {
 /* ---------- Layer 3: stat band ---------- */
 .stat-band {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+  grid-template-columns: 1fr; /* phones: one column — wide numerals never overflow */
   border-top: var(--rule-loud) solid var(--ink);
   border-bottom: var(--rule-loud) solid var(--ink);
   margin-top: 0;
 }
 .stat {
+  min-width: 0; /* let the grid track shrink; numerals don't force overflow */
   padding: clamp(22px, 2.6vw, 32px) clamp(18px, 2.2vw, 28px);
-  border-right: var(--rule-hair) solid var(--ink);
+  border-bottom: var(--rule-hair) solid var(--ink);
 }
-.stat:last-child {
-  border-right: 0;
-}
+.stat:last-child { border-bottom: 0; }
 .stat-num {
-  font-size: clamp(46px, 5.4vw, 76px);
+  font-size: clamp(38px, 9vw, 76px);
   line-height: 0.95;
   font-weight: 700;
 }
@@ -367,7 +424,7 @@ a:focus-visible {
 /* ---------- Layer 3: cards (mandates) ---------- */
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+  grid-template-columns: 1fr;
   gap: clamp(18px, 2.4vw, 28px);
 }
 .card {
@@ -400,7 +457,7 @@ a:focus-visible {
 /* ---------- Layer 3: selected work ---------- */
 .work-item {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+  grid-template-columns: 1fr;
   border: var(--rule-base) solid var(--ink);
 }
 .work-item + .work-item {
@@ -408,7 +465,7 @@ a:focus-visible {
 }
 .work-head {
   padding: clamp(24px, 3vw, 38px);
-  border-right: var(--rule-hair) solid var(--ink);
+  border-bottom: var(--rule-hair) solid var(--ink);
   min-width: 0;
 }
 .work-head h3 {
@@ -478,7 +535,7 @@ a:focus-visible {
 /* ---------- Layer 3: principles (bordered matrix) ---------- */
 .matrix {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  grid-template-columns: 1fr;
   border-top: var(--rule-base) solid var(--ink);
   border-left: var(--rule-base) solid var(--ink);
 }
@@ -552,7 +609,7 @@ a:focus-visible {
 /* ---------- Layer 3: stack matrix ---------- */
 .stack {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  grid-template-columns: 1fr;
   border-top: var(--rule-base) solid var(--ink);
   border-left: var(--rule-base) solid var(--ink);
 }
@@ -571,7 +628,7 @@ a:focus-visible {
 .contact {
   padding: clamp(32px, 4.6vw, 68px) clamp(24px, 3.6vw, 56px);
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  grid-template-columns: 1fr;
   gap: clamp(28px, 4vw, 56px);
   align-items: center;
 }
@@ -642,7 +699,8 @@ a:focus-visible {
   background: var(--ground);
   color: var(--ink);
   border: var(--rule-base) solid var(--ground);
-  padding: 8px 12px;
+  padding: 10px 14px;
+  min-height: 44px;
   cursor: pointer;
 }
 .hatch-toggle:hover,
@@ -654,7 +712,7 @@ a:focus-visible {
   display: none;
 }
 
-/* ---------- reusable data table (spoke pages: /evidence/, future studies) ---------- */
+/* ---------- reusable data table (spoke pages: /evidence/, case studies) ---------- */
 .dc-table-wrap {
   overflow-x: auto;
   border: var(--rule-base) solid var(--ink);
@@ -663,7 +721,7 @@ a:focus-visible {
 .dc-table {
   border-collapse: collapse;
   width: 100%;
-  min-width: 620px;
+  min-width: 560px;
 }
 .dc-table caption {
   text-align: left;
@@ -700,6 +758,31 @@ a:focus-visible {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+/* a DNA-legal "scrollable" cue on narrow screens (mono label, no shadow) */
+.dc-table-wrap {
+  position: relative;
+}
+.dc-table-wrap::before {
+  content: "";
+}
+@media (max-width: 620px) {
+  .dc-table-wrap {
+    padding-top: 30px;
+  }
+  .dc-table-wrap::before {
+    content: "\2194  scroll";
+    position: absolute;
+    top: 0;
+    right: 0;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 7px 12px;
+    border-left: var(--rule-hair) solid var(--ink);
+    border-bottom: var(--rule-hair) solid var(--ink);
+  }
+}
 
 /* ---------- evidence-teaser row on the hub ---------- */
 .evidence-teaser {
@@ -717,6 +800,133 @@ a:focus-visible {
   font-weight: 300;
   line-height: 1.35;
   max-width: 32ch;
+}
+
+/* =====================================================================
+   Layer 4: responsive system + accessible mobile nav + motion
+   ===================================================================== */
+
+/* ---- Authored breakpoints (mobile-first; no auto-fit orphans) ---- */
+@media (min-width: 760px) {
+  .hero-grid { grid-template-columns: 1.08fr 0.92fr; }
+  .work-item { grid-template-columns: 1fr 1fr; }
+  .work-head { border-bottom: 0; border-right: var(--rule-hair) solid var(--ink); }
+  .contact { grid-template-columns: 1fr 1fr; }
+}
+@media (min-width: 620px) {
+  .stack { grid-template-columns: 1fr 1fr; }
+  /* a lone final group (7 is prime) spans the full row so no empty cell shows */
+  .stack-group:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+@media (min-width: 880px) {
+  .cards { grid-template-columns: repeat(3, 1fr); }
+  .matrix { grid-template-columns: repeat(3, 1fr); }
+}
+@media (min-width: 520px) {
+  .stat-band { grid-template-columns: 1fr 1fr; }
+  .stat { border-right: var(--rule-hair) solid var(--ink); }
+  .stat:nth-child(2n) { border-right: 0; }
+  /* 2x2: bottom rule on the top row only */
+  .stat:nth-last-child(-n + 2) { border-bottom: 0; }
+}
+@media (min-width: 900px) {
+  .stat-band { grid-template-columns: repeat(4, 1fr); }
+  .stat { border-right: var(--rule-hair) solid var(--ink); border-bottom: 0; }
+  .stat:last-child { border-right: 0; }
+}
+
+/* ---- Touch: comfortable hit areas (>=44px) on coarse pointers ---- */
+@media (pointer: coarse) {
+  .nav a { min-height: 44px; display: inline-flex; align-items: center; }
+  .dc-btn { min-height: 44px; }
+  .dc-btn--text { display: inline-flex; align-items: center; }
+}
+
+/* ---- Mobile navigation: the wrapping row becomes an accessible disclosure ---- */
+@media (max-width: 759.98px) {
+  /* pre-JS fallback: links stay visible & reachable (never trapped). With JS
+     the .js class collapses them behind the toggle. */
+  .js .nav-toggle { display: inline-flex; }
+  .js #primary-nav {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    background: var(--ground);
+    border-bottom: var(--rule-base) solid var(--ink);
+    padding: 6px var(--pad-x) 14px;
+    display: none;
+  }
+  .js .site-header[data-nav-open] #primary-nav { display: flex; }
+  .js #primary-nav a {
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    font-size: 15px;
+    padding: 8px 0;
+    border-bottom: var(--rule-hair) solid var(--ink);
+  }
+  .js #primary-nav a[aria-current="page"],
+  .js #primary-nav a[aria-current="true"] {
+    border-bottom-color: var(--ink);
+    font-weight: 700;
+  }
+  .js #primary-nav a.dc-btn {
+    justify-content: center;
+    margin-top: 14px;
+    border: var(--rule-base) solid var(--ink);
+    min-height: 52px;
+  }
+}
+
+/* ---- Hero media: shorter on phones so the CTA + first stats stay reachable ---- */
+@media (max-width: 559.98px) {
+  .hero-media { min-height: 180px; }
+  /* tag moves to the top so it can never collide with the bottom-right pause control */
+  .hero-tag { top: 14px; bottom: auto; left: 14px; }
+  .hatch-toggle { right: 14px; bottom: 14px; }
+  /* career timeline: the year-tick axis can't fit — drop it; per-row dates carry the data */
+  .tl-axis { display: none; }
+  .tl-grid { grid-template-columns: clamp(110px, 40%, 200px) 1fr; }
+}
+
+/* =====================================================================
+   Motion layer — reveals structure, never decorates. Progressive
+   enhancement only (behind .js), and every animated end-state is also
+   the correct static state. Neutralised entirely under reduced-motion.
+   ===================================================================== */
+@media (prefers-reduced-motion: no-preference) {
+  .js .reveal {
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+    will-change: opacity, transform;
+  }
+  .js .reveal.in-view {
+    opacity: 1;
+    transform: none;
+  }
+  /* the section-head rule draws across on entry */
+  .js .reveal .section-head {
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.5s ease;
+  }
+  .js .reveal.in-view .section-head {
+    transform: scaleX(1);
+  }
+  /* timeline bars draw left-to-right (they encode duration over time) */
+  .js .timeline .tl-fill {
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.6s ease;
+  }
+  .js .timeline.in-view .tl-fill {
+    transform: scaleX(1);
+  }
 }
 
 /* ---------- reduced motion (WCAG 2.3.3 / the design's standing rule) ---------- */
