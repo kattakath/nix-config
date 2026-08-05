@@ -125,7 +125,32 @@ void main(){
       this._io.observe(this);
       this._visible = true;
 
-      this._reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      // Reduced-motion is re-evaluated live (not sampled once) so a mid-session
+      // OS toggle takes effect immediately (WCAG 2.3.3 / 2.2.2).
+      this._paused = false;
+      this._mq = matchMedia('(prefers-reduced-motion: reduce)');
+      this._reduced = this._mq.matches;
+      this._onMQ = (e) => {
+        this._reduced = e.matches;
+        if (this._toggle) this._toggle.hidden = e.matches; // nothing to pause when motion is off
+        if (e.matches) this.draw((performance.now() - this._t0) / 1000); // freeze on a static frame
+      };
+      this._mq.addEventListener('change', this._onMQ);
+
+      // WCAG 2.2.2 Pause, Stop, Hide — a control for ALL users, not only those
+      // with the OS flag. It lives in .hero-media, OUTSIDE this aria-hidden
+      // element, so it is exposed to assistive tech.
+      const toggle = this.parentElement && this.parentElement.querySelector('[data-hatch-toggle]');
+      if (toggle) {
+        this._toggle = toggle;
+        toggle.hidden = this._reduced;
+        toggle.addEventListener('click', () => {
+          this._paused = !this._paused;
+          toggle.setAttribute('aria-pressed', String(this._paused));
+          toggle.textContent = this._paused ? 'Play motion' : 'Pause motion';
+        });
+      }
+
       this._t0 = performance.now();
       this.frame();
     }
@@ -181,7 +206,7 @@ void main(){
       this._raf = requestAnimationFrame(this.frame);
       if (!this.gl) return;
       if (this.getAttribute('src') !== this._srcTried) this._loadSrc();
-      if (this._reduced || !this._visible) return;
+      if (this._reduced || this._paused || !this._visible) return;
       this.pointer[0] += (this._target[0] - this.pointer[0]) * 0.07;
       this.pointer[1] += (this._target[1] - this.pointer[1]) * 0.07;
       this.draw((performance.now() - this._t0) / 1000);
@@ -191,6 +216,7 @@ void main(){
       cancelAnimationFrame(this._raf);
       this._ro && this._ro.disconnect();
       this._io && this._io.disconnect();
+      this._mq && this._onMQ && this._mq.removeEventListener('change', this._onMQ);
     }
   }
 
