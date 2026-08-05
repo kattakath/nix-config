@@ -701,7 +701,6 @@ a:focus-visible {
 /* ---------- Layer 3: footer ---------- */
 .site-footer {
   margin-top: var(--sec-y);
-  border-top: var(--rule-bar) solid var(--ink);
   min-height: var(--header-size); /* same height as the header so logos match */
   padding: 12px var(--pad-x);
   display: flex;
