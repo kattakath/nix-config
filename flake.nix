@@ -331,11 +331,14 @@
 
       # ---- Sites served on the ONE nixpi tunnel (single source) ---------------
       # Each entry is a static site behind nixpi's Cloudflare tunnel:
-      #   { domain; zoneId; root }  (root = the package dir Caddy file_servers).
-      # hosts/nixpi.nix maps each -> a Caddy vhost; infra/cloudflare/nixpi-tunnel.nix
-      # maps each -> a tunnel ingress rule + apex/www CNAMEs + a www->apex 301 edge
-      # redirect. Adding a site is ONE entry here (no copy-paste). zoneIds are
-      # non-secret identifiers, all in the same Cloudflare account as kattakath.com.
+      #   { domain; zoneId; root; www ? true }  (root = the package dir Caddy
+      # file_servers). hosts/nixpi.nix maps each -> a Caddy vhost;
+      # infra/cloudflare/nixpi-tunnel.nix maps each -> a tunnel ingress rule + an
+      # apex CNAME, and (when www is true, the default) a www CNAME + a www->apex
+      # 301 edge redirect. Set `www = false` for a SUBDOMAIN entry (e.g.
+      # ismail.kattakath.com), where a www.<subdomain> record would be nonsense.
+      # Adding a site is ONE entry here (no copy-paste). zoneIds are non-secret
+      # identifiers, all in the same Cloudflare account as kattakath.com.
       hostedSites = [
         {
           domain = domainName; # kattakath.com — also the SSH/primary zone
@@ -346,6 +349,14 @@
           domain = "snoringirl.com";
           zoneId = "21de2a6be1b268b2b151ae0b3592e562";
           root = ./packages/snoringirl;
+        }
+        {
+          # ismail.kattakath.com — personal Duochrome landing page (Applied AI /
+          # platform / cloud). Same zone as the apex; a subdomain, so no www.
+          domain = "ismail.${domainName}";
+          zoneId = cloudflareZoneId;
+          root = ./packages/ismail-landing;
+          www = false;
         }
       ];
 
