@@ -124,12 +124,6 @@
       "obs"
       "obsidian"
       "proton-drive"
-      # QLMarkdown — free/OSS Quick Look extension that renders Markdown (incl.
-      # Mermaid diagrams, math, syntax highlighting) on spacebar in Finder. One-time
-      # manual step after install: launch QLMarkdown.app once to register the QL
-      # extension, then enable its Mermaid extension in-app (see the markdownDefaultApp
-      # activation in modules/shared/home.nix, which sets Obsidian as the double-click opener).
-      "qlmarkdown"
       "raspberry-pi-imager"
       "slack"
       "telegram"
