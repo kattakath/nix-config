@@ -287,6 +287,10 @@ in
   services.mcpGateway = lib.mkIf isMacosHost {
     publicServers = [ "kapture" ];
     publicTunnel.enable = true;
+    # Telegram USER-account server (read/triage + draft-only send). Real Mac only.
+    # Inert until the one-time auth is done (TG_APP_ID/TG_API_HASH in the Keychain +
+    # ~/.telegram-mcp/session.json) — see modules/shared/mcp.nix `telegramMcp`.
+    telegram.enable = true;
   };
 
   # Make Home-Manager-installed font packages discoverable by applications.
