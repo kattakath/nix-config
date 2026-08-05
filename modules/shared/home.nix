@@ -337,7 +337,6 @@ in
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       jdk17 # JRE for the Android sdkmanager/avdmanager (JVM tools); emulator itself needs no Java
       runpodctl # RunPod GPU CLI — RunPod as a second ComfyUI-workflow provider alongside Vast (from nixpkgs, not the untrusted brew tap)
-      duti # set default apps by UTI/extension — used by the markdownDefaultApp activation to open .md in a rendered viewer (Obsidian) on double-click; Quick Look (mermaid) comes from the qlmarkdown cask
     ]
     # WireGuard `vpn` operator — macvm ONLY (it has no App Store, so the CLI is
     # its only option). macos is GUI-only and ships no VPN CLI on purpose — see
@@ -915,25 +914,6 @@ in
     # claudeCodePlugins / grokMcp.
     emailSignature = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       $DRY_RUN_CMD ${email-signature}/bin/email-signature || true
-    '';
-
-    # Make Markdown open RENDERED on double-click — the "opens like a PDF" default-app
-    # half — by pointing the markdown UTIs/extensions at Obsidian (already a cask; it
-    # renders Mermaid in preview). The Quick Look (spacebar) half is the `qlmarkdown`
-    # cask (hosts/macos.nix): a free OSS Quick Look extension that renders Mermaid — but
-    # it needs a ONE-TIME manual step Nix can't do: launch QLMarkdown.app once (so the
-    # system discovers the QL extension) and toggle its Mermaid extension ON in-app
-    # (same class of manual grant as the macos-automator Accessibility step). duti is a
-    # `writeBoundary` best-effort loop, GUARDED on Obsidian being installed so it's a
-    # clean no-op where it isn't (e.g. macvm). Swap `md.obsidian` for another viewer's
-    # bundle id (e.g. `com.brettterpstra.marked2`) to change the double-click opener.
-    markdownDefaultApp = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-      duti="${pkgs.duti}/bin/duti"
-      if [ -d "/Applications/Obsidian.app" ] && [ -x "$duti" ]; then
-        for kind in net.daringfireball.markdown public.markdown md markdown mdown mkd; do
-          "$duti" -s md.obsidian "$kind" all 2>/dev/null || true
-        done
-      fi
     '';
   };
 
