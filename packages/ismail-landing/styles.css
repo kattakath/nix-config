@@ -1,0 +1,622 @@
+/* Ismail Kattakath — landing page styles.
+   Layer 1: self-hosted fonts. Layer 2: the Duochrome design system (verbatim —
+   ink #000 / ground #fff, one typeface, no greys/gradients/shadows/radii).
+   Layer 3: the page component layer — every repeated inline style hoisted into a
+   class (DRY). Reuses dc-* primitives; adds only layout the DS doesn't own. */
+
+/* ---------- Layer 1: fonts (self-hosted woff2, variable weight) ---------- */
+@font-face {
+  font-family: "Roboto";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("./fonts/roboto.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Roboto Mono";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("./fonts/roboto-mono.woff2") format("woff2");
+}
+
+/* ---------- Layer 2: Duochrome tokens ---------- */
+:root {
+  --ink: #000;
+  --ground: #fff;
+  --font-sans: Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "Roboto Mono", ui-monospace, monospace;
+  --rule-hair: 1px;
+  --rule-base: 2px;
+  --rule-loud: 4px;
+  --rule-bar: 12px;
+  --track-label: 0.24em;
+
+  /* page rhythm — defined once, reused everywhere (DRY) */
+  --pad-x: clamp(18px, 4vw, 48px);
+  --sec-y: clamp(48px, 6vw, 84px);
+}
+
+/* ---------- Layer 2: base ---------- */
+* {
+  box-sizing: border-box;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+html {
+  scroll-behavior: smooth;
+}
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  text-wrap: pretty;
+  overflow-x: hidden;
+}
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+/* Links invert BOTH background and text on hover (and focus) — not just the
+   background. This is the DS default; the page must not override it back. */
+a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+a:hover,
+a:focus-visible {
+  background: var(--ink);
+  color: var(--ground);
+  text-decoration: none;
+}
+:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
+
+/* Inversion: on ink surfaces the hover/focus swap flips the other way. */
+.dc-invert {
+  background: var(--ink);
+  color: var(--ground);
+}
+.dc-invert a:hover,
+.dc-invert a:focus-visible {
+  background: var(--ground);
+  color: var(--ink);
+}
+.dc-invert :focus-visible {
+  outline-color: var(--ground);
+}
+
+/* ---------- Layer 2: type primitives ---------- */
+.dc-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+.dc-meta {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.14em;
+}
+.dc-num {
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+/* ---------- Layer 2: buttons ---------- */
+.dc-btn {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-decoration: none;
+  padding: 14px 22px;
+  border: var(--rule-base) solid currentColor;
+  background: var(--ground);
+  color: var(--ink);
+  cursor: pointer;
+}
+.dc-btn:hover,
+.dc-btn:focus-visible {
+  background: var(--ink);
+  color: var(--ground);
+  text-decoration: none;
+}
+.dc-btn--lg {
+  font-size: 14px;
+  padding: 18px 28px;
+}
+.dc-btn--text {
+  border-color: transparent;
+  border-bottom-color: currentColor;
+  padding: 12px 4px;
+}
+.dc-btn--text:hover,
+.dc-btn--text:focus-visible {
+  background: none;
+  color: inherit;
+  border-bottom-width: var(--rule-loud);
+}
+/* On an ink surface, default buttons are ink-filled and invert on hover. */
+.dc-invert .dc-btn {
+  background: var(--ink);
+  color: var(--ground);
+  border-color: var(--ground);
+}
+.dc-invert .dc-btn:hover,
+.dc-invert .dc-btn:focus-visible {
+  background: var(--ground);
+  color: var(--ink);
+}
+/* The hero's filled button: ground-filled by default, inverts to ink on hover. */
+.dc-invert .dc-btn--fill {
+  background: var(--ground);
+  color: var(--ink);
+  border-color: var(--ground);
+}
+.dc-invert .dc-btn--fill:hover,
+.dc-invert .dc-btn--fill:focus-visible {
+  background: var(--ink);
+  color: var(--ground);
+}
+
+/* ---------- Layer 2: chips ---------- */
+.dc-chip {
+  display: inline-block;
+  border: var(--rule-hair) solid currentColor;
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.dc-chip--on {
+  background: var(--ink);
+  color: var(--ground);
+  border-color: var(--ink);
+}
+.dc-invert .dc-chip--on {
+  background: var(--ground);
+  color: var(--ink);
+}
+
+/* ---------- Layer 3: skip link (WCAG 2.4.1) ---------- */
+.skip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  padding: 12px 18px;
+  background: var(--ink);
+  color: var(--ground);
+  font-family: var(--font-mono);
+  text-decoration: none;
+}
+.skip:focus {
+  left: 0;
+}
+
+/* ---------- Layer 3: header + nav ---------- */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--ground);
+  border-bottom: var(--rule-base) solid var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 14px var(--pad-x);
+}
+.brand {
+  display: block;
+  line-height: 0;
+}
+.brand:hover,
+.brand:focus-visible {
+  background: none;
+}
+.brand img {
+  height: clamp(30px, 3.6vw, 38px);
+  width: auto;
+}
+.nav {
+  display: flex;
+  align-items: center;
+  gap: clamp(10px, 2vw, 26px);
+  flex-wrap: wrap;
+}
+.nav a {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  text-decoration: none;
+  padding: 8px 4px; /* >=24px tap target (WCAG 2.5.8) */
+}
+
+/* ---------- Layer 3: section shell ---------- */
+.section {
+  padding: var(--sec-y) var(--pad-x) 0;
+}
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-bottom: var(--rule-loud) solid var(--ink);
+  padding-bottom: 12px;
+}
+.section-head h2 {
+  margin: 0;
+  font-size: clamp(30px, 4.2vw, 54px);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.grid-body {
+  margin-top: clamp(26px, 3.4vw, 40px);
+}
+
+/* ---------- Layer 3: hero ---------- */
+.hero {
+  padding: clamp(36px, 5vw, 72px) var(--pad-x) clamp(44px, 5vw, 76px);
+}
+.hero-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: clamp(28px, 4vw, 56px);
+  align-items: stretch;
+}
+.hero-col {
+  min-width: 0;
+}
+.hero-eyebrow {
+  margin-bottom: clamp(22px, 3vw, 34px);
+  font-size: 15px;
+}
+.hero-title {
+  margin: 0 0 clamp(22px, 2.6vw, 30px);
+  font-size: clamp(40px, 6.6vw, 92px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+.hero-lead {
+  margin: 0 0 clamp(26px, 3vw, 36px);
+  max-width: 34ch;
+  font-size: clamp(20px, 2.2vw, 30px);
+  font-weight: 300;
+  line-height: 1.32;
+}
+.hero-cta {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.hero-media {
+  position: relative;
+  min-width: 0;
+  border: var(--rule-base) solid var(--ground);
+  min-height: clamp(300px, 34vw, 480px);
+  background: var(--ink);
+}
+.hero-tag {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  font-size: 13px;
+  background: var(--ground);
+  color: var(--ink);
+  padding: 8px 12px;
+}
+
+/* ---------- Layer 3: stat band ---------- */
+.stat-band {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  border-top: var(--rule-loud) solid var(--ink);
+  border-bottom: var(--rule-loud) solid var(--ink);
+  margin-top: 0;
+}
+.stat {
+  padding: clamp(22px, 2.6vw, 32px) clamp(18px, 2.2vw, 28px);
+  border-right: var(--rule-hair) solid var(--ink);
+}
+.stat:last-child {
+  border-right: 0;
+}
+.stat-num {
+  font-size: clamp(46px, 5.4vw, 76px);
+  line-height: 0.95;
+  font-weight: 700;
+}
+.stat-label {
+  font-size: 14px;
+  margin-top: 12px;
+}
+
+/* ---------- Layer 3: cards (mandates) ---------- */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: clamp(18px, 2.4vw, 28px);
+}
+.card {
+  border: var(--rule-base) solid var(--ink);
+  padding: clamp(24px, 3vw, 34px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.card h3 {
+  margin: 0;
+  font-size: clamp(24px, 2.4vw, 32px);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.card p {
+  margin: 0;
+  font-size: clamp(17px, 1.5vw, 19px);
+  line-height: 1.55;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+}
+
+/* ---------- Layer 3: selected work ---------- */
+.work-item {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  border: var(--rule-base) solid var(--ink);
+}
+.work-item + .work-item {
+  border-top: 0;
+}
+.work-head {
+  padding: clamp(24px, 3vw, 38px);
+  border-right: var(--rule-hair) solid var(--ink);
+  min-width: 0;
+}
+.work-head h3 {
+  margin: 0 0 10px;
+  font-size: clamp(26px, 2.8vw, 38px);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.work-head p {
+  margin: 18px 0 0;
+  font-size: clamp(17px, 1.5vw, 20px);
+  line-height: 1.5;
+}
+.work-tags {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.work-facts {
+  padding: clamp(24px, 3vw, 38px);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.fact {
+  border-top: var(--rule-hair) solid var(--ink);
+  padding-top: 14px;
+  font-size: clamp(17px, 1.5vw, 19px);
+  line-height: 1.5;
+}
+.fact:first-child {
+  border-top-width: var(--rule-base);
+}
+/* Homewood metric rows */
+.work-metrics {
+  padding: clamp(24px, 3vw, 38px);
+  min-width: 0;
+}
+.metric {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: center;
+  border-top: var(--rule-hair) solid var(--ink);
+  padding: 14px 0;
+  font-size: clamp(17px, 1.5vw, 19px);
+  line-height: 1.5;
+}
+.metric:first-child {
+  border-top-width: var(--rule-base);
+}
+.metric:last-child {
+  border-bottom: var(--rule-base) solid var(--ink);
+}
+.metric .dc-num {
+  font-size: clamp(24px, 2.4vw, 32px);
+}
+.metric .dc-num--sm {
+  font-size: clamp(20px, 2vw, 26px);
+}
+
+/* ---------- Layer 3: principles (bordered matrix) ---------- */
+.matrix {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  border-top: var(--rule-base) solid var(--ink);
+  border-left: var(--rule-base) solid var(--ink);
+}
+.matrix > * {
+  border-right: var(--rule-base) solid var(--ink);
+  border-bottom: var(--rule-base) solid var(--ink);
+  padding: clamp(24px, 3vw, 34px);
+}
+.matrix h3 {
+  margin: 0 0 14px;
+  font-size: clamp(22px, 2.2vw, 28px);
+  font-weight: 700;
+  line-height: 1.14;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.matrix p {
+  margin: 0;
+  font-size: clamp(17px, 1.5vw, 19px);
+  line-height: 1.55;
+}
+
+/* ---------- Layer 3: career timeline ---------- */
+.timeline {
+  border: var(--rule-base) solid var(--ink);
+  padding: clamp(22px, 2.8vw, 34px);
+}
+.tl-grid {
+  display: grid;
+  grid-template-columns: clamp(130px, 26%, 230px) 1fr;
+  gap: clamp(12px, 1.8vw, 22px);
+  align-items: center;
+}
+.tl-axis {
+  position: relative;
+  height: 18px;
+  margin-bottom: 16px;
+}
+.tl-axis span {
+  position: absolute;
+  top: 0;
+  font-size: 13px;
+}
+.tl-row {
+  padding: 12px 0;
+  border-top: var(--rule-hair) solid var(--ink);
+}
+.tl-row:last-child {
+  border-bottom: var(--rule-base) solid var(--ink);
+}
+.tl-role {
+  font-size: clamp(16px, 1.5vw, 19px);
+  font-weight: 500;
+}
+.tl-sub {
+  font-size: 12px;
+  margin-top: 3px;
+}
+.tl-bar {
+  position: relative;
+  height: 20px;
+  border: var(--rule-hair) solid var(--ink);
+}
+.tl-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--ink);
+}
+
+/* ---------- Layer 3: stack matrix ---------- */
+.stack {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  border-top: var(--rule-base) solid var(--ink);
+  border-left: var(--rule-base) solid var(--ink);
+}
+.stack-group {
+  border-right: var(--rule-base) solid var(--ink);
+  border-bottom: var(--rule-base) solid var(--ink);
+  padding: clamp(22px, 2.6vw, 30px);
+}
+.stack-group .dc-label {
+  font-size: 15px;
+  margin-bottom: 18px;
+  display: block;
+}
+
+/* ---------- Layer 3: contact ---------- */
+.contact {
+  padding: clamp(32px, 4.6vw, 68px) clamp(24px, 3.6vw, 56px);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: clamp(28px, 4vw, 56px);
+  align-items: center;
+}
+.contact h2 {
+  margin: 0 0 18px;
+  font-size: clamp(30px, 4.4vw, 60px);
+  font-weight: 700;
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+.contact p {
+  margin: 0;
+  max-width: 40ch;
+  font-size: clamp(18px, 1.8vw, 24px);
+  font-weight: 300;
+  line-height: 1.4;
+}
+.contact-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.contact-row {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.contact-row .dc-btn {
+  flex: 1 1 130px;
+  text-align: center;
+}
+
+/* ---------- Layer 3: footer ---------- */
+.site-footer {
+  margin-top: var(--sec-y);
+  border-top: var(--rule-bar) solid var(--ink);
+  padding: 28px var(--pad-x);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.site-footer img {
+  height: clamp(32px, 3.8vw, 44px);
+  width: auto;
+}
+.footer-links {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+/* ---------- reduced motion (WCAG 2.3.3 / the design's standing rule) ---------- */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
