@@ -755,6 +755,39 @@ a:focus-visible {
   display: block;
 }
 
+/* ---- #own cards: cursor-reactive "ink clearing" halo (Phase 2) ---- */
+/* Card stays solid ink; <card-field> paints a faint white dither halo that blooms only
+   under the pointer and clears on leave. Text rides solid-ink knockouts so it never sits
+   on the dither (opacity/scrim is banned — occlusion is the only legal path). */
+.card--live {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate; /* scope the marks' stacking context to the card */
+}
+.card--live > card-field {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  /* Pin the fallback to INK so the harness's null-WebGL white fallback (inline
+     background:#fff) can't turn this black card white. */
+  background: var(--ink) !important;
+}
+.card--live > :not(card-field) {
+  position: relative;
+  z-index: 1;
+}
+/* each text/chip element carries its own solid-ink knockout, so the halo shows ONLY in
+   the padding frame + inter-block gaps, never behind glyphs */
+.card--live > .dc-label,
+.card--live > h3,
+.card--live > p {
+  background: var(--ink);
+}
+.card--live .chips .dc-chip {
+  background: var(--ink);
+}
+
 /* ---------- Layer 3: contact ---------- */
 .contact {
   position: relative;
