@@ -32,6 +32,7 @@
 <link rel="apple-touch-icon" href="/favicon.svg">
 
 <link rel="stylesheet" href="../styles.css">
+<script src="/site.js" defer></script>
 
 <script type="application/ld+json">
 {
@@ -65,11 +66,15 @@
   <a class="brand" href="/" aria-label="Ismail Kattakath — home">
     <img src="/logo.svg" alt="Ismail Kattakath" width="1120" height="460">
   </a>
-  <nav class="nav" aria-label="Primary">
+  <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-nav" hidden>
+    <span class="nav-toggle-glyph" aria-hidden="true"></span><span class="nav-toggle-text">Menu</span>
+  </button>
+  <nav id="primary-nav" class="nav" aria-label="Primary">
     <a href="/#work">Selected work</a>
-    <a href="/#stack">Stack</a>
+    <a href="/patterns/">Patterns</a>
+    <a href="/notes/">Notes</a>
     <a href="/evidence/" aria-current="page">Evidence</a>
-    <a class="dc-btn" href="https://calendly.com/ismailkattakath/google-meet" target="_blank" rel="noopener">Book a call</a>
+    <a class="dc-btn nav-cta" href="https://calendly.com/ismailkattakath/google-meet" target="_blank" rel="noopener">Book a call</a>
   </nav>
 </header>
 
