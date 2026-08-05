@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Homewood Health — rescuing an abandoned national mental-health platform · Ismail Kattakath</title>
+<meta name="description" content="How I inherited an abandoned, undocumented MEAN-stack app and rebuilt it into Canada's national digital mental-health platform: 99.5% uptime, OAuth 2.0 PKCE SSO with Microsoft Identity for 25,000+ users, SAML 2.0 across 5+ partners, an AngularJS→Next.js migration, and a zero-downtime DigitalOcean→AWS move on Terraform. Reach: 100k+ EFAP/CBT users.">
+<link rel="canonical" href="https://ismail.kattakath.com/work/homewood/">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="author" content="Ismail Kattakath">
+<meta name="theme-color" content="#000000">
+
+<!-- Open Graph -->
+<meta property="og:type" content="article">
+<meta property="og:title" content="Homewood Health — rescuing an abandoned national mental-health platform">
+<meta property="og:description" content="Inheriting an abandoned, undocumented MEAN-stack app and rebuilding it into a production-ready national mental-health platform: 99.5% uptime, OAuth 2.0 PKCE SSO for 25,000+ users, SAML across 5+ partners, AngularJS→Next.js, and a zero-downtime DigitalOcean→AWS migration on Terraform.">
+<meta property="og:url" content="https://ismail.kattakath.com/work/homewood/">
+<meta property="og:image" content="https://ismail.kattakath.com/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Ismail Kattakath — Principal Software Engineer, Applied AI &amp; Cloud">
+<meta property="og:site_name" content="Ismail Kattakath">
+<meta property="og:locale" content="en_CA">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Homewood Health — rescuing an abandoned national mental-health platform">
+<meta name="twitter:description" content="Inheriting an abandoned, undocumented MEAN-stack app and rebuilding it into a production-ready national mental-health platform. 99.5% uptime, SSO for 25,000+ users, zero-downtime AWS migration.">
+<meta name="twitter:image" content="https://ismail.kattakath.com/og.png">
+<meta name="twitter:image:alt" content="Ismail Kattakath — Principal Software Engineer">
+
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="mask-icon" href="/favicon.svg" color="#000000">
+<link rel="apple-touch-icon" href="/favicon.svg">
+
+<link rel="stylesheet" href="../../styles.css">
+<script src="../../site.js" defer></script>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "TechArticle",
+      "@id": "https://ismail.kattakath.com/work/homewood/",
+      "url": "https://ismail.kattakath.com/work/homewood/",
+      "headline": "Homewood Health — rescuing an abandoned national mental-health platform",
+      "description": "Inheriting an abandoned, undocumented MEAN-stack app and rebuilding it into a production-ready national digital mental-health platform: 99.5% uptime, OAuth 2.0 PKCE SSO with Microsoft Identity for 25,000+ users, SAML 2.0 across 5+ partners, an AngularJS→Next.js migration, and a zero-downtime DigitalOcean→AWS move on Terraform.",
+      "inLanguage": "en-CA",
+      "isPartOf": { "@type": "WebSite", "url": "https://ismail.kattakath.com", "name": "Ismail Kattakath" },
+      "author": {
+        "@type": "Person",
+        "name": "Ismail Kattakath",
+        "url": "https://ismail.kattakath.com",
+        "jobTitle": "Principal Software Engineer",
+        "sameAs": [
+          "https://linkedin.com/in/ismailkattakath",
+          "https://github.com/ismailkattakath"
+        ]
+      },
+      "about": {
+        "@type": "Organization",
+        "name": "Homewood Health"
+      },
+      "keywords": [
+        "Digital mental health", "EFAP", "CBT", "MEAN stack",
+        "OAuth 2.0 PKCE", "Microsoft Identity Platform", "SSO",
+        "SAML 2.0", "AngularJS", "Next.js", "CI/CD", "Terraform",
+        "AWS", "DigitalOcean", "zero-downtime migration"
+      ]
+    },
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://ismail.kattakath.com/" },
+        { "@type": "ListItem", "position": 2, "name": "Selected work", "item": "https://ismail.kattakath.com/#work" },
+        { "@type": "ListItem", "position": 3, "name": "Homewood Health", "item": "https://ismail.kattakath.com/work/homewood/" }
+      ]
+    }
+  ]
+}
+</script>
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-header" role="banner">
+  <a class="brand" href="/" aria-label="Ismail Kattakath — home"><img src="/logo.svg" alt="Ismail Kattakath" width="1120" height="460"></a>
+  <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-nav" hidden>
+    <span class="nav-toggle-glyph" aria-hidden="true"></span><span class="nav-toggle-text">Menu</span>
+  </button>
+  <nav id="primary-nav" class="nav" aria-label="Primary">
+    <a href="/#work" aria-current="page">Selected work</a>
+    <a href="/patterns/">Patterns</a>
+    <a href="/notes/">Notes</a>
+    <a href="/evidence/">Evidence</a>
+    <a class="dc-btn nav-cta" href="https://calendly.com/ismailkattakath/google-meet" target="_blank" rel="noopener">Book a call</a>
+  </nav>
+</header>
+
+<main id="main" tabindex="-1">
+
+  <!-- ===== Title block ===== -->
+  <section class="section" aria-labelledby="cs-h">
+    <nav aria-label="Breadcrumb" class="dc-meta" style="margin-bottom:18px">
+      <a href="/">Home</a> <span aria-hidden="true">/</span>
+      <a href="/#work">Selected work</a> <span aria-hidden="true">/</span> Homewood Health
+    </nav>
+    <div class="section-head">
+      <h1 id="cs-h" style="font-size:clamp(30px,4.6vw,58px);font-weight:700;line-height:1.03;letter-spacing:-0.02em;margin:0;text-wrap:balance">I inherited it abandoned. I left it a platform.</h1>
+      <span class="dc-label">Case study · 02</span>
+    </div>
+
+    <div class="grid-body prose-block">
+      <div class="work-tags" style="margin-bottom:22px">
+        <span class="dc-chip dc-chip--on">Shipped</span>
+        <span class="dc-meta">Oct 2017 – Jul 2024</span>
+        <span class="dc-btn dc-btn--text" style="pointer-events:none">Homewood Health · Senior Software Engineer</span>
+      </div>
+      <p style="font-size:clamp(18px,1.9vw,26px);font-weight:300;line-height:1.35;max-width:44ch;margin:0">
+        Canada's national digital mental-health platform — EFAP and CBT — came to me
+        abandoned and undocumented. Over nearly seven years I rebuilt it into something
+        that stays up, signs people in safely, and doesn't fall over when it moves.
+      </p>
+      <p style="margin:22px 0 0;max-width:62ch;font-size:clamp(17px,1.5vw,19px);line-height:1.55">
+        This is a real, shipped body of work, so I hold it to the same honesty rule as the
+        rest of this site: every figure below is something I did and can name. Where a number
+        is my own operational measurement rather than an externally audited one, I grade it
+        as <strong>self-measured</strong> rather than dress it up as a certified fact.
+      </p>
+    </div>
+  </section>
+
+  <!-- ===== Beat 1 — Problem ===== -->
+  <section class="section" aria-labelledby="p-h">
+    <div class="section-head">
+      <h2 id="p-h">The problem</h2>
+      <span class="dc-label">Beat 01 — Problem</span>
+    </div>
+    <div class="grid-body">
+      <div class="matrix">
+        <div>
+          <h3>An abandoned codebase, still in people's hands</h3>
+          <p>The platform was a MEAN-stack application that had been left without documentation and without an active owner — yet it was the front door to counselling and CBT for employees across the country. Inheriting software like that means first learning how it works at all, because nobody who did is still around to ask.</p>
+        </div>
+        <div class="dc-invert">
+          <h3>Mental-health software has to be dependable</h3>
+          <p>This isn't a marketing site. People reach for EFAP and CBT tools at hard moments, often through an employer's single sign-on, sometimes across a partner organization's identity. Reliability, safe authentication and clean access are not features here — they are the reason the thing is allowed to exist. Reaching 100k+ users only raised that bar.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Beat 2 — Constraints ===== -->
+  <section class="section" aria-labelledby="c-h">
+    <div class="section-head">
+      <h2 id="c-h">Constraints</h2>
+      <span class="dc-label">Beat 02 — Constraints</span>
+    </div>
+    <div class="grid-body">
+      <div class="dc-table-wrap">
+        <table class="dc-table">
+          <caption>What the rebuild had to satisfy at once</caption>
+          <thead>
+            <tr><th scope="col">Constraint</th><th scope="col">Why it bites</th><th scope="col">The line I held</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>No documentation, no prior owner</td>
+              <td>You can't safely change code you don't understand, and there was nobody to explain the abandoned system.</td>
+              <td>Revitalize before rewrite — learn the running system, get it to production-ready, and document as I went rather than guess-and-break.</td>
+            </tr>
+            <tr>
+              <td>It had to stay up for real users</td>
+              <td>People rely on the platform for mental-health support; downtime isn't an inconvenience, it's a closed door.</td>
+              <td>Drove the revitalized platform to 99.5% uptime, backed by monitoring and backups so failures are seen and recoverable.</td>
+            </tr>
+            <tr>
+              <td>Enterprise SSO for tens of thousands</td>
+              <td>Employers expect their staff to sign in through corporate identity, and a weak auth flow at this scale is a breach waiting to happen.</td>
+              <td>Rebuilt auth on OAuth 2.0 PKCE against the Microsoft Identity Platform, supporting 25,000+ users.</td>
+            </tr>
+            <tr>
+              <td>Federation across many partners</td>
+              <td>5+ partner organizations each bring their own identity provider, and SAML misconfiguration silently locks people out.</td>
+              <td>Configured and troubleshot SAML 2.0 federation across those partners until each one's staff could get in cleanly.</td>
+            </tr>
+            <tr>
+              <td>The frontend framework hit end-of-life</td>
+              <td>AngularJS going EOL means no security fixes — staying put is a slow-motion liability on a health platform.</td>
+              <td>Led a complete migration to Next.js that preserved the UI/UX and kept API compatibility, so users never felt the swap.</td>
+            </tr>
+            <tr>
+              <td>Releases and infra were fragile</td>
+              <td>A four-hour manual deploy and a single-cloud setup make every change risky and every move dangerous.</td>
+              <td>Built out CI/CD, testing, containerization and monitoring, then moved DigitalOcean→AWS on Terraform with zero downtime.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Beat 3 — System (ASCII) ===== -->
+  <section class="section" aria-labelledby="s-h">
+    <div class="section-head">
+      <h2 id="s-h">The system</h2>
+      <span class="dc-label">Beat 03 — Architecture</span>
+    </div>
+    <div class="grid-body">
+      <p style="margin:0 0 clamp(20px,2.4vw,28px);max-width:62ch;font-size:clamp(17px,1.5vw,19px);line-height:1.55">
+        Users arrive through their employer's identity — the Microsoft Identity Platform over
+        OAuth 2.0 PKCE, or one of the SAML 2.0 partner federations. Authenticated requests hit
+        a migrated Next.js frontend that preserves the original UI/UX and API contract, backed
+        by the application tier. State and assets live in an AWS data tier reached over VPC —
+        EC2, RDS, S3 and CloudFront — with the whole footprint described in Terraform and
+        shipped through CI/CD.
+      </p>
+      <div class="dc-table-wrap" role="img" aria-label="Architecture diagram: employees sign in through the Microsoft Identity Platform over OAuth 2.0 PKCE or through SAML 2.0 partner federations across five-plus organizations; requests reach a Next.js frontend migrated from AngularJS that preserves UI/UX and API compatibility; the frontend calls the application tier, which reads and writes an AWS data tier over VPC comprising EC2, RDS, S3 and CloudFront; the whole footprint is defined in Terraform infrastructure-as-code and deployed through CI/CD.">
+<pre style="margin:0;padding:clamp(16px,2.4vw,26px);font-family:var(--font-mono);font-size:13px;line-height:1.45;white-space:pre;min-width:640px" aria-hidden="true">
+        EFAP / CBT employees   (100k+ reach)
+                    |
+        +-----------+-----------+
+        |                       |
+        v                       v
++-----------------+     +-----------------+
+| Microsoft Ident.|     |   SAML 2.0 IdP  |
+|  OAuth 2.0 PKCE |     |  5+ partner orgs|
+|  SSO 25k+ users |     |    federation   |
++-----------------+     +-----------------+
+        |                       |
+        +-----------+-----------+
+                    v
+          +===================+
+          |  Next.js frontend |
+          |  (was AngularJS,  |
+          |  UI/UX + API kept)|
+          +===================+
+                    |
+                    v
+          +-------------------+
+          |  application tier |
+          +-------------------+
+                    |
+                    v  (over VPC)
+   +----------+----------+----------+
+   |          |          |          |
+   v          v          v          v
++-------+ +-------+ +-------+ +-----------+
+|  EC2  | |  RDS  | |  S3   | | CloudFront|
++-------+ +-------+ +-------+ +-----------+
+        \_________  AWS data tier  ________/
+
+  IaC:  Terraform  -->  DigitalOcean --> AWS  (zero-downtime)
+  Delivery:  CI/CD  (deploy 4h --> 20min)  +  monitoring / backups
+</pre>
+      </div>
+      <div class="matrix" style="margin-top:clamp(26px,3.4vw,40px)">
+        <div>
+          <h3>Identity &amp; federation</h3>
+          <p>Sign-in is rebuilt on OAuth 2.0 PKCE against the Microsoft Identity Platform for 25,000+ users, with SAML 2.0 federation configured across 5+ partner organizations so each brings its own IdP.</p>
+        </div>
+        <div>
+          <h3>Frontend &amp; app tier</h3>
+          <p>The AngularJS frontend was migrated whole to Next.js on framework EOL, deliberately preserving the UI/UX and staying API-compatible so the backend contract — and the users' muscle memory — didn't have to change.</p>
+        </div>
+        <div>
+          <h3>Cloud &amp; delivery</h3>
+          <p>The footprint moved DigitalOcean→AWS (EC2, RDS, S3, CloudFront, VPC) described in Terraform, with zero downtime, and CI/CD, monitoring and backups underneath — the deploy path cut from four hours to twenty minutes.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Beat 4 — Evidence (graded chips) ===== -->
+  <section class="section" aria-labelledby="e-h">
+    <div class="section-head">
+      <h2 id="e-h">Evidence</h2>
+      <span class="dc-label">Beat 04 — What's true</span>
+    </div>
+    <div class="grid-body">
+      <div class="stack" style="margin-bottom:clamp(26px,3.4vw,40px)">
+        <div class="stack-group">
+          <span class="dc-chip dc-chip--on" style="margin-bottom:14px">Proven</span>
+          <p style="margin:0;font-size:clamp(16px,1.4vw,18px);line-height:1.5">A plain outcome or count that stands on its own — the migration happened, the users were supported, the deploy time dropped. It's a fact about what was done, not a self-report of quality.</p>
+        </div>
+        <div class="stack-group">
+          <span class="dc-chip" style="margin-bottom:14px">Self-measured</span>
+          <p style="margin:0;font-size:clamp(16px,1.4vw,18px);line-height:1.5">A number I measured operationally rather than one certified by an outside auditor. Honest and real, but graded as mine so you know its provenance.</p>
+        </div>
+      </div>
+      <div class="dc-table-wrap">
+        <table class="dc-table">
+          <caption>Homewood Health · what I did, graded</caption>
+          <thead>
+            <tr><th scope="col">Capability</th><th scope="col">What I did</th><th scope="col">Grade</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Platform reliability</td>
+              <td>Revitalized an abandoned, undocumented MEAN-stack app into a production-ready platform running at 99.5% uptime.</td>
+              <td><span class="dc-chip">Self-measured</span></td>
+            </tr>
+            <tr>
+              <td>Enterprise SSO</td>
+              <td>Rebuilt auth on OAuth 2.0 PKCE for SSO with the Microsoft Identity Platform, supporting 25,000+ users.</td>
+              <td><span class="dc-chip dc-chip--on">Proven</span></td>
+            </tr>
+            <tr>
+              <td>Partner federation</td>
+              <td>Configured and troubleshot SAML 2.0 federation across 5+ partner organizations.</td>
+              <td><span class="dc-chip dc-chip--on">Proven</span></td>
+            </tr>
+            <tr>
+              <td>Frontend migration</td>
+              <td>Led the complete AngularJS→Next.js migration on framework EOL, preserving UI/UX and API compatibility.</td>
+              <td><span class="dc-chip dc-chip--on">Proven</span></td>
+            </tr>
+            <tr>
+              <td>Delivery speed</td>
+              <td>Established CI/CD, automated testing and containerization — cutting deploy time from 4 hours to 20 minutes.</td>
+              <td><span class="dc-chip dc-chip--on">Proven</span></td>
+            </tr>
+            <tr>
+              <td>Cloud migration</td>
+              <td>Led the DigitalOcean→AWS move (EC2, RDS, S3, CloudFront, VPC) via Terraform, with zero downtime.</td>
+              <td><span class="dc-chip dc-chip--on">Proven</span></td>
+            </tr>
+            <tr>
+              <td>Platform reach</td>
+              <td>Served a platform reaching 100k+ EFAP/CBT users.</td>
+              <td><span class="dc-chip dc-chip--on">Proven</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Beat 5 — Tradeoffs ===== -->
+  <section class="section" aria-labelledby="t-h">
+    <div class="section-head">
+      <h2 id="t-h">Tradeoffs</h2>
+      <span class="dc-label">Beat 05 — What I chose, and gave up</span>
+    </div>
+    <div class="grid-body">
+      <div class="cards">
+        <article class="card">
+          <span class="dc-label">Inheritance</span>
+          <h3>Rescue over rewrite</h3>
+          <p>The app was abandoned and undocumented — the tempting move is a clean-sheet rewrite. I chose to revitalize the running MEAN-stack system to production-ready instead, keeping real users served throughout. Slower and less glamorous than greenfield, but it never took the platform offline to rebuild it.</p>
+          <div class="chips"><span class="dc-chip">Users stay served</span><span class="dc-chip">Legacy carried forward</span></div>
+        </article>
+        <article class="card">
+          <span class="dc-label">Frontend</span>
+          <h3>Migrate on EOL, preserve the surface</h3>
+          <p>When AngularJS hit end-of-life I moved the whole frontend to Next.js, but deliberately preserved the existing UI/UX and kept the API contract unchanged. That gave up the chance to redesign — and bought a migration users didn't have to notice and a backend that didn't have to move in lockstep.</p>
+          <div class="chips"><span class="dc-chip">No relearning</span><span class="dc-chip">No redesign</span></div>
+        </article>
+        <article class="card">
+          <span class="dc-label">Cloud</span>
+          <h3>DigitalOcean → AWS, zero downtime</h3>
+          <p>Lifting the platform to AWS (EC2, RDS, S3, CloudFront, VPC) unlocked managed data services and a CDN, at the cost of a more complex footprint to reason about. Describing it in Terraform made the move reproducible, and holding the line on zero downtime meant the migration was invisible to the people using it.</p>
+          <div class="chips"><span class="dc-chip">Zero downtime</span><span class="dc-chip">More surface</span></div>
+        </article>
+        <article class="card">
+          <span class="dc-label">Identity</span>
+          <h3>Standard OAuth/SAML, not homegrown</h3>
+          <p>Auth was rebuilt on OAuth 2.0 PKCE with the Microsoft Identity Platform and SAML 2.0 across partners — reusing the standards rather than inventing a login flow. That means living with each partner IdP's quirks and troubleshooting federation, but never owning the security of a bespoke auth system on a health platform.</p>
+          <div class="chips"><span class="dc-chip">Standards-based</span><span class="dc-chip">Per-partner config</span></div>
+        </article>
+        <article class="card">
+          <span class="dc-label">Delivery</span>
+          <h3>Invest in the pipeline, not heroics</h3>
+          <p>Rather than keep shipping through a four-hour manual deploy, I built CI/CD, automated testing and containerization up front. That's real setup cost paid once — and it turned releases from a four-hour ordeal into a twenty-minute routine, with monitoring and backups so failures surface instead of hiding.</p>
+          <div class="chips"><span class="dc-chip">4h → 20min</span><span class="dc-chip">Upfront cost</span></div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Beat 6 — What I'd do differently ===== -->
+  <section class="section" aria-labelledby="d-h">
+    <div class="section-head">
+      <h2 id="d-h">What I'd do differently</h2>
+      <span class="dc-label">Beat 06 — Honest retrospective</span>
+    </div>
+    <div class="grid-body">
+      <div class="matrix">
+        <div>
+          <h3>Document while learning, from hour one</h3>
+          <p>Inheriting an undocumented system, the single most valuable thing is capturing how it actually works before the knowledge lives only in my head again. I'd formalize that documentation from the first day of the rescue, so the platform can never be "abandoned and undocumented" a second time.</p>
+        </div>
+        <div class="dc-invert">
+          <h3>Make uptime externally verifiable</h3>
+          <p>99.5% uptime is my own operational measurement — which is exactly why it's graded self-measured here. Next time I'd stand up independent, third-party monitoring from the start so the reliability number is auditable rather than self-reported.</p>
+        </div>
+        <div>
+          <h3>Federate the partners sooner</h3>
+          <p>SAML 2.0 across 5+ partner organizations was configured and troubleshot as it grew. Knowing that pattern now, I'd invest earlier in a repeatable onboarding path for a new partner IdP, so each federation is a checklist rather than a fresh troubleshooting round.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Close ===== -->
+  <section class="section" aria-labelledby="close-h">
+    <div class="contact dc-invert">
+      <div>
+        <p class="dc-label" style="margin-bottom:20px">The work nobody wants to inherit</p>
+        <h2 id="close-h">Got an abandoned system that still has to run?</h2>
+        <p>Rescuing undocumented software, hardening its auth, and moving it without downtime is exactly the work I'm best at. Bring me the platform you're afraid to touch.</p>
+      </div>
+      <div class="contact-actions">
+        <a class="dc-btn dc-btn--lg" href="https://calendly.com/ismailkattakath/google-meet" target="_blank" rel="noopener">Book a 30-min call</a>
+        <a class="dc-btn dc-btn--lg" href="mailto:ismail@kattakath.com">ismail@kattakath.com</a>
+        <div class="contact-row">
+          <a class="dc-btn" href="/#work">Selected work</a>
+          <a class="dc-btn" href="/evidence/">The evidence</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer" role="contentinfo">
+  <a class="brand" href="/" aria-label="Ismail Kattakath — home">
+    <img src="/logo.svg" alt="Ismail Kattakath" width="1120" height="460">
+  </a>
+  <div class="footer-links">
+    <a class="dc-meta" href="/">Overview</a>
+    <a class="dc-meta" href="/evidence/">Evidence</a>
+    <a class="dc-meta" href="https://linkedin.com/in/ismailkattakath" target="_blank" rel="noopener">LinkedIn</a>
+    <a class="dc-meta" href="https://github.com/ismailkattakath" target="_blank" rel="noopener">GitHub</a>
+  </div>
+</footer>
+
+</body>
+</html>
