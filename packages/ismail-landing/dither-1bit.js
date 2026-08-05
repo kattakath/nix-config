@@ -296,6 +296,124 @@ void main(){
     get animated() { return false; } // a static printed plate; the hero owns the page's motion
   }
 
+  // ── <metaball-field> — interactive metaball/curl-flow showpiece (hero) ──────
+  // A stateless per-fragment 2D metaball potential from 6 procedurally-orbiting
+  // centres + a pointer attractor, coordinate-warped by divergence-free curl noise
+  // so the isosurface rims flow (gooey, not clean circles). Same 1-bit path as every
+  // field: one scalar -> dither8 -> step to pure #000/#fff. NO FBO, NO extensions →
+  // renders on any WebGL1 device; degrades to the solid black panel otherwise. Auto-
+  // drifts + follows the cursor, so it reuses the hero's existing WCAG-2.2.2 Pause
+  // button (data-hatch-toggle). Drop-in swap for <hatch-field> on hero-media.
+  class MetaballField extends Field1Bit {
+    static UNIFORMS = ['u_res', 'u_t', 'u_p', 'u_inv', 'u_px'];
+    static FRAG = `
+uniform vec2 u_res;uniform float u_t;uniform vec2 u_p;uniform float u_inv;uniform float u_px;
+// a blob centre as a pure function of index + time (procedural orbit; no uniform arrays)
+vec2 orbit(float i,float t){
+  float a=i*2.399963;                 // golden-angle angular spread
+  float sp=0.10+0.05*fract(i*0.37);   // per-blob orbital speed
+  float rad=0.20+0.14*fract(i*0.61);  // per-blob orbit radius
+  return vec2(0.5+rad*cos(t*sp+a)*1.25, 0.5+rad*sin(t*sp*1.3+a*1.7));
+}
+void main(){
+  vec2 frag=gl_FragCoord.xy;
+  vec2 uv=frag/u_res;
+  float asp=u_res.x/u_res.y;
+  vec2 p=vec2(uv.x*asp,uv.y);          // aspect-correct field space
+  float t=u_t*0.6;
+  // divergence-free curl warp (4 value-noise taps) -> gooey, flowing isosurface rims
+  float e=0.035; vec2 g=vec2(0.0,t*0.15);
+  float nx=vnoise(p*2.2+vec2(e,0.0)+g)-vnoise(p*2.2-vec2(e,0.0)+g);
+  float ny=vnoise(p*2.2+vec2(0.0,e)+g)-vnoise(p*2.2-vec2(0.0,e)+g);
+  vec2 wp=p+vec2(ny,-nx)/(2.0*e)*0.05;
+  // metaball potential from 6 orbiting centres (epsilon guards div-by-zero)
+  float F=0.0;
+  for(int i=0;i<6;i++){
+    vec2 c=orbit(float(i),t); c.x*=asp;
+    vec2 d=wp-c;
+    F+=0.013/(dot(d,d)+0.0016);
+  }
+  // pointer = an extra attractor blob: the cursor grows and pulls the ink toward it
+  vec2 mp=u_p; mp.x*=asp;
+  vec2 dm=wp-mp;
+  F+=0.026/(dot(dm,dm)+0.0045);
+  // isosurface -> scalar in [0,1]; the smoothstep band is what the dither hatches.
+  // Tight band + open black between cells reads as engineered "flow cells", not a blob mass.
+  float v=smoothstep(0.95,1.42,F);
+  float th=dither8(frag/u_px);
+  float ink=step(th,v)*step(0.02,v);   // kill stray specks where bayer th==0 on empty ground
+  ink=mix(ink,1.0-ink,u_inv);
+  gl_FragColor=vec4(vec3(1.0-ink),1.0);
+}`;
+
+    get maxDPR() { return 1.75; } // 1/d² metaballs are fill-rate bound — clamp DPR below the base 2
+    get usesPointer() { return true; }
+    get pointerHome() { return [0.5, 1.8]; } // idle: attractor parked off the top edge (negligible charge)
+    get toggleAttr() { return 'data-hatch-toggle'; } // reuse the hero's existing Pause button
+  }
+
+  // ── <card-field> — cursor-reactive "ink clearing" for the #own mandate cards ─
+  // Each black card is pure ink at rest; a faint white ordered-dither halo blooms
+  // ONLY around the pointer and clears when it leaves. Motion is strictly user-
+  // initiated (an energy scalar ramps on pointer, decays + stops the loop on leave),
+  // so there is no auto-play → no WCAG-2.2.2 control needed; reduced-motion freezes
+  // it solid black. Text rides solid-ink knockouts (styles.css) so it never sits on
+  // the dither. u_e gates the ENTIRE effect: u_e==0 → v==0 → pure ink everywhere.
+  class CardField extends Field1Bit {
+    static UNIFORMS = ['u_res', 'u_t', 'u_p', 'u_inv', 'u_px', 'u_e'];
+    static FRAG = `
+uniform vec2 u_res;uniform float u_t;uniform vec2 u_p;uniform float u_inv;uniform float u_px;uniform float u_e;
+void main(){
+  vec2 frag=gl_FragCoord.xy;
+  vec2 uv=frag/u_res;
+  float asp=u_res.x/u_res.y;
+  vec2 p=vec2(uv.x*asp,uv.y);
+  vec2 m=vec2(u_p.x*asp,u_p.y);
+  float d=distance(p,m);
+  // soft radial reveal: 1 at the cursor, cleared to ink by radius R (squared -> tight halo)
+  float R=0.44;
+  float reveal=1.0-smoothstep(0.0,R,d);
+  reveal*=reveal;
+  // organic broken edge; drift multiplied by u_e so the field is FROZEN when idle
+  float t=u_t*0.12;
+  float grain=fbm(p*3.2+m*1.7+vec2(t*u_e,-t*u_e));
+  reveal*=0.45+0.75*grain;
+  // faint coverage, gated by interaction energy: idle (u_e==0) => v==0 everywhere
+  float v=clamp(reveal*u_e*0.30,0.0,1.0);
+  float th=dither8(frag/u_px);
+  float mark=step(th,v)*step(0.02,v);   // 1 -> white speck on the ink card
+  mark=mix(mark,1.0-mark,u_inv);
+  gl_FragColor=vec4(vec3(mark),1.0);
+}`;
+
+    get maxDPR() { return 2; }
+    get usesPointer() { return true; }
+    // Halo shrinks IN PLACE on leave: home = wherever the cursor currently is.
+    get pointerHome() { return this.pointer ? this.pointer.slice() : [0.5, 0.5]; }
+
+    onInit() {
+      this._energy = 0;
+      this._active = false;
+      const wake = () => { this._active = true; this._paused = false; };
+      this.addEventListener('pointerenter', wake);
+      this.addEventListener('pointermove', wake);
+      this.addEventListener('pointerleave', () => { this._active = false; }); // let it settle
+    }
+
+    // Runs every rAF BEFORE the pause/reduced/visible gate, so it can ramp + un-pause.
+    beforeFrame() {
+      const tgt = this._active ? 1 : 0;
+      const k = this._active ? 0.14 : 0.05; // bloom fast, settle gently
+      this._energy += (tgt - this._energy) * k;
+      // Fully settled -> stop drawing. Buffer auto-clears to black (== idle state).
+      if (!this._active && this._energy < 0.003) { this._energy = 0; this._paused = true; }
+    }
+
+    extraUniforms(gl, u) { gl.uniform1f(u.u_e, this._energy || 0); }
+  }
+
   customElements.define('hatch-field', HatchField);
   customElements.define('dither-field', DitherField);
+  customElements.define('metaball-field', MetaballField);
+  customElements.define('card-field', CardField);
 })();
