@@ -222,6 +222,7 @@ a:focus-visible {
   padding: 12px 18px;
   background: var(--ink);
   color: var(--ground);
+  border: var(--rule-base) solid var(--ground);
   font-family: var(--font-mono);
   text-decoration: none;
 }
@@ -234,14 +235,44 @@ a:focus-visible {
   position: sticky;
   top: 0;
   z-index: 30;
-  background: var(--ground);
-  border-bottom: var(--rule-base) solid var(--ink);
+  background: var(--ink);
+  color: var(--ground);
+  border-bottom: var(--rule-base) solid var(--ground);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
   flex-wrap: nowrap;
   padding: 14px var(--pad-x);
+}
+/* Inverted header: white content on black; the black wordmark reads white. */
+.site-header .brand img {
+  filter: invert(1);
+}
+.site-header a {
+  color: var(--ground);
+}
+.site-header a:hover,
+.site-header a:focus-visible {
+  background: var(--ground);
+  color: var(--ink);
+}
+.site-header .brand:hover,
+.site-header .brand:focus-visible {
+  background: none;
+}
+.site-header :focus-visible {
+  outline-color: var(--ground);
+}
+.site-header .dc-btn {
+  background: var(--ink);
+  color: var(--ground);
+  border-color: var(--ground);
+}
+.site-header .dc-btn:hover,
+.site-header .dc-btn:focus-visible {
+  background: var(--ground);
+  color: var(--ink);
 }
 .brand {
   display: block;
@@ -287,17 +318,17 @@ a:focus-visible {
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  background: var(--ground);
-  color: var(--ink);
-  border: var(--rule-base) solid var(--ink);
+  background: var(--ink);
+  color: var(--ground);
+  border: var(--rule-base) solid var(--ground);
   padding: 10px 14px;
   min-height: 44px;
   cursor: pointer;
 }
 .nav-toggle:hover,
 .nav-toggle:focus-visible {
-  background: var(--ink);
-  color: var(--ground);
+  background: var(--ground);
+  color: var(--ink);
 }
 .nav-toggle-glyph {
   position: relative;
@@ -855,8 +886,8 @@ a:focus-visible {
     flex-direction: column;
     align-items: stretch;
     gap: 0;
-    background: var(--ground);
-    border-bottom: var(--rule-base) solid var(--ink);
+    background: var(--ink);
+    border-bottom: var(--rule-base) solid var(--ground);
     padding: 6px var(--pad-x) 14px;
     display: none;
   }
@@ -867,17 +898,17 @@ a:focus-visible {
     align-items: center;
     font-size: 15px;
     padding: 8px 0;
-    border-bottom: var(--rule-hair) solid var(--ink);
+    border-bottom: var(--rule-hair) solid var(--ground);
   }
   .js #primary-nav a[aria-current="page"],
   .js #primary-nav a[aria-current="true"] {
-    border-bottom-color: var(--ink);
+    border-bottom-color: var(--ground);
     font-weight: 700;
   }
   .js #primary-nav a.dc-btn {
     justify-content: center;
     margin-top: 14px;
-    border: var(--rule-base) solid var(--ink);
+    border: var(--rule-base) solid var(--ground);
     min-height: 52px;
   }
 }
