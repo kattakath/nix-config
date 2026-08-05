@@ -8,7 +8,8 @@
 #       web route per hosted site (<domain> -> local Caddy on :80), and the
 #       mandatory catch-all 404;
 #   (c) per hosted site: a proxied apex CNAME -> <tunnel-id>.cfargotunnel.com
-#       (so the ingress rule is reachable), a proxied www CNAME -> apex, and a
+#       (so the ingress rule is reachable), and — when the site opts into www
+#       (`www ? true`, false for a subdomain) — a proxied www CNAME -> apex plus a
 #       www->apex 301 edge Single Redirect (cloudflare_ruleset,
 #       http_request_dynamic_redirect); PLUS the SSH host's own proxied CNAME;
 #   (d) the connector token, surfaced as a SENSITIVE `output` via the
@@ -18,10 +19,10 @@
 #       plant on the FIRMWARE partition — NEVER written to git or the store.
 #
 # The SITES it serves are single-sourced as `hostedSites` in flake.nix
-# ([ { domain; zoneId; root } ]) and threaded here via _module.args, so adding a
-# site is ONE list entry — the ingress rule, apex/www CNAMEs, and www redirect are
-# all generated below. hosts/nixpi.nix generates the matching Caddy vhost from the
-# same list. accountId / zoneId (the SSH host's zone) / domainName also come from
+# ([ { domain; zoneId; root; www ? true } ]) and threaded here via _module.args, so
+# adding a site is ONE list entry — the ingress rule, apex CNAME, and (when www) the
+# www CNAME + redirect are all generated below. hosts/nixpi.nix generates the
+# matching Caddy vhost from the same list. accountId / zoneId (the SSH host's zone) / domainName also come from
 # flake.nix's single sources (via _module.args in cfTunnelConfig).
 #
 # The runtime connector unit (the `nix-cloudflared-connector` flake) is UNTOUCHED: it
@@ -58,7 +59,9 @@ let
 
   # Proxied apex CNAME -> tunnel (makes the ingress rule reachable) + proxied
   # www CNAME -> apex (so the edge redirect below fires). ttl = 1 == automatic
-  # (required for proxied records).
+  # (required for proxied records). The www record is emitted only when the site
+  # opts into it (`www ? true`) — a SUBDOMAIN site sets `www = false`, since
+  # www.<subdomain> is nonsense.
   siteDnsRecords = builtins.listToAttrs (
     builtins.concatMap (
       s:
@@ -77,18 +80,25 @@ let
             ttl = 1;
           };
         }
-        {
-          name = "${k}_www";
-          value = {
-            zone_id = s.zoneId;
-            name = "www.${s.domain}";
-            type = "CNAME";
-            content = s.domain;
-            proxied = true;
-            ttl = 1;
-          };
-        }
       ]
+      ++ (
+        if (s.www or true) then
+          [
+            {
+              name = "${k}_www";
+              value = {
+                zone_id = s.zoneId;
+                name = "www.${s.domain}";
+                type = "CNAME";
+                content = s.domain;
+                proxied = true;
+                ttl = 1;
+              };
+            }
+          ]
+        else
+          [ ]
+      )
     ) hostedSites
   );
 
@@ -97,38 +107,43 @@ let
   # Executes at Cloudflare's edge BEFORE any origin/tunnel fetch — www is never served
   # directly, so there is deliberately no www ingress rule on the tunnel.
   siteRulesets = builtins.listToAttrs (
-    map (
+    builtins.concatMap (
       s:
       let
         k = siteKey s.domain;
       in
-      {
-        name = "redirect_www_${k}";
-        value = {
-          zone_id = s.zoneId;
-          name = "redirect-www-to-apex-${k}";
-          kind = "zone";
-          phase = "http_request_dynamic_redirect";
-          rules = [
-            {
-              ref = "redirect_www_to_apex_${k}";
-              description = "301 www.${s.domain} -> ${s.domain} (canonical host)";
-              expression = ''(http.host eq "www.${s.domain}")'';
-              action = "redirect";
-              enabled = true;
-              action_parameters = {
-                from_value = {
-                  status_code = 301;
-                  preserve_query_string = true;
-                  target_url = {
-                    expression = ''concat("https://${s.domain}", http.request.uri.path)'';
+      if !(s.www or true) then
+        [ ]
+      else
+        [
+          {
+            name = "redirect_www_${k}";
+            value = {
+              zone_id = s.zoneId;
+              name = "redirect-www-to-apex-${k}";
+              kind = "zone";
+              phase = "http_request_dynamic_redirect";
+              rules = [
+                {
+                  ref = "redirect_www_to_apex_${k}";
+                  description = "301 www.${s.domain} -> ${s.domain} (canonical host)";
+                  expression = ''(http.host eq "www.${s.domain}")'';
+                  action = "redirect";
+                  enabled = true;
+                  action_parameters = {
+                    from_value = {
+                      status_code = 301;
+                      preserve_query_string = true;
+                      target_url = {
+                        expression = ''concat("https://${s.domain}", http.request.uri.path)'';
+                      };
+                    };
                   };
-                };
-              };
-            }
-          ];
-        };
-      }
+                }
+              ];
+            };
+          }
+        ]
     ) hostedSites
   );
 in
