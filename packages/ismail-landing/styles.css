@@ -115,6 +115,40 @@ a:focus-visible {
 .dc-invert :focus-visible {
   outline-color: var(--ground);
 }
+/* Inverted surfaces: flip component borders (and the timeline fill) to ground so
+   cards, tables and the career bars read correctly on an ink section. Regular
+   chips already use currentColor, so they invert for free. */
+.dc-invert .section-head,
+.dc-invert .card,
+.dc-invert .matrix,
+.dc-invert .matrix > *,
+.dc-invert .stack,
+.dc-invert .stack-group,
+.dc-invert .work-item,
+.dc-invert .work-head,
+.dc-invert .fact,
+.dc-invert .metric,
+.dc-invert .stat,
+.dc-invert .timeline,
+.dc-invert .tl-bar,
+.dc-invert .dc-table-wrap,
+.dc-invert .dc-table caption,
+.dc-invert .dc-table th,
+.dc-invert .dc-table td,
+.dc-invert .dc-table thead th,
+.dc-invert .evidence-teaser {
+  border-color: var(--ground);
+}
+.dc-invert .tl-row {
+  border-top-color: var(--ground);
+}
+.dc-invert .tl-fill {
+  background: var(--ground);
+}
+/* an inverted full-section reads as a band, so it needs symmetric padding */
+.section.dc-invert {
+  padding-bottom: var(--sec-y);
+}
 
 /* ---------- Layer 2: type primitives ---------- */
 .dc-label {
@@ -594,52 +628,113 @@ a:focus-visible {
   line-height: 1.55;
 }
 
-/* ---------- Layer 3: career timeline ---------- */
+/* ---------- Layer 3: career timeline (proportional bars, no empty track) ----------
+   The bug in the old design was a full-width outlined track behind EVERY role, so
+   every tenure looked identical. Here the ONLY mark per row is the tenure bar
+   itself: its position = when, its length = how long. All marks use currentColor
+   so they render white inside the inverted (.dc-invert) block. */
 .timeline {
   border: var(--rule-base) solid var(--ink);
-  padding: clamp(22px, 2.8vw, 34px);
+  padding: clamp(20px, 2.8vw, 32px);
+  --tl-label: clamp(150px, 30%, 240px);
+  --tl-gap: clamp(12px, 1.8vw, 22px);
 }
-.tl-grid {
-  display: grid;
-  grid-template-columns: clamp(130px, 26%, 230px) 1fr;
-  gap: clamp(12px, 1.8vw, 22px);
-  align-items: center;
+.tl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
+/* axis header — ticks aligned to the bar column, on a 2px baseline rule */
 .tl-axis {
   position: relative;
-  height: 18px;
-  margin-bottom: 16px;
+  margin-left: calc(var(--tl-label) + var(--tl-gap));
+  height: 22px;
+  margin-bottom: 4px;
+  border-bottom: var(--rule-base) solid currentColor;
 }
 .tl-axis span {
   position: absolute;
-  top: 0;
-  font-size: 13px;
+  top: 2px;
+  left: calc(var(--p) * 1%);
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
 }
+.tl-axis span:first-child {
+  transform: none;
+}
+.tl-axis .tl-now {
+  transform: translateX(-100%);
+}
+.tl-axis span::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: var(--rule-hair);
+  height: 6px;
+  background: currentColor;
+}
+.tl-axis span:first-child::after {
+  left: 0;
+}
+.tl-axis .tl-now::after {
+  left: auto;
+  right: 0;
+}
+/* one role row */
 .tl-row {
+  display: grid;
+  grid-template-columns: var(--tl-label) 1fr;
+  gap: var(--tl-gap);
+  align-items: center;
   padding: 12px 0;
-  border-top: var(--rule-hair) solid var(--ink);
+  border-top: var(--rule-hair) solid currentColor;
 }
-.tl-row:last-child {
-  border-bottom: var(--rule-base) solid var(--ink);
+.tl-row:first-of-type {
+  border-top: 0;
+}
+.tl-who {
+  min-width: 0;
+}
+.tl-org {
+  display: block;
+  font-size: clamp(15px, 1.4vw, 18px);
+  font-weight: 600;
+  line-height: 1.15;
 }
 .tl-role {
-  font-size: clamp(16px, 1.5vw, 19px);
-  font-weight: 500;
-}
-.tl-sub {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-mono);
   font-size: 12px;
-  margin-top: 3px;
+  letter-spacing: 0.06em;
+}
+/* the tenure bar — the only visible mark; short stints keep an 8px floor */
+.tl-track {
+  position: relative;
+  height: 16px;
 }
 .tl-bar {
-  position: relative;
-  height: 20px;
-  border: var(--rule-hair) solid var(--ink);
-}
-.tl-fill {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  background: var(--ink);
+  top: 50%;
+  transform: translateY(-50%);
+  left: calc(var(--from) * 1%);
+  width: max(8px, calc(var(--w) * 1%));
+  height: 12px;
+  background: currentColor;
+}
+/* current role: an arrowhead pointing at "now" */
+.tl-row--now .tl-bar::after {
+  content: "";
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  border-left: 7px solid currentColor;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
 }
 
 /* ---------- Layer 3: stack matrix ---------- */
@@ -701,7 +796,6 @@ a:focus-visible {
 /* ---------- Layer 3: footer ---------- */
 .site-footer {
   margin-top: var(--sec-y);
-  border-top: var(--rule-bar) solid var(--ink);
   min-height: var(--header-size); /* same height as the header so logos match */
   padding: 12px var(--pad-x);
   display: flex;
@@ -925,9 +1019,11 @@ a:focus-visible {
   /* tag moves to the top so it can never collide with the bottom-right pause control */
   .hero-tag { top: 14px; bottom: auto; left: 14px; }
   .hatch-toggle { right: 14px; bottom: 14px; }
-  /* career timeline: the year-tick axis can't fit — drop it; per-row dates carry the data */
+  /* career timeline: no room for the positioned axis — stack each row and turn the
+     bar into a duration sparkline (length = years); the per-row dates carry "when" */
   .tl-axis { display: none; }
-  .tl-grid { grid-template-columns: clamp(110px, 40%, 200px) 1fr; }
+  .tl-row { grid-template-columns: 1fr; gap: 8px; }
+  .tl-bar { left: 0; width: max(8px, calc(var(--dur) * 1%)); }
 }
 
 /* =====================================================================
