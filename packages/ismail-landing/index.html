@@ -38,9 +38,9 @@
 
 <link rel="preload" href="./fonts/roboto.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="./fonts/roboto-mono.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="./styles.css?v=20260805d">
-<script src="./hatch-field.js?v=20260805d" defer></script>
-<script src="/site.js?v=20260805d" defer></script>
+<link rel="stylesheet" href="./styles.css?v=20260805g">
+<script src="./hatch-field.js?v=20260805g" defer></script>
+<script src="/site.js?v=20260805g" defer></script>
 
 <script type="application/ld+json">
 {
@@ -91,10 +91,9 @@
     <span class="nav-toggle-glyph" aria-hidden="true"></span><span class="nav-toggle-text">Menu</span>
   </button>
   <nav id="primary-nav" class="nav" aria-label="Primary">
-    <a href="#work">Selected work</a>
-    <a href="/patterns/">Patterns</a>
-    <a href="/notes/">Notes</a>
-    <a href="/evidence/">Evidence</a>
+    <a href="#work">Work</a>
+    <a href="#stack">Stack</a>
+    <a href="#contact">Contact</a>
     <a class="dc-btn nav-cta" href="https://calendly.com/ismailkattakath/google-meet" target="_blank" rel="noopener">Book a call</a>
   </nav>
 </header>
@@ -135,7 +134,7 @@
       <span class="dc-label">01 — Three mandates</span>
     </div>
     <div class="cards grid-body">
-      <article class="card">
+      <article class="card dc-invert">
         <span class="dc-label">Mandate 01</span>
         <h3>The AI platform beneath the model</h3>
         <p>Provider-abstracted inference, a gateway your teams call instead of ten SDKs, cost governance with a real kill-switch, and observability that catches silent retrieval failures before your users do.</p>
@@ -145,7 +144,7 @@
           <span class="dc-chip">RAG observability</span>
         </div>
       </article>
-      <article class="card">
+      <article class="card dc-invert">
         <span class="dc-label">Mandate 02</span>
         <h3>The multi-tenant SaaS backbone</h3>
         <p>Tenant isolation you can prove, not hope for — and the billing spine that turns AI usage into revenue: metering, overage, trial-to-paid lifecycle, webhook reconciliation.</p>
@@ -155,7 +154,7 @@
           <span class="dc-chip">Aurora Serverless v2</span>
         </div>
       </article>
-      <article class="card">
+      <article class="card dc-invert">
         <span class="dc-label">Mandate 03</span>
         <h3>The cloud and the release path</h3>
         <p>Infrastructure as code on AWS, keyless CI/CD, staging as a required gate, migrations that cannot race. Deployment stops being the risky part of your week.</p>
@@ -249,59 +248,70 @@
     </div>
   </section>
 
-  <section class="section" aria-label="Evidence">
-    <div class="evidence-teaser">
-      <p>Every number on this site is sourced — what it measures, and how I know it.</p>
-      <a class="dc-btn dc-btn--lg" href="/evidence/">See the evidence</a>
-    </div>
-  </section>
-
   <section class="section" aria-labelledby="career-h">
     <div class="section-head">
       <h2 id="career-h">15+ years, seven teams</h2>
       <span class="dc-label">04 — Career</span>
     </div>
-    <div class="timeline grid-body">
-      <div class="tl-grid" style="margin-bottom:16px">
-        <span></span>
-        <div class="tl-axis dc-meta" aria-hidden="true">
-          <span style="left:0">2010</span>
-          <span style="left:24.1%;transform:translateX(-50%)">2014</span>
-          <span style="left:48.2%;transform:translateX(-50%)">2018</span>
-          <span style="left:72.3%;transform:translateX(-50%)">2022</span>
-          <span style="right:0">2026</span>
-        </div>
+    <div class="timeline grid-body dc-invert">
+      <div class="tl-axis" aria-hidden="true">
+        <span style="--p:0">2010</span>
+        <span style="--p:24.1">2014</span>
+        <span style="--p:48.2">2018</span>
+        <span style="--p:72.3">2022</span>
+        <span class="tl-now" style="--p:100">now</span>
       </div>
-      <ul role="list" style="list-style:none;margin:0;padding:0">
-        <li class="tl-row tl-grid">
-          <div><div class="tl-role">Infin8 · Takeoff</div><div class="dc-meta tl-sub">Principal SWE · 2026—now</div></div>
-          <div class="tl-bar" aria-hidden="true"><div class="tl-fill" style="left:97.4%;right:0"></div></div>
+      <ol class="tl-list" role="list">
+        <li class="tl-row tl-row--now" style="--from:97.4;--w:2.6;--dur:6">
+          <div class="tl-who">
+            <span class="tl-org">Infin8 · Takeoff</span>
+            <span class="tl-role">Principal SWE · 2026 → now · 5&nbsp;mo</span>
+          </div>
+          <div class="tl-track" aria-hidden="true"><span class="tl-bar"></span></div>
         </li>
-        <li class="tl-row tl-grid">
-          <div><div class="tl-role">Silver Creek</div><div class="dc-meta tl-sub">Principal SWE · 2024—2026</div></div>
-          <div class="tl-bar" aria-hidden="true"><div class="tl-fill" style="left:87.8%;width:9.6%"></div></div>
+        <li class="tl-row" style="--from:87.8;--w:9.6;--dur:24">
+          <div class="tl-who">
+            <span class="tl-org">Silver Creek</span>
+            <span class="tl-role">Principal SWE · 2024—2026 · 1y&nbsp;7m</span>
+          </div>
+          <div class="tl-track" aria-hidden="true"><span class="tl-bar"></span></div>
         </li>
-        <li class="tl-row tl-grid">
-          <div><div class="tl-role">Homewood Health</div><div class="dc-meta tl-sub">Senior SWE · 2017—2024</div></div>
-          <div class="tl-bar" aria-hidden="true"><div class="tl-fill" style="left:46.7%;width:40.7%"></div></div>
+        <li class="tl-row" style="--from:46.7;--w:40.7;--dur:100">
+          <div class="tl-who">
+            <span class="tl-org">Homewood Health</span>
+            <span class="tl-role">Senior SWE · 2017—2024 · 6y&nbsp;9m</span>
+          </div>
+          <div class="tl-track" aria-hidden="true"><span class="tl-bar"></span></div>
         </li>
-        <li class="tl-row tl-grid">
-          <div><div class="tl-role">Scotiabank</div><div class="dc-meta tl-sub">IT consultant · 2019</div></div>
-          <div class="tl-bar" aria-hidden="true"><div class="tl-fill" style="left:54.7%;width:2.5%"></div></div>
+        <li class="tl-row" style="--from:54.7;--w:2.5;--dur:5">
+          <div class="tl-who">
+            <span class="tl-org">Scotiabank</span>
+            <span class="tl-role">IT consultant · 2019 · 4&nbsp;mo · concurrent</span>
+          </div>
+          <div class="tl-track" aria-hidden="true"><span class="tl-bar"></span></div>
         </li>
-        <li class="tl-row tl-grid">
-          <div><div class="tl-role">Etuper Technologies</div><div class="dc-meta tl-sub">Lead SWE · 2016—2017</div></div>
-          <div class="tl-bar" aria-hidden="true"><div class="tl-fill" style="left:37.7%;width:8%"></div></div>
+        <li class="tl-row" style="--from:37.7;--w:8;--dur:20">
+          <div class="tl-who">
+            <span class="tl-org">Etuper Technologies</span>
+            <span class="tl-role">Lead SWE · 2016—2017 · 1y&nbsp;4m</span>
+          </div>
+          <div class="tl-track" aria-hidden="true"><span class="tl-bar"></span></div>
         </li>
-        <li class="tl-row tl-grid">
-          <div><div class="tl-role">RM plc</div><div class="dc-meta tl-sub">Software engineer · 2011—2016</div></div>
-          <div class="tl-bar" aria-hidden="true"><div class="tl-fill" style="left:8.6%;width:29.1%"></div></div>
+        <li class="tl-row" style="--from:8.6;--w:29.1;--dur:70">
+          <div class="tl-who">
+            <span class="tl-org">RM plc</span>
+            <span class="tl-role">Software engineer · 2011—2016 · 4y&nbsp;9m</span>
+          </div>
+          <div class="tl-track" aria-hidden="true"><span class="tl-bar"></span></div>
         </li>
-        <li class="tl-row tl-grid">
-          <div><div class="tl-role">POSibolt Solutions</div><div class="dc-meta tl-sub">Junior SWE · 2010—2011</div></div>
-          <div class="tl-bar" aria-hidden="true"><div class="tl-fill" style="left:3%;width:3.5%"></div></div>
+        <li class="tl-row" style="--from:3;--w:3.5;--dur:7">
+          <div class="tl-who">
+            <span class="tl-org">POSibolt Solutions</span>
+            <span class="tl-role">Junior SWE · 2010—2011 · 6&nbsp;mo</span>
+          </div>
+          <div class="tl-track" aria-hidden="true"><span class="tl-bar"></span></div>
         </li>
-      </ul>
+      </ol>
     </div>
   </section>
 
@@ -392,9 +402,10 @@
 </main>
 
 <footer class="site-footer" role="contentinfo">
-  <img src="/logo.svg" alt="Ismail Kattakath" width="1120" height="460">
+  <a class="brand" href="/" aria-label="Ismail Kattakath — home">
+    <img src="/logo.svg" alt="Ismail Kattakath" width="1120" height="460">
+  </a>
   <div class="footer-links">
-    <a class="dc-meta" href="https://ismail.kattakath.com" target="_blank" rel="noopener">ismail.kattakath.com</a>
     <a class="dc-meta" href="https://linkedin.com/in/ismailkattakath" target="_blank" rel="noopener">LinkedIn</a>
     <a class="dc-meta" href="https://github.com/ismailkattakath" target="_blank" rel="noopener">GitHub</a>
   </div>
