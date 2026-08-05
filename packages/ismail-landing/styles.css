@@ -457,16 +457,6 @@ a:focus-visible {
   min-height: clamp(200px, 42vw, 480px);
   background: var(--ink);
 }
-.hero-tag {
-  position: absolute;
-  left: 18px;
-  bottom: 18px;
-  font-size: 13px;
-  background: var(--ground);
-  color: var(--ink);
-  padding: 8px 12px;
-}
-
 /* ---------- Layer 3: stat band ---------- */
 .stat-band {
   display: grid;
@@ -1031,7 +1021,6 @@ a:focus-visible {
 /* ---- Hero media: shorter on phones so the CTA + first stats stay reachable ---- */
 @media (max-width: 559.98px) {
   .hero-media { min-height: 180px; }
-  .hero-tag { top: 14px; bottom: auto; left: 14px; }
   /* career timeline: no room for the positioned axis — stack each row and turn the
      bar into a duration sparkline (length = years); the per-row dates carry "when" */
   .tl-axis { display: none; }
