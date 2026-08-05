@@ -110,6 +110,9 @@
       "docker-desktop"
       "dropbox"
       "google-chrome"
+      # GCP CLI (gcloud/gsutil/bq) — Google-official SDK cask so `gcloud components
+      # install` works and it self-updates (vs. the pinned nixpkgs derivation).
+      "google-cloud-sdk"
       "inkscape"
       "maccy"
       "microsoft-auto-update"
