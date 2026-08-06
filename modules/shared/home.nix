@@ -934,7 +934,9 @@ in
           if "$claude" plugin list 2>/dev/null | grep -qF "$id"; then
             : # already installed — idempotent skip
           else
-            echo "claude-code: installing plugin $id…" >&2
+            # Brace $id — a bare `$id…` (unicode ellipsis) is one identifier under
+            # bash nounset and aborts activation with "id…: unbound variable".
+            echo "claude-code: installing plugin ''${id}..." >&2
             "$claude" plugin install "$id" >/dev/null 2>&1 || true
           fi
         done
