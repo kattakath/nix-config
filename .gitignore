@@ -39,6 +39,10 @@ result-*
 # git-hooks.nix generates this from flake.nix on `nix develop` — never commit it
 .pre-commit-config.yaml
 
+# qwen CLI's own local runtime state (project-local settings.json it writes on
+# launch, containing machine-specific absolute paths) — never commit it
+.qwen/
+
 # Secrets and local env
 .env
 .env.local
