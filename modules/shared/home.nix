@@ -41,6 +41,7 @@
   agent-skills-trailofbits,
   agent-skills-superpowers,
   agent-skills-jsonresume,
+  agent-skills-vercel-agent,
   grok-build-plugin-cc,
   # The extracted local-rag flake (services.ollamaLocal + services.pgvectorLocal);
   # its two home-manager modules replace the vendored ollama/postgres-pgvector.
@@ -497,6 +498,10 @@ in
         # Community: generate .excalidraw diagrams — pairs with the Excalidraw connector.
         # Root-level SKILL.md, so the whole repo is the skill dir.
         excalidraw-diagram = "${agent-skills-excalidraw}";
+        # OFFICIAL Vercel Labs (vercel-labs/agent-skills): drives the `vercel` CLI
+        # (hosts/macos.nix Homebrew `vercel-cli`) for non-interactive / token auth —
+        # the deploy/manage counterpart to the CLI itself. Cherry-picked (one skill).
+        vercel-cli-with-tokens = "${agent-skills-vercel-agent}/skills/vercel-cli-with-tokens";
         # ---- Security / methodology skills (from the audit) ----
         # Trail of Bits (CC-BY-SA-4.0): prefer authenticated `gh` over raw GitHub curl/WebFetch —
         # fits the heavy gh/PR flow (pr-consolidation, /review, brag PR mining).
