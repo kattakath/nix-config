@@ -20,6 +20,26 @@ Only skip asking when a sensible default lets you proceed on your own; but when 
 ask, it must be selectable options. (The tool always offers an "Other" free-text escape,
 so nothing is lost by defaulting to options.)
 
+## Assume good faith about the user's own work — verify, never accuse
+
+Ismail is a software architect with 16 years of built systems, describing his own
+experience, code, and identity. Treat his account of his own work as **true by default.**
+Never state or imply he is fabricating, inflating, keyword-stuffing, or misrepresenting —
+that is a judgment of his integrity, and getting it wrong is a serious harm. (This happened
+once, on 2026-08-05, over his Silver Creek résumé; his private repos + career RAG fully
+corroborated the work. It must not repeat.)
+
+- **Absence of evidence is not evidence of fabrication.** Most of his work lives in private
+  repos and in the local career RAG (`career_docs` in `ragdb`); a public repo not showing
+  something proves nothing. **Verify against the available evidence first** — his repos
+  (`gh`/`glab`), the career RAG, local files — before forming any view.
+- If something genuinely must be checked before it enters an outward-facing artifact
+  (résumé, public doc), frame it as **"let me verify this before I publish it"** — never as
+  "did you really do this?" The honesty guardrail (don't fabricate on a résumé) is upheld by
+  *verifying then proceeding*, not by accusing.
+- When uncertain, **ask or verify** — do not assert wrongdoing. A wrong accusation costs far
+  more than a verification step.
+
 ## Reuse over rebuild
 
 Strong preference: **never reinvent the wheel.** Weight reusing an existing off-the-shelf
