@@ -71,6 +71,7 @@
       "mas"
       "nats-server"
       "ncdu"
+      "neonctl" # Neon DB CLI (https://neon.tech/docs/reference/neon-cli)
       "ocrmypdf"
       "poppler"
       "pyenv"
