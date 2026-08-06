@@ -64,6 +64,35 @@ let
   # heavy darwin-only agents (RAG stack, MCP public tunnel extras) off macvm.
   isMacosHost = (osConfig.networking.hostName or "") == "macos";
 
+  # Qwen Code (`qwen`) MCP wiring — reuse the SAME localhost gateway Claude Code
+  # uses (services.mcpGateway.endpoints: one Streamable-HTTP /mcp URL per hosted
+  # server), so qwen can never drift from the other clients. But CURATE to a
+  # coding-focused subset: a local qwen3-coder model degrades when handed too many
+  # tools, so the GUI/automation/external-state servers (playwright, kapture,
+  # mobile-mcp, macos-automator, cloudflare*) are left out — add a name here to
+  # expose more. macos-only (the gateway runs only there; macvm trims it off), so
+  # the mcpServers block is gated on isMacosHost below.
+  qwenGatewayServers = [
+    "context7"
+    "fetch"
+    "memory"
+    "sequential-thinking"
+    "github"
+    "nixos"
+    "terraform"
+    "duckduckgo"
+    "json-yaml-toml"
+    "mcp-jq"
+    "postgres"
+  ];
+  qwenMcpServers =
+    lib.mapAttrs
+      (_: url: {
+        httpUrl = url;
+        timeout = 8000;
+      })
+      (lib.filterAttrs (n: _: builtins.elem n qwenGatewayServers) config.services.mcpGateway.endpoints);
+
   # VS Code Marketplace mirror — provided by the nix-vscode-extensions overlay,
   # which the darwin host (macos) adds to nixpkgs.overlays. Only referenced
   # inside the `mkIf isDarwin` vscode block, so the Linux hosts (which don't
@@ -420,6 +449,37 @@ in
       OPENAI_API_KEY=ollama
       OPENAI_MODEL=qwen3-coder:30b
     '';
+  };
+
+  # `qwen` settings.json — validated against the installed 0.16.0 build (keys it
+  # accepted with no warning: general.checkpointing, telemetry, tools.toolSearch,
+  # tools.approvalMode, mcpServers via httpUrl). Model auth stays in ~/.qwen/.env
+  # (env beats settings.json), so no secret ever lands here. checkpointing on =
+  # file-edit snapshots (safe autonomous edits, `/restore`); toolSearch on =
+  # retrieval over the tool surface (tames tool count for the local model);
+  # approvalMode "default" = ask before each edit/shell. mcpServers reuses the
+  # gateway (curated `qwenMcpServers`), macos-only. Darwin-wide otherwise so macvm
+  # still gets a sane config (minus MCP, since its gateway is off).
+  home.file.".qwen/settings.json" = lib.mkIf pkgs.stdenv.isDarwin {
+    text = builtins.toJSON (
+      {
+        general.checkpointing.enabled = true;
+        telemetry.enabled = false;
+        tools = {
+          toolSearch.enabled = true;
+          approvalMode = "default";
+        };
+      }
+      // lib.optionalAttrs isMacosHost { mcpServers = qwenMcpServers; }
+    );
+  };
+
+  # Global `qwen` context (all projects) — the qwen counterpart of ~/.claude/CLAUDE.md.
+  # Read-only store symlink like that file; qwen's own save_memory targets this path,
+  # so memory-to-file is intentionally inert here (persistence, if wanted, is managed
+  # auto-memory in a separate dir). Darwin-only (qwen is installed on darwin only).
+  home.file.".qwen/QWEN.md" = lib.mkIf pkgs.stdenv.isDarwin {
+    source = ../../qwen/QWEN.md;
   };
 
   # Git SSH allowed_signers (principal = userEmail, key = operatorSshKey).
