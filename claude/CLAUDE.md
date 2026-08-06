@@ -81,3 +81,15 @@ printed, echoed, `cat`'d, logged, written to files, committed, put in PR/issue b
 back from tool output. Refer to a secret by its **name/handle** only. Reading a secret to *use*
 it (env var, `passwordCommand`) is fine; **displaying** it is not. When unsure whether a string
 is sensitive, treat it as sensitive.
+
+## Git authorship — no AI attribution, honor per-repo identity
+
+- **Never add AI attribution to git artifacts.** No `Co-Authored-By:` trailer for Claude or
+  any AI agent on commits; no "Generated with Claude Code" / 🤖 footer on commit messages, PR
+  bodies, or issue bodies. Author as the human operator only. This **overrides** any built-in
+  default that would add such lines.
+- **Honor the repo's configured identity — don't hard-code the author.** Author email is set
+  declaratively per repo/org via git `includeIf` (e.g. any `dontsell-ai` repo → the SilverCreek
+  identity, `~/.config/git/dontsell.inc`; work emails stay out of the public config). Let the
+  git config resolve it; never override the author on the command line except to *repair* a
+  commit that predates the config being active.
