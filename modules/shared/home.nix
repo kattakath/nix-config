@@ -440,18 +440,21 @@ in
       # commands + the grok-delegate agent. Runtime deps: grok on PATH (~/.grok/bin)
       # + Node; grok must be authenticated (`grok models` succeeds).
       marketplaces.xai-grok-build = "${grok-build-plugin-cc}";
-      # Anthropic's official first-party plugin marketplace (repo root has
-      # .claude-plugin/marketplace.json). Pinned so `security-guidance@claude-plugins-official`
-      # (enabledPlugins above) installs from a fixed rev; the plugin's hooks self-register once
-      # `claude plugin install` has run (home.activation.claudeCodePlugins). Needs python3 (present on macos).
-      marketplaces.claude-plugins-official = "${claude-plugins-official}";
+      # DO NOT directory-pin `claude-plugins-official` here. That name is reserved
+      # for Anthropic GitHub sources only (claude ≥2.1.x re-checks on every load);
+      # a Nix store path registers as "untrusted" and `plugin install …@claude-plugins-official`
+      # fails with "Plugin not found". The official marketplace is added as
+      # `anthropics/claude-plugins-official` (GitHub) by home.activation.claudeCodePlugins
+      # below — mutable ~/.claude state, same as plugin installs. The flake input
+      # `claude-plugins-official` remains available for path-pinning individual in-repo
+      # plugins if needed; it is not registered as that marketplace name.
 
       # Claude Code user settings, now Nix-owned (the marketplaces option above
       # takes over ~/.claude/settings.json wholesale, so everything must live here
       # or it is lost on activation). extraKnownMarketplaces is injected by the
       # marketplaces option; the module writes settings.json = these `settings` //
-      # { extraKnownMarketplaces }. enabledPlugins keeps the grok-build plugin
-      # switched ON once `claude plugin install grok-build@xai-grok-build` has run.
+      # { extraKnownMarketplaces }. enabledPlugins keeps installed plugins
+      # switched ON once `claude plugin install` has run (activation below).
       # NOTE: editing any of these in the Claude UI won't persist — a rebuild
       # reverts them; change them HERE instead.
       settings = {
@@ -898,11 +901,40 @@ in
     claudeCodePlugins = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
       claude="${claudeCode}/bin/claude"
       if [ -x "$claude" ]; then
+        # settings.json + known_marketplaces.json are Nix symlinks (read-only).
+        # `claude plugin install` rewrites settings (enabledPlugins) and marketplace
+        # add rewrites known_marketplaces — both EACCES on a store symlink. Materialise
+        # writable copies; the next switch re-links them from Nix.
+        _break_nix_link() {
+          local f="$1"
+          if [ -L "$f" ]; then
+            local tmp
+            tmp=$(mktemp)
+            cp -L "$f" "$tmp"
+            rm -f "$f"
+            mv "$tmp" "$f"
+            chmod u+w "$f"
+          fi
+        }
+        _break_nix_link "${config.home.homeDirectory}/.claude/settings.json"
+        _break_nix_link "${config.home.homeDirectory}/.claude/plugins/known_marketplaces.json"
+
+        # Official marketplace: GitHub-only under the reserved name (see marketplaces
+        # comment above). Re-add if missing or still a stale directory pin.
+        if ! "$claude" plugin marketplace list 2>/dev/null | grep -qF 'claude-plugins-official'; then
+          echo "claude-code: adding anthropics/claude-plugins-official marketplace…" >&2
+          "$claude" plugin marketplace add anthropics/claude-plugins-official >/dev/null 2>&1 || true
+        elif "$claude" plugin marketplace list 2>/dev/null | grep -A2 'claude-plugins-official' | grep -qF 'Directory'; then
+          echo "claude-code: replacing directory pin of claude-plugins-official with GitHub source…" >&2
+          "$claude" plugin marketplace remove claude-plugins-official >/dev/null 2>&1 || true
+          "$claude" plugin marketplace add anthropics/claude-plugins-official >/dev/null 2>&1 || true
+        fi
+
         for id in ${lib.escapeShellArgs claudePluginIds}; do
           if "$claude" plugin list 2>/dev/null | grep -qF "$id"; then
             : # already installed — idempotent skip
           else
-            echo "claude-code: installing plugin $id from its pinned marketplace…" >&2
+            echo "claude-code: installing plugin $id…" >&2
             "$claude" plugin install "$id" >/dev/null 2>&1 || true
           fi
         done
