@@ -194,6 +194,14 @@
       url = "github:Paramchoudhary/ResumeSkills";
       flake = false;
     };
+    agent-skills-vercel-agent = {
+      # OFFICIAL Vercel Labs monorepo (vercel-labs/agent-skills — DISTINCT from `agent-skills-vercel` =
+      # vercel-labs/skills, the find-skills discovery tool). We cherry-pick ONLY `vercel-cli-with-tokens`
+      # in programs.claude-code.skills — it drives the `vercel` CLI (hosts/macos.nix Homebrew) for
+      # non-interactive/token auth. No top-level LICENSE (source-available; personal pin only, like excalidraw).
+      url = "github:vercel-labs/agent-skills";
+      flake = false;
+    };
     # Anthropic's OFFICIAL first-party plugin marketplace (Apache-2.0). Pinned to enable the in-repo
     # `security-guidance` plugin (hook-driven secret/injection warnings + Stop-hook diff review) via
     # programs.claude-code.marketplaces + enabledPlugins — the same declarative path as grok-build.
@@ -232,6 +240,7 @@
       agent-skills-trailofbits,
       agent-skills-superpowers,
       agent-skills-jsonresume,
+      agent-skills-vercel-agent,
       claude-plugins-official,
       grok-build-plugin-cc,
       ...
@@ -681,6 +690,7 @@
                 agent-skills-trailofbits
                 agent-skills-superpowers
                 agent-skills-jsonresume
+                agent-skills-vercel-agent
                 claude-plugins-official
                 grok-build-plugin-cc
                 keychain-secrets
