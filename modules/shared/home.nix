@@ -426,35 +426,19 @@ in
       enable = true;
       package = claudeCode;
 
-      # xAI's OFFICIAL Grok Build <-> Claude Code bridge, registered as a pinned
-      # MARKETPLACE (the flake-input repo root has .claude-plugin/marketplace.json).
-      # NOT the `plugins` option: on this claude-code (>= 2.1.157) that installs a
-      # "skills-dir plugin", which loads only the plugin's skills+hooks — NOT its
-      # slash commands or agent (verified live: `/grok-build:check` => "Unknown
-      # command", `plugin details` => Agents (0), no commands). The marketplace
-      # source is the pinned flake input, so `nix flake update` bumps it and the
-      # store path stays GC-protected. The plugin is then activated ONCE per machine
-      # with `claude plugin install grok-build@xai-grok-build` — persisted user state
-      # in ~/.claude (like the gh/hf/docker/claude one-time logins) — which DOES load
-      # the full /grok-build:{review,critique,delegate,import,check,runs,show,stop}
-      # commands + the grok-delegate agent. Runtime deps: grok on PATH (~/.grok/bin)
-      # + Node; grok must be authenticated (`grok models` succeeds).
-      marketplaces.xai-grok-build = "${grok-build-plugin-cc}";
-      # DO NOT directory-pin `claude-plugins-official` here. That name is reserved
-      # for Anthropic GitHub sources only (claude ≥2.1.x re-checks on every load);
-      # a Nix store path registers as "untrusted" and `plugin install …@claude-plugins-official`
-      # fails with "Plugin not found". The official marketplace is added as
-      # `anthropics/claude-plugins-official` (GitHub) by home.activation.claudeCodePlugins
-      # below — mutable ~/.claude state, same as plugin installs. The flake input
-      # `claude-plugins-official` remains available for path-pinning individual in-repo
-      # plugins if needed; it is not registered as that marketplace name.
+      # Marketplaces are NOT declared via `marketplaces.*` here. That option writes a
+      # Nix-managed known_marketplaces.json symlink; `claude plugin marketplace add`
+      # and installs need a mutable file, and the reserved name
+      # `claude-plugins-official` must be a GitHub/HTTPS source (directory pins are
+      # rejected as untrusted). Both marketplaces are registered by
+      # home.activation.claudeCodePlugins from:
+      #   - xai-grok-build ← pinned flake input path (grok-build-plugin-cc)
+      #   - claude-plugins-official ← https://github.com/anthropics/claude-plugins-official
+      # Plugin install state lives in mutable ~/.claude (like gh/hf one-time logins).
+      # Runtime for grok-build: grok on PATH (~/.grok/bin) + Node; `grok models` must work.
 
-      # Claude Code user settings, now Nix-owned (the marketplaces option above
-      # takes over ~/.claude/settings.json wholesale, so everything must live here
-      # or it is lost on activation). extraKnownMarketplaces is injected by the
-      # marketplaces option; the module writes settings.json = these `settings` //
-      # { extraKnownMarketplaces }. enabledPlugins keeps installed plugins
-      # switched ON once `claude plugin install` has run (activation below).
+      # Claude Code user settings, now Nix-owned. enabledPlugins keeps declared
+      # plugins switched ON once `claude plugin install` has run (activation below).
       # NOTE: editing any of these in the Claude UI won't persist — a rebuild
       # reverts them; change them HERE instead.
       settings = {
@@ -886,60 +870,59 @@ in
   };
 
   home.activation = lib.mkIf pkgs.stdenv.isDarwin {
-    # Materialise the DECLARED Claude Code plugins (claudePluginIds) from their
-    # Nix-pinned marketplaces. We deliberately do NOT put ~/.claude/plugins/
-    # installed_plugins.json under Nix — it is Claude's own MUTABLE state file whose
-    # schema + cache layout are an internal impl detail (making it read-only would break
-    # `claude plugin install/uninstall/update`). Instead we DELEGATE the install to
-    # `claude plugin install`, idempotently — the same "let the tool author its own
-    # state" pattern as home.activation.grokMcp / claudeDesktopMcp (modules/shared/mcp.nix).
-    # Runs AFTER linkGeneration so the Nix-managed known_marketplaces.json + settings.json
-    # (which already carries enabledPlugins = true) are in place; best-effort so it never
-    # aborts a switch and self-heals on the next one. This is the one manual
-    # `claude plugin install` step, automated (verified: install succeeds even though
-    # settings.json is a read-only Nix symlink, since enabledPlugins is already set).
+    # Materialise DECLARED Claude Code plugins (claudePluginIds) + their marketplaces.
+    # installed_plugins.json / known_marketplaces.json stay Claude-owned mutable state
+    # (same "let the tool author its own state" pattern as grokMcp). settings.json is
+    # Nix-managed: temporarily materialise a writable copy for install, then restore
+    # the store symlink so the next switch does not hit "file is in the way".
     claudeCodePlugins = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
       claude="${claudeCode}/bin/claude"
       if [ -x "$claude" ]; then
-        # settings.json + known_marketplaces.json are Nix symlinks (read-only).
-        # `claude plugin install` rewrites settings (enabledPlugins) and marketplace
-        # add rewrites known_marketplaces — both EACCES on a store symlink. Materialise
-        # writable copies; the next switch re-links them from Nix.
-        _break_nix_link() {
-          local f="$1"
-          if [ -L "$f" ]; then
-            local tmp
-            tmp=$(mktemp)
-            cp -L "$f" "$tmp"
-            rm -f "$f"
-            mv "$tmp" "$f"
-            chmod u+w "$f"
-          fi
-        }
-        _break_nix_link "${config.home.homeDirectory}/.claude/settings.json"
-        _break_nix_link "${config.home.homeDirectory}/.claude/plugins/known_marketplaces.json"
+        settings="${config.home.homeDirectory}/.claude/settings.json"
+        settings_target=""
+        if [ -L "$settings" ]; then
+          settings_target=$(readlink "$settings")
+          tmp=$(mktemp)
+          cp -L "$settings" "$tmp"
+          rm -f "$settings"
+          mv "$tmp" "$settings"
+          chmod u+w "$settings"
+        fi
 
-        # Official marketplace: GitHub-only under the reserved name (see marketplaces
-        # comment above). Re-add if missing or still a stale directory pin.
+        # xAI grok-build marketplace from the pinned flake input (store path).
+        if ! "$claude" plugin marketplace list 2>/dev/null | grep -qF 'xai-grok-build'; then
+          echo "claude-code: adding xai-grok-build marketplace from flake pin..." >&2
+          "$claude" plugin marketplace add "${grok-build-plugin-cc}" 2>&1 || true
+        fi
+
+        # Official marketplace via HTTPS (SSH clone fails non-interactively; reserved
+        # name rejects directory pins — see programs.claude-code comment above).
+        official_mp_src="https://github.com/anthropics/claude-plugins-official.git"
         if ! "$claude" plugin marketplace list 2>/dev/null | grep -qF 'claude-plugins-official'; then
-          echo "claude-code: adding anthropics/claude-plugins-official marketplace…" >&2
-          "$claude" plugin marketplace add anthropics/claude-plugins-official >/dev/null 2>&1 || true
+          echo "claude-code: adding claude-plugins-official marketplace (HTTPS)..." >&2
+          "$claude" plugin marketplace add "$official_mp_src" 2>&1 || true
         elif "$claude" plugin marketplace list 2>/dev/null | grep -A2 'claude-plugins-official' | grep -qF 'Directory'; then
-          echo "claude-code: replacing directory pin of claude-plugins-official with GitHub source…" >&2
-          "$claude" plugin marketplace remove claude-plugins-official >/dev/null 2>&1 || true
-          "$claude" plugin marketplace add anthropics/claude-plugins-official >/dev/null 2>&1 || true
+          echo "claude-code: replacing directory pin of claude-plugins-official with HTTPS..." >&2
+          "$claude" plugin marketplace remove claude-plugins-official 2>&1 || true
+          "$claude" plugin marketplace add "$official_mp_src" 2>&1 || true
         fi
 
         for id in ${lib.escapeShellArgs claudePluginIds}; do
           if "$claude" plugin list 2>/dev/null | grep -qF "$id"; then
             : # already installed — idempotent skip
           else
-            # Brace $id — a bare `$id…` (unicode ellipsis) is one identifier under
+            # Brace ''${id} — a bare `$id…` (unicode ellipsis) is one identifier under
             # bash nounset and aborts activation with "id…: unbound variable".
             echo "claude-code: installing plugin ''${id}..." >&2
-            "$claude" plugin install "$id" >/dev/null 2>&1 || true
+            "$claude" plugin install "$id" 2>&1 || true
           fi
         done
+
+        # Restore Nix-managed settings symlink for a clean next switch.
+        if [ -n "$settings_target" ]; then
+          rm -f "$settings"
+          ln -s "$settings_target" "$settings"
+        fi
       fi
     '';
 
