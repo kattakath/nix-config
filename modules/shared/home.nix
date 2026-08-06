@@ -565,6 +565,19 @@ in
           condition = "gitdir:${config.home.homeDirectory}/Developer/github.com/REDACTED/";
           path = "${config.home.homeDirectory}/.config/git/REDACTED";
         }
+        # Any repo under the dontsell-ai org authors as the REDACTED identity. Matched by
+        # REMOTE url (hasconfig), not gitdir, so it applies regardless of clone path — including
+        # throwaway agent clones. Two patterns cover https + ssh:// (**/dontsell-ai/**) and
+        # scp-style ssh git@github.com:dontsell-ai/… (**:dontsell-ai/**). The email lives in the
+        # local include (NOT this public repo), same convention as REDACTED above.
+        {
+          condition = "hasconfig:remote.*.url:**/dontsell-ai/**";
+          path = "${config.home.homeDirectory}/.config/git/dontsell.inc";
+        }
+        {
+          condition = "hasconfig:remote.*.url:**:dontsell-ai/**";
+          path = "${config.home.homeDirectory}/.config/git/dontsell.inc";
+        }
       ];
     };
 
