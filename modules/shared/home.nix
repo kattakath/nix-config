@@ -130,6 +130,8 @@ let
     # Neon DB: neon-postgres skill + Neon MCP server (from claude-plugins-official →
     # neondatabase/agent-skills plugins/neon-postgres). Needs neonctl on PATH (macos brew).
     "neon@claude-plugins-official"
+    # Anthropic first-party frontend-design skill/plugin (UI/UX generation guidance).
+    "frontend-design@claude-plugins-official"
   ];
 
   # Absolute operator SSH paths under $HOME. Git treats a non-absolute
