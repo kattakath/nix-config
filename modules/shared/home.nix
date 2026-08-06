@@ -41,7 +41,6 @@
   agent-skills-trailofbits,
   agent-skills-superpowers,
   agent-skills-jsonresume,
-  claude-plugins-official,
   grok-build-plugin-cc,
   # The extracted local-rag flake (services.ollamaLocal + services.pgvectorLocal);
   # its two home-manager modules replace the vendored ollama/postgres-pgvector.
