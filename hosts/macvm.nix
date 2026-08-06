@@ -197,7 +197,7 @@ in
 
   # ---- Per-host home-manager (sandbox trims) ---------------------------------
   home-manager.users.${loginName} = {
-    # MCP gateway (~14 servers) is macos-only weight; disable agent + client wiring.
+    # MCP gateway (~17 servers) is macos-only weight; disable agent + client wiring.
     services.mcpGateway.enable = false;
     # Stock wallpaper + Terminal so the VM is visually distinct from macos.
     local.desktopAesthetics.enable = false;
