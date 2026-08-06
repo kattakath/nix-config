@@ -340,6 +340,7 @@ in
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       jdk17 # JRE for the Android sdkmanager/avdmanager (JVM tools); emulator itself needs no Java
       runpodctl # RunPod GPU CLI — RunPod as a second ComfyUI-workflow provider alongside Vast (from nixpkgs, not the untrusted brew tap)
+      qwen-code # `qwen` — Alibaba's Gemini-CLI-fork coding agent, pointed at a LOCAL Qwen model served by Ollama's OpenAI-compatible endpoint (config in ~/.qwen/.env below, NOT the global OpenAI env — those generic var names would hijack other tools). Pull the model with `ollama pull qwen3-coder:30b`.
     ]
     # WireGuard `vpn` operator — macvm ONLY (it has no App Store, so the CLI is
     # its only option). macos is GUI-only and ships no VPN CLI on purpose — see
@@ -403,6 +404,22 @@ in
   # this repo. Darwin-only (claude-code runs on both darwin hosts, macos + macvm).
   home.file.".claude/CLAUDE.md" = lib.mkIf pkgs.stdenv.isDarwin {
     source = ../../claude/CLAUDE.md;
+  };
+
+  # qwen-code local-model wiring. `qwen` (Alibaba's coding-agent CLI, in
+  # home.packages above) auto-loads ~/.qwen/.env — a qwen-SCOPED env file, so we
+  # point it at the LOCAL Ollama OpenAI-compatible endpoint WITHOUT exporting the
+  # generic OPENAI_* names into every shell (which would hijack any other
+  # OpenAI-compatible tool). OPENAI_API_KEY is a required-but-ignored dummy for a
+  # local server. Change the model here (must match an `ollama pull`ed tag);
+  # nothing here starts Ollama — it's the always-on launch agent on macos.
+  # Darwin-only (Ollama + this personal tooling live on the Mac).
+  home.file.".qwen/.env" = lib.mkIf pkgs.stdenv.isDarwin {
+    text = ''
+      OPENAI_BASE_URL=http://localhost:11434/v1
+      OPENAI_API_KEY=ollama
+      OPENAI_MODEL=qwen3-coder:30b
+    '';
   };
 
   # Git SSH allowed_signers (principal = userEmail, key = operatorSshKey).
