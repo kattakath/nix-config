@@ -370,6 +370,7 @@ in
       jdk17 # JRE for the Android sdkmanager/avdmanager (JVM tools); emulator itself needs no Java
       runpodctl # RunPod GPU CLI — RunPod as a second ComfyUI-workflow provider alongside Vast (from nixpkgs, not the untrusted brew tap)
       qwen-code # `qwen` — Alibaba's Gemini-CLI-fork coding agent, pointed at a LOCAL Qwen model served by Ollama's OpenAI-compatible endpoint (config in ~/.qwen/.env below, NOT the global OpenAI env — those generic var names would hijack other tools). Pull the model with `ollama pull qwen3-coder:30b`.
+      inngest # `inngest` — CLI + local dev server for Inngest durable workflows (not in Homebrew; nixpkgs has it)
     ]
     # WireGuard `vpn` operator — macvm ONLY (it has no App Store, so the CLI is
     # its only option). macos is GUI-only and ships no VPN CLI on purpose — see
