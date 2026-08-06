@@ -98,6 +98,9 @@ let
     # warnings + a Stop-hook LLM diff review. Its marketplace is claude-plugins-official (below);
     # the plugin's code is in-repo (source "./plugins/security-guidance"), so it is fully pinned.
     "security-guidance@claude-plugins-official"
+    # Neon DB: neon-postgres skill + Neon MCP server (from claude-plugins-official →
+    # neondatabase/agent-skills plugins/neon-postgres). Needs neonctl on PATH (macos brew).
+    "neon@claude-plugins-official"
   ];
 
   # Absolute operator SSH paths under $HOME. Git treats a non-absolute
