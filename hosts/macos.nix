@@ -83,6 +83,7 @@
       "swiftlint" # lint stage — SwiftLint --strict gate (GitLab CI)
       "switchaudio-osx"
       "tree"
+      "vercel-cli" # Vercel CLI (`vercel`) — deploy/manage Vercel projects
       "wget"
       # NB: no `wireguard-tools` here — macos manages WireGuard through the GUI
       # (masApps.WireGuard) ONLY. Deliberately no `wg`/`wg-quick` CLI and no `vpn`
