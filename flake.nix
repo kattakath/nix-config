@@ -348,20 +348,26 @@
       cloudflareAccountId = "726e0b2aa2bc2c6944f96a042e3c461b";
       cloudflareZoneId = "6e28971881e488941d052bbbf50d69cd"; # the domainName zone
 
-      # ---- Sites served on the ONE nixpi tunnel (single source) ---------------
-      # Each entry is a static site behind nixpi's Cloudflare tunnel:
-      #   { domain; zoneId ? null; root; www ? true }  (root = the package dir
-      # Caddy file_servers). hosts/nixpi.nix maps each -> a Caddy vhost (needs only
-      # domain/root); infra/cloudflare/nixpi-tunnel.nix maps each -> a tunnel
-      # ingress rule (always) plus, ONLY when `zoneId` is set, an apex CNAME and
-      # (when www is also true, the default) a www CNAME + a www->apex 301 edge
-      # redirect, all managed by this repo's terranix stack. Set `www = false` for
-      # a SUBDOMAIN entry (e.g. ismail.kattakath.com), where a www.<subdomain>
-      # record would be nonsense. Adding a site is ONE entry here (no copy-paste).
-      # zoneIds are non-secret identifiers, safe to commit — but omit `zoneId`
-      # entirely for a site whose zone lives in an account this public repo
-      # shouldn't name (e.g. dontsell.ai, in the separate DontSell account): its
-      # DNS + redirect are then managed out-of-band, directly in that account.
+      # ---- Sites served on nixpi (single source) -------------------------------
+      # Each entry is a static site Caddy serves on nixpi:
+      #   { domain; zoneId ? null; root; www ? true; ownTunnel ? false }  (root =
+      # the package dir Caddy file_servers). hosts/nixpi.nix maps EVERY entry -> a
+      # Caddy vhost (needs only domain/root); infra/cloudflare/nixpi-tunnel.nix maps
+      # each -> a tunnel ingress rule on the PRIMARY (Personal-account) tunnel,
+      # unless `ownTunnel = true` (see below), plus, ONLY when `zoneId` is set, an
+      # apex CNAME and (when www is also true, the default) a www CNAME + a
+      # www->apex 301 edge redirect, all managed by this repo's terranix stack. Set
+      # `www = false` for a SUBDOMAIN entry (e.g. ismail.kattakath.com), where a
+      # www.<subdomain> record would be nonsense. Adding a site is ONE entry here
+      # (no copy-paste). zoneIds are non-secret identifiers, safe to commit — but
+      # omit `zoneId` entirely for a site whose zone lives in an account this
+      # public repo shouldn't name (e.g. dontsell.ai, in the separate DontSell
+      # account): its DNS + redirect are then managed out-of-band, directly in that
+      # account. When that other account also owns the site's zone (not just
+      # something managed out-of-band), ALSO set `ownTunnel = true`: a
+      # cfargotunnel.com CNAME only resolves within the tunnel's own account, so
+      # the primary tunnel can never route it — the site needs its own separate
+      # tunnel + connector, hand-written in hosts/nixpi.nix.
       hostedSites = [
         {
           domain = domainName; # kattakath.com — also the SSH/primary zone
@@ -386,11 +392,18 @@
           # lives in a separate (DontSell) account — deliberately NO zoneId
           # here (this repo is public): DNS + the www redirect are managed
           # out-of-band directly in that account, not via this repo's
-          # terranix stack. The tunnel ingress rule below is still generated
-          # from `domain`/`root` alone (zoneId is optional — see
-          # infra/cloudflare/nixpi-tunnel.nix).
+          # terranix stack. `ownTunnel = true` because a cfargotunnel.com CNAME
+          # only resolves within the SAME account as the tunnel (confirmed via
+          # Cloudflare's own docs) — this account boundary means dontsell.ai
+          # CANNOT be routed by nixpi's primary (Personal-account) tunnel, so
+          # it gets its own separate tunnel + connector, hand-written in
+          # hosts/nixpi.nix (the nix-cloudflared-connector module is a
+          # singleton — one unit, one tokenFile — so a second instance can't
+          # just reuse it). Caddy still serves it locally like every other
+          # site here; only the tunnel routing differs.
           domain = "dontsell.ai";
           root = ./packages/dontsell-landing;
+          ownTunnel = true;
         }
       ];
 
