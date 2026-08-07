@@ -85,6 +85,57 @@
   services.cloudflared-connector.enable = true;
   services.cloudflared-connector.tokenFile = "/run/cloudflared-token";
 
+  # Second, independent Cloudflare Tunnel connector — for dontsell.ai, whose zone
+  # lives in the separate DontSell Cloudflare account. A `cfargotunnel.com` CNAME
+  # only resolves within the SAME account as the tunnel (confirmed via Cloudflare's
+  # own docs: "The cfargotunnel.com subdomain only proxies traffic for DNS records
+  # in the same Cloudflare account"), so the primary (Personal-account) tunnel
+  # above can never route dontsell.ai — it needs its own tunnel + connector.
+  # `services.cloudflared-connector` (the nix-cloudflared-connector flake) is a
+  # SINGLETON — one hardcoded `systemd.services.cloudflared-connector` unit, one
+  # `tokenFile` option, no `types.attrsOf` — so a second instance can't just reuse
+  # it; this unit is hand-written, mirroring that module's ExecStart/hardening
+  # exactly. Its tunnel + token are created out-of-band (DontSell-account API
+  # calls), not via this repo's terranix stack — see infra/cloudflare/nixpi-tunnel.nix.
+  systemd.services.cloudflared-connector-dontsell = {
+    description = "Cloudflare Tunnel connector for dontsell.ai (DontSell account, remotely-managed, token from file)";
+    after = [ "network-online.target" ];
+    wants = [ "network-online.target" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      ExecStart = "${pkgs.cloudflared}/bin/cloudflared --no-autoupdate tunnel run";
+      EnvironmentFile = "/run/cloudflared-token-dontsell";
+      Restart = "on-failure";
+      RestartSec = 5;
+      DynamicUser = true;
+      RuntimeDirectory = "cloudflared-dontsell";
+      ProtectSystem = "strict";
+      ProtectHome = true;
+      NoNewPrivileges = true;
+      PrivateTmp = true;
+      PrivateDevices = true;
+      ProtectKernelTunables = true;
+      ProtectKernelModules = true;
+      ProtectControlGroups = true;
+      RestrictNamespaces = true;
+      RestrictRealtime = true;
+      RestrictSUIDSGID = true;
+      LockPersonality = true;
+      MemoryDenyWriteExecute = true;
+      RestrictAddressFamilies = [
+        "AF_INET"
+        "AF_INET6"
+        "AF_UNIX"
+      ];
+      SystemCallFilter = [
+        "@system-service"
+        "~@privileged"
+        "~@resources"
+      ];
+      SystemCallArchitectures = "native";
+    };
+  };
+
   services.firmwareProvisioning.files = {
     # Connector token (`TUNNEL_TOKEN=<token>`). REQUIRED — the connector cannot start
     # without it, so the install unit fails (and blocks the connector) if it is absent.
@@ -94,6 +145,16 @@
       required = true;
       before = [ "cloudflared-connector.service" ];
       requiredBy = [ "cloudflared-connector.service" ];
+    };
+    # Token for the second (dontsell.ai / DontSell-account) connector above — same
+    # mechanism, own file on the FIRMWARE partition so a fresh SD flash doesn't
+    # lock either tunnel to a rotated host key.
+    cloudflared-token-dontsell = {
+      source = "cloudflared-token-dontsell";
+      target = "/run/cloudflared-token-dontsell";
+      required = true;
+      before = [ "cloudflared-connector-dontsell.service" ];
+      requiredBy = [ "cloudflared-connector-dontsell.service" ];
     };
     # Wi-Fi so a headless nixpi (no LAN/keyboard/monitor) associates and reaches
     # nixpi.kattakath.com from first boot. Plant a standard wpa_supplicant.conf that

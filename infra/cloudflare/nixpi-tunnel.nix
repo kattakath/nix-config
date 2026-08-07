@@ -19,13 +19,18 @@
 #       plant on the FIRMWARE partition — NEVER written to git or the store.
 #
 # The SITES it serves are single-sourced as `hostedSites` in flake.nix
-# ([ { domain; zoneId ? null; root; www ? true } ]) and threaded here via _module.args, so
-# adding a site is ONE list entry — the ingress rule is always generated; the apex
-# CNAME and (when www) the www CNAME + redirect are generated ONLY for sites that
-# set `zoneId` (a site whose zone lives in a different Cloudflare account can omit
-# it — e.g. to keep that account's zone id out of this public repo — and its DNS +
-# redirect are then managed out-of-band, directly in that account). hosts/nixpi.nix
-# generates the matching Caddy vhost from the same list, needing only domain/root.
+# ([ { domain; zoneId ? null; root; www ? true; ownTunnel ? false } ]) and threaded
+# here via _module.args, so adding a site is ONE list entry — the ingress rule is
+# generated for every site EXCEPT those with `ownTunnel = true`; the apex CNAME and
+# (when www) the www CNAME + redirect are generated ONLY for sites that set
+# `zoneId` (a site whose zone lives in a different Cloudflare account can omit it —
+# e.g. to keep that account's zone id out of this public repo — and its DNS +
+# redirect are then managed out-of-band, directly in that account). A site whose
+# zone lives in a DIFFERENT Cloudflare account from this tunnel MUST also set
+# `ownTunnel = true`: a `cfargotunnel.com` CNAME only resolves within the tunnel's
+# own account, so it needs its own separate tunnel + connector (hand-written in
+# hosts/nixpi.nix) rather than an ingress rule here. hosts/nixpi.nix generates the
+# matching Caddy vhost from the same list for EVERY site, needing only domain/root.
 # accountId / zoneId (the SSH host's zone) / domainName also come from flake.nix's
 # single sources (via _module.args in cfTunnelConfig).
 #
@@ -55,11 +60,17 @@ let
   siteKey = domain: builtins.replaceStrings [ "." "-" ] [ "_" "_" ] domain;
 
   # ---- Per-site generation (one entry in flake.nix's hostedSites -> all of this) ----
-  # Web ingress rule: <domain> -> the local Caddy on :80.
+  # Web ingress rule: <domain> -> the local Caddy on :80. Excludes sites that opt
+  # into `ownTunnel = true` — a `cfargotunnel.com` CNAME only resolves within the
+  # SAME Cloudflare account as the tunnel (confirmed via Cloudflare's own docs), so
+  # a site whose zone lives in a DIFFERENT account (e.g. dontsell.ai, in the
+  # separate DontSell account) cannot be routed by this (Personal-account) tunnel
+  # at all — it gets its own hand-written connector unit in hosts/nixpi.nix instead
+  # (Caddy still serves it locally; only the tunnel ingress is excluded here).
   siteIngress = map (s: {
     hostname = s.domain;
     service = "http://localhost:80";
-  }) hostedSites;
+  }) (builtins.filter (s: !(s.ownTunnel or false)) hostedSites);
 
   # Proxied apex CNAME -> tunnel (makes the ingress rule reachable) + proxied
   # www CNAME -> apex (so the edge redirect below fires). ttl = 1 == automatic
