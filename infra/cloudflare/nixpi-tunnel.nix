@@ -19,11 +19,15 @@
 #       plant on the FIRMWARE partition — NEVER written to git or the store.
 #
 # The SITES it serves are single-sourced as `hostedSites` in flake.nix
-# ([ { domain; zoneId; root; www ? true } ]) and threaded here via _module.args, so
-# adding a site is ONE list entry — the ingress rule, apex CNAME, and (when www) the
-# www CNAME + redirect are all generated below. hosts/nixpi.nix generates the
-# matching Caddy vhost from the same list. accountId / zoneId (the SSH host's zone) / domainName also come from
-# flake.nix's single sources (via _module.args in cfTunnelConfig).
+# ([ { domain; zoneId ? null; root; www ? true } ]) and threaded here via _module.args, so
+# adding a site is ONE list entry — the ingress rule is always generated; the apex
+# CNAME and (when www) the www CNAME + redirect are generated ONLY for sites that
+# set `zoneId` (a site whose zone lives in a different Cloudflare account can omit
+# it — e.g. to keep that account's zone id out of this public repo — and its DNS +
+# redirect are then managed out-of-band, directly in that account). hosts/nixpi.nix
+# generates the matching Caddy vhost from the same list, needing only domain/root.
+# accountId / zoneId (the SSH host's zone) / domainName also come from flake.nix's
+# single sources (via _module.args in cfTunnelConfig).
 #
 # The runtime connector unit (the `nix-cloudflared-connector` flake) is UNTOUCHED: it
 # reads the token at /run/cloudflared-token, which services.firmwareProvisioning
@@ -65,40 +69,43 @@ let
   siteDnsRecords = builtins.listToAttrs (
     builtins.concatMap (
       s:
-      let
-        k = siteKey s.domain;
-      in
-      [
-        {
-          name = "${k}_apex";
-          value = {
-            zone_id = s.zoneId;
-            name = s.domain;
-            type = "CNAME";
-            content = "${tunnelId}.cfargotunnel.com";
-            proxied = true;
-            ttl = 1;
-          };
-        }
-      ]
-      ++ (
-        if (s.www or true) then
-          [
-            {
-              name = "${k}_www";
-              value = {
-                zone_id = s.zoneId;
-                name = "www.${s.domain}";
-                type = "CNAME";
-                content = s.domain;
-                proxied = true;
-                ttl = 1;
-              };
-            }
-          ]
-        else
-          [ ]
-      )
+      if !(s ? zoneId) then
+        [ ]
+      else
+        let
+          k = siteKey s.domain;
+        in
+        [
+          {
+            name = "${k}_apex";
+            value = {
+              zone_id = s.zoneId;
+              name = s.domain;
+              type = "CNAME";
+              content = "${tunnelId}.cfargotunnel.com";
+              proxied = true;
+              ttl = 1;
+            };
+          }
+        ]
+        ++ (
+          if (s.www or true) then
+            [
+              {
+                name = "${k}_www";
+                value = {
+                  zone_id = s.zoneId;
+                  name = "www.${s.domain}";
+                  type = "CNAME";
+                  content = s.domain;
+                  proxied = true;
+                  ttl = 1;
+                };
+              }
+            ]
+          else
+            [ ]
+        )
     ) hostedSites
   );
 
@@ -112,7 +119,7 @@ let
       let
         k = siteKey s.domain;
       in
-      if !(s.www or true) then
+      if !(s ? zoneId) || !(s.www or true) then
         [ ]
       else
         [
