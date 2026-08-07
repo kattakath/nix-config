@@ -350,14 +350,18 @@
 
       # ---- Sites served on the ONE nixpi tunnel (single source) ---------------
       # Each entry is a static site behind nixpi's Cloudflare tunnel:
-      #   { domain; zoneId; root; www ? true }  (root = the package dir Caddy
-      # file_servers). hosts/nixpi.nix maps each -> a Caddy vhost;
-      # infra/cloudflare/nixpi-tunnel.nix maps each -> a tunnel ingress rule + an
-      # apex CNAME, and (when www is true, the default) a www CNAME + a www->apex
-      # 301 edge redirect. Set `www = false` for a SUBDOMAIN entry (e.g.
-      # ismail.kattakath.com), where a www.<subdomain> record would be nonsense.
-      # Adding a site is ONE entry here (no copy-paste). zoneIds are non-secret
-      # identifiers, all in the same Cloudflare account as kattakath.com.
+      #   { domain; zoneId ? null; root; www ? true }  (root = the package dir
+      # Caddy file_servers). hosts/nixpi.nix maps each -> a Caddy vhost (needs only
+      # domain/root); infra/cloudflare/nixpi-tunnel.nix maps each -> a tunnel
+      # ingress rule (always) plus, ONLY when `zoneId` is set, an apex CNAME and
+      # (when www is also true, the default) a www CNAME + a www->apex 301 edge
+      # redirect, all managed by this repo's terranix stack. Set `www = false` for
+      # a SUBDOMAIN entry (e.g. ismail.kattakath.com), where a www.<subdomain>
+      # record would be nonsense. Adding a site is ONE entry here (no copy-paste).
+      # zoneIds are non-secret identifiers, safe to commit — but omit `zoneId`
+      # entirely for a site whose zone lives in an account this public repo
+      # shouldn't name (e.g. dontsell.ai, in the separate DontSell account): its
+      # DNS + redirect are then managed out-of-band, directly in that account.
       hostedSites = [
         {
           domain = domainName; # kattakath.com — also the SSH/primary zone
@@ -376,6 +380,17 @@
           zoneId = cloudflareZoneId;
           root = ./packages/ismail-landing;
           www = false;
+        }
+        {
+          # dontsell.ai — DontSell product landing page. Its Cloudflare zone
+          # lives in a separate (DontSell) account — deliberately NO zoneId
+          # here (this repo is public): DNS + the www redirect are managed
+          # out-of-band directly in that account, not via this repo's
+          # terranix stack. The tunnel ingress rule below is still generated
+          # from `domain`/`root` alone (zoneId is optional — see
+          # infra/cloudflare/nixpi-tunnel.nix).
+          domain = "dontsell.ai";
+          root = ./packages/dontsell-landing;
         }
       ];
 
