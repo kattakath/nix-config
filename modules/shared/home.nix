@@ -373,6 +373,8 @@ in
       runpodctl # RunPod GPU CLI — RunPod as a second ComfyUI-workflow provider alongside Vast (from nixpkgs, not the untrusted brew tap)
       qwen-code # `qwen` — Alibaba's Gemini-CLI-fork coding agent, pointed at a LOCAL Qwen model served by Ollama's OpenAI-compatible endpoint (config in ~/.qwen/.env below, NOT the global OpenAI env — those generic var names would hijack other tools). Pull the model with `ollama pull qwen3-coder:30b`.
       inngest # `inngest` — CLI + local dev server for Inngest durable workflows (not in Homebrew; nixpkgs has it)
+      pandoc # Universal doc converter — nixpkgs-native on aarch64-darwin (no Homebrew needed); backs the docx/pptx/xlsx skills' `pandoc` dependency (see programs.claude-code.skills NOTE below)
+      poppler-utils # pdftoppm/pdftotext/pdfimages CLI — NOT `poppler` (that's the glib-bindings library, no binaries); moved here from the macos Homebrew `poppler` formula (nixpkgs is the single source per modules/darwin/homebrew.nix's dedup comment); backs the pdf/docx/pptx skills
     ]
     # WireGuard `vpn` operator — macvm ONLY (it has no App Store, so the CLI is
     # its only option). macos is GUI-only and ships no VPN CLI on purpose — see
@@ -565,7 +567,14 @@ in
         mcp-builder = "${agent-skills-anthropic-official}/skills/mcp-builder";
         webapp-testing = "${agent-skills-anthropic-official}/skills/webapp-testing";
         # Anthropic document skills: pair with the Google Drive connector (fetch → edit → store).
-        # NOTE heavy runtime deps (LibreOffice/poppler/pandoc/qpdf) must be on PATH to actually run.
+        # NOTE heavy runtime deps: pandoc + poppler now come from nixpkgs (home.packages
+        # above); LibreOffice/soffice comes from the macos-only Homebrew cask
+        # (hosts/macos.nix) since nixpkgs libreoffice-bin cannot reliably block on
+        # headless --convert-to. qpdf and the skills' own pip/npm deps (pypdf,
+        # openpyxl, docx, pptxgenjs, …) remain undeclared/ambient — a separate,
+        # larger follow-up. macvm inherits this same skills block (gated on
+        # stdenv.isDarwin, not hostName == "macos") but does NOT get the libreoffice
+        # cask — soffice is absent there; a known, accepted asymmetry for now.
         pdf = "${agent-skills-anthropic-official}/skills/pdf";
         docx = "${agent-skills-anthropic-official}/skills/docx";
         pptx = "${agent-skills-anthropic-official}/skills/pptx";

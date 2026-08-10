@@ -73,7 +73,6 @@
       "ncdu"
       "neonctl" # Neon DB CLI (https://neon.tech/docs/reference/neon-cli)
       "ocrmypdf"
-      "poppler"
       "pyenv"
       # scrcpy — mirror/control a PHYSICAL Android phone on the Mac (pulls its own
       # adb; the android-platform-tools cask provides the adb mobile-mcp uses).
@@ -117,6 +116,15 @@
       # Homebrew renamed `google-cloud-sdk` → `gcloud-cli`; use the new name.
       "gcloud-cli"
       "inkscape"
+      # LibreOffice — provides the `soffice` CLI the docx/pptx/xlsx/pdf Claude Code
+      # skills (modules/shared/home.nix programs.claude-code.skills) already hardcode
+      # as their document-conversion engine. Cask (not nixpkgs libreoffice-bin)
+      # because its command_wrapper execs the real Mach-O soffice binary directly —
+      # nixpkgs' wrapper shells out via `open -na`, which won't block/report exit
+      # status for scripted --convert-to pipelines. First headless run may need a
+      # one-time profile warm-up (soffice -env:UserInstallation=file:///tmp/... );
+      # see the NOTE at the skills block below.
+      "libreoffice"
       "maccy"
       "microsoft-auto-update"
       "microsoft-teams"
