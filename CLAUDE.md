@@ -28,9 +28,10 @@ nix run .#nixpi-flash -- --disk /dev/diskN --release   # Reflash the nixpi SD ca
 nix run .#nixpi-provision                     # Plant token + Wi-Fi onto a mounted nixpi card (--token / --wifi for updates); nixpi-wifi-creds emits a wpa_supplicant.conf from this Mac's Wi-Fi; nixpi-vault-token re-encrypts a rotated token into the vault
 nix run .#vast-account-vars-set               # Sync read-only VAST_* Keychain tokens → Vast ACCOUNT-level env vars (default: GITLAB/HF/CIVITAI/GH); injected into every instance
 nix run .#vast-ssh-key-set                     # Register the operator SSH public key on the Vast account (idempotent)
-nix run .#vast-init-repo -- --repo owner/name  # Scaffold a provisioner repo from packages/vast-templates/provisioner/ (GitHub or gitlab:owner/name)
+nix run .#vast-init-repo -- --repo owner/name  # Scaffold a provisioner repo from the vast-provision flake input's own bundled provisioner-template (GitHub or gitlab:owner/name)
 nix run .#vast-repo-check -- --repo owner/name # Validate a repo's .provisioner-template.json marker + required files (forge-agnostic)
 nix run .#vast-template-apply -- --template-name NAME --repo owner/name   # Create/REPLACE (reconcile by name — delete+create) a Vast.ai template that boots vastai/base-image via PROVISIONING_SCRIPT
+nix run .#vast-rent -- --template-name NAME --dry-run   # Rent a live, BILLED GPU instance from a template by name/hash -- always --dry-run first
 ```
 
 ## Architecture
