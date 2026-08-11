@@ -1,9 +1,12 @@
 # Vast.ai Template Provisioning — Design
 
-Status: **implemented** — see `packages/vast-provision.nix`. This doc describes
-the design and rationale; the flake apps' own `--help` text and
-`docs`/`README.md` in the extracted [`nix-vast-provision`](https://github.com/ismailkattakath/nix-vast-provision)
-flake are the source of truth for exact current flags. Driving use case: the
+Status: **implemented** — the CLI logic is sourced from the extracted
+[`nix-vast-provision`](https://github.com/ismailkattakath/nix-vast-provision)
+flake input (`vast-provision` in `flake.nix`, `callPackage`d with
+`orgName`/`repoName`/`rev` overridden to this repo's own identity). This doc
+describes the design and rationale; the flake apps' own `--help` text and that
+flake's `docs`/`README.md` are the source of truth for exact current flags.
+Driving use case: the
 ComfyUI workflow repo (e.g.
 `gitlab.com/ismailkattakath/comfyui-workflows`), passed in per-run as `--repo`.
 
@@ -67,8 +70,8 @@ public bootstrap serves every private stack.
 
 > **Bootstrap hosting — decided: this repo, SHA-pinned raw URL.** `nix-config` is
 > public (`github.com/kattakath/nix-config`), so the bootstrap lives at
-> `packages/vast/provision-bootstrap.sh` and the flake emits
-> `PROVISIONING_SCRIPT=https://raw.githubusercontent.com/kattakath/nix-config/${self.rev}/packages/vast/provision-bootstrap.sh`
+> `packages/vast-bootstrap.sh` and the flake emits
+> `PROVISIONING_SCRIPT=https://raw.githubusercontent.com/kattakath/nix-config/${self.rev}/packages/vast-bootstrap.sh?v=${self.rev}`
 > — pinned to the flake's own commit (immutable, reproducible; requires provisioning
 > from a *pushed* commit). Chosen over a gist / Cloudflare route: same declarative
 > source, versioned, no extra repo or infra. Contains **no secrets**.
@@ -95,19 +98,26 @@ there is no auto-detection of which one to use:
 - **Manifest mode** (`--manifest PATH --workflow PATH`) — no repo clone at all,
   no bash engine. Vast's native provisioner runs directly against a rev-pinned
   `provisioning.yaml` + workflow JSON committed in nix-config itself
-  (`packages/vast-templates/bfs-flux-klein/`), served via a `rawBase` URL built
-  from the same `orgName`/`repoName`/`rev` the bootstrap URL uses. Auto-sets
+  (`packages/templates/bfs-flux-klein/`), served via a `rawBase` URL built
+  from the same `orgName`/`repoName`/`rev` the bootstrap URL uses — overridden
+  to nix-config's own identity when `callPackage`ing the `vast-provision`
+  flake input's `packages/vast-provision.nix` (see `flake.nix`), since Vast
+  fetches these files from THIS repo, not the input's own. Auto-sets
   `skipcheck=1` (nothing to legitimacy-check — there's no repo).
 
 For legacy and aggregator mode, the constant entrypoint + a legitimacy marker
 are guaranteed by **scaffolding repos from a template**:
 
-- nix-config ships a **generic** `provisioner-template`
-  (`packages/vast-templates/provisioner/`): a `provision.sh` stub +
-  `.provisioner-template.json` marker + README. Publish it as a template repo; new
-  provisioner repos are generated from it — GitHub template repos (`is_template`; `POST
-  /repos/{owner}/{repo}/generate`) or GitLab custom project templates (`POST /projects`
-  + `use_custom_template` + `template_project_id`). Both support private.
+- The generic `provisioner-template` scaffold (a `provision.sh` stub +
+  `.provisioner-template.json` marker + README) now lives in the extracted
+  `vast-provision` flake input's own `packages/templates/provisioner/` —
+  `vast-init-repo` scaffolds new provisioner repos straight from there.
+  nix-config itself vendors only that directory's `provision-lib.sh`
+  (renamed from `packages/vast-templates/provisioner/`), the one file a live
+  instance still fetches over raw HTTP. New provisioner repos are generated
+  as GitHub template repos (`is_template`; `POST /repos/{owner}/{repo}/generate`)
+  or GitLab custom project templates (`POST /projects` + `use_custom_template`
+  + `template_project_id`). Both support private.
 - Build **stack-specific** templates (a ComfyUI one, etc.) *from* the generic one —
   that is where a ComfyUI engine / `provisioner-config.sh` schema belongs, in your
   template, not nix-config.
