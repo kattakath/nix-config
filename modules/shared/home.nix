@@ -64,6 +64,11 @@ let
   # heavy darwin-only agents (RAG stack, MCP public tunnel extras) off macvm.
   isMacosHost = (osConfig.networking.hostName or "") == "macos";
 
+  # android-commandlinetools Homebrew cask install prefix — single source for
+  # every ANDROID_HOME/PATH reference below (also read from modules/shared/mcp.nix
+  # via config.home.sessionVariables.ANDROID_HOME, not re-declared there).
+  androidSdkRoot = "/opt/homebrew/share/android-commandlinetools";
+
   # Qwen Code (`qwen`) MCP wiring — reuse the SAME localhost gateway Claude Code
   # uses (services.mcpGateway.endpoints: one Streamable-HTTP /mcp URL per hosted
   # server), so qwen can never drift from the other clients. But CURATE to a
@@ -217,7 +222,7 @@ let
       pkgs.gnused
     ];
     text = ''
-      ANDROID_HOME="''${ANDROID_HOME:-/opt/homebrew/share/android-commandlinetools}"
+      ANDROID_HOME="''${ANDROID_HOME:-${androidSdkRoot}}"
       export ANDROID_HOME
       avd="''${1:-pixel_play}"
       sdkmanager="/opt/homebrew/bin/sdkmanager"
@@ -278,6 +283,18 @@ let
     '';
   };
 
+  # `macvm-tart-start` on PATH (macos host only, below) — needed as a stable
+  # command the Spotlight launcher app can invoke without `cd`-ing into the
+  # flake. tart is unfree but nixpkgs.config.allowUnfree = true is already set
+  # on the macos darwin host (hosts/macos.nix) and shared into this pkgs via
+  # useGlobalPkgs, so no separate pkgsUnfree import is needed here (contrast
+  # flake.nix's packages.*.macvm-tart-* wiring, built outside useGlobalPkgs).
+  macvmTartStart = (pkgs.callPackage ../../packages/macvm-tart.nix { }).macvm-tart-start;
+
+  # "Focus-or-launch" Spotlight .app bundles for the Android emulator + macvm
+  # (macos host only, below) — see packages/spotlight-launchers.nix.
+  spotlightLaunchers = pkgs.callPackage ../../packages/spotlight-launchers.nix { };
+
 in
 {
   # Replace HM's stock launchd module so agents use nix-* BTM basenames
@@ -314,6 +331,23 @@ in
   # macvm is a lean sandbox; no need for embed/DB launchd agents there.
   services.ollamaLocal.enable = isMacosHost;
   services.pgvectorLocal.enable = isMacosHost;
+
+  # Spotlight-launchable "Android Emulator" + "Mac VM" — click (or re-click)
+  # like any normal app: launches if not running, brings the existing window
+  # frontmost if it is. Real Mac only — pointless on macvm itself (no Android
+  # emulator, and it can't control its own Tart host). Symlinked into
+  # ~/Applications, which Spotlight indexes; see packages/spotlight-launchers.nix.
+  # First launch of each will prompt a one-time Automation permission ("wants
+  # to control System Events") — approve it in System Settings > Privacy &
+  # Security > Automation.
+  home.file."Applications/Android Emulator.app" = lib.mkIf isMacosHost {
+    source = spotlightLaunchers.androidEmulatorApp;
+    recursive = true;
+  };
+  home.file."Applications/Mac VM.app" = lib.mkIf isMacosHost {
+    source = spotlightLaunchers.macvmApp;
+    recursive = true;
+  };
 
   # Public kapture MCP connector (Cloudflare Access) — real Mac only.
   # macvm already sets services.mcpGateway.enable = false; keep public extras
@@ -381,6 +415,12 @@ in
     # the rationale on the dropped wireguard-tools brew in hosts/macos.nix.
     ++ lib.optionals (stdenv.isDarwin && !isMacosHost) [
       vpn # `vpn list|status|up|down|switch` — WireGuard operator for ~/.config/wireguard (packages/vpn.nix)
+    ]
+    # macvm-tart-start on PATH — real Mac (Tart host) only. The Spotlight
+    # "macvm" launcher above calls this by bare name; also handy directly
+    # (nix run .#macvm-tart-* still covers the rest of the kit).
+    ++ lib.optionals isMacosHost [
+      macvmTartStart
     ];
 
   # ---- Android SDK (macOS only) ------------------------------------------------
@@ -391,7 +431,7 @@ in
   # After switching, just run `android-emu` (the helper in the let block) — it
   # installs the SDK packages + creates the AVD on first run, then boots it.
   home.sessionVariables = lib.mkIf pkgs.stdenv.isDarwin {
-    ANDROID_HOME = "/opt/homebrew/share/android-commandlinetools";
+    ANDROID_HOME = androidSdkRoot;
     # sdkmanager/avdmanager are JVM tools; point them at the nixpkgs JDK 17.
     JAVA_HOME = pkgs.jdk17.home;
 
@@ -420,8 +460,8 @@ in
   };
 
   home.sessionPath = lib.optionals pkgs.stdenv.isDarwin [
-    "/opt/homebrew/share/android-commandlinetools/emulator"
-    "/opt/homebrew/share/android-commandlinetools/platform-tools"
+    "${androidSdkRoot}/emulator"
+    "${androidSdkRoot}/platform-tools"
     # xAI Grok CLI: a self-updating prebuilt binary installed to ~/.grok/bin by
     # `curl -fsSL https://x.ai/cli/install.sh | bash` (no nixpkgs/brew package
     # exists, and `grok` updates itself, so pinning it in Nix would fight its
@@ -982,6 +1022,13 @@ in
     # Nix-managed: temporarily materialise a writable copy for install, then restore
     # the store symlink so the next switch does not hit "file is in the way".
     claudeCodePlugins = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+      # home-manager activation scripts run with a bare PATH (no ~/.nix-profile,
+      # no /etc/profiles/per-user/<user>/bin) — `claude` itself is invoked by
+      # absolute store path below so that's fine, but ITS OWN subprocesses are
+      # not: a "git-subdir" plugin source (e.g. neon@claude-plugins-official)
+      # shells out to a bare `git` lookup and fails with "git ... not on PATH"
+      # even though programs.git (same pkgs.git) is on every interactive PATH.
+      export PATH="${pkgs.git}/bin:$PATH"
       claude="${claudeCode}/bin/claude"
       if [ -x "$claude" ]; then
         settings="${config.home.homeDirectory}/.claude/settings.json"
