@@ -315,8 +315,8 @@ let
   hostedServerNames = packagedServerNames ++ builtins.attrNames customStdioServers;
 
   # SERVER SIDE: a {mcpServers:{name:{command,args,env}}} JSON that mcp-proxy
-  # consumes via --named-server-config. mkConfig PINS the 4 packaged servers;
-  # settings.servers carries the 10 custom ones verbatim. flavor "claude-code"
+  # consumes via --named-server-config. mkConfig PINS the 7 packaged servers;
+  # settings.servers carries the 11 custom ones verbatim. flavor "claude-code"
   # emits the `mcpServers` key mcp-proxy expects (it ignores any extra fields).
   gatewayConfig = mcp-servers-nix.lib.mkConfig pkgs {
     flavor = "claude-code";
