@@ -185,6 +185,11 @@ CLI-style update is a full replace) else `POST`.
 - `vast-weights-stage` *(optional)* — download the stack's `MODEL_MAP` weights and
   upload to B2.
 - *(later)* `vast-template-destroy` — unlink (Vast delete is unlink, not hard-destroy).
+- `vast-rent` — **implemented.** Rents a live, **BILLED** GPU instance from a template
+  by name or hash (`--template-name`/`--template-hash`, `--offer`, `--gpu`, `--disk`,
+  `--max-price`, `--dry-run`); injects an authenticated Docker Hub `image_login` from
+  the Keychain's `DOCKERHUB_TOKEN` to beat pull rate limits. The one command in this
+  kit that spends real money — always sanity-check with `--dry-run` first.
 
 Wired via `genAttrs darwinSystems` in `packages` (shellcheck in `nix flake check`) with
 static `aarch64-darwin.<name>` `apps` entries — mirroring `set-secret` /
