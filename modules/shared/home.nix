@@ -135,6 +135,14 @@ let
     # Neon DB: neon-postgres skill + Neon MCP server (from claude-plugins-official →
     # neondatabase/agent-skills plugins/neon-postgres). Needs neonctl on PATH (macos brew).
     "neon@claude-plugins-official"
+    # Stripe OFFICIAL plugin (git-subdir of stripe/ai providers/claude/plugin, pinned by the
+    # marketplace sha): the full Stripe agent kit in one unit — 7 skills (stripe-best-practices,
+    # stripe-docs, upgrade-stripe, connect-recommend, stripe-apps, stripe-directory,
+    # stripe-projects), the company-researcher agent, /explain-error + /test-cards commands,
+    # AND the hosted mcp.stripe.com MCP server (type=http; one-time in-client OAuth — no API
+    # key handled here, and nothing to host in the gateway since the server is Stripe-remote).
+    # Pairs with the nixpkgs `stripe-cli` in home.packages below.
+    "stripe@claude-plugins-official"
     # Anthropic first-party frontend-design skill/plugin (UI/UX generation guidance).
     "frontend-design@claude-plugins-official"
   ];
@@ -407,6 +415,7 @@ in
       runpodctl # RunPod GPU CLI — RunPod as a second ComfyUI-workflow provider alongside Vast (from nixpkgs, not the untrusted brew tap)
       qwen-code # `qwen` — Alibaba's Gemini-CLI-fork coding agent, pointed at a LOCAL Qwen model served by Ollama's OpenAI-compatible endpoint (config in ~/.qwen/.env below, NOT the global OpenAI env — those generic var names would hijack other tools). Pull the model with `ollama pull qwen3-coder:30b`.
       inngest # `inngest` — CLI + local dev server for Inngest durable workflows (not in Homebrew; nixpkgs has it)
+      stripe-cli # Stripe CLI (`stripe`) — API calls, webhook forwarding (`stripe listen`), event triggers; auth is a one-time `stripe login` browser OAuth (config in ~/.config/stripe, never in git/store — same one-time-CLI-login convention as gh/hf/docker). Pairs with the stripe@claude-plugins-official plugin (claudePluginIds above)
       pandoc # Universal doc converter — nixpkgs-native on aarch64-darwin (no Homebrew needed); backs the docx/pptx/xlsx skills' `pandoc` dependency (see programs.claude-code.skills NOTE below)
       poppler-utils # pdftoppm/pdftotext/pdfimages CLI — NOT `poppler` (that's the glib-bindings library, no binaries); moved here from the macos Homebrew `poppler` formula (nixpkgs is the single source per modules/darwin/homebrew.nix's dedup comment); backs the pdf/docx/pptx skills
     ]
