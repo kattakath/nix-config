@@ -338,11 +338,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1784913233,
-        "narHash": "sha256-nDBF5Jhehfk+rDhR++hONMtJJODIWUxxo3WCFhlVcuk=",
+        "lastModified": 1784914378,
+        "narHash": "sha256-MTRc5sCFK/jXTw0MdXq5rrT8oNQC6mrtApcLNiZAKfc=",
         "owner": "ismailkattakath",
         "repo": "nix-firmware-secrets",
-        "rev": "5559553e254462056f3aa4f55dbdea3d364ee061",
+        "rev": "fe271d375e890a64a8f9aab030b972bdb127ac05",
         "type": "github"
       },
       "original": {
@@ -554,11 +554,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1784913234,
-        "narHash": "sha256-ggBigxuLlJyl2KrW4pRvvC1g87FmOYQOc/XwfOgw9Ow=",
+        "lastModified": 1784914381,
+        "narHash": "sha256-QbVw771NBAAs4zvM+eQJbJmpttWN5kUX//t7F2z11iI=",
         "owner": "ismailkattakath",
         "repo": "nix-keychain-secrets",
-        "rev": "ee1167e49adddcbeb55e813481a7d25310a8fc78",
+        "rev": "9b6b66536bc308409908e80a81d68ac1e5424ce5",
         "type": "github"
       },
       "original": {

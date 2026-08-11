@@ -17,16 +17,16 @@
 # account owns the GUI session, `darwin-rebuild switch` cannot load the agent.
 #
 # SERVER SIDE (this box, 127.0.0.1:8096)
-#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 17 servers (18 with
+#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 18 servers (19 with
 #   the opt-in `telegram` server), each reachable at /servers/<name>/sse.
 #   `gatewayConfig` is rendered by mcp-servers-nix's `lib.mkConfig`, so the 7 packaged
 #   servers (context7/fetch/memory/sequential-thinking/nixos/terraform/github) are
-#   PINNED store-path commands; the 10 without a module (+ telegram when enabled) fall
+#   PINNED store-path commands; the 11 without a module (+ telegram when enabled) fall
 #   back to pinned npx/uvx launchers (still a runtime fetch, but acceptable on the Mac
 #   where Node/uv already live).
 #
 # CLIENT SIDE (programs.claude-code.mcpServers)
-#   The 17 hosted servers (18 with `telegram`) are wired as `type = "http"` (Streamable HTTP — the
+#   The 18 hosted servers (19 with `telegram`) are wired as `type = "http"` (Streamable HTTP — the
 #   current MCP standard; the legacy HTTP+SSE transport was deprecated in the
 #   2025-03-26 spec) pointing at /servers/<name>/mcp; desktop-commander stays
 #   `type = "stdio"`. The claude-code module writes these into a managed
@@ -54,11 +54,12 @@ let
   gatewayHost = "127.0.0.1";
   gatewayPort = 8096;
 
-  # Android SDK root — the android-commandlinetools Homebrew cask install prefix
-  # (mirrors ANDROID_HOME in modules/shared/home.nix). mobile-mcp locates `adb`
-  # via $ANDROID_HOME/platform-tools, so the gateway launchd agent below puts this
-  # on PATH + exports ANDROID_HOME (unlike osascript, adb is NOT in the base PATH).
-  androidSdkHome = "/opt/homebrew/share/android-commandlinetools";
+  # Android SDK root — single-sourced from modules/shared/home.nix's ANDROID_HOME
+  # (the android-commandlinetools Homebrew cask install prefix), not re-declared
+  # here. mobile-mcp locates `adb` via $ANDROID_HOME/platform-tools, so the
+  # gateway launchd agent below puts this on PATH + exports ANDROID_HOME (unlike
+  # osascript, adb is NOT in the base PATH).
+  androidSdkHome = config.home.sessionVariables.ANDROID_HOME;
 
   # The PUBLIC proxy binds a different loopback port; only the Mac cloudflared
   # connector (also loopback) reaches it, and Cloudflare Access gates the edge.
@@ -136,6 +137,32 @@ let
         "-y"
         "mcp-remote"
         "https://mcp.cloudflare.com/mcp"
+      ];
+    };
+    # Opera's "Browser Connector" (opera.com MCP Connector, announced 2026-03/04) —
+    # a remote, OAuth-gated MCP server that gives tools access to a LIVE
+    # Opera browser's open tabs/page content/screenshots/forms (navigate, read,
+    # screenshot, fill forms, search). DELIBERATELY CROSS-HOST here: the
+    # browser itself runs INSIDE the `macvm` guest (the `opera` Homebrew cask,
+    # hosts/macvm.nix) — not on this box — with Browser Connector enabled
+    # (Settings → "AI Services") and logged into an Opera account; this
+    # `mcp-remote` bridge runs on macos (the sole Claude Code/MCP client host)
+    # and authenticates to the SAME Opera account. Opera's connector is
+    # account-paired via its own cloud relay (not a local/same-machine
+    # handshake), so the two sides don't need to share a machine — see
+    # .claude/skills/opera-browser-connector/SKILL.md for the two-sided setup
+    # and the caveat that this cross-host pairing is a reasonable reading of
+    # Opera's docs, not something they document explicitly. Same mcp-remote
+    # bridge shape as cloudflare above: this local npx process holds the OAuth
+    # session (browser popup on first use, token cached in ~/.mcp-auth) and
+    # mcp-proxy hosts it like any other stdio server — no separate gateway
+    # wiring needed for "remote + OAuth" servers.
+    opera = {
+      command = npx;
+      args = [
+        "-y"
+        "mcp-remote"
+        "https://connector.mcp.opera.com/mcp"
       ];
     };
     # Browser automation via Kapture's Chrome DevTools extension. `bridge` is the
@@ -273,7 +300,7 @@ let
     };
   };
 
-  # Every server NAME the gateway hosts (7 packaged + 10 custom). Single source
+  # Every server NAME the gateway hosts (7 packaged + 11 custom). Single source
   # for the client SSE URLs, so the two sides can never drift. Order/names MUST
   # match the packaged servers enabled in `gatewayConfig.programs` below.
   packagedServerNames = [

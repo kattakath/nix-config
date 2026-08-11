@@ -18,10 +18,29 @@ let
   # Operator ed25519 public key — sole network login credential (same as nixpi/nixvm).
   operatorSshKey = import ../secrets/operator-key.nix;
 
+  # Single source for this guest's home path — everything below reads it instead
+  # of re-typing "/Users/${loginName}".
+  home = "/Users/${loginName}";
+
+  # Clipboard sync + `tart exec`/`tart ip --resolver=agent` RPC (packages/tart-guest-agent.nix).
+  # Apple's Virtualization.framework does NOT sync the pasteboard on its own for a
+  # macOS guest — despite docs/macvm-tart-runbook.md's old "Tart enables clipboard
+  # sharing by default" claim, clipboard needs this agent's in-house SPICE vdagent
+  # (`--run-vdagent`, bundled into `--run-agent` alongside `--run-rpc`) actually
+  # running inside the guest. Neither nixpkgs nor a Homebrew tap carries it, hence
+  # the standalone fetchurl package.
+  tartGuestAgent = pkgs.callPackage ../packages/tart-guest-agent.nix { };
+
+  # BTM wrapper (fleet-wide nix-<activity> convention, modules/darwin/core.nix) —
+  # ProgramArguments[0] must not be the raw vendored binary basename.
+  nixTartGuestAgent = pkgs.writeShellScriptBin "nix-tart-guest-agent" ''
+    exec ${lib.getExe tartGuestAgent} --run-agent
+  '';
+
   # Single ensure script for launchd + activation (path shape = core.nix screengrabDir).
   # Tart mounts host Screengrab as /Volumes/My Shared Files/Screengrab (VirtioFS).
   screengrabShare = "/Volumes/My Shared Files/Screengrab";
-  screengrabLocal = "/Users/${loginName}/Pictures/Screengrab";
+  screengrabLocal = "${home}/Pictures/Screengrab";
   nixScreengrabShare = pkgs.writeShellScriptBin "nix-screengrab-share" ''
     set -euo pipefail
     shared="${screengrabShare}"
@@ -184,7 +203,7 @@ in
 
   users.users.${loginName} = {
     name = loginName;
-    home = "/Users/${loginName}";
+    inherit home;
     openssh.authorizedKeys.keys = [ operatorSshKey ];
   };
 
@@ -219,6 +238,11 @@ in
   homebrew = {
     brews = [ ];
     casks = [
+      # Also the target for macos's `opera` MCP gateway server
+      # (modules/shared/mcp.nix) — Claude Code on macos drives THIS browser
+      # remotely via Opera's cloud-relayed Browser Connector (account-paired,
+      # not same-machine), once both sides are logged into the same Opera
+      # account. See .claude/skills/opera-browser-connector/SKILL.md.
       "opera"
       "whatsapp"
       "capcut"
@@ -239,8 +263,25 @@ in
       ProgramArguments = [ (lib.getExe nixScreengrabShare) ];
       RunAtLoad = true;
       StartInterval = 30;
-      StandardOutPath = "/Users/${loginName}/Library/Logs/nix-screengrab-share.log";
-      StandardErrorPath = "/Users/${loginName}/Library/Logs/nix-screengrab-share.log";
+      StandardOutPath = "${home}/Library/Logs/nix-screengrab-share.log";
+      StandardErrorPath = "${home}/Library/Logs/nix-screengrab-share.log";
+    };
+  };
+
+  # ---- Clipboard sync with the macos host (packages/tart-guest-agent.nix) ---
+  # `--run-agent` = `--run-vdagent` (clipboard) + `--run-rpc` (`tart exec` /
+  # `tart ip --resolver=agent` from the host). Must be a per-user LaunchAgent,
+  # not a LaunchDaemon — pasteboard access needs a live GUI session (root has
+  # none), matching cirruslabs' own reference tart-guest-agent.plist. KeepAlive
+  # respawns it if the process dies; RunAtLoad starts it at login.
+  launchd.user.agents.tart-guest-agent = {
+    serviceConfig = {
+      Label = "org.cirruslabs.tart-guest-agent";
+      ProgramArguments = [ (lib.getExe nixTartGuestAgent) ];
+      RunAtLoad = true;
+      KeepAlive = true;
+      StandardOutPath = "${home}/Library/Logs/tart-guest-agent.log";
+      StandardErrorPath = "${home}/Library/Logs/tart-guest-agent.log";
     };
   };
 
