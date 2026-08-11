@@ -142,7 +142,7 @@ let
       account="$(id -un)"
       apikey="$("$security" find-generic-password -a "$account" -s VAST_API_KEY -w 2>/dev/null || true)"
       if [ -z "$apikey" ]; then
-        echo "vast-template-apply: VAST_API_KEY not in the login Keychain (set-secret VAST_API_KEY)." >&2
+        echo "vast-template-apply: VAST_API_KEY not in the login Keychain (secret set VAST_API_KEY)." >&2
         exit 1
       fi
 
