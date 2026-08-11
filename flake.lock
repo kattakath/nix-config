@@ -1061,11 +1061,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1786411860,
-        "narHash": "sha256-qIG4YkgENWN8aQ568GVP/vJ2gsB6ew5EhOGFgaLUGcw=",
+        "lastModified": 1786424341,
+        "narHash": "sha256-33fppoTjG2beIRvnNdCGHMGtwNek0W2KOHwreq/T0QY=",
         "owner": "ismailkattakath",
         "repo": "nix-vast-provision",
-        "rev": "1fa23d441afd843da8bf554b4a8f2a0a23e0c9c5",
+        "rev": "5a6dbfe823911ded5808af4970ac75182f6223f7",
         "type": "github"
       },
       "original": {
