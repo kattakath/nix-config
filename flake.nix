@@ -459,6 +459,19 @@
           ];
         };
 
+      # ---- Generic terranix renderer for external/private callers -----------
+      # A raw wrapper around this flake's own pinned `terranix` input -- lets a
+      # private composition flake render ITS OWN terranix module (e.g. a
+      # different Cloudflare account's tunnel stack) without needing its own
+      # terranix flake input. No site-specific content lives here; this is
+      # purely a library primitive, mirroring cfTunnelConfig's own closure
+      # trick but fully generic (any modules list, any system).
+      terranixRender =
+        { system, modules }:
+        terranix.lib.terranixConfiguration {
+          inherit system modules;
+        };
+
       # Renders infra/cloudflare/macos-mcp-tunnel.nix (the Mac's OAuth-gated MCP
       # tunnel + Cloudflare Access Managed-OAuth app + policy + connector-token
       # output) to its own config.tf.json, per system.
@@ -857,6 +870,7 @@
           mkHomeManagerModule
           identityArgs
           cfTunnelConfig
+          terranixRender
           ;
       };
 
