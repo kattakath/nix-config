@@ -6,7 +6,7 @@ description: >
   asked to "tail/watch the Vast instance log", "check provisioning progress",
   "see the last N lines of the instance log", "why is the Open button stuck", or
   "diagnose a Vast instance". Pairs with the vast-* provisioning subsystem
-  (packages/vast-provision.nix, packages/vast-bootstrap.sh) and the design doc
+  (the vast-provision flake input + packages/vast-bootstrap.sh) and the design doc
   docs/vastai-template-provisioning.md.
 ---
 
