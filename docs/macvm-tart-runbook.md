@@ -130,7 +130,31 @@ Guest: `/Volumes/My Shared Files/Screengrab` → `~/Pictures/Screengrab` (symlin
 
 ## Clipboard
 
-Tart enables clipboard sharing by default. Full fidelity on macOS guests may need [tart-guest-agent](https://github.com/cirruslabs/tart-guest-agent).
+Apple's Virtualization.framework does **not** sync the pasteboard on its own for
+a macOS guest — clipboard needs [tart-guest-agent](https://github.com/cirruslabs/tart-guest-agent)
+actually running *inside* the guest. Neither nixpkgs nor a Homebrew tap
+packages it (verified: no `tart-guest-agent` in nixpkgs, no matching formula in
+any `cirruslabs/homebrew-*` tap — only their unrelated Cirrus CLI tap exists),
+so `packages/tart-guest-agent.nix` fetches the GitHub Releases tarball directly
+(ad-hoc-signed universal binary; runs fine unsigned since a Nix-fetched file
+carries no quarantine xattr — the actual Gatekeeper trigger).
+
+`hosts/macvm.nix` wires it as `launchd.user.agents.tart-guest-agent`, running
+`tart-guest-agent --run-agent` (clipboard vdagent + `tart exec`/`tart ip
+--resolver=agent` RPC) as a **per-user LaunchAgent** under `aloshy` — it must be
+a per-user agent, not a root LaunchDaemon, because pasteboard access needs a
+live GUI session. `RunAtLoad` + `KeepAlive` start it at login and respawn it if
+it dies; logs at `~/Library/Logs/tart-guest-agent.log` in the guest.
+
+To pick this up on an already-provisioned VM:
+
+```bash
+nix run .#macvm-tart-ssh -- nix run --refresh github:kattakath/nix-config#macvm
+```
+
+then either log out/in as `aloshy` in the guest (so launchd's GUI session
+picks up the new agent) or just `nix run .#macvm-tart-stop && nix run .#macvm-tart-start`
+to restart the whole VM.
 
 ## Commands
 
