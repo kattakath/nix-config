@@ -365,64 +365,21 @@
       cloudflareAccountId = "726e0b2aa2bc2c6944f96a042e3c461b";
       cloudflareZoneId = "6e28971881e488941d052bbbf50d69cd"; # the domainName zone
 
-      # ---- Sites served on nixpi (single source) -------------------------------
-      # Each entry is a static site Caddy serves on nixpi:
-      #   { domain; zoneId ? null; root; www ? true; ownTunnel ? false }  (root =
-      # the package dir Caddy file_servers). hosts/nixpi.nix maps EVERY entry -> a
-      # Caddy vhost (needs only domain/root); infra/cloudflare/nixpi-tunnel.nix maps
-      # each -> a tunnel ingress rule on the PRIMARY (Personal-account) tunnel,
-      # unless `ownTunnel = true` (see below), plus, ONLY when `zoneId` is set, an
-      # apex CNAME and (when www is also true, the default) a www CNAME + a
-      # www->apex 301 edge redirect, all managed by this repo's terranix stack. Set
-      # `www = false` for a SUBDOMAIN entry (e.g. ismail.kattakath.com), where a
-      # www.<subdomain> record would be nonsense. Adding a site is ONE entry here
-      # (no copy-paste). zoneIds are non-secret identifiers, safe to commit — but
-      # omit `zoneId` entirely for a site whose zone lives in an account this
-      # public repo shouldn't name (e.g. dontsell.ai, in the separate DontSell
-      # account): its DNS + redirect are then managed out-of-band, directly in that
-      # account. When that other account also owns the site's zone (not just
-      # something managed out-of-band), ALSO set `ownTunnel = true`: a
-      # cfargotunnel.com CNAME only resolves within the tunnel's own account, so
-      # the primary tunnel can never route it — the site needs its own separate
-      # tunnel + connector, hand-written in hosts/nixpi.nix.
-      hostedSites = [
-        {
-          domain = domainName; # kattakath.com — also the SSH/primary zone
-          zoneId = cloudflareZoneId;
-          root = ./packages/landing;
-        }
-        {
-          domain = "snoringirl.com";
-          zoneId = "21de2a6be1b268b2b151ae0b3592e562";
-          root = ./packages/snoringirl;
-        }
-        {
-          # ismail.kattakath.com — personal Duochrome landing page (Applied AI /
-          # platform / cloud). Same zone as the apex; a subdomain, so no www.
-          domain = "ismail.${domainName}";
-          zoneId = cloudflareZoneId;
-          root = ./packages/ismail-landing;
-          www = false;
-        }
-        {
-          # dontsell.ai — DontSell product landing page. Its Cloudflare zone
-          # lives in a separate (DontSell) account — deliberately NO zoneId
-          # here (this repo is public): DNS + the www redirect are managed
-          # out-of-band directly in that account, not via this repo's
-          # terranix stack. `ownTunnel = true` because a cfargotunnel.com CNAME
-          # only resolves within the SAME account as the tunnel (confirmed via
-          # Cloudflare's own docs) — this account boundary means dontsell.ai
-          # CANNOT be routed by nixpi's primary (Personal-account) tunnel, so
-          # it gets its own separate tunnel + connector, hand-written in
-          # hosts/nixpi.nix (the nix-cloudflared-connector module is a
-          # singleton — one unit, one tokenFile — so a second instance can't
-          # just reuse it). Caddy still serves it locally like every other
-          # site here; only the tunnel routing differs.
-          domain = "dontsell.ai";
-          root = ./packages/dontsell-landing;
-          ownTunnel = true;
-        }
-      ];
+      # ---- Sites served on nixpi: composition hook, not a live list -----------
+      # nixpi's Caddy vhosts are driven ENTIRELY by mkNixos's `hostedSites`
+      # parameter (see mkNixos below) — this public repo defines the SHAPE and
+      # the GENERIC Caddy-generation code (hosts/nixpi.nix), never any real
+      # site. Shape: { domain; zoneId ? null; root; www ? true; ownTunnel ? false }
+      # (root = a path Caddy file_servers). infra/cloudflare/nixpi-tunnel.nix's
+      # `cfTunnelConfig` maps the SAME shape to tunnel ingress + DNS (also
+      # overridable — see that binding below). Public hosts pass nothing, so
+      # `hostedSites` defaults to `[ ]`: Caddy runs, zero vhosts, the sdImage
+      # stays secret- and site-free. The real production sites (kattakath.com,
+      # snoringirl.com, ismail.kattakath.com, dontsell.ai) are supplied by the
+      # private nix-personal composition flake's `nixosConfigurations.nixpi`,
+      # mirroring the Vast-provisioner pattern (`extraHomeModules` for the Mac;
+      # `hostedSites` + `extraModules` for nixpi) — see
+      # docs/private-home-modules.md.
 
       # ---- DRY system mapping -------------------------------------------------
       # A 2-SYSTEM aarch64-only FLEET (aarch64-darwin: macos + macvm; aarch64-linux: nixpi + nixvm):
@@ -478,7 +435,14 @@
       # ingress + proxied CNAME + connector-token output for nixpi) to its own
       # config.tf.json, per system.
       cfTunnelConfig =
-        system:
+        {
+          system,
+          # Same hostedSites shape/default as mkNixos — public callers (the
+          # cf-tunnel-apply/destroy apps below) pass nothing, rendering an
+          # ingress/DNS config with zero sites. A private composition flake
+          # calls this directly with its own real site list.
+          hostedSites ? [ ],
+        }:
         terranix.lib.terranixConfiguration {
           inherit system;
           # domainName is the zone name, plus the account/zone ids — threaded from
@@ -575,7 +539,7 @@
               exit 1
             fi
             rm -f config.tf.json
-            cp ${cfTunnelConfig system} config.tf.json
+            cp ${cfTunnelConfig { inherit system; }} config.tf.json
             tofu init
             tofu ${action}
           ''
@@ -776,6 +740,10 @@
           system,
           hostname,
           extraModules ? [ ],
+          # Sites Caddy serves on this host — see the comment above and
+          # docs/private-home-modules.md. Public hosts pass nothing (Caddy
+          # still runs, zero vhosts); a private composition flake overrides it.
+          hostedSites ? [ ],
         }:
         nixpkgs.lib.nixosSystem {
           # Set the platform via the MODERN `nixpkgs.hostPlatform` module option
@@ -888,6 +856,7 @@
           mkNixos
           mkHomeManagerModule
           identityArgs
+          cfTunnelConfig
           ;
       };
 
