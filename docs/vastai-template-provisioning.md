@@ -97,13 +97,16 @@ there is no auto-detection of which one to use:
   runs against the aggregator repo and may need `--skip-check` on first apply.
 - **Manifest mode** (`--manifest PATH --workflow PATH`) — no repo clone at all,
   no bash engine. Vast's native provisioner runs directly against a rev-pinned
-  `provisioning.yaml` + workflow JSON committed in nix-config itself
-  (`packages/templates/bfs-flux-klein/`), served via a `rawBase` URL built
-  from the same `orgName`/`repoName`/`rev` the bootstrap URL uses — overridden
-  to nix-config's own identity when `callPackage`ing the `vast-provision`
-  flake input's `packages/vast-provision.nix` (see `flake.nix`), since Vast
-  fetches these files from THIS repo, not the input's own. Auto-sets
-  `skipcheck=1` (nothing to legitimacy-check — there's no repo).
+  `provisioning.yaml` + workflow JSON served via a `rawBase` URL built from the
+  same `orgName`/`repoName`/`rev` the bootstrap URL uses. Auto-sets
+  `skipcheck=1` (nothing to legitimacy-check — there's no repo). **This mode
+  is for PUBLIC, non-sensitive manifests only** — the manifest/workflow files
+  it serves must be committed wherever `orgName`/`repoName`/`rev` point, and
+  that must never be a repo (like this one) meant to stay public with no
+  stack-specific content in it. Any real, stack-specific workflow — anything
+  identifying a person, a private model, or content not meant to be public —
+  belongs in a **private** aggregator repo via aggregator mode instead, never
+  committed here.
 
 For legacy and aggregator mode, the constant entrypoint + a legitimacy marker
 are guaranteed by **scaffolding repos from a template**:
