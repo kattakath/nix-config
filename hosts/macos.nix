@@ -158,6 +158,9 @@
       # (Brewfile installs brews before masApps — without that, formulae fail with
       # "You have not agreed to the Xcode license" on first activation).
       Xcode = 497799835;
+      # Plash — put a website on your desktop as the wallpaper. App Store–only
+      # (no Homebrew cask). https://apps.apple.com/ca/app/plash/id1494023538
+      Plash = 1494023538;
     };
   };
 }
