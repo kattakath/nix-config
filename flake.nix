@@ -1155,6 +1155,9 @@
         # files stay vendored locally for that reason — see
         # docs/vastai-template-provisioning.md and the vast-lib-drift check
         # (checks.<system>, below) that guards the two copies from diverging.
+        # NO stack-specific manifest content (e.g. a concrete ComfyUI workflow)
+        # is ever vendored here — that lives in a PRIVATE aggregator repo
+        # (--repo gitlab:... --workflow-name NAME), never in this public repo.
         (nixpkgs.lib.genAttrs darwinSystems (
           system:
           let
@@ -1171,34 +1174,6 @@
             vast-ssh-key-set = kit.ssh-key-set;
             vast-init-repo = kit.init-repo;
             vast-rent = kit.rent;
-
-            # nix-config-LOCAL content the upstream extraction correctly knows
-            # nothing about (bfs-flux-klein is our own manifest-mode template,
-            # not vendored upstream) — replaces the bfs-flux-klein slice of the
-            # OLD vendored scripts-lint. NOT sourcing kit.scripts-lint here: it
-            # would shellcheck the EXTERNAL flake's OWN copies of
-            # vast-bootstrap.sh/provision-lib.sh (Nix source-path literals
-            # resolve relative to wherever vast-provision.nix physically
-            # lives), which is redundant with that repo's own CI and gives
-            # nix-config zero assurance about ITS OWN served copies — see
-            # vast-lib-drift (checks.<system>) for the check that matters here.
-            vast-bfs-lint =
-              pkgs.runCommand "vast-bfs-lint"
-                {
-                  nativeBuildInputs = [
-                    pkgs.yq-go
-                    pkgs.jq
-                    pkgs.shellcheck
-                  ];
-                }
-                ''
-                  manifest=${./packages/templates/bfs-flux-klein/provisioning.yaml}
-                  yq eval 'has("version") and has("post_commands") and has("write_files")' "$manifest" | grep -qx true
-                  yq eval '.write_files[] | select(.path == "/workspace/provision-gate.sh") | .content' "$manifest" > gate.sh
-                  shellcheck gate.sh
-                  jq empty ${./packages/templates/bfs-flux-klein/comfyui/BFS_FluxKlein9b_FaceSwap.json}
-                  touch "$out"
-                '';
           }
         ))
 
