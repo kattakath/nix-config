@@ -105,6 +105,22 @@
     local-rag.inputs.nixpkgs.follows = "nixpkgs";
     local-rag.inputs.home-manager.follows = "home-manager";
 
+    # vast-provision — the Vast.ai GPU-template provisioning CLI toolkit
+    # (vast-template-apply / vast-repo-check / vast-account-vars-set /
+    # vast-ssh-key-set / vast-init-repo / vast-rent), EXTRACTED FROM THIS REPO
+    # into a standalone MIT flake (github.com/ismailkattakath/nix-vast-provision)
+    # — phase 2 of the extraction (phase 1 backported local-only features
+    # upstream first). Consumed by reaching into its store path for
+    # packages/vast-provision.nix directly, with orgName/repoName/rev
+    # OVERRIDDEN to nix-config's own identity (see the callPackage in
+    # `packages` below) — UNLIKE the other extracted flakes above, its own
+    # packages.<system>.* outputs are hardcoded to ismailkattakath/
+    # nix-vast-provision, wrong for OUR raw-URL construction. Pure
+    # (writeShellApplication/runCommand only), so follows our nixpkgs to
+    # avoid a 2nd copy.
+    vast-provision.url = "github:ismailkattakath/nix-vast-provision";
+    vast-provision.inputs.nixpkgs.follows = "nixpkgs";
+
     # MCP (Model Context Protocol) server packaging for Claude Code. We use its
     # `lib.mkConfig` to render a PINNED {mcpServers:{…}} JSON (the 4 packaged
     # servers become reproducible store-path commands) that our localhost
@@ -229,6 +245,7 @@
       keychain-secrets,
       cloudflared-connector,
       local-rag,
+      vast-provision,
       mcp-servers-nix,
       agent-skills-vercel,
       agent-skills-anthropic,
@@ -1122,15 +1139,27 @@
           inherit (keychain-secrets.packages.${system}) set-secret remove-secret secret;
         }))
 
-        # Vast.ai template-provisioning toolkit (macOS only) — exposed as packages
-        # so `nix flake check` BUILDS them (writeShellApplication shellcheck) and
-        # lints the committed public bootstrap. The bootstrap's raw URL is pinned to
-        # THIS flake's rev. See packages/vast-provision.nix +
-        # docs/vastai-template-provisioning.md.
+        # Vast.ai template-provisioning toolkit (macOS only) — PHASE 2 of the
+        # extraction (phase 1 backported local-only features upstream first,
+        # already merged): the CLI *logic* now comes from the vast-provision
+        # flake input (github:ismailkattakath/nix-vast-provision) — dogfooding
+        # our own extraction, same idea as firmware-secrets/keychain-secrets/
+        # cloudflared-connector/local-rag above. UNLIKE those four, we reach
+        # into the input's STORE PATH for the raw .nix file (it exposes no
+        # .nix-file output, only prebuilt packages/apps) and OVERRIDE
+        # orgName/repoName/rev to THIS repo's own coordinates: Vast fetches
+        # packages/vast-bootstrap.sh and packages/templates/provisioner/
+        # provision-lib.sh over raw HTTP from nix-config at instance-boot time
+        # (PROVISIONING_SCRIPT/PROVISION_LIB_URL), so the raw-URL construction
+        # MUST point here, never at the extraction's own identity. Both served
+        # files stay vendored locally for that reason — see
+        # docs/vastai-template-provisioning.md and the vast-lib-drift check
+        # (checks.<system>, below) that guards the two copies from diverging.
         (nixpkgs.lib.genAttrs darwinSystems (
           system:
           let
-            kit = (pkgsFor system).callPackage ./packages/vast-provision.nix {
+            pkgs = pkgsFor system;
+            kit = pkgs.callPackage "${vast-provision}/packages/vast-provision.nix" {
               inherit orgName repoName userName;
               rev = self.rev or "main";
             };
@@ -1142,7 +1171,34 @@
             vast-ssh-key-set = kit.ssh-key-set;
             vast-init-repo = kit.init-repo;
             vast-rent = kit.rent;
-            vast-scripts-lint = kit.scripts-lint;
+
+            # nix-config-LOCAL content the upstream extraction correctly knows
+            # nothing about (bfs-flux-klein is our own manifest-mode template,
+            # not vendored upstream) — replaces the bfs-flux-klein slice of the
+            # OLD vendored scripts-lint. NOT sourcing kit.scripts-lint here: it
+            # would shellcheck the EXTERNAL flake's OWN copies of
+            # vast-bootstrap.sh/provision-lib.sh (Nix source-path literals
+            # resolve relative to wherever vast-provision.nix physically
+            # lives), which is redundant with that repo's own CI and gives
+            # nix-config zero assurance about ITS OWN served copies — see
+            # vast-lib-drift (checks.<system>) for the check that matters here.
+            vast-bfs-lint =
+              pkgs.runCommand "vast-bfs-lint"
+                {
+                  nativeBuildInputs = [
+                    pkgs.yq-go
+                    pkgs.jq
+                    pkgs.shellcheck
+                  ];
+                }
+                ''
+                  manifest=${./packages/templates/bfs-flux-klein/provisioning.yaml}
+                  yq eval 'has("version") and has("post_commands") and has("write_files")' "$manifest" | grep -qx true
+                  yq eval '.write_files[] | select(.path == "/workspace/provision-gate.sh") | .content' "$manifest" > gate.sh
+                  shellcheck gate.sh
+                  jq empty ${./packages/templates/bfs-flux-klein/comfyui/BFS_FluxKlein9b_FaceSwap.json}
+                  touch "$out"
+                '';
           }
         ))
 
@@ -1628,6 +1684,24 @@
       checks = forAllSystems (system: {
         formatting = treefmtEval.${system}.config.build.check self;
         pre-commit = preCommitFor system;
+        # Drift guard: nix-config vendors its OWN physical copies of the two
+        # instance-side scripts a live Vast instance fetches over raw HTTP at
+        # boot (packages/vast-bootstrap.sh, packages/templates/provisioner/
+        # provision-lib.sh) — required because PROVISIONING_SCRIPT/
+        # PROVISION_LIB_URL are built from THIS repo's orgName/repoName (the
+        # vast-provision.nix callPackage override above), not the
+        # vast-provision flake input's own identity. The input ALSO carries
+        # its own copies of both files (for its own CI + as what forks
+        # reference). Nothing else catches the two silently diverging — this
+        # fails loudly the moment they do.
+        vast-lib-drift =
+          (pkgsFor system).runCommand "vast-lib-drift" { nativeBuildInputs = [ (pkgsFor system).diffutils ]; }
+            ''
+              diff -u ${./packages/vast-bootstrap.sh} ${vast-provision}/packages/vast-bootstrap.sh
+              diff -u ${./packages/templates/provisioner/provision-lib.sh} \
+                ${vast-provision}/packages/templates/provisioner/provision-lib.sh
+              touch "$out"
+            '';
       });
     };
 }
