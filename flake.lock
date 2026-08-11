@@ -858,7 +858,8 @@
         "nixpkgs": "nixpkgs_3",
         "raspberry-pi-nix": "raspberry-pi-nix",
         "terranix": "terranix",
-        "treefmt-nix": "treefmt-nix"
+        "treefmt-nix": "treefmt-nix",
+        "vast-provision": "vast-provision"
       }
     },
     "rpi-bluez-firmware-src": {
@@ -1050,6 +1051,26 @@
       "original": {
         "owner": "numtide",
         "repo": "treefmt-nix",
+        "type": "github"
+      }
+    },
+    "vast-provision": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1786411860,
+        "narHash": "sha256-qIG4YkgENWN8aQ568GVP/vJ2gsB6ew5EhOGFgaLUGcw=",
+        "owner": "ismailkattakath",
+        "repo": "nix-vast-provision",
+        "rev": "1fa23d441afd843da8bf554b4a8f2a0a23e0c9c5",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ismailkattakath",
+        "repo": "nix-vast-provision",
         "type": "github"
       }
     }
