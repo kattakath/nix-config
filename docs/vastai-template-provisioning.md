@@ -1,7 +1,9 @@
 # Vast.ai Template Provisioning — Design
 
-Status: **design / not yet implemented.** A flake-based tool that provisions
-[Vast.ai](https://vast.ai) GPU templates from this mono-repo. Driving use case: the
+Status: **implemented** — see `packages/vast-provision.nix`. This doc describes
+the design and rationale; the flake apps' own `--help` text and
+`docs`/`README.md` in the extracted [`nix-vast-provision`](https://github.com/ismailkattakath/nix-vast-provision)
+flake are the source of truth for exact current flags. Driving use case: the
 ComfyUI workflow repo (e.g.
 `gitlab.com/ismailkattakath/comfyui-workflows`), passed in per-run as `--repo`.
 
@@ -71,18 +73,34 @@ public bootstrap serves every private stack.
 > from a *pushed* commit). Chosen over a gist / Cloudflare route: same declarative
 > source, versioned, no extra repo or infra. Contains **no secrets**.
 
-## Stack templates & the `provision.sh` contract
+## Stack templates & three provisioning modes
 
-`vast-template-apply` is **stack-agnostic**: it only ever assumes the constant
-entrypoint **`provision.sh`**, never its contents. `provision.sh` is **self-contained
-and stack-authored** — it owns ALL the provisioning logic (ComfyUI, a training rig, an
-inference server, …). This maps directly onto the Vast `PROVISIONING_SCRIPT` model:
-nix-config clones the repo and runs `provision.sh`, making no assumption about what you
-install. **Stack-specific logic (e.g. a ComfyUI engine + its config schema) lives in
-YOUR repos, never in nix-config.**
+`vast-template-apply` supports **three modes, selected explicitly by flags** —
+there is no auto-detection of which one to use:
 
-The constant entrypoint + a legitimacy marker are guaranteed by **scaffolding repos
-from a template**:
+- **Legacy / repo mode** (`--repo` only) — the original design below: the
+  bootstrap clones a provisioner repo and runs its constant, self-contained
+  **`provision.sh`** entrypoint on `vastai/base-image`. `vast-template-apply`
+  makes no assumption about what `provision.sh` installs — **stack-specific
+  logic (e.g. a ComfyUI engine + its config schema) lives in YOUR repos, never
+  in nix-config.**
+- **Aggregator mode** (`--repo` + `--workflow-name`) — clones a **private**
+  aggregator repo (e.g. `comfyui-workflows`) whose own self-contained
+  `provision.sh` runs Vast's **native** `PROVISIONING_MANIFEST` provisioner
+  *locally*, on the pre-baked `vastai/comfy` image, against the named
+  workflow's manifest. No bash engine (`PROVISION_LIB_URL`) involved — the
+  private clone carries the manifest instead of needing a public raw URL for
+  it. Known rough edge: doesn't auto-set `--skip-check`, so `vast-repo-check`
+  runs against the aggregator repo and may need `--skip-check` on first apply.
+- **Manifest mode** (`--manifest PATH --workflow PATH`) — no repo clone at all,
+  no bash engine. Vast's native provisioner runs directly against a rev-pinned
+  `provisioning.yaml` + workflow JSON committed in nix-config itself
+  (`packages/vast-templates/bfs-flux-klein/`), served via a `rawBase` URL built
+  from the same `orgName`/`repoName`/`rev` the bootstrap URL uses. Auto-sets
+  `skipcheck=1` (nothing to legitimacy-check — there's no repo).
+
+For legacy and aggregator mode, the constant entrypoint + a legitimacy marker
+are guaranteed by **scaffolding repos from a template**:
 
 - nix-config ships a **generic** `provisioner-template`
   (`packages/vast-templates/provisioner/`): a `provision.sh` stub +
@@ -215,8 +233,9 @@ static `aarch64-darwin.<name>` `apps` entries — mirroring `set-secret` /
    account settings. ✓
 3. **Weights transport** — direct HF/Civitai, authenticated via `HF_TOKEN` /
    `CIVITAI_TOKEN`; B2 deferred. ✓
-4. **Mode selection** — auto-select simple (raw URL for public, bootstrap for private,
-   chosen by probing repo visibility). ✓
+4. **Mode selection** — explicit, via flags: `--repo` alone = legacy; `--repo` +
+   `--workflow-name` = aggregator; `--manifest` + `--workflow` = manifest mode.
+   No auto-probing of repo visibility (an earlier, since-superseded idea). ✓
 
 Still to pin during implementation: the account-var *set* path (API vs. manual paste)
 and the three boot-time unknowns above.
