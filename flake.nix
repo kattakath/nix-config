@@ -1479,6 +1479,11 @@
               program = "${self.packages.aarch64-darwin.vast-init-repo}/bin/vast-init-repo";
               meta.description = "Scaffold a new provisioner repo from provisioner-template on GitHub/GitLab, public/private (--repo, --template)";
             };
+            aarch64-darwin.vast-rent = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.vast-rent}/bin/vast-rent";
+              meta.description = "Rent a live, BILLED Vast.ai GPU instance from a template (--template-name|--template-hash, --offer, --gpu, --disk, --max-price, --dry-run)";
+            };
 
             # `nix run .#jsonresume -- <download|print|markdown|text> …` — fetch a JSON
             # Resume and render it (PDF, or theme-less Markdown/text to stdout) via the
