@@ -880,6 +880,7 @@ in
         # extensions belong in each project's devcontainer / .vscode instead.
         extensions = with marketplace; [
           anthropic.claude-code # AI coding — every repo
+          saoudrizwan.claude-dev # Cline — AI coding agent, every repo
           github.vscode-pull-request-github # PR review — every repo
           ms-azuretools.vscode-docker # Docker — general
           ms-azuretools.vscode-containers # containers/devcontainers — general
