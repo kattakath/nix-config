@@ -17,16 +17,16 @@
 # account owns the GUI session, `darwin-rebuild switch` cannot load the agent.
 #
 # SERVER SIDE (this box, 127.0.0.1:8096)
-#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 18 servers (19 with
+#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 19 servers (20 with
 #   the opt-in `telegram` server), each reachable at /servers/<name>/sse.
 #   `gatewayConfig` is rendered by mcp-servers-nix's `lib.mkConfig`, so the 7 packaged
 #   servers (context7/fetch/memory/sequential-thinking/nixos/terraform/github) are
-#   PINNED store-path commands; the 11 without a module (+ telegram when enabled) fall
+#   PINNED store-path commands; the 12 without a module (+ telegram when enabled) fall
 #   back to pinned npx/uvx launchers (still a runtime fetch, but acceptable on the Mac
 #   where Node/uv already live).
 #
 # CLIENT SIDE (programs.claude-code.mcpServers)
-#   The 18 hosted servers (19 with `telegram`) are wired as `type = "http"` (Streamable HTTP — the
+#   The 19 hosted servers (20 with `telegram`) are wired as `type = "http"` (Streamable HTTP — the
 #   current MCP standard; the legacy HTTP+SSE transport was deprecated in the
 #   2025-03-26 spec) pointing at /servers/<name>/mcp; desktop-commander stays
 #   `type = "stdio"`. The claude-code module writes these into a managed
@@ -109,7 +109,7 @@ let
 
   # The servers with no mcp-servers-nix module, as raw stdio commands. Merged into
   # the gateway config via mkConfig's `settings.servers` (telegram appended below,
-  # opt-in). The 10 base ones fall back to pinned npx/uvx launchers.
+  # opt-in). The 11 base ones fall back to pinned npx/uvx launchers.
   customStdioServers = {
     duckduckgo = {
       command = uvx;
@@ -163,6 +163,26 @@ let
         "-y"
         "mcp-remote"
         "https://connector.mcp.opera.com/mcp"
+      ];
+    };
+    # Apify's OFFICIAL hosted MCP server (mcp.apify.com) — exposes the Apify Store's
+    # thousands of ready-made Actors (scrapers/crawlers/automation for social media,
+    # search engines, maps, e-commerce, any website) as tools, plus Actor
+    # search/run/dataset access. Same remote-OAuth `mcp-remote` bridge shape as
+    # `cloudflare`/`opera` above: Streamable HTTP (Apify retired SSE on 2026-04-01),
+    # OAuth on first use (browser popup → Apify sign-in; token cached in ~/.mcp-auth),
+    # so NO APIFY_TOKEN is baked into Nix/argv/the store. Reuse over rebuild — the
+    # local `npx @apify/actors-mcp-server` route would instead need an APIFY_TOKEN env
+    # var (a Keychain-wrapper like telegram), which the hosted OAuth path avoids. Like
+    # the other OAuth bridges it degrades gracefully headless (mcp-remote starts fine
+    # unauthenticated → its tools just fail until the one-time browser login), so it
+    # can't dark the gateway at startup.
+    apify = {
+      command = npx;
+      args = [
+        "-y"
+        "mcp-remote"
+        "https://mcp.apify.com"
       ];
     };
     # Browser automation via Kapture's Chrome DevTools extension. `bridge` is the
@@ -300,7 +320,7 @@ let
     };
   };
 
-  # Every server NAME the gateway hosts (7 packaged + 11 custom). Single source
+  # Every server NAME the gateway hosts (7 packaged + 12 custom). Single source
   # for the client SSE URLs, so the two sides can never drift. Order/names MUST
   # match the packaged servers enabled in `gatewayConfig.programs` below.
   packagedServerNames = [
