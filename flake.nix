@@ -218,6 +218,15 @@
       url = "github:vercel-labs/agent-skills";
       flake = false;
     };
+    agent-skills-vercel-workflow = {
+      # OFFICIAL Vercel Workflow SDK repo (vercel/workflow, Apache-2.0, 2.3k★) — the durable/resumable
+      # TypeScript workflow engine, DISTINCT from the two vercel-labs skill repos above. We cherry-pick
+      # its three USER-facing skills in programs.claude-code.skills (workflow / workflow-init /
+      # migrating-to-workflow-sdk); we deliberately DROP `internal-dev-workbench`, which only sets up a
+      # tmux/portless dev session for contributors HACKING ON the SDK repo itself — irrelevant to this fleet.
+      url = "github:vercel/workflow";
+      flake = false;
+    };
     # Anthropic's OFFICIAL first-party plugin marketplace (Apache-2.0). Pinned to enable the in-repo
     # `security-guidance` plugin (hook-driven secret/injection warnings + Stop-hook diff review) via
     # programs.claude-code.marketplaces + enabledPlugins — the same declarative path as grok-build.
@@ -258,6 +267,7 @@
       agent-skills-superpowers,
       agent-skills-jsonresume,
       agent-skills-vercel-agent,
+      agent-skills-vercel-workflow,
       claude-plugins-official,
       grok-build-plugin-cc,
       ...
@@ -713,6 +723,7 @@
                 agent-skills-superpowers
                 agent-skills-jsonresume
                 agent-skills-vercel-agent
+                agent-skills-vercel-workflow
                 claude-plugins-official
                 grok-build-plugin-cc
                 keychain-secrets

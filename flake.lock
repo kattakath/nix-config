@@ -199,6 +199,22 @@
         "type": "github"
       }
     },
+    "agent-skills-vercel-workflow": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1786543014,
+        "narHash": "sha256-GpMQTPB0gli0HhX3kT1g28ajdz/EinGVcdCxfL0lsKg=",
+        "owner": "vercel",
+        "repo": "workflow",
+        "rev": "600b096d2fa5423b742683fcd047010a1f1bfcd6",
+        "type": "github"
+      },
+      "original": {
+        "owner": "vercel",
+        "repo": "workflow",
+        "type": "github"
+      }
+    },
     "brew-src": {
       "flake": false,
       "locked": {
@@ -842,6 +858,7 @@
         "agent-skills-trailofbits": "agent-skills-trailofbits",
         "agent-skills-vercel": "agent-skills-vercel",
         "agent-skills-vercel-agent": "agent-skills-vercel-agent",
+        "agent-skills-vercel-workflow": "agent-skills-vercel-workflow",
         "claude-plugins-official": "claude-plugins-official",
         "cloudflared-connector": "cloudflared-connector",
         "determinate": "determinate",
