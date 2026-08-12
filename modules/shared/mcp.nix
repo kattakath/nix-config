@@ -17,16 +17,16 @@
 # account owns the GUI session, `darwin-rebuild switch` cannot load the agent.
 #
 # SERVER SIDE (this box, 127.0.0.1:8096)
-#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 19 servers (20 with
+#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 20 servers (21 with
 #   the opt-in `telegram` server), each reachable at /servers/<name>/sse.
 #   `gatewayConfig` is rendered by mcp-servers-nix's `lib.mkConfig`, so the 7 packaged
 #   servers (context7/fetch/memory/sequential-thinking/nixos/terraform/github) are
-#   PINNED store-path commands; the 12 without a module (+ telegram when enabled) fall
+#   PINNED store-path commands; the 13 without a module (+ telegram when enabled) fall
 #   back to pinned npx/uvx launchers (still a runtime fetch, but acceptable on the Mac
 #   where Node/uv already live).
 #
 # CLIENT SIDE (programs.claude-code.mcpServers)
-#   The 19 hosted servers (20 with `telegram`) are wired as `type = "http"` (Streamable HTTP — the
+#   The 20 hosted servers (21 with `telegram`) are wired as `type = "http"` (Streamable HTTP — the
 #   current MCP standard; the legacy HTTP+SSE transport was deprecated in the
 #   2025-03-26 spec) pointing at /servers/<name>/mcp; desktop-commander stays
 #   `type = "stdio"`. The claude-code module writes these into a managed
@@ -107,9 +107,39 @@ let
     exec ${npx} -y @chaindead/telegram-mcp
   '';
 
+  # WordPress site administration over the REST API (docdyhr/mcp-wordpress, ~59
+  # tools, PINNED). CLIENT-SIDE: it talks to the LIVE site's /wp-json with an
+  # Application Password — NOTHING is installed on the WordPress site itself. The
+  # three creds are read from the login Keychain at launch and mapped to the
+  # server's WORDPRESS_* env, so no secret ever lands in the gateway JSON / store /
+  # argv (same shape as telegramMcp above). Store them once:
+  #     secret set WP_URL <https://www.SITE>   # MUST be the canonical www host —
+  #       a non-www host that 301-redirects cross-host DROPS the Authorization
+  #       header, so REST auth 401s. secret set WP_ADMIN_USER <login> ;
+  #     secret set WP_ADMIN_APP_PASSWORD <app-pw>   # wp-admin ▸ Users ▸ Profile ▸
+  #       Application Passwords — NOT the login password (WP refuses it for REST).
+  # Resilient by design: on missing creds it warns but STILL execs, so an absent
+  # secret can't dark the shared gateway (unlike telegram, which exits). Basename
+  # nix-* for the BTM origin rule.
+  wpMcp = pkgs.writeShellScriptBin "nix-mcp-wordpress" ''
+    set -u
+    site="$(/usr/bin/security find-generic-password -a "$(id -un)" -s WP_URL -w 2>/dev/null || true)"
+    user="$(/usr/bin/security find-generic-password -a "$(id -un)" -s WP_ADMIN_USER -w 2>/dev/null || true)"
+    pass="$(/usr/bin/security find-generic-password -a "$(id -un)" -s WP_ADMIN_APP_PASSWORD -w 2>/dev/null || true)"
+    if [ -z "$site" ] || [ -z "$user" ] || [ -z "$pass" ]; then
+      echo "mcp-wordpress: missing WP_URL / WP_ADMIN_USER / WP_ADMIN_APP_PASSWORD in the login Keychain — tools will fail until set (see the store-them-once note in mcp.nix)." >&2
+    fi
+    export WORDPRESS_SITE_URL="$site"
+    export WORDPRESS_USERNAME="$user"
+    export WORDPRESS_APP_PASSWORD="$pass"
+    export HOME="${config.home.homeDirectory}"
+    exec ${npx} -y mcp-wordpress@3.3.30
+  '';
+
   # The servers with no mcp-servers-nix module, as raw stdio commands. Merged into
   # the gateway config via mkConfig's `settings.servers` (telegram appended below,
-  # opt-in). The 11 base ones fall back to pinned npx/uvx launchers.
+  # opt-in). The 11 base ones fall back to pinned npx/uvx launchers; postgres and
+  # wordpress are special (pinned version + Keychain-injected env via a wrapper).
   customStdioServers = {
     duckduckgo = {
       command = uvx;
@@ -308,6 +338,12 @@ let
       ];
       env.DATABASE_URI = config.services.pgvectorLocal.databaseUri;
     };
+    # WordPress admin for the live site over its REST API — command is the
+    # Keychain-injecting wpMcp wrapper above, so no secret lands in the gateway JSON.
+    wordpress = {
+      command = lib.getExe wpMcp;
+      args = [ ];
+    };
   }
   # Opt-in (default off): the Telegram USER-account server. Its command is the
   # Keychain-exporting wrapper above, so no secret ever lands in the gateway JSON.
@@ -320,7 +356,7 @@ let
     };
   };
 
-  # Every server NAME the gateway hosts (7 packaged + 12 custom). Single source
+  # Every server NAME the gateway hosts (7 packaged + 13 custom). Single source
   # for the client SSE URLs, so the two sides can never drift. Order/names MUST
   # match the packaged servers enabled in `gatewayConfig.programs` below.
   packagedServerNames = [
