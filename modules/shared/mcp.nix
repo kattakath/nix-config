@@ -17,16 +17,18 @@
 # account owns the GUI session, `darwin-rebuild switch` cannot load the agent.
 #
 # SERVER SIDE (this box, 127.0.0.1:8096)
-#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 20 servers (21 with
-#   the opt-in `telegram` server), each reachable at /servers/<name>/sse.
+#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 21 servers (22 with
+#   the opt-in `telegram`, 23 with the opt-in local WordPress adapter), each reachable
+#   at /servers/<name>/sse.
 #   `gatewayConfig` is rendered by mcp-servers-nix's `lib.mkConfig`, so the 7 packaged
 #   servers (context7/fetch/memory/sequential-thinking/nixos/terraform/github) are
-#   PINNED store-path commands; the 13 without a module (+ telegram when enabled) fall
+#   PINNED store-path commands; the 14 without a module (+ telegram / the local
+#   WordPress adapter when enabled) fall
 #   back to pinned npx/uvx launchers (still a runtime fetch, but acceptable on the Mac
 #   where Node/uv already live).
 #
 # CLIENT SIDE (programs.claude-code.mcpServers)
-#   The 20 hosted servers (21 with `telegram`) are wired as `type = "http"` (Streamable HTTP — the
+#   The 21 hosted servers (22 with `telegram`) are wired as `type = "http"` (Streamable HTTP — the
 #   current MCP standard; the legacy HTTP+SSE transport was deprecated in the
 #   2025-03-26 spec) pointing at /servers/<name>/mcp; desktop-commander stays
 #   `type = "stdio"`. The claude-code module writes these into a managed
@@ -135,6 +137,49 @@ let
     export HOME="${config.home.homeDirectory}"
     exec ${npx} -y mcp-wordpress@3.3.30
   '';
+
+  # Official WordPress MCP Adapter (WordPress/mcp-adapter), installed ON the site,
+  # exposing a Streamable-HTTP MCP endpoint at /wp-json/mcp/mcp-adapter-default-server
+  # (default server = 3 meta-tools: discover / get-info / execute Ability — so any core
+  # or plugin Ability becomes agent-callable). SERVER-SIDE, complementary to the client-
+  # side `wordpress` (docdyhr) server above. Reached with `mcp-remote` pointed DIRECTLY
+  # at that path — Automattic's mcp-wordpress-remote proxy targets the LEGACY wpmcp
+  # route and 404s on the adapter. Auth is HTTP Basic reusing the SAME admin creds as
+  # `wordpress` (WP_ADMIN_USER + WP_ADMIN_APP_PASSWORD from the login Keychain; verified
+  # against prod AND the local wp-env clone, whose DB is a prod copy so the one app
+  # password authenticates on both). The Basic header is built into an env var and
+  # passed via mcp-remote's single-quoted ''${ENV} expansion, so the secret never lands
+  # in argv / the /nix/store / the gateway JSON. Resilient: warns but still execs on a
+  # missing secret. Basename nix-* for the BTM origin rule.
+  mkWpAdapterMcp =
+    {
+      arg0,
+      apiUrl,
+      allowHttp ? false,
+    }:
+    pkgs.writeShellScriptBin arg0 ''
+      set -u
+      user="$(/usr/bin/security find-generic-password -a "$(id -un)" -s WP_ADMIN_USER -w 2>/dev/null || true)"
+      pass="$(/usr/bin/security find-generic-password -a "$(id -un)" -s WP_ADMIN_APP_PASSWORD -w 2>/dev/null || true)"
+      if [ -z "$user" ] || [ -z "$pass" ]; then
+        echo "${arg0}: missing WP_ADMIN_USER / WP_ADMIN_APP_PASSWORD in the login Keychain — adapter tools will fail until set." >&2
+      fi
+      pass="$(printf '%s' "$pass" | tr -d ' ')"
+      export WP_ADAPTER_AUTH="Basic $(printf '%s:%s' "$user" "$pass" | base64 | tr -d '\n')"
+      export HOME="${config.home.homeDirectory}"
+      exec ${npx} -y mcp-remote@latest ${apiUrl}/wp-json/mcp/mcp-adapter-default-server${lib.optionalString allowHttp " --allow-http"} --header 'Authorization: ''${WP_ADAPTER_AUTH}'
+    '';
+
+  wpAdapterMcp = mkWpAdapterMcp {
+    arg0 = "nix-mcp-wp-adapter";
+    apiUrl = "https://www.silvercreek.ai";
+  };
+
+  wpAdapterMcpLocal = mkWpAdapterMcp {
+    arg0 = "nix-mcp-wp-adapter-local";
+    apiUrl = "http://localhost:8888";
+    allowHttp = true;
+  };
 
   # The servers with no mcp-servers-nix module, as raw stdio commands. Merged into
   # the gateway config via mkConfig's `settings.servers` (telegram appended below,
@@ -344,6 +389,13 @@ let
       command = lib.getExe wpMcp;
       args = [ ];
     };
+    # Official WordPress MCP Adapter (server-side) for PROD silvercreek.ai — command is
+    # the Keychain-injecting mcp-remote wrapper above, so no secret lands in the gateway
+    # JSON. Prod is always reachable, so it's a normal (non-gated) hosted server.
+    wordpress-adapter = {
+      command = lib.getExe wpAdapterMcp;
+      args = [ ];
+    };
   }
   # Opt-in (default off): the Telegram USER-account server. Its command is the
   # Keychain-exporting wrapper above, so no secret ever lands in the gateway JSON.
@@ -354,9 +406,20 @@ let
       command = lib.getExe telegramMcp;
       args = [ ];
     };
+  }
+  // lib.optionalAttrs cfg.localAdapter.enable {
+    # Opt-in (default off): the SAME adapter against the LOCAL wp-env clone
+    # (http://localhost:8888). Gated because that endpoint only exists while the clone
+    # runs; mcp-proxy spawns every named server at startup, so wiring an unreachable
+    # endpoint risks a startup-failing server on the shared gateway. Enable only while
+    # working against the local clone.
+    wordpress-adapter-local = {
+      command = lib.getExe wpAdapterMcpLocal;
+      args = [ ];
+    };
   };
 
-  # Every server NAME the gateway hosts (7 packaged + 13 custom). Single source
+  # Every server NAME the gateway hosts (7 packaged + 14 custom). Single source
   # for the client SSE URLs, so the two sides can never drift. Order/names MUST
   # match the packaged servers enabled in `gatewayConfig.programs` below.
   packagedServerNames = [
@@ -566,6 +629,14 @@ in
       startup. Turn ON only AFTER completing the auth (see the wrapper's steps).
       Reads your personal account — keep the agent to read-and-draft (ToS: spam-shaped
       automation risks the account)'';
+
+    localAdapter.enable = lib.mkEnableOption ''
+      the LOCAL WordPress MCP Adapter server (the wp-env clone at http://localhost:8888)
+      in the gateway. OFF by default: that endpoint only exists while the local clone is
+      running, and mcp-proxy spawns every hosted server at startup, so wiring an
+      unreachable endpoint risks a server that fails at launch. The PROD adapter
+      (wordpress-adapter) is always on; enable this only while working against the local
+      clone'';
 
     publicServers = lib.mkOption {
       type = lib.types.listOf lib.types.str;
