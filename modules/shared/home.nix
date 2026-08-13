@@ -315,6 +315,7 @@ in
     ./mcp.nix # darwin-gated MCP server registry for Claude Code
     ./desktop-aesthetics.nix # macOS wallpaper + Terminal profile (opt-out per host; macvm opts out)
     ./wireguard-configs.nix # operator-managed WG confs → ~/.config/wireguard (no autostart)
+    ./aws-config.nix # operator-managed AWS CLI config/credentials → ~/.aws (only if `aws` is installed)
     # Local-first RAG stack (loopback launchd Postgres+pgvector + Ollama + in-DB
     # embed()), from the extracted flake (github:ismailkattakath/nix-local-rag).
     # Both modules are internally gated on (enable && isDarwin) — a clean no-op on
@@ -335,6 +336,12 @@ in
   # runs wg-quick / starts a tunnel. On macos (GUI-only, no CLI) these are there
   # to IMPORT into WireGuard.app; on macvm the CLI `vpn` operator uses them.
   local.wireguardConfigs.enable = pkgs.stdenv.isDarwin;
+
+  # AWS CLI config/credentials: sync ~/.local/share/aws-config → ~/.aws on
+  # macos + macvm. Files stay outside git (SSO URLs/account IDs, possibly
+  # keys). Gracefully no-ops if the `aws` CLI isn't installed or nothing has
+  # been planted yet — see modules/shared/aws-config.nix.
+  local.awsConfig.enable = pkgs.stdenv.isDarwin;
 
   # RAG stack (Ollama + pgvector) backs the postgres MCP server — real Mac only.
   # macvm is a lean sandbox; no need for embed/DB launchd agents there.
@@ -402,7 +409,7 @@ in
     # (the keychain-secrets flake's HM module), not this list.
     ++ lib.optionals stdenv.isDarwin [
       androidEmu
-      awscli2 # AWS CLI v2 — SSO login into the Infin8 accounts; profiles live in ~/.aws/config (uncommitted, has account IDs/SSO URL — not this public repo)
+      awscli2 # AWS CLI v2 — SSO login into the Infin8 accounts; profiles synced into ~/.aws by local.awsConfig (aws-config.nix) from an operator-managed source outside git — account IDs/SSO URL never in this public repo
       codecov-cli # Codecov CLI (`codecovcli`) — upload coverage reports / local upload from CI; reads the CODECOV_TOKEN env var (a Keychain secret, never in this repo)
       fnm # Fast Node Manager — per-project Node version switching honoring .nvmrc/.node-version; the `fnm env --use-on-cd` shell hook is wired into zsh/bash below. No `programs.fnm` HM module in this pinned home-manager, so it's a bare package + hand-wired init.
       jsonresume # `jsonresume download|print|validate|markdown|text` — fetch a JSON Resume (default URL from jsonResumeUrl, or --url) + render PDF via resumed (fallback resume-cli); md/text via resume-cli (packages/jsonresume.nix)
