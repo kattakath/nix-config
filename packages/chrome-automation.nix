@@ -40,6 +40,8 @@ writeShellApplication {
     # single place, overridable.
     dir="''${CHROME_AUTOMATION_DIR:-$HOME/Library/Application Support/chrome-automation}"
     headless="''${CHROME_AUTOMATION_HEADLESS:-}"
+    # Pin the profile: a --user-data-dir holding >1 profile makes Chrome pop the profile picker.
+    profile="''${CHROME_AUTOMATION_PROFILE:-Default}"
     cdp="http://127.0.0.1:$port"
     chrome_bin="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
@@ -48,9 +50,10 @@ writeShellApplication {
     [ -d "/Applications/Google Chrome.app" ] || die "Google Chrome not installed (/Applications/Google Chrome.app)"
 
     # Idempotent: if the CDP endpoint already answers, it's already running.
+    # (Deliberately NO `open -a` "focus" here — without -n it launches Chrome on the DEFAULT
+    #  user-data-dir and pops your daily profile picker. To surface the window, drive it via CDP.)
     if curl -fsS --max-time 2 "$cdp/json/version" >/dev/null 2>&1; then
-      echo "$prog: automation Chrome already running on $cdp — focusing it."
-      /usr/bin/open -a "Google Chrome" --args --user-data-dir="$dir" >/dev/null 2>&1 || true
+      echo "$prog: automation Chrome already running on $cdp (profile: $dir → $profile)."
       exit 0
     fi
 
@@ -61,6 +64,7 @@ writeShellApplication {
       nohup "$chrome_bin" \
         --headless=new \
         --user-data-dir="$dir" \
+        --profile-directory="$profile" \
         --remote-debugging-port="$port" \
         --no-first-run \
         --no-default-browser-check \
@@ -72,6 +76,7 @@ writeShellApplication {
       # LaunchServices so it persists independently of this shell/agent. Loopback debug port only.
       /usr/bin/open -na "Google Chrome" --args \
         --user-data-dir="$dir" \
+        --profile-directory="$profile" \
         --remote-debugging-port="$port" \
         --no-first-run \
         --no-default-browser-check \
