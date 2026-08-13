@@ -11,6 +11,17 @@
 #
 # Chrome refuses --remote-debugging-port on the DEFAULT profile (security), which is exactly
 # why this uses a separate --user-data-dir. Port/dir are overridable via env.
+#
+# HEADED (default) vs HEADLESS — the "log in once, then run invisibly" pattern:
+#   chrome-automation                       # HEADED window — use this to LOG IN (auth persists
+#                                           #   in the profile), or whenever you need to see it.
+#   CHROME_AUTOMATION_HEADLESS=1 chrome-automation   # HEADLESS — no window, same profile/cookies,
+#                                           #   CDP-driven; for unattended automation once you're
+#                                           #   authed. Playwright attaches identically either way.
+# Both modes share ONE --user-data-dir, and Chrome locks a profile to a single instance, so run
+# only ONE at a time. Flow when a run hits a login wall: quit headless → run headed → log in →
+# quit → resume headless. (No extension, no foreground-tab hijack — the exact failure class that
+# makes the kapture path flaky.)
 {
   writeShellApplication,
   curl,
@@ -28,7 +39,9 @@ writeShellApplication {
     # Dedicated profile dir (separate from your main "Google/Chrome" profile). $HOME-relative,
     # single place, overridable.
     dir="''${CHROME_AUTOMATION_DIR:-$HOME/Library/Application Support/chrome-automation}"
+    headless="''${CHROME_AUTOMATION_HEADLESS:-}"
     cdp="http://127.0.0.1:$port"
+    chrome_bin="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
     die() { echo "$prog: error: $*" >&2; exit 1; }
 
@@ -42,14 +55,28 @@ writeShellApplication {
     fi
 
     mkdir -p "$dir"
-    # Launch a SEPARATE, detached instance (own profile + debug port). `open -na` hands it to
-    # LaunchServices so it persists independently of this shell/agent. Loopback debug port only.
-    /usr/bin/open -na "Google Chrome" --args \
-      --user-data-dir="$dir" \
-      --remote-debugging-port="$port" \
-      --no-first-run \
-      --no-default-browser-check \
-      || die "failed to launch Google Chrome"
+    if [ -n "$headless" ]; then
+      # HEADLESS: `open`/LaunchServices is GUI-oriented, so exec the binary directly and detach
+      # (nohup + disown) so it outlives this shell/agent. Same profile + loopback debug port.
+      nohup "$chrome_bin" \
+        --headless=new \
+        --user-data-dir="$dir" \
+        --remote-debugging-port="$port" \
+        --no-first-run \
+        --no-default-browser-check \
+        >/dev/null 2>&1 &
+      disown || true
+      echo "$prog: launching HEADLESS (no window) on the persisted profile."
+    else
+      # HEADED: a SEPARATE, detached instance (own profile + debug port). `open -na` hands it to
+      # LaunchServices so it persists independently of this shell/agent. Loopback debug port only.
+      /usr/bin/open -na "Google Chrome" --args \
+        --user-data-dir="$dir" \
+        --remote-debugging-port="$port" \
+        --no-first-run \
+        --no-default-browser-check \
+        || die "failed to launch Google Chrome"
+    fi
 
     # Wait briefly for the CDP endpoint to come up so the caller knows it's attachable.
     for _ in 1 2 3 4 5 6 7 8 9 10; do
