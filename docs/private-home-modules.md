@@ -177,6 +177,15 @@ Prefer:
 
 See `docs/macvm-tart-runbook.md` (WireGuard section).
 
+The AWS CLI config/credentials follow the identical shape: `local.awsConfig`
+(`modules/shared/aws-config.nix`) copies `config`/`credentials` from
+`~/.local/share/aws-config` (never a git/Nix path) into `~/.aws` at HM
+activation, mode 600. It's idempotent (safe to re-run), graceful (skips with
+a log line if the source hasn't been planted yet), and optional (skips
+entirely if the `aws` CLI isn't installed). Plant the operator's real
+SSO/account config by copying it into the source dir once — nothing to wire
+in a private flake unless you want the source dir itself templated per host.
+
 ## What this is not
 
 - Not an in-tree `private/` directory (that is still a public git trace).
