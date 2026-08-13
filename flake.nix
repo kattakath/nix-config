@@ -227,6 +227,14 @@
       url = "github:vercel/workflow";
       flake = false;
     };
+    agent-skills-litellm = {
+      # OFFICIAL BerriAI repo (MIT): litellm-skills — drives a live LiteLLM proxy (create/update/delete
+      # users, teams, keys, models, orgs, MCP servers, agents; query usage) by running curl against the
+      # proxy's admin API. Pulled whole (21 self-contained skill dirs, one per verb) since it's a single
+      # coherent admin toolkit, not a grab-bag — pairs with the TakeoffAiGate LiteLLM deployment.
+      url = "github:BerriAI/litellm-skills";
+      flake = false;
+    };
     # Anthropic's OFFICIAL first-party plugin marketplace (Apache-2.0). Pinned to enable the in-repo
     # `security-guidance` plugin (hook-driven secret/injection warnings + Stop-hook diff review) via
     # programs.claude-code.marketplaces + enabledPlugins — the same declarative path as grok-build.
@@ -268,6 +276,7 @@
       agent-skills-jsonresume,
       agent-skills-vercel-agent,
       agent-skills-vercel-workflow,
+      agent-skills-litellm,
       claude-plugins-official,
       grok-build-plugin-cc,
       ...
@@ -724,6 +733,7 @@
                 agent-skills-jsonresume
                 agent-skills-vercel-agent
                 agent-skills-vercel-workflow
+                agent-skills-litellm
                 claude-plugins-official
                 grok-build-plugin-cc
                 keychain-secrets

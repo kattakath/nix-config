@@ -43,6 +43,7 @@
   agent-skills-jsonresume,
   agent-skills-vercel-agent,
   agent-skills-vercel-workflow,
+  agent-skills-litellm,
   grok-build-plugin-cc,
   # The extracted local-rag flake (services.ollamaLocal + services.pgvectorLocal);
   # its two home-manager modules replace the vendored ollama/postgres-pgvector.
@@ -649,6 +650,31 @@ in
         workflow = "${agent-skills-vercel-workflow}/skills/workflow";
         workflow-init = "${agent-skills-vercel-workflow}/skills/workflow-init";
         migrating-to-workflow-sdk = "${agent-skills-vercel-workflow}/skills/migrating-to-workflow-sdk";
+        # OFFICIAL BerriAI (MIT): litellm-skills — drive a live LiteLLM proxy (this fleet's
+        # TakeoffAiGate deployment) via curl against its admin API. Root-level SKILL.md per verb,
+        # so each entry IS the skill dir (same shape as excalidraw-diagram above). Pulled whole —
+        # one coherent admin toolkit (users/teams/keys/models/orgs/MCP servers/agents/usage).
+        add-user = "${agent-skills-litellm}/add-user";
+        update-user = "${agent-skills-litellm}/update-user";
+        delete-user = "${agent-skills-litellm}/delete-user";
+        add-team = "${agent-skills-litellm}/add-team";
+        update-team = "${agent-skills-litellm}/update-team";
+        delete-team = "${agent-skills-litellm}/delete-team";
+        add-key = "${agent-skills-litellm}/add-key";
+        update-key = "${agent-skills-litellm}/update-key";
+        delete-key = "${agent-skills-litellm}/delete-key";
+        add-org = "${agent-skills-litellm}/add-org";
+        delete-org = "${agent-skills-litellm}/delete-org";
+        add-model = "${agent-skills-litellm}/add-model";
+        update-model = "${agent-skills-litellm}/update-model";
+        delete-model = "${agent-skills-litellm}/delete-model";
+        add-mcp = "${agent-skills-litellm}/add-mcp";
+        update-mcp = "${agent-skills-litellm}/update-mcp";
+        delete-mcp = "${agent-skills-litellm}/delete-mcp";
+        add-agent = "${agent-skills-litellm}/add-agent";
+        update-agent = "${agent-skills-litellm}/update-agent";
+        delete-agent = "${agent-skills-litellm}/delete-agent";
+        view-usage = "${agent-skills-litellm}/view-usage";
         # ---- Security / methodology skills (from the audit) ----
         # Trail of Bits (CC-BY-SA-4.0): prefer authenticated `gh` over raw GitHub curl/WebFetch —
         # fits the heavy gh/PR flow (pr-consolidation, /review, brag PR mining).
