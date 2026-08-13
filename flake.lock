@@ -119,6 +119,22 @@
         "type": "github"
       }
     },
+    "agent-skills-litellm": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1778177442,
+        "narHash": "sha256-f5UWmlX4EKu+gm9NY1Txqx23ykj3dE8/TOK/8eyB/b0=",
+        "owner": "BerriAI",
+        "repo": "litellm-skills",
+        "rev": "b13e7fc1bf2c3149625bcf5964fee2881fd3d027",
+        "type": "github"
+      },
+      "original": {
+        "owner": "BerriAI",
+        "repo": "litellm-skills",
+        "type": "github"
+      }
+    },
     "agent-skills-mac-automation": {
       "flake": false,
       "locked": {
@@ -853,6 +869,7 @@
         "agent-skills-excalidraw": "agent-skills-excalidraw",
         "agent-skills-jeffallan": "agent-skills-jeffallan",
         "agent-skills-jsonresume": "agent-skills-jsonresume",
+        "agent-skills-litellm": "agent-skills-litellm",
         "agent-skills-mac-automation": "agent-skills-mac-automation",
         "agent-skills-superpowers": "agent-skills-superpowers",
         "agent-skills-trailofbits": "agent-skills-trailofbits",
