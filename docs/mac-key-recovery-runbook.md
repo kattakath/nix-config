@@ -198,3 +198,26 @@ one-time steps are inherently manual — do these after activating a fresh Mac:
   manages only the *service* secrets via agenix — see the "Secrets — agenix"
   convention in `CLAUDE.md`, not personal logins).
 - **The `macvm` Tart guest is NOT restored by a rebuild — recreate it.** Disk lives under `~/.tart/`; neither this repo nor the key kit restores it. Recreate after recovery with `nix run .#macvm-tart-*`. Full steps: [`macvm-tart-runbook.md`](macvm-tart-runbook.md).
+- **Determinate's native Linux builder needs a per-machine login, not just an
+  account entitlement.** A fresh Mac reinstall means a fresh `determinate-nixd`
+  daemon that has never authenticated to FlakeHub — even though the
+  `native-linux-builder` feature is already granted on the account (one-time,
+  via https://dtr.mn/features / Determinate support), `determinate-nixd status`
+  will show `Authentication: logged-out` and `determinate-nixd version` will
+  list only `lazy-trees`, not `native-linux-builder`. Symptom if missed: any
+  `aarch64-linux` (or `x86_64-linux`) build/`nix run` fails with `error: Cannot
+  build '...': Reason: platform mismatch — Required system: 'aarch64-linux',
+  Current system: 'aarch64-darwin'`, which reads like a config bug but isn't
+  one — `nix show-config`'s `external-builders` is simply empty until login
+  happens. Fix, after activating the fresh Mac:
+  1. Generate a token at <https://flakehub.com/user/settings?editview=tokens>.
+  2. Store it durably: `secret set FLAKEHUB_TOKEN` (hidden prompt), so this
+     never has to be redone from scratch on the NEXT reinstall either.
+  3. `determinate-nixd auth login token --token-file <(secret get FLAKEHUB_TOKEN)`
+     — or write it to a temp file first if your shell doesn't support
+     `<(...)` process substitution, then `rm` the file immediately after.
+  4. Confirm: `determinate-nixd status` shows `Logged in: true`, and
+     `determinate-nixd version` lists `native-linux-builder`.
+  A stale/never-updated `determinate-nixd` binary can also hide this — the
+  version this was verified against required `sudo determinate-nixd upgrade`
+  first when the daemon was a patch behind.
