@@ -27,6 +27,14 @@
     raspberry-pi-nix.url = "github:nix-community/raspberry-pi-nix";
     raspberry-pi-nix.inputs.nixpkgs.follows = "nixpkgs";
 
+    # Declarative ephemeral NixOS microVMs. Backs `nixosConfigurations.browservm`
+    # (a headless Chromium automation guest) via its `vfkit` hypervisor backend —
+    # Apple's Virtualization Framework directly, same tier as Tart (macvm) and
+    # Determinate's native Linux builder, no nested virtualization. See
+    # docs/browservm-runbook.md.
+    microvm-nix.url = "github:astro/microvm.nix";
+    microvm-nix.inputs.nixpkgs.follows = "nixpkgs";
+
     # Daily-updated VS Code Marketplace + Open VSX mirror. Lets us pin editor
     # extensions declaratively (programs.vscode). macOS-only consumer — the
     # vscode block in modules/shared/home.nix is gated `mkIf isDarwin`, so the
@@ -253,6 +261,7 @@
       treefmt-nix,
       git-hooks,
       raspberry-pi-nix,
+      microvm-nix,
       nix-vscode-extensions,
       nix-homebrew,
       terranix,
@@ -978,6 +987,23 @@
           ];
         };
 
+        # Ephemeral headless-Chromium automation guest — booted via microvm.nix's
+        # `vfkit` hypervisor backend (Apple Virtualization Framework directly, no
+        # nesting; verified live: direct host<->guest IP reachability on the same
+        # vmnet shared subnet Tart's macvm uses). See docs/browservm-runbook.md
+        # and packages/browservm-vfkit.nix (host-side start/stop/ssh/status).
+        "browservm" = mkNixos {
+          system = "aarch64-linux";
+          hostname = "browservm";
+          extraModules = [
+            microvm-nix.nixosModules.microvm
+            # vfkit itself is a macOS binary — the RUNNER (not the aarch64-linux
+            # guest closure) must be built with darwin pkgs. Same reason nixvm
+            # overrides virtualisation.vmVariant.virtualisation.host.pkgs.
+            { microvm.vmHostPackages = nixpkgs.legacyPackages."aarch64-darwin"; }
+          ];
+        };
+
         # (There is no separate `nixpi-installer`. The LIVE `nixpi` sdImage above
         # IS the flashable artifact — it bakes NO secrets (the tunnel token + Wi-Fi
         # are planted on the FAT FIRMWARE partition post-flash by nixpi-flash), so
@@ -1069,6 +1095,29 @@
               macvm-tart-ip
               macvm-tart-ssh
               macvm-tart-bootstrap-print
+              ;
+          }
+        ))
+
+        # browservm vfkit control-plane — start/stop/ssh/status for the ephemeral
+        # headless-Chromium automation guest. browservmRunner is microvm.nix's
+        # declaredRunner: building it forces the aarch64-linux guest closure via
+        # the native Linux builder (or Cachix substitution).
+        (nixpkgs.lib.genAttrs darwinSystems (
+          system:
+          let
+            browservmKit = (pkgsFor system).callPackage ./packages/browservm-vfkit.nix {
+              browservmRunner = self.nixosConfigurations.browservm.config.microvm.declaredRunner;
+              inherit loginName;
+            };
+          in
+          {
+            inherit (browservmKit)
+              browservm-vfkit-start
+              browservm-vfkit-stop
+              browservm-vfkit-ip
+              browservm-vfkit-ssh
+              browservm-vfkit-status
               ;
           }
         ))
@@ -1419,6 +1468,33 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.macvm-tart-bootstrap-print}/bin/macvm-tart-bootstrap-print";
               meta.description = "Print in-guest macvm bootstrap checklist for Tart";
+            };
+
+            # browservm — ephemeral headless-Chromium automation guest (vfkit).
+            aarch64-darwin.browservm-vfkit-start = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.browservm-vfkit-start}/bin/browservm-vfkit-start";
+              meta.description = "Boot browservm fresh (microvm.nix/vfkit, no persistent disk)";
+            };
+            aarch64-darwin.browservm-vfkit-stop = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.browservm-vfkit-stop}/bin/browservm-vfkit-stop";
+              meta.description = "Stop browservm";
+            };
+            aarch64-darwin.browservm-vfkit-ip = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.browservm-vfkit-ip}/bin/browservm-vfkit-ip";
+              meta.description = "Print browservm's guest IP (vmnet shared subnet)";
+            };
+            aarch64-darwin.browservm-vfkit-ssh = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.browservm-vfkit-ssh}/bin/browservm-vfkit-ssh";
+              meta.description = "SSH into browservm (operator key); pass -X yourself for X11 forwarding";
+            };
+            aarch64-darwin.browservm-vfkit-status = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.browservm-vfkit-status}/bin/browservm-vfkit-status";
+              meta.description = "browservm running state + guest IP";
             };
 
             # WireGuard operator — confs in ~/.config/wireguard (not in the store).
