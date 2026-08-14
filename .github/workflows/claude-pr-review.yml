@@ -72,7 +72,7 @@ jobs:
         # posts, not its exit code. (`--max-turns` below is generous so it usually
         # DOES finish and post; this is the belt to that suspenders.)
         continue-on-error: true
-        uses: anthropics/claude-code-action@9db594c7a0e82298c121c18b7f08aa1579ce7341 # v1.0.185
+        uses: anthropics/claude-code-action@239e3a730883eeb5c53db12b0fc9573b3024b126 # v1.0.191
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
