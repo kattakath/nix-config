@@ -200,9 +200,12 @@ let
   # FB_PERSISTENT_STREAM_KEY from the login Keychain at run time. See packages/obs-fb-setup.nix.
   obs-fb-setup = pkgs.callPackage ../../packages/obs-fb-setup.nix { };
 
-  # `chrome-automation` — launch a dedicated logged-in Chrome (own profile + CDP port) for
-  # the Playwright MCP server to attach to. See packages/chrome-automation.nix.
+  # `chrome-automation` — launch the defacto agent automation browser (ungoogled-chromium,
+  # ephemeral profile + CDP port) for the Playwright MCP to attach to; `automation-session`
+  # is its Keychain-backed storageState seed/capture companion. See packages/chrome-automation.nix
+  # + packages/automation-session.nix.
   chrome-automation = pkgs.callPackage ../../packages/chrome-automation.nix { };
+  automation-session = pkgs.callPackage ../../packages/automation-session.nix { };
 
   # `android-emu [avd-name] [emulator-args…]` — boot an Android emulator,
   # provisioning on first run. If the SDK packages or the AVD are missing it
@@ -411,7 +414,8 @@ in
       design-tokens # `design-tokens [--tokens-url URL] [--out DIR]` — transform the gist DTCG tokens.json into SCSS/CSS/JS via Style Dictionary, to ~/.local/share/design-tokens/ (packages/design-tokens/)
       jobspy # `jobspy --search … --location …` — scrape jobs (LinkedIn/Indeed/…) into CSV/JSON via python-jobspy in an ephemeral uv env (packages/jobspy.nix)
       obs-fb-setup # `obs-fb-setup` — write an OBS "Facebook" profile for Facebook Live, injecting FB_PERSISTENT_STREAM_KEY from the login Keychain (packages/obs-fb-setup.nix)
-      chrome-automation # `chrome-automation` — launch a dedicated logged-in Chrome (own profile + CDP port 9222) for the Playwright MCP server to attach to (packages/chrome-automation.nix)
+      chrome-automation # `chrome-automation` — launch the defacto automation browser (ungoogled-chromium, ephemeral profile + CDP port 9222) for the Playwright MCP to attach to (packages/chrome-automation.nix)
+      automation-session # `automation-session <login|seed|capture|status>` — seed/capture the Keychain-encrypted Playwright storageState into/out of the automation browser over CDP (packages/automation-session.nix)
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       jdk17 # JRE for the Android sdkmanager/avdmanager (JVM tools); emulator itself needs no Java
       runpodctl # RunPod GPU CLI — RunPod as a second ComfyUI-workflow provider alongside Vast (from nixpkgs, not the untrusted brew tap)
