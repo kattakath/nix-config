@@ -325,11 +325,12 @@ let
     # no vision model / image tokens).
     #
     # ATTACH mode via `--cdp-endpoint`: instead of launching its own isolated, session-less
-    # browser, Playwright attaches to the DEDICATED "automation" Chrome you start with
-    # `chrome-automation` (packages/chrome-automation.nix) — a separate profile (log into
-    # your sites once) + remote-debugging port 9222. That gives a LOGGED-IN browser the
-    # agent drives IN PARALLEL with your main Chrome, in a window you keep open and glance
-    # at whenever (kapture, by contrast, hijacks your foreground tab). `--cdp-endpoint`
+    # browser, Playwright attaches to the DEFACTO automation browser you start with
+    # `chrome-automation` (packages/chrome-automation.nix) — ungoogled-chromium on a disposable
+    # profile + remote-debugging port 9222, its auth injected from the Keychain by
+    # `automation-session seed` (packages/automation-session.nix). That gives a session-aware
+    # browser the agent drives IN PARALLEL with your main Chrome (kapture, by contrast, hijacks
+    # your foreground tab). `--cdp-endpoint`
     # connects LAZILY (verified: a dead endpoint does NOT crash the server at startup, so
     # the gateway is safe even when the automation Chrome isn't running — the playwright
     # TOOLS just fail until you run `chrome-automation`). No --browser/--headless: those are
