@@ -111,11 +111,6 @@
       "docker-desktop"
       "dropbox"
       "google-chrome"
-      # ungoogled-chromium — the fleet's DEFACTO agent automation browser (installs
-      # /Applications/Chromium.app). Disposable: `chrome-automation` drives it over CDP on a
-      # throwaway profile, auth injected from the Keychain by `automation-session` (packages/
-      # chrome-automation.nix + automation-session.nix). Separate from daily Chrome/Brave.
-      "ungoogled-chromium"
       # GCP CLI (gcloud/gsutil/bq) — Google-official SDK cask so `gcloud components
       # install` works and it self-updates (vs. the pinned nixpkgs derivation).
       # Homebrew renamed `google-cloud-sdk` → `gcloud-cli`; use the new name.
