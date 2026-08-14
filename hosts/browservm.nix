@@ -4,14 +4,16 @@
 # macvm and Determinate's native Linux builder). See docs/browservm-runbook.md.
 #
 #   nix run .#browservm-vfkit-start   # boot fresh (whole guest OS rebuilt from
-#                                      # the Nix store each time — no persistent
-#                                      # disk at all, more ephemeral than even
-#                                      # chrome-automation's per-launch profile wipe)
-#   nix run .#browservm-vfkit-ssh     # SSH in (host and guest share the same
-#                                      # macOS vmnet shared subnet — 192.168.64.0/24,
+#                                      # the Nix store every time — no persistent
+#                                      # disk at all)
+#   nix run .#browservm-vfkit-ssh     # SSH in directly, no port-forward needed
+#                                      # (host and guest share the same macOS
+#                                      # vmnet shared subnet — 192.168.64.0/24,
 #                                      # the same one Tart's macvm already uses;
 #                                      # verified empirically: direct ICMP/IP
-#                                      # reachability, no port-forwarding needed)
+#                                      # reachability). CDP (9222) is different —
+#                                      # loopback-only in the guest, needs an SSH
+#                                      # -L tunnel; see docs/browservm-runbook.md.
 #   nix run .#browservm-vfkit-stop    # tear down
 #
 # Chromium is NOT auto-started (no systemd service, and `start` only boots the
