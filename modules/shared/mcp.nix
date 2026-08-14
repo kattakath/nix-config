@@ -325,16 +325,16 @@ let
     # no vision model / image tokens).
     #
     # ATTACH mode via `--cdp-endpoint`: instead of launching its own isolated, session-less
-    # browser, Playwright attaches to the DEFACTO automation browser you start with
-    # `chrome-automation` (packages/chrome-automation.nix) — ungoogled-chromium on a disposable
-    # profile + remote-debugging port 9222, its auth injected from the Keychain by
-    # `automation-session seed` (packages/automation-session.nix). That gives a session-aware
-    # browser the agent drives IN PARALLEL with your main Chrome (kapture, by contrast, hijacks
-    # your foreground tab). `--cdp-endpoint`
+    # browser, Playwright attaches to whatever's listening on 127.0.0.1:9222 — today that's
+    # browservm's Chromium (hosts/browservm.nix), reached via an SSH local port-forward
+    # (`browservm-vfkit-ssh -- -L 9222:127.0.0.1:9222 -N`; see docs/browservm-runbook.md),
+    # its auth injected from the Keychain by `automation-session seed` (packages/
+    # automation-session.nix). That gives a session-aware browser the agent drives IN PARALLEL
+    # with your main Chrome (kapture, by contrast, hijacks your foreground tab). `--cdp-endpoint`
     # connects LAZILY (verified: a dead endpoint does NOT crash the server at startup, so
-    # the gateway is safe even when the automation Chrome isn't running — the playwright
-    # TOOLS just fail until you run `chrome-automation`). No --browser/--headless: those are
-    # ignored in attach mode.
+    # the gateway is safe even when nothing is tunneled yet — the playwright TOOLS just fail
+    # until the tunnel + guest browser are up). No --browser/--headless: those are ignored in
+    # attach mode.
     playwright = {
       command = npx;
       args = [
