@@ -77,11 +77,8 @@ nix run .#browservm-vfkit-ssh -- -L 9222:127.0.0.1:9222 -N &
 ```
 
 Point `automation-session`'s `connectOverCDP` at that forwarded
-`http://127.0.0.1:9222` — same Keychain-backed `seed`/`capture` flow as the
-same-host `chrome-automation` path (see `docs/automation-browser.md`), just
-tunneled rather than truly local. (This also means the guest and same-host paths
-can't both use port 9222 on the host at once — pick a different local port for
-the forward, e.g. `-L 9223:127.0.0.1:9222`, if you need both running.)
+`http://127.0.0.1:9222` for the Keychain-backed `seed`/`capture` flow (see
+`docs/automation-browser.md`).
 
 ### Fresh login (no valid storageState yet, or a captured session expired)
 
