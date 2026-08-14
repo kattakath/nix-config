@@ -8,6 +8,9 @@
 .claude/hooks/superhook.log
 .claude/hooks/.superhook-state.json
 
+# pretooluse-log.js observer runtime artifact
+.claude/hooks/pretooluse.log
+
 # Project memory — candid, local-only record of decisions/reasoning/findings/values.
 # Gitignored on purpose: this is the "why" behind the repo, not committed documentation.
 memory/

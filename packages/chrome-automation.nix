@@ -109,8 +109,11 @@ writeShellApplication {
         || die "failed to launch $app"
     fi
 
-    # Wait briefly for the CDP endpoint to come up so the caller knows it's attachable.
-    for _ in 1 2 3 4 5 6 7 8 9 10; do
+    # Wait for the CDP endpoint to come up so the caller knows it's attachable. A cold
+    # launch (fresh cask install/Gatekeeper verification, first run after activation)
+    # can take noticeably longer than a warm one — observed exceeding a 10s budget in
+    # practice, so this polls longer (~25s) before reporting a false failure.
+    for _ in $(seq 1 25); do
       if curl -fsS --max-time 2 "$cdp/json/version" >/dev/null 2>&1; then
         echo "$prog: automation browser up — CDP at $cdp (profile: $dir)."
         echo "$prog: next: 'automation-session seed' to inject your Keychain session, then drive it via the playwright MCP."
@@ -118,7 +121,7 @@ writeShellApplication {
       fi
       sleep 1
     done
-    echo "$prog: launched, but CDP $cdp did not answer within ~10s — check the browser window." >&2
+    echo "$prog: launched, but CDP $cdp did not answer within ~25s — check the browser window." >&2
     exit 0
   '';
 }
