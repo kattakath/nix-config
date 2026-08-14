@@ -1294,12 +1294,12 @@
           obs-fb-setup = (pkgsFor system).callPackage ./packages/obs-fb-setup.nix { };
         }))
 
-        # `chrome-automation` (macOS only) — launch the defacto agent automation browser
-        # (ungoogled-chromium, ephemeral profile + CDP debug port) that the Playwright MCP
-        # attaches to; `automation-session` is its Keychain-backed storageState seed/capture
-        # companion. Packaged so `nix flake check` shellchecks them; on PATH + `nix run`.
+        # `automation-session` (macOS only) — Keychain-backed Playwright storageState
+        # seed/capture over CDP. Browser-agnostic: works against any CDP endpoint on
+        # 127.0.0.1 (default :9222), whether that's an SSH-tunneled browservm
+        # (see docs/browservm-runbook.md) or another local Chromium-family browser.
+        # Packaged so `nix flake check` shellchecks it; on PATH + `nix run`.
         (nixpkgs.lib.genAttrs darwinSystems (system: {
-          chrome-automation = (pkgsFor system).callPackage ./packages/chrome-automation.nix { };
           automation-session = (pkgsFor system).callPackage ./packages/automation-session.nix { };
         }))
       ];
@@ -1640,16 +1640,9 @@
               meta.description = "Write an OBS 'Facebook' profile for Facebook Live, injecting FB_PERSISTENT_STREAM_KEY from the login Keychain (never in git)";
             };
 
-            # `nix run .#chrome-automation` — launch the defacto automation browser
-            # (ungoogled-chromium, ephemeral profile + CDP port 9222) for the Playwright MCP.
-            aarch64-darwin.chrome-automation = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.chrome-automation}/bin/chrome-automation";
-              meta.description = "Launch the defacto automation browser (ungoogled-chromium, ephemeral profile + CDP debug port 9222) for the Playwright MCP to attach to";
-            };
-
             # `nix run .#automation-session` — seed/capture the Keychain-encrypted storageState
-            # into/out of the running automation browser (login|seed|capture|status).
+            # into/out of the running automation browser (login|seed|capture|status). Browser-
+            # agnostic over CDP — see docs/browservm-runbook.md for the current primary path.
             aarch64-darwin.automation-session = {
               type = "app";
               program = "${self.packages.aarch64-darwin.automation-session}/bin/automation-session";

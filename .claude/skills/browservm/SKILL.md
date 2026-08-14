@@ -41,8 +41,7 @@ nix run .#browservm-vfkit-ssh -- -L 9222:127.0.0.1:9222 -N &
 ```
 
 Then point `automation-session` at `http://127.0.0.1:9222` (the forwarded
-port) — same Keychain `seed`/`capture` flow as the same-host `chrome-automation`
-path.
+port) for the Keychain `seed`/`capture` flow (see docs/automation-browser.md).
 
 Fresh login (no valid storageState yet): combine `-X` (display forwarding,
 needs no X server in the guest — ssh tunnels the protocol to XQuartz on the
