@@ -42,83 +42,112 @@ writeShellApplication {
     coreutils
   ];
   text = ''
-    prog=chrome-automation
-    port="''${CHROME_AUTOMATION_PORT:-9222}"
-    headless="''${CHROME_AUTOMATION_HEADLESS:-}"
-    persist="''${CHROME_AUTOMATION_PERSIST:-}"
-    # Pin the profile so a --user-data-dir holding >1 profile doesn't pop the Chromium picker.
-    profile="''${CHROME_AUTOMATION_PROFILE:-Default}"
-    cdp="http://127.0.0.1:$port"
+        prog=chrome-automation
+        port="''${CHROME_AUTOMATION_PORT:-9222}"
+        headless="''${CHROME_AUTOMATION_HEADLESS:-}"
+        persist="''${CHROME_AUTOMATION_PERSIST:-}"
+        # Pin the profile so a --user-data-dir holding >1 profile doesn't pop the Chromium picker.
+        profile="''${CHROME_AUTOMATION_PROFILE:-Default}"
+        cdp="http://127.0.0.1:$port"
 
-    die() { echo "$prog: error: $*" >&2; exit 1; }
+        die() { echo "$prog: error: $*" >&2; exit 1; }
 
-    # Browser selection: ungoogled-chromium (default) or Google Chrome (fallback).
-    case "''${CHROME_AUTOMATION_BROWSER:-chromium}" in
-      chromium|ungoogled|ungoogled-chromium)
-        app="/Applications/Chromium.app"; bin="$app/Contents/MacOS/Chromium"
-        default_dir="$HOME/Library/Caches/chrome-automation-ug" ;;
-      chrome|google|google-chrome)
-        app="/Applications/Google Chrome.app"; bin="$app/Contents/MacOS/Google Chrome"
-        default_dir="$HOME/Library/Caches/chrome-automation-gc" ;;
-      *) die "unknown CHROME_AUTOMATION_BROWSER (use chromium|chrome)" ;;
-    esac
-    dir="''${CHROME_AUTOMATION_DIR:-$default_dir}"
+        # Browser selection: ungoogled-chromium (default) or Google Chrome (fallback).
+        case "''${CHROME_AUTOMATION_BROWSER:-chromium}" in
+          chromium|ungoogled|ungoogled-chromium)
+            app="/Applications/Chromium.app"; bin="$app/Contents/MacOS/Chromium"
+            default_dir="$HOME/Library/Caches/chrome-automation-ug" ;;
+          chrome|google|google-chrome)
+            app="/Applications/Google Chrome.app"; bin="$app/Contents/MacOS/Google Chrome"
+            default_dir="$HOME/Library/Caches/chrome-automation-gc" ;;
+          *) die "unknown CHROME_AUTOMATION_BROWSER (use chromium|chrome)" ;;
+        esac
+        dir="''${CHROME_AUTOMATION_DIR:-$default_dir}"
 
-    [ -d "$app" ] || die "$app not installed (ungoogled-chromium cask? run: darwin-rebuild switch)"
+        [ -d "$app" ] || die "$app not installed (ungoogled-chromium cask? run: darwin-rebuild switch)"
 
-    # Idempotent: if the CDP endpoint already answers, it's already running.
-    # (Deliberately NO `open -a` "focus" — without -n it launches the browser on its DEFAULT
-    #  user-data-dir and pops the profile picker. Surface/seed the window via CDP instead.)
-    if curl -fsS --max-time 2 "$cdp/json/version" >/dev/null 2>&1; then
-      echo "$prog: automation browser already running on $cdp (profile: $dir → $profile)."
-      exit 0
-    fi
+        # Idempotent: if the CDP endpoint already answers, it's already running.
+        # (Deliberately NO `open -a` "focus" — without -n it launches the browser on its DEFAULT
+        #  user-data-dir and pops the profile picker. Surface/seed the window via CDP instead.)
+        if curl -fsS --max-time 2 "$cdp/json/version" >/dev/null 2>&1; then
+          echo "$prog: automation browser already running on $cdp (profile: $dir → $profile)."
+          exit 0
+        fi
 
-    # EPHEMERAL: wipe the throwaway profile each launch (auth comes from the Keychain via
-    # `automation-session seed`, not this dir) unless CHROME_AUTOMATION_PERSIST=1. Guard the rm.
-    if [ -z "$persist" ]; then
-      case "$dir" in
-        "" | "/" | "$HOME" | "$HOME/") die "refusing to wipe unsafe dir: '$dir'" ;;
-        *) rm -rf -- "$dir" ;;
-      esac
-    fi
-    mkdir -p "$dir"
+        # EPHEMERAL: wipe the throwaway profile each launch (auth comes from the Keychain via
+        # `automation-session seed`, not this dir) unless CHROME_AUTOMATION_PERSIST=1. Guard the rm.
+        if [ -z "$persist" ]; then
+          case "$dir" in
+            "" | "/" | "$HOME" | "$HOME/") die "refusing to wipe unsafe dir: '$dir'" ;;
+            *) rm -rf -- "$dir" ;;
+          esac
+        fi
+        mkdir -p "$dir"
 
-    if [ -n "$headless" ]; then
-      # HEADLESS: `open`/LaunchServices is GUI-oriented, so exec the binary directly and detach
-      # (nohup + disown) so it outlives this shell/agent. Loopback debug port only.
-      nohup "$bin" \
-        --headless=new \
-        --user-data-dir="$dir" \
-        --profile-directory="$profile" \
-        --remote-debugging-port="$port" \
-        --no-first-run \
-        --no-default-browser-check \
-        >/dev/null 2>&1 &
-      disown || true
-      echo "$prog: launching HEADLESS (no window) on a clean profile."
-    else
-      # HEADED: a SEPARATE, detached instance. `open -na <app>` hands it to LaunchServices so it
-      # persists independently of this shell/agent.
-      /usr/bin/open -na "$app" --args \
-        --user-data-dir="$dir" \
-        --profile-directory="$profile" \
-        --remote-debugging-port="$port" \
-        --no-first-run \
-        --no-default-browser-check \
-        || die "failed to launch $app"
-    fi
+        # Minimalistic UI by default: seed a fresh profile with a few appearance prefs
+        # off (bookmarks bar, tab search button, tab groups in the bookmarks bar) so
+        # every ephemeral launch starts minimal instead of Chromium's noisy defaults.
+        # Values verified against a live profile's on-disk Preferences file; Chromium
+        # merges this partial seed with its own defaults for everything else. tab_search
+        # needs its companion migration-complete flag too, or Chromium recomputes/
+        # overwrites the seeded value on startup before anything reads it (observed live).
+        # NOT seeded here: browser.confirm_to_quit — verified live that Chromium forces
+        # this back to true on every brand-new-profile first launch regardless of what's
+        # in Preferences (it DOES persist once the running app writes it itself, i.e. on
+        # a non-wiped relaunch — just not via a pre-seeded file on a fresh profile), so
+        # it can't actually be pre-seeded given this profile is wiped on every launch.
+        # Only seed on a fresh (post-wipe) profile — never clobber a
+        # CHROME_AUTOMATION_PERSIST=1 profile's accumulated prefs (e.g. if the operator
+        # re-enabled one of these).
+        profile_dir="$dir/$profile"
+        if [ ! -e "$profile_dir/Preferences" ]; then
+          mkdir -p "$profile_dir"
+          cat >"$profile_dir/Preferences" <<'PREFS'
+    {
+      "bookmark_bar": { "show_on_all_tabs": false, "show_tab_groups": false },
+      "tab_search": { "pinned_to_tabstrip": false, "pinned_to_tabstrip_migration_complete_2": true }
+    }
+    PREFS
+        fi
 
-    # Wait briefly for the CDP endpoint to come up so the caller knows it's attachable.
-    for _ in 1 2 3 4 5 6 7 8 9 10; do
-      if curl -fsS --max-time 2 "$cdp/json/version" >/dev/null 2>&1; then
-        echo "$prog: automation browser up — CDP at $cdp (profile: $dir)."
-        echo "$prog: next: 'automation-session seed' to inject your Keychain session, then drive it via the playwright MCP."
+        if [ -n "$headless" ]; then
+          # HEADLESS: `open`/LaunchServices is GUI-oriented, so exec the binary directly and detach
+          # (nohup + disown) so it outlives this shell/agent. Loopback debug port only.
+          nohup "$bin" \
+            --headless=new \
+            --user-data-dir="$dir" \
+            --profile-directory="$profile" \
+            --remote-debugging-port="$port" \
+            --no-first-run \
+            --no-default-browser-check \
+            >/dev/null 2>&1 &
+          disown || true
+          echo "$prog: launching HEADLESS (no window) on a clean profile."
+        else
+          # HEADED: a SEPARATE, detached instance. `open -na <app>` hands it to LaunchServices so it
+          # persists independently of this shell/agent.
+          /usr/bin/open -na "$app" --args \
+            --user-data-dir="$dir" \
+            --profile-directory="$profile" \
+            --remote-debugging-port="$port" \
+            --no-first-run \
+            --no-default-browser-check \
+            || die "failed to launch $app"
+        fi
+
+        # Wait for the CDP endpoint to come up so the caller knows it's attachable. A cold
+        # launch (fresh cask install/Gatekeeper verification, first run after activation)
+        # can take noticeably longer than a warm one — observed exceeding a 10s budget in
+        # practice, so this polls longer (~25s) before reporting a false failure.
+        for _ in $(seq 1 25); do
+          if curl -fsS --max-time 2 "$cdp/json/version" >/dev/null 2>&1; then
+            echo "$prog: automation browser up — CDP at $cdp (profile: $dir)."
+            echo "$prog: next: 'automation-session seed' to inject your Keychain session, then drive it via the playwright MCP."
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "$prog: launched, but CDP $cdp did not answer within ~25s — check the browser window." >&2
         exit 0
-      fi
-      sleep 1
-    done
-    echo "$prog: launched, but CDP $cdp did not answer within ~10s — check the browser window." >&2
-    exit 0
   '';
 }
