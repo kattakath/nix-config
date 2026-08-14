@@ -89,8 +89,8 @@ clearly to the user rather than silently reverting.
 
 - **Opera must be running inside macvm** with an active, logged-in user
   session — this is not a headless browser, and there is nothing to "start"
-  from macos the way `chrome-automation` (packages/chrome-automation.nix)
-  launches a dedicated local Chrome. If `macvm` itself is stopped
+  from macos the way `browservm-vfkit-start` boots a dedicated automation VM
+  (docs/browservm-runbook.md). If `macvm` itself is stopped
   (`nix run .#macvm-tart-doctor`), start it first
   (`nix run .#macvm-tart-start`).
 - Assume only the six confirmed tools exist (list-tabs, tab-content, history,
@@ -106,10 +106,10 @@ clearly to the user rather than silently reverting.
   `macos-automator`/`kapture` (real side effects, no sandbox), and remember
   the side effects land in a window on a different machine than the one
   Claude Code is running on.
-- This is Opera-specific. For Chrome automation on macos use `kapture`
-  (extension-based) or `playwright` (CDP-attached to the dedicated
-  `chrome-automation` profile) — see their own gateway entries in
-  `modules/shared/mcp.nix`.
+- This is Opera-specific. For Chrome automation use `kapture` (extension-based,
+  daily browser) or `playwright` (CDP-attached to `browservm`'s Chromium over
+  an SSH tunnel — see docs/browservm-runbook.md) — see their own gateway
+  entries in `modules/shared/mcp.nix`.
 
 ## Provenance
 
