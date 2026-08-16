@@ -115,6 +115,7 @@
       # install` works and it self-updates (vs. the pinned nixpkgs derivation).
       # Homebrew renamed `google-cloud-sdk` → `gcloud-cli`; use the new name.
       "gcloud-cli"
+      "iina"
       "inkscape"
       # LibreOffice — provides the `soffice` CLI the docx/pptx/xlsx/pdf Claude Code
       # skills (modules/shared/home.nix programs.claude-code.skills) already hardcode
