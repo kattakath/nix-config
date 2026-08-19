@@ -121,6 +121,14 @@ let
   # side-by-side instances impossible) so `gmail-<alias>` exposes
   # `<alias>_search_emails` etc. without colliding with any other account.
   #
+  # cfg.gmail.accounts is a list of PLAIN EMAIL ADDRESSES (the actual config
+  # surface — no invented nicknames to keep track of). MCP tool names and
+  # --tool-prefix can't contain "@"/"." though, so `gmailAlias` below derives
+  # a sanitized token from each email purely for the prefix/filename/arg0 —
+  # an internal detail, not something you need to think about when editing
+  # the account list.
+  gmailAlias = email: lib.toLower (lib.replaceStrings [ "@" "." "+" ] [ "_" "_" "_" ] email);
+
   # ONE shared Google Cloud OAuth "Desktop app" client (client_id/client_secret
   # — Google allows the same Desktop client to authenticate multiple accounts)
   # is read from the login Keychain at LAUNCH and materialized into
@@ -130,24 +138,26 @@ let
   # populated by a SEPARATE one-time interactive `auth` run per account (opens a
   # browser; the tool itself writes that file, this wrapper never touches it).
   #
-  # WHICH accounts run is a LIST (services.mcpGateway.gmail.accounts), empty by
-  # default and deliberately NOT populated here — real email addresses are
-  # personal data that doesn't belong in a public repo, and several of the
-  # accounts this was built for aren't even the operator's own (family/
-  # associates whose inboxes he manages). The real list is supplied by the
-  # PRIVATE nix-personal composition flake via `extraHomeModules`, same
-  # contract as nixpi's `hostedSites` (docs/private-home-modules.md) — public
-  # `hosts/macos.nix` passes none. An account with no completed auth exits at
-  # startup, so only add an alias here AFTER its one-time browser login is
-  # done. Basename nix-* for the BTM origin rule. Setup once (shared client),
-  # then once per account:
+  # WHICH accounts run is cfg.gmail.accounts, empty by default and
+  # deliberately NOT populated here — real email addresses are personal data
+  # that doesn't belong in a public repo, and several of the accounts this
+  # was built for aren't even the operator's own (family/associates whose
+  # inboxes he manages). The real list is supplied by the PRIVATE nix-personal
+  # composition flake via `extraHomeModules`, same contract as nixpi's
+  # `hostedSites` (docs/private-home-modules.md) — public `hosts/macos.nix`
+  # passes only its own two already-public addresses. An account with no
+  # completed auth exits at startup, so only add an email here AFTER its
+  # one-time browser login is done. Basename nix-* for the BTM origin rule.
+  # Setup once (shared client), then once per account:
   #     secret set GMAIL_OAUTH_CLIENT_ID <client_id>
   #     secret set GMAIL_OAUTH_CLIENT_SECRET <client_secret>
   #     # Google Cloud Console -> APIs & Services -> Credentials -> Create
   #     # Credentials -> OAuth client ID -> Desktop app -> enable the Gmail API.
-  #     nix-mcp-gmail-<alias>   # once, to materialize gcp-oauth.keys.json, then Ctrl-C
+  #     nix-mcp-gmail-<sanitized-email>   # launch once to materialize
+  #       # gcp-oauth.keys.json, then Ctrl-C (arg0 shown at gateway launch, or
+  #       # just lowercase the email and replace "@"/"."/"+" with "_")
   #     GMAIL_OAUTH_PATH=~/.gmail-mcp/gcp-oauth.keys.json \
-  #       GMAIL_CREDENTIALS_PATH=~/.gmail-mcp/credentials-<alias>.json \
+  #       GMAIL_CREDENTIALS_PATH=~/.gmail-mcp/credentials-<sanitized-email>.json \
   #       npx -y @artymclabin/gmail-mcp auth
   mkGmailMcp =
     {
@@ -175,14 +185,16 @@ let
             exec ${npx} -y @artymclabin/gmail-mcp --tool-prefix=${prefix}_
     '';
 
-  # One wrapper per configured alias (cfg.gmail.accounts — see mkGmailMcp's
+  # One wrapper per configured email (cfg.gmail.accounts — see mkGmailMcp's
   # comment for why the list itself lives in the private nix-personal flake).
+  # Keyed by the RAW email (genAttrs uses list elements as attr names); the
+  # sanitized gmailAlias is only used for the derivation's internal naming.
   gmailMcps = lib.genAttrs cfg.gmail.accounts (
-    alias:
+    email:
     mkGmailMcp {
-      arg0 = "nix-mcp-gmail-${alias}";
-      prefix = alias;
-      credentialsFile = "credentials-${alias}.json";
+      arg0 = "nix-mcp-gmail-${gmailAlias email}";
+      prefix = gmailAlias email;
+      credentialsFile = "credentials-${gmailAlias email}.json";
     }
   );
 
@@ -497,12 +509,14 @@ let
     };
   }
   # TRUE simultaneous multi-account Gmail — one server process PER configured
-  # alias (see mkGmailMcp above for why, and why the alias list itself lives
-  # in the private nix-personal flake, not here). Empty cfg.gmail.accounts
-  # (the public default) makes this an empty attrset, costing nothing.
+  # email (see mkGmailMcp above for why, and why the list itself lives in the
+  # private nix-personal flake, not here). Empty cfg.gmail.accounts (the
+  # public default) makes this an empty attrset, costing nothing. Server name
+  # uses the sanitized gmailAlias, not the raw email (gmailMcps' attr key) —
+  # named-server-config entries can't contain "@"/".".
   // lib.mapAttrs' (
-    alias: mcp:
-    lib.nameValuePair "gmail-${alias}" {
+    email: mcp:
+    lib.nameValuePair "gmail-${gmailAlias email}" {
       command = lib.getExe mcp;
       args = [ ];
     }
@@ -734,21 +748,25 @@ in
       type = lib.types.listOf lib.types.str;
       default = [ ];
       description = ''
-        Aliases of Google/Workspace accounts to run as separate ArtyMcLabin/
-        Gmail-MCP-Server processes (gmail-<alias>) — TRUE simultaneous
-        multi-account Gmail, unlike the single-account-per-connection built-in
-        connector (see mkGmailMcp's comment above). Empty by default and
-        deliberately NOT populated in this public repo: real email addresses
-        are personal data (some belonging to people other than the operator),
-        supplied instead by the PRIVATE nix-personal flake via
-        `extraHomeModules` — the same composition contract as nixpi's
-        `hostedSites` (docs/private-home-modules.md). All aliases share ONE
-        Google Cloud OAuth Desktop-app client
-        (GMAIL_OAUTH_CLIENT_ID/SECRET in the Keychain); each alias ALSO needs
-        its OWN completed one-time browser auth
-        (~/.gmail-mcp/credentials-<alias>.json) BEFORE being added here — an
-        account with no completed auth exits at startup, darkening that one
-        gateway entry (not the whole gateway, since each is its own process).
+        PLAIN EMAIL ADDRESSES of Google/Workspace accounts to run as separate
+        ArtyMcLabin/Gmail-MCP-Server processes (gmail-<sanitized-email>) —
+        TRUE simultaneous multi-account Gmail, unlike the
+        single-account-per-connection built-in connector (see mkGmailMcp's
+        comment above; gmailAlias sanitizes each email into a tool-prefix/
+        filename-safe token internally — this list itself stays plain
+        emails). Empty by default and deliberately NOT populated in this
+        public repo beyond the operator's own two already-public addresses
+        (hosts/macos.nix): other accounts here are personal data, some
+        belonging to people other than the operator, supplied instead by the
+        PRIVATE nix-personal flake via `extraHomeModules` — the same
+        composition contract as nixpi's `hostedSites`
+        (docs/private-home-modules.md). All accounts share ONE Google Cloud
+        OAuth Desktop-app client (GMAIL_OAUTH_CLIENT_ID/SECRET in the
+        Keychain); each account ALSO needs its OWN completed one-time browser
+        auth (~/.gmail-mcp/credentials-<sanitized-email>.json) BEFORE being
+        added here — an account with no completed auth exits at startup,
+        darkening that one gateway entry (not the whole gateway, since each
+        is its own process).
       '';
     };
 
