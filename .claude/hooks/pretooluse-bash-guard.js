@@ -106,11 +106,11 @@ const DESKTOP_COMMANDER_TOOLS = new Set(["ls", "find", "stat", "ps", "kill"]);
 
 // Rule 1: terranix apply/destroy apps that mutate Cloudflare infra via the API.
 const CF_TERRANIX_APP = /\bnix\s+run\s+\.#cf-(?:tunnel|mcp)-(?:apply|destroy)\b/;
-// Rule 1: wrangler CLI = always a Cloudflare API call (Workers/Pages/D1/KV/R2/Queues).
-const WRANGLER = /(^|[\s;&|])wrangler(\s|$)/;
 // Rule 1/2: an http(s) URL's host, extracted so "cloudflare" merely appearing in
-// a path/query on a local host is never mistaken for a real API call.
-const URL_HOST = /https?:\/\/([^/\s"'<>]+)/g;
+// a path/query on a local host is never mistaken for a real API call. `i` flag:
+// schemes are case-insensitive (`HTTP://...` is shell/curl-valid and was
+// previously missed — 2026-08-19 push-review finding).
+const URL_HOST = /https?:\/\/([^/\s"'<>]+)/gi;
 const isLocalHost = (h) => /^(127\.0\.0\.1|localhost|0\.0\.0\.0|\[::1\])(:\d+)?$/i.test(h);
 const isCloudflareApiHost = (h) => /^(api\.cloudflare\.com|[^.]+\.[^.]*\bapi\.cloudflare\.com)$/i.test(h) || h.toLowerCase() === "api.cloudflare.com";
 const isCloudflareDocsHost = (h) => /(^|\.)developers\.cloudflare\.com$/i.test(h);
@@ -161,6 +161,13 @@ function main() {
   const cmd = String((payload.tool_input && payload.tool_input.command) || "");
   if (!cmd.trim()) emit("approve");
 
+  // Computed once, reused by both the wrangler check (Rule 1) and the
+  // desktop-commander nudge (Rule 3) — argv0() strips path prefixes, so
+  // `/opt/homebrew/bin/wrangler` and `./wrangler` are caught the same as a
+  // bare `wrangler` (a raw-string regex previously missed both — 2026-08-19
+  // push-review finding).
+  const segs = segments(cmd).map(argv0);
+
   // ---- Rule 1: Cloudflare API calls (terranix apply/destroy, wrangler, api.cloudflare.com) ----
   if (CF_TERRANIX_APP.test(cmd)) {
     emit(
@@ -169,7 +176,7 @@ function main() {
       "This applies/destroys Cloudflare infra. Use mcp__cloudflare__execute (or __search) instead, or confirm this is intentional and re-run manually.",
     );
   }
-  if (WRANGLER.test(cmd)) {
+  if (segs.includes("wrangler")) {
     emit(
       "block",
       "Direct `wrangler` invocation — a Cloudflare API call (Workers/Pages/D1/KV/R2/Queues).",
@@ -201,7 +208,6 @@ function main() {
   }
 
   // ---- Rule 3: desktop-commander tool-preference nudge ----
-  const segs = segments(cmd).map(argv0);
   const hasRawTool = segs.some((a) => DESKTOP_COMMANDER_TOOLS.has(a));
   const hasApprovedCli = segs.some((a) => APPROVED_CLIS.has(a));
   if (hasRawTool && !hasApprovedCli) {
