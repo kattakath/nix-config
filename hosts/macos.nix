@@ -42,7 +42,9 @@
   home-manager.users.${loginName} = {
     services.mcpGateway.gmail.accounts = [
       "kattakath" # ismail@kattakath.com
-      "gmail" # REDACTED
+      "ismailgmail" # REDACTED — not just "gmail": several OTHER
+      # accounts (private nix-personal flake) are also @gmail.com addresses,
+      # so a bare "gmail" alias would be ambiguous between them.
     ];
   };
 
