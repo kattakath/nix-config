@@ -181,6 +181,27 @@ let
     allowHttp = true;
   };
 
+  # Apify's Actors MCP server (apify/actors-mcp-server), run LOCALLY via
+  # APIFY_TOKEN — NOT the hosted mcp.apify.com OAuth bridge the `apify` entry
+  # below used until 2026-08-19. That OAuth flow needs an interactive browser
+  # redirect on first use, which a headless launchd agent can never complete;
+  # confirmed stuck in mcp-gateway.log re-issuing a fresh PKCE challenge on
+  # every connection attempt with no way to finish it. The token authenticates
+  # at LAUNCH via `security` (never in argv / never in the store), matching the
+  # wpMcp/telegramMcp Keychain-wrapper shape above. Resilient like wpMcp: warns
+  # but still execs on a missing token, so an absent secret can't dark the
+  # shared gateway. Basename nix-* for the BTM origin rule. Store it once:
+  #     secret set APIFY_TOKEN <token>   # Apify Console → Settings → Integrations
+  apifyMcp = pkgs.writeShellScriptBin "nix-mcp-apify" ''
+    set -u
+    token="$(/usr/bin/security find-generic-password -a "$(id -un)" -s APIFY_TOKEN -w 2>/dev/null || true)"
+    if [ -z "$token" ]; then
+      echo "mcp-apify: missing APIFY_TOKEN in the login Keychain — tools will fail until set (secret set APIFY_TOKEN <token>)." >&2
+    fi
+    export APIFY_TOKEN="$token"
+    exec ${npx} -y @apify/actors-mcp-server
+  '';
+
   # The servers with no mcp-servers-nix module, as raw stdio commands. Merged into
   # the gateway config via mkConfig's `settings.servers` (telegram appended below,
   # opt-in). The 11 base ones fall back to pinned npx/uvx launchers; postgres and
@@ -240,25 +261,15 @@ let
         "https://connector.mcp.opera.com/mcp"
       ];
     };
-    # Apify's OFFICIAL hosted MCP server (mcp.apify.com) — exposes the Apify Store's
-    # thousands of ready-made Actors (scrapers/crawlers/automation for social media,
-    # search engines, maps, e-commerce, any website) as tools, plus Actor
-    # search/run/dataset access. Same remote-OAuth `mcp-remote` bridge shape as
-    # `cloudflare`/`opera` above: Streamable HTTP (Apify retired SSE on 2026-04-01),
-    # OAuth on first use (browser popup → Apify sign-in; token cached in ~/.mcp-auth),
-    # so NO APIFY_TOKEN is baked into Nix/argv/the store. Reuse over rebuild — the
-    # local `npx @apify/actors-mcp-server` route would instead need an APIFY_TOKEN env
-    # var (a Keychain-wrapper like telegram), which the hosted OAuth path avoids. Like
-    # the other OAuth bridges it degrades gracefully headless (mcp-remote starts fine
-    # unauthenticated → its tools just fail until the one-time browser login), so it
-    # can't dark the gateway at startup.
+    # Apify Store's thousands of ready-made Actors (scrapers/crawlers/automation
+    # for social media, search engines, maps, e-commerce, any website) as tools,
+    # plus Actor search/run/dataset access. Command is the Keychain-injecting
+    # apifyMcp wrapper above — see it for why this is the LOCAL token-based
+    # server rather than the hosted mcp.apify.com OAuth bridge (used until
+    # 2026-08-19, permanently stuck under headless launchd).
     apify = {
-      command = npx;
-      args = [
-        "-y"
-        "mcp-remote"
-        "https://mcp.apify.com"
-      ];
+      command = lib.getExe apifyMcp;
+      args = [ ];
     };
     # Browser automation via Kapture's Chrome DevTools extension. `bridge` is the
     # stdio<->WebSocket MCP server command — NOT `setup` (that auto-edits each
