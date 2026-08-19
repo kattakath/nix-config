@@ -32,7 +32,7 @@
 
   # ---- Gmail multi-account MCP (modules/shared/mcp.nix, a home-manager option
   # — set via home-manager.users, same as macvm.nix's services.mcpGateway.enable)
-  # These two aliases are safe to name in the PUBLIC repo — both are the
+  # These two emails are safe to name in the PUBLIC repo — both are the
   # operator's own accounts under identities already public elsewhere in this
   # very tree (userEmail = ismail@kattakath.com in flake.nix's identityArgs;
   # kattakath.com is this repo's own namesake domain). Any OTHER account
@@ -41,10 +41,8 @@
   # see the option's description in modules/shared/mcp.nix for the contract.
   home-manager.users.${loginName} = {
     services.mcpGateway.gmail.accounts = [
-      "kattakath" # ismail@kattakath.com
-      "ismailgmail" # ismailkattakath@gmail.com — not just "gmail": several OTHER
-      # accounts (private nix-personal flake) are also @gmail.com addresses,
-      # so a bare "gmail" alias would be ambiguous between them.
+      "ismail@kattakath.com"
+      "ismailkattakath@gmail.com"
     ];
   };
 
