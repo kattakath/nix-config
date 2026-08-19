@@ -30,6 +30,22 @@
     home = "/Users/${loginName}";
   };
 
+  # ---- Gmail multi-account MCP (modules/shared/mcp.nix, a home-manager option
+  # — set via home-manager.users, same as macvm.nix's services.mcpGateway.enable)
+  # These two aliases are safe to name in the PUBLIC repo — both are the
+  # operator's own accounts under identities already public elsewhere in this
+  # very tree (userEmail = ismail@kattakath.com in flake.nix's identityArgs;
+  # kattakath.com is this repo's own namesake domain). Any OTHER account
+  # (family/associates, or accounts the operator would rather not name here)
+  # is added by the PRIVATE nix-personal flake instead, via extraHomeModules —
+  # see the option's description in modules/shared/mcp.nix for the contract.
+  home-manager.users.${loginName} = {
+    services.mcpGateway.gmail.accounts = [
+      "kattakath" # ismail@kattakath.com
+      "gmail" # ismailkattakath@gmail.com
+    ];
+  };
+
   # ---- Homebrew apps for THIS host --------------------------------------------
   # The framework (enable/onActivation/taps) lives in modules/darwin/homebrew.nix;
   # this is macos's app set. onActivation.cleanup = "uninstall" removes anything

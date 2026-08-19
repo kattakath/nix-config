@@ -17,19 +17,20 @@
 # account owns the GUI session, `darwin-rebuild switch` cannot load the agent.
 #
 # SERVER SIDE (this box, 127.0.0.1:8096)
-#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 21 servers (up to
-#   25 with every opt-in: `telegram`, the local WordPress adapter, and the TWO
-#   `gmail-personal`/`gmail-work` multi-account instances), each reachable
-#   at /servers/<name>/sse.
+#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 21 servers (23
+#   with telegram + the local WordPress adapter, +1 per configured
+#   `services.mcpGateway.gmail.accounts` alias — `gmail-<alias>`, one process
+#   per Google/Workspace account, 0 in this public repo — see mkGmailMcp's
+#   comment), each reachable at /servers/<name>/sse.
 #   `gatewayConfig` is rendered by mcp-servers-nix's `lib.mkConfig`, so the 7 packaged
 #   servers (context7/fetch/memory/sequential-thinking/nixos/terraform/github) are
 #   PINNED store-path commands; the 14 without a module (+ telegram / the local
-#   WordPress adapter / gmail-personal / gmail-work when enabled) fall
+#   WordPress adapter / gmail-<alias> when configured) fall
 #   back to pinned npx/uvx launchers (still a runtime fetch, but acceptable on the Mac
 #   where Node/uv already live).
 #
 # CLIENT SIDE (programs.claude-code.mcpServers)
-#   The 21 hosted servers (up to 25 with every opt-in) are wired as `type = "http"` (Streamable HTTP — the
+#   The 21 hosted servers (23+ with every opt-in) are wired as `type = "http"` (Streamable HTTP — the
 #   current MCP standard; the legacy HTTP+SSE transport was deprecated in the
 #   2025-03-26 spec) pointing at /servers/<name>/mcp; desktop-commander stays
 #   `type = "stdio"`. The claude-code module writes these into a managed
@@ -114,11 +115,11 @@ let
   # GongRzhe/Gmail-MCP-Server, verified 2026-08-19: 226 stars, pushed a week
   # prior, MIT). TRUE simultaneous multi-account access — the built-in Gmail
   # connector is single-account-per-connection by design; this instead runs ONE
-  # server process PER Google account, each with its own `--tool-prefix` (the
-  # project's own documented fix for "MCP clients dedupe tool entries by base
-  # name across servers", which otherwise makes two side-by-side instances
-  # impossible) so `gmail-personal`/`gmail-work` below expose
-  # `personal_search_emails`/`work_search_emails` etc. without colliding.
+  # server process PER Google/Workspace account, each with its own
+  # `--tool-prefix` (the project's own documented fix for "MCP clients dedupe
+  # tool entries by base name across servers", which otherwise makes two
+  # side-by-side instances impossible) so `gmail-<alias>` exposes
+  # `<alias>_search_emails` etc. without colliding with any other account.
   #
   # ONE shared Google Cloud OAuth "Desktop app" client (client_id/client_secret
   # — Google allows the same Desktop client to authenticate multiple accounts)
@@ -128,17 +129,26 @@ let
   # telegramMcp/wpMcp above). Each account gets its OWN GMAIL_CREDENTIALS_PATH —
   # populated by a SEPARATE one-time interactive `auth` run per account (opens a
   # browser; the tool itself writes that file, this wrapper never touches it).
-  # Opt-in (services.mcpGateway.gmail.enable): like telegram, an account with no
-  # completed auth would exit at startup, so it stays off until BOTH accounts'
-  # one-time steps are done. Basename nix-* for the BTM origin rule. Setup once:
+  #
+  # WHICH accounts run is a LIST (services.mcpGateway.gmail.accounts), empty by
+  # default and deliberately NOT populated here — real email addresses are
+  # personal data that doesn't belong in a public repo, and several of the
+  # accounts this was built for aren't even the operator's own (family/
+  # associates whose inboxes he manages). The real list is supplied by the
+  # PRIVATE nix-personal composition flake via `extraHomeModules`, same
+  # contract as nixpi's `hostedSites` (docs/private-home-modules.md) — public
+  # `hosts/macos.nix` passes none. An account with no completed auth exits at
+  # startup, so only add an alias here AFTER its one-time browser login is
+  # done. Basename nix-* for the BTM origin rule. Setup once (shared client),
+  # then once per account:
   #     secret set GMAIL_OAUTH_CLIENT_ID <client_id>
   #     secret set GMAIL_OAUTH_CLIENT_SECRET <client_secret>
   #     # Google Cloud Console -> APIs & Services -> Credentials -> Create
   #     # Credentials -> OAuth client ID -> Desktop app -> enable the Gmail API.
-  #     npx -y @artymclabin/gmail-mcp auth   # once per account, each with its
-  #       # OWN GMAIL_OAUTH_PATH=~/.gmail-mcp/gcp-oauth.keys.json (write it first
-  #       # by launching the wrapper once, e.g. `nix-mcp-gmail-personal --help`)
-  #       # and GMAIL_CREDENTIALS_PATH=~/.gmail-mcp/credentials-<alias>.json
+  #     nix-mcp-gmail-<alias>   # once, to materialize gcp-oauth.keys.json, then Ctrl-C
+  #     GMAIL_OAUTH_PATH=~/.gmail-mcp/gcp-oauth.keys.json \
+  #       GMAIL_CREDENTIALS_PATH=~/.gmail-mcp/credentials-<alias>.json \
+  #       npx -y @artymclabin/gmail-mcp auth
   mkGmailMcp =
     {
       arg0,
@@ -165,17 +175,16 @@ let
             exec ${npx} -y @artymclabin/gmail-mcp --tool-prefix=${prefix}_
     '';
 
-  gmailMcpPersonal = mkGmailMcp {
-    arg0 = "nix-mcp-gmail-personal";
-    prefix = "personal";
-    credentialsFile = "credentials-personal.json";
-  };
-
-  gmailMcpWork = mkGmailMcp {
-    arg0 = "nix-mcp-gmail-work";
-    prefix = "work";
-    credentialsFile = "credentials-work.json";
-  };
+  # One wrapper per configured alias (cfg.gmail.accounts — see mkGmailMcp's
+  # comment for why the list itself lives in the private nix-personal flake).
+  gmailMcps = lib.genAttrs cfg.gmail.accounts (
+    alias:
+    mkGmailMcp {
+      arg0 = "nix-mcp-gmail-${alias}";
+      prefix = alias;
+      credentialsFile = "credentials-${alias}.json";
+    }
+  );
 
   # WordPress site administration over the REST API (docdyhr/mcp-wordpress, ~59
   # tools, PINNED). CLIENT-SIDE: it talks to the LIVE site's /wp-json with an
@@ -487,20 +496,17 @@ let
       args = [ ];
     };
   }
-  # Opt-in (default off): TRUE simultaneous multi-account Gmail — one server
-  # process per account (see mkGmailMcp above for why). Excluded from
-  # `hostedServerNames` entirely when disabled, so its absence costs nothing
-  # and an incomplete OAuth setup can't dark the gateway.
-  // lib.optionalAttrs cfg.gmail.enable {
-    gmail-personal = {
-      command = lib.getExe gmailMcpPersonal;
+  # TRUE simultaneous multi-account Gmail — one server process PER configured
+  # alias (see mkGmailMcp above for why, and why the alias list itself lives
+  # in the private nix-personal flake, not here). Empty cfg.gmail.accounts
+  # (the public default) makes this an empty attrset, costing nothing.
+  // lib.mapAttrs' (
+    alias: mcp:
+    lib.nameValuePair "gmail-${alias}" {
+      command = lib.getExe mcp;
       args = [ ];
-    };
-    gmail-work = {
-      command = lib.getExe gmailMcpWork;
-      args = [ ];
-    };
-  }
+    }
+  ) gmailMcps
   // lib.optionalAttrs cfg.localAdapter.enable {
     # Opt-in (default off): the SAME adapter against the LOCAL wp-env clone
     # (http://localhost:8888). Gated because that endpoint only exists while the clone
@@ -724,15 +730,27 @@ in
       Reads your personal account — keep the agent to read-and-draft (ToS: spam-shaped
       automation risks the account)'';
 
-    gmail.enable = lib.mkEnableOption ''
-      TWO ArtyMcLabin/Gmail-MCP-Server instances (gmail-personal, gmail-work) in
-      the gateway — TRUE simultaneous multi-account Gmail, unlike the single-
-      account-per-connection built-in connector. OFF by default because it needs
-      the GMAIL_OAUTH_CLIENT_ID/GMAIL_OAUTH_CLIENT_SECRET pair in the login
-      Keychain AND a SEPARATE one-time browser-auth run per account (see
-      mkGmailMcp's setup comment); either server exits at startup without its
-      credentials file, so enabling before both accounts are authenticated would
-      add servers that fail to launch. Turn ON only after completing both'';
+    gmail.accounts = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      description = ''
+        Aliases of Google/Workspace accounts to run as separate ArtyMcLabin/
+        Gmail-MCP-Server processes (gmail-<alias>) — TRUE simultaneous
+        multi-account Gmail, unlike the single-account-per-connection built-in
+        connector (see mkGmailMcp's comment above). Empty by default and
+        deliberately NOT populated in this public repo: real email addresses
+        are personal data (some belonging to people other than the operator),
+        supplied instead by the PRIVATE nix-personal flake via
+        `extraHomeModules` — the same composition contract as nixpi's
+        `hostedSites` (docs/private-home-modules.md). All aliases share ONE
+        Google Cloud OAuth Desktop-app client
+        (GMAIL_OAUTH_CLIENT_ID/SECRET in the Keychain); each alias ALSO needs
+        its OWN completed one-time browser auth
+        (~/.gmail-mcp/credentials-<alias>.json) BEFORE being added here — an
+        account with no completed auth exits at startup, darkening that one
+        gateway entry (not the whole gateway, since each is its own process).
+      '';
+    };
 
     localAdapter.enable = lib.mkEnableOption ''
       the LOCAL WordPress MCP Adapter server (the wp-env clone at http://localhost:8888)
