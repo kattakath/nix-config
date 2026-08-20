@@ -42,6 +42,12 @@ in
 
   config = lib.mkIf cfg.enable (
     let
+      # cfg.otlpEndpoint is a full URL ("http://host:port") since that's what
+      # OTEL_EXPORTER_OTLP_ENDPOINT (the Claude Code side, in home.nix) needs;
+      # the collector's own YAML wants bare "host:port" — derive it here so
+      # there's exactly one source of truth for the port, not two hardcoded
+      # copies that could silently drift apart if this option is ever changed.
+      grpcHostPort = lib.removePrefix "http://" cfg.otlpEndpoint;
       otelConfig = pkgs.writeTextFile {
         name = "claude-otel-config.yaml";
         text = ''
@@ -49,7 +55,10 @@ in
             otlp:
               protocols:
                 grpc:
-                  endpoint: 127.0.0.1:4317
+                  endpoint: ${grpcHostPort}
+                # Not surfaced as an option — Claude Code only ever speaks
+                # grpc (OTEL_EXPORTER_OTLP_PROTOCOL in home.nix); this is
+                # purely a manual-probe convenience (curl http://.../v1/logs).
                 http:
                   endpoint: 127.0.0.1:4318
           processors:
