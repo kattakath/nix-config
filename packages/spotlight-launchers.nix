@@ -117,7 +117,7 @@ let
           # permission makes osascript exit non-zero, and `set -e` (from
           # writeShellApplication) would otherwise abort here — before ever
           # launching anything on a first run, exactly when it's needed most.
-          result=$(/usr/bin/osascript <<APPLESCRIPT || true
+          result=$(/usr/bin/osascript <<'APPLESCRIPT' || true
           tell application "System Events"
             set matches to every application process whose name contains "${processMatch}"
             if (count of matches) > 0 then
