@@ -39,7 +39,17 @@ nix run .#browservm-vfkit-status    # running state + current IP + CDP tunnel st
 nix run .#browservm-vfkit-ip        # just the IP (waits up to 30s by default)
 nix run .#browservm-vfkit-ssh       # SSH in (operator key, same login as nixpi/nixvm)
 nix run .#browservm-vfkit-stop      # tear down (VM + tunnel) — nothing persists outside the Keychain
+nix run .#browservm-vfkit-doctor    # report (or --fix) untracked/orphaned vfkit processes + stale locks
+nix run .#browservm-vfkit-selftest  # re-runnable lifecycle regression test (parallel start/stop, etc.)
 ```
+
+`start`/`stop`, and `up`'s CDP-tunnel-open decision, are lock-protected
+(`packages/browservm-vfkit.nix`'s `acquire_lock`/`release_lock`) — two
+concurrent callers converge to exactly one spawn/one teardown instead of
+racing into an orphaned second `vfkit` process. `doctor` is the escape hatch
+for anything that gets past the lock anyway (a stale build, a manually
+invoked runner); `selftest` proves the whole lifecycle — including 5-way
+parallel `up`/`stop` and a stale-lock self-heal — end to end.
 
 ## Networking — verified, not assumed
 
@@ -121,6 +131,8 @@ nix run .#browservm-vfkit-ssh -- sudo systemctl start browser-cdp
 | `browservm-vfkit-ip` | Print the guest's current IP (from `dhcpd_leases`) |
 | `browservm-vfkit-ssh` | SSH in; pass `-X` yourself for X11 forwarding |
 | `browservm-vfkit-status` | Running state + IP + CDP tunnel state + backend info |
+| `browservm-vfkit-doctor` | Report (or `--fix`) untracked/orphaned vfkit processes + a stale lock |
+| `browservm-vfkit-selftest` | Re-runnable lifecycle regression test — parallel start/stop convergence, stale-lock self-heal, clean teardown |
 
 ## What not to do
 
