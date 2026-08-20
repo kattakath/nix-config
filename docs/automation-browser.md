@@ -3,8 +3,12 @@
 The fleet's browser-automation session model: the agent drives a disposable browser over CDP
 via the `playwright` MCP, with its session kept **encrypted in the macOS Keychain** (a Playwright
 `storageState`) rather than in a persistent on-disk profile. The browser itself is
-[`browservm`](browservm-runbook.md) — an ephemeral NixOS/Chromium microVM (see that runbook for
-the VM lifecycle); this doc covers the session/Keychain half, which is browser-agnostic.
+[`browservm`](browservm-runbook.md) — an ephemeral NixOS/Chromium microVM whose Chromium
+auto-starts headless on boot (see that runbook for the VM lifecycle and the one-shot
+`browservm-vfkit-up` bootstrap); this doc covers the session/Keychain half, which is
+browser-agnostic. For which browser-automation tool to use in the first place (this one vs.
+`claude-in-chrome`/`opera-browser-connector`/`kapture`), see
+[`.claude/rules/browser-automation-tool-choice.md`](../.claude/rules/browser-automation-tool-choice.md).
 
 ## Why this shape (the two axes we separated)
 
@@ -36,12 +40,8 @@ non-indexed** Keychain service (`automation-storage-state[-<site>]`), read on de
 ## Workflow
 
 ```bash
-# boot the guest + tunnel CDP to the host
-nix run .#browservm-vfkit-start
-nix run .#browservm-vfkit-ssh -- \
-  'nohup chromium --headless=new --no-sandbox --remote-debugging-port=9222 \
-     >/tmp/chromium.log 2>&1 & disown'
-nix run .#browservm-vfkit-ssh -- -L 9222:127.0.0.1:9222 -N &
+# one shot: boot the guest (if needed), wait for CDP to actually answer
+nix run .#browservm-vfkit-up
 
 # first time (per site): capture the session into the Keychain
 automation-session login sci      # save its storageState → Keychain 'automation-storage-state-sci'

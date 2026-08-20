@@ -30,11 +30,15 @@ none of those** — it's the disposable browser-automation guest.
 ## Day-to-day
 
 ```bash
-nix run .#browservm-vfkit-start     # boot fresh, prints the guest's IP once DHCP lands
-nix run .#browservm-vfkit-status    # running state + current IP
+nix run .#browservm-vfkit-up        # ONE SHOT: boot (if needed) + wait for IP +
+                                     # open the CDP tunnel + wait for Chromium to
+                                     # answer. This is the primary entrypoint —
+                                     # use this before automation-session/playwright.
+nix run .#browservm-vfkit-start     # boot fresh only, prints the guest's IP once DHCP lands
+nix run .#browservm-vfkit-status    # running state + current IP + CDP tunnel state
 nix run .#browservm-vfkit-ip        # just the IP (waits up to 30s by default)
 nix run .#browservm-vfkit-ssh       # SSH in (operator key, same login as nixpi/nixvm)
-nix run .#browservm-vfkit-stop      # tear down — nothing persists outside the Keychain
+nix run .#browservm-vfkit-stop      # tear down (VM + tunnel) — nothing persists outside the Keychain
 ```
 
 ## Networking — verified, not assumed
@@ -54,22 +58,18 @@ Tart's leases too — look for a `{ name=browservm ... }` block).
 
 ## Driving Chromium
 
-The guest config installs `ungoogled-chromium` but does **not** auto-start it —
-that keeps this control-plane scoped to VM lifecycle only (matching
-`macvm-tart.nix`'s scope: it doesn't manage what runs *inside* the guest either).
-Launch it yourself over SSH once the guest is up:
-
-```bash
-nix run .#browservm-vfkit-ssh -- \
-  'nohup chromium --headless=new --no-sandbox --remote-debugging-port=9222 \
-     >/tmp/chromium.log 2>&1 & disown'
-```
+The guest runs a `browser-cdp.service` systemd unit (`hosts/browservm.nix`) that
+auto-starts headless `ungoogled-chromium` with CDP on boot — no manual launch
+step. `browservm-vfkit-up` boots the VM, waits for the unit to actually answer,
+and opens the CDP tunnel in one call; you should not need anything below this
+line for the normal flow.
 
 **CDP access needs an SSH tunnel, not a direct `guest-ip:9222` dial** — verified
 live: modern Chromium ignores `--remote-debugging-address=0.0.0.0` and binds
 DevTools to `127.0.0.1` only, regardless of that flag (deliberate hardening —
-an exposed debug port is a known RCE vector, not a config bug on our end). Reach
-it with a local port-forward:
+an exposed debug port is a known RCE vector, not a config bug on our end).
+`browservm-vfkit-up` opens this tunnel for you; the manual form (for
+debugging, or the `-X` login flow below) is:
 
 ```bash
 nix run .#browservm-vfkit-ssh -- -L 9222:127.0.0.1:9222 -N &
@@ -82,12 +82,20 @@ Point `automation-session`'s `connectOverCDP` at that forwarded
 
 ### Fresh login (no valid storageState yet, or a captured session expired)
 
+The always-on `browser-cdp.service` is headless and already holds port 9222,
+so a *headed* login session needs it stopped first (it restarts on its own —
+`Restart = "on-failure"` — but not while you're mid-login, so stop it
+explicitly rather than racing it):
+
+```bash
+nix run .#browservm-vfkit-ssh -- sudo systemctl stop browser-cdp
+```
+
 X11 forwarding does **not** need an X server running in the guest — `ssh -X`
 tunnels the X11 protocol back to XQuartz on the host, so Chromium just needs
-`$DISPLAY` set to whatever ssh provides:
-
-Combine `-X` (display forwarding) with `-L` (CDP forwarding) in the same SSH
-session, since `automation-session capture`/`login` needs CDP either way:
+`$DISPLAY` set to whatever ssh provides. Combine `-X` (display forwarding)
+with `-L` (CDP forwarding) in the same SSH session, since `automation-session
+capture`/`login` needs CDP either way:
 
 ```bash
 nix run .#browservm-vfkit-ssh -- -X -L 9222:127.0.0.1:9222 -- \
@@ -96,18 +104,23 @@ nix run .#browservm-vfkit-ssh -- -X -L 9222:127.0.0.1:9222 -- \
 
 Log in visually in the forwarded window, then run `automation-session login
 <site>` from the host (pointed at `http://127.0.0.1:9222`, the forwarded port)
-to capture the session into
-the Keychain — future runs go through the headless flow above instead.
+to capture the session into the Keychain. Afterwards, restart the headless
+service for future headless runs:
+
+```bash
+nix run .#browservm-vfkit-ssh -- sudo systemctl start browser-cdp
+```
 
 ## Commands
 
 | App | Role |
 |---|---|
-| `browservm-vfkit-start` | Boot fresh from the Nix store (no create step — this IS create-and-run) |
-| `browservm-vfkit-stop` | Kill the tracked runner process |
+| `browservm-vfkit-up` | **Primary entrypoint.** Boot (if needed) + wait for IP + open/reuse the CDP tunnel + block until Chromium answers |
+| `browservm-vfkit-start` | Boot fresh from the Nix store only (no create step — this IS create-and-run) |
+| `browservm-vfkit-stop` | Kill the tracked runner process + CDP tunnel |
 | `browservm-vfkit-ip` | Print the guest's current IP (from `dhcpd_leases`) |
 | `browservm-vfkit-ssh` | SSH in; pass `-X` yourself for X11 forwarding |
-| `browservm-vfkit-status` | Running state + IP + backend info |
+| `browservm-vfkit-status` | Running state + IP + CDP tunnel state + backend info |
 
 ## What not to do
 
@@ -116,9 +129,13 @@ the Keychain — future runs go through the headless flow above instead.
 - Don't confuse with `nix run .#nixvm` (throwaway XFCE desktop) or `macvm`
   (persistent macOS guest via Tart) — three different products, three different
   purposes.
-- Don't assume the guest's Chromium is already running after `start` — launch it
-  yourself (see "Driving Chromium" above); the control-plane only owns the VM,
-  not what runs inside it.
+- Don't reach for `browservm-vfkit-start` + a manual SSH tunnel for a normal
+  automation job — use `browservm-vfkit-up`, which does both and waits for
+  Chromium to actually answer before returning. The manual sequence is now
+  only for debugging or the headed "Fresh login" flow above.
+- For which browser-automation tool to reach for in the first place (this one
+  vs. `claude-in-chrome` vs. `opera-browser-connector` vs. `kapture`), see
+  [`.claude/rules/browser-automation-tool-choice.md`](../.claude/rules/browser-automation-tool-choice.md).
 
 ## Source map
 
