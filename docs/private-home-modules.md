@@ -109,7 +109,25 @@ Reaching `nixpi.kattakath.com` needs a Cloudflare Access SSH proxy (it's a
 tunnelled hostname, not directly reachable) — either a permanent
 `~/.ssh/config` `Host nixpi.kattakath.com` block with `ProxyCommand cloudflared
 access ssh --hostname %h` (see `docs/nixpi-sd-flashing-runbook.md`), or a
-scoped `NIX_SSHOPTS="-F <config>"` for one-off use. **Do not** pass
+scoped `NIX_SSHOPTS="-F <config>"` for one-off use.
+
+**This depends on a Cloudflare Zero Trust *Access Application* existing for
+`nixpi.kattakath.com`** (Zero Trust → Access → Applications) — a real Cloudflare
+resource, separate from the tunnel's ingress rule that routes the hostname to
+`ssh://localhost:22`. `infra/cloudflare/nixpi-tunnel.nix` (terranix) manages the
+tunnel/ingress/DNS declaratively but does **not** manage this Access
+Application — it was created by hand, once, outside Nix, and on 2026-08-20 it
+was found **missing entirely** (`cloudflared access ssh` failed with `failed to
+find Access application`, while the public sites on the same tunnel kept
+serving fine — DNS/tunnel/Caddy health doesn't imply this exists). Likely lost
+during an earlier tunnel/ingress change. If this happens again: Zero Trust →
+Access → Applications → Create → type `Self-hosted`, domain
+`nixpi.kattakath.com`, reuse the existing `mcp-allow-operator` policy (`email
+== ismail@kattakath.com`) rather than creating a new one. Worth eventually
+modeling as a real `cloudflare_zero_trust_access_application` resource in the
+terranix module so this can't silently disappear again — not done yet.
+
+**Do not** pass
 `--build-host localhost` — nixos-rebuild treats `--build-host` as a host to
 `ssh` into unconditionally, even the literal string `localhost`, and macos runs
 no local sshd by design. Per `nixos-rebuild --help`: *"If --build-host is not

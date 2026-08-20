@@ -217,6 +217,13 @@ SSH is the operator's static key (keys-only). On the LAN once mDNS is up:
 --hostname %h` in `~/.ssh/config`. The physical serial/HDMI console is the break-glass
 path.
 
+**If the tunnel/SSH proxy fails with `cloudflared access ssh: failed to find
+Access application`** while the public sites on the same tunnel are still
+serving fine — that's not a tunnel/DNS/Pi problem, it's a missing Cloudflare
+Zero Trust Access Application for `nixpi.kattakath.com` (a separate resource
+from the tunnel ingress rule, not currently modeled in terranix). See
+`docs/private-home-modules.md`'s "Deploy nixpi" section for the fix.
+
 (Same stale-host-key gotcha every reprovision hits — the name is stable, the key
 is not.)
 
