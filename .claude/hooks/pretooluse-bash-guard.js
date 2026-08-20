@@ -38,6 +38,22 @@
  * keep their hard block: those genuinely warrant stopping. Flip RULE3_BLOCKING
  * to `true` to restore the old hard-block behavior for Rule 3 if preferred.
  *
+ * POLICY CHANGE (2026-08-19, izzykatt.ca redirect-rule task): the plain "raw
+ * request to api.cloudflare.com" sub-check of Rule 1 downgrades to a
+ * non-blocking nudge (RULE1_API_HOST_BLOCKING = false below), same shape as
+ * Rule 3. Reason: mcp__cloudflare__execute's OAuth grant was confirmed (live
+ * 9109 Unauthorized on both Rulesets and Page Rules writes, even after a full
+ * reconnect) to NOT include WAF/Rulesets/Page-Rules write access — a limit of
+ * Cloudflare's own official MCP app, not a fixable per-session scope — so the
+ * MCP path is a genuine dead end for anything beyond DNS record CRUD. The
+ * user holds a correctly-scoped personal CLOUDFLARE_API_TOKEN (Keychain) for
+ * exactly these operations and explicitly asked to unblock raw calls after
+ * being shown this tradeoff. The terranix apply/destroy check
+ * (CF_TERRANIX_APP) and the bare `wrangler` check stay hard-blocked — those
+ * mutate broader fleet infra (the nixpi tunnel) sight-unseen, a materially
+ * bigger blast radius than one ad-hoc scoped API call. Flip
+ * RULE1_API_HOST_BLOCKING to `true` to restore the hard block.
+ *
  * Contract (superhook.js, NOT the raw Claude Code hook protocol, since this
  * always runs wrapped): always exit 0; stdout is
  * `{"decision":"approve"}` or `{"decision":"block","reason":"...","systemMessage":"..."}`.
@@ -50,6 +66,7 @@
 const fs = require("node:fs");
 
 const RULE3_BLOCKING = false; // see POLICY CHANGE above; true = restore old hard block
+const RULE1_API_HOST_BLOCKING = false; // see 2026-08-19 POLICY CHANGE above; true = restore hard block
 
 // Rule 4's allowlist — also the Rule 3 exemption set (a raw ls/find/stat/ps/kill
 // riding alongside one of these in a compound command is "part of a larger
@@ -167,6 +184,7 @@ function main() {
   // bare `wrangler` (a raw-string regex previously missed both — 2026-08-19
   // push-review finding).
   const segs = segments(cmd).map(argv0);
+  const nudges = [];
 
   // ---- Rule 1: Cloudflare API calls (terranix apply/destroy, wrangler, api.cloudflare.com) ----
   if (CF_TERRANIX_APP.test(cmd)) {
@@ -190,11 +208,12 @@ function main() {
       const host = m[1].split(/[/:]/)[0];
       if (isLocalHost(m[1])) continue; // local gateway (127.0.0.1:8096/servers/cloudflare/...) is never an API call
       if (host.toLowerCase() === "api.cloudflare.com") {
-        emit(
-          "block",
-          `Direct HTTP request to ${host} — a Cloudflare API endpoint.`,
-          "Use mcp__cloudflare__execute (or __search) instead of a raw request to api.cloudflare.com.",
-        );
+        const reason = `Direct HTTP request to ${host} — a Cloudflare API endpoint.`;
+        if (RULE1_API_HOST_BLOCKING) {
+          emit("block", reason, "Use mcp__cloudflare__execute (or __search) instead of a raw request to api.cloudflare.com.");
+        }
+        // Non-blocking by default (see 2026-08-19 POLICY CHANGE in file header).
+        nudges.push(`${reason} (mcp__cloudflare__execute lacks Rulesets/Page-Rules write scope — raw call allowed.)`);
       }
       // ---- Rule 2: Cloudflare docs lookups ----
       if (isCloudflareDocsHost(host)) {
@@ -216,13 +235,14 @@ function main() {
     if (RULE3_BLOCKING) {
       emit("block", nudge, nudge);
     }
-    // Non-blocking by default (see POLICY CHANGE in file header): approve, but
-    // still surface the nudge to Claude via systemMessage.
-    process.stdout.write(JSON.stringify({ decision: "approve", systemMessage: nudge }));
-    process.exit(0);
+    nudges.push(nudge);
   }
 
-  // ---- Rule 4: default approve ----
+  // ---- Rule 4: default approve (with any accumulated non-blocking nudges) ----
+  if (nudges.length) {
+    process.stdout.write(JSON.stringify({ decision: "approve", systemMessage: nudges.join(" | ") }));
+    process.exit(0);
+  }
   emit("approve");
 }
 
