@@ -201,11 +201,6 @@ let
   # FB_PERSISTENT_STREAM_KEY from the login Keychain at run time. See packages/obs-fb-setup.nix.
   obs-fb-setup = pkgs.callPackage ../../packages/obs-fb-setup.nix { };
 
-  # `automation-session` — Keychain-backed Playwright storageState seed/capture over CDP for
-  # the disposable automation browser (browservm — see docs/browservm-runbook.md). Browser-
-  # agnostic: talks to whatever answers on 127.0.0.1:9222. See packages/automation-session.nix.
-  automation-session = pkgs.callPackage ../../packages/automation-session.nix { };
-
   # `fix-google-video <file>...` — re-encode VP9-in-MP4 (and other editor-incompatible
   # codecs) into H.264+AAC so Google Photos downloads import into CapCut/Premiere/etc.
   # Idempotent, VideoToolbox-accelerated when available. See packages/fix-google-video.nix.
@@ -418,7 +413,6 @@ in
       design-tokens # `design-tokens [--tokens-url URL] [--out DIR]` — transform the gist DTCG tokens.json into SCSS/CSS/JS via Style Dictionary, to ~/.local/share/design-tokens/ (packages/design-tokens/)
       jobspy # `jobspy --search … --location …` — scrape jobs (LinkedIn/Indeed/…) into CSV/JSON via python-jobspy in an ephemeral uv env (packages/jobspy.nix)
       obs-fb-setup # `obs-fb-setup` — write an OBS "Facebook" profile for Facebook Live, injecting FB_PERSISTENT_STREAM_KEY from the login Keychain (packages/obs-fb-setup.nix)
-      automation-session # `automation-session <login|seed|capture|status>` — seed/capture the Keychain-encrypted Playwright storageState into/out of the automation browser (browservm) over CDP (packages/automation-session.nix)
       fixGoogleVideo # `fix-google-video <file>...` — re-encode VP9-in-MP4 (and other editor-incompatible codecs) into H.264+AAC so Google Photos downloads import into CapCut/Premiere/etc.; idempotent, VideoToolbox-accelerated (packages/fix-google-video.nix)
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       jdk17 # JRE for the Android sdkmanager/avdmanager (JVM tools); emulator itself needs no Java

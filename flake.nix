@@ -27,14 +27,6 @@
     raspberry-pi-nix.url = "github:nix-community/raspberry-pi-nix";
     raspberry-pi-nix.inputs.nixpkgs.follows = "nixpkgs";
 
-    # Declarative ephemeral NixOS microVMs. Backs `nixosConfigurations.browservm`
-    # (a headless Chromium automation guest) via its `vfkit` hypervisor backend —
-    # Apple's Virtualization Framework directly, same tier as Tart (macvm) and
-    # Determinate's native Linux builder, no nested virtualization. See
-    # docs/browservm-runbook.md.
-    microvm-nix.url = "github:astro/microvm.nix";
-    microvm-nix.inputs.nixpkgs.follows = "nixpkgs";
-
     # Daily-updated VS Code Marketplace + Open VSX mirror. Lets us pin editor
     # extensions declaratively (programs.vscode). macOS-only consumer — the
     # vscode block in modules/shared/home.nix is gated `mkIf isDarwin`, so the
@@ -261,7 +253,6 @@
       treefmt-nix,
       git-hooks,
       raspberry-pi-nix,
-      microvm-nix,
       nix-vscode-extensions,
       nix-homebrew,
       terranix,
@@ -787,13 +778,6 @@
           # docs/private-home-modules.md. Public hosts pass nothing (Caddy
           # still runs, zero vhosts); a private composition flake overrides it.
           hostedSites ? [ ],
-          # Whether to apply the shared home-manager profile (git/ssh-signing,
-          # direnv, claude-code, MCP gateway plumbing…) to this host. Every
-          # persistent NixOS host wants it (default true); a fully ephemeral,
-          # single-purpose guest with no persistent $HOME and none of those
-          # concerns (browservm) opts out instead of carrying a profile that
-          # doesn't apply to it and fails to activate.
-          homeManagerEnable ? true,
         }:
         nixpkgs.lib.nixosSystem {
           # Set the platform via the MODERN `nixpkgs.hostPlatform` module option
@@ -822,8 +806,6 @@
             ./hosts/${hostname}.nix
             ./modules/nixos/core.nix
             ./modules/shared/nix-cache.nix # Cachix binary cache (read)
-          ]
-          ++ nixpkgs.lib.optionals homeManagerEnable [
             home-manager.nixosModules.home-manager
             (mkHomeManagerModule { idArgs = identityArgs; }) # NixOS hosts use the global identity
           ]
@@ -996,29 +978,6 @@
           ];
         };
 
-        # Ephemeral headless-Chromium automation guest — booted via microvm.nix's
-        # `vfkit` hypervisor backend (Apple Virtualization Framework directly, no
-        # nesting; verified live: direct host<->guest IP reachability on the same
-        # vmnet shared subnet Tart's macvm uses). See docs/browservm-runbook.md
-        # and packages/browservm-vfkit.nix (host-side start/stop/ssh/status).
-        "browservm" = mkNixos {
-          system = "aarch64-linux";
-          hostname = "browservm";
-          # Fully ephemeral, disk-less, single-purpose Chromium guest — the
-          # shared home-manager profile (git config, direnv, claude-code, MCP
-          # gateway…) doesn't apply here and was failing to activate on every
-          # boot (home-manager-ismail.service). Driven entirely from the host
-          # side (browservm-vfkit-*); see packages/browservm-vfkit.nix.
-          homeManagerEnable = false;
-          extraModules = [
-            microvm-nix.nixosModules.microvm
-            # vfkit itself is a macOS binary — the RUNNER (not the aarch64-linux
-            # guest closure) must be built with darwin pkgs. Same reason nixvm
-            # overrides virtualisation.vmVariant.virtualisation.host.pkgs.
-            { microvm.vmHostPackages = nixpkgs.legacyPackages."aarch64-darwin"; }
-          ];
-        };
-
         # (There is no separate `nixpi-installer`. The LIVE `nixpi` sdImage above
         # IS the flashable artifact — it bakes NO secrets (the tunnel token + Wi-Fi
         # are planted on the FAT FIRMWARE partition post-flash by nixpi-flash), so
@@ -1110,32 +1069,6 @@
               macvm-tart-ip
               macvm-tart-ssh
               macvm-tart-bootstrap-print
-              ;
-          }
-        ))
-
-        # browservm vfkit control-plane — start/stop/ssh/status for the ephemeral
-        # headless-Chromium automation guest. browservmRunner is microvm.nix's
-        # declaredRunner: building it forces the aarch64-linux guest closure via
-        # the native Linux builder (or Cachix substitution).
-        (nixpkgs.lib.genAttrs darwinSystems (
-          system:
-          let
-            browservmKit = (pkgsFor system).callPackage ./packages/browservm-vfkit.nix {
-              browservmRunner = self.nixosConfigurations.browservm.config.microvm.declaredRunner;
-              inherit loginName;
-            };
-          in
-          {
-            inherit (browservmKit)
-              browservm-vfkit-start
-              browservm-vfkit-stop
-              browservm-vfkit-ip
-              browservm-vfkit-ssh
-              browservm-vfkit-status
-              browservm-vfkit-up
-              browservm-vfkit-doctor
-              browservm-vfkit-selftest
               ;
           }
         ))
@@ -1320,15 +1253,6 @@
           obs-fb-setup = (pkgsFor system).callPackage ./packages/obs-fb-setup.nix { };
         }))
 
-        # `automation-session` (macOS only) — Keychain-backed Playwright storageState
-        # seed/capture over CDP. Browser-agnostic: works against any CDP endpoint on
-        # 127.0.0.1 (default :9222), whether that's an SSH-tunneled browservm
-        # (see docs/browservm-runbook.md) or another local Chromium-family browser.
-        # Packaged so `nix flake check` shellchecks it; on PATH + `nix run`.
-        (nixpkgs.lib.genAttrs darwinSystems (system: {
-          automation-session = (pkgsFor system).callPackage ./packages/automation-session.nix { };
-        }))
-
         # `fix-google-video` — detect and re-encode video files with editor-incompatible
         # codecs (most commonly VP9-in-MP4, Google Photos' "space saver" download flavor)
         # into H.264+AAC. Packaged so `nix flake check` shellchecks it; on PATH + `nix run`.
@@ -1503,48 +1427,6 @@
               meta.description = "Print in-guest macvm bootstrap checklist for Tart";
             };
 
-            # browservm — ephemeral headless-Chromium automation guest (vfkit).
-            aarch64-darwin.browservm-vfkit-start = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.browservm-vfkit-start}/bin/browservm-vfkit-start";
-              meta.description = "Boot browservm fresh (microvm.nix/vfkit, no persistent disk)";
-            };
-            aarch64-darwin.browservm-vfkit-stop = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.browservm-vfkit-stop}/bin/browservm-vfkit-stop";
-              meta.description = "Stop browservm";
-            };
-            aarch64-darwin.browservm-vfkit-ip = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.browservm-vfkit-ip}/bin/browservm-vfkit-ip";
-              meta.description = "Print browservm's guest IP (vmnet shared subnet)";
-            };
-            aarch64-darwin.browservm-vfkit-ssh = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.browservm-vfkit-ssh}/bin/browservm-vfkit-ssh";
-              meta.description = "SSH into browservm (operator key); pass -X yourself for X11 forwarding";
-            };
-            aarch64-darwin.browservm-vfkit-status = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.browservm-vfkit-status}/bin/browservm-vfkit-status";
-              meta.description = "browservm running state + guest IP";
-            };
-            aarch64-darwin.browservm-vfkit-up = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.browservm-vfkit-up}/bin/browservm-vfkit-up";
-              meta.description = "One-shot deterministic bootstrap: boot + wait for IP + open CDP tunnel + wait for Chromium — ready for automation-session/playwright";
-            };
-            aarch64-darwin.browservm-vfkit-doctor = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.browservm-vfkit-doctor}/bin/browservm-vfkit-doctor";
-              meta.description = "Report (or --fix) untracked/orphaned browservm vfkit processes and stale locks";
-            };
-            aarch64-darwin.browservm-vfkit-selftest = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.browservm-vfkit-selftest}/bin/browservm-vfkit-selftest";
-              meta.description = "Re-runnable lifecycle regression test: parallel start/stop convergence, stale-lock self-heal, clean teardown";
-            };
-
             # WireGuard operator — confs in ~/.config/wireguard (not in the store).
             aarch64-darwin.vpn = {
               type = "app";
@@ -1693,15 +1575,6 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.obs-fb-setup}/bin/obs-fb-setup";
               meta.description = "Write an OBS 'Facebook' profile for Facebook Live, injecting FB_PERSISTENT_STREAM_KEY from the login Keychain (never in git)";
-            };
-
-            # `nix run .#automation-session` — seed/capture the Keychain-encrypted storageState
-            # into/out of the running automation browser (login|seed|capture|status). Browser-
-            # agnostic over CDP — see docs/browservm-runbook.md for the current primary path.
-            aarch64-darwin.automation-session = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.automation-session}/bin/automation-session";
-              meta.description = "Seed/capture the Keychain-encrypted Playwright storageState into/out of the automation browser over CDP";
             };
 
             # `nix run .#fix-google-video -- <file>...` — re-encode VP9-in-MP4 (and other

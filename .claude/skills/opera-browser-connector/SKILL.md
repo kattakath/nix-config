@@ -89,9 +89,8 @@ clearly to the user rather than silently reverting.
 
 - **Opera must be running inside macvm** with an active, logged-in user
   session — this is not a headless browser, and there is nothing to "start"
-  from macos the way `browservm-vfkit-start` boots a dedicated automation VM
-  (docs/browservm-runbook.md). If `macvm` itself is stopped
-  (`nix run .#macvm-tart-doctor`), start it first
+  it declaratively; it's a real, human-logged-in app window. If `macvm`
+  itself is stopped (`nix run .#macvm-tart-doctor`), start it first
   (`nix run .#macvm-tart-start`).
 - Assume only the six confirmed tools exist (list-tabs, tab-content, history,
   screenshot, go-to-page, close-tab) unless a fresh check of the Browser
@@ -106,10 +105,9 @@ clearly to the user rather than silently reverting.
   `macos-automator`/`kapture` (real side effects, no sandbox), and remember
   the side effects land in a window on a different machine than the one
   Claude Code is running on.
-- This is Opera-specific. For Chrome automation use `kapture` (extension-based,
-  daily browser) or `playwright` (CDP-attached to `browservm`'s Chromium over
-  an SSH tunnel — see docs/browservm-runbook.md) — see their own gateway
-  entries in `modules/shared/mcp.nix`.
+- This is Opera-specific. For Chrome automation use `claude-in-chrome` (the
+  default — see `.claude/rules/browser-automation-tool-choice.md`) or
+  `kapture` (explicit-mention only).
 
 ## Provenance
 
