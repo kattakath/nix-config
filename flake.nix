@@ -1328,6 +1328,13 @@
         (nixpkgs.lib.genAttrs darwinSystems (system: {
           automation-session = (pkgsFor system).callPackage ./packages/automation-session.nix { };
         }))
+
+        # `fix-google-video` — detect and re-encode video files with editor-incompatible
+        # codecs (most commonly VP9-in-MP4, Google Photos' "space saver" download flavor)
+        # into H.264+AAC. Packaged so `nix flake check` shellchecks it; on PATH + `nix run`.
+        (nixpkgs.lib.genAttrs darwinSystems (system: {
+          fix-google-video = (pkgsFor system).callPackage ./packages/fix-google-video.nix { };
+        }))
       ];
 
       # ---- Apps: dev VM + Cloudflare provisioning ----------------------------
@@ -1695,6 +1702,14 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.automation-session}/bin/automation-session";
               meta.description = "Seed/capture the Keychain-encrypted Playwright storageState into/out of the automation browser over CDP";
+            };
+
+            # `nix run .#fix-google-video -- <file>...` — re-encode VP9-in-MP4 (and other
+            # editor-incompatible codecs) into H.264+AAC. Idempotent, VideoToolbox-accelerated.
+            aarch64-darwin.fix-google-video = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.fix-google-video}/bin/fix-google-video";
+              meta.description = "Re-encode video files with editor-incompatible codecs (e.g. Google Photos' VP9-in-MP4) into H.264+AAC";
             };
 
           }
