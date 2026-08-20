@@ -26,6 +26,15 @@ to analyze — no external service, no dashboard, nothing leaves the machine.
 | `/routing-review` | Reads the events file, buckets `tool_decision` by `source`, proposes deterministic hardening | `.claude/commands/routing-review.md` |
 | `routing-review-digest.js` | `SessionStart` nudge — mirrors `superhook-digest.js`: surfaces unreviewed `user_temporary`/`user_permanent` decisions in context, only once a small threshold is crossed | `.claude/hooks/routing-review-digest.js`, wired in `.claude/settings.json` |
 
+**If you ever override `services.claudeOtel.eventsFile` or `otlpEndpoint`
+from their defaults**, the two non-Nix-templated consumers (`claude-otel-doctor`
+and `routing-review-digest.js` — plain scripts, not built from the Nix
+option value) need to be told separately: `CLAUDE_OTEL_EVENTS_FILE` and
+`CLAUDE_OTEL_OTLP_HOST_PORT` (bare `host:port`, not a URL) env vars override
+both. Everything Nix-managed (the collector's own config, Claude Code's
+`OTEL_EXPORTER_OTLP_ENDPOINT`) already derives from the option directly, so
+only these two scripts need the manual nudge.
+
 ## Scope: real Mac only
 
 Gated on `isMacosHost` (`networking.hostName == "macos"`) — the same gate as
