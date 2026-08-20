@@ -11,6 +11,10 @@
 # pretooluse-log.js observer runtime artifact
 .claude/hooks/pretooluse.log
 
+# routing-review.md state (events themselves live outside the repo, under
+# ~/.local/state/claude-otel/ — see modules/shared/claude-otel.nix)
+.claude/hooks/.routing-review-state.json
+
 # Project memory — candid, local-only record of decisions/reasoning/findings/values.
 # Gitignored on purpose: this is the "why" behind the repo, not committed documentation.
 memory/
