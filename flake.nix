@@ -1128,6 +1128,14 @@
           vpn = (pkgsFor system).callPackage ./packages/vpn.nix { };
         }))
 
+        # Deterministic ADB wired/wireless operator + scrcpy mirroring for a
+        # physical Android device (adb/scrcpy resolved at runtime from the
+        # android-platform-tools/scrcpy Homebrew formulae, hosts/macos.nix).
+        # Also on PATH via home.packages, macos only (modules/shared/home.nix).
+        (nixpkgs.lib.genAttrs darwinSystems (system: {
+          android-phone = (pkgsFor system).callPackage ./packages/android-phone.nix { };
+        }))
+
         {
           # The LIVE nixpi SD image (not a separate installer): prebuilt in CI
           # (build-installers), published to the installer-latest release, and
@@ -1502,6 +1510,13 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.vpn}/bin/vpn";
               meta.description = "WireGuard operator: vpn list|status|up|down|switch|restart|doctor (idempotent, no key leak)";
+            };
+
+            # Deterministic ADB wired/wireless operator + scrcpy mirroring.
+            aarch64-darwin.android-phone = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.android-phone}/bin/android-phone";
+              meta.description = "ADB operator: android-phone list|pair|connect|disconnect|unpair|tcpip|wireless|mirror|doctor";
             };
 
             # `nix run .#set-secret -- KEY [VALUE]` — store a secret in the macOS

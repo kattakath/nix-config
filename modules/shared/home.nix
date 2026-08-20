@@ -167,6 +167,7 @@ let
   # upstream (not in nixpkgs); see packages/mermaid-ascii.nix.
   mermaidAscii = pkgs.callPackage ../../packages/mermaid-ascii.nix { };
   vpn = pkgs.callPackage ../../packages/vpn.nix { };
+  androidPhone = pkgs.callPackage ../../packages/android-phone.nix { };
 
   # `jsonresume <download|print>` — fetch a JSON Resume and render it to PDF via the
   # npm resume CLI. jsonResumeUrl (from flake.nix) is baked in as its default --url,
@@ -434,6 +435,7 @@ in
     # (nix run .#macvm-tart-* still covers the rest of the kit).
     ++ lib.optionals isMacosHost [
       macvmTartStart
+      androidPhone # `android-phone list|pair|connect|disconnect|unpair|tcpip|wireless|mirror|doctor` — deterministic ADB wired/wireless operator + scrcpy mirroring for a PHYSICAL device (packages/android-phone.nix); unrelated to `android-emu` (virtual emulator, below)
     ];
 
   # ---- Android SDK (macOS only) ------------------------------------------------
