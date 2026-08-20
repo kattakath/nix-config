@@ -2,7 +2,8 @@
 # Keeps the agent's browser auth as a Playwright `storageState` ENCRYPTED in the macOS login
 # Keychain, and injects/extracts it into/out of a LIVE browser over CDP. Browser-agnostic: talks
 # to whatever answers on 127.0.0.1:$CHROME_AUTOMATION_PORT (default 9222) — today that's browservm
-# (packages/browservm-vfkit.nix) via an SSH local port-forward; see docs/browservm-runbook.md.
+# (packages/browservm-vfkit.nix, bootstrapped in one shot via `browservm-vfkit-up`) via an SSH
+# local port-forward; see docs/browservm-runbook.md.
 #
 #   automation-session login  [site]   # (first time) headed: you log in, then it CAPTURES → Keychain
 #   automation-session seed   [site]   # inject the Keychain session into the running browser
@@ -52,7 +53,7 @@ writeShellApplication {
     require_cdp() {
       # probe the CDP endpoint via node (node is the only runtime input here, not curl).
       node -e "require('http').get('$cdp/json/version',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))" \
-        || die "no automation browser on $cdp — start browservm and open an SSH -L tunnel first (see docs/browservm-runbook.md)."
+        || die "no automation browser on $cdp — run: nix run .#browservm-vfkit-up"
     }
 
     kc_get() { "$sec" find-generic-password -a "$acct" -s "$svc" -w 2>/dev/null; }
@@ -83,13 +84,13 @@ writeShellApplication {
         json="$(node "$js" capture)" || die "capture failed."
         [ -n "$json" ] || die "capture produced empty storageState — are you logged in?"
         kc_set "$json"
-        echo "$prog: saved session → Keychain '$svc'. Future runs: browservm-vfkit-start + ssh -L tunnel → automation-session seed $site."
+        echo "$prog: saved session → Keychain '$svc'. Future runs: browservm-vfkit-up → automation-session seed $site."
         ;;
       status)
         if node -e "require('http').get('$cdp/json/version',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"; then
           echo "browser: UP on $cdp"
         else
-          echo "browser: down (start browservm and open an SSH -L tunnel)"
+          echo "browser: down (run: nix run .#browservm-vfkit-up)"
         fi
         if kc_get >/dev/null 2>&1 && [ -n "$(kc_get)" ]; then
           echo "keychain '$svc': present ($(kc_get | wc -c | tr -d ' ') bytes)"
