@@ -294,123 +294,132 @@ let
       gh
     ];
     text = ''
-      # Fresh reflash: acquire the image → decompress → verified dd → auto-plant.
-      # Three ways to acquire it, in precedence order:
-      #   --image FILE.img.zst  a prebuilt image on disk (skips build/download)
-      #   --release             download the latest CI-built image from the
-      #                         installer-latest GitHub release (needs `gh` auth; NO
-      #                         Nix, NO aarch64-linux builder — the Mac path)
-      #   (default)             `nix build` the sdImage. With the kattakath Cachix
-      #                         warm this substitutes the kernel/intermediates, but
-      #                         the final image assembly still needs an aarch64-linux
-      #                         builder — so on the builder-less Mac, prefer --release.
-      ${firmwareMountFn}
+            # Fresh reflash: acquire the image → decompress → verified dd → auto-plant.
+            # Three ways to acquire it, in precedence order:
+            #   --image FILE.img.zst  a prebuilt image on disk (skips build/download)
+            #   --release             download the latest CI-built image from the
+            #                         installer-latest GitHub release (needs `gh` auth; NO
+            #                         Nix, NO aarch64-linux builder — the Mac path)
+            #   (default)             `nix build` the sdImage. With the kattakath Cachix
+            #                         warm this substitutes the kernel/intermediates, but
+            #                         the final image assembly still needs an aarch64-linux
+            #                         builder — so on the builder-less Mac, prefer --release.
+            ${firmwareMountFn}
 
-      disk=""
-      image=""
-      use_release=""
-      wifi_conf=""
-      ssid=""
-      psk=""
-      country=""
-      while [ $# -gt 0 ]; do
-        case "$1" in
-          --disk) disk="''${2:?}"; shift 2 ;;
-          --image) image="''${2:?}"; shift 2 ;;
-          --release) use_release=1; shift ;;
-          --wifi-conf) wifi_conf="''${2:?}"; shift 2 ;;
-          --ssid) ssid="''${2:?}"; shift 2 ;;
-          --psk) psk="''${2:?}"; shift 2 ;;
-          --country) country="''${2:?}"; shift 2 ;;
-          -h | --help) echo "usage: nixpi-flash --disk /dev/diskN [--image FILE.img.zst | --release] [--wifi-conf FILE | --ssid SSID [--psk PSK] [--country CC]]"; exit 0 ;;
-          *) echo "nixpi-flash: unknown argument: $1" >&2; exit 1 ;;
-        esac
-      done
-      case "$disk" in
-        "") echo "nixpi-flash: --disk /dev/diskN is required." >&2; exit 1 ;;
-        /dev/disk0 | disk0) echo "nixpi-flash: refusing to write the internal disk0." >&2; exit 1 ;;
-        /dev/disk*) : ;;
-        *) echo "nixpi-flash: --disk must be /dev/diskN." >&2; exit 1 ;;
-      esac
+            disk=""
+            image=""
+            use_release=""
+            wifi_conf=""
+            ssid=""
+            psk=""
+            country=""
+            while [ $# -gt 0 ]; do
+              case "$1" in
+                --disk) disk="''${2:?}"; shift 2 ;;
+                --image) image="''${2:?}"; shift 2 ;;
+                --release) use_release=1; shift ;;
+                --wifi-conf) wifi_conf="''${2:?}"; shift 2 ;;
+                --ssid) ssid="''${2:?}"; shift 2 ;;
+                --psk) psk="''${2:?}"; shift 2 ;;
+                --country) country="''${2:?}"; shift 2 ;;
+                -h | --help) echo "usage: nixpi-flash --disk /dev/diskN [--image FILE.img.zst | --release] [--wifi-conf FILE | --ssid SSID [--psk PSK] [--country CC]]"; exit 0 ;;
+                *) echo "nixpi-flash: unknown argument: $1" >&2; exit 1 ;;
+              esac
+            done
+            case "$disk" in
+              "") echo "nixpi-flash: --disk /dev/diskN is required." >&2; exit 1 ;;
+              /dev/disk0 | disk0) echo "nixpi-flash: refusing to write the internal disk0." >&2; exit 1 ;;
+              /dev/disk*) : ;;
+              *) echo "nixpi-flash: --disk must be /dev/diskN." >&2; exit 1 ;;
+            esac
 
-      tmp=$(mktemp -d)
-      trap 'rm -rf "$tmp"' EXIT
+            tmp=$(mktemp -d)
+            trap 'rm -rf "$tmp"' EXIT
 
-      if [ -n "$image" ] && [ -n "$use_release" ]; then
-        echo "nixpi-flash: --image and --release are mutually exclusive." >&2; exit 1
-      fi
-      if [ -z "$image" ] && [ -n "$use_release" ]; then
-        echo "nixpi-flash: downloading the latest prebuilt nixpi image (installer-latest release)…"
-        # Pick by updatedAt (newest wins), not shell glob order. installer-latest is
-        # a rolling slot that can briefly hold multiple nixos-sd-image-*.img.zst
-        # names (nixpkgs rev in the basename); alphabetical $1 would flash the
-        # OLDEST — e.g. a pre-key-rotate image — and lock the operator out.
-        # Download only that one asset (multi-GB). The publish path also retires
-        # stale assets; this is defense in depth for residual multi-asset slots.
-        asset=$(gh release view installer-latest -R ${orgName}/${repoName} --json assets \
-          --jq '[.assets[] | select(.name | test("^nixos-sd-image-.*\\.img\\.zst$"))]
-                | if length == 0 then empty else sort_by(.updatedAt) | last | .name end')
-        if [ -z "''${asset:-}" ]; then
-          echo "nixpi-flash: no nixpi image asset found on installer-latest." >&2
-          exit 1
-        fi
-        echo "nixpi-flash: selected asset: $asset"
-        gh release download installer-latest -R ${orgName}/${repoName} \
-          -p "$asset" -D "$tmp" --clobber
-        image="$tmp/$asset"
-        [ -f "$image" ] || { echo "nixpi-flash: download failed: $image" >&2; exit 1; }
-      fi
-      if [ -z "$image" ]; then
-        echo "nixpi-flash: building the sdImage (needs an aarch64-linux builder — see --release)…"
-        out=$(nix build --no-link --print-out-paths \
-          ".#nixosConfigurations.nixpi.config.system.build.sdImage")
-        set -- "$out"/sd-image/*.img.zst
-        image="$1"
-      fi
-      [ -f "$image" ] || { echo "nixpi-flash: image not found: $image" >&2; exit 1; }
+            if [ -n "$image" ] && [ -n "$use_release" ]; then
+              echo "nixpi-flash: --image and --release are mutually exclusive." >&2; exit 1
+            fi
+            if [ -z "$image" ] && [ -n "$use_release" ]; then
+              echo "nixpi-flash: downloading the latest prebuilt nixpi image (installer-latest release)…"
+              # Pick by updatedAt (newest wins), not shell glob order. installer-latest is
+              # a rolling slot that can briefly hold multiple nixos-sd-image-*.img.zst
+              # names (nixpkgs rev in the basename); alphabetical $1 would flash the
+              # OLDEST — e.g. a pre-key-rotate image — and lock the operator out.
+              # Download only that one asset (multi-GB). The publish path also retires
+              # stale assets; this is defense in depth for residual multi-asset slots.
+              asset=$(gh release view installer-latest -R ${orgName}/${repoName} --json assets \
+                --jq '[.assets[] | select(.name | test("^nixos-sd-image-.*\\.img\\.zst$"))]
+                      | if length == 0 then empty else sort_by(.updatedAt) | last | .name end')
+              if [ -z "''${asset:-}" ]; then
+                echo "nixpi-flash: no nixpi image asset found on installer-latest." >&2
+                exit 1
+              fi
+              echo "nixpi-flash: selected asset: $asset"
+              gh release download installer-latest -R ${orgName}/${repoName} \
+                -p "$asset" -D "$tmp" --clobber
+              image="$tmp/$asset"
+              [ -f "$image" ] || { echo "nixpi-flash: download failed: $image" >&2; exit 1; }
+            fi
+            if [ -z "$image" ]; then
+              echo "nixpi-flash: building the sdImage (needs an aarch64-linux builder — see --release)…"
+              out=$(nix build --no-link --print-out-paths \
+                ".#nixosConfigurations.nixpi.config.system.build.sdImage")
+              set -- "$out"/sd-image/*.img.zst
+              image="$1"
+            fi
+            [ -f "$image" ] || { echo "nixpi-flash: image not found: $image" >&2; exit 1; }
 
-      echo "nixpi-flash: decompressing $image …"
-      zstd -d -q -f "$image" -o "$tmp/nixpi.img"
-      size=$(/usr/bin/stat -f%z "$tmp/nixpi.img")
+            echo "nixpi-flash: decompressing $image …"
+            zstd -d -q -f "$image" -o "$tmp/nixpi.img"
+            size=$(/usr/bin/stat -f%z "$tmp/nixpi.img")
 
-      model=$(/usr/sbin/diskutil info "$disk" | sed -n 's/.*Device \/ Media Name: *//p')
-      human=$(/usr/sbin/diskutil info "$disk" | sed -n 's/.*Disk Size: *\([^(]*\).*/\1/p')
-      if ! /usr/bin/osascript -e \
-        "display dialog \"Flash to $disk ($model,$human)?\nThis ERASES the card.\" buttons {\"Cancel\",\"Flash\"} default button \"Cancel\" with icon caution" \
-        >/dev/null 2>&1; then
-        echo "nixpi-flash: cancelled."; exit 1
-      fi
+            model=$(/usr/sbin/diskutil info "$disk" | sed -n 's/.*Device \/ Media Name: *//p')
+            human=$(/usr/sbin/diskutil info "$disk" | sed -n 's/.*Disk Size: *\([^(]*\).*/\1/p')
+            # $model/$human are hardware-reported diskutil metadata, not fixed
+            # strings — passed via env + AppleScript's `system attribute`, never
+            # interpolated into the AppleScript source, so a crafted media-name
+            # (e.g. embedding a `"`) can't break out of the string literal.
+            if ! DISK_CONFIRM_DEVICE="$disk" DISK_CONFIRM_MODEL="$model" DISK_CONFIRM_SIZE="$human" \
+              /usr/bin/osascript <<'APPLESCRIPT' >/dev/null 2>&1
+      set diskName to system attribute "DISK_CONFIRM_DEVICE"
+      set modelName to system attribute "DISK_CONFIRM_MODEL"
+      set humanSize to system attribute "DISK_CONFIRM_SIZE"
+      display dialog "Flash to " & diskName & " (" & modelName & ", " & humanSize & ")?" & return & "This ERASES the card." buttons {"Cancel", "Flash"} default button "Cancel" with icon caution
+      APPLESCRIPT
+            then
+              echo "nixpi-flash: cancelled."; exit 1
+            fi
 
-      /usr/sbin/diskutil unmountDisk "$disk"
-      rdisk=$(printf '%s' "$disk" | sed 's|/dev/disk|/dev/rdisk|')
-      echo "nixpi-flash: writing $size bytes to $rdisk (several minutes)…"
-      sudo -v
-      ddlog=$(sudo /bin/dd "if=$tmp/nixpi.img" "of=$rdisk" bs=4m 2>&1)
-      echo "$ddlog"
-      copied=$(printf '%s\n' "$ddlog" | sed -n 's/^\([0-9]*\) bytes transferred.*/\1/p')
-      if [ "$copied" != "$size" ]; then
-        echo "nixpi-flash: WRITE INCOMPLETE ($copied != $size bytes) — do NOT boot; re-run." >&2
-        exit 1
-      fi
-      sync
-      echo "nixpi-flash: verified full write ($copied bytes)."
+            /usr/sbin/diskutil unmountDisk "$disk"
+            rdisk=$(printf '%s' "$disk" | sed 's|/dev/disk|/dev/rdisk|')
+            echo "nixpi-flash: writing $size bytes to $rdisk (several minutes)…"
+            sudo -v
+            ddlog=$(sudo /bin/dd "if=$tmp/nixpi.img" "of=$rdisk" bs=4m 2>&1)
+            echo "$ddlog"
+            copied=$(printf '%s\n' "$ddlog" | sed -n 's/^\([0-9]*\) bytes transferred.*/\1/p')
+            if [ "$copied" != "$size" ]; then
+              echo "nixpi-flash: WRITE INCOMPLETE ($copied != $size bytes) — do NOT boot; re-run." >&2
+              exit 1
+            fi
+            sync
+            echo "nixpi-flash: verified full write ($copied bytes)."
 
-      /usr/sbin/diskutil mount "''${disk}s1" >/dev/null 2>&1 || true
-      # On a BAND-SPLIT network (e.g. joined to `FOO-5G` but the keychain stores the
-      # base `FOO` PSK) nixpi-provision's auto Wi-Fi detect fails — pin it with --ssid
-      # or a prebuilt --wifi-conf. Build the conf here when --ssid is given.
-      if [ -z "$wifi_conf" ] && [ -n "$ssid" ]; then
-        wifi_conf="$tmp/wpa.conf"
-        wc_args=(--ssid "$ssid")
-        [ -n "$psk" ] && wc_args+=(--psk "$psk")
-        [ -n "$country" ] && wc_args+=(--country "$country")
-        ${wifi-creds}/bin/nixpi-wifi-creds "''${wc_args[@]}" > "$wifi_conf"
-      fi
-      prov_args=(--all)
-      [ -n "$wifi_conf" ] && prov_args+=(--wifi-conf "$wifi_conf")
-      ${provision}/bin/nixpi-provision "''${prov_args[@]}"
-      /usr/sbin/diskutil eject "$disk"
-      echo "nixpi-flash: done. Insert the card and boot the Pi."
+            /usr/sbin/diskutil mount "''${disk}s1" >/dev/null 2>&1 || true
+            # On a BAND-SPLIT network (e.g. joined to `FOO-5G` but the keychain stores the
+            # base `FOO` PSK) nixpi-provision's auto Wi-Fi detect fails — pin it with --ssid
+            # or a prebuilt --wifi-conf. Build the conf here when --ssid is given.
+            if [ -z "$wifi_conf" ] && [ -n "$ssid" ]; then
+              wifi_conf="$tmp/wpa.conf"
+              wc_args=(--ssid "$ssid")
+              [ -n "$psk" ] && wc_args+=(--psk "$psk")
+              [ -n "$country" ] && wc_args+=(--country "$country")
+              ${wifi-creds}/bin/nixpi-wifi-creds "''${wc_args[@]}" > "$wifi_conf"
+            fi
+            prov_args=(--all)
+            [ -n "$wifi_conf" ] && prov_args+=(--wifi-conf "$wifi_conf")
+            ${provision}/bin/nixpi-provision "''${prov_args[@]}"
+            /usr/sbin/diskutil eject "$disk"
+            echo "nixpi-flash: done. Insert the card and boot the Pi."
     '';
   };
 
