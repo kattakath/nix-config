@@ -1134,6 +1134,8 @@
               browservm-vfkit-ssh
               browservm-vfkit-status
               browservm-vfkit-up
+              browservm-vfkit-doctor
+              browservm-vfkit-selftest
               ;
           }
         ))
@@ -1524,6 +1526,16 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.browservm-vfkit-up}/bin/browservm-vfkit-up";
               meta.description = "One-shot deterministic bootstrap: boot + wait for IP + open CDP tunnel + wait for Chromium — ready for automation-session/playwright";
+            };
+            aarch64-darwin.browservm-vfkit-doctor = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.browservm-vfkit-doctor}/bin/browservm-vfkit-doctor";
+              meta.description = "Report (or --fix) untracked/orphaned browservm vfkit processes and stale locks";
+            };
+            aarch64-darwin.browservm-vfkit-selftest = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.browservm-vfkit-selftest}/bin/browservm-vfkit-selftest";
+              meta.description = "Re-runnable lifecycle regression test: parallel start/stop convergence, stale-lock self-heal, clean teardown";
             };
 
             # WireGuard operator — confs in ~/.config/wireguard (not in the store).

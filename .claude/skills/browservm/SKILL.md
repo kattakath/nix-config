@@ -31,7 +31,14 @@ nix run .#browservm-vfkit-status   # running state + IP + CDP tunnel state
 nix run .#browservm-vfkit-ip
 nix run .#browservm-vfkit-ssh      # pass -X yourself for X11 forwarding (needs XQuartz)
 nix run .#browservm-vfkit-stop     # tears down the VM AND the CDP tunnel
+nix run .#browservm-vfkit-doctor   # orphan/stale-lock check — pass --fix to reap
 ```
+
+`start`/`stop`/`up`'s tunnel-open are lock-protected against concurrent
+invocations (two `up` calls at once converge to one VM, not two). If you
+ever suspect something got left running (a crashed session, a killed
+terminal mid-boot), run `browservm-vfkit-doctor` before assuming anything is
+orphaned — `--fix` reaps untracked processes and clears a stale lock.
 
 ## Driving Chromium (auto-started as `browser-cdp.service`)
 
