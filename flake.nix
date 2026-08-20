@@ -787,6 +787,13 @@
           # docs/private-home-modules.md. Public hosts pass nothing (Caddy
           # still runs, zero vhosts); a private composition flake overrides it.
           hostedSites ? [ ],
+          # Whether to apply the shared home-manager profile (git/ssh-signing,
+          # direnv, claude-code, MCP gateway plumbing…) to this host. Every
+          # persistent NixOS host wants it (default true); a fully ephemeral,
+          # single-purpose guest with no persistent $HOME and none of those
+          # concerns (browservm) opts out instead of carrying a profile that
+          # doesn't apply to it and fails to activate.
+          homeManagerEnable ? true,
         }:
         nixpkgs.lib.nixosSystem {
           # Set the platform via the MODERN `nixpkgs.hostPlatform` module option
@@ -815,6 +822,8 @@
             ./hosts/${hostname}.nix
             ./modules/nixos/core.nix
             ./modules/shared/nix-cache.nix # Cachix binary cache (read)
+          ]
+          ++ nixpkgs.lib.optionals homeManagerEnable [
             home-manager.nixosModules.home-manager
             (mkHomeManagerModule { idArgs = identityArgs; }) # NixOS hosts use the global identity
           ]
@@ -995,6 +1004,12 @@
         "browservm" = mkNixos {
           system = "aarch64-linux";
           hostname = "browservm";
+          # Fully ephemeral, disk-less, single-purpose Chromium guest — the
+          # shared home-manager profile (git config, direnv, claude-code, MCP
+          # gateway…) doesn't apply here and was failing to activate on every
+          # boot (home-manager-ismail.service). Driven entirely from the host
+          # side (browservm-vfkit-*); see packages/browservm-vfkit.nix.
+          homeManagerEnable = false;
           extraModules = [
             microvm-nix.nixosModules.microvm
             # vfkit itself is a macOS binary — the RUNNER (not the aarch64-linux
@@ -1118,6 +1133,7 @@
               browservm-vfkit-ip
               browservm-vfkit-ssh
               browservm-vfkit-status
+              browservm-vfkit-up
               ;
           }
         ))
@@ -1503,6 +1519,11 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.browservm-vfkit-status}/bin/browservm-vfkit-status";
               meta.description = "browservm running state + guest IP";
+            };
+            aarch64-darwin.browservm-vfkit-up = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.browservm-vfkit-up}/bin/browservm-vfkit-up";
+              meta.description = "One-shot deterministic bootstrap: boot + wait for IP + open CDP tunnel + wait for Chromium — ready for automation-session/playwright";
             };
 
             # WireGuard operator — confs in ~/.config/wireguard (not in the store).
