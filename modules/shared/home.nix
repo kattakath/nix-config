@@ -318,6 +318,7 @@ in
     ./mcp.nix # darwin-gated MCP server registry for Claude Code
     ./desktop-aesthetics.nix # macOS wallpaper + Terminal profile (opt-out per host; macvm opts out)
     ./wireguard-configs.nix # operator-managed WG confs → ~/.config/wireguard (no autostart)
+    ./claude-otel.nix # local OTel Collector for Claude Code's routing-decision telemetry (macos only)
     # Local-first RAG stack (loopback launchd Postgres+pgvector + Ollama + in-DB
     # embed()), from the extracted flake (github:ismailkattakath/nix-local-rag).
     # Both modules are internally gated on (enable && isDarwin) — a clean no-op on
@@ -343,6 +344,12 @@ in
   # macvm is a lean sandbox; no need for embed/DB launchd agents there.
   services.ollamaLocal.enable = isMacosHost;
   services.pgvectorLocal.enable = isMacosHost;
+
+  # Claude Code routing telemetry collector — real Mac only (keeps macvm lean,
+  # same gate as the RAG stack above). See modules/shared/claude-otel.nix and
+  # the programs.claude-code.settings.env block below that points Claude Code
+  # at it.
+  services.claudeOtel.enable = isMacosHost;
 
   # Spotlight-launchable "Android Emulator" + "Mac VM" — click (or re-click)
   # like any normal app: launches if not running, brings the existing window
@@ -602,6 +609,21 @@ in
         inputNeededNotifEnabled = true;
         agentPushNotifEnabled = true;
         enabledPlugins = lib.genAttrs claudePluginIds (_: true);
+
+        # Routing telemetry: export tool_decision/tool_result events (only —
+        # no metrics/traces, no prompt/response content) to the local OTel
+        # Collector defined in modules/shared/claude-otel.nix, read by
+        # /routing-review to find deterministic-vs-model-judgment hardening
+        # candidates. isMacosHost-gated (services.claudeOtel.enable above) —
+        # unset on macvm, so this block is empty there and Claude Code's
+        # telemetry stays off by default.
+        env = lib.mkIf isMacosHost {
+          CLAUDE_CODE_ENABLE_TELEMETRY = "1";
+          OTEL_LOGS_EXPORTER = "otlp";
+          OTEL_EXPORTER_OTLP_PROTOCOL = "grpc";
+          OTEL_EXPORTER_OTLP_ENDPOINT = config.services.claudeOtel.otlpEndpoint;
+          OTEL_LOG_TOOL_DETAILS = "1";
+        };
       };
 
       # Flake-managed GLOBAL skills for Claude Code — the declarative, reproducible
