@@ -26,17 +26,17 @@ Do not restate the whole fleet map; open CLAUDE.md when unsure.
 |---|---|
 | "hygiene" / "LEAN DRY" / "cleanup" | Full or scoped pass |
 | After a large feature (e.g. macvm) | Scoped to touched paths |
-| Before a big PR merge | Full pass + `/review` optional |
+| Before a big PR merge | Full pass + a manual diff review |
 | Docs feel wrong | Docs-surface only |
 
-**Not for:** pure "does it evaluate?" → `/eval`. Pure PR review without fix → `/review`.
+**Not for:** pure "does it evaluate?" → `/eval`. Pure PR review without fix → a manual diff review (no dedicated command exists in this repo — see §H).
 
 ## Modes
 
 Parse the user request:
 
-1. **`audit`** — findings only (no edits). Default if they say "audit" / "report".
-2. **`fix`** (default) — audit → apply safe fixes → format → eval.
+1. **`audit`** — findings only (no edits). Triggered when they say "audit" / "report".
+2. **`fix`** — audit → apply safe fixes → format → eval. **The overall default** when neither `audit` nor a scope-only request is given.
 3. **`scope <path|host|area>`** — limit to that surface (e.g. `macvm`, `packages/`, `docs/`).
 
 Never expand into new features. Prefer delete/simplify over new abstraction.
@@ -119,8 +119,8 @@ If `nix` unavailable: `nix-instantiate --parse` on changed `.nix` + state CI-def
 ### H. Optional second opinions
 
 - Structural harshness: global **code-review** skill on the diff.
-- Behavior check after fix: `/verify`.
-- PR findings only: `/review`.
+- Behavior check after fix: manually drive the change end-to-end (no dedicated command).
+- PR findings only: a manual diff review (no dedicated command).
 
 ## Fix policy
 
@@ -158,6 +158,5 @@ If `nix` unavailable: `nix-instantiate --parse` on changed `.nix` + state CI-def
 ```
 /hygiene [scope]     → this skill (audit+fix+gate)
 /eval                → eval only
-/verify              → drive the change end-to-end to confirm it works
-/review              → read-only review of diff/PR
+code-review skill    → structural/PR-diff review (no dedicated /review or /verify command exists)
 ```

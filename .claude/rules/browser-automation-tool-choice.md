@@ -1,9 +1,10 @@
 # Browser Automation — Which Tool, Deterministically
 
 This session/repo has **three** distinct browser-automation-capable tool paths
-available at once. Without a fixed decision order, a generic "do this in the
-browser" ask forces an agent to guess between them. Pick by the table below;
-do not improvise.
+available at once (plus `mobile-mcp`, a different category — native apps, not
+browser tabs, listed below for completeness but not part of the "three").
+Without a fixed decision order, a generic "do this in the browser" ask forces
+an agent to guess between them. Pick by the table below; do not improvise.
 
 ## Decision order
 

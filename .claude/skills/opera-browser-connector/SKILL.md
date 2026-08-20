@@ -8,8 +8,9 @@ description: >
   wired into the gateway as the `opera` server (modules/shared/mcp.nix). Use
   when the user asks to read/screenshot/navigate a page open in Opera, or
   otherwise automate the Opera browser specifically — NOT Chrome (that's
-  kapture/playwright) and NOT a headless browser (Opera must actually be
-  running inside macvm, with a real logged-in user session).
+  claude-in-chrome/kapture, see .claude/rules/browser-automation-tool-choice.md)
+  and NOT a headless browser (Opera must actually be running inside macvm,
+  with a real logged-in user session).
 ---
 
 # Opera Browser Connector

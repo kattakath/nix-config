@@ -140,6 +140,10 @@ alt="$(html_escape "$alt")"
 linkedin="$(html_escape "$linkedin")"
 github="$(html_escape "$github")"
 website="$(html_escape "$website")"
+# $name itself only ever lands in the <title> below (the visible body uses the
+# already-escaped $alt derived from it) — escape it too for the same defense-
+# in-depth reason as the fields above.
+name_escaped="$(html_escape "$name")"
 
 # Rasterize the (tight-cropped) SVG to PNG and embed it as a base64 data URI so the
 # signature is a single self-contained file to paste into Gmail settings.
@@ -150,7 +154,7 @@ logo_uri="data:image/png;base64,$(base64 -w0 "$work/logo.png")"
 # first with web-safe fallbacks (Gmail renders Roboto; other clients fall back). Sizes map to
 # Gmail's menu: title = "Large"; subtitle + links = "Normal" (~13px). Links stay the link colour.
 cat > "$work/signature.html" <<HTML
-<!doctype html><html><head><meta charset="utf-8"><title>Email signature — $name</title></head>
+<!doctype html><html><head><meta charset="utf-8"><title>Email signature — $name_escaped</title></head>
 <body style="margin:24px;background:$surface;">
 <table cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;font-family:$font_family;color:$ink;">
   <tr>
