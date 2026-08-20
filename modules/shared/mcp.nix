@@ -420,30 +420,6 @@ let
         "@mobilenext/mobile-mcp@latest"
       ];
     };
-    # Programmatic browser automation — Microsoft's OFFICIAL Playwright MCP
-    # (microsoft/playwright-mcp). Accessibility-tree driven (structured page snapshots,
-    # no vision model / image tokens).
-    #
-    # ATTACH mode via `--cdp-endpoint`: instead of launching its own isolated, session-less
-    # browser, Playwright attaches to whatever's listening on 127.0.0.1:9222 — today that's
-    # browservm's Chromium (hosts/browservm.nix), reached via an SSH local port-forward
-    # (`browservm-vfkit-ssh -- -L 9222:127.0.0.1:9222 -N`; see docs/browservm-runbook.md),
-    # its auth injected from the Keychain by `automation-session seed` (packages/
-    # automation-session.nix). That gives a session-aware browser the agent drives IN PARALLEL
-    # with your main Chrome (kapture, by contrast, hijacks your foreground tab). `--cdp-endpoint`
-    # connects LAZILY (verified: a dead endpoint does NOT crash the server at startup, so
-    # the gateway is safe even when nothing is tunneled yet — the playwright TOOLS just fail
-    # until the tunnel + guest browser are up). No --browser/--headless: those are ignored in
-    # attach mode.
-    playwright = {
-      command = npx;
-      args = [
-        "-y"
-        "@playwright/mcp@latest"
-        "--cdp-endpoint"
-        "http://127.0.0.1:9222"
-      ];
-    };
     # Local Postgres + pgvector, for vector-similarity / RAG work. crystaldba's
     # `postgres-mcp` ("Postgres MCP Pro", actively maintained) — a general SQL
     # executor, so every pgvector op (`<->`/`<=>` distance, HNSW indexes) is just
