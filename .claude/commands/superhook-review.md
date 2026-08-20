@@ -34,10 +34,14 @@ Use `stderr` as the summary for `crash-safe` rows and `blockedReason` for `loop-
 For each incident group with **count >= 2**, map the event to its inner hook script and read it:
 
 - `Stop` -> `.claude/hooks/stop-gate.js`
+- `PreToolUse` (Bash matcher) -> `.claude/hooks/pretooluse-bash-guard.js` (deterministic
+  command hook since 2026-08-19, wrapped by `superhook.js` — this one DOES produce
+  log incidents; see its file header for the policy-change history)
 
-(Note: only `command`-type hooks route through `superhook.js`. The `prompt`-type
-gates — `PreToolUse` and `SubagentStop` — are evaluated by the model, never pass
-through the wrapper, and so never produce log incidents. Don't go hunting for them here.)
+(Note: only `command`-type hooks route through `superhook.js`. `PreToolUse` also has a
+separate `prompt`-type matcher on Write|Edit — the secret/system-path detection gate —
+which is evaluated by the model, never passes through the wrapper, and so never
+produces log incidents. Don't go hunting for that one here.)
 
 From the logged `stderr` / `recommendation` and the script source, diagnose the root cause and propose a concrete code fix.
 

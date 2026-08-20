@@ -62,15 +62,20 @@ let
       [ -n "''${SSH_TTY:-}" ] && return 1
       /bin/launchctl managername 2>/dev/null | grep -q Aqua
     }
+    # $1 is passed via env + AppleScript's `system attribute`, never
+    # interpolated into the AppleScript source string — every call site today
+    # passes a fixed literal, but this keeps the helper safe for any future
+    # caller that passes dynamic text (a filename, an error message, ...).
     notify() {
       has_gui || return 0
-      /usr/bin/osascript -e "display notification \"$1\" with title \"Nix key recovery\"" \
+      NOTIFY_MSG="$1" /usr/bin/osascript -e \
+        'display notification (system attribute "NOTIFY_MSG") with title "Nix key recovery"' \
         >/dev/null 2>&1 || true
     }
     confirm() {
       if has_gui; then
-        /usr/bin/osascript -e \
-          "display dialog \"$1\" buttons {\"Cancel\", \"Continue\"} default button \"Cancel\" with icon caution" \
+        CONFIRM_MSG="$1" /usr/bin/osascript -e \
+          'display dialog (system attribute "CONFIRM_MSG") buttons {"Cancel", "Continue"} default button "Cancel" with icon caution' \
           >/dev/null 2>&1 && return 0
         return 1
       fi
