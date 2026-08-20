@@ -63,7 +63,12 @@ try {
   const projectDir = process.env.CLAUDE_PROJECT_DIR || process.cwd();
   const hooksDir = path.join(projectDir, ".claude", "hooks");
   const statePath = path.join(hooksDir, ".routing-review-state.json");
-  const eventsPath = path.join(os.homedir(), ".local", "state", "claude-otel", "events.jsonl");
+  // Same CLAUDE_OTEL_EVENTS_FILE override as packages/claude-otel-doctor.nix —
+  // both are generic, non-Nix-templated consumers of services.claudeOtel's
+  // eventsFile default and need to agree if it's ever overridden.
+  const eventsPath =
+    process.env.CLAUDE_OTEL_EVENTS_FILE ||
+    path.join(os.homedir(), ".local", "state", "claude-otel", "events.jsonl");
 
   let logRaw = "";
   try {
