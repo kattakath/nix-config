@@ -174,6 +174,33 @@ let
       done
       return 1
     }
+
+    # An IP lease and a listening sshd are NOT the same milestone — the guest
+    # gets its DHCP lease well before systemd finishes starting the SSH
+    # daemon. Opening the CDP tunnel right after wait_for_ip (no gap check)
+    # hit this live: the tunnel ssh failed instantly with "Connection
+    # refused", died, and the subsequent 30s CDP poll then waited out its
+    # full timeout against an already-dead tunnel. Probe with a real,
+    # lightweight SSH connection (not just a TCP port check) so the actual
+    # tunnel-open attempt only fires once the daemon can truly authenticate.
+    wait_for_ssh() {
+      local ip="$1" wait="''${2:-30}" i=0
+      while [ "$i" -lt "$wait" ]; do
+        if /usr/bin/ssh \
+          -o "IdentityFile=$IDENTITY" \
+          -o IdentitiesOnly=yes \
+          -o StrictHostKeyChecking=accept-new \
+          -o "UserKnownHostsFile=$HOME/.ssh/known_hosts" \
+          -o ConnectTimeout=3 \
+          -o BatchMode=yes \
+          "$SSH_USER@$ip" true 2>/dev/null; then
+          return 0
+        fi
+        sleep 1
+        i=$((i + 1))
+      done
+      return 1
+    }
   '';
 
   baseInputs = [
@@ -398,6 +425,8 @@ let
           info "CDP tunnel already open (pid $(cat "$TUNNEL_PID_FILE"))"
           return 0
         fi
+        info "waiting for sshd to accept connections…"
+        wait_for_ssh "$ip" 30 || die "SSH never became reachable on $ip:22 (guest still finishing boot? check $RUN_LOG)"
         info "opening CDP tunnel -> 127.0.0.1:$CDP_PORT"
         # nohup'd: a plain backgrounded ssh gets SIGHUP'd (and dies) if this
         # script's own shell exits non-zero later — observed live — which
