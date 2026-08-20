@@ -1079,6 +1079,12 @@
           vpn = (pkgsFor system).callPackage ./packages/vpn.nix { };
         }))
 
+        # Health check for the local Claude Code routing-telemetry OTel
+        # Collector (services.claudeOtel, modules/shared/claude-otel.nix).
+        (nixpkgs.lib.genAttrs darwinSystems (system: {
+          claude-otel-doctor = (pkgsFor system).callPackage ./packages/claude-otel-doctor.nix { };
+        }))
+
         # Deterministic ADB wired/wireless operator + scrcpy mirroring for a
         # physical Android device (adb/scrcpy resolved at runtime from the
         # android-platform-tools/scrcpy Homebrew formulae, hosts/macos.nix).
@@ -1432,6 +1438,13 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.vpn}/bin/vpn";
               meta.description = "WireGuard operator: vpn list|status|up|down|switch|restart|doctor (idempotent, no key leak)";
+            };
+
+            # Claude Code routing-telemetry collector health check.
+            aarch64-darwin.claude-otel-doctor = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.claude-otel-doctor}/bin/claude-otel-doctor";
+              meta.description = "Check the local Claude Code OTel Collector: launchd agent, OTLP port, events file";
             };
 
             # Deterministic ADB wired/wireless operator + scrcpy mirroring.
