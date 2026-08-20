@@ -247,6 +247,7 @@ in
       "whatsapp"
       "capcut"
       "iina"
+      "google-chrome"
     ];
     # Always empty: macvm has no Apple ID / App Store login — any masApps entry
     # fails brew bundle and aborts activation. Official WireGuard.app is macos-only.
