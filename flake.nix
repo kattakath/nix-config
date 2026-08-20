@@ -160,7 +160,7 @@
     # ---- Additional third-party skill collections (source-only, flake = false) --
     # Wired into programs.claude-code.skills alongside the two above. Chosen to
     # DRIVE tools this fleet already has (Cloudflare Tunnel + cloudflare/cloudflare-docs
-    # MCP, the playwright/postgres/macos-automator MCP servers, the Excalidraw
+    # MCP, the postgres/macos-automator MCP servers, the Excalidraw
     # connector, the Google Drive connector). Bumped via `nix flake update`; nothing vendored.
     agent-skills-cloudflare = {
       # OFFICIAL Cloudflare (Apache-2.0): `cloudflare` + `cloudflare-one` (Access/Tunnel) product reference.

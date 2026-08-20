@@ -75,8 +75,8 @@ let
   # uses (services.mcpGateway.endpoints: one Streamable-HTTP /mcp URL per hosted
   # server), so qwen can never drift from the other clients. But CURATE to a
   # coding-focused subset: a local qwen3-coder model degrades when handed too many
-  # tools, so the GUI/automation/external-state servers (playwright, kapture,
-  # mobile-mcp, macos-automator, cloudflare*) are left out — add a name here to
+  # tools, so the GUI/automation/external-state servers (kapture, mobile-mcp,
+  # macos-automator, cloudflare*) are left out — add a name here to
   # expose more. macos-only (the gateway runs only there; macvm trims it off), so
   # the mcpServers block is gated on isMacosHost below.
   qwenGatewayServers = [
@@ -618,7 +618,10 @@ in
         cloudflare = "${agent-skills-cloudflare}/skills/cloudflare";
         cloudflare-one = "${agent-skills-cloudflare}/skills/cloudflare-one";
         # Anthropic official (source-available): mcp-builder tool-design guidance for the
-        # whole MCP gateway; webapp-testing drives the `playwright` MCP server.
+        # whole MCP gateway; webapp-testing is self-contained (writes native Python
+        # Playwright scripts that launch their own headless chromium) — no MCP server
+        # of ours backs it, in particular NOT the gateway `playwright` entry, since
+        # that was removed with browservm (2026-08-20).
         mcp-builder = "${agent-skills-anthropic-official}/skills/mcp-builder";
         webapp-testing = "${agent-skills-anthropic-official}/skills/webapp-testing";
         # Anthropic document skills: pair with the Google Drive connector (fetch → edit → store).
