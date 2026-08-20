@@ -191,10 +191,13 @@ if (nixFiles && has("nix")) {
     const path = require("node:path");
     if (fs.statSync(path.join(projectDir, ".git")).isFile()) {
       const commonDir = path.resolve(projectDir, run("git rev-parse --git-common-dir").trim());
-      extraMountArgs =
-        ` --mount "type=bind,source=${commonDir},target=${commonDir}"` +
-        ` --mount "type=bind,source=${projectDir},target=${projectDir}"`;
-      extraSafeDirs = `git config --global --add safe.directory ${commonDir}; git config --global --add safe.directory ${projectDir}; `;
+      // Same JSON.stringify-as-shell-quoting technique as the nix-instantiate
+      // call above — commonDir/projectDir are derived from git/env, not
+      // attacker input, but quote them anyway for consistency and so a path
+      // containing a `"` or space can't break the composed command.
+      const mountArg = (dir) => `--mount ${JSON.stringify(`type=bind,source=${dir},target=${dir}`)}`;
+      extraMountArgs = ` ${mountArg(commonDir)} ${mountArg(projectDir)}`;
+      extraSafeDirs = `git config --global --add safe.directory ${JSON.stringify(commonDir)}; git config --global --add safe.directory ${JSON.stringify(projectDir)}; `;
     }
   } catch {
     /* main checkout (`.git` is a directory) or detection failed — no extra mounts needed */
