@@ -1,63 +1,50 @@
 # Browser Automation — Which Tool, Deterministically
 
-This session/repo has **four** distinct browser-automation-capable tool paths
+This session/repo has **three** distinct browser-automation-capable tool paths
 available at once. Without a fixed decision order, a generic "do this in the
-browser" ask forces an agent to guess between them — and different sessions
-guess differently, producing exactly the kind of AI-client back-and-forth this
-rule exists to eliminate. Pick by the table below; do not improvise.
+browser" ask forces an agent to guess between them. Pick by the table below;
+do not improvise.
 
 ## Decision order
 
-1. **`browservm` + the `playwright` MCP — the default** for any autonomous,
-   potentially multi-step web job (click, type, fill forms, navigate through a
-   flow) that is not specifically about the user's own already-open browser.
-   Bootstrap with the single one-shot command:
+1. **`claude-in-chrome`** (the Chrome extension driving the user's own,
+   already-running, already-logged-in Chrome) — **the default** for any
+   browser task: reading a page, filling a form, clicking through a flow, or
+   checking an authenticated site. Zero setup, and it is the only path here
+   that can actually click/type outside Opera-in-macvm. It is the user's real
+   session, though — be correspondingly careful (see the top-level
+   action-category rules on sending messages, submitting forms, entering
+   credentials, etc.).
 
-   ```bash
-   nix run .#browservm-vfkit-up   # boot (if needed) + tunnel + wait for CDP
-   ```
+2. **`opera-browser-connector`**: only for tasks specifically about Opera
+   running inside `macvm`. It is **read-only**
+   (list/read/navigate/screenshot — no click, no type). If the task needs
+   clicking or typing, use `claude-in-chrome` instead.
 
-   then drive it with the `playwright` MCP tools, and use `automation-session
-   status|seed|capture|login [site]` (`packages/automation-session.nix`) to
-   check/restore/save the Keychain-encrypted session. See
-   `docs/browservm-runbook.md` and `docs/automation-browser.md`.
-
-2. **`claude-in-chrome`** (the Chrome extension driving the user's own,
-   already-running, already-logged-in Chrome): use when the task is
-   explicitly about *their* browser — "check my open tabs," "what's on the
-   page I have open," a quick unauthenticated read that doesn't justify
-   booting a VM. Zero setup, but it is the user's real session — be
-   correspondingly careful (see the top-level action-category rules on
-   sending messages, submitting forms, etc.).
-
-3. **`opera-browser-connector`**: only for tasks specifically about Opera
-   running inside `macvm`. It is **read-only** (list/read/navigate/screenshot
-   — no click, no type). Never reach for it to complete an interactive,
-   multi-step flow; if the task needs clicking or typing, use browservm instead.
-
-4. **`kapture`**: **never auto-invoke.** Use it only when the user explicitly
+3. **`kapture`**: **never auto-invoke.** Use it only when the user explicitly
    types "Kapture," or for the documented Kapture-only cases (a Vast.ai
    instance log-tail, the Grok tunnel — see the relevant skills/docs). This
    drives the user's real, currently-open Chrome with full read/write
    control; treat an unprompted use of it the same as an unprompted use of
    any other real-session tool.
 
-5. **`mobile-mcp`** is a different category entirely — native Android/iOS
+4. **`mobile-mcp`** is a different category entirely — native Android/iOS
    *apps*, not browser tabs. Not a candidate for a "browser automation" ask.
 
 ## Why
 
-Four overlapping paths with no stated precedence means an agent either asks
-the user to disambiguate every time (friction) or silently guesses (drift
-between sessions, and a real risk of picking a read-only tool — `opera` — for
-a job that needs clicks/typing, discovering the gap mid-task). A fixed,
-mandatory order removes both failure modes. `browservm` is the default
-specifically because it's the only path built for unattended, authenticated,
-multi-step jobs with session persistence — the other three are either
-read-only, or tied to a real human session that shouldn't be driven without
-being named explicitly.
+An isolated, disposable automation-VM path (`browservm`, a NixOS/vfkit guest
+with its own headless Chromium) was built and thoroughly hardened here, then
+removed (2026-08-20) after every real attempt to use it hit walls its own
+architecture couldn't fix: sites with bot-management (Cloudflare, etc.)
+correctly flag generic headless Chromium regardless of what's driving it, VM
+or not. `claude-in-chrome` — a real, already-trusted browser session — covers
+the actual need with zero maintenance surface in this repo. Keep the decision
+order fixed anyway: without it, an agent either asks the user to disambiguate
+every time, or silently guesses (a real risk of picking the read-only
+`opera` path for a job that needs clicks/typing).
 
 ## Quick check
 
-If a task doesn't clearly say "my browser" / "my Chrome" / "Opera" /
-"Kapture," it's a `browservm` job. Start with `nix run .#browservm-vfkit-up`.
+If a task doesn't clearly say "Opera" or "Kapture," it's a
+`claude-in-chrome` job.
