@@ -486,6 +486,22 @@ in
     "$HOME/.grok/bin"
   ];
 
+  # Day-to-day activation shorthand. `mkDefault` (lowest priority) so a
+  # private composition flake's `extraHomeModules` can redefine the SAME key
+  # with a plain assignment and win automatically — no `lib.mkForce`, no
+  # "conflicting definitions" error, regardless of module import order. This
+  # public default points at this fleet-only engine; nix-personal (private)
+  # overrides it to its own flake so day-to-day `nrs` always includes the
+  # private layer instead of silently reverting to this baseline on the next
+  # switch. See docs/private-home-modules.md. darwin-rebuild only exists on
+  # the two darwin hosts — nixpi/nixvm are switched a different way entirely
+  # (nixpi has no local build capacity; see the private-home-modules doc).
+  home.shellAliases.nrs = lib.mkIf pkgs.stdenv.isDarwin (
+    lib.mkDefault "darwin-rebuild switch --flake github:kattakath/nix-config#${
+      osConfig.networking.hostName or "macos"
+    }"
+  );
+
   # GLOBAL Claude Code instructions — user-level rules loaded in every project/session
   # on this Mac (the sole Claude Code client host). Declarative equivalent of hand-writing
   # ~/.claude/CLAUDE.md; the strict "decisions/confirmations = AskUserQuestion options"
