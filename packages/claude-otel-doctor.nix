@@ -27,11 +27,12 @@ writeShellApplication {
       rc=1
     fi
 
-    if (exec 3<>"/dev/tcp/127.0.0.1/4317") 2>/dev/null; then
+    otlp_host_port="''${CLAUDE_OTEL_OTLP_HOST_PORT:-127.0.0.1:4317}"
+    if (exec 3<>"/dev/tcp/''${otlp_host_port%:*}/''${otlp_host_port##*:}") 2>/dev/null; then
       exec 3>&- 3<&-
-      echo "otlp grpc endpoint: listening (127.0.0.1:4317)"
+      echo "otlp grpc endpoint: listening ($otlp_host_port)"
     else
-      echo "otlp grpc endpoint: NOT LISTENING on 127.0.0.1:4317"
+      echo "otlp grpc endpoint: NOT LISTENING on $otlp_host_port"
       rc=1
     fi
 
