@@ -814,32 +814,33 @@ in
           condition = "gitdir:${config.home.homeDirectory}/Developer/github.com/REDACTED/";
           path = "${config.home.homeDirectory}/.config/git/REDACTED";
         }
-        # Any repo under the dontsell-ai org authors as the REDACTED identity. Matched by
-        # REMOTE url (hasconfig), not gitdir, so it applies regardless of clone path — including
-        # throwaway agent clones. Two patterns cover https + ssh:// (**/dontsell-ai/**) and
-        # scp-style ssh git@github.com:dontsell-ai/… (**:dontsell-ai/**). The email lives in the
-        # local include (NOT this public repo), same convention as REDACTED above.
+        # Both orgs author as the same REDACTED identity: dontsell-ai is the agency,
+        # REDACTED is the client whose site it builds. One include file serves both —
+        # splitting it would duplicate the same address into two places.
+        #
+        # Matched by REMOTE url (hasconfig), not gitdir, so it applies regardless of clone
+        # path — including throwaway agent clones. Two patterns per org cover https + ssh://
+        # (**/org/**) and scp-style ssh git@github.com:org/… (**:org/**).
+        #
+        # The address itself lives in ~/.config/git/REDACTED, deployed by the private
+        # nix-personal flake — never this public repo, same convention as REDACTED above.
+        # A missing include is a silent no-op, so a host without the private layer simply
+        # falls back to the default identity rather than failing.
         {
           condition = "hasconfig:remote.*.url:**/dontsell-ai/**";
-          path = "${config.home.homeDirectory}/.config/git/dontsell.inc";
+          path = "${config.home.homeDirectory}/.config/git/REDACTED";
         }
         {
           condition = "hasconfig:remote.*.url:**:dontsell-ai/**";
-          path = "${config.home.homeDirectory}/.config/git/dontsell.inc";
+          path = "${config.home.homeDirectory}/.config/git/REDACTED";
         }
-        # REDACTED is the REDACTED Insights org proper; dontsell-ai remains the
-        # agency org (design, app). Both author as the same REDACTED identity, so they
-        # share dontsell.inc rather than duplicating the address into a second file. Added
-        # when REDACTED's site repo moved from dontsell-ai/corp to
-        # REDACTED/website on 2026-08-21 — without this the identity silently falls
-        # back to the GitHub noreply address, because the match is on remote url.
         {
           condition = "hasconfig:remote.*.url:**/REDACTED/**";
-          path = "${config.home.homeDirectory}/.config/git/dontsell.inc";
+          path = "${config.home.homeDirectory}/.config/git/REDACTED";
         }
         {
           condition = "hasconfig:remote.*.url:**:REDACTED/**";
-          path = "${config.home.homeDirectory}/.config/git/dontsell.inc";
+          path = "${config.home.homeDirectory}/.config/git/REDACTED";
         }
       ];
     };
