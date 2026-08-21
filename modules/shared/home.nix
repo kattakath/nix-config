@@ -827,6 +827,20 @@ in
           condition = "hasconfig:remote.*.url:**:dontsell-ai/**";
           path = "${config.home.homeDirectory}/.config/git/dontsell.inc";
         }
+        # silvercreek-ai is the SilverCreek Insights org proper; dontsell-ai remains the
+        # agency org (design, app). Both author as the same SilverCreek identity, so they
+        # share dontsell.inc rather than duplicating the address into a second file. Added
+        # when silvercreek.ai's site repo moved from dontsell-ai/corp to
+        # silvercreek-ai/website on 2026-08-21 — without this the identity silently falls
+        # back to the GitHub noreply address, because the match is on remote url.
+        {
+          condition = "hasconfig:remote.*.url:**/silvercreek-ai/**";
+          path = "${config.home.homeDirectory}/.config/git/dontsell.inc";
+        }
+        {
+          condition = "hasconfig:remote.*.url:**:silvercreek-ai/**";
+          path = "${config.home.homeDirectory}/.config/git/dontsell.inc";
+        }
       ];
     };
 
