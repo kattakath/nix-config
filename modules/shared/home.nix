@@ -147,6 +147,14 @@ let
     "stripe@claude-plugins-official"
     # Anthropic first-party frontend-design skill/plugin (UI/UX generation guidance).
     "frontend-design@claude-plugins-official"
+    # Resend's OFFICIAL plugin (resend.com/mcp / resend.com/docs/mcp-server): bundles the
+    # resend-cli skill + the hosted mcp.resend.com MCP server (Streamable HTTP, one-time
+    # in-client OAuth via `/mcp` -> select resend — same shape as the stripe entry above; no
+    # API key handled by this plugin). Pairs with the `resend` CLI package (home.packages
+    # below), which instead authenticates non-interactively via RESEND_API_KEY from the
+    # Keychain — the two are independent auth paths to the same Resend account (used by
+    # dontsell-ai/app's outbound/inbound email).
+    "resend@claude-plugins-official"
   ];
 
   # Absolute operator SSH paths under $HOME. Git treats a non-absolute
@@ -200,6 +208,11 @@ let
   # `obs-fb-setup` — write an OBS "Facebook" profile for Facebook Live, injecting
   # FB_PERSISTENT_STREAM_KEY from the login Keychain at run time. See packages/obs-fb-setup.nix.
   obs-fb-setup = pkgs.callPackage ../../packages/obs-fb-setup.nix { };
+
+  # `resend` — the official Resend CLI, injecting RESEND_API_KEY from the login Keychain
+  # at run time (non-interactive, no browser OAuth). Pairs with the
+  # resend@claude-plugins-official plugin (claudePluginIds below). See packages/resend-cli.nix.
+  resendCli = pkgs.callPackage ../../packages/resend-cli.nix { };
 
   # `fix-google-video <file>...` — re-encode VP9-in-MP4 (and other editor-incompatible
   # codecs) into H.264+AAC so Google Photos downloads import into CapCut/Premiere/etc.
@@ -427,6 +440,7 @@ in
       qwen-code # `qwen` — Alibaba's Gemini-CLI-fork coding agent, pointed at a LOCAL Qwen model served by Ollama's OpenAI-compatible endpoint (config in ~/.qwen/.env below, NOT the global OpenAI env — those generic var names would hijack other tools). Pull the model with `ollama pull qwen3-coder:30b`.
       inngest # `inngest` — CLI + local dev server for Inngest durable workflows (not in Homebrew; nixpkgs has it)
       stripe-cli # Stripe CLI (`stripe`) — API calls, webhook forwarding (`stripe listen`), event triggers; auth is a one-time `stripe login` browser OAuth (config in ~/.config/stripe, never in git/store — same one-time-CLI-login convention as gh/hf/docker). Pairs with the stripe@claude-plugins-official plugin (claudePluginIds above)
+      resendCli # `resend` — the official Resend CLI (npx-wrapped, not yet in nixpkgs), authenticated non-interactively via RESEND_API_KEY from the login Keychain (packages/resend-cli.nix). Pairs with the resend@claude-plugins-official plugin (claudePluginIds above)
       wp-cli # WordPress CLI (`wp`) — manage WordPress installs/plugins/themes/db from the shell; nixpkgs-native (bundles its own PHP), so no Homebrew `wp-cli` formula or `curl … wp-cli.phar` install (single source per the reuse/declarative convention)
       pandoc # Universal doc converter — nixpkgs-native on aarch64-darwin (no Homebrew needed); backs the docx/pptx/xlsx skills' `pandoc` dependency (see programs.claude-code.skills NOTE below)
       poppler-utils # pdftoppm/pdftotext/pdfimages CLI — NOT `poppler` (that's the glib-bindings library, no binaries); moved here from the macos Homebrew `poppler` formula (nixpkgs is the single source per modules/darwin/homebrew.nix's dedup comment); backs the pdf/docx/pptx skills
