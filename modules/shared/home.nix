@@ -827,6 +827,20 @@ in
           condition = "hasconfig:remote.*.url:**:dontsell-ai/**";
           path = "${config.home.homeDirectory}/.config/git/dontsell.inc";
         }
+        # REDACTED is the REDACTED Insights org proper; dontsell-ai remains the
+        # agency org (design, app). Both author as the same REDACTED identity, so they
+        # share dontsell.inc rather than duplicating the address into a second file. Added
+        # when REDACTED's site repo moved from dontsell-ai/corp to
+        # REDACTED/website on 2026-08-21 — without this the identity silently falls
+        # back to the GitHub noreply address, because the match is on remote url.
+        {
+          condition = "hasconfig:remote.*.url:**/REDACTED/**";
+          path = "${config.home.homeDirectory}/.config/git/dontsell.inc";
+        }
+        {
+          condition = "hasconfig:remote.*.url:**:REDACTED/**";
+          path = "${config.home.homeDirectory}/.config/git/dontsell.inc";
+        }
       ];
     };
 
