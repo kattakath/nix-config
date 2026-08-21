@@ -1,0 +1,30 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "kattakath-nix-config",
+  "description": "In-repo Claude Code plugins for this fleet. Pinned by Nix source path (modules/shared/home.nix), never fetched from a third-party marketplace.",
+  "owner": {
+    "name": "Ismail Kattakath",
+    "url": "https://github.com/kattakath/nix-config"
+  },
+  "plugins": [
+    {
+      "name": "llmstxt",
+      "description": "Author spec-compliant llms.txt (and the de-facto llms-full.txt) from any body of written work — docs, a site, a repo, or a developer accomplishment document.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Ismail Kattakath"
+      },
+      "category": "documentation",
+      "keywords": [
+        "llms.txt",
+        "llmstxt",
+        "documentation",
+        "markdown",
+        "agents"
+      ],
+      "homepage": "https://llmstxt.org",
+      "license": "MIT",
+      "source": "./llmstxt"
+    }
+  ]
+}

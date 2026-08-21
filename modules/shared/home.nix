@@ -155,7 +155,24 @@ let
     # Keychain — the two are independent auth paths to the same Resend account (used by
     # dontsell-ai/app's outbound/inbound email).
     "resend@claude-plugins-official"
+    # IN-REPO (plugins/llmstxt, this repo, via the localPluginsMarketplace source path below):
+    # authoring skill + /llmstxt command + a stdlib-only linter for llms.txt — the llmstxt.org
+    # v2 standard for LLM-friendly content. Nothing upstream AUTHORS these files (the ecosystem
+    # is site-build generators + consumers/parsers), and nixpkgs carries only the Sphinx build
+    # plugin (python3Packages.sphinx-llms-txt) — see plugins/llmstxt/README.md for the
+    # reuse-vs-build reasoning, including why the linter is dependency-free stdlib.
+    "llmstxt@${localMarketplaceName}"
   ];
+
+  # The marketplace this repo serves ITSELF, from the top-level plugins/ directory: a Nix
+  # SOURCE PATH (store copy), not a flake input or a third-party marketplace, so an in-repo
+  # plugin is pinned by construction and cannot drift. Its store path CHANGES whenever any
+  # plugin content changes, which is exactly what home.activation.claudeCodePlugins keys the
+  # re-pin off. Adding an in-repo plugin = a plugins/<name>/ tree + an entry in
+  # plugins/.claude-plugin/marketplace.json + its id in claudePluginIds above.
+  localMarketplaceName = "kattakath-nix-config";
+  localPluginsMarketplace = "${../../plugins}";
+  localPluginIds = builtins.filter (lib.hasSuffix "@${localMarketplaceName}") claudePluginIds;
 
   # Absolute operator SSH paths under $HOME. Git treats a non-absolute
   # gpg.ssh.allowedSignersFile as worktree-relative (would look in <repo>/.ssh/).
@@ -604,10 +621,11 @@ in
       # Nix-managed known_marketplaces.json symlink; `claude plugin marketplace add`
       # and installs need a mutable file, and the reserved name
       # `claude-plugins-official` must be a GitHub/HTTPS source (directory pins are
-      # rejected as untrusted). Both marketplaces are registered by
+      # rejected as untrusted). All three marketplaces are registered by
       # home.activation.claudeCodePlugins from:
       #   - xai-grok-build ← pinned flake input path (grok-build-plugin-cc)
       #   - claude-plugins-official ← https://github.com/anthropics/claude-plugins-official
+      #   - kattakath-nix-config ← this repo's own plugins/ tree (localPluginsMarketplace)
       # Plugin install state lives in mutable ~/.claude (like gh/hf one-time logins).
       # Runtime for grok-build: grok on PATH (~/.grok/bin) + Node; `grok models` must work.
 
@@ -1160,6 +1178,27 @@ in
           echo "claude-code: replacing directory pin of claude-plugins-official with HTTPS..." >&2
           "$claude" plugin marketplace remove claude-plugins-official 2>&1 || true
           "$claude" plugin marketplace add "$official_mp_src" 2>&1 || true
+        fi
+
+        # This repo's OWN marketplace (plugins/), pinned to a Nix source path. Unlike the two
+        # above it is not a fixed remote: the store path changes whenever any in-repo plugin
+        # changes, and `plugin install` COPIES into ~/.claude/plugins/cache — so a plain
+        # "already registered?" guard would keep serving a previous generation's content
+        # forever. Key off the store path actually recorded in known_marketplaces.json and,
+        # when it has moved, re-pin + drop the stale copies so the loop below reinstalls them.
+        local_mp="${localPluginsMarketplace}"
+        known_mps="${config.home.homeDirectory}/.claude/plugins/known_marketplaces.json"
+        if ! grep -qF "$local_mp" "$known_mps" 2>/dev/null; then
+          echo "claude-code: (re)pinning ${localMarketplaceName} marketplace -> $local_mp" >&2
+          # Tear down the previous pin FIRST (uninstall while the marketplace still resolves),
+          # silently — on a first switch there is nothing to remove and the CLI says so.
+          if "$claude" plugin marketplace list 2>/dev/null | grep -qF '${localMarketplaceName}'; then
+            for id in ${lib.escapeShellArgs localPluginIds}; do
+              "$claude" plugin uninstall --yes "$id" >/dev/null 2>&1 || true
+            done
+            "$claude" plugin marketplace remove ${localMarketplaceName} >/dev/null 2>&1 || true
+          fi
+          "$claude" plugin marketplace add "$local_mp" 2>&1 || true
         fi
 
         for id in ${lib.escapeShellArgs claudePluginIds}; do

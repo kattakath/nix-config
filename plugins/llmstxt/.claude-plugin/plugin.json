@@ -1,0 +1,19 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "llmstxt",
+  "version": "0.1.0",
+  "description": "Author spec-compliant llms.txt (and the de-facto llms-full.txt) from any body of written work — docs, a site, a repo, or a developer accomplishment document.",
+  "author": {
+    "name": "Ismail Kattakath"
+  },
+  "homepage": "https://llmstxt.org",
+  "repository": "https://github.com/kattakath/nix-config",
+  "license": "MIT",
+  "keywords": [
+    "llms.txt",
+    "llmstxt",
+    "documentation",
+    "markdown",
+    "agents"
+  ]
+}
