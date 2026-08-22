@@ -34,6 +34,11 @@ on:
   pull_request:
   push:
     branches: [main]
+  # REQUIRED by the merge queue: a queue entry is built on its own
+  # `gh-readonly-queue/main/...` ref, which emits NEITHER `pull_request` NOR
+  # `push`. Without this trigger the `required-checks` context never reports on a
+  # queued entry and every merge times out. See docs/auto-merge-and-merge-queue.md.
+  merge_group:
   workflow_dispatch:
 
 concurrency:
