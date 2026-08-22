@@ -2,11 +2,12 @@
 name: vast-instance-log-tail
 description: >
   Headlessly tail a Vast.ai instance's log from the cloud.vast.ai console using
-  Kapture + a JS `evaluate` snippet — no screenshots, no blind-waiting. Use when
-  asked to "tail/watch the Vast instance log", "check provisioning progress",
-  "see the last N lines of the instance log", "why is the Open button stuck", or
-  "diagnose a Vast instance". Pairs with the vast-* provisioning subsystem
-  (the vast-provision flake input + packages/vast-bootstrap.sh) and the design doc
+  claude-in-chrome's javascript_tool with a JS snippet — no screenshots, no
+  blind-waiting. Use when asked to "tail/watch the Vast instance log", "check
+  provisioning progress", "see the last N lines of the instance log", "why is
+  the Open button stuck", or "diagnose a Vast instance". Pairs with the vast-*
+  provisioning subsystem (the vast-provision flake input +
+  packages/vast-bootstrap.sh) and the design doc
   docs/vastai-template-provisioning.md.
 ---
 
@@ -14,9 +15,9 @@ description: >
 
 Reading a Vast instance log the wrong way (screenshots, blind-waiting over timeouts,
 polling `disk_usage`) is slow, token-heavy, and misses the error — which is almost
-always at the **bottom** of the log. Read it as TEXT via Kapture's `evaluate` tool
-against the console's Logs modal. These selectors were verified live on the
-cloud.vast.ai console (Chrome + Kapture) — they are real, not guessed.
+always at the **bottom** of the log. Read it as TEXT via claude-in-chrome's
+`javascript_tool` against the console's Logs modal. These selectors were verified
+live on the cloud.vast.ai console (Chrome) — they are real, not guessed.
 
 ## The three rules that cost us hours
 
@@ -44,13 +45,16 @@ Note: even at high Line Count the visible window is a tail — early base-image 
 (sshd/caddy launch lines) can be pushed off the TOP by long download output, so the
 modal is **not** reliable for confirming service startup; use a shell for that.
 
-## Recipe (Kapture)
+## Recipe (claude-in-chrome)
 
-1. `list_tabs` → the `cloud.vast.ai` tab (needs `evalAllowed: true`).
-2. If the Logs modal isn't open, click the instance card's Logs button:
-   `[data-testid="instance-card-view-instance-logs-button"]` (one card ⇒ one button;
-   for a specific instance, scope to its card first).
-3. Set Line Count, fire the fetch, read the `<pre>` — all via `evaluate`:
+1. `tabs_context_mcp` → find the `cloud.vast.ai` tab's `tabId` (create one with
+   `tabs_create_mcp` + `navigate` if it isn't already open).
+2. If the Logs modal isn't open, use `find` (query: "Logs button on the instance
+   card") and click it, or drive `javascript_tool` directly against
+   `[data-testid="instance-card-view-instance-logs-button"]` (one card ⇒ one
+   button; for a specific instance, scope to its card first).
+3. Set Line Count, fire the fetch, read the `<pre>` — both steps via
+   `javascript_tool` (`action: "javascript_exec"`, `tabId` from step 1):
 
 ```js
 // STEP A — set Line Count = 48 and fetch INSTANCE LOGS (modal does NOT auto-tail)
@@ -90,7 +94,8 @@ fetch buttons have **no** `data-testid` — match by exact button text as above.
 
 ## Headless (no browser) fallback
 
-When there's no Kapture/browser, poll the API instead — same INSTANCE LOG stream:
+When there's no browser session available, poll the API instead — same INSTANCE
+LOG stream:
 
 ```
 PUT https://console.vast.ai/api/v0/instances/request_logs/<id>   body {"tail":"48"}
