@@ -74,6 +74,6 @@ You do **not** create the table or the function — they exist. Just use them.
   background; retry shortly. A dimension-mismatch error means the model changed; re-embed.
 - **Keep it read-mostly.** Inserts/updates are fine; avoid schema changes — the table and
   index are managed declaratively (the extracted local-rag flake's services.pgvectorLocal —
-  github:ismailkattakath/nix-local-rag).
+  github:kattakath/nix-local-rag).
 - **Reset a corpus** with `TRUNCATE docs;` (or delete by `metadata->>'source'`) before
   re-ingesting a changed document, so you don't accumulate stale chunks.

@@ -412,7 +412,7 @@ let
     # blast radius is bounded not by that flag but by DATABASE_URI's role `mcp`, which
     # owns ONLY `ragdb` and connects loopback-trust with no secret. The DB is a
     # loopback launchd agent — from the extracted local-rag flake
-    # (github:ismailkattakath/nix-local-rag), which single-sources the URI via
+    # (github:kattakath/nix-local-rag), which single-sources the URI via
     # services.pgvectorLocal.databaseUri.
     #
     # This server is a `uvx` RUNTIME fetch (no nixpkgs/mcp-servers-nix package exists),

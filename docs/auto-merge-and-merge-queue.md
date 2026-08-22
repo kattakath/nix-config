@@ -83,13 +83,13 @@ be duplicated on every queue entry (see `.claude/rules/pr-consolidation.md`).
 | Repo | Required context(s) | CI workflow needing `merge_group:` |
 | --- | --- | --- |
 | `kattakath/nix-config` | `required-checks`, `Scan for secrets` | `nix-ci.yml`, `gitleaks.yml` |
-| `ismailkattakath/nix-keychain-secrets` | `checks` | `ci.yml` |
-| `ismailkattakath/nix-firmware-secrets` | `checks` | `ci.yml` |
-| `ismailkattakath/nix-local-rag` | `checks` | `ci.yml` |
-| `ismailkattakath/nix-mcp-gateway` | `checks` | `ci.yml` |
-| `ismailkattakath/nix-cloudflared-connector` | `checks` | `ci.yml` |
-| `ismailkattakath/nix-vast-provision` | `checks` | `ci.yml` |
-| `ismailkattakath/ircc-whatsapp-bot` | `checks` | `ci.yml` |
+| `kattakath/nix-keychain-secrets` | `checks` | `ci.yml` |
+| `kattakath/nix-firmware-secrets` | `checks` | `ci.yml` |
+| `kattakath/nix-local-rag` | `checks` | `ci.yml` |
+| `kattakath/nix-mcp-gateway` | `checks` | `ci.yml` |
+| `kattakath/nix-cloudflared-connector` | `checks` | `ci.yml` |
+| `kattakath/nix-vast-provision` | `checks` | `ci.yml` |
+| `kattakath/ircc-whatsapp-bot` | `checks` | `ci.yml` |
 
 The private `ismailkattakath/nix-personal` (GitLab) is **out of scope**: it has no
 `.gitlab-ci.yml` at all, so there is no pipeline for a merge-when-green rule to
