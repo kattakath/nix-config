@@ -118,14 +118,14 @@ session that produced this ADR.
    #2/#3 were done ahead of it since they were the higher-value, explicitly-requested
    work at the time.
 2. ✅ **Done** (2026-08-20). `nix-local-rag` migrated to flake-parts —
-   [PR #1](https://github.com/ismailkattakath/nix-local-rag/pull/1). Consumer proof
+   [PR #1](https://github.com/kattakath/nix-local-rag/pull/1). Consumer proof
    against `nix-config`'s real `darwinConfigurations.macos` came back byte-identical.
 3. ✅ **Done** (2026-08-20), same day as #2. `nix-firmware-secrets`
-   ([PR #2](https://github.com/ismailkattakath/nix-firmware-secrets/pull/2)),
-   `vast-provision` ([PR #3](https://github.com/ismailkattakath/nix-vast-provision/pull/3)),
+   ([PR #2](https://github.com/kattakath/nix-firmware-secrets/pull/2)),
+   `vast-provision` ([PR #3](https://github.com/kattakath/nix-vast-provision/pull/3)),
    `ircc-whatsapp-bot` (merged directly to `main` — no CI/PR convention on that repo
    yet), and `nix-keychain-secrets`
-   ([PR #2](https://github.com/ismailkattakath/nix-keychain-secrets/pull/2)) — all
+   ([PR #2](https://github.com/kattakath/nix-keychain-secrets/pull/2)) — all
    migrated, one at a time, each independently verified (real CI where it exists,
    `nix flake check -L`, a native build via Determinate's native Linux builder for at
    least one non-macOS system per repo, and a consumer-side proof against
