@@ -349,6 +349,7 @@ in
     ./desktop-aesthetics.nix # macOS wallpaper + Terminal profile (opt-out per host; macvm opts out)
     ./wireguard-configs.nix # operator-managed WG confs → ~/.config/wireguard (no autostart)
     ./claude-otel.nix # local OTel Collector for Claude Code's routing-decision telemetry (macos only)
+    ./git-allowed-signers.nix # extra allowed_signers principals (option only; nix-personal fills)
     # Local-first RAG stack (loopback launchd Postgres+pgvector + Ollama + in-DB
     # embed()), from the extracted flake (github:ismailkattakath/nix-local-rag).
     # Both modules are internally gated on (enable && isDarwin) — a clean no-op on
@@ -592,10 +593,14 @@ in
   };
 
   # Git SSH allowed_signers (principal = userEmail, key = operatorSshKey).
+  # Extra principals: options.kattakath.git.extraAllowedSignersPrincipals
+  # (git-allowed-signers.nix), filled from nix-personal.
   # HM target is home-relative; programs.git uses absolute allowedSignersFile.
-  home.file.".ssh/allowed_signers".text = ''
-    ${userEmail} namespaces="git" ${operatorSshKey}
-  '';
+  home.file.".ssh/allowed_signers".text = lib.concatMapStrings (
+    principal: ''
+      ${principal} namespaces="git" ${operatorSshKey}
+    ''
+  ) (lib.unique ([ userEmail ] ++ config.kattakath.git.extraAllowedSignersPrincipals));
 
   # ---- Home Manager program modules --------------------------------------------
   programs = {
@@ -842,6 +847,21 @@ in
         {
           condition = "hasconfig:remote.*.url:**:silvercreek-ai/**";
           path = "${config.home.homeDirectory}/.config/git/silvercreek.inc";
+        }
+        # GitLab personal namespace (ismailkattakath). gitlab.com-specific so
+        # github.com/ismailkattakath keeps the GitHub noreply. Address lives in
+        # ~/.config/git/gitlab.inc (nix-personal); missing include is a silent no-op.
+        {
+          condition = "hasconfig:remote.*.url:**/gitlab.com/ismailkattakath/**";
+          path = "${config.home.homeDirectory}/.config/git/gitlab.inc";
+        }
+        {
+          condition = "hasconfig:remote.*.url:**:gitlab.com:ismailkattakath/**";
+          path = "${config.home.homeDirectory}/.config/git/gitlab.inc";
+        }
+        {
+          condition = "gitdir:${config.home.homeDirectory}/Developer/gitlab.com/ismailkattakath/";
+          path = "${config.home.homeDirectory}/.config/git/gitlab.inc";
         }
       ];
     };
