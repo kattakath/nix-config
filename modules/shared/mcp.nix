@@ -17,20 +17,20 @@
 # account owns the GUI session, `darwin-rebuild switch` cannot load the agent.
 #
 # SERVER SIDE (this box, 127.0.0.1:8096)
-#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 18 servers (20
+#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 19 servers (21
 #   with telegram + the local WordPress adapter, +1 per configured
 #   `services.mcpGateway.gmail.accounts` alias — `gmail-<alias>`, one process
 #   per Google/Workspace account, 0 in this public repo — see mkGmailMcp's
 #   comment), each reachable at /servers/<name>/sse.
 #   `gatewayConfig` is rendered by mcp-servers-nix's `lib.mkConfig`, so the 7 packaged
 #   servers (context7/fetch/memory/sequential-thinking/nixos/terraform/github) are
-#   PINNED store-path commands; the 11 without a module (+ telegram / the local
+#   PINNED store-path commands; the 12 without a module (+ telegram / the local
 #   WordPress adapter / gmail-<alias> when configured) fall
 #   back to pinned npx/uvx launchers (still a runtime fetch, but acceptable on the Mac
 #   where Node/uv already live).
 #
 # CLIENT SIDE (programs.claude-code.mcpServers)
-#   The 18 hosted servers (20+ with every opt-in) are wired as `type = "http"` (Streamable HTTP — the
+#   The 19 hosted servers (21+ with every opt-in) are wired as `type = "http"` (Streamable HTTP — the
 #   current MCP standard; the legacy HTTP+SSE transport was deprecated in the
 #   2025-03-26 spec) pointing at /servers/<name>/mcp; desktop-commander stays
 #   `type = "stdio"`. The claude-code module writes these into a managed
@@ -285,7 +285,7 @@ let
 
   # The servers with no mcp-servers-nix module, as raw stdio commands. Merged into
   # the gateway config via mkConfig's `settings.servers` (telegram appended below,
-  # opt-in). The 11 base ones fall back to pinned npx/uvx launchers; postgres and
+  # opt-in). The 12 base ones fall back to pinned npx/uvx launchers; postgres and
   # wordpress are special (pinned version + Keychain-injected env via a wrapper).
   customStdioServers = {
     duckduckgo = {
@@ -299,6 +299,25 @@ let
     mcp-jq = {
       command = npx;
       args = [ "@247arjun/mcp-jq" ];
+    };
+    # MCP-server DISCOVERY (mcpfinder.dev — @mcpfinder/server, AGPL-3.0):
+    # cross-registry search over the Official MCP Registry + Glama + Smithery
+    # via `search_mcp_servers` / `get_mcp_server_details`. Wired
+    # DISCOVERY-ONLY: its third tool, `add_mcp_server_config`, writes client
+    # config files imperatively — the exact anti-pattern this gateway exists
+    # to avoid (a server is ADOPTED by declaring it in this file, pinned, and
+    # rebuilding — the `mcp-scout` skill in nix-config codifies that flow).
+    # That tool is deny-listed in nix-config's .claude/settings.json (mirror
+    # the deny in the user-scope settings via nix-personal for other repos);
+    # the HM-managed client configs are store symlinks anyway, so a stray
+    # write attempt fails closed. Version PINNED: one server that crashes at
+    # startup darks the whole gateway (see postgres below) — bump deliberately.
+    mcpfinder = {
+      command = npx;
+      args = [
+        "-y"
+        "@mcpfinder/server@1.1.0"
+      ];
     };
     cloudflare-docs = {
       command = npx;
@@ -473,7 +492,8 @@ let
     };
   };
 
-  # Every server NAME the gateway hosts (7 packaged + 14 custom). Single source
+  # Every server NAME the gateway hosts (7 packaged + 12 base custom, plus
+  # opt-ins). Single source
   # for the client SSE URLs, so the two sides can never drift. Order/names MUST
   # match the packaged servers enabled in `gatewayConfig.programs` below.
   packagedServerNames = [
@@ -489,7 +509,7 @@ let
 
   # SERVER SIDE: a {mcpServers:{name:{command,args,env}}} JSON that mcp-proxy
   # consumes via --named-server-config. mkConfig PINS the 7 packaged servers;
-  # settings.servers carries the 11 custom ones verbatim. flavor "claude-code"
+  # settings.servers carries the 12 custom ones verbatim. flavor "claude-code"
   # emits the `mcpServers` key mcp-proxy expects (it ignores any extra fields).
   gatewayConfig = mcp-servers-nix.lib.mkConfig pkgs {
     flavor = "claude-code";

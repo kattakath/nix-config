@@ -67,11 +67,14 @@
       "mcp__sequentialthinking__*",
       "mcp__memory__*",
       "mcp__json-yaml-toml__*",
-      "mcp__mcp-jq__*"
+      "mcp__mcp-jq__*",
+      "mcp__mcpfinder__*"
     ],
     "deny": [
       "Bash(home-manager switch:*)",
-      "Bash(rm -rf:*)"
+      "Bash(rm -rf:*)",
+      "mcp__mcpfinder__add_mcp_server_config",
+      "mcp__plugin_claude-code-home-manager_mcpfinder__add_mcp_server_config"
     ]
   },
   "hooks": {
