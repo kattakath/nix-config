@@ -74,41 +74,41 @@
 
     # firmware-secrets — the reflash-safe FAT-firmware-partition secret provisioning
     # module, EXTRACTED FROM THIS REPO and published as a standalone MIT flake
-    # (github.com/ismailkattakath/nix-firmware-secrets). nixpi now consumes its
+    # (github.com/kattakath/nix-firmware-secrets). nixpi now consumes its
     # nixosModule instead of the vendored copy — dogfooding our own extraction.
     # The module is pure (config/lib only), so follows our nixpkgs to avoid a 2nd copy.
-    firmware-secrets.url = "github:ismailkattakath/nix-firmware-secrets";
+    firmware-secrets.url = "github:kattakath/nix-firmware-secrets";
     firmware-secrets.inputs.nixpkgs.follows = "nixpkgs";
 
     # keychain-secrets — the macOS login-Keychain `secret` CLI + every-shell loader,
     # EXTRACTED FROM THIS REPO into a standalone MIT flake
-    # (github.com/ismailkattakath/nix-keychain-secrets). The macos host consumes its
+    # (github.com/kattakath/nix-keychain-secrets). The macos host consumes its
     # home-manager module instead of the vendored packages + loader — dogfooding.
-    keychain-secrets.url = "github:ismailkattakath/nix-keychain-secrets";
+    keychain-secrets.url = "github:kattakath/nix-keychain-secrets";
     keychain-secrets.inputs.nixpkgs.follows = "nixpkgs";
     keychain-secrets.inputs.home-manager.follows = "home-manager";
 
     # cloudflared-connector — the loginless token Cloudflare Tunnel connector NixOS
     # module, EXTRACTED FROM THIS REPO into a standalone MIT flake
-    # (github.com/ismailkattakath/nix-cloudflared-connector). nixpi consumes its
+    # (github.com/kattakath/nix-cloudflared-connector). nixpi consumes its
     # nixosModule instead of the vendored copy — dogfooding. Pure (config/lib/pkgs).
-    cloudflared-connector.url = "github:ismailkattakath/nix-cloudflared-connector";
+    cloudflared-connector.url = "github:kattakath/nix-cloudflared-connector";
     cloudflared-connector.inputs.nixpkgs.follows = "nixpkgs";
 
     # local-rag — the local-first RAG stack (loopback launchd Postgres+pgvector +
     # a local Ollama embed model + an in-DB embed() function for plain-SQL RAG),
     # EXTRACTED FROM THIS REPO into a standalone MIT flake
-    # (github.com/ismailkattakath/nix-local-rag). The macos host consumes its two
+    # (github.com/kattakath/nix-local-rag). The macos host consumes its two
     # home-manager modules (services.ollamaLocal + services.pgvectorLocal) instead
     # of the vendored modules/shared/{ollama,postgres-pgvector}.nix — dogfooding.
-    local-rag.url = "github:ismailkattakath/nix-local-rag";
+    local-rag.url = "github:kattakath/nix-local-rag";
     local-rag.inputs.nixpkgs.follows = "nixpkgs";
     local-rag.inputs.home-manager.follows = "home-manager";
 
     # vast-provision — the Vast.ai GPU-template provisioning CLI toolkit
     # (vast-template-apply / vast-repo-check / vast-account-vars-set /
     # vast-ssh-key-set / vast-init-repo / vast-rent), EXTRACTED FROM THIS REPO
-    # into a standalone MIT flake (github.com/ismailkattakath/nix-vast-provision)
+    # into a standalone MIT flake (github.com/kattakath/nix-vast-provision)
     # — phase 2 of the extraction (phase 1 backported local-only features
     # upstream first). Consumed by reaching into its store path for
     # packages/vast-provision.nix directly, with orgName/repoName/rev
@@ -118,7 +118,7 @@
     # nix-vast-provision, wrong for OUR raw-URL construction. Pure
     # (writeShellApplication/runCommand only), so follows our nixpkgs to
     # avoid a 2nd copy.
-    vast-provision.url = "github:ismailkattakath/nix-vast-provision";
+    vast-provision.url = "github:kattakath/nix-vast-provision";
     vast-provision.inputs.nixpkgs.follows = "nixpkgs";
 
     # MCP (Model Context Protocol) server packaging for Claude Code. We use its
@@ -1069,7 +1069,7 @@
 
         # `secret <set|get|rm|ls|load>` / `set-secret` / `remove-secret` — the
         # macOS login-Keychain CLI. NOW sourced from the extracted keychain-secrets
-        # flake (github:ismailkattakath/nix-keychain-secrets), not vendored packages —
+        # flake (github:kattakath/nix-keychain-secrets), not vendored packages —
         # dogfooding. The home-manager module (modules/shared/home.nix) installs the
         # same CLIs + the every-shell loader; these apps just expose `nix run`.
         # DARWIN-ONLY: the Keychain is macOS-only.
@@ -1080,7 +1080,7 @@
         # Vast.ai template-provisioning toolkit (macOS only) — PHASE 2 of the
         # extraction (phase 1 backported local-only features upstream first,
         # already merged): the CLI *logic* now comes from the vast-provision
-        # flake input (github:ismailkattakath/nix-vast-provision) — dogfooding
+        # flake input (github:kattakath/nix-vast-provision) — dogfooding
         # our own extraction, same idea as firmware-secrets/keychain-secrets/
         # cloudflared-connector/local-rag above. UNLIKE those four, we reach
         # into the input's STORE PATH for the raw .nix file (it exposes no

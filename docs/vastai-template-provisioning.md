@@ -1,7 +1,7 @@
 # Vast.ai Template Provisioning — Design
 
 Status: **implemented** — the CLI logic is sourced from the extracted
-[`nix-vast-provision`](https://github.com/ismailkattakath/nix-vast-provision)
+[`nix-vast-provision`](https://github.com/kattakath/nix-vast-provision)
 flake input (`vast-provision` in `flake.nix`, `callPackage`d with
 `orgName`/`repoName`/`rev` overridden to this repo's own identity). This doc
 describes the design and rationale; the flake apps' own `--help` text and that
