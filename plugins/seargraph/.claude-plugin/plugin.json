@@ -1,0 +1,19 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "seargraph",
+  "version": "0.1.0",
+  "description": "Agent-development helper for SEARGraph — self-evolving agentic image restoration on LangGraph (fidelity metrics, constrained optimization, iterative refinement, character embeddings).",
+  "author": {
+    "name": "Ismail Kattakath"
+  },
+  "homepage": "https://github.com/ismailkattakath/SEARGraph",
+  "repository": "https://github.com/kattakath/nix-config",
+  "license": "MIT",
+  "keywords": [
+    "seargraph",
+    "langgraph",
+    "image-restoration",
+    "agentic-ai",
+    "agents"
+  ]
+}

@@ -25,6 +25,25 @@
       "homepage": "https://llmstxt.org",
       "license": "MIT",
       "source": "./llmstxt"
+    },
+    {
+      "name": "seargraph",
+      "description": "Agent-development helper for SEARGraph — self-evolving agentic image restoration on LangGraph (fidelity metrics, constrained optimization, iterative refinement, character embeddings).",
+      "version": "0.1.0",
+      "author": {
+        "name": "Ismail Kattakath"
+      },
+      "category": "agents",
+      "keywords": [
+        "seargraph",
+        "langgraph",
+        "image-restoration",
+        "agentic-ai",
+        "agents"
+      ],
+      "homepage": "https://github.com/ismailkattakath/SEARGraph",
+      "license": "MIT",
+      "source": "./seargraph"
     }
   ]
 }
