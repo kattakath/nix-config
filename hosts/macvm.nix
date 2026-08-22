@@ -238,11 +238,6 @@ in
   homebrew = {
     brews = [ ];
     casks = [
-      # Also the target for macos's `opera` MCP gateway server
-      # (modules/shared/mcp.nix) — Claude Code on macos drives THIS browser
-      # remotely via Opera's cloud-relayed Browser Connector (account-paired,
-      # not same-machine), once both sides are logged into the same Opera
-      # account. See .claude/skills/opera-browser-connector/SKILL.md.
       "opera"
       "whatsapp"
       "capcut"

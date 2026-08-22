@@ -75,7 +75,7 @@ let
   # uses (services.mcpGateway.endpoints: one Streamable-HTTP /mcp URL per hosted
   # server), so qwen can never drift from the other clients. But CURATE to a
   # coding-focused subset: a local qwen3-coder model degrades when handed too many
-  # tools, so the GUI/automation/external-state servers (kapture, mobile-mcp,
+  # tools, so the GUI/automation/external-state servers (mobile-mcp,
   # macos-automator, cloudflare*) are left out — add a name here to
   # expose more. macos-only (the gateway runs only there; macvm trims it off), so
   # the mcpServers block is gated on isMacosHost below.
@@ -147,7 +147,32 @@ let
     "stripe@claude-plugins-official"
     # Anthropic first-party frontend-design skill/plugin (UI/UX generation guidance).
     "frontend-design@claude-plugins-official"
+    # Resend's OFFICIAL plugin (resend.com/mcp / resend.com/docs/mcp-server): bundles the
+    # resend-cli skill + the hosted mcp.resend.com MCP server (Streamable HTTP, one-time
+    # in-client OAuth via `/mcp` -> select resend — same shape as the stripe entry above; no
+    # API key handled by this plugin). Pairs with the `resend` CLI package (home.packages
+    # below), which instead authenticates non-interactively via RESEND_API_KEY from the
+    # Keychain — the two are independent auth paths to the same Resend account (used by
+    # dontsell-ai/app's outbound/inbound email).
+    "resend@claude-plugins-official"
+    # IN-REPO (plugins/llmstxt, this repo, via the localPluginsMarketplace source path below):
+    # authoring skill + /llmstxt command + a stdlib-only linter for llms.txt — the llmstxt.org
+    # v2 standard for LLM-friendly content. Nothing upstream AUTHORS these files (the ecosystem
+    # is site-build generators + consumers/parsers), and nixpkgs carries only the Sphinx build
+    # plugin (python3Packages.sphinx-llms-txt) — see plugins/llmstxt/README.md for the
+    # reuse-vs-build reasoning, including why the linter is dependency-free stdlib.
+    "llmstxt@${localMarketplaceName}"
   ];
+
+  # The marketplace this repo serves ITSELF, from the top-level plugins/ directory: a Nix
+  # SOURCE PATH (store copy), not a flake input or a third-party marketplace, so an in-repo
+  # plugin is pinned by construction and cannot drift. Its store path CHANGES whenever any
+  # plugin content changes, which is exactly what home.activation.claudeCodePlugins keys the
+  # re-pin off. Adding an in-repo plugin = a plugins/<name>/ tree + an entry in
+  # plugins/.claude-plugin/marketplace.json + its id in claudePluginIds above.
+  localMarketplaceName = "kattakath-nix-config";
+  localPluginsMarketplace = "${../../plugins}";
+  localPluginIds = builtins.filter (lib.hasSuffix "@${localMarketplaceName}") claudePluginIds;
 
   # Absolute operator SSH paths under $HOME. Git treats a non-absolute
   # gpg.ssh.allowedSignersFile as worktree-relative (would look in <repo>/.ssh/).
@@ -200,6 +225,11 @@ let
   # `obs-fb-setup` — write an OBS "Facebook" profile for Facebook Live, injecting
   # FB_PERSISTENT_STREAM_KEY from the login Keychain at run time. See packages/obs-fb-setup.nix.
   obs-fb-setup = pkgs.callPackage ../../packages/obs-fb-setup.nix { };
+
+  # `resend` — the official Resend CLI, injecting RESEND_API_KEY from the login Keychain
+  # at run time (non-interactive, no browser OAuth). Pairs with the
+  # resend@claude-plugins-official plugin (claudePluginIds below). See packages/resend-cli.nix.
+  resendCli = pkgs.callPackage ../../packages/resend-cli.nix { };
 
   # `fix-google-video <file>...` — re-encode VP9-in-MP4 (and other editor-incompatible
   # codecs) into H.264+AAC so Google Photos downloads import into CapCut/Premiere/etc.
@@ -319,6 +349,7 @@ in
     ./desktop-aesthetics.nix # macOS wallpaper + Terminal profile (opt-out per host; macvm opts out)
     ./wireguard-configs.nix # operator-managed WG confs → ~/.config/wireguard (no autostart)
     ./claude-otel.nix # local OTel Collector for Claude Code's routing-decision telemetry (macos only)
+    ./git-allowed-signers.nix # extra allowed_signers principals (option only; nix-personal fills)
     # Local-first RAG stack (loopback launchd Postgres+pgvector + Ollama + in-DB
     # embed()), from the extracted flake (github:ismailkattakath/nix-local-rag).
     # Both modules are internally gated on (enable && isDarwin) — a clean no-op on
@@ -368,12 +399,7 @@ in
     recursive = true;
   };
 
-  # Public kapture MCP connector (Cloudflare Access) — real Mac only.
-  # macvm already sets services.mcpGateway.enable = false; keep public extras
-  # off that host even if the gateway is re-enabled later.
   services.mcpGateway = lib.mkIf isMacosHost {
-    publicServers = [ "kapture" ];
-    publicTunnel.enable = true;
     # Telegram USER-account server (read/triage + draft-only send). Real Mac only.
     # Inert until the one-time auth is done (TG_APP_ID/TG_API_HASH in the Keychain +
     # ~/.telegram-mcp/session.json) — see modules/shared/mcp.nix `telegramMcp`.
@@ -427,6 +453,7 @@ in
       qwen-code # `qwen` — Alibaba's Gemini-CLI-fork coding agent, pointed at a LOCAL Qwen model served by Ollama's OpenAI-compatible endpoint (config in ~/.qwen/.env below, NOT the global OpenAI env — those generic var names would hijack other tools). Pull the model with `ollama pull qwen3-coder:30b`.
       inngest # `inngest` — CLI + local dev server for Inngest durable workflows (not in Homebrew; nixpkgs has it)
       stripe-cli # Stripe CLI (`stripe`) — API calls, webhook forwarding (`stripe listen`), event triggers; auth is a one-time `stripe login` browser OAuth (config in ~/.config/stripe, never in git/store — same one-time-CLI-login convention as gh/hf/docker). Pairs with the stripe@claude-plugins-official plugin (claudePluginIds above)
+      resendCli # `resend` — the official Resend CLI (npx-wrapped, not yet in nixpkgs), authenticated non-interactively via RESEND_API_KEY from the login Keychain (packages/resend-cli.nix). Pairs with the resend@claude-plugins-official plugin (claudePluginIds above)
       wp-cli # WordPress CLI (`wp`) — manage WordPress installs/plugins/themes/db from the shell; nixpkgs-native (bundles its own PHP), so no Homebrew `wp-cli` formula or `curl … wp-cli.phar` install (single source per the reuse/declarative convention)
       pandoc # Universal doc converter — nixpkgs-native on aarch64-darwin (no Homebrew needed); backs the docx/pptx/xlsx skills' `pandoc` dependency (see programs.claude-code.skills NOTE below)
       poppler-utils # pdftoppm/pdftotext/pdfimages CLI — NOT `poppler` (that's the glib-bindings library, no binaries); moved here from the macos Homebrew `poppler` formula (nixpkgs is the single source per modules/darwin/homebrew.nix's dedup comment); backs the pdf/docx/pptx skills
@@ -566,10 +593,12 @@ in
   };
 
   # Git SSH allowed_signers (principal = userEmail, key = operatorSshKey).
+  # Extra principals: options.kattakath.git.extraAllowedSignersPrincipals
+  # (git-allowed-signers.nix), filled from nix-personal.
   # HM target is home-relative; programs.git uses absolute allowedSignersFile.
-  home.file.".ssh/allowed_signers".text = ''
-    ${userEmail} namespaces="git" ${operatorSshKey}
-  '';
+  home.file.".ssh/allowed_signers".text = lib.concatMapStrings (principal: ''
+    ${principal} namespaces="git" ${operatorSshKey}
+  '') (lib.unique ([ userEmail ] ++ config.kattakath.git.extraAllowedSignersPrincipals));
 
   # ---- Home Manager program modules --------------------------------------------
   programs = {
@@ -590,10 +619,11 @@ in
       # Nix-managed known_marketplaces.json symlink; `claude plugin marketplace add`
       # and installs need a mutable file, and the reserved name
       # `claude-plugins-official` must be a GitHub/HTTPS source (directory pins are
-      # rejected as untrusted). Both marketplaces are registered by
+      # rejected as untrusted). All three marketplaces are registered by
       # home.activation.claudeCodePlugins from:
       #   - xai-grok-build ← pinned flake input path (grok-build-plugin-cc)
       #   - claude-plugins-official ← https://github.com/anthropics/claude-plugins-official
+      #   - kattakath-nix-config ← this repo's own plugins/ tree (localPluginsMarketplace)
       # Plugin install state lives in mutable ~/.claude (like gh/hf one-time logins).
       # Runtime for grok-build: grok on PATH (~/.grok/bin) + Node; `grok models` must work.
 
@@ -753,6 +783,12 @@ in
         # kattakath/brags repo checkout so it works under the read-only Nix skill install —
         # see skills/brag/FORK-NOTES.md. Replaces the retired bespoke ~/Developer/local/brags engine.
         brag = "${../../skills/brag}";
+        # Original (not a fork): operator knowledge for the packages/android-phone.nix
+        # ADB/scrcpy CLI — global so ANY session (including ~/-rooted ones) knows the
+        # wrapper's command surface and the adb footguns it absorbs, not just sessions
+        # rooted in this repo. Lives next to the package it documents so they can't
+        # drift apart silently.
+        android-phone = "${../../skills/android-phone}";
       };
     };
 
@@ -782,18 +818,48 @@ in
           condition = "gitdir:${config.home.homeDirectory}/Developer/github.com/Infin8-Information-Technologies/";
           path = "${config.home.homeDirectory}/.config/git/infin8.inc";
         }
-        # Any repo under the dontsell-ai org authors as the SilverCreek identity. Matched by
-        # REMOTE url (hasconfig), not gitdir, so it applies regardless of clone path — including
-        # throwaway agent clones. Two patterns cover https + ssh:// (**/dontsell-ai/**) and
-        # scp-style ssh git@github.com:dontsell-ai/… (**:dontsell-ai/**). The email lives in the
-        # local include (NOT this public repo), same convention as infin8.inc above.
+        # Both orgs author as the same SilverCreek identity: dontsell-ai is the agency,
+        # silvercreek-ai is the client whose site it builds. One include file serves both —
+        # splitting it would duplicate the same address into two places.
+        #
+        # Matched by REMOTE url (hasconfig), not gitdir, so it applies regardless of clone
+        # path — including throwaway agent clones. Two patterns per org cover https + ssh://
+        # (**/org/**) and scp-style ssh git@github.com:org/… (**:org/**).
+        #
+        # The address itself lives in ~/.config/git/silvercreek.inc, deployed by the private
+        # nix-personal flake — never this public repo, same convention as infin8.inc above.
+        # A missing include is a silent no-op, so a host without the private layer simply
+        # falls back to the default identity rather than failing.
         {
           condition = "hasconfig:remote.*.url:**/dontsell-ai/**";
-          path = "${config.home.homeDirectory}/.config/git/dontsell.inc";
+          path = "${config.home.homeDirectory}/.config/git/silvercreek.inc";
         }
         {
           condition = "hasconfig:remote.*.url:**:dontsell-ai/**";
-          path = "${config.home.homeDirectory}/.config/git/dontsell.inc";
+          path = "${config.home.homeDirectory}/.config/git/silvercreek.inc";
+        }
+        {
+          condition = "hasconfig:remote.*.url:**/silvercreek-ai/**";
+          path = "${config.home.homeDirectory}/.config/git/silvercreek.inc";
+        }
+        {
+          condition = "hasconfig:remote.*.url:**:silvercreek-ai/**";
+          path = "${config.home.homeDirectory}/.config/git/silvercreek.inc";
+        }
+        # GitLab personal namespace (ismailkattakath). gitlab.com-specific so
+        # github.com/ismailkattakath keeps the GitHub noreply. Address lives in
+        # ~/.config/git/gitlab.inc (nix-personal); missing include is a silent no-op.
+        {
+          condition = "hasconfig:remote.*.url:**/gitlab.com/ismailkattakath/**";
+          path = "${config.home.homeDirectory}/.config/git/gitlab.inc";
+        }
+        {
+          condition = "hasconfig:remote.*.url:**:gitlab.com:ismailkattakath/**";
+          path = "${config.home.homeDirectory}/.config/git/gitlab.inc";
+        }
+        {
+          condition = "gitdir:${config.home.homeDirectory}/Developer/gitlab.com/ismailkattakath/";
+          path = "${config.home.homeDirectory}/.config/git/gitlab.inc";
         }
       ];
     };
@@ -1146,6 +1212,27 @@ in
           echo "claude-code: replacing directory pin of claude-plugins-official with HTTPS..." >&2
           "$claude" plugin marketplace remove claude-plugins-official 2>&1 || true
           "$claude" plugin marketplace add "$official_mp_src" 2>&1 || true
+        fi
+
+        # This repo's OWN marketplace (plugins/), pinned to a Nix source path. Unlike the two
+        # above it is not a fixed remote: the store path changes whenever any in-repo plugin
+        # changes, and `plugin install` COPIES into ~/.claude/plugins/cache — so a plain
+        # "already registered?" guard would keep serving a previous generation's content
+        # forever. Key off the store path actually recorded in known_marketplaces.json and,
+        # when it has moved, re-pin + drop the stale copies so the loop below reinstalls them.
+        local_mp="${localPluginsMarketplace}"
+        known_mps="${config.home.homeDirectory}/.claude/plugins/known_marketplaces.json"
+        if ! grep -qF "$local_mp" "$known_mps" 2>/dev/null; then
+          echo "claude-code: (re)pinning ${localMarketplaceName} marketplace -> $local_mp" >&2
+          # Tear down the previous pin FIRST (uninstall while the marketplace still resolves),
+          # silently — on a first switch there is nothing to remove and the CLI says so.
+          if "$claude" plugin marketplace list 2>/dev/null | grep -qF '${localMarketplaceName}'; then
+            for id in ${lib.escapeShellArgs localPluginIds}; do
+              "$claude" plugin uninstall --yes "$id" >/dev/null 2>&1 || true
+            done
+            "$claude" plugin marketplace remove ${localMarketplaceName} >/dev/null 2>&1 || true
+          fi
+          "$claude" plugin marketplace add "$local_mp" 2>&1 || true
         fi
 
         for id in ${lib.escapeShellArgs claudePluginIds}; do
