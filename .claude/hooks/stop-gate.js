@@ -116,7 +116,7 @@ try {
 }
 if (untracked) {
   block(
-    `✘ Git purity violation: untracked .nix files are invisible to flake evaluation. ` +
+    `✘ stop-gate BLOCKED — git purity: untracked .nix files are invisible to flake evaluation. ` +
       `Run \`git add -A\` before finishing. Untracked:\n${untracked}`,
   );
 }
@@ -133,7 +133,9 @@ if (nixFiles && has("nix-instantiate")) {
     try {
       run(`nix-instantiate --parse ${JSON.stringify(f)} > /dev/null`);
     } catch (e) {
-      block(`Nix syntax error in ${f}:\n${(e.stderr || e.stdout || e.message || "").trim()}`);
+      block(
+        `✘ stop-gate BLOCKED — Nix syntax error in ${f}:\n${(e.stderr || e.stdout || e.message || "").trim()}`,
+      );
     }
   }
 }
@@ -148,7 +150,8 @@ if (nixFiles && has("nix")) {
     runLong("nix flake check --no-build 2>&1", 600_000);
   } catch (e) {
     block(
-      `✘ \`nix flake check --no-build\` failed on host:\n` + `${formatCheckFailure(e)}`,
+      `✘ stop-gate BLOCKED — \`nix flake check --no-build\` failed on host:\n` +
+        `${formatCheckFailure(e)}`,
     );
   }
   process.stdout.write(
@@ -223,7 +226,7 @@ if (nixFiles && has("nix")) {
     );
   } catch (e) {
     block(
-      `✘ \`nix flake check\` (run in the devcontainer) failed — configuration does not evaluate:\n` +
+      `✘ stop-gate BLOCKED — \`nix flake check\` (run in the devcontainer) failed — configuration does not evaluate:\n` +
         `${(e.stdout || e.stderr || e.message || "").trim().slice(-2000)}`,
     );
   }
