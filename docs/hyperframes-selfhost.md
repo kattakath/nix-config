@@ -139,4 +139,3 @@ Do **not** run `tofu` against a directory that contains both hand-written `main.
 ## Related
 
 - Public README: [`packages/hyperframes-selfhost/README.md`](../packages/hyperframes-selfhost/README.md)
-- Mac MCP OAuth (Cloudflare Access) is a **different** path: [`mcp-connector-oauth-runbook.md`](./mcp-connector-oauth-runbook.md)
