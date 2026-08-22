@@ -162,6 +162,13 @@ let
     # plugin (python3Packages.sphinx-llms-txt) — see plugins/llmstxt/README.md for the
     # reuse-vs-build reasoning, including why the linter is dependency-free stdlib.
     "llmstxt@${localMarketplaceName}"
+    # IN-REPO (plugins/seargraph, this repo): the seargraph-langgraph subagent —
+    # LangGraph pipeline design/implementation help for the SEARGraph project
+    # (self-evolving agentic image restoration: fidelity metrics, constrained
+    # optimization, iterative refinement, character embeddings). Global via this
+    # plugin because plain skills vendoring (programs.claude-code.skills) has no
+    # agents/ capability — only a plugin does.
+    "seargraph@${localMarketplaceName}"
   ];
 
   # The marketplace this repo serves ITSELF, from the top-level plugins/ directory: a Nix
@@ -596,11 +603,9 @@ in
   # Extra principals: options.kattakath.git.extraAllowedSignersPrincipals
   # (git-allowed-signers.nix), filled from nix-personal.
   # HM target is home-relative; programs.git uses absolute allowedSignersFile.
-  home.file.".ssh/allowed_signers".text = lib.concatMapStrings (
-    principal: ''
-      ${principal} namespaces="git" ${operatorSshKey}
-    ''
-  ) (lib.unique ([ userEmail ] ++ config.kattakath.git.extraAllowedSignersPrincipals));
+  home.file.".ssh/allowed_signers".text = lib.concatMapStrings (principal: ''
+    ${principal} namespaces="git" ${operatorSshKey}
+  '') (lib.unique ([ userEmail ] ++ config.kattakath.git.extraAllowedSignersPrincipals));
 
   # ---- Home Manager program modules --------------------------------------------
   programs = {
