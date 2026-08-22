@@ -358,7 +358,7 @@ in
     ./claude-otel.nix # local OTel Collector for Claude Code's routing-decision telemetry (macos only)
     ./git-allowed-signers.nix # extra allowed_signers principals (option only; nix-personal fills)
     # Local-first RAG stack (loopback launchd Postgres+pgvector + Ollama + in-DB
-    # embed()), from the extracted flake (github:ismailkattakath/nix-local-rag).
+    # embed()), from the extracted flake (github:kattakath/nix-local-rag).
     # Both modules are internally gated on (enable && isDarwin) — a clean no-op on
     # the NixOS hosts. Enabled only on the real Mac host below (not macvm).
     local-rag.homeManagerModules.default
