@@ -5,9 +5,9 @@ description: >-
   (Nix → OpenTofu/Terraform JSON) modules that manage this fleet's Cloudflare
   Tunnels, ingress, and DNS. Use PROACTIVELY when editing anything in
   infra/cloudflare/*.nix or infra/hyperframes/*.nix, and BEFORE running any
-  `nix run .#cf-tunnel-apply` / `.#cf-tunnel-destroy` / `.#cf-mcp-apply` /
-  `.#hf-apply`. Returns a risk-ranked review + a safe apply/rollback plan; it
-  does not mutate infrastructure.
+  `nix run .#cf-tunnel-apply` / `.#cf-tunnel-destroy` / `.#hf-apply`. Returns a
+  risk-ranked review + a safe apply/rollback plan; it does not mutate
+  infrastructure.
 tools: Read, Grep, Glob, Bash
 model: inherit
 ---
@@ -19,17 +19,23 @@ switch anything**.
 
 ## Scope
 
-The three terranix modules (each compiles Nix → OpenTofu/Terraform JSON):
+The two terranix modules (each compiles Nix → OpenTofu/Terraform JSON):
 
 - `infra/cloudflare/nixpi-tunnel.nix` — nixpi's remotely-managed Cloudflare
   Tunnel + ingress + proxied CNAME. **This tunnel is nixpi's SOLE remote path in
   and the only public ingress for kattakath.com** — a bad edit here breaks the
-  live server or exposes the connector token.
-- `infra/cloudflare/macos-mcp-tunnel.nix` — the OAuth-gated public MCP tunnel.
+  live server or exposes the connector token. It ALSO owns (imperatively, not
+  yet as terranix code) a reusable Access policy, `mcp-allow-operator`
+  (id `b3bd8c38-e231-4203-ba6b-69fe16e498b3`), that nixpi's own "nixpi SSH"
+  Access app depends on — inherited from a now-deleted `macos-mcp-tunnel.nix`
+  stack (removed 2026-08-22 along with the Kapture MCP server it served).
+  Confirmed live via the Cloudflare API at removal time. Do not delete or
+  reference that policy by assuming it belongs to a stack that no longer
+  exists in this repo.
 - `infra/hyperframes/stack.nix` — the HyperFrames self-host stack.
 
 Applied only via the flake apps: `nix run .#cf-tunnel-apply` /
-`.#cf-tunnel-destroy` / `.#cf-mcp-apply` / `.#hf-apply` (render module → `tofu apply`).
+`.#cf-tunnel-destroy` / `.#hf-apply` (render module → `tofu apply`).
 
 ## Invariants to enforce (fail the review if any is violated)
 
