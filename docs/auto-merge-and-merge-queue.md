@@ -40,12 +40,25 @@ every auto-merged PR on `main` silently, killing `flakehub-publish.yml` and
 `build-installers.yml`. This is the single most important detail on this page.
 
 Requires per repo: the App **installed on that repository**, plus
-`vars.CI_BOT_CLIENT_ID` and `secrets.CI_BOT_APP_PRIVATE_KEY`.
+`vars.CI_BOT_CLIENT_ID` and `secrets.CI_BOT_APP_PRIVATE_KEY`. Both are supplied
+**org-wide** on `kattakath` rather than per repo — the `kattakath-ci` App is
+installed on the org with `repository_selection: all`, and the client id is an org
+variable (visibility: all). A new flake in this org therefore inherits everything
+except its own `auto-merge.yml`.
+
+Note that **repository secrets do not survive a repo transfer** (variables and
+branch protection do). Anything moved into the org needs its secrets re-set.
 
 ### 2. `merge_queue` rule on `main` — orders the merges
 
 Configured as a **ruleset** rule (`"type": "merge_queue"`), `merge_method: SQUASH`,
 `grouping_strategy: ALLGREEN`.
+
+**Merge queue is organization-only.** `POST /repos/{owner}/{repo}/rulesets` rejects
+the rule outright on a repository owned by a USER account — `422 Validation Failed,
+Invalid rule 'merge_queue'` — with no hint that ownership is the cause. This is why
+all seven satellite flakes were moved off the `ismailkattakath` user account into
+the `kattakath` org. A GitHub **Free** org is enough, for public repos.
 
 Why a queue at all: these repos require branches to be up to date before merging.
 Plain auto-merge does **not** update a stale head branch, so with two PRs open the
@@ -90,6 +103,8 @@ be duplicated on every queue entry (see `.claude/rules/pr-consolidation.md`).
 | `kattakath/nix-cloudflared-connector` | `checks` | `ci.yml` |
 | `kattakath/nix-vast-provision` | `checks` | `ci.yml` |
 | `kattakath/ircc-whatsapp-bot` | `checks` | `ci.yml` |
+
+All eight are public and org-owned, which is what makes the queue available.
 
 The private `ismailkattakath/nix-personal` (GitLab) is **out of scope**: it has no
 `.gitlab-ci.yml` at all, so there is no pipeline for a merge-when-green rule to
