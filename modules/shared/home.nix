@@ -162,6 +162,13 @@ let
     # plugin (python3Packages.sphinx-llms-txt) — see plugins/llmstxt/README.md for the
     # reuse-vs-build reasoning, including why the linter is dependency-free stdlib.
     "llmstxt@${localMarketplaceName}"
+    # IN-REPO (plugins/seargraph, this repo): the seargraph-langgraph subagent —
+    # LangGraph pipeline design/implementation help for the SEARGraph project
+    # (self-evolving agentic image restoration: fidelity metrics, constrained
+    # optimization, iterative refinement, character embeddings). Global via this
+    # plugin because plain skills vendoring (programs.claude-code.skills) has no
+    # agents/ capability — only a plugin does.
+    "seargraph@${localMarketplaceName}"
   ];
 
   # The marketplace this repo serves ITSELF, from the top-level plugins/ directory: a Nix
