@@ -17,20 +17,20 @@
 # account owns the GUI session, `darwin-rebuild switch` cannot load the agent.
 #
 # SERVER SIDE (this box, 127.0.0.1:8096)
-#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 19 servers (21
+#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 18 servers (20
 #   with telegram + the local WordPress adapter, +1 per configured
 #   `services.mcpGateway.gmail.accounts` alias — `gmail-<alias>`, one process
 #   per Google/Workspace account, 0 in this public repo — see mkGmailMcp's
 #   comment), each reachable at /servers/<name>/sse.
 #   `gatewayConfig` is rendered by mcp-servers-nix's `lib.mkConfig`, so the 7 packaged
 #   servers (context7/fetch/memory/sequential-thinking/nixos/terraform/github) are
-#   PINNED store-path commands; the 12 without a module (+ telegram / the local
+#   PINNED store-path commands; the 11 without a module (+ telegram / the local
 #   WordPress adapter / gmail-<alias> when configured) fall
 #   back to pinned npx/uvx launchers (still a runtime fetch, but acceptable on the Mac
 #   where Node/uv already live).
 #
 # CLIENT SIDE (programs.claude-code.mcpServers)
-#   The 19 hosted servers (21+ with every opt-in) are wired as `type = "http"` (Streamable HTTP — the
+#   The 18 hosted servers (20+ with every opt-in) are wired as `type = "http"` (Streamable HTTP — the
 #   current MCP standard; the legacy HTTP+SSE transport was deprecated in the
 #   2025-03-26 spec) pointing at /servers/<name>/mcp; desktop-commander stays
 #   `type = "stdio"`. The claude-code module writes these into a managed
