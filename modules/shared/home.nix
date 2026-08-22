@@ -229,6 +229,13 @@ let
   # See packages/jobspy.nix.
   jobspy = pkgs.callPackage ../../packages/jobspy.nix { };
 
+  # `fidelity-enhance-mcp` / `fidelity-enhance` — referee for an agentic
+  # image-editing loop: Grok Imagine generates, this judges each result against
+  # the original and says retry / next-step / done plus how to fix the prompt.
+  # Run in an ephemeral uv env, same model as jobspy above.
+  # See packages/fidelity-enhance.nix.
+  fidelityEnhance = pkgs.callPackage ../../packages/fidelity-enhance.nix { };
+
   # `obs-fb-setup` — write an OBS "Facebook" profile for Facebook Live, injecting
   # FB_PERSISTENT_STREAM_KEY from the login Keychain at run time. See packages/obs-fb-setup.nix.
   obs-fb-setup = pkgs.callPackage ../../packages/obs-fb-setup.nix { };
@@ -453,6 +460,7 @@ in
       design-tokens # `design-tokens [--tokens-url URL] [--out DIR]` — transform the gist DTCG tokens.json into SCSS/CSS/JS via Style Dictionary, to ~/.local/share/design-tokens/ (packages/design-tokens/)
       jobspy # `jobspy --search … --location …` — scrape jobs (LinkedIn/Indeed/…) into CSV/JSON via python-jobspy in an ephemeral uv env (packages/jobspy.nix)
       obs-fb-setup # `obs-fb-setup` — write an OBS "Facebook" profile for Facebook Live, injecting FB_PERSISTENT_STREAM_KEY from the login Keychain (packages/obs-fb-setup.nix)
+      fidelityEnhance # `fidelity-enhance-mcp` (stdio MCP server) + `fidelity-enhance` (CLI) — fidelity referee for agentic image editing: Grok Imagine generates, this judges drift against the original (SSIM/LPIPS/ArcFace identity) and returns retry/next-step/done plus prompt guidance. Ephemeral uv env; FIRST RUN pulls ~1GB of torch/insightface — warm it with `fidelity-enhance capabilities` (packages/fidelity-enhance.nix)
       fixGoogleVideo # `fix-google-video <file>...` — re-encode VP9-in-MP4 (and other editor-incompatible codecs) into H.264+AAC so Google Photos downloads import into CapCut/Premiere/etc.; idempotent, VideoToolbox-accelerated (packages/fix-google-video.nix)
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       jdk17 # JRE for the Android sdkmanager/avdmanager (JVM tools); emulator itself needs no Java

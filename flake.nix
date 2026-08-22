@@ -1172,6 +1172,16 @@
           jobspy = (pkgsFor system).callPackage ./packages/jobspy.nix { };
         }))
 
+        # `fidelity-enhance` (macOS only) — referee for an agentic image-editing loop:
+        # Grok Imagine generates, this judges each result against the original and returns
+        # retry/next-step/done plus prompt guidance. Ships two binaries
+        # (fidelity-enhance-mcp, fidelity-enhance) from one ephemeral uv env. Exposed as a
+        # package so `nix flake check` BUILDS it (writeShellApplication shellcheck); on PATH
+        # via home.packages + `nix run .#fidelity-enhance`. See packages/fidelity-enhance.nix.
+        (nixpkgs.lib.genAttrs darwinSystems (system: {
+          fidelity-enhance = (pkgsFor system).callPackage ./packages/fidelity-enhance.nix { };
+        }))
+
         # `obs-fb-setup` (macOS only) — write an OBS "Facebook" profile for Facebook Live,
         # injecting FB_PERSISTENT_STREAM_KEY from the login Keychain at run time (never in
         # git/store). Package so `nix flake check` shellchecks it; on PATH + `nix run`.
