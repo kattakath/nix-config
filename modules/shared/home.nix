@@ -785,6 +785,12 @@ in
         # kattakath/brags repo checkout so it works under the read-only Nix skill install —
         # see skills/brag/FORK-NOTES.md. Replaces the retired bespoke ~/Developer/local/brags engine.
         brag = "${../../skills/brag}";
+        # Original (not a fork): operator knowledge for the packages/android-phone.nix
+        # ADB/scrcpy CLI — global so ANY session (including ~/-rooted ones) knows the
+        # wrapper's command surface and the adb footguns it absorbs, not just sessions
+        # rooted in this repo. Lives next to the package it documents so they can't
+        # drift apart silently.
+        android-phone = "${../../skills/android-phone}";
       };
     };
 
