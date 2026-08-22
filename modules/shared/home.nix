@@ -75,7 +75,7 @@ let
   # uses (services.mcpGateway.endpoints: one Streamable-HTTP /mcp URL per hosted
   # server), so qwen can never drift from the other clients. But CURATE to a
   # coding-focused subset: a local qwen3-coder model degrades when handed too many
-  # tools, so the GUI/automation/external-state servers (kapture, mobile-mcp,
+  # tools, so the GUI/automation/external-state servers (mobile-mcp,
   # macos-automator, cloudflare*) are left out — add a name here to
   # expose more. macos-only (the gateway runs only there; macvm trims it off), so
   # the mcpServers block is gated on isMacosHost below.
@@ -398,12 +398,7 @@ in
     recursive = true;
   };
 
-  # Public kapture MCP connector (Cloudflare Access) — real Mac only.
-  # macvm already sets services.mcpGateway.enable = false; keep public extras
-  # off that host even if the gateway is re-enabled later.
   services.mcpGateway = lib.mkIf isMacosHost {
-    publicServers = [ "kapture" ];
-    publicTunnel.enable = true;
     # Telegram USER-account server (read/triage + draft-only send). Real Mac only.
     # Inert until the one-time auth is done (TG_APP_ID/TG_API_HASH in the Keychain +
     # ~/.telegram-mcp/session.json) — see modules/shared/mcp.nix `telegramMcp`.
