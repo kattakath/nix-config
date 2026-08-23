@@ -14,9 +14,27 @@
 {
   imports = [
     ../modules/darwin/core.nix
+    ../modules/darwin/github-runner.nix
   ];
 
   nixpkgs.config.allowUnfree = true;
+
+  # ---- Self-hosted GitHub Actions runner(s) for dontsell-ai ------------------
+  # See modules/darwin/github-runner.nix for the full why/how. Org-level
+  # registration serves every dontsell-ai repo (app, idea, ...) from this one
+  # config, not just whichever repo happened to need it first. count = 2:
+  # dontsell-ai/app's ci.yml fans one push into 7 parallel jobs; two instances
+  # let two run at once instead of the whole backlog draining one job at a time
+  # through a single runner (12 cores / 36GB on this Mac — comfortable headroom).
+  # Requires the gh-runner-token-dontsell-ai agenix secret to exist first (a PAT
+  # with admin:org scope for dontsell-ai — mint it, then
+  # `nix run github:ryantm/agenix -- -e secrets/gh-runner-token-dontsell-ai.age`
+  # and paste it into $EDITOR; never through chat/Claude).
+  services.macosGithubRunner = {
+    enable = true;
+    org = "dontsell-ai";
+    count = 2;
+  };
 
   # Stable identity for host-gated modules (login openers, RAG launchd, …) AND the
   # machine's declared name, so it's config-owned rather than manual scutil drift.

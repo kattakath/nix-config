@@ -799,6 +799,12 @@
               # which Determinate turns off (nix-darwin#1505).
             }
             nix-homebrew.darwinModules.nix-homebrew # declaratively install brew (arch-correct prefix)
+            # Provides `age.secrets.*` (host-decrypted agenix secrets) — not wired
+            # since the fleet's runner retirement collapsed agenix to an
+            # operator-only vault (#184). Re-added 2026-08-23 for
+            # modules/darwin/github-runner.nix's host-decrypted PAT. Inert unless a
+            # host actually declares `age.secrets.*` (macvm doesn't).
+            agenix.darwinModules.default
             ./hosts/${hostname}.nix
             home-manager.darwinModules.home-manager
             (mkHomeManagerModule {
