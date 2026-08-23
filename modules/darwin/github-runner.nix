@@ -51,16 +51,25 @@ let
   # GitHub-authored actions (actions/checkout@v4, actions/setup-node@v4, ...) still declare
   # `using: node20` in their action.yml, and the runner execs `externals/node<version>/bin/
   # node` verbatim per-action — so a plain `pkgs.github-runner` fails those steps with
-  # "No such file or directory". Fix: mirror the package's output tree with `lndir` (every
-  # file becomes its own symlink into the real store path — cheap, no rebuild of the actual
-  # runner/.NET binaries) and add one extra `node20 -> node24` symlink on top. Deliberately
-  # NOT `overrideAttrs` — that forces a full rebuild incl. the package's test suite for a
-  # one-symlink change.
-  runner = pkgs.runCommand "github-runner-node20-shim" { } ''
-    mkdir -p $out
-    ${lib.getExe pkgs.lndir} -silent ${pkgs.github-runner} $out
-    ln -sfn node24 $out/lib/externals/node20
-  '';
+  # "No such file or directory".
+  #
+  # Fix: `overrideAttrs` with an extra `node20 -> node24` symlink, `doCheck = false` to skip
+  # the package's (slow, unrelated) test suite. MUST be overrideAttrs, not a cheaper `lndir`
+  # mirror-on-top: Runner.Worker/Runner.PluginHost are compiled .NET binaries whose own
+  # `hashFiles()` implementation (used by `actions/cache@v4`'s `key:` expression) resolves
+  # its externals path via its OWN physical (symlink-realpath'd) install location, not the
+  # path it was invoked through — proven by grepping the compiled binary for its own store
+  # hash. An `lndir` shim's binaries are symlinks BACK to the original, un-fixed store path,
+  # so that internal lookup still misses; only a true rebuilt derivation (self-referencing
+  # its own `$out`, symlink included) satisfies it. `doCheck = false` keeps this fast — the
+  # package doesn't recompile the runner from C# source, just repatches prebuilt release
+  # binaries, so skipping its dotnet test suite is what makes this a normal-length build.
+  runner = pkgs.github-runner.overrideAttrs (old: {
+    doCheck = false;
+    postInstall = (old.postInstall or "") + ''
+      ln -s node24 $out/lib/externals/node20
+    '';
+  });
   appKeyFile = config.age.secrets."gh-app-${cfg.org}-key".path;
 
   # Mints a fresh, short-lived (~1hr) installation access token from the App's
