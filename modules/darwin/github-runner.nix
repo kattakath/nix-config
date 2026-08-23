@@ -245,13 +245,18 @@ in
         lib.nameValuePair i.daemonKey {
           # Minimal PATH for actions/checkout + Nix/Playwright/Prisma-shaped
           # workflows. `pkgs.nix` (a daemon client) replaces `config.nix.package`,
-          # which is unset under Determinate.
+          # which is unset under Determinate. `openssl` added 2026-08-23: the
+          # app repo's e2e mock-cert generator (tests/e2e/support/cert.ts)
+          # `spawnSync("openssl", ...)` bare-name — resolves via PATH, and its
+          # absence here surfaced as `res.status === null` (ENOENT) the moment
+          # the runner ran a real e2e job for the first time.
           path = with pkgs; [
             bash
             coreutils
             git
             gnutar
             gzip
+            openssl
             nix
             cachix
           ];
