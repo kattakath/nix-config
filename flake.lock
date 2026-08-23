@@ -271,11 +271,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1787416512,
-        "narHash": "sha256-mAsYeLWn53W5FsDeVMDMHy3IPJ5M+T2lr9SjMUNqs6g=",
+        "lastModified": 1787448775,
+        "narHash": "sha256-4blm2EjE/SYSheDTMsEq0PugT2tT20Gp2z1SkZlwbzg=",
         "owner": "kattakath",
         "repo": "nix-cloudflared-connector",
-        "rev": "0bf47afb9dded8de12537e16c8132cb9a1edd9c5",
+        "rev": "32232801cfe67e94302c9acd6b99a941e37c5427",
         "type": "github"
       },
       "original": {
@@ -371,11 +371,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1787416504,
-        "narHash": "sha256-/C1Nj+bandP1qvAyNE4CfblUc8RECPpzwTlNVOlz4CA=",
+        "lastModified": 1787448772,
+        "narHash": "sha256-AxG75e5OoRYZNuyvPndOAtxQj/TGUZfcq3nwMTGOpnI=",
         "owner": "kattakath",
         "repo": "nix-firmware-secrets",
-        "rev": "3bb6f9edba0e00a8558ee64f17c635281db3ee8e",
+        "rev": "a9156e332bceeaf12e2329b170bcf9806570269c",
         "type": "github"
       },
       "original": {
@@ -660,11 +660,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1787416501,
-        "narHash": "sha256-QhXngC9IsHbvcpSyQJwOHiqu6WoJDdBwEpcSpY1JokA=",
+        "lastModified": 1787448747,
+        "narHash": "sha256-tZVh2ZmcVBB+x18gjZQUnnD/nIVZjkqQcOS3VfbaJsE=",
         "owner": "kattakath",
         "repo": "nix-keychain-secrets",
-        "rev": "380bac9db008ff11d6dbff015243cee9ebc9631f",
+        "rev": "18284a82fd4c4dd4e4a4bbe534cfcb4b1f82e0c7",
         "type": "github"
       },
       "original": {
@@ -718,11 +718,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1787416507,
-        "narHash": "sha256-nkyIaG0fFT6+lqAu/4Fuss9hv5Ob7mtQajtdLHjc0X0=",
+        "lastModified": 1787448777,
+        "narHash": "sha256-Q4hyYOepPqW41TGrvL2TbBwTv6hLd7V+BCyUANPs2nE=",
         "owner": "kattakath",
         "repo": "nix-local-rag",
-        "rev": "1015b910cd147b65f2dd0df0da7ad3318e9cc7a5",
+        "rev": "c336b9fe5edfb74d08c51b49522b4de0cf07c095",
         "type": "github"
       },
       "original": {
@@ -1231,11 +1231,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1787416514,
-        "narHash": "sha256-0cOnCGhHCS8xzLV0yEdMFWFS66owNNnNNo/hJ71wdiM=",
+        "lastModified": 1787448780,
+        "narHash": "sha256-hSb74K/CzpvU2BT9w6wJlGh2BvmiBV4rN9jY0dE4DGg=",
         "owner": "kattakath",
         "repo": "nix-vast-provision",
-        "rev": "7b514f9d186cdf5564573fb5c4db33451dbbeac4",
+        "rev": "18993d0f5626c7e847f02aa83d569f99fe14e7ef",
         "type": "github"
       },
       "original": {
