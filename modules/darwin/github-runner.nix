@@ -44,7 +44,23 @@ let
   cfg = config.services.macosGithubRunner;
   host = "macos";
   user = "_github-runner";
-  runner = pkgs.github-runner;
+  # Upstream nixpkgs' `github-runner` only bundles `externals/node24` — Node 20 was EOL'd
+  # and dropped from nixpkgs entirely (pkgs/by-name/gi/github-runner/package.nix: "Node.js
+  # 20.x has reached EOL and was removed from Nixpkgs, thus omitted here"), so its
+  # `nodeRuntimes` option has no `nodejs_20` left to point at even if overridden. But many
+  # GitHub-authored actions (actions/checkout@v4, actions/setup-node@v4, ...) still declare
+  # `using: node20` in their action.yml, and the runner execs `externals/node<version>/bin/
+  # node` verbatim per-action — so a plain `pkgs.github-runner` fails those steps with
+  # "No such file or directory". Fix: mirror the package's output tree with `lndir` (every
+  # file becomes its own symlink into the real store path — cheap, no rebuild of the actual
+  # runner/.NET binaries) and add one extra `node20 -> node24` symlink on top. Deliberately
+  # NOT `overrideAttrs` — that forces a full rebuild incl. the package's test suite for a
+  # one-symlink change.
+  runner = pkgs.runCommand "github-runner-node20-shim" { } ''
+    mkdir -p $out
+    ${lib.getExe pkgs.lndir} -silent ${pkgs.github-runner} $out
+    ln -sfn node24 $out/lib/externals/node20
+  '';
   appKeyFile = config.age.secrets."gh-app-${cfg.org}-key".path;
 
   # Mints a fresh, short-lived (~1hr) installation access token from the App's
