@@ -17,11 +17,17 @@
 # else differs — same `_github-runner` user, `RUNNER_ROOT` state dir per instance,
 # ephemeral re-registration via launchd `KeepAlive.SuccessfulExit`.
 #
-# AUTH: a GitHub PAT from agenix (`config.age.secrets."gh-runner-token-${org}"`,
-# declared HERE under the enable guard, decrypted with this Mac's SSH host key).
-# OUTBOUND-only — the runner polls GitHub, opens no port. Needs `admin:org` scope
-# for org-level registration (one runner-set serves EVERY repo in that org, not
-# just the one that happened to need it first).
+# AUTH: a GitHub App (2026-08-23, upgraded from a static PAT — see git history for
+# the PAT version). Rather than a long-lived bearer credential sitting in a public
+# repo's git history forever, the agenix secret here is the App's RS256 PRIVATE KEY
+# (`config.age.secrets."gh-app-${org}-key"`), which every registration attempt uses
+# to mint a fresh, ~1-hour-lived installation access token on the spot (JWT →
+# `POST /app/installations/{id}/access_tokens`, GitHub's own documented flow) — the
+# thing that ever touches the runner's `--pat` is a short-lived derived token, never
+# the long-lived key itself. Narrower than a PAT's scope model too: the App is
+# granted ONLY "Organization permissions → Self-hosted runners: Read and write",
+# not `admin:org`'s much wider bundle (org members, teams, webhooks, ...).
+# OUTBOUND-only — the runner polls GitHub, opens no port.
 #
 # SECURITY: `--ephemeral` (one job per registration; launchd restarts + the script
 # re-registers — this is also what makes it self-healing: a crashed or completed
@@ -39,7 +45,45 @@ let
   host = "macos";
   user = "_github-runner";
   runner = pkgs.github-runner;
-  tokenFile = config.age.secrets."gh-runner-token-${cfg.org}".path;
+  appKeyFile = config.age.secrets."gh-app-${cfg.org}-key".path;
+
+  # Mints a fresh, short-lived (~1hr) installation access token from the App's
+  # long-lived private key — GitHub's own documented JWT-then-exchange flow
+  # (https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation).
+  # Shared by every instance's `configure` script (each calls this fresh on every
+  # re-registration, not a shared cached token — ephemeral re-registration means
+  # this runs often enough that a 1hr token never goes stale mid-use anyway).
+  mintInstallationToken = pkgs.writeShellApplication {
+    name = "mint-installation-token-${host}-${cfg.org}";
+    runtimeInputs = with pkgs; [
+      openssl
+      curl
+      jq
+    ];
+    text = ''
+      now=$(date +%s)
+      iat=$((now - 60)) # 60s in the past, tolerates clock skew
+      exp=$((now + 600)) # 10 minutes — the max GitHub allows for the JWT itself
+
+      b64enc() { openssl base64 -A | tr -d '=' | tr '/+' '_-'; }
+
+      header=$(printf '{"typ":"JWT","alg":"RS256"}' | b64enc)
+      payload=$(printf '{"iat":%s,"exp":%s,"iss":%s}' "$iat" "$exp" ${toString cfg.appId} | b64enc)
+      signature=$(
+        printf '%s.%s' "$header" "$payload" \
+          | openssl dgst -sha256 -sign ${lib.escapeShellArg appKeyFile} \
+          | b64enc
+      )
+      jwt="$header.$payload.$signature"
+
+      curl -sf -X POST \
+        -H "Authorization: Bearer $jwt" \
+        -H "Accept: application/vnd.github+json" \
+        -H "X-GitHub-Api-Version: 2022-11-28" \
+        "https://api.github.com/app/installations/${toString cfg.installationId}/access_tokens" \
+        | jq -r .token
+    '';
+  };
 
   # One instance's derived paths/names, from its 1-based index.
   mkInstance =
@@ -52,28 +96,22 @@ let
       logDir = "/var/log/github-runner-${host}-${cfg.org}-${suffix}";
       configure = pkgs.writeShellApplication {
         name = "configure-github-runner-${host}-${cfg.org}-${suffix}";
-        runtimeInputs = [ runner ];
+        runtimeInputs = [
+          runner
+          mintInstallationToken
+        ];
         text = ''
           export RUNNER_ROOT
-          args=(
-            --unattended
-            --disableupdate
-            --work ${lib.escapeShellArg workDir}
-            --url ${lib.escapeShellArg "https://github.com/${cfg.org}"}
-            --name ${lib.escapeShellArg instanceName}
-            --replace
-            --ephemeral
-          )
-          # PAT (ghp_/github_pat_) → --pat (config.sh mints its own registration
-          # tokens on every re-register); anything else is treated as a one-shot
-          # registration token (won't survive ephemeral re-registration — use a PAT).
-          token=$(<"${tokenFile}")
-          if [[ "$token" =~ ^ghp_ ]] || [[ "$token" =~ ^github_pat_ ]]; then
-            args+=(--pat "$token")
-          else
-            args+=(--token "$token")
-          fi
-          ${lib.getExe' runner "config.sh"} "''${args[@]}"
+          token=$(${lib.getExe mintInstallationToken})
+          ${lib.getExe' runner "config.sh"} \
+            --unattended \
+            --disableupdate \
+            --work ${lib.escapeShellArg workDir} \
+            --url ${lib.escapeShellArg "https://github.com/${cfg.org}"} \
+            --name ${lib.escapeShellArg instanceName} \
+            --replace \
+            --ephemeral \
+            --pat "$token"
         '';
       };
     in
@@ -95,8 +133,9 @@ in
     enable = lib.mkEnableOption ''
       self-hosted GitHub Actions runner(s) on the `macos` host (hand-rolled launchd
       daemons — nix-darwin's own `services.github-runners` is incompatible with
-      Determinate Nix). Also requires the `gh-runner-token-<org>` agenix secret
-      (see secrets/secrets.nix) and this Mac's SSH host key as a recipient.'';
+      Determinate Nix). Also requires the `gh-app-<org>-key` agenix secret (the
+      GitHub App's private key — see secrets/secrets.nix) and this Mac's SSH host
+      key as a recipient.'';
 
     org = lib.mkOption {
       type = lib.types.str;
@@ -107,7 +146,25 @@ in
         Deliberately independent of this flake's own top-level `orgName`
         (kattakath, used for cachix/flakeRef/packages) — a runner built for one
         org's CI has no reason to share an identity with this repo's own.
-        Requires a PAT with `admin:org` scope for THIS org.
+      '';
+    };
+
+    appId = lib.mkOption {
+      type = lib.types.ints.positive;
+      description = ''
+        The GitHub App's numeric ID (shown on the app's settings page — NOT
+        secret, this is public identifying info, not a credential). The app must
+        have Organization permission "Self-hosted runners: Read and write" and
+        nothing else it doesn't need.
+      '';
+    };
+
+    installationId = lib.mkOption {
+      type = lib.types.ints.positive;
+      description = ''
+        The numeric installation ID for this App on `org` (shown in the URL when
+        viewing the installation in org settings — also not secret on its own;
+        it grants nothing without the private key).
       '';
     };
 
@@ -116,20 +173,20 @@ in
       default = 1;
       description = ''
         How many parallel runner instances to register (each gets its own
-        state/work/log dir and launchd daemon, all sharing one PAT). CI workflows
-        that fan out into several jobs per run (typecheck/unit/e2e/...) only run
-        them in parallel up to however many instances exist here.
+        state/work/log dir and launchd daemon, all minting from one App). CI
+        workflows that fan out into several jobs per run (typecheck/unit/e2e/...)
+        only run them in parallel up to however many instances exist here.
       '';
     };
   };
 
   config = lib.mkIf cfg.enable {
-    # The runner PAT (agenix), decrypted at activation with this Mac's SSH host key
-    # into a `_github-runner`-owned file every instance's daemon reads. Declared
-    # HERE (under the enable guard) rather than in hosts/macos.nix, so a disabled
-    # runner leaves no secret owned by a user that no longer exists.
-    age.secrets."gh-runner-token-${cfg.org}" = {
-      file = ../../secrets/gh-runner-token-${cfg.org}.age;
+    # The App's private key (agenix), decrypted at activation with this Mac's SSH
+    # host key into a `_github-runner`-owned file every instance mints tokens
+    # from. Declared HERE (under the enable guard) rather than in hosts/macos.nix,
+    # so a disabled runner leaves no secret owned by a user that no longer exists.
+    age.secrets."gh-app-${cfg.org}-key" = {
+      file = ../../secrets/gh-app-${cfg.org}-key.age;
       owner = user;
       mode = "0400";
     };
@@ -211,8 +268,10 @@ in
             StandardOutPath = "${i.logDir}/launchd-stdout.log";
             StandardErrorPath = "${i.logDir}/launchd-stderr.log";
             WorkingDirectory = i.stateDir;
-            # Re-launch every instance if the shared token changes.
-            WatchPaths = [ tokenFile ];
+            # Re-launch every instance if the App's private key is ever rotated
+            # (each instance mints its own token fresh per re-registration, so
+            # there's no shared cached-token file to watch instead).
+            WatchPaths = [ appKeyFile ];
           };
         }
       ) instances

@@ -26,13 +26,23 @@
   # dontsell-ai/app's ci.yml fans one push into 7 parallel jobs; two instances
   # let two run at once instead of the whole backlog draining one job at a time
   # through a single runner (12 cores / 36GB on this Mac — comfortable headroom).
-  # Requires the gh-runner-token-dontsell-ai agenix secret to exist first (a PAT
-  # with admin:org scope for dontsell-ai — mint it, then
-  # `nix run github:ryantm/agenix -- -e secrets/gh-runner-token-dontsell-ai.age`
-  # and paste it into $EDITOR; never through chat/Claude).
+  #
+  # appId/installationId: the "dontsell-ci" GitHub App (slug "dontsell-ai"),
+  # created + owned by the dontsell-ai org itself (not a personal account),
+  # installed ONLY on that org, granted ONLY "Organization permissions:
+  # Self-hosted runners: Read and write" — confirmed via
+  # `gh api orgs/dontsell-ai/installations` after creation, not assumed. Neither
+  # value is secret on its own (see the module's option docs).
+  #
+  # Requires the gh-app-dontsell-ai-key agenix secret to exist first (the App's
+  # private key, downloaded once from its settings page as a .pem) — mint it,
+  # then `nix run github:ryantm/agenix -- -e secrets/gh-app-dontsell-ai-key.age`
+  # and paste the .pem's contents into $EDITOR; never through chat/Claude.
   services.macosGithubRunner = {
     enable = true;
     org = "dontsell-ai";
+    appId = 4689619;
+    installationId = 155878309;
     count = 2;
   };
 
