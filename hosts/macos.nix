@@ -171,6 +171,10 @@
       "proton-drive"
       "raspberry-pi-imager"
       "slack"
+      # Slack's official CLI for building/deploying Slack apps (docs.slack.dev/tools/slack-cli).
+      # Cask, not nixpkgs' same-named "slack-cli" — that's an unrelated, unmaintained
+      # rockymadden/slack-cli webhook-poster, not this tool.
+      "slack-cli"
       "telegram"
       "visual-studio-code"
       "whatsapp"
