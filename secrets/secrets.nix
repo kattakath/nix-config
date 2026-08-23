@@ -1,9 +1,10 @@
 # agenix rules — declares each committed .age secret and who may decrypt it.
 # Consumed ONLY by the `agenix` CLI (agenix -e/-r), never imported into a system
-# config. agenix here is an OPERATOR-ONLY VAULT: the only secret is encrypted to the
-# operator's key alone and is never decrypted on any host — no host-key recipients,
-# nothing host-decrypted at activation. Recipients are SSH public keys directly
-# (age's SSH support, no ssh-to-age step).
+# config. Recipients are SSH public keys directly (age's SSH support, no
+# ssh-to-age step). Most secrets here are OPERATOR-ONLY (encrypted to the
+# operator's key alone, never decrypted on any host); the `gh-runner-token-*`
+# entries are the exception — HOST-decrypted at activation, so they also carry
+# the `macos` host-key recipient below.
 #
 # Edit a secret:   nix run github:ryantm/agenix -- -e secrets/<name>.age
 # Re-key after changing recipients:  … -- -r
@@ -12,6 +13,10 @@ let
   # editable. Single-sourced in ./operator-key.nix (also the fleet's authorizedKeys
   # via flake.nix → core.nix), so a key rotation is one edit there, not four.
   operator = import ./operator-key.nix;
+  # macos host key (/etc/ssh/ssh_host_ed25519_key.pub) — re-checked 2026-08-23
+  # (revived github-runner module) since the last pinned value here predated a
+  # host-key rotation; verify against the live file before reusing this again.
+  macos = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMh/Us9PkRc8ZegkaoES6/AZNo10Iw8sxGq9uniLpHOK root@macos.local";
 in
 {
   # nixpi's Cloudflare Tunnel connector token (TUNNEL_TOKEN=…). OPERATOR-ONLY: the
@@ -20,5 +25,12 @@ in
   # SD flash rotates the host key — see the firmware-secrets flake).
   "cloudflared-token.age".publicKeys = [
     operator
+  ];
+  # macos self-hosted GitHub Actions runner PAT for the `dontsell-ai` org
+  # (modules/darwin/github-runner.nix, services.macosGithubRunner). admin:org
+  # scope, org-level registration — serves every dontsell-ai repo, not just app.
+  "gh-runner-token-dontsell-ai.age".publicKeys = [
+    operator
+    macos
   ];
 }
