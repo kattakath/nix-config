@@ -624,8 +624,9 @@
 
       # The Home-Manager sub-module embedded in every host, built from an identity
       # attrset (`idArgs` = { loginName; fullName; userEmail; domainName; }) so a host
-      # can carry a PER-HOST persona (e.g. macvm's `aloshy`) rather than the single
-      # global identity. Called with `identityArgs` by default; hosts that override
+      # COULD carry a per-host persona rather than the single global identity, though
+      # nothing in the fleet does today. Called with `identityArgs` by default; hosts
+      # that override
       # (mkDarwin's `identity` arg) pass their own. The home-manager profile keys on
       # idArgs.loginName, and extraSpecialArgs threads that same identity into
       # modules/shared/home.nix. extraSpecialArgs also adds mcp-servers-nix etc.
@@ -746,9 +747,10 @@
       # Mirrors mkNixos for the Mac. hostPlatform is driven from `system` (NOT
       # hardcoded in modules/darwin/core.nix) even though this fleet has a single
       # darwin host today.
-      # `identity` defaults to the global identityArgs; a host passes its own to run
-      # under a PER-HOST persona (e.g. macvm → the `aloshy` account: different
-      # loginName/fullName/userEmail/domainName). It flows to the system modules via
+      # `identity` defaults to the global identityArgs; a host COULD pass its own to
+      # run under a per-host persona (different loginName/fullName/userEmail/
+      # domainName), though nothing in the fleet does today. It flows to the system
+      # modules via
       # specialArgs AND to home-manager via mkHomeManagerModule, so the two agree.
       mkDarwin =
         {
@@ -864,19 +866,15 @@
         # A Tart guest VM (aarch64-darwin, Apple Virtualization + IPSW) — the
         # darwin analogue of `nixvm`: the full shared stack as `macos`, but a
         # leaner Homebrew set and the MCP gateway trimmed off (see hosts/macvm.nix).
-        # Runs under a SEPARATE persona (the `aloshy` / aloshy.ai account) — same
-        # person, isolated local identity — via the per-host `identity` override.
-        # Activated INSIDE the VM, whose macOS login account must be `aloshy`.
+        # Same operator identity as every other host (loginName "ismail") — the
+        # leanness above is achieved entirely via `networking.hostName == "macos"`
+        # gates + per-host overrides, never via a separate persona, so this host
+        # needs no `identity` override; it just inherits the global `identityArgs`.
+        # Activated INSIDE the VM, whose macOS login account must be `ismail`.
         # Host control plane: nix run .#macvm-tart-* (packages/macvm-tart.nix).
         "macvm" = mkDarwin {
           system = "aarch64-darwin";
           hostname = "macvm";
-          identity = {
-            loginName = "aloshy";
-            fullName = "aloshy";
-            userEmail = "hi@aloshy.ai";
-            domainName = "aloshy.ai";
-          };
         };
       };
 
@@ -1280,15 +1278,15 @@
             };
 
             # First activation of the macvm Tart guest (run INSIDE the VM, whose
-            # login account must be `aloshy`), before darwin-rebuild is on PATH.
+            # login account must be `ismail`), before darwin-rebuild is on PATH.
             # Thereafter: darwin-rebuild switch --flake .#macvm
             # Host-side Tart control plane: nix run .#macvm-tart-* (packages/macvm-tart.nix).
             #
             # First-boot footguns this wrapper fixes:
-            # 1. `sudo` preserves HOME=/Users/aloshy while uid=0 → home-manager aborts
+            # 1. `sudo` preserves HOME=/Users/ismail while uid=0 → home-manager aborts
             #    with "$HOME is not owned by you" and the user profile never activates.
             #    Force HOME=/var/root for the root rebuild; nix-darwin still activates
-            #    HM for aloshy under the correct user.
+            #    HM for ismail under the correct user.
             # 2. Determinate's installer leaves an unmanaged /etc/nix/nix.custom.conf
             #    that nix-darwin refuses to clobber — move it aside once if not a symlink.
             aarch64-darwin.macvm = {
@@ -1306,7 +1304,7 @@
 
                 run_as_root() {
                   # Root-owned HOME so HM does not refuse activation (sudo keeps
-                  # HOME=/Users/aloshy by default on macOS).
+                  # HOME=/Users/ismail by default on macOS).
                   exec /usr/bin/env HOME=/var/root USER=root LOGNAME=root \
                     "$rebuild" switch --flake "$flake" "$@"
                 }
@@ -1319,7 +1317,7 @@
                     "$rebuild" switch --flake "$flake" "$@"
                 fi
               ''}";
-              meta.description = "Activate macvm (Tart guest) as aloshy; safe under sudo (fixes HOME ownership + Determinate nix.custom.conf handoff)";
+              meta.description = "Activate macvm (Tart guest) as ismail; safe under sudo (fixes HOME ownership + Determinate nix.custom.conf handoff)";
             };
 
             # Host-side Tart lifecycle for macvm (Apple Virtualization + IPSW).
@@ -1361,7 +1359,7 @@
             aarch64-darwin.macvm-tart-ssh = {
               type = "app";
               program = "${self.packages.aarch64-darwin.macvm-tart-ssh}/bin/macvm-tart-ssh";
-              meta.description = "SSH into Tart macvm (aloshy + operator key)";
+              meta.description = "SSH into Tart macvm (ismail + operator key)";
             };
             aarch64-darwin.macvm-tart-bootstrap-print = {
               type = "app";
