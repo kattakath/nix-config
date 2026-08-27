@@ -2,7 +2,7 @@
 #
 # Hypervisor: Apple Virtualization.framework.
 # Front-end: Tart (CLI) — create from Apple IPSW.
-# Guest OS: darwinConfigurations.macvm — activate inside the VM as aloshy.
+# Guest OS: darwinConfigurations.macvm — activate inside the VM as ismail.
 # Disks/IPSWs never enter the Nix store (~/.tart/vms/<name>).
 # See docs/macvm-tart-runbook.md.
 {
@@ -23,7 +23,7 @@ let
   bootstrapText = writeText "macvm-tart-bootstrap.txt" ''
     macvm guest bootstrap (run INSIDE the Tart VM)
 
-    1. Login account: aloshy  (must match flake identity)
+    1. Login account: ismail  (must match flake identity)
     2. Enable Remote Login (SSH) in System Settings if not already on
     3. Determinate Nix if missing: https://docs.determinate.systems
     4. First activation (app handles sudo + root HOME — do not bare sudo darwin-rebuild):
@@ -44,10 +44,10 @@ let
       nix run .#macvm-tart-create -- --ipsw=/path/to/UniversalMac_….ipsw
       nix run .#macvm-tart-create -- --ipsw=latest   # default: Apple CDN latest
 
-    Then: tart opens a window — complete Setup Assistant as user aloshy.
+    Then: tart opens a window — complete Setup Assistant as user ismail.
     Optional (prebuilt image instead of IPSW install):
       tart clone ghcr.io/cirruslabs/macos-sequoia-base:latest macvm
-      # then create an aloshy user (or re-login) matching the flake identity
+      # then create an ismail user (or re-login) matching the flake identity
 
     NEVER put IPSW or disk images into the Nix store or this git repo.
   '';
@@ -152,7 +152,7 @@ let
 
       echo "screengrab host path: $SCREENGRAB ($( [ -d "$SCREENGRAB" ] && echo present || echo MISSING ))"
       echo "guest mount (when running with start): /Volumes/My Shared Files/Screengrab"
-      echo "guest persona: aloshy (activate #macvm inside the VM)"
+      echo "guest persona: ismail (activate #macvm inside the VM)"
       echo "backend: Tart → Apple Virtualization.framework"
       exit "$rc"
     '';
@@ -203,7 +203,7 @@ let
       "$TART" create --from-ipsw="$ipsw" --disk-size "$disk_gb" "$VM_NAME"
       "$TART" set "$VM_NAME" --cpu "$cpus" --memory "$memory_mb"
       info "created. Next:"
-      echo "  1. nix run .#macvm-tart-start     # opens Tart UI; finish Setup as aloshy"
+      echo "  1. nix run .#macvm-tart-start     # opens Tart UI; finish Setup as ismail"
       echo "  2. Enable Remote Login (SSH) in the guest if needed"
       echo "  3. In guest: nix run github:kattakath/nix-config#macvm"
       echo "  4. nix run .#macvm-tart-ssh -- uname -a"
@@ -280,7 +280,7 @@ let
     name = "macvm-tart-ssh";
     text = ''
       # usage: macvm-tart-ssh [--user USER] [ssh-args…]
-      user=aloshy
+      user=ismail
       identity="''${MACVM_SSH_IDENTITY:-$HOME/.ssh/id_ed25519}"
       wait="''${MACVM_TART_IP_WAIT:-60}"
       while [ $# -gt 0 ]; do
@@ -289,7 +289,7 @@ let
           --wait) wait="''${2:?}"; shift 2 ;;
           -h|--help)
             echo "usage: macvm-tart-ssh [--user USER] [--wait SECS] [ssh-args…]"
-            echo "  SSH via tart ip (default user aloshy, operator key)."
+            echo "  SSH via tart ip (default user ismail, operator key)."
             exit 0
             ;;
           --) shift; break ;;

@@ -41,8 +41,8 @@ Gated on `isMacosHost` (`networking.hostName == "macos"`) — the same gate as
 the RAG stack, MCP public tunnel, and telegram. `macvm` keeps base Claude
 Code + the MCP gateway but gets no telemetry collector and no `env` block,
 same as those other Mac-only sub-features. This is a deliberate scope limit,
-not an oversight: `macvm`'s own Claude Code sessions (as the `aloshy`
-persona) are not captured by this system.
+not an oversight: `macvm`'s own Claude Code sessions are not captured by
+this system.
 
 ## Setup
 

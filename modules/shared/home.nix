@@ -918,9 +918,9 @@ in
         };
 
         # Tart macvm guest. Prefer `nix run .#macvm-tart-ssh` (IP discovery).
-        # This Host is for a fixed HostName / macvm.local; user is always aloshy.
+        # This Host is for a fixed HostName / macvm.local; user is always ismail.
         "macvm" = {
-          User = "aloshy";
+          User = "ismail";
           IdentityFile = operatorPrivateKey;
           ForwardAgent = true;
           StrictHostKeyChecking = "accept-new";
