@@ -139,6 +139,32 @@ let
             --pat "$token"
         '';
       };
+      # `launchd.daemons.<name>.script` (nix-darwin's own sugar) unconditionally
+      # compiles to `ProgramArguments = [ "/bin/sh" "-c" "wait4path ... && exec …" ]`
+      # — a bare-interpreter arg0 forbidden for anything this repo hand-authors
+      # (.claude/rules/launchd-naming.md). Build the daemon's main process
+      # ourselves instead, so ProgramArguments[0]'s basename is nix-<activity>;
+      # wait4path moves in here since bypassing `script=` also bypasses
+      # nix-darwin's own wait4path prelude.
+      runDaemon = pkgs.writeShellApplication {
+        name = "nix-github-runner-${instanceName}";
+        runtimeInputs = [
+          pkgs.findutils
+          runner
+        ];
+        text = ''
+          /bin/wait4path /nix/store
+          # Always clean the working directory.
+          ${lib.getExe pkgs.findutils} ${lib.escapeShellArg workDir} -mindepth 1 -delete || true
+          # Ephemeral: wipe RUNNER_ROOT so each start is a fresh registration.
+          echo "Cleaning $RUNNER_ROOT"
+          ${lib.getExe pkgs.findutils} "$RUNNER_ROOT" -mindepth 1 -delete || true
+          if [[ ! -f "$RUNNER_ROOT/.runner" ]]; then
+            ${lib.getExe configure}
+          fi
+          exec ${lib.getExe' runner "Runner.Listener"} run --startuptype service
+        '';
+      };
     in
     {
       inherit
@@ -147,6 +173,7 @@ let
         workDir
         logDir
         configure
+        runDaemon
         ;
       daemonKey = "github-runner-${host}-${cfg.org}-${suffix}";
     };
@@ -270,18 +297,8 @@ in
             HOME = i.stateDir;
             RUNNER_ROOT = i.stateDir;
           };
-          script = ''
-            # Always clean the working directory.
-            ${lib.getExe pkgs.findutils} ${lib.escapeShellArg i.workDir} -mindepth 1 -delete || true
-            # Ephemeral: wipe RUNNER_ROOT so each start is a fresh registration.
-            echo "Cleaning $RUNNER_ROOT"
-            ${lib.getExe pkgs.findutils} "$RUNNER_ROOT" -mindepth 1 -delete || true
-            if [[ ! -f "$RUNNER_ROOT/.runner" ]]; then
-              ${lib.getExe i.configure}
-            fi
-            exec ${lib.getExe' runner "Runner.Listener"} run --startuptype service
-          '';
           serviceConfig = {
+            ProgramArguments = [ (lib.getExe i.runDaemon) ];
             RunAtLoad = true;
             # Restart after a successful (ephemeral) job to re-register; don't spin on crash.
             KeepAlive = {
