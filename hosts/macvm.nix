@@ -4,8 +4,9 @@
 #   docs/macvm-tart-runbook.md  —  nix run .#macvm-tart-*
 # Disk under ~/.tart/ — never in this flake.
 #
-# Persona: `aloshy` (mkDarwin `identity` override in flake.nix). The guest login
-# account MUST be that user. Activate *inside* the VM (app handles sudo + root HOME):
+# Identity: same operator (`ismail`) as every other host — no `identity` override
+# in flake.nix. The guest login account MUST be `ismail`. Activate *inside* the
+# VM (app handles sudo + root HOME):
 #   nix run github:kattakath/nix-config#macvm
 # Optional Grok CLI (once, not Homebrew): curl -fsSL https://x.ai/cli/install.sh | bash
 {
