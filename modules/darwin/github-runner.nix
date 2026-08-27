@@ -238,14 +238,11 @@ in
     # loads the daemons (mkBefore on the `launchd` activation script, which runs
     # after user creation).
     system.activationScripts.launchd.text = lib.mkBefore (
-      lib.concatMapStringsSep "\n" (
-        i:
-        ''
-          ${lib.getExe' pkgs.coreutils "mkdir"} -p ${i.stateDir} ${i.workDir} ${i.logDir}
-          ${lib.getExe' pkgs.coreutils "chmod"} 0750 ${i.stateDir} ${i.workDir} ${i.logDir}
-          ${lib.getExe' pkgs.coreutils "chown"} ${user}:${user} ${i.stateDir} ${i.workDir} ${i.logDir}
-        ''
-      ) instances
+      lib.concatMapStringsSep "\n" (i: ''
+        ${lib.getExe' pkgs.coreutils "mkdir"} -p ${i.stateDir} ${i.workDir} ${i.logDir}
+        ${lib.getExe' pkgs.coreutils "chmod"} 0750 ${i.stateDir} ${i.workDir} ${i.logDir}
+        ${lib.getExe' pkgs.coreutils "chown"} ${user}:${user} ${i.stateDir} ${i.workDir} ${i.logDir}
+      '') instances
     );
 
     launchd.daemons = lib.listToAttrs (
