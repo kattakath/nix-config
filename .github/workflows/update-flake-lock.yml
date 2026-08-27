@@ -60,10 +60,19 @@ jobs:
 
       # UPSTREAM Nix (NOT DeterminateSystems/nix-installer-action — that installs
       # Determinate Nix only), matching nix-ci.yml / flakehub-publish.yml.
+      #
+      # access-tokens: `nix flake update` re-resolves every unpinned `github:`
+      # input's HEAD via the GitHub REST API (unlike a plain eval/build, which
+      # only fetches already-locked revs). Anonymous calls share the 60/hr rate
+      # limit across the whole GitHub Actions runner IP pool, so this job was
+      # 403ing weekly once enough inputs needed resolving. Any authenticated
+      # token — even one scoped to a different repo, like this App's — reads
+      # public-repo metadata at the 5000/hr authenticated rate instead.
       - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
+            access-tokens = github.com=${{ steps.app-token.outputs.token }}
 
       - uses: DeterminateSystems/update-flake-lock@834c491b2ece4de0bbd00d85214bb5e83b4da5c6 # v28
         with:
