@@ -32,19 +32,23 @@ spot anything that is *not* ours. `sh`/`python3` defeats that entirely.
 
 ## Known upstream exceptions — do NOT rename (they are not ours)
 
-Two system `LaunchDaemons` run `/bin/sh` and are **outside this repo's control**. They are
+Three system `LaunchDaemons` run `/bin/sh` and are **outside this repo's control**. They are
 **expected** and must be left alone:
 
 - **`org.nixos.activate-system`** — nix-darwin core's boot-time activation daemon
   (`/bin/sh -c 'wait4path /nix/store && exec …activate-system-start'`). Emitted by
   nix-darwin itself; renaming it fights nix-darwin internals and can break `darwin-rebuild`
   activation.
+- **`org.nixos.activate-agenix`** — the `agenix` flake input's own activation daemon (same
+  `/bin/sh -c 'wait4path ... && exec ...'` shape as `activate-system`). Emitted entirely by
+  agenix's nix-darwin module — grep this repo's `.nix` files for `activate-agenix` and you
+  get zero hits. Same rationale as `activate-system`: not ours to rename.
 - **`systems.determinate.nix-installer.nix-hook`** — the Determinate Nix installer's
   self-repair hook (`/bin/sh -c 'wait4path /nix/nix-installer && nix-installer repair'`).
   Placed by the `curl | bash` installer, **not** Nix-managed; any edit is imperative and is
   clobbered by the next Determinate update.
 
-Seeing these two as `sh` in BTM is **not** a rule violation — the rule governs agents this
+Seeing these three as `sh` in BTM is **not** a rule violation — the rule governs agents this
 repo defines, and all of those must be `nix-*`. Do not "fix" these; do not report them as
 violations.
 
