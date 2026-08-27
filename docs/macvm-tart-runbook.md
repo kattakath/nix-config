@@ -5,7 +5,7 @@ Two layers — do not conflate:
 | Layer | Owner | Notes |
 |---|---|---|
 | **Hypervisor + disk** | **Tart** on the **macos** host | Apple **Virtualization.framework**; disk under `~/.tart/vms/` — **never** in this flake / Nix store |
-| **Guest nix-darwin** | `darwinConfigurations.macvm` | Activate as **`aloshy`** |
+| **Guest nix-darwin** | `darwinConfigurations.macvm` | Activate as **`ismail`** |
 
 `nix run .#nixvm` is a different product (throwaway NixOS/QEMU). **macvm ≠ nixvm.**
 
@@ -39,11 +39,11 @@ Disk appears under `~/.tart/vms/macvm` — not in git, not in the store.
 nix run .#macvm-tart-start
 ```
 
-Complete macOS setup in the Tart window. Create login user **`aloshy`** (must match the flake identity). Enable **Remote Login (SSH)** in System Settings → General → Sharing.
+Complete macOS setup in the Tart window. Create login user **`ismail`** (must match the flake identity). Enable **Remote Login (SSH)** in System Settings → General → Sharing.
 
 ### 3. First guest activation
 
-Inside the guest as **`aloshy`**, with Determinate Nix installed:
+Inside the guest as **`ismail`**, with Determinate Nix installed:
 
 ```bash
 # Prefer the flake app (handles sudo HOME + Determinate conf handoff):
@@ -53,11 +53,11 @@ sudo env HOME=/var/root darwin-rebuild switch --flake github:kattakath/nix-confi
 ```
 
 **Do not** use bare `sudo nix run …` / `sudo darwin-rebuild` with a preserved
-`HOME=/Users/aloshy` — macOS `sudo` keeps your HOME by default, so the process
-is **uid 0** with a home directory **owned by aloshy**. home-manager then prints
-`$HOME (/Users/aloshy) is not owned by you` and **skips the user profile**
+`HOME=/Users/ismail` — macOS `sudo` keeps your HOME by default, so the process
+is **uid 0** with a home directory **owned by ismail**. home-manager then prints
+`$HOME (/Users/ismail) is not owned by you` and **skips the user profile**
 (system half activates; HM does not). The `#macvm` app forces `HOME=/var/root`
-for the root rebuild so HM still runs for `aloshy`.
+for the root rebuild so HM still runs for `ismail`.
 
 **Determinate `nix.custom.conf`:** the installer writes an unmanaged
 `/etc/nix/nix.custom.conf`. nix-darwin (determinate module) aborts if it would
@@ -81,11 +81,11 @@ nix run .#macvm-tart-doctor
 
 ### Repair half-activation (system OK, no HM)
 
-Symptoms: `$HOME is not owned by you`, no `Activating home-manager configuration for aloshy`, missing `~/.nix-profile` / HM state.
+Symptoms: `$HOME is not owned by you`, no `Activating home-manager configuration for ismail`, missing `~/.nix-profile` / HM state.
 
 **Causes (both can apply):**
 
-1. **`sudo` preserved `HOME=/Users/aloshy` as root** → HM refuses the user profile.  
+1. **`sudo` preserved `HOME=/Users/ismail` as root** → HM refuses the user profile.  
 2. **Homebrew bundle failed** (e.g. no Xcode CLT while installing a formula) → activation aborts *before* HM. macvm keeps `brews = [ ]` and uses nixpkgs `wireguard-tools` so formulae are not required; optional GUI casks still need network.
 
 ### Xcode Command Line Tools (best-effort)
@@ -105,7 +105,7 @@ if you later add brew formulae or compile locally.
 ```bash
 # From host — re-run with root HOME (and a flake that includes the fixes):
 nix run .#macvm-tart-ssh -- 'sudo env HOME=/var/root darwin-rebuild switch --flake github:kattakath/nix-config#macvm'
-# Expect: Activating home-manager configuration for aloshy
+# Expect: Activating home-manager configuration for ismail
 nix run .#macvm-tart-ssh -- 'test -e ~/.nix-profile && echo hm:ok || echo hm:missing'
 ```
 
@@ -115,7 +115,7 @@ Private home modules (path-sync, not guest GitLab SSH):
 # From private flake checkout on host:
 #   tar -C ~/path/to/nix-personal -cf - . | \
 #     nix run .#macvm-tart-ssh -- 'mkdir -p ~/nix-personal && tar -C ~/nix-personal -xf -'
-#   nix run .#macvm-tart-ssh -- nix run /Users/aloshy/nix-personal#macvm
+#   nix run .#macvm-tart-ssh -- nix run /Users/ismail/nix-personal#macvm
 ```
 
 ## Screengrab share
@@ -141,7 +141,7 @@ carries no quarantine xattr — the actual Gatekeeper trigger).
 
 `hosts/macvm.nix` wires it as `launchd.user.agents.tart-guest-agent`, running
 `tart-guest-agent --run-agent` (clipboard vdagent + `tart exec`/`tart ip
---resolver=agent` RPC) as a **per-user LaunchAgent** under `aloshy` — it must be
+--resolver=agent` RPC) as a **per-user LaunchAgent** under `ismail` — it must be
 a per-user agent, not a root LaunchDaemon, because pasteboard access needs a
 live GUI session. `RunAtLoad` + `KeepAlive` start it at login and respawn it if
 it dies; logs at `~/Library/Logs/tart-guest-agent.log` in the guest.
@@ -152,7 +152,7 @@ To pick this up on an already-provisioned VM:
 nix run .#macvm-tart-ssh -- nix run --refresh github:kattakath/nix-config#macvm
 ```
 
-then either log out/in as `aloshy` in the guest (so launchd's GUI session
+then either log out/in as `ismail` in the guest (so launchd's GUI session
 picks up the new agent) or just `nix run .#macvm-tart-stop && nix run .#macvm-tart-start`
 to restart the whole VM.
 
@@ -165,7 +165,7 @@ to restart the whole VM.
 | `macvm-tart-start` | Detached `tart run` + Screengrab dir share |
 | `macvm-tart-stop` | `tart stop macvm` |
 | `macvm-tart-ip` | `tart ip macvm` |
-| `macvm-tart-ssh` | SSH as `aloshy` with operator key |
+| `macvm-tart-ssh` | SSH as `ismail` with operator key |
 | `macvm-tart-list` | `tart list` |
 | `macvm-tart-doctor` | Quick health check |
 | `macvm-tart-bootstrap-print` | In-guest checklist |
