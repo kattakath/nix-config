@@ -15,6 +15,9 @@
 # ~/.local/state/claude-otel/ — see modules/shared/claude-otel.nix)
 .claude/hooks/.routing-review-state.json
 
+# fleet-doctor.md state (last full-sweep timestamp, written by the command)
+.claude/hooks/.fleet-doctor-state.json
+
 # Project memory — candid, local-only record of decisions/reasoning/findings/values.
 # Gitignored on purpose: this is the "why" behind the repo, not committed documentation.
 memory/
