@@ -442,6 +442,14 @@ in
       nerd-fonts.jetbrains-mono # "JetBrainsMono Nerd Font" — VS Code editor font (pairs with the JetBrains theme)
       nerd-fonts.ubuntu-mono # "UbuntuMono Nerd Font" — VS Code terminal font (matches the devcontainer)
       inter # "Inter" — proportional UI font; no Nerd Font variant exists (NF only patches monospace fonts), so this is the plain upstream package
+      # Postgres client/server tools WITH pgvector. `services.pgvectorLocal` (the local-rag flake)
+      # already puts a PLAIN postgresql_16 in this profile, whose `share/postgresql` has no
+      # `vector.control` — so `initdb`-ing a fresh cluster from it cannot `CREATE EXTENSION vector`.
+      # That broke the dontsell-ai/app CI `integration` job whenever it landed on the REPO-level
+      # runner (`macos-throwaway`), which runs from this profile; the org runners get theirs from
+      # modules/darwin/github-runner.nix. `hiPrio` because both derivations provide `bin/psql` and a
+      # profile collision is otherwise a build error — this one is a superset, so it should win.
+      (lib.hiPrio (postgresql_16.withPackages (p: [ p.pgvector ])))
     ]
     # claude-code: on darwin it is installed by the programs.claude-code module
     # below (so the mcp-servers-nix integration can inject the shared MCP
