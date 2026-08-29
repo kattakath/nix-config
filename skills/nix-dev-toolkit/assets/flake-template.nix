@@ -71,7 +71,7 @@
         "x86_64-linux"
       ];
       forAll = f: nixpkgs.lib.genAttrs systems (system: f system nixpkgs.legacyPackages.${system});
-      lib = nixpkgs.lib;
+      inherit (nixpkgs) lib;
 
       # ── Env catalogue: the single source of truth. ────────────────────────────────────────────
       # need   : required | optional | ci | local
@@ -330,7 +330,7 @@
       );
 
       devShells = forAll (
-        system: pkgs:
+        _system: pkgs:
         let
           pg = pkgs.postgresql_16.withPackages (p: [ p.pgvector ]);
         in
