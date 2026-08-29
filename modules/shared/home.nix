@@ -812,6 +812,13 @@ in
         # rooted in this repo. Lives next to the package it documents so they can't
         # drift apart silently.
         android-phone = "${../../skills/android-phone}";
+
+        # Making a repo self-sufficient with Nix: dev shell, env catalogue, project-local
+        # Postgres+pgvector stack, self-hosted runner, and `nix run .#<verb>` lifecycle apps.
+        # Global rather than repo-scoped precisely because the point is to apply it to a repo
+        # that does NOT have it yet. Carries the Nix/Postgres/Prisma traps that cost real
+        # debugging time (withPackages union prefix, socket port, macOS socket length cap).
+        nix-dev-toolkit = "${../../skills/nix-dev-toolkit}";
       };
     };
 
