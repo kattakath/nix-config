@@ -21,6 +21,49 @@
     let
       project = "app"; # ADAPT: used for state dirs and the default database name
 
+      # Load the project's own `.env` files into the environment WITHOUT overriding anything the
+      # caller already exported. Shared verbatim by the CLI apps' prelude and by the dev shell.
+      #
+      # WHY, given `.envrc` already does this: direnv covers an interactive `cd` into the repo,
+      # but `nix run .#deploy-prod` from a script, a CI step, or a shell where direnv is not
+      # hooked would otherwise see none of it. Loading here means a command behaves the same
+      # either way, and it is idempotent — anything direnv already exported is left untouched.
+      #
+      # PRECEDENCE, and why the file order looks backwards: each variable is set only if it is
+      # currently unset, so the FIRST file to mention a name wins. Reading highest-precedence
+      # first therefore yields ambient env > .env.development.local > .env.local > .env, which
+      # is Next.js's own order — the same one `.envrc` produces via direnv's opposite
+      # last-wins semantics. Values are never echoed; this is secret material.
+      dotenvLoader = ''
+        _load_dotenv() {
+          [ -f "$1" ] || return 0
+          while IFS= read -r _line || [ -n "$_line" ]; do
+            # The empty pattern is written with DOUBLE quotes on purpose: a pair of single
+            # quotes terminates a Nix indented string, so the obvious spelling would end this
+            # block mid-function. (Writing that fact out plainly, for the same reason.)
+            case "$_line" in "" | '#'*) continue ;; esac
+            _line="''${_line#export }"
+            _key="''${_line%%=*}"
+            # Skip anything that is not a plain NAME= assignment (blank keys, `foo bar`, etc.).
+            case "$_key" in "" | *[!A-Za-z0-9_]*) continue ;; esac
+            _val="''${_line#*=}"
+            # Strip one layer of surrounding quotes, the only quoting dotenv files really use.
+            case "$_val" in
+              \"*\") _val="''${_val#\"}"; _val="''${_val%\"}" ;;
+              \'*\') _val="''${_val#\'}"; _val="''${_val%\'}" ;;
+            esac
+            # Indirect expansion: only set the name if the caller has not already exported it.
+            [ -n "''${!_key:-}" ] || export "$_key=$_val"
+          done < "$1"
+          unset _line _key _val
+        }
+        _load_project_dotenv() {
+          _load_dotenv "$1/.env.development.local"
+          _load_dotenv "$1/.env.local"
+          _load_dotenv "$1/.env"
+        }
+      '';
+
       systems = [
         "aarch64-darwin"
         "x86_64-darwin"
@@ -92,8 +135,11 @@
 
           # `export`, not plain assignment: commands share this prelude but use only part of it,
           # and an unexported variable would be flagged unused by shellcheck.
-          prelude = ''
+          prelude = dotenvLoader + ''
             export PRJ="''${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+            # The project's own .env files, for the case direnv does not cover (a script, CI, a
+            # shell with no direnv hook). Never overrides what the caller already exported.
+            _load_project_dotenv "$PRJ"
             export STACK="''${PROJECT_STACK_DIR:-$PRJ/.nix-stack}"
             export PGDATA_DIR="$STACK/pg/data"
             export PGPORT_="''${PG_PORT:-5433}"
@@ -303,7 +349,10 @@
               pkgs.curl
               pkgs.openssl
             ];
-            shellHook = ''
+            shellHook = dotenvLoader + ''
+              # Same loader the commands use: a bare `nix develop` with no direnv should still see
+              # the project's env. A no-op when direnv has already exported it.
+              _load_project_dotenv "$PWD"
               echo "${project} dev shell — $(node --version)"
               echo "env: nix run .#env-doctor (${toString (builtins.length envNames)} catalogued vars)"
               echo "stack: nix run .#stack-up"

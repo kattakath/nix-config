@@ -134,3 +134,68 @@ shellHook = ''
   echo "env: run 'nix run .#env-doctor' (${toString (builtins.length envNames)} catalogued vars)"
 '';
 ```
+
+
+## Loading the project's `.env` files inside the flake
+
+`.envrc` covers an interactive `cd`; this covers everything else — `nix run .#deploy-prod` from a
+script, a CI step, a shell with no direnv hook. Define it once at the top-level `let` and use it in
+BOTH the shared command `prelude` and the `shellHook`, so a command behaves identically either way.
+
+It sets a name **only when unset**, so the file order is the reverse of `.envrc`'s: first mention
+wins here, last wins there, and both end up with
+`ambient env > .env.development.local > .env.local > .env`. When direnv has already run, this is a
+no-op. It never echoes a value.
+
+```nix
+dotenvLoader = ''
+  _load_dotenv() {
+    [ -f "$1" ] || return 0
+    while IFS= read -r _line || [ -n "$_line" ]; do
+      # The empty pattern is written with DOUBLE quotes on purpose: a pair of single
+      # quotes terminates a Nix indented string, so the obvious spelling would end this
+      # block mid-function. (Writing that fact out plainly, for the same reason.)
+      case "$_line" in "" | '#'*) continue ;; esac
+      _line="''${_line#export }"
+      _key="''${_line%%=*}"
+      # Skip anything that is not a plain NAME= assignment (blank keys, `foo bar`, etc.).
+      case "$_key" in "" | *[!A-Za-z0-9_]*) continue ;; esac
+      _val="''${_line#*=}"
+      # Strip one layer of surrounding quotes, the only quoting dotenv files really use.
+      case "$_val" in
+        \"*\") _val="''${_val#\"}"; _val="''${_val%\"}" ;;
+        \'*\') _val="''${_val#\'}"; _val="''${_val%\'}" ;;
+      esac
+      # Indirect expansion: only set the name if the caller has not already exported it.
+      [ -n "''${!_key:-}" ] || export "$_key=$_val"
+    done < "$1"
+    unset _line _key _val
+  }
+  _load_project_dotenv() {
+    _load_dotenv "$1/.env.development.local"
+    _load_dotenv "$1/.env.local"
+    _load_dotenv "$1/.env"
+  }
+'';
+```
+
+Then:
+
+```nix
+prelude   = dotenvLoader + ''
+  export PRJ="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+  _load_project_dotenv "$PRJ"
+'';
+shellHook = dotenvLoader + ''
+  export PROJECT_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+  _load_project_dotenv "$PROJECT_ROOT"
+'';
+```
+
+**The empty `case` pattern must be written `""`.** A pair of single quotes terminates a Nix
+indented string, so the obvious spelling ends the block mid-function — and a comment *explaining*
+that trap hits it too, which is why the wording above avoids the literal sequence.
+
+Prove it with a fixture instead of by reading: three files setting the same name plus one ambient
+`export`, then assert ambient wins and the files rank `.env.development.local > .env.local > .env`.
+Check a quoted value with spaces and an `export `-prefixed line survive.
