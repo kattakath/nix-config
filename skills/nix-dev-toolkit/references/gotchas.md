@@ -160,3 +160,36 @@ unset TOKEN
 ```
 
 Never echo it, never write it to a file, never put it in a log line.
+
+## `.envrc` is silently not committed
+
+**Symptom.** direnv works for you, and for nobody else who clones the repo. `git status` is clean;
+`.envrc` simply is not in the tree.
+
+**Cause.** The near-universal `.gitignore` line `.env*` matches `.envrc` as well.
+
+**Fix.** `!.envrc` after it, and ignore `.envrc.local` and `/.direnv/` explicitly. Confirm with
+`git check-ignore -v .envrc`, which names the offending line and is faster than guessing.
+
+## The dev shell claims direnv is inactive while direnv is loading it
+
+**Symptom.** `cd` into the repo and the shell banner prints "direnv is not active — run
+`direnv allow`", during the direnv load itself.
+
+**Cause.** `DIRENV_DIR` is exported only once direnv has finished producing the environment. While
+it is still evaluating `.envrc` — which is when `use flake` runs your `shellHook` — only
+`DIRENV_IN_ENVRC` is set.
+
+**Fix.** Test both: `[ -z "${DIRENV_DIR:-}${DIRENV_IN_ENVRC:-}" ]`.
+
+## A pair of single quotes ends a Nix indented string
+
+**Symptom.** A syntax error pointing at an apparently innocent shell line — often a `case` arm with
+an empty pattern, or a `listen_addresses` argument.
+
+**Cause.** Inside `''…''`, two single quotes are the terminator (and the escape prefix). Shell code
+that legitimately contains them ends the string early.
+
+**Fix.** Write the empty pattern as `""`, and reword any comment that would contain the literal
+sequence — a comment *explaining* this trap triggers it too, which is a genuinely confusing five
+minutes. Where the two characters are unavoidable, `'''` escapes to a literal pair.
