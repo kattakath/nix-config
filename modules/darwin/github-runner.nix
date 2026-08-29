@@ -283,6 +283,16 @@ in
           # `spawnSync("openssl", ...)` bare-name — resolves via PATH, and its
           # absence here surfaced as `res.status === null` (ENOENT) the moment
           # the runner ran a real e2e job for the first time.
+          #
+          # `postgresql` added 2026-08-29, same failure shape as openssl. The app repo's CI used to
+          # provision a throwaway NEON BRANCH for its integration/e2e tiers; Neon is dead and its
+          # replacement (Nile) has no branching, so those jobs now `initdb` their OWN ephemeral
+          # cluster per run (`scripts/ci-pg-cluster.mts`) and drop it in a finally. That needs
+          # initdb/pg_ctl/psql on PATH — without it the job failed `spawnSync psql ENOENT`. It must
+          # carry pgvector: migration `20260821025000_enable_pgvector_extension` does
+          # `CREATE EXTENSION vector`, and a plain postgresql cannot satisfy it. The cluster is the
+          # JOB's own (private data dir + socket, no TCP), so nothing here is shared with, or able
+          # to reach, the operator's `dontsell_dev`/`ragdb` server.
           path = with pkgs; [
             bash
             coreutils
@@ -290,6 +300,7 @@ in
             gnutar
             gzip
             openssl
+            (postgresql_16.withPackages (p: [ p.pgvector ]))
             nix
             cachix
           ];
