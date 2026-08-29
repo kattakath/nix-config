@@ -85,6 +85,44 @@ Generate two commands from it:
 Full rendering pattern, including the TSV trick that avoids quoting problems:
 **`references/env-catalogue.md`**.
 
+## Supplying the values: direnv
+
+The catalogue documents variables; it does not provide them. Without this step, pointing the
+toolkit at a different GCP project or Vercel token means editing a global shell profile — which
+then leaks into the next repo. Give the project its own environment instead, scoped to the
+directory and gone when you leave it.
+
+Write a committed `.envrc` (assets/`envrc-template`) holding the load ORDER and no values:
+
+```bash
+use flake
+dotenv_if_exists .env                       # lowest precedence
+dotenv_if_exists .env.local
+dotenv_if_exists .env.development.local     # highest — direnv is last-wins
+source_env_if_exists .envrc.local           # per-operator, gitignored, a SHELL file
+```
+
+`.envrc.local` being shell (not dotenv) is the point: it can compute a value rather than store one —
+`export VERCEL_TOKEN="$(security find-generic-password -s vercel-token -w)"`.
+
+**Also load the same files inside the flake**, in the shared `prelude` and the `shellHook`. direnv
+only covers an interactive `cd`; `nix run .#deploy-prod` from a script, a CI step, or a shell with
+no direnv hook would otherwise see none of it. Set each name **only when unset**, which means the
+file order there is REVERSED — first mention wins — producing the same precedence as direnv's
+last-wins, and leaving anything already exported untouched. See `references/env-catalogue.md` for
+the loader.
+
+Two things that will bite:
+
+- The usual `.gitignore` line `.env*` **also ignores `.envrc`**. Add `!.envrc`, and ignore
+  `.envrc.local` and `/.direnv/`.
+- Detect direnv with `[ -z "${DIRENV_DIR:-}${DIRENV_IN_ENVRC:-}" ]`. While direnv is still
+  evaluating `.envrc` only the latter is set, so checking `DIRENV_DIR` alone makes the shell print
+  "direnv is not active" during the very direnv load it is advising.
+
+Verify it with a throwaway fixture rather than by inspection: three files each setting the same
+name, plus one ambient `export`, then assert ambient beats all three and the files rank correctly.
+
 ## The local stack
 
 Make services **project-local and socket-only** so they can never collide with, or damage, anything
@@ -124,15 +162,19 @@ the wrong trade. Say so in a comment rather than leaving it to be rediscovered.
 ## Workflow
 
 1. Harvest env vars and CLIs from the source (commands above).
-2. Copy **`assets/flake-template.nix`** to the repo root as `flake.nix`.
+2. Copy **`assets/flake-template.nix`** to the repo root as `flake.nix`, and
+   **`assets/envrc-template`** as `.envrc`.
 3. Replace the `project` binding, fill `envCatalogue` from the harvest, add the project's CLIs to
    `devTools`, and delete any stack service the project does not use.
-4. Add the state dir to `.gitignore`.
+4. Add the state dir to `.gitignore`, plus `!.envrc` (an existing `.env*` line ignores it),
+   `.envrc.local` and `/.direnv/`. Then `direnv allow`.
 5. Validate: `nix flake check` (builds and shellchecks every command), then
    `nix develop --command <cli> --version` for each CLI the project relies on.
 6. Smoke-test the stack end to end: `nix run .#stack-up`, apply the project's real migrations,
    confirm the extension loaded, `nix run .#stack-down`, and verify no other database was touched.
-7. Commit `flake.nix`, `flake.lock`, and the `.gitignore` change together.
+   Smoke-test the env too: a fixture with the same name in all three dotenv files plus one ambient
+   `export`, asserting ambient wins and `env-doctor` flips `MISSING` → `set`.
+7. Commit `flake.nix`, `flake.lock`, `.envrc`, and the `.gitignore` change together.
 
 Prefer adding a command to the flake over documenting a manual procedure in a README — a
 `writeShellApplication` is checked at build time; a README is not.
@@ -153,3 +195,6 @@ Prefer adding a command to the flake over documenting a manual procedure in a RE
 - **`assets/flake-template.nix`** — a working, genericised starting point with the dev shell, env
   catalogue, Postgres+pgvector stack and lifecycle apps already wired. Copy and adapt; the
   `# ADAPT:` markers show what must change per project.
+- **`assets/envrc-template`** — the committed `.envrc`: `use flake`, the three dotenv files in
+  precedence order, and `.envrc.local` for per-operator overrides that compute rather than store a
+  secret. Holds no values, so it is safe in git.
