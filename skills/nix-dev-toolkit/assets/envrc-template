@@ -1,0 +1,28 @@
+# direnv entry point (https://direnv.net) — loaded on `cd` into this repo, so the dev shell AND
+# every `nix run .#<app>` see the same project-scoped environment without touching global secrets.
+#
+# Run `direnv allow` once after cloning (and again whenever this file changes — that prompt is
+# direnv refusing to execute a file you have not read, which is the point of it).
+#
+# WHY THIS EXISTS: switching between projects used to mean re-pointing global credentials —
+# `gcloud config set project`, a different VERCEL_TOKEN in the shell profile, and so on. With this,
+# each repo carries its own values and they vanish again when you `cd` out.
+
+use flake
+
+# Project env files, LOWEST precedence first — direnv's `dotenv` lets a later file override an
+# earlier one, so this ordering deliberately mirrors Next.js's own precedence
+# (.env.development.local > .env.local > .env). All three are gitignored; none belongs in git.
+dotenv_if_exists .env
+dotenv_if_exists .env.local
+dotenv_if_exists .env.development.local
+
+# Per-operator overrides, highest precedence, never committed (.envrc.local is gitignored). This is
+# a SHELL file, not a dotenv one, so it can compute values and call out to a password manager
+# rather than storing a secret in plaintext. For example:
+#
+#   export CLOUDSDK_CORE_ACCOUNT=someone-else@example.com
+#   export CLOUDSDK_CORE_PROJECT=my-sandbox
+#   export VERCEL_TOKEN="$(security find-generic-password -s vercel-token -w)"
+#
+source_env_if_exists .envrc.local
