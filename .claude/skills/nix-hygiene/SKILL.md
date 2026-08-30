@@ -17,8 +17,13 @@ Stop gate + `/eval` (`git add` → `nix flake check`), CI `nix-ci.yml`.
 **This skill:** judgmental hygiene — architecture, host scope, docs↔code,
 abandoned experiments, comment rot — then **fix** and **re-gate**.
 
-Canonical architecture/conventions: root [`CLAUDE.md`](../../../CLAUDE.md).
-Do not restate the whole fleet map; open CLAUDE.md when unsure.
+Canonical conventions + the path index: root [`CLAUDE.md`](../../../CLAUDE.md) (kept lean —
+under the 40k context-lint limit). The **full** fleet map lives in
+[`docs/repo-map.md`](../../../docs/repo-map.md), with
+[`docs/mcp-gateway.md`](../../../docs/mcp-gateway.md) and
+[`docs/secrets-and-keychain.md`](../../../docs/secrets-and-keychain.md) for those two surfaces.
+Do not restate the fleet map here; open those when unsure — and when repo shape changes, fix
+**both** the CLAUDE.md one-liner and the repo-map section.
 
 ## When to use
 
@@ -64,7 +69,8 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
 ### A. Surface inventory
 
 - [ ] `git status` — no surprise WIP; stage only intentional hygiene.
-- [ ] Touched/scope files still match CLAUDE.md story (no orphan modules).
+- [ ] Touched/scope files still match the CLAUDE.md + `docs/repo-map.md` story (no orphan
+      modules, no path whose one-liner and map section disagree).
 - [ ] Flake apps in `flake.nix` have matching `packages/*` and runbook mentions if user-facing.
 - [ ] Reverse: runbooks mention only apps/paths that still exist.
 
@@ -87,7 +93,8 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
 - [ ] Comments explain **why**, not restate the code.
 - [ ] Remove "we tried X then Y" experiment narratives unless they prevent a known footgun (one sentence max).
 - [ ] `docs/*-runbook.md` and skill frontmatter match current commands.
-- [ ] CLAUDE.md skill/command lists include this skill after add.
+- [ ] CLAUDE.md skill/command lists (§ Navigating the Codebase) include this skill after add,
+      and `docs/repo-map.md` § Claude Code surface describes it.
 
 ### E. Community patterns
 
