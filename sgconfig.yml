@@ -1,0 +1,23 @@
+# ast-grep project config — the STRUCTURAL lint layer, deliberately NOT part of
+# treefmt.
+#
+# WHY a separate layer: nixfmt/statix/deadnix (treefmt.nix) all *rewrite* files,
+# so they belong in `nix fmt`. ast-grep here only *reports* — the rules below
+# mechanise conventions this repo already documents in prose (CLAUDE.md
+# § Conventions, .claude/rules/launchd-naming.md), and none of them has a
+# mechanical `fix:`. Wiring a report-only checker into treefmt would make
+# `nix fmt` — and the pre-commit hook, which is literally the same binary —
+# fail with no way to `nix fmt` your way out. So it is its own flake check:
+# `nix build .#checks.<system>.ast-grep` (see flake.nix § Checks).
+#
+# Paths are relative to THIS file, which is why it must stay at the repo root.
+# Namespaced under ast-grep/ because a bare rules/ would collide conceptually
+# with .claude/rules/ (Claude prompt rules — a different thing entirely).
+ruleDirs:
+  - ./ast-grep/rules
+
+# `ast-grep test` fixtures: every rule carries valid/invalid snippets so the gate
+# can never rot into a green check that matches nothing. Run by the same flake
+# check, BEFORE the scan.
+testConfigs:
+  - testDir: ./ast-grep/rule-tests

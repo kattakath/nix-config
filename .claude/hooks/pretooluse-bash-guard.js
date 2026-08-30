@@ -54,6 +54,15 @@
  * bigger blast radius than one ad-hoc scoped API call. Flip
  * RULE1_API_HOST_BLOCKING to `true` to restore the hard block.
  *
+ * NEW RULE (2026-08-30, deploy-rs adoption review): Rule 1b hard-blocks the two
+ * LIVE-FLEET ACTIVATIONS that this public repo can launch and that both report
+ * SUCCESS while doing damage — `deploy` (deploy-rs; the node here points at the
+ * SITE-FREE nixpi, and magic rollback only reverts an UNREACHABLE host) and
+ * `darwin-rebuild switch --flake .#macos` (drops the private nix-personal layer).
+ * Both traps were already documented loudly in CLAUDE.md/README/flake.nix, but
+ * documentation is not a brake, and adding the `deploy` CLI to the darwin devShell
+ * is what first put one of them on PATH. Same tier as CF_TERRANIX_APP.
+ *
  * Contract (superhook.js, NOT the raw Claude Code hook protocol, since this
  * always runs wrapped): always exit 0; stdout is
  * `{"decision":"approve"}` or `{"decision":"block","reason":"...","systemMessage":"..."}`.
@@ -123,6 +132,15 @@ const DESKTOP_COMMANDER_TOOLS = new Set(["ls", "find", "stat", "ps", "kill"]);
 
 // Rule 1: terranix apply/destroy apps that mutate Cloudflare infra via the API.
 const CF_TERRANIX_APP = /\bnix\s+run\s+\.#cf-(?:tunnel|mcp)-(?:apply|destroy)\b/;
+// Rule 1b (2026-08-30 review): the ONE `darwin-rebuild` shape that is a trap.
+// Matched per-SEGMENT alongside an `argv0 === "darwin-rebuild"` test rather than
+// as one big regex over the whole command, so flag ORDER is irrelevant
+// (`darwin-rebuild --flake .#macos switch` reads the same as the canonical form)
+// and a `.#macos` merely mentioned in a neighbouring `git`/`echo` segment can
+// never trigger it. `build`/`check`/`--dry-run` shapes stay approved — they do
+// not activate.
+const DARWIN_SWITCH_VERB = /\bswitch\b/;
+const DARWIN_SWITCH_PUBLIC_FLAKE = /--flake[=\s]+\.#macos\b/;
 // Rule 1/2: an http(s) URL's host, extracted so "cloudflare" merely appearing in
 // a path/query on a local host is never mistaken for a real API call. `i` flag:
 // schemes are case-insensitive (`HTTP://...` is shell/curl-valid and was
@@ -183,7 +201,11 @@ function main() {
   // `/opt/homebrew/bin/wrangler` and `./wrangler` are caught the same as a
   // bare `wrangler` (a raw-string regex previously missed both — 2026-08-19
   // push-review finding).
-  const segs = segments(cmd).map(argv0);
+  // rawSegs keeps the FULL text of each segment (Rule 1b needs the flags, not
+  // just argv0); segs is the argv0-per-segment view every other rule reasons in.
+  // Same index space, so `segs[i]` is `rawSegs[i]`'s command name.
+  const rawSegs = segments(cmd);
+  const segs = rawSegs.map(argv0);
   const nudges = [];
 
   // ---- Rule 1: Cloudflare API calls (terranix apply/destroy, wrangler, api.cloudflare.com) ----
@@ -194,6 +216,40 @@ function main() {
       "This applies/destroys Cloudflare infra. Use mcp__cloudflare__execute (or __search) instead, or confirm this is intentional and re-run manually.",
     );
   }
+  // ---- Rule 1b: live-fleet activation launched from THIS public repo ----------
+  // Ranked with the terranix apply block, not with the Rule 3 nudges, because
+  // both of these SUCCEED and do their damage silently — nothing downstream
+  // reports failure:
+  //   `deploy` — the deploy-rs CLI now ships in the darwin devShell, so it is on
+  //     PATH for the first time. `deploy.nodes.nixpi` in THIS repo points at the
+  //     SITE-FREE public `nixosConfigurations.nixpi` (`hostedSites` defaults to
+  //     `[ ]`), so a deploy from this tree hands the live Pi a Caddy with zero
+  //     vhosts — every site goes dark while sshd and the primary tunnel stay up.
+  //     deploy-rs reports SUCCESS, and magicRollback cannot save it: rollback
+  //     fires only for an UNREACHABLE host, and a site-free Pi is reachable.
+  //     Worse, a bare `deploy` with no `--targets` fans out over EVERY node
+  //     (upstream `src/cli.rs` defaults the target to `.`), so the argument-less
+  //     form IS a live-Pi deploy. Blocked in every shape, `--dry-activate`
+  //     included: that still copies a closure to the live Pi, and the whole point
+  //     is that the RIGHT flake to deploy from is nix-personal, not this one.
+  //   `darwin-rebuild switch --flake .#macos` — silently drops the private
+  //     nix-personal layer (CLAUDE.md § Important Notes). `nrs` is the real entry.
+  // Neither block is a veto — the operator can still run either by hand.
+  if (segs.includes("deploy")) {
+    emit(
+      "block",
+      "`deploy` (deploy-rs) from this public repo targets the SITE-FREE nixosConfigurations.nixpi — a successful deploy dark-sites the live Pi and magic rollback cannot catch it.",
+      "Deploy from the private nix-personal flake, not this one. A bare `deploy` also fans out over every node — always `--targets`. Confirm intent and run it manually if this really is what you want.",
+    );
+  }
+  if (rawSegs.some((seg, i) => segs[i] === "darwin-rebuild" && DARWIN_SWITCH_VERB.test(seg) && DARWIN_SWITCH_PUBLIC_FLAKE.test(seg))) {
+    emit(
+      "block",
+      "`darwin-rebuild switch --flake .#macos` from this public repo silently drops the private nix-personal layer.",
+      "Use the `nrs` wrapper (private composition), or ask first. `darwin-rebuild build --flake .#macos` is fine for verification.",
+    );
+  }
+
   if (segs.includes("wrangler")) {
     emit(
       "block",

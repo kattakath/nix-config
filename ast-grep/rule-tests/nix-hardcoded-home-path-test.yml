@@ -1,0 +1,29 @@
+# Proves the rule FIRES. Without these, a typo'd pattern yields a permanently
+# green check that inspects nothing — the main failure mode of a lint gate.
+id: nix-hardcoded-home-path
+valid:
+  # The correct runtime-path forms.
+  - '{ dir = "${config.home.homeDirectory}/Developer"; }'
+  - '{ dir = "$HOME/Developer"; }'
+  - '{ dir = "/Users/$USER/Developer"; }'
+  # Shared/system dirs are not per-user homes.
+  - '{ dir = "/Users/Shared/Screengrab"; }'
+  # A comment is not a string_fragment — prose may cite a path freely.
+  - |
+    {
+      # historically this lived at /Users/ismail/Developer/x
+      dir = "$HOME/Developer/x";
+    }
+  # The OTHER path axis: a Nix source literal must stay repo-relative and is
+  # never flagged.
+  - '{ source = ../../claude/CLAUDE.md; }'
+invalid:
+  - '{ dir = "/Users/ismail/Developer/x"; }'
+  - '{ dir = "/home/ismail/.config/foo"; }'
+  # Inside an indented string (a script body) counts too.
+  - |
+    {
+      script = ''
+        cp thing /Users/ismail/Library/Foo
+      '';
+    }

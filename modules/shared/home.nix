@@ -27,6 +27,9 @@
   config,
   fullName,
   userEmail,
+  # The fleet's DNS zone (identityArgs in flake.nix). Used to build nixpi's
+  # tunnelled SSH hostname below, so the domain is never re-typed.
+  domainName,
   # Fleet operator ed25519 PUBLIC key (secrets/operator-key.nix) — single source
   # for authorizedKeys + agenix recipient + git SSH allowed_signers principal.
   operatorSshKey,
@@ -364,6 +367,7 @@ in
     ./desktop-aesthetics.nix # Terminal.app 16pt (all darwin) + wallpaper (opt-out; macvm opts out)
     ./wireguard-configs.nix # operator-managed WG confs → ~/.config/wireguard (no autostart)
     ./claude-otel.nix # local OTel Collector for Claude Code's routing-decision telemetry (macos only)
+    ./chromium.nix # ungoogled-chromium (Homebrew cask) config: sideloaded iCloud Passwords + its native host
     ./git-allowed-signers.nix # extra allowed_signers principals (option only; nix-personal fills)
     # Local-first RAG stack (loopback launchd Postgres+pgvector + Ollama + in-DB
     # embed()), from the extracted flake (github:kattakath/nix-local-rag).
@@ -396,6 +400,12 @@ in
   # the programs.claude-code.settings.env block below that points Claude Code
   # at it.
   services.claudeOtel.enable = isMacosHost;
+
+  # ungoogled-chromium's declarative surface — real Mac only, since only
+  # hosts/macos.nix declares the cask (macvm keeps a lean Homebrew list). Writes
+  # the External Extensions + NativeMessagingHosts files that make the sideloaded
+  # iCloud Passwords extension talk to macOS Passwords.app; see chromium.nix.
+  programs.ungoogledChromium.enable = isMacosHost;
 
   # Spotlight-launchable "Android Emulator" + "Mac VM" — click (or re-click)
   # like any normal app: launches if not running, brings the existing window
@@ -939,6 +949,44 @@ in
           User = "ismail";
           IdentityFile = operatorPrivateKey;
           ForwardAgent = true;
+          StrictHostKeyChecking = "accept-new";
+        };
+
+        # nixpi over the Cloudflare Tunnel — the ONLY way to reach the Pi when the
+        # Mac is not on its LAN (it has no public IP and no port-forward; the
+        # `*.local` block above covers the mDNS path).
+        #
+        # This block is why it lives in Nix rather than in a hand-edit: the
+        # runbooks have long said "add a `ProxyCommand cloudflared access ssh
+        # --hostname %h` to ~/.ssh/config", but that file is a READ-ONLY
+        # /nix/store symlink owned by this module — the instruction was
+        # unfollowable. Declaring it here makes it real, and makes it apply to
+        # BOTH deploy-rs legs at once: `deploy` shells out to the system `ssh` for
+        # activation AND `nix copy --to ssh://…` for the closure, and both read
+        # ~/.ssh/config. (deploy-rs joins its own `sshOpts` with spaces into
+        # NIX_SSHOPTS, which nix re-splits on whitespace, so a spaced
+        # `-o ProxyCommand=…` there would be mangled for the copy leg. ~/.ssh/config
+        # is the one place a spaced ProxyCommand survives both.)
+        #
+        # cloudflared comes from the store, NOT `/opt/homebrew/bin` and not bare
+        # PATH: ssh runs the ProxyCommand via `/bin/sh -c` with whatever
+        # environment the caller had, so a PATH assumption turns into an opaque
+        # "Connection closed" at the worst possible moment. The Homebrew cask
+        # (hosts/macos.nix) stays for interactive `cloudflared tunnel` / `access
+        # login` work; a duplicated Go binary is cheaper than a nondeterministic
+        # deploy path.
+        #
+        # This path ALSO needs a Cloudflare Zero Trust *Access Application* for the
+        # hostname — hand-created, not modelled in terranix, and it silently
+        # vanished once (2026-08-20). Symptom + fix: docs/private-home-modules.md.
+        "nixpi.${domainName}" = {
+          User = config.home.username;
+          IdentityFile = operatorPrivateKey;
+          ProxyCommand = "${lib.getExe pkgs.cloudflared} access ssh --hostname %h";
+          # A fresh SD flash reuses the hostname with a BRAND-NEW host key, so a
+          # pinned entry would abort every post-reflash connection. accept-new
+          # still refuses a CHANGED key (unlike `no`) — run
+          # `ssh-keygen -R nixpi.${domainName}` after a reflash.
           StrictHostKeyChecking = "accept-new";
         };
 

@@ -1,0 +1,39 @@
+# Guards the one invariant every hook in .claude/hooks/ states in its own header
+# and which nothing enforced until now: "a PostToolUse lint must never wedge a
+# turn: any unexpected error exits 0".
+#
+# An uncaught throw in a hook is not a soft failure — Claude Code surfaces the
+# non-zero exit as a hook error, and for a Stop/PreToolUse hook that means the
+# turn or the tool call is blocked with a stack trace instead of a decision.
+# JSON.parse is the single likeliest thrower in this codebase: every hook parses
+# untrusted event JSON off stdin, and several parse on-disk state files that a
+# crashed earlier run may have left truncated.
+#
+# These 10 files are otherwise UNLINTED — .github/workflows/claude-config-lint.yml
+# checks agent/command/context frontmatter, never the hook JS — so this is the
+# first mechanical check any of that 1.3k lines has ever had.
+id: hook-json-parse-must-be-guarded
+language: javascript
+severity: error
+
+# Scoped to the hooks, not all JS: outside a hook a throwing parse is ordinary
+# and correct. Kept as a glob so a NEW hook file is covered automatically.
+files:
+  - '.claude/hooks/*.js'
+
+# `stopBy: end` walks all the way to the file root, so a parse nested inside a
+# helper's try (or a try several blocks up) is accepted.
+rule:
+  pattern: JSON.parse($$$ARGS)
+  not:
+    inside:
+      kind: try_statement
+      stopBy: end
+
+message: Unguarded JSON.parse in a Claude Code hook — a malformed payload would wedge the turn.
+note: |
+  Wrap it in try/catch and degrade gracefully (`process.exit(0)` for an advisory
+  hook, an explicit allow/approve for a gate). Every existing hook already does
+  this — see .claude/hooks/nix-home-path-lint.js (stdin parse) and
+  .claude/hooks/superhook.js (state-file parse) for the two shapes. Decoder for
+  what a hook failure looks like to the operator: docs/claude-hook-messages.md.

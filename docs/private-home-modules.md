@@ -105,11 +105,49 @@ ingress):
 nixos-rebuild switch --flake ~/path/to/private#nixpi --target-host ismail@nixpi.kattakath.com
 ```
 
+**Preferred: deploy-rs with magic rollback.** `nixos-rebuild --target-host` has no
+undo — a generation that breaks sshd, the tunnel connector, or networking leaves
+the Pi simply *gone*, recoverable only by pulling the SD card and reflashing
+(`docs/nixpi-sd-flashing-runbook.md`, ~40 min). The public engine therefore
+exports a `deploy.nodes.nixpi` (`magicRollback`/`autoRollback` on, `remoteBuild`
+off) and the private flake is its **intended caller** — re-export the node against
+*your* `nixosConfigurations.nixpi` so the rollback semantics, timeouts and ssh
+plumbing stay single-sourced in the public tree:
+
+```nix
+# private flake — reuse the public node's settings, swap the target config
+deploy.nodes.nixpi = nix-config.deploy.nodes.nixpi // {
+  profiles.system = nix-config.deploy.nodes.nixpi.profiles.system // {
+    path = deploy-rs.lib.aarch64-linux.activate.nixos self.nixosConfigurations.nixpi;
+  };
+};
+# For the schema check, copy the public tree's `deployChecksFor` (aarch64-only, and it
+# strips string context off `profiles.*.path`) rather than the README's
+# `mapAttrs … deploy-rs.lib`, which emits x86_64 checks and build-depends on the Pi's
+# whole closure.
+```
+
+```bash
+deploy --targets ~/path/to/private#nixpi              # magic rollback armed
+deploy --targets ~/path/to/private#nixpi --dry-activate  # rehearse first
+```
+
+`deploy` with **no** `--targets` fans out over every node — always name the target.
+And never `deploy --targets github:kattakath/nix-config#nixpi`: that node points at
+the site-free public config, so a *successful* deploy takes all four sites down.
+Magic rollback will not catch it (it reverts an **unreachable** host; a site-free Pi
+is reachable).
+
 Reaching `nixpi.kattakath.com` needs a Cloudflare Access SSH proxy (it's a
-tunnelled hostname, not directly reachable) — either a permanent
-`~/.ssh/config` `Host nixpi.kattakath.com` block with `ProxyCommand cloudflared
-access ssh --hostname %h` (see `docs/nixpi-sd-flashing-runbook.md`), or a
-scoped `NIX_SSHOPTS="-F <config>"` for one-off use.
+tunnelled hostname, not directly reachable). The public engine now declares this:
+`modules/shared/home.nix` ships a `Host nixpi.kattakath.com` block with
+`ProxyCommand <store-path>/bin/cloudflared access ssh --hostname %h`, so plain
+`ssh`, `nixos-rebuild --target-host`, and both deploy-rs legs (`ssh` for activation,
+`nix copy` for the closure) all just work after activation — no hand-edit, which was
+never possible anyway since `~/.ssh/config` is a read-only `/nix/store` symlink.
+Do **not** try to pass the ProxyCommand through deploy-rs' `sshOpts`: deploy-rs
+space-joins them into `NIX_SSHOPTS` and nix re-splits on whitespace, mangling it for
+the copy leg. `NIX_SSHOPTS="-F <config>"` remains the one-off escape hatch.
 
 **This depends on a Cloudflare Zero Trust *Access Application* existing for
 `nixpi.kattakath.com`** (Zero Trust → Access → Applications) — a real Cloudflare

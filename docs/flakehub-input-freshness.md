@@ -16,6 +16,47 @@ cover.
 
 [bp]: https://docs.determinate.systems/flakehub/best-practices/
 
+## Shape vs. revisions — `nix flake lock`, not `nix flake update`
+
+Two different edits regenerate `flake.lock`, and only one of them is a bump:
+
+| Edit | Command | What moves |
+|---|---|---|
+| New/changed **`follows`** (the input diet — see [`repo-map.md`](repo-map.md) § `flake.lock`) | `nix flake lock` | Graph **shape** only. Nodes collapse or disappear; **no rev changes.** |
+| Freshness | `nix flake update` (all) / `nix flake update <name>` (one) | **Revisions.** |
+
+A bare `nix flake update` after a `follows` edit buries the shape change in 33 inputs' worth of
+unrelated churn — always `nix flake lock` for the former.
+
+**Do not review a shape change by eyeballing `git diff flake.lock`.** `nix flake lock`
+*renumbers* nodes when duplicates collapse, so the diff shows what look like rev bumps that are
+really renames (`home-manager_2` → `home-manager`, `flake-parts_5` → `flake-parts_3`). Compare
+the **set of `(source-identity, rev)` pairs** instead — nothing may be ADDED:
+
+```bash
+git add -A                                    # flakes evaluate the git tree
+git show HEAD:flake.lock > /tmp/lock.before   # or stash a copy before re-locking
+python3 - <<'PY' > /tmp/A
+import json
+N = json.load(open('/tmp/lock.before'))['nodes']
+for x in sorted({(l.get('type'), l.get('owner'), l.get('repo'), l.get('url'), l.get('ref'),
+                  l.get('rev') or l.get('narHash'))
+                 for n, v in N.items() if n != 'root' for l in [v['locked']]}, key=str):
+    print(x)
+PY
+# …repeat against ./flake.lock into /tmp/B, then:
+comm -13 /tmp/A /tmp/B   # ADDED — MUST be empty for a shape-only change
+comm -23 /tmp/A /tmp/B   # DROPPED — the diet
+```
+
+Node count is the other measurable: `python3 -c "import json;print(len(json.load(open('flake.lock'))['nodes']))"`.
+
+**Two checks are `self`-source-hashed, so their drvPath moves on *any* `flake.nix` byte** —
+`checks.<sys>.formatting`, `checks.<sys>.pre-commit`, and `checks.<sys>.ast-grep` all take the
+flake tree as `src`. A changed hash there is **not** evidence that a shape change altered
+anything; the meaningful invariants are the host `toplevel`s and the devShell, which stay
+byte-identical across a pure dedupe.
+
 ## Why a GitHub App instead of `GITHUB_TOKEN`
 
 A PR opened by a workflow using the built-in `GITHUB_TOKEN` **cannot trigger
