@@ -3,7 +3,7 @@ description: >
   Fleet-wide consistency sweep — branches/worktrees, open PRs, CI, cross-repo
   flake pins, Nix store GC, host re-activation — across every repo in the
   fleet manifest. Composes the fleet-doctor skill with nix-hygiene, git-purity
-  and pr-consolidation.
+  and pr-title.
 argument-hint: "[audit|fix] [repo|host]  # e.g. fix | audit nix-personal | fix macvm"
 ---
 
