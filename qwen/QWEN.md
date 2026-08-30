@@ -39,7 +39,9 @@ adds project specifics on top. Keep this file short and specific.
 - **Paths — two axes.** A Nix *source path literal* (`../../foo.nix`) is eval-relative to the
   `.nix` file and must be repo-relative — never "fix" it to `$HOME`/XDG. Only *runtime* paths
   must be `$HOME`/XDG-relative (never a hardcoded `/Users/<name>`). See the repo `CLAUDE.md`.
-- Activation (`darwin-rebuild switch`) is hard to reverse — prefer `build` to verify, and
-  `switch` only when explicitly asked.
+- Activation is hard to reverse — prefer `build` to verify, and `switch` only when
+  explicitly asked. **Never `darwin-rebuild switch --flake .#macos` from this public repo:**
+  it silently drops the private `nix-personal` layer. Use `nrs`, or ask first.
 
-The full project map + conventions live in the repo's `CLAUDE.md`.
+Conventions + the path index live in the repo's `CLAUDE.md` (kept lean); the **full** fleet
+map is `docs/repo-map.md`.

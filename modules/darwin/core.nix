@@ -355,12 +355,8 @@ in
       };
     };
 
-    # Keyboard remapping is available (system.keyboard.*) but intentionally left
-    # at defaults — the operator has no standing Caps-Lock remap. To adopt one:
-    #   keyboard = {
-    #     enableKeyMapping = true;
-    #     remapCapsLockToControl = true;
-    #   };
+    # `system.keyboard.*` is deliberately left at defaults — the operator has no
+    # standing Caps-Lock (or any other) remap.
   };
 
   # Application firewall ON, with stealth mode — reinforces this client Mac's
@@ -474,10 +470,6 @@ in
           chown ${loginName}:staff "$docker_settings" 2>/dev/null || true
         fi
   '';
-
-  # Window manager placeholder — uncomment and configure when adopted:
-  # services.yabai.enable = true;
-  # services.skhd.enable = true;
 
   # Touch ID for sudo — this fleet's sole Mac is Apple Silicon with a sensor.
   security.pam.services.sudo_local.touchIdAuth = true;
