@@ -407,6 +407,15 @@ in
   # iCloud Passwords extension talk to macOS Passwords.app; see chromium.nix.
   programs.ungoogledChromium.enable = isMacosHost;
 
+  # The PUBLIC half of the userscript set. Private ones are added to this same
+  # attrset by the nix-personal flake through `extraHomeModules`, which is the
+  # whole point of keying it — keys must stay distinct across the two repos.
+  # `../../userscripts/…` is a Nix SOURCE literal: repo-relative by definition,
+  # copied into the store at eval. See modules/shared/chromium.nix for the option.
+  programs.ungoogledChromium.userScripts.scripts = {
+    google-photos-icon-nav = ../../userscripts/google-photos-icon-nav.user.js;
+  };
+
   # Spotlight-launchable "Android Emulator" + "Mac VM" — click (or re-click)
   # like any normal app: launches if not running, brings the existing window
   # frontmost if it is. Real Mac only — pointless on macvm itself (no Android
