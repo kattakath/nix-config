@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Google Photos — icon-only nav rail
 // @namespace    kattakath.com
-// @version      1.0.0
+// @version      1.1.0
 // @description  Collapse the Google Photos left navigation to an icon-only rail and hand the reclaimed width to the photo grid.
 // @homepageURL  https://github.com/kattakath/nix-config
 // @downloadURL  https://raw.githubusercontent.com/kattakath/nix-config/main/userscripts/google-photos-icon-nav.user.js
@@ -37,19 +37,20 @@
       --nix-drawer: ${DRAWER}px;
     }
 
-    /* The rail. overflow-x is the safety net: anything the 80px viewport cannot
-       show is CLIPPED rather than re-wrapped, which is what keeps the
-       "Collections" heading, the storage meter and the Privacy/Terms footer from
-       collapsing into a tall unreadable stack. If the label rule below ever
-       stops matching, this alone still yields a rail. */
+    /* The rail. overflow-x prevents re-wrapping: the inner column stays laid out
+       at 256px and the rail shows its leftmost 80px. Note the consequence —
+       clipping is NOT hiding. Any text-only block left visible gets sliced
+       mid-word ("Collec…", "Unlimit…"), so every such block needs its own
+       display:none rule below; overflow-x alone is not enough. */
     div[role="navigation"] {
       width: var(--nix-rail) !important;
       min-width: var(--nix-rail) !important;
       overflow-x: hidden !important;
     }
 
-    /* Pin the inner column at the drawer's natural width so NOTHING reflows —
-       the rail just shows its leftmost 80px. The nav has exactly one child. */
+    /* Pin the inner column at the drawer's natural width so NOTHING reflows.
+       Measured: this column has exactly TWO children — the scrolling tab list
+       (256x740) and the storage footer (256x57), handled separately below. */
     div[role="navigation"] > div {
       width: var(--nix-drawer) !important;
       min-width: var(--nix-drawer) !important;
@@ -68,6 +69,25 @@
     }
     div[role="navigation"] a[role="tab"] > div {
       justify-content: center !important;
+    }
+
+    /* Text-only blocks the tab rules above do not reach. Both are pure labels
+       with no icon, so at 80px they can only ever be clipped garbage.
+
+       1. The "Collections" section heading — a bare class-only <div> with no
+       role and no aria, so the durable handle is "direct child of the tab list
+       that contains no tab". Verified: exactly ONE visible match. */
+    div[role="navigation"] > div > div:first-child > div:not(:has(a[role="tab"])) {
+      display: none !important;
+    }
+
+    /* 2. The "Unlimited storage" footer — the second of the column's two
+       children (256x57 at the bottom). nth-child(2) rather than :last-child on
+       purpose: if Google ever ships a one-child nav, :last-child would resolve
+       to the tab list and blank the whole rail, while this degrades to a
+       no-op. */
+    div[role="navigation"] > div > div:nth-child(2) {
+      display: none !important;
     }
 
     /* Hand the reclaimed 176px to the grid. Both boxes are position:absolute,
