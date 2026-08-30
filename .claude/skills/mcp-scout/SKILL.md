@@ -14,7 +14,7 @@ description: >
 Adoption pipeline (installation IS declaration; there is no other path):
 
 ```
-Capability need → Discover (registries) → Vet (trust/supply chain) → Declare in mcp.nix (pinned) → /eval → PR → nrs
+Capability need → Discover (registries) → Vet (trust/supply chain) → Declare in mcp.nix (pinned) → /eval → PR → activate
 ```
 
 ## Hard rules
@@ -100,7 +100,7 @@ nix flake check
 
 Then commit on the session's PR branch per
 [pr-consolidation](../../rules/pr-consolidation.md). Activation is the
-operator's move (`nrs` — never `darwin-rebuild` from this public repo);
+operator's move (`activate` — never `darwin-rebuild` from this public repo);
 verify after activation with
 `curl -s http://127.0.0.1:8096/servers/<name>/mcp -o /dev/null -w '%{http_code}'`
 and `tail ~/Library/Logs/mcp-gateway.log`.

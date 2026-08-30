@@ -49,7 +49,7 @@ skill needs to change.
 | `nix flake lock --update-input <sibling>` + `nix flake check`, commit + push **only if check passes** | Committing/pushing anything that isn't this skill's own mechanical fix (stray WIP is reported, never committed) |
 | Deleting a **local-only branch already merged into the repo's default branch** | Force-push, `git reset --hard`, `git clean -f`, any destructive git op |
 | Re-running `nix fmt` / the repo's own format-fix on a repo already being touched | Reactivating a host when the guest/host is unreachable — report as skipped, don't retry-loop |
-| Re-activating macos (`nrs`/`activate`) and macvm (tar-sync + guest `nix run …#macvm`) when their composing repos moved | Disk operations of any kind (Tart disk resize, `diskutil`, anything from the 2026-08-27 macvm incident) |
+| Re-activating macos (`activate`) and macvm (tar-sync + guest `nix run …#macvm`) when their composing repos moved | Disk operations of any kind (Tart disk resize, `diskutil`, anything from the 2026-08-27 macvm incident) |
 | Nixpi: **disk-usage report only** — no GC/activation without an explicit ask (it's the live server; see `docs/nixpi-sd-flashing-runbook.md`) | Rotating secrets/tokens, editing `secrets/*.age`, anything with `secret set` |
 
 These map onto the global Git Safety Protocol (never commit unless asked,

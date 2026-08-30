@@ -183,5 +183,5 @@ git add -A                                        # flakes ignore untracked file
 claude plugin validate --strict plugins/llmstxt   # manifest + component check
 claude plugin validate --strict plugins           # marketplace check
 nix flake check                                   # fleet-wide evaluation gate
-nrs                                               # activate (operator's call)
+activate                                          # activate (operator's call)
 ```
