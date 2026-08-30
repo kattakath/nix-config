@@ -1921,6 +1921,30 @@
                 ast-grep scan --no-ignore hidden --color=never .
                 touch "$out"
               '';
+
+          # Userscript syntax gate. A .user.js is never parsed at build time —
+          # Nix only copies it into the store — so a syntax error ships silently
+          # and surfaces as Violentmonkey's useless "Syntax error?" toast with no
+          # line number. This caught a real one: backticks inside a CSS comment
+          # nested in a GM_addStyle(`…`) template literal terminate the string.
+          # `node --check` is parse-only (no execution), so the GM_* globals a
+          # userscript relies on are irrelevant — exactly the right depth of
+          # check. Also covers nix-personal's scripts by construction, since they
+          # are authored to the same shape and this repo owns the option.
+          userscripts =
+            (pkgsFor system).runCommand "userscripts" { nativeBuildInputs = [ (pkgsFor system).nodejs ]; }
+              ''
+                shopt -s nullglob
+                found=0
+                for f in ${self}/userscripts/*.user.js; do
+                  echo "checking $(basename "$f")"
+                  node --check "$f"
+                  found=1
+                done
+                # A glob that matched nothing would otherwise pass vacuously.
+                [ "$found" = 1 ] || { echo "no userscripts found — glob is stale"; exit 1; }
+                touch "$out"
+              '';
         }
       );
     };
