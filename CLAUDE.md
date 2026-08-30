@@ -122,8 +122,8 @@ One line per path; the *why* and the per-file specifics are in
 
 **Always-applied rules** (`.claude/rules/`):
 [`git-purity.md`](.claude/rules/git-purity.md) (stage `.nix` before eval),
-[`pr-consolidation.md`](.claude/rules/pr-consolidation.md) (one open PR per session; title =
-comma-separated touched components),
+[`pr-title.md`](.claude/rules/pr-title.md) (PR title = comma-separated touched components;
+one PR per change, off `main`),
 [`launchd-naming.md`](.claude/rules/launchd-naming.md) (every launchd unit this repo authors
 exposes a `nix-<kebab>` `arg0` — never a bare `sh`/`python3`).
 
