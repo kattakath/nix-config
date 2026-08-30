@@ -1,116 +1,108 @@
 // ==UserScript==
 // @name         Google Photos — icon-only nav rail
 // @namespace    kattakath.com
-// @version      1.1.0
-// @description  Collapse the Google Photos left navigation to an icon-only rail and hand the reclaimed width to the photo grid.
+// @version      2.0.0
+// @description  Make Google Photos render its own narrow-viewport icon rail at every window width, by replaying its responsive breakpoint unconditionally.
 // @homepageURL  https://github.com/kattakath/nix-config
 // @downloadURL  https://raw.githubusercontent.com/kattakath/nix-config/main/userscripts/google-photos-icon-nav.user.js
 // @updateURL    https://raw.githubusercontent.com/kattakath/nix-config/main/userscripts/google-photos-icon-nav.user.js
 // @match        https://photos.google.com/*
 // @run-at       document-start
-// @grant        GM_addStyle
+// @grant        none
 // @noframes
 // ==/UserScript==
 
-// Why a userscript and not a userstyle: the effect is pure CSS, but every class
-// name in this nav is JSCompiler-generated (RSjvib, oUj9s, U1Qaj, JBVD2d, …) and
-// rotates without notice. The only durable handles are ARIA roles and structure,
-// and the grid additionally has to be told to re-measure — see the resize kick
-// at the bottom. Both selectors and geometry below were read off the live
-// logged-in DOM at 1452px, not inferred.
+// Photos ALREADY ships the layout we want: below a viewport breakpoint it
+// collapses the nav to an 80px icon rail that peeks back to 256px on hover,
+// hides the storage footer, and turns the "Collections" heading into a 1px
+// divider. Measured: identical DOM either side of the breakpoint — same classes,
+// same attributes — so the switch is a pure CSS media query and there is nothing
+// a selector can force.
+//
+// So don't reimplement the rail (v1.x did, and lost: `overflow-x:hidden` clips
+// rather than hides, so every text-only block had to be chased down by hand and
+// three were still leaking). Instead lift Google's own breakpoint rules out of
+// their @media wrapper and re-serve them unconditionally. Consequence worth
+// stating: this file contains NOT ONE Google class name, so the JSCompiler
+// churn that breaks every hand-written Photos userscript cannot break it.
 (() => {
   'use strict';
 
-  const root = document.documentElement;
-  if (!root || root.dataset.nixGooglePhotosRail) return;
-  root.dataset.nixGooglePhotosRail = '1';
+  // Which breakpoint to lift. Photos' rail currently sits at max-width:1007px,
+  // but hardcoding that re-couples us to a number Google owns, so instead take
+  // the WIDEST `screen and (max-width: Npx)` in this band. The band's job is to
+  // exclude the neighbours: phone layouts below it (599px hides the rail
+  // entirely behind a hamburger — not what we want) and the incidental
+  // wide-viewport queries above it (1423px).
+  const BAND_MIN = 800;
+  const BAND_MAX = 1200;
+  const CONDITION = /^screen\s+and\s+\(max-width:\s*(\d+)px\)$/;
 
-  // 80px is Material 3's navigation-rail width — also what Photos itself uses at
-  // narrow viewports, so the icons land on Google's own grid rather than a made-up
-  // one. 256px is the expanded drawer's natural width (measured).
-  const RAIL = 80;
-  const DRAWER = 256;
+  let styleEl = null;
 
-  GM_addStyle(`
-    :root {
-      --nix-rail: ${RAIL}px;
-      --nix-drawer: ${DRAWER}px;
+  // Photos' CSS is ~11 inline <style> blocks, same-origin, so cssRules reads
+  // fine. A cross-origin sheet throws on access instead of returning null —
+  // hence the try. If Google ever moves this CSS to a no-CORS gstatic URL every
+  // sheet becomes unreadable and this whole script degrades to a no-op, which
+  // is the correct failure: the page renders stock, nothing is mangled.
+  const collectBreakpointCss = () => {
+    const byWidth = new Map();
+
+    for (const sheet of document.styleSheets) {
+      let rules;
+      try {
+        rules = sheet.cssRules;
+      } catch {
+        continue;
+      }
+      if (!rules) continue;
+
+      for (const rule of rules) {
+        if (rule.type !== CSSRule.MEDIA_RULE) continue;
+        const match = CONDITION.exec(rule.conditionText.trim());
+        if (!match) continue;
+        const width = Number(match[1]);
+        if (width < BAND_MIN || width > BAND_MAX) continue;
+
+        // Several separate @media blocks share the one breakpoint (the rail, the
+        // content offset, the header's collapsed search), so accumulate rather
+        // than take the first.
+        const bucket = byWidth.get(width) ?? [];
+        for (const inner of rule.cssRules) bucket.push(inner.cssText);
+        byWidth.set(width, bucket);
+      }
     }
 
-    /* The rail. overflow-x prevents re-wrapping: the inner column stays laid out
-       at 256px and the rail shows its leftmost 80px. Note the consequence —
-       clipping is NOT hiding. Any text-only block left visible gets sliced
-       mid-word ("Collec…", "Unlimit…"), so every such block needs its own
-       display:none rule below; overflow-x alone is not enough. */
-    div[role="navigation"] {
-      width: var(--nix-rail) !important;
-      min-width: var(--nix-rail) !important;
-      overflow-x: hidden !important;
-    }
+    if (byWidth.size === 0) return null;
+    const width = Math.max(...byWidth.keys());
+    return byWidth.get(width).join('\n');
+  };
 
-    /* Pin the inner column at the drawer's natural width so NOTHING reflows.
-       Measured: this column has exactly TWO children — the scrolling tab list
-       (256x740) and the storage footer (256x57), handled separately below. */
-    div[role="navigation"] > div {
-      width: var(--nix-drawer) !important;
-      min-width: var(--nix-drawer) !important;
-    }
+  const apply = () => {
+    const css = collectBreakpointCss();
+    if (css === null) return false;
 
-    /* Icons only. The label wrapper is "the grandchild div holding no <svg>" —
-       the one class-free way to tell it from the icon/badge wrapper. Shrinking
-       the row to 56px turns the 232px selected-item pill back into a circle. */
-    div[role="navigation"] a[role="tab"] > div > div:not(:has(svg)) {
-      display: none !important;
+    if (styleEl === null) {
+      styleEl = document.createElement('style');
+      styleEl.dataset.nixGooglePhotosRail = '';
     }
-    div[role="navigation"] a[role="tab"] {
-      width: 56px !important;
-      min-width: 56px !important;
-      max-width: 56px !important;
-    }
-    div[role="navigation"] a[role="tab"] > div {
-      justify-content: center !important;
-    }
+    if (styleEl.textContent !== css) styleEl.textContent = css;
 
-    /* Text-only blocks the tab rules above do not reach. Both are pure labels
-       with no icon, so at 80px they can only ever be clipped garbage.
-
-       1. The "Collections" section heading — a bare class-only <div> with no
-       role and no aria, so the durable handle is "direct child of the tab list
-       that contains no tab". Verified: exactly ONE visible match. */
-    div[role="navigation"] > div > div:first-child > div:not(:has(a[role="tab"])) {
-      display: none !important;
+    // The lifted rules have the same specificity as the ones they must beat, so
+    // order decides: ours has to stay LAST in head. Photos keeps appending
+    // <style> blocks as it lazy-loads views, which is why this re-checks rather
+    // than appending once. Re-appending only when we are not already last is
+    // also what stops the observer below from feeding itself.
+    if (document.head !== null && document.head.lastElementChild !== styleEl) {
+      document.head.appendChild(styleEl);
     }
+    return styleEl.textContent.length > 0;
+  };
 
-    /* 2. The "Unlimited storage" footer — the second of the column's two
-       children (256x57 at the bottom). nth-child(2) rather than :last-child on
-       purpose: if Google ever ships a one-child nav, :last-child would resolve
-       to the tab list and blank the whole rail, while this degrades to a
-       no-op. */
-    div[role="navigation"] > div > div:nth-child(2) {
-      display: none !important;
-    }
-
-    /* Hand the reclaimed 176px to the grid. Both boxes are position:absolute,
-       but in DIFFERENT containing blocks: the wrapper sits against the app root
-       (left:256px) while [role="main"] sits against the wrapper (left:0), so
-       only the wrapper may be moved — shifting both would push the grid to
-       160px. Gated on the nav existing so any view that renders no nav is left
-       completely untouched. */
-    body:has(div[role="navigation"]) div:has(> [role="main"]) {
-      left: var(--nix-rail) !important;
-      right: 0 !important;
-      width: auto !important;
-    }
-    body:has(div[role="navigation"]) [role="main"] {
-      right: 0 !important;
-      width: auto !important;
-    }
-  `);
-
-  // The grid is JS-virtualised: tile geometry AND the thumbnail request size
-  // (…=w126-h213-k-no) are computed from the measured pane width, so CSS alone
-  // leaves it laid out for the old 1196px pane. Photos re-measures on `resize`.
-  // Coalesced into one rAF so a burst of route changes fires a single kick.
+  // Tile geometry AND the thumbnail request size (…=w126-h213-k-no) are computed
+  // from the measured pane width, so widening the pane by 176px leaves the grid
+  // laid out for the old one until something makes Photos re-measure. Coalesced
+  // into one rAF so a burst of mutations fires a single kick.
   let queued = false;
   const kick = () => {
     if (queued) return;
@@ -121,25 +113,37 @@
     });
   };
 
-  // Photos is an SPA: navigating Albums → Places re-renders the grid without a
-  // reload. Patching history is cheaper and quieter than a MutationObserver on a
-  // ~1.8 MB DOM, and the CSS itself needs no re-application (a stylesheet
-  // applies to nodes created later — which is why nothing here tags DOM nodes;
-  // several nav entries are lazily materialised by c-wiz renderers).
-  for (const method of ['pushState', 'replaceState']) {
-    const original = history[method];
-    history[method] = function patched(...args) {
-      const result = original.apply(this, args);
-      kick();
-      return result;
-    };
-  }
-  window.addEventListener('popstate', kick);
+  const applyAndKick = () => {
+    if (apply()) kick();
+  };
 
-  if (document.readyState === 'loading') {
-    window.addEventListener('DOMContentLoaded', kick, { once: true });
-  } else {
-    kick();
+  // At document-start there is no head and no CSS yet, and Photos keeps adding
+  // <style> blocks as it lazy-loads views, so this watches instead of running
+  // once. Deliberately childList-only on head, never `subtree` and never the
+  // grid: the photo grid is virtualised and mutates continuously, so a subtree
+  // observer over this ~1.8 MB DOM would fire thousands of times a scroll.
+  // Every sheet we care about arrives as a direct child of head.
+  const watchHead = () => {
+    if (document.head === null) return false;
+    new MutationObserver(applyAndKick).observe(document.head, { childList: true });
+    return true;
+  };
+
+  if (!watchHead()) {
+    // head does not exist yet — wait for it, again childList-only (documentElement
+    // gains exactly two children in its life, so this fires ~twice).
+    const rootObserver = new MutationObserver(() => {
+      if (watchHead()) {
+        rootObserver.disconnect();
+        applyAndKick();
+      }
+    });
+    rootObserver.observe(document.documentElement, { childList: true });
   }
-  window.addEventListener('load', kick, { once: true });
+
+  applyAndKick();
+  if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', applyAndKick, { once: true });
+  }
+  window.addEventListener('load', applyAndKick, { once: true });
 })();
