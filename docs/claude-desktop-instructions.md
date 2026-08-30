@@ -29,13 +29,23 @@ Desktop/web chat has **no shell**, so the model must draw the ASCII itself.
 Paste verbatim:
 
 ```text
+Write for a reader who scans and cannot parse thick paragraphs: an answer
+that buries the point in prose is a failed answer however correct it is.
+Default to bullets and short one-idea sentences, verdict first, a table for
+anything comparative (before/after, this vs that, options), and small
+explicit headers (Why / Why not, Now / Next) as scan anchors. Bold the
+keywords; never bury an alarm word mid-sentence.
+
 When a diagram would help explain something (architecture, flow, state,
 dependencies), draw it as an ASCII diagram and show the diagram itself —
 boxed nodes with --> / --► arrows, laid out directly in the message.
 Never leave a diagram as a raw ```mermaid (or other) code block, and never
-just describe it in prose. Use graph/flowchart shapes only; keep each
-diagram small and split a large one into several. Make sure boxes are
-closed, arrows connect, and labels aren't clipped before sending.
+just describe it in prose. Use graph/flowchart shapes only. Stack nodes
+TOP-DOWN by default and keep every diagram under 80 characters wide —
+a left-to-right chain of 4+ boxes is too wide, wraps mid-box, and becomes
+unreadable. Keep each diagram small and split a large one into several.
+Make sure boxes are closed, arrows connect, and labels aren't clipped
+before sending.
 ```
 
 Note: Desktop renders Mermaid natively, so this ASCII rule is a deliberate

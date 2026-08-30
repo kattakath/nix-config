@@ -64,15 +64,60 @@ diagram code is a non-answer.
 
 - Write the diagram in **Mermaid `graph`/flowchart** syntax and render it to ASCII with the
   **`mermaid-ascii`** CLI (already on PATH — `packages/mermaid-ascii.nix`, installed via
-  Home Manager). Pipe the source through it and print **only** its ASCII output:
-  `printf 'graph LR\n  A --> B\n' | mermaid-ascii` (`-a`/`--ascii` for plain 7-bit output).
+  Home Manager). Pipe the source through it and print **only** its ASCII output.
+- **Canonical invocation — always these flags, condensed and vertical:**
+
+  ```bash
+  printf 'graph TD\n  A["step one"] --> B["step two"]\n' | mermaid-ascii -a -p 0 -x 1 -y 1
+  ```
+
+  `-a` plain 7-bit · `-p 0` no border padding · `-x 1 -y 1` minimal gaps between nodes.
+  Default padding wastes ~2x the lines and ~3x the width; never ship the unflagged output.
+- **`graph TD` (vertical) is the default.** Use `LR` only for **2–3** nodes. A 4+ node `LR`
+  chain is always too wide for a terminal, wraps mid-box, and becomes unreadable garbage.
+- **Measure the width before showing it — a hard ≤80 col budget.** "Looks fine" is not a
+  check; boxes can be closed and arrows connected and the thing still wraps:
+
+  ```bash
+  … | mermaid-ascii -a -p 0 -x 1 -y 1 | awk '{if(length($0)>m)m=length($0)} END{print m}'
+  ```
+
+  Over 80: shorten labels, switch to `TD`, or split into two diagrams. Never widen the terminal
+  in your head and call it done.
 - **Keep troubleshooting until it actually renders.** If `mermaid-ascii` errors or emits
   nothing, fix the source and retry (it supports `graph`/flowchart only — recast
   sequence/class/gantt/state ideas as a flowchart). Only if it genuinely cannot render,
   fall back to a **hand-drawn ASCII** diagram — **never** paste raw ```mermaid``` code as
   the fallback.
+- **Known limitation:** dotted/thick edges (`-.->`, `==>`) do **not** render — `mermaid-ascii`
+  silently turns the whole line into a literal node label. Use plain `-->` only; express
+  "optional"/"absent" in the node text instead.
 - Verify the rendered output is well-formed (boxes closed, arrows connected, no clipped
-  labels) before showing it, and keep diagrams small — split a large one into several.
+  labels) and keep each diagram small — split a large one into several.
+- **The diagram must carry the actual flow**, not decorate the answer. Every node/edge must be
+  something you verified; a plausible-looking but unverified diagram is worse than no diagram.
+
+## Answer shape — ADHD/dyslexia-friendly is MANDATORY, not a style preference
+
+**Assume the user is ADHD/dyslexic.** Thick paragraphs and long sentences are **not readable**
+under that assumption — an answer that buries the point in prose is a **failed answer**
+regardless of how correct it is. Treat it as an accessibility requirement and apply it in every
+reply, every time, without being asked.
+
+- **Bullets by default.** Prose paragraphs only when a bullet genuinely cannot carry the idea,
+  and then **max 2–3 lines**. Never a wall of text.
+- **Short sentences.** One idea each. Break a long sentence into two bullets instead.
+- **Verdict first**, then the detail. Never make him read to the end to find the answer.
+- **Tables for anything comparative or contrastive** — before/after, this vs that, option
+  matrices, per-file findings. A table beats three paragraphs every time.
+- **Condensed vertical diagrams** for flow/architecture (per § Diagrams above) — verified,
+  narrow, accurate.
+- **A little obvious Q&A helps** — small explicit headers like **Why / Why not**, **Now /
+  Next**, **Worked / Broke**. They give him an anchor to scan to.
+- **Bold the keywords** he scans for, and never bury an alarm word (down, failed, false,
+  unreachable) mid-sentence.
+- Trim ruthlessly: no preamble, no recap of what he just said, no narrating what you're about
+  to do.
 
 ## Redact secret values by default
 
