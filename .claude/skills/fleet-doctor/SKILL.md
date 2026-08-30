@@ -2,13 +2,13 @@
 name: fleet-doctor
 description: >
   Fleet-wide consistency sweep across every repo in the fleet manifest:
-  stray branches/worktrees, unmerged/unconsolidated PRs, red CI, stale
+  stray branches/worktrees, unmerged PRs, red CI, stale
   flake.lock pins, Nix store garbage, and unactivated host generations
   (macos, macvm). Use when asked to "clean up the fleet", "sync everything",
   "is everything in sync", "garbage collect and activate", or after a
   multi-repo change (identity rename, secret rotation, cross-repo pin bump)
   that needs to land and propagate everywhere. Composes git-purity,
-  pr-consolidation, nix-hygiene (for nix-config itself), and the existing
+  pr-title, nix-hygiene (for nix-config itself), and the existing
   activate/GC tooling — not a replacement for any of them.
 ---
 
@@ -91,10 +91,11 @@ with unique unmerged commits, or any dirty `git status`, → report only.
 gh pr list --repo kattakath/<repo> --state open --json number,title,isDraft,mergeStateStatus,statusCheckRollup
 ```
 
-Apply [`pr-consolidation.md`](../../rules/pr-consolidation.md): more than one
-open PR from the same session/author is a finding, never auto-merged. Report
-CI status per PR; never merge here regardless of mode — see the confirm
-table above.
+Multiple open PRs are **normal** — each change gets its own PR and the merge
+queue serializes them. Findings are: a PR whose title doesn't follow
+[`pr-title.md`](../../rules/pr-title.md), a stale PR with no activity, or one
+sitting on red CI. Report CI status per PR; never merge here regardless of
+mode — see the confirm table above.
 
 ### C. Per-repo: latest CI run
 
