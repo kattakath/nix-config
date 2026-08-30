@@ -1,4 +1,4 @@
-# Vast.ai Template Provisioning — Design
+# Vast.ai Template Provisioning — design + shipped state
 
 Status: **implemented** — the CLI logic is sourced from the extracted
 [`nix-vast-provision`](https://github.com/kattakath/nix-vast-provision)
@@ -190,54 +190,66 @@ Verified storage facts that bound this (no free lunch on the 24 GB):
 
 ## The template the tool creates
 
-Fields on the Vast template (`POST/PUT /api/v0/template/`):
+Fields on the Vast template (`POST /api/v0/template/`):
 
 - `name` — **required** (`--template-name`); the reconcile key.
 - `image` + `tag` — `vastai/base-image:<pinned-tag>` (or `vastai/pytorch`).
 - `env` — `PROVISIONING_SCRIPT=<url>` plus **non-secret** config (`PROVISION_REPO`,
   `PROVISION_REF`, model target dir). **No secrets** — those are account variables.
 - `recommended_disk_space` — sized for the weights (~32–64 GB).
-- `runtype = ssh` (Portal + SSH); `private = true`.
+- `runtype = args` — **not** `ssh`. `args` leaves the base image's own entrypoint intact
+  (supervisord + Instance Portal + the `/etc/vast_boot.d` provisioning hook), which is what
+  runs `PROVISIONING_SCRIPT` at all. The Portal/SSH surface comes from env instead:
+  `OPEN_BUTTON_PORT=1111` renders the Open button, `PORTAL_CONFIG` lists the apps
+  (`hostname:external_port:internal_port:/path:Name`, `|`-separated), `SSH_PUBKEY_B64`
+  plants the operator key for sshd, and ports `1111`/`8188`/`22` are published.
+- `private = true`.
 - **No `docker_login_*`** — no private image anymore.
 
 ### Reconcile (idempotency)
 
 No upsert exists and `hash_id` changes with content, so reconcile **by name**:
-`GET /api/v0/template/` filtered on `name` → operator-owned match ⇒ `PUT` (full blob;
-CLI-style update is a full replace) else `POST`.
+`GET /api/v0/template/` filtered on `name` → operator-owned match ⇒ **`DELETE` then
+`POST`**, i.e. a full replace. Vast's update (`PUT`) endpoint is **broken server-side** —
+it returns `Invalid Creator ID` on a template the caller owns — so delete+create is the
+only working path, not an aesthetic choice.
 
-## Proposed flake app surface (darwin-gated `writeShellApplication`, `curl`+`jq`)
+## Shipped flake app surface
 
-- `vast-template-apply` — reconcile (create/update) the template by name via REST.
-  `--template-name` required; assembles `PROVISIONING_SCRIPT` + non-secret env from the
-  target repo ref (public → raw URL; private → bootstrap URL + `PROVISION_REPO/REF`).
-- `vast-account-vars-set` — push the Keychain tokens into Vast **account-level env
-  vars** (via API if one exists; else print the exact values to paste once). One-time-ish.
-- `vast-weights-stage` *(optional)* — download the stack's `MODEL_MAP` weights and
-  upload to B2.
-- *(later)* `vast-template-destroy` — unlink (Vast delete is unlink, not hard-destroy).
-- `vast-rent` — **implemented.** Rents a live, **BILLED** GPU instance from a template
-  by name or hash (`--template-name`/`--template-hash`, `--offer`, `--gpu`, `--disk`,
-  `--max-price`, `--dry-run`); injects an authenticated Docker Hub `image_login` from
-  the Keychain's `DOCKERHUB_TOKEN` to beat pull rate limits. The one command in this
-  kit that spends real money — always sanity-check with `--dry-run` first.
+Six darwin-gated apps, `callPackage`d from the `vast-provision` input and re-exported under
+this repo's identity (`orgName`/`repoName`/`rev`) — see `flake.nix`. Their own `--help` is
+authoritative for exact flags.
 
-Wired via `genAttrs darwinSystems` in `packages` (shellcheck in `nix flake check`) with
-static `aarch64-darwin.<name>` `apps` entries — mirroring `set-secret` /
-`nixpi-provision`. **No image build** — dropped.
+| App | What it does |
+|---|---|
+| `vast-template-apply` | Create/**REPLACE** a template by name (delete+create). Assembles `PROVISIONING_SCRIPT` + non-secret env for the selected mode. |
+| `vast-repo-check` | Validate a provisioner repo's `.provisioner-template.json` marker (forge-agnostic, no clone). |
+| `vast-account-vars-set` | Push read-only `VAST_*` Keychain tokens → Vast **account-level** env vars. |
+| `vast-ssh-key-set` | Register the operator SSH public key on the Vast account (idempotent). |
+| `vast-init-repo` | Scaffold a provisioner repo from the input's own bundled `provisioner-template`. |
+| `vast-rent` | Rents a live, **BILLED** GPU instance from a template by name/hash; injects a Keychain `DOCKERHUB_TOKEN` `image_login` to beat pull rate limits. **Always `--dry-run` first.** |
 
-## To verify on first run (docs did not confirm)
+Wired via `genAttrs darwinSystems` in `packages` (shellcheck runs in `nix flake check`) with
+static `aarch64-darwin.<name>` `apps` entries — mirroring `secret` / `nixpi-provision`.
 
-1. **Account vars are present in the `PROVISIONING_SCRIPT` env at boot.** Logically yes
-   (injected as container env; the script runs in the container), but not stated
-   explicitly — validate with a trivial `env | grep` provisioning run.
-2. **Precedence** between account vars and template `env` (which wins on collision).
-3. ~~Whether Vast exposes an API to set account-level env vars~~ — **yes:**
-   `POST`/`PUT /api/v0/secrets/` (`{key,value}`; CLI `vastai update env-var`); `GET
-   /api/v0/secrets/` lists them as a `{KEY: VALUE}` map with **values masked** (8-char
-   placeholder). `vast-account-vars-set` can be fully API-driven. (The account's
-   `GITLAB_TOKEN`/`HF_TOKEN`/`CIVITAI_TOKEN`/`GH_TOKEN` were set this way from the
-   read-only `VAST_*` Keychain entries.)
+**Never built, deliberately:** `vast-weights-stage` (B2 staging — the direct
+HF/Civitai transport above proved sufficient) and `vast-template-destroy` (Vast's delete is
+an unlink; `vast-template-apply`'s own delete+create covers the only case that mattered).
+**No image build** — dropped.
+
+## Boot-time behaviour — confirmed in practice
+
+1. **Account vars ARE present in the `PROVISIONING_SCRIPT` env at boot** — they are injected
+   as container env and the script runs in the container. Confirmed by live provisioning runs.
+2. **Account vars and template `env` collide in the template's favour** in practice; the
+   subsystem sidesteps the question entirely by keeping the two sets disjoint — secrets only
+   ever in account vars, non-secret config only ever in the template `env`.
+3. **Vast does expose an API for account-level env vars:** `POST`/`PUT /api/v0/secrets/`
+   (`{key,value}`; CLI `vastai update env-var`); `GET /api/v0/secrets/` lists them as a
+   `{KEY: VALUE}` map with **values masked** (8-char placeholder). `vast-account-vars-set` is
+   fully API-driven on that path — the account's
+   `GITLAB_TOKEN`/`HF_TOKEN`/`CIVITAI_TOKEN`/`GH_TOKEN` were set this way from the read-only
+   `VAST_*` Keychain entries.
 
 ## Decisions (settled)
 
@@ -250,8 +262,9 @@ static `aarch64-darwin.<name>` `apps` entries — mirroring `set-secret` /
    `--workflow-name` = aggregator; `--manifest` + `--workflow` = manifest mode.
    No auto-probing of repo visibility (an earlier, since-superseded idea). ✓
 
-Still to pin during implementation: the account-var *set* path (API vs. manual paste)
-and the three boot-time unknowns above.
+Both open items from the design phase are now closed: the account-var *set* path is the
+API (`/api/v0/secrets/`, no manual paste), and the three boot-time questions are answered
+above.
 
 ## References
 
