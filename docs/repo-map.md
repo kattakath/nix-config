@@ -314,15 +314,13 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
     |---|---|---|---|
     | `applePasswords` | iCloud Passwords | 3 | also plants the native host below |
     | `adBlock` | uBlock Origin | **2** | the **real** MV2 build, not uBO Lite |
-    | `userScripts` | Violentmonkey | 3 | scripts themselves are not declared here |
+    | `userScripts.enable` | Violentmonkey | 3 | also materialises `userScripts.scripts` |
     | `claudeInChrome` | Claude in Chrome | 3 | native host is claude-code's, not ours |
     | `darkTheme` | Into The Black Hole | 2 | code-free theme (a `theme` key, nothing else) |
 
     `adBlock` gets the **real MV2** uBlock Origin — with blocking `webRequest`, not
     `declarativeNetRequest` — because ungoogled's `extensions-manifestv2.patch` makes
     `ShouldDisableLegacyExtensions()` return false unconditionally. Chrome and Brave cannot.
-    Violentmonkey's userscripts are deliberately absent: public ones would belong in this
-    repo, the operator's private ones come from nix-personal via `extraHomeModules`.
     `claudeInChrome` is the fleet's sole browser-automation tool; its
     `com.anthropic.claude_code_browser_extension` native host is written by claude-code
     itself (its `path` must track the current CLI install), so this module must **not**
@@ -331,11 +329,34 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
     manifest, re-pointed at Chromium. macOS ships it to **Chrome and Firefox only**; replanting
     it is what makes Passwords.app autofill here, and it is safe because the manifest gates on
     **extension ID** (`allowed_origins`), not on browser brand.
-  - **Two manual, one-time clicks Nix cannot do:** Chromium parks every *externally* installed
+  - **`userScripts.scripts`** — an `attrsOf (nullOr path)`, attr name → `.user.js` source, each
+    materialised to `~/.local/share/userscripts/<name>.user.js` (an **XDG runtime** path;
+    deliberately not `~/Documents`/`~/Desktop`, which are TCC-walled and would need Chromium a
+    Full Disk Access grant to read a `file://` from) plus a generated `index.html` of install
+    links. `null` (e.g. `lib.mkForce null`) keeps a declaration but skips the file.
+    **This attrset is the public/private seam:** `modules/shared/home.nix` declares the public
+    scripts from `userscripts/`, nix-personal adds its own via `extraHomeModules`, and the two
+    merge — so keys must be distinct across the two repos, since the module system treats a
+    repeated key as a **conflict**, not an override.
+
+    **Nix owns the files, never Violentmonkey's database**, and that is a Chromium wall rather
+    than a shortcut. bitbloxhub's Firefox pattern (enterprise policy → `browser.storage.managed`
+    → a Violentmonkey *fork* that parses it at startup) does **not** port: the fork's hook is
+    Firefox-gated, Chromium only populates `chrome.storage.managed` for extensions declaring a
+    `storage.managed_schema` (Violentmonkey declares none), and Chromium policy on macOS lives
+    in MDM-owned `/Library/Managed Preferences/org.chromium.Chromium.plist`, unreachable from
+    Home Manager. A userscript is installed by **navigating** to it, so install stays one click
+    per script off the index page. A **public** script can carry an `https` `@updateURL` into
+    this repo and then self-update with no activation; a private one has none and is
+    re-installed after a `@version` bump. **Never put a secret in a userscript** — `source` is
+    copied into the world-readable store, private flake or not.
+  - **Three manual, one-time clicks Nix cannot do:** Chromium parks every *externally* installed
     extension disabled pending acknowledgement on macOS (enable once → `ack_external` sticks;
     `ExtensionInstallForcelist` can't help, it needs the patched-out Web Store), and Chrome 138+
     gates Violentmonkey's `userScripts` permission behind a per-extension "Allow User Scripts"
-    toggle that is deliberately not settable by policy. The theme rides the same gate — until
+    toggle that is deliberately not settable by policy, plus its sibling "Allow access to file
+    URLs" toggle, without which it refuses a `file://` install off the index page (fallback:
+    paste the script into Violentmonkey's own editor). The theme rides the same gate — until
     it is enabled once, Chromium unpacks it but leaves `extensions.theme` unset and the browser
     still looks stock.
 - **`desktop-aesthetics.nix`** — the macOS desktop look, split in two:
@@ -531,6 +552,28 @@ Smaller, single-purpose CLIs:
   that clones a private `comfyui-workflows`-shaped repo and runs its `runpod/provision.sh`
   before handing off to the image's `/start.sh`; secrets are RunPod **account** secrets
   (`{{ RUNPOD_SECRET_name }}`), never baked into the template.
+
+## `userscripts/` — the PUBLIC Violentmonkey scripts
+
+Plain `.user.js` files, one per site, referenced by name from
+`modules/shared/home.nix`'s `programs.ungoogledChromium.userScripts.scripts`. The option, the
+materialisation, and the reason Chromium allows nothing more declarative all live in
+[`modules/shared/chromium.nix`](../modules/shared/chromium.nix) — see § `chromium.nix` above.
+Private counterparts live in nix-personal's own `userscripts/` and merge into the same attrset
+([`private-home-modules.md`](private-home-modules.md)); **keys must not collide across the two
+repos.**
+
+- **`google-photos-icon-nav.user.js`** — collapses `photos.google.com`'s 256px left drawer to an
+  80px icon rail and hands the reclaimed width to the photo grid. Pure CSS in effect, but a
+  *userscript* rather than a userstyle for two reasons that are properties of the page, not
+  preferences: every class in that nav is JSCompiler-generated (`RSjvib`, `JBVD2d`, …) so the
+  only durable handles are ARIA roles + structure (`[role="navigation"] a[role="tab"]`, the
+  label wrapper as `a > div > div:not(:has(svg))`, the pane as `div:has(> [role="main"])`), and
+  the grid is JS-virtualised — tile geometry *and* thumbnail request sizes derive from the
+  measured pane width, so the CSS has to be followed by a synthetic `resize` event (coalesced
+  in one `rAF`, re-fired on `pushState`/`replaceState`/`popstate` since Photos is an SPA). Only
+  the pane **wrapper** may be shifted: it is the `position:absolute` containing block for
+  `[role="main"]`, which sits at `left:0` inside it, so moving both would double the offset.
 
 ## `infra/` — terranix (Nix → OpenTofu/Terraform JSON)
 
