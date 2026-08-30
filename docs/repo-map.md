@@ -308,11 +308,25 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
     `external_crx` + `external_version`. The Web Store `external_update_url` is **dead** here
     (ungoogled's `disable-webstore-urls.patch`), so a local CRX is the only path; the official
     extension ID survives because it derives from the signed CRX3 public key, not the path.
-    Behind three options: `applePasswords` (iCloud Passwords), `adBlock` (uBlock Origin —
-    the **real MV2** build, usable because ungoogled's `extensions-manifestv2.patch` makes
-    `ShouldDisableLegacyExtensions()` return false unconditionally), `userScripts`
-    (Violentmonkey; the userscripts themselves are not declared here — private ones come from
-    nix-personal via `extraHomeModules`).
+    One option per extension, all defaulting on:
+
+    | Option | Extension | MV | Note |
+    |---|---|---|---|
+    | `applePasswords` | iCloud Passwords | 3 | also plants the native host below |
+    | `adBlock` | uBlock Origin | **2** | the **real** MV2 build, not uBO Lite |
+    | `userScripts` | Violentmonkey | 3 | scripts themselves are not declared here |
+    | `claudeInChrome` | Claude in Chrome | 3 | native host is claude-code's, not ours |
+    | `darkTheme` | Into The Black Hole | 2 | code-free theme (a `theme` key, nothing else) |
+
+    `adBlock` gets the **real MV2** uBlock Origin — with blocking `webRequest`, not
+    `declarativeNetRequest` — because ungoogled's `extensions-manifestv2.patch` makes
+    `ShouldDisableLegacyExtensions()` return false unconditionally. Chrome and Brave cannot.
+    Violentmonkey's userscripts are deliberately absent: public ones would belong in this
+    repo, the operator's private ones come from nix-personal via `extraHomeModules`.
+    `claudeInChrome` is the fleet's sole browser-automation tool; its
+    `com.anthropic.claude_code_browser_extension` native host is written by claude-code
+    itself (its `path` must track the current CLI install), so this module must **not**
+    re-declare it — only Apple's host needs replanting.
   - **`NativeMessagingHosts/com.apple.passwordmanager.json`** — Apple's own native-messaging
     manifest, re-pointed at Chromium. macOS ships it to **Chrome and Firefox only**; replanting
     it is what makes Passwords.app autofill here, and it is safe because the manifest gates on
@@ -321,7 +335,9 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
     extension disabled pending acknowledgement on macOS (enable once → `ack_external` sticks;
     `ExtensionInstallForcelist` can't help, it needs the patched-out Web Store), and Chrome 138+
     gates Violentmonkey's `userScripts` permission behind a per-extension "Allow User Scripts"
-    toggle that is deliberately not settable by policy.
+    toggle that is deliberately not settable by policy. The theme rides the same gate — until
+    it is enabled once, Chromium unpacks it but leaves `extensions.theme` unset and the browser
+    still looks stock.
 - **`desktop-aesthetics.nix`** — the macOS desktop look, split in two:
   - **Terminal.app** is UNGATED on every darwin host — 16pt type on EVERY profile + stock
     `Pro` as default/startup, driven through Terminal's own AppleScript `settings set` API
