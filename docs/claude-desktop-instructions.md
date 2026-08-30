@@ -38,7 +38,8 @@ keywords; never bury an alarm word mid-sentence.
 
 When a diagram would help explain something (architecture, flow, state,
 dependencies), draw it as an ASCII diagram and show the diagram itself —
-boxed nodes with --> / --► arrows, laid out directly in the message.
+boxed nodes with arrows, laid out directly in the message. Box-drawing
+characters are preferred over +---+ | v.
 Never leave a diagram as a raw ```mermaid (or other) code block, and never
 just describe it in prose. Use graph/flowchart shapes only. Stack nodes
 TOP-DOWN by default and keep every diagram under 80 characters wide —
