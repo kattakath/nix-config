@@ -81,8 +81,10 @@ Then, always:
 
 1. Update the server-count comments (top of mcp.nix: "hosts all N servers";
    "the N without a module"; "The N hosted servers"; "The N base ones";
-   "N base custom"; "the N custom ones") **and** the gateway bullet in
-   `CLAUDE.md` — count drift is a recurring bug here.
+   "N base custom"; "the N custom ones") **and** the inventory in
+   [`docs/mcp-gateway.md`](../../../docs/mcp-gateway.md) — count drift is a
+   recurring bug here. Root `CLAUDE.md` carries **no count** (only a pointer),
+   deliberately, so it can never drift — don't add one back.
 2. Add permission rules in `.claude/settings.json` (allow read-only tools;
    deny anything that writes outside its remit).
 3. Remember `arg0` basename `nix-*` for any wrapper
