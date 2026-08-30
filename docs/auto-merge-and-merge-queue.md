@@ -129,7 +129,13 @@ One extra CI run per merge — the queue entry is built separately from the PR. 
 is the price of the queue's correctness guarantee and is unavoidable while
 "branches up to date" semantics are wanted. It is also why `build-installers.yml`
 is deliberately **not** a required check: its non-cancellable runs would otherwise
-be duplicated on every queue entry (see `.claude/rules/pr-consolidation.md`).
+be duplicated on every queue entry.
+
+**PRs are independent.** Because the queue serializes and re-validates every entry
+against the current `main`, there is no reason to batch a session's work onto one
+long-lived PR — the default holds: **one PR per change, branched off `main`**. (This
+retired the old `pr-consolidation` rule on 2026-08-30; only its title convention
+survives, in [`.claude/rules/pr-title.md`](../.claude/rules/pr-title.md).)
 
 ## The fleet
 
