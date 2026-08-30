@@ -2,6 +2,11 @@
 # and lint-fixing across the whole repo. Wired into `nix fmt` (the wrapper),
 # `nix flake check` (the formatting gate), the pre-commit hook, and the editor
 # via nixd. Change a tool HERE and every entrypoint follows.
+#
+# SCOPE: tools that REWRITE files. Report-only structural lint lives in
+# sgconfig.yml + ast-grep/rules/ and is gated by checks.<system>.ast-grep, NOT
+# here — a checker in a formatter slot would make `nix fmt` (and the pre-commit
+# hook, which is the same binary) fail with nothing to fix.
 _:
 
 {

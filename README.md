@@ -109,7 +109,14 @@ nix flake show
 ```bash
 darwin-rebuild switch --flake .#macos   # macOS (Apple Silicon) — client only
 nixos-rebuild  switch --flake .#nixpi   # Raspberry Pi 4 — the live server
+deploy --targets .#nixpi                # Same Pi, remotely, with deploy-rs magic rollback:
+                                        # an activation that leaves the Pi unreachable reverts
+                                        # itself instead of needing an SD-card reflash.
 ```
+
+Both `.#macos` and `.#nixpi` here are the **public baseline** — no personal Home Manager
+modules, and a Pi serving **zero** sites. The real hosts are activated from the private
+composition flake ([`docs/private-home-modules.md`](docs/private-home-modules.md)).
 
 ### Bring up the dev VM
 
@@ -137,8 +144,8 @@ Or just open the repo in a devcontainer-aware editor; `.devcontainer/devcontaine
 
 ```
 bootstrap.sh    No-Nix curl entrypoint: install Determinate Nix, then hand off to the flake
-flake.nix       Entry point: inputs, darwin/nixos configurations, packages, devShells, checks
-flake.lock      Pinned input revisions (bumped via `nix flake update`, never hand-edited)
+flake.nix       Entry point: inputs, darwin/nixos configurations, packages, devShells, checks, deploy nodes
+flake.lock      Pinned input revisions (bumped via `nix flake update`, never hand-edited); 60 nodes, held down by a deliberate `follows` diet
 treefmt.nix     Single source of truth for formatting + lint (drives nix fmt, CI, and the hook)
 hosts/          Per-host entry profiles (macos.nix, macvm.nix, nixpi.nix, nixvm.nix)
 modules/        Reusable modules, split by platform (darwin/ nixos/ shared/)
