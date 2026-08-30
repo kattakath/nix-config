@@ -303,7 +303,8 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
   the Homebrew `ungoogled-chromium` cask. Installs **no** browser (`programs.chromium.package =
   null`) — nixpkgs' `chromium`/`ungoogled-chromium` are `*-linux` only, so the `.app` must be a
   cask; this module contributes only the files Chromium reads out of its user-data dir, via
-  upstream HM `programs.chromium` (no custom shell). Two surfaces, three sideloaded extensions:
+  upstream HM `programs.chromium` (no custom shell), plus one recommended-level policy.
+  Three surfaces, five sideloaded extensions:
   - **`External Extensions/<id>.json`** — pinned `fetchurl` CRXes installed as
     `external_crx` + `external_version`. The Web Store `external_update_url` is **dead** here
     (ungoogled's `disable-webstore-urls.patch`), so a local CRX is the only path; the official
@@ -343,13 +344,31 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
     than a shortcut. bitbloxhub's Firefox pattern (enterprise policy → `browser.storage.managed`
     → a Violentmonkey *fork* that parses it at startup) does **not** port: the fork's hook is
     Firefox-gated, Chromium only populates `chrome.storage.managed` for extensions declaring a
-    `storage.managed_schema` (Violentmonkey declares none), and Chromium policy on macOS lives
-    in MDM-owned `/Library/Managed Preferences/org.chromium.Chromium.plist`, unreachable from
-    Home Manager. A userscript is installed by **navigating** to it, so install stays one click
+    `storage.managed_schema` (Violentmonkey declares none), and the *forced* policy level the
+    fork would need lives in MDM-owned `/Library/Managed Preferences/org.chromium.Chromium.plist`,
+    unreachable from Home Manager (the **recommended** level is reachable — see
+    `hideBookmarkBar` below — but it cannot lock a value, which is what that trick relies on).
+    A userscript is installed by **navigating** to it, so install stays one click
     per script off the index page. A **public** script can carry an `https` `@updateURL` into
     this repo and then self-update with no activation; a private one has none and is
     re-installed after a `@version` bump. **Never put a secret in a userscript** — `source` is
     copied into the world-readable store, private flake or not.
+  - **`hideBookmarkBar`** — the one *policy* surface, and the one place this repo writes
+    Chromium's own preferences domain: HM `targets.darwin.defaults."org.chromium.Chromium"` sets
+    `BookmarkBarEnabled = false`, so **View ▸ Always Show Bookmarks Bar** starts OFF (it seeds
+    the `bookmark_bar.show_on_all_tabs` pref). macOS has **no** policies-JSON directory — that is
+    the Linux path; Chromium's platform loader reads CFPreferences and grades every key by
+    `CFPreferencesAppValueIsForced`: forced → **mandatory** (greys the menu item out, and only an
+    MDM configuration profile in `/Library/Managed Preferences/` can set it), everything else →
+    **recommended**. So the plain, unprivileged user domain is precisely the level that means
+    "off by default, still toggleable", and a manual tick then wins for good. HM applies it with
+    `defaults import`, which **merges**, so Chromium's own state in that domain survives.
+    - **No sibling for View ▸ Always Show Toolbar in Full Screen.** That is
+      `browser.show_fullscreen_toolbar`, a macOS-only *profile pref* with **no policy behind
+      it** — this cask's Chromium 152 carries a 579-name policy table (`AIModeSettings` →
+      `XSLTEnabled`) with nothing fullscreen-toolbar-shaped in it. The only remaining lever is
+      the profile's `Preferences` JSON, browser-owned mutable state Nix must not seed (same
+      class as `extensions.pinned_extensions`), so it stays a one-time manual click.
   - **Three manual, one-time clicks Nix cannot do:** Chromium parks every *externally* installed
     extension disabled pending acknowledgement on macOS (enable once → `ack_external` sticks;
     `ExtensionInstallForcelist` can't help, it needs the patched-out Web Store), and Chrome 138+

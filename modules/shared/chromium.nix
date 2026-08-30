@@ -5,7 +5,8 @@
 # build to reference. So `programs.chromium.package = null` here, and Home Manager
 # contributes only the config files Chromium reads out of its user-data dir.
 #
-# Two things are wired, both via upstream `programs.chromium` (no custom shell):
+# Three things are wired — two via upstream `programs.chromium` (no custom shell), one
+# via the browser's own preferences domain:
 #
 #   1. `extensions` → `~/Library/Application Support/Chromium/External Extensions/<id>.json`.
 #      ungoogled-chromium patches out the Chrome Web Store (`disable-webstore-urls.patch`),
@@ -17,6 +18,19 @@
 #      `/Library/Application Support/Mozilla/...` (Firefox) — never to Chromium or Brave.
 #      Replanting it under Chromium is the whole trick, and it is safe because the
 #      manifest gates on EXTENSION ID (`allowed_origins`), not on browser brand.
+#   3. `targets.darwin.defaults."org.chromium.Chromium"` → *recommended* enterprise policy.
+#      There is no policies-JSON directory on macOS (that is the Linux path); Chromium's
+#      platform loader reads the browser's own CFPreferences domain instead, and
+#      `policy_loader_mac.mm` grades each key by `CFPreferencesAppValueIsForced`: forced →
+#      POLICY_LEVEL_MANDATORY, everything else → POLICY_LEVEL_RECOMMENDED. Only an MDM
+#      configuration profile landing in `/Library/Managed Preferences/` is *forced*, and
+#      mandatory is the level that GREYS THE MENU ITEM OUT. A plain user-domain write —
+#      the one Home Manager can do, unprivileged — is therefore exactly the right level
+#      for "off by default, still toggleable": it seeds the pref and a manual override
+#      wins for good. (Verified against this cask's build: `nm -u` on Chromium
+#      Framework 152 imports `_CFPreferencesAppValueIsForced` + `_CFPreferencesCopyAppValue`,
+#      and none of ungoogled's ~111 patches touch policy loading.) Home Manager applies it
+#      with `defaults import`, which MERGES, so Chromium's own state in that domain survives.
 #
 # Why a local-crx install keeps each extension's official ID: the ID is derived from
 # the public key in the signed CRX3 header, not from the install path. A sideloaded
@@ -231,6 +245,26 @@ in
       '';
     };
 
+    hideBookmarkBar = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Default *View ▸ Always Show Bookmarks Bar* to OFF, by recommending
+        `BookmarkBarEnabled = false` in Chromium's preferences domain (the policy
+        seeds the `bookmark_bar.show_on_all_tabs` pref). **Recommended, not
+        forced** — the menu item stays live, and once the operator ticks it their
+        value wins permanently. Forcing it, which would grey the item out, needs a
+        `/Library/Managed Preferences` plist from an MDM profile.
+
+        Its obvious sibling is deliberately absent: *View ▸ Always Show Toolbar in
+        Full Screen* is `browser.show_fullscreen_toolbar`, a macOS-only **profile
+        pref with no policy behind it** — this build's policy table carries 579
+        names and none of them touches the fullscreen toolbar. The only lever left
+        is the profile's `Preferences` JSON, browser-owned mutable state that Nix
+        must not seed, so that one stays a one-time manual click.
+      '';
+    };
+
     darkTheme = lib.mkOption {
       type = lib.types.bool;
       default = true;
@@ -291,6 +325,13 @@ in
         });
 
       nativeMessagingHosts = lib.optional cfg.applePasswords applePasswordsHost;
+    };
+
+    # Recommended-level platform policy — see item 3 of the header for why the plain
+    # user domain (not `/Library/Managed Preferences`) is the correct place for a
+    # DEFAULT rather than a lock. Takes effect on Chromium's next launch.
+    targets.darwin.defaults."org.chromium.Chromium" = lib.mkIf cfg.hideBookmarkBar {
+      BookmarkBarEnabled = false;
     };
 
     # `~/.local/share/userscripts/` — a *runtime* location, so it is XDG-relative
