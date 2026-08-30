@@ -59,6 +59,35 @@ in
       fi
     '';
 
+    # ---- Terminal.app "Ubuntu" profile — post-import key reconcile ----------
+    # The import above is deliberately ONCE-ONLY (guarded on the profile's absence),
+    # so editing Ubuntu.terminal afterwards never reaches a Mac that already imported
+    # it. Keys that must hold on an ALREADY-imported profile are reconciled here, in
+    # place. Today that is exactly one: `shellExitAction` — Terminal ▸ Settings ▸
+    # Profiles ▸ Shell ▸ "When the shell exits" — pinned to 1 = "Close if the shell
+    # exited cleanly" (window closes on exit 0; a crash / non-zero exit keeps it open
+    # so the error stays readable). 0 = always close, 2 = never close.
+    #
+    # It lives inside the nested `Window Settings` dict, so PlistBuddy — `defaults`
+    # can only rewrite that dict wholesale. cfprefsd caches the domain and would
+    # re-write the stale value over a direct file edit, hence the flush. Same caveat
+    # as the import: Terminal.app owns com.apple.Terminal and rewrites it from memory
+    # while running, so a patch applied with Terminal OPEN can be clobbered — it then
+    # sticks on the next activation with Terminal closed. Guarded on the current
+    # value, so it is a no-op once correct.
+    home.activation.ubuntuTerminalShellExit = lib.hm.dag.entryAfter [ "ubuntuTerminalProfile" ] ''
+      plist="$HOME/Library/Preferences/com.apple.Terminal.plist"
+      key=':"Window Settings":Ubuntu:shellExitAction'
+      if [ -f "$plist" ] && /usr/libexec/PlistBuddy -c 'Print :"Window Settings":Ubuntu' "$plist" >/dev/null 2>&1; then
+        cur="$(/usr/libexec/PlistBuddy -c "Print $key" "$plist" 2>/dev/null || true)"
+        if [ "$cur" != "1" ]; then
+          $DRY_RUN_CMD /usr/libexec/PlistBuddy -c "Add $key integer 1" "$plist" >/dev/null 2>&1 || true
+          $DRY_RUN_CMD /usr/libexec/PlistBuddy -c "Set $key 1" "$plist" >/dev/null 2>&1 || true
+          $DRY_RUN_CMD /usr/bin/killall -u "$USER" cfprefsd >/dev/null 2>&1 || true
+        fi
+      fi
+    '';
+
     # ---- Static desktop wallpaper ------------------------------------------
     # The vendored wallpaper.png (./wallpaper/wallpaper.png, version-controlled →
     # served from its immutable /nix/store copy). macOS keeps the desktop picture
