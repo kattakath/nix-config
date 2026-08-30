@@ -233,6 +233,23 @@ Prefer:
 
 See `docs/macvm-tart-runbook.md` (WireGuard section).
 
+## Userscripts — a merged attrset, not a second option
+
+`programs.ungoogledChromium.userScripts.scripts` (public engine,
+`modules/shared/chromium.nix`) is an **attrset seam** rather than an `extraHomeModules`
+parameter: the public repo declares its scripts from `userscripts/`, nix-personal's
+`modules/userscripts.nix` adds its own from *its* `userscripts/`, and Home Manager merges
+the two. Nothing public names the private repo, and no `mkNixos`-style parameter is needed.
+
+- **Keys must be distinct across the two repos.** A repeated key is an eval **conflict**,
+  not an override — which is the desired behaviour: two repos silently fighting over one
+  script name would be worse than a failed switch. `lib.mkForce null` on a key is the
+  supported way for the private layer to *suppress* a public script.
+- **A userscript body is not a private file** in the § WireGuard sense, so
+  `source = ./userscripts/foo.user.js` is fine here — but only because it holds no secret.
+  The store is world-readable regardless of which flake the path came from, so a userscript
+  must never carry a token, cookie, or account identifier.
+
 ## What this is not
 
 - Not an in-tree `private/` directory (that is still a public git trace).
