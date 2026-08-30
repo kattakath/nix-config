@@ -360,7 +360,7 @@ in
   imports = [
     ./hm-launchd # patched home-manager launchd (nix-* ProgramArguments)
     ./mcp.nix # darwin-gated MCP server registry for Claude Code
-    ./desktop-aesthetics.nix # macOS wallpaper + Terminal profile (opt-out per host; macvm opts out)
+    ./desktop-aesthetics.nix # Terminal.app 16pt (all darwin) + wallpaper (opt-out; macvm opts out)
     ./wireguard-configs.nix # operator-managed WG confs → ~/.config/wireguard (no autostart)
     ./claude-otel.nix # local OTel Collector for Claude Code's routing-decision telemetry (macos only)
     ./git-allowed-signers.nix # extra allowed_signers principals (option only; nix-personal fills)
