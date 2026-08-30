@@ -27,7 +27,9 @@ Examples:
 ## Required sequence
 
 1. **Read** `.claude/skills/nix-hygiene/SKILL.md` and follow it (checklist A→H).
-2. **Read** root `CLAUDE.md` conventions if changing module layout or secrets.
+2. **Read** root `CLAUDE.md` conventions if changing module layout or secrets — plus
+   `docs/repo-map.md` (full fleet map) or `docs/secrets-and-keychain.md` for the detail
+   `CLAUDE.md` intentionally no longer carries.
 3. If **fix** mode: apply changes; `git add` `.nix` as you go (git-purity).
 4. **Mechanical gate** after any fix:
    - `git add -A`
