@@ -133,6 +133,41 @@ in
         deliberately not settable by policy. Flip it once in chrome://extensions.
       '';
     };
+
+    claudeInChrome = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Sideload Claude in Chrome — the fleet's sole browser-automation tool. It
+        drives the browser over CDP (hence its `debugger` permission) and talks to
+        the local CLI over native messaging.
+
+        Its native-messaging host manifest
+        (`com.anthropic.claude_code_browser_extension`) is planted by claude-code
+        itself, NOT by this module — deliberately, since the manifest's `path` must
+        point at whichever claude-code install is current. Do not re-declare it
+        under `nativeMessagingHosts` here; unlike Apple's Passwords host, nothing
+        needs replanting because the CLI already writes it into Chromium's dir.
+      '';
+    };
+
+    darkTheme = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Sideload the "Into The Black Hole" true-AMOLED black browser theme, so
+        Chromium's own frame matches this fleet's black/white aesthetic rather
+        than sitting in the default grey.
+
+        A theme is a code-free MV2 extension (a `theme` key and nothing else), and
+        it is subject to the same acknowledgement gate as the rest: until it is
+        enabled once, Chromium unpacks it but leaves `extensions.theme` unset, so
+        the browser still looks stock. Distinct from
+        `local.desktopAesthetics.enable`, which owns the macOS *desktop* look —
+        this is Chromium's chrome, installed through the same CRX path as every
+        other extension here.
+      '';
+    };
   };
 
   config = lib.mkIf (cfg.enable && pkgs.stdenv.hostPlatform.isDarwin) {
@@ -161,6 +196,18 @@ in
           id = "jinjaccalgkegednnccohejagnlnfdag";
           version = "2.48.0";
           hash = "sha256-yRTrkG3wgVKXMLPT+1cOWMHpdhXEat3wAmiSD0Z6lc8=";
+        })
+        ++ lib.optional cfg.claudeInChrome (crxExtension {
+          name = "claude-in-chrome";
+          id = "fcoeoabgfenejglbffodgkkbkcdhcgfn";
+          version = "1.0.85";
+          hash = "sha256-XBwTGKzxC7Rji+EprjT53+couGenDGAzgvieZqXQi+M=";
+        })
+        ++ lib.optional cfg.darkTheme (crxExtension {
+          name = "amoled-black-theme";
+          id = "faeadnfmdfamenfhaipofoffijhlnkif";
+          version = "1.0.1";
+          hash = "sha256-HcajUNEDGhOhxosEOQu/dGQK9m9IGoIz75aKN/UWBMU=";
         });
 
       nativeMessagingHosts = lib.optional cfg.applePasswords applePasswordsHost;
