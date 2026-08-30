@@ -68,19 +68,26 @@ diagram code is a non-answer.
 - **Canonical invocation — always these flags, condensed and vertical:**
 
   ```bash
-  printf 'graph TD\n  A["step one"] --> B["step two"]\n' | mermaid-ascii -a -p 0 -x 1 -y 1
+  printf 'graph TD\n  A["step one"] --> B["step two"]\n' | mermaid-ascii -p 0 -x 1 -y 2
   ```
 
-  `-a` plain 7-bit · `-p 0` no border padding · `-x 1 -y 1` minimal gaps between nodes.
-  Default padding wastes ~2x the lines and ~3x the width; never ship the unflagged output.
+  `-p 0` no border padding · `-x 1` minimal horizontal gap · `-y 2` the *minimum* that still
+  leaves an arrow stem (`-y 1` collapses `│▼` to a bare `▼`). Default padding wastes ~2x the
+  lines and ~3x the width; never ship the unflagged output.
+- **Never pass `-a`/`--ascii`.** It means "don't use extended character set" — it downgrades the
+  box-drawing glyphs (`┌───┐ │ ▼`) to `+---+ | v`, which is the ugly plain-ASCII look, not
+  mermaid-ascii's real output. The default (no `-a`) is what you want.
 - **`graph TD` (vertical) is the default.** Use `LR` only for **2–3** nodes. A 4+ node `LR`
   chain is always too wide for a terminal, wraps mid-box, and becomes unreadable garbage.
 - **Measure the width before showing it — a hard ≤80 col budget.** "Looks fine" is not a
   check; boxes can be closed and arrows connected and the thing still wraps:
 
   ```bash
-  … | mermaid-ascii -a -p 0 -x 1 -y 1 | awk '{if(length($0)>m)m=length($0)} END{print m}'
+  … | mermaid-ascii -p 0 -x 1 -y 2 | wc -L      # true display columns
   ```
+
+  Use `wc -L`, **not** `awk length()` — awk counts *bytes*, so every box-drawing glyph counts 3
+  and a 17-column diagram reports 51.
 
   Over 80: shorten labels, switch to `TD`, or split into two diagrams. Never widen the terminal
   in your head and call it done.
