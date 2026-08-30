@@ -283,7 +283,7 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
 
 ### `modules/shared/`
 
-`modules/shared/{home.nix,mcp.nix,desktop-aesthetics.nix,nix-cache.nix,nix-ld-libraries.nix,wireguard-configs.nix,claude-otel.nix,hm-launchd/}`
+`modules/shared/{home.nix,mcp.nix,chromium.nix,desktop-aesthetics.nix,nix-cache.nix,nix-ld-libraries.nix,wireguard-configs.nix,claude-otel.nix,hm-launchd/}`
 — the Home Manager profile loaded on every host.
 
 - **`home.nix`** — git/ssh-signing, zsh+starship, direnv, gh, bash, claude-code + nerd-fonts;
@@ -299,6 +299,29 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
   emulator and `macvm` (`home.file."Applications/Android Emulator.app"` / `"Mac VM.app"`,
   backed by `packages/spotlight-launchers.nix`, macos-only).
 - **`mcp.nix`** — the claude-code MCP-server config. See [`mcp-gateway.md`](mcp-gateway.md).
+- **`chromium.nix`** — `programs.ungoogledChromium`, real-Mac-only: the declarative surface for
+  the Homebrew `ungoogled-chromium` cask. Installs **no** browser (`programs.chromium.package =
+  null`) — nixpkgs' `chromium`/`ungoogled-chromium` are `*-linux` only, so the `.app` must be a
+  cask; this module contributes only the files Chromium reads out of its user-data dir, via
+  upstream HM `programs.chromium` (no custom shell). Two surfaces, three sideloaded extensions:
+  - **`External Extensions/<id>.json`** — pinned `fetchurl` CRXes installed as
+    `external_crx` + `external_version`. The Web Store `external_update_url` is **dead** here
+    (ungoogled's `disable-webstore-urls.patch`), so a local CRX is the only path; the official
+    extension ID survives because it derives from the signed CRX3 public key, not the path.
+    Behind three options: `applePasswords` (iCloud Passwords), `adBlock` (uBlock Origin —
+    the **real MV2** build, usable because ungoogled's `extensions-manifestv2.patch` makes
+    `ShouldDisableLegacyExtensions()` return false unconditionally), `userScripts`
+    (Violentmonkey; the userscripts themselves are not declared here — private ones come from
+    nix-personal via `extraHomeModules`).
+  - **`NativeMessagingHosts/com.apple.passwordmanager.json`** — Apple's own native-messaging
+    manifest, re-pointed at Chromium. macOS ships it to **Chrome and Firefox only**; replanting
+    it is what makes Passwords.app autofill here, and it is safe because the manifest gates on
+    **extension ID** (`allowed_origins`), not on browser brand.
+  - **Two manual, one-time clicks Nix cannot do:** Chromium parks every *externally* installed
+    extension disabled pending acknowledgement on macOS (enable once → `ack_external` sticks;
+    `ExtensionInstallForcelist` can't help, it needs the patched-out Web Store), and Chrome 138+
+    gates Violentmonkey's `userScripts` permission behind a per-extension "Allow User Scripts"
+    toggle that is deliberately not settable by policy.
 - **`desktop-aesthetics.nix`** — the macOS desktop look, split in two:
   - **Terminal.app** is UNGATED on every darwin host — 16pt type on EVERY profile + stock
     `Pro` as default/startup, driven through Terminal's own AppleScript `settings set` API

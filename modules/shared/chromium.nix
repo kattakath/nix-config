@@ -18,10 +18,18 @@
 #      Replanting it under Chromium is the whole trick, and it is safe because the
 #      manifest gates on EXTENSION ID (`allowed_origins`), not on browser brand.
 #
-# Why the local-crx install keeps the required ID: the iCloud Passwords CRX carries a
-# `key` in its manifest, so its extension ID is derived from that key rather than from
-# the install path. A sideloaded copy therefore still registers as
-# `pejdijmoenmkgeppbflobdenhhabjlaj` — exactly the origin Apple's helper allowlists.
+# Why a local-crx install keeps each extension's official ID: the ID is derived from
+# the public key in the signed CRX3 header, not from the install path. A sideloaded
+# copy of the store build therefore registers under exactly the same ID — which is
+# what lets Apple's helper allowlist `pejdijmoenmkgeppbflobdenhhabjlaj` keep matching.
+#
+# ONE MANUAL STEP REMAINS, and it is not a bug: Chromium parks every externally
+# installed extension *disabled pending acknowledgement* on macOS. First launch shows
+# an "extension added" prompt per extension; enabling it once writes `ack_external`
+# into the profile and it stays enabled forever. There is no policy that skips this on
+# ungoogled-chromium (`ExtensionInstallForcelist` needs the Web Store, which is patched
+# out). Violentmonkey additionally needs its per-extension "Allow User Scripts" toggle
+# flipped in chrome://extensions — Chrome 138+ deliberately refuses to let policy set it.
 {
   config,
   lib,
@@ -31,21 +39,35 @@
 let
   cfg = config.programs.ungoogledChromium;
 
-  # ---- iCloud Passwords (Chrome Web Store, fetched once and pinned) -----------
+  # ---- CRX fetching (Chrome Web Store, fetched once and pinned) ---------------
   # Bumping `version` REQUIRES a new `hash` — the CWS endpoint serves whatever the
   # current build is, so a stale hash is the expected failure mode of an upstream
   # release, not a bug. `prodversion` is pinned to the cask's Chromium major so the
   # endpoint hands back a build that browser will actually load.
+  chromiumMajor = "152";
+
+  # Emits the `programs.chromium.extensions` entry directly, so a new extension is a
+  # one-line spec plus its option — nothing else to keep in sync.
+  crxExtension =
+    {
+      name,
+      id,
+      version,
+      hash,
+    }:
+    {
+      inherit id version;
+      crxPath = "${pkgs.fetchurl {
+        name = "${name}-${version}.crx";
+        url =
+          "https://clients2.google.com/service/update2/crx"
+          + "?response=redirect&acceptformat=crx2,crx3&prodversion=${chromiumMajor}"
+          + "&x=id%3D${id}%26installsource%3Dondemand%26uc";
+        inherit hash;
+      }}";
+    };
+
   icloudPasswordsId = "pejdijmoenmkgeppbflobdenhhabjlaj";
-  icloudPasswordsVersion = "3.3.0";
-  icloudPasswordsCrx = pkgs.fetchurl {
-    name = "icloud-passwords-${icloudPasswordsVersion}.crx";
-    url =
-      "https://clients2.google.com/service/update2/crx"
-      + "?response=redirect&acceptformat=crx2,crx3&prodversion=152"
-      + "&x=id%3D${icloudPasswordsId}%26installsource%3Dondemand%26uc";
-    hash = "sha256-P+//MFjneHc0XV1cbvbx+4wIXtLB5Oz3bRa/L7ZGZ7A=";
-  };
 
   # ---- Apple's Passwords.app native-messaging host, re-pointed at Chromium ----
   # `path` is a macOS *system* Cryptex location — a runtime OS path, not a per-user
@@ -84,6 +106,33 @@ in
         only — macOS ships the manifest to no other browser.
       '';
     };
+
+    adBlock = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Sideload uBlock Origin — the real Manifest V2 build, not uBO Lite.
+        ungoogled-chromium's `extensions-manifestv2.patch` makes
+        `ShouldDisableLegacyExtensions()` return false unconditionally, so MV2 and
+        its blocking `webRequest` are fully restored here; upstream Chrome and
+        Brave can only run the declarativeNetRequest-limited MV3 build. This is
+        what makes YouTube ad-free without a browser that bundles its own blocker.
+      '';
+    };
+
+    userScripts = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Sideload Violentmonkey, the userscript manager. Userscripts themselves are
+        NOT declared here — public ones would belong in this repo, the operator's
+        private ones come from the nix-personal flake via `extraHomeModules`.
+
+        Violentmonkey declares the MV3 `userScripts` permission, which Chrome 138+
+        gates behind a per-extension "Allow User Scripts" toggle that is
+        deliberately not settable by policy. Flip it once in chrome://extensions.
+      '';
+    };
   };
 
   config = lib.mkIf (cfg.enable && pkgs.stdenv.hostPlatform.isDarwin) {
@@ -94,13 +143,25 @@ in
       # correct, since a cask-installed browser has no Nix wrapper to pass them to.
       package = null;
 
-      extensions = lib.optionals cfg.applePasswords [
-        {
+      extensions =
+        lib.optional cfg.applePasswords (crxExtension {
+          name = "icloud-passwords";
           id = icloudPasswordsId;
-          crxPath = "${icloudPasswordsCrx}";
-          version = icloudPasswordsVersion;
-        }
-      ];
+          version = "3.3.0";
+          hash = "sha256-P+//MFjneHc0XV1cbvbx+4wIXtLB5Oz3bRa/L7ZGZ7A=";
+        })
+        ++ lib.optional cfg.adBlock (crxExtension {
+          name = "ublock-origin";
+          id = "cjpalhdlnbpafiamejdnhcphjbkeiagm";
+          version = "1.74.0";
+          hash = "sha256-akht0BrQg6I0Cj8AO63TmQZYE5kodaAgx2EPjuOKyx8=";
+        })
+        ++ lib.optional cfg.userScripts (crxExtension {
+          name = "violentmonkey";
+          id = "jinjaccalgkegednnccohejagnlnfdag";
+          version = "2.48.0";
+          hash = "sha256-yRTrkG3wgVKXMLPT+1cOWMHpdhXEat3wAmiSD0Z6lc8=";
+        });
 
       nativeMessagingHosts = lib.optional cfg.applePasswords applePasswordsHost;
     };
