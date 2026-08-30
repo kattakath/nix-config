@@ -186,6 +186,13 @@
       # rockymadden/slack-cli webhook-poster, not this tool.
       "slack-cli"
       "telegram"
+      # ungoogled-chromium — Chromium without the Google integration. Cask because
+      # nixpkgs' chromium/ungoogled-chromium are *-linux only (no darwin build), and
+      # the plain `chromium` cask is deprecated (fails the macOS Gatekeeper check,
+      # disabled 2026-09-01). Its declarative config — the sideloaded iCloud
+      # Passwords extension + Apple's native-messaging host, which macOS otherwise
+      # ships to Chrome and Firefox ONLY — lives in modules/shared/chromium.nix.
+      "ungoogled-chromium"
       "visual-studio-code"
       "whatsapp"
     ];

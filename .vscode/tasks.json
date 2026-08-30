@@ -60,9 +60,35 @@
       }
     },
     {
-      // One-shot: populate Problems with BOTH linters. Default test task.
+      "label": "nix: ast-grep",
+      "type": "shell",
+      // Structural lint (sgconfig.yml + ast-grep/rules/). Mirrors the
+      // checks.<system>.ast-grep gate, so the editor sees what CI will fail on.
+      // --no-ignore hidden is REQUIRED: ast-grep skips dot-dirs by default, which
+      // would silently exclude .claude/hooks/*.js. `|| true` so a clean scan
+      // (exit 1 on findings, 0 otherwise) never reads as a task error.
+      "command": "nix develop -c sh -c \"ast-grep scan --no-ignore hidden --report-style=short --color=never . || true\"",
+      "presentation": { "reveal": "silent", "panel": "dedicated" },
+      "problemMatcher": {
+        "owner": "ast-grep",
+        "source": "ast-grep",
+        "fileLocation": ["autoDetect", "${workspaceFolder}"],
+        // file ':' line ':' col ':' severity '[' rule-id ']:' message
+        "pattern": {
+          "regexp": "^(.+?):(\\d+):(\\d+):\\s+(error|warning|note|hint)\\[([^\\]]+)\\]:\\s+(.+)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "code": 5,
+          "message": 6
+        }
+      }
+    },
+    {
+      // One-shot: populate Problems with ALL THREE linters. Default test task.
       "label": "nix: lint",
-      "dependsOn": ["nix: statix", "nix: deadnix"],
+      "dependsOn": ["nix: statix", "nix: deadnix", "nix: ast-grep"],
       "dependsOrder": "parallel",
       "problemMatcher": [],
       "group": { "kind": "test", "isDefault": true }

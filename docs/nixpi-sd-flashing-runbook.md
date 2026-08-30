@@ -213,9 +213,15 @@ ssh-keygen -R nixpi.local   # clear any stale host key first
 
 SSH is the operator's static key (keys-only). On the LAN once mDNS is up:
 `ssh ismail@nixpi.local`. Remotely (e.g. travelling), over the tunnel:
-`ssh ismail@nixpi.kattakath.com` with a `ProxyCommand cloudflared access ssh
---hostname %h` in `~/.ssh/config`. The physical serial/HDMI console is the break-glass
-path.
+`ssh ismail@nixpi.kattakath.com` — the `ProxyCommand cloudflared access ssh --hostname
+%h` is **declarative now**, in `modules/shared/home.nix`'s `Host nixpi.kattakath.com`
+block (with `StrictHostKeyChecking accept-new` for exactly the fresh-key case below).
+Do **not** hand-edit `~/.ssh/config` to add it — that file is a read-only `/nix/store`
+symlink owned by Home Manager; change the module and re-activate. The physical
+serial/HDMI console is the break-glass path.
+
+Same fresh-key gotcha applies to the tunnelled name, so after a reflash:
+`ssh-keygen -R nixpi.kattakath.com` (`accept-new` still refuses a *changed* key).
 
 **If the tunnel/SSH proxy fails with `cloudflared access ssh: failed to find
 Access application`** while the public sites on the same tunnel are still
