@@ -1,0 +1,54 @@
+# Mechanises .claude/rules/launchd-naming.md, which until now was prompt-only.
+#
+# macOS Background Task Manager (and System Settings → Login Items) lists a
+# background agent by the BASENAME of the executable the kernel execs —
+# ProgramArguments[0], or Program when used. A bare interpreter there (`sh`,
+# `python3`, `node`, …) hides the nix-config origin and is indistinguishable from
+# third-party or malicious persistence, which is the entire smell that rule
+# exists to prevent. The fix is always the same: point arg0 at a
+# `pkgs.writeShellScriptBin "nix-<activity>"` wrapper and move the
+# wait4path/exec logic inside it (canonical examples in modules/shared/mcp.nix).
+#
+# Scope note: this catches launchd units THIS repo authors in Nix. It cannot see
+# the three known upstream `/bin/sh` daemons (org.nixos.activate-system,
+# org.nixos.activate-agenix, the Determinate installer hook) — those are emitted
+# by nix-darwin/agenix/the installer, live in no .nix file here, and must NOT be
+# renamed. See the "Known upstream exceptions" section of the rule doc.
+id: launchd-bare-interpreter-arg0
+language: nix
+severity: error
+
+# Two shapes, because launchd accepts either key. `$ATTR` is matched with a
+# regex rather than a literal so a dotted attrpath
+# (`agents.x.serviceConfig.ProgramArguments = …`) is caught too.
+rule:
+  any:
+    # ProgramArguments = [ <arg0> … ]  → only the FIRST element is arg0.
+    - pattern:
+        context: '{ $LIST_ATTR = [ $ARG0 $$$REST ]; }'
+        selector: binding
+    # Program = "<arg0>"  → the whole value is arg0.
+    - pattern:
+        context: '{ $STR_ATTR = $ARG0; }'
+        selector: binding
+
+constraints:
+  LIST_ATTR:
+    regex: '(^|\.)ProgramArguments$'
+  STR_ATTR:
+    regex: '(^|\.)Program$'
+  # Matches the store-path form these always take: "${pkgs.bash}/bin/sh",
+  # "${python}/bin/python3", … The trailing quote anchors on the END of the
+  # string literal, so a `nix-…` wrapper or a `lib.getExe` call never matches.
+  ARG0:
+    regex: '/bin/(sh|bash|zsh|dash|python|python3|node|perl|ruby|env)"$'
+
+message: launchd arg0 is a bare interpreter — BTM would list this agent as `sh`/`python3`.
+note: |
+  Every launchd unit this repo authors must expose an arg0 whose basename is
+  `nix-<activity-in-kebab-case>`. Wrap the command in
+  `pkgs.writeShellScriptBin "nix-<activity>" ''…''` and point
+  ProgramArguments[0] (or Program) at that wrapper — never directly at
+  ${pkgs.bash}/bin/sh or a python/node interpreter. Home Manager user agents are
+  wrapped automatically by modules/shared/hm-launchd/; do not bypass it. Full
+  rationale + audit script: .claude/rules/launchd-naming.md.

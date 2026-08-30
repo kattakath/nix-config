@@ -22,6 +22,13 @@
     # Git pre-commit hooks, installed automatically on `nix develop`.
     git-hooks.url = "github:cachix/git-hooks.nix";
     git-hooks.inputs.nixpkgs.follows = "nixpkgs";
+    # git-hooks' flake-compat feeds only its legacy non-flake shim (default.nix /
+    # shell.nix), which reads the rev out of git-hooks' OWN vendored flake.lock
+    # rather than from `inputs` — its `outputs = { self, nixpkgs, ... }` never even
+    # destructures it. We reach git-hooks solely through `lib.<system>.run`, so the
+    # fetch is pure waste. (`follows = ""` REBINDS the name to this flake, it does
+    # not delete it — only safe because nothing ever forces it.)
+    git-hooks.inputs.flake-compat.follows = "";
 
     # Raspberry Pi 4 NixOS support: kernel, firmware, and SD-card image builder.
     raspberry-pi-nix.url = "github:nix-community/raspberry-pi-nix";
@@ -71,6 +78,21 @@
     # ssh-to-age step, no Go build. Follows our nixpkgs.
     agenix.url = "github:ryantm/agenix";
     agenix.inputs.nixpkgs.follows = "nixpkgs";
+    # agenix pulls a WHOLE SECOND nix-darwin tree plus a stale (April-2025)
+    # home-manager, used at exactly three eval sites — all inside its own `checks`
+    # / `darwinConfigurations` / `legacyPackages` integration tests, which we never
+    # force (we consume `packages.<system>.default` and `darwinModules.default`
+    # only). Deduped onto ours rather than dropped, because agenix's `outputs`
+    # pattern is CLOSED (no `...`): the names must still resolve, and our newer
+    # trees expose the same `lib.darwinSystem` / `darwinModules` surface anyway.
+    agenix.inputs.darwin.follows = "nix-darwin";
+    agenix.inputs.home-manager.follows = "home-manager";
+    # `systems` (nix-systems/default) is genuinely FORCED — `import systems` feeds
+    # agenix's `packages`, which our devShell pulls — so it can only be deduped,
+    # never dropped. Three inputs pull the identical rev; terranix's copy is the
+    # arbitrary-but-stable anchor for all of them. Fragility worth knowing: drop
+    # `terranix` and this line fails at LOCK time (loudly, not at eval).
+    agenix.inputs.systems.follows = "terranix/systems";
 
     # firmware-secrets — the reflash-safe FAT-firmware-partition secret provisioning
     # module, EXTRACTED FROM THIS REPO and published as a standalone MIT flake
@@ -79,6 +101,16 @@
     # The module is pure (config/lib only), so follows our nixpkgs to avoid a 2nd copy.
     firmware-secrets.url = "github:kattakath/nix-firmware-secrets";
     firmware-secrets.inputs.nixpkgs.follows = "nixpkgs";
+    # THE flake-parts ANCHOR for our four extracted flakes. All four call
+    # `flake-parts.lib.mkFlake` (so flake-parts itself is forced and can never be
+    # dropped) and all four lock the SAME rev — yet each shipped its own
+    # flake-parts node AND its own nixpkgs.lib node: 8 nodes for one library.
+    # Collapsing them onto this one costs nothing semantically (identical rev) and
+    # the nixpkgs-lib line is upstream-blessed, not a hack: `terranix` already
+    # carries exactly this follows, and flake-parts documents the override with a
+    # 23.05 floor our nixpkgs.lib clears by three years. Note nixpkgs-lib CANNOT be
+    # `follows = ""` — flake-parts does `inherit (nixpkgs-lib) lib`.
+    firmware-secrets.inputs.flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
 
     # keychain-secrets — the macOS login-Keychain `secret` CLI + every-shell loader,
     # EXTRACTED FROM THIS REPO into a standalone MIT flake
@@ -87,6 +119,7 @@
     keychain-secrets.url = "github:kattakath/nix-keychain-secrets";
     keychain-secrets.inputs.nixpkgs.follows = "nixpkgs";
     keychain-secrets.inputs.home-manager.follows = "home-manager";
+    keychain-secrets.inputs.flake-parts.follows = "firmware-secrets/flake-parts";
 
     # cloudflared-connector — the loginless token Cloudflare Tunnel connector NixOS
     # module, EXTRACTED FROM THIS REPO into a standalone MIT flake
@@ -94,6 +127,32 @@
     # nixosModule instead of the vendored copy — dogfooding. Pure (config/lib/pkgs).
     cloudflared-connector.url = "github:kattakath/nix-cloudflared-connector";
     cloudflared-connector.inputs.nixpkgs.follows = "nixpkgs";
+
+    # deploy-rs — remote NixOS activation for `nixpi` WITH MAGIC ROLLBACK. This
+    # input exists for exactly one property `nixos-rebuild switch --target-host`
+    # does not have: an undo. `nixos-rebuild` activates and walks away — if the new
+    # generation breaks sshd, the Cloudflare Tunnel connector, or networking, the Pi
+    # is simply gone, and the only recovery is walking to the shelf, pulling the SD
+    # card, and reflashing (docs/nixpi-sd-flashing-runbook.md, ~40 min). deploy-rs
+    # instead activates behind a watchdog ON THE TARGET: the deployer must reconnect
+    # over a SECOND ssh session and confirm within `confirmTimeout`, or the Pi rolls
+    # ITSELF back to the previous generation unattended. An unreachable Pi becomes a
+    # failed deploy instead of a physical recovery.
+    # Consumed purely as a flake `lib` (`deploy-rs.lib.<system>.activate` /
+    # `.deployChecks`) plus the `deploy` CLI in the devShell — it is NOT a
+    # nixos/home-manager module and nothing on any host imports it.
+    deploy-rs.url = "github:serokell/deploy-rs";
+    deploy-rs.inputs.nixpkgs.follows = "nixpkgs";
+    # flake-compat exists only so non-flake consumers can `import` deploy-rs; a
+    # pure-flake consumer never evaluates it, so drop the fetch outright. Its
+    # sibling `utils` (flake-utils) is NOT droppable — deploy-rs builds the
+    # per-system `lib.<system>` attrset we consume with `utils.lib.eachSystem`, so
+    # following it to "" would delete the very API this input is here for.
+    deploy-rs.inputs.flake-compat.follows = "";
+    # flake-utils' only input is `systems`, and it does `import systems` in a CLOSED
+    # outputs pattern — forced, so dedupe onto the same anchor agenix uses rather
+    # than drop. Same rev, third fetch of a two-file repo otherwise.
+    deploy-rs.inputs.utils.inputs.systems.follows = "terranix/systems";
 
     # local-rag — the local-first RAG stack (loopback launchd Postgres+pgvector +
     # a local Ollama embed model + an in-DB embed() function for plain-SQL RAG),
@@ -104,6 +163,7 @@
     local-rag.url = "github:kattakath/nix-local-rag";
     local-rag.inputs.nixpkgs.follows = "nixpkgs";
     local-rag.inputs.home-manager.follows = "home-manager";
+    local-rag.inputs.flake-parts.follows = "firmware-secrets/flake-parts";
 
     # vast-provision — the Vast.ai GPU-template provisioning CLI toolkit
     # (vast-template-apply / vast-repo-check / vast-account-vars-set /
@@ -120,6 +180,7 @@
     # avoid a 2nd copy.
     vast-provision.url = "github:kattakath/nix-vast-provision";
     vast-provision.inputs.nixpkgs.follows = "nixpkgs";
+    vast-provision.inputs.flake-parts.follows = "firmware-secrets/flake-parts";
 
     # MCP (Model Context Protocol) server packaging for Claude Code. We use its
     # `lib.mkConfig` to render a PINNED {mcpServers:{…}} JSON (the 4 packaged
@@ -261,6 +322,7 @@
       firmware-secrets,
       keychain-secrets,
       cloudflared-connector,
+      deploy-rs,
       local-rag,
       vast-provision,
       mcp-servers-nix,
@@ -586,6 +648,11 @@
           treefmtEval.${system}.config.programs.nixfmt.package
           pkgs.statix # anti-pattern linter — .vscode "nix: statix" task
           pkgs.deadnix # dead-code linter — .vscode "nix: deadnix" task
+          # Structural linter for the checks.<system>.ast-grep gate. Here (and
+          # not in treefmt) so rules under ast-grep/rules/ can be iterated with
+          # `ast-grep scan` / `ast-grep test` without a full flake check. Binary
+          # is `ast-grep` — there is no `sg` alias in the nixpkgs output.
+          pkgs.ast-grep
           pkgs.jq # flattens deadnix JSON for the problem matcher
           # agenix secret editing: `agenix -e secrets/<name>.age` (recipients in
           # secrets/secrets.nix). Pure age/SSH — no ssh-to-age needed.
@@ -604,6 +671,74 @@
             package = treefmtEval.${system}.config.build.wrapper;
           };
         };
+
+      # ---- deploy-rs schema gate (per system) ---------------------------------
+      # deploy-rs ships TWO deployChecks; we take exactly ONE of them, on purpose.
+      #
+      #   deploy-schema   ✅ validates `self.deploy` against deploy-rs' own
+      #                      interface.json. Cheap: a check-jsonschema run over a
+      #                      serialised attrset. KNOW WHAT IT DOES AND DOES NOT
+      #                      COVER, because the difference is load-bearing here:
+      #                      it checks TYPES on KNOWN keys (`magicRollback = "yes"`
+      #                      → `'yes' is not of type 'boolean', 'null'`), the
+      #                      REQUIRED keys (`hostname`, `profiles.*.path`), and the
+      #                      node/profile NAME pattern. It does NOT reject UNKNOWN
+      #                      keys: interface.json sets `additionalProperties: false`
+      #                      on the `nodes` and `profiles` MAPS only (to constrain
+      #                      names), never on `generic_settings`/`node_settings`/
+      #                      `profile_settings`. So a typo'd `magicRollBack` /
+      #                      `confirmTimeOut` VALIDATES CLEAN — measured against
+      #                      this exact schema, exit 0 — and the Pi then deploys
+      #                      with magic rollback silently OFF. Renaming a setting is
+      #                      still a HUMAN review item; this gate cannot catch it.
+      #   deploy-activate ❌ EXCLUDED. It interpolates `toString profile.path`, so
+      #                      the derivation BUILD-DEPENDS on nixpi's activatable
+      #                      closure — i.e. the full aarch64-linux toplevel, worst
+      #                      case the cold linux-rpi kernel. `checks` is what
+      #                      `nix flake check`, /eval and nix-ci.yml build, and all
+      #                      three are deliberately lint-only (see the checks
+      #                      comment below). Adding it would turn every `/eval`
+      #                      into a Pi-closure build on Determinate's 1-CPU Linux
+      #                      builder. All it asserts is that `activate.nixos`
+      #                      produced its two wrapper scripts — an upstream
+      #                      invariant, not a property of OUR config.
+      #
+      # Gated on `deploy-rs.lib ? ${system}` for the aarch64-only invariant:
+      # deploy-rs exports `lib` for FOUR systems (both darwins + both linuxes) and
+      # the README's canonical `mapAttrs … deploy-rs.lib` would therefore create
+      # checks.x86_64-linux AND checks.x86_64-darwin, which this flake permits
+      # nowhere. Folding over forAllSystems instead keeps `checks` at exactly the
+      # two fleet arches; the guard is what makes that safe if upstream ever drops
+      # one of them.
+      deployChecksFor =
+        system:
+        nixpkgs.lib.optionalAttrs (deploy-rs.lib ? ${system}) {
+          inherit (deploy-rs.lib.${system}.deployChecks deploySchemaSubject) deploy-schema;
+        };
+
+      # `self.deploy` with every `profiles.*.path` demoted from a derivation to a
+      # PLAIN (context-free) store-path string. Handing deploy-schema `self.deploy`
+      # raw looks obviously right and is a trap: it does
+      # `writeText (builtins.toJSON deploy)`, `toJSON` renders a derivation as its
+      # outPath *carrying string context*, and writeText turns that context into a
+      # real inputDrv. Measured, not guessed — the naive check's deploy.json.drv
+      # references `activatable-nixos-system-nixpi…drv`, whose closure contains
+      # `linux-rpi-6.6.51.drv`. That would make `nix flake check`, `/eval` and
+      # nix-ci.yml build the Pi's COLD KERNEL to run a JSON-schema assertion.
+      # unsafeDiscardStringContext keeps the byte-identical string, so the schema
+      # still validates a real `"path": "/nix/store/…"` and the check's verdict is
+      # unchanged — only the phantom build edge is gone.
+      deploySchemaSubject = self.deploy // {
+        nodes = nixpkgs.lib.mapAttrs (
+          _: node:
+          node
+          // {
+            profiles = nixpkgs.lib.mapAttrs (
+              _: profile: profile // { path = builtins.unsafeDiscardStringContext "${profile.path}"; }
+            ) node.profiles;
+          }
+        ) self.deploy.nodes;
+      };
 
       # ---- Shared identity + Home-Manager module ------------------------------
       # Threaded into BOTH builders (mkNixos + mkDarwin) so system specialArgs and
@@ -919,6 +1054,98 @@
         # installer-latest release, and Cachix-warmed. `nix run .#nixpi-flash`
         # flashes it in one step — the old two-step "boot a minimal installer, ssh
         # nixos@nixpi-installer.local, nixos-rebuild" image was redundant and removed.)
+      };
+
+      # ---- Remote activation: deploy-rs nodes (MAGIC ROLLBACK) -----------------
+      #
+      # ⚠ NEVER `deploy .#nixpi` FROM THIS PUBLIC REPO for a real deploy. ⚠
+      #
+      # Exactly the same trap as `darwin-rebuild switch --flake .#macos`: the node
+      # below points at THIS repo's `nixosConfigurations.nixpi`, which is the
+      # SITE-FREE public baseline. `hostedSites` defaults to `[ ]` here, so a
+      # successful deploy from this tree hands the live Pi a Caddy with ZERO
+      # vhosts and no dontsell.ai connector unit — kattakath.com, snoringirl.com,
+      # ismail.kattakath.com and dontsell.ai all go dark, while sshd and the
+      # primary tunnel keep working. Magic rollback CANNOT save you from that: it
+      # only reverts an activation that leaves the host UNREACHABLE, and a
+      # site-free Pi is perfectly reachable — deploy-rs would report SUCCESS.
+      # The real sites live in the private nix-personal flake; deploy from there.
+      #
+      # This node still ships here because it is the ENGINE, not the deployment —
+      # same public-engine / private-plug-in contract as `mkNixos { hostedSites }`
+      # and `mkDarwin { extraHomeModules }`. nix-personal re-exports its own
+      # `deploy.nodes.nixpi` by reusing these settings against ITS
+      # `nixosConfigurations.nixpi` (see docs/private-home-modules.md), so the
+      # rollback semantics, timeouts and ssh plumbing are single-sourced here and
+      # never re-derived in the private tree.
+      #
+      # `deploy` with no `--targets` fans out over EVERY node, so an
+      # argument-less `deploy` in this repo IS a live-Pi deploy. Always name the
+      # target.
+      deploy.nodes.nixpi = {
+        # The TUNNELLED hostname, not nixpi.local: the Pi has no public IP and no
+        # port-forward, and the LAN name only resolves when the Mac happens to be
+        # on the same network. Reaching it needs a `ProxyCommand cloudflared
+        # access ssh --hostname %h`, which modules/shared/home.nix now declares as
+        # a real `Host nixpi.<domain>` block — so plain `ssh` resolves it, and so
+        # does the `nix copy --to ssh://…` leg (nix shells out to the system ssh,
+        # which reads ~/.ssh/config). That is why `sshOpts` stays EMPTY: deploy-rs
+        # space-joins sshOpts into NIX_SSHOPTS, which nix re-splits on whitespace,
+        # so an inline `-o ProxyCommand=cloudflared access ssh …` would be
+        # mangled for the copy leg. ~/.ssh/config is the only place a spaced
+        # ProxyCommand survives both legs.
+        # NOTE: this path also depends on a Cloudflare Zero Trust *Access
+        # Application* for the hostname existing — hand-created, NOT in terranix,
+        # and it silently vanished once (2026-08-20). See docs/private-home-modules.md.
+        hostname = "nixpi.${domainName}";
+
+        # Who we SSH in as (the operator, keys-only) vs who ACTIVATES (root, via
+        # passwordless sudo — modules/nixos/core.nix puts the operator in `wheel`
+        # with `security.sudo.wheelNeedsPassword = false`, so no `interactiveSudo`).
+        # loginName comes from identityArgs, never a literal.
+        sshUser = loginName;
+
+        # THE WHOLE REASON THIS EXISTS. magicRollback makes the Pi wait for a
+        # confirmation over a fresh ssh connection after activating; autoRollback
+        # covers the other half (an activation script that exits non-zero). With
+        # both on, the failure mode of a bad nixpi generation is "deploy failed,
+        # Pi still serving" instead of "drive home and reflash the SD card".
+        magicRollback = true;
+        autoRollback = true;
+
+        # The Pi must NEVER build. remoteBuild = true copies the *derivation* and
+        # runs `nix build --store ssh-ng://` on the target — a Pi 4 building the
+        # closure (worst case the cold linux-rpi kernel) is exactly what
+        # CLAUDE.md forbids. false = build on the Mac / pull from CI's Cachix push.
+        remoteBuild = false;
+
+        # Deliberately NOT `fastConnection = true`: that flag DROPS
+        # `--substitute-on-destination` from the `nix copy`, forcing the entire
+        # closure through the Cloudflare Tunnel. Left false so the Pi substitutes
+        # from the public Cachix cache itself (modules/shared/nix-cache.nix) and
+        # only the cache misses cross the tunnel.
+        fastConnection = false;
+
+        # Both defaults are too tight for THIS target, and a timeout here does not
+        # mean "slow" — it means an unattended ROLLBACK of a good deploy.
+        # activationTimeout: a Pi 4 on an SD card takes minutes to run
+        # switch-to-configuration + restart units (upstream default is 240s).
+        # confirmTimeout: the confirmation rides a SECOND ssh session that must
+        # re-dial the tunnel and re-do Cloudflare Access (upstream default 30s).
+        activationTimeout = 600;
+        confirmTimeout = 120;
+
+        profiles.system = {
+          user = "root";
+          # `activate.nixos` wraps the toplevel in a buildEnv that adds the
+          # deploy-rs activator scripts, and installs into /nix/var/nix/profiles/
+          # system — the SAME profile `nixos-rebuild` uses, so generations and
+          # `nixos-rebuild --rollback` stay unified across both tools.
+          # The system is read off the config rather than written twice.
+          path =
+            deploy-rs.lib.${self.nixosConfigurations.nixpi.config.nixpkgs.hostPlatform.system}.activate.nixos
+              self.nixosConfigurations.nixpi;
+        };
       };
 
       # ---- Packages: container images + installer images ------------------------
@@ -1581,7 +1808,38 @@
           default = pkgs.mkShell {
             # Shared with the devcontainer image (devPackagesFor) so the pinned
             # nixd/treefmt/statix/deadnix/jq/home-manager set never drifts.
-            packages = devPackagesFor system ++ preCommit.enabledPackages;
+            packages =
+              devPackagesFor system
+              ++ preCommit.enabledPackages
+              # The `deploy` CLI (deploy-rs) — DARWIN ONLY, on purpose. `macos` is
+              # the fleet's sole SSH client and the only host holding the operator
+              # key + the cloudflared Access path, so a deploy can originate
+              # nowhere else. Kept OUT of devPackagesFor because that list is BAKED
+              # INTO the devcontainer image (incl. the x86_64 Codespaces variant),
+              # which can neither reach the Pi nor justify a from-source Rust build
+              # of a tool it cannot use.
+              # Sourced from the deploy-rs INPUT rather than `pkgs.deploy-rs`:
+              # `activate.nixos` embeds the overlay-built `activate` binary into
+              # nixpi's closure, and magic rollback is a handshake between THAT
+              # binary and this CLI. nixpkgs carries its own independently-revved
+              # copy; taking both from one lock entry keeps them in lockstep.
+              #
+              # THE PRICE OF THAT LOCKSTEP, stated plainly because it is invisible
+              # otherwise: the input's overlay build (`deploy-rs-0.1.0`) is CACHED
+              # NOWHERE — verified absent from BOTH cache.nixos.org and
+              # kattakath.cachix.org on both arches — whereas `pkgs.deploy-rs`
+              # (`0-unstable-*`) substitutes fine. So on a machine that has not
+              # built it yet, `nix develop` pays a from-source Rust build, and the
+              # first real deploy pays a SECOND one for the aarch64-linux `activate`
+              # baked into nixpi's closure (on Determinate's ~1-CPU Linux builder).
+              # Deliberately NOT mitigated by adding it to `checks` to warm Cachix:
+              # `checks` is what `nix flake check` / `/eval` / nix-ci.yml build and
+              # is kept strictly lint-only (see the `checks` comment below) — paying
+              # a Rust build on every local `/eval` to save it on the rare fresh-Mac
+              # `nix develop` is the worse trade. Budget for it once per machine.
+              ++ nixpkgs.lib.optionals (nixpkgs.lib.elem system darwinSystems) [
+                deploy-rs.packages.${system}.default
+              ];
 
             # We deliberately DO NOT run git-hooks.nix's installer
             # (${preCommit.shellHook}). That installer would symlink
@@ -1611,27 +1869,59 @@
       # a RELEASE-time concern. Merge CI instead EVALUATES the host configs
       # (cheap, catches config/eval errors) without building — see
       # .github/workflows/nix-ci.yml.
-      checks = forAllSystems (system: {
-        formatting = treefmtEval.${system}.config.build.check self;
-        pre-commit = preCommitFor system;
-        # Drift guard: nix-config vendors its OWN physical copies of the two
-        # instance-side scripts a live Vast instance fetches over raw HTTP at
-        # boot (packages/vast-bootstrap.sh, packages/templates/provisioner/
-        # provision-lib.sh) — required because PROVISIONING_SCRIPT/
-        # PROVISION_LIB_URL are built from THIS repo's orgName/repoName (the
-        # vast-provision.nix callPackage override above), not the
-        # vast-provision flake input's own identity. The input ALSO carries
-        # its own copies of both files (for its own CI + as what forks
-        # reference). Nothing else catches the two silently diverging — this
-        # fails loudly the moment they do.
-        vast-lib-drift =
-          (pkgsFor system).runCommand "vast-lib-drift" { nativeBuildInputs = [ (pkgsFor system).diffutils ]; }
-            ''
-              diff -u ${./packages/vast-bootstrap.sh} ${vast-provision}/packages/vast-bootstrap.sh
-              diff -u ${./packages/templates/provisioner/provision-lib.sh} \
-                ${vast-provision}/packages/templates/provisioner/provision-lib.sh
-              touch "$out"
-            '';
-      });
+      checks = forAllSystems (
+        system:
+        deployChecksFor system
+        // {
+          formatting = treefmtEval.${system}.config.build.check self;
+          pre-commit = preCommitFor system;
+          # Drift guard: nix-config vendors its OWN physical copies of the two
+          # instance-side scripts a live Vast instance fetches over raw HTTP at
+          # boot (packages/vast-bootstrap.sh, packages/templates/provisioner/
+          # provision-lib.sh) — required because PROVISIONING_SCRIPT/
+          # PROVISION_LIB_URL are built from THIS repo's orgName/repoName (the
+          # vast-provision.nix callPackage override above), not the
+          # vast-provision flake input's own identity. The input ALSO carries
+          # its own copies of both files (for its own CI + as what forks
+          # reference). Nothing else catches the two silently diverging — this
+          # fails loudly the moment they do.
+          vast-lib-drift =
+            (pkgsFor system).runCommand "vast-lib-drift" { nativeBuildInputs = [ (pkgsFor system).diffutils ]; }
+              ''
+                diff -u ${./packages/vast-bootstrap.sh} ${vast-provision}/packages/vast-bootstrap.sh
+                diff -u ${./packages/templates/provisioner/provision-lib.sh} \
+                  ${vast-provision}/packages/templates/provisioner/provision-lib.sh
+                touch "$out"
+              '';
+
+          # Structural lint (ast-grep). A CHECK, deliberately not a treefmt
+          # formatter: treefmt-nix ships no ast-grep program, and the pre-commit
+          # hook IS the `nix fmt` wrapper — a report-only checker in that slot
+          # would block every commit with a diagnostic no `nix fmt` can fix. Rules
+          # + rationale: sgconfig.yml and ast-grep/rules/*.yml (they mechanise
+          # CLAUDE.md § Conventions "Paths — two axes" and
+          # .claude/rules/launchd-naming.md, which were prompt-only until now).
+          #
+          # `${self}` is the git-tracked tree, so the walk sees exactly what CI
+          # sees. Two non-obvious flags:
+          #   --no-ignore hidden : ast-grep SKIPS dot-dirs by default, which would
+          #     silently exclude .claude/hooks/*.js — i.e. a green check that
+          #     linted nothing. Verified: without it the JS rule finds zero files.
+          #   `test` before `scan` : the valid/invalid fixtures in
+          #     ast-grep/rule-tests/ prove each rule still FIRES, so a typo'd
+          #     pattern fails loudly instead of passing vacuously.
+          # HOME is set because ast-grep resolves a user config dir on startup and
+          # $HOME is unset in the sandbox.
+          ast-grep =
+            (pkgsFor system).runCommand "ast-grep" { nativeBuildInputs = [ (pkgsFor system).ast-grep ]; }
+              ''
+                export HOME="$TMPDIR"
+                cd ${self}
+                ast-grep test --skip-snapshot-tests
+                ast-grep scan --no-ignore hidden --color=never .
+                touch "$out"
+              '';
+        }
+      );
     };
 }

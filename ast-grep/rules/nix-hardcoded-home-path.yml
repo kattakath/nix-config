@@ -1,0 +1,32 @@
+# Mechanises the RUNTIME half of CLAUDE.md § Conventions "Paths — two axes".
+#
+# The advisory version of this already exists as .claude/hooks/nix-home-path-lint.js,
+# but that is a PostToolUse hook: it only ever fires on Claude's OWN .nix writes.
+# A human commit, a `git revert`, or a Dependabot/flake-bump PR carrying a
+# hardcoded home dir sails straight through CI. This rule is the gate half — the
+# two MUST stay in sync (same regex, same intent); change one, change the other.
+#
+# Structural upgrade over the hook: the hook is line-based and strips a trailing
+# `#` comment to avoid flagging prose. This matches only `string_fragment` nodes,
+# i.e. text genuinely inside a Nix string (including `''…''` script bodies), so
+# comments and Nix SOURCE path literals (`../../claude/CLAUDE.md`) are exempt by
+# construction rather than by heuristic.
+id: nix-hardcoded-home-path
+language: nix
+severity: error
+
+# `[a-z]` start + the trailing `/` require a real lowercase user segment, so
+# /Users/Shared, a bare /home, and `${config.home.homeDirectory}` / "/Users/$USER"
+# are all correctly ignored.
+rule:
+  kind: string_fragment
+  regex: '/(Users|home)/[a-z][a-z0-9._-]*/'
+
+message: Hardcoded per-user home path inside a Nix string.
+note: |
+  Runtime paths must be $HOME/XDG-relative — use "$HOME/…",
+  config.home.homeDirectory, or an XDG dir. A literal /Users/<name>/ or
+  /home/<name>/ in a .nix VALUE is not reproducible and breaks on any other
+  operator/host. (Nix source path literals like ../../foo are the OTHER axis and
+  are correct — this rule cannot see them.) Same convention as
+  .claude/hooks/nix-home-path-lint.js; keep both in sync.

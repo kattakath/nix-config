@@ -1,0 +1,18 @@
+id: launchd-bare-interpreter-arg0
+valid:
+  # The mandated shape: a named nix-<activity> wrapper.
+  - '{ ProgramArguments = [ (lib.getExe nixScreengrabShare) ]; }'
+  - '{ ProgramArguments = [ "${wrapper}/bin/nix-mcp-gateway" "--port" "8096" ]; }'
+  # An interpreter is fine anywhere EXCEPT arg0 — here it is arg1.
+  - '{ ProgramArguments = [ "${wrapper}/bin/nix-thing" "${pkgs.bash}/bin/sh" ]; }'
+  # Not a launchd key at all.
+  - '{ extraArgs = [ "${pkgs.bash}/bin/sh" "-c" "true" ]; }'
+  # The vendored launchd module DECLARES these keys as options — a declaration
+  # must never be mistaken for a usage.
+  - '{ Program = mkOption { type = types.str; }; }'
+invalid:
+  - '{ ProgramArguments = [ "${pkgs.bash}/bin/sh" "-c" "wait4path /nix/store && exec foo" ]; }'
+  - '{ ProgramArguments = [ "${pkgs.python3}/bin/python3" "script.py" ]; }'
+  # Dotted attrpath — the regex on $LIST_ATTR is what makes this reachable.
+  - '{ agents.x.serviceConfig.ProgramArguments = [ "${pkgs.nodejs}/bin/node" "s.js" ]; }'
+  - '{ Program = "${pkgs.bash}/bin/bash"; }'
