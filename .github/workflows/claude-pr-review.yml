@@ -26,7 +26,7 @@
 #     patched the disclosed prompt-injection / secret-exfiltration issue).
 #   * Least-privilege `permissions:` + per-PR `cancel-in-progress` concurrency, so
 #     a rapid push supersedes its own in-flight review (a cheap, self-superseding
-#     workflow — see .claude/rules/pr-consolidation.md).
+#     workflow).
 #   * Claude-app identity. No `github_token:` is passed, so comments post as the
 #     Claude GitHub App (via OIDC, hence `id-token: write`), not github-actions[bot].
 #

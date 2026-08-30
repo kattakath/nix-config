@@ -659,14 +659,16 @@ MCP servers have their own doc: [`mcp-gateway.md`](mcp-gateway.md).
 | `/gmail-account` | add/authenticate/remove a Gmail MCP multi-account, see [`gmail-mcp-multi-account-runbook.md`](gmail-mcp-multi-account-runbook.md) |
 | `/routing-review` | triage Claude Code's own OTel tool-decision log for deterministic-routing hardening candidates, see [`claude-code-observability-runbook.md`](claude-code-observability-runbook.md) |
 | `/mcp-scout` | discover → vet → DECLARATIVELY adopt an MCP server into the gateway via skill `mcp-scout`; imperative installer CLIs / config-writing install tools are never used |
-| `/fleet-doctor` | fleet-wide consistency sweep (branches/worktrees/PRs/CI/cross-repo pins/GC/host re-activation) across every repo in `.claude/skills/fleet-doctor/fleet-repos.txt`, via skill `fleet-doctor`; composes `nix-hygiene`, `git-purity.md`, `pr-consolidation.md` |
+| `/fleet-doctor` | fleet-wide consistency sweep (branches/worktrees/PRs/CI/cross-repo pins/GC/host re-activation) across every repo in `.claude/skills/fleet-doctor/fleet-repos.txt`, via skill `fleet-doctor`; composes `nix-hygiene`, `git-purity.md`, `pr-title.md` |
 
 ### `.claude/rules/` — always applied
 
 - [`git-purity.md`](../.claude/rules/git-purity.md) — stage `.nix` files before eval.
-- [`pr-consolidation.md`](../.claude/rules/pr-consolidation.md) — reuse the current session's
-  open PR/branch for follow-up changes instead of opening a new PR each time; start a fresh PR
-  only once the prior one has merged (or the user explicitly asks for a separate one).
+- [`pr-title.md`](../.claude/rules/pr-title.md) — a PR title is the comma-separated list of the
+  components the change touches (first-level `nix flake show` output category for flake outputs,
+  or a top-level dot-folder with its dot stripped). Also states the default shape: **one PR per
+  change, branched off `main`** — the merge queue serializes them, so PRs are independent (the
+  old "one open PR per working session" consolidation policy was retired 2026-08-30).
 - [`launchd-naming.md`](../.claude/rules/launchd-naming.md) — every launchd unit this repo
   authors must expose a `nix-<kebab>` `arg0` basename (never a bare `sh`/`python3`); documents
   the known upstream `/bin/sh` exceptions (`org.nixos.activate-system`,
