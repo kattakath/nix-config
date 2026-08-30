@@ -12,6 +12,8 @@ description: >
 # nix-hygiene
 
 **Floor (already automated):** `nix fmt` / treefmt (nixfmt + statix + deadnix),
+ast-grep structural lint (`checks.<system>.ast-grep` — hardcoded home paths, launchd
+bare-interpreter arg0, unguarded `JSON.parse` in hooks; rules in `ast-grep/rules/`),
 Stop gate + `/eval` (`git add` → `nix flake check`), CI `nix-ci.yml`.
 
 **This skill:** judgmental hygiene — architecture, host scope, docs↔code,

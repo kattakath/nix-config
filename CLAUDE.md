@@ -33,6 +33,9 @@ nix flake show                               # List exported darwin/nixosConfigu
 nix fmt                                      # Format + lint-fix all .nix via treefmt (nixfmt + statix + deadnix)
 nix develop                                  # Dev shell (nixd LSP, treefmt, home-manager); installs pre-commit hooks
 nix build .#checks.<system>.formatting       # CI formatting/lint gate
+nix build .#checks.<system>.ast-grep         # Structural-lint gate (report-only; rules in ast-grep/rules/)
+ast-grep scan --no-ignore hidden .           # Same scan by hand (devShell); --no-ignore hidden or .claude/ is SKIPPED
+ast-grep test --skip-snapshot-tests          # Prove each rule still fires (fixtures in ast-grep/rule-tests/)
 # Agent hygiene (LEAN/DRY/docs drift → fix → fmt → check): /hygiene  or skill nix-hygiene
 
 # Activation
@@ -40,6 +43,10 @@ darwin-rebuild switch --flake .#macos        # ⚠ NEVER run this from THIS repo
                                              #   drops the private nix-personal layer. Use `nrs`, or ask first.
 nix run github:kattakath/nix-config#macos    # FIRST activation of macos straight from the flake (before darwin-rebuild is on PATH)
 nixos-rebuild switch --flake .#nixpi         # Activate the Pi (LIVE server — must pass CI/Cachix first, never build heavy on the Pi)
+deploy --targets .#nixpi                     # ⚠ Same trap as above: from THIS repo it deploys a SITE-FREE Pi. Deploy from
+                                             #   nix-personal. deploy-rs w/ magicRollback: an unreachable Pi auto-reverts
+                                             #   instead of needing a physical SD-card pull. ALWAYS --targets (bare `deploy`
+                                             #   fans out over every node). --dry-activate to rehearse.
 nix run .#nixvm                              # Build + boot the throwaway nixvm XFCE build-vm in a native QEMU window
 nix eval .#nixosConfigurations.nixpi.config.system.build.toplevel   # Fast single-target eval
 
@@ -69,8 +76,8 @@ Prefer the `/eval` and `/update-input` commands over retyping the stage→check�
 ## Testing
 
 `nix flake check` **is** the test suite (evaluation of every output + treefmt/statix/deadnix
-gates). Run it before declaring any change done — a config that evaluates on one system can
-still break the other.
+and ast-grep structural-lint gates). Run it before declaring any change done — a config that
+evaluates on one system can still break the other.
 
 - Two-system coverage is mandatory: `aarch64-darwin` and `aarch64-linux`.
 - CI (`.github/workflows/nix-ci.yml`) splits it across 2 GitHub-hosted legs and requires the
@@ -86,9 +93,10 @@ One line per path; the *why* and the per-file specifics are in
 
 | Path | What it owns |
 |---|---|
-| `flake.nix` | Inputs/pins, `forAllSystems`, `mkDarwin`/`mkNixos`, `identityArgs`, all exported configurations/packages/apps/checks. |
-| `flake.lock` | Pinned revisions — bump only via `nix flake update` / `/update-input`, never hand-edit. |
-| `treefmt.nix` | Single source of truth for format + lint-fix; drives `nix fmt`, the CI gate, and the pre-commit hook. |
+| `flake.nix` | Inputs/pins, `forAllSystems`, `mkDarwin`/`mkNixos`, `identityArgs`, all exported configurations/packages/apps/checks, and `deploy.nodes.nixpi` (deploy-rs, magic rollback — read the ⚠ at its definition site). |
+| `flake.lock` | Pinned revisions — bump only via `nix flake update` / `/update-input`, never hand-edit. Held at **60 nodes** by a deliberate `follows` diet; a `follows` edit is **shape-only** (`nix flake lock`, never a bare `nix flake update`) and `follows = ""` REBINDS to this flake rather than removing — see [`docs/repo-map.md`](docs/repo-map.md) § `flake.lock`. |
+| `treefmt.nix` | Single source of truth for format + lint-fix (tools that REWRITE); drives `nix fmt`, the CI gate, and the pre-commit hook. |
+| `sgconfig.yml` + `ast-grep/` | Report-only structural lint (ast-grep): `rules/` mechanises prose conventions, `rule-tests/` proves they fire. Gated by `checks.<system>.ast-grep`, **not** treefmt. |
 | `hosts/` | Per-host entry profiles: `macos.nix`, `macvm.nix`, `nixpi.nix`, `nixvm.nix` (host-only deltas + per-host Homebrew lists). |
 | `modules/shared/` | Home Manager profile on every host: `home.nix`, `mcp.nix`, `desktop-aesthetics.nix`, `nix-cache.nix`, `nix-ld-libraries.nix`, `wireguard-configs.nix`, `claude-otel.nix`, `hm-launchd/`. |
 | `modules/darwin/` | macOS system: `core.nix`, `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`services.macosGithubRunner` — LIVE on `macos`, see § Configuration). |
@@ -218,6 +226,20 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   the private nix-personal layer. Use the `nrs` wrapper (private composition) or ask first.
 - **`nixpi` is LIVE.** Changes must pass CI (which pushes closures to Cachix) before
   activation; pull prebuilt paths, never build heavy on the Pi.
+- **Never `deploy --targets .#nixpi` from this public repo.** `deploy.nodes.nixpi` here points
+  at the **site-free** public `nixosConfigurations.nixpi`, so a *successful* deploy hands the
+  live Pi a Caddy with **zero vhosts** and no dontsell.ai connector — every site goes dark
+  while sshd stays up. **Magic rollback cannot save you from that**: it only reverts an
+  activation that leaves the host **unreachable**, and a site-free Pi is perfectly reachable,
+  so deploy-rs reports SUCCESS. Deploy from the private nix-personal flake, which reuses this
+  node against *its* `nixosConfigurations.nixpi`. Also: bare `deploy` with no `--targets` fans
+  out over **every** node — always name the target.
+- **What magic rollback actually buys** (`deploy.nodes.nixpi.magicRollback = true`): the Pi
+  activates behind a watchdog and reverts **itself** to the previous generation unless the
+  deployer reconnects over a second ssh session and confirms. A change that kills sshd, the
+  tunnel connector, or networking becomes a *failed deploy* instead of a trip to the shelf to
+  pull the SD card and reflash (`docs/nixpi-sd-flashing-runbook.md`, ~40 min). `nixos-rebuild
+  switch --target-host` has no such undo. `remoteBuild = false` keeps the build off the Pi.
 - `home-manager switch` activates and is hard to reverse; prefer `build` to verify, and
   `switch` only when explicitly asked. `home-manager generations` lists,
   `home-manager rollback` reverts.

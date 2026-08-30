@@ -1,0 +1,28 @@
+id: hook-json-parse-must-be-guarded
+valid:
+  # The stdin-payload shape used by nix-home-path-lint.js / autostage-nix.js.
+  - |
+    let evt;
+    try {
+      evt = JSON.parse(raw);
+    } catch {
+      process.exit(0);
+    }
+  # The state-file shape used by superhook.js — a try several frames up still
+  # counts, which is what `stopBy: end` buys.
+  - |
+    function readState() {
+      try {
+        if (x) {
+          return JSON.parse(fs.readFileSync(stateFile, "utf8"));
+        }
+      } catch {
+        return null;
+      }
+    }
+invalid:
+  - 'const evt = JSON.parse(raw);'
+  - |
+    function readState() {
+      return JSON.parse(fs.readFileSync(stateFile, "utf8"));
+    }
