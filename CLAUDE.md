@@ -1,106 +1,287 @@
+This is `kattakath/nix-config` — the all-in-one, public Nix mono-repo that declaratively
+manages Ismail's entire aarch64-only fleet: one client Mac, one live Raspberry Pi server, a
+Tart macOS guest, a throwaway NixOS dev VM, and a devcontainer image. Everything below is
+guidance for Claude Code (claude.ai/code) when working in this repository.
+
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+**This file is an index, not an encyclopedia.** It stays scannable and under the 40k-char
+context lint limit; the full per-path detail lives in [`docs/repo-map.md`](docs/repo-map.md).
+When you change repo shape, update the one-liner here **and** the section there.
 
-All-in-one Nix mono-repo managing a fully declarative **aarch64-only** fleet: **macOS/nix-darwin (`macos`, aarch64-darwin — the sole client Mac, no remote/incoming traffic; the SSH client, reaching `nixpi` via `cloudflared access ssh` over the tunnel; builds `aarch64-linux` locally on Determinate's native Linux builder)** and **NixOS Raspberry Pi 4 (`nixpi`, aarch64-linux — the LIVE server: static-key SSH over a Cloudflare Tunnel connector + Caddy, generic and site-free in this public repo — the real hosted sites and dontsell.ai's second tunnel connector are supplied by the private nix-personal composition flake, see `docs/private-home-modules.md`)**, plus a throwaway NixOS `aarch64-linux` dev VM (`nixvm`) materialised only as `nix run .#nixvm` (a build-vm XFCE desktop — no installed VM, no builder, no runner), a **Tart `aarch64-darwin` guest (`macvm`)** on Apple Virtualization that shares macos's stack with a leaner Homebrew set + the MCP gateway trimmed off, activated inside the VM under the same operator identity as every other host, and a matching **Devcontainer** image. Single source of truth; platform divergence lives in `modules/`, never in ad-hoc shell.
+## Overview
 
-## Build / Test / Lint
+Fully declarative **aarch64-only** fleet, single source of truth, platform divergence in
+`modules/` (never ad-hoc shell):
+
+| Host | System | Role |
+|---|---|---|
+| `macos` | aarch64-darwin | The sole client Mac (nix-darwin). No incoming traffic; it is the SSH *client*, reaching `nixpi` via `cloudflared access ssh`. Builds `aarch64-linux` locally on Determinate's native Linux builder. |
+| `nixpi` | aarch64-linux | **LIVE server** (NixOS on a Pi 4): static-key SSH over a Cloudflare Tunnel connector + Caddy. **Site-free in this public repo** — real sites + dontsell.ai's second connector come from the private nix-personal flake ([`docs/private-home-modules.md`](docs/private-home-modules.md)). |
+| `macvm` | aarch64-darwin | Tart guest on Apple Virtualization; macos's stack minus the MCP gateway and desktop aesthetics, leaner Homebrew, activated *inside* the VM under the same operator identity. |
+| `nixvm` | aarch64-linux | Throwaway XFCE build-vm, materialised **only** as `nix run .#nixvm`. No installed disk, no builder, no runner. |
+| devcontainer | +`x86_64-linux` | The one exception to aarch64-only, so it runs on x86_64 Codespaces. |
+
+Full map: [`docs/repo-map.md`](docs/repo-map.md).
+
+## Build & Commands
 
 ```bash
 git add -A                                   # MANDATORY before any eval — flakes ignore untracked files
 nix flake check                              # Evaluate every output + formatting/lint/pre-commit checks (the test suite)
-nix flake show                               # List exported darwinConfigurations + nixosConfigurations + packages
-nix fmt                                       # Format + lint-fix all .nix via treefmt (nixfmt + statix + deadnix)
+nix flake show                               # List exported darwin/nixosConfigurations + packages
+nix fmt                                      # Format + lint-fix all .nix via treefmt (nixfmt + statix + deadnix)
+nix develop                                  # Dev shell (nixd LSP, treefmt, home-manager); installs pre-commit hooks
+nix build .#checks.<system>.formatting       # CI formatting/lint gate
 # Agent hygiene (LEAN/DRY/docs drift → fix → fmt → check): /hygiene  or skill nix-hygiene
-nix develop                                   # Enter dev shell (nixd LSP, treefmt, home-manager); installs pre-commit hooks
-nix build .#checks.<system>.formatting        # CI formatting/lint gate (fails on unformatted/lintable files)
-curl -fsSL https://raw.githubusercontent.com/kattakath/nix-config/main/bootstrap.sh | bash   # BOOTSTRAP a clean/reset Mac (no Nix yet): install Determinate Nix, then hand off to key-recover — restores from an iCloud kit if present, else FOUNDS a fresh operator identity. `| bash -s -- --check` for a dry run; `--fresh` skips the confirm. See docs/mac-key-recovery-runbook.md
-nix run github:kattakath/nix-config#macos   # FIRST activation of macos straight from the flake (after Determinate Nix, before darwin-rebuild is on PATH)
-darwin-rebuild switch --flake .#macos        # Activate the macOS (nix-darwin) config (Apple Silicon)
-nixos-rebuild switch --flake .#nixpi         # Activate the Raspberry Pi config (LIVE server)
-nix eval .#nixosConfigurations.nixpi.config.system.build.toplevel   # Evaluate a SINGLE config (fast single-target check)
-nix build .#nixosConfigurations.nixpi.config.system.build.sdImage  # Build the flashable Pi SD image (aarch64-linux — builds locally on the native Linux builder, or use --release; see runbook)
+
+# Activation
+darwin-rebuild switch --flake .#macos        # ⚠ NEVER run this from THIS repo for a real switch — it silently
+                                             #   drops the private nix-personal layer. Use `nrs`, or ask first.
+nix run github:kattakath/nix-config#macos    # FIRST activation of macos straight from the flake (before darwin-rebuild is on PATH)
+nixos-rebuild switch --flake .#nixpi         # Activate the Pi (LIVE server — must pass CI/Cachix first, never build heavy on the Pi)
+nix run .#nixvm                              # Build + boot the throwaway nixvm XFCE build-vm in a native QEMU window
+nix eval .#nixosConfigurations.nixpi.config.system.build.toplevel   # Fast single-target eval
+
+# Bootstrap a clean/reset Mac (no Nix yet): install Determinate Nix, then hand off to key-recover —
+# restores from an iCloud kit if present, else FOUNDS a fresh operator identity.
+# `| bash -s -- --check` for a dry run; `--fresh` skips the confirm. See docs/mac-key-recovery-runbook.md
+curl -fsSL https://raw.githubusercontent.com/kattakath/nix-config/main/bootstrap.sh | bash
+
+# nixpi SD card
+nix build .#nixosConfigurations.nixpi.config.system.build.sdImage   # aarch64-linux; builds on the native Linux builder, or use --release
+nix run .#nixpi-flash -- --disk /dev/diskN --release   # Download the CI-prebuilt image → verified dd → auto-plant token+wifi on FIRMWARE
+nix run .#nixpi-provision                     # Plant/update token + Wi-Fi on a mounted card (--token / --wifi)
 # Flashing: do a FULL verified write (confirm dd's ~5.6GB byte count) — see docs/nixpi-sd-flashing-runbook.md
-nix run .#nixvm                           # Build + boot the throwaway `nixvm` graphical build-vm (XFCE) in a native QEMU window on macOS (aarch64-linux guest builds locally on Determinate's native Linux builder — see dtr.mn/features — or substitutes from Cachix)
-CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-tunnel-apply    # Provision nixpi's remotely-managed tunnel + ingress + CNAME (terranix); PRINTS the connector token to store via `nix run .#nixpi-vault-token`
-CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-tunnel-destroy  # Tear down the nixpi tunnel/ingress/CNAME stack
-nix run .#nixpi-flash -- --disk /dev/diskN --release   # Reflash the nixpi SD card: download the CI-prebuilt image (--release; or --image FILE / default nix build) → verified dd → auto-plant token+wifi on the FIRMWARE partition
-nix run .#nixpi-provision                     # Plant token + Wi-Fi onto a mounted nixpi card (--token / --wifi for updates); nixpi-wifi-creds emits a wpa_supplicant.conf from this Mac's Wi-Fi; nixpi-vault-token re-encrypts a rotated token into the vault
-nix run .#vast-account-vars-set               # Sync read-only VAST_* Keychain tokens → Vast ACCOUNT-level env vars (default: GITLAB/HF/CIVITAI/GH); injected into every instance
-nix run .#vast-ssh-key-set                     # Register the operator SSH public key on the Vast account (idempotent)
-nix run .#vast-init-repo -- --repo owner/name  # Scaffold a provisioner repo from the vast-provision flake input's own bundled provisioner-template (GitHub or gitlab:owner/name)
-nix run .#vast-repo-check -- --repo owner/name # Validate a repo's .provisioner-template.json marker + required files (forge-agnostic)
-nix run .#vast-template-apply -- --template-name NAME --repo owner/name   # Create/REPLACE (reconcile by name — delete+create) a Vast.ai template that boots vastai/base-image via PROVISIONING_SCRIPT
-nix run .#vast-rent -- --template-name NAME --dry-run   # Rent a live, BILLED GPU instance from a template by name/hash -- always --dry-run first
+# Companions: nixpi-wifi-creds (emit wpa_supplicant.conf from this Mac), nixpi-vault-token (re-encrypt a rotated token)
+
+# Cloudflare tunnel (terranix)
+CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-tunnel-apply     # Provision nixpi's tunnel + ingress + CNAME; PRINTS the connector token
+CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-tunnel-destroy   # Tear the stack down
+
+# Off-fleet GPU control plane (Vast.ai / RunPod) — full surface in docs/vastai-template-provisioning.md
+nix run .#vast-rent -- --template-name NAME --dry-run   # Rents a live, BILLED instance — ALWAYS --dry-run first
+# also: vast-account-vars-set, vast-ssh-key-set, vast-init-repo, vast-repo-check, vast-template-apply, runpod-template-apply
 ```
 
-## Architecture
+Prefer the `/eval` and `/update-input` commands over retyping the stage→check→evaluate sequence.
 
-- `flake.nix` — entry point: pins `nixpkgs` + `nix-darwin` + `home-manager` + `treefmt-nix` + `git-hooks` + `raspberry-pi-nix` + `nix-vscode-extensions` + `nix-homebrew` + `agenix` + Claude Code skill inputs (`agent-skills-vercel`, `agent-skills-anthropic`, both `flake = false`) inputs; exports `darwinConfigurations."macos"` / `"macvm"` (aarch64-darwin — `macvm` is a Tart guest VM (Apple Virtualization + IPSW) sharing macos's stack with a leaner Homebrew set + the MCP gateway trimmed off), `nixosConfigurations."nixpi"` / `"nixvm"` (aarch64-linux — `nixvm` is the throwaway GUI dev VM, materialised only via `nix run .#nixvm`), and `packages`/`devShells`/`checks`/`formatter` per system via a `forAllSystems` helper. (There is no `nixpi-installer` — the LIVE `nixpi` sdImage is secret-free, so it IS the flashable artifact, prebuilt in CI as the `nixpi-sd-image` package and published to the `installer-latest` release; token + Wi-Fi are planted post-flash on the FIRMWARE partition.) The FLEET is two systems: `aarch64-darwin` and `aarch64-linux` — no x86_64 HOST anywhere. The devcontainer image is the sole exception: it also builds `x86_64-linux` (via `devcontainerSystems`) so it runs on x86_64 GitHub Codespaces. Identity (`loginName = "ismail"`, `domainName = "kattakath.com"`, `fullName`, `userEmail`) is defined once as `let` bindings (`identityArgs`) and threaded through `specialArgs`/`extraSpecialArgs`. `mkDarwin` takes an optional per-host `identity` override (and `mkHomeManagerModule` is a function of it) so a host *could* run under a different persona, but nothing in the fleet uses it today — `macos`, `macvm`, and `nixpi` all inherit the same global identity; per-host divergence (leanness, package sets, desktop aesthetics) is achieved entirely via `networking.hostName`-gated `lib.mkIf`, never via a separate identity.
-- `flake.lock` — pinned input revisions; commit every change, never hand-edit.
-- `secrets/secrets.nix` — agenix recipients rules: the sole remaining secret, `secrets/cloudflared-token.age` (nixpi's Cloudflare tunnel token), is encrypted to the **operator's key alone**, making agenix an **operator-only vault** — the operator decrypts it on the Mac to plant on the SD card's FAT `FIRMWARE` partition, and it is NEVER decrypted on nixpi (or any host). No secret is host-decrypted anymore. Safe to commit. See the "Secrets — agenix" convention below and the `nix-firmware-secrets` flake.
-- `treefmt.nix` — single source of truth for formatting + lint-fix (nixfmt + statix + deadnix). Drives `nix fmt`, the `checks.formatting` CI gate, and the pre-commit hook — change a tool here and every entrypoint follows.
-- The devShell is entered with `nix develop` (in the devcontainer or on a nix host). There is no `.envrc`/direnv auto-load — run `nix develop` explicitly.
-- `hosts/` — per-host entry profiles: `macos.nix` (the darwin client host — no self-hosted runner; both fleet runners are retired and CI is fully GitHub-hosted; carries its own Homebrew brew/cask/masApps lists, incl. a `libreoffice` cask backing the docx/pptx/xlsx/pdf Claude Code skills' `soffice` dependency), `macvm.nix` (Tart aarch64-darwin guest — leaner Homebrew, no masApps, MCP gateway + desktop aesthetics off, red accent tell; same operator identity as every host, no `identity` override; activated *inside* the VM as `ismail`; host→guest SSH is Apple's sshd via `services.openssh` + keys-only operator key + ALF off; host control plane `packages/macvm-tart.nix` / `nix run .#macvm-tart-*`; clipboard sync + `tart exec`/`tart ip --resolver=agent` RPC via the `packages/tart-guest-agent.nix`-backed `launchd.user.agents.tart-guest-agent`), `nixpi.nix` (Pi 4, LIVE — boot fixes + cloudflared + upstream `services.caddy`; its `sdImage` is prebuilt in CI and published to the `installer-latest` release, since it bakes no secrets), `nixvm.nix` (a SLIM throwaway aarch64-linux dev VM — no disko, no runner, no install; materialised only as the graphical `nix run .#nixvm` build-vm, whose guest builds locally on the native Linux builder or substitutes from Cachix).
-- `modules/` — reusable modules split by platform:
-  - `modules/shared/{home.nix,mcp.nix,desktop-aesthetics.nix,nix-cache.nix,nix-ld-libraries.nix,wireguard-configs.nix,claude-otel.nix,hm-launchd/}` — Home Manager profile loaded on every host (git/ssh-signing, zsh+starship, direnv, gh, bash, claude-code + nerd-fonts; darwin-only ssh/vscode blocks gated `lib.mkIf pkgs.stdenv.isDarwin`); the claude-code MCP-server config (`mcp.nix`); the macOS desktop look (`desktop-aesthetics.nix`) — split in two: **Terminal.app** is UNGATED on every darwin host (16pt type on EVERY profile + stock `Pro` as default/startup, driven through Terminal's own AppleScript `settings set` API since Terminal owns `com.apple.Terminal` and clobbers direct plist writes; guarded on Terminal already running so a rebuild never launches it, `ps` not `pgrep` — the latter can't see it from activation. This repo used to VENDOR an "Ubuntu" profile + generator here; dropped once stock `Pro` proved fine, the type size being the only part worth declaring), while the **custom wallpaper** stays behind `local.desktopAesthetics.enable` (default true; `macvm` sets it false to keep the stock desktop as a visual tell); the Cachix binary-cache option; the shared nix-ld library list; `wireguard-configs.nix` (operator-managed WG confs synced to `~/.config/wireguard`, no autostart — see `docs/wireguard-vpn.md`); `claude-otel.nix` (`services.claudeOtel`, real-Mac-only: a local OTel Collector receiving Claude Code's native OpenTelemetry `tool_decision`/`tool_result` events over localhost OTLP, writing a rotating JSONL for `/routing-review` to mine for deterministic-routing hardening candidates — see `docs/claude-code-observability-runbook.md`); Spotlight-visible, focus-or-launch `.app` bundles for the Android emulator and `macvm` (`home.file."Applications/Android Emulator.app"` / `"Mac VM.app"`, backed by `packages/spotlight-launchers.nix`, macos-only); **`hm-launchd/`** replaces stock HM launchd so every agent’s `ProgramArguments[0]` basename is `nix-<activity>` (macOS BTM rule — tags nix-config origin; **never** a bare interpreter like `sh`/`python3`; wait4path stays inside the wrapper). This is **mandatory for every launchd unit this repo authors**: HM user agents are auto-wrapped here, and any hand-written `launchd.daemons`/`launchd.agents` MUST point `arg0` at a `writeShellScriptBin "nix-<activity>"` wrapper (canonical: `telegramMcp`/`wpMcp`/`cloudflaredConnector` in `mcp.nix`) — codified as the always-applied [`.claude/rules/launchd-naming.md`](.claude/rules/launchd-naming.md) (which also documents the three known-upstream `/bin/sh` exceptions that are NOT ours and must never be renamed). Host-gated: RAG (ollama/pgvector) + public MCP tunnel only when `networking.hostName == "macos"`; `home.packages` also carries `pandoc`/`poppler` (nixpkgs, darwin-only) — together with macos's `libreoffice` cask, these satisfy the docx/pptx/xlsx/pdf skills' stated runtime deps (LibreOffice/poppler/pandoc), a gap flagged inline at that skills block since it was first wired.
+## Testing
 
-  - `modules/darwin/{core.nix,homebrew.nix,nix-homebrew.nix,xcode-license.nix}` — macOS system defaults (dock/finder/NSGlobalDomain, Touch ID for sudo, `stateVersion = 5`), the declarative Homebrew **framework** (`homebrew.nix` owns only `enable`/`onActivation` with `cleanup = "uninstall"`/`taps`; the actual `brews`/`casks`/`masApps` lists live **per host** in `hosts/<host>.nix` so macos and macvm carry different app sets) + Homebrew-itself install via `nix-homebrew`; **`xcode-license.nix`** (macos only) runs *before* `brew bundle` to `mas install` Xcode when declared in `masApps` and `xcodebuild -license accept` so formulae are not blocked by an unaccepted SDK license (Brewfile order is brews→casks→mas); on **macos only**, login openers (`nix-*` BTM wrappers) + hourly Screengrab rotation (`~/Pictures/Screengrab`, shared R/W into macvm via Tart VirtioFS).
-  - `modules/nixos/core.nix` — shared NixOS baseline: the `ismail` user + authorized SSH key (the operator's static ed25519 key, the sole network login credential on every host), keys-only sshd (no password, no root login), firewall (TCP 22, UDP 5353 for mDNS), avahi `<host>.local` publishing, native `programs.nix-ld`, zram swap, automatic GC. `nixpi`'s sshd is reached over the Cloudflare tunnel (`cloudflared access ssh --hostname nixpi.kattakath.com`); `nixvm` is only ever the throwaway local `nix run .#nixvm` desktop, so it has no networked login path.
-  - the `nix-cloudflared-connector` flake — opt-in `services.cloudflared-connector.enable` (default false); hardened `systemd.services.cloudflared-connector` running a **remotely-managed (token)** Cloudflare Tunnel — no `cloudflared tunnel login`, no cert.pem. Token read from `tokenFile` (module default `/etc/secrets/cloudflared-token`, operator-placed), never in git; an activation script warns (doesn't abort) if absent. Only `nixpi` enables it — and `nixpi` **overrides `tokenFile` to `/run/cloudflared-token`**, a root-only file that `services.firmwareProvisioning` (the `nix-firmware-secrets` flake) populates at boot from the token operator-planted on the SD card's FAT `FIRMWARE` partition. This deliberately replaced agenix: agenix binds the token to nixpi's SSH host key, but a fresh SD flash rotates that key, breaking decryption and killing the tunnel — the sole remote path in (see the module + `hosts/nixpi.nix`).
-  - Web serving on `nixpi` uses upstream `services.caddy.virtualHosts` directly (in `hosts/nixpi.nix`), no wrapper module: one `http://<domain>` vhost per `mkNixos`'s `hostedSites` parameter (see `docs/private-home-modules.md`), each `file_server`ing its `root`. This public repo passes no `hostedSites` (`[ ]` default), so the public `nixosConfigurations.nixpi` boots Caddy with **zero vhosts** — the real production sites (`kattakath.com`, `snoringirl.com`, `ismail.kattakath.com`, `dontsell.ai`) live only in the private layer named in the intro paragraph above. Caddy sits **behind** the Cloudflare Tunnel (tunnel → Caddy on :80), so no public IP/port-forward is needed and TLS terminates at Cloudflare's edge (the `http://` prefix disables Caddy auto-HTTPS to avoid a redirect loop back through the tunnel).
-  - `modules/nixos/desktop-vm.nix` — opt-in `services.desktopVm.enable` (default false): a lightweight X11 **XFCE** desktop with passwordless autologin (the `loginName` specialArg) plus QEMU/SPICE guest integration (`qemuGuest`, `spice-vdagentd`) for the `nixvm` sandbox. `hosts/nixvm.nix` enables it **only inside `virtualisation.vmVariant`**, so the desktop materialises for the graphical `nix run .#nixvm` / `build-vm` path — the sole way `nixvm` is ever booted.
-  - `services.firmwareProvisioning` — reusable `files.<name>` mechanism: each entry becomes a oneshot that, once `/boot/firmware` is mounted, copies an operator-planted file off the FAT `FIRMWARE` partition into a root-only `/run` file before its consumer starts (`required` fails the unit if absent; else it skips cleanly). **This module was EXTRACTED from this repo into a standalone MIT flake — `nix-firmware-secrets` (github:kattakath/nix-firmware-secrets) — and `nixpi` now consumes it as a flake input** (`firmware-secrets.nixosModules.default`, threaded via `mkNixos` specialArgs in `flake.nix`, imported in `hosts/nixpi.nix`) rather than a vendored copy; the repo dogfoods its own extraction. `nixpi` uses it for BOTH the Cloudflare connector token AND Wi-Fi (`wpa_supplicant.conf`) — host-key-independent secrets a fresh SD flash needs, since agenix (which binds to the rotated host key) would lock us out. Planted from macOS by the `nixpi-provision`/`nixpi-flash` apps.
-  - Platform branching lives HERE behind `lib.mkIf`, not duplicated across hosts.
-- `packages/` — `devcontainer-image.nix` (MULTI-ARCH devcontainer OCI image — arm64+amd64, `dockerTools.streamLayeredImage`, published to GHCR as a manifest list; arch-parameterized loader path inside), `nixpi-provision.nix` (macOS-only: the four `nixpi-flash`/`nixpi-provision`/`nixpi-wifi-creds`/`nixpi-vault-token` `writeShellApplication` flake apps that flash the SD card and plant the token+Wi-Fi onto its FIRMWARE partition — the executable companion to the `nix-firmware-secrets` flake's `services.firmwareProvisioning`), `macvm-tart.nix` (macOS-only: host Tart control plane for `macvm` — create from IPSW, doctor, ensure, start/stop/ssh/ip; disk under `~/.tart/`, never in the store; see `docs/macvm-tart-runbook.md`), `key-recovery.nix` (macOS-only: the `key-backup`/`key-recover` apps — stage 2 of Mac bootstrap/recovery, shellcheck-gated; `key-recover` clones, HARD-FAILS unless the login `id -un` == the flake's `loginName` (via the `#identity.loginName` output), then RESTORES from an iCloud kit or `--fresh`-FOUNDS a new operator identity, and activates `#macos`), and `vast-bootstrap.sh` + `templates/provisioner/provision-lib.sh` (the two files a live Vast instance still fetches over raw HTTP from THIS repo at boot — see the subsystem bullet below for why the `vast-*` CLI logic itself is no longer vendored here). The no-Nix stage-1 `bootstrap.sh` (the `curl … | bash` entrypoint) lives at the REPO ROOT — it is shellchecked as the `key-recovery-bootstrap` derivation and `key-backup` publishes it into the iCloud kit as the offline copy. `spotlight-launchers.nix` (macOS-only: from-scratch `.app` bundle generator — original in-Nix SVG/icns icons via librsvg+libicns — giving the Android emulator and `macvm` a Spotlight-visible, focus-or-launch identity; consumed by `modules/shared/home.nix`'s `home.file."Applications/*.app"`) and `tart-guest-agent.nix` (macvm-only: `fetchurl` derivation for cirruslabs' ad-hoc-signed guest-agent binary — clipboard sync + `tart exec`/`tart ip --resolver=agent` RPC — run via `hosts/macvm.nix`'s `launchd.user.agents.tart-guest-agent`) round out the core package set. The remaining packages are smaller, single-purpose CLIs: `android-phone.nix` (macOS-only: deterministic wired/wireless ADB operator — `list|pair|connect|disconnect|unpair|tcpip|wireless|mirror|doctor` — plus scrcpy mirroring for a PHYSICAL Android device; hardens around two live-reproduced adb bugs, an mDNS-cache staleness and duplicate-transport device listings; its operator knowledge is also a GLOBAL skill, `skills/android-phone`), `fix-google-video.nix` (detects and re-encodes video files with editor-incompatible codecs — most commonly VP9-in-MP4, the flavor Google Photos' download button serves for videos not backed up at Original quality — into H.264+AAC via VideoToolbox with a libx264 fallback, idempotent), `jobspy.nix` (a reproducible `uv`-ephemeral wrapper CLI around the `python-jobspy` library for scraping job boards), `jsonresume.nix` (dual-engine `jsonresume <download|print|validate|markdown|text>` wrapper — `resumed` for PDF/validate, `resume-cli` where `resumed` falls short; see the `jsonresume-tailor` skill), `mermaid-ascii.nix` (packages `AlexanderGrooff/mermaid-ascii`, not in nixpkgs, for the diagrams-as-ASCII convention above), `obs-fb-setup.nix` (macOS-only: configures an OBS "Facebook" profile, stream key read live from the Keychain, never in git/store), `vpn.nix` (the WireGuard `vpn` operator CLI — see `docs/wireguard-vpn.md`), `claude-otel-doctor.nix` (health check for the `services.claudeOtel` collector — launchd agent, OTLP port, events-file freshness — see `docs/claude-code-observability-runbook.md`), `fidelity-enhance.nix` (macOS-only: the referee for an agentic image-editing loop — Grok Imagine generates, this judges each result against the ORIGINAL via SSIM/LPIPS/ArcFace-identity and returns retry/next-step/done plus prompt guidance; ships `fidelity-enhance-mcp` (stdio MCP server) + `fidelity-enhance` (CLI) from one ephemeral `uv` env, Python 3.12 pinned for torch/insightface wheel coverage; exposed via `home.packages` + `nix run .#fidelity-enhance`), `resend-cli.nix` (the official Resend CLI, not yet in nixpkgs so `npx`-wrapped and version-pinned same as `mcp-wordpress`/`telegram-mcp`; injects `RESEND_API_KEY` from the login Keychain at run time — wired only via `home.packages`, no matching flake app), and `design-tokens/` / `email-signature/` (small self-contained build-script-backed packages for their respective assets). `hyperframes-selfhost(.nix)` and `runpod-provision.nix` are documented in their own dedicated bullets above/below.
-- `infra/cloudflare/nixpi-tunnel.nix` — terranix module declaring `nixpi`'s **remotely-managed** Cloudflare Tunnel itself: a `cloudflare_zero_trust_tunnel_cloudflared` (`config_src = "cloudflare"`), its ingress (`cloudflare_zero_trust_tunnel_cloudflared_config`: SSH → `ssh://localhost:22`, one rule per `hostedSites` entry → the local Caddy at `http://localhost:80`, plus the mandatory catch-all `http_status:404`), one proxied `cloudflare_dns_record` CNAME per site → `<tunnel-id>.cfargotunnel.com`, and the connector **token** surfaced as a sensitive `output` (via the `cloudflare_zero_trust_tunnel_cloudflared_token` data source). A pure function of its `hostedSites`/`domainName`/`accountId`/`zoneId` module args (same shape/default as `mkNixos` — see `docs/private-home-modules.md`); the public `cfTunnelConfig`/`cf-tunnel-apply`/`cf-tunnel-destroy` flake apps pass none, rendering an ingress with zero sites, while the private nix-personal flake calls `lib.cfTunnelConfig` directly with the real site list. Applied/destroyed via the `cf-tunnel-apply`/`cf-tunnel-destroy` flake apps (an API credential must be exported first — never in Nix); `cf-tunnel-apply` prints the token to stdout to be stored via `nix run .#nixpi-vault-token` into `secrets/cloudflared-token.age`, never written to git/store in plaintext.
-- The **`vast-provision` flake input** (`github:kattakath/nix-vast-provision`, EXTRACTED FROM THIS REPO — phase 2 of the extraction, phase 1 backported local-only features upstream first) + the locally-vendored `packages/vast-bootstrap.sh` + `packages/templates/provisioner/provision-lib.sh` — the **Vast.ai GPU-template provisioning subsystem**: **off-fleet control-plane** darwin flake apps (parallel to the Cloudflare `cf-tunnel-*` apps — the tooling runs on the Mac, it provisions external x86_64 cloud GPUs; Vast is NOT a fleet host). The CLI *logic* — `vast-template-apply` (create/REPLACE a template by name — delete+create, since Vast's PUT is broken), `vast-repo-check` (validate a provisioner repo's `.provisioner-template.json` marker), `vast-account-vars-set` (sync read-only `VAST_*` Keychain tokens → Vast account env vars), `vast-ssh-key-set` (register the operator SSH key on the Vast account), `vast-init-repo` (scaffold a provisioner repo — now from the extracted flake's own baked scaffold), and `vast-rent` (rents a live, **BILLED** GPU instance from a template by name/hash — the one command in the kit that spends real money) — is `callPackage`d straight from the input's store path (`"${vast-provision}/packages/vast-provision.nix"` in `flake.nix`), with `orgName`/`repoName`/`rev` OVERRIDDEN to nix-config's own identity: dogfooding, but the raw-URL construction must still point HERE, since a live Vast instance fetches `packages/vast-bootstrap.sh` and `packages/templates/provisioner/provision-lib.sh` over raw HTTP from THIS repo at boot (`PROVISIONING_SCRIPT`/`PROVISION_LIB_URL`) — both stay vendored here for that reason, and `checks.<system>.vast-lib-drift` diffs them against the input's own copies so the two can never silently diverge. No stack-specific manifest content (a concrete ComfyUI workflow, etc.) is ever vendored in this public repo — that belongs in a private aggregator repo (`--repo gitlab:... --workflow-name NAME`; see `docs/vastai-template-provisioning.md`), never committed here. Templates use `runtype=args` + `OPEN_BUTTON_PORT` + `PORTAL_CONFIG` on `vastai/base-image`; instances boot `PROVISIONING_SCRIPT` → the raw-URL `vast-bootstrap.sh` (pinned to this flake's rev) → clone a private provisioner repo → run its self-contained `provision.sh` (e.g. a ComfyUI stack). Secrets never touch the template — they are Vast account-level env vars. See `docs/vastai-template-provisioning.md`. `packages/runpod-provision.nix` is the RunPod analogue (`runpod-template-apply`, macOS-only): since the official `runpod/comfyui` image has no Vast-style provisioning hook, it overrides `dockerEntrypoint`/`dockerStartCmd` with a wrapper that clones a private `comfyui-workflows`-shaped repo and runs its `runpod/provision.sh` before handing off to the image's `/start.sh`; secrets are RunPod **account** secrets (`{{ RUNPOD_SECRET_name }}`), never baked into the template.
-- `.claude/commands/` — `/eval` (stage + flake check), `/hygiene` (LEAN/DRY audit→fix→gate via skill `nix-hygiene`), `/update-input`, `/superhook-review` (triage the hook-supervisor log), `/pretooluse-review` (triage the `PreToolUse`/`Write|Edit` prompt-hook attempt/outcome log written by `pretooluse-log.js`, since those hooks have no logging of their own), `/remember-nix` (capture into project memory), `/vpn` (operate WireGuard via the fleet `vpn` CLI — macvm-only, see `docs/wireguard-vpn.md`), `/gmail-account` (add/authenticate/remove a Gmail MCP multi-account, see `docs/gmail-mcp-multi-account-runbook.md`), `/routing-review` (triage Claude Code's own OTel tool-decision log for deterministic-routing hardening candidates, see `docs/claude-code-observability-runbook.md`), `/mcp-scout` (discover → vet → DECLARATIVELY adopt an MCP server into the gateway via skill `mcp-scout`; imperative installer CLIs / config-writing install tools are never used), `/fleet-doctor` (fleet-wide consistency sweep — branches/worktrees/PRs/CI/cross-repo pins/GC/host re-activation — across every repo in `.claude/skills/fleet-doctor/fleet-repos.txt`, via skill `fleet-doctor`; composes `nix-hygiene`, `git-purity.md`, `pr-consolidation.md`).
-- `.claude/rules/git-purity.md` — always-applied rule: stage `.nix` files before eval.
-- `.claude/rules/pr-consolidation.md` — always-applied rule: reuse the current session's open PR/branch for follow-up changes instead of opening a new PR each time; start a fresh PR only once the prior one has merged (or the user explicitly asks for a separate one).
-- `.claude/rules/launchd-naming.md` — always-applied rule: every launchd unit this repo authors must expose a `nix-<kebab>` `arg0` basename (never a bare `sh`/`python3`); documents the two KNOWN upstream `/bin/sh` exceptions (`org.nixos.activate-system`, `systems.determinate.nix-installer.nix-hook`) that are NOT ours and must not be renamed.
-- `.claude/hooks/` — `stop-gate.js` (Stop gate: blocks until configs evaluate clean) and `pretooluse-bash-guard.js` (PreToolUse:Bash — deterministic port of the Cloudflare-API-call / Cloudflare-docs / desktop-commander-nudge / approved-CLI policy that used to live as a `type: "prompt"` LLM-judged hook; see the file header for the 2026-08-19 incident that motivated the switch), both wrapped by `superhook.js` (crash-safety + loop-breaking + logging — the sole supervisor for command-type decision hooks; structurally CANNOT wrap `type: "prompt"` hooks, which is why the remaining Write|Edit secret-detection gate in `.claude/settings.json` stays unsupervised prompt-based — that one is a genuine semantic judgment call, unlike the Bash gate's mostly-syntactic rules); plus `superhook-digest.js`, `routing-review-digest.js` (SessionStart nudge for unreviewed `user_temporary`/`user_permanent` Claude Code routing decisions — mirrors `superhook-digest.js` exactly, threshold-gated, see `docs/claude-code-observability-runbook.md`), `fleet-doctor-digest.js` (SessionStart nudge when `/fleet-doctor` hasn't run in a while — reads only a local timestamp, no network/git calls, so it stays fast on every session start), and `memory-loader.js` (SessionStart context surfacing), `autostage-nix.js` (PostToolUse git-purity net), `nix-home-path-lint.js` (PostToolUse, `.nix` only: flags a hardcoded `/Users/<name>/`/`/home/<name>/` runtime-path VALUE per the "Paths — two axes" convention below — advisory, not a hard gate), and `pretooluse-log.js` (PreToolUse+PostToolUse observer for Bash/Write|Edit — logs attempt/executed pairs to `.claude/hooks/pretooluse.log` for `/pretooluse-review`; never influences the decision).
-- **MCP servers** for Claude Code are provided by the localhost **gateway** (`modules/shared/mcp.nix`, darwin-only) — one `mcp-proxy` launchd agent on `127.0.0.1:8096`, started at login, hosting all 19 servers (20 with the opt-in `telegram`): 7 packaged via `mcp-servers-nix` (`context7`, `fetch`, `memory`, `sequential-thinking`, `nixos`, `terraform`, `github`) + 12 custom stdio launchers (`duckduckgo`, `json-yaml-toml`, `mcp-jq`, `mcpfinder` — cross-registry MCP-server DISCOVERY (Official MCP Registry + Glama + Smithery, `@mcpfinder/server` pinned) wired discovery-only: its config-writing `add_mcp_server_config` tool is deny-listed in `.claude/settings.json`, since MCP adoption in this repo is always a pinned declaration in `mcp.nix` via the `mcp-scout` skill, never an imperative install — `cloudflare-docs`, `cloudflare`, `apify` — Apify Store's ready-made scraper/crawler Actors, run LOCALLY via `@apify/actors-mcp-server` authenticated by an `APIFY_TOKEN` read from the Keychain at launch (switched 2026-08-19 from the hosted `mcp.apify.com` OAuth bridge, which never completed its interactive login under the headless launchd gateway) — `macos-automator`, `mobile-mcp`, `postgres`, `wordpress` — docdyhr/mcp-wordpress (pinned), CLIENT-SIDE WordPress admin over a live site's REST API with an Application Password (nothing installed on the site); creds `WP_URL`/`WP_ADMIN_USER`/`WP_ADMIN_APP_PASSWORD` are Keychain-injected via the `wpMcp` wrapper, canonical **www** host required, and `wordpress-adapter` — the official WordPress MCP Adapter (server-side, SILVERCREEK.AI PROD), reached via a Keychain-injecting `mcp-remote` wrapper against `https://www.silvercreek.ai`, always-on since prod is always reachable), wired into `programs.claude-code.mcpServers` as HTTP; `desktop-commander` stays a per-client stdio server (RCE surface). A second opt-in (default off) `wordpress-adapter-local` mirrors `wordpress-adapter` against a LOCAL `wp-env` clone (`http://localhost:8888`) — gated behind `services.mcpGateway.localAdapter.enable` since `mcp-proxy` spawns every named server at startup and an unreachable endpoint would fail that server on boot; enable only while working against the local clone. Opt-in `gmail-<sanitized-email>` servers, one per `services.mcpGateway.gmail.accounts` entry — a list of PLAIN EMAIL ADDRESSES (`hosts/macos.nix` sets the operator's own two: `ismail@kattakath.com`, `ismailkattakath@gmail.com`) — ArtyMcLabin/Gmail-MCP-Server (maintained fork of the archived GongRzhe original) run as ONE process PER Google/Workspace account (each with its own `--tool-prefix`, sanitized from the email since MCP tool names can't contain `@`/`.`) for TRUE simultaneous multi-account Gmail, unlike the single-account-per-connection built-in connector; a shared OAuth Desktop-app client from the Keychain plus a separate one-time browser auth per account (mirrors telegram's session-file pattern, not the OAuth-cache one). Any OTHER account (some belonging to people other than the operator) is supplied by the private nix-personal flake via `extraHomeModules` instead, same contract as nixpi's `hostedSites` (`docs/private-home-modules.md`). OAuth tokens cache per-machine in `~/.mcp-auth` (`cloudflare` needs a one-time browser login and fails gracefully headless; `apify` instead reads `APIFY_TOKEN` from the Keychain at launch — no OAuth — and likewise warns but doesn't dark the gateway if the token is missing). There is **no** project `.mcp.json` — the user-scope gateway is the single source (the Mac is the sole MCP client host; the Pi/VM stay lean).
-- `.claude/skills/` — authored **project** agent skills (`nix-hygiene`, `nixpi-firmware-provision`, `macvm-tart`, `vast-instance-log-tail`, `jsonresume-tailor`, `wireguard-vpn`, `gmail-mcp-accounts`, `mcp-scout`, `fleet-doctor` — its own `fleet-repos.txt` manifest lists every repo in scope; add a line there when a new flake is extracted from this repo, nothing else needs to change), active only when working in this repo; `skills-lock.json` (the `npx skills` CLI lockfile) pins any CLI-vendored ones (currently none — prefer the flake path below).
-- **Global** Claude Code skills are placed at `~/.claude/skills/<name>/` declaratively by `programs.claude-code.skills` (`modules/shared/home.nix`, darwin-gated) on `darwin-rebuild switch` — most are sourced from PINNED `flake = false` inputs (`agent-skills-vercel` = vercel-labs/skills → `find-skills`; `agent-skills-anthropic` = anthropics/claude-code → the plugin-dev + hookify authoring skills), NOT vendored; `nix flake update` bumps them. A small exception is **vendored in-repo**: the top-level `skills/` directory holds skills wired into the same `programs.claude-code.skills` option alongside the flake-input-sourced ones — forks of upstream skills that needed a local patch (`skills/brag`, `skills/brags-review`, `skills/rag` — see `skills/brag/FORK-NOTES.md` for the vendoring rationale) plus originals authored here (`skills/android-phone` — operator knowledge for `packages/android-phone.nix`, global so ADB sessions launched from ANY directory know the wrapper's command surface and adb footguns, not just sessions rooted in this repo).
-- `plugins/` — this repo's OWN Claude Code plugin marketplace (`kattakath-nix-config`), the third alongside `xai-grok-build` (pinned flake input) and `claude-plugins-official` (HTTPS). `plugins/.claude-plugin/marketplace.json` lists each in-repo plugin; `modules/shared/home.nix` pins it as a **Nix source path** (`localPluginsMarketplace = "${../../plugins}"`) and installs its ids via the same `claudePluginIds` + `home.activation.claudeCodePlugins` path as every other plugin. Because it is a source path, the store path changes whenever plugin content changes — activation keys the marketplace re-pin (and a reinstall of the copies under `~/.claude/plugins/cache`) off exactly that, so an in-repo plugin can never serve a previous generation's content. Today: `plugins/llmstxt` (`llms.txt` authoring skill + `/llmstxt` command + a stdlib-only spec linter, see `plugins/llmstxt/README.md`). Adding one = a `plugins/<name>/` tree with `.claude-plugin/plugin.json` + a `marketplace.json` entry + its id in `claudePluginIds`; validate with `claude plugin validate --strict`. A **skill** that needs no command/hook/MCP surface still belongs in top-level `skills/` (above) — reach for a plugin only when the unit is more than a skill.
-- `memory/` — **gitignored** project memory (decisions/findings/values/evolution): the candid "why" behind the repo, surfaced each session by `memory-loader.js`. Never `git add`.
-- `.github/workflows/nix-ci.yml` — 2-leg Nix CI on GitHub Actions, ALL on GitHub-HOSTED runners (`ubuntu-24.04-arm` for aarch64-linux — evaluates `nixpi`+`nixvm`; `macos-latest` for aarch64-darwin — evaluates `macos`; both free & unlimited on public repos). Each leg *builds* the lint/format `checks` with `nix-fast-build` (pushed to the `kattakath` Cachix cache) and *evaluates* (no build) its host config toplevel(s). Building host toplevels is deferred to release time (`build-installers`, also hosted). The fleet's self-hosted runners have been **retired entirely** — there are now **0 self-hosted runners** (fork PRs no longer need a runner fallback); day-to-day local aarch64-linux builds use Determinate's native Linux builder on the Mac. Branch protection requires the aggregate `required-checks` job. (`.github/workflows/` also keeps `auto-merge.yml`, `build-devcontainer.yml`, `build-installers.yml`, `claude*.yml`, `gitleaks.yml`, and `flakehub-publish.yml` — the last publishes each push to `main` as a rolling release to FlakeHub via `DeterminateSystems/flakehub-push`, authenticated by OIDC/`id-token: write` with **no** stored token; per FlakeHub's trusted-platform model, flakes publish only from CI, never ad-hoc from a laptop.)
+`nix flake check` **is** the test suite (evaluation of every output + treefmt/statix/deadnix
+gates). Run it before declaring any change done — a config that evaluates on one system can
+still break the other.
 
-## Conventions
+- Two-system coverage is mandatory: `aarch64-darwin` and `aarch64-linux`.
+- CI (`.github/workflows/nix-ci.yml`) splits it across 2 GitHub-hosted legs and requires the
+  aggregate `required-checks` job. Details: [`docs/repo-map.md`](docs/repo-map.md) § CI.
+- **Never report a config as passing on a system only CI evaluated.** If `nix` is unavailable
+  locally, validate syntax with `nix-instantiate --parse` and say the rest is CI-deferred. The
+  SessionStart hook reports which mode you're in.
 
-- **Naming:** kebab-case files; `lowerCamelCase` Nix bindings; modules named by the platform/concern they own.
-- **Platform branching:** isolate in `modules/` via `lib.mkIf` on `stdenv.hostPlatform`/`isDarwin`/`isLinux` — host profiles stay declarative and platform-agnostic.
-- **Paths — two axes, never conflate them:** a Nix **source path literal** (`source = ../../claude/CLAUDE.md;`, `callPackage ../../packages/x.nix`, `"${../../skills/rag}"`) is resolved **relative to the `.nix` file at evaluation time**, content-hashed, and copied into `/nix/store` — it **must** be repo-relative (or a store path); `$HOME`/XDG is impossible here (`$HOME` is undefined at eval, and a runtime home path is neither reproducible nor store-addressable). A `../..` source literal is **correct and idiomatic — never "fix" it to a home path.** The `$HOME`/XDG rule applies only to the *other* axis: **runtime paths** — where a program reads/writes or files land at runtime (`home.file` TARGET keys are `$HOME`-relative by definition; env vars like `BRAG_DATA_DIR = "$HOME/Developer/…"`; data dirs). Those must be `$HOME`/XDG-relative, **never a hardcoded `/Users/<name>` or `/home/<name>`** (such a literal in a `.nix` *value* — not a comment — is the real anti-pattern to reject).
-- **Systems:** the two target systems are `aarch64-darwin` and `aarch64-linux`. Every new output must evaluate on both or be explicitly gated.
-- **Inputs:** bump only via `nix flake update` (or `update-input <name>`); commit the resulting `flake.lock`.
-- **Secrets — agenix:** the store is world-readable, so plaintext secrets never go in `.nix`. Encrypted secrets are committed via **agenix**: recipients are declared in `secrets/secrets.nix` (pure age/SSH, **no `ssh-to-age`**), and ciphertext lives in `./secrets/<name>.age`. Today there is exactly ONE secret — `nixpi`'s Cloudflare tunnel token (`secrets/cloudflared-token.age`) — and it is encrypted to the **operator's `~/.ssh/id_ed25519` alone**, making agenix an **operator-only vault**: the operator decrypts it on the Mac and plants it on nixpi's SD card FIRMWARE partition (the `nix-firmware-secrets` flake's `services.firmwareProvisioning` copies it into a `/run` file at boot; nixpi never decrypts it on-device). **No secret is host-decrypted anymore** — the "each host decrypts at activation with its own SSH host key into `/run/agenix/<name>`" mechanism agenix supports is currently used by NOTHING. Edit the secret with `agenix -e secrets/cloudflared-token.age` (agenix uses `~/.ssh/id_ed25519` directly — no `SOPS_AGE_KEY_FILE` ceremony). agenix was adopted 2026-07-08, **replacing sops-nix** — a deliberate preference for the simpler age/SSH model (the older `/etc/secrets` operator-placed model was retired in #109). The `cloudflared-connector` module still *defaults* `tokenFile` to `/etc/secrets/cloudflared-token` for hosts that don't opt into agenix, but `nixpi` overrides it to a `/run` file planted from the FIRMWARE partition. **Personal tokens** live in the macOS login Keychain (the single source of truth) or one-time CLI logins (`gh`/`hf`/`docker`/`claude`). Never literals in `.nix`. A darwin-only loader (from the `nix-keychain-secrets` flake via `programs.keychainSecrets`, installed to `~/.config/secrets/loader.sh`) exports every registered secret into **every** shell — sourced from zsh's `.zshenv` (via `envExtra`) and bash's profile + `.bashrc` + `$BASH_ENV`, NOT just the login `~/.zprofile`/`~/.bash_profile` (the old login-only wiring silently starved non-login shells: `zsh -c`, Claude Code's Bash tool, scripts, launchd). It reads the Keychain at most once per process tree (a `__SECRETS_KEYCHAIN_LOADED` sentinel, exported so descendants inherit and short-circuit; ~470ms paid once at the tree root), `SECRETS_DEBUG=1` reports which secrets loaded/failed (names + lengths + exit codes, never values), and the secret store is managed with a single noun-verb command **`secret <set|get|rm|ls|load>`** (the primary interface; from the `nix-keychain-secrets` flake): `secret set <KEY> [VALUE]` (hidden prompt if no VALUE), `secret get <KEY>` (lazy read), `secret rm <KEY>`, `secret ls` (`list` also accepted), and `secret load` (reload the whole store into the current shell — the shell-function-only fix for a manually-unset var). Each is a **shell function** (set/rm/load also mutate the current shell — export/unset/reload) backed by a **PATH binary** + **`nix run .#secret -- …`** app (load is function-only). `set-secret <KEY> [VALUE]` and `remove-secret <KEY>` remain as back-compat **aliases** for `secret set` / `secret rm`. The mutating verbs forward to `set-secret` so the Keychain/index logic lives once; the Keychain index (`__set_secret_index__`) is authoritative, so **no secret names live in `.nix`**. Two documented behaviours: non-interactive non-login **bash** is reached only via `$BASH_ENV`, so a bash started with `$BASH_ENV` scrubbed from its environment is the one residual gap (zsh has no such gap — `.zshenv` is filesystem-based); and the sentinel is per-*set*, not per-secret — a child that drops one var (`unset FOO` / `env -u FOO`) is NOT auto-restored, since the inherited sentinel short-circuits the loader (reload with `unset __SECRETS_KEYCHAIN_LOADED && source ~/.config/secrets/loader.sh`, or just open a fresh shell). **Vast.ai tokens** follow the same rule: `VAST_API_KEY` plus the read-only `VAST_GITLAB_TOKEN`/`VAST_HF_TOKEN`/`VAST_CIVITAI_TOKEN`/`VAST_GH_TOKEN` live in the login Keychain and are pushed to Vast account-level env vars via `nix run .#vast-account-vars-set` (injected into every instance, never baked into the template); provisioner stacks are private GitLab repos.
-- **Binary cache (Cachix):** the public `kattakath` cache is consumed by every host (`modules/shared/nix-cache.nix`, wired in via the flake's module lists) and the devcontainer. Read is public — only the substituter URL + public key, NO token on any consumer. The write credential `CACHIX_AUTH_TOKEN` lives in exactly two places: a **GitHub Actions secret** (used by `cachix/cachix-action` in `nix-ci.yml`, `build-devcontainer.yml`, and `build-installers.yml` to push build closures) and — since 2026-08-21 — the operator's **login Keychain** (registered via `secret set`, loader-exported like every personal token) for ad-hoc local `cachix push kattakath <paths>`; never in Nix or git, and consumers still substitute tokenless (read stays public). Note the token does NOT influence builds or substitution — Nix sandboxes scrub the environment, so it is only ever consumed by the `cachix` CLI at push time.
+## Navigating the Codebase
+
+One line per path; the *why* and the per-file specifics are in
+[`docs/repo-map.md`](docs/repo-map.md).
+
+| Path | What it owns |
+|---|---|
+| `flake.nix` | Inputs/pins, `forAllSystems`, `mkDarwin`/`mkNixos`, `identityArgs`, all exported configurations/packages/apps/checks. |
+| `flake.lock` | Pinned revisions — bump only via `nix flake update` / `/update-input`, never hand-edit. |
+| `treefmt.nix` | Single source of truth for format + lint-fix; drives `nix fmt`, the CI gate, and the pre-commit hook. |
+| `hosts/` | Per-host entry profiles: `macos.nix`, `macvm.nix`, `nixpi.nix`, `nixvm.nix` (host-only deltas + per-host Homebrew lists). |
+| `modules/shared/` | Home Manager profile on every host: `home.nix`, `mcp.nix`, `desktop-aesthetics.nix`, `nix-cache.nix`, `nix-ld-libraries.nix`, `wireguard-configs.nix`, `claude-otel.nix`, `hm-launchd/`. |
+| `modules/darwin/` | macOS system: `core.nix`, `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`services.macosGithubRunner` — LIVE on `macos`, see § Configuration). |
+| `modules/nixos/` | `core.nix` (user + keys-only sshd + firewall + avahi + nix-ld + zram + GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). |
+| `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `macvm-tart`, `key-recovery`, `spotlight-launchers`, `tart-guest-agent`, plus single-purpose CLIs (`android-phone`, `vpn`, `jsonresume`, `mermaid-ascii`, `fidelity-enhance`, `claude-otel-doctor`, …). Root `bootstrap.sh` is the no-Nix stage 1. |
+| `infra/` | terranix (Nix → Terraform JSON): `cloudflare/nixpi-tunnel.nix`, `hyperframes/stack.nix`. Applied only via the `cf-*` / `hf-*` apps. |
+| `secrets/` | agenix recipients (`secrets.nix`) + two ciphertexts: `cloudflared-token.age` (operator-only) and `gh-app-dontsell-ai-key.age` (host-decrypted on `macos`). |
+| `skills/` | **Global** Claude Code skills vendored here (forks needing a patch + originals): `brag`, `brags-review`, `rag`, `android-phone`, `nix-dev-toolkit`. Most global skills instead come from pinned `flake = false` inputs. |
+| `plugins/` | This repo's own Claude Code plugin marketplace (`kattakath-nix-config`); today `plugins/llmstxt` + `plugins/seargraph`. Reach for a plugin only when the unit is more than a skill (a command, hook, MCP server, or `agents/`). |
+| `.claude/` | Project agent config — see the two tables below. |
+| `.github/workflows/` | `nix-ci.yml` (2 hosted legs), `auto-merge.yml`, `build-devcontainer.yml`, `build-installers.yml`, `claude*.yml`, `gitleaks.yml`, `flakehub-publish.yml`. |
+| `docs/` | Runbooks + this repo's design docs — indexed at the bottom of this file. |
+| `memory/` | **Gitignored** project memory (the candid "why"), surfaced by `memory-loader.js`. Never `git add`. |
+
+**Commands** (`.claude/commands/`): `/eval`, `/hygiene`, `/update-input`, `/superhook-review`,
+`/pretooluse-review`, `/remember-nix`, `/vpn`, `/gmail-account`, `/routing-review`,
+`/mcp-scout`, `/fleet-doctor`.
+
+**Project skills** (`.claude/skills/`): `nix-hygiene`, `nixpi-firmware-provision`,
+`macvm-tart`, `vast-instance-log-tail`, `jsonresume-tailor`, `wireguard-vpn`,
+`gmail-mcp-accounts`, `mcp-scout`, `fleet-doctor`.
+
+**Always-applied rules** (`.claude/rules/`):
+[`git-purity.md`](.claude/rules/git-purity.md) (stage `.nix` before eval),
+[`pr-consolidation.md`](.claude/rules/pr-consolidation.md) (one open PR per session; title =
+comma-separated touched components),
+[`launchd-naming.md`](.claude/rules/launchd-naming.md) (every launchd unit this repo authors
+exposes a `nix-<kebab>` `arg0` — never a bare `sh`/`python3`).
+
+**Hooks** (`.claude/hooks/`): `stop-gate.js` + `pretooluse-bash-guard.js` (both wrapped by
+`superhook.js`), the `*-digest.js` SessionStart nudges, `memory-loader.js`,
+`autostage-nix.js`, `nix-home-path-lint.js`, `pretooluse-log.js`. What their messages mean:
+[`docs/claude-hook-messages.md`](docs/claude-hook-messages.md).
+
+**MCP servers**: one localhost `mcp-proxy` gateway (`modules/shared/mcp.nix`, darwin-only) on
+`127.0.0.1:8096` hosting every server as HTTP; `desktop-commander` stays per-client stdio (RCE
+surface). There is **no project `.mcp.json`**. Inventory + gotchas:
+[`docs/mcp-gateway.md`](docs/mcp-gateway.md).
+
+## Code Style & Conventions
+
+- **Naming:** kebab-case files; `lowerCamelCase` Nix bindings; modules named by the
+  platform/concern they own.
+- **Platform branching:** isolate in `modules/` via `lib.mkIf` on
+  `stdenv.hostPlatform`/`isDarwin`/`isLinux` — host profiles stay declarative and
+  platform-agnostic.
+- **Paths — two axes, never conflate them:** a Nix **source path literal**
+  (`source = ../../claude/CLAUDE.md;`, `callPackage ../../packages/x.nix`,
+  `"${../../skills/rag}"`) is resolved **relative to the `.nix` file at evaluation time**,
+  content-hashed, and copied into `/nix/store` — it **must** be repo-relative (or a store
+  path); `$HOME`/XDG is impossible here (`$HOME` is undefined at eval, and a runtime home path
+  is neither reproducible nor store-addressable). A `../..` source literal is **correct and
+  idiomatic — never "fix" it to a home path.** The `$HOME`/XDG rule applies only to the *other*
+  axis: **runtime paths** — where a program reads/writes or files land at runtime (`home.file`
+  TARGET keys are `$HOME`-relative by definition; env vars like
+  `BRAG_DATA_DIR = "$HOME/Developer/…"`; data dirs). Those must be `$HOME`/XDG-relative,
+  **never a hardcoded `/Users/<name>` or `/home/<name>`** (such a literal in a `.nix` *value* —
+  not a comment — is the real anti-pattern to reject, and `nix-home-path-lint.js` flags it).
+- **Systems:** every new output must evaluate on both `aarch64-darwin` and `aarch64-linux`, or
+  be explicitly gated.
+- **Inputs:** bump only via `nix flake update` (or `update-input <name>`); commit the resulting
+  `flake.lock`.
+- **Comments explain why, not what.** No "we tried X then Y" narratives unless they prevent a
+  known footgun (one sentence max).
+
+## Security
+
+- **No plaintext secret in any `.nix`** — the store is world-readable.
+- **agenix holds exactly two secrets, on two different models** — don't assume either one:
+  - `secrets/cloudflared-token.age` (nixpi's tunnel token) is **operator-only**: encrypted to
+    the operator's `~/.ssh/id_ed25519` alone, decrypted on the Mac and planted on the SD card's
+    FIRMWARE partition. **`nixpi` never decrypts it** — a fresh SD flash rotates the host key.
+  - `secrets/gh-app-dontsell-ai-key.age` (the runner's GitHub App RS256 key) is
+    **host-decrypted on `macos` at activation** (recipients: operator **+** the `macos` host
+    key) → `/run/agenix/…`. So "nothing is host-decrypted" is **false** — that path is live.
+  - Edit either with `agenix -e secrets/<name>.age`; re-key with `-r` after changing recipients.
+- **Personal tokens live in the macOS login Keychain**, managed with
+  `secret <set|get|rm|ls|load>`; no secret *names* live in `.nix` either (the Keychain index is
+  authoritative). Servers/CLIs read them at launch via `passwordCommand`-style wrappers, so no
+  value ever reaches argv or the store.
+- **Never display a secret value** — using one is fine, echoing/logging/committing it is not.
+- Mechanism, history, and the two documented loader footguns:
+  [`docs/secrets-and-keychain.md`](docs/secrets-and-keychain.md).
+
+## Configuration
+
+How a host gets composed — change these knobs, not the hosts' internals:
+
+- **Identity once.** `loginName = "ismail"`, `domainName = "kattakath.com"`, `fullName`,
+  `userEmail` are `let` bindings (`identityArgs`) in `flake.nix`, threaded through
+  `specialArgs`/`extraSpecialArgs`. `mkDarwin` accepts a per-host `identity` override, but
+  **nothing in the fleet uses it** — every host runs the same operator identity.
+- **Per-host divergence is a gate, not a fork.** `networking.hostName`-gated `lib.mkIf` (or
+  `osConfig`) inside `modules/`; never a second identity, never a copy-pasted host block.
+- **Private layer plugs in, never leaks out.** `lib.mkDarwin { extraHomeModules }` /
+  `mkNixos { hostedSites }` are the seams the private nix-personal flake fills
+  ([`docs/private-home-modules.md`](docs/private-home-modules.md)); the public tree never
+  references a private repo.
+- **Binary cache:** the public `kattakath` Cachix cache is consumed tokenless by every host
+  (`modules/shared/nix-cache.nix`); only CI and the operator's Keychain hold the write token.
+- **`macos` runs self-hosted CI runners — for a *different* org.** `services.macosGithubRunner`
+  (`modules/darwin/github-runner.nix`, enabled in `hosts/macos.nix`, `count = 2`) registers
+  ephemeral org-level runners for **`dontsell-ai`**, authenticated by a GitHub App key minting
+  ~1h tokens per registration. **This repo's own CI uses none of them** — `nix-ci.yml` is 100%
+  GitHub-hosted. So "0 self-hosted runners" is true of *nix-config's CI*, not of the Mac.
+
+## Using Subagents
+
+Agent definitions live in `.claude/agents/` (project) — today just `terranix-infra-reviewer`.
+
+| Situation | Use |
+|---|---|
+| Explain architecture / get the big picture | `cartographer` agent (read-only, ASCII diagrams) |
+| Touching `infra/**.nix`, or **before any** `cf-tunnel-apply` / `hf-apply` | `terranix-infra-reviewer` agent — reviews + plans, never applies |
+| "Does it evaluate?" | `/eval` (stage + `nix flake check`) — no agent needed |
+| LEAN/DRY/doc-drift cleanup | `/hygiene` → skill `nix-hygiene` (audit → fix → gate) |
+| Cross-repo fleet sweep | `/fleet-doctor` (repos listed in `.claude/skills/fleet-doctor/fleet-repos.txt`) |
+| Adopt an MCP server | `/mcp-scout` → skill `mcp-scout` (declare in `mcp.nix`, never install imperatively) |
 
 ## Important Notes
 
-- **Flakes ignore untracked files.** A new `.nix` not yet `git add`ed is invisible to `nix flake check` and fails with confusing "file not found" / stale-eval errors. ALWAYS `git add` before evaluating — enforced by [git-purity](.claude/rules/git-purity.md) and the Stop hook.
-- Nix is frequently absent on the host (configs are evaluated in their target environments / CI). If `nix` is unavailable, validate syntax with `nix-instantiate --parse` where possible and rely on CI for full eval. The SessionStart hook reports which mode you're in. Full two-system evaluation lands in GitHub Actions CI (`.github/workflows/nix-ci.yml`) — never report a config as passing on a system only CI evaluated.
-- Prefer the `/eval` and `/update-input` commands over retyping the stage→check→evaluate sequence by hand.
-- `home-manager switch` activates and is hard to reverse; prefer `build` to verify, and `switch` only when explicitly asked. List generations with `home-manager generations`; roll back with `home-manager rollback`.
-- Run `nix flake check` (both systems) before declaring any change done — a config that evaluates on one system can still break the other.
-- `nix run .#nixvm` is the only way `nixvm` is ever booted: an ephemeral GUI VM (a `nixos-rebuild build-vm` runner exposed as a flake app: XFCE desktop, native QEMU/Cocoa window on macOS, no macOS-guest path and no VM config outside Nix) — it boots a throwaway overlay, there is no installed `nixvm` disk, no builder VM, and no self-hosted runner on it. Its aarch64-linux guest builds on a Linux builder: on `macos` that is **Determinate's native Linux builder** (Apple Virtualization framework), now ENABLED — it builds `aarch64-linux` (and `x86_64-linux`) derivations locally, on-demand, on an ephemeral ~1-CPU/8 GB VM (no provisioning). It is a FlakeHub/account feature turned on via https://dtr.mn/features (verify `determinate-nixd version`); it is NOT settable from Nix (`external-builders` is rejected by `determinateNix.customSettings`), and nix-darwin's `nix.linux-builder` is unusable because it needs `nix.enable = true`, which Determinate disables (nix-darwin#1505). **Account entitlement alone is not enough** — the *local* `determinate-nixd` daemon must also be authenticated to FlakeHub (`determinate-nixd status` showing `Authentication: logged-out` means `native-linux-builder` silently won't appear in `determinate-nixd version` even with the feature granted on the account, and `nix show-config`'s `external-builders` stays empty — every aarch64-linux build then fails with a `platform mismatch` error that looks unrelated to auth). This is a manual, per-machine step Nix can't do declaratively — see "Manual steps Nix can't do" in `docs/mac-key-recovery-runbook.md`. Heavy multi-core builds (e.g. the Pi SD image) still go to GitHub CI / Cachix rather than the small local builder.
+- **Flakes ignore untracked files.** A new `.nix` not yet `git add`ed is invisible to
+  `nix flake check` and fails with confusing "file not found" / stale-eval errors. ALWAYS
+  `git add` before evaluating — enforced by [git-purity](.claude/rules/git-purity.md) and the
+  Stop hook.
+- **Never `darwin-rebuild switch --flake .#macos` from this public repo.** It silently drops
+  the private nix-personal layer. Use the `nrs` wrapper (private composition) or ask first.
+- **`nixpi` is LIVE.** Changes must pass CI (which pushes closures to Cachix) before
+  activation; pull prebuilt paths, never build heavy on the Pi.
+- `home-manager switch` activates and is hard to reverse; prefer `build` to verify, and
+  `switch` only when explicitly asked. `home-manager generations` lists,
+  `home-manager rollback` reverts.
+- **`nix run .#nixvm` is the only way `nixvm` is ever booted** — a `nixos-rebuild build-vm`
+  runner exposed as a flake app (XFCE desktop, native QEMU/Cocoa window on macOS, no
+  macOS-guest path, no VM config outside Nix) booting a throwaway overlay. There is no
+  installed `nixvm` disk, no builder VM, and no runner on it. (The only self-hosted runners in
+  the fleet are the two on `macos`, and they serve `dontsell-ai`, not this repo — see
+  § Configuration.)
+- **aarch64-linux builds on the Mac** go to Determinate's **native Linux builder** (Apple
+  Virtualization; ephemeral ~1-CPU/8 GB VM, no provisioning). It is a FlakeHub/account feature
+  enabled at https://dtr.mn/features, **not** settable from Nix (`external-builders` is
+  rejected by `determinateNix.customSettings`), and nix-darwin's `nix.linux-builder` is
+  unusable because it needs `nix.enable = true`, which Determinate disables (nix-darwin#1505).
+  **Account entitlement alone is not enough** — the local `determinate-nixd` must also be
+  logged in to FlakeHub, or `native-linux-builder` silently vanishes and every aarch64-linux
+  build fails with a `platform mismatch` that looks unrelated to auth. Manual, per-machine step:
+  see "Manual steps Nix can't do" in
+  [`docs/mac-key-recovery-runbook.md`](docs/mac-key-recovery-runbook.md). Heavy multi-core
+  builds (e.g. the Pi SD image) still go to GitHub CI / Cachix.
 
 ## Documentation
 
-- [`docs/nixpi-sd-flashing-runbook.md`](docs/nixpi-sd-flashing-runbook.md) — flashing the `nixpi` Raspberry Pi 4 SD card (full verified `dd` write).
-- [`docs/mac-key-recovery-runbook.md`](docs/mac-key-recovery-runbook.md) — rebuilding `macos` from a wiped Mac + the iCloud key-recovery kit.
-- [`docs/flakehub-input-freshness.md`](docs/flakehub-input-freshness.md) — the automated weekly `flake.lock` bump flow (flake-checker advisory + update-flake-lock).
-- [`docs/macos-settings-surface.md`](docs/macos-settings-surface.md) — map of what macOS settings the `macos` host can configure declaratively (the four layers, the full `system.defaults` surface vs. the curated slice set today, the escape hatches, and the TCC/FileVault walls).
-- [`docs/vastai-template-provisioning.md`](docs/vastai-template-provisioning.md) — the Vast.ai GPU-template provisioning subsystem (the `vast-*` darwin apps, `runtype=args` templates on `vastai/base-image`, `PROVISIONING_SCRIPT` → bootstrap → provisioner-repo `provision.sh`, account-level secrets).
-- [`docs/private-home-modules.md`](docs/private-home-modules.md) — composition contract for private home-manager modules: public `lib.mkDarwin { extraHomeModules }` engine; private flakes plug in; public tree never references private repos (same boundary idea as Vast provisioners).
-- [`docs/flake-architecture-strategy-adr.md`](docs/flake-architecture-strategy-adr.md) — ADR (decided 2026-08-20): flake-parts for the small supporting flakes — `nix-local-rag`, `nix-firmware-secrets`, `vast-provision`, `ircc-whatsapp-bot`, `nix-keychain-secrets` **all migrated same day**; `flake.schemas` fleet-wide still open; `nix-config`'s own core engine (`forAllSystems`/`mkDarwin`/`mkNixos`) and the dendritic pattern stay explicitly out of scope until the fleet actually grows into needing them.
-- [`docs/macvm-tart-runbook.md`](docs/macvm-tart-runbook.md) — host-side Tart lifecycle (Apple Virtualization + IPSW), SSH, shared Screengrab for `macvm` (`nix run .#macvm-tart-*`); disk under `~/.tart/`; skill `.claude/skills/macvm-tart`.
-- [`docs/wireguard-vpn.md`](docs/wireguard-vpn.md) — WireGuard: the `vpn` CLI operator (list/status/switch; confs outside git) is **macvm-only**; **macos uses the `WireGuard.app` GUI exclusively** (`masApps`, no `wireguard-tools`/`vpn` CLI — a tunnel can never be raised from a shell, and nothing starts one on activation). Skill `.claude/skills/wireguard-vpn`.
-- [`docs/gmail-mcp-multi-account-runbook.md`](docs/gmail-mcp-multi-account-runbook.md) — TRUE simultaneous multi-account Gmail via ArtyMcLabin/Gmail-MCP-Server (one process per account, `services.mcpGateway.gmail.accounts`): the one-time Google Cloud OAuth client setup (Desktop app type, External+Testing, scopes), the per-account add/auth/verify procedure, and a documented silent-wrong-account auth failure mode + recovery. Skill `.claude/skills/gmail-mcp-accounts`, command `/gmail-account`.
-- [`docs/claude-code-observability-runbook.md`](docs/claude-code-observability-runbook.md) — local OTel Collector receiving Claude Code's native `tool_decision`/`tool_result` telemetry (`services.claudeOtel`, real-Mac-only, no external network egress, no prompt/response content captured): what's captured and why, troubleshooting, and the `/routing-review` analysis loop. Command `/routing-review`, doctor `nix run .#claude-otel-doctor`.
-- [`docs/claude-hook-messages.md`](docs/claude-hook-messages.md) — decoder for the hook messages this repo's `.claude/settings.json` hooks surface (why the harness labels policy DENYs and stop-gate blocks as "errors", the `✘ stop-gate BLOCKED —` / `superhook:` prefixes, how to read a `PreToolUse` prompt-hook denial — only the text after the final `]:` matters) + the `/superhook-review` / `/pretooluse-review` triage entry points.
-- [`docs/auto-merge-and-merge-queue.md`](docs/auto-merge-and-merge-queue.md) — how every flake in the fleet merges itself once CI is green (operator-authored PRs only): `auto-merge.yml` arming native auto-merge with a CI bot **App** token (never `GITHUB_TOKEN`, which would silently kill every `push: main` workflow), the `merge_queue` ruleset rule that makes concurrent PRs work under "branches up to date", and the `merge_group:` trigger every REQUIRED CI workflow must carry.
-- [`docs/mcp-gateway-accessibility-tcc.md`](docs/mcp-gateway-accessibility-tcc.md) — the one-time macOS Accessibility (TCC) grant for `/usr/bin/osascript` that the MCP gateway's `macos-automator` server needs (why it's manual + rebuild-proof, why no stable-path launchd wrapper helps, and the non-fatal activation preflight in `modules/shared/mcp.nix`).
-- [`docs/hyperframes-selfhost.md`](docs/hyperframes-selfhost.md) — self-host Kinocut+HyperFrames (Funnel in Linux engine only; Caddy; mcp-auth-proxy + Google allowlist). Terranix: `infra/hyperframes/stack.nix`; tree: `packages/hyperframes-selfhost/`; apps: `hf-export` / `hf-apply` / `hf-doctor`. Test plan: [`docs/hyperframes-selfhost-test-plan.md`](docs/hyperframes-selfhost-test-plan.md). Publish to community: [`docs/hyperframes-selfhost-publish.md`](docs/hyperframes-selfhost-publish.md) → public product **github.com/ismailkattakath/hyperframes-selfhost** (TF JSON forged by Nix; public repo owns CI/docs; forks need no Nix).
-- [`docs/claude-desktop-instructions.md`](docs/claude-desktop-instructions.md) — the ONE Claude behaviour this repo can't manage declaratively: Claude Desktop / claude.ai custom instructions live in an account-level, server-side field (Settings → General → Profile → "Instructions for Claude"), not `~/.claude/CLAUDE.md`. Holds the canonical "diagrams as ASCII" wording (the Desktop counterpart of `claude/CLAUDE.md`'s diagram rule — no `mermaid-ascii` CLI there, the model draws it) + the manual re-paste steps for a machine/account reset.
+- [`docs/repo-map.md`](docs/repo-map.md) — **the full fleet architecture**: every path, module,
+  package, and flake output, with the reasoning. The long form of § Navigating the Codebase.
+- [`docs/mcp-gateway.md`](docs/mcp-gateway.md) — the localhost MCP gateway: server inventory,
+  credentials model, opt-ins, how to add one.
+- [`docs/secrets-and-keychain.md`](docs/secrets-and-keychain.md) — agenix operator-only vault +
+  login-Keychain loader and the `secret` CLI.
+- [`docs/nixpi-sd-flashing-runbook.md`](docs/nixpi-sd-flashing-runbook.md) — flashing the
+  `nixpi` SD card (full verified `dd` write).
+- [`docs/mac-key-recovery-runbook.md`](docs/mac-key-recovery-runbook.md) — rebuilding `macos`
+  from a wiped Mac + the iCloud key-recovery kit; also the manual steps Nix can't do.
+- [`docs/flakehub-input-freshness.md`](docs/flakehub-input-freshness.md) — the automated weekly
+  `flake.lock` bump flow.
+- [`docs/macos-settings-surface.md`](docs/macos-settings-surface.md) — what macOS settings
+  `macos` can configure declaratively, and the TCC/FileVault walls.
+- [`docs/vastai-template-provisioning.md`](docs/vastai-template-provisioning.md) — the Vast.ai
+  GPU-template provisioning subsystem end to end.
+- [`docs/private-home-modules.md`](docs/private-home-modules.md) — composition contract for
+  private modules: public engine, private plug-ins, no private references in this tree.
+- [`docs/flake-architecture-strategy-adr.md`](docs/flake-architecture-strategy-adr.md) — ADR
+  (2026-08-20): flake-parts for the small supporting flakes; nix-config's own core engine and
+  the dendritic pattern stay out of scope.
+- [`docs/macvm-tart-runbook.md`](docs/macvm-tart-runbook.md) — host-side Tart lifecycle, SSH,
+  shared Screengrab for `macvm`.
+- [`docs/wireguard-vpn.md`](docs/wireguard-vpn.md) — the `vpn` CLI is **macvm-only**; `macos`
+  uses the `WireGuard.app` GUI exclusively (no tunnel can be raised from a shell).
+- [`docs/gmail-mcp-multi-account-runbook.md`](docs/gmail-mcp-multi-account-runbook.md) — TRUE
+  simultaneous multi-account Gmail (one process per account) + a silent-wrong-account failure
+  mode.
+- [`docs/claude-code-observability-runbook.md`](docs/claude-code-observability-runbook.md) —
+  local OTel Collector for Claude Code's own `tool_decision` telemetry + the `/routing-review`
+  loop.
+- [`docs/claude-hook-messages.md`](docs/claude-hook-messages.md) — decoder for this repo's hook
+  messages (why DENYs read as "errors", how to read a prompt-hook denial).
+- [`docs/auto-merge-and-merge-queue.md`](docs/auto-merge-and-merge-queue.md) — how every fleet
+  flake merges itself once CI is green (CI bot App token, merge-queue ruleset, `merge_group:`).
+- [`docs/mcp-gateway-accessibility-tcc.md`](docs/mcp-gateway-accessibility-tcc.md) — the
+  one-time Accessibility (TCC) grant `macos-automator` needs.
+- [`docs/hyperframes-selfhost.md`](docs/hyperframes-selfhost.md) — self-hosting
+  Kinocut+HyperFrames (terranix `infra/hyperframes/stack.nix`; `hf-export`/`hf-apply`/`hf-doctor`),
+  with its [test plan](docs/hyperframes-selfhost-test-plan.md) and
+  [publish notes](docs/hyperframes-selfhost-publish.md).
+- [`docs/claude-desktop-instructions.md`](docs/claude-desktop-instructions.md) — the one Claude
+  behaviour this repo can't manage declaratively (account-level Desktop instructions) + the
+  canonical "diagrams as ASCII" wording.
