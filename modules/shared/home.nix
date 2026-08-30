@@ -792,7 +792,7 @@ in
         view-usage = "${agent-skills-litellm}/view-usage";
         # ---- Security / methodology skills (from the audit) ----
         # Trail of Bits (CC-BY-SA-4.0): prefer authenticated `gh` over raw GitHub curl/WebFetch —
-        # fits the heavy gh/PR flow (pr-consolidation, /review, brag PR mining).
+        # fits the heavy gh/PR flow (PR open/review, brag PR mining).
         gh-cli = "${agent-skills-trailofbits}/plugins/gh-cli/skills/gh-cli";
         # Trail of Bits: score dependencies for takeover/typosquat/bus-factor risk — matches the
         # flake-pin provenance discipline (every input is pinned + provenance-checked).
