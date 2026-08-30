@@ -219,7 +219,9 @@ in
   home-manager.users.${loginName} = {
     # MCP gateway (~17 servers) is macos-only weight; disable agent + client wiring.
     services.mcpGateway.enable = false;
-    # Stock wallpaper + Terminal so the VM is visually distinct from macos.
+    # Stock wallpaper so the VM is visually distinct from macos. (The shared
+    # Terminal.app 16pt rule is NOT gated by this — type size is ergonomics, and
+    # the tell is the stock desktop + red accent below.)
     local.desktopAesthetics.enable = false;
   };
 
