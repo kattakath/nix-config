@@ -132,7 +132,7 @@ const DESKTOP_COMMANDER_TOOLS = new Set(["ls", "find", "stat", "ps", "kill"]);
 
 // Rule 1: terranix apply/destroy apps that mutate Cloudflare infra via the API.
 const CF_TERRANIX_APP = /\bnix\s+run\s+\.#cf-(?:tunnel|mcp)-(?:apply|destroy)\b/;
-// Rule 1b (2026-08-30 review): the ONE `darwin-rebuild` shape that is a trap.
+// Rule 1b (2026-08-30 review): the activation shapes that are a trap.
 // Matched per-SEGMENT alongside an `argv0 === "darwin-rebuild"` test rather than
 // as one big regex over the whole command, so flag ORDER is irrelevant
 // (`darwin-rebuild --flake .#macos switch` reads the same as the canonical form)
@@ -140,7 +140,51 @@ const CF_TERRANIX_APP = /\bnix\s+run\s+\.#cf-(?:tunnel|mcp)-(?:apply|destroy)\b/
 // never trigger it. `build`/`check`/`--dry-run` shapes stay approved — they do
 // not activate.
 const DARWIN_SWITCH_VERB = /\bswitch\b/;
-const DARWIN_SWITCH_PUBLIC_FLAKE = /--flake[=\s]+\.#macos\b/;
+// Every flake-ref shape that resolves to THIS public tree's `#macos`. The original
+// rule matched only the canonical `--flake .#macos`, which let four equivalent
+// spellings straight through (2026-08-30 Bedrock review):
+//   `--flake .`            — no attr, so nix-darwin resolves it by hostname → #macos
+//   `--flake ~/…/nix-config` / an absolute path to this checkout
+//   `--flake github:kattakath/nix-config#macos` — the remote is the same tree
+// The attr is `(?:#macos)?` — either spelled out or absent (nix-darwin then
+// resolves it by hostname, which on this Mac IS macos). Deliberately NOT a
+// wildcard `#[\w-]*`: that would also swallow `--flake .#macvm`, a different host
+// whose activation this rule has nothing to say about, and would attach a message
+// naming the wrong composition. A trailing `(?=…)` guard keeps `../nix-personal`
+// and longer path suffixes out.
+const PUBLIC_MACOS_REFS = [
+  /--flake[=\s]+\.(?:#macos)?(?=\s|$|["';|])/,
+  /--flake[=\s]+["']?[~/][^\s"';|]*nix-config(?:#macos)?(?=\s|$|["';|])/i,
+  /--flake[=\s]+["']?github:kattakath\/nix-config(?:#macos)?(?=\s|$|["';|])/i,
+];
+// `--flake` absent entirely: a bare `darwin-rebuild switch` re-activates whatever
+// flake the current system profile recorded — unknowable from here, so it is
+// treated as suspect rather than assumed safe. `activate` is the sanctioned entry
+// point either way, so this costs nothing legitimate.
+const HAS_FLAKE_FLAG = /--flake\b/;
+// `nix run .#macos` is a REAL activation app (apps.aarch64-darwin.macos, the
+// first-activation path from CLAUDE.md § Build & Commands) — same damage as
+// `darwin-rebuild switch`, and it was never covered.
+const PUBLIC_MACOS_APP = /\bnix\s+run\s+["']?(?:\.|github:kattakath\/nix-config)#macos\b/;
+// Commands that activate SOMETHING but are not the public-repo trap: `activate`
+// (the freshness-gated private composition CLI from nix-personal) and a
+// `home-manager switch`. Used only for the non-blocking Bedrock heads-up below —
+// never to block.
+const ACTIVATION_ARGV0 = new Set(["activate", "darwin-rebuild", "home-manager"]);
+
+// ---- the Bedrock trap (2026-08-30) -----------------------------------------
+// CLAUDE_CODE_USE_BEDROCK lives in the login Keychain, so it SURVIVES any
+// activation. Its companions AWS_REGION/AWS_PROFILE come only from the private
+// layer (nix-personal's claude-bedrock.nix → ~/.claude/settings.json) and its
+// ~/.aws/config profiles, so a public-repo activation DROPS them. Bedrock
+// therefore stays selected with no region and no profile: Claude Code can reach
+// no model, and the agent needed to undo the activation is the thing that just
+// died. settings.json is a read-only /nix store symlink, so it cannot be hand
+// repaired — hence chicken-and-egg, and hence a hard block rather than a nudge.
+// PRESENCE is the test, not the value: per the operator, merely having the
+// variable set selects Bedrock, so `=0` is not a safe "off".
+const bedrockSelected = process.env.CLAUDE_CODE_USE_BEDROCK !== undefined;
+const awsIdentityLive = ["AWS_REGION", "AWS_PROFILE"].filter((v) => process.env[v]);
 // Rule 1/2: an http(s) URL's host, extracted so "cloudflare" merely appearing in
 // a path/query on a local host is never mistaken for a real API call. `i` flag:
 // schemes are case-insensitive (`HTTP://...` is shell/curl-valid and was
@@ -233,7 +277,7 @@ function main() {
   //     included: that still copies a closure to the live Pi, and the whole point
   //     is that the RIGHT flake to deploy from is nix-personal, not this one.
   //   `darwin-rebuild switch --flake .#macos` — silently drops the private
-  //     nix-personal layer (CLAUDE.md § Important Notes). `nrs` is the real entry.
+  //     nix-personal layer (CLAUDE.md § Important Notes). `activate` is the real entry.
   // Neither block is a veto — the operator can still run either by hand.
   if (segs.includes("deploy")) {
     emit(
@@ -242,12 +286,43 @@ function main() {
       "Deploy from the private nix-personal flake, not this one. A bare `deploy` also fans out over every node — always `--targets`. Confirm intent and run it manually if this really is what you want.",
     );
   }
-  if (rawSegs.some((seg, i) => segs[i] === "darwin-rebuild" && DARWIN_SWITCH_VERB.test(seg) && DARWIN_SWITCH_PUBLIC_FLAKE.test(seg))) {
+  // Activation of the public `#macos` in any of its spellings, plus the bare
+  // no-`--flake` form. `build`/`check`/`--dry-run` shapes still fall through —
+  // they do not activate.
+  const darwinSwitchSegs = rawSegs.filter((seg, i) => segs[i] === "darwin-rebuild" && DARWIN_SWITCH_VERB.test(seg));
+  const publicMacosActivation =
+    PUBLIC_MACOS_APP.test(cmd) || darwinSwitchSegs.some((seg) => PUBLIC_MACOS_REFS.some((re) => re.test(seg)));
+  const bareDarwinSwitch = darwinSwitchSegs.some((seg) => !HAS_FLAKE_FLAG.test(seg));
+  if (publicMacosActivation || bareDarwinSwitch) {
+    const what = publicMacosActivation
+      ? "Activates the PUBLIC `#macos` composition from this repo"
+      : "A bare `darwin-rebuild switch` re-activates whatever flake the system profile recorded — it may well be this public tree";
+    // Two different severities, because the consequences differ in kind: with the
+    // Bedrock switch live this destroys the operator's own AI access, so the
+    // message has to lead with the recovery path, not with the layering theory.
     emit(
       "block",
-      "`darwin-rebuild switch --flake .#macos` from this public repo silently drops the private nix-personal layer.",
-      "Use the `nrs` wrapper (private composition), or ask first. `darwin-rebuild build --flake .#macos` is fine for verification.",
+      bedrockSelected
+        ? `${what}, which drops the private nix-personal layer — including AWS_REGION/AWS_PROFILE. CLAUDE_CODE_USE_BEDROCK is set in this environment and lives in the Keychain, so it SURVIVES: Bedrock would stay selected with no region, Claude Code would reach no model, and settings.json is a read-only /nix symlink you cannot hand-repair. That is the chicken-and-egg outage.`
+        : `${what}, which silently drops the private nix-personal layer (CLAUDE.md § Important Notes).`,
+      bedrockSelected
+        ? "Use `activate` (nix-personal's freshness-gated CLI for the private composition) — it restores AWS_REGION/AWS_PROFILE in the same switch. If you must run the public one, `secret rm CLAUDE_CODE_USE_BEDROCK` FIRST and open a new shell, so Claude Code falls back to its default provider and survives. `darwin-rebuild build` is always safe."
+        : "Use `activate` (nix-personal's CLI for the private composition), or ask first. `darwin-rebuild build --flake .#macos` is fine for verification.",
     );
+  }
+  // A legitimate activation (`activate`, a private-flake switch, `home-manager switch`)
+  // is approved — but if the AWS identity vars are live while the Keychain switch
+  // is currently OFF, the trap is merely disarmed, not gone: restoring that one
+  // Keychain entry re-arms it. Worth one line, never a block.
+  if (!bedrockSelected && awsIdentityLive.length) {
+    const activates = rawSegs.some(
+      (seg, i) => ACTIVATION_ARGV0.has(segs[i]) && (segs[i] === "activate" || DARWIN_SWITCH_VERB.test(seg)),
+    );
+    if (activates) {
+      nudges.push(
+        `${awsIdentityLive.join("/")} present but CLAUDE_CODE_USE_BEDROCK unset — Bedrock is currently OFF, so this activation is safe. It re-arms the moment that Keychain entry returns; \`nix-bedrock-gate\` reports the live verdict.`,
+      );
+    }
   }
 
   if (segs.includes("wrangler")) {

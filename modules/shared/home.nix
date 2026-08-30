@@ -378,6 +378,12 @@ in
     # (github:ismailkattakath/keychain-secrets), installed via its HM module below.
     # Internally darwin-gated, so it's a clean no-op on the NixOS hosts.
     keychain-secrets.homeManagerModules.default
+    # Gate CLAUDE_CODE_USE_BEDROCK (Keychain, survives every activation) on the
+    # AWS identity that only the PRIVATE layer supplies — so activating the public
+    # #macos degrades Claude Code to its default provider instead of leaving it
+    # unable to reach any model at all. Must live here, not in nix-personal: a gate
+    # in the private layer would be dropped by the activation it defends against.
+    ./claude-bedrock-gate.nix
   ];
 
   # Enable the extracted keychain-secrets module (installs the secret/set-secret/
@@ -563,21 +569,13 @@ in
     "$HOME/.grok/bin"
   ];
 
-  # Day-to-day activation shorthand. `mkDefault` (lowest priority) so a
-  # private composition flake's `extraHomeModules` can redefine the SAME key
-  # with a plain assignment and win automatically — no `lib.mkForce`, no
-  # "conflicting definitions" error, regardless of module import order. This
-  # public default points at this fleet-only engine; nix-personal (private)
-  # overrides it to its own flake so day-to-day `nrs` always includes the
-  # private layer instead of silently reverting to this baseline on the next
-  # switch. See docs/private-home-modules.md. darwin-rebuild only exists on
-  # the two darwin hosts — nixpi/nixvm are switched a different way entirely
-  # (nixpi has no local build capacity; see the private-home-modules doc).
-  home.shellAliases.nrs = lib.mkIf pkgs.stdenv.isDarwin (
-    lib.mkDefault "darwin-rebuild switch --flake github:kattakath/nix-config#${
-      osConfig.networking.hostName or "macos"
-    }"
-  );
+  # No activation shorthand is defined here on purpose. This public engine is the
+  # fleet-only BASELINE: any alias it could ship would point at its own `#macos`,
+  # i.e. exactly the switch that silently drops the private layer (see
+  # claude-bedrock-gate.nix for what that costs). The real day-to-day command is
+  # the freshness-gated `activate` CLI, which only the private nix-personal flake
+  # can build because only it composes the full host. See
+  # docs/private-home-modules.md.
 
   # GLOBAL Claude Code instructions — user-level rules loaded in every project/session
   # on this Mac (the sole Claude Code client host). Declarative equivalent of hand-writing

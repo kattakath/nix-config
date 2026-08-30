@@ -49,7 +49,7 @@ adds project specifics on top. Keep this file short and specific.
   must be `$HOME`/XDG-relative (never a hardcoded `/Users/<name>`). See the repo `CLAUDE.md`.
 - Activation is hard to reverse — prefer `build` to verify, and `switch` only when
   explicitly asked. **Never `darwin-rebuild switch --flake .#macos` from this public repo:**
-  it silently drops the private `nix-personal` layer. Use `nrs`, or ask first.
+  it silently drops the private `nix-personal` layer. Use `activate`, or ask first.
 
 Conventions + the path index live in the repo's `CLAUDE.md` (kept lean); the **full** fleet
 map is `docs/repo-map.md`.

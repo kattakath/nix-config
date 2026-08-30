@@ -40,7 +40,7 @@ ast-grep test --skip-snapshot-tests          # Prove each rule still fires (fixt
 
 # Activation
 darwin-rebuild switch --flake .#macos        # ⚠ NEVER run this from THIS repo for a real switch — it silently
-                                             #   drops the private nix-personal layer. Use `nrs`, or ask first.
+                                             #   drops the private nix-personal layer. Use `activate`, or ask first.
 nix run github:kattakath/nix-config#macos    # FIRST activation of macos straight from the flake (before darwin-rebuild is on PATH)
 nixos-rebuild switch --flake .#nixpi         # Activate the Pi (LIVE server — must pass CI/Cachix first, never build heavy on the Pi)
 deploy --targets .#nixpi                     # ⚠ Same trap as above: from THIS repo it deploys a SITE-FREE Pi. Deploy from
@@ -224,7 +224,7 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   `git add` before evaluating — enforced by [git-purity](.claude/rules/git-purity.md) and the
   Stop hook.
 - **Never `darwin-rebuild switch --flake .#macos` from this public repo.** It silently drops
-  the private nix-personal layer. Use the `nrs` wrapper (private composition) or ask first.
+  the private nix-personal layer. Use `activate` (nix-personal) or ask first.
 - **`nixpi` is LIVE.** Changes must pass CI (which pushes closures to Cachix) before
   activation; pull prebuilt paths, never build heavy on the Pi.
 - **Never `deploy --targets .#nixpi` from this public repo.** `deploy.nodes.nixpi` here points
