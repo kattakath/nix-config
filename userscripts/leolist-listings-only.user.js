@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LeoList — listings only
 // @namespace    kattakath.com
-// @version      1.9.0
+// @version      1.10.0
 // @description  Listings-only LeoList: keep #view-cont > div.col-left, drop sponsored chrome, filmstrip extra photos beside the hero from the lightbox a.href (w:1024), clamp the ad description. Parsed extras persist in localStorage with no hit TTL.
 // @author       Ismail Kattakath
 // @license      MIT
@@ -42,6 +42,8 @@
 // we only refetch HTML when the listing is unknown or LRU-evicted (cap).
 // v1.8.0: drop 160px height locks (auto). .lst-item is 256px.
 // v1.9.0: every .lst-item img is width/height auto (site CSS still pins some).
+// v1.10.0: height 256px lives on img, not .lst-item. width auto. Card is
+// height auto so title/desc still fit. Drop 3/4 crop so w:1024/h:0 aspect holds.
 //
 // Selectors (listing + detail dumps, 2026-08-31):
 //   #view-cont > div.col-left             KEEP island
@@ -84,13 +86,11 @@
     'html[data-nix-leolist-listings-only] .wrap,\nhtml[data-nix-leolist-listings-only] .main-list,\nhtml[data-nix-leolist-listings-only] .main-list-container.container,\nhtml[data-nix-leolist-listings-only] #view-cont {\n  width: 100%;\n  max-width: none;\n  margin-left: 0;\n  margin-right: 0;\n  box-sizing: border-box;\n  padding-left: 0;\n  padding-right: 0;\n}\n' +
     'html[data-nix-leolist-listings-only] #view-cont > div.col-left {\n  float: none;\n  width: 100%;\n  padding-right: 0;\n}\n' +
     'html[data-nix-leolist-listings-only] .col-left .group {\n  float: none;\n  width: 100%;\n  margin: 0 0 10px;\n}\n' +
-    'html[data-nix-leolist-listings-only] .lst-item.lst-item {\n  height: 256px;\n  overflow: hidden;\n}\n' +
-    'html[data-nix-leolist-listings-only] .lst-item img {\n  width: auto;\n  height: auto;\n}\n' +
+    'html[data-nix-leolist-listings-only] .lst-item.lst-item {\n  height: auto;\n  overflow: visible;\n}\n' +
+    'html[data-nix-leolist-listings-only] .lst-item img {\n  width: auto;\n  height: 256px;\n  object-fit: contain;\n  object-position: top center;\n  flex: 0 0 auto;\n}\n' +
     'html[data-nix-leolist-listings-only] .lst-item__img {\n  display: flex;\n  flex-direction: row;\n  align-items: stretch;\n  height: auto;\n  width: auto;\n  max-width: 100%;\n  overflow: hidden;\n  gap: 2px;\n}\n' +
-    'html[data-nix-leolist-listings-only] .lst-item__img__thumbnail--main {\n  height: auto;\n  width: auto;\n  aspect-ratio: 3 / 4;\n  object-fit: cover;\n  object-position: top center;\n  flex: 0 0 auto;\n}\n' +
     'html[data-nix-leolist-listings-only] .nix-leolist-photos {\n  display: flex;\n  flex-wrap: nowrap;\n  gap: 2px;\n  height: auto;\n  min-width: 0;\n  flex: 1 1 auto;\n  overflow-x: auto;\n  overflow-y: hidden;\n}\n' +
-    'html[data-nix-leolist-listings-only] .nix-leolist-photos img {\n  height: auto;\n  width: auto;\n  aspect-ratio: 3 / 4;\n  object-fit: cover;\n  object-position: top center;\n  flex: 0 0 auto;\n}\n' +
-    'html[data-nix-leolist-listings-only] .nix-leolist-more {\n  flex: 0 0 auto;\n  height: auto;\n  min-width: 48px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  font-size: 14px;\n  font-weight: 650;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-more {\n  flex: 0 0 auto;\n  height: 256px;\n  min-width: 48px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  font-size: 14px;\n  font-weight: 650;\n}\n' +
     'html[data-nix-leolist-listings-only] .lst-item__info {\n  white-space: normal;\n  height: auto;\n  overflow: hidden;\n}\n' +
     'html[data-nix-leolist-listings-only] .nix-leolist-desc {\n  margin: 8px 0 0;\n  display: -webkit-box;\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 3;\n  overflow: hidden;\n}\n';
 
