@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         LeoList — listings only
 // @namespace    kattakath.com
-// @version      1.2.0
-// @description  Keep only LeoList's listing column (#view-cont > div.col-left); hide every sibling up to body, drop sponsored cards, and append each ad's description plus extra photos.
+// @version      1.3.0
+// @description  Listings-only LeoList: keep #view-cont > div.col-left, drop sponsored chrome, filmstrip extra photos beside the hero, clamp the ad description.
 // @author       Ismail Kattakath
 // @license      MIT
 // @homepageURL  https://github.com/kattakath/nix-config
@@ -17,36 +17,31 @@
 // LeoList does not ship a listings-only view. Measured 2026-08-31 on
 // https://www.leolist.cc/personals/female-escorts/greater-toronto/york
 // (headless dump-dom, innerWidth 1440): organic cards live in #main_list
-// inside #view-cont > div.col-left (operator-named keep; dump confirms
-// #view-cont's only children are div.col-left and div.col-right). Chrome
-// is siblings of that island, not a breakpoint. v1.0–1.1 hid a named
-// list and leaked whatever the list missed (header, filters, wrap extras).
-// v1.2 walks keep → body and sets hidden on every sibling; missing keep
-// is a no-op (the page renders stock). Inside the island, sponsored cards
-// and the SPONSORS strip are still not listings.
+// inside #view-cont > div.col-left. v1.2 sibling-hides the island; v1.3
+// kills the salad (wrap-dump 96px thumbs + unbounded paragraph under the
+// stock row) by composing extras into .lst-item__img as a same-height
+// filmstrip and clamping #preview-description to 3 lines in .lst-item__info.
 //
-// Enrichment (v1.1.0), same date, dump on
-// /personals/female-escorts/greater-toronto/york_outcall_party_girl_100_duo-8313854:
-// a.lst-item__link.mainlist-item[href] is the ad page; extra fields are
-// #preview-description and .account-photos__item img on imx.leolist.cc.
-// Phone/WhatsApp sit behind .unlock-contacts-btn / empty #preview-phone.
-// Fetch is same-origin, @grant none, concurrency 3, IntersectionObserver.
-// A failed fetch leaves the card stock.
+// Enrichment still: a.lst-item__link.mainlist-item[href] → same-origin
+// fetch; #preview-description textContent; .account-photos__item img on
+// imx.leolist.cc; phone stays locked. IntersectionObserver + concurrency 3;
+// visibilitychange reconnects IO so a hidden tab fills on focus.
 //
-// Selectors:
-//   #view-cont > div.col-left             KEEP island (listing dump + operator)
+// Selectors (listing + detail dumps, 2026-08-31):
+//   #view-cont > div.col-left             KEEP island
+//   .lst-item__img / .lst-item__info      card slots extras compose into
+//   [data-testid="listing-pic"]            hero (skip duplicate src)
+//   .lst-item img.huge                    stock hover popup — hide
 //   .group:has(.lst-item__label--sponsored)
-//                                         sponsored cards inside the island
-//   .main-list-sponsors                   SPONSORS tab strip inside #main_list
-//   aside.main-list__safety-tips          safety-tips block mid-list
-//   a.lst-item__link.mainlist-item        card permalink
-//   [data-testid="ad-item"]               organic card
-//   #preview-description                  ad body (detail dump)
-//   .account-photos__item img             extra thumbs (detail dump)
+//   .main-list-sponsors
+//   aside.main-list__safety-tips
+//   a.lst-item__link.mainlist-item
+//   [data-testid="ad-item"]
+//   #preview-description
+//   .account-photos__item img
 //
-// Invented (constructed UI, 2026-08-31):
-//   .nix-leolist-extra / -photos / -desc
-//   #view-cont > div.col-left { width:100%; float:none } after col-right is gone
+// Invented (constructed UI):
+//   .nix-leolist-photos / -more / -desc
 (() => {
   'use strict';
 
@@ -56,19 +51,26 @@
   const KEEP = '#view-cont > div.col-left';
   const IMX = 'https://imx.leolist.cc/';
   const CONCURRENCY = 3;
+  const MAX_EXTRAS = 6;
 
   const CSS = [
     'html[data-nix-leolist-listings-only] .group:has(.lst-item__label--sponsored)',
     'html[data-nix-leolist-listings-only] .main-list-sponsors',
     'html[data-nix-leolist-listings-only] aside.main-list__safety-tips',
+    'html[data-nix-leolist-listings-only] .lst-item img.huge',
   ].join(',\n') + ' {\n  display: none;\n}\n' +
     'html[data-nix-leolist-listings-only] body.modal-open {\n  overflow: auto;\n}\n' +
     'html[data-nix-leolist-listings-only] [hidden] {\n  display: none;\n}\n' +
-    'html[data-nix-leolist-listings-only] #view-cont > div.col-left {\n  float: none;\n  width: 100%;\n}\n' +
-    'html[data-nix-leolist-listings-only] .nix-leolist-extra {\n  margin: 8px 0 16px;\n  padding: 0 8px;\n}\n' +
-    'html[data-nix-leolist-listings-only] .nix-leolist-photos {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n' +
-    'html[data-nix-leolist-listings-only] .nix-leolist-photos img {\n  width: 96px;\n  height: 96px;\n  object-fit: cover;\n}\n' +
-    'html[data-nix-leolist-listings-only] .nix-leolist-desc {\n  margin: 8px 0 0;\n}\n';
+    'html[data-nix-leolist-listings-only] #view-cont > div.col-left {\n  float: none;\n  width: 100%;\n  padding-right: 0;\n}\n' +
+    'html[data-nix-leolist-listings-only] .col-left .group {\n  float: none;\n  width: 100%;\n  margin: 0 0 10px;\n}\n' +
+    'html[data-nix-leolist-listings-only] .lst-item.lst-item {\n  height: auto;\n  overflow: visible;\n}\n' +
+    'html[data-nix-leolist-listings-only] .lst-item__img {\n  display: flex;\n  flex-direction: row;\n  align-items: stretch;\n  height: 160px;\n  width: auto;\n  max-width: 100%;\n  overflow: hidden;\n  gap: 2px;\n}\n' +
+    'html[data-nix-leolist-listings-only] .lst-item__img__thumbnail--main {\n  height: 160px;\n  width: auto;\n  aspect-ratio: 3 / 4;\n  object-fit: cover;\n  object-position: top center;\n  flex: 0 0 auto;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-photos {\n  display: flex;\n  flex-wrap: nowrap;\n  gap: 2px;\n  height: 160px;\n  min-width: 0;\n  flex: 1 1 auto;\n  overflow-x: auto;\n  overflow-y: hidden;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-photos img {\n  height: 160px;\n  width: auto;\n  aspect-ratio: 3 / 4;\n  object-fit: cover;\n  object-position: top center;\n  flex: 0 0 auto;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-more {\n  flex: 0 0 auto;\n  height: 160px;\n  min-width: 48px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  font-size: 14px;\n  font-weight: 650;\n}\n' +
+    'html[data-nix-leolist-listings-only] .lst-item__info {\n  white-space: normal;\n  height: auto;\n  overflow: hidden;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-desc {\n  margin: 8px 0 0;\n  display: -webkit-box;\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 3;\n  overflow: hidden;\n}\n';
 
   const sheet = new CSSStyleSheet();
   sheet.replaceSync(CSS);
@@ -161,38 +163,45 @@
     return parsed;
   };
 
-  const renderExtra = (card, href, data) => {
-    if (card.querySelector('.nix-leolist-extra')) return;
-    const extra = document.createElement('div');
-    extra.className = 'nix-leolist-extra';
+  const renderExtra = (card, data) => {
+    if (card.querySelector('.nix-leolist-photos') || card.querySelector('.nix-leolist-desc')) return;
+    const imgBox = card.querySelector('.lst-item__img');
+    const info = card.querySelector('.lst-item__info');
+    const hero = card.querySelector('[data-testid="listing-pic"]');
+    const heroSrc = hero ? hero.getAttribute('src') : '';
 
-    if (data.photos.length) {
-      const hero = card.querySelector('[data-testid="listing-pic"]');
-      const heroSrc = hero ? hero.getAttribute('src') : '';
+    const extras = [];
+    for (const src of data.photos) {
+      if (src === heroSrc) continue;
+      extras.push(src);
+    }
+
+    if (imgBox && extras.length) {
       const row = document.createElement('div');
       row.className = 'nix-leolist-photos';
-      for (const src of data.photos) {
-        if (src === heroSrc) continue;
-        const a = document.createElement('a');
-        a.href = href;
+      const shown = extras.slice(0, MAX_EXTRAS);
+      for (const src of shown) {
         const img = document.createElement('img');
         img.src = src;
         img.alt = '';
-        a.appendChild(img);
-        row.appendChild(a);
+        img.loading = 'lazy';
+        row.appendChild(img);
       }
-      if (row.childNodes.length) extra.appendChild(row);
+      if (extras.length > MAX_EXTRAS) {
+        const more = document.createElement('span');
+        more.className = 'nix-leolist-more';
+        more.textContent = '+' + String(extras.length - MAX_EXTRAS);
+        row.appendChild(more);
+      }
+      imgBox.appendChild(row);
     }
 
-    if (data.desc) {
+    if (info && data.desc) {
       const p = document.createElement('p');
       p.className = 'nix-leolist-desc';
       p.textContent = data.desc;
-      extra.appendChild(p);
+      info.appendChild(p);
     }
-
-    if (!extra.childNodes.length) return;
-    card.appendChild(extra);
   };
 
   const enrichCard = async (card) => {
@@ -207,7 +216,7 @@
         card.dataset.nixLeolistEnrich = 'fail';
         return;
       }
-      renderExtra(card, href, data);
+      renderExtra(card, data);
       card.dataset.nixLeolistEnrich = 'done';
     } catch {
       card.dataset.nixLeolistEnrich = 'fail';
@@ -228,6 +237,17 @@
     const list = document.getElementById('main_list');
     if (!list) return;
     for (const card of list.querySelectorAll('[data-testid="ad-item"]')) observeCard(card);
+  };
+
+  const reconnectIo = () => {
+    if (document.hidden || !io) return;
+    const list = document.getElementById('main_list');
+    if (!list) return;
+    io.disconnect();
+    for (const card of list.querySelectorAll('[data-testid="ad-item"]')) {
+      if (card.dataset.nixLeolistEnrich !== undefined) continue;
+      io.observe(card);
+    }
   };
 
   let watching = false;
@@ -260,6 +280,7 @@
       });
     };
     new MutationObserver(coalesce).observe(list, { childList: true });
+    document.addEventListener('visibilitychange', reconnectIo);
     scan();
   };
 

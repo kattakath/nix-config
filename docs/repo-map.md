@@ -716,8 +716,10 @@ tree never grows a bundler of its own, and never commits minified output.
   `div.col-left` + `div.col-right`); the script walks that node to `body` and sets `hidden`
   on every sibling, then still drops `.lst-item__label--sponsored` cards and the SPONSORS
   strip inside the island. As each organic card nears the viewport it same-origin-fetches
-  the ad page and appends `#preview-description` plus `.account-photos__item` thumbs (phone
-  stays locked). Missing keep node → no-op.
+  the ad page. Extra `.account-photos__item` thumbs compose into `.lst-item__img` as a
+  same-height filmstrip (not a wrap dump); `#preview-description` is 3-line clamped in
+  `.lst-item__info`. Phone stays locked. Hidden tabs reconnect IO on `visibilitychange`.
+  Missing keep node → no-op.
 
 ## `infra/` — terranix (Nix → OpenTofu/Terraform JSON)
 
