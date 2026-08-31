@@ -21,7 +21,7 @@ Examples:
 
 - `/hygiene` → fix, full repo judgment with focus on dirty/recent surfaces
 - `/hygiene audit` → report only
-- `/hygiene fix macvm` → fix scoped to macvm/Tart/Screengrab-related tree
+- `/hygiene fix macvm` → fix scoped to the macvm/Tart/`~/Downloads`-share tree
 - `/hygiene audit docs` → docs↔flake drift only
 
 ## Required sequence

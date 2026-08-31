@@ -65,7 +65,7 @@ clobber that file. The `#macvm` app moves it to
 `nix.custom.conf.before-nix-darwin` once if it is not already a symlink. Manual
 equivalent: `sudo mv /etc/nix/nix.custom.conf /etc/nix/nix.custom.conf.before-nix-darwin`.
 
-That lands Apple’s `sshd` (keys-only, operator pubkey via nix-darwin), passwordless sudo, Screengrab symlink agent, lean Homebrew.
+That lands Apple’s `sshd` (keys-only, operator pubkey via nix-darwin), passwordless sudo, the `~/Downloads` symlink agent, lean Homebrew.
 
 ### 4. Day-to-day (host)
 
@@ -118,15 +118,49 @@ Private home modules (path-sync, not guest GitLab SSH):
 #   nix run .#macvm-tart-ssh -- nix run /Users/ismail/nix-personal#macvm
 ```
 
-## Screengrab share
+## `~/Downloads` share
 
 `macvm-tart-start` always attaches:
 
 ```text
---dir=Screengrab:$HOME/Pictures/Screengrab
+--dir=Downloads:$HOME/Downloads
 ```
 
-Guest: `/Volumes/My Shared Files/Screengrab` → `~/Pictures/Screengrab` (symlink via `hosts/macvm.nix`). Restart the VM after host path changes.
+Guest: `/Volumes/My Shared Files/Downloads` → `~/Downloads` (symlink via
+`hosts/macvm.nix`, agent `nix-downloads-share`). Restart the VM after host path
+changes. Override the host side with `MACVM_HOST_DOWNLOADS`.
+
+One inbox for both machines: a download or ⇧⌘4/⇧⌘5 capture in the guest lands in
+the host's `~/Downloads`, which the host rotates hourly into `~/.Trash`
+(`nix-file-rotation-downloads`, `modules/darwin/core.nix`).
+
+**Only the guest's `~/Downloads` is a symlink.** The host's stays a real directory —
+symlinking it there breaks AirDrop (files land in `/private/tmp`) and permanently
+loses the Finder sidebar icon.
+
+**Rotation is host-only, and that is a safety property, not tidiness.** `mv(1)`:
+"As the `rename(2)` call does not work across file systems, `mv` uses `cp(1)` and
+`rm(1)`." A guest rotation of the share would therefore **copy host bytes into the
+VM's disk image and unlink them on the host**. Never enable it in the guest.
+
+### VirtioFS coherence — host→guest is stale (measured, tart 2.30.6)
+
+| Direction | Behaviour |
+|---|---|
+| Guest → host | Instant |
+| Host → guest | **Stale for ~2-4 minutes** after a host delete: the guest still *lists* the file, and reading it returns `Permission denied` (**EACCES**, not ENOENT) |
+
+That errno is misleading — it looks like a share-permission bug and it is not.
+Practical effect: for a few minutes after each hourly rotation, the guest's view of
+`~/Downloads` is stale. Wait it out.
+
+A dangling `~/Downloads` symlink in the guest breaks every browser download and
+Save-As, which is why `nix-downloads-share` runs on a 30s `StartInterval`, probes
+writability, and clears a dangling link rather than leaving one in place.
+
+**Quarantine survives the share** (measured, byte-identical guest→host): a file
+downloaded in the sandbox still carries `com.apple.quarantine` on the host.
+Routing a download through the guest does **not** bypass Gatekeeper.
 
 ## Clipboard
 
@@ -162,7 +196,7 @@ to restart the whole VM.
 |---|---|
 | `macvm-tart-create` | `tart create --from-ipsw=…` + `tart set` CPU/RAM |
 | `macvm-tart-ensure` | Exit 0 if VM exists, else print create help (exit 2) |
-| `macvm-tart-start` | Detached `tart run` + Screengrab dir share |
+| `macvm-tart-start` | Detached `tart run` + `~/Downloads` dir share |
 | `macvm-tart-stop` | `tart stop macvm` |
 | `macvm-tart-ip` | `tart ip macvm` |
 | `macvm-tart-ssh` | SSH as `ismail` with operator key |

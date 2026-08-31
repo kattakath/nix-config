@@ -1571,7 +1571,7 @@
             aarch64-darwin.macvm-tart-start = {
               type = "app";
               program = "${self.packages.aarch64-darwin.macvm-tart-start}/bin/macvm-tart-start";
-              meta.description = "Start Tart macvm with Screengrab VirtioFS share";
+              meta.description = "Start Tart macvm with ~/Downloads VirtioFS share";
             };
             aarch64-darwin.macvm-tart-stop = {
               type = "app";
