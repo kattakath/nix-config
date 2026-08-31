@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LeoList — listings only
 // @namespace    kattakath.com
-// @version      1.12.0
+// @version      1.13.0
 // @description  Listings-only LeoList: keep #view-cont > div.col-left, drop sponsored chrome, filmstrip extra photos beside the hero from the lightbox a.href (w:1024), clamp the ad description. Parsed extras persist in localStorage with no hit TTL.
 // @author       Ismail Kattakath
 // @license      MIT
@@ -49,6 +49,8 @@
 // (object-fit cover) so the square thumb sets width — no blank rail.
 // v1.12.0: constructed dark surface. Dump body was class "light"; no .dark
 // rules in the sheets we fetched, so we don't replay a site theme.
+// v1.13.0: Catppuccin Mocha palette (crust/base/text/subtext0/surface0/blue).
+// Hex only — no @require. Photos unchanged.
 //
 // Selectors (listing + detail dumps, 2026-08-31):
 //   #view-cont > div.col-left             KEEP island
@@ -104,10 +106,11 @@
     'html[data-nix-leolist-listings-only] .lst-item__info {\n  white-space: normal;\n  height: auto;\n  overflow: hidden;\n}\n' +
     'html[data-nix-leolist-listings-only] .nix-leolist-desc {\n  margin: 8px 0 0;\n  display: -webkit-box;\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 3;\n  overflow: hidden;\n}\n' +
     'html[data-nix-leolist-listings-only] {\n  color-scheme: dark;\n}\n' +
-    'html[data-nix-leolist-listings-only] body,\nhtml[data-nix-leolist-listings-only] .wrap,\nhtml[data-nix-leolist-listings-only] .main-list,\nhtml[data-nix-leolist-listings-only] .main-list-container,\nhtml[data-nix-leolist-listings-only] #view-cont,\nhtml[data-nix-leolist-listings-only] .col-left,\nhtml[data-nix-leolist-listings-only] #main_list {\n  background: #121212;\n  color: #e8e6e3;\n}\n' +
-    'html[data-nix-leolist-listings-only] .lst-item.lst-item {\n  background: #1c1c1c;\n  border-color: #2e2e2e;\n  color: #e8e6e3;\n}\n' +
-    'html[data-nix-leolist-listings-only] .lst-item a,\nhtml[data-nix-leolist-listings-only] .lst-item__title,\nhtml[data-nix-leolist-listings-only] .lst-item__info,\nhtml[data-nix-leolist-listings-only] .nix-leolist-desc {\n  color: #e8e6e3;\n}\n' +
-    'html[data-nix-leolist-listings-only] .nix-leolist-more {\n  color: #a8a59e;\n  background: #2a2a2a;\n}\n';
+    'html[data-nix-leolist-listings-only] body,\nhtml[data-nix-leolist-listings-only] .wrap,\nhtml[data-nix-leolist-listings-only] .main-list,\nhtml[data-nix-leolist-listings-only] .main-list-container,\nhtml[data-nix-leolist-listings-only] #view-cont,\nhtml[data-nix-leolist-listings-only] .col-left,\nhtml[data-nix-leolist-listings-only] #main_list {\n  background: #11111b;\n  color: #cdd6f4;\n}\n' +
+    'html[data-nix-leolist-listings-only] .lst-item.lst-item {\n  background: #1e1e2e;\n  border-color: #313244;\n  color: #cdd6f4;\n}\n' +
+    'html[data-nix-leolist-listings-only] .lst-item a,\nhtml[data-nix-leolist-listings-only] .lst-item__title {\n  color: #89b4fa;\n}\n' +
+    'html[data-nix-leolist-listings-only] .lst-item__info,\nhtml[data-nix-leolist-listings-only] .nix-leolist-desc {\n  color: #cdd6f4;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-more {\n  color: #a6adc8;\n  background: #313244;\n}\n';
 
   const sheet = new CSSStyleSheet();
   sheet.replaceSync(CSS);
