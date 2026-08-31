@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         Google Photos — icon-only nav rail
 // @namespace    kattakath.com
-// @version      2.0.0
+// @version      2.0.1
 // @description  Make Google Photos render its own narrow-viewport icon rail at every window width, by replaying its responsive breakpoint unconditionally.
+// @author       Ismail Kattakath
+// @license      MIT
 // @homepageURL  https://github.com/kattakath/nix-config
-// @downloadURL  https://raw.githubusercontent.com/kattakath/nix-config/main/userscripts/google-photos-icon-nav.user.js
-// @updateURL    https://raw.githubusercontent.com/kattakath/nix-config/main/userscripts/google-photos-icon-nav.user.js
+// @supportURL   https://github.com/kattakath/nix-config/issues
 // @match        https://photos.google.com/*
 // @run-at       document-start
 // @grant        none
