@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         LeoList — listings only
 // @namespace    kattakath.com
-// @version      1.3.0
-// @description  Listings-only LeoList: keep #view-cont > div.col-left, drop sponsored chrome, filmstrip extra photos beside the hero, clamp the ad description.
+// @version      1.4.0
+// @description  Listings-only LeoList: keep #view-cont > div.col-left, drop sponsored chrome, filmstrip extra photos beside the hero, clamp the ad description. Parsed extras persist in localStorage for 6h so a refresh does not re-hit the ad pages.
 // @author       Ismail Kattakath
 // @license      MIT
 // @homepageURL  https://github.com/kattakath/nix-config
@@ -26,6 +26,10 @@
 // fetch; #preview-description textContent; .account-photos__item img on
 // imx.leolist.cc; phone stays locked. IntersectionObserver + concurrency 3;
 // visibilitychange reconnects IO so a hidden tab fills on focus.
+// v1.4.0: parsed {desc, photos} live in localStorage (key nix-leolist.v1:<href>,
+// TTL 6h, cap 400, 15min negative cache). Refresh/revisit hits the store, not
+// the origin. In-memory Map is L1 for the current document. Fair-use: we never
+// crawl pagination; we only fetch a card that is near-viewport AND uncached.
 //
 // Selectors (listing + detail dumps, 2026-08-31):
 //   #view-cont > div.col-left             KEEP island
@@ -52,6 +56,10 @@
   const IMX = 'https://imx.leolist.cc/';
   const CONCURRENCY = 3;
   const MAX_EXTRAS = 6;
+  const STORE_PREFIX = 'nix-leolist.v1:';
+  const TTL_MS = 6 * 60 * 60 * 1000;
+  const NEG_TTL_MS = 15 * 60 * 1000;
+  const MAX_STORE = 400;
 
   const CSS = [
     'html[data-nix-leolist-listings-only] .group:has(.lst-item__label--sponsored)',
@@ -137,6 +145,70 @@
     pump();
   };
 
+  const storeKey = (href) => STORE_PREFIX + href;
+
+  const pruneStore = (aggressive) => {
+    const now = Date.now();
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const k = localStorage.key(i);
+      if (k && k.indexOf(STORE_PREFIX) === 0) keys.push(k);
+    }
+    const kept = [];
+    for (const k of keys) {
+      let row = null;
+      try {
+        row = JSON.parse(localStorage.getItem(k) || '');
+      } catch {
+        row = null;
+      }
+      const ttl = row && row.miss ? NEG_TTL_MS : TTL_MS;
+      if (!row || typeof row.t !== 'number' || now - row.t > ttl) {
+        localStorage.removeItem(k);
+        continue;
+      }
+      kept.push({ k, t: row.t });
+    }
+    const limit = aggressive ? Math.floor(MAX_STORE / 2) : MAX_STORE;
+    if (kept.length <= limit) return;
+    kept.sort((a, b) => a.t - b.t);
+    const drop = kept.length - limit;
+    for (let i = 0; i < drop; i += 1) localStorage.removeItem(kept[i].k);
+  };
+
+  const readStore = (href) => {
+    try {
+      const raw = localStorage.getItem(storeKey(href));
+      if (!raw) return null;
+      const row = JSON.parse(raw);
+      if (!row || typeof row.t !== 'number') return null;
+      const ttl = row.miss ? NEG_TTL_MS : TTL_MS;
+      if (Date.now() - row.t > ttl) {
+        localStorage.removeItem(storeKey(href));
+        return null;
+      }
+      if (row.miss) return { miss: true };
+      if (typeof row.d !== 'string' || !Array.isArray(row.p)) return null;
+      return { desc: row.d, photos: row.p };
+    } catch {
+      return null;
+    }
+  };
+
+  const writeStore = (href, payload) => {
+    try {
+      pruneStore(false);
+      localStorage.setItem(storeKey(href), JSON.stringify(payload));
+    } catch {
+      try {
+        pruneStore(true);
+        localStorage.setItem(storeKey(href), JSON.stringify(payload));
+      } catch {
+        /* quota — in-memory still works this document */
+      }
+    }
+  };
+
   const parseDetail = (html) => {
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const descEl = doc.getElementById('preview-description');
@@ -154,12 +226,29 @@
   };
 
   const loadDetail = async (href) => {
-    const hit = cache.get(href);
-    if (hit) return hit;
-    const res = await fetch(href, { credentials: 'same-origin' });
-    if (!res.ok) return null;
+    if (cache.has(href)) {
+      const mem = cache.get(href);
+      return mem && mem.miss ? null : mem;
+    }
+    const stored = readStore(href);
+    if (stored && stored.miss) {
+      cache.set(href, stored);
+      return null;
+    }
+    if (stored) {
+      cache.set(href, stored);
+      return stored;
+    }
+    const res = await fetch(href, { credentials: 'same-origin', cache: 'default' });
+    if (!res.ok) {
+      const miss = { miss: true };
+      cache.set(href, miss);
+      writeStore(href, { t: Date.now(), miss: true });
+      return null;
+    }
     const parsed = parseDetail(await res.text());
     cache.set(href, parsed);
+    writeStore(href, { t: Date.now(), d: parsed.desc, p: parsed.photos });
     return parsed;
   };
 
