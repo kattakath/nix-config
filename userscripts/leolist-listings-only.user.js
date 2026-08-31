@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LeoList — listings only
 // @namespace    kattakath.com
-// @version      1.14.0
+// @version      1.15.0
 // @description  Listings-only LeoList: keep #view-cont > div.col-left, drop sponsored chrome, filmstrip extra photos beside the hero from the lightbox a.href (w:1024), clamp the ad description. Parsed extras persist in localStorage with no hit TTL.
 // @author       Ismail Kattakath
 // @license      MIT
@@ -53,6 +53,8 @@
 // Hex only — no @require. Photos unchanged.
 // v1.14.0: match Catppuccin style-guide + sample.png — page=base, cards=surface0,
 // labels=subtext1, links=blue. Headline is a link so blue, not text.
+// v1.15.0: enrich only #main_list > div listing rows (Chrome JS path
+// #main_list > div:nth-child(N)). Skip section/aside/sponsors/pagination.
 //
 // Selectors (listing + detail dumps, 2026-08-31):
 //   #view-cont > div.col-left             KEEP island
@@ -413,21 +415,41 @@
     io.observe(card);
   };
 
-  const scan = () => {
+  const listingCard = (wrap) => {
+    if (!wrap || wrap.tagName !== 'DIV') return null;
+    const cls = ' ' + (wrap.className || '') + ' ';
+    if (cls.indexOf(' main-list-sponsors ') !== -1) return null;
+    if (cls.indexOf(' main-list-pagination ') !== -1) return null;
+    const card = wrap.classList.contains('lst-item')
+      ? wrap
+      : wrap.querySelector('.lst-item');
+    if (!card) return null;
+    if (card.querySelector('.lst-item__label--sponsored')) return null;
+    if (!card.querySelector('a.lst-item__link.mainlist-item')) return null;
+    return card;
+  };
+
+  const eachListing = (fn) => {
     const list = document.getElementById('main_list');
     if (!list) return;
-    for (const card of list.querySelectorAll('[data-testid="ad-item"]')) observeCard(card);
+    const kids = list.querySelectorAll(':scope > div');
+    for (let i = 0; i < kids.length; i += 1) {
+      const card = listingCard(kids[i]);
+      if (card) fn(card);
+    }
+  };
+
+  const scan = () => {
+    eachListing(observeCard);
   };
 
   const reconnectIo = () => {
     if (document.hidden || !io) return;
-    const list = document.getElementById('main_list');
-    if (!list) return;
     io.disconnect();
-    for (const card of list.querySelectorAll('[data-testid="ad-item"]')) {
-      if (card.dataset.nixLeolistEnrich !== undefined) continue;
+    eachListing((card) => {
+      if (card.dataset.nixLeolistEnrich !== undefined) return;
       io.observe(card);
-    }
+    });
   };
 
   let watching = false;
