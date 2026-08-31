@@ -1,12 +1,20 @@
 # Probes — the measurement instruments
 
-Paste each block **verbatim** into claude-in-chrome's `javascript_tool` (`action: "javascript_exec"`) with a `tabId` from `tabs_context_mcp` (or `tabs_create_mcp` + navigate).
+**Two routes, and you must check which one this session actually has** — a missing tool surface is the single most common reason a measurement never happens:
 
-## Two honest caveats — read before blaming the page
+| Route | How to run a probe | Requires |
+|---|---|---|
+| **claude-in-chrome** | `javascript_tool` (`action: "javascript_exec"`) with a `tabId` from `tabs_context_mcp` (or `tabs_create_mcp` + navigate) | its tools **loaded in this session** — they are not always |
+| **Kapture** (`mcp__kapture__*`) | `list_tabs` → `evaluate` on that tab | the `npx kapture-mcp bridge` server **and** DevTools open + connected **on that tab** |
+
+Both are declared in `modules/shared/chromium.nix` (`claudeInChrome`, `kaptureMcp`). If **neither** is reachable, say so and stop — **do not substitute a guessed selector for a measurement.** Ask the operator to paste the probe into the browser console themselves and hand back the JSON; that is a valid measurement, just not one you took.
+
+## Honest caveats — read before blaming the page
 
 | Caveat | Consequence |
 |---|---|
-| The tool names above are **lifted from `../vast-instance-log-tail/SKILL.md`, not re-verified this session**. | If `javascript_tool` / `tabs_context_mcp` / `tabs_create_mcp` were renamed, the failure is the **tool surface**, not the site. Re-check the tool list first. |
+| The claude-in-chrome tool names are **lifted from `../vast-instance-log-tail/SKILL.md`, not re-verified this session**. | If `javascript_tool` / `tabs_context_mcp` / `tabs_create_mcp` were renamed, the failure is the **tool surface**, not the site. Re-check the tool list first. |
+| Kapture's extension being *installed* proves nothing — its per-tab gate is **DevTools**. | `list_tabs` returning empty is the expected state for a tab nobody connected. Open DevTools → Kapture panel → connect, then retry. |
 | Measurement happens in the **claude-in-chrome Chrome profile — NOT the ungoogled-chromium profile the script will run in**. | Extension set, CSP handling and `@run-at` timing can differ. That is exactly why Probe 4 re-measures **after the real install**, and why a green Probe 3 is evidence, not proof. |
 
 **Every probe returns JSON.** Screenshots and blind-waiting are not measurements — they cannot be diffed, so they cannot settle the DOM-differs vs DOM-identical question.
