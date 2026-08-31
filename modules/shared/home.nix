@@ -260,6 +260,10 @@ let
   # See packages/jobspy.nix.
   jobspy = pkgs.callPackage ../../packages/jobspy.nix { };
 
+  # `leolist-crawlee URL` — same catalog as the listings-only userscript, via
+  # Crawlee (serial HTTP). See packages/leolist-crawlee.nix.
+  leolist-crawlee = pkgs.callPackage ../../packages/leolist-crawlee.nix { };
+
   # `fidelity-enhance-mcp` / `fidelity-enhance` — referee for an agentic
   # image-editing loop: Grok Imagine generates, this judges each result against
   # the original and says retry / next-step / done plus how to fix the prompt.
@@ -531,6 +535,7 @@ in
       email-signature # `email-signature [--url URL] [--logo-url URL] [--out DIR]` — render a self-contained HTML email signature (JSON Resume + gist logo, base64-embedded) to ~/.local/share/email-signature/signature.html; also regenerated on activation (packages/email-signature/)
       design-tokens # `design-tokens [--tokens-url URL] [--out DIR]` — transform the gist DTCG tokens.json into SCSS/CSS/JS via Style Dictionary, to ~/.local/share/design-tokens/ (packages/design-tokens/)
       jobspy # `jobspy --search … --location …` — scrape jobs (LinkedIn/Indeed/…) into CSV/JSON via python-jobspy in an ephemeral uv env (packages/jobspy.nix)
+      leolist-crawlee # `leolist-crawlee URL` — slow Crawlee catalog of a LeoList listing index (packages/leolist-crawlee.nix)
       obs-fb-setup # `obs-fb-setup` — write an OBS "Facebook" profile for Facebook Live, injecting FB_PERSISTENT_STREAM_KEY from the login Keychain (packages/obs-fb-setup.nix)
       fidelityEnhance # `fidelity-enhance-mcp` (stdio MCP server) + `fidelity-enhance` (CLI) — fidelity referee for agentic image editing: Grok Imagine generates, this judges drift against the original (SSIM/LPIPS/ArcFace identity) and returns retry/next-step/done plus prompt guidance. Ephemeral uv env; FIRST RUN pulls ~1GB of torch/insightface — warm it with `fidelity-enhance capabilities` (packages/fidelity-enhance.nix)
       fixGoogleVideo # `fix-google-video <file>...` — re-encode VP9-in-MP4 (and other editor-incompatible codecs) into H.264+AAC so Google Photos downloads import into CapCut/Premiere/etc.; idempotent, VideoToolbox-accelerated (packages/fix-google-video.nix)
