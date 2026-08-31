@@ -33,12 +33,12 @@ slice**, not the ceiling — §2 shows how much more is reachable.
 | Domain | Keys set today |
 | --- | --- |
 | `dock` | `autohide`, `orientation="left"`, `show-recents=false`, `tilesize=48`, `mru-spaces=false`, `minimize-to-application`, `show-process-indicators` |
-| `finder` | `AppleShowAllExtensions`, `FXPreferredViewStyle="Nlsv"` (list), `ShowPathbar`, `ShowStatusBar`, `_FXShowPosixPathInTitle`, `_FXSortFoldersFirst`, `FXDefaultSearchScope="SCcf"`, `FXEnableExtensionChangeWarning=false` |
+| `finder` | `AppleShowAllExtensions`, `FXPreferredViewStyle="Nlsv"` (list), `ShowPathbar`, `ShowStatusBar`, `_FXShowPosixPathInTitle`, `_FXSortFoldersFirst`, `FXDefaultSearchScope="SCcf"`, `FXEnableExtensionChangeWarning=false`, `FXRemoveOldTrashItems=true` (Trash self-purges at 30d — the second half of the Downloads rotation) |
 | `NSGlobalDomain` | `AppleInterfaceStyle="Dark"`, `KeyRepeat=2`, `InitialKeyRepeat=15`, `ApplePressAndHoldEnabled=false`, `AppleKeyboardUIMode=3`, the five `NSAutomatic*Substitution/Capitalization/Spelling` toggles off, `NSNavPanelExpandedStateForSaveMode{,2}` |
 | `trackpad` | `Clicking` (tap-to-click) |
 | `screensaver` | `askForPassword`, `askForPasswordDelay=0` |
 | `loginwindow` | `GuestEnabled=false` |
-| `screencapture` | `location` (→ rotated Screengrab dir), `type="png"`, `disable-shadow` |
+| `screencapture` | `location` (→ the rotated `~/Downloads` inbox — also governs ⇧⌘5 screen **recordings**), `type="png"`, `disable-shadow` |
 
 ### Beyond `system.defaults`
 
@@ -51,10 +51,22 @@ slice**, not the ceiling — §2 shows how much more is reachable.
 
 ### Custom services this repo built (launchd)
 
-- `launchd.user.agents.file-rotation-screengrab` (`modules/darwin/core.nix`,
-  **macos only**) — hourly Trash of files older than 24h in `~/Pictures/Screengrab`
-  (same path as `screencapture.location`). Shared R/W into macvm via Tart VirtioFS;
-  the guest must **not** rotate it.
+- `launchd.user.agents.file-rotation-downloads` (`modules/darwin/core.nix`,
+  **macos only**) — hourly Trash of items in `~/Downloads` (same path as
+  `screencapture.location`), **files and directories both**. Retention is
+  currently **30 days** (`-mmin +43200`), a deliberately staged value while the
+  existing download backlog is triaged; the intended steady state is 7 days
+  (`-mmin +10080`), a one-number edit. `.DS_Store` and `.localized` are excluded.
+  Shared R/W into macvm via Tart VirtioFS; the guest must **not** rotate it
+  (`mv` across filesystems degrades to `cp` + `rm`, so a guest rotation would
+  copy host bytes into the VM and unlink them on the host).
+  **Accepted cost:** Finder's "Put Back" does not work on rotated items — a plain
+  `mv` into `~/.Trash` writes no `ptbL`/`ptbN` records. Off-the-shelf trash CLIs
+  were surveyed and rejected (`trash-cli`/`rmtrash`/`gtrash`/`rmw` use the
+  freedesktop `~/.local/share/Trash`; nixpkgs' `darwin.trash` needs Apple Events
+  so it fails from launchd and its upstream is 404; `macos-trash` is correct but
+  absent from nixpkgs), so the hand-rolled `mv` is a justified exception to the
+  repo's reuse-over-rebuild preference.
 - `launchd.agents.mcp-gateway` (`modules/shared/mcp.nix`, Home-Manager side) — the
   localhost MCP gateway (macos only; macvm disables the gateway option).
 
@@ -238,13 +250,39 @@ from this nix-config, not bare `sh`/`python3` or third-party helpers.
 "Unidentified developer" is expected for unsigned `/nix/store` wrappers (Developer ID
 would be needed for a custom icon/signing); the **name** is what we control.
 
+### TCC and a `/nix/store` arg0 — the naming rule also buys file access
+
+§7 says TCC grants cannot be *set* declaratively, and that stands. But TCC blocks **less**
+than that implies for our agents, and the reason is the `arg0` naming rule. Measured on
+this Mac:
+
+| Agent `arg0` | Reading / enumerating `~/Downloads` |
+|---|---|
+| `/nix/store/…/bin/nix-<activity>` (`writeShellScriptBin`, adhoc-signed) | **ALLOWED** — no grant, no prompt |
+| `/bin/sh` (nix-darwin `script =`, or explicit `/bin/sh -c`) — same job otherwise | **EPERM** |
+
+TCC gates *reads* of Desktop/Documents/Downloads and attributes them to the **responsible
+process**. An adhoc-signed store path has no stable code identity to attribute and falls
+through to allow; Apple's `/bin/sh` is attributable and is denied absent an explicit grant.
+
+Two consequences:
+
+- `nix-file-rotation-downloads` needs **no** Full Disk Access grant to do its job.
+- Rewriting any such agent as `script =` **silently breaks it** — it runs, reads nothing,
+  and reports success.
+
+**Undocumented by Apple; verified on macOS 26.6.2 only.** Could change in any update — this
+is a reason the `nix-*` wrapper is mandatory (see
+[`.claude/rules/launchd-naming.md`](../.claude/rules/launchd-naming.md)), not a boundary to
+depend on.
+
 ### Host scope
 
 | Agents | Host |
 |---|---|
 | `open-maccy` / `open-docker` / `open-slack` / `open-mail` / `open-messages` | **macos only** |
 | MCP gateway + public tunnel + RAG (`ollama-local`, `postgres-pgvector`) | **macos only** |
-| `nix-file-rotation-screengrab` | **macos only** (path shared R/W to macvm via VirtioFS; guest must not rotate) |
+| `nix-file-rotation-downloads` | **macos only** (`~/Downloads` shared R/W to macvm via VirtioFS; guest must not rotate) |
 
 Gate with `networking.hostName` (`macos` / `macvm` set in `hosts/*.nix`).
 
