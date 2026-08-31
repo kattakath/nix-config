@@ -719,10 +719,10 @@ tree never grows a bundler of its own, and never commits minified output.
   the ad page. Extra `.account-photos__item` thumbs compose into `.lst-item__img` as a
   same-height filmstrip (not a wrap dump); `#preview-description` is 3-line clamped in
   `.lst-item__info`. Phone stays locked. Hidden tabs reconnect IO on `visibilitychange`.
-  Parsed extras persist in `localStorage` (`nix-leolist.v1:<href>`, 6h TTL, 400-cap) so a
-  refresh does not re-fetch the same ad pages. `#view-cont` and its `.container` parent
-  are forced to full width (the 960px well was `.main-list-container.container`, not
-  `#view-cont` itself). Missing keep node → no-op.
+  Parsed extras persist in `localStorage` (`nix-leolist.v2:<href>`, 6h TTL, 400-cap) so a
+  refresh does not re-fetch the same ad pages. Extra photos are the lightbox
+  `<a href>` (`w:1024/h:0`), not the 304 `<img src>` thumb. `#view-cont` and its
+  `.container` parent are forced to full width. Missing keep node → no-op.
 
 ## `infra/` — terranix (Nix → OpenTofu/Terraform JSON)
 
