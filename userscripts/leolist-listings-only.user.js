@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LeoList — listings only
 // @namespace    kattakath.com
-// @version      1.23.0
+// @version      1.24.0
 // @description  Listings-only LeoList: keep #view-cont > div.col-left, drop sponsored chrome, filmstrip extra photos beside the hero from the lightbox a.href (w:1024), clamp the ad description. Parsed extras persist in localStorage with no hit TTL.
 // @author       Ismail Kattakath
 // @license      MIT
@@ -71,6 +71,8 @@
 // only has URL strings — that is why Application>Cache Storage was empty and
 // Cmd-R still hit the CDN. Hits skip the 1s gap. DevTools "Disable cache"
 // still bypasses HTTP cache; Cache API does not.
+// v1.24.0: description is the last slide of .nix-leolist-photos (after extras
+// / +N). Title stays under the rail. Open stays extreme right, not in the strip.
 //
 // Selectors (listing + detail dumps, 2026-08-31):
 //   #view-cont > div.col-left             KEEP island
@@ -130,7 +132,7 @@
     'html[data-nix-leolist-listings-only] .nix-leolist-more {\n  flex: 0 0 auto;\n  height: 256px;\n  min-width: 48px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  font-size: 14px;\n  font-weight: 650;\n  color: #a6adc8;\n  background: #45475a;\n}\n' +
     'html[data-nix-leolist-listings-only] .nix-leolist-title {\n  color: #89b4fa;\n  font-size: 1.1em;\n  font-weight: 650;\n  text-decoration: none;\n}\n' +
     'html[data-nix-leolist-listings-only] .nix-leolist-title:hover {\n  color: #89dceb;\n}\n' +
-    'html[data-nix-leolist-listings-only] .nix-leolist-desc {\n  margin: 0;\n  color: #bac2de;\n  display: -webkit-box;\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 3;\n  overflow: hidden;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-photos .nix-leolist-desc {\n  flex: 0 0 320px;\n  width: 320px;\n  height: 256px;\n  margin: 0;\n  padding: 8px 12px;\n  box-sizing: border-box;\n  color: #bac2de;\n  overflow-x: hidden;\n  overflow-y: auto;\n}\n' +
     'html[data-nix-leolist-listings-only] {\n  color-scheme: dark;\n}\n' +
     'html[data-nix-leolist-listings-only] body,\nhtml[data-nix-leolist-listings-only] .wrap,\nhtml[data-nix-leolist-listings-only] .main-list,\nhtml[data-nix-leolist-listings-only] .main-list-container,\nhtml[data-nix-leolist-listings-only] #view-cont,\nhtml[data-nix-leolist-listings-only] .col-left,\nhtml[data-nix-leolist-listings-only] #main_list {\n  background: #1e1e2e;\n  color: #cdd6f4;\n}\n';
 
@@ -472,9 +474,9 @@
     heading.textContent = title;
     const desc = document.createElement('p');
     desc.className = 'nix-leolist-desc';
+    photos.appendChild(desc);
     row.appendChild(rail);
     row.appendChild(heading);
-    row.appendChild(desc);
     wrap.appendChild(row);
     const kids = wrap.children;
     for (let i = 0; i < kids.length; i += 1) {
@@ -491,7 +493,11 @@
     const heroSrc = hero ? hero.getAttribute('src') : '';
     const heroKey = heroSrc ? imxPayload(heroSrc) : '';
     if (descEl && data.desc && !descEl.textContent) descEl.textContent = data.desc;
-    if (!photos || photos.querySelector('.nix-leolist-extra')) return;
+    if (descEl && photos && descEl.parentElement !== photos) photos.appendChild(descEl);
+    if (!photos || photos.querySelector('.nix-leolist-extra')) {
+      if (descEl && photos) photos.appendChild(descEl);
+      return;
+    }
 
     const extras = [];
     for (const src of data.photos) {
@@ -515,6 +521,7 @@
       more.textContent = '+' + String(extras.length - MAX_EXTRAS);
       photos.appendChild(more);
     }
+    if (descEl) photos.appendChild(descEl);
     for (let i = 0; i < pending.length; i += 1) await loadOne(pending[i].el, pending[i].url);
   };
 
