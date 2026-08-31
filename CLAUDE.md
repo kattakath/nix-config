@@ -102,7 +102,7 @@ One line per path; the *why* and the per-file specifics are in
 | `modules/darwin/` | macOS system: `core.nix`, `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`services.macosGithubRunner` — LIVE on `macos`, see § Configuration). |
 | `modules/nixos/` | `core.nix` (user + keys-only sshd + firewall + avahi + nix-ld + zram + GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). |
 | `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `macvm-tart`, `key-recovery`, `spotlight-launchers`, `tart-guest-agent`, plus single-purpose CLIs (`android-phone`, `vpn`, `jsonresume`, `mermaid-ascii`, `fidelity-enhance`, `claude-otel-doctor`, …). Root `bootstrap.sh` is the no-Nix stage 1. |
-| `userscripts/` | The **public** Violentmonkey `.user.js` scripts (today `google-photos-icon-nav`), declared by name in `modules/shared/home.nix`. Private ones merge in from nix-personal — keys must not collide. Mechanism + why Chromium allows nothing declarative: `modules/shared/chromium.nix`. |
+| `userscripts/` | The **public** Violentmonkey `.user.js` scripts, declared by name in `modules/shared/home.nix`; authored via skill `userscript-author` (`/userscript`), gated by `checks.<system>.userscripts`. Private ones merge in from nix-personal — keys must not collide. Mechanism + why Chromium allows nothing declarative: `modules/shared/chromium.nix`. |
 | `infra/` | terranix (Nix → Terraform JSON): `cloudflare/nixpi-tunnel.nix`, `hyperframes/stack.nix`. Applied only via the `cf-*` / `hf-*` apps. |
 | `secrets/` | agenix recipients (`secrets.nix`) + two ciphertexts: `cloudflared-token.age` (operator-only) and `gh-app-dontsell-ai-key.age` (host-decrypted on `macos`). |
 | `skills/` | **Global** Claude Code skills vendored here (forks needing a patch + originals): `brag`, `brags-review`, `rag`, `android-phone`, `nix-dev-toolkit`. Most global skills instead come from pinned `flake = false` inputs. |
@@ -114,11 +114,11 @@ One line per path; the *why* and the per-file specifics are in
 
 **Commands** (`.claude/commands/`): `/eval`, `/hygiene`, `/update-input`, `/superhook-review`,
 `/pretooluse-review`, `/remember-nix`, `/vpn`, `/gmail-account`, `/routing-review`,
-`/mcp-scout`, `/fleet-doctor`.
+`/mcp-scout`, `/fleet-doctor`, `/userscript`.
 
 **Project skills** (`.claude/skills/`): `nix-hygiene`, `nixpi-firmware-provision`,
 `macvm-tart`, `vast-instance-log-tail`, `jsonresume-tailor`, `wireguard-vpn`,
-`gmail-mcp-accounts`, `mcp-scout`, `fleet-doctor`.
+`gmail-mcp-accounts`, `mcp-scout`, `fleet-doctor`, `userscript-author`.
 
 **Always-applied rules** (`.claude/rules/`):
 [`git-purity.md`](.claude/rules/git-purity.md) (stage `.nix` before eval),
