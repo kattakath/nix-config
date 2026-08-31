@@ -630,6 +630,11 @@ Smaller, single-purpose CLIs:
   fallback, idempotent.
 - **`jobspy.nix`** — a reproducible `uv`-ephemeral wrapper CLI around the `python-jobspy`
   library for scraping job boards.
+- **`classifieds-crawlee.nix`** — same Classifieds catalog as `classifieds-listings-only.user.js`
+  (description + `w:1024` photo URLs), via Crawlee `BeautifulSoupCrawler`. Serial,
+  10s delay, `respect_robots_txt_file`, no image downloads. Dataset under
+  `$XDG_DATA_HOME/classifieds-crawlee`. Same public IP as the browser — do not run
+  while the userscript is fetching.
 - **`jsonresume.nix`** — dual-engine `jsonresume <download|print|validate|markdown|text>`
   wrapper (`resumed` for PDF/validate, `resume-cli` where `resumed` falls short); see the
   `jsonresume-tailor` skill.
