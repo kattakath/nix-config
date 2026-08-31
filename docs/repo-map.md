@@ -633,8 +633,11 @@ Smaller, single-purpose CLIs:
 - **`classifieds-crawlee.nix`** — same Classifieds catalog as `classifieds-listings-only.user.js`
   (description + `w:1024` photo URLs), via Crawlee `BeautifulSoupCrawler`. Serial,
   10s delay, `respect_robots_txt_file`, no image downloads. Dataset under
-  `$XDG_DATA_HOME/classifieds-crawlee`. Same public IP as the browser — do not run
-  while the userscript is fetching.
+  `$XDG_DATA_HOME/classifieds-crawlee`. `--import-ls` writes that JSON into the
+  userscript's `nix-classifieds.v4:<pathname>` keys on a live `classifieds.invalid` tab
+  (Kapture localhost, else a paste-JS file) so the tab skips those ad HTML
+  fetches. Same public IP as the browser — do not run while the userscript is
+  fetching.
 - **`jsonresume.nix`** — dual-engine `jsonresume <download|print|validate|markdown|text>`
   wrapper (`resumed` for PDF/validate, `resume-cli` where `resumed` falls short); see the
   `jsonresume-tailor` skill.
