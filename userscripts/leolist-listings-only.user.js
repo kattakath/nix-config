@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LeoList — listings only
 // @namespace    kattakath.com
-// @version      1.14.0
+// @version      1.20.0
 // @description  Listings-only LeoList: keep #view-cont > div.col-left, drop sponsored chrome, filmstrip extra photos beside the hero from the lightbox a.href (w:1024), clamp the ad description. Parsed extras persist in localStorage with no hit TTL.
 // @author       Ismail Kattakath
 // @license      MIT
@@ -53,6 +53,16 @@
 // Hex only — no @require. Photos unchanged.
 // v1.14.0: match Catppuccin style-guide + sample.png — page=base, cards=surface0,
 // labels=subtext1, links=blue. Headline is a link so blue, not text.
+// v1.15.0: enrich only #main_list > div listing rows (Chrome JS path
+// #main_list > div:nth-child(N)). Skip section/aside/sponsors/pagination.
+// v1.16.0: fair use — one listing at a time (HTML), then that row's 304
+// thumbs one by one, then 1024s one by one. Rows already come from page 1.
+// v1.17.0: never lose the page-1 rows. HTML fetches wait 2.5s apart. 403/429/503
+// pauses origin HTML for this tab (1h). Cache hits still paint extras.
+// v1.18.0: slower on purpose — 10s between ad HTML, 1s between images.
+// v1.19.0: rows are ours (.nix-leolist-row). Stock .lst-item is hidden.
+// Page-1 title/hero paint immediately; extras still serial.
+// v1.20.0: Open button on the extreme right of the photo rail.
 //
 // Selectors (listing + detail dumps, 2026-08-31):
 //   #view-cont > div.col-left             KEEP island
@@ -69,7 +79,7 @@
 //   .account-photos__item img[src]        304 thumb = lo
 //
 // Invented (constructed UI):
-//   .nix-leolist-photos / -shot / -shot-lo / -shot-hi / -shot-in / -more / -desc
+//   .nix-leolist-row / -rail / -photos / -go / -shot / -title / -desc
 (() => {
   'use strict';
 
@@ -78,12 +88,16 @@
 
   const KEEP = '#view-cont > div.col-left';
   const IMX = 'https://imx.leolist.cc/';
-  const CONCURRENCY = 3;
+  const CONCURRENCY = 1;
   const MAX_EXTRAS = 6;
   const STORE_PREFIX = 'nix-leolist.v3:';
   const STORE_LEGACY = ['nix-leolist.v1:', 'nix-leolist.v2:'];
   const NEG_TTL_MS = 15 * 60 * 1000;
   const MAX_STORE = 400;
+  const HTML_GAP_MS = 10000;
+  const IMG_GAP_MS = 1000;
+  const ORIGIN_PAUSE_MS = 60 * 60 * 1000;
+  const PAUSE_KEY = 'nix-leolist.originPauseUntil';
 
   const CSS = [
     'html[data-nix-leolist-listings-only] .group:has(.lst-item__label--sponsored)',
@@ -95,25 +109,24 @@
     'html[data-nix-leolist-listings-only] [hidden] {\n  display: none;\n}\n' +
     'html[data-nix-leolist-listings-only] .wrap,\nhtml[data-nix-leolist-listings-only] .main-list,\nhtml[data-nix-leolist-listings-only] .main-list-container.container,\nhtml[data-nix-leolist-listings-only] #view-cont {\n  width: 100%;\n  max-width: none;\n  margin-left: 0;\n  margin-right: 0;\n  box-sizing: border-box;\n  padding-left: 0;\n  padding-right: 0;\n}\n' +
     'html[data-nix-leolist-listings-only] #view-cont > div.col-left {\n  float: none;\n  width: 100%;\n  padding-right: 0;\n}\n' +
-    'html[data-nix-leolist-listings-only] .col-left .group {\n  float: none;\n  width: 100%;\n  margin: 0 0 10px;\n}\n' +
-    'html[data-nix-leolist-listings-only] .lst-item.lst-item {\n  height: auto;\n  overflow: visible;\n}\n' +
-    'html[data-nix-leolist-listings-only] .lst-item img {\n  width: auto;\n  height: 256px;\n  object-fit: contain;\n  object-position: top center;\n  flex: 0 0 auto;\n}\n' +
-    'html[data-nix-leolist-listings-only] .lst-item__img {\n  display: flex;\n  flex-direction: row;\n  align-items: stretch;\n  height: auto;\n  width: auto;\n  max-width: 100%;\n  overflow: hidden;\n  gap: 2px;\n}\n' +
-    'html[data-nix-leolist-listings-only] .nix-leolist-photos {\n  display: flex;\n  flex-wrap: nowrap;\n  gap: 2px;\n  height: auto;\n  min-width: 0;\n  flex: 1 1 auto;\n  overflow-x: auto;\n  overflow-y: hidden;\n}\n' +
+    'html[data-nix-leolist-listings-only] .col-left .group {\n  float: none;\n  width: 100%;\n  margin: 0 0 12px;\n}\n' +
+    'html[data-nix-leolist-listings-only] #main_list > div > .lst-item {\n  display: none;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-row {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  padding: 12px;\n  background: #313244;\n  color: #cdd6f4;\n  border: 1px solid #45475a;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-rail {\n  display: flex;\n  flex-direction: row;\n  align-items: stretch;\n  gap: 8px;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-photos {\n  display: flex;\n  flex-wrap: nowrap;\n  gap: 2px;\n  overflow-x: auto;\n  overflow-y: hidden;\n  flex: 1 1 auto;\n  min-width: 0;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-go {\n  flex: 0 0 56px;\n  margin-left: auto;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  min-height: 256px;\n  background: #89b4fa;\n  color: #1e1e2e;\n  text-decoration: none;\n  font-weight: 700;\n  letter-spacing: 0.02em;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-go:hover {\n  background: #89dceb;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-row img {\n  width: auto;\n  height: 256px;\n  object-fit: contain;\n  object-position: top center;\n  flex: 0 0 auto;\n}\n' +
     'html[data-nix-leolist-listings-only] .nix-leolist-shot {\n  position: relative;\n  display: block;\n  height: 256px;\n  flex: 0 0 auto;\n  overflow: hidden;\n}\n' +
-    'html[data-nix-leolist-listings-only] .lst-item .nix-leolist-shot-lo {\n  display: block;\n  height: 256px;\n  width: auto;\n}\n' +
-    'html[data-nix-leolist-listings-only] .lst-item .nix-leolist-shot-hi {\n  position: absolute;\n  left: 0;\n  top: 0;\n  width: 100%;\n  height: 100%;\n  object-fit: cover;\n  object-position: top center;\n  opacity: 0;\n}\n' +
-    'html[data-nix-leolist-listings-only] .lst-item .nix-leolist-shot-hi.nix-leolist-shot-in {\n  opacity: 1;\n}\n' +
-    'html[data-nix-leolist-listings-only] .nix-leolist-more {\n  flex: 0 0 auto;\n  height: 256px;\n  min-width: 48px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  font-size: 14px;\n  font-weight: 650;\n}\n' +
-    'html[data-nix-leolist-listings-only] .lst-item__info {\n  white-space: normal;\n  height: auto;\n  overflow: hidden;\n}\n' +
-    'html[data-nix-leolist-listings-only] .nix-leolist-desc {\n  margin: 8px 0 0;\n  display: -webkit-box;\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 3;\n  overflow: hidden;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-shot-lo {\n  display: block;\n  height: 256px;\n  width: auto;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-shot-hi {\n  position: absolute;\n  left: 0;\n  top: 0;\n  width: 100%;\n  height: 100%;\n  object-fit: cover;\n  object-position: top center;\n  opacity: 0;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-shot-hi.nix-leolist-shot-in {\n  opacity: 1;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-more {\n  flex: 0 0 auto;\n  height: 256px;\n  min-width: 48px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  font-size: 14px;\n  font-weight: 650;\n  color: #a6adc8;\n  background: #45475a;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-title {\n  color: #89b4fa;\n  font-size: 1.1em;\n  font-weight: 650;\n  text-decoration: none;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-title:hover {\n  color: #89dceb;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-desc {\n  margin: 0;\n  color: #bac2de;\n  display: -webkit-box;\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 3;\n  overflow: hidden;\n}\n' +
     'html[data-nix-leolist-listings-only] {\n  color-scheme: dark;\n}\n' +
-    'html[data-nix-leolist-listings-only] body,\nhtml[data-nix-leolist-listings-only] .wrap,\nhtml[data-nix-leolist-listings-only] .main-list,\nhtml[data-nix-leolist-listings-only] .main-list-container,\nhtml[data-nix-leolist-listings-only] #view-cont,\nhtml[data-nix-leolist-listings-only] .col-left,\nhtml[data-nix-leolist-listings-only] #main_list {\n  background: #1e1e2e;\n  color: #cdd6f4;\n}\n' +
-    'html[data-nix-leolist-listings-only] .lst-item.lst-item {\n  background: #313244;\n  border-color: #45475a;\n  color: #cdd6f4;\n}\n' +
-    'html[data-nix-leolist-listings-only] .lst-item a,\nhtml[data-nix-leolist-listings-only] .lst-item__title {\n  color: #89b4fa;\n}\n' +
-    'html[data-nix-leolist-listings-only] .lst-item a:hover {\n  color: #89dceb;\n}\n' +
-    'html[data-nix-leolist-listings-only] .lst-item__info,\nhtml[data-nix-leolist-listings-only] .nix-leolist-desc {\n  color: #bac2de;\n}\n' +
-    'html[data-nix-leolist-listings-only] .nix-leolist-more {\n  color: #a6adc8;\n  background: #45475a;\n}\n';
+    'html[data-nix-leolist-listings-only] body,\nhtml[data-nix-leolist-listings-only] .wrap,\nhtml[data-nix-leolist-listings-only] .main-list,\nhtml[data-nix-leolist-listings-only] .main-list-container,\nhtml[data-nix-leolist-listings-only] #view-cont,\nhtml[data-nix-leolist-listings-only] .col-left,\nhtml[data-nix-leolist-listings-only] #main_list {\n  background: #1e1e2e;\n  color: #cdd6f4;\n}\n';
 
   const sheet = new CSSStyleSheet();
   sheet.replaceSync(CSS);
@@ -293,6 +306,23 @@
     return { desc, photos };
   };
 
+  const originPaused = () => {
+    try {
+      const until = parseInt(sessionStorage.getItem(PAUSE_KEY) || '0', 10);
+      return until > Date.now();
+    } catch {
+      return false;
+    }
+  };
+
+  const pauseOrigin = () => {
+    try {
+      sessionStorage.setItem(PAUSE_KEY, String(Date.now() + ORIGIN_PAUSE_MS));
+    } catch {
+      /* sessionStorage blocked */
+    }
+  };
+
   const loadDetail = async (href) => {
     if (cache.has(href)) {
       const mem = cache.get(href);
@@ -307,7 +337,17 @@
       cache.set(href, stored);
       return stored;
     }
-    const res = await fetch(href, { credentials: 'same-origin', cache: 'default' });
+    if (originPaused()) return null;
+    let res;
+    try {
+      res = await fetch(href, { credentials: 'same-origin', cache: 'default' });
+    } catch {
+      return null;
+    }
+    if (res.status === 403 || res.status === 429 || res.status === 503) {
+      pauseOrigin();
+      return null;
+    }
     if (!res.ok) {
       const miss = { miss: true };
       cache.set(href, miss);
@@ -317,17 +357,88 @@
     const parsed = parseDetail(await res.text());
     cache.set(href, parsed);
     writeStore(href, { t: Date.now(), d: parsed.desc, p: parsed.photos });
+    await wait(HTML_GAP_MS);
     return parsed;
   };
 
-  const renderExtra = (card, data) => {
-    if (card.querySelector('.nix-leolist-photos') || card.querySelector('.nix-leolist-desc')) return;
-    const imgBox = card.querySelector('.lst-item__img');
-    const info = card.querySelector('.lst-item__info');
-    const hero = card.querySelector('[data-testid="listing-pic"]');
-    const heroSrc = hero ? hero.getAttribute('src') : '';
+  const wait = (ms) =>
+    new Promise((resolve) => {
+      setTimeout(resolve, ms);
+    });
 
+  const loadOne = async (img, url) => {
+    if (!img || !url) return;
+    await new Promise((resolve) => {
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      img.addEventListener('load', done, { once: true });
+      img.addEventListener('error', done, { once: true });
+      img.src = url;
+      if (img.complete) done();
+    });
+    await wait(IMG_GAP_MS);
+  };
+
+  const ensureRow = (wrap) => {
+    const existing = wrap.querySelector(':scope > .nix-leolist-row');
+    if (existing) return existing;
+    const stock = wrap.querySelector('.lst-item');
+    const link = wrap.querySelector('a.lst-item__link.mainlist-item');
+    const href = link ? link.getAttribute('href') || '' : '';
+    const titleEl = wrap.querySelector('.lst-item__title');
+    const title = titleEl ? titleEl.textContent.replace(/\s+/g, ' ').trim() : '';
+    const hero = wrap.querySelector('[data-testid="listing-pic"]');
+    const heroSrc = hero ? hero.getAttribute('src') || '' : '';
+    const row = document.createElement('article');
+    row.className = 'nix-leolist-row';
+    const rail = document.createElement('div');
+    rail.className = 'nix-leolist-rail';
+    const photos = document.createElement('div');
+    photos.className = 'nix-leolist-photos';
+    if (heroSrc) {
+      const heroImg = document.createElement('img');
+      heroImg.className = 'nix-leolist-hero';
+      heroImg.alt = '';
+      heroImg.src = heroSrc;
+      photos.appendChild(heroImg);
+    }
+    const go = document.createElement('a');
+    go.className = 'nix-leolist-go';
+    go.href = href;
+    go.textContent = 'Open';
+    rail.appendChild(photos);
+    rail.appendChild(go);
+    const heading = document.createElement('a');
+    heading.className = 'nix-leolist-title';
+    heading.href = href;
+    heading.textContent = title;
+    const desc = document.createElement('p');
+    desc.className = 'nix-leolist-desc';
+    row.appendChild(rail);
+    row.appendChild(heading);
+    row.appendChild(desc);
+    wrap.appendChild(row);
+    const kids = wrap.children;
+    for (let i = 0; i < kids.length; i += 1) {
+      if (kids[i] !== row) kids[i].hidden = true;
+    }
+    return row;
+  };
+
+  const renderExtra = async (wrap, data) => {
+    const row = ensureRow(wrap);
+    const photos = row.querySelector('.nix-leolist-photos');
+    const descEl = row.querySelector('.nix-leolist-desc');
+    const hero = row.querySelector('.nix-leolist-hero');
+    const heroSrc = hero ? hero.getAttribute('src') : '';
     const heroKey = heroSrc ? imxPayload(heroSrc) : '';
+    if (descEl && data.desc && !descEl.textContent) descEl.textContent = data.desc;
+    if (!photos || photos.querySelector('.nix-leolist-shot')) return;
+
     const extras = [];
     for (const src of data.photos) {
       const hi = typeof src === 'string' ? src : src.hi;
@@ -336,70 +447,56 @@
       if (heroKey && imxPayload(hi) === heroKey) continue;
       extras.push({ lo, hi });
     }
-
-    if (imgBox && extras.length) {
-      const row = document.createElement('div');
-      row.className = 'nix-leolist-photos';
-      const shown = extras.slice(0, MAX_EXTRAS);
-      for (const shot of shown) {
-        const wrap = document.createElement('span');
-        wrap.className = 'nix-leolist-shot';
-        if (shot.lo) {
-          const loImg = document.createElement('img');
-          loImg.className = 'nix-leolist-shot-lo';
-          loImg.src = shot.lo;
-          loImg.alt = '';
-          loImg.loading = 'lazy';
-          wrap.appendChild(loImg);
-        }
-        const hiImg = document.createElement('img');
-        hiImg.src = shot.hi;
-        hiImg.alt = '';
-        hiImg.loading = 'lazy';
-        if (shot.lo) {
-          hiImg.className = 'nix-leolist-shot-hi';
-          const reveal = () => {
-            hiImg.classList.add('nix-leolist-shot-in');
-          };
-          hiImg.addEventListener('load', reveal, { once: true });
-          if (hiImg.complete && hiImg.naturalWidth) reveal();
-        }
-        wrap.appendChild(hiImg);
-        row.appendChild(wrap);
+    const shown = extras.slice(0, MAX_EXTRAS);
+    const loImgs = [];
+    const hiImgs = [];
+    for (const shot of shown) {
+      const shotWrap = document.createElement('span');
+      shotWrap.className = 'nix-leolist-shot';
+      if (shot.lo) {
+        const loImg = document.createElement('img');
+        loImg.className = 'nix-leolist-shot-lo';
+        loImg.alt = '';
+        shotWrap.appendChild(loImg);
+        loImgs.push({ el: loImg, url: shot.lo });
       }
-      if (extras.length > MAX_EXTRAS) {
-        const more = document.createElement('span');
-        more.className = 'nix-leolist-more';
-        more.textContent = '+' + String(extras.length - MAX_EXTRAS);
-        row.appendChild(more);
-      }
-      imgBox.appendChild(row);
+      const hiImg = document.createElement('img');
+      hiImg.alt = '';
+      if (shot.lo) hiImg.className = 'nix-leolist-shot-hi';
+      shotWrap.appendChild(hiImg);
+      hiImgs.push({ el: hiImg, url: shot.hi });
+      photos.appendChild(shotWrap);
     }
-
-    if (info && data.desc) {
-      const p = document.createElement('p');
-      p.className = 'nix-leolist-desc';
-      p.textContent = data.desc;
-      info.appendChild(p);
+    if (extras.length > MAX_EXTRAS) {
+      const more = document.createElement('span');
+      more.className = 'nix-leolist-more';
+      more.textContent = '+' + String(extras.length - MAX_EXTRAS);
+      photos.appendChild(more);
+    }
+    for (let i = 0; i < loImgs.length; i += 1) await loadOne(loImgs[i].el, loImgs[i].url);
+    for (let i = 0; i < hiImgs.length; i += 1) {
+      await loadOne(hiImgs[i].el, hiImgs[i].url);
+      hiImgs[i].el.classList.add('nix-leolist-shot-in');
     }
   };
 
-  const enrichCard = async (card) => {
-    if (card.dataset.nixLeolistEnrich !== undefined) return;
-    const link = card.querySelector('a.lst-item__link.mainlist-item');
+  const enrichCard = async (wrap) => {
+    if (wrap.dataset.nixLeolistEnrich !== undefined) return;
+    const link = wrap.querySelector('a.lst-item__link.mainlist-item');
     const href = link ? link.getAttribute('href') : '';
     if (!href || href.indexOf('/personals/') === -1) return;
-    card.dataset.nixLeolistEnrich = 'pending';
+    ensureRow(wrap);
+    wrap.dataset.nixLeolistEnrich = 'pending';
     try {
       const data = await loadDetail(href);
       if (!data) {
-        card.dataset.nixLeolistEnrich = 'fail';
+        wrap.dataset.nixLeolistEnrich = 'fail';
         return;
       }
-      renderExtra(card, data);
-      card.dataset.nixLeolistEnrich = 'done';
+      await renderExtra(wrap, data);
+      wrap.dataset.nixLeolistEnrich = 'done';
     } catch {
-      card.dataset.nixLeolistEnrich = 'fail';
+      wrap.dataset.nixLeolistEnrich = 'fail';
     }
   };
 
@@ -413,21 +510,44 @@
     io.observe(card);
   };
 
-  const scan = () => {
+  const listingCard = (wrap) => {
+    if (!wrap || wrap.tagName !== 'DIV') return null;
+    const cls = ' ' + (wrap.className || '') + ' ';
+    if (cls.indexOf(' main-list-sponsors ') !== -1) return null;
+    if (cls.indexOf(' main-list-pagination ') !== -1) return null;
+    const card = wrap.classList.contains('lst-item')
+      ? wrap
+      : wrap.querySelector('.lst-item');
+    if (!card) return null;
+    if (card.querySelector('.lst-item__label--sponsored')) return null;
+    if (!card.querySelector('a.lst-item__link.mainlist-item')) return null;
+    return wrap;
+  };
+
+  const eachListing = (fn) => {
     const list = document.getElementById('main_list');
     if (!list) return;
-    for (const card of list.querySelectorAll('[data-testid="ad-item"]')) observeCard(card);
+    const kids = list.querySelectorAll(':scope > div');
+    for (let i = 0; i < kids.length; i += 1) {
+      const wrap = listingCard(kids[i]);
+      if (wrap) fn(wrap);
+    }
+  };
+
+  const scan = () => {
+    eachListing((wrap) => {
+      ensureRow(wrap);
+      observeCard(wrap);
+    });
   };
 
   const reconnectIo = () => {
     if (document.hidden || !io) return;
-    const list = document.getElementById('main_list');
-    if (!list) return;
     io.disconnect();
-    for (const card of list.querySelectorAll('[data-testid="ad-item"]')) {
-      if (card.dataset.nixLeolistEnrich !== undefined) continue;
+    eachListing((card) => {
+      if (card.dataset.nixLeolistEnrich !== undefined) return;
       io.observe(card);
-    }
+    });
   };
 
   let watching = false;
