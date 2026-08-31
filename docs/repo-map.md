@@ -697,8 +697,10 @@ tree never grows a bundler of its own, and never commits minified output.
 - **`leolist-listings-only.user.js`** — listing pages on `leolist.cc` (`/personals/*`). The
   site has **no listings-only mode** (STATE-B-UNREACHABLE, measured 2026-08-31): organic cards
   are SSR'd in `#main_list`, and chrome around them is named. The script hides that chrome plus
-  the five `.lst-item__label--sponsored` cards; pagination stays. Detail pages under the same
-  `@match` have no `#main_list` and stay stock.
+  the five `.lst-item__label--sponsored` cards; pagination stays. As each organic card nears
+  the viewport it same-origin-fetches the ad page and appends `#preview-description` plus
+  `.account-photos__item` thumbs (phone stays locked). Detail pages under the same `@match`
+  have no `#main_list` and stay stock.
 
 ## `infra/` — terranix (Nix → OpenTofu/Terraform JSON)
 
