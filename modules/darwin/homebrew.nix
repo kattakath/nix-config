@@ -28,11 +28,34 @@ _:
     };
 
     # ---- Taps --------------------------------------------------------------
-    # No third-party taps. escrcpy (viarotel-org/escrcpy) was removed — its cask
-    # emitted a deprecated `depends_on macos:` warning on every activation.
+    # Exactly one third-party tap, and it is a DELIBERATE RE-ADOPTION (2026-08-31)
+    # of one this repo removed on 2026-07-08 — so do not "clean it up" as leftover
+    # drift. escrcpy is the graphical scrcpy frontend (Electron; hosts/macos.nix
+    # casks) and ships NOWHERE else: absent from homebrew-core AND from nixpkgs,
+    # with only an upstream .dmg otherwise. Since every other GUI app here arrives
+    # as a cask or a masApp, the tap is what keeps this one declarative instead of
+    # a hand-dragged .app no `cleanup` would ever reclaim.
+    #
+    # Two costs accepted knowingly, both re-verified against the tap at v3.0.8:
+    #   - `depends_on macos: :catalina` is STILL in the cask, so the deprecation
+    #     warning that motivated the 2026-07-08 removal is back on every
+    #     activation. It is cosmetic — not a failure — and staying declarative was
+    #     judged worth it.
+    #   - the cask's `postflight` offers to `sudo xattr -d com.apple.quarantine`
+    #     the installed .app. Under non-interactive `brew bundle` its stdin read
+    #     fails and a method-level `rescue` downgrades that to a warning, so
+    #     activation proceeds and the app KEEPS its quarantine flag — hence a
+    #     first launch may need a manual right-click ▸ Open. Do not "fix" this by
+    #     stripping quarantine from Nix; that is Gatekeeper's call, not ours.
+    #
+    # Workable only because nix-homebrew sets mutableTaps = true (./nix-homebrew.nix)
+    # — otherwise a tap must be pinned as a flake input. Framework-level per this
+    # file's ownership split, so macvm gets the tap too but not the cask (its
+    # casks list is its own); a tap with nothing installed from it is inert.
+    #
     # nats-server is homebrew-core, so no tap is needed. (runpodctl comes from
-    # nixpkgs via home.nix, not a tap — Homebrew now refuses untrusted taps.)
-    taps = [ ];
+    # nixpkgs via home.nix, not a tap.)
+    taps = [ "viarotel-org/escrcpy" ];
 
     # ---- brews / casks / masApps ------------------------------------------
     # Set per host in hosts/<host>.nix (e.g. hosts/macos.nix, hosts/macvm.nix).
