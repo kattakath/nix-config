@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LeoList — listings only
 // @namespace    kattakath.com
-// @version      1.16.0
+// @version      1.17.0
 // @description  Listings-only LeoList: keep #view-cont > div.col-left, drop sponsored chrome, filmstrip extra photos beside the hero from the lightbox a.href (w:1024), clamp the ad description. Parsed extras persist in localStorage with no hit TTL.
 // @author       Ismail Kattakath
 // @license      MIT
@@ -57,6 +57,8 @@
 // #main_list > div:nth-child(N)). Skip section/aside/sponsors/pagination.
 // v1.16.0: fair use — one listing at a time (HTML), then that row's 304
 // thumbs one by one, then 1024s one by one. Rows already come from page 1.
+// v1.17.0: never lose the page-1 rows. HTML fetches wait 2.5s apart. 403/429/503
+// pauses origin HTML for this tab (1h). Cache hits still paint extras.
 //
 // Selectors (listing + detail dumps, 2026-08-31):
 //   #view-cont > div.col-left             KEEP island
@@ -88,6 +90,9 @@
   const STORE_LEGACY = ['nix-leolist.v1:', 'nix-leolist.v2:'];
   const NEG_TTL_MS = 15 * 60 * 1000;
   const MAX_STORE = 400;
+  const HTML_GAP_MS = 2500;
+  const ORIGIN_PAUSE_MS = 60 * 60 * 1000;
+  const PAUSE_KEY = 'nix-leolist.originPauseUntil';
 
   const CSS = [
     'html[data-nix-leolist-listings-only] .group:has(.lst-item__label--sponsored)',
@@ -297,6 +302,23 @@
     return { desc, photos };
   };
 
+  const originPaused = () => {
+    try {
+      const until = parseInt(sessionStorage.getItem(PAUSE_KEY) || '0', 10);
+      return until > Date.now();
+    } catch {
+      return false;
+    }
+  };
+
+  const pauseOrigin = () => {
+    try {
+      sessionStorage.setItem(PAUSE_KEY, String(Date.now() + ORIGIN_PAUSE_MS));
+    } catch {
+      /* sessionStorage blocked */
+    }
+  };
+
   const loadDetail = async (href) => {
     if (cache.has(href)) {
       const mem = cache.get(href);
@@ -311,7 +333,17 @@
       cache.set(href, stored);
       return stored;
     }
-    const res = await fetch(href, { credentials: 'same-origin', cache: 'default' });
+    if (originPaused()) return null;
+    let res;
+    try {
+      res = await fetch(href, { credentials: 'same-origin', cache: 'default' });
+    } catch {
+      return null;
+    }
+    if (res.status === 403 || res.status === 429 || res.status === 503) {
+      pauseOrigin();
+      return null;
+    }
     if (!res.ok) {
       const miss = { miss: true };
       cache.set(href, miss);
@@ -321,6 +353,9 @@
     const parsed = parseDetail(await res.text());
     cache.set(href, parsed);
     writeStore(href, { t: Date.now(), d: parsed.desc, p: parsed.photos });
+    await new Promise((resolve) => {
+      setTimeout(resolve, HTML_GAP_MS);
+    });
     return parsed;
   };
 
