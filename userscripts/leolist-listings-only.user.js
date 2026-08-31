@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LeoList — listings only
 // @namespace    kattakath.com
-// @version      1.19.0
+// @version      1.20.0
 // @description  Listings-only LeoList: keep #view-cont > div.col-left, drop sponsored chrome, filmstrip extra photos beside the hero from the lightbox a.href (w:1024), clamp the ad description. Parsed extras persist in localStorage with no hit TTL.
 // @author       Ismail Kattakath
 // @license      MIT
@@ -62,6 +62,7 @@
 // v1.18.0: slower on purpose — 10s between ad HTML, 1s between images.
 // v1.19.0: rows are ours (.nix-leolist-row). Stock .lst-item is hidden.
 // Page-1 title/hero paint immediately; extras still serial.
+// v1.20.0: Open button on the extreme right of the photo rail.
 //
 // Selectors (listing + detail dumps, 2026-08-31):
 //   #view-cont > div.col-left             KEEP island
@@ -78,7 +79,7 @@
 //   .account-photos__item img[src]        304 thumb = lo
 //
 // Invented (constructed UI):
-//   .nix-leolist-photos / -shot / -shot-lo / -shot-hi / -shot-in / -more / -desc
+//   .nix-leolist-row / -rail / -photos / -go / -shot / -title / -desc
 (() => {
   'use strict';
 
@@ -111,7 +112,10 @@
     'html[data-nix-leolist-listings-only] .col-left .group {\n  float: none;\n  width: 100%;\n  margin: 0 0 12px;\n}\n' +
     'html[data-nix-leolist-listings-only] #main_list > div > .lst-item {\n  display: none;\n}\n' +
     'html[data-nix-leolist-listings-only] .nix-leolist-row {\n  display: flex;\n  flex-direction: column;\n  gap: 8px;\n  padding: 12px;\n  background: #313244;\n  color: #cdd6f4;\n  border: 1px solid #45475a;\n}\n' +
-    'html[data-nix-leolist-listings-only] .nix-leolist-photos {\n  display: flex;\n  flex-wrap: nowrap;\n  gap: 2px;\n  overflow-x: auto;\n  overflow-y: hidden;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-rail {\n  display: flex;\n  flex-direction: row;\n  align-items: stretch;\n  gap: 8px;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-photos {\n  display: flex;\n  flex-wrap: nowrap;\n  gap: 2px;\n  overflow-x: auto;\n  overflow-y: hidden;\n  flex: 1 1 auto;\n  min-width: 0;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-go {\n  flex: 0 0 56px;\n  margin-left: auto;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  min-height: 256px;\n  background: #89b4fa;\n  color: #1e1e2e;\n  text-decoration: none;\n  font-weight: 700;\n  letter-spacing: 0.02em;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-go:hover {\n  background: #89dceb;\n}\n' +
     'html[data-nix-leolist-listings-only] .nix-leolist-row img {\n  width: auto;\n  height: 256px;\n  object-fit: contain;\n  object-position: top center;\n  flex: 0 0 auto;\n}\n' +
     'html[data-nix-leolist-listings-only] .nix-leolist-shot {\n  position: relative;\n  display: block;\n  height: 256px;\n  flex: 0 0 auto;\n  overflow: hidden;\n}\n' +
     'html[data-nix-leolist-listings-only] .nix-leolist-shot-lo {\n  display: block;\n  height: 256px;\n  width: auto;\n}\n' +
@@ -391,6 +395,8 @@
     const heroSrc = hero ? hero.getAttribute('src') || '' : '';
     const row = document.createElement('article');
     row.className = 'nix-leolist-row';
+    const rail = document.createElement('div');
+    rail.className = 'nix-leolist-rail';
     const photos = document.createElement('div');
     photos.className = 'nix-leolist-photos';
     if (heroSrc) {
@@ -400,13 +406,19 @@
       heroImg.src = heroSrc;
       photos.appendChild(heroImg);
     }
+    const go = document.createElement('a');
+    go.className = 'nix-leolist-go';
+    go.href = href;
+    go.textContent = 'Open';
+    rail.appendChild(photos);
+    rail.appendChild(go);
     const heading = document.createElement('a');
     heading.className = 'nix-leolist-title';
     heading.href = href;
     heading.textContent = title;
     const desc = document.createElement('p');
     desc.className = 'nix-leolist-desc';
-    row.appendChild(photos);
+    row.appendChild(rail);
     row.appendChild(heading);
     row.appendChild(desc);
     wrap.appendChild(row);
