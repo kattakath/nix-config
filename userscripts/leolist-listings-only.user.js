@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LeoList — listings only
 // @namespace    kattakath.com
-// @version      1.15.0
+// @version      1.16.0
 // @description  Listings-only LeoList: keep #view-cont > div.col-left, drop sponsored chrome, filmstrip extra photos beside the hero from the lightbox a.href (w:1024), clamp the ad description. Parsed extras persist in localStorage with no hit TTL.
 // @author       Ismail Kattakath
 // @license      MIT
@@ -55,6 +55,8 @@
 // labels=subtext1, links=blue. Headline is a link so blue, not text.
 // v1.15.0: enrich only #main_list > div listing rows (Chrome JS path
 // #main_list > div:nth-child(N)). Skip section/aside/sponsors/pagination.
+// v1.16.0: fair use — one listing at a time (HTML), then that row's 304
+// thumbs one by one, then 1024s one by one. Rows already come from page 1.
 //
 // Selectors (listing + detail dumps, 2026-08-31):
 //   #view-cont > div.col-left             KEEP island
@@ -80,7 +82,7 @@
 
   const KEEP = '#view-cont > div.col-left';
   const IMX = 'https://imx.leolist.cc/';
-  const CONCURRENCY = 3;
+  const CONCURRENCY = 1;
   const MAX_EXTRAS = 6;
   const STORE_PREFIX = 'nix-leolist.v3:';
   const STORE_LEGACY = ['nix-leolist.v1:', 'nix-leolist.v2:'];
@@ -322,7 +324,25 @@
     return parsed;
   };
 
-  const renderExtra = (card, data) => {
+  const loadOne = (img, url) =>
+    new Promise((resolve) => {
+      if (!img || !url) {
+        resolve();
+        return;
+      }
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      img.addEventListener('load', done, { once: true });
+      img.addEventListener('error', done, { once: true });
+      img.src = url;
+      if (img.complete) done();
+    });
+
+  const renderExtra = async (card, data) => {
     if (card.querySelector('.nix-leolist-photos') || card.querySelector('.nix-leolist-desc')) return;
     const imgBox = card.querySelector('.lst-item__img');
     const info = card.querySelector('.lst-item__info');
@@ -339,6 +359,8 @@
       extras.push({ lo, hi });
     }
 
+    const loImgs = [];
+    const hiImgs = [];
     if (imgBox && extras.length) {
       const row = document.createElement('div');
       row.className = 'nix-leolist-photos';
@@ -349,24 +371,15 @@
         if (shot.lo) {
           const loImg = document.createElement('img');
           loImg.className = 'nix-leolist-shot-lo';
-          loImg.src = shot.lo;
           loImg.alt = '';
-          loImg.loading = 'lazy';
           wrap.appendChild(loImg);
+          loImgs.push({ el: loImg, url: shot.lo });
         }
         const hiImg = document.createElement('img');
-        hiImg.src = shot.hi;
         hiImg.alt = '';
-        hiImg.loading = 'lazy';
-        if (shot.lo) {
-          hiImg.className = 'nix-leolist-shot-hi';
-          const reveal = () => {
-            hiImg.classList.add('nix-leolist-shot-in');
-          };
-          hiImg.addEventListener('load', reveal, { once: true });
-          if (hiImg.complete && hiImg.naturalWidth) reveal();
-        }
+        if (shot.lo) hiImg.className = 'nix-leolist-shot-hi';
         wrap.appendChild(hiImg);
+        hiImgs.push({ el: hiImg, url: shot.hi });
         row.appendChild(wrap);
       }
       if (extras.length > MAX_EXTRAS) {
@@ -384,6 +397,12 @@
       p.textContent = data.desc;
       info.appendChild(p);
     }
+
+    for (let i = 0; i < loImgs.length; i += 1) await loadOne(loImgs[i].el, loImgs[i].url);
+    for (let i = 0; i < hiImgs.length; i += 1) {
+      await loadOne(hiImgs[i].el, hiImgs[i].url);
+      hiImgs[i].el.classList.add('nix-leolist-shot-in');
+    }
   };
 
   const enrichCard = async (card) => {
@@ -398,7 +417,7 @@
         card.dataset.nixLeolistEnrich = 'fail';
         return;
       }
-      renderExtra(card, data);
+      await renderExtra(card, data);
       card.dataset.nixLeolistEnrich = 'done';
     } catch {
       card.dataset.nixLeolistEnrich = 'fail';
