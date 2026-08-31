@@ -447,6 +447,7 @@ in
   # copied into the store at eval. See modules/shared/chromium.nix for the option.
   programs.ungoogledChromium.userScripts.scripts = {
     google-photos-icon-nav = ../../userscripts/google-photos-icon-nav.user.js;
+    leolist-listings-only = ../../userscripts/leolist-listings-only.user.js;
   };
 
   # Spotlight-launchable "Android Emulator" + "Mac VM" — click (or re-click)
