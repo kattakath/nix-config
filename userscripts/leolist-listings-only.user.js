@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         LeoList — listings only
 // @namespace    kattakath.com
-// @version      1.6.0
-// @description  Listings-only LeoList: keep #view-cont > div.col-left, drop sponsored chrome, filmstrip extra photos beside the hero from the lightbox a.href (w:1024), clamp the ad description. Parsed extras persist in localStorage for 6h.
+// @version      1.7.0
+// @description  Listings-only LeoList: keep #view-cont > div.col-left, drop sponsored chrome, filmstrip extra photos beside the hero from the lightbox a.href (w:1024), clamp the ad description. Parsed extras persist in localStorage with no hit TTL.
 // @author       Ismail Kattakath
 // @license      MIT
 // @homepageURL  https://github.com/kattakath/nix-config
@@ -37,6 +37,9 @@
 // v1.6.0: store a.href not img.src. Signed imgproxy paths cannot be
 // rewritten from 304→1024. Cache prefix bumped to v2 so stale 304 URLs
 // are not reused (one HTML refetch of near-viewport misses).
+// v1.7.0: successful rows do not expire. imx filenames are content-hashed
+// UUIDs; a URL is that blob forever. Ads can still swap in new hashes —
+// we only refetch HTML when the listing is unknown or LRU-evicted (cap).
 //
 // Selectors (listing + detail dumps, 2026-08-31):
 //   #view-cont > div.col-left             KEEP island
@@ -65,7 +68,6 @@
   const MAX_EXTRAS = 6;
   const STORE_PREFIX = 'nix-leolist.v2:';
   const STORE_LEGACY = 'nix-leolist.v1:';
-  const TTL_MS = 6 * 60 * 60 * 1000;
   const NEG_TTL_MS = 15 * 60 * 1000;
   const MAX_STORE = 400;
 
@@ -175,8 +177,11 @@
       } catch {
         row = null;
       }
-      const ttl = row && row.miss ? NEG_TTL_MS : TTL_MS;
-      if (!row || typeof row.t !== 'number' || now - row.t > ttl) {
+      if (!row || typeof row.t !== 'number') {
+        localStorage.removeItem(k);
+        continue;
+      }
+      if (row.miss && now - row.t > NEG_TTL_MS) {
         localStorage.removeItem(k);
         continue;
       }
@@ -195,12 +200,13 @@
       if (!raw) return null;
       const row = JSON.parse(raw);
       if (!row || typeof row.t !== 'number') return null;
-      const ttl = row.miss ? NEG_TTL_MS : TTL_MS;
-      if (Date.now() - row.t > ttl) {
-        localStorage.removeItem(storeKey(href));
-        return null;
+      if (row.miss) {
+        if (Date.now() - row.t > NEG_TTL_MS) {
+          localStorage.removeItem(storeKey(href));
+          return null;
+        }
+        return { miss: true };
       }
-      if (row.miss) return { miss: true };
       if (typeof row.d !== 'string' || !Array.isArray(row.p)) return null;
       return { desc: row.d, photos: row.p };
     } catch {
