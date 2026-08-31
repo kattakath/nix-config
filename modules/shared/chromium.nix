@@ -31,7 +31,8 @@
 #      Framework 152 imports `_CFPreferencesAppValueIsForced` + `_CFPreferencesCopyAppValue`,
 #      and none of ungoogled's ~111 patches touch policy loading.) Home Manager applies it
 #      with `defaults import`, which MERGES, so Chromium's own state in that domain survives.
-#      Two policy sets ride this: `hideBookmarkBar` and `defaultSearchProvider`.
+#      One policy rides this: `hideBookmarkBar`. It is a narrow tier — see the
+#      default-search note below for a policy set that arrives and is then REFUSED.
 #   4. LaunchServices' `http`/`https` handler → `makeDefaultBrowser`, the one surface here
 #      that is neither a file in the user-data dir nor a policy. nixpkgs' `defaultbrowser`
 #      claims the scheme on activation and no-ops once Chromium already owns it.
@@ -87,46 +88,30 @@ let
 
   icloudPasswordsId = "pejdijmoenmkgeppbflobdenhhabjlaj";
 
-  # ---- Default search engine ---------------------------------------------------
+  # ---- Default search engine: NOT declarable — settled, do not retry -----------
   # ungoogled's `replace-google-search-engine-with-nosearch.patch` rewrites the
-  # `google` row of `prepopulated_engines.json` into a "No Search" stub pointing at
-  # `http://{searchTerms}` — which is why the engine picker opens on *No Search
-  # (Default)*. It edits DATA ONLY; the `DefaultSearchProvider*` policy path is
-  # bit-identical to upstream, so a policy is the right lever to seed a real engine.
+  # `google` row of `prepopulated_engines.json` into a "No Search" stub, which is why
+  # a fresh profile's picker opens on *No Search (Default)*. Tempting to fix with the
+  # `DefaultSearchProvider*` policy set — and it was tried here (2026-08-30). It does
+  # NOT work, and the failure is invisible from Nix: the plist is written correctly and
+  # `chrome://policy` shows the keys arriving (Source `Platform`, Level `Recommended`,
+  # same as `BookmarkBarEnabled` right above them reading OK) yet
+  # `DefaultSearchProviderEnabled` reports **"This policy is blocked, its value will be
+  # ignored"** and the other four cascade to `Error` behind that dead main switch.
   #
-  # One row per selectable engine, each the single source of truth for its own URLs.
-  # Every field is lifted verbatim from THIS cask's compiled prepopulated table, so
-  # a policy-seeded engine is indistinguishable from one the browser would have
-  # offered itself. Google is deliberately absent: ungoogled strips its row, so
-  # there is no in-binary source to copy — add it only with URLs verified elsewhere.
-  searchProviders = {
-    duckduckgo = {
-      name = "DuckDuckGo";
-      keyword = "duckduckgo.com";
-      searchURL = "https://duckduckgo.com/?q={searchTerms}";
-      suggestURL = "https://duckduckgo.com/ac/?q={searchTerms}&type=list";
-    };
-    kagi = {
-      name = "Kagi";
-      keyword = "kagi.com";
-      # Not kagi.com/api — the suggest endpoint is its own host.
-      searchURL = "https://kagi.com/search?q={searchTerms}";
-      suggestURL = "https://kagisuggest.com/api/autosuggest?q={searchTerms}";
-    };
-  };
-
-  # `DefaultSearchProviderEnabled` is the MAIN SWITCH, not a redundant nicety:
-  # `default_search_policy_handler.cc` returns early unless it is present at the
-  # SAME policy level as the rest, so omitting it — or splitting the set across
-  # levels — makes the whole block a silent no-op. `DefaultSearchProviderIconURL`
-  # is deliberately unset: deprecated and inert since Chromium 122.
-  searchProviderPolicy = p: {
-    DefaultSearchProviderEnabled = true;
-    DefaultSearchProviderName = p.name;
-    DefaultSearchProviderKeyword = p.keyword;
-    DefaultSearchProviderSearchURL = p.searchURL;
-    DefaultSearchProviderSuggestURL = p.suggestURL;
-  };
+  # So the set is MANDATORY-ONLY in practice, whatever the upstream metadata implies.
+  # Mandatory needs `/Library/Managed Preferences` from an MDM profile, and it would
+  # PADLOCK Settings ▸ Search engine — worse than the alternative, which is one click:
+  # DuckDuckGo is already in the prepopulated list, so ⋮ ▸ Make default sets it for good.
+  #
+  # ADDING an engine is the same wall, not a softer one: the only two policies that add
+  # one *without* forcing it default — `SiteSearchSettings` and
+  # `EnterpriseSearchAggregatorSettings` — are mandatory-only too, and the engines they
+  # create can never be promoted to default anyway. Google in particular has no
+  # in-binary row left to seed (ungoogled strips it), so it is a manual add:
+  # Settings ▸ Search engine ▸ Site search ▸ Add — name `Google`, shortcut `google.com`,
+  # URL `https://www.google.com/search?q=%s` — then ⋮ ▸ Make default if wanted.
+  # Recorded in docs/macos-settings-surface.md as a manual step; do not re-attempt in Nix.
 
   # ---- Userscripts -------------------------------------------------------------
   # Nix owns the FILES; Violentmonkey owns the database, and there is no bridge
@@ -320,40 +305,6 @@ in
       '';
     };
 
-    defaultSearchProvider = lib.mkOption {
-      type = lib.types.nullOr (lib.types.enum (lib.attrNames searchProviders));
-      default = "duckduckgo";
-      example = "kagi";
-      description = ''
-        Which engine the omnibox searches with out of the box, or `null` to seed
-        none. Switching engines is a one-word change here; adding one is a single
-        row in this module's `searchProviders` attrset.
-
-        Needed because ungoogled-chromium ships **no working prepopulated
-        engine** — its `replace-google-search-engine-with-nosearch.patch` rewrites
-        Google's row into a "No Search" stub, so a fresh profile's picker reads
-        *No Search (Default)* and the omnibox cannot search at all until something
-        seeds an engine.
-
-        **Recommended, not forced** — Settings ▸ Search engine stays fully live,
-        with no policy padlock, and picking a different engine there wins
-        permanently. That is not incidental: Chromium's
-        `TemplateURLService::CanMakeDefault` admits `FROM_POLICY_RECOMMENDED`
-        (and `is_default_search_managed()` deliberately excludes it), whereas the
-        mandatory level would grey the picker out. Mandatory needs a
-        `/Library/Managed Preferences` plist from an MDM profile, so the plain
-        user domain this module writes cannot lock the operator out even by
-        accident.
-
-        The two policy surfaces that could add an engine *without* making it
-        default — `SiteSearchSettings` and `EnterpriseSearchAggregatorSettings` —
-        are both mandatory-only, and the engines they create can never be
-        promoted to default (`CreatedByNonDefaultSearchProviderPolicy`). So the
-        recommended `DefaultSearchProvider*` set is the only route that seeds an
-        engine while leaving the operator in charge of it.
-      '';
-    };
-
     makeDefaultBrowser = lib.mkOption {
       type = lib.types.bool;
       default = true;
@@ -463,10 +414,12 @@ in
     # `NTPCustomBackgroundEnabled`, `NTPMiddleSlotAnnouncementVisible`,
     # `NTPOutlookCardVisible`, `NTPSharepointCardVisible`, `NTPContentSuggestionsEnabled`
     # and both `NTPFooter*` all omit `can_be_recommended` in their upstream
-    # `policy_definitions/**.yaml`, which defaults it to false. The flag is written
-    # explicitly when true — `BookmarkBarEnabled` and `DefaultSearchProviderSearchURL`,
-    # the two policies above, both carry `can_be_recommended: true` — so absence is
-    # the answer, not a gap in the metadata. `NewTabPageLocation`'s own `desc` says
+    # `policy_definitions/**.yaml`, which defaults it to false. `BookmarkBarEnabled`
+    # carries it explicitly and works here, so absence is the answer rather than a gap
+    # in the metadata — but treat that as a HINT, not a guarantee: the
+    # `DefaultSearchProvider*` set carries `can_be_recommended: true` upstream and this
+    # build still refuses it at the recommended level (see the note near the top). The
+    # only proof is `chrome://policy`. `NewTabPageLocation`'s own `desc` says
     # it outright: "configures the default New Tab page URL AND PREVENTS USERS FROM
     # CHANGING IT". A padlocked new-tab page is worse than a click, so it stays unset.
     #
@@ -478,12 +431,9 @@ in
     # mutable state Nix must not seed, so it is one click in Customize Chrome ▸
     # Shortcuts ▸ Hide shortcuts. ungoogled's `--custom-ntp` flag is not a route
     # either: `chromium-flags.conf` is Linux-only, so on macOS it needs chrome://flags.
-    targets.darwin.defaults."org.chromium.Chromium" = lib.mkMerge [
-      (lib.mkIf cfg.hideBookmarkBar { BookmarkBarEnabled = false; })
-      (lib.mkIf (cfg.defaultSearchProvider != null) (
-        searchProviderPolicy searchProviders.${cfg.defaultSearchProvider}
-      ))
-    ];
+    targets.darwin.defaults."org.chromium.Chromium" = lib.mkIf cfg.hideBookmarkBar {
+      BookmarkBarEnabled = false;
+    };
 
     # The `defaultbrowser` CLI doubles as this setting's read-only doctor (no args
     # → the handler list, current default starred), so it is worth a PATH entry.
