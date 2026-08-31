@@ -122,7 +122,7 @@ Option names below are verified against the pinned nix-darwin source
 - **`WindowManager`** (Stage Manager) — `GloballyEnabled`, `AutoHide`, `StandardHideDesktopIcons`, `HideDesktop`, `EnableTilingByEdgeDrag`, `EnableTiledWindowMargins`, …
 - **`spaces`** — `spans-displays`
 - **`SoftwareUpdate`** — `AutomaticallyInstallMacOSUpdates`
-- **`LaunchServices`** — `LSQuarantine` (the "app downloaded from the internet" prompt — a safety guard; left ON deliberately)
+- **`LaunchServices`** — `LSQuarantine` (the "app downloaded from the internet" prompt — a safety guard; left ON deliberately). NB nix-darwin models **no** default-*handler* option: the default browser is not a `defaults` key at all but a LaunchServices binding, done from Home Manager instead — see `programs.ungoogledChromium.makeDefaultBrowser` (`modules/shared/chromium.nix`) and § 7 below.
 - **`smb`** · **`magicmouse`** · **`universalaccess`** · **`ActivityMonitor`** · **`hitoolbox`** · **`iCal`** — present, niche
 
 ### Beyond `system.defaults` (top-level nix-darwin options)
@@ -299,6 +299,16 @@ get double registration. Docker's `settings-store.json` `AutoStart` is forced
 5. **App-internal state that apps rewrite at runtime** (e.g. Claude Desktop's config)
    — reachable only via an activation-script merge, never fully *owned* (see the jq
    merge in `modules/shared/mcp.nix`).
+6. **The default web browser — settable, but consent-gated, never silent.** It *is*
+   automatable (`programs.ungoogledChromium.makeDefaultBrowser` drives nixpkgs'
+   `defaultbrowser`), yet macOS reserves the final say for the human: the macOS 26
+   `AppKit/NSWorkspace.h` says of the modern API that *"Some URL schemes require user
+   consent before you can change their handlers. If a change requires user consent, the
+   system will ask the user asynchronously"*, and `http`/`https` are exactly those. So a
+   fresh Mac gets **one** dialog. It cannot recur, because `defaultbrowser` no-ops once
+   Chromium already owns the scheme — which is why that tool was chosen over `duti`.
+   Treat "declarative" here as *converges to the right state after one click*, not
+   *silently forced*.
 
 ### The "apply immediately" trick
 Many defaults don't take effect until logout/restart (Dock, some keyboard/mouse
