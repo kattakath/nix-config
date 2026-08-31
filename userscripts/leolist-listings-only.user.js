@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LeoList — listings only
 // @namespace    kattakath.com
-// @version      1.4.0
+// @version      1.5.0
 // @description  Listings-only LeoList: keep #view-cont > div.col-left, drop sponsored chrome, filmstrip extra photos beside the hero, clamp the ad description. Parsed extras persist in localStorage for 6h so a refresh does not re-hit the ad pages.
 // @author       Ismail Kattakath
 // @license      MIT
@@ -30,6 +30,9 @@
 // TTL 6h, cap 400, 15min negative cache). Refresh/revisit hits the store, not
 // the origin. In-memory Map is L1 for the current document. Fair-use: we never
 // crawl pagination; we only fetch a card that is near-viewport AND uncached.
+// v1.5.0: #view-cont full width. The 960px well is the parent
+// .main-list-container.container (measured 2026-08-31, col-left x=276 w=960
+// on a 1512px viewport); widening #view-cont alone is a no-op.
 //
 // Selectors (listing + detail dumps, 2026-08-31):
 //   #view-cont > div.col-left             KEEP island
@@ -69,6 +72,7 @@
   ].join(',\n') + ' {\n  display: none;\n}\n' +
     'html[data-nix-leolist-listings-only] body.modal-open {\n  overflow: auto;\n}\n' +
     'html[data-nix-leolist-listings-only] [hidden] {\n  display: none;\n}\n' +
+    'html[data-nix-leolist-listings-only] .wrap,\nhtml[data-nix-leolist-listings-only] .main-list,\nhtml[data-nix-leolist-listings-only] .main-list-container.container,\nhtml[data-nix-leolist-listings-only] #view-cont {\n  width: 100%;\n  max-width: none;\n  margin-left: 0;\n  margin-right: 0;\n  box-sizing: border-box;\n  padding-left: 0;\n  padding-right: 0;\n}\n' +
     'html[data-nix-leolist-listings-only] #view-cont > div.col-left {\n  float: none;\n  width: 100%;\n  padding-right: 0;\n}\n' +
     'html[data-nix-leolist-listings-only] .col-left .group {\n  float: none;\n  width: 100%;\n  margin: 0 0 10px;\n}\n' +
     'html[data-nix-leolist-listings-only] .lst-item.lst-item {\n  height: auto;\n  overflow: visible;\n}\n' +
