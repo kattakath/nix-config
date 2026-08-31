@@ -347,6 +347,25 @@ get double registration. Docker's `settings-store.json` `AutoStart` is forced
    Chromium already owns the scheme — which is why that tool was chosen over `duti`.
    Treat "declarative" here as *converges to the right state after one click*, not
    *silently forced*.
+7. **Chromium's default SEARCH ENGINE — delivered, then refused by the browser.** The
+   most instructive failure on this page, because Nix reports total success. Setting the
+   `DefaultSearchProvider*` set in the `org.chromium.Chromium` **user** domain writes a
+   perfect plist and `chrome://policy` confirms arrival — Source `Platform`, Applies to
+   `Current user`, Level `Recommended` — yet `DefaultSearchProviderEnabled` reads
+   **"This policy is blocked, its value will be ignored"** and the other four cascade to
+   `Error` behind that dead main switch. `BookmarkBarEnabled`, immediately above them in
+   the same table, reads `OK`. So the *tier* works; this policy set is mandatory-only in
+   practice, whatever its upstream `can_be_recommended: true` claims. Mandatory needs an
+   MDM-installed `/Library/Managed Preferences` plist and would **padlock** Settings ▸
+   Search engine, so it is not worth having. Tried and removed 2026-08-31; **do not
+   re-attempt** — `chrome://policy` is the only real test of a policy's tier.
+   - Manual instead, once per profile: DuckDuckGo is already prepopulated, so ⋮ ▸ *Make
+     default*. **Google is not** (ungoogled strips its row), so add it by hand —
+     Settings ▸ Search engine ▸ Site search ▸ **Add**, name `Google`, shortcut
+     `google.com`, URL `https://www.google.com/search?q=%s`.
+   - Same wall for *adding* an engine without forcing it: `SiteSearchSettings` and
+     `EnterpriseSearchAggregatorSettings` are mandatory-only too, and engines they create
+     can never be promoted to default.
 
 ### The "apply immediately" trick
 Many defaults don't take effect until logout/restart (Dock, some keyboard/mouse
