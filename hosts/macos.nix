@@ -153,6 +153,16 @@
       "claude"
       "docker-desktop"
       "dropbox"
+      # escrcpy — graphical frontend for scrcpy (the `scrcpy` brew above), for
+      # driving a PHYSICAL Android phone by mouse instead of remembering flags.
+      # Complements, never replaces, `android-phone` (packages/android-phone.nix):
+      # that CLI still owns the adb pairing/connect footguns it exists to encode,
+      # and its header's refusal to VENDOR a third-party pairing tool is unaffected
+      # by installing one alongside. From the sole third-party tap — see the tap's
+      # comment in modules/darwin/homebrew.nix for the two accepted costs (a
+      # deprecation warning per activation, and a first launch that may need
+      # right-click ▸ Open because quarantine is left in place).
+      "escrcpy"
       # Google Drive for desktop — the File Provider client (a mounted volume under
       # ~/Library/CloudStorage/, NOT a plain folder). It replaced `google-chrome`
       # here: Chrome's only load-bearing job on this host was rendering JSON Resume
