@@ -695,12 +695,13 @@ tree never grows a bundler of its own, and never commits minified output.
   double the offset.
 
 - **`leolist-listings-only.user.js`** — listing pages on `leolist.cc` (`/personals/*`). The
-  site has **no listings-only mode** (STATE-B-UNREACHABLE, measured 2026-08-31): organic cards
-  are SSR'd in `#main_list`, and chrome around them is named. The script hides that chrome plus
-  the five `.lst-item__label--sponsored` cards; pagination stays. As each organic card nears
-  the viewport it same-origin-fetches the ad page and appends `#preview-description` plus
-  `.account-photos__item` thumbs (phone stays locked). Detail pages under the same `@match`
-  have no `#main_list` and stay stock.
+  site has **no listings-only mode** (STATE-B-UNREACHABLE, measured 2026-08-31). Keep island
+  is `#view-cont > div.col-left` (operator-named; dump: `#view-cont`'s children are
+  `div.col-left` + `div.col-right`); the script walks that node to `body` and sets `hidden`
+  on every sibling, then still drops `.lst-item__label--sponsored` cards and the SPONSORS
+  strip inside the island. As each organic card nears the viewport it same-origin-fetches
+  the ad page and appends `#preview-description` plus `.account-photos__item` thumbs (phone
+  stays locked). Missing keep node → no-op.
 
 ## `infra/` — terranix (Nix → OpenTofu/Terraform JSON)
 

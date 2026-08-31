@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         LeoList — listings only
 // @namespace    kattakath.com
-// @version      1.1.0
-// @description  Hide LeoList listing-page chrome and sponsored cards; fetch each organic ad and append its description plus extra photos under the card.
+// @version      1.2.0
+// @description  Keep only LeoList's listing column (#view-cont > div.col-left); hide every sibling up to body, drop sponsored cards, and append each ad's description plus extra photos.
 // @author       Ismail Kattakath
 // @license      MIT
 // @homepageURL  https://github.com/kattakath/nix-config
@@ -16,86 +16,55 @@
 
 // LeoList does not ship a listings-only view. Measured 2026-08-31 on
 // https://www.leolist.cc/personals/female-escorts/greater-toronto/york
-// (headless dump-dom, innerWidth 1440): the organic cards live in
-// #main_list as div.group > div.lst.lst-item[data-testid="ad-item"],
-// and the chrome around them is named, not a breakpoint. Cross-origin
-// sheets (10 of them) so there is nothing to lift. Detail pages under
-// the same @match have no #main_list — the script stays a no-op there
-// (the page renders stock). Pagination stays: it is how you see page 2.
+// (headless dump-dom, innerWidth 1440): organic cards live in #main_list
+// inside #view-cont > div.col-left (operator-named keep; dump confirms
+// #view-cont's only children are div.col-left and div.col-right). Chrome
+// is siblings of that island, not a breakpoint. v1.0–1.1 hid a named
+// list and leaked whatever the list missed (header, filters, wrap extras).
+// v1.2 walks keep → body and sets hidden on every sibling; missing keep
+// is a no-op (the page renders stock). Inside the island, sponsored cards
+// and the SPONSORS strip are still not listings.
 //
-// Enrichment (v1.1.0), same date, second dump on
+// Enrichment (v1.1.0), same date, dump on
 // /personals/female-escorts/greater-toronto/york_outcall_party_girl_100_duo-8313854:
-// each organic card's a.lst-item__link.mainlist-item[href] is a same-origin
-// ad page. That page's extra fields are #preview-description (ad body) and
-// .account-photos__item img (extra thumbs on imx.leolist.cc). Phone/WhatsApp
-// sit behind .unlock-contacts-btn with an empty #preview-phone — left alone.
-// Fetch is same-origin, @grant none, concurrency 3, IntersectionObserver so
-// off-screen cards are not requested. A failed fetch leaves the card stock.
+// a.lst-item__link.mainlist-item[href] is the ad page; extra fields are
+// #preview-description and .account-photos__item img on imx.leolist.cc.
+// Phone/WhatsApp sit behind .unlock-contacts-btn / empty #preview-phone.
+// Fetch is same-origin, @grant none, concurrency 3, IntersectionObserver.
+// A failed fetch leaves the card stock.
 //
-// Hide selectors, all from the listing dump:
-//   header.main-header                    site header (92px, position:relative)
-//   .main-list-filter                     category/location picker + its modal
-//   .filters.js-filters                   desktop filter bar (heading lives in it)
-//   #modal-filters                        mobile filter modal
-//   #ethnicities                          ethnicity filter dialog
-//   footer.footer                         site footer
-//   .human-rights                         trafficking banner under the footer
-//   #menu, #menu-backdrop                 burger menu
-//   aside.main-list__safety-tips          safety-tips block mid-list
-//   #rightColumn                          desktop-right-column ad banners
-//   .main-list-sponsors                   "SPONSORS" tab strip above the cards
-//   .sticky-side                          Take Cover / back-to-top
-//   #alert-rails                          sliding alert rail
-//   #m-terms, .modal-backdrop             terms overlay (body.modal-open in the dump)
-//   .ll-modal, .ll-modal__backdrop        auth and the other stacked modals
-//   #dialog-authorization                 login/register modal
-//   dialog#language-dialog                language picker
+// Selectors:
+//   #view-cont > div.col-left             KEEP island (listing dump + operator)
 //   .group:has(.lst-item__label--sponsored)
-//                                         five sponsored cards mixed into #main_list
-//                                         (itemtype Offer, no data-testid="ad-item")
-//
-// Enrich selectors, from the ad-page dump:
-//   a.lst-item__link.mainlist-item        card permalink (listing dump)
-//   [data-testid="ad-item"]               organic card (listing dump)
+//                                         sponsored cards inside the island
+//   .main-list-sponsors                   SPONSORS tab strip inside #main_list
+//   aside.main-list__safety-tips          safety-tips block mid-list
+//   a.lst-item__link.mainlist-item        card permalink
+//   [data-testid="ad-item"]               organic card
 //   #preview-description                  ad body (detail dump)
 //   .account-photos__item img             extra thumbs (detail dump)
 //
-// Invented (no site class for "description under the card"):
-//   .nix-leolist-extra / -photos / -desc  measured 2026-08-31 as constructed UI
+// Invented (constructed UI, 2026-08-31):
+//   .nix-leolist-extra / -photos / -desc
+//   #view-cont > div.col-left { width:100%; float:none } after col-right is gone
 (() => {
   'use strict';
 
   if (document.documentElement.dataset.nixLeolistListingsOnlyInit !== undefined) return;
   document.documentElement.dataset.nixLeolistListingsOnlyInit = '';
 
+  const KEEP = '#view-cont > div.col-left';
   const IMX = 'https://imx.leolist.cc/';
   const CONCURRENCY = 3;
 
   const CSS = [
-    'html[data-nix-leolist-listings-only] header.main-header',
-    'html[data-nix-leolist-listings-only] .main-list-filter',
-    'html[data-nix-leolist-listings-only] .filters.js-filters',
-    'html[data-nix-leolist-listings-only] #modal-filters',
-    'html[data-nix-leolist-listings-only] #ethnicities',
-    'html[data-nix-leolist-listings-only] footer.footer',
-    'html[data-nix-leolist-listings-only] .human-rights',
-    'html[data-nix-leolist-listings-only] #menu',
-    'html[data-nix-leolist-listings-only] #menu-backdrop',
-    'html[data-nix-leolist-listings-only] aside.main-list__safety-tips',
-    'html[data-nix-leolist-listings-only] #rightColumn',
-    'html[data-nix-leolist-listings-only] .main-list-sponsors',
-    'html[data-nix-leolist-listings-only] .sticky-side',
-    'html[data-nix-leolist-listings-only] #alert-rails',
-    'html[data-nix-leolist-listings-only] #m-terms',
-    'html[data-nix-leolist-listings-only] .modal-backdrop',
-    'html[data-nix-leolist-listings-only] .ll-modal',
-    'html[data-nix-leolist-listings-only] .ll-modal.ll-modal--open',
-    'html[data-nix-leolist-listings-only] .ll-modal__backdrop',
-    'html[data-nix-leolist-listings-only] #dialog-authorization',
-    'html[data-nix-leolist-listings-only] dialog#language-dialog',
     'html[data-nix-leolist-listings-only] .group:has(.lst-item__label--sponsored)',
+    'html[data-nix-leolist-listings-only] .main-list-sponsors',
+    'html[data-nix-leolist-listings-only] aside.main-list__safety-tips',
   ].join(',\n') + ' {\n  display: none;\n}\n' +
     'html[data-nix-leolist-listings-only] body.modal-open {\n  overflow: auto;\n}\n' +
+    'html[data-nix-leolist-listings-only] [hidden] {\n  display: none;\n}\n' +
+    'html[data-nix-leolist-listings-only] #view-cont > div.col-left {\n  float: none;\n  width: 100%;\n}\n' +
     'html[data-nix-leolist-listings-only] .nix-leolist-extra {\n  margin: 8px 0 16px;\n  padding: 0 8px;\n}\n' +
     'html[data-nix-leolist-listings-only] .nix-leolist-photos {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 6px;\n}\n' +
     'html[data-nix-leolist-listings-only] .nix-leolist-photos img {\n  width: 96px;\n  height: 96px;\n  object-fit: cover;\n}\n' +
@@ -108,6 +77,44 @@
   const unlockScroll = () => {
     const body = document.body;
     if (body && body.classList.contains('modal-open')) body.classList.remove('modal-open');
+  };
+
+  const applyIsland = () => {
+    const keep = document.querySelector(KEEP);
+    if (!keep) return false;
+    let node = keep;
+    while (node.parentElement && node !== document.body) {
+      const parent = node.parentElement;
+      for (let i = 0; i < parent.children.length; i += 1) {
+        const sib = parent.children[i];
+        if (sib !== node && !sib.hidden) sib.hidden = true;
+      }
+      node = parent;
+    }
+    return true;
+  };
+
+  let islandWatching = false;
+  const watchIsland = () => {
+    if (islandWatching) return;
+    const keep = document.querySelector(KEEP);
+    if (!keep) return;
+    islandWatching = true;
+    let queued = false;
+    const coalesce = () => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => {
+        queued = false;
+        applyIsland();
+        unlockScroll();
+      });
+    };
+    let node = keep;
+    while (node.parentElement && node !== document.body) {
+      new MutationObserver(coalesce).observe(node.parentElement, { childList: true });
+      node = node.parentElement;
+    }
   };
 
   const cache = new Map();
@@ -257,11 +264,12 @@
   };
 
   const arm = () => {
-    if (!document.getElementById('main_list')) return false;
+    if (!applyIsland()) return false;
     if (document.documentElement.dataset.nixLeolistListingsOnly === undefined) {
       document.documentElement.dataset.nixLeolistListingsOnly = '';
     }
     unlockScroll();
+    watchIsland();
     watchList();
     return true;
   };
