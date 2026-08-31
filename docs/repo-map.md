@@ -349,9 +349,13 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
     unreachable from Home Manager (the **recommended** level is reachable — see
     `hideBookmarkBar` below — but it cannot lock a value, which is what that trick relies on).
     A userscript is installed by **navigating** to it, so install stays one click
-    per script off the index page. A **public** script can carry an `https` `@updateURL` into
-    this repo and then self-update with no activation; a private one has none and is
-    re-installed after a `@version` bump. **Never put a secret in a userscript** — `source` is
+    per script off the index page — and **no script has an update channel, public or private.**
+    `checks.<system>.userscripts` in `flake.nix` bans `@downloadURL`/`@updateURL`/`@installURL`
+    outright, so **every** change is a `@version` bump plus that same click-through; Violentmonkey
+    then falls back to `lastInstallURL`, which is exactly the `file://` path Nix wrote. The keys
+    are banned because Greasy Fork strips them on upload anyway, and pointed at this repo they
+    would let a push to `main` mutate an installed script with no activation.
+    **Never put a secret in a userscript** — `source` is
     copied into the world-readable store, private flake or not.
   - **`hideBookmarkBar`** — one of two *policy* surfaces, and the place this repo writes
     Chromium's own preferences domain: HM `targets.darwin.defaults."org.chromium.Chromium"` sets
@@ -649,17 +653,41 @@ Private counterparts live in nix-personal's own `userscripts/` and merge into th
 ([`private-home-modules.md`](private-home-modules.md)); **keys must not collide across the two
 repos.**
 
-- **`google-photos-icon-nav.user.js`** — collapses `photos.google.com`'s 256px left drawer to an
-  80px icon rail and hands the reclaimed width to the photo grid. Pure CSS in effect, but a
-  *userscript* rather than a userstyle for two reasons that are properties of the page, not
-  preferences: every class in that nav is JSCompiler-generated (`RSjvib`, `JBVD2d`, …) so the
-  only durable handles are ARIA roles + structure (`[role="navigation"] a[role="tab"]`, the
-  label wrapper as `a > div > div:not(:has(svg))`, the pane as `div:has(> [role="main"])`), and
-  the grid is JS-virtualised — tile geometry *and* thumbnail request sizes derive from the
-  measured pane width, so the CSS has to be followed by a synthetic `resize` event (coalesced
-  in one `rAF`, re-fired on `pushState`/`replaceState`/`popstate` since Photos is an SPA). Only
-  the pane **wrapper** may be shifted: it is the `position:absolute` containing block for
-  `[role="main"]`, which sits at `left:0` inside it, so moving both would double the offset.
+**Authoring path — skill [`userscript-author`](../.claude/skills/userscript-author/SKILL.md),
+driven by `/userscript`; never freehand.** It **measures the live page** with claude-in-chrome
+before it writes a selector, then routes on the diff between the state the site already gives you
+and the state you want:
+
+| Diff verdict | What it means | What to write |
+|---|---|---|
+| **DOM-DIFFERS** | a selector/attribute *can* force it | set the attribute or class the site itself sets |
+| **DOM-IDENTICAL** | the switch is a **pure CSS media query** — no selector can force it | lift that condition's rules and re-serve them in a **band** |
+| **STATE-B-UNREACHABLE** | the state does not exist; you are constructing UI | every invented selector carries its own measured line in the file's WHY block |
+
+The metadata block is **seeded from an already-gated script**, never hand-typed, so the contract
+lives in exactly one place `checks.<system>.userscripts` proves on every PR. Escalation is
+mechanical, not a judgment call: at a **4th script**, the first TS/JSX need, or `GM_*` plus a
+settings UI, the skill **stops** and proposes adopting `vite-plugin-monkey` as its own PR — this
+tree never grows a bundler of its own, and never commits minified output.
+
+- **`google-photos-icon-nav.user.js`** — makes `photos.google.com` render **its own**
+  narrow-viewport icon rail at every window width, handing the reclaimed width to the photo grid.
+  **The measurement is the design:** the DOM is *identical* either side of the responsive
+  breakpoint — same tags, same classes, same attributes — so the switch is a **pure CSS media
+  query** and there is nothing a selector can force. So the script lifts Google's own `@media`
+  blocks out of their wrapper and replays them unconditionally, selected by `conditionText`
+  within an **800–1200px band** (never a hardcoded pixel; all blocks sharing a width are
+  accumulated, widest wins) and re-applied from a `document.head` **`childList`** MutationObserver
+  — not from history hooks, and never with `subtree`, which over this ~1.8 MB DOM would fire
+  thousands of times a scroll. Consequence: the file contains **not one Google class name**, so
+  the JSCompiler churn (`RSjvib`, `JBVD2d`, …) that breaks every hand-written Photos userscript
+  cannot break it; an unreadable cross-origin sheet degrades it to a **no-op**, which is the
+  correct failure — the page renders stock, nothing is mangled. Two page properties still shape
+  it: the grid is **JS-virtualised** — tile geometry *and* thumbnail request sizes derive from the
+  measured pane width — so the CSS must be followed by a synthetic `resize`, coalesced in one
+  `rAF`; and only the pane **wrapper** may ever be shifted, because it is the `position:absolute`
+  containing block for the main pane, which sits at `left:0` inside it, so moving both would
+  double the offset.
 
 ## `infra/` — terranix (Nix → OpenTofu/Terraform JSON)
 
@@ -745,6 +773,7 @@ MCP servers have their own doc: [`mcp-gateway.md`](mcp-gateway.md).
 | `/gmail-account` | add/authenticate/remove a Gmail MCP multi-account, see [`gmail-mcp-multi-account-runbook.md`](gmail-mcp-multi-account-runbook.md) |
 | `/routing-review` | triage Claude Code's own OTel tool-decision log for deterministic-routing hardening candidates, see [`claude-code-observability-runbook.md`](claude-code-observability-runbook.md) |
 | `/mcp-scout` | discover → vet → DECLARATIVELY adopt an MCP server into the gateway via skill `mcp-scout`; imperative installer CLIs / config-writing install tools are never used |
+| `/userscript` | measure → replay → declare → gate a Violentmonkey userscript via skill `userscript-author`; **no selector ships that was not dumped from the live page**, and `@require`/`@resource` CDN deps are never used |
 | `/fleet-doctor` | fleet-wide consistency sweep (branches/worktrees/PRs/CI/cross-repo pins/GC/host re-activation) across every repo in `.claude/skills/fleet-doctor/fleet-repos.txt`, via skill `fleet-doctor`; composes `nix-hygiene`, `git-purity.md`, `pr-title.md` |
 
 ### `.claude/rules/` — always applied
@@ -795,7 +824,9 @@ Decoder for what these hooks print: [`claude-hook-messages.md`](claude-hook-mess
 
 Active only when working in this repo: `nix-hygiene`, `nixpi-firmware-provision`, `macvm-tart`,
 `vast-instance-log-tail`, `jsonresume-tailor`, `wireguard-vpn`, `gmail-mcp-accounts`,
-`mcp-scout`, `fleet-doctor` (its own `fleet-repos.txt` manifest lists every repo in scope — add
+`mcp-scout`, `userscript-author` (its `probes.md` + `patterns.md` flat siblings are the
+measurement instruments and the pre-vetted reuse ladder — see § `userscripts/`),
+`fleet-doctor` (its own `fleet-repos.txt` manifest lists every repo in scope — add
 a line there when a new flake is extracted from this repo, nothing else needs to change).
 `skills-lock.json` (the `npx skills` CLI lockfile) pins any CLI-vendored ones (currently none —
 prefer the flake path below).
