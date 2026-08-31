@@ -197,6 +197,53 @@ nix flake check
 - A **click-through in `index.html` is required for a new script and after every edit** — Claude
   cannot install a script, flip a toggle, or drive Violentmonkey's dialog. Fallback if the
   `file://` install is refused: paste the file into Violentmonkey's editor.
+- That per-edit click-through is the **untracked** default. § Live-edit loop removes it for the
+  duration of an authoring session.
+
+## Live-edit loop (Violentmonkey tracks the repo file)
+
+For an **iterative** session — many saves against one page — Violentmonkey's *Track external
+edits* turns each `Cmd-S` into an auto-reinstall plus a tab reload, so step H's re-measure is
+one save away instead of one click-through away.
+Upstream: <https://violentmonkey.github.io/posts/how-to-edit-scripts-with-your-favorite-editor/>
+
+**Track the repo file, never the materialised one** (measured 2026-08-31):
+
+| Path | Mode | Track it? |
+|---|---|---|
+| `userscripts/<kebab>.user.js` (repo) | `-rw-r--r--` | **YES** — the only writable copy |
+| `$XDG_DATA_HOME/userscripts/<kebab>.user.js` | symlink → `/nix/store/…` | **no** — read-only build artifact |
+| `$XDG_DATA_HOME/userscripts/index.html` | symlink → `/nix/store/…` | **no** — that is the *install* path, and it installs the read-only copy |
+
+**Setup** — drag-and-drop, which needs **no** "Allow access to file URLs":
+
+1. Open Violentmonkey's **Dashboard**.
+2. **Drag** `userscripts/<kebab>.user.js` onto that page.
+3. In the installer: **Track external edits**, then tick **Reload tab**.
+
+`FileSystemObserver` (instant, no polling) requires **Chrome/Chromium 133+**; this host measured
+**152.0.7977.64** on 2026-08-31. On an older build the same drag still works, just polled.
+
+**Gotchas, in the order they bite:**
+
+1. **Stop tracking before switching git branches.** A checkout rewrites the file underneath
+   Violentmonkey, which installs whatever the other branch held. Branch churn in this repo is
+   routine, so this is the common failure — not a hypothetical.
+2. **The gate cannot see an unstaged edit.** `checks.<system>.userscripts` globs
+   `${self}/userscripts/*.user.js` — the **git tree**. Finish with step G (`git add -A` first),
+   not with a green browser.
+3. **The materialised copy is stale for the whole session.** Expected. Reconcile at the end:
+   step G, then `activate`.
+4. **Stop tracking when done**, or the next `activate` / branch switch fights it.
+5. **`@version` still gets bumped for the committed state** (§ Editing an existing script).
+   Whether a *tracked* save needs a bump to take effect is **unverified** — if a save appears to
+   do nothing, bump and re-save before suspecting the code.
+
+Alternative if the drag is awkward — a localhost server, polled rather than observed:
+
+```bash
+cd userscripts && python3 -m http.server 8080   # then open http://localhost:8080/<kebab>.user.js
+```
 
 ## Anti-patterns
 
