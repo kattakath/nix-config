@@ -53,9 +53,24 @@ _:
     # file's ownership split, so macvm gets the tap too but not the cask (its
     # casks list is its own); a tap with nothing installed from it is inert.
     #
+    # A THIRD requirement, and the one that actually broke first: Homebrew 6.0.0
+    # turned on HOMEBREW_REQUIRE_TAP_TRUST by default, so brew REFUSES TO LOAD a
+    # non-official tap's casks until that tap is trusted — activation dies with
+    # "Refusing to load cask … from untrusted tap". A bare-string tap entry is
+    # therefore not enough on its own: you get a tap that clones and a cask that
+    # is never read. `trusted = true` is nix-darwin's own answer (it writes
+    # `trusted: true` onto the Brewfile's `tap` line), so ANY non-official tap
+    # added here needs it — do not hand-roll a `brew trust` activation step, and
+    # note that the *cask* line's own `trusted:` does NOT cover the tap.
+    #
     # nats-server is homebrew-core, so no tap is needed. (runpodctl comes from
     # nixpkgs via home.nix, not a tap.)
-    taps = [ "viarotel-org/escrcpy" ];
+    taps = [
+      {
+        name = "viarotel-org/escrcpy";
+        trusted = true;
+      }
+    ];
 
     # ---- brews / casks / masApps ------------------------------------------
     # Set per host in hosts/<host>.nix (e.g. hosts/macos.nix, hosts/macvm.nix).
