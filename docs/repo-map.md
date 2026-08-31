@@ -369,29 +369,28 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
       `XSLTEnabled`) with nothing fullscreen-toolbar-shaped in it. The only remaining lever is
       the profile's `Preferences` JSON, browser-owned mutable state Nix must not seed (same
       class as `extensions.pinned_extensions`), so it stays a one-time manual click.
-  - **`defaultSearchProvider`** — the second policy surface, and a *functional* one rather than
-    cosmetic: ungoogled ships **no working prepopulated engine**, because
+  - **No default-SEARCH-ENGINE option — tried, shipped, and removed 2026-08-31.** Worth keeping
+    the negative result: ungoogled ships **no working prepopulated engine**, because
     `replace-google-search-engine-with-nosearch.patch` rewrites Google's row of
-    `prepopulated_engines.json` into a "No Search" stub pointing at `http://{searchTerms}`. A
-    fresh profile's picker therefore reads *No Search (Default)* and **the omnibox cannot search
-    at all** until something seeds an engine. This option seeds one — `duckduckgo` (default) or
-    `kagi`, both lifted verbatim from this cask's own compiled prepopulated table, so a
-    policy-seeded engine is indistinguishable from one the browser would have offered itself.
-    Adding an engine is one row in the module's `searchProviders` attrset; switching is one word.
-    - **`DefaultSearchProviderEnabled` is the main switch, not a nicety.**
-      `default_search_policy_handler.cc` returns early unless it is present **at the same policy
-      level** as the rest, so omitting it — or splitting the set across levels — makes the whole
-      block a silent no-op. `DefaultSearchProviderIconURL` is deliberately unset (deprecated and
-      inert since Chromium 122).
-    - **Recommended, so the picker stays live** — no padlock in Settings ▸ Search engine, and
-      choosing a different engine there wins permanently. `TemplateURLService::CanMakeDefault`
-      admits `FROM_POLICY_RECOMMENDED` and `is_default_search_managed()` deliberately excludes
-      it; the mandatory level would grey the picker out.
-    - **The two "add an engine without making it default" policies are dead ends**:
-      `SiteSearchSettings` and `EnterpriseSearchAggregatorSettings` are both mandatory-only, and
-      the engines they create can never be promoted to default
-      (`CreatedByNonDefaultSearchProviderPolicy`). The recommended `DefaultSearchProvider*` set
-      is the only route that seeds an engine while leaving the operator in charge of it.
+    `prepopulated_engines.json` into a "No Search" stub, so a fresh profile's picker reads *No
+    Search (Default)*. A `defaultSearchProvider` option seeding the `DefaultSearchProvider*` set
+    looked like the fix and **evaluated, activated, and verified green from Nix's side** — the
+    plist was written and `chrome://policy` showed every key arriving with Source `Platform`,
+    Level `Recommended`. The browser then **refused it**: `DefaultSearchProviderEnabled` reported
+    *"This policy is blocked, its value will be ignored"* and the other four cascaded to `Error`
+    behind the dead main switch, while `BookmarkBarEnabled` in the same table read `OK`.
+    - **Lesson, and the reason this paragraph exists:** upstream `can_be_recommended: true` is a
+      *hint*, not a guarantee — the set carries it and is still mandatory-only in practice.
+      **`chrome://policy` is the only real test of a policy's tier**, and a policy can arrive
+      correctly and still be ignored. Mandatory would need an MDM-installed
+      `/Library/Managed Preferences` plist and would **padlock** Settings ▸ Search engine, which
+      is worse than a click. Do not re-attempt.
+    - **Manual instead, once per profile:** DuckDuckGo is prepopulated → ⋮ ▸ *Make default*.
+      Google is not (its row is stripped) → Settings ▸ Search engine ▸ Site search ▸ **Add**,
+      name `Google`, shortcut `google.com`, URL `https://www.google.com/search?q=%s`.
+    - **Adding an engine hits the same wall**: `SiteSearchSettings` and
+      `EnterpriseSearchAggregatorSettings` are mandatory-only too, and engines they create can
+      never be promoted to default (`CreatedByNonDefaultSearchProviderPolicy`).
   - **`makeDefaultBrowser`** — the one surface that is neither a user-data-dir file nor a policy:
     it claims LaunchServices' `http`/`https` handler for Chromium with nixpkgs'
     **`defaultbrowser`** (darwin-only, substitutable from cache), run from a Home Manager

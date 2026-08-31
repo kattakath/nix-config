@@ -148,7 +148,6 @@
       # adb/fastboot — the bridge mobile-mcp drives to automate a physical phone.
       "android-platform-tools"
       "blackhole-2ch"
-      "brave-browser"
       "bruno"
       # Claude Desktop — the chat GUI (distinct from the claude-code CLI, nixpkgs).
       "claude"
