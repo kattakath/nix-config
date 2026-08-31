@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LeoList — listings only
 // @namespace    kattakath.com
-// @version      1.7.0
+// @version      1.14.0
 // @description  Listings-only LeoList: keep #view-cont > div.col-left, drop sponsored chrome, filmstrip extra photos beside the hero from the lightbox a.href (w:1024), clamp the ad description. Parsed extras persist in localStorage with no hit TTL.
 // @author       Ismail Kattakath
 // @license      MIT
@@ -40,6 +40,19 @@
 // v1.7.0: successful rows do not expire. imx filenames are content-hashed
 // UUIDs; a URL is that blob forever. Ads can still swap in new hashes —
 // we only refetch HTML when the listing is unknown or LRU-evicted (cap).
+// v1.8.0: drop 160px height locks (auto). .lst-item is 256px.
+// v1.9.0: every .lst-item img is width/height auto (site CSS still pins some).
+// v1.10.0: height 256px lives on img, not .lst-item. width auto. Card is
+// height auto so title/desc still fit. Drop 3/4 crop so w:1024/h:0 aspect holds.
+// v1.11.0: stack 304 img.src under 1024 a.href in one 256px slot (LQIP).
+// Store {lo,hi}; prefix v3. 304 paints first; 1024 fades on load. Same box
+// (object-fit cover) so the square thumb sets width — no blank rail.
+// v1.12.0: constructed dark surface. Dump body was class "light"; no .dark
+// rules in the sheets we fetched, so we don't replay a site theme.
+// v1.13.0: Catppuccin Mocha palette (crust/base/text/subtext0/surface0/blue).
+// Hex only — no @require. Photos unchanged.
+// v1.14.0: match Catppuccin style-guide + sample.png — page=base, cards=surface0,
+// labels=subtext1, links=blue. Headline is a link so blue, not text.
 //
 // Selectors (listing + detail dumps, 2026-08-31):
 //   #view-cont > div.col-left             KEEP island
@@ -52,10 +65,11 @@
 //   a.lst-item__link.mainlist-item
 //   [data-testid="ad-item"]
 //   #preview-description
-//   .account-photos__item a[href]         lightbox URL (w:1024/h:0)
+//   .account-photos__item a[href]         lightbox URL (w:1024/h:0) = hi
+//   .account-photos__item img[src]        304 thumb = lo
 //
 // Invented (constructed UI):
-//   .nix-leolist-photos / -more / -desc
+//   .nix-leolist-photos / -shot / -shot-lo / -shot-hi / -shot-in / -more / -desc
 (() => {
   'use strict';
 
@@ -66,8 +80,8 @@
   const IMX = 'https://imx.leolist.cc/';
   const CONCURRENCY = 3;
   const MAX_EXTRAS = 6;
-  const STORE_PREFIX = 'nix-leolist.v2:';
-  const STORE_LEGACY = 'nix-leolist.v1:';
+  const STORE_PREFIX = 'nix-leolist.v3:';
+  const STORE_LEGACY = ['nix-leolist.v1:', 'nix-leolist.v2:'];
   const NEG_TTL_MS = 15 * 60 * 1000;
   const MAX_STORE = 400;
 
@@ -83,13 +97,23 @@
     'html[data-nix-leolist-listings-only] #view-cont > div.col-left {\n  float: none;\n  width: 100%;\n  padding-right: 0;\n}\n' +
     'html[data-nix-leolist-listings-only] .col-left .group {\n  float: none;\n  width: 100%;\n  margin: 0 0 10px;\n}\n' +
     'html[data-nix-leolist-listings-only] .lst-item.lst-item {\n  height: auto;\n  overflow: visible;\n}\n' +
-    'html[data-nix-leolist-listings-only] .lst-item__img {\n  display: flex;\n  flex-direction: row;\n  align-items: stretch;\n  height: 160px;\n  width: auto;\n  max-width: 100%;\n  overflow: hidden;\n  gap: 2px;\n}\n' +
-    'html[data-nix-leolist-listings-only] .lst-item__img__thumbnail--main {\n  height: 160px;\n  width: auto;\n  aspect-ratio: 3 / 4;\n  object-fit: cover;\n  object-position: top center;\n  flex: 0 0 auto;\n}\n' +
-    'html[data-nix-leolist-listings-only] .nix-leolist-photos {\n  display: flex;\n  flex-wrap: nowrap;\n  gap: 2px;\n  height: 160px;\n  min-width: 0;\n  flex: 1 1 auto;\n  overflow-x: auto;\n  overflow-y: hidden;\n}\n' +
-    'html[data-nix-leolist-listings-only] .nix-leolist-photos img {\n  height: 160px;\n  width: auto;\n  aspect-ratio: 3 / 4;\n  object-fit: cover;\n  object-position: top center;\n  flex: 0 0 auto;\n}\n' +
-    'html[data-nix-leolist-listings-only] .nix-leolist-more {\n  flex: 0 0 auto;\n  height: 160px;\n  min-width: 48px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  font-size: 14px;\n  font-weight: 650;\n}\n' +
+    'html[data-nix-leolist-listings-only] .lst-item img {\n  width: auto;\n  height: 256px;\n  object-fit: contain;\n  object-position: top center;\n  flex: 0 0 auto;\n}\n' +
+    'html[data-nix-leolist-listings-only] .lst-item__img {\n  display: flex;\n  flex-direction: row;\n  align-items: stretch;\n  height: auto;\n  width: auto;\n  max-width: 100%;\n  overflow: hidden;\n  gap: 2px;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-photos {\n  display: flex;\n  flex-wrap: nowrap;\n  gap: 2px;\n  height: auto;\n  min-width: 0;\n  flex: 1 1 auto;\n  overflow-x: auto;\n  overflow-y: hidden;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-shot {\n  position: relative;\n  display: block;\n  height: 256px;\n  flex: 0 0 auto;\n  overflow: hidden;\n}\n' +
+    'html[data-nix-leolist-listings-only] .lst-item .nix-leolist-shot-lo {\n  display: block;\n  height: 256px;\n  width: auto;\n}\n' +
+    'html[data-nix-leolist-listings-only] .lst-item .nix-leolist-shot-hi {\n  position: absolute;\n  left: 0;\n  top: 0;\n  width: 100%;\n  height: 100%;\n  object-fit: cover;\n  object-position: top center;\n  opacity: 0;\n}\n' +
+    'html[data-nix-leolist-listings-only] .lst-item .nix-leolist-shot-hi.nix-leolist-shot-in {\n  opacity: 1;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-more {\n  flex: 0 0 auto;\n  height: 256px;\n  min-width: 48px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  font-size: 14px;\n  font-weight: 650;\n}\n' +
     'html[data-nix-leolist-listings-only] .lst-item__info {\n  white-space: normal;\n  height: auto;\n  overflow: hidden;\n}\n' +
-    'html[data-nix-leolist-listings-only] .nix-leolist-desc {\n  margin: 8px 0 0;\n  display: -webkit-box;\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 3;\n  overflow: hidden;\n}\n';
+    'html[data-nix-leolist-listings-only] .nix-leolist-desc {\n  margin: 8px 0 0;\n  display: -webkit-box;\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 3;\n  overflow: hidden;\n}\n' +
+    'html[data-nix-leolist-listings-only] {\n  color-scheme: dark;\n}\n' +
+    'html[data-nix-leolist-listings-only] body,\nhtml[data-nix-leolist-listings-only] .wrap,\nhtml[data-nix-leolist-listings-only] .main-list,\nhtml[data-nix-leolist-listings-only] .main-list-container,\nhtml[data-nix-leolist-listings-only] #view-cont,\nhtml[data-nix-leolist-listings-only] .col-left,\nhtml[data-nix-leolist-listings-only] #main_list {\n  background: #1e1e2e;\n  color: #cdd6f4;\n}\n' +
+    'html[data-nix-leolist-listings-only] .lst-item.lst-item {\n  background: #313244;\n  border-color: #45475a;\n  color: #cdd6f4;\n}\n' +
+    'html[data-nix-leolist-listings-only] .lst-item a,\nhtml[data-nix-leolist-listings-only] .lst-item__title {\n  color: #89b4fa;\n}\n' +
+    'html[data-nix-leolist-listings-only] .lst-item a:hover {\n  color: #89dceb;\n}\n' +
+    'html[data-nix-leolist-listings-only] .lst-item__info,\nhtml[data-nix-leolist-listings-only] .nix-leolist-desc {\n  color: #bac2de;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-more {\n  color: #a6adc8;\n  background: #45475a;\n}\n';
 
   const sheet = new CSSStyleSheet();
   sheet.replaceSync(CSS);
@@ -98,6 +122,13 @@
   const unlockScroll = () => {
     const body = document.body;
     if (body && body.classList.contains('modal-open')) body.classList.remove('modal-open');
+  };
+
+  const paintDark = () => {
+    const body = document.body;
+    if (!body) return;
+    body.classList.remove('light');
+    body.classList.add('dark');
   };
 
   const applyIsland = () => {
@@ -129,6 +160,7 @@
         queued = false;
         applyIsland();
         unlockScroll();
+        paintDark();
       });
     };
     let node = keep;
@@ -165,7 +197,14 @@
     for (let i = 0; i < localStorage.length; i += 1) {
       const k = localStorage.key(i);
       if (!k) continue;
-      if (k.indexOf(STORE_LEGACY) === 0) legacy.push(k);
+      let isLegacy = false;
+      for (let j = 0; j < STORE_LEGACY.length; j += 1) {
+        if (k.indexOf(STORE_LEGACY[j]) === 0) {
+          isLegacy = true;
+          break;
+        }
+      }
+      if (isLegacy) legacy.push(k);
       else if (k.indexOf(STORE_PREFIX) === 0) keys.push(k);
     }
     for (const k of legacy) localStorage.removeItem(k);
@@ -241,12 +280,15 @@
     const photos = [];
     const seen = new Set();
     for (const a of doc.querySelectorAll('.account-photos__item a[href]')) {
-      const href = a.getAttribute('href') || '';
-      if (href.indexOf(IMX) !== 0) continue;
-      const key = imxPayload(href);
+      const hi = a.getAttribute('href') || '';
+      if (hi.indexOf(IMX) !== 0) continue;
+      const key = imxPayload(hi);
       if (seen.has(key)) continue;
       seen.add(key);
-      photos.push(href);
+      const img = a.querySelector('img');
+      const loRaw = img ? img.getAttribute('src') || '' : '';
+      const lo = loRaw.indexOf(IMX) === 0 ? loRaw : '';
+      photos.push({ lo, hi });
     }
     return { desc, photos };
   };
@@ -288,20 +330,42 @@
     const heroKey = heroSrc ? imxPayload(heroSrc) : '';
     const extras = [];
     for (const src of data.photos) {
-      if (heroKey && imxPayload(src) === heroKey) continue;
-      extras.push(src);
+      const hi = typeof src === 'string' ? src : src.hi;
+      const lo = typeof src === 'string' ? '' : src.lo || '';
+      if (!hi) continue;
+      if (heroKey && imxPayload(hi) === heroKey) continue;
+      extras.push({ lo, hi });
     }
 
     if (imgBox && extras.length) {
       const row = document.createElement('div');
       row.className = 'nix-leolist-photos';
       const shown = extras.slice(0, MAX_EXTRAS);
-      for (const src of shown) {
-        const img = document.createElement('img');
-        img.src = src;
-        img.alt = '';
-        img.loading = 'lazy';
-        row.appendChild(img);
+      for (const shot of shown) {
+        const wrap = document.createElement('span');
+        wrap.className = 'nix-leolist-shot';
+        if (shot.lo) {
+          const loImg = document.createElement('img');
+          loImg.className = 'nix-leolist-shot-lo';
+          loImg.src = shot.lo;
+          loImg.alt = '';
+          loImg.loading = 'lazy';
+          wrap.appendChild(loImg);
+        }
+        const hiImg = document.createElement('img');
+        hiImg.src = shot.hi;
+        hiImg.alt = '';
+        hiImg.loading = 'lazy';
+        if (shot.lo) {
+          hiImg.className = 'nix-leolist-shot-hi';
+          const reveal = () => {
+            hiImg.classList.add('nix-leolist-shot-in');
+          };
+          hiImg.addEventListener('load', reveal, { once: true });
+          if (hiImg.complete && hiImg.naturalWidth) reveal();
+        }
+        wrap.appendChild(hiImg);
+        row.appendChild(wrap);
       }
       if (extras.length > MAX_EXTRAS) {
         const more = document.createElement('span');
@@ -406,6 +470,7 @@
       document.documentElement.dataset.nixLeolistListingsOnly = '';
     }
     unlockScroll();
+    paintDark();
     watchIsland();
     watchList();
     return true;
