@@ -303,8 +303,8 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
   the Homebrew `ungoogled-chromium` cask. Installs **no** browser (`programs.chromium.package =
   null`) — nixpkgs' `chromium`/`ungoogled-chromium` are `*-linux` only, so the `.app` must be a
   cask; this module contributes only the files Chromium reads out of its user-data dir, via
-  upstream HM `programs.chromium` (no custom shell), plus one recommended-level policy.
-  Three surfaces, five sideloaded extensions:
+  upstream HM `programs.chromium` (no custom shell), plus two recommended-level policies and
+  the LaunchServices default-browser claim. Five surfaces, five sideloaded extensions:
   - **`External Extensions/<id>.json`** — pinned `fetchurl` CRXes installed as
     `external_crx` + `external_version`. The Web Store `external_update_url` is **dead** here
     (ungoogled's `disable-webstore-urls.patch`), so a local CRX is the only path; the official
@@ -353,7 +353,7 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
     this repo and then self-update with no activation; a private one has none and is
     re-installed after a `@version` bump. **Never put a secret in a userscript** — `source` is
     copied into the world-readable store, private flake or not.
-  - **`hideBookmarkBar`** — the one *policy* surface, and the one place this repo writes
+  - **`hideBookmarkBar`** — one of two *policy* surfaces, and the place this repo writes
     Chromium's own preferences domain: HM `targets.darwin.defaults."org.chromium.Chromium"` sets
     `BookmarkBarEnabled = false`, so **View ▸ Always Show Bookmarks Bar** starts OFF (it seeds
     the `bookmark_bar.show_on_all_tabs` pref). macOS has **no** policies-JSON directory — that is
@@ -369,6 +369,69 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
       `XSLTEnabled`) with nothing fullscreen-toolbar-shaped in it. The only remaining lever is
       the profile's `Preferences` JSON, browser-owned mutable state Nix must not seed (same
       class as `extensions.pinned_extensions`), so it stays a one-time manual click.
+  - **`defaultSearchProvider`** — the second policy surface, and a *functional* one rather than
+    cosmetic: ungoogled ships **no working prepopulated engine**, because
+    `replace-google-search-engine-with-nosearch.patch` rewrites Google's row of
+    `prepopulated_engines.json` into a "No Search" stub pointing at `http://{searchTerms}`. A
+    fresh profile's picker therefore reads *No Search (Default)* and **the omnibox cannot search
+    at all** until something seeds an engine. This option seeds one — `duckduckgo` (default) or
+    `kagi`, both lifted verbatim from this cask's own compiled prepopulated table, so a
+    policy-seeded engine is indistinguishable from one the browser would have offered itself.
+    Adding an engine is one row in the module's `searchProviders` attrset; switching is one word.
+    - **`DefaultSearchProviderEnabled` is the main switch, not a nicety.**
+      `default_search_policy_handler.cc` returns early unless it is present **at the same policy
+      level** as the rest, so omitting it — or splitting the set across levels — makes the whole
+      block a silent no-op. `DefaultSearchProviderIconURL` is deliberately unset (deprecated and
+      inert since Chromium 122).
+    - **Recommended, so the picker stays live** — no padlock in Settings ▸ Search engine, and
+      choosing a different engine there wins permanently. `TemplateURLService::CanMakeDefault`
+      admits `FROM_POLICY_RECOMMENDED` and `is_default_search_managed()` deliberately excludes
+      it; the mandatory level would grey the picker out.
+    - **The two "add an engine without making it default" policies are dead ends**:
+      `SiteSearchSettings` and `EnterpriseSearchAggregatorSettings` are both mandatory-only, and
+      the engines they create can never be promoted to default
+      (`CreatedByNonDefaultSearchProviderPolicy`). The recommended `DefaultSearchProvider*` set
+      is the only route that seeds an engine while leaving the operator in charge of it.
+  - **`makeDefaultBrowser`** — the one surface that is neither a user-data-dir file nor a policy:
+    it claims LaunchServices' `http`/`https` handler for Chromium with nixpkgs'
+    **`defaultbrowser`** (darwin-only, substitutable from cache), run from a Home Manager
+    activation step. The argument is the **short name `chromium`**, not the bundle id —
+    `org.chromium.Chromium` is rejected as "not available as an HTTP handler". The `defaultbrowser`
+    CLI also lands on PATH as this setting's read-only doctor: **no arguments** prints the handler
+    list with the current default starred.
+    - **Idempotent by the tool's own guard**, not ours: it reads the current handler first and
+      early-returns with "chromium is already set as the default HTTP handler", never touching
+      LaunchServices. A settled Mac is a true no-op.
+    - **One consent dialog, once**, on the activation that actually changes the handler (a fresh
+      or reset Mac) — unavoidable, and the reason the idempotence above matters. `defaultbrowser`
+      calls Launch Services' `LSSetDefaultHandlerForURLScheme`, whose SDK-declared replacement
+      `-[NSWorkspace setDefaultApplicationAtURL:toOpenURLsWithScheme:completionHandler:]` is
+      documented in the macOS 26 `AppKit/NSWorkspace.h` as: *"Some URL schemes require user
+      consent before you can change their handlers. If a change requires user consent, the system
+      will ask the user asynchronously"*. The browser schemes are exactly those, for every tool
+      and every API. The legacy call is still safe to use — that same SDK declares it
+      `API_TO_BE_DEPRECATED`, i.e. soft-deprecated with **no** removal version.
+    - **`duti` passed over**: it takes bundle ids but has no idempotence guard, so it would
+      re-ask on every activation. The step also tolerates its own failure, because the `.app` is
+      a Homebrew cask and nothing orders brew's activation before Home Manager's — a first-ever
+      rebuild warns and retries next time rather than failing over which browser opens a link.
+  - **No policy can tidy the NEW-TAB PAGE** — a settled dead end, not an omission. **Every** NTP
+    policy Chromium defines is **mandatory-only**: `NewTabPageLocation`, `NTPCardsVisible`,
+    `NTPCustomBackgroundEnabled`, `NTPMiddleSlotAnnouncementVisible`, `NTPOutlookCardVisible`,
+    `NTPSharepointCardVisible`, `NTPContentSuggestionsEnabled` and both `NTPFooter*` all **omit**
+    `can_be_recommended` in their upstream `policy_definitions/**.yaml`, which defaults it to
+    false. Absence is the answer, not a metadata gap — the flag is written explicitly when true,
+    and both policies this repo *does* ship (`BookmarkBarEnabled`,
+    `DefaultSearchProviderSearchURL`) carry `can_be_recommended: true`. `NewTabPageLocation`'s own
+    `desc` says it outright: "configures the default New Tab page URL **and prevents users from
+    changing it**". A padlocked new-tab page is worse than a click, so it stays unset. Nor is
+    there any policy that hides just the **shortcut tiles**: the one shortcut-shaped policy,
+    `NTPShortcuts`, goes the wrong way (it *pre-configures up to 10 organization shortcuts in
+    addition to* the user's own) and is mandatory-only too. Hiding the tiles writes a
+    profile-JSON pref (`custom_links.*` / `home.module.most_visited.enabled`), browser-owned
+    mutable state Nix must not seed → one click in **Customize Chrome ▸ Shortcuts ▸ Hide
+    shortcuts**. ungoogled's `--custom-ntp` flag is not a route either: `chromium-flags.conf` is
+    Linux-only, so on macOS it needs `chrome://flags`.
   - **Three manual, one-time clicks Nix cannot do:** Chromium parks every *externally* installed
     extension disabled pending acknowledgement on macOS (enable once → `ack_external` sticks;
     `ExtensionInstallForcelist` can't help, it needs the patched-out Web Store), and Chrome 138+
