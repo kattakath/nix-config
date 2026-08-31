@@ -573,16 +573,22 @@ in
     # tool this repo prefers — and legacy `resume-cli`) render PDFs via puppeteer,
     # whose bundled Chromium auto-download is flaky (its chrome-headless-shell fetch
     # corrupts, failing the `npm i`). These two vars form one coherent policy —
-    # NEVER download puppeteer's own browser, ALWAYS use the installed google-chrome
-    # cask:
+    # NEVER download puppeteer's own browser, ALWAYS use the browser cask the host
+    # already declares:
     #   SKIP_DOWNLOAD    — any `npm i` that pulls puppeteer skips the browser fetch
     #                      (so `npm i -g resumed puppeteer` / a theme install never breaks).
-    #   EXECUTABLE_PATH  — puppeteer launches system Chrome at runtime instead.
-    # Harmless for other puppeteer tools (they get system Chrome too); Remotion is
+    #   EXECUTABLE_PATH  — puppeteer launches that system browser at runtime instead.
+    # Points at the `ungoogled-chromium` cask, NOT google-chrome: Chrome was dropped
+    # from every host, and rendering was the only thing it was still load-bearing for.
+    # Verified 2026-08-31 — puppeteer launched this binary (reports Chrome/152.0.7977.64)
+    # and `page.pdf()` returned a valid `%PDF-` document. That cask is macos-only
+    # (`isMacosHost` below), so on macvm this path does not exist and the var is inert
+    # until a browser is declared there; the JSON Resume npm globals live on macos.
+    # Harmless for other puppeteer tools (they get the same browser); Remotion is
     # unaffected — it resolves its own browser, not these vars. The resume THEME
     # still installs per-project (local node_modules), e.g. `npm i jsonresume-theme-macchiato`.
     PUPPETEER_SKIP_DOWNLOAD = "true";
-    PUPPETEER_EXECUTABLE_PATH = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+    PUPPETEER_EXECUTABLE_PATH = "/Applications/Chromium.app/Contents/MacOS/Chromium";
   };
 
   home.sessionPath = lib.optionals pkgs.stdenv.isDarwin [
