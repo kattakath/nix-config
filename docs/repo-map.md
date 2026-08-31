@@ -476,7 +476,12 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
 
 - **`core.nix`** — macOS system defaults (dock/finder/NSGlobalDomain, Touch ID for sudo,
   `stateVersion = 5`). On **macos only**: login openers (`nix-*` BTM wrappers) + hourly
-  Screengrab rotation (`~/Pictures/Screengrab`, shared R/W into macvm via Tart VirtioFS).
+  `~/Downloads` rotation into `~/.Trash` (`nix-file-rotation-downloads`; files **and**
+  directories, 30d staged retention → 7d steady state; paired with
+  `finder.FXRemoveOldTrashItems` so Trash self-purges). `~/Downloads` is the single staging
+  inbox — `screencapture.location` points at it, so ⇧⌘4 screenshots and ⇧⌘5 recordings land
+  there too — and it is shared R/W into macvm via Tart VirtioFS, where the guest symlinks its
+  own `~/Downloads` to it and must **never** rotate it (`mv` across filesystems = `cp` + `rm`).
 - **`homebrew.nix`** — the declarative Homebrew **framework**: owns only
   `enable`/`onActivation` with `cleanup = "uninstall"`/`taps`. The actual
   `brews`/`casks`/`masApps` lists live **per host** in `hosts/<host>.nix` so macos and macvm
