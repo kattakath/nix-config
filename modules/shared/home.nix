@@ -515,6 +515,16 @@ in
     ++ lib.optionals stdenv.isDarwin [
       androidEmu
       awscli2 # AWS CLI v2 — SSO login into the Infin8 accounts; profiles live in ~/.aws/config (uncommitted, has account IDs/SSO URL — not this public repo)
+      # buku — the bookmark manager of record (SQLite + CLI), chosen over rolling anything
+      # custom: `buku --ai` reads Chrome/Brave/Chromium/Firefox profiles DIRECTLY off disk
+      # (it does NOT need the browser installed), collapses duplicates on URL, and maps each
+      # browser folder to a tag. It then exports Netscape HTML, which is exactly what
+      # Chromium's importer eats — so it round-trips a cleanup without a single line of glue.
+      # Measured 2026-08-31 merging the dead Chrome + Brave profiles: 1372 raw → 765 unique.
+      # GOTCHA: `buku -i <file>.json` does NOT understand Chrome's own `Bookmarks` JSON (it
+      # wants buku/Firefox JSON) and silently imports 0 records — always use `--ai`.
+      # DB location is pinned by $BUKU_DEFAULT_DBDIR (home.sessionVariables below).
+      buku
       codecov-cli # Codecov CLI (`codecovcli`) — upload coverage reports / local upload from CI; reads the CODECOV_TOKEN env var (a Keychain secret, never in this repo)
       fnm # Fast Node Manager — per-project Node version switching honoring .nvmrc/.node-version; the `fnm env --use-on-cd` shell hook is wired into zsh/bash below. No `programs.fnm` HM module in this pinned home-manager, so it's a bare package + hand-wired init.
       jsonresume # `jsonresume download|print|validate|markdown|text` — fetch a JSON Resume (default URL from jsonResumeUrl, or --url) + render PDF via resumed (fallback resume-cli); md/text via resume-cli (packages/jsonresume.nix)
@@ -566,6 +576,13 @@ in
     # and error if it is unset — no hardcoded path scattered across the skills. Kept
     # $HOME-relative (username-portable); change the checkout location here, in ONE place.
     BRAG_DATA_DIR = "$HOME/Developer/local/brags";
+
+    # Where buku keeps `bookmarks.db`. Pinned because buku otherwise scatters it into a
+    # platform-guessed data dir, and this DB is the single surviving copy of the merged
+    # Chrome+Brave bookmark set — it must live somewhere backed up and obvious, next to
+    # the other $HOME/Developer/local data dirs. $HOME-relative for the same reason
+    # BRAG_DATA_DIR is (username-portable; never a literal /Users/<name>).
+    BUKU_DEFAULT_DBDIR = "$HOME/Developer/local/bookmarks";
     # BASH_ENV (the secret loader) + the loader file itself are now set by
     # programs.keychainSecrets (the keychain-secrets flake's HM module).
 
