@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LeoList — listings only
 // @namespace    kattakath.com
-// @version      1.17.0
+// @version      1.18.0
 // @description  Listings-only LeoList: keep #view-cont > div.col-left, drop sponsored chrome, filmstrip extra photos beside the hero from the lightbox a.href (w:1024), clamp the ad description. Parsed extras persist in localStorage with no hit TTL.
 // @author       Ismail Kattakath
 // @license      MIT
@@ -59,6 +59,7 @@
 // thumbs one by one, then 1024s one by one. Rows already come from page 1.
 // v1.17.0: never lose the page-1 rows. HTML fetches wait 2.5s apart. 403/429/503
 // pauses origin HTML for this tab (1h). Cache hits still paint extras.
+// v1.18.0: slower on purpose — 10s between ad HTML, 1s between images.
 //
 // Selectors (listing + detail dumps, 2026-08-31):
 //   #view-cont > div.col-left             KEEP island
@@ -90,7 +91,8 @@
   const STORE_LEGACY = ['nix-leolist.v1:', 'nix-leolist.v2:'];
   const NEG_TTL_MS = 15 * 60 * 1000;
   const MAX_STORE = 400;
-  const HTML_GAP_MS = 2500;
+  const HTML_GAP_MS = 10000;
+  const IMG_GAP_MS = 1000;
   const ORIGIN_PAUSE_MS = 60 * 60 * 1000;
   const PAUSE_KEY = 'nix-leolist.originPauseUntil';
 
@@ -353,18 +355,18 @@
     const parsed = parseDetail(await res.text());
     cache.set(href, parsed);
     writeStore(href, { t: Date.now(), d: parsed.desc, p: parsed.photos });
-    await new Promise((resolve) => {
-      setTimeout(resolve, HTML_GAP_MS);
-    });
+    await wait(HTML_GAP_MS);
     return parsed;
   };
 
-  const loadOne = (img, url) =>
+  const wait = (ms) =>
     new Promise((resolve) => {
-      if (!img || !url) {
-        resolve();
-        return;
-      }
+      setTimeout(resolve, ms);
+    });
+
+  const loadOne = async (img, url) => {
+    if (!img || !url) return;
+    await new Promise((resolve) => {
       let settled = false;
       const done = () => {
         if (settled) return;
@@ -376,6 +378,8 @@
       img.src = url;
       if (img.complete) done();
     });
+    await wait(IMG_GAP_MS);
+  };
 
   const renderExtra = async (card, data) => {
     if (card.querySelector('.nix-leolist-photos') || card.querySelector('.nix-leolist-desc')) return;
