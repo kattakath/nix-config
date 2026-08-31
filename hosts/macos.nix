@@ -165,6 +165,12 @@
       "gcloud-cli"
       "iina"
       "inkscape"
+      # IP in menu bar — public IP always visible in the menu bar. This is the
+      # visual VPN-state check macos otherwise lacks: WireGuard here is GUI-only
+      # (no `wg`, no `vpn` operator — see the wireguard-tools NB in brews), so
+      # there is no shell to ask "is the tunnel actually up?". Cask rather than
+      # the App Store's free Display My IP to keep this off masApps.
+      "ip-in-menu-bar"
       # LibreOffice — provides the `soffice` CLI the docx/pptx/xlsx/pdf Claude Code
       # skills (modules/shared/home.nix programs.claude-code.skills) already hardcode
       # as their document-conversion engine. Cask (not nixpkgs libreoffice-bin)
