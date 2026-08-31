@@ -720,7 +720,9 @@ tree never grows a bundler of its own, and never commits minified output.
   same-height filmstrip (not a wrap dump); `#preview-description` is 3-line clamped in
   `.lst-item__info`. Phone stays locked. Hidden tabs reconnect IO on `visibilitychange`.
   Parsed extras persist in `localStorage` (`nix-leolist.v1:<href>`, 6h TTL, 400-cap) so a
-  refresh does not re-fetch the same ad pages. Missing keep node → no-op.
+  refresh does not re-fetch the same ad pages. `#view-cont` and its `.container` parent
+  are forced to full width (the 960px well was `.main-list-container.container`, not
+  `#view-cont` itself). Missing keep node → no-op.
 
 ## `infra/` — terranix (Nix → OpenTofu/Terraform JSON)
 
