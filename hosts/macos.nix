@@ -159,10 +159,43 @@
       # that CLI still owns the adb pairing/connect footguns it exists to encode,
       # and its header's refusal to VENDOR a third-party pairing tool is unaffected
       # by installing one alongside. From the sole third-party tap — see the tap's
-      # comment in modules/darwin/homebrew.nix for the two accepted costs (a
-      # deprecation warning per activation, and a first launch that may need
-      # right-click ▸ Open because quarantine is left in place).
-      "escrcpy"
+      # comment in modules/darwin/homebrew.nix for the other accepted cost.
+      #
+      # postinstall is LOAD-BEARING — without it the app installs but cannot be
+      # opened at all. Upstream ships Escrcpy.app with no _CodeSignature, only the
+      # linker's adhoc signature (measured 2026-08-31: `Sealed Resources=none`,
+      # `Identifier=Electron`, `Info.plist=not bound`). Unsigned + quarantined is
+      # what macOS reports as "damaged and can't be opened", and that variant is
+      # NOT clearable by right-click ▸ Open — the flag must actually be gone. The
+      # cask's own postflight tries to strip it, but only interactively, which
+      # `brew bundle` can never satisfy (no stdin; a method-level rescue swallows
+      # the failure), so the flag survived every activation.
+      #
+      # Why postinstall and not `args.no_quarantine = true`: nix-darwin still
+      # offers that arg, but Homebrew 6.0.18 has REMOVED the flag — brew bundle
+      # turns it into `brew install --cask --no-quarantine`, which aborts with
+      # "Error: invalid option: --no-quarantine" and fails activation. Verified
+      # 2026-08-31 against this exact brew. Do not switch back to it.
+      #
+      # `xattr -dr` exits 0 when the attribute is already absent, so this is
+      # idempotent, and brew only fires postinstall on a real install/upgrade —
+      # not on every activation (bundle/cask.rb `preinstall!` returns false for an
+      # already-installed cask, and `install!` early-returns on that). No sudo:
+      # the .app is owned by the operator.
+      #
+      # NOTHING STATICALLY VALIDATES THIS KEY. Measured 2026-08-31: `brew bundle
+      # list` parses a Brewfile carrying a completely made-up cask key without any
+      # error, so a typo here is a SILENT no-op — the app installs, quarantine
+      # stays, and the only symptom is the "damaged" dialog again. Verify against
+      # brew's own source (bundle/cask.rb), never against a green bundle command.
+      #
+      # The tradeoff is deliberate: Gatekeeper never gets to evaluate this app, so
+      # the viarotel-org build is trusted directly. Scoped to this ONE cask — never
+      # generalise it to the whole casks list.
+      {
+        name = "escrcpy";
+        postinstall = "/usr/bin/xattr -dr com.apple.quarantine /Applications/Escrcpy.app";
+      }
       # Google Drive for desktop — the File Provider client (a mounted volume under
       # ~/Library/CloudStorage/, NOT a plain folder). It replaced `google-chrome`
       # here: Chrome's only load-bearing job on this host was rendering JSON Resume
