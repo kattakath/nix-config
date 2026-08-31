@@ -56,7 +56,7 @@ let
     set -euo pipefail
     VM_NAME="${vmName}"
     TART="${tartBin}"
-    SCREENGRAB="''${MACVM_HOST_SCREENGRAB:-$HOME/Pictures/Screengrab}"
+    DOWNLOADS="''${MACVM_HOST_DOWNLOADS:-$HOME/Downloads}"
     LOG_DIR="''${MACVM_TART_LOG_DIR:-$HOME/Library/Logs}"
     RUN_LOG="$LOG_DIR/macvm-tart-run.log"
 
@@ -94,9 +94,11 @@ let
     }
 
     dir_share_args() {
-      # Guest mount: /Volumes/My Shared Files/Screengrab (VirtioFS automount).
-      /bin/mkdir -p "$SCREENGRAB"
-      printf '%s' "--dir=Screengrab:$SCREENGRAB"
+      # Guest mount: /Volumes/My Shared Files/Downloads (VirtioFS automount).
+      # The guest symlinks its own ~/Downloads to it (hosts/macvm.nix), so both
+      # machines share ONE download/screencapture inbox, rotated only on the host.
+      /bin/mkdir -p "$DOWNLOADS"
+      printf '%s' "--dir=Downloads:$DOWNLOADS"
     }
   '';
 
@@ -150,8 +152,8 @@ let
         rc=1
       fi
 
-      echo "screengrab host path: $SCREENGRAB ($( [ -d "$SCREENGRAB" ] && echo present || echo MISSING ))"
-      echo "guest mount (when running with start): /Volumes/My Shared Files/Screengrab"
+      echo "downloads host path: $DOWNLOADS ($( [ -d "$DOWNLOADS" ] && echo present || echo MISSING ))"
+      echo "guest mount (when running with start): /Volumes/My Shared Files/Downloads"
       echo "guest persona: ismail (activate #macvm inside the VM)"
       echo "backend: Tart → Apple Virtualization.framework"
       exit "$rc"
@@ -237,7 +239,7 @@ let
         echo "ip=''${ip:-pending}"
         exit 0
       fi
-      /bin/mkdir -p "$LOG_DIR" "$SCREENGRAB"
+      /bin/mkdir -p "$LOG_DIR" "$DOWNLOADS"
       share=$(dir_share_args)
       info "starting $VM_NAME ($share) — log: $RUN_LOG"
       # tart run is long-lived (GUI); detach so the flake app can return.

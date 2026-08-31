@@ -2,7 +2,7 @@
 name: macvm-tart
 description: >
   Host-side Tart lifecycle and SSH for the macvm Apple Silicon guest (darwin sandbox, same operator identity as every other host)
-  Use when: starting/stopping macvm, SSH from the Mac into the guest, creating the Tart VM from IPSW, sharing Screengrab, or activating the guest nix-darwin config.
+  Use when: starting/stopping macvm, SSH from the Mac into the guest, creating the Tart VM from IPSW, sharing the host's ~/Downloads, or activating the guest nix-darwin config.
 ---
 
 # macvm Tart
@@ -24,7 +24,7 @@ Canonical detail: [`docs/macvm-tart-runbook.md`](../../../docs/macvm-tart-runboo
    (not bare `sudo darwin-rebuild` — sudo keeps `HOME=/Users/ismail` as root and
    home-manager skips the user profile). The app also moves unmanaged
    `/etc/nix/nix.custom.conf` aside for Determinate → nix-darwin handoff.
-3. Host: `nix run .#macvm-tart-start` (Screengrab VirtioFS), then SSH.
+3. Host: `nix run .#macvm-tart-start` (`~/Downloads` VirtioFS share), then SSH.
 4. Verify: `nix run .#macvm-tart-doctor`; guest has `~/.nix-profile` after HM.
 
 ## Day-to-day

@@ -11,8 +11,11 @@
 
 let
   home = config.users.users.${loginName}.home;
-  # Screenshots land here and are rotated hourly by the launchd agent below.
-  screengrabDir = "${home}/Pictures/Screengrab";
+  # THE single staging folder: browser downloads, AirDrop, ⇧⌘5 screenshots AND
+  # screen recordings all land here, and the launchd agent below rotates it
+  # hourly into ~/.Trash. Replaced the old ~/Pictures/Screengrab dir — one
+  # inbox, one rotation, and Downloads is where every app already defaults.
+  downloadsDir = "${home}/Downloads";
   # Reverse-DNS namespace derived from the fleet domain (kattakath.com → com.kattakath)
   # for the file-rotation launchd label, rather than hardcoding it.
   rdns = lib.concatStringsSep "." (lib.reverseList (lib.splitString "." domainName));
@@ -295,6 +298,11 @@ in
         FXDefaultSearchScope = "SCcf";
         # No nag dialog when changing a file's extension.
         FXEnableExtensionChangeWarning = false;
+        # Second half of the Downloads rotation: the hourly agent below only
+        # MOVES stale items into ~/.Trash (still on disk, still recoverable);
+        # this makes Finder itself erase Trash items after 30 days, so space is
+        # actually reclaimed without a manual "Empty Trash".
+        FXRemoveOldTrashItems = true;
       };
 
       NSGlobalDomain = {
@@ -331,9 +339,12 @@ in
       # No guest account on a single-operator client Mac.
       loginwindow.GuestEnabled = false;
 
-      # Save screenshots into the rotated Screengrab dir (not ~/Desktop).
+      # Save screen captures into the rotated Downloads dir (not ~/Desktop).
+      # This one key covers BOTH ⇧⌘4 screenshots and ⇧⌘5 screen *recordings* —
+      # verified empirically; the .mov honors com.apple.screencapture location
+      # despite Apple documenting no separate key for recordings.
       screencapture = {
-        location = screengrabDir;
+        location = downloadsDir;
         type = "png";
         disable-shadow = true;
       };
@@ -376,12 +387,16 @@ in
   # basename (`sfltool dumpbtm`). Always use a `nix-<activity>` wrapper
   # (mkNixAgent) — never bare /usr/bin/open, /bin/sh, or nix-darwin `script =`
   # (those wrap as /bin/sh -c wait4path and show as phantom "sh").
-  # See docs/macos-settings-surface.md.
+  # The `nix-*` wrapper is also load-bearing for TCC *file access*, not just
+  # cosmetics — see docs/macos-settings-surface.md § TCC and a /nix/store arg0.
   #
-  # Host scope: GUI login openers + Screengrab rotation are **macos only**.
-  # macvm mounts the host's Screengrab via Tart VirtioFS (see hosts/macvm.nix +
-  # macvm-tart-start) — rotating it on the guest would trash host files
-  # into the guest's ~/.Trash.
+  # Host scope: GUI login openers + Downloads rotation are **macos only**.
+  # macvm symlinks its ~/Downloads to the host's over Tart VirtioFS (see
+  # hosts/macvm.nix + macvm-tart-start). A guest rotation would be destructive,
+  # not merely redundant: mv(1) states "As the rename(2) call does not work
+  # across file systems, mv uses cp(1) and rm(1)" — so trashing across the
+  # VirtioFS boundary would COPY host bytes into the guest's disk image and
+  # then UNLINK them on the host. Never relax this gate.
   launchd.user.agents = lib.mkIf (config.networking.hostName == "macos") {
     # Agent attr names (open-*) keep launchd Labels stable so existing BTM
     # toggle state is preserved. Turn OFF each app's own "Open at Login" so we
@@ -413,38 +428,86 @@ in
       app = "Messages";
     };
 
-    # Hourly rotation of ~/Pictures/Screengrab → ~/.Trash (recoverable).
-    # Stock /bin + /usr/bin only (no Nix runtime). Direct ProgramArguments
-    # with a nix-* basename — do NOT use `script =` (forces /bin/sh wrapper).
-    # Path is atomic with system.defaults.screencapture.location above.
-    file-rotation-screengrab = {
+    # Hourly rotation of ~/Downloads → ~/.Trash (recoverable; Finder then erases
+    # Trash items at 30d via FXRemoveOldTrashItems above). Stock /bin + /usr/bin
+    # only (no Nix runtime).
+    #
+    # arg0 MUST stay a /nix/store `nix-*` wrapper — do NOT use `script =` or
+    # /bin/sh. Beyond BTM naming, that arg0 is what grants this agent READ
+    # access to ~/Downloads at all (TCC attributes the read to the responsible
+    # binary; an unattributable store path falls through to allow, /bin/sh gets
+    # EPERM). See .claude/rules/launchd-naming.md § TCC.
+    #
+    # Retention: 43200 min = 30 days. This is a deliberately STAGED value —
+    # ~/Downloads already holds a large untriaged backlog and a 7-day first run
+    # would sweep all of it into the Trash at once. The intended steady state is
+    # 7 days (`-mmin +10080`); once the backlog is triaged this is a one-number
+    # edit, nothing else changes.
+    #
+    # Directories rotate too (no `-type f`), so unzipped folders don't accumulate
+    # forever. Two consequences that are intentional: `-mindepth 1` is now
+    # required or find would match ~/Downloads itself, and a directory's mtime
+    # tracks only entry add/remove — editing a file deep inside does not renew
+    # its parent, so a long-lived project folder can age out. Keep real work out
+    # of ~/Downloads.
+    #
+    # `.localized` (Finder's localized-folder-name marker) and `.DS_Store` are
+    # excluded: both are ancient by mtime and would be swept on the first run.
+    #
+    # The `-exec /bin/sh -c '…' _ {} +` shape is byte-safe and deliberate —
+    # screenshot filenames contain U+202F (narrow no-break space), so any
+    # "simplification" that matches on a literal shell space silently no-ops.
+    #
+    # ACCEPTED COST — Finder "Put Back" does not work on rotated items. A plain
+    # `mv` into ~/.Trash writes no ptbL/ptbN records in .Trash/.DS_Store, so the
+    # item can be dragged out but not restored to its origin. Already true of the
+    # old Screengrab rotation; it just matters more now that real downloads move.
+    # This is a JUSTIFIED exception to the repo's reuse-over-rebuild preference —
+    # off-the-shelf trash CLIs were surveyed and every one was disqualified:
+    # trash-cli / rmtrash / gtrash / rmw target the freedesktop
+    # ~/.local/share/Trash (the wrong trashcan on macOS); nixpkgs' darwin.trash
+    # drives Apple Events, so it fails from a launchd context and its upstream is
+    # 404; macos-trash is the only one that gets Put Back right and it is not in
+    # nixpkgs. Do not "fix" this by swapping in one of those.
+    file-rotation-downloads = {
       serviceConfig = {
-        Label = "${rdns}.file-rotation.trash-screengrab";
+        Label = "${rdns}.file-rotation.trash-downloads";
         ProgramArguments = [
-          "${pkgs.writeShellScriptBin "nix-file-rotation-screengrab" ''
+          "${pkgs.writeShellScriptBin "nix-file-rotation-downloads" ''
             set -eu
-            /bin/mkdir -p "${home}/Library/Logs" "${home}/.Trash" "${screengrabDir}"
-            /usr/bin/find "${screengrabDir}" -maxdepth 1 -type f ! -name '.DS_Store' -mmin +1440 \
+            /bin/mkdir -p "${home}/Library/Logs" "${home}/.Trash"
+            /usr/bin/find "${downloadsDir}" -mindepth 1 -maxdepth 1 \
+              ! -name '.DS_Store' ! -name '.localized' -mmin +43200 \
               -exec /bin/sh -c 'for f do
                 dest="${home}/.Trash/$(/usr/bin/basename "$f")"
-                [ -e "$dest" ] && dest="$dest.$(/bin/date +%Y%m%d%H%M%S)"
+                # -e also covers an existing DIRECTORY at $dest — without this,
+                # `mv dir dest/` would move it INSIDE instead of renaming.
+                if [ -e "$dest" ]; then
+                  dest="$dest.$(/bin/date +%Y%m%d%H%M%S)"
+                fi
                 /bin/mv -- "$f" "$dest"
               done' _ {} +
-          ''}/bin/nix-file-rotation-screengrab"
+          ''}/bin/nix-file-rotation-downloads"
         ];
         StartInterval = 3600;
         RunAtLoad = true;
-        StandardOutPath = "${home}/Library/Logs/file-rotation-trash-screengrab.log";
-        StandardErrorPath = "${home}/Library/Logs/file-rotation-trash-screengrab.log";
+        StandardOutPath = "${home}/Library/Logs/file-rotation-trash-downloads.log";
+        StandardErrorPath = "${home}/Library/Logs/file-rotation-trash-downloads.log";
       };
     };
   };
 
-  # Real Screengrab dir only on macos (owner of the files). macvm uses a symlink
-  # to the Tart VirtioFS share (hosts/macvm.nix) — do not mkdir a local dir there.
+  # macos only: macvm's ~/Downloads is a symlink to the Tart VirtioFS share
+  # (hosts/macvm.nix) — never mkdir/chown a local dir over it there.
+  #
+  # `mkdir -p` is belt-and-braces for nix-darwin#1240: a screencapture.location
+  # that does not exist is silently ignored and captures fall back to ~/Desktop.
+  # ~/Downloads always exists on a real macOS account, so this is a no-op.
+  # Deliberately NO `chown`: unlike the old dedicated Screengrab dir, ~/Downloads
+  # is a large pre-existing user folder that is already correctly owned — a
+  # recursive-adjacent ownership change there is risk with no upside.
   system.activationScripts.postActivation.text = lib.mkIf (config.networking.hostName == "macos") ''
-        mkdir -p "${screengrabDir}"
-        chown ${loginName} "${screengrabDir}"
+        mkdir -p "${downloadsDir}"
 
         # Docker Desktop "Start when you log in" (settings-store AutoStart) races our
         # quiet open-docker agent and opens the dashboard. Keep AutoStart false so
