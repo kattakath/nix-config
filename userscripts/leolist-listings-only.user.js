@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LeoList — listings only
 // @namespace    kattakath.com
-// @version      1.11.0
+// @version      1.12.0
 // @description  Listings-only LeoList: keep #view-cont > div.col-left, drop sponsored chrome, filmstrip extra photos beside the hero from the lightbox a.href (w:1024), clamp the ad description. Parsed extras persist in localStorage with no hit TTL.
 // @author       Ismail Kattakath
 // @license      MIT
@@ -47,6 +47,8 @@
 // v1.11.0: stack 304 img.src under 1024 a.href in one 256px slot (LQIP).
 // Store {lo,hi}; prefix v3. 304 paints first; 1024 fades on load. Same box
 // (object-fit cover) so the square thumb sets width — no blank rail.
+// v1.12.0: constructed dark surface. Dump body was class "light"; no .dark
+// rules in the sheets we fetched, so we don't replay a site theme.
 //
 // Selectors (listing + detail dumps, 2026-08-31):
 //   #view-cont > div.col-left             KEEP island
@@ -100,7 +102,12 @@
     'html[data-nix-leolist-listings-only] .lst-item .nix-leolist-shot-hi.nix-leolist-shot-in {\n  opacity: 1;\n}\n' +
     'html[data-nix-leolist-listings-only] .nix-leolist-more {\n  flex: 0 0 auto;\n  height: 256px;\n  min-width: 48px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  font-size: 14px;\n  font-weight: 650;\n}\n' +
     'html[data-nix-leolist-listings-only] .lst-item__info {\n  white-space: normal;\n  height: auto;\n  overflow: hidden;\n}\n' +
-    'html[data-nix-leolist-listings-only] .nix-leolist-desc {\n  margin: 8px 0 0;\n  display: -webkit-box;\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 3;\n  overflow: hidden;\n}\n';
+    'html[data-nix-leolist-listings-only] .nix-leolist-desc {\n  margin: 8px 0 0;\n  display: -webkit-box;\n  -webkit-box-orient: vertical;\n  -webkit-line-clamp: 3;\n  overflow: hidden;\n}\n' +
+    'html[data-nix-leolist-listings-only] {\n  color-scheme: dark;\n}\n' +
+    'html[data-nix-leolist-listings-only] body,\nhtml[data-nix-leolist-listings-only] .wrap,\nhtml[data-nix-leolist-listings-only] .main-list,\nhtml[data-nix-leolist-listings-only] .main-list-container,\nhtml[data-nix-leolist-listings-only] #view-cont,\nhtml[data-nix-leolist-listings-only] .col-left,\nhtml[data-nix-leolist-listings-only] #main_list {\n  background: #121212;\n  color: #e8e6e3;\n}\n' +
+    'html[data-nix-leolist-listings-only] .lst-item.lst-item {\n  background: #1c1c1c;\n  border-color: #2e2e2e;\n  color: #e8e6e3;\n}\n' +
+    'html[data-nix-leolist-listings-only] .lst-item a,\nhtml[data-nix-leolist-listings-only] .lst-item__title,\nhtml[data-nix-leolist-listings-only] .lst-item__info,\nhtml[data-nix-leolist-listings-only] .nix-leolist-desc {\n  color: #e8e6e3;\n}\n' +
+    'html[data-nix-leolist-listings-only] .nix-leolist-more {\n  color: #a8a59e;\n  background: #2a2a2a;\n}\n';
 
   const sheet = new CSSStyleSheet();
   sheet.replaceSync(CSS);
@@ -109,6 +116,13 @@
   const unlockScroll = () => {
     const body = document.body;
     if (body && body.classList.contains('modal-open')) body.classList.remove('modal-open');
+  };
+
+  const paintDark = () => {
+    const body = document.body;
+    if (!body) return;
+    body.classList.remove('light');
+    body.classList.add('dark');
   };
 
   const applyIsland = () => {
@@ -140,6 +154,7 @@
         queued = false;
         applyIsland();
         unlockScroll();
+        paintDark();
       });
     };
     let node = keep;
@@ -449,6 +464,7 @@
       document.documentElement.dataset.nixLeolistListingsOnly = '';
     }
     unlockScroll();
+    paintDark();
     watchIsland();
     watchList();
     return true;
