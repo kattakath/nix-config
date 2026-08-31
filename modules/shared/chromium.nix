@@ -5,8 +5,8 @@
 # build to reference. So `programs.chromium.package = null` here, and Home Manager
 # contributes only the config files Chromium reads out of its user-data dir.
 #
-# Three things are wired — two via upstream `programs.chromium` (no custom shell), one
-# via the browser's own preferences domain:
+# Four things are wired — two via upstream `programs.chromium` (no custom shell), one
+# via the browser's own preferences domain, one via LaunchServices:
 #
 #   1. `extensions` → `~/Library/Application Support/Chromium/External Extensions/<id>.json`.
 #      ungoogled-chromium patches out the Chrome Web Store (`disable-webstore-urls.patch`),
@@ -31,6 +31,10 @@
 #      Framework 152 imports `_CFPreferencesAppValueIsForced` + `_CFPreferencesCopyAppValue`,
 #      and none of ungoogled's ~111 patches touch policy loading.) Home Manager applies it
 #      with `defaults import`, which MERGES, so Chromium's own state in that domain survives.
+#      Two policy sets ride this: `hideBookmarkBar` and `defaultSearchProvider`.
+#   4. LaunchServices' `http`/`https` handler → `makeDefaultBrowser`, the one surface here
+#      that is neither a file in the user-data dir nor a policy. nixpkgs' `defaultbrowser`
+#      claims the scheme on activation and no-ops once Chromium already owns it.
 #
 # Why a local-crx install keeps each extension's official ID: the ID is derived from
 # the public key in the signed CRX3 header, not from the install path. A sideloaded
@@ -82,6 +86,47 @@ let
     };
 
   icloudPasswordsId = "pejdijmoenmkgeppbflobdenhhabjlaj";
+
+  # ---- Default search engine ---------------------------------------------------
+  # ungoogled's `replace-google-search-engine-with-nosearch.patch` rewrites the
+  # `google` row of `prepopulated_engines.json` into a "No Search" stub pointing at
+  # `http://{searchTerms}` — which is why the engine picker opens on *No Search
+  # (Default)*. It edits DATA ONLY; the `DefaultSearchProvider*` policy path is
+  # bit-identical to upstream, so a policy is the right lever to seed a real engine.
+  #
+  # One row per selectable engine, each the single source of truth for its own URLs.
+  # Every field is lifted verbatim from THIS cask's compiled prepopulated table, so
+  # a policy-seeded engine is indistinguishable from one the browser would have
+  # offered itself. Google is deliberately absent: ungoogled strips its row, so
+  # there is no in-binary source to copy — add it only with URLs verified elsewhere.
+  searchProviders = {
+    duckduckgo = {
+      name = "DuckDuckGo";
+      keyword = "duckduckgo.com";
+      searchURL = "https://duckduckgo.com/?q={searchTerms}";
+      suggestURL = "https://duckduckgo.com/ac/?q={searchTerms}&type=list";
+    };
+    kagi = {
+      name = "Kagi";
+      keyword = "kagi.com";
+      # Not kagi.com/api — the suggest endpoint is its own host.
+      searchURL = "https://kagi.com/search?q={searchTerms}";
+      suggestURL = "https://kagisuggest.com/api/autosuggest?q={searchTerms}";
+    };
+  };
+
+  # `DefaultSearchProviderEnabled` is the MAIN SWITCH, not a redundant nicety:
+  # `default_search_policy_handler.cc` returns early unless it is present at the
+  # SAME policy level as the rest, so omitting it — or splitting the set across
+  # levels — makes the whole block a silent no-op. `DefaultSearchProviderIconURL`
+  # is deliberately unset: deprecated and inert since Chromium 122.
+  searchProviderPolicy = p: {
+    DefaultSearchProviderEnabled = true;
+    DefaultSearchProviderName = p.name;
+    DefaultSearchProviderKeyword = p.keyword;
+    DefaultSearchProviderSearchURL = p.searchURL;
+    DefaultSearchProviderSuggestURL = p.suggestURL;
+  };
 
   # ---- Userscripts -------------------------------------------------------------
   # Nix owns the FILES; Violentmonkey owns the database, and there is no bridge
@@ -265,6 +310,77 @@ in
       '';
     };
 
+    defaultSearchProvider = lib.mkOption {
+      type = lib.types.nullOr (lib.types.enum (lib.attrNames searchProviders));
+      default = "duckduckgo";
+      example = "kagi";
+      description = ''
+        Which engine the omnibox searches with out of the box, or `null` to seed
+        none. Switching engines is a one-word change here; adding one is a single
+        row in this module's `searchProviders` attrset.
+
+        Needed because ungoogled-chromium ships **no working prepopulated
+        engine** — its `replace-google-search-engine-with-nosearch.patch` rewrites
+        Google's row into a "No Search" stub, so a fresh profile's picker reads
+        *No Search (Default)* and the omnibox cannot search at all until something
+        seeds an engine.
+
+        **Recommended, not forced** — Settings ▸ Search engine stays fully live,
+        with no policy padlock, and picking a different engine there wins
+        permanently. That is not incidental: Chromium's
+        `TemplateURLService::CanMakeDefault` admits `FROM_POLICY_RECOMMENDED`
+        (and `is_default_search_managed()` deliberately excludes it), whereas the
+        mandatory level would grey the picker out. Mandatory needs a
+        `/Library/Managed Preferences` plist from an MDM profile, so the plain
+        user domain this module writes cannot lock the operator out even by
+        accident.
+
+        The two policy surfaces that could add an engine *without* making it
+        default — `SiteSearchSettings` and `EnterpriseSearchAggregatorSettings` —
+        are both mandatory-only, and the engines they create can never be
+        promoted to default (`CreatedByNonDefaultSearchProviderPolicy`). So the
+        recommended `DefaultSearchProvider*` set is the only route that seeds an
+        engine while leaving the operator in charge of it.
+      '';
+    };
+
+    makeDefaultBrowser = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Claim `http`/`https` (and so `public.html`) for Chromium in
+        LaunchServices, making it the macOS default browser, via nixpkgs'
+        `defaultbrowser` on each activation. Note the argument is the SHORT name
+        `chromium`, not the bundle id — `org.chromium.Chromium` is rejected as
+        "not available as an HTTP handler".
+
+        **Idempotent, and that is the tool's own doing, not ours:** it reads the
+        current handler first and early-returns with "chromium is already set as
+        the default HTTP handler", never touching LaunchServices. So a settled Mac
+        is a true no-op and there is nothing to re-confirm on a routine
+        `activate`. That matters because of the next point.
+
+        **Expect one consent dialog, once, on the activation that actually
+        changes the handler** — a fresh or reset Mac. It is not avoidable and not
+        a bug: `defaultbrowser` calls Launch Services'
+        `LSSetDefaultHandlerForURLScheme`, whose SDK-declared replacement,
+        `-[NSWorkspace setDefaultApplicationAtURL:toOpenURLsWithScheme:completionHandler:]`,
+        is documented in `AppKit/NSWorkspace.h` as: *"Some URL schemes require
+        user consent before you can change their handlers. If a change requires
+        user consent, the system will ask the user asynchronously"*. The browser
+        schemes are exactly those, for every tool and every API — so this joins
+        the module's other one-time clicks rather than escaping them.
+
+        The legacy API is safe to keep using: the macOS 26 SDK still declares it
+        `API_TO_BE_DEPRECATED`, i.e. soft-deprecated with no removal version.
+        `duti` is the obvious alternative and is passed over — it takes bundle ids
+        but has no idempotence guard, so it would re-ask every activation.
+
+        `defaultbrowser` also lands on PATH: run it with **no arguments** for a
+        read-only list of HTTP handlers with the current default starred.
+      '';
+    };
+
     darkTheme = lib.mkOption {
       type = lib.types.bool;
       default = true;
@@ -330,9 +446,53 @@ in
     # Recommended-level platform policy — see item 3 of the header for why the plain
     # user domain (not `/Library/Managed Preferences`) is the correct place for a
     # DEFAULT rather than a lock. Takes effect on Chromium's next launch.
-    targets.darwin.defaults."org.chromium.Chromium" = lib.mkIf cfg.hideBookmarkBar {
-      BookmarkBarEnabled = false;
-    };
+    #
+    # NOTHING here can tidy the NEW-TAB PAGE, and that is a settled dead end rather
+    # than an omission — don't re-derive it. Every NTP policy Chromium defines is
+    # MANDATORY-ONLY: `NewTabPageLocation`, `NTPCardsVisible`,
+    # `NTPCustomBackgroundEnabled`, `NTPMiddleSlotAnnouncementVisible`,
+    # `NTPOutlookCardVisible`, `NTPSharepointCardVisible`, `NTPContentSuggestionsEnabled`
+    # and both `NTPFooter*` all omit `can_be_recommended` in their upstream
+    # `policy_definitions/**.yaml`, which defaults it to false. The flag is written
+    # explicitly when true — `BookmarkBarEnabled` and `DefaultSearchProviderSearchURL`,
+    # the two policies above, both carry `can_be_recommended: true` — so absence is
+    # the answer, not a gap in the metadata. `NewTabPageLocation`'s own `desc` says
+    # it outright: "configures the default New Tab page URL AND PREVENTS USERS FROM
+    # CHANGING IT". A padlocked new-tab page is worse than a click, so it stays unset.
+    #
+    # There is also no policy that hides only the SHORTCUT TILES. The one
+    # shortcut-shaped policy, `NTPShortcuts` (in this build's table), goes the wrong
+    # way — it *pre-configures up to 10 organization shortcuts in addition to* the
+    # user's own — and is mandatory-only too. Hiding the tiles writes a profile-JSON
+    # pref (`custom_links.*` / `home.module.most_visited.enabled`), browser-owned
+    # mutable state Nix must not seed, so it is one click in Customize Chrome ▸
+    # Shortcuts ▸ Hide shortcuts. ungoogled's `--custom-ntp` flag is not a route
+    # either: `chromium-flags.conf` is Linux-only, so on macOS it needs chrome://flags.
+    targets.darwin.defaults."org.chromium.Chromium" = lib.mkMerge [
+      (lib.mkIf cfg.hideBookmarkBar { BookmarkBarEnabled = false; })
+      (lib.mkIf (cfg.defaultSearchProvider != null) (
+        searchProviderPolicy searchProviders.${cfg.defaultSearchProvider}
+      ))
+    ];
+
+    # The `defaultbrowser` CLI doubles as this setting's read-only doctor (no args
+    # → the handler list, current default starred), so it is worth a PATH entry.
+    home.packages = lib.mkIf cfg.makeDefaultBrowser [ pkgs.defaultbrowser ];
+
+    # Not a launchd unit — a plain activation step, so launchd-naming.md's
+    # `nix-<kebab>` arg0 rule does not apply (nothing lands in BTM).
+    #
+    # Tolerates its own failure on purpose: the `.app` is a Homebrew cask, and
+    # nothing orders brew's activation before Home Manager's, so on a first-ever
+    # rebuild Chromium may not be registered with LaunchServices yet. Warn and
+    # move on; the next activation picks it up. Never fail a rebuild over which
+    # browser opens a link.
+    home.activation.chromiumDefaultBrowser = lib.mkIf cfg.makeDefaultBrowser (
+      lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+        $DRY_RUN_CMD ${lib.getExe pkgs.defaultbrowser} chromium \
+          || /usr/bin/printf '%s\n' "warning: could not make Chromium the default browser (cask not registered yet?) — retried next activation"
+      ''
+    );
 
     # `~/.local/share/userscripts/` — a *runtime* location, so it is XDG-relative
     # (the sources above are repo-relative Nix path literals; two different axes).
