@@ -153,7 +153,12 @@
       "claude"
       "docker-desktop"
       "dropbox"
-      "google-chrome"
+      # Google Drive for desktop — the File Provider client (a mounted volume under
+      # ~/Library/CloudStorage/, NOT a plain folder). It replaced `google-chrome`
+      # here: Chrome's only load-bearing job on this host was rendering JSON Resume
+      # PDFs through puppeteer, and that now points at the ungoogled-chromium cask
+      # (PUPPETEER_EXECUTABLE_PATH, modules/shared/home.nix).
+      "google-drive"
       # GCP CLI (gcloud/gsutil/bq) — Google-official SDK cask so `gcloud components
       # install` works and it self-updates (vs. the pinned nixpkgs derivation).
       # Homebrew renamed `google-cloud-sdk` → `gcloud-cli`; use the new name.

@@ -259,7 +259,11 @@ in
       "whatsapp"
       "capcut"
       "iina"
-      "google-chrome"
+      # NB: no browser cask beyond `opera` here. `google-chrome` was dropped fleet-wide;
+      # macvm deliberately does NOT declare `ungoogled-chromium` either (that cask, and
+      # programs.ungoogledChromium, are macos-only — see modules/shared/home.nix
+      # `isMacosHost`). So macvm has no puppeteer-drivable browser: PDF rendering with
+      # the JSON Resume CLIs is a macos capability, which is where those npm globals live.
     ];
     # Always empty: macvm has no Apple ID / App Store login — any masApps entry
     # fails brew bundle and aborts activation. Official WireGuard.app is macos-only.
