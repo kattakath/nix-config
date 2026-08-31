@@ -272,9 +272,8 @@ in
       type = lib.types.bool;
       default = true;
       description = ''
-        Sideload Claude in Chrome — the fleet's sole browser-automation tool. It
-        drives the browser over CDP (hence its `debugger` permission) and talks to
-        the local CLI over native messaging.
+        Sideload Claude in Chrome. It drives the browser over CDP (hence its
+        `debugger` permission) and talks to the local CLI over native messaging.
 
         Its native-messaging host manifest
         (`com.anthropic.claude_code_browser_extension`) is planted by claude-code
@@ -282,6 +281,41 @@ in
         point at whichever claude-code install is current. Do not re-declare it
         under `nativeMessagingHosts` here; unlike Apple's Passwords host, nothing
         needs replanting because the CLI already writes it into Chromium's dir.
+
+        **Not the only browser-automation extension any more** — see `kaptureMcp`,
+        and the reason the two coexist rather than one winning.
+      '';
+    };
+
+    kaptureMcp = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Sideload Kapture MCP Browser Automation. Same capability shape as
+        `claudeInChrome` — `debugger` + `<all_urls>`, i.e. CDP over the whole
+        profile — reached a different way, which is the entire reason both exist:
+
+        - **claude-in-chrome** is a *native-messaging* client. Its host manifest is
+          keyed to one CLI install, so whichever client that manifest points at is
+          the only one that can drive it. A session where those tools are simply
+          absent has no way to ask for them.
+        - **Kapture** is a *DevTools-panel + local-bridge* client. Any MCP client
+          that speaks to the bridge gets the tabs, so it survives a session that
+          claude-in-chrome's tools never loaded into.
+
+        Two consequences worth knowing before relying on it:
+
+        1. **Its per-tab gate is DevTools, not the extension list.** A tab is
+           invisible to the bridge until you open DevTools on it and connect from
+           the Kapture panel. Installing this extension grants *nothing* on its
+           own — which is also why the broad `debugger` permission is less alarming
+           here than it reads.
+        2. **The MCP server half is NOT declared by this repo.** It lives in
+           `~/.claude.json` at user scope as `npx -y kapture-mcp@latest bridge` —
+           imperative and unpinned, so the bridge can change under a session
+           without a rebuild. This module owns only the browser end. Declaring the
+           server in `mcp.nix` (per CLAUDE.md § Using Subagents) is a real
+           follow-up, not a finished job.
       '';
     };
 
@@ -393,6 +427,12 @@ in
           id = "fcoeoabgfenejglbffodgkkbkcdhcgfn";
           version = "1.0.85";
           hash = "sha256-XBwTGKzxC7Rji+EprjT53+couGenDGAzgvieZqXQi+M=";
+        })
+        ++ lib.optional cfg.kaptureMcp (crxExtension {
+          name = "kapture-mcp";
+          id = "ejfnegenodbdcodemkibocefmajjjjbn";
+          version = "1.2.1";
+          hash = "sha256-VqOmeVNbE+Rb0PIsuPg/sQG1kyc1+dpuVeP4SyjwvvI=";
         })
         ++ lib.optional cfg.darkTheme (crxExtension {
           name = "amoled-black-theme";
