@@ -1,7 +1,7 @@
 id: launchd-bare-interpreter-arg0
 valid:
   # The mandated shape: a named nix-<activity> wrapper.
-  - '{ ProgramArguments = [ (lib.getExe nixScreengrabShare) ]; }'
+  - '{ ProgramArguments = [ (lib.getExe nixDownloadsShare) ]; }'
   - '{ ProgramArguments = [ "${wrapper}/bin/nix-mcp-gateway" "--port" "8096" ]; }'
   # An interpreter is fine anywhere EXCEPT arg0 — here it is arg1.
   - '{ ProgramArguments = [ "${wrapper}/bin/nix-thing" "${pkgs.bash}/bin/sh" ]; }'
