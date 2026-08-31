@@ -18,6 +18,9 @@
 # fleet-doctor.md state (last full-sweep timestamp, written by the command)
 .claude/hooks/.fleet-doctor-state.json
 
+# stop-gate.js check 0 dedupe ledger (grok-build run ids already reported in-session)
+.claude/hooks/.grok-runs-state.json
+
 # Project memory — candid, local-only record of decisions/reasoning/findings/values.
 # Gitignored on purpose: this is the "why" behind the repo, not committed documentation.
 memory/
