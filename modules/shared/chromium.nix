@@ -262,10 +262,20 @@ in
           to file URLs" (a sibling of the "Allow User Scripts" toggle) to accept a
           `file://` install.
 
-          A public script can also carry an `https` `@updateURL` pointing at this
-          repo, so after the first install it updates itself with no activation. A
-          private one has no such URL and is re-installed from this directory after
-          a `@version` bump.
+          **No script carries `@updateURL`/`@downloadURL`** — not a limitation, the
+          community norm: Greasy Fork *strips* both on upload ("any script installed
+          from Greasy Fork only update[s] from Greasy Fork"), so they are inert the
+          moment a script is shared, and bitbloxhub's Nix-declared Violentmonkey
+          goes further still (`options.autoUpdate = 0`). Pointing one at this repo's
+          `main` would also let a push mutate the running script with no activation
+          and no review — the opposite of declarative. Every script is re-installed
+          from this directory after a `@version` bump; Violentmonkey's own fallback
+          for a script with no update key is `lastInstallURL`, i.e. the `file://`
+          path Nix wrote.
+
+          Do carry the keys that make a script *publishable*, since a userscript is
+          worth sharing: `@name` + `@namespace` + `@version` are required by Greasy
+          Fork, and `@license` is what stops OpenUserJS silently implying MIT.
 
           Never put a secret in a userscript: `source` is copied into the
           world-readable Nix store, private flake or not.
