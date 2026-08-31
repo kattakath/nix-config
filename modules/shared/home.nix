@@ -185,6 +185,33 @@ let
   localPluginsMarketplace = "${../../plugins}";
   localPluginIds = builtins.filter (lib.hasSuffix "@${localMarketplaceName}") claudePluginIds;
 
+  # ---- grok-build: repoint its hardcoded `read-only` sandbox at a profile that can start ----
+  # xAI's bridge hardcodes `--sandbox read-only` for every non-write run (delegate/review/
+  # critique). grok >=1.0.13's `read-only` AND `strict` profiles kernel-deny the container
+  # runtime sockets and REFUSE TO START when a deny path has a symlink component — and Docker
+  # Desktop installs /run/docker.sock as a symlink into $HOME/.docker/run/. Net effect: every
+  # read-only grok-build run died in ~50ms with "runtime-socket deny resolution failed: could
+  # not resolve runtime-socket deny path /run/docker.sock: endpoint is a symlink".
+  # Only the `workspace`/`devbox` bases skip that deny, and a custom profile may NOT reuse a
+  # built-in name, so the bridge must be pointed at a profile of ours.
+  #
+  # TRADE-OFF, stated plainly: `workspace` leaves the CWD writable, so the kernel no longer
+  # backstops "the agent cannot edit the repo" — only the bridge's own `--permission-mode plan`
+  # does. `read_only` cannot claw that back: it does NOT override the base's CWD write grant
+  # (verified with a canary `touch`, which succeeded). So the profile leans on a
+  # kernel-enforced `deny` list for the paths that actually matter. Retire this patch once xAI
+  # resolves symlinked runtime-socket deny paths instead of refusing to start.
+  grokSandboxProfile = "nix-agent-workspace";
+  grokBuildPluginPatched = pkgs.runCommand "grok-build-plugin-cc-patched" { } ''
+    cp -r ${grok-build-plugin-cc} $out
+    chmod -R u+w $out
+    substituteInPlace $out/plugins/grok-build/scripts/grok-bridge.mjs \
+      --replace-fail 'sandbox: "read-only",' \
+                     'sandbox: "${grokSandboxProfile}",' \
+      --replace-fail 'sandbox: write ? undefined : "read-only",' \
+                     'sandbox: write ? undefined : "${grokSandboxProfile}",'
+  '';
+
   # Absolute operator SSH paths under $HOME. Git treats a non-absolute
   # gpg.ssh.allowedSignersFile as worktree-relative (would look in <repo>/.ssh/).
   sshDir = "${config.home.homeDirectory}/.ssh";
@@ -584,6 +611,38 @@ in
   # this repo. Darwin-only (claude-code runs on both darwin hosts, macos + macvm).
   home.file.".claude/CLAUDE.md" = lib.mkIf pkgs.stdenv.isDarwin {
     source = ../../claude/CLAUDE.md;
+  };
+
+  # The custom grok sandbox profile the patched grok-build bridge asks for (see
+  # grokBuildPluginPatched in the let block above for WHY the built-in `read-only` is
+  # unusable here). Unlike ~/.grok/config.toml — which grok itself rewrites, so mcp.nix
+  # merges into it via `grok mcp add` — sandbox.toml is pure user input that grok only ever
+  # READS, so it is safe to own declaratively. A store symlink here is accepted (verified);
+  # grok only refuses symlinks for $GROK_HOME and hooks-paths entries. `force` because grok
+  # drops a 0-byte placeholder at this path that HM would otherwise refuse to clobber.
+  #
+  # `deny` is kernel-enforced (Seatbelt) for BOTH read and write, and closes the
+  # `mv secret x && cat x` bypass — it is what actually protects credentials now that the
+  # base profile is `workspace`. Every entry must be a real path (a symlink component makes
+  # grok refuse to start, which is the whole bug being worked around) and must NOT cover
+  # ~/.grok/auth.json: denying that leaves grok unable to read its own token and it exits
+  # "Not signed in" (verified). Darwin-only — grok is only on the Mac.
+  home.file.".grok/sandbox.toml" = lib.mkIf pkgs.stdenv.isDarwin {
+    force = true;
+    text = ''
+      # Managed by nix-config (modules/shared/home.nix) — do not hand-edit.
+      [profiles.${grokSandboxProfile}]
+      extends = "workspace"
+      deny = [
+        "${config.home.homeDirectory}/.ssh",
+        "${config.home.homeDirectory}/.aws",
+        "${config.home.homeDirectory}/.docker",
+        "${config.home.homeDirectory}/.config/gh",
+        "**/*.pem",
+        "**/*.age",
+        "**/.env",
+      ]
+    '';
   };
 
   # qwen-code local-model wiring. `qwen` (Alibaba's coding-agent CLI, in
@@ -1282,10 +1341,22 @@ in
           chmod u+w "$settings"
         fi
 
-        # xAI grok-build marketplace from the pinned flake input (store path).
-        if ! "$claude" plugin marketplace list 2>/dev/null | grep -qF 'xai-grok-build'; then
-          echo "claude-code: adding xai-grok-build marketplace from flake pin..." >&2
-          "$claude" plugin marketplace add "${grok-build-plugin-cc}" 2>&1 || true
+        known_mps="${config.home.homeDirectory}/.claude/plugins/known_marketplaces.json"
+
+        # xAI grok-build marketplace — pinned to a PATCHED store copy of the flake input
+        # (grokBuildPluginPatched), so its path moves whenever the patch OR the upstream pin
+        # changes. `plugin install` COPIES into ~/.claude/plugins/cache, so the old
+        # "already registered?" guard would keep serving the stale, UNPATCHED bridge forever
+        # (exactly the trap documented for the local marketplace below). Key off the store
+        # path recorded in known_marketplaces.json instead, and tear the old pin down first.
+        grok_mp="${grokBuildPluginPatched}"
+        if ! grep -qF "$grok_mp" "$known_mps" 2>/dev/null; then
+          echo "claude-code: (re)pinning xai-grok-build marketplace -> $grok_mp" >&2
+          if "$claude" plugin marketplace list 2>/dev/null | grep -qF 'xai-grok-build'; then
+            "$claude" plugin uninstall --yes 'grok-build@xai-grok-build' >/dev/null 2>&1 || true
+            "$claude" plugin marketplace remove xai-grok-build >/dev/null 2>&1 || true
+          fi
+          "$claude" plugin marketplace add "$grok_mp" 2>&1 || true
         fi
 
         # Official marketplace via HTTPS (SSH clone fails non-interactively; reserved
@@ -1307,7 +1378,6 @@ in
         # forever. Key off the store path actually recorded in known_marketplaces.json and,
         # when it has moved, re-pin + drop the stale copies so the loop below reinstalls them.
         local_mp="${localPluginsMarketplace}"
-        known_mps="${config.home.homeDirectory}/.claude/plugins/known_marketplaces.json"
         if ! grep -qF "$local_mp" "$known_mps" 2>/dev/null; then
           echo "claude-code: (re)pinning ${localMarketplaceName} marketplace -> $local_mp" >&2
           # Tear down the previous pin FIRST (uninstall while the marketplace still resolves),

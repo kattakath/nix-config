@@ -4,10 +4,15 @@
  *
  * Runs when an agent execution block is about to finish. It verifies the
  * configuration is in a trustworthy state before allowing the stop:
+ *   0. Background grok-build runs — none of THIS session's runs died unreported.
  *   1. Git purity — no untracked `.nix` files (flakes ignore untracked files).
  *   2. Syntax validity — every tracked `.nix` file parses.
  *   3. Flake evaluation — `nix flake check` passes if `nix` is available;
  *      otherwise the gate degrades to syntax-only and says so explicitly.
+ *
+ * Check 0 is collected early but only ACTED ON at the terminal approve paths
+ * (via `finishOk`), so a genuine Nix failure still wins the block and the grok
+ * finding survives to the next stop.
  *
  * Protocol: reads the Stop hook event JSON from stdin, prints a decision
  * object to stdout, exits 0. `{"decision":"block","reason":...}` keeps the
@@ -15,6 +20,7 @@
  */
 
 const { execSync } = require("node:child_process");
+const fs = require("node:fs");
 
 const projectDir = process.env.CLAUDE_PROJECT_DIR || process.cwd();
 // Large enough for verbose `nix flake check` progress (default 1 MiB is tight
@@ -69,36 +75,111 @@ const block = (reason) => {
 // no usable devcontainer fallback). Approve with an explicit advisory rather than
 // silently — the REAL check must land in the devcontainer or CI.
 const syntaxOnlyAdvisory = () => {
-  process.stdout.write(
-    JSON.stringify({
-      decision: "approve",
-      systemMessage:
-        "⚠︎ stop-gate: nix unavailable on host and the devcontainer fallback couldn't run " +
+  finishOk(
+    "⚠︎ stop-gate: nix unavailable on host and the devcontainer fallback couldn't run " +
         "(no `devcontainer` CLI, or the container failed to start — e.g. Docker daemon not running) — " +
         "validated .nix syntax only. For a REAL local check, start Docker and run " +
         "`devcontainer up --workspace-folder .` then " +
         "`devcontainer exec --workspace-folder . bash -lc 'git add -A && nix flake check -L'`. " +
         "Otherwise, full two-system `nix flake check` (aarch64-darwin, aarch64-linux) " +
-        "must pass in CI / the target environment.",
-    }),
+      "must pass in CI / the target environment.",
   );
-  process.exit(0);
 };
 
-// Read (and ignore the contents of) the event payload so stdin is drained.
+// Read the event payload so stdin is drained (and to learn our session id).
 let raw = "";
 try {
-  raw = require("node:fs").readFileSync(0, "utf8");
+  raw = fs.readFileSync(0, "utf8");
 } catch {
   /* no stdin — fine */
 }
+let sessionId = "";
 try {
   const evt = raw ? JSON.parse(raw) : {};
+  sessionId = evt.session_id || "";
   // Avoid infinite loops: if a previous stop hook already blocked, don't re-block.
   if (evt.stop_hook_active) approve();
 } catch {
   /* non-JSON stdin — proceed */
 }
+
+// 0. Background grok-build runs that FAILED without ever being reported.
+//
+// The grok-build bridge is fire-and-forget: `/grok-build:delegate` shells out, prints
+// "started in the background as run-…", and the forwarding subagent then reports
+// "completed" — the status of the WRAPPER, not of grok. So a grok that dies at startup
+// (e.g. a sandbox profile it cannot apply) is invisible: the session keeps waiting on a
+// run that is already dead and the failure lives only in the plugin's own jobs/ state.
+// This gate is the repo's error boundary, so this is where that has to cry.
+//
+// Only THIS session's runs, and each run id at most once (a block whose finding is
+// already surfaced would just wedge the stop). Findings are collected here but acted on
+// in `finishOk`, so a real Nix failure still wins and an unsurfaced grok finding
+// survives to the next stop.
+const GROK_STATE_DIR = `${process.env.HOME}/.claude/plugins/data/grok-build-xai-grok-build/state`;
+const SURFACED_FILE = `${projectDir}/.claude/hooks/.grok-runs-state.json`;
+
+const readJson = (p, fallback) => {
+  try {
+    return JSON.parse(fs.readFileSync(p, "utf8"));
+  } catch {
+    return fallback;
+  }
+};
+
+const grokFailures = (() => {
+  let dirs = [];
+  try {
+    dirs = fs.readdirSync(GROK_STATE_DIR);
+  } catch {
+    return []; // plugin never ran on this machine — nothing to check
+  }
+  const surfaced = new Set(readJson(SURFACED_FILE, {}).surfaced || []);
+  const out = [];
+  for (const d of dirs) {
+    for (const j of readJson(`${GROK_STATE_DIR}/${d}/state.json`, {}).jobs || []) {
+      if (j.status !== "failed" || surfaced.has(j.id)) continue;
+      // Another session's failure is that session's to report, not ours.
+      if (sessionId && j.sessionId && j.sessionId !== sessionId) continue;
+      out.push(j);
+    }
+  }
+  return out;
+})();
+
+const markSurfaced = (jobs) => {
+  const prev = readJson(SURFACED_FILE, {}).surfaced || [];
+  // Keep the tail bounded — this file is a dedupe ledger, not a history.
+  const next = [...new Set([...prev, ...jobs.map((j) => j.id)])].slice(-200);
+  try {
+    fs.writeFileSync(SURFACED_FILE, `${JSON.stringify({ surfaced: next }, null, 2)}\n`);
+  } catch {
+    /* best-effort: a failed write only means it is reported again next stop */
+  }
+};
+
+/** Terminal "the Nix side is fine" path — a dead background run still blocks the stop. */
+const finishOk = (systemMessage) => {
+  if (grokFailures.length) {
+    markSurfaced(grokFailures);
+    const detail = grokFailures
+      .map((j) => {
+        const why = (j.errorMessage || j.summary || "(no summary recorded)").split("\n")[0].slice(0, 300);
+        return `  • ${j.id} [${j.kindLabel || j.kind || "run"}] ${why}\n    log: ${j.logFile || "(none)"}`;
+      })
+      .join("\n");
+    block(
+      `✘ stop-gate BLOCKED — ${grokFailures.length} background grok-build run(s) FAILED and were never ` +
+        `reported in this session. "started in the background" is NOT evidence a run worked, and the ` +
+        `forwarding subagent reporting "completed" only means the wrapper exited. Do NOT tell the user a ` +
+        `delegated run is still going.\n${detail}\n` +
+        `Tell the user it failed and why, then either fix and re-run or offer to do the work directly. ` +
+        `Full record: \`/grok-build:runs <run-id>\`.`,
+    );
+  }
+  process.stdout.write(JSON.stringify(systemMessage ? { decision: "approve", systemMessage } : { decision: "approve" }));
+  process.exit(0);
+};
 
 // Not a git repo or no nix files yet: nothing to gate.
 try {
@@ -154,15 +235,10 @@ if (nixFiles && has("nix")) {
         `${formatCheckFailure(e)}`,
     );
   }
-  process.stdout.write(
-    JSON.stringify({
-      decision: "approve",
-      systemMessage:
-        "✔︎ stop-gate: `nix flake check --no-build` passed on host " +
-        "(other systems deferred to CI when omitted as incompatible).",
-    }),
+  finishOk(
+    "✔︎ stop-gate: `nix flake check --no-build` passed on host " +
+      "(other systems deferred to CI when omitted as incompatible).",
   );
-  process.exit(0);
 } else if (nixFiles && has("devcontainer")) {
   // No host nix, but the `devcontainer` CLI is available: run the REAL
   // `nix flake check` inside the prebuilt container. It evaluates both
@@ -190,7 +266,6 @@ if (nixFiles && has("nix")) {
   let extraMountArgs = "";
   let extraSafeDirs = "";
   try {
-    const fs = require("node:fs");
     const path = require("node:path");
     if (fs.statSync(path.join(projectDir, ".git")).isFile()) {
       const commonDir = path.resolve(projectDir, run("git rev-parse --git-common-dir").trim());
@@ -246,17 +321,12 @@ if (nixFiles && has("nix")) {
     deferred.length > 0
       ? `builds for ${deferred.join(", ")} omitted as incompatible (not verified here) → defer to CI`
       : "all buildable checks passed — nothing omitted";
-  process.stdout.write(
-    JSON.stringify({
-      decision: "approve",
-      systemMessage: `✔︎ stop-gate: ran \`nix flake check\` in the devcontainer — ${nativeNote}; ${deferredNote}.`,
-    }),
-  );
-  process.exit(0);
+  finishOk(`✔︎ stop-gate: ran \`nix flake check\` in the devcontainer — ${nativeNote}; ${deferredNote}.`);
 } else if (nixFiles) {
   // Neither host nix nor the devcontainer CLI: parsing passed, full multi-system
   // eval must run in the devcontainer or CI.
   syntaxOnlyAdvisory();
 }
 
-approve();
+// No .nix files at all — nothing for checks 1-3, but check 0 still applies.
+finishOk();
