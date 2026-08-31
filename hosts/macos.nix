@@ -159,10 +159,25 @@
       # that CLI still owns the adb pairing/connect footguns it exists to encode,
       # and its header's refusal to VENDOR a third-party pairing tool is unaffected
       # by installing one alongside. From the sole third-party tap — see the tap's
-      # comment in modules/darwin/homebrew.nix for the two accepted costs (a
-      # deprecation warning per activation, and a first launch that may need
-      # right-click ▸ Open because quarantine is left in place).
-      "escrcpy"
+      # comment in modules/darwin/homebrew.nix for the accepted costs.
+      #
+      # no_quarantine is REQUIRED, not a convenience: upstream ships the .app with
+      # no _CodeSignature at all (only the linker's adhoc signature — measured
+      # 2026-08-31: `Sealed Resources=none`, `Identifier=Electron`). Quarantined +
+      # unsigned makes macOS report it "damaged and can't be opened", and that
+      # variant is NOT clearable by right-click ▸ Open — the flag has to be absent.
+      # The cask's own postflight tries to strip it interactively, which `brew
+      # bundle` can never satisfy (no stdin), so the flag survived every
+      # activation. This passes Homebrew's supported `--no-quarantine` instead of
+      # hand-rolling an `xattr` activation step.
+      #
+      # The tradeoff is real and deliberate: Gatekeeper never evaluates this app,
+      # so the viarotel-org build is trusted directly. Scoped to this ONE cask —
+      # never promote no_quarantine to a default for the whole casks list.
+      {
+        name = "escrcpy";
+        args.no_quarantine = true;
+      }
       # Google Drive for desktop — the File Provider client (a mounted volume under
       # ~/Library/CloudStorage/, NOT a plain folder). It replaced `google-chrome`
       # here: Chrome's only load-bearing job on this host was rendering JSON Resume
