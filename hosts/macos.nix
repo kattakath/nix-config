@@ -165,12 +165,6 @@
       "gcloud-cli"
       "iina"
       "inkscape"
-      # IP in menu bar — public IP always visible in the menu bar. This is the
-      # visual VPN-state check macos otherwise lacks: WireGuard here is GUI-only
-      # (no `wg`, no `vpn` operator — see the wireguard-tools NB in brews), so
-      # there is no shell to ask "is the tunnel actually up?". Cask rather than
-      # the App Store's free Display My IP to keep this off masApps.
-      "ip-in-menu-bar"
       # LibreOffice — provides the `soffice` CLI the docx/pptx/xlsx/pdf Claude Code
       # skills (modules/shared/home.nix programs.claude-code.skills) already hardcode
       # as their document-conversion engine. Cask (not nixpkgs libreoffice-bin)
@@ -219,6 +213,13 @@
       # user imports a synced conf and connects manually in-app; nothing here
       # (or on activation) ever starts a tunnel.
       WireGuard = 1451685025;
+      # Display My IP — public IP + country in the menu bar, with a notification
+      # when it changes. The companion to masApps.WireGuard above: because that
+      # GUI is the only way a tunnel comes up here (no `wg`, no `vpn` operator),
+      # no shell can answer "is the tunnel actually up?" — this makes the answer
+      # permanently visible. Free, and App Store–only like WireGuard itself.
+      # https://apps.apple.com/ca/app/display-my-ip/id1493408723
+      "Display My IP" = 1493408723;
       # Full Xcode IDE from the Mac App Store (not the CLI tools alone).
       # License is accepted *before* brew bundle by modules/darwin/xcode-license.nix
       # (Brewfile installs brews before masApps — without that, formulae fail with
