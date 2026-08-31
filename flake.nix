@@ -1405,7 +1405,8 @@
 
         # `leolist-crawlee` (macOS only) — same LeoList catalog as the userscript
         # (description + 1024 photo URLs), via Crawlee BeautifulSoup, serial + 10s
-        # delay. Ephemeral uv env. See packages/leolist-crawlee.nix.
+        # delay. `--import-ls` seeds nix-leolist.v4 localStorage. Ephemeral uv env.
+        # See packages/leolist-crawlee.nix.
         (nixpkgs.lib.genAttrs darwinSystems (system: {
           leolist-crawlee = (pkgsFor system).callPackage ./packages/leolist-crawlee.nix { };
         }))
@@ -1751,11 +1752,12 @@
             };
 
             # `nix run .#leolist-crawlee -- URL` — slow Crawlee catalog of a LeoList
-            # listing index (description + 1024 photo URLs). Same IP as Chromium.
+            # listing index (description + 1024 photo URLs). `--import-ls` seeds
+            # the userscript localStorage. Same IP as Chromium.
             aarch64-darwin.leolist-crawlee = {
               type = "app";
               program = "${self.packages.aarch64-darwin.leolist-crawlee}/bin/leolist-crawlee";
-              meta.description = "Slow Crawlee catalog of a LeoList listing page (description + 1024 photo URLs): leolist-crawlee [--max-details N] [--delay S] URL";
+              meta.description = "Slow Crawlee catalog of a LeoList listing page (description + 1024 photo URLs): leolist-crawlee [--max-details N] [--delay S] URL; leolist-crawlee --import-ls writes dataset.json into the tab's nix-leolist.v4 localStorage";
             };
 
             # `nix run .#obs-fb-setup` — write an OBS "Facebook" profile for Facebook Live,
