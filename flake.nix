@@ -1929,8 +1929,12 @@
           # nested in a GM_addStyle(`…`) template literal terminate the string.
           # `node --check` is parse-only (no execution), so the GM_* globals a
           # userscript relies on are irrelevant — exactly the right depth of
-          # check. Also covers nix-personal's scripts by construction, since they
-          # are authored to the same shape and this repo owns the option.
+          # check. Scope is THIS repo's `userscripts/` only — the glob below is
+          # `${self}/userscripts/*.user.js`, and nix-personal's private scripts
+          # live in its own tree, which this flake never reads. Owning the
+          # `userscripts` option does NOT extend the gate to its consumers.
+          # Falsified 2026-08-31: nix-personal's civitai-declutter had shipped
+          # since 2026-08-30 with no @license at all, and this check never saw it.
           #
           # The metadata block is then gated against the ONE rulebook Greasy Fork
           # and Sleazy Fork share — fetched and diffed 2026-08-31, byte-identical
