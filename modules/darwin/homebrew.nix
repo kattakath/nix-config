@@ -41,12 +41,13 @@ _:
     #     warning that motivated the 2026-07-08 removal is back on every
     #     activation. It is cosmetic — not a failure — and staying declarative was
     #     judged worth it.
-    #   - the cask's `postflight` offers to `sudo xattr -d com.apple.quarantine`
-    #     the installed .app. Under non-interactive `brew bundle` its stdin read
-    #     fails and a method-level `rescue` downgrades that to a warning, so
-    #     activation proceeds and the app KEEPS its quarantine flag — hence a
-    #     first launch may need a manual right-click ▸ Open. Do not "fix" this by
-    #     stripping quarantine from Nix; that is Gatekeeper's call, not ours.
+    #   - Gatekeeper never evaluates the app: upstream ships it unsigned, so a
+    #     quarantined copy is reported "damaged and can't be opened" and will not
+    #     launch at all. The cask therefore carries a `postinstall` that strips the
+    #     quarantine flag (hosts/macos.nix) — that hook is load-bearing, not
+    #     polish. The measurement, the rejected `args.no_quarantine` alternative,
+    #     and the security tradeoff are all recorded at that cask entry; read it
+    #     before touching either flag.
     #
     # Workable only because nix-homebrew sets mutableTaps = true (./nix-homebrew.nix)
     # — otherwise a tap must be pinned as a flake input. Framework-level per this
