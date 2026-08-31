@@ -158,6 +158,14 @@ nix flake check
 
 - [ ] If `nix` is unavailable: `node --check` the script, `nix-instantiate --parse` the changed
       `.nix`, and state the rest is **CI-deferred**.
+- [ ] **A private (nix-personal) script is NOT covered by that check.** It globs
+      `${self}/userscripts/*.user.js` — this repo's tree only. Owning the *option* does not gate
+      the consumer, and **the build still goes green**, which is the trap. Measured 2026-08-31:
+      nix-personal's `civitai-declutter` had shipped with **no `@license`** and the check never
+      saw it. For a private script, run `node --check` **and** mirror the metadata assertions by
+      hand — required keys are `@name @namespace @version @description @license @match`
+      (`@match` specifically, **not** `@include`), `@version` must be plain dotted-numeric, and
+      `@downloadURL`/`@updateURL`/`@installURL` are banned.
 
 ### H. Prove it after install
 

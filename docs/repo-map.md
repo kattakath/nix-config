@@ -651,7 +651,11 @@ materialisation, and the reason Chromium allows nothing more declarative all liv
 [`modules/shared/chromium.nix`](../modules/shared/chromium.nix) — see § `chromium.nix` above.
 Private counterparts live in nix-personal's own `userscripts/` and merge into the same attrset
 ([`private-home-modules.md`](private-home-modules.md)); **keys must not collide across the two
-repos.**
+repos.** Those private scripts are **NOT gated** — `checks.<system>.userscripts` globs
+`${self}/userscripts/*.user.js`, i.e. this tree only, and owning the *option* buys the consumer
+nothing. Measured 2026-08-31: nix-personal's `civitai-declutter` had shipped with **no
+`@license`** and the check never saw it. A private script is gated only by running the same
+assertions by hand.
 
 **Authoring path — skill [`userscript-author`](../.claude/skills/userscript-author/SKILL.md),
 driven by `/userscript`; never freehand.** It **measures the live page** with claude-in-chrome
@@ -665,7 +669,8 @@ and the state you want:
 | **STATE-B-UNREACHABLE** | the state does not exist; you are constructing UI | every invented selector carries its own measured line in the file's WHY block |
 
 The metadata block is **seeded from an already-gated script**, never hand-typed, so the contract
-lives in exactly one place `checks.<system>.userscripts` proves on every PR. Escalation is
+lives in exactly one place — which `checks.<system>.userscripts` proves on every PR **for scripts
+in this tree**, and for a private one only if you mirror it by hand (above). Escalation is
 mechanical, not a judgment call: at a **4th script**, the first TS/JSX need, or `GM_*` plus a
 settings UI, the skill **stops** and proposes adopting `vite-plugin-monkey` as its own PR — this
 tree never grows a bundler of its own, and never commits minified output.
