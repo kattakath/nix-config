@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LeoList — listings only
 // @namespace    kattakath.com
-// @version      1.21.0
+// @version      1.23.0
 // @description  Listings-only LeoList: keep #view-cont > div.col-left, drop sponsored chrome, filmstrip extra photos beside the hero from the lightbox a.href (w:1024), clamp the ad description. Parsed extras persist in localStorage with no hit TTL.
 // @author       Ismail Kattakath
 // @license      MIT
@@ -65,6 +65,12 @@
 // v1.20.0: Open button on the extreme right of the photo rail.
 // v1.21.0: hide #main_list > section (and any non-div sibling). Enrich
 // already skipped them; they still painted.
+// v1.22.0: drop 304 overlay. Thumb is a square crop; original is not.
+// Extras are a.href only (w:1024/h:0), one by one. Store prefix v4.
+// v1.23.0: Cache API stores image bytes (www.leolist.cc → imx URLs). localStorage
+// only has URL strings — that is why Application>Cache Storage was empty and
+// Cmd-R still hit the CDN. Hits skip the 1s gap. DevTools "Disable cache"
+// still bypasses HTTP cache; Cache API does not.
 //
 // Selectors (listing + detail dumps, 2026-08-31):
 //   #view-cont > div.col-left             KEEP island
@@ -77,11 +83,10 @@
 //   a.lst-item__link.mainlist-item
 //   [data-testid="ad-item"]
 //   #preview-description
-//   .account-photos__item a[href]         lightbox URL (w:1024/h:0) = hi
-//   .account-photos__item img[src]        304 thumb = lo
+//   .account-photos__item a[href]         lightbox URL (w:1024/h:0)
 //
 // Invented (constructed UI):
-//   .nix-leolist-row / -rail / -photos / -go / -shot / -title / -desc
+//   .nix-leolist-row / -rail / -photos / -go / -title / -desc
 (() => {
   'use strict';
 
@@ -92,14 +97,15 @@
   const IMX = 'https://imx.leolist.cc/';
   const CONCURRENCY = 1;
   const MAX_EXTRAS = 6;
-  const STORE_PREFIX = 'nix-leolist.v3:';
-  const STORE_LEGACY = ['nix-leolist.v1:', 'nix-leolist.v2:'];
+  const STORE_PREFIX = 'nix-leolist.v4:';
+  const STORE_LEGACY = ['nix-leolist.v1:', 'nix-leolist.v2:', 'nix-leolist.v3:'];
   const NEG_TTL_MS = 15 * 60 * 1000;
   const MAX_STORE = 400;
   const HTML_GAP_MS = 10000;
   const IMG_GAP_MS = 1000;
   const ORIGIN_PAUSE_MS = 60 * 60 * 1000;
   const PAUSE_KEY = 'nix-leolist.originPauseUntil';
+  const IMG_CACHE = 'nix-leolist-img-v4';
 
   const CSS = [
     'html[data-nix-leolist-listings-only] .group:has(.lst-item__label--sponsored)',
@@ -121,10 +127,6 @@
     'html[data-nix-leolist-listings-only] .nix-leolist-go {\n  flex: 0 0 56px;\n  margin-left: auto;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  min-height: 256px;\n  background: #89b4fa;\n  color: #1e1e2e;\n  text-decoration: none;\n  font-weight: 700;\n  letter-spacing: 0.02em;\n}\n' +
     'html[data-nix-leolist-listings-only] .nix-leolist-go:hover {\n  background: #89dceb;\n}\n' +
     'html[data-nix-leolist-listings-only] .nix-leolist-row img {\n  width: auto;\n  height: 256px;\n  object-fit: contain;\n  object-position: top center;\n  flex: 0 0 auto;\n}\n' +
-    'html[data-nix-leolist-listings-only] .nix-leolist-shot {\n  position: relative;\n  display: block;\n  height: 256px;\n  flex: 0 0 auto;\n  overflow: hidden;\n}\n' +
-    'html[data-nix-leolist-listings-only] .nix-leolist-shot-lo {\n  display: block;\n  height: 256px;\n  width: auto;\n}\n' +
-    'html[data-nix-leolist-listings-only] .nix-leolist-shot-hi {\n  position: absolute;\n  left: 0;\n  top: 0;\n  width: 100%;\n  height: 100%;\n  object-fit: cover;\n  object-position: top center;\n  opacity: 0;\n}\n' +
-    'html[data-nix-leolist-listings-only] .nix-leolist-shot-hi.nix-leolist-shot-in {\n  opacity: 1;\n}\n' +
     'html[data-nix-leolist-listings-only] .nix-leolist-more {\n  flex: 0 0 auto;\n  height: 256px;\n  min-width: 48px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  font-size: 14px;\n  font-weight: 650;\n  color: #a6adc8;\n  background: #45475a;\n}\n' +
     'html[data-nix-leolist-listings-only] .nix-leolist-title {\n  color: #89b4fa;\n  font-size: 1.1em;\n  font-weight: 650;\n  text-decoration: none;\n}\n' +
     'html[data-nix-leolist-listings-only] .nix-leolist-title:hover {\n  color: #89dceb;\n}\n' +
@@ -302,10 +304,7 @@
       const key = imxPayload(hi);
       if (seen.has(key)) continue;
       seen.add(key);
-      const img = a.querySelector('img');
-      const loRaw = img ? img.getAttribute('src') || '' : '';
-      const lo = loRaw.indexOf(IMX) === 0 ? loRaw : '';
-      photos.push({ lo, hi });
+      photos.push(hi);
     }
     return { desc, photos };
   };
@@ -370,9 +369,14 @@
       setTimeout(resolve, ms);
     });
 
-  const loadOne = async (img, url) => {
-    if (!img || !url) return;
-    await new Promise((resolve) => {
+  let imgCacheP = null;
+  const imgCache = () => {
+    if (!imgCacheP) imgCacheP = caches.open(IMG_CACHE);
+    return imgCacheP;
+  };
+
+  const paintImg = (img, src) =>
+    new Promise((resolve) => {
       let settled = false;
       const done = () => {
         if (settled) return;
@@ -381,9 +385,55 @@
       };
       img.addEventListener('load', done, { once: true });
       img.addEventListener('error', done, { once: true });
-      img.src = url;
+      img.src = src;
       if (img.complete) done();
     });
+
+  const loadOne = async (img, url) => {
+    if (!img || !url) return;
+    const cache = await imgCache();
+    const hit = await cache.match(url);
+    if (hit && hit.type !== 'opaque') {
+      try {
+        const blob = await hit.blob();
+        if (blob && blob.size) {
+          const obj = URL.createObjectURL(blob);
+          await paintImg(img, obj);
+          URL.revokeObjectURL(obj);
+          return;
+        }
+      } catch {
+        /* fall through */
+      }
+    }
+    let stored = false;
+    try {
+      const res = await fetch(url, { mode: 'cors', credentials: 'omit', cache: 'force-cache' });
+      if (res.ok) {
+        const blob = await res.blob();
+        await cache.put(
+          url,
+          new Response(blob, { headers: { 'Content-Type': blob.type || 'image/webp' } }),
+        );
+        stored = true;
+        const obj = URL.createObjectURL(blob);
+        await paintImg(img, obj);
+        URL.revokeObjectURL(obj);
+        await wait(IMG_GAP_MS);
+        return;
+      }
+    } catch {
+      /* imx likely no CORS */
+    }
+    await paintImg(img, url);
+    if (!stored) {
+      try {
+        const opaque = await fetch(url, { mode: 'no-cors', credentials: 'omit', cache: 'force-cache' });
+        await cache.put(url, opaque);
+      } catch {
+        /* ignore */
+      }
+    }
     await wait(IMG_GAP_MS);
   };
 
@@ -441,35 +491,23 @@
     const heroSrc = hero ? hero.getAttribute('src') : '';
     const heroKey = heroSrc ? imxPayload(heroSrc) : '';
     if (descEl && data.desc && !descEl.textContent) descEl.textContent = data.desc;
-    if (!photos || photos.querySelector('.nix-leolist-shot')) return;
+    if (!photos || photos.querySelector('.nix-leolist-extra')) return;
 
     const extras = [];
     for (const src of data.photos) {
       const hi = typeof src === 'string' ? src : src.hi;
-      const lo = typeof src === 'string' ? '' : src.lo || '';
       if (!hi) continue;
       if (heroKey && imxPayload(hi) === heroKey) continue;
-      extras.push({ lo, hi });
+      extras.push(hi);
     }
     const shown = extras.slice(0, MAX_EXTRAS);
-    const loImgs = [];
-    const hiImgs = [];
-    for (const shot of shown) {
-      const shotWrap = document.createElement('span');
-      shotWrap.className = 'nix-leolist-shot';
-      if (shot.lo) {
-        const loImg = document.createElement('img');
-        loImg.className = 'nix-leolist-shot-lo';
-        loImg.alt = '';
-        shotWrap.appendChild(loImg);
-        loImgs.push({ el: loImg, url: shot.lo });
-      }
-      const hiImg = document.createElement('img');
-      hiImg.alt = '';
-      if (shot.lo) hiImg.className = 'nix-leolist-shot-hi';
-      shotWrap.appendChild(hiImg);
-      hiImgs.push({ el: hiImg, url: shot.hi });
-      photos.appendChild(shotWrap);
+    const pending = [];
+    for (const url of shown) {
+      const img = document.createElement('img');
+      img.className = 'nix-leolist-extra';
+      img.alt = '';
+      photos.appendChild(img);
+      pending.push({ el: img, url });
     }
     if (extras.length > MAX_EXTRAS) {
       const more = document.createElement('span');
@@ -477,11 +515,7 @@
       more.textContent = '+' + String(extras.length - MAX_EXTRAS);
       photos.appendChild(more);
     }
-    for (let i = 0; i < loImgs.length; i += 1) await loadOne(loImgs[i].el, loImgs[i].url);
-    for (let i = 0; i < hiImgs.length; i += 1) {
-      await loadOne(hiImgs[i].el, hiImgs[i].url);
-      hiImgs[i].el.classList.add('nix-leolist-shot-in');
-    }
+    for (let i = 0; i < pending.length; i += 1) await loadOne(pending[i].el, pending[i].url);
   };
 
   const enrichCard = async (wrap) => {
