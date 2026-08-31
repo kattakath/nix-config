@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LeoList — listings only
 // @namespace    kattakath.com
-// @version      1.20.0
+// @version      1.21.0
 // @description  Listings-only LeoList: keep #view-cont > div.col-left, drop sponsored chrome, filmstrip extra photos beside the hero from the lightbox a.href (w:1024), clamp the ad description. Parsed extras persist in localStorage with no hit TTL.
 // @author       Ismail Kattakath
 // @license      MIT
@@ -63,6 +63,8 @@
 // v1.19.0: rows are ours (.nix-leolist-row). Stock .lst-item is hidden.
 // Page-1 title/hero paint immediately; extras still serial.
 // v1.20.0: Open button on the extreme right of the photo rail.
+// v1.21.0: hide #main_list > section (and any non-div sibling). Enrich
+// already skipped them; they still painted.
 //
 // Selectors (listing + detail dumps, 2026-08-31):
 //   #view-cont > div.col-left             KEEP island
@@ -103,6 +105,8 @@
     'html[data-nix-leolist-listings-only] .group:has(.lst-item__label--sponsored)',
     'html[data-nix-leolist-listings-only] .main-list-sponsors',
     'html[data-nix-leolist-listings-only] aside.main-list__safety-tips',
+    'html[data-nix-leolist-listings-only] #main_list > section',
+    'html[data-nix-leolist-listings-only] #main_list > :not(div)',
     'html[data-nix-leolist-listings-only] .lst-item img.huge',
   ].join(',\n') + ' {\n  display: none;\n}\n' +
     'html[data-nix-leolist-listings-only] body.modal-open {\n  overflow: auto;\n}\n' +
