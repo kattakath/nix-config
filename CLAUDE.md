@@ -286,7 +286,7 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   (2026-08-20): flake-parts for the small supporting flakes; nix-config's own core engine and
   the dendritic pattern stay out of scope.
 - [`docs/macvm-tart-runbook.md`](docs/macvm-tart-runbook.md) — host-side Tart lifecycle, SSH,
-  shared Screengrab for `macvm`.
+  shared `~/Downloads` for `macvm` (+ the VirtioFS coherence/quarantine findings).
 - [`docs/wireguard-vpn.md`](docs/wireguard-vpn.md) — the `vpn` CLI is **macvm-only**; `macos`
   uses the `WireGuard.app` GUI exclusively (no tunnel can be raised from a shell).
 - [`docs/gmail-mcp-multi-account-runbook.md`](docs/gmail-mcp-multi-account-runbook.md) — TRUE

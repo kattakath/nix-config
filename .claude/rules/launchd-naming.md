@@ -2,7 +2,7 @@
 
 Every launchd unit **this repo authors** MUST expose a first argument whose **basename is
 `nix-<activity-in-kebab-case>`** — e.g. `nix-mcp-gateway`, `nix-ollama-local`,
-`nix-file-rotation-screengrab`. The `arg0` the kernel execs (`ProgramArguments[0]`, or
+`nix-file-rotation-downloads`. The `arg0` the kernel execs (`ProgramArguments[0]`, or
 `Program` if used) is what macOS's **Background Task Manager (BTM)** and *System Settings →
 Login Items & Extensions* display. A bare interpreter there — `sh`, `bash`, `zsh`, `dash`,
 `python`/`python3`, `node`, `perl`, `ruby`, `env` — is **forbidden**: it hides the
@@ -14,6 +14,27 @@ the exact smell this rule exists to prevent.
 BTM lists background agents by their executable basename. A `nix-*` basename **tags every
 fleet agent as ours**, so the operator can audit "Allow in the Background" at a glance and
 spot anything that is *not* ours. `sh`/`python3` defeats that entirely.
+
+### The rule is load-bearing for TCC file access, not just BTM cosmetics
+
+A `/nix/store` `arg0` is also what lets an agent **read** the TCC-protected user folders
+(Desktop / Documents / **Downloads**). Measured on this machine:
+
+| Agent `arg0` | Reading / enumerating `~/Downloads` |
+|---|---|
+| `/nix/store/…/bin/nix-<activity>` (what `writeShellScriptBin` produces — adhoc-signed) | **ALLOWED** |
+| `/bin/sh` (i.e. `script =`, or an explicit `/bin/sh -c`) — identical job otherwise | **EPERM** |
+
+TCC gates *reads* of those folders and attributes the access to the **responsible process**.
+An adhoc-signed `/nix/store` binary has no stable code identity to attribute, so it falls
+through to allow; Apple's own `/bin/sh` is attributable and gets denied without an explicit
+grant. Consequence: **`script =` or a bare-interpreter `arg0` now silently loses Downloads
+access** — the agent runs, logs nothing useful, and quietly does no work.
+
+**Caveat:** this behaviour is **undocumented by Apple** and **verified on macOS 26.6.2 only**.
+It could change in any OS update. Treat it as one more reason the `nix-*` wrapper is
+mandatory, not as a security boundary to rely on. Live example:
+`nix-file-rotation-downloads` in `modules/darwin/core.nix`.
 
 ## Mandatory behavior
 

@@ -38,15 +38,26 @@ let
     exec ${lib.getExe tartGuestAgent} --run-agent
   '';
 
-  # Single ensure script for launchd + activation (path shape = core.nix screengrabDir).
-  # Tart mounts host Screengrab as /Volumes/My Shared Files/Screengrab (VirtioFS).
-  screengrabShare = "/Volumes/My Shared Files/Screengrab";
-  screengrabLocal = "${home}/Pictures/Screengrab";
-  nixScreengrabShare = pkgs.writeShellScriptBin "nix-screengrab-share" ''
+  # Single ensure script for launchd + activation (path shape = core.nix downloadsDir).
+  # Tart mounts the host's ~/Downloads as /Volumes/My Shared Files/Downloads
+  # (VirtioFS), and the guest's own ~/Downloads becomes a symlink to it — so a
+  # download in the guest lands in the host's one staging inbox.
+  #
+  # Only the GUEST side is ever a symlink. The host's ~/Downloads stays a real
+  # directory: symlinking it there breaks AirDrop (files land in /private/tmp)
+  # and permanently loses the Finder sidebar icon. Confining the symlink to this
+  # disposable sandbox keeps that blast radius inside the VM.
+  #
+  # The probe/wait logic below matters MORE than it did for Screengrab: a
+  # dangling ~/Downloads symlink is not a cosmetic annoyance in the guest, it
+  # breaks every browser download and Save-As. Never simplify it away.
+  downloadsShare = "/Volumes/My Shared Files/Downloads";
+  downloadsLocal = "${home}/Downloads";
+  nixDownloadsShare = pkgs.writeShellScriptBin "nix-downloads-share" ''
     set -euo pipefail
-    shared="${screengrabShare}"
-    local="${screengrabLocal}"
-    log() { echo "nix-screengrab-share: $*" >&2; }
+    shared="${downloadsShare}"
+    local="${downloadsLocal}"
+    log() { echo "nix-downloads-share: $*" >&2; }
 
     ensure_symlink() {
       /bin/mkdir -p "$(/usr/bin/dirname "$local")"
@@ -57,7 +68,10 @@ let
         fi
         /bin/rm -f "$local"
       elif [ -d "$local" ]; then
-        count="$(/usr/bin/find "$local" -mindepth 1 ! -name '.DS_Store' 2>/dev/null | /usr/bin/wc -l | /usr/bin/tr -d ' ')"
+        # .localized is excluded alongside .DS_Store: a pristine macOS
+        # ~/Downloads always ships it, and counting it would make every fresh
+        # guest look "non-empty" and leave a spurious .local-backup dir behind.
+        count="$(/usr/bin/find "$local" -mindepth 1 ! -name '.DS_Store' ! -name '.localized' 2>/dev/null | /usr/bin/wc -l | /usr/bin/tr -d ' ')"
         if [ "''${count:-0}" -eq 0 ]; then
           /bin/rm -rf "$local"
         else
@@ -73,7 +87,7 @@ let
 
     if [ -d "$shared" ]; then
       ensure_symlink
-      probe="$shared/.nix-screengrab-share-probe"
+      probe="$shared/.nix-downloads-share-probe"
       if /bin/echo ok >"$probe" 2>/dev/null; then
         /bin/rm -f "$probe"
         log "ok (writable)"
@@ -88,7 +102,7 @@ let
       /bin/rm -f "$local"
       log "removed dangling symlink (waiting for VirtioFS)"
     fi
-    log "waiting for $shared (host: macvm-tart-start with Screengrab dir share)"
+    log "waiting for $shared (host: macvm-tart-start with Downloads dir share)"
     exit 0
   '';
 in
@@ -252,18 +266,32 @@ in
     masApps = { };
   };
 
-  # ---- Host Screengrab via Tart VirtioFS ------------------------------------
-  # Path shape matches core.nix screengrabDir; host attaches share with
-  # `macvm-tart-start` (--dir=Screengrab:…). Rotation stays macos-only.
+  # ---- Host ~/Downloads via Tart VirtioFS ------------------------------------
+  # Path shape matches core.nix downloadsDir; host attaches the share with
+  # `macvm-tart-start` (--dir=Downloads:…). Rotation stays macos-only — see the
+  # mv(1)-across-filesystems warning in modules/darwin/core.nix.
   # StartInterval re-heals after boot race / remount; dangling symlinks cleared.
-  launchd.user.agents.nix-screengrab-share = {
+  #
+  # KNOWN VirtioFS QUIRK — host→guest coherence is stale. Measured on tart
+  # 2.30.6: after the host deletes a file the guest still LISTS it for ~2-4
+  # minutes, and a direct read of it returns "Permission denied" (EACCES), not
+  # ENOENT. That misleading errno sends people chasing a share-permissions bug
+  # that isn't there. Guest→host propagation is instant. Practical effect: for a
+  # few minutes after each hourly rotation on the host, the guest's view of
+  # ~/Downloads is stale — wait it out, don't debug it.
+  #
+  # Security note (measured, byte-identical guest→host): the
+  # com.apple.quarantine xattr DOES survive VirtioFS, so a file downloaded in
+  # the sandbox still arrives quarantined on the host. Gatekeeper is not bypassed
+  # by routing a download through the guest.
+  launchd.user.agents.nix-downloads-share = {
     serviceConfig = {
-      Label = "org.nixos.nix-screengrab-share";
-      ProgramArguments = [ (lib.getExe nixScreengrabShare) ];
+      Label = "org.nixos.nix-downloads-share";
+      ProgramArguments = [ (lib.getExe nixDownloadsShare) ];
       RunAtLoad = true;
       StartInterval = 30;
-      StandardOutPath = "${home}/Library/Logs/nix-screengrab-share.log";
-      StandardErrorPath = "${home}/Library/Logs/nix-screengrab-share.log";
+      StandardOutPath = "${home}/Library/Logs/nix-downloads-share.log";
+      StandardErrorPath = "${home}/Library/Logs/nix-downloads-share.log";
     };
   };
 
@@ -285,9 +313,10 @@ in
   };
 
   system.activationScripts.postActivation.text = lib.mkAfter ''
-    # Same ensure as the user agent (root can create the symlink).
-    ${lib.getExe nixScreengrabShare} || true
-    /usr/sbin/chown -h ${loginName}:staff ${lib.escapeShellArg screengrabLocal} 2>/dev/null || true
+    # Same ensure as the user agent (root can create the symlink). `chown -h`
+    # retargets the SYMLINK itself, not the host dir behind it — safe here.
+    ${lib.getExe nixDownloadsShare} || true
+    /usr/sbin/chown -h ${loginName}:staff ${lib.escapeShellArg downloadsLocal} 2>/dev/null || true
 
     # Residual macos-only login openers (open-mail / Slack / …) leave launchd
     # "enabled" ghosts after host-scoping to macos — they once auto-launched

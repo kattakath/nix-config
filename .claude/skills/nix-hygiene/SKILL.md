@@ -85,7 +85,7 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
 
 ### C. DRY / modular / atomic
 
-- [ ] One path for one fact (e.g. Screengrab path shape shared conceptually host/guest).
+- [ ] One path for one fact (e.g. the `~/Downloads` path shape shared conceptually host/guest).
 - [ ] No host-specific lists in shared modules without `mkIf` / hostName / `isMacosHost`.
 - [ ] Launchd BTM basenames: `nix-<activity>` via `mkNixAgent` / `hm-launchd` (never bare `sh`/`open`).
 - [ ] Secrets: never plaintext in `.nix`; agenix vault vs Keychain rules unchanged.
@@ -129,7 +129,7 @@ If `nix` unavailable: `nix-instantiate --parse` on changed `.nix` + state CI-def
 
 | Scope | Command |
 |---|---|
-| macvm / Tart / Screengrab share | `nix run .#macvm-tart-doctor` |
+| macvm / Tart / `~/Downloads` share | `nix run .#macvm-tart-doctor` |
 | nixpi flash/provision | skill `nixpi-firmware-provision` |
 | Vast templates | skill / docs as needed |
 
@@ -164,7 +164,8 @@ If `nix` unavailable: `nix-instantiate --parse` on changed `.nix` + state CI-def
 ## Anti-patterns specific to this fleet
 
 1. **macvm inheriting macos login openers / RAG / MCP gateway** — must stay lean.
-2. **Guest file-rotation on shared Screengrab** — host-only.
+2. **Guest file-rotation on the shared `~/Downloads`** — host-only (`mv` across
+   filesystems = `cp` + `rm`, so a guest rotation destroys host files).
 3. **Dual SSH stacks on macvm** — one path (Apple's sshd + bootstrap).
 4. **Putting `.utm` / IPSW / disk images in the flake.**
 5. **Hand-editing `flake.lock`.**
