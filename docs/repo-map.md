@@ -317,15 +317,31 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
     | `adBlock` | uBlock Origin | **2** | the **real** MV2 build, not uBO Lite |
     | `userScripts.enable` | Violentmonkey | 3 | also materialises `userScripts.scripts` |
     | `claudeInChrome` | Claude in Chrome | 3 | native host is claude-code's, not ours |
+    | `kaptureMcp` | Kapture MCP Browser Automation | 3 | browser end only; per-tab gate is **DevTools** |
     | `darkTheme` | Into The Black Hole | 2 | code-free theme (a `theme` key, nothing else) |
 
     `adBlock` gets the **real MV2** uBlock Origin — with blocking `webRequest`, not
     `declarativeNetRequest` — because ungoogled's `extensions-manifestv2.patch` makes
     `ShouldDisableLegacyExtensions()` return false unconditionally. Chrome and Brave cannot.
-    `claudeInChrome` is the fleet's sole browser-automation tool; its
-    `com.anthropic.claude_code_browser_extension` native host is written by claude-code
-    itself (its `path` must track the current CLI install), so this module must **not**
-    re-declare it — only Apple's host needs replanting.
+    **Two browser-automation extensions, on purpose.** Both hold `debugger` +
+    `<all_urls>`; they differ in *who can reach them*, which is the whole point:
+
+    | | `claudeInChrome` | `kaptureMcp` |
+    |---|---|---|
+    | Transport | native messaging | DevTools panel → local bridge |
+    | Reachable by | the one CLI its host manifest names | any MCP client that speaks to the bridge |
+    | Per-tab gate | none | **must open DevTools + connect** |
+    | Fails when | its tools never load into the session | the `npx` bridge isn't running |
+
+    `claudeInChrome`'s `com.anthropic.claude_code_browser_extension` native host is written
+    by claude-code itself (its `path` must track the current CLI install), so this module must
+    **not** re-declare it — only Apple's host needs replanting. `kaptureMcp` needs no host at
+    all, but its **server half is not declared here**: `~/.claude.json` runs
+    `npx -y kapture-mcp@latest bridge` at user scope — imperative and unpinned, so it can
+    change under a session with no rebuild. Declaring it in `mcp.nix` is an open follow-up.
+    (Historical note: the kapture *gateway* entry was removed 2026-08-22 along with the whole
+    public-MCP-exposure subsystem; that removal was about the gateway and the Cloudflare
+    tunnel, not about the tool, and this extension does not resurrect either.)
   - **`NativeMessagingHosts/com.apple.passwordmanager.json`** — Apple's own native-messaging
     manifest, re-pointed at Chromium. macOS ships it to **Chrome and Firefox only**; replanting
     it is what makes Passwords.app autofill here, and it is safe because the manifest gates on
@@ -693,6 +709,12 @@ tree never grows a bundler of its own, and never commits minified output.
   `rAF`; and only the pane **wrapper** may ever be shifted, because it is the `position:absolute`
   containing block for the main pane, which sits at `left:0` inside it, so moving both would
   double the offset.
+
+- **`leolist-listings-only.user.js`** — listing pages on `leolist.cc` (`/personals/*`). The
+  site has **no listings-only mode** (STATE-B-UNREACHABLE, measured 2026-08-31): organic cards
+  are SSR'd in `#main_list`, and chrome around them is named. The script hides that chrome plus
+  the five `.lst-item__label--sponsored` cards; pagination stays. Detail pages under the same
+  `@match` have no `#main_list` and stay stock.
 
 ## `infra/` — terranix (Nix → OpenTofu/Terraform JSON)
 
