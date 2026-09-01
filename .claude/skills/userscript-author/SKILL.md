@@ -200,6 +200,18 @@ nix flake check
 - That per-edit click-through is the **untracked** default. § Live-edit loop removes it for the
   duration of an authoring session.
 
+## Live-edit loop (Kapture preview plugin — default)
+
+While iterating, **do not wait on `activate` + click.** The in-repo plugin
+`userscript-preview` re-injects the saved `*.user.js` into a matching Kapture tab
+(`PostToolUse` on Write/Edit, or `/userscript-preview`).
+
+- Tab must have Kapture connected and **Allow JS execution**.
+- The IIFE **must** call `window.__nix<Name>Teardown()` first (google-photos
+  already does). A leftover `data-*Init` early-return makes inject a no-op —
+  do not add one.
+- Preview dies on reload. Ship with `activate` + click as usual.
+
 ## Live-edit loop (Violentmonkey tracks the repo file)
 
 For an **iterative** session — many saves against one page — Violentmonkey's *Track external
