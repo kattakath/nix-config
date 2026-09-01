@@ -166,6 +166,10 @@ let
     # plugin (python3Packages.sphinx-llms-txt) — see plugins/llmstxt/README.md for the
     # reuse-vs-build reasoning, including why the linter is dependency-free stdlib.
     "llmstxt@${localMarketplaceName}"
+    # IN-REPO (plugins/userscript-preview): PostToolUse re-injects *.user.js into
+    # a matching Kapture tab (localhost:61822). Preview only — activate + click
+    # still owns persistence. Userscripts must ship window.__nix*Teardown.
+    "userscript-preview@${localMarketplaceName}"
     # IN-REPO (plugins/seargraph, this repo): the seargraph-langgraph subagent —
     # LangGraph pipeline design/implementation help for the SEARGraph project
     # (self-evolving agentic image restoration: fidelity metrics, constrained
@@ -259,11 +263,6 @@ let
   # CSV/JSON via the off-the-shelf python-jobspy library (run in an ephemeral uv env).
   # See packages/jobspy.nix.
   jobspy = pkgs.callPackage ../../packages/jobspy.nix { };
-
-  # `leolist-crawlee URL` — same catalog as the listings-only userscript, via
-  # Crawlee (serial HTTP). `leolist-crawlee --import-ls` writes dataset.json
-  # into leolist.cc localStorage (nix-leolist.v4:). See packages/leolist-crawlee.nix.
-  leolist-crawlee = pkgs.callPackage ../../packages/leolist-crawlee.nix { };
 
   # `fidelity-enhance-mcp` / `fidelity-enhance` — referee for an agentic
   # image-editing loop: Grok Imagine generates, this judges each result against
@@ -452,7 +451,6 @@ in
   # copied into the store at eval. See modules/shared/chromium.nix for the option.
   programs.ungoogledChromium.userScripts.scripts = {
     google-photos-icon-nav = ../../userscripts/google-photos-icon-nav.user.js;
-    leolist-listings-only = ../../userscripts/leolist-listings-only.user.js;
   };
 
   # Spotlight-launchable "Android Emulator" + "Mac VM" — click (or re-click)
@@ -536,7 +534,6 @@ in
       email-signature # `email-signature [--url URL] [--logo-url URL] [--out DIR]` — render a self-contained HTML email signature (JSON Resume + gist logo, base64-embedded) to ~/.local/share/email-signature/signature.html; also regenerated on activation (packages/email-signature/)
       design-tokens # `design-tokens [--tokens-url URL] [--out DIR]` — transform the gist DTCG tokens.json into SCSS/CSS/JS via Style Dictionary, to ~/.local/share/design-tokens/ (packages/design-tokens/)
       jobspy # `jobspy --search … --location …` — scrape jobs (LinkedIn/Indeed/…) into CSV/JSON via python-jobspy in an ephemeral uv env (packages/jobspy.nix)
-      leolist-crawlee # `leolist-crawlee URL` / `--import-ls` — Crawlee catalog + localStorage seed (packages/leolist-crawlee.nix)
       obs-fb-setup # `obs-fb-setup` — write an OBS "Facebook" profile for Facebook Live, injecting FB_PERSISTENT_STREAM_KEY from the login Keychain (packages/obs-fb-setup.nix)
       fidelityEnhance # `fidelity-enhance-mcp` (stdio MCP server) + `fidelity-enhance` (CLI) — fidelity referee for agentic image editing: Grok Imagine generates, this judges drift against the original (SSIM/LPIPS/ArcFace identity) and returns retry/next-step/done plus prompt guidance. Ephemeral uv env; FIRST RUN pulls ~1GB of torch/insightface — warm it with `fidelity-enhance capabilities` (packages/fidelity-enhance.nix)
       fixGoogleVideo # `fix-google-video <file>...` — re-encode VP9-in-MP4 (and other editor-incompatible codecs) into H.264+AAC so Google Photos downloads import into CapCut/Premiere/etc.; idempotent, VideoToolbox-accelerated (packages/fix-google-video.nix)
