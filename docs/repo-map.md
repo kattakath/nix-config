@@ -630,14 +630,6 @@ Smaller, single-purpose CLIs:
   fallback, idempotent.
 - **`jobspy.nix`** — a reproducible `uv`-ephemeral wrapper CLI around the `python-jobspy`
   library for scraping job boards.
-- **`leolist-crawlee.nix`** — same LeoList catalog as `leolist-listings-only.user.js`
-  (description + `w:1024` photo URLs), via Crawlee `BeautifulSoupCrawler`. Serial,
-  10s delay, `respect_robots_txt_file`, no image downloads. Dataset under
-  `$XDG_DATA_HOME/leolist-crawlee`. `--import-ls` writes that JSON into the
-  userscript's `nix-leolist.v4:<pathname>` keys on a live `leolist.cc` tab
-  (Kapture localhost, else a paste-JS file) so the tab skips those ad HTML
-  fetches. Same public IP as the browser — do not run while the userscript is
-  fetching.
 - **`jsonresume.nix`** — dual-engine `jsonresume <download|print|validate|markdown|text>`
   wrapper (`resumed` for PDF/validate, `resume-cli` where `resumed` falls short); see the
   `jsonresume-tailor` skill.
@@ -717,20 +709,6 @@ tree never grows a bundler of its own, and never commits minified output.
   `rAF`; and only the pane **wrapper** may ever be shifted, because it is the `position:absolute`
   containing block for the main pane, which sits at `left:0` inside it, so moving both would
   double the offset.
-
-- **`leolist-listings-only.user.js`** — listing pages on `leolist.cc` (`/personals/*`). The
-  site has **no listings-only mode** (STATE-B-UNREACHABLE, measured 2026-08-31). Keep island
-  is `#view-cont > div.col-left` (operator-named; dump: `#view-cont`'s children are
-  `div.col-left` + `div.col-right`); the script walks that node to `body` and sets `hidden`
-  on every sibling, then still drops `.lst-item__label--sponsored` cards and the SPONSORS
-  strip inside the island. As each organic card nears the viewport it same-origin-fetches
-  the ad page. Extra `.account-photos__item` thumbs compose into `.lst-item__img` as a
-  same-height filmstrip (not a wrap dump); `#preview-description` is 3-line clamped in
-  `.lst-item__info`. Phone stays locked. Hidden tabs reconnect IO on `visibilitychange`.
-  Parsed extras persist in `localStorage` (`nix-leolist.v2:<href>`, no TTL on
-  hits, 400-cap LRU, 15min negative cache). Extra photos are the lightbox
-  `<a href>` (`w:1024/h:0`), not the 304 `<img src>` thumb. `#view-cont` and its
-  `.container` parent are forced to full width. Missing keep node → no-op.
 
 ## `infra/` — terranix (Nix → OpenTofu/Terraform JSON)
 
@@ -911,7 +889,7 @@ changes — activation keys the marketplace re-pin (and a reinstall of the copie
 `~/.claude/plugins/cache`) off exactly that, so an in-repo plugin can never serve a previous
 generation's content.
 
-Today, two:
+Today, three:
 
 - **`plugins/llmstxt`** — `llms.txt` authoring skill + `/llmstxt` command + a stdlib-only spec
   linter; see `plugins/llmstxt/README.md`.
@@ -920,6 +898,10 @@ Today, two:
   iterative refinement, character embeddings). It is a plugin rather than a vendored skill for
   one structural reason: `programs.claude-code.skills` has no `agents/` capability — only a
   plugin can ship a subagent.
+- **`plugins/userscript-preview`** — PostToolUse hook + `/userscript-preview` re-injects a
+  `*.user.js` into a matching Kapture tab (`evalAllowed`). Preview only; scripts must expose
+  `window.__nix*Teardown` so a second inject does not duplicate UI. Persistence is still
+  `activate` + a Violentmonkey click.
 
 Adding one = a `plugins/<name>/` tree with `.claude-plugin/plugin.json` + a `marketplace.json`
 entry + its id in `claudePluginIds`; validate with `claude plugin validate --strict`. A
