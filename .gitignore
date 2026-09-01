@@ -37,6 +37,10 @@ memory/
 ._*
 tmp
 
+# Python bytecode (plugin scripts)
+__pycache__/
+*.py[cod]
+
 # Nix build artifacts
 result
 result-*
