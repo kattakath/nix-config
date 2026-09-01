@@ -27,6 +27,25 @@
       "source": "./llmstxt"
     },
     {
+      "name": "userscript-preview",
+      "description": "Re-inject a Violentmonkey userscript into a live matching Kapture tab after each save, without activate + click. Scripts must be idempotent.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Ismail Kattakath"
+      },
+      "category": "development",
+      "keywords": [
+        "userscript",
+        "violentmonkey",
+        "kapture",
+        "preview",
+        "live-reload"
+      ],
+      "homepage": "https://github.com/kattakath/nix-config",
+      "license": "MIT",
+      "source": "./userscript-preview"
+    },
+    {
       "name": "seargraph",
       "description": "Agent-development helper for SEARGraph — self-evolving agentic image restoration on LangGraph (fidelity metrics, constrained optimization, iterative refinement, character embeddings).",
       "version": "0.1.0",

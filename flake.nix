@@ -1403,14 +1403,6 @@
           jobspy = (pkgsFor system).callPackage ./packages/jobspy.nix { };
         }))
 
-        # `classifieds-crawlee` (macOS only) — same Classifieds catalog as the userscript
-        # (description + 1024 photo URLs), via Crawlee BeautifulSoup, serial + 10s
-        # delay. `--import-ls` seeds nix-classifieds.v4 localStorage. Ephemeral uv env.
-        # See packages/classifieds-crawlee.nix.
-        (nixpkgs.lib.genAttrs darwinSystems (system: {
-          classifieds-crawlee = (pkgsFor system).callPackage ./packages/classifieds-crawlee.nix { };
-        }))
-
         # `fidelity-enhance` (macOS only) — referee for an agentic image-editing loop:
         # Grok Imagine generates, this judges each result against the original and returns
         # retry/next-step/done plus prompt guidance. Ships two binaries
@@ -1749,15 +1741,6 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.jobspy}/bin/jobspy";
               meta.description = "Scrape jobs (LinkedIn/Indeed/Glassdoor/…) into CSV/JSON via python-jobspy: jobspy --search … --location … [--sites …] [--results N] [--remote]";
-            };
-
-            # `nix run .#classifieds-crawlee -- URL` — slow Crawlee catalog of a Classifieds
-            # listing index (description + 1024 photo URLs). `--import-ls` seeds
-            # the userscript localStorage. Same IP as Chromium.
-            aarch64-darwin.classifieds-crawlee = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.classifieds-crawlee}/bin/classifieds-crawlee";
-              meta.description = "Slow Crawlee catalog of a Classifieds listing page (description + 1024 photo URLs): classifieds-crawlee [--max-details N] [--delay S] URL; classifieds-crawlee --import-ls writes dataset.json into the tab's nix-classifieds.v4 localStorage";
             };
 
             # `nix run .#obs-fb-setup` — write an OBS "Facebook" profile for Facebook Live,

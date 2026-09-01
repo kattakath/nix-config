@@ -1,0 +1,17 @@
+{
+  "description": "After a userscript save, re-inject the file into a matching Kapture tab.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|StrReplace",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/preview.py",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}
