@@ -650,6 +650,12 @@ Smaller, single-purpose CLIs:
   for a PHYSICAL Android device; hardens around two live-reproduced adb bugs, an mDNS-cache
   staleness and duplicate-transport device listings. Its operator knowledge is also a GLOBAL
   skill, `skills/android-phone`.
+- **`extract-audio.nix`** — `extract-audio [--mp3|--wav|--flac] <file>...` pulls the audio
+  track out of a video. Defaults to a lossless stream copy (a video's audio is already a
+  finished encode; re-encoding it to MP3 is a second lossy generation for nothing), which
+  makes the container the real problem it solves: `-c:a copy` fails into a container that
+  does not accept the codec, so it maps codec→extension (`.m4a` for AAC/ALAC, `.ogg` for
+  Vorbis, `.wav` for PCM, `.mka` as the catch-all). Idempotent; preserves timestamps.
 - **`fix-google-video.nix`** — detects and re-encodes video files with editor-incompatible
   codecs (most commonly VP9-in-MP4, the flavor Google Photos' download button serves for
   videos not backed up at Original quality) into H.264+AAC via VideoToolbox with a libx264
