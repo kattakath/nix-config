@@ -273,6 +273,13 @@
       # Plash — put a website on your desktop as the wallpaper. App Store–only
       # (no Homebrew cask). https://apps.apple.com/ca/app/plash/id1494023538
       Plash = 1494023538;
+      # DaVinci Resolve — App Store is the only automatable source. There is no
+      # Homebrew cask (Blackmagic gates direct downloads behind a registration
+      # form), and nixpkgs' davinci-resolve is `platforms = [ "x86_64-linux" ]`,
+      # so neither channel can reach this host. Free edition; Studio is a
+      # separate paid SKU (900392332) needing its own licence.
+      # https://apps.apple.com/ca/app/davinci-resolve/id571213070
+      "DaVinci Resolve" = 571213070;
     };
   };
 }
