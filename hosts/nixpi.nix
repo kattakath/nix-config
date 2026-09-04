@@ -33,7 +33,7 @@
 {
   imports = [
     # `services.cloudflared-connector` + `services.firmwareProvisioning` now come
-    # from standalone flakes we extracted (github:ismailkattakath/nix-*), not
+    # from standalone flakes we extracted (github:kattakath/nix-*), not
     # vendored copies — same option surfaces, threaded via mkNixos specialArgs.
     cloudflared-connector.nixosModules.default
     firmware-secrets.nixosModules.default
