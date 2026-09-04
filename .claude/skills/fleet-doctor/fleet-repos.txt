@@ -5,17 +5,20 @@
 # ~/.claude/CLAUDE.md "repos live under ~/Developer/<forge>/<owner>/<repo>").
 #
 # This is nix-config's own composition (this repo) + the private composition
-# flake + every satellite flake EXTRACTED from nix-config (see each repo's
-# own history / nix-config's CLAUDE.md "extraction" bullets) + the two other
-# small flakes nix-config's private layer depends on. It is NOT "every repo
-# on disk" — client/personal repos with no Nix/fleet relationship (Infin8,
-# dontsell-ai, silvercreek-ai, deepjobseek, etc.) are deliberately excluded;
-# fleet-doctor is scoped to declarative-infra hygiene, not general dev-repo
-# housekeeping.
+# flake + every satellite fleet flake, whether it was EXTRACTED from nix-config
+# (see each repo's own history / nix-config's CLAUDE.md "extraction" bullets)
+# or authored standalone + the other small flakes nix-config's private layer
+# depends on. It is NOT "every repo on disk" — client/personal repos with no
+# Nix/fleet relationship (Infin8, dontsell-ai, silvercreek-ai, deepjobseek,
+# etc.) are deliberately excluded; fleet-doctor is scoped to declarative-infra
+# hygiene, not general dev-repo housekeeping.
 #
-# Maintenance: when a new flake is extracted from nix-config (or a new
-# satellite repo is added to the fleet), add one line here. Nothing else
-# needs to change — the skill iterates this file.
+# Membership does NOT require nix-config to consume the flake as an input:
+# nix-mcp-gateway and nix-inngest are both listed and neither is wired in yet.
+# The test is "is this a fleet flake we maintain", not "is it adopted".
+#
+# Maintenance: when a new fleet flake appears (extracted or greenfield), add one
+# line here. Nothing else needs to change — the skill iterates this file.
 
 github.com/kattakath/nix-config
 gitlab.com/ismailkattakath/nix-personal
@@ -23,6 +26,7 @@ github.com/kattakath/brags
 github.com/kattakath/ircc-whatsapp-bot
 github.com/kattakath/nix-cloudflared-connector
 github.com/kattakath/nix-firmware-secrets
+github.com/kattakath/nix-inngest
 github.com/kattakath/nix-keychain-secrets
 github.com/kattakath/nix-local-rag
 github.com/kattakath/nix-mcp-gateway
