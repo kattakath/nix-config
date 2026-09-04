@@ -191,32 +191,53 @@ one-time steps are inherently manual — do these after activating a fresh Mac:
   manages only the *service* secrets via agenix — see the "Secrets — agenix"
   convention in `CLAUDE.md`, not personal logins).
 - **The `macvm` Tart guest is NOT restored by a rebuild — recreate it.** Disk lives under `~/.tart/`; neither this repo nor the key kit restores it. Recreate after recovery with `nix run .#macvm-tart-*`. Full steps: [`macvm-tart-runbook.md`](macvm-tart-runbook.md).
-- **QuickLook Video's Media Extensions install disabled — enable them by hand.**
-  The `quicklook-video` cask (`hosts/macos.nix`) is declarative, but what it ships
-  is *not* a QuickLook generator: two **macOS Media Extensions** that plug into
-  AVFoundation itself (`uk.org.marginal.qlvideo.videodecoder` and
-  `.formatreader`, SDK `com.apple.mediaextension.*`). macOS registers them only
-  after the bundled app is launched once, and even then they are **off** — no Nix
-  or `defaults` knob flips them. Symptom if missed: video whose codec AVFoundation
-  cannot decode (VP9, AV1, VC-1, RealVideo, …) shows the **generic MP4 document
-  icon** in Finder with no thumbnail and no preview, while duration and dimensions
-  still display — those come from the container header, not a decoded frame, which
-  makes it look like a thumbnail-cache bug rather than a codec gap. Google Takeout
-  exports are the usual source: Google re-encodes originals to VP9-in-MP4. Fix:
-  1. `open -a "/Applications/QuickLook Video.app"` once, so macOS registers the
-     extensions.
-  2. `pluginkit -e use -i uk.org.marginal.qlvideo.videodecoder` and the same for
-     `uk.org.marginal.qlvideo.formatreader`. Confirm with `pluginkit -mv | grep
-     qlvideo` — both lines must be prefixed `+`. (System Settings → General →
-     Login Items & Extensions is the GUI equivalent.)
-  3. **Reboot or log out.** Media Extensions are loaded by each host process at
-     launch; restarting `quicklookd` / `com.apple.quicklook.ThumbnailsAgent` and
-     flushing `qlmanage -r cache` is **not** sufficient — verified.
-  Verify with `qlmanage -t -s 256 -o <dir> <file.mp4>`: a PNG appears for a codec
-  the extension covers, and nothing at all when the decoder is missing (the
-  generator simply hangs). Note the codec table advertises VP9 as `VP9 `, while
-  MP4 tags it `vp09` — if VP9 specifically still fails after a reboot, that
-  mismatch is the first thing to chase.
+- **QuickLook Video's Media Extensions install disabled — enable them by hand,
+  and know what they do NOT cover.** The `quicklook-video` cask
+  (`hosts/macos.nix`) is declarative, but what it ships is *not* a QuickLook
+  generator: two **macOS Media Extensions** that plug into AVFoundation itself
+  (`uk.org.marginal.qlvideo.videodecoder` and `.formatreader`, SDK
+  `com.apple.mediaextension.*`). macOS registers them only after the bundled app
+  is launched once, and even then they are **off** — no Nix or `defaults` knob
+  flips them. To enable:
+  1. `open -a "/Applications/QuickLook Video.app"` once, so macOS registers them.
+  2. `pluginkit -e use -i uk.org.marginal.qlvideo.videodecoder`, and the same for
+     `uk.org.marginal.qlvideo.formatreader`. Confirm with
+     `pluginkit -mv | grep qlvideo` — both lines must be prefixed `+`.
+  3. Reboot. Media Extensions load per host process at launch; restarting
+     `quicklookd` / `com.apple.quicklook.ThumbnailsAgent` and flushing
+     `qlmanage -r cache` is **not** sufficient — verified.
+
+  **It does not fix VP9-in-MP4, which is the common case here.** Verified on
+  macOS 26.6.2 with QLVideo 3.11, all three steps done: no thumbnail, and no
+  `qlvideo` process ever spawned. Two independent reasons — its format reader's
+  `MTFileNameExtensionArray` claims mkv/webm/avi/wmv/flv/rm/vob/mxf but **not
+  `mp4`** (Apple parses MP4 natively, so the extension is bypassed before the
+  codec question is asked), and its decoder advertises VP9 as `VP9 ` while
+  Apple's `kCMVideoCodecType_VP9` — the tag MP4 actually carries — is `vp09`.
+  A lossless remux to `.mkv` did not help either, so treat the extension as
+  unproven end to end on this fleet; it is kept for the containers Apple cannot
+  read at all.
+
+- **Google Takeout video shows the generic MP4 icon — re-encode, don't remux.**
+  Google re-encodes originals to **VP9-in-MP4**, and macOS ships no VP9 decoder,
+  so QuickLook can never decode a frame. Duration and dimensions still display
+  (container header, not a decoded frame), which makes it read as a
+  thumbnail-cache bug rather than a codec gap. Find them with
+  `mdfind -onlyin ~/Pictures 'kMDItemCodecs == "vp09"'`. The wrapper is not the
+  problem, so a remux is useless — re-encode with the Apple Silicon hardware
+  encoder, keeping originals:
+
+  ```bash
+  ffmpeg -i IN.mp4 -map 0 -map_metadata 0 \
+    -c:v hevc_videotoolbox -q:v 65 -tag:v hvc1 -c:a copy OUT.mp4
+  ```
+
+  `-tag:v hvc1` is what makes Apple software accept the HEVC; `-map_metadata 0`
+  keeps the QuickTime `creation_time` Photos reads on import (follow with
+  `touch -r` and `SetFile -d` to preserve the filesystem dates too). Roughly
+  realtime×3 on an M-series; verify with
+  `qlmanage -t -s 256 -o <dir> OUT.mp4`, which prints `produced one thumbnail`.
+
 - **Determinate's native Linux builder needs a per-machine login, not just an
   account entitlement.** A fresh Mac reinstall means a fresh `determinate-nixd`
   daemon that has never authenticated to FlakeHub — even though the
