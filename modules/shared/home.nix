@@ -397,7 +397,14 @@ in
   disabledModules = [ "launchd/default.nix" ];
 
   imports = [
-    # Finder right-click → Services for the media-toolkit CLIs. An INLINE
+    # Finder right-click → Services for the media-toolkit CLIs. On BOTH darwin
+    # hosts, not just macos: `mediaToolkit` is already in the darwin branch of
+    # home.packages, so macvm has the CLIs and only lacked the menu. Everything
+    # here is nixpkgs-side (ffmpeg included), so nothing depends on macvm's
+    # leaner Homebrew set. macvm has no hardware H.264 encoder under Apple
+    # Virtualization; fix-google-video already falls back to libx264 there.
+    #
+    # An INLINE
     # MODULE so this merges with the `home.file."x"` entries defined elsewhere
     # in this file (one attrset cannot define both `home.file` and
     # `home.file."x"`).
@@ -415,7 +422,7 @@ in
     # drops it from the menu. A running Finder keeps serving its old menu, so
     # changes need `killall Finder`.
     {
-      home.activation.mediaServices = lib.mkIf isMacosHost (
+      home.activation.mediaServices = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin (
         lib.hm.dag.entryAfter [ "linkGeneration" ] ''
           svc="$HOME/Library/Services"
           run mkdir -p "$svc"
