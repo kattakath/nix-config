@@ -163,6 +163,14 @@ confirm dialog:
 nix run .#nixpi-flash -- --disk /dev/diskN            # + --image FILE.img.zst to skip build; + --ssid NAME on a band-split Wi-Fi (see below)
 ```
 
+⚠ **`nixpi-flash` plants only AFTER its `dd`, which runs for ~6½ minutes** (6.35 GB at
+~16 MB/s). If anything backgrounds or detaches the command in that window — a wrapper's
+command timeout, `nohup`, a CI step, an agent shell that moves long jobs to the background —
+the plant step loses its controlling terminal, and `nixpi-provision`'s "age prompts on
+`/dev/tty`" branch dies with `/dev/tty: Device not configured` → `vault decrypt failed`.
+**The write still succeeded**; only the plant was skipped, so re-plant onto the mounted card
+with the commands below rather than re-flashing. Run `nixpi-flash` in a real foreground TTY.
+
 **Or plant onto an already-flashed, mounted card:**
 
 ```bash
