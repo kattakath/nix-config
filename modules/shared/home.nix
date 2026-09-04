@@ -282,6 +282,13 @@ let
   # with home.packages as CLIs are added. See packages/media-toolkit.nix.
   mediaToolkit = pkgs.callPackage ../../packages/media-toolkit.nix { };
 
+  # Finder right-click → Quick Actions entries for the CLIs above (Automator
+  # .workflow bundles, generated — no Automator.app authoring). Linked into
+  # ~/Library/Services below. See packages/media-quick-actions.nix.
+  mediaQuickActions = pkgs.callPackage ../../packages/media-quick-actions.nix {
+    media-toolkit = mediaToolkit;
+  };
+
   # `android-emu [avd-name] [emulator-args…]` — boot an Android emulator,
   # provisioning on first run. If the SDK packages or the AVD are missing it
   # installs them via the Homebrew `sdkmanager`/`avdmanager` (the
@@ -390,6 +397,27 @@ in
   disabledModules = [ "launchd/default.nix" ];
 
   imports = [
+    # Finder right-click → Quick Actions for the media-toolkit CLIs. An INLINE
+    # MODULE because one attrset cannot define both `home.file` and
+    # `home.file."x"`, and this file does the latter elsewhere; as its own module
+    # the generated set merges instead of colliding. Entries come from the
+    # package's own action list, so adding an action needs no edit here. macOS
+    # registers a .workflow reached through a SYMLINK, so the store path works
+    # as-is; `recursive` matches the .app launchers so macOS sees a real
+    # directory. New items appear after `killall Finder` or a re-login.
+    {
+      home.file = lib.mkIf isMacosHost (
+        lib.listToAttrs (
+          map (n: {
+            name = "Library/Services/${n}.workflow";
+            value = {
+              source = "${mediaQuickActions}/${n}.workflow";
+              recursive = true;
+            };
+          }) mediaQuickActions.actionNames
+        )
+      );
+    }
     ./hm-launchd # patched home-manager launchd (nix-* ProgramArguments)
     ./mcp.nix # darwin-gated MCP server registry for Claude Code
     ./desktop-aesthetics.nix # Terminal.app 16pt (all darwin) + wallpaper (opt-out; macvm opts out)
