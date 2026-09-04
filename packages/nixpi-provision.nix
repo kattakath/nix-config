@@ -116,11 +116,14 @@ let
             return 1
           fi
 
+          # EXACTLY ONE `on error` handler: a second one (e.g. a dedicated
+          # `on error number -128` for Cancel) is a hard AppleScript syntax
+          # error — osascript rejects the whole script with "Expected end but
+          # found on", so `pass` comes back empty and every GUI unlock reports a
+          # bogus "cancelled". Cancel already surfaces as an empty result here.
           pass=$(/usr/bin/osascript <<'APPLESCRIPT'
     try
       text returned of (display dialog "Passphrase for ~/.ssh/id_ed25519" & return & "(decrypts the nixpi Cloudflare tunnel token vault)" with title "nixpi-provision" default answer "" with hidden answer buttons {"Cancel", "OK"} default button "OK")
-    on error number -128
-      return ""
     on error
       return ""
     end try
