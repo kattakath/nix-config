@@ -1426,6 +1426,12 @@
         (nixpkgs.lib.genAttrs darwinSystems (system: {
           fix-google-video = (pkgsFor system).callPackage ./packages/fix-google-video.nix { };
         }))
+
+        # `extract-audio` — pull the audio track out of a video, stream-copied into
+        # a container that accepts the codec (transcodes only when asked).
+        (nixpkgs.lib.genAttrs darwinSystems (system: {
+          extract-audio = (pkgsFor system).callPackage ./packages/extract-audio.nix { };
+        }))
       ];
 
       # ---- Apps: dev VM + Cloudflare provisioning ----------------------------
@@ -1757,6 +1763,14 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.fix-google-video}/bin/fix-google-video";
               meta.description = "Re-encode video files with editor-incompatible codecs (e.g. Google Photos' VP9-in-MP4) into H.264+AAC";
+            };
+
+            # `nix run .#extract-audio -- [--mp3|--wav|--flac] <file>...` — pull the
+            # audio track out of a video. Lossless stream copy by default.
+            aarch64-darwin.extract-audio = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.extract-audio}/bin/extract-audio";
+              meta.description = "Extract the audio track from a video file, stream-copied into a matching container (or transcoded with --mp3/--wav/--flac)";
             };
 
           }
