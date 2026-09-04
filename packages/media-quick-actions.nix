@@ -30,6 +30,7 @@
   lib,
   runCommand,
   writeText,
+  writeShellApplication,
   callPackage,
   media-toolkit ? callPackage ./media-toolkit.nix { },
 }:
@@ -49,6 +50,57 @@ let
     }
   ];
 
+  # Kept in its own file rather than a heredoc: the script has to survive being
+  # embedded in a Nix indented string AND an XML plist, and quoting it twice is
+  # how you get a Service that silently does nothing.
+  notifyScript = writeText "notify.applescript" ''
+    on run argv
+      display notification (item 1 of argv) with title (item 2 of argv)
+    end run
+  '';
+
+  # A Finder Service has nowhere to put stdout or stderr, so "skipped, already
+  # done" and "crashed" look identical: you click and nothing happens. That
+  # ambiguity is exactly what makes a working Service look broken, so each
+  # action runs through this wrapper, which summarises the CLI's output into a
+  # notification. The CLIs themselves stay quiet — in a terminal you can read
+  # them directly.
+  mkRunner =
+    a:
+    writeShellApplication {
+      name = "media-service-${a.id}";
+      runtimeInputs = [ media-toolkit ];
+      text = ''
+        output=$(${a.cmd} "$@" 2>&1) && rc=0 || rc=$?
+
+        # grep -c prints 0 and exits 1 when nothing matches, and errexit is on.
+        did=$(printf '%s\n' "$output" | grep -c ': done:' || true)
+        skipped=$(printf '%s\n' "$output" | grep -cE ': (skip|OK):' || true)
+
+        if [ "$rc" -ne 0 ]; then
+          body=$(printf '%s\n' "$output" | grep ': error:' | head -1 || true)
+          [ -n "$body" ] || body="Failed (exit $rc)"
+        elif [ "$did" -eq 0 ] && [ "$skipped" -eq 1 ]; then
+          # One file and nothing happened: say WHY. The CLIs skip for several
+          # different reasons — already converted, no audio track, not found,
+          # already editor-safe — and collapsing them all into "already done"
+          # reports a missing file as a success.
+          body=$(printf '%s\n' "$output" | grep -m1 -E ': (skip|OK):' \
+                 | sed -E "s/^[^:]*: (skip|OK): '[^']*' *//; s/^[—-] *//" || true)
+          [ -n "$body" ] || body="Nothing to do"
+        elif [ "$did" -eq 0 ]; then
+          body="Nothing to do — $skipped skipped"
+        else
+          body="$did file(s) processed"
+          [ "$skipped" -gt 0 ] && body="$body, $skipped skipped"
+        fi
+
+        # argv, never string interpolation: a body built from file paths will
+        # contain a quote sooner or later.
+        /usr/bin/osascript ${notifyScript} "$body" ${lib.escapeShellArg a.name} >/dev/null 2>&1 || true
+      '';
+    };
+
   infoPlist =
     { name, id, ... }:
     lib.generators.toPlist { escape = true; } {
@@ -67,7 +119,7 @@ let
     };
 
   documentWflow =
-    { cmd, ... }:
+    { runner, ... }:
     lib.generators.toPlist { escape = true; } {
       AMApplicationVersion = "2.10";
       AMDocumentVersion = "2";
@@ -87,7 +139,7 @@ let
             ActionBundlePath = "/System/Library/Automator/Run Shell Script.action";
             ActionName = "Run Shell Script";
             ActionParameters = {
-              COMMAND_STRING = ''exec ${media-toolkit}/bin/${cmd} "$@"'';
+              COMMAND_STRING = ''exec ${runner}/bin/${runner.name} "$@"'';
               CheckedForUserDefaultShell = true;
               inputMethod = 1; # files as "$@", NOT stdin
               shell = "/bin/zsh";
@@ -122,7 +174,7 @@ let
       d="$out/${a.name}.workflow/Contents"
       mkdir -p "$d"
       cp ${writeText "Info.plist" (infoPlist a)} "$d/Info.plist"
-      cp ${writeText "document.wflow" (documentWflow a)} "$d/document.wflow"
+      cp ${writeText "document.wflow" (documentWflow (a // { runner = mkRunner a; }))} "$d/document.wflow"
     '';
 in
 runCommand "media-quick-actions"
