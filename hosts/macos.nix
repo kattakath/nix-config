@@ -142,6 +142,12 @@
 
     # ---- Casks ---------------------------------------------------------------
     casks = [
+      # Affinity — the fleet's image/vector/layout editor, one app since v3
+      # (Designer + Photo + Publisher merged). Free for individuals and
+      # self-updating (auto_updates), so the cask only bootstraps it. Closed
+      # source is the accepted cost of a Photoshop-shaped tool; the FOSS
+      # alternatives (GIMP, Krita) are deliberately not carried.
+      "affinity"
       # Audacity — multi-track audio editor. Pairs with the blackhole-2ch cask
       # below: BlackHole is a virtual output device, so routing an app's audio
       # into it gives Audacity a capture source for system audio, which macOS
