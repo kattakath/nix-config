@@ -924,11 +924,6 @@ Today, three:
   iterative refinement, character embeddings). It is a plugin rather than a vendored skill for
   one structural reason: `programs.claude-code.skills` has no `agents/` capability — only a
   plugin can ship a subagent.
-- **`plugins/userscript-preview`** — PostToolUse hook + `/userscript-preview` re-injects a
-  `*.user.js` into a matching Kapture tab (`evalAllowed`). Preview only; scripts must expose
-  `window.__nix*Teardown` so a second inject does not duplicate UI. Persistence is still
-  `activate` + a Violentmonkey click.
-
 Adding one = a `plugins/<name>/` tree with `.claude-plugin/plugin.json` + a `marketplace.json`
 entry + its id in `claudePluginIds`; validate with `claude plugin validate --strict`. A
 **skill** that needs no command/hook/MCP/agent surface still belongs in top-level `skills/` —
