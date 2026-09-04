@@ -1439,6 +1439,13 @@
         (nixpkgs.lib.genAttrs darwinSystems (system: {
           media-toolkit = (pkgsFor system).callPackage ./packages/media-toolkit.nix { };
         }))
+
+        # `media-quick-actions` — Automator .workflow bundles putting the media-toolkit
+        # CLIs in Finder's right-click → Quick Actions. Linked into ~/Library/Services
+        # by home.nix; darwin-only (macOS Services have no Linux analogue).
+        (nixpkgs.lib.genAttrs darwinSystems (system: {
+          media-quick-actions = (pkgsFor system).callPackage ./packages/media-quick-actions.nix { };
+        }))
       ];
 
       # ---- Apps: dev VM + Cloudflare provisioning ----------------------------
