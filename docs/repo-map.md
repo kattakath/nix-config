@@ -650,7 +650,7 @@ Smaller, single-purpose CLIs:
   for a PHYSICAL Android device; hardens around two live-reproduced adb bugs, an mDNS-cache
   staleness and duplicate-transport device listings. Its operator knowledge is also a GLOBAL
   skill, `skills/android-phone`.
-- **`media-quick-actions.nix`** (macOS) — Finder right-click → **Services** entries for
+- **`media-quick-actions.nix`** (both darwin hosts) — Finder right-click → **Services** entries for
   the media-toolkit CLIs, generated as Automator `.workflow` bundles. The submenu is
   **Services**, not "Quick Actions": Finder's Quick Actions submenu is fed by App Extensions
   and Shortcuts actions (`defaults read pbs` → `FinderActive` lists only `APPEXTENSION-*` and
@@ -669,7 +669,11 @@ Smaller, single-purpose CLIs:
   so it looks installed and only breaks on click. Same root cause as home-manager's `copyApps`
   and `mac-app-util`: macOS bundle APIs reject store symlinks. A `home.activation` entry does
   the copy and flushes `pbs`; its cleanup loop keys off the `com.kattakath.services.` bundle-id
-  prefix, so removing an action from the package removes it from the menu. Each action runs
+  prefix, so removing an action from the package removes it from the menu. Installed on
+  **`macos` and `macvm` alike** — `mediaToolkit` already sits in the darwin branch of
+  `home.packages`, and everything here is nixpkgs-side (ffmpeg included), so it does not touch
+  macvm's leaner Homebrew set. macvm has no hardware H.264 encoder under Apple Virtualization;
+  `fix-google-video` falls back to libx264 there. Each action runs
   through a wrapper that turns the CLI's output into a **macOS notification**: a Service has
   nowhere to put stdout or stderr, so "skipped, already done" and "crashed" are otherwise
   indistinguishable — you click and nothing happens. When one file produced nothing the
