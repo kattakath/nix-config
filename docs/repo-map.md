@@ -290,6 +290,15 @@ Both are safe to commit. Full rules: [`secrets-and-keychain.md`](secrets-and-key
     the rest straight from Cachix/cache.nixos.org instead of pushing ~436 MiB through the
     tunnel. `--builders`/`--max-jobs 0` are **not** an option: the operator is `Trusted: 0`
     against the local daemon, so client-side builder settings are silently ignored.
+    - **Do not compare store paths across the two hosts** while doing this. The Mac
+      evaluates nix-personal as a **git** flake and the shipped copy on the Pi is a
+      **path** flake, so `self` differs and the two produce **different `nixos-system-nixpi`
+      derivations for identical content** (measured: `520mq98p…` on the Mac vs `24jhkclg…`
+      on the Pi, same `26.11.…d2f6794` label). Only Mac-vs-Mac or Pi-vs-Pi comparisons mean
+      anything. To prove a change is closure-neutral, diff the **Mac-side** `drvPath` across
+      the two revs; to prove the Pi didn't move, check that `nixos-rebuild` reports the same
+      `/run/current-system` and that `nix-env --list-generations` did **not** add a generation
+      (`nix-env --set` to an unchanged path creates none).
 - **`nixvm.nix`** — a SLIM throwaway aarch64-linux dev VM: no disko, no runner, no install;
   materialised only as the graphical `nix run .#nixvm` build-vm, whose guest builds locally on
   the native Linux builder or substitutes from Cachix.
