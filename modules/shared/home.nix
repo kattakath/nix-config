@@ -166,10 +166,6 @@ let
     # plugin (python3Packages.sphinx-llms-txt) — see plugins/llmstxt/README.md for the
     # reuse-vs-build reasoning, including why the linter is dependency-free stdlib.
     "llmstxt@${localMarketplaceName}"
-    # IN-REPO (plugins/userscript-preview): PostToolUse re-injects *.user.js into
-    # a matching Kapture tab (localhost:61822). Preview only — activate + click
-    # still owns persistence. Userscripts must ship window.__nix*Teardown.
-    "userscript-preview@${localMarketplaceName}"
     # IN-REPO (plugins/seargraph, this repo): the seargraph-langgraph subagent —
     # LangGraph pipeline design/implementation help for the SEARGraph project
     # (self-evolving agentic image restoration: fidelity metrics, constrained

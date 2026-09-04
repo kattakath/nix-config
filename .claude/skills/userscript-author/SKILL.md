@@ -267,20 +267,33 @@ observing a file handle, so gotcha 1 cannot bite:
 cd userscripts && python3 -m http.server 8080   # then open http://localhost:8080/<kebab>.user.js
 ```
 
-## Live-edit loop (Kapture preview plugin — fallback)
+## Live-edit loop (no operator at the keyboard — fallback)
 
-Reach for this only when the drag-and-drop above is unavailable — an agent-driven
-session with no operator at the keyboard, or a tab you cannot re-install into. The
-in-repo plugin `userscript-preview` re-injects the saved `*.user.js` into a matching
-Kapture tab (`PostToolUse` on Write/Edit, or `/userscript-preview`).
+Both loops above need a human to click an installer once. When there is none — an
+agent-driven session — inject the saved body straight into a matching Kapture tab
+instead. There is no plugin for this; it is one POST, so a wrapper earned nothing
+(`plugins/userscript-preview` did exactly this and was retired 2026-09-04):
 
-- Tab must have Kapture connected and **Allow JS execution**.
-- The IIFE **must** call `window.__nix<Name>Teardown()` first. A leftover
-  `data-*Init` early-return makes inject a no-op — do not add one.
+```bash
+python3 - <<'EOF'
+import json, re, urllib.request, pathlib
+raw = pathlib.Path('userscripts/<kebab>.user.js').read_text()
+body = re.sub(r"//\s*==UserScript==.*?//\s*==/UserScript==", "", raw, flags=re.S).strip()
+req = urllib.request.Request("http://127.0.0.1:61822/tab/<tabId>/evaluate",
+    data=json.dumps({"code": body, "timeout": 30000}).encode(),
+    headers={"Content-Type": "application/json"}, method="POST")
+print(urllib.request.urlopen(req, timeout=40).read().decode()[:200])
+EOF
+```
+
+- Tab must have Kapture connected and **Allow JS execution** (`evalAllowed`).
+- The IIFE **must** call `window.__nix<Name>Teardown()` first, or each inject stacks
+  another observer. A leftover `data-*Init` early-return makes inject a no-op instead
+  — do not add one.
 - Injecting over an OLDER installed build that predates its teardown makes the two
-  copies fight for last-in-head until the tab pegs (measured 2026-09-04). Install
-  the new version first, or use the loop above.
-- Preview dies on reload. Ship with `activate` + click as usual.
+  copies fight for last-in-head until the tab pegs, and the POST times out (measured
+  2026-09-04). Install the new version first, or use a loop above.
+- Injection dies on reload. Ship with `activate` + click as usual.
 
 ## Publish to Greasy Fork (sync from the raw URL)
 
