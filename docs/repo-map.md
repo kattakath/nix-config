@@ -662,9 +662,14 @@ Smaller, single-purpose CLIs:
   `home.nix` (an INLINE module in `imports` — one attrset cannot define both `home.file` and
   `home.file."x"`). The load-bearing key is `inputMethod = 1`, which passes the selection as
   `"$@"` — the default pipes stdin, giving a script that runs and silently does nothing.
-  Verified: macOS registers and runs a bundle reached through a **symlink**, so the store-path
-  source needs no copy-into-place (`mac-app-util` / home-manager's `copyApps`, the usual fix
-  for Nix-symlinked `.app` bundles, are not needed here).
+  **Installed by COPYING, never `home.file` symlinks**: Automator loads a workflow through
+  `NSFileWrapper`, which throws `-[NSFileWrapper regularFileContents] *** this method is only
+  for regular file type NSFileWrappers` on a symlinked `document.wflow`. The failure is nasty
+  because it SPLITS — `pbs` still registers the bundle and Finder still shows the menu item,
+  so it looks installed and only breaks on click. Same root cause as home-manager's `copyApps`
+  and `mac-app-util`: macOS bundle APIs reject store symlinks. A `home.activation` entry does
+  the copy and flushes `pbs`; its cleanup loop keys off the `com.kattakath.services.` bundle-id
+  prefix, so removing an action from the package removes it from the menu.
 - **`media-toolkit.nix`** — `symlinkJoin` bundling the media-file CLIs below
   (`fix-google-video` + `extract-audio`) as ONE entry for `home.packages`, so the set
   cannot drift as CLIs are added; each stays its own derivation with its own
