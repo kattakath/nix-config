@@ -273,6 +273,23 @@ Both are safe to commit. Full rules: [`secrets-and-keychain.md`](secrets-and-key
 - **`nixpi.nix`** — Pi 4, LIVE: boot fixes + cloudflared + upstream `services.caddy`. Its
   `sdImage` is prebuilt in CI and published to the `installer-latest` release, since it bakes
   no secrets.
+  - ⚠ **The Mac's native Linux builder cannot build this host's `etc` closure.** Upstream's
+    caddy module formats the generated Caddyfile in a `Caddyfile-formatted` derivation whose
+    build command is `cp --no-preserve=mode <Caddyfile> $out/Caddyfile`, and **`cp
+    --no-preserve=mode` into `$out` fails with `setting permissions: Permission denied`** on
+    Determinate's native Linux builder (reproduced minimally with
+    `runCommand "p" {} "mkdir -p $out; cp --no-preserve=mode ${writeText "s" "x"} $out/f"`; a
+    plain `chmod` in `$out` on the same builder works). That failure cascades to `etc.drv` and
+    the toplevel, so **any** Mac-side build of a Caddy-serving nixpi generation dies. Upstream
+    already skips the derivation when `buildPlatform != hostPlatform`, which does not help here
+    (both are `aarch64-linux`). Workaround: realise the toplevel **on the Pi** — the only
+    derivations left after substitution are text assembly (`Caddyfile-formatted`, unit files,
+    `etc`, `activate`, `system`), zero compilation, so this does not violate "never build heavy
+    on the Pi". Ship the tracked private tree over (`git ls-files | tar`, ~3 MiB), then
+    `nixos-rebuild switch --flake path:~/nix-personal#nixpi` locally on the Pi; it substitutes
+    the rest straight from Cachix/cache.nixos.org instead of pushing ~436 MiB through the
+    tunnel. `--builders`/`--max-jobs 0` are **not** an option: the operator is `Trusted: 0`
+    against the local daemon, so client-side builder settings are silently ignored.
 - **`nixvm.nix`** — a SLIM throwaway aarch64-linux dev VM: no disko, no runner, no install;
   materialised only as the graphical `nix run .#nixvm` build-vm, whose guest builds locally on
   the native Linux builder or substitutes from Cachix.
