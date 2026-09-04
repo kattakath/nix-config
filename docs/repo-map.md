@@ -669,7 +669,13 @@ Smaller, single-purpose CLIs:
   so it looks installed and only breaks on click. Same root cause as home-manager's `copyApps`
   and `mac-app-util`: macOS bundle APIs reject store symlinks. A `home.activation` entry does
   the copy and flushes `pbs`; its cleanup loop keys off the `com.kattakath.services.` bundle-id
-  prefix, so removing an action from the package removes it from the menu.
+  prefix, so removing an action from the package removes it from the menu. Each action runs
+  through a wrapper that turns the CLI's output into a **macOS notification**: a Service has
+  nowhere to put stdout or stderr, so "skipped, already done" and "crashed" are otherwise
+  indistinguishable — you click and nothing happens. When one file produced nothing the
+  notification reports the actual reason (`already exists`, `no audio stream`, `not found`,
+  `already editor-safe`) rather than collapsing them all into one message, which would report
+  a missing file as a success.
 - **`media-toolkit.nix`** — `symlinkJoin` bundling the media-file CLIs below
   (`fix-google-video` + `extract-audio`) as ONE entry for `home.packages`, so the set
   cannot drift as CLIs are added; each stays its own derivation with its own
