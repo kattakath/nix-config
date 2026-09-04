@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Google Photos — icon-only nav rail
 // @namespace    kattakath.com
-// @version      2.1.0
-// @description  Make Google Photos render its own narrow-viewport icon rail at every window width, by replaying its responsive breakpoint unconditionally.
+// @version      2.2.0
+// @description  Make Google Photos render its own narrow-viewport icon rail at every window width, by replaying its responsive breakpoint unconditionally and muting the wide-viewport block that fights it.
 // @author       Ismail Kattakath
 // @license      MIT
 // @homepageURL  https://github.com/kattakath/nix-config
@@ -44,6 +44,7 @@
   const BAND_MIN = 800;
   const BAND_MAX = 1200;
   const CONDITION = /^screen\s+and\s+\(max-width:\s*(\d+)px\)$/;
+  const MIN_WIDTH = /\(min-width:\s*(\d+)px\)/;
 
   let styleEl = null;
 
@@ -89,12 +90,47 @@
         (rules.length === best.rules.length && width > best.width);
       if (better) best = { width, rules };
     }
-    return best.rules.join('\n');
+    return { width: best.width, css: best.rules.join('\n') };
+  };
+
+  // Lifting can only ADD rules, so it cannot cancel what Photos serves in the
+  // OTHER direction. Measured 2026-09-04: one `min-width:1008px` block gives the
+  // nav list a -12px overhang and the selected item a +12px margin, which at
+  // 1512px stretch the active pill from a 48px circle into a 60px oval and push
+  // the 92px list past the 80px rail (documentElement 1528 > 1512). At a real
+  // narrow viewport that block is simply OFF, so mute every min-width block above
+  // the rail's own breakpoint — flipping `mediaText` is the only edit that needs
+  // no guess at what each declaration's narrow value should be, and re-serving
+  // `initial` would be a guess (the block also sets display/flex/overflow).
+  // Idempotent by construction: a muted block reads `not all` and stops matching.
+  const muteAboveRail = (railWidth) => {
+    const walk = (rules) => {
+      for (const rule of rules) {
+        if (rule.type !== CSSRule.MEDIA_RULE) continue;
+        const match = MIN_WIDTH.exec(rule.conditionText);
+        if (match && Number(match[1]) > railWidth) {
+          rule.media.mediaText = 'not all';
+          continue;
+        }
+        walk(rule.cssRules);
+      }
+    };
+    for (const sheet of document.styleSheets) {
+      let rules;
+      try {
+        rules = sheet.cssRules;
+      } catch {
+        continue;
+      }
+      if (rules) walk(rules);
+    }
   };
 
   const apply = () => {
-    const css = collectBreakpointCss();
-    if (css === null) return false;
+    const picked = collectBreakpointCss();
+    if (picked === null) return false;
+    muteAboveRail(picked.width);
+    const css = picked.css;
 
     if (styleEl === null) {
       styleEl = document.createElement('style');
