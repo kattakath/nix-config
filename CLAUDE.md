@@ -106,7 +106,7 @@ One line per path; the *why* and the per-file specifics are in
 | `infra/` | terranix (Nix → Terraform JSON): `cloudflare/nixpi-tunnel.nix`, `hyperframes/stack.nix`. Applied only via the `cf-*` / `hf-*` apps. |
 | `secrets/` | agenix recipients (`secrets.nix`) + two ciphertexts: `cloudflared-token.age` (operator-only) and `gh-app-dontsell-ai-key.age` (host-decrypted on `macos`). |
 | `skills/` | **Global** Claude Code skills vendored here (forks needing a patch + originals): `brag`, `brags-review`, `rag`, `android-phone`, `nix-dev-toolkit`. Most global skills instead come from pinned `flake = false` inputs. |
-| `plugins/` | This repo's own Claude Code plugin marketplace (`kattakath-nix-config`); today `plugins/llmstxt` + `plugins/seargraph` + `plugins/userscript-preview`. Reach for a plugin only when the unit is more than a skill (a command, hook, MCP server, or `agents/`). |
+| `plugins/` | This repo's own Claude Code plugin marketplace (`kattakath-nix-config`); today `plugins/llmstxt` + `plugins/seargraph`. Reach for a plugin only when the unit is more than a skill (a command, hook, MCP server, or `agents/`). |
 | `.claude/` | Project agent config — see the two tables below. |
 | `.github/workflows/` | `nix-ci.yml` (2 hosted legs), `auto-merge.yml`, `build-devcontainer.yml`, `build-installers.yml`, `claude*.yml`, `gitleaks.yml`, `flakehub-publish.yml`. |
 | `docs/` | Runbooks + this repo's design docs — indexed at the bottom of this file. |
