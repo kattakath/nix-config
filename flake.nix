@@ -1432,6 +1432,13 @@
         (nixpkgs.lib.genAttrs darwinSystems (system: {
           extract-audio = (pkgsFor system).callPackage ./packages/extract-audio.nix { };
         }))
+
+        # `media-toolkit` — the media-file CLIs above as ONE installable unit, so
+        # home.packages carries a single entry instead of drifting as CLIs are added.
+        # The individual packages stay exported for `nix run .#<name>`.
+        (nixpkgs.lib.genAttrs darwinSystems (system: {
+          media-toolkit = (pkgsFor system).callPackage ./packages/media-toolkit.nix { };
+        }))
       ];
 
       # ---- Apps: dev VM + Cloudflare provisioning ----------------------------
