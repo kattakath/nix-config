@@ -259,6 +259,10 @@ in
       "whatsapp"
       "capcut"
       "iina"
+      # Affinity — same cask macos carries, so a design file opened in the
+      # sandbox gets the same editor. Free for individuals; no Apple ID needed,
+      # unlike masApps (empty below).
+      "affinity"
       # NB: no browser cask beyond `opera` here. `google-chrome` was dropped fleet-wide;
       # macvm deliberately does NOT declare `ungoogled-chromium` either (that cask, and
       # programs.ungoogledChromium, are macos-only — see modules/shared/home.nix
