@@ -85,13 +85,15 @@
   services.cloudflared-connector.enable = true;
   services.cloudflared-connector.tokenFile = "/run/cloudflared-token";
 
-  # dontsell.ai's second, independent Cloudflare Tunnel connector (a separate
-  # DontSell-account tunnel — see docs/private-home-modules.md for why a
-  # `cfargotunnel.com` CNAME can't share this host's primary tunnel) used to be
-  # hand-written HERE. It moved wholesale to the private nix-personal
-  # composition flake's `modules/nixpi-dontsell-tunnel.nix`, injected via
-  # mkNixos's `extraModules` — this public repo only ever hosted the sites'
-  # generic mechanism, never dontsell.ai's real config. See
+  # nixpi runs exactly ONE connector — the primary, above. dontsell.ai's second,
+  # independent connector was hand-written HERE, then moved to the private
+  # nix-personal composition, and is now RETIRED on both sides: the app formerly
+  # at app.dontsell.ai moved to the dontsell.ai apex, which Cloudflare proxies
+  # straight to Vercel, so the Pi serves nothing for that zone. Recorded because
+  # the constraint recurs: a `cfargotunnel.com` CNAME only resolves inside the
+  # SAME Cloudflare account as the tunnel it names, and dontsell.ai's zone lives
+  # in a different account from the fleet's primary — so such a zone can never
+  # share this host's tunnel; it needs its own connector again. See
   # docs/private-home-modules.md.
 
   services.firmwareProvisioning.files = {

@@ -255,6 +255,10 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   enabled at https://dtr.mn/features, **not** settable from Nix (`external-builders` is
   rejected by `determinateNix.customSettings`), and nix-darwin's `nix.linux-builder` is
   unusable because it needs `nix.enable = true`, which Determinate disables (nix-darwin#1505).
+  It also **cannot run `cp --no-preserve=mode` into `$out`** (EPERM "setting permissions"),
+  which breaks nixpkgs' caddy `Caddyfile-formatted` and therefore every Mac-side build of a
+  Caddy-serving `nixpi` generation — realise that toplevel **on the Pi** instead (text
+  derivations only; see [`docs/repo-map.md`](docs/repo-map.md) § `hosts/`).
   **Account entitlement alone is not enough** — the local `determinate-nixd` must also be
   logged in to FlakeHub, or `native-linux-builder` silently vanishes and every aarch64-linux
   build fails with a `platform mismatch` that looks unrelated to auth. Manual, per-machine step:
