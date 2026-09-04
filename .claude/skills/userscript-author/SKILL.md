@@ -200,19 +200,12 @@ nix flake check
 - That per-edit click-through is the **untracked** default. § Live-edit loop removes it for the
   duration of an authoring session.
 
-## Live-edit loop (Kapture preview plugin — default)
+## Live-edit loop (Violentmonkey tracks the repo file — DEFAULT)
 
-While iterating, **do not wait on `activate` + click.** The in-repo plugin
-`userscript-preview` re-injects the saved `*.user.js` into a matching Kapture tab
-(`PostToolUse` on Write/Edit, or `/userscript-preview`).
-
-- Tab must have Kapture connected and **Allow JS execution**.
-- The IIFE **must** call `window.__nix<Name>Teardown()` first (google-photos
-  already does). A leftover `data-*Init` early-return makes inject a no-op —
-  do not add one.
-- Preview dies on reload. Ship with `activate` + click as usual.
-
-## Live-edit loop (Violentmonkey tracks the repo file)
+**`activate` and the install click are SHIPPING steps. Never put them in the edit loop.**
+That is the single biggest cost in authoring a script here: the slow path is
+edit → PR → merge → `activate` → click → reload, minutes per iteration, against
+edit → save, one second.
 
 For an **iterative** session — many saves against one page — Violentmonkey's *Track external
 edits* turns each `Cmd-S` into an auto-reinstall plus a tab reload, so step H's re-measure is
@@ -256,6 +249,48 @@ Alternative if the drag is awkward — a localhost server, polled rather than ob
 ```bash
 cd userscripts && python3 -m http.server 8080   # then open http://localhost:8080/<kebab>.user.js
 ```
+
+## Live-edit loop (Kapture preview plugin — fallback)
+
+Reach for this only when the drag-and-drop above is unavailable — an agent-driven
+session with no operator at the keyboard, or a tab you cannot re-install into. The
+in-repo plugin `userscript-preview` re-injects the saved `*.user.js` into a matching
+Kapture tab (`PostToolUse` on Write/Edit, or `/userscript-preview`).
+
+- Tab must have Kapture connected and **Allow JS execution**.
+- The IIFE **must** call `window.__nix<Name>Teardown()` first. A leftover
+  `data-*Init` early-return makes inject a no-op — do not add one.
+- Injecting over an OLDER installed build that predates its teardown makes the two
+  copies fight for last-in-head until the tab pegs (measured 2026-09-04). Install
+  the new version first, or use the loop above.
+- Preview dies on reload. Ship with `activate` + click as usual.
+
+## Publish to Greasy Fork (sync from the raw URL)
+
+Sharing a script is the point of writing one, and the metadata gate already encodes
+Greasy Fork's rulebook (§ G). Publishing is the **operator's** move — Claude cannot
+drive the account.
+
+**First upload:** paste `userscripts/<kebab>.user.js` into Greasy Fork's new-script form.
+Check the listing name does not collide (search first — reuse over rebuild applies to
+publishing too: if an equivalent script exists, install it instead of shipping a rival).
+
+**Then set up sync, once**, so a `git push` is the release:
+
+| Field | Value |
+|---|---|
+| Sync source | the **raw** URL — `https://raw.githubusercontent.com/kattakath/nix-config/main/userscripts/<kebab>.user.js` |
+| Not | the GitHub *file page* URL — Greasy Fork fetches it verbatim |
+| Filename | must end `.user.js` — a plain `.js` is rejected as "not a user script" |
+
+**This does NOT violate the `@downloadURL`/`@updateURL` ban** (§ G, and
+`modules/shared/chromium.nix`). Those are keys *inside the file*, which Greasy Fork
+strips on upload and which would let a push mutate an installed script with no review.
+Sync is a **site-side setting** on Greasy Fork's own admin page: the file stays clean,
+and users still update *from Greasy Fork*, which is exactly the norm the ban protects.
+
+**`@version` is the release trigger.** Sync pulls, but Greasy Fork ignores a re-upload
+that does not increment — same rule as a local re-install (§ Editing an existing script).
 
 ## Anti-patterns
 
