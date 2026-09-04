@@ -650,6 +650,13 @@ Smaller, single-purpose CLIs:
   for a PHYSICAL Android device; hardens around two live-reproduced adb bugs, an mDNS-cache
   staleness and duplicate-transport device listings. Its operator knowledge is also a GLOBAL
   skill, `skills/android-phone`.
+- **`media-toolkit.nix`** — `symlinkJoin` bundling the media-file CLIs below
+  (`fix-google-video` + `extract-audio`) as ONE entry for `home.packages`, so the set
+  cannot drift as CLIs are added; each stays its own derivation with its own
+  `nix run .#<name>`. Membership rule: a CLI that **transforms a media file** on this
+  machine. `obs-fb-setup` (writes an OBS config profile, reads a Keychain secret) and
+  `fidelity-enhance` (MCP referee for an agentic image loop) are media-*adjacent* and stay
+  separate — folding them in would leave the name meaning only "vaguely about media".
 - **`extract-audio.nix`** — `extract-audio [--mp3|--wav|--flac] <file>...` pulls the audio
   track out of a video. Defaults to a lossless stream copy (a video's audio is already a
   finished encode; re-encoding it to MP3 is a second lossy generation for nothing), which
