@@ -26,20 +26,6 @@ _:
       autoUpdate = false;
       upgrade = false;
       cleanup = "uninstall";
-
-      # `--quiet` because `brew bundle` narrates every satisfied dependency:
-      # measured 2026-09-04 against this host's Brewfile, a no-op run printed
-      # **74 lines / 1231 bytes** of `Using <name>`, roughly two thirds of the
-      # entire `activate` log, drowning the Nix and Home Manager lines that
-      # actually say what changed. With the flag the same run prints **nothing**.
-      #
-      # Verified NOT to hide failures before adopting it — that would be worse
-      # than the noise. A bundle against a bogus formula still reports, quiet:
-      #   `brew bundle` failed! Failed to fetch definitely-not-a-real-formula
-      #   Error: No available formula with the name "…"
-      # and still exits 1, so activation still aborts. Homebrew documents the
-      # flag as "make some output more quiet", and errors are not that output.
-      extraFlags = [ "--quiet" ];
     };
 
     # ---- Taps --------------------------------------------------------------
