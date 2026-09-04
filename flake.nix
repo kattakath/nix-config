@@ -174,8 +174,8 @@
     # packages/vast-provision.nix directly, with orgName/repoName/rev
     # OVERRIDDEN to nix-config's own identity (see the callPackage in
     # `packages` below) — UNLIKE the other extracted flakes above, its own
-    # packages.<system>.* outputs are hardcoded to ismailkattakath/
-    # nix-vast-provision, wrong for OUR raw-URL construction. Pure
+    # packages.<system>.* outputs are hardcoded to its OWN repo
+    # (kattakath/nix-vast-provision), wrong for OUR raw-URL construction. Pure
     # (writeShellApplication/runCommand only), so follows our nixpkgs to
     # avoid a 2nd copy.
     vast-provision.url = "github:kattakath/nix-vast-provision";
