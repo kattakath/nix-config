@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Google Photos — icon-only nav rail
 // @namespace    kattakath.com
-// @version      2.3.0
+// @version      2.3.1
 // @description  Make Google Photos render its own narrow-viewport icon rail at every window width, by replaying its responsive breakpoint unconditionally and muting the wide-viewport block that fights it.
 // @author       Ismail Kattakath
 // @license      MIT
@@ -29,9 +29,11 @@
 (() => {
   'use strict';
 
-  // Re-inject contract (this repo's userscript-preview plugin): undo the
-  // previous run before starting, and never early-return on an "already init"
-  // flag — that is what turns a re-inject into a silent no-op.
+  // Undo a previous run before starting, and never early-return on an "already
+  // init" flag — that turns a re-run into a silent no-op instead. Two copies of
+  // this script otherwise stack observers and fight for last-in-head until the tab
+  // pegs (measured 2026-09-04), which is reachable in the wild as a Greasy Fork
+  // install alongside a manual one, and by any agent re-injecting the body.
   window.__nixGooglePhotosTeardown?.();
 
   // Which breakpoint to lift. Photos' rail currently sits at max-width:1007px,
