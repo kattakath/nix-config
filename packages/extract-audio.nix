@@ -1,19 +1,21 @@
 # extract-audio — pull the audio track out of a video file.
 #
-#   extract-audio <file>...                 # lossless: copy the stream as-is
-#   extract-audio --mp3|--wav|--flac <f>... # transcode instead
+#   extract-audio <file>...              # MP3 (the default)
+#   extract-audio --copy <file>...       # lossless: copy the stream as-is
+#   extract-audio --wav|--flac <file>... # other transcodes
 #
-# The default is a STREAM COPY, not a transcode: a video's audio track is
-# already a finished encode, so re-encoding it to MP3 "to get an audio file"
-# is a second lossy generation for no reason. Copying is also ~instant, since
-# nothing is decoded.
+# MP3 is the default because it plays everywhere without a second thought,
+# which is what "extract the audio" is usually in service of.
 #
-# What that costs is a container decision, which is the actual reason this
-# wrapper exists rather than a bare ffmpeg alias: a copied stream has to land
-# in a container that accepts that codec, and `-c:a copy` into the wrong one
-# fails ("could not find tag for codec"). The codec→extension map below is
-# that knowledge; `.m4a` for AAC/ALAC, `.ogg` for Vorbis, `.wav` for PCM, and
-# so on. Unrecognised codecs fall back to `.mka` (Matroska accepts anything).
+# `--copy` is the quality-preserving path and stays available: a video's audio
+# track is already a finished encode, so transcoding it is a second lossy
+# generation, and copying needs no decode at all (~16000x realtime, measured).
+# What copying costs is a container decision, which is why this is a wrapper
+# and not a bare ffmpeg alias: a copied stream has to land in a container that
+# accepts that codec, and `-c:a copy` into the wrong one fails ("could not
+# find tag for codec"). The codec→extension map below is that knowledge --
+# `.m4a` for AAC/ALAC, `.ogg` for Vorbis, `.wav` for PCM -- with `.mka`
+# (Matroska accepts anything) as the fallback for unrecognised codecs.
 #
 # Output is written alongside the input; the original is never modified, and
 # an existing output is skipped, so a re-run over a folder is idempotent.
@@ -35,19 +37,20 @@ writeShellApplication {
     die() { echo "$prog: error: $*" >&2; exit 1; }
     info() { echo "$prog: $*" >&2; }
 
-    mode=copy
+    mode=mp3
     case "''${1:-}" in
       --mp3)  mode=mp3;  shift ;;
+      --copy) mode=copy; shift ;;
       --wav)  mode=wav;  shift ;;
       --flac) mode=flac; shift ;;
       --help|-h)
-        echo "usage: $prog [--mp3|--wav|--flac] <video-file>..." >&2
-        echo "  default: lossless stream copy into a matching container" >&2
+        echo "usage: $prog [--mp3|--copy|--wav|--flac] <video-file>..." >&2
+        echo "  default: MP3. --copy keeps the original stream losslessly." >&2
         exit 0 ;;
       -*) die "unknown option '$1' (try --help)" ;;
     esac
 
-    [ $# -ge 1 ] || die "usage: $prog [--mp3|--wav|--flac] <video-file>..."
+    [ $# -ge 1 ] || die "usage: $prog [--mp3|--copy|--wav|--flac] <video-file>..."
 
     # A copied stream must land in a container that accepts that codec.
     # Matroska (.mka) takes anything, so it is the safe fallback.
