@@ -687,7 +687,13 @@ Smaller, single-purpose CLIs:
 - **`fix-google-video.nix`** — detects and re-encodes video files with editor-incompatible
   codecs (most commonly VP9-in-MP4, the flavor Google Photos' download button serves for
   videos not backed up at Original quality) into H.264+AAC via VideoToolbox with a libx264
-  fallback, idempotent.
+  fallback, idempotent. **Replaces the input by default**: the encode goes to a temp file
+  beside it, is verified (non-trivial, duration within 1s of the source), and only then swaps
+  in, with the original moved to `~/.Trash` — never `rm`'d. That verification is load-bearing,
+  not belt-and-braces: ffmpeg can exit 0 having written a truncated file (measured: a 17.6s
+  source yielding a 0.27s output), which without the check would destroy the original. A
+  non-`.mp4` input (`.mkv`, `.avi`) is replaced by a `.mp4` of the same basename, since the
+  output is H.264 in MP4. `--keep` restores the old side-by-side `<name>_h264.mp4` behaviour.
 - **`jobspy.nix`** — a reproducible `uv`-ephemeral wrapper CLI around the `python-jobspy`
   library for scraping job boards.
 - **`jsonresume.nix`** — dual-engine `jsonresume <download|print|validate|markdown|text>`

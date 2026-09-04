@@ -12,12 +12,22 @@
 # Saver / old "High quality" tier videos get transcoded server-side at
 # ingest, and what you download later is that transcode, not the original).
 #
-#   fix-google-video <file>...   # idempotent — skips already-editor-safe files
+#   fix-google-video <file>...          # REPLACES the input; original -> Trash
+#   fix-google-video --keep <file>...   # write <name>_h264.mp4 alongside instead
+#
+# Idempotent -- already-editor-safe files are skipped, so re-running over a
+# folder is free.
 #
 # Auto-detects VideoToolbox (Apple Silicon/Intel hardware H.264 encoder,
 # ~7x realtime) and falls back to libx264 software encode (CRF 18) if it's
-# unavailable in this ffmpeg build. Output is written alongside the input as
-# <name>_h264.mp4; the original is never modified or deleted. Creation date,
+# unavailable in this ffmpeg build. By default the input is REPLACED:
+# the encode lands in a temp file beside it, is verified (non-trivial, duration
+# matches the source), and only then swaps in, with the original moved to
+# ~/.Trash -- never rm'd. So a failed encode, a full disk, or a
+# truncated-but-exit-0 ffmpeg leaves the original untouched, and a batch that
+# went wrong is recoverable. A non-.mp4 input (.mkv, .avi) is replaced by a
+# .mp4 of the same basename, since the output is H.264 in MP4. --keep restores
+# the old side-by-side behaviour. Creation date,
 # QuickTime metadata and filesystem timestamps are carried over, so a converted
 # Takeout library keeps its original ordering instead of collapsing to today.
 {
@@ -38,7 +48,18 @@ writeShellApplication {
     die() { echo "$prog: error: $*" >&2; exit 1; }
     info() { echo "$prog: $*" >&2; }
 
-    [ $# -ge 1 ] || die "usage: $prog <video-file>..."
+    keep=0
+    case "''${1:-}" in
+      --keep) keep=1; shift ;;
+      --help|-h)
+        echo "usage: $prog [--keep] <video-file>..." >&2
+        echo "  default: replace the input, moving the original to the Trash" >&2
+        echo "  --keep:  write <name>_h264.mp4 alongside, original untouched" >&2
+        exit 0 ;;
+      -*) die "unknown option '$1' (try --help)" ;;
+    esac
+
+    [ $# -ge 1 ] || die "usage: $prog [--keep] <video-file>..."
 
     # Codecs mainstream editors (CapCut, Premiere, Final Cut, Resolve) import
     # without a second thought. Anything else (VP9, AV1, etc.) gets re-encoded.
@@ -73,11 +94,22 @@ writeShellApplication {
         continue
       fi
 
-      out="''${f%.*}_h264.mp4"
-      if [ -e "$out" ]; then
-        info "skip: '$out' already exists"
-        continue
+      # REPLACES the input. The encode goes to a temp file beside it first, is
+      # verified, and only then swaps in — so an ffmpeg failure or a full disk
+      # leaves the original untouched rather than half-written.
+      #
+      # The original is moved to ~/.Trash, never rm'd. This tool runs over photo
+      # libraries in batches; "recoverable" is worth more here than "tidy".
+      # --keep restores the old side-by-side behaviour.
+      target="''${f%.*}.mp4"     # .mkv/.avi inputs become .mp4 — H.264 in MP4
+      if [ "$keep" -eq 1 ]; then
+        target="''${f%.*}_h264.mp4"
+        if [ -e "$target" ]; then
+          info "skip: '$target' already exists"
+          continue
+        fi
       fi
+      out="''${f%.*}.fixing-$$.mp4"
 
       vargs=(-c:v copy)
       if [ "$need_video" -eq 1 ]; then
@@ -90,9 +122,22 @@ writeShellApplication {
       aargs=(-c:a copy)
       [ "$need_audio" -eq 1 ] && aargs=(-c:a aac -b:a 192k)
 
-      info "re-encoding '$f' (video=$vcodec, audio=''${acodec:-none}) -> '$out'"
-      ffmpeg -y -i "$f" -map_metadata 0 "''${vargs[@]}" "''${aargs[@]}" -movflags +faststart "$out" \
-        || die "ffmpeg failed on '$f'"
+      info "re-encoding '$f' (video=$vcodec, audio=''${acodec:-none}) -> '$target'"
+      if ! ffmpeg -y -i "$f" -map_metadata 0 "''${vargs[@]}" "''${aargs[@]}" -movflags +faststart "$out"; then
+        rm -f "$out"
+        die "ffmpeg failed on '$f' (original untouched)"
+      fi
+
+      # Verify before anything destructive happens: a non-trivial file whose
+      # duration matches the source. A truncated encode that still exits 0 is
+      # the failure mode that would otherwise eat the original.
+      src_dur=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$f" 2>/dev/null || echo 0)
+      out_dur=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$out" 2>/dev/null || echo 0)
+      if ! awk -v a="$src_dur" -v b="$out_dur" \
+             'BEGIN { d = a - b; if (d < 0) d = -d; exit !(b > 0 && d <= 1.0) }'; then
+        rm -f "$out"
+        die "encode of '$f' failed verification (source ''${src_dur}s vs output ''${out_dur}s) — original untouched"
+      fi
 
       # Carry the dates over. -map_metadata keeps the QuickTime creation_time
       # Photos reads on import; the filesystem mtime and (on macOS) birthtime
@@ -102,7 +147,30 @@ writeShellApplication {
       if [ -x /usr/bin/SetFile ] && [ -x /usr/bin/GetFileInfo ]; then
         /usr/bin/SetFile -d "$(/usr/bin/GetFileInfo -d "$f")" "$out" 2>/dev/null || true
       fi
-      info "done: '$out'"
+
+      if [ "$keep" -eq 1 ]; then
+        mv -f "$out" "$target"
+        info "done: '$target' (original kept)"
+        continue
+      fi
+
+      # Trash the original, then swap the new file in. Collisions in ~/.Trash
+      # get a counter rather than clobbering whatever is already there.
+      trash="$HOME/.Trash"
+      mkdir -p "$trash"
+      base=$(basename "$f")
+      dest="$trash/$base"
+      n=1
+      while [ -e "$dest" ]; do
+        dest="$trash/''${base%.*} $n.''${base##*.}"
+        n=$((n + 1))
+      done
+      if ! mv "$f" "$dest"; then
+        rm -f "$out"
+        die "could not move '$f' to the Trash — original untouched"
+      fi
+      mv -f "$out" "$target"
+      info "done: '$target' (original in Trash)"
     done
   '';
 }
