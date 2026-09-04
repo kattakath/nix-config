@@ -142,6 +142,11 @@
 
     # ---- Casks ---------------------------------------------------------------
     casks = [
+      # Audacity — multi-track audio editor. Pairs with the blackhole-2ch cask
+      # below: BlackHole is a virtual output device, so routing an app's audio
+      # into it gives Audacity a capture source for system audio, which macOS
+      # otherwise refuses to expose.
+      "audacity"
       # Android SDK cmdline tools (sdkmanager/avdmanager) — backs `android-emu`
       # (modules/shared/home.nix), which boots VIRTUAL Android emulators.
       "android-commandlinetools"
