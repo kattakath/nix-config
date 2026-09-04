@@ -49,7 +49,7 @@ let
 
   infoPlist =
     { name, id, ... }:
-    lib.generators.toPlist { } {
+    lib.generators.toPlist { escape = true; } {
       CFBundleIdentifier = "com.kattakath.services.${id}";
       CFBundleName = name;
       CFBundleShortVersionString = "1.0";
@@ -66,7 +66,7 @@ let
 
   documentWflow =
     { cmd, ... }:
-    lib.generators.toPlist { } {
+    lib.generators.toPlist { escape = true; } {
       AMApplicationVersion = "2.10";
       AMDocumentVersion = "2";
       actions = [
