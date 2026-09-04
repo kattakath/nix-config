@@ -191,6 +191,32 @@ one-time steps are inherently manual — do these after activating a fresh Mac:
   manages only the *service* secrets via agenix — see the "Secrets — agenix"
   convention in `CLAUDE.md`, not personal logins).
 - **The `macvm` Tart guest is NOT restored by a rebuild — recreate it.** Disk lives under `~/.tart/`; neither this repo nor the key kit restores it. Recreate after recovery with `nix run .#macvm-tart-*`. Full steps: [`macvm-tart-runbook.md`](macvm-tart-runbook.md).
+- **QuickLook Video's Media Extensions install disabled — enable them by hand.**
+  The `quicklook-video` cask (`hosts/macos.nix`) is declarative, but what it ships
+  is *not* a QuickLook generator: two **macOS Media Extensions** that plug into
+  AVFoundation itself (`uk.org.marginal.qlvideo.videodecoder` and
+  `.formatreader`, SDK `com.apple.mediaextension.*`). macOS registers them only
+  after the bundled app is launched once, and even then they are **off** — no Nix
+  or `defaults` knob flips them. Symptom if missed: video whose codec AVFoundation
+  cannot decode (VP9, AV1, VC-1, RealVideo, …) shows the **generic MP4 document
+  icon** in Finder with no thumbnail and no preview, while duration and dimensions
+  still display — those come from the container header, not a decoded frame, which
+  makes it look like a thumbnail-cache bug rather than a codec gap. Google Takeout
+  exports are the usual source: Google re-encodes originals to VP9-in-MP4. Fix:
+  1. `open -a "/Applications/QuickLook Video.app"` once, so macOS registers the
+     extensions.
+  2. `pluginkit -e use -i uk.org.marginal.qlvideo.videodecoder` and the same for
+     `uk.org.marginal.qlvideo.formatreader`. Confirm with `pluginkit -mv | grep
+     qlvideo` — both lines must be prefixed `+`. (System Settings → General →
+     Login Items & Extensions is the GUI equivalent.)
+  3. **Reboot or log out.** Media Extensions are loaded by each host process at
+     launch; restarting `quicklookd` / `com.apple.quicklook.ThumbnailsAgent` and
+     flushing `qlmanage -r cache` is **not** sufficient — verified.
+  Verify with `qlmanage -t -s 256 -o <dir> <file.mp4>`: a PNG appears for a codec
+  the extension covers, and nothing at all when the decoder is missing (the
+  generator simply hangs). Note the codec table advertises VP9 as `VP9 `, while
+  MP4 tags it `vp09` — if VP9 specifically still fails after a reboot, that
+  mismatch is the first thing to chase.
 - **Determinate's native Linux builder needs a per-machine login, not just an
   account entitlement.** A fresh Mac reinstall means a fresh `determinate-nixd`
   daemon that has never authenticated to FlakeHub — even though the
