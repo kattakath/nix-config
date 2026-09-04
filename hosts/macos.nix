@@ -149,6 +149,8 @@
       "android-platform-tools"
       "blackhole-2ch"
       "bruno"
+      # CapCut — the fleet's video editor, same cask macvm carries.
+      "capcut"
       # Claude Desktop — the chat GUI (distinct from the claude-code CLI, nixpkgs).
       "claude"
       "docker-desktop"
