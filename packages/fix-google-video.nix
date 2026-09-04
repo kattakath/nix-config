@@ -17,7 +17,9 @@
 # Auto-detects VideoToolbox (Apple Silicon/Intel hardware H.264 encoder,
 # ~7x realtime) and falls back to libx264 software encode (CRF 18) if it's
 # unavailable in this ffmpeg build. Output is written alongside the input as
-# <name>_h264.mp4; the original is never modified or deleted.
+# <name>_h264.mp4; the original is never modified or deleted. Creation date,
+# QuickTime metadata and filesystem timestamps are carried over, so a converted
+# Takeout library keeps its original ordering instead of collapsing to today.
 {
   writeShellApplication,
   ffmpeg,
@@ -89,8 +91,17 @@ writeShellApplication {
       [ "$need_audio" -eq 1 ] && aargs=(-c:a aac -b:a 192k)
 
       info "re-encoding '$f' (video=$vcodec, audio=''${acodec:-none}) -> '$out'"
-      ffmpeg -y -i "$f" "''${vargs[@]}" "''${aargs[@]}" -movflags +faststart "$out" \
+      ffmpeg -y -i "$f" -map_metadata 0 "''${vargs[@]}" "''${aargs[@]}" -movflags +faststart "$out" \
         || die "ffmpeg failed on '$f'"
+
+      # Carry the dates over. -map_metadata keeps the QuickTime creation_time
+      # Photos reads on import; the filesystem mtime and (on macOS) birthtime
+      # are what Finder sorts by, and both are otherwise stamped "now" — which
+      # silently reorders a whole Takeout library to today's date.
+      touch -r "$f" "$out"
+      if [ -x /usr/bin/SetFile ] && [ -x /usr/bin/GetFileInfo ]; then
+        /usr/bin/SetFile -d "$(/usr/bin/GetFileInfo -d "$f")" "$out" 2>/dev/null || true
+      fi
       info "done: '$out'"
     done
   '';
