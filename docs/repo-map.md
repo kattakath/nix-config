@@ -650,6 +650,16 @@ Smaller, single-purpose CLIs:
   for a PHYSICAL Android device; hardens around two live-reproduced adb bugs, an mDNS-cache
   staleness and duplicate-transport device listings. Its operator knowledge is also a GLOBAL
   skill, `skills/android-phone`.
+- **`media-quick-actions.nix`** (macOS) — Finder right-click → **Quick Actions** entries for
+  the media-toolkit CLIs, generated as Automator `.workflow` bundles. A Quick Action is only
+  two plists (`Contents/Info.plist` + `Contents/document.wflow`), so `lib.generators.toPlist`
+  authors them and no Automator.app is involved. Linked into `~/Library/Services` by
+  `home.nix` (an INLINE module in `imports` — one attrset cannot define both `home.file` and
+  `home.file."x"`). Two non-obvious keys carry it: `inputMethod = 1` passes the selection as
+  `"$@"` (the default pipes stdin, giving a script that runs and does nothing), and
+  `presentationMode = 11` is what puts the item in Finder's Quick Actions submenu rather than
+  only the Services menu. Verified: macOS registers a bundle reached through a **symlink**,
+  so the store-path source needs no copy-into-place.
 - **`media-toolkit.nix`** — `symlinkJoin` bundling the media-file CLIs below
   (`fix-google-video` + `extract-audio`) as ONE entry for `home.packages`, so the set
   cannot drift as CLIs are added; each stays its own derivation with its own
