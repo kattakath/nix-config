@@ -1,5 +1,11 @@
-# media-quick-actions (macOS only) — Finder right-click → Quick Actions entries
-# for the media-toolkit CLIs, generated declaratively.
+# media-quick-actions (macOS only) — Finder right-click → SERVICES entries for
+# the media-toolkit CLIs, generated declaratively.
+#
+# Note the submenu: these land under **Services**, not "Quick Actions", even
+# with presentationMode = 11 below. Finder's Quick Actions submenu is fed by
+# App Extensions and Shortcuts actions (see `defaults read pbs` → FinderActive,
+# which lists only APPEXTENSION-* and is.workflow.actions.* entries); an
+# Automator .workflow service cannot appear there. Verified on macOS 26.6.2.
 #
 # A Quick Action is just an Automator `.workflow` BUNDLE OF TWO PLISTS —
 # Contents/Info.plist (what the menu item is called, and which file types it
@@ -14,8 +20,9 @@
 #   inputMethod = 1  — pass the selected files to the script as "$@". The
 #     default (0) pipes them on stdin instead, which silently produces a
 #     script that runs and does nothing.
-#   presentationMode = 11  — "Quick Action". Other values put the item in the
-#     Services menu but NOT in Finder's right-click Quick Actions submenu.
+#   presentationMode = 11  — what Automator writes for a Quick Action. Kept
+#     because this exact bundle shape is the one verified working; it does NOT
+#     actually move the item into the Quick Actions submenu (see above).
 #
 # The script execs an absolute /nix/store path because a Service inherits a
 # minimal PATH, not the login shell's.
@@ -33,12 +40,7 @@ let
     {
       name = "Extract Audio";
       id = "extractAudio";
-      cmd = "extract-audio";
-    }
-    {
-      name = "Extract Audio as MP3";
-      id = "extractAudioMp3";
-      cmd = "extract-audio --mp3";
+      cmd = "extract-audio"; # MP3 by default; --copy is the lossless path
     }
     {
       name = "Fix Google Video";
@@ -105,7 +107,7 @@ let
       ];
       connectors = { };
       workflowMetaData = {
-        presentationMode = 11; # Quick Action (Finder's submenu)
+        presentationMode = 11; # what Automator writes; item still lands under Services
         serviceApplicationBundleID = "com.apple.finder";
         serviceApplicationPath = "/System/Library/CoreServices/Finder.app";
         serviceInputTypeIdentifier = "com.apple.Automator.fileSystemObject.movie";
@@ -126,7 +128,7 @@ in
 runCommand "media-quick-actions"
   {
     passthru.actionNames = map (a: a.name) actions;
-    meta.description = "Finder Quick Actions (right-click) for the media-toolkit CLIs";
+    meta.description = "Finder right-click → Services entries for the media-toolkit CLIs";
   }
   ''
     mkdir -p $out

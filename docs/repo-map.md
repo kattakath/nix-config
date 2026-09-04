@@ -650,16 +650,21 @@ Smaller, single-purpose CLIs:
   for a PHYSICAL Android device; hardens around two live-reproduced adb bugs, an mDNS-cache
   staleness and duplicate-transport device listings. Its operator knowledge is also a GLOBAL
   skill, `skills/android-phone`.
-- **`media-quick-actions.nix`** (macOS) — Finder right-click → **Quick Actions** entries for
-  the media-toolkit CLIs, generated as Automator `.workflow` bundles. A Quick Action is only
+- **`media-quick-actions.nix`** (macOS) — Finder right-click → **Services** entries for
+  the media-toolkit CLIs, generated as Automator `.workflow` bundles. The submenu is
+  **Services**, not "Quick Actions": Finder's Quick Actions submenu is fed by App Extensions
+  and Shortcuts actions (`defaults read pbs` → `FinderActive` lists only `APPEXTENSION-*` and
+  `is.workflow.actions.*`), which an Automator service cannot join. New or changed entries
+  need **`killall Finder`** — activation links them and `pbs` registers them, but a running
+  Finder keeps serving its old menu, which looks exactly like a failed install. A Quick Action is only
   two plists (`Contents/Info.plist` + `Contents/document.wflow`), so `lib.generators.toPlist`
   authors them and no Automator.app is involved. Linked into `~/Library/Services` by
   `home.nix` (an INLINE module in `imports` — one attrset cannot define both `home.file` and
-  `home.file."x"`). Two non-obvious keys carry it: `inputMethod = 1` passes the selection as
-  `"$@"` (the default pipes stdin, giving a script that runs and does nothing), and
-  `presentationMode = 11` is what puts the item in Finder's Quick Actions submenu rather than
-  only the Services menu. Verified: macOS registers a bundle reached through a **symlink**,
-  so the store-path source needs no copy-into-place.
+  `home.file."x"`). The load-bearing key is `inputMethod = 1`, which passes the selection as
+  `"$@"` — the default pipes stdin, giving a script that runs and silently does nothing.
+  Verified: macOS registers and runs a bundle reached through a **symlink**, so the store-path
+  source needs no copy-into-place (`mac-app-util` / home-manager's `copyApps`, the usual fix
+  for Nix-symlinked `.app` bundles, are not needed here).
 - **`media-toolkit.nix`** — `symlinkJoin` bundling the media-file CLIs below
   (`fix-google-video` + `extract-audio`) as ONE entry for `home.packages`, so the set
   cannot drift as CLIs are added; each stays its own derivation with its own
@@ -667,11 +672,12 @@ Smaller, single-purpose CLIs:
   machine. `obs-fb-setup` (writes an OBS config profile, reads a Keychain secret) and
   `fidelity-enhance` (MCP referee for an agentic image loop) are media-*adjacent* and stay
   separate — folding them in would leave the name meaning only "vaguely about media".
-- **`extract-audio.nix`** — `extract-audio [--mp3|--wav|--flac] <file>...` pulls the audio
-  track out of a video. Defaults to a lossless stream copy (a video's audio is already a
-  finished encode; re-encoding it to MP3 is a second lossy generation for nothing), which
-  makes the container the real problem it solves: `-c:a copy` fails into a container that
-  does not accept the codec, so it maps codec→extension (`.m4a` for AAC/ALAC, `.ogg` for
+- **`extract-audio.nix`** — `extract-audio [--mp3|--copy|--wav|--flac] <file>...` pulls the
+  audio track out of a video. **Defaults to MP3**, which plays everywhere. `--copy` is the
+  lossless path (the audio is already a finished encode, so transcoding is a second lossy
+  generation, and copying needs no decode — ~16000x realtime measured); that path is what
+  makes the container the real problem solved here, since `-c:a copy` fails into a container
+  that does not accept the codec, so it maps codec→extension (`.m4a` for AAC/ALAC, `.ogg` for
   Vorbis, `.wav` for PCM, `.mka` as the catch-all). Idempotent; preserves timestamps.
 - **`fix-google-video.nix`** — detects and re-encodes video files with editor-incompatible
   codecs (most commonly VP9-in-MP4, the flavor Google Photos' download button serves for
