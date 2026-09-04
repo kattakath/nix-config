@@ -224,27 +224,44 @@ Upstream: <https://violentmonkey.github.io/posts/how-to-edit-scripts-with-your-f
 
 1. Open Violentmonkey's **Dashboard**.
 2. **Drag** `userscripts/<kebab>.user.js` onto that page.
-3. In the installer: **Track external edits**, then tick **Reload tab**.
+3. Tick **Reload tab**, then click the **`+ Track external edits`** BUTTON (or `⌘Enter`).
+
+**Click the button, NOT `Install`** — measured 2026-09-04, and it cost four failed test
+cycles. The `+ Track…` control is an install VARIANT, not a checkbox that modifies
+`Install`: ticking it and then pressing `Install` installs **without** tracking, silently.
+There is no error and no indicator; saves simply never land, which reads exactly like a
+broken script.
+
+4. **Leave the installer tab open** for the whole session. Upstream: "don't close the tab
+   of this file while tracking as it's **used to read the contents of the file**".
 
 `FileSystemObserver` (instant, no polling) requires **Chrome/Chromium 133+**; this host measured
 **152.0.7977.64** on 2026-08-31. On an older build the same drag still works, just polled.
 
 **Gotchas, in the order they bite:**
 
-1. **Stop tracking before switching git branches.** A checkout rewrites the file underneath
-   Violentmonkey, which installs whatever the other branch held. Branch churn in this repo is
-   routine, so this is the common failure — not a hypothetical.
+1. **ANY git write to the tracked file KILLS tracking — silently.** Not just a branch switch:
+   `checkout`, `pull`, `stash`, `rebase`, a revert. Git does not rewrite a file in place, it
+   **unlinks and replaces** it, and Violentmonkey's handle stays bound to the dead inode.
+   Measured 2026-09-04, one variable: an editor save left `inode=96281040` untouched and
+   **landed**; the next write after a `git checkout` had swapped it to `96282588` and **did
+   not**. Nothing reports this — saves just stop. Branch churn here is routine, so on any day
+   with git traffic use the localhost route below instead, which re-fetches by URL and does
+   not care about inodes. Re-drag to resume tracking after a git write.
 2. **The gate cannot see an unstaged edit.** `checks.<system>.userscripts` globs
    `${self}/userscripts/*.user.js` — the **git tree**. Finish with step G (`git add -A` first),
    not with a green browser.
 3. **The materialised copy is stale for the whole session.** Expected. Reconcile at the end:
    step G, then `activate`.
 4. **Stop tracking when done**, or the next `activate` / branch switch fights it.
-5. **`@version` still gets bumped for the committed state** (§ Editing an existing script).
-   Whether a *tracked* save needs a bump to take effect is **unverified** — if a save appears to
-   do nothing, bump and re-save before suspecting the code.
+5. **`@version` still gets bumped for the committed state** (§ Editing an existing script),
+   but a *tracked* save does **NOT** need one — resolved 2026-09-04 against upstream ("each
+   time you save the file in your external editor the changes are automatically incorporated"),
+   and confirmed in-page. So a save that does nothing is **not** a version problem: check
+   gotcha 1 and the `Install`-vs-`+ Track` trap above before touching the code.
 
-Alternative if the drag is awkward — a localhost server, polled rather than observed:
+**Prefer the localhost route on any day with git traffic** — it polls a URL rather than
+observing a file handle, so gotcha 1 cannot bite:
 
 ```bash
 cd userscripts && python3 -m http.server 8080   # then open http://localhost:8080/<kebab>.user.js
