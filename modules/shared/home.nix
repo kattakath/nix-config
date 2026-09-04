@@ -397,14 +397,16 @@ in
   disabledModules = [ "launchd/default.nix" ];
 
   imports = [
-    # Finder right-click → Quick Actions for the media-toolkit CLIs. An INLINE
+    # Finder right-click → Services for the media-toolkit CLIs. An INLINE
     # MODULE because one attrset cannot define both `home.file` and
     # `home.file."x"`, and this file does the latter elsewhere; as its own module
     # the generated set merges instead of colliding. Entries come from the
     # package's own action list, so adding an action needs no edit here. macOS
     # registers a .workflow reached through a SYMLINK, so the store path works
     # as-is; `recursive` matches the .app launchers so macOS sees a real
-    # directory. New items appear after `killall Finder` or a re-login.
+    # directory. NEW OR CHANGED ITEMS NEED `killall Finder` — activation links
+    # them and pbs registers them, but a running Finder keeps serving its old
+    # menu, which looks exactly like the service having failed to install.
     {
       home.file = lib.mkIf isMacosHost (
         lib.listToAttrs (
