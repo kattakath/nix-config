@@ -398,26 +398,44 @@ in
 
   imports = [
     # Finder right-click → Services for the media-toolkit CLIs. An INLINE
-    # MODULE because one attrset cannot define both `home.file` and
-    # `home.file."x"`, and this file does the latter elsewhere; as its own module
-    # the generated set merges instead of colliding. Entries come from the
-    # package's own action list, so adding an action needs no edit here. macOS
-    # registers a .workflow reached through a SYMLINK, so the store path works
-    # as-is; `recursive` matches the .app launchers so macOS sees a real
-    # directory. NEW OR CHANGED ITEMS NEED `killall Finder` — activation links
-    # them and pbs registers them, but a running Finder keeps serving its old
-    # menu, which looks exactly like the service having failed to install.
+    # MODULE so this merges with the `home.file."x"` entries defined elsewhere
+    # in this file (one attrset cannot define both `home.file` and
+    # `home.file."x"`).
+    #
+    # COPIED, never symlinked. Automator loads a workflow through NSFileWrapper,
+    # which throws `-[NSFileWrapper regularFileContents] *** this method is only
+    # for regular file type NSFileWrappers` on a symlinked document.wflow. The
+    # failure is nasty because it is SPLIT: pbs still registers the bundle and
+    # Finder still shows the menu item, so it looks installed and only breaks
+    # when clicked. This is the same reason home-manager grew `copyApps` and
+    # mac-app-util exists — macOS bundle APIs reject store symlinks.
+    #
+    # Entries derive from the package's action list, and the cleanup loop keys
+    # off our bundle-id prefix, so dropping an action from the package also
+    # drops it from the menu. A running Finder keeps serving its old menu, so
+    # changes need `killall Finder`.
     {
-      home.file = lib.mkIf isMacosHost (
-        lib.listToAttrs (
-          map (n: {
-            name = "Library/Services/${n}.workflow";
-            value = {
-              source = "${mediaQuickActions}/${n}.workflow";
-              recursive = true;
-            };
-          }) mediaQuickActions.actionNames
-        )
+      home.activation.mediaServices = lib.mkIf isMacosHost (
+        lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+          svc="$HOME/Library/Services"
+          run mkdir -p "$svc"
+
+          # Remove bundles THIS repo installed previously, identified by bundle
+          # id, so a removed action disappears instead of lingering.
+          for wf in "$svc"/*.workflow; do
+            [ -e "$wf" ] || continue
+            id=$(/usr/bin/plutil -extract CFBundleIdentifier raw -o - "$wf/Contents/Info.plist" 2>/dev/null || true)
+            case "$id" in
+              com.kattakath.services.*) run rm -rf "$wf" ;;
+            esac
+          done
+
+          ${lib.concatMapStringsSep "\n" (n: ''
+            run cp -RL "${mediaQuickActions}/${n}.workflow" "$svc/${n}.workflow"
+          '') mediaQuickActions.actionNames}
+          run chmod -R u+w "$svc"
+          run /System/Library/CoreServices/pbs -flush || true
+        ''
       );
     }
     ./hm-launchd # patched home-manager launchd (nix-* ProgramArguments)
