@@ -406,7 +406,7 @@ in
     # the NixOS hosts. Enabled only on the real Mac host below (not macvm).
     local-rag.homeManagerModules.default
     # macOS login-Keychain `secret` CLI + every-shell loader — the extracted flake
-    # (github:ismailkattakath/keychain-secrets), installed via its HM module below.
+    # (github:kattakath/nix-keychain-secrets), installed via its HM module below.
     # Internally darwin-gated, so it's a clean no-op on the NixOS hosts.
     keychain-secrets.homeManagerModules.default
     # Gate CLAUDE_CODE_USE_BEDROCK (Keychain, survives every activation) on the
