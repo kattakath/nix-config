@@ -228,14 +228,6 @@
       "obs"
       "obsidian"
       "proton-drive"
-      # QuickLook Video (Marginal/QuickLookVideo) — Finder thumbnails + previews for
-      # video codecs AVFoundation cannot decode. Google Takeout re-encodes originals to
-      # VP9-in-MP4, and macOS ships no VP9 decoder, so QuickLook can never decode a frame
-      # and every such file falls back to the generic MP4 document icon (container
-      # metadata like duration/dimensions still reads fine, which makes it look like a
-      # cache bug rather than a codec gap). This is an ffmpeg-backed QuickLook app
-      # extension; macOS registers it on first launch of the bundled app.
-      "quicklook-video"
       "raspberry-pi-imager"
       "slack"
       # Slack's official CLI for building/deploying Slack apps (docs.slack.dev/tools/slack-cli).
