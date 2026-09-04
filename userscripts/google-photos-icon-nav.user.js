@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Google Photos — icon-only nav rail
 // @namespace    kattakath.com
-// @version      2.0.1
+// @version      2.1.0
 // @description  Make Google Photos render its own narrow-viewport icon rail at every window width, by replaying its responsive breakpoint unconditionally.
 // @author       Ismail Kattakath
 // @license      MIT
@@ -30,11 +30,17 @@
   'use strict';
 
   // Which breakpoint to lift. Photos' rail currently sits at max-width:1007px,
-  // but hardcoding that re-couples us to a number Google owns, so instead take
-  // the WIDEST `screen and (max-width: Npx)` in this band. The band's job is to
-  // exclude the neighbours: phone layouts below it (599px hides the rail
+  // but hardcoding that re-couples us to a number Google owns, so instead pick
+  // the BIGGEST `screen and (max-width: Npx)` block in this band. The band's job
+  // is to exclude the neighbours: phone layouts below it (599px hides the rail
   // entirely behind a hamburger — not what we want) and the incidental
   // wide-viewport queries above it (1423px).
+  //
+  // Biggest, not widest — measured in-page 2026-09-04. A chunk that loads on SPA
+  // back-nav (collection → item → back arrow) adds a 5-rule `max-width:1008px`
+  // block, 1px wider than the rail's 1007, so "widest in band" served 372 chars
+  // of scrim CSS and dropped all 83 rail rules until a reload. Rule count
+  // separates the two by an order of magnitude without naming a Google number.
   const BAND_MIN = 800;
   const BAND_MAX = 1200;
   const CONDITION = /^screen\s+and\s+\(max-width:\s*(\d+)px\)$/;
@@ -75,8 +81,15 @@
     }
 
     if (byWidth.size === 0) return null;
-    const width = Math.max(...byWidth.keys());
-    return byWidth.get(width).join('\n');
+    let best = null;
+    for (const [width, rules] of byWidth) {
+      const better =
+        best === null ||
+        rules.length > best.rules.length ||
+        (rules.length === best.rules.length && width > best.width);
+      if (better) best = { width, rules };
+    }
+    return best.rules.join('\n');
   };
 
   const apply = () => {
@@ -87,7 +100,11 @@
       styleEl = document.createElement('style');
       styleEl.dataset.nixGooglePhotosRail = '';
     }
-    if (styleEl.textContent !== css) styleEl.textContent = css;
+    // Downgrade guard. Photos tears sheets down as well as adding them, so a
+    // collect can legitimately come back thinner — but never by half. Holding
+    // the working payload beats trading it for a stub that renders stock.
+    const collapsed = css.length * 2 < styleEl.textContent.length;
+    if (!collapsed && styleEl.textContent !== css) styleEl.textContent = css;
 
     // The lifted rules have the same specificity as the ones they must beat, so
     // order decides: ours has to stay LAST in head. Photos keeps appending
