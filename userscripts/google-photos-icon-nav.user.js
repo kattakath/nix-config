@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Google Photos — icon-only nav rail
 // @namespace    kattakath.com
-// @version      2.2.0
+// @version      2.3.0
 // @description  Make Google Photos render its own narrow-viewport icon rail at every window width, by replaying its responsive breakpoint unconditionally and muting the wide-viewport block that fights it.
 // @author       Ismail Kattakath
 // @license      MIT
@@ -29,6 +29,11 @@
 (() => {
   'use strict';
 
+  // Re-inject contract (this repo's userscript-preview plugin): undo the
+  // previous run before starting, and never early-return on an "already init"
+  // flag — that is what turns a re-inject into a silent no-op.
+  window.__nixGooglePhotosTeardown?.();
+
   // Which breakpoint to lift. Photos' rail currently sits at max-width:1007px,
   // but hardcoding that re-couples us to a number Google owns, so instead pick
   // the BIGGEST `screen and (max-width: Npx)` block in this band. The band's job
@@ -47,6 +52,8 @@
   const MIN_WIDTH = /\(min-width:\s*(\d+)px\)/;
 
   let styleEl = null;
+  const observers = [];
+  const muted = [];
 
   // Photos' CSS is ~11 inline <style> blocks, same-origin, so cssRules reads
   // fine. A cross-origin sheet throws on access instead of returning null —
@@ -75,22 +82,32 @@
         // Several separate @media blocks share the one breakpoint (the rail, the
         // content offset, the header's collapsed search), so accumulate rather
         // than take the first.
-        const bucket = byWidth.get(width) ?? [];
-        for (const inner of rule.cssRules) bucket.push(inner.cssText);
-        byWidth.set(width, bucket);
+        let bucket = byWidth.get(width);
+        if (bucket === undefined) {
+          bucket = { rules: [], sheets: new Set() };
+          byWidth.set(width, bucket);
+        }
+        for (const inner of rule.cssRules) bucket.rules.push(inner.cssText);
+        // Which sheets carried this breakpoint — the mute pass below is scoped
+        // to them so a third-party sheet is never touched.
+        bucket.sheets.add(sheet);
       }
     }
 
     if (byWidth.size === 0) return null;
     let best = null;
-    for (const [width, rules] of byWidth) {
+    let bestWidth = 0;
+    for (const [width, bucket] of byWidth) {
       const better =
         best === null ||
-        rules.length > best.rules.length ||
-        (rules.length === best.rules.length && width > best.width);
-      if (better) best = { width, rules };
+        bucket.rules.length > best.rules.length ||
+        (bucket.rules.length === best.rules.length && width > bestWidth);
+      if (better) {
+        best = bucket;
+        bestWidth = width;
+      }
     }
-    return { width: best.width, css: best.rules.join('\n') };
+    return { width: bestWidth, sheets: best.sheets, css: best.rules.join('\n') };
   };
 
   // Lifting can only ADD rules, so it cannot cancel what Photos serves in the
@@ -103,19 +120,32 @@
   // no guess at what each declaration's narrow value should be, and re-serving
   // `initial` would be a guess (the block also sets display/flex/overflow).
   // Idempotent by construction: a muted block reads `not all` and stops matching.
-  const muteAboveRail = (railWidth) => {
+  //
+  // Scoped to the sheets that carried the lifted breakpoint, NOT every readable
+  // sheet: on a page with other userscripts or extensions, an unscoped pass would
+  // mute THEIR wide-viewport rules too. Measured 2026-09-04: the rail's 71 rules
+  // span 4 of Photos' sheets and the min-width block sits in one of them, so the
+  // narrower scope loses nothing. This mutates Google's own sheet, so the effect
+  // outlives the script — disabling it mid-session needs a reload (or the
+  // teardown below) to undo.
+  const muteAboveRail = (railWidth, sheets) => {
     const walk = (rules) => {
       for (const rule of rules) {
         if (rule.type !== CSSRule.MEDIA_RULE) continue;
-        const match = MIN_WIDTH.exec(rule.conditionText);
+        const condition = rule.conditionText;
+        // A `print` block is off at every viewport width, so muting one would
+        // silently change printing rather than the rail. Leave non-screen alone.
+        if (/\bprint\b/.test(condition)) continue;
+        const match = MIN_WIDTH.exec(condition);
         if (match && Number(match[1]) > railWidth) {
+          muted.push({ rule, mediaText: rule.media.mediaText });
           rule.media.mediaText = 'not all';
           continue;
         }
         walk(rule.cssRules);
       }
     };
-    for (const sheet of document.styleSheets) {
+    for (const sheet of sheets) {
       let rules;
       try {
         rules = sheet.cssRules;
@@ -129,7 +159,7 @@
   const apply = () => {
     const picked = collectBreakpointCss();
     if (picked === null) return false;
-    muteAboveRail(picked.width);
+    muteAboveRail(picked.width, picked.sheets);
     const css = picked.css;
 
     if (styleEl === null) {
@@ -139,6 +169,9 @@
     // Downgrade guard. Photos tears sheets down as well as adding them, so a
     // collect can legitimately come back thinner — but never by half. Holding
     // the working payload beats trading it for a stub that renders stock.
+    // Accepted trade: a Google redesign that genuinely halves the rail block
+    // leaves this serving the old one for the rest of the session. Harmless —
+    // renamed selectors simply stop matching, so the page renders stock.
     const collapsed = css.length * 2 < styleEl.textContent.length;
     if (!collapsed && styleEl.textContent !== css) styleEl.textContent = css;
 
@@ -147,7 +180,17 @@
     // <style> blocks as it lazy-loads views, which is why this re-checks rather
     // than appending once. Re-appending only when we are not already last is
     // also what stops the observer below from feeding itself.
-    if (document.head !== null && document.head.lastElementChild !== styleEl) {
+    //
+    // Stand down when the element already last is ANOTHER copy of this script.
+    // Two copies — the Greasy Fork install plus a manual one, or a preview inject
+    // over a build too old to have the teardown below — otherwise fight for the
+    // last slot forever, each append waking the other's observer. Measured
+    // 2026-09-04: the tab pegs and stops responding. Both copies serve the same
+    // CSS, so whichever holds the slot is correct.
+    const last = document.head === null ? null : document.head.lastElementChild;
+    const rivalIsLast =
+      last !== null && last !== styleEl && last.dataset?.nixGooglePhotosRail !== undefined;
+    if (document.head !== null && last !== styleEl && !rivalIsLast) {
       document.head.appendChild(styleEl);
     }
     return styleEl.textContent.length > 0;
@@ -179,7 +222,9 @@
   // Every sheet we care about arrives as a direct child of head.
   const watchHead = () => {
     if (document.head === null) return false;
-    new MutationObserver(applyAndKick).observe(document.head, { childList: true });
+    const observer = new MutationObserver(applyAndKick);
+    observer.observe(document.head, { childList: true });
+    observers.push(observer);
     return true;
   };
 
@@ -193,6 +238,7 @@
       }
     });
     rootObserver.observe(document.documentElement, { childList: true });
+    observers.push(rootObserver);
   }
 
   applyAndKick();
@@ -200,4 +246,18 @@
     window.addEventListener('DOMContentLoaded', applyAndKick, { once: true });
   }
   window.addEventListener('load', applyAndKick, { once: true });
+
+  // Undo everything this run did: observers, the style tag, and — the one edit
+  // that is not ours to leave behind — Google's own muted media blocks.
+  window.__nixGooglePhotosTeardown = () => {
+    for (const observer of observers) observer.disconnect();
+    observers.length = 0;
+    for (const entry of muted) entry.rule.media.mediaText = entry.mediaText;
+    muted.length = 0;
+    window.removeEventListener('DOMContentLoaded', applyAndKick);
+    window.removeEventListener('load', applyAndKick);
+    if (styleEl !== null) styleEl.remove();
+    styleEl = null;
+    delete window.__nixGooglePhotosTeardown;
+  };
 })();
