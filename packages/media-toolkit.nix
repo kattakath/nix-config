@@ -7,6 +7,7 @@
 #   fix-media <--video|--image> <file-or-dir>...  repair a media file by CLASS,
 #                                                 deciding which of the above
 #                                                 it actually needs
+#   media <describe|fix|audio> ...                one entry point for the below
 #   photo-describe <file-or-dir>...               write what an image IS into
 #                                                 the image (XMP description +
 #                                                 keywords + rating)
@@ -62,6 +63,7 @@
   fix-extension ? callPackage ./fix-extension.nix { },
   fix-media ? callPackage ./fix-media.nix { },
   photo-describe ? callPackage ./photo-describe.nix { },
+  media ? callPackage ./media.nix { },
 }:
 symlinkJoin {
   name = "media-toolkit";
@@ -71,6 +73,7 @@ symlinkJoin {
     fix-extension
     fix-media
     photo-describe
+    media
   ];
   meta = {
     description = "Local media-file CLIs: fix-google-video (re-encode editor-hostile video), extract-audio (pull out the audio track) fix-extension (rename files whose extension lies about their content), fix-media (repair a media file by class) and photo-describe (write an image's description/keywords into its own XMP)";
