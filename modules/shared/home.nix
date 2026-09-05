@@ -277,9 +277,11 @@ let
   resendCli = pkgs.callPackage ../../packages/resend-cli.nix { };
 
   # `fix-google-video <file>...` + `extract-audio [--mp3|--wav|--flac] <file>...`
-  # as one unit — re-encode editor-hostile video (Google Photos' VP9-in-MP4) and
-  # pull audio tracks out of video. One entry so the set cannot drift out of sync
-  # with home.packages as CLIs are added. See packages/media-toolkit.nix.
+  # + `fix-extension <file-or-dir>...` as one unit — re-encode editor-hostile
+  # video (Google Photos' VP9-in-MP4), pull audio tracks out of video, and rename
+  # files whose extension lies about their content. One entry so the set cannot
+  # drift out of sync with home.packages as CLIs are added.
+  # See packages/media-toolkit.nix.
   mediaToolkit = pkgs.callPackage ../../packages/media-toolkit.nix { };
 
   # Finder right-click → Quick Actions entries for the CLIs above (Automator
@@ -588,7 +590,7 @@ in
       jobspy # `jobspy --search … --location …` — scrape jobs (LinkedIn/Indeed/…) into CSV/JSON via python-jobspy in an ephemeral uv env (packages/jobspy.nix)
       obs-fb-setup # `obs-fb-setup` — write an OBS "Facebook" profile for Facebook Live, injecting FB_PERSISTENT_STREAM_KEY from the login Keychain (packages/obs-fb-setup.nix)
       fidelityEnhance # `fidelity-enhance-mcp` (stdio MCP server) + `fidelity-enhance` (CLI) — fidelity referee for agentic image editing: Grok Imagine generates, this judges drift against the original (SSIM/LPIPS/ArcFace identity) and returns retry/next-step/done plus prompt guidance. Ephemeral uv env; FIRST RUN pulls ~1GB of torch/insightface — warm it with `fidelity-enhance capabilities` (packages/fidelity-enhance.nix)
-      mediaToolkit # `fix-google-video <file>...` (re-encode VP9-in-MP4 and other editor-incompatible codecs into H.264+AAC) + `extract-audio [--mp3|--wav|--flac] <file>...` (pull the audio track out of a video) (packages/media-toolkit.nix)
+      mediaToolkit # `fix-google-video <file>...` (re-encode VP9-in-MP4 and other editor-incompatible codecs into H.264+AAC) + `extract-audio [--mp3|--wav|--flac] <file>...` (pull the audio track out of a video) + `fix-extension <file-or-dir>...` (rename files whose extension lies about their content, e.g. a JPEG named .png that Finder cannot thumbnail) (packages/media-toolkit.nix)
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       jdk17 # JRE for the Android sdkmanager/avdmanager (JVM tools); emulator itself needs no Java
       runpodctl # RunPod GPU CLI — RunPod as a second ComfyUI-workflow provider alongside Vast (from nixpkgs, not the untrusted brew tap)

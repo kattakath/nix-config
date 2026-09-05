@@ -1433,6 +1433,13 @@
           extract-audio = (pkgsFor system).callPackage ./packages/extract-audio.nix { };
         }))
 
+        # `fix-extension` — rename files whose extension lies about their content (a
+        # JPEG named .png, which Finder then cannot thumbnail). A rename, never a
+        # re-encode. Packaged so `nix flake check` shellchecks it; on PATH + `nix run`.
+        (nixpkgs.lib.genAttrs darwinSystems (system: {
+          fix-extension = (pkgsFor system).callPackage ./packages/fix-extension.nix { };
+        }))
+
         # `media-toolkit` — the media-file CLIs above as ONE installable unit, so
         # home.packages carries a single entry instead of drifting as CLIs are added.
         # The individual packages stay exported for `nix run .#<name>`.
