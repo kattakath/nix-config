@@ -3,7 +3,7 @@
 # Privacy: confs contain private keys and must NEVER be Nix store paths / flake
 # inputs / committed sources. This module only `cp`s from a directory you
 # maintain outside git at activation time. See docs/private-home-modules.md
-# (private flake) and docs/macvm-tart-runbook.md (wireguard section).
+# (private flake).
 {
   config,
   lib,
