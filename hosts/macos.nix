@@ -74,6 +74,16 @@
     ];
   };
 
+  # ---- OpenDesign: kill the in-app self-updater --------------------------------
+  # Pairs with the greedy `open-design` cask below — versioning belongs to brew,
+  # not the app's own updater (see the cask's comment for the measured drift).
+  # launchd.user.envVariables is nix-darwin's own lever for env that reaches
+  # Finder/Dock-launched GUI apps (`launchctl setenv` at activation — same
+  # mechanism as the GUI PATH in modules/darwin/core.nix); the app's updater
+  # honors OD_UPDATE_ENABLED as a truthy/falsy kill-switch for both the 6h check
+  # and the auto-download. Takes effect for apps launched after activation.
+  launchd.user.envVariables.OD_UPDATE_ENABLED = "0";
+
   # ---- Homebrew apps for THIS host --------------------------------------------
   # The framework (enable/onActivation/taps) lives in modules/darwin/homebrew.nix;
   # this is macos's app set. onActivation.cleanup = "uninstall" removes anything
@@ -244,6 +254,24 @@
       # and persisting independently of OBS.app.
       "obs"
       "obsidian"
+      # OpenDesign — the local-first design-agent desktop app (Electron; its
+      # stdio MCP server is declared per-client in modules/shared/mcp.nix).
+      # Adopts the previously hand-dragged /Applications copy: `brew bundle`
+      # passes --adopt to every fresh cask install, and for an auto_updates cask
+      # adoption is unconditional (no re-copy, no touch of the app's ~1GB state).
+      #
+      # greedy is LOAD-BEARING and paired with launchd.user.envVariables.
+      # OD_UPDATE_ENABLED below: the in-app updater is disabled because its
+      # launcher-tree relaunch path (upstream #7264) was MEASURED live here —
+      # the app silently ran a 0.20.2 payload from ~/Library while /Applications
+      # held 0.21.1, plus ~1.7GB of downloaded update debris. greedy opts this
+      # one cask back into upgrades past onActivation.upgrade = false, so new
+      # versions land at activation (brew autobump keeps the cask current) and
+      # /Applications stays the ONLY copy that ever runs.
+      {
+        name = "open-design";
+        greedy = true;
+      }
       "proton-drive"
       "raspberry-pi-imager"
       "slack"

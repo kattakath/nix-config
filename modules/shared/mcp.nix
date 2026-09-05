@@ -8,7 +8,9 @@
 # single long-lived process per server: shared memory-graph state, one cache, no
 # duplicate spawns, always up. Nothing listens off-box (host is 127.0.0.1 — no
 # tunnel, no Access). `desktop-commander` is deliberately EXCLUDED from the
-# gateway (shell/RCE surface) and stays a per-client stdio server.
+# gateway (shell/RCE surface) and stays a per-client stdio server, as does
+# `open-design` (stdio-only upstream with a known silent-death bug — see the
+# Client side A block for the full rationale).
 #
 # REQUIREMENT: a launchd USER (GUI) agent lives in the `gui/<uid>` domain, which
 # only exists while that uid has an active GUI login. This targets the flake
@@ -32,8 +34,8 @@
 # CLIENT SIDE (programs.claude-code.mcpServers)
 #   The 19 hosted servers (21+ with every opt-in) are wired as `type = "http"` (Streamable HTTP — the
 #   current MCP standard; the legacy HTTP+SSE transport was deprecated in the
-#   2025-03-26 spec) pointing at /servers/<name>/mcp; desktop-commander stays
-#   `type = "stdio"`. The claude-code module writes these into a managed
+#   2025-03-26 spec) pointing at /servers/<name>/mcp; desktop-commander and
+#   open-design stay `type = "stdio"`. The claude-code module writes these into a managed
 #   .mcp.json plugin dir — it does NOT clobber the stateful ~/.claude.json.
 #   mcp-proxy serves BOTH /mcp and /sse per server concurrently, so an SSE-only
 #   client (e.g. Grok) just points its OWN config at `endpointFor <name> "sse"`.
@@ -751,6 +753,46 @@ in
           "-y"
           "@wonderwhy-er/desktop-commander@latest"
         ];
+      };
+      # NOT hosted either. OpenDesign's MCP is stdio-only (zero HTTP/SSE
+      # transports in the shipped bundle) and upstream carries a known
+      # silent-death bug (nexu-io/open-design#7273) — one server crashing at
+      # startup darks the WHOLE gateway, so it stays per-client like
+      # desktop-commander. The command is the cask-installed app's own Electron
+      # helper run as plain Node against the bundle's daemon CLI — upstream's
+      # sanctioned invocation. `--daemon-url` is ABSENT on purpose: sidecar
+      # re-discovery survives ephemeral-port restarts, and an explicit URL
+      # disables the headless bootstrap entirely (mcp-bootstrap guard). The app
+      # itself is the `open-design` cask in hosts/macos.nix; everything the
+      # daemon mutates lives in its own $HOME data dir — the declared/imperative
+      # boundary is docs/open-design.md.
+      open-design = {
+        type = "stdio";
+        command = "/Applications/Open Design.app/Contents/Frameworks/Open Design Helper.app/Contents/MacOS/Open Design Helper";
+        args = [
+          "/Applications/Open Design.app/Contents/Resources/app/prebundled/daemon/daemon-cli.mjs"
+          "mcp"
+        ];
+        env = {
+          # The ONLY sanctioned relocation lever (upstream AGENTS.md data-dir
+          # contract). Unset, `od mcp` falls back to <cwd>/.od inside the
+          # read-only bundle → EPERM (upstream #848). Absolute and pre-expanded
+          # (upstream #390: a relative value gets path.resolve'd wrongly).
+          OD_DATA_DIR = "${config.home.homeDirectory}/Library/Application Support/Open Design/namespaces/release-stable/data";
+          OD_SIDECAR_IPC_PATH = "/tmp/open-design/ipc/release-stable/daemon.sock";
+          # The bootstrap guard demands an ABSOLUTE command and a JSON-array
+          # string literally containing "--headless"; -g -j = background+hidden.
+          OD_MCP_BOOTSTRAP_COMMAND = "/usr/bin/open";
+          OD_MCP_BOOTSTRAP_ARGS = builtins.toJSON [
+            "-g"
+            "-j"
+            "/Applications/Open Design.app"
+            "--args"
+            "--headless"
+          ];
+          # The helper is an Electron binary; this flag makes it a plain Node.
+          ELECTRON_RUN_AS_NODE = "1";
+        };
       };
     };
 
