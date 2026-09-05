@@ -504,14 +504,23 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
   logout interrupted. The agent's arg0 is `nix-media-queue` via `hm-launchd`, which is
   load-bearing rather than cosmetic: per [launchd-naming](../.claude/rules/launchd-naming.md)
   a `/nix/store` arg0 is what lets the worker **read** the TCC-protected folders it exists to work on.
-  **There is no status surface.** This drove a menu-bar item through SwiftBar (a whole GUI
-  app in the closure, a plugin file, a `defaults` domain and a second launchd agent) and then
-  macOS notifications; both were removed. The notifier had never worked anyway — an unsigned
-  `/nix/store` bundle macOS never registered in `com.apple.ncprefs` — and its `osascript`
-  replacement could show neither an image nor a click action. What remains is
-  `~/Library/Logs/nix-media-queue.log`, plus a shell-run CLI printing its own progress. The
-  cost is accepted: a Finder Service now does nothing visible, so success and failure look
-  alike.
+  **There is no GUI status surface**, by the same choice as always. This drove a menu-bar item
+  through SwiftBar (a whole GUI app in the closure, a plugin file, a `defaults` domain and a
+  second launchd agent) and then macOS notifications; both were removed. The notifier had
+  never worked anyway — an unsigned `/nix/store` bundle macOS never registered in
+  `com.apple.ncprefs` — and its `osascript` replacement could show neither an image nor a
+  click action. What exists instead, all shell: `media-queue-status` (what's running/queued/
+  failed, and whether a pause is manual or Low Power Mode's own auto-pause),
+  `media-queue-pause`/`-resume` (SIGSTOP/SIGCONT the in-flight job's process group — freezes it
+  mid-file with no lost progress, unlike the worker's own SIGTERM-and-requeue), and
+  `media-queue-power-monitor` (a separate `StartInterval` launchd agent, not a loop inside the
+  worker — ticks every 20s and reuses the same pause/resume mechanism automatically). The log
+  at `~/Library/Logs/nix-media-queue.log` used to go silent for a job's entire runtime and only
+  flush at the end — MEASURED incident, a healthy multi-hour describe batch misread as hung —
+  fixed by backgrounding `tail -f` on the job's scratch file for the duration, a second process
+  outside the job's own `set -m` group so it can never affect `$!`, `rc`, or the job's SIGTERM
+  handling. A Finder Service itself still does nothing visible; the shell tools are the
+  surface.
 - **Ghostty** (`programs.ghostty` in `home.nix`, `macos` only) — GPU-accelerated terminal,
   installed as a **Homebrew cask** because nixpkgs' `ghostty` is **Linux-only** and refuses to
   evaluate on aarch64-darwin. That is precisely the case home-manager documents for
