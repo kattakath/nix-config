@@ -576,8 +576,31 @@ in
   # GPU. Ollama then queues them rather than thrashing, so the failure mode was
   # slow rather than broken; this makes the constraint explicit and puts it where
   # the resource actually is instead of in one of its callers.
-  launchd.agents.ollama-local.config.EnvironmentVariables = lib.mkIf isMacosHost {
-    OLLAMA_NUM_PARALLEL = "1";
+  launchd.agents.ollama-local.config = lib.mkIf isMacosHost {
+    EnvironmentVariables = {
+      OLLAMA_NUM_PARALLEL = "1";
+      # Never more than one runner resident — with only 1 loaded model the
+      # worst-case draw is exactly one generation, sized for the 35W-charger
+      # power budget (2026-09-05 research: docs cite ollama FAQ defaults of
+      # 3×GPU).
+      OLLAMA_MAX_LOADED_MODELS = "1";
+      # Finite unload timer, explicit rather than the implicit 5m default.
+      # Idle SHOULD be RAM-only, but the idle-burn bug class (ollama#2129,
+      # #13232) is filed against qwen3-vl variants — the exact vision model
+      # this fleet runs — so a bounded TTL is the safety net, not an
+      # optimization. 10m keeps batch describe runs warm between bursts.
+      OLLAMA_KEEP_ALIVE = "10m";
+    };
+    # The graceful power brake: background QoS pins every CPU thread of
+    # `ollama serve` AND its spawned llama-server runners (Darwin-BG inherits
+    # across fork/exec) to the E-cluster. The model itself runs 100% on the
+    # GPU (Metal), which QoS does NOT gate — so tokens/sec dips only modestly
+    # while the P-cluster stays free/cool. Accepted cost: background I/O tier
+    # makes multi-GB model cold-loads noticeably slower. GPU wattage itself is
+    # capped only by macOS Low Power Mode (the operator-side half of this
+    # change). Verify with: sudo powermetrics --samplers cpu_power,gpu_power
+    # (P-cluster ~idle during a describe burst = the brake works).
+    ProcessType = "Background";
   };
   services.pgvectorLocal.enable = isMacosHost;
 
