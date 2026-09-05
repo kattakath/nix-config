@@ -202,6 +202,26 @@ let
   # kernel-enforced `deny` list for the paths that actually matter. Retire this patch once xAI
   # resolves symlinked runtime-socket deny paths instead of refusing to start.
   grokSandboxProfile = "nix-agent-workspace";
+
+  # The sandbox profile's CONTENT, as a store file. It is copied to
+  # ~/.grok/sandbox.toml at activation rather than symlinked, because grok
+  # rejects a symlink there — see home.activation.grokSandboxProfile below for
+  # the failure it causes and why the older "symlinks are fine here" note is
+  # stale. Kept next to the profile NAME so the two cannot drift apart.
+  grokSandboxToml = pkgs.writeText "grok-sandbox.toml" ''
+    # Managed by nix-config (modules/shared/home.nix) — do not hand-edit.
+    [profiles.${grokSandboxProfile}]
+    extends = "workspace"
+    deny = [
+      "${config.home.homeDirectory}/.ssh",
+      "${config.home.homeDirectory}/.aws",
+      "${config.home.homeDirectory}/.docker",
+      "${config.home.homeDirectory}/.config/gh",
+      "**/*.pem",
+      "**/*.age",
+      "**/.env",
+    ]
+  '';
   grokBuildPluginPatched = pkgs.runCommand "grok-build-plugin-cc-patched" { } ''
     cp -r ${grok-build-plugin-cc} $out
     chmod -R u+w $out
@@ -733,9 +753,24 @@ in
   # grokBuildPluginPatched in the let block above for WHY the built-in `read-only` is
   # unusable here). Unlike ~/.grok/config.toml — which grok itself rewrites, so mcp.nix
   # merges into it via `grok mcp add` — sandbox.toml is pure user input that grok only ever
-  # READS, so it is safe to own declaratively. A store symlink here is accepted (verified);
-  # grok only refuses symlinks for $GROK_HOME and hooks-paths entries. `force` because grok
-  # drops a 0-byte placeholder at this path that HM would otherwise refuse to clobber.
+  # READS, so it is safe to own declaratively.
+  #
+  # IT MUST BE A REAL FILE, NOT A STORE SYMLINK. This block previously used
+  # `home.file`, on the recorded finding that "a store symlink here is accepted
+  # (verified); grok only refuses symlinks for $GROK_HOME and hooks-paths entries".
+  # THAT VERIFICATION IS STALE — grok now counts sandbox.toml itself as a
+  # hooks-paths registry entry, so the symlink puts it in exactly the category it
+  # refuses, and EVERY grok run dies before starting:
+  #     sandbox could not be applied: hook write-deny ensure failed:
+  #     Grok hooks-paths registry has wrong type (expected real file):
+  #     /Users/<user>/.grok/sandbox.toml
+  # It fails closed — grok refuses to run rather than run unsandboxed — so the
+  # symptom is a total grok-build outage, not a silent loss of protection.
+  # Materialised by copy at activation instead, the same way the Finder Services
+  # bundles are (see home.activation.mediaServices above, and the commit that
+  # made them copies rather than symlinks for a different macOS-side reason).
+  # `force`/rm because grok drops a 0-byte placeholder here that would otherwise
+  # be left in place.
   #
   # `deny` is kernel-enforced (Seatbelt) for BOTH read and write, and closes the
   # `mv secret x && cat x` bypass — it is what actually protects credentials now that the
@@ -743,23 +778,7 @@ in
   # grok refuse to start, which is the whole bug being worked around) and must NOT cover
   # ~/.grok/auth.json: denying that leaves grok unable to read its own token and it exits
   # "Not signed in" (verified). Darwin-only — grok is only on the Mac.
-  home.file.".grok/sandbox.toml" = lib.mkIf pkgs.stdenv.isDarwin {
-    force = true;
-    text = ''
-      # Managed by nix-config (modules/shared/home.nix) — do not hand-edit.
-      [profiles.${grokSandboxProfile}]
-      extends = "workspace"
-      deny = [
-        "${config.home.homeDirectory}/.ssh",
-        "${config.home.homeDirectory}/.aws",
-        "${config.home.homeDirectory}/.docker",
-        "${config.home.homeDirectory}/.config/gh",
-        "**/*.pem",
-        "**/*.age",
-        "**/.env",
-      ]
-    '';
-  };
+  # (Materialised by home.activation.grokSandboxProfile, below.)
 
   # qwen-code local-model wiring. `qwen` (Alibaba's coding-agent CLI, in
   # home.packages above) auto-loads ~/.qwen/.env — a qwen-SCOPED env file, so we
@@ -1431,6 +1450,16 @@ in
   };
 
   home.activation = lib.mkIf pkgs.stdenv.isDarwin {
+    # ~/.grok/sandbox.toml as a REAL FILE, not a store symlink — grok counts it as a
+    # hooks-paths registry entry and refuses to start on a symlink, taking every
+    # grok-build run down with it. Rationale in full beside grokSandboxToml above.
+    grokSandboxProfile = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+      run mkdir -p "$HOME/.grok"
+      run rm -f "$HOME/.grok/sandbox.toml"
+      run cp -L "${grokSandboxToml}" "$HOME/.grok/sandbox.toml"
+      run chmod u+w "$HOME/.grok/sandbox.toml"
+    '';
+
     # Materialise DECLARED Claude Code plugins (claudePluginIds) + their marketplaces.
     # installed_plugins.json / known_marketplaces.json stay Claude-owned mutable state
     # (same "let the tool author its own state" pattern as grokMcp). settings.json is
