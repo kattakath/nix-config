@@ -100,7 +100,14 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
 
 ### E. Community patterns
 
-- [ ] Prefer upstream nix-darwin / HM options over custom shell when equivalent.
+- [ ] **Upstream-first back-stop.** Every custom shim (`home.file`/`home.activation` used as a
+      workaround, an activation script, a "make X see Y" wrapper, a symlink farm) carries a
+      one-line justification that the pinned input was grepped and owns no equivalent option —
+      per [`.claude/rules/upstream-first.md`](../../rules/upstream-first.md). Re-run the grep
+      for any that don't; inputs gain options between bumps, so a shim that was justified at
+      write time can be obsolete now. Resolve the pinned source, don't read upstream HEAD:
+      `src=$(nix eval --raw --impure --expr 'builtins.toString (builtins.getFlake "'"$PWD"'").inputs.nix-darwin.outPath')`
+      then `grep -rn "<concept>" "$src/modules/"`.
 - [ ] `writeShellApplication` for scripts; shellcheck via that path.
 - [ ] No new `environment.etc` hacks for things nix-darwin models.
 - [ ] Determinate Nix: no `nix.enable = true` / no hand-written `nix.custom.conf`.

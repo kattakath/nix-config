@@ -379,6 +379,27 @@ in
     enableStealthMode = true;
   };
 
+  # ---- GUI PATH: let launchd-started apps see the Nix profiles ---------------
+  # A Finder/Dock-launched .app inherits **launchd's** environment, not the
+  # shell's: nix-darwin exports PATH only via /etc/zshenv → set-environment, so
+  # a GUI app sees just /usr/bin:/bin:/usr/sbin:/sbin and cannot find any Nix
+  # binary. Symptom: a GUI tool that shells out to a CLI reports it "not found
+  # on your PATH" while `which` resolves it fine in the terminal.
+  #
+  # `launchd.user.envVariables` is nix-darwin's own option for this — it emits
+  # `launchctl setenv` at activation (modules/system/launchd.nix), which is the
+  # standard macOS fix. Do NOT hand-roll ~/.local/bin shims per tool.
+  #
+  # $HOME/$USER must be substituted at eval: launchd does not expand them, and
+  # nix-darwin runs the setenv under `sudo --user=`, where a bare $USER would
+  # expand to root instead (nix-darwin#406). Values are derived from
+  # identityArgs, never a hardcoded home path.
+  #
+  # Applies to apps started AFTER activation — quit and relaunch a running app.
+  launchd.user.envVariables.PATH =
+    lib.replaceStrings [ "$HOME" "$USER" ] [ home loginName ]
+      config.environment.systemPath;
+
   # ---- Launch-at-login agents (declarative "Open at Login") ------------------
   # macOS System Settings ▸ Login Items is NOT declaratively manageable
   # (SMAppService / TCC-like). Nix-native: launchd user agents with RunAtLoad.
