@@ -190,7 +190,7 @@ one-time steps are inherently manual — do these after activating a fresh Mac:
   logins and any Keychain-stored personal tokens are re-established by hand (Nix
   manages only the *service* secrets via agenix — see the "Secrets — agenix"
   convention in `CLAUDE.md`, not personal logins).
-- **The `macvm` Tart guest is NOT restored by a rebuild — recreate it.** Disk lives under `~/.tart/`; neither this repo nor the key kit restores it. Recreate after recovery with `nix run .#macvm-tart-*`. Full steps: [`macvm-tart-runbook.md`](macvm-tart-runbook.md).
+- **Tart VM disks are NOT restored by a rebuild.** They live under `~/.tart/`; neither this repo nor the key kit restores them (the `macvm` guest itself was removed 2026-09-05 — re-add path: [`macvm-readd-runbook.md`](macvm-readd-runbook.md)).
 - **Google Takeout video shows the generic MP4 icon — re-encode with
   `fix-google-video`.** Google's Storage Saver tier transcodes to
   **VP9-in-MP4** server-side, and macOS ships no VP9 decoder, so QuickLook can

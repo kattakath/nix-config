@@ -32,7 +32,7 @@ Do not restate the fleet map here; open those when unsure — and when repo shap
 | Trigger | Mode |
 |---|---|
 | "hygiene" / "LEAN DRY" / "cleanup" | Full or scoped pass |
-| After a large feature (e.g. macvm) | Scoped to touched paths |
+| After a large feature | Scoped to touched paths |
 | Before a big PR merge | Full pass + a manual diff review |
 | Docs feel wrong | Docs-surface only |
 
@@ -44,7 +44,7 @@ Parse the user request:
 
 1. **`audit`** — findings only (no edits). Triggered when they say "audit" / "report".
 2. **`fix`** — audit → apply safe fixes → format → eval. **The overall default** when neither `audit` nor a scope-only request is given.
-3. **`scope <path|host|area>`** — limit to that surface (e.g. `macvm`, `packages/`, `docs/`).
+3. **`scope <path|host|area>`** — limit to that surface (e.g. `packages/`, `docs/`).
 
 Never expand into new features. Prefer delete/simplify over new abstraction.
 
@@ -64,7 +64,7 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
 | `secrets/` | agenix recipients + ciphertext | — |
 
 **Platform branching:** `lib.mkIf` in `modules/`, not copy-paste across hosts.
-**Host gates:** `networking.hostName` / `osConfig` where macos ≠ macvm.
+**Host gates:** `networking.hostName` / `osConfig` for per-host divergence.
 
 ## Checklist (run in order)
 
@@ -136,7 +136,6 @@ If `nix` unavailable: `nix-instantiate --parse` on changed `.nix` + state CI-def
 
 | Scope | Command |
 |---|---|
-| macvm / Tart / `~/Downloads` share | `nix run .#macvm-tart-doctor` |
 | nixpi flash/provision | skill `nixpi-firmware-provision` |
 | Vast templates | skill / docs as needed |
 
@@ -170,10 +169,9 @@ If `nix` unavailable: `nix-instantiate --parse` on changed `.nix` + state CI-def
 
 ## Anti-patterns specific to this fleet
 
-1. **macvm inheriting macos login openers / RAG / MCP gateway** — must stay lean.
+1. **A sandbox host inheriting macos login openers / RAG / MCP gateway** — hosts stay lean.
 2. **Guest file-rotation on the shared `~/Downloads`** — host-only (`mv` across
    filesystems = `cp` + `rm`, so a guest rotation destroys host files).
-3. **Dual SSH stacks on macvm** — one path (Apple's sshd + bootstrap).
 4. **Putting `.utm` / IPSW / disk images in the flake.**
 5. **Hand-editing `flake.lock`.**
 6. **HM launchd without `hm-launchd` / `nix-*` basename** — BTM phantoms return.

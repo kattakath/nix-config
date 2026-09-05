@@ -148,7 +148,7 @@ const DARWIN_SWITCH_VERB = /\bswitch\b/;
 //   `--flake github:kattakath/nix-config#macos` — the remote is the same tree
 // The attr is `(?:#macos)?` — either spelled out or absent (nix-darwin then
 // resolves it by hostname, which on this Mac IS macos). Deliberately NOT a
-// wildcard `#[\w-]*`: that would also swallow `--flake .#macvm`, a different host
+// wildcard `#[\w-]*`: that would also swallow another host's `--flake .#<host>`
 // whose activation this rule has nothing to say about, and would attach a message
 // naming the wrong composition. A trailing `(?=…)` guard keeps `../nix-personal`
 // and longer path suffixes out.

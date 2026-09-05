@@ -183,9 +183,11 @@ onto the mounted FIRMWARE partition) — until/unless nix-personal automates it.
 1. Create a **private** repo on GitLab (or GitHub); do not put personal modules here.
    This fleet’s private composition flake is **`gitlab.com/ismailkattakath/nix-personal`**
    (never a flake input of the public tree — activate *from* that repo).
-2. Export `homeManagerModules.*` and `darwinConfigurations.macos` / `macvm` that call
+2. Export `homeManagerModules.*` and `darwinConfigurations.macos` that call
    `nix-config.lib.mkDarwin { extraHomeModules = [ … ]; }` — no `identity` override
-   needed for either host; both inherit the global `identityArgs` (`ismail`).
+   needed; the host inherits the global `identityArgs` (`ismail`). (While the `macvm`
+   guest existed — removed 2026-09-05 — the private flake declared a matching
+   `darwinConfigurations.macvm` the same way.)
 3. Prefer `git+ssh://…` flake URLs so credentials never appear in `flake.lock` URLs.
 4. Pin `nix-config` by revision in the private `flake.lock` (same discipline as other inputs).
 5. When the private stack grows, keep **one** private composition flake (or a small
@@ -197,17 +199,9 @@ onto the mounted FIRMWARE partition) — until/unless nix-personal automates it.
 ```bash
 # macos (private #macos app escalates and sets root HOME)
 nix run ~/Developer/gitlab.com/ismailkattakath/nix-personal#macos
-
-# macvm (from the host) — guest usually has no GitLab SSH, so sync the private
-# clone then activate the path flake:
-NP=~/Developer/gitlab.com/ismailkattakath/nix-personal
-CFG=~/Developer/github.com/kattakath/nix-config
-tar -C "$NP" --exclude result --exclude .direnv -cf - . |
-  nix run "$CFG#macvm-tart-ssh" -- 'mkdir -p ~/nix-personal && tar -C ~/nix-personal -xf -'
-nix run "$CFG#macvm-tart-ssh" -- nix run /Users/ismail/nix-personal#macvm
 ```
 
-Fleet-only (no private modules): `github:kattakath/nix-config#macos` / `#macvm`.
+Fleet-only (no private modules): `github:kattakath/nix-config#macos`.
 
 ## Analogy to Vast provisioners
 
@@ -230,8 +224,6 @@ Prefer:
    public engine — confs never evaluated as Nix paths).
 2. Or a private flake that only ships the *module* and still `cp`s from a host-local
    path at activation.
-
-See `docs/macvm-tart-runbook.md` (WireGuard section).
 
 ## Userscripts — a merged attrset, not a second option
 

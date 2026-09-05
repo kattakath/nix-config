@@ -4,7 +4,7 @@ description: >
   Fleet-wide consistency sweep across every repo in the fleet manifest:
   stray branches/worktrees, unmerged PRs, red CI, stale
   flake.lock pins, Nix store garbage, and unactivated host generations
-  (macos, macvm). Use when asked to "clean up the fleet", "sync everything",
+  (macos). Use when asked to "clean up the fleet", "sync everything",
   "is everything in sync", "garbage collect and activate", or after a
   multi-repo change (identity rename, secret rotation, cross-repo pin bump)
   that needs to land and propagate everywhere. Composes git-purity,
@@ -38,18 +38,18 @@ skill needs to change.
    anything in the **always confirm** table. **Default mode** when neither
    is specified.
 3. **`scope <repo|host>`** — limit to one manifest entry (repo name) or one
-   host (`macos`, `macvm`). Everything else is skipped and reported as such.
+   host (`macos`). Everything else is skipped and reported as such.
 
 ## Fix policy — read this before running `fix`
 
 | Auto-fix (no per-repo prompt in `fix` mode) | Always confirm first |
 |---|---|
 | `git fetch --prune` (read-only) | Merging any PR, for any reason |
-| `nix-collect-garbage -d` (host + reachable guest) | Deleting a branch/worktree with commits not on its remote/default branch |
+| `nix-collect-garbage -d` (host) | Deleting a branch/worktree with commits not on its remote/default branch |
 | `nix flake lock --update-input <sibling>` + `nix flake check`, commit + push **only if check passes** | Committing/pushing anything that isn't this skill's own mechanical fix (stray WIP is reported, never committed) |
 | Deleting a **local-only branch already merged into the repo's default branch** | Force-push, `git reset --hard`, `git clean -f`, any destructive git op |
 | Re-running `nix fmt` / the repo's own format-fix on a repo already being touched | Reactivating a host when the guest/host is unreachable — report as skipped, don't retry-loop |
-| Re-activating macos (`activate`) and macvm (tar-sync + guest `nix run …#macvm`) when their composing repos moved | Disk operations of any kind (Tart disk resize, `diskutil`, anything from the 2026-08-27 macvm incident) |
+| Re-activating macos (`activate`) when its composing repos moved | Disk operations of any kind (`diskutil`, partitioning) |
 | Nixpi: **disk-usage report only** — no GC/activation without an explicit ask (it's the live server; see `docs/nixpi-sd-flashing-runbook.md`) | Rotating secrets/tokens, editing `secrets/*.age`, anything with `secret set` |
 
 These map onto the global Git Safety Protocol (never commit unless asked,
@@ -139,18 +139,12 @@ given.
 df -h / | tail -1
 sudo nix-collect-garbage -d
 
-# macvm guest — only if reachable; non-fatal skip otherwise
-nix run "$HOME/Developer/github.com/kattakath/nix-config#macvm-tart-doctor" \
-  | grep -q '^state: running' && \
-  nix run "$HOME/Developer/github.com/kattakath/nix-config#macvm-tart-ssh" -- \
-    'df -h / | tail -1; sudo nix-collect-garbage -d'
-
 # nixpi — report only, never collect without an explicit ask (live server)
 ```
 
 ### G. Host re-activation
 
-Only if repos touched in this run actually compose macos/macvm (i.e. their
+Only if repos touched in this run actually compose macos (i.e. their
 `flake.lock`/`flake.nix` changed) or the user asked for it directly:
 
 ```bash
@@ -159,20 +153,10 @@ Only if repos touched in this run actually compose macos/macvm (i.e. their
 # memory: never-darwin-rebuild-from-public-repo) and never nix-config's own
 # `nix run .#macos` (fleet-only baseline, drops the private layer).
 cd "$HOME/Developer/gitlab.com/ismailkattakath/nix-personal" && activate
-
-# macvm — sync nix-personal in (guest has no GitLab SSH), then activate
-# through the SAME private composition (macvm has real private modules:
-# claudeBrain, civitaiLiveWallpaper — the fleet-only bootstrap path drops
-# them, same trap as macos above).
-NP="$HOME/Developer/gitlab.com/ismailkattakath/nix-personal"
-CFG="$HOME/Developer/github.com/kattakath/nix-config"
-tar -C "$NP" --exclude result --exclude .direnv -cf - . |
-  nix run "$CFG#macvm-tart-ssh" -- 'mkdir -p ~/nix-personal && tar -C ~/nix-personal -xf -'
-nix run "$CFG#macvm-tart-ssh" -- 'nix run /Users/ismail/nix-personal#macvm'
 ```
 
-Skip non-fatally (report "skipped — VM not running") if macvm can't be
-reached; never retry-loop waiting for it.
+(The macvm guest and its tar-sync activation flow were removed 2026-09-05 —
+docs/macvm-readd-runbook.md.)
 
 ## Report format (always end with this)
 
@@ -185,7 +169,7 @@ reached; never retry-loop waiting for it.
 - **CI:** all green | repo — workflow — conclusion — needs investigation
 - **Pins:** in sync | repo — bumped old→new, check ✅, pushed
 - **GC:** host freed X | guest freed Y (or skipped, VM down) | nixpi: N free (report only)
-- **Hosts:** macos re-activated | macvm re-activated | skipped (why)
+- **Hosts:** macos re-activated | skipped (why)
 - **Verdict:** CLEAN | FIXED (list what) | NEEDS ATTENTION (why, and what needs a human decision)
 ```
 
