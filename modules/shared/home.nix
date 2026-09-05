@@ -1374,16 +1374,25 @@ in
         # A LIST, because `keybind` is a repeatable key — home-manager's settings
         # type takes a list for exactly that case.
         #
-        # ONLY the quick terminal is bound. `ghostty +show-config --default`
-        # reports that super+d / super+shift+d (split creation) and super+[ /
-        # super+] (navigation) are ALREADY defaults — re-declaring them was noise
-        # that implied a decision where none existed.
+        # Only what is NOT already a default. `ghostty +show-config --default`
+        # reports super+d / super+shift+d (split creation) and super+[ /
+        # super+] (split navigation) as defaults — re-declaring them would be
+        # noise that implies a decision where none exists.
         keybind = [
           # `backquote`, NOT `grave` — measured: `ghostty +validate-config`
           # rejects the latter with `keybind: unknown error error.InvalidFormat`,
           # and the error names only "keybind", never which one, so a whole
           # config is invalidated by a single wrong key name.
           "global:cmd+backquote=toggle_quick_terminal"
+
+          # Tab switching by the Terminal.app muscle memory. Ghostty's own tab
+          # binds are super+shift+[ / ] (kept, additive), which collide in the
+          # hand with super+[ / ] for SPLITS — one shift apart, two different
+          # objects. Arrows are unambiguous. `arrow_left`, not `left`: the bare
+          # name is rejected the same way `grave` is above. Free by default —
+          # only super+shift+arrow_up/_down are taken (jump_to_prompt).
+          "super+shift+arrow_left=previous_tab"
+          "super+shift+arrow_right=next_tab"
         ];
       };
     };
