@@ -553,6 +553,30 @@ in
     PY
           chown ${loginName}:staff "$docker_settings" 2>/dev/null || true
         fi
+
+        # Propagate the GUI PATH (see § GUI PATH above) to Dock-launched apps.
+        # macOS gives a launched app the LAUNCHING process's environment, so an
+        # app opened from the Dock inherits Dock's snapshot — not the current
+        # launchd value. nix-darwin restarts Dock in activationScripts.defaults,
+        # which runs BEFORE activationScripts.userLaunchd emits `launchctl
+        # setenv` (see the generated activate script: Dock restart ~line 1377,
+        # setenv ~line 1481), so Dock always holds the PREVIOUS environment and
+        # every Dock-launched app misses the fix. postActivation is the last
+        # hook, hence the only place this can be corrected. Upstream models no
+        # ordering control and no GUI-env refresh — grepped nix-darwin/modules
+        # for `killall Dock`/`killall cfprefsd`: zero hits.
+        #
+        # Stamped so a no-op activation does not bounce the Dock: only restart
+        # when the value actually changed. The stamp lives in /run, which
+        # nix-darwin recreates at boot, so a reboot re-arms it once.
+        gui_path_stamp=/run/nix-darwin-gui-path-stamp
+        gui_path_want=$(sudo --user=${loginName} -- launchctl getenv PATH || true)
+        if [ -n "$gui_path_want" ] \
+          && [ "$(cat "$gui_path_stamp" 2>/dev/null)" != "$gui_path_want" ]; then
+          echo "refreshing Dock so GUI apps inherit the new PATH..." >&2
+          killall Dock 2>/dev/null || true
+          printf '%s' "$gui_path_want" > "$gui_path_stamp"
+        fi
   '';
 
   # Touch ID for sudo — this fleet's sole Mac is Apple Silicon with a sensor.
