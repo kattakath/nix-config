@@ -298,7 +298,7 @@ in
 
   # NOTE: hostPlatform is set per-host from the darwinSystem `system` arg (via
   # the mkDarwin helper in flake.nix), NOT hardcoded here — so this shared module
-  # serves both aarch64-darwin hosts (macos and macvm).
+  # serves any aarch64-darwin host this flake declares.
 
   # NOTE: no `nix.settings.experimental-features` here. This host runs Determinate
   # Nix (determinateNix.enable in flake.nix → nix.enable = false), which enables
@@ -399,19 +399,14 @@ in
       # No guest account on a single-operator client Mac.
       loginwindow.GuestEnabled = false;
 
-      # Screen captures: the real Mac deliberately sets NO location — macOS's
-      # own default is ~/Desktop (an unset/missing location falls back there,
-      # nix-darwin#1240), and file-rotation-desktop below sweeps it daily.
-      # macvm ALONE keeps the explicit Downloads override: its ~/Downloads is
-      # the VirtioFS symlink into the HOST's inbox (hosts/macvm.nix), so guest
-      # captures surface on the host and ride the host-side rotation — on the
-      # guest's own ~/Desktop they would be stranded in the sandbox.
-      # The location key covers BOTH ⇧⌘4 screenshots and ⇧⌘5 screen
-      # *recordings* — verified empirically; the .mov honors
-      # com.apple.screencapture location despite Apple documenting no separate
-      # key for recordings.
+      # Screen captures: deliberately NO location — macOS's own default is
+      # ~/Desktop (an unset/missing location falls back there, nix-darwin#1240),
+      # and file-rotation-desktop below sweeps it daily. The location key would
+      # cover BOTH ⇧⌘4 screenshots and ⇧⌘5 screen *recordings* — verified
+      # empirically; the .mov honors com.apple.screencapture location despite
+      # Apple documenting no separate key for recordings. (The macvm guest's
+      # shared-inbox override left with that host, 2026-09-05.)
       screencapture = {
-        location = lib.mkIf (config.networking.hostName == "macvm") folders.downloads;
         type = "png";
         disable-shadow = true;
       };
@@ -478,13 +473,13 @@ in
   # The `nix-*` wrapper is also load-bearing for TCC *file access*, not just
   # cosmetics — see docs/macos-settings-surface.md § TCC and a /nix/store arg0.
   #
-  # Host scope: GUI login openers + Downloads rotation are **macos only**.
-  # macvm symlinks its ~/Downloads to the host's over Tart VirtioFS (see
-  # hosts/macvm.nix + macvm-tart-start). A guest rotation would be destructive,
-  # not merely redundant: mv(1) states "As the rename(2) call does not work
-  # across file systems, mv uses cp(1) and rm(1)" — so trashing across the
-  # VirtioFS boundary would COPY host bytes into the guest's disk image and
-  # then UNLINK them on the host. Never relax this gate.
+  # Host scope: GUI login openers + the rotations are **macos only**. (The
+  # historical reason the gate exists: the former macvm guest symlinked its
+  # ~/Downloads to the host's over Tart VirtioFS, and a guest-side rotation
+  # would have been destructive — mv(1) degrades to cp+rm across filesystems,
+  # copying host bytes into the guest and unlinking them on the host. The
+  # guest is gone (2026-09-05, docs/macvm-readd-runbook.md); keep the gate
+  # anyway so a re-added guest can never inherit the sweeps by accident.)
   launchd.user.agents = lib.mkIf (config.networking.hostName == "macos") {
     # Agent attr names (open-*) keep launchd Labels stable so existing BTM
     # toggle state is preserved. Turn OFF each app's own "Open at Login" so we
@@ -616,9 +611,6 @@ in
     };
   };
 
-  # macos only: macvm's ~/Downloads is a symlink to the Tart VirtioFS share
-  # (hosts/macvm.nix) — never mkdir/chown a local dir over it there.
-  #
   # `mkdir -p` is belt-and-braces for nix-darwin#1240: a screencapture.location
   # that does not exist is silently ignored and captures fall back to ~/Desktop.
   # ~/Downloads always exists on a real macOS account, so this is a no-op.
