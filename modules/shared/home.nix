@@ -33,6 +33,9 @@
   # Fleet operator ed25519 PUBLIC key (secrets/operator-key.nix) — single source
   # for authorizedKeys + agenix recipient + git SSH allowed_signers principal.
   operatorSshKey,
+  # nix-tart-macos input source path — the macvm-tart veneer's tartVmSrc
+  # (macvmTartStart below).
+  nix-tart-macos,
   # Source-only flake inputs holding Claude Code skills (see programs.claude-code
   # below). flake.nix pins them; nothing is vendored into this repo.
   agent-skills-vercel,
@@ -430,7 +433,12 @@ let
   # on the macos darwin host (hosts/macos.nix) and shared into this pkgs via
   # useGlobalPkgs, so no separate pkgsUnfree import is needed here (contrast
   # flake.nix's packages.*.macvm-tart-* wiring, built outside useGlobalPkgs).
-  macvmTartStart = (pkgs.callPackage ../../packages/macvm-tart.nix { }).macvm-tart-start;
+  macvmTartStart =
+    (pkgs.callPackage ../../packages/macvm-tart.nix {
+      tartVmSrc = nix-tart-macos;
+      loginName = config.home.username;
+      inherit fullName;
+    }).macvm-tart-start;
 
   # "Focus-or-launch" Spotlight .app bundles for the Android emulator + macvm
   # (macos host only, below) — see packages/spotlight-launchers.nix.
