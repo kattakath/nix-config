@@ -113,7 +113,10 @@ tail -f ~/Library/Logs/nix-media-queue.log
 # top/htop-style live dashboard of the whole queue (running/queued/failed),
 # refreshed every 2s with changed lines highlighted — media-queue-status,
 # wrapped in nixpkgs' viddy (a "modern watch"); press q to quit
-media-queue-top
+media queue top       # or the bare name, media-queue-top
+
+# one-shot instead of live; `media queue` with no subcommand is the status read
+media queue
 ```
 
 ## Optional nicety

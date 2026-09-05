@@ -933,7 +933,7 @@ Smaller, single-purpose CLIs:
   in a Takeout dump into a larger payload carrying no more information, hence the dimension
   check rather than an unconditional call. OCR and face work are deliberately **not** routed
   through this — those genuinely need the pixels.
-- **`media.nix`** — `media <describe|fix|audio> …`, one entry point and one `--help` that
+- **`media.nix`** — `media <describe|fix|audio|queue> …`, one entry point and one `--help` that
   lists the media CLIs. **Discoverability, not ergonomics**: `media describe` is LONGER than
   `photo-describe`, so as a keystroke play it is a net loss; what it buys is that nothing
   otherwise tells an operator these CLIs are related or that `photo-describe` exists.
@@ -942,8 +942,17 @@ Smaller, single-purpose CLIs:
   `document.wflow`, `nix run .#photo-describe` names the app, and the operator's own notes use
   the direct form. `exec`, not a wrapper function, so the verb's exit status and its
   `done:`/`skip:` grammar reach the caller untouched — media-queue's worker parses that.
+  **`queue` is the one verb with a sub-verb** (`media queue [status|top|pause|resume]`, bare =
+  status, since that is the nine-times-out-of-ten case): those four are one subject with four
+  operations, and nothing hardcodes them — no `.workflow`, no launchd arg0, no flake app, no
+  composition seam — so the line the dispatcher draws is **`media` is what a human types, the
+  bare names are what machines call**. Adding it required breaking a would-be evaluation cycle:
+  `media-queue.nix` now takes `fix-media`/`photo-describe` instead of the whole `media-toolkit`
+  bundle (which contains `media`), which is also strictly more honest about what its worker
+  actually dispatches to.
   Deliberately NOT verbs: `media-worker` (launchd-only, and behind a dispatcher its arg0 would
   become `media`, silently losing the TCC access that `nix-media-queue` grants),
+  `media-queue-power-monitor` (a `StartInterval` tick, not a command),
   `media-enqueue` (called by absolute path), `fix-extension` (`--only`/`--print0` are a
   composition seam) and `fix-google-video` (`fix-media --video` is the discoverable name).
 - **`fix-media.nix`** — `fix-media <--video|--image> <file-or-dir>...`, the entry point behind
