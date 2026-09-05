@@ -639,7 +639,7 @@ in
       # --- the photo-retrieval stack photo-describe is built on, each usable on its own ---
       auge # `auge --classify|--aesthetics|--face-quality|--feature-print <image>` — Apple's Vision framework from the shell, 100% on-device. The engine behind photo-describe; also the fastest way to ask "is this shot any good" (aesthetics 0-1 + an is_utility screenshot flag) or "is anyone blinking" (per-face capture quality). Use TARGETED flags, never `--all`: measured here, --all is ~30x slower AND writes Vision framework noise into stdout, so its output will not parse as JSON. aarch64-darwin only.
       exiftool # `exiftool -XMP:Description=… <file>` — the metadata writer photo-describe shells out to, and the only tool that reads/writes the full EXIF/IPTC/XMP surface (mdls only shows Spotlight's lossy derived view, and sips has no EXIF tag access at all)
-      rclipCli # `rclip "a cold lonely morning"` — natural-language search over a photo folder, via OpenCLIP ViT-B/32 running locally. The VECTOR half of the retrieval story, deliberately kept OUT of the image files: its SQLite index (images.vector BLOB) is derived state, rebuildable from the XMP descriptions photo-describe writes, and invalidated by any embedding-model change. NOTE the nixpkgs build omits coremltools, so it indexes on CPU ONNX rather than the ANE — fine for ViT-B/32, just not the fastest possible.
+      rclipCli # `rclip "a cold lonely morning"` — natural-language search over a photo folder, via OpenCLIP ViT-B/32 running locally. The VECTOR half of the retrieval story, deliberately kept OUT of the image files: its SQLite index (images.vector BLOB) is derived state, rebuildable BY RE-SCANNING THE PHOTOS, and invalidated by any embedding-model change. It embeds the PIXELS, not this repo's XMP — so it finds things no caption mentions, and a description can never reconstruct it. Requires RCLIP_USE_ONNX_ON_MACOS (sessionVariables below): without it every real invocation dies on `ModuleNotFoundError: coremltools`, since the nixpkgs package omits that dep and rclip's default macOS path tries to compile a Core ML model. On the ONNX path it indexes on CPU rather than the ANE — fine for ViT-B/32, just not the fastest possible.
       # NOT here: osxphotos, which reads Apple Photos' own library DB (every picture
       # already scored across 27 aesthetic dimensions — pleasant_composition,
       # well_timed_shot, sharply_focused_subject — at zero compute, far richer than the
@@ -679,6 +679,16 @@ in
   # After switching, just run `android-emu` (the helper in the let block) — it
   # installs the SDK packages + creates the AVD on first run, then boots it.
   home.sessionVariables = lib.mkIf pkgs.stdenv.isDarwin {
+    # rclip's default macOS path compiles a Core ML model, which needs
+    # `coremltools` — a dep the nixpkgs package does not ship. Without this every
+    # real invocation dies on `ModuleNotFoundError: No module named 'coremltools'`.
+    # `dontCheckRuntimeDeps` (see rclipCli above) only silenced the BUILD-time
+    # complaint about the same missing dep; it could not fix the runtime import,
+    # so rclip built cleanly and had never successfully indexed anything.
+    # This selects the ONNX path, which needs no coremltools. Verified: with it
+    # set, indexing and search both work.
+    RCLIP_USE_ONNX_ON_MACOS = "1";
+
     ANDROID_HOME = androidSdkRoot;
     # sdkmanager/avdmanager are JVM tools; point them at the nixpkgs JDK 17.
     JAVA_HOME = pkgs.jdk17.home;
