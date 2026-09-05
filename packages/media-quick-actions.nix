@@ -62,7 +62,9 @@ let
       id = "extractAudio";
       cmd = "extract-audio"; # MP3 by default; --copy is the lossless path
       # NOT queued: extracting one track is seconds, and the queue would only
-      # add a notification and a round trip through launchd.
+      # add a notification and a round trip through launchd. Being unqueued is
+      # also why this action still summarises its own output.
+      queued = false;
       sendTypes = [ "public.movie" ];
       inputType = "com.apple.Automator.fileSystemObject.movie";
     }
@@ -70,6 +72,7 @@ let
       name = "Fix Video File(s)";
       id = "fixVideo";
       cmd = "media-enqueue --video";
+      queued = true;
       # `public.folder` makes a whole export folder one right-click; the class
       # filter inside fix-media is what stops it touching the photos in there.
       sendTypes = [
@@ -82,6 +85,7 @@ let
       name = "Fix Image File(s)";
       id = "fixImage";
       cmd = "media-enqueue --image";
+      queued = true;
       # A JPEG named `.png` still reports `public.png` from its extension, which
       # conforms to `public.image`, so the mislabeled file this action exists
       # for does reach the menu. `public.data` — every extensionless file — is
@@ -106,10 +110,19 @@ let
 
   # A Finder Service has nowhere to put stdout or stderr, so "skipped, already
   # done" and "crashed" look identical: you click and nothing happens. That
-  # ambiguity is exactly what makes a working Service look broken, so each
-  # action runs through this wrapper, which summarises the CLI's output into a
-  # notification. The CLIs themselves stay quiet — in a terminal you can read
-  # them directly.
+  # ambiguity is exactly what makes a working Service look broken, so an action
+  # that does its own work runs through this wrapper, which summarises its
+  # output into a notification.
+  #
+  # A QUEUED ACTION MUST NOT BE SUMMARISED HERE. `media-enqueue` only writes job
+  # files, so it emits no `done:`/`skip:` lines, and summarising it announced
+  # "Nothing to do" on every click regardless of what happened afterwards —
+  # worse than silence, because it states an outcome that has not been decided
+  # yet, and it made a correct refusal (the target name was already taken by a
+  # different file) look identical to having done nothing at all. For those
+  # actions success is silent — `media-enqueue` has already said "Queued N" and
+  # the WORKER reports the outcome once there is one — while a failure to
+  # enqueue still speaks, since nothing downstream would ever report it.
   mkRunner =
     a:
     writeShellApplication {
@@ -121,6 +134,12 @@ let
       text = ''
         output=$(${a.cmd} "$@" 2>&1) && rc=0 || rc=$?
 
+        ${lib.optionalString a.queued ''
+          # Success on a queued action is not an outcome yet, so say nothing.
+          if [ "$rc" -eq 0 ]; then
+            exit 0
+          fi
+        ''}
         # grep -c prints 0 and exits 1 when nothing matches, and errexit is on.
         did=$(printf '%s\n' "$output" | grep -c ': done:' || true)
         skipped=$(printf '%s\n' "$output" | grep -cE ': (skip|OK):' || true)
