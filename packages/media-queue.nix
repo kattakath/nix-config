@@ -229,7 +229,16 @@ symlinkJoin {
         reason=
 
         while :; do
-          job=$(find "$QUEUE" -maxdepth 1 -name '*.job' -type f 2>/dev/null | sort | head -1)
+          # NO `| head` HERE. Under `pipefail`, `head -1` exits after its line,
+          # `sort` takes SIGPIPE, and the pipeline returns 141 — which errexit
+          # turns into a dead worker. It only bites once the listing exceeds the
+          # 64 KB pipe buffer, so it is invisible in testing and appears in
+          # production: measured with 761 jobs queued, the worker drained 1-3 of
+          # them per launch instead of the whole queue, and launchd paid a
+          # restart between each. Taking the first line by parameter expansion
+          # keeps `sort` writing to a variable, where it can finish and exit 0.
+          job=$(find "$QUEUE" -maxdepth 1 -name '*.job' -type f 2>/dev/null | sort)
+          job=''${job%%$'\n'*}
           [ -n "$job" ] || break
 
           base=''${job##*/}

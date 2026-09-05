@@ -763,7 +763,14 @@ Smaller, single-purpose CLIs:
   work is backgrounded and `wait`ed on rather than run as `out=$(…)`, because **bash defers a
   trap until the foreground child returns** — a synchronous call would ignore SIGTERM for the
   length of an encode and be SIGKILLed instead. The status plugin prints **nothing** when the
-  queue is idle, which is how SwiftBar is told to show no menu-bar item at all.
+  queue is idle, which is how SwiftBar is told to show no menu-bar item at all. The job picker
+  deliberately does **not** pipe into `head`: under `pipefail`, `head -1` exits after its line,
+  `sort` takes SIGPIPE and the pipeline returns 141, which errexit turns into a dead worker.
+  It only bites once the listing exceeds the 64 KB pipe buffer, so it is invisible in testing
+  and shows up in production — measured with 761 jobs queued, the worker drained **1-3 jobs
+  per launch** instead of the whole queue, paying a launchd restart between each. Taking the
+  first line by parameter expansion lets `sort` finish into a variable and exit 0; verified at
+  800 jobs (a 166 KB listing) draining in a single run.
 - **`media-toolkit.nix`** — `symlinkJoin` bundling the media-file CLIs below
   (`fix-google-video` + `extract-audio` + `fix-extension` + `fix-media` + `photo-describe`) as ONE entry for
   `home.packages`, so the set
