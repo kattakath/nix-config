@@ -33,10 +33,17 @@
   writeShellApplication,
   callPackage,
   media-toolkit ? callPackage ./media-toolkit.nix { },
+  media-queue ? callPackage ./media-queue.nix { },
 }:
 let
   # One entry per menu item. `cmd` is appended to the store path, so adding an
   # action is a line here rather than another copy of the plist scaffolding.
+  #
+  # The actions ENQUEUE; they do not do the work. `media-enqueue` writes one job
+  # file per selected item and returns, so Finder is never blocked and a batch
+  # survives logout — see packages/media-queue.nix for what drains it. Before
+  # this, a two-hour re-encode ran inside the Service with no progress, no
+  # cancel, and no chance of surviving a logout.
   #
   # Items are named for WHAT THE OPERATOR SELECTED, not for the defect they
   # repair: "Fix Video File(s)", not "Fix Google Video" or "Fix File Extension".
@@ -54,13 +61,15 @@ let
       name = "Extract Audio";
       id = "extractAudio";
       cmd = "extract-audio"; # MP3 by default; --copy is the lossless path
+      # NOT queued: extracting one track is seconds, and the queue would only
+      # add a notification and a round trip through launchd.
       sendTypes = [ "public.movie" ];
       inputType = "com.apple.Automator.fileSystemObject.movie";
     }
     {
       name = "Fix Video File(s)";
       id = "fixVideo";
-      cmd = "fix-media --video";
+      cmd = "media-enqueue --video";
       # `public.folder` makes a whole export folder one right-click; the class
       # filter inside fix-media is what stops it touching the photos in there.
       sendTypes = [
@@ -72,7 +81,7 @@ let
     {
       name = "Fix Image File(s)";
       id = "fixImage";
-      cmd = "fix-media --image";
+      cmd = "media-enqueue --image";
       # A JPEG named `.png` still reports `public.png` from its extension, which
       # conforms to `public.image`, so the mislabeled file this action exists
       # for does reach the menu. `public.data` — every extensionless file — is
@@ -105,7 +114,10 @@ let
     a:
     writeShellApplication {
       name = "media-service-${a.id}";
-      runtimeInputs = [ media-toolkit ];
+      runtimeInputs = [
+        media-toolkit
+        media-queue
+      ];
       text = ''
         output=$(${a.cmd} "$@" 2>&1) && rc=0 || rc=$?
 
