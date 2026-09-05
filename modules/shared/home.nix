@@ -520,24 +520,6 @@ in
   # remove-secret CLIs + the ~/.config/secrets/loader.sh every-shell loader).
   programs.keychainSecrets.enable = true;
 
-  # Ghostty's tab bar, kept visible at one tab. NOT settable from
-  # programs.ghostty: `window-show-tab-bar` is documented "currently only
-  # supported on Linux (GTK)", there is no `toggle_tab_bar` action to bind, and
-  # the View > Hide Tab Bar item carries no key equivalent — on macOS the bar is
-  # AppKit's, not Ghostty's. So the only handle is the visibility AppKit itself
-  # persists when you pick View > Show Tab Bar.
-  #
-  # The key is a COMPOSITE of the window class and its state, so it is only
-  # valid for this exact combination: `macos-titlebar-style = "tabs"` (hence
-  # `TitlebarTabs`) on macOS 26 (hence `Tahoe`). A macOS major bump, or dropping
-  # the `tabs` titlebar, renames the class and this silently stops matching —
-  # re-read `defaults read com.mitchellh.ghostty` and update it. "Shoud" is
-  # Apple's typo in the key name, not ours; correcting it breaks the match.
-  targets.darwin.defaults = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
-    "com.mitchellh.ghostty"."NSWindowTabbingShoudShowTabBarKey-Ghostty.TitlebarTabsTahoeTerminalWindow-Ghostty.TerminalController-Ghostty.TerminalController-VT-FS" =
-      true;
-  };
-
   # WireGuard confs: sync ~/.local/share/wireguard-configs → ~/.config/wireguard
   # on macos + macvm. Confs stay outside git (private keys). Copy-only — it NEVER
   # runs wg-quick / starts a tunnel. On macos (GUI-only, no CLI) these are there
@@ -1352,6 +1334,14 @@ in
         # Contrast with #FFFFFF text rises 18.66:1 -> 20.18:1, so the focused pane
         # is also the more readable one.
         background = "#16000E";
+
+        # The titlebar is chrome, not a pane, so it should not wear the focused
+        # pane's colour. Under `macos-titlebar-style = "tabs"` it otherwise adopts
+        # `background` — the darker shade — which makes the window read as one
+        # more focused surface. Pinning it to true aubergine keeps the chrome at
+        # the resting colour, and leaves the darker shade meaning exactly one
+        # thing: this is the pane you are typing into.
+        window-titlebar-background = "#24081B";
         foreground = "#FFFFFF";
         cursor-color = "#FFFFFF";
 
