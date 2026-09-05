@@ -182,16 +182,11 @@
     vast-provision.inputs.nixpkgs.follows = "nixpkgs";
     vast-provision.inputs.flake-parts.follows = "firmware-secrets/flake-parts";
 
-    # nix-tart-macos — Tart macOS-guest lifecycle + plug-and-play bootstrap +
-    # golden-image bake, extracted 2026-09-05 (the ecosystem had NO Tart
-    # provisioning flake; this repo held GitHub's only tart-guest-agent
-    # packaging). Consumed the same way as vast-provision: pure callPackage on
-    # the input's source path (packages/macvm-tart.nix veneer + hosts/macvm.nix
-    # guest agent) — its flake outputs are never evaluated, so the follows
-    # below are lock-diet hygiene, not load-bearing.
-    nix-tart-macos.url = "github:kattakath/nix-tart-macos";
-    nix-tart-macos.inputs.nixpkgs.follows = "nixpkgs";
-    nix-tart-macos.inputs.flake-parts.follows = "firmware-secrets/flake-parts";
+    # NOTE: the nix-tart-macos input (Tart guest lifecycle, extracted from this
+    # repo 2026-09-05) was removed along with the macvm host the same day —
+    # zero consumers left, lock diet back to 60. It lives on independently at
+    # github:kattakath/nix-tart-macos (FlakeHub-published); re-adding macvm
+    # starts by restoring it — see docs/macvm-readd-runbook.md.
 
     # MCP (Model Context Protocol) server packaging for Claude Code. We use its
     # `lib.mkConfig` to render a PINNED {mcpServers:{…}} JSON (the 4 packaged
@@ -336,7 +331,6 @@
       deploy-rs,
       local-rag,
       vast-provision,
-      nix-tart-macos,
       mcp-servers-nix,
       agent-skills-vercel,
       agent-skills-anthropic,
@@ -469,7 +463,7 @@
       # docs/private-home-modules.md.
 
       # ---- DRY system mapping -------------------------------------------------
-      # A 2-SYSTEM aarch64-only FLEET (aarch64-darwin: macos + macvm; aarch64-linux: nixpi + nixvm):
+      # A 2-SYSTEM aarch64-only FLEET (aarch64-darwin: macos; aarch64-linux: nixpi + nixvm):
       # no x86_64 HOST anywhere. Every package /
       # devShell / check output is generated for the fleet systems via
       # forAllSystems. (The devcontainer IMAGE is the one multi-arch output — it
@@ -819,9 +813,6 @@
                 grok-build-plugin-cc
                 keychain-secrets
                 local-rag
-                # nix-tart-macos: home.nix's macvmTartStart callPackages the
-                # macvm-tart veneer, which needs the input's source path.
-                nix-tart-macos
                 # jsonResumeUrl: the raw resume.json URL (or null), consumed by home.nix
                 # to bake into the jsonresume package as its default --url (darwin
                 # home.packages; inert on the NixOS hosts).
@@ -914,12 +905,7 @@
         }:
         nix-darwin.lib.darwinSystem {
           inherit system;
-          # identity plus the one input a darwin host consumes by source path:
-          # hosts/macvm.nix callPackages the guest agent out of nix-tart-macos
-          # (same pure-source pattern as packages/macvm-tart.nix).
-          specialArgs = identity // {
-            inherit nix-tart-macos;
-          };
+          specialArgs = identity;
           modules = [
             {
               nixpkgs.hostPlatform = system;
@@ -960,7 +946,7 @@
             # the fleet's runner retirement collapsed agenix to an operator-only vault
             # (#184), re-added 2026-08-23 for modules/darwin/github-runner.nix's
             # host-decrypted GitHub App key. Inert unless a host actually declares
-            # `age.secrets.*` (macvm doesn't).
+            # `age.secrets.*`.
             agenix.darwinModules.default
             ./hosts/${hostname}.nix
             home-manager.darwinModules.home-manager
@@ -1029,19 +1015,12 @@
           hostname = "macos";
         };
 
-        # A Tart guest VM (aarch64-darwin, Apple Virtualization + IPSW) — the
-        # darwin analogue of `nixvm`: the full shared stack as `macos`, but a
-        # leaner Homebrew set and the MCP gateway trimmed off (see hosts/macvm.nix).
-        # Same operator identity as every other host (loginName "ismail") — the
-        # leanness above is achieved entirely via `networking.hostName == "macos"`
-        # gates + per-host overrides, never via a separate persona, so this host
-        # needs no `identity` override; it just inherits the global `identityArgs`.
-        # Activated INSIDE the VM, whose macOS login account must be `ismail`.
-        # Host control plane: nix run .#macvm-tart-* (packages/macvm-tart.nix).
-        "macvm" = mkDarwin {
-          system = "aarch64-darwin";
-          hostname = "macvm";
-        };
+        # The former `macvm` Tart guest was REMOVED 2026-09-05 — deliberately, as
+        # a thin re-addable layer, not an amputation: everything generic lives on
+        # in the extracted github:kattakath/nix-tart-macos flake (lifecycle CLI,
+        # plug-and-play bootstrap, golden-image bake), and the re-add procedure
+        # is docs/macvm-readd-runbook.md. A baked golden image (tahoe-golden)
+        # stays parked in ~/.tart for the day it returns.
       };
 
       # ---- NixOS system configurations -------------------------------------------
@@ -1237,45 +1216,8 @@
           }
         ))
 
-        # macvm Tart control-plane (host Mac only) — Apple Virtualization + IPSW.
-        # Disks under ~/.tart/ (never the store). See packages/macvm-tart.nix.
-        # tart is unfree; pkgsFor (legacyPackages) may not allow it, so import
-        # nixpkgs with allowUnfree for this kit only.
-        (nixpkgs.lib.genAttrs darwinSystems (
-          system:
-          let
-            pkgsUnfree = import nixpkgs {
-              inherit system;
-              config.allowUnfree = true;
-            };
-            kit = pkgsUnfree.callPackage ./packages/macvm-tart.nix {
-              tartVmSrc = nix-tart-macos;
-              inherit (identityArgs) loginName fullName;
-            };
-          in
-          {
-            inherit (kit)
-              macvm-tart-doctor
-              macvm-tart-list
-              macvm-tart-create
-              macvm-tart-pull
-              macvm-tart-bake
-              macvm-tart-ensure
-              macvm-tart-start
-              macvm-tart-stop
-              macvm-tart-ip
-              macvm-tart-ssh
-              macvm-tart-bootstrap
-              macvm-tart-bootstrap-print
-              ;
-          }
-        ))
-
-        # WireGuard operator (darwin) — confs stay outside the store; tool is public.
-        # Also on PATH via home.packages on darwin (modules/shared/home.nix).
-        (nixpkgs.lib.genAttrs darwinSystems (system: {
-          vpn = (pkgsFor system).callPackage ./packages/vpn.nix { };
-        }))
+        # (macvm-tart-* and the macvm-only `vpn` operator were removed with the
+        # macvm host, 2026-09-05 — docs/macvm-readd-runbook.md.)
 
         # Health check for the local Claude Code routing-telemetry OTel
         # Collector (services.claudeOtel, modules/shared/claude-otel.nix).
@@ -1601,102 +1543,9 @@
               meta.description = "First activation of the macos nix-darwin host from the flake (after Determinate Nix)";
             };
 
-            # First activation of the macvm Tart guest (run INSIDE the VM, whose
-            # login account must be `ismail`), before darwin-rebuild is on PATH.
-            # Thereafter: darwin-rebuild switch --flake .#macvm
-            # Host-side Tart control plane: nix run .#macvm-tart-* (packages/macvm-tart.nix).
-            #
-            # First-boot footguns this wrapper fixes:
-            # 1. `sudo` preserves HOME=/Users/ismail while uid=0 → home-manager aborts
-            #    with "$HOME is not owned by you" and the user profile never activates.
-            #    Force HOME=/var/root for the root rebuild; nix-darwin still activates
-            #    HM for ismail under the correct user.
-            # 2. Determinate's installer leaves an unmanaged /etc/nix/nix.custom.conf
-            #    that nix-darwin refuses to clobber — move it aside once if not a symlink.
-            aarch64-darwin.macvm = {
-              type = "app";
-              program = "${(pkgsFor "aarch64-darwin").writeShellScript "activate-macvm" ''
-                set -euo pipefail
-                rebuild="${self.darwinConfigurations.macvm.config.system.build.darwin-rebuild}/bin/darwin-rebuild"
-                flake="${self}#macvm"
-
-                # Determinate installer → nix-darwin handoff (idempotent).
-                if [ -e /etc/nix/nix.custom.conf ] && [ ! -L /etc/nix/nix.custom.conf ]; then
-                  echo "macvm: moving unmanaged /etc/nix/nix.custom.conf → nix.custom.conf.before-nix-darwin" >&2
-                  /bin/mv /etc/nix/nix.custom.conf /etc/nix/nix.custom.conf.before-nix-darwin
-                fi
-
-                run_as_root() {
-                  # Root-owned HOME so HM does not refuse activation (sudo keeps
-                  # HOME=/Users/ismail by default on macOS).
-                  exec /usr/bin/env HOME=/var/root USER=root LOGNAME=root \
-                    "$rebuild" switch --flake "$flake" "$@"
-                }
-
-                if [ "$(/usr/bin/id -u)" -eq 0 ]; then
-                  run_as_root "$@"
-                else
-                  # Re-exec under sudo with a root HOME (not sudo's preserved HOME).
-                  exec /usr/bin/sudo /usr/bin/env HOME=/var/root USER=root LOGNAME=root \
-                    "$rebuild" switch --flake "$flake" "$@"
-                fi
-              ''}";
-              meta.description = "Activate macvm (Tart guest) as ismail; safe under sudo (fixes HOME ownership + Determinate nix.custom.conf handoff)";
-            };
-
-            # Host-side Tart lifecycle for macvm (Apple Virtualization + IPSW).
-            aarch64-darwin.macvm-tart-doctor = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.macvm-tart-doctor}/bin/macvm-tart-doctor";
-              meta.description = "Health-check the host Tart macvm guest (Apple Virtualization)";
-            };
-            aarch64-darwin.macvm-tart-list = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.macvm-tart-list}/bin/macvm-tart-list";
-              meta.description = "List Tart VMs";
-            };
-            aarch64-darwin.macvm-tart-create = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.macvm-tart-create}/bin/macvm-tart-create";
-              meta.description = "Create macvm from Apple IPSW via Tart (disk under ~/.tart)";
-            };
-            aarch64-darwin.macvm-tart-ensure = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.macvm-tart-ensure}/bin/macvm-tart-ensure";
-              meta.description = "Ensure Tart macvm exists (exit 0) or print create help (exit 2)";
-            };
-            aarch64-darwin.macvm-tart-start = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.macvm-tart-start}/bin/macvm-tart-start";
-              meta.description = "Start Tart macvm with ~/Downloads VirtioFS share";
-            };
-            aarch64-darwin.macvm-tart-stop = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.macvm-tart-stop}/bin/macvm-tart-stop";
-              meta.description = "Stop Tart macvm";
-            };
-            aarch64-darwin.macvm-tart-ip = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.macvm-tart-ip}/bin/macvm-tart-ip";
-              meta.description = "Print Tart macvm guest IP (tart ip)";
-            };
-            aarch64-darwin.macvm-tart-ssh = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.macvm-tart-ssh}/bin/macvm-tart-ssh";
-              meta.description = "SSH into Tart macvm (ismail + operator key)";
-            };
-            aarch64-darwin.macvm-tart-bootstrap-print = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.macvm-tart-bootstrap-print}/bin/macvm-tart-bootstrap-print";
-              meta.description = "Print in-guest macvm bootstrap checklist for Tart";
-            };
-
-            # WireGuard operator — confs in ~/.config/wireguard (not in the store).
-            aarch64-darwin.vpn = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.vpn}/bin/vpn";
-              meta.description = "WireGuard operator: vpn list|status|up|down|switch|restart|doctor (idempotent, no key leak)";
-            };
+            # (The #macvm activation app, the macvm-tart-* Tart lifecycle apps,
+            # and the macvm-only #vpn operator were removed with the macvm host,
+            # 2026-09-05 — docs/macvm-readd-runbook.md.)
 
             # Claude Code routing-telemetry collector health check.
             aarch64-darwin.claude-otel-doctor = {

@@ -21,7 +21,7 @@
 # `homebrew.masApps.Xcode` is set, also proactively `mas install` that app as
 # the Homebrew user so a clean bootstrap has Xcode.app before any formulae.
 #
-# Scoped to `networking.hostName == "macos"` — macvm has no Xcode / no MAS.
+# Scoped to `networking.hostName == "macos"`.
 {
   config,
   lib,

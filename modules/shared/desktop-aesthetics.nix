@@ -3,15 +3,15 @@
 # Two separate concerns, deliberately gated differently:
 #
 #   * Terminal.app — 16pt type on EVERY profile, stock `Pro` as the default/startup
-#     profile. UNGATED: every darwin host, macos and macvm alike. Type size is
+#     profile. UNGATED: every darwin host. Type size is
 #     ergonomics (the operator's eyes), not a visual tell, so the sandbox VM gets it
 #     too. This repo used to VENDOR a whole Terminal profile here ("Ubuntu", plus a
 #     generator script) and import it on first activation; that was dropped once stock
 #     `Pro` turned out to be fine — the only thing worth holding declaratively is the
 #     type size.
 #   * The wallpaper — behind `local.desktopAesthetics.enable` (default true), so a host
-#     can OPT OUT and keep the stock macOS desktop. `macvm` (hosts/macvm.nix) does
-#     exactly that, so the sandbox VM is visually distinct from the real `macos`
+#     can OPT OUT and keep the stock macOS desktop (the former macvm guest did
+#     exactly that, keeping the sandbox visually distinct from the real `macos`
 #     machine at a glance, before you read the hostname.
 #
 # Imported by modules/shared/home.nix; ./wallpaper is resolved relative to THIS file,
@@ -32,7 +32,7 @@ in
     description = ''
       Apply this operator's custom macOS desktop wallpaper. Default true (the real
       Mac). Set false on a host that should keep the stock macOS desktop so it is
-      visually distinguishable (e.g. the macvm sandbox VM). No-op off macOS. Does
+      visually distinguishable (e.g. a sandbox VM). No-op off macOS. Does
       NOT cover the Terminal.app type size, which is applied on every darwin host.
     '';
   };

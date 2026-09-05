@@ -38,7 +38,7 @@ slice**, not the ceiling — §2 shows how much more is reachable.
 | `trackpad` | `Clicking` (tap-to-click) |
 | `screensaver` | `askForPassword`, `askForPasswordDelay=0` |
 | `loginwindow` | `GuestEnabled=false` |
-| `screencapture` | `location` set **only on macvm** (→ the shared `~/Downloads` inbox so guest captures surface on the host); the real Mac leaves it unset, so captures take macOS's own `~/Desktop` default (rotated daily). The key also governs ⇧⌘5 screen **recordings**. `type="png"`, `disable-shadow` everywhere |
+| `screencapture` | `location` unset everywhere, so captures take macOS's own `~/Desktop` default (rotated daily); the shared-inbox override left with the former `macvm` guest ([`macvm-readd-runbook.md`](macvm-readd-runbook.md)). The key also governs ⇧⌘5 screen **recordings**. `type="png"`, `disable-shadow` everywhere |
 
 ### Beyond `system.defaults`
 
@@ -60,9 +60,6 @@ slice**, not the ceiling — §2 shows how much more is reachable.
   stay for manual triage into Documents/Pictures/Movies/Music (the operator's
   2026-09-05 contract, replacing the earlier staged-30-day sweep-everything).
   `.DS_Store` and `.localized` are excluded from both.
-  `~/Downloads` is shared R/W into macvm via Tart VirtioFS; the guest must
-  **not** rotate it (`mv` across filesystems degrades to `cp` + `rm`, so a
-  guest rotation would copy host bytes into the VM and unlink them on the host).
   **Accepted cost:** Finder's "Put Back" does not work on rotated items — a plain
   `mv` into `~/.Trash` writes no `ptbL`/`ptbN` records. Off-the-shelf trash CLIs
   were surveyed and rejected (`trash-cli`/`rmtrash`/`gtrash`/`rmw` use the
@@ -71,7 +68,7 @@ slice**, not the ceiling — §2 shows how much more is reachable.
   absent from nixpkgs), so the hand-rolled `mv` is a justified exception to the
   repo's reuse-over-rebuild preference.
 - `launchd.agents.mcp-gateway` (`modules/shared/mcp.nix`, Home-Manager side) — the
-  localhost MCP gateway (macos only; macvm disables the gateway option).
+  localhost MCP gateway (macos only).
 
 ---
 
@@ -286,10 +283,9 @@ depend on.
 |---|---|
 | `open-maccy` / `open-docker` / `open-slack` / `open-mail` / `open-messages` | **macos only** |
 | MCP gateway + public tunnel + RAG (`ollama-local`, `postgres-pgvector`) | **macos only** |
-| `nix-file-rotation-desktop` | **macos only** (the guest's own `~/Desktop` is not an inbox — macvm captures go to the shared `~/Downloads` instead) |
-| `nix-file-rotation-downloads` | **macos only** (`~/Downloads` shared R/W to macvm via VirtioFS; guest must not rotate) |
+| `nix-file-rotation-desktop` / `nix-file-rotation-downloads` | **macos only** (the gate protected the former `macvm` guest's VirtioFS-shared `~/Downloads` and is kept — see [`macvm-readd-runbook.md`](macvm-readd-runbook.md)) |
 
-Gate with `networking.hostName` (`macos` / `macvm` set in `hosts/*.nix`).
+Gate with `networking.hostName` (set in `hosts/*.nix`).
 
 ```nix
 # core.nix pattern (GUI openers — quiet: dock/menu-bar OK, no window flash)
