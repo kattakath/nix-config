@@ -169,6 +169,32 @@ let
       /usr/bin/pmset -g 2>/dev/null | awk '/lowpowermode/{print $2; exit}'
     }
 
+    # THE JOB IS NOT THE WORKER'S ONLY CHILD. `media-worker` also
+    # backgrounds a `tail -f` on the job's scratch file for live progress
+    # (see media-worker's own comment on that), started as a plain sibling
+    # of the job rather than under it — deliberately, so it shares the
+    # worker's process group and never has to be accounted for by the
+    # job's own SIGTERM handling. That means `pgrep -P "$wpid"` returns
+    # BOTH the tail process and the real job, and every caller that treats
+    # every result as "a running job" — media-queue-pause/-resume/-status —
+    # would otherwise show a phantom second entry sourced from tail's own
+    # inherited log-file stdout. MEASURED: this exact failure mode already
+    # happened once, for a DIFFERENT sibling (the Low Power Mode watchdog,
+    # before it moved to its own StartInterval agent) and had to be patched
+    # around with a blocklist filter (`*/bin/media-worker`) that this new
+    # sibling immediately fell outside of. An ALLOWLIST of the two actual
+    # job entry points — matching media-worker's own dispatch `case` below
+    # — doesn't have that failure mode: any FUTURE helper process is
+    # excluded by construction, not by remembering to update a blocklist.
+    job_child_of() {
+      local wpid="$1" cpid
+      /usr/bin/pgrep -P "$wpid" 2>/dev/null | while IFS= read -r cpid; do
+        case "$(/bin/ps -o args= -p "$cpid" 2>/dev/null)" in
+          */bin/photo-describe*|*/bin/fix-media*) printf '%s\n' "$cpid" ;;
+        esac
+      done
+    }
+
   '';
 in
 symlinkJoin {
@@ -647,7 +673,7 @@ symlinkJoin {
               echo "$prog: paused pid $jpid (and its subprocesses)" >&2
               found=1
             fi
-          done < <(/usr/bin/pgrep -P "$wpid" 2>/dev/null || true)
+          done < <(job_child_of "$wpid")
         done
 
         if [ "$found" -eq 0 ]; then
@@ -695,7 +721,7 @@ symlinkJoin {
               echo "$prog: resumed pid $jpid" >&2
               found=1
             fi
-          done < <(/usr/bin/pgrep -P "$wpid" 2>/dev/null || true)
+          done < <(job_child_of "$wpid")
         done
 
         if [ "$found" -eq 0 ]; then
@@ -780,7 +806,7 @@ symlinkJoin {
               echo "$prog:   progress so far: $((d + sk + er)) processed ($d done, $sk skip/OK, $er error)"
               [ -n "$last" ] && echo "$prog:   last: $last"
             fi
-          done < <(/usr/bin/pgrep -P "$wpid" 2>/dev/null || true)
+          done < <(job_child_of "$wpid")
         done
 
         if [ "$any_running" -eq 0 ]; then
@@ -846,7 +872,7 @@ symlinkJoin {
               fi
               rm -f "$marker"
             fi
-          done < <(/usr/bin/pgrep -P "$wpid" 2>/dev/null || true)
+          done < <(job_child_of "$wpid")
         done
       '';
     })
