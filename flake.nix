@@ -989,6 +989,17 @@
           ;
       };
 
+      # ---- Flake template ------------------------------------------------------
+      # `nix flake init -t github:kattakath/nix-config` — scaffold a consumer
+      # fleet flake (identity override + host deltas over lib.mkDarwin) instead
+      # of forking this repo; see README.md § Fork this for your own fleet.
+      # Top-level templates/ (nix flake templates) is DISTINCT from
+      # packages/templates/ (raw-served Vast.ai provisioner assets).
+      templates.default = {
+        path = ./templates/default;
+        description = "Starter fleet flake consuming nix-config's lib.mkDarwin with your own identity and host deltas";
+      };
+
       # ---- macOS system configurations ---------------------------------------
       # Built with `darwin-rebuild switch --flake .#macos`.
       darwinConfigurations = {
