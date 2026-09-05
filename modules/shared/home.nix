@@ -1295,14 +1295,29 @@ in
         # as the VS Code terminal face. Switching terminals costs no
         # re-adjustment.
         font-family = "UbuntuMono Nerd Font";
-        font-size = 16;
+        font-size = 18;
+        # Ghostty rasterizes thinner than Terminal.app at the same nominal size —
+        # that difference, not the size, is why 16pt UbuntuMono looked lighter
+        # here than in the old Ubuntu profile. This is the knob Ghostty added for
+        # it; bold stays meaningfully bolder, unlike setting font-style = Bold.
+        font-thicken = true;
 
-        # ---- Theme: follows the system ---------------------------------------
-        # The `light:NAME,dark:NAME` pair is Ghostty's own documented example,
-        # quoted from its config reference rather than picked from memory —
-        # there is no way to confirm a bundled theme name before the app exists.
-        # Swap it for anything `ghostty +list-themes` offers.
-        theme = "light:Rose Pine Dawn,dark:Rose Pine";
+        # ---- Ground: the Ubuntu profile this repo used to vendor --------------
+        # These are not Ubuntu's brand palette guessed from the web. They are the
+        # exact values decoded out of modules/shared/terminal/Ubuntu.terminal,
+        # the profile this repo shipped until #319 dropped it — NSFont
+        # `UbuntuMonoNF` at 16.0, BackgroundColor #24081B, TextColor #FFFFFF.
+        #
+        # NO `theme` HERE, DELIBERATELY. An explicit `background` overrides a
+        # theme's, and Ghostty's `light:NAME,dark:NAME` syntax applies to `theme`
+        # only — there is no per-mode `background`. Keeping the light/dark pair
+        # alongside a fixed aubergine ground would leave light mode with a dark
+        # background and a light theme's foreground colours, which is worse than
+        # either choice made cleanly. Restoring system-following is one line:
+        # drop these three and put the theme back.
+        background = "#24081B";
+        foreground = "#FFFFFF";
+        cursor-color = "#FFFFFF";
 
         # ---- Window ----------------------------------------------------------
         # `tabs` puts the tab strip IN the titlebar, reclaiming a full row of
