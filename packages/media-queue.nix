@@ -2,6 +2,9 @@
 #
 #   media-enqueue <--video|--image> <file-or-dir>...   write jobs, return at once
 #   media-worker                                       drain the queue (launchd)
+#   media-queue-pause                                  freeze the in-flight job
+#   media-queue-resume                                 unfreeze it
+#   media-queue-status                                 what's running/queued/failed
 #
 # WHY A QUEUE AT ALL. Re-encoding two hundred videos is hours of ffmpeg. Doing
 # that inside the Automator Service means the work dies at logout, cannot be
@@ -39,6 +42,47 @@
 #
 # The worker requeues its in-flight job on SIGTERM, so a logout or a
 # `launchctl kill` costs at most a repeat of one file rather than the batch.
+#
+# PAUSE IS SIGSTOP ON THE JOB'S PROCESS GROUP, NOT SIGTERM ON THE WORKER.
+# SIGTERM is already spoken for above — it means "give this job back to the
+# queue", which is right for a logout but wrong for "hold on a second": it
+# throws away everything the current file (or, for `describe`, the current
+# BATCH — a directory is one job) has done and restarts it from the top on
+# resume. SIGSTOP instead freezes the job exactly where it is — mid-`exiftool`
+# write, mid-`curl` to Ollama — and SIGCONT picks it back up from that same
+# byte, no progress lost, no requeue, no fresh attempt counted against
+# MAX_TRIES.
+#
+# `-$pid`, NEVER bare `$pid`. `set -m` in media-worker gives the backgrounded
+# job its own process group (pgid == its own pid) specifically so the
+# existing `kill -TERM -"$child"` in the SIGTERM path can reach grandchildren
+# like fix-google-video's ffmpeg. The negative pid is what makes a signal hit
+# the whole group instead of only the immediate child; pause/resume reuse that
+# same convention so a stop actually freezes exiftool/curl/ffmpeg too, not
+# just the shell driving them.
+#
+# THE WORKER LOOP PAUSES FOR FREE. `media-worker` calls `wait "$child"`, and
+# POSIX `wait` only returns on termination, never on stop — so a SIGSTOPped
+# job leaves the worker parked in that syscall rather than moving on to the
+# next queued file. Nothing extra is needed to stop the QUEUE, only the job.
+#
+# FOUND VIA `running-<worker-pid>.job`, THE SAME MARKER THE WORKER USES FOR
+# ITS OWN ORPHAN RECOVERY. `pgrep -P` on that pid is a DIRECT child by
+# construction (the job is backgrounded once, from that exact process), so
+# this can never accidentally reach into some other worker's job.
+#
+# KNOWN GAP: the brief window between one job finishing and the next being
+# claimed has no `running-*.job` file, so a pause issued in that instant finds
+# nothing to freeze and the next file starts anyway. Harmless for the case
+# this exists for — pausing a long batch mid-flight — and not worth a second
+# mechanism to close a race measured in milliseconds.
+#
+# KNOWN COST: a job frozen past Ollama's own read timeout, or past whatever a
+# paused `curl` call's peer decides to give up on, resumes into a failed
+# request rather than a completed one. That is not a new failure mode — the
+# per-file retry/backoff loop above already exists to absorb exactly this —
+# it only means a very long pause can cost the one file that was mid-caption
+# when it started, not the batch.
 {
   lib,
   symlinkJoin,
@@ -394,9 +438,150 @@ symlinkJoin {
       '';
     })
 
+    (writeShellApplication {
+      name = "media-queue-pause";
+      runtimeInputs = [ coreutils ];
+      text = ''
+        ${common}
+        prog=media-queue-pause
+        [ $# -eq 0 ] || { echo "usage: $prog" >&2; exit 1; }
+
+        found=0
+        for running in "$STATE"/running-*.job; do
+          [ -e "$running" ] || continue
+          wpid=''${running##*/running-}
+          wpid=''${wpid%%.job}
+          # A stale marker (worker already gone) has nothing left to freeze.
+          if [ -z "$wpid" ] || ! kill -0 "$wpid" 2>/dev/null; then
+            continue
+          fi
+          while IFS= read -r jpid; do
+            [ -n "$jpid" ] || continue
+            if kill -STOP -"$jpid" 2>/dev/null; then
+              echo "$prog: paused pid $jpid (and its subprocesses)" >&2
+              found=1
+            fi
+          done < <(/usr/bin/pgrep -P "$wpid" 2>/dev/null || true)
+        done
+
+        if [ "$found" -eq 0 ]; then
+          echo "$prog: nothing running right now — queue is idle or between jobs" >&2
+        fi
+      '';
+    })
+
+    (writeShellApplication {
+      name = "media-queue-resume";
+      runtimeInputs = [ coreutils ];
+      text = ''
+        ${common}
+        prog=media-queue-resume
+        [ $# -eq 0 ] || { echo "usage: $prog" >&2; exit 1; }
+
+        found=0
+        for running in "$STATE"/running-*.job; do
+          [ -e "$running" ] || continue
+          wpid=''${running##*/running-}
+          wpid=''${wpid%%.job}
+          if [ -z "$wpid" ] || ! kill -0 "$wpid" 2>/dev/null; then
+            continue
+          fi
+          while IFS= read -r jpid; do
+            [ -n "$jpid" ] || continue
+            # CONT on a job that was never stopped is a harmless no-op, so this
+            # never needs to first confirm the job was paused by us.
+            if kill -CONT -"$jpid" 2>/dev/null; then
+              echo "$prog: resumed pid $jpid" >&2
+              found=1
+            fi
+          done < <(/usr/bin/pgrep -P "$wpid" 2>/dev/null || true)
+        done
+
+        if [ "$found" -eq 0 ]; then
+          echo "$prog: nothing running right now — nothing to resume" >&2
+        fi
+      '';
+    })
+
+    (writeShellApplication {
+      name = "media-queue-status";
+      runtimeInputs = [
+        coreutils
+        findutils
+      ];
+      text = ''
+        ${common}
+        prog=media-queue-status
+        [ $# -eq 0 ] || { echo "usage: $prog" >&2; exit 1; }
+        ensure_dirs
+
+        pending=$(find "$QUEUE" -maxdepth 1 -name '*.job' -type f 2>/dev/null | wc -l | tr -d ' ')
+        backoff=$(find "$STAGE" -maxdepth 1 -name '*-retry.t*.job' -type f 2>/dev/null | wc -l | tr -d ' ')
+        dead=$(find "$FAILED" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')
+
+        any_running=0
+        for running in "$STATE"/running-*.job; do
+          [ -e "$running" ] || continue
+          wpid=''${running##*/running-}
+          wpid=''${wpid%%.job}
+          if [ -z "$wpid" ] || ! kill -0 "$wpid" 2>/dev/null; then
+            # A crashed worker leaves this marker behind; the next worker start
+            # reclaims it (see media-worker), so it is transient, not a bug.
+            echo "$prog: stale marker $(basename "$running") — worker $wpid is gone (will self-heal on next worker start)"
+            continue
+          fi
+
+          items=()
+          while IFS= read -r -d "" x; do items+=("$x"); done < "$running"
+          class=''${items[0]:-unknown}
+          path=''${items[1]:-unknown}
+          # NOT the attempt number: media-worker renames the job to
+          # running-$$.job the moment it dequeues it, which drops the
+          # original `.tN` suffix that carried the attempt count. That
+          # number exists only in the worker's own `log "start ... (attempt
+          # N)"` line, not in any state this tool can read without coupling
+          # to the log's format — so it is left out rather than guessed.
+
+          while IFS= read -r jpid; do
+            [ -n "$jpid" ] || continue
+            any_running=1
+            state=$(/bin/ps -o stat= -p "$jpid" 2>/dev/null | tr -d ' ')
+            case "$state" in
+              T*) label="PAUSED (SIGSTOP)" ;;
+              "") label="gone" ;;
+              *)  label="running" ;;
+            esac
+            echo "$prog: $class '$path' — $label, pid $jpid"
+
+            # The scratch file is a bare mktemp with no name this tool ever
+            # recorded — media-worker's own choice, on purpose (see its
+            # comment on `scratch=$(mktemp)`), so the only way to find it
+            # after the fact is the same place the kernel keeps it: the job's
+            # own open stdout fd. `-Fn` gives just the name field, one write
+            # NUL-free line, which survives a path full of spaces.
+            scratch=$(/usr/sbin/lsof -a -p "$jpid" -d 1 -Fn 2>/dev/null | sed -n 's/^n//p' | head -n1)
+            if [ -n "$scratch" ] && [ -f "$scratch" ]; then
+              d=$(grep -c ': done:' "$scratch" 2>/dev/null || true)
+              sk=$(grep -cE ': (skip|OK):' "$scratch" 2>/dev/null || true)
+              er=$(grep -c ': error:' "$scratch" 2>/dev/null || true)
+              last=$(tail -n1 "$scratch" 2>/dev/null || true)
+              echo "$prog:   progress so far: $((d + sk + er)) processed ($d done, $sk skip/OK, $er error)"
+              [ -n "$last" ] && echo "$prog:   last: $last"
+            fi
+          done < <(/usr/bin/pgrep -P "$wpid" 2>/dev/null || true)
+        done
+
+        if [ "$any_running" -eq 0 ]; then
+          echo "$prog: worker idle — nothing in flight"
+        fi
+
+        echo "$prog: queue: $pending pending, $backoff backing off (retry), $dead dead-letter (failed/)"
+      '';
+    })
+
   ];
   meta = {
-    description = "Durable Finder-to-launchd work queue for the media toolkit: media-enqueue, and media-worker";
+    description = "Durable Finder-to-launchd work queue for the media toolkit: media-enqueue, media-worker, media-queue-pause, media-queue-resume, media-queue-status";
     mainProgram = "media-enqueue";
     platforms = lib.platforms.darwin;
   };
