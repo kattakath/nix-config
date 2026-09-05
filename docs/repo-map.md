@@ -736,7 +736,27 @@ Smaller, single-purpose CLIs:
   target is skipped, never clobbered; `-ef` rather than a string compare so a case-only fix
   still works on a case-insensitive volume. Files with no recognisable type are silent inside
   a directory walk (a photo folder is full of them) and explain themselves when named
-  explicitly. `--only image|video|audio` and `--print0` exist for one caller, `fix-media`, and
+  explicitly. **The walk never enters a macOS package.** `~/Pictures/Photos
+  Library.photoslibrary` is a directory, and renaming files inside it is library corruption,
+  not a fix — verified on this Mac, that path reports `com.apple.package` in
+  `kMDItemContentTypeTree`, which is what `is_package` asks Spotlight. Spotlight answers
+  nothing on an unindexed volume, so a curated extension list is both the fast path and the
+  fallback, and an unknown dotted directory fails **open** (`2019.holiday` is still walked).
+  The walk is two `find` passes per level — one taking files while pruning every dotted
+  directory, one re-entering only the non-packages — so a 100k-file library is never
+  enumerated at all. Three guards run **before anything reads the bytes**, because reading is
+  itself the hazard: **dataless** (an iCloud placeholder; sniffing materialises it, so a sweep
+  would quietly pull gigabytes and fail offline — measured present on this Mac under
+  CloudDocs), **in-flight** (`.crdownload`/`.part`/`.partial`/`.download`, whose bytes are
+  incomplete), and **AppleDouble** (`._name`). Plus a writability check on the *directory*,
+  since that is what a rename writes to. `mdls` and BSD `stat` are called by **absolute
+  `/usr/bin` path**: `coreutils` is in `runtimeInputs` and GNU `stat` reads `-f` as
+  "filesystem status" rather than a format string, so the unqualified call would error, leave
+  the flags empty under `|| true`, and pass **every** dataless file — the guard would have
+  been dead code. `basename`/`dirname` are replaced by parameter expansion for the same
+  reason performance matters here at all: measured on this Mac, 300 files went 5.6s → 3.1s
+  (~19ms → ~10ms per file). Batch-sniffing to remove the last two forks per file is the
+  next step, not done here. `--only image|video|audio` and `--print0` exist for one caller, `fix-media`, and
   are what let it compose this with a repair step instead of reimplementing the sniffing:
   `--only` keeps "fix the videos in this folder" from quietly renaming the photos beside them
   (a file matches on its **sniffed** class OR its **extension's** class, so a `.mp4` whose type
@@ -760,6 +780,17 @@ Smaller, single-purpose CLIs:
   source yielding a 0.27s output), which without the check would destroy the original. A
   non-`.mp4` input (`.mkv`, `.avi`) is replaced by a `.mp4` of the same basename, since the
   output is H.264 in MP4. `--keep` restores the old side-by-side `<name>_h264.mp4` behaviour.
+  **A failed file is reported and the batch continues** — only a usage error is fatal, because
+  a `die` inside the loop abandons 199 good files over one corrupt file 200, which is exactly
+  the shape of a Takeout folder; the run still exits non-zero so the Service reports it. An
+  **EXIT/INT/TERM trap** removes the in-progress `.fixing-*.mp4`, so a Ctrl-C, a logout, or a
+  launchd kill during a two-hour batch does not strand a multi-GB temp beside every source
+  (verified: the temp exists mid-encode and is gone after `SIGTERM`, original intact); a
+  per-directory sweep also clears debris an earlier kill left behind. A **free-space
+  preflight** requires **twice** the source size, not once — a VideoToolbox encode at 8 Mbps
+  can be larger than a heavily compressed source. Dataless iCloud files are skipped before
+  `ffprobe` can materialise them, using the same absolute-`/usr/bin/stat` call and for the
+  same GNU-shadowing reason as `fix-extension`.
 - **`jobspy.nix`** — a reproducible `uv`-ephemeral wrapper CLI around the `python-jobspy`
   library for scraping job boards.
 - **`jsonresume.nix`** — dual-engine `jsonresume <download|print|validate|markdown|text>`
