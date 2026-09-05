@@ -521,9 +521,20 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
   #319) used `#24081B` and a *different* ANSI set entirely; the two backgrounds are ΔE00 4.12
   apart and the ring is not the same palette, so what ran here for years was someone's
   approximation. Measured against `#300A24`: foreground **17.58:1**, min pairwise ΔE00 among
-  slots 0-7 **23.32** (excellent separation), and **six of sixteen fail WCAG AA** — black
-  1.39:1, br-black 2.41, magenta 2.67, blue 2.97, red 2.99, br-red 4.20. That is accepted
-  deliberately: this is Ubuntu's terminal, not a palette tuned to a contrast target. A
+  slots 0-7 **23.32** (excellent separation), and six of sixteen failed WCAG AA. **Five are
+  lifted**: each converted to OKLab, its **lightness alone** raised until it reaches 4.5:1,
+  hue and chroma untouched (every hue moves ≤ 0.6°, so red still reads as Tango red). **Pairs
+  are solved together** — lifting a normal slot alone collapses it onto its bright partner
+  (lifted red lands ΔE00 **1.55** from br-red, i.e. the same colour, and `\e[31m` vs `\e[91m`
+  stops meaning anything), so each bright partner is pushed until the pair is ΔE00 ≥ 10 apart:
+  red `#CC0000`→`#F03C2E` with br `#FF6B5E` (pair 10.02), blue `#3465A4`→`#5083C4` with br
+  `#74A2D2` (10.21), magenta `#75507B`→`#9A74A1` with br `#BD8FB8` (10.04), br-black
+  `#555753`→`#7F827D`. Naively "use the bright variant" does **not** work and was measured
+  first: br-red is 4.20:1 and br-black 2.41:1, both still failing, and black has no brighter
+  Tango variant at all. **Slot 0 stays authentic at 1.39:1** — it is the `\e[40m` *surface*,
+  not ink, and lifting it drops white-on-`\e[40m` from **12.65:1 to 3.90:1**, trading a
+  passing role for a failing one. Min pairwise ΔE00 among slots 0-7 **improves 23.32 → 24.14**;
+  total drift from authentic is ΔE00 71.8 over 7 moved slots. A
   nine-agent workflow derived four alternatives that fixed those numbers and each lost the
   thing worth having — the winner lifted the *unfocused* ground and thereby made the panes you
   are **not** in the loudest thing on screen, which no contrast metric can see.
