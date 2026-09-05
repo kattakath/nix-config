@@ -302,7 +302,27 @@ writeShellApplication {
         meta=$(exiftool -json -XMP:Description -EXIF:UserComment "$f" 2>/dev/null || true)
         existing=$(printf '%s' "$meta" | jq -r '.[0].Description // ""' 2>/dev/null || true)
         stamped=$(printf '%s' "$meta" | jq -r '.[0].UserComment // ""' 2>/dev/null || true)
-        case "$stamped" in "$stampPrefix"*) stamped=''${stamped#"$stampPrefix"} ;; *) stamped="" ;; esac
+        # The stamp carries the pixel hash AND the labels this tool last wrote:
+        #   photo-describe:pixhash=<md5>;labels=a,b,c
+        # The label list is what makes a re-describe able to remove ITS OWN stale
+        # keywords without touching the operator's. Keywords are append-only by
+        # design (clearing them was destroying hand-authored ones), so nothing
+        # else can retract a label that is no longer true — measured: a photo
+        # cropped until no person remained kept `people, adult, eyeglasses` while
+        # its regenerated caption said "zero people".
+        prior_labels=""
+        case "$stamped" in
+          "$stampPrefix"*)
+            stamped=''${stamped#"$stampPrefix"}
+            case "$stamped" in
+              *";labels="*)
+                prior_labels=''${stamped#*";labels="}
+                stamped=''${stamped%%";labels="*}
+                ;;
+            esac
+            ;;
+          *) stamped="" ;;
+        esac
         if [ -n "$existing" ]; then
           # A DESCRIPTION IS NOT PROOF IT IS STILL TRUE. Skipping on its mere
           # presence meant an image edited after being described kept a caption
@@ -323,7 +343,7 @@ writeShellApplication {
           # library the first time this ships.
           current=$(exiftool -api requesthash=md5 -s3 -ImageDataHash "$f" 2>/dev/null || true)
           if [ -z "$stamped" ] && [ -n "$current" ]; then
-            exiftool -overwrite_original_in_place -P -q -q "-EXIF:UserComment=$stampPrefix$current" "$f" 2>/dev/null || true
+            exiftool -overwrite_original_in_place -P -q -q "-EXIF:UserComment=$stampPrefix$current;labels=" "$f" 2>/dev/null || true
             skipped=$((skipped + 1))
             info "OK: '$f' — already described (stamped for future edit detection)"
             continue
@@ -334,6 +354,18 @@ writeShellApplication {
             continue
           fi
           info "re-describing '$f' — the image changed since it was described"
+          # Retract exactly the labels WE wrote last time, before the new ones go
+          # on. Anything the operator added is absent from this list and survives.
+          if [ -n "$prior_labels" ]; then
+            retract=()
+            IFS=',' read -r -a old_labels <<< "$prior_labels"
+            for ol in ''${old_labels[@]+"''${old_labels[@]}"}; do
+              [ -n "$ol" ] || continue
+              retract+=("-XMP:Subject-=$ol" "-IPTC:Keywords-=$ol")
+            done
+            [ ''${#retract[@]} -gt 0 ] && exiftool -overwrite_original_in_place -P -q -q \
+              "''${retract[@]}" "$f" 2>/dev/null || true
+          fi
         fi
       fi
 
@@ -448,12 +480,14 @@ writeShellApplication {
       # exact value if present, the add puts it back exactly once, and every other
       # keyword on the file is untouched. `-api NoDups` does NOT do this — measured
       # on exiftool 13.59, it leaves `alpha, alpha, beta` after a repeat `+=`.
+      human_labels=()
       for l in ''${labels[@]+"''${labels[@]}"}; do
         # Apple's label identifiers are snake_case (`consumer_electronics`,
         # `wood_processed`). That underscore is an internal token, not a word:
         # it survives into Finder's Get Info, reads as machine output, and
         # breaks the substring search this metadata exists to serve.
         human=''${l//_/ }
+        human_labels+=("$human")
         args+=(
           "-XMP:Subject-=$human" "-XMP:Subject+=$human"
           "-IPTC:Keywords-=$human" "-IPTC:Keywords+=$human"
@@ -480,7 +514,14 @@ writeShellApplication {
         # is empty or already carries our prefix.
         prior=$(exiftool -s3 -EXIF:UserComment "$f" 2>/dev/null || true)
         case "$prior" in
-          ""|"$stampPrefix"*) [ -n "$pixhash" ] && args+=("-EXIF:UserComment=$stampPrefix$pixhash") ;;
+          ""|"$stampPrefix"*)
+            # The HUMANIZED forms, because those are what actually go on the
+            # file — storing the raw snake_case ones meant `-=water_body` could
+            # never match the written `water body`, so retraction silently
+            # missed every multi-word label.
+            written=$(IFS=,; echo "''${human_labels[*]-}")
+            [ -n "$pixhash" ] && args+=("-EXIF:UserComment=$stampPrefix$pixhash;labels=$written")
+            ;;
         esac
       fi
 
