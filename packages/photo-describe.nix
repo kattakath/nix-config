@@ -14,8 +14,10 @@
 # machines; an embedding is invalidated the day you change embedding models. So
 # the expensive, irreplaceable artifact (the sentence) is embedded, and the
 # cheap, regenerable one (the vector) is left to `rclip`, which keeps its own
-# SQLite index and can be rebuilt from these files at any time. Nothing here
-# writes a vector into a photo.
+# SQLite index, rebuildable at any time by RE-SCANNING THE PHOTOS. Note rclip
+# embeds the PIXELS, not these captions — which is exactly why it finds things no
+# caption mentions, and why a description could never reconstruct its index.
+# Nothing here writes a vector into a photo.
 #
 # What gets written, and why these tags:
 #
@@ -124,7 +126,12 @@
 # the reason a batch changed nothing, so a CLI that invents its own vocabulary
 # is silently reported as having done nothing at all.
 #
-# `-overwrite_original` is deliberate. exiftool otherwise leaves a full
+# `-overwrite_original_in_place -P` is deliberate. Plain `-overwrite_original`
+# writes a NEW file and renames it over the original, which drops every extended
+# attribute (Finder tags, `kMDItemWhereFroms` download provenance) and stamps a
+# fresh mtime on every photo — reordering the library by Date Modified and making
+# backups re-upload everything. In-place keeps the inode and `-P` keeps the date.
+# Neither form leaves a full
 # `IMG_1234.jpg_original` copy beside every file, which in a photo library
 # means doubling it on disk and showing the operator two of everything in
 # Finder. The writes are metadata-segment-only — the compressed image data is
@@ -238,12 +245,20 @@ writeShellApplication {
     done < "$list"
 
     if [ ''${#files[@]} -eq 0 ]; then
-      info "OK: 'selection' — no image files to look at"
+      # "readable" not "no image files": stage one also drops files it cannot
+      # safely touch — a dataless iCloud placeholder, an in-flight download, a
+      # macOS package, or a directory exiftool has no write access to. Reporting
+      # those as "no image files" claimed the folder was empty when it was not.
+      info "OK: 'selection' — no readable image files to look at"
       exit "$rc"
     fi
 
     # One reachability probe for the whole run, not one per file.
     ollama_up=0
+    # WHY a caption is missing, carried into the per-file skip: line. A partial
+    # result must say what was missing, or a whole batch run against a stopped
+    # Ollama is indistinguishable from a complete one.
+    vlm_gap="captions disabled"
     if [ "$caption" -eq 1 ]; then
       if curl -fsS -m 3 "$host/api/tags" -o "$tmpdir/tags.json" 2>/dev/null; then
         # `:latest` is IMPLICIT everywhere except here. Ollama registers an
@@ -257,9 +272,11 @@ writeShellApplication {
           "$tmpdir/tags.json" >/dev/null 2>&1; then
           ollama_up=1
         else
+          vlm_gap="model '$model' not pulled"
           info "note: model '$model' is not pulled — writing labels only (ollama pull $model)"
         fi
       else
+        vlm_gap="no ollama at $host"
         info "note: no ollama at $host — writing labels only"
       fi
     fi
@@ -313,14 +330,21 @@ writeShellApplication {
 
       # --- the caption: skipped for screenshots, and for anything below the gate ---
       sentence=""
+      caption_gap="$vlm_gap"
       want_caption=0
+      if [ "$ollama_up" -eq 1 ] && [ "$utility" = "true" ]; then
+        caption_gap="screenshot/document, not a photograph"
+      fi
       if [ "$ollama_up" -eq 1 ] && [ "$utility" != "true" ]; then
         if [ -z "$score" ] || [ -z "$min_score" ] || awk -v s="$score" -v m="$min_score" 'BEGIN{ exit !(s >= m) }'; then
           want_caption=1
+        else
+          caption_gap="aesthetics $score below --min-score $min_score"
         fi
       fi
 
       if [ "$want_caption" -eq 1 ]; then
+        caption_gap="the vision model returned nothing"
         shot="$f"
         # Case-folded: `.Heic` is rare from macOS but a `case` listing only the
         # two common spellings silently skipped the JPEG conversion, and the
@@ -409,7 +433,15 @@ writeShellApplication {
         if [ -n "$sentence" ]; then
           info "done: '$f' — $sentence"
         else
-          info "done: '$f' — labelled only (''${labels[*]-no labels})"
+          # `skip:`, NOT `done:` — and it does not count as described. A photo
+          # that got labels but no sentence is the tool's PARTIAL result, and
+          # reporting it as done made a whole batch run with Ollama stopped look
+          # like complete success. It is now visible in the grammar the queue
+          # parses, so the notification can say what actually happened, and a
+          # later run still picks the file up (idempotence keys on Description).
+          described=$((described - 1))
+          skipped=$((skipped + 1))
+          info "skip: '$f' — labelled only, no caption ($caption_gap)"
         fi
       else
         info "error: '$f' — could not write metadata"
@@ -417,7 +449,12 @@ writeShellApplication {
       fi
     done
 
-    info "OK: 'selection' — $described described, $skipped already had a description"
+    # Summary WITHOUT the grammar prefix. `OK: 'selection' — …` matched the
+    # worker's skip:/OK: grep, so every describe job scored a phantom +1 skip and
+    # could have its reason lifted from a line that names no file. Only the
+    # empty-selection case keeps the grammar form, exactly as fix-media does,
+    # because there it IS the outcome.
+    info "summary: $described described, $skipped skipped"
     exit "$rc"
   '';
 }
