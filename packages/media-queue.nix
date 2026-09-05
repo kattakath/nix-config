@@ -118,7 +118,18 @@
   findutils,
   util-linuxMinimal,
   viddy,
-  media-toolkit ? callPackage ./media-toolkit.nix { },
+  # The two CLIs media-worker dispatches to, NOT the whole media-toolkit bundle
+  # it used to take. Two reasons, and the first is load-bearing:
+  #
+  #   1. media-toolkit bundles `media`, and `media` now exposes a `queue` verb
+  #      that needs media-queue — so depending on the bundle here is an
+  #      evaluation CYCLE (media -> media-queue -> media-toolkit -> media).
+  #      Naming the two leaves breaks it; neither depends on `media`.
+  #   2. It was always over-broad. The dispatch below only ever calls these
+  #      two, and fix-media brings fix-extension/fix-google-video along in its
+  #      own runtimeInputs, so nothing is lost.
+  fix-media ? callPackage ./fix-media.nix { },
+  photo-describe ? callPackage ./photo-describe.nix { },
 }:
 let
   # Spliced into all three, so the layout is stated once. INLINED rather than
@@ -368,7 +379,8 @@ symlinkJoin {
       runtimeInputs = [
         coreutils
         findutils
-        media-toolkit
+        fix-media
+        photo-describe
         util-linuxMinimal
       ];
       text = ''
