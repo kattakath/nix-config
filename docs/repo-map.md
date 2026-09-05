@@ -767,7 +767,7 @@ Smaller, single-purpose CLIs:
   first line by parameter expansion lets `sort` finish into a variable and exit 0; verified at
   800 jobs (a 166 KB listing) draining in a single run.
 - **`media-toolkit.nix`** — `symlinkJoin` bundling the media-file CLIs below
-  (`fix-google-video` + `extract-audio` + `fix-extension` + `fix-media` + `photo-describe`) as ONE entry for
+  (`media` + `fix-google-video` + `extract-audio` + `fix-extension` + `fix-media` + `photo-describe`) as ONE entry for
   `home.packages`, so the set
   cannot drift as CLIs are added; each stays its own derivation with its own
   `nix run .#<name>`. Membership rule: a CLI that **acts on a media file the operator
@@ -821,6 +821,19 @@ Smaller, single-purpose CLIs:
   library on disk; **the image data is preserved byte-for-byte** (verified: `ImageDataHash`
   identical before and after, file grew 3.7 KB of metadata).
   Measured end to end: **~26s for the first image** (model load) and **~4s warm**.
+- **`media.nix`** — `media <describe|fix|audio> …`, one entry point and one `--help` that
+  lists the media CLIs. **Discoverability, not ergonomics**: `media describe` is LONGER than
+  `photo-describe`, so as a keystroke play it is a net loss; what it buys is that nothing
+  otherwise tells an operator these CLIs are related or that `photo-describe` exists.
+  **Purely additive** — every underlying binary stays on PATH under its own name, because
+  three consumers hardcode those: the Finder Services bake absolute store paths into
+  `document.wflow`, `nix run .#photo-describe` names the app, and the operator's own notes use
+  the direct form. `exec`, not a wrapper function, so the verb's exit status and its
+  `done:`/`skip:` grammar reach the caller untouched — media-queue's worker parses that.
+  Deliberately NOT verbs: `media-worker` (launchd-only, and behind a dispatcher its arg0 would
+  become `media`, silently losing the TCC access that `nix-media-queue` grants),
+  `media-enqueue` (called by absolute path), `fix-extension` (`--only`/`--print0` are a
+  composition seam) and `fix-google-video` (`fix-media --video` is the discoverable name).
 - **`fix-media.nix`** — `fix-media <--video|--image> <file-or-dir>...`, the entry point behind
   the two "Fix … File(s)" Services. Per-class pipelines: `--video` is
   `fix-extension --only video` then `fix-google-video`; `--image` is
