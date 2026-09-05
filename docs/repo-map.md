@@ -486,6 +486,30 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
     paste the script into Violentmonkey's own editor). The theme rides the same gate — until
     it is enabled once, Chromium unpacks it but leaves `extensions.theme` unset and the browser
     still looks stock.
+- **`media-queue.nix`** (darwin-gated) — the launchd half of the media toolkit's queue, and
+  almost entirely launchd configuration rather than code. **`QueueDirectories`** IS the queue
+  (launchd starts the worker whenever the directory is non-empty, and again after it exits if
+  anything is left — no polling loop, no daemon of ours). **`ProcessType = "Background"`** IS
+  the load control: macOS throttles CPU and I/O bandwidth for Background jobs *specifically*
+  so they cannot disrupt the user experience, which is what stops a 200-file re-encode from
+  being something you feel in the foreground; `Nice` and `LowPriorityIO` reinforce it.
+  **`KeepAlive.SuccessfulExit = false` + `ThrottleInterval = 60`** covers the worker dying
+  outright (per-*job* retry is the worker's own three-strikes rule), with the interval
+  bounding the restart rate so a reproducible crash cannot spin. **`RunAtLoad`** drains what a
+  logout interrupted. The agent's arg0 is `nix-media-queue` via `hm-launchd`, which is
+  load-bearing rather than cosmetic: per [launchd-naming](../.claude/rules/launchd-naming.md)
+  a `/nix/store` arg0 is what lets the worker **read** the TCC-protected folders it exists to
+  work on. **Status is SwiftBar**, the off-the-shelf host for a script-driven menu-bar item —
+  macOS has no native equivalent (`NSStatusItem` needs an app; Shortcuts' "Pin in Menu Bar" is
+  a launcher, not a display), so this is the standard pattern rather than a reinvention, and
+  the plugin is a script whose stdout becomes the menu, so there is no UI code at all. Two
+  things measured on this Mac rather than assumed: `defaults write com.ameba.SwiftBar
+  PluginDirectory <path>` **is** honoured and makes the plugin folder declarative, while
+  SwiftBar 2.0.1's `--folders` launch argument is **not** (launched with it and nothing else,
+  SwiftBar never ran the plugin); and a plugin reached through a **symlink runs fine**, so
+  plain `home.file` suffices — the opposite of the Automator bundles next door, which must be
+  copied because `NSFileWrapper` rejects a symlinked `document.wflow`. Sparkle auto-update is
+  switched off: a `/nix/store` app cannot update itself, so a check can only produce a nag.
 - **`desktop-aesthetics.nix`** — the macOS desktop look, split in two:
   - **Terminal.app** is UNGATED on every darwin host — 16pt type on EVERY profile + stock
     `Pro` as default/startup, driven through Terminal's own AppleScript `settings set` API
@@ -652,7 +676,10 @@ Smaller, single-purpose CLIs:
   skill, `skills/android-phone`.
 - **`media-quick-actions.nix`** (both darwin hosts) — Finder right-click → **Services** entries for
   the media-toolkit CLIs (**Extract Audio**, **Fix Video File(s)**, **Fix Image File(s)**),
-  generated as Automator `.workflow` bundles. Items are named for **what the operator
+  generated as Automator `.workflow` bundles. The two "Fix" actions **enqueue and return**
+  (`media-enqueue`) rather than doing the work — see `media-queue.nix` above; Extract Audio
+  stays synchronous because extracting one track is seconds and a queue would add only a
+  notification and a round trip through launchd. Items are named for **what the operator
   selected, not for the defect** — someone whose photo has no thumbnail does not know their
   `.png` is really a JPEG, and a menu of diagnoses ("Fix Google Video", "Fix File Extension")
   asks them to diagnose it first, which is the one thing they came unable to do. `fix-media`
@@ -693,6 +720,34 @@ Smaller, single-purpose CLIs:
   extension (which conforms to `public.image`), so it does reach the menu, and a folder makes
   a whole export one right-click. `public.data` is deliberately absent: it would put the item
   on the menu for literally every file.
+- **`media-queue.nix`** — the durable Finder→launchd work queue: `media-enqueue` (what the
+  Services call; writes job files and returns), `media-worker` (the launchd job that drains
+  it) and `media-queue-status` (the SwiftBar plugin). **Why a queue at all:** re-encoding two
+  hundred videos is hours of ffmpeg, and doing that inside the Automator Service means the
+  work dies at logout, cannot be cancelled, reports nothing until it ends, and fights the
+  user's foreground apps for CPU. **Almost none of it is ours** — the queue, load control,
+  retry, recovery and log are launchd keys (see `modules/shared/media-queue.nix`); what is
+  left here is what a job *is* and what to do with one that fails. **One file per job**, not
+  one job per selection: it costs a process per file and buys per-file progress (progress is
+  just the queue depth), per-file retry and cancellation, and isolation so one hopeless file
+  cannot drag its neighbours down. A **directory** argument stays a single job — expanding it
+  at enqueue time would put a recursive walk inside the Finder click. Jobs land in the queue
+  by **rename from a sibling staging directory**, never written in place, because launchd
+  starts the worker the moment the directory is non-empty and would otherwise catch a
+  half-written job. A failed job is requeued with a **fresh timestamp** so it goes to the back
+  (jobs are picked oldest-first by the epoch in their name, so reusing the old stamp hands the
+  same failing file straight back and spins); after three attempts it moves to `failed/`, the
+  standard dead-letter shape. Three layers of **crash recovery**, all verified by killing a
+  live worker: SIGTERM kills the **process group** (`set -m` + `kill -TERM -$child`) so the
+  grandchild ffmpeg dies too and `fix-google-video`'s own trap removes the partial encode —
+  killing only the direct child orphans an encode that keeps burning CPU; the job is requeued;
+  and because a SIGKILLed worker can run no trap at all, the lock directory carries the
+  holder's **pid** and the in-flight job is named `running-<pid>.job`, so the next worker
+  breaks a stale lock and recovers the orphan instead of the queue wedging permanently. The
+  work is backgrounded and `wait`ed on rather than run as `out=$(…)`, because **bash defers a
+  trap until the foreground child returns** — a synchronous call would ignore SIGTERM for the
+  length of an encode and be SIGKILLed instead. The status plugin prints **nothing** when the
+  queue is idle, which is how SwiftBar is told to show no menu-bar item at all.
 - **`media-toolkit.nix`** — `symlinkJoin` bundling the media-file CLIs below
   (`fix-google-video` + `extract-audio` + `fix-extension` + `fix-media`) as ONE entry for
   `home.packages`, so the set
