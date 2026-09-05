@@ -33,9 +33,6 @@
   # Fleet operator ed25519 PUBLIC key (secrets/operator-key.nix) — single source
   # for authorizedKeys + agenix recipient + git SSH allowed_signers principal.
   operatorSshKey,
-  # nix-tart-macos input source path — the macvm-tart veneer's tartVmSrc
-  # (macvmTartStart below).
-  nix-tart-macos,
   # Source-only flake inputs holding Claude Code skills (see programs.claude-code
   # below). flake.nix pins them; nothing is vendored into this repo.
   agent-skills-vercel,
@@ -70,7 +67,7 @@
 }:
 let
   # Real client Mac vs Tart sandbox (hosts/*/networking.hostName). Used to keep
-  # heavy darwin-only agents (RAG stack, MCP public tunnel extras) off macvm.
+  # heavy darwin-only agents (RAG stack, MCP public tunnel extras) off any sandbox host.
   isMacosHost = (osConfig.networking.hostName or "") == "macos";
 
   # android-commandlinetools Homebrew cask install prefix — single source for
@@ -84,7 +81,7 @@ let
   # coding-focused subset: a local qwen3-coder model degrades when handed too many
   # tools, so the GUI/automation/external-state servers (mobile-mcp,
   # macos-automator, cloudflare*) are left out — add a name here to
-  # expose more. macos-only (the gateway runs only there; macvm trims it off), so
+  # expose more. macos-only (the gateway runs only there), so
   # the mcpServers block is gated on isMacosHost below.
   qwenGatewayServers = [
     "context7"
@@ -252,7 +249,6 @@ let
   # `mermaid-ascii` — render Mermaid graphs as ASCII in the terminal. Packaged from
   # upstream (not in nixpkgs); see packages/mermaid-ascii.nix.
   mermaidAscii = pkgs.callPackage ../../packages/mermaid-ascii.nix { };
-  vpn = pkgs.callPackage ../../packages/vpn.nix { };
   androidPhone = pkgs.callPackage ../../packages/android-phone.nix { };
 
   # `jsonresume <download|print>` — fetch a JSON Resume and render it to PDF via the
@@ -427,20 +423,7 @@ let
     '';
   };
 
-  # `macvm-tart-start` on PATH (macos host only, below) — needed as a stable
-  # command the Spotlight launcher app can invoke without `cd`-ing into the
-  # flake. tart is unfree but nixpkgs.config.allowUnfree = true is already set
-  # on the macos darwin host (hosts/macos.nix) and shared into this pkgs via
-  # useGlobalPkgs, so no separate pkgsUnfree import is needed here (contrast
-  # flake.nix's packages.*.macvm-tart-* wiring, built outside useGlobalPkgs).
-  macvmTartStart =
-    (pkgs.callPackage ../../packages/macvm-tart.nix {
-      tartVmSrc = nix-tart-macos;
-      loginName = config.home.username;
-      inherit fullName;
-    }).macvm-tart-start;
-
-  # "Focus-or-launch" Spotlight .app bundles for the Android emulator + macvm
+  # "Focus-or-launch" Spotlight .app bundle for the Android emulator
   # (macos host only, below) — see packages/spotlight-launchers.nix.
   spotlightLaunchers = pkgs.callPackage ../../packages/spotlight-launchers.nix { };
 
@@ -453,10 +436,10 @@ in
   imports = [
     # Finder right-click → Services for the media-toolkit CLIs. **macos ONLY.**
     # Previously installed on both darwin hosts on the theory that everything
-    # here is nixpkgs-side and cheap regardless of macvm's leaner Homebrew set
+    # here is nixpkgs-side and cheap regardless of a guest's leaner Homebrew set
     # — MEASURED wrong: the closure (ffmpeg, exiftool, auge, rclip's OpenCLIP
     # model) is too much for the Tart sandbox's disk. Pulled to macos-only;
-    # macvm gets neither the CLIs nor the menu now.
+    # a sandbox guest gets neither the CLIs nor the menu.
     #
     # An INLINE
     # MODULE so this merges with the `home.file."x"` entries defined elsewhere
@@ -501,7 +484,7 @@ in
     }
     ./hm-launchd # patched home-manager launchd (nix-* ProgramArguments)
     ./mcp.nix # darwin-gated MCP server registry for Claude Code
-    ./desktop-aesthetics.nix # Terminal.app 16pt (all darwin) + wallpaper (opt-out; macvm opts out)
+    ./desktop-aesthetics.nix # Terminal.app 16pt (all darwin) + wallpaper (opt-out)
     ./wireguard-configs.nix # operator-managed WG confs → ~/.config/wireguard (no autostart)
     ./claude-otel.nix # local OTel Collector for Claude Code's routing-decision telemetry (macos only)
     ./chromium.nix # ungoogled-chromium (Homebrew cask) config: sideloaded iCloud Passwords + its native host
@@ -509,7 +492,7 @@ in
     # Local-first RAG stack (loopback launchd Postgres+pgvector + Ollama + in-DB
     # embed()), from the extracted flake (github:kattakath/nix-local-rag).
     # Both modules are internally gated on (enable && isDarwin) — a clean no-op on
-    # the NixOS hosts. Enabled only on the real Mac host below (not macvm).
+    # the NixOS hosts. Enabled only on the real Mac host below.
     local-rag.homeManagerModules.default
     # macOS login-Keychain `secret` CLI + every-shell loader — the extracted flake
     # (github:kattakath/nix-keychain-secrets), installed via its HM module below.
@@ -522,7 +505,7 @@ in
     # in the private layer would be dropped by the activation it defends against.
     ./claude-bedrock-gate.nix
   ]
-  # media-queue.nix — macos ONLY, not macvm. Its own header is darwin-gated,
+  # media-queue.nix — macos ONLY. Its own header is darwin-gated,
   # not host-gated, so excluding it here (rather than inside that file) keeps
   # the "which hosts get the media stack" decision in ONE place, alongside
   # mediaServices/home.packages above and below — see that comment for why.
@@ -553,13 +536,13 @@ in
   };
 
   # WireGuard confs: sync ~/.local/share/wireguard-configs → ~/.config/wireguard
-  # on macos + macvm. Confs stay outside git (private keys). Copy-only — it NEVER
+  # on darwin. Confs stay outside git (private keys). Copy-only — it NEVER
   # runs wg-quick / starts a tunnel. On macos (GUI-only, no CLI) these are there
-  # to IMPORT into WireGuard.app; on macvm the CLI `vpn` operator uses them.
+  # to IMPORT into WireGuard.app; no shell can raise a tunnel (hosts/macos.nix).
   local.wireguardConfigs.enable = pkgs.stdenv.isDarwin;
 
   # RAG stack (Ollama + pgvector) backs the postgres MCP server — real Mac only.
-  # macvm is a lean sandbox; no need for embed/DB launchd agents there.
+
   services.ollamaLocal.enable = isMacosHost;
 
   # ONE INFERENCE AT A TIME, enforced at the SERVER. `OLLAMA_NUM_PARALLEL` is read
@@ -604,14 +587,14 @@ in
   };
   services.pgvectorLocal.enable = isMacosHost;
 
-  # Claude Code routing telemetry collector — real Mac only (keeps macvm lean,
-  # same gate as the RAG stack above). See modules/shared/claude-otel.nix and
+  # Claude Code routing telemetry collector — real Mac only (same gate
+  # as the RAG stack above). See modules/shared/claude-otel.nix and
   # the programs.claude-code.settings.env block below that points Claude Code
   # at it.
   services.claudeOtel.enable = isMacosHost;
 
   # ungoogled-chromium's declarative surface — real Mac only, since only
-  # hosts/macos.nix declares the cask (macvm keeps a lean Homebrew list). Writes
+  # hosts/macos.nix declares the cask. Writes
   # the External Extensions + NativeMessagingHosts files that make the sideloaded
   # iCloud Passwords extension talk to macOS Passwords.app; see chromium.nix.
   programs.ungoogledChromium.enable = isMacosHost;
@@ -625,20 +608,15 @@ in
     google-photos-icon-nav = ../../userscripts/google-photos-icon-nav.user.js;
   };
 
-  # Spotlight-launchable "Android Emulator" + "Mac VM" — click (or re-click)
-  # like any normal app: launches if not running, brings the existing window
-  # frontmost if it is. Real Mac only — pointless on macvm itself (no Android
-  # emulator, and it can't control its own Tart host). Symlinked into
-  # ~/Applications, which Spotlight indexes; see packages/spotlight-launchers.nix.
-  # First launch of each will prompt a one-time Automation permission ("wants
-  # to control System Events") — approve it in System Settings > Privacy &
-  # Security > Automation.
+  # Spotlight-launchable "Android Emulator" — click (or re-click) like any
+  # normal app: launches if not running, brings the existing window frontmost
+  # if it is. Real Mac only. Symlinked into ~/Applications, which Spotlight
+  # indexes; see packages/spotlight-launchers.nix. First launch prompts a
+  # one-time Automation permission ("wants to control System Events") —
+  # approve it in System Settings > Privacy & Security > Automation.
+  # (The "Mac VM" launcher left with the macvm host, 2026-09-05.)
   home.file."Applications/Android Emulator.app" = lib.mkIf isMacosHost {
     source = spotlightLaunchers.androidEmulatorApp;
-    recursive = true;
-  };
-  home.file."Applications/Mac VM.app" = lib.mkIf isMacosHost {
-    source = spotlightLaunchers.macvmApp;
     recursive = true;
   };
 
@@ -719,20 +697,13 @@ in
       pandoc # Universal doc converter — nixpkgs-native on aarch64-darwin (no Homebrew needed); backs the docx/pptx/xlsx skills' `pandoc` dependency (see programs.claude-code.skills NOTE below)
       poppler-utils # pdftoppm/pdftotext/pdfimages CLI — NOT `poppler` (that's the glib-bindings library, no binaries); moved here from the macos Homebrew `poppler` formula (nixpkgs is the single source per modules/darwin/homebrew.nix's dedup comment); backs the pdf/docx/pptx skills
     ]
-    # WireGuard `vpn` operator — macvm ONLY (it has no App Store, so the CLI is
-    # its only option). macos is GUI-only and ships no VPN CLI on purpose — see
-    # the rationale on the dropped wireguard-tools brew in hosts/macos.nix.
-    ++ lib.optionals (stdenv.isDarwin && !isMacosHost) [
-      vpn # `vpn list|status|up|down|switch` — WireGuard operator for ~/.config/wireguard (packages/vpn.nix)
-    ]
-    # macvm-tart-start on PATH — real Mac (Tart host) only. The Spotlight
-    # "macvm" launcher above calls this by bare name; also handy directly
-    # (nix run .#macvm-tart-* still covers the rest of the kit).
+    # (The macvm-only `vpn` operator and macvm-tart-start left with the macvm
+    # host, 2026-09-05 — docs/macvm-readd-runbook.md. macos remains GUI-only
+    # for WireGuard on purpose; see hosts/macos.nix.)
     ++ lib.optionals isMacosHost [
-      macvmTartStart
       androidPhone # `android-phone list|pair|connect|disconnect|unpair|tcpip|wireless|mirror|doctor` — deterministic ADB wired/wireless operator + scrcpy mirroring for a PHYSICAL device (packages/android-phone.nix); unrelated to `android-emu` (virtual emulator, below)
     ]
-    # The media/photo-retrieval stack — macos ONLY, not macvm. Same "too big for
+    # The media/photo-retrieval stack — macos ONLY. Same "too big for
     # the Tart sandbox's disk" call as media-queue.nix above (ffmpeg, exiftool,
     # auge, rclip's OpenCLIP model).
     ++ lib.optionals isMacosHost [
@@ -811,7 +782,7 @@ in
     # from every host, and rendering was the only thing it was still load-bearing for.
     # Verified 2026-08-31 — puppeteer launched this binary (reports Chrome/152.0.7977.64)
     # and `page.pdf()` returned a valid `%PDF-` document. That cask is macos-only
-    # (`isMacosHost` below), so on macvm this path does not exist and the var is inert
+    # (`isMacosHost` below), so off the real Mac this path does not exist and the var is inert
     # until a browser is declared there; the JSON Resume npm globals live on macos.
     # Harmless for other puppeteer tools (they get the same browser); Remotion is
     # unaffected — it resolves its own browser, not these vars. The resume THEME
@@ -844,7 +815,7 @@ in
   # on this Mac (the sole Claude Code client host). Declarative equivalent of hand-writing
   # ~/.claude/CLAUDE.md; the strict "decisions/confirmations = AskUserQuestion options"
   # rule + reuse-over-rebuild preference live here so they apply everywhere, not just in
-  # this repo. Darwin-only (claude-code runs on both darwin hosts, macos + macvm).
+  # this repo. Darwin-only.
   home.file.".claude/CLAUDE.md" = lib.mkIf pkgs.stdenv.isDarwin {
     source = ../../claude/CLAUDE.md;
   };
@@ -903,7 +874,7 @@ in
   # file-edit snapshots (safe autonomous edits, `/restore`); toolSearch on =
   # retrieval over the tool surface (tames tool count for the local model);
   # approvalMode "default" = ask before each edit/shell. mcpServers reuses the
-  # gateway (curated `qwenMcpServers`), macos-only. Darwin-wide otherwise so macvm
+  # gateway (curated `qwenMcpServers`), macos-only. Darwin-wide otherwise so a guest
   # still gets a sane config (minus MCP, since its gateway is off).
   home.file.".qwen/settings.json" = lib.mkIf pkgs.stdenv.isDarwin {
     text = builtins.toJSON (
@@ -980,7 +951,7 @@ in
         # Collector defined in modules/shared/claude-otel.nix, read by
         # /routing-review to find deterministic-vs-model-judgment hardening
         # candidates. isMacosHost-gated (services.claudeOtel.enable above) —
-        # unset on macvm, so this block is empty there and Claude Code's
+        # unset off the real Mac, so this block is empty there and Claude Code's
         # telemetry stays off by default.
         env = lib.mkIf isMacosHost {
           CLAUDE_CODE_ENABLE_TELEMETRY = "1";
@@ -1033,7 +1004,7 @@ in
         # (hosts/macos.nix) since nixpkgs libreoffice-bin cannot reliably block on
         # headless --convert-to. qpdf and the skills' own pip/npm deps (pypdf,
         # openpyxl, docx, pptxgenjs, …) remain undeclared/ambient — a separate,
-        # larger follow-up. macvm inherits this same skills block (gated on
+        # larger follow-up. Any darwin host inherits this same skills block (gated on
         # stdenv.isDarwin, not hostName == "macos") but does NOT get the libreoffice
         # cask — soffice is absent there; a known, accepted asymmetry for now.
         pdf = "${agent-skills-anthropic-official}/skills/pdf";
@@ -1242,15 +1213,6 @@ in
           User = config.home.username;
           IdentityFile = operatorPrivateKey;
           ForwardAgent = true;
-        };
-
-        # Tart macvm guest. Prefer `nix run .#macvm-tart-ssh` (IP discovery).
-        # This Host is for a fixed HostName / macvm.local; user is always ismail.
-        "macvm" = {
-          User = "ismail";
-          IdentityFile = operatorPrivateKey;
-          ForwardAgent = true;
-          StrictHostKeyChecking = "accept-new";
         };
 
         # nixpi over the Cloudflare Tunnel — the ONLY way to reach the Pi when the
@@ -1463,8 +1425,8 @@ in
         # ---- Shell integration ------------------------------------------------
         # `ssh-env` and `ssh-terminfo` are the load-bearing pair for this fleet:
         # without them a remote host meets an unknown `xterm-ghostty` and garbles
-        # every full-screen program, which matters because nixpi and macvm are
-        # both reached over ssh.
+        # every full-screen program, which matters because nixpi is
+        # reached over ssh.
         shell-integration-features = "cursor,title,sudo,ssh-env,ssh-terminfo";
 
         # Only when Ghostty is not focused — useful for a long build, silent

@@ -3,7 +3,7 @@
 # nix-homebrew (./nix-homebrew.nix) installs brew itself; this module owns only
 # HOW Homebrew is configured — `enable`, `onActivation` (lean cleanup), and
 # `taps`. The concrete WHICH-apps lists (`brews`/`casks`/`masApps`) are set
-# PER HOST in hosts/<host>.nix, so each darwin host (macos, macvm, …) can carry
+# PER HOST in hosts/<host>.nix, so each darwin host can carry
 # a different app set while sharing this framework. (Nix list options merge, so
 # lists could never *differ* if they lived here — only grow.)
 #
@@ -52,7 +52,7 @@ _:
     #
     # Workable only because nix-homebrew sets mutableTaps = true (./nix-homebrew.nix)
     # — otherwise a tap must be pinned as a flake input. Framework-level per this
-    # file's ownership split, so macvm gets the tap too but not the cask (its
+    # file's ownership split — any future darwin host gets the tap but not the cask (its
     # casks list is its own); a tap with nothing installed from it is inert.
     #
     # A THIRD requirement, and the one that actually broke first: Homebrew 6.0.0
@@ -75,8 +75,8 @@ _:
     ];
 
     # ---- brews / casks / masApps ------------------------------------------
-    # Set per host in hosts/<host>.nix (e.g. hosts/macos.nix, hosts/macvm.nix).
-    # masApps: **macos only** — macvm has no Apple ID / App Store login, so any
-    # MAS install fails activation there. Keep hosts/macvm.nix masApps = { }.
+    # Set per host in hosts/<host>.nix (e.g. hosts/macos.nix).
+    # masApps: **macos only** — a GUI-less/sandbox host has no App Store login, so any
+    # MAS install fails activation there.
   };
 }

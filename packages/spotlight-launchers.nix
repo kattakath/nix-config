@@ -1,10 +1,9 @@
 # "Focus-or-launch" Spotlight app bundles (macOS host only).
 #
 # The Android emulator (a bare qemu-system-aarch64 GUI process, see
-# modules/shared/home.nix's `android-emu`) and macvm (a Tart-run window, see
-# packages/macvm-tart.nix's `macvm-tart-start`) have no .app of their own, so
-# Spotlight can't find them and re-launching either one spawns a duplicate
-# instead of refocusing the existing window like a normal macOS app would.
+# modules/shared/home.nix's `android-emu`) has no .app of its own, so
+# Spotlight can't find it and re-launching spawns a duplicate instead of
+# refocusing the existing window like a normal macOS app would.
 #
 # Each bundle here wraps a tiny launcher script: ask System Events whether a
 # matching process is already running — if so, bring it frontmost; if not,
@@ -35,20 +34,6 @@ let
       <path d="M 320 560 A 192 192 0 0 1 704 560 L 704 660 A 40 40 0 0 1 664 700 L 360 700 A 40 40 0 0 1 320 660 Z" fill="#FFFFFF"/>
       <circle cx="430" cy="565" r="30" fill="#3DDC84"/>
       <circle cx="594" cy="565" r="30" fill="#3DDC84"/>
-    </svg>
-  '';
-
-  # Nested-screen ("window inside a window") glyph on macOS system blue —
-  # a monitor + stand with a smaller inset display standing in for
-  # virtualization (a computer running inside a computer).
-  macvmIconSvg = ''
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-      <rect width="1024" height="1024" fill="#0A84FF"/>
-      <rect x="180" y="260" width="664" height="430" rx="44" fill="#FFFFFF"/>
-      <rect x="472" y="690" width="80" height="70" fill="#FFFFFF"/>
-      <rect x="382" y="748" width="260" height="34" rx="17" fill="#FFFFFF"/>
-      <rect x="336" y="378" width="352" height="222" rx="26" fill="#0A84FF"/>
-      <rect x="392" y="418" width="240" height="142" rx="16" fill="#FFFFFF"/>
     </svg>
   '';
 
@@ -172,12 +157,5 @@ in
     launchCommand = "android-emu";
     iconSvg = androidIconSvg;
   };
-
-  macvmApp = mkLauncherApp {
-    name = "Mac VM";
-    bundleId = "com.kattakath.macvm-tart";
-    processMatch = "tart";
-    launchCommand = "macvm-tart-start";
-    iconSvg = macvmIconSvg;
-  };
+  # (The "Mac VM" launcher left with the macvm host, 2026-09-05.)
 }
