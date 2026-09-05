@@ -17,7 +17,28 @@ Two layers — do not conflate:
 - Operator SSH key at `~/.ssh/id_ed25519` (authorized on the guest after `#macvm` activate).
 - Run all `macvm-tart-*` apps on the **host**, not in the guest.
 
-## Greenfield path (ordered)
+## Plug-and-play path (2026-09-05, via the extracted `nix-tart-macos` flake)
+
+Zero GUI clicks after image acquisition; identity injects at bootstrap (the image is
+operator-neutral — any fork's `identityArgs` works the same way):
+
+```bash
+# once per macOS release — golden image from Apple's IPSW, Setup Assistant automated
+# by Packer (trusted path; ~45 min unattended). Alternative: macvm-tart-pull with a
+# digest-pinned cirruslabs registry image (fast, third-party trust).
+nix run .#macvm-tart-bake
+
+nix run .#macvm-tart-start
+nix run .#macvm-tart-bootstrap   # creates ismail (+Secure Token), Determinate Nix,
+                                 # activates github:kattakath/nix-config#macvm,
+                                 # rotates the password (printed ONCE — store it)
+```
+
+`macvm-tart-doctor` afterward must exit 0. The legacy manual path below still works
+and remains the fallback when a new macOS release breaks the vendored Packer
+template (refresh procedure: nix-tart-macos README).
+
+## Legacy greenfield path (manual Setup Assistant, ordered)
 
 ### 1. Create from Apple IPSW
 
