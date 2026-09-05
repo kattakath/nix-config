@@ -125,7 +125,9 @@ One line per path; the *why* and the per-file specifics are in
 [`pr-title.md`](.claude/rules/pr-title.md) (PR title = comma-separated touched components;
 one PR per change, off `main`),
 [`launchd-naming.md`](.claude/rules/launchd-naming.md) (every launchd unit this repo authors
-exposes a `nix-<kebab>` `arg0` — never a bare `sh`/`python3`).
+exposes a `nix-<kebab>` `arg0` — never a bare `sh`/`python3`),
+[`upstream-first.md`](.claude/rules/upstream-first.md) (grep the **pinned** input's option
+surface before writing custom Nix, and cite the result).
 
 **Hooks** (`.claude/hooks/`): `stop-gate.js` + `pretooluse-bash-guard.js` (both wrapped by
 `superhook.js`), the `*-digest.js` SessionStart nudges, `memory-loader.js`,
