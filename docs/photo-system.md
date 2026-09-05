@@ -109,6 +109,11 @@ pgrep -afl curl | grep 11434
 
 # live progress of the current queue job
 tail -f ~/Library/Logs/nix-media-queue.log
+
+# top/htop-style live dashboard of the whole queue (running/queued/failed),
+# refreshed every 2s with changed lines highlighted — media-queue-status,
+# wrapped in nixpkgs' viddy (a "modern watch"); press q to quit
+media-queue-top
 ```
 
 ## Optional nicety
