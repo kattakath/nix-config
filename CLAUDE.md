@@ -309,6 +309,9 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   Kinocut+HyperFrames (terranix `infra/hyperframes/stack.nix`; `hf-export`/`hf-apply`/`hf-doctor`),
   with its [test plan](docs/hyperframes-selfhost-test-plan.md) and
   [publish notes](docs/hyperframes-selfhost-publish.md).
+- [`docs/photo-system.md`](docs/photo-system.md) — the photo retrieval system end to end: what
+  `photo-describe` writes into a file, what `rclip` keeps beside the folder, and how to search
+  each. The durable/derived split in one page.
 - [`docs/claude-desktop-instructions.md`](docs/claude-desktop-instructions.md) — the one Claude
   behaviour this repo can't manage declaratively (account-level Desktop instructions) + the
   canonical "diagrams as ASCII" wording.
