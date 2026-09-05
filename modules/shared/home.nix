@@ -1325,8 +1325,14 @@ in
         macos-titlebar-style = "tabs";
         window-padding-x = 8;
         window-padding-y = 8;
-        background-opacity = 0.95;
-        background-blur = true;
+        # OPAQUE, deliberately. Translucency was chosen while the ground was a
+        # theme colour, where it was decoration. It stopped being decoration the
+        # moment the ground became a specific value: at 0.95 the window does not
+        # show #24081B, it shows 95% of it composited over whatever is behind,
+        # so the one colour carried over from the old Ubuntu profile is the one
+        # thing translucency dilutes.
+        background-opacity = 1.0;
+        background-blur = false;
 
         # ---- Input -----------------------------------------------------------
         # Option must send Alt, or every readline word-motion in zsh is dead.
