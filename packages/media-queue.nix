@@ -298,9 +298,13 @@ symlinkJoin {
 
           d=$(printf '%s\n' "$out" | grep -c ': done:' || true)
           s=$(printf '%s\n' "$out" | grep -cE ': (skip|OK):' || true)
-          changed=$((changed + d))
-          skipped=$((skipped + s))
-          jobs=$((jobs + 1))
+          # Counted ONCE PER JOB, not once per ATTEMPT. This loop retries a
+          # failing job up to MAX_TRIES, and accumulating here meant a file that
+          # succeeded on its third try was reported three times — "12 change(s)"
+          # for four photos. Hold this attempt's numbers and fold them in only
+          # when the job reaches a terminal outcome below.
+          job_d=$d
+          job_s=$s
 
           # Keep the FIRST reason a job declined to do anything, so a batch that
           # changed nothing can say why instead of just how many. The CLIs
@@ -320,10 +324,19 @@ symlinkJoin {
               | sed -E "s/^[^:]*: (skip|OK): '[^']*' *//; s/^(—|-) *//" || true)
           fi
 
+          # TERMINAL OUTCOMES fold the attempt's counts in; a requeue does not,
+          # so a file that succeeds on attempt three is counted once, not three
+          # times.
           if [ "$rc" -eq 0 ]; then
+            changed=$((changed + job_d))
+            skipped=$((skipped + job_s))
+            jobs=$((jobs + 1))
             rm -f "$running"
           elif [ "$tries" -ge "$MAX_TRIES" ]; then
             log "giving up on '$path' after $tries attempts"
+            changed=$((changed + job_d))
+            skipped=$((skipped + job_s))
+            jobs=$((jobs + 1))
             mv "$running" "$FAILED/$base" 2>/dev/null || rm -f "$running"
             failures=$((failures + 1))
           else
