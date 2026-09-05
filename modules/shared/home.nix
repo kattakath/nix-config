@@ -1334,7 +1334,11 @@ in
         # operator reaches for out of iTerm2 habit. Bindings for the bracket keys
         # were left out rather than guess at their key names.
         keybind = [
-          "global:cmd+grave=toggle_quick_terminal"
+          # `backquote`, NOT `grave` — measured: `ghostty +validate-config`
+          # rejects the latter with `keybind: unknown error error.InvalidFormat`,
+          # and the error names only "keybind", never which one, so a whole
+          # config is invalidated by a single wrong key name.
+          "global:cmd+backquote=toggle_quick_terminal"
           "cmd+d=new_split:right"
           "cmd+shift+d=new_split:down"
         ];
