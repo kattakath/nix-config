@@ -6,6 +6,7 @@
 #   media-queue-pause                                  freeze the in-flight job
 #   media-queue-resume                                 unfreeze it
 #   media-queue-status                                 what's running/queued/failed
+#   media-queue-top                                     media-queue-status, refreshed live (viddy)
 #   media-queue-power-monitor                          launchd StartInterval only, not for interactive use
 #
 # WHY A QUEUE AT ALL. Re-encoding two hundred videos is hours of ffmpeg. Doing
@@ -116,6 +117,7 @@
   coreutils,
   findutils,
   util-linuxMinimal,
+  viddy,
   media-toolkit ? callPackage ./media-toolkit.nix { },
 }:
 let
@@ -174,6 +176,111 @@ let
     }
 
   '';
+
+  # Named (not inlined in `paths` below) so media-queue-top can put it on
+  # its own runtimeInputs and call it by name — the same explicit-dependency
+  # style media-worker already uses for media-toolkit, rather than relying
+  # on it happening to already be on $PATH.
+  media-queue-status = writeShellApplication {
+    name = "media-queue-status";
+    runtimeInputs = [
+      coreutils
+      findutils
+    ];
+    text = ''
+      ${common}
+      prog=media-queue-status
+      [ $# -eq 0 ] || { echo "usage: $prog" >&2; exit 1; }
+      ensure_dirs
+
+      pending_high=$(find "$QUEUE_HIGH" -maxdepth 1 -name '*.job' -type f 2>/dev/null | wc -l | tr -d ' ')
+      pending=$(find "$QUEUE" -maxdepth 1 -name '*.job' -type f 2>/dev/null | wc -l | tr -d ' ')
+      pending_low=$(find "$QUEUE_LOW" -maxdepth 1 -name '*.job' -type f 2>/dev/null | wc -l | tr -d ' ')
+      backoff=$(find "$STAGE" -maxdepth 1 -name '*-retry.t*.job' -type f 2>/dev/null | wc -l | tr -d ' ')
+      dead=$(find "$FAILED" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')
+
+      any_running=0
+      for running in "$STATE"/running-*.job; do
+        [ -e "$running" ] || continue
+        wpid=''${running##*/running-}
+        wpid=''${wpid%%.job}
+
+        items=()
+        while IFS= read -r -d "" x; do items+=("$x"); done < "$running"
+        class=''${items[0]:-unknown}
+        path=''${items[1]:-unknown}
+        # THE JOB'S REAL PID — media-worker's own MAINPID-style record,
+        # written right after forking it, independent of whether ITS
+        # worker is still alive. That decoupling is what makes an
+        # orphaned-but-alive job (its worker already dead) visible here
+        # at all: it no longer needs a live `$wpid` to be found.
+        jpid=''${items[2]:-}
+
+        if [ -z "$jpid" ] || ! kill -0 "$jpid" 2>/dev/null; then
+          # No recorded pid (a pre-upgrade job file) or it is genuinely
+          # dead either way: the next worker's own orphan-recovery loop
+          # reclaims this — see media-worker — so it is transient, not a
+          # bug, and reported ONLY when there is truly no live worker
+          # left to reclaim it on its own.
+          if [ -z "$wpid" ] || ! kill -0 "$wpid" 2>/dev/null; then
+            echo "$prog: stale marker $(basename "$running") — will self-heal on next worker start"
+          fi
+          continue
+        fi
+
+        any_running=1
+        if [ -n "$wpid" ] && kill -0 "$wpid" 2>/dev/null; then
+          owner="worker $wpid"
+        else
+          owner="ORPHANED — no live worker, will be adopted on next worker start"
+        fi
+        # NOT the attempt number: media-worker renames the job to
+        # running-$$.job the moment it dequeues it, which drops the
+        # original `.tN` suffix that carried the attempt count. That
+        # number exists only in the worker's own `log "start ... (attempt
+        # N)"` line, not in any state this tool can read without coupling
+        # to the log's format — so it is left out rather than guessed.
+        state=$(/bin/ps -o stat= -p "$jpid" 2>/dev/null | tr -d ' ')
+        case "$state" in
+          T*)
+            # The marker is media-queue-power-monitor's own trail:
+            # present only for a pause IT made, never for one the
+            # operator made by hand with media-queue-pause.
+            if [ -f "$STATE/power-paused-$jpid" ]; then
+              label="PAUSED (Low Power Mode, auto)"
+            else
+              label="PAUSED (SIGSTOP, manual)"
+            fi
+            ;;
+          "") label="gone" ;;
+          *)  label="running" ;;
+        esac
+        echo "$prog: $class '$path' — $label, pid $jpid ($owner)"
+
+        # The scratch file is a bare mktemp with no name this tool ever
+        # recorded — media-worker's own choice, on purpose (see its
+        # comment on `scratch=$(mktemp)`), so the only way to find it
+        # after the fact is the same place the kernel keeps it: the job's
+        # own open stdout fd. `-Fn` gives just the name field, one write
+        # NUL-free line, which survives a path full of spaces.
+        scratch=$(/usr/sbin/lsof -a -p "$jpid" -d 1 -Fn 2>/dev/null | sed -n 's/^n//p' | head -n1)
+        if [ -n "$scratch" ] && [ -f "$scratch" ]; then
+          d=$(grep -c ': done:' "$scratch" 2>/dev/null || true)
+          sk=$(grep -cE ': (skip|OK):' "$scratch" 2>/dev/null || true)
+          er=$(grep -c ': error:' "$scratch" 2>/dev/null || true)
+          last=$(tail -n1 "$scratch" 2>/dev/null || true)
+          echo "$prog:   progress so far: $((d + sk + er)) processed ($d done, $sk skip/OK, $er error)"
+          [ -n "$last" ] && echo "$prog:   last: $last"
+        fi
+      done
+
+      if [ "$any_running" -eq 0 ]; then
+        echo "$prog: worker idle — nothing in flight"
+      fi
+
+      echo "$prog: queue: $pending_high high, $pending normal, $pending_low low pending, $backoff backing off (retry), $dead dead-letter (failed/)"
+    '';
+  };
 in
 symlinkJoin {
   name = "media-queue";
@@ -875,104 +982,31 @@ symlinkJoin {
       '';
     })
 
+    media-queue-status
+
     (writeShellApplication {
-      name = "media-queue-status";
+      name = "media-queue-top";
       runtimeInputs = [
-        coreutils
-        findutils
+        viddy
+        media-queue-status
       ];
       text = ''
-        ${common}
-        prog=media-queue-status
+        prog=media-queue-top
         [ $# -eq 0 ] || { echo "usage: $prog" >&2; exit 1; }
-        ensure_dirs
-
-        pending_high=$(find "$QUEUE_HIGH" -maxdepth 1 -name '*.job' -type f 2>/dev/null | wc -l | tr -d ' ')
-        pending=$(find "$QUEUE" -maxdepth 1 -name '*.job' -type f 2>/dev/null | wc -l | tr -d ' ')
-        pending_low=$(find "$QUEUE_LOW" -maxdepth 1 -name '*.job' -type f 2>/dev/null | wc -l | tr -d ' ')
-        backoff=$(find "$STAGE" -maxdepth 1 -name '*-retry.t*.job' -type f 2>/dev/null | wc -l | tr -d ' ')
-        dead=$(find "$FAILED" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')
-
-        any_running=0
-        for running in "$STATE"/running-*.job; do
-          [ -e "$running" ] || continue
-          wpid=''${running##*/running-}
-          wpid=''${wpid%%.job}
-
-          items=()
-          while IFS= read -r -d "" x; do items+=("$x"); done < "$running"
-          class=''${items[0]:-unknown}
-          path=''${items[1]:-unknown}
-          # THE JOB'S REAL PID — media-worker's own MAINPID-style record,
-          # written right after forking it, independent of whether ITS
-          # worker is still alive. That decoupling is what makes an
-          # orphaned-but-alive job (its worker already dead) visible here
-          # at all: it no longer needs a live `$wpid` to be found.
-          jpid=''${items[2]:-}
-
-          if [ -z "$jpid" ] || ! kill -0 "$jpid" 2>/dev/null; then
-            # No recorded pid (a pre-upgrade job file) or it is genuinely
-            # dead either way: the next worker's own orphan-recovery loop
-            # reclaims this — see media-worker — so it is transient, not a
-            # bug, and reported ONLY when there is truly no live worker
-            # left to reclaim it on its own.
-            if [ -z "$wpid" ] || ! kill -0 "$wpid" 2>/dev/null; then
-              echo "$prog: stale marker $(basename "$running") — will self-heal on next worker start"
-            fi
-            continue
-          fi
-
-          any_running=1
-          if [ -n "$wpid" ] && kill -0 "$wpid" 2>/dev/null; then
-            owner="worker $wpid"
-          else
-            owner="ORPHANED — no live worker, will be adopted on next worker start"
-          fi
-          # NOT the attempt number: media-worker renames the job to
-          # running-$$.job the moment it dequeues it, which drops the
-          # original `.tN` suffix that carried the attempt count. That
-          # number exists only in the worker's own `log "start ... (attempt
-          # N)"` line, not in any state this tool can read without coupling
-          # to the log's format — so it is left out rather than guessed.
-          state=$(/bin/ps -o stat= -p "$jpid" 2>/dev/null | tr -d ' ')
-          case "$state" in
-            T*)
-              # The marker is media-queue-power-monitor's own trail:
-              # present only for a pause IT made, never for one the
-              # operator made by hand with media-queue-pause.
-              if [ -f "$STATE/power-paused-$jpid" ]; then
-                label="PAUSED (Low Power Mode, auto)"
-              else
-                label="PAUSED (SIGSTOP, manual)"
-              fi
-              ;;
-            "") label="gone" ;;
-            *)  label="running" ;;
-          esac
-          echo "$prog: $class '$path' — $label, pid $jpid ($owner)"
-
-          # The scratch file is a bare mktemp with no name this tool ever
-          # recorded — media-worker's own choice, on purpose (see its
-          # comment on `scratch=$(mktemp)`), so the only way to find it
-          # after the fact is the same place the kernel keeps it: the job's
-          # own open stdout fd. `-Fn` gives just the name field, one write
-          # NUL-free line, which survives a path full of spaces.
-          scratch=$(/usr/sbin/lsof -a -p "$jpid" -d 1 -Fn 2>/dev/null | sed -n 's/^n//p' | head -n1)
-          if [ -n "$scratch" ] && [ -f "$scratch" ]; then
-            d=$(grep -c ': done:' "$scratch" 2>/dev/null || true)
-            sk=$(grep -cE ': (skip|OK):' "$scratch" 2>/dev/null || true)
-            er=$(grep -c ': error:' "$scratch" 2>/dev/null || true)
-            last=$(tail -n1 "$scratch" 2>/dev/null || true)
-            echo "$prog:   progress so far: $((d + sk + er)) processed ($d done, $sk skip/OK, $er error)"
-            [ -n "$last" ] && echo "$prog:   last: $last"
-          fi
-        done
-
-        if [ "$any_running" -eq 0 ]; then
-          echo "$prog: worker idle — nothing in flight"
-        fi
-
-        echo "$prog: queue: $pending_high high, $pending normal, $pending_low low pending, $backoff backing off (retry), $dead dead-letter (failed/)"
+        # REUSED, NOT REBUILT: an earlier draft of this polled the queue
+        # directories with `entr -dd` for instant, event-driven refresh
+        # instead of a fixed interval — measured (2026-09-05) that entr
+        # exits 1 ("No regular files to watch") the moment its file list is
+        # EMPTY, which is exactly the common "queue idle" state, so a
+        # wrapping restart loop would busy-spin at 100% CPU whenever
+        # nothing is queued. Handling that safely needs its own poll-with-
+        # backoff fallback — reinventing the interval loop `watch`/`viddy`
+        # already are. `viddy` (Rust, a "modern watch") instead: robust on
+        # an empty queue for free, plus diff-highlighting between ticks
+        # (`-d`) so a `done:`/`error:` line lighting up reads like top's
+        # own highlighted deltas, and its own pause/history keys — see
+        # `viddy --help`. No new polling logic of this repo's own.
+        exec viddy -n 2 -d media-queue-status
       '';
     })
 
@@ -1036,7 +1070,7 @@ symlinkJoin {
 
   ];
   meta = {
-    description = "Durable Finder-to-launchd work queue for the media toolkit: media-enqueue, media-worker, media-queue-pause, media-queue-resume, media-queue-status, media-queue-power-monitor";
+    description = "Durable Finder-to-launchd work queue for the media toolkit: media-enqueue, media-worker, media-queue-pause, media-queue-resume, media-queue-status, media-queue-top, media-queue-power-monitor";
     mainProgram = "media-enqueue";
     platforms = lib.platforms.darwin;
   };
