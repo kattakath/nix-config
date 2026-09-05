@@ -299,9 +299,16 @@ symlinkJoin {
           # different file, the bytes are already correct, it is not downloaded
           # from iCloud — and collapsing those into one number is what made a
           # correct refusal look like a no-op.
+          #
+          # The em-dash is stripped by ALTERNATION, never a bracket range. A
+          # launchd job inherits no locale, so sed runs in the C locale, where
+          # `—` is three bytes and `[—-]` is a malformed range that strips only
+          # the FIRST of them — leaving two orphan bytes that the notification
+          # rendered as `??`. Measured: `[—-]` leaves `M-^@M-^T` under LC_ALL=C
+          # and is clean only under a UTF-8 locale the worker does not have.
           if [ "$d" -eq 0 ] && [ -z "$reason" ]; then
             reason=$(printf '%s\n' "$out" | grep -m1 -E ': (skip|OK):' \
-              | sed -E "s/^[^:]*: (skip|OK): '[^']*' *//; s/^[—-] *//" || true)
+              | sed -E "s/^[^:]*: (skip|OK): '[^']*' *//; s/^(—|-) *//" || true)
           fi
 
           if [ "$rc" -eq 0 ]; then

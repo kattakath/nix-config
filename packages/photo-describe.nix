@@ -181,7 +181,15 @@ writeShellApplication {
     tmpdir=$(mktemp -d)
     trap 'rm -rf "$list" "$tmpdir"' EXIT
     rc=0
-    fix-extension --only image --print0 "$@" > "$list" || rc=$?
+    fix-extension --only image --print0 "$@" > "$list" 2> "$tmpdir/stage1.err" || rc=$?
+    # Stage one's `OK:` lines say "nothing was wrong with the extension", which is
+    # the normal case here and is never a reason for anything this CLI reports.
+    # They must not reach the caller: media-queue lifts the FIRST skip:/OK: line
+    # as the reason a batch changed nothing, so passing them through made a
+    # right-click on an already-described photo announce "extension already
+    # matches (image/jpeg)" instead of "already described". `done:`/`skip:`/
+    # `error:` still pass — those are real outcomes the operator should see.
+    grep -v ': OK: ' "$tmpdir/stage1.err" >&2 || true
 
     files=()
     while IFS= read -r -d "" f; do
