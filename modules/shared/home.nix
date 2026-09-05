@@ -1385,7 +1385,11 @@ in
         # than the background makes inactive panes recede in HUE as well as
         # brightness. That is the difference between "which one has the cursor?"
         # and knowing at a glance.
-        unfocused-split-opacity = 0.5;
+        # 0.35, not the 0.5 first tried: at 0.5 over a ground this dark the three
+        # panes still read as one field in use. The floor is 0.15, which Ghostty
+        # itself calls weird-looking, so this leaves headroom without reaching
+        # for it.
+        unfocused-split-opacity = 0.35;
         unfocused-split-fill = "#0d1117";
         split-divider-color = "#403d52";
 
