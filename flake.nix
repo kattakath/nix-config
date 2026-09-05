@@ -1440,6 +1440,13 @@
           fix-extension = (pkgsFor system).callPackage ./packages/fix-extension.nix { };
         }))
 
+        # `fix-media` — the entry point the Finder Services call: takes a media CLASS
+        # (--video/--image) and decides which repair above the file actually needs, so
+        # the menu can name what the operator selected instead of the defect.
+        (nixpkgs.lib.genAttrs darwinSystems (system: {
+          fix-media = (pkgsFor system).callPackage ./packages/fix-media.nix { };
+        }))
+
         # `media-toolkit` — the media-file CLIs above as ONE installable unit, so
         # home.packages carries a single entry instead of drifting as CLIs are added.
         # The individual packages stay exported for `nix run .#<name>`.
