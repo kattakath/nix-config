@@ -38,7 +38,7 @@ slice**, not the ceiling — §2 shows how much more is reachable.
 | `trackpad` | `Clicking` (tap-to-click) |
 | `screensaver` | `askForPassword`, `askForPasswordDelay=0` |
 | `loginwindow` | `GuestEnabled=false` |
-| `screencapture` | `location` (→ the rotated `~/Downloads` inbox — also governs ⇧⌘5 screen **recordings**), `type="png"`, `disable-shadow` |
+| `screencapture` | `location` set **only on macvm** (→ the shared `~/Downloads` inbox so guest captures surface on the host); the real Mac leaves it unset, so captures take macOS's own `~/Desktop` default (rotated daily). The key also governs ⇧⌘5 screen **recordings**. `type="png"`, `disable-shadow` everywhere |
 
 ### Beyond `system.defaults`
 
@@ -51,15 +51,18 @@ slice**, not the ceiling — §2 shows how much more is reachable.
 
 ### Custom services this repo built (launchd)
 
-- `launchd.user.agents.file-rotation-downloads` (`modules/darwin/core.nix`,
-  **macos only**) — hourly Trash of items in `~/Downloads` (same path as
-  `screencapture.location`), **files and directories both**. Retention is
-  currently **30 days** (`-mmin +43200`), a deliberately staged value while the
-  existing download backlog is triaged; the intended steady state is 7 days
-  (`-mmin +10080`), a one-number edit. `.DS_Store` and `.localized` are excluded.
-  Shared R/W into macvm via Tart VirtioFS; the guest must **not** rotate it
-  (`mv` across filesystems degrades to `cp` + `rm`, so a guest rotation would
-  copy host bytes into the VM and unlink them on the host).
+- `launchd.user.agents.file-rotation-{desktop,downloads}` (`modules/darwin/core.nix`
+  `mkTrashSweep`, **macos only**) — two hourly-tick Trash sweeps:
+  **`~/Desktop`** (the capture inbox): everything older than **1 day**, files and
+  directories both. **`~/Downloads`** (the browser/AirDrop inbox): only
+  **disposable types** (media / installers / archives, a lowercase-glob
+  allowlist) older than **7 days** — documents and directories never match and
+  stay for manual triage into Documents/Pictures/Movies/Music (the operator's
+  2026-09-05 contract, replacing the earlier staged-30-day sweep-everything).
+  `.DS_Store` and `.localized` are excluded from both.
+  `~/Downloads` is shared R/W into macvm via Tart VirtioFS; the guest must
+  **not** rotate it (`mv` across filesystems degrades to `cp` + `rm`, so a
+  guest rotation would copy host bytes into the VM and unlink them on the host).
   **Accepted cost:** Finder's "Put Back" does not work on rotated items — a plain
   `mv` into `~/.Trash` writes no `ptbL`/`ptbN` records. Off-the-shelf trash CLIs
   were surveyed and rejected (`trash-cli`/`rmtrash`/`gtrash`/`rmw` use the
@@ -267,7 +270,8 @@ through to allow; Apple's `/bin/sh` is attributable and is denied absent an expl
 
 Two consequences:
 
-- `nix-file-rotation-downloads` needs **no** Full Disk Access grant to do its job.
+- `nix-file-rotation-desktop` / `nix-file-rotation-downloads` need **no** Full Disk Access
+  grant to do their job (Desktop and Downloads are both TCC-gated folders).
 - Rewriting any such agent as `script =` **silently breaks it** — it runs, reads nothing,
   and reports success.
 
@@ -282,6 +286,7 @@ depend on.
 |---|---|
 | `open-maccy` / `open-docker` / `open-slack` / `open-mail` / `open-messages` | **macos only** |
 | MCP gateway + public tunnel + RAG (`ollama-local`, `postgres-pgvector`) | **macos only** |
+| `nix-file-rotation-desktop` | **macos only** (the guest's own `~/Desktop` is not an inbox — macvm captures go to the shared `~/Downloads` instead) |
 | `nix-file-rotation-downloads` | **macos only** (`~/Downloads` shared R/W to macvm via VirtioFS; guest must not rotate) |
 
 Gate with `networking.hostName` (`macos` / `macvm` set in `hosts/*.nix`).
