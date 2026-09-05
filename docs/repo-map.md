@@ -609,16 +609,24 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
 
 ### `modules/darwin/`
 
-`modules/darwin/{core.nix,homebrew.nix,nix-homebrew.nix,xcode-license.nix,github-runner.nix}`
+`modules/darwin/{core.nix,user-folders.nix,homebrew.nix,nix-homebrew.nix,xcode-license.nix,github-runner.nix}`
 
 - **`core.nix`** — macOS system defaults (dock/finder/NSGlobalDomain, Touch ID for sudo,
-  `stateVersion = 5`). On **macos only**: login openers (`nix-*` BTM wrappers) + hourly
-  `~/Downloads` rotation into `~/.Trash` (`nix-file-rotation-downloads`; files **and**
-  directories, 30d staged retention → 7d steady state; paired with
-  `finder.FXRemoveOldTrashItems` so Trash self-purges). `~/Downloads` is the single staging
-  inbox — `screencapture.location` points at it, so ⇧⌘4 screenshots and ⇧⌘5 recordings land
-  there too — and it is shared R/W into macvm via Tart VirtioFS, where the guest symlinks its
-  own `~/Downloads` to it and must **never** rotate it (`mv` across filesystems = `cp` + `rm`).
+  `stateVersion = 5`). On **macos only**: login openers (`nix-*` BTM wrappers) + two
+  `mkTrashSweep` rotations into `~/.Trash` (paired with `finder.FXRemoveOldTrashItems` so
+  Trash self-purges): **`~/Desktop`** — the capture inbox (⇧⌘4/⇧⌘5 land there by macOS's own
+  default; the real Mac sets no `screencapture.location`) swept whole after **1 day**;
+  **`~/Downloads`** — the browser/AirDrop inbox, swept after **7 days** of disposable types
+  only (media/installers/archives allowlist; documents and directories stay for manual
+  triage). `screencapture.location` is overridden **only on macvm** → the shared inbox,
+  because `~/Downloads` is shared R/W into macvm via Tart VirtioFS, where the guest symlinks
+  its own `~/Downloads` to it and must **never** rotate it (`mv` across filesystems =
+  `cp` + `rm`).
+- **`user-folders.nix`** — the `local.folders.{desktop,downloads}` options: unset = the
+  macOS system default (`~/Desktop`, `~/Downloads`), override = the relocation seam; an
+  invalid (non-absolute) value fails loudly at eval rather than silently falling back.
+  Consumed by core.nix's sweeps/screencapture gate and macvm's VirtioFS symlink — folder
+  paths are never re-derived inline.
 - **`homebrew.nix`** — the declarative Homebrew **framework**: owns only
   `enable`/`onActivation` with `cleanup = "uninstall"`/`taps`. The actual
   `brews`/`casks`/`masApps` lists live **per host** in `hosts/<host>.nix` so macos and macvm
