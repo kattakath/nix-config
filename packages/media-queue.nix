@@ -140,7 +140,6 @@ symlinkJoin {
         # The prelude holds only what ALL THREE scripts use; anything narrower
         # lives with its user, because an unused variable is a lint failure —
         # and rightly so, since it is usually a leftover.
-        STATUS="$STATE/status"
         LOCK="$STATE/worker.lock"
         MAX_TRIES=3
 
@@ -227,7 +226,6 @@ symlinkJoin {
           if [ -n "$running" ] && [ -f "$running" ]; then
             mv "$running" "$QUEUE/$(date +%s)-requeued-$$.t1.job" 2>/dev/null || true
           fi
-          rm -f "$STATUS"
           # The lock is NOT released here. It is a flock(2) held by the lockf
           # parent, and the kernel drops it when that process exits — which it
           # does whether we got here by a clean exit, a trap, or a SIGKILL that
@@ -283,7 +281,6 @@ symlinkJoin {
             continue
           fi
 
-          printf '%s\n%s\n' "$path" "$(find "$QUEUE" -maxdepth 1 -name '*.job' | wc -l | tr -d ' ')" > "$STATUS"
           log "start $class '$path' (attempt $tries)"
 
           # Backgrounded and waited on, NOT `out=$(...)`: bash defers a trap
@@ -389,7 +386,6 @@ symlinkJoin {
           running=""
         done
 
-        rm -f "$STATUS"
 
         # The log line IS the report now. Notifications were removed entirely,
         # so there is no branching left to do: `reason` still exists because the

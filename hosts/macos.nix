@@ -219,6 +219,12 @@
       # install` works and it self-updates (vs. the pinned nixpkgs derivation).
       # Homebrew renamed `google-cloud-sdk` → `gcloud-cli`; use the new name.
       "gcloud-cli"
+      # Ghostty — GPU-accelerated terminal. A CASK because nixpkgs' `ghostty` is
+      # LINUX-ONLY and refuses to evaluate on aarch64-darwin, which is exactly the
+      # case home-manager documents for `programs.ghostty.package = null`:
+      # Homebrew ships the app, Nix owns the config. Same split as the
+      # ungoogled-chromium cask. Settings live in modules/shared/home.nix.
+      "ghostty"
       "iina"
       "inkscape"
       # LibreOffice — provides the `soffice` CLI the docx/pptx/xlsx/pdf Claude Code
