@@ -276,7 +276,15 @@ symlinkJoin {
 
         running=""
         child=""
+        tailer=""
         cleanup() {
+          # The tailer first: it holds no lock and does no real work, but a
+          # `tail -f` left running past its job is exactly the "no leaked
+          # helpers" this trap exists to prevent. Plain `kill`, not `-$pid`:
+          # unlike the job, it was never given its own process group (it is
+          # started OUTSIDE the `set -m`/`set +m` bracket below, on purpose,
+          # so the job's own SIGTERM below never has to account for it).
+          [ -n "$tailer" ] && kill "$tailer" 2>/dev/null || true
           # Kill the encode FIRST. Without this the trap would not even run until
           # ffmpeg finished on its own, and launchd escalates SIGTERM to SIGKILL
           # long before a two-hour batch is done.
@@ -372,6 +380,30 @@ symlinkJoin {
           # SIGKILLed instead — losing the job and the lock with it. `wait` is
           # interruptible, so the trap fires at once.
           scratch=$(mktemp)
+          # LIVE PROGRESS, WITHOUT TOUCHING THE JOB PIPELINE AT ALL. A job
+          # that legitimately runs for hours used to be silent in this log
+          # until it finished — MEASURED incident (2026-09-05): a healthy
+          # 461-photo describe batch was misdiagnosed as hung for ~4 hours,
+          # because nothing surfaced that it was still writing to `$scratch`
+          # the whole time. `tail -f` on that same file is a SEPARATE
+          # process from the job, so it cannot change `$!`, `rc`, or what
+          # `set -m` groups — the four things a `| tee`/pipeline approach
+          # would put at risk (see the comments below, still exactly as
+          # measured). Started OUTSIDE the `set -m`/`set +m` bracket so it
+          # stays in the WORKER's own process group, never the job's —
+          # `kill -TERM -"$child"` below must never have to account for it.
+          #
+          # `-s 0.2`, NOT THE DEFAULT. macOS has no inotify, so GNU tail's
+          # `-f` here falls back to polling — MEASURED: this is NOT the
+          # "kqueue, near-instant" behaviour an earlier version of this
+          # comment assumed without checking. The default poll interval is
+          # 1.0s (`tail --help`), and a live 3-file test job repeatedly lost
+          # its LAST `done:` line to that gap — the counters below stayed
+          # correct (`$out` reads the file directly, not through the
+          # tailer) but the live view missed it. `-s 0.2` closes that to a
+          # window small enough for the grace `sleep` after `wait` to cover.
+          tail -f -s 0.2 "$scratch" &
+          tailer=$!
           # Job control on, so this background job becomes its own process group
           # leader and `kill -TERM -$child` can take the whole tree down.
           set -m
@@ -389,9 +421,27 @@ symlinkJoin {
           rc=0
           wait "$child" || rc=$?
           child=""
+          # Killed AFTER the job exits, not before: `wait` only returns once
+          # the child's own fd on `$scratch` is closed, so every byte it
+          # wrote is already on disk — the tailer just needs one more poll
+          # to relay whatever it hasn't yet. `sleep 0.3` is deliberately
+          # LONGER than the tailer's own `-s 0.2` interval, so at least one
+          # full poll happens before it dies. MEASURED end to end (a live
+          # 3-file test job, repeated): without this the counters stayed
+          # correct regardless (`$out` reads the file directly, not through
+          # the tailer) but the LAST `done:` line consistently never reached
+          # the live log.
           out=$(cat "$scratch")
+          sleep 0.3
+          kill "$tailer" 2>/dev/null || true
+          tailer=""
           rm -f "$scratch"
-          printf '%s\n' "$out"
+          # NOT re-printed: the tailer above already relayed every line of
+          # `$out` to this same log, live, as the job produced it. Printing
+          # it again here would double the log for every job — same total
+          # information, just spread out over the job's runtime instead of
+          # dumped all at once at the end. `$out` itself is still built,
+          # unchanged, for the counters and reason-extraction below.
 
           d=$(printf '%s\n' "$out" | grep -c ': done:' || true)
           s=$(printf '%s\n' "$out" | grep -cE ': (skip|OK):' || true)
