@@ -275,8 +275,9 @@ Both are safe to commit. Full rules: [`secrets-and-keychain.md`](secrets-and-key
   desktop aesthetics off, red accent tell. Same operator identity as every host, no `identity`
   override; activated *inside* the VM as `ismail`. Host→guest SSH is Apple's sshd via
   `services.openssh` + keys-only operator key + ALF off. Host control plane
-  `packages/macvm-tart.nix` / `nix run .#macvm-tart-*`; clipboard sync + `tart exec` /
-  `tart ip --resolver=agent` RPC via the `packages/tart-guest-agent.nix`-backed
+  `packages/macvm-tart.nix` (a veneer over the extracted `nix-tart-macos` flake) /
+  `nix run .#macvm-tart-*`; clipboard sync + `tart exec` / `tart ip --resolver=agent` RPC via
+  the `nix-tart-macos`-packaged guest agent behind
   `launchd.user.agents.tart-guest-agent`. Runbook: [`macvm-tart-runbook.md`](macvm-tart-runbook.md).
 - **`nixpi.nix`** — Pi 4, LIVE: boot fixes + cloudflared + upstream `services.caddy`. Its
   `sdImage` is prebuilt in CI and published to the `installer-latest` release, since it bakes
@@ -736,9 +737,6 @@ Core package set:
   `writeShellApplication` flake apps that flash the SD card and plant the token+Wi-Fi onto its
   FIRMWARE partition — the executable companion to the `nix-firmware-secrets` flake's
   `services.firmwareProvisioning`.
-- **`macvm-tart.nix`** — macOS-only: host Tart control plane for `macvm` (create from IPSW,
-  doctor, ensure, start/stop/ssh/ip); disk under `~/.tart/`, never in the store. See
-  [`macvm-tart-runbook.md`](macvm-tart-runbook.md).
 - **`key-recovery.nix`** — macOS-only: the `key-backup`/`key-recover` apps, stage 2 of Mac
   bootstrap/recovery, shellcheck-gated. `key-recover` clones, HARD-FAILS unless the login
   `id -un` == the flake's `loginName` (via the `#identity.loginName` output), then RESTORES
@@ -750,9 +748,15 @@ Core package set:
   in-Nix SVG/icns icons via librsvg+libicns) giving the Android emulator and `macvm` a
   Spotlight-visible, focus-or-launch identity; consumed by `modules/shared/home.nix`'s
   `home.file."Applications/*.app"`.
-- **`tart-guest-agent.nix`** — macvm-only: `fetchurl` derivation for cirruslabs' ad-hoc-signed
-  guest-agent binary (clipboard sync + `tart exec` / `tart ip --resolver=agent` RPC), run via
-  `hosts/macvm.nix`'s `launchd.user.agents.tart-guest-agent`.
+- **`macvm-tart.nix`** — since 2026-09-05 a thin macvm **veneer** over the extracted
+  [`nix-tart-macos`](https://github.com/kattakath/nix-tart-macos) flake (which owns the generic
+  Tart lifecycle, the plug-and-play `bootstrap` chain — creates the operator login, installs
+  Determinate Nix, activates `#macvm`, rotates the password — and the packer golden-image
+  `bake`). Consumed vast-provision-style: pure `callPackage` on the input's source path, flake
+  outputs never evaluated. The veneer pins VM name, the shared-Downloads default, identity, and
+  maps legacy `MACVM_*` env names. `tart-guest-agent` packaging also **moved to that flake**
+  (`hosts/macvm.nix` callPackages it via `mkDarwin` specialArgs) — this repo was GitHub's only
+  packaging of it until the extraction.
 
 The no-Nix stage-1 `bootstrap.sh` (the `curl … | bash` entrypoint) lives at the **repo root** —
 it is shellchecked as the `key-recovery-bootstrap` derivation and `key-backup` publishes it
