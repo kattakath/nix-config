@@ -37,13 +37,14 @@
 # ~/Downloads). A bare interpreter would run, log nothing useful, and quietly do
 # no work.
 #
-# STATUS IS NOTIFICATIONS ONLY, deliberately. This used to also drive a menu-bar
-# item through SwiftBar — a whole GUI app in the closure, a plugin file, a
-# `defaults` domain and a second launchd agent, to show a queue depth. It was
-# removed as not worth its surface: the notifications already say when a batch is
-# queued and how it ended, which is the part an operator acts on, and the log
-# answers everything else. The CLI half needs nothing either — `photo-describe`
-# run from a shell prints its own progress.
+# THERE IS NO STATUS SURFACE, deliberately. This drove a menu-bar item through
+# SwiftBar (a whole GUI app in the closure, a plugin file, a `defaults` domain and
+# a second launchd agent) and then macOS notifications; both were removed. The
+# notifier had never worked anyway — an unsigned /nix/store bundle macOS never
+# registered — and its replacement could show neither the image nor a click
+# action. What is left is the log at ~/Library/Logs/nix-media-queue.log, and a
+# shell-run CLI printing its own progress. The cost is real and accepted: a
+# Finder Service now does nothing visible, so success and failure look alike.
 #
 {
   config,
