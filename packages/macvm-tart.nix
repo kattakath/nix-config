@@ -52,7 +52,8 @@ let
       runtimeInputs = [ tartVm ];
       text = ''
         ${envShim}
-        exec tart-vm --vm ${vmName} ${sub} ${extraArgs} "$@"
+        # Subcommand FIRST — tart-vm's grammar is `tart-vm <sub> --vm NAME`.
+        exec tart-vm ${sub} --vm ${vmName} ${extraArgs} "$@"
       '';
     };
 
@@ -91,7 +92,7 @@ in
     name = "macvm-tart-ensure";
     runtimeInputs = [ tartVm ];
     text = ''
-      if tart-vm --vm ${vmName} exists; then exit 0; fi
+      if tart-vm exists --vm ${vmName}; then exit 0; fi
       cat ${createHelp} >&2
       exit 2
     '';
