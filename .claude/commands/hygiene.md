@@ -2,7 +2,7 @@
 description: >
   LEAN/DRY/modular hygiene pass for this nix-config repo — audit, fix, nix fmt,
   flake check. Composes the nix-hygiene skill with existing gates.
-argument-hint: "[audit|fix] [scope]  # e.g. fix macvm | audit docs | fix packages/"
+argument-hint: "[audit|fix] [scope]  # e.g. audit docs | fix packages/"
 ---
 
 Run the **nix-hygiene** project skill (`.claude/skills/nix-hygiene/SKILL.md`) end-to-end.
@@ -15,13 +15,12 @@ Parse `$ARGUMENTS` loosely:
 |---|---|
 | `audit` | Findings only — no edits |
 | `fix` | Audit then apply safe fixes (default if omitted) |
-| anything else | Scope: host name (`macos`, `macvm`, `nixpi`, `nixvm`), path (`packages/`, `docs/`, `.claude/`), or area (`macvm`, `docs`, `claude`) |
+| anything else | Scope: host name (`macos`, `nixpi`, `nixvm`), path (`packages/`, `docs/`, `.claude/`), or area (`docs`, `claude`) |
 
 Examples:
 
 - `/hygiene` → fix, full repo judgment with focus on dirty/recent surfaces
 - `/hygiene audit` → report only
-- `/hygiene fix macvm` → fix scoped to the macvm/Tart/`~/Downloads`-share tree
 - `/hygiene audit docs` → docs↔flake drift only
 
 ## Required sequence
@@ -35,7 +34,6 @@ Examples:
    - `git add -A`
    - `nix fmt` (then stage again)
    - `nix flake check` — or scoped `nix eval` of affected host toplevels if full check is too heavy; state what you ran
-5. If scope touched macvm/Tart: `nix run .#macvm-tart-doctor` when the host can reach the guest (non-fatal if VM down — note skipped).
 6. End with the skill’s **Hygiene report** block (Mode, Scope, Findings, Gates, Verdict).
 
 ## Do not

@@ -1,8 +1,8 @@
 # The macOS user-folder seam — mkOption'd so a host (or the private layer)
 # can relocate an inbox, while an UNSET option is exactly the macOS system
 # default. Only folders with a real consumer are declared (LEAN): desktop and
-# downloads feed the file-rotation sweeps (core.nix) and macvm's VirtioFS
-# symlink (hosts/macvm.nix). Add pictures/documents/movies/music only when
+# downloads feed the file-rotation sweeps (core.nix).
+# Add pictures/documents/movies/music only when
 # something actually consumes them.
 #
 # An INVALID value fails LOUDLY at eval — types.path rejects a non-absolute
@@ -46,7 +46,7 @@ in
       description = ''
         The browser/AirDrop inbox — every app's default download target;
         nothing in this repo overrides it. Swept weekly (disposable types
-        only) by file-rotation-downloads; shared into macvm via VirtioFS.
+        only) by file-rotation-downloads.
       '';
     };
   };

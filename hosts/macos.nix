@@ -59,7 +59,7 @@
   };
 
   # ---- Gmail multi-account MCP (modules/shared/mcp.nix, a home-manager option
-  # — set via home-manager.users, same as macvm.nix's services.mcpGateway.enable)
+  # — set via home-manager.users)
   # These two emails are safe to name in the PUBLIC repo — both are the
   # operator's own accounts under identities already public elsewhere in this
   # very tree (userEmail = ismail@kattakath.com in flake.nix's identityArgs;
@@ -87,7 +87,7 @@
   # ---- Homebrew apps for THIS host --------------------------------------------
   # The framework (enable/onActivation/taps) lives in modules/darwin/homebrew.nix;
   # this is macos's app set. onActivation.cleanup = "uninstall" removes anything
-  # installed but not listed here. macvm carries its own (leaner) list.
+  # installed but not listed here.
   homebrew = {
     # ---- Formulae (brews) ----------------------------------------------------
     # Entries with special options use the attrset form.
@@ -142,8 +142,8 @@
       # (masApps.WireGuard) ONLY. Deliberately no `wg`/`wg-quick` CLI and no `vpn`
       # operator on this host, so nothing can bring a tunnel up from a shell (a
       # botched tunnel = no-internet on the sole client Mac). Confs are synced for
-      # IMPORT into the app, never run (local.wireguardConfigs, home.nix). macvm —
-      # which has no App Store — keeps the CLI (hosts/macvm.nix).
+      # IMPORT into the app, never run (local.wireguardConfigs, home.nix).
+
       "xcodes"
       "yq"
       "yt-dlp"
@@ -170,7 +170,7 @@
       "android-platform-tools"
       "blackhole-2ch"
       "bruno"
-      # CapCut — the fleet's video editor, same cask macvm carries.
+      # CapCut — the fleet's video editor.
       "capcut"
       # Claude Desktop — the chat GUI (distinct from the claude-code CLI, nixpkgs).
       "claude"
@@ -290,8 +290,8 @@
     ];
 
     # ---- Mac App Store apps (masApps) ----------------------------------------
-    # macos only — macvm cannot sign into an Apple ID / App Store login, so any
-    # masApps entry fails brew bundle there (hosts/macvm.nix keeps masApps = { }).
+    # macos only — a sandbox host cannot sign into an App Store login, so any
+    # masApps entry fails brew bundle there.
     # `mas` brew stays for on-demand installs; anything listed here is also
     # protected from onActivation.cleanup = "uninstall" (undeclared MAS apps
     # get removed — that is how Xcode was wiped before this entry).

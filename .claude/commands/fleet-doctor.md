@@ -4,7 +4,7 @@ description: >
   flake pins, Nix store GC, host re-activation — across every repo in the
   fleet manifest. Composes the fleet-doctor skill with nix-hygiene, git-purity
   and pr-title.
-argument-hint: "[audit|fix] [repo|host]  # e.g. fix | audit nix-personal | fix macvm"
+argument-hint: "[audit|fix] [repo|host]  # e.g. fix | audit nix-personal"
 ---
 
 Run the **fleet-doctor** project skill (`.claude/skills/fleet-doctor/SKILL.md`) end-to-end.
@@ -17,14 +17,13 @@ Parse `$ARGUMENTS` loosely:
 |---|---|
 | `audit` | Read-only — report findings, fix nothing |
 | `fix` | Audit then apply the skill's auto-fix table (default if omitted) |
-| anything else | Scope: a manifest repo name (`nix-personal`, `brags`, …) or a host (`macos`, `macvm`) |
+| anything else | Scope: a manifest repo name (`nix-personal`, `brags`, …) or a host (`macos`) |
 
 Examples:
 
 - `/fleet-doctor` → fix, full fleet
 - `/fleet-doctor audit` → report only, full fleet
 - `/fleet-doctor fix nix-personal` → fix scoped to one repo
-- `/fleet-doctor fix macvm` → GC + re-activate macvm only
 
 ## Required sequence
 
@@ -44,6 +43,5 @@ Examples:
 - Merge any PR, ever, regardless of mode — always a reported finding.
 - Auto-fix CI failures — diagnosis is repo/workflow-specific; offer to investigate, don't guess.
 - Touch nixpi beyond a disk-usage report without an explicit ask.
-- Retry-loop on an unreachable macvm — report skipped and move on.
 
 $ARGUMENTS

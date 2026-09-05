@@ -22,10 +22,10 @@ All-in-one Nix mono-repo managing a fully declarative **aarch64-only** fleet:
   nix-personal composition flake (see [`private-home-modules.md`](private-home-modules.md)).
 - **`nixvm`** (aarch64-linux) — a throwaway NixOS dev VM materialised **only** as
   `nix run .#nixvm` (a build-vm XFCE desktop — no installed VM, no builder, no runner).
-- **`macvm`** (aarch64-darwin) — a Tart guest on Apple Virtualization that shares macos's
-  stack with a leaner Homebrew set + the MCP gateway trimmed off, activated *inside* the VM
-  under the same operator identity as every other host.
 - A matching **Devcontainer** image.
+
+(The `macvm` Tart guest was removed 2026-09-05 — re-add path + what survives in
+`nix-tart-macos`: [`macvm-readd-runbook.md`](macvm-readd-runbook.md).)
 
 Single source of truth; platform divergence lives in `modules/`, never in ad-hoc shell.
 
@@ -39,9 +39,7 @@ inputs (`agent-skills-vercel`, `agent-skills-anthropic`, both `flake = false`).
 
 Exports:
 
-- `darwinConfigurations."macos"` / `"macvm"` (aarch64-darwin) — `macvm` is a Tart guest VM
-  (Apple Virtualization + IPSW) sharing macos's stack with a leaner Homebrew set + the MCP
-  gateway trimmed off.
+- `darwinConfigurations."macos"` (aarch64-darwin).
 - `nixosConfigurations."nixpi"` / `"nixvm"` (aarch64-linux) — `nixvm` is the throwaway GUI dev
   VM, materialised only via `nix run .#nixvm`.
 - `packages` / `devShells` / `checks` / `formatter` per system via a `forAllSystems` helper.
@@ -63,7 +61,7 @@ The devcontainer image is the sole exception: it also builds `x86_64-linux` (via
 is defined once as `let` bindings (`identityArgs`) and threaded through
 `specialArgs`/`extraSpecialArgs`. `mkDarwin` takes an optional per-host `identity` override
 (and `mkHomeManagerModule` is a function of it) so a host *could* run under a different
-persona, but nothing in the fleet uses it today — `macos`, `macvm`, and `nixpi` all inherit
+persona, but nothing in the fleet uses it today — `macos` and `nixpi` both inherit
 the same global identity; per-host divergence (leanness, package sets, desktop aesthetics) is
 achieved entirely via `networking.hostName`-gated `lib.mkIf`, never via a separate identity.
 
@@ -271,14 +269,8 @@ Both are safe to commit. Full rules: [`secrets-and-keychain.md`](secrets-and-key
   with `launchd.user.envVariables.OD_UPDATE_ENABLED = "0"` so versioning belongs to brew, not
   the app's drift-prone self-updater — the full declared/imperative boundary is
   [`open-design.md`](open-design.md).
-- **`macvm.nix`** — Tart aarch64-darwin guest: leaner Homebrew, no masApps, MCP gateway +
-  desktop aesthetics off, red accent tell. Same operator identity as every host, no `identity`
-  override; activated *inside* the VM as `ismail`. Host→guest SSH is Apple's sshd via
-  `services.openssh` + keys-only operator key + ALF off. Host control plane
-  `packages/macvm-tart.nix` (a veneer over the extracted `nix-tart-macos` flake) /
-  `nix run .#macvm-tart-*`; clipboard sync + `tart exec` / `tart ip --resolver=agent` RPC via
-  the `nix-tart-macos`-packaged guest agent behind
-  `launchd.user.agents.tart-guest-agent`. Runbook: [`macvm-tart-runbook.md`](macvm-tart-runbook.md).
+- `macvm.nix` — removed 2026-09-05 with the rest of the `macvm` Tart guest; re-add path:
+  [`macvm-readd-runbook.md`](macvm-readd-runbook.md).
 - **`nixpi.nix`** — Pi 4, LIVE: boot fixes + cloudflared + upstream `services.caddy`. Its
   `sdImage` is prebuilt in CI and published to the `installer-latest` release, since it bakes
   no secrets.
@@ -330,9 +322,9 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
   `home.packages` also carries `pandoc`/`poppler` (nixpkgs, darwin-only) — together with
   macos's `libreoffice` cask, these satisfy the docx/pptx/xlsx/pdf skills' stated runtime deps
   (LibreOffice/poppler/pandoc), a gap flagged inline at that skills block since it was first
-  wired. Also declares Spotlight-visible, focus-or-launch `.app` bundles for the Android
-  emulator and `macvm` (`home.file."Applications/Android Emulator.app"` / `"Mac VM.app"`,
-  backed by `packages/spotlight-launchers.nix`, macos-only).
+  wired. Also declares a Spotlight-visible, focus-or-launch `.app` bundle for the Android
+  emulator (`home.file."Applications/Android Emulator.app"`, backed by
+  `packages/spotlight-launchers.nix`, macos-only).
 - **`mcp.nix`** — the claude-code MCP-server config. See [`mcp-gateway.md`](mcp-gateway.md);
   the per-client stdio `open-design` entry's boundary doc is [`open-design.md`](open-design.md).
 - **`chromium.nix`** — `programs.ungoogledChromium`, real-Mac-only: the declarative surface for
@@ -598,11 +590,12 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
     here; dropped once stock `Pro` proved fine, the type size being the only part worth
     declaring.
   - The **custom wallpaper** stays behind `local.desktopAesthetics.enable` (default true;
-    `macvm` sets it false to keep the stock desktop as a visual tell).
+    the former `macvm` guest set it false as a visual tell).
 - **`nix-cache.nix`** — the Cachix binary-cache option (see § Binary cache below).
 - **`nix-ld-libraries.nix`** — the shared nix-ld library list.
 - **`wireguard-configs.nix`** — operator-managed WG confs synced to `~/.config/wireguard`, no
-  autostart. See [`wireguard-vpn.md`](wireguard-vpn.md).
+  autostart; import-only for the `WireGuard.app` GUI (the `vpn` CLI left with the `macvm`
+  guest, 2026-09-05 — [`macvm-readd-runbook.md`](macvm-readd-runbook.md)).
 - **`claude-otel.nix`** — `services.claudeOtel`, real-Mac-only: a local OTel Collector
   receiving Claude Code's native OpenTelemetry `tool_decision`/`tool_result` events over
   localhost OTLP, writing a rotating JSONL for `/routing-review` to mine for
@@ -634,19 +627,17 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
   default; the real Mac sets no `screencapture.location`) swept whole after **1 day**;
   **`~/Downloads`** — the browser/AirDrop inbox, swept after **7 days** of disposable types
   only (media/installers/archives allowlist; documents and directories stay for manual
-  triage). `screencapture.location` is overridden **only on macvm** → the shared inbox,
-  because `~/Downloads` is shared R/W into macvm via Tart VirtioFS, where the guest symlinks
-  its own `~/Downloads` to it and must **never** rotate it (`mv` across filesystems =
-  `cp` + `rm`).
+  triage). `screencapture.location` is now unset everywhere (the shared-inbox override left
+  with the `macvm` guest, 2026-09-05).
 - **`user-folders.nix`** — the `local.folders.{desktop,downloads}` options: unset = the
   macOS system default (`~/Desktop`, `~/Downloads`), override = the relocation seam; an
   invalid (non-absolute) value fails loudly at eval rather than silently falling back.
-  Consumed by core.nix's sweeps/screencapture gate and macvm's VirtioFS symlink — folder
-  paths are never re-derived inline.
+  Consumed by core.nix's sweeps/screencapture gate — folder paths are never re-derived
+  inline.
 - **`homebrew.nix`** — the declarative Homebrew **framework**: owns only
   `enable`/`onActivation` with `cleanup = "uninstall"`/`taps`. The actual
-  `brews`/`casks`/`masApps` lists live **per host** in `hosts/<host>.nix` so macos and macvm
-  carry different app sets.
+  `brews`/`casks`/`masApps` lists live **per host** in `hosts/<host>.nix` so each darwin
+  host carries its own app set.
 - **`nix-homebrew.nix`** — Homebrew-itself install via `nix-homebrew`.
 - **`xcode-license.nix`** (macos only) — runs *before* `brew bundle` to `mas install` Xcode
   when declared in `masApps` and `xcodebuild -license accept`, so formulae are not blocked by
@@ -745,18 +736,12 @@ Core package set:
   live Vast instance still fetches over raw HTTP from THIS repo at boot (see § Vast.ai below
   for why the `vast-*` CLI logic itself is no longer vendored here).
 - **`spotlight-launchers.nix`** — macOS-only: from-scratch `.app` bundle generator (original
-  in-Nix SVG/icns icons via librsvg+libicns) giving the Android emulator and `macvm` a
+  in-Nix SVG/icns icons via librsvg+libicns) giving the Android emulator a
   Spotlight-visible, focus-or-launch identity; consumed by `modules/shared/home.nix`'s
   `home.file."Applications/*.app"`.
-- **`macvm-tart.nix`** — since 2026-09-05 a thin macvm **veneer** over the extracted
-  [`nix-tart-macos`](https://github.com/kattakath/nix-tart-macos) flake (which owns the generic
-  Tart lifecycle, the plug-and-play `bootstrap` chain — creates the operator login, installs
-  Determinate Nix, activates `#macvm`, rotates the password — and the packer golden-image
-  `bake`). Consumed vast-provision-style: pure `callPackage` on the input's source path, flake
-  outputs never evaluated. The veneer pins VM name, the shared-Downloads default, identity, and
-  maps legacy `MACVM_*` env names. `tart-guest-agent` packaging also **moved to that flake**
-  (`hosts/macvm.nix` callPackages it via `mkDarwin` specialArgs) — this repo was GitHub's only
-  packaging of it until the extraction.
+- `macvm-tart.nix` — removed 2026-09-05 with the `macvm` guest; the generic Tart machinery
+  it wrapped lives on in [`nix-tart-macos`](https://github.com/kattakath/nix-tart-macos),
+  and the re-add path is [`macvm-readd-runbook.md`](macvm-readd-runbook.md).
 
 The no-Nix stage-1 `bootstrap.sh` (the `curl … | bash` entrypoint) lives at the **repo root** —
 it is shellchecked as the `key-recovery-bootstrap` derivation and `key-backup` publishes it
@@ -769,7 +754,7 @@ Smaller, single-purpose CLIs:
   for a PHYSICAL Android device; hardens around two live-reproduced adb bugs, an mDNS-cache
   staleness and duplicate-transport device listings. Its operator knowledge is also a GLOBAL
   skill, `skills/android-phone`.
-- **`media-quick-actions.nix`** (both darwin hosts) — Finder right-click → **Services** entries for
+- **`media-quick-actions.nix`** (darwin) — Finder right-click → **Services** entries for
   the media-toolkit CLIs (**Extract Audio**, **Fix Video File(s)**, **Fix Image File(s)**,
   **Describe Image(s)**),
   generated as Automator `.workflow` bundles. The two "Fix" actions and **Describe Image(s)**
@@ -800,10 +785,10 @@ Smaller, single-purpose CLIs:
   and `mac-app-util`: macOS bundle APIs reject store symlinks. A `home.activation` entry does
   the copy and flushes `pbs`; its cleanup loop keys off the `com.kattakath.services.` bundle-id
   prefix, so removing an action from the package removes it from the menu. Installed on
-  **`macos` and `macvm` alike** — `mediaToolkit` already sits in the darwin branch of
-  `home.packages`, and everything here is nixpkgs-side (ffmpeg included), so it does not touch
-  macvm's leaner Homebrew set. macvm has no hardware H.264 encoder under Apple Virtualization;
-  `fix-google-video` falls back to libx264 there. Each action is now a
+  **every darwin host** — `mediaToolkit` already sits in the darwin branch of
+  `home.packages`, and everything here is nixpkgs-side (ffmpeg included), so Homebrew is
+  untouched. On a host with no hardware H.264 encoder (e.g. a guest under Apple
+  Virtualization), `fix-google-video` falls back to libx264. Each action is now a
   plain `exec` of its CLI. It used to run through a wrapper that summarised the output into a
   macOS notification, because a Service has nowhere to put stdout or stderr and "skipped,
   already done" and "crashed" are otherwise indistinguishable — you click and nothing happens.
@@ -1047,7 +1032,6 @@ Smaller, single-purpose CLIs:
   diagrams-as-ASCII convention.
 - **`obs-fb-setup.nix`** — macOS-only: configures an OBS "Facebook" profile, stream key read
   live from the Keychain, never in git/store.
-- **`vpn.nix`** — the WireGuard `vpn` operator CLI. See [`wireguard-vpn.md`](wireguard-vpn.md).
 - **`claude-otel-doctor.nix`** — health check for the `services.claudeOtel` collector (launchd
   agent, OTLP port, events-file freshness). See
   [`claude-code-observability-runbook.md`](claude-code-observability-runbook.md).
@@ -1200,7 +1184,6 @@ MCP servers have their own doc: [`mcp-gateway.md`](mcp-gateway.md).
 | `/superhook-review` | triage the hook-supervisor log |
 | `/pretooluse-review` | triage the `PreToolUse`/`Write\|Edit` prompt-hook attempt/outcome log written by `pretooluse-log.js`, since those hooks have no logging of their own |
 | `/remember-nix` | capture into project memory |
-| `/vpn` | operate WireGuard via the fleet `vpn` CLI — macvm-only, see [`wireguard-vpn.md`](wireguard-vpn.md) |
 | `/gmail-account` | add/authenticate/remove a Gmail MCP multi-account, see [`gmail-mcp-multi-account-runbook.md`](gmail-mcp-multi-account-runbook.md) |
 | `/routing-review` | triage Claude Code's own OTel tool-decision log for deterministic-routing hardening candidates, see [`claude-code-observability-runbook.md`](claude-code-observability-runbook.md) |
 | `/mcp-scout` | discover → vet → DECLARATIVELY adopt an MCP server into the gateway via skill `mcp-scout`; imperative installer CLIs / config-writing install tools are never used |
@@ -1253,8 +1236,8 @@ Decoder for what these hooks print: [`claude-hook-messages.md`](claude-hook-mess
 
 ### `.claude/skills/` — project skills
 
-Active only when working in this repo: `nix-hygiene`, `nixpi-firmware-provision`, `macvm-tart`,
-`vast-instance-log-tail`, `jsonresume-tailor`, `wireguard-vpn`, `gmail-mcp-accounts`,
+Active only when working in this repo: `nix-hygiene`, `nixpi-firmware-provision`,
+`vast-instance-log-tail`, `jsonresume-tailor`, `gmail-mcp-accounts`,
 `mcp-scout`, `userscript-author` (its `probes.md` + `patterns.md` flat siblings are the
 measurement instruments and the pre-vetted reuse ladder — see § `userscripts/`),
 `fleet-doctor` (its own `fleet-repos.txt` manifest lists every repo in scope — add

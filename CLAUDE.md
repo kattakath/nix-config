@@ -1,6 +1,6 @@
 This is `kattakath/nix-config` — the all-in-one, public Nix mono-repo that declaratively
 manages Ismail's entire aarch64-only fleet: one client Mac, one live Raspberry Pi server, a
-Tart macOS guest, a throwaway NixOS dev VM, and a devcontainer image. Everything below is
+throwaway NixOS dev VM, and a devcontainer image. Everything below is
 guidance for Claude Code (claude.ai/code) when working in this repository.
 
 # CLAUDE.md
@@ -46,7 +46,6 @@ Fully declarative **aarch64-only** fleet, single source of truth, platform diver
 |---|---|---|
 | `macos` | aarch64-darwin | The sole client Mac (nix-darwin). No incoming traffic; it is the SSH *client*, reaching `nixpi` via `cloudflared access ssh`. Builds `aarch64-linux` locally on Determinate's native Linux builder. |
 | `nixpi` | aarch64-linux | **LIVE server** (NixOS on a Pi 4): static-key SSH over a Cloudflare Tunnel connector + Caddy. **Site-free in this public repo** — real sites + dontsell.ai's second connector come from the private nix-personal flake ([`docs/private-home-modules.md`](docs/private-home-modules.md)). |
-| `macvm` | aarch64-darwin | Tart guest on Apple Virtualization; macos's stack minus the MCP gateway and desktop aesthetics, leaner Homebrew, activated *inside* the VM under the same operator identity. |
 | `nixvm` | aarch64-linux | Throwaway XFCE build-vm, materialised **only** as `nix run .#nixvm`. No installed disk, no builder, no runner. |
 | devcontainer | +`x86_64-linux` | The one exception to aarch64-only, so it runs on x86_64 Codespaces. |
 
@@ -125,11 +124,11 @@ One line per path; the *why* and the per-file specifics are in
 | `flake.lock` | Pinned revisions — bump only via `nix flake update` / `/update-input`, never hand-edit. Held at **60 nodes** by a deliberate `follows` diet; a `follows` edit is **shape-only** (`nix flake lock`, never a bare `nix flake update`) and `follows = ""` REBINDS to this flake rather than removing — see [`docs/repo-map.md`](docs/repo-map.md) § `flake.lock`. |
 | `treefmt.nix` | Single source of truth for format + lint-fix (tools that REWRITE); drives `nix fmt`, the CI gate, and the pre-commit hook. |
 | `sgconfig.yml` + `ast-grep/` | Report-only structural lint (ast-grep): `rules/` mechanises prose conventions, `rule-tests/` proves they fire. Gated by `checks.<system>.ast-grep`, **not** treefmt. |
-| `hosts/` | Per-host entry profiles: `macos.nix`, `macvm.nix`, `nixpi.nix`, `nixvm.nix` (host-only deltas + per-host Homebrew lists). |
+| `hosts/` | Per-host entry profiles: `macos.nix`, `nixpi.nix`, `nixvm.nix` (host-only deltas + per-host Homebrew lists). |
 | `modules/shared/` | Home Manager profile on every host: `home.nix`, `mcp.nix`, `chromium.nix` (`programs.ungoogledChromium` — sideloaded CRXes, Apple's Passwords native host, *recommended*-level policy incl. the default search engine, and the LaunchServices default-browser claim, all for the Homebrew cask), `desktop-aesthetics.nix`, `media-queue.nix` (launchd work queue for the media Finder Services), `nix-cache.nix`, `nix-ld-libraries.nix`, `wireguard-configs.nix`, `claude-otel.nix`, `hm-launchd/`. |
 | `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix` (`local.folders.*` — inbox paths; unset = system default), `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`services.macosGithubRunner` — LIVE on `macos`, see § Configuration). |
 | `modules/nixos/` | `core.nix` (user + keys-only sshd + firewall + avahi + nix-ld + zram + GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). |
-| `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `macvm-tart` (veneer over the extracted `nix-tart-macos` input — plug-and-play bootstrap + golden-image bake), `key-recovery`, `spotlight-launchers`, plus single-purpose CLIs (`android-phone`, `vpn`, `jsonresume`, `mermaid-ascii`, `fidelity-enhance`, `media`/`photo-describe`, `claude-otel-doctor`, …). Root `bootstrap.sh` is the no-Nix stage 1. |
+| `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `key-recovery`, `spotlight-launchers`, plus single-purpose CLIs (`android-phone`, `jsonresume`, `mermaid-ascii`, `fidelity-enhance`, `media`/`photo-describe`, `claude-otel-doctor`, …). Root `bootstrap.sh` is the no-Nix stage 1. |
 | `userscripts/` | The **public** Violentmonkey `.user.js` scripts, declared by name in `modules/shared/home.nix`; authored via skill `userscript-author` (`/userscript`), gated by `checks.<system>.userscripts`. Private ones merge in from nix-personal — keys must not collide. Mechanism + why Chromium allows nothing declarative: `modules/shared/chromium.nix`. |
 | `infra/` | terranix (Nix → Terraform JSON): `cloudflare/nixpi-tunnel.nix`, `hyperframes/stack.nix`. Applied only via the `cf-*` / `hf-*` apps. |
 | `secrets/` | agenix recipients (`secrets.nix`) + two ciphertexts: `cloudflared-token.age` (operator-only) and `gh-app-dontsell-ai-key.age` (host-decrypted on `macos`). |
@@ -141,12 +140,12 @@ One line per path; the *why* and the per-file specifics are in
 | `memory/` | **Gitignored** project memory (the candid "why"), surfaced by `memory-loader.js`. Never `git add`. |
 
 **Commands** (`.claude/commands/`): `/eval`, `/hygiene`, `/update-input`, `/superhook-review`,
-`/pretooluse-review`, `/remember-nix`, `/vpn`, `/gmail-account`, `/routing-review`,
+`/pretooluse-review`, `/remember-nix`, `/gmail-account`, `/routing-review`,
 `/mcp-scout`, `/fleet-doctor`, `/userscript`.
 
 **Project skills** (`.claude/skills/`): `nix-hygiene`, `nixpi-firmware-provision`,
-`macvm-tart`, `vast-instance-log-tail`, `jsonresume-tailor`, `wireguard-vpn`,
-`gmail-mcp-accounts`, `mcp-scout`, `fleet-doctor`, `userscript-author`.
+`vast-instance-log-tail`, `jsonresume-tailor`, `gmail-mcp-accounts`, `mcp-scout`,
+`fleet-doctor`, `userscript-author`.
 
 **Always-applied rules** (`.claude/rules/`):
 [`git-purity.md`](.claude/rules/git-purity.md) (stage `.nix` before eval),
@@ -321,10 +320,8 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
 - [`docs/flake-architecture-strategy-adr.md`](docs/flake-architecture-strategy-adr.md) — ADR
   (2026-08-20): flake-parts for the small supporting flakes; nix-config's own core engine and
   the dendritic pattern stay out of scope.
-- [`docs/macvm-tart-runbook.md`](docs/macvm-tart-runbook.md) — host-side Tart lifecycle, SSH,
-  shared `~/Downloads` for `macvm` (+ the VirtioFS coherence/quarantine findings).
-- [`docs/wireguard-vpn.md`](docs/wireguard-vpn.md) — the `vpn` CLI is **macvm-only**; `macos`
-  uses the `WireGuard.app` GUI exclusively (no tunnel can be raised from a shell).
+- [`docs/macvm-readd-runbook.md`](docs/macvm-readd-runbook.md) — re-adding the removed
+  `macvm` Tart guest (removed 2026-09-05); what survives in `nix-tart-macos`.
 - [`docs/gmail-mcp-multi-account-runbook.md`](docs/gmail-mcp-multi-account-runbook.md) — TRUE
   simultaneous multi-account Gmail (one process per account) + a silent-wrong-account failure
   mode.

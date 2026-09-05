@@ -55,8 +55,9 @@ runs, and updates land at activation under operator control.
 | `/Applications/Open Design.app/Contents/**` | Notarized seal over 14,698 files — any edit voids it. Nix never touches the bundle. |
 | One-time: `claude mcp remove open-design -s user` | The app's UI had written an imperative user-scope entry into `~/.claude.json`; the Nix entry lives in a different scope, so the old one duplicates rather than being shadowed and had to be removed once by hand. |
 
-Deliberately **not** on `macvm`: a 914 MB GUI app plus ~1 GB of state has no role in the
-lean VM (its cask list is its own — `hosts/macvm.nix`).
+Deliberately **not** on the `macvm` guest while it existed (removed 2026-09-05 —
+[`macvm-readd-runbook.md`](macvm-readd-runbook.md)): a 914 MB GUI app plus ~1 GB of state
+had no role in the lean VM.
 
 ## Verification
 
