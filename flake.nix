@@ -819,6 +819,9 @@
                 grok-build-plugin-cc
                 keychain-secrets
                 local-rag
+                # nix-tart-macos: home.nix's macvmTartStart callPackages the
+                # macvm-tart veneer, which needs the input's source path.
+                nix-tart-macos
                 # jsonResumeUrl: the raw resume.json URL (or null), consumed by home.nix
                 # to bake into the jsonresume package as its default --url (darwin
                 # home.packages; inert on the NixOS hosts).
