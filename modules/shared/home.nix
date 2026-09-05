@@ -328,8 +328,8 @@ let
     dontCheckRuntimeDeps = true;
   });
 
-  # Finder right-click → Quick Actions entries for the CLIs above (Automator
-  # .workflow bundles, generated — no Automator.app authoring). Linked into
+  # Finder right-click → Services entries for the CLIs above (Automator
+  # .workflow bundles, generated — no Automator.app authoring). Copied into
   # ~/Library/Services below. See packages/media-quick-actions.nix.
   mediaQuickActions = pkgs.callPackage ../../packages/media-quick-actions.nix {
     media-toolkit = mediaToolkit;
@@ -1038,7 +1038,7 @@ in
         # review" invocable by name in any Claude Code / Claude Desktop session.
         brags-review = "${../../skills/brags-review}";
         # Local RAG over the pgvector store: how to ingest + query via the `postgres`
-        # MCP server and the in-DB embed() function (modules/shared/{postgres-pgvector,ollama}.nix).
+        # MCP server and the in-DB embed() function (the extracted local-rag flake's services.pgvectorLocal + services.ollamaLocal).
         rag = "${../../skills/rag}";
         # `/brag` — the MINE→LEDGER stage of the rebuilt brag-doc pipeline: mines GitHub
         # PRs/commits + Claude Code sessions (+ optional MCP) into impact.md/developer-value.md.
