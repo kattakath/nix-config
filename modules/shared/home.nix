@@ -711,11 +711,23 @@ in
     # sdkmanager/avdmanager are JVM tools; point them at the nixpkgs JDK 17.
     JAVA_HOME = pkgs.jdk17.home;
 
-    # SINGLE SOURCE OF TRUTH for where the brag pipeline reads/writes its data (the
-    # kattakath/brags checkout). The `/brag` + `brags-review` skills read $BRAG_DATA_DIR
-    # and error if it is unset — no hardcoded path scattered across the skills. Kept
-    # $HOME-relative (username-portable); change the checkout location here, in ONE place.
+    # DATA and CODE are two different places, deliberately, and conflating them is
+    # what broke brags-review.
+    #
+    # BRAG_DATA_DIR is where the pipeline reads/writes: impact.md,
+    # developer-value.md, config.json, linkedin/. It is a git repo with NO REMOTE —
+    # accomplishment notes that are versioned locally and never pushed anywhere,
+    # not even to the private kattakath/brags. That is the point of it.
+    #
+    # BRAG_ENGINE_DIR is the kattakath/brags CHECKOUT, which carries engine/ and
+    # config/. brags-review's fail-closed redactor lives there. It used to be
+    # resolved as "$BRAG_DATA_DIR/engine/redact.py", which does not exist —
+    # python3 exited 2, the gate failed closed as designed, and brags-review was
+    # simply unusable.
+    #
+    # Both $HOME-relative (username-portable); change either here, in ONE place.
     BRAG_DATA_DIR = "$HOME/Developer/local/brags";
+    BRAG_ENGINE_DIR = "$HOME/Developer/github.com/kattakath/brags";
 
     # Where buku keeps `bookmarks.db`. Pinned because buku otherwise scatters it into a
     # platform-guessed data dir, and this DB is the single surviving copy of the merged
