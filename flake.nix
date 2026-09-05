@@ -1447,6 +1447,16 @@
           fix-media = (pkgsFor system).callPackage ./packages/fix-media.nix { };
         }))
 
+        # `photo-describe` — write what an image IS into the image: Apple Vision
+        # labels + aesthetics rating, plus a one-sentence caption from a local
+        # Ollama vision model, into XMP:Description/Subject/Rating. Spotlight
+        # indexes those, so `mdfind` and Finder's search bar can answer "which
+        # one was the hillside shot?" without any database in between.
+        # darwin-only: it is built on Apple's Vision framework (via `auge`).
+        (nixpkgs.lib.genAttrs darwinSystems (system: {
+          photo-describe = (pkgsFor system).callPackage ./packages/photo-describe.nix { };
+        }))
+
         # `media-queue` — the durable Finder→launchd work queue: `media-enqueue` (what
         # the Services call, returns at once), `media-worker` (the launchd job that
         # drains it) and `media-queue-status` (the SwiftBar menu-bar plugin). The
@@ -1808,6 +1818,15 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.extract-audio}/bin/extract-audio";
               meta.description = "Extract the audio track from a video file, stream-copied into a matching container (or transcoded with --mp3/--wav/--flac)";
+            };
+
+            # `nix run .#photo-describe -- [--dry-run] <file-or-dir>...` — write
+            # Apple Vision labels + aesthetics rating and a local-VLM caption into
+            # each image's own XMP, so Spotlight/Finder can search it later.
+            aarch64-darwin.photo-describe = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.photo-describe}/bin/photo-describe";
+              meta.description = "Write an image's own description into it: Apple Vision labels + aesthetics rating + a local Ollama vision-model caption, as XMP:Description/Subject/Rating (Spotlight-indexed)";
             };
 
           }
