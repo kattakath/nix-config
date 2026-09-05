@@ -136,6 +136,23 @@
 # means doubling it on disk and showing the operator two of everything in
 # Finder. The writes are metadata-segment-only — the compressed image data is
 # preserved byte-for-byte, so there is nothing to roll back to.
+#
+# `-P` MAKES MTIME A LIVENESS TRAP — MEASURED, incident 2026-09-05. Because
+# `-P` deliberately preserves the original modification time, a SUCCESSFUL
+# write never bumps it. `ls -lt`, `find -newermt`, and any other mtime-based
+# "is this tool doing anything?" check is a GUARANTEED FALSE NEGATIVE against
+# this file, no matter how many photos it has actually described. That false
+# reading, stacked with the worker's own end-of-job-only log flush (see
+# packages/media-queue.nix's `tail -f "$scratch"` comment), is what turned a
+# perfectly healthy ~4-hour describe batch into a "hung job" diagnosis. The
+# real liveness probes, also in docs/photo-system.md:
+#
+#   # authoritative: how many are actually described right now
+#   exiftool -q -q -m -if '$XMP:Description' -p '1' "<folder>" | wc -l
+#
+#   # is a model call in flight right now
+#   pgrep -afl curl | grep 11434
+#
 {
   writeShellApplication,
   callPackage,
