@@ -77,6 +77,25 @@
 # it absent or the model unpulled, the run still writes labels and rating and
 # says so, rather than failing and leaving the library half-tagged.
 #
+# `temperature: 0` AND A FIXED SEED ARE LOAD-BEARING, not tuning. At Ollama's
+# default sampling the same photo gets a DIFFERENT caption on every run —
+# measured, twice in a row on one image:
+#
+#   "…hillside path, holding cameras, with trees and steps…"
+#   "…hillside with stone steps, enjoying a casual outdoor adventure."
+#
+# That makes re-describing a library non-reproducible and quietly shifts every
+# downstream embedding, so an index built from these captions can never be
+# rebuilt identically. At temperature 0 with a seed, two runs are byte-identical.
+# Note what else that first sample shows: the model DOES see the cameras. An
+# object missing from a caption is usually the sampler, not the model's sight.
+#
+# THE PROMPT ASKS FOR NOUNS, NOT MOOD, for the same retrieval reason. "Conveying
+# casual, friendly camaraderie" spends a third of a 25-word budget on words
+# nothing will ever search for. Measured against the older mood-first wording on
+# the same three photos, the noun-first prompt recovered a camera, a wristwatch
+# and a wall dispenser that the mood-first one had dropped — and lost nothing.
+#
 # HEIC is converted to a TEMPORARY JPEG for the caption step only. Every iPhone
 # photo is HEIC and vision models generally reject it; the original is never
 # rewritten by that conversion, only read.
@@ -239,7 +258,8 @@ writeShellApplication {
         if base64 < "$shot" | tr -d '\n' > "$tmpdir/b64" 2>/dev/null; then
           jq -n --arg m "$model" --rawfile b "$tmpdir/b64" \
             '{model:$m, stream:false, images:[$b],
-              prompt:"Describe this photograph in one plain sentence, under 25 words. State what is visible: subject, setting, and mood. Do not start with \"This image\" or \"The photo\"."}' \
+              options:{temperature:0, seed:42},
+              prompt:"Describe this photograph in one plain sentence under 25 words. Name the concrete things visible: how many people, what they wear or hold, the setting, and any notable objects. Prefer specific nouns over mood words. Do not begin with \"This image\" or \"The photo\"."}' \
             > "$tmpdir/req.json" 2>/dev/null || true
           if curl -fsS -m 180 -H 'Content-Type: application/json' \
                -d @"$tmpdir/req.json" "$host/api/generate" > "$tmpdir/resp.json" 2>/dev/null; then
