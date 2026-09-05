@@ -5,12 +5,16 @@
 #     A fork PR can carry a malicious diff / prompt-injection payload; auto-running on
 #     it would hand an untrusted actor a Claude turn with repo write scope. Requiring an
 #     explicit `@claude` mention keeps the trigger surface minimal.
-#   * Owner-only gate. The job `if:` requires BOTH `@claude` in the comment body AND the
-#     commenter being the repo owner. On a public repo anyone can comment `@claude`, so
-#     the login check is what actually stops third parties from spending our API budget
-#     or steering Claude. `issue_comment` and `pull_request_review_comment` expose the
-#     same `.comment.body` / `.comment.user.login` payload paths, so one condition covers
-#     both triggers.
+#   * Maintainer-only gate. The job `if:` requires BOTH `@claude` in the comment body AND
+#     the commenter being the maintainer's LOGIN, compared literally. On a public repo
+#     anyone can comment `@claude`, so the login check is what actually stops third
+#     parties from spending our API budget or steering Claude. It deliberately does NOT
+#     compare against `github.repository_owner`: the repo lives under the `kattakath`
+#     org while the maintainer's login is `ismailkattakath`, so the owner comparison
+#     silently skipped every legitimate mention (measured 2026-09-05 on PR #434 — 👀
+#     reaction from the App, then `skipped`). `issue_comment` and
+#     `pull_request_review_comment` expose the same `.comment.body` /
+#     `.comment.user.login` payload paths, so one condition covers both triggers.
 #   * SHA-pinned action. `anthropics/claude-code-action` is pinned to a commit SHA for a
 #     release >= v1.0.94 — the release that patched the disclosed prompt-injection /
 #     secret-exfiltration vulnerability. A floating `@v1`/`@beta` tag is mutable and could
@@ -39,21 +43,27 @@ on:
   pull_request_review_comment:
     types: [created]
 
-# Least-privilege, top-level. `contents: read` (inspect the tree), `issues`/
-# `pull-requests: write` (post Claude's replies), `id-token: write` (OIDC the action
-# uses for auth). Nothing broader.
+# Top-level permissions. `contents: write` is a DELIBERATE loosening (2026-09-05):
+# with `read` the action could only reply with suggested patches, never commit them,
+# which made "@claude fix it" a dead end. `write` lets it push fixes to PR branches.
+# Accepted tradeoff on this public repo: the maintainer-login gate above is the sole
+# trigger path, so only self-invited runs ever get that scope — but a prompt-injection
+# payload inside a PR the maintainer @claude's at could now produce pushes, so treat
+# @claude on third-party diffs with care. `issues`/`pull-requests: write` (post
+# replies), `id-token: write` (OIDC the action uses for auth). Nothing broader.
 permissions:
-  contents: read
+  contents: write
   issues: write
   pull-requests: write
   id-token: write
 
 jobs:
   claude:
-    # Owner-only + @claude gate. Both events share these payload paths.
+    # Maintainer-only + @claude gate (literal login — see the header for why NOT
+    # repository_owner). Both events share these payload paths.
     if: >-
       contains(github.event.comment.body, '@claude') &&
-      github.event.comment.user.login == github.repository_owner
+      github.event.comment.user.login == 'ismailkattakath'
     runs-on: ubuntu-latest
     steps:
       - name: Run Claude Code
