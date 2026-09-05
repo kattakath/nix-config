@@ -1,6 +1,7 @@
 # media-queue — the durable work queue behind the Finder Services.
 #
-#   media-enqueue <--video|--image> <file-or-dir>...   write jobs, return at once
+#   media-enqueue <--video|--image> [--priority high|normal|low] <file-or-dir>...
+#                                                       write jobs, return at once
 #   media-worker                                       drain the queue (launchd)
 #   media-queue-pause                                  freeze the in-flight job
 #   media-queue-resume                                 unfreeze it
@@ -43,6 +44,26 @@
 #
 # The worker requeues its in-flight job on SIGTERM, so a logout or a
 # `launchctl kill` costs at most a repeat of one file rather than the batch.
+#
+# THREE QUEUE DIRECTORIES, NOT ONE — `queue-high`/`queue`/`queue`-adjacent
+# `queue-low`, drained in that order. `queue` is the original, unchanged
+# tier every existing caller already uses. This exists because launchd
+# reloading this agent (an `activate`, a logout) kills whatever worker is
+# holding a job, and that worker's own crash-recovery — the orphan-recovery
+# loop below, the stranded-retry reclaim, and `cleanup()`'s own
+# requeue-on-interrupt — used to put the job straight back in `queue`,
+# where it competed evenly with a brand new request. MEASURED, 2026-09-05:
+# a handful of `activate` runs on this Mac left 6 duplicate `photo-describe`
+# passes over the same folder, each one system-generated noise a fresh
+# Finder click would have queued behind. Those three recovery sites now
+# demote to `queue-low` UNCONDITIONALLY; a normal failing-job retry
+# (`MAX_TRIES`, its own backoff) and a Low-Power-Mode defer instead
+# PRESERVE `$src_tier` — a transient failure or a global power condition is
+# not the job's fault the way a crashed worker is, and doesn't deserve to
+# lose its place. `media-enqueue --priority high` is the explicit lever for
+# `queue-high`; nothing calls it today except a human at the CLI — no
+# Finder Service is wired to it, so every existing Quick Action is
+# unaffected.
 #
 # PAUSE IS SIGSTOP ON THE JOB'S PROCESS GROUP, NOT SIGTERM ON THE WORKER.
 # SIGTERM is already spoken for above — it means "give this job back to the
@@ -103,16 +124,26 @@ let
 
   common = ''
     STATE="$HOME/Library/Application Support/nix-media-queue"
+    # THREE TIERS, NOT ONE, so a fresh request never queues behind traffic
+    # the SYSTEM generated recovering from its own interruption. `queue`
+    # keeps its name and meaning unchanged — every existing caller (all
+    # three Finder Quick Actions, any script) lands here exactly as before.
+    # `queue-high` is the explicit `media-enqueue --priority high` lever.
+    # `queue-low` is where crash-recovery specifically gets demoted to —
+    # see the per-site comments in media-worker for which paths do that
+    # and which instead PRESERVE a job's original tier.
+    QUEUE_HIGH="$STATE/queue-high"
     QUEUE="$STATE/queue"
+    QUEUE_LOW="$STATE/queue-low"
     STAGE="$STATE/staging"
     FAILED="$STATE/failed"
 
-    # `staging` is a SIBLING of `queue`, never a dotfile inside it: launchd
-    # starts the worker the moment `queue` is non-empty, so a job written in
-    # place could be picked up half-written. Jobs land by rename, which is
-    # atomic within a filesystem.
+    # `staging` is a SIBLING of the queue dirs, never a dotfile inside one:
+    # launchd starts the worker the moment ANY queue dir is non-empty, so a
+    # job written in place could be picked up half-written. Jobs land by
+    # rename, which is atomic within a filesystem.
     ensure_dirs() {
-      mkdir -p "$QUEUE" "$STAGE" "$FAILED" "$HOME/Library/Logs"
+      mkdir -p "$QUEUE_HIGH" "$QUEUE" "$QUEUE_LOW" "$STAGE" "$FAILED" "$HOME/Library/Logs"
     }
 
     log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
@@ -149,21 +180,48 @@ symlinkJoin {
       text = ''
         ${common}
         prog=media-enqueue
-        usage="usage: $prog <--video|--image|--describe> <file-or-directory>..."
+        usage="usage: $prog <--video|--image|--describe> [--priority high|normal|low] <file-or-directory>..."
         die() { echo "$prog: error: $*" >&2; exit 1; }
 
-        # `--describe` is a class like the other two, not a flag on --image: it
-        # ENRICHES a working file rather than repairing a broken one, and it is
-        # the only class whose work needs a vision model, so an operator asking
-        # to repair photos must never be made to wait on one.
-        case "''${1:-}" in
-          --video) class=video; shift ;;
-          --image) class=image; shift ;;
-          --describe) class=describe; shift ;;
-          --help|-h) echo "$usage" >&2; exit 0 ;;
-          *) die "$usage" ;;
-        esac
+        class=""
+        # `normal` (today's only tier) stays the default, so every EXISTING
+        # caller — all three Finder Quick Actions, any script already using
+        # this — is unaffected without a single change on their side.
+        priority=normal
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            # `--describe` is a class like the other two, not a flag on
+            # --image: it ENRICHES a working file rather than repairing a
+            # broken one, and it is the only class whose work needs a
+            # vision model, so an operator asking to repair photos must
+            # never be made to wait on one.
+            --video) class=video; shift ;;
+            --image) class=image; shift ;;
+            --describe) class=describe; shift ;;
+            --priority)
+              priority="''${2:-}"
+              case "$priority" in
+                high|normal|low) ;;
+                *) die "--priority must be high, normal, or low" ;;
+              esac
+              shift 2 ;;
+            --help|-h) echo "$usage" >&2; exit 0 ;;
+            --) shift; break ;;
+            -*) die "$usage" ;;
+            *) break ;;
+          esac
+        done
+        [ -n "$class" ] || die "$usage"
         [ $# -ge 1 ] || die "$usage"
+
+        # Same three-way split media-worker's requeue sites use to decide
+        # which tier a job belongs in — see packages/media-queue.nix's
+        # media-worker for the demote-vs-preserve rule this feeds into.
+        case "$priority" in
+          high) target_queue="$QUEUE_HIGH" ;;
+          low)  target_queue="$QUEUE_LOW" ;;
+          *)    target_queue="$QUEUE" ;;
+        esac
 
         ensure_dirs
         stamp=$(date +%s)
@@ -179,7 +237,7 @@ symlinkJoin {
           n=$((n + 1))
           job="$stamp-$$-$n.t1.job"
           printf '%s\0' "$class" "$p" > "$STAGE/$job"
-          mv "$STAGE/$job" "$QUEUE/$job"
+          mv "$STAGE/$job" "$target_queue/$job"
         done
 
         # Ask launchd to run the worker NOW. QueueDirectories gets there on its
@@ -256,7 +314,13 @@ symlinkJoin {
             continue
           fi
           log "recovering orphaned job from pid $opid"
-          mv "$orphan" "$QUEUE/$(date +%s)-recovered-$opid.t1.job" 2>/dev/null || true
+          # `$QUEUE_LOW`, NOT the tier this job started at: this is the
+          # SYSTEM recovering from losing a worker, not the job's own
+          # priority changing. A fresh request enqueued while this Mac was
+          # busy cleaning up after a crash must not queue behind the
+          # cleanup — see media-enqueue's `--priority` and the table this
+          # mirrors in packages/media-queue.nix's own header comment.
+          mv "$orphan" "$QUEUE_LOW/$(date +%s)-recovered-$opid.t1.job" 2>/dev/null || true
         done
 
         # And one level further: a job waiting out a retry backoff lives in
@@ -270,7 +334,10 @@ symlinkJoin {
           [ -e "$held" ] || continue
           if [ -n "$(find "$held" -mmin +2 2>/dev/null)" ]; then
             log "reclaiming stranded retry job $(basename "$held")"
-            mv "$held" "$QUEUE/$(date +%s)-reclaimed.t$MAX_TRIES.job" 2>/dev/null || true
+            # `$QUEUE_LOW` — same reasoning as the orphan recovery above:
+            # the backoff TIMER died, not the job. Demoted for the same
+            # reason, not because this job failed more than any other retry.
+            mv "$held" "$QUEUE_LOW/$(date +%s)-reclaimed.t$MAX_TRIES.job" 2>/dev/null || true
           fi
         done
 
@@ -295,10 +362,16 @@ symlinkJoin {
           # of it — including fix-google-video, whose trap then removes the
           # partial encode.
           [ -n "$child" ] && kill -TERM -"$child" 2>/dev/null || true
-          # An interrupted job goes BACK to the queue rather than being lost: a
+          # An interrupted job goes BACK to a queue rather than being lost: a
           # logout mid-batch should cost one repeated file, not the batch.
+          # `$QUEUE_LOW`, always — this worker dying (activation, logout,
+          # `launchctl kill`) is exactly the self-inflicted traffic that
+          # must not make a fresh request wait. Deliberately NOT `$src_tier`
+          # here even for a job that started high-priority: an interrupted
+          # job is one MORE attempt already spent on system recovery, not a
+          # reason to keep cutting in line ahead of new requests.
           if [ -n "$running" ] && [ -f "$running" ]; then
-            mv "$running" "$QUEUE/$(date +%s)-requeued-$$.t1.job" 2>/dev/null || true
+            mv "$running" "$QUEUE_LOW/$(date +%s)-requeued-$$.t1.job" 2>/dev/null || true
           fi
           # The lock is NOT released here. It is a flock(2) held by the lockf
           # parent, and the kernel drops it when that process exits — which it
@@ -317,16 +390,27 @@ symlinkJoin {
         reason=
 
         while :; do
-          # NO `| head` HERE. Under `pipefail`, `head -1` exits after its line,
-          # `sort` takes SIGPIPE, and the pipeline returns 141 — which errexit
-          # turns into a dead worker. It only bites once the listing exceeds the
-          # 64 KB pipe buffer, so it is invisible in testing and appears in
-          # production: measured with 761 jobs queued, the worker drained 1-3 of
-          # them per launch instead of the whole queue, and launchd paid a
-          # restart between each. Taking the first line by parameter expansion
-          # keeps `sort` writing to a variable, where it can finish and exit 0.
-          job=$(find "$QUEUE" -maxdepth 1 -name '*.job' -type f 2>/dev/null | sort)
-          job=''${job%%$'\n'*}
+          # HIGH, THEN NORMAL, THEN LOW — the first non-empty tier wins, so
+          # anything sitting in `queue-low/` (crash recovery, see the
+          # requeue sites above and below) never delays a fresh request in
+          # `queue/` or `queue-high/`. `src_tier` records which directory a
+          # job actually came from, for free — the requeue sites below use
+          # it to either PRESERVE that tier or deliberately override it.
+          job=""
+          src_tier=""
+          for src_tier in "$QUEUE_HIGH" "$QUEUE" "$QUEUE_LOW"; do
+            # NO `| head` HERE. Under `pipefail`, `head -1` exits after its line,
+            # `sort` takes SIGPIPE, and the pipeline returns 141 — which errexit
+            # turns into a dead worker. It only bites once the listing exceeds the
+            # 64 KB pipe buffer, so it is invisible in testing and appears in
+            # production: measured with 761 jobs queued, the worker drained 1-3 of
+            # them per launch instead of the whole queue, and launchd paid a
+            # restart between each. Taking the first line by parameter expansion
+            # keeps `sort` writing to a variable, where it can finish and exit 0.
+            job=$(find "$src_tier" -maxdepth 1 -name '*.job' -type f 2>/dev/null | sort)
+            job=''${job%%$'\n'*}
+            [ -n "$job" ] && break
+          done
           [ -n "$job" ] || break
 
           base=''${job##*/}
@@ -366,7 +450,11 @@ symlinkJoin {
           # retries this worker every ~10s, so this reuses launchd's own
           # mechanism instead of adding a private one.
           if [ "$(lowpower_active)" = "1" ]; then
-            mv "$running" "$QUEUE/$(date +%s)-lowpower.t1.job" 2>/dev/null || true
+            # `$src_tier`, PRESERVED: Low Power Mode is a global condition
+            # outside this job's control, not a system crash — it must not
+            # lose its place in line while waiting it out, the way the
+            # crash-recovery sites elsewhere in this loop deliberately do.
+            mv "$running" "$src_tier/$(date +%s)-lowpower.t1.job" 2>/dev/null || true
             running=""
             log "Low Power Mode is on — deferring '$path', not starting new work"
             break
@@ -509,8 +597,16 @@ symlinkJoin {
             held="$STAGE/$(date +%s)-$$-retry.t$next.job"
             if mv "$running" "$held" 2>/dev/null; then
               log "requeueing '$path' for attempt $next after ''${backoff}s"
+              # `$src_tier`, PRESERVED, not `$QUEUE`: this is the SAME
+              # request failing transiently and already paying its own
+              # backoff — unlike the crash-recovery sites above, it hasn't
+              # done anything to deserve losing its original priority.
+              # `$src_tier` is a plain variable, captured by this subshell
+              # at fork time, so the main loop moving on to a DIFFERENT
+              # job's `src_tier` afterward cannot change what this sleep
+              # eventually moves the file back to.
               ( sleep "$backoff"
-                mv "$held" "$QUEUE/$(date +%s)-$$-retry.t$next.job" 2>/dev/null || true
+                mv "$held" "$src_tier/$(date +%s)-$$-retry.t$next.job" 2>/dev/null || true
               ) &
               disown 2>/dev/null || true
             else
@@ -620,7 +716,9 @@ symlinkJoin {
         [ $# -eq 0 ] || { echo "usage: $prog" >&2; exit 1; }
         ensure_dirs
 
+        pending_high=$(find "$QUEUE_HIGH" -maxdepth 1 -name '*.job' -type f 2>/dev/null | wc -l | tr -d ' ')
         pending=$(find "$QUEUE" -maxdepth 1 -name '*.job' -type f 2>/dev/null | wc -l | tr -d ' ')
+        pending_low=$(find "$QUEUE_LOW" -maxdepth 1 -name '*.job' -type f 2>/dev/null | wc -l | tr -d ' ')
         backoff=$(find "$STAGE" -maxdepth 1 -name '*-retry.t*.job' -type f 2>/dev/null | wc -l | tr -d ' ')
         dead=$(find "$FAILED" -maxdepth 1 -type f 2>/dev/null | wc -l | tr -d ' ')
 
@@ -689,7 +787,7 @@ symlinkJoin {
           echo "$prog: worker idle — nothing in flight"
         fi
 
-        echo "$prog: queue: $pending pending, $backoff backing off (retry), $dead dead-letter (failed/)"
+        echo "$prog: queue: $pending_high high, $pending normal, $pending_low low pending, $backoff backing off (retry), $dead dead-letter (failed/)"
       '';
     })
 
