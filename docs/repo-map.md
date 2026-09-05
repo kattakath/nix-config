@@ -492,33 +492,50 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
     it is enabled once, Chromium unpacks it but leaves `extensions.theme` unset and the browser
     still looks stock.
 - **`media-queue.nix`** (darwin-gated) — the launchd half of the media toolkit's queue, and
-  almost entirely launchd configuration rather than code. **`QueueDirectories`** IS the queue
-  (launchd starts the worker whenever the directory is non-empty, and again after it exits if
-  anything is left — no polling loop, no daemon of ours). **`ProcessType = "Background"`** IS
-  the load control: macOS throttles CPU and I/O bandwidth for Background jobs *specifically*
-  so they cannot disrupt the user experience, which is what stops a 200-file re-encode from
-  being something you feel in the foreground; `Nice` and `LowPriorityIO` reinforce it.
-  **`KeepAlive.SuccessfulExit = false` + `ThrottleInterval = 10`** covers the worker dying
-  outright (per-*job* retry is the worker's own three-strikes rule), with the interval
-  bounding the restart rate so a reproducible crash cannot spin. **`RunAtLoad`** drains what a
-  logout interrupted. The agent's arg0 is `nix-media-queue` via `hm-launchd`, which is
-  load-bearing rather than cosmetic: per [launchd-naming](../.claude/rules/launchd-naming.md)
-  a `/nix/store` arg0 is what lets the worker **read** the TCC-protected folders it exists to work on.
+  almost entirely launchd configuration rather than code. **Three `QueueDirectories`** —
+  `queue-high`/`queue`/`queue-low`, drained in that order — ARE the queue (launchd starts the
+  worker whenever any of them is non-empty, and again after it exits if anything is left — no
+  polling loop, no daemon of ours). `queue` is the original, default tier every caller already
+  uses; `queue-high` is `media-enqueue --priority high`'s explicit lever (no Finder Service is
+  wired to it); `queue-low` is where the worker's OWN crash-recovery paths — a job requeued
+  because its worker died, an orphan reclaimed at startup with no live job behind it, a
+  stranded retry-backoff timer — demote to, so that self-inflicted traffic never makes a fresh
+  request wait. A normal failed-job retry and a Low-Power-Mode defer instead PRESERVE a job's
+  original tier — same distinction real job queues draw between "retrying" and "crash
+  recovery." **`ProcessType = "Background"`** IS the load control: macOS throttles CPU and I/O
+  bandwidth for Background jobs *specifically* so they cannot disrupt the user experience,
+  which is what stops a 200-file re-encode from being something you feel in the foreground;
+  `Nice` and `LowPriorityIO` reinforce it. **`KeepAlive.SuccessfulExit = false` +
+  `ThrottleInterval = 10`** covers the worker dying outright (per-*job* retry is the worker's
+  own three-strikes rule), with the interval bounding the restart rate so a reproducible crash
+  cannot spin. **`RunAtLoad`** drains what a logout interrupted — and, since a job's real pid is
+  now recorded in its own marker file (the same `MAINPID` pattern systemd uses to supervise a
+  process it didn't directly fork), a worker starting up ADOPTS a still-alive orphaned job
+  instead of always requeuing a duplicate: MEASURED, before this existed, a run of `activate`s
+  on one Mac left 6 duplicate `photo-describe` passes over the same folder. Adopting a job also
+  needed `setsid` (from `util-linuxMinimal`) to replace `set -m` for backgrounding it — a plain
+  process GROUP was not enough, because POSIX delivers SIGHUP (default: terminate) to a
+  *stopped* process the instant its process group is orphaned, which is exactly what happens
+  the moment the worker that started it dies; only a job in its OWN session is immune. The
+  agent's arg0 is `nix-media-queue` via `hm-launchd`, which is load-bearing rather than
+  cosmetic: per [launchd-naming](../.claude/rules/launchd-naming.md) a `/nix/store` arg0 is what
+  lets the worker **read** the TCC-protected folders it exists to work on.
   **There is no GUI status surface**, by the same choice as always. This drove a menu-bar item
   through SwiftBar (a whole GUI app in the closure, a plugin file, a `defaults` domain and a
   second launchd agent) and then macOS notifications; both were removed. The notifier had
   never worked anyway — an unsigned `/nix/store` bundle macOS never registered in
   `com.apple.ncprefs` — and its `osascript` replacement could show neither an image nor a
-  click action. What exists instead, all shell: `media-queue-status` (what's running/queued/
-  failed, and whether a pause is manual or Low Power Mode's own auto-pause),
-  `media-queue-pause`/`-resume` (SIGSTOP/SIGCONT the in-flight job's process group — freezes it
-  mid-file with no lost progress, unlike the worker's own SIGTERM-and-requeue), and
+  click action. What exists instead, all shell: `media-queue-status` (what's running/queued per
+  tier/failed, whether a pause is manual or Low Power Mode's own auto-pause, and whether a job
+  is currently orphaned awaiting adoption), `media-queue-pause`/`-resume` (SIGSTOP/SIGCONT the
+  in-flight job's process group, reading its pid straight from the marker file — freezes it
+  mid-file with no lost progress, and works on an adopted-but-not-yet-resumed orphan too), and
   `media-queue-power-monitor` (a separate `StartInterval` launchd agent, not a loop inside the
   worker — ticks every 20s and reuses the same pause/resume mechanism automatically). The log
   at `~/Library/Logs/nix-media-queue.log` used to go silent for a job's entire runtime and only
   flush at the end — MEASURED incident, a healthy multi-hour describe batch misread as hung —
   fixed by backgrounding `tail -f` on the job's scratch file for the duration, a second process
-  outside the job's own `set -m` group so it can never affect `$!`, `rc`, or the job's SIGTERM
+  outside the job's own session/group so it can never affect `$!`, `rc`, or the job's SIGTERM
   handling. A Finder Service itself still does nothing visible; the shell tools are the
   surface.
 - **Ghostty** (`programs.ghostty` in `home.nix`, `macos` only) — GPU-accelerated terminal,
@@ -595,16 +612,13 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
 `modules/darwin/{core.nix,homebrew.nix,nix-homebrew.nix,xcode-license.nix,github-runner.nix}`
 
 - **`core.nix`** — macOS system defaults (dock/finder/NSGlobalDomain, Touch ID for sudo,
-  `stateVersion = 5`). On **macos only**: login openers (`nix-*` BTM wrappers) + two
-  `mkTrashSweep` rotations into `~/.Trash` (paired with `finder.FXRemoveOldTrashItems` so
-  Trash self-purges): **`~/Desktop`** — the capture inbox (⇧⌘4/⇧⌘5 land there by macOS's own
-  default; the real Mac sets no `screencapture.location`) swept whole after **1 day**;
-  **`~/Downloads`** — the browser/AirDrop inbox, swept after **7 days** of disposable types
-  only (media/installers/archives allowlist; documents and directories stay for manual
-  triage). `screencapture.location` is overridden **only on macvm** → the shared inbox,
-  because `~/Downloads` is shared R/W into macvm via Tart VirtioFS, where the guest symlinks
-  its own `~/Downloads` to it and must **never** rotate it (`mv` across filesystems =
-  `cp` + `rm`).
+  `stateVersion = 5`). On **macos only**: login openers (`nix-*` BTM wrappers) + hourly
+  `~/Downloads` rotation into `~/.Trash` (`nix-file-rotation-downloads`; files **and**
+  directories, 30d staged retention → 7d steady state; paired with
+  `finder.FXRemoveOldTrashItems` so Trash self-purges). `~/Downloads` is the single staging
+  inbox — `screencapture.location` points at it, so ⇧⌘4 screenshots and ⇧⌘5 recordings land
+  there too — and it is shared R/W into macvm via Tart VirtioFS, where the guest symlinks its
+  own `~/Downloads` to it and must **never** rotate it (`mv` across filesystems = `cp` + `rm`).
 - **`homebrew.nix`** — the declarative Homebrew **framework**: owns only
   `enable`/`onActivation` with `cleanup = "uninstall"`/`taps`. The actual
   `brews`/`casks`/`masApps` lists live **per host** in `hosts/<host>.nix` so macos and macvm
