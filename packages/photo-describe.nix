@@ -28,15 +28,28 @@
 #                     NOT indexed by Spotlight (kMDItemStarRating stays null —
 #                     measured), so it is a bonus for other tools, never the
 #                     reason to run this.
-#   XMP-iptcCore:AltTextAccessibility
-#                     the IPTC 2021.1 accessibility field. Written because it
-#                     is the semantically correct home for alt text and costs
-#                     nothing, but almost nothing READS it yet — which is why
-#                     XMP:Description is written too rather than instead.
-#                     Note the family is `iptcCore`, NOT `iptcExt`; the tags
-#                     live under "new IPTC Core 1.3 properties" in exiftool's
-#                     XMP.pm, and an `-XMP-iptcExt:AltTextAccessibility=` write
-#                     silently fails.
+#   IPTC:Keywords     the legacy IIM twin of dc:subject, for the older tools
+#                     and indexers that read only that one.
+#
+# WHAT IS DELIBERATELY *NOT* WRITTEN: XMP-iptcCore:AltTextAccessibility. An
+# earlier version put this same sentence there too, and that was wrong twice
+# over. IPTC 2025.1 defines Alt Text as something that "should not be confused
+# with" Description/Caption — the caption is the who/what/why and may name
+# people, while alt text is replacement text for assistive technology — so one
+# string cannot correctly be both. More seriously, the HTML Living Standard's
+# "Guidance for markup generators" (§4.8.4.4.14) tells generators to obtain alt
+# text FROM THE USER and, failing that, to write nothing, precisely so that the
+# error of a missing alt attribute is not replaced by "the even more egregious
+# error of providing phony alternative text". Alt text is defined by an image's
+# purpose IN CONTEXT; this tool sees pixels and no context, so anything it wrote
+# there would be an unreviewed guess sitting in the field WCAG conformance
+# depends on. Nothing reads that field today, so writing it bought nothing and
+# risked exactly that. If these photos are ever published, their alt text wants
+# a human.
+#
+# (Kept for whoever adds it back: the family is `iptcCore`, NOT `iptcExt` —
+# the tags live under "new IPTC Core 1.3 properties" in exiftool's XMP.pm, and
+# an `-XMP-iptcExt:AltTextAccessibility=` write silently fails.)
 #
 # THE WALK IS NOT REIMPLEMENTED. Stage one is `fix-extension --only image
 # --print0`, whose `--print0` seam exists for exactly this kind of caller. That
@@ -287,16 +300,25 @@ writeShellApplication {
 
       args=(-overwrite_original -q -q)
       # Clear first so a re-describe replaces the keyword list instead of
-      # appending a second copy of it.
-      args+=(-XMP:Subject=)
+      # appending a second copy of it. IPTC:Keywords is the legacy IIM twin of
+      # dc:subject, written alongside it because older tools and some indexers
+      # read only that one; Lightroom writes both for the same reason.
+      # AltTextAccessibility is CLEARED, not merely skipped: earlier versions of
+      # this tool wrote the caption there, and leaving those behind would leave
+      # exactly the unreviewed machine guess the header argues must not sit in
+      # that field. Nothing else in this fleet writes it, so the only values
+      # being removed are ones this tool put there.
+      args+=(-XMP:Subject= -IPTC:Keywords= -XMP-iptcCore:AltTextAccessibility=)
       for l in ''${labels[@]+"''${labels[@]}"}; do
-        args+=("-XMP:Subject=$l")
+        # Apple's label identifiers are snake_case (`consumer_electronics`,
+        # `wood_processed`). That underscore is an internal token, not a word:
+        # it survives into Finder's Get Info, reads as machine output, and
+        # breaks the substring search this metadata exists to serve.
+        human=''${l//_/ }
+        args+=("-XMP:Subject=$human" "-IPTC:Keywords=$human")
       done
       [ -n "$rating" ] && args+=("-XMP:Rating=$rating")
-      if [ -n "$sentence" ]; then
-        args+=("-XMP:Description=$sentence")
-        args+=("-XMP-iptcCore:AltTextAccessibility=$sentence")
-      fi
+      [ -n "$sentence" ] && args+=("-XMP:Description=$sentence")
 
       if exiftool "''${args[@]}" "$f" 2>/dev/null; then
         described=$((described + 1))
