@@ -155,33 +155,38 @@ symlinkJoin {
 
         log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 
-        # `mkdir` is the lock: it is atomic on every filesystem and needs no
-        # helper binary. launchd should not start a second worker, but KeepAlive
-        # and QueueDirectories are two independent start conditions and this
-        # costs one line.
-        # `mkdir` is the lock: atomic on every filesystem, no helper binary. The
-        # pid inside is what makes it RECOVERABLE — a worker SIGKILLed mid-encode
-        # never runs its trap, and a lock with no liveness check would then wedge
-        # the queue permanently, with every future worker politely exiting.
-        take_lock() {
-          if mkdir "$LOCK" 2>/dev/null; then
-            echo $$ > "$LOCK/pid"
-            return 0
-          fi
-          local holder
-          holder=$(cat "$LOCK/pid" 2>/dev/null || true)
-          if [ -n "$holder" ] && kill -0 "$holder" 2>/dev/null; then
-            return 1
-          fi
-          log "breaking stale lock from pid ''${holder:-unknown}"
+        # THE LOCK IS THE KERNEL'S, NOT OURS. `/usr/bin/lockf` ships with macOS and
+        # takes a `flock(2)` lock, which the kernel releases when the holder dies
+        # — INCLUDING on SIGKILL, where no trap can run. That makes a stale lock
+        # structurally impossible, so the whole hand-written mutex this replaces
+        # (mkdir + a pid file + a `kill -0` liveness probe + a "breaking stale
+        # lock" branch) has nothing left to do.
+        #
+        # That code was not merely redundant, it was a reimplementation of a
+        # DEPRECATED Apple utility: /usr/bin/shlock does link(2)+PID-liveness,
+        # exactly the same algorithm, and its own man page points at lockf.
+        #
+        # `-t 0` means fail immediately rather than wait, and lockf then exits 75
+        # (EX_TEMPFAIL) — measured. Any other status is the worker's own, passed
+        # through untouched, so launchd's KeepAlive still sees real failures.
+        #
+        # Re-exec rather than wrap: the lock must cover this whole script, and the
+        # env guard is what stops the re-exec recursing.
+        if [ -d "$LOCK" ]; then
+          # Migration: the previous implementation made $LOCK a DIRECTORY, and
+          # lockf cannot take a lock on one. Left in place it would break every
+          # worker start on the first activation after this change.
           rm -rf "$LOCK"
-          mkdir "$LOCK" 2>/dev/null || return 1
-          echo $$ > "$LOCK/pid"
-        }
-
-        if ! take_lock; then
-          log "another worker holds the lock — exiting"
-          exit 0
+        fi
+        if [ -z "''${MEDIA_QUEUE_LOCK_HELD:-}" ]; then
+          export MEDIA_QUEUE_LOCK_HELD=1
+          lock_rc=0
+          /usr/bin/lockf -t 0 -k "$LOCK" "$0" "$@" || lock_rc=$?
+          if [ "$lock_rc" -eq 75 ]; then
+            log "another worker holds the lock — exiting"
+            exit 0
+          fi
+          exit "$lock_rc"
         fi
 
         # Same reasoning one level down: a job the previous worker was holding
@@ -196,6 +201,21 @@ symlinkJoin {
           fi
           log "recovering orphaned job from pid $opid"
           mv "$orphan" "$QUEUE/$(date +%s)-recovered-$opid.t1.job" 2>/dev/null || true
+        done
+
+        # And one level further: a job waiting out a retry backoff lives in
+        # staging/, which launchd does NOT watch, and the timer that moves it back
+        # is a backgrounded sleep. If that sleep dies — logout, reboot, launchd
+        # reaping the process group — the job is stranded where nothing will ever
+        # look at it again. Any retry job already older than a generous ceiling is
+        # therefore reclaimed on the next worker start, which is the one moment we
+        # know a worker exists to do it.
+        for held in "$STAGE"/*-retry.t*.job; do
+          [ -e "$held" ] || continue
+          if [ -n "$(find "$held" -mmin +2 2>/dev/null)" ]; then
+            log "reclaiming stranded retry job $(basename "$held")"
+            mv "$held" "$QUEUE/$(date +%s)-reclaimed.t$MAX_TRIES.job" 2>/dev/null || true
+          fi
         done
 
         running=""
@@ -217,7 +237,12 @@ symlinkJoin {
             mv "$running" "$QUEUE/$(date +%s)-requeued-$$.t1.job" 2>/dev/null || true
           fi
           rm -f "$STATUS"
-          rm -rf "$LOCK"
+          # The lock is NOT released here. It is a flock(2) held by the lockf
+          # parent, and the kernel drops it when that process exits — which it
+          # does whether we got here by a clean exit, a trap, or a SIGKILL that
+          # never ran this function at all. Deleting the lock FILE here would be
+          # worse than useless: it would unlink a path another worker may already
+          # have opened, handing two workers a lock on two different inodes.
         }
         trap cleanup EXIT
         trap 'cleanup; exit 143' INT TERM
@@ -343,9 +368,32 @@ symlinkJoin {
             # A FRESH timestamp, so the retry goes to the BACK of the queue.
             # Reusing the original would hand the same failing file straight
             # back and spin.
+            #
+            # HELD IN staging/ FOR A BACKOFF, not requeued immediately. Two
+            # reasons, and the second is the one that bites:
+            #   - Three attempts fired back-to-back are not a retry policy. The
+            #     failures this can actually recover from are transient — Ollama
+            #     restarting, a volume remounting — and none of them heal inside
+            #     the microseconds an immediate requeue allows.
+            #   - queue/ is what launchd WATCHES. A job sitting there waiting out
+            #     a backoff keeps the directory non-empty, so launchd re-fires the
+            #     agent continuously (ThrottleInterval only rate-limits it). Other
+            #     people have hit exactly this and abandoned QueueDirectories over
+            #     it. staging/ is not watched, so the wait is quiet.
+            # The sleep is BACKGROUNDED and disowned so this worker can finish
+            # its remaining jobs and exit; the move back is what re-arms launchd.
             next=$((tries + 1))
-            mv "$running" "$QUEUE/$(date +%s)-$$-retry.t$next.job" 2>/dev/null || rm -f "$running"
-            log "requeueing '$path' for attempt $next"
+            backoff=$((next * next * 5))
+            held="$STAGE/$(date +%s)-$$-retry.t$next.job"
+            if mv "$running" "$held" 2>/dev/null; then
+              log "requeueing '$path' for attempt $next after ''${backoff}s"
+              ( sleep "$backoff"
+                mv "$held" "$QUEUE/$(date +%s)-$$-retry.t$next.job" 2>/dev/null || true
+              ) &
+              disown 2>/dev/null || true
+            else
+              rm -f "$running"
+            fi
           fi
           running=""
         done
