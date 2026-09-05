@@ -730,6 +730,30 @@
         "type": "github"
       }
     },
+    "nix-tart-macos": {
+      "inputs": {
+        "flake-parts": [
+          "firmware-secrets",
+          "flake-parts"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1788645897,
+        "narHash": "sha256-ZuCAQTtyr6CCTVQy4zG0WU24WHkJHG/qY16AVfWlxoM=",
+        "owner": "kattakath",
+        "repo": "nix-tart-macos",
+        "rev": "ea40a29099cbd96f0e49983f9e4f181064b7e4aa",
+        "type": "github"
+      },
+      "original": {
+        "owner": "kattakath",
+        "repo": "nix-tart-macos",
+        "type": "github"
+      }
+    },
     "nix-vscode-extensions": {
       "inputs": {
         "nixpkgs": [
@@ -884,6 +908,7 @@
         "mcp-servers-nix": "mcp-servers-nix",
         "nix-darwin": "nix-darwin",
         "nix-homebrew": "nix-homebrew",
+        "nix-tart-macos": "nix-tart-macos",
         "nix-vscode-extensions": "nix-vscode-extensions",
         "nixpkgs": "nixpkgs_3",
         "raspberry-pi-nix": "raspberry-pi-nix",
