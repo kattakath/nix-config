@@ -347,7 +347,10 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
 - [`docs/nix-media-cli-extraction-grant.md`](docs/nix-media-cli-extraction-grant.md) — a
   self-contained brief for studying the 10-file media stack (§ Navigating the Codebase's
   `packages/media-*` + `modules/shared/media-queue.nix`) and designing its extraction into a
-  public `kattakath/nix-media-cli` flake. Study/design only — nothing here is decided yet.
+  public `kattakath/nix-media-cli` flake — and its answer,
+  [`docs/nix-media-cli-extraction-study.md`](docs/nix-media-cli-extraction-study.md): the
+  `media-<verb>` naming proposal, the repo design, a 7-stage migration plan, and why the
+  queue does **not** become its own flake yet. **Study only — nothing is decided.**
 - [`docs/claude-desktop-instructions.md`](docs/claude-desktop-instructions.md) — the one Claude
   behaviour this repo can't manage declaratively (account-level Desktop instructions) + the
   canonical "diagrams as ASCII" wording.
