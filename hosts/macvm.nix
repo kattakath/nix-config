@@ -10,6 +10,7 @@
 #   nix run github:kattakath/nix-config#macvm
 # Optional Grok CLI (once, not Homebrew): curl -fsSL https://x.ai/cli/install.sh | bash
 {
+  config,
   loginName,
   lib,
   pkgs,
@@ -38,7 +39,7 @@ let
     exec ${lib.getExe tartGuestAgent} --run-agent
   '';
 
-  # Single ensure script for launchd + activation (path shape = core.nix downloadsDir).
+  # Single ensure script for launchd + activation (path = local.folders.downloads).
   # Tart mounts the host's ~/Downloads as /Volumes/My Shared Files/Downloads
   # (VirtioFS), and the guest's own ~/Downloads becomes a symlink to it — so a
   # download in the guest lands in the host's one staging inbox.
@@ -52,7 +53,10 @@ let
   # dangling ~/Downloads symlink is not a cosmetic annoyance in the guest, it
   # breaks every browser download and Save-As. Never simplify it away.
   downloadsShare = "/Volumes/My Shared Files/Downloads";
-  downloadsLocal = "${home}/Downloads";
+  # The guest's inbox path comes from the SAME local.folders option core.nix's
+  # sweeps and screencapture gate consume — the "path shape = core.nix" coupling
+  # is the option now, not a convention two files must remember to keep in sync.
+  downloadsLocal = config.local.folders.downloads;
   nixDownloadsShare = pkgs.writeShellScriptBin "nix-downloads-share" ''
     set -euo pipefail
     shared="${downloadsShare}"

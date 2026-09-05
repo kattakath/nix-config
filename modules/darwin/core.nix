@@ -12,16 +12,20 @@
 let
   home = config.users.users.${loginName}.home;
   # Two SYSTEM-DEFAULT inboxes, two rotations (the launchd agents below):
-  #   ~/Desktop   — ⇧⌘4/⇧⌘5 screenshots AND screen recordings (macOS's own
-  #                 default target; the real Mac sets no location override),
-  #                 swept WHOLE after 1 day.
-  #   ~/Downloads — browser downloads + AirDrop (every app's default; nothing
-  #                 in this repo overrides it), swept after 7 days of
-  #                 DISPOSABLE types only (media/installers/archives) —
-  #                 keepers move to Documents/Pictures/Movies/Music by hand.
+  #   folders.desktop   — ⇧⌘4/⇧⌘5 screenshots AND screen recordings (macOS's
+  #                       own default target; the real Mac sets no location
+  #                       override), swept WHOLE after 1 day.
+  #   folders.downloads — browser downloads + AirDrop (every app's default;
+  #                       nothing in this repo overrides it), swept after 7
+  #                       days of DISPOSABLE types only (media/installers/
+  #                       archives) — keepers move to Documents/Pictures/
+  #                       Movies/Music by hand.
+  # The paths themselves are the local.folders options (./user-folders.nix):
+  # unset = the macOS system default, override = the seam. Never re-derive
+  # "${home}/Downloads" inline — consume the option.
   # Lineage: dedicated ~/Pictures/Screengrab → one all-in ~/Downloads inbox →
-  # split back onto the system defaults (2026-09-05).
-  downloadsDir = "${home}/Downloads";
+  # split back onto the system defaults behind mkOption (2026-09-05).
+  folders = config.local.folders;
   # Reverse-DNS namespace derived from the fleet domain (kattakath.com → com.kattakath)
   # for the file-rotation launchd labels, rather than hardcoding it.
   rdns = lib.concatStringsSep "." (lib.reverseList (lib.splitString "." domainName));
@@ -282,6 +286,8 @@ let
 in
 {
   imports = [
+    # The local.folders inbox-path seam (unset = macOS system defaults).
+    ./user-folders.nix
     # Declarative Homebrew (taps/brews/casks) for the Mac.
     ./homebrew.nix
     # Install Homebrew itself at the arch-correct prefix (nix-homebrew).
@@ -405,7 +411,7 @@ in
       # com.apple.screencapture location despite Apple documenting no separate
       # key for recordings.
       screencapture = {
-        location = lib.mkIf (config.networking.hostName == "macvm") downloadsDir;
+        location = lib.mkIf (config.networking.hostName == "macvm") folders.downloads;
         type = "png";
         disable-shadow = true;
       };
@@ -545,7 +551,7 @@ in
     # add/remove, so don't park live work on the Desktop.
     file-rotation-desktop = mkTrashSweep {
       suffix = "desktop";
-      dir = "${home}/Desktop";
+      dir = folders.desktop;
       minAge = 1440;
     };
 
@@ -557,7 +563,7 @@ in
     # staged-30-day sweep-everything shape.
     file-rotation-downloads = mkTrashSweep {
       suffix = "downloads";
-      dir = downloadsDir;
+      dir = folders.downloads;
       minAge = 10080;
       nameGlobs = [
         # media
@@ -620,7 +626,7 @@ in
   # is a large pre-existing user folder that is already correctly owned — a
   # recursive-adjacent ownership change there is risk with no upside.
   system.activationScripts.postActivation.text = lib.mkIf (config.networking.hostName == "macos") ''
-        mkdir -p "${downloadsDir}"
+        mkdir -p "${folders.downloads}"
 
         # Docker Desktop "Start when you log in" (settings-store AutoStart) races our
         # quiet open-docker agent and opens the dashboard. Keep AutoStart false so
