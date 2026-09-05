@@ -262,7 +262,11 @@ Both are safe to commit. Full rules: [`secrets-and-keychain.md`](secrets-and-key
   enables `services.macosGithubRunner` with `count = 2` for the **`dontsell-ai`** org (see that
   module's section below) — nix-config's *own* CI is fully GitHub-hosted and uses no runner, but
   this Mac is not runner-free. Carries its own Homebrew brew/cask/masApps lists, incl. a
-  `libreoffice` cask backing the docx/pptx/xlsx/pdf Claude Code skills' `soffice` dependency.
+  `libreoffice` cask backing the docx/pptx/xlsx/pdf Claude Code skills' `soffice` dependency,
+  and the `open-design` cask (`greedy = true`, adopted the hand-dragged app in place) paired
+  with `launchd.user.envVariables.OD_UPDATE_ENABLED = "0"` so versioning belongs to brew, not
+  the app's drift-prone self-updater — the full declared/imperative boundary is
+  [`open-design.md`](open-design.md).
 - **`macvm.nix`** — Tart aarch64-darwin guest: leaner Homebrew, no masApps, MCP gateway +
   desktop aesthetics off, red accent tell. Same operator identity as every host, no `identity`
   override; activated *inside* the VM as `ismail`. Host→guest SSH is Apple's sshd via
@@ -324,7 +328,8 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
   wired. Also declares Spotlight-visible, focus-or-launch `.app` bundles for the Android
   emulator and `macvm` (`home.file."Applications/Android Emulator.app"` / `"Mac VM.app"`,
   backed by `packages/spotlight-launchers.nix`, macos-only).
-- **`mcp.nix`** — the claude-code MCP-server config. See [`mcp-gateway.md`](mcp-gateway.md).
+- **`mcp.nix`** — the claude-code MCP-server config. See [`mcp-gateway.md`](mcp-gateway.md);
+  the per-client stdio `open-design` entry's boundary doc is [`open-design.md`](open-design.md).
 - **`chromium.nix`** — `programs.ungoogledChromium`, real-Mac-only: the declarative surface for
   the Homebrew `ungoogled-chromium` cask. Installs **no** browser (`programs.chromium.package =
   null`) — nixpkgs' `chromium`/`ungoogled-chromium` are `*-linux` only, so the `.app` must be a

@@ -274,6 +274,8 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   package, and flake output, with the reasoning. The long form of § Navigating the Codebase.
 - [`docs/mcp-gateway.md`](docs/mcp-gateway.md) — the localhost MCP gateway: server inventory,
   credentials model, opt-ins, how to add one.
+- [`docs/open-design.md`](docs/open-design.md) — OpenDesign's declared/imperative boundary:
+  adopted cask + updater kill-switch + per-client stdio MCP vs. the app's mutable state.
 - [`docs/secrets-and-keychain.md`](docs/secrets-and-keychain.md) — agenix operator-only vault +
   login-Keychain loader and the `secret` CLI.
 - [`docs/nixpi-sd-flashing-runbook.md`](docs/nixpi-sd-flashing-runbook.md) — flashing the
