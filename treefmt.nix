@@ -33,12 +33,17 @@ _:
       nixfmt.priority = 3;
     };
 
-    # Never touch generated state or build outputs.
+    # Never touch generated state or build outputs. The hm-launchd baseline is
+    # a byte-exact copy of upstream home-manager files that the
+    # checks.<system>.hm-launchd-drift gate diffs verbatim — reformatting it
+    # would make that check fail on our own formatting instead of on upstream
+    # drift.
     global.excludes = [
       "flake.lock"
       "result"
       "result-*"
       "*.md"
+      "modules/shared/hm-launchd/upstream-baseline/*"
     ];
   };
 }
