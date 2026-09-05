@@ -529,6 +529,24 @@ in
   # RAG stack (Ollama + pgvector) backs the postgres MCP server — real Mac only.
   # macvm is a lean sandbox; no need for embed/DB launchd agents there.
   services.ollamaLocal.enable = isMacosHost;
+
+  # ONE INFERENCE AT A TIME, enforced at the SERVER. `OLLAMA_NUM_PARALLEL` is read
+  # by `ollama serve`, not by clients, so it cannot be set through
+  # home.sessionVariables — a shell variable never reaches the launchd-started
+  # daemon. The local-rag module that owns this agent exposes only
+  # enable/host/port/embedModel/embedDim, so the environment is merged into its
+  # launchd agent here rather than by forking the input.
+  #
+  # WHY 1: a 6.1GB vision model is the whole GPU. photo-describe already
+  # serialises within a run (one worker, one image at a time), but that lock
+  # covers the WORKER only — a hand-run `photo-describe` alongside a draining
+  # queue, or `qwen` mid-sweep, would otherwise put two inferences on the same
+  # GPU. Ollama then queues them rather than thrashing, so the failure mode was
+  # slow rather than broken; this makes the constraint explicit and puts it where
+  # the resource actually is instead of in one of its callers.
+  launchd.agents.ollama-local.config.EnvironmentVariables = lib.mkIf isMacosHost {
+    OLLAMA_NUM_PARALLEL = "1";
+  };
   services.pgvectorLocal.enable = isMacosHost;
 
   # Claude Code routing telemetry collector — real Mac only (keeps macvm lean,
