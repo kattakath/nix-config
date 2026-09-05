@@ -499,23 +499,11 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
   logout interrupted. The agent's arg0 is `nix-media-queue` via `hm-launchd`, which is
   load-bearing rather than cosmetic: per [launchd-naming](../.claude/rules/launchd-naming.md)
   a `/nix/store` arg0 is what lets the worker **read** the TCC-protected folders it exists to
-  work on. **Status is SwiftBar**, the off-the-shelf host for a script-driven menu-bar item —
-  macOS has no native equivalent (`NSStatusItem` needs an app; Shortcuts' "Pin in Menu Bar" is
-  a launcher, not a display), so this is the standard pattern rather than a reinvention, and
-  the plugin is a script whose stdout becomes the menu, so there is no UI code at all. Two
-  things measured on this Mac rather than assumed: `defaults write com.ameba.SwiftBar
-  PluginDirectory <path>` **is** honoured and makes the plugin folder declarative, while
-  SwiftBar 2.0.1's `--folders` launch argument is **not** (launched with it and nothing else,
-  SwiftBar never ran the plugin); and a plugin reached through a **symlink runs fine**, so
-  plain `home.file` suffices — the opposite of the Automator bundles next door, which must be
-  copied because `NSFileWrapper` rejects a symlinked `document.wflow`. `DisabledPlugins` is
-  declared **empty** for the same reason the directory is declared at all: SwiftBar's menu can
-  disable the plugin in one click ("Disable All" sits two items above "Open Plugin Folder"),
-  and a disabled plugin fails **silently** — the queue keeps draining, the menu-bar item just
-  never appears. Measured via the accessibility API: disabled → SwiftBar falls back to a
-  `SwiftBar` text item; enabled and idle → **no status item at all**; enabled with work → the
-  plugin's own `⚙ n`. Declaring it empty makes activation repair a stray click, at the cost of
-  UI disabling no longer sticking. Sparkle auto-update is
+  **Status is notifications only.** This also drove a menu-bar item through SwiftBar — a
+  whole GUI app in the closure, a plugin file, a `defaults` domain and a second launchd
+  agent, to show a queue depth. Removed as not worth its surface: the notifications already
+  say when a batch is queued and how it ended, which is the part an operator acts on, and
+  the log answers the rest. A shell-run `photo-describe` prints its own progress.
   switched off: a `/nix/store` app cannot update itself, so a check can only produce a nag.
 - **`desktop-aesthetics.nix`** — the macOS desktop look, split in two:
   - **Terminal.app** is UNGATED on every darwin host — 16pt type on EVERY profile + stock
@@ -739,7 +727,7 @@ Smaller, single-purpose CLIs:
   on the menu for literally every file.
 - **`media-queue.nix`** — the durable Finder→launchd work queue: `media-enqueue` (what the
   Services call; writes job files and returns), `media-worker` (the launchd job that drains
-  it) and `media-queue-status` (the SwiftBar plugin). A job's **class** is `video`, `image` or
+  it). A job's **class** is `video`, `image` or
   `describe`; the worker dispatches the first two to `fix-media --$class` and `describe` to
   `photo-describe`. `describe` is a class rather than a flag on `--image` because it
   **enriches** a working file instead of repairing a broken one, and it is the only class
@@ -764,13 +752,13 @@ Smaller, single-purpose CLIs:
   live worker: SIGTERM kills the **process group** (`set -m` + `kill -TERM -$child`) so the
   grandchild ffmpeg dies too and `fix-google-video`'s own trap removes the partial encode —
   killing only the direct child orphans an encode that keeps burning CPU; the job is requeued;
-  and because a SIGKILLed worker can run no trap at all, the lock directory carries the
-  holder's **pid** and the in-flight job is named `running-<pid>.job`, so the next worker
-  breaks a stale lock and recovers the orphan instead of the queue wedging permanently. The
+  and because a SIGKILLed worker can run no trap at all, the lock is taken with
+  **`/usr/bin/lockf`** — a `flock(2)` the kernel releases on process death, SIGKILL included,
+  so a stale lock is structurally impossible — while the in-flight job is named
+  `running-<pid>.job` so the next worker reclaims the orphan. The
   work is backgrounded and `wait`ed on rather than run as `out=$(…)`, because **bash defers a
   trap until the foreground child returns** — a synchronous call would ignore SIGTERM for the
-  length of an encode and be SIGKILLed instead. The status plugin prints **nothing** when the
-  queue is idle, which is how SwiftBar is told to show no menu-bar item at all. The job picker
+  length of an encode and be SIGKILLed instead. The job picker
   deliberately does **not** pipe into `head`: under `pipefail`, `head -1` exits after its line,
   `sort` takes SIGPIPE and the pipeline returns 141, which errexit turns into a dead worker.
   It only bites once the listing exceeds the 64 KB pipe buffer, so it is invisible in testing

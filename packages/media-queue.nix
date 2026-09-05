@@ -2,7 +2,6 @@
 #
 #   media-enqueue <--video|--image> <file-or-dir>...   write jobs, return at once
 #   media-worker                                       drain the queue (launchd)
-#   media-queue-status                                 SwiftBar plugin (menu bar)
 #
 # WHY A QUEUE AT ALL. Re-encoding two hundred videos is hours of ffmpeg. Doing
 # that inside the Automator Service means the work dies at logout, cannot be
@@ -417,50 +416,9 @@ symlinkJoin {
       '';
     })
 
-    (writeShellApplication {
-      name = "media-queue-status";
-      runtimeInputs = [
-        coreutils
-        findutils
-      ];
-      text = ''
-        ${common}
-
-        STATUS="$STATE/status"
-        LOG="$HOME/Library/Logs/nix-media-queue.log"
-
-        depth=0
-        [ -d "$QUEUE" ] && depth=$(find "$QUEUE" -maxdepth 1 -name '*.job' 2>/dev/null | wc -l | tr -d ' ')
-        dead=0
-        [ -d "$FAILED" ] && dead=$(find "$FAILED" -maxdepth 1 -name '*.job' 2>/dev/null | wc -l | tr -d ' ')
-        current=""
-        [ -f "$STATUS" ] && current=$(head -1 "$STATUS" 2>/dev/null || true)
-
-        # SILENCE IS THE POINT: an empty plugin prints nothing and SwiftBar shows
-        # no menu-bar item at all, so an idle queue costs the operator no
-        # attention and no pixels.
-        if [ "$depth" -eq 0 ] && [ -z "$current" ] && [ "$dead" -eq 0 ]; then
-          exit 0
-        fi
-
-        if [ "$dead" -gt 0 ] && [ "$depth" -eq 0 ] && [ -z "$current" ]; then
-          echo "⚠ $dead"
-        else
-          echo "⚙ $depth"
-        fi
-        echo "---"
-        [ -n "$current" ] && echo "Working on: ''${current##*/} | length=45"
-        echo "$depth queued · $dead failed | size=11"
-        echo "---"
-        echo "Open Log | bash=/usr/bin/open param1=$LOG terminal=false"
-        [ "$dead" -gt 0 ] && echo "Open Failed Jobs | bash=/usr/bin/open param1=$FAILED terminal=false"
-        [ "$dead" -gt 0 ] && echo "Retry Failed | bash=/bin/mv param1=$FAILED param2=$QUEUE terminal=false refresh=true"
-        echo "Cancel Queued | bash=/usr/bin/find param1=$QUEUE param2=-name param3=*.job param4=-delete terminal=false refresh=true"
-      '';
-    })
   ];
   meta = {
-    description = "Durable Finder-to-launchd work queue for the media toolkit: media-enqueue, media-worker and the SwiftBar status plugin";
+    description = "Durable Finder-to-launchd work queue for the media toolkit: media-enqueue, and media-worker";
     mainProgram = "media-enqueue";
     platforms = lib.platforms.darwin;
   };
