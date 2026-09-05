@@ -1457,11 +1457,10 @@
           photo-describe = (pkgsFor system).callPackage ./packages/photo-describe.nix { };
         }))
 
-        # `media-queue` — the durable Finder→launchd work queue: `media-enqueue` (what
-        # the Services call, returns at once), `media-worker` (the launchd job that
-        # drains it) and `media-queue-status` (the SwiftBar menu-bar plugin). The
-        # queue, load control, retry and log are launchd's, not ours — see
-        # modules/shared/media-queue.nix. darwin-only.
+        # `media-queue` — the durable Finder→launchd work queue: `media-enqueue`
+        # (what the Services call, returns at once) and `media-worker` (the launchd
+        # job that drains it). The queue, load control, retry and log are launchd's,
+        # not ours — see modules/shared/media-queue.nix. darwin-only.
         (nixpkgs.lib.genAttrs darwinSystems (system: {
           media-queue = (pkgsFor system).callPackage ./packages/media-queue.nix { };
         }))
