@@ -75,13 +75,16 @@
 # byte, no progress lost, no requeue, no fresh attempt counted against
 # MAX_TRIES.
 #
-# `-$pid`, NEVER bare `$pid`. `set -m` in media-worker gives the backgrounded
-# job its own process group (pgid == its own pid) specifically so the
-# existing `kill -TERM -"$child"` in the SIGTERM path can reach grandchildren
-# like fix-google-video's ffmpeg. The negative pid is what makes a signal hit
-# the whole group instead of only the immediate child; pause/resume reuse that
-# same convention so a stop actually freezes exiftool/curl/ffmpeg too, not
-# just the shell driving them.
+# `-$pid`, NEVER bare `$pid`. `setsid` in media-worker gives the backgrounded
+# job its own SESSION, which is by construction also its own process group
+# (pgid == its own pid) — specifically so the existing `kill -TERM -"$child"`
+# in the SIGTERM path can reach grandchildren like fix-google-video's ffmpeg.
+# The negative pid is what makes a signal hit the whole group instead of only
+# the immediate child; pause/resume reuse that same convention so a stop
+# actually freezes exiftool/curl/ffmpeg too, not just the shell driving them.
+# The SESSION half (not just the group) is load-bearing, not incidental —
+# see media-worker's own `setsid` comment for why a plain process group
+# alone was not enough.
 #
 # THE WORKER LOOP PAUSES FOR FREE. `media-worker` calls `wait "$child"`, and
 # POSIX `wait` only returns on termination, never on stop — so a SIGSTOPped
@@ -112,6 +115,7 @@
   callPackage,
   coreutils,
   findutils,
+  util-linuxMinimal,
   media-toolkit ? callPackage ./media-toolkit.nix { },
 }:
 let
@@ -167,32 +171,6 @@ let
     # than one script needs" rule.
     lowpower_active() {
       /usr/bin/pmset -g 2>/dev/null | awk '/lowpowermode/{print $2; exit}'
-    }
-
-    # THE JOB IS NOT THE WORKER'S ONLY CHILD. `media-worker` also
-    # backgrounds a `tail -f` on the job's scratch file for live progress
-    # (see media-worker's own comment on that), started as a plain sibling
-    # of the job rather than under it — deliberately, so it shares the
-    # worker's process group and never has to be accounted for by the
-    # job's own SIGTERM handling. That means `pgrep -P "$wpid"` returns
-    # BOTH the tail process and the real job, and every caller that treats
-    # every result as "a running job" — media-queue-pause/-resume/-status —
-    # would otherwise show a phantom second entry sourced from tail's own
-    # inherited log-file stdout. MEASURED: this exact failure mode already
-    # happened once, for a DIFFERENT sibling (the Low Power Mode watchdog,
-    # before it moved to its own StartInterval agent) and had to be patched
-    # around with a blocklist filter (`*/bin/media-worker`) that this new
-    # sibling immediately fell outside of. An ALLOWLIST of the two actual
-    # job entry points — matching media-worker's own dispatch `case` below
-    # — doesn't have that failure mode: any FUTURE helper process is
-    # excluded by construction, not by remembering to update a blocklist.
-    job_child_of() {
-      local wpid="$1" cpid
-      /usr/bin/pgrep -P "$wpid" 2>/dev/null | while IFS= read -r cpid; do
-        case "$(/bin/ps -o args= -p "$cpid" 2>/dev/null)" in
-          */bin/photo-describe*|*/bin/fix-media*) printf '%s\n' "$cpid" ;;
-        esac
-      done
     }
 
   '';
@@ -284,6 +262,7 @@ symlinkJoin {
         coreutils
         findutils
         media-toolkit
+        util-linuxMinimal
       ];
       text = ''
         ${common}
@@ -331,7 +310,25 @@ symlinkJoin {
 
         # Same reasoning one level down: a job the previous worker was holding
         # when it was killed is still sitting in `running-<pid>.job`. If that pid
-        # is gone, the job is ours to put back.
+        # is gone, the job MIGHT still be alive — check before assuming it isn't.
+        #
+        # ADOPT, DON'T ALWAYS DEMOTE. A `running-*.job` file with a dead
+        # owner used to mean only one thing: the worker died, put the job
+        # back. Since the worker now records the job's OWN pid in that
+        # file (see `printf ... > "$running"` right after `child=$!`
+        # below), a dead owner might still have a perfectly healthy,
+        # paused job sitting behind it — MEASURED: this exact situation
+        # produced 7 duplicate `photo-describe` passes over one folder in
+        # a single evening, each `activate` adding one more, because the
+        # old code could only ever discard and restart. Adopt at most ONE
+        # per worker start (this worker can only run one job at a time
+        # anyway); any additional adoptable orphan is left completely
+        # untouched for a LATER worker start to find, rather than risk two
+        # adoptions racing to rename into the same `running-$$.job`.
+        adopted_child=""
+        adopted_class=""
+        adopted_path=""
+        adopted=0
         for orphan in "$STATE"/running-*.job; do
           [ -e "$orphan" ] || continue
           opid=''${orphan##*/running-}
@@ -339,6 +336,26 @@ symlinkJoin {
           if [ -n "$opid" ] && kill -0 "$opid" 2>/dev/null; then
             continue
           fi
+
+          items=()
+          while IFS= read -r -d "" x; do items+=("$x"); done < "$orphan"
+          ojclass=''${items[0]:-}
+          ojpath=''${items[1]:-}
+          ojchild=''${items[2]:-}
+
+          if [ -n "$ojchild" ] && kill -0 "$ojchild" 2>/dev/null; then
+            if [ "$adopted" -eq 0 ]; then
+              log "adopting orphaned job '$ojpath' (pid $ojchild) — its worker $opid is gone, the job is not"
+              if mv "$orphan" "$STATE/running-$$.job" 2>/dev/null; then
+                adopted_child="$ojchild"
+                adopted_class="$ojclass"
+                adopted_path="$ojpath"
+                adopted=1
+              fi
+            fi
+            continue
+          fi
+
           log "recovering orphaned job from pid $opid"
           # `$QUEUE_LOW`, NOT the tier this job started at: this is the
           # SYSTEM recovering from losing a worker, not the job's own
@@ -374,31 +391,50 @@ symlinkJoin {
           # The tailer first: it holds no lock and does no real work, but a
           # `tail -f` left running past its job is exactly the "no leaked
           # helpers" this trap exists to prevent. Plain `kill`, not `-$pid`:
-          # unlike the job, it was never given its own process group (it is
-          # started OUTSIDE the `set -m`/`set +m` bracket below, on purpose,
+          # unlike the job, it was never given its own session/process group
+          # (it is started BEFORE the `setsid` dispatch below, on purpose,
           # so the job's own SIGTERM below never has to account for it).
           [ -n "$tailer" ] && kill "$tailer" 2>/dev/null || true
-          # Kill the encode FIRST. Without this the trap would not even run until
-          # ffmpeg finished on its own, and launchd escalates SIGTERM to SIGKILL
-          # long before a two-hour batch is done.
-          # The whole PROCESS GROUP, not just the child: fix-media's own ffmpeg is
-          # a GRANDchild, and killing only the middle process orphans an encode
-          # that keeps burning CPU and leaves its temp file behind. `set -m`
-          # below puts each job in its own group so the negative pid reaches all
-          # of it — including fix-google-video, whose trap then removes the
-          # partial encode.
-          [ -n "$child" ] && kill -TERM -"$child" 2>/dev/null || true
-          # An interrupted job goes BACK to a queue rather than being lost: a
-          # logout mid-batch should cost one repeated file, not the batch.
-          # `$QUEUE_LOW`, always — this worker dying (activation, logout,
-          # `launchctl kill`) is exactly the self-inflicted traffic that
-          # must not make a fresh request wait. Deliberately NOT `$src_tier`
-          # here even for a job that started high-priority: an interrupted
-          # job is one MORE attempt already spent on system recovery, not a
-          # reason to keep cutting in line ahead of new requests.
-          if [ -n "$running" ] && [ -f "$running" ]; then
-            mv "$running" "$QUEUE_LOW/$(date +%s)-requeued-$$.t1.job" 2>/dev/null || true
-          fi
+          # A PAUSED job is spared entirely — this is the other half of
+          # adoption. Killing it here would destroy exactly the thing a
+          # future worker could otherwise resume: an intact process with
+          # its real pid already recorded in `$running`. Left untouched, it
+          # is immediately MAINPID-adoptable (see the pid recorded right
+          # after `child=$!` above, and the orphan-recovery loop's adoption
+          # branch below) the moment some worker — this one restarting, or
+          # the next `activate`'s — looks for it.
+          st=""
+          [ -n "$child" ] && st=$(/bin/ps -o stat= -p "$child" 2>/dev/null | tr -d ' ')
+          case "$st" in
+            T*) : ;;
+            *)
+              # Kill the encode FIRST. Without this the trap would not even run until
+              # ffmpeg finished on its own, and launchd escalates SIGTERM to SIGKILL
+              # long before a two-hour batch is done.
+              # The whole PROCESS GROUP, not just the child: fix-media's own ffmpeg is
+              # a GRANDchild, and killing only the middle process orphans an encode
+              # that keeps burning CPU and leaves its temp file behind. `setsid`
+              # below puts each job in its own session/group so the negative pid
+              # reaches all of it — including fix-google-video, whose trap then removes the
+              # partial encode.
+              [ -n "$child" ] && kill -TERM -"$child" 2>/dev/null || true
+              # An interrupted RUNNING job goes BACK to a queue rather than
+              # being lost: a logout mid-batch should cost one repeated
+              # file, not the batch. `$QUEUE_LOW`, always — this worker
+              # dying (activation, logout, `launchctl kill`) is exactly the
+              # self-inflicted traffic that must not make a fresh request
+              # wait. Deliberately NOT `$src_tier` here even for a job that
+              # started high-priority: an interrupted job is one MORE
+              # attempt already spent on system recovery, not a reason to
+              # keep cutting in line ahead of new requests. A PAUSED job
+              # (above) never reaches this branch, so this only ever fires
+              # for a job that was actively burning CPU when it lost its
+              # worker — nothing to adopt, same as always.
+              if [ -n "$running" ] && [ -f "$running" ]; then
+                mv "$running" "$QUEUE_LOW/$(date +%s)-requeued-$$.t1.job" 2>/dev/null || true
+              fi
+              ;;
+          esac
           # The lock is NOT released here. It is a flock(2) held by the lockf
           # parent, and the kernel drops it when that process exits — which it
           # does whether we got here by a clean exit, a trap, or a SIGKILL that
@@ -416,6 +452,80 @@ symlinkJoin {
         reason=
 
         while :; do
+          # AN ADOPTED JOB, IF ANY, ALWAYS GOES FIRST — set at most once,
+          # by the orphan-recovery loop above, before this loop ever
+          # starts. Cleared immediately so every later iteration falls
+          # straight through to the normal dequeue below.
+          if [ -n "$adopted_child" ]; then
+            class="$adopted_class"
+            path="$adopted_path"
+            child="$adopted_child"
+            running="$STATE/running-$$.job"
+            adopted_child=""
+            adopted_class=""
+            adopted_path=""
+
+            st=$(/bin/ps -o stat= -p "$child" 2>/dev/null | tr -d ' ')
+            case "$st" in
+              T*)
+                # `-"$child"`, matching every other resume in this file:
+                # a bare pid would only wake the job's own top-level
+                # process, leaving a stopped grandchild (curl, exiftool)
+                # frozen forever — `setsid` makes `$child` both the
+                # session leader and the group id, so the negative form
+                # reaches all of it.
+                if kill -CONT -"$child" 2>/dev/null; then
+                  log "resumed adopted job '$path' (pid $child)"
+                fi
+                ;;
+            esac
+            log "supervising adopted job $class '$path' (pid $child)"
+
+            # Re-attach live progress the same way media-queue-status
+            # finds a job's scratch file after the fact — its own open
+            # stdout fd, since this worker never opened it itself.
+            scratch=$(/usr/sbin/lsof -a -p "$child" -d 1 -Fn 2>/dev/null | sed -n 's/^n//p' | head -n1)
+            tailer=""
+            if [ -n "$scratch" ] && [ -f "$scratch" ]; then
+              tail -f -s 0.2 "$scratch" &
+              tailer=$!
+            fi
+
+            # POLL, NOT `wait`: `$child` was reparented when its original
+            # worker died, so it is not THIS shell's child, and POSIX
+            # `wait` can only block on / reap a real child. That also
+            # means its true exit status is gone forever — recoverable by
+            # no one but its original parent, a limit even systemd's own
+            # MAINPID mechanism shares (see this feature's own plan for
+            # the citation). Treated as a TERMINAL outcome either way,
+            # NEVER fed into the retry-with-backoff branch below: its real
+            # attempt count is already unknowable, and a job that actually
+            # failed gets caught by the tool's own idempotency on the next
+            # real enqueue, not by this worker guessing at a retry.
+            while kill -0 "$child" 2>/dev/null; do sleep 1; done
+            if [ -n "$tailer" ]; then
+              sleep 0.3
+              kill "$tailer" 2>/dev/null || true
+              tailer=""
+            fi
+            out=""
+            [ -n "$scratch" ] && [ -f "$scratch" ] && out=$(cat "$scratch")
+            child=""
+
+            d=$(printf '%s\n' "$out" | grep -c ': done:' || true)
+            s=$(printf '%s\n' "$out" | grep -cE ': (skip|OK):' || true)
+            changed=$((changed + d))
+            skipped=$((skipped + s))
+            jobs=$((jobs + 1))
+            if [ "$d" -eq 0 ] && [ -z "$reason" ]; then
+              reason=$(printf '%s\n' "$out" | grep -m1 -E ': (skip|OK):' \
+                | sed -E "s/^[^:]*: (skip|OK): '[^']*' *//; s/^(—|-) *//" || true)
+            fi
+            rm -f "$running"
+            running=""
+            continue
+          fi
+
           # HIGH, THEN NORMAL, THEN LOW — the first non-empty tier wins, so
           # anything sitting in `queue-low/` (crash recovery, see the
           # requeue sites above and below) never delays a fresh request in
@@ -501,9 +611,9 @@ symlinkJoin {
           # because nothing surfaced that it was still writing to `$scratch`
           # the whole time. `tail -f` on that same file is a SEPARATE
           # process from the job, so it cannot change `$!`, `rc`, or what
-          # `set -m` groups — the four things a `| tee`/pipeline approach
+          # `setsid` groups — the four things a `| tee`/pipeline approach
           # would put at risk (see the comments below, still exactly as
-          # measured). Started OUTSIDE the `set -m`/`set +m` bracket so it
+          # measured). Started BEFORE the `setsid` dispatch below so it
           # stays in the WORKER's own process group, never the job's —
           # `kill -TERM -"$child"` below must never have to account for it.
           #
@@ -518,19 +628,54 @@ symlinkJoin {
           # window small enough for the grace `sleep` after `wait` to cover.
           tail -f -s 0.2 "$scratch" &
           tailer=$!
-          # Job control on, so this background job becomes its own process group
-          # leader and `kill -TERM -$child` can take the whole tree down.
-          set -m
+          # `setsid`, NOT `set -m`. Job control's own process-group
+          # creation only protects against something ELSE running
+          # alongside the job in the same group — it does NOT protect a
+          # PAUSED job from the KERNEL itself. MEASURED, isolated,
+          # worker-script-free: when a stopped process's group becomes
+          # ORPHANED — its session's other process groups all exit, which
+          # is exactly what happens the instant this worker dies — POSIX
+          # mandates the kernel deliver SIGHUP then SIGCONT to it. Default
+          # SIGHUP disposition is terminate, so a `set -m`-grouped (but
+          # still same-SESSION) paused job was being killed by the KERNEL
+          # the moment its worker's session died, regardless of anything
+          # this script's own cleanup() trap did or didn't do — this is
+          # what actually killed every "resume an orphaned job" attempt
+          # this feature was built to fix, discovered only by isolating it
+          # in a plain two-process test outside this file entirely.
+          # `setsid` puts the job in a NEW SESSION, not just a new process
+          # group — orphaned-process-group semantics apply only WITHIN a
+          # session boundary, so a job in its own session can never be
+          # orphaned by this worker's death. A new session's leader is,
+          # by construction, also the sole member of a new process group
+          # with the same id, so this still gives `kill -TERM -"$child"`
+          # below the group it needs — `setsid` fully REPLACES `set -m`
+          # here, not merely supplements it. (No `-f`/`--fork`: this
+          # process is never already a group leader at this point — job
+          # control is off — so `setsid` execs directly; `$!` is the job's
+          # own real pid, not a forked wrapper's.)
+          #
           # Dispatch by class rather than always calling fix-media: `describe`
           # is an ENRICHMENT, not a repair, so it has its own CLI. Both speak
           # the same done:/skip:/OK: grammar, so everything downstream — the
           # counters, the reason extraction, the notification — is unchanged.
           case "$class" in
-            describe) photo-describe "$path" > "$scratch" 2>&1 & ;;
-            *)        fix-media "--$class" "$path" > "$scratch" 2>&1 & ;;
+            describe) setsid photo-describe "$path" > "$scratch" 2>&1 & ;;
+            *)        setsid fix-media "--$class" "$path" > "$scratch" 2>&1 & ;;
           esac
           child=$!
-          set +m
+          # RECORD THE JOB'S REAL PID IN ITS OWN MARKER — the standard
+          # pattern for supervising a process that might outlive the thing
+          # that started it, the same shape as systemd's MAINPID: "the real
+          # main process is not directly forked off by the service
+          # manager." If THIS worker dies before the job does, the job
+          # survives (reparented to launchd/init) but this rename is what
+          # lets a FUTURE worker's startup find, verify, and adopt it
+          # instead of requeuing a duplicate — see the orphan-recovery loop
+          # above. Every reader treats a missing third field as "nothing to
+          # adopt," so a job file written before this existed degrades to
+          # exactly today's behavior — no migration needed.
+          printf '%s\0' "$class" "$path" "$child" > "$running"
 
           rc=0
           wait "$child" || rc=$?
@@ -659,21 +804,22 @@ symlinkJoin {
         [ $# -eq 0 ] || { echo "usage: $prog" >&2; exit 1; }
 
         found=0
+        # Read the job's real pid straight out of the marker file — the
+        # THIRD field media-worker records right after forking it (see its
+        # own comment on that). No liveness check on the file's OWNING
+        # WORKER needed: an orphaned-but-alive job (its worker already
+        # dead) is exactly as pausable as one with a live owner, since
+        # `kill -STOP` targets the job's own process group directly.
         for running in "$STATE"/running-*.job; do
           [ -e "$running" ] || continue
-          wpid=''${running##*/running-}
-          wpid=''${wpid%%.job}
-          # A stale marker (worker already gone) has nothing left to freeze.
-          if [ -z "$wpid" ] || ! kill -0 "$wpid" 2>/dev/null; then
-            continue
+          items=()
+          while IFS= read -r -d "" x; do items+=("$x"); done < "$running"
+          jpid=''${items[2]:-}
+          [ -n "$jpid" ] || continue
+          if kill -STOP -"$jpid" 2>/dev/null; then
+            echo "$prog: paused pid $jpid (and its subprocesses)" >&2
+            found=1
           fi
-          while IFS= read -r jpid; do
-            [ -n "$jpid" ] || continue
-            if kill -STOP -"$jpid" 2>/dev/null; then
-              echo "$prog: paused pid $jpid (and its subprocesses)" >&2
-              found=1
-            fi
-          done < <(job_child_of "$wpid")
         done
 
         if [ "$found" -eq 0 ]; then
@@ -706,22 +852,21 @@ symlinkJoin {
         fi
 
         found=0
+        # Same direct read as media-queue-pause: the job's real pid is the
+        # marker file's third field, independent of whether its owning
+        # worker is still alive.
         for running in "$STATE"/running-*.job; do
           [ -e "$running" ] || continue
-          wpid=''${running##*/running-}
-          wpid=''${wpid%%.job}
-          if [ -z "$wpid" ] || ! kill -0 "$wpid" 2>/dev/null; then
-            continue
+          items=()
+          while IFS= read -r -d "" x; do items+=("$x"); done < "$running"
+          jpid=''${items[2]:-}
+          [ -n "$jpid" ] || continue
+          # CONT on a job that was never stopped is a harmless no-op, so this
+          # never needs to first confirm the job was paused by us.
+          if kill -CONT -"$jpid" 2>/dev/null; then
+            echo "$prog: resumed pid $jpid" >&2
+            found=1
           fi
-          while IFS= read -r jpid; do
-            [ -n "$jpid" ] || continue
-            # CONT on a job that was never stopped is a harmless no-op, so this
-            # never needs to first confirm the job was paused by us.
-            if kill -CONT -"$jpid" 2>/dev/null; then
-              echo "$prog: resumed pid $jpid" >&2
-              found=1
-            fi
-          done < <(job_child_of "$wpid")
         done
 
         if [ "$found" -eq 0 ]; then
@@ -753,60 +898,74 @@ symlinkJoin {
           [ -e "$running" ] || continue
           wpid=''${running##*/running-}
           wpid=''${wpid%%.job}
-          if [ -z "$wpid" ] || ! kill -0 "$wpid" 2>/dev/null; then
-            # A crashed worker leaves this marker behind; the next worker start
-            # reclaims it (see media-worker), so it is transient, not a bug.
-            echo "$prog: stale marker $(basename "$running") — worker $wpid is gone (will self-heal on next worker start)"
-            continue
-          fi
 
           items=()
           while IFS= read -r -d "" x; do items+=("$x"); done < "$running"
           class=''${items[0]:-unknown}
           path=''${items[1]:-unknown}
+          # THE JOB'S REAL PID — media-worker's own MAINPID-style record,
+          # written right after forking it, independent of whether ITS
+          # worker is still alive. That decoupling is what makes an
+          # orphaned-but-alive job (its worker already dead) visible here
+          # at all: it no longer needs a live `$wpid` to be found.
+          jpid=''${items[2]:-}
+
+          if [ -z "$jpid" ] || ! kill -0 "$jpid" 2>/dev/null; then
+            # No recorded pid (a pre-upgrade job file) or it is genuinely
+            # dead either way: the next worker's own orphan-recovery loop
+            # reclaims this — see media-worker — so it is transient, not a
+            # bug, and reported ONLY when there is truly no live worker
+            # left to reclaim it on its own.
+            if [ -z "$wpid" ] || ! kill -0 "$wpid" 2>/dev/null; then
+              echo "$prog: stale marker $(basename "$running") — will self-heal on next worker start"
+            fi
+            continue
+          fi
+
+          any_running=1
+          if [ -n "$wpid" ] && kill -0 "$wpid" 2>/dev/null; then
+            owner="worker $wpid"
+          else
+            owner="ORPHANED — no live worker, will be adopted on next worker start"
+          fi
           # NOT the attempt number: media-worker renames the job to
           # running-$$.job the moment it dequeues it, which drops the
           # original `.tN` suffix that carried the attempt count. That
           # number exists only in the worker's own `log "start ... (attempt
           # N)"` line, not in any state this tool can read without coupling
           # to the log's format — so it is left out rather than guessed.
+          state=$(/bin/ps -o stat= -p "$jpid" 2>/dev/null | tr -d ' ')
+          case "$state" in
+            T*)
+              # The marker is media-queue-power-monitor's own trail:
+              # present only for a pause IT made, never for one the
+              # operator made by hand with media-queue-pause.
+              if [ -f "$STATE/power-paused-$jpid" ]; then
+                label="PAUSED (Low Power Mode, auto)"
+              else
+                label="PAUSED (SIGSTOP, manual)"
+              fi
+              ;;
+            "") label="gone" ;;
+            *)  label="running" ;;
+          esac
+          echo "$prog: $class '$path' — $label, pid $jpid ($owner)"
 
-          while IFS= read -r jpid; do
-            [ -n "$jpid" ] || continue
-            any_running=1
-            state=$(/bin/ps -o stat= -p "$jpid" 2>/dev/null | tr -d ' ')
-            case "$state" in
-              T*)
-                # The marker is media-queue-power-monitor's own trail:
-                # present only for a pause IT made, never for one the
-                # operator made by hand with media-queue-pause.
-                if [ -f "$STATE/power-paused-$jpid" ]; then
-                  label="PAUSED (Low Power Mode, auto)"
-                else
-                  label="PAUSED (SIGSTOP, manual)"
-                fi
-                ;;
-              "") label="gone" ;;
-              *)  label="running" ;;
-            esac
-            echo "$prog: $class '$path' — $label, pid $jpid"
-
-            # The scratch file is a bare mktemp with no name this tool ever
-            # recorded — media-worker's own choice, on purpose (see its
-            # comment on `scratch=$(mktemp)`), so the only way to find it
-            # after the fact is the same place the kernel keeps it: the job's
-            # own open stdout fd. `-Fn` gives just the name field, one write
-            # NUL-free line, which survives a path full of spaces.
-            scratch=$(/usr/sbin/lsof -a -p "$jpid" -d 1 -Fn 2>/dev/null | sed -n 's/^n//p' | head -n1)
-            if [ -n "$scratch" ] && [ -f "$scratch" ]; then
-              d=$(grep -c ': done:' "$scratch" 2>/dev/null || true)
-              sk=$(grep -cE ': (skip|OK):' "$scratch" 2>/dev/null || true)
-              er=$(grep -c ': error:' "$scratch" 2>/dev/null || true)
-              last=$(tail -n1 "$scratch" 2>/dev/null || true)
-              echo "$prog:   progress so far: $((d + sk + er)) processed ($d done, $sk skip/OK, $er error)"
-              [ -n "$last" ] && echo "$prog:   last: $last"
-            fi
-          done < <(job_child_of "$wpid")
+          # The scratch file is a bare mktemp with no name this tool ever
+          # recorded — media-worker's own choice, on purpose (see its
+          # comment on `scratch=$(mktemp)`), so the only way to find it
+          # after the fact is the same place the kernel keeps it: the job's
+          # own open stdout fd. `-Fn` gives just the name field, one write
+          # NUL-free line, which survives a path full of spaces.
+          scratch=$(/usr/sbin/lsof -a -p "$jpid" -d 1 -Fn 2>/dev/null | sed -n 's/^n//p' | head -n1)
+          if [ -n "$scratch" ] && [ -f "$scratch" ]; then
+            d=$(grep -c ': done:' "$scratch" 2>/dev/null || true)
+            sk=$(grep -cE ': (skip|OK):' "$scratch" 2>/dev/null || true)
+            er=$(grep -c ': error:' "$scratch" 2>/dev/null || true)
+            last=$(tail -n1 "$scratch" 2>/dev/null || true)
+            echo "$prog:   progress so far: $((d + sk + er)) processed ($d done, $sk skip/OK, $er error)"
+            [ -n "$last" ] && echo "$prog:   last: $last"
+          fi
         done
 
         if [ "$any_running" -eq 0 ]; then
@@ -837,42 +996,40 @@ symlinkJoin {
         # worker at all, so no disambiguation is needed anywhere.
         for running in "$STATE"/running-*.job; do
           [ -e "$running" ] || continue
-          wpid=''${running##*/running-}
-          wpid=''${wpid%%.job}
-          if [ -z "$wpid" ] || ! kill -0 "$wpid" 2>/dev/null; then
-            continue
-          fi
-
           items=()
           while IFS= read -r -d "" x; do items+=("$x"); done < "$running"
           path=''${items[1]:-unknown}
+          # The job's real pid, direct from the marker file — no need for
+          # its worker to be alive: an orphaned-but-running job still burns
+          # real power and still needs pausing on Low Power Mode, whether
+          # or not a worker has adopted it yet (see media-worker's own
+          # adoption comment for what "yet" means here).
+          jpid=''${items[2]:-}
+          [ -n "$jpid" ] || continue
 
-          while IFS= read -r jpid; do
-            [ -n "$jpid" ] || continue
-            marker="$STATE/power-paused-$jpid"
-            if [ "$(lowpower_active)" = "1" ]; then
-              if [ ! -f "$marker" ]; then
-                # `T*` (already stopped) means a manual `media-queue-pause`
-                # got here first — not ours, leave it alone, per the
-                # marker being the only thing that makes auto-resume safe.
-                st=$(/bin/ps -o stat= -p "$jpid" 2>/dev/null | tr -d ' ')
-                case "$st" in
-                  T*) : ;;
-                  *)
-                    if kill -STOP -"$jpid" 2>/dev/null; then
-                      touch "$marker"
-                      log "power: paused '$path' — Low Power Mode is on"
-                    fi
-                    ;;
-                esac
-              fi
-            elif [ -f "$marker" ]; then
-              if kill -CONT -"$jpid" 2>/dev/null; then
-                log "power: resumed '$path' — Low Power Mode is off"
-              fi
-              rm -f "$marker"
+          marker="$STATE/power-paused-$jpid"
+          if [ "$(lowpower_active)" = "1" ]; then
+            if [ ! -f "$marker" ]; then
+              # `T*` (already stopped) means a manual `media-queue-pause`
+              # got here first — not ours, leave it alone, per the
+              # marker being the only thing that makes auto-resume safe.
+              st=$(/bin/ps -o stat= -p "$jpid" 2>/dev/null | tr -d ' ')
+              case "$st" in
+                T*) : ;;
+                *)
+                  if kill -STOP -"$jpid" 2>/dev/null; then
+                    touch "$marker"
+                    log "power: paused '$path' — Low Power Mode is on"
+                  fi
+                  ;;
+              esac
             fi
-          done < <(job_child_of "$wpid")
+          elif [ -f "$marker" ]; then
+            if kill -CONT -"$jpid" 2>/dev/null; then
+              log "power: resumed '$path' — Low Power Mode is off"
+            fi
+            rm -f "$marker"
+          fi
         done
       '';
     })
