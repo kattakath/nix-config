@@ -651,7 +651,8 @@ Smaller, single-purpose CLIs:
   staleness and duplicate-transport device listings. Its operator knowledge is also a GLOBAL
   skill, `skills/android-phone`.
 - **`media-quick-actions.nix`** (both darwin hosts) — Finder right-click → **Services** entries for
-  the media-toolkit CLIs, generated as Automator `.workflow` bundles. The submenu is
+  the media-toolkit CLIs (**Extract Audio**, **Fix Google Video**, **Fix File Extension**),
+  generated as Automator `.workflow` bundles. The submenu is
   **Services**, not "Quick Actions": Finder's Quick Actions submenu is fed by App Extensions
   and Shortcuts actions (`defaults read pbs` → `FinderActive` lists only `APPEXTENSION-*` and
   `is.workflow.actions.*`), which an Automator service cannot join. New or changed entries
@@ -679,14 +680,41 @@ Smaller, single-purpose CLIs:
   indistinguishable — you click and nothing happens. When one file produced nothing the
   notification reports the actual reason (`already exists`, `no audio stream`, `not found`,
   `already editor-safe`) rather than collapsing them all into one message, which would report
-  a missing file as a success.
+  a missing file as a success. `NSSendFileTypes` is **per action**, not a shared constant:
+  the two video actions take `public.movie`, while **Fix File Extension** also takes
+  `public.image`, `public.audio` and `public.folder` — a mislabeled JPEG still gets
+  `public.png` from its extension (which conforms to `public.image`), so it does reach the
+  menu, and a folder makes a whole export one right-click. `public.data` is deliberately
+  absent: it would put the item on the menu for literally every file.
 - **`media-toolkit.nix`** — `symlinkJoin` bundling the media-file CLIs below
-  (`fix-google-video` + `extract-audio`) as ONE entry for `home.packages`, so the set
+  (`fix-google-video` + `extract-audio` + `fix-extension`) as ONE entry for
+  `home.packages`, so the set
   cannot drift as CLIs are added; each stays its own derivation with its own
-  `nix run .#<name>`. Membership rule: a CLI that **transforms a media file** on this
+  `nix run .#<name>`. Membership rule: a CLI that **acts on a media file the operator
+  selected** on this
   machine. `obs-fb-setup` (writes an OBS config profile, reads a Keychain secret) and
   `fidelity-enhance` (MCP referee for an agentic image loop) are media-*adjacent* and stay
   separate — folding them in would leave the name meaning only "vaguely about media".
+  `fix-extension` changes no bytes and still belongs: it repairs the selected file for the
+  same consumer (Finder/Photos) the other two serve, and the rule exists to exclude tools
+  that never touch a file at all, not to require a re-encode.
+- **`fix-extension.nix`** — `fix-extension [--dry-run] <file-or-dir>...` renames files whose
+  **extension lies about their content**, walking directories recursively. Fixes the
+  no-thumbnail-in-Finder symptom: Finder's thumbnail generator trusts the extension → UTI, so
+  a JPEG named `.png` goes to the PNG decoder and falls back to a generic icon, while Preview
+  and Quick Look's full view sniff the magic bytes and open it fine — a file that is visibly
+  readable yet has no thumbnail. Measured on a Google Photos/Picasa export: **10 of 15
+  `.png` files were JPEG, and exactly those 10 had no thumbnail.** A **rename, never a
+  re-encode** — the bytes are already a valid image, so converting would only add a second
+  lossy generation. Two guards keep it non-destructive: an extension is rewritten only when
+  the sniffed mime is in its table AND the current extension is not already an accepted
+  spelling of that type (so `.jpeg`/`.tif`/`.m4v` are left alone, and unknown types are
+  skipped rather than guessed at), and `video/quicktime` accepts `.mp4` too, since some MP4s
+  sniff as QuickTime and renaming a working one to `.mov` would be a regression. An existing
+  target is skipped, never clobbered; `-ef` rather than a string compare so a case-only fix
+  still works on a case-insensitive volume. Files with no recognisable type are silent inside
+  a directory walk (a photo folder is full of them) and explain themselves when named
+  explicitly.
 - **`extract-audio.nix`** — `extract-audio [--mp3|--copy|--wav|--flac] <file>...` pulls the
   audio track out of a video. **Defaults to MP3**, which plays everywhere. `--copy` is the
   lossless path (the audio is already a finished encode, so transcoding is a second lossy
