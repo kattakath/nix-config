@@ -115,6 +115,16 @@ symlinkJoin {
           mv "$STAGE/$job" "$QUEUE/$job"
         done
 
+        # Ask launchd to run the worker NOW. QueueDirectories gets there on its
+        # own, but only after ThrottleInterval, which spaces every start of the
+        # job rather than only its respawns — measured, a right-click waited a
+        # full minute at 60s. `kickstart` is launchd's own "run this now", so the
+        # fast path is still launchd's mechanism rather than a private one.
+        # Failure is ignored deliberately: the CLI must work where the agent is
+        # not installed, and the directory watch is the fallback either way.
+        /bin/launchctl kickstart "gui/$(id -u)/org.nix-community.home.media-queue" \
+          >/dev/null 2>&1 || true
+
         notify "Queued $n $class item(s)"
       '';
     })
