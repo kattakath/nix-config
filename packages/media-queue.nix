@@ -134,6 +134,28 @@ let
       /usr/bin/pmset -g 2>/dev/null | awk '/lowpowermode/{print $2; exit}'
     }
 
+    # THE JOB HAS A SIBLING NOW: THE WATCHDOG. `pgrep -P "$wpid"` used to be
+    # enough on its own — a worker backgrounds exactly one child, the job —
+    # but the power watchdog is a second `(...)  &` subshell of the SAME
+    # media-worker script, forked from the same process, so it is an
+    # equally direct child. Left unfiltered, media-queue-pause/-resume/
+    # -status all start treating the watchdog as if it were a second
+    # running job. MEASURED the distinguishing signal: `ps -o args=` on the
+    # watchdog shows the literal `.../bin/media-worker` command line
+    # (identical to the worker itself, since a subshell never re-execs) —
+    # the real job's args always start with `photo-describe` or
+    # `fix-media`. Filtering on that basename is what `job_child_of` does,
+    # shared here rather than tripled across the three callers.
+    job_child_of() {
+      local wpid="$1" cpid
+      /usr/bin/pgrep -P "$wpid" 2>/dev/null | while IFS= read -r cpid; do
+        case "$(/bin/ps -o args= -p "$cpid" 2>/dev/null)" in
+          */bin/media-worker) continue ;;
+          *) printf '%s\n' "$cpid" ;;
+        esac
+      done
+    }
+
   '';
 in
 symlinkJoin {
@@ -566,7 +588,7 @@ symlinkJoin {
               echo "$prog: paused pid $jpid (and its subprocesses)" >&2
               found=1
             fi
-          done < <(/usr/bin/pgrep -P "$wpid" 2>/dev/null || true)
+          done < <(job_child_of "$wpid")
         done
 
         if [ "$found" -eq 0 ]; then
@@ -614,7 +636,7 @@ symlinkJoin {
               echo "$prog: resumed pid $jpid" >&2
               found=1
             fi
-          done < <(/usr/bin/pgrep -P "$wpid" 2>/dev/null || true)
+          done < <(job_child_of "$wpid")
         done
 
         if [ "$found" -eq 0 ]; then
@@ -697,7 +719,7 @@ symlinkJoin {
               echo "$prog:   progress so far: $((d + sk + er)) processed ($d done, $sk skip/OK, $er error)"
               [ -n "$last" ] && echo "$prog:   last: $last"
             fi
-          done < <(/usr/bin/pgrep -P "$wpid" 2>/dev/null || true)
+          done < <(job_child_of "$wpid")
         done
 
         if [ "$any_running" -eq 0 ]; then
