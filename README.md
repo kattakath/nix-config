@@ -56,8 +56,21 @@ installer and `nix run`s the flake — it is not fully offline.)
 ### Fork this for your own fleet
 
 This is personal config with `loginName = "ismail"` baked into `flake.nix` (it is
-your POSIX account — `/Users/<loginName>` and `home-manager.users.<loginName>`). To run your
-own fleet from it:
+your POSIX account — `/Users/<loginName>` and `home-manager.users.<loginName>`).
+
+**The quick way — no fork at all.** Scaffold a tiny consumer flake that uses this
+repo as its engine (`lib.mkDarwin` + your own identity + your own host deltas):
+
+```bash
+mkdir my-fleet && cd my-fleet
+nix flake init -t github:kattakath/nix-config
+```
+
+Then follow the scaffolded [`templates/default/README.md`](./templates/default/README.md):
+edit the identity, `git init && git add -A`, `nix run .#macos`.
+
+**The full fork** (when you want to diverge from the engine itself, or use
+`bootstrap.sh` against your own copy):
 
 1. **Fork** the repo on GitHub.
 2. In `flake.nix`, set `loginName` to **your macOS login** (`id -un`), and set `orgName` /
@@ -150,6 +163,7 @@ treefmt.nix     Single source of truth for formatting + lint (drives nix fmt, CI
 hosts/          Per-host entry profiles (macos.nix, macvm.nix, nixpi.nix, nixvm.nix)
 modules/        Reusable modules, split by platform (darwin/ nixos/ shared/)
 packages/       Nix-built artifacts (devcontainer image, key-recovery kit, landing page; also vast-bootstrap.sh + templates/provisioner/provision-lib.sh — the raw-served Vast files; the vast-* CLI apps themselves come from the vast-provision flake input)
+templates/      Flake template for `nix flake init -t github:kattakath/nix-config` — a starter consumer fleet flake (distinct from packages/templates/, the Vast.ai assets)
 .claude/        Repo-local Claude Code agents, commands, hooks, skills, and rules
 ```
 
