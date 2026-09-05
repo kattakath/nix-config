@@ -493,7 +493,7 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
   the load control: macOS throttles CPU and I/O bandwidth for Background jobs *specifically*
   so they cannot disrupt the user experience, which is what stops a 200-file re-encode from
   being something you feel in the foreground; `Nice` and `LowPriorityIO` reinforce it.
-  **`KeepAlive.SuccessfulExit = false` + `ThrottleInterval = 60`** covers the worker dying
+  **`KeepAlive.SuccessfulExit = false` + `ThrottleInterval = 10`** covers the worker dying
   outright (per-*job* retry is the worker's own three-strikes rule), with the interval
   bounding the restart rate so a reproducible crash cannot spin. **`RunAtLoad`** drains what a
   logout interrupted. The agent's arg0 is `nix-media-queue` via `hm-launchd`, which is
@@ -687,10 +687,10 @@ Smaller, single-purpose CLIs:
   **Services**, not "Quick Actions": Finder's Quick Actions submenu is fed by App Extensions
   and Shortcuts actions (`defaults read pbs` → `FinderActive` lists only `APPEXTENSION-*` and
   `is.workflow.actions.*`), which an Automator service cannot join. New or changed entries
-  need **`killall Finder`** — activation links them and `pbs` registers them, but a running
+  need **`killall Finder`** — activation copies them and `pbs` registers them, but a running
   Finder keeps serving its old menu, which looks exactly like a failed install. A Quick Action is only
   two plists (`Contents/Info.plist` + `Contents/document.wflow`), so `lib.generators.toPlist`
-  authors them and no Automator.app is involved. Linked into `~/Library/Services` by
+  authors them and no Automator.app is involved. Copied into `~/Library/Services` by
   `home.nix` (an INLINE module in `imports` — one attrset cannot define both `home.file` and
   `home.file."x"`). The load-bearing key is `inputMethod = 1`, which passes the selection as
   `"$@"` — the default pipes stdin, giving a script that runs and silently does nothing.
@@ -785,8 +785,8 @@ Smaller, single-purpose CLIs:
 - **`photo-describe.nix`** — `photo-describe [--dry-run] [--overwrite] [--no-caption]
   [--model NAME] [--min-score N] <file-or-dir>...` writes what an image **is** into the image:
   Apple Vision labels → `XMP:Subject`, an aesthetics-derived rating → `XMP:Rating`, and a
-  one-sentence caption from a local Ollama vision model → `XMP:Description` +
-  `XMP-iptcCore:AltTextAccessibility`. **The durability rule is the whole design**: words go in
+  one-sentence caption from a local Ollama vision model → `XMP:Description` (the labels are
+  mirrored to the legacy `IPTC:Keywords` as well). **The durability rule is the whole design**: words go in
   the FILE, vectors go in an INDEX. A caption survives every model upgrade and every move
   between machines; an embedding is invalidated the day the embedding model changes — so the
   irreplaceable artifact is embedded and the regenerable one is left to `rclip`, which keeps
@@ -794,8 +794,9 @@ Smaller, single-purpose CLIs:
   **Verified on this Mac**: Spotlight indexes `XMP:Description` as `kMDItemDescription` and
   `XMP:Subject` as `kMDItemKeywords`, so `mdfind` and Finder's search bar find them;
   `XMP:Rating` does **not** reach `kMDItemStarRating`, so it is a bonus for Lightroom/Bridge,
-  never the reason to run this. The accessibility field's family is **`iptcCore`, not
-  `iptcExt`** — an `-XMP-iptcExt:AltTextAccessibility=` write silently fails.
+  never the reason to run this. `XMP-iptcCore:AltTextAccessibility` is **deliberately not
+  written**: IPTC 2025.1 separates alt text from the caption, and the HTML Living Standard
+  tells generators to write nothing rather than phony alt text — see `packages/photo-describe.nix`.
   The walk is **not** reimplemented: stage one is `fix-extension --only image --print0`, which
   buys the recursive walk, the refusal to enter a `.photoslibrary` package, and the
   dataless/in-flight/AppleDouble guards already tested there — plus the extension repair,
@@ -809,8 +810,13 @@ Smaller, single-purpose CLIs:
   CLI parses image paths out of the prompt STRING and breaks on the spaces that fill every
   real photo library; it is a **soft** dependency, so an absent daemon or unpulled model still
   writes labels and says so instead of leaving the library half-tagged. HEIC is converted to a
-  temporary JPEG for the caption step only. Idempotent: a file that already has an
-  `XMP:Description` is skipped unless `--overwrite`. `-overwrite_original` is deliberate —
+  temporary JPEG for the caption step only. Idempotent, but **not** on the mere presence of a
+  description: it stamps `EXIF:UserComment` with `photo-describe:pixhash=<ImageDataHash>;labels=…`,
+  skips only while the PIXELS are unchanged, and on a re-describe retracts exactly the keywords
+  it wrote last time so hand-added ones survive. `--overwrite` forces a run.
+  **`-overwrite_original_in_place -P`** is deliberate — plain `-overwrite_original` writes a new
+  file and renames it over the original, dropping every extended attribute (Finder tags,
+  `kMDItemWhereFroms`) and stamping a fresh mtime; in-place keeps the inode and `-P` the date —
   exiftool otherwise leaves a full `IMG_1234.jpg_original` beside every file, doubling a photo
   library on disk; **the image data is preserved byte-for-byte** (verified: `ImageDataHash`
   identical before and after, file grew 3.7 KB of metadata).
