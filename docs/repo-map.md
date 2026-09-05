@@ -610,6 +610,11 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
   `telegramMcp`/`wpMcp`/`cloudflaredConnector` in `mcp.nix`) — codified as the always-applied
   [`launchd-naming.md`](../.claude/rules/launchd-naming.md) rule, which also documents the
   three known-upstream `/bin/sh` exceptions that are NOT ours and must never be renamed.
+  Being a vendored fork, it tracks upstream by hand: `upstream-baseline/` holds a byte-exact
+  copy of the upstream files it shadows (treefmt-excluded so it stays verbatim), and
+  `checks.<system>.hm-launchd-drift` diffs the pinned home-manager's `modules/launchd/`
+  against it — a home-manager bump that moves that module fails the check until the fork is
+  re-reviewed and the baseline refreshed (procedure in the check's comment in `flake.nix`).
 
 ### `modules/darwin/`
 
@@ -1299,8 +1304,8 @@ the repo, surfaced each session by `memory-loader.js`. Never `git add`.
 `.github/workflows/nix-ci.yml` — 2-leg Nix CI on GitHub Actions, ALL on GitHub-**HOSTED**
 runners (`ubuntu-24.04-arm` for aarch64-linux — evaluates `nixpi`+`nixvm`; `macos-latest` for
 aarch64-darwin — evaluates `macos`; both free & unlimited on public repos). Each leg *builds*
-the lint/format/structural `checks` — `formatting`, `pre-commit`, `vast-lib-drift`, `ast-grep`,
-`deploy-schema` — with `nix-fast-build` (it globs `.#checks.<system>`, so a NEW check needs no workflow edit;
+the lint/format/structural `checks` — `formatting`, `pre-commit`, `vast-lib-drift`,
+`hm-launchd-drift`, `ast-grep`, `deploy-schema` — with `nix-fast-build` (it globs `.#checks.<system>`, so a NEW check needs no workflow edit;
 pushed to the `kattakath` Cachix cache) and
 *evaluates* (no build) its host config toplevel(s). Building host toplevels is deferred to
 release time (`build-installers`, also hosted).
