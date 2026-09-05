@@ -86,6 +86,17 @@ lib.mkIf isDarwin {
 
   targets.darwin.defaults."com.ameba.SwiftBar" = {
     PluginDirectory = pluginDir;
+    # Declared, because SwiftBar's own menu can turn the status plugin off in
+    # one click — "Disable All" sits two items above "Open Plugin Folder" — and
+    # a disabled plugin fails SILENTLY: the queue keeps working, the menu-bar
+    # item simply never appears, and the only clue is SwiftBar falling back to
+    # showing its own name. Measured on this Mac: disabled → a "SwiftBar" text
+    # item; enabled and idle → no status item at all; enabled with work → the
+    # plugin's own item. Declaring it empty means activation repairs a stray
+    # click. The cost is that turning the plugin off from SwiftBar's menu no
+    # longer sticks, which is the right trade for a plugin this repo installs
+    # and whose whole job is to be visible when something is queued.
+    DisabledPlugins = [ ];
     # A /nix/store app cannot update itself; an update check can only nag.
     SUEnableAutomaticChecks = false;
     SUAutomaticallyUpdate = false;

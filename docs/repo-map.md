@@ -508,7 +508,14 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
   SwiftBar 2.0.1's `--folders` launch argument is **not** (launched with it and nothing else,
   SwiftBar never ran the plugin); and a plugin reached through a **symlink runs fine**, so
   plain `home.file` suffices — the opposite of the Automator bundles next door, which must be
-  copied because `NSFileWrapper` rejects a symlinked `document.wflow`. Sparkle auto-update is
+  copied because `NSFileWrapper` rejects a symlinked `document.wflow`. `DisabledPlugins` is
+  declared **empty** for the same reason the directory is declared at all: SwiftBar's menu can
+  disable the plugin in one click ("Disable All" sits two items above "Open Plugin Folder"),
+  and a disabled plugin fails **silently** — the queue keeps draining, the menu-bar item just
+  never appears. Measured via the accessibility API: disabled → SwiftBar falls back to a
+  `SwiftBar` text item; enabled and idle → **no status item at all**; enabled with work → the
+  plugin's own `⚙ n`. Declaring it empty makes activation repair a stray click, at the cost of
+  UI disabling no longer sticking. Sparkle auto-update is
   switched off: a `/nix/store` app cannot update itself, so a check can only produce a nag.
 - **`desktop-aesthetics.nix`** — the macOS desktop look, split in two:
   - **Terminal.app** is UNGATED on every darwin host — 16pt type on EVERY profile + stock
