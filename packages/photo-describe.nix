@@ -215,7 +215,14 @@ writeShellApplication {
     tmpdir=$(mktemp -d)
     trap 'rm -rf "$list" "$tmpdir"' EXIT
     rc=0
-    fix-extension --only image --print0 "$@" > "$list" 2> "$tmpdir/stage1.err" || rc=$?
+    # --dry-run MUST be forwarded. Stage one RENAMES files whose extension lies
+    # about their content, so without this the one command meant to preview
+    # changes was itself mutating the tree. fix-extension's own --dry-run still
+    # emits the paths on --print0, so the rest of this run previews normally.
+    stage1_flags=()
+    [ "$dry" -eq 1 ] && stage1_flags+=(--dry-run)
+    fix-extension --only image --print0 ''${stage1_flags[@]+"''${stage1_flags[@]}"} "$@" \
+      > "$list" 2> "$tmpdir/stage1.err" || rc=$?
     # Stage one's `OK:` lines say "nothing was wrong with the extension", which is
     # the normal case here and is never a reason for anything this CLI reports.
     # They must not reach the caller: media-queue lifts the FIRST skip:/OK: line
@@ -272,7 +279,9 @@ writeShellApplication {
 
       # --- Apple Vision: labels + aesthetics, on-device, no network ---
       labels=()
+      vision_ok=0
       if auge --classify --top 12 --min-confidence 0.3 --json --compact "$f" > "$tmpdir/cls.json" 2>/dev/null; then
+        vision_ok=1
         while IFS= read -r l; do
           [ -n "$l" ] && labels+=("$l")
         done < <(jq -r '.results.classifications[]?.label // empty' "$tmpdir/cls.json" 2>/dev/null || true)
@@ -281,8 +290,21 @@ writeShellApplication {
       score=""
       utility=false
       if auge --aesthetics --json --compact "$f" > "$tmpdir/aes.json" 2>/dev/null; then
+        vision_ok=1
         score=$(jq -r '.results.aesthetics.overall // empty' "$tmpdir/aes.json" 2>/dev/null || true)
         utility=$(jq -r '.results.aesthetics.is_utility // false' "$tmpdir/aes.json" 2>/dev/null || echo false)
+      fi
+
+      # A format Vision cannot read at all (WebP, PSD, ICO — none of which auge
+      # handles) used to fall straight through to the exiftool call below with
+      # NOTHING to add. The arg vector was then pure DELETION: it cleared the
+      # file's keywords and wrote nothing back, and still reported `done:`.
+      # Refuse the file instead. This must come BEFORE the arg vector is built,
+      # not inside it, because the destructive part is the clear, not the write.
+      if [ "$vision_ok" -eq 0 ]; then
+        skipped=$((skipped + 1))
+        info "skip: '$f' — no readable image data (unsupported format?)"
+        continue
       fi
 
       # Apple's 0-1 aesthetics score onto XMP's 0-5 stars, for Lightroom/Bridge.
@@ -300,8 +322,11 @@ writeShellApplication {
 
       if [ "$want_caption" -eq 1 ]; then
         shot="$f"
-        case "''${f##*.}" in
-          heic|HEIC|heif|HEIF)
+        # Case-folded: `.Heic` is rare from macOS but a `case` listing only the
+        # two common spellings silently skipped the JPEG conversion, and the
+        # model then rejected the file — a permanent, silent caption loss.
+        case "$(printf '%s' "''${f##*.}" | tr '[:upper:]' '[:lower:]')" in
+          heic|heif)
             shot="$tmpdir/shot.jpg"
             /usr/bin/sips -s format jpeg "$f" --out "$shot" >/dev/null 2>&1 || shot="$f" ;;
         esac
@@ -313,7 +338,15 @@ writeShellApplication {
             > "$tmpdir/req.json" 2>/dev/null || true
           if curl -fsS -m 180 -H 'Content-Type: application/json' \
                -d @"$tmpdir/req.json" "$host/api/generate" > "$tmpdir/resp.json" 2>/dev/null; then
-            sentence=$(jq -r '.response // empty' "$tmpdir/resp.json" 2>/dev/null | tr '\n' ' ' | sed 's/  */ /g; s/^ //; s/ $//')
+            # `|| true`: every sibling jq here is guarded and this one was not.
+            # A 200 response whose body is not JSON (a proxy interstitial in
+            # front of a non-default OLLAMA_HOST) exits jq 5, and under
+            # `set -euo pipefail` that aborted the WHOLE batch silently — no
+            # grammar line, no summary, remaining files untouched. Unreachable
+            # against a local Ollama, whose error paths are all 4xx JSON that
+            # `curl -f` already catches, but a one-token guard against a
+            # whole-run abort is worth having regardless.
+            sentence=$(jq -r '.response // empty' "$tmpdir/resp.json" 2>/dev/null | tr '\n' ' ' | sed 's/  */ /g; s/^ //; s/ $//' || true)
           fi
         fi
       fi
@@ -327,26 +360,48 @@ writeShellApplication {
         continue
       fi
 
-      args=(-overwrite_original -q -q)
-      # Clear first so a re-describe replaces the keyword list instead of
-      # appending a second copy of it. IPTC:Keywords is the legacy IIM twin of
-      # dc:subject, written alongside it because older tools and some indexers
-      # read only that one; Lightroom writes both for the same reason.
-      # AltTextAccessibility is CLEARED, not merely skipped: earlier versions of
-      # this tool wrote the caption there, and leaving those behind would leave
-      # exactly the unreviewed machine guess the header argues must not sit in
-      # that field. Nothing else in this fleet writes it, so the only values
-      # being removed are ones this tool put there.
-      args+=(-XMP:Subject= -IPTC:Keywords= -XMP-iptcCore:AltTextAccessibility=)
+      # `-overwrite_original_in_place`, NOT `-overwrite_original`: the latter
+      # writes a NEW file and renames it over the original, which silently drops
+      # every extended attribute (Finder tags, and `com.apple.metadata:
+      # kMDItemWhereFroms` — the download provenance) and stamps a fresh mtime on
+      # every photo it touches. That reorders the library by Date Modified and
+      # makes every backup re-upload the whole set. In-place keeps the inode;
+      # `-P` preserves the modification date. Both verified.
+      args=(-overwrite_original_in_place -P -q -q)
+      # APPEND, never clear. This used to clear XMP:Subject and IPTC:Keywords
+      # first "so a re-describe replaces the list" — but that clear ran on the
+      # DEFAULT path for every photo, so a file carrying keywords from Lightroom,
+      # Photos or the operator's own hand lost them irreversibly, with no backup
+      # (see -overwrite_original above). `+=` with `-api NoDups` gets the intended
+      # idempotence without the destruction: re-running adds nothing, because the
+      # labels are the same. IPTC:Keywords is the legacy IIM twin of dc:subject,
+      # written alongside it for the older tools that read only that one.
+      # `-=` then `+=` per value is exiftool's add-if-absent idiom, and it is what
+      # makes appending idempotent WITHOUT a clear: the delete removes only that
+      # exact value if present, the add puts it back exactly once, and every other
+      # keyword on the file is untouched. `-api NoDups` does NOT do this — measured
+      # on exiftool 13.59, it leaves `alpha, alpha, beta` after a repeat `+=`.
       for l in ''${labels[@]+"''${labels[@]}"}; do
         # Apple's label identifiers are snake_case (`consumer_electronics`,
         # `wood_processed`). That underscore is an internal token, not a word:
         # it survives into Finder's Get Info, reads as machine output, and
         # breaks the substring search this metadata exists to serve.
         human=''${l//_/ }
-        args+=("-XMP:Subject=$human" "-IPTC:Keywords=$human")
+        args+=(
+          "-XMP:Subject-=$human" "-XMP:Subject+=$human"
+          "-IPTC:Keywords-=$human" "-IPTC:Keywords+=$human"
+        )
       done
-      [ -n "$rating" ] && args+=("-XMP:Rating=$rating")
+      # RATING IS A HUMAN JUDGEMENT WHEREVER ONE EXISTS. Lightroom/Bridge stars
+      # live in this field, and an aesthetics score is not entitled to overwrite
+      # them. Write only into an empty field — unless --overwrite, which is the
+      # operator explicitly asking for this tool's opinion instead.
+      if [ -n "$rating" ]; then
+        existing_rating=$(exiftool -s3 -XMP:Rating "$f" 2>/dev/null || true)
+        if [ -z "$existing_rating" ] || [ "$overwrite" -eq 1 ]; then
+          args+=("-XMP:Rating=$rating")
+        fi
+      fi
       [ -n "$sentence" ] && args+=("-XMP:Description=$sentence")
 
       if exiftool "''${args[@]}" "$f" 2>/dev/null; then
