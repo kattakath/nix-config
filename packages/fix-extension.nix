@@ -316,18 +316,30 @@ writeShellApplication {
     # directories that turned out not to be packages. Pruning at the `find`
     # level is what keeps a 100k-file Photos library from being enumerated at
     # all.
+    # `-mindepth 1` ON BOTH PASSES is load-bearing, not tidiness. `-name '*.*'`
+    # matches the STARTING directory too — and `*` matches empty, so it matches a
+    # bare `.` as well. Without it:
+    #   - pass two printed $root itself, and `walk "$d"` then re-entered the same
+    #     directory forever. `fix-media --image .`, or any dotted folder such as
+    #     `Trip 2019.raw`, hung outright — and under the media-queue worker that
+    #     is a PERMANENT wedge, because the job holds the queue lock while it
+    #     spins, so nothing else ever drains.
+    #   - pass one PRUNED $root, so a dotted directory's own files were never
+    #     scanned at all — the walk silently did nothing and reported success.
+    # `-mindepth 1` excludes only the start point, which is exactly the term that
+    # should never have been a candidate for pruning or recursion.
     walk() {
       local root=$1 f d
       while IFS= read -r -d "" f; do
         fix_one "$f" 0
-      done < <(find "$root" -type d -name '*.*' -prune -o -type f -print0 2>/dev/null)
+      done < <(find "$root" -mindepth 1 -type d -name '*.*' -prune -o -type f -print0 2>/dev/null)
       while IFS= read -r -d "" d; do
         if is_package "$d"; then
           info "skip: '$d' — macOS package, not descending into it"
         else
           walk "$d"
         fi
-      done < <(find "$root" -type d -name '*.*' -prune -print0 2>/dev/null)
+      done < <(find "$root" -mindepth 1 -type d -name '*.*' -prune -print0 2>/dev/null)
     }
 
     for arg in "$@"; do
