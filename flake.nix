@@ -182,6 +182,17 @@
     vast-provision.inputs.nixpkgs.follows = "nixpkgs";
     vast-provision.inputs.flake-parts.follows = "firmware-secrets/flake-parts";
 
+    # nix-tart-macos — Tart macOS-guest lifecycle + plug-and-play bootstrap +
+    # golden-image bake, extracted 2026-09-05 (the ecosystem had NO Tart
+    # provisioning flake; this repo held GitHub's only tart-guest-agent
+    # packaging). Consumed the same way as vast-provision: pure callPackage on
+    # the input's source path (packages/macvm-tart.nix veneer + hosts/macvm.nix
+    # guest agent) — its flake outputs are never evaluated, so the follows
+    # below are lock-diet hygiene, not load-bearing.
+    nix-tart-macos.url = "github:kattakath/nix-tart-macos";
+    nix-tart-macos.inputs.nixpkgs.follows = "nixpkgs";
+    nix-tart-macos.inputs.flake-parts.follows = "firmware-secrets/flake-parts";
+
     # MCP (Model Context Protocol) server packaging for Claude Code. We use its
     # `lib.mkConfig` to render a PINNED {mcpServers:{…}} JSON (the 4 packaged
     # servers become reproducible store-path commands) that our localhost
@@ -325,6 +336,7 @@
       deploy-rs,
       local-rag,
       vast-provision,
+      nix-tart-macos,
       mcp-servers-nix,
       agent-skills-vercel,
       agent-skills-anthropic,
@@ -899,7 +911,12 @@
         }:
         nix-darwin.lib.darwinSystem {
           inherit system;
-          specialArgs = identity;
+          # identity plus the one input a darwin host consumes by source path:
+          # hosts/macvm.nix callPackages the guest agent out of nix-tart-macos
+          # (same pure-source pattern as packages/macvm-tart.nix).
+          specialArgs = identity // {
+            inherit nix-tart-macos;
+          };
           modules = [
             {
               nixpkgs.hostPlatform = system;
@@ -1228,18 +1245,24 @@
               inherit system;
               config.allowUnfree = true;
             };
-            kit = pkgsUnfree.callPackage ./packages/macvm-tart.nix { };
+            kit = pkgsUnfree.callPackage ./packages/macvm-tart.nix {
+              tartVmSrc = nix-tart-macos;
+              inherit (identityArgs) loginName fullName;
+            };
           in
           {
             inherit (kit)
               macvm-tart-doctor
               macvm-tart-list
               macvm-tart-create
+              macvm-tart-pull
+              macvm-tart-bake
               macvm-tart-ensure
               macvm-tart-start
               macvm-tart-stop
               macvm-tart-ip
               macvm-tart-ssh
+              macvm-tart-bootstrap
               macvm-tart-bootstrap-print
               ;
           }

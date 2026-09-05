@@ -14,6 +14,7 @@
   loginName,
   lib,
   pkgs,
+  nix-tart-macos,
   ...
 }:
 let
@@ -24,14 +25,16 @@ let
   # of re-typing "/Users/${loginName}".
   home = "/Users/${loginName}";
 
-  # Clipboard sync + `tart exec`/`tart ip --resolver=agent` RPC (packages/tart-guest-agent.nix).
+  # Clipboard sync + `tart exec`/`tart ip --resolver=agent` RPC (nix-tart-macos's tart-guest-agent.nix).
   # Apple's Virtualization.framework does NOT sync the pasteboard on its own for a
   # macOS guest — despite docs/macvm-tart-runbook.md's old "Tart enables clipboard
   # sharing by default" claim, clipboard needs this agent's in-house SPICE vdagent
   # (`--run-vdagent`, bundled into `--run-agent` alongside `--run-rpc`) actually
   # running inside the guest. Neither nixpkgs nor a Homebrew tap carries it, hence
   # the standalone fetchurl package.
-  tartGuestAgent = pkgs.callPackage ../packages/tart-guest-agent.nix { };
+  # From the extracted nix-tart-macos flake (mkDarwin specialArgs) — this repo
+  # no longer carries its own tart-guest-agent packaging.
+  tartGuestAgent = pkgs.callPackage "${nix-tart-macos}/packages/tart-guest-agent.nix" { };
 
   # BTM wrapper (fleet-wide nix-<activity> convention, modules/darwin/core.nix) —
   # ProgramArguments[0] must not be the raw vendored binary basename.
@@ -307,7 +310,7 @@ in
     };
   };
 
-  # ---- Clipboard sync with the macos host (packages/tart-guest-agent.nix) ---
+  # ---- Clipboard sync with the macos host (nix-tart-macos's tart-guest-agent) ---
   # `--run-agent` = `--run-vdagent` (clipboard) + `--run-rpc` (`tart exec` /
   # `tart ip --resolver=agent` from the host). Must be a per-user LaunchAgent,
   # not a LaunchDaemon — pasteboard access needs a live GUI session (root has
