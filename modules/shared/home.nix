@@ -1338,21 +1338,31 @@ in
         # macos-automator in docs/mcp-gateway-accessibility-tcc.md.
         quick-terminal-position = "top";
 
+        # ---- Splits: make FOCUS legible ---------------------------------------
+        # Ghostty already dims unfocused splits, but its default 0.7 over a dark
+        # theme is barely perceptible — three splits read as one field of black.
+        # The dim is a semi-transparent rectangle drawn over the split, and
+        # `unfocused-split-fill` is that rectangle's colour, so setting it cooler
+        # than the background makes inactive panes recede in HUE as well as
+        # brightness. That is the difference between "which one has the cursor?"
+        # and knowing at a glance.
+        unfocused-split-opacity = 0.5;
+        unfocused-split-fill = "#0d1117";
+        split-divider-color = "#403d52";
+
         # A LIST, because `keybind` is a repeatable key — home-manager's settings
         # type takes a list for exactly that case.
         #
-        # Only split CREATION is bound here. Ghostty already ships split
-        # navigation on cmd+alt+arrow, and cmd+d / cmd+shift+d are what a macOS
-        # operator reaches for out of iTerm2 habit. Bindings for the bracket keys
-        # were left out rather than guess at their key names.
+        # ONLY the quick terminal is bound. `ghostty +show-config --default`
+        # reports that super+d / super+shift+d (split creation) and super+[ /
+        # super+] (navigation) are ALREADY defaults — re-declaring them was noise
+        # that implied a decision where none existed.
         keybind = [
           # `backquote`, NOT `grave` — measured: `ghostty +validate-config`
           # rejects the latter with `keybind: unknown error error.InvalidFormat`,
           # and the error names only "keybind", never which one, so a whole
           # config is invalidated by a single wrong key name.
           "global:cmd+backquote=toggle_quick_terminal"
-          "cmd+d=new_split:right"
-          "cmd+shift+d=new_split:down"
         ];
       };
     };
