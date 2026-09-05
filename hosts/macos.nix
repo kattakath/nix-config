@@ -260,14 +260,12 @@
       # passes --adopt to every fresh cask install, and for an auto_updates cask
       # adoption is unconditional (no re-copy, no touch of the app's ~1GB state).
       #
-      # greedy is LOAD-BEARING and paired with launchd.user.envVariables.
-      # OD_UPDATE_ENABLED below: the in-app updater is disabled because its
-      # launcher-tree relaunch path (upstream #7264) was MEASURED live here —
-      # the app silently ran a 0.20.2 payload from ~/Library while /Applications
-      # held 0.21.1, plus ~1.7GB of downloaded update debris. greedy opts this
-      # one cask back into upgrades past onActivation.upgrade = false, so new
-      # versions land at activation (brew autobump keeps the cask current) and
-      # /Applications stays the ONLY copy that ever runs.
+      # greedy is LOAD-BEARING, paired with launchd.user.envVariables.
+      # OD_UPDATE_ENABLED below — the in-app updater's launcher-tree relaunch
+      # path caused a measured version split (docs/open-design.md has the
+      # numbers). greedy opts this one cask back into upgrades past
+      # onActivation.upgrade = false, so versions land at activation instead
+      # and /Applications stays the only copy that ever runs.
       {
         name = "open-design";
         greedy = true;
