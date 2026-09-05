@@ -515,22 +515,27 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
   used for the ungoogled-chromium cask. Settings deliberately **match the existing terminal**
   rather than introduce a second look: **16pt** is what `desktop-aesthetics.nix` holds
   Terminal.app at on every darwin host, and **UbuntuMono Nerd Font** is already installed
-  fleet-wide as the VS Code terminal face. The **theme follows the system**
-  (`light:Rose Pine Dawn,dark:Rose Pine`) — that pair is Ghostty's own documented example,
-  quoted from its config reference rather than picked from memory, since no bundled theme name
-  can be confirmed before the app exists; swap it for anything `ghostty +list-themes` offers.
-  **`ssh-env` + `ssh-terminfo`** are the load-bearing shell-integration features for this
-  fleet: without them a remote host meets an unknown `xterm-ghostty` and garbles every
-  full-screen program, and both `nixpi` and `macvm` are reached over ssh. The **Quick Terminal**
-  is bound to `global:cmd+grave`, which needs the same one-time Accessibility grant documented
-  for macos-automator in [`docs/mcp-gateway-accessibility-tcc.md`](mcp-gateway-accessibility-tcc.md).
-  Only split *creation* is bound (`cmd+d` / `cmd+shift+d`, iTerm2 habits) — Ghostty already
-  ships navigation on `cmd+alt+arrow`, and bracket-key names were not guessed at.
-  **Nothing in the config is validated until the cask is installed**: run
-  `ghostty +validate-config` after the first activation and correct what it rejects — that
-  step is the gate. `enableZshIntegration` is deliberately **off**: it sources the integration
-  script out of the Nix `package`, which is null here, so it would point at nothing — the
-  cask's app bundle injects shell integration itself.
+  fleet-wide as the VS Code terminal face. The palette is **canonical Ubuntu, verbatim** from
+  Ptyxis's own `Ubuntu.palette` — Tango on `#300A24` — **not** the macOS approximation this
+  repo used to vendor. That vendored `modules/shared/terminal/Ubuntu.terminal` (dropped in
+  #319) used `#24081B` and a *different* ANSI set entirely; the two backgrounds are ΔE00 4.12
+  apart and the ring is not the same palette, so what ran here for years was someone's
+  approximation. Measured against `#300A24`: foreground **17.58:1**, min pairwise ΔE00 among
+  slots 0-7 **23.32** (excellent separation), and **six of sixteen fail WCAG AA** — black
+  1.39:1, br-black 2.41, magenta 2.67, blue 2.97, red 2.99, br-red 4.20. That is accepted
+  deliberately: this is Ubuntu's terminal, not a palette tuned to a contrast target. A
+  nine-agent workflow derived four alternatives that fixed those numbers and each lost the
+  thing worth having — the winner lifted the *unfocused* ground and thereby made the panes you
+  are **not** in the loudest thing on screen, which no contrast metric can see.
+  **`unfocused-split-fill` is deliberately unset**: it then defaults to `background`, so the
+  unfocused ground is unchanged and only the text dims (17.58:1 → 6.80:1). Ground stays
+  identical across both panes *and* the titlebar. **`window-titlebar-background` is not used**
+  — Ghostty's own docs say it "only takes effect if window-theme is set to ghostty" and is
+  "currently only supported in the GTK app", so on macOS it validates but is **inert**; the
+  titlebar takes `background`, and `macos-titlebar-style` is the only real lever.
+  `enableZshIntegration` is deliberately **off**: it sources the integration script out of the
+  Nix `package`, which is null here, so it would point at nothing — the cask's app bundle
+  injects shell integration itself.
 - **`desktop-aesthetics.nix`** — the macOS desktop look, split in two:
   - **Terminal.app** is UNGATED on every darwin host — 16pt type on EVERY profile + stock
     `Pro` as default/startup, driven through Terminal's own AppleScript `settings set` API
