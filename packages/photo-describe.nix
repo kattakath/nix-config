@@ -158,7 +158,23 @@ writeShellApplication {
     dry=0
     overwrite=0
     caption=1
-    model="qwen3-vl:4b-instruct"
+    # Qwen3-VL, abliterated. Same base as the stock `qwen3-vl:4b-instruct` this
+    # replaced — chosen on PhotoPrism's 12-model captioning benchmark (best label
+    # coverage at its size, and no animal-misidentification bug) — but with the
+    # refusal behaviour removed.
+    #
+    # WHY THAT MATTERS FOR A PERSONAL LIBRARY: a safety-tuned captioner does not
+    # refuse loudly on an ordinary private photo, it hedges — it generalises, omits
+    # what it is unsure it should mention, and still returns a confident-looking
+    # sentence. Measured here: the stock model captioned a dim bedroom photo as
+    # "both bare-chested" when only one person is, which is the shape that failure
+    # takes. Since every consumer of this metadata is the operator searching their
+    # OWN photos, a hedge is pure loss — it makes the picture harder to find and
+    # gives no one any protection.
+    #
+    # Override per run with --model; nothing here is load-bearing beyond the
+    # default, and the caption step degrades to labels-only if the model is absent.
+    model="huihui_ai/qwen3-vl-abliterated"
     # EMPTY means "no gate", NOT zero. Apple's aesthetics score is NOT 0-1: it
     # goes NEGATIVE on poor images (measured -0.14 on a dark indoor snapshot).
     # A default of 0 therefore silently gated captioning off for exactly the
