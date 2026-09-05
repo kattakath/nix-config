@@ -1272,20 +1272,72 @@ in
     ghostty = lib.mkIf isMacosHost {
       enable = true;
       package = null;
-      # DELIBERATELY SMALL. Nothing here can be validated until the cask is
-      # installed (`ghostty +validate-config` needs the binary), so this carries
-      # only settings that are load-bearing for the match, and no theme: Ghostty's
-      # default is already dark, and naming one of its bundled themes without
-      # being able to run `ghostty +list-themes` would be a guess written into the
-      # fleet. Pick one after the first activation. Options that merely restate a
-      # default (background-opacity, scrollback-limit) are left out on purpose —
-      # they read as decisions and are not.
+      # NOTHING HERE IS VALIDATED UNTIL THE CASK IS INSTALLED —
+      # `ghostty +validate-config` needs the binary. Run it after the first
+      # activation and correct anything it rejects; that step is the gate, not
+      # this comment.
       settings = {
+        # ---- Type: matches the terminal already in use ----------------------
+        # 16pt is what desktop-aesthetics.nix holds Terminal.app at on every
+        # darwin host, and UbuntuMono Nerd Font is already installed fleet-wide
+        # as the VS Code terminal face. Switching terminals costs no
+        # re-adjustment.
         font-family = "UbuntuMono Nerd Font";
         font-size = 16;
+
+        # ---- Theme: follows the system ---------------------------------------
+        # The `light:NAME,dark:NAME` pair is Ghostty's own documented example,
+        # quoted from its config reference rather than picked from memory —
+        # there is no way to confirm a bundled theme name before the app exists.
+        # Swap it for anything `ghostty +list-themes` offers.
+        theme = "light:Rose Pine Dawn,dark:Rose Pine";
+
+        # ---- Window ----------------------------------------------------------
+        # `tabs` puts the tab strip IN the titlebar, reclaiming a full row of
+        # vertical space against a separate bar.
+        macos-titlebar-style = "tabs";
+        window-padding-x = 8;
+        window-padding-y = 8;
+        background-opacity = 0.95;
+        background-blur = true;
+
+        # ---- Input -----------------------------------------------------------
         # Option must send Alt, or every readline word-motion in zsh is dead.
+        # This one is not cosmetic.
         macos-option-as-alt = true;
+        cursor-style = "block";
+        cursor-style-blink = true;
         copy-on-select = "clipboard";
+
+        # ---- Shell integration ------------------------------------------------
+        # `ssh-env` and `ssh-terminfo` are the load-bearing pair for this fleet:
+        # without them a remote host meets an unknown `xterm-ghostty` and garbles
+        # every full-screen program, which matters because nixpi and macvm are
+        # both reached over ssh.
+        shell-integration-features = "cursor,title,sudo,ssh-env,ssh-terminfo";
+
+        # Only when Ghostty is not focused — useful for a long build, silent
+        # while you are watching it.
+        notify-on-command-finish = "unfocused";
+
+        # ---- Quick Terminal ---------------------------------------------------
+        # A shell that drops over whatever is on screen. The global binding needs
+        # a one-time Accessibility grant, the same wall documented for
+        # macos-automator in docs/mcp-gateway-accessibility-tcc.md.
+        quick-terminal-position = "top";
+
+        # A LIST, because `keybind` is a repeatable key — home-manager's settings
+        # type takes a list for exactly that case.
+        #
+        # Only split CREATION is bound here. Ghostty already ships split
+        # navigation on cmd+alt+arrow, and cmd+d / cmd+shift+d are what a macOS
+        # operator reaches for out of iTerm2 habit. Bindings for the bracket keys
+        # were left out rather than guess at their key names.
+        keybind = [
+          "global:cmd+grave=toggle_quick_terminal"
+          "cmd+d=new_split:right"
+          "cmd+shift+d=new_split:down"
+        ];
       };
     };
 
