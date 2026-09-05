@@ -285,6 +285,29 @@ let
   # See packages/media-toolkit.nix.
   mediaToolkit = pkgs.callPackage ../../packages/media-toolkit.nix { };
 
+  # rclip, with its runtime-dependency CHECK disabled — not its dependencies changed.
+  # rclip 3.3.0's wheel declares `coremltools` as a runtime dep on macOS (the Apple
+  # Silicon fast path for indexing), but the nixpkgs package does not provide it, so
+  # `pythonRuntimeDepsCheckHook` fails the build outright on aarch64-darwin:
+  #     Checking runtime dependencies for rclip-3.3.0-py3-none-any.whl
+  #       - coremltools not installed
+  # The dependency is genuinely OPTIONAL — rclip falls back to CPU ONNX, which is
+  # fine for ViT-B/32 — so the check is reporting a metadata mismatch, not a broken
+  # program. Verified with the override: it builds, and `rclip --version` runs.
+  #
+  # NOTHING IN THE MERGE PATH CATCHES THIS CLASS OF FAILURE. `nix flake check`
+  # evaluates darwinConfigurations with the build SKIPPED, and CI is deliberately
+  # lean the same way — nix-ci.yml says so at the top: it does NOT build the host
+  # toplevels, it only EVALUATES their drvPath. A package that evaluates but cannot
+  # BUILD therefore passes every gate and first fails at `activate`, on the real Mac.
+  # Measured: rclip broke activation while `nix flake check` AND `build
+  # (aarch64-darwin)` both reported green on the PR that introduced it.
+  # So when adding or overriding a PACKAGE, the only real gate is building the
+  # closure yourself:  nix build .#darwinConfigurations.macos.system
+  rclipCli = pkgs.rclip.overridePythonAttrs (_: {
+    dontCheckRuntimeDeps = true;
+  });
+
   # Finder right-click → Quick Actions entries for the CLIs above (Automator
   # .workflow bundles, generated — no Automator.app authoring). Linked into
   # ~/Library/Services below. See packages/media-quick-actions.nix.
@@ -596,7 +619,7 @@ in
       # --- the photo-retrieval stack photo-describe is built on, each usable on its own ---
       auge # `auge --classify|--aesthetics|--face-quality|--feature-print <image>` — Apple's Vision framework from the shell, 100% on-device. The engine behind photo-describe; also the fastest way to ask "is this shot any good" (aesthetics 0-1 + an is_utility screenshot flag) or "is anyone blinking" (per-face capture quality). Use TARGETED flags, never `--all`: measured here, --all is ~30x slower AND writes Vision framework noise into stdout, so its output will not parse as JSON. aarch64-darwin only.
       exiftool # `exiftool -XMP:Description=… <file>` — the metadata writer photo-describe shells out to, and the only tool that reads/writes the full EXIF/IPTC/XMP surface (mdls only shows Spotlight's lossy derived view, and sips has no EXIF tag access at all)
-      rclip # `rclip "a cold lonely morning"` — natural-language search over a photo folder, via OpenCLIP ViT-B/32 running locally. The VECTOR half of the retrieval story, deliberately kept OUT of the image files: its SQLite index (images.vector BLOB) is derived state, rebuildable from the XMP descriptions photo-describe writes, and invalidated by any embedding-model change. NOTE the nixpkgs build omits coremltools, so it indexes on CPU ONNX rather than the ANE — fine for ViT-B/32, just not the fastest possible.
+      rclipCli # `rclip "a cold lonely morning"` — natural-language search over a photo folder, via OpenCLIP ViT-B/32 running locally. The VECTOR half of the retrieval story, deliberately kept OUT of the image files: its SQLite index (images.vector BLOB) is derived state, rebuildable from the XMP descriptions photo-describe writes, and invalidated by any embedding-model change. NOTE the nixpkgs build omits coremltools, so it indexes on CPU ONNX rather than the ANE — fine for ViT-B/32, just not the fastest possible.
       # NOT here: osxphotos, which reads Apple Photos' own library DB (every picture
       # already scored across 27 aesthetic dimensions — pleasant_composition,
       # well_timed_shot, sharply_focused_subject — at zero compute, far richer than the
