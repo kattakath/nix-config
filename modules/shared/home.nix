@@ -1333,7 +1333,25 @@ in
         # background and a light theme's foreground colours, which is worse than
         # either choice made cleanly. Restoring system-following is one line:
         # drop these three and put the theme back.
-        background = "#24081B";
+        # #16000E is DERIVED, not chosen by eye: #24081B converted to OKLab, its
+        # lightness scaled, and converted back — hue and chroma held constant so
+        # only L moves. The scale factor 0.70 is the optimum of a sweep under one
+        # constraint: the unfocused pane must still read as true aubergine
+        # (CIEDE2000 < 2 from #24081B), while pane separation is maximised.
+        #
+        #   focused   #16000E   L* 2.29 -> 1.83
+        #   unfocused #200517   dE00 1.83 from true aubergine (i.e. unchanged)
+        #   separation dE00 4.79   (>2 noticeable, >5 clearly different)
+        #
+        # 4.79 is the CEILING, not a preference. #24081B is already L* 5.67, so
+        # the entire range from it to pure black is only dE00 16.5 — there is very
+        # little room to go darker while staying purple. Going darker than 0.70
+        # buys more separation but pushes the unfocused pane off true aubergine,
+        # which is the thing being preserved.
+        #
+        # Contrast with #FFFFFF text rises 18.66:1 -> 20.18:1, so the focused pane
+        # is also the more readable one.
+        background = "#16000E";
         foreground = "#FFFFFF";
         cursor-color = "#FFFFFF";
 
@@ -1377,20 +1395,23 @@ in
         # macos-automator in docs/mcp-gateway-accessibility-tcc.md.
         quick-terminal-position = "top";
 
-        # ---- Splits: make FOCUS legible ---------------------------------------
-        # Ghostty already dims unfocused splits, but its default 0.7 over a dark
-        # theme is barely perceptible — three splits read as one field of black.
-        # The dim is a semi-transparent rectangle drawn over the split, and
-        # `unfocused-split-fill` is that rectangle's colour, so setting it cooler
-        # than the background makes inactive panes recede in HUE as well as
-        # brightness. That is the difference between "which one has the cursor?"
-        # and knowing at a glance.
+        # ---- Splits: the FOCUSED pane is the darker one ------------------------
+        # Ghostty only ever modifies the UNFOCUSED split — there is no
+        # "focused-background" key — so "focused darker, unfocused unchanged" has
+        # to be built inside out: `background` becomes the darker shade, which
+        # every pane starts from, and `unfocused-split-fill` lifts the unfocused
+        # ones back to true aubergine.
+        #
+        # Which is why the fill is NOT omitted. Leaving it unset defaults it to
+        # `background`, so the unfocused panes would sit on the darker shade too
+        # and the whole effect collapses. Setting it to #24081B is precisely what
+        # "leave the unfocused ones unchanged" means here.
         # 0.35, not the 0.5 first tried: at 0.5 over a ground this dark the three
         # panes still read as one field in use. The floor is 0.15, which Ghostty
         # itself calls weird-looking, so this leaves headroom without reaching
         # for it.
         unfocused-split-opacity = 0.35;
-        unfocused-split-fill = "#0d1117";
+        unfocused-split-fill = "#24081B";
         split-divider-color = "#403d52";
 
         # A LIST, because `keybind` is a repeatable key — home-manager's settings
