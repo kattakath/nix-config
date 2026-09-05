@@ -515,13 +515,22 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
   used for the ungoogled-chromium cask. Settings deliberately **match the existing terminal**
   rather than introduce a second look: **16pt** is what `desktop-aesthetics.nix` holds
   Terminal.app at on every darwin host, and **UbuntuMono Nerd Font** is already installed
-  fleet-wide as the VS Code terminal face. **No theme is set** — Ghostty's default is dark, and
-  naming one of its bundled themes without being able to run `ghostty +list-themes` would be a
-  guess written into the fleet; pick one after the first activation. Options that merely
-  restate a default are left out on purpose, since they read as decisions and are not.
-  `enableZshIntegration` is deliberately **off**: it sources the integration script out of the
-  Nix `package`, which is null here, so it would point at nothing — the cask's app bundle
-  injects shell integration itself.
+  fleet-wide as the VS Code terminal face. The **theme follows the system**
+  (`light:Rose Pine Dawn,dark:Rose Pine`) — that pair is Ghostty's own documented example,
+  quoted from its config reference rather than picked from memory, since no bundled theme name
+  can be confirmed before the app exists; swap it for anything `ghostty +list-themes` offers.
+  **`ssh-env` + `ssh-terminfo`** are the load-bearing shell-integration features for this
+  fleet: without them a remote host meets an unknown `xterm-ghostty` and garbles every
+  full-screen program, and both `nixpi` and `macvm` are reached over ssh. The **Quick Terminal**
+  is bound to `global:cmd+grave`, which needs the same one-time Accessibility grant documented
+  for macos-automator in [`docs/mcp-gateway-accessibility-tcc.md`](mcp-gateway-accessibility-tcc.md).
+  Only split *creation* is bound (`cmd+d` / `cmd+shift+d`, iTerm2 habits) — Ghostty already
+  ships navigation on `cmd+alt+arrow`, and bracket-key names were not guessed at.
+  **Nothing in the config is validated until the cask is installed**: run
+  `ghostty +validate-config` after the first activation and correct what it rejects — that
+  step is the gate. `enableZshIntegration` is deliberately **off**: it sources the integration
+  script out of the Nix `package`, which is null here, so it would point at nothing — the
+  cask's app bundle injects shell integration itself.
 - **`desktop-aesthetics.nix`** — the macOS desktop look, split in two:
   - **Terminal.app** is UNGATED on every darwin host — 16pt type on EVERY profile + stock
     `Pro` as default/startup, driven through Terminal's own AppleScript `settings set` API
