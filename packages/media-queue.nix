@@ -46,7 +46,7 @@
   callPackage,
   coreutils,
   findutils,
-  terminal-notifier,
+  writeText,
   media-toolkit ? callPackage ./media-toolkit.nix { },
 }:
 let
@@ -56,6 +56,15 @@ let
   # lint gate would have to be switched off for exactly the code most worth
   # linting. $HOME at RUNTIME — these are paths the tools read and write, not
   # Nix source paths.
+  # Own file rather than a heredoc: the script must survive a Nix indented
+  # string, and quoting it twice is how you get a notifier that silently does
+  # nothing. Same reasoning as media-quick-actions.nix.
+  notifyScript = writeText "media-queue-notify.applescript" ''
+    on run argv
+      display notification (item 1 of argv) with title "Media Queue"
+    end run
+  '';
+
   common = ''
     STATE="$HOME/Library/Application Support/nix-media-queue"
     QUEUE="$STATE/queue"
@@ -70,10 +79,21 @@ let
       mkdir -p "$QUEUE" "$STAGE" "$FAILED" "$HOME/Library/Logs"
     }
 
+    # NOTIFY VIA osascript, NOT terminal-notifier. terminal-notifier is an
+    # unsigned /nix/store app bundle with its own id (fr.julienxx.oss.terminal-
+    # notifier) that macOS never registered in Notification Centre — measured:
+    # absent from com.apple.ncprefs. Every call still exits 0, because the tool
+    # reports no permission denial and this function ends in `|| true`, so the
+    # queue's entire status output was failing SILENTLY. `display notification`
+    # is attributed to a system binary, needs no per-app grant, and is the same
+    # mechanism the Finder Services next door already use successfully.
+    #
+    # The cost is the CLICK ACTION: AppleScript's `display notification` cannot
+    # carry one, so the banners no longer open the log or failed/ when clicked.
+    # A notification that reliably appears and says where to look beats one that
+    # opens a folder and never appears.
     notify() {
-      ${terminal-notifier}/bin/terminal-notifier \
-        -title "Media Queue" -message "$1" -group nix-media-queue \
-        "''${@:2}" >/dev/null 2>&1 || true
+      /usr/bin/osascript ${notifyScript} "$1" >/dev/null 2>&1 || true
     }
   '';
 in
@@ -148,7 +168,6 @@ symlinkJoin {
         # lives with its user, because an unused variable is a lint failure —
         # and rightly so, since it is usually a leftover.
         STATUS="$STATE/status"
-        LOG="$HOME/Library/Logs/nix-media-queue.log"
         LOCK="$STATE/worker.lock"
         MAX_TRIES=3
 
@@ -400,17 +419,17 @@ symlinkJoin {
         rm -f "$STATUS"
 
         if [ "$failures" -gt 0 ]; then
-          notify "$changed change(s), $failures failed" -execute "open '$FAILED'"
+          notify "$changed change(s), $failures failed — see ~/Library/Logs/nix-media-queue.log"
         elif [ "$changed" -gt 0 ]; then
-          notify "$changed change(s) applied, $skipped skipped" -execute "open '$LOG'"
+          notify "$changed change(s) applied, $skipped skipped"
         elif [ "$jobs" -eq 1 ] && [ -n "$reason" ]; then
           # ONE item that changed nothing: report the reason, not the count. This
           # is the case the operator is most likely to be standing there waiting
           # for, and "nothing to do" is exactly the wrong thing to tell them when
           # the tool refused on purpose.
-          notify "$reason" -execute "open '$LOG'"
+          notify "$reason"
         elif [ "$jobs" -gt 0 ]; then
-          notify "Nothing to change in $jobs item(s)" -execute "open '$LOG'"
+          notify "Nothing to change in $jobs item(s)"
         fi
         log "idle — $changed changed, $skipped skipped, $failures failed"
       '';
