@@ -239,7 +239,15 @@ writeShellApplication {
     ollama_up=0
     if [ "$caption" -eq 1 ]; then
       if curl -fsS -m 3 "$host/api/tags" -o "$tmpdir/tags.json" 2>/dev/null; then
-        if jq -e --arg m "$model" '.models[]?.name | select(. == $m)' "$tmpdir/tags.json" >/dev/null 2>&1; then
+        # `:latest` is IMPLICIT everywhere except here. Ollama registers an
+        # untagged pull as `name:latest` and its /api/generate resolves a bare
+        # name back to it, so a bare `--model foo` runs fine — but an exact
+        # string match against /api/tags does not, and this check then reported a
+        # present model as "not pulled" and silently downgraded every photo to
+        # labels-only. Match the bare name OR its :latest form.
+        if jq -e --arg m "$model" \
+          '.models[]?.name | select(. == $m or . == ($m + ":latest"))' \
+          "$tmpdir/tags.json" >/dev/null 2>&1; then
           ollama_up=1
         else
           info "note: model '$model' is not pulled — writing labels only (ollama pull $model)"
