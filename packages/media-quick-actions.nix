@@ -118,15 +118,6 @@ let
     }
   ];
 
-  # Kept in its own file rather than a heredoc: the script has to survive being
-  # embedded in a Nix indented string AND an XML plist, and quoting it twice is
-  # how you get a Service that silently does nothing.
-  notifyScript = writeText "notify.applescript" ''
-    on run argv
-      display notification (item 1 of argv) with title (item 2 of argv)
-    end run
-  '';
-
   # A Finder Service has nowhere to put stdout or stderr, so "skipped, already
   # done" and "crashed" look identical: you click and nothing happens. That
   # ambiguity is exactly what makes a working Service look broken, so an action
@@ -151,46 +142,18 @@ let
         media-queue
       ];
       text = ''
-        output=$(${a.cmd} "$@" 2>&1) && rc=0 || rc=$?
-
-        ${lib.optionalString a.queued ''
-          # Success on a queued action is not an outcome yet, so say nothing.
-          if [ "$rc" -eq 0 ]; then
-            exit 0
-          fi
-        ''}
-        # grep -c prints 0 and exits 1 when nothing matches, and errexit is on.
-        did=$(printf '%s\n' "$output" | grep -c ': done:' || true)
-        skipped=$(printf '%s\n' "$output" | grep -cE ': (skip|OK):' || true)
-
-        if [ "$rc" -ne 0 ]; then
-          body=$(printf '%s\n' "$output" | grep ': error:' | head -1 || true)
-          [ -n "$body" ] || body="Failed (exit $rc)"
-        elif [ "$did" -eq 0 ] && [ "$skipped" -eq 1 ]; then
-          # One file and nothing happened: say WHY. The CLIs skip for several
-          # different reasons — already converted, no audio track, not found,
-          # already editor-safe — and collapsing them all into "already done"
-          # reports a missing file as a success.
-          body=$(printf '%s\n' "$output" | grep -m1 -E ': (skip|OK):' \
-                 | sed -E "s/^[^:]*: (skip|OK): '[^']*' *//; s/^[—-] *//" || true)
-          [ -n "$body" ] || body="Nothing to do"
-        elif [ "$did" -eq 0 ]; then
-          # A directory walk stays quiet about files it had no opinion on, so
-          # "0 skipped" is the normal shape of a folder that was already fine —
-          # printing the count there reads like something went wrong.
-          body="Nothing to do"
-          [ "$skipped" -gt 0 ] && body="$body — $skipped skipped"
-        else
-          # "change(s)", not "file(s)": one file can legitimately produce two
-          # done: lines when a class pipeline both renames and re-encodes it,
-          # and counting those as two files would be a lie.
-          body="$did change(s) applied"
-          [ "$skipped" -gt 0 ] && body="$body, $skipped skipped"
-        fi
-
-        # argv, never string interpolation: a body built from file paths will
-        # contain a quote sooner or later.
-        /usr/bin/osascript ${notifyScript} "$body" ${lib.escapeShellArg a.name} >/dev/null 2>&1 || true
+        # NO SUMMARY, NO NOTIFICATION. This used to parse the CLI's done:/skip:
+        # grammar and post an AppleScript banner, because a Finder Service has
+        # nowhere to put stdout and "skipped, already done" and "crashed" would
+        # otherwise look identical. That reporting was removed deliberately: the
+        # queue reports nothing either now, and one silent path is easier to
+        # reason about than two half-working ones.
+        #
+        # WHAT YOU GIVE UP: a Service that fails is now completely silent — you
+        # click and nothing visible happens, success or failure alike. The log is
+        # the only channel left: ~/Library/Logs/nix-media-queue.log for queued
+        # work, and for an unqueued action nothing at all.
+        exec ${a.cmd} "$@"
       '';
     };
 
