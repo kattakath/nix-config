@@ -63,6 +63,25 @@ const formatCheckFailure = (e) => {
   }
   return body;
 };
+/**
+ * The ENVIRONMENT broke under nix — not the configuration. `nix flake check`
+ * exits nonzero either way, so exit code alone cannot tell "your .nix is wrong"
+ * from "the machine could not run the check at all", and the gate would block
+ * on a condition no edit can clear.
+ *
+ * MEASURED 2026-09-05: an EPERM opening `~/.cache/nix/fetcher-locks/*.lock`
+ * (a file the operator owns, mode 0600) blocked Stop three times in a row on an
+ * unchanged tree until superhook's loop-break broke the trap; the identical
+ * command passed minutes later. The gate already degrades to an advisory when
+ * nix is *absent* (`syntaxOnlyAdvisory`) — this is the same call for when nix is
+ * present but the environment fails under it.
+ *
+ * Deliberately NOT a bare /Operation not permitted/: the native Linux builder's
+ * real `cp --no-preserve=mode` EPERM (see CLAUDE.md § Important Notes) is a
+ * genuine, config-relevant failure, and must keep blocking.
+ */
+const ENV_FAILURE =
+  /opening lock file[^\n]*Operation not permitted|No space left on device|Too many open files|Cannot allocate memory/i;
 const approve = () => {
   process.stdout.write(JSON.stringify({ decision: "approve" }));
   process.exit(0);
@@ -230,9 +249,18 @@ if (nixFiles && has("nix")) {
   try {
     runLong("nix flake check --no-build 2>&1", 600_000);
   } catch (e) {
+    const detail = formatCheckFailure(e);
+    if (ENV_FAILURE.test(detail)) {
+      finishOk(
+        "⚠︎ stop-gate: `nix flake check --no-build` could not COMPLETE — the " +
+          "ENVIRONMENT failed under nix, not the configuration. Nothing in the tree " +
+          "can clear this; re-run the check manually, and treat CI as authoritative:\n" +
+          detail,
+      );
+    }
     block(
       `✘ stop-gate BLOCKED — \`nix flake check --no-build\` failed on host:\n` +
-        `${formatCheckFailure(e)}`,
+        `${detail}`,
     );
   }
   finishOk(
