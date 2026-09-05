@@ -520,6 +520,24 @@ in
   # remove-secret CLIs + the ~/.config/secrets/loader.sh every-shell loader).
   programs.keychainSecrets.enable = true;
 
+  # Ghostty's tab bar, kept visible even at one tab. NOT settable from
+  # programs.ghostty: `window-show-tab-bar` is documented "currently only
+  # supported on Linux (GTK)", there is no `toggle_tab_bar` action to bind, and
+  # the View > Hide Tab Bar item carries no key equivalent — on macOS the bar is
+  # AppKit's, not Ghostty's. So the only handle is the visibility AppKit itself
+  # persists when you pick View > Show Tab Bar.
+  #
+  # The key is a COMPOSITE of window class and state, valid ONLY for this exact
+  # combination: `macos-titlebar-style = "tabs"` (hence `TitlebarTabs`) on macOS
+  # 26 (hence `Tahoe`). A macOS major bump, or dropping the `tabs` titlebar,
+  # renames the class and this silently stops matching — re-read
+  # `defaults read com.mitchellh.ghostty` and update it. "Shoud" is Apple's typo
+  # in the key name, not ours; correcting it breaks the match.
+  targets.darwin.defaults = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
+    "com.mitchellh.ghostty"."NSWindowTabbingShoudShowTabBarKey-Ghostty.TitlebarTabsTahoeTerminalWindow-Ghostty.TerminalWindow" =
+      true;
+  };
+
   # WireGuard confs: sync ~/.local/share/wireguard-configs → ~/.config/wireguard
   # on macos + macvm. Confs stay outside git (private keys). Copy-only — it NEVER
   # runs wg-quick / starts a tunnel. On macos (GUI-only, no CLI) these are there
@@ -1315,35 +1333,43 @@ in
         # background and a light theme's foreground colours, which is worse than
         # either choice made cleanly. Restoring system-following is one line:
         # drop these three and put the theme back.
-        # #16000E is DERIVED, not chosen by eye: #24081B converted to OKLab, its
-        # lightness scaled, and converted back — hue and chroma held constant so
-        # only L moves. The scale factor 0.70 is the optimum of a sweep under one
-        # constraint: the unfocused pane must still read as true aubergine
-        # (CIEDE2000 < 2 from #24081B), while pane separation is maximised.
+        # ---- Canonical Ubuntu -------------------------------------------------
+        # Verbatim from Ptyxis's own Ubuntu.palette -- Ubuntu's terminal since
+        # 24.10 -- not a derivation and not the macOS approximation this repo
+        # used to vendor. That vendored modules/shared/terminal/Ubuntu.terminal
+        # (dropped in #319) used #24081B and a DIFFERENT ANSI set entirely; the
+        # two backgrounds are dE00 4.12 apart and the ring is not the same
+        # palette. What ran here for years was someone's approximation.
         #
-        #   focused   #16000E   L* 2.29 -> 1.83
-        #   unfocused #200517   dE00 1.83 from true aubergine (i.e. unchanged)
-        #   separation dE00 4.79   (>2 noticeable, >5 clearly different)
-        #
-        # 4.79 is the CEILING, not a preference. #24081B is already L* 5.67, so
-        # the entire range from it to pure black is only dE00 16.5 — there is very
-        # little room to go darker while staying purple. Going darker than 0.70
-        # buys more separation but pushes the unfocused pane off true aubergine,
-        # which is the thing being preserved.
-        #
-        # Contrast with #FFFFFF text rises 18.66:1 -> 20.18:1, so the focused pane
-        # is also the more readable one.
-        background = "#16000E";
-
-        # The titlebar is chrome, not a pane, so it should not wear the focused
-        # pane's colour. Under `macos-titlebar-style = "tabs"` it otherwise adopts
-        # `background` — the darker shade — which makes the window read as one
-        # more focused surface. Pinning it to true aubergine keeps the chrome at
-        # the resting colour, and leaves the darker shade meaning exactly one
-        # thing: this is the pane you are typing into.
-        window-titlebar-background = "#24081B";
+        # The ring is Tango, which is what Ubuntu has shipped for years.
+        # Measured against #300A24: foreground 17.58:1, min pairwise dE00 among
+        # slots 0-7 is 23.32 (excellent separation), and SIX of sixteen fail
+        # WCAG AA -- black 1.39:1, br-black 2.41, magenta 2.67, blue 2.97,
+        # red 2.99, br-red 4.20. That is a property of the authentic palette,
+        # accepted deliberately: this is Ubuntu's terminal, not a palette
+        # optimised to a contrast target. Every derived alternative that fixed
+        # those numbers lost the thing worth having.
+        background = "#300A24";
         foreground = "#FFFFFF";
         cursor-color = "#FFFFFF";
+        palette = [
+          "0=#2E3436"
+          "1=#CC0000"
+          "2=#4E9A06"
+          "3=#C4A000"
+          "4=#3465A4"
+          "5=#75507B"
+          "6=#06989A"
+          "7=#D3D7CF"
+          "8=#555753"
+          "9=#EF2929"
+          "10=#8AE234"
+          "11=#FCE94F"
+          "12=#729FCF"
+          "13=#AD7FA8"
+          "14=#34E2E2"
+          "15=#EEEEEC"
+        ];
 
         # ---- Window ----------------------------------------------------------
         # `tabs` puts the tab strip IN the titlebar, reclaiming a full row of
@@ -1401,8 +1427,14 @@ in
         # itself calls weird-looking, so this leaves headroom without reaching
         # for it.
         unfocused-split-opacity = 0.35;
-        unfocused-split-fill = "#24081B";
-        split-divider-color = "#403d52";
+        # NO FILL, deliberately. Unset, it defaults to `background`, so the
+        # unfocused GROUND is unchanged and only the text dims -- 17.58:1 down to
+        # 6.80:1. Ground stays identical across panes and titlebar, which is what
+        # "leave the unfocused one alone" actually means. A coloured fill was
+        # tried and rejected: lifting the unfocused ground made the panes you are
+        # NOT in the loudest thing on screen.
+        # dE00 11.29 from the ground -- visible without competing with it.
+        split-divider-color = "#5C2A4C";
 
         # A LIST, because `keybind` is a repeatable key — home-manager's settings
         # type takes a list for exactly that case.
