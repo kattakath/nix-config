@@ -1465,6 +1465,14 @@
           media-queue = (pkgsFor system).callPackage ./packages/media-queue.nix { };
         }))
 
+        # `media` — one entry point for the media CLIs (`media describe|fix|audio`),
+        # purely additive: every underlying binary stays on PATH under its own name
+        # because the Finder Services, the flake apps and the operator's notes all
+        # hardcode those. It exists for discoverability, not keystrokes.
+        (nixpkgs.lib.genAttrs darwinSystems (system: {
+          media = (pkgsFor system).callPackage ./packages/media.nix { };
+        }))
+
         # `media-toolkit` — the media-file CLIs above as ONE installable unit, so
         # home.packages carries a single entry instead of drifting as CLIs are added.
         # The individual packages stay exported for `nix run .#<name>`.
