@@ -11,14 +11,68 @@
 
 let
   home = config.users.users.${loginName}.home;
-  # THE single staging folder: browser downloads, AirDrop, ⇧⌘5 screenshots AND
-  # screen recordings all land here, and the launchd agent below rotates it
-  # hourly into ~/.Trash. Replaced the old ~/Pictures/Screengrab dir — one
-  # inbox, one rotation, and Downloads is where every app already defaults.
+  # Two SYSTEM-DEFAULT inboxes, two rotations (the launchd agents below):
+  #   ~/Desktop   — ⇧⌘4/⇧⌘5 screenshots AND screen recordings (macOS's own
+  #                 default target; the real Mac sets no location override),
+  #                 swept WHOLE after 1 day.
+  #   ~/Downloads — browser downloads + AirDrop (every app's default; nothing
+  #                 in this repo overrides it), swept after 7 days of
+  #                 DISPOSABLE types only (media/installers/archives) —
+  #                 keepers move to Documents/Pictures/Movies/Music by hand.
+  # Lineage: dedicated ~/Pictures/Screengrab → one all-in ~/Downloads inbox →
+  # split back onto the system defaults (2026-09-05).
   downloadsDir = "${home}/Downloads";
   # Reverse-DNS namespace derived from the fleet domain (kattakath.com → com.kattakath)
-  # for the file-rotation launchd label, rather than hardcoding it.
+  # for the file-rotation launchd labels, rather than hardcoding it.
   rdns = lib.concatStringsSep "." (lib.reverseList (lib.splitString "." domainName));
+
+  # One byte-safe hourly Trash sweep, parameterized per inbox — every
+  # deliberate choice in here is documented at the agents' definition site
+  # below (TCC arg0, Put Back cost, tool survey, U+202F filenames).
+  # `nameGlobs = null` sweeps EVERYTHING older than minAge (directories too);
+  # a list of lowercase case(1) globs restricts the sweep to matching
+  # basenames (case-insensitive via tr) and therefore SKIPS directories.
+  mkTrashSweep =
+    {
+      suffix,
+      dir,
+      minAge, # minutes
+      nameGlobs ? null,
+    }:
+    {
+      serviceConfig = {
+        Label = "${rdns}.file-rotation.trash-${suffix}";
+        ProgramArguments = [
+          "${pkgs.writeShellScriptBin "nix-file-rotation-${suffix}" ''
+            set -eu
+            /bin/mkdir -p "${home}/Library/Logs" "${home}/.Trash"
+            /usr/bin/find "${dir}" -mindepth 1 -maxdepth 1 \
+              ! -name '.DS_Store' ! -name '.localized' -mmin +${toString minAge} \
+              -exec /bin/sh -c 'for f do
+                ${
+                  lib.optionalString (nameGlobs != null) ''
+                    base="$(/usr/bin/basename "$f" | /usr/bin/tr "[:upper:]" "[:lower:]")"
+                    case "$base" in
+                      ${lib.concatStringsSep "|" nameGlobs}) ;;
+                      *) continue ;;
+                    esac
+                  ''
+                }dest="${home}/.Trash/$(/usr/bin/basename "$f")"
+                # -e also covers an existing DIRECTORY at $dest — without this,
+                # `mv dir dest/` would move it INSIDE instead of renaming.
+                if [ -e "$dest" ]; then
+                  dest="$dest.$(/bin/date +%Y%m%d%H%M%S)"
+                fi
+                /bin/mv -- "$f" "$dest"
+              done' _ {} +
+          ''}/bin/nix-file-rotation-${suffix}"
+        ];
+        StartInterval = 3600;
+        RunAtLoad = true;
+        StandardOutPath = "${home}/Library/Logs/file-rotation-trash-${suffix}.log";
+        StandardErrorPath = "${home}/Library/Logs/file-rotation-trash-${suffix}.log";
+      };
+    };
 
   # BTM names ProgramArguments[0] basename (`sfltool dumpbtm`) — use `nix-<app>`
   # not bare `open`. No custom .app icon: unsigned store paths always show
@@ -339,12 +393,19 @@ in
       # No guest account on a single-operator client Mac.
       loginwindow.GuestEnabled = false;
 
-      # Save screen captures into the rotated Downloads dir (not ~/Desktop).
-      # This one key covers BOTH ⇧⌘4 screenshots and ⇧⌘5 screen *recordings* —
-      # verified empirically; the .mov honors com.apple.screencapture location
-      # despite Apple documenting no separate key for recordings.
+      # Screen captures: the real Mac deliberately sets NO location — macOS's
+      # own default is ~/Desktop (an unset/missing location falls back there,
+      # nix-darwin#1240), and file-rotation-desktop below sweeps it daily.
+      # macvm ALONE keeps the explicit Downloads override: its ~/Downloads is
+      # the VirtioFS symlink into the HOST's inbox (hosts/macvm.nix), so guest
+      # captures surface on the host and ride the host-side rotation — on the
+      # guest's own ~/Desktop they would be stranded in the sandbox.
+      # The location key covers BOTH ⇧⌘4 screenshots and ⇧⌘5 screen
+      # *recordings* — verified empirically; the .mov honors
+      # com.apple.screencapture location despite Apple documenting no separate
+      # key for recordings.
       screencapture = {
-        location = downloadsDir;
+        location = lib.mkIf (config.networking.hostName == "macvm") downloadsDir;
         type = "png";
         disable-shadow = true;
       };
@@ -449,29 +510,18 @@ in
       app = "Messages";
     };
 
-    # Hourly rotation of ~/Downloads → ~/.Trash (recoverable; Finder then erases
-    # Trash items at 30d via FXRemoveOldTrashItems above). Stock /bin + /usr/bin
-    # only (no Nix runtime).
+    # The two inbox sweeps (mkTrashSweep above; hourly tick each; recoverable —
+    # Finder erases Trash items at 30d via FXRemoveOldTrashItems). Stock
+    # /bin + /usr/bin only (no Nix runtime).
     #
     # arg0 MUST stay a /nix/store `nix-*` wrapper — do NOT use `script =` or
-    # /bin/sh. Beyond BTM naming, that arg0 is what grants this agent READ
-    # access to ~/Downloads at all (TCC attributes the read to the responsible
-    # binary; an unattributable store path falls through to allow, /bin/sh gets
-    # EPERM). See .claude/rules/launchd-naming.md § TCC.
+    # /bin/sh. Beyond BTM naming, that arg0 is what grants these agents READ
+    # access to the TCC-protected ~/Desktop and ~/Downloads at all (TCC
+    # attributes the read to the responsible binary; an unattributable store
+    # path falls through to allow, /bin/sh gets EPERM). See
+    # .claude/rules/launchd-naming.md § TCC.
     #
-    # Retention: 43200 min = 30 days. This is a deliberately STAGED value —
-    # ~/Downloads already holds a large untriaged backlog and a 7-day first run
-    # would sweep all of it into the Trash at once. The intended steady state is
-    # 7 days (`-mmin +10080`); once the backlog is triaged this is a one-number
-    # edit, nothing else changes.
-    #
-    # Directories rotate too (no `-type f`), so unzipped folders don't accumulate
-    # forever. Two consequences that are intentional: `-mindepth 1` is now
-    # required or find would match ~/Downloads itself, and a directory's mtime
-    # tracks only entry add/remove — editing a file deep inside does not renew
-    # its parent, so a long-lived project folder can age out. Keep real work out
-    # of ~/Downloads.
-    #
+    # `-mindepth 1` is required or find would match the inbox dir itself.
     # `.localized` (Finder's localized-folder-name marker) and `.DS_Store` are
     # excluded: both are ancient by mtime and would be swept on the first run.
     #
@@ -481,40 +531,82 @@ in
     #
     # ACCEPTED COST — Finder "Put Back" does not work on rotated items. A plain
     # `mv` into ~/.Trash writes no ptbL/ptbN records in .Trash/.DS_Store, so the
-    # item can be dragged out but not restored to its origin. Already true of the
-    # old Screengrab rotation; it just matters more now that real downloads move.
-    # This is a JUSTIFIED exception to the repo's reuse-over-rebuild preference —
+    # item can be dragged out but not restored to its origin. This is a
+    # JUSTIFIED exception to the repo's reuse-over-rebuild preference —
     # off-the-shelf trash CLIs were surveyed and every one was disqualified:
     # trash-cli / rmtrash / gtrash / rmw target the freedesktop
     # ~/.local/share/Trash (the wrong trashcan on macOS); nixpkgs' darwin.trash
     # drives Apple Events, so it fails from a launchd context and its upstream is
     # 404; macos-trash is the only one that gets Put Back right and it is not in
     # nixpkgs. Do not "fix" this by swapping in one of those.
-    file-rotation-downloads = {
-      serviceConfig = {
-        Label = "${rdns}.file-rotation.trash-downloads";
-        ProgramArguments = [
-          "${pkgs.writeShellScriptBin "nix-file-rotation-downloads" ''
-            set -eu
-            /bin/mkdir -p "${home}/Library/Logs" "${home}/.Trash"
-            /usr/bin/find "${downloadsDir}" -mindepth 1 -maxdepth 1 \
-              ! -name '.DS_Store' ! -name '.localized' -mmin +43200 \
-              -exec /bin/sh -c 'for f do
-                dest="${home}/.Trash/$(/usr/bin/basename "$f")"
-                # -e also covers an existing DIRECTORY at $dest — without this,
-                # `mv dir dest/` would move it INSIDE instead of renaming.
-                if [ -e "$dest" ]; then
-                  dest="$dest.$(/bin/date +%Y%m%d%H%M%S)"
-                fi
-                /bin/mv -- "$f" "$dest"
-              done' _ {} +
-          ''}/bin/nix-file-rotation-downloads"
-        ];
-        StartInterval = 3600;
-        RunAtLoad = true;
-        StandardOutPath = "${home}/Library/Logs/file-rotation-trash-downloads.log";
-        StandardErrorPath = "${home}/Library/Logs/file-rotation-trash-downloads.log";
-      };
+
+    # ~/Desktop: the capture inbox. Swept WHOLE (directories too) after 1 day —
+    # the old Screengrab cadence. A directory's mtime tracks only entry
+    # add/remove, so don't park live work on the Desktop.
+    file-rotation-desktop = mkTrashSweep {
+      suffix = "desktop";
+      dir = "${home}/Desktop";
+      minAge = 1440;
+    };
+
+    # ~/Downloads: the browser/AirDrop inbox. Swept after 7 days, DISPOSABLE
+    # types only — media, installers/disk images, archives. Everything else
+    # (documents, folders — the typed filter never matches a directory) stays
+    # put for manual triage into Documents/Pictures/Movies/Music; that is the
+    # operator's explicit contract (2026-09-05), replacing the earlier
+    # staged-30-day sweep-everything shape.
+    file-rotation-downloads = mkTrashSweep {
+      suffix = "downloads";
+      dir = downloadsDir;
+      minAge = 10080;
+      nameGlobs = [
+        # media
+        "*.png"
+        "*.jpg"
+        "*.jpeg"
+        "*.heic"
+        "*.heif"
+        "*.gif"
+        "*.webp"
+        "*.tiff"
+        "*.tif"
+        "*.bmp"
+        "*.svg"
+        "*.mp4"
+        "*.mov"
+        "*.m4v"
+        "*.mkv"
+        "*.webm"
+        "*.avi"
+        "*.mp3"
+        "*.m4a"
+        "*.aac"
+        "*.wav"
+        "*.flac"
+        "*.aiff"
+        "*.ogg"
+        # installers / disk images
+        "*.dmg"
+        "*.pkg"
+        "*.mpkg"
+        "*.iso"
+        "*.ipsw"
+        "*.exe"
+        "*.msi"
+        "*.apk"
+        # archives
+        "*.zip"
+        "*.tar"
+        "*.gz"
+        "*.tgz"
+        "*.bz2"
+        "*.tbz2"
+        "*.xz"
+        "*.txz"
+        "*.zst"
+        "*.7z"
+        "*.rar"
+      ];
     };
   };
 
