@@ -498,13 +498,15 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
   bounding the restart rate so a reproducible crash cannot spin. **`RunAtLoad`** drains what a
   logout interrupted. The agent's arg0 is `nix-media-queue` via `hm-launchd`, which is
   load-bearing rather than cosmetic: per [launchd-naming](../.claude/rules/launchd-naming.md)
-  a `/nix/store` arg0 is what lets the worker **read** the TCC-protected folders it exists to
-  **Status is notifications only.** This also drove a menu-bar item through SwiftBar — a
-  whole GUI app in the closure, a plugin file, a `defaults` domain and a second launchd
-  agent, to show a queue depth. Removed as not worth its surface: the notifications already
-  say when a batch is queued and how it ended, which is the part an operator acts on, and
-  the log answers the rest. A shell-run `photo-describe` prints its own progress.
-  switched off: a `/nix/store` app cannot update itself, so a check can only produce a nag.
+  a `/nix/store` arg0 is what lets the worker **read** the TCC-protected folders it exists to work on.
+  **There is no status surface.** This drove a menu-bar item through SwiftBar (a whole GUI
+  app in the closure, a plugin file, a `defaults` domain and a second launchd agent) and then
+  macOS notifications; both were removed. The notifier had never worked anyway — an unsigned
+  `/nix/store` bundle macOS never registered in `com.apple.ncprefs` — and its `osascript`
+  replacement could show neither an image nor a click action. What remains is
+  `~/Library/Logs/nix-media-queue.log`, plus a shell-run CLI printing its own progress. The
+  cost is accepted: a Finder Service now does nothing visible, so success and failure look
+  alike.
 - **`desktop-aesthetics.nix`** — the macOS desktop look, split in two:
   - **Terminal.app** is UNGATED on every darwin host — 16pt type on EVERY profile + stock
     `Pro` as default/startup, driven through Terminal's own AppleScript `settings set` API
@@ -703,22 +705,14 @@ Smaller, single-purpose CLIs:
   **`macos` and `macvm` alike** — `mediaToolkit` already sits in the darwin branch of
   `home.packages`, and everything here is nixpkgs-side (ffmpeg included), so it does not touch
   macvm's leaner Homebrew set. macvm has no hardware H.264 encoder under Apple Virtualization;
-  `fix-google-video` falls back to libx264 there. Each action runs
-  through a wrapper that turns the CLI's output into a **macOS notification**: a Service has
-  nowhere to put stdout or stderr, so "skipped, already done" and "crashed" are otherwise
-  indistinguishable — you click and nothing happens. When one file produced nothing the
-  notification reports the actual reason (`already exists`, `no audio stream`, `not found`,
-  `already editor-safe`) rather than collapsing them all into one message, which would report
-  a missing file as a success. **A queued action is not summarised there** — `media-enqueue`
-  only writes job files and emits no `done:`/`skip:` lines, so summarising it announced
-  "Nothing to do" on every click regardless of what happened next, which is worse than
-  silence: it states an outcome before one exists, and made a correct refusal (the target name
-  was already taken by a *different* file) look identical to a no-op. Queued actions are
-  therefore silent on success — `media-enqueue` has already said "Queued N", and the **worker**
-  reports the outcome once there is one, including a run that changed nothing, naming the
-  reason when it was a single item. The wrapper still speaks if enqueueing itself fails, since
-  nothing downstream would report that. The summary counts **changes, not files**: one file can
-  legitimately produce two `done:` lines when a class pipeline both renames and re-encodes it.
+  `fix-google-video` falls back to libx264 there. Each action is now a
+  plain `exec` of its CLI. It used to run through a wrapper that summarised the output into a
+  macOS notification, because a Service has nowhere to put stdout or stderr and "skipped,
+  already done" and "crashed" are otherwise indistinguishable — you click and nothing happens.
+  That reasoning was sound and the wrapper was still removed, along with the rest of the
+  notification surface: one silent path is easier to reason about than two half-working ones.
+  The consequence is exactly the ambiguity it existed to prevent, and the log is the only
+  channel left.
   `NSSendFileTypes` is **per action**, not a shared constant: Extract Audio takes
   `public.movie`, Fix Video File(s) `public.movie` + `public.folder`, Fix Image File(s)
   `public.image` + `public.folder`, Describe Image(s) the same as Fix Image File(s) — a mislabeled JPEG still reports `public.png` from its

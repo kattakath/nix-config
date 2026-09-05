@@ -491,7 +491,7 @@ in
         ''
       );
     }
-    ./media-queue.nix # darwin-gated launchd work queue + SwiftBar status for the media Services
+    ./media-queue.nix # darwin-gated launchd work queue for the media Finder Services (no status surface — see its header)
     ./hm-launchd # patched home-manager launchd (nix-* ProgramArguments)
     ./mcp.nix # darwin-gated MCP server registry for Claude Code
     ./desktop-aesthetics.nix # Terminal.app 16pt (all darwin) + wallpaper (opt-out; macvm opts out)
