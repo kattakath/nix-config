@@ -114,6 +114,26 @@ let
       mkdir -p "$QUEUE" "$STAGE" "$FAILED" "$HOME/Library/Logs"
     }
 
+    # THE STANDARD WAY TO READ LOW POWER MODE FROM A SHELL, VERIFIED ON THIS
+    # MAC. Apple's real API is `ProcessInfo.isLowPowerModeEnabled` +
+    # `NSProcessInfoPowerStateDidChangeNotification`, but that notification
+    # is explicitly UNAVAILABLE ON MACOS (iOS-only) — so there is no
+    # event-driven alternative to poll for anyway. `pmset -g`'s "Currently
+    # in use" block already merges AC/battery into one live value, which is
+    # why this respects Low Power Mode regardless of power source for free
+    # — no separate AC/battery branch needed. Reading it needs no
+    # privilege; only WRITING it (`pmset -a/-b/-c`) needs root. Fails OPEN
+    # on any parse hiccup — every caller compares the result against the
+    # literal string "1", so a missing/empty/unexpected value reads as "not
+    # active" rather than blocking work. An optional efficiency signal must
+    # never be able to wedge the whole queue. Used by media-worker (the
+    # gate + watchdog) and media-queue-resume (the refusal check) — shared
+    # here rather than duplicated, per this file's own "common holds what
+    # more than one script needs" rule.
+    lowpower_active() {
+      /usr/bin/pmset -g 2>/dev/null | awk '/lowpowermode/{print $2; exit}'
+    }
+
   '';
 in
 symlinkJoin {
@@ -186,6 +206,11 @@ symlinkJoin {
         # and rightly so, since it is usually a leftover.
         LOCK="$STATE/worker.lock"
         MAX_TRIES=3
+        # How often the in-flight-job watchdog re-checks Low Power Mode.
+        # Cheap either way — one `pmset -g` call is sub-10ms — so this is
+        # about responsiveness, not overhead. 20s catches a toggle quickly
+        # without adding a meaningful wake-up burden of its own.
+        POWER_POLL_INTERVAL=20
 
         log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 
@@ -254,7 +279,16 @@ symlinkJoin {
 
         running=""
         child=""
+        watchdog=""
+        power_marker=""
         cleanup() {
+          # The watchdog first, before the encode: it also sends signals to
+          # `$child`, and killing it late could race a STOP/CONT against the
+          # TERM below. It self-terminates within one poll interval anyway
+          # (its own `kill -0 "$child"` check fails once the child is gone),
+          # but a logout shouldn't leave even a short-lived loop dangling.
+          [ -n "$watchdog" ] && kill "$watchdog" 2>/dev/null || true
+          [ -n "$power_marker" ] && rm -f "$power_marker"
           # Kill the encode FIRST. Without this the trap would not even run until
           # ffmpeg finished on its own, and launchd escalates SIGTERM to SIGKILL
           # long before a two-hour batch is done.
@@ -325,6 +359,22 @@ symlinkJoin {
             continue
           fi
 
+          # LOW POWER MODE GATES STARTING NEW WORK, not only work already
+          # running — the watchdog below only exists once a job is already
+          # forked, so without this a fresh job would always get to start
+          # at least once before being frozen. Put back with a FRESH t1,
+          # the same reset `…-recovered-*.t1.job` already uses, so
+          # deferring for power never costs a retry attempt. `break`,
+          # not a sleep loop: `ThrottleInterval` already retries this
+          # worker every ~10s, so this reuses launchd's own mechanism
+          # instead of adding a private one.
+          if [ "$(lowpower_active)" = "1" ]; then
+            mv "$running" "$QUEUE/$(date +%s)-lowpower.t1.job" 2>/dev/null || true
+            running=""
+            log "Low Power Mode is on — deferring '$path', not starting new work"
+            break
+          fi
+
           log "start $class '$path' (attempt $tries)"
 
           # Backgrounded and waited on, NOT `out=$(...)`: bash defers a trap
@@ -346,9 +396,64 @@ symlinkJoin {
           esac
           child=$!
           set +m
+
+          # THE WATCHDOG: the ONLY thing that can notice Low Power Mode
+          # turning on mid-batch. The gate above only runs once, before a
+          # job starts; `wait "$child"` below blocks this whole loop until
+          # the job exits, so nothing else in this script can poll while a
+          # long describe/encode is in flight. A second background process
+          # is therefore the only way to react during the job, not just
+          # before or after it.
+          #
+          # THE MARKER FILE IS WHAT MAKES THIS SAFE TO AUTOMATE. Without
+          # it, this loop could not tell "a job I paused for power" from "a
+          # job the operator paused by hand" (`media-queue-pause`), and
+          # would either fight a manual pause by resuming it, or need to
+          # ask a human every 20s. `power-paused-<pid>` names the exact job
+          # it belongs to, so a manual pause (no marker) is recognised by
+          # the `T*` case below and left alone — this watchdog only ever
+          # touches what it marked itself.
+          #
+          # `-$child`, matching the SIGTERM path above and `media-queue-
+          # pause`/`-resume`: `set -m` gave the job its own process group
+          # (pgid == its pid), and the negative pid is what makes a signal
+          # reach ffmpeg/exiftool/curl grandchildren too, not just the
+          # shell driving them.
+          power_marker="$STATE/power-paused-$child"
+          ( while kill -0 "$child" 2>/dev/null; do
+              sleep "$POWER_POLL_INTERVAL"
+              kill -0 "$child" 2>/dev/null || break
+              if [ "$(lowpower_active)" = "1" ]; then
+                if [ ! -f "$power_marker" ]; then
+                  st=$(/bin/ps -o stat= -p "$child" 2>/dev/null | tr -d ' ')
+                  case "$st" in
+                    T*) : ;;
+                    *)
+                      if kill -STOP -"$child" 2>/dev/null; then
+                        touch "$power_marker"
+                        log "power: paused '$path' — Low Power Mode is on"
+                      fi
+                      ;;
+                  esac
+                fi
+              elif [ -f "$power_marker" ]; then
+                if kill -CONT -"$child" 2>/dev/null; then
+                  log "power: resumed '$path' — Low Power Mode is off"
+                fi
+                rm -f "$power_marker"
+              fi
+            done
+            rm -f "$power_marker"
+          ) &
+          watchdog=$!
+
           rc=0
           wait "$child" || rc=$?
+          kill "$watchdog" 2>/dev/null || true
+          rm -f "$power_marker"
           child=""
+          watchdog=""
+          power_marker=""
           out=$(cat "$scratch")
           rm -f "$scratch"
           printf '%s\n' "$out"
@@ -478,6 +583,21 @@ symlinkJoin {
         prog=media-queue-resume
         [ $# -eq 0 ] || { echo "usage: $prog" >&2; exit 1; }
 
+        # A HARD REFUSAL, not a race against the watchdog. media-worker's
+        # own watchdog will just re-freeze this within one
+        # POWER_POLL_INTERVAL if Low Power Mode is still on, so resuming
+        # anyway would look like it worked for a few seconds and then
+        # silently undo itself — worse than refusing outright and saying
+        # why. Checked directly here rather than via the power-paused
+        # marker: "must be paused on low power" is meant as a rule with no
+        # loophole, including for a job that happened to be paused
+        # manually while Low Power Mode was already on.
+        if [ "$(lowpower_active)" = "1" ]; then
+          echo "$prog: refusing — Low Power Mode is on" >&2
+          echo "$prog: turn it off first (System Settings > Battery, or 'sudo pmset -a lowpowermode 0'), then resume" >&2
+          exit 1
+        fi
+
         found=0
         for running in "$STATE"/running-*.job; do
           [ -e "$running" ] || continue
@@ -547,7 +667,16 @@ symlinkJoin {
             any_running=1
             state=$(/bin/ps -o stat= -p "$jpid" 2>/dev/null | tr -d ' ')
             case "$state" in
-              T*) label="PAUSED (SIGSTOP)" ;;
+              T*)
+                # The marker is media-worker's own watchdog leaving a trail:
+                # present only for a pause IT made, never for one the
+                # operator made by hand with media-queue-pause.
+                if [ -f "$STATE/power-paused-$jpid" ]; then
+                  label="PAUSED (Low Power Mode, auto)"
+                else
+                  label="PAUSED (SIGSTOP, manual)"
+                fi
+                ;;
               "") label="gone" ;;
               *)  label="running" ;;
             esac
