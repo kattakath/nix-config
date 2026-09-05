@@ -7,6 +7,9 @@
 #   fix-media <--video|--image> <file-or-dir>...  repair a media file by CLASS,
 #                                                 deciding which of the above
 #                                                 it actually needs
+#   photo-describe <file-or-dir>...               write what an image IS into
+#                                                 the image (XMP description +
+#                                                 keywords + rating)
 #
 # A symlinkJoin, deliberately, not a single dispatching binary: each CLI stays
 # its own derivation, keeps its own `nix run .#<name>` app, and is shellchecked
@@ -38,6 +41,19 @@
 # itself, it DISPATCHES to the members that do. It belongs here because it is
 # the entry point the Finder Services actually call, and because splitting a
 # dispatcher from the things it dispatches to is how the two drift apart.
+#
+# photo-describe is the third edge case, and the closest call. It changes no
+# pixels — like fix-extension it only rewrites what the file SAYS about itself
+# — and it is the only member with a soft dependency on a service (Ollama) that
+# lives outside its closure. It still belongs: it acts directly on the media
+# file the operator selected, and it repairs the same defect fix-extension does
+# for the same consumer — a file Finder and Spotlight cannot answer questions
+# about. It is also the natural next stage AFTER fix-extension, whose --print0
+# seam it consumes exactly as fix-media does.
+#
+# The Ollama dependency is what keeps it from being folded into fix-media's
+# --image pipeline: a repair must finish offline and in bounded time, and a
+# vision model is neither. So describing stays a separate, explicit verb.
 {
   symlinkJoin,
   callPackage,
@@ -45,6 +61,7 @@
   extract-audio ? callPackage ./extract-audio.nix { },
   fix-extension ? callPackage ./fix-extension.nix { },
   fix-media ? callPackage ./fix-media.nix { },
+  photo-describe ? callPackage ./photo-describe.nix { },
 }:
 symlinkJoin {
   name = "media-toolkit";
@@ -53,9 +70,10 @@ symlinkJoin {
     extract-audio
     fix-extension
     fix-media
+    photo-describe
   ];
   meta = {
-    description = "Local media-file CLIs: fix-google-video (re-encode editor-hostile video), extract-audio (pull out the audio track) fix-extension (rename files whose extension lies about their content) and fix-media (repair a media file by class)";
+    description = "Local media-file CLIs: fix-google-video (re-encode editor-hostile video), extract-audio (pull out the audio track) fix-extension (rename files whose extension lies about their content), fix-media (repair a media file by class) and photo-describe (write an image's description/keywords into its own XMP)";
     mainProgram = "fix-google-video";
   };
 }

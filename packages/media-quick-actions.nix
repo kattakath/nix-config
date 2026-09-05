@@ -97,6 +97,25 @@ let
       ];
       inputType = "com.apple.Automator.fileSystemObject";
     }
+    {
+      name = "Describe Image(s)";
+      id = "describeImage";
+      cmd = "media-enqueue --describe";
+      # Queued for the same reason the fixes are, only more so: measured here,
+      # a caption costs ~26s on the first image (loading the vision model) and
+      # ~4s warm, so a right-clicked folder is minutes of work. Running that
+      # inside the Service would freeze Finder's menu with no progress and no
+      # cancel — which is the exact failure the queue exists to prevent.
+      queued = true;
+      # Named for the OUTCOME the operator wants, not the mechanism: nobody
+      # right-clicks looking for "Write XMP metadata". Same reasoning as the
+      # "Fix … File(s)" items above — the menu states what you get.
+      sendTypes = [
+        "public.image"
+        "public.folder"
+      ];
+      inputType = "com.apple.Automator.fileSystemObject";
+    }
   ];
 
   # Kept in its own file rather than a heredoc: the script has to survive being
