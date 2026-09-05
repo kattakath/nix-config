@@ -82,7 +82,15 @@ lib.mkIf isDarwin {
       enable = true;
       config = {
         ProgramArguments = [ "${mediaQueue}/bin/media-worker" ];
-        QueueDirectories = [ "${stateDir}/queue" ];
+        # Three tiers, all watched: launchd fires the worker whenever ANY of
+        # them is non-empty. `queue` is the original, unchanged path — see
+        # packages/media-queue.nix's own header for why `queue-high`/
+        # `queue-low` exist and which requeue paths demote into the latter.
+        QueueDirectories = [
+          "${stateDir}/queue-high"
+          "${stateDir}/queue"
+          "${stateDir}/queue-low"
+        ];
         RunAtLoad = true;
         ProcessType = "Background";
         Nice = 5;
