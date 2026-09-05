@@ -24,6 +24,12 @@
 #   StandardOutPath                the log, written where Console.app looks for
 #                                  it, so the viewer is off-the-shelf too.
 #
+# QueueDirectories ALONE makes pickup as slow as ThrottleInterval, because the
+# throttle spaces every start of a job and not merely its respawns — measured on
+# this Mac, a right-click waited a full minute at ThrottleInterval = 60. So
+# `media-enqueue` also `launchctl kickstart`s the agent: the watch stays as the
+# safety net for jobs that arrive some other way, and the click no longer waits.
+#
 # The agent's arg0 is `nix-media-queue` — modules/shared/hm-launchd forces
 # `nix-<name>` on every agent it emits. That is not cosmetic here: per
 # .claude/rules/launchd-naming.md a /nix/store arg0 is what lets the worker READ
@@ -97,9 +103,13 @@ lib.mkIf isDarwin {
         Nice = 5;
         LowPriorityIO = true;
         KeepAlive.SuccessfulExit = false;
-        # Long enough that a reproducible crash cannot spin, short enough that a
-        # transient one costs a minute.
-        ThrottleInterval = 60;
+        # launchd's default, stated rather than inherited because it is
+        # LOAD-BEARING FOR LATENCY and not only for crash bounding: the throttle
+        # spaces every start of the job, so at 60 a right-click waited a full
+        # minute (measured). `media-enqueue` kickstarts the agent, so this is now
+        # only the ceiling for the paths that cannot: a job arriving without an
+        # enqueue, and a crash restart.
+        ThrottleInterval = 10;
         StandardOutPath = "${home}/Library/Logs/nix-media-queue.log";
         StandardErrorPath = "${home}/Library/Logs/nix-media-queue.log";
       };
