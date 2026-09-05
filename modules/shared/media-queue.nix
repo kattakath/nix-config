@@ -23,6 +23,18 @@
 #                                  queue, and login drains them.
 #   StandardOutPath                the log, written where Console.app looks for
 #                                  it, so the viewer is off-the-shelf too.
+#   StartInterval (power monitor)  BATTERY AWARENESS. A separate agent ticks
+#                                  every 20s and freezes/thaws whatever job is
+#                                  currently running via `pmset -g lowpowermode`
+#                                  — launchd's own periodic-run primitive, not a
+#                                  hand-rolled `sleep`-loop daemon of ours. Kept
+#                                  as its own agent rather than a loop inside
+#                                  the worker: that first version was a second
+#                                  direct child of the worker process,
+#                                  indistinguishable from the real job to
+#                                  `pgrep -P` — a whole bug class this shape
+#                                  doesn't have, since it isn't the worker's
+#                                  child at all.
 #
 # QueueDirectories ALONE makes pickup as slow as ThrottleInterval, because the
 # throttle spaces every start of a job and not merely its respawns — measured on
@@ -83,6 +95,29 @@ lib.mkIf isDarwin {
         # only the ceiling for the paths that cannot: a job arriving without an
         # enqueue, and a crash restart.
         ThrottleInterval = 10;
+        StandardOutPath = "${home}/Library/Logs/nix-media-queue.log";
+        StandardErrorPath = "${home}/Library/Logs/nix-media-queue.log";
+      };
+    };
+
+    # Battery awareness. `StartInterval` is upstream Home Manager's own
+    # periodic-run option (modules/shared/hm-launchd/launchd.nix:392,
+    # a straight vendor of the upstream launchd plist schema) — this is
+    # ordinary declarative use of an existing option, not a workaround, so
+    # `.claude/rules/upstream-first.md` doesn't apply here the way it did to
+    # the pause/resume mechanism itself. `RunAtLoad` covers the gap between
+    # login and the first tick. Same load-control (`Background`/`Nice`/
+    # `LowPriorityIO`) as the worker, even though a single `pmset -g` check
+    # is negligible — consistency, not necessity.
+    media-queue-power = {
+      enable = true;
+      config = {
+        ProgramArguments = [ "${mediaQueue}/bin/media-queue-power-monitor" ];
+        StartInterval = 20;
+        RunAtLoad = true;
+        ProcessType = "Background";
+        Nice = 5;
+        LowPriorityIO = true;
         StandardOutPath = "${home}/Library/Logs/nix-media-queue.log";
         StandardErrorPath = "${home}/Library/Logs/nix-media-queue.log";
       };
