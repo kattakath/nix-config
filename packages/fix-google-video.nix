@@ -48,6 +48,19 @@ writeShellApplication {
     die() { echo "$prog: error: $*" >&2; exit 1; }
     info() { echo "$prog: $*" >&2; }
 
+    # A failed file is REPORTED and the batch continues; only a usage error is
+    # fatal. `die` inside the loop would abandon 199 good files because file 200
+    # was corrupt — which is precisely the shape of a Takeout folder.
+    failed=0
+    fail() { echo "$prog: error: $*" >&2; failed=1; }
+
+    # The temp encode is removed if this run is interrupted. Without it a
+    # Ctrl-C, a logout, or a launchd kill during a two-hour batch strands a
+    # multi-GB `.fixing-*.mp4` beside every source it was working on.
+    tmpout=""
+    cleanup() { [ -n "$tmpout" ] && rm -f "$tmpout"; return 0; }
+    trap cleanup EXIT INT TERM
+
     keep=0
     case "''${1:-}" in
       --keep) keep=1; shift ;;
@@ -72,6 +85,28 @@ writeShellApplication {
 
     for f in "$@"; do
       [ -f "$f" ] || { info "skip: '$f' not found"; continue; }
+      fdir=''${f%/*}
+      [ "$fdir" = "$f" ] && fdir=.
+
+      # /usr/bin/stat by absolute path: coreutils is on PATH and GNU stat reads
+      # -f as "filesystem status", so an unqualified call silently reports no
+      # flags and every dataless file would sail through. A dataless file is an
+      # iCloud placeholder — ffprobe would materialise it, so a folder sweep
+      # would quietly pull gigabytes down and fail offline. (fix-extension
+      # applies the same guard; these lines are duplicated rather than shared
+      # because a sourced shell library costs more than it saves at this size.)
+      case "$(/usr/bin/stat -f '%Sf' "$f" 2>/dev/null || true)" in
+        *dataless*) info "skip: '$f' — not downloaded from iCloud"; continue ;;
+      esac
+
+      # Left over from a run that was killed mid-encode. Sweeping here rather
+      # than only at startup means it also catches a sibling batch's debris.
+      for stale in "$fdir"/*.fixing-*.mp4; do
+        [ -e "$stale" ] || continue
+        sname="''${stale##*/}"
+        info "removing stale temp encode '$sname'"
+        rm -f "$stale"
+      done
 
       vcodec=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 "$f" 2>/dev/null || true)
       acodec=$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_name -of csv=p=0 "$f" 2>/dev/null || true)
@@ -110,6 +145,18 @@ writeShellApplication {
         fi
       fi
       out="''${f%.*}.fixing-$$.mp4"
+      tmpout="$out"
+
+      # Re-encoding writes a whole second copy before the original goes. A
+      # VideoToolbox encode at 8 Mbps can be LARGER than a heavily compressed
+      # source, so the headroom is twice the source, not the source. Running out
+      # of space mid-encode is the failure that leaves the biggest mess.
+      need_kb=$(( ( $(/usr/bin/stat -f '%z' "$f") / 512 ) + 1 ))
+      free_kb=$(/bin/df -k "$fdir" | awk 'NR==2 {print $4}')
+      if [ "$free_kb" -lt "$need_kb" ]; then
+        fail "not enough free space for '$f' (needs ~''${need_kb}KB, has ''${free_kb}KB) — skipped"
+        continue
+      fi
 
       vargs=(-c:v copy)
       if [ "$need_video" -eq 1 ]; then
@@ -124,8 +171,9 @@ writeShellApplication {
 
       info "re-encoding '$f' (video=$vcodec, audio=''${acodec:-none}) -> '$target'"
       if ! ffmpeg -y -i "$f" -map_metadata 0 "''${vargs[@]}" "''${aargs[@]}" -movflags +faststart "$out"; then
-        rm -f "$out"
-        die "ffmpeg failed on '$f' (original untouched)"
+        rm -f "$out"; tmpout=""
+        fail "ffmpeg failed on '$f' (original untouched)"
+        continue
       fi
 
       # Verify before anything destructive happens: a non-trivial file whose
@@ -135,8 +183,9 @@ writeShellApplication {
       out_dur=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$out" 2>/dev/null || echo 0)
       if ! awk -v a="$src_dur" -v b="$out_dur" \
              'BEGIN { d = a - b; if (d < 0) d = -d; exit !(b > 0 && d <= 1.0) }'; then
-        rm -f "$out"
-        die "encode of '$f' failed verification (source ''${src_dur}s vs output ''${out_dur}s) — original untouched"
+        rm -f "$out"; tmpout=""
+        fail "encode of '$f' failed verification (source ''${src_dur}s vs output ''${out_dur}s) — original untouched"
+        continue
       fi
 
       # Carry the dates over. -map_metadata keeps the QuickTime creation_time
@@ -150,6 +199,7 @@ writeShellApplication {
 
       if [ "$keep" -eq 1 ]; then
         mv -f "$out" "$target"
+        tmpout=""
         info "done: '$target' (original kept)"
         continue
       fi
@@ -166,11 +216,15 @@ writeShellApplication {
         n=$((n + 1))
       done
       if ! mv "$f" "$dest"; then
-        rm -f "$out"
-        die "could not move '$f' to the Trash — original untouched"
+        rm -f "$out"; tmpout=""
+        fail "could not move '$f' to the Trash — original untouched"
+        continue
       fi
       mv -f "$out" "$target"
+      tmpout=""
       info "done: '$target' (original in Trash)"
     done
+
+    [ "$failed" -eq 0 ] || exit 1
   '';
 }
