@@ -821,6 +821,20 @@ Smaller, single-purpose CLIs:
   library on disk; **the image data is preserved byte-for-byte** (verified: `ImageDataHash`
   identical before and after, file grew 3.7 KB of metadata).
   Measured end to end: **~26s for the first image** (model load) and **~4s warm**.
+  The image handed to the vision model is **downscaled to a 1024px long edge** first, into the
+  same throwaway under `$tmpdir` the HEIC path already uses — the original is never touched.
+  Qwen3-VL resizes to its own patch budget anyway, so pixels past that budget are encoded,
+  transferred and discarded. Measured on this Mac, `main` vs the change, two fresh 3648px
+  JPEGs, identical model/seed: **63s → 13s** and **41s → 13s**, with the same content and
+  detail selection merely shifting (the smaller input said "necklace" where full resolution
+  said "zipper"). A single-image sweep held content steady from 4000px down to **256px**;
+  **128px** is where it broke, turning a tiled room into "an office with white walls". 1024 is
+  the cap because it was the fastest measured *and* the run that named a detail full
+  resolution missed. It **only ever shrinks**: `sips -Z` upscales a smaller source (measured —
+  a 256px image came back 1024px), which would inflate every WhatsApp thumbnail and screenshot
+  in a Takeout dump into a larger payload carrying no more information, hence the dimension
+  check rather than an unconditional call. OCR and face work are deliberately **not** routed
+  through this — those genuinely need the pixels.
 - **`media.nix`** — `media <describe|fix|audio> …`, one entry point and one `--help` that
   lists the media CLIs. **Discoverability, not ergonomics**: `media describe` is LONGER than
   `photo-describe`, so as a keystroke play it is a net loss; what it buys is that nothing
