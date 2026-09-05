@@ -37,23 +37,14 @@
 # ~/Downloads). A bare interpreter would run, log nothing useful, and quietly do
 # no work.
 #
-# STATUS lives in the menu bar via SwiftBar, which is the off-the-shelf host for
-# exactly this: a plugin is a script whose stdout becomes the menu, so there is
-# no UI code here at all. macOS has no native way to drive a menu-bar item from
-# a script — NSStatusItem needs an app, Shortcuts' "Pin in Menu Bar" is a
-# launcher rather than a display — so this is the standard pattern, not a
-# reinvention. Two findings, both measured on this Mac rather than assumed:
+# STATUS IS NOTIFICATIONS ONLY, deliberately. This used to also drive a menu-bar
+# item through SwiftBar — a whole GUI app in the closure, a plugin file, a
+# `defaults` domain and a second launchd agent, to show a queue depth. It was
+# removed as not worth its surface: the notifications already say when a batch is
+# queued and how it ended, which is the part an operator acts on, and the log
+# answers everything else. The CLI half needs nothing either — `photo-describe`
+# run from a shell prints its own progress.
 #
-#   - `defaults write com.ameba.SwiftBar PluginDirectory <path>` IS honoured and
-#     is what makes the plugin folder declarative. SwiftBar 2.0.1's `--folders`
-#     launch argument is NOT: launched with it and nothing else, SwiftBar never
-#     ran the plugin.
-#   - A plugin reached through a SYMLINK runs fine, so `home.file` is enough.
-#     This is the opposite of the Automator bundles next door, which must be
-#     copied because NSFileWrapper rejects a symlinked document.wflow.
-#
-# Sparkle's auto-update is turned off: the app lives in /nix/store and cannot
-# update itself, so the only thing an update check can produce is a nag.
 {
   config,
   lib,
@@ -65,42 +56,12 @@ let
 
   home = config.home.homeDirectory;
   stateDir = "${home}/Library/Application Support/nix-media-queue";
-  pluginDir = "${stateDir}/plugins";
 
   mediaQueue = pkgs.callPackage ../../packages/media-queue.nix { };
 
-  # The refresh interval is encoded in the FILENAME — that is SwiftBar's
-  # convention, not a setting. 5s is fast enough to feel live while a batch
-  # runs and costs nothing while the queue is empty, because the plugin prints
-  # nothing when idle and SwiftBar then shows no menu-bar item at all.
-  pluginName = "nix-media-queue.5s.sh";
 in
 lib.mkIf isDarwin {
-  home.packages = [
-    mediaQueue
-    pkgs.swiftbar
-  ];
-
-  home.file."Library/Application Support/nix-media-queue/plugins/${pluginName}".source =
-    "${mediaQueue}/bin/media-queue-status";
-
-  targets.darwin.defaults."com.ameba.SwiftBar" = {
-    PluginDirectory = pluginDir;
-    # Declared, because SwiftBar's own menu can turn the status plugin off in
-    # one click — "Disable All" sits two items above "Open Plugin Folder" — and
-    # a disabled plugin fails SILENTLY: the queue keeps working, the menu-bar
-    # item simply never appears, and the only clue is SwiftBar falling back to
-    # showing its own name. Measured on this Mac: disabled → a "SwiftBar" text
-    # item; enabled and idle → no status item at all; enabled with work → the
-    # plugin's own item. Declaring it empty means activation repairs a stray
-    # click. The cost is that turning the plugin off from SwiftBar's menu no
-    # longer sticks, which is the right trade for a plugin this repo installs
-    # and whose whole job is to be visible when something is queued.
-    DisabledPlugins = [ ];
-    # A /nix/store app cannot update itself; an update check can only nag.
-    SUEnableAutomaticChecks = false;
-    SUAutomaticallyUpdate = false;
-  };
+  home.packages = [ mediaQueue ];
 
   launchd.agents = {
     # The worker. Started by launchd whenever the queue directory is non-empty.
@@ -126,20 +87,5 @@ lib.mkIf isDarwin {
       };
     };
 
-    # The menu bar. Interactive, not Background: it is a UI element, and
-    # throttling it would make the status stale exactly when it matters.
-    media-statusbar = {
-      enable = true;
-      config = {
-        ProgramArguments = [
-          "${pkgs.swiftbar}/Applications/SwiftBar.app/Contents/MacOS/SwiftBar"
-        ];
-        RunAtLoad = true;
-        KeepAlive = true;
-        ProcessType = "Interactive";
-        StandardOutPath = "${home}/Library/Logs/nix-media-statusbar.log";
-        StandardErrorPath = "${home}/Library/Logs/nix-media-statusbar.log";
-      };
-    };
   };
 }
