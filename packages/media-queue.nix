@@ -87,12 +87,17 @@ symlinkJoin {
       text = ''
         ${common}
         prog=media-enqueue
-        usage="usage: $prog <--video|--image> <file-or-directory>..."
+        usage="usage: $prog <--video|--image|--describe> <file-or-directory>..."
         die() { echo "$prog: error: $*" >&2; exit 1; }
 
+        # `--describe` is a class like the other two, not a flag on --image: it
+        # ENRICHES a working file rather than repairing a broken one, and it is
+        # the only class whose work needs a vision model, so an operator asking
+        # to repair photos must never be made to wait on one.
         case "''${1:-}" in
           --video) class=video; shift ;;
           --image) class=image; shift ;;
+          --describe) class=describe; shift ;;
           --help|-h) echo "$usage" >&2; exit 0 ;;
           *) die "$usage" ;;
         esac
@@ -265,7 +270,14 @@ symlinkJoin {
           # Job control on, so this background job becomes its own process group
           # leader and `kill -TERM -$child` can take the whole tree down.
           set -m
-          fix-media "--$class" "$path" > "$scratch" 2>&1 &
+          # Dispatch by class rather than always calling fix-media: `describe`
+          # is an ENRICHMENT, not a repair, so it has its own CLI. Both speak
+          # the same done:/skip:/OK: grammar, so everything downstream — the
+          # counters, the reason extraction, the notification — is unchanged.
+          case "$class" in
+            describe) photo-describe "$path" > "$scratch" 2>&1 & ;;
+            *)        fix-media "--$class" "$path" > "$scratch" 2>&1 & ;;
+          esac
           child=$!
           set +m
           rc=0

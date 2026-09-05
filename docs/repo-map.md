@@ -675,8 +675,10 @@ Smaller, single-purpose CLIs:
   staleness and duplicate-transport device listings. Its operator knowledge is also a GLOBAL
   skill, `skills/android-phone`.
 - **`media-quick-actions.nix`** (both darwin hosts) — Finder right-click → **Services** entries for
-  the media-toolkit CLIs (**Extract Audio**, **Fix Video File(s)**, **Fix Image File(s)**),
-  generated as Automator `.workflow` bundles. The two "Fix" actions **enqueue and return**
+  the media-toolkit CLIs (**Extract Audio**, **Fix Video File(s)**, **Fix Image File(s)**,
+  **Describe Image(s)**),
+  generated as Automator `.workflow` bundles. The two "Fix" actions and **Describe Image(s)**
+  **enqueue and return**
   (`media-enqueue`) rather than doing the work — see `media-queue.nix` above; Extract Audio
   stays synchronous because extracting one track is seconds and a queue would add only a
   notification and a round trip through launchd. Items are named for **what the operator
@@ -724,13 +726,19 @@ Smaller, single-purpose CLIs:
   legitimately produce two `done:` lines when a class pipeline both renames and re-encodes it.
   `NSSendFileTypes` is **per action**, not a shared constant: Extract Audio takes
   `public.movie`, Fix Video File(s) `public.movie` + `public.folder`, Fix Image File(s)
-  `public.image` + `public.folder` — a mislabeled JPEG still reports `public.png` from its
+  `public.image` + `public.folder`, Describe Image(s) the same as Fix Image File(s) — a mislabeled JPEG still reports `public.png` from its
   extension (which conforms to `public.image`), so it does reach the menu, and a folder makes
   a whole export one right-click. `public.data` is deliberately absent: it would put the item
   on the menu for literally every file.
 - **`media-queue.nix`** — the durable Finder→launchd work queue: `media-enqueue` (what the
   Services call; writes job files and returns), `media-worker` (the launchd job that drains
-  it) and `media-queue-status` (the SwiftBar plugin). **Why a queue at all:** re-encoding two
+  it) and `media-queue-status` (the SwiftBar plugin). A job's **class** is `video`, `image` or
+  `describe`; the worker dispatches the first two to `fix-media --$class` and `describe` to
+  `photo-describe`. `describe` is a class rather than a flag on `--image` because it
+  **enriches** a working file instead of repairing a broken one, and it is the only class
+  needing a vision model — an operator asking to repair photos must never be made to wait on
+  one. Everything downstream is unchanged because both CLIs speak the same
+  `done:`/`skip:`/`OK:` grammar. **Why a queue at all:** re-encoding two
   hundred videos is hours of ffmpeg, and doing that inside the Automator Service means the
   work dies at logout, cannot be cancelled, reports nothing until it ends, and fights the
   user's foreground apps for CPU. **Almost none of it is ours** — the queue, load control,
@@ -757,7 +765,7 @@ Smaller, single-purpose CLIs:
   length of an encode and be SIGKILLed instead. The status plugin prints **nothing** when the
   queue is idle, which is how SwiftBar is told to show no menu-bar item at all.
 - **`media-toolkit.nix`** — `symlinkJoin` bundling the media-file CLIs below
-  (`fix-google-video` + `extract-audio` + `fix-extension` + `fix-media`) as ONE entry for
+  (`fix-google-video` + `extract-audio` + `fix-extension` + `fix-media` + `photo-describe`) as ONE entry for
   `home.packages`, so the set
   cannot drift as CLIs are added; each stays its own derivation with its own
   `nix run .#<name>`. Membership rule: a CLI that **acts on a media file the operator
@@ -771,6 +779,46 @@ Smaller, single-purpose CLIs:
   in the other direction — it transforms nothing itself, it **dispatches** to the members that
   do — and belongs because it is the entry point the Services actually call, and because
   splitting a dispatcher from the things it dispatches to is how the two drift apart.
+  `photo-describe` is the closest call: it changes no pixels and is the only member with a
+  soft dependency on a service outside its closure (Ollama). It belongs because it acts on the
+  selected file and repairs the same defect for the same consumer — a file Finder and
+  Spotlight cannot answer questions about — and is the natural stage after `fix-extension`,
+  whose `--print0` seam it consumes exactly as `fix-media` does. The Ollama dependency is what
+  keeps it OUT of `fix-media --image`: a repair must finish offline and in bounded time, and a
+  vision model is neither, so describing stays a separate explicit verb.
+- **`photo-describe.nix`** — `photo-describe [--dry-run] [--overwrite] [--no-caption]
+  [--model NAME] [--min-score N] <file-or-dir>...` writes what an image **is** into the image:
+  Apple Vision labels → `XMP:Subject`, an aesthetics-derived rating → `XMP:Rating`, and a
+  one-sentence caption from a local Ollama vision model → `XMP:Description` +
+  `XMP-iptcCore:AltTextAccessibility`. **The durability rule is the whole design**: words go in
+  the FILE, vectors go in an INDEX. A caption survives every model upgrade and every move
+  between machines; an embedding is invalidated the day the embedding model changes — so the
+  irreplaceable artifact is embedded and the regenerable one is left to `rclip`, which keeps
+  its own rebuildable SQLite index. Nothing here writes a vector into a photo.
+  **Verified on this Mac**: Spotlight indexes `XMP:Description` as `kMDItemDescription` and
+  `XMP:Subject` as `kMDItemKeywords`, so `mdfind` and Finder's search bar find them;
+  `XMP:Rating` does **not** reach `kMDItemStarRating`, so it is a bonus for Lightroom/Bridge,
+  never the reason to run this. The accessibility field's family is **`iptcCore`, not
+  `iptcExt`** — an `-XMP-iptcExt:AltTextAccessibility=` write silently fails.
+  The walk is **not** reimplemented: stage one is `fix-extension --only image --print0`, which
+  buys the recursive walk, the refusal to enter a `.photoslibrary` package, and the
+  dataless/in-flight/AppleDouble guards already tested there — plus the extension repair,
+  which matters because `auge` and `exiftool` both dispatch on the extension.
+  **Three targeted `auge` calls, never `--all`** — measured on one 18MP JPEG: `--classify`
+  0.07s, `--aesthetics` 0.12s, `--face-quality` 0.14s, versus **10.4s for `--all`, whose
+  stdout is not parseable JSON** (Vision writes framework noise into the stream). Combining
+  flags does not work either: `auge --classify --aesthetics` reports only the LAST mode.
+  Vision's `is_utility` flag short-circuits the expensive half — a screenshot or receipt gets
+  labels but never a caption. Ollama is reached over its **HTTP API, not `ollama run`**, whose
+  CLI parses image paths out of the prompt STRING and breaks on the spaces that fill every
+  real photo library; it is a **soft** dependency, so an absent daemon or unpulled model still
+  writes labels and says so instead of leaving the library half-tagged. HEIC is converted to a
+  temporary JPEG for the caption step only. Idempotent: a file that already has an
+  `XMP:Description` is skipped unless `--overwrite`. `-overwrite_original` is deliberate —
+  exiftool otherwise leaves a full `IMG_1234.jpg_original` beside every file, doubling a photo
+  library on disk; **the image data is preserved byte-for-byte** (verified: `ImageDataHash`
+  identical before and after, file grew 3.7 KB of metadata).
+  Measured end to end: **~26s for the first image** (model load) and **~4s warm**.
 - **`fix-media.nix`** — `fix-media <--video|--image> <file-or-dir>...`, the entry point behind
   the two "Fix … File(s)" Services. Per-class pipelines: `--video` is
   `fix-extension --only video` then `fix-google-video`; `--image` is
