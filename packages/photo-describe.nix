@@ -281,16 +281,59 @@ writeShellApplication {
       fi
     fi
 
+    # EXIF:UserComment, NOT XMP:Identifier. Measured which fields survive an
+    # edit by cropping a described file with `sips`: Description, Source,
+    # photoshop:Instructions, IPTC:SpecialInstructions and UserComment all
+    # survived — `XMP:Identifier` and `XMP:Label` were the only two DROPPED. The
+    # stamp has to outlive the edit it exists to detect, so Identifier was
+    # exactly the wrong choice. UserComment is the least semantically loaded of
+    # the survivors; the prefix keeps it identifiable and stops this from ever
+    # claiming a comment the operator wrote.
+    stampPrefix="photo-describe:pixhash="
+
     described=0
     skipped=0
 
     for f in "''${files[@]}"; do
       if [ "$overwrite" -eq 0 ]; then
-        existing=$(exiftool -s3 -XMP:Description "$f" 2>/dev/null || true)
+        # Read the description AND the pixel hash in ONE call, as JSON. `-s3`
+        # would omit an empty tag entirely, so two values could not be told
+        # apart when one is missing; jq keys them by name instead.
+        meta=$(exiftool -json -XMP:Description -EXIF:UserComment "$f" 2>/dev/null || true)
+        existing=$(printf '%s' "$meta" | jq -r '.[0].Description // ""' 2>/dev/null || true)
+        stamped=$(printf '%s' "$meta" | jq -r '.[0].UserComment // ""' 2>/dev/null || true)
+        case "$stamped" in "$stampPrefix"*) stamped=''${stamped#"$stampPrefix"} ;; *) stamped="" ;; esac
         if [ -n "$existing" ]; then
-          skipped=$((skipped + 1))
-          info "OK: '$f' — already described"
-          continue
+          # A DESCRIPTION IS NOT PROOF IT IS STILL TRUE. Skipping on its mere
+          # presence meant an image edited after being described kept a caption
+          # of content that no longer existed — measured: a photo captioned "A
+          # man in a striped shirt stands before Tower Bridge" was cropped until
+          # no person remained, and the re-run said "already described" while the
+          # correct caption was "Tower Bridge spans a river; zero people
+          # visible". Editors preserve XMP on save, so that is the DEFAULT
+          # outcome of editing a described photo, not an edge case.
+          #
+          # ImageDataHash hashes the PIXELS only — writing metadata does not
+          # change it (verified when proving these writes are lossless), so it is
+          # exactly the signal for "has the picture itself changed". It costs
+          # ~8ms against a 16s caption.
+          #
+          # An unstamped file was described before this existed: stamp it and
+          # trust the caption rather than re-running the model on the whole
+          # library the first time this ships.
+          current=$(exiftool -api requesthash=md5 -s3 -ImageDataHash "$f" 2>/dev/null || true)
+          if [ -z "$stamped" ] && [ -n "$current" ]; then
+            exiftool -overwrite_original_in_place -P -q -q "-EXIF:UserComment=$stampPrefix$current" "$f" 2>/dev/null || true
+            skipped=$((skipped + 1))
+            info "OK: '$f' — already described (stamped for future edit detection)"
+            continue
+          fi
+          if [ -z "$current" ] || [ "$stamped" = "$current" ]; then
+            skipped=$((skipped + 1))
+            info "OK: '$f' — already described"
+            continue
+          fi
+          info "re-describing '$f' — the image changed since it was described"
         fi
       fi
 
@@ -426,7 +469,20 @@ writeShellApplication {
           args+=("-XMP:Rating=$rating")
         fi
       fi
-      [ -n "$sentence" ] && args+=("-XMP:Description=$sentence")
+      # Stamp the pixel hash ALONGSIDE the caption, so a later run can tell
+      # whether the picture still matches the words. Only when a caption is
+      # actually written: stamping a labels-only file would claim a description
+      # had been checked against these pixels when there is no description.
+      if [ -n "$sentence" ]; then
+        args+=("-XMP:Description=$sentence")
+        pixhash=$(exiftool -api requesthash=md5 -s3 -ImageDataHash "$f" 2>/dev/null || true)
+        # Never clobber a comment the operator wrote: only claim the field when it
+        # is empty or already carries our prefix.
+        prior=$(exiftool -s3 -EXIF:UserComment "$f" 2>/dev/null || true)
+        case "$prior" in
+          ""|"$stampPrefix"*) [ -n "$pixhash" ] && args+=("-EXIF:UserComment=$stampPrefix$pixhash") ;;
+        esac
+      fi
 
       if exiftool "''${args[@]}" "$f" 2>/dev/null; then
         described=$((described + 1))
