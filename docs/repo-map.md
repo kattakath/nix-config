@@ -651,8 +651,13 @@ Smaller, single-purpose CLIs:
   staleness and duplicate-transport device listings. Its operator knowledge is also a GLOBAL
   skill, `skills/android-phone`.
 - **`media-quick-actions.nix`** (both darwin hosts) — Finder right-click → **Services** entries for
-  the media-toolkit CLIs (**Extract Audio**, **Fix Google Video**, **Fix File Extension**),
-  generated as Automator `.workflow` bundles. The submenu is
+  the media-toolkit CLIs (**Extract Audio**, **Fix Video File(s)**, **Fix Image File(s)**),
+  generated as Automator `.workflow` bundles. Items are named for **what the operator
+  selected, not for the defect** — someone whose photo has no thumbnail does not know their
+  `.png` is really a JPEG, and a menu of diagnoses ("Fix Google Video", "Fix File Extension")
+  asks them to diagnose it first, which is the one thing they came unable to do. `fix-media`
+  takes the class and decides what is wrong; `fix-google-video` and `fix-extension` stay CLIs
+  and `nix run` apps, they are just not menu items. The submenu is
   **Services**, not "Quick Actions": Finder's Quick Actions submenu is fed by App Extensions
   and Shortcuts actions (`defaults read pbs` → `FinderActive` lists only `APPEXTENSION-*` and
   `is.workflow.actions.*`), which an Automator service cannot join. New or changed entries
@@ -680,14 +685,16 @@ Smaller, single-purpose CLIs:
   indistinguishable — you click and nothing happens. When one file produced nothing the
   notification reports the actual reason (`already exists`, `no audio stream`, `not found`,
   `already editor-safe`) rather than collapsing them all into one message, which would report
-  a missing file as a success. `NSSendFileTypes` is **per action**, not a shared constant:
-  the two video actions take `public.movie`, while **Fix File Extension** also takes
-  `public.image`, `public.audio` and `public.folder` — a mislabeled JPEG still gets
-  `public.png` from its extension (which conforms to `public.image`), so it does reach the
-  menu, and a folder makes a whole export one right-click. `public.data` is deliberately
-  absent: it would put the item on the menu for literally every file.
+  a missing file as a success. The summary counts **changes, not files**: one file can
+  legitimately produce two `done:` lines when a class pipeline both renames and re-encodes it.
+  `NSSendFileTypes` is **per action**, not a shared constant: Extract Audio takes
+  `public.movie`, Fix Video File(s) `public.movie` + `public.folder`, Fix Image File(s)
+  `public.image` + `public.folder` — a mislabeled JPEG still reports `public.png` from its
+  extension (which conforms to `public.image`), so it does reach the menu, and a folder makes
+  a whole export one right-click. `public.data` is deliberately absent: it would put the item
+  on the menu for literally every file.
 - **`media-toolkit.nix`** — `symlinkJoin` bundling the media-file CLIs below
-  (`fix-google-video` + `extract-audio` + `fix-extension`) as ONE entry for
+  (`fix-google-video` + `extract-audio` + `fix-extension` + `fix-media`) as ONE entry for
   `home.packages`, so the set
   cannot drift as CLIs are added; each stays its own derivation with its own
   `nix run .#<name>`. Membership rule: a CLI that **acts on a media file the operator
@@ -697,7 +704,22 @@ Smaller, single-purpose CLIs:
   separate — folding them in would leave the name meaning only "vaguely about media".
   `fix-extension` changes no bytes and still belongs: it repairs the selected file for the
   same consumer (Finder/Photos) the other two serve, and the rule exists to exclude tools
-  that never touch a file at all, not to require a re-encode.
+  that never touch a file at all, not to require a re-encode. `fix-media` is the odd one out
+  in the other direction — it transforms nothing itself, it **dispatches** to the members that
+  do — and belongs because it is the entry point the Services actually call, and because
+  splitting a dispatcher from the things it dispatches to is how the two drift apart.
+- **`fix-media.nix`** — `fix-media <--video|--image> <file-or-dir>...`, the entry point behind
+  the two "Fix … File(s)" Services. Per-class pipelines: `--video` is
+  `fix-extension --only video` then `fix-google-video`; `--image` is
+  `fix-extension --only image`. `--image` having exactly one step is not a stub — the only
+  image defect the fleet has met is the lying extension, so what it adds is the discoverable
+  name and the place a second image repair goes. **Stage order is load-bearing**: stage one
+  RENAMES its inputs, so stage two cannot be handed the original paths — it gets the resulting
+  ones from `--print0`. Reading them into an array rather than piping to `xargs` also means an
+  empty selection ends quietly, instead of invoking the next CLI with no arguments and turning
+  "nothing to fix" into a usage error the Service would report as a failure. **No `--dry-run`,
+  deliberately**: `fix-google-video` has none, so the flag could only rehearse half the
+  pipeline while implying it rehearsed all of it — use `fix-extension --dry-run --only video`.
 - **`fix-extension.nix`** — `fix-extension [--dry-run] <file-or-dir>...` renames files whose
   **extension lies about their content**, walking directories recursively. Fixes the
   no-thumbnail-in-Finder symptom: Finder's thumbnail generator trusts the extension → UTI, so
@@ -714,7 +736,13 @@ Smaller, single-purpose CLIs:
   target is skipped, never clobbered; `-ef` rather than a string compare so a case-only fix
   still works on a case-insensitive volume. Files with no recognisable type are silent inside
   a directory walk (a photo folder is full of them) and explain themselves when named
-  explicitly.
+  explicitly. `--only image|video|audio` and `--print0` exist for one caller, `fix-media`, and
+  are what let it compose this with a repair step instead of reimplementing the sniffing:
+  `--only` keeps "fix the videos in this folder" from quietly renaming the photos beside them
+  (a file matches on its **sniffed** class OR its **extension's** class, so a `.mp4` whose type
+  `file` cannot place does not drop out of a video run), and `--print0` writes each considered
+  file's resulting path to stdout, NUL-separated, with diagnostics on stderr so the two never
+  mix.
 - **`extract-audio.nix`** — `extract-audio [--mp3|--copy|--wav|--flac] <file>...` pulls the
   audio track out of a video. **Defaults to MP3**, which plays everywhere. `--copy` is the
   lossless path (the audio is already a finished encode, so transcoding is a second lossy
