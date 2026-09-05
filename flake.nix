@@ -1971,6 +1971,41 @@
                 touch "$out"
               '';
 
+          # Drift guard: modules/shared/hm-launchd/ is a VENDORED FORK of
+          # home-manager's modules/launchd/ (swapped in via `disabledModules`
+          # in modules/shared/home.nix) whose only intended delta is the
+          # nix-<activity> arg0 wrapper (.claude/rules/launchd-naming.md). The
+          # fork tracks nothing automatically, so every home-manager bump can
+          # silently strand it behind upstream fixes. upstream-baseline/ is a
+          # byte-exact copy of the three upstream files the fork shadows,
+          # recording the upstream state the fork was last reviewed against;
+          # this fails loudly the moment the PINNED home-manager's launchd
+          # module moves past it. Text-only diff, so it runs on both systems.
+          # Refresh (on failure): review the diff below, port what applies
+          # into the fork (keeping the nix-* wrapper), then copy the pinned
+          # input's modules/launchd/{default,launchd,types}.nix verbatim over
+          # modules/shared/hm-launchd/upstream-baseline/ (which treefmt
+          # excludes precisely so the copies stay byte-exact).
+          hm-launchd-drift =
+            (pkgsFor system).runCommand "hm-launchd-drift"
+              { nativeBuildInputs = [ (pkgsFor system).diffutils ]; }
+              ''
+                drift=0
+                for f in default.nix launchd.nix types.nix; do
+                  diff -u ${./modules/shared/hm-launchd/upstream-baseline}/"$f" \
+                    ${home-manager}/modules/launchd/"$f" || drift=1
+                done
+                if [ "$drift" -ne 0 ]; then
+                  echo "hm-launchd-drift: the pinned home-manager's modules/launchd/ no longer" >&2
+                  echo "matches modules/shared/hm-launchd/upstream-baseline/ — upstream moved." >&2
+                  echo "Re-review the vendored fork (modules/shared/hm-launchd/) against the" >&2
+                  echo "diff above, port what applies, then refresh the baseline verbatim from" >&2
+                  echo "the pinned input (see the comment at this check in flake.nix)." >&2
+                  exit 1
+                fi
+                touch "$out"
+              '';
+
           # Structural lint (ast-grep). A CHECK, deliberately not a treefmt
           # formatter: treefmt-nix ships no ast-grep program, and the pre-commit
           # hook IS the `nix fmt` wrapper — a report-only checker in that slot
