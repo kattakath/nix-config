@@ -1447,6 +1447,15 @@
           fix-media = (pkgsFor system).callPackage ./packages/fix-media.nix { };
         }))
 
+        # `media-queue` — the durable Finder→launchd work queue: `media-enqueue` (what
+        # the Services call, returns at once), `media-worker` (the launchd job that
+        # drains it) and `media-queue-status` (the SwiftBar menu-bar plugin). The
+        # queue, load control, retry and log are launchd's, not ours — see
+        # modules/shared/media-queue.nix. darwin-only.
+        (nixpkgs.lib.genAttrs darwinSystems (system: {
+          media-queue = (pkgsFor system).callPackage ./packages/media-queue.nix { };
+        }))
+
         # `media-toolkit` — the media-file CLIs above as ONE installable unit, so
         # home.packages carries a single entry instead of drifting as CLIs are added.
         # The individual packages stay exported for `nix run .#<name>`.
