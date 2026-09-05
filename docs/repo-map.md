@@ -531,11 +531,17 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
   `com.apple.ncprefs` — and its `osascript` replacement could show neither an image nor a
   click action. What exists instead, all shell: `media-queue-status` (what's running/queued per
   tier/failed, whether a pause is manual or Low Power Mode's own auto-pause, and whether a job
-  is currently orphaned awaiting adoption), `media-queue-pause`/`-resume` (SIGSTOP/SIGCONT the
-  in-flight job's process group, reading its pid straight from the marker file — freezes it
-  mid-file with no lost progress, and works on an adopted-but-not-yet-resumed orphan too), and
-  `media-queue-power-monitor` (a separate `StartInterval` launchd agent, not a loop inside the
-  worker — ticks every 20s and reuses the same pause/resume mechanism automatically). The log
+  is currently orphaned awaiting adoption), `media-queue-top` (that same output, live — a thin
+  `exec viddy -n 2 -d media-queue-status` wrapper, the `top`/`htop` request this repo actually
+  had a good off-the-shelf answer for: an `entr -dd`-based event-driven draft was measured to
+  exit 1 the instant its file list is empty — the common idle-queue state — so a restart loop
+  around it would busy-spin at 100% CPU; `viddy`, nixpkgs' "modern watch", has no such edge
+  case and adds diff-highlighting between ticks for free), `media-queue-pause`/`-resume`
+  (SIGSTOP/SIGCONT the in-flight job's process group, reading its pid straight from the marker
+  file — freezes it mid-file with no lost progress, and works on an adopted-but-not-yet-resumed
+  orphan too), and `media-queue-power-monitor` (a separate `StartInterval` launchd agent, not a
+  loop inside the worker — ticks every 20s and reuses the same pause/resume mechanism
+  automatically). The log
   at `~/Library/Logs/nix-media-queue.log` used to go silent for a job's entire runtime and only
   flush at the end — MEASURED incident, a healthy multi-hour describe batch misread as hung —
   fixed by backgrounding `tail -f` on the job's scratch file for the duration, a second process
