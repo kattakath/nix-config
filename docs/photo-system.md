@@ -87,6 +87,30 @@ Finder Get Info shows it. Spotlight indexes it. Survives copy/upload/move.
 - **Per-project scoping is right.** In social-media/assets you want those assets, not your 2013 trip.
 - **Keywords are the weak half.** Apple's tagger gave `people, adult` on 3 of 4 test photos. The caption carries the value.
 
+## Is a describe job actually running?
+
+**Never trust file mtimes.** `photo-describe` writes with exiftool's `-P`,
+which deliberately *preserves* the original modification time — a
+successful write never bumps it. `ls -lt`, `find -newermt`, anything
+mtime-based reads as "nothing happening" no matter how many photos have
+actually been described. MEASURED, 2026-09-05: this, stacked with
+`nix-media-queue.log` only flushing a job's output at the end (fixed —
+`media-worker` now `tail -f`s the in-flight job's scratch file live), turned
+a perfectly healthy ~4-hour batch into a "hung job" call.
+
+The real probes:
+
+```bash
+# authoritative: how many are actually described right now
+exiftool -q -q -m -if '$XMP:Description' -p '1' "<folder>" | wc -l
+
+# is a model call in flight right now
+pgrep -afl curl | grep 11434
+
+# live progress of the current queue job
+tail -f ~/Library/Logs/nix-media-queue.log
+```
+
 ## Optional nicety
 
 `scripts/find`:
