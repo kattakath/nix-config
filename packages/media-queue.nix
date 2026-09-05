@@ -5,6 +5,7 @@
 #   media-queue-pause                                  freeze the in-flight job
 #   media-queue-resume                                 unfreeze it
 #   media-queue-status                                 what's running/queued/failed
+#   media-queue-power-monitor                          launchd StartInterval only, not for interactive use
 #
 # WHY A QUEUE AT ALL. Re-encoding two hundred videos is hours of ffmpeg. Doing
 # that inside the Automator Service means the work dies at logout, cannot be
@@ -114,6 +115,8 @@ let
       mkdir -p "$QUEUE" "$STAGE" "$FAILED" "$HOME/Library/Logs"
     }
 
+    log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
+
     # THE STANDARD WAY TO READ LOW POWER MODE FROM A SHELL, VERIFIED ON THIS
     # MAC. Apple's real API is `ProcessInfo.isLowPowerModeEnabled` +
     # `NSProcessInfoPowerStateDidChangeNotification`, but that notification
@@ -127,33 +130,12 @@ let
     # literal string "1", so a missing/empty/unexpected value reads as "not
     # active" rather than blocking work. An optional efficiency signal must
     # never be able to wedge the whole queue. Used by media-worker (the
-    # gate + watchdog) and media-queue-resume (the refusal check) — shared
-    # here rather than duplicated, per this file's own "common holds what
-    # more than one script needs" rule.
+    # pre-dispatch gate), media-queue-power-monitor (the periodic pause/
+    # resume) and media-queue-resume (the refusal check) — shared here
+    # rather than duplicated, per this file's own "common holds what more
+    # than one script needs" rule.
     lowpower_active() {
       /usr/bin/pmset -g 2>/dev/null | awk '/lowpowermode/{print $2; exit}'
-    }
-
-    # THE JOB HAS A SIBLING NOW: THE WATCHDOG. `pgrep -P "$wpid"` used to be
-    # enough on its own — a worker backgrounds exactly one child, the job —
-    # but the power watchdog is a second `(...)  &` subshell of the SAME
-    # media-worker script, forked from the same process, so it is an
-    # equally direct child. Left unfiltered, media-queue-pause/-resume/
-    # -status all start treating the watchdog as if it were a second
-    # running job. MEASURED the distinguishing signal: `ps -o args=` on the
-    # watchdog shows the literal `.../bin/media-worker` command line
-    # (identical to the worker itself, since a subshell never re-execs) —
-    # the real job's args always start with `photo-describe` or
-    # `fix-media`. Filtering on that basename is what `job_child_of` does,
-    # shared here rather than tripled across the three callers.
-    job_child_of() {
-      local wpid="$1" cpid
-      /usr/bin/pgrep -P "$wpid" 2>/dev/null | while IFS= read -r cpid; do
-        case "$(/bin/ps -o args= -p "$cpid" 2>/dev/null)" in
-          */bin/media-worker) continue ;;
-          *) printf '%s\n' "$cpid" ;;
-        esac
-      done
     }
 
   '';
@@ -228,13 +210,6 @@ symlinkJoin {
         # and rightly so, since it is usually a leftover.
         LOCK="$STATE/worker.lock"
         MAX_TRIES=3
-        # How often the in-flight-job watchdog re-checks Low Power Mode.
-        # Cheap either way — one `pmset -g` call is sub-10ms — so this is
-        # about responsiveness, not overhead. 20s catches a toggle quickly
-        # without adding a meaningful wake-up burden of its own.
-        POWER_POLL_INTERVAL=20
-
-        log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 
         # THE LOCK IS THE KERNEL'S, NOT OURS. `/usr/bin/lockf` ships with macOS and
         # takes a `flock(2)` lock, which the kernel releases when the holder dies
@@ -301,16 +276,7 @@ symlinkJoin {
 
         running=""
         child=""
-        watchdog=""
-        power_marker=""
         cleanup() {
-          # The watchdog first, before the encode: it also sends signals to
-          # `$child`, and killing it late could race a STOP/CONT against the
-          # TERM below. It self-terminates within one poll interval anyway
-          # (its own `kill -0 "$child"` check fails once the child is gone),
-          # but a logout shouldn't leave even a short-lived loop dangling.
-          [ -n "$watchdog" ] && kill "$watchdog" 2>/dev/null || true
-          [ -n "$power_marker" ] && rm -f "$power_marker"
           # Kill the encode FIRST. Without this the trap would not even run until
           # ffmpeg finished on its own, and launchd escalates SIGTERM to SIGKILL
           # long before a two-hour batch is done.
@@ -381,15 +347,16 @@ symlinkJoin {
             continue
           fi
 
-          # LOW POWER MODE GATES STARTING NEW WORK, not only work already
-          # running — the watchdog below only exists once a job is already
-          # forked, so without this a fresh job would always get to start
-          # at least once before being frozen. Put back with a FRESH t1,
-          # the same reset `…-recovered-*.t1.job` already uses, so
-          # deferring for power never costs a retry attempt. `break`,
-          # not a sleep loop: `ThrottleInterval` already retries this
-          # worker every ~10s, so this reuses launchd's own mechanism
-          # instead of adding a private one.
+          # LOW POWER MODE GATES STARTING NEW WORK. media-queue-power-monitor
+          # (a separate StartInterval launchd agent, not this loop) is what
+          # catches Low Power Mode turning on mid-batch; this check only
+          # covers the moment right before a job starts, so a job about to
+          # begin doesn't have to wait out that agent's own interval first.
+          # Put back with a FRESH t1, the same reset `…-recovered-*.t1.job`
+          # already uses, so deferring for power never costs a retry
+          # attempt. `break`, not a sleep loop: `ThrottleInterval` already
+          # retries this worker every ~10s, so this reuses launchd's own
+          # mechanism instead of adding a private one.
           if [ "$(lowpower_active)" = "1" ]; then
             mv "$running" "$QUEUE/$(date +%s)-lowpower.t1.job" 2>/dev/null || true
             running=""
@@ -419,63 +386,9 @@ symlinkJoin {
           child=$!
           set +m
 
-          # THE WATCHDOG: the ONLY thing that can notice Low Power Mode
-          # turning on mid-batch. The gate above only runs once, before a
-          # job starts; `wait "$child"` below blocks this whole loop until
-          # the job exits, so nothing else in this script can poll while a
-          # long describe/encode is in flight. A second background process
-          # is therefore the only way to react during the job, not just
-          # before or after it.
-          #
-          # THE MARKER FILE IS WHAT MAKES THIS SAFE TO AUTOMATE. Without
-          # it, this loop could not tell "a job I paused for power" from "a
-          # job the operator paused by hand" (`media-queue-pause`), and
-          # would either fight a manual pause by resuming it, or need to
-          # ask a human every 20s. `power-paused-<pid>` names the exact job
-          # it belongs to, so a manual pause (no marker) is recognised by
-          # the `T*` case below and left alone — this watchdog only ever
-          # touches what it marked itself.
-          #
-          # `-$child`, matching the SIGTERM path above and `media-queue-
-          # pause`/`-resume`: `set -m` gave the job its own process group
-          # (pgid == its pid), and the negative pid is what makes a signal
-          # reach ffmpeg/exiftool/curl grandchildren too, not just the
-          # shell driving them.
-          power_marker="$STATE/power-paused-$child"
-          ( while kill -0 "$child" 2>/dev/null; do
-              sleep "$POWER_POLL_INTERVAL"
-              kill -0 "$child" 2>/dev/null || break
-              if [ "$(lowpower_active)" = "1" ]; then
-                if [ ! -f "$power_marker" ]; then
-                  st=$(/bin/ps -o stat= -p "$child" 2>/dev/null | tr -d ' ')
-                  case "$st" in
-                    T*) : ;;
-                    *)
-                      if kill -STOP -"$child" 2>/dev/null; then
-                        touch "$power_marker"
-                        log "power: paused '$path' — Low Power Mode is on"
-                      fi
-                      ;;
-                  esac
-                fi
-              elif [ -f "$power_marker" ]; then
-                if kill -CONT -"$child" 2>/dev/null; then
-                  log "power: resumed '$path' — Low Power Mode is off"
-                fi
-                rm -f "$power_marker"
-              fi
-            done
-            rm -f "$power_marker"
-          ) &
-          watchdog=$!
-
           rc=0
           wait "$child" || rc=$?
-          kill "$watchdog" 2>/dev/null || true
-          rm -f "$power_marker"
           child=""
-          watchdog=""
-          power_marker=""
           out=$(cat "$scratch")
           rm -f "$scratch"
           printf '%s\n' "$out"
@@ -588,7 +501,7 @@ symlinkJoin {
               echo "$prog: paused pid $jpid (and its subprocesses)" >&2
               found=1
             fi
-          done < <(job_child_of "$wpid")
+          done < <(/usr/bin/pgrep -P "$wpid" 2>/dev/null || true)
         done
 
         if [ "$found" -eq 0 ]; then
@@ -605,9 +518,9 @@ symlinkJoin {
         prog=media-queue-resume
         [ $# -eq 0 ] || { echo "usage: $prog" >&2; exit 1; }
 
-        # A HARD REFUSAL, not a race against the watchdog. media-worker's
-        # own watchdog will just re-freeze this within one
-        # POWER_POLL_INTERVAL if Low Power Mode is still on, so resuming
+        # A HARD REFUSAL, not a race against media-queue-power-monitor.
+        # That agent runs on its own StartInterval and will just re-freeze
+        # this on its next tick if Low Power Mode is still on, so resuming
         # anyway would look like it worked for a few seconds and then
         # silently undo itself — worse than refusing outright and saying
         # why. Checked directly here rather than via the power-paused
@@ -636,7 +549,7 @@ symlinkJoin {
               echo "$prog: resumed pid $jpid" >&2
               found=1
             fi
-          done < <(job_child_of "$wpid")
+          done < <(/usr/bin/pgrep -P "$wpid" 2>/dev/null || true)
         done
 
         if [ "$found" -eq 0 ]; then
@@ -690,7 +603,7 @@ symlinkJoin {
             state=$(/bin/ps -o stat= -p "$jpid" 2>/dev/null | tr -d ' ')
             case "$state" in
               T*)
-                # The marker is media-worker's own watchdog leaving a trail:
+                # The marker is media-queue-power-monitor's own trail:
                 # present only for a pause IT made, never for one the
                 # operator made by hand with media-queue-pause.
                 if [ -f "$STATE/power-paused-$jpid" ]; then
@@ -719,7 +632,7 @@ symlinkJoin {
               echo "$prog:   progress so far: $((d + sk + er)) processed ($d done, $sk skip/OK, $er error)"
               [ -n "$last" ] && echo "$prog:   last: $last"
             fi
-          done < <(job_child_of "$wpid")
+          done < <(/usr/bin/pgrep -P "$wpid" 2>/dev/null || true)
         done
 
         if [ "$any_running" -eq 0 ]; then
@@ -730,9 +643,69 @@ symlinkJoin {
       '';
     })
 
+    (writeShellApplication {
+      name = "media-queue-power-monitor";
+      runtimeInputs = [ coreutils ];
+      text = ''
+        ${common}
+        prog=media-queue-power-monitor
+        [ $# -eq 0 ] || { echo "usage: $prog" >&2; exit 1; }
+
+        # ONE launchd StartInterval TICK, NOT A DAEMON. This is what a
+        # `while sleep 20; do …; done &` subshell inside media-worker used
+        # to do — polled its OWN job every 20s from a hand-rolled loop.
+        # launchd's StartInterval already IS the standard way to run
+        # something periodically; reusing it here means this script has no
+        # loop of its own; it runs once, checks the current job, and exits.
+        # That also removes an entire bug class: the old in-process
+        # watchdog was a second direct child of the worker, indistinguishable
+        # from the real job to `pgrep -P` — this agent isn't a child of the
+        # worker at all, so no disambiguation is needed anywhere.
+        for running in "$STATE"/running-*.job; do
+          [ -e "$running" ] || continue
+          wpid=''${running##*/running-}
+          wpid=''${wpid%%.job}
+          if [ -z "$wpid" ] || ! kill -0 "$wpid" 2>/dev/null; then
+            continue
+          fi
+
+          items=()
+          while IFS= read -r -d "" x; do items+=("$x"); done < "$running"
+          path=''${items[1]:-unknown}
+
+          while IFS= read -r jpid; do
+            [ -n "$jpid" ] || continue
+            marker="$STATE/power-paused-$jpid"
+            if [ "$(lowpower_active)" = "1" ]; then
+              if [ ! -f "$marker" ]; then
+                # `T*` (already stopped) means a manual `media-queue-pause`
+                # got here first — not ours, leave it alone, per the
+                # marker being the only thing that makes auto-resume safe.
+                st=$(/bin/ps -o stat= -p "$jpid" 2>/dev/null | tr -d ' ')
+                case "$st" in
+                  T*) : ;;
+                  *)
+                    if kill -STOP -"$jpid" 2>/dev/null; then
+                      touch "$marker"
+                      log "power: paused '$path' — Low Power Mode is on"
+                    fi
+                    ;;
+                esac
+              fi
+            elif [ -f "$marker" ]; then
+              if kill -CONT -"$jpid" 2>/dev/null; then
+                log "power: resumed '$path' — Low Power Mode is off"
+              fi
+              rm -f "$marker"
+            fi
+          done < <(/usr/bin/pgrep -P "$wpid" 2>/dev/null || true)
+        done
+      '';
+    })
+
   ];
   meta = {
-    description = "Durable Finder-to-launchd work queue for the media toolkit: media-enqueue, media-worker, media-queue-pause, media-queue-resume, media-queue-status";
+    description = "Durable Finder-to-launchd work queue for the media toolkit: media-enqueue, media-worker, media-queue-pause, media-queue-resume, media-queue-status, media-queue-power-monitor";
     mainProgram = "media-enqueue";
     platforms = lib.platforms.darwin;
   };
