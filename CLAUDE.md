@@ -9,6 +9,34 @@ guidance for Claude Code (claude.ai/code) when working in this repository.
 context lint limit; the full per-path detail lives in [`docs/repo-map.md`](docs/repo-map.md).
 When you change repo shape, update the one-liner here **and** the section there.
 
+## Motto — ground every development decision in this repo here first
+
+> **Off-the-shelf over hand-rolled.**
+> **Proven patterns over reinvented wheels.**
+> **Community Legos over proprietary monoliths.**
+
+Before writing custom Nix, a custom script, or a custom protocol: is there an existing
+nixpkgs/nix-darwin/home-manager option, a standard Unix/POSIX mechanism, or an established
+community pattern that already does this? Reach for that first, weighted roughly **2x** over
+building something bespoke — and when custom genuinely is warranted, say **why** the
+off-the-shelf option didn't fit, not just that one wasn't found.
+
+- **Mechanized, not just aspirational:** [`upstream-first`](.claude/rules/upstream-first.md)
+  is this motto's enforcement — grep the pinned input's option surface and cite the result
+  before proposing custom Nix. A hand-rolled `home.activation` shim that turns out to
+  duplicate an existing nix-darwin option is exactly the failure mode this rule exists to
+  catch.
+- **Community Legos, concretely:** launchd's own primitives
+  (`QueueDirectories`/`StartInterval`/`ProcessType`), POSIX mechanisms (`SIGSTOP`/`SIGCONT`,
+  `setsid`), and prior art with a name (systemd's `MAINPID` pattern) — reused and cited, not
+  reinvented under a different name. `packages/media-queue.nix`'s own header comments are the
+  running log of exactly this: what's genuinely custom here, and the grep/research that
+  justified it each time.
+- **Proprietary monoliths, avoided:** a broker-based job queue, a bespoke supervision daemon,
+  or any other heavy framework is *also* a violation of this motto when it's bigger than the
+  problem warrants — reuse cuts both ways. The right-sized community Lego, not the fanciest
+  one available.
+
 ## Overview
 
 Fully declarative **aarch64-only** fleet, single source of truth, platform divergence in
