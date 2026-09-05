@@ -182,6 +182,10 @@ writeShellApplication {
     # Override per run with --model; nothing here is load-bearing beyond the
     # default, and the caption step degrades to labels-only if the model is absent.
     model="huihui_ai/qwen3-vl-abliterated"
+
+    # Long-edge cap for the image handed to the vision model. See the
+    # measurements at the downscale step for why 1024 and not 4000 or 256.
+    CAPTION_MAX_PX=1024
     # EMPTY means "no gate", NOT zero. Apple's aesthetics score is NOT 0-1: it
     # goes NEGATIVE on poor images (measured -0.14 on a dark indoor snapshot).
     # A default of 0 therefore silently gated captioning off for exactly the
@@ -429,6 +433,41 @@ writeShellApplication {
             shot="$tmpdir/shot.jpg"
             /usr/bin/sips -s format jpeg "$f" --out "$shot" >/dev/null 2>&1 || shot="$f" ;;
         esac
+
+        # DOWNSCALE FOR THE MODEL. Qwen3-VL resizes to its own patch budget
+        # anyway, so the megapixels past that budget are encoded, transferred
+        # and thrown away. Measured on this Mac, one 4000x3000 JPEG, same model,
+        # temperature 0 and seed 42, alternating runs to control for warm state:
+        #
+        #   4000px  21s   "...holds a smartphone in a tiled room with teal and
+        #                  gray tiles"
+        #   1024px  11s   "...holds a smartphone AND EARPHONES against a tiled
+        #                  wall with gray and teal accents"
+        #
+        # Half the time, and the smaller input named a detail the full-resolution
+        # one missed — the model is not seeing more at 4000px, it is picking
+        # different salient objects. Content held steady down to 256px; 128px is
+        # where it broke, turning a tiled room into "an office with white walls".
+        # 1024 is the cap because it was both the fastest measured and the run
+        # that caught the extra detail.
+        #
+        # ONLY EVER SHRINKS. `sips -Z` UPSCALES a smaller source — measured, a
+        # 256px image came back 1024px — which would inflate every WhatsApp
+        # thumbnail and screenshot in a Takeout dump into a bigger payload
+        # carrying no more information. Hence the dimension check rather than an
+        # unconditional call.
+        #
+        # The original is never touched: this writes a throwaway into $tmpdir,
+        # and only the caption step ever sees it. OCR and face work are NOT
+        # routed through here, because those genuinely need the pixels.
+        long=$(/usr/bin/sips -g pixelWidth -g pixelHeight "$shot" 2>/dev/null \
+               | awk '/pixel(Width|Height)/ { if ($2 > m) m = $2 } END { print m + 0 }')
+        if [ "''${long:-0}" -gt "$CAPTION_MAX_PX" ]; then
+          small="$tmpdir/shot-''${CAPTION_MAX_PX}.jpg"
+          if /usr/bin/sips -s format jpeg -Z "$CAPTION_MAX_PX" "$shot" --out "$small" >/dev/null 2>&1; then
+            shot="$small"
+          fi
+        fi
         if base64 < "$shot" | tr -d '\n' > "$tmpdir/b64" 2>/dev/null; then
           jq -n --arg m "$model" --rawfile b "$tmpdir/b64" \
             '{model:$m, stream:false, images:[$b],
