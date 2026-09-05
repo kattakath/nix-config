@@ -37,16 +37,44 @@
 let
   # One entry per menu item. `cmd` is appended to the store path, so adding an
   # action is a line here rather than another copy of the plist scaffolding.
+  #
+  # `sendTypes` decides which selections Finder offers the item on, and
+  # `inputType` is Automator's matching declaration. They are per-action rather
+  # than a shared constant because the actions do not agree: two are video-only,
+  # while Fix File Extension is exactly the tool you reach for when the
+  # extension is wrong, so it has to be offered on images too.
   actions = [
     {
       name = "Extract Audio";
       id = "extractAudio";
       cmd = "extract-audio"; # MP3 by default; --copy is the lossless path
+      sendTypes = [ "public.movie" ];
+      inputType = "com.apple.Automator.fileSystemObject.movie";
     }
     {
       name = "Fix Google Video";
       id = "fixGoogleVideo";
       cmd = "fix-google-video";
+      sendTypes = [ "public.movie" ];
+      inputType = "com.apple.Automator.fileSystemObject.movie";
+    }
+    {
+      name = "Fix File Extension";
+      id = "fixExtension";
+      cmd = "fix-extension";
+      # A JPEG named `.png` still gets `public.png` from its extension, which
+      # conforms to `public.image`, so the mislabeled file this action exists
+      # for does reach the menu. `public.folder` makes a whole export folder
+      # one right-click. `public.data` — every extensionless file — is
+      # deliberately absent: it would put this item on the menu for literally
+      # everything, and a file with no extension is not the reported problem.
+      sendTypes = [
+        "public.image"
+        "public.movie"
+        "public.audio"
+        "public.folder"
+      ];
+      inputType = "com.apple.Automator.fileSystemObject";
     }
   ];
 
@@ -89,7 +117,11 @@ let
                  | sed -E "s/^[^:]*: (skip|OK): '[^']*' *//; s/^[—-] *//" || true)
           [ -n "$body" ] || body="Nothing to do"
         elif [ "$did" -eq 0 ]; then
-          body="Nothing to do — $skipped skipped"
+          # A directory walk stays quiet about files it had no opinion on, so
+          # "0 skipped" is the normal shape of a folder that was already fine —
+          # printing the count there reads like something went wrong.
+          body="Nothing to do"
+          [ "$skipped" -gt 0 ] && body="$body — $skipped skipped"
         else
           body="$did file(s) processed"
           [ "$skipped" -gt 0 ] && body="$body, $skipped skipped"
@@ -102,7 +134,12 @@ let
     };
 
   infoPlist =
-    { name, id, ... }:
+    {
+      name,
+      id,
+      sendTypes,
+      ...
+    }:
     lib.generators.toPlist { escape = true; } {
       CFBundleIdentifier = "com.kattakath.services.${id}";
       CFBundleName = name;
@@ -113,13 +150,17 @@ let
           NSMessage = "runWorkflowAsService";
           # Only offer it inside Finder — these act on selected files.
           NSRequiredContext.NSApplicationIdentifier = "com.apple.finder";
-          NSSendFileTypes = [ "public.movie" ];
+          NSSendFileTypes = sendTypes;
         }
       ];
     };
 
   documentWflow =
-    { runner, ... }:
+    {
+      runner,
+      inputType,
+      ...
+    }:
     lib.generators.toPlist { escape = true; } {
       AMApplicationVersion = "2.10";
       AMDocumentVersion = "2";
@@ -162,7 +203,7 @@ let
         presentationMode = 11; # what Automator writes; item still lands under Services
         serviceApplicationBundleID = "com.apple.finder";
         serviceApplicationPath = "/System/Library/CoreServices/Finder.app";
-        serviceInputTypeIdentifier = "com.apple.Automator.fileSystemObject.movie";
+        serviceInputTypeIdentifier = inputType;
         serviceOutputTypeIdentifier = "com.apple.Automator.nothing";
         workflowTypeIdentifier = "com.apple.Automator.servicesMenu";
       };
