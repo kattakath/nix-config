@@ -1,7 +1,6 @@
 # fix-extension — rename files whose EXTENSION lies about their CONTENT.
 #
-#   fix-extension <file-or-dir>...           # rename in place, bytes untouched
-#   fix-extension --dry-run <file-or-dir>...  # report only
+#   fix-extension [--dry-run] [--only image|video|audio] [--print0] <file-or-dir>...
 #
 # Why this exists: Finder's thumbnail generator trusts the extension → UTI, so
 # a JPEG named `.png` is handed to the PNG decoder, which rejects it, and the
@@ -28,6 +27,18 @@
 # line each would bury the actual findings. Named explicitly, the same file
 # reports why it was skipped.
 #
+# `--only` and `--print0` exist for ONE caller, fix-media, and are what let it
+# compose this with a repair step instead of reimplementing the sniffing:
+#
+#   --only  restricts the run to one media class, so "fix the videos in this
+#           folder" does not quietly rename the photos next to them. A file
+#           matches on its SNIFFED class or its EXTENSION's class, not just the
+#           first — otherwise a `.mp4` whose type `file` cannot place would
+#           drop out of a video run before anything could look at it.
+#   --print0  writes the RESULTING path of every file considered to stdout,
+#           NUL-separated, so the next stage receives the new name after a
+#           rename. Diagnostics stay on stderr, so the two never mix.
+#
 # Output grammar (`done:` / `skip:` / `OK:` / `error:`) is shared with the other
 # media-toolkit CLIs so the Finder Service wrapper can summarise it into a
 # notification. See packages/media-quick-actions.nix.
@@ -46,22 +57,37 @@ writeShellApplication {
   ];
   text = ''
     prog=fix-extension
+    usage="usage: $prog [--dry-run] [--only image|video|audio] [--print0] <file-or-directory>..."
     die() { echo "$prog: error: $*" >&2; exit 1; }
     info() { echo "$prog: $*" >&2; }
 
     dry=0
-    case "''${1:-}" in
-      --dry-run|-n) dry=1; shift ;;
-      --help|-h)
-        echo "usage: $prog [--dry-run] <file-or-directory>..." >&2
-        echo "  renames files whose extension disagrees with their content" >&2
-        echo "  (e.g. a JPEG named .png, which Finder cannot thumbnail)" >&2
-        echo "  the bytes are never touched; directories are walked recursively" >&2
-        exit 0 ;;
-      -*) die "unknown option '$1' (try --help)" ;;
-    esac
+    print0=0
+    only=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --dry-run|-n) dry=1; shift ;;
+        --print0)     print0=1; shift ;;
+        --only)
+          [ $# -ge 2 ] || die "--only needs a class (image, video or audio)"
+          case "$2" in
+            image|video|audio) only=$2 ;;
+            *) die "unknown class '$2' (image, video or audio)" ;;
+          esac
+          shift 2 ;;
+        --help|-h)
+          echo "$usage" >&2
+          echo "  renames files whose extension disagrees with their content" >&2
+          echo "  (e.g. a JPEG named .png, which Finder cannot thumbnail)" >&2
+          echo "  the bytes are never touched; directories are walked recursively" >&2
+          exit 0 ;;
+        --) shift; break ;;
+        -*) die "unknown option '$1' (try --help)" ;;
+        *) break ;;
+      esac
+    done
 
-    [ $# -ge 1 ] || die "usage: $prog [--dry-run] <file-or-directory>..."
+    [ $# -ge 1 ] || die "$usage"
 
     failed=0
 
@@ -98,10 +124,37 @@ writeShellApplication {
       esac
     }
 
+    # The two halves of --only. A file matches on either, so a video whose type
+    # `file` cannot place still counts as a video when it is named like one.
+    class_of_mime() {
+      case "$1" in
+        image/*) echo image ;;
+        video/*) echo video ;;
+        audio/*) echo audio ;;
+        *) return 1 ;;
+      esac
+    }
+    class_of_ext() {
+      case "$1" in
+        jpg|jpeg|jpe|jfif|png|gif|webp|heic|heif|tiff|tif|bmp|svg|psd|ico) echo image ;;
+        mp4|m4v|mov|qt|mkv|webm|avi|mpg|mpeg)                             echo video ;;
+        mp3|m4a|wav|flac|ogg|oga)                                         echo audio ;;
+        *) return 1 ;;
+      esac
+    }
+
+    # Where the pipeline learns what a file is called NOW. Every path that
+    # survived the class filter is reported, renamed or not, so the next stage
+    # sees the whole selection rather than only what changed.
+    emit() {
+      [ "$print0" -eq 1 ] && printf '%s\0' "$1"
+      return 0
+    }
+
     # $1 = path, $2 = 1 when the path was named on the command line (so a skip
     # is worth reporting) and 0 when it came out of a directory walk.
     fix_one() {
-      local f=$1 explicit=$2 base ext mime accepted canon target
+      local f=$1 explicit=$2 base ext mime accepted canon target mclass eclass
       local -a accepted_arr
 
       if [ ! -f "$f" ]; then
@@ -110,10 +163,6 @@ writeShellApplication {
       fi
 
       mime=$(file -b --mime-type "$f" 2>/dev/null || true)
-      if ! accepted=$(exts_for "$mime"); then
-        [ "$explicit" -eq 1 ] && info "skip: '$f' — unrecognised type (''${mime:-unknown})"
-        return 0
-      fi
 
       base=$(basename "$f")
       case "$base" in
@@ -121,10 +170,26 @@ writeShellApplication {
         *)   ext="" ;;
       esac
 
+      if [ -n "$only" ]; then
+        mclass=$(class_of_mime "$mime" || true)
+        eclass=$(class_of_ext "$ext" || true)
+        if [ "$only" != "$mclass" ] && [ "$only" != "$eclass" ]; then
+          [ "$explicit" -eq 1 ] && info "skip: '$f' — not a(n) $only file"
+          return 0
+        fi
+      fi
+
+      if ! accepted=$(exts_for "$mime"); then
+        [ "$explicit" -eq 1 ] && info "skip: '$f' — unrecognised type (''${mime:-unknown})"
+        emit "$f"
+        return 0
+      fi
+
       read -ra accepted_arr <<< "$accepted"
       for a in "''${accepted_arr[@]}"; do
         if [ "$ext" = "$a" ]; then
           [ "$explicit" -eq 1 ] && info "OK: '$f' — extension already matches ($mime)"
+          emit "$f"
           return 0
         fi
       done
@@ -140,11 +205,13 @@ writeShellApplication {
       # `IMG.jpg` are the same file, and `mv` there is a legitimate case fix.
       if [ -e "$target" ] && ! [ "$target" -ef "$f" ]; then
         info "skip: '$f' — '$(basename "$target")' already exists"
+        emit "$f"
         return 0
       fi
 
       if [ "$dry" -eq 1 ]; then
         info "would rename: '$f' -> '$(basename "$target")' (''${ext:-no extension} but $mime)"
+        emit "$f"
         return 0
       fi
 
@@ -157,9 +224,11 @@ writeShellApplication {
         # "nothing to do".
         info "error: could not rename '$f'"
         failed=1
+        emit "$f"
         return 0
       fi
       info "done: '$target' (was .''${ext:-none}, actually $mime)"
+      emit "$target"
     }
 
     for arg in "$@"; do

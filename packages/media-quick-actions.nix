@@ -38,11 +38,17 @@ let
   # One entry per menu item. `cmd` is appended to the store path, so adding an
   # action is a line here rather than another copy of the plist scaffolding.
   #
+  # Items are named for WHAT THE OPERATOR SELECTED, not for the defect they
+  # repair: "Fix Video File(s)", not "Fix Google Video" or "Fix File Extension".
+  # Someone whose photo has no thumbnail does not know that their `.png` is
+  # really a JPEG — a menu of diagnoses asks them to diagnose it first, which is
+  # the one thing they came here unable to do. `fix-media` takes the class and
+  # decides what is actually wrong; see packages/fix-media.nix. `cmd` is
+  # therefore a command AND its flags, spliced ahead of "$@" in the runner.
+  #
   # `sendTypes` decides which selections Finder offers the item on, and
   # `inputType` is Automator's matching declaration. They are per-action rather
-  # than a shared constant because the actions do not agree: two are video-only,
-  # while Fix File Extension is exactly the tool you reach for when the
-  # extension is wrong, so it has to be offered on images too.
+  # than a shared constant because the actions do not agree on what they act on.
   actions = [
     {
       name = "Extract Audio";
@@ -52,26 +58,28 @@ let
       inputType = "com.apple.Automator.fileSystemObject.movie";
     }
     {
-      name = "Fix Google Video";
-      id = "fixGoogleVideo";
-      cmd = "fix-google-video";
-      sendTypes = [ "public.movie" ];
-      inputType = "com.apple.Automator.fileSystemObject.movie";
+      name = "Fix Video File(s)";
+      id = "fixVideo";
+      cmd = "fix-media --video";
+      # `public.folder` makes a whole export folder one right-click; the class
+      # filter inside fix-media is what stops it touching the photos in there.
+      sendTypes = [
+        "public.movie"
+        "public.folder"
+      ];
+      inputType = "com.apple.Automator.fileSystemObject";
     }
     {
-      name = "Fix File Extension";
-      id = "fixExtension";
-      cmd = "fix-extension";
-      # A JPEG named `.png` still gets `public.png` from its extension, which
+      name = "Fix Image File(s)";
+      id = "fixImage";
+      cmd = "fix-media --image";
+      # A JPEG named `.png` still reports `public.png` from its extension, which
       # conforms to `public.image`, so the mislabeled file this action exists
-      # for does reach the menu. `public.folder` makes a whole export folder
-      # one right-click. `public.data` — every extensionless file — is
+      # for does reach the menu. `public.data` — every extensionless file — is
       # deliberately absent: it would put this item on the menu for literally
       # everything, and a file with no extension is not the reported problem.
       sendTypes = [
         "public.image"
-        "public.movie"
-        "public.audio"
         "public.folder"
       ];
       inputType = "com.apple.Automator.fileSystemObject";
@@ -123,7 +131,10 @@ let
           body="Nothing to do"
           [ "$skipped" -gt 0 ] && body="$body — $skipped skipped"
         else
-          body="$did file(s) processed"
+          # "change(s)", not "file(s)": one file can legitimately produce two
+          # done: lines when a class pipeline both renames and re-encodes it,
+          # and counting those as two files would be a lie.
+          body="$did change(s) applied"
           [ "$skipped" -gt 0 ] && body="$body, $skipped skipped"
         fi
 
