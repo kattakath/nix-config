@@ -36,9 +36,15 @@
   git,
 }:
 let
-  # TODO: repoint to a version tag (or a main-branch commit) once
-  # ismailkattakath/SEARGraph#1 lands; this is that PR branch's head.
-  rev = "56eab1aa60bbbc1c563a1fa82fd37255f79bb5bb";
+  # SEARGraph#1's MERGE COMMIT on main, not the PR branch head it used to pin.
+  # The PR landed 2026-08-22, and that branch
+  # (claude/fidelity-image-enhancement-mcp-e9a0ab) still exists only by luck —
+  # a pin to a merged PR's branch breaks silently the day someone deletes it.
+  # Content-identical, so this is a durability change and not a version bump:
+  # both revs have git tree 2bedd7ee4ac0ca20f94a9b89cd8df9d18e28bd33 (verified).
+  # Main has since moved on to a different tree; taking it would be a real
+  # upgrade and wants its own testing, so it is deliberately not done here.
+  rev = "2cd3572f410122b87f119bbcddde680ff44fd76c";
   spec =
     "fidelity-enhance[agent,mcp,imaging,perceptual,identity,realesrgan] "
     + "@ git+https://github.com/ismailkattakath/SEARGraph@${rev}";
