@@ -27,6 +27,26 @@
 # line each would bury the actual findings. Named explicitly, the same file
 # reports why it was skipped.
 #
+# THE WALK NEVER ENTERS A macOS PACKAGE. `~/Pictures/Photos Library.photoslibrary`
+# is a directory, and renaming files inside it is not a fix — it is library
+# corruption. Verified on this Mac: that path reports `com.apple.package` in
+# `kMDItemContentTypeTree`, which is what `is_package` asks Spotlight. Spotlight
+# answers nothing on an unindexed volume, so a curated extension list runs first
+# as the fast path and the safety net; a dotted directory that is NOT a package
+# (`2019.holiday`) is still walked, so the check cannot silently swallow real
+# folders.
+#
+# Three per-file guards run BEFORE anything reads the bytes, because reading is
+# itself the hazard:
+#
+#   dataless   — an iCloud file whose contents are not on disk (`stat -f %Sf`
+#                reports `dataless`; measured on this Mac under CloudDocs).
+#                Sniffing it would materialise it, so a folder sweep would
+#                quietly pull gigabytes down and fail offline.
+#   in-flight  — `.crdownload`/`.part`/`.partial`/`.download`. The bytes are
+#                incomplete, so any verdict drawn from them is wrong.
+#   AppleDouble — `._name` resource-fork siblings, which are metadata, not media.
+#
 # `--only` and `--print0` exist for ONE caller, fix-media, and are what let it
 # compose this with a repair step instead of reimplementing the sniffing:
 #
@@ -50,6 +70,10 @@
 }:
 writeShellApplication {
   name = "fix-extension";
+  # `mdls` and BSD `stat` are called by ABSOLUTE /usr/bin path, not left to PATH:
+  # coreutils below shadows `stat`, and GNU stat reads `-f` as "filesystem
+  # status" rather than a format string — the dataless guard would have been
+  # dead code. Neither tool has a nixpkgs equivalent, so they are not pinnable.
   runtimeInputs = [
     file
     coreutils
@@ -143,6 +167,53 @@ writeShellApplication {
       esac
     }
 
+    # A macOS package is a directory Finder presents as one file. Spotlight is
+    # the authority, but it goes quiet on an unindexed volume, so the extension
+    # list is both the fast path and the fallback. Unknown dotted directories
+    # fail OPEN — they get walked — so a folder merely named `2019.holiday` is
+    # not silently skipped.
+    is_package() {
+      case "$(printf '%s' "''${1##*.}" | tr '[:upper:]' '[:lower:]')" in
+        app|photoslibrary|aplibrary|migratedphotolibrary|musiclibrary|tvlibrary) return 0 ;;
+        imovielibrary|theater|fcpbundle|band|logicx|sparsebundle|rtfd|scptd) return 0 ;;
+        bundle|framework|plugin|kext|pkg|mpkg|workflow|download|lrcat|lrdata) return 0 ;;
+      esac
+      /usr/bin/mdls -name kMDItemContentTypeTree -raw "$1" 2>/dev/null \
+        | grep -q "com.apple.package"
+    }
+
+    # Guards that must run BEFORE the bytes are read, because reading is the
+    # hazard: sniffing a dataless file materialises it. Echoes a reason when the
+    # file should be left alone, and nothing when it is safe to look at.
+    # Parameter expansion, never basename/dirname: at four forks per file a
+    # 10k-photo folder spends minutes in process creation alone. Measured on
+    # this Mac at ~19ms/file before this, ~9ms after.
+    unsafe_reason() {
+      local f=$1 flags base dir
+      base=''${f##*/}
+      case "$base" in
+        ._*) echo "AppleDouble metadata, not media"; return 0 ;;
+      esac
+      case "$base" in
+        *.crdownload|*.part|*.partial|*.download)
+          echo "still downloading"; return 0 ;;
+      esac
+      # /usr/bin/stat, ABSOLUTELY: coreutils is on PATH and GNU stat reads -f as
+      # "filesystem status", so the unqualified call would error out, leave
+      # flags empty under `|| true`, and silently pass every dataless file.
+      flags=$(/usr/bin/stat -f '%Sf' "$f" 2>/dev/null || true)
+      case "$flags" in
+        *dataless*) echo "not downloaded from iCloud — reading it would fetch it"; return 0 ;;
+      esac
+      # A rename writes to the DIRECTORY, so that is what has to be writable.
+      dir=''${f%/*}
+      [ "$dir" = "$f" ] && dir=.
+      if [ ! -w "$dir" ]; then
+        echo "read-only location"; return 0
+      fi
+      return 0
+    }
+
     # Where the pipeline learns what a file is called NOW. Every path that
     # survived the class filter is reported, renamed or not, so the next stage
     # sees the whole selection rather than only what changed.
@@ -154,7 +225,7 @@ writeShellApplication {
     # $1 = path, $2 = 1 when the path was named on the command line (so a skip
     # is worth reporting) and 0 when it came out of a directory walk.
     fix_one() {
-      local f=$1 explicit=$2 base ext mime accepted canon target mclass eclass
+      local f=$1 explicit=$2 base ext mime accepted canon target tname mclass eclass unsafe
       local -a accepted_arr
 
       if [ ! -f "$f" ]; then
@@ -162,9 +233,16 @@ writeShellApplication {
         return 0
       fi
 
+      # Before the bytes are read, not after: sniffing is the hazard.
+      unsafe=$(unsafe_reason "$f")
+      if [ -n "$unsafe" ]; then
+        [ "$explicit" -eq 1 ] && info "skip: '$f' — $unsafe"
+        return 0
+      fi
+
       mime=$(file -b --mime-type "$f" 2>/dev/null || true)
 
-      base=$(basename "$f")
+      base=''${f##*/}
       case "$base" in
         *.*) ext=$(printf '%s' "''${base##*.}" | tr '[:upper:]' '[:lower:]') ;;
         *)   ext="" ;;
@@ -200,17 +278,18 @@ writeShellApplication {
       else
         target="$f.$canon"
       fi
+      tname=''${target##*/}
 
       # -ef, not a string compare: on a case-insensitive volume `IMG.JPG` and
       # `IMG.jpg` are the same file, and `mv` there is a legitimate case fix.
       if [ -e "$target" ] && ! [ "$target" -ef "$f" ]; then
-        info "skip: '$f' — '$(basename "$target")' already exists"
+        info "skip: '$f' — '$tname' already exists"
         emit "$f"
         return 0
       fi
 
       if [ "$dry" -eq 1 ]; then
-        info "would rename: '$f' -> '$(basename "$target")' (''${ext:-no extension} but $mime)"
+        info "would rename: '$f' -> '$tname' (''${ext:-no extension} but $mime)"
         emit "$f"
         return 0
       fi
@@ -231,11 +310,33 @@ writeShellApplication {
       emit "$target"
     }
 
+    # Two passes per level rather than one `find` over everything: pass one takes
+    # the files while pruning EVERY dotted directory (so `find` never descends
+    # into a package, however large), pass two re-enters only the dotted
+    # directories that turned out not to be packages. Pruning at the `find`
+    # level is what keeps a 100k-file Photos library from being enumerated at
+    # all.
+    walk() {
+      local root=$1 f d
+      while IFS= read -r -d "" f; do
+        fix_one "$f" 0
+      done < <(find "$root" -type d -name '*.*' -prune -o -type f -print0 2>/dev/null)
+      while IFS= read -r -d "" d; do
+        if is_package "$d"; then
+          info "skip: '$d' — macOS package, not descending into it"
+        else
+          walk "$d"
+        fi
+      done < <(find "$root" -type d -name '*.*' -prune -print0 2>/dev/null)
+    }
+
     for arg in "$@"; do
       if [ -d "$arg" ]; then
-        while IFS= read -r -d "" f; do
-          fix_one "$f" 0
-        done < <(find "$arg" -type f -print0)
+        if is_package "$arg"; then
+          info "skip: '$arg' — macOS package, not descending into it"
+          continue
+        fi
+        walk "$arg"
       else
         fix_one "$arg" 1
       fi
