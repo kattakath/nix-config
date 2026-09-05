@@ -507,6 +507,21 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
   `~/Library/Logs/nix-media-queue.log`, plus a shell-run CLI printing its own progress. The
   cost is accepted: a Finder Service now does nothing visible, so success and failure look
   alike.
+- **Ghostty** (`programs.ghostty` in `home.nix`, `macos` only) — GPU-accelerated terminal,
+  installed as a **Homebrew cask** because nixpkgs' `ghostty` is **Linux-only** and refuses to
+  evaluate on aarch64-darwin. That is precisely the case home-manager documents for
+  `package = null` ("set this on platforms where ghostty is not available"), so the cask ships
+  the app and Nix owns nothing but `$XDG_CONFIG_HOME/ghostty/config` — the same split already
+  used for the ungoogled-chromium cask. Settings deliberately **match the existing terminal**
+  rather than introduce a second look: **16pt** is what `desktop-aesthetics.nix` holds
+  Terminal.app at on every darwin host, and **UbuntuMono Nerd Font** is already installed
+  fleet-wide as the VS Code terminal face. **No theme is set** — Ghostty's default is dark, and
+  naming one of its bundled themes without being able to run `ghostty +list-themes` would be a
+  guess written into the fleet; pick one after the first activation. Options that merely
+  restate a default are left out on purpose, since they read as decisions and are not.
+  `enableZshIntegration` is deliberately **off**: it sources the integration script out of the
+  Nix `package`, which is null here, so it would point at nothing — the cask's app bundle
+  injects shell integration itself.
 - **`desktop-aesthetics.nix`** — the macOS desktop look, split in two:
   - **Terminal.app** is UNGATED on every darwin host — 16pt type on EVERY profile + stock
     `Pro` as default/startup, driven through Terminal's own AppleScript `settings set` API

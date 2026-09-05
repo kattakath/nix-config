@@ -1253,6 +1253,42 @@ in
     # (common-utils configureZshAsDefaultShell). Kept lean: no oh-my-zsh /
     # framework, default prompt. bash stays enabled above for login-shell
     # compatibility.
+    # Ghostty — GPU-accelerated terminal, macos only. `package = null` is the
+    # escape hatch home-manager documents for exactly this: nixpkgs' `ghostty` is
+    # LINUX-ONLY and refuses to evaluate on aarch64-darwin, so the Homebrew cask
+    # in hosts/macos.nix ships the app and this owns nothing but the config — the
+    # same split already used for the ungoogled-chromium cask.
+    #
+    # The settings deliberately MATCH the existing terminal rather than introduce
+    # a second look: 16pt is the size modules/shared/desktop-aesthetics.nix holds
+    # Terminal.app at on every darwin host, and UbuntuMono Nerd Font is already
+    # installed fleet-wide (home.packages) as the VS Code terminal face.
+    # Switching terminals should cost no re-adjustment.
+    #
+    # Shell integration is left to Ghostty's OWN auto-injection and deliberately
+    # NOT enabled here: `enableZshIntegration` sources the integration script out
+    # of the Nix `package`, which is null on this platform, so switching it on
+    # would point at nothing. The cask's app bundle already does this itself.
+    ghostty = lib.mkIf isMacosHost {
+      enable = true;
+      package = null;
+      # DELIBERATELY SMALL. Nothing here can be validated until the cask is
+      # installed (`ghostty +validate-config` needs the binary), so this carries
+      # only settings that are load-bearing for the match, and no theme: Ghostty's
+      # default is already dark, and naming one of its bundled themes without
+      # being able to run `ghostty +list-themes` would be a guess written into the
+      # fleet. Pick one after the first activation. Options that merely restate a
+      # default (background-opacity, scrollback-limit) are left out on purpose —
+      # they read as decisions and are not.
+      settings = {
+        font-family = "UbuntuMono Nerd Font";
+        font-size = 16;
+        # Option must send Alt, or every readline word-motion in zsh is dead.
+        macos-option-as-alt = true;
+        copy-on-select = "clipboard";
+      };
+    };
+
     starship = {
       enable = true;
       settings = {
