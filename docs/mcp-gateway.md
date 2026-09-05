@@ -16,8 +16,11 @@ MCP servers for Claude Code are provided by a localhost **gateway**
 (Streamable HTTP; a legacy `sse` path is also served for SSE-only clients such as Grok, via the
 same `endpointFor` single source of truth).
 
-`desktop-commander` stays a **per-client stdio** server, deliberately outside the gateway — it
-is an RCE surface.
+Two servers stay **per-client stdio**, deliberately outside the gateway (they are *not* in the
+hosted counts): `desktop-commander` — an RCE surface — and `open-design`, whose upstream is
+stdio-only and carries a known silent-death bug (nexu-io/open-design#7273); one server crashing
+at startup darks the whole gateway, so it must not live in it. `open-design`'s full
+declared-vs-imperative boundary is [`open-design.md`](open-design.md).
 
 There is **no project `.mcp.json`** — the user-scope gateway is the single source (the Mac is
 the sole MCP client host; the Pi/VM stay lean).
