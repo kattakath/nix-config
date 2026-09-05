@@ -68,7 +68,21 @@
       "mcp__memory__*",
       "mcp__json-yaml-toml__*",
       "mcp__mcp-jq__*",
-      "mcp__mcpfinder__*"
+      "mcp__mcpfinder__*",
+      "mcp__open-design__list_projects",
+      "mcp__open-design__get_active_context",
+      "mcp__open-design__get_artifact",
+      "mcp__open-design__get_project",
+      "mcp__open-design__get_file",
+      "mcp__open-design__search_files",
+      "mcp__open-design__list_files",
+      "mcp__plugin_hm_open-design__list_projects",
+      "mcp__plugin_hm_open-design__get_active_context",
+      "mcp__plugin_hm_open-design__get_artifact",
+      "mcp__plugin_hm_open-design__get_project",
+      "mcp__plugin_hm_open-design__get_file",
+      "mcp__plugin_hm_open-design__search_files",
+      "mcp__plugin_hm_open-design__list_files"
     ],
     "deny": [
       "Bash(home-manager switch:*)",
