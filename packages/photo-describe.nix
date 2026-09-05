@@ -159,7 +159,12 @@ writeShellApplication {
     overwrite=0
     caption=1
     model="qwen3-vl:4b-instruct"
-    min_score=0
+    # EMPTY means "no gate", NOT zero. Apple's aesthetics score is NOT 0-1: it
+    # goes NEGATIVE on poor images (measured -0.14 on a dark indoor snapshot).
+    # A default of 0 therefore silently gated captioning off for exactly the
+    # photos that most need a description to be findable — they got labels and
+    # no sentence, with nothing in the output saying why.
+    min_score=""
     host="''${OLLAMA_HOST:-http://127.0.0.1:11434}"
     # Bare host:port is a legal OLLAMA_HOST; curl needs a scheme.
     case "$host" in http://*|https://*) ;; *) host="http://$host" ;; esac
@@ -264,7 +269,7 @@ writeShellApplication {
       sentence=""
       want_caption=0
       if [ "$ollama_up" -eq 1 ] && [ "$utility" != "true" ]; then
-        if [ -z "$score" ] || awk -v s="$score" -v m="$min_score" 'BEGIN{ exit !(s >= m) }'; then
+        if [ -z "$score" ] || [ -z "$min_score" ] || awk -v s="$score" -v m="$min_score" 'BEGIN{ exit !(s >= m) }'; then
           want_caption=1
         fi
       fi
