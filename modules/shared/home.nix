@@ -443,12 +443,12 @@ in
   disabledModules = [ "launchd/default.nix" ];
 
   imports = [
-    # Finder right-click → Services for the media-toolkit CLIs. On BOTH darwin
-    # hosts, not just macos: `mediaToolkit` is already in the darwin branch of
-    # home.packages, so macvm has the CLIs and only lacked the menu. Everything
-    # here is nixpkgs-side (ffmpeg included), so nothing depends on macvm's
-    # leaner Homebrew set. macvm has no hardware H.264 encoder under Apple
-    # Virtualization; fix-google-video already falls back to libx264 there.
+    # Finder right-click → Services for the media-toolkit CLIs. **macos ONLY.**
+    # Previously installed on both darwin hosts on the theory that everything
+    # here is nixpkgs-side and cheap regardless of macvm's leaner Homebrew set
+    # — MEASURED wrong: the closure (ffmpeg, exiftool, auge, rclip's OpenCLIP
+    # model) is too much for the Tart sandbox's disk. Pulled to macos-only;
+    # macvm gets neither the CLIs nor the menu now.
     #
     # An INLINE
     # MODULE so this merges with the `home.file."x"` entries defined elsewhere
@@ -468,7 +468,7 @@ in
     # drops it from the menu. A running Finder keeps serving its old menu, so
     # changes need `killall Finder`.
     {
-      home.activation.mediaServices = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin (
+      home.activation.mediaServices = lib.mkIf isMacosHost (
         lib.hm.dag.entryAfter [ "linkGeneration" ] ''
           svc="$HOME/Library/Services"
           run mkdir -p "$svc"
@@ -491,7 +491,6 @@ in
         ''
       );
     }
-    ./media-queue.nix # darwin-gated launchd work queue for the media Finder Services (no status surface — see its header)
     ./hm-launchd # patched home-manager launchd (nix-* ProgramArguments)
     ./mcp.nix # darwin-gated MCP server registry for Claude Code
     ./desktop-aesthetics.nix # Terminal.app 16pt (all darwin) + wallpaper (opt-out; macvm opts out)
@@ -514,6 +513,13 @@ in
     # unable to reach any model at all. Must live here, not in nix-personal: a gate
     # in the private layer would be dropped by the activation it defends against.
     ./claude-bedrock-gate.nix
+  ]
+  # media-queue.nix — macos ONLY, not macvm. Its own header is darwin-gated,
+  # not host-gated, so excluding it here (rather than inside that file) keeps
+  # the "which hosts get the media stack" decision in ONE place, alongside
+  # mediaServices/home.packages above and below — see that comment for why.
+  ++ lib.optionals isMacosHost [
+    ./media-queue.nix # launchd work queue for the media Finder Services (no status surface — see its header)
   ];
 
   # Enable the extracted keychain-secrets module (installs the secret/set-secret/
@@ -671,17 +677,6 @@ in
       jobspy # `jobspy --search … --location …` — scrape jobs (LinkedIn/Indeed/…) into CSV/JSON via python-jobspy in an ephemeral uv env (packages/jobspy.nix)
       obs-fb-setup # `obs-fb-setup` — write an OBS "Facebook" profile for Facebook Live, injecting FB_PERSISTENT_STREAM_KEY from the login Keychain (packages/obs-fb-setup.nix)
       fidelityEnhance # `fidelity-enhance-mcp` (stdio MCP server) + `fidelity-enhance` (CLI) — fidelity referee for agentic image editing: Grok Imagine generates, this judges drift against the original (SSIM/LPIPS/ArcFace identity) and returns retry/next-step/done plus prompt guidance. Ephemeral uv env; FIRST RUN pulls ~1GB of torch/insightface — warm it with `fidelity-enhance capabilities` (packages/fidelity-enhance.nix)
-      mediaToolkit # `media <describe|fix|audio>` (one entry point + `media --help` listing them; the individual CLIs stay under their own names) + `fix-google-video <file>...` (re-encode VP9-in-MP4 and other editor-incompatible codecs into H.264+AAC) + `extract-audio [--mp3|--wav|--flac] <file>...` (pull the audio track out of a video) + `fix-extension <file-or-dir>...` (rename files whose extension lies about their content, e.g. a JPEG named .png that Finder cannot thumbnail) + `fix-media <--video|--image> <file-or-dir>...` (repair by media class — what the Finder Services call) + `photo-describe <file-or-dir>...` (write Apple Vision labels/rating + a local-VLM caption into the image's own XMP, where Spotlight indexes it) (packages/media-toolkit.nix)
-      # --- the photo-retrieval stack photo-describe is built on, each usable on its own ---
-      auge # `auge --classify|--aesthetics|--face-quality|--feature-print <image>` — Apple's Vision framework from the shell, 100% on-device. The engine behind photo-describe; also the fastest way to ask "is this shot any good" (aesthetics 0-1 + an is_utility screenshot flag) or "is anyone blinking" (per-face capture quality). Use TARGETED flags, never `--all`: measured here, --all is ~30x slower AND writes Vision framework noise into stdout, so its output will not parse as JSON. aarch64-darwin only.
-      exiftool # `exiftool -XMP:Description=… <file>` — the metadata writer photo-describe shells out to, and the only tool that reads/writes the full EXIF/IPTC/XMP surface (mdls only shows Spotlight's lossy derived view, and sips has no EXIF tag access at all)
-      rclipCli # `rclip "a cold lonely morning"` — natural-language search over a photo folder, via OpenCLIP ViT-B/32 running locally. The VECTOR half of the retrieval story, deliberately kept OUT of the image files: its SQLite index (images.vector BLOB) is derived state, rebuildable BY RE-SCANNING THE PHOTOS, and invalidated by any embedding-model change. It embeds the PIXELS, not this repo's XMP — so it finds things no caption mentions, and a description can never reconstruct it. Requires RCLIP_USE_ONNX_ON_MACOS (sessionVariables below): without it every real invocation dies on `ModuleNotFoundError: coremltools`, since the nixpkgs package omits that dep and rclip's default macOS path tries to compile a Core ML model. On the ONNX path it indexes on CPU rather than the ANE — fine for ViT-B/32, just not the fastest possible.
-      # NOT here: osxphotos, which reads Apple Photos' own library DB (every picture
-      # already scored across 27 aesthetic dimensions — pleasant_composition,
-      # well_timed_shot, sharply_focused_subject — at zero compute, far richer than the
-      # single float Vision's --aesthetics returns). `python3Packages.osxphotos` is
-      # marked `broken = true` in nixpkgs (checked at 0.76.1), so adding it fails the
-      # flake check outright. Reach for it ad hoc via `uvx osxphotos` until that lifts.
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       jdk17 # JRE for the Android sdkmanager/avdmanager (JVM tools); emulator itself needs no Java
       runpodctl # RunPod GPU CLI — RunPod as a second ComfyUI-workflow provider alongside Vast (from nixpkgs, not the untrusted brew tap)
@@ -705,6 +700,22 @@ in
     ++ lib.optionals isMacosHost [
       macvmTartStart
       androidPhone # `android-phone list|pair|connect|disconnect|unpair|tcpip|wireless|mirror|doctor` — deterministic ADB wired/wireless operator + scrcpy mirroring for a PHYSICAL device (packages/android-phone.nix); unrelated to `android-emu` (virtual emulator, below)
+    ]
+    # The media/photo-retrieval stack — macos ONLY, not macvm. Same "too big for
+    # the Tart sandbox's disk" call as media-queue.nix above (ffmpeg, exiftool,
+    # auge, rclip's OpenCLIP model).
+    ++ lib.optionals isMacosHost [
+      mediaToolkit # `media <describe|fix|audio>` (one entry point + `media --help` listing them; the individual CLIs stay under their own names) + `fix-google-video <file>...` (re-encode VP9-in-MP4 and other editor-incompatible codecs into H.264+AAC) + `extract-audio [--mp3|--wav|--flac] <file>...` (pull the audio track out of a video) + `fix-extension <file-or-dir>...` (rename files whose extension lies about their content, e.g. a JPEG named .png that Finder cannot thumbnail) + `fix-media <--video|--image> <file-or-dir>...` (repair by media class — what the Finder Services call) + `photo-describe <file-or-dir>...` (write Apple Vision labels/rating + a local-VLM caption into the image's own XMP, where Spotlight indexes it) (packages/media-toolkit.nix)
+      # --- the photo-retrieval stack photo-describe is built on, each usable on its own ---
+      auge # `auge --classify|--aesthetics|--face-quality|--feature-print <image>` — Apple's Vision framework from the shell, 100% on-device. The engine behind photo-describe; also the fastest way to ask "is this shot any good" (aesthetics 0-1 + an is_utility screenshot flag) or "is anyone blinking" (per-face capture quality). Use TARGETED flags, never `--all`: measured here, --all is ~30x slower AND writes Vision framework noise into stdout, so its output will not parse as JSON. aarch64-darwin only.
+      exiftool # `exiftool -XMP:Description=… <file>` — the metadata writer photo-describe shells out to, and the only tool that reads/writes the full EXIF/IPTC/XMP surface (mdls only shows Spotlight's lossy derived view, and sips has no EXIF tag access at all)
+      rclipCli # `rclip "a cold lonely morning"` — natural-language search over a photo folder, via OpenCLIP ViT-B/32 running locally. The VECTOR half of the retrieval story, deliberately kept OUT of the image files: its SQLite index (images.vector BLOB) is derived state, rebuildable BY RE-SCANNING THE PHOTOS, and invalidated by any embedding-model change. It embeds the PIXELS, not this repo's XMP — so it finds things no caption mentions, and a description can never reconstruct it. Requires RCLIP_USE_ONNX_ON_MACOS (sessionVariables below): without it every real invocation dies on `ModuleNotFoundError: coremltools`, since the nixpkgs package omits that dep and rclip's default macOS path tries to compile a Core ML model. On the ONNX path it indexes on CPU rather than the ANE — fine for ViT-B/32, just not the fastest possible.
+      # NOT here: osxphotos, which reads Apple Photos' own library DB (every picture
+      # already scored across 27 aesthetic dimensions — pleasant_composition,
+      # well_timed_shot, sharply_focused_subject — at zero compute, far richer than the
+      # single float Vision's --aesthetics returns). `python3Packages.osxphotos` is
+      # marked `broken = true` in nixpkgs (checked at 0.76.1), so adding it fails the
+      # flake check outright. Reach for it ad hoc via `uvx osxphotos` until that lifts.
     ];
 
   # ---- Android SDK (macOS only) ------------------------------------------------
