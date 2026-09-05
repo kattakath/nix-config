@@ -220,6 +220,8 @@ symlinkJoin {
         changed=0
         skipped=0
         failures=0
+        jobs=0
+        reason=
 
         while :; do
           job=$(find "$QUEUE" -maxdepth 1 -name '*.job' -type f 2>/dev/null | sort | head -1)
@@ -277,6 +279,18 @@ symlinkJoin {
           s=$(printf '%s\n' "$out" | grep -cE ': (skip|OK):' || true)
           changed=$((changed + d))
           skipped=$((skipped + s))
+          jobs=$((jobs + 1))
+
+          # Keep the FIRST reason a job declined to do anything, so a batch that
+          # changed nothing can say why instead of just how many. The CLIs
+          # decline for unrelated reasons — the target name is taken by a
+          # different file, the bytes are already correct, it is not downloaded
+          # from iCloud — and collapsing those into one number is what made a
+          # correct refusal look like a no-op.
+          if [ "$d" -eq 0 ] && [ -z "$reason" ]; then
+            reason=$(printf '%s\n' "$out" | grep -m1 -E ': (skip|OK):' \
+              | sed -E "s/^[^:]*: (skip|OK): '[^']*' *//; s/^[—-] *//" || true)
+          fi
 
           if [ "$rc" -eq 0 ]; then
             rm -f "$running"
@@ -301,6 +315,14 @@ symlinkJoin {
           notify "$changed change(s), $failures failed" -execute "open '$FAILED'"
         elif [ "$changed" -gt 0 ]; then
           notify "$changed change(s) applied, $skipped skipped" -execute "open '$LOG'"
+        elif [ "$jobs" -eq 1 ] && [ -n "$reason" ]; then
+          # ONE item that changed nothing: report the reason, not the count. This
+          # is the case the operator is most likely to be standing there waiting
+          # for, and "nothing to do" is exactly the wrong thing to tell them when
+          # the tool refused on purpose.
+          notify "$reason" -execute "open '$LOG'"
+        elif [ "$jobs" -gt 0 ]; then
+          notify "Nothing to change in $jobs item(s)" -execute "open '$LOG'"
         fi
         log "idle — $changed changed, $skipped skipped, $failures failed"
       '';

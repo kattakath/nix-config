@@ -712,7 +712,15 @@ Smaller, single-purpose CLIs:
   indistinguishable — you click and nothing happens. When one file produced nothing the
   notification reports the actual reason (`already exists`, `no audio stream`, `not found`,
   `already editor-safe`) rather than collapsing them all into one message, which would report
-  a missing file as a success. The summary counts **changes, not files**: one file can
+  a missing file as a success. **A queued action is not summarised there** — `media-enqueue`
+  only writes job files and emits no `done:`/`skip:` lines, so summarising it announced
+  "Nothing to do" on every click regardless of what happened next, which is worse than
+  silence: it states an outcome before one exists, and made a correct refusal (the target name
+  was already taken by a *different* file) look identical to a no-op. Queued actions are
+  therefore silent on success — `media-enqueue` has already said "Queued N", and the **worker**
+  reports the outcome once there is one, including a run that changed nothing, naming the
+  reason when it was a single item. The wrapper still speaks if enqueueing itself fails, since
+  nothing downstream would report that. The summary counts **changes, not files**: one file can
   legitimately produce two `done:` lines when a class pipeline both renames and re-encodes it.
   `NSSendFileTypes` is **per action**, not a shared constant: Extract Audio takes
   `public.movie`, Fix Video File(s) `public.movie` + `public.folder`, Fix Image File(s)
