@@ -46,6 +46,10 @@ Exports:
   VM, materialised only via `nix run .#nixvm`.
 - `packages` / `devShells` / `checks` / `formatter` per system via a `forAllSystems` helper.
 - `deploy.nodes.nixpi` — the deploy-rs remote-activation node (see below).
+- `templates.default` (top-level `templates/default/`, distinct from `packages/templates/`'s
+  Vast.ai provisioner assets) — `nix flake init -t github:kattakath/nix-config` scaffolds a
+  tiny consumer fleet flake (identity override + host deltas over `lib.mkDarwin`), the
+  no-fork alternative to README.md § Fork this for your own fleet.
 
 There is **no `nixpi-installer`** — the LIVE `nixpi` sdImage is secret-free, so it *is* the
 flashable artifact, prebuilt in CI as the `nixpi-sd-image` package and published to the
