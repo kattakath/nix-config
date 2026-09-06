@@ -120,7 +120,30 @@
           };
           installationId = 159388708;
         };
+        # DISABLED 2026-09-06 as an INTERIM GUARD against a live misroute, not
+        # because the lane is unwanted. GitHub label matching is
+        # case-insensitive and a runner matches when it holds a SUPERSET of the
+        # job's labels, so this lane's {self-hosted, macOS, arm64, tart,
+        # dontsell-vm} already answers dontsell-ai/app's 10 jobs, which ask for
+        # {self-hosted, macOS, ARM64}. Those jobs need nix/cachix/postgres from
+        # the HOST; a stock Cirrus guest has none of it, so they would fail.
+        #
+        # It stayed latent only because this lane never won a guest slot. The
+        # commit before this one freed both slots, and the host-side poll added
+        # in nix-tart-vms d39ce9d actively looks for matching queued work — so
+        # the collision is now OPEN, not theoretical.
+        #
+        # RE-ENABLE ONLY AFTER the flip completes, in this order:
+        #   1. activate, then confirm `nix` is live on an ONLINE dontsell-ai
+        #      runner: gh api /orgs/dontsell-ai/actions/runners
+        #   2. add `nix` to all 10 `runs-on:` entries in dontsell-ai/app
+        #      (ci.yml x8, deploy.yml x2) — that is what stops this lane from
+        #      matching them, since it carries no `nix`.
+        #   3. only then flip this back to enabled.
+        # Adding `nix` to the bare-metal lane (previous commit) makes the flip
+        # POSSIBLE; it does not by itself close anything.
         dontsell-vm = fleetApp // {
+          enable = false;
           scope = {
             type = "org";
             value = "dontsell-ai";
