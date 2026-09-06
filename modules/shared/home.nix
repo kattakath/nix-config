@@ -1430,11 +1430,9 @@ in
         # `background`, so the unfocused panes would sit on the darker shade too
         # and the whole effect collapses. Setting it to #24081B is precisely what
         # "leave the unfocused ones unchanged" means here.
-        # 0.35, not the 0.5 first tried: at 0.5 over a ground this dark the three
-        # panes still read as one field in use. The floor is 0.15, which Ghostty
-        # itself calls weird-looking, so this leaves headroom without reaching
-        # for it.
-        unfocused-split-opacity = 0.35;
+        # 0.5: a lighter dim than the 0.35 previously set here. The floor is
+        # 0.15, which Ghostty itself calls weird-looking.
+        unfocused-split-opacity = 0.5;
         # NO FILL, deliberately. Unset, it defaults to `background`, so the
         # unfocused GROUND is unchanged and only the text dims -- 17.58:1 down to
         # 6.80:1. Ground stays identical across panes and titlebar, which is what
