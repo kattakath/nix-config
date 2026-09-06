@@ -327,7 +327,7 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
 
 ### `modules/shared/`
 
-`modules/shared/{home.nix,mcp.nix,chromium.nix,desktop-aesthetics.nix,nix-cache.nix,nix-ld-libraries.nix,wireguard-configs.nix,claude-otel.nix,hm-launchd/}`
+`modules/shared/{home.nix,mcp.nix,chromium.nix,terminal-theme.nix,desktop-aesthetics.nix,nix-cache.nix,nix-ld-libraries.nix,wireguard-configs.nix,claude-otel.nix,hm-launchd/}`
 — the Home Manager profile loaded on every host.
 
 - **`home.nix`** — git/ssh-signing, zsh+starship, direnv, gh, bash, claude-code + nerd-fonts;
@@ -530,36 +530,36 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
   `RCLIP_USE_ONNX_ON_MACOS`): it is a third-party search tool this repo merely installs, and
   the VECTOR half of retrieval, deliberately independent of the XMP half. It reaches the stack
   through that module's `extraSearchPackages` seam, alongside `exiftool` and `auge`.
+- **`terminal-theme.nix`** — `local.terminalTheme`, the ONE place the fleet's 16-slot ANSI
+  ring, ground/ink/cursor, and font face + per-surface sizes are stated. Publishes a derived
+  view at `config.lib.terminalTheme` (`byName`, `ghosttyPalette`, `toRgb16`) through
+  home-manager's own `options.lib` extension point (pinned `modules/misc/lib.nix:5`) — the
+  same seam `config.lib.base16` and `config.lib.stylix` use. **Pure options, no packages, no
+  activation, no platform gate**, so it evaluates on `aarch64-linux` too; each consumer keeps
+  its own gate. Ghostty and VS Code take **16/16** slots, Terminal.app **4/16** (an OS
+  ceiling, not a gap — `sdef Terminal.app | grep -ci ansi` is `0`). Before this existed, VS
+  Code held **pre-lift Tango in 7 of 16 slots** while Ghostty held the WCAG-corrected values.
+  **stylix was rejected on measurement, not taste** — its Ghostty target hardcodes
+  `"9=${base08}" … "14=${base0C}"`, so brights collapse onto normals and 8 of 16 values come
+  out wrong, for +16 lock nodes. Full reasoning: [`terminal-theme.md`](terminal-theme.md).
 - **Ghostty** (`programs.ghostty` in `home.nix`, `macos` only) — GPU-accelerated terminal,
   installed as a **Homebrew cask** because nixpkgs' `ghostty` is **Linux-only** and refuses to
   evaluate on aarch64-darwin. That is precisely the case home-manager documents for
   `package = null` ("set this on platforms where ghostty is not available"), so the cask ships
   the app and Nix owns nothing but `$XDG_CONFIG_HOME/ghostty/config` — the same split already
   used for the ungoogled-chromium cask. Settings deliberately **match the existing terminal**
-  rather than introduce a second look: **16pt** is what `desktop-aesthetics.nix` holds
-  Terminal.app at on every darwin host, and **UbuntuMono Nerd Font** is already installed
-  fleet-wide as the VS Code terminal face. The palette is **canonical Ubuntu, verbatim** from
-  Ptyxis's own `Ubuntu.palette` — Tango on `#300A24` — **not** the macOS approximation this
-  repo used to vendor. That vendored `modules/shared/terminal/Ubuntu.terminal` (dropped in
-  #319) used `#24081B` and a *different* ANSI set entirely; the two backgrounds are ΔE00 4.12
-  apart and the ring is not the same palette, so what ran here for years was someone's
-  approximation. Measured against `#300A24`: foreground **17.58:1**, min pairwise ΔE00 among
-  slots 0-7 **23.32** (excellent separation), and six of sixteen failed WCAG AA. **Five are
-  lifted**: each converted to OKLab, its **lightness alone** raised until it reaches 4.5:1,
-  hue and chroma untouched (every hue moves ≤ 0.6°, so red still reads as Tango red). **Pairs
-  are solved together** — lifting a normal slot alone collapses it onto its bright partner
-  (lifted red lands ΔE00 **1.55** from br-red, i.e. the same colour, and `\e[31m` vs `\e[91m`
-  stops meaning anything), so each bright partner is pushed until the pair is ΔE00 ≥ 10 apart:
-  red `#CC0000`→`#F03C2E` with br `#FF6B5E` (pair 10.02), blue `#3465A4`→`#5083C4` with br
-  `#74A2D2` (10.21), magenta `#75507B`→`#9A74A1` with br `#BD8FB8` (10.04), br-black
-  `#555753`→`#7F827D`. Naively "use the bright variant" does **not** work and was measured
-  first: br-red is 4.20:1 and br-black 2.41:1, both still failing, and black has no brighter
-  Tango variant at all. **Slot 0 stays authentic at 1.39:1** — it is the `\e[40m` *surface*,
-  not ink, and lifting it drops white-on-`\e[40m` from **12.65:1 to 3.90:1**, trading a
-  passing role for a failing one. Min pairwise ΔE00 among slots 0-7 **improves 23.32 → 24.14**;
-  total drift from authentic is ΔE00 71.8 over 7 moved slots. A
-  nine-agent workflow derived four alternatives that fixed those numbers and each lost the
-  thing worth having — the winner lifted the *unfocused* ground and thereby made the panes you
+  rather than introduce a second look. **Colours and type are not stated here at all** —
+  they come from `terminal-theme.nix` via `programs.ghostty.themes.fleet`, selected with
+  `settings.theme = "fleet"`, which is upstream's own option for exactly this (pinned HM
+  `modules/programs/ghostty.nix:67`, written to `$XDG_CONFIG_HOME/ghostty/themes/<name>` at
+  `:172-179`). **The inline colours had to be DELETED, not merely supplemented**: an explicit
+  `background`/`foreground`/`palette` in `settings` overrides a theme's, so keeping both would
+  make the theme file dead weight. System-following stays off deliberately, but is now
+  *reachable* — `light:NAME,dark:NAME` applies to `theme`. The palette's derivation lives in
+  [`terminal-theme.md`](terminal-theme.md).
+
+  On the SPLITS specifically, a nine-agent workflow derived four alternatives that improved
+  the contrast numbers and each lost the thing worth having — the winner lifted the *unfocused* ground and thereby made the panes you
   are **not** in the loudest thing on screen, which no contrast metric can see.
   **`unfocused-split-fill` is deliberately unset**: it then defaults to `background`, so the
   unfocused ground is unchanged and only the text dims (17.58:1 → 6.80:1). Ground stays
@@ -571,13 +571,18 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
   Nix `package`, which is null here, so it would point at nothing — the cask's app bundle
   injects shell integration itself.
 - **`desktop-aesthetics.nix`** — the macOS desktop look, split in two:
-  - **Terminal.app** is UNGATED on every darwin host — 16pt type on EVERY profile + stock
-    `Pro` as default/startup, driven through Terminal's own AppleScript `settings set` API
-    since Terminal owns `com.apple.Terminal` and clobbers direct plist writes. Guarded on
-    Terminal already running so a rebuild never launches it (`ps`, not `pgrep` — the latter
-    can't see it from activation). This repo used to VENDOR an "Ubuntu" profile + generator
-    here; dropped once stock `Pro` proved fine, the type size being the only part worth
-    declaring.
+  - **Terminal.app** is UNGATED on every darwin host — type on EVERY profile, and the four
+    colours macOS actually exposes (`background`/`normal text`/`bold text`/`cursor`) plus
+    `font name` on `Pro`, which this block also forces as default/startup. Values come from
+    `terminal-theme.nix`; this module owns **delivery**, never the palette. Driven through
+    Terminal's own AppleScript `settings set` API since Terminal owns `com.apple.Terminal`
+    and clobbers direct plist writes. Guarded on Terminal already running so a rebuild never
+    launches it (`ps`, not `pgrep` — the latter can't see it from activation). Every property
+    is compared before it is written, so a settled Mac is a true no-op. This repo used to
+    VENDOR an "Ubuntu" profile + generator here; #319 dropped that, and Apple's scripting
+    interface replaced it — which is also why the ANSI ring is unreachable (it lives only in
+    the NSKeyedArchiver blobs a `.terminal` profile carries). Writes **unversioned user
+    state**: `home-manager rollback` does not revert `com.apple.Terminal`.
   - The **custom wallpaper** stays behind `local.desktopAesthetics.enable` (default true;
     the former `macvm` guest set it false as a visual tell).
 - **`nix-cache.nix`** — the Cachix binary-cache option (see § Binary cache below).
