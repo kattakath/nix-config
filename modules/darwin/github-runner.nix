@@ -125,6 +125,9 @@ let
           runner
           mintInstallationToken
         ];
+        # `--labels` WITHOUT `--no-default-labels` is additive: GitHub's own
+        # {self-hosted, macOS, ARM64} survive alongside cfg.extraLabels. See the
+        # `extraLabels` option below for the vocabulary and the flip order.
         text = ''
           export RUNNER_ROOT
           token=$(${lib.getExe mintInstallationToken})
@@ -134,6 +137,7 @@ let
             --work ${lib.escapeShellArg workDir} \
             --url ${lib.escapeShellArg "https://github.com/${cfg.org}"} \
             --name ${lib.escapeShellArg instanceName} \
+            --labels ${lib.escapeShellArg (lib.concatStringsSep "," cfg.extraLabels)} \
             --replace \
             --ephemeral \
             --pat "$token"
@@ -248,6 +252,60 @@ in
         The numeric installation ID for this App on `org` (shown in the URL when
         viewing the installation in org settings — also not secret on its own;
         it grants nothing without the private key).
+      '';
+    };
+
+    # LABEL VOCABULARY — capability, not identity.
+    #
+    # This lane is BARE METAL: the job runs directly on the Mac, so it sees the
+    # operator's nix, cachix and a postgres+pgvector on PATH. The OTHER macOS
+    # lane in this fleet (`tart.githubRunners.*`, nix-tart-vms) boots a stock
+    # Cirrus guest per job that has NONE of that. Both register into the same
+    # org and the same `Default` runner group.
+    #
+    # GitHub assigns every runner {self-hosted, macOS, ARM64} server-side unless
+    # `--no-default-labels` is passed. This lane keeps them; the Tart lane
+    # suppresses them and re-declares the same three plus `tart`. So a job
+    # asking for `[self-hosted, macOS, ARM64]` matches BOTH — the Tart set is a
+    # strict superset — and can land on a guest with no nix at all. Today the
+    # only thing distinguishing this lane is the ABSENCE of `tart`, and GitHub
+    # has no "must not have label" selector. Hence an explicit POSITIVE
+    # discriminator: `nix`.
+    #
+    # upstream option nix-darwin.services.github-runners.<name>.extraLabels
+    # exists (modules/services/github-runner/options.nix:149, rendered as
+    # `--labels a,b,c` at service.nix:119, with `--no-default-labels` gated on
+    # `noDefaultLabels` at options.nix:160 / service.nix:124) -> mirroring its
+    # name AND its additive semantics here, rather than inventing a different
+    # spelling. The module itself stays unusable for the reason in this file's
+    # header (it hard-asserts `nix.enable`, which Determinate disables).
+    #
+    # FLIP ORDER for anything that NARROWS this (a `runs-on:` edit, or adding
+    # `--no-default-labels`). Runner labels are additive and free; a workflow's
+    # `runs-on` is a hard AND-match, so a label that is not live yet silently
+    # queues every job forever. This fleet has already been bitten by tags that
+    # matched no runner.
+    #   1. WIDEN: add the label here, activate, and confirm it is live on an
+    #      ONLINE runner for that exact scope
+    #      (`gh api /orgs/<org>/actions/runners --jq '.runners[]|{name,status,labels:[.labels[].name]}'`).
+    #   2. FLIP consumers ONE repo at a time, watching the first run actually
+    #      pick up a runner rather than queue.
+    #   3. NARROW last, once no workflow references the old label.
+    # Never reverse 1 and 2.
+    extraLabels = lib.mkOption {
+      type = lib.types.nonEmptyListOf lib.types.str;
+      default = [ "nix" ];
+      description = ''
+        Custom labels added to (never replacing) the {self-hosted, macOS, ARM64}
+        set GitHub assigns server-side — `--no-default-labels` is deliberately
+        NOT passed, so this is purely additive and cannot orphan an existing
+        `runs-on:`. The effective set is therefore
+        {self-hosted, macOS, ARM64} ∪ extraLabels.
+
+        `nix` is the toolchain discriminator that tells this bare-metal lane
+        apart from the Tart-VM lane (`tart.githubRunners.*`), which carries
+        `tart` instead. Matching is case-insensitive, so `ARM64` here satisfies
+        a job asking for `arm64`.
       '';
     };
 
