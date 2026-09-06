@@ -242,8 +242,11 @@ How a host gets composed — change these knobs, not the hosts' internals:
   (`nix-tart-macos` `darwinModules.runner`, configured in `hosts/macos.nix`): **ephemeral
   Tart-VM-per-job** runners for `kattakath` + `silvercreek-ai` + `dontsell-ai` (label
   `dontsell-vm`), sharing Apple's hard 2-concurrent-VM budget via a slot semaphore. Both mint ~1h
-  tokens from GitHub App keys (agenix); the fleet App is `kattakath-fleet-ci`. **This repo's own
-  CI uses none of them** — `nix-ci.yml` is 100% GitHub-hosted.
+  tokens from GitHub App keys (agenix); the fleet App is `kattakath-fleet-ci`. The **GitLab**
+  lane rides the same budget: `tart.gitlabRunner` (`darwinModules.gitlab-runner`) runs
+  gitlab-runner declaratively, rendering its config at agent start from the agenix
+  `gitlab-runner-token.age`. **This repo's own CI uses none of them** — `nix-ci.yml` is 100%
+  GitHub-hosted.
 
 ## Using Subagents
 
