@@ -7,7 +7,7 @@
 | **claude-in-chrome** | `javascript_tool` (`action: "javascript_exec"`) with a `tabId` from `tabs_context_mcp` (or `tabs_create_mcp` + navigate) | its tools **loaded in this session** — they are not always |
 | **Kapture** (`mcp__kapture__*`) | `list_tabs` → `evaluate` on that tab | the `npx kapture-mcp bridge` server **and** DevTools open + connected **on that tab** |
 
-Both are declared in `modules/shared/chromium.nix` (`claudeInChrome`, `kaptureMcp`). If **neither** is reachable, say so and stop — **do not substitute a guessed selector for a measurement.** Ask the operator to paste the probe into the browser console themselves and hand back the JSON; that is a valid measurement, just not one you took.
+Both are ordinary browser-automation MCP servers; declare whichever your setup provides. If **neither** is reachable, say so and stop — **do not substitute a guessed selector for a measurement.** Ask the operator to paste the probe into the browser console themselves and hand back the JSON; that is a valid measurement, just not one you took.
 
 ## Honest caveats — read before blaming the page
 
@@ -168,4 +168,4 @@ Sequence: `assertEffect()` → **`ran: true`** → re-run **Probe 1** → **Prob
 // selector can force.
 ```
 
-Plus one line per **shipped selector** with the date it was measured. There is **no** evidence directory, no evidence schema, and nothing greps for one — the repo's comments-explain-why idiom already owns this, and a second home for the rationale is just drift.
+Plus one line per **shipped selector** with the date it was measured. There is **no** evidence directory, no evidence schema, and nothing greps for one — a comment that explains WHY already owns this, and a second home for the rationale is just drift.

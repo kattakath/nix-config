@@ -843,8 +843,12 @@ nothing. Measured 2026-08-31: nix-personal's `civitai-declutter` had shipped wit
 `@license`** and the check never saw it. A private script is gated only by running the same
 assertions by hand.
 
-**Authoring path — skill [`userscript-author`](../.claude/skills/userscript-author/SKILL.md),
-driven by `/userscript`; never freehand.** It **measures the live page** with claude-in-chrome
+**Authoring path — two layers since 2026-09-06, driven by `/userscript`; never freehand.**
+The **method** is the portable [`plugins/userscript-author`](../plugins/userscript-author/)
+(probes, patterns, Greasy Fork rulebook, the metadata linter — it knows nothing about Nix); the
+**delivery** is the project skill
+[`userscript-author`](../.claude/skills/userscript-author/SKILL.md) (the `home.nix` line, the
+gate, `activate`, the install click). It **measures the live page** with claude-in-chrome
 before it writes a selector, then routes on the diff between the state the site already gives you
 and the state you want:
 
@@ -1071,10 +1075,21 @@ changes — activation keys the marketplace re-pin (and a reinstall of the copie
 `~/.claude/plugins/cache`) off exactly that, so an in-repo plugin can never serve a previous
 generation's content.
 
-Today, three:
+Today, four:
 
 - **`plugins/llmstxt`** — `llms.txt` authoring skill + `/llmstxt` command + a stdlib-only spec
   linter; see `plugins/llmstxt/README.md`.
+- **`plugins/userscript-author`** — the **portable** half of userscript work: the
+  measure-before-you-select method, four browser probes, the pre-vetted code patterns, the
+  Greasy Fork rulebook, a `/userscript` command, and `scripts/userscript-meta-lint.sh`. It is a
+  plugin on the SECOND half of the rule below — publishable outside this fleet — rather than
+  because it needs a plugin-only capability; the `/userscript` command satisfies the first half
+  too. **`checks.<system>.userscripts` runs that same linter**, so CI, the plugin's own users,
+  and a by-hand run over nix-personal's private scripts share ONE rulebook and cannot drift.
+  The Nix-specific half (declaring a script in `home.nix`, `activate`, the install click, which
+  of the three copies is writable) stays in `.claude/skills/userscript-author/`, which now
+  delegates the method rather than restating it. Split 2026-09-06; before that, everything was
+  fused to this repo and none of it was usable by anyone else.
 - **`plugins/seargraph`** — the `seargraph-langgraph` **subagent** (LangGraph pipeline
   design/implementation for the SEARGraph project: fidelity metrics, constrained optimization,
   iterative refinement, character embeddings). It is a plugin rather than a vendored skill
