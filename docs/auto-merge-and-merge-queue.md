@@ -41,10 +41,16 @@ every auto-merged PR on `main` silently, killing `flakehub-publish.yml` and
 
 Requires per repo: the App **installed on that repository**, plus
 `vars.CI_BOT_CLIENT_ID` and `secrets.CI_BOT_APP_PRIVATE_KEY`. Both are supplied
-**org-wide** on `kattakath` rather than per repo — the `kattakath-ci` App is
+**org-wide** on `kattakath` rather than per repo — the `ismailkattakath-ci` App
+(appId 4849830, which replaced the retired org-owned `kattakath-ci` on 2026-09-06) is
 installed on the org with `repository_selection: all`, and the client id is an org
 variable (visibility: all). A new flake in this org therefore inherits everything
 except its own `auto-merge.yml`.
+
+`secrets.CI_BOT_APP_PRIVATE_KEY` is the App's **second** private key — deliberately a
+different key from the one in agenix (`secrets/gh-app-*.age`), so either side can be
+revoked without touching the other. Both authenticate as the same App, so this buys
+independent rotation, not reduced permissions. Details: `secrets/secrets.nix`.
 
 Note that **repository secrets do not survive a repo transfer** (variables and
 branch protection do). Anything moved into the org needs its secrets re-set.
