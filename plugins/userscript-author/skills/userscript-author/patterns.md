@@ -323,31 +323,32 @@ memory growth on a long-lived tab.
 
 | Anti-pattern | Why it is rejected |
 |---|---|
-| **`@require <cdn url>`** | Fetched **at install time** into extension storage ⇒ **Nix never pins it and the gate never sees it**. **No SRI/integrity field exists.** And VM: *"Local files are not allowed to be required due to security concern."* Reuse must enter at **build** time or as **vendored** source. |
-| **`@resource <cdn url>`** | Same channel, same hole — install-time fetch, unpinned, invisible to the gate. |
+| **`@require <cdn url>`** | Fetched **at install time** into extension storage ⇒ **nothing pins it and no lint sees it**. **No SRI/integrity field exists.** And VM: *"Local files are not allowed to be required due to security concern."* Reuse must enter at **build** time or as **vendored** source. |
+| **`@resource <cdn url>`** | Same channel, same hole — install-time fetch, unpinned, invisible to any lint. |
 | **`@violentmonkey/dom`'s `VM.observe`** | A ~6-line `MutationObserver` wrapper — § 2 is the wrapper. Not worth a runtime CDN dep. |
 | **`@violentmonkey/url`'s `onNavigate`** | Superseded by the Navigation API (§ 1). Use the platform. |
-| **Minified / bundled output in `userscripts/`** | Unreviewable in a public repo, unreadable in a diff, and it defeats the point of vendoring. Ship readable source. |
-| **`@downloadURL` / `@updateURL` / `@installURL`** | **Banned by the gate.** Greasy Fork strips them on upload, so they are inert once shared; pointed at this repo they let a push to `main` mutate an installed script with no activation. VM falls back to `lastInstallURL` — the `file://` path Nix wrote. |
-| **Any secret, token, or cookie value** | `source` is copied into the **world-readable Nix store** — private flake or not. |
+| **Minified / bundled output** | Unreviewable in review, unreadable in a diff, and **Greasy Fork rejects it outright** (its Code rule: scripts "must not be obfuscated or minified"). Ship readable source. |
+| **`@downloadURL` / `@updateURL` / `@installURL`** | **Banned by `userscript-meta-lint.sh`.** Greasy Fork strips them on upload, so they are inert once shared; pointed at your own repo they let a push to the default branch mutate an installed script with no review. VM falls back to `lastInstallURL` — wherever the file was installed from. |
+| **Any secret, token, or cookie value** | A userscript is plain text that ships to the browser, and most delivery mechanisms copy it somewhere world-readable (the Nix store, a public repo, Greasy Fork itself). A private repo is not a secret store. |
 | **Hardcoded site class names when a condition exists** | § 5. JSCompiler churn breaks it on the site's next deploy. |
 | **`setInterval` polling for a URL or an element** | § 1 and § 2 are the event-driven answers. |
 | **`document` + `subtree: true` on a virtualised list** | Thousands of callbacks per scroll. |
 | **`!important` escalation** | § 4 — `adoptedStyleSheets` gives you **order**, which is what you actually wanted. |
-| **`@version 1.2a.3`** | Violentmonkey's own grammar allows an alpha suffix, **this repo's gate does not** (`^[0-9]+(\.[0-9]+)*$`). Copying VM's example fails CI. |
+| **`@version 1.2a.3`** | Violentmonkey's own grammar allows an alpha suffix; **`userscript-meta-lint.sh` does not** (`^[0-9]+(\.[0-9]+)*$`), because Greasy Fork rejects a `@version` it cannot order. Copying VM's example fails the lint. |
 
-**Prevents:** an unpinned supply chain the gate cannot see, an unreviewable diff, a script that a
-`git push` can mutate under you, and a secret in the world-readable store.
+**Prevents:** an unpinned supply chain no lint can see, an unreviewable diff, a script that a
+`git push` can mutate under you, and a secret shipped in plain text.
 
 ---
 
-## 10 · Gate contract — mechanised vs author discipline
+## 10 · Lint contract — mechanised vs author discipline
 
-**`checks.<system>.userscripts` mechanises:** `node --check`; the `==UserScript==` block **only**
-(so a `@key` in prose or in a regex neither satisfies nor trips a rule); **requires** `@name`
-`@namespace` `@version` `@description` `@license` `@match`; **bans** `@downloadURL` `@updateURL`
-`@installURL`; `@version` must be **dotted-numeric**. Runs on **both** `aarch64-darwin` and
-`aarch64-linux`.
+**`scripts/userscript-meta-lint.sh` (bundled with this plugin) mechanises:** `node --check`; the
+`==UserScript==` block **only** (so a `@key` in prose or in a regex neither satisfies nor trips a
+rule); **requires** `@name` `@namespace` `@version` `@description` `@license` `@match`
+`@homepageURL` `@supportURL`; **bans** `@downloadURL` `@updateURL` `@installURL`; `@version` must
+be **dotted-numeric**; and any **vendored** third-party block must carry a source attribution
+comment (Greasy Fork's Code rule). Run it in your own CI — see the plugin README.
 
 **Not mechanised — carry it yourself:**
 

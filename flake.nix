@@ -1870,90 +1870,48 @@
                 touch "$out"
               '';
 
-          # Userscript syntax gate. A .user.js is never parsed at build time —
-          # Nix only copies it into the store — so a syntax error ships silently
-          # and surfaces as Violentmonkey's useless "Syntax error?" toast with no
-          # line number. This caught a real one: backticks inside a CSS comment
-          # nested in a GM_addStyle(`…`) template literal terminate the string.
-          # `node --check` is parse-only (no execution), so the GM_* globals a
-          # userscript relies on are irrelevant — exactly the right depth of
-          # check. Scope is THIS repo's `userscripts/` only — the glob below is
-          # `${self}/userscripts/*.user.js`, and nix-personal's private scripts
-          # live in its own tree, which this flake never reads. Owning the
-          # `userscripts` option does NOT extend the gate to its consumers.
-          # Falsified 2026-08-31: nix-personal's civitai-declutter had shipped
-          # since 2026-08-30 with no @license at all, and this check never saw it.
+          # Userscript syntax + metadata gate. A .user.js is never parsed at build
+          # time — Nix only copies it into the store — so a syntax error ships
+          # silently and surfaces as Violentmonkey's useless "Syntax error?" toast
+          # with no line number. This caught a real one: backticks inside a CSS
+          # comment nested in a GM_addStyle(`…`) template literal terminate the
+          # string. The metadata half gates against the ONE rulebook Greasy Fork
+          # and Sleazy Fork share, because sharing a script is the point of writing
+          # one and every such rejection is silent at authoring time: a missing key
+          # is only noticed at upload, and an @updateURL only bites months later
+          # when `main` moves under an installed copy.
           #
-          # The metadata block is then gated against the ONE rulebook Greasy Fork
-          # and Sleazy Fork share — fetched and diffed 2026-08-31, byte-identical
-          # bar the site name and a single adult-content line, so "publishable"
-          # needs no per-site variant. Sharing a script is the point of writing
-          # one, and every rejection below is a silent-at-authoring-time failure:
-          # a missing key is only noticed at upload, and an @updateURL only bites
-          # months later when `main` moves under an installed copy.
+          # SCOPE, and the trap: this reads THIS repo's `userscripts/` only.
+          # nix-personal's private scripts live in its own tree, which this flake
+          # never reads — owning the `userscripts` OPTION does NOT extend the gate
+          # to its consumers, and the build still goes green. Falsified 2026-08-31:
+          # nix-personal's civitai-declutter had shipped since 2026-08-30 with no
+          # @license at all and this check never saw it. The linter takes a path,
+          # so covering a private tree is one by-hand command, not a second gate.
           #
           # Deliberately NOT gated: @require. Greasy Fork says libraries "should
           # be @require-d", which pulls against this repo (no SRI, fetched at
           # install, unpinnable by Nix) — but its rule grants both a
           # "valid technical reason" exemption and an inline-with-attribution
-          # path, so the tension is real and resolved, not a lint.
+          # path, so the tension is real and resolved, not a lint. The lint does
+          # enforce the attribution half.
+          # The rules themselves are NOT inline here. They live in the portable
+          # `userscript-author` plugin's `scripts/userscript-meta-lint.sh`, and this
+          # check just runs it against this repo's tree. One rulebook, so CI, the
+          # plugin's own users and a by-hand run on nix-personal's private scripts
+          # cannot drift apart — the alternative was a second copy of the same
+          # grep list that only CI ever exercised.
           userscripts =
-            (pkgsFor system).runCommand "userscripts" { nativeBuildInputs = [ (pkgsFor system).nodejs ]; }
+            (pkgsFor system).runCommand "userscripts"
+              {
+                nativeBuildInputs = with (pkgsFor system); [
+                  nodejs
+                  bash
+                ];
+              }
               ''
-                shopt -s nullglob
-                found=0
-                rc=0
-                # Every problem in every script surfaces in one build — a gate that
-                # exits on the first ✘ turns a five-key omission into five rebuilds.
-                fail() {
-                  echo "  ✘ $name: $1" >&2
-                  rc=1
-                }
-                metaHas() { printf '%s\n' "$meta" | grep -qE "^// @$1([[:space:]]|$)"; }
-
-                for f in ${self}/userscripts/*.user.js; do
-                  found=1
-                  name=$(basename "$f")
-                  echo "checking $name"
-                  node --check "$f"
-
-                  # Only the metadata block, so a @key mentioned in prose or in a
-                  # regex further down the file can neither satisfy nor trip a rule.
-                  meta=$(sed -n '/^\/\/ ==UserScript==/,/^\/\/ ==\/UserScript==/p' "$f")
-                  if [ -z "$meta" ]; then
-                    fail "no ==UserScript== metadata block"
-                    continue
-                  fi
-
-                  # name/namespace/version are Greasy Fork's required set;
-                  # description is its Functionality rule ("users must know what a
-                  # script will do before installing it"); match keeps a script from
-                  # claiming pages it does not serve; license is how both Greasy Fork
-                  # and OpenUserJS read copyright — omit it and OpenUserJS silently
-                  # implies MIT on the author's behalf.
-                  for k in name namespace version description license match; do
-                    metaHas "$k" || fail "missing @$k"
-                  done
-
-                  # Updating is the script manager's job. Greasy Fork STRIPS both keys
-                  # on upload, forbids "alternate download URLs", and notes outright
-                  # that "most user script managers will handle automatic updates, so
-                  # doing it in the script is unnecessary". Pointed at this repo they
-                  # also let a push mutate an installed script with no activation.
-                  for k in downloadURL updateURL installURL; do
-                    ! metaHas "$k" || fail "@$k is banned — stripped on upload, and it lets a push to main mutate an installed copy; Violentmonkey falls back to lastInstallURL (the file:// path Nix wrote)"
-                  done
-
-                  # Greasy Fork rejects a @version it cannot order, and warns when one
-                  # fails to increment. Stricter than Mozilla's grammar on purpose: a
-                  # plain dotted-numeric is unambiguous to every manager and to humans.
-                  ver=$(printf '%s\n' "$meta" | sed -n 's|^// @version[[:space:]]*\([^[:space:]]*\).*|\1|p' | head -1)
-                  printf '%s' "$ver" | grep -qE '^[0-9]+(\.[0-9]+)*$' ||
-                    fail "@version '$ver' is not dotted-numeric (e.g. 2.0.1)"
-                done
-                # A glob that matched nothing would otherwise pass vacuously.
-                [ "$found" = 1 ] || { echo "no userscripts found — glob is stale"; exit 1; }
-                [ "$rc" = 0 ] || { echo "userscript metadata gate failed — see ✘ above"; exit 1; }
+                bash ${self}/plugins/userscript-author/scripts/userscript-meta-lint.sh \
+                  ${self}/userscripts
                 touch "$out"
               '';
         }

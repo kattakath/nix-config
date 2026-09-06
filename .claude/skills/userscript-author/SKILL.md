@@ -1,141 +1,63 @@
 ---
 name: userscript-author
 description: >
-  Author, declare, and gate a Violentmonkey userscript in this repo: the file
+  Declare and gate a Violentmonkey userscript IN THIS REPO: the file
   `userscripts/<kebab>.user.js` plus its one-line entry in
   `programs.ungoogledChromium.userScripts.scripts`
   (`modules/shared/home.nix`). Use when asked to "make <site> do X", "write a
-  userscript for <site>", "fix my <site> script", "this site's X annoys me",
-  or "give me <site>'s compact layout at full width". Delivery belongs to
-  `modules/shared/chromium.nix` and the metadata contract to
-  `checks.<system>.userscripts` — this skill owns only the judgment neither
-  can carry, under one invariant: MEASURE. Never ship a selector, class, or
-  breakpoint that was not dumped from the live page.
+  userscript for <site>", "fix my <site> script", or "this site's X annoys me".
+  The authoring METHOD lives in the portable `userscript-author` plugin
+  (`plugins/userscript-author/`); this skill owns only what is specific to this
+  fleet — the Nix declaration, the gate, and how a script reaches the browser here.
 ---
 
-# Userscript author — measure → replay → declare → gate → install
+# Userscript author — the FLEET layer
 
-**Floor (already automated):** Nix materialises every declared script to
-`$XDG_DATA_HOME/userscripts/<key>.user.js` plus a generated `index.html`
-(`modules/shared/chromium.nix`); `checks.<system>.userscripts` runs `node --check` and enforces
-the metadata block on every PR, on both systems.
+**Method is not here.** Measuring, diffing, replaying, the code patterns, the probes and the
+Greasy Fork rulebook all live in the **`userscript-author` plugin**
+([`plugins/userscript-author/`](../../../plugins/userscript-author/)), which is deliberately
+portable — it stops at a lint-clean `.user.js` and knows nothing about Nix. Invoke it as the
+`userscript-author:userscript-author` skill, or read
+[its SKILL.md](../../../plugins/userscript-author/skills/userscript-author/SKILL.md).
 
-**This skill:** the authoring judgment — is the state you want **already rendered** by the site,
-which selectors are **real**, and what gets **asked** instead of guessed.
+**This skill owns the delivery half the plugin cannot:** declaring the script in Nix, this
+repo's gate, and the install reality on this Mac.
 
 ```
-wish → shelf → measure A vs B → diff → replay-or-select → write → git add -A → gate → PR → activate → one click
+[plugin] wish → shelf → measure → diff → write
+[here]   → declare in home.nix → gate → PR → activate → one click
 ```
 
-## Standing preferences (thin by design — append, never invent)
+## Standing preference (thin by design — append, never invent)
 
 | # | Statement | Confidence | Evidence |
 |---|---|---|---|
 | **UI-1** | Give me **the site's own compact/narrow chrome at full width** — navigation shrinks, content takes the reclaimed space. | **VERIFIED** | the entire purpose of `userscripts/google-photos-icon-nav.user.js` |
-| **UI-2** | **Degrade to stock, never mangle.** A script that cannot do its job becomes a no-op. | **VERIFIED** | that script's own comment: "the page renders stock, nothing is mangled" |
-| **M-1** | **Never reimplement a state the site already renders** — find its condition and replay it. | **VERIFIED** (method) | the v1.x → v2.0.0 rewrite of that same script |
 
 - **Correction, load-bearing:** the 80px rail, the hover peek-back, the hidden storage footer and
   the 1px `Collections` divider are **Google's own design at its own breakpoint**, inherited as
   **one package** under UI-1 — **not** four separately stated preferences.
 - Any preference **not in that table** is **asked via AskUserQuestion** (click-to-select,
-  recommended first), never inferred — colour, typography, density, motion and "which furniture
-  goes" are unstated. A row is **appended only after a shipped script proves it**.
+  recommended first), never inferred. A row is **appended only after a shipped script proves it**.
+- The plugin's own method rules (degrade-to-stock; never reimplement a state the site already
+  renders) are general, and live there rather than here.
 
-## Hard rules
+## Hard rules (fleet-specific — the plugin carries the rest)
 
 1. **Seed from the gated script, delete its body** —
    `cp userscripts/google-photos-icon-nav.user.js userscripts/<kebab>.user.js`. That file is
    checked by CI on every PR, so its header is correct **by construction**; never hand-type a
-   metadata block. Keep the block, retarget `@name` / `@description` / `@match`, **reset
-   `@version` to `1.0.0`**, and **DELETE THE BODY** — it is a `document-start` CSS-replay
-   script, so its `@run-at` and style-injection shape are **wrong** for a DOM script
-   (`patterns.md` § `@run-at`).
-2. **Never `@require` / `@resource`.** Install-time CDN fetch, **no SRI/integrity field**, Nix
-   never pins it, the gate deliberately does not look, and Violentmonkey forbids local files —
-   reuse enters as **vendored source** in `userscripts/` or not at all (`patterns.md` § What NOT
-   to do).
-3. **Every selector shipped is listed in the file's own WHY block with the date it was
-   measured** — `userscripts/google-photos-icon-nav.user.js` opens with its measured finding.
-   A **template-literal selector containing `${`** is banned: untraceable to a measurement.
-4. **`@grant none` is the target.** Every grant must come from the verified value set in
-   `patterns.md` § `@grant` — the gate does **not** check grant values, so **a typo grants
-   nothing, silently**.
-5. **`@match` + `@noframes` by default** (`patterns.md` § `@match` vs `@include`).
-   `@downloadURL` / `@updateURL` / `@installURL` are **gate-enforced bans** — the reasoning
-   lives in `flake.nix` § `checks.<system>.userscripts`; don't re-derive it.
-6. **Never a secret** — `source` is copied into the **world-readable Nix store**, private flake
+   metadata block. Keep the block, retarget `@name` / `@description` / `@match` / `@homepageURL`
+   / `@supportURL`, **reset `@version` to `1.0.0`**, and **DELETE THE BODY** — it is a
+   `document-start` CSS-replay script, so its `@run-at` and style-injection shape are **wrong**
+   for a DOM script (plugin `patterns.md` § `@run-at`).
+2. **Never a secret** — `source` is copied into the **world-readable Nix store**, private flake
    or not (`modules/shared/chromium.nix`).
-7. Follow [git-purity](../../rules/git-purity.md) + [pr-title](../../rules/pr-title.md); the index
+3. Follow [git-purity](../../rules/git-purity.md) + [pr-title](../../rules/pr-title.md); the index
    is root [`CLAUDE.md`](../../../CLAUDE.md), long form
    [`docs/repo-map.md`](../../../docs/repo-map.md) § `userscripts/`.
 
-## Checklist (run in order)
-
-### 0. Check the shelf first — reuse over rebuild
-
-Authoring is the **fallback**, not the default. Both script hosts publish a free, no-auth
-**by-site index**, so "has someone already solved this for this domain" is one fetch, not a search:
-
-```
-https://greasyfork.org/en/scripts/by-site/<domain>     # verified reachable 2026-08-31
-https://sleazyfork.org/en/scripts/by-site/<domain>     # same codebase; where adult-adjacent sites land
-```
-
-- [ ] Fetch the **Greasy Fork** index for the bare domain (`civitai.com`, not `www.civitai.com`).
-- [ ] If the site is adult-adjacent, fetch the **Sleazy Fork** index too — the two are **one
-      codebase** sharing one rule set, and a site's scripts land on **only one** of them, so
-      checking Greasy Fork alone can read as "nothing exists" when a script does.
-- [ ] A hit is **evidence, not a dependency.** You still cannot `@require` it (hard rule 2) and
-      must not paste it unread. Read it for its **measured selectors and its condition** — that is
-      the reusable part — then vendor or re-derive under this repo's header.
-- [ ] **Do not reach for a paid scraper.** The Apify store's `greasy-fork-scraper` (2 users,
-      pay-per-event) buys nothing the by-site URL above gives free. Checked 2026-08-31.
-- [ ] Record the outcome — **shelf hit (adapted) / shelf hit (rejected, why) / shelf empty** — in
-      the report. "Nobody looked" and "nothing exists" must not read the same.
-
-### A. Frame the wish
-
-- [ ] Which **exact URL** (it becomes `@match`), and which **state is "good"**?
-- [ ] Is that good state reachable **without any code** — narrow the window, alternate route,
-      a site toggle? If yes, UI-1 + M-1 apply and step D is cheap.
-- [ ] Anything the table does not cover → **AskUserQuestion**, recommended option first.
-
-### B. Measure state A (what the site gives you)
-
-- [ ] Run **`dumpSubtree(rootSelector)`** from `probes.md`; keep the JSON.
-- [ ] Run **`mediaRules()`**; note the `crossOrigin` count — a high one means the replay
-      route may be unavailable.
-
-### C. Measure state B (the good state)
-
-- [ ] Put the page in state B **by hand** (resize / route / toggle), then re-run
-      **`dumpSubtree`** on the same root, recording `innerWidth`.
-
-### D. Diff → verdict
-
-- [ ] Run **`diff(a, b)`** from `probes.md`. An **empty diff is the finding**, not a failure.
-
-| Verdict | What it means | What you write |
-|---|---|---|
-| **DOM-DIFFERS** | the site itself sets an attribute/class/`data-*` | Set **that** attribute — cheapest and most durable |
-| **DOM-IDENTICAL** | the switch is a **pure media query**; **no selector can force a media query** | Lift its rules and re-serve them unconditionally |
-| **STATE-B-UNREACHABLE** | state B does not exist — you are **constructing** UI | Every invented selector needs its own measured line in the WHY block |
-
-- [ ] Precedent: **v1.x reimplemented the rail and lost** because `overflow-x:hidden` **clips
-      rather than hides** — three text blocks still leaked; **v2.0.0** lifts Google's own
-      `@media` rules and contains **NOT ONE Google class name**.
-- [ ] On DOM-IDENTICAL, lift **by condition in a band, never a hardcoded pixel**, accumulating
-      **every block** at each width before picking one (`patterns.md` § Replay).
-
-### E. Write the body
-
-- [ ] Work **down the reuse ladder** in `patterns.md`, stopping at the first hit: platform web
-      API → metadata key → granted `GM_*` → vendored source. Take the navigation, waiting,
-      CSS-injection and idempotence shapes from there; do not improvise them.
-- [ ] Open the WHY block with the **measured finding, one sentence**, then the dated selectors.
-
-### F. Declare it
+## Declare it
 
 - [ ] Add **exactly one line** — `<kebab> = ../../userscripts/<kebab>.user.js;` — inside the
       existing `scripts = { … };` attrset of `modules/shared/home.nix`. Nothing else changes.
@@ -145,7 +67,7 @@ https://sleazyfork.org/en/scripts/by-site/<domain>     # same codebase; where ad
       module system treats a repeated key as a **conflict, not an override** — **ASK the
       operator** before claiming a plausible name.
 
-### G. Gate
+## Gate
 
 ```bash
 git add -A
@@ -156,36 +78,20 @@ git status --porcelain '*.nix'    # clean of ??
 nix flake check
 ```
 
-- [ ] If `nix` is unavailable: `node --check` the script, `nix-instantiate --parse` the changed
-      `.nix`, and state the rest is **CI-deferred**.
+`checks.<system>.userscripts` **runs the plugin's linter** —
+`plugins/userscript-author/scripts/userscript-meta-lint.sh` — so the rulebook lives in exactly
+one place and CI, the plugin and any other consumer cannot drift apart. Its contract is in the
+plugin README; what it deliberately does **not** check is `patterns.md` § 10.
+
+- [ ] If `nix` is unavailable: run the linter directly
+      (`plugins/userscript-author/scripts/userscript-meta-lint.sh userscripts/`),
+      `nix-instantiate --parse` the changed `.nix`, and state the rest is **CI-deferred**.
 - [ ] **A private (nix-personal) script is NOT covered by that check.** It globs
       `${self}/userscripts/*.user.js` — this repo's tree only. Owning the *option* does not gate
       the consumer, and **the build still goes green**, which is the trap. Measured 2026-08-31:
       nix-personal's `civitai-declutter` had shipped with **no `@license`** and the check never
-      saw it. For a private script, run `node --check` **and** mirror the metadata assertions by
-      hand — required keys are `@name @namespace @version @description @license @match`
-      (`@match` specifically, **not** `@include`), `@version` must be plain dotted-numeric, and
-      `@downloadURL`/`@updateURL`/`@installURL` are banned.
-
-### H. Prove it after install
-
-- [ ] Re-run **`assertEffect()`** + **`dumpSubtree`** from `probes.md` and **diff against the
-      recorded state B**. Eyeballing is not a check.
-- [ ] A missing marker usually means the script **never ran** — check the toggles in § Install
-      reality before touching code.
-
-### I. Escalation trigger (do not grow a bundler)
-
-- [ ] `ls userscripts/*.user.js | wc -l` at **≥ 4**, **or** the first TS/JSX need, **or** `GM_*`
-      plus a settings UI ⇒ **STOP.** Ship nothing; propose adopting **`vite-plugin-monkey`** as
-      its **own PR**.
-- [ ] Never hand-roll a build step, never commit minified or bundled output.
-
-## Editing an existing script
-
-- [ ] **Bump `@version` first** — dotted-numeric; a same-version re-install is a **silent no-op**.
-- [ ] **Re-measure before re-writing** (steps B–D) — the page changed, your memory of it did not.
-- [ ] Re-run the gate (step G) and re-prove it (step H).
+      saw it. For a private script, point the linter at nix-personal's `userscripts/` by hand —
+      it takes a path, so this is one command, not a reimplementation.
 
 ## Install reality (no Nix↔Violentmonkey bridge)
 
@@ -195,24 +101,12 @@ nix flake check
 - One-time per profile, in `chrome://extensions`: **Allow User Scripts** + **Allow access to
   file URLs** (Chrome 138+ refuses to let policy set the first).
 - A **click-through in `index.html` is required for a new script and after every edit** — Claude
-  cannot install a script, flip a toggle, or drive Violentmonkey's dialog. Fallback if the
-  `file://` install is refused: paste the file into Violentmonkey's editor.
-- That per-edit click-through is the **untracked** default. § Live-edit loop removes it for the
-  duration of an authoring session.
+  cannot install a script, flip a toggle, or drive Violentmonkey's dialog.
 
-## Live-edit loop (Violentmonkey tracks the repo file — DEFAULT)
+## Live-edit loop — which file to track HERE
 
-**`activate` and the install click are SHIPPING steps. Never put them in the edit loop.**
-That is the single biggest cost in authoring a script here: the slow path is
-edit → PR → merge → `activate` → click → reload, minutes per iteration, against
-edit → save, one second.
-
-For an **iterative** session — many saves against one page — Violentmonkey's *Track external
-edits* turns each `Cmd-S` into an auto-reinstall plus a tab reload, so step H's re-measure is
-one save away instead of one click-through away.
-Upstream: <https://violentmonkey.github.io/posts/how-to-edit-scripts-with-your-favorite-editor/>
-
-**Track the repo file, never the materialised one** (measured 2026-08-31):
+The loop itself, its gotchas and the `Install`-vs-`+ Track` trap are in the plugin. What is
+fleet-specific is **which of the three copies is the writable one** (measured 2026-08-31):
 
 | Path | Mode | Track it? |
 |---|---|---|
@@ -220,59 +114,15 @@ Upstream: <https://violentmonkey.github.io/posts/how-to-edit-scripts-with-your-f
 | `$XDG_DATA_HOME/userscripts/<kebab>.user.js` | symlink → `/nix/store/…` | **no** — read-only build artifact |
 | `$XDG_DATA_HOME/userscripts/index.html` | symlink → `/nix/store/…` | **no** — that is the *install* path, and it installs the read-only copy |
 
-**Setup** — drag-and-drop, which needs **no** "Allow access to file URLs":
-
-1. Open Violentmonkey's **Dashboard**.
-2. **Drag** `userscripts/<kebab>.user.js` onto that page.
-3. Tick **Reload tab**, then click the **`+ Track external edits`** BUTTON (or `⌘Enter`).
-
-**Click the button, NOT `Install`** — measured 2026-09-04, and it cost four failed test
-cycles. The `+ Track…` control is an install VARIANT, not a checkbox that modifies
-`Install`: ticking it and then pressing `Install` installs **without** tracking, silently.
-There is no error and no indicator; saves simply never land, which reads exactly like a
-broken script.
-
-4. **Leave the installer tab open** for the whole session. Upstream: "don't close the tab
-   of this file while tracking as it's **used to read the contents of the file**".
-
-`FileSystemObserver` (instant, no polling) requires **Chrome/Chromium 133+**; this host measured
-**152.0.7977.64** on 2026-08-31. On an older build the same drag still works, just polled.
-
-**Gotchas, in the order they bite:**
-
-1. **ANY git write to the tracked file KILLS tracking — silently.** Not just a branch switch:
-   `checkout`, `pull`, `stash`, `rebase`, a revert. Git does not rewrite a file in place, it
-   **unlinks and replaces** it, and Violentmonkey's handle stays bound to the dead inode.
-   Measured 2026-09-04, one variable: an editor save left `inode=96281040` untouched and
-   **landed**; the next write after a `git checkout` had swapped it to `96282588` and **did
-   not**. Nothing reports this — saves just stop. Branch churn here is routine, so on any day
-   with git traffic use the localhost route below instead, which re-fetches by URL and does
-   not care about inodes. Re-drag to resume tracking after a git write.
-2. **The gate cannot see an unstaged edit.** `checks.<system>.userscripts` globs
-   `${self}/userscripts/*.user.js` — the **git tree**. Finish with step G (`git add -A` first),
-   not with a green browser.
-3. **The materialised copy is stale for the whole session.** Expected. Reconcile at the end:
-   step G, then `activate`.
-4. **Stop tracking when done**, or the next `activate` / branch switch fights it.
-5. **`@version` still gets bumped for the committed state** (§ Editing an existing script),
-   but a *tracked* save does **NOT** need one — resolved 2026-09-04 against upstream ("each
-   time you save the file in your external editor the changes are automatically incorporated"),
-   and confirmed in-page. So a save that does nothing is **not** a version problem: check
-   gotcha 1 and the `Install`-vs-`+ Track` trap above before touching the code.
-
-**Prefer the localhost route on any day with git traffic** — it polls a URL rather than
-observing a file handle, so gotcha 1 cannot bite:
-
-```bash
-cd userscripts && python3 -m http.server 8080   # then open http://localhost:8080/<kebab>.user.js
-```
+Also fleet-specific: **the gate cannot see an unstaged edit** — it globs the **git tree**, so
+finish with the gate above (`git add -A` first), not with a green browser. And the materialised
+copy stays stale for the whole session; reconcile at the end with the gate, then `activate`.
 
 ## Live-edit loop (no operator at the keyboard — fallback)
 
-Both loops above need a human to click an installer once. When there is none — an
-agent-driven session — inject the saved body straight into a matching Kapture tab
-instead. There is no plugin for this; it is one POST, so a wrapper earned nothing
-(`plugins/userscript-preview` did exactly this and was retired 2026-09-04):
+When there is no human to click an installer — an agent-driven session — inject the saved body
+straight into a matching Kapture tab. There is no plugin for this; it is one POST, so a wrapper
+earned nothing (`plugins/userscript-preview` did exactly this and was retired 2026-09-04):
 
 ```bash
 python3 - <<'EOF'
@@ -292,43 +142,21 @@ EOF
   — do not add one.
 - Injecting over an OLDER installed build that predates its teardown makes the two
   copies fight for last-in-head until the tab pegs, and the POST times out (measured
-  2026-09-04). Install the new version first, or use a loop above.
+  2026-09-04). Install the new version first, or use the tracked loop.
 - Injection dies on reload. Ship with `activate` + click as usual.
 
-## Publish to Greasy Fork (sync from the raw URL)
+## Publish
 
-Sharing a script is the point of writing one, and the metadata gate already encodes
-Greasy Fork's rulebook (§ G). Publishing is the **operator's** move — Claude cannot
-drive the account.
+The rulebook is the plugin's
+[`greasyfork.md`](../../../plugins/userscript-author/skills/userscript-author/greasyfork.md).
+The only fleet-specific part is the sync source for a script that lives here:
 
-**First upload:** paste `userscripts/<kebab>.user.js` into Greasy Fork's new-script form.
-Check the listing name does not collide (search first — reuse over rebuild applies to
-publishing too: if an equivalent script exists, install it instead of shipping a rival).
+```
+https://raw.githubusercontent.com/kattakath/nix-config/main/userscripts/<kebab>.user.js
+```
 
-**Then set up sync, once**, so a `git push` is the release:
-
-| Field | Value |
-|---|---|
-| Sync source | the **raw** URL — `https://raw.githubusercontent.com/kattakath/nix-config/main/userscripts/<kebab>.user.js` |
-| Not | the GitHub *file page* URL — Greasy Fork fetches it verbatim |
-| Filename | must end `.user.js` — a plain `.js` is rejected as "not a user script" |
-
-**This does NOT violate the `@downloadURL`/`@updateURL` ban** (§ G, and
-`modules/shared/chromium.nix`). Those are keys *inside the file*, which Greasy Fork
-strips on upload and which would let a push mutate an installed script with no review.
-Sync is a **site-side setting** on Greasy Fork's own admin page: the file stays clean,
-and users still update *from Greasy Fork*, which is exactly the norm the ban protects.
-
-**`@version` is the release trigger.** Sync pulls, but Greasy Fork ignores a re-upload
-that does not increment — same rule as a local re-install (§ Editing an existing script).
-
-## Anti-patterns
-
-1. `@require` / `@resource` from a CDN — `patterns.md` § What NOT to do.
-2. `setInterval` polling for a URL or an element — § SPA navigation, § Waiting for an element.
-3. `document` + `subtree: true` on a virtualised list — § Waiting for an element.
-4. `!important` escalation to win the cascade — § CSS injection.
-5. Hardcoded generated class names when a condition exists — § Replay the site's own condition.
+Sync is a **site-side setting** on Greasy Fork, not the banned `@updateURL` — the file stays
+clean, and users still update from Greasy Fork.
 
 ## Report format (always end with this)
 
@@ -349,7 +177,7 @@ that does not increment — same rule as a local re-install (§ Editing an exist
 ## Compose with existing automation
 
 ```
-/userscript <site> <wish>  → this skill (measure → write → declare → gate)
+/userscript <site> <wish>  → this skill + the userscript-author plugin
 /eval                      → eval only
 /hygiene                   → doc/index drift after the PR lands
 ```
