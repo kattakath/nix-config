@@ -193,15 +193,15 @@
     vast-provision.inputs.nixpkgs.follows = "nixpkgs";
     vast-provision.inputs.flake-parts.follows = "firmware-secrets/flake-parts";
 
-    # nix-tart-macos — extracted from this repo 2026-09-05, briefly removed the
+    # nix-tart-vms — extracted from this repo 2026-09-05, briefly removed the
     # same day with the macvm host (zero consumers), RE-ADDED hours later with a
-    # new consumer: darwinModules.runner, the ephemeral Tart-VM-per-CI-job
-    # GitHub Actions runners on macos (tart.runners.* in hosts/macos.nix). The
+    # new consumer: darwinModules.github-runner, the ephemeral Tart-VM-per-CI-job
+    # GitHub Actions runners on macos (tart.githubRunners.* in hosts/macos.nix). The
     # seam worked exactly as designed — the input follows its consumers. The
     # macvm GUEST stays removed (docs/macvm-readd-runbook.md).
-    nix-tart-macos.url = "github:kattakath/nix-tart-macos";
-    nix-tart-macos.inputs.nixpkgs.follows = "nixpkgs";
-    nix-tart-macos.inputs.flake-parts.follows = "firmware-secrets/flake-parts";
+    nix-tart-vms.url = "github:kattakath/nix-tart-vms";
+    nix-tart-vms.inputs.nixpkgs.follows = "nixpkgs";
+    nix-tart-vms.inputs.flake-parts.follows = "firmware-secrets/flake-parts";
 
     # MCP (Model Context Protocol) server packaging for Claude Code. We use its
     # `lib.mkConfig` to render a PINNED {mcpServers:{…}} JSON (the 4 packaged
@@ -347,7 +347,7 @@
       deploy-rs,
       local-rag,
       vast-provision,
-      nix-tart-macos,
+      nix-tart-vms,
       mcp-servers-nix,
       agent-skills-vercel,
       agent-skills-anthropic,
@@ -831,11 +831,11 @@
                 keychain-secrets
                 media-cli
                 local-rag
-                # nix-tart-macos: home.nix installs the gitlab-tart slot shims
+                # nix-tart-vms: home.nix installs the gitlab-tart slot shims
                 # (PATH-stable + GC-rooted so ~/.gitlab-runner/config.toml can
                 # reference them). In extraSpecialArgs, NOT per-call — the
                 # two-composition-call-sites lesson.
-                nix-tart-macos
+                nix-tart-vms
                 # jsonResumeUrl: the raw resume.json URL (or null), consumed by home.nix
                 # to bake into the jsonresume package as its default --url (darwin
                 # home.packages; inert on the NixOS hosts).
@@ -971,16 +971,16 @@
             # host-decrypted GitHub App key. Inert unless a host actually declares
             # `age.secrets.*`.
             agenix.darwinModules.default
-            # tart.runners.* option surface (ephemeral Tart-VM CI runners) —
+            # tart.githubRunners.* option surface (ephemeral Tart-VM CI runners) —
             # in the BASE list, not per-call extraModules, so EVERY mkDarwin
             # composition has the options (nix-personal calls mkDarwin itself;
             # a per-call wire broke its eval — the PR #452 lesson, second
-            # verse). Inert unless a host sets tart.runners (hosts/macos.nix).
-            nix-tart-macos.darwinModules.runner
+            # verse). Inert unless a host sets tart.githubRunners (hosts/macos.nix).
+            nix-tart-vms.darwinModules.github-runner
             # tart.gitlabRunner option surface (declarative gitlab-runner on the
             # same Tart custom executor + slot budget). Same base-list rationale.
             # Inert unless a host enables it (hosts/macos.nix).
-            nix-tart-macos.darwinModules.gitlab-runner
+            nix-tart-vms.darwinModules.gitlab-runner
             ./hosts/${hostname}.nix
             home-manager.darwinModules.home-manager
             (mkHomeManagerModule {
@@ -1050,7 +1050,7 @@
 
         # The former `macvm` Tart guest was REMOVED 2026-09-05 — deliberately, as
         # a thin re-addable layer, not an amputation: everything generic lives on
-        # in the extracted github:kattakath/nix-tart-macos flake (lifecycle CLI,
+        # in the extracted github:kattakath/nix-tart-vms flake (lifecycle CLI,
         # plug-and-play bootstrap, golden-image bake), and the re-add procedure
         # is docs/macvm-readd-runbook.md. A baked golden image (tahoe-golden)
         # stays parked in ~/.tart for the day it returns.

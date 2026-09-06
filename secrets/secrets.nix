@@ -41,8 +41,8 @@ in
   # The fleet-wide CI GitHub App ("kattakath-fleet-ci", appId 4845230, PUBLIC
   # so it installs beyond its owning account) — ONE key serves every install:
   # kattakath + silvercreek-ai + dontsell-ai orgs (and the personal account,
-  # unused until repo-level runners land). Powers tart.runners.* — the
-  # ephemeral Tart-VM-per-job runners (nix-tart-macos darwinModules.runner,
+  # unused until repo-level runners land). Powers tart.githubRunners.* — the
+  # ephemeral Tart-VM-per-job runners (nix-tart-vms darwinModules.github-runner,
   # hosts/macos.nix). Same model as the dontsell key above: HOST-decrypted at
   # activation; permissions on the App are Organization/Self-hosted-runners RW
   # + Repository/Administration RW only. Content is the raw .pem.
@@ -51,7 +51,7 @@ in
     macos
   ];
   # The macos GitLab runner's glrt- authentication token (runner
-  # "macos-ismail-dev" on gitlab.com), for tart.gitlabRunner (nix-tart-macos
+  # "macos-ismail-dev" on gitlab.com), for tart.gitlabRunner (nix-tart-vms
   # darwinModules.gitlab-runner, hosts/macos.nix): HOST-decrypted at
   # activation → the agent renders gitlab-runner's config.toml from it at
   # start, so the token lives only here and in the runner's 0600 runtime
