@@ -255,11 +255,36 @@ an unlink; `vast-template-apply`'s own delete+create covers the only case that m
 
 1. **Bootstrap hosting** — this public repo, SHA-pinned raw URL (`self.rev`). ✓
 2. **Git token** — long-lived read-only (`read_repository`) `GITLAB_TOKEN` in Vast
-   account settings. ✓
+   account settings. ✓ — **but currently UNPROVISIONED, see below.**
 3. **Weights transport** — direct HF/Civitai, authenticated via `HF_TOKEN` /
    `CIVITAI_TOKEN`; B2 deferred. ✓
 4. **Mode selection** — explicit, via flags: `--repo` alone = legacy; `--repo` +
    `--workflow-name` = aggregator; `--manifest` + `--workflow` = manifest mode.
+
+### ⚠️ Decision 2 is currently UNPROVISIONED — private-repo provisioning would fail
+
+Verified 2026-09-06:
+
+- The GitLab PAT behind it (`vastai-gitlab-token`, `read_repository`, last used
+  2026-07-25) is **revoked**, with no active replacement. It predates — and is unrelated
+  to — that day's rotation of the *operator* PAT.
+- The Keychain entry `VAST_GITLAB_TOKEN` that `vast-account-vars-set` reads is
+  **absent**.
+
+**No credential is at risk, and nothing silently degrades.** `vast-account-vars-set`
+reads `VAST_$name` (pinned `vast-provision`, `packages/vast-provision.nix:366`), so it
+prints `SKIP (Keychain VAST_GITLAB_TOKEN missing)` and exits `rc=1` rather than falling
+back to the operator's `api`-scoped `GITLAB_TOKEN`. The `Never a write-scoped or full
+personal PAT` rule above is upheld **by the tool**, not merely by convention.
+
+**What breaks:** any Vast instance that must `git clone` a **private** provisioner stack.
+Public-repo provisioning is unaffected.
+
+**To restore:** mint a fresh `read_repository`-only GitLab PAT (or a per-project deploy
+token), `secret set VAST_GITLAB_TOKEN`, then `nix run .#vast-account-vars-set`. Whether
+the Vast **account** still holds a stale `GITLAB_TOKEN` var from an earlier run could not
+be checked from here — `GET /api/v0/secrets/` returns **401**, requiring a 2FA-backed
+login.
    No auto-probing of repo visibility (an earlier, since-superseded idea). ✓
 
 Both open items from the design phase are now closed: the account-var *set* path is the
