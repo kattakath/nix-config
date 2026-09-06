@@ -24,9 +24,15 @@ re-activate. Doing that by hand, repo by repo, is what this skill replaces.
 
 `.claude/skills/fleet-doctor/fleet-repos.txt` — one repo per line, relative
 to `~/Developer`. This is the fleet (nix-config + nix-personal + every
-extracted satellite flake), **not** every repo on disk — see the file's own
-header. Add a line there when a new flake is extracted; nothing else in this
-skill needs to change.
+extracted satellite repo), **not** every repo on disk — see the file's own
+header. Add a line there when a new fleet repo is extracted or created; nothing
+else in this skill needs to change.
+
+**Not every listed repo is a flake.** `brags`, `provisioner-template` and
+`hyperframes-selfhost` carry no `flake.nix` by design, so the flake-shaped steps
+below (lock freshness, `nix flake check`) do not apply to them — skip that step
+for those repos rather than reporting a failure. Their git, branch, PR and CI
+checks still apply normally.
 
 ## Modes
 
