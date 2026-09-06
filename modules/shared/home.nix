@@ -411,7 +411,9 @@ let
 in
 {
   # Replace HM's stock launchd module so agents use nix-* BTM basenames
-  # (modules/shared/hm-launchd — wait4path kept inside the named wrapper).
+  # (modules/shared/hm-launchd). That is upstream's own `waitForNixStore = false`
+  # trade: a named launcher instead of a `/bin/sh -c wait4path` arg0, accepting
+  # that launchd's exec fails outright if it fires before /nix is mounted.
   disabledModules = [ "launchd/default.nix" ];
 
   imports = [
@@ -778,10 +780,6 @@ in
   # ~/.claude/CLAUDE.md; the strict "decisions/confirmations = AskUserQuestion options"
   # rule + reuse-over-rebuild preference live here so they apply everywhere, not just in
   # this repo. Darwin-only.
-  home.file.".claude/CLAUDE.md" = lib.mkIf pkgs.stdenv.isDarwin {
-    source = ../../claude/CLAUDE.md;
-  };
-
   # The custom grok sandbox profile the patched grok-build bridge asks for (see
   # grokBuildPluginPatched in the let block above for WHY the built-in `read-only` is
   # unusable here). Unlike ~/.grok/config.toml — which grok itself rewrites, so mcp.nix
@@ -882,6 +880,21 @@ in
     claude-code = lib.mkIf pkgs.stdenv.isDarwin {
       enable = true;
       package = claudeCode;
+
+      # GLOBAL Claude Code instructions — user-level rules loaded in every
+      # project/session on this Mac (the sole Claude Code client host): the
+      # strict "decisions/confirmations = AskUserQuestion options" rule and the
+      # reuse-over-rebuild preference, so they apply everywhere and not just in
+      # this repo.
+      #
+      # upstream option home-manager.programs.claude-code.context exists → using it
+      # (modules/programs/claude-code/options.nix:133, `either lines path`;
+      # impl default.nix:319-322 writes `"''${cfg.configDir}/CLAUDE.md".source`
+      # for a path value, and configDir defaults to ~/.claude at options.nix:61).
+      # This replaced a hand-written `home.file.".claude/CLAUDE.md"` shim under
+      # the identical darwin gate — same target, one fewer duplicate-home.file
+      # collision risk.
+      context = ../../claude/CLAUDE.md;
 
       # Marketplaces are NOT declared via `marketplaces.*` here. That option writes a
       # Nix-managed known_marketplaces.json symlink; `claude plugin marketplace add`

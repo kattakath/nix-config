@@ -58,7 +58,7 @@
   # flake.nix so the runner is macOS-native.
   virtualisation.vmVariant = {
     # Turn the desktop on for the windowed VM only (base nixvm stays headless).
-    services.desktopVm.enable = true;
+    local.desktopVm.enable = true;
 
     virtualisation = {
       graphics = true; # open a QEMU display window instead of serial-only
