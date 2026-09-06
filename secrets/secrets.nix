@@ -28,12 +28,25 @@ in
   ];
   # macos self-hosted GitHub Actions runner's GitHub App private key, for the
   # `dontsell-ai` org (modules/darwin/github-runner.nix, services.macosGithubRunner).
-  # 2026-08-23: upgraded from a static PAT to a GitHub App — the App is scoped to
-  # ONLY "Organization permissions: Self-hosted runners: Read and write" (not
-  # admin:org's much wider bundle), and every registration mints a fresh ~1hr
-  # installation token from this key rather than using a long-lived bearer
-  # credential directly. Org-level registration — serves every dontsell-ai repo,
-  # not just app. Content is the raw .pem downloaded from the App's settings page.
+  # 2026-08-23: upgraded from a static PAT to a GitHub App — every registration
+  # mints a fresh ~1hr installation token from this key rather than using a
+  # long-lived bearer credential directly. Org-level registration serves every
+  # dontsell-ai repo, not just app. Content is the raw .pem.
+  #
+  # 2026-09-06: the App behind this key changed. It was "dontsell-ai" (4689619,
+  # org-owned, Self-hosted-runners RW only); it is now "ismailkattakath-ci"
+  # (4849830) — the SAME App as gh-app-fleet-key below. The old one was retired
+  # because ismailkattakath-ci was already installed on dontsell-ai with
+  # repos=all, so a second narrower credential for the same job protected
+  # nothing that was still unprotected.
+  #
+  # SO THIS FILE AND gh-app-fleet-key.age NOW HOLD IDENTICAL KEY MATERIAL, and
+  # that is deliberate, not duplication to clean up: an agenix secret has ONE
+  # owner, and the two consumers run as different users — this one is owned by
+  # `_github-runner` (the bare-metal launchd DAEMONS), the other by the login
+  # user (the Tart USER AGENTS, which need a GUI session for
+  # Virtualization.framework). Rotating the App key means re-encrypting BOTH,
+  # with `age -R` and a recipient-tag check — never `agenix -e`.
   "gh-app-dontsell-ai-key.age".publicKeys = [
     operator
     macos
