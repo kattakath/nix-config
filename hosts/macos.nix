@@ -57,9 +57,12 @@
   # isolation with `runs-on: [self-hosted, tart, dontsell-vm]`. Apple caps
   # concurrent macOS guests at TWO; the module's slot semaphore shares that
   # budget across all three instances (asserted at eval).
-  # One-time per image after activation: `tart-runner-setup-kattakath`
-  # (digest-pinned pull + base clone + SSH host-key pin; the other two
-  # instances share the same image/base/pin).
+  # The base clone AND the SSH host-key pin are content-keyed by oci@digest, so
+  # bumping the digest below renames both — one elected instance re-pulls and
+  # re-pins itself on its next cycle; the other two share that image/base/pin.
+  # `tart-runner-setup-kattakath [image|pin|all]` pre-warms a bump by hand.
+  # Slots, pins and both lanes' logs live in tart.runnerStateDir
+  # (~/.local/state/tart-runner) — durable by assertion, never /tmp.
   age.secrets."gh-app-fleet-key" = {
     file = ../secrets/gh-app-fleet-key.age;
     owner = loginName;
