@@ -139,26 +139,45 @@ let
             --pat "$token"
         '';
       };
-      # `launchd.daemons.<name>.script` (nix-darwin's own sugar) unconditionally
-      # compiles to `ProgramArguments = [ "/bin/sh" "-c" "wait4path ... && exec …" ]`
-      # — a bare-interpreter arg0 forbidden for anything this repo hand-authors
-      # (.claude/rules/launchd-naming.md). Build the daemon's main process
-      # ourselves instead, so ProgramArguments[0]'s basename is nix-<activity>.
+      # ARG0 IS DELIBERATELY /bin/sh HERE — the one sanctioned exception to
+      # .claude/rules/launchd-naming.md for a unit this repo authors. Read that
+      # rule's "boot-ordering exception" section before changing this back.
       #
-      # Bypassing `script=` also bypasses nix-darwin's wait4path prelude, and it
-      # CANNOT be re-added inside this wrapper: writeShellApplication emits a
-      # /nix/store script with a /nix/store interpreter, so launchd needs the
-      # store mounted just to exec it — a `/bin/wait4path /nix/store` first line
-      # could never run (it was here until 2026-09-06, pure false reassurance).
+      # `/nix` is a SEPARATE `noauto` APFS volume mounted by determinate-nixd.
+      # ProgramArguments[0] lives inside it, so at boot launchd tries to exec a
+      # path that does not exist yet. Measured 2026-09-06:
       #
-      # AND NOTHING ELSE COVERS IT EITHER: KeepAlive below is deliberately
-      # `Crashed = false` (don't spin on a crashing runner), so launchd does NOT
-      # retry a failed exec. If this DAEMON is started before /nix is mounted —
-      # plausible at boot behind FileVault — the instance stays down until the
-      # next successful-exit cycle or a manual `launchctl kickstart -k`. Left as
-      # a documented gap rather than papered over: closing it means either
-      # `KeepAlive.PathState` on /nix/store, or accepting crash-restarts. Both
-      # change live-runner behaviour and belong in their own change.
+      #   12:33:27.417  launchd: "Missing executable detected" x2 -> exit 78 EX_CONFIG
+      #   12:33:28.393  determinate_nixd: "Unlocking and mounting /nix"   (976 ms LATE)
+      #
+      # It then NEVER self-heals: launchd parks the job on an "Executable
+      # appearance" retry event which does not fire when the file arrives via a
+      # volume mount. Both daemons sat at `runs = 1, state = spawn scheduled`
+      # for a 10h52m uptime, and `darwin-rebuild switch` did not recover them
+      # either (nix-darwin only re-bootstraps daemons whose plist CHANGED).
+      #
+      # NO launchd setting recovers a failed exec. Measured with a throwaway
+      # agent pointing at a missing executable, then creating it:
+      #   StartInterval = 10          -> runs stayed 1 (no retry)
+      #   KeepAlive = true            -> runs stayed 1 (no retry)
+      #   KeepAlive.PathState         -> rejected: dict keys are OR'd, so it
+      #                                  defeats `Crashed = false`, AND it does
+      #                                  not fire on volume mounts either.
+      # The executable must EXIST when launchd first tries. That means arg0 has
+      # to be a path outside /nix, and the only maintained one is a shell doing
+      # wait4path — which is exactly what nix-darwin itself emits.
+      #
+      # upstream option nix-darwin.launchd.daemons.<name>.command exists
+      # (modules/launchd/default.nix:90-94 —
+      #  ProgramArguments = [ "/bin/sh" "-c" "/bin/wait4path /nix/store && exec ${command}" ])
+      # -> using it, rather than hand-rolling a stub outside the store.
+      #
+      # The rule's LOAD-BEARING half does not apply here anyway: it exists so an
+      # adhoc-signed /nix/store arg0 keeps TCC read access to ~/Desktop,
+      # ~/Documents and ~/Downloads. This is a system DAEMON running as
+      # `_github-runner` that only ever touches /var/lib — it reads none of
+      # those. Only BTM legibility is lost, and the exec'd process is still
+      # nix-github-runner-<instance>.
       runDaemon = pkgs.writeShellApplication {
         name = "nix-github-runner-${instanceName}";
         runtimeInputs = [
@@ -329,8 +348,12 @@ in
             HOME = i.stateDir;
             RUNNER_ROOT = i.stateDir;
           };
+          # nix-darwin wraps this as
+          #   /bin/sh -c '/bin/wait4path /nix/store && exec <command>'
+          # so the daemon survives a boot that races the /nix volume mount.
+          # See the long note at runDaemon for why arg0 must leave the store.
+          command = lib.getExe i.runDaemon;
           serviceConfig = {
-            ProgramArguments = [ (lib.getExe i.runDaemon) ];
             RunAtLoad = true;
             # Restart after a successful (ephemeral) job to re-register; don't spin on crash.
             KeepAlive = {
