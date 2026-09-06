@@ -4,8 +4,9 @@
 .claude/worktrees/
 .worktrees/
 
-# superhook runtime artifacts
+# superhook runtime artifacts (.log.N are the size-rotated backups)
 .claude/hooks/superhook.log
+.claude/hooks/superhook.log.*
 .claude/hooks/.superhook-state.json
 
 # pretooluse-log.js observer runtime artifact
