@@ -183,7 +183,7 @@ let
 in
 # Darwin-only: the Keychain loader that exports the variable is itself darwin-only,
 # so on the NixOS hosts there is nothing to gate.
-lib.mkIf pkgs.stdenv.isDarwin {
+lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
   home.packages = [ gate ];
 
   # mkOrder 1600 > mkAfter (1500), which is what keychain-secrets uses for its own
