@@ -646,8 +646,8 @@ in
       lib.mkEnableOption "the localhost MCP gateway (a sparfenyuk mcp-proxy launchd user agent hosting the shared packaged + custom MCP servers on 127.0.0.1)"
       // {
         # The Mac is the sole MCP client host; inert (nothing emitted) on the Pi/VM.
-        # Reproduces today's `lib.mkIf pkgs.stdenv.isDarwin` gate exactly.
-        default = pkgs.stdenv.isDarwin;
+        # Reproduces today's `lib.mkIf pkgs.stdenv.hostPlatform.isDarwin` gate exactly.
+        default = pkgs.stdenv.hostPlatform.isDarwin;
       };
 
     endpoints = lib.mkOption {
