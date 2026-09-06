@@ -149,6 +149,33 @@ const DESKTOP_COMMANDER_TOOLS = new Set(["ls", "find", "stat", "ps", "kill"]);
 
 // Rule 1: terranix apply/destroy apps that mutate Cloudflare infra via the API.
 const CF_TERRANIX_APP = /\bnix\s+run\s+\.#cf-(?:tunnel|mcp)-(?:apply|destroy)\b/;
+
+// Rule 1c — the two ways a secret VALUE reaches stdout, and therefore this
+// session's transcript. Deliberately WHOLE-COMMAND regexes, not the
+// argv0-per-segment `segs` view every other rule uses: measured against five
+// evasion shapes, argv0 matching missed three of them — `echo $(secret reveal
+// X)`, the backtick form, and a direct `security ... -w` inside a
+// substitution — because none of those put the leaking command at a segment's
+// argv0. A whole-command match caught 5/5.
+//
+// `secret reveal` is the CLI's one printing verb (nix-keychain-secrets). It
+// exists so printing is deliberate and greppable; this rule is the grep.
+// Anchored at COMMAND POSITION — start, or after a separator / substitution
+// opener. A bare \bsecret\s+reveal\b matched the literal text ANYWHERE, so
+// `git commit -m "...secret reveal..."` and `grep 'secret reveal'` were blocked
+// as if they were leaks. This rule blocked its own commit within a minute of
+// being written, then blocked the command that tried to fix it — which is the
+// argument for command-position anchoring rather than a substring match.
+// Every execution shape still matches, substitutions and backticks included.
+const CMD_POS = String.raw`(?:^|[\n;|&(]|\$\(|\x60)\s*`;
+const SECRET_REVEAL = new RegExp(CMD_POS + String.raw`(?:\S*/)?secret\s+reveal\b`);
+// The bypass that matters more: the agent does not need the CLI at all.
+// `security find-generic-password -w` (or -g) prints the value directly, and
+// blocking only `secret reveal` would be security theatre. -w prints the
+// password alone; -g prints it to stderr alongside the attributes.
+const SECURITY_PRINTS_VALUE = new RegExp(
+  CMD_POS + String.raw`(?:\S*/)?security\b[^\n|;&]*\bfind-(?:generic|internet)-password\b[^\n|;&]*(?:\s-w\b|\s-g\b)`,
+);
 // Rule 1b (2026-08-30 review): the activation shapes that are a trap.
 // Matched per-SEGMENT alongside an `argv0 === "darwin-rebuild"` test rather than
 // as one big regex over the whole command, so flag ORDER is irrelevant
@@ -325,6 +352,32 @@ function main() {
       bedrockSelected
         ? "Use `activate` (nix-personal's freshness-gated CLI for the private composition) — it restores AWS_REGION/AWS_PROFILE in the same switch. If you must run the public one, `secret rm CLAUDE_CODE_USE_BEDROCK` FIRST and open a new shell, so Claude Code falls back to its default provider and survives. `darwin-rebuild build` is always safe."
         : "Use `activate` (nix-personal's CLI for the private composition), or ask first. `darwin-rebuild build --flake .#macos` is fine for verification.",
+    );
+  }
+  // ---- Rule 1c: printing a secret into the transcript ------------------------
+  // Ranked with the blocks, not the nudges, for the reason the others are: it
+  // succeeds and does its damage silently. A printed secret is not an error —
+  // it is a value in a .jsonl that persists for 30 days (cleanupPeriodDays),
+  // with no built-in redaction, and `/feedback` uploads that file.
+  //
+  // This is layer 4 of five, and the weakest of them by construction: superhook
+  // FAILS OPEN if this script throws, and an agent with a shell can defeat any
+  // in-CLI check (`script -q /dev/null` flips isatty while still capturing).
+  // What actually holds is layer 1 (Keychain ACL prompts) and layer 2 (the
+  // high-privilege secrets are not ambient at all — `secret unbind`). This rule
+  // exists to make a leak LOUD AND DELIBERATE rather than habitual, which is
+  // precisely the failure it was written for: three leaks in one session, all
+  // from a printing command nobody meant to run.
+  //
+  // Not a veto. The operator runs either form by hand whenever they want, and
+  // `secret reveal` is the right answer when a script genuinely needs the value
+  // in its own process (see nix-personal's character-mcp proof scripts).
+  if (SECRET_REVEAL.test(cmd) || SECURITY_PRINTS_VALUE.test(cmd)) {
+    const via = SECRET_REVEAL.test(cmd) ? "`secret reveal`" : "`security find-generic-password -w/-g`";
+    emit(
+      "block",
+      `${via} prints a secret VALUE to stdout, which lands verbatim in this session's transcript (~/.claude/projects/**.jsonl, kept 30 days, no redaction).`,
+      "Use the verb that fits: `secret copy KEY` hands it to the human via a concealed pasteboard; `secret exec KEY -- CMD` puts it only in the child's env; `secret fp KEY` proves which value it is (digest + length + mdat) without disclosing it. If you genuinely need it printed, run it yourself.",
     );
   }
   // A legitimate activation (`activate`, a private-flake switch, `home-manager switch`)
