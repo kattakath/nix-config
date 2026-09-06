@@ -426,6 +426,7 @@ in
     media-cli.homeManagerModules.default
     ./hm-launchd # patched home-manager launchd (nix-* ProgramArguments)
     ./mcp.nix # darwin-gated MCP server registry for Claude Code
+    ./terminal-theme.nix # the fleet terminal palette + type, held once (no consumers yet)
     ./desktop-aesthetics.nix # Terminal.app 16pt (all darwin) + wallpaper (opt-out)
     ./wireguard-configs.nix # operator-managed WG confs → ~/.config/wireguard (no autostart)
     ./claude-otel.nix # local OTel Collector for Claude Code's routing-decision telemetry (macos only)
@@ -1304,12 +1305,7 @@ in
         # it; bold stays meaningfully bolder, unlike setting font-style = Bold.
         font-thicken = true;
 
-        # ---- Ground: the Ubuntu profile this repo used to vendor --------------
-        # These are not Ubuntu's brand palette guessed from the web. They are the
-        # exact values decoded out of modules/shared/terminal/Ubuntu.terminal,
-        # the profile this repo shipped until #319 dropped it — NSFont
-        # `UbuntuMonoNF` at 16.0, BackgroundColor #24081B, TextColor #FFFFFF.
-        #
+        # ---- Ground ------------------------------------------------------------
         # NO `theme` HERE, DELIBERATELY. An explicit `background` overrides a
         # theme's, and Ghostty's `light:NAME,dark:NAME` syntax applies to `theme`
         # only — there is no per-mode `background`. Keeping the light/dark pair
@@ -1318,48 +1314,16 @@ in
         # either choice made cleanly. Restoring system-following is one line:
         # drop these three and put the theme back.
         # ---- Canonical Ubuntu -------------------------------------------------
-        # Verbatim from Ptyxis's own Ubuntu.palette -- Ubuntu's terminal since
-        # 24.10 -- not a derivation and not the macOS approximation this repo
-        # used to vendor. That vendored modules/shared/terminal/Ubuntu.terminal
-        # (dropped in #319) used #24081B and a DIFFERENT ANSI set entirely; the
-        # two backgrounds are dE00 4.12 apart and the ring is not the same
-        # palette. What ran here for years was someone's approximation.
-        #
-        # The ring is Tango, which is what Ubuntu has shipped for years.
-        # Measured against #300A24: foreground 17.58:1, min pairwise dE00 among
-        # slots 0-7 is 23.32 (excellent separation), and six of sixteen failed
-        # WCAG AA. Five of those are lifted below; only slot 0 keeps its
-        # authentic value, and for a reason measured rather than assumed.
+        # These values ARE the fleet palette, and their derivation is now stated
+        # once, in modules/shared/terminal-theme.nix (`local.terminalTheme`):
+        # Ptyxis's own Ubuntu.palette, the six WCAG-AA failures against #300A24,
+        # the OKLab lightness-only lifts, and the dE00 >= 10 pair separation that
+        # keeps \e[31m distinct from \e[91m. They are still spelled out here;
+        # wiring this block to the provider is the next change.
         background = "#300A24";
         foreground = "#FFFFFF";
         cursor-color = "#FFFFFF";
-        # Tango, with the WCAG failures lifted. Only LIGHTNESS moves: each colour
-        # was converted to OKLab, its L raised until it reaches 4.5:1 against
-        # #300A24, and converted back with hue and chroma untouched — every hue
-        # shifted by <= 0.6 deg, so red still reads as Tango red.
-        #
-        # PAIRS ARE SOLVED TOGETHER, which is the part that is not obvious.
-        # Lifting a normal slot alone collapses it onto its bright partner:
-        # red lifted to AA lands dE00 1.55 from br-red, i.e. the same colour, and
-        # \e[31m vs \e[91m stops meaning anything. So each bright partner is
-        # pushed further until the pair is dE00 >= 10 apart:
-        #
-        #   red      #CC0000 -> #F03C2E 4.51:1   br #EF2929 -> #FF6B5E   pair 10.02
-        #   blue     #3465A4 -> #5083C4 4.51:1   br #729FCF -> #74A2D2   pair 10.21
-        #   magenta  #75507B -> #9A74A1 4.51:1   br #AD7FA8 -> #BD8FB8   pair 10.04
-        #   br-black #555753 -> #7F827D 4.51:1
-        #
-        # Naively "using the bright variant" does NOT work and was measured
-        # first: br-red is 4.20:1 and br-black 2.41:1, both still failing, and
-        # black has no brighter Tango variant at all.
-        #
-        # SLOT 0 IS LEFT AUTHENTIC at 1.39:1, deliberately. It is the \e[40m
-        # SURFACE, not ink: lifting it to pass as ink drops white-on-\e[40m from
-        # 12.65:1 to 3.90:1, trading a passing role for a failing one.
-        #
-        # Result: 5 of the 6 AA failures fixed, min pairwise dE00 among slots 0-7
-        # IMPROVES 23.32 -> 24.14, total drift from authentic dE00 71.8 over 7
-        # moved slots.
+        # The lifted ring — see terminal-theme.nix for what moved and why.
         palette = [
           "0=#2E3436"
           "1=#F03C2E"
