@@ -229,7 +229,7 @@ one-time steps are inherently manual — do these after activating a fresh Mac:
   1. Generate a token at <https://flakehub.com/user/settings?editview=tokens>.
   2. Store it durably: `secret set FLAKEHUB_TOKEN` (hidden prompt), so this
      never has to be redone from scratch on the NEXT reinstall either.
-  3. `determinate-nixd auth login token --token-file <(secret get FLAKEHUB_TOKEN)`
+  3. `secret exec FLAKEHUB_TOKEN -- sh -c 'determinate-nixd auth login token --token-file <(printf %s "$FLAKEHUB_TOKEN")'`
      — or write it to a temp file first if your shell doesn't support
      `<(...)` process substitution, then `rm` the file immediately after.
   4. Confirm: `determinate-nixd status` shows `Logged in: true`, and

@@ -283,7 +283,8 @@ operator accepted this on 2026-09-06 having been shown the scope ("I trust Vast"
 later, mint a read-only PAT and overwrite the Keychain entry — no code change needed.
 
 **Live as of 2026-09-06:** `GITLAB_TOKEN` pushed to the Vast account (`set on Vast`,
-value length 62, matching `secret get GITLAB_TOKEN`). The account's full variable list
+confirmed by `secret fp GITLAB_TOKEN`, which reports a digest and mdat rather
+than the value). The account's full variable list
 could not be read back — `GET /api/v0/secrets/` returns **401**, requiring a 2FA-backed
 login, so `POST`/`PUT` works headlessly but enumeration must happen in the web console.
 

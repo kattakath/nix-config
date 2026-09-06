@@ -83,7 +83,10 @@ primary interface; from the `nix-keychain-secrets` flake):
 | Command | Effect |
 |---|---|
 | `secret set <KEY> [VALUE]` | store (hidden prompt if no VALUE) |
-| `secret get <KEY>` | lazy read |
+| `secret copy <KEY>` | to the clipboard, concealed + auto-cleared |
+| `secret exec <KEY> -- CMD` | into the command's env; never stdout |
+| `secret fp <KEY>` | digest + length + mdat, never the value |
+| `secret reveal <KEY>` | PRINT it — the only printing verb, use last |
 | `secret rm <KEY>` | remove |
 | `secret ls` | list (`list` also accepted) |
 | `secret load` | reload the whole store into the current shell — the shell-function-only fix for a manually-unset var |
