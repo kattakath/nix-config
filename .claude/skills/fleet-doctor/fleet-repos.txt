@@ -5,7 +5,7 @@
 # ~/.claude/CLAUDE.md "repos live under ~/Developer/<forge>/<owner>/<repo>").
 #
 # This is nix-config's own composition (this repo) + the private composition
-# flake + every satellite fleet flake, whether it was EXTRACTED from nix-config
+# flake + every satellite fleet repo, whether it was EXTRACTED from nix-config
 # (see each repo's own history / nix-config's CLAUDE.md "extraction" bullets)
 # or authored standalone + the other small flakes nix-config's private layer
 # depends on. It is NOT "every repo on disk" — client/personal repos with no
@@ -15,9 +15,22 @@
 #
 # Membership does NOT require nix-config to consume the flake as an input:
 # nix-mcp-gateway and nix-inngest are both listed and neither is wired in yet.
-# The test is "is this a fleet flake we maintain", not "is it adopted".
+# The test is "is this a fleet repo we maintain", not "is it adopted".
 #
-# Maintenance: when a new fleet flake appears (extracted or greenfield), add one
+# NOR does membership require a flake.nix — the test says "fleet repo", not
+# "fleet flake", and three listed members deliberately have none. A sweep must
+# not try to `nix flake check` these, nor conclude they don't belong here:
+#   brags                 — data + engine behind the `brag` skill
+#   provisioner-template  — the scaffold `vast-init-repo` clones; a live Vast
+#                           instance fetches its provision.sh over raw HTTP at boot
+#   hyperframes-selfhost  — the published self-host bundle (this repo vendors a
+#                           copy under packages/hyperframes-selfhost/)
+#
+# Deliberately NOT listed: character-mcp (extracted from nix-personal 2026-09-06)
+# is a deployed Node/Cloudflare-Worker product with no Nix surface at all —
+# personal, not declarative infra, so it fails the scoping rule above.
+#
+# Maintenance: when a new fleet repo appears (extracted or greenfield), add one
 # line here. Nothing else needs to change — the skill iterates this file.
 
 github.com/kattakath/nix-config
