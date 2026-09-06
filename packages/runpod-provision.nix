@@ -27,7 +27,7 @@ in
     text = ''
       security=/usr/bin/security
       account="$(id -un)"
-      apikey="$("$security" find-generic-password -a "$account" -s RUNPOD_API_KEY -w 2>/dev/null || true)"
+      apikey="$("$security" find-generic-password -a "$account" -s runpod:runpod.io:api -w 2>/dev/null || true)"
       [ -n "$apikey" ] || { echo "runpod-template-apply: RUNPOD_API_KEY not in the login Keychain." >&2; exit 1; }
 
       wfname=""

@@ -94,8 +94,8 @@ let
   #     npx -y @chaindead/telegram-mcp auth --app-id <id> --api-hash <hash> --phone +<number>
   telegramMcp = pkgs.writeShellScriptBin "nix-telegram-mcp" ''
     set -eu
-    app_id="$(/usr/bin/security find-generic-password -a "$(id -un)" -s TG_APP_ID -w 2>/dev/null || true)"
-    api_hash="$(/usr/bin/security find-generic-password -a "$(id -un)" -s TG_API_HASH -w 2>/dev/null || true)"
+    app_id="$(/usr/bin/security find-generic-password -a "$(id -un)" -s mcp:telegram.org:app_id -w 2>/dev/null || true)"
+    api_hash="$(/usr/bin/security find-generic-password -a "$(id -un)" -s mcp:telegram.org:api_hash -w 2>/dev/null || true)"
     session="${config.home.homeDirectory}/.telegram-mcp/session.json"
     if [ -z "$app_id" ] || [ -z "$api_hash" ] || [ ! -f "$session" ]; then
       echo "telegram-mcp: missing TG_APP_ID/TG_API_HASH in the login Keychain and/or the session file." >&2
@@ -216,9 +216,9 @@ let
   # nix-* for the BTM origin rule.
   wpMcp = pkgs.writeShellScriptBin "nix-mcp-wordpress" ''
     set -u
-    site="$(/usr/bin/security find-generic-password -a "$(id -un)" -s WP_URL -w 2>/dev/null || true)"
-    user="$(/usr/bin/security find-generic-password -a "$(id -un)" -s WP_ADMIN_USER -w 2>/dev/null || true)"
-    pass="$(/usr/bin/security find-generic-password -a "$(id -un)" -s WP_ADMIN_APP_PASSWORD -w 2>/dev/null || true)"
+    site="$(/usr/bin/security find-generic-password -a "$(id -un)" -s mcp:silvercreek.ai:wp_url -w 2>/dev/null || true)"
+    user="$(/usr/bin/security find-generic-password -a "$(id -un)" -s mcp:silvercreek.ai:wp_user -w 2>/dev/null || true)"
+    pass="$(/usr/bin/security find-generic-password -a "$(id -un)" -s mcp:silvercreek.ai:wp_app_password -w 2>/dev/null || true)"
     if [ -z "$site" ] || [ -z "$user" ] || [ -z "$pass" ]; then
       echo "mcp-wordpress: missing WP_URL / WP_ADMIN_USER / WP_ADMIN_APP_PASSWORD in the login Keychain — tools will fail until set (see the store-them-once note in mcp.nix)." >&2
     fi
@@ -250,8 +250,8 @@ let
     }:
     pkgs.writeShellScriptBin arg0 ''
       set -u
-      user="$(/usr/bin/security find-generic-password -a "$(id -un)" -s WP_ADMIN_USER -w 2>/dev/null || true)"
-      pass="$(/usr/bin/security find-generic-password -a "$(id -un)" -s WP_ADMIN_APP_PASSWORD -w 2>/dev/null || true)"
+      user="$(/usr/bin/security find-generic-password -a "$(id -un)" -s mcp:silvercreek.ai:wp_user -w 2>/dev/null || true)"
+      pass="$(/usr/bin/security find-generic-password -a "$(id -un)" -s mcp:silvercreek.ai:wp_app_password -w 2>/dev/null || true)"
       if [ -z "$user" ] || [ -z "$pass" ]; then
         echo "${arg0}: missing WP_ADMIN_USER / WP_ADMIN_APP_PASSWORD in the login Keychain — adapter tools will fail until set." >&2
       fi
@@ -285,7 +285,7 @@ let
   #     secret set APIFY_TOKEN <token>   # Apify Console → Settings → Integrations
   apifyMcp = pkgs.writeShellScriptBin "nix-mcp-apify" ''
     set -u
-    token="$(/usr/bin/security find-generic-password -a "$(id -un)" -s APIFY_TOKEN -w 2>/dev/null || true)"
+    token="$(/usr/bin/security find-generic-password -a "$(id -un)" -s mcp:apify.com:token -w 2>/dev/null || true)"
     if [ -z "$token" ]; then
       echo "mcp-apify: missing APIFY_TOKEN in the login Keychain — tools will fail until set (secret set APIFY_TOKEN <token>)." >&2
     fi
@@ -588,7 +588,7 @@ let
           "-a"
           "$(id -un)"
           "-s"
-          "GITHUB_PERSONAL_ACCESS_TOKEN"
+          "gh:github.com:pat"
           "-w"
         ];
       };
