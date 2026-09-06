@@ -1,0 +1,20 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "userscript-author",
+  "version": "0.1.0",
+  "description": "Author and maintain Violentmonkey/Tampermonkey userscripts for Chromium to a greasyfork.org-publishable standard — a measure-before-you-select method, pre-vetted code patterns, browser probes, and a runnable Greasy Fork metadata linter.",
+  "author": {
+    "name": "Ismail Kattakath"
+  },
+  "homepage": "https://greasyfork.org/en/help/code-rules",
+  "repository": "https://github.com/kattakath/nix-config",
+  "license": "MIT",
+  "keywords": [
+    "userscript",
+    "violentmonkey",
+    "tampermonkey",
+    "greasyfork",
+    "chromium",
+    "browser"
+  ]
+}
