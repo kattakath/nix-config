@@ -10,7 +10,7 @@
 # `nixos-rebuild switch --flake .#nixpi`; see flake.nix apps.aarch64-darwin.macos):
 #   nix run github:kattakath/nix-config#macos
 # Thereafter: darwin-rebuild switch --flake .#macos
-{ loginName, ... }:
+{ config, loginName, ... }:
 {
   imports = [
     ../modules/darwin/core.nix
@@ -45,6 +45,63 @@
     installationId = 155878309;
     count = 2;
   };
+
+  # ---- Ephemeral Tart-VM CI runners (tart.runners.*, nix-tart-macos) ---------
+  # Every job gets a disposable macOS VM; the VM is the isolation boundary.
+  # All instances share ONE fleet GitHub App ("kattakath-fleet-ci", public,
+  # appId 4845230 — Organization/Self-hosted-runners RW + Repository/
+  # Administration RW only) and its single agenix-delivered key below; each
+  # scope has its own installationId. The two bare-metal dontsell runners
+  # above STAY for that org's nix/cachix/pgvector-heavy CI (the Cirrus guest
+  # image carries none of that toolchain) — dontsell workflows opt into VM
+  # isolation with `runs-on: [self-hosted, tart, dontsell-vm]`. Apple caps
+  # concurrent macOS guests at TWO; the module's slot semaphore shares that
+  # budget across all three instances (asserted at eval).
+  # One-time per image after activation: `tart-runner-setup-kattakath`
+  # (digest-pinned pull + base clone + SSH host-key pin; the other two
+  # instances share the same image/base/pin).
+  age.secrets."gh-app-fleet-key" = {
+    file = ../secrets/gh-app-fleet-key.age;
+    owner = loginName;
+    mode = "0400";
+  };
+  tart =
+    let
+      fleetApp = {
+        appId = 4845230;
+        privateKeyPath = config.age.secrets."gh-app-fleet-key".path;
+        image = {
+          oci = "ghcr.io/cirruslabs/macos-runner:tahoe";
+          # Resolved 2026-09-05; bump deliberately (a moving tag is refused).
+          digest = "sha256:98acf50794306bc293f2e30e40115f1452772e4e17eb257968b7c98f39ebf231";
+        };
+      };
+    in
+    {
+      runners = {
+        kattakath = fleetApp // {
+          scope = {
+            type = "org";
+            value = "kattakath";
+          };
+          installationId = 159388698;
+        };
+        silvercreek = fleetApp // {
+          scope = {
+            type = "org";
+            value = "silvercreek-ai";
+          };
+          installationId = 159388708;
+        };
+        dontsell-vm = fleetApp // {
+          scope = {
+            type = "org";
+            value = "dontsell-ai";
+          };
+          installationId = 159388677;
+        };
+      };
+    };
 
   # Stable identity for host-gated modules (login openers, RAG launchd, …) AND the
   # machine's declared name, so it's config-owned rather than manual scutil drift.
