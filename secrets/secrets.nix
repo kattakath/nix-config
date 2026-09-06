@@ -38,4 +38,16 @@ in
     operator
     macos
   ];
+  # The fleet-wide CI GitHub App ("kattakath-fleet-ci", appId 4845230, PUBLIC
+  # so it installs beyond its owning account) — ONE key serves every install:
+  # kattakath + silvercreek-ai + dontsell-ai orgs (and the personal account,
+  # unused until repo-level runners land). Powers tart.runners.* — the
+  # ephemeral Tart-VM-per-job runners (nix-tart-macos darwinModules.runner,
+  # hosts/macos.nix). Same model as the dontsell key above: HOST-decrypted at
+  # activation; permissions on the App are Organization/Self-hosted-runners RW
+  # + Repository/Administration RW only. Content is the raw .pem.
+  "gh-app-fleet-key.age".publicKeys = [
+    operator
+    macos
+  ];
 }

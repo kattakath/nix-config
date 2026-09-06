@@ -263,7 +263,13 @@ Both are safe to commit. Full rules: [`secrets-and-keychain.md`](secrets-and-key
 - **`macos.nix`** — the darwin client host. Imports `../modules/darwin/github-runner.nix` and
   enables `services.macosGithubRunner` with `count = 2` for the **`dontsell-ai`** org (see that
   module's section below) — nix-config's *own* CI is fully GitHub-hosted and uses no runner, but
-  this Mac is not runner-free. Carries its own Homebrew brew/cask/masApps lists, incl. a
+  this Mac is not runner-free. Also configures **`tart.runners.*`** (the `nix-tart-macos` input's
+  `darwinModules.runner`, wired via `mkDarwin extraModules`): ephemeral **Tart-VM-per-job**
+  GitHub Actions runners for `kattakath`, `silvercreek-ai`, and `dontsell-ai` (label
+  `dontsell-vm` — the bare-metal pair keeps that org's nix-toolchain CI), one fleet GitHub App
+  (`kattakath-fleet-ci`, key = agenix `gh-app-fleet-key.age`, host-decrypted), digest-pinned
+  Cirrus runner image, and Apple's 2-concurrent-VM budget shared by a slot semaphore. One-time
+  per image after activation: `tart-runner-setup-kattakath`. Carries its own Homebrew brew/cask/masApps lists, incl. a
   `libreoffice` cask backing the docx/pptx/xlsx/pdf Claude Code skills' `soffice` dependency,
   and the `open-design` cask (`greedy = true`, adopted the hand-dragged app in place) paired
   with `launchd.user.envVariables.OD_UPDATE_ENABLED = "0"` so versioning belongs to brew, not
