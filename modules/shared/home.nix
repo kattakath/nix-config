@@ -33,6 +33,8 @@
   # Fleet operator ed25519 PUBLIC key (secrets/operator-key.nix) — single source
   # for authorizedKeys + agenix recipient + git SSH allowed_signers principal.
   operatorSshKey,
+  # nix-tart-macos input source path — the gitlab-tart slot shims below.
+  nix-tart-macos,
   # Source-only flake inputs holding Claude Code skills (see programs.claude-code
   # below). flake.nix pins them; nothing is vendored into this repo.
   agent-skills-vercel,
@@ -650,6 +652,24 @@ in
     ++ lib.optionals isMacosHost [
       androidPhone # `android-phone list|pair|connect|disconnect|unpair|tcpip|wireless|mirror|doctor` — deterministic ADB wired/wireless operator + scrcpy mirroring for a PHYSICAL device (packages/android-phone.nix); unrelated to `android-emu` (virtual emulator, below)
     ]
+    # GitLab-CI slot shims (nix-tart-macos gitlab-tart): on PATH so
+    # ~/.gitlab-runner/config.toml can reference the STABLE
+    # /etc/profiles/per-user/<user>/bin/nix-gitlab-tart-* paths — GC-rooted
+    # by the profile and upgraded in place, unlike bare /nix/store paths from
+    # `nix run` output (which garbage-collect out from under the runner).
+    # The executor VMs share the tart.runners two-guest slot budget; the
+    # token-bearing config.toml itself stays imperative (hosts/macos.nix).
+    ++ lib.optionals isMacosHost (
+      builtins.attrValues {
+        inherit (pkgs.callPackage "${nix-tart-macos}/packages/gitlab-tart.nix" { })
+          prepare
+          run
+          cleanup
+          configShim
+          printConfig
+          ;
+      }
+    )
   # The media stack itself is NOT listed here any more — `programs.mediaCli`
   # above installs it, along with exiftool/auge/rclipCli via that module's
   # extraSearchPackages seam.
