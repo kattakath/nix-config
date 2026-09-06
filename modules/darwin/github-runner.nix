@@ -143,9 +143,22 @@ let
       # compiles to `ProgramArguments = [ "/bin/sh" "-c" "wait4path ... && exec …" ]`
       # — a bare-interpreter arg0 forbidden for anything this repo hand-authors
       # (.claude/rules/launchd-naming.md). Build the daemon's main process
-      # ourselves instead, so ProgramArguments[0]'s basename is nix-<activity>;
-      # wait4path moves in here since bypassing `script=` also bypasses
-      # nix-darwin's own wait4path prelude.
+      # ourselves instead, so ProgramArguments[0]'s basename is nix-<activity>.
+      #
+      # Bypassing `script=` also bypasses nix-darwin's wait4path prelude, and it
+      # CANNOT be re-added inside this wrapper: writeShellApplication emits a
+      # /nix/store script with a /nix/store interpreter, so launchd needs the
+      # store mounted just to exec it — a `/bin/wait4path /nix/store` first line
+      # could never run (it was here until 2026-09-06, pure false reassurance).
+      #
+      # AND NOTHING ELSE COVERS IT EITHER: KeepAlive below is deliberately
+      # `Crashed = false` (don't spin on a crashing runner), so launchd does NOT
+      # retry a failed exec. If this DAEMON is started before /nix is mounted —
+      # plausible at boot behind FileVault — the instance stays down until the
+      # next successful-exit cycle or a manual `launchctl kickstart -k`. Left as
+      # a documented gap rather than papered over: closing it means either
+      # `KeepAlive.PathState` on /nix/store, or accepting crash-restarts. Both
+      # change live-runner behaviour and belong in their own change.
       runDaemon = pkgs.writeShellApplication {
         name = "nix-github-runner-${instanceName}";
         runtimeInputs = [
@@ -153,7 +166,6 @@ let
           runner
         ];
         text = ''
-          /bin/wait4path /nix/store
           # Always clean the working directory.
           ${lib.getExe pkgs.findutils} ${lib.escapeShellArg workDir} -mindepth 1 -delete || true
           # Ephemeral: wipe RUNNER_ROOT so each start is a fresh registration.

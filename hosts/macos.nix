@@ -201,9 +201,6 @@
       "imagemagick"
       "img2pdf"
       "kubernetes-cli"
-      # Mac App Store CLI. Kept for on-demand installs alongside masApps;
-      # `mas install` needs an App Store sign-in.
-      "mas"
       "nats-server"
       "ncdu"
       "neonctl" # Neon DB CLI (https://neon.tech/docs/reference/neon-cli)

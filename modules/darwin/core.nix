@@ -309,6 +309,13 @@ in
   environment.systemPackages = with pkgs; [
     coreutils
     curl
+    # Mac App Store CLI, for on-demand installs alongside homebrew.masApps.
+    # From nixpkgs, NOT a brew: modules/darwin/xcode-license.nix already uses
+    # `pkgs.mas` as a store path in its activation script, so the brew existed
+    # only to put the SAME tool on the interactive PATH — a second copy of a
+    # package the fleet already depends on. No buildEnv collision either way,
+    # since nothing else ships `mas`.
+    mas
   ];
 
   system = {
