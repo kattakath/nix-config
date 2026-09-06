@@ -116,21 +116,46 @@
     wifi = {
       source = "wpa_supplicant.conf";
       target = "/run/wpa_supplicant-firmware.conf";
-      before = [ "wpa_supplicant-firmware.service" ];
+      before = [ "supplicant-wlan0.service" ];
       postInstall = "${pkgs.util-linux}/bin/rfkill unblock wifi || true";
     };
   };
 
-  # Wi-Fi consumer: associate wlan0 from the planted config; dhcpcd (networking.useDHCP)
-  # then leases it. Skips cleanly (ConditionPathExists) when no config was planted.
-  systemd.services.wpa_supplicant-firmware = {
-    description = "wpa_supplicant on wlan0 (config planted on FIRMWARE)";
+  # Wi-Fi consumer: associate wlan0 from the planted config; dhcpcd
+  # (networking.useDHCP) then leases it.
+  #
+  # upstream option nixpkgs.networking.supplicant exists → using it
+  # (nixos/modules/services/networking/supplicant.nix — `configFile.path` at
+  # :107, the generated unit at :63-90, instantiation `supplicant-<iface>` at
+  # :251, and a udev rule at :262 that adds SYSTEMD_WANTS when the interface
+  # appears). This replaced a hand-written systemd unit whose ExecStart spelled
+  # out `wpa_supplicant -c … -i wlan0` itself.
+  #
+  # WHAT UPSTREAM ADDS that the hand-rolled unit did not have: `bindsTo` + `after`
+  # on the wlan0 DEVICE unit (sys-subsystem-net-devices-wlan0.device, :36-44 and
+  # :68-70). The old unit had no device relationship at all — it raced the
+  # brcmfmac probe and relied on Restart=on-failure to eventually win. It also
+  # gets `-s` (syslog), `before = network.target`, and the dbus/systemPackages
+  # wiring (:246-248) for free.
+  #
+  # THREE OVERRIDES ARE LOAD-BEARING, not preference:
+  #   1. ConditionPathExists — upstream is UNCONDITIONALLY `wantedBy
+  #      multi-user.target` (:67). Without this, a Pi flashed with no Wi-Fi
+  #      credentials starts a supplicant with a missing -c file and restart-loops
+  #      forever. The whole point of the firmware-planting design is that an
+  #      absent conf skips cleanly and the host stays LAN-only.
+  #   2. after/wants on firmware-file-wifi.service — the conf is COPIED off the
+  #      FAT firmware partition at boot; upstream cannot know that.
+  #   3. Restart=on-failure/RestartSec — upstream sets only ExecStart
+  #      (:83), no restart policy.
+  # All three merge cleanly: upstream declares no unitConfig and no Restart.
+  networking.supplicant."wlan0".configFile.path = "/run/wpa_supplicant-firmware.conf";
+
+  systemd.services."supplicant-wlan0" = {
+    unitConfig.ConditionPathExists = "/run/wpa_supplicant-firmware.conf";
     after = [ "firmware-file-wifi.service" ];
     wants = [ "firmware-file-wifi.service" ];
-    wantedBy = [ "multi-user.target" ];
-    unitConfig.ConditionPathExists = "/run/wpa_supplicant-firmware.conf";
     serviceConfig = {
-      ExecStart = "${pkgs.wpa_supplicant}/bin/wpa_supplicant -c /run/wpa_supplicant-firmware.conf -i wlan0";
       Restart = "on-failure";
       RestartSec = 5;
     };
