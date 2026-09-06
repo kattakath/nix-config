@@ -126,7 +126,7 @@ One line per path; the *why* and the per-file specifics are in
 | `treefmt.nix` | Single source of truth for format + lint-fix (tools that REWRITE); drives `nix fmt`, the CI gate, and the pre-commit hook. |
 | `sgconfig.yml` + `ast-grep/` | Report-only structural lint (ast-grep): `rules/` mechanises prose conventions, `rule-tests/` proves they fire. Gated by `checks.<system>.ast-grep`, **not** treefmt. |
 | `hosts/` | Per-host entry profiles: `macos.nix`, `nixpi.nix`, `nixvm.nix` (host-only deltas + per-host Homebrew lists). |
-| `modules/shared/` | Home Manager profile on every host: `home.nix`, `mcp.nix`, `chromium.nix` (`programs.ungoogledChromium` — sideloaded CRXes, Apple's Passwords native host, *recommended*-level policy incl. the default search engine, and the LaunchServices default-browser claim, all for the Homebrew cask), `desktop-aesthetics.nix`, `nix-cache.nix`, `nix-ld-libraries.nix`, `wireguard-configs.nix`, `claude-otel.nix`, `hm-launchd/`. |
+| `modules/shared/` | Home Manager profile on every host: `home.nix`, `mcp.nix`, `terminal-theme.nix` (`local.terminalTheme` — the fleet's one ANSI ring + type, consumed by Ghostty, VS Code and Terminal.app), `chromium.nix` (`programs.ungoogledChromium` — sideloaded CRXes, Apple's Passwords native host, *recommended*-level policy incl. the default search engine, and the LaunchServices default-browser claim, all for the Homebrew cask), `desktop-aesthetics.nix`, `nix-cache.nix`, `nix-ld-libraries.nix`, `wireguard-configs.nix`, `claude-otel.nix`, `hm-launchd/`. |
 | `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix` (`local.folders.*` — inbox paths; unset = system default), `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`services.macosGithubRunner` — LIVE on `macos`, see § Configuration). |
 | `modules/nixos/` | `core.nix` (user + keys-only sshd + firewall + avahi + nix-ld + zram + GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). |
 | `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `key-recovery`, `spotlight-launchers`, plus single-purpose CLIs (`android-phone`, `jsonresume`, `mermaid-ascii`, `claude-otel-doctor`, …). Root `bootstrap.sh` is the no-Nix stage 1. The media/photo CLIs are **no longer here** — they moved to the [`nix-media-cli`](https://github.com/kattakath/nix-media-cli) input (see § Configuration). |
@@ -325,6 +325,10 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   from a wiped Mac + the iCloud key-recovery kit; also the manual steps Nix can't do.
 - [`docs/flakehub-input-freshness.md`](docs/flakehub-input-freshness.md) — the automated weekly
   `flake.lock` bump flow.
+- [`docs/terminal-theme.md`](docs/terminal-theme.md) — the one terminal palette: the provider
+  contract, per-surface coverage (16/16 for Ghostty and VS Code, **4/16** for Terminal.app —
+  an OS ceiling), what deliberately stays uncentralized, and the measured reasons stylix and
+  base16.nix were both rejected.
 - [`docs/macos-settings-surface.md`](docs/macos-settings-surface.md) — what macOS settings
   `macos` can configure declaratively, and the TCC/FileVault walls.
 - [`docs/vastai-template-provisioning.md`](docs/vastai-template-provisioning.md) — the Vast.ai
