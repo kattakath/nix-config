@@ -469,6 +469,28 @@ in
     lib.replaceStrings [ "$HOME" "$USER" ] [ home loginName ]
       config.environment.systemPath;
 
+  # BASH_ENV — close the chicken-and-egg in the Keychain secret loader.
+  #
+  # Non-interactive bash reads exactly one startup file: $BASH_ENV. But that
+  # only helps if BASH_ENV is ALREADY in the environment. `.zshenv` seeds it and
+  # the loader re-exports it forward, so anything descended from a zsh is fine —
+  # while a bash spawned by a GUI app or a launchd job starts with neither, and
+  # silently gets no secrets. That is the gap named in
+  # docs/secrets-and-keychain.md § the `$BASH_ENV` gap.
+  #
+  # ✅ upstream option nix-darwin.launchd.user.envVariables exists → using it
+  # (pinned nix-darwin modules/launchd/default.nix:125; it emits `launchctl
+  # setenv` at activation via modules/system/launchd.nix). Same option, same
+  # $HOME-substitution reasoning as the PATH above.
+  #
+  # The VALUE is a path, not a secret, so this does not touch the store
+  # invariant that no secret — not even a key NAME — reaches /nix/store or git.
+  # Derived from the keychain-secrets module rather than restated, so the two
+  # cannot drift.
+  launchd.user.envVariables.BASH_ENV = "${home}/${
+    config.home-manager.users.${loginName}.programs.keychainSecrets.loaderRelPath
+  }";
+
   # ---- Launch-at-login agents (declarative "Open at Login") ------------------
   # macOS System Settings ▸ Login Items is NOT declaratively manageable
   # (SMAppService / TCC-like). Nix-native: launchd user agents with RunAtLoad.
