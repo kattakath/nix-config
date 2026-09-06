@@ -966,6 +966,12 @@
             # host-decrypted GitHub App key. Inert unless a host actually declares
             # `age.secrets.*`.
             agenix.darwinModules.default
+            # tart.runners.* option surface (ephemeral Tart-VM CI runners) —
+            # in the BASE list, not per-call extraModules, so EVERY mkDarwin
+            # composition has the options (nix-personal calls mkDarwin itself;
+            # a per-call wire broke its eval — the PR #452 lesson, second
+            # verse). Inert unless a host sets tart.runners (hosts/macos.nix).
+            nix-tart-macos.darwinModules.runner
             ./hosts/${hostname}.nix
             home-manager.darwinModules.home-manager
             (mkHomeManagerModule {
@@ -1031,11 +1037,6 @@
         "macos" = mkDarwin {
           system = "aarch64-darwin";
           hostname = "macos";
-          extraModules = [
-            # tart.runners.* — ephemeral GitHub Actions runners in disposable
-            # Tart VMs (configured in hosts/macos.nix).
-            nix-tart-macos.darwinModules.runner
-          ];
         };
 
         # The former `macvm` Tart guest was REMOVED 2026-09-05 — deliberately, as
