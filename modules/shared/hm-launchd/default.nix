@@ -65,17 +65,33 @@ let
       ];
     };
 
-  # mutateConfig: wait for /nix/store before exec (launchd can start agents
-  # before the store is mounted). Upstream home-manager uses:
-  #   ProgramArguments = [ "/bin/sh" "-c" "wait4path … && exec …" ]
+  # mutateConfig: rewrite each agent's arg0 to a named `nix-<activity>` wrapper.
+  # Upstream home-manager's DEFAULT (waitForNixStore = true) emits:
+  #   ProgramArguments = [ "/bin/sh" "-c" "wait4path /nix/store && exec …" ]
   # which makes macOS Login Items ▸ "Allow in the Background" show a generic
   # "sh" (or "python3") basename for every agent (verified via `sfltool dumpbtm`).
   #
-  # FLEET RULE: BTM display names must be `nix-<activity>` — tags agents as from
-  # this nix-config (same convention as modules/darwin/core.nix mkNixAgent). Keep
-  # wait4path, but put it inside a named store wrapper so ProgramArguments[0]'s
-  # basename is nix-*. Vendored from home-manager modules/launchd; only this
-  # function differs.
+  # FLEET RULE: BTM display names must be `nix-<activity>` — it tags agents as
+  # ours (same convention as modules/darwin/core.nix mkNixAgent) and is
+  # load-bearing for TCC, not cosmetic: a /nix/store arg0 reads ~/Downloads
+  # while /bin/sh gets EPERM (.claude/rules/launchd-naming.md).
+  #
+  # THE TRADE THIS ACCEPTS — and it is upstream's own wording, not a workaround
+  # around it. Pinned home-manager modules/launchd/default.nix:47-52 on
+  # `waitForNixStore = false`: "the agent's command is run through a launcher
+  # script named after the agent instead. This makes the agent appear under its
+  # own name, rather than as 'sh' … but the agent will fail to start if launchd
+  # runs it before the Nix store is mounted."
+  #
+  # So a `/bin/wait4path /nix/store` line INSIDE this wrapper would be dead
+  # code, and it used to be here: launchd must open both the wrapper and its
+  # `#!/nix/store/…/bash` interpreter out of /nix/store before the first line
+  # of the script can execute, so an unmounted store fails the exec itself and
+  # nothing inside ever runs. Removed rather than left as false reassurance.
+  # The real mitigation is KeepAlive, which makes launchd retry the exec until
+  # the store appears — see the KeepAlive audit note in the fleet's launchd
+  # agents. Vendored from home-manager modules/launchd; only this function
+  # differs, and checks.<system>.hm-launchd-drift gates the divergence.
   mutateConfig =
     cnf:
     let
@@ -92,7 +108,6 @@ let
       wrapperName = "nix-${short}";
       wrapper = pkgs.writeShellScriptBin wrapperName ''
         set -euo pipefail
-        /bin/wait4path /nix/store
         exec ${lib.escapeShellArgs args}
       '';
     in
