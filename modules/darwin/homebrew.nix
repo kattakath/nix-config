@@ -24,10 +24,29 @@ _:
     # installed by hand get uninstalled on next switch — list them in masApps
     # or reinstall after rebuild). autoUpdate/upgrade stay off so a rebuild
     # never silently bumps versions.
+    # `--quiet` and HOMEBREW_NO_COLOR exist to make activation output READABLE,
+    # not to change what gets installed. Measured 2026-09-06 on a converged
+    # Brewfile (76 entries, nothing to install), `brew bundle` on a tty:
+    #   default        2058 bytes, 95 ANSI escapes
+    #   --quiet         620 bytes, 93 escapes   <- drops 76 "Using <cask>" lines
+    #   +NO_COLOR       620 bytes, 62 escapes   <- drops the SGR colour pairs
+    # The residual 62 are `ESC[?2026h/l` (DECSET 2026, synchronized output) from
+    # bundle/parallel_installer.rb's `clear_tty_line`, which opens /dev/tty
+    # DIRECTLY. No env var reaches it (NO_COLOR, HOMEBREW_NO_COLOR, TERM=dumb and
+    # HOMEBREW_DOWNLOAD_CONCURRENCY=1 were each measured to change nothing) and
+    # redirecting stdout does not either — it is unfixable from this side while a
+    # controlling terminal exists. Don't retry those levers.
+    #
+    # extraEnv is the ONLY way to reach brew's environment here: nix-darwin runs
+    # it as `sudo --preserve-env=PATH --user=... env <extraEnv> brew bundle`
+    # (nix-darwin modules/homebrew.nix), so sudo's env_reset drops everything the
+    # operator's shell exports.
     onActivation = {
       autoUpdate = false;
       upgrade = false;
       cleanup = "uninstall";
+      extraFlags = [ "--quiet" ];
+      extraEnv.HOMEBREW_NO_COLOR = "1";
     };
 
     # ---- Taps --------------------------------------------------------------
