@@ -831,6 +831,11 @@
                 keychain-secrets
                 media-cli
                 local-rag
+                # nix-tart-macos: home.nix installs the gitlab-tart slot shims
+                # (PATH-stable + GC-rooted so ~/.gitlab-runner/config.toml can
+                # reference them). In extraSpecialArgs, NOT per-call — the
+                # two-composition-call-sites lesson.
+                nix-tart-macos
                 # jsonResumeUrl: the raw resume.json URL (or null), consumed by home.nix
                 # to bake into the jsonresume package as its default --url (darwin
                 # home.packages; inert on the NixOS hosts).
