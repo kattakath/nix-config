@@ -83,15 +83,46 @@ in
 
       # ---- Static desktop wallpaper --------------------------------------------
       # The vendored wallpaper.png (./wallpaper/wallpaper.png, version-controlled →
-      # served from its immutable /nix/store copy). macOS keeps the desktop picture
-      # in a sqlite db that `defaults` can't reliably read/write, so drive it via
-      # System Events, which sets it for every display. Re-run each activation
-      # (cheap, idempotent — it just re-points at the same store path).
+      # served from its immutable /nix/store copy).
+      #
+      # upstream option home-manager.programs.desktoppr exists → using it
+      # (modules/programs/desktoppr.nix:16 enable, :26 settings.picture typed
+      # `nullOr (either path url)`, :94 a darwin platform assertion, :98
+      # targets.darwin.defaults.desktoppr, :100 an activation entryAfter
+      # "setDarwinDefaults" running `desktoppr manage`). It wraps
+      # scriptingosx/desktoppr, which talks to NSWorkspace directly.
+      #
+      # This replaced a hand-rolled `home.activation.setWallpaper` osascript
+      # one-liner driving System Events. The old comment correctly ruled out
+      # `defaults` — macOS keeps the desktop picture in a sqlite db — but never
+      # considered a purpose-built CLI, which is exactly the gap
+      # .claude/rules/upstream-first.md exists to catch.
+      #
+      # TRADE: pkgs.desktoppr (0.5) is a swift/swiftpm build with
+      # `versionCheckHook`, so the FIRST activation compiles it unless Cachix has
+      # it warm. In exchange the System Events Automation TCC dependency goes
+      # away — worth it, and a different (smaller) consent prompt on a fresh Mac.
+      #
+      # WHY THE home.file INDIRECTION rather than `settings.picture = ./…png`:
+      # upstream routes the value through `targets.darwin.defaults`, which builds
+      # the plist with `builtins.derivation` and LOSES the string context — Nix
+      # says so out loud ("references the store path … without a proper context").
+      # Measured both ways on the darwin-system drv with `nix-store -qR | grep -i
+      # wallpaper`: with `settings.picture` set to the path directly the closure
+      # contains NO wallpaper entry at all, so `nix-collect-garbage` would delete
+      # it and the desktop would silently revert; with the home.file indirection
+      # the closure contains `…-hm_wallpaper.png`. The old osascript
+      # activation did not have this problem — an activation script IS part of the
+      # generation, so the path stayed rooted. Pointing desktoppr at a home.file
+      # symlink restores that: home.file keeps the store path in the generation's
+      # closure, and desktoppr reads through the link.
       (lib.mkIf cfg.enable {
-        home.activation.setWallpaper = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-          $DRY_RUN_CMD /usr/bin/osascript -e \
-            'tell application "System Events" to tell every desktop to set picture to "${./wallpaper/wallpaper.png}"' || true
-        '';
+        home.file.".local/share/nix-desktop-wallpaper.png".source = ./wallpaper/wallpaper.png;
+
+        programs.desktoppr = {
+          enable = true;
+          settings.picture = "${config.home.homeDirectory}/.local/share/nix-desktop-wallpaper.png";
+        };
       })
     ]
   );
