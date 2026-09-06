@@ -1549,32 +1549,47 @@ in
           "workbench.settings.alwaysShowAdvancedSettings" = true;
           "window.density.editorTabHeight" = "compact";
           "chat.agent.enabled" = false;
-          # -- Terminal: Ubuntu 24 palette --
-          "workbench.colorCustomizations" = {
-            "terminal.background" = "#300A24";
-            "terminal.foreground" = "#FFFFFF";
-            "terminal.ansiBlack" = "#2E3436";
-            "terminal.ansiRed" = "#CC0000";
-            "terminal.ansiGreen" = "#4E9A06";
-            "terminal.ansiYellow" = "#C4A000";
-            "terminal.ansiBlue" = "#3465A4";
-            "terminal.ansiMagenta" = "#75507B";
-            "terminal.ansiCyan" = "#06989A";
-            "terminal.ansiWhite" = "#D3D7CF";
-            "terminal.ansiBrightBlack" = "#555753";
-            "terminal.ansiBrightRed" = "#EF2929";
-            "terminal.ansiBrightGreen" = "#8AE234";
-            "terminal.ansiBrightYellow" = "#FCE94F";
-            "terminal.ansiBrightBlue" = "#729FCF";
-            "terminal.ansiBrightMagenta" = "#AD7FA8";
-            "terminal.ansiBrightCyan" = "#34E2E2";
-            "terminal.ansiBrightWhite" = "#EEEEEC";
+          # -- Terminal: the fleet palette --------------------------------------
+          # DERIVED, not restated. Until this was wired to
+          # modules/shared/terminal-theme.nix, seven of these sixteen slots held
+          # PRE-LIFT Tango while Ghostty held the WCAG-corrected values — the two
+          # terminals on the same machine disagreed on red, blue, magenta and
+          # four of the brights. `drawBoldTextInBrightColors` below routes every
+          # bold token through the bright half, so the drift showed up twice.
+          #
+          # statusBarItem.* stays literal on purpose: it is Remote-window chrome,
+          # not the ANSI ring, and shares nothing with the palette.
+          "workbench.colorCustomizations" = with config.lib.terminalTheme.byName; {
+            "terminal.background" = config.lib.terminalTheme.background;
+            "terminal.foreground" = config.lib.terminalTheme.foreground;
+            # UNSET until now, so the cursor fell through to whatever the editor
+            # theme extension happened to pick.
+            "terminalCursor.foreground" = config.lib.terminalTheme.cursor;
+            "terminal.ansiBlack" = black;
+            "terminal.ansiRed" = red;
+            "terminal.ansiGreen" = green;
+            "terminal.ansiYellow" = yellow;
+            "terminal.ansiBlue" = blue;
+            "terminal.ansiMagenta" = magenta;
+            "terminal.ansiCyan" = cyan;
+            "terminal.ansiWhite" = white;
+            "terminal.ansiBrightBlack" = brightBlack;
+            "terminal.ansiBrightRed" = brightRed;
+            "terminal.ansiBrightGreen" = brightGreen;
+            "terminal.ansiBrightYellow" = brightYellow;
+            "terminal.ansiBrightBlue" = brightBlue;
+            "terminal.ansiBrightMagenta" = brightMagenta;
+            "terminal.ansiBrightCyan" = brightCyan;
+            "terminal.ansiBrightWhite" = brightWhite;
             "statusBarItem.remoteForeground" = "#0c0a14";
             "statusBarItem.remoteBackground" = "#3e3657";
             "statusBarItem.remoteHoverBackground" = "#a98cf0";
           };
-          "terminal.integrated.fontFamily" = "'UbuntuMono Nerd Font', 'Ubuntu Mono', monospace";
-          "terminal.integrated.fontSize" = 16;
+          # The fallback chain stays hand-written — 'Ubuntu Mono' then monospace
+          # is a VS Code-only concern the provider has no opinion about.
+          "terminal.integrated.fontFamily" =
+            "'${config.lib.terminalTheme.font.face}', 'Ubuntu Mono', monospace";
+          "terminal.integrated.fontSize" = config.lib.terminalTheme.font.sizes.vscodeTerminal;
           "terminal.integrated.copyOnSelection" = true;
           "terminal.integrated.drawBoldTextInBrightColors" = true;
           "terminal.integrated.tabs.defaultColor" = "terminal.ansiMagenta";
