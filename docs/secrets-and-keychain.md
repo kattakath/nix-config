@@ -12,8 +12,8 @@ Encrypted secrets are committed via **agenix**: recipients are declared in
 `secrets/secrets.nix` (pure age/SSH, **no `ssh-to-age`**), ciphertext lives in
 `./secrets/<name>.age`.
 
-There are **two** committed secrets, and they use **two different models**. Assuming one model
-covers both is the mistake to avoid.
+There are **four** committed secrets across **two different models** — one operator-only, three
+host-decrypted. Assuming one model covers all of them is the mistake to avoid.
 
 ### 1. `cloudflared-token.age` — operator-only
 
@@ -27,16 +27,32 @@ Why not host-decrypt it? agenix binds a secret to the host's SSH host key, and a
 **rotates that key** — which would break decryption and kill the tunnel, the sole remote path
 into `nixpi`. For this secret, host-decryption is a lockout risk.
 
-### 2. `gh-app-dontsell-ai-key.age` — host-decrypted on `macos`
+### 2–4. `gh-app-dontsell-ai-key.age`, `gh-app-fleet-key.age`, `gitlab-runner-token.age` — host-decrypted on `macos`
 
-The `macos` self-hosted runner's GitHub **App** RS256 private key
-(`modules/darwin/github-runner.nix`, `services.macosGithubRunner`). Recipients are the operator
-**plus the `macos` SSH host key**, so this one *is* decrypted at activation into
-`/run/agenix/<name>` by the host itself.
+The three credentials the `macos` CI runner lanes need. Recipients are the operator **plus the
+`macos` SSH host key**, so these *are* decrypted at activation into `/run/agenix/<name>` by the
+host itself.
+
+| Secret | Consumer | Content |
+|---|---|---|
+| `gh-app-dontsell-ai-key.age` | `services.macosGithubRunner` (`modules/darwin/github-runner.nix`) — the bare-metal `_github-runner` **daemons** | GitHub App RS256 `.pem` |
+| `gh-app-fleet-key.age` | `tart.githubRunners.*` (`nix-tart-vms`, `hosts/macos.nix`) — the login-user Tart **agents** | the *same* App's RS256 `.pem` |
+| `gitlab-runner-token.age` | `tart.gitlabRunner` — renders `config.toml` at agent start | the bare `glrt-` token, one line |
+
+**The two `gh-app-*` files hold identical key material, and that is deliberate — not duplication
+to clean up.** Both authenticate as the `ismailkattakath-ci` App (appId 4849830), but an agenix
+secret has exactly **one** owner, and the consumers run as different users (`_github-runner`
+daemons vs. the login user, whose Tart agents need a GUI session for Virtualization.framework).
+Rotating the App key therefore means re-encrypting **both**, with `age -R` and a recipient-tag
+check — never `agenix -e`. `secrets/secrets.nix` carries the full App history (this App replaced
+the retired `kattakath-fleet-ci`, `kattakath-ci` and `dontsell-ai` Apps on 2026-09-06) and the
+two-key split against the `kattakath` org secret `CI_BOT_APP_PRIVATE_KEY`.
 
 That is safe here for the reason it wasn't for nixpi: `macos` is a persistent machine whose host
-key isn't reflashed, and the key never leaves it. Every runner registration uses it to mint a
-fresh ~1 h installation token, so no long-lived bearer credential is stored or transmitted.
+key isn't reflashed, and the keys never leave it. Every GitHub runner registration uses the App
+key to mint a fresh ~1 h installation token, so no long-lived bearer credential is stored or
+transmitted. (The GitLab `glrt-` token is the exception — it is long-lived by design; rotating it
+means re-registering the runner.)
 
 > **The host-decryption path is LIVE.** Earlier revisions of this repo's docs said agenix's
 > host-decrypt mechanism was "used by NOTHING" — that was true only between the runner's
@@ -47,7 +63,7 @@ When changing recipients, **re-key**: `agenix -r`. The `macos` host key pinned i
 invalidated the previous pin — verify it against the live
 `/etc/ssh/ssh_host_ed25519_key.pub` before reusing that value.
 
-Edit either secret with:
+Edit any secret with:
 
 ```bash
 agenix -e secrets/<name>.age    # uses ~/.ssh/id_ed25519 directly — no SOPS_AGE_KEY_FILE ceremony
@@ -77,8 +93,10 @@ root). `SECRETS_DEBUG=1` reports which secrets loaded/failed (names + lengths + 
 
 ### The `secret` command
 
-The store is managed with a single noun-verb command **`secret <set|get|rm|ls|load>`** (the
-primary interface; from the `nix-keychain-secrets` flake):
+The store is managed with a single noun-verb command **`secret <verb>`** (the primary interface;
+from the `nix-keychain-secrets` flake). **There is no `secret get`** — it was removed so that
+printing a value is always an explicit, named act (`reveal`), never the path of least
+resistance:
 
 | Command | Effect |
 |---|---|
@@ -88,12 +106,15 @@ primary interface; from the `nix-keychain-secrets` flake):
 | `secret fp <KEY>` | digest + length + mdat, never the value |
 | `secret reveal <KEY>` | PRINT it — the only printing verb, use last |
 | `secret rm <KEY>` | remove |
-| `secret ls` | list (`list` also accepted) |
+| `secret ls [--long]` | list (`list` also accepted) |
+| `secret bind <KEY> <ENV>` | export it as `$ENV` in every shell |
+| `secret unbind <KEY>` | stop exporting it; reach it via `copy`/`exec`/`fp` |
+| `secret adopt <KEY>` | register a Keychain item added outside this CLI |
 | `secret load` | reload the whole store into the current shell — the shell-function-only fix for a manually-unset var |
 
-Each is a **shell function** (`set`/`rm`/`load` also mutate the current shell — export/unset/
-reload) backed by a **PATH binary** *and* a **`nix run .#secret -- …`** app (`load` is
-function-only). `set-secret <KEY> [VALUE]` and `remove-secret <KEY>` remain as back-compat
+Each is a **shell function** (`set`/`rm`/`bind`/`unbind`/`load` also mutate the current shell —
+export/unset/reload) backed by a **PATH binary** *and* a **`nix run .#secret -- …`** app (`load`
+is function-only). `set-secret <KEY> [VALUE]` and `remove-secret <KEY>` remain as back-compat
 **aliases** for `secret set` / `secret rm`. The mutating verbs forward to `set-secret` so the
 Keychain/index logic lives once, and the Keychain index (`__set_secret_index__`) is
 authoritative — so **no secret names live in `.nix`**.
