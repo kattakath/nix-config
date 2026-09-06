@@ -128,6 +128,16 @@ media queue
 cd "$(dirname "$0")/../assets" && exec rclip "$@"
 ```
 
+## Where these tools live
+
+`photo-describe`, `media` and the queue are **not in nix-config any more** — they moved to
+[`kattakath/nix-media-cli`](https://github.com/kattakath/nix-media-cli) (2026-09-05) and come
+back as `programs.mediaCli.enable`. `rclip` stays in nix-config: it is the VECTOR half, a
+third-party tool this repo merely installs, and it reaches the stack through that module's
+`extraSearchPackages` seam.
+
+Nothing about the workflow on this page changed. The commands are the same.
+
 ## The rule
 
 Words = treasure. Index = cache.
