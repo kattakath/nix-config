@@ -261,31 +261,31 @@ an unlink; `vast-template-apply`'s own delete+create covers the only case that m
 4. **Mode selection** — explicit, via flags: `--repo` alone = legacy; `--repo` +
    `--workflow-name` = aggregator; `--manifest` + `--workflow` = manifest mode.
 
-### ⚠️ Decision 2 is currently UNPROVISIONED — private-repo provisioning would fail
+### Decision 2 — superseded 2026-09-06: the operator PAT, synced deliberately
 
-Verified 2026-09-06:
+The original decision was a `read_repository`-only `GITLAB_TOKEN`. What was found on
+2026-09-06: that PAT (`vastai-gitlab-token`, last used 2026-07-25) was **revoked** with
+no replacement, and every `VAST_`-prefixed entry was missing from the Keychain — so
+`vast-account-vars-set` had been pushing **nothing at all**, reporting it only as `SKIP`
+lines.
 
-- The GitLab PAT behind it (`vastai-gitlab-token`, `read_repository`, last used
-  2026-07-25) is **revoked**, with no active replacement.
-- Every `VAST_`-prefixed token entry was missing from the Keychain, so
-  `vast-account-vars-set` was pushing **nothing at all** — not just GitLab — while
-  reporting it only as `SKIP` lines.
+**Resolved by dropping the prefix and aliasing the source.** Each Vast variable is now
+read from the operator's general Keychain entry; the *variable* names stay fixed because
+the container reads them (`GITLAB_TOKEN`/`GH_TOKEN` clone auth, `CIVITAI_TOKEN`/`HF_TOKEN`
+downloads). See [`secrets-and-keychain.md`](secrets-and-keychain.md) § Vast.ai tokens for
+the alias table.
 
-**Both halves are now addressed by the same change.** The prefix is gone (pinned input
-`vast-provision`, 2026-09-06): each token is read under its own name, so `GITLAB_TOKEN`
-and `HF_TOKEN` resolve immediately from the entries that already exist. `CIVITAI_TOKEN`
-and `GH_TOKEN` still have no Keychain entry and `SKIP` naming the entry to create.
+**The trade, recorded so it is a decision and not a surprise:** the synced `GITLAB_TOKEN`
+is the **operator PAT** (`api`, `create_runner`, `manage_runner`), and the default set
+also ships `GITHUB_PERSONAL_ACCESS_TOKEN`. Both are broader than `read_repository`. The
+operator accepted this on 2026-09-06 having been shown the scope ("I trust Vast"), which
+**supersedes** the "Never a write-scoped or full personal PAT" line above. To narrow it
+later, mint a read-only PAT and overwrite the Keychain entry — no code change needed.
 
-**Accepted trade, recorded so it is a decision and not a surprise:** the `GITLAB_TOKEN`
-now synced is the **operator PAT** (`api`, `create_runner`, `manage_runner`), not a
-`read_repository`-only token. The operator accepted this on 2026-09-06 having been shown
-the scope. It supersedes "Never a write-scoped or full personal PAT" above for GitLab
-specifically. To narrow it later, mint a `read_repository`-only PAT (or a per-project
-read token) and overwrite the `GITLAB_TOKEN` entry.
-
-**Still unverified:** whether the Vast **account** holds a stale `GITLAB_TOKEN` var from
-an earlier run. `GET /api/v0/secrets/` returns **401** — it requires a 2FA-backed login,
-so it must be checked from the Vast web console.
+**Live as of 2026-09-06:** `GITLAB_TOKEN` pushed to the Vast account (`set on Vast`,
+value length 62, matching `secret get GITLAB_TOKEN`). The account's full variable list
+could not be read back — `GET /api/v0/secrets/` returns **401**, requiring a 2FA-backed
+login, so `POST`/`PUT` works headlessly but enumeration must happen in the web console.
 
 ## References
 
