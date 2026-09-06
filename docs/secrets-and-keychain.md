@@ -108,28 +108,31 @@ authoritative — so **no secret names live in `.nix`**.
 
 ## Vast.ai tokens
 
-Same rule: `VAST_API_KEY` plus the read-only
-`VAST_GITLAB_TOKEN`/`VAST_HF_TOKEN`/`VAST_CIVITAI_TOKEN`/`VAST_GH_TOKEN` live in the login
-Keychain and are pushed to Vast **account-level** env vars via
-`nix run .#vast-account-vars-set` (injected into every instance, never baked into the
-template); provisioner stacks are private GitLab repos. See
-[`vastai-template-provisioning.md`](vastai-template-provisioning.md).
+Same rule: `VAST_API_KEY` plus the read-only `GITLAB_TOKEN`/`HF_TOKEN`/
+`CIVITAI_TOKEN`/`GH_TOKEN` live in the login Keychain and are pushed to Vast
+**account-level** env vars via `nix run .#vast-account-vars-set` (injected into every
+instance, never baked into the template); provisioner stacks are private GitLab repos.
+See [`vastai-template-provisioning.md`](vastai-template-provisioning.md).
 
-**`GITLAB_TOKEN` and `VAST_GITLAB_TOKEN` are two different credentials — do not conflate
-them.** `vast-account-vars-set` reads the Keychain entry `VAST_$name` (pinned input
-`vast-provision`, `packages/vast-provision.nix:366`), so the operator's own PAT is never
-what gets pushed to a third-party GPU host:
+**One name per credential — the `VAST_<NAME>` prefix is gone** (pinned input
+`vast-provision`, removed 2026-09-06). It existed to mark a token as safe to sync, and
+paid for that marker by duplicating every credential; the duplicates then rotted — all
+four were missing from the Keychain, so the sync pushed nothing and said so only as four
+`SKIP` lines. The tool now reads each token under its own name.
 
-| Keychain entry | Scope | Who reads it | Leaves the Mac? |
-|---|---|---|---|
-| `GITLAB_TOKEN` | operator PAT — `api`, `create_runner`, `manage_runner` (`nix-glab-cli-scoped`, exp 2027-09-05) | `glab` CLI; `vast-repo-check` / `vast-init-repo` **locally** | **No** |
-| `VAST_GITLAB_TOKEN` | read-only `read_repository` | `vast-account-vars-set` → Vast account var | **Yes** — visible to the host operator |
+| Keychain entry | Also pushed to Vast? |
+|---|---|
+| `GITLAB_TOKEN` — operator PAT (`api`, `create_runner`, `manage_runner`) | **yes**, if named |
+| `HF_TOKEN` | **yes**, if named |
+| `CIVITAI_TOKEN` / `GH_TOKEN` — **not yet created** | would be |
+| `VAST_API_KEY` — Vast's own API key, no general counterpart | **never** |
+| `DOCKERHUB_TOKEN` — rent-time `image_login` only | **never** |
 
-⚠️ **`VAST_GITLAB_TOKEN` is currently ABSENT from the Keychain**, and its backing GitLab
-PAT (`vastai-gitlab-token`) is revoked — see
-[`vastai-template-provisioning.md`](vastai-template-provisioning.md) § Decisions.
-`vast-account-vars-set` **fails safe** here (`SKIP (Keychain VAST_GITLAB_TOKEN missing)`,
-`rc=1`); it does **not** fall back to the operator PAT.
+⚠️ **Nothing in a name now says "this leaves the machine."** The argument list to
+`vast-account-vars-set` is the only guard, and anything it pushes is readable by the
+third-party GPU host operator. The default set is
+`GITLAB_TOKEN HF_TOKEN CIVITAI_TOKEN GH_TOKEN`; passing the *operator* `GITLAB_TOKEN`
+is a deliberate, accepted trade (2026-09-06) — do not widen the set casually.
 
 ## Cachix write token
 
