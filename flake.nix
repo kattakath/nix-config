@@ -977,6 +977,10 @@
             # a per-call wire broke its eval — the PR #452 lesson, second
             # verse). Inert unless a host sets tart.runners (hosts/macos.nix).
             nix-tart-macos.darwinModules.runner
+            # tart.gitlabRunner option surface (declarative gitlab-runner on the
+            # same Tart custom executor + slot budget). Same base-list rationale.
+            # Inert unless a host enables it (hosts/macos.nix).
+            nix-tart-macos.darwinModules.gitlab-runner
             ./hosts/${hostname}.nix
             home-manager.darwinModules.home-manager
             (mkHomeManagerModule {
