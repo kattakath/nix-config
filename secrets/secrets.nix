@@ -66,13 +66,21 @@ in
   # deliberately NOT granted (only repo-scoped runner registration needs it,
   # and every lane is org-scoped).
   #
-  # THE SAME PRIVATE KEY IS ALSO THE kattakath ORG SECRET
-  # CI_BOT_APP_PRIVATE_KEY, which is what auto-merge.yml and
-  # update-flake-lock.yml mint from. That is a deliberate consolidation, and
-  # it is the reason this file's key is now a code-push credential rather than
-  # a runner-registration one: rotating it means rotating BOTH places. Prefer
-  # generating a SECOND App private key for whichever side you rotate, so the
-  # two are independently revocable.
+  # SPLIT 2026-09-06 — agenix and the org secret are now DIFFERENT App keys.
+  # The App issues up to TWO private keys; both authenticate as 4849830, and
+  # each is revocable without touching the other:
+  #   agenix (this file + gh-app-dontsell-ai-key)  pub-sha256 inRKykzB+W3Ppu…
+  #   kattakath org secret CI_BOT_APP_PRIVATE_KEY  pub-sha256 QXTEhxCXS1TgXP…
+  # (public-half digests, safe to record — they are how you confirm a rotation
+  # landed without ever reading key material.)
+  #
+  # So rotating ONE side is now one download + one API write, not both places
+  # at once. What the split does NOT change: App permissions are App-GLOBAL,
+  # so either key still carries the full permission set on every installation.
+  # This buys independent REVOCATION, not reduced blast radius.
+  #
+  # At two keys the App is at its ceiling: a future rotation must DELETE one
+  # before generating its replacement.
   # The name is unchanged from the file's creation ("fleet key") because the
   # role is unchanged; only the App behind it moved.
   "gh-app-fleet-key.age".publicKeys = [
