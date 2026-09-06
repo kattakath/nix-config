@@ -1594,7 +1594,7 @@
             # Vast.ai template provisioning (macOS). vast-template-apply reconciles
             # (create/update BY NAME) a template that boots via PROVISIONING_SCRIPT ->
             # the committed bootstrap -> clone the target repo (public/private) + run
-            # its entrypoint; vast-account-vars-set syncs read-only VAST_* Keychain
+            # its entrypoint; vast-account-vars-set syncs read-only Keychain
             # tokens to Vast account env vars. See docs/vastai-template-provisioning.md.
             aarch64-darwin.vast-template-apply = {
               type = "app";
@@ -1609,7 +1609,7 @@
             aarch64-darwin.vast-account-vars-set = {
               type = "app";
               program = "${self.packages.aarch64-darwin.vast-account-vars-set}/bin/vast-account-vars-set";
-              meta.description = "Sync read-only VAST_* Keychain tokens to Vast.ai account-level env vars (GITLAB_TOKEN/HF_TOKEN/CIVITAI_TOKEN/GH_TOKEN)";
+              meta.description = "Sync read-only Keychain tokens to Vast.ai account-level env vars (GITLAB_TOKEN/HF_TOKEN/CIVITAI_TOKEN/GH_TOKEN — same name both sides)";
             };
             aarch64-darwin.vast-ssh-key-set = {
               type = "app";
