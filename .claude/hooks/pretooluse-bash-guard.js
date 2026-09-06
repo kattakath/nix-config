@@ -63,6 +63,24 @@
  * documentation is not a brake, and adding the `deploy` CLI to the darwin devShell
  * is what first put one of them on PATH. Same tier as CF_TERRANIX_APP.
  *
+ * THIS HOOK IS NOT THE ONLY LAYER, AND MUST NOT BE (2026-09-06 audit). It runs
+ * wrapped by superhook.js, whose FIRST job is crash safety: if this script
+ * throws, times out, or exits non-zero, superhook emits `{"decision":"approve"}`
+ * so the session is never wedged (superhook.js's "crash safety" branch). That
+ * is right for a guard whose job is mostly nudges — and wrong for the two
+ * LIVE-FLEET brakes in Rule 1b, which would then FAIL OPEN on a bug in this
+ * file. `deploy` therefore also sits in `permissions.deny` in
+ * .claude/settings.json: config-layer denials are evaluated by the harness
+ * itself, independently of any hook, so the brake survives this script
+ * crashing. Keep the two in sync — a Rule 1b addition should ask whether it
+ * belongs in `deny` too.
+ *
+ * `darwin-rebuild switch` is deliberately NOT in `deny`: the SANCTIONED
+ * activation path (`../nix-personal#macos`) is the same binary, and a
+ * `Bash(darwin-rebuild switch:*)` pattern would block it while still missing
+ * `darwin-rebuild --flake .#macos switch` (flag order). The per-segment logic
+ * below handles what a prefix pattern cannot.
+ *
  * Contract (superhook.js, NOT the raw Claude Code hook protocol, since this
  * always runs wrapped): always exit 0; stdout is
  * `{"decision":"approve"}` or `{"decision":"block","reason":"...","systemMessage":"..."}`.
