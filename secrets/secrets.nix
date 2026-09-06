@@ -38,14 +38,30 @@ in
     operator
     macos
   ];
-  # The fleet-wide CI GitHub App ("kattakath-fleet-ci", appId 4845230, PUBLIC
-  # so it installs beyond its owning account) — ONE key serves every install:
-  # kattakath + silvercreek-ai + dontsell-ai orgs (and the personal account,
-  # unused until repo-level runners land). Powers tart.githubRunners.* — the
-  # ephemeral Tart-VM-per-job runners (nix-tart-vms darwinModules.github-runner,
-  # hosts/macos.nix). Same model as the dontsell key above: HOST-decrypted at
-  # activation; permissions on the App are Organization/Self-hosted-runners RW
-  # + Repository/Administration RW only. Content is the raw .pem.
+  # The fleet-wide CI GitHub App ("ismailkattakath-ci", appId 4849830, PUBLIC
+  # so it installs beyond its owning personal account) — ONE key serves every
+  # install: kattakath + silvercreek-ai + dontsell-ai orgs and the personal
+  # account. Powers tart.githubRunners.* — the ephemeral Tart-VM-per-job
+  # runners (nix-tart-vms darwinModules.github-runner, hosts/macos.nix). Same
+  # model as the dontsell key above: HOST-decrypted at activation. Content is
+  # the raw .pem.
+  #
+  # 2026-09-06: this App REPLACED both "kattakath-fleet-ci" (4845230) and the
+  # org-owned Actions bot "kattakath-ci" (4243998). Its permissions are the
+  # union of those roles — Repository Contents/Pull-requests/Actions RW +
+  # Metadata R, Organization Self-hosted-runners RW; Administration was
+  # deliberately NOT granted (only repo-scoped runner registration needs it,
+  # and every lane is org-scoped).
+  #
+  # THE SAME PRIVATE KEY IS ALSO THE kattakath ORG SECRET
+  # CI_BOT_APP_PRIVATE_KEY, which is what auto-merge.yml and
+  # update-flake-lock.yml mint from. That is a deliberate consolidation, and
+  # it is the reason this file's key is now a code-push credential rather than
+  # a runner-registration one: rotating it means rotating BOTH places. Prefer
+  # generating a SECOND App private key for whichever side you rotate, so the
+  # two are independently revocable.
+  # The name is unchanged from the file's creation ("fleet key") because the
+  # role is unchanged; only the App behind it moved.
   "gh-app-fleet-key.age".publicKeys = [
     operator
     macos

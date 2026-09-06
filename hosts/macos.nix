@@ -48,10 +48,34 @@
 
   # ---- Ephemeral Tart-VM CI runners (tart.githubRunners.*, nix-tart-vms) ---------
   # Every job gets a disposable macOS VM; the VM is the isolation boundary.
-  # All instances share ONE fleet GitHub App ("kattakath-fleet-ci", public,
-  # appId 4845230 — Organization/Self-hosted-runners RW + Repository/
-  # Administration RW only) and its single agenix-delivered key below; each
-  # scope has its own installationId. The two bare-metal dontsell runners
+  # All instances share ONE fleet GitHub App ("ismailkattakath-ci", public,
+  # appId 4849830, owned by the OPERATOR's personal account, not an org) and
+  # its single agenix-delivered key below; each scope has its own
+  # installationId.
+  #
+  # Consolidated 2026-09-06 from two Apps into this one. It replaced BOTH
+  # "kattakath-fleet-ci" (4845230, runners) and "kattakath-ci" (4243998, the
+  # Actions CI bot behind auto-merge and update-flake-lock), which is why its
+  # permission set is the UNION of the two roles:
+  #   Repository:   Contents RW, Pull requests RW, Actions RW, Metadata R
+  #   Organization: Self-hosted runners RW
+  # Deliberately NOT granted: Repository/Administration. The fleet App carried
+  # it, but it is only needed for REPO-scoped runner registration and every
+  # lane here is org-scoped — so it stayed off. Adding `scope.type = "repo"`
+  # later needs that grant first.
+  #
+  # THE COST, recorded so it is a decision and not a surprise: App permissions
+  # are App-GLOBAL, not per-installation (verified — all installations report
+  # an identical set). So this one key can push to every repo in every account
+  # it is installed on, and it now lives BOTH in agenix here AND in the
+  # kattakath org secret CI_BOT_APP_PRIVATE_KEY. The previous split kept the
+  # Actions key off this machine and the runner key unable to push code.
+  #
+  # `dontsell-ai` (4689619) is deliberately NOT folded in: it is owned by that
+  # CLIENT org, carries only Organization/Self-hosted-runners RW, and is
+  # installed on selected repos — strictly tighter than this App.
+  #
+  # The two bare-metal dontsell runners
   # above STAY for that org's nix/cachix/pgvector-heavy CI (the Cirrus guest
   # image carries none of that toolchain) — dontsell workflows opt into VM
   # isolation with `runs-on: [self-hosted, tart, dontsell-vm]`. Apple caps
@@ -80,7 +104,7 @@
   tart =
     let
       fleetApp = {
-        appId = 4845230;
+        appId = 4849830;
         privateKeyPath = config.age.secrets."gh-app-fleet-key".path;
         image = {
           oci = "ghcr.io/cirruslabs/macos-runner:tahoe";
@@ -110,7 +134,7 @@
             type = "org";
             value = "kattakath";
           };
-          installationId = 159388698;
+          installationId = 159496730;
         };
         silvercreek = fleetApp // {
           enable = false;
@@ -118,7 +142,7 @@
             type = "org";
             value = "silvercreek-ai";
           };
-          installationId = 159388708;
+          installationId = 159496756;
         };
         # Re-enabled 2026-09-06 after the label flip closed a real misroute.
         # GitHub matching is case-insensitive and a runner matches on a SUPERSET,
@@ -140,7 +164,7 @@
             type = "org";
             value = "dontsell-ai";
           };
-          installationId = 159388677;
+          installationId = 159496676;
         };
       };
 
