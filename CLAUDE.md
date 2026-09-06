@@ -138,7 +138,6 @@ One line per path; the *why* and the per-file specifics are in
 | `.claude/` | Project agent config — see the two tables below. |
 | `.github/workflows/` | `nix-ci.yml` (2 hosted legs), `auto-merge.yml`, `build-devcontainer.yml`, `build-installers.yml`, `claude*.yml`, `gitleaks.yml`, `flakehub-publish.yml`. |
 | `docs/` | Runbooks + this repo's design docs — indexed at the bottom of this file. |
-| `memory/` | **Gitignored** project memory (the candid "why"), surfaced by `memory-loader.js`. Never `git add`. |
 
 **Commands** (`.claude/commands/`): `/eval`, `/hygiene`, `/update-input`, `/superhook-review`,
 `/pretooluse-review`, `/remember-nix`, `/gmail-account`, `/routing-review`,
@@ -158,8 +157,8 @@ exposes a `nix-<kebab>` `arg0` — never a bare `sh`/`python3`),
 surface before writing custom Nix, and cite the result).
 
 **Hooks** (`.claude/hooks/`): `stop-gate.js` + `pretooluse-bash-guard.js` (both wrapped by
-`superhook.js`), the `*-digest.js` SessionStart nudges, `memory-loader.js`,
-`autostage-nix.js`, `nix-home-path-lint.js`, `pretooluse-log.js`. What their messages mean:
+`superhook.js`), the `*-digest.js` SessionStart nudges, `autostage-nix.js`,
+`nix-home-path-lint.js`. What their messages mean:
 [`docs/claude-hook-messages.md`](docs/claude-hook-messages.md).
 
 **MCP servers**: one localhost `mcp-proxy` gateway (`modules/shared/mcp.nix`, darwin-only) on
