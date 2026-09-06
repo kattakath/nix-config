@@ -115,6 +115,22 @@ Keychain and are pushed to Vast **account-level** env vars via
 template); provisioner stacks are private GitLab repos. See
 [`vastai-template-provisioning.md`](vastai-template-provisioning.md).
 
+**`GITLAB_TOKEN` and `VAST_GITLAB_TOKEN` are two different credentials — do not conflate
+them.** `vast-account-vars-set` reads the Keychain entry `VAST_$name` (pinned input
+`vast-provision`, `packages/vast-provision.nix:366`), so the operator's own PAT is never
+what gets pushed to a third-party GPU host:
+
+| Keychain entry | Scope | Who reads it | Leaves the Mac? |
+|---|---|---|---|
+| `GITLAB_TOKEN` | operator PAT — `api`, `create_runner`, `manage_runner` (`nix-glab-cli-scoped`, exp 2027-09-05) | `glab` CLI; `vast-repo-check` / `vast-init-repo` **locally** | **No** |
+| `VAST_GITLAB_TOKEN` | read-only `read_repository` | `vast-account-vars-set` → Vast account var | **Yes** — visible to the host operator |
+
+⚠️ **`VAST_GITLAB_TOKEN` is currently ABSENT from the Keychain**, and its backing GitLab
+PAT (`vastai-gitlab-token`) is revoked — see
+[`vastai-template-provisioning.md`](vastai-template-provisioning.md) § Decisions.
+`vast-account-vars-set` **fails safe** here (`SKIP (Keychain VAST_GITLAB_TOKEN missing)`,
+`rc=1`); it does **not** fall back to the operator PAT.
+
 ## Cachix write token
 
 `CACHIX_AUTH_TOKEN` lives in exactly two places — a **GitHub Actions secret** and (since
