@@ -23,7 +23,7 @@ writeShellApplication {
   name = "resend";
   runtimeInputs = [ nodejs ];
   text = ''
-    key="$(/usr/bin/security find-generic-password -a "$(id -un)" -s RESEND_API_KEY -w 2>/dev/null || true)"
+    key="$(/usr/bin/security find-generic-password -a "$(id -un)" -s resend.com:api -w 2>/dev/null || true)"
     if [ -z "$key" ]; then
       echo "resend: RESEND_API_KEY not found in the login Keychain — auth will fail until set (secret set RESEND_API_KEY <key>)." >&2
     fi

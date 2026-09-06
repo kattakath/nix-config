@@ -1264,11 +1264,11 @@
         "treefmt-nix": "treefmt-nix_6"
       },
       "locked": {
-        "lastModified": 1788707479,
-        "narHash": "sha256-gSvSJAiXSDMcngszCQTTZGi5dKM9n9J2L/D8Wvv3V8M=",
+        "lastModified": 1788725153,
+        "narHash": "sha256-CjACvkhFy7WLM/Anbg82P0vmNRN90VHIICCuV9+tQ2Q=",
         "owner": "kattakath",
         "repo": "nix-vast-provision",
-        "rev": "3f19fd0772867af3cfb230f6174b696963040bab",
+        "rev": "f7d4faa60f91fd79d694eb9cf6961de5c2312674",
         "type": "github"
       },
       "original": {
