@@ -13,8 +13,14 @@
 version: 2
 updates:
   - package-ecosystem: "github-actions"
-    # Workflow files live in the default .github/workflows location; "/" covers them.
-    directory: "/"
+    # "/" covers .github/workflows only. A COMPOSITE action is its own
+    # "manifest location" to Dependabot, so `.github/actions/nix-setup` needs
+    # its own entry or its pins never move — measured: 4 human PRs touched that
+    # file and ZERO of the 10 grouped dependabot bumps did, leaving it ~3 months
+    # behind the workflows on the same two actions.
+    directories:
+      - "/"
+      - "/.github/actions/nix-setup"
     schedule:
       interval: "weekly"
     groups:
