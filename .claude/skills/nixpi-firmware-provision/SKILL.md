@@ -20,7 +20,7 @@ copying each into a root-only `/run` file before its consumer starts:
 | Planted file (`/boot/firmware/…`) | → `/run/…` | Consumer |
 |---|---|---|
 | `cloudflared-token` (`TUNNEL_TOKEN=…`) | `cloudflared-token` | `cloudflared-connector` |
-| `wpa_supplicant.conf` (`country=` + `network={}`) | `wpa_supplicant-firmware.conf` | `wpa_supplicant-firmware` (wlan0) |
+| `wpa_supplicant.conf` (`country=` + `network={}`) | `wpa_supplicant-firmware.conf` | `supplicant-wlan0` (upstream `networking.supplicant`) |
 
 ## Why not agenix (read this first)
 
