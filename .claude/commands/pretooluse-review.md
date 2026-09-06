@@ -1,62 +1,87 @@
 ---
-description: Review the PreToolUse attempt/outcome log for Bash and Write|Edit tool calls, surface recurring likely-blocked patterns for regular triage.
-allowed-tools: Read, Edit, Bash(cat:*), Bash(node:*)
+description: Review the harness's own tool_decision telemetry for Bash and Write|Edit, surface recurring hook rejections, and propose prompt-rule fixes.
+allowed-tools: Read, Edit, Bash(cat:*), Bash(node:*), Bash(jq:*)
 ---
 
 # pretooluse-review
 
 Claude Code's `PreToolUse` gates for `Bash` and `Write|Edit` in this repo are `type: "prompt"`
-hooks — evaluated internally by the harness, with no logging of their own and no visibility to
-any sibling hook (all hooks under a matcher run in parallel). `.claude/hooks/pretooluse-log.js`
-is a pure observer registered alongside them (PreToolUse: log the attempt; PostToolUse: log that
-it actually ran, i.e. was NOT blocked) so recurring friction is reviewable here instead of only
-ever flashing by in-conversation. Run the "fix the hook" loop over that log.
+hooks — evaluated internally by the harness, invisible to any sibling hook (all hooks under a
+matcher run in parallel). This command runs the "fix the hook" loop over their **actual
+verdicts**.
 
-## 1. Load the log
+Those verdicts come from the harness's own OTel `tool_decision` event, not from a hook. A
+sibling observer hook used to *infer* blocks by correlating attempt/executed pairs on a content
+hash — a heuristic that could not see a decision, a source, or a reason. It was retired: the
+telemetry stream already carries all three, first-hand.
 
-Read `.claude/hooks/pretooluse.log`. If missing or empty, report **"no pretooluse activity
-logged"** and stop.
+## 1. Load the stream
 
-## 2. Correlate attempts to outcomes
+Read `~/.local/state/claude-otel/events.jsonl` (path from `services.claudeOtel.eventsFile`,
+`modules/shared/claude-otel.nix`). Missing or empty → report **"no telemetry events yet"**,
+suggest `nix run .#claude-otel-doctor` to confirm the collector is receiving, and stop.
 
-The log is one JSON object per line: `{ts, phase, tool, matcher, corr, display}`, where `phase`
-is `"attempt"` (PreToolUse) or `"executed"` (PostToolUse).
+Only the LIVE file is read here; the rotated `events-*-size.jsonl` siblings hold older history
+and are worth sweeping when a longer window matters.
 
-For each `attempt` line, look for an `executed` line with the SAME `corr` and a `ts` within
-~120s afterward, consuming it once matched (so a repeated identical command doesn't over- or
-under-count). An `attempt` with no matching `executed` is a **likely block** — a best-effort
-heuristic, not a certainty (a crashed/timed-out hook, or a pending `ask`-mode approval, can
-produce the same pattern). Report it as "likely blocked," never as a confirmed fact.
+## 2. Flatten and filter
+
+Each line is a full OTLP LogsData payload, **not** a flat record. Flatten
+`resourceLogs[].scopeLogs[].logRecords[]` and turn each record's `attributes[]` array into a
+plain map:
+
+```bash
+jq -c '.resourceLogs[].scopeLogs[].logRecords[]
+       | {attrs: (.attributes | map({(.key): (.value.stringValue // .value.intValue // .value.boolValue)}) | add)}' \
+   ~/.local/state/claude-otel/events.jsonl
+```
+
+Filter to records whose `event.name` attribute is `tool_decision` — **bare, no `claude_code.`
+prefix**; the prefixed spelling exists only in `body.stringValue` and matching it yields
+nothing. Then narrow to `tool_name` in `Bash` / `Write` / `Edit`.
+
+Relevant attributes:
+
+- `decision` — `accept` or `reject`
+- `source` — `hook` (a PreToolUse gate decided), `config` (`permissions.allow`/`deny`),
+  `user_permanent`, `user_temporary`, `user_abort`, `user_reject`
+- `hook_name` — **which** hook decided, when `source` is `hook`
+- `tool_name`, `tool_use_id`, `session.id`
+- `tool_parameters` / `tool_input` (present because `OTEL_LOG_TOOL_DETAILS=1`) — the actual
+  command or file path
+
+Scope to the sessions you care about with `session.id`. There is **no `cwd` attribute**, so a
+repo-level filter is not available — scope by session, not by directory.
 
 ## 3. Summarize
 
-Group likely-blocked attempts by `(matcher, display)` — bucket similar `display` values (e.g.
-same command prefix, same file path) — and count. Present:
+Group `decision = reject` records by `(tool_name, source, hook_name)` and bucket similar
+`tool_parameters` values (same command prefix, same path). Present:
 
-| matcher | pattern | count | latest ts | example |
-|---------|---------|-------|-----------|---------|
+| tool_name | source | hook | pattern | count | latest ts | example |
+|-----------|--------|------|---------|-------|-----------|---------|
 
-Mention total attempt / executed volume in one line beneath the table.
+Note total accept/reject volume in one line beneath the table, so a handful of rejections is
+not read as systemic friction.
 
 ## 4. Diagnose recurring patterns
 
-For any pattern with **count >= 2**, this is worth fixing. This log has NO block-reason
-text — that only ever appears transiently in-conversation, since these are `prompt`-type
-hooks (contrast with `command`-type hooks, which route through `.claude/hooks/superhook.js`
-and get full reason logging — see `/superhook-review`). Cross-reference the pattern against
-the live prompt text in `.claude/settings.json`'s `PreToolUse` block (`Bash` / `Write|Edit`
-matchers) to find the rule likely responsible, and propose a concrete wording fix.
+Any pattern with **count >= 2** is worth fixing. Unlike the retired heuristic, `source` and
+`hook_name` name the responsible layer outright:
+
+- `source: hook` + a `hook_name` → that hook decided. For a `command`-type hook the full reason
+  text is in `.claude/hooks/superhook.log` (see `/superhook-review`). For a `prompt`-type hook
+  the reason is not persisted anywhere — cross-reference the live prompt text in
+  `.claude/settings.json`'s `PreToolUse` block and propose a wording fix.
+- `source: config` → a `permissions.deny` rule matched; the fix is in `settings.json`'s
+  `permissions`, not in a hook.
+- `source: user_*` → no deterministic rule exists yet. That is `/routing-review`'s backlog,
+  which reads the same stream from the other end.
 
 **Do not autonomously rewrite `.claude/settings.json`.** Present each proposed fix (the rule,
 the problem, the wording diff) and **ask for confirmation** before editing.
 
 ## 5. Log hygiene
 
-`pretooluse.log` is gitignored and grows fast — it logs every Bash/Write/Edit attempt, not
-just blocked ones. Safe to truncate after review:
-
-```bash
-: > .claude/hooks/pretooluse.log
-```
-
-Only truncate after the review is complete and any fixes have been applied or declined.
+Nothing to truncate. The collector rotates `events.jsonl` itself (`max_megabytes: 50`,
+`max_backups: 5`), and the stream lives under `~/.local/state/`, never inside the repo.
