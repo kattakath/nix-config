@@ -493,7 +493,7 @@ in
   # on darwin. Confs stay outside git (private keys). Copy-only — it NEVER
   # runs wg-quick / starts a tunnel. On macos (GUI-only, no CLI) these are there
   # to IMPORT into WireGuard.app; no shell can raise a tunnel (hosts/macos.nix).
-  local.wireguardConfigs.enable = pkgs.stdenv.isDarwin;
+  local.wireguardConfigs.enable = pkgs.stdenv.hostPlatform.isDarwin;
 
   # RAG stack (Ollama + pgvector) backs the postgres MCP server — real Mac only.
 
@@ -621,10 +621,10 @@ in
     # below (so the mcp-servers-nix integration can inject the shared MCP
     # registry — see ./mcp.nix). On the Linux hosts we don't enable that module,
     # so install the bare CLI here instead. Avoids a buildEnv /bin collision.
-    ++ lib.optionals (!stdenv.isDarwin) [ claudeCode ]
+    ++ lib.optionals (!stdenv.hostPlatform.isDarwin) [ claudeCode ]
     # secret/set-secret/remove-secret now come from programs.keychainSecrets
     # (the keychain-secrets flake's HM module), not this list.
-    ++ lib.optionals stdenv.isDarwin [
+    ++ lib.optionals stdenv.hostPlatform.isDarwin [
       androidEmu
       awscli2 # AWS CLI v2 — SSO login into the Infin8 accounts; profiles live in ~/.aws/config (uncommitted, has account IDs/SSO URL — not this public repo)
       # buku — the bookmark manager of record (SQLite + CLI), chosen over rolling anything
@@ -697,7 +697,7 @@ in
   # bins on PATH (adb itself also comes from the `android-platform-tools` cask).
   # After switching, just run `android-emu` (the helper in the let block) — it
   # installs the SDK packages + creates the AVD on first run, then boots it.
-  home.sessionVariables = lib.mkIf pkgs.stdenv.isDarwin {
+  home.sessionVariables = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # rclip's default macOS path compiles a Core ML model, which needs
     # `coremltools` — a dep the nixpkgs package does not ship. Without this every
     # real invocation dies on `ModuleNotFoundError: No module named 'coremltools'`.
@@ -761,7 +761,7 @@ in
     PUPPETEER_EXECUTABLE_PATH = "/Applications/Chromium.app/Contents/MacOS/Chromium";
   };
 
-  home.sessionPath = lib.optionals pkgs.stdenv.isDarwin [
+  home.sessionPath = lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
     "${androidSdkRoot}/emulator"
     "${androidSdkRoot}/platform-tools"
     # xAI Grok CLI: a self-updating prebuilt binary installed to ~/.grok/bin by
@@ -825,7 +825,7 @@ in
   # local server. Change the model here (must match an `ollama pull`ed tag);
   # nothing here starts Ollama — it's the always-on launch agent on macos.
   # Darwin-only (Ollama + this personal tooling live on the Mac).
-  home.file.".qwen/.env" = lib.mkIf pkgs.stdenv.isDarwin {
+  home.file.".qwen/.env" = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     text = ''
       OPENAI_BASE_URL=http://localhost:11434/v1
       OPENAI_API_KEY=ollama
@@ -842,7 +842,7 @@ in
   # approvalMode "default" = ask before each edit/shell. mcpServers reuses the
   # gateway (curated `qwenMcpServers`), macos-only. Darwin-wide otherwise so a guest
   # still gets a sane config (minus MCP, since its gateway is off).
-  home.file.".qwen/settings.json" = lib.mkIf pkgs.stdenv.isDarwin {
+  home.file.".qwen/settings.json" = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     text = builtins.toJSON (
       {
         general.checkpointing.enabled = true;
@@ -860,7 +860,7 @@ in
   # Read-only store symlink like that file; qwen's own save_memory targets this path,
   # so memory-to-file is intentionally inert here (persistence, if wanted, is managed
   # auto-memory in a separate dir). Darwin-only (qwen is installed on darwin only).
-  home.file.".qwen/QWEN.md" = lib.mkIf pkgs.stdenv.isDarwin {
+  home.file.".qwen/QWEN.md" = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     source = ../../qwen/QWEN.md;
   };
 
@@ -883,7 +883,7 @@ in
     # `package` preserves our darwin strict-sandbox override (claudeCode above,
     # also used by the VS Code "claude" terminal profile). On the Linux hosts
     # claude-code stays a plain home.packages entry with no MCP wiring.
-    claude-code = lib.mkIf pkgs.stdenv.isDarwin {
+    claude-code = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
       enable = true;
       package = claudeCode;
 
@@ -986,7 +986,7 @@ in
         # headless --convert-to. qpdf and the skills' own pip/npm deps (pypdf,
         # openpyxl, docx, pptxgenjs, …) remain undeclared/ambient — a separate,
         # larger follow-up. Any darwin host inherits this same skills block (gated on
-        # stdenv.isDarwin, not hostName == "macos") but does NOT get the libreoffice
+        # stdenv.hostPlatform.isDarwin, not hostName == "macos") but does NOT get the libreoffice
         # cask — soffice is absent there; a known, accepted asymmetry for now.
         pdf = "${agent-skills-anthropic-official}/skills/pdf";
         docx = "${agent-skills-anthropic-official}/skills/docx";
@@ -1158,7 +1158,7 @@ in
       ];
     };
 
-    ssh = lib.mkIf pkgs.stdenv.isDarwin {
+    ssh = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
       enable = true;
 
       # Forward-compat with the home-manager `programs.ssh` deprecation: the module
@@ -1283,7 +1283,7 @@ in
       # a .nvmrc/.node-version. Absolute store path so it resolves before the nix
       # profile is on PATH. When no project version is active/installed, PATH falls
       # through to the Homebrew node (an inert dependency of bruno-cli/devcontainer).
-      initExtra = lib.mkIf pkgs.stdenv.isDarwin ''
+      initExtra = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin ''
         eval "$(${pkgs.fnm}/bin/fnm env --use-on-cd --shell bash)"
         ${sshKeychainLoadShell}
       '';
@@ -1549,7 +1549,7 @@ in
       # (.zshrc, interactive) not envExtra, because `--use-on-cd` installs a chpwd
       # hook that only makes sense in an interactive shell. Honors .nvmrc and
       # .node-version; falls through to the Homebrew node when no version is active.
-      initContent = lib.mkIf pkgs.stdenv.isDarwin ''
+      initContent = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin ''
         eval "$(${pkgs.fnm}/bin/fnm env --use-on-cd --shell zsh)"
         ${sshKeychainLoadShell}
       '';
@@ -1561,7 +1561,7 @@ in
     # devcontainer's editor: extensions via the nix-vscode-extensions Marketplace
     # mirror, plus the PORTABLE settings (container/workspace-specific paths are
     # omitted — see notes below).
-    vscode = lib.mkIf pkgs.stdenv.isDarwin {
+    vscode = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
       enable = true;
       # Allow hand-installed / Settings-Sync extensions alongside the declared
       # ones — lower-maintenance than a fully locked extensions dir.
@@ -1713,7 +1713,7 @@ in
   # Login oneshot: load Keychain SSH identities into the agent for GUI git signing
   # (shells use sshKeychainLoadShell). First-time: ssh-add --apple-use-keychain
   # on the operator private key (key-recover does this). hm-launchd → nix-ssh-keychain-load.
-  launchd.agents.ssh-keychain-load = lib.mkIf pkgs.stdenv.isDarwin {
+  launchd.agents.ssh-keychain-load = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     enable = true;
     config = {
       # ProgramArguments entries must be strings (not raw derivations).
@@ -1733,7 +1733,7 @@ in
     };
   };
 
-  home.activation = lib.mkIf pkgs.stdenv.isDarwin {
+  home.activation = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # ~/.grok/sandbox.toml as a REAL FILE, not a store symlink — grok counts it as a
     # hooks-paths registry entry and refuses to start on a symlink, taking every
     # grok-build run down with it. Rationale in full beside grokSandboxToml above.

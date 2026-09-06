@@ -64,7 +64,7 @@ in
     };
   };
 
-  config = mkIf (cfg.enable && pkgs.stdenv.isDarwin) {
+  config = mkIf (cfg.enable && pkgs.stdenv.hostPlatform.isDarwin) {
     home.activation.wireguardConfigs = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       src=${lib.escapeShellArg cfg.sourceDir}
       dst=${lib.escapeShellArg cfg.targetDir}
