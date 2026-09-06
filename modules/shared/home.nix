@@ -1290,15 +1290,31 @@ in
       # NOTHING HERE IS VALIDATED UNTIL THE CASK IS INSTALLED —
       # `ghostty +validate-config` needs the binary. Run it after the first
       # activation and correct anything it rejects; that step is the gate, not
-      # this comment.
+      # this comment. Note `package = null` also makes home-manager's own
+      # onChange validation inert (pinned home-manager modules/programs/
+      # ghostty.nix:160-163 wraps it in `mkIf (cfg.package != null)`), so the
+      # cask being absent can never break an activation here.
+
+      # ---- The palette, as a THEME FILE --------------------------------------
+      # upstream option home-manager.programs.ghostty.themes exists → using it
+      # (pinned modules/programs/ghostty.nix:67, written to
+      # $XDG_CONFIG_HOME/ghostty/themes/<name> at :172-179). Colours live in
+      # their own file rather than inline in `settings`, which is what lets
+      # modules/shared/terminal-theme.nix be the one place they are stated —
+      # every value below is DERIVED, none is typed twice.
+      themes.fleet = {
+        inherit (config.lib.terminalTheme) background foreground;
+        cursor-color = config.lib.terminalTheme.cursor;
+        palette = config.lib.terminalTheme.ghosttyPalette;
+      };
+
       settings = {
-        # ---- Type: matches the terminal already in use ----------------------
-        # 16pt is what desktop-aesthetics.nix holds Terminal.app at on every
-        # darwin host, and UbuntuMono Nerd Font is already installed fleet-wide
-        # as the VS Code terminal face. Switching terminals costs no
-        # re-adjustment.
-        font-family = "UbuntuMono Nerd Font";
-        font-size = 18;
+        # ---- Type ---------------------------------------------------------------
+        # Both from the provider. The face is one fleet-wide value; the SIZE is
+        # per-surface on purpose (18 here against 16 in VS Code and Terminal.app)
+        # and terminal-theme.nix's `font.sizes` option says why.
+        font-family = config.lib.terminalTheme.font.face;
+        font-size = config.lib.terminalTheme.font.sizes.ghostty;
         # Ghostty rasterizes thinner than Terminal.app at the same nominal size —
         # that difference, not the size, is why 16pt UbuntuMono looked lighter
         # here than in the old Ubuntu profile. This is the knob Ghostty added for
@@ -1306,42 +1322,21 @@ in
         font-thicken = true;
 
         # ---- Ground ------------------------------------------------------------
-        # NO `theme` HERE, DELIBERATELY. An explicit `background` overrides a
-        # theme's, and Ghostty's `light:NAME,dark:NAME` syntax applies to `theme`
-        # only — there is no per-mode `background`. Keeping the light/dark pair
-        # alongside a fixed aubergine ground would leave light mode with a dark
-        # background and a light theme's foreground colours, which is worse than
-        # either choice made cleanly. Restoring system-following is one line:
-        # drop these three and put the theme back.
-        # ---- Canonical Ubuntu -------------------------------------------------
-        # These values ARE the fleet palette, and their derivation is now stated
-        # once, in modules/shared/terminal-theme.nix (`local.terminalTheme`):
-        # Ptyxis's own Ubuntu.palette, the six WCAG-AA failures against #300A24,
-        # the OKLab lightness-only lifts, and the dE00 >= 10 pair separation that
-        # keeps \e[31m distinct from \e[91m. They are still spelled out here;
-        # wiring this block to the provider is the next change.
-        background = "#300A24";
-        foreground = "#FFFFFF";
-        cursor-color = "#FFFFFF";
-        # The lifted ring — see terminal-theme.nix for what moved and why.
-        palette = [
-          "0=#2E3436"
-          "1=#F03C2E"
-          "2=#4E9A06"
-          "3=#C4A000"
-          "4=#5083C4"
-          "5=#9A74A1"
-          "6=#06989A"
-          "7=#D3D7CF"
-          "8=#7F827D"
-          "9=#FF6B5E"
-          "10=#8AE234"
-          "11=#FCE94F"
-          "12=#74A2D2"
-          "13=#BD8FB8"
-          "14=#34E2E2"
-          "15=#EEEEEC"
-        ];
+        # A THEME NAME, not inline colours. `theme` is resolved against
+        # $XDG_CONFIG_HOME/ghostty/themes, which is exactly where `themes.fleet`
+        # above is written — so this is one indirection, not a second source.
+        #
+        # SAFE ONLY BECAUSE THE INLINE COLOURS ARE GONE. An explicit
+        # `background`/`foreground`/`palette` in `settings` OVERRIDES the
+        # theme's, so leaving both would silently make the theme file dead
+        # weight and reintroduce the drift this whole change removes.
+        #
+        # STILL NOT SYSTEM-FOLLOWING, and still deliberately. Ghostty's
+        # `light:NAME,dark:NAME` syntax applies to `theme`, so it is now
+        # REACHABLE — a second `themes.<name>` plus `theme = "light:x,dark:fleet"`
+        # is all it would take — but the ground is a specific aubergine, not a
+        # mode-dependent one, so one theme is the honest answer.
+        theme = "fleet";
 
         # ---- Window ----------------------------------------------------------
         # `tabs` puts the tab strip IN the titlebar, reclaiming a full row of
