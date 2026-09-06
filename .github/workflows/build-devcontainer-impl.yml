@@ -285,7 +285,12 @@ jobs:
           REF="${{ inputs.ref }}"
           SHA="${{ inputs.sha12 }}"
           ./result > image.tar
-          nix run nixpkgs#skopeo -- --insecure-policy copy --format oci \
+          # Resolve skopeo from OUR flake.lock, not from `nixpkgs#` — a bare
+          # `nixpkgs#` installable resolves the RUNNER's flake registry (a
+          # floating nixpkgs we do not control), which is exactly the unpinned
+          # upstream ref this repo's CI convention forbids.
+          rev=$(jq -r '.nodes[.nodes[.root].inputs.nixpkgs].locked.rev' flake.lock)
+          nix run "github:NixOS/nixpkgs/$rev#skopeo" -- --insecure-policy copy --format oci \
             docker-archive:image.tar \
             "docker://${REF}:${SHA}-${{ matrix.arch }}"
           echo "pushed ${REF}:${SHA}-${{ matrix.arch }}"
