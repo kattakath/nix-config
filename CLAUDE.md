@@ -126,17 +126,18 @@ One line per path; the *why* and the per-file specifics are in
 | `treefmt.nix` | Single source of truth for format + lint-fix (tools that REWRITE); drives `nix fmt`, the CI gate, and the pre-commit hook. |
 | `sgconfig.yml` + `ast-grep/` | Report-only structural lint (ast-grep): `rules/` mechanises prose conventions, `rule-tests/` proves they fire. Gated by `checks.<system>.ast-grep`, **not** treefmt. |
 | `hosts/` | Per-host entry profiles: `macos.nix`, `nixpi.nix`, `nixvm.nix` (host-only deltas + per-host Homebrew lists). |
-| `modules/shared/` | Home Manager profile on every host: `home.nix`, `mcp.nix`, `terminal-theme.nix` (`local.terminalTheme` — the fleet's one ANSI ring + type, consumed by Ghostty, VS Code and Terminal.app), `chromium.nix` (`programs.ungoogledChromium` — sideloaded CRXes, Apple's Passwords native host, *recommended*-level policy incl. the default search engine, and the LaunchServices default-browser claim, all for the Homebrew cask), `desktop-aesthetics.nix`, `nix-cache.nix`, `nix-ld-libraries.nix`, `wireguard-configs.nix`, `claude-otel.nix`, `hm-launchd/`. |
+| `modules/shared/` | Home Manager profile on every host: `home.nix`, `mcp.nix`, `terminal-theme.nix` (`local.terminalTheme` — the fleet's one ANSI ring + type, consumed by Ghostty, VS Code and Terminal.app), `chromium.nix` (`programs.ungoogledChromium` — sideloaded CRXes, Apple's Passwords native host, *recommended*-level policy incl. the default search engine, and the LaunchServices default-browser claim, all for the Homebrew cask), `desktop-aesthetics.nix`, `nix-cache.nix`, `nix-ld-libraries.nix`, `wireguard-configs.nix`, `claude-otel.nix`, `claude-bedrock-gate.nix` (Bedrock routing survives a public-only activation), `git-allowed-signers.nix` (option-only seam nix-personal fills), `wallpaper/`, `hm-launchd/`. |
 | `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix` (`local.folders.*` — inbox paths; unset = system default), `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`services.macosGithubRunner` — LIVE on `macos`, see § Configuration). |
 | `modules/nixos/` | `core.nix` (user + keys-only sshd + firewall + avahi + nix-ld + zram + GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). |
 | `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `key-recovery`, `spotlight-launchers`, plus single-purpose CLIs (`android-phone`, `jsonresume`, `mermaid-ascii`, `claude-otel-doctor`, …). Root `bootstrap.sh` is the no-Nix stage 1. The media/photo CLIs are **no longer here** — they moved to the [`nix-media-cli`](https://github.com/kattakath/nix-media-cli) input (see § Configuration). |
 | `userscripts/` | The **public** Violentmonkey `.user.js` scripts, declared by name in `modules/shared/home.nix`; authored via skill `userscript-author` (`/userscript`), gated by `checks.<system>.userscripts`. Private ones merge in from nix-personal — keys must not collide. Mechanism + why Chromium allows nothing declarative: `modules/shared/chromium.nix`. |
 | `infra/` | terranix (Nix → Terraform JSON): `cloudflare/nixpi-tunnel.nix`, `hyperframes/stack.nix`. Applied only via the `cf-*` / `hf-*` apps. |
-| `secrets/` | agenix recipients (`secrets.nix`) + two ciphertexts: `cloudflared-token.age` (operator-only) and `gh-app-dontsell-ai-key.age` (host-decrypted on `macos`). |
+| `secrets/` | agenix recipients (`secrets.nix`) + the operator pubkey (`operator-key.nix`, single-sourced into both recipients and `authorizedKeys`) + **four** ciphertexts: `cloudflared-token.age` (operator-only) and three host-decrypted on `macos` — `gh-app-dontsell-ai-key.age`, `gh-app-fleet-key.age`, `gitlab-runner-token.age`. |
 | `skills/` | **Global** Claude Code skills vendored here (forks needing a patch + originals): `brag`, `brags-review`, `rag`, `android-phone`, `nix-dev-toolkit`. Most global skills instead come from pinned `flake = false` inputs. |
 | `plugins/` | This repo's own Claude Code plugin marketplace (`kattakath-nix-config`); today `plugins/llmstxt` + `plugins/seargraph`. Reach for a plugin only when the unit is more than a skill (a command, hook, MCP server, or `agents/`). |
 | `.claude/` | Project agent config — see the two tables below. |
-| `.github/workflows/` | `nix-ci.yml` (2 hosted legs), `auto-merge.yml`, `build-devcontainer.yml`, `build-installers.yml`, `claude*.yml`, `gitleaks.yml`, `flakehub-publish.yml`. |
+| `claude/` + `qwen/` | The **global** (all-projects) agent context this repo installs on `macos`: `claude/CLAUDE.md` → `~/.claude/CLAUDE.md` (via `programs.claude-code.context`) and `qwen/QWEN.md` → `~/.qwen/QWEN.md`. Both wired from `modules/shared/home.nix`; do not confuse either with **this** file, which is project-scoped. |
+| `.github/workflows/` | `nix-ci.yml` (2 hosted legs), `auto-merge.yml`, `build-devcontainer.yml`, `build-installers.yml`, `claude*.yml`, `gitleaks.yml`, `flakehub-publish.yml`, `update-flake-lock.yml` (the weekly lock bump). |
 | `docs/` | Runbooks + this repo's design docs — indexed at the bottom of this file. |
 
 **Commands** (`.claude/commands/`): `/eval`, `/hygiene`, `/update-input`, `/superhook-review`,
@@ -195,16 +196,21 @@ surface). There is **no project `.mcp.json`**. Inventory + gotchas:
 ## Security
 
 - **No plaintext secret in any `.nix`** — the store is world-readable.
-- **agenix holds exactly two secrets, on two different models** — don't assume either one:
-  - `secrets/cloudflared-token.age` (nixpi's tunnel token) is **operator-only**: encrypted to
+- **agenix holds four secrets, on two different models** — don't assume any one of them:
+  - **Operator-only (1):** `secrets/cloudflared-token.age` (nixpi's tunnel token) is encrypted to
     the operator's `~/.ssh/id_ed25519` alone, decrypted on the Mac and planted on the SD card's
     FIRMWARE partition. **`nixpi` never decrypts it** — a fresh SD flash rotates the host key.
-  - `secrets/gh-app-dontsell-ai-key.age` (the runner's GitHub App RS256 key) is
-    **host-decrypted on `macos` at activation** (recipients: operator **+** the `macos` host
-    key) → `/run/agenix/…`. So "nothing is host-decrypted" is **false** — that path is live.
-  - Edit either with `agenix -e secrets/<name>.age`; re-key with `-r` after changing recipients.
+  - **Host-decrypted on `macos` at activation (3):** `gh-app-dontsell-ai-key.age` and
+    `gh-app-fleet-key.age` (GitHub App RS256 keys — the two runner lanes) and
+    `gitlab-runner-token.age` (the `glrt-` token). Recipients are operator **+** the `macos`
+    host key → `/run/agenix/…`. So "nothing is host-decrypted" is **false** — that path is live.
+  - The two `gh-app-*` files hold **identical key material on purpose** (same App, different
+    owning user: `_github-runner` daemons vs. the login-user Tart agents) — rotating the App key
+    means re-encrypting **both**. `secrets/secrets.nix` carries the full why.
+  - Edit any with `agenix -e secrets/<name>.age`; re-key with `-r` after changing recipients.
 - **Personal tokens live in the macOS login Keychain**, managed with
-  `secret <set|get|rm|ls|load>`; no secret *names* live in `.nix` either (the Keychain index is
+  `secret <set|reveal|rm|ls|exec|copy|fp|bind|unbind|adopt|load>` (there is **no `secret get`** —
+  printing a value is opt-in via `reveal`); no secret *names* live in `.nix` either (the Keychain index is
   authoritative). Servers/CLIs read them at launch via `passwordCommand`-style wrappers, so no
   value ever reaches argv or the store.
 - **Never display a secret value** — using one is fine, echoing/logging/committing it is not.
@@ -241,7 +247,9 @@ How a host gets composed — change these knobs, not the hosts' internals:
   (`nix-tart-vms` `darwinModules.github-runner`, configured in `hosts/macos.nix`): **ephemeral
   Tart-VM-per-job** runners for `kattakath` + `silvercreek-ai` + `dontsell-ai` (label
   `dontsell-vm`), sharing Apple's hard 2-concurrent-VM budget via a slot semaphore. Both mint ~1h
-  tokens from GitHub App keys (agenix); the fleet App is `kattakath-fleet-ci`. The **GitLab**
+  tokens from GitHub App keys (agenix); since 2026-09-06 **both lanes share ONE App**,
+  `ismailkattakath-ci` (appId 4849830, operator-owned + public), which replaced the retired
+  `kattakath-fleet-ci` (4845230), `kattakath-ci` (4243998) and `dontsell-ai` (4689619). The **GitLab**
   lane rides the same budget: `tart.gitlabRunner` (`darwinModules.gitlab-runner`) runs
   gitlab-runner declaratively, rendering its config at agent start from the agenix
   `gitlab-runner-token.age`. **This repo's own CI uses none of them** — `nix-ci.yml` is 100%

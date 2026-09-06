@@ -246,17 +246,21 @@ rare fresh-machine `nix develop` is the worse trade.
 
 ### `secrets/secrets.nix`
 
-agenix recipients rules — **two** committed secrets on **two different models**:
+agenix recipients rules — **four** committed secrets on **two different models**. The operator
+public key they all share is single-sourced in **`secrets/operator-key.nix`** (also the fleet's
+`authorizedKeys`, via `flake.nix` → `modules/nixos/core.nix`), so a key rotation is one edit.
 
-- `secrets/cloudflared-token.age` (nixpi's Cloudflare tunnel token) — encrypted to the
-  **operator's key alone**, the **operator-only vault** model: the operator decrypts it on the
-  Mac to plant on the SD card's FAT `FIRMWARE` partition, and it is NEVER decrypted on nixpi.
-- `secrets/gh-app-dontsell-ai-key.age` (the `macos` runner's GitHub App RS256 private key) —
-  recipients are operator **+ the `macos` host key**, so this one IS **host-decrypted at
-  activation** into `/run/agenix/`. The host-decryption path is live; do not describe it as
-  unused.
+- **Operator-only vault (1).** `secrets/cloudflared-token.age` (nixpi's Cloudflare tunnel token)
+  — encrypted to the **operator's key alone**: the operator decrypts it on the Mac to plant on
+  the SD card's FAT `FIRMWARE` partition, and it is NEVER decrypted on nixpi.
+- **Host-decrypted on `macos` at activation (3).** Recipients are operator **+ the `macos` host
+  key**, landing in `/run/agenix/`: `gh-app-dontsell-ai-key.age` and `gh-app-fleet-key.age` (the
+  two runner lanes' GitHub App RS256 keys — **identical key material on purpose**, because an
+  agenix secret has one owner and the lanes run as different users) and
+  `gitlab-runner-token.age` (the `glrt-` token `tart.gitlabRunner` renders its `config.toml`
+  from). The host-decryption path is live; do not describe it as unused.
 
-Both are safe to commit. Full rules: [`secrets-and-keychain.md`](secrets-and-keychain.md).
+All four are safe to commit. Full rules: [`secrets-and-keychain.md`](secrets-and-keychain.md).
 
 ## `hosts/` — per-host entry profiles
 
@@ -267,7 +271,8 @@ Both are safe to commit. Full rules: [`secrets-and-keychain.md`](secrets-and-key
   `darwinModules.github-runner`, in `mkDarwin`'s BASE module list): ephemeral **Tart-VM-per-job**
   GitHub Actions runners for `kattakath`, `silvercreek-ai`, and `dontsell-ai` (label
   `dontsell-vm` — the bare-metal pair keeps that org's nix-toolchain CI), one fleet GitHub App
-  (`kattakath-fleet-ci`, key = agenix `gh-app-fleet-key.age`, host-decrypted), digest-pinned
+  (`ismailkattakath-ci`, appId 4849830 — it replaced the retired `kattakath-fleet-ci` on
+  2026-09-06; key = agenix `gh-app-fleet-key.age`, host-decrypted), digest-pinned
   Cirrus runner image, and Apple's 2-concurrent-VM budget shared by a slot semaphore. The base
   clone and the host-key pin are content-keyed by `oci@digest`, so a digest bump renames both;
   one elected instance per image re-pulls and re-pins itself on its next cycle
@@ -327,7 +332,7 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
 
 ### `modules/shared/`
 
-`modules/shared/{home.nix,mcp.nix,chromium.nix,terminal-theme.nix,desktop-aesthetics.nix,nix-cache.nix,nix-ld-libraries.nix,wireguard-configs.nix,claude-otel.nix,hm-launchd/}`
+`modules/shared/{home.nix,mcp.nix,chromium.nix,terminal-theme.nix,desktop-aesthetics.nix,nix-cache.nix,nix-ld-libraries.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,git-allowed-signers.nix,wallpaper/,hm-launchd/}`
 — the Home Manager profile loaded on every host.
 
 - **`home.nix`** — git/ssh-signing, zsh+starship, direnv, gh, bash, claude-code + nerd-fonts;
@@ -595,6 +600,29 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
   localhost OTLP, writing a rotating JSONL for `/routing-review` to mine for
   deterministic-routing hardening candidates. See
   [`claude-code-observability-runbook.md`](claude-code-observability-runbook.md).
+- **`claude-bedrock-gate.nix`** — a `nix-bedrock-gate` shell hook that makes Claude Code's
+  Bedrock routing conditional on an AWS identity actually resolving, instead of on
+  `CLAUDE_CODE_USE_BEDROCK` merely existing. The trap it closes: that variable lives in the
+  login Keychain (so it stays toggleable), but its companions `AWS_REGION`/`AWS_PROFILE` and
+  `~/.aws/config` are store symlinks written by the **private** layer — so activating the
+  public `#macos` directly drops them while the Keychain entry survives, leaving Bedrock
+  selected with no region, no profile, no reachable model, and a read-only `settings.json`
+  that cannot be hand-repaired. It degrades to Claude Code's default provider rather than
+  erroring. Offline and CLI-free by design (local files only; no `aws sts` call per shell).
+  **It lives in the public repo on purpose** — a gate shipped from nix-personal would be
+  dropped by the very activation it defends against, the same reasoning as
+  `programs.keychainSecrets`. Companion: the `.claude/hooks/pretooluse-bash-guard.js` block,
+  which only covers activations the *agent* runs; this covers a switch typed by hand.
+- **`git-allowed-signers.nix`** — option-only (`kattakath.git.extraAllowedSignersPrincipals`):
+  extra author emails for git SSH signature verify. Split out of `home.nix` purely because a
+  Home Manager module declaring `options` cannot also carry bare `config` attrs. The fleet
+  default principal stays `userEmail` in `home.nix`; private identities append here from
+  nix-personal — one of the seams in [`private-home-modules.md`](private-home-modules.md).
+- **`wallpaper/wallpaper.png`** — the vendored desktop wallpaper `desktop-aesthetics.nix`
+  installs. It is copied to `~/.local/share/nix-desktop-wallpaper.png` via `home.file` and
+  pointed at from there, **not** referenced as a store path directly: `settings.picture` set
+  to a store path leaves the wallpaper out of the generation's closure, so
+  `nix-collect-garbage` would delete the file out from under the desktop.
 - **`hm-launchd/`** — replaces stock HM launchd so every agent's `ProgramArguments[0]`
   basename is `nix-<activity>` (macOS BTM rule — tags nix-config origin; **never** a bare
   interpreter like `sh`/`python3`). It is upstream's own `waitForNixStore = false` trade
@@ -741,7 +769,7 @@ Core package set:
   bootstrap/recovery, shellcheck-gated. `key-recover` clones, HARD-FAILS unless the login
   `id -un` == the flake's `loginName` (via the `#identity.loginName` output), then RESTORES
   from an iCloud kit or `--fresh`-FOUNDS a new operator identity, and activates `#macos`.
-- **`vast-bootstrap.sh`** + **`templates/provisioner/provision-lib.sh`** — the two files a
+- **`vast-bootstrap.sh`** + **`packages/templates/provisioner/provision-lib.sh`** — the two files a
   live Vast instance still fetches over raw HTTP from THIS repo at boot (see § Vast.ai below
   for why the `vast-*` CLI logic itself is no longer vendored here).
 - **`spotlight-launchers.nix`** — macOS-only: from-scratch `.app` bundle generator (original
@@ -921,6 +949,23 @@ are Vast account-level env vars. See
 ## Claude Code surface
 
 MCP servers have their own doc: [`mcp-gateway.md`](mcp-gateway.md).
+
+### `claude/` + `qwen/` — the GLOBAL agent context (not `.claude/`)
+
+Two top-level directories that are easy to mistake for the project-scoped `.claude/` tree.
+They hold the **all-projects, machine-wide** context this repo installs on `macos`:
+
+- **`claude/CLAUDE.md`** → `~/.claude/CLAUDE.md`, via `programs.claude-code.context` in
+  `modules/shared/home.nix`. That option **replaced a hand-written `home.file` shim** — the
+  upstream-first outcome, not a workaround. Holds the user-level rules that apply in every
+  session on this machine (AskUserQuestion-for-decisions, reuse-over-rebuild, diagrams as
+  rendered ASCII, secret-value redaction, git authorship). The repo-root `CLAUDE.md` is
+  **project**-scoped and layers on top of it.
+- **`qwen/QWEN.md`** → `~/.qwen/QWEN.md` (`home.file`, darwin-only — there is no `programs.qwen`
+  module to reach for). The `qwen` counterpart of the same idea, deliberately kept short.
+
+Both are source-path literals (`../../claude/CLAUDE.md`), so they are repo-relative and
+content-hashed into the store — see `CLAUDE.md` § Code Style on the two path axes.
 
 ### `.claude/commands/`
 

@@ -1627,6 +1627,16 @@
               meta.description = "Rent a live, BILLED Vast.ai GPU instance from a template (--template-name|--template-hash, --offer, --gpu, --disk, --max-price, --dry-run)";
             };
 
+            # The RunPod analogue of the vast-* apps. An app, not just a package, for
+            # parity: it is documented alongside its six Vast siblings as a `nix run .#…`,
+            # and it is not on PATH via home.packages, so the package alone left the
+            # documented invocation broken.
+            aarch64-darwin.runpod-template-apply = {
+              type = "app";
+              program = "${self.packages.aarch64-darwin.runpod-template-apply}/bin/runpod-template-apply";
+              meta.description = "Create/replace a RunPod POD template on runpod/comfyui, provisioned at boot via dockerStartCmd from a workflows repo (--workflow-name, --repo)";
+            };
+
             # `nix run .#jsonresume -- <download|print|markdown|text> …` — fetch a JSON
             # Resume and render it (PDF, or theme-less Markdown/text to stdout) via the
             # npm resume CLI (also on PATH via home.packages).
