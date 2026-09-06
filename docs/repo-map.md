@@ -905,8 +905,8 @@ MCP servers have their own doc: [`mcp-gateway.md`](mcp-gateway.md).
 | `/hygiene` | LEAN/DRY audit→fix→gate via skill `nix-hygiene` |
 | `/update-input` | bump one flake input + commit the lock |
 | `/superhook-review` | triage the hook-supervisor log |
-| `/pretooluse-review` | triage the `PreToolUse`/`Write\|Edit` prompt-hook attempt/outcome log written by `pretooluse-log.js`, since those hooks have no logging of their own |
-| `/remember-nix` | capture into project memory |
+| `/pretooluse-review` | triage `Bash`/`Write\|Edit` gate REJECTIONS from the harness's own OTel `tool_decision` stream (`decision`/`source`/`hook_name`), since prompt-type hooks keep no log of their own |
+| `/remember-nix` | capture into the harness's native per-project memory store (outside the repo) |
 | `/gmail-account` | add/authenticate/remove a Gmail MCP multi-account, see [`gmail-mcp-multi-account-runbook.md`](gmail-mcp-multi-account-runbook.md) |
 | `/routing-review` | triage Claude Code's own OTel tool-decision log for deterministic-routing hardening candidates, see [`claude-code-observability-runbook.md`](claude-code-observability-runbook.md) |
 | `/mcp-scout` | discover → vet → DECLARATIVELY adopt an MCP server into the gateway via skill `mcp-scout`; imperative installer CLIs / config-writing install tools are never used |
@@ -946,14 +946,10 @@ MCP servers have their own doc: [`mcp-gateway.md`](mcp-gateway.md).
   [`claude-code-observability-runbook.md`](claude-code-observability-runbook.md).
 - **`fleet-doctor-digest.js`** — SessionStart nudge when `/fleet-doctor` hasn't run in a while;
   reads only a local timestamp, no network/git calls, so it stays fast on every session start.
-- **`memory-loader.js`** — SessionStart context surfacing.
 - **`autostage-nix.js`** — PostToolUse git-purity net.
 - **`nix-home-path-lint.js`** — PostToolUse, `.nix` only: flags a hardcoded
   `/Users/<name>/`/`/home/<name>/` runtime-path VALUE per the "Paths — two axes" convention —
   advisory, not a hard gate.
-- **`pretooluse-log.js`** — PreToolUse+PostToolUse observer for `Bash`/`Write|Edit`; logs
-  attempt/executed pairs to `.claude/hooks/pretooluse.log` for `/pretooluse-review`; never
-  influences the decision.
 
 Decoder for what these hooks print: [`claude-hook-messages.md`](claude-hook-messages.md).
 
@@ -1019,10 +1015,14 @@ entry + its id in `claudePluginIds`; validate with `claude plugin validate --str
 **skill** that needs no command/hook/MCP/agent surface still belongs in top-level `skills/` —
 reach for a plugin only when the unit is more than a skill.
 
-### `memory/`
+### Project memory
 
-**Gitignored** project memory (decisions/findings/values/evolution): the candid "why" behind
-the repo, surfaced each session by `memory-loader.js`. Never `git add`.
+Lives OUTSIDE the repo, in the harness's own per-project store
+(`~/.claude/projects/<slug>/memory/`), whose `MEMORY.md` index is loaded into context at the
+start of every session with no hook involved. Written via `/remember-nix`. An in-repo
+`memory/` tree surfaced by a `memory-loader.js` SessionStart hook was retired 2026-09-06:
+the directory never existed, so the hook never emitted anything, while the native store
+quietly held the real entries.
 
 ## CI, release, publishing
 
