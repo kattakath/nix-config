@@ -1,5 +1,5 @@
 # Optional lightweight desktop for the nixvm dev VM — X11 + XFCE with passwordless
-# autologin and QEMU/SPICE guest integration. Opt-in via `services.desktopVm.enable`;
+# autologin and QEMU/SPICE guest integration. Opt-in via `local.desktopVm.enable`;
 # hosts/nixvm.nix enables it ONLY inside `virtualisation.vmVariant`, so the XFCE
 # desktop materialises for the graphical `build-vm` / `nix run .#nixvm` path,
 # while the base nixvm toplevel (which exists only as the build-vm eval substrate,
@@ -19,10 +19,16 @@
   ...
 }:
 let
-  cfg = config.services.desktopVm;
+  cfg = config.local.desktopVm;
 in
 {
-  options.services.desktopVm.enable = lib.mkEnableOption "lightweight XFCE desktop + guest integration for the nixvm sandbox";
+  # `local.*`, not `services.*`: this is a fleet-private aggregate, not an
+  # upstream service. NixOS owns the `services.*` namespace, and a future
+  # upstream `services.desktopVm` would collide with this declaration. Matches
+  # the in-fleet convention already set by `local.folders`
+  # (modules/darwin/user-folders.nix) and `local.wireguardConfigs`
+  # (modules/shared/wireguard-configs.nix). Renamed 2026-09-06.
+  options.local.desktopVm.enable = lib.mkEnableOption "lightweight XFCE desktop + guest integration for the nixvm sandbox";
 
   config = lib.mkIf cfg.enable {
     # X11 + XFCE. modesetting binds QEMU's virtio-gpu with no host GPU needed.
