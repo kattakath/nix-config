@@ -290,9 +290,9 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
 - **`nix run .#nixvm` is the only way `nixvm` is ever booted** — a `nixos-rebuild build-vm`
   runner exposed as a flake app (XFCE desktop, native QEMU/Cocoa window on macOS, no
   macOS-guest path, no VM config outside Nix) booting a throwaway overlay. There is no
-  installed `nixvm` disk, no builder VM, and no runner on it. (The only self-hosted runners in
-  the fleet are the two on `macos`, and they serve `dontsell-ai`, not this repo — see
-  § Configuration.)
+  installed `nixvm` disk, no builder VM, and no runner on it. (Every self-hosted runner in the
+  fleet lives on `macos` — two bare-metal, three Tart-VM, one GitLab — and none of them serve
+  this repo's CI; see § Configuration.)
 - **aarch64-linux builds on the Mac** go to Determinate's **native Linux builder** (Apple
   Virtualization; ephemeral ~1-CPU/8 GB VM, no provisioning). It is a FlakeHub/account feature
   enabled at https://dtr.mn/features, **not** settable from Nix (`external-builders` is
