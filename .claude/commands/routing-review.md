@@ -18,11 +18,11 @@ Each line is one JSON object, the raw OTLP logs payload as the collector's file 
 ```json
 {"resourceLogs":[{"resource":{...},"scopeLogs":[{"scope":{...},"logRecords":[
   {"timeUnixNano":"...","body":{"stringValue":"..."},
-   "attributes":[{"key":"event.name","value":{"stringValue":"claude_code.tool_decision"}}, ...]}
+   "attributes":[{"key":"event.name","value":{"stringValue":"tool_decision"}}, ...]}
 ]}]}]}
 ```
 
-Flatten each line's `resourceLogs[].scopeLogs[].logRecords[]`, and for each record turn its `attributes[]` array (`{key, value: {stringValue|intValue|...}}` pairs) into a plain map. Filter to records whose `event.name` attribute is `claude_code.tool_decision`. Relevant attributes per record (from that flattened map):
+Flatten each line's `resourceLogs[].scopeLogs[].logRecords[]`, and for each record turn its `attributes[]` array (`{key, value: {stringValue|intValue|...}}` pairs) into a plain map. Filter to records whose `event.name` attribute is `tool_decision` — **bare, no `claude_code.` prefix**. The prefixed spelling appears only in the record's `body.stringValue`; filtering on it matches nothing (measured over the live stream: `event.name` = `tool_decision` 1,376x, `claude_code.tool_decision` 0x — the bug that left `routing-review-digest.js` silently dead). Relevant attributes per record (from that flattened map):
 
 - `tool_name`, `tool_use_id`
 - `decision` — `accept` or `reject`
