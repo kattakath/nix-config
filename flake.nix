@@ -121,6 +121,17 @@
     keychain-secrets.inputs.home-manager.follows = "home-manager";
     keychain-secrets.inputs.flake-parts.follows = "firmware-secrets/flake-parts";
 
+    # media-cli — the media-file CLIs, the launchd work queue behind the Finder
+    # Services, and the two media-ADJACENT tools, EXTRACTED FROM THIS REPO into a
+    # standalone MIT flake (github.com/kattakath/nix-media-cli). Same dogfooding
+    # move as keychain-secrets above, for the same reason: the whole feature is
+    # now `programs.mediaCli.enable`, so it can be added or stripped off without
+    # hunting leftovers across flake.nix, home.nix and eleven package files.
+    media-cli.url = "github:kattakath/nix-media-cli";
+    media-cli.inputs.nixpkgs.follows = "nixpkgs";
+    media-cli.inputs.home-manager.follows = "home-manager";
+    media-cli.inputs.flake-parts.follows = "firmware-secrets/flake-parts";
+
     # cloudflared-connector — the loginless token Cloudflare Tunnel connector NixOS
     # module, EXTRACTED FROM THIS REPO into a standalone MIT flake
     # (github.com/kattakath/nix-cloudflared-connector). nixpi consumes its
@@ -327,6 +338,7 @@
       agenix,
       firmware-secrets,
       keychain-secrets,
+      media-cli,
       cloudflared-connector,
       deploy-rs,
       local-rag,
@@ -812,6 +824,7 @@
                 claude-plugins-official
                 grok-build-plugin-cc
                 keychain-secrets
+                media-cli
                 local-rag
                 # jsonResumeUrl: the raw resume.json URL (or null), consumed by home.nix
                 # to bake into the jsonresume package as its default --url (darwin
@@ -1382,89 +1395,6 @@
           jobspy = (pkgsFor system).callPackage ./packages/jobspy.nix { };
         }))
 
-        # `fidelity-enhance` (macOS only) — referee for an agentic image-editing loop:
-        # Grok Imagine generates, this judges each result against the original and returns
-        # retry/next-step/done plus prompt guidance. Ships two binaries
-        # (fidelity-enhance-mcp, fidelity-enhance) from one ephemeral uv env. Exposed as a
-        # package so `nix flake check` BUILDS it (writeShellApplication shellcheck); on PATH
-        # via home.packages + `nix run .#fidelity-enhance`. See packages/fidelity-enhance.nix.
-        (nixpkgs.lib.genAttrs darwinSystems (system: {
-          fidelity-enhance = (pkgsFor system).callPackage ./packages/fidelity-enhance.nix { };
-        }))
-
-        # `obs-fb-setup` (macOS only) — write an OBS "Facebook" profile for Facebook Live,
-        # injecting FB_PERSISTENT_STREAM_KEY from the login Keychain at run time (never in
-        # git/store). Package so `nix flake check` shellchecks it; on PATH + `nix run`.
-        (nixpkgs.lib.genAttrs darwinSystems (system: {
-          obs-fb-setup = (pkgsFor system).callPackage ./packages/obs-fb-setup.nix { };
-        }))
-
-        # `fix-google-video` — detect and re-encode video files with editor-incompatible
-        # codecs (most commonly VP9-in-MP4, Google Photos' "space saver" download flavor)
-        # into H.264+AAC. Packaged so `nix flake check` shellchecks it; on PATH + `nix run`.
-        (nixpkgs.lib.genAttrs darwinSystems (system: {
-          fix-google-video = (pkgsFor system).callPackage ./packages/fix-google-video.nix { };
-        }))
-
-        # `extract-audio` — pull the audio track out of a video, stream-copied into
-        # a container that accepts the codec (transcodes only when asked).
-        (nixpkgs.lib.genAttrs darwinSystems (system: {
-          extract-audio = (pkgsFor system).callPackage ./packages/extract-audio.nix { };
-        }))
-
-        # `fix-extension` — rename files whose extension lies about their content (a
-        # JPEG named .png, which Finder then cannot thumbnail). A rename, never a
-        # re-encode. Packaged so `nix flake check` shellchecks it; on PATH + `nix run`.
-        (nixpkgs.lib.genAttrs darwinSystems (system: {
-          fix-extension = (pkgsFor system).callPackage ./packages/fix-extension.nix { };
-        }))
-
-        # `fix-media` — the entry point the Finder Services call: takes a media CLASS
-        # (--video/--image) and decides which repair above the file actually needs, so
-        # the menu can name what the operator selected instead of the defect.
-        (nixpkgs.lib.genAttrs darwinSystems (system: {
-          fix-media = (pkgsFor system).callPackage ./packages/fix-media.nix { };
-        }))
-
-        # `photo-describe` — write what an image IS into the image: Apple Vision
-        # labels + aesthetics rating, plus a one-sentence caption from a local
-        # Ollama vision model, into XMP:Description/Subject/Rating. Spotlight
-        # indexes those, so `mdfind` and Finder's search bar can answer "which
-        # one was the hillside shot?" without any database in between.
-        # darwin-only: it is built on Apple's Vision framework (via `auge`).
-        (nixpkgs.lib.genAttrs darwinSystems (system: {
-          photo-describe = (pkgsFor system).callPackage ./packages/photo-describe.nix { };
-        }))
-
-        # `media-queue` — the durable Finder→launchd work queue: `media-enqueue`
-        # (what the Services call, returns at once) and `media-worker` (the launchd
-        # job that drains it). The queue, load control, retry and log are launchd's,
-        # not ours — see modules/shared/media-queue.nix. darwin-only.
-        (nixpkgs.lib.genAttrs darwinSystems (system: {
-          media-queue = (pkgsFor system).callPackage ./packages/media-queue.nix { };
-        }))
-
-        # `media` — one entry point for the media CLIs (`media describe|fix|audio`),
-        # purely additive: every underlying binary stays on PATH under its own name
-        # because the Finder Services, the flake apps and the operator's notes all
-        # hardcode those. It exists for discoverability, not keystrokes.
-        (nixpkgs.lib.genAttrs darwinSystems (system: {
-          media = (pkgsFor system).callPackage ./packages/media.nix { };
-        }))
-
-        # `media-toolkit` — the media-file CLIs above as ONE installable unit, so
-        # home.packages carries a single entry instead of drifting as CLIs are added.
-        # The individual packages stay exported for `nix run .#<name>`.
-        (nixpkgs.lib.genAttrs darwinSystems (system: {
-          media-toolkit = (pkgsFor system).callPackage ./packages/media-toolkit.nix { };
-        }))
-
-        # `media-quick-actions` — Automator .workflow bundles putting the media-toolkit
-        # CLIs in Finder's right-click → Quick Actions. Linked into ~/Library/Services
-        # by home.nix; darwin-only (macOS Services have no Linux analogue).
-        (nixpkgs.lib.genAttrs darwinSystems (system: {
-          media-quick-actions = (pkgsFor system).callPackage ./packages/media-quick-actions.nix { };
-        }))
       ];
 
       # ---- Apps: dev VM + Cloudflare provisioning ----------------------------
@@ -1687,39 +1617,6 @@
               type = "app";
               program = "${self.packages.aarch64-darwin.jobspy}/bin/jobspy";
               meta.description = "Scrape jobs (LinkedIn/Indeed/Glassdoor/…) into CSV/JSON via python-jobspy: jobspy --search … --location … [--sites …] [--results N] [--remote]";
-            };
-
-            # `nix run .#obs-fb-setup` — write an OBS "Facebook" profile for Facebook Live,
-            # injecting FB_PERSISTENT_STREAM_KEY from the login Keychain (also on PATH).
-            aarch64-darwin.obs-fb-setup = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.obs-fb-setup}/bin/obs-fb-setup";
-              meta.description = "Write an OBS 'Facebook' profile for Facebook Live, injecting FB_PERSISTENT_STREAM_KEY from the login Keychain (never in git)";
-            };
-
-            # `nix run .#fix-google-video -- <file>...` — re-encode VP9-in-MP4 (and other
-            # editor-incompatible codecs) into H.264+AAC. Idempotent, VideoToolbox-accelerated.
-            aarch64-darwin.fix-google-video = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.fix-google-video}/bin/fix-google-video";
-              meta.description = "Re-encode video files with editor-incompatible codecs (e.g. Google Photos' VP9-in-MP4) into H.264+AAC";
-            };
-
-            # `nix run .#extract-audio -- [--mp3|--wav|--flac] <file>...` — pull the
-            # audio track out of a video. Lossless stream copy by default.
-            aarch64-darwin.extract-audio = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.extract-audio}/bin/extract-audio";
-              meta.description = "Extract the audio track from a video file, stream-copied into a matching container (or transcoded with --mp3/--wav/--flac)";
-            };
-
-            # `nix run .#photo-describe -- [--dry-run] <file-or-dir>...` — write
-            # Apple Vision labels + aesthetics rating and a local-VLM caption into
-            # each image's own XMP, so Spotlight/Finder can search it later.
-            aarch64-darwin.photo-describe = {
-              type = "app";
-              program = "${self.packages.aarch64-darwin.photo-describe}/bin/photo-describe";
-              meta.description = "Write an image's own description into it: Apple Vision labels + aesthetics rating + a local Ollama vision-model caption, as XMP:Description/Subject/Rating (Spotlight-indexed)";
             };
 
           }
