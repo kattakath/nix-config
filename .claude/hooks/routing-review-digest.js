@@ -2,7 +2,7 @@
 /**
  * SessionStart digest for Claude Code's own routing telemetry.
  *
- * Mirrors superhook-digest.js: surfaces UNREVIEWED claude_code.tool_decision
+ * Mirrors superhook-digest.js: surfaces UNREVIEWED tool_decision
  * events whose `source` is user_temporary/user_permanent — i.e. tool-routing
  * decisions a human still had to approve in the moment, rather than a
  * PreToolUse hook or static config — into context at session start, so the
@@ -14,6 +14,12 @@
  * ~/.local/state/claude-otel/events.jsonl. Each line is a full OTLP LogsData
  * object: resourceLogs[].scopeLogs[].logRecords[], each record's attributes[]
  * an array of {key, value: {stringValue|...}} pairs — NOT a flat record.
+ *
+ * SCOPE BOUND: only the LIVE events.jsonl is read, never the rotated
+ * events-*-size.jsonl backups. So the digest reports "since the last 50 MiB
+ * rotation", not all of history — deliberate (keeps SessionStart cheap), but it
+ * does mean a long-pending backlog can age out of view. /routing-review can
+ * still sweep the backups by hand when a full picture is wanted.
  *
  * The /routing-review command writes a top-level "reviewedAt" ISO timestamp
  * into .claude/hooks/.routing-review-state.json; events at or before that
@@ -106,8 +112,15 @@ try {
   }
 
   // Keep unreviewed tool_decision events whose source needed a human.
+  //
+  // The `event.name` ATTRIBUTE is the bare `tool_decision` — the `claude_code.`
+  // prefix appears only in the record's body.stringValue. Measured over the
+  // live stream: `event.name` = "tool_decision" 1,376x, "claude_code.tool_decision"
+  // 0x. Matching the prefixed form here made this digest silently dead from the
+  // day it was written, sitting on a real backlog of user_temporary /
+  // user_permanent approvals it never surfaced.
   const pending = records.filter(({ ts, attrs }) => {
-    if (attrs["event.name"] !== "claude_code.tool_decision") return false;
+    if (attrs["event.name"] !== "tool_decision") return false;
     if (!RELEVANT_SOURCES.has(attrs.source)) return false;
     if (reviewedAt !== null && !(ts && ts > reviewedAt)) return false;
     return true;

@@ -63,8 +63,46 @@ try {
 
 // ---- helpers ----------------------------------------------------------------
 const now = () => new Date().toISOString();
+
+// Size-based rotation, matching the collector's own policy for the OTel stream
+// (50 MiB / 5 backups — modules/shared/claude-otel.nix). Without it this file
+// grows without bound inside the repo: measured at 1,074,908 bytes with no
+// rotation, in a directory whose sibling observer log had reached 9 MB.
+// Deliberately smaller than the collector's cap — this is a hook log read by a
+// SessionStart digest, not a telemetry archive.
+const LOG_MAX_BYTES = 5 * 1024 * 1024;
+const LOG_BACKUPS = 3;
+const rotateIfNeeded = () => {
+  try {
+    if (fs.statSync(logFile).size < LOG_MAX_BYTES) return;
+  } catch {
+    return; // no log yet — nothing to rotate
+  }
+  try {
+    // Drop the oldest, then shift each backup down one slot before renaming the
+    // live file into .1. Every step is individually guarded: rotation is a
+    // convenience, never a reason for the hook to fail.
+    try {
+      fs.rmSync(`${logFile}.${LOG_BACKUPS}`, { force: true });
+    } catch {
+      /* nothing to drop */
+    }
+    for (let i = LOG_BACKUPS - 1; i >= 1; i -= 1) {
+      try {
+        fs.renameSync(`${logFile}.${i}`, `${logFile}.${i + 1}`);
+      } catch {
+        /* that backup does not exist yet */
+      }
+    }
+    fs.renameSync(logFile, `${logFile}.1`);
+  } catch {
+    /* rotation must never throw */
+  }
+};
+
 const log = (entry) => {
   try {
+    rotateIfNeeded();
     fs.appendFileSync(logFile, JSON.stringify({ ts: now(), event, ...entry }) + "\n");
   } catch {
     /* logging must never throw */
