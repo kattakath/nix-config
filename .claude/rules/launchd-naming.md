@@ -58,6 +58,52 @@ mandatory, not as a security boundary to rely on. Live example:
 3. **Before declaring any launchd change done**, mentally (or with the audit below) confirm
    the new unit's `arg0` basename starts with `nix-`.
 
+## The boot-ordering exception — ours, and deliberate
+
+**A unit whose executable lives in `/nix` and must start at BOOT cannot follow the
+`arg0` rule.** `/nix` is a separate `noauto` APFS volume mounted by
+`determinate-nixd`; at boot launchd tries to exec a path that does not exist yet.
+Measured on this machine, 2026-09-06:
+
+```
+12:33:27.417  launchd: "Missing executable detected" x2  -> exit 78 EX_CONFIG
+12:33:28.393  determinate_nixd: "Unlocking and mounting /nix"   <- 976 ms TOO LATE
+```
+
+It then **never self-heals**: launchd parks the job on an "Executable appearance"
+retry event that does **not** fire when the file arrives via a *volume mount*.
+`services.macosGithubRunner`'s two daemons sat at `runs = 1,
+state = spawn scheduled` for an entire 10h52m uptime, and `darwin-rebuild switch`
+did not recover them (nix-darwin only re-bootstraps daemons whose plist changed).
+
+**No launchd setting fixes this.** Measured with a throwaway agent pointing at a
+missing executable, then creating it:
+
+| Setting | Retried the failed exec? |
+|---|---|
+| `StartInterval = 10` | **No** — `runs` stayed 1 |
+| `KeepAlive = true` | **No** — `runs` stayed 1 |
+| `KeepAlive.PathState` | **No** — dict keys are OR'd (defeats `Crashed = false`), and it does not fire on volume mounts either |
+
+So the executable must exist when launchd *first* tries, which means `arg0` has to
+be a path **outside** `/nix`. Use nix-darwin's own
+`launchd.daemons.<name>.command` (`modules/launchd/default.nix:90-94`), which
+emits `/bin/sh -c '/bin/wait4path /nix/store && exec <command>'` — the same shape
+`activate-system` and `activate-agenix` use, for the same reason.
+
+**Scope this narrowly.** It applies ONLY to a `launchd.daemons` unit that must run
+at boot from a store path. It does NOT apply to `launchd.user.agents` (they start
+after login, long after `/nix` is mounted) — those keep the `nix-*` wrapper, and
+`modules/shared/hm-launchd/` still enforces it.
+
+**Why the cost is acceptable here:** this rule's load-bearing half is TCC — an
+adhoc-signed `/nix/store` `arg0` keeps read access to `~/Desktop`, `~/Documents`
+and `~/Downloads`. The runner daemons run as `_github-runner` and touch only
+`/var/lib`; they read none of those. Only BTM legibility is lost, and the process
+after `exec` is still `nix-github-runner-<instance>`.
+
+Live example: `services.macosGithubRunner` in `modules/darwin/github-runner.nix`.
+
 ## Known upstream exceptions — do NOT rename (they are not ours)
 
 Three system `LaunchDaemons` run `/bin/sh` and are **outside this repo's control**. They are
