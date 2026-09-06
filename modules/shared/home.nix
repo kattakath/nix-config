@@ -55,6 +55,7 @@
   # The extracted keychain-secrets flake (macOS `secret` CLI + every-shell loader);
   # its home-manager module replaces the vendored packages/loader below.
   keychain-secrets,
+  media-cli,
   # Raw resume.json URL (single-sourced in flake.nix as jsonResumeUrl; null to
   # disable) — baked into the jsonresume package below as its default --url.
   jsonResumeUrl,
@@ -279,30 +280,10 @@ let
   # See packages/jobspy.nix.
   jobspy = pkgs.callPackage ../../packages/jobspy.nix { };
 
-  # `fidelity-enhance-mcp` / `fidelity-enhance` — referee for an agentic
-  # image-editing loop: Grok Imagine generates, this judges each result against
-  # the original and says retry / next-step / done plus how to fix the prompt.
-  # Run in an ephemeral uv env, same model as jobspy above.
-  # See packages/fidelity-enhance.nix.
-  fidelityEnhance = pkgs.callPackage ../../packages/fidelity-enhance.nix { };
-
-  # `obs-fb-setup` — write an OBS "Facebook" profile for Facebook Live, injecting
-  # FB_PERSISTENT_STREAM_KEY from the login Keychain at run time. See packages/obs-fb-setup.nix.
-  obs-fb-setup = pkgs.callPackage ../../packages/obs-fb-setup.nix { };
-
   # `resend` — the official Resend CLI, injecting RESEND_API_KEY from the login Keychain
   # at run time (non-interactive, no browser OAuth). Pairs with the
   # resend@claude-plugins-official plugin (claudePluginIds below). See packages/resend-cli.nix.
   resendCli = pkgs.callPackage ../../packages/resend-cli.nix { };
-
-  # `fix-google-video <file>...` + `extract-audio [--mp3|--wav|--flac] <file>...`
-  # + `fix-extension <file-or-dir>...` + `fix-media <--video|--image> ...` as one
-  # unit — re-encode editor-hostile video (Google Photos' VP9-in-MP4), pull audio
-  # tracks out of video, rename files whose extension lies about their content,
-  # and dispatch by media class for the Finder menu. One entry so the set cannot
-  # drift out of sync with home.packages as CLIs are added.
-  # See packages/media-toolkit.nix.
-  mediaToolkit = pkgs.callPackage ../../packages/media-toolkit.nix { };
 
   # rclip, with its runtime-dependency CHECK disabled — not its dependencies changed.
   # rclip 3.3.0's wheel declares `coremltools` as a runtime dep on macOS (the Apple
@@ -313,6 +294,11 @@ let
   # The dependency is genuinely OPTIONAL — rclip falls back to CPU ONNX, which is
   # fine for ViT-B/32 — so the check is reporting a metadata mismatch, not a broken
   # program. Verified with the override: it builds, and `rclip --version` runs.
+  #
+  # STAYS HERE, not in nix-media-cli: rclip is a third-party search tool this repo
+  # merely installs, and it is the VECTOR half of the retrieval story — deliberately
+  # independent of the XMP half. It reaches the media stack through that flake's
+  # `extraSearchPackages` seam, which exists for exactly this.
   #
   # NOTHING IN THE MERGE PATH CATCHES THIS CLASS OF FAILURE. `nix flake check`
   # evaluates darwinConfigurations with the build SKIPPED, and CI is deliberately
@@ -326,13 +312,6 @@ let
   rclipCli = pkgs.rclip.overridePythonAttrs (_: {
     dontCheckRuntimeDeps = true;
   });
-
-  # Finder right-click → Services entries for the CLIs above (Automator
-  # .workflow bundles, generated — no Automator.app authoring). Copied into
-  # ~/Library/Services below. See packages/media-quick-actions.nix.
-  mediaQuickActions = pkgs.callPackage ../../packages/media-quick-actions.nix {
-    media-toolkit = mediaToolkit;
-  };
 
   # `android-emu [avd-name] [emulator-args…]` — boot an Android emulator,
   # provisioning on first run. If the SDK packages or the AVD are missing it
@@ -434,54 +413,13 @@ in
   disabledModules = [ "launchd/default.nix" ];
 
   imports = [
-    # Finder right-click → Services for the media-toolkit CLIs. **macos ONLY.**
-    # Previously installed on both darwin hosts on the theory that everything
-    # here is nixpkgs-side and cheap regardless of a guest's leaner Homebrew set
-    # — MEASURED wrong: the closure (ffmpeg, exiftool, auge, rclip's OpenCLIP
-    # model) is too much for the Tart sandbox's disk. Pulled to macos-only;
-    # a sandbox guest gets neither the CLIs nor the menu.
-    #
-    # An INLINE
-    # MODULE so this merges with the `home.file."x"` entries defined elsewhere
-    # in this file (one attrset cannot define both `home.file` and
-    # `home.file."x"`).
-    #
-    # COPIED, never symlinked. Automator loads a workflow through NSFileWrapper,
-    # which throws `-[NSFileWrapper regularFileContents] *** this method is only
-    # for regular file type NSFileWrappers` on a symlinked document.wflow. The
-    # failure is nasty because it is SPLIT: pbs still registers the bundle and
-    # Finder still shows the menu item, so it looks installed and only breaks
-    # when clicked. This is the same reason home-manager grew `copyApps` and
-    # mac-app-util exists — macOS bundle APIs reject store symlinks.
-    #
-    # Entries derive from the package's action list, and the cleanup loop keys
-    # off our bundle-id prefix, so dropping an action from the package also
-    # drops it from the menu. A running Finder keeps serving its old menu, so
-    # changes need `killall Finder`.
-    {
-      home.activation.mediaServices = lib.mkIf isMacosHost (
-        lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-          svc="$HOME/Library/Services"
-          run mkdir -p "$svc"
-
-          # Remove bundles THIS repo installed previously, identified by bundle
-          # id, so a removed action disappears instead of lingering.
-          for wf in "$svc"/*.workflow; do
-            [ -e "$wf" ] || continue
-            id=$(/usr/bin/plutil -extract CFBundleIdentifier raw -o - "$wf/Contents/Info.plist" 2>/dev/null || true)
-            case "$id" in
-              com.kattakath.services.*) run rm -rf "$wf" ;;
-            esac
-          done
-
-          ${lib.concatMapStringsSep "\n" (n: ''
-            run cp -RL "${mediaQuickActions}/${n}.workflow" "$svc/${n}.workflow"
-          '') mediaQuickActions.actionNames}
-          run chmod -R u+w "$svc"
-          run /System/Library/CoreServices/pbs -flush || true
-        ''
-      );
-    }
+    # The media stack — CLIs, the launchd work queue, and the Finder right-click
+    # Services — is now ONE option from the extracted flake. Everything this
+    # block used to spell out (the .workflow copy loop, the bundle-id cleanup,
+    # the two launchd agents, the macos-only gate on a closure too big for a
+    # Tart guest) lives in nix-media-cli's own module, which owns the reasoning
+    # along with the code. See `programs.mediaCli` below.
+    media-cli.homeManagerModules.default
     ./hm-launchd # patched home-manager launchd (nix-* ProgramArguments)
     ./mcp.nix # darwin-gated MCP server registry for Claude Code
     ./desktop-aesthetics.nix # Terminal.app 16pt (all darwin) + wallpaper (opt-out)
@@ -504,18 +442,29 @@ in
     # unable to reach any model at all. Must live here, not in nix-personal: a gate
     # in the private layer would be dropped by the activation it defends against.
     ./claude-bedrock-gate.nix
-  ]
-  # media-queue.nix — macos ONLY. Its own header is darwin-gated,
-  # not host-gated, so excluding it here (rather than inside that file) keeps
-  # the "which hosts get the media stack" decision in ONE place, alongside
-  # mediaServices/home.packages above and below — see that comment for why.
-  ++ lib.optionals isMacosHost [
-    ./media-queue.nix # launchd work queue for the media Finder Services (no status surface — see its header)
   ];
 
   # Enable the extracted keychain-secrets module (installs the secret/set-secret/
   # remove-secret CLIs + the ~/.config/secrets/loader.sh every-shell loader).
   programs.keychainSecrets.enable = true;
+
+  # The whole media stack, from the extracted nix-media-cli flake: the CLIs, the
+  # durable launchd work queue, and the Finder right-click Services. macos ONLY —
+  # MEASURED, the closure (ffmpeg, exiftool, auge, rclip's OpenCLIP model) is too
+  # much for a Tart guest's disk, so a sandbox gets neither the CLIs nor the menu.
+  # This one gate is now the entire "which hosts get the media stack" decision.
+  programs.mediaCli = {
+    enable = isMacosHost;
+    # `auge` is Apple's Vision framework from the shell — photo-describe already
+    # has it hermetically, this puts it on PATH for direct use ("is this shot any
+    # good", "is anyone blinking"). `rclipCli` is the VECTOR half of retrieval,
+    # deliberately kept out of the flake (see its override above).
+    extraSearchPackages = [
+      pkgs.exiftool
+      pkgs.auge
+      rclipCli
+    ];
+  };
 
   # Ghostty's tab bar, kept visible even at one tab. NOT settable from
   # programs.ghostty: `window-show-tab-bar` is documented "currently only
@@ -684,8 +633,6 @@ in
       email-signature # `email-signature [--url URL] [--logo-url URL] [--out DIR]` — render a self-contained HTML email signature (JSON Resume + gist logo, base64-embedded) to ~/.local/share/email-signature/signature.html; also regenerated on activation (packages/email-signature/)
       design-tokens # `design-tokens [--tokens-url URL] [--out DIR]` — transform the gist DTCG tokens.json into SCSS/CSS/JS via Style Dictionary, to ~/.local/share/design-tokens/ (packages/design-tokens/)
       jobspy # `jobspy --search … --location …` — scrape jobs (LinkedIn/Indeed/…) into CSV/JSON via python-jobspy in an ephemeral uv env (packages/jobspy.nix)
-      obs-fb-setup # `obs-fb-setup` — write an OBS "Facebook" profile for Facebook Live, injecting FB_PERSISTENT_STREAM_KEY from the login Keychain (packages/obs-fb-setup.nix)
-      fidelityEnhance # `fidelity-enhance-mcp` (stdio MCP server) + `fidelity-enhance` (CLI) — fidelity referee for agentic image editing: Grok Imagine generates, this judges drift against the original (SSIM/LPIPS/ArcFace identity) and returns retry/next-step/done plus prompt guidance. Ephemeral uv env; FIRST RUN pulls ~1GB of torch/insightface — warm it with `fidelity-enhance capabilities` (packages/fidelity-enhance.nix)
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       jdk17 # JRE for the Android sdkmanager/avdmanager (JVM tools); emulator itself needs no Java
       runpodctl # RunPod GPU CLI — RunPod as a second ComfyUI-workflow provider alongside Vast (from nixpkgs, not the untrusted brew tap)
@@ -703,22 +650,17 @@ in
     ++ lib.optionals isMacosHost [
       androidPhone # `android-phone list|pair|connect|disconnect|unpair|tcpip|wireless|mirror|doctor` — deterministic ADB wired/wireless operator + scrcpy mirroring for a PHYSICAL device (packages/android-phone.nix); unrelated to `android-emu` (virtual emulator, below)
     ]
-    # The media/photo-retrieval stack — macos ONLY. Same "too big for
-    # the Tart sandbox's disk" call as media-queue.nix above (ffmpeg, exiftool,
-    # auge, rclip's OpenCLIP model).
-    ++ lib.optionals isMacosHost [
-      mediaToolkit # `media <describe|fix|audio|queue>` (one entry point + `media --help` listing them; the individual CLIs stay under their own names, and `media queue [status|top|pause|resume]` fronts the queue tools an operator runs by hand) + `fix-google-video <file>...` (re-encode VP9-in-MP4 and other editor-incompatible codecs into H.264+AAC) + `extract-audio [--mp3|--wav|--flac] <file>...` (pull the audio track out of a video) + `fix-extension <file-or-dir>...` (rename files whose extension lies about their content, e.g. a JPEG named .png that Finder cannot thumbnail) + `fix-media <--video|--image> <file-or-dir>...` (repair by media class — what the Finder Services call) + `photo-describe <file-or-dir>...` (write Apple Vision labels/rating + a local-VLM caption into the image's own XMP, where Spotlight indexes it) (packages/media-toolkit.nix)
-      # --- the photo-retrieval stack photo-describe is built on, each usable on its own ---
-      auge # `auge --classify|--aesthetics|--face-quality|--feature-print <image>` — Apple's Vision framework from the shell, 100% on-device. The engine behind photo-describe; also the fastest way to ask "is this shot any good" (aesthetics 0-1 + an is_utility screenshot flag) or "is anyone blinking" (per-face capture quality). Use TARGETED flags, never `--all`: measured here, --all is ~30x slower AND writes Vision framework noise into stdout, so its output will not parse as JSON. aarch64-darwin only.
-      exiftool # `exiftool -XMP:Description=… <file>` — the metadata writer photo-describe shells out to, and the only tool that reads/writes the full EXIF/IPTC/XMP surface (mdls only shows Spotlight's lossy derived view, and sips has no EXIF tag access at all)
-      rclipCli # `rclip "a cold lonely morning"` — natural-language search over a photo folder, via OpenCLIP ViT-B/32 running locally. The VECTOR half of the retrieval story, deliberately kept OUT of the image files: its SQLite index (images.vector BLOB) is derived state, rebuildable BY RE-SCANNING THE PHOTOS, and invalidated by any embedding-model change. It embeds the PIXELS, not this repo's XMP — so it finds things no caption mentions, and a description can never reconstruct it. Requires RCLIP_USE_ONNX_ON_MACOS (sessionVariables below): without it every real invocation dies on `ModuleNotFoundError: coremltools`, since the nixpkgs package omits that dep and rclip's default macOS path tries to compile a Core ML model. On the ONNX path it indexes on CPU rather than the ANE — fine for ViT-B/32, just not the fastest possible.
-      # NOT here: osxphotos, which reads Apple Photos' own library DB (every picture
-      # already scored across 27 aesthetic dimensions — pleasant_composition,
-      # well_timed_shot, sharply_focused_subject — at zero compute, far richer than the
-      # single float Vision's --aesthetics returns). `python3Packages.osxphotos` is
-      # marked `broken = true` in nixpkgs (checked at 0.76.1), so adding it fails the
-      # flake check outright. Reach for it ad hoc via `uvx osxphotos` until that lifts.
-    ];
+  # The media stack itself is NOT listed here any more — `programs.mediaCli`
+  # above installs it, along with exiftool/auge/rclipCli via that module's
+  # extraSearchPackages seam.
+  #
+  # NOT anywhere: osxphotos, which reads Apple Photos' own library DB (every
+  # picture already scored across 27 aesthetic dimensions — pleasant_composition,
+  # well_timed_shot, sharply_focused_subject — at zero compute, far richer than the
+  # single float Vision's --aesthetics returns). `python3Packages.osxphotos` is
+  # marked `broken = true` in nixpkgs (checked at 0.76.1), so adding it fails the
+  # flake check outright. Reach for it ad hoc via `uvx osxphotos` until that lifts.
+  ;
 
   # ---- Android SDK (macOS only) ------------------------------------------------
   # The `android-commandlinetools` Homebrew cask installs sdkmanager/avdmanager

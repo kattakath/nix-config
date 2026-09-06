@@ -29,9 +29,10 @@ off-the-shelf option didn't fit, not just that one wasn't found.
 - **Community Legos, concretely:** launchd's own primitives
   (`QueueDirectories`/`StartInterval`/`ProcessType`), POSIX mechanisms (`SIGSTOP`/`SIGCONT`,
   `setsid`), and prior art with a name (systemd's `MAINPID` pattern) — reused and cited, not
-  reinvented under a different name. `packages/media-queue.nix`'s own header comments are the
-  running log of exactly this: what's genuinely custom here, and the grep/research that
-  justified it each time.
+  reinvented under a different name. The extracted
+  [`nix-media-cli`](https://github.com/kattakath/nix-media-cli)'s `packages/media-queue.nix`
+  header is the running log of exactly this: what's genuinely custom there, and the
+  grep/research that justified it each time.
 - **Proprietary monoliths, avoided:** a broker-based job queue, a bespoke supervision daemon,
   or any other heavy framework is *also* a violation of this motto when it's bigger than the
   problem warrants — reuse cuts both ways. The right-sized community Lego, not the fanciest
@@ -125,10 +126,10 @@ One line per path; the *why* and the per-file specifics are in
 | `treefmt.nix` | Single source of truth for format + lint-fix (tools that REWRITE); drives `nix fmt`, the CI gate, and the pre-commit hook. |
 | `sgconfig.yml` + `ast-grep/` | Report-only structural lint (ast-grep): `rules/` mechanises prose conventions, `rule-tests/` proves they fire. Gated by `checks.<system>.ast-grep`, **not** treefmt. |
 | `hosts/` | Per-host entry profiles: `macos.nix`, `nixpi.nix`, `nixvm.nix` (host-only deltas + per-host Homebrew lists). |
-| `modules/shared/` | Home Manager profile on every host: `home.nix`, `mcp.nix`, `chromium.nix` (`programs.ungoogledChromium` — sideloaded CRXes, Apple's Passwords native host, *recommended*-level policy incl. the default search engine, and the LaunchServices default-browser claim, all for the Homebrew cask), `desktop-aesthetics.nix`, `media-queue.nix` (launchd work queue for the media Finder Services), `nix-cache.nix`, `nix-ld-libraries.nix`, `wireguard-configs.nix`, `claude-otel.nix`, `hm-launchd/`. |
+| `modules/shared/` | Home Manager profile on every host: `home.nix`, `mcp.nix`, `chromium.nix` (`programs.ungoogledChromium` — sideloaded CRXes, Apple's Passwords native host, *recommended*-level policy incl. the default search engine, and the LaunchServices default-browser claim, all for the Homebrew cask), `desktop-aesthetics.nix`, `nix-cache.nix`, `nix-ld-libraries.nix`, `wireguard-configs.nix`, `claude-otel.nix`, `hm-launchd/`. |
 | `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix` (`local.folders.*` — inbox paths; unset = system default), `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`services.macosGithubRunner` — LIVE on `macos`, see § Configuration). |
 | `modules/nixos/` | `core.nix` (user + keys-only sshd + firewall + avahi + nix-ld + zram + GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). |
-| `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `key-recovery`, `spotlight-launchers`, plus single-purpose CLIs (`android-phone`, `jsonresume`, `mermaid-ascii`, `fidelity-enhance`, `media`/`photo-describe`, `claude-otel-doctor`, …). Root `bootstrap.sh` is the no-Nix stage 1. |
+| `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `key-recovery`, `spotlight-launchers`, plus single-purpose CLIs (`android-phone`, `jsonresume`, `mermaid-ascii`, `claude-otel-doctor`, …). Root `bootstrap.sh` is the no-Nix stage 1. The media/photo CLIs are **no longer here** — they moved to the [`nix-media-cli`](https://github.com/kattakath/nix-media-cli) input (see § Configuration). |
 | `userscripts/` | The **public** Violentmonkey `.user.js` scripts, declared by name in `modules/shared/home.nix`; authored via skill `userscript-author` (`/userscript`), gated by `checks.<system>.userscripts`. Private ones merge in from nix-personal — keys must not collide. Mechanism + why Chromium allows nothing declarative: `modules/shared/chromium.nix`. |
 | `infra/` | terranix (Nix → Terraform JSON): `cloudflare/nixpi-tunnel.nix`, `hyperframes/stack.nix`. Applied only via the `cf-*` / `hf-*` apps. |
 | `secrets/` | agenix recipients (`secrets.nix`) + two ciphertexts: `cloudflared-token.age` (operator-only) and `gh-app-dontsell-ai-key.age` (host-decrypted on `macos`). |
@@ -225,6 +226,14 @@ How a host gets composed — change these knobs, not the hosts' internals:
   `mkNixos { hostedSites }` are the seams the private nix-personal flake fills
   ([`docs/private-home-modules.md`](docs/private-home-modules.md)); the public tree never
   references a private repo.
+- **Extracted features plug in as inputs, and can be stripped off in one line.** The media
+  stack (`programs.mediaCli`, from
+  [`nix-media-cli`](https://github.com/kattakath/nix-media-cli)) and the Keychain secret
+  store (`programs.keychainSecrets`, from `nix-keychain-secrets`) both left this tree for
+  standalone MIT flakes and come back as home-manager modules. Dogfooding, and the reason
+  is practical: `programs.mediaCli.enable = false` removes the CLIs, both launchd agents,
+  the Finder Services and the companion tools together — no orphaned package, no dangling
+  session variable, no stale menu item to hunt down.
 - **Binary cache:** the public `kattakath` Cachix cache is consumed tokenless by every host
   (`modules/shared/nix-cache.nix`); only CI and the operator's Keychain hold the write token.
 - **`macos` runs self-hosted CI runners — for a *different* org.** `services.macosGithubRunner`
@@ -342,12 +351,14 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   `photo-describe` writes into a file, what `rclip` keeps beside the folder, and how to search
   each. The durable/derived split in one page.
 - [`docs/nix-media-cli-extraction-grant.md`](docs/nix-media-cli-extraction-grant.md) — a
-  self-contained brief for studying the 10-file media stack (§ Navigating the Codebase's
-  `packages/media-*` + `modules/shared/media-queue.nix`) and designing its extraction into a
+  self-contained brief for studying the media stack and designing its extraction into a
   public `kattakath/nix-media-cli` flake — and its answer,
   [`docs/nix-media-cli-extraction-study.md`](docs/nix-media-cli-extraction-study.md): the
-  `media-<verb>` naming proposal, the repo design, a 7-stage migration plan, and why the
-  queue does **not** become its own flake yet. **Study only — nothing is decided.**
+  repo design, the migration plan, and why the queue does **not** become its own flake yet.
+  **Both are now HISTORY, not a plan**: the extraction shipped, and the stack lives in
+  [`nix-media-cli`](https://github.com/kattakath/nix-media-cli) behind
+  `programs.mediaCli.enable`. The `media-<verb>` renaming proposal in the study is the one
+  part still undecided, and it is now that repo's call, not this one's.
 - [`docs/claude-desktop-instructions.md`](docs/claude-desktop-instructions.md) — the one Claude
   behaviour this repo can't manage declaratively (account-level Desktop instructions) + the
   canonical "diagrams as ASCII" wording.

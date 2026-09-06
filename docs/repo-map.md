@@ -488,59 +488,31 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
     paste the script into Violentmonkey's own editor). The theme rides the same gate — until
     it is enabled once, Chromium unpacks it but leaves `extensions.theme` unset and the browser
     still looks stock.
-- **`media-queue.nix`** (darwin-gated) — the launchd half of the media toolkit's queue, and
-  almost entirely launchd configuration rather than code. **Three `QueueDirectories`** —
-  `queue-high`/`queue`/`queue-low`, drained in that order — ARE the queue (launchd starts the
-  worker whenever any of them is non-empty, and again after it exits if anything is left — no
-  polling loop, no daemon of ours). `queue` is the original, default tier every caller already
-  uses; `queue-high` is `media-enqueue --priority high`'s explicit lever (no Finder Service is
-  wired to it); `queue-low` is where the worker's OWN crash-recovery paths — a job requeued
-  because its worker died, an orphan reclaimed at startup with no live job behind it, a
-  stranded retry-backoff timer — demote to, so that self-inflicted traffic never makes a fresh
-  request wait. A normal failed-job retry and a Low-Power-Mode defer instead PRESERVE a job's
-  original tier — same distinction real job queues draw between "retrying" and "crash
-  recovery." **`ProcessType = "Background"`** IS the load control: macOS throttles CPU and I/O
-  bandwidth for Background jobs *specifically* so they cannot disrupt the user experience,
-  which is what stops a 200-file re-encode from being something you feel in the foreground;
-  `Nice` and `LowPriorityIO` reinforce it. **`KeepAlive.SuccessfulExit = false` +
-  `ThrottleInterval = 10`** covers the worker dying outright (per-*job* retry is the worker's
-  own three-strikes rule), with the interval bounding the restart rate so a reproducible crash
-  cannot spin. **`RunAtLoad`** drains what a logout interrupted — and, since a job's real pid is
-  now recorded in its own marker file (the same `MAINPID` pattern systemd uses to supervise a
-  process it didn't directly fork), a worker starting up ADOPTS a still-alive orphaned job
-  instead of always requeuing a duplicate: MEASURED, before this existed, a run of `activate`s
-  on one Mac left 6 duplicate `photo-describe` passes over the same folder. Adopting a job also
-  needed `setsid` (from `util-linuxMinimal`) to replace `set -m` for backgrounding it — a plain
-  process GROUP was not enough, because POSIX delivers SIGHUP (default: terminate) to a
-  *stopped* process the instant its process group is orphaned, which is exactly what happens
-  the moment the worker that started it dies; only a job in its OWN session is immune. The
-  agent's arg0 is `nix-media-queue` via `hm-launchd`, which is load-bearing rather than
-  cosmetic: per [launchd-naming](../.claude/rules/launchd-naming.md) a `/nix/store` arg0 is what
-  lets the worker **read** the TCC-protected folders it exists to work on.
-  **There is no GUI status surface**, by the same choice as always. This drove a menu-bar item
-  through SwiftBar (a whole GUI app in the closure, a plugin file, a `defaults` domain and a
-  second launchd agent) and then macOS notifications; both were removed. The notifier had
-  never worked anyway — an unsigned `/nix/store` bundle macOS never registered in
-  `com.apple.ncprefs` — and its `osascript` replacement could show neither an image nor a
-  click action. What exists instead, all shell: `media-queue-status` (what's running/queued per
-  tier/failed, whether a pause is manual or Low Power Mode's own auto-pause, and whether a job
-  is currently orphaned awaiting adoption), `media-queue-top` (that same output, live — a thin
-  `exec viddy -n 2 -d media-queue-status` wrapper, the `top`/`htop` request this repo actually
-  had a good off-the-shelf answer for: an `entr -dd`-based event-driven draft was measured to
-  exit 1 the instant its file list is empty — the common idle-queue state — so a restart loop
-  around it would busy-spin at 100% CPU; `viddy`, nixpkgs' "modern watch", has no such edge
-  case and adds diff-highlighting between ticks for free), `media-queue-pause`/`-resume`
-  (SIGSTOP/SIGCONT the in-flight job's process group, reading its pid straight from the marker
-  file — freezes it mid-file with no lost progress, and works on an adopted-but-not-yet-resumed
-  orphan too), and `media-queue-power-monitor` (a separate `StartInterval` launchd agent, not a
-  loop inside the worker — ticks every 20s and reuses the same pause/resume mechanism
-  automatically). The log
-  at `~/Library/Logs/nix-media-queue.log` used to go silent for a job's entire runtime and only
-  flush at the end — MEASURED incident, a healthy multi-hour describe batch misread as hung —
-  fixed by backgrounding `tail -f` on the job's scratch file for the duration, a second process
-  outside the job's own session/group so it can never affect `$!`, `rc`, or the job's SIGTERM
-  handling. A Finder Service itself still does nothing visible; the shell tools are the
-  surface.
+- **The media stack is no longer in this repo.** `media-queue.nix`, the nine media CLIs and
+  the Finder Services moved to
+  [`kattakath/nix-media-cli`](https://github.com/kattakath/nix-media-cli) (2026-09-05) and
+  come back as one home-manager module: `programs.mediaCli.enable`, set from `home.nix` on
+  `isMacosHost`. Everything that used to be documented here — the three `QueueDirectories`
+  tiers, `ProcessType = "Background"`, the `SIGSTOP`/`SIGCONT` pause, the `MAINPID` orphan
+  adoption, the deliberate absence of a GUI status surface — now lives with the code, in that
+  flake's `packages/media-queue.nix` header and `modules/media-cli.nix`.
+
+  Two things changed in the move and are worth knowing here, because both were invisible
+  couplings this repo was supplying by accident:
+
+  - **The launchd `arg0`.** The agents' `nix-media-queue` basename came from this repo's
+    VENDORED `hm-launchd` fork; upstream home-manager emits `/bin/sh -c 'wait4path … && exec …'`
+    instead. That is not cosmetic — a `/nix/store` arg0 is what lets the worker read the
+    TCC-protected folders it exists to work on. The extracted module therefore builds its own
+    named wrapper, so it needs no fork and works on stock home-manager.
+  - **The vision model** was a hardcoded literal, so no environment variable could have
+    overridden it. It is now a `defaultModel` derivation argument, surfaced as
+    `programs.mediaCli.visionModel`.
+
+  `rclip` stays HERE (`rclipCli` in `home.nix`, with its `dontCheckRuntimeDeps` override and
+  `RCLIP_USE_ONNX_ON_MACOS`): it is a third-party search tool this repo merely installs, and
+  the VECTOR half of retrieval, deliberately independent of the XMP half. It reaches the stack
+  through that module's `extraSearchPackages` seam, alongside `exiftool` and `auge`.
 - **Ghostty** (`programs.ghostty` in `home.nix`, `macos` only) — GPU-accelerated terminal,
   installed as a **Homebrew cask** because nixpkgs' `ghostty` is **Linux-only** and refuses to
   evaluate on aarch64-darwin. That is precisely the case home-manager documents for
@@ -754,275 +726,21 @@ Smaller, single-purpose CLIs:
   for a PHYSICAL Android device; hardens around two live-reproduced adb bugs, an mDNS-cache
   staleness and duplicate-transport device listings. Its operator knowledge is also a GLOBAL
   skill, `skills/android-phone`.
-- **`media-quick-actions.nix`** (darwin) — Finder right-click → **Services** entries for
-  the media-toolkit CLIs (**Extract Audio**, **Fix Video File(s)**, **Fix Image File(s)**,
-  **Describe Image(s)**),
-  generated as Automator `.workflow` bundles. The two "Fix" actions and **Describe Image(s)**
-  **enqueue and return**
-  (`media-enqueue`) rather than doing the work — see `media-queue.nix` above; Extract Audio
-  stays synchronous because extracting one track is seconds and a queue would add only a
-  notification and a round trip through launchd. Items are named for **what the operator
-  selected, not for the defect** — someone whose photo has no thumbnail does not know their
-  `.png` is really a JPEG, and a menu of diagnoses ("Fix Google Video", "Fix File Extension")
-  asks them to diagnose it first, which is the one thing they came unable to do. `fix-media`
-  takes the class and decides what is wrong; `fix-google-video` and `fix-extension` stay CLIs
-  and `nix run` apps, they are just not menu items. The submenu is
-  **Services**, not "Quick Actions": Finder's Quick Actions submenu is fed by App Extensions
-  and Shortcuts actions (`defaults read pbs` → `FinderActive` lists only `APPEXTENSION-*` and
-  `is.workflow.actions.*`), which an Automator service cannot join. New or changed entries
-  need **`killall Finder`** — activation copies them and `pbs` registers them, but a running
-  Finder keeps serving its old menu, which looks exactly like a failed install. A Quick Action is only
-  two plists (`Contents/Info.plist` + `Contents/document.wflow`), so `lib.generators.toPlist`
-  authors them and no Automator.app is involved. Copied into `~/Library/Services` by
-  `home.nix` (an INLINE module in `imports` — one attrset cannot define both `home.file` and
-  `home.file."x"`). The load-bearing key is `inputMethod = 1`, which passes the selection as
-  `"$@"` — the default pipes stdin, giving a script that runs and silently does nothing.
-  **Installed by COPYING, never `home.file` symlinks**: Automator loads a workflow through
-  `NSFileWrapper`, which throws `-[NSFileWrapper regularFileContents] *** this method is only
-  for regular file type NSFileWrappers` on a symlinked `document.wflow`. The failure is nasty
-  because it SPLITS — `pbs` still registers the bundle and Finder still shows the menu item,
-  so it looks installed and only breaks on click. Same root cause as home-manager's `copyApps`
-  and `mac-app-util`: macOS bundle APIs reject store symlinks. A `home.activation` entry does
-  the copy and flushes `pbs`; its cleanup loop keys off the `com.kattakath.services.` bundle-id
-  prefix, so removing an action from the package removes it from the menu. Installed on
-  **every darwin host** — `mediaToolkit` already sits in the darwin branch of
-  `home.packages`, and everything here is nixpkgs-side (ffmpeg included), so Homebrew is
-  untouched. On a host with no hardware H.264 encoder (e.g. a guest under Apple
-  Virtualization), `fix-google-video` falls back to libx264. Each action is now a
-  plain `exec` of its CLI. It used to run through a wrapper that summarised the output into a
-  macOS notification, because a Service has nowhere to put stdout or stderr and "skipped,
-  already done" and "crashed" are otherwise indistinguishable — you click and nothing happens.
-  That reasoning was sound and the wrapper was still removed, along with the rest of the
-  notification surface: one silent path is easier to reason about than two half-working ones.
-  The consequence is exactly the ambiguity it existed to prevent, and the log is the only
-  channel left.
-  `NSSendFileTypes` is **per action**, not a shared constant: Extract Audio takes
-  `public.movie`, Fix Video File(s) `public.movie` + `public.folder`, Fix Image File(s)
-  `public.image` + `public.folder`, Describe Image(s) the same as Fix Image File(s) — a mislabeled JPEG still reports `public.png` from its
-  extension (which conforms to `public.image`), so it does reach the menu, and a folder makes
-  a whole export one right-click. `public.data` is deliberately absent: it would put the item
-  on the menu for literally every file.
-- **`media-queue.nix`** — the durable Finder→launchd work queue: `media-enqueue` (what the
-  Services call; writes job files and returns), `media-worker` (the launchd job that drains
-  it). A job's **class** is `video`, `image` or
-  `describe`; the worker dispatches the first two to `fix-media --$class` and `describe` to
-  `photo-describe`. `describe` is a class rather than a flag on `--image` because it
-  **enriches** a working file instead of repairing a broken one, and it is the only class
-  needing a vision model — an operator asking to repair photos must never be made to wait on
-  one. Everything downstream is unchanged because both CLIs speak the same
-  `done:`/`skip:`/`OK:` grammar. **Why a queue at all:** re-encoding two
-  hundred videos is hours of ffmpeg, and doing that inside the Automator Service means the
-  work dies at logout, cannot be cancelled, reports nothing until it ends, and fights the
-  user's foreground apps for CPU. **Almost none of it is ours** — the queue, load control,
-  retry, recovery and log are launchd keys (see `modules/shared/media-queue.nix`); what is
-  left here is what a job *is* and what to do with one that fails. **One file per job**, not
-  one job per selection: it costs a process per file and buys per-file progress (progress is
-  just the queue depth), per-file retry and cancellation, and isolation so one hopeless file
-  cannot drag its neighbours down. A **directory** argument stays a single job — expanding it
-  at enqueue time would put a recursive walk inside the Finder click. Jobs land in the queue
-  by **rename from a sibling staging directory**, never written in place, because launchd
-  starts the worker the moment the directory is non-empty and would otherwise catch a
-  half-written job. A failed job is requeued with a **fresh timestamp** so it goes to the back
-  (jobs are picked oldest-first by the epoch in their name, so reusing the old stamp hands the
-  same failing file straight back and spins); after three attempts it moves to `failed/`, the
-  standard dead-letter shape. Three layers of **crash recovery**, all verified by killing a
-  live worker: SIGTERM kills the **process group** (`set -m` + `kill -TERM -$child`) so the
-  grandchild ffmpeg dies too and `fix-google-video`'s own trap removes the partial encode —
-  killing only the direct child orphans an encode that keeps burning CPU; the job is requeued;
-  and because a SIGKILLed worker can run no trap at all, the lock is taken with
-  **`/usr/bin/lockf`** — a `flock(2)` the kernel releases on process death, SIGKILL included,
-  so a stale lock is structurally impossible — while the in-flight job is named
-  `running-<pid>.job` so the next worker reclaims the orphan. The
-  work is backgrounded and `wait`ed on rather than run as `out=$(…)`, because **bash defers a
-  trap until the foreground child returns** — a synchronous call would ignore SIGTERM for the
-  length of an encode and be SIGKILLed instead. The job picker
-  deliberately does **not** pipe into `head`: under `pipefail`, `head -1` exits after its line,
-  `sort` takes SIGPIPE and the pipeline returns 141, which errexit turns into a dead worker.
-  It only bites once the listing exceeds the 64 KB pipe buffer, so it is invisible in testing
-  and shows up in production — measured with 761 jobs queued, the worker drained **1-3 jobs
-  per launch** instead of the whole queue, paying a launchd restart between each. Taking the
-  first line by parameter expansion lets `sort` finish into a variable and exit 0; verified at
-  800 jobs (a 166 KB listing) draining in a single run.
-- **`media-toolkit.nix`** — `symlinkJoin` bundling the media-file CLIs below
-  (`media` + `fix-google-video` + `extract-audio` + `fix-extension` + `fix-media` + `photo-describe`) as ONE entry for
-  `home.packages`, so the set
-  cannot drift as CLIs are added; each stays its own derivation with its own
-  `nix run .#<name>`. Membership rule: a CLI that **acts on a media file the operator
-  selected** on this
-  machine. `obs-fb-setup` (writes an OBS config profile, reads a Keychain secret) and
-  `fidelity-enhance` (MCP referee for an agentic image loop) are media-*adjacent* and stay
-  separate — folding them in would leave the name meaning only "vaguely about media".
-  `fix-extension` changes no bytes and still belongs: it repairs the selected file for the
-  same consumer (Finder/Photos) the other two serve, and the rule exists to exclude tools
-  that never touch a file at all, not to require a re-encode. `fix-media` is the odd one out
-  in the other direction — it transforms nothing itself, it **dispatches** to the members that
-  do — and belongs because it is the entry point the Services actually call, and because
-  splitting a dispatcher from the things it dispatches to is how the two drift apart.
-  `photo-describe` is the closest call: it changes no pixels and is the only member with a
-  soft dependency on a service outside its closure (Ollama). It belongs because it acts on the
-  selected file and repairs the same defect for the same consumer — a file Finder and
-  Spotlight cannot answer questions about — and is the natural stage after `fix-extension`,
-  whose `--print0` seam it consumes exactly as `fix-media` does. The Ollama dependency is what
-  keeps it OUT of `fix-media --image`: a repair must finish offline and in bounded time, and a
-  vision model is neither, so describing stays a separate explicit verb.
-- **`photo-describe.nix`** — `photo-describe [--dry-run] [--overwrite] [--no-caption]
-  [--model NAME] [--min-score N] <file-or-dir>...` writes what an image **is** into the image:
-  Apple Vision labels → `XMP:Subject`, an aesthetics-derived rating → `XMP:Rating`, and a
-  one-sentence caption from a local Ollama vision model → `XMP:Description` (the labels are
-  mirrored to the legacy `IPTC:Keywords` as well). **The durability rule is the whole design**: words go in
-  the FILE, vectors go in an INDEX. A caption survives every model upgrade and every move
-  between machines; an embedding is invalidated the day the embedding model changes — so the
-  irreplaceable artifact is embedded and the regenerable one is left to `rclip`, which keeps
-  its own rebuildable SQLite index. Nothing here writes a vector into a photo.
-  **Verified on this Mac**: Spotlight indexes `XMP:Description` as `kMDItemDescription` and
-  `XMP:Subject` as `kMDItemKeywords`, so `mdfind` and Finder's search bar find them;
-  `XMP:Rating` does **not** reach `kMDItemStarRating`, so it is a bonus for Lightroom/Bridge,
-  never the reason to run this. `XMP-iptcCore:AltTextAccessibility` is **deliberately not
-  written**: IPTC 2025.1 separates alt text from the caption, and the HTML Living Standard
-  tells generators to write nothing rather than phony alt text — see `packages/photo-describe.nix`.
-  The walk is **not** reimplemented: stage one is `fix-extension --only image --print0`, which
-  buys the recursive walk, the refusal to enter a `.photoslibrary` package, and the
-  dataless/in-flight/AppleDouble guards already tested there — plus the extension repair,
-  which matters because `auge` and `exiftool` both dispatch on the extension.
-  **Three targeted `auge` calls, never `--all`** — measured on one 18MP JPEG: `--classify`
-  0.07s, `--aesthetics` 0.12s, `--face-quality` 0.14s, versus **10.4s for `--all`, whose
-  stdout is not parseable JSON** (Vision writes framework noise into the stream). Combining
-  flags does not work either: `auge --classify --aesthetics` reports only the LAST mode.
-  Vision's `is_utility` flag short-circuits the expensive half — a screenshot or receipt gets
-  labels but never a caption. Ollama is reached over its **HTTP API, not `ollama run`**, whose
-  CLI parses image paths out of the prompt STRING and breaks on the spaces that fill every
-  real photo library; it is a **soft** dependency, so an absent daemon or unpulled model still
-  writes labels and says so instead of leaving the library half-tagged. HEIC is converted to a
-  temporary JPEG for the caption step only. Idempotent, but **not** on the mere presence of a
-  description: it stamps `EXIF:UserComment` with `photo-describe:pixhash=<ImageDataHash>;labels=…`,
-  skips only while the PIXELS are unchanged, and on a re-describe retracts exactly the keywords
-  it wrote last time so hand-added ones survive. `--overwrite` forces a run.
-  **`-overwrite_original_in_place -P`** is deliberate — plain `-overwrite_original` writes a new
-  file and renames it over the original, dropping every extended attribute (Finder tags,
-  `kMDItemWhereFroms`) and stamping a fresh mtime; in-place keeps the inode and `-P` the date —
-  exiftool otherwise leaves a full `IMG_1234.jpg_original` beside every file, doubling a photo
-  library on disk; **the image data is preserved byte-for-byte** (verified: `ImageDataHash`
-  identical before and after, file grew 3.7 KB of metadata).
-  Measured end to end: **~26s for the first image** (model load) and **~4s warm**.
-  The image handed to the vision model is **downscaled to a 1024px long edge** first, into the
-  same throwaway under `$tmpdir` the HEIC path already uses — the original is never touched.
-  Qwen3-VL resizes to its own patch budget anyway, so pixels past that budget are encoded,
-  transferred and discarded. Measured on this Mac, `main` vs the change, two fresh 3648px
-  JPEGs, identical model/seed: **63s → 13s** and **41s → 13s**, with the same content and
-  detail selection merely shifting (the smaller input said "necklace" where full resolution
-  said "zipper"). A single-image sweep held content steady from 4000px down to **256px**;
-  **128px** is where it broke, turning a tiled room into "an office with white walls". 1024 is
-  the cap because it was the fastest measured *and* the run that named a detail full
-  resolution missed. It **only ever shrinks**: `sips -Z` upscales a smaller source (measured —
-  a 256px image came back 1024px), which would inflate every WhatsApp thumbnail and screenshot
-  in a Takeout dump into a larger payload carrying no more information, hence the dimension
-  check rather than an unconditional call. OCR and face work are deliberately **not** routed
-  through this — those genuinely need the pixels.
-- **`media.nix`** — `media <describe|fix|audio|queue> …`, one entry point and one `--help` that
-  lists the media CLIs. **Discoverability, not ergonomics**: `media describe` is LONGER than
-  `photo-describe`, so as a keystroke play it is a net loss; what it buys is that nothing
-  otherwise tells an operator these CLIs are related or that `photo-describe` exists.
-  **Purely additive** — every underlying binary stays on PATH under its own name, because
-  three consumers hardcode those: the Finder Services bake absolute store paths into
-  `document.wflow`, `nix run .#photo-describe` names the app, and the operator's own notes use
-  the direct form. `exec`, not a wrapper function, so the verb's exit status and its
-  `done:`/`skip:` grammar reach the caller untouched — media-queue's worker parses that.
-  **`queue` is the one verb with a sub-verb** (`media queue [status|top|pause|resume]`, bare =
-  status, since that is the nine-times-out-of-ten case): those four are one subject with four
-  operations, and nothing hardcodes them — no `.workflow`, no launchd arg0, no flake app, no
-  composition seam — so the line the dispatcher draws is **`media` is what a human types, the
-  bare names are what machines call**. Adding it required breaking a would-be evaluation cycle:
-  `media-queue.nix` now takes `fix-media`/`photo-describe` instead of the whole `media-toolkit`
-  bundle (which contains `media`), which is also strictly more honest about what its worker
-  actually dispatches to.
-  Deliberately NOT verbs: `media-worker` (launchd-only, and behind a dispatcher its arg0 would
-  become `media`, silently losing the TCC access that `nix-media-queue` grants),
-  `media-queue-power-monitor` (a `StartInterval` tick, not a command),
-  `media-enqueue` (called by absolute path), `fix-extension` (`--only`/`--print0` are a
-  composition seam) and `fix-google-video` (`fix-media --video` is the discoverable name).
-- **`fix-media.nix`** — `fix-media <--video|--image> <file-or-dir>...`, the entry point behind
-  the two "Fix … File(s)" Services. Per-class pipelines: `--video` is
-  `fix-extension --only video` then `fix-google-video`; `--image` is
-  `fix-extension --only image`. `--image` having exactly one step is not a stub — the only
-  image defect the fleet has met is the lying extension, so what it adds is the discoverable
-  name and the place a second image repair goes. **Stage order is load-bearing**: stage one
-  RENAMES its inputs, so stage two cannot be handed the original paths — it gets the resulting
-  ones from `--print0`. Reading them into an array rather than piping to `xargs` also means an
-  empty selection ends quietly, instead of invoking the next CLI with no arguments and turning
-  "nothing to fix" into a usage error the Service would report as a failure. **No `--dry-run`,
-  deliberately**: `fix-google-video` has none, so the flag could only rehearse half the
-  pipeline while implying it rehearsed all of it — use `fix-extension --dry-run --only video`.
-- **`fix-extension.nix`** — `fix-extension [--dry-run] <file-or-dir>...` renames files whose
-  **extension lies about their content**, walking directories recursively. Fixes the
-  no-thumbnail-in-Finder symptom: Finder's thumbnail generator trusts the extension → UTI, so
-  a JPEG named `.png` goes to the PNG decoder and falls back to a generic icon, while Preview
-  and Quick Look's full view sniff the magic bytes and open it fine — a file that is visibly
-  readable yet has no thumbnail. Measured on a Google Photos/Picasa export: **10 of 15
-  `.png` files were JPEG, and exactly those 10 had no thumbnail.** A **rename, never a
-  re-encode** — the bytes are already a valid image, so converting would only add a second
-  lossy generation. Two guards keep it non-destructive: an extension is rewritten only when
-  the sniffed mime is in its table AND the current extension is not already an accepted
-  spelling of that type (so `.jpeg`/`.tif`/`.m4v` are left alone, and unknown types are
-  skipped rather than guessed at), and `video/quicktime` accepts `.mp4` too, since some MP4s
-  sniff as QuickTime and renaming a working one to `.mov` would be a regression. An existing
-  target is skipped, never clobbered; `-ef` rather than a string compare so a case-only fix
-  still works on a case-insensitive volume. Files with no recognisable type are silent inside
-  a directory walk (a photo folder is full of them) and explain themselves when named
-  explicitly. **The walk never enters a macOS package.** `~/Pictures/Photos
-  Library.photoslibrary` is a directory, and renaming files inside it is library corruption,
-  not a fix — verified on this Mac, that path reports `com.apple.package` in
-  `kMDItemContentTypeTree`, which is what `is_package` asks Spotlight. Spotlight answers
-  nothing on an unindexed volume, so a curated extension list is both the fast path and the
-  fallback, and an unknown dotted directory fails **open** (`2019.holiday` is still walked).
-  The walk is two `find` passes per level — one taking files while pruning every dotted
-  directory, one re-entering only the non-packages — so a 100k-file library is never
-  enumerated at all. Three guards run **before anything reads the bytes**, because reading is
-  itself the hazard: **dataless** (an iCloud placeholder; sniffing materialises it, so a sweep
-  would quietly pull gigabytes and fail offline — measured present on this Mac under
-  CloudDocs), **in-flight** (`.crdownload`/`.part`/`.partial`/`.download`, whose bytes are
-  incomplete), and **AppleDouble** (`._name`). Plus a writability check on the *directory*,
-  since that is what a rename writes to. `mdls` and BSD `stat` are called by **absolute
-  `/usr/bin` path**: `coreutils` is in `runtimeInputs` and GNU `stat` reads `-f` as
-  "filesystem status" rather than a format string, so the unqualified call would error, leave
-  the flags empty under `|| true`, and pass **every** dataless file — the guard would have
-  been dead code. `basename`/`dirname` are replaced by parameter expansion for the same
-  reason performance matters here at all: measured on this Mac, 300 files went 5.6s → 3.1s
-  (~19ms → ~10ms per file). Batch-sniffing to remove the last two forks per file is the
-  next step, not done here. `--only image|video|audio` and `--print0` exist for one caller, `fix-media`, and
-  are what let it compose this with a repair step instead of reimplementing the sniffing:
-  `--only` keeps "fix the videos in this folder" from quietly renaming the photos beside them
-  (a file matches on its **sniffed** class OR its **extension's** class, so a `.mp4` whose type
-  `file` cannot place does not drop out of a video run), and `--print0` writes each considered
-  file's resulting path to stdout, NUL-separated, with diagnostics on stderr so the two never
-  mix.
-- **`extract-audio.nix`** — `extract-audio [--mp3|--copy|--wav|--flac] <file>...` pulls the
-  audio track out of a video. **Defaults to MP3**, which plays everywhere. `--copy` is the
-  lossless path (the audio is already a finished encode, so transcoding is a second lossy
-  generation, and copying needs no decode — ~16000x realtime measured); that path is what
-  makes the container the real problem solved here, since `-c:a copy` fails into a container
-  that does not accept the codec, so it maps codec→extension (`.m4a` for AAC/ALAC, `.ogg` for
-  Vorbis, `.wav` for PCM, `.mka` as the catch-all). Idempotent; preserves timestamps.
-- **`fix-google-video.nix`** — detects and re-encodes video files with editor-incompatible
-  codecs (most commonly VP9-in-MP4, the flavor Google Photos' download button serves for
-  videos not backed up at Original quality) into H.264+AAC via VideoToolbox with a libx264
-  fallback, idempotent. **Replaces the input by default**: the encode goes to a temp file
-  beside it, is verified (non-trivial, duration within 1s of the source), and only then swaps
-  in, with the original moved to `~/.Trash` — never `rm`'d. That verification is load-bearing,
-  not belt-and-braces: ffmpeg can exit 0 having written a truncated file (measured: a 17.6s
-  source yielding a 0.27s output), which without the check would destroy the original. A
-  non-`.mp4` input (`.mkv`, `.avi`) is replaced by a `.mp4` of the same basename, since the
-  output is H.264 in MP4. `--keep` restores the old side-by-side `<name>_h264.mp4` behaviour.
-  **A failed file is reported and the batch continues** — only a usage error is fatal, because
-  a `die` inside the loop abandons 199 good files over one corrupt file 200, which is exactly
-  the shape of a Takeout folder; the run still exits non-zero so the Service reports it. An
-  **EXIT/INT/TERM trap** removes the in-progress `.fixing-*.mp4`, so a Ctrl-C, a logout, or a
-  launchd kill during a two-hour batch does not strand a multi-GB temp beside every source
-  (verified: the temp exists mid-encode and is gone after `SIGTERM`, original intact); a
-  per-directory sweep also clears debris an earlier kill left behind. A **free-space
-  preflight** requires **twice** the source size, not once — a VideoToolbox encode at 8 Mbps
-  can be larger than a heavily compressed source. Dataless iCloud files are skipped before
-  `ffprobe` can materialise them, using the same absolute-`/usr/bin/stat` call and for the
-  same GNU-shadowing reason as `fix-extension`.
+- **The nine media packages moved out.** `media-quick-actions.nix`, `media-queue.nix`,
+  `media-toolkit.nix`, `photo-describe.nix`, `media.nix`, `fix-media.nix`,
+  `fix-extension.nix`, `extract-audio.nix` and `fix-google-video.nix` — plus the two
+  media-*adjacent* tools `obs-fb-setup.nix` and `fidelity-enhance.nix` — now live in
+  [`kattakath/nix-media-cli`](https://github.com/kattakath/nix-media-cli), with their
+  reasoning intact in their own headers. This repo consumes them as
+  `programs.mediaCli` (see § `modules/shared/` above); `nix run .#photo-describe` becomes
+  `nix run github:kattakath/nix-media-cli#photo-describe`, and every package there now
+  exports an app (in this repo that had drifted to 3 of 8).
+
+  The two adjacent tools are **opt-in** in that module
+  (`fidelityEnhance.enable`, `obsFacebookSetup.enable`) and deliberately stay OUT of the
+  `media-toolkit` bundle: that bundle is what the queue worker and the Finder Services put
+  on their `PATH`, so every member becomes a runtime dependency of the queue, and a
+  uv/Python environment plus a Keychain read have no business there.
 - **`jobspy.nix`** — a reproducible `uv`-ephemeral wrapper CLI around the `python-jobspy`
   library for scraping job boards.
 - **`jsonresume.nix`** — dual-engine `jsonresume <download|print|validate|markdown|text>`
@@ -1030,16 +748,9 @@ Smaller, single-purpose CLIs:
   `jsonresume-tailor` skill.
 - **`mermaid-ascii.nix`** — packages `AlexanderGrooff/mermaid-ascii`, not in nixpkgs, for the
   diagrams-as-ASCII convention.
-- **`obs-fb-setup.nix`** — macOS-only: configures an OBS "Facebook" profile, stream key read
-  live from the Keychain, never in git/store.
 - **`claude-otel-doctor.nix`** — health check for the `services.claudeOtel` collector (launchd
   agent, OTLP port, events-file freshness). See
   [`claude-code-observability-runbook.md`](claude-code-observability-runbook.md).
-- **`fidelity-enhance.nix`** — macOS-only: the referee for an agentic image-editing loop. Grok
-  Imagine generates, this judges each result against the ORIGINAL via SSIM/LPIPS/ArcFace-identity
-  and returns retry/next-step/done plus prompt guidance. Ships `fidelity-enhance-mcp` (stdio
-  MCP server) + `fidelity-enhance` (CLI) from one ephemeral `uv` env, Python 3.12 pinned for
-  torch/insightface wheel coverage; exposed via `home.packages` + `nix run .#fidelity-enhance`.
 - **`resend-cli.nix`** — the official Resend CLI, not yet in nixpkgs so `npx`-wrapped and
   version-pinned same as `mcp-wordpress`/`telegram-mcp`; injects `RESEND_API_KEY` from the
   login Keychain at run time — wired only via `home.packages`, no matching flake app.
