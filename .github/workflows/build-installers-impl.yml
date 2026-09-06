@@ -12,7 +12,8 @@ name: build-installers-impl
 # single `if:` on ONE job (`installers`), and keeps the build steps reusable.
 #
 # GITHUB-HOSTED (ubuntu-24.04-arm). Runs on a free-for-public-repo hosted ARM runner
-# — the fleet retired its self-hosted CI runners (see nix-ci.yml header). The heaviest
+# — THIS repo's CI targets no self-hosted runner, by choice (the Mac's six lanes serve
+# other orgs; see nix-ci.yml header). The heaviest
 # job (cold RPi kernel, ~1h) fits inside hosted's 6h limit, and Cachix serves the
 # warmed closure so it is usually minutes. Hosted lacks Nix + the substituter, so this
 # workflow installs them (install-nix-action + cachix-action, same pins as nix-ci).

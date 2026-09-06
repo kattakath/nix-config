@@ -17,14 +17,18 @@ name: nix-ci
 #   aarch64-darwin -> `macos-latest` (Apple Silicon; a free STANDARD runner on a
 #                     public repo).
 #
-# ALL-HOSTED (no self-hosted runners). The fleet's self-hosted runners have been
-# retired ENTIRELY — there are now ZERO self-hosted runners anywhere: hosted
-# native-ARM + macOS STANDARD runners are free & unlimited for public repos, Cachix
-# serves the warmed closure so cold builds stay fast, and going hosted removes both
-# the availability SPOF AND the public-repo fork-PR RCE surface (untrusted fork code
-# never lands on our hardware). So every leg installs Nix + the kattakath substituter
-# itself — no `runner.environment` guard, no fork-PR runner fallback. Day-to-day local
-# aarch64-linux builds use Determinate's native Linux builder on the Mac.
+# ALL-HOSTED BY CHOICE. No leg of THIS repo's CI targets a self-hosted runner —
+# a statement about this workflow, NOT about the fleet. `macos` runs six
+# self-hosted lanes for OTHER consumers: 2 bare-metal (`services.macosGithubRunner`,
+# dontsell-ai), 3 ephemeral Tart-VM-per-job (`tart.githubRunners.*` — kattakath,
+# silvercreek-ai, dontsell-vm), and 1 GitLab (`tart.gitlabRunner`); see hosts/macos.nix.
+# We stay hosted because hosted native-ARM + macOS STANDARD runners are free &
+# unlimited for public repos, Cachix serves the warmed closure so cold builds stay
+# fast, and hosted removes both the availability SPOF AND the public-repo fork-PR RCE
+# surface (untrusted fork code never lands on our hardware). So every leg installs Nix
+# + the kattakath substituter itself — no `runner.environment` guard, no fork-PR runner
+# fallback. Day-to-day local aarch64-linux builds use Determinate's native Linux
+# builder on the Mac.
 #
 # READ from the kattakath Cachix cache is public. WRITE needs
 # CACHIX_AUTH_TOKEN (a repo secret; absent on fork PRs → push no-ops). The cache

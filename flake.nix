@@ -790,8 +790,10 @@
       # module consumer are carried: loginName (core/host), fullName+userEmail
       # (home.nix), domainName (nixpi's Caddy vhost + the darwin file-rotation
       # launchd label). userName only builds userEmail above, and orgName is
-      # consumed only by PACKAGES (via callPackage, not specialArgs) now that the
-      # self-hosted runners are gone — so neither is threaded.
+      # consumed only by PACKAGES (via callPackage, not specialArgs) — the Mac's
+      # runner lanes take their org from their own options
+      # (services.macosGithubRunner.org, tart.githubRunners.<name>.scope), never
+      # from identityArgs — so neither is threaded.
       identityArgs = {
         inherit
           loginName
