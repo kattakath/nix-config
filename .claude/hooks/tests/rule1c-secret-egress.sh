@@ -26,6 +26,11 @@ ck block 'v=$(security find-generic-password -s K -w)'
 ck block 'true && secret reveal K'
 ck block 'security find-generic-password -s K -g'
 
+echo "== must APPROVE: an ESCAPED pipe is a regex alternation, not a pipe =="
+# A grep alternation blocked a search for this rule's own call sites.
+ck approve "grep -rn 'secret get \|secret reveal ' ."
+ck approve "rg 'foo\|secret reveal' docs/"
+
 echo "== must APPROVE (text about it, or a non-printing verb) =="
 ck approve 'git commit -m "secret reveal is the printing verb"'
 ck approve "grep -rn 'secret reveal' docs/"

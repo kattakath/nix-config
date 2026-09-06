@@ -167,7 +167,10 @@ const CF_TERRANIX_APP = /\bnix\s+run\s+\.#cf-(?:tunnel|mcp)-(?:apply|destroy)\b/
 // being written, then blocked the command that tried to fix it — which is the
 // argument for command-position anchoring rather than a substring match.
 // Every execution shape still matches, substitutions and backticks included.
-const CMD_POS = String.raw`(?:^|[\n;|&(]|\$\(|\x60)\s*`;
+// The separator must not be BACKSLASH-ESCAPED. A grep alternation inside a
+// quoted argument is a regex, not a pipe into a command — and it blocked a
+// search for this rule's own call sites. A real pipe is never written escaped.
+const CMD_POS = String.raw`(?:^|(?<!\\)[\n;|&(]|\$\(|\x60)\s*`;
 const SECRET_REVEAL = new RegExp(CMD_POS + String.raw`(?:\S*/)?secret\s+reveal\b`);
 // The bypass that matters more: the agent does not need the CLI at all.
 // `security find-generic-password -w` (or -g) prints the value directly, and
