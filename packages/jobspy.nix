@@ -2,9 +2,22 @@
 # CSV or JSON. A thin, reproducible CLI around the off-the-shelf `python-jobspy` library
 # (github.com/speedyapply/JobSpy) — JobSpy has no CLI of its own, so this wraps its
 # `scrape_jobs()` behind argparse and runs it in an EPHEMERAL uv environment
-# (`uv run --with python-jobspy`), so nothing is pip-installed globally and the tool is
-# reproducible per-invocation. uv + Python are pinned from Nix; python-jobspy is fetched
-# by uv at first run (cached after) — the same runtime-fetch model the uvx MCP servers use.
+# (`uv run --with python-jobspy`), so nothing is pip-installed globally. uv + Python are
+# pinned from Nix; python-jobspy is fetched by uv at first run (cached after) — the same
+# runtime-fetch model the uvx MCP servers use.
+#
+# NOT "reproducible per-invocation" — an earlier version of this comment claimed that and
+# it was wrong (corrected 2026-09-06): the `--with python-jobspy` below carries no version
+# constraint, so uv resolves whatever is current.
+#
+# AND NOT pkgs.python-jobspy, which DOES exist
+# (nixpkgs development/python-modules/python-jobspy, 1.1.82 — `Bunsly` is today's
+# `speedyapply`). Deliberately floating instead: a scraper is pinned against SITE HTML,
+# not against a version. A frozen pin here means silent breakage the day LinkedIn or
+# Indeed changes markup, with a lock bump as the only remedy; floating means the fix
+# arrives with the next run. Consistent with design-tokens/build.sh's floating
+# `style-dictionary@^4`, and deliberately UNLIKE resend-cli.nix:31, which pins exactly
+# because it talks to a versioned API rather than to scraped markup.
 #
 #   jobspy --search "principal engineer" --location "Toronto, ON" \
 #          --sites linkedin,indeed --results 40 --hours-old 168 --output jobs.csv

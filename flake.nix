@@ -31,6 +31,27 @@
     git-hooks.inputs.flake-compat.follows = "";
 
     # Raspberry Pi 4 NixOS support: kernel, firmware, and SD-card image builder.
+    #
+    # ARCHIVED UPSTREAM, KEPT DELIBERATELY. `gh api repos/nix-community/raspberry-pi-nix`
+    # reports `archived: true`, last push 2025-03-23; our pin (3e8100d5, 2025-03-17) is
+    # therefore permanent — update-flake-lock.yml allowlists this input but can never
+    # move it. It is also the single largest input in the lock: itself plus 9 pinned
+    # source inputs (rpi-linux-*, rpi-firmware*, libcamera, libpisp, rpicam-apps), out
+    # of 62 nodes total.
+    #
+    # WHY IT STAYS: it is the only source of the `linux-rpi` vendor kernel and the
+    # bcm2711 sdImage builder. nixos-hardware's raspberry-pi/4 profile is board TUNING
+    # only — it does not ship a kernel — so it is not a drop-in. And hosts/nixpi.nix:53
+    # and :62 carry two mkForce workarounds written specifically against linux-rpi's
+    # behaviour (tpm2 modules-shrunk failure; systemd-initrd stage-1 hang), which a
+    # kernel swap would invalidate rather than inherit.
+    #
+    # MIGRATION TRIGGER — revisit when either fires, not on a schedule:
+    #   1. a kernel CVE affecting the Pi 4 with no backport onto this frozen rev, or
+    #   2. a nixpkgs bump that breaks the modules-shrunk build against this kernel.
+    # EXIT PATH: mainline `linux_rpi4` from nixpkgs + nixos-hardware's raspberry-pi/4
+    # for tuning, re-testing both mkForce workarounds (they may become unnecessary),
+    # and rebuilding the SD image from scratch (docs/nixpi-sd-flashing-runbook.md).
     raspberry-pi-nix.url = "github:nix-community/raspberry-pi-nix";
     raspberry-pi-nix.inputs.nixpkgs.follows = "nixpkgs";
 

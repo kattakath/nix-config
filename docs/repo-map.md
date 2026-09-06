@@ -587,7 +587,11 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
   [`claude-code-observability-runbook.md`](claude-code-observability-runbook.md).
 - **`hm-launchd/`** — replaces stock HM launchd so every agent's `ProgramArguments[0]`
   basename is `nix-<activity>` (macOS BTM rule — tags nix-config origin; **never** a bare
-  interpreter like `sh`/`python3`; wait4path stays inside the wrapper). This is **mandatory
+  interpreter like `sh`/`python3`). It is upstream's own `waitForNixStore = false` trade
+  (pinned HM `modules/launchd/default.nix:47-52`): a named launcher instead of a
+  `/bin/sh -c wait4path` arg0, accepting that launchd's exec fails outright if it fires
+  before `/nix` is mounted. There is **no** wait4path "inside the wrapper" — a wrapper that
+  itself lives in `/nix/store` could never run one. This is **mandatory
   for every launchd unit this repo authors**: HM user agents are auto-wrapped here, and any
   hand-written `launchd.daemons`/`launchd.agents` MUST point `arg0` at a
   `writeShellScriptBin "nix-<activity>"` wrapper (canonical:
@@ -1007,9 +1011,13 @@ Today, three:
   linter; see `plugins/llmstxt/README.md`.
 - **`plugins/seargraph`** — the `seargraph-langgraph` **subagent** (LangGraph pipeline
   design/implementation for the SEARGraph project: fidelity metrics, constrained optimization,
-  iterative refinement, character embeddings). It is a plugin rather than a vendored skill for
-  one structural reason: `programs.claude-code.skills` has no `agents/` capability — only a
-  plugin can ship a subagent.
+  iterative refinement, character embeddings). It is a plugin rather than a vendored skill
+  as a SCOPING choice, not a structural necessity — corrected 2026-09-06, the earlier claim
+  that "only a plugin can ship a subagent" is false. The pinned home-manager DOES expose
+  `programs.claude-code.agents` (modules/programs/claude-code/options.nix:215, an
+  `agentsDir` at :341, written by default.nix:334,:337 through lib.nix:38-42 to
+  `${configDir}/agents/<name>.md`). What that option cannot do is scope the agent: it
+  installs GLOBALLY into `~/.claude/agents/`, whereas a plugin is enabled per-project.
 Adding one = a `plugins/<name>/` tree with `.claude-plugin/plugin.json` + a `marketplace.json`
 entry + its id in `claudePluginIds`; validate with `claude plugin validate --strict`. A
 **skill** that needs no command/hook/MCP/agent surface still belongs in top-level `skills/` —
