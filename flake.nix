@@ -193,11 +193,15 @@
     vast-provision.inputs.nixpkgs.follows = "nixpkgs";
     vast-provision.inputs.flake-parts.follows = "firmware-secrets/flake-parts";
 
-    # NOTE: the nix-tart-macos input (Tart guest lifecycle, extracted from this
-    # repo 2026-09-05) was removed along with the macvm host the same day —
-    # zero consumers left, lock diet back to 60. It lives on independently at
-    # github:kattakath/nix-tart-macos (FlakeHub-published); re-adding macvm
-    # starts by restoring it — see docs/macvm-readd-runbook.md.
+    # nix-tart-macos — extracted from this repo 2026-09-05, briefly removed the
+    # same day with the macvm host (zero consumers), RE-ADDED hours later with a
+    # new consumer: darwinModules.runner, the ephemeral Tart-VM-per-CI-job
+    # GitHub Actions runners on macos (tart.runners.* in hosts/macos.nix). The
+    # seam worked exactly as designed — the input follows its consumers. The
+    # macvm GUEST stays removed (docs/macvm-readd-runbook.md).
+    nix-tart-macos.url = "github:kattakath/nix-tart-macos";
+    nix-tart-macos.inputs.nixpkgs.follows = "nixpkgs";
+    nix-tart-macos.inputs.flake-parts.follows = "firmware-secrets/flake-parts";
 
     # MCP (Model Context Protocol) server packaging for Claude Code. We use its
     # `lib.mkConfig` to render a PINNED {mcpServers:{…}} JSON (the 4 packaged
@@ -343,6 +347,7 @@
       deploy-rs,
       local-rag,
       vast-provision,
+      nix-tart-macos,
       mcp-servers-nix,
       agent-skills-vercel,
       agent-skills-anthropic,
@@ -1026,6 +1031,11 @@
         "macos" = mkDarwin {
           system = "aarch64-darwin";
           hostname = "macos";
+          extraModules = [
+            # tart.runners.* — ephemeral GitHub Actions runners in disposable
+            # Tart VMs (configured in hosts/macos.nix).
+            nix-tart-macos.darwinModules.runner
+          ];
         };
 
         # The former `macvm` Tart guest was REMOVED 2026-09-05 — deliberately, as
