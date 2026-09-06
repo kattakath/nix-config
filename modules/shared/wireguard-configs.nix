@@ -4,6 +4,21 @@
 # inputs / committed sources. This module only `cp`s from a directory you
 # maintain outside git at activation time. See docs/private-home-modules.md
 # (private flake).
+#
+# grepped nix-darwin/modules for wireguard / wg-quick — an option DOES exist,
+# `networking.wg-quick.interfaces` (modules/services/wg-quick.nix:208), and two
+# reasons often given for not using it do NOT survive reading it: it has an
+# `autostart` toggle (:51) and a `privateKeyFile` escape hatch (:107), so
+# neither "no autostart" nor "the confs hold private keys" disqualifies it.
+#
+# The two that DO:
+#   1. It GENERATES the conf from Nix-declared peer values — publicKey,
+#      endpoint, allowedIPs (:136-160) — which puts the peer topology in the
+#      world-readable store. This module never parses or re-emits conf content;
+#      it copies operator files verbatim, so nothing about them is evaluated.
+#   2. It is a SYSTEM module: root-owned, writing environment.etc (:227) and
+#      launchd.daemons (:223). This sync is user-scoped, into the operator's own
+#      $HOME, with no daemon and nothing running as root.
 {
   config,
   lib,
@@ -41,7 +56,11 @@ in
     targetDir = mkOption {
       type = types.str;
       default = "${config.home.homeDirectory}/.config/wireguard";
-      description = "Destination for synced confs (wg-quick compatible).";
+      description = ''
+        Destination for synced confs. NOTE: `wg-quick <name>` resolves a BARE
+        interface name against /etc/wireguard, not this directory — reach these
+        by full path (`wg-quick up ~/.config/wireguard/<name>.conf`).
+      '';
     };
   };
 

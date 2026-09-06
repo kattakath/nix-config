@@ -276,6 +276,15 @@ in
     # Create + own every instance's state/work/log dirs as root, BEFORE launchd
     # loads the daemons (mkBefore on the `launchd` activation script, which runs
     # after user creation).
+    #
+    # grepped nix-darwin/modules for tmpfiles / createDirectories / a
+    # directory-creation option — none exists → custom. nix-darwin models no
+    # equivalent of NixOS's systemd.tmpfiles.rules; every mkdir in the pinned
+    # tree is likewise ad-hoc inside an activation script or a builder
+    # (e.g. modules/nix/linux-builder.nix:182, modules/system/launchd.nix:146).
+    # This is the canonical `system.activationScripts` trigger from
+    # .claude/rules/upstream-first.md, so the verdict is recorded rather than
+    # left implicit.
     system.activationScripts.launchd.text = lib.mkBefore (
       lib.concatMapStringsSep "\n" (i: ''
         ${lib.getExe' pkgs.coreutils "mkdir"} -p ${i.stateDir} ${i.workDir} ${i.logDir}

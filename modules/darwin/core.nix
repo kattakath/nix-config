@@ -628,7 +628,18 @@ in
         mkdir -p "${folders.downloads}"
 
         # Docker Desktop "Start when you log in" (settings-store AutoStart) races our
-        # quiet open-docker agent and opens the dashboard. Keep AutoStart false so
+        # quiet open-docker agent and opens the dashboard.
+        #
+        # grepped nix-darwin/modules for settings-store / group.com.docker /
+        # "Group Containers" — no option exists → custom, because this setting is
+        # NOT a defaults domain at all: it lives in a Group-Container JSON file
+        # (~/Library/Group Containers/group.com.docker/settings-store.json), so
+        # even system.defaults.CustomUserPreferences — the upstream escape hatch
+        # for arbitrary keys (modules/system/defaults/CustomPreferences.nix:22) —
+        # cannot reach it, since it writes through `defaults`. Hence the JSON
+        # rewrite below, which is `|| true`-guarded and idempotent.
+        #
+        # Keep AutoStart false so
         # only org.nixos.open-docker drives login start (menu-bar / no UI flash).
         docker_settings="${home}/Library/Group Containers/group.com.docker/settings-store.json"
         if [ -f "$docker_settings" ]; then
@@ -659,9 +670,20 @@ in
         # setenv` (see the generated activate script: Dock restart ~line 1377,
         # setenv ~line 1481), so Dock always holds the PREVIOUS environment and
         # every Dock-launched app misses the fix. postActivation is the last
-        # hook, hence the only place this can be corrected. Upstream models no
-        # ordering control and no GUI-env refresh — grepped nix-darwin/modules
-        # for `killall Dock`/`killall cfprefsd`: zero hits.
+        # hook, hence the only place this can be corrected.
+        #
+        # grepped nix-darwin/modules for `killall Dock`/`killall cfprefsd` —
+        # ONE hit, and it is the problem rather than the solution:
+        # modules/system/defaults-write.nix:156 does
+        # `killall -qu <primaryUser> Dock || true`, gated at :154 on
+        # `length dock > 0` (always satisfied here) and emitted from
+        # activationScripts.defaults — which activation-scripts.nix:126 orders
+        # BEFORE userLaunchd's setenv at :129. So upstream already restarts the
+        # Dock, just too early to see the new environment, and exposes no
+        # ordering control and no separate GUI-env refresh to fix that with.
+        # Hence the restart here, after the setenv. (An earlier version of this
+        # comment claimed zero hits — corrected 2026-09-06; it contradicted the
+        # ordering argument three lines above it.)
         #
         # Stamped so a no-op activation does not bounce the Dock: only restart
         # when the value actually changed. The stamp lives in /run, which
