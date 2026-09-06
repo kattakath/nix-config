@@ -234,7 +234,8 @@ once, out of band) — a different mechanism from nix-config's own login-Keychai
 `secret`/`set-secret` CLI convention used for LOCAL/interactive secrets. **Do not
 conflate the two.** If a local, interactive Cachix push is ever needed from a dev
 machine (outside CI), follow the fleet's own established pattern —
-`secret get CACHIX_AUTH_TOKEN` piped into `cachix authtoken`, never a hardcoded
+`secret exec CACHIX_AUTH_TOKEN -- cachix authtoken` (the value never crosses
+stdout), never a hardcoded
 value — but the CI push path above needs the GH Actions secret regardless.
 
 **`.github/workflows/flakehub-publish.yml`**: OIDC (`permissions: id-token: write`),

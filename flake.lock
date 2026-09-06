@@ -580,11 +580,11 @@
         "treefmt-nix": "treefmt-nix_3"
       },
       "locked": {
-        "lastModified": 1788723356,
-        "narHash": "sha256-Y3H2ualQR6vfNse+7obg8mbtLDe0jeyOwY3YXuDmp84=",
+        "lastModified": 1788723673,
+        "narHash": "sha256-2QWGDPHm2USxibqFS6fOjVuxMCJx0NZuufkHJkS0MSU=",
         "owner": "kattakath",
         "repo": "nix-keychain-secrets",
-        "rev": "9f02c3491b2253d9fbd4d74ec8991b0db22323e3",
+        "rev": "fa55ed5559ec2db1f0c0af76c13da063a0138fed",
         "type": "github"
       },
       "original": {
