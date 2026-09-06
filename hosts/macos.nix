@@ -91,7 +91,21 @@
     in
     {
       githubRunners = {
+        # DISABLED 2026-09-06, and the reason is the whole design constraint:
+        # a lane holds its guest slot for the ENTIRE long-poll wait, not just
+        # while a job runs. Measured — these two sat up for an hour with 0.0%
+        # CPU, 8192 MB each of 36 GB, holding BOTH of Apple's two concurrent
+        # macOS guests, having run zero jobs. Neither org has a single workflow
+        # targeting a self-hosted runner (verified across all 63 repos), so the
+        # cost bought nothing and starved dontsell-vm, which never acquired a
+        # slot after coming up at 08:04:56.
+        #
+        # Re-enable when a workflow in that org actually needs macOS — and
+        # preferably only after the controller provisions on demand rather than
+        # pre-booting a guest to wait. Keeping the scope/installationId here so
+        # re-enabling is a one-word change, not a re-derivation.
         kattakath = fleetApp // {
+          enable = false;
           scope = {
             type = "org";
             value = "kattakath";
@@ -99,6 +113,7 @@
           installationId = 159388698;
         };
         silvercreek = fleetApp // {
+          enable = false;
           scope = {
             type = "org";
             value = "silvercreek-ai";
