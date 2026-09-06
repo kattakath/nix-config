@@ -40,6 +40,10 @@ let
   # Rasterize one SVG at the standard icns sizes, then pack them into a
   # single .icns — pure Nix (librsvg + libicns), no macOS-only `iconutil`
   # /.iconset naming convention required.
+  #
+  # Not nixpkgs' icon path either: that runs through desktopToDarwinBundle,
+  # which converts an icon out of a share/icons THEME. There is no theme here —
+  # each launcher carries one inline SVG defined in this file.
   mkIcns =
     name: svg:
     let
@@ -125,6 +129,18 @@ let
         '';
       };
     in
+    # grepped nixpkgs for a .app-bundle generator — `pkgs.writeDarwinBundle`
+    # EXISTS (all-packages.nix:842) → custom anyway, because reading its
+    # implementation rules it out on three counts
+    # (build-support/make-darwin-bundle/write-darwin-bundle.nix):
+    #   :13  CFBundleIdentifier is HARDCODED to "org.nixos.$name" with no
+    #        parameter; this fleet needs com.kattakath.* identifiers.
+    #   —    it emits no LSMinimumSystemVersion at all.
+    #   :31  it requires the executable to already live at $prefix/bin/$execName,
+    #        and it is reachable only through `desktopToDarwinBundle`, which
+    #        wants a .desktop file plus a share/icons theme to convert — neither
+    #        exists here (these launchers are Nix-defined, with one inline SVG).
+    # Repo-wide grep for writeDarwinBundle: zero other hits.
     runCommand "${slug}-app" { } ''
       mkdir -p "$out/Contents/MacOS" "$out/Contents/Resources"
       cat > "$out/Contents/Info.plist" <<PLIST

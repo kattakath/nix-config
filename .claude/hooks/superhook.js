@@ -2,9 +2,14 @@
 /**
  * superhook.js — supervising dispatcher for command-type hooks.
  *
- * Claude Code has no native "a hook errored / decided" event, so the only way
- * to supervise hooks is to BE the hook the harness invokes. settings.json calls
- * this wrapper instead of the inner hook directly:
+ * The harness DOES emit a native `hook_execution_complete` OTel event carrying
+ * hook_name / num_blocking / num_non_blocking_error (an earlier version of this
+ * header claimed no such event exists — corrected 2026-09-06). What it does not
+ * offer is INTERVENTION: `strings` over the claude-code binary turns up only a
+ * blanket `disableAllHooks`, nothing that can downgrade one hook's verdict. So
+ * observing is possible from outside, but overriding still requires BEING the
+ * hook the harness invokes. settings.json calls this wrapper instead of the
+ * inner hook directly:
  *
  *     node superhook.js <EventName> -- <inner command ...>
  *
@@ -23,6 +28,14 @@
  *   4. Log + recommend — every invocation is appended to superhook.log as a
  *      JSON line. On crash / loop-break, a systemMessage points at the log and
  *      recommends a fix. The wrapper NEVER edits hook files itself.
+ *
+ * superhook-digest.js deliberately reads THIS log, not the native
+ * hook_execution_complete counters, and that is not an oversight. This wrapper
+ * always exits 0 and converts both crash and loop into an *approve*, so from
+ * the harness's side those two incidents are indistinguishable from a clean
+ * run: measured over the live stream, PreToolUse:Bash reports 15,102 records at
+ * (num_blocking 0, num_non_blocking_error 0). The counters are structurally
+ * blind to exactly the two events the digest exists to count.
  *
  * Scope note: security gating (the secret / path-traversal PreToolUse) is a
  * prompt-type hook evaluated by the model, not a shell command — it does not
