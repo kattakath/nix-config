@@ -685,11 +685,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1788685783,
-        "narHash": "sha256-H6iiY29nwLq8r80VdAoNJB1WdayfeUBhuHc/2FXGmvM=",
+        "lastModified": 1788695160,
+        "narHash": "sha256-n5dGdR6QLXmrzJtPjv+IWKc14lxdzVWpZuHe/DcaJ0o=",
         "owner": "kattakath",
         "repo": "nix-media-cli",
-        "rev": "d2d76607f21f9ec62e45c7e3cb76ddb7ec926b5a",
+        "rev": "fed74d0ebf4f1d08416375860d696b1ab20635b7",
         "type": "github"
       },
       "original": {
