@@ -51,7 +51,12 @@ jobs:
       # and demands a paid GITLEAKS_LICENSE. Moving this repo under the org tripped
       # exactly that. The gitleaks BINARY is MIT-licensed and unrestricted — only
       # the wrapper is gated — so run it directly and drop the third-party action
-      # (one less supply-chain edge, and it is pinned by our own flake.lock).
+      # (one less supply-chain edge).
+      #
+      # Pinned by resolving our own flake.lock BELOW, not by `nixpkgs#gitleaks`:
+      # a bare `nixpkgs#` installable resolves the RUNNER's flake registry
+      # (a floating nixpkgs we do not control), never ./flake.lock. Same
+      # convention as nix-ci.yml's note on not executing unpinned upstream refs.
       - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31
         with:
           extra_nix_config: |
@@ -60,4 +65,8 @@ jobs:
       - name: Run gitleaks
         # `detect` walks the whole local history (fetch-depth: 0 above);
         # --redact keeps any finding out of the public CI log.
-        run: nix run nixpkgs#gitleaks -- detect --source . --redact --verbose --exit-code 1
+        run: |
+          set -euo pipefail
+          rev=$(jq -r '.nodes[.nodes[.root].inputs.nixpkgs].locked.rev' flake.lock)
+          nix run "github:NixOS/nixpkgs/$rev#gitleaks" -- \
+            detect --source . --redact --verbose --exit-code 1
