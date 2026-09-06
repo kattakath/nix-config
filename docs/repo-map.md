@@ -71,7 +71,7 @@ Pinned input revisions; commit every change, never hand-edit.
 
 **The input diet — `follows` is not optional bookkeeping here.** 33 root inputs pull a
 transitive graph, and every duplicate node is another fetch, another eval, another thing
-`flake-checker` has to reason about. The lock is held at **60 nodes**; it was **72** before the
+`flake-checker` has to reason about. The lock is held at **62 nodes**; it was **72** before the
 dedupe pass. Two mechanisms, and conflating them is the trap:
 
 | Form | Means | Use when |

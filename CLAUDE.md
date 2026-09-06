@@ -122,7 +122,7 @@ One line per path; the *why* and the per-file specifics are in
 | Path | What it owns |
 |---|---|
 | `flake.nix` | Inputs/pins, `forAllSystems`, `mkDarwin`/`mkNixos`, `identityArgs`, all exported configurations/packages/apps/checks, and `deploy.nodes.nixpi` (deploy-rs, magic rollback — read the ⚠ at its definition site). |
-| `flake.lock` | Pinned revisions — bump only via `nix flake update` / `/update-input`, never hand-edit. Held at **60 nodes** by a deliberate `follows` diet; a `follows` edit is **shape-only** (`nix flake lock`, never a bare `nix flake update`) and `follows = ""` REBINDS to this flake rather than removing — see [`docs/repo-map.md`](docs/repo-map.md) § `flake.lock`. |
+| `flake.lock` | Pinned revisions — bump only via `nix flake update` / `/update-input`, never hand-edit. Held at **62 nodes** by a deliberate `follows` diet; a `follows` edit is **shape-only** (`nix flake lock`, never a bare `nix flake update`) and `follows = ""` REBINDS to this flake rather than removing — see [`docs/repo-map.md`](docs/repo-map.md) § `flake.lock`. |
 | `treefmt.nix` | Single source of truth for format + lint-fix (tools that REWRITE); drives `nix fmt`, the CI gate, and the pre-commit hook. |
 | `sgconfig.yml` + `ast-grep/` | Report-only structural lint (ast-grep): `rules/` mechanises prose conventions, `rule-tests/` proves they fire. Gated by `checks.<system>.ast-grep`, **not** treefmt. |
 | `hosts/` | Per-host entry profiles: `macos.nix`, `nixpi.nix`, `nixvm.nix` (host-only deltas + per-host Homebrew lists). |
