@@ -1247,6 +1247,31 @@ in
       nix-direnv.enable = true;
     };
 
+    # nh — the switch-time feedback layer: nom's live dependency tree while
+    # building, a dix closure diff after ("PATHS 999 -> 999, DIFF 0 bytes"), and
+    # `--ask`/`--dry`. Its real win here is that since 4.3.0 it HIDES activation
+    # output by default: it runs `darwin-rebuild activate` with show_output=false,
+    # which is the only thing that suppresses home-manager's ~30 `Activating <x>`
+    # lines and nix-darwin's `setting up ...` banners. Both are printed
+    # unconditionally by their own modules (home-environment.nix's `_iNote
+    # "Activating %s"`, and a hard-coded `printf >&2` per nix-darwin module), so
+    # no option in either project can quiet them. `--show-activation-logs` /
+    # NH_SHOW_ACTIVATION_LOGS puts them back for a run.
+    #
+    # ONLY the package + env here. The flake POINTER is private (it names the
+    # nix-personal checkout), so `darwinFlake` is set there — see
+    # docs/private-home-modules.md. nix-personal's `activate` is what actually
+    # calls nh, and it gates on a tty: nh's own progress ticker repaints ~15x/s
+    # with NO off switch (measured: NH_NOM=0 and NO_COLOR=1 both change nothing),
+    # so under a pipe it is far worse than plain darwin-rebuild.
+    #
+    # clean stays off: GC is the fleet's own story (nix.gc on nixpi; Determinate
+    # owns it on darwin), and the module warns when both are enabled.
+    nh = lib.mkIf isMacosHost {
+      enable = true;
+      clean.enable = false;
+    };
+
     # A login shell is required for `home-manager switch` to wire session vars.
     bash = {
       enable = true;
