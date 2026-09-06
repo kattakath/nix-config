@@ -171,6 +171,15 @@ const CF_TERRANIX_APP = /\bnix\s+run\s+\.#cf-(?:tunnel|mcp)-(?:apply|destroy)\b/
 // quoted argument is a regex, not a pipe into a command — and it blocked a
 // search for this rule's own call sites. A real pipe is never written escaped.
 const CMD_POS = String.raw`(?:^|(?<!\\)[\n;|&(]|\$\(|\x60)\s*`;
+// The lookbehind above suppresses a separator preceded by a backslash, so a
+// regex alternation (`grep 'a\|secret reveal b'`) is not read as a pipeline.
+// On its own that is a BYPASS: in `printf 'a\\' | secret reveal K` the `\\` is
+// an escaped backslash and the `|` is a REAL pipe, but the lookbehind sees only
+// "backslash, then |" and steps aside. A lookbehind cannot count backslashes.
+// So collapse escaped PAIRS to a non-backslash placeholder first; whatever
+// backslash survives is genuinely escaping the character after it. Length is
+// preserved (two chars in, two out) so reported offsets stay meaningful.
+const unescapePairs = (c) => c.replace(/\\\\/g, "  ");
 const SECRET_REVEAL = new RegExp(CMD_POS + String.raw`(?:\S*/)?secret\s+reveal\b`);
 // The bypass that matters more: the agent does not need the CLI at all.
 // `security find-generic-password -w` (or -g) prints the value directly, and
@@ -375,8 +384,11 @@ function main() {
   // Not a veto. The operator runs either form by hand whenever they want, and
   // `secret reveal` is the right answer when a script genuinely needs the value
   // in its own process (see nix-personal's character-mcp proof scripts).
-  if (SECRET_REVEAL.test(cmd) || SECURITY_PRINTS_VALUE.test(cmd)) {
-    const via = SECRET_REVEAL.test(cmd) ? "`secret reveal`" : "`security find-generic-password -w/-g`";
+  // Match against the pair-collapsed form (see unescapePairs) so an escaped
+  // BACKSLASH before a real separator cannot hide the command after it.
+  const cmdEsc = unescapePairs(cmd);
+  if (SECRET_REVEAL.test(cmdEsc) || SECURITY_PRINTS_VALUE.test(cmdEsc)) {
+    const via = SECRET_REVEAL.test(cmdEsc) ? "`secret reveal`" : "`security find-generic-password -w/-g`";
     emit(
       "block",
       `${via} prints a secret VALUE to stdout, which lands verbatim in this session's transcript (~/.claude/projects/**.jsonl, kept 30 days, no redaction).`,

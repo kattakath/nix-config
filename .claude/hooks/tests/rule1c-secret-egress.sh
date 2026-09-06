@@ -26,6 +26,18 @@ ck block 'v=$(security find-generic-password -s K -w)'
 ck block 'true && secret reveal K'
 ck block 'security find-generic-password -s K -g'
 
+echo "== must BLOCK: an escaped BACKSLASH before a REAL pipe is not an escaped pipe =="
+# The bypass a bare lookbehind allows: here `\\` is a literal backslash and the
+# `|` after it is a genuine pipeline. A lookbehind cannot count backslashes, so
+# the command is matched against a pair-collapsed copy instead.
+# TIGHT shape — the backslash must be IMMEDIATELY before the separator, or the
+# lookbehind never engaged and the case proves nothing. Here the literal text is
+# `a` backslash backslash pipe: an escaped backslash, then a real pipeline.
+ck block 'printf a\\| secret reveal K'
+ck block 'echo x\\;secret reveal K'
+# Loose shape (space before the pipe) — blocked by the plain separator branch.
+ck block 'printf "a\\\\" | secret reveal K'
+
 echo "== must APPROVE: an ESCAPED pipe is a regex alternation, not a pipe =="
 # A grep alternation blocked a search for this rule's own call sites.
 ck approve "grep -rn 'secret get \|secret reveal ' ."
