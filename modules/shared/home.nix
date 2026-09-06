@@ -596,6 +596,11 @@ in
     with pkgs;
     [
       fh # FlakeHub CLI — flake input publishing/management, wanted on every host
+      # Terminal background switcher, backing the red/green/blue aliases in
+      # programs.zsh below. Off-the-shelf rather than three hand-rolled printfs:
+      # it emits the same OSC 10/11/12 but also wraps them for tmux passthrough
+      # and swaps to iTerm2's \033]Ph form, neither of which a bare printf does.
+      theme-sh
       # fonts
       nerd-fonts.jetbrains-mono # "JetBrainsMono Nerd Font" — VS Code editor font (pairs with the JetBrains theme)
       nerd-fonts.ubuntu-mono # "UbuntuMono Nerd Font" — VS Code terminal font (matches the devcontainer)
@@ -1499,6 +1504,24 @@ in
       enableCompletion = true;
       autosuggestion.enable = true;
       syntaxHighlighting.enable = true;
+
+      # Session-only terminal background, one word each. These change the RUNNING
+      # terminal via OSC 11 and persist nothing — a new tab is back to the
+      # programs.ghostty `background` below, so `red` doubles as the reset.
+      #
+      # The three grounds are the SAME COLOUR at three hues, not three guesses:
+      # #300A24 converted to OKLCh, then hue rotated with L=0.2228 and C=0.0710
+      # held fixed. So all three read as equally dark and the Tango ring below —
+      # which was lifted to 4.5:1 against #300A24 specifically — stays as
+      # readable on green and blue as it is on red. Contrast against #FFFFFF is
+      # 17.58 / 16.91 / 17.27 respectively.
+      #
+      # No PATH collision: `command -v red green blue` is empty on this fleet.
+      shellAliases = {
+        red = "echo 'background: #300A24' | theme.sh";
+        green = "echo 'background: #002303' | theme.sh";
+        blue = "echo 'background: #09193C' | theme.sh";
+      };
 
       # macOS Keychain secret loader is wired into zsh's envExtra (.zshenv) by
       # programs.keychainSecrets (the keychain-secrets flake's HM module).
