@@ -28,5 +28,7 @@ the decoder: **scan the first keywords of the message, not the harness label.**
 ## Triage entry points
 
 - `/superhook-review` — crash/loop incidents from the supervised command hooks.
-- `/pretooluse-review` — the attempt/outcome log for Bash and Write|Edit gates
-  (`.claude/hooks/pretooluse.log`), including prompt-hook denials, which have no other log.
+- `/pretooluse-review` — gate REJECTIONS for Bash and Write|Edit, read from the harness's
+  own OTel `tool_decision` stream (`~/.local/state/claude-otel/events.jsonl`). Prompt-type
+  hooks keep no log of their own, but the stream records the `decision`, the `source`, and
+  the deciding `hook_name` first-hand.

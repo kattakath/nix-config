@@ -9,7 +9,9 @@
 .claude/hooks/superhook.log.*
 .claude/hooks/.superhook-state.json
 
-# pretooluse-log.js observer runtime artifact
+# Leftover artifact of the RETIRED pretooluse-log.js observer. The hook is gone,
+# so nothing writes this any more, but existing checkouts still hold a multi-MB
+# file — keep it ignored so `git add -A` can never sweep it into history.
 .claude/hooks/pretooluse.log
 
 # routing-review.md state (events themselves live outside the repo, under
@@ -21,10 +23,6 @@
 
 # stop-gate.js check 0 dedupe ledger (grok-build run ids already reported in-session)
 .claude/hooks/.grok-runs-state.json
-
-# Project memory — candid, local-only record of decisions/reasoning/findings/values.
-# Gitignored on purpose: this is the "why" behind the repo, not committed documentation.
-memory/
 
 # dontsell-ai/ — an unrelated Slack-bot scaffold that lives loose in this
 # working tree, not a nix-config artifact and not its own git repo. Ignored so
