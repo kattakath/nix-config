@@ -41,7 +41,7 @@ in
     '';
   };
 
-  config = lib.mkIf pkgs.stdenv.isDarwin (
+  config = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin (
     lib.mkMerge [
       # ---- Terminal.app — type everywhere, colours on `Pro` ---------------------
       # FOUR OF SIXTEEN SLOTS, and that is the OS ceiling, not a gap in this
