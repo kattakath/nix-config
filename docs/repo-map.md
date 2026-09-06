@@ -268,8 +268,13 @@ Both are safe to commit. Full rules: [`secrets-and-keychain.md`](secrets-and-key
   GitHub Actions runners for `kattakath`, `silvercreek-ai`, and `dontsell-ai` (label
   `dontsell-vm` — the bare-metal pair keeps that org's nix-toolchain CI), one fleet GitHub App
   (`kattakath-fleet-ci`, key = agenix `gh-app-fleet-key.age`, host-decrypted), digest-pinned
-  Cirrus runner image, and Apple's 2-concurrent-VM budget shared by a slot semaphore. One-time
-  per image after activation: `tart-runner-setup-kattakath`. The **GitLab** runner shares the
+  Cirrus runner image, and Apple's 2-concurrent-VM budget shared by a slot semaphore. The base
+  clone and the host-key pin are content-keyed by `oci@digest`, so a digest bump renames both;
+  one elected instance per image re-pulls and re-pins itself on its next cycle
+  (`tart-runner-setup-kattakath [image|pin|all]` pre-warms that by hand). Slots, pins and both
+  lanes' logs live under `tart.runnerStateDir` — `~/.local/state/tart-runner` by default,
+  durable and user-writable; a volatile root now fails at eval, after the old `/tmp` default
+  was purged and darked all three lanes on 2026-09-05. The **GitLab** runner shares the
   same VM budget declaratively since 2026-09-05: **`tart.gitlabRunner`** (`darwinModules.gitlab-runner`,
   same base list) runs `pkgs.gitlab-runner` as a GUI LaunchAgent that renders its `config.toml`
   at start from the agenix `gitlab-runner-token.age` (host-decrypted), pointing at the
@@ -1048,9 +1053,11 @@ PRs need no runner fallback), and day-to-day local aarch64-linux builds use Dete
 native Linux builder on the Mac. Branch protection requires the aggregate `required-checks`
 job.
 
-Do **not** read that as "the Mac has no runners": `macos` does host two ephemeral self-hosted
-runners, registered to the **`dontsell-ai`** org, for *that* org's CI — see
-`modules/darwin/github-runner.nix` above. The two facts are about different repos.
+Do **not** read that as "the Mac has no runners": `macos` hosts **six** runner lanes — two
+bare-metal ephemeral runners on the **`dontsell-ai`** org
+(`modules/darwin/github-runner.nix` above), three ephemeral Tart-VM-per-job runners
+(`tart.githubRunners.*` — `kattakath`, `silvercreek-ai`, `dontsell-vm`), and one GitLab runner
+(`tart.gitlabRunner`). None of them serve *this* repo's CI. The facts are about different repos.
 
 Also in `.github/workflows/`: `auto-merge.yml`, `build-devcontainer.yml`,
 `build-installers.yml`, `claude*.yml`, `gitleaks.yml`, and `flakehub-publish.yml` — the last
