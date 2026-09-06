@@ -50,4 +50,15 @@ in
     operator
     macos
   ];
+  # The macos GitLab runner's glrt- authentication token (runner
+  # "macos-ismail-dev" on gitlab.com), for tart.gitlabRunner (nix-tart-macos
+  # darwinModules.gitlab-runner, hosts/macos.nix): HOST-decrypted at
+  # activation → the agent renders gitlab-runner's config.toml from it at
+  # start, so the token lives only here and in the runner's 0600 runtime
+  # config. Minted once via `gitlab-runner register`; rotating = re-register,
+  # re-encrypt. Content is the bare token, one line.
+  "gitlab-runner-token.age".publicKeys = [
+    operator
+    macos
+  ];
 }
