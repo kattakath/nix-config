@@ -39,13 +39,20 @@ mandatory, not as a security boundary to rely on. Live example:
 ## Mandatory behavior
 
 1. **Home Manager user agents** (`launchd.user.agents.*`) are wrapped automatically by
-   `modules/shared/hm-launchd/`, which forces `arg0` to `nix-<name>` and keeps `wait4path`
-   **inside** the wrapper. Do not bypass it.
+   `modules/shared/hm-launchd/`, which forces `arg0` to `nix-<name>`. Do not bypass it.
+   This is upstream's own `waitForNixStore = false` trade, in its words (pinned
+   home-manager `modules/launchd/default.nix:47-52`): the agent "appear[s] under its own
+   name, rather than as 'sh' … but the agent will fail to start if launchd runs it before
+   the Nix store is mounted." **There is no wait4path inside the wrapper** — the wrapper
+   is itself a `/nix/store` script with a `/nix/store` interpreter, so launchd needs the
+   store mounted just to exec it. Cover an early-boot start with `KeepAlive` (which makes
+   launchd retry the failed exec), not with a wait4path line that cannot run.
 2. **Any launchd unit you hand-write** — a `launchd.user.agents` entry with an explicit
    `ProgramArguments`, or a nix-darwin `launchd.daemons`/`launchd.agents` you author — MUST
    point `arg0` at a `pkgs.writeShellScriptBin "nix-<activity>" ''…''` wrapper, **never**
-   directly at `${pkgs.bash}/bin/sh -c …` or `${python}/bin/python3 …`. Put the
-   `wait4path`/`exec` logic inside that wrapper. Canonical examples in
+   directly at `${pkgs.bash}/bin/sh -c …` or `${python}/bin/python3 …`. Put the `exec`
+   logic inside that wrapper — and NOT a `wait4path`, for the reason in item 1: it is
+   unreachable from a store-resident wrapper. Canonical examples in
    `modules/shared/mcp.nix`: `telegramMcp` (`nix-telegram-mcp`), `wpMcp`
    (`nix-mcp-wordpress`), `cloudflaredConnector` (`nix-mcp-tunnel-connector`).
 3. **Before declaring any launchd change done**, mentally (or with the audit below) confirm
