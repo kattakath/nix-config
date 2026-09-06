@@ -46,6 +46,40 @@ let
     description = "16-element list of uppercase #RRGGBB";
   };
 
+  # "#RRGGBB" -> the 16-bit RGB list AppleScript wants: "{r, g, b}", 0-65535.
+  # Verified against a live read-back of Terminal.app's stock `Pro` profile,
+  # which returns {62099, 62099, 62099} for #F2F2F2-ish text — i.e. 0xFF maps to
+  # 65535, so the scale factor is 257, not 256.
+  toRgb16 =
+    hex:
+    let
+      digits = {
+        "0" = 0;
+        "1" = 1;
+        "2" = 2;
+        "3" = 3;
+        "4" = 4;
+        "5" = 5;
+        "6" = 6;
+        "7" = 7;
+        "8" = 8;
+        "9" = 9;
+        "A" = 10;
+        "B" = 11;
+        "C" = 12;
+        "D" = 13;
+        "E" = 14;
+        "F" = 15;
+      };
+      body = lib.removePrefix "#" hex;
+      channel =
+        i:
+        toString (
+          (digits.${builtins.substring i 1 body} * 16 + digits.${builtins.substring (i + 1) 1 body}) * 257
+        );
+    in
+    "{${channel 0}, ${channel 2}, ${channel 4}}";
+
   slotNames = [
     "black"
     "red"
@@ -168,6 +202,21 @@ in
         description = "Display family name, as a terminal emulator asks for it.";
       };
 
+      postScriptName = lib.mkOption {
+        type = lib.types.str;
+        default = "UbuntuMonoNF";
+        description = ''
+          The SAME face, spelled the way Terminal.app's `font name` property
+          wants it — a PostScript name, not the display family. Getting this
+          wrong is silent: Terminal keeps its previous font, logs nothing, and
+          returns no error.
+
+          VERIFIED on this machine rather than assumed:
+          `fc-match -f '%{postscriptname}' "UbuntuMono Nerd Font"` -> UbuntuMonoNF.
+          Re-check it if the nerd-fonts pin moves.
+        '';
+      };
+
       sizes = {
         ghostty = lib.mkOption {
           type = lib.types.ints.positive;
@@ -184,6 +233,15 @@ in
           default = 16;
           description = "VS Code's integrated terminal. See `ghostty` for why these differ.";
         };
+
+        terminalApp = lib.mkOption {
+          type = lib.types.ints.positive;
+          default = 16;
+          description = ''
+            Terminal.app, held here on EVERY profile — type size is ergonomics,
+            not a visual tell, so even a sandbox host gets it.
+          '';
+        };
       };
     };
   };
@@ -199,6 +257,10 @@ in
         ansi
         font
         ;
+
+      # Exported because Terminal.app is the one consumer that cannot take a hex
+      # string — its Apple Events interface speaks 16-bit RGB lists.
+      inherit toRgb16;
 
       # Slot number -> role name, for consumers that key by name (VS Code's
       # terminal.ansiBrightBlack, fzf's colour names, …).
