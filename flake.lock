@@ -768,11 +768,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1788677949,
-        "narHash": "sha256-ZQ9xbLmDWeyZ1LrGIorAJtObsbsPwGJEQwFJ9u4stqc=",
+        "lastModified": 1788680092,
+        "narHash": "sha256-qQPQEVzXnFS3Ee0a+tWwdvrd7+Ne/yvfGCkSjdh9/Lg=",
         "owner": "kattakath",
         "repo": "nix-tart-vms",
-        "rev": "10991424167ee190e89fabd828719b356f0232e8",
+        "rev": "a74b7870eff84f2bede267aae91c6aa9671da5bb",
         "type": "github"
       },
       "original": {
