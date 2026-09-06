@@ -65,6 +65,15 @@
     owner = loginName;
     mode = "0400";
   };
+  # The GitLab lane's glrt- runner token (runner "macos-ismail-dev",
+  # gitlab.com). tart.gitlabRunner's agent renders config.toml from it at
+  # start — the token never enters the store; secrets/secrets.nix has the
+  # registration/rotation story.
+  age.secrets."gitlab-runner-token" = {
+    file = ../secrets/gitlab-runner-token.age;
+    owner = loginName;
+    mode = "0400";
+  };
   tart =
     let
       fleetApp = {
@@ -100,6 +109,18 @@
           };
           installationId = 159388677;
         };
+      };
+
+      # GitLab lane on the SAME slot budget (civitai pipeline): declarative
+      # gitlab-runner → Tart custom executor. Replaced the brew service +
+      # hand-edited ~/.gitlab-runner/config.toml on 2026-09-05; registration
+      # (minting the glrt- token) stays the one-time manual act.
+      gitlabRunner = {
+        enable = true;
+        runnerName = "macos-ismail-dev";
+        runnerId = 54669377;
+        tokenFile = config.age.secrets."gitlab-runner-token".path;
+        concurrent = 2;
       };
     };
 
@@ -165,12 +186,10 @@
       "git"
       "git-cliff" # release stage — changelog / release notes (GitLab CI)
       "git-filter-repo"
-      # Self-hosted GitLab CI runner (civitai pipeline). Its config.toml is
-      # imperative (holds the glrt-… token) and can point [runners.custom] at
-      # nix-tart-macos's gitlab-tart slot shims for ephemeral Tart-VM jobs on
-      # the SAME two-guest budget as tart.runners.* below — stanza printer:
-      # nix run github:kattakath/nix-tart-macos#tart-gitlab-print-config
-      "gitlab-runner"
+      # gitlab-runner moved OFF brew 2026-09-05: tart.gitlabRunner below runs
+      # pkgs.gitlab-runner as a launchd agent with a runtime-rendered config
+      # (nix-tart-macos darwinModules.gitlab-runner). After activating, retire
+      # the brew copy once: `brew services stop gitlab-runner`.
       "glab"
       "go"
       "graphviz"
