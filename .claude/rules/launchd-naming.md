@@ -104,6 +104,29 @@ after `exec` is still `nix-github-runner-<instance>`.
 
 Live example: `services.macosGithubRunner` in `modules/darwin/github-runner.nix`.
 
+### A CRASH is retried; a failed EXEC is not — that asymmetry is the whole bug
+
+The table above says no launchd setting recovers a **failed exec**. It does not say
+launchd never retries — it retries a **crash** just fine. That is why the boot has two
+races and only one of them was fatal. Measured on the 2026-09-06 reboot that verified
+this fix:
+
+| Race | What launchd sees | Recovers? |
+|---|---|---|
+| daemon execs before `/nix` is mounted | **failed exec** (`Missing executable`, exit 78 EX_CONFIG) | **NO** — parks forever on an "Executable appearance" event that a volume mount does not fire |
+| daemon runs before `activate-agenix` writes `/run/agenix/<key>` | **crash** (runner exits 1, `Could not open file ... No such file or directory`) | **YES** — `KeepAlive` restarts it |
+
+Boot timeline, same reboot: boot `10:21:52` → daemons exec cleanly (`/nix` mounted in
+time — `wait4path` did its job) → **exit 1**, secret absent → `10:22:40`
+`activate-agenix` decrypts → launchd retries → `10:24:11` both runners
+`Listening for Jobs`.
+
+**So the agenix race is left unfixed on purpose.** It costs ~2 min of runner
+unavailability at boot, when nothing is queued, and it self-heals. Do not "fix" it by
+adding a second wait-for-file guard to the daemon command — a `runs = 2,
+last exit code = 1` on these daemons is expected after a reboot and is **not** the boot
+race. The one to alarm on is `runs = 1, last exit code = 78`.
+
 ## Known upstream exceptions — do NOT rename (they are not ours)
 
 Three system `LaunchDaemons` run `/bin/sh` and are **outside this repo's control**. They are
