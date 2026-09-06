@@ -90,15 +90,15 @@ jobs:
             eval-attrs: >-
               .#nixosConfigurations.nixpi.config.system.build.toplevel.drvPath
               .#nixosConfigurations.nixvm.config.system.build.toplevel.drvPath
-          # aarch64-darwin (Apple Silicon) — both darwin hosts (macos + macvm
-          # UTM guest config); also builds the aarch64-darwin lint checks.
-          # GitHub-hosted `macos-latest` (a free STANDARD macOS runner on a
-          # public repo). Eval only — no toplevel builds.
+          # aarch64-darwin (Apple Silicon) — the `macos` host; also builds the
+          # aarch64-darwin lint checks. GitHub-hosted `macos-latest` (a free
+          # STANDARD macOS runner on a public repo). Eval only — no toplevel
+          # builds. (`macvm` was removed 2026-09-05 — see flake.nix § the
+          # former macvm Tart guest and docs/macvm-readd-runbook.md.)
           - name: aarch64-darwin
             runs-on: macos-latest
             eval-attrs: >-
               .#darwinConfigurations.macos.system.drvPath
-              .#darwinConfigurations.macvm.system.drvPath
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -146,7 +146,13 @@ jobs:
           set -euo pipefail
           for a in $EVAL_ATTRS; do
             echo "::group::eval $a"
-            nix eval --raw "$a" && echo
+            # NEVER `nix eval … && echo`: POSIX exempts every non-final command
+            # of an AND-OR list from errexit, so a failing eval left the loop —
+            # and this whole REQUIRED gate — green (measured: run 34006823201
+            # printed a `does not provide attribute` error and still passed).
+            # Keep the eval a command of its own so `set -e` can see it fail.
+            nix eval --raw "$a"
+            echo
             echo "::endgroup::"
           done
           echo "✓ host config(s) evaluate."
