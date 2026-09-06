@@ -81,11 +81,26 @@ in
       #
       # Guarded on Terminal ALREADY RUNNING, because `tell application "Terminal"` would
       # otherwise LAUNCH it and pop a window on every single rebuild — the exact
-      # regression the old vendored-profile import had to be fixed for. In practice the
-      # operator rebuilds from a Terminal, so the guard passes; if it doesn't, the step
-      # says so and applies on the next activation. Detection uses `ps`, NOT `pgrep`:
-      # `pgrep -x Terminal` (and even `pgrep -f` on the full binary path) exits 1 from
-      # the activation context while Terminal is demonstrably running.
+      # regression the old vendored-profile import had to be fixed for.
+      #
+      # DETECTION IS `pgrep`, AND IT MUST NOT BE A PIPE. This comment used to claim the
+      # opposite — "use `ps`, NOT `pgrep`, because pgrep exits 1 from the activation
+      # context while Terminal is demonstrably running" — and that was a MISDIAGNOSIS of
+      # the bug below. `pgrep` was never the problem; the pipe was.
+      #
+      # home-manager's generated activate script runs under `set -o pipefail` (its line
+      # 3). `grep -q` exits the instant it matches, which closes the pipe, which kills
+      # `ps` with SIGPIPE — so the PIPELINE reports 141 even though the match SUCCEEDED,
+      # and `pipefail` hands that 141 to the `if`. The step then skipped forever, on a
+      # machine where Terminal was running the whole time. Measured in the exact
+      # activation context (`launchctl asuser <uid> sudo -u <user>`, per nix-darwin's
+      # own activate script):
+      #
+      #   set -o pipefail; ps -Ao comm | grep -q '…/Terminal$'   -> exit 141   FAIL
+      #   set -o pipefail; pgrep -x Terminal >/dev/null          -> exit 0     PASS
+      #
+      # So: no pipe in a guard that runs under `pipefail`, and never `cmd | grep -q` when
+      # the producer is long enough to still be writing. `pgrep` needs neither.
       #
       # Re-run every activation, and cheap: EVERY property is compared before it is
       # written, so a settled Mac is a true no-op — and a profile ADDED later gets
@@ -94,7 +109,7 @@ in
       # just warns).
       {
         home.activation.terminalAppearance = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-          if /bin/ps -Ao comm | /usr/bin/grep -q '/Terminal.app/Contents/MacOS/Terminal$'; then
+          if /usr/bin/pgrep -x Terminal >/dev/null; then
             $DRY_RUN_CMD /usr/bin/osascript \
               -e 'tell application "Terminal"' \
               -e '  repeat with s in settings sets' \
