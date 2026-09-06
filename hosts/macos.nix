@@ -27,22 +27,34 @@
   # let two run at once instead of the whole backlog draining one job at a time
   # through a single runner (12 cores / 36GB on this Mac — comfortable headroom).
   #
-  # appId/installationId: the "dontsell-ci" GitHub App (slug "dontsell-ai"),
-  # created + owned by the dontsell-ai org itself (not a personal account),
-  # installed ONLY on that org, granted ONLY "Organization permissions:
-  # Self-hosted runners: Read and write" — confirmed via
-  # `gh api orgs/dontsell-ai/installations` after creation, not assumed. Neither
-  # value is secret on its own (see the module's option docs).
+  # appId/installationId: the "ismailkattakath-ci" App (4849830) — the SAME App
+  # the Tart lane below uses. Neither value is secret on its own.
   #
-  # Requires the gh-app-dontsell-ai-key agenix secret to exist first (the App's
-  # private key, downloaded once from its settings page as a .pem) — mint it,
-  # then `nix run github:ryantm/agenix -- -e secrets/gh-app-dontsell-ai-key.age`
-  # and paste the .pem's contents into $EDITOR; never through chat/Claude.
+  # 2026-09-06: this lane used to have its own App, "dontsell-ai" (4689619),
+  # org-owned and granted only Organization/Self-hosted-runners RW. That was
+  # retired because it stopped buying anything: ismailkattakath-ci is already
+  # installed on dontsell-ai with repos=all, so the broader access existed
+  # regardless, and a second narrow credential for the same job was defence in
+  # depth that depth no longer had. (It WOULD still be worth keeping if
+  # dontsell-ai were a third party who might need to revoke this Mac's access
+  # without touching a personal account — it is not.)
+  #
+  # WHY THERE ARE STILL TWO AGENIX SECRETS FOR ONE APP: an agenix secret has
+  # exactly one owner, and these two lanes run as different users —
+  # gh-app-dontsell-ai-key is owned by `_github-runner` (these launchd DAEMONS)
+  # and gh-app-fleet-key by the login user (the Tart USER AGENTS, which need a
+  # GUI session). Same key material, two files, because of OS ownership rather
+  # than credential separation. Consolidating Apps does not consolidate these.
+  #
+  # Both .age files therefore have to be re-encrypted together when the App key
+  # rotates. Use `age -R` directly, NOT `agenix -e` (which silently encrypts
+  # empty stdin when non-interactive), and verify the recipient tags match the
+  # file being replaced.
   services.macosGithubRunner = {
     enable = true;
     org = "dontsell-ai";
-    appId = 4689619;
-    installationId = 155878309;
+    appId = 4849830;
+    installationId = 159496676;
     count = 2;
   };
 
@@ -71,9 +83,8 @@
   # kattakath org secret CI_BOT_APP_PRIVATE_KEY. The previous split kept the
   # Actions key off this machine and the runner key unable to push code.
   #
-  # `dontsell-ai` (4689619) is deliberately NOT folded in: it is owned by that
-  # CLIENT org, carries only Organization/Self-hosted-runners RW, and is
-  # installed on selected repos — strictly tighter than this App.
+  # The bare-metal dontsell lane above now uses this SAME App (4849830); its
+  # own "dontsell-ai" App (4689619) was retired the same day — see that block.
   #
   # The two bare-metal dontsell runners
   # above STAY for that org's nix/cachix/pgvector-heavy CI (the Cirrus guest
