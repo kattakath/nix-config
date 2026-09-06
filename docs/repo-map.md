@@ -893,7 +893,7 @@ host**). The CLI *logic* —
 - `vast-template-apply` (create/REPLACE a template by name — delete+create, since Vast's PUT is
   broken),
 - `vast-repo-check` (validate a provisioner repo's `.provisioner-template.json` marker),
-- `vast-account-vars-set` (sync read-only `VAST_*` Keychain tokens → Vast account env vars),
+- `vast-account-vars-set` (sync read-only Keychain tokens → Vast account env vars, same name both sides),
 - `vast-ssh-key-set` (register the operator SSH key on the Vast account),
 - `vast-init-repo` (scaffold a provisioner repo — now from the extracted flake's own baked
   scaffold),
