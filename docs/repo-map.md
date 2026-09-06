@@ -269,7 +269,10 @@ Both are safe to commit. Full rules: [`secrets-and-keychain.md`](secrets-and-key
   `dontsell-vm` — the bare-metal pair keeps that org's nix-toolchain CI), one fleet GitHub App
   (`kattakath-fleet-ci`, key = agenix `gh-app-fleet-key.age`, host-decrypted), digest-pinned
   Cirrus runner image, and Apple's 2-concurrent-VM budget shared by a slot semaphore. One-time
-  per image after activation: `tart-runner-setup-kattakath`. Carries its own Homebrew brew/cask/masApps lists, incl. a
+  per image after activation: `tart-runner-setup-kattakath`. The **GitLab** runner (brew,
+  imperative `config.toml`) can join the same VM budget via nix-tart-macos's `gitlab-tart`
+  slot shims around cirruslabs' first-party executor — the semaphore
+  (`packages/tart-slots.nix` there) is the single protocol both forges speak. Carries its own Homebrew brew/cask/masApps lists, incl. a
   `libreoffice` cask backing the docx/pptx/xlsx/pdf Claude Code skills' `soffice` dependency,
   and the `open-design` cask (`greedy = true`, adopted the hand-dragged app in place) paired
   with `launchd.user.envVariables.OD_UPDATE_ENABLED = "0"` so versioning belongs to brew, not
