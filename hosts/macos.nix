@@ -165,7 +165,12 @@
       "git"
       "git-cliff" # release stage — changelog / release notes (GitLab CI)
       "git-filter-repo"
-      "gitlab-runner" # self-hosted GitLab CI runner (civitai pipeline on this host)
+      # Self-hosted GitLab CI runner (civitai pipeline). Its config.toml is
+      # imperative (holds the glrt-… token) and can point [runners.custom] at
+      # nix-tart-macos's gitlab-tart slot shims for ephemeral Tart-VM jobs on
+      # the SAME two-guest budget as tart.runners.* below — stanza printer:
+      # nix run github:kattakath/nix-tart-macos#tart-gitlab-print-config
+      "gitlab-runner"
       "glab"
       "go"
       "graphviz"
