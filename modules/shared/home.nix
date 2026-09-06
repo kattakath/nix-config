@@ -172,10 +172,19 @@ let
     # IN-REPO (plugins/seargraph, this repo): the seargraph-langgraph subagent —
     # LangGraph pipeline design/implementation help for the SEARGraph project
     # (self-evolving agentic image restoration: fidelity metrics, constrained
-    # optimization, iterative refinement, character embeddings). Global via this
-    # plugin because plain skills vendoring (programs.claude-code.skills) has no
-    # agents/ capability — only a plugin does.
+    # optimization, iterative refinement, character embeddings). A plugin as a SCOPING
+    # choice, not a capability gap — corrected 2026-09-06, and the correction is already
+    # in docs/repo-map.md § plugins/: programs.claude-code.agents DOES exist. What it
+    # cannot do is scope the agent — it installs globally into ~/.claude/agents/, whereas
+    # a plugin is enabled per project.
     "seargraph@${localMarketplaceName}"
+    # Portable userscript authoring: the measure-before-you-select method, the browser
+    # probes, the pre-vetted patterns, the Greasy Fork rulebook, plus a runnable metadata
+    # linter that `checks.<system>.userscripts` ALSO runs — one rulebook, no drift. A
+    # plugin rather than a vendored skill because it carries a /userscript command and is
+    # meant to be publishable OUTSIDE this fleet; the Nix-specific half (declaring a script
+    # in home.nix, activation, the install click) stays in .claude/skills/userscript-author.
+    "userscript-author@${localMarketplaceName}"
   ];
 
   # The marketplace this repo serves ITSELF, from the top-level plugins/ directory: a Nix
