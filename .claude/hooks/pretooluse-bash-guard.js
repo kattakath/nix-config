@@ -68,8 +68,7 @@
  * `{"decision":"approve"}` or `{"decision":"block","reason":"...","systemMessage":"..."}`.
  * superhook.js re-emits (or loop-breaks) that for the harness.
  *
- * Input: hook JSON on stdin — tool_input.command (same shape pretooluse-log.js
- * already reads).
+ * Input: hook JSON on stdin — tool_input.command.
  */
 "use strict";
 const fs = require("node:fs");
