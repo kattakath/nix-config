@@ -224,7 +224,7 @@ authoritative for exact flags.
 |---|---|
 | `vast-template-apply` | Create/**REPLACE** a template by name (delete+create). Assembles `PROVISIONING_SCRIPT` + non-secret env for the selected mode. |
 | `vast-repo-check` | Validate a provisioner repo's `.provisioner-template.json` marker (forge-agnostic, no clone). |
-| `vast-account-vars-set` | Push read-only `VAST_*` Keychain tokens → Vast **account-level** env vars. |
+| `vast-account-vars-set` | Push read-only Keychain tokens → Vast **account-level** env vars (same name both sides). |
 | `vast-ssh-key-set` | Register the operator SSH public key on the Vast account (idempotent). |
 | `vast-init-repo` | Scaffold a provisioner repo from the input's own bundled `provisioner-template`. |
 | `vast-rent` | Rents a live, **BILLED** GPU instance from a template by name/hash; injects a Keychain `DOCKERHUB_TOKEN` `image_login` to beat pull rate limits. **Always `--dry-run` first.** |
@@ -249,7 +249,7 @@ an unlink; `vast-template-apply`'s own delete+create covers the only case that m
    `{KEY: VALUE}` map with **values masked** (8-char placeholder). `vast-account-vars-set` is
    fully API-driven on that path — the account's
    `GITLAB_TOKEN`/`HF_TOKEN`/`CIVITAI_TOKEN`/`GH_TOKEN` were set this way from the read-only
-   `VAST_*` Keychain entries.
+   Keychain entries of the same name.
 
 ## Decisions (settled)
 
@@ -266,30 +266,26 @@ an unlink; `vast-template-apply`'s own delete+create covers the only case that m
 Verified 2026-09-06:
 
 - The GitLab PAT behind it (`vastai-gitlab-token`, `read_repository`, last used
-  2026-07-25) is **revoked**, with no active replacement. It predates — and is unrelated
-  to — that day's rotation of the *operator* PAT.
-- The Keychain entry `VAST_GITLAB_TOKEN` that `vast-account-vars-set` reads is
-  **absent**.
+  2026-07-25) is **revoked**, with no active replacement.
+- Every `VAST_`-prefixed token entry was missing from the Keychain, so
+  `vast-account-vars-set` was pushing **nothing at all** — not just GitLab — while
+  reporting it only as `SKIP` lines.
 
-**No credential is at risk, and nothing silently degrades.** `vast-account-vars-set`
-reads `VAST_$name` (pinned `vast-provision`, `packages/vast-provision.nix:366`), so it
-prints `SKIP (Keychain VAST_GITLAB_TOKEN missing)` and exits `rc=1` rather than falling
-back to the operator's `api`-scoped `GITLAB_TOKEN`. The `Never a write-scoped or full
-personal PAT` rule above is upheld **by the tool**, not merely by convention.
+**Both halves are now addressed by the same change.** The prefix is gone (pinned input
+`vast-provision`, 2026-09-06): each token is read under its own name, so `GITLAB_TOKEN`
+and `HF_TOKEN` resolve immediately from the entries that already exist. `CIVITAI_TOKEN`
+and `GH_TOKEN` still have no Keychain entry and `SKIP` naming the entry to create.
 
-**What breaks:** any Vast instance that must `git clone` a **private** provisioner stack.
-Public-repo provisioning is unaffected.
+**Accepted trade, recorded so it is a decision and not a surprise:** the `GITLAB_TOKEN`
+now synced is the **operator PAT** (`api`, `create_runner`, `manage_runner`), not a
+`read_repository`-only token. The operator accepted this on 2026-09-06 having been shown
+the scope. It supersedes "Never a write-scoped or full personal PAT" above for GitLab
+specifically. To narrow it later, mint a `read_repository`-only PAT (or a per-project
+read token) and overwrite the `GITLAB_TOKEN` entry.
 
-**To restore:** mint a fresh `read_repository`-only GitLab PAT (or a per-project deploy
-token), `secret set VAST_GITLAB_TOKEN`, then `nix run .#vast-account-vars-set`. Whether
-the Vast **account** still holds a stale `GITLAB_TOKEN` var from an earlier run could not
-be checked from here — `GET /api/v0/secrets/` returns **401**, requiring a 2FA-backed
-login.
-   No auto-probing of repo visibility (an earlier, since-superseded idea). ✓
-
-Both open items from the design phase are now closed: the account-var *set* path is the
-API (`/api/v0/secrets/`, no manual paste), and the three boot-time questions are answered
-above.
+**Still unverified:** whether the Vast **account** holds a stale `GITLAB_TOKEN` var from
+an earlier run. `GET /api/v0/secrets/` returns **401** — it requires a 2FA-backed login,
+so it must be checked from the Vast web console.
 
 ## References
 
