@@ -652,7 +652,18 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
   - **Security:** `--ephemeral` (one job per registration; launchd restart + re-register makes
     it self-healing), outbound-only. Only trusted push jobs may target `runs-on: [self-hosted,
     …]` — **never fork-PR workflows**, since the daemon inherits the operator's login
-    environment. `arg0` is `nix-github-runner-<instance>` per the launchd-naming rule.
+    environment. `arg0` is nix-darwin's `/bin/sh -c 'wait4path /nix/store && exec …'` wrapper —
+    the launchd-naming rule's **boot-ordering exception** for daemons; the exec'd process is
+    still `nix-github-runner-<instance>`.
+  - **Labels:** `extraLabels` (default `[ "nix" ]`) is passed as `--labels` **without**
+    `--no-default-labels`, so the effective set is `{self-hosted, macOS, ARM64} ∪ extraLabels`
+    — GitHub assigns the first three server-side. `nix` is the **positive** toolchain
+    discriminator against the Tart-VM lane (`tart.githubRunners.*`, which carries `tart` and
+    runs in a stock Cirrus guest with no nix/cachix/postgres). Both lanes register into
+    `dontsell-ai`'s single `Default` group, so without `nix` the only thing telling this lane
+    apart is the *absence* of `tart`, and GitHub has no negative selector. **Widening a label
+    set is free; narrowing is not** — `runs-on:` is a hard AND-match, so always: widen → verify
+    live on an ONLINE runner for that scope → flip consumers one repo at a time → narrow last.
   - Also pins `postgresql`+pgvector onto the runners' PATH (`modules/shared/home.nix`, `hiPrio`
     to resolve the duplicate `bin/psql`).
 
