@@ -9,19 +9,19 @@ the durable re-add path (it survives refactors where a `git revert` would not).
 
 | Asset | Where it lives now |
 |---|---|
-| ALL generic Tart machinery — lifecycle CLI (`tart-vm`), plug-and-play `bootstrap`, packer golden-image `bake`, `tart-guest-agent` packaging, a `tart.vms.<name>` darwin module | [`github:kattakath/nix-tart-macos`](https://github.com/kattakath/nix-tart-macos) (independent repo, FlakeHub-published, CI'd) |
+| ALL generic Tart machinery — lifecycle CLI (`tart-vm`), plug-and-play `bootstrap`, packer golden-image `bake`, `tart-guest-agent` packaging, a `tart.vms.<name>` darwin module | [`github:kattakath/nix-tart-vms`](https://github.com/kattakath/nix-tart-vms) (independent repo, FlakeHub-published, CI'd) |
 | A baked, operator-neutral **golden image** (`tahoe-golden`) | `~/.tart/vms/` on the macos host (imperative artifact — check `tart list` before assuming) |
 | The removed thin layer, verbatim | git history — the removal commit is tagged in the PR that cites this runbook; `git show <removal>^:hosts/macvm.nix` etc. |
 
 ## Re-add procedure
 
-1. **Input back** (3 lines in `flake.nix` + `nix flake update nix-tart-macos`;
+1. **Input back** (3 lines in `flake.nix` + `nix flake update nix-tart-vms`;
    lock diet 60 → 61):
 
    ```nix
-   nix-tart-macos.url = "github:kattakath/nix-tart-macos";
-   nix-tart-macos.inputs.nixpkgs.follows = "nixpkgs";
-   nix-tart-macos.inputs.flake-parts.follows = "firmware-secrets/flake-parts";
+   nix-tart-vms.url = "github:kattakath/nix-tart-vms";
+   nix-tart-vms.inputs.nixpkgs.follows = "nixpkgs";
+   nix-tart-vms.inputs.flake-parts.follows = "firmware-secrets/flake-parts";
    ```
 
 2. **Host profile back**: restore `hosts/macvm.nix` from the removal commit
@@ -32,7 +32,7 @@ the durable re-add path (it survives refactors where a `git revert` would not).
 
 3. **Veneer back**: restore `packages/macvm-tart.nix` (thin aliases over
    `tart-vm --vm macvm`) + its `packages`/`apps` wiring — or skip the veneer
-   and use `nix run github:kattakath/nix-tart-macos#tart-vm -- <sub> --vm macvm`
+   and use `nix run github:kattakath/nix-tart-vms#tart-vm -- <sub> --vm macvm`
    directly; the veneer only adds fleet defaults (identity, Downloads share,
    legacy `MACVM_*` env names).
 
