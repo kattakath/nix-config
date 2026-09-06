@@ -31,6 +31,7 @@ github.com/kattakath/nix-keychain-secrets
 github.com/kattakath/nix-local-rag
 github.com/kattakath/nix-mcp-gateway
 github.com/kattakath/nix-media-cli
+github.com/kattakath/nix-tart-vms
 github.com/kattakath/nix-vast-provision
 github.com/kattakath/provisioner-template
 github.com/ismailkattakath/hyperframes-selfhost
