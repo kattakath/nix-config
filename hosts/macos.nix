@@ -78,10 +78,16 @@
   #
   # THE COST, recorded so it is a decision and not a surprise: App permissions
   # are App-GLOBAL, not per-installation (verified — all installations report
-  # an identical set). So this one key can push to every repo in every account
-  # it is installed on, and it now lives BOTH in agenix here AND in the
-  # kattakath org secret CI_BOT_APP_PRIVATE_KEY. The previous split kept the
-  # Actions key off this machine and the runner key unable to push code.
+  # an identical set). So any key for this App can push to every repo in every
+  # account it is installed on. Consolidating two Apps into one traded that
+  # away for a single rotation surface; the previous split kept the Actions key
+  # off this machine and the runner key unable to push code.
+  #
+  # Partly bought back 2026-09-06: agenix and the kattakath org secret
+  # CI_BOT_APP_PRIVATE_KEY now hold TWO DIFFERENT keys of this same App, so
+  # either is revocable alone (see secrets/secrets.nix for the fingerprints).
+  # That is independent REVOCATION only — the permission blast radius above is
+  # unchanged, because it is a property of the App, not of the key.
   #
   # The bare-metal dontsell lane above now uses this SAME App (4849830); its
   # own "dontsell-ai" App (4689619) was retired the same day — see that block.
