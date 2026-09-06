@@ -238,8 +238,8 @@ How a host gets composed — change these knobs, not the hosts' internals:
   (`modules/shared/nix-cache.nix`); only CI and the operator's Keychain hold the write token.
 - **`macos` runs self-hosted CI runners — two kinds, neither for this repo's CI.**
   (1) `services.macosGithubRunner` (`modules/darwin/github-runner.nix`, `count = 2`): bare-metal
-  ephemeral org runners for **`dontsell-ai`**'s nix/cachix/pgvector-heavy CI. (2) `tart.runners.*`
-  (`nix-tart-macos` `darwinModules.runner`, configured in `hosts/macos.nix`): **ephemeral
+  ephemeral org runners for **`dontsell-ai`**'s nix/cachix/pgvector-heavy CI. (2) `tart.githubRunners.*`
+  (`nix-tart-vms` `darwinModules.github-runner`, configured in `hosts/macos.nix`): **ephemeral
   Tart-VM-per-job** runners for `kattakath` + `silvercreek-ai` + `dontsell-ai` (label
   `dontsell-vm`), sharing Apple's hard 2-concurrent-VM budget via a slot semaphore. Both mint ~1h
   tokens from GitHub App keys (agenix); the fleet App is `kattakath-fleet-ci`. The **GitLab**
@@ -336,7 +336,7 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   (2026-08-20): flake-parts for the small supporting flakes; nix-config's own core engine and
   the dendritic pattern stay out of scope.
 - [`docs/macvm-readd-runbook.md`](docs/macvm-readd-runbook.md) — re-adding the removed
-  `macvm` Tart guest (removed 2026-09-05); what survives in `nix-tart-macos`.
+  `macvm` Tart guest (removed 2026-09-05); what survives in `nix-tart-vms`.
 - [`docs/gmail-mcp-multi-account-runbook.md`](docs/gmail-mcp-multi-account-runbook.md) — TRUE
   simultaneous multi-account Gmail (one process per account) + a silent-wrong-account failure
   mode.

@@ -25,7 +25,7 @@ All-in-one Nix mono-repo managing a fully declarative **aarch64-only** fleet:
 - A matching **Devcontainer** image.
 
 (The `macvm` Tart guest was removed 2026-09-05 — re-add path + what survives in
-`nix-tart-macos`: [`macvm-readd-runbook.md`](macvm-readd-runbook.md).)
+`nix-tart-vms`: [`macvm-readd-runbook.md`](macvm-readd-runbook.md).)
 
 Single source of truth; platform divergence lives in `modules/`, never in ad-hoc shell.
 
@@ -263,8 +263,8 @@ Both are safe to commit. Full rules: [`secrets-and-keychain.md`](secrets-and-key
 - **`macos.nix`** — the darwin client host. Imports `../modules/darwin/github-runner.nix` and
   enables `services.macosGithubRunner` with `count = 2` for the **`dontsell-ai`** org (see that
   module's section below) — nix-config's *own* CI is fully GitHub-hosted and uses no runner, but
-  this Mac is not runner-free. Also configures **`tart.runners.*`** (the `nix-tart-macos` input's
-  `darwinModules.runner`, in `mkDarwin`'s BASE module list): ephemeral **Tart-VM-per-job**
+  this Mac is not runner-free. Also configures **`tart.githubRunners.*`** (the `nix-tart-vms` input's
+  `darwinModules.github-runner`, in `mkDarwin`'s BASE module list): ephemeral **Tart-VM-per-job**
   GitHub Actions runners for `kattakath`, `silvercreek-ai`, and `dontsell-ai` (label
   `dontsell-vm` — the bare-metal pair keeps that org's nix-toolchain CI), one fleet GitHub App
   (`kattakath-fleet-ci`, key = agenix `gh-app-fleet-key.age`, host-decrypted), digest-pinned
@@ -724,7 +724,7 @@ Core package set:
   Spotlight-visible, focus-or-launch identity; consumed by `modules/shared/home.nix`'s
   `home.file."Applications/*.app"`.
 - `macvm-tart.nix` — removed 2026-09-05 with the `macvm` guest; the generic Tart machinery
-  it wrapped lives on in [`nix-tart-macos`](https://github.com/kattakath/nix-tart-macos),
+  it wrapped lives on in [`nix-tart-vms`](https://github.com/kattakath/nix-tart-vms),
   and the re-add path is [`macvm-readd-runbook.md`](macvm-readd-runbook.md).
 
 The no-Nix stage-1 `bootstrap.sh` (the `curl … | bash` entrypoint) lives at the **repo root** —
