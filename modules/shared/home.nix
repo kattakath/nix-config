@@ -1495,6 +1495,30 @@ in
 
       # macOS Keychain secret loader is wired into zsh's envExtra (.zshenv) by
       # programs.keychainSecrets (the keychain-secrets flake's HM module).
+      # envExtra is types.lines, so this definition MERGES with that one.
+
+      # Claude Code renders `!` bash-mode output in an append-only viewport, not
+      # a terminal emulator. Anything that REPAINTS escapes it and lands in the
+      # chat area. NO_COLOR is the lever because nix gates its whole progress bar
+      # on one function — `isatty(STDERR) && TERM != "dumb" && !NO_COLOR`
+      # (nix src/libutil/terminal.cc) — so unsetting any one of the three drops it
+      # to plain lines. Measured 2026-09-06 on `nix build` under a pty: 19 ANSI
+      # escapes -> 0, byte-equivalent to piping.
+      #
+      # NOT `--log-format raw`: that disables the BAR only. Colour is a second,
+      # independent isatty() call in SimpleLogger, so raw still emitted 9 escapes.
+      # And `log-format` is not a nix.conf setting at all (NixOS/nix#5561 open
+      # since 2021, PR #9923 still open), so nix.settings/NIX_CONFIG can't carry
+      # this — an env var is the only lever upstream offers. Lix has it as a real
+      # setting since 2.95; upstream Nix does not.
+      #
+      # .zshenv, not .zshrc: zsh sources .zshenv for NON-interactive shells too,
+      # which is what `!` mode runs. initContent below would never fire there.
+      envExtra = ''
+        if [ -n "''${CLAUDECODE-}" ]; then
+          export NO_COLOR=1
+        fi
+      '';
 
       # fnm (Fast Node Manager) shell hook — darwin-only. Lives in initContent
       # (.zshrc, interactive) not envExtra, because `--use-on-cd` installs a chpwd
