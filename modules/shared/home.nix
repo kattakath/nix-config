@@ -450,6 +450,7 @@ in
     ./wireguard-configs.nix # operator-managed WG confs → ~/.config/wireguard (no autostart)
     ./claude-otel.nix # local OTel Collector for Claude Code's routing-decision telemetry (macos only)
     ./chromium.nix # ungoogled-chromium (Homebrew cask) config: sideloaded iCloud Passwords + its native host
+    ./default-browser.nix # local.defaultBrowser — the macOS LaunchServices http/https claim
     ./git-allowed-signers.nix # extra allowed_signers principals (option only; nix-personal fills)
     # Local-first RAG stack (loopback launchd Postgres+pgvector + Ollama + in-DB
     # embed()), from the extracted flake (github:kattakath/nix-local-rag).
@@ -571,6 +572,12 @@ in
   # the External Extensions + NativeMessagingHosts files that make the sideloaded
   # iCloud Passwords extension talk to macOS Passwords.app; see chromium.nix.
   programs.ungoogledChromium.enable = isMacosHost;
+
+  # Opera Air owns http/https; Chromium is the DEBUGGING browser, not the daily one.
+  # The claim itself is browser-agnostic and lives in ./default-browser.nix — the short
+  # handler name is what `defaultbrowser` takes, never the bundle id. Only the real Mac
+  # declares any browser cask, so this is a no-op elsewhere.
+  local.defaultBrowser = lib.mkIf isMacosHost "operaair";
 
   # The PUBLIC half of the userscript set. Private ones are added to this same
   # attrset by the nix-personal flake through `extraHomeModules`, which is the
