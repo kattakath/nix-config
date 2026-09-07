@@ -9,7 +9,7 @@
 # programs.chromium.package is null [F-CASK-NOFLAG]. Tiers 2-4 have gates NO script can
 # open — a human clicks them — so this prints the exact click instead of pretending.
 #
-#   usage: route-up.sh --tier <1|2|3|4> [--yes] [--isolated] [--port 9222]
+#   usage: route-up.sh --tier <1|2|3|4|5> [--yes] [--isolated] [--port 9222]
 #
 #   --yes        actually run tier 1's launch command (without it, the command is printed)
 #   --isolated   tier 1 into a throwaway profile: no logins, NO Violentmonkey. Correct for
@@ -32,7 +32,7 @@ isolated=0
 port=9222
 
 die_usage() {
-  printf 'usage: route-up.sh --tier <1|2|3|4> [--yes] [--isolated] [--port 9222]\n' >&2
+  printf 'usage: route-up.sh --tier <1|2|3|4|5> [--yes] [--isolated] [--port 9222]\n' >&2
   exit 2
 }
 
@@ -59,7 +59,7 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 
-case "$tier" in 1 | 2 | 3 | 4) ;; *) die_usage ;; esac
+case "$tier" in 1 | 2 | 3 | 4 | 5) ;; *) die_usage ;; esac
 
 have() { command -v "$1" >/dev/null 2>&1; }
 say() { printf '%s\n' "$1"; }
@@ -236,11 +236,30 @@ tier_four() {
   return 1
 }
 
+tier_five() {
+  say "tier 5 — the in-app browser pane. Not shell-probeable: an in-session MCP tool."
+  step "1. Is mcp__Claude_Browser__javascript_tool in this session's tool list? Name"
+  step "   presence only — do not call it to find out."
+  step "2. It refuses with 'No preview is open' until a pane exists. Call"
+  step "   mcp__Claude_Browser__navigate with a url; that OPENS the pane [F-INAPP-COLD]."
+  step "3. Before reading any geometry, give the pane a real size: a collapsed pane runs"
+  step "   JS but lays out nothing and reports a 0x0 viewport [F-INAPP-ZERO-VIEWPORT]."
+  step "   mcp__Claude_Browser__resize_window {width,height}, then reload. Reset it after."
+  say ""
+  say "  Read the ceiling before you use it: this is a DIFFERENT PROFILE. No Violentmonkey,"
+  say "  no logins. It measures the SITE. It can never run assertEffect(), and it can never"
+  say "  host a pick — the operator is not pointing at anything in it."
+  say ""
+  say "  5  inapp-eval  ASK  only the agent can answer this one"
+  return 1
+}
+
 case "$tier" in
   1) tier_one ;;
   2) tier_two ;;
   3) tier_three ;;
   4) tier_four ;;
+  5) tier_five ;;
 esac
 rc=$?
 

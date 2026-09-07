@@ -9,7 +9,7 @@ Run the **`userscript-author`** skill from this plugin, end to end, for: `$ARGUM
 
 - **0.5 — Route before anything.** Run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/page-route.sh`. It
   prints `ROUTE_SHELL=cdp|kapture|none` and an `AGENT-MUST-CHECK:` block naming the two checks a
-  shell cannot make; make them, then re-run with `--tools kapture-eval=yes|no,cic=yes|no` for the
+  shell cannot make; make them, then re-run with `--tools kapture-eval=yes|no,cic=yes|no,inapp=yes|no` for the
   final `ROUTE=`. If a gate is shut, `bash ${CLAUDE_PLUGIN_ROOT}/scripts/route-up.sh --tier <n>`
   says how to open it. **Do not improvise past a dark gate** — knowing the route is what decides
   whether measuring is possible at all.
