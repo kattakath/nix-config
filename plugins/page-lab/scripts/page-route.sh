@@ -12,12 +12,12 @@
 # This script therefore does two jobs: it SWEEPS a stale arm before anything else, and it
 # reports what it probed AND what it cannot probe — a doctor that states its own blind spot.
 #
-#   usage: page-route.sh [--json] [--tools kapture-eval=yes|no,cic=yes|no] [--no-sweep]
+#   usage: page-route.sh [--json] [--tools kapture-eval=yes|no,cic=yes|no,inapp=yes|no] [--no-sweep]
 #
 # Output grammar (quoted verbatim by references/routes.md and both skills):
 #   ROUTE_SHELL=cdp|kapture|none      always — what a shell can prove
 #   AGENT-MUST-CHECK:<thing>          one line per model-side check, when --tools is absent
-#   ROUTE=cdp|kapture-eval|kapture|cic|paste
+#   ROUTE=cdp|kapture-eval|kapture|cic|inapp|paste
 #                                     only with --tools, once the agent has answered them
 #
 # Exit 0 at least one non-paste tier is UP · 1 only operator-paste · 2 a stale arm was found
@@ -39,9 +39,10 @@ sweep=1
 tools_given=0
 tool_kapture_eval=unknown
 tool_cic=unknown
+tool_inapp=unknown
 
 die_usage() {
-  printf 'usage: page-route.sh [--json] [--tools kapture-eval=yes|no,cic=yes|no] [--no-sweep]\n' >&2
+  printf 'usage: page-route.sh [--json] [--tools kapture-eval=yes|no,cic=yes|no,inapp=yes|no] [--no-sweep]\n' >&2
   exit 2
 }
 
@@ -60,6 +61,8 @@ while [ "$#" -gt 0 ]; do
           kapture-eval=no) tool_kapture_eval=no ;;
           cic=yes) tool_cic=yes ;;
           cic=no) tool_cic=no ;;
+          inapp=yes) tool_inapp=yes ;;
+          inapp=no) tool_inapp=no ;;
           '') ;;
           *)
             printf 'unknown --tools entry: %s\n' "$_p" >&2
@@ -227,13 +230,18 @@ if [ "$tools_given" = 1 ]; then
     route=kapture
   elif [ "$tool_cic" = yes ]; then
     route=cic
+  elif [ "$tool_inapp" = yes ]; then
+    # Below every same-browser tier and above paste. It runs real JS on a real page, so it
+    # beats dictating a snippet to a human — but it is a DIFFERENT PROFILE, so it can never
+    # answer "what does the operator's browser do", and never assertEffect() [F-INAPP-COLD].
+    route=inapp
   else
     route='paste'
   fi
 fi
 
 rc=1
-if [ "$route_shell" != none ] || [ "$route" = kapture-eval ] || [ "$route" = cic ]; then rc=0; fi
+if [ "$route_shell" != none ] || [ "$route" = kapture-eval ] || [ "$route" = cic ] || [ "$route" = inapp ]; then rc=0; fi
 case "$stale_state" in not-cleared | left-armed) rc=2 ;; esac
 
 # ---------------------------------------------------------------- 6. output
@@ -249,9 +257,9 @@ if [ "$json_out" = 1 ]; then
   if [ "$tools_given" = 1 ]; then
     printf '"route":"%s",' "$(esc "$route")"
   else
-    printf '"agentMustCheck":["kapture-eval","cic"],'
+    printf '"agentMustCheck":["kapture-eval","cic","inapp"],'
   fi
-  printf '"cannotProbe":"MCP session tool list; claude-in-chrome (native messaging transport)"'
+  printf '"cannotProbe":"MCP session tool list; claude-in-chrome (native messaging transport); the in-app browser pane"'
   printf '}\n'
   exit "$rc"
 fi
@@ -275,14 +283,16 @@ printf '  3     kapture-eval    %-8s  %s\n' "$(tri_state "$tool_kapture_eval")" 
   'tier-2 gate PLUS a human flipping Allow JavaScript Execution'
 printf '  4     cic-armed       %-8s  %s\n' "$(tri_state "$tool_cic")" \
   'extension connected AND the domain permitted'
-printf '  5     operator-paste  %-8s  %s\n' 'UP' 'no gate; always available'
+printf '  5     inapp-eval      %-8s  %s\n' "$(tri_state "$tool_inapp")" \
+  'Claude Code browser pane — DIFFERENT profile: the page, never your install'
+printf '  6     operator-paste  %-8s  %s\n' 'UP' 'no gate; always available'
 printf '\n  runtime: node %s, npx %s, page-lab-pick %s\n' "$node_ver" "$npx_state" "$wrapper_state"
 printf '  stale arm: %s\n\n' "$stale_state"
 
 printf 'Blind spot, stated so it is not mistaken for a measurement: this script cannot see\n'
 printf 'which MCP tools are loaded in this session, and cannot see claude-in-chrome at all\n'
-printf '(native messaging transport). Tiers 3 and 4 are the agent'"'"'s to answer, never this\n'
-printf 'script'"'"'s. Everything in the table above was probed.\n\n'
+printf '(native messaging transport) nor the in-app browser pane. Tiers 3, 4 and 5 are the\n'
+printf 'agent'"'"'s to answer, never this script'"'"'s. Everything in the table above was probed.\n\n'
 
 printf 'ROUTE_SHELL=%s\n' "$route_shell"
 
@@ -291,7 +301,8 @@ if [ "$tools_given" = 1 ]; then
 else
   printf 'AGENT-MUST-CHECK:kapture-eval — is mcp__kapture__evaluate present in this session'"'"'s tool list? Probe by NAME PRESENCE; never call it to find out [F-KAPTURE-EVAL-GATE].\n'
   printf 'AGENT-MUST-CHECK:cic — call mcp__claude-in-chrome__tabs_context_mcp; its transport is native messaging, so no shell can see it [F-CIC-COLD].\n'
-  printf 'AGENT-MUST-CHECK:rerun — page-route.sh --tools kapture-eval=yes|no,cic=yes|no prints the final ROUTE=.\n'
+  printf 'AGENT-MUST-CHECK:inapp — is mcp__Claude_Browser__javascript_tool present in this session'"'"'s tool list? Probe by NAME PRESENCE. It refuses until a pane is open, which navigate fixes, so absence of a pane is NOT absence of the route [F-INAPP-COLD].\n'
+  printf 'AGENT-MUST-CHECK:rerun — page-route.sh --tools kapture-eval=yes|no,cic=yes|no,inapp=yes|no prints the final ROUTE=.\n'
 fi
 
 exit "$rc"

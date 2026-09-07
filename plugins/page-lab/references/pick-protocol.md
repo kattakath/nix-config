@@ -1,7 +1,11 @@
 # Pick protocol — one verb, five implementations, one contract
 
 **PICK** is the two-way verb: the operator points at an element in their own browser, and the
-agent measures the exact node they pointed at. Which tier takes the measurement is
+agent measures the exact node they pointed at.
+
+Five, not six: `routes.md`'s `inapp-eval` tier reaches a live page but **cannot host a pick**,
+because the operator is not pointing at anything in it — it is a different browser with a
+different profile. It measures a site; PICK measures *this operator's* page. Which tier takes the measurement is
 [`routes.md`](routes.md)'s business. What comes back is this file's business, and it is the
 same object every time.
 
@@ -66,7 +70,7 @@ the validator still catches it.
 | `cross-frame-target` | `@match` the frame's own URL **and** drop the default `@noframes` |
 | `generated-classname` | anchor on something else — a `[data-*]`, a `[role]`, or an nth-of-type path |
 | `origin-unconfirmed` | confirm the URL with the operator before using the selector |
-| `sanitizer-drift` | re-measure [F-CIC-SANITIZER] and demote to tier 5 until it matches again |
+| `sanitizer-drift` | re-measure [F-CIC-SANITIZER] and demote to `operator-paste` until it matches again |
 
 **A pick is a measurement only when `fidelity=="verified"`, some candidate has `matches==1`,
 and `shipBlockers` is empty.** Everything else is evidence in progress.
@@ -271,7 +275,7 @@ Expected back: `a` → `[BLOCKED: JWT token]`, `b` → `[BLOCKED: Cookie/query s
 intact, `d` → `[BLOCKED: Base64 encoded data]` or intact.
 
 **Any deviation ⇒ print `SANITIZER DRIFT`, add `sanitizer-drift` to `shipBlockers`, demote to
-tier 5, and re-measure [F-CIC-SANITIZER].** This is the only drift signal the sanitizer ever
+`operator-paste`, and re-measure [F-CIC-SANITIZER].** This is the only drift signal the sanitizer ever
 gives; without the canary, a changed rule looks like a working pick with a slightly odd
 selector.
 
