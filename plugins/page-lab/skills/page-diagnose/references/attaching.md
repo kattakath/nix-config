@@ -75,6 +75,9 @@ switched into debugging mode — quit it completely and relaunch. Relaunching wh
 instance of the same profile is still alive silently reuses the existing process and the
 port never opens, which reads exactly like the flag being ignored.
 
+`scripts/route-up.sh --tier 1 [--isolated] --yes` performs exactly this launch, refuses when a
+portless Chromium is already running, and re-probes afterwards.
+
 Verify before blaming anything else:
 
 ```bash
@@ -83,6 +86,31 @@ curl -s http://127.0.0.1:9222/json/version
 
 A JSON body naming the browser build means the endpoint is live. Anything else — connection
 refused, empty reply — means the browser is not listening.
+
+**The flag can never be declarative on this fleet** [F-CASK-NOFLAG]: the browser is a Homebrew
+cask, so home-manager's own assertion forbids `commandLineArgs`. This is a hand-run wrapper by
+construction — not an oversight, and not something to "fix" in Nix.
+
+### Which profile — the decision, and what each costs
+
+Three profiles, and conflating them is the most expensive mistake here. **The fidelity of a
+route and the right profile for a job are different questions:** an isolated launch is the
+cleanest measurement and the *wrong page* for authoring work.
+
+| Profile | How | Extensions + logins | Right for | What it costs |
+|---|---|---|---|---|
+| **daily** (cask default) | `open -na "Chromium" --args --remote-debugging-port=9222` — **no** `--user-data-dir` | yes | Picking or authoring against the page that actually annoys the operator | The whole profile is **exposed for the lifetime of the launch** — cookies, sessions, saved passwords. Treat it as compromised-by-default and close it when done |
+| **isolated debug** | same, plus `--user-data-dir="$(mktemp -d)"` | no | **Diagnosis of a public site** — the default for this skill | No logins, no extensions, no userscript manager. A site that renders differently when signed in is not the site you measured |
+| **the profile the script ships into** | the operator's normal launch, **no port at all** | yes | **The only place a post-install proof means anything** | Not drivable — no port, so every check here is the operator's own, by hand |
+
+Two consequences worth stating rather than rediscovering:
+
+- **A measurement taken in one profile does not prove behaviour in another.** Extension set, CSP
+  handling and script injection timing all differ, which is why a userscript is proven by
+  re-measuring after a real install rather than by a green measurement in the debug browser.
+- **A debug-enabled daily profile is a deliberate, time-boxed trade**, made when login state or
+  an installed extension genuinely changes the result — never as a default because it is
+  convenient.
 
 ### 2b. `--autoConnect` (Chrome M144+)
 

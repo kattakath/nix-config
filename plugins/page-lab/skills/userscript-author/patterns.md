@@ -368,6 +368,98 @@ rule ids are not re-verified — see below), so the rules above are prose discip
 
 ---
 
+## 11 · Targets `document.querySelector` cannot reach
+
+A selector that is unique and correct in the picker can still be **unreachable from a
+userscript**, because `document.querySelector` does not cross a shadow boundary or a frame
+boundary. The pick envelope's **`reachability`** field is what routes this decision —
+`document` · `shadow` · `frame` · `shadow-in-frame` — and anything but `document` arrives
+carrying its own ship blocker ([`SKILL.md`](SKILL.md) hard rule 6).
+
+### Shadow-root targets (`reachability: "shadow"`)
+
+Walk in explicitly, one hop per boundary, and **guard every hop** — the host may not exist
+yet, and the root may not be open:
+
+```js
+const host = document.querySelector('media-player');   // measured, dated in the WHY block
+const root = host && host.shadowRoot;                  // null on a CLOSED root
+const el   = root && root.querySelector('.volume');
+if (!el) return;                                       // degrade to stock, never mangle (§ 5)
+```
+
+- **A closed shadow root is unreachable, full stop.** `host.shadowRoot` is `null` and no
+  userscript API opens it. The pick is **abandoned or re-scoped to the host** — style the host,
+  or use a `::part()` / custom-property hook if the component exposes one. Do not ship a
+  selector that can only ever match `null`.
+- **CSS does not pierce either.** A `document`-level stylesheet — including
+  `adoptedStyleSheets` (§ 4) — does not style inside a shadow root. To style in, adopt onto
+  **that root**: `root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet]`.
+- **The host is the durable half.** A component's internals are its private API and churn
+  freely; the host element's tag name rarely does. Prefer the outermost node that achieves the
+  wish.
+
+### Cross-frame targets (`reachability: "frame"`)
+
+The node lives in a nested document, so a top-level script never sees it. Two changes, both
+required, neither sufficient alone:
+
+1. **`@match` the frame's own URL** — the envelope's `frameUrl` is that value. The top page's
+   `@match` does not cover its frames.
+2. **Drop the default `@noframes`** (§ 7), or the script is declined in the very frame it
+   targets.
+
+Consequences to accept before doing this, not after:
+
+- Dropping `@noframes` means the script runs in **every** matching frame — ad frames, embeds,
+  OAuth popups. The `@match` must be narrow enough that this is the frame you meant, and § 8's
+  idempotence guards become load-bearing rather than belt-and-braces.
+- **`@match` ignores query string and hash** (§ 7). A frame identified only by its query is not
+  addressable by `@match`; gate it in code (`location.search`) and expect the script to be
+  *loaded* into sibling frames it then no-ops in.
+- `shadow-in-frame` is both problems at once: match the frame, drop `@noframes`, then walk the
+  shadow chain inside it.
+
+**Prevents:** shipping a measured, verified, genuinely-unique selector that returns `null` on
+every real page load — the failure that looks hardest like "the site changed".
+
+---
+
+## 12 · Live-edit loop — Violentmonkey tracks a file on disk
+
+*Track external edits* turns each save into an auto-reinstall plus a tab reload, so post-install
+proof (`SKILL.md` step G) is one save away instead of one install away.
+Upstream: <https://violentmonkey.github.io/posts/how-to-edit-scripts-with-your-favorite-editor/>
+
+1. Open Violentmonkey's **Dashboard** and **drag** the `.user.js` onto that page.
+2. Tick **Reload tab**, then click the **`+ Track external edits`** BUTTON (or `⌘Enter`).
+3. **Leave the installer tab open** for the whole session — upstream: it is "used to read the
+   contents of the file".
+
+**Click the button, NOT `Install`.** `+ Track…` is an install **variant**, not a checkbox that
+modifies `Install`: ticking it and then pressing `Install` installs **without** tracking,
+silently. No error, no indicator — saves simply never land, which reads exactly like a broken
+script.
+
+**Gotchas, in the order they bite:**
+
+1. **Any git write to the tracked file KILLS tracking — silently.** Not just a branch switch:
+   `checkout`, `pull`, `stash`, `rebase`, a revert. Git does not rewrite in place, it **unlinks
+   and replaces**, and the manager's handle stays bound to the dead inode. Nothing reports it.
+   Re-drag to resume. On a day with git traffic, serve the file over HTTP instead
+   (`python3 -m http.server`) — a URL is re-fetched and does not care about inodes.
+2. **A tracked save does NOT need a `@version` bump** — upstream: "each time you save the file
+   in your external editor the changes are automatically incorporated". So a save that does
+   nothing is *not* a version problem: check gotcha 1 and the `Install`-vs-`+ Track` trap
+   first. The committed state still gets a bump (`SKILL.md` § Editing an existing script).
+3. **Stop tracking when done**, or the next install fights it.
+
+`FileSystemObserver` (instant, no polling) needs **Chromium 133+**; older builds poll.
+
+**Prevents:** a debugging session spent on code that the browser never re-read.
+
+---
+
 ## Flagged — NOT verified from primary docs
 
 **Unverified. Do not promote a row without re-verifying it, and do not cite one as settled.**

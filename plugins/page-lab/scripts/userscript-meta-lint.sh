@@ -90,6 +90,17 @@ lint_file() {
   [ "$longest" -le 500 ] ||
     fail "longest line is $longest chars — reads as minified/bundled output, which Greasy Fork rejects"
 
+  # A kapture-N token is a selector Kapture MINTED to answer a query — it stamps
+  # id="kapture-7" or class .kapture-7 onto the element it returns. The selector is real
+  # and unique right now and EVAPORATES on the next reload, so a script built on one works
+  # in the session it was written in and silently does nothing forever after
+  # [F-KAPTURE-MUTATES]. There is no legitimate reason for the token to reach a file.
+  local kl
+  while IFS= read -r kl; do
+    [ -n "$kl" ] || continue
+    fail "line ${kl%%:*}: selector minted by Kapture — it evaporates on reload; re-pick on a non-mutating route"
+  done < <(grep -nE 'kapture-[0-9]' "$f" | cut -d: -f1 | sed 's/$/:/')
+
   # Greasy Fork Code rule: "In the case that a library is included inline, it must
   # include information as to the source of the library (e.g. a comment indicating
   # URL and/or name and version)." Vendoring is the sanctioned alternative to

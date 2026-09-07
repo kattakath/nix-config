@@ -23,6 +23,20 @@ row is a rule Greasy Fork enforces or a failure it causes.
 | `@homepageURL` / `@supportURL` | Give a published script somewhere to send a bug that is not your DMs. |
 | `@antifeature` | **Mandatory** if the script contains anything for the *author's* benefit — tracking, ads, miners. Allowed, but only if [declared](https://greasyfork.org/en/help/antifeatures). Undeclared is a removal. |
 
+### `@antifeature` — the exact value set
+
+Six values, and only six: **`ads`** · **`membership`** · **`miner`** · **`payment`** ·
+**`referral-link`** · **`tracking`**. A value outside the set does not declare anything.
+
+Three carve-outs that stop over-declaring, which is its own kind of wrong label:
+
+- Promoting **your own** repo, Discord or homepage is **not** `ads`.
+- A script for a site that **itself** requires payment is not `payment` — the key is about the
+  *script* charging, not the site.
+- `referral-link` covers **commission coupon codes**, not only URLs.
+
+`membership` and `payment` are for a script gated behind your paid tier or purchase.
+
 ### Banned outright
 
 `@downloadURL`, `@updateURL`, `@installURL`. Greasy Fork **strips them on upload** and forbids
@@ -53,7 +67,31 @@ So Greasy Fork **prefers** `@require` — while this skill's hard rule 1 **bans*
 
 Do **not** vendor by minifying. "Code posted to Greasy Fork must not be obfuscated or minified…
 If the script is bundled by a tool such as webpack, it must be output in non-minified form,
-with whitespace and variable names retained." The lint's 500-char line check is a proxy for this.
+with whitespace and variable names retained." Greasy Fork's own heuristic is a single line
+**over 5000 characters containing `function`**; the bundled lint is stricter (500 chars), so a
+file that passes the lint cannot trip the site's check.
+
+### The four legal `@require` routes — know them, then don't use them
+
+Hard rule 1 bans CDN `@require` outright, for a reason Greasy Fork's rules do not address: the
+userscript metadata spec has **no integrity field**, so nothing pins the bytes a user installs.
+These four exist so a *shelf* script's `@require` line can be read correctly, and so "Greasy
+Fork accepted it" is never mistaken for "the bytes are pinned".
+
+1. **An allowlisted CDN** — the list at <https://greasyfork.org/en/help/cdns> (~65 regex
+   entries). jsDelivr is conditional: `/gh/` paths must be pinned to a **40-hex commit**, `/npm/`
+   paths to an exact **version**.
+2. **Any URL carrying a Tampermonkey-format SRI fragment** — `#sha256=…` or `#md5=…`, `,`- or
+   `;`-separated, `=` or `-` as the separator. This is an **allowlist bypass**, not a guarantee:
+   the hash is enforced by **Tampermonkey only** ([`gm-api.md`](gm-api.md) § SRI).
+3. **A Greasy Fork Library** — hosted on the site itself, so it is reviewable like any script.
+4. **A host that equals, or is a subdomain of, every one of the script's `@match` domains** —
+   the undocumented origin-host allowance. It is narrow by construction: one non-matching
+   `@match` disqualifies the whole `@require`.
+
+Hard blocks regardless of route: a `data:` `@require` containing `;base64,` is **rejected
+outright**. `@resource` is protocol-checked only (`http`, `https`, `data`, protocol-relative
+`//`) — no allowlist, no hash, which is why hard rule 1 covers it too.
 
 ## Other rules worth knowing before upload
 
@@ -83,9 +121,50 @@ is exactly the norm the ban protects.
 **`@version` is the release trigger.** Sync pulls, but a re-upload that does not increment is
 ignored — the same rule as a local re-install.
 
+**Point `sync_identifier` at a raw *branch* URL, never a commit.** Greasy Fork's own wording for
+a commit-pinned source: it "will never get updated". A branch URL is what makes the sync a sync.
+
+**One webhook secret per user**, not per script — it authenticates you, and every synced script
+of yours rides the same one. Treat it as a credential: never in a file, never in a commit,
+never echoed.
+
+Without a webhook, Greasy Fork polls roughly every **12 hours**, and **three consecutive
+failures park the script for a month**. So a sync that quietly stopped is not always visible as
+an error — a script that has not moved in weeks is the symptom.
+
+### The leniency trap — bump `@version` in the same commit, always
+
+The webhook path saves **leniently**: it auto-confirms **every** warning, *including "version
+not incremented"* [F-GF-WEBHOOK-LENIENT]. A push that changes code without bumping `@version` is
+therefore **accepted** — no error, no rejected upload — and **silently never reaches installed
+users**, because the manager has nothing new to update to.
+
+This is the one failure in the publishing path that reports success on both ends. The habit
+that defeats it is mechanical: the `@version` bump and the code change are **one commit**.
+
+## The shelf check
+
+Before authoring anything, both hosts answer "has someone already solved this for this domain"
+with one no-auth fetch:
+
+```
+https://greasyfork.org/en/scripts/by-site/<domain>
+https://sleazyfork.org/en/scripts/by-site/<domain>
+```
+
+- Use the **bare** domain — `civitai.com`, not `www.civitai.com`.
+- **Check Sleazy Fork too** for an adult-adjacent site. The two run **one codebase** and one
+  rule set, but a given site's scripts land on **only one** of them, so a Greasy-Fork-only check
+  can read as "nothing exists" when a script does.
+- A hit is **evidence, not a dependency**: you still cannot `@require` it, and it is the
+  script's **measured selectors and its condition** that are worth having — vendor those with
+  attribution, or re-derive them.
+- This is also the **no-reposts** rule's practical face: an equivalent script already listed is
+  a reason to install it, not to ship a rival.
+
 ## Before the first upload
 
-- [ ] Search the by-site index for the domain (skill § 0). If an equivalent script exists,
+- [ ] Search the by-site index for the domain (§ The shelf check). If an equivalent script exists,
       **install it instead of shipping a rival** — that is both the reuse principle and the
       no-reposts rule.
 - [ ] Run the lint clean.

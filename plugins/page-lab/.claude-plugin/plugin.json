@@ -1,8 +1,8 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
-  "name": "userscript-author",
-  "version": "0.1.0",
-  "description": "Author and maintain Violentmonkey/Tampermonkey userscripts for Chromium to a greasyfork.org-publishable standard — a measure-before-you-select method, pre-vetted code patterns, browser probes, and a runnable Greasy Fork metadata linter.",
+  "name": "page-lab",
+  "version": "0.2.0",
+  "description": "Author Violentmonkey userscripts and diagnose live pages from one place — a measure-before-you-select method, a two-way element picker driven over the Chrome DevTools Protocol, performance/network/console diagnosis, and a Greasy Fork readiness linter.",
   "author": {
     "name": "Ismail Kattakath"
   },
@@ -12,9 +12,10 @@
   "keywords": [
     "userscript",
     "violentmonkey",
-    "tampermonkey",
     "greasyfork",
-    "chromium",
+    "chrome",
+    "devtools",
+    "cdp",
     "browser"
   ]
 }

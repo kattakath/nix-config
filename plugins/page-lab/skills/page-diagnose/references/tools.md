@@ -1,14 +1,29 @@
+<!-- page-lab:tools-measurement
+MEASURED_PACKAGE=chrome-devtools-mcp
+MEASURED_VERSION=1.8.0
+MEASURED_TOOL_COUNT=29
+MEASURED_AT=2026-09-06
+-->
+
 # Tool catalogue
+
+**The block above is machine-readable and load-bearing.** `scripts/devtools-doctor.sh
+--verify-tools` parses it, counts the pinned server's real `tools/list`, and reports
+`TOOLS_DRIFT=yes|no`. **Edit it only after re-running that measurement** — a hand-edited header
+turns the one drift detector this plugin has into a liar. The prose below must agree with it.
 
 **The published package exposes fewer tools than upstream's documentation lists.** Measured
 against `chrome-devtools-mcp@1.8.0` (npm latest, published 2026-08-25) on 2026-09-06:
 **29 tools**, identical in both attach mode (`--browser-url`) and launch mode
-(`--isolated --headless`). Upstream's generated `docs/tool-reference.md` is written from
-`main` and lists roughly twice that.
+(`--isolated --headless`) [F-CDP-29TOOLS].
+
+**Upstream's generated `docs/tool-reference.md` is written from `main`** and describes roughly
+**57**; `--slim` is **3**. So a gap between a doc and this file is the expected state, not
+evidence of a broken install — **re-measure the pinned version before claiming any gap is real.**
 
 Trust this list for what can be called today; trust upstream's doc for where the project is
-heading. Re-measure after a version bump — never assume a tool exists because a doc mentions
-it. The client's own tool list is the final authority.
+heading. Never assume a tool exists because a doc mentions it. The client's own tool list is
+the final authority.
 
 ## The 29 tools that exist in 1.8.0
 
@@ -92,12 +107,20 @@ The Extensions gap is the one that changes plans: the appealing idea of "launch 
 isolated browser, install a userscript manager into it, test there" **cannot be done with
 1.8.0**. Attaching to a browser that already has the extension is the only route today.
 
+**The clean-room authoring route therefore does not exist.** No amount of protocol access
+loads a userscript manager into a driven browser, so the authoring loop still ends where it
+always did: **a human clicking Install**, in their own browser, on their own profile.
+
 ## Slim mode
 
-`--slim` exposes a reduced set for basic navigate-and-read work. The full 29 are needed for
+`--slim` exposes a reduced set (3) for basic navigate-and-read work. The full 29 are needed for
 tracing, snapshots and network inspection.
 
-## How this list was produced
+## How this list was produced — the re-measure recipe
 
-An MCP `initialize` handshake followed by `tools/list` over stdio, against the real server in
-both modes. Repeat that after any version bump rather than editing this file from a changelog.
+An MCP `initialize` handshake, then `notifications/initialized`, then `tools/list` over stdio,
+against the real server in **both** modes. `scripts/devtools-doctor.sh --verify-tools`
+mechanises it and compares the count to the header above.
+
+Repeat it after any version bump and update **both** the header and the prose — never edit this
+file from a changelog, and never edit the header alone.
