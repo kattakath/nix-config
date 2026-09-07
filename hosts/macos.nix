@@ -225,10 +225,12 @@
       "ismailkattakath@gmail.com"
     ];
 
-    # Chrome DevTools Protocol, in ATTACH mode against `nix-chromium-debug`.
-    # One flag turns on BOTH the gateway server and that launcher — they are
-    # gated together on purpose, so there is no state where something can reach
-    # the browser without the operator having opened the port deliberately.
+    # Chrome DevTools Protocol, in ATTACH mode against Opera Air — found by
+    # `--autoConnect` reading DevToolsActivePort out of `chromeDevtools.userDataDir`,
+    # not by a fixed port. One flag turns on BOTH the gateway server and the
+    # `nix-chromium-debug` launcher — they are gated together on purpose, so there
+    # is no state where something can reach a browser without the operator having
+    # enabled debugging deliberately (in-browser, or via that launcher).
     #
     # Safe to leave on permanently, MEASURED 2026-09-06 rather than assumed: with
     # nothing listening on the port, the server still answers `initialize` and
@@ -239,10 +241,11 @@
     # is listening; `devtools-doctor.sh` in the chrome-devtools plugin says which
     # of the three causes it is.
     #
-    # What is NOT persistent, deliberately: the port itself. `nix-chromium-debug`
-    # is hand-run and dies with the browser window, because an open
-    # remote-debugging port is an unauthenticated control channel over a profile
-    # holding the Apple Passwords native host and live logins.
+    # What is NOT persistent, deliberately: debugging itself. Opera Air re-prompts
+    # per session and `nix-chromium-debug` is hand-run and dies with the browser
+    # window — because an open remote-debugging port is an unauthenticated control
+    # channel over a profile holding live logins. Measured 2026-09-07: Opera stores
+    # no persistent consent key, so there is nothing to make it stop asking.
     services.mcpGateway.chromeDevtools.enable = true;
   };
 
