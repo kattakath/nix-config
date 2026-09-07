@@ -119,6 +119,10 @@ bad() {
   rc=1
 }
 note() { printf '  note  %s\n' "$1"; }
+# Loud but NOT a failure: rc stays 0. The script's contract is "did an endpoint
+# answer", and a stale file does not change that answer — it only changes which
+# flag you must attach with.
+warn() { printf '  WARN  %s\n' "$1" >&2; }
 
 say "chrome-devtools-mcp doctor"
 say ""
@@ -191,15 +195,37 @@ $HOME/Library/Application Support/Google/Chrome"
     case "$dport" in '' | *[!0-9]*) continue ;; esac
     if listening "$dport"; then
       found=1
-      ok "consent mode — debugging live on 127.0.0.1:$dport"
       ok "profile: $dir"
-      [ -n "$dws" ] && ok "ws endpoint: ws://127.0.0.1:$dport$dws"
-      say ""
-      say "  Attach with the profile, not the port — both the port and the ws UUID"
-      say "  change on every launch [F-AUTOCONNECT-USERDATADIR]:"
-      say "    --autoConnect --userDataDir \"$dir\""
-      say ""
-      say "  --browser-url CANNOT attach to this browser: /json/version is 404."
+      # The file named a PORT to try, not the mode. Re-probe there: a launch-flag
+      # browser serves /json/version on it, and that answer is authoritative.
+      live=$(curl -fsS --max-time 3 "http://127.0.0.1:$dport/json/version" 2>/dev/null || true)
+      if [ -n "$live" ]; then
+        ok "launch-flag mode — debugging live on 127.0.0.1:$dport, /json/* serves"
+        say ""
+        say "  Attach by PORT — /json/version carries the live webSocketDebuggerUrl:"
+        say "    --browser-url http://127.0.0.1:$dport"
+        # Line 2 is a cached copy the browser does not always refresh. When it
+        # disagrees with the live one, --autoConnect attaches to a dead socket.
+        livews=$(printf '%s' "$live" |
+          sed -n 's|.*"webSocketDebuggerUrl"[[:space:]]*:[[:space:]]*"[^"]*\(/devtools/browser/[^"]*\)".*|\1|p')
+        if [ -n "$dws" ] && [ -n "$livews" ] && [ "$dws" != "$livews" ]; then
+          say ""
+          warn "DevToolsActivePort is STALE [F-DEVTOOLSACTIVEPORT-STALE]"
+          note "file says  $dws"
+          note "live is    $livews"
+          note "--autoConnect trusts the file, so it would attach to a DEAD socket here."
+          note "Use --browser-url against this browser, not --autoConnect."
+        fi
+      else
+        ok "consent mode — debugging live on 127.0.0.1:$dport, /json/* is 404"
+        [ -n "$dws" ] && ok "ws endpoint: ws://127.0.0.1:$dport$dws"
+        say ""
+        say "  Attach with the profile — the browser picks its own port and the ws UUID"
+        say "  changes every launch [F-AUTOCONNECT-USERDATADIR]:"
+        say "    --autoConnect --userDataDir \"$dir\""
+        say ""
+        say "  --browser-url CANNOT attach to this browser: /json/version is 404."
+      fi
       break
     fi
     note "stale DevToolsActivePort in $dir (port $dport not listening) — ignoring"
