@@ -1100,13 +1100,16 @@ Today, three:
   tools its generated docs describe (those are written from `main`), so the entire Extensions
   group and 12 of 13 Memory tools do not exist yet. The MCP server itself is opt-in in
   `modules/shared/mcp.nix` (`services.mcpGateway.chromeDevtools.enable`), in ATTACH mode
-  against **Opera Air**; read that option's warning before enabling it. It attaches via
-  `--autoConnect --userDataDir`, **not** `--browser-url`: measured 2026-09-07, a browser put
-  into debugging mode from `chrome://inspect/#remote-debugging` (Chromium 152 and Opera Air
-  alike) serves the CDP WebSocket but 404s every `/json/*` path, so the `--browser-url` route
-  every CDP client assumes cannot attach at all. `--autoConnect` reads the browser-chosen port
-  and per-launch WebSocket UUID out of the profile's `DevToolsActivePort`, which is why the
-  option is a **directory** and not a port.
+  against **Opera Air**; read that option's warning before enabling it. The attach flag is
+  **chosen at spawn time** by the `nix-mcp-chrome-devtools` wrapper, because measured
+  2026-09-07 no single upstream flag works in both modes a browser can be in: one put into
+  debugging from `chrome://inspect/#remote-debugging` 404s every `/json/*` path, so
+  `--browser-url` cannot attach; one started with `--remote-debugging-port` serves `/json/*`
+  but leaves a **stale** `DevToolsActivePort` whose WebSocket UUID is dead, so `--autoConnect`
+  cannot. The wrapper probes `/json/version` first — authoritative when it answers, since it
+  carries the live `webSocketDebuggerUrl` — and falls back to the file only when nothing
+  answers, which is precisely when the file is fresh. Hence **both** a `port` (probe hint) and
+  a `userDataDir` option.
 - **`plugins/seargraph`** — the `seargraph-langgraph` **subagent** (LangGraph pipeline
   design/implementation for the SEARGraph project: fidelity metrics, constrained optimization,
   iterative refinement, character embeddings). It is a plugin rather than a vendored skill
