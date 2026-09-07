@@ -67,12 +67,12 @@ step() { printf '  %s\n' "$1"; }
 
 URL="http://127.0.0.1:$port"
 
+# Liveness is a TCP question, not an HTTP one. /json/version used to stand in for it,
+# but a browser switched on from chrome://inspect/#remote-debugging 404s every /json/*
+# path while its CDP WebSocket is perfectly alive [F-NO-JSON-HTTP] — that made a live
+# endpoint read as down. The socket check is true in both modes.
 port_answers() {
-  if have curl; then
-    curl -sf --max-time 2 "$URL/json/version" >/dev/null 2>&1
-  else
-    (exec 3<>"/dev/tcp/127.0.0.1/$port") >/dev/null 2>&1
-  fi
+  (exec 3<>"/dev/tcp/127.0.0.1/$port") >/dev/null 2>&1 && exec 3>&-
 }
 
 # Chromium's main process, helpers excluded: every helper carries --type=. pgrep cannot

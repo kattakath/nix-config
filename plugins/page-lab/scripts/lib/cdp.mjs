@@ -10,6 +10,9 @@
 // Not an entrypoint. Importers: pick-element.mjs, pick-watchdog.mjs, selector-verify.mjs.
 
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 /** Exit code for a Node runtime that cannot speak WebSocket even after the re-exec. */
 export const EXIT_UNSUPPORTED_NODE = 7;
@@ -59,22 +62,81 @@ async function httpJson(url, timeoutMs) {
   return res.json();
 }
 
-/** GET /json/version on a debug browser → its browser-level webSocketDebuggerUrl. */
+/**
+ * Profiles to check for a DevToolsActivePort when /json/* is unavailable. One explicit
+ * dir via PAGE_LAB_USER_DATA_DIR wins outright; otherwise the fleet's known browsers.
+ */
+function candidateUserDataDirs() {
+  const explicit = process.env.PAGE_LAB_USER_DATA_DIR;
+  if (explicit) return [explicit];
+  const h = homedir();
+  return [
+    join(h, 'Library/Application Support/com.operasoftware.OperaAir'),
+    join(h, 'Library/Application Support/Chromium'),
+    join(h, 'Library/Application Support/Google/Chrome'),
+  ];
+}
+
+/** DevToolsActivePort: line 1 is the chosen port, line 2 the browser WS path. */
+function readActivePort(dir) {
+  try {
+    const [rawPort, rawPath] = readFileSync(join(dir, 'DevToolsActivePort'), 'utf8').split('\n');
+    const port = Number(String(rawPort).trim());
+    const wsPath = String(rawPath ?? '').trim();
+    if (!Number.isInteger(port) || port <= 0 || !wsPath.startsWith('/')) return null;
+    return { dir, port, wsPath };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A debug browser's browser-level webSocketDebuggerUrl.
+ *
+ * Two routes, because one is no longer enough. `/json/version` is the classic discovery
+ * endpoint and still works for a browser started with --remote-debugging-port. A browser
+ * switched on from chrome://inspect/#remote-debugging serves the CDP WebSocket but 404s
+ * every /json/* path [F-NO-JSON-HTTP], so that route cannot resolve it at all — and the
+ * port it picked is not knowable in advance. The fallback reads the same two values
+ * upstream's own --autoConnect reads, out of the profile's DevToolsActivePort.
+ *
+ * Port match wins when several profiles have one, so an explicit --browser-url still
+ * selects the browser it names; a single candidate is used unconditionally, since
+ * "the only browser with debugging on" is unambiguous whatever port it chose.
+ */
 export async function browserSocket(browserUrl, { timeout = 5000 } = {}) {
   const base = String(browserUrl).replace(/\/+$/, '');
-  let json;
   try {
-    json = await httpJson(`${base}/json/version`, timeout);
+    const json = await httpJson(`${base}/json/version`, timeout);
+    if (!json?.webSocketDebuggerUrl) {
+      throw new Error(`cdp: ${base}/json/version carries no webSocketDebuggerUrl`);
+    }
+    return json.webSocketDebuggerUrl;
   } catch (err) {
+    let wantPort = 0;
+    try {
+      wantPort = Number(new URL(base).port) || 0;
+    } catch {
+      /* a malformed --browser-url just means no port to prefer */
+    }
+    const found = candidateUserDataDirs()
+      .map(readActivePort)
+      .filter(Boolean);
+    const hit = found.find((f) => f.port === wantPort) ?? (found.length === 1 ? found[0] : null);
+    if (hit) return `ws://127.0.0.1:${hit.port}${hit.wsPath}`;
+
+    const seen = found.length
+      ? `DevToolsActivePort found for: ${found.map((f) => `${f.dir} (:${f.port})`).join(', ')} — ` +
+        'none on the requested port; set PAGE_LAB_USER_DATA_DIR or pass a matching --browser-url'
+      : 'no DevToolsActivePort in any known profile; set PAGE_LAB_USER_DATA_DIR if the ' +
+        'browser lives elsewhere';
     throw new Error(
-      `cdp: nothing answered ${base}/json/version (${err?.message || err}) — ` +
-        'open the gate with scripts/route-up.sh --tier 1 --yes',
+      `cdp: nothing answered ${base}/json/version (${err?.message || err}) and no ` +
+        `DevToolsActivePort resolved it. ${seen}. Open the gate with ` +
+        'scripts/route-up.sh --tier 1 --yes, or turn debugging on at ' +
+        'chrome://inspect/#remote-debugging.',
     );
   }
-  if (!json?.webSocketDebuggerUrl) {
-    throw new Error(`cdp: ${base}/json/version carries no webSocketDebuggerUrl`);
-  }
-  return json.webSocketDebuggerUrl;
 }
 
 /**

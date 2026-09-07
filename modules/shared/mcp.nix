@@ -478,13 +478,25 @@ let
     };
   }
   # Opt-in (default off): Google's Chrome DevTools Protocol server, in ATTACH mode
-  # against a browser already listening on 127.0.0.1:9222. Companion to the
-  # in-repo `chrome-devtools` plugin, which carries the measured behaviour.
+  # against a browser that already has remote debugging on. Companion to the
+  # in-repo `page-lab` plugin, which carries the measured behaviour.
+  #
+  # ATTACHED VIA --autoConnect, NOT --browser-url. Upstream's `--browser-url` route
+  # must GET /json/version to discover the WebSocket URL, and current builds answer
+  # 404 there: measured 2026-09-07 on Chromium 152 AND Opera Air (OPR 135), both of
+  # which had remote debugging enabled from chrome://inspect/#remote-debugging
+  # rather than a launch flag. In that mode the browser serves the CDP WebSocket
+  # but not the /json/* HTTP discovery surface, so --browser-url cannot attach at
+  # all [F-NO-JSON-HTTP]. --autoConnect instead reads DevToolsActivePort out of the
+  # profile named by --userDataDir, which is why the port is no longer configured
+  # here: the browser picks it, and upstream discovers it [F-AUTOCONNECT-USERDATADIR].
+  # That also removes the reason a wrapper would have existed — the port and the
+  # browser UUID both change on every launch, and nothing here has to track them.
   #
   # WHY OFF BY DEFAULT, and why attach rather than launch:
   #  - mcp-proxy spawns every hosted server at startup. In attach mode this one
-  #    needs a browser that was STARTED with --remote-debugging-port; with none
-  #    listening it is a server that cannot work, exactly like localAdapter above.
+  #    needs a browser with debugging already on; with none it is a server that
+  #    cannot work, exactly like localAdapter above.
   #  - Enabling it is a SECURITY DECISION, not a convenience one. Upstream's own
   #    warning about that port: "Any application on your machine can connect."
   #    Anything local can then read page content, cookies and session state and
@@ -506,7 +518,8 @@ let
       args = [
         "-y"
         "chrome-devtools-mcp@latest"
-        "--browser-url=http://127.0.0.1:${toString cfg.chromeDevtools.port}"
+        "--autoConnect"
+        "--userDataDir=${cfg.chromeDevtools.userDataDir}"
         "--no-usage-statistics"
         "--no-performance-crux"
       ];
@@ -742,30 +755,43 @@ in
     chromeDevtools = {
       enable = lib.mkEnableOption ''
         Google's chrome-devtools-mcp in the gateway, in ATTACH mode against a browser
-        already listening on 127.0.0.1:<port>. Performance traces, network, console with
-        source-mapped stacks, and the viewport emulation (`resize_page`) that automates
-        the userscript method's otherwise-manual "reach state B" step. OFF by default for
-        TWO independent reasons, either of which alone would justify it: (1) mcp-proxy
-        spawns every hosted server at startup, and in attach mode this one is useless
-        without a browser started via `nix-chromium-debug`; (2) enabling it is a SECURITY
-        decision — the remote-debugging port is an UNAUTHENTICATED control channel, and
-        upstream states plainly that "Any application on your machine can connect", i.e.
-        any local process can then read that browser's pages, cookies and session state
-        and act as the signed-in user. This Mac's browser holds the Apple Passwords
-        native host and live logins, so treat a debug-enabled session as exposed for its
-        whole lifetime and quit it when finished. Telemetry flags are set for you
-        (--no-usage-statistics, --no-performance-crux); the second is the one that
-        otherwise sends TRACED URLS to Google's CrUX API. Behaviour, the measured tool
-        surface and both attach modes: the in-repo `chrome-devtools` plugin'';
+        that already has remote debugging on — found via `--autoConnect` reading
+        `DevToolsActivePort` out of `userDataDir`, NOT via a fixed port. Performance
+        traces, network, console with source-mapped stacks, and the viewport emulation
+        (`resize_page`) that automates the userscript method's otherwise-manual "reach
+        state B" step. OFF by default for TWO independent reasons, either of which alone
+        would justify it: (1) mcp-proxy spawns every hosted server at startup, and in
+        attach mode this one is useless until a browser has debugging enabled — either
+        in-browser at `chrome://inspect/#remote-debugging` or via `nix-chromium-debug`;
+        (2) enabling it is a SECURITY decision — remote debugging is an UNAUTHENTICATED
+        control channel, and upstream states plainly that "Any application on your
+        machine can connect", i.e. any local process can then read that browser's pages,
+        cookies and session state and act as the signed-in user. This Mac's browsers hold
+        the Apple Passwords native host and live logins, so treat a debug-enabled session
+        as exposed for its whole lifetime and quit it when finished. Telemetry flags are
+        set for you (--no-usage-statistics, --no-performance-crux); the second is the one
+        that otherwise sends TRACED URLS to Google's CrUX API. Behaviour, the measured
+        tool surface and both attach modes: the in-repo `page-lab` plugin'';
 
-      port = lib.mkOption {
-        type = lib.types.port;
-        default = 9222;
+      userDataDir = lib.mkOption {
+        type = lib.types.str;
+        default = "${config.home.homeDirectory}/Library/Application Support/com.operasoftware.OperaAir";
+        example = "${config.home.homeDirectory}/Library/Application Support/Chromium";
         description = ''
-          Loopback port the browser exposes CDP on, and the port `nix-chromium-debug`
-          launches with. 9222 is the de-facto default every CDP client assumes. It binds
-          to 127.0.0.1 only — never expose or forward it; that turns a local-only
-          debugging channel into a remote one.
+          Browser profile directory `--autoConnect` reads `DevToolsActivePort` from — the
+          file the browser writes when its debugging server starts, naming the port it
+          actually chose and the browser WebSocket path. This, not a port number, is how
+          the server finds the browser [F-AUTOCONNECT-USERDATADIR].
+
+          It is a directory rather than a port BECAUSE the port is no longer knowable in
+          advance: a browser put into debugging mode from `chrome://inspect/#remote-debugging`
+          picks its own (measured: Opera Air on 61867), and the browser WebSocket UUID
+          changes on every launch. Both live in `DevToolsActivePort`, so upstream resolving
+          it at connect time is the only shape that survives a browser restart.
+
+          Defaults to Opera Air, the browser this fleet enables debugging on. Point it at
+          any Chromium profile — the layout is the same. Note this is the USER DATA dir (the
+          one holding `DevToolsActivePort` and `Default/`), not the `Default/` profile inside it.
         '';
       };
     };
@@ -781,13 +807,26 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    # `nix-chromium-debug` — the ONLY sanctioned way to open the CDP port.
+    # `nix-chromium-debug` — the CLASSIC, launch-flag route to the CDP port.
+    #
+    # NO LONGER THE ONLY ROUTE, and no longer the one this module's server assumes.
+    # A running browser CAN now be switched into debugging mode from
+    # `chrome://inspect/#remote-debugging` (Chrome/Chromium M144+, and Opera Air),
+    # which is how the browser this gateway attaches to is actually enabled — it
+    # picks its own port and writes it to `DevToolsActivePort` [F-NO-JSON-HTTP].
+    # This wrapper stays for the flag route, which is still the only way to open a
+    # port on a browser whose UI toggle you do not want to use, and the only way to
+    # get a debug port on an --isolated throwaway profile.
+    #
+    # It launches CHROMIUM specifically. `chromeDevtools.userDataDir` selects which
+    # profile the SERVER attaches to and defaults to Opera Air, so the two are
+    # independent: running this does not make the gateway talk to Chromium unless
+    # userDataDir points there too.
     #
     # Why a wrapper at all, rather than a declared browser flag: the .app is a
     # Homebrew cask, so `programs.chromium.package` is null, and upstream's own
     # assertion then FORBIDS `commandLineArgs` — there is no Nix wrapper to pass
-    # them to (see modules/shared/chromium.nix). --remote-debugging-port is also a
-    # STARTUP flag, so it could not have been a persistent setting anyway.
+    # them to (see modules/shared/chromium.nix).
     #
     # Deliberately a hand-run command and NOT a launchd agent or a login item: the
     # port is an unauthenticated control channel over a browser holding live logins
@@ -796,7 +835,10 @@ in
     home.packages = lib.mkIf cfg.chromeDevtools.enable [
       (pkgs.writeShellScriptBin "nix-chromium-debug" ''
         set -euo pipefail
-        port="''${1:-${toString cfg.chromeDevtools.port}}"
+        # 9222 is the de-facto default every CDP client assumes. Bound to 127.0.0.1
+        # only — never expose or forward it; that turns a local-only debugging
+        # channel into a remote one.
+        port="''${1:-9222}"
 
         # Relaunching while the same profile is already running silently reuses the
         # existing process and the port never opens — indistinguishable from the
@@ -804,8 +846,10 @@ in
         # instead of producing a browser that looks right and is not.
         if /usr/bin/pgrep -x "Chromium" >/dev/null 2>&1; then
           echo "nix-chromium-debug: Chromium is already running." >&2
-          echo "  --remote-debugging-port only applies at STARTUP, so attaching to this" >&2
-          echo "  process is impossible. Quit Chromium completely, then re-run." >&2
+          echo "  --remote-debugging-port is a STARTUP flag, so it cannot be added to" >&2
+          echo "  this process. Either quit Chromium completely and re-run, or leave it" >&2
+          echo "  running and turn debugging on in-browser at chrome://inspect/#remote-debugging" >&2
+          echo "  — that needs no relaunch, and the server finds the port it picks." >&2
           exit 1
         fi
 
