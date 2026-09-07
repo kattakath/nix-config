@@ -123,7 +123,20 @@ export async function browserSocket(browserUrl, { timeout = 5000 } = {}) {
       .map(readActivePort)
       .filter(Boolean);
     const hit = found.find((f) => f.port === wantPort) ?? (found.length === 1 ? found[0] : null);
-    if (hit) return `ws://127.0.0.1:${hit.port}${hit.wsPath}`;
+    if (hit) {
+      // The file gave us a PORT to try, not an answer. Re-probe /json/version there
+      // first: a launch-flag browser serves it, and its webSocketDebuggerUrl is live
+      // while the file's line 2 can be hours stale and point at a dead socket
+      // [F-DEVTOOLSACTIVEPORT-STALE]. Only when nothing answers is the file the best
+      // source — and that is exactly the consent mode in which it is fresh.
+      try {
+        const viaPort = await httpJson(`http://127.0.0.1:${hit.port}/json/version`, timeout);
+        if (viaPort?.webSocketDebuggerUrl) return viaPort.webSocketDebuggerUrl;
+      } catch {
+        /* no /json/* on that port either — consent mode, so trust the file */
+      }
+      return `ws://127.0.0.1:${hit.port}${hit.wsPath}`;
+    }
 
     const seen = found.length
       ? `DevToolsActivePort found for: ${found.map((f) => `${f.dir} (:${f.port})`).join(', ')} — ` +
