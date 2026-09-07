@@ -1075,7 +1075,7 @@ changes — activation keys the marketplace re-pin (and a reinstall of the copie
 `~/.claude/plugins/cache`) off exactly that, so an in-repo plugin can never serve a previous
 generation's content.
 
-Today, five:
+Today, four:
 
 - **`plugins/llmstxt`** — `llms.txt` authoring skill + `/llmstxt` command + a stdlib-only spec
   linter; see `plugins/llmstxt/README.md`.
