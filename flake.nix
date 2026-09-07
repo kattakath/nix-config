@@ -1896,7 +1896,7 @@
           # path, so the tension is real and resolved, not a lint. The lint does
           # enforce the attribution half.
           # The rules themselves are NOT inline here. They live in the portable
-          # `userscript-author` plugin's `scripts/userscript-meta-lint.sh`, and this
+          # `page-lab` plugin's `scripts/userscript-meta-lint.sh`, and this
           # check just runs it against this repo's tree. One rulebook, so CI, the
           # plugin's own users and a by-hand run on nix-personal's private scripts
           # cannot drift apart — the alternative was a second copy of the same
@@ -1910,7 +1910,7 @@
                 ];
               }
               ''
-                bash ${self}/plugins/userscript-author/scripts/userscript-meta-lint.sh \
+                bash ${self}/plugins/page-lab/scripts/userscript-meta-lint.sh \
                   ${self}/userscripts
                 touch "$out"
               '';
