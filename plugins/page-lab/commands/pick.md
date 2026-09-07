@@ -17,7 +17,7 @@ Call it on its own, or as the first move of `/userscript` step 2.
 - **1 — Route.** Run `bash ${CLAUDE_PLUGIN_ROOT}/scripts/page-route.sh`. It prints
   `ROUTE_SHELL=cdp|kapture|none` plus an `AGENT-MUST-CHECK:` block naming the two checks a
   shell cannot make. Make those two checks, then re-run with
-  `--tools kapture-eval=yes|no,cic=yes|no` for the final `ROUTE=`. Read
+  `--tools kapture-eval=yes|no,cic=yes|no,inapp=yes|no` for the final `ROUTE=`. Read
   `../references/routes.md` for what each tier can and cannot do.
 - **2 — Open the gate if it is shut.** `bash ${CLAUDE_PLUGIN_ROOT}/scripts/route-up.sh --tier <n>`
   prints the exact step; only tier 1 can be opened without the operator, and only with `--yes`.
@@ -25,7 +25,7 @@ Call it on its own, or as the first move of `/userscript` step 2.
 - **3 — Warn, then arm.** Say the sentence in *The cost of arming* below **before** arming, not
   after. On tier 1: `page-lab-pick --expect-origin <origin>` (the fleet wrapper; outside this
   fleet, `node ${CLAUDE_PLUGIN_ROOT}/scripts/pick-element.mjs`). On tiers 2–4 follow the call
-  shapes in `../references/pick-protocol.md`. On tier 5, print the snippet, let the operator run
+  shapes in `../references/pick-protocol.md`. On `operator-paste`, print the snippet, let the operator run
   it in their own console, and pipe what they paste through
   `pick-normalize.mjs --route operator-paste`.
 - **4 — Confirm back.** Point at what was measured — the highlight on tier 1, a screenshot of the
