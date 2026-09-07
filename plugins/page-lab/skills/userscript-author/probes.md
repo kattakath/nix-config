@@ -1,7 +1,7 @@
 # Probes — the measurement instruments
 
 **Which route runs these bodies is not decided here.** One ladder, one file:
-[`../../references/routes.md`](../../references/routes.md) — the five tiers, their gates, how to
+[`../../references/routes.md`](../../references/routes.md) — the six tiers, their gates, how to
 probe each gate, and how to open one. Run `scripts/page-route.sh` before the first probe.
 
 If **no** route is reachable, say so and stop — **do not substitute a guessed selector for a

@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "page-lab",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Author Violentmonkey userscripts and diagnose live pages from one place — a measure-before-you-select method, a two-way element picker driven over the Chrome DevTools Protocol, performance/network/console diagnosis, and a Greasy Fork readiness linter.",
   "author": {
     "name": "Ismail Kattakath"
