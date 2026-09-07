@@ -5,8 +5,10 @@
 # build to reference. So `programs.chromium.package = null` here, and Home Manager
 # contributes only the config files Chromium reads out of its user-data dir.
 #
-# Four things are wired — two via upstream `programs.chromium` (no custom shell), one
-# via the browser's own preferences domain, one via LaunchServices:
+# Three things are wired — two via upstream `programs.chromium` (no custom shell) and
+# one via the browser's own preferences domain. The macOS default-browser claim used to
+# be a fourth; it moved to `modules/shared/default-browser.nix` (`local.defaultBrowser`)
+# when Opera Air became the default and Chromium became the debugging browser:
 #
 #   1. `extensions` → `~/Library/Application Support/Chromium/External Extensions/<id>.json`.
 #      ungoogled-chromium patches out the Chrome Web Store (`disable-webstore-urls.patch`),
@@ -33,10 +35,6 @@
 #      with `defaults import`, which MERGES, so Chromium's own state in that domain survives.
 #      One policy rides this: `hideBookmarkBar`. It is a narrow tier — see the
 #      default-search note below for a policy set that arrives and is then REFUSED.
-#   4. LaunchServices' `http`/`https` handler → `makeDefaultBrowser`, the one surface here
-#      that is neither a file in the user-data dir nor a policy. nixpkgs' `defaultbrowser`
-#      claims the scheme on activation and no-ops once Chromium already owns it.
-#
 # Why a local-crx install keeps each extension's official ID: the ID is derived from
 # the public key in the signed CRX3 header, not from the install path. A sideloaded
 # copy of the store build therefore registers under exactly the same ID — which is
@@ -357,43 +355,6 @@ in
       '';
     };
 
-    makeDefaultBrowser = lib.mkOption {
-      type = lib.types.bool;
-      default = true;
-      description = ''
-        Claim `http`/`https` (and so `public.html`) for Chromium in
-        LaunchServices, making it the macOS default browser, via nixpkgs'
-        `defaultbrowser` on each activation. Note the argument is the SHORT name
-        `chromium`, not the bundle id — `org.chromium.Chromium` is rejected as
-        "not available as an HTTP handler".
-
-        **Idempotent, and that is the tool's own doing, not ours:** it reads the
-        current handler first and early-returns with "chromium is already set as
-        the default HTTP handler", never touching LaunchServices. So a settled Mac
-        is a true no-op and there is nothing to re-confirm on a routine
-        `activate`. That matters because of the next point.
-
-        **Expect one consent dialog, once, on the activation that actually
-        changes the handler** — a fresh or reset Mac. It is not avoidable and not
-        a bug: `defaultbrowser` calls Launch Services'
-        `LSSetDefaultHandlerForURLScheme`, whose SDK-declared replacement,
-        `-[NSWorkspace setDefaultApplicationAtURL:toOpenURLsWithScheme:completionHandler:]`,
-        is documented in `AppKit/NSWorkspace.h` as: *"Some URL schemes require
-        user consent before you can change their handlers. If a change requires
-        user consent, the system will ask the user asynchronously"*. The browser
-        schemes are exactly those, for every tool and every API — so this joins
-        the module's other one-time clicks rather than escaping them.
-
-        The legacy API is safe to keep using: the macOS 26 SDK still declares it
-        `API_TO_BE_DEPRECATED`, i.e. soft-deprecated with no removal version.
-        `duti` is the obvious alternative and is passed over — it takes bundle ids
-        but has no idempotence guard, so it would re-ask every activation.
-
-        `defaultbrowser` also lands on PATH: run it with **no arguments** for a
-        read-only list of HTTP handlers with the current default starred.
-      '';
-    };
-
     darkTheme = lib.mkOption {
       type = lib.types.bool;
       default = true;
@@ -498,25 +459,6 @@ in
     targets.darwin.defaults."org.chromium.Chromium" = lib.mkIf cfg.hideBookmarkBar {
       BookmarkBarEnabled = false;
     };
-
-    # The `defaultbrowser` CLI doubles as this setting's read-only doctor (no args
-    # → the handler list, current default starred), so it is worth a PATH entry.
-    home.packages = lib.mkIf cfg.makeDefaultBrowser [ pkgs.defaultbrowser ];
-
-    # Not a launchd unit — a plain activation step, so launchd-naming.md's
-    # `nix-<kebab>` arg0 rule does not apply (nothing lands in BTM).
-    #
-    # Tolerates its own failure on purpose: the `.app` is a Homebrew cask, and
-    # nothing orders brew's activation before Home Manager's, so on a first-ever
-    # rebuild Chromium may not be registered with LaunchServices yet. Warn and
-    # move on; the next activation picks it up. Never fail a rebuild over which
-    # browser opens a link.
-    home.activation.chromiumDefaultBrowser = lib.mkIf cfg.makeDefaultBrowser (
-      lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-        $DRY_RUN_CMD ${lib.getExe pkgs.defaultbrowser} chromium \
-          || /usr/bin/printf '%s\n' "warning: could not make Chromium the default browser (cask not registered yet?) — retried next activation"
-      ''
-    );
 
     # `~/.local/share/userscripts/` — a *runtime* location, so it is XDG-relative
     # (the sources above are repo-relative Nix path literals; two different axes).
