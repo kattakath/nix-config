@@ -81,8 +81,13 @@ https://sleazyfork.org/en/scripts/by-site/<domain>
 
 ### C. Measure state B (the good state)
 
-- [ ] Put the page in state B **by hand** (resize / route / toggle), then re-run
-      **`dumpSubtree`** on the same root, recording `innerWidth`.
+- [ ] Put the page in state B, then re-run **`dumpSubtree`** on the same root, recording
+      `innerWidth`.
+- [ ] **Prefer `resize_page`** (the `chrome-devtools` plugin) when the trigger is a width —
+      it is exact, repeatable and bisectable, which makes finding the actual breakpoint band
+      cheap. `emulate` changes several variables at once, so it answers "does this work on a
+      phone", not "which breakpoint fires". Without that server, do it **by hand** (resize /
+      route / toggle) — the measurement is what matters, not who took it.
 
 ### D. Diff → verdict
 
