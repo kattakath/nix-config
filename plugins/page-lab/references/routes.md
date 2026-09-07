@@ -1,4 +1,4 @@
-# Routes — the five ways to reach a live page
+# Routes — the six ways to reach a live page
 
 One ladder for the whole plugin. `probes.md`, both `SKILL.md`s and the three commands point
 here instead of carrying a second copy.
@@ -30,7 +30,7 @@ a hand-run wrapper, every time. And a Chromium **already running without the fla
 flag on a second `open`** — it must be fully quit first. `scripts/route-up.sh` detects that
 case and refuses rather than pretending the port came up.
 
-## The five tiers
+## The six tiers
 
 | # | Route | GATE | PROBE | OPEN | CANNOT SEE | DISARM OBLIGATION |
 |---|---|---|---|---|---|---|
@@ -38,7 +38,8 @@ case and refuses rather than pretending the port came up.
 | 2 | `kapture-focus` / `kapture-hover` | ≥1 tab connected to the bridge | `curl -sf --max-time 2 http://127.0.0.1:61822/tabs` — `[]` is **bridge up, zero tabs: dark**, connection refused is **bridge down**. Two different problems, two different fixes [F-KAPTURE-COLD] | the operator clicks connect in the **toolbar popup** — DevTools is not required [F-KAPTURE-POPUP]; `route-up.sh --tier 2` prints the exact step | a scored selector (no match counts — the envelope is `sampled`), box quads, shadow/frame reachability, and `Overlay.setInspectMode`, which no extension exposes | nothing is armed, but the page **was mutated**: `getUniqueSelector()` stamps `id="kapture-N"` / `.kapture-N` [F-KAPTURE-MUTATES]. Record `pageMutated:true`, carry the `kapture-minted-selector` ship blocker, and re-measure state A before any HTML diff. The stamp clears on reload |
 | 3 | `kapture-eval` | tier-2 gate **plus** a human flipping *Allow JavaScript Execution* | **is `mcp__kapture__evaluate` present in this session's tool list?** The server filters it out of `tools/list` until the toggle is on, and the toggle is in-memory and resets on disconnect [F-KAPTURE-EVAL-GATE]. Probe by **name presence**; never "call it and see" | the operator flips the toggle in the popup — and is asked again every session, because it does not persist | same blind spots as tier 2, plus: injected JS runs under the page's CSP, and a closed shadow root stays closed | the injected picker's `disarm()` is idempotent and runs in a `finally`; state hangs off `window` and survives until reload |
 | 4 | `cic-armed` | the extension is connected **and** the domain is permitted | `mcp__claude-in-chrome__tabs_context_mcp` — **not shell-probeable**, the transport is native messaging [F-CIC-COLD] | the operator connects the extension; the first JS call on a new domain raises a per-domain prompt | anything the silent output sanitizer eats [F-CIC-SANITIZER]; box quads; match counts; and any same-call navigation, which fails the post-hoc origin re-check [F-CIC-ORIGIN-RECHECK] | the DISARM call is its own third call in a `finally`; `hit` deliberately outlives it so a late poll still retrieves the pick |
-| 5 | `operator-paste` | none | always up | — | everything the agent did not watch happen: the origin, the viewport, whether the snippet ran on the page the operator says it did | nothing the agent armed; the pasted snippet self-times-out and `Escape` cancels it inside the page |
+| 5 | `inapp-eval` | `mcp__Claude_Browser__*` present in the session **and** a pane open | **not shell-probeable** — an in-session MCP tool, same class of gate as tiers 3 and 4. Probe by **name presence** of `mcp__Claude_Browser__javascript_tool`; it refuses with *No preview is open* until `navigate` opens a pane, so a closed pane is not a closed route [F-INAPP-COLD] | `mcp__Claude_Browser__navigate` with any `url` | **the operator's profile, entirely** — a separate browser with no Violentmonkey, no logins and no extensions, so it can neither serve W1/W2's "the element in *my* browser" nor ever run `assertEffect()`. Also: a collapsed pane executes JS but lays out nothing, reporting a 0x0 viewport that reads like a broken selector [F-INAPP-ZERO-VIEWPORT] | nothing is armed and the page is not mutated; reset any `resize_window` emulation when done |
+| 6 | `operator-paste` | none | always up | — | everything the agent did not watch happen: the origin, the viewport, whether the snippet ran on the page the operator says it did | nothing the agent armed; the pasted snippet self-times-out and `Escape` cancels it inside the page |
 
 Table cells escape `|` as `\|`. Copy a PROBE command from the **rendered** view — an escaped
 pipe pasted into a shell is a literal character, not a pipeline.
@@ -67,11 +68,18 @@ Descend one rung at a time, and say out loud which rung you are on.
    bindings between calls [F-CIC-REPLMODE], and the gate cannot be probed from a shell
    [F-CIC-COLD]. Envelope fidelity is `asserted`, and the canary in
    [`pick-protocol.md`](pick-protocol.md) § Canaries is the only drift signal available.
-5. **`operator-paste` — a measurement, just not one the agent took.** It is always available
+5. **`inapp-eval` — real JS on a real page, in the wrong browser.** Ranked below every
+   same-browser tier because it answers a different question: it measures *the site*, never
+   *this operator's page*. For W3, and for the W1 sub-question "what does this site's DOM
+   actually do", it beats dictating a snippet to a human — the agent runs the probe itself and
+   reads the JSON. For anything about the install — `@grant` behaviour, whether the script
+   ran, `assertEffect()` — it is not a route at all, it is a different page that happens to
+   share a URL. Say which of those two you are doing before you use it.
+6. **`operator-paste` — a measurement, just not one the agent took.** It is always available
    and it is always honest. Asking the operator to paste is a measurement; inventing a
    selector is not.
 
-**Below tier 5 there is no tier.** If no route is reachable, say so and stop.
+**Below tier 6 there is no tier.** If no route is reachable, say so and stop.
 
 ## The ROUTE token grammar
 
@@ -85,15 +93,16 @@ ROUTE_SHELL=cdp|kapture|none           # exactly one, always
 AGENT-MUST-CHECK:                      # block, only when --tools was NOT passed
   kapture-eval: is `mcp__kapture__evaluate` in this session's tool list? (never call it)
   cic: call `mcp__claude-in-chrome__tabs_context_mcp` (native messaging — no shell can see it)
-ROUTE=cdp|kapture-eval|kapture|cic|paste   # exactly one, only when --tools WAS passed
+  inapp: is `mcp__Claude_Browser__javascript_tool` in this session's tool list? (name presence)
+ROUTE=cdp|kapture-eval|kapture|cic|inapp|paste   # exactly one, only when --tools WAS passed
 ```
 
-The two-step is the point: `page-route.sh` is deterministic about two of four gates and
-**explicit about which two it cannot see**. The agent answers the `AGENT-MUST-CHECK:` block
+The two-step is the point: `page-route.sh` is deterministic about two of five gates and
+**explicit about which three it cannot see**. The agent answers the `AGENT-MUST-CHECK:` block
 from its own tool list, then re-runs:
 
 ```bash
-scripts/page-route.sh --tools kapture-eval=yes|no,cic=yes|no
+scripts/page-route.sh --tools kapture-eval=yes|no,cic=yes|no,inapp=yes|no
 ```
 
 which prints the final `ROUTE=`.
@@ -104,7 +113,8 @@ which prints the final `ROUTE=`.
 | `ROUTE=kapture-eval` | tier 3 | `kapture-eval` |
 | `ROUTE=kapture` | tier 2 | `kapture-focus` or `kapture-hover` — the shape is chosen inside the tier, not by the token |
 | `ROUTE=cic` | tier 4 | `cic-armed` |
-| `ROUTE=paste` | tier 5 | `operator-paste` |
+| `ROUTE=inapp` | tier 5 | `inapp-eval` — measures the site, never the install |
+| `ROUTE=paste` | tier 6 | `operator-paste` |
 
 `ROUTE=` names the **largest capability whose gate is proven open**, which is why
 `kapture-eval` outranks `kapture` in the token even though both yield `sampled` fidelity —
