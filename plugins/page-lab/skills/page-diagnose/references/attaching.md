@@ -43,7 +43,13 @@ attach mode against a browser that already has it installed.
 
 Two routes upstream documents.
 
-### 2a. `--browser-url` (manual port)
+### 2a. `--browser-url` (manual port) — DEAD against a consent-mode browser
+
+**Read this before reaching for it.** A browser whose debugging was switched on from
+`chrome://inspect/#remote-debugging` serves the CDP WebSocket but **404s every `/json/*`
+path**, and `--browser-url` must GET `/json/version` to discover the WebSocket URL. It
+therefore cannot attach at all — measured 2026-09-07 on Chromium 152 *and* Opera Air
+[F-NO-JSON-HTTP]. Use **2b** unless the browser was started with the launch flag.
 
 ```json
 {
@@ -70,10 +76,12 @@ open -na "Chromium" --args --remote-debugging-port=9222
 open -na "Google Chrome" --args --remote-debugging-port=9222
 ```
 
-`--remote-debugging-port` is a **startup** flag. A browser already running cannot be
-switched into debugging mode — quit it completely and relaunch. Relaunching while an
-instance of the same profile is still alive silently reuses the existing process and the
-port never opens, which reads exactly like the flag being ignored.
+`--remote-debugging-port` is a **startup** flag: it cannot be added to a process that is
+already up, so quit it completely and relaunch. That is a fact about *the flag*, not about
+the browser — a running browser **can** be switched into debugging mode from
+`chrome://inspect/#remote-debugging` with no relaunch at all (see 2b), it just picks its own
+port. Relaunching while an instance of the same profile is still alive silently reuses the
+existing process and the port never opens, which reads exactly like the flag being ignored.
 
 `scripts/route-up.sh --tier 1 [--isolated] --yes` performs exactly this launch, refuses when a
 portless Chromium is already running, and re-probes afterwards.
@@ -81,11 +89,20 @@ portless Chromium is already running, and re-probes afterwards.
 Verify before blaming anything else:
 
 ```bash
-curl -s http://127.0.0.1:9222/json/version
+bash scripts/devtools-doctor.sh [--user-data-dir DIR]
 ```
 
-A JSON body naming the browser build means the endpoint is live. Anything else — connection
-refused, empty reply — means the browser is not listening.
+The doctor probes **both** modes and says which one you are in. Probing by hand is only
+valid for a launch-flag browser:
+
+```bash
+curl -s http://127.0.0.1:9222/json/version      # classic mode ONLY
+```
+
+A JSON body naming the build means that endpoint is live. **A 404 or empty reply does not
+mean the browser is down** — in consent mode that is the expected answer [F-NO-JSON-HTTP].
+The authority in that mode is the profile's own `DevToolsActivePort` file: line 1 is the
+port the browser chose, line 2 is the browser WebSocket path.
 
 **The flag can never be declarative on this fleet** [F-CASK-NOFLAG]: the browser is a Homebrew
 cask, so home-manager's own assertion forbids `commandLineArgs`. This is a hand-run wrapper by
@@ -112,12 +129,58 @@ Two consequences worth stating rather than rediscovering:
   an installed extension genuinely changes the result — never as a default because it is
   convenient.
 
-### 2b. `--autoConnect` (Chrome M144+)
+### 2b. `--autoConnect` + `--userDataDir` — THE route on this fleet
 
-Chrome ≥ M144 can accept connections without a fixed port: enable remote debugging at
-`chrome://inspect/#remote-debugging`, then run the server with `--autoConnect`. Chrome shows
-a permission dialog. With multiple profiles it connects to the **default** profile and can
-reach every open window in it.
+Chrome/Chromium ≥ M144 (and Opera Air) accept connections without a fixed port: enable
+remote debugging at `chrome://inspect/#remote-debugging`, then run the server with
+`--autoConnect`. The browser shows a permission dialog, picks its own port, and writes both
+the port and the browser WebSocket path into `DevToolsActivePort` at the root of its
+user-data dir.
+
+```json
+{
+  "mcpServers": {
+    "chrome-devtools": {
+      "command": "npx",
+      "args": [
+        "-y", "chrome-devtools-mcp@latest",
+        "--autoConnect",
+        "--userDataDir=/Users/you/Library/Application Support/com.operasoftware.OperaAir",
+        "--no-usage-statistics",
+        "--no-performance-crux"
+      ]
+    }
+  }
+}
+```
+
+**`--userDataDir` redirects where `--autoConnect` looks for `DevToolsActivePort`**
+[F-AUTOCONNECT-USERDATADIR]. Without it the lookup goes to the stable Chrome channel dir and
+fails with `Could not find DevToolsActivePort for chrome at …/Google/Chrome/DevToolsActivePort`
+— that error message is itself the proof the flag is doing the redirect. Pass the **user-data
+dir** (the one holding `DevToolsActivePort` and `Default/`), not the `Default/` profile inside it.
+
+This is the only attach route that survives a browser restart, because the port **and** the
+browser WebSocket UUID both change every launch. It is what `modules/shared/mcp.nix`
+declares, and why that module configures a directory rather than a port.
+
+With multiple profiles it connects to the **default** profile and can reach every open
+window in it.
+
+### 2c. `--wsEndpoint` (one-shot, exact)
+
+```bash
+npx -y chrome-devtools-mcp@latest \
+  --wsEndpoint "ws://127.0.0.1:61867/devtools/browser/<uuid>" \
+  --no-usage-statistics --no-performance-crux
+```
+
+Takes the browser WebSocket URL directly, skipping `/json/version` entirely — so it works
+against a consent-mode browser where 2a cannot. `--wsHeaders '{"Authorization":"…"}'` adds
+headers, and only works with this flag.
+
+**Both halves of that URL are per-launch**, so this is a debugging tool, never a declaration:
+read them from lines 1 and 2 of `<user-data-dir>/DevToolsActivePort`, or from the doctor.
 
 ## The security exposure — read before enabling either
 
@@ -151,14 +214,21 @@ browser or DevTools. Avoid sharing sensitive or personal information."
 > Other Chromium-based browsers may work, but this is not guaranteed, and you may encounter
 > unexpected behavior.
 
-**ungoogled-chromium is therefore unsupported** — but measured 2026-09-06 it does work: the
-server attached to it over `--browser-url` and `list_pages` returned the real tab. Treat the
-caveat as "first suspect when something is odd", not "will not work".
+**ungoogled-chromium and Opera Air are therefore both unsupported** — and both work.
+Measured 2026-09-07: the server attached to **Opera Air** (`OPR/135`, Chromium 151) and
+`list_pages` returned its real tabs [F-UGC-ATTACHES]. Treat the caveat as "first suspect
+when something is odd", not "will not work".
 
 One trap when identifying the build: **ungoogled-chromium reports
-`"Browser": "Chrome/152.0.7977.64"`** on `/json/version`, indistinguishable in shape from
-Google Chrome, and there is no vendor field. The name cannot settle which build is serving
-the port — the running process path can, which is what the doctor script reads.
+`"Browser": "Chrome/152.0.7977.64"`**, indistinguishable in shape from Google Chrome, and
+there is no vendor field [F-UGC-NO-VENDOR]. The name cannot settle which build is serving
+the port. Neither can `pgrep -fl -- '--remote-debugging-port'` any more — a consent-mode
+browser has no such flag in its argv. The honest discriminator is **who holds the listening
+socket**, which is what the doctor script now reads:
+
+```bash
+lsof -nP -iTCP:<port> -sTCP:LISTEN
+```
 
 ## Telemetry
 

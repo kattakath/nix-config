@@ -5,16 +5,23 @@
 # of three different things, and they need three different fixes:
 #
 #   1. no Node / no npx           -> the server cannot start at all
-#   2. nothing listening on the   -> the browser was not launched with
-#      debugging port                --remote-debugging-port (it is a STARTUP flag;
-#                                     a running browser cannot be switched into it)
-#   3. something IS listening,    -> upstream officially supports Google Chrome and
+#   2. debugging is off entirely  -> no port is open: turn it on in-browser at
+#                                    chrome://inspect/#remote-debugging, or relaunch
+#                                    with --remote-debugging-port
+#   3. debugging IS on, but the   -> a browser enabled from chrome://inspect serves the
+#      /json/* HTTP endpoints        CDP WebSocket and 404s every /json/* path, so
+#      are 404 [F-NO-JSON-HTTP]      --browser-url cannot attach. Use --autoConnect
+#                                    --userDataDir <profile>, which reads the port out
+#                                    of DevToolsActivePort instead
+#   4. something IS listening,    -> upstream officially supports Google Chrome and
 #      but it is a browser           Chrome for Testing only; other Chromium builds
 #      upstream does not support     "may work, but this is not guaranteed"
 #
 # Guessing between those costs turns. This answers it in one command.
 #
-#   usage: devtools-doctor.sh [browser-url]        (default http://127.0.0.1:9222)
+#   usage: devtools-doctor.sh [browser-url] [--user-data-dir DIR]
+#            defaults: http://127.0.0.1:9222, and the dir is auto-probed from the
+#            known fleet profiles when not given
 #          devtools-doctor.sh --verify-tools       tool-count drift check (needs network)
 #
 # Exit 0 when a debugging endpoint answered, 1 otherwise. Launch mode (the server
@@ -28,11 +35,20 @@ TOOLS_MD="$SCRIPT_DIR/../skills/page-diagnose/references/tools.md"
 
 verify_tools=0
 URL="http://127.0.0.1:9222"
+USER_DATA_DIR=""
+want_dir=0
 for arg in "$@"; do
+  if [ "$want_dir" = 1 ]; then
+    USER_DATA_DIR="$arg"
+    want_dir=0
+    continue
+  fi
   case "$arg" in
     --verify-tools) verify_tools=1 ;;
+    --user-data-dir) want_dir=1 ;;
+    --user-data-dir=*) USER_DATA_DIR="${arg#*=}" ;;
     -h | --help)
-      printf 'usage: devtools-doctor.sh [browser-url] | devtools-doctor.sh --verify-tools\n' >&2
+      printf 'usage: devtools-doctor.sh [browser-url] [--user-data-dir DIR] | devtools-doctor.sh --verify-tools\n' >&2
       exit 2
       ;;
     *) URL="$arg" ;;
@@ -120,51 +136,106 @@ else
 fi
 
 say ""
-say "debugging endpoint ($URL)"
+say "debugging endpoint"
 
 if ! command -v curl >/dev/null 2>&1; then
   note "curl not on PATH — skipping the endpoint probe"
   exit "$rc"
 fi
 
-# /json/version is the CDP discovery endpoint. A JSON body naming the build means a
-# browser is genuinely listening; anything else means it is not.
+# Is anything accepting TCP on a loopback port? bash's /dev/tcp needs no extra tool.
+listening() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null && exec 3>&- && return 0 || return 1; }
+
+# Which app serves a port. In chrome://inspect consent mode there is no
+# --remote-debugging-port in any argv, so the old pgrep discriminator finds nothing
+# [F-NO-JSON-HTTP]; the listening socket's owner is the honest answer either way.
+serving_app() {
+  command -v lsof >/dev/null 2>&1 || return 0
+  lsof -nP -iTCP:"$1" -sTCP:LISTEN 2>/dev/null | awk 'NR==2 {print $1}'
+}
+
+# ---- Mode A: the classic /json/* discovery endpoint (launch-flag browsers) --------
+port="${URL##*:}"
+port="${port%%/*}"
 body=$(curl -fsS --max-time 5 "$URL/json/version" 2>/dev/null || true)
 
-if [ -z "$body" ]; then
-  bad "no response — nothing is listening"
-  say ""
-  say "  A browser only listens if it was STARTED with the flag. Quit it fully, then:"
-  say "    open -na \"Chromium\"      --args --remote-debugging-port=9222"
-  say "    open -na \"Google Chrome\" --args --remote-debugging-port=9222"
-  say ""
-  say "  Relaunching while the same profile is still running silently reuses the"
-  say "  existing process and the port never opens — which looks like the flag being"
-  say "  ignored. Check with: pgrep -fl 'Chromium|Google Chrome'"
-  say ""
-  say "  Not attaching? Then this is fine: in launch mode the server starts its own"
-  say "  browser and needs no endpoint."
-  exit 1
+if [ -n "$body" ]; then
+  ok "classic mode — $URL/json/version answered"
+  ok "--browser-url and --autoConnect will both work"
+  browser=$(printf '%s' "$body" | sed -n 's/.*"Browser"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+  proto=$(printf '%s' "$body" | sed -n 's/.*"Protocol-Version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+  [ -n "$browser" ] && ok "browser: $browser"
+  [ -n "$proto" ] && ok "CDP protocol: $proto"
+else
+  # A 404/empty here is NOT proof the browser is down. A browser switched on from
+  # chrome://inspect/#remote-debugging serves the WebSocket and 404s every /json/*
+  # path, so this branch must check DevToolsActivePort before reporting anything.
+  note "$URL/json/version did not answer — NOT proof debugging is off [F-NO-JSON-HTTP]"
+
+  # Profiles to check: the one the operator named, else the fleet's known dirs.
+  if [ -n "$USER_DATA_DIR" ]; then
+    candidates="$USER_DATA_DIR"
+  else
+    candidates="$HOME/Library/Application Support/com.operasoftware.OperaAir
+$HOME/Library/Application Support/Chromium
+$HOME/Library/Application Support/Google/Chrome"
+  fi
+
+  found=0
+  while IFS= read -r dir; do
+    [ -n "$dir" ] || continue
+    f="$dir/DevToolsActivePort"
+    [ -r "$f" ] || continue
+    dport=$(sed -n 1p "$f" 2>/dev/null | tr -d '[:space:]')
+    dws=$(sed -n 2p "$f" 2>/dev/null | tr -d '[:space:]')
+    case "$dport" in '' | *[!0-9]*) continue ;; esac
+    if listening "$dport"; then
+      found=1
+      ok "consent mode — debugging live on 127.0.0.1:$dport"
+      ok "profile: $dir"
+      [ -n "$dws" ] && ok "ws endpoint: ws://127.0.0.1:$dport$dws"
+      say ""
+      say "  Attach with the profile, not the port — both the port and the ws UUID"
+      say "  change on every launch [F-AUTOCONNECT-USERDATADIR]:"
+      say "    --autoConnect --userDataDir \"$dir\""
+      say ""
+      say "  --browser-url CANNOT attach to this browser: /json/version is 404."
+      break
+    fi
+    note "stale DevToolsActivePort in $dir (port $dport not listening) — ignoring"
+  done <<EOF
+$candidates
+EOF
+
+  if [ "$found" = 0 ]; then
+    bad "no debugging endpoint — nothing is listening"
+    say ""
+    say "  Two ways to turn it on. Neither is persistent, both are deliberate:"
+    say "    in-browser  chrome://inspect/#remote-debugging  (no relaunch; browser"
+    say "                picks its own port and writes DevToolsActivePort)"
+    say "    launch flag open -na \"Chromium\" --args --remote-debugging-port=9222"
+    say "                (STARTUP only — quit the browser completely first)"
+    say ""
+    say "  Relaunching while the same profile is still running silently reuses the"
+    say "  existing process and the port never opens — which looks like the flag being"
+    say "  ignored. Check with: pgrep -fl 'Chromium|Google Chrome|Opera'"
+    say ""
+    say "  Not attaching? Then this is fine: in launch mode the server starts its own"
+    say "  browser and needs no endpoint."
+    exit 1
+  fi
+  port="$dport"
 fi
 
-ok "endpoint answered"
-
-browser=$(printf '%s' "$body" | sed -n 's/.*"Browser"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
-proto=$(printf '%s' "$body" | sed -n 's/.*"Protocol-Version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
-[ -n "$browser" ] && ok "browser: $browser"
-[ -n "$proto" ] && ok "CDP protocol: $proto"
-
-# The build string does NOT identify the vendor. Measured 2026-09-06:
-# ungoogled-chromium reports  "Browser": "Chrome/152.0.7977.64"  — identical in
-# shape to Google Chrome, and /json/version carries no vendor field. So the only
-# honest discriminator is which application is actually serving the port.
-app=$(pgrep -fl -- '--remote-debugging-port' 2>/dev/null |
-  sed -n 's|.*/\([^/]*\.app\)/Contents.*|\1|p' | head -1)
+# The build string does NOT identify the vendor [F-UGC-NO-VENDOR]: ungoogled-chromium
+# reports "Chrome/152.0.7977.64", identical in shape to Google Chrome, and
+# /json/version carries no vendor field. Only the process holding the socket can settle it.
+app=$(serving_app "$port")
 
 if [ -n "$app" ]; then
   ok "serving app: $app"
   case "$app" in
-    "Google Chrome.app" | "Google Chrome for Testing.app")
+    "Google Chrome" | "Google Chrome for Testing")
       ok "officially supported build"
       ;;
     *)
@@ -174,9 +245,9 @@ if [ -n "$app" ]; then
       ;;
   esac
 else
-  note "could not identify the serving app from the process list — note that the"
-  note "\"Browser\" string above cannot settle it either: ungoogled-chromium also"
-  note "reports Chrome/<version> (measured 2026-09-06)."
+  note "could not identify the serving app (no lsof, or the socket is not visible) —"
+  note "note that a \"Browser\" build string cannot settle it either: ungoogled-chromium"
+  note "also reports Chrome/<version> [F-UGC-NO-VENDOR]."
 fi
 
 say ""
