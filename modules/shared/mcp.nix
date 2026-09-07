@@ -214,6 +214,62 @@ let
   # Resilient by design: on missing creds it warns but STILL execs, so an absent
   # secret can't dark the shared gateway (unlike telegram, which exits). Basename
   # nix-* for the BTM origin rule.
+  # chrome-devtools-mcp, with the attach flag chosen AT SPAWN TIME.
+  #
+  # WHY A WRAPPER, when the motto says reach for the option first: measured
+  # 2026-09-07, NO single upstream flag attaches in both of the modes a browser can
+  # be in, because the two discovery sources fail in opposite conditions.
+  #
+  #   mode                          /json/*   DevToolsActivePort   works
+  #   chrome://inspect consent      404       fresh                --autoConnect
+  #   --remote-debugging-port       200       STALE                --browser-url
+  #
+  # The staleness is not theoretical: Opera Air relaunched with the flag left the
+  # file untouched for over two hours, and its line-2 UUID was DEAD while
+  # /json/version served a live one [F-DEVTOOLSACTIVEPORT-STALE]. So --autoConnect,
+  # which trusts that file, fails against a launch-flag browser; and --browser-url,
+  # which needs /json/version, fails against a consent-mode one [F-NO-JSON-HTTP].
+  #
+  # Order is the whole point: /json/version is AUTHORITATIVE when it answers, because
+  # it carries the live webSocketDebuggerUrl rather than a cached copy of it. Only
+  # when nothing answers do we fall back to the file — which is exactly the mode in
+  # which the file is fresh.
+  #
+  # Known limit, stated rather than hidden: the probe runs ONCE, when mcp-proxy spawns
+  # this at startup. A browser that changes mode afterwards is not re-detected until
+  # the gateway restarts. The fallback is the lazy one, so an absent browser still
+  # does not dark the gateway [F-MCP-SURVIVES-CLOSED-PORT].
+  chromeDevtoolsMcp = pkgs.writeShellScriptBin "nix-mcp-chrome-devtools" ''
+    set -eu
+    dir="${cfg.chromeDevtools.userDataDir}"
+    active="$dir/DevToolsActivePort"
+
+    # The pinned port first, then whatever the browser recorded for itself. Line 1 of
+    # DevToolsActivePort is trustworthy even when line 2 is not — the port is what the
+    # browser bound, the UUID is a cached copy that Opera does not always refresh.
+    ports="${toString cfg.chromeDevtools.port}"
+    if [ -r "$active" ]; then
+      recorded="$(sed -n 1p "$active" 2>/dev/null | tr -d "[:space:]")"
+      case "$recorded" in
+        ''' | *[!0-9]*) ;;
+        "${toString cfg.chromeDevtools.port}") ;;
+        *) ports="$ports $recorded" ;;
+      esac
+    fi
+
+    for p in $ports; do
+      if /usr/bin/curl -fsS --max-time 2 "http://127.0.0.1:$p/json/version" >/dev/null 2>&1; then
+        exec ${npx} -y chrome-devtools-mcp@latest \
+          --browser-url="http://127.0.0.1:$p" \
+          --no-usage-statistics --no-performance-crux
+      fi
+    done
+
+    exec ${npx} -y chrome-devtools-mcp@latest \
+      --autoConnect --userDataDir="$dir" \
+      --no-usage-statistics --no-performance-crux
+  '';
+
   wpMcp = pkgs.writeShellScriptBin "nix-mcp-wordpress" ''
     set -u
     site="$(/usr/bin/security find-generic-password -a "$(id -un)" -s mcp:silvercreek.ai:wp_url -w 2>/dev/null || true)"
@@ -481,17 +537,13 @@ let
   # against a browser that already has remote debugging on. Companion to the
   # in-repo `page-lab` plugin, which carries the measured behaviour.
   #
-  # ATTACHED VIA --autoConnect, NOT --browser-url. Upstream's `--browser-url` route
-  # must GET /json/version to discover the WebSocket URL, and current builds answer
-  # 404 there: measured 2026-09-07 on Chromium 152 AND Opera Air (OPR 135), both of
-  # which had remote debugging enabled from chrome://inspect/#remote-debugging
-  # rather than a launch flag. In that mode the browser serves the CDP WebSocket
-  # but not the /json/* HTTP discovery surface, so --browser-url cannot attach at
-  # all [F-NO-JSON-HTTP]. --autoConnect instead reads DevToolsActivePort out of the
-  # profile named by --userDataDir, which is why the port is no longer configured
-  # here: the browser picks it, and upstream discovers it [F-AUTOCONNECT-USERDATADIR].
-  # That also removes the reason a wrapper would have existed — the port and the
-  # browser UUID both change on every launch, and nothing here has to track them.
+  # ATTACH FLAG CHOSEN AT SPAWN TIME by `nix-mcp-chrome-devtools` above, because
+  # neither upstream flag works in both browser modes — see that wrapper's header for
+  # the measured table. Short version: consent-mode browsers 404 every /json/* path so
+  # `--browser-url` cannot attach [F-NO-JSON-HTTP], and launch-flag browsers leave a
+  # STALE DevToolsActivePort so `--autoConnect` attaches to a dead WebSocket
+  # [F-DEVTOOLSACTIVEPORT-STALE]. The wrapper probes /json/version first and only falls
+  # back to the file when nothing answers, which is precisely when the file is fresh.
   #
   # WHY OFF BY DEFAULT, and why attach rather than launch:
   #  - mcp-proxy spawns every hosted server at startup. In attach mode this one
@@ -514,15 +566,8 @@ let
   # actively growing; the plugin's references/tools.md says how to re-measure.
   // lib.optionalAttrs cfg.chromeDevtools.enable {
     chrome-devtools = {
-      command = npx;
-      args = [
-        "-y"
-        "chrome-devtools-mcp@latest"
-        "--autoConnect"
-        "--userDataDir=${cfg.chromeDevtools.userDataDir}"
-        "--no-usage-statistics"
-        "--no-performance-crux"
-      ];
+      command = lib.getExe chromeDevtoolsMcp;
+      args = [ ];
     };
   }
   # TRUE simultaneous multi-account Gmail — one server process PER configured
@@ -772,6 +817,27 @@ in
         set for you (--no-usage-statistics, --no-performance-crux); the second is the one
         that otherwise sends TRACED URLS to Google's CrUX API. Behaviour, the measured
         tool surface and both attach modes: the in-repo `page-lab` plugin'';
+
+      port = lib.mkOption {
+        type = lib.types.port;
+        default = 61867;
+        description = ''
+          Loopback port probed FIRST for a live `/json/version`. When it answers, the
+          server attaches with `--browser-url` and the browser's own live
+          `webSocketDebuggerUrl` is used; when nothing answers on any candidate port the
+          server falls back to `--autoConnect` against `userDataDir`.
+
+          61867 rather than the conventional 9222 because that is the port Opera Air
+          chose for itself in consent mode, and pinning it on the launch command
+          (`--remote-debugging-port=61867`) is what keeps it stable across restarts.
+          It binds to 127.0.0.1 only — never expose or forward it; that turns a
+          local-only debugging channel into a remote one.
+
+          This is a probe HINT, not the whole answer: line 1 of the profile's
+          `DevToolsActivePort` is probed as a second candidate, so a browser that picked
+          a different port is still found.
+        '';
+      };
 
       userDataDir = lib.mkOption {
         type = lib.types.str;

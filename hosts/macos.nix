@@ -225,9 +225,9 @@
       "ismailkattakath@gmail.com"
     ];
 
-    # Chrome DevTools Protocol, in ATTACH mode against Opera Air — found by
-    # `--autoConnect` reading DevToolsActivePort out of `chromeDevtools.userDataDir`,
-    # not by a fixed port. One flag turns on BOTH the gateway server and the
+    # Chrome DevTools Protocol, in ATTACH mode against Opera Air. The attach flag is
+    # picked at spawn time by probing /json/version — neither --browser-url nor
+    # --autoConnect works in both browser modes; see modules/shared/mcp.nix. One flag turns on BOTH the gateway server and the
     # `nix-chromium-debug` launcher — they are gated together on purpose, so there
     # is no state where something can reach a browser without the operator having
     # enabled debugging deliberately (in-browser, or via that launcher).

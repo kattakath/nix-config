@@ -43,13 +43,31 @@ attach mode against a browser that already has it installed.
 
 Two routes upstream documents.
 
-### 2a. `--browser-url` (manual port) — DEAD against a consent-mode browser
+### Which route — the two modes fail in opposite directions
 
-**Read this before reaching for it.** A browser whose debugging was switched on from
-`chrome://inspect/#remote-debugging` serves the CDP WebSocket but **404s every `/json/*`
-path**, and `--browser-url` must GET `/json/version` to discover the WebSocket URL. It
-therefore cannot attach at all — measured 2026-09-07 on Chromium 152 *and* Opera Air
-[F-NO-JSON-HTTP]. Use **2b** unless the browser was started with the launch flag.
+**Neither flag works in both modes.** Measured 2026-09-07 on Opera Air, the same build in
+each mode:
+
+| Browser mode | `/json/*` | `DevToolsActivePort` | `--browser-url` | `--autoConnect` |
+|---|---|---|---|---|
+| `chrome://inspect` consent | **404** | fresh | ❌ dead | ✅ works |
+| `--remote-debugging-port` launch flag | **200** | **STALE** | ✅ works | ❌ dead |
+
+`--browser-url` needs `/json/version`, which consent mode does not serve
+[F-NO-JSON-HTTP]. `--autoConnect` trusts `DevToolsActivePort`, whose line 2 a launch-flag
+relaunch leaves pointing at a **dead** socket [F-DEVTOOLSACTIVEPORT-STALE].
+
+**So probe, never assume.** `/json/version` is authoritative *when it answers*, because it
+carries the live `webSocketDebuggerUrl` rather than a cached copy. Fall back to the file
+only when nothing answers — which is exactly the mode in which the file is fresh. That is
+what `nix-mcp-chrome-devtools` (`modules/shared/mcp.nix`) and `browserSocket()` in
+`scripts/lib/cdp.mjs` both do, and what `devtools-doctor.sh` reports.
+
+### 2a. `--browser-url` (manual port) — for a LAUNCH-FLAG browser
+
+Correct, and the better route, when the browser was started with
+`--remote-debugging-port`: the port is pinned by the flag, and `/json/version` hands back
+the live WebSocket URL every time. **Dead against a consent-mode browser.**
 
 ```json
 {
@@ -154,15 +172,21 @@ user-data dir.
 }
 ```
 
+⚠️ **Only for a consent-mode browser.** Against a launch-flag browser the file goes stale
+and this attaches to a dead socket [F-DEVTOOLSACTIVEPORT-STALE] — the symptom is
+`Could not connect to Chrome … Cause: Unexpected server response: 404` while the browser
+is plainly running. Probe `/json/version` first and use 2a when it answers.
+
 **`--userDataDir` redirects where `--autoConnect` looks for `DevToolsActivePort`**
 [F-AUTOCONNECT-USERDATADIR]. Without it the lookup goes to the stable Chrome channel dir and
 fails with `Could not find DevToolsActivePort for chrome at …/Google/Chrome/DevToolsActivePort`
 — that error message is itself the proof the flag is doing the redirect. Pass the **user-data
 dir** (the one holding `DevToolsActivePort` and `Default/`), not the `Default/` profile inside it.
 
-This is the only attach route that survives a browser restart, because the port **and** the
-browser WebSocket UUID both change every launch. It is what `modules/shared/mcp.nix`
-declares, and why that module configures a directory rather than a port.
+In consent mode this is the only route that survives a restart, because the port **and**
+the browser WebSocket UUID both change every launch. `modules/shared/mcp.nix` therefore
+configures **both** a probe port and a directory, and picks between this and 2a at spawn
+time rather than committing to either.
 
 With multiple profiles it connects to the **default** profile and can reach every open
 window in it.
