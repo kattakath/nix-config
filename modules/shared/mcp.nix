@@ -477,6 +477,41 @@ let
       args = [ ];
     };
   }
+  # Opt-in (default off): Google's Chrome DevTools Protocol server, in ATTACH mode
+  # against a browser already listening on 127.0.0.1:9222. Companion to the
+  # in-repo `chrome-devtools` plugin, which carries the measured behaviour.
+  #
+  # WHY OFF BY DEFAULT, and why attach rather than launch:
+  #  - mcp-proxy spawns every hosted server at startup. In attach mode this one
+  #    needs a browser that was STARTED with --remote-debugging-port; with none
+  #    listening it is a server that cannot work, exactly like localAdapter above.
+  #  - Enabling it is a SECURITY DECISION, not a convenience one. Upstream's own
+  #    warning about that port: "Any application on your machine can connect."
+  #    Anything local can then read page content, cookies and session state and
+  #    act as the signed-in user — and this Mac's browser carries the Apple
+  #    Passwords native host and live sessions. `nix-chromium-debug` therefore
+  #    exists as a deliberate, temporary act, not a login item.
+  #
+  # Telemetry is ON by default upstream; both flags below turn it off. The CrUX
+  # one is the load-bearing half — without it, performance tools send the URLs
+  # being traced to Google.
+  #
+  # Not pinned to a version: `@latest` is upstream's own documented invocation and
+  # the tool surface is still moving (1.8.0 ships 29 of the ~57 tools its docs
+  # describe — measured 2026-09-06). A pin here would freeze a set that is
+  # actively growing; the plugin's references/tools.md says how to re-measure.
+  // lib.optionalAttrs cfg.chromeDevtools.enable {
+    chrome-devtools = {
+      command = npx;
+      args = [
+        "-y"
+        "chrome-devtools-mcp@latest"
+        "--browser-url=http://127.0.0.1:${toString cfg.chromeDevtools.port}"
+        "--no-usage-statistics"
+        "--no-performance-crux"
+      ];
+    };
+  }
   # TRUE simultaneous multi-account Gmail — one server process PER configured
   # email (see mkGmailMcp above for why, and why the list itself lives in the
   # private nix-personal flake, not here). Empty cfg.gmail.accounts (the
@@ -704,6 +739,37 @@ in
       '';
     };
 
+    chromeDevtools = {
+      enable = lib.mkEnableOption ''
+        Google's chrome-devtools-mcp in the gateway, in ATTACH mode against a browser
+        already listening on 127.0.0.1:<port>. Performance traces, network, console with
+        source-mapped stacks, and the viewport emulation (`resize_page`) that automates
+        the userscript method's otherwise-manual "reach state B" step. OFF by default for
+        TWO independent reasons, either of which alone would justify it: (1) mcp-proxy
+        spawns every hosted server at startup, and in attach mode this one is useless
+        without a browser started via `nix-chromium-debug`; (2) enabling it is a SECURITY
+        decision — the remote-debugging port is an UNAUTHENTICATED control channel, and
+        upstream states plainly that "Any application on your machine can connect", i.e.
+        any local process can then read that browser's pages, cookies and session state
+        and act as the signed-in user. This Mac's browser holds the Apple Passwords
+        native host and live logins, so treat a debug-enabled session as exposed for its
+        whole lifetime and quit it when finished. Telemetry flags are set for you
+        (--no-usage-statistics, --no-performance-crux); the second is the one that
+        otherwise sends TRACED URLS to Google's CrUX API. Behaviour, the measured tool
+        surface and both attach modes: the in-repo `chrome-devtools` plugin'';
+
+      port = lib.mkOption {
+        type = lib.types.port;
+        default = 9222;
+        description = ''
+          Loopback port the browser exposes CDP on, and the port `nix-chromium-debug`
+          launches with. 9222 is the de-facto default every CDP client assumes. It binds
+          to 127.0.0.1 only — never expose or forward it; that turns a local-only
+          debugging channel into a remote one.
+        '';
+      };
+    };
+
     localAdapter.enable = lib.mkEnableOption ''
       the LOCAL WordPress MCP Adapter server (the wp-env clone at http://localhost:8888)
       in the gateway. OFF by default: that endpoint only exists while the local clone is
@@ -715,6 +781,41 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    # `nix-chromium-debug` — the ONLY sanctioned way to open the CDP port.
+    #
+    # Why a wrapper at all, rather than a declared browser flag: the .app is a
+    # Homebrew cask, so `programs.chromium.package` is null, and upstream's own
+    # assertion then FORBIDS `commandLineArgs` — there is no Nix wrapper to pass
+    # them to (see modules/shared/chromium.nix). --remote-debugging-port is also a
+    # STARTUP flag, so it could not have been a persistent setting anyway.
+    #
+    # Deliberately a hand-run command and NOT a launchd agent or a login item: the
+    # port is an unauthenticated control channel over a browser holding live logins
+    # and the Apple Passwords native host. It should exist for a session, on
+    # purpose, and die with the window — never come back at boot.
+    home.packages = lib.mkIf cfg.chromeDevtools.enable [
+      (pkgs.writeShellScriptBin "nix-chromium-debug" ''
+        set -euo pipefail
+        port="''${1:-${toString cfg.chromeDevtools.port}}"
+
+        # Relaunching while the same profile is already running silently reuses the
+        # existing process and the port never opens — indistinguishable from the
+        # flag being ignored, and it cost real debugging time to learn. Refuse
+        # instead of producing a browser that looks right and is not.
+        if /usr/bin/pgrep -x "Chromium" >/dev/null 2>&1; then
+          echo "nix-chromium-debug: Chromium is already running." >&2
+          echo "  --remote-debugging-port only applies at STARTUP, so attaching to this" >&2
+          echo "  process is impossible. Quit Chromium completely, then re-run." >&2
+          exit 1
+        fi
+
+        echo "nix-chromium-debug: opening CDP on 127.0.0.1:$port" >&2
+        echo "  WARNING: any local process can now drive this browser and read its" >&2
+        echo "  pages, cookies and session state. Quit Chromium when you are done." >&2
+        exec /usr/bin/open -na "Chromium" --args "--remote-debugging-port=$port"
+      '')
+    ];
+
     # ---- Server side: the mcp-proxy launchd user agent -------------------------
     launchd.agents.mcp-gateway = {
       enable = true;

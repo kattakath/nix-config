@@ -416,6 +416,12 @@ in
       # The .app is the Homebrew cask; nixpkgs has no darwin build to point at.
       # Leaving this null also forbids `commandLineArgs` (upstream assertion) —
       # correct, since a cask-installed browser has no Nix wrapper to pass them to.
+      # Consequence worth knowing before looking for it here: a browser LAUNCH flag
+      # cannot be declared in this module at all. The one the fleet needs,
+      # `--remote-debugging-port` for chrome-devtools-mcp, is therefore a hand-run
+      # `nix-chromium-debug` wrapper in modules/shared/mcp.nix — which is also the
+      # right shape for it, since that port is an unauthenticated control channel
+      # that should live for one session, not persist.
       package = null;
 
       extensions =

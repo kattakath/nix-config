@@ -1090,6 +1090,18 @@ Today, four:
   of the three copies is writable) stays in `.claude/skills/userscript-author/`, which now
   delegates the method rather than restating it. Split 2026-09-06; before that, everything was
   fused to this repo and none of it was usable by anyone else.
+- **`plugins/chrome-devtools`** — driving a real Chrome over the DevTools Protocol via
+  Google's `chrome-devtools-mcp`: performance traces, network, console with source-mapped
+  stacks, and the viewport emulation (`resize_page`) that automates `userscript-author`'s
+  otherwise-manual "reach state B" step. The two cross-reference rather than merge — this one
+  is general-purpose browser debugging and useful with no userscript in sight. Carries a
+  `devtools-doctor.sh` preflight and a **measured** tool catalogue, which matters: the
+  published `chrome-devtools-mcp@1.8.0` exposes **29** of the ~57 tools its generated docs
+  describe (the docs are written from `main`), so the entire Extensions group and 12 of 13
+  Memory tools do not exist yet — measured 2026-09-06 in both attach and launch mode. The
+  server itself is opt-in in `modules/shared/mcp.nix`
+  (`services.mcpGateway.chromeDevtools.enable`), in ATTACH mode against
+  `nix-chromium-debug`; read that option's warning before enabling it.
 - **`plugins/seargraph`** — the `seargraph-langgraph` **subagent** (LangGraph pipeline
   design/implementation for the SEARGraph project: fidelity metrics, constrained optimization,
   iterative refinement, character embeddings). It is a plugin rather than a vendored skill
