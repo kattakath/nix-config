@@ -224,6 +224,26 @@
       "ismail@kattakath.com"
       "ismailkattakath@gmail.com"
     ];
+
+    # Chrome DevTools Protocol, in ATTACH mode against `nix-chromium-debug`.
+    # One flag turns on BOTH the gateway server and that launcher — they are
+    # gated together on purpose, so there is no state where something can reach
+    # the browser without the operator having opened the port deliberately.
+    #
+    # Safe to leave on permanently, MEASURED 2026-09-06 rather than assumed: with
+    # nothing listening on the port, the server still answers `initialize` and
+    # stays alive (45s, no exit) — it only touches a browser lazily, when a tool
+    # needs one. So it does NOT dark the gateway the way a server that exits at
+    # startup would (the failure mode postgres and localAdapter warn about in
+    # modules/shared/mcp.nix). Individual tool calls simply fail until a browser
+    # is listening; `devtools-doctor.sh` in the chrome-devtools plugin says which
+    # of the three causes it is.
+    #
+    # What is NOT persistent, deliberately: the port itself. `nix-chromium-debug`
+    # is hand-run and dies with the browser window, because an open
+    # remote-debugging port is an unauthenticated control channel over a profile
+    # holding the Apple Passwords native host and live logins.
+    services.mcpGateway.chromeDevtools.enable = true;
   };
 
   # ---- OpenDesign: kill the in-app self-updater --------------------------------
