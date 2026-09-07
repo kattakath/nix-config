@@ -178,20 +178,23 @@ let
     # cannot do is scope the agent — it installs globally into ~/.claude/agents/, whereas
     # a plugin is enabled per project.
     "seargraph@${localMarketplaceName}"
-    # Portable userscript authoring: the measure-before-you-select method, the browser
-    # probes, the pre-vetted patterns, the Greasy Fork rulebook, plus a runnable metadata
-    # linter that `checks.<system>.userscripts` ALSO runs — one rulebook, no drift. A
-    # plugin rather than a vendored skill because it carries a /userscript command and is
-    # meant to be publishable OUTSIDE this fleet; the Nix-specific half (declaring a script
-    # in home.nix, activation, the install click) stays in .claude/skills/userscript-author.
-    "userscript-author@${localMarketplaceName}"
-    # Chrome DevTools Protocol driving via Google's chrome-devtools-mcp: performance
-    # traces, network, console, and the viewport emulation that automates
-    # userscript-author's manual "resize the window to reach state B" step. Separate
-    # plugin, not folded into that one — it is general-purpose browser debugging and
-    # useful with no userscript in sight; the two cross-reference instead.
-    # The server itself is wired in modules/shared/mcp.nix (attach mode, opt-in).
-    "chrome-devtools@${localMarketplaceName}"
+    # Userscript authoring AND live-page diagnosis, merged: the measure-before-you-select
+    # method, the browser probes, the pre-vetted patterns, the Greasy Fork rulebook, the
+    # CDP diagnosis surface, and a runnable metadata linter that
+    # `checks.<system>.userscripts` ALSO runs — one rulebook, no drift.
+    #
+    # These were TWO plugins that merely cross-referenced, until one verb needed both
+    # halves in a single motion: PICK. The operator points at an element, the agent
+    # measures that exact node, reads its cascade, prototypes the override live, dates it
+    # in the WHY block, lints it, and proves it after install. Under the split that motion
+    # crossed the plugin boundary four times and needed a seam FILE to narrate the
+    # crossing — a seam that needs its own document is a merge that has not happened yet.
+    # The cost, stated plainly: the diagnosis half is no longer adoptable alone.
+    #
+    # The Nix-specific half (declaring a script in home.nix, activation, the install click)
+    # stays in .claude/skills/userscript-author. The MCP server it drives is wired in
+    # modules/shared/mcp.nix (attach mode, opt-in, off by default).
+    "page-lab@${localMarketplaceName}"
   ];
 
   # The marketplace this repo serves ITSELF, from the top-level plugins/ directory: a Nix
