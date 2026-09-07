@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "llmstxt",
-      "description": "Author spec-compliant llms.txt (and the de-facto llms-full.txt) from any body of written work \u2014 docs, a site, a repo, or a developer accomplishment document.",
+      "description": "Author spec-compliant llms.txt (and the de-facto llms-full.txt) from any body of written work — docs, a site, a repo, or a developer accomplishment document.",
       "version": "0.1.0",
       "author": {
         "name": "Ismail Kattakath"
@@ -27,9 +27,9 @@
       "source": "./llmstxt"
     },
     {
-      "name": "userscript-author",
-      "description": "Author and maintain Violentmonkey/Tampermonkey userscripts for Chromium to a greasyfork.org-publishable standard \u2014 a measure-before-you-select method, pre-vetted code patterns, browser probes, and a runnable Greasy Fork metadata linter.",
-      "version": "0.1.0",
+      "name": "page-lab",
+      "description": "Author Violentmonkey userscripts and diagnose live pages from one place — a measure-before-you-select method, a two-way element picker driven over the Chrome DevTools Protocol, performance/network/console diagnosis, and a Greasy Fork readiness linter.",
+      "version": "0.2.0",
       "author": {
         "name": "Ismail Kattakath"
       },
@@ -37,38 +37,19 @@
       "keywords": [
         "userscript",
         "violentmonkey",
-        "tampermonkey",
         "greasyfork",
-        "chromium",
+        "chrome",
+        "devtools",
+        "cdp",
         "browser"
       ],
       "homepage": "https://greasyfork.org/en/help/code-rules",
       "license": "MIT",
-      "source": "./userscript-author"
-    },
-    {
-      "name": "chrome-devtools",
-      "description": "Drive and inspect a real Chrome over the DevTools Protocol via chrome-devtools-mcp \u2014 performance traces, network waterfalls, console with source-mapped stacks, viewport/device emulation \u2014 with the attach modes, privacy flags and measured tool availability written down.",
-      "version": "0.1.0",
-      "author": {
-        "name": "Ismail Kattakath"
-      },
-      "category": "browser",
-      "keywords": [
-        "chrome",
-        "devtools",
-        "cdp",
-        "performance",
-        "debugging",
-        "browser"
-      ],
-      "homepage": "https://github.com/ChromeDevTools/chrome-devtools-mcp",
-      "license": "MIT",
-      "source": "./chrome-devtools"
+      "source": "./page-lab"
     },
     {
       "name": "seargraph",
-      "description": "Agent-development helper for SEARGraph \u2014 self-evolving agentic image restoration on LangGraph (fidelity metrics, constrained optimization, iterative refinement, character embeddings).",
+      "description": "Agent-development helper for SEARGraph — self-evolving agentic image restoration on LangGraph (fidelity metrics, constrained optimization, iterative refinement, character embeddings).",
       "version": "0.1.0",
       "author": {
         "name": "Ismail Kattakath"

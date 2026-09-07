@@ -1,0 +1,41 @@
+{
+  "schema": "page-lab/pick@1",
+  "status": "picked",
+  "route": "kapture-focus",
+  "fidelity": "sampled",
+  "measuredAt": "2026-09-07",
+  "url": "https://photos.google.com/search/_tra_",
+  "origin": "https://photos.google.com",
+  "expectedOrigin": "https://photos.google.com",
+  "originVerified": true,
+  "pageMutated": true,
+  "target": {
+    "tag": "button",
+    "id": "kapture-7",
+    "classCount": 3,
+    "path": "#kapture-7",
+    "rect": {
+      "x": 1180,
+      "y": 96,
+      "w": 40,
+      "h": 40
+    },
+    "text": "Open info panel",
+    "reachability": "document",
+    "selectorSource": "kapture-minted",
+    "candidates": [
+      {
+        "sel": "#kapture-7",
+        "root": "document",
+        "matches": 1
+      }
+    ]
+  },
+  "shipBlockers": [
+    "kapture-minted-selector"
+  ],
+  "notes": [
+    "selector was minted by Kapture: it is real and unique but evaporates on reload, and stamping it dirtied the DOM — re-measure state A before any HTML diff",
+    "reachability was not measured on this route — assumed document"
+  ]
+}
