@@ -7,7 +7,11 @@
 | **claude-in-chrome** | `javascript_tool` (`action: "javascript_exec"`) with a `tabId` from `tabs_context_mcp` (or `tabs_create_mcp` + navigate) | its tools **loaded in this session** — they are not always |
 | **Kapture** (`mcp__kapture__*`) | `list_tabs` → `evaluate` on that tab | the `npx kapture-mcp bridge` server **and** DevTools open + connected **on that tab** |
 
-Both are ordinary browser-automation MCP servers; declare whichever your setup provides. If **neither** is reachable, say so and stop — **do not substitute a guessed selector for a measurement.** Ask the operator to paste the probe into the browser console themselves and hand back the JSON; that is a valid measurement, just not one you took.
+A third route is **`chrome-devtools-mcp`** (`evaluate_script`), covered by the companion
+`chrome-devtools` plugin. It is the only one of the three that can also *reach* state B on
+its own, via `resize_page` — the others run a probe but cannot resize the viewport.
+
+All are ordinary browser-automation MCP servers; declare whichever your setup provides. If **neither** is reachable, say so and stop — **do not substitute a guessed selector for a measurement.** Ask the operator to paste the probe into the browser console themselves and hand back the JSON; that is a valid measurement, just not one you took.
 
 ## Honest caveats — read before blaming the page
 
