@@ -1281,6 +1281,15 @@
           claude-otel-doctor = (pkgsFor system).callPackage ./packages/claude-otel-doctor.nix { };
         }))
 
+        # `page-lab-pick` — the two-way element picker from the page-lab plugin, as a
+        # CLI on a PINNED Node. Node 20 on this fleet has no global WebSocket, so the raw
+        # CDP client would otherwise need --experimental-websocket; nodejs_22 removes the
+        # flag from the fleet path. See packages/page-lab-pick.nix for why this exists at
+        # all when `node <the script>` already works.
+        (nixpkgs.lib.genAttrs allSystems (system: {
+          page-lab-pick = (pkgsFor system).callPackage ./packages/page-lab-pick.nix { };
+        }))
+
         # Deterministic ADB wired/wireless operator + scrcpy mirroring for a
         # physical Android device (adb/scrcpy resolved at runtime from the
         # android-platform-tools/scrcpy Homebrew formulae, hosts/macos.nix).
@@ -1896,7 +1905,7 @@
           # path, so the tension is real and resolved, not a lint. The lint does
           # enforce the attribution half.
           # The rules themselves are NOT inline here. They live in the portable
-          # `userscript-author` plugin's `scripts/userscript-meta-lint.sh`, and this
+          # `page-lab` plugin's `scripts/userscript-meta-lint.sh`, and this
           # check just runs it against this repo's tree. One rulebook, so CI, the
           # plugin's own users and a by-hand run on nix-personal's private scripts
           # cannot drift apart — the alternative was a second copy of the same
@@ -1910,8 +1919,59 @@
                 ];
               }
               ''
-                bash ${self}/plugins/userscript-author/scripts/userscript-meta-lint.sh \
+                bash ${self}/plugins/page-lab/scripts/userscript-meta-lint.sh \
                   ${self}/userscripts
+                touch "$out"
+              '';
+
+          # page-lab's OWN integrity, distinct from the userscripts gate above:
+          # that one asks "are the shipped scripts publishable", this one asks
+          # "is the plugin itself sound". Three things, each a real past failure
+          # mode rather than ceremony:
+          #  1. every .mjs/.js parses and every .sh is syntactically valid — a
+          #     plugin script is never executed by a build, so a syntax error
+          #     otherwise ships silently and only surfaces mid-session.
+          #  2. the envelope fixtures self-test, INCLUDING the two NEGATIVE ones.
+          #     A validator that cannot reject is decoration; this is the check
+          #     that keeps the pick contract load-bearing.
+          #  3. containment: the rename gate. A stale `plugins/userscript-author`
+          #     or `chrome-devtools@` path is invisible until someone follows it.
+          page-lab =
+            (pkgsFor system).runCommand "page-lab"
+              {
+                nativeBuildInputs = with (pkgsFor system); [
+                  nodejs
+                  bash
+                ];
+              }
+              ''
+                cd ${self}
+                rc=0
+                for f in plugins/page-lab/scripts/*.mjs plugins/page-lab/scripts/lib/*.mjs plugins/page-lab/scripts/*.js; do
+                  node --check "$f" || { echo "  ✘ does not parse: $f" >&2; rc=1; }
+                done
+                for f in plugins/page-lab/scripts/*.sh; do
+                  bash -n "$f" || { echo "  ✘ bad shell syntax: $f" >&2; rc=1; }
+                done
+
+                node plugins/page-lab/scripts/pick-validate.mjs --self-test \
+                  plugins/page-lab/scripts/fixtures || rc=1
+
+                # The rename gate. Two exemptions, both principled:
+                #  - facts.md RECORDS the old names as history; that is what a
+                #    dated fact table is for.
+                #  - flake.nix is the file CARRYING this grep, so the pattern
+                #    matches its own source. Its correctness is proven a better
+                #    way anyway: the `userscripts` check above actually RUNS the
+                #    linter from the post-merge path, so a stale path there is a
+                #    build failure, not a missed grep.
+                if grep -rn 'plugins/userscript-author\|plugins/chrome-devtools\|chrome-devtools@' \
+                     --exclude-dir=.git --exclude=facts.md --exclude=flake.nix . ; then
+                  echo "  ✘ stale pre-merge path or plugin id above" >&2
+                  rc=1
+                fi
+
+                [ "$rc" = 0 ] || { echo "page-lab integrity check FAILED" >&2; exit 1; }
                 touch "$out"
               '';
         }

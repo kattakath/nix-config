@@ -7,7 +7,7 @@ description: >
   (`modules/shared/home.nix`). Use when asked to "make <site> do X", "write a
   userscript for <site>", "fix my <site> script", or "this site's X annoys me".
   The authoring METHOD lives in the portable `userscript-author` plugin
-  (`plugins/userscript-author/`); this skill owns only what is specific to this
+  (`plugins/page-lab/`); this skill owns only what is specific to this
   fleet — the Nix declaration, the gate, and how a script reaches the browser here.
 ---
 
@@ -15,10 +15,10 @@ description: >
 
 **Method is not here.** Measuring, diffing, replaying, the code patterns, the probes and the
 Greasy Fork rulebook all live in the **`userscript-author` plugin**
-([`plugins/userscript-author/`](../../../plugins/userscript-author/)), which is deliberately
+([`plugins/page-lab/`](../../../plugins/page-lab/)), which is deliberately
 portable — it stops at a lint-clean `.user.js` and knows nothing about Nix. Invoke it as the
-`userscript-author:userscript-author` skill, or read
-[its SKILL.md](../../../plugins/userscript-author/skills/userscript-author/SKILL.md).
+`page-lab:userscript-author` skill, or read
+[its SKILL.md](../../../plugins/page-lab/skills/userscript-author/SKILL.md).
 
 **This skill owns the delivery half the plugin cannot:** declaring the script in Nix, this
 repo's gate, and the install reality on this Mac.
@@ -79,12 +79,12 @@ nix flake check
 ```
 
 `checks.<system>.userscripts` **runs the plugin's linter** —
-`plugins/userscript-author/scripts/userscript-meta-lint.sh` — so the rulebook lives in exactly
+`plugins/page-lab/scripts/userscript-meta-lint.sh` — so the rulebook lives in exactly
 one place and CI, the plugin and any other consumer cannot drift apart. Its contract is in the
 plugin README; what it deliberately does **not** check is `patterns.md` § 10.
 
 - [ ] If `nix` is unavailable: run the linter directly
-      (`plugins/userscript-author/scripts/userscript-meta-lint.sh userscripts/`),
+      (`plugins/page-lab/scripts/userscript-meta-lint.sh userscripts/`),
       `nix-instantiate --parse` the changed `.nix`, and state the rest is **CI-deferred**.
 - [ ] **A private (nix-personal) script is NOT covered by that check.** It globs
       `${self}/userscripts/*.user.js` — this repo's tree only. Owning the *option* does not gate
@@ -148,7 +148,7 @@ EOF
 ## Publish
 
 The rulebook is the plugin's
-[`greasyfork.md`](../../../plugins/userscript-author/skills/userscript-author/greasyfork.md).
+[`greasyfork.md`](../../../plugins/page-lab/skills/userscript-author/greasyfork.md).
 The only fleet-specific part is the sync source for a script that lives here:
 
 ```

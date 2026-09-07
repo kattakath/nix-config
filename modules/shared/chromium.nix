@@ -314,17 +314,20 @@ in
           keyed to one CLI install, so whichever client that manifest points at is
           the only one that can drive it. A session where those tools are simply
           absent has no way to ask for them.
-        - **Kapture** is a *DevTools-panel + local-bridge* client. Any MCP client
-          that speaks to the bridge gets the tabs, so it survives a session that
-          claude-in-chrome's tools never loaded into.
+        - **Kapture** is a *local-bridge* client. Any MCP client that speaks to the
+          bridge gets the tabs, so it survives a session that claude-in-chrome's
+          tools never loaded into.
 
         Two consequences worth knowing before relying on it:
 
-        1. **Its per-tab gate is DevTools, not the extension list.** A tab is
-           invisible to the bridge until you open DevTools on it and connect from
-           the Kapture panel. Installing this extension grants *nothing* on its
-           own — which is also why the broad `debugger` permission is less alarming
-           here than it reads.
+        1. **Its per-tab gate is a manual connect, not the extension list.** A tab
+           is invisible to the bridge until it is connected — from the extension's
+           **toolbar popup** toggle (verified against the installed 1.2.1
+           `popup.js`, which sends `connect`/`disconnect` and mentions DevTools
+           nowhere); the DevTools panel is one surface for this, not a requirement.
+           Installing this extension grants *nothing* on its own — which is also
+           why the broad `debugger` permission is less alarming here than it reads.
+           A running bridge with zero connected tabs is **dark**, not ready.
         2. **The MCP server half is NOT declared by this repo.** It lives in
            `~/.claude.json` at user scope as `npx -y kapture-mcp@latest bridge` —
            imperative and unpinned, so the bridge can change under a session

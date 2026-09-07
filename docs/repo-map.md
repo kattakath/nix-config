@@ -844,7 +844,7 @@ nothing. Measured 2026-08-31: nix-personal's `civitai-declutter` had shipped wit
 assertions by hand.
 
 **Authoring path — two layers since 2026-09-06, driven by `/userscript`; never freehand.**
-The **method** is the portable [`plugins/userscript-author`](../plugins/userscript-author/)
+The **method** is the portable [`plugins/page-lab`](../plugins/page-lab/)
 (probes, patterns, Greasy Fork rulebook, the metadata linter — it knows nothing about Nix); the
 **delivery** is the project skill
 [`userscript-author`](../.claude/skills/userscript-author/SKILL.md) (the `home.nix` line, the
@@ -1075,33 +1075,32 @@ changes — activation keys the marketplace re-pin (and a reinstall of the copie
 `~/.claude/plugins/cache`) off exactly that, so an in-repo plugin can never serve a previous
 generation's content.
 
-Today, four:
+Today, three:
 
 - **`plugins/llmstxt`** — `llms.txt` authoring skill + `/llmstxt` command + a stdlib-only spec
   linter; see `plugins/llmstxt/README.md`.
-- **`plugins/userscript-author`** — the **portable** half of userscript work: the
+- **`plugins/page-lab`** — userscript authoring AND live-page diagnosis in one unit: the
   measure-before-you-select method, four browser probes, the pre-vetted code patterns, the
-  Greasy Fork rulebook, a `/userscript` command, and `scripts/userscript-meta-lint.sh`. It is a
-  plugin on the SECOND half of the rule below — publishable outside this fleet — rather than
-  because it needs a plugin-only capability; the `/userscript` command satisfies the first half
-  too. **`checks.<system>.userscripts` runs that same linter**, so CI, the plugin's own users,
-  and a by-hand run over nix-personal's private scripts share ONE rulebook and cannot drift.
-  The Nix-specific half (declaring a script in `home.nix`, `activate`, the install click, which
-  of the three copies is writable) stays in `.claude/skills/userscript-author/`, which now
-  delegates the method rather than restating it. Split 2026-09-06; before that, everything was
-  fused to this repo and none of it was usable by anyone else.
-- **`plugins/chrome-devtools`** — driving a real Chrome over the DevTools Protocol via
-  Google's `chrome-devtools-mcp`: performance traces, network, console with source-mapped
-  stacks, and the viewport emulation (`resize_page`) that automates `userscript-author`'s
-  otherwise-manual "reach state B" step. The two cross-reference rather than merge — this one
-  is general-purpose browser debugging and useful with no userscript in sight. Carries a
-  `devtools-doctor.sh` preflight and a **measured** tool catalogue, which matters: the
-  published `chrome-devtools-mcp@1.8.0` exposes **29** of the ~57 tools its generated docs
-  describe (the docs are written from `main`), so the entire Extensions group and 12 of 13
-  Memory tools do not exist yet — measured 2026-09-06 in both attach and launch mode. The
-  server itself is opt-in in `modules/shared/mcp.nix`
-  (`services.mcpGateway.chromeDevtools.enable`), in ATTACH mode against
-  `nix-chromium-debug`; read that option's warning before enabling it.
+  Greasy Fork rulebook, the GM_* portability matrix, a two-way element **picker**, CDP
+  diagnosis (performance / network / console), the `/userscript` + `/devtools` + `/pick`
+  commands, and `scripts/userscript-meta-lint.sh`. **`checks.<system>.userscripts` runs that
+  same linter**, so CI, the plugin's own users, and a by-hand run over nix-personal's private
+  scripts share ONE rulebook and cannot drift.
+  **Merged 2026-09-07 from `userscript-author` + `chrome-devtools`.** They were split on
+  2026-09-06 and cross-referenced, which held only while neither needed the other mid-motion.
+  The verb that broke it is **pick**: the operator points at an element, the agent measures
+  that exact node, reads its cascade, prototypes the override live, dates it in the `WHY`
+  block, lints it, and proves it after install — a motion that crossed the boundary four times
+  and needed a seam FILE to narrate the crossing. The cost, stated plainly: the diagnosis half
+  is no longer adoptable on its own.
+  Carries a `devtools-doctor.sh` preflight, a `page-route.sh` front door that probes the five
+  routes (raw CDP / chrome-devtools-mcp / claude-in-chrome / Kapture / operator-paste), and a
+  **measured** fact table (`references/facts.md`) where every falsifiable claim has an ID, a
+  date and a re-measure recipe — because `chrome-devtools-mcp@1.8.0` exposes **29** of the ~57
+  tools its generated docs describe (those are written from `main`), so the entire Extensions
+  group and 12 of 13 Memory tools do not exist yet. The MCP server itself is opt-in in
+  `modules/shared/mcp.nix` (`services.mcpGateway.chromeDevtools.enable`), in ATTACH mode
+  against `nix-chromium-debug`; read that option's warning before enabling it.
 - **`plugins/seargraph`** — the `seargraph-langgraph` **subagent** (LangGraph pipeline
   design/implementation for the SEARGraph project: fidelity metrics, constrained optimization,
   iterative refinement, character embeddings). It is a plugin rather than a vendored skill
