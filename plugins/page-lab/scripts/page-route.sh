@@ -109,9 +109,17 @@ count_pages() {
 }
 
 # The build string cannot identify the browser — ungoogled-chromium reports Chrome/<ver>
-# with no vendor field, so only the serving process path settles it [F-UGC-NO-VENDOR].
+# with no vendor field, so only the serving process settles it [F-UGC-NO-VENDOR].
+#
+# Socket owner FIRST, argv second. A browser switched on from chrome://inspect has no
+# --remote-debugging-port anywhere in its argv [F-NO-JSON-HTTP], so the argv scan alone
+# reports "unidentified" for a browser that is plainly serving the port.
 serving_app() {
   local out=''
+  if have lsof; then
+    out=$(lsof -nP -iTCP:"$CDP_PORT" -sTCP:LISTEN 2>/dev/null | awk 'NR==2 {print $1}')
+    [ -n "$out" ] && { printf '%s\n' "$out"; return 0; }
+  fi
   if have pgrep; then
     out=$(pgrep -fl -- '--remote-debugging-port' 2>/dev/null)
   else
@@ -170,8 +178,22 @@ case "$?" in
     }
     ;;
   2)
-    cdp_state=UNKNOWN
-    cdp_detail='port accepts a connection but the body is unreadable (curl not on PATH)'
+    # The port accepts TCP but /json/version gave nothing back. Two very different
+    # causes, and calling both "unknown" hid a working browser behind a curl excuse.
+    if have curl; then
+      # curl IS present, so the endpoint really answered non-2xx: this is the
+      # chrome://inspect consent mode, which serves the CDP WebSocket and 404s every
+      # /json/* path [F-NO-JSON-HTTP]. The route is UP; only the HTTP page count is
+      # unavailable, and raw CDP resolves the endpoint from DevToolsActivePort.
+      cdp_state=UP
+      app=$(serving_app)
+      cdp_detail="consent mode — CDP live, /json/* is 404 so page count is unavailable"
+      [ -n "$app" ] && cdp_detail="$cdp_detail, served by $app"
+      cdp_detail="$cdp_detail; --browser-url cannot attach here, use --autoConnect --userDataDir"
+    else
+      cdp_state=UNKNOWN
+      cdp_detail='port accepts a connection but the body is unreadable (curl not on PATH)'
+    fi
     ;;
   *) ;;
 esac
