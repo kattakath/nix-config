@@ -185,6 +185,13 @@ let
     # meant to be publishable OUTSIDE this fleet; the Nix-specific half (declaring a script
     # in home.nix, activation, the install click) stays in .claude/skills/userscript-author.
     "userscript-author@${localMarketplaceName}"
+    # Chrome DevTools Protocol driving via Google's chrome-devtools-mcp: performance
+    # traces, network, console, and the viewport emulation that automates
+    # userscript-author's manual "resize the window to reach state B" step. Separate
+    # plugin, not folded into that one — it is general-purpose browser debugging and
+    # useful with no userscript in sight; the two cross-reference instead.
+    # The server itself is wired in modules/shared/mcp.nix (attach mode, opt-in).
+    "chrome-devtools@${localMarketplaceName}"
   ];
 
   # The marketplace this repo serves ITSELF, from the top-level plugins/ directory: a Nix
