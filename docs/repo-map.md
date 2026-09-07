@@ -1100,7 +1100,13 @@ Today, three:
   tools its generated docs describe (those are written from `main`), so the entire Extensions
   group and 12 of 13 Memory tools do not exist yet. The MCP server itself is opt-in in
   `modules/shared/mcp.nix` (`services.mcpGateway.chromeDevtools.enable`), in ATTACH mode
-  against `nix-chromium-debug`; read that option's warning before enabling it.
+  against **Opera Air**; read that option's warning before enabling it. It attaches via
+  `--autoConnect --userDataDir`, **not** `--browser-url`: measured 2026-09-07, a browser put
+  into debugging mode from `chrome://inspect/#remote-debugging` (Chromium 152 and Opera Air
+  alike) serves the CDP WebSocket but 404s every `/json/*` path, so the `--browser-url` route
+  every CDP client assumes cannot attach at all. `--autoConnect` reads the browser-chosen port
+  and per-launch WebSocket UUID out of the profile's `DevToolsActivePort`, which is why the
+  option is a **directory** and not a port.
 - **`plugins/seargraph`** — the `seargraph-langgraph` **subagent** (LangGraph pipeline
   design/implementation for the SEARGraph project: fidelity metrics, constrained optimization,
   iterative refinement, character embeddings). It is a plugin rather than a vendored skill
