@@ -434,11 +434,11 @@ in
         StandardViewSettings = finderLegacyViewSettings;
       };
 
-      # Menu bar: keep visible always.
+      # Menu bar: never show (always hidden).
       # AutoHideMenuBarOption maps to System Settings > Menu Bar dropdown:
       # 0 = Always, 1 = On Desktop Only, 2 = In Full Screen Only, 3 = Never
       CustomUserPreferences."com.apple.controlcenter" = {
-        AutoHideMenuBarOption = 0;
+        AutoHideMenuBarOption = 3;
       };
     };
 
