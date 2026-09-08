@@ -391,8 +391,8 @@ in
         # Expanded save/print panels by default.
         NSNavPanelExpandedStateForSaveMode = true;
         NSNavPanelExpandedStateForSaveMode2 = true;
-        # Auto-hide the menu bar at the top.
-        _HIHideMenuBar = true;
+        # Keep the menu bar always visible.
+        _HIHideMenuBar = false;
       };
 
       # Tap-to-click on the trackpad.
