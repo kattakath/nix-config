@@ -434,14 +434,11 @@ in
         StandardViewSettings = finderLegacyViewSettings;
       };
 
-      # Menu bar: keep visible always (not hidden, not fullscreen-only).
-      # These are NSGlobalDomain keys nix-darwin doesn't model as typed options,
-      # so they go through CustomUserPreferences (raw defaults write).
-      CustomUserPreferences.NSGlobalDomain = {
-        # _HIHideMenuBar: 0 = not hidden (menu bar visible), 1 = hidden/auto-hide
-        _HIHideMenuBar = 0;
-        # AppleMenuBarVisibleInFullscreen: 1 = visible in fullscreen, 0 = not visible
-        AppleMenuBarVisibleInFullscreen = 1;
+      # Menu bar: keep visible always.
+      # AutoHideMenuBarOption maps to System Settings > Menu Bar dropdown:
+      # 0 = Always, 1 = On Desktop Only, 2 = In Full Screen Only, 3 = Never
+      CustomUserPreferences."com.apple.controlcenter" = {
+        AutoHideMenuBarOption = 0;
       };
     };
 
