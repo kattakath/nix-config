@@ -71,8 +71,9 @@ Pinned input revisions; commit every change, never hand-edit.
 
 **The input diet — `follows` is not optional bookkeeping here.** 33 root inputs pull a
 transitive graph, and every duplicate node is another fetch, another eval, another thing
-`flake-checker` has to reason about. The lock is held at **68 nodes**; it was **72** before the
-dedupe pass. Two mechanisms, and conflating them is the trap:
+`flake-checker` has to reason about. The lock is held at **65 nodes**; it was **72** before the
+dedupe pass, and **69** before ADR-002 began absorbing the satellites (each one that comes
+in-tree takes its own node and its private deps with it). Two mechanisms, and conflating them is the trap:
 
 | Form | Means | Use when |
 |---|---|---|
@@ -96,7 +97,7 @@ What the current lock drops, and the evidence for each:
 | `deploy-rs.inputs.utils.inputs.systems.follows = "terranix/systems"` | dedupe | Same: flake-utils' `outputs = { self, systems }` is a *closed* pattern doing `import systems`. |
 | `deploy-rs.inputs.flake-compat.follows = ""` | drop | Non-flake `import` shim only. |
 | `git-hooks.inputs.flake-compat.follows = ""` | drop | `outputs = { self, nixpkgs, ... }` never destructures it; `default.nix`/`shell.nix` read the rev from git-hooks' *own vendored* `flake.lock`, and we only ever call `lib.<system>.run`. |
-| `firmware-secrets.inputs.flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs"` + `follows = "firmware-secrets/flake-parts"` on `keychain-secrets` / `local-rag` / `vast-provision` | dedupe | Our four extracted flakes all call `flake-parts.lib.mkFlake` (forced — never droppable) at the **same rev**, yet each shipped its own flake-parts *and* its own `nixpkgs.lib`: 8 nodes for one library, now 1. The `nixpkgs-lib` half is upstream-blessed — `terranix` already carries that exact line, and flake-parts documents the override behind a 23.05 floor our `nixpkgs.lib` clears by three years. |
+| `flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs"` + `follows = "flake-parts"` on `keychain-secrets` / `local-rag` / `vast-provision` | dedupe | Our extracted flakes all call `flake-parts.lib.mkFlake` (forced — never droppable) at the **same rev**, yet each shipped its own flake-parts *and* its own `nixpkgs.lib`: 8 nodes for one library, now 1. The `nixpkgs-lib` half is upstream-blessed — `terranix` already carries that exact line, and flake-parts documents the override behind a 23.05 floor our `nixpkgs.lib` clears by three years. **The anchor moved twice:** it was `firmware-secrets/flake-parts` (an arbitrary satellite) until ADR-002 wave 2 made this flake a flake-parts consumer and declared it directly, which is the only reason wave 4 could delete the `firmware-secrets` input without breaking three unrelated `follows` at lock time. |
 
 **Deliberately left duplicated.** Not everything that looks like a duplicate is one:
 
@@ -347,7 +348,8 @@ Two subtrees are **not** platform splits and are governed by ADR-002
   A capsule registers itself as `flake.modules.<class>.<name>`, flake-parts' own module registry
   (`extras/modules.nix`); that attribute is deliberately **not** re-exported as a public flake
   output — see `modules/parts/touchup.nix` for the decision and the one-line path back.
-  Today: `cloudflared-connector` (ADR-002 wave 3). Waves 4-6 add the other six.
+  Today: `cloudflared-connector` (ADR-002 wave 3) and `firmware-secrets` (wave 4). Waves 5-6
+  add the other five.
 
 ### `modules/shared/`
 
@@ -742,8 +744,9 @@ Two subtrees are **not** platform splits and are governed by ADR-002
 
 ### NixOS modules that are not in `modules/nixos/`
 
-One is an in-tree capsule (`modules/features/`), one is still a flake input. Both are
-threaded into `hosts/nixpi.nix` through `mkNixos` specialArgs.
+Both are in-tree capsules (`modules/features/`), and both are threaded into
+`hosts/nixpi.nix` through `mkNixos` specialArgs as an already-resolved MODULE — never as a
+flake, and never imported by path from the host.
 
 - **`modules/features/cloudflared-connector/`** (an IN-TREE CAPSULE, not an input — it was
   the `nix-cloudflared-connector` flake until ADR-002 wave 3 absorbed it) — opt-in
@@ -759,23 +762,27 @@ threaded into `hosts/nixpi.nix` through `mkNixos` specialArgs.
   key, breaking decryption and killing the tunnel — the sole remote path in.
   Reached through the flake's own `flake.modules.nixos` registry (flake-parts
   `extras/modules.nix`), threaded into `hosts/nixpi.nix` by `mkNixos` specialArgs as
-  `cloudflaredConnectorModule` — a MODULE, unlike `firmware-secrets` below, which is still a
-  flake. Its own eval check came with it (`checks.aarch64-linux.cloudflared-connector-module`),
+  `cloudflaredConnectorModule`. Its own eval check came with it
+  (`checks.aarch64-linux.cloudflared-connector-module`),
   and `checks.aarch64-linux.nixpi-firmware-names` pins the four unit/`/run` names the next SD
   flash depends on, because a rename there is invisible to `nix flake check` AND to
   `--dry-activate` on an already-provisioned card.
-- **`services.firmwareProvisioning`** — reusable `files.<name>` mechanism: each entry becomes
-  a oneshot that, once `/boot/firmware` is mounted, copies an operator-planted file off the
-  FAT `FIRMWARE` partition into a root-only `/run` file before its consumer starts (`required`
-  fails the unit if absent; else it skips cleanly). This module was **EXTRACTED from this repo
-  into a standalone MIT flake** — `nix-firmware-secrets`
-  (github:kattakath/nix-firmware-secrets) — and `nixpi` now consumes it as a flake input
-  (`firmware-secrets.nixosModules.default`, threaded via `mkNixos` specialArgs in `flake.nix`,
-  imported in `hosts/nixpi.nix`) rather than a vendored copy; the repo dogfoods its own
-  extraction. `nixpi` uses it for BOTH the Cloudflare connector token AND Wi-Fi
-  (`wpa_supplicant.conf`) — host-key-independent secrets a fresh SD flash needs, since agenix
-  (which binds to the rotated host key) would lock us out. Planted from macOS by the
-  `nixpi-provision`/`nixpi-flash` apps.
+- **`modules/features/firmware-secrets/`** (an IN-TREE CAPSULE — it was extracted from this
+  repo into the standalone MIT `nix-firmware-secrets` flake, then absorbed back by ADR-002
+  wave 4) — `services.firmwareProvisioning`, a reusable `files.<name>` mechanism: each entry
+  becomes a oneshot that, once `/boot/firmware` is mounted, copies an operator-planted file off
+  the FAT `FIRMWARE` partition into a root-only `/run` file before its consumer starts
+  (`required` fails the unit if absent; else it skips cleanly). `nixpi` uses it for BOTH the
+  Cloudflare connector token AND Wi-Fi (`wpa_supplicant.conf`) — host-key-independent secrets a
+  fresh SD flash needs, since agenix (which binds to the rotated host key) would lock us out.
+  Planted from macOS by the `nixpi-provision`/`nixpi-flash` apps. Reached through
+  `flake.modules.nixos` and threaded into `hosts/nixpi.nix` by `mkNixos` specialArgs as
+  `firmwareSecretsModule`; its own eval check came with it
+  (`checks.aarch64-linux.firmware-secrets-module`). **Two things did NOT come along:** the
+  satellite's `apps/firmware-plant.nix` (a second, unused copy of what
+  `packages/nixpi-provision.nix` already does — two copies of one procedure is two chances for
+  the planted basenames to drift) and its `examples/pi-cloudflared.nix` (a stale sketch;
+  `hosts/nixpi.nix` is the real example, and it is evaluated on every PR).
 
 ### Web serving on `nixpi`
 
@@ -799,8 +806,8 @@ Core package set:
 - **`nixpi-provision.nix`** — macOS-only: the four
   `nixpi-flash`/`nixpi-provision`/`nixpi-wifi-creds`/`nixpi-vault-token`
   `writeShellApplication` flake apps that flash the SD card and plant the token+Wi-Fi onto its
-  FIRMWARE partition — the executable companion to the `nix-firmware-secrets` flake's
-  `services.firmwareProvisioning`.
+  FIRMWARE partition — the executable companion to the `modules/features/firmware-secrets/`
+  capsule's `services.firmwareProvisioning`.
 - **`key-recovery.nix`** — macOS-only: the `key-backup`/`key-recover` apps, stage 2 of Mac
   bootstrap/recovery, shellcheck-gated. `key-recover` clones, HARD-FAILS unless the login
   `id -un` == the flake's `loginName` (via the `#identity.loginName` output), then RESTORES

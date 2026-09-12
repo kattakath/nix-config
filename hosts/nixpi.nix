@@ -26,24 +26,23 @@
   lib,
   pkgs,
   hostedSites,
-  firmware-secrets,
   cloudflaredConnectorModule,
+  firmwareSecretsModule,
   ...
 }:
 {
   imports = [
-    # `services.cloudflared-connector` is an IN-TREE CAPSULE
-    # (modules/features/cloudflared-connector/), absorbed from the standalone
-    # flake by ADR-002 wave 3. It arrives already resolved to a MODULE, through
-    # the flake's own `flake.modules.nixos` registry — a capsule is only ever
-    # entered through its flake-module.nix, never imported by path from here.
-    #
-    # `services.firmwareProvisioning` still comes from a standalone extracted
-    # flake (github:kattakath/nix-firmware-secrets) — wave 4's capsule. Both are
-    # threaded in via mkNixos specialArgs; only the SHAPE differs (module vs
-    # flake), which is why the two argument names differ.
+    # Both of these are IN-TREE CAPSULES
+    # (modules/features/cloudflared-connector/ and modules/features/firmware-secrets/),
+    # absorbed from standalone flakes by ADR-002 waves 3 and 4. Each arrives
+    # already resolved to a MODULE, through the flake's own `flake.modules.nixos`
+    # registry and mkNixos's specialArgs — a capsule is only ever entered through
+    # its flake-module.nix, never imported by path from here. That is also why
+    # neither name ends in `-secrets`/`-connector`: a leftover
+    # `firmware-secrets.nixosModules.default` fails loudly rather than
+    # half-resolving.
     cloudflaredConnectorModule
-    firmware-secrets.nixosModules.default
+    firmwareSecretsModule
   ];
 
   networking.hostName = "nixpi";
@@ -80,7 +79,7 @@
   # SSH over the Cloudflare Tunnel — loginless, token-based connector. Both the
   # connector token AND the Wi-Fi credentials are delivered from the SD card's FAT
   # FIRMWARE partition via `services.firmwareProvisioning`
-  # (the firmware-secrets flake), NOT agenix. WHY NOT agenix: it
+  # (the firmware-secrets capsule), NOT agenix. WHY NOT agenix: it
   # encrypts to nixpi's SSH HOST key, but a fresh SD flash mints a new host key, so
   # the ciphertext stops decrypting and the tunnel dies — and with SSH being
   # cert-only OVER that tunnel, unrecoverably (the reflash lockout). A file on the
