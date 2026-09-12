@@ -1,12 +1,14 @@
 # Study: extracting the media stack into `kattakath/nix-media-cli`
 
-> **HISTORICAL.** The extraction SHIPPED on 2026-09-05 — see
-> [`kattakath/nix-media-cli`](https://github.com/kattakath/nix-media-cli). Two of its
+> **HISTORICAL.** The extraction SHIPPED on 2026-09-05 into
+> [`kattakath/nix-media-cli`](https://github.com/kattakath/nix-media-cli) — and ADR-002 wave 5
+> absorbed that flake back in-tree on 2026-09-12 as `modules/features/media-cli/`, so the repo
+> design in § 4 below describes an archived repo. Two of its
 > conclusions were overtaken by events: stages 1-2 proved unnecessary as prerequisites, and
 > the two media-*adjacent* tools it recommended leaving behind (`fidelity-enhance`,
 > `obs-fb-setup`) moved too, opt-in. It also MISSED one coupling — the `nix-*` launchd arg0
 > came from this repo's vendored hm-launchd fork, not upstream. The `media-<verb>` renaming
-> proposal is the one part still open, and it is now that repo's call.
+> proposal is the one part still open, and with the absorption it is this repo's call again.
 
 The answer to [`nix-media-cli-extraction-grant.md`](nix-media-cli-extraction-grant.md).
 Grounded at `959d747` (2026-09-05, `main`); every claim below was re-verified against

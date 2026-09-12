@@ -618,32 +618,6 @@
         "type": "github"
       }
     },
-    "media-cli": {
-      "inputs": {
-        "flake-parts": [
-          "flake-parts"
-        ],
-        "home-manager": [
-          "home-manager"
-        ],
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1788724368,
-        "narHash": "sha256-Ufu6xlytlwSC20C+MIEnmKkmlLRg+AM3TWVAlXxe+LM=",
-        "owner": "kattakath",
-        "repo": "nix-media-cli",
-        "rev": "a3b04401a8b0b7fcc85495c567e832400cbb7578",
-        "type": "github"
-      },
-      "original": {
-        "owner": "kattakath",
-        "repo": "nix-media-cli",
-        "type": "github"
-      }
-    },
     "nix": {
       "inputs": {
         "flake-parts": "flake-parts",
@@ -854,7 +828,6 @@
         "import-tree": "import-tree",
         "local-rag": "local-rag",
         "mcp-servers-nix": "mcp-servers-nix",
-        "media-cli": "media-cli",
         "nix-darwin": "nix-darwin",
         "nix-homebrew": "nix-homebrew",
         "nix-vscode-extensions": "nix-vscode-extensions",
