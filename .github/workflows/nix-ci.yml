@@ -79,7 +79,13 @@ jobs:
   build:
     name: build (${{ matrix.name }})
     runs-on: ${{ matrix.runs-on }}
-    timeout-minutes: 30 # lint + eval only; no toplevel builds
+    # 45, not 30: headroom bought BEFORE ADR-002's collapse lands ~25 absorbed
+    # satellite checks on this leg. The failure being avoided is a deadlock, not
+    # a slow build — if the budget is breached first, the PR that raises the
+    # timeout cannot itself get through the merge queue. Job names are untouched
+    # on purpose: `required-checks` and `Scan for secrets` are named in branch
+    # protection, so renaming either silently un-requires it.
+    timeout-minutes: 45 # lint + eval only; no toplevel builds
     strategy:
       fail-fast: false
       matrix:
