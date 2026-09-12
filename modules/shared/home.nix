@@ -249,6 +249,15 @@ let
   # resend@claude-plugins-official plugin (local.claudePlugins.marketplaces below). See packages/resend-cli.nix.
   resendCli = pkgs.callPackage ../../packages/resend-cli.nix { };
 
+  # The hook supervisor as CLIs. Scripts come from the PINNED marketplace input, so the
+  # bytes Claude Code is offered as a plugin and the bytes this fleet executes are the
+  # same. Declared here (not taken from the flake's own `packages` output) because
+  # home.packages resolves against `pkgs`; modules/parts/packages.nix exports the same
+  # two for `nix run`/`nix build`, from this same file.
+  superhookCli = pkgs.callPackage ../../packages/superhook.nix {
+    superhookSrc = "${kattakath-claude-plugins}/plugins/superhook";
+  };
+
   # rclip, with its runtime-dependency CHECK disabled — not its dependencies changed.
   # rclip 3.3.0's wheel declares `coremltools` as a runtime dep on macOS (the Apple
   # Silicon fast path for indexing), but the nixpkgs package does not provide it, so
@@ -668,6 +677,21 @@ in
         # about userscripts. The MCP server page-lab drives is wired in
         # modules/shared/mcp.nix (attach mode, opt-in, off by default).
         "page-lab"
+        # claude-code-nix: the two Nix PostToolUse hooks this repo used to carry in
+        # .claude/hooks — auto-stage a .nix write (flakes evaluate the GIT tree, so an
+        # unstaged file is invisible to the evaluator) and flag a hardcoded per-user home
+        # path in a .nix VALUE. They arrive as PLUGIN hooks now (the plugin's own
+        # hooks/hooks.json, against ''${CLAUDE_PLUGIN_ROOT}), which is why the two entries
+        # were deleted from .claude/settings.json rather than repointed — leaving both
+        # would fire each hook twice. Enabling globally is safe: both are no-ops in a repo
+        # with no .nix files.
+        #
+        # `superhook` is deliberately NOT in this list even though the same marketplace
+        # ships it. It is a WRAPPER that settings.json must name in FRONT of an inner
+        # hook, which no plugin can express, so this fleet consumes it as the `superhook`
+        # PATH package instead (packages/superhook.nix). Enabling the plugin too would add
+        # a second copy of /superhook-review next to .claude/commands/superhook-review.md.
+        "claude-code-nix"
       ];
     };
   };
@@ -760,6 +784,8 @@ in
       stripe-cli # Stripe CLI (`stripe`) — API calls, webhook forwarding (`stripe listen`), event triggers; auth is a one-time `stripe login` browser OAuth (config in ~/.config/stripe, never in git/store — same one-time-CLI-login convention as gh/hf/docker). Pairs with the stripe@claude-plugins-official plugin (local.claudePlugins.marketplaces above)
       resendCli # `resend` — the official Resend CLI (npx-wrapped, not yet in nixpkgs), authenticated non-interactively via RESEND_API_KEY from the login Keychain (packages/resend-cli.nix). Pairs with the resend@claude-plugins-official plugin (local.claudePlugins.marketplaces above)
       wp-cli # WordPress CLI (`wp`) — manage WordPress installs/plugins/themes/db from the shell; nixpkgs-native (bundles its own PHP), so no Homebrew `wp-cli` formula or `curl … wp-cli.phar` install (single source per the reuse/declarative convention)
+      superhookCli.superhook # Hook supervisor named by .claude/settings.json as `superhook <Event> -- <inner hook>`: crash safety + a 3-strikes loop breaker. A bare command because that file is checked in and can hold neither a store path nor ''${CLAUDE_PLUGIN_ROOT} (packages/superhook.nix)
+      superhookCli.superhook-digest # SessionStart companion: summarises superhook.log incidents since the last review. Reads the LOG, not the native hook_execution_complete counters, which are structurally blind to the two events it counts
       pandoc # Universal doc converter — nixpkgs-native on aarch64-darwin (no Homebrew needed); backs the docx/pptx/xlsx skills' `pandoc` dependency (see programs.claude-code.skills NOTE below)
       poppler-utils # pdftoppm/pdftotext/pdfimages CLI — NOT `poppler` (that's the glib-bindings library, no binaries); moved here from the macos Homebrew `poppler` formula (nixpkgs is the single source per modules/darwin/homebrew.nix's dedup comment); backs the pdf/docx/pptx skills
     ]

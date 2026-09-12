@@ -168,8 +168,11 @@ exposes a `nix-<kebab>` `arg0` — never a bare `sh`/`python3`),
 surface before writing custom Nix, and cite the result).
 
 **Hooks** (`.claude/hooks/`): `stop-gate.js` + `pretooluse-bash-guard.js` (both wrapped by
-`superhook.js`), the `*-digest.js` SessionStart nudges, `autostage-nix.js`,
-`nix-home-path-lint.js`. What their messages mean:
+`superhook`), and the `*-digest.js` SessionStart nudges. **`superhook` is now a PATH
+package** (`packages/superhook.nix`) built from the pinned marketplace input, because a
+checked-in `settings.json` can hold neither a store path nor `${CLAUDE_PLUGIN_ROOT}`;
+`autostage-nix` and `nix-home-path-lint` left entirely — they arrive as PLUGIN hooks from
+`claude-code-nix@kattakath`. What their messages mean:
 [`docs/claude-hook-messages.md`](docs/claude-hook-messages.md).
 
 **MCP servers**: one localhost `mcp-proxy` gateway (`modules/shared/mcp.nix`, darwin-only) on
@@ -195,7 +198,8 @@ surface). There is **no project `.mcp.json`**. Inventory + gotchas:
   TARGET keys are `$HOME`-relative by definition; env vars like
   `BUKU_DEFAULT_DBDIR = "$HOME/Developer/…"`; data dirs). Those must be `$HOME`/XDG-relative,
   **never a hardcoded `/Users/<name>` or `/home/<name>`** (such a literal in a `.nix` *value* —
-  not a comment — is the real anti-pattern to reject, and `nix-home-path-lint.js` flags it).
+  not a comment — is the real anti-pattern to reject, and the `claude-code-nix` plugin's
+  `nix-home-path-lint` hook flags it).
 - **Systems:** every new output must evaluate on both `aarch64-darwin` and `aarch64-linux`, or
   be explicitly gated.
 - **Inputs:** bump only via `nix flake update` (or `update-input <name>`); commit the resulting

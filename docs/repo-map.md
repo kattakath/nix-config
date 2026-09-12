@@ -174,7 +174,7 @@ Three rules, each mechanising a convention that was **prompt-only** until now:
 
 | Rule | Lang | Mechanises | Notes |
 |---|---|---|---|
-| `nix-hardcoded-home-path` | nix | CLAUDE.md § Conventions "Paths — two axes" (runtime half) | The gate half of `.claude/hooks/nix-home-path-lint.js`, which is PostToolUse and so only ever sees *Claude's* writes — a human or flake-bump commit slipped through. Matches `string_fragment` nodes only, so comments and Nix source path literals are exempt by construction rather than by heuristic. Keep the regex in sync with the hook. |
+| `nix-hardcoded-home-path` | nix | CLAUDE.md § Conventions "Paths — two axes" (runtime half) | The gate half of the [`claude-code-nix`](https://github.com/kattakath/claude-plugins/tree/main/plugins/claude-code-nix) plugin's `nix-home-path-lint` hook, which is PostToolUse and so only ever sees *Claude's* writes — a human or flake-bump commit slipped through. Matches `string_fragment` nodes only, so comments and Nix source path literals are exempt by construction rather than by heuristic. Keep the regex in sync with the hook. |
 | `launchd-bare-interpreter-arg0` | nix | [`.claude/rules/launchd-naming.md`](../.claude/rules/launchd-naming.md) | Flags `ProgramArguments[0]` / `Program` pointing at a bare `sh`/`bash`/`python3`/`node`/… so Background Task Manager can't list a fleet agent as generic persistence. Only sees units authored *here*; the three known upstream `/bin/sh` daemons live in no `.nix` file and must not be renamed. |
 | `hook-json-parse-must-be-guarded` | javascript | the "never wedge a turn" invariant every `.claude/hooks/*.js` header states | An unguarded `JSON.parse` of untrusted event JSON throws and surfaces as a hook error. Scoped by `files:` to the hooks. First mechanical check those ~1.3k lines have ever had — `claude-config-lint.yml` checks frontmatter, never hook JS. |
 
@@ -1111,7 +1111,7 @@ included — evaluates them.
   `evalModules` fixture. `nix-hardcoded-home-path` is severity **error**, so it was scoped first:
   a `not` clause naming three non-operator users (`admin`, `tester`, `me`), each with its reason
   in the rule header and each proved in the rule-test's `valid` list while every real operator
-  home stays in `invalid`. `.claude/hooks/nix-home-path-lint.js` carries the same three names.
+  home stays in `invalid`. The `claude-code-nix` plugin's `nix-home-path-lint` hook carries the same three names.
 - **Checks:** five eval checks carried verbatim, five build checks folded into one
   `tart-vms-packages`, plus a NEW `tart-vms-inert` — `compose.nix` had always ASSERTED IN PROSE
   that these modules are inert in every composition, and nothing measured it.
@@ -1462,20 +1462,25 @@ content-hashed into the store — see `CLAUDE.md` § Code Style on the two path 
   Cloudflare-API-call / Cloudflare-docs / desktop-commander-nudge / approved-CLI policy that
   used to live as a `type: "prompt"` LLM-judged hook; see the file header for the 2026-08-19
   incident that motivated the switch.
-- Both are wrapped by **`superhook.js`** (crash-safety + loop-breaking + logging — the sole
+- Both are wrapped by **`superhook`** (crash-safety + loop-breaking + logging — the sole
   supervisor for command-type decision hooks). It structurally CANNOT wrap `type: "prompt"`
   hooks, which is why the remaining `Write|Edit` secret-detection gate in
   `.claude/settings.json` stays unsupervised prompt-based — that one is a genuine semantic
   judgment call, unlike the Bash gate's mostly-syntactic rules.
-- **`superhook-digest.js`** — SessionStart digest of supervisor findings.
+- **`superhook-digest`** — SessionStart digest of supervisor findings. Both it and the
+  wrapper are PATH packages built from the pinned `kattakath-claude-plugins` input
+  (`packages/superhook.nix`); they are no longer files in `.claude/hooks/`.
 - **`routing-review-digest.js`** — SessionStart nudge for unreviewed
   `user_temporary`/`user_permanent` Claude Code routing decisions; mirrors
-  `superhook-digest.js` exactly, threshold-gated, see
+  `superhook-digest` exactly, threshold-gated, see
   [`claude-code-observability-runbook.md`](claude-code-observability-runbook.md).
 - **`fleet-doctor-digest.js`** — SessionStart nudge when `/fleet-doctor` hasn't run in a while;
   reads only a local timestamp, no network/git calls, so it stays fast on every session start.
-- **`autostage-nix.js`** — PostToolUse git-purity net.
-- **`nix-home-path-lint.js`** — PostToolUse, `.nix` only: flags a hardcoded
+- **`autostage-nix`** — PostToolUse git-purity net. EXTRACTED 2026-09-12 to the
+  [`claude-code-nix`](https://github.com/kattakath/claude-plugins/tree/main/plugins/claude-code-nix) plugin; it arrives as a
+  plugin hook, which is why `.claude/settings.json` no longer lists it (keeping both would
+  fire it twice).
+- **`nix-home-path-lint`** — same plugin, same extraction. PostToolUse, `.nix` only: flags a hardcoded
   `/Users/<name>/`/`/home/<name>/` runtime-path VALUE per the "Paths — two axes" convention —
   advisory, not a hard gate.
 
