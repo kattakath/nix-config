@@ -23,6 +23,25 @@
 # rejected as untrusted). Plugin install state therefore stays Claude-owned
 # mutable ~/.claude, like a gh/hf one-time login — the same "let the tool own
 # its own state" trade this repo makes for grokMcp.
+#
+# AND WHY NOT THE SIBLING OPTION, `programs.claude-code.plugins` (same file,
+# options.nix:150) — the half this note used to leave unexamined. It is an
+# attrsOf (package|path) that SYMLINKS each plugin into configDir/skills/ and
+# loads it as a personal plugin: fully declarative, no activation script, no CLI
+# call, no mutable ~/.claude, and still an attrset, so a private layer would keep
+# the same merge-by-key seam `local.claudePlugins.marketplaces` gives it today.
+# On the motto's own terms that is the off-the-shelf option and this module is
+# the hand-rolled one.
+#
+# It is NOT adopted, and the reason is scope, not preference: it installs plugin
+# DIRECTORIES and has no concept of a marketplace. This repo's plugins/ tree is a
+# marketplace on purpose — a publishable artifact others can add by URL — and
+# `plugins` would silently drop that, turning a shareable marketplace into three
+# private symlinks. Re-open this if either becomes true: upstream teaches
+# `marketplaces` to accept a directory pin (which would retire this module
+# outright), or the fleet stops caring about publishing plugins/ (which would
+# make `plugins` strictly better). Measured against pinned home-manager
+# 2026-09; re-grep after a bump rather than trusting this line.
 {
   pkgs,
   lib,
