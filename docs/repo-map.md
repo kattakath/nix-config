@@ -33,17 +33,31 @@ Single source of truth; platform divergence lives in `modules/`, never in ad-hoc
 
 ### `flake.nix`
 
-Pins `nixpkgs` + `nix-darwin` + `home-manager` + `treefmt-nix` + `git-hooks` +
-`raspberry-pi-nix` + `nix-vscode-extensions` + `nix-homebrew` + `agenix` + Claude Code skill
-inputs (`agent-skills-vercel`, `agent-skills-anthropic`, both `flake = false`).
+**Since ADR-002 wave 2 this file is inputs + ONE `flake-parts.lib.mkFlake` call** — 404 lines,
+down from 2,254. Every output is defined in [`modules/parts/`](#modulesparts--the-flake-engine),
+one file per concern, discovered by `import-tree`. Nothing below moved *semantically*; the
+acceptance test for that wave was an **empty `nix flake show --json` diff** plus byte-identical
+host toplevels.
+
+Pins `nixpkgs` + `nix-darwin` + `home-manager` + `treefmt-nix` + `git-hooks` + **`flake-parts`**
++ **`import-tree`** + `raspberry-pi-nix` + `nix-vscode-extensions` + `nix-homebrew` + `agenix` +
+Claude Code skill inputs (`agent-skills-vercel`, `agent-skills-anthropic`, both `flake = false`).
+**`flake-parts` is a DIRECT input** with `nixpkgs-lib.follows = "nixpkgs"` — it cannot be
+`follows = ""`, because flake-parts does `inherit (nixpkgs-lib) lib` (`lib.nix:12`), so rebinding
+that name to THIS flake makes it the `lib` of a thing with no `lib`. It was already forced and
+undroppable before wave 2 (six of the seven satellites called `mkFlake`); now it is declared here
+rather than borrowed from an arbitrary satellite anchor. **There are no satellite inputs left.**
 
 Exports:
 
 - `darwinConfigurations."macos"` (aarch64-darwin).
 - `nixosConfigurations."nixpi"` / `"nixvm"` (aarch64-linux) — `nixvm` is the throwaway GUI dev
   VM, materialised only via `nix run .#nixvm`.
-- `packages` / `devShells` / `checks` / `formatter` per system via a `forAllSystems` helper.
-- `deploy.nodes.nixpi` — the deploy-rs remote-activation node (see below).
+- `packages` / `devShells` / `checks` / `formatter` per system via flake-parts' `perSystem`
+  (the old `forAllSystems` fold is gone).
+- `deploy.nodes.nixpi` — the deploy-rs remote-activation node (see below). **deploy-rs has no
+  `flakeModule`** (grepped in the pinned source), so this stays hand-written in the freeform
+  `flake` attr, as do `mkDarwin` / `mkNixos` / `mkHomeManagerModule`.
 - `templates.default` (top-level `templates/default/`, distinct from `packages/templates/`'s
   Vast.ai provisioner assets) — `nix flake init -t github:kattakath/nix-config` scaffolds a
   tiny consumer fleet flake (identity override + host deltas over `lib.mkDarwin`), the
@@ -58,7 +72,7 @@ The devcontainer image is the sole exception: it also builds `x86_64-linux` (via
 `devcontainerSystems`) so it runs on x86_64 GitHub Codespaces.
 
 **Identity** (`loginName = "ismail"`, `domainName = "kattakath.com"`, `fullName`, `userEmail`)
-is defined once as `let` bindings (`identityArgs`) and threaded through
+is defined once in `modules/parts/identity.nix` (`identityArgs`) and threaded through
 `specialArgs`/`extraSpecialArgs`. `mkDarwin` takes an optional per-host `identity` override
 (and `mkHomeManagerModule` is a function of it) so a host *could* run under a different
 persona, but nothing in the fleet uses it today — `macos` and `nixpi` both inherit
@@ -71,10 +85,24 @@ Pinned input revisions; commit every change, never hand-edit.
 
 **The input diet — `follows` is not optional bookkeeping here.** 32 root inputs pull a
 transitive graph, and every duplicate node is another fetch, another eval, another thing
-`flake-checker` has to reason about. The lock is held at **59 nodes**; it was **72** before the
-dedupe pass, and **69** before ADR-002 began absorbing the satellites (each one that comes
-in-tree takes its own node and its private deps with it — five so far, 2 nodes each:
-cloudflared-connector, firmware-secrets, keychain-secrets, vast-provision, tart-vms). Two mechanisms, and conflating them is the trap:
+`flake-checker` has to reason about. The lock is held at **56 nodes**; it was **72** before the
+dedupe pass, and **69** before ADR-002 absorbed the satellites. Each absorption takes the
+satellite's own node and its private deps with it:
+
+| Wave | Absorbed | Nodes dropped | Lock after |
+|---|---|---|---|
+| 3 | `cloudflared-connector` | 2 (itself + its private `treefmt-nix`) | 67 |
+| 4 | `firmware-secrets` | 2 | 65 |
+| 4 | `keychain-secrets` | 2 | 63 |
+| 4 | `vast-provision` | 2 | 61 |
+| 5 | `tart-vms` | 2 | 59 |
+| 5 | `media-cli` | **1** — it had already followed all three of its inputs | 58 |
+| 6 | `local-rag` | 2 — itself **plus a SECOND `treefmt-nix`**, the one input it never followed | **56** |
+
+With `local-rag` went the last `follows = "flake-parts"` line. **All seven satellites are
+absorbed; the satellite input count is 0.**
+
+Two mechanisms, and conflating them is the trap:
 
 | Form | Means | Use when |
 |---|---|---|
@@ -333,84 +361,14 @@ All four are safe to commit. Full rules: [`secrets-and-keychain.md`](secrets-and
 Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts.
 
 Two subtrees are **not** platform splits and are governed by ADR-002
-([`monoflake-capsule-adr.md`](monoflake-capsule-adr.md)) rather than by the rule above:
+([`monoflake-capsule-adr.md`](monoflake-capsule-adr.md)) rather than by the rule above. Both get
+their own top-level section below:
 
-- **`modules/parts/`** — the FLAKE ENGINE (identity, systems, compose, hosts, packages, checks,
-  terranix, devshell, deploy, templates, touchup, lib-option, devcontainer, capsules). These are
-  flake-parts modules, discovered by `import-tree`, and they **may reach anywhere** in the tree.
-- **`modules/features/<name>/`** — CAPSULES: the absorbed satellite flakes, one directory each.
-  A capsule is entered **only** through its `flake-module.nix` and **may not reach outside its
-  own directory**. That is mechanical, not a convention:
-  `ast-grep/rules/capsule-must-not-reach-out.yml` (`files: modules/features/**`,
-  `kind: path_expression`, severity `error`) rides the existing `checks.<system>.ast-grep` gate,
-  and `checks.<system>.capsule-registry` (`modules/parts/capsules.nix`) asserts
-  `readDir ./modules/features` equals the set that `import-tree` actually loaded — so a
-  **misnamed entry file cannot silently drop a whole capsule with CI green**.
-  A capsule registers itself as `flake.modules.<class>.<name>`, flake-parts' own module registry
-  (`extras/modules.nix`); that attribute is deliberately **not** re-exported as a public flake
-  output — see `modules/parts/touchup.nix` for the decision and the one-line path back.
-  All seven, absorbed: `cloudflared-connector` (wave 3), `firmware-secrets`, `keychain-secrets`
-  and `vast-provision` (wave 4), `tart-vms` and `media-cli` (wave 5), and `local-rag` (wave 6,
-  the last satellite).
-
-  **`media-cli` is the LARGEST capsule** (4,559 lines, ~1,300 of them the queue) and the one
-  with the narrowest live surface: one option in `modules/shared/home.nix`, and nothing at all
-  in nix-personal. Three things about it are load-bearing and are spelled out in its
-  `flake-module.nix` header: `package-graph.nix` (the satellite's `lib/packages.nix`) is **one
-  copy called twice** — by the entry file for the checks and by `module.nix` for
-  `home.packages` — and it sits at the capsule ROOT rather than under `lib/`, because from
-  `lib/` all eleven `callPackage` lines would have had to be `../packages/`, the same
-  flattening `tart-vms` did; its module builds its **own** `nix-media-queue` wrapper and sets
-  `ProgramArguments` itself, because upstream home-manager's `/bin/sh -c 'wait4path … && exec'`
-  arg0 silently loses TCC read access to the very folders the worker exists to work on; and the
-  launchd table at the top of `module.nix` — `QueueDirectories` / `ProcessType` / `KeepAlive` /
-  `RunAtLoad` / `StartInterval` — is the record that **every queue mechanism is launchd's own**,
-  which is what answers "why hand-roll a job queue" with "we did not". It also carries this
-  repo's only `inert` kill-switch gate for a module every host imports:
-  `checks.<system>.media-cli-inert` asserts that an unset `programs.mediaCli.enable` defines no
-  agent, no session variable, no activation step and no package.
-
-  **`tart-vms` is the capsule with the most LIVE surface** (3,255 lines;
-  `macos` runs three Tart-VM GitHub runners and a GitLab lane off it). Three things about it
-  are load-bearing and are spelled out in its `flake-module.nix` header: its two runner modules
-  go out through the RAW `capsuleModules` seam so the base list gets **paths**, not
-  `deferredModule` wrappers — both `imports = [ ./slots.nix ]` and the module system dedupes by
-  **path identity**; it imports its **own** nixpkgs with the satellite's narrowed
-  `allowUnfreePredicate` (exactly `tart` / `packer` / `tart-guest-agent`) rather than riding a
-  blanket `allowUnfree`, so a fourth unfree package arriving via a nixpkgs bump still fails the
-  build; and its four module files sit at the capsule ROOT rather than in a nested `modules/`,
-  because `..` anywhere under `modules/features/` is an ast-grep error even when it stays inside
-  the capsule.
-
-  It also carries the one **`capsuleSources`** entry (`modules/parts/capsules.nix`): the path of
-  `packages/gitlab-tart.nix`, which `modules/shared/home.nix` `callPackage`s with the **host's**
-  pkgs to put the five `nix-gitlab-tart-*` slot shims on `PATH`. A derivation built from this
-  flake's perSystem pkgs would be a different drv; publishing the path keeps
-  `flake-module.nix` the only thing outside the capsule that names a file inside it.
-
-  **`vast-provision` is the shape-exception, and deliberately so.** It registers NO module at
-  all — it is six `nix run` CLIs, so there is no `module.nix` and no `enable` switch to invent
-  — and it is the one capsule that does **not** own all of its own files: the five assets a
-  rented Vast instance fetches over raw HTTP (`packages/vast-bootstrap.sh`,
-  `packages/templates/provisioner/*`) stay engine-owned, because their repo PATHS are baked
-  into every stored Vast template and moving them 404s a BILLED instance (ADR-002 §4, S2).
-  The engine hands them down as `fleet.vastRawServed`; the boundary rule is what forces that
-  to be a value rather than a `../../../packages/…` path.
-
-  **One capsule does NOT use `flake.modules`, and the reason is measured, not stylistic.**
-  `flake.modules`' element type is `types.deferredModule`, whose merge always wraps a
-  definition in `{ imports = [ … ]; }` (pinned nixpkgs `lib/types.nix`, `deferredModuleWith`),
-  and flake-parts wraps again for any class but `generic` (`extras/modules.nix:14-27`). For a
-  NixOS module that is invisible — the config is attribute-keyed. For a **home-manager** module
-  it is not: `home.packages` is a LIST, its definitions merge in module-collection order, and
-  that order is `buildEnv`'s `paths` order inside `home-manager-path`, i.e. who wins a filename
-  collision. Measured on `macos` in wave 4: routing `keychain-secrets` through `flake.modules`
-  (any class) moved its four CLIs ahead of postgresql and `nix-bedrock-gate` and changed
-  `darwin-system…drv`, with byte-identical package derivations; importing the same path
-  directly restored it exactly. So `modules/parts/capsules.nix` declares a second, internal
-  seam — `capsuleModules.<class>.<name>`, `lazyAttrsOf raw`, which passes a definition through
-  UNWRAPPED — and order-sensitive module classes use that. Same file-level contract either way:
-  `flake-module.nix` is still the only export point.
+- **`modules/parts/`** — the FLAKE ENGINE. It **may reach anywhere** in the tree.
+  → [§ `modules/parts/`](#modulesparts--the-flake-engine)
+- **`modules/features/<name>/`** — the seven CAPSULES (the absorbed satellite flakes). A capsule
+  is entered **only** through its `flake-module.nix` and **may not reach outside its own
+  directory**. → [§ `modules/features/`](#modulesfeatures--the-seven-capsules)
 
 ### `modules/shared/`
 
@@ -925,6 +883,280 @@ public repo passes no `hostedSites` (`[ ]` default), so the public
 private layer. Caddy sits **behind** the Cloudflare Tunnel (tunnel → Caddy on :80), so no
 public IP/port-forward is needed and TLS terminates at Cloudflare's edge (the `http://` prefix
 disables Caddy auto-HTTPS to avoid a redirect loop back through the tunnel).
+
+## `modules/parts/` — the flake engine
+
+**ADR-002 wave 2** moved every flake output out of `flake.nix` and into one file per concern.
+`flake.nix` is now **404 lines of inputs plus a single `flake-parts.lib.mkFlake` call**; the
+engine is here. These are flake-parts modules and they **may reach anywhere** in the tree — that
+is the asymmetry with `modules/features/`, which may not reach out.
+
+They are discovered by **`import-tree`**, not by a hand-written `imports = [ … ]`. One regex with
+an alternation covers both trees:
+
+```nix
+(import-tree.match ".*/(parts/[^/]+|features/[^/]+/flake-module)\\.nix$").addPath ./modules
+```
+
+**The `.match` is mandatory, and one alternation is mandatory too.** `import-tree`'s DEFAULT
+filter is *every* `.nix` file not under `/_` (pinned `default.nix:48`), which would feed
+home-manager and NixOS modules to the flake-parts module system. And `.match` accumulates with
+`and` (pinned `default.nix:234`), so chaining a second `.match` **intersects** the two and loads
+nothing — hence one regex, not two calls.
+
+| File | Owns |
+|---|---|
+| `identity.nix` | `loginName` / `domainName` / `fullName` / `userEmail`, threaded through `specialArgs` — the `identityArgs` that used to be `let` bindings in `flake.nix`. |
+| `systems.nix` | flake-parts' `systems` = the two fleet arches. **`x86_64-linux` is deliberately NOT here** — adding it would silently spawn x86 checks, formatter and apps; the devcontainer reaches it with `withSystem "x86_64-linux"`. |
+| `compose.nix` | `mkDarwin` / `mkNixos` / `mkHomeManagerModule` — **not translated** to flake-parts, kept verbatim as plain Nix functions in the freeform `flake` attr (ADR-001's blast-radius objection, honoured). Also threads each capsule in as a named specialArg. |
+| `hosts.nix` | `darwinConfigurations.macos`, `nixosConfigurations.{nixpi,nixvm}`. |
+| `packages.nix` | `perSystem.packages` + every `apps.*`, and `fleet.vastRawServed` (see `vast-provision` below). |
+| `checks.nix` | The engine's own checks, including `claude-md-budget`, `hm-launchd-drift`, `deploy-schema` and `bedrock-gate-after-loader`. |
+| `capsules.nix` | The capsule registry and its two internal seams — `capsuleModules` and `capsuleSources` — plus `checks.<system>.capsule-registry`. |
+| `terranix.nix` | The `cf-*` / `mcp-public-*` / `hf-*` tofu builders. |
+| `devshell.nix` | `devShells` + the `git-hooks.nix` wiring. |
+| `deploy.nix` | `deploy.nodes.nixpi` (deploy-rs has **no** flakeModule — grepped; this stays hand-written in the freeform `flake` attr). |
+| `templates.nix` | `templates.default`. |
+| `devcontainer.nix` | The image, via `withSystem "x86_64-linux"`. |
+| `lib-option.nix` | The 4-line `mkOption { type = lazyAttrsOf raw; }` declarations for `flake.lib` and `flake.darwinConfigurations`, copied from flake-parts' own `nixosConfigurations.nix:11`. Without them the freeform `types.unique` default would force every seam back into ONE file — silently re-creating the monolith. |
+| `touchup.nix` | What the flake does **not** export. A bare `mkFlake` also emits `legacyPackages`, `nixosModules`, `overlays` and `modules`; this repo has never exported any of them, and the decision (plus the one-line path back) is recorded there. |
+
+## `modules/features/` — the seven capsules
+
+The seven satellite flakes, absorbed in-tree by **ADR-002** and archived at origin. See
+[`monoflake-capsule-adr.md`](monoflake-capsule-adr.md), and **§9 of it first** — the correction
+record supersedes the design where they disagree.
+
+### The boundary is mechanical, not a convention
+
+| Layer | Mechanism | What it catches |
+|---|---|---|
+| File | `ast-grep/rules/capsule-must-not-reach-out.yml` (`files: modules/features/**`, `kind: path_expression`, severity **error**) riding the existing `checks.<system>.ast-grep` gate | a `..` path literal anywhere under a capsule — **even one that stays inside it**, which is why `tart-vms`' four module files and `media-cli`'s `package-graph.nix` sit at the capsule ROOT rather than in a nested `modules/` or `lib/` |
+| Registry | `checks.<system>.capsule-registry` (`modules/parts/capsules.nix`) asserts `readDir ./modules/features` equals the set `import-tree` actually loaded | a **misnamed entry file** silently dropping a whole capsule with CI green (ADR-002 §4, S3). Verified by renaming `flake-module.nix` → `flake-modules.nix`: the check fails with that message. |
+| Option | `lib.evalModules` against a stub host (`darwinStubs`, in `tart-vms`' checks) | an isolation break the two above cannot see — at the cost that the stubs **rot** (ADR-002 §7.7) |
+
+**The gate has an INWARD hole.** `files: modules/features/**` can only see a file *inside* a
+capsule reaching out; it cannot see a file *outside* naming a file *inside*. That is real —
+`modules/shared/home.nix` has to `callPackage` a `tart-vms` file with the **host's** pkgs — and is
+why `capsuleSources` exists (below). ADR-002 §9.3.
+
+### `flake-module.nix` is the only entry, and there are three seams out
+
+Every capsule is entered **only** through `flake-module.nix`. From there it publishes on one of:
+
+| Seam | Type | Used by | Why |
+|---|---|---|---|
+| `flake.modules.<class>.<name>` | flake-parts' own module registry (`extras/modules.nix:32-73`) | `cloudflared-connector`, `firmware-secrets` (both NixOS) | pure reuse; the `_class` stamp comes free |
+| `capsuleModules.<class>.<name>` | `lazyAttrsOf raw` — a definition passed through **UNWRAPPED** (`modules/parts/capsules.nix`) | `keychain-secrets`, `media-cli`, `local-rag` (home-manager), `tart-vms` (darwin) | **measured, not stylistic.** `flake.modules`' element type is `types.deferredModule`, whose merge always wraps in `{ imports = [ … ]; }` (pinned nixpkgs `lib/types.nix`, `deferredModuleWith`), and flake-parts wraps again for any class but `generic`. For a NixOS module that is invisible. For a **home-manager** module it is not: `home.packages` is a LIST, merged in module-collection order = `buildEnv`'s `paths` order = **who wins a filename collision**. Routing `keychain-secrets` through `flake.modules` moved its four CLIs ahead of postgresql and `nix-bedrock-gate` and **changed `darwin-system`'s drvPath**, with byte-identical package derivations. |
+| `capsuleSources.<capsule>.<name>` | a **path**, nothing else | `tart-vms` only (`gitlab-tart.nix`) | the inward hole above: `modules/shared/home.nix` must build it with the HOST's pkgs, and publishing the path keeps `flake-module.nix` the only thing outside the capsule that names a file inside it |
+
+`flake.modules` is deliberately **not** re-exported as a public flake output (`touchup.nix`) —
+the satellites published `nixosModules.*` to strangers; in-tree the only consumer is
+`hosts/nixpi.nix`.
+
+**Two things every capsule dropped on the way in:** its own `treefmt` block and `checks.treefmt`
+(this tree has exactly one `nix fmt`), and its own `formatter` / `nixConfig`.
+
+---
+
+### `cloudflared-connector` (wave 3, 241 lines)
+
+The scaffold capsule — the cleanest of the seven, absorbed first precisely because the wave had
+to build the boundary machinery around it.
+
+- **Owns:** `services.cloudflaredConnector` — a boot-time, **loginless** Cloudflare Tunnel
+  connector for the *remotely-managed (token)* model upstream `services.cloudflared` does not
+  support (it only drives locally-managed tunnels, wanting a credentials JSON and in-repo
+  ingress). The token is read from an `EnvironmentFile`, so it never reaches argv or the
+  world-readable store.
+- **Seam:** `flake.modules.nixos.cloudflared-connector`. Consumed by `hosts/nixpi.nix`.
+- **Checks:** `checks.aarch64-linux.cloudflared-connector-module` (carried over verbatim).
+- **The wave-specific guard it forced:** `checks.aarch64-linux.nixpi-firmware-names` — a rename
+  inside this capsule is invisible to `nix flake check` AND to `--dry-activate` on an
+  already-provisioned card, and only bites on the **next flash (~40 min)**. It pins the four
+  names against the LIVE nixpi config (`firmware-file-cloudflared-token.service`,
+  `firmware-file-wifi.service`, `/run/cloudflared-token`, `/run/wpa_supplicant-firmware.conf`),
+  plus the two ordering edges and the `EnvironmentFile`. 9 assertions; verified it fails readably
+  when the connector unit is renamed.
+- `infra/cloudflare/nixpi-tunnel.nix` is the terranix half and is **untouched** by the
+  absorption: the connector is the client, the tunnel is the account-side object.
+
+### `firmware-secrets` (wave 4, 363 lines)
+
+- **Owns:** reflash-safe secrets for headless NixOS devices. Plant a secret on the device's FAT
+  **firmware** partition from another machine; a boot-time oneshot copies it into a root-only
+  `/run` file **before** the consuming service starts.
+- **Why it cannot be agenix:** agenix and sops-nix decrypt at activation using the machine's
+  **SSH host key**, and re-flashing an SD card **mints a new host key** — so a headless Pi whose
+  only remote path is a tunnel whose token *is* one of those secrets is bricked-until-console
+  after one reflash. This is the fleet's answer, and `secrets/cloudflared-token.age` is
+  operator-only for exactly this reason.
+- **Seam:** `flake.modules.nixos.firmware-secrets`. `module.nix` is **byte-identical** to the
+  satellite's `modules/firmware-provisioning.nix` (verified with `diff` after `nix fmt`).
+- **Checks:** `checks.aarch64-linux.firmware-secrets-module`, carried over verbatim but taking
+  `module` as an **argument** — the capsule is entered downward from `flake-module.nix`, never
+  upward from a leaf, which is the shape the ast-grep rule enforces.
+- **Did NOT come along:** the satellite's `apps/firmware-plant.nix`, a 61-line macOS "cp onto the
+  mounted FAT volume" helper duplicating `packages/nixpi-provision.nix` — the `nixpi-provision`
+  app [`nixpi-sd-flashing-runbook.md`](nixpi-sd-flashing-runbook.md) actually tells the operator
+  to run. Two copies of one procedure is two chances for the planted BASENAMES to diverge.
+
+### `keychain-secrets` (wave 4, 1,336 lines)
+
+- **Owns:** `programs.keychainSecrets` — the `secret set/reveal/rm/ls/exec/copy/fp/bind/unbind/adopt/load`
+  CLI over the macOS login Keychain, plus a home-manager loader that exports registered secrets
+  into **every** shell, including the non-login bash an AI coding agent spawns for its tools.
+  Nothing secret — **not even the key names** — reaches the store or git.
+- **Seam:** `capsuleModules.homeManager.keychain-secrets` (the raw seam; this is the capsule whose
+  measurement produced it).
+- **Checks:** `keychain-secrets-module` and `keychain-secrets-clis` (the satellite's four package
+  checks folded into one — **building a `writeShellApplication` RUNS SHELLCHECK**, and this
+  repo's darwin CI leg builds none of its packages, so dropping them would have been ADR-002
+  §7.4's "highest-cost silent loss").
+- **Two cross-file contracts, now GATED rather than trusted** — this is a security surface:
+  - `programs.keychainSecrets.loaderRelPath` is preserved **byte-identical** (name, type,
+    default), because `modules/darwin/core.nix` derives `launchd.user.envVariables.BASH_ENV` from
+    it **by reference** — the only thing covering a bash spawned by a GUI app or a launchd job.
+    The eval check pins that default as a **LITERAL** rather than reading the option back, so the
+    assertion is not tautological.
+  - `checks.aarch64-darwin.bedrock-gate-after-loader` — the **first-ever** test of the
+    `mkAfter 1500` / `mkOrder 1600` ordering dependency. `modules/shared/claude-bedrock-gate.nix`
+    writes the same three shell-init options at 1600 and must run **after** this loader's
+    `mkAfter` (= 1500), because it READS a variable the loader exports; reversed, it sees an unset
+    variable, does nothing, and Claude Code silently keeps a Bedrock route it cannot reach.
+    Proven to FIRE by flipping 1600 → 1400. **It lives in `modules/parts/checks.nix`, not in the
+    capsule** — a capsule may not reach outside itself, and only the engine sees both halves.
+- **`tests/grammar.sh`** came over verbatim (executable bit intact). It is a **live-Keychain
+  functional test**, deliberately not a flake check — which is exactly why nothing else would
+  have carried it.
+- **`SECURITY.md` did not come as a file.** Half of it was a "report a vulnerability" pointer for
+  strangers; the real half — the store is **AMBIENT**, so any process in the tree including an AI
+  agent can read every exported value with `env` — is merged into
+  [`secrets-and-keychain.md`](secrets-and-keychain.md) as *The threat model*, next to the agenix
+  vault it is the deliberate counterpart to.
+
+### `vast-provision` (wave 4, 806 lines) — the shape-exception
+
+- **Owns:** the six `vast-*` / `runpod-*` GPU-template CLIs. It registers **NO module at all** —
+  it is `nix run` tooling, so there is no `module.nix` and no `enable` switch was invented to
+  look symmetrical.
+- **The one capsule that does NOT own all its own files.** `packages/vast-bootstrap.sh` and
+  `packages/templates/provisioner/*` stay at the **repo root**: their repo PATHS are baked into
+  every stored Vast template as `PROVISIONING_SCRIPT` / `PROVISION_LIB_URL`, and `rev` is
+  `self.rev or "main"`, so a template made from a dirty tree tracks the moving `main`. Move them
+  and a rented, **BILLED** instance boots and provisioning **404s**, with `nix flake check` green
+  (ADR-002 §4, S2). The engine hands them down as `config.fleet.vastRawServed` —
+  as **values**, because the boundary rule forbids a `../../../packages/…` literal.
+- **Four copies became one.** nix-config and the satellite each carried `vast-bootstrap.sh` and
+  `provision-lib.sh`. The survivor is nix-config's, at the contract path, now mode 755 (matching
+  the satellite) so the derivations referencing it are byte-identical.
+- **A check was deleted, and that was correct.** `checks.<system>.vast-lib-drift` existed to diff
+  the two trees; with one tree left it had nothing to diff. Its purpose is now
+  `checks.<system>.vast-scripts-lint`, which **shellchecks the surviving copies** — the ones that
+  actually reach an instance, which nothing had ever linted — and jq-parses the JSON marker. Both
+  systems, as `vast-lib-drift` ran.
+
+### `tart-vms` (wave 5, 3,255 lines) — the most LIVE surface
+
+`macos` runs three Tart-VM GitHub runners and a GitLab lane off this capsule, and both runner
+modules sit in `mkDarwin`'s **base list**, so every darwin composition — nix-personal's
+included — evaluates them.
+
+- **Owns:** `tart.githubRunners.*` (ephemeral Tart-VM-per-job runners), `tart.gitlabRunner`,
+  `tart.vms.*`, `tart.runnerSlots` / `tart.runnerStateDir`, and five packages.
+- **Seam:** `capsuleModules.darwin` — the RAW seam, for a reason independent of `home.packages`
+  ordering: both runner modules do `imports = [ ./slots.nix ]`, and **the module system dedupes
+  by PATH identity**. `deferredModule` would hand the base list two anonymous
+  `{ imports = [ … ] }` wrappers instead of two deduplicable paths.
+- **It imports its OWN nixpkgs** with the satellite's narrowed `allowUnfreePredicate` (exactly
+  `tart` / `packer` / `tart-guest-agent`) rather than riding a blanket `allowUnfree`, so a
+  **fourth** unfree package arriving via a nixpkgs bump still fails the build. The darwin modules
+  keep building against the HOST's pkgs.
+- **`capsuleSources.tart-vms.gitlab-tart`** — the one entry on that seam. `modules/shared/home.nix`
+  `callPackage`s it with the **host's** pkgs to put five `nix-gitlab-tart-*` slot shims on `PATH`;
+  a derivation from this flake's perSystem pkgs would be a different drv.
+- **`darwinStubs` STAYS.** It is the OPTION layer of the capsule boundary (ADR-002 §2), not
+  scaffolding — deleting it deletes the isolation test. Its rot cost is stated at the check.
+- **`/Users/admin` and `/Users/tester` are CORRECT** — a Cirrus GUEST image's account and an
+  `evalModules` fixture. `nix-hardcoded-home-path` is severity **error**, so it was scoped first:
+  a `not` clause naming three non-operator users (`admin`, `tester`, `me`), each with its reason
+  in the rule header and each proved in the rule-test's `valid` list while every real operator
+  home stays in `invalid`. `.claude/hooks/nix-home-path-lint.js` carries the same three names.
+- **Checks:** five eval checks carried verbatim, five build checks folded into one
+  `tart-vms-packages`, plus a NEW `tart-vms-inert` — `compose.nix` had always ASSERTED IN PROSE
+  that these modules are inert in every composition, and nothing measured it.
+- **`./darwin.nix` (`tart.vms.*`) has no consumer today and is kept on purpose:**
+  [`macvm-readd-runbook.md`](macvm-readd-runbook.md)'s step 1 *is* that module. Its re-add step is
+  now a `compose.nix` line, not a re-added input.
+- **Two stale `modules/…` references survive** inside `''…''` shell script bodies
+  (`packages/tart-runner.nix:473`, `packages/gitlab-tart.nix:75`). Fixing them changes the script
+  text → the drv → `darwin-system`, so they are **recorded** in `flake-module.nix`'s header
+  rather than silently rotting.
+
+### `media-cli` (wave 5, 4,559 lines) — the LARGEST, with the narrowest live surface
+
+One option in `modules/shared/home.nix`, and **nothing at all** in nix-personal.
+
+- **Owns:** `programs.mediaCli` — eleven media/photo CLIs, a durable launchd work queue
+  (~1,300 lines) and four Finder right-click Services. One switch turns all of it on or off:
+  `programs.mediaCli.enable = false` removes the CLIs, both launchd agents, the Services and the
+  companion tools together.
+- **Seam:** `capsuleModules.homeManager.media-cli` — the most exposed of any capsule to
+  `deferredModule` reordering, since it contributes the Mac's largest single `home.packages`
+  block.
+- **`package-graph.nix` is ONE copy called TWICE** — by `flake-module.nix` for the checks and by
+  `module.nix` for `home.packages`. That is the whole reason the file exists. It sits at the
+  capsule **ROOT** rather than under `lib/`, because from `lib/` all eleven `callPackage` lines
+  would have had to be `../packages/`.
+- **It builds its OWN `nix-media-queue` wrapper and sets `ProgramArguments` itself.** Upstream
+  home-manager's `/bin/sh -c 'wait4path … && exec'` arg0 **silently loses TCC read access** to
+  the very folders the worker exists to work on
+  ([`launchd-naming.md`](../.claude/rules/launchd-naming.md)) — which is why
+  `checks.media-cli-module` asserts the arg0 is both `nix-*` **and** a store path, rather than
+  being a tautology. *Upstream-first:* grepped the pinned home-manager `modules/launchd/`; the
+  only knob is `waitForNixStore` (`default.nix:47-52`), which **drops** wait4path rather than
+  moving it inside a named wrapper.
+- **The launchd table at the top of `module.nix`** — `QueueDirectories` / `ProcessType` /
+  `KeepAlive` / `RunAtLoad` / `StartInterval` — is carried over **verbatim**. It is the record
+  that every queue mechanism here is launchd's own, which is what answers *"why hand-roll a job
+  queue"* with *"we did not"*.
+- **Checks:** six, including `media-cli-queue-state-machine` and `media-cli-inert` (an unset
+  `programs.mediaCli.enable` must define no agent, no session variable, no activation step and no
+  package — the state `nixpi`/`nixvm` are in, since `home.nix` imports the capsule
+  unconditionally).
+- **NOT re-published, on purpose** (ADR-002 §7.3): the satellite's 11 packages and 9 apps.
+  Every CLI reaches the Mac through `home.packages`; a second perSystem-pkgs copy would be eleven
+  `nix flake show` rows nothing consumes. `media-cli-packages` builds all eleven so the
+  shellcheck coverage the satellite's CI had is kept. One-line path back in `flake-module.nix`.
+
+### `local-rag` (wave 6, 473 lines) — the last satellite
+
+- **Owns:** `services.ollamaLocal` + `services.pgvectorLocal` — a loopback-only
+  Postgres + pgvector + pgsql-http and a loopback-only Ollama, wired by bootstrap SQL into an
+  in-DB `public.embed(text)` `SECURITY DEFINER` function, a `public.docs` table and an HNSW
+  cosine index. Ingest and retrieval are both **plain SQL**; no API key, nothing leaves the
+  machine.
+- **The seam the whole wave was gated on:** `modules/shared/mcp.nix`'s
+  `env.DATABASE_URI = config.services.pgvectorLocal.databaseUri`. That one string is the career
+  RAG's only path to the `postgres` MCP server, and `checks.local-rag-module` pins its value as a
+  **LITERAL**, so a port/role/db rename fails there instead of quietly returning zero rows.
+- **Layout:** the two modules sit at the capsule ROOT, not under `modules/`, so that
+  `pgvector-local.nix`'s `imports = [ ./ollama-local.nix ]` stays a **sibling** path. That
+  literal is load-bearing — it is how `services.pgvectorLocal` single-sources
+  `embedModel`/`embedDim` from `services.ollamaLocal` even when a consumer imports only the
+  postgres half.
+- **Deliberately NO `programs.localRag.enable`.** ADR-002 §4 names a wrapping third switch as the
+  two-switch regression the brief forbids; each module keeps gating its own
+  `config = lib.mkIf (cfg.enable && isDarwin)`. `checks.local-rag-inert` is what makes that design
+  honest.
+- **No packages** — the satellite had none either; everything it installs is nixpkgs', reached
+  through `home.packages` from inside the two modules. Nothing to shellcheck, so no `-packages`
+  check was invented to look symmetrical.
+- **Seam choice, measured both ways:** `capsuleModules.homeManager.local-rag`, even though this
+  capsule measured drv-**identical** on both seams (it contributes nothing to `home.packages`
+  directly, so `deferredModule`'s wrapper has nothing to reorder). Chosen for consistency with
+  the other two home-manager capsules, and because order-insensitivity here is a property of
+  today's contents rather than of the class.
 
 ## `packages/`
 

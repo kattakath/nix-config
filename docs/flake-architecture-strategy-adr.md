@@ -1,9 +1,19 @@
 # ADR: flake architecture strategy across nix-config and its supporting flakes
 
-**Status**: Partially implemented — 2026-08-20 (decided), migrations #2/#3 complete
-same day; `flake.schemas` (#1) and the core-engine/dendritic re-evaluation (#4)
-still open.
+**Status**: **Superseded in part** — decided 2026-08-20; **decision #2 is superseded by
+[ADR-002](monoflake-capsule-adr.md)** (2026-09-12, implemented), which migrated
+`nix-config`'s core engine to flake-parts after all. Decisions #1, #3, #4 and #5 stand
+unchanged. This ADR is **kept, not deleted**: ADR-002 §6 answers its three objections one
+by one and records that **objection 3 still stands** — flake-parts buys nothing for three
+hosts, and any pitch claiming host-management benefit is overclaiming.
 **Deciders**: Ismail Kattakath
+
+> **Read this ADR as of its own date.** Its premise — "a growing set of independently
+> extracted supporting flakes" — went 5 → 7 → **0**. ADR-002 absorbed every satellite into
+> `nix-config` as a `modules/features/<name>/` capsule, so the cross-repo reusability
+> mechanism this ADR names as the substitute for in-flake modularity no longer exists.
+> The flakes it still applies to are the ones that were never satellites:
+> `ircc-whatsapp-bot` and `nix-mcp-gateway`.
 
 ## Context
 
@@ -41,6 +51,16 @@ session that produced this ADR.
 
 2. **Do not migrate `nix-config`'s core engine** (`forAllSystems`, `lib.mkDarwin`,
    `lib.mkNixos`, `lib.mkHomeManagerModule`) to flake-parts or the dendritic pattern.
+
+   > **SUPERSEDED by [ADR-002](monoflake-capsule-adr.md) §1.2 and §6.** The reasoning below
+   > is preserved because it is still the correct reasoning *for the stated premise*, and
+   > the premise is what changed — not the host count (still 3), but the other axis: 28k
+   > lines, a `flake.nix` at 2,219 lines, and reusability that stopped being "across repos"
+   > the moment the repos stopped existing. The engine now lives in `modules/parts/*.nix`,
+   > one flake-parts module per concern; `mkDarwin`/`mkNixos` were deliberately **not**
+   > translated — they stayed plain Nix functions in the freeform `flake` attr, which is
+   > this decision's blast-radius objection honoured rather than overruled.
+
    At today's scale (2 systems, ~3 real hosts, each already cleanly separated by
    `lib.mkIf`), the documented practitioner guidance is explicit: *"use flake-parts if
    you plan to pull pieces of your flake into reusable modules, otherwise it's likely
@@ -93,9 +113,19 @@ session that produced this ADR.
 **What doesn't change:**
 - `nix-config`'s `flake.nix`, `lib.mkDarwin`/`lib.mkNixos`/`lib.mkHomeManagerModule`,
   and the `forAllSystems` helper stay exactly as they are.
+  **(Superseded — ADR-002 wave 2.** `forAllSystems` is gone, replaced by flake-parts'
+  `systems` + `perSystem`; `flake.nix` is 404 lines of inputs plus an `mkFlake` call, with
+  the engine in `modules/parts/`. `mkDarwin`/`mkNixos`/`mkHomeManagerModule` survive
+  verbatim as plain functions in `modules/parts/compose.nix`.)
 - The extraction-and-`.follows`-compose contract (`docs/private-home-modules.md`) stays
   the primary cross-repo modularity mechanism — flake-parts changes each repo's
   *internals*, not the *contract* between repos.
+  **(Half superseded.** The nix-config ↔ nix-personal half is untouched and load-bearing:
+  `mkDarwin { extraHomeModules }` / `mkNixos { hostedSites }` are exactly as they were, and
+  the drv harness evaluates nix-personal on every wave to prove it. The *satellite* half is
+  gone — ADR-002 replaced seven `.follows`-composed inputs with seven in-tree capsules, and
+  the boundary they used to get from being separate repos is now
+  `ast-grep/rules/capsule-must-not-reach-out.yml` + `checks.<system>.capsule-registry`.)
 - No change to any currently-running service or host activation as a direct result of
   this ADR — this is a structural/authoring improvement, not a runtime one.
 
