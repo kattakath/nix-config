@@ -18,7 +18,7 @@ All-in-one Nix mono-repo managing a fully declarative **aarch64-only** fleet:
   tunnel, and builds `aarch64-linux` locally on Determinate's native Linux builder.
 - **`nixpi`** (aarch64-linux) — NixOS Raspberry Pi 4, the **LIVE server**: static-key SSH
   over a Cloudflare Tunnel connector + Caddy. Generic and **site-free in this public repo** —
-  the real hosted sites and dontsell.ai's second tunnel connector are supplied by the private
+  the real hosted sites are supplied by the private
   nix-personal composition flake (see [`private-home-modules.md`](private-home-modules.md)).
 - **`nixvm`** (aarch64-linux) — a throwaway NixOS dev VM materialised **only** as
   `nix run .#nixvm` (a build-vm XFCE desktop — no installed VM, no builder, no runner).
@@ -71,7 +71,7 @@ Pinned input revisions; commit every change, never hand-edit.
 
 **The input diet — `follows` is not optional bookkeeping here.** 33 root inputs pull a
 transitive graph, and every duplicate node is another fetch, another eval, another thing
-`flake-checker` has to reason about. The lock is held at **62 nodes**; it was **72** before the
+`flake-checker` has to reason about. The lock is held at **68 nodes**; it was **72** before the
 dedupe pass. Two mechanisms, and conflating them is the trap:
 
 | Form | Means | Use when |

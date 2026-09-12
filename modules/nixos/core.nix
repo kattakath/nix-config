@@ -34,10 +34,41 @@
 
     services.openssh = {
       enable = true;
+
+      # sshd's own module opens its ports in the firewall by default
+      # (nixpkgs nixos/modules/services/networking/ssh/sshd.nix:874 —
+      # `allowedTCPPorts = optionals cfg.openFirewall cfg.ports`, option at :312).
+      # Clearing allowedTCPPorts below is NOT enough on its own: this option is
+      # what actually keeps 22 shut, and it is the upstream-supported knob rather
+      # than a mkForce fight with the module.
+      openFirewall = false;
+
+      # LOOPBACK ONLY — sshd is reachable exclusively through the Cloudflare
+      # Tunnel, which terminates ON this host and dials localhost:22. Binding
+      # the wildcard address would leave port 22 answering on the LAN, where
+      # the Access application in front of nixpi.<domain> is NOT consulted and
+      # no Access log is produced: an edge-only identity layer that anything on
+      # the same network segment can simply walk around. Both loopback families
+      # are bound because `localhost` may resolve to ::1 first.
+      # Break-glass if the tunnel is ever down: the physical console (getty).
+      listenAddresses = [
+        {
+          addr = "127.0.0.1";
+          port = 22;
+        }
+        {
+          addr = "::1";
+          port = 22;
+        }
+      ];
+
       settings = {
-        # Keys-only: the SSH endpoint is reachable over the Cloudflare tunnel
-        # (nixpi) with no identity layer in front, so it must never accept a
-        # password or keyboard-interactive path — the operator key is the boundary.
+        # Keys-only: the SSH endpoint is fronted by a Cloudflare Access
+        # application (self-hosted app on nixpi.<domain>, operator email only),
+        # but Access enforces at the EDGE — cloudflared proxies raw TCP to
+        # localhost:22, so the origin can verify no JWT. The operator key stays
+        # the origin-side boundary and must never accept a password or
+        # keyboard-interactive path.
         PasswordAuthentication = false;
         KbdInteractiveAuthentication = false;
         PermitRootLogin = "no";
@@ -46,7 +77,10 @@
 
     networking.firewall = {
       enable = true;
-      allowedTCPPorts = [ 22 ];
+      # Port 22 is deliberately NOT opened: sshd binds loopback only (above) and
+      # the tunnel connector reaches it from on-host. Opening it would re-expose
+      # the Access bypass that listenAddresses closes.
+      allowedTCPPorts = [ ];
       allowedUDPPorts = [ 5353 ]; # mDNS
     };
 
