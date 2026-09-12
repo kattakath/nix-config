@@ -1,0 +1,92 @@
+# ---- The capsule scaffold (ADR-002 wave 3) ----------------------------------
+#
+# `modules/parts/` is the ENGINE and may reach in. `modules/features/<name>/` are
+# CAPSULES and may not reach out. Deleting seven repo boundaries deletes the only
+# mechanical isolation this fleet had, so the boundary is re-created as two
+# mechanisms rather than as a sentence in a document (ADR-002 §2):
+#
+#   FILE layer    ast-grep/rules/capsule-must-not-reach-out.yml — a `files:`-scoped
+#                 rule on `kind: path_expression`, severity error, riding the
+#                 already-existing `checks.<system>.ast-grep` gate. No new tool,
+#                 input or gate.
+#   OPTION layer  each capsule's own module checks (e.g. the satellite eval checks
+#                 carried over into `modules/features/*/checks/`).
+#
+# UPSTREAM FIRST → ✅ `flake-parts.flakeModules.modules` exists → using it.
+# Pinned flake-parts `extras/modules.nix:32-73` declares
+# `flake.modules.<class>.<name>` as `lazyAttrsOf (lazyAttrsOf deferredModule)`,
+# with an `apply` (:12-28) that stamps `_class` and a `_file` pointing back at
+# the defining flake. That is upstream's own registry for "groups of modules
+# published by the flake" — precisely what a capsule exports — so no bespoke
+# passthrough is written here. It is NOT a builtin: it must be imported, which is
+# what the `imports` line below is for.
+{
+  config,
+  lib,
+  inputs,
+  ...
+}:
+{
+  imports = [ inputs.flake-parts.flakeModules.modules ];
+
+  # ---- The capsule registry ------------------------------------------------
+  # Each capsule's flake-module.nix appends its own directory name. This is NOT
+  # under `flake.`, so it is an internal option, never a flake output.
+  #
+  # A plain `listOf str` rather than an attrset: the ONLY question this answers
+  # is "which capsules did import-tree actually load", and list merging across
+  # files is the module system's default.
+  options.capsules = lib.mkOption {
+    type = lib.types.listOf lib.types.str;
+    default = [ ];
+    description = ''
+      Directory names under `modules/features/` whose `flake-module.nix` was
+      actually imported. Asserted against the directory listing by
+      `checks.<system>.capsule-registry`.
+    '';
+  };
+
+  # `config = { … }` is MANDATORY here, not style: this file declares a top-level
+  # `options`, and the module system then refuses a bare sibling attribute
+  # ("unsupported attribute `perSystem'. This is caused by introducing a
+  # top-level `config' or `options' attribute"). Every other modules/parts/*.nix
+  # is options-free and so may use the shorthand.
+  config.perSystem =
+    { pkgs, ... }:
+    {
+      # ---- The mandatory companion to import-tree's `.match` -----------------
+      # ADR-002 §4 finding S3: flake.nix reaches the capsules with an
+      # import-tree regex that ends in `/flake-module\.nix`. A capsule whose
+      # entry file is MISNAMED is therefore simply never imported — its module
+      # never registers, its checks never appear, and `nix flake check` is
+      # GREEN, because a check that does not exist cannot fail. That is the
+      # worst failure shape available here: a silently absent feature.
+      #
+      # This closes it from the other side. `readDir` sees the directory
+      # regardless of what the file inside is called; `config.capsules` sees only
+      # what was imported. A mismatch in either direction is a build failure.
+      checks.capsule-registry =
+        let
+          onDisk = lib.sort lib.lessThan (
+            lib.attrNames (lib.filterAttrs (_: t: t == "directory") (builtins.readDir ../features))
+          );
+          registered = lib.sort lib.lessThan config.capsules;
+        in
+        pkgs.runCommand "capsule-registry" { } ''
+          onDisk=${lib.escapeShellArg (lib.concatStringsSep " " onDisk)}
+          registered=${lib.escapeShellArg (lib.concatStringsSep " " registered)}
+          if [ "$onDisk" != "$registered" ]; then
+            echo "capsule-registry: modules/features/ and the imported capsule set disagree." >&2
+            echo "  on disk    : $onDisk" >&2
+            echo "  registered : $registered" >&2
+            echo "" >&2
+            echo "A directory present but NOT registered almost always means its entry" >&2
+            echo "file is not named flake-module.nix, so flake.nix's import-tree regex" >&2
+            echo "never loaded it — a whole capsule silently absent with CI green." >&2
+            echo "A name registered but NOT on disk means a stale \`capsules = [ … ]\`." >&2
+            exit 1
+          fi
+          echo "capsules: $registered" > "$out"
+        '';
+    };
+}

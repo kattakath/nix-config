@@ -27,15 +27,22 @@
   pkgs,
   hostedSites,
   firmware-secrets,
-  cloudflared-connector,
+  cloudflaredConnectorModule,
   ...
 }:
 {
   imports = [
-    # `services.cloudflared-connector` + `services.firmwareProvisioning` now come
-    # from standalone flakes we extracted (github:kattakath/nix-*), not
-    # vendored copies — same option surfaces, threaded via mkNixos specialArgs.
-    cloudflared-connector.nixosModules.default
+    # `services.cloudflared-connector` is an IN-TREE CAPSULE
+    # (modules/features/cloudflared-connector/), absorbed from the standalone
+    # flake by ADR-002 wave 3. It arrives already resolved to a MODULE, through
+    # the flake's own `flake.modules.nixos` registry — a capsule is only ever
+    # entered through its flake-module.nix, never imported by path from here.
+    #
+    # `services.firmwareProvisioning` still comes from a standalone extracted
+    # flake (github:kattakath/nix-firmware-secrets) — wave 4's capsule. Both are
+    # threaded in via mkNixos specialArgs; only the SHAPE differs (module vs
+    # flake), which is why the two argument names differ.
+    cloudflaredConnectorModule
     firmware-secrets.nixosModules.default
   ];
 

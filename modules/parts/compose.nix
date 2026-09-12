@@ -23,7 +23,6 @@ let
     firmware-secrets
     keychain-secrets
     media-cli
-    cloudflared-connector
     local-rag
     nix-tart-vms
     mcp-servers-nix
@@ -43,6 +42,11 @@ let
     claude-plugins-official
     grok-build-plugin-cc
     ;
+
+  # The first ABSORBED capsule (ADR-002 wave 3), reached through the flake's own
+  # module registry rather than through an input. The engine may read a capsule;
+  # a capsule may not read the engine — see modules/parts/capsules.nix.
+  inherit (config.flake.modules.nixos) cloudflared-connector;
 
   inherit (config.fleet)
     identityArgs
@@ -167,9 +171,14 @@ let
           cachixKey
           operatorSshKey
           firmware-secrets
-          cloudflared-connector
           hostedSites
           ;
+        # A MODULE, not a flake — hence the name. `firmware-secrets` above is
+        # still an input (a flake, consumed as `.nixosModules.default`); this one
+        # was too until wave 3 absorbed it, and the rename is the whole point: a
+        # host that writes `cloudflaredConnectorModule.nixosModules.default`
+        # fails loudly instead of half-resolving.
+        cloudflaredConnectorModule = cloudflared-connector;
       };
       modules = [
         { nixpkgs.hostPlatform = system; }
