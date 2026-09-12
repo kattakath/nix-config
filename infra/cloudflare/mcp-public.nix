@@ -47,11 +47,10 @@
   # independent origins with their own uptime — but a client cannot tell, and
   # should not care, which side of the edge answers.
   #
-  # Each entry: { name; id ? "ext-<name>"; label ? name; description ? ""; }
-  # No `host`: there is exactly ONE public hostname. `id`/`label` exist because a
-  # server registered before this module owned it keeps its original identifiers
-  # (character-mcp) — `id` is ForceNew, so changing it would replace the
-  # registration, drop the portal attachment and make every client reconnect.
+  # Each entry: { name; description ? ""; }
+  # No `host` and no `id`: there is exactly ONE public hostname, and a server's
+  # NAME is its id, its Access application name and its path segment — see THE
+  # NAMING RULE below.
   #
   # The Worker route itself lives in that Worker's own wrangler config; this
   # module only registers and gates it. Access covers the whole hostname and
@@ -89,26 +88,27 @@ let
   # loopback URL can never drift.
   serverUrl = name: "https://${publicHost}/servers/${name}/mcp";
 
-  # ============================ THE NAMING RULES ============================
-  # Three rules, applied to EVERY object this module owns. They exist because the
-  # first version of this file grew object by object and ended up with four
-  # different shapes for two kinds of thing (2026-09-12).
+  # ============================ THE NAMING RULE =============================
+  # ONE rule, applied to every object this module owns:
   #
-  #   1. A REGISTRATION ID says where the server runs: `gw-<name>` on the macos
-  #      gateway, `ext-<name>` on its own origin. One grandfathered exception,
-  #      `character-mcp`, which predates this module — `auth_type` and `id` are
-  #      both ForceNew, so renaming it would replace the registration, drop the
-  #      portal attachment, and make every client reconnect. nix-personal passes
-  #      that `id` explicitly, so the exception is visible at its call site.
-  #   2. A RESOURCE KEY mirrors the id with `-` -> `_`: `gw_memory`, `ext_character`.
-  #      An Access application derived from one is prefixed `portal_` or `origin_`
-  #      by layer, never by ad-hoc name.
-  #   3. An ACCESS APPLICATION IS NAMED AFTER ITS DESTINATION — the hostname for
-  #      an origin app, the server id for a portal app. So in the dashboard the
-  #      "Application name" and "Destinations" columns read identically for every
-  #      row this module owns, and no prose name has to be invented or kept in
-  #      sync. The Type column already says which layer it is; the name repeating
-  #      that was the noise.
+  #     A THING IS NAMED AFTER WHAT IT POINTS AT.
+  #
+  #   - an Access application over a hostname is named THAT HOSTNAME
+  #     (`connector.kattakath.com`, `mcp.kattakath.com`, and in the sibling
+  #     module `nixpi.kattakath.com`)
+  #   - an Access application over a published server is named THAT SERVER
+  #     (`memory`, `character`)
+  #   - a registration's id, its portal app's name, and its `/servers/<x>/mcp`
+  #     path segment are all the SAME string — the server's name.
+  #
+  # So in the dashboard "Application name" and "Destinations" read identically
+  # for every row, and the "Type" column is what says which layer it is. Nothing
+  # is a prose name that has to be invented or kept in sync.
+  #
+  # There is deliberately no `gw-` / `ext-` prefix. It used to encode WHICH
+  # PROCESS served a server — the macos mcp-proxy or a Worker — and that stopped
+  # being either visible or relevant when everything moved behind the one
+  # hostname. A client cannot tell the difference and must not depend on it.
   # ==========================================================================
 
   # Every published server, gateway and external alike, as ONE list. Both kinds
@@ -118,18 +118,15 @@ let
   # nothing forced the two to agree; they drifted immediately.
   published =
     map (n: {
-      key = "gw_${srvKey n}";
-      id = "gw-${n}";
-      label = "gw-${n}";
+      key = "srv_${srvKey n}";
+      id = n;
       description = "Published from the macos MCP gateway (services.mcpGateway.public).";
-      url = serverUrl n;
     }) publicServers
     ++ map (e: {
-      key = "ext_${srvKey e.name}";
-      id = e.id or "ext-${e.name}";
-      label = e.label or e.name;
-      description = e.description or "External MCP Worker behind the shared Access service token.";
-      url = serverUrl e.name;
+      key = "srv_${srvKey e.name}";
+      id = e.name;
+      description =
+        e.description or "Cloudflare Worker route under the gateway hostname.";
     }) externalServers;
 
   # Google Workspace. Pinned on EVERY application, including the service-token
@@ -296,8 +293,8 @@ in
       value = {
         account_id = accountId;
         inherit (p) id description;
-        name = p.label;
-        hostname = p.url;
+        name = p.id;
+        hostname = serverUrl p.id;
         auth_type = "bearer";
         auth_credentials = tokenHeaders;
       };
@@ -326,10 +323,55 @@ in
       # mean a second Access application, a second aud and a second DNS record to
       # keep in sync — which is exactly what this replaced.
       origin_gateway = originApp publicHost;
+
+      # The portal's OWN Access application — the object that decides WHICH
+      # CLIENTS may register against the portal, via
+      # `oauth_configuration.dynamic_client_registration.allowed_uris`. It was
+      # left undeclared while it was only being read; declaring it makes "Claude
+      # only" enforced by code rather than by whatever the dashboard happens to
+      # hold, so an apply REVERTS a widened allowlist instead of preserving it.
+      #
+      # Distinct from `..._mcp_portal` further down: that resource attaches
+      # SERVERS to the portal, this one gates CLIENTS reaching it. One portal,
+      # two objects, different directions.
+      portal = {
+      account_id = accountId;
+      name = portalHost; # the naming rule
+      type = "mcp_portal";
+      domain = portalHost;
+      session_duration = "24h";
+      allowed_idps = [ idpGoogleWorkspace ];
+      auto_redirect_to_identity = false;
+      http_only_cookie_attribute = true;
+      enable_binding_cookie = false;
+      options_preflight_bypass = false;
+      oauth_configuration = {
+        enabled = true;
+        dynamic_client_registration = {
+          enabled = true;
+          # Claude only, deliberately. Grok is NOT allowlisted and must not be
+          # added without being asked for — with no OAuth server left on any
+          # origin, this list is the whole set of clients that can reach any
+          # published MCP server.
+          allowed_uris = [
+            "https://claude.ai/api/mcp/*"
+            "https://claude.com/api/mcp/*"
+          ];
+          allow_any_on_localhost = true;
+          allow_any_on_loopback = true;
+        };
+      };
+      policies = [
+        {
+          id = operatorPolicyId;
+          precedence = 1;
+        }
+      ];
+    };
     }
     // builtins.listToAttrs (
       map (p: {
-        name = "portal_${p.key}";
+        name = "portal_${srvKey p.id}";
         value = portalApp p;
       }) published
     );
