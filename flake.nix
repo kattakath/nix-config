@@ -211,22 +211,21 @@
     local-rag.inputs.home-manager.follows = "home-manager";
     local-rag.inputs.flake-parts.follows = "flake-parts";
 
-    # vast-provision — the Vast.ai GPU-template provisioning CLI toolkit
-    # (vast-template-apply / vast-repo-check / vast-account-vars-set /
-    # vast-ssh-key-set / vast-init-repo / vast-rent), EXTRACTED FROM THIS REPO
-    # into a standalone MIT flake (github.com/kattakath/nix-vast-provision)
-    # — phase 2 of the extraction (phase 1 backported local-only features
-    # upstream first). Consumed by reaching into its store path for
-    # packages/vast-provision.nix directly, with orgName/repoName/rev
-    # OVERRIDDEN to nix-config's own identity (see the callPackage in
-    # `packages` below) — UNLIKE the other extracted flakes above, its own
-    # packages.<system>.* outputs are hardcoded to its OWN repo
-    # (kattakath/nix-vast-provision), wrong for OUR raw-URL construction. Pure
-    # (writeShellApplication/runCommand only), so follows our nixpkgs to
-    # avoid a 2nd copy.
-    vast-provision.url = "github:kattakath/nix-vast-provision";
-    vast-provision.inputs.nixpkgs.follows = "nixpkgs";
-    vast-provision.inputs.flake-parts.follows = "flake-parts";
+    # (vast-provision was an input here until ADR-002 wave 4 ABSORBED it as a
+    # capsule — modules/features/vast-provision/. Same six `vast-*` CLIs, same
+    # six apps, one fewer lock node and one fewer CI pipeline; the origin repo
+    # is archived and its history stays there. It was consumed UNLIKE every
+    # other extracted flake — by reaching into its store path for the raw
+    # packages/vast-provision.nix and overriding orgName/repoName/rev, because
+    # its own outputs were hardcoded to its own repo identity. That override is
+    # now just `config.fleet.*` + `self.rev` inside the capsule.
+    #
+    # The two scripts a rented instance fetches over RAW HTTP stay at
+    # packages/vast-bootstrap.sh and packages/templates/provisioner/ — their
+    # repo PATHS are baked into every stored Vast template (ADR-002 §4, S2), so
+    # absorbing the Nix could not absorb them. `checks.<system>.vast-lib-drift`
+    # went with the input: it diffed those copies against the input's, and there
+    # is no second tree left to diff.)
 
     # nix-tart-vms — extracted from this repo 2026-09-05, briefly removed the
     # same day with the macvm host (zero consumers), RE-ADDED hours later with a

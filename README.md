@@ -158,11 +158,11 @@ Or just open the repo in a devcontainer-aware editor; `.devcontainer/devcontaine
 ```
 bootstrap.sh    No-Nix curl entrypoint: install Determinate Nix, then hand off to the flake
 flake.nix       Entry point: inputs, darwin/nixos configurations, packages, devShells, checks, deploy nodes
-flake.lock      Pinned input revisions (bumped via `nix flake update`, never hand-edited); 60 nodes, held down by a deliberate `follows` diet
+flake.lock      Pinned input revisions (bumped via `nix flake update`, never hand-edited); 61 nodes, held down by a deliberate `follows` diet plus ADR-002's capsule absorption
 treefmt.nix     Single source of truth for formatting + lint (drives nix fmt, CI, and the hook)
 hosts/          Per-host entry profiles (macos.nix, macvm.nix, nixpi.nix, nixvm.nix)
 modules/        Reusable modules, split by platform (darwin/ nixos/ shared/)
-packages/       Nix-built artifacts (devcontainer image, key-recovery kit, landing page; also vast-bootstrap.sh + templates/provisioner/provision-lib.sh — the raw-served Vast files; the vast-* CLI apps themselves come from the vast-provision flake input)
+packages/       Nix-built artifacts (devcontainer image, key-recovery kit, landing page; also vast-bootstrap.sh + templates/provisioner/ — the raw-served Vast files, which stay here because their repo paths are baked into stored Vast templates; the vast-* CLIs live in modules/features/vast-provision/)
 templates/      Flake template for `nix flake init -t github:kattakath/nix-config` — a starter consumer fleet flake (distinct from packages/templates/, the Vast.ai assets)
 .claude/        Repo-local Claude Code agents, commands, hooks, skills, and rules
 ```
@@ -180,7 +180,7 @@ CI runs on **GitHub Actions** ([`nix-ci.yml`](./.github/workflows/nix-ci.yml)) a
 
 ## Vast.ai GPU provisioning
 
-Off-fleet control-plane tooling — a set of `vast-*` darwin flake apps (parallel to the Cloudflare `cf-tunnel-*` apps) that run **on the Mac** to provision external x86_64 cloud GPUs on [Vast.ai](https://vast.ai). Vast is **not** a fleet host — this stays an aarch64-only fleet; the tooling merely reaches out from `macos` to stand up reproducible Vast.ai templates. Each template boots `vastai/base-image`, clones a private provisioner repo, and runs its self-contained `provision.sh` (e.g. a ComfyUI stack). Secrets are never baked into the template — they live as Vast account-level env vars (`vast-account-vars-set`), and `vast-template-apply` / `vast-repo-check` / `vast-ssh-key-set` / `vast-init-repo` cover create-or-replace, repo validation, SSH-key registration, and repo scaffolding. The CLI logic is sourced from the extracted [`nix-vast-provision`](https://github.com/kattakath/nix-vast-provision) flake input; the two boot-time scripts Vast fetches over raw HTTP stay vendored in this repo. See [`docs/vastai-template-provisioning.md`](docs/vastai-template-provisioning.md) for the full architecture.
+Off-fleet control-plane tooling — a set of `vast-*` darwin flake apps (parallel to the Cloudflare `cf-tunnel-*` apps) that run **on the Mac** to provision external x86_64 cloud GPUs on [Vast.ai](https://vast.ai). Vast is **not** a fleet host — this stays an aarch64-only fleet; the tooling merely reaches out from `macos` to stand up reproducible Vast.ai templates. Each template boots `vastai/base-image`, clones a private provisioner repo, and runs its self-contained `provision.sh` (e.g. a ComfyUI stack). Secrets are never baked into the template — they live as Vast account-level env vars (`vast-account-vars-set`), and `vast-template-apply` / `vast-repo-check` / `vast-ssh-key-set` / `vast-init-repo` cover create-or-replace, repo validation, SSH-key registration, and repo scaffolding. The CLI logic lives in the in-tree `modules/features/vast-provision/` capsule (extracted to `nix-vast-provision` and absorbed back by ADR-002 wave 4); the boot-time scripts Vast fetches over raw HTTP stay at `packages/`, because their repo paths are baked into every stored template. See [`docs/vastai-template-provisioning.md`](docs/vastai-template-provisioning.md) for the full architecture.
 
 ## Secrets
 

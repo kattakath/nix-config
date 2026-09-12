@@ -1,11 +1,14 @@
 # Vast.ai Template Provisioning — design + shipped state
 
-Status: **implemented** — the CLI logic is sourced from the extracted
-[`nix-vast-provision`](https://github.com/kattakath/nix-vast-provision)
-flake input (`vast-provision` in `flake.nix`, `callPackage`d with
-`orgName`/`repoName`/`rev` overridden to this repo's own identity). This doc
-describes the design and rationale; the flake apps' own `--help` text and that
-flake's `docs`/`README.md` are the source of truth for exact current flags.
+Status: **implemented** — the CLI logic lives in the in-tree capsule
+`modules/features/vast-provision/` (it was extracted to
+[`nix-vast-provision`](https://github.com/kattakath/nix-vast-provision) and
+**absorbed back** by ADR-002 wave 4; that repo is archived and keeps the
+history). The capsule `callPackage`s its kit with `orgName`/`repoName`/`userName`
+from `config.fleet` and `rev = self.rev or "main"`. This doc describes the design
+and rationale; the flake apps' own `--help` text and
+[`modules/features/vast-provision/README.md`](../modules/features/vast-provision/README.md)
+are the source of truth for exact current flags.
 Driving use case: the
 ComfyUI workflow repo (e.g.
 `gitlab.com/ismailkattakath/comfyui-workflows`), passed in per-run as `--repo`.
@@ -112,12 +115,13 @@ For legacy and aggregator mode, the constant entrypoint + a legitimacy marker
 are guaranteed by **scaffolding repos from a template**:
 
 - The generic `provisioner-template` scaffold (a `provision.sh` stub +
-  `.provisioner-template.json` marker + README) now lives in the extracted
-  `vast-provision` flake input's own `packages/templates/provisioner/` —
-  `vast-init-repo` scaffolds new provisioner repos straight from there.
-  nix-config itself vendors only that directory's `provision-lib.sh`
-  (renamed from `packages/vast-templates/provisioner/`), the one file a live
-  instance still fetches over raw HTTP. New provisioner repos are generated
+  `provision-lib.sh` + `.provisioner-template.json` marker + README) lives in
+  **this repo's** `packages/templates/provisioner/` — `vast-init-repo` scaffolds
+  new provisioner repos straight from there. It stays at that path, engine-owned
+  rather than inside the capsule, because `provision-lib.sh` (and
+  `packages/vast-bootstrap.sh`) are fetched over raw HTTP by a live instance from
+  paths baked into every stored template; the capsule receives them as
+  `fleet.vastRawServed`. New provisioner repos are generated
   as GitHub template repos (`is_template`; `POST /repos/{owner}/{repo}/generate`)
   or GitLab custom project templates (`POST /projects` + `use_custom_template`
   + `template_project_id`). Both support private.
@@ -216,9 +220,9 @@ only working path, not an aesthetic choice.
 
 ## Shipped flake app surface
 
-Six darwin-gated apps, `callPackage`d from the `vast-provision` input and re-exported under
-this repo's identity (`orgName`/`repoName`/`rev`) — see `flake.nix`. Their own `--help` is
-authoritative for exact flags.
+Six darwin-gated apps, `callPackage`d by `modules/features/vast-provision/flake-module.nix`
+under this repo's identity (`orgName`/`repoName`/`userName`/`rev`); the `apps` wrappers live in
+`modules/parts/packages.nix`. Their own `--help` is authoritative for exact flags.
 
 | App | What it does |
 |---|---|
@@ -226,7 +230,7 @@ authoritative for exact flags.
 | `vast-repo-check` | Validate a provisioner repo's `.provisioner-template.json` marker (forge-agnostic, no clone). |
 | `vast-account-vars-set` | Push read-only Keychain tokens → Vast **account-level** env vars (same name both sides). |
 | `vast-ssh-key-set` | Register the operator SSH public key on the Vast account (idempotent). |
-| `vast-init-repo` | Scaffold a provisioner repo from the input's own bundled `provisioner-template`. |
+| `vast-init-repo` | Scaffold a provisioner repo from the bundled `packages/templates/provisioner/`. |
 | `vast-rent` | Rents a live, **BILLED** GPU instance from a template by name/hash; injects a Keychain `DOCKERHUB_TOKEN` `image_login` to beat pull rate limits. **Always `--dry-run` first.** |
 
 Wired via `genAttrs darwinSystems` in `packages` (shellcheck runs in `nix flake check`) with
