@@ -125,8 +125,9 @@ in
                   ${lib.concatMapStringsSep "\n" (e: ''echo "  ✘ ${e.name}" >&2'') broken}
                   echo "" >&2
                   echo "These names are agreed by STRING across hosts/nixpi.nix," >&2
-                  echo "modules/features/cloudflared-connector/ and the firmware-secrets" >&2
-                  echo "module. A break here evaluates fine and --dry-activates fine on an" >&2
+                  echo "modules/features/cloudflared-connector/ and" >&2
+                  echo "modules/features/firmware-secrets/. A break here evaluates fine" >&2
+                  echo "and --dry-activates fine on an" >&2
                   echo "ALREADY-PROVISIONED card; it only surfaces on the next flash, as a" >&2
                   echo "Pi that never brings its tunnel up. Fix the name, do not relax this." >&2
                   exit 1
