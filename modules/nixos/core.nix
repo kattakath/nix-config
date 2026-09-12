@@ -51,15 +51,19 @@
       # the same network segment can simply walk around. Both loopback families
       # are bound because `localhost` may resolve to ::1 first.
       # Break-glass if the tunnel is ever down: the physical console (getty).
+      # `port` is deliberately OMITTED so both entries inherit `Port 22` above.
+      # Setting it here emits `ListenAddress ::1:22`, and nixpkgs does NOT bracket
+      # the address (nixos/modules/services/networking/ssh/sshd.nix:899-902 renders
+      # a bare `${addr}:${port}`). OpenSSH then reads an unbracketed argument with
+      # two or more colons as a whole IPv6 address, so `::1:22` parses as the
+      # address `::0.1.0.34` and the bind fails with EADDRNOTAVAIL. sshd survives
+      # (a failed bind is fatal only if EVERY bind fails), so the breakage is
+      # silent: v4 loopback works and v6 is simply absent. Measured with
+      # `sshd -G`:  ListenAddress ::1:22 -> [::0.1.0.34]:22
+      #             ListenAddress ::1    -> [::1]:22
       listenAddresses = [
-        {
-          addr = "127.0.0.1";
-          port = 22;
-        }
-        {
-          addr = "::1";
-          port = 22;
-        }
+        { addr = "127.0.0.1"; }
+        { addr = "::1"; }
       ];
 
       settings = {
