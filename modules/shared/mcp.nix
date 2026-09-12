@@ -63,6 +63,10 @@ let
   # localhost-only gateway endpoint.
   gatewayHost = "127.0.0.1";
   gatewayPort = 8096;
+  # The PUBLISHED gateway. A second mcp-proxy, not a second port on the same
+  # process — see services.mcpGateway.public for why that separation is the
+  # whole security argument.
+  publicGatewayPort = 8097;
 
   # Android SDK root — single-sourced from modules/shared/home.nix's ANDROID_HOME
   # (the android-commandlinetools Homebrew cask install prefix), not re-declared
@@ -689,6 +693,25 @@ let
     settings.servers = customStdioServers;
   };
 
+  # The PUBLISHED gateway's config: the same mkConfig call, narrowed to the
+  # opt-in subset. Building it from `cfg.public` (not from a second hand-kept
+  # list) is what makes the flag the single source of truth — a name can never be
+  # published without also being hosted, because both derive from the same
+  # attrsets.
+  publicPackaged = builtins.filter (n: builtins.elem n cfg.public) packagedServerNames;
+  publicCustom = lib.filterAttrs (n: _: builtins.elem n cfg.public) customStdioServers;
+
+  publicGatewayConfig = mcp-servers-nix.lib.mkConfig pkgs {
+    flavor = "claude-code";
+    fileName = "mcp-gateway-public.json";
+    # mkConfig's `programs` are per-server enables; mirror only the published
+    # packaged ones. Anything not listed is simply absent from this process.
+    programs = lib.genAttrs publicPackaged (_: {
+      enable = true;
+    });
+    settings.servers = publicCustom;
+  };
+
   # Gateway URL for a server + transport path. transport "mcp" = Streamable HTTP
   # (current standard); "sse" = legacy, still served for SSE-only clients (Grok
   # et al.) — point their own config at `endpointFor <name> "sse"`. Single source
@@ -757,6 +780,36 @@ in
         (/mcp) gateway URL. Populated once from `endpointFor`; consumed as data by
         every client (claude-code / VS Code / Claude Desktop), none of which
         re-derive a URL.
+      '';
+    };
+
+    public = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [
+        "memory"
+        "sequential-thinking"
+      ];
+      description = ''
+        Gateway server names to ALSO publish on a SECOND mcp-proxy instance
+        (${toString publicGatewayPort}) that a cloudflared connector exposes at
+        the public gateway hostname, behind ONE Cloudflare Access application
+        whose policy is a service token. The MCP portal presents that token to
+        the origin (`auth_credentials = {"headers":{"cf-access-client-id":…}}`),
+        so remote clients keep talking to the portal and this gateway needs no
+        OAuth of its own.
+
+        A SEPARATE PROCESS on purpose, not a tunnel onto ${toString gatewayPort}.
+        Access protects a HOSTNAME, not a path — exposing the main gateway would
+        make a leaked service token reach every path on it, including the Gmail
+        accounts, WordPress, Postgres and Telegram servers. Here, an unpublished
+        server is not in the published process at all: structurally unreachable,
+        not merely unrouted.
+
+        Empty by default — publishing is opt-in, never deny-by-omission. Names
+        must be servers the gateway actually hosts; `desktop-commander` and
+        `open-design` are ineligible by construction since they are per-client
+        stdio and never enter `endpoints`.
       '';
     };
 
@@ -961,6 +1014,72 @@ in
         StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/mcp-gateway.log";
       };
     };
+
+    # ---- Server side B: the PUBLISHED gateway ---------------------------------
+    # Only materialised when something is actually published, so the default
+    # configuration grows no new process and opens no new surface.
+    launchd.agents.mcp-gateway-public = lib.mkIf (cfg.public != [ ]) {
+      enable = true;
+      config = {
+        ProgramArguments = [
+          (lib.getExe' pkgs.mcp-proxy "mcp-proxy")
+          "--log-level"
+          "ERROR"
+          # STILL loopback. The connector reaches it from on-host; nothing binds
+          # a routable address. Publishing is the tunnel's job, not this bind's.
+          "--host"
+          gatewayHost
+          "--port"
+          (toString publicGatewayPort)
+          "--named-server-config"
+          "${publicGatewayConfig}"
+        ];
+        RunAtLoad = true;
+        KeepAlive = true;
+        EnvironmentVariables = {
+          PATH =
+            lib.makeBinPath [
+              pkgs.nodejs
+              pkgs.uv
+            ]
+            + ":/usr/bin:/bin";
+        };
+        StandardOutPath = "${config.home.homeDirectory}/Library/Logs/mcp-gateway-public.log";
+        StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/mcp-gateway-public.log";
+      };
+    };
+
+    # Publishing is the one place in this module where a typo has a security
+    # consequence, so both failure modes are eval-time, not runtime.
+    assertions = [
+      {
+        assertion = builtins.all (n: builtins.elem n hostedServerNames) cfg.public;
+        message =
+          "services.mcpGateway.public lists a server the gateway does not host: "
+          + toString (builtins.filter (n: !(builtins.elem n hostedServerNames)) cfg.public)
+          + ". Publishable names must appear in hostedServerNames "
+          + "(packaged + customStdioServers).";
+      }
+      {
+        # Belt and braces. These two are per-client stdio and never enter
+        # hostedServerNames, so the assertion above already rejects them — this
+        # one names them explicitly so the failure explains WHY rather than
+        # reading as a typo.
+        assertion =
+          !(builtins.any (
+            n:
+            builtins.elem n [
+              "desktop-commander"
+              "open-design"
+            ]
+          ) cfg.public);
+        message =
+          "services.mcpGateway.public must never contain desktop-commander "
+          + "(shell/RCE surface) or open-design (stdio-only upstream with a known "
+          + "silent-death bug). Both are per-client stdio by design and are not "
+          + "gateway-hosted at all.";
+      }
+    ];
 
     # ---- Client side A: Claude Code (home-manager module) ----------------------
     programs.claude-code.mcpServers = httpEntries // {
