@@ -643,19 +643,36 @@ their own top-level section below:
   localhost OTLP, writing a rotating JSONL for `/routing-review` to mine for
   deterministic-routing hardening candidates. See
   [`claude-code-observability-runbook.md`](claude-code-observability-runbook.md).
-- **`claude-bedrock-gate.nix`** — a `nix-bedrock-gate` shell hook that makes Claude Code's
-  Bedrock routing conditional on an AWS identity actually resolving, instead of on
-  `CLAUDE_CODE_USE_BEDROCK` merely existing. The trap it closes: that variable lives in the
-  login Keychain (so it stays toggleable), but its companions `AWS_REGION`/`AWS_PROFILE` and
-  `~/.aws/config` are store symlinks written by the **private** layer — so activating the
-  public `#macos` directly drops them while the Keychain entry survives, leaving Bedrock
-  selected with no region, no profile, no reachable model, and a read-only `settings.json`
-  that cannot be hand-repaired. It degrades to Claude Code's default provider rather than
-  erroring. Offline and CLI-free by design (local files only; no `aws sts` call per shell).
-  **It lives in the public repo on purpose** — a gate shipped from nix-personal would be
-  dropped by the very activation it defends against, the same reasoning as
-  `programs.keychainSecrets`. Companion: the `.claude/hooks/pretooluse-bash-guard.js` block,
-  which only covers activations the *agent* runs; this covers a switch typed by hand.
+- **`claude-bedrock-gate.nix`** — **both halves of Bedrock routing**: the AWS identity
+  (`local.claudeBedrock.{region,profile}`) and a `nix-bedrock-gate` shell hook that makes
+  Claude Code's Bedrock routing conditional on that identity actually resolving, instead of
+  on `CLAUDE_CODE_USE_BEDROCK` merely existing.
+  - **The identity seam.** `local.claudeBedrock.region`/`.profile` are `nullOr str`,
+    **`null` in this public repo and only ever given a value by nix-personal's two-line
+    `modules/claude-bedrock.nix`**. When non-null they are written into
+    `~/.claude/settings.json`'s `env` block as `AWS_REGION`/`AWS_PROFILE` (via
+    `optionalAttrs` — a null passthrough would emit a literal `null`, since `null` is
+    inside the json value type). **The null default is load-bearing, not a placeholder**:
+    the gate's first detector is "AWS_REGION resolves nowhere → the private layer is not
+    active", so a non-null public default would turn it permanently green and reproduce the
+    exact outage below. There is deliberately **no `enable` option**: declaring
+    `CLAUDE_CODE_USE_BEDROCK` in Nix would apply it to every session and kill the runtime
+    toggle, which is why it stays in the login Keychain (`secret set|rm`) — the module
+    header carries that reasoning in full.
+  - **The trap it closes.** `CLAUDE_CODE_USE_BEDROCK` lives in the login Keychain (so it
+    stays toggleable) and survives every activation, but its companions
+    `AWS_REGION`/`AWS_PROFILE` (values from the private layer) and `~/.aws/config` (a store
+    symlink from nix-personal's `aws-sso.nix`) do not — so activating the public `#macos`
+    directly drops them while the Keychain entry survives, leaving Bedrock selected with no
+    region, no profile, no reachable model, and a read-only `settings.json` that cannot be
+    hand-repaired. It degrades to Claude Code's default provider rather than erroring.
+    Offline and CLI-free by design (local files only; no `aws sts` call per shell).
+  - **Why the mechanism is public.** A gate shipped from nix-personal would be dropped by
+    the very activation it defends against — the same reasoning as `programs.keychainSecrets`
+    — and the identity *writing* belongs next to the gate that reads it, so a change to one
+    cannot silently desync the other. nix-personal keeps only the two values. Companion: the
+    `.claude/hooks/pretooluse-bash-guard.js` block, which only covers activations the *agent*
+    runs; this covers a switch typed by hand.
 - **`git-allowed-signers.nix`** — option-only (`kattakath.git.extraAllowedSignersPrincipals`):
   extra author emails for git SSH signature verify. Split out of `home.nix` purely because a
   Home Manager module declaring `options` cannot also carry bare `config` attrs. The fleet
