@@ -112,6 +112,32 @@ resistance:
 | `secret adopt <KEY>` | register a Keychain item added outside this CLI |
 | `secret load` | reload the whole store into the current shell — the shell-function-only fix for a manually-unset var |
 
+### Cloudflare tokens — scoped, and deliberately NOT ambient
+
+There are three Cloudflare entries, and the split is the point:
+
+| Keychain entry | Scope | Bound to an env var? |
+|---|---|---|
+| `cf:cloudflare.com:nixpi-tunnel` | Account **Cloudflare Tunnel:Edit** (Personal only) + **DNS / Zone Settings / Dynamic URL Redirects :Edit** on `kattakath.com` + `snoringirl.com` | **no** — `secret exec` only |
+| `cf:cloudflare.com:dontsell-dns` | **DNS / Zone Settings / Page Rules :Edit** on `dontsell.ai` only | **no** |
+| `cf:cloudflare.com:api` | broad (both accounts, all zones) — kept for ad-hoc work | **no** (was bound, now unbound) |
+
+The broad token used to be `secret bind`-ed to `CLOUDFLARE_API_TOKEN`, so **every** shell — and
+therefore every process the operator ever launched, including this repo's own agent tooling —
+inherited write access to two accounts and seven zones. That is the opposite of what the
+`cf-*` apps' own "export a scoped token" hint asked for. It is now unbound; reach any of them
+explicitly:
+
+```bash
+secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:nixpi-tunnel -- <the terranix app>
+```
+
+Verified by denial, not by reading the dashboard: the scoped token can read/write the two
+tunnel zones and the tunnel itself, and is **refused** on aloshy.ai DNS, Workers, Gateway,
+devices, listing API tokens, and any Access **write**. It does retain Access *read* (apps,
+service tokens, IdPs) — that rides inside Cloudflare's own `Cloudflare Tunnel Write`
+permission group and cannot be separated out.
+
 Each is a **shell function** (`set`/`rm`/`bind`/`unbind`/`load` also mutate the current shell —
 export/unset/reload) backed by a **PATH binary** *and* a **`nix run .#secret -- …`** app (`load`
 is function-only). `set-secret <KEY> [VALUE]` and `remove-secret <KEY>` remain as back-compat
