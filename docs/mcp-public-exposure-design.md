@@ -190,10 +190,44 @@ changes, the same way site CNAMEs already work.
 
 ---
 
+## 7a. Redirect-URI allowlists — one, not one per server
+
+A per-server allowlist is **not** needed. There are two distinct lists and only one is
+maintained:
+
+| List | Who registers there | Redirect URI | Maintenance |
+|---|---|---|---|
+| **Portal** `oauth_configuration.dynamic_client_registration.allowed_uris` | end **clients** (Claude, Grok) | one per client | the one you edit |
+| **Each Worker's own DCR** | **the portal itself** | a single stable value | zero, if templated |
+
+Per the provider schema for `is_shared_oauth_callback_enabled`: the gateway worker uses either
+*"the shared Cloudflare-owned OAuth callback endpoint … instead of the customer portal
+hostname"*. Default is off, so it is the portal hostname. Either way it is **one callback per
+portal**, identical for every downstream — confirmed in `character-mcp`'s `OAUTH_KV`, where the
+portal is registered as `https://mcp.kattakath.com/servers-callback`.
+
+So a new server needs **no** redirect-URI work: template the Worker to accept the portal
+callback and it is done.
+
+### The enforcement lever — considered and DECLINED 2026-09-12
+
+Workers currently ship `workers-oauth-provider`'s **open DCR** (any `redirect_uri`). That is how
+Grok registered directly and received `character:write`, bypassing the portal's `4/6` tool
+gating. Restricting each Worker's DCR to only the portal callback would make portal-only access
+**enforced** rather than hoped-for, and would close audit finding MCP-5 as a side effect.
+
+**Not adopted.** The cost is breaking Grok's existing direct grant and re-establishing it
+through the portal, which the operator judged not worth it now. Consequence, stated plainly so
+it is a choice and not a surprise: **the portal's tool gating is advisory for any client that
+connects direct.** Revisit when a second public server exists, since the same open DCR would
+apply to it too.
+
 ## 8. Decisions still needed
 
-1. **Add Grok's redirect URI to the portal allowlist?** Until then Grok bypasses the portal and
-   its tool gating. Widening the allowlist also widens who may register OAuth clients.
+1. **Add Grok's redirect URI to the portal allowlist?** It is
+   `https://grok.com/connectors-oauth-exchange-code/` (read from `OAUTH_KV`). Adding it does not
+   by itself move Grok onto the portal — Grok would also have to be reconnected to the portal
+   URL. Widening the allowlist also widens who may register OAuth clients.
 2. **Portal session duration** is still `24h` (only `nixpi SSH` was cut to `1h`).
 3. **Does the tool-gating benefit justify the portal at all** while there is one server? Its
    value is aggregation; with N=1 it is an extra hop earning only the tool switches and the call
