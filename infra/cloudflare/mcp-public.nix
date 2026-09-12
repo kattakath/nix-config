@@ -41,6 +41,16 @@
   # services.mcpGateway.public; empty renders the tunnel + Access objects but
   # registers no server, so nothing is actually reachable.
   publicServers ? [ ],
+  # Remote MCP Workers that live on their OWN hostname but are gated by the SAME
+  # Access service token as the gateway. One credential for the whole published
+  # MCP surface rather than one per origin.
+  #
+  # Each entry: { name; host; id ? name; label ? name; path ? "/mcp";
+  #               description ? ""; }
+  # `id`/`label` exist because a server registered in the portal BEFORE this
+  # module owned it keeps its original identifiers (character-mcp), and changing
+  # them would force a replace that every connected client would have to redo.
+  externalServers ? [ ],
   ...
 }:
 let
@@ -134,50 +144,108 @@ in
     ];
   };
 
-  resource.cloudflare_zero_trust_access_application.mcp_public = {
-    account_id = accountId;
-    name = "MCP public gateway";
-    type = "self_hosted";
-    domain = publicHost;
-    destinations = [
-      {
-        type = "public";
-        uri = publicHost;
-      }
-    ];
-    session_duration = "24h";
-    app_launcher_visible = false;
-    auto_redirect_to_identity = false;
-    http_only_cookie_attribute = true;
-    enable_binding_cookie = false;
-    options_preflight_bypass = false;
-    policies = [
-      {
-        id = "\${cloudflare_zero_trust_access_policy.mcp_public_service_token.id}";
-        precedence = 1;
-      }
-    ];
-  };
-
   # ---- Portal registrations, one per published server ------------------------
   # This is the ONLY per-server object. No DNS, no Access app, no OAuth.
-  resource.cloudflare_zero_trust_access_ai_controls_mcp_server = builtins.listToAttrs (
-    map (name: {
-      name = srvKey name;
-      value = {
+  resource.cloudflare_zero_trust_access_ai_controls_mcp_server =
+    builtins.listToAttrs (
+      map (name: {
+        name = srvKey name;
+        value = {
+          account_id = accountId;
+          id = "gw-${name}";
+          name = "gw-${name}";
+          description = "Published from the macos MCP gateway (services.mcpGateway.public).";
+          hostname = serverUrl name;
+          # "bearer" + a headers object is how a static credential is presented.
+          # Not "oauth": this origin has no OAuth of its own by design — Access is
+          # the boundary, and the portal holds the token.
+          auth_type = "bearer";
+          auth_credentials = tokenHeaders;
+        };
+      }) publicServers
+    )
+    # External Workers register the SAME way. They are not on the gateway, but
+    # they sit behind the same Access service token, so the portal presents the
+    # same headers and the origin verifies the same assertion. An external server
+    # that still ran its own OAuth would be the odd one out: the portal would hold
+    # a second credential, and a client could bypass the portal by driving that
+    # OAuth directly (measured with Grok, 2026-09-12 — it was granted every scope).
+    // builtins.listToAttrs (
+      map (e: {
+        name = "ext_${srvKey e.name}";
+        value = {
+          account_id = accountId;
+          id = e.id or e.name;
+          name = e.label or e.name;
+          description = e.description or "External MCP Worker behind the shared Access service token.";
+          hostname = "https://${e.host}${e.path or "/mcp"}";
+          auth_type = "bearer";
+          auth_credentials = tokenHeaders;
+        };
+      }) externalServers
+    );
+
+  # ---- External MCP Workers on their own hostname ----------------------------
+  # Same service-token policy, one Access application per hostname. The Worker
+  # behind it must ALSO verify the Access assertion itself (see character-mcp's
+  # worker/access.ts): Access is the boundary, but a Worker that trusts the
+  # network alone has no defence if the app is ever detached from the hostname.
+  resource.cloudflare_zero_trust_access_application =
+    builtins.listToAttrs (
+      map (e: {
+        name = "ext_${srvKey e.name}";
+        value = {
+          account_id = accountId;
+          name = "MCP ${e.name} (service token)";
+          type = "self_hosted";
+          domain = e.host;
+          destinations = [
+            {
+              type = "public";
+              uri = e.host;
+            }
+          ];
+          session_duration = "24h";
+          app_launcher_visible = false;
+          auto_redirect_to_identity = false;
+          http_only_cookie_attribute = true;
+          enable_binding_cookie = false;
+          options_preflight_bypass = false;
+          policies = [
+            {
+              id = "\${cloudflare_zero_trust_access_policy.mcp_public_service_token.id}";
+              precedence = 1;
+            }
+          ];
+        };
+      }) externalServers
+    )
+    // {
+      mcp_public = {
         account_id = accountId;
-        id = "gw-${name}";
-        name = "gw-${name}";
-        description = "Published from the macos MCP gateway (services.mcpGateway.public).";
-        hostname = serverUrl name;
-        # "bearer" + a headers object is how a static credential is presented.
-        # Not "oauth": this origin has no OAuth of its own by design — Access is
-        # the boundary, and the portal holds the token.
-        auth_type = "bearer";
-        auth_credentials = tokenHeaders;
+        name = "MCP public gateway";
+        type = "self_hosted";
+        domain = publicHost;
+        destinations = [
+          {
+            type = "public";
+            uri = publicHost;
+          }
+        ];
+        session_duration = "24h";
+        app_launcher_visible = false;
+        auto_redirect_to_identity = false;
+        http_only_cookie_attribute = true;
+        enable_binding_cookie = false;
+        options_preflight_bypass = false;
+        policies = [
+          {
+            id = "\${cloudflare_zero_trust_access_policy.mcp_public_service_token.id}";
+            precedence = 1;
+          }
+        ];
       };
-    }) publicServers
-  );
+    };
 
   # The connector token, surfaced the same way nixpi's is: a SENSITIVE output the
   # apply prints once, for the operator to store in the login Keychain. Never
