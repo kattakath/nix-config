@@ -33,7 +33,11 @@ in
   # Built with `nixos-rebuild switch --flake .#<hostname>`.
   # SD card image for the Pi: nix build .#nixosConfigurations.nixpi.config.system.build.sdImage
   flake.nixosConfigurations = {
-    # Raspberry Pi 4 — LIVE server (kattakath.com static landing page).
+    # Raspberry Pi 4 — the fleet's LIVE server. SITE-FREE in this public repo:
+    # `hostedSites` defaults to [ ], so the real vhost list arrives from the
+    # private nix-personal flake (docs/private-home-modules.md). It used to say
+    # "kattakath.com static landing page" — that apex left nixpi on 2026-09-07
+    # and is a DNS-only CNAME to GitHub Pages now.
     "nixpi" = mkNixos {
       system = "aarch64-linux";
       hostname = "nixpi";
