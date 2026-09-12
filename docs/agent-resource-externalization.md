@@ -94,6 +94,45 @@ Same for `checks.<system>.page-lab`, and for `packages/page-lab-pick.nix`, whose
 repo-relative `plugins/page-lab/scripts/pick-element.mjs` source literal was the one genuinely
 eval-breaking reference in the move.
 
+## Round two (same day): hooks
+
+| Was | Now |
+|---|---|
+| `.claude/hooks/superhook.js`, `superhook-digest.js` | `superhook` plugin — **and** `superhook` / `superhook-digest` PATH packages (`packages/superhook.nix`) |
+| `.claude/hooks/autostage-nix.js`, `nix-home-path-lint.js` | `claude-code-nix` plugin, as real plugin hooks |
+| `.claude/hooks/pretooluse-bash-guard.js`, `stop-gate.js` | **stay** — fleet policy, see below |
+
+**A wrapper cannot be a plugin hook, and this is the constraint worth remembering.**
+`superhook` is named by the consumer's `settings.json` *in front of* an inner hook. A
+plugin's `hooks/hooks.json` can only ADD a hook that runs alongside the others — it cannot
+wrap one. And a project `settings.json` is a checked-in file: it can hold neither a
+`/nix/store` path (machine-specific, stale on every bump) nor `${CLAUDE_PLUGIN_ROOT}`
+(defined only inside a plugin's own hook context).
+
+The resolution is the one this repo reaches for everywhere else — **let Nix be the
+interface.** The scripts live in the pinned marketplace input; Nix wraps them as `superhook`
+and `superhook-digest` binaries; `settings.json` calls a bare command name, which is stable
+in git, survives a re-pin, and needs no interpolation. Hook commands run through a shell
+with the user's environment — the SessionStart hook in the same file already resolves `nix`
+and `git` by PATH lookup, which is the evidence that this works.
+
+`claude-code-nix` had no such problem: both its hooks are ordinary `PostToolUse` entries, so
+they ship in `hooks/hooks.json` against `${CLAUDE_PLUGIN_ROOT}` and need no wiring at all.
+Their two `settings.json` entries were **deleted rather than repointed** — keeping both
+would fire each hook twice. Enabling the plugin globally is safe because both are no-ops in
+a repo with no `.nix` files.
+
+`superhook` the PLUGIN is deliberately **not** in this fleet's enabled list even though the
+same marketplace ships it: the fleet consumes the PATH packages, and enabling the plugin too
+would load a second `/superhook-review` beside the project's own.
+
+### What stayed, and why it is not a failure
+
+`pretooluse-bash-guard.js` (27 KB) is the **fleet-policy** half — Cloudflare API scoping, the
+`deploy` / `darwin-rebuild` live-fleet traps, a desktop-commander nudge. None of it means
+anything outside this repo. That the generic half could be lifted out cleanly *is* the
+factoring working: `superhook` supervises, the guard decides.
+
 ## Deletions
 
 - **`plugins/seargraph`** — 2 files (one agent `.md` + a manifest), no README, no skills,
