@@ -595,6 +595,12 @@
           system,
           publicServers ? [ ],
           publicSubdomain ? "connector",
+          # Remote MCP Workers on their own hostname, gated by the SAME service
+          # token as the gateway. Entry shape is documented at the module's own
+          # `externalServers` argument (infra/cloudflare/mcp-public.nix) — it
+          # grew optional `id`/`label` for adopting a registration that predates
+          # this module, so do not restate it here and let the two drift.
+          externalServers ? [ ],
         }:
         terranix.lib.terranixConfiguration {
           inherit system;
@@ -602,7 +608,12 @@
             ./infra/cloudflare/mcp-public.nix
             {
               _module.args = {
-                inherit domainName publicServers publicSubdomain;
+                inherit
+                  domainName
+                  publicServers
+                  publicSubdomain
+                  externalServers
+                  ;
                 accountId = cloudflareAccountId;
                 zoneId = cloudflareZoneId;
               };
