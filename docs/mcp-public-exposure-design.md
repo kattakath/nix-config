@@ -1,234 +1,213 @@
 # Publishing MCP servers — design note
 
-**Status:** design, nothing built. Written 2026-09-12 after the Cloudflare/Zero-Trust audit,
-prompted by a concrete ask: *"I don't want to maintain DNS records and Zero Trust config every
-time an MCP server is added or removed."*
+**Status:** design, nothing built. Rewritten 2026-09-12 (v2) after the first version answered
+the wrong question — see §9.
 
-**Verdict up front:** a public MCP server should be its **own Worker on its own single-label
-subdomain**, generated from one list entry in terranix — **not** a published path on the
-localhost gateway. The toil goes away by *generating* the DNS/Access objects, not by avoiding
-them.
+**The ask, verbatim:** *"Can we integrate this feature with our `mcp.nix` so that by flipping a
+flag, an MCP server can be made reached public with connector protection?"* — i.e. publish
+servers **that already run on the localhost gateway**, not write new ones.
+
+**Verdict:** achievable, and Cloudflare documents the exact mechanism. One flag per server; the
+tunnel, DNS, Access app and service token are created **once**, never per server.
 
 ---
 
-## 1. What exists today
-
-Two unrelated things share the letters "MCP". Conflating them is the main hazard here.
-
-| | `modules/shared/mcp.nix` | `mcp.kattakath.com` |
-|---|---|---|
-| What | localhost gateway, `mcp-proxy` on `127.0.0.1:8096` | Cloudflare MCP Server Portal (beta) |
-| Hosts | ~19–21 servers as one launchd user agent | downstream remote MCP servers |
-| Reachable | **nothing off-box** — no tunnel, no Access | public, Access-gated |
-| Today serves | Claude Code, VS Code, Claude Desktop, Grok CLI | `character-mcp` (1 server) |
-
-### How the gateway decides HTTP vs stdio
-
-There is **no flag**. It is list membership plus one `//`:
+## 1. Target shape
 
 ```
-customStdioServers  ──┐
-                      ├──> hostedServerNames ──> endpoints ──> httpEntries ──┐
-packagedServerNames ──┘                                                      │
-                                                                             ▼
-                        programs.claude-code.mcpServers = httpEntries // { … stdio … }
+┌────────────────────────┐
+│      claude grok       │
+└────────────┬───────────┘
+             ▼
+┌────────────────────────┐
+│       mcp portal       │   one client URL, already exists
+└────────────┬───────────┘
+             ▼
+┌────────────────────────┐
+│  Access service token  │   non-interactive auth, headers
+└────────────┬───────────┘
+             ▼
+┌────────────────────────┐
+│   cloudflared on mac   │   OUTBOUND only, no inbound port
+└────────────┬───────────┘
+             ▼
+┌────────────────────────┐
+│  public gateway :8097  │   second mcp-proxy process
+└────────────┬───────────┘
+             ▼
+┌────────────────────────┐
+│only public=true servers│
+└────────────────────────┘
 ```
 
-Everything in `httpEntries` is reachable over HTTP on loopback. Two servers are merged in
-**after** and therefore never enter `endpoints` at all:
+---
 
-| Server | Why it is not hosted |
+## 2. The mechanism that makes it work
+
+Provider schema for `cloudflare_zero_trust_access_ai_controls_mcp_server.auth_credentials`,
+verbatim:
+
+> Static credential for the upstream MCP server. For auth_type "bearer", either a raw token
+> string … or a JSON-encoded object of the form `{"headers":{"Header-Name":"value",…}}` for
+> custom or multiple static headers **(e.g. Cloudflare Access service tokens:
+> `{"headers":{"cf-access-client-id":"…","cf-access-client-secret":"…"}}`)**.
+
+So the **portal authenticates to an Access-protected origin non-interactively**. That is the
+piece that makes a flag sufficient: clients keep talking to the portal, the portal holds the
+service token, and the gateway never needs its own OAuth.
+
+Confirmed present in the pinned provider:
+
+| Resource | Purpose |
 |---|---|
-| `desktop-commander` | shell/**RCE** surface — deliberately per-client |
-| `open-design` | stdio-only upstream **and** a silent-death bug; one crashing server **darks the whole gateway** |
-
-> **Naming trap:** `customStdioServers` are *not* stdio to clients. They are stdio
-> *subprocesses* that `mcp-proxy` adapts to HTTP. The genuinely client-stdio ones are the two
-> in the `//` block. Do not "fix" one by reading the other's name.
+| `cloudflare_zero_trust_access_ai_controls_mcp_server` | one per published server |
+| `cloudflare_zero_trust_access_ai_controls_mcp_portal` | the portal + its `servers` list |
+| `cloudflare_zero_trust_access_application` / `_policy` | the one Access app + service-token policy |
+| `cloudflare_zero_trust_tunnel_cloudflared` / `_config` | the Mac-side connector |
+| `cloudflare_dns_record` | the single gateway hostname |
 
 ---
 
-## 2. The constraint that decides the design
+## 3. The decisive constraint: a SECOND gateway process
 
-**The gateway is one process, on one host, with one fate.**
+**Do not tunnel the existing `:8096`.**
 
-- It is a single launchd user agent bound to `127.0.0.1:8096`.
-- Servers are **paths on it** (`/servers/<name>/mcp`), not separate listeners.
-- `open-design`'s exclusion is documented precisely because one server crashing takes the
-  whole gateway down.
+Access protects a **hostname**, not a path. Tunnel today's gateway and a leaked service token
+reaches *every* path on it — 7 Gmail accounts, production WordPress, Postgres, Telegram.
+Per-path Access apps would fix that, but that is per-server Zero Trust config again, i.e. the
+exact toil this design exists to remove.
 
-So "expose one server" does not decompose. Publishing a path publishes **the gateway process**,
-and any path-based restriction is a filter in front of a shared, high-privilege surface whose
-other paths include 7 Gmail accounts, production WordPress, Postgres, and — one `//` away —
-RCE.
+Instead, run a **second `mcp-proxy`** on `:8097` whose config is built from the `public = true`
+subset.
 
-It also runs on **macos**, which by design takes **no incoming traffic**; the only tunnel
-connector in the fleet runs on `nixpi`. Publishing from the Mac means a *new* connector on the
-client machine, inverting a deliberate property of the fleet.
+| Property | Result |
+|---|---|
+| Leaked service token reaches | **only published servers** |
+| Unpublished servers | **not in that process** — structurally unreachable, not merely unrouted |
+| Crash blast radius | private gateway unaffected (they are separate agents) |
+| `mcp.nix` delta | same `mkConfig`, filtered list, second launchd agent |
 
-**This is the argument against Option A below, and it is decisive.**
+`desktop-commander` and `open-design` become ineligible **for free**: they are stdio-only and
+never enter `endpoints`, so there is nothing to flag.
 
 ---
 
-## 3. Options
+## 4. Cost per server — the actual answer to the ask
 
-### A. Publish gateway paths through a tunnel — **rejected**
-
-Add a cloudflared connector on macos, ingress to `127.0.0.1:8096`, Access in front, restrict by
-path.
-
-| | |
+| Created **once** | Per new public server |
 |---|---|
-| ✅ | reuses everything already running; no new server code |
-| ❌ | shared-fate process: one crash darks every published server |
-| ❌ | the blast radius behind the filter is RCE + 7 mailboxes + prod DB |
-| ❌ | requires incoming traffic to the *client* Mac, inverting the fleet's shape |
-| ❌ | path-filtering is deny-by-omission — a new gateway server is exposed **by default** |
+| cloudflared connector on macos | — |
+| 1 DNS record (the gateway hostname) | — |
+| 1 Access application + 1 service token | — |
+| the `:8097` launchd agent | — |
+| | **one portal `mcp_server` entry, generated from the flag** |
 
-That last row is the killer: safety would depend on remembering to exclude, and the audit found
-exactly that failure mode elsewhere (`allowedTCPPorts` looked restrictive and did nothing).
-
-### B. One Worker per public server — **recommended**
-
-The `character-mcp` shape, generalised: each public server is its own Cloudflare Worker on its
-own single-label subdomain, with its own OAuth, registered into the portal.
-
-| | |
-|---|---|
-| ✅ | **independent fate** — one server's bug cannot touch another |
-| ✅ | nothing on the Mac is exposed; the localhost gateway keeps its "no remote path" property |
-| ✅ | safe **by construction** when the portal is bypassed (each has its own auth) |
-| ✅ | fully declarable — see §5 |
-| ❌ | each needs a Worker written and deployed (code, not just config) |
-| ❌ | one DNS record per server — unavoidable, see §6 |
-
-### C. Hybrid — gateway published, Workers for the rest
-
-Inherits A's shared-fate and default-exposed problems for no gain. **Rejected.**
+**`public = true` → activate → published.** No new DNS, no new Zero Trust objects.
 
 ---
 
-## 4. The invariant — adopt before server #2
+## 5. Flag surface in `mcp.nix`
 
-> **Every publicly reachable MCP server must be safe when the portal is bypassed.**
+Today the split is list membership plus one `//` (see `hostedServerNames` → `endpoints` →
+`httpEntries`). This adds a third tier:
 
-Not theory. On 2026-09-12 Grok could not use the portal (its DCR allowlist is Claude-only), so
-it connected **direct** to `character.kattakath.com` and was granted `character:write` — the
-portal's per-tool gating (`4/6`, writes disabled) **did not apply**. Nothing was exposed to
-anyone else, because that Worker enforces its own OAuth + Access + a hardcoded email allow-list.
+```
+stdio-only   ·   localhost HTTP   ·   localhost HTTP + published
+```
 
-**A server that trusts the portal for authentication would have been open at its own URL.**
-
-Concretely, every public server must have:
-
-1. its own OAuth (`authorization_endpoint` / `token_endpoint` / `register`),
-2. its own Access application on `/authorize`,
-3. the Access **`aud` hardcoded in the Worker** — this is what stops a token minted for a
-   *different* Access app authorising here,
-4. its own allow-list of principals.
-
-`auth_type` is a **required** field on the Terraform MCP-server resource. The module should
-accept only `oauth`, turning this invariant into something that fails at eval.
-
----
-
-## 5. What can be generated (verified against the pinned provider)
-
-`tofu providers schema -json` confirms all four resources exist — the beta API is **not**
-dashboard-only:
-
-| Resource | Required fields |
-|---|---|
-| `cloudflare_workers_custom_domain` | `account_id`, `hostname`, `service` |
-| `cloudflare_zero_trust_access_application` | *(all optional)* |
-| `cloudflare_zero_trust_access_ai_controls_mcp_server` | `account_id`, `auth_type`, `hostname`, `id`, `name` |
-| `cloudflare_zero_trust_access_ai_controls_mcp_portal` | `account_id`, `hostname`, `id`, `name` (+ optional `servers`, `code_mode`, `allow_code_mode`) |
-
-Proposed shape, mirroring `hostedSites` (new file, e.g. `infra/cloudflare/mcp-servers.nix`):
+Proposed:
 
 ```nix
-mcpServers = [
-  { name = "character"; worker = "character-mcp"; }
-  { name = "notes";     worker = "notes-mcp";     }
-];
+services.mcpGateway.public = [ "nixos" "context7" "memory" ];
 ```
 
-Each entry generates: the Workers custom domain, the `/authorize` Access application plus its
-policy attachment, the portal server registration, and membership in the portal's `servers`
-list. **Add a server = one line. Remove = delete the line.** `tofu plan` shows exactly what
-changes, the same way site CNAMEs already work.
+A list, not a per-server attribute, so the default is **empty** — opt-in by construction. The
+module then derives the `:8097` config, the tunnel ingress, and the portal registrations from
+that one list, the way `hostedSites` already drives ingress + DNS + rulesets.
 
-### Assertions the module should carry
+### Assertions the module must carry
 
 | Assertion | Why |
 |---|---|
-| `name` is **single-label** | the free Universal cert covers `*.kattakath.com` — **one** label. `calendly.ismail.kattakath.com` had no cert for exactly this reason. |
-| `auth_type == "oauth"` | §4's invariant, enforced at eval |
-| name not in the localhost gateway's roster | prevents accidentally publishing a gateway server by name collision |
+| every name ∈ `hostedServerNames` | cannot publish something the gateway does not host |
+| name ∉ the two client-stdio servers | RCE / silent-death servers structurally ineligible |
+| default `[ ]` | opt-in, never deny-by-omission |
 
 ---
 
-## 6. What this does *not* remove
+## 6. Known limits — decide with these visible
 
-| Still manual / unavoidable | Why |
+| Limit | Detail |
 |---|---|
-| **One DNS record per server** | Cloudflare's portal reaches downstreams **over HTTP**; it needs a URL. It becomes *generated output*, not hand-maintained state — but it does not vanish. |
-| The Worker's own code | Terraform deploys; it does not write the handler. Copy `character-mcp`'s OAuth scaffolding. |
-| Per-server OAuth | lives in the Worker source (see §4) |
+| **The Mac must be awake and online** | the gateway is on the laptop. Sleep it and every published server goes dark. Servers needing real uptime belong on `nixpi`, not here. |
+| **Two commands, not one** | `activate` handles the Mac side (agent + tunnel config). The Cloudflare side is a terranix apply. Wiring both to one list still leaves two applies. |
+| **Shared fate within the public gateway** | one `mcp-proxy` process; a crash darks all published servers (but not the private ones). |
+| **Access is the only boundary** | unlike `character-mcp`, the gateway has no OAuth of its own. §3's second process is what bounds the damage. |
+| **Portal costs** | brokering drops independent MFA / purpose justification; logs are dashboard-only (Logpush is Enterprise); DLP does not apply to portal traffic; the feature is beta. |
 
 ---
 
-## 7. Known costs of routing through the portal
+## 7. Alternative that remains valid: a standalone Worker
 
-| Cost | Detail |
-|---|---|
-| **MFA is dropped** | Cloudflare docs: independent MFA, purpose justification and temporary auth are **not enforced** for servers authorised through a portal. Pinning `allowed_idps` is the only remaining lever — already set to Google. |
-| Logs are dashboard-only | the `mcp_portal_logs` Logpush dataset is Enterprise |
-| No DLP on portal traffic | DLP AI prompt profiles explicitly do not apply |
-| Beta | field semantics can change; per-server auth (§4) is the safety net |
-| DCR allowlist | currently `claude.ai` + `claude.com` only. Any other client (Grok) is rejected and will go **direct** unless its redirect URI is added. |
+For a genuinely new remote server — one that should be up when the Mac is asleep, or that wants
+its own OAuth — the `character-mcp` shape still applies: its own Worker, own single-label
+subdomain, own OAuth, `aud` hardcoded, registered in the portal. That is a *different* answer to
+a *different* need, not a competitor to §1.
+
+**Invariant for that path:** every publicly reachable server must be safe when the portal is
+bypassed. Proven non-theoretical on 2026-09-12 — Grok could not use the portal (DCR allowlist is
+Claude-only), connected direct to `character.kattakath.com`, and was granted `character:write`,
+so the portal's `4/6` tool gating did not apply.
 
 ---
 
 ## 7a. Redirect-URI allowlists — one, not one per server
 
-A per-server allowlist is **not** needed. There are two distinct lists and only one is
-maintained:
+| List | Who registers | Maintenance |
+|---|---|---|
+| **Portal** `dynamic_client_registration.allowed_uris` | end clients (Claude, Grok) | the one you edit |
+| Each Worker's own DCR | the portal itself | zero — one stable callback |
 
-| List | Who registers there | Redirect URI | Maintenance |
-|---|---|---|---|
-| **Portal** `oauth_configuration.dynamic_client_registration.allowed_uris` | end **clients** (Claude, Grok) | one per client | the one you edit |
-| **Each Worker's own DCR** | **the portal itself** | a single stable value | zero, if templated |
+The portal registers against every downstream with a single callback —
+`https://mcp.kattakath.com/servers-callback`, read from `character-mcp`'s `OAUTH_KV`. Identical
+for every server. **Under §1 this does not arise at all**: the gateway uses a service token, not
+OAuth.
 
-Per the provider schema for `is_shared_oauth_callback_enabled`: the gateway worker uses either
-*"the shared Cloudflare-owned OAuth callback endpoint … instead of the customer portal
-hostname"*. Default is off, so it is the portal hostname. Either way it is **one callback per
-portal**, identical for every downstream — confirmed in `character-mcp`'s `OAUTH_KV`, where the
-portal is registered as `https://mcp.kattakath.com/servers-callback`.
+### Enforcement lever — considered, DECLINED 2026-09-12
 
-So a new server needs **no** redirect-URI work: template the Worker to accept the portal
-callback and it is done.
+Restricting each Worker's DCR to only the portal callback would make portal-only access
+**enforced** rather than advisory (and close audit finding MCP-5). Not adopted: it breaks Grok's
+existing direct grant. Consequence, recorded so it is a choice and not a surprise: **portal tool
+gating is advisory for any client that connects direct.** Revisit at server #2.
 
-### The enforcement lever — considered and DECLINED 2026-09-12
+---
 
-Workers currently ship `workers-oauth-provider`'s **open DCR** (any `redirect_uri`). That is how
-Grok registered directly and received `character:write`, bypassing the portal's `4/6` tool
-gating. Restricting each Worker's DCR to only the portal callback would make portal-only access
-**enforced** rather than hoped-for, and would close audit finding MCP-5 as a side effect.
+## 8. Open decisions
 
-**Not adopted.** The cost is breaking Grok's existing direct grant and re-establishing it
-through the portal, which the operator judged not worth it now. Consequence, stated plainly so
-it is a choice and not a surprise: **the portal's tool gating is advisory for any client that
-connects direct.** Revisit when a second public server exists, since the same open DCR would
-apply to it too.
+1. **Hostname for the public gateway** — e.g. `gw.kattakath.com`. Must be **single-label**: the
+   free Universal cert covers `*.kattakath.com`, one label only (`calendly.ismail.kattakath.com`
+   had no cert for exactly this reason).
+2. **Which servers to publish first.** Suggest starting with read-only, tokenless ones
+   (`nixos`, `context7`, `memory`, `fetch`) to exercise the path before anything credentialed.
+3. **Does anything belong on `nixpi` instead**, given §6's uptime limit?
+4. **Add Grok's redirect URI** (`https://grok.com/connectors-oauth-exchange-code/`) to the portal
+   allowlist, so Grok uses the portal rather than going direct?
+5. **Prune two stale `playground-*` OAuth client registrations** sitting in `character-mcp`'s
+   `OAUTH_KV` from Cloudflare AI-playground testing.
 
-## 8. Decisions still needed
+---
 
-1. **Add Grok's redirect URI to the portal allowlist?** It is
-   `https://grok.com/connectors-oauth-exchange-code/` (read from `OAUTH_KV`). Adding it does not
-   by itself move Grok onto the portal — Grok would also have to be reconnected to the portal
-   URL. Widening the allowlist also widens who may register OAuth clients.
-2. **Portal session duration** is still `24h` (only `nixpi SSH` was cut to `1h`).
-3. **Does the tool-gating benefit justify the portal at all** while there is one server? Its
-   value is aggregation; with N=1 it is an extra hop earning only the tool switches and the call
-   log. It pays off at N≥2 — which is the stated direction.
+## 9. Correction record — what v1 of this note got wrong
+
+v1 recommended writing a new Worker per public server and dismissed the tunnel approach. Two of
+its four objections were wrong or weak, and it answered a question that had not been asked.
+
+| v1 claim | Correction |
+|---|---|
+| *"requires incoming traffic to the client Mac, inverting the fleet's shape"* | **Wrong.** `cloudflared` dials **outbound**; no inbound listener, no port opened. The Pi already demonstrates this. |
+| *"path filtering is deny-by-omission — new servers exposed by default"* | **Solvable, and by the proposed flag itself.** A `public` list defaulting to `[ ]` is opt-in. §3 goes further and makes unpublished servers structurally absent. |
+| *"shared fate — one crash darks all"* | Still true, but bounded by §3's second process, and it is an availability concern, not a security one. |
+| *"blast radius behind the filter"* | Still true but **graded** — v1 treated `nixos` (read-only, no token) as equivalent to `desktop-commander` (RCE). §3 addresses it structurally. |
+
+Kept from v1 because it remains correct: the invariant in §7, the redirect-URI analysis in §7a,
+and the verified provider-resource list in §2.
