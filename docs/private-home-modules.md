@@ -13,7 +13,7 @@ provisioner repos (`provision.sh` + marker) vs this repo's generic
 | **Engine** | `github:kattakath/nix-config` (public) | hosts, shared profile, `lib.mkDarwin` / `lib.mkHomeManagerModule` / `lib.mkNixos` / `lib.cfTunnelConfig` |
 | **Private stack** | your private forge (GitLab/GitHub) | home-manager modules, real hosted-site content, and dontsell.ai's bespoke tunnel — only you should see these |
 | **Contract (darwin)** | `extraHomeModules` on `lib.mkDarwin` | list of HM modules; public hosts pass `[]` |
-| **Contract (nixpi)** | `hostedSites` + `extraModules` on `lib.mkNixos` | real site list (`{ domain; zoneId ? null; root; www ? true; ownTunnel ? false }`) + any bespoke modules (e.g. dontsell.ai's second tunnel connector); public `nixosConfigurations.nixpi` passes neither, defaulting to `[]`/no extras |
+| **Contract (nixpi)** | `hostedSites` + `extraModules` on `lib.mkNixos` | real site list (`{ domain; zoneId ? null; root; www ? true; ownTunnel ? false }`) + any bespoke modules; public `nixosConfigurations.nixpi` passes neither, defaulting to `[]`/no extras |
 
 **No private stack is referenced from this repository** — not as a flake input, not
 as a path, not as a URL. The public `flake.lock` never locks a private repo. This
