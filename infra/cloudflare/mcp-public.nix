@@ -41,15 +41,22 @@
   # services.mcpGateway.public; empty renders the tunnel + Access objects but
   # registers no server, so nothing is actually reachable.
   publicServers ? [ ],
-  # Remote MCP Workers that live on their OWN hostname but are gated by the SAME
-  # Access service token as the gateway. One credential for the whole published
-  # MCP surface rather than one per origin.
+  # Remote MCP Workers published under the SAME hostname as the gateway, as a
+  # Cloudflare Worker *route* on `<publicSubdomain>/servers/<name>/*` rather than
+  # a hostname of their own. They are not on the :8097 proxy — they are
+  # independent origins with their own uptime — but a client cannot tell, and
+  # should not care, which side of the edge answers.
   #
-  # Each entry: { name; host; id ? name; label ? name; path ? "/mcp";
-  #               description ? ""; }
-  # `id`/`label` exist because a server registered in the portal BEFORE this
-  # module owned it keeps its original identifiers (character-mcp), and changing
-  # them would force a replace that every connected client would have to redo.
+  # Each entry: { name; id ? "ext-<name>"; label ? name; description ? ""; }
+  # No `host`: there is exactly ONE public hostname. `id`/`label` exist because a
+  # server registered before this module owned it keeps its original identifiers
+  # (character-mcp) — `id` is ForceNew, so changing it would replace the
+  # registration, drop the portal attachment and make every client reconnect.
+  #
+  # The Worker route itself lives in that Worker's own wrangler config; this
+  # module only registers and gates it. Access covers the whole hostname and
+  # Cloudflare checks Access BEFORE a Worker runs, so a route needs no Access
+  # object of its own.
   externalServers ? [ ],
   ...
 }:
@@ -122,22 +129,8 @@ let
       id = e.id or "ext-${e.name}";
       label = e.label or e.name;
       description = e.description or "External MCP Worker behind the shared Access service token.";
-      url = "https://${e.host}${e.path or "/mcp"}";
+      url = serverUrl e.name;
     }) externalServers;
-
-  # Every hostname this module puts an Access application in front of. The
-  # gateway is just another origin — treating it as a special case is what let
-  # the two diverge.
-  origins = [
-    {
-      key = "origin_gateway";
-      host = publicHost;
-    }
-  ]
-  ++ map (e: {
-    key = "origin_${srvKey e.name}";
-    inherit (e) host;
-  }) externalServers;
 
   # Google Workspace. Pinned on EVERY application, including the service-token
   # origins whose only policy is `non_identity`. Empty means "accept every
@@ -326,12 +319,14 @@ in
   # Deleting the origin app darks the server entirely (its Worker requires the
   # Access assertion); deleting the portal app makes it invisible to clients.
   resource.cloudflare_zero_trust_access_application =
-    builtins.listToAttrs (
-      map (o: {
-        name = o.key;
-        value = originApp o.host;
-      }) origins
-    )
+    {
+      # THE origin. Singular, and that is the design: one public hostname for
+      # every published MCP server, whether it is served by the macos mcp-proxy
+      # down the tunnel or by a Worker route at the edge. A second hostname would
+      # mean a second Access application, a second aud and a second DNS record to
+      # keep in sync — which is exactly what this replaced.
+      origin_gateway = originApp publicHost;
+    }
     // builtins.listToAttrs (
       map (p: {
         name = "portal_${p.key}";
