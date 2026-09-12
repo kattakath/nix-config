@@ -17,6 +17,12 @@ valid:
   # The OTHER path axis: a Nix source literal must stay repo-relative and is
   # never flagged.
   - '{ source = ../../claude/CLAUDE.md; }'
+  # The three NON-OPERATOR users (ADR-002 wave 5, tart-vms). Each is exempt for
+  # a different reason — guest account, eval fixture, doc placeholder — and the
+  # rule header names the file:line each one lives at.
+  - '{ runnerDirInGuest = "/Users/admin/actions-runner"; }'
+  - '{ stateDir = "/Users/tester/.local/state/tart-runner"; }'
+  - '{ example = [ "Downloads:/Users/me/Downloads" ]; }'
 invalid:
   - '{ dir = "/Users/ismail/Developer/x"; }'
   - '{ dir = "/home/ismail/.config/foo"; }'

@@ -37,7 +37,7 @@ host itself.
 | Secret | Consumer | Content |
 |---|---|---|
 | `gh-app-dontsell-ai-key.age` | `services.macosGithubRunner` (`modules/darwin/github-runner.nix`) — the bare-metal `_github-runner` **daemons** | GitHub App RS256 `.pem` |
-| `gh-app-fleet-key.age` | `tart.githubRunners.*` (`nix-tart-vms`, `hosts/macos.nix`) — the login-user Tart **agents** | the *same* App's RS256 `.pem` |
+| `gh-app-fleet-key.age` | `tart.githubRunners.*` (the `tart-vms` capsule, `hosts/macos.nix`) — the login-user Tart **agents** | the *same* App's RS256 `.pem` |
 | `gitlab-runner-token.age` | `tart.gitlabRunner` — renders `config.toml` at agent start | the bare `glrt-` token, one line |
 
 **The two `gh-app-*` files hold identical key material, and that is deliberate — not duplication
