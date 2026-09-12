@@ -959,7 +959,7 @@ nothing — hence one regex, not two calls.
 | `packages.nix` | `perSystem.packages` + every `apps.*`. |
 | `checks.nix` | The engine's own checks, including `claude-md-budget`, `hm-launchd-drift`, `deploy-schema` and `bedrock-gate-after-loader`. |
 | `capsules.nix` | The capsule registry and its two internal seams — `capsuleModules` and `capsuleSources` — plus `checks.<system>.capsule-registry`. |
-| `terranix.nix` | The `cf-*` / `mcp-public-*` / `hf-*` tofu builders. |
+| `terranix.nix` | The `cf-*` / `mcp-public-*` tofu builders. |
 | `devshell.nix` | `devShells` + the `git-hooks.nix` wiring. |
 | `deploy.nix` | `deploy.nodes.nixpi` (deploy-rs has **no** flakeModule — grepped; this stays hand-written in the freeform `flake` attr). |
 | `templates.nix` | `templates.default`. |

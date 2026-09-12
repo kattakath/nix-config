@@ -70,6 +70,10 @@
         "aarch64-linux"
         "x86_64-linux"
       ];
+      # Hand-rolled fold ON PURPOSE, and NOT the ADR-002 debt that a `forAllSystems` in
+      # nix-config's own engine would be: this is a starter template handed to unrelated
+      # projects, and flake-parts would add an input to every one of them. Single-input is
+      # the feature. Do not "migrate" it.
       forAll = f: nixpkgs.lib.genAttrs systems (system: f system nixpkgs.legacyPackages.${system});
       inherit (nixpkgs) lib;
 
