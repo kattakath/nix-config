@@ -20,13 +20,91 @@
 }:
 let
   inherit (inputs) vast-provision home-manager;
+  inherit (config.fleet.identityArgs) loginName;
 in
 {
   perSystem =
     { pkgs, ... }:
     {
       checks =
-        lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+        lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
+          # ---- The shell-init ORDERING contract, tested for the first time ----
+          #
+          # TWO modules write into the SAME three home-manager options, and the
+          # whole correctness argument is which one lands first:
+          #
+          #   modules/features/keychain-secrets/module.nix  lib.mkAfter  (= 1500)
+          #     exports every registered Keychain secret into the shell.
+          #   modules/shared/claude-bedrock-gate.nix        lib.mkOrder 1600
+          #     reads CLAUDE_CODE_USE_BEDROCK and unsets it when the private AWS
+          #     layer is absent.
+          #
+          # Run the gate BEFORE the loader and it sees an UNSET variable and does
+          # nothing at all — the failure is silent, degrades Claude Code to a
+          # provider it cannot reach, and shows up as "no model responds", not as
+          # a broken shell. Nothing checked it: 1500 is implicit in `mkAfter`,
+          # 1600 is a bare literal in another file, and neither side type-checks
+          # the other. Absorbing keychain-secrets (ADR-002 wave 4) is what made
+          # this testable — the two halves are now in one evaluation.
+          #
+          # It reads the REAL macos config, not a fixture, for the same reason
+          # nixpi-firmware-names reads the real nixpi: a fixture would pin the
+          # numbers this check already knows and prove nothing about the host.
+          # Darwin-only because both halves are darwin-gated.
+          #
+          # The loader's marker is DERIVED from `loaderRelPath` rather than
+          # restated, so this cannot go stale if the default ever legitimately
+          # moves.
+          bedrock-gate-after-loader =
+            let
+              hm = config.flake.darwinConfigurations.macos.config.home-manager.users.${loginName};
+              loaderMark = hm.programs.keychainSecrets.loaderRelPath;
+              # From claude-bedrock-gate.nix's `gateShell`. `+x`, not a value
+              # test, because Bedrock is selected by mere PRESENCE.
+              gateMark = "CLAUDE_CODE_USE_BEDROCK+x";
+
+              surfaces = {
+                "programs.zsh.envExtra (~/.zshenv)" = hm.programs.zsh.envExtra;
+                "programs.bash.profileExtra (~/.bash_profile)" = hm.programs.bash.profileExtra;
+                "programs.bash.bashrcExtra (~/.bashrc)" = hm.programs.bash.bashrcExtra;
+              };
+
+              # Ordering without an index-of: split on the loader line, then ask
+              # whether the gate appears in what came BEFORE it.
+              verdict =
+                text:
+                if !(lib.hasInfix loaderMark text) then
+                  "the Keychain loader line is missing entirely"
+                else if !(lib.hasInfix gateMark text) then
+                  "the Bedrock gate is missing entirely"
+                else if lib.hasInfix gateMark (builtins.head (lib.splitString loaderMark text)) then
+                  "the Bedrock gate runs BEFORE the Keychain loader"
+                else
+                  null;
+
+              broken = lib.filterAttrs (_: v: v != null) (lib.mapAttrs (_: verdict) surfaces);
+            in
+            pkgs.runCommand "bedrock-gate-after-loader" { } (
+              if broken == { } then
+                ''
+                  echo "shell-init order ok on ${toString (lib.length (lib.attrNames surfaces))} surfaces: loader (mkAfter/1500) then bedrock gate (mkOrder 1600)" > "$out"
+                ''
+              else
+                ''
+                  echo "bedrock-gate-after-loader: the shell-init ordering contract broke." >&2
+                  ${lib.concatStringsSep "\n" (lib.mapAttrsToList (k: v: ''echo "  ✘ ${k}: ${v}" >&2'') broken)}
+                  echo "" >&2
+                  echo "modules/shared/claude-bedrock-gate.nix uses lib.mkOrder 1600 and MUST" >&2
+                  echo "run after modules/features/keychain-secrets/module.nix's lib.mkAfter" >&2
+                  echo "(= mkOrder 1500), which is what exports CLAUDE_CODE_USE_BEDROCK from" >&2
+                  echo "the Keychain in the first place. Reversed, the gate reads an unset" >&2
+                  echo "variable, does nothing, and Claude Code silently keeps a Bedrock" >&2
+                  echo "route it cannot use. Fix the priorities; do not relax this." >&2
+                  exit 1
+                ''
+            );
+        }
+        // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
           # ---- The four names a reflash depends on, pinned ---------------------
           #
           # ADR-002 wave 3 moved the Cloudflare Tunnel connector in-tree as a

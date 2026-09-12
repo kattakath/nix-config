@@ -46,6 +46,46 @@
     '';
   };
 
+  # ---- The RAW module seam, and why it is not `flake.modules` -------------
+  #
+  # MEASURED, wave 4: routing a HOME-MANAGER capsule module through
+  # `flake.modules.<class>.<name>` changes what the fleet BUILDS.
+  #
+  # `flake.modules`' element type is `types.deferredModule`, whose merge ALWAYS
+  # wraps every definition — pinned nixpkgs lib/types.nix,
+  # `deferredModuleWith`: `merge = loc: defs: { imports = … map … defs; }`.
+  # flake-parts then wraps again for any class but `generic`
+  # (extras/modules.nix:14-27). So a consumer that writes
+  # `imports = [ config.flake.modules.homeManager.x ]` is NOT importing the
+  # module — it is importing a module that imports it, one or two levels down.
+  #
+  # For a NixOS module that is invisible: the config is attribute-keyed, so
+  # collection order does not reach the output. For a home-manager module it is
+  # NOT: `home.packages` is a LIST, its definitions merge in module-collection
+  # order, and that order is `buildEnv`'s `paths` order in `home-manager-path`
+  # — which decides who wins a filename collision. Measured on `macos`: routing
+  # the keychain-secrets module through `flake.modules` (either class, and
+  # `generic` too) moved its four CLIs ahead of postgresql and nix-bedrock-gate
+  # in that list and changed `darwin-system…drv`, with byte-identical package
+  # derivations. Importing the same path directly restored it exactly.
+  #
+  # Hence a second seam, `lazyAttrsOf raw`, which passes a definition through
+  # UNCHANGED. Same shape as `flake.modules` (class, then name) so a capsule
+  # reads the same either way; same file-level contract (flake-module.nix is
+  # still the only export point). The two nixos capsules stay on
+  # `flake.modules` — they are already baselined that way and gain the `_class`
+  # stamp for free; a class whose merge order is load-bearing uses this instead.
+  options.capsuleModules = lib.mkOption {
+    type = lib.types.lazyAttrsOf (lib.types.lazyAttrsOf lib.types.raw);
+    default = { };
+    description = ''
+      Capsule-exported modules for module classes whose COLLECTION ORDER is
+      observable in the built output (home-manager's `home.packages`, say).
+      Keyed `<class>.<name>`, mirroring `flake.modules`, but `raw` so the
+      definition reaches the consumer unwrapped. Not a flake output.
+    '';
+  };
+
   # `config = { … }` is MANDATORY here, not style: this file declares a top-level
   # `options`, and the module system then refuses a bare sibling attribute
   # ("unsupported attribute `perSystem'. This is caused by introducing a
