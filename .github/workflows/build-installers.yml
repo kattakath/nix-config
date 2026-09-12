@@ -34,7 +34,6 @@ on:
       - "hosts/nixpi.nix"
       - "modules/nixos/**"
       - "modules/shared/**"
-      - "packages/landing/**"
       # Baked into the image as users.users.<login>.openssh.authorizedKeys (via
       # flake.nix operatorSshKey → modules/nixos/core.nix). A rotate that only
       # touches this file MUST republish the image, or a reflash ships the old
