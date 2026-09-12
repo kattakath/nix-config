@@ -1,9 +1,12 @@
 ---
+# Claude Code reads `paths:` (docs/en/memory § Path-specific rules). This file
+# previously carried `globs:` + `alwaysApply:` — Cursor's .mdc schema, which
+# Claude Code ignores, so the rule loaded unconditionally and the intended scope
+# never applied. Same scope, now in the key that is actually read.
 description: Enforces Nix flake git purity — newly generated .nix files must be git-staged before any evaluation pass.
-globs:
+paths:
   - "**/*.nix"
   - "flake.lock"
-alwaysApply: true
 ---
 
 # Git Purity — Stage Before You Evaluate
