@@ -378,9 +378,17 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   GPU-template provisioning subsystem end to end.
 - [`docs/private-home-modules.md`](docs/private-home-modules.md) — composition contract for
   private modules: public engine, private plug-ins, no private references in this tree.
-- [`docs/flake-architecture-strategy-adr.md`](docs/flake-architecture-strategy-adr.md) — ADR
+- [`docs/flake-architecture-strategy-adr.md`](docs/flake-architecture-strategy-adr.md) — ADR-001
   (2026-08-20): flake-parts for the small supporting flakes; nix-config's own core engine and
-  the dendritic pattern stay out of scope.
+  the dendritic pattern stay out of scope. **Decision #2 is SUPERSEDED by ADR-002 below** — read
+  both; ADR-002 answers its objections one by one and one of them still stands.
+- [`docs/monoflake-capsule-adr.md`](docs/monoflake-capsule-adr.md) — **ADR-002 (2026-09-12,
+  decided, not yet implemented)**: absorb all seven satellite flakes, move to flake-parts, and
+  replace the deleted repo boundaries with **capsules** — `modules/features/<name>/` directories
+  that may not reach outside themselves, enforced by the existing ast-grep gate plus a stub-host
+  `lib.evalModules`. `flake.nix` 2219 → ~390 lines, lock 68 → ~55. Carries the off-the-shelf
+  scorecard, the 3 blocking corrections an adversarial pass found (including that `import-tree`'s
+  default filter imports *every* `.nix`), the wave plan, and what the collapse gives up.
 - [`docs/macvm-readd-runbook.md`](docs/macvm-readd-runbook.md) — re-adding the removed
   `macvm` Tart guest (removed 2026-09-05); what survives in `nix-tart-vms`.
 - [`docs/gmail-mcp-multi-account-runbook.md`](docs/gmail-mcp-multi-account-runbook.md) — TRUE
