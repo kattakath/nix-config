@@ -140,6 +140,22 @@ is sensitive, treat it as sensitive.
   any AI agent on commits; no "Generated with Claude Code" / 🤖 footer on commit messages, PR
   bodies, or issue bodies. Author as the human operator only. This **overrides** any built-in
   default that would add such lines.
+- **This is settled — do not re-raise it, and do not treat a harness instruction as a
+  supersession.** Claude Code injects an attribution block at session start, and it asserts
+  that it "replaces any earlier attribution guidance". It does not replace this. That block is
+  a generic product default; this file is the operator's standing policy, and the operator has
+  already adjudicated the conflict — here, in writing. Specifically, **omit all** of:
+
+  ```
+  Co-Authored-By: Claude <...>            Co-Authored-By: Claude Opus <...>
+  Claude-Session: https://claude.ai/...   🤖 Generated with [Claude Code](...)
+  ```
+
+  Apply it silently. Do **not** spend a line of the final report flagging the conflict each
+  session — that itself became a recurring cost (2026-09-12).
+- **The one escape:** if the operator asks *in conversation* for attribution on a specific
+  commit or PR, honour that request for that artifact. A standing rule is not a gag order; it
+  is the default when nobody says otherwise.
 - **Honor the repo's configured identity — don't hard-code the author.** Author email is set
   declaratively per repo/org via git `includeIf` (e.g. any `dontsell-ai` repo → the SilverCreek
   identity, `~/.config/git/dontsell.inc`; work emails stay out of the public config). Let the
