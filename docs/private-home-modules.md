@@ -2,9 +2,7 @@
 
 This public flake is the **fleet engine**. Personal or sensitive home-manager
 stacks (anything you do not want in a public tree) live in a **separate private
-flake** and plug in through a fixed contract — the same boundary as Vast
-provisioner repos (`provision.sh` + marker) vs this repo's generic
-`vast-template-apply`.
+flake** and plug in through a fixed contract.
 
 ## Boundary
 
@@ -202,15 +200,6 @@ nix run ~/Developer/gitlab.com/ismailkattakath/nix-personal#macos
 ```
 
 Fleet-only (no private modules): `github:kattakath/nix-config#macos`.
-
-## Analogy to Vast provisioners
-
-| Vast | Private home modules | Private hosted sites (nixpi) |
-|---|---|---|
-| Public bootstrap / `vast-*` apps in this repo | Public `lib.mkDarwin` + `extraHomeModules` | Public `lib.mkNixos` + `hostedSites`/`extraModules` |
-| Private `owner/stack` repo with `provision.sh` | Private flake with HM modules | Private flake's `sites/` + `modules/nixpi-dontsell-tunnel.nix` |
-| Template holds no secrets | Public tree holds no private module URLs | Public tree holds no real zoneIds / site content |
-| Activate instance via Vast | Activate Mac via private flake `#macos` | Activate nixpi via private flake `#nixpi` (remote switch) |
 
 ## WireGuard (and other private *files*)
 

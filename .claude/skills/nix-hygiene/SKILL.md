@@ -134,7 +134,7 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
       smuggles a value out through `specialArgs`, an overlay, or a runtime-built
       store path is invisible to both gates (ADR-002 §7.6) and IS a finding here.
       Never widen the seam to make red go green; add a typed engine seam
-      (`fleet.*` in `modules/parts/`) instead, the way `fleet.vastRawServed` does.
+      (`fleet.*` in `modules/parts/`) instead.
 
 ### F. Mechanical gate (mandatory after fixes)
 
@@ -153,7 +153,6 @@ If `nix` unavailable: `nix-instantiate --parse` on changed `.nix` + state CI-def
 | Scope | Command |
 |---|---|
 | nixpi flash/provision | skill `nixpi-firmware-provision` |
-| Vast templates | skill / docs as needed |
 
 ### H. Optional second opinions
 

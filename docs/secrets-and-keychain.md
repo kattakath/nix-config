@@ -185,39 +185,6 @@ archived, and this fleet's disclosure path is `SECURITY.md` at the repo root.
    `unset __SECRETS_KEYCHAIN_LOADED && source ~/.config/secrets/loader.sh`, or just open a
    fresh shell.
 
-## Vast.ai tokens
-
-Same rule: `VAST_API_KEY` plus the read-only tokens live in the login Keychain and are
-pushed to Vast **account-level** env vars via `nix run .#vast-account-vars-set` (injected
-into every instance, never baked into the template); provisioner stacks are private
-GitLab repos. See [`vastai-template-provisioning.md`](vastai-template-provisioning.md).
-
-**The `VAST_<NAME>` prefix is gone** (pinned input `vast-provision`, 2026-09-06). It
-existed to mark a token as safe to sync and paid for that marker by duplicating every
-credential; the duplicates then rotted — all four were missing from the Keychain, so the
-sync pushed nothing and said so only as four `SKIP` lines.
-
-**The Vast variable names are fixed, not chosen.** The container reads them:
-`GITLAB_TOKEN`/`GH_TOKEN` for clone auth (`vast-bootstrap.sh`, `provision-lib.sh`
-`fetch_gitref`) and `CIVITAI_TOKEN`/`HF_TOKEN` for downloads (`fetch_civitai`). So the
-*source* is aliased where the operator's canonical entry is spelled differently:
-
-| Vast variable (fixed) | Keychain entry read | Present? |
-|---|---|---|
-| `GITLAB_TOKEN` | `GITLAB_TOKEN` — operator PAT (`api`, `create_runner`, `manage_runner`) | ✅ |
-| `HF_TOKEN` | `HF_TOKEN` | ✅ |
-| `CIVITAI_TOKEN` | `CIVITAI_API_TOKEN` | ✅ |
-| `GH_TOKEN` | `GITHUB_PERSONAL_ACCESS_TOKEN` | ✅ |
-| — | `VAST_API_KEY` (Vast's own key), `DOCKERHUB_TOKEN` (rent-time only) | **never synced** |
-
-⚠️ **Nothing in a name says "this leaves the machine" any more.** The argument list to
-`vast-account-vars-set` is the only guard, and anything it pushes is readable by the
-third-party GPU host operator. The default set is all four rows above — which means
-`GITHUB_PERSONAL_ACCESS_TOKEN`, a full-scope PAT, ships to every instance on a bare
-`vast-account-vars-set`. That is an accepted trade (2026-09-06, operator shown the
-scope); **name tokens explicitly if you want less**, e.g.
-`nix run .#vast-account-vars-set -- GITLAB_TOKEN HF_TOKEN`.
-
 ## Cachix write token
 
 `CACHIX_AUTH_TOKEN` lives in exactly two places — a **GitHub Actions secret** and (since
