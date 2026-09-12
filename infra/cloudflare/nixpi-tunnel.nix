@@ -205,6 +205,13 @@ in
         # Required catch-all: any unmatched request returns 404.
         { service = "http_status:404"; }
       ];
+
+      # WARP routing is ON in the live account. It MUST be declared here: the
+      # provider sends the whole `config` block, so omitting it would silently
+      # flip the live tunnel's warp-routing off on the next apply. Private
+      # network reachability is gated by the Gateway L4 "Default deny for
+      # private traffic" rule, not by this switch.
+      warp_routing.enabled = true;
     };
   };
 

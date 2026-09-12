@@ -46,7 +46,7 @@ Fully declarative **aarch64-only** fleet, single source of truth, platform diver
 | Host | System | Role |
 |---|---|---|
 | `macos` | aarch64-darwin | The sole client Mac (nix-darwin). No incoming traffic; it is the SSH *client*, reaching `nixpi` via `cloudflared access ssh`. Builds `aarch64-linux` locally on Determinate's native Linux builder. |
-| `nixpi` | aarch64-linux | **LIVE server** (NixOS on a Pi 4): static-key SSH over a Cloudflare Tunnel connector + Caddy. **Site-free in this public repo** — real sites + dontsell.ai's second connector come from the private nix-personal flake ([`docs/private-home-modules.md`](docs/private-home-modules.md)). |
+| `nixpi` | aarch64-linux | **LIVE server** (NixOS on a Pi 4): Access-gated, loopback-bound SSH over a Cloudflare Tunnel connector + Caddy. **Site-free in this public repo** — the real site list comes from the private nix-personal flake ([`docs/private-home-modules.md`](docs/private-home-modules.md)). |
 | `nixvm` | aarch64-linux | Throwaway XFCE build-vm, materialised **only** as `nix run .#nixvm`. No installed disk, no builder, no runner. |
 | devcontainer | +`x86_64-linux` | The one exception to aarch64-only, so it runs on x86_64 Codespaces. |
 
@@ -122,7 +122,7 @@ One line per path; the *why* and the per-file specifics are in
 | Path | What it owns |
 |---|---|
 | `flake.nix` | Inputs/pins, `forAllSystems`, `mkDarwin`/`mkNixos`, `identityArgs`, all exported configurations/packages/apps/checks, and `deploy.nodes.nixpi` (deploy-rs, magic rollback — read the ⚠ at its definition site). |
-| `flake.lock` | Pinned revisions — bump only via `nix flake update` / `/update-input`, never hand-edit. Held at **62 nodes** by a deliberate `follows` diet; a `follows` edit is **shape-only** (`nix flake lock`, never a bare `nix flake update`) and `follows = ""` REBINDS to this flake rather than removing — see [`docs/repo-map.md`](docs/repo-map.md) § `flake.lock`. |
+| `flake.lock` | Pinned revisions — bump only via `nix flake update` / `/update-input`, never hand-edit. Held at **68 nodes** by a deliberate `follows` diet; a `follows` edit is **shape-only** (`nix flake lock`, never a bare `nix flake update`) and `follows = ""` REBINDS to this flake rather than removing — see [`docs/repo-map.md`](docs/repo-map.md) § `flake.lock`. |
 | `treefmt.nix` | Single source of truth for format + lint-fix (tools that REWRITE); drives `nix fmt`, the CI gate, and the pre-commit hook. |
 | `sgconfig.yml` + `ast-grep/` | Report-only structural lint (ast-grep): `rules/` mechanises prose conventions, `rule-tests/` proves they fire. Gated by `checks.<system>.ast-grep`, **not** treefmt. |
 | `hosts/` | Per-host entry profiles: `macos.nix`, `nixpi.nix`, `nixvm.nix` (host-only deltas + per-host Homebrew lists). |
@@ -280,12 +280,23 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   activation; pull prebuilt paths, never build heavy on the Pi.
 - **Never `deploy --targets .#nixpi` from this public repo.** `deploy.nodes.nixpi` here points
   at the **site-free** public `nixosConfigurations.nixpi`, so a *successful* deploy hands the
-  live Pi a Caddy with **zero vhosts** and no dontsell.ai connector — every site goes dark
+  live Pi a Caddy with **zero vhosts** — every site goes dark
   while sshd stays up. **Magic rollback cannot save you from that**: it only reverts an
   activation that leaves the host **unreachable**, and a site-free Pi is perfectly reachable,
   so deploy-rs reports SUCCESS. Deploy from the private nix-personal flake, which reuses this
   node against *its* `nixosConfigurations.nixpi`. Also: bare `deploy` with no `--targets` fans
   out over **every** node — always name the target.
+- **Never run the `cf-*` terranix apps from this public repo** — the twin of the `deploy` trap.
+  `mkCfTunnelTofu` calls `cfTunnelConfig` with **no `hostedSites`** (it defaults to `[ ]`), so
+  the public tree renders a tunnel whose ingress is **SSH + the catch-all 404 and nothing
+  else**, with no site CNAMEs and no www→apex rulesets. A *successful* apply of that blanks
+  the live tunnel and deletes every site record in state, while reporting SUCCESS — exactly
+  the failure shape `deploy` has. `mkCfTunnelTofu` now **refuses** a render with ≤2 ingress
+  entries (override: `CF_TUNNEL_ALLOW_SITE_FREE=1`), but run those apps from the private
+  nix-personal flake, which supplies the real site list.
+- **OpenTofu state is the fragile part of the edge, not the config.** State has been lost
+  **twice**. `infra/cloudflare/nixpi-tunnel.nix` now declares a backend — never run `tofu` in
+  a bare directory, and never apply before a `plan` reads clean.
 - **What magic rollback actually buys** (`deploy.nodes.nixpi.magicRollback = true`): the Pi
   activates behind a watchdog and reverts **itself** to the previous generation unless the
   deployer reconnects over a second ssh session and confirms. A change that kills sshd, the

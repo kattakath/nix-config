@@ -646,12 +646,53 @@
           runtimeInputs = [ pkgs.opentofu ];
           text = ''
             if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
-              echo "ERROR: CLOUDFLARE_API_TOKEN is unset. Export a token with" >&2
-              echo "  Account Cloudflare Tunnel:Edit + Zone DNS:Edit on ${domainName}." >&2
+              echo "ERROR: CLOUDFLARE_API_TOKEN is unset. Export a token scoped to" >&2
+              echo "  Account > Cloudflare Tunnel:Edit" >&2
+              echo "  Zone > DNS:Edit            on ${domainName} AND every hosted site's zone" >&2
+              echo "  Zone > Dynamic Redirect:Edit  on the same zones (the www->apex rulesets)" >&2
               exit 1
             fi
+            # DURABLE STATE DIR — the root cause of losing state twice was running
+            # `tofu` in whatever directory happened to be the CWD, leaving a
+            # gitignored, unbacked-up state file behind. Pin the working directory
+            # to an XDG state path instead, so state has one stable home no matter
+            # where the app is invoked from. NOTE: this state contains the tunnel
+            # CONNECTOR TOKEN in plaintext (it is a `data` source result), so the
+            # directory is created 0700 and must never be committed or synced.
+            state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-cf-tunnel"
+            mkdir -p "$state_dir"
+            chmod 700 "$state_dir"
+            cd "$state_dir"
+            echo "tofu working directory: $state_dir" >&2
+
             rm -f config.tf.json
             cp ${cfTunnelConfig { inherit system; }} config.tf.json
+
+            # SITE-FREE GUARD — the twin of the `deploy` trap.
+            # The public repo's cf-tunnel apps call cfTunnelConfig with no
+            # `hostedSites` (it defaults to [ ]), which renders a tunnel whose
+            # ingress is SSH + the catch-all 404 and NO site DNS/redirects. A
+            # successful apply of that would take every site dark and delete the
+            # records/rulesets from state, while reporting SUCCESS. The real site
+            # list lives in the private nix-personal flake; run it from there.
+            # One ingress entry == SSH only; two == SSH + catch-all, still site-free.
+            ingress_count=$(
+              ${pkgs.jq}/bin/jq '
+                [.resource.cloudflare_zero_trust_tunnel_cloudflared_config.nixpi.config.ingress[]?]
+                | length' config.tf.json
+            )
+            if [ "''${ingress_count:-0}" -le 2 ]; then
+              echo "REFUSING: rendered config is SITE-FREE (ingress entries: ''${ingress_count})." >&2
+              echo "  This is the public tree, where hostedSites defaults to [ ]." >&2
+              echo "  Applying it would blank the live tunnel's ingress and delete" >&2
+              echo "  every site CNAME + www->apex ruleset that is in state." >&2
+              echo "  Run the cf-tunnel apps from the PRIVATE nix-personal flake instead." >&2
+              echo "  Override only if you genuinely mean a site-free tunnel:" >&2
+              echo "    CF_TUNNEL_ALLOW_SITE_FREE=1 ${name}" >&2
+              [ "''${CF_TUNNEL_ALLOW_SITE_FREE:-}" = "1" ] || exit 1
+              echo "WARNING: CF_TUNNEL_ALLOW_SITE_FREE=1 set — proceeding site-free." >&2
+            fi
+
             tofu init
             tofu ${action}
           ''
