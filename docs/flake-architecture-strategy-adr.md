@@ -3,7 +3,12 @@
 **Status**: **Superseded in part** — decided 2026-08-20; **decision #2 is superseded by
 [ADR-002](monoflake-capsule-adr.md)** (2026-09-12, implemented), which migrated
 `nix-config`'s core engine to flake-parts after all. Decisions #1, #3, #4 and #5 stand
-unchanged. This ADR is **kept, not deleted**: ADR-002 §6 answers its three objections one
+unchanged **in substance — but not in scope.** The population they govern shrank twice:
+ADR-002 turned every satellite into a capsule, and on **2026-09-12 `nix-mcp-gateway` was
+archived unadopted**, leaving `ircc-whatsapp-bot` as the only live supporting flake. So
+decision #1 ("flake-parts for the small supporting flakes") now governs **exactly one
+repo**. That is a real weakening of its reach, stated here rather than buried.
+This ADR is **kept, not deleted**: ADR-002 §6 answers its three objections one
 by one and records that **objection 3 still stands** — flake-parts buys nothing for three
 hosts, and any pitch claiming host-management benefit is overclaiming.
 **Deciders**: Ismail Kattakath
@@ -12,8 +17,12 @@ hosts, and any pitch claiming host-management benefit is overclaiming.
 > extracted supporting flakes" — went 5 → 7 → **0**. ADR-002 absorbed every satellite into
 > `nix-config` as a `modules/features/<name>/` capsule, so the cross-repo reusability
 > mechanism this ADR names as the substitute for in-flake modularity no longer exists.
-> The flakes it still applies to are the ones that were never satellites:
-> `ircc-whatsapp-bot` and `nix-mcp-gateway`.
+> The flakes it still applies to are the ones that were never satellites — and that set
+> narrowed too, from two to **one**. `nix-mcp-gateway` was **archived 2026-09-12** as an
+> extraction candidate `nix-config` never adopted (archived, not deleted, per ADR-002 §7.8;
+> the fleet's own gateway is and always was `modules/shared/mcp.nix`). `nix-inngest` was
+> archived the same day for the same reason and never appeared in this ADR. That leaves
+> **`ircc-whatsapp-bot` alone** as the live repo decision #1 governs.
 
 ## Context
 

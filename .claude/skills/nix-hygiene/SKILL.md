@@ -112,9 +112,12 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
 - [ ] No new `environment.etc` hacks for things nix-darwin models.
 - [ ] Determinate Nix: no `nix.enable = true` / no hand-written `nix.custom.conf`.
 - [ ] **flake-parts everywhere, including here.** The small supporting flakes that
-      remain (ircc-whatsapp-bot, nix-mcp-gateway, and any new one) use flake-parts,
+      remain (ircc-whatsapp-bot, and any new one) use flake-parts,
       not hand-rolled `forAll`/`forAllSystems` boilerplate — ADR-001
-      (`docs/flake-architecture-strategy-adr.md`). A new one scaffolded without it,
+      (`docs/flake-architecture-strategy-adr.md`). `nix-mcp-gateway` used to be on
+      this list and is **archived** (2026-09-12, an unadopted extraction candidate —
+      the fleet's gateway is `modules/shared/mcp.nix`); do not re-add it from
+      memory. A new one scaffolded without it,
       or an old hand-rolled pattern creeping back in via copy-paste, is a finding.
       **`nix-config`'s own engine is no longer the exception.** ADR-001 §2 said
       "do not migrate the core engine"; ADR-002

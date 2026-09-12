@@ -387,3 +387,12 @@ the docs tell the truth about the post-collapse shape, and
 `.claude/skills/fleet-doctor/fleet-repos.txt` no longer sweeps repos that are about to be
 archived. Per §7.8, **archive, do not delete** — the origin repos are now the only home of 126
 commits of provenance.
+
+**Two more archivings followed on 2026-09-12, and they are NOT this ADR's seven.**
+`kattakath/nix-mcp-gateway` and `kattakath/nix-inngest` were archived as **unadopted
+extraction candidates**: never satellites, never capsules, never inputs, so nothing arrived
+in-tree when they left. The in-tree consequence is the same shape as above — two more lines
+out of `fleet-repos.txt`, one merge-queue row out of
+[`auto-merge-and-merge-queue.md`](auto-merge-and-merge-queue.md), and ADR-001's
+never-satellite set narrowed from two repos to one — so this section stays the single place
+that explains why that manifest keeps shrinking. Same §7.8 rule: archived, not deleted.

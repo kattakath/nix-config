@@ -148,14 +148,12 @@ survives, in [`.claude/rules/pr-title.md`](../.claude/rules/pr-title.md).)
 | Repo | Required context(s) | CI workflow needing `merge_group:` |
 | --- | --- | --- |
 | `kattakath/nix-config` | `required-checks`, `Scan for secrets` | `nix-ci.yml`, `gitleaks.yml` |
-| `kattakath/nix-mcp-gateway` | `checks` | `ci.yml` |
 | `kattakath/ircc-whatsapp-bot` | `checks` | `ci.yml` |
 
-All three are public and org-owned, which is what makes the queue available.
-**Neither of the two besides `nix-config` is a `nix-config` input** — membership in this
+Both are public and org-owned, which is what makes the queue available.
+**The one besides `nix-config` is not a `nix-config` input** — membership in this
 table is "has its own CI and its own merge queue", not "is consumed by the fleet flake".
-`nix-mcp-gateway` is an unadopted extraction candidate; `ircc-whatsapp-bot` is a product
-repo. Both keep their own pipeline, so both keep their own queue.
+`ircc-whatsapp-bot` is a product repo; it keeps its own pipeline, so it keeps its own queue.
 
 **ADR-002 took this table from ten repos to three, and that is finished.**
 ([`monoflake-capsule-adr.md`](monoflake-capsule-adr.md).) Each of the seven satellite
@@ -176,6 +174,16 @@ archived, which retires one ruleset, one merge queue and one `ci.yml` apiece:
 `required-checks` aggregate — so the cost of the collapse lands on ONE queue: a userscript
 tweak waits behind a tart-runner change (ADR-002 §7.5). The archiving itself is an operator
 action on GitHub, not something any workflow in this repo performs.
+
+**Then three became two.** `kattakath/nix-mcp-gateway` was **archived on 2026-09-12**,
+retiring its ruleset, its merge queue and its `ci.yml` exactly as the seven above did — but
+for the **opposite reason**. It was never a satellite and never became a capsule: it was an
+unadopted extraction candidate, a thin generic `services.mcpGateway` broker module the fleet
+never consumed, because `modules/shared/mcp.nix` is and always was the fleet's own wired
+deployment. Nothing came in-tree when it left, because nothing was ever taken in.
+`kattakath/nix-inngest` was archived the same day for the same reason; it never appeared in
+this table, having had no merge queue of its own. Archived, **not deleted** (ADR-002 §7.8),
+so both remain public and readable.
 
 The private `ismailkattakath/nix-personal` (GitLab) is **out of scope**: it has no
 `.gitlab-ci.yml` at all, so there is no pipeline for a merge-when-green rule to

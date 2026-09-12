@@ -1,12 +1,16 @@
 # Private, localhost-only MCP gateway for Claude Code (darwin / the Mac).
 #
 # RELATED, AND NOT A RIVAL IMPLEMENTATION: github.com/kattakath/nix-mcp-gateway
-# is a standalone public flake that also declares `services.mcpGateway`. It is a
-# THIN, GENERIC broker module; this file is the fleet's fully-wired ~20-server
-# CONFIGURATION of the same idea, and nix-config declares no input on it. One
-# generic module, one concrete deployment — not two competing options. That
-# repo's modules/mcp-gateway.nix carries a "WHAT THIS IS NOT" header saying so
-# from its side; this note is the missing half.
+# WAS a standalone public flake that also declared `services.mcpGateway` — ARCHIVED
+# 2026-09-12 as an extraction candidate nix-config never adopted. Archived, not
+# deleted (ADR-002 §7.8), so it stays public and readable. It was a THIN, GENERIC
+# broker module; this file is the fleet's fully-wired ~20-server CONFIGURATION of
+# the same idea, and nix-config never declared an input on it. One generic module,
+# one concrete deployment — never two competing options. That repo's
+# modules/mcp-gateway.nix carries a "WHAT THIS IS NOT" header saying so from its
+# side; this note is the missing half. The archiving settles the question for good:
+# this file is the fleet's ONLY `services.mcpGateway`, and there is no live rival
+# implementation to reconcile with or migrate to.
 #
 # WHAT THIS DOES
 # Instead of every MCP client (Claude Code, Cursor, Claude Desktop) spawning its

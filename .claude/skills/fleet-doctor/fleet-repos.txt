@@ -12,7 +12,7 @@
 # hygiene, not general dev-repo housekeeping.
 #
 # Membership does NOT require nix-config to consume the flake as an input:
-# nix-mcp-gateway and nix-inngest are both listed and neither is wired in yet.
+# ircc-whatsapp-bot is listed and is not a nix-config input at all.
 # The test is "is this a fleet repo we maintain", not "is it adopted".
 #
 # NOR does membership require a flake.nix — the test says "fleet repo", not
@@ -44,12 +44,22 @@
 # Do not re-add one because it is still on disk — the working copy outlives the repo.
 # The satellite count is 0; what is left below is the composition pair plus the repos
 # that were never satellites.
+#
+# TWO MORE LINES CAME OUT on 2026-09-12, for a DIFFERENT reason. These were never
+# satellites and never became capsules: they were extraction candidates nix-config never
+# adopted, so nothing arrived in-tree when they left. Archived, not deleted (ADR-002 §7.8)
+# — both stay public and readable, which is where the "why it wasn't adopted" lives:
+#   nix-mcp-gateway  — a THIN, GENERIC `services.mcpGateway` broker module. The fleet kept
+#                      its own fully-wired ~20-server deployment in modules/shared/mcp.nix,
+#                      which carries the long-form note (one generic module vs. one
+#                      concrete deployment — never two competing options).
+#   nix-inngest      — never wired into any host. The `inngest` CLI that IS on PATH comes
+#                      from nixpkgs, not from this repo; do not confuse the two.
+# Same rule as the seven above: do not re-add either because a working copy is on disk.
 
 github.com/kattakath/nix-config
 gitlab.com/ismailkattakath/nix-personal
 github.com/kattakath/brags
 github.com/kattakath/ircc-whatsapp-bot
-github.com/kattakath/nix-inngest
-github.com/kattakath/nix-mcp-gateway
 github.com/kattakath/provisioner-template
 github.com/ismailkattakath/hyperframes-selfhost
