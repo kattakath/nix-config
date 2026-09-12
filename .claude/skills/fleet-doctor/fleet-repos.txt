@@ -16,9 +16,8 @@
 # The test is "is this a fleet repo we maintain", not "is it adopted".
 #
 # NOR does membership require a flake.nix — the test says "fleet repo", not
-# "fleet flake", and three listed members deliberately have none. A sweep must
+# "fleet flake", and two listed members deliberately have none. A sweep must
 # not try to `nix flake check` these, nor conclude they don't belong here:
-#   brags                 — data + engine behind the `brag` skill
 #   provisioner-template  — the scaffold `vast-init-repo` clones; a live Vast
 #                           instance fetches its provision.sh over raw HTTP at boot
 #   hyperframes-selfhost  — the published self-host bundle (this repo vendors a
@@ -56,10 +55,23 @@
 #   nix-inngest      — never wired into any host. The `inngest` CLI that IS on PATH comes
 #                      from nixpkgs, not from this repo; do not confuse the two.
 # Same rule as the seven above: do not re-add either because a working copy is on disk.
+#
+# A THIRD LINE CAME OUT the same day, for a THIRD reason — absorbed, but NOT as a capsule:
+#   brags            — the brag-doc redaction gate (engine/ + config/scope.json). It went to
+#                      the PRIVATE nix-personal flake as a plain `brags/` directory, not to
+#                      modules/features/, because it is private composition CONTENT, not
+#                      fleet engine: config/scope.json IS a client denylist, and publishing
+#                      it would publish exactly what it exists to scrub. nix-config keeps
+#                      the two PUBLIC skills (skills/brag, skills/brags-review) and the
+#                      options-only seam kattakath.brag.engineDir
+#                      (modules/shared/brag-engine.nix); nix-personal fills it.
+#                      nix-personal is already swept below, so no line replaces this one.
+#                      Not to be confused with $BRAG_DATA_DIR (~/Developer/local/brags) —
+#                      a deliberately REMOTE-LESS repo that was never a fleet repo, is not
+#                      listed here, and must not be added.
 
 github.com/kattakath/nix-config
 gitlab.com/ismailkattakath/nix-personal
-github.com/kattakath/brags
 github.com/kattakath/ircc-whatsapp-bot
 github.com/kattakath/provisioner-template
 github.com/ismailkattakath/hyperframes-selfhost

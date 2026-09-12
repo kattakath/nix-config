@@ -390,6 +390,7 @@ in
     ./chromium.nix # ungoogled-chromium (Homebrew cask) config: sideloaded iCloud Passwords + its native host
     ./default-browser.nix # local.defaultBrowser — the macOS LaunchServices http/https claim
     ./git-allowed-signers.nix # extra allowed_signers principals (option only; nix-personal fills)
+    ./brag-engine.nix # brags-review's redaction-gate dir (option only; nix-personal fills)
     # Local-first RAG stack (loopback launchd Postgres+pgvector + Ollama + in-DB
     # embed()) — the ABSORBED capsule (modules/features/local-rag/). Both of its
     # modules are internally gated on (enable && isDarwin) — a clean no-op on
@@ -812,15 +813,18 @@ in
     # accomplishment notes that are versioned locally and never pushed anywhere,
     # not even to the private kattakath/brags. That is the point of it.
     #
-    # BRAG_ENGINE_DIR is the kattakath/brags CHECKOUT, which carries engine/ and
-    # config/. brags-review's fail-closed redactor lives there. It used to be
-    # resolved as "$BRAG_DATA_DIR/engine/redact.py", which does not exist —
-    # python3 exited 2, the gate failed closed as designed, and brags-review was
-    # simply unusable.
+    # BRAG_ENGINE_DIR is the other half — engine/ + config/, i.e. brags-review's
+    # fail-closed redactor and its CLIENT DENYLIST. It is NOT set here: the denylist
+    # is the one genuinely private piece, so it lives in nix-personal (brags/) and
+    # reaches this tree only through the options-only seam
+    # `kattakath.brag.engineDir` (./brag-engine.nix), which also exports the
+    # variable. Unfilled ⇒ unset ⇒ brags-review refuses to run. Fail-closed.
+    # It used to be resolved as "$BRAG_DATA_DIR/engine/redact.py", which does not
+    # exist — python3 exited 2, the gate failed closed as designed, and
+    # brags-review was simply unusable. Hence two variables, never one.
     #
-    # Both $HOME-relative (username-portable); change either here, in ONE place.
+    # $HOME-relative (username-portable); change the data location here, once.
     BRAG_DATA_DIR = "$HOME/Developer/local/brags";
-    BRAG_ENGINE_DIR = "$HOME/Developer/github.com/kattakath/brags";
 
     # Where buku keeps `bookmarks.db`. Pinned because buku otherwise scatters it into a
     # platform-guessed data dir, and this DB is the single surviving copy of the merged
@@ -1140,19 +1144,20 @@ in
         cover-letter-generator = "${agent-skills-jsonresume}/skills/cover-letter-generator";
         interview-prep-generator = "${agent-skills-jsonresume}/skills/interview-prep-generator";
         salary-negotiation-prep = "${agent-skills-jsonresume}/skills/salary-negotiation-prep";
-        # Personal: a thin GLOBAL pointer to the Brags personal-branding review flow whose
-        # authoritative SKILL.md + engine live in the private ~/Documents/brags repo (so it
-        # tracks that repo, and the heavy logic isn't vendored here). Makes "run my brags
-        # review" invocable by name in any Claude Code / Claude Desktop session.
+        # Personal: the Brags personal-branding review flow. The SKILL.md is HERE and
+        # public; only the fail-closed redaction gate it shells out to is private —
+        # nix-personal's brags/, reached via $BRAG_ENGINE_DIR (./brag-engine.nix).
+        # Global so "run my brags review" is invocable by name in any Claude Code /
+        # Claude Desktop session, not just one rooted in this repo.
         brags-review = "${../../skills/brags-review}";
         # Local RAG over the pgvector store: how to ingest + query via the `postgres`
         # MCP server and the in-DB embed() function (the local-rag capsule's services.pgvectorLocal + services.ollamaLocal).
         rag = "${../../skills/rag}";
         # `/brag` — the MINE→LEDGER stage of the rebuilt brag-doc pipeline: mines GitHub
         # PRs/commits + Claude Code sessions (+ optional MCP) into impact.md/developer-value.md.
-        # Vendored from kammradt/brag-skill (MIT), data paths redirected to the private
-        # kattakath/brags repo checkout so it works under the read-only Nix skill install —
-        # see skills/brag/FORK-NOTES.md. Replaces the retired bespoke ~/Developer/local/brags engine.
+        # Vendored from kammradt/brag-skill (MIT), data paths redirected to $BRAG_DATA_DIR
+        # (the remote-less ~/Developer/local/brags repo) so it works under the read-only
+        # Nix skill install — see skills/brag/FORK-NOTES.md.
         brag = "${../../skills/brag}";
         # Original (not a fork): operator knowledge for the packages/android-phone.nix
         # ADB/scrcpy CLI — global so ANY session (including ~/-rooted ones) knows the

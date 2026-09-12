@@ -24,10 +24,15 @@ BRAG_DATA_DIR="${BRAG_DATA_DIR:?set once in nix-config home.nix home.sessionVari
 ```
 
 `$BRAG_DATA_DIR` is defined in **ONE place** — `modules/shared/home.nix`
-(`home.sessionVariables.BRAG_DATA_DIR`, `$HOME`-relative) — and points at the working
-checkout of the private **`kattakath/brags`** repo, where `impact.md` /
-`developer-value.md` / `config.json` live (version-controlled backup + history). Change the
-location there, in one place; nothing else hardcodes it.
+(`home.sessionVariables.BRAG_DATA_DIR`, `$HOME`-relative) — and points at
+**`~/Developer/local/brags`**, a git repo with **no remote**: `impact.md` /
+`developer-value.md` / `config.json` are versioned locally and never pushed anywhere. Change
+the location there, in one place; nothing else hardcodes it.
+
+Do not confuse it with `$BRAG_ENGINE_DIR`, which the *other* skill (`brags-review`) uses for
+the fail-closed redaction gate. That one is private — it holds a client denylist — and comes
+from the nix-personal layer via `kattakath.brag.engineDir`
+(`modules/shared/brag-engine.nix`). `/brag` itself never touches it.
 
 Nothing else was modified — the mining logic, modes, templates, and `reference/` are upstream verbatim.
 
