@@ -58,7 +58,7 @@
     count = 2;
   };
 
-  # ---- Ephemeral Tart-VM CI runners (tart.githubRunners.*, nix-tart-vms) ---------
+  # ---- Ephemeral Tart-VM CI runners (tart.githubRunners.*, the tart-vms capsule) --
   # Every job gets a disposable macOS VM; the VM is the isolation boundary.
   # All instances share ONE fleet GitHub App ("ismailkattakath-ci", public,
   # appId 4849830, owned by the OPERATOR's personal account, not an org) and
@@ -285,7 +285,7 @@
       "git-filter-repo"
       # gitlab-runner moved OFF brew 2026-09-05: tart.gitlabRunner below runs
       # pkgs.gitlab-runner as a launchd agent with a runtime-rendered config
-      # (nix-tart-vms darwinModules.gitlab-runner). After activating, retire
+      # (the tart-vms capsule's gitlab-runner.nix). After activating, retire
       # the brew copy once: `brew services stop gitlab-runner`.
       "glab"
       "go"
