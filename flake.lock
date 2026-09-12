@@ -540,11 +540,11 @@
     "kattakath-claude-plugins": {
       "flake": false,
       "locked": {
-        "lastModified": 1789228341,
-        "narHash": "sha256-zVG0czmW3moNfF2so14/gabhoMqoWq3fqHumTvqfcgI=",
+        "lastModified": 1789244345,
+        "narHash": "sha256-Jzcb0adDxf86dYOTICtbwT+Z5+UVjNREpptwu8agi40=",
         "owner": "kattakath",
         "repo": "claude-plugins",
-        "rev": "47b8bd0b1e61e3b4f2bfd3121397fb6d23e7c714",
+        "rev": "bf1160bc06d6b92c1376d41cff0d1d3271cddfe2",
         "type": "github"
       },
       "original": {
@@ -572,11 +572,11 @@
     "kattakath-userscripts": {
       "flake": false,
       "locked": {
-        "lastModified": 1789226097,
-        "narHash": "sha256-y/66hgLBRZGWBUU2I8kmzimIUWHEsId3itmbp+KkhcM=",
+        "lastModified": 1789244261,
+        "narHash": "sha256-O0kEoJvn8OktYPk+VhrYoAWxb86WmE87tODbyyi7/Nc=",
         "owner": "kattakath",
         "repo": "userscripts",
-        "rev": "91bfd3b69da350d68b6bbe7774f79b2cef48f889",
+        "rev": "18910d8907aebfca2c302175fa83c449041e3b8d",
         "type": "github"
       },
       "original": {
