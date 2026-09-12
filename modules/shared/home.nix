@@ -33,8 +33,13 @@
   # Fleet operator ed25519 PUBLIC key (secrets/operator-key.nix) — single source
   # for authorizedKeys + agenix recipient + git SSH allowed_signers principal.
   operatorSshKey,
-  # nix-tart-vms input source path — the gitlab-tart slot shims below.
-  nix-tart-vms,
+  # SOURCE PATH of the tart-vms capsule's packages/gitlab-tart.nix — the five
+  # gitlab-tart slot shims below. A path, not a derivation, deliberately: they
+  # are `callPackage`d with THIS host's pkgs (hosts/macos.nix's
+  # `nixpkgs.config.allowUnfree = true`), not with the flake's perSystem pkgs.
+  # Was the `nix-tart-vms` flake input until ADR-002 wave 5 absorbed it into
+  # modules/features/tart-vms/; threaded in by modules/parts/compose.nix.
+  gitlabTartSource,
   # Source-only flake inputs holding Claude Code skills (see programs.claude-code
   # below). flake.nix pins them; nothing is vendored into this repo.
   agent-skills-vercel,
@@ -697,7 +702,7 @@ in
     ++ lib.optionals isMacosHost [
       androidPhone # `android-phone list|pair|connect|disconnect|unpair|tcpip|wireless|mirror|doctor` — deterministic ADB wired/wireless operator + scrcpy mirroring for a PHYSICAL device (packages/android-phone.nix); unrelated to `android-emu` (virtual emulator, below)
     ]
-    # GitLab-CI slot shims (nix-tart-vms gitlab-tart): on PATH so
+    # GitLab-CI slot shims (the tart-vms capsule's gitlab-tart): on PATH so
     # ~/.gitlab-runner/config.toml can reference the STABLE
     # /etc/profiles/per-user/<user>/bin/nix-gitlab-tart-* paths — GC-rooted
     # by the profile and upgraded in place, unlike bare /nix/store paths from
@@ -706,7 +711,7 @@ in
     # token-bearing config.toml itself stays imperative (hosts/macos.nix).
     ++ lib.optionals isMacosHost (
       builtins.attrValues {
-        inherit (pkgs.callPackage "${nix-tart-vms}/packages/gitlab-tart.nix" { })
+        inherit (pkgs.callPackage gitlabTartSource { })
           prepare
           run
           cleanup

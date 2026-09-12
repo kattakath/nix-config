@@ -86,6 +86,39 @@
     '';
   };
 
+  # ---- The SOURCE seam, for a package an ENGINE module must build itself ----
+  #
+  # A capsule normally exports either a module (above) or a finished derivation
+  # (`perSystem.packages`). `tart-vms` needs a third shape, and it is worth one
+  # option rather than a hole in the contract:
+  #
+  #   modules/shared/home.nix installs the five gitlab-tart slot shims with
+  #   `pkgs.callPackage <gitlab-tart.nix> { }` — using the HOST's pkgs (the
+  #   darwinSystem's own nixpkgs instance, `nixpkgs.config.allowUnfree = true`
+  #   from hosts/macos.nix), NOT this flake's perSystem pkgs. Handing it the
+  #   perSystem derivation instead would be a different pkgs instance and a
+  #   different drv, and drv identity is ADR-002's whole acceptance test.
+  #
+  # So the capsule publishes the PATH and the engine builds it. The rule this
+  # preserves is the file-level one: `flake-module.nix` stays the only thing
+  # outside a capsule that names a file inside it. Without this option
+  # home.nix would carry `../features/tart-vms/packages/gitlab-tart.nix` — which
+  # ast-grep does NOT flag (the rule is scoped to `modules/features/**`), i.e.
+  # exactly the silent boundary breach the scoping leaves open.
+  #
+  # Keep this SMALL. A capsule reaching for it more than once is a sign its
+  # consumer belongs inside the capsule as a module.
+  options.capsuleSources = lib.mkOption {
+    type = lib.types.lazyAttrsOf (lib.types.lazyAttrsOf lib.types.path);
+    default = { };
+    description = ''
+      Capsule-owned SOURCE PATHS, keyed `<capsule>.<name>`, for files an ENGINE
+      module must `callPackage` itself against a host's own `pkgs`. Not a flake
+      output. Prefer `perSystem.packages` or `capsuleModules` — this exists only
+      for the host-pkgs case.
+    '';
+  };
+
   # `config = { … }` is MANDATORY here, not style: this file declares a top-level
   # `options`, and the module system then refuses a bare sibling attribute
   # ("unsupported attribute `perSystem'. This is caused by introducing a
