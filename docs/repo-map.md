@@ -1581,8 +1581,7 @@ PINNED `flake = false` inputs (`agent-skills-vercel` = vercel-labs/skills → `f
 
 A small exception is **vendored in-repo**: the top-level `skills/` directory holds skills wired
 into the same `programs.claude-code.skills` option alongside the flake-input-sourced ones —
-forks of upstream skills that needed a local patch (`skills/brag`, `skills/brags-review`,
-`skills/rag` — see `skills/brag/FORK-NOTES.md` for the vendoring rationale) plus originals
+forks of upstream skills that needed a local patch (`skills/rag`) plus originals
 authored here:
 
 - **`skills/{explain,compare,map,zoom,why,tldr,diagram}`** — the Brain Signals `/explain`
