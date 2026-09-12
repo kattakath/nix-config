@@ -13,6 +13,12 @@
 # even when Xcode is about to be installed later in the same brew bundle (or is
 # already on disk from a prior MAS install but still unlicensed after a wipe).
 #
+# upstream-first: grepped nix-darwin/modules for xcode — the only hits are the
+# App Store id (`modules/homebrew.nix`, `modules/programs/mas.nix`, Xcode =
+# 497799835). nix-darwin models INSTALLING Xcode and owns no licence-acceptance
+# option, so accepting it stays custom — and reuses nix-darwin's own activation
+# ordering rather than inventing a new hook.
+#
 # Fix
 # ---
 # Inject into `system.activationScripts.homebrew` via `lib.mkBefore` so this
