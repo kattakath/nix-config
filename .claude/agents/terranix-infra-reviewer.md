@@ -4,8 +4,8 @@ description: >-
   Review and PLAN (never apply) changes under infra/ — the terranix
   (Nix → OpenTofu/Terraform JSON) modules that manage this fleet's Cloudflare
   Tunnels, ingress, and DNS. Use PROACTIVELY when editing anything in
-  infra/cloudflare/*.nix or infra/hyperframes/*.nix, and BEFORE running any
-  `nix run .#cf-tunnel-apply` / `.#cf-tunnel-destroy` / `.#hf-apply`. Returns a
+  infra/cloudflare/*.nix, and BEFORE running any
+  `nix run .#cf-tunnel-apply` / `.#cf-tunnel-destroy` / `.#mcp-public-apply`. Returns a
   risk-ranked review + a safe apply/rollback plan; it does not mutate
   infrastructure.
 tools: Read, Grep, Glob, Bash
@@ -32,10 +32,9 @@ The two terranix modules (each compiles Nix → OpenTofu/Terraform JSON):
   Confirmed live via the Cloudflare API at removal time. Do not delete or
   reference that policy by assuming it belongs to a stack that no longer
   exists in this repo.
-- `infra/hyperframes/stack.nix` — the HyperFrames self-host stack.
 
 Applied only via the flake apps: `nix run .#cf-tunnel-apply` /
-`.#cf-tunnel-destroy` / `.#hf-apply` (render module → `tofu apply`).
+`.#cf-tunnel-destroy` / `.#mcp-public-apply` (render module → `tofu apply`).
 
 ## Invariants to enforce (fail the review if any is violated)
 

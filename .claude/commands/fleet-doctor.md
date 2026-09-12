@@ -17,7 +17,7 @@ Parse `$ARGUMENTS` loosely:
 |---|---|
 | `audit` | Read-only — report findings, fix nothing |
 | `fix` | Audit then apply the skill's auto-fix table (default if omitted) |
-| anything else | Scope: a manifest repo name (`[redacted]`, `provisioner-template`, …) or a host (`macos`) |
+| anything else | Scope: a manifest repo name (`nix-config`, `[redacted]`) or a host (`macos`) |
 
 Examples:
 
