@@ -16,7 +16,6 @@ let
 
   inherit (config.fleet)
     domainName
-    operatorEmail
     cloudflareAccountId
     cloudflareZoneId
     ;
@@ -111,29 +110,6 @@ let
     { system, modules }:
     terranix.lib.terranixConfiguration {
       inherit system modules;
-    };
-
-  # ---- HyperFrames self-host (terranix -> OpenTofu) -----------------------
-  # Renders infra/hyperframes/stack.nix: stamps VM .env + docker compose up
-  # for Kinocut+HyperFrames behind mcp-auth-proxy, Caddy, and Tailscale Funnel
-  # (Funnel runs on the Linux VM only — Darwin host stays isolated).
-  # Public non-Nix tree: packages/hyperframes-selfhost/ (see docs/hyperframes-selfhost.md).
-  hfStackConfig =
-    system:
-    terranix.lib.terranixConfiguration {
-      inherit system;
-      modules = [
-        ../../infra/hyperframes/stack.nix
-        {
-          _module.args = {
-            inherit operatorEmail;
-            # Overridden at apply via TF_VAR_stack_dir (absolute path on the VM).
-            stackDir = ".";
-            externalUrl = "";
-            tsHostname = "hyperframes";
-          };
-        }
-      ];
     };
 
   # writeShellApplication wrapper around `tofu <action>` for the rendered
@@ -348,16 +324,6 @@ let
       '';
     };
 
-  # The HyperFrames self-host kit (three CLIs from one callPackage). Kept as a
-  # per-system function so `perSystem` can `inherit` all three from one eval,
-  # exactly as the old `forAllSystems` fold did.
-  hfKitFor =
-    system:
-    (pkgsFor system).callPackage ../../packages/hyperframes-selfhost.nix {
-      hfStackConfig = hfStackConfig system;
-      inherit operatorEmail;
-      hyperframesSelfhostSrc = ../../packages/hyperframes-selfhost;
-    };
 in
 {
   # The renderers, exported for private/external callers (see the header).
@@ -397,11 +363,6 @@ in
           name = "cf-tunnel-destroy";
           action = "destroy";
         };
-
-        # HyperFrames self-host (Kinocut + mcp-auth-proxy + Caddy + Funnel on a
-        # Linux VM). Public tree under packages/hyperframes-selfhost/; terranix
-        # plan from infra/hyperframes/stack.nix. See docs/hyperframes-selfhost.md.
-        inherit (hfKitFor system) hf-export hf-apply hf-doctor;
       };
 
       # `nix run .#cf-tunnel-apply` / `.#cf-tunnel-destroy` — render
@@ -439,21 +400,6 @@ in
           type = "app";
           program = "${config.packages.cf-tunnel-destroy}/bin/cf-tunnel-destroy";
           meta.description = "tofu destroy the nixpi Cloudflare tunnel/ingress/CNAME (needs CLOUDFLARE_API_TOKEN)";
-        };
-        hf-export = {
-          type = "app";
-          program = "${config.packages.hf-export}/bin/hf-export";
-          meta.description = "Export the HyperFrames self-host public tree (+ terranix config.tf.json) for a Linux VM or public repo";
-        };
-        hf-apply = {
-          type = "app";
-          program = "${config.packages.hf-apply}/bin/hf-apply";
-          meta.description = "On the Linux VM: tofu apply the HyperFrames stack (needs TF_VAR_ts_authkey + Google OAuth vars + HF_STACK_DIR)";
-        };
-        hf-doctor = {
-          type = "app";
-          program = "${config.packages.hf-doctor}/bin/hf-doctor";
-          meta.description = "Run the HyperFrames self-host doctor script against HF_STACK_DIR (or CWD)";
         };
       };
     };

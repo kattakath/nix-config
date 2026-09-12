@@ -114,7 +114,7 @@ there is no auto-detection of which one to use:
 For legacy and aggregator mode, the constant entrypoint + a legitimacy marker
 are guaranteed by **scaffolding repos from a template**:
 
-- The generic `provisioner-template` scaffold (a `provision.sh` stub +
+- The generic provisioner scaffold (a `provision.sh` stub +
   `provision-lib.sh` + `.provisioner-template.json` marker + README) lives in
   **this repo's** `packages/templates/provisioner/` — `vast-init-repo` scaffolds
   new provisioner repos straight from there. It stays at that path, engine-owned
