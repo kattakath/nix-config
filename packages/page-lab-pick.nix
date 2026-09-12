@@ -7,9 +7,9 @@
 # Pinning `nodejs_22` here removes the flag from the fleet path entirely — the script keeps
 # its own feature-detect for anyone running it outside Nix, but on this Mac it never fires.
 #
-# It is NOT the only way to run the picker; `node plugins/page-lab/scripts/pick-element.mjs`
-# still works. This is the reproducible entry point, so a session that reaches for the CLI
-# gets a known Node rather than whatever is on PATH.
+# It is NOT the only way to run the picker; running the plugin's `scripts/pick-element.mjs`
+# with `node` still works. This is the reproducible entry point, so a session that reaches
+# for the CLI gets a known Node rather than whatever is on PATH.
 #
 # Deliberately NOT a launchd agent and NOT wired to run automatically: arming a picker
 # swallows the next click on every armed tab (F-ARMED-SWALLOWS), so it is always an explicit
@@ -18,6 +18,13 @@
   lib,
   writeShellApplication,
   nodejs_22,
+  # The page-lab plugin tree. A PINNED FLAKE INPUT since 2026-09-12
+  # (github:kattakath/claude-plugins) — it used to be a repo-relative `plugins/page-lab`
+  # source literal, until the plugin was extracted so it could be
+  # maintained and adopted like any published plugin. Passed by
+  # modules/parts/packages.nix; there is no default, so a missing pin is an eval
+  # error rather than a silently stale copy.
+  pageLabSrc,
 }:
 
 writeShellApplication {
@@ -27,9 +34,10 @@ writeShellApplication {
 
   # The script lives in the plugin tree, not here, so there is exactly one copy: the same
   # file the plugin ships to Claude Code is the file this CLI executes. A `cp` into the
-  # store would fork them and let the two drift.
+  # store would fork them and let the two drift. That property is unchanged by the
+  # extraction — the copy simply now arrives via flake.lock instead of via the worktree.
   text = ''
-    exec node ${../plugins/page-lab/scripts/pick-element.mjs} "$@"
+    exec node ${pageLabSrc}/scripts/pick-element.mjs "$@"
   '';
 
   meta = {

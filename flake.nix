@@ -328,6 +328,44 @@
       url = "github:anthropics/claude-plugins-official";
       flake = false;
     };
+
+    # ---- THIS OPERATOR'S OWN agent resources (source-only, flake = false) -----
+    # Extracted from this repo 2026-09-12. They are pinned here exactly like the
+    # third-party `agent-skills-*` above — same rail, no special case — so the
+    # only difference between "someone else's skill" and "mine" is who can push
+    # to the repo. Bumped by `nix flake update` / update-flake-lock.yml.
+    #
+    # WHY OUT OF TREE, given ADR-002 collapsed seven satellite FLAKES back in:
+    # that collapse was about Nix modules, which only this fleet consumed and
+    # which needed to reach into the engine (hence `capsule-must-not-reach-out`).
+    # These are agent resources: Claude Code loads them, not Nix; they are
+    # portable by construction (`${CLAUDE_PLUGIN_ROOT}` is a hard boundary); and
+    # they are USEFUL TO STRANGERS, which a capsule never was. Opposite artifact,
+    # opposite answer. See docs/agent-resource-externalization.md.
+    #
+    # A directory path literal copies the WORKTREE (a stray .DS_Store became a
+    # closure input once — see nix-personal's .claude/rules/store-copied-trees.md);
+    # a flake input copies the GIT TREE, so that footgun cannot fire for these.
+    kattakath-claude-plugins = {
+      # The marketplace this operator publishes: `page-lab` + `llmstxt`.
+      # Registered from the input's STORE PATH in modules/shared/home.nix, which
+      # is why there is no path-literal trap here — a store path is absolute and
+      # means the same thing from any file in any flake.
+      url = "github:kattakath/claude-plugins";
+      flake = false;
+    };
+    kattakath-claude-skills = {
+      # `rag`, `nix-dev-toolkit`, `android-phone` — cherry-picked per skill in
+      # programs.claude-code.skills, the same shape as every third-party pin.
+      url = "github:kattakath/claude-skills";
+      flake = false;
+    };
+    kattakath-userscripts = {
+      # The PUBLIC Violentmonkey scripts. `checks.<system>.userscripts` lints
+      # THIS INPUT rather than a local tree, so the gate follows the content.
+      url = "github:kattakath/userscripts";
+      flake = false;
+    };
   };
 
   # ---- Entry point: flake-parts + import-tree (ADR-002 wave 2) --------------

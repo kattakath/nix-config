@@ -345,8 +345,8 @@ a capsule that names a file inside it.
   Fixing them would change the script text, hence the derivation, hence `darwin-system` — so they
   are recorded in that capsule's `flake-module.nix` header rather than silently rotting.
 - **A docs-only edit is not always drv-neutral.** `modules/shared/home.nix:1118` content-hashes
-  `skills/rag/` into the `macos` closure, so correcting one prose pointer in
-  `skills/rag/SKILL.md` **moves `darwin-system`'s drvPath**. Wave 6 measured this, reverted, and
+  the `rag` skill tree into the `macos` closure, so correcting one prose pointer in
+  its `SKILL.md` **moves `darwin-system`'s drvPath**. Wave 6 measured this, reverted, and
   deferred the edit to wave 7, where it is made deliberately and declared as the wave's only
   host-toplevel delta.
 

@@ -299,10 +299,26 @@ in
           # enforce the attribution half.
           # The rules themselves are NOT inline here. They live in the portable
           # `page-lab` plugin's `scripts/userscript-meta-lint.sh`, and this
-          # check just runs it against this repo's tree. One rulebook, so CI, the
-          # plugin's own users and a by-hand run on nix-personal's private scripts
-          # cannot drift apart — the alternative was a second copy of the same
-          # grep list that only CI ever exercised.
+          # check just runs it. One rulebook, so CI, the plugin's own users and a
+          # by-hand run on nix-personal's private scripts cannot drift apart —
+          # the alternative was a second copy of the same grep list that only CI
+          # ever exercised.
+          #
+          # BOTH OPERANDS ARE NOW PINNED INPUTS, not `${self}` (changed
+          # 2026-09-12 when both trees were extracted): the linter comes from
+          # `kattakath-claude-plugins` and the scripts from
+          # `kattakath-userscripts`. THE GATE HAD TO MOVE WITH THE CONTENT. Its
+          # scope note used to read "this reads THIS repo's userscripts/ only",
+          # and that hole has already cost once — nix-personal's
+          # civitai-declutter shipped 2026-08-30 with no @license and this check
+          # never saw it. Leaving `${self}/userscripts` here after the extraction
+          # would have been strictly worse than that: a green build over an
+          # empty directory.
+          #
+          # STILL NOT COVERED, and still by design: nix-personal's private
+          # scripts, now `gitlab:ismailkattakath/userscripts`. That flake pins
+          # them itself and runs its own copy of this linter — a public check
+          # cannot read a private input.
           userscripts =
             pkgs.runCommand "userscripts"
               {
@@ -312,8 +328,8 @@ in
                 ];
               }
               ''
-                bash ${self}/plugins/page-lab/scripts/userscript-meta-lint.sh \
-                  ${self}/userscripts
+                bash ${inputs.kattakath-claude-plugins}/plugins/page-lab/scripts/userscript-meta-lint.sh \
+                  ${inputs.kattakath-userscripts}
                 touch "$out"
               '';
 
@@ -338,31 +354,43 @@ in
                 ];
               }
               ''
-                cd ${self}
                 rc=0
-                for f in plugins/page-lab/scripts/*.mjs plugins/page-lab/scripts/lib/*.mjs plugins/page-lab/scripts/*.js; do
+                pl=${inputs.kattakath-claude-plugins}/plugins/page-lab
+                for f in "$pl"/scripts/*.mjs "$pl"/scripts/lib/*.mjs "$pl"/scripts/*.js; do
                   node --check "$f" || { echo "  ✘ does not parse: $f" >&2; rc=1; }
                 done
-                for f in plugins/page-lab/scripts/*.sh; do
+                for f in "$pl"/scripts/*.sh; do
                   bash -n "$f" || { echo "  ✘ bad shell syntax: $f" >&2; rc=1; }
                 done
 
-                node plugins/page-lab/scripts/pick-validate.mjs --self-test \
-                  plugins/page-lab/scripts/fixtures || rc=1
+                node "$pl"/scripts/pick-validate.mjs --self-test \
+                  "$pl"/scripts/fixtures || rc=1
 
-                # The rename gate. Two exemptions, both principled:
-                #  - facts.md RECORDS the old names as history; that is what a
-                #    dated fact table is for.
-                #  - this file is the one CARRYING this grep, so the pattern
-                #    matches its own source. (It was `--exclude=flake.nix` until
-                #    ADR-002 wave 2 moved the checks here; the exclusion follows the
-                #    grep, it is not about flake.nix.) Its correctness is proven a
-                #    better way anyway: the `userscripts` check above actually RUNS
-                #    the linter from the post-merge path, so a stale path there is a
-                #    build failure, not a missed grep.
+                # Two gates over THIS repo. page-lab's tree moved out; nix-config's
+                # prose and its source literals did not, and a stale one is exactly
+                # the drift this catches.
+                #
+                #  (a) pre-merge plugin ids — userscript-author / chrome-devtools@,
+                #      from the 2026-09 merge that produced page-lab.
+                #  (b) pre-EXTRACTION source literals — a `../plugins/…` or
+                #      `../../skills/rag` still resolves to NOTHING in this tree after
+                #      2026-09-12. Matched as RELATIVE LITERALS on purpose, not as bare
+                #      substrings: `${inputs.kattakath-claude-plugins}/plugins/page-lab`
+                #      is the CORRECT new form and contains "plugins/page-lab", so a
+                #      substring grep would flag the fix as the bug.
+                #
+                # facts.md RECORDS old names as history; this file CARRIES the grep so
+                # it matches its own source.
+                cd ${self}
                 if grep -rn 'plugins/userscript-author\|plugins/chrome-devtools\|chrome-devtools@' \
                      --exclude-dir=.git --exclude=facts.md --exclude=checks.nix . ; then
-                  echo "  ✘ stale pre-merge path or plugin id above" >&2
+                  echo "  ✘ stale pre-merge plugin id above" >&2
+                  rc=1
+                fi
+                if grep -rn '\.\./plugins/\|\.\./skills/rag\|\.\./skills/nix-dev-toolkit\|\.\./skills/android-phone\|\.\./userscripts/' \
+                     --exclude-dir=.git --exclude=checks.nix . ; then
+                  echo "  ✘ repo-relative literal pointing at an EXTRACTED tree above" >&2
+                  echo "    those live in pinned inputs now — see flake.nix" >&2
                   rc=1
                 fi
 

@@ -1,13 +1,15 @@
 ---
 name: userscript-author
 description: >
-  Declare and gate a Violentmonkey userscript IN THIS REPO: the file
-  `userscripts/<kebab>.user.js` plus its one-line entry in
-  `programs.ungoogledChromium.userScripts.scripts`
-  (`modules/shared/home.nix`). Use when asked to "make <site> do X", "write a
+  Declare and gate a Violentmonkey userscript FOR THIS FLEET: the file lands in
+  the pinned `kattakath/userscripts` repo (public) or
+  `gitlab:ismailkattakath/userscripts` (private), then gets its one-line entry in
+  `programs.ungoogledChromium.userScripts.scripts` (`modules/shared/home.nix`
+  here, `modules/userscripts.nix` in nix-personal) and a `nix flake update` of
+  that input. Use when asked to "make <site> do X", "write a
   userscript for <site>", "fix my <site> script", or "this site's X annoys me".
   The authoring METHOD lives in the portable `userscript-author` plugin
-  (`plugins/page-lab/`); this skill owns only what is specific to this
+  (published at kattakath/claude-plugins); this skill owns only what is specific to this
   fleet — the Nix declaration, the gate, and how a script reaches the browser here.
 ---
 
@@ -15,10 +17,10 @@ description: >
 
 **Method is not here.** Measuring, diffing, replaying, the code patterns, the probes and the
 Greasy Fork rulebook all live in the **`userscript-author` plugin**
-([`plugins/page-lab/`](../../../plugins/page-lab/)), which is deliberately
+([`kattakath/claude-plugins`](https://github.com/kattakath/claude-plugins/tree/main/plugins/page-lab)), which is deliberately
 portable — it stops at a lint-clean `.user.js` and knows nothing about Nix. Invoke it as the
 `page-lab:userscript-author` skill, or read
-[its SKILL.md](../../../plugins/page-lab/skills/userscript-author/SKILL.md).
+[its SKILL.md](https://github.com/kattakath/claude-plugins/blob/main/plugins/page-lab/skills/userscript-author/SKILL.md).
 
 **This skill owns the delivery half the plugin cannot:** declaring the script in Nix, this
 repo's gate, and the install reality on this Mac.
@@ -32,7 +34,7 @@ repo's gate, and the install reality on this Mac.
 
 | # | Statement | Confidence | Evidence |
 |---|---|---|---|
-| **UI-1** | Give me **the site's own compact/narrow chrome at full width** — navigation shrinks, content takes the reclaimed space. | **VERIFIED** | the entire purpose of `userscripts/google-photos-icon-nav.user.js` |
+| **UI-1** | Give me **the site's own compact/narrow chrome at full width** — navigation shrinks, content takes the reclaimed space. | **VERIFIED** | the entire purpose of `google-photos-icon-nav.user.js` (kattakath/userscripts) |
 
 - **Correction, load-bearing:** the 80px rail, the hover peek-back, the hidden storage footer and
   the 1px `Collections` divider are **Google's own design at its own breakpoint**, inherited as
@@ -59,10 +61,16 @@ repo's gate, and the install reality on this Mac.
 
 ## Declare it
 
-- [ ] Add **exactly one line** — `<kebab> = ../../userscripts/<kebab>.user.js;` — inside the
-      existing `scripts = { … };` attrset of `modules/shared/home.nix`. Nothing else changes.
-- [ ] A `../../` **source literal is repo-relative, correct and idiomatic — never "fix" it to a
-      home path.**
+- [ ] Push the `.user.js` to the right userscripts repo first — `kattakath/userscripts`
+      (public) or `gitlab:ismailkattakath/userscripts` (private) — then
+      `nix flake update <that input>` and commit the lock. The scripts left this tree
+      2026-09-12; see [`agent-resource-externalization.md`](../../../docs/agent-resource-externalization.md).
+- [ ] Add **exactly one line** — `<kebab> = "''${kattakath-userscripts}/<kebab>.user.js";` —
+      inside the existing `scripts = { … };` attrset of `modules/shared/home.nix` (or of
+      nix-personal's `modules/userscripts.nix` for a private one). Nothing else changes.
+- [ ] That is a **string**, not a path literal, and it satisfies the option's `path` type
+      because a store path is absolute. **Never "fix" it to a `$HOME` path** — and never
+      reintroduce a repo-relative literal; `checks.<system>.page-lab` fails the build on one.
 - [ ] **Key collision:** nix-personal's private keys are **invisible from this repo**, and the
       module system treats a repeated key as a **conflict, not an override** — **ASK the
       operator** before claiming a plausible name.
@@ -79,19 +87,27 @@ nix flake check
 ```
 
 `checks.<system>.userscripts` **runs the plugin's linter** —
-`plugins/page-lab/scripts/userscript-meta-lint.sh` — so the rulebook lives in exactly
+the plugin's `scripts/userscript-meta-lint.sh` — so the rulebook lives in exactly
 one place and CI, the plugin and any other consumer cannot drift apart. Its contract is in the
 plugin README; what it deliberately does **not** check is `patterns.md` § 10.
 
 - [ ] If `nix` is unavailable: run the linter directly
-      (`plugins/page-lab/scripts/userscript-meta-lint.sh userscripts/`),
+      (`userscript-meta-lint.sh <dir>`, from the page-lab plugin),
       `nix-instantiate --parse` the changed `.nix`, and state the rest is **CI-deferred**.
-- [ ] **A private (nix-personal) script is NOT covered by that check.** It globs
-      `${self}/userscripts/*.user.js` — this repo's tree only. Owning the *option* does not gate
-      the consumer, and **the build still goes green**, which is the trap. Measured 2026-08-31:
-      nix-personal's `civitai-declutter` had shipped with **no `@license`** and the check never
-      saw it. For a private script, point the linter at nix-personal's `userscripts/` by hand —
-      it takes a path, so this is one command, not a reimplementation.
+- [ ] **A private script is gated by nix-personal, not by this repo.** Since the
+      2026-09-12 extraction this check lints the pinned `kattakath-userscripts`
+      input, and nix-personal lints its own pinned
+      `gitlab:ismailkattakath/userscripts` — one linter, two gates, one per
+      visibility. A public check cannot read a private input, so this split is
+      structural, not an oversight.
+
+      **The history is why the gate had to move with the content.** It used to
+      glob `${self}/userscripts/*.user.js` — this repo's tree only — while owning
+      the *option* for both. Owning an option does not gate its consumers, and
+      **the build still went green**, which was the trap: measured 2026-08-31,
+      nix-personal's `civitai-declutter` had shipped with **no `@license`** and
+      the check never saw it. Extracting the tree without repointing the check
+      would have been strictly worse — a green build over an empty directory.
 
 ## Install reality (no Nix↔Violentmonkey bridge)
 
@@ -148,7 +164,7 @@ EOF
 ## Publish
 
 The rulebook is the plugin's
-[`greasyfork.md`](../../../plugins/page-lab/skills/userscript-author/greasyfork.md).
+[`greasyfork.md`](https://github.com/kattakath/claude-plugins/blob/main/plugins/page-lab/skills/userscript-author/greasyfork.md).
 The only fleet-specific part is the sync source for a script that lives here:
 
 ```
