@@ -578,6 +578,38 @@
           ];
         };
 
+      # ---- PUBLISHED MCP gateway (terranix -> OpenTofu) ----------------------
+      # Renders infra/cloudflare/mcp-public.nix: the Mac's own tunnel + ingress to
+      # the second mcp-proxy (127.0.0.1:8097), the proxied CNAME, ONE Access
+      # application gated by a SERVICE TOKEN, and one portal registration per
+      # published server.
+      #
+      # `publicServers` MUST mirror `services.mcpGateway.public`. It is passed
+      # rather than read from the darwin config because terranix renders outside
+      # any host's module system — the pairing is documented in
+      # docs/mcp-public-exposure-design.md and the mcp.nix option text. Empty (the
+      # default, and what the public apps below render) produces the tunnel and
+      # Access objects but registers NO server, so nothing is reachable.
+      mcpPublicConfig =
+        {
+          system,
+          publicServers ? [ ],
+          publicSubdomain ? "connector",
+        }:
+        terranix.lib.terranixConfiguration {
+          inherit system;
+          modules = [
+            ./infra/cloudflare/mcp-public.nix
+            {
+              _module.args = {
+                inherit domainName publicServers publicSubdomain;
+                accountId = cloudflareAccountId;
+                zoneId = cloudflareZoneId;
+              };
+            }
+          ];
+        };
+
       # ---- Generic terranix renderer for external/private callers -----------
       # A raw wrapper around this flake's own pinned `terranix` input -- lets a
       # private composition flake render ITS OWN terranix module (e.g. a
@@ -1077,6 +1109,7 @@
           mkHomeManagerModule
           identityArgs
           cfTunnelConfig
+          mcpPublicConfig
           terranixRender
           ;
       };
