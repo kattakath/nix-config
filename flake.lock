@@ -537,6 +537,54 @@
         "type": "github"
       }
     },
+    "kattakath-claude-plugins": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1789226069,
+        "narHash": "sha256-z2qPziU/EHYXd0F5dhXmmTgjnPLpHhUKN00evQKmbWI=",
+        "owner": "kattakath",
+        "repo": "claude-plugins",
+        "rev": "b0af309d9668d7749aae2b02c9eb0edc9ba70407",
+        "type": "github"
+      },
+      "original": {
+        "owner": "kattakath",
+        "repo": "claude-plugins",
+        "type": "github"
+      }
+    },
+    "kattakath-claude-skills": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1789226086,
+        "narHash": "sha256-BDfVKJzkbwa2RH7qM5hjQjbNHf8s53NSQX+2vl0C4sg=",
+        "owner": "kattakath",
+        "repo": "claude-skills",
+        "rev": "9097d59f18eb88c48bf3ab838503e98df21e0584",
+        "type": "github"
+      },
+      "original": {
+        "owner": "kattakath",
+        "repo": "claude-skills",
+        "type": "github"
+      }
+    },
+    "kattakath-userscripts": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1789226097,
+        "narHash": "sha256-y/66hgLBRZGWBUU2I8kmzimIUWHEsId3itmbp+KkhcM=",
+        "owner": "kattakath",
+        "repo": "userscripts",
+        "rev": "91bfd3b69da350d68b6bbe7774f79b2cef48f889",
+        "type": "github"
+      },
+      "original": {
+        "owner": "kattakath",
+        "repo": "userscripts",
+        "type": "github"
+      }
+    },
     "libcamera-src": {
       "flake": false,
       "locked": {
@@ -799,6 +847,9 @@
         "grok-build-plugin-cc": "grok-build-plugin-cc",
         "home-manager": "home-manager",
         "import-tree": "import-tree",
+        "kattakath-claude-plugins": "kattakath-claude-plugins",
+        "kattakath-claude-skills": "kattakath-claude-skills",
+        "kattakath-userscripts": "kattakath-userscripts",
         "mcp-servers-nix": "mcp-servers-nix",
         "nix-darwin": "nix-darwin",
         "nix-homebrew": "nix-homebrew",
