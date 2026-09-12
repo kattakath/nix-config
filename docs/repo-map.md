@@ -98,7 +98,7 @@ What the current lock drops, and the evidence for each:
 | `deploy-rs.inputs.utils.inputs.systems.follows = "terranix/systems"` | dedupe | Same: flake-utils' `outputs = { self, systems }` is a *closed* pattern doing `import systems`. |
 | `deploy-rs.inputs.flake-compat.follows = ""` | drop | Non-flake `import` shim only. |
 | `git-hooks.inputs.flake-compat.follows = ""` | drop | `outputs = { self, nixpkgs, ... }` never destructures it; `default.nix`/`shell.nix` read the rev from git-hooks' *own vendored* `flake.lock`, and we only ever call `lib.<system>.run`. |
-| `flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs"` + `follows = "flake-parts"` on `local-rag` / `media-cli` | dedupe | Our extracted flakes all call `flake-parts.lib.mkFlake` (forced — never droppable) at the **same rev**, yet each shipped its own flake-parts *and* its own `nixpkgs.lib`: 8 nodes for one library, now 1. The `nixpkgs-lib` half is upstream-blessed — `terranix` already carries that exact line, and flake-parts documents the override behind a 23.05 floor our `nixpkgs.lib` clears by three years. **The anchor moved twice:** it was `firmware-secrets/flake-parts` (an arbitrary satellite) until ADR-002 wave 2 made this flake a flake-parts consumer and declared it directly, which is the only reason wave 4 could delete the `firmware-secrets` (and then `keychain-secrets`, `vast-provision`) inputs without breaking the remaining `follows` at lock time. Absorbed capsules leave this row: `vast-provision` was on it until wave 4. |
+| `flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs"` + `follows = "flake-parts"` on `local-rag` | dedupe | Our extracted flakes all call `flake-parts.lib.mkFlake` (forced — never droppable) at the **same rev**, yet each shipped its own flake-parts *and* its own `nixpkgs.lib`: 8 nodes for one library, now 1. The `nixpkgs-lib` half is upstream-blessed — `terranix` already carries that exact line, and flake-parts documents the override behind a 23.05 floor our `nixpkgs.lib` clears by three years. **The anchor moved twice:** it was `firmware-secrets/flake-parts` (an arbitrary satellite) until ADR-002 wave 2 made this flake a flake-parts consumer and declared it directly, which is the only reason wave 4 could delete the `firmware-secrets` (and then `keychain-secrets`, `vast-provision`) inputs without breaking the remaining `follows` at lock time. Absorbed capsules leave this row: `vast-provision` was on it until wave 4 and `media-cli` until wave 5, leaving `local-rag` as the last `follows = "flake-parts"` line. |
 
 **Deliberately left duplicated.** Not everything that looks like a duplicate is one:
 
@@ -350,9 +350,27 @@ Two subtrees are **not** platform splits and are governed by ADR-002
   (`extras/modules.nix`); that attribute is deliberately **not** re-exported as a public flake
   output — see `modules/parts/touchup.nix` for the decision and the one-line path back.
   Today: `cloudflared-connector` (wave 3), `firmware-secrets`, `keychain-secrets` and
-  `vast-provision` (wave 4), `tart-vms` (wave 5). Waves 5-6 add the remaining two.
+  `vast-provision` (wave 4), `tart-vms` and `media-cli` (wave 5). Wave 6 adds the last one,
+  `local-rag`.
 
-  **`tart-vms` is the biggest capsule and the one with the most LIVE surface** (3,255 lines;
+  **`media-cli` is the LARGEST capsule** (4,559 lines, ~1,300 of them the queue) and the one
+  with the narrowest live surface: one option in `modules/shared/home.nix`, and nothing at all
+  in nix-personal. Three things about it are load-bearing and are spelled out in its
+  `flake-module.nix` header: `package-graph.nix` (the satellite's `lib/packages.nix`) is **one
+  copy called twice** — by the entry file for the checks and by `module.nix` for
+  `home.packages` — and it sits at the capsule ROOT rather than under `lib/`, because from
+  `lib/` all eleven `callPackage` lines would have had to be `../packages/`, the same
+  flattening `tart-vms` did; its module builds its **own** `nix-media-queue` wrapper and sets
+  `ProgramArguments` itself, because upstream home-manager's `/bin/sh -c 'wait4path … && exec'`
+  arg0 silently loses TCC read access to the very folders the worker exists to work on; and the
+  launchd table at the top of `module.nix` — `QueueDirectories` / `ProcessType` / `KeepAlive` /
+  `RunAtLoad` / `StartInterval` — is the record that **every queue mechanism is launchd's own**,
+  which is what answers "why hand-roll a job queue" with "we did not". It also carries this
+  repo's only `inert` kill-switch gate for a module every host imports:
+  `checks.<system>.media-cli-inert` asserts that an unset `programs.mediaCli.enable` defines no
+  agent, no session variable, no activation step and no package.
+
+  **`tart-vms` is the capsule with the most LIVE surface** (3,255 lines;
   `macos` runs three Tart-VM GitHub runners and a GitLab lane off it). Three things about it
   are load-bearing and are spelled out in its `flake-module.nix` header: its two runner modules
   go out through the RAW `capsuleModules` seam so the base list gets **paths**, not
@@ -574,23 +592,26 @@ Two subtrees are **not** platform splits and are governed by ADR-002
     paste the script into Violentmonkey's own editor). The theme rides the same gate — until
     it is enabled once, Chromium unpacks it but leaves `extensions.theme` unset and the browser
     still looks stock.
-- **The media stack is no longer in this repo.** `media-queue.nix`, the nine media CLIs and
-  the Finder Services moved to
-  [`kattakath/nix-media-cli`](https://github.com/kattakath/nix-media-cli) (2026-09-05) and
-  come back as one home-manager module: `programs.mediaCli.enable`, set from `home.nix` on
+- **The media stack is a CAPSULE, not a module in this directory.** `media-queue.nix`, the
+  media CLIs and the Finder Services left for
+  [`kattakath/nix-media-cli`](https://github.com/kattakath/nix-media-cli) on 2026-09-05 and came
+  back in-tree on 2026-09-12 as `modules/features/media-cli/` (ADR-002 wave 5). They reach the
+  Mac as one home-manager module: `programs.mediaCli.enable`, set from `home.nix` on
   `isMacosHost`. Everything that used to be documented here — the three `QueueDirectories`
   tiers, `ProcessType = "Background"`, the `SIGSTOP`/`SIGCONT` pause, the `MAINPID` orphan
-  adoption, the deliberate absence of a GUI status surface — now lives with the code, in that
-  flake's `packages/media-queue.nix` header and `modules/media-cli.nix`.
+  adoption, the deliberate absence of a GUI status surface — lives with the code, in that
+  capsule's `packages/media-queue.nix` header and `module.nix`.
 
-  Two things changed in the move and are worth knowing here, because both were invisible
-  couplings this repo was supplying by accident:
+  Two things changed in the EXTRACTION and are worth knowing here, because both were invisible
+  couplings this repo was supplying by accident — and both survived the absorption unchanged,
+  which is the point of bringing the code back rather than the old vendored shape:
 
   - **The launchd `arg0`.** The agents' `nix-media-queue` basename came from this repo's
     VENDORED `hm-launchd` fork; upstream home-manager emits `/bin/sh -c 'wait4path … && exec …'`
     instead. That is not cosmetic — a `/nix/store` arg0 is what lets the worker read the
-    TCC-protected folders it exists to work on. The extracted module therefore builds its own
-    named wrapper, so it needs no fork and works on stock home-manager.
+    TCC-protected folders it exists to work on. The capsule's module therefore builds its own
+    named wrapper, so it needs no fork and works on stock home-manager — and
+    `checks.<system>.media-cli-module` asserts the arg0 is both `nix-*` AND a store path.
   - **The vision model** was a hardcoded literal, so no environment variable could have
     overridden it. It is now a `defaultModel` derivation argument, surfaced as
     `programs.mediaCli.visionModel`.
@@ -742,8 +763,14 @@ waves 5-6 absorb them).
 
 - **`local-rag`** (flake input) — `services.ollamaLocal` + `services.pgvectorLocal`, the
   loopback RAG stack; `modules/shared/mcp.nix` consumes `services.pgvectorLocal.databaseUri`.
-- **`media-cli`** (flake input) — `programs.mediaCli`, the media CLIs + the launchd work queue
-  + the Finder Services, `macos`-only because of closure size.
+- **`modules/features/media-cli/`** (an IN-TREE CAPSULE — it was extracted from this repo to
+  `kattakath/nix-media-cli` on 2026-09-05 and absorbed back by ADR-002 wave 5) —
+  `programs.mediaCli`, the eleven media CLIs + the launchd work queue + the Finder Services,
+  `macos`-only because of closure size. Threaded in as `mediaCliModule` through the RAW
+  `capsuleModules` seam rather than `flake.modules` — see § `modules/features/` for the
+  measurement. Its eleven packages are deliberately **not** re-published as flake outputs
+  (nix-config never carried one); `checks.<system>.media-cli-packages` builds all of them, so
+  the shellcheck coverage the satellite's CI had is kept.
 
 ### `modules/darwin/`
 
@@ -923,15 +950,18 @@ Smaller, single-purpose CLIs:
   for a PHYSICAL Android device; hardens around two live-reproduced adb bugs, an mDNS-cache
   staleness and duplicate-transport device listings. Its operator knowledge is also a GLOBAL
   skill, `skills/android-phone`.
-- **The nine media packages moved out.** `media-quick-actions.nix`, `media-queue.nix`,
-  `media-toolkit.nix`, `photo-describe.nix`, `media.nix`, `fix-media.nix`,
-  `fix-extension.nix`, `extract-audio.nix` and `fix-google-video.nix` — plus the two
-  media-*adjacent* tools `obs-fb-setup.nix` and `fidelity-enhance.nix` — now live in
-  [`kattakath/nix-media-cli`](https://github.com/kattakath/nix-media-cli), with their
-  reasoning intact in their own headers. This repo consumes them as
-  `programs.mediaCli` (see § `modules/shared/` above); `nix run .#photo-describe` becomes
-  `nix run github:kattakath/nix-media-cli#photo-describe`, and every package there now
-  exports an app (in this repo that had drifted to 3 of 8).
+- **The media packages are NOT here — they are in the `media-cli` capsule.**
+  `media-quick-actions.nix`, `media-queue.nix`, `media-toolkit.nix`, `media-describe.nix`,
+  `media.nix`, `media-fix.nix`, `media-fix-extension.nix`, `media-extract-audio.nix` and
+  `media-transcode.nix` — plus the two media-*adjacent* tools `obs-fb-setup.nix` and
+  `fidelity-enhance.nix` — left for `kattakath/nix-media-cli` on 2026-09-05 (which is where
+  the `photo-describe` → `media-describe` renaming happened) and came back on 2026-09-12 as
+  `modules/features/media-cli/packages/`, with their reasoning intact in their own headers.
+  This repo consumes them as `programs.mediaCli` (see § `modules/shared/` above). There is no
+  `nix run .#media-describe`: the capsule publishes **no** packages or apps, on purpose — the
+  CLIs reach the Mac through `home.packages` and a second perSystem-pkgs copy would be eleven
+  `nix flake show` rows nothing consumes. The one-line path back is in the capsule's
+  `flake-module.nix` header.
 
   The two adjacent tools are **opt-in** in that module
   (`fidelityEnhance.enable`, `obsFacebookSetup.enable`) and deliberately stay OUT of the

@@ -1,9 +1,12 @@
 # Grant: Study `nix-config`'s Media Stack for Extraction into `kattakath/nix-media-cli`
 
-> **HISTORICAL.** This brief was answered and the extraction SHIPPED on 2026-09-05: the
-> stack now lives in [`kattakath/nix-media-cli`](https://github.com/kattakath/nix-media-cli)
-> and nix-config consumes it as `programs.mediaCli`. Kept for the reasoning, not as a plan.
-> Its file inventory and line references describe nix-config *before* the move.
+> **HISTORICAL, TWICE OVER.** This brief was answered and the extraction SHIPPED on
+> 2026-09-05 into [`kattakath/nix-media-cli`](https://github.com/kattakath/nix-media-cli);
+> ADR-002 wave 5 then absorbed that flake BACK on 2026-09-12 as the in-tree capsule
+> `modules/features/media-cli/`. nix-config still consumes it as `programs.mediaCli` — the
+> option surface never moved, only the code. Kept for the reasoning, not as a plan. Its file
+> inventory and line references describe nix-config *before* the extraction, so they match
+> neither shape today.
 
 **Self-contained** — this document carries every fact needed to start. No prior
 conversation, memory, or session context is required. Paste it whole into a fresh
