@@ -294,9 +294,19 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   the failure shape `deploy` has. `mkCfTunnelTofu` now **refuses** a render with ≤2 ingress
   entries (override: `CF_TUNNEL_ALLOW_SITE_FREE=1`), but run those apps from the private
   nix-personal flake, which supplies the real site list.
+- **The edge's TLS floor and the SSH Access gate are DECLARED, not clicked.**
+  `infra/cloudflare/nixpi-tunnel.nix` owns `cloudflare_zone_setting` (ssl=strict,
+  min_tls=1.2, always_use_https, HSTS) for the SSH host's zone and every hosted site's
+  zone, plus `cloudflare_zero_trust_access_application.nixpi_ssh`. That Access app
+  **vanished once** (2026-08-20) and took `ssh` + both deploy legs with it; declaring it
+  means a rebuild restores the gate. Zones with no terranix module here (aloshy.ai,
+  etuper.com, izzykatt.ca, silvercreek.ai) are still configured out-of-band.
 - **OpenTofu state is the fragile part of the edge, not the config.** State has been lost
-  **twice**. `infra/cloudflare/nixpi-tunnel.nix` now declares a backend — never run `tofu` in
-  a bare directory, and never apply before a `plan` reads clean.
+  **twice** — both times because `tofu` ran in whatever the CWD happened to be, leaving a
+  gitignored state file behind. There is **no backend block**; instead the `cf-*` apps pin
+  their working directory to `$XDG_STATE_HOME/nix-config-cf-tunnel` (0700, `umask 077`, state
+  0600 — it holds the tunnel connector token in plaintext). Never run `tofu` in a bare
+  directory, and never apply before a `plan` reads clean.
 - **What magic rollback actually buys** (`deploy.nodes.nixpi.magicRollback = true`): the Pi
   activates behind a watchdog and reverts **itself** to the previous generation unless the
   deployer reconnects over a second ssh session and confirms. A change that kills sshd, the

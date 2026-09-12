@@ -164,6 +164,63 @@ let
         ]
     ) hostedSites
   );
+  # ---- (e) Zone settings: the TLS floor, declared rather than clicked ---------
+  # These were applied by hand during the 2026-09-12 audit and existed nowhere in
+  # Nix, so nothing reproduced them and they would drift silently. Declared here
+  # for every zone THIS module manages — the SSH host's zone plus each hosted
+  # site's zone. Zones outside this module (aloshy.ai, etuper.com, izzykatt.ca,
+  # silvercreek.ai) are deliberately NOT covered: they have no terranix module in
+  # this repo, and dontsell.ai has its own in the private flake.
+  #
+  # `value` is schema-typed `dynamic`, so a string for the scalar settings and an
+  # attrset for security_header — matching exactly what the API returns, so
+  # `tofu plan` reads clean rather than fighting the provider.
+  # Zone -> a readable Terraform resource key, DEDUPED BY ZONE ID. Two things
+  # force this shape: a Terraform resource name may not start with a digit (so a
+  # raw zone id is illegal), and ismail.kattakath.com shares the apex's zone, so
+  # keying by domain alone would declare the same setting twice for one zone and
+  # the two resources would fight.
+  zoneKeyPairs = [
+    {
+      key = siteKey domainName;
+      id = zoneId;
+    }
+  ]
+  ++ (map (s: {
+    key = siteKey s.domain;
+    id = s.zoneId;
+  }) (builtins.filter (s: (s.zoneId or null) != null) hostedSites));
+
+  dedupedZones = builtins.foldl' (
+    acc: pair: if builtins.any (q: q.id == pair.id) acc then acc else acc ++ [ pair ]
+  ) [ ] zoneKeyPairs;
+
+  zoneSettings = {
+    # Origin certificates are validated. Safe for every hostname here: the origin
+    # is either the tunnel (Cloudflare-issued cert) or a Cloudflare-internal
+    # service, never a bare self-signed host.
+    ssl = "strict";
+    # TLS 1.0/1.1 were accepted until 2026-09-12. Below the modern baseline and
+    # every PCI profile since 3.2.1.
+    min_tls_version = "1.2";
+    # Plaintext HTTP served a real 200 before this.
+    always_use_https = "on";
+  };
+
+  # HSTS: include_subdomains stays FALSE on purpose. Any subdomain without its own
+  # working TLS would be hard-broken by it, and the wildcard cert does not cover
+  # two-label names like <x>.ismail.<domain>. Revisit only after auditing every
+  # subdomain's certificate coverage.
+  hstsValue = {
+    strict_transport_security = {
+      enabled = true;
+      max_age = 15768000;
+      include_subdomains = false;
+      preload = false;
+      nosniff = true;
+    };
+  };
+
 in
 {
   # ---- Provider: API token from the CLOUDFLARE_API_TOKEN env var --------------
@@ -232,6 +289,83 @@ in
 
   # ---- (c2) Single Redirects: www.<domain> -> <domain> (301) per site --------
   resource.cloudflare_ruleset = siteRulesets;
+
+  # ---- (e) Zone settings + the Access application, as resources --------------
+  resource.cloudflare_zone_setting = builtins.listToAttrs (
+    builtins.concatMap (
+      zp:
+      (builtins.attrValues (
+        builtins.mapAttrs (setting: val: {
+          name = "${zp.key}_${setting}";
+          value = {
+            zone_id = zp.id;
+            setting_id = setting;
+            value = val;
+          };
+        }) zoneSettings
+      ))
+      ++ [
+        {
+          name = "${zp.key}_security_header";
+          value = {
+            zone_id = zp.id;
+            setting_id = "security_header";
+            value = hstsValue;
+          };
+        }
+      ]
+    ) dedupedZones
+  );
+
+  # The Access application fronting the SSH host. This was hand-created and
+  # ALREADY VANISHED ONCE (2026-08-20) — when it does, `cloudflared access ssh`
+  # fails with "failed to find token" and BOTH deploy paths die with it, since the
+  # only route to this host is the tunnel. Declaring it means a rebuild restores
+  # the gate instead of an operator rediscovering it.
+  #
+  # Enforcement is at the EDGE only: cloudflared proxies raw TCP to localhost:22,
+  # so the origin never sees a JWT. That is why modules/nixos/core.nix binds sshd
+  # to loopback — the two halves are one control and neither works alone.
+  #
+  # The policy is NOT declared here. `mcp-allow-operator` is a REUSABLE policy
+  # shared with the MCP portal and character-mcp; owning it from this module would
+  # let a change here silently retarget those. Referenced by id instead.
+  resource.cloudflare_zero_trust_access_application.nixpi_ssh = {
+    account_id = accountId;
+    name = "nixpi SSH";
+    type = "self_hosted";
+    domain = publicHostname;
+    # `self_hosted_domains` is DEPRECATED and mutually exclusive with
+    # `destinations` — the provider errors with "Attribute self_hosted_domains
+    # cannot be specified when destinations is specified". The API returns both
+    # (it mirrors one into the other), so read the live object and declare only
+    # `destinations`.
+    destinations = [
+      {
+        type = "public";
+        uri = publicHostname;
+      }
+    ];
+    # Google Workspace only. Leaving this empty accepts EVERY configured IdP,
+    # including Cloudflare's own dashboard login — a loop where the account that
+    # administers Access is also a login to it.
+    allowed_idps = [ "3227ee11-f5a4-40ae-a1a7-612e1f035c1c" ];
+    session_duration = "1h";
+    app_launcher_visible = false;
+    auto_redirect_to_identity = false;
+    http_only_cookie_attribute = true;
+    # Both are `false` live. Declared explicitly rather than omitted: leaving them
+    # out makes the provider plan `false -> null`, i.e. hand them back to whatever
+    # the API defaults to. Declaring reality keeps the plan genuinely zero-diff.
+    enable_binding_cookie = false;
+    options_preflight_bypass = false;
+    policies = [
+      {
+        id = "b3bd8c38-e231-4203-ba6b-69fe16e498b3"; # mcp-allow-operator (reusable)
+        precedence = 1;
+      }
+    ];
+  };
 
   # ---- (d) Connector token (data source) -------------------------------------
   # The token authenticates the `cloudflared` connector unit. It is a SECRET:
