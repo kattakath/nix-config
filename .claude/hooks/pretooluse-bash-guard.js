@@ -148,7 +148,23 @@ const APPROVED_CLIS = new Set([
 const DESKTOP_COMMANDER_TOOLS = new Set(["ls", "find", "stat", "ps", "kill"]);
 
 // Rule 1: terranix apply/destroy apps that mutate Cloudflare infra via the API.
-const CF_TERRANIX_APP = /\bnix\s+run\s+\.#cf-(?:tunnel|mcp)-(?:apply|destroy)\b/;
+//
+// Names DRIFT, and this rule drifted into guarding nothing. It used to read
+// `cf-(?:tunnel|mcp)-(?:apply|destroy)`: `cf-mcp-*` was real, then was removed
+// with the Opera/Kapture MCP servers (6ca8c46), while the terranix family that
+// replaced it — `mcp-public-*` — was never added. So the one app this rule most
+// needed to catch sailed straight through. Derive this list from `nix flake show`
+// when an infra app is added or renamed, not from memory.
+//
+// `mcp-public-token` is deliberately ABSENT: it is read-only (it prints the
+// connector token out of existing state for piping into `secret set`) and
+// mutates nothing.
+//
+// Shape copied from PUBLIC_MACOS_APP below rather than reinvented — it already
+// handles the two evasions a bare `\.#` misses: a quoted flake ref, and the
+// `github:kattakath/nix-config#…` form that runs the same app without a checkout.
+const CF_TERRANIX_APP =
+  /\bnix\s+run\s+["']?(?:\.|github:kattakath\/nix-config)#(?:cf-tunnel|mcp-public|hf)-(?:apply|destroy)\b/;
 
 // Rule 1c — the two ways a secret VALUE reaches stdout, and therefore this
 // session's transcript. Deliberately WHOLE-COMMAND regexes, not the

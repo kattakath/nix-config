@@ -217,19 +217,21 @@ that one list, the way `hostedSites` already drives ingress + DNS + rulesets.
 
 ## 7. External Workers: same flag, same credential (settled 2026-09-12)
 
-For a server that must be up when the Mac is asleep, or that wants its own origin, a standalone
-Worker on its own single-label subdomain is still the answer. What changed is **how it is
-authenticated**: it now rides the *same* Access service token as the gateway, declared as an
-`externalServers` entry rather than running its own OAuth.
+For a server that must be up when the Mac is asleep, a standalone Worker is still the answer —
+but it does **not** get a hostname of its own. It is published at the same origin as every
+gateway server, as a Cloudflare Worker **route** on `upstream.<domain>/servers/<name>/*`.
 
 ```nix
 externalMcpServers = [
-  { name = "character"; host = "character.kattakath.com"; id = "character-mcp"; }
+  { name = "character"; description = "…"; }
 ];
 ```
 
-That one entry renders **both** halves: an Access application over the hostname bound to the
-shared service-token policy, and the portal registration with `auth_type = "bearer"`.
+No `host`, no `id`: a server's **name** is its registration id, its Access application name and
+its path segment. The entry renders one portal registration with `auth_type = "bearer"`; the
+route itself is declared in that Worker's own wrangler config, and it needs no Access object
+because Cloudflare checks Access **before a Worker runs**, so the route inherits the origin's
+single application.
 
 | | Before (OAuth per Worker) | After (shared service token) |
 |---|---|---|
@@ -261,15 +263,15 @@ Access is the boundary, but the origin does not trust the network alone. `worker
 `iss`, the application's `aud`, and the service token's `common_name`. Without the `aud` pin, any
 Access application in the account would be a skeleton key for this one.
 
-### Two Access apps per external server is CORRECT, not a duplicate
+### Two Access apps per server is CORRECT, not a duplicate
 
-The dashboard shows two entries named for one server. They are different layers and both must
-stay:
+A server appears twice in the dashboard because **two different hops** gate it. Both must stay —
+and note the origin app is shared by every server, not one per server:
 
 | App | `type` | Gates |
 |---|---|---|
-| `MCP character (service token)` | `self_hosted` on `character.kattakath.com` | the **origin** — who may reach the Worker at all |
-| `character-mcp` | `mcp`, `destinations: [{via_mcp_server_portal}]` | the **portal** — who may use this server *through* `mcp.kattakath.com` |
+| `upstream.<domain>` | `self_hosted` on the origin hostname | the **portal → origin** hop, by service token. **One app for all servers.** |
+| `<name>` (e.g. `character`) | `mcp`, `destinations: [{via_mcp_server_portal}]` | the **client → portal** hop for that one server, by operator identity |
 
 Deleting the second would not tighten anything; it would unpublish the server from the portal.
 What *was* redundant and got deleted on 2026-09-12 is a **third**, older app —
