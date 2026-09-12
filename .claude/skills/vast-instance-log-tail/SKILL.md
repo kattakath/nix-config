@@ -6,7 +6,7 @@ description: >
   blind-waiting. Use when asked to "tail/watch the Vast instance log", "check
   provisioning progress", "see the last N lines of the instance log", "why is
   the Open button stuck", or "diagnose a Vast instance". Pairs with the vast-*
-  provisioning subsystem (the vast-provision flake input +
+  provisioning subsystem (the modules/features/vast-provision capsule +
   packages/vast-bootstrap.sh) and the design doc
   docs/vastai-template-provisioning.md.
 ---
