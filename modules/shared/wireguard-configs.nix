@@ -12,9 +12,9 @@
 # neither "no autostart" nor "the confs hold private keys" disqualifies it.
 #
 # The two that DO:
-#   1. It GENERATES the conf from Nix-declared peer values — publicKey,
-#      endpoint, allowedIPs (:136-160) — which puts the peer topology in the
-#      world-readable store. This module never parses or re-emits conf content;
+#   1. It GENERATES the conf from Nix-declared peer values — publicKey (:35),
+#      endpoint (:16), allowedIPs (:10), written out by generatePeerConfig
+#      (:169) — which puts the peer topology in the world-readable store. This module never parses or re-emits conf content;
 #      it copies operator files verbatim, so nothing about them is evaluated.
 #   2. It is a SYSTEM module: root-owned, writing environment.etc (:227) and
 #      launchd.daemons (:223). This sync is user-scoped, into the operator's own

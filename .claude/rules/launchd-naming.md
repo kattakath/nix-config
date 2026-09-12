@@ -161,6 +161,17 @@ for p in "$HOME"/Library/LaunchAgents/*.plist /Library/LaunchAgents/*.plist /Lib
 done
 ```
 
-Any hit that is **not** one of the two known upstream exceptions above, and whose `Label`
-is one of ours (`org.nix-community.home.*`, `org.nixos.open-*`, `com.kattakath.*`), is a
-real violation — fix it by wrapping `arg0` in a `nix-<activity>` `writeShellScriptBin`.
+**Expected hits, in full** — this audit prints five `BARE-INTERP` lines on `macos` today and
+every one of them is fine:
+
+| Label | Why it is `/bin/sh` |
+|---|---|
+| `org.nixos.activate-system` | upstream nix-darwin (§ Known upstream exceptions) |
+| `org.nixos.activate-agenix` | upstream agenix (§ Known upstream exceptions) |
+| `systems.determinate.nix-installer.nix-hook` | the Determinate installer (§ Known upstream exceptions) |
+| `org.nixos.github-runner-macos-*` | **ours, and deliberate** — the boot-ordering exception above |
+
+Anything else whose `Label` is one of ours (`org.nixos.*` — every nix-darwin unit this repo
+authors carries that prefix, including `org.nixos.open-*` and `org.nixos.file-rotation-*` —
+or `org.nix-community.home.*`, or `com.kattakath.*`) is a real violation: fix it by wrapping
+`arg0` in a `nix-<activity>` `writeShellScriptBin`.
