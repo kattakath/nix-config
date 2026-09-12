@@ -128,13 +128,30 @@ unchanged. What changed is that the module has to emit all three — and that **
 origin does not detect this**. The origin answered `200` with its service token the entire time
 the portal was empty. Verify a publish through `mcp.<domain>`, never through the origin.
 
+### The two hostnames, and why the origin is called `upstream`
+
+| Host | Role | Who dials it | Credential |
+|---|---|---|---|
+| `mcp.<domain>` | **portal** — the only address a client is ever given | Claude, Grok | OAuth / identity |
+| `upstream.<domain>` | **origin** — where the servers actually are | only the portal | Access **service token** |
+
+Two is the floor and it does not grow: the portal is a Cloudflare-operated endpoint that cannot
+be pointed at your tunnel, and it must dial *something* over the public internet. That something
+is the origin, which is therefore publicly resolvable and gated `non_identity` — a browser gets
+403, because there is no login path at all.
+
+The origin was called `connector` until 2026-09-12, after the cloudflared connector. That named
+the **mechanism**, and only half of it: the same hostname also carries Worker routes, which
+involve no connector. `upstream` is the MCP portal's own word for a server registered behind it,
+and it stays true whichever mechanism answers.
+
 ### Naming: ONE rule
 
 > **A thing is named after what it points at.**
 
 | Object | Name |
 |---|---|
-| Access application over a hostname | that hostname — `connector.kattakath.com`, `mcp.kattakath.com`, `nixpi.kattakath.com` |
+| Access application over a hostname | that hostname — `upstream.kattakath.com`, `mcp.kattakath.com`, `nixpi.kattakath.com` |
 | Access application over a published server | that server — `memory`, `character` |
 | registration id · portal app name · `/servers/<x>/mcp` path segment | the **same string**: the server's name |
 
@@ -277,7 +294,7 @@ closed by removal, at none of the cost that was declined.
 
 ## 8. Open decisions
 
-1. ~~Hostname for the public gateway~~ — **`connector.kattakath.com`**, single-label as required
+1. ~~Hostname for the public gateway~~ — **`upstream.kattakath.com`**, single-label as required
    (the free Universal cert covers `*.kattakath.com`, one label only).
 2. ~~Which servers to publish first~~ — **`memory` + `sequential-thinking`**. Both tokenless.
 3. **Does anything belong on `nixpi` instead**, given §6's uptime limit? Still open.
@@ -285,7 +302,7 @@ closed by removal, at none of the cost that was declined.
    §7 removed Grok's direct path, so the portal is its only door, and `grok.com/connectors` takes
    a URL with no header field — which rules the service-token origin out for it entirely. The
    client URL for any cloud client is the PORTAL, `https://mcp.kattakath.com/mcp`, never
-   `connector.kattakath.com`.
+   `upstream.kattakath.com`.
 5. ~~Prune two stale `playground-*` OAuth clients in `OAUTH_KV`~~ — **moot**: nothing reads that
    namespace any more. Deleting the namespace itself is a separate destructive step, not done.
 
