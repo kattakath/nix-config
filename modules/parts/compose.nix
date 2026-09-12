@@ -20,7 +20,6 @@ let
     nix-homebrew
     determinate
     agenix
-    media-cli
     local-rag
     mcp-servers-nix
     agent-skills-vercel
@@ -47,7 +46,7 @@ let
   # Home-manager capsule modules come through the RAW seam, not
   # `flake.modules` — see modules/parts/capsules.nix § The RAW module seam for
   # the measurement (deferredModule's wrapper reorders `home.packages`).
-  inherit (config.capsuleModules.homeManager) keychain-secrets;
+  inherit (config.capsuleModules.homeManager) keychain-secrets media-cli;
   # tart-vms (wave 5) — through the RAW seam too, and for a SECOND reason on top
   # of the home.packages one: both runner modules `imports = [ ./slots.nix ]`,
   # and the module system dedupes by PATH IDENTITY. `flake.modules`'
@@ -115,7 +114,6 @@ let
             agent-skills-litellm
             claude-plugins-official
             grok-build-plugin-cc
-            media-cli
             local-rag
             # jsonResumeUrl: the raw resume.json URL (or null), consumed by home.nix
             # to bake into the jsonresume package as its default --url (darwin
@@ -142,6 +140,15 @@ let
           # instead of half-resolving. Same move as the two nixos capsules'
           # cloudflaredConnectorModule / firmwareSecretsModule in mkNixos below.
           keychainSecretsModule = keychain-secrets;
+          # Same shape, same reason, one wave later: the `media-cli` flake INPUT
+          # (consumed as `.homeManagerModules.default`) became the ABSORBED
+          # capsule modules/features/media-cli/ in ADR-002 wave 5. A MODULE, so
+          # the name says so — a consumer left writing
+          # `mediaCliModule.homeManagerModules.default` fails loudly instead of
+          # half-resolving. It rides the RAW seam for the `home.packages`
+          # ordering reason above, which matters more here than anywhere else:
+          # this module contributes the Mac's largest single package block.
+          mediaCliModule = media-cli;
           # A SOURCE PATH, not a module and not a derivation — home.nix
           # `callPackage`s it with the HOST's pkgs so the five gitlab-tart slot
           # shims are built against `nixpkgs.config.allowUnfree` from
