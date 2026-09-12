@@ -22,7 +22,8 @@ in
   # nixpi's Cloudflare Tunnel connector token (TUNNEL_TOKEN=…). OPERATOR-ONLY: the
   # operator decrypts it on the Mac to plant on the card's FIRMWARE partition (via
   # `nix run .#nixpi-provision --token`); nixpi never decrypts it on-device (a fresh
-  # SD flash rotates the host key — see the firmware-secrets flake).
+  # SD flash rotates the host key — see the firmware-secrets capsule,
+  # modules/features/firmware-secrets/).
   "cloudflared-token.age".publicKeys = [
     operator
   ];
