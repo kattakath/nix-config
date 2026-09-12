@@ -63,7 +63,11 @@
   # loader) — a MODULE, not a flake, since ADR-002 wave 4 brought it in-tree as
   # modules/features/keychain-secrets/. Threaded in by modules/parts/compose.nix.
   keychainSecretsModule,
-  media-cli,
+  # The ABSORBED media-cli capsule (programs.mediaCli — the CLIs, the launchd
+  # work queue and the Finder Services) — a MODULE, not a flake, since ADR-002
+  # wave 5 brought it in-tree as modules/features/media-cli/. Threaded in by
+  # modules/parts/compose.nix.
+  mediaCliModule,
   # Raw resume.json URL (single-sourced in flake.nix as jsonResumeUrl; null to
   # disable) — baked into the jsonresume package below as its default --url.
   jsonResumeUrl,
@@ -322,10 +326,10 @@ let
   # fine for ViT-B/32 — so the check is reporting a metadata mismatch, not a broken
   # program. Verified with the override: it builds, and `rclip --version` runs.
   #
-  # STAYS HERE, not in nix-media-cli: rclip is a third-party search tool this repo
-  # merely installs, and it is the VECTOR half of the retrieval story — deliberately
-  # independent of the XMP half. It reaches the media stack through that flake's
-  # `extraSearchPackages` seam, which exists for exactly this.
+  # STAYS HERE, not in the media-cli capsule: rclip is a third-party search tool
+  # this repo merely installs, and it is the VECTOR half of the retrieval story —
+  # deliberately independent of the XMP half. It reaches the media stack through
+  # that capsule's `extraSearchPackages` seam, which exists for exactly this.
   #
   # NOTHING IN THE MERGE PATH CATCHES THIS CLASS OF FAILURE. `nix flake check`
   # evaluates darwinConfigurations with the build SKIPPED, and CI is deliberately
@@ -443,12 +447,15 @@ in
 
   imports = [
     # The media stack — CLIs, the launchd work queue, and the Finder right-click
-    # Services — is now ONE option from the extracted flake. Everything this
-    # block used to spell out (the .workflow copy loop, the bundle-id cleanup,
-    # the two launchd agents, the macos-only gate on a closure too big for a
-    # Tart guest) lives in nix-media-cli's own module, which owns the reasoning
-    # along with the code. See `programs.mediaCli` below.
-    media-cli.homeManagerModules.default
+    # Services — is ONE option. Everything this block used to spell out (the
+    # .workflow copy loop, the bundle-id cleanup, the two launchd agents, the
+    # macos-only gate on a closure too big for a Tart guest) lives in the
+    # media-cli CAPSULE's own module, which owns the reasoning along with the
+    # code. See `programs.mediaCli` below. Imported UNCONDITIONALLY — it is
+    # internally gated on (enable && isDarwin), and `checks.media-cli-inert`
+    # asserts that an unset `enable` contributes nothing at all, which is the
+    # state the two NixOS hosts are in.
+    mediaCliModule
     ./hm-launchd # patched home-manager launchd (nix-* ProgramArguments)
     ./mcp.nix # darwin-gated MCP server registry for Claude Code
     ./terminal-theme.nix # the fleet terminal palette + type, held once (no consumers yet)
@@ -479,8 +486,8 @@ in
   # remove-secret CLIs + the ~/.config/secrets/loader.sh every-shell loader).
   programs.keychainSecrets.enable = true;
 
-  # The whole media stack, from the extracted nix-media-cli flake: the CLIs, the
-  # durable launchd work queue, and the Finder right-click Services. macos ONLY —
+  # The whole media stack, from the media-cli capsule: the CLIs, the durable
+  # launchd work queue, and the Finder right-click Services. macos ONLY —
   # MEASURED, the closure (ffmpeg, exiftool, auge, rclip's OpenCLIP model) is too
   # much for a Tart guest's disk, so a sandbox gets neither the CLIs nor the menu.
   # This one gate is now the entire "which hosts get the media stack" decision.
@@ -489,7 +496,7 @@ in
     # `auge` is Apple's Vision framework from the shell — photo-describe already
     # has it hermetically, this puts it on PATH for direct use ("is this shot any
     # good", "is anyone blinking"). `rclipCli` is the VECTOR half of retrieval,
-    # deliberately kept out of the flake (see its override above).
+    # deliberately kept out of the capsule (see its override above).
     extraSearchPackages = [
       pkgs.exiftool
       pkgs.auge

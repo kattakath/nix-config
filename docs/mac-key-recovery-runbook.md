@@ -199,9 +199,9 @@ one-time steps are inherently manual — do these after activating a fresh Mac:
   a codec gap — and only *some* files are affected, since anything Google left
   alone comes back as H.264 and thumbnails fine. Find them with
   `mdfind -onlyin ~/Pictures 'kMDItemCodecs == "vp09"'`, then run
-  `fix-google-video <file>...` (on PATH from the
-  [`nix-media-cli`](https://github.com/kattakath/nix-media-cli) input via
-  `programs.mediaCli.enable`; it left this repo in the 2026-09-05 extraction)
+  `media-transcode <file>...` (on PATH from the `modules/features/media-cli/` capsule via
+  `programs.mediaCli.enable`; it left this repo in the 2026-09-05 extraction, was renamed
+  there, and came back in-tree with ADR-002 wave 5)
   — it detects the codec, re-encodes on the hardware encoder, preserves
   the dates, and skips anything already editor-safe. The container is not the
   problem, so a remux cannot help; only a re-encode does.
