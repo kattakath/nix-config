@@ -175,12 +175,10 @@
     media-cli.inputs.home-manager.follows = "home-manager";
     media-cli.inputs.flake-parts.follows = "flake-parts";
 
-    # cloudflared-connector — the loginless token Cloudflare Tunnel connector NixOS
-    # module, EXTRACTED FROM THIS REPO into a standalone MIT flake
-    # (github.com/kattakath/nix-cloudflared-connector). nixpi consumes its
-    # nixosModule instead of the vendored copy — dogfooding. Pure (config/lib/pkgs).
-    cloudflared-connector.url = "github:kattakath/nix-cloudflared-connector";
-    cloudflared-connector.inputs.nixpkgs.follows = "nixpkgs";
+    # (cloudflared-connector was an input here until ADR-002 wave 3 ABSORBED it as
+    # the first capsule — modules/features/cloudflared-connector/. Same module,
+    # same option surface, one fewer lock node and one fewer CI pipeline; the
+    # origin repo is archived and its history stays there.)
 
     # deploy-rs — remote NixOS activation for `nixpi` WITH MAGIC ROLLBACK. This
     # input exists for exactly one property `nixos-rebuild switch --target-host`
@@ -385,10 +383,25 @@
   #
   # It is written as an ALLOWLIST of the engine directory rather than a denylist
   # of everything else, so a new `modules/<anything>/` tree stays invisible here
-  # by default — the capsule waves add their own alternative to this one regex.
+  # by default. ADR-002 wave 3 added the capsules' alternative to this ONE regex
+  # rather than a second `.addPath ./modules`, because `.match` ACCUMULATES with
+  # `and` (pinned import-tree default.nix:234) — chaining two matches would
+  # intersect them and load nothing, and two separate entries would walk the same
+  # tree twice.
+  #
+  # `/features/<name>/flake-module.nix` and NOTHING else under a capsule: its
+  # module.nix, checks/ and packages/ are reached downward FROM that entry file,
+  # never imported by the flake module system (they are nixos/home-manager
+  # modules and plain functions — the same eval failure the `.match` exists to
+  # prevent). The cost is that a MISNAMED entry file silently drops a whole
+  # capsule with CI green, which is why `checks.<system>.capsule-registry`
+  # (modules/parts/capsules.nix) asserts this regex's result against
+  # `readDir ./modules/features`.
   outputs =
     inputs@{ flake-parts, import-tree, ... }:
     flake-parts.lib.mkFlake { inherit inputs; } {
-      imports = [ ((import-tree.match ".*/parts/[^/]+\\.nix").addPath ./modules) ];
+      imports = [
+        ((import-tree.match ".*/(parts/[^/]+|features/[^/]+/flake-module)\\.nix").addPath ./modules)
+      ];
     };
 }

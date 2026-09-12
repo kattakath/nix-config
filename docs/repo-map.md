@@ -330,6 +330,25 @@ All four are safe to commit. Full rules: [`secrets-and-keychain.md`](secrets-and
 
 Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts.
 
+Two subtrees are **not** platform splits and are governed by ADR-002
+([`monoflake-capsule-adr.md`](monoflake-capsule-adr.md)) rather than by the rule above:
+
+- **`modules/parts/`** — the FLAKE ENGINE (identity, systems, compose, hosts, packages, checks,
+  terranix, devshell, deploy, templates, touchup, lib-option, devcontainer, capsules). These are
+  flake-parts modules, discovered by `import-tree`, and they **may reach anywhere** in the tree.
+- **`modules/features/<name>/`** — CAPSULES: the absorbed satellite flakes, one directory each.
+  A capsule is entered **only** through its `flake-module.nix` and **may not reach outside its
+  own directory**. That is mechanical, not a convention:
+  `ast-grep/rules/capsule-must-not-reach-out.yml` (`files: modules/features/**`,
+  `kind: path_expression`, severity `error`) rides the existing `checks.<system>.ast-grep` gate,
+  and `checks.<system>.capsule-registry` (`modules/parts/capsules.nix`) asserts
+  `readDir ./modules/features` equals the set that `import-tree` actually loaded — so a
+  **misnamed entry file cannot silently drop a whole capsule with CI green**.
+  A capsule registers itself as `flake.modules.<class>.<name>`, flake-parts' own module registry
+  (`extras/modules.nix`); that attribute is deliberately **not** re-exported as a public flake
+  output — see `modules/parts/touchup.nix` for the decision and the one-line path back.
+  Today: `cloudflared-connector` (ADR-002 wave 3). Waves 4-6 add the other six.
+
 ### `modules/shared/`
 
 `modules/shared/{home.nix,mcp.nix,chromium.nix,terminal-theme.nix,desktop-aesthetics.nix,nix-cache.nix,nix-ld-libraries.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,git-allowed-signers.nix,wallpaper/,hm-launchd/}`
@@ -721,9 +740,14 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
   materialises for the graphical `nix run .#nixvm` / `build-vm` path — the sole way `nixvm` is
   ever booted.
 
-### NixOS modules consumed as flake inputs
+### NixOS modules that are not in `modules/nixos/`
 
-- **the `nix-cloudflared-connector` flake** — opt-in `services.cloudflared-connector.enable`
+One is an in-tree capsule (`modules/features/`), one is still a flake input. Both are
+threaded into `hosts/nixpi.nix` through `mkNixos` specialArgs.
+
+- **`modules/features/cloudflared-connector/`** (an IN-TREE CAPSULE, not an input — it was
+  the `nix-cloudflared-connector` flake until ADR-002 wave 3 absorbed it) — opt-in
+  `services.cloudflared-connector.enable`
   (default false); hardened `systemd.services.cloudflared-connector` running a
   **remotely-managed (token)** Cloudflare Tunnel — no `cloudflared tunnel login`, no cert.pem.
   Token read from `tokenFile` (module default `/etc/secrets/cloudflared-token`,
@@ -733,6 +757,13 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
   operator-planted on the SD card's FAT `FIRMWARE` partition. This deliberately replaced
   agenix: agenix binds the token to nixpi's SSH host key, but a fresh SD flash rotates that
   key, breaking decryption and killing the tunnel — the sole remote path in.
+  Reached through the flake's own `flake.modules.nixos` registry (flake-parts
+  `extras/modules.nix`), threaded into `hosts/nixpi.nix` by `mkNixos` specialArgs as
+  `cloudflaredConnectorModule` — a MODULE, unlike `firmware-secrets` below, which is still a
+  flake. Its own eval check came with it (`checks.aarch64-linux.cloudflared-connector-module`),
+  and `checks.aarch64-linux.nixpi-firmware-names` pins the four unit/`/run` names the next SD
+  flash depends on, because a rename there is invisible to `nix flake check` AND to
+  `--dry-activate` on an already-provisioned card.
 - **`services.firmwareProvisioning`** — reusable `files.<name>` mechanism: each entry becomes
   a oneshot that, once `/boot/firmware` is mounted, copies an operator-planted file off the
   FAT `FIRMWARE` partition into a root-only `/run` file before its consumer starts (`required`

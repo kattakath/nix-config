@@ -93,7 +93,8 @@ in
           # already merged): the CLI *logic* now comes from the vast-provision
           # flake input (github:kattakath/nix-vast-provision) — dogfooding
           # our own extraction, same idea as firmware-secrets/keychain-secrets/
-          # cloudflared-connector/local-rag. UNLIKE those four, we reach
+          # local-rag (and cloudflared-connector, until ADR-002 wave 3 absorbed
+          # it in-tree as modules/features/). UNLIKE those, we reach
           # into the input's STORE PATH for the raw .nix file (it exposes no
           # .nix-file output, only prebuilt packages/apps) and OVERRIDE
           # orgName/repoName/rev to THIS repo's own coordinates: Vast fetches
