@@ -1,3 +1,14 @@
+---
+# Scoped per docs/en/memory § Path-specific rules: an unscoped rule loads at
+# session launch at CLAUDE.md priority, and this repo already gates CLAUDE.md at
+# 40,000 chars — a budget the rules directory bypassed entirely.
+# Every launchd unit this repo authors is declared in a .nix file (all of them under
+# modules/ today), so this never under-matches — it just stops 10 KB loading into
+# docs-only, plugin-only or script-only sessions.
+paths:
+  - "**/*.nix"
+---
+
 # Launchd Naming — `nix-<kebab>` arg0, NEVER a bare interpreter
 
 Every launchd unit **this repo authors** MUST expose a first argument whose **basename is
