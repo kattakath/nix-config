@@ -533,7 +533,17 @@ in
   # GPU. Ollama then queues them rather than thrashing, so the failure mode was
   # slow rather than broken; this makes the constraint explicit and puts it where
   # the resource actually is instead of in one of its callers.
-  launchd.agents.ollama-local.config = lib.mkIf isMacosHost {
+  # NOTE THE AGENT NAME. Pinned home-manager declares this agent as
+  # `launchd.agents.ollama` (modules/services/ollama.nix:110) — NOT `ollama-local`,
+  # which is only this repo's name for the *service option block*. `launchd.agents`
+  # is `attrsOf (submodule …)` with a free-form name, so a wrong name here does not
+  # error: it silently creates a SECOND, disabled agent and every setting below is
+  # dropped. That happened — from some point until 2026-09-12 the three OLLAMA_*
+  # variables were declared on `ollama-local` (enable = false, no plist written) and
+  # were never in effect. The ProcessType brake below survived only because
+  # home-manager's own module happens to set it too (ollama.nix:127), which is why
+  # the 2026-09-05 power measurement still looked right.
+  launchd.agents.ollama.config = lib.mkIf isMacosHost {
     EnvironmentVariables = {
       OLLAMA_NUM_PARALLEL = "1";
       # Never more than one runner resident — with only 1 loaded model the
