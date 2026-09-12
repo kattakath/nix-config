@@ -71,7 +71,7 @@ Pinned input revisions; commit every change, never hand-edit.
 
 **The input diet — `follows` is not optional bookkeeping here.** 33 root inputs pull a
 transitive graph, and every duplicate node is another fetch, another eval, another thing
-`flake-checker` has to reason about. The lock is held at **65 nodes**; it was **72** before the
+`flake-checker` has to reason about. The lock is held at **63 nodes**; it was **72** before the
 dedupe pass, and **69** before ADR-002 began absorbing the satellites (each one that comes
 in-tree takes its own node and its private deps with it). Two mechanisms, and conflating them is the trap:
 
@@ -97,7 +97,7 @@ What the current lock drops, and the evidence for each:
 | `deploy-rs.inputs.utils.inputs.systems.follows = "terranix/systems"` | dedupe | Same: flake-utils' `outputs = { self, systems }` is a *closed* pattern doing `import systems`. |
 | `deploy-rs.inputs.flake-compat.follows = ""` | drop | Non-flake `import` shim only. |
 | `git-hooks.inputs.flake-compat.follows = ""` | drop | `outputs = { self, nixpkgs, ... }` never destructures it; `default.nix`/`shell.nix` read the rev from git-hooks' *own vendored* `flake.lock`, and we only ever call `lib.<system>.run`. |
-| `flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs"` + `follows = "flake-parts"` on `keychain-secrets` / `local-rag` / `vast-provision` | dedupe | Our extracted flakes all call `flake-parts.lib.mkFlake` (forced — never droppable) at the **same rev**, yet each shipped its own flake-parts *and* its own `nixpkgs.lib`: 8 nodes for one library, now 1. The `nixpkgs-lib` half is upstream-blessed — `terranix` already carries that exact line, and flake-parts documents the override behind a 23.05 floor our `nixpkgs.lib` clears by three years. **The anchor moved twice:** it was `firmware-secrets/flake-parts` (an arbitrary satellite) until ADR-002 wave 2 made this flake a flake-parts consumer and declared it directly, which is the only reason wave 4 could delete the `firmware-secrets` input without breaking three unrelated `follows` at lock time. |
+| `flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs"` + `follows = "flake-parts"` on `local-rag` / `vast-provision` / `media-cli` | dedupe | Our extracted flakes all call `flake-parts.lib.mkFlake` (forced — never droppable) at the **same rev**, yet each shipped its own flake-parts *and* its own `nixpkgs.lib`: 8 nodes for one library, now 1. The `nixpkgs-lib` half is upstream-blessed — `terranix` already carries that exact line, and flake-parts documents the override behind a 23.05 floor our `nixpkgs.lib` clears by three years. **The anchor moved twice:** it was `firmware-secrets/flake-parts` (an arbitrary satellite) until ADR-002 wave 2 made this flake a flake-parts consumer and declared it directly, which is the only reason wave 4 could delete the `firmware-secrets` input without breaking three unrelated `follows` at lock time. |
 
 **Deliberately left duplicated.** Not everything that looks like a duplicate is one:
 
@@ -348,8 +348,23 @@ Two subtrees are **not** platform splits and are governed by ADR-002
   A capsule registers itself as `flake.modules.<class>.<name>`, flake-parts' own module registry
   (`extras/modules.nix`); that attribute is deliberately **not** re-exported as a public flake
   output — see `modules/parts/touchup.nix` for the decision and the one-line path back.
-  Today: `cloudflared-connector` (ADR-002 wave 3) and `firmware-secrets` (wave 4). Waves 5-6
-  add the other five.
+  Today: `cloudflared-connector` (wave 3), `firmware-secrets` and `keychain-secrets` (wave 4).
+  Waves 5-6 add the other four.
+
+  **One capsule does NOT use `flake.modules`, and the reason is measured, not stylistic.**
+  `flake.modules`' element type is `types.deferredModule`, whose merge always wraps a
+  definition in `{ imports = [ … ]; }` (pinned nixpkgs `lib/types.nix`, `deferredModuleWith`),
+  and flake-parts wraps again for any class but `generic` (`extras/modules.nix:14-27`). For a
+  NixOS module that is invisible — the config is attribute-keyed. For a **home-manager** module
+  it is not: `home.packages` is a LIST, its definitions merge in module-collection order, and
+  that order is `buildEnv`'s `paths` order inside `home-manager-path`, i.e. who wins a filename
+  collision. Measured on `macos` in wave 4: routing `keychain-secrets` through `flake.modules`
+  (any class) moved its four CLIs ahead of postgresql and `nix-bedrock-gate` and changed
+  `darwin-system…drv`, with byte-identical package derivations; importing the same path
+  directly restored it exactly. So `modules/parts/capsules.nix` declares a second, internal
+  seam — `capsuleModules.<class>.<name>`, `lazyAttrsOf raw`, which passes a definition through
+  UNWRAPPED — and order-sensitive module classes use that. Same file-level contract either way:
+  `flake-module.nix` is still the only export point.
 
 ### `modules/shared/`
 
@@ -663,6 +678,45 @@ Two subtrees are **not** platform splits and are governed by ADR-002
   against it — a home-manager bump that moves that module fails the check until the fork is
   re-reviewed and the baseline refreshed (procedure in the check's comment in `flake.nix`).
 
+### Home-Manager modules that are not in `modules/shared/`
+
+Three whole features reach the Mac's Home Manager profile from outside this directory, each
+behind **one** `enable`. One is now an in-tree capsule; two are still flake inputs (ADR-002
+waves 5-6 absorb them).
+
+- **`modules/features/keychain-secrets/`** (an IN-TREE CAPSULE — it was extracted from this
+  repo into the standalone MIT `nix-keychain-secrets` flake, then absorbed back by ADR-002
+  wave 4) — `programs.keychainSecrets`: the macOS login-Keychain `secret` CLI
+  (`secret`/`set-secret`/`remove-secret`/`pb-conceal`) plus `~/.config/secrets/loader.sh`, a
+  loader wired into **all four** shell entry points so even the non-interactive bash an agent
+  spawns gets the operator's tokens. Darwin-gated internally, a clean no-op on the NixOS
+  hosts. Full behaviour: [`secrets-and-keychain.md`](secrets-and-keychain.md) and the
+  capsule's own `README.md`.
+
+  **It is a security surface, so two cross-file contracts are gated rather than trusted.**
+  (1) `modules/darwin/core.nix` derives `launchd.user.envVariables.BASH_ENV` from
+  `programs.keychainSecrets.loaderRelPath` **by reference** — that is the only thing covering
+  a bash spawned by a GUI app or a launchd job, which descends from no shell at all; the
+  capsule's `checks/module-evaluates.nix` pins that option's DEFAULT as a literal, so a
+  rename cannot move one half without the other. (2) `modules/shared/claude-bedrock-gate.nix`
+  writes the same three shell-init options at `lib.mkOrder 1600` and must run AFTER this
+  module's `lib.mkAfter` (= 1500), because it reads a variable this loader exports — run it
+  first and it sees an unset variable, does nothing, and Claude Code silently keeps a Bedrock
+  route it cannot use. Nothing checked that until wave 4 put both halves in one evaluation;
+  `checks.aarch64-darwin.bedrock-gate-after-loader` (`modules/parts/checks.nix`) now asserts
+  it against the REAL `macos` config, on all three surfaces.
+
+  Reached through `modules/parts/compose.nix` as the `keychainSecretsModule` specialArg, from
+  the `capsuleModules` seam rather than `flake.modules` — see § `modules/features/` for the
+  measurement behind that. Its three darwin CLIs are still `packages`/`apps`
+  (`nix run .#secret`), registered by the capsule itself; `pb-conceal` is deliberately
+  installed but not published, exactly as before the absorption.
+
+- **`local-rag`** (flake input) — `services.ollamaLocal` + `services.pgvectorLocal`, the
+  loopback RAG stack; `modules/shared/mcp.nix` consumes `services.pgvectorLocal.databaseUri`.
+- **`media-cli`** (flake input) — `programs.mediaCli`, the media CLIs + the launchd work queue
+  + the Finder Services, `macos`-only because of closure size.
+
 ### `modules/darwin/`
 
 `modules/darwin/{core.nix,user-folders.nix,homebrew.nix,nix-homebrew.nix,xcode-license.nix,github-runner.nix}`
@@ -849,6 +903,14 @@ Smaller, single-purpose CLIs:
   `media-toolkit` bundle: that bundle is what the queue worker and the Finder Services put
   on their `PATH`, so every member becomes a runtime dependency of the queue, and a
   uv/Python environment plus a Keychain read have no business there.
+- **The four Keychain CLIs are not here either — and never were.** `secret`, `set-secret`,
+  `remove-secret` and `pb-conceal` live in **`modules/features/keychain-secrets/packages/`**,
+  inside the capsule whose home-manager module installs them, because a capsule owns its own
+  derivations (ADR-002 § anatomy). The flake still exports the first three on darwin
+  (`nix run .#secret`), with the same `meta.description` strings as before — those are
+  declared once in `modules/parts/packages.nix`'s `apps`, which points at
+  `config.packages.<name>`. `pb-conceal` is installed by the module but deliberately not
+  published.
 - **`jobspy.nix`** — a reproducible `uv`-ephemeral wrapper CLI around the `python-jobspy`
   library for scraping job boards.
 - **`jsonresume.nix`** — dual-engine `jsonresume <download|print|validate|markdown|text>`

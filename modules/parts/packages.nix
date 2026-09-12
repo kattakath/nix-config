@@ -22,7 +22,6 @@
 let
   inherit (inputs)
     agenix
-    keychain-secrets
     vast-provision
     ;
 
@@ -92,9 +91,9 @@ in
           # extraction (phase 1 backported local-only features upstream first,
           # already merged): the CLI *logic* now comes from the vast-provision
           # flake input (github:kattakath/nix-vast-provision) — dogfooding
-          # our own extraction, same idea as firmware-secrets/keychain-secrets/
-          # local-rag (and cloudflared-connector, until ADR-002 wave 3 absorbed
-          # it in-tree as modules/features/). UNLIKE those, we reach
+          # our own extraction, same idea as local-rag (and cloudflared-connector,
+          # firmware-secrets and keychain-secrets, until ADR-002 waves 3-4
+          # absorbed them in-tree as modules/features/). UNLIKE those, we reach
           # into the input's STORE PATH for the raw .nix file (it exposes no
           # .nix-file output, only prebuilt packages/apps) and OVERRIDE
           # orgName/repoName/rev to THIS repo's own coordinates: Vast fetches
@@ -140,13 +139,14 @@ in
           # Also on PATH via home.packages, macos only (modules/shared/home.nix).
           android-phone = pkgs.callPackage ../../packages/android-phone.nix { };
 
-          # `secret <set|reveal|rm|ls|load>` / `set-secret` / `remove-secret` — the
-          # macOS login-Keychain CLI. NOW sourced from the extracted keychain-secrets
-          # flake (github:kattakath/nix-keychain-secrets), not vendored packages —
-          # dogfooding. The home-manager module (modules/shared/home.nix) installs the
-          # same CLIs + the every-shell loader; these apps just expose `nix run`.
-          # DARWIN-ONLY: the Keychain is macOS-only.
-          inherit (keychain-secrets.packages.${system}) set-secret remove-secret secret;
+          # (`secret` / `set-secret` / `remove-secret` — the macOS login-Keychain
+          # CLIs — are NOT here. They were `inherit (keychain-secrets.packages.
+          # ${system}) …` from the extracted flake until ADR-002 wave 4 absorbed
+          # it; the capsule now registers them itself in
+          # modules/features/keychain-secrets/flake-module.nix, which is the one
+          # place that also builds them for the home-manager module. The `apps`
+          # below still expose them via `config.packages.<name>` and are
+          # unchanged. DARWIN-ONLY either way: the Keychain is macOS-only.)
 
           vast-template-apply = vastKit.template-apply;
           vast-repo-check = vastKit.repo-check;

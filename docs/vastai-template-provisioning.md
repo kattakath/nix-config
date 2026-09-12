@@ -290,8 +290,9 @@ login, so `POST`/`PUT` works headlessly but enumeration must happen in the web c
 
 ## References
 
-- the `nix-keychain-secrets` flake's `secret`/`set-secret` CLIs and `packages/nixpi-provision.nix`
-  — Keychain-read + flake-app patterns to mirror.
+- the `modules/features/keychain-secrets/` capsule's `secret`/`set-secret` CLIs (a flake until
+  ADR-002 wave 4 absorbed it) and `packages/nixpi-provision.nix` — Keychain-read + flake-app
+  patterns to mirror.
 - Vast docs: instances/docker-environment#user-account-variables,
   templates/template-settings#docker-repository-and-environment,
   templates/advanced-setup, instances/storage/{volumes,types,data-movement}.

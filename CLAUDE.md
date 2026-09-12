@@ -122,12 +122,12 @@ One line per path; the *why* and the per-file specifics are in
 | Path | What it owns |
 |---|---|
 | `flake.nix` | Inputs/pins, `forAllSystems`, `mkDarwin`/`mkNixos`, `identityArgs`, all exported configurations/packages/apps/checks, and `deploy.nodes.nixpi` (deploy-rs, magic rollback — read the ⚠ at its definition site). |
-| `flake.lock` | Pinned revisions — bump only via `nix flake update` / `/update-input`, never hand-edit. Held at **65 nodes** by a deliberate `follows` diet plus ADR-002's capsule absorption (each satellite that comes in-tree drops its own node and its private deps — cloudflared-connector took 2, firmware-secrets 2); a `follows` edit is **shape-only** (`nix flake lock`, never a bare `nix flake update`) and `follows = ""` REBINDS to this flake rather than removing — see [`docs/repo-map.md`](docs/repo-map.md) § `flake.lock`. |
+| `flake.lock` | Pinned revisions — bump only via `nix flake update` / `/update-input`, never hand-edit. Held at **63 nodes** by a deliberate `follows` diet plus ADR-002's capsule absorption (each satellite that comes in-tree drops its own node and its private deps — cloudflared-connector took 2, firmware-secrets 2, keychain-secrets 2); a `follows` edit is **shape-only** (`nix flake lock`, never a bare `nix flake update`) and `follows = ""` REBINDS to this flake rather than removing — see [`docs/repo-map.md`](docs/repo-map.md) § `flake.lock`. |
 | `treefmt.nix` | Single source of truth for format + lint-fix (tools that REWRITE); drives `nix fmt`, the CI gate, and the pre-commit hook. |
 | `sgconfig.yml` + `ast-grep/` | Report-only structural lint (ast-grep): `rules/` mechanises prose conventions **and the capsule boundary** (`capsule-must-not-reach-out`), `rule-tests/` proves they fire. Gated by `checks.<system>.ast-grep`, **not** treefmt. |
 | `hosts/` | Per-host entry profiles: `macos.nix`, `nixpi.nix`, `nixvm.nix` (host-only deltas + per-host Homebrew lists). |
 | `modules/parts/` | The FLAKE ENGINE, one file per concern, discovered by `import-tree` (ADR-002 wave 2): `identity.nix`, `systems.nix`, `compose.nix` (`mkDarwin`/`mkNixos`), `hosts.nix`, `packages.nix`, `checks.nix`, `terranix.nix`, `devshell.nix`, `deploy.nix`, `templates.nix`, `devcontainer.nix`, `lib-option.nix`, `touchup.nix` (what the flake does **not** export), `capsules.nix`. The engine **may** reach anywhere. |
-| `modules/features/` | CAPSULES — the absorbed satellite flakes, one directory each: `flake-module.nix` (the ONLY file anything outside imports) + `module.nix` + `checks/` + `README.md`. A capsule **may not reach outside its own directory**, enforced by `ast-grep/rules/capsule-must-not-reach-out.yml` + `checks.<system>.capsule-registry`, not by convention. Today: `cloudflared-connector`, `firmware-secrets`. |
+| `modules/features/` | CAPSULES — the absorbed satellite flakes, one directory each: `flake-module.nix` (the ONLY file anything outside imports) + `module.nix` + `packages/` + `checks/` + `README.md`. A capsule **may not reach outside its own directory**, enforced by `ast-grep/rules/capsule-must-not-reach-out.yml` + `checks.<system>.capsule-registry`, not by convention. Today: `cloudflared-connector`, `firmware-secrets`, `keychain-secrets` (the `secret` CLI + every-shell loader). |
 | `modules/shared/` | Home Manager profile on every host: `home.nix`, `mcp.nix`, `terminal-theme.nix` (`local.terminalTheme` — the fleet's one ANSI ring + type, consumed by Ghostty, VS Code and Terminal.app), `chromium.nix` (`programs.ungoogledChromium` — sideloaded CRXes, Apple's Passwords native host, and *recommended*-level policy incl. the default search engine, all for the Homebrew cask), `default-browser.nix` (the LaunchServices default-browser claim, split out of `chromium.nix`), `desktop-aesthetics.nix`, `nix-cache.nix`, `nix-ld-libraries.nix`, `wireguard-configs.nix`, `claude-otel.nix`, `claude-bedrock-gate.nix` (Bedrock routing survives a public-only activation), `git-allowed-signers.nix` (option-only seam nix-personal fills), `wallpaper/`, `hm-launchd/`. |
 | `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix` (`local.folders.*` — inbox paths; unset = system default), `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`services.macosGithubRunner` — LIVE on `macos`, see § Configuration). |
 | `modules/nixos/` | `core.nix` (user + keys-only **loopback-bound** sshd with `openFirewall = false` + a firewall that opens **no** TCP port + avahi + nix-ld + zram + GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). |
@@ -234,14 +234,15 @@ How a host gets composed — change these knobs, not the hosts' internals:
   `mkNixos { hostedSites }` are the seams the private nix-personal flake fills
   ([`docs/private-home-modules.md`](docs/private-home-modules.md)); the public tree never
   references a private repo.
-- **Extracted features plug in as inputs, and can be stripped off in one line.** The media
-  stack (`programs.mediaCli`, from
-  [`nix-media-cli`](https://github.com/kattakath/nix-media-cli)) and the Keychain secret
-  store (`programs.keychainSecrets`, from `nix-keychain-secrets`) both left this tree for
-  standalone MIT flakes and come back as home-manager modules. Dogfooding, and the reason
-  is practical: `programs.mediaCli.enable = false` removes the CLIs, both launchd agents,
-  the Finder Services and the companion tools together — no orphaned package, no dangling
-  session variable, no stale menu item to hunt down.
+- **Whole features are ONE enable flag, whether they arrive as an input or a capsule.** The
+  media stack (`programs.mediaCli`, still the
+  [`nix-media-cli`](https://github.com/kattakath/nix-media-cli) input) and the Keychain
+  secret store (`programs.keychainSecrets`, now the in-tree
+  `modules/features/keychain-secrets/` capsule — ADR-002 wave 4) are both one switch:
+  `programs.mediaCli.enable = false` removes the CLIs, both launchd agents, the Finder
+  Services and the companion tools together — no orphaned package, no dangling session
+  variable, no stale menu item to hunt down. Where the code LIVES is orthogonal to that,
+  and ADR-002 is moving all seven satellites in-tree.
 - **Binary cache:** the public `kattakath` Cachix cache is consumed tokenless by every host
   (`modules/shared/nix-cache.nix`); only CI and the operator's Keychain hold the write token.
 - **`macos` runs self-hosted CI runners — two kinds, neither for this repo's CI.**

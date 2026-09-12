@@ -5,7 +5,7 @@
 # Personal token VALUES are intentionally NOT managed here. On macOS they live
 # in the login Keychain (encrypted at rest) — stored/registered by `secret set`
 # and exported into EVERY shell (not just login ones) by the darwin-only loader
-# from the keychain-secrets flake (programs.keychainSecrets), which loads once per
+# from the keychain-secrets capsule (programs.keychainSecrets), which loads once per
 # process tree and lets descendants inherit. Nothing plaintext is written to disk.
 # The Keychain is macOS-only, so the Linux hosts get no personal-token mechanism
 # here (use one-time CLI logins: gh/hf/docker/claude).
@@ -54,9 +54,10 @@
   # The extracted local-rag flake (services.ollamaLocal + services.pgvectorLocal);
   # its two home-manager modules replace the vendored ollama/postgres-pgvector.
   local-rag,
-  # The extracted keychain-secrets flake (macOS `secret` CLI + every-shell loader);
-  # its home-manager module replaces the vendored packages/loader below.
-  keychain-secrets,
+  # The ABSORBED keychain-secrets capsule (macOS `secret` CLI + every-shell
+  # loader) — a MODULE, not a flake, since ADR-002 wave 4 brought it in-tree as
+  # modules/features/keychain-secrets/. Threaded in by modules/parts/compose.nix.
+  keychainSecretsModule,
   media-cli,
   # Raw resume.json URL (single-sourced in flake.nix as jsonResumeUrl; null to
   # disable) — baked into the jsonresume package below as its default --url.
@@ -457,10 +458,10 @@ in
     # Both modules are internally gated on (enable && isDarwin) — a clean no-op on
     # the NixOS hosts. Enabled only on the real Mac host below.
     local-rag.homeManagerModules.default
-    # macOS login-Keychain `secret` CLI + every-shell loader — the extracted flake
-    # (github:kattakath/nix-keychain-secrets), installed via its HM module below.
+    # macOS login-Keychain `secret` CLI + every-shell loader — the ABSORBED
+    # capsule (modules/features/keychain-secrets/), enabled below.
     # Internally darwin-gated, so it's a clean no-op on the NixOS hosts.
-    keychain-secrets.homeManagerModules.default
+    keychainSecretsModule
     # Gate CLAUDE_CODE_USE_BEDROCK (Keychain, survives every activation) on the
     # AWS identity that only the PRIVATE layer supplies — so activating the public
     # #macos degrades Claude Code to its default provider instead of leaving it
@@ -469,7 +470,7 @@ in
     ./claude-bedrock-gate.nix
   ];
 
-  # Enable the extracted keychain-secrets module (installs the secret/set-secret/
+  # Enable the keychain-secrets capsule's module (installs the secret/set-secret/
   # remove-secret CLIs + the ~/.config/secrets/loader.sh every-shell loader).
   programs.keychainSecrets.enable = true;
 
@@ -659,7 +660,7 @@ in
     # so install the bare CLI here instead. Avoids a buildEnv /bin collision.
     ++ lib.optionals (!stdenv.hostPlatform.isDarwin) [ claudeCode ]
     # secret/set-secret/remove-secret now come from programs.keychainSecrets
-    # (the keychain-secrets flake's HM module), not this list.
+    # (the keychain-secrets capsule's HM module), not this list.
     ++ lib.optionals stdenv.hostPlatform.isDarwin [
       androidEmu
       awscli2 # AWS CLI v2 — SSO login into the Infin8 accounts; profiles live in ~/.aws/config (uncommitted, has account IDs/SSO URL — not this public repo)
@@ -773,7 +774,7 @@ in
     # BRAG_DATA_DIR is (username-portable; never a literal /Users/<name>).
     BUKU_DEFAULT_DBDIR = "$HOME/Developer/local/bookmarks";
     # BASH_ENV (the secret loader) + the loader file itself are now set by
-    # programs.keychainSecrets (the keychain-secrets flake's HM module).
+    # programs.keychainSecrets (the keychain-secrets capsule's HM module).
 
     # The JSON Resume CLIs (jsonresume.org, npm globals: `resumed` — the maintained
     # tool this repo prefers — and legacy `resume-cli`) render PDFs via puppeteer,
@@ -1312,7 +1313,7 @@ in
     bash = {
       enable = true;
       # macOS Keychain secret loader is wired into bash's profileExtra/bashrcExtra
-      # by programs.keychainSecrets (the keychain-secrets flake's HM module).
+      # by programs.keychainSecrets (the keychain-secrets capsule's HM module).
 
       # fnm (Fast Node Manager) shell hook — darwin-only (node dev is Mac-only; the
       # servers stay lean). `--use-on-cd` auto-switches Node on `cd` into a dir with
@@ -1555,7 +1556,7 @@ in
       };
 
       # macOS Keychain secret loader is wired into zsh's envExtra (.zshenv) by
-      # programs.keychainSecrets (the keychain-secrets flake's HM module).
+      # programs.keychainSecrets (the keychain-secrets capsule's HM module).
       # envExtra is types.lines, so this definition MERGES with that one.
 
       # Claude Code renders `!` bash-mode output in an append-only viewport, not

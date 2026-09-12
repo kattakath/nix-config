@@ -20,7 +20,6 @@ let
     nix-homebrew
     determinate
     agenix
-    keychain-secrets
     media-cli
     local-rag
     nix-tart-vms
@@ -46,6 +45,10 @@ let
   # module registry rather than through an input. The engine may read a capsule;
   # a capsule may not read the engine — see modules/parts/capsules.nix.
   inherit (config.flake.modules.nixos) cloudflared-connector firmware-secrets;
+  # Home-manager capsule modules come through the RAW seam, not
+  # `flake.modules` — see modules/parts/capsules.nix § The RAW module seam for
+  # the measurement (deferredModule's wrapper reorders `home.packages`).
+  inherit (config.capsuleModules.homeManager) keychain-secrets;
 
   inherit (config.fleet)
     identityArgs
@@ -105,7 +108,6 @@ let
             agent-skills-litellm
             claude-plugins-official
             grok-build-plugin-cc
-            keychain-secrets
             media-cli
             local-rag
             # nix-tart-vms: home.nix installs the gitlab-tart slot shims
@@ -130,6 +132,14 @@ let
             # (and the file stays in lockstep with secrets/operator-key.nix).
             operatorSshKey
             ;
+          # MODULE, not a flake — hence the name. It was the `keychain-secrets`
+          # flake INPUT, consumed as `.homeManagerModules.default`, until ADR-002
+          # wave 4 absorbed it (modules/features/keychain-secrets/). The rename is
+          # the whole point: a consumer left writing
+          # `keychainSecretsModule.homeManagerModules.default` fails loudly
+          # instead of half-resolving. Same move as the two nixos capsules'
+          # cloudflaredConnectorModule / firmwareSecretsModule in mkNixos below.
+          keychainSecretsModule = keychain-secrets;
         };
         users.${idArgs.loginName} = {
           imports = [ ../shared/home.nix ] ++ extraHomeModules;
