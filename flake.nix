@@ -158,16 +158,13 @@
     # packages/apps, one fewer lock node and one fewer CI pipeline; the origin
     # repo is archived and its history stays there.)
 
-    # media-cli — the media-file CLIs, the launchd work queue behind the Finder
-    # Services, and the two media-ADJACENT tools, EXTRACTED FROM THIS REPO into a
-    # standalone MIT flake (github.com/kattakath/nix-media-cli). Same dogfooding
-    # move as the absorbed keychain-secrets above, for the same reason: the whole feature is
-    # now `programs.mediaCli.enable`, so it can be added or stripped off without
-    # hunting leftovers across flake.nix, home.nix and eleven package files.
-    media-cli.url = "github:kattakath/nix-media-cli";
-    media-cli.inputs.nixpkgs.follows = "nixpkgs";
-    media-cli.inputs.home-manager.follows = "home-manager";
-    media-cli.inputs.flake-parts.follows = "flake-parts";
+    # (media-cli was an input here until ADR-002 wave 5 ABSORBED it as a capsule
+    # — modules/features/media-cli/. Same module, same `programs.mediaCli`
+    # option surface, the same eleven package derivations byte-for-byte, one
+    # fewer lock node and one fewer CI pipeline; the origin repo is archived and
+    # its history stays there. It had been EXTRACTED from this repo on
+    # 2026-09-05 to prove `programs.mediaCli.enable = false` could strip the
+    # whole feature in one line — which it still does, now from in-tree.)
 
     # (cloudflared-connector was an input here until ADR-002 wave 3 ABSORBED it as
     # the first capsule — modules/features/cloudflared-connector/. Same module,
