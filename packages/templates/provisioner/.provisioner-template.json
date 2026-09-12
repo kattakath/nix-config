@@ -1,7 +1,0 @@
-{
-  "template": "provisioner-template",
-  "schema": 1,
-  "required_files": [
-    "provision.sh"
-  ]
-}
