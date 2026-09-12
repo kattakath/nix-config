@@ -75,7 +75,7 @@ let
   # modules/shared/home.nix. extraSpecialArgs also adds mcp-servers-nix etc.
   #
   # `extraHomeModules` is the public COMPOSITION HOOK for private (or third-party)
-  # home-manager modules — same role as `provision.sh` for Vast stacks: this
+  # home-manager modules — the private layer's entrypoint: this
   # flake owns the contract, never the private stack. Callers (typically a
   # private flake that re-exports `darwinConfigurations.macos` via `lib.mkDarwin`)
   # pass zero or more modules; the public tree ships none. See
@@ -313,7 +313,7 @@ let
 in
 {
   # ---- Composition API (private flakes, local overrides) --------------------
-  # Mirrors the Vast provisioner contract: this public flake is the engine;
+  # The composition contract: this public flake is the engine;
   # private stacks plug in via `extraHomeModules` without forking hosts/.
   # Consumers: a private flake calls `nix-config.lib.mkDarwin { …; extraHomeModules = [ … ]; }`.
   # The terranix renderers join this same attrset from
