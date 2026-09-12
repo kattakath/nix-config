@@ -1,7 +1,8 @@
 # Publishing MCP servers — design note
 
-**Status:** design, nothing built. Rewritten 2026-09-12 (v2) after the first version answered
-the wrong question — see §9.
+**Status:** **BUILT and live** as of 2026-09-12. v2 rewrote a v1 that answered the wrong question
+(see §9); §7/§7a were revised again the same day, when `character-mcp` migrated off its own OAuth
+onto the shared service token.
 
 **The ask, verbatim:** *"Can we integrate this feature with our `mcp.nix` so that by flipping a
 flag, an MCP server can be made reached public with connector protection?"* — i.e. publish
@@ -147,53 +148,93 @@ that one list, the way `hostedSites` already drives ingress + DNS + rulesets.
 
 ---
 
-## 7. Alternative that remains valid: a standalone Worker
+## 7. External Workers: same flag, same credential (settled 2026-09-12)
 
-For a genuinely new remote server — one that should be up when the Mac is asleep, or that wants
-its own OAuth — the `character-mcp` shape still applies: its own Worker, own single-label
-subdomain, own OAuth, `aud` hardcoded, registered in the portal. That is a *different* answer to
-a *different* need, not a competitor to §1.
+For a server that must be up when the Mac is asleep, or that wants its own origin, a standalone
+Worker on its own single-label subdomain is still the answer. What changed is **how it is
+authenticated**: it now rides the *same* Access service token as the gateway, declared as an
+`externalServers` entry rather than running its own OAuth.
 
-**Invariant for that path:** every publicly reachable server must be safe when the portal is
-bypassed. Proven non-theoretical on 2026-09-12 — Grok could not use the portal (DCR allowlist is
-Claude-only), connected direct to `character.kattakath.com`, and was granted `character:write`,
-so the portal's `4/6` tool gating did not apply.
+```nix
+externalMcpServers = [
+  { name = "character"; host = "character.kattakath.com"; id = "character-mcp"; }
+];
+```
+
+That one entry renders **both** halves: an Access application over the hostname bound to the
+shared service-token policy, and the portal registration with `auth_type = "bearer"`.
+
+| | Before (OAuth per Worker) | After (shared service token) |
+|---|---|---|
+| Credentials the portal holds | one per origin | **one, total** |
+| Worker code needed | full OAuth 2.1 AS + consent page + DCR | a ~40-line JWT verifier |
+| Client bypassing the portal | **possible** — drive the Worker's OAuth directly | **impossible** — no AS to drive |
+| Tool gating | advisory | **enforced** |
+
+### Why this replaced the per-Worker OAuth shape
+
+The old invariant was *"every publicly reachable server must be safe when the portal is
+bypassed"* — an acknowledgement that bypass could not be prevented. It was proven
+non-theoretical on 2026-09-12: Grok could not use the portal (the DCR allowlist is Claude-only),
+connected **direct** to `character.kattakath.com`, and was granted `character:write`, so the
+portal's tool gating did not apply.
+
+Migrating that Worker to bearer removed the bypass instead of documenting it. Dropping
+`OAuthProvider` also deleted an **unauthenticated** `POST /oauth/register` that accepted any
+`redirect_uri` — deferred audit item #5, closed as a side effect.
+
+**Cost, stated so it is a choice:** Grok-direct is gone permanently, and there is no scope model
+left — the tool set is the whole grant. The migration is a `tofu` **replace**, not an update:
+`auth_type` is ForceNew in the provider, so oauth → bearer destroys and recreates the
+registration (keeping its stable `id`, so the portal-side `type = "mcp"` app re-binds).
+
+### The Worker still verifies the assertion itself
+
+Access is the boundary, but the origin does not trust the network alone. `worker/access.ts` pins
+`iss`, the application's `aud`, and the service token's `common_name`. Without the `aud` pin, any
+Access application in the account would be a skeleton key for this one.
+
+### Two Access apps per external server is CORRECT, not a duplicate
+
+The dashboard shows two entries named for one server. They are different layers and both must
+stay:
+
+| App | `type` | Gates |
+|---|---|---|
+| `MCP character (service token)` | `self_hosted` on `character.kattakath.com` | the **origin** — who may reach the Worker at all |
+| `character-mcp` | `mcp`, `destinations: [{via_mcp_server_portal}]` | the **portal** — who may use this server *through* `mcp.kattakath.com` |
+
+Deleting the second would not tighten anything; it would unpublish the server from the portal.
+What *was* redundant and got deleted on 2026-09-12 is a **third**, older app —
+`character-mcp /authorize`, path-scoped to an endpoint that no longer exists. Because Access
+matches most-specific-path-first, it had been **shadowing** the hostname app and answering
+`/authorize` with a 302 to a login page.
 
 ---
 
-## 7a. Redirect-URI allowlists — one, not one per server
+## 7a. Redirect-URI allowlists — now a non-problem
 
-| List | Who registers | Maintenance |
-|---|---|---|
-| **Portal** `dynamic_client_registration.allowed_uris` | end clients (Claude, Grok) | the one you edit |
-| Each Worker's own DCR | the portal itself | zero — one stable callback |
+**Obsolete as of 2026-09-12.** This section described maintaining DCR allowlists across the portal
+*and* each Worker's own OAuth. Under §1 the gateway never had OAuth (it uses a service token), and
+§7 removed the last Worker that did. There is exactly one allowlist left — the portal's
+`dynamic_client_registration.allowed_uris`, listing the *end clients* (Claude, Grok).
 
-The portal registers against every downstream with a single callback —
-`https://mcp.kattakath.com/servers-callback`, read from `character-mcp`'s `OAUTH_KV`. Identical
-for every server. **Under §1 this does not arise at all**: the gateway uses a service token, not
-OAuth.
-
-### Enforcement lever — considered, DECLINED 2026-09-12
-
-Restricting each Worker's DCR to only the portal callback would make portal-only access
-**enforced** rather than advisory (and close audit finding MCP-5). Not adopted: it breaks Grok's
-existing direct grant. Consequence, recorded so it is a choice and not a surprise: **portal tool
-gating is advisory for any client that connects direct.** Revisit at server #2.
+The "enforcement lever" recorded here as **DECLINED** (tightening each Worker's DCR to the portal
+callback, to close audit finding MCP-5) is **moot**: the Workers have no DCR to tighten. MCP-5 is
+closed by removal, at none of the cost that was declined.
 
 ---
 
 ## 8. Open decisions
 
-1. **Hostname for the public gateway** — e.g. `gw.kattakath.com`. Must be **single-label**: the
-   free Universal cert covers `*.kattakath.com`, one label only (`calendly.ismail.kattakath.com`
-   had no cert for exactly this reason).
-2. **Which servers to publish first.** Suggest starting with read-only, tokenless ones
-   (`nixos`, `context7`, `memory`, `fetch`) to exercise the path before anything credentialed.
-3. **Does anything belong on `nixpi` instead**, given §6's uptime limit?
-4. **Add Grok's redirect URI** (`https://grok.com/connectors-oauth-exchange-code/`) to the portal
-   allowlist, so Grok uses the portal rather than going direct?
-5. **Prune two stale `playground-*` OAuth client registrations** sitting in `character-mcp`'s
-   `OAUTH_KV` from Cloudflare AI-playground testing.
+1. ~~Hostname for the public gateway~~ — **`connector.kattakath.com`**, single-label as required
+   (the free Universal cert covers `*.kattakath.com`, one label only).
+2. ~~Which servers to publish first~~ — **`memory` + `sequential-thinking`**. Both tokenless.
+3. **Does anything belong on `nixpi` instead**, given §6's uptime limit? Still open.
+4. **Add Grok's redirect URI** to the portal allowlist? Now the *only* way Grok can reach any of
+   this — §7 removed its direct path. Still open, and now load-bearing rather than optional.
+5. ~~Prune two stale `playground-*` OAuth clients in `OAUTH_KV`~~ — **moot**: nothing reads that
+   namespace any more. Deleting the namespace itself is a separate destructive step, not done.
 
 ---
 
