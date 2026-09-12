@@ -28,7 +28,7 @@
 #     destroys the seam for everyone downstream.
 #
 # Content lives in ../../claude/<class>/ (global agent context, next to
-# CLAUDE.md) and ../../skills/<name>/ (global skills, next to rag/brag/
+# CLAUDE.md) and ../../skills/<name>/ (global skills, next to rag/
 # android-phone). Those are SOURCE PATH LITERALS, resolved relative to THIS
 # file — repo-relative is correct and required; a $HOME path is impossible here.
 #

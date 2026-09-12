@@ -1,6 +1,6 @@
 ---
 description: Author or lint a spec-compliant llms.txt (llmstxt.org v2) for a body of written work.
-argument-hint: "[path|url] [--lint] [--full]  # e.g. ./docs | ~/brags/impact.md --full | ./llms.txt --lint"
+argument-hint: "[path|url] [--lint] [--full]  # e.g. ./docs | ./impact.md --full | ./llms.txt --lint"
 ---
 
 Run the **llmstxt** skill (`${CLAUDE_PLUGIN_ROOT}/skills/llmstxt/SKILL.md`) end-to-end. Read
