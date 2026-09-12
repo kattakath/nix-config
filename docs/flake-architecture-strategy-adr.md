@@ -5,9 +5,10 @@
 `nix-config`'s core engine to flake-parts after all. Decisions #1, #3, #4 and #5 stand
 unchanged **in substance — but not in scope.** The population they govern shrank twice:
 ADR-002 turned every satellite into a capsule, and on **2026-09-12 `nix-mcp-gateway` was
-archived unadopted**, leaving `ircc-whatsapp-bot` as the only live supporting flake. So
-decision #1 ("flake-parts for the small supporting flakes") now governs **exactly one
-repo**. That is a real weakening of its reach, stated here rather than buried.
+archived unadopted**; `ircc-whatsapp-bot` was then unwired from the fleet entirely on the
+same day. So decision #1 ("flake-parts for the small supporting flakes") now governs **no
+repo at all** — the category it was written for is empty. It is kept, not repealed: a new
+supporting flake would fall under it immediately. Stated here rather than buried.
 This ADR is **kept, not deleted**: ADR-002 §6 answers its three objections one
 by one and records that **objection 3 still stands** — flake-parts buys nothing for three
 hosts, and any pitch claiming host-management benefit is overclaiming.
@@ -21,8 +22,9 @@ hosts, and any pitch claiming host-management benefit is overclaiming.
 > narrowed too, from two to **one**. `nix-mcp-gateway` was **archived 2026-09-12** as an
 > extraction candidate `nix-config` never adopted (archived, not deleted, per ADR-002 §7.8;
 > the fleet's own gateway is and always was `modules/shared/mcp.nix`). `nix-inngest` was
-> archived the same day for the same reason and never appeared in this ADR. That leaves
-> **`ircc-whatsapp-bot` alone** as the live repo decision #1 governs.
+> archived the same day for the same reason and never appeared in this ADR. Finally
+> `ircc-whatsapp-bot` was unwired from nix-personal the same day — not archived, just no
+> longer a fleet repo — so decision #1 now governs an **empty** category.
 
 ## Context
 
