@@ -1,9 +1,16 @@
 # ADR-002: collapse the satellite flakes into nix-config, on flake-parts, as capsules
 
-**Status:** Decided 2026-09-12, not yet implemented. **Supersedes decision #2 of**
-[`flake-architecture-strategy-adr.md`](flake-architecture-strategy-adr.md) (ADR-001), which said
-*"do not migrate nix-config's core engine to flake-parts"*. ADR-001 is not deleted — §6 below
-answers its three objections one by one, and one of them still stands.
+**Status:** **Decided and IMPLEMENTED**, 2026-09-12 — waves 0-7 shipped the same day; wave 8
+(`nixosOptionsDoc`) is reported on in §9 and deliberately left at `warningsAreErrors = false`.
+**Supersedes decision #2 of** [`flake-architecture-strategy-adr.md`](flake-architecture-strategy-adr.md)
+(ADR-001), which said *"do not migrate nix-config's core engine to flake-parts"*. ADR-001 is not
+deleted — §6 below answers its three objections one by one, and one of them still stands; its own
+Status is now *Superseded in part*.
+
+**Read §9 before trusting §§1-8.** This document is the DESIGN as written before execution. Four
+of its "ADOPT" rows did not ship as designed, one of its own mechanisms was measured to change
+what the fleet builds, and §7's list of what the collapse gives up was missing an item. §9 is the
+correction record; where it and an earlier section disagree, **§9 wins**.
 
 **Deciders:** Ismail Kattakath.
 
@@ -178,6 +185,23 @@ commit — or it cries wolf on day one and gets disabled.
 7. **The stubs rot.** `darwinStubs` approximates nix-darwin's option surface by hand; every bump
    can make isolation pass while real composition fails.
 
+8. **126 commits of provenance, and `git blame` with them.** *(Added by §9 — the design shipped
+   without this item, which is the most serious omission in this document.)* The absorption is a
+   **plain copy**, an operator decision taken to keep seven simultaneous history grafts out of a
+   one-day migration. The cost is that every absorbed line's authorship now dates from the
+   collapse commit: `git blame modules/features/media-cli/packages/media-queue.nix` answers
+   "wave 5", not "the commit that fixed the idle-vs-holding-work bug". **Measured 2026-09-12:
+   126 commits across the seven repos** — `nix-keychain-secrets` 32, `nix-firmware-secrets` 20,
+   `nix-tart-vms` 19, `nix-vast-provision` 17, `nix-local-rag` 15, `nix-cloudflared-connector` 12,
+   `nix-media-cli` 11 — spanning 2026-07-24 to 2026-09-12. None of it is lost; all of it is
+   **one hop further away**, in repos the operator archives rather than deletes (an archived
+   GitHub repo stays readable and cloneable). The mitigation that was actually taken is prose:
+   every capsule `README.md` opens with a **Provenance** note naming its origin repo, and every
+   wave commit message is a long-form record of what moved, what did not, and why — which is why
+   those messages are as long as they are. Archiving, not deleting, is therefore **load-bearing**
+   and not housekeeping: delete an origin repo and this item stops being "one hop further away"
+   and becomes a real loss.
+
 **Not fixed by this, and it should not pretend otherwise:** `deploy.nodes.nixpi` is preserved as a
 seam **nothing consumes**. The path actually used is nix-personal's `nixos-rebuild --target-host`,
 which has no magic rollback and no undo — and every nixpi change in this migration travels it.
@@ -195,3 +219,171 @@ looked right — it tested the half that worked. Fixed standalone in `8aa4d9c`.
 That failure class — a stale agent name silently creating a dead agent, invisible to
 `nix flake check` — is exactly what a 28k-line tree multiplies, and is the argument for the
 capsule gates rather than against the collapse.
+
+---
+
+## 9. Correction record — what execution found that the design got wrong
+
+Waves 0-7 shipped on 2026-09-12. **§§1-8 above are the design as written before any of it ran,
+and are deliberately not edited** — the point of a correction record is that the two texts can be
+compared. Where this section and an earlier one disagree, **this one is what the tree does.**
+
+The architecture held. Every wave's acceptance test — `scripts/drv-snapshot.sh`, comparing all
+three host toplevels plus **nix-personal's own `macos` toplevel** — came back with `hosts.tsv`
+and `personal.tsv` **IDENTICAL** to the wave-0 baseline. The fleet builds exactly what it built
+before the collapse. What follows is where the *plan* was wrong.
+
+### 9.1 Four adoptions from the §3 scorecard did NOT ship as designed
+
+| §3 row | What shipped | Why |
+|---|---|---|
+| `programs.sizelint` for the 40k CLAUDE.md budget | **`checks.<system>.claude-md-budget`** instead | `treefmt.nix`'s own header scopes that file to tools that **REWRITE**. A size assertion rewrites nothing, and the pre-commit hook **is** the `nix fmt` wrapper — so a checker in the formatter slot fails a commit with nothing to fix. The repo had already made this exact call for ast-grep. **Reusing an off-the-shelf module into the wrong slot is not the motto.** |
+| `programs.mdsh` — "docs that cannot go stale" | **not enabled** | The pinned module defaults to `includes = [ "README.md" ]` and treefmt globs match at **any depth**, so one line runs `bash -c` over vendored third-party markdown during a local `nix fmt`. §4 flagged the exclusion problem; it did not say the feature therefore has to wait for its own change with an explicit allowlist. |
+| `typos` | **not enabled** | §4 called it "an allowlist project, not a one-line enable" and was right for a stronger reason than stated. Measured with `--write-changes` over the whole tree, it **modified `secrets/*.age` — age CIPHERTEXT** — pulled `wallpaper.png` into scope, and "corrected" `mis` → `miss` inside hook JavaScript. Nothing was committed and every ciphertext was verified byte-identical to HEAD afterwards. |
+| `pkgs.nixosOptionsDoc` — "option docs that cannot drift" | **measured, not landed** — see §9.5 | |
+
+**Consequence for §5's wave-7 gate.** That row reads `checks.docs-drift` **green**. There is no
+such check and there never was: it was to be produced by `mdsh`, which did not ship. Wave 7 was
+gated on `nix flake check` + `checks.<system>.claude-md-budget` + the drv harness instead. A wave
+plan that names a gate the same plan has not yet built is a plan that can report success against
+nothing.
+
+### 9.2 The capsule's own registration mechanism changed what the fleet builds
+
+This is the single most important correction, and it is a defect in **§2's anatomy**, not in the
+migration plan. §2 says a capsule registers through flake-parts' own module registry
+(`flake.modules.<class>.<name>`), presented as pure reuse. Measured in wave 4, on a
+**home-manager** capsule:
+
+- `types.deferredModule`'s merge **always** wraps a definition in `{ imports = [ … ]; }` (pinned
+  nixpkgs `lib/types.nix`, `deferredModuleWith`), and flake-parts wraps **again** for any class
+  but `generic` (`extras/modules.nix:14-27`).
+- For a NixOS module that is invisible — `config` is attribute-keyed.
+- For a home-manager module it is **not**: `home.packages` is a **LIST**, its definitions merge in
+  module-collection order, and that order is `buildEnv`'s `paths` order inside
+  `home-manager-path` — i.e. **who wins a filename collision**.
+
+Routing `keychain-secrets` through `flake.modules` (tried at both `homeManager` and `generic`)
+moved its four CLIs ahead of postgresql and `nix-bedrock-gate` and **changed `darwin-system`'s
+drvPath**, with byte-identical package derivations. Importing the same path directly restored it
+exactly.
+
+The fix is a second, internal seam declared in `modules/parts/capsules.nix`:
+`capsuleModules.<class>.<name>`, `lazyAttrsOf raw`, which passes a definition through
+**UNWRAPPED**. Order-sensitive classes use it; the two NixOS capsules stay on `flake.modules` and
+get the `_class` stamp for free. The file-level contract is unchanged either way —
+`flake-module.nix` is still the only export point.
+
+`tart-vms` needed the raw seam for a second, independent reason the design also missed: both its
+runner modules do `imports = [ ./slots.nix ]`, and **the module system dedupes by PATH identity**.
+`deferredModule` would have handed `mkDarwin`'s base list two anonymous wrappers instead of two
+deduplicable paths.
+
+**Reading: this is what the drv harness is for.** Without it, this substitution is a silent
+reordering that nothing in CI would have caught, and §7.7's "the stubs rot" would have been the
+least of it.
+
+### 9.3 The boundary has an INWARD hole §7.6 did not list
+
+§7.6 lists the ast-grep gate's blind spots as overlay, `specialArgs`, and runtime-constructed
+store paths — all *outward*. The hole found in wave 5 is *inward*: the rule is scoped
+`files: modules/features/**`, so it can only see a file **inside** a capsule reaching out. It
+cannot see a file **outside** a capsule naming a file **inside** one.
+
+That was not hypothetical. `modules/shared/home.nix` must `pkgs.callPackage` the capsule's
+`gitlab-tart.nix` with the **HOST's** pkgs (a derivation built from this flake's perSystem pkgs
+would be a different drv), and a `../features/tart-vms/packages/gitlab-tart.nix` literal there is
+**not flagged by anything**. The fix is a third seam — `capsuleSources.<capsule>.<name>` in
+`modules/parts/capsules.nix`, **paths only** — so `flake-module.nix` stays the only thing outside
+a capsule that names a file inside it.
+
+### 9.4 Smaller corrections, in wave order
+
+- **Wave 0's harness was wrong on its first attempt, instructively.** Appending a comment to a
+  `.nix` file changed no drvPath — because **the `.nix` file is not an input to the derivation it
+  produces**. That is precisely the property "move code, change no build" relies on; a real
+  perturbation (editing a `writeShellApplication`'s script text) is caught. Any future docs-only
+  pass should expect drv-neutrality **except** where a file is content-hashed into a closure
+  (see the last bullet).
+- **Wave 1's premise was half wrong.** §5 says the sweep runs "inside each satellite … neither
+  big one has ever seen statix or deadnix". It produced **exactly one commit across all seven
+  repos** (`nix-tart-vms`, `3f606dc`). The other six, `nix-media-cli` included, were already
+  clean.
+- **`import-tree` needed one alternation, not a second `addPath`.** §4's S3 got the *defect*
+  right and the *remedy* half right: `.match` accumulates with `and` (pinned
+  `default.nix:234`), so chaining two matches **intersects** them and loads nothing. The filter
+  is one regex with an alternation covering `parts/*.nix` and `features/*/flake-module.nix`.
+- **The three-system fold stays three.** Adding `x86_64-linux` to flake-parts' `systems` would
+  silently spawn x86 checks, formatter and apps. The devcontainer image and its devShell are
+  reached with `withSystem "x86_64-linux"` instead.
+- **Wave 4 deleted a check and that was the right call.** `checks.<system>.vast-lib-drift` diffed
+  nix-config's copy of the boot scripts against the satellite's. Four copies became one, so it
+  had nothing left to diff. It was replaced — not dropped — by `vast-scripts-lint`, which
+  **shellchecks the surviving copies**: the ones that actually reach a rented instance, which
+  nothing had ever linted. Removing a check is only ever acceptable when its subject is gone.
+- **The `flake.nix` and lock numbers landed close.** Predicted `2219 → ~390` lines and
+  `68 → ~55` nodes. Actual: `2254 → 394` at wave 2 (**404 today**, comment growth), and
+  `69 → 56` nodes (**−18.8%**). §1's arithmetic was sound.
+- **The capsule rule forces layout the anatomy in §2 does not show.** `..` is an error under
+  `modules/features/**` **even when it stays inside the capsule**, so `tart-vms`' four module
+  files and `media-cli`'s `package-graph.nix` sit at the capsule ROOT rather than in a nested
+  `modules/` or `lib/`, and `tart-vm.nix`'s `defaultTemplate ? ../templates/…` default became a
+  mandatory argument the entry file supplies.
+- **Two stale references survive on purpose, inside `tart-vms`.** `packages/tart-runner.nix:473`
+  and `packages/gitlab-tart.nix:75` still say `modules/…` inside `''…''` **shell script bodies**.
+  Fixing them would change the script text, hence the derivation, hence `darwin-system` — so they
+  are recorded in that capsule's `flake-module.nix` header rather than silently rotting.
+- **A docs-only edit is not always drv-neutral.** `modules/shared/home.nix:1118` content-hashes
+  `skills/rag/` into the `macos` closure, so correcting one prose pointer in
+  `skills/rag/SKILL.md` **moves `darwin-system`'s drvPath**. Wave 6 measured this, reverted, and
+  deferred the edit to wave 7, where it is made deliberately and declared as the wave's only
+  host-toplevel delta.
+
+### 9.5 Wave 8, measured — and deliberately not landed
+
+`pkgs.nixosOptionsDoc` was run with `warningsAreErrors = false`, as §5 requires, over each host's
+real option tree. **It was not added as a check.** Three measured reasons:
+
+| Tree | Visible options | Lack a description | Of those, declared by THIS repo |
+|---|---|---|---|
+| `darwinConfigurations.macos` | 1,278 | **8** | **7** — all in the `tart-vms` capsule |
+| `nixosConfigurations.nixpi` | 25,345 | 7 | **0** |
+| `nixosConfigurations.nixvm` | 25,294 | 0 | **0** |
+
+The seven are `tart.githubRunners.<name>.{appId,cpu,image,image.oci,memoryMB,scope}` and
+`tart.gitlabRunner.package`. A textual scan of the whole tree finds **324 option sites**
+(302 `mkOption` + 22 `mkEnableOption` — §3's "~325" was accurate) of which **15 `mkOption` sites
+carry no `description`**; **10 of those 15 are `darwinStubs`**, the `evalModules` fixture in
+`modules/features/tart-vms/checks/module-evaluations.nix` that deliberately approximates
+nix-darwin's option surface and should not be documented. The remaining 5 declaration sites are
+the 7 rows above (two are submodules whose nested sub-option is also undocumented).
+
+**Why it is not a check:**
+
+1. **At `warningsAreErrors = false` it is a gate that cannot fail.** Wave 0's own standard — "a
+   gate that cannot fail is decoration" — applies to this one too. Worse, it does not even
+   *report* legibly: an undocumented option comes back as `description: null` rather than an
+   absent key, so the obvious `opt ? description` audit returns **zero missing** and is wrong.
+   That false negative was hit while producing the table above.
+2. **It cannot see most of this repo's options.** `home-manager.users` renders as **one opaque
+   row** in a darwin option tree, so `programs.mediaCli`, `programs.keychainSecrets`,
+   `local.terminalTheme`, `services.ollamaLocal` / `services.pgvectorLocal` and
+   `programs.ungoogledChromium` — five of the seven capsules' public surface — are **not covered
+   at all**. The generator does not solve the nominated problem, which is the same measured
+   verdict §3 reached for flake-parts `partitions`.
+3. **Nothing consumes the output.** Rendering 26k options per host on every CI run, for a
+   document no one reads, is the "bigger than the problem warrants" half of the motto.
+
+**The useful follow-up is not the generator, it is the seven descriptions** — and writing them is
+drv-neutral (an option's `description` is metadata; the `.nix` file is not an input to the
+derivation it produces, §9.4). Flipping `warningsAreErrors = true` remains forbidden until that is
+done and until the home-manager blind spot has an answer.
+
+### 9.6 What the operator still owns, off-tree
+
+Wave 7's §5 line says "retire 7 rulesets; archive 7 repos". **No agent did or may do either** —
+both are GitHub actions the operator takes directly. The in-tree half is what waves 7-8 delivered:
+the docs tell the truth about the post-collapse shape, and
+`.claude/skills/fleet-doctor/fleet-repos.txt` no longer sweeps repos that are about to be
+archived. Per §7.8, **archive, do not delete** — the origin repos are now the only home of 126
+commits of provenance.
