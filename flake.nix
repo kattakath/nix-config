@@ -736,7 +736,11 @@
             fi
 
             tofu init
-            tofu ${action}
+            # "$@" is forwarded LAST so a caller can add flags (-auto-approve,
+            # -target, -refresh=false) without a second app. It cannot weaken the
+            # guards above: those run before tofu is invoked at all, and refusing
+            # exits the script rather than falling through to this line.
+            tofu ${action} "$@"
           ''
           + nixpkgs.lib.optionalString (action == "apply") printToken;
         };
@@ -819,7 +823,9 @@
               echo "WARNING: MCP_PUBLIC_ALLOW_EMPTY=1 — unpublishing all servers." >&2
             fi
 
-            tofu ${action}
+            # See the note on the nixpi builder: forwarded last, cannot weaken the
+            # guard above, which exits before reaching here.
+            tofu ${action} "$@"
           ''
           + nixpkgs.lib.optionalString (action == "apply") printToken;
         };
