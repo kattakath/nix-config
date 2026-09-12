@@ -646,10 +646,14 @@
           runtimeInputs = [ pkgs.opentofu ];
           text = ''
             if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
-              echo "ERROR: CLOUDFLARE_API_TOKEN is unset. Export a token scoped to" >&2
-              echo "  Account > Cloudflare Tunnel:Edit" >&2
-              echo "  Zone > DNS:Edit            on ${domainName} AND every hosted site's zone" >&2
-              echo "  Zone > Dynamic Redirect:Edit  on the same zones (the www->apex rulesets)" >&2
+              echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
+              echo "  Use the least-privilege token, not the broad one:" >&2
+              echo "    secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:nixpi-tunnel -- ${name}" >&2
+              echo "  Its scopes (verified minimal for this stack):" >&2
+              echo "    Account > Cloudflare Tunnel:Edit          (Personal account only)" >&2
+              echo "    Zone    > DNS:Edit                       on ${domainName} + every hosted site zone" >&2
+              echo "    Zone    > Zone Settings:Edit             on the same zones" >&2
+              echo "    Zone    > Dynamic URL Redirects:Edit     on the same zones (www->apex rulesets)" >&2
               exit 1
             fi
             # DURABLE STATE DIR — the root cause of losing state twice was running
