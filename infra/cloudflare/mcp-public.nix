@@ -34,9 +34,19 @@
   domainName,
   accountId,
   zoneId,
+  # THE origin hostname: where published MCP servers actually are, as opposed to
+  # `mcp.<domainName>`, the portal clients talk to. "upstream" is the Cloudflare
+  # portal's own word for a server registered behind it, and it is mechanism-
+  # neutral — this hostname terminates the cloudflared tunnel AND carries Worker
+  # routes, so naming it after either one would describe half its job. (It was
+  # `connector` until 2026-09-12, named after the cloudflared connector: the same
+  # mistake as the old `gw-` prefix, naming the implementation over the role.)
+  #
+  # No client ever sees this name. Only the portal dials it, with a service token.
+  #
   # Single-label ONLY: the free Universal cert covers *.<domainName> at exactly one
   # level. A two-label name has no certificate (see calendly.ismail.<domain>).
-  publicSubdomain ? "connector",
+  publicSubdomain ? "upstream",
   # Gateway server names published through the portal. Mirrors
   # services.mcpGateway.public; empty renders the tunnel + Access objects but
   # registers no server, so nothing is actually reachable.
