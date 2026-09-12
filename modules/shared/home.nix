@@ -56,6 +56,14 @@
   agent-skills-vercel-workflow,
   agent-skills-litellm,
   grok-build-plugin-cc,
+  # THIS operator's own agent resources, extracted from this repo 2026-09-12 and
+  # pinned back exactly like the third-party skills above (flake.nix). The
+  # marketplace, the skills and the public userscripts each live in their own
+  # repo now, so they can be maintained — and adopted — like any community
+  # resource, while Nix keeps the pin, the wiring and the gates.
+  kattakath-claude-plugins,
+  kattakath-claude-skills,
+  kattakath-userscripts,
   # The ABSORBED local-rag capsule (services.ollamaLocal +
   # services.pgvectorLocal — the loopback RAG stack) — a MODULE, not a flake,
   # since ADR-002 wave 6 brought it in-tree as modules/features/local-rag/.
@@ -543,10 +551,17 @@ in
   # The PUBLIC half of the userscript set. Private ones are added to this same
   # attrset by the nix-personal flake through `extraHomeModules`, which is the
   # whole point of keying it — keys must stay distinct across the two repos.
-  # `../../userscripts/…` is a Nix SOURCE literal: repo-relative by definition,
-  # copied into the store at eval. See modules/shared/chromium.nix for the option.
+  # The scripts themselves live in the PINNED input `kattakath-userscripts`
+  # (github:kattakath/userscripts), extracted from this repo 2026-09-12 — so a
+  # userscript is maintained, versioned and adoptable like any published
+  # userscript, while this file keeps the declaration and Nix keeps the pin.
+  # `checks.<system>.userscripts` lints THAT INPUT, so the gate followed the
+  # content out instead of going quietly green on an empty directory.
+  # `"${input}/x.user.js"` satisfies the option's `path` type (it starts with
+  # "/"), and being absolute it carries none of the relative-literal trap the
+  # old repo-relative form did. See modules/shared/chromium.nix for the option.
   programs.ungoogledChromium.userScripts.scripts = {
-    google-photos-icon-nav = ../../userscripts/google-photos-icon-nav.user.js;
+    google-photos-icon-nav = "${kattakath-userscripts}/google-photos-icon-nav.user.js";
   };
 
   # The PUBLIC half of the Claude Code plugin set — DATA only; the registration
@@ -614,40 +629,43 @@ in
     # `"${../../plugins}"` is a Nix SOURCE PATH LITERAL: resolved relative to THIS file. It
     # must stay in the repo that owns the tree — moved to another flake it would silently
     # point at that flake's plugins/ directory instead.
-    kattakath-nix-config = {
-      source = lib.mkDefault "${../../plugins}";
+    # This operator's OWN published marketplace, from the PINNED flake input
+    # `kattakath-claude-plugins` (github:kattakath/claude-plugins) — not a local
+    # directory. Extracted from this repo's plugins/ tree 2026-09-12 so the
+    # plugins can be maintained, versioned and adopted like any community
+    # resource; Nix keeps the pin (flake.lock), the wiring (here) and the gates
+    # (modules/parts/checks.nix).
+    #
+    # NO PATH-LITERAL TRAP HERE, unlike the `"${../../plugins}"` it replaced: a
+    # store path is absolute, so this line means the same thing in any file in
+    # any flake. That trap is the whole reason the old form had to live in the
+    # repo that owned the tree.
+    #
+    # `repin` still defaults true (the source starts with "/"), which is correct
+    # and load-bearing: the store path moves on every content bump, and
+    # `plugin install` COPIES into ~/.claude/plugins/cache.
+    #
+    # Adding a plugin = a plugins/<name>/ tree IN THAT REPO + an entry in its
+    # .claude-plugin/marketplace.json + its bare name below + `nix flake update
+    # kattakath-claude-plugins`.
+    kattakath = {
+      source = lib.mkDefault "${kattakath-claude-plugins}";
       plugins = [
-        # IN-REPO (plugins/llmstxt, this repo): authoring skill + /llmstxt command + a
-        # stdlib-only linter for llms.txt — the llmstxt.org v2 standard for LLM-friendly
-        # content. Nothing upstream AUTHORS these files (the ecosystem is site-build
-        # generators + consumers/parsers), and nixpkgs carries only the Sphinx build plugin
-        # (python3Packages.sphinx-llms-txt) — see plugins/llmstxt/README.md for the
-        # reuse-vs-build reasoning, including why the linter is dependency-free stdlib.
+        # llmstxt: authoring skill + /llmstxt command + a stdlib-only linter for the
+        # llmstxt.org v2 standard. Nothing upstream AUTHORS these files (the ecosystem is
+        # site-build generators + consumers/parsers), and nixpkgs carries only the Sphinx
+        # build plugin (python3Packages.sphinx-llms-txt) — the plugin's own README.md
+        # carries the reuse-vs-build reasoning, including why the linter is stdlib-only.
         "llmstxt"
-        # IN-REPO (plugins/seargraph, this repo): the seargraph-langgraph subagent —
-        # LangGraph pipeline design/implementation help for the SEARGraph project
-        # (self-evolving agentic image restoration: fidelity metrics, constrained
-        # optimization, iterative refinement, character embeddings). A plugin as a SCOPING
-        # choice, not a capability gap — corrected 2026-09-06, and the correction is already
-        # in docs/repo-map.md § plugins/: programs.claude-code.agents DOES exist. What it
-        # cannot do is scope the agent — it installs globally into ~/.claude/agents/, whereas
-        # a plugin is enabled per project.
-        "seargraph"
-        # Userscript authoring AND live-page diagnosis, merged: the measure-before-you-select
-        # method, the browser probes, the pre-vetted patterns, the Greasy Fork rulebook, the
-        # CDP diagnosis surface, and a runnable metadata linter that
-        # `checks.<system>.userscripts` ALSO runs — one rulebook, no drift.
+        # page-lab: userscript authoring AND live-page diagnosis, merged — the
+        # measure-before-you-select method, the browser probes, the pre-vetted patterns,
+        # the Greasy Fork rulebook, the CDP diagnosis surface, and a runnable metadata
+        # linter that `checks.<system>.userscripts` ALSO runs, now against the pinned
+        # input rather than a local path. One rulebook, no drift.
         #
-        # These were TWO plugins that merely cross-referenced, until one verb needed both
-        # halves in a single motion: PICK. The operator points at an element, the agent
-        # measures that exact node, reads its cascade, prototypes the override live, dates it
-        # in the WHY block, lints it, and proves it after install. Under the split that motion
-        # crossed the plugin boundary four times and needed a seam FILE to narrate the
-        # crossing — a seam that needs its own document is a merge that has not happened yet.
-        # The cost, stated plainly: the diagnosis half is no longer adoptable alone.
-        #
-        # The Nix-specific half (declaring a script in home.nix, activation, the install click)
-        # stays in .claude/skills/userscript-author. The MCP server it drives is wired in
+        # The Nix-specific half (declaring a script in home.nix, activation, the install
+        # click) stays in .claude/skills/userscript-author — it is about THIS repo, not
+        # about userscripts. The MCP server page-lab drives is wired in
         # modules/shared/mcp.nix (attach mode, opt-in, off by default).
         "page-lab"
       ];
@@ -1123,20 +1141,30 @@ in
         salary-negotiation-prep = "${agent-skills-jsonresume}/skills/salary-negotiation-prep";
         # Local RAG over the pgvector store: how to ingest + query via the `postgres`
         # MCP server and the in-DB embed() function (the local-rag capsule's services.pgvectorLocal + services.ollamaLocal).
-        rag = "${../../skills/rag}";
+        # ---- THIS operator's OWN published skills, from the pinned flake input
+        # `kattakath-claude-skills` (github:kattakath/claude-skills). Extracted from
+        # this repo's skills/ tree 2026-09-12 onto the SAME rail as every
+        # third-party pin above — the only difference between someone else's skill
+        # and one of these is who can push to the repo. Cherry-picked per skill, so
+        # adding one there does not silently install it here.
+        #
+        # The /explain family (explain/compare/map/zoom/why/tldr/diagram) did NOT
+        # move: it is one kit with the Brain Signals output style and is declared in
+        # modules/shared/claude-brain.nix, next to the style it encodes.
+        rag = "${kattakath-claude-skills}/skills/rag";
         # Original (not a fork): operator knowledge for the packages/android-phone.nix
         # ADB/scrcpy CLI — global so ANY session (including ~/-rooted ones) knows the
         # wrapper's command surface and the adb footguns it absorbs, not just sessions
         # rooted in this repo. Lives next to the package it documents so they can't
         # drift apart silently.
-        android-phone = "${../../skills/android-phone}";
+        android-phone = "${kattakath-claude-skills}/skills/android-phone";
 
         # Making a repo self-sufficient with Nix: dev shell, env catalogue, project-local
         # Postgres+pgvector stack, self-hosted runner, and `nix run .#<verb>` lifecycle apps.
         # Global rather than repo-scoped precisely because the point is to apply it to a repo
         # that does NOT have it yet. Carries the Nix/Postgres/Prisma traps that cost real
         # debugging time (withPackages union prefix, socket port, macOS socket length cap).
-        nix-dev-toolkit = "${../../skills/nix-dev-toolkit}";
+        nix-dev-toolkit = "${kattakath-claude-skills}/skills/nix-dev-toolkit";
       };
     };
 
