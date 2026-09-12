@@ -1914,7 +1914,7 @@
               mcp-public-destroy = {
                 type = "app";
                 program = "${self.packages.${system}.mcp-public-destroy}/bin/mcp-public-destroy";
-                meta.description = "tofu destroy the published MCP gateway tunnel/Access/service-token stack (needs CLOUDFLARE_API_TOKEN)";
+                meta.description = "tofu destroy the published MCP gateway stack — NOTE the provider cannot destroy the tunnel config or the portal registrations, which survive in the API and need deleting by hand (needs CLOUDFLARE_API_TOKEN)";
               };
               cf-tunnel-destroy = {
                 type = "app";
