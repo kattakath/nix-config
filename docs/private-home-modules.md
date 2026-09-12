@@ -264,6 +264,31 @@ nix-personal's `modules/claude-bedrock.nix` is reduced to the two values.
   macOS login Keychain, because a Nix-declared `env` entry would apply to every session and
   destroy the runtime toggle. There is deliberately no `local.claudeBedrock.enable`.
 
+## Brain Signals — a seam with nothing private left in it
+
+`programs.claude-code.{outputStyles,agents,commands,rules,skills}` (public engine,
+`modules/shared/claude-brain.nix`) is the third seam shape in this document: **upstream's
+own merging options, used directly.** No `local.*` option was invented, because none was
+needed — every one of those classes is `attrsOf`, so a private layer or a fork ADDS keys
+and the public entries survive untouched.
+
+nix-personal's `modules/claude-brain.nix` and its `claude/` tree were **deleted** 2026-09-12
+rather than reduced to values: the whole kit is an accessibility calibration, and the same
+ADHD/dyslexia answer-shape rule was already public in `claude/CLAUDE.md`. Keeping the
+mechanism private meant the rule and the thing that satisfies it could drift with nothing to
+catch it, and meant a forker got the rule with no way to meet it.
+
+- **Extendable, and the only two scalars are `mkDefault`.** `settings.outputStyle` and
+  `settings.alwaysThinkingEnabled` are single values — a scalar can be replaced, never
+  extended — so nix-config sets them with `lib.mkDefault` and a plain assignment downstream
+  wins with no `mkForce`. Everything else merges per key.
+- **Two ways to destroy this seam, both easy to reach for.** (1) `context` is
+  `either lines path` and `home.nix` already defines it as a PATH; a *second* path definition
+  is a hard eval error, not a merge — extra global prose must arrive as another
+  `rules.<name>`. (2) The `rulesDir`/`agentsDir`/`commandsDir` forms are asserted mutually
+  exclusive with their inline twins upstream, and setting `skills` to a bare path collapses
+  `either` to `mergeOneOption`. Keep the attrs branch everywhere.
+
 ## What this is not
 
 - Not an in-tree `private/` directory (that is still a public git trace).
