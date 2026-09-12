@@ -242,6 +242,28 @@ the two. Nothing public names the private repo, and no `mkNixos`-style parameter
   The store is world-readable regardless of which flake the path came from, so a userscript
   must never carry a token, cookie, or account identifier.
 
+## Bedrock identity — an option seam, values only
+
+`local.claudeBedrock.{region,profile}` (public engine,
+`modules/shared/claude-bedrock-gate.nix`) is the same **option seam** shape as
+`local.wireguardConfigs`: the public repo owns the mechanism — the declarations, the
+`~/.claude/settings.json` `env` writing, and the runtime `nix-bedrock-gate` — and
+nix-personal's `modules/claude-bedrock.nix` is reduced to the two values.
+
+- **Both default to `null`, and that is load-bearing.** The gate's first detector is
+  "AWS_REGION resolves nowhere → the private layer is not active". A non-null public
+  default turns it permanently green on a public-only activation and reproduces the exact
+  outage the gate exists to prevent. Never give them a value in nix-config.
+- **Overridable, not extendable — deliberately.** One AWS identity per host, so a `listOf`
+  would misdescribe the shape, and two differing definitions *should* be a loud conflict.
+  No `mkDefault` is needed: an option `default` is not a definition, so the private layer's
+  plain assignment wins outright. Extensibility is not lost downstream — the sink
+  `programs.claude-code.settings.env` is a recursive attrs type, so any module may still
+  add other env keys.
+- **The on/off switch is not in this seam at all.** `CLAUDE_CODE_USE_BEDROCK` lives in the
+  macOS login Keychain, because a Nix-declared `env` entry would apply to every session and
+  destroy the runtime toggle. There is deliberately no `local.claudeBedrock.enable`.
+
 ## What this is not
 
 - Not an in-tree `private/` directory (that is still a public git trace).
