@@ -29,6 +29,15 @@ const path = require("node:path");
 // The trailing / requires an actual user segment, not the bare parent dir.
 const HOME_PATH = /\/(?:Users|home)\/[a-z][a-z0-9._-]*\//;
 
+// The three NON-OPERATOR user segments — a Tart GUEST account (`admin`), the
+// evalModules fixture user (`tester`) and the option-`example` placeholder
+// (`me`). None of them is a path on a fleet machine, so none has a $HOME/XDG
+// spelling. Introduced with the tart-vms capsule, ADR-002 wave 5. KEEP IN SYNC
+// with ast-grep/rules/nix-hardcoded-home-path.yml, whose header carries the
+// per-name rationale and the file:line each one lives at — that file is the
+// gate half of this advisory hook.
+const EXEMPT_USER = /\/(?:Users|home)\/(?:admin|tester|me)\//;
+
 try {
   let raw = "";
   try {
@@ -66,7 +75,8 @@ try {
     // the code portion of the line is linted. (A `#` inside a string alongside a
     // home path is vanishingly rare and acceptable for an advisory lint.)
     const code = line.split("#")[0];
-    if (HOME_PATH.test(code)) hits.push({ n: i + 1, text: line.trim() });
+    if (HOME_PATH.test(code) && !EXEMPT_USER.test(code))
+      hits.push({ n: i + 1, text: line.trim() });
   });
 
   if (hits.length === 0) process.exit(0);

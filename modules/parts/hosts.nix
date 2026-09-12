@@ -22,8 +22,9 @@ in
 
     # The former `macvm` Tart guest was REMOVED 2026-09-05 — deliberately, as
     # a thin re-addable layer, not an amputation: everything generic lives on
-    # in the extracted github:kattakath/nix-tart-vms flake (lifecycle CLI,
-    # plug-and-play bootstrap, golden-image bake), and the re-add procedure
+    # in the tart-vms capsule (modules/features/tart-vms/ — lifecycle CLI,
+    # plug-and-play bootstrap, golden-image bake; it was the extracted
+    # nix-tart-vms flake until ADR-002 wave 5), and the re-add procedure
     # is docs/macvm-readd-runbook.md. A baked golden image (tahoe-golden)
     # stays parked in ~/.tart for the day it returns.
   };

@@ -703,30 +703,6 @@
         "type": "github"
       }
     },
-    "nix-tart-vms": {
-      "inputs": {
-        "flake-parts": [
-          "flake-parts"
-        ],
-        "nixpkgs": [
-          "nixpkgs"
-        ],
-        "treefmt-nix": "treefmt-nix_2"
-      },
-      "locked": {
-        "lastModified": 1788731386,
-        "narHash": "sha256-HrRbmKTxSBycQ9FSuY/CPd4dyLeYVlsfofJc9R7/Q9w=",
-        "owner": "kattakath",
-        "repo": "nix-tart-vms",
-        "rev": "cfaa14b16c9b8c5b7851b4a8f5b4e3518a038d32",
-        "type": "github"
-      },
-      "original": {
-        "owner": "kattakath",
-        "repo": "nix-tart-vms",
-        "type": "github"
-      }
-    },
     "nix-vscode-extensions": {
       "inputs": {
         "nixpkgs": [
@@ -881,12 +857,11 @@
         "media-cli": "media-cli",
         "nix-darwin": "nix-darwin",
         "nix-homebrew": "nix-homebrew",
-        "nix-tart-vms": "nix-tart-vms",
         "nix-vscode-extensions": "nix-vscode-extensions",
         "nixpkgs": "nixpkgs_3",
         "raspberry-pi-nix": "raspberry-pi-nix",
         "terranix": "terranix",
-        "treefmt-nix": "treefmt-nix_3"
+        "treefmt-nix": "treefmt-nix_2"
       }
     },
     "rpi-bluez-firmware-src": {
@@ -1068,27 +1043,6 @@
       }
     },
     "treefmt-nix_2": {
-      "inputs": {
-        "nixpkgs": [
-          "nix-tart-vms",
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1786901030,
-        "narHash": "sha256-WSFCsDSE5ffgD2MqzkM2CYjeFiKhRF/dJUN8uedb6YE=",
-        "owner": "numtide",
-        "repo": "treefmt-nix",
-        "rev": "27b3b12a8e6375f28ebe122f07d230ca5459bbfa",
-        "type": "github"
-      },
-      "original": {
-        "owner": "numtide",
-        "repo": "treefmt-nix",
-        "type": "github"
-      }
-    },
-    "treefmt-nix_3": {
       "inputs": {
         "nixpkgs": [
           "nixpkgs"

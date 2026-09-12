@@ -259,7 +259,7 @@ in
     #
     # This lane is BARE METAL: the job runs directly on the Mac, so it sees the
     # operator's nix, cachix and a postgres+pgvector on PATH. The OTHER macOS
-    # lane in this fleet (`tart.githubRunners.*`, nix-tart-vms) boots a stock
+    # lane in this fleet (`tart.githubRunners.*`, the tart-vms capsule) boots a stock
     # Cirrus guest per job that has NONE of that. Both register into the same
     # org and the same `Default` runner group.
     #

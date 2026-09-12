@@ -227,15 +227,15 @@
     # went with the input: it diffed those copies against the input's, and there
     # is no second tree left to diff.)
 
-    # nix-tart-vms — extracted from this repo 2026-09-05, briefly removed the
-    # same day with the macvm host (zero consumers), RE-ADDED hours later with a
-    # new consumer: darwinModules.github-runner, the ephemeral Tart-VM-per-CI-job
-    # GitHub Actions runners on macos (tart.githubRunners.* in hosts/macos.nix). The
-    # seam worked exactly as designed — the input follows its consumers. The
-    # macvm GUEST stays removed (docs/macvm-readd-runbook.md).
-    nix-tart-vms.url = "github:kattakath/nix-tart-vms";
-    nix-tart-vms.inputs.nixpkgs.follows = "nixpkgs";
-    nix-tart-vms.inputs.flake-parts.follows = "flake-parts";
+    # (nix-tart-vms was here. ADR-002 wave 5 ABSORBED it into
+    # modules/features/tart-vms/ — the four modules, six packages and ten checks
+    # of the Tart toolkit, including the live tart.githubRunners.* and
+    # tart.gitlabRunner lanes on `macos`. It had been extracted from this repo
+    # on 2026-09-05, removed the same day with the macvm host, and re-added
+    # hours later when the runners landed; the round trip is exactly the churn
+    # the collapse ends. The macvm GUEST stays removed —
+    # docs/macvm-readd-runbook.md, whose step 1 is now an in-tree module rather
+    # than a re-added input.)
 
     # MCP (Model Context Protocol) server packaging for Claude Code. We use its
     # `lib.mkConfig` to render a PINNED {mcpServers:{…}} JSON (the 4 packaged
