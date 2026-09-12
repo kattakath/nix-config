@@ -28,7 +28,7 @@
       "Bash(deadnix:*)",
       "Bash(home-manager build:*)",
       "Bash(home-manager generations:*)",
-            "Bash(osascript:*)",
+      "Bash(osascript:*)",
       "Bash(plutil:*)",
       "Bash(qemu-img:*)",
       "Bash(ssh:*)",
@@ -104,7 +104,7 @@
           },
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/superhook-digest.js\"",
+            "command": "superhook-digest",
             "timeout": 10
           },
           {
@@ -126,7 +126,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/superhook.js\" PreToolUse -- node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/pretooluse-bash-guard.js\"",
+            "command": "superhook PreToolUse -- node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/pretooluse-bash-guard.js\"",
             "timeout": 20
           }
         ]
@@ -142,30 +142,13 @@
         ]
       }
     ],
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/autostage-nix.js\"",
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/nix-home-path-lint.js\"",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
     "Stop": [
       {
         "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/superhook.js\" Stop -- node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/stop-gate.js\"",
+            "command": "superhook Stop -- node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/stop-gate.js\"",
             "timeout": 60
           }
         ]
