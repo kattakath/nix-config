@@ -572,11 +572,11 @@
     "kattakath-userscripts": {
       "flake": false,
       "locked": {
-        "lastModified": 1789246454,
-        "narHash": "sha256-c4/m2gn9bKh+NM7faWP/HuFaU43p3rqhlrQAmevuFs8=",
+        "lastModified": 1789246940,
+        "narHash": "sha256-UriDS7zbJfexMhIDP+ep5Xn0Kf6fkw6hx0ikaJiSMy4=",
         "owner": "kattakath",
         "repo": "userscripts",
-        "rev": "d1d817e828b05bc96e8218dd665090a7a40d1b24",
+        "rev": "e0ab610e9d70240c2ba882776e15304fbf956a6c",
         "type": "github"
       },
       "original": {
