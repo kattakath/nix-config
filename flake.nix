@@ -2070,6 +2070,41 @@
           # input's modules/launchd/{default,launchd,types}.nix verbatim over
           # modules/shared/hm-launchd/upstream-baseline/ (which treefmt
           # excludes precisely so the copies stay byte-exact).
+          # The 40k context budget for CLAUDE.md, as a GATE rather than a wish.
+          #
+          # CLAUDE.md calls itself "an index, not an encyclopedia ... under the
+          # 40k-char context lint limit", and .github/workflows/claude-config-lint.yml
+          # runs cclint `context --fail-on error`. Measured 2026-09-12 at 34,829
+          # chars (87%): cclint reports 0 errors AND 0 warnings, so nothing in CI
+          # can currently stop the file growing past the limit it claims to have.
+          #
+          # A CHECK, not a treefmt formatter, on this repo's own boundary: the
+          # header of treefmt.nix scopes it to tools that REWRITE, and a size
+          # assertion rewrites nothing. (treefmt-nix does ship `programs.sizelint`,
+          # which is why ADR-002 proposed it — but putting a checker in the
+          # formatter slot is exactly what that header forbids, and the pre-commit
+          # hook IS the `nix fmt` wrapper.)
+          #
+          # This matters more after ADR-002 than before it: the collapse grows the
+          # tree ~64%, and the index is already the thing that drifted 16 ways in
+          # one audit. Raising the ceiling is a deliberate edit here, not a silent
+          # slide.
+          claude-md-budget = (pkgsFor system).runCommand "claude-md-budget" { } ''
+            limit=40000
+            size=$(wc -c < ${./CLAUDE.md} | tr -d " ")
+            if [ "$size" -gt "$limit" ]; then
+              echo "claude-md-budget: CLAUDE.md is $size chars, over the $limit-char" >&2
+              echo "context-lint budget it documents for itself." >&2
+              echo "" >&2
+              echo "CLAUDE.md is an INDEX. The full per-path detail belongs in" >&2
+              echo "docs/repo-map.md — move a section there and leave the one-liner," >&2
+              echo "rather than raising this limit reflexively." >&2
+              exit 1
+            fi
+            echo "CLAUDE.md: $size/$limit chars"
+            touch "$out"
+          '';
+
           hm-launchd-drift =
             (pkgsFor system).runCommand "hm-launchd-drift"
               { nativeBuildInputs = [ (pkgsFor system).diffutils ]; }
