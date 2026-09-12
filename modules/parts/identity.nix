@@ -92,13 +92,6 @@ let
   # secrets/secrets.nix — one file to edit on rotation (see secrets/operator-key.nix).
   operatorSshKey = import ../../secrets/operator-key.nix;
 
-  # ---- Operator identity email for Google-IdP access allowlists -----------
-  # The real login identity (distinct from `userEmail`, the GitHub noreply
-  # commit address) — default Google-allowed-user for the HyperFrames
-  # self-host stack's Access policy (packages/hyperframes-selfhost.nix). Not
-  # a secret.
-  operatorEmail = "ismail@${domainName}";
-
   # ---- Single source of truth for the Cloudflare account/zone ------------
   # Threaded (with domainName) into the cfTunnelConfig terranix stack via
   # `_module.args`, so the account/zone ids and the domain live in ONE place
@@ -172,7 +165,6 @@ in
         cachixUrl
         cachixKey
         operatorSshKey
-        operatorEmail
         cloudflareAccountId
         cloudflareZoneId
         identityArgs

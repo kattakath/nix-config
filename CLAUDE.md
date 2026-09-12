@@ -143,7 +143,7 @@ One line per path; the *why* and the per-file specifics are in
 | `modules/nixos/` | `core.nix` (user + keys-only **loopback-bound** sshd with `openFirewall = false` + a firewall that opens **no** TCP port + avahi + nix-ld + zram + GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). |
 | `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `key-recovery`, `spotlight-launchers`, plus single-purpose CLIs (`android-phone`, `jsonresume`, `mermaid-ascii`, `claude-otel-doctor`, …). Root `bootstrap.sh` is the no-Nix stage 1. The media/photo CLIs are **not here** — they live in the `media-cli` capsule. |
 | `userscripts/` | The **public** Violentmonkey `.user.js` scripts, declared by name in `modules/shared/home.nix`; authored via the portable `plugins/page-lab` (method + picker + diagnosis) + project skill `userscript-author` (Nix declaration), gated by `checks.<system>.userscripts` — which **runs the plugin's own linter**, so the Greasy Fork rulebook lives once. Private ones merge in from nix-personal — keys must not collide, and that tree is **not** covered by the gate. Mechanism + why Chromium allows nothing declarative: `modules/shared/chromium.nix`. |
-| `infra/` | terranix (Nix → Terraform JSON): `cloudflare/nixpi-tunnel.nix`, `cloudflare/mcp-public.nix` (the published MCP stack — tunnel, origin hostname, Access app + service token, portal registrations), `hyperframes/stack.nix`. Applied only via the `cf-*` / `mcp-public-*` / `hf-*` apps. |
+| `infra/` | terranix (Nix → Terraform JSON): `cloudflare/nixpi-tunnel.nix`, `cloudflare/mcp-public.nix` (the published MCP stack — tunnel, origin hostname, Access app + service token, portal registrations). Applied only via the `cf-*` / `mcp-public-*` apps. |
 | `secrets/` | agenix recipients (`secrets.nix`) + the operator pubkey (`operator-key.nix`, single-sourced into both recipients and `authorizedKeys`) + **four** ciphertexts: `cloudflared-token.age` (operator-only) and three host-decrypted on `macos` — `gh-app-dontsell-ai-key.age`, `gh-app-fleet-key.age`, `gitlab-runner-token.age`. |
 | `skills/` | **Global** Claude Code skills vendored here (forks needing a patch + originals): `rag`, `android-phone`, `nix-dev-toolkit`, plus the Brain Signals `/explain` family (`explain`, `compare`, `map`, `zoom`, `why`, `tldr`, `diagram`). Most global skills instead come from pinned `flake = false` inputs. |
 | `plugins/` | This repo's own Claude Code plugin marketplace (`kattakath-nix-config`); today `plugins/llmstxt`, `plugins/seargraph`, `plugins/page-lab`. Declared as DATA in `local.claudePlugins.marketplaces` (`modules/shared/home.nix`), registered + installed by `modules/shared/claude-plugins.nix`. Reach for a plugin only when the unit is more than a skill (a command, hook, MCP server, or `agents/`) **or is meant to be publishable outside the fleet**. |
@@ -276,7 +276,7 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
 | Situation | Use |
 |---|---|
 | Explain architecture / get the big picture | `cartographer` agent (read-only, ASCII diagrams) |
-| Touching `infra/**.nix`, or **before any** `cf-tunnel-apply` / `hf-apply` | `terranix-infra-reviewer` agent — reviews + plans, never applies |
+| Touching `infra/**.nix`, or **before any** `cf-tunnel-apply` / `mcp-public-apply` | `terranix-infra-reviewer` agent — reviews + plans, never applies |
 | "Does it evaluate?" | `/eval` (stage + `nix flake check`) — no agent needed |
 | LEAN/DRY/doc-drift cleanup | `/hygiene` → skill `nix-hygiene` (audit → fix → gate) |
 | Cross-repo fleet sweep | `/fleet-doctor` (repos listed in `.claude/skills/fleet-doctor/fleet-repos.txt`) |
@@ -423,10 +423,6 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   flake merges itself once CI is green (CI bot App token, merge-queue ruleset, `merge_group:`).
 - [`docs/mcp-gateway-accessibility-tcc.md`](docs/mcp-gateway-accessibility-tcc.md) — the
   one-time Accessibility (TCC) grant `macos-automator` needs.
-- [`docs/hyperframes-selfhost.md`](docs/hyperframes-selfhost.md) — self-hosting
-  Kinocut+HyperFrames (`infra/hyperframes/stack.nix`; `hf-export`/`hf-apply`/`hf-doctor`), with its
-  [test plan](docs/hyperframes-selfhost-test-plan.md) and
-  [publish notes](docs/hyperframes-selfhost-publish.md).
 - [`docs/photo-system.md`](docs/photo-system.md) — the photo retrieval system end to end: what
   `photo-describe` writes into a file vs. what `rclip` keeps beside the folder — the
   durable/derived split, and how to search each.
