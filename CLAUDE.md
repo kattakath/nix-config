@@ -345,11 +345,14 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
 - [`docs/mcp-gateway.md`](docs/mcp-gateway.md) — the localhost MCP gateway: server inventory,
   credentials model, opt-ins, how to add one.
 - [`docs/mcp-public-exposure-design.md`](docs/mcp-public-exposure-design.md) — design note (not
-  built): how to publish an MCP server publicly without hand-maintaining DNS + Zero Trust per
-  server. Rejects publishing paths off the localhost gateway (one shared-fate process, RCE one
-  `//` away, and it would invert `macos` taking no incoming traffic); recommends one Worker per
-  server generated from a terranix list. Carries the invariant every public MCP server must
-  satisfy — **safe when the portal is bypassed** — which Grok demonstrated is not hypothetical.
+  built): `services.mcpGateway.public = [ … ]` flips a gateway server to publicly reachable.
+  A **second** `mcp-proxy` on `:8097` carries only the published subset (so a leaked credential
+  cannot reach Gmail/Postgres/WordPress on `:8096`), fronted by a cloudflared connector +
+  **one** Access app + **one** service token — which the MCP portal presents via
+  `auth_credentials` `{"headers":{"cf-access-client-id":…}}`, a pattern Cloudflare's own schema
+  documents. Tunnel/DNS/Access are created **once**; a new public server costs one list entry.
+  Also carries the invariant for the standalone-Worker path (**safe when the portal is
+  bypassed**, which Grok proved is not hypothetical) and a correction record for v1.
 - [`docs/open-design.md`](docs/open-design.md) — OpenDesign's declared/imperative boundary:
   adopted cask + updater kill-switch + per-client stdio MCP vs. the app's mutable state.
 - [`docs/secrets-and-keychain.md`](docs/secrets-and-keychain.md) — agenix operator-only vault +
