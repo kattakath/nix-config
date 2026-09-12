@@ -504,9 +504,11 @@ let
     # `--access-mode=unrestricted` lets it create tables + insert/query vectors; the
     # blast radius is bounded not by that flag but by DATABASE_URI's role `mcp`, which
     # owns ONLY `ragdb` and connects loopback-trust with no secret. The DB is a
-    # loopback launchd agent — from the extracted local-rag flake
-    # (github:kattakath/nix-local-rag), which single-sources the URI via
-    # services.pgvectorLocal.databaseUri.
+    # loopback launchd agent — from the ABSORBED local-rag capsule
+    # (modules/features/local-rag/, in-tree since ADR-002 wave 6), which
+    # single-sources the URI via services.pgvectorLocal.databaseUri. THIS LINE
+    # IS THE CAREER RAG's whole path to Claude Code; the capsule's own check
+    # pins the option's value as a literal so a rename fails there first.
     #
     # This server is a `uvx` RUNTIME fetch (no nixpkgs/mcp-servers-nix package exists),
     # so its resolution can DRIFT — and because mcp-proxy spawns every named server at

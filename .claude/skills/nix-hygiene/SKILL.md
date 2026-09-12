@@ -111,8 +111,8 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
 - [ ] `writeShellApplication` for scripts; shellcheck via that path.
 - [ ] No new `environment.etc` hacks for things nix-darwin models.
 - [ ] Determinate Nix: no `nix.enable = true` / no hand-written `nix.custom.conf`.
-- [ ] Small supporting flakes (nix-local-rag, vast-provision,
-      ircc-whatsapp-bot, and any new extraction) use
+- [ ] Small supporting flakes (ircc-whatsapp-bot, nix-mcp-gateway, and any new
+      extraction — the seven satellites are now in-tree capsules, ADR-002) use
       flake-parts, not hand-rolled `forAll`/`forAllSystems` boilerplate — see
       `docs/flake-architecture-strategy-adr.md`. A new one scaffolded without it,
       or an old hand-rolled pattern creeping back in via copy-paste, is a finding.

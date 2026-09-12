@@ -98,7 +98,7 @@ What the current lock drops, and the evidence for each:
 | `deploy-rs.inputs.utils.inputs.systems.follows = "terranix/systems"` | dedupe | Same: flake-utils' `outputs = { self, systems }` is a *closed* pattern doing `import systems`. |
 | `deploy-rs.inputs.flake-compat.follows = ""` | drop | Non-flake `import` shim only. |
 | `git-hooks.inputs.flake-compat.follows = ""` | drop | `outputs = { self, nixpkgs, ... }` never destructures it; `default.nix`/`shell.nix` read the rev from git-hooks' *own vendored* `flake.lock`, and we only ever call `lib.<system>.run`. |
-| `flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs"` + `follows = "flake-parts"` on `local-rag` | dedupe | Our extracted flakes all call `flake-parts.lib.mkFlake` (forced — never droppable) at the **same rev**, yet each shipped its own flake-parts *and* its own `nixpkgs.lib`: 8 nodes for one library, now 1. The `nixpkgs-lib` half is upstream-blessed — `terranix` already carries that exact line, and flake-parts documents the override behind a 23.05 floor our `nixpkgs.lib` clears by three years. **The anchor moved twice:** it was `firmware-secrets/flake-parts` (an arbitrary satellite) until ADR-002 wave 2 made this flake a flake-parts consumer and declared it directly, which is the only reason wave 4 could delete the `firmware-secrets` (and then `keychain-secrets`, `vast-provision`) inputs without breaking the remaining `follows` at lock time. Absorbed capsules leave this row: `vast-provision` was on it until wave 4 and `media-cli` until wave 5, leaving `local-rag` as the last `follows = "flake-parts"` line. |
+| `flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs"` | dedupe | Our extracted flakes all call `flake-parts.lib.mkFlake` (forced — never droppable) at the **same rev**, yet each shipped its own flake-parts *and* its own `nixpkgs.lib`: 8 nodes for one library, now 1. The `nixpkgs-lib` half is upstream-blessed — `terranix` already carries that exact line, and flake-parts documents the override behind a 23.05 floor our `nixpkgs.lib` clears by three years. **The anchor moved twice:** it was `firmware-secrets/flake-parts` (an arbitrary satellite) until ADR-002 wave 2 made this flake a flake-parts consumer and declared it directly, which is the only reason wave 4 could delete the `firmware-secrets` (and then `keychain-secrets`, `vast-provision`) inputs without breaking the remaining `follows` at lock time. Absorbed capsules left this row one by one — `vast-provision` at wave 4, `media-cli` at wave 5, and `local-rag` at wave 6 — so **no `follows = "flake-parts"` line survives**: every flake-parts consumer left in the lock is this flake itself. The `nixpkgs-lib` half stays and is the whole row now. |
 
 **Deliberately left duplicated.** Not everything that looks like a duplicate is one:
 
@@ -349,9 +349,9 @@ Two subtrees are **not** platform splits and are governed by ADR-002
   A capsule registers itself as `flake.modules.<class>.<name>`, flake-parts' own module registry
   (`extras/modules.nix`); that attribute is deliberately **not** re-exported as a public flake
   output — see `modules/parts/touchup.nix` for the decision and the one-line path back.
-  Today: `cloudflared-connector` (wave 3), `firmware-secrets`, `keychain-secrets` and
-  `vast-provision` (wave 4), `tart-vms` and `media-cli` (wave 5). Wave 6 adds the last one,
-  `local-rag`.
+  All seven, absorbed: `cloudflared-connector` (wave 3), `firmware-secrets`, `keychain-secrets`
+  and `vast-provision` (wave 4), `tart-vms` and `media-cli` (wave 5), and `local-rag` (wave 6,
+  the last satellite).
 
   **`media-cli` is the LARGEST capsule** (4,559 lines, ~1,300 of them the queue) and the one
   with the narrowest live surface: one option in `modules/shared/home.nix`, and nothing at all
@@ -761,8 +761,29 @@ waves 5-6 absorb them).
   (`nix run .#secret`), registered by the capsule itself; `pb-conceal` is deliberately
   installed but not published, exactly as before the absorption.
 
-- **`local-rag`** (flake input) — `services.ollamaLocal` + `services.pgvectorLocal`, the
-  loopback RAG stack; `modules/shared/mcp.nix` consumes `services.pgvectorLocal.databaseUri`.
+- **`modules/features/local-rag/`** (an IN-TREE CAPSULE — extracted from this repo to
+  `kattakath/nix-local-rag` on 2026-08 and absorbed back by ADR-002 wave 6, the last
+  satellite) — `services.ollamaLocal` + `services.pgvectorLocal`, the loopback RAG stack
+  (launchd Postgres+pgvector+pgsql-http, a local Ollama embed model, and the in-DB `embed()`
+  that makes retrieval plain SQL). Threaded in as `localRagModule` through the RAW
+  `capsuleModules` seam. **It measured drv-identical on BOTH seams** — unlike keychain-secrets
+  it contributes nothing to `home.packages` directly — and rides the raw one anyway for
+  consistency and because order-insensitivity here is a property of today's contents, not of
+  the class; the reasoning is in its `flake-module.nix` header.
+
+  The seam that matters is `services.pgvectorLocal.databaseUri`: `modules/shared/mcp.nix`
+  hands it to the `postgres` MCP server as `env.DATABASE_URI`, which is the career RAG's only
+  path to Claude Code. `checks.<system>.local-rag-module` pins that URI as a **literal** so a
+  port/role/db rename fails there instead of silently returning zero rows, and
+  `local-rag-inert` is the kill-switch gate — both switches unset must contribute nothing,
+  which is the state `nixpi`/`nixvm` are in since `modules/shared/home.nix` imports it
+  unconditionally. There is deliberately **no** wrapping `programs.localRag.enable`
+  (ADR-002 §4's "two-switch regression"). It registers no packages: everything it installs is
+  nixpkgs', reached through `home.packages` from inside the two modules.
+
+  It was the only satellite with a SECOND consumer — `ircc-whatsapp-bot` pinned it too, which
+  is why that unpin (ircc grew a `botOnly` output) was an ADR-002 wave-0 prerequisite rather
+  than part of the absorption diff.
 - **`modules/features/media-cli/`** (an IN-TREE CAPSULE — it was extracted from this repo to
   `kattakath/nix-media-cli` on 2026-09-05 and absorbed back by ADR-002 wave 5) —
   `programs.mediaCli`, the eleven media CLIs + the launchd work queue + the Finder Services,

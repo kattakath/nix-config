@@ -197,16 +197,23 @@
     # than drop. Same rev, third fetch of a two-file repo otherwise.
     deploy-rs.inputs.utils.inputs.systems.follows = "terranix/systems";
 
-    # local-rag — the local-first RAG stack (loopback launchd Postgres+pgvector +
-    # a local Ollama embed model + an in-DB embed() function for plain-SQL RAG),
-    # EXTRACTED FROM THIS REPO into a standalone MIT flake
-    # (github.com/kattakath/nix-local-rag). The macos host consumes its two
-    # home-manager modules (services.ollamaLocal + services.pgvectorLocal) instead
-    # of the vendored modules/shared/{ollama,postgres-pgvector}.nix — dogfooding.
-    local-rag.url = "github:kattakath/nix-local-rag";
-    local-rag.inputs.nixpkgs.follows = "nixpkgs";
-    local-rag.inputs.home-manager.follows = "home-manager";
-    local-rag.inputs.flake-parts.follows = "flake-parts";
+    # (local-rag was an input here until ADR-002 wave 6 ABSORBED it as a capsule
+    # — modules/features/local-rag/. The local-first RAG stack: a loopback
+    # launchd Postgres+pgvector, a local Ollama embed model, and the in-DB
+    # embed() function that makes retrieval plain SQL. Same two home-manager
+    # modules (services.ollamaLocal + services.pgvectorLocal), now reached
+    # through the flake's own capsule registry instead of a fetch.
+    #
+    # It was the LAST satellite, and the last `follows = "flake-parts"` line —
+    # see docs/repo-map.md § flake.lock, which tracked that row shrinking as
+    # each capsule landed. It was also the only one with a cross-repo consumer:
+    # ircc-whatsapp-bot pinned it too, which is why ADR-002 wave 0 made that
+    # unpin (ircc grew a `botOnly` output) a prerequisite rather than part of
+    # this diff.
+    #
+    # `services.pgvectorLocal.databaseUri` — the seam modules/shared/mcp.nix
+    # hands the `postgres` MCP server, i.e. the whole career RAG — is unchanged
+    # and pinned as a literal by the capsule's own check.)
 
     # (vast-provision was an input here until ADR-002 wave 4 ABSORBED it as a
     # capsule — modules/features/vast-provision/. Same six `vast-*` CLIs, same
