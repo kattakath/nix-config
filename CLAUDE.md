@@ -128,7 +128,7 @@ One line per path; the *why* and the per-file specifics are in
 
 | Path | What it owns |
 |---|---|
-| `flake.nix` | **Inputs/pins and ONE `flake-parts.lib.mkFlake` call — nothing else** (404 lines, was 2,254; ADR-002 wave 2). Every output lives in `modules/parts/`. `flake-parts` is a DIRECT input and its `nixpkgs-lib` **cannot** be `follows = ""`. |
+| `flake.nix` | **Inputs/pins and ONE `flake-parts.lib.mkFlake` call — nothing else** (was 2,254 lines before ADR-002 wave 2; a fraction of that now). Every output lives in `modules/parts/`. `flake-parts` is a DIRECT input and its `nixpkgs-lib` **cannot** be `follows = ""`. |
 | `flake.lock` | Pinned revisions — bump only via `nix flake update` / `/update-input`, never hand-edit. Held at **56 nodes** (was 69 pre-ADR-002) by a `follows` diet plus the capsule absorption; **no satellite input survives**. A `follows` edit is **shape-only** (`nix flake lock`, never a bare `nix flake update`) and `follows = ""` REBINDS to this flake rather than removing. Per-wave node accounting + the deliberate duplicates: [`docs/repo-map.md`](docs/repo-map.md) § `flake.lock`. |
 | `treefmt.nix` | Single source of truth for format + lint-fix (tools that REWRITE); drives `nix fmt`, the CI gate, and the pre-commit hook. |
 | `sgconfig.yml` + `ast-grep/` | Report-only structural lint (ast-grep): `rules/` mechanises prose conventions **and the capsule boundary** (`capsule-must-not-reach-out`), `rule-tests/` proves they fire. Gated by `checks.<system>.ast-grep`, **not** treefmt. |

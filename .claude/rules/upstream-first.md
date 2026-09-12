@@ -1,3 +1,13 @@
+---
+# Scoped per docs/en/memory § Path-specific rules: an unscoped rule loads at
+# session launch at CLAUDE.md priority, and this repo already gates CLAUDE.md at
+# 40,000 chars — a budget the rules directory bypassed entirely.
+# The rule fires when custom Nix is about to be written, so the .nix glob is its
+# actual trigger rather than a proxy for one.
+paths:
+  - "**/*.nix"
+---
+
 # Upstream First — Grep the Pinned Option Surface Before Writing Custom Nix
 
 **Before proposing or writing any custom Nix, you MUST first grep the pinned input's own

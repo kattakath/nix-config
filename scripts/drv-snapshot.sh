@@ -45,14 +45,15 @@ done
 # These change on EVERY commit for reasons that have nothing to do with a wave,
 # and a harness that flags them gets disabled within a day:
 #
-#   formatting / ast-grep / userscripts / page-lab — take `self` as a source
-#     input, so their drv hash tracks the working tree, not their definition.
+#   formatting / ast-grep / userscripts / page-lab / pre-commit — take `self`
+#     as a source input, so their drv hash tracks the working tree, not their
+#     definition.
 #   apps.macos — an activation app built from `self`.
 #
 # Excluded here means "compared by NAME only": their presence and absence still
 # registers, only their hash is ignored.
 EXCLUDE_RE='^(formatting|ast-grep|userscripts|page-lab|pre-commit)$'
-EXCLUDE_PKG_RE='^(macos$)'
+EXCLUDE_PKG_RE='^macos$'
 
 emit() { # emit <label> <expr>  — prints "label<TAB>drvpath" or "label<TAB>ERROR"
   local label="$1" expr="$2" v
