@@ -1223,7 +1223,8 @@ Smaller, single-purpose CLIs:
   (`list|pair|connect|disconnect|unpair|tcpip|wireless|mirror|doctor`) plus scrcpy mirroring
   for a PHYSICAL Android device; hardens around two live-reproduced adb bugs, an mDNS-cache
   staleness and duplicate-transport device listings. Its operator knowledge is also a GLOBAL
-  skill, `skills/android-phone`.
+  skill — `android-phone` in the pinned
+  [`kattakath/claude-skills`](https://github.com/kattakath/claude-skills).
 - **The media packages are NOT here — they are in the `media-cli` capsule.**
   `media-quick-actions.nix`, `media-queue.nix`, `media-toolkit.nix`, `media-describe.nix`,
   `media.nix`, `media-fix.nix`, `media-fix-extension.nix`, `media-extract-audio.nix` and
@@ -1265,22 +1266,32 @@ Smaller, single-purpose CLIs:
   login Keychain at run time — wired only via `home.packages`, no matching flake app.
 - **`design-tokens/`** / **`email-signature/`** — small self-contained build-script-backed
   packages for their respective assets.
-## `userscripts/` — the PUBLIC Violentmonkey scripts
+## Userscripts — the PUBLIC Violentmonkey scripts (EXTRACTED 2026-09-12)
 
-Plain `.user.js` files, one per site, referenced by name from
-`modules/shared/home.nix`'s `programs.ungoogledChromium.userScripts.scripts`. The option, the
-materialisation, and the reason Chromium allows nothing more declarative all live in
+Plain `.user.js` files, one per site. They no longer live in this tree: they are
+`github:kattakath/userscripts`, pinned as the `kattakath-userscripts` input and referenced by
+name from `modules/shared/home.nix`'s `programs.ungoogledChromium.userScripts.scripts`
+(`"${kattakath-userscripts}/<name>.user.js"` — a string, which satisfies the option's `path`
+type because it is absolute). The option, the materialisation, and the reason Chromium allows
+nothing more declarative all live in
 [`modules/shared/chromium.nix`](../modules/shared/chromium.nix) — see § `chromium.nix` above.
-Private counterparts live in nix-personal's own `userscripts/` and merge into the same attrset
-([`private-home-modules.md`](private-home-modules.md)); **keys must not collide across the two
-repos.** Those private scripts are **NOT gated** — `checks.<system>.userscripts` globs
-`${self}/userscripts/*.user.js`, i.e. this tree only, and owning the *option* buys the consumer
-nothing. Measured 2026-08-31: nix-personal's `civitai-declutter` had shipped with **no
-`@license`** and the check never saw it. A private script is gated only by running the same
-assertions by hand.
+Why they left: [`agent-resource-externalization.md`](agent-resource-externalization.md).
+
+Private counterparts are `gitlab:ismailkattakath/userscripts`, pinned by **nix-personal**, and
+merge into the same attrset ([`private-home-modules.md`](private-home-modules.md)); **keys must
+not collide across the two repos.**
+
+**Both halves are gated now, one gate per visibility.** `checks.<system>.userscripts` runs the
+page-lab linter against the `kattakath-userscripts` input; nix-personal runs the same linter
+against its own pinned private input. This is the fix for a measured hole: the check used to
+glob `${self}/userscripts/*.user.js` — this tree only — while this repo owned the *option* for
+both layers, and owning an option buys the consumer nothing. Measured 2026-08-31,
+nix-personal's `civitai-declutter` had shipped with **no `@license`** and the check never saw
+it. A public check still cannot read a private input, so the split is structural; what changed
+is that the private side now has a gate of its own instead of a by-hand ritual nobody ran.
 
 **Authoring path — two layers since 2026-09-06, driven by `/userscript`; never freehand.**
-The **method** is the portable [`plugins/page-lab`](../plugins/page-lab/)
+The **method** is the portable [`page-lab` plugin](https://github.com/kattakath/claude-plugins/tree/main/plugins/page-lab)
 (probes, patterns, Greasy Fork rulebook, the metadata linter — it knows nothing about Nix); the
 **delivery** is the project skill
 [`userscript-author`](../.claude/skills/userscript-author/SKILL.md) (the `home.nix` line, the
@@ -1295,8 +1306,8 @@ and the state you want:
 | **STATE-B-UNREACHABLE** | the state does not exist; you are constructing UI | every invented selector carries its own measured line in the file's WHY block |
 
 The metadata block is **seeded from an already-gated script**, never hand-typed, so the contract
-lives in exactly one place — which `checks.<system>.userscripts` proves on every PR **for scripts
-in this tree**, and for a private one only if you mirror it by hand (above). Escalation is
+lives in exactly one place — which `checks.<system>.userscripts` proves on every PR for the
+public input, and nix-personal's own check proves for the private one (above). Escalation is
 mechanical, not a judgment call: at a **4th script**, the first TS/JSX need, or `GM_*` plus a
 settings UI, the skill **stops** and proposes adopting `vite-plugin-monkey` as its own PR — this
 tree never grows a bundler of its own, and never commits minified output.
@@ -1489,53 +1500,71 @@ PINNED `flake = false` inputs (`agent-skills-vercel` = vercel-labs/skills → `f
 `agent-skills-anthropic` = anthropics/claude-code → the plugin-dev + hookify authoring skills),
 **NOT vendored**; `nix flake update` bumps them.
 
-A small exception is **vendored in-repo**: the top-level `skills/` directory holds skills wired
-into the same `programs.claude-code.skills` option alongside the flake-input-sourced ones —
-forks of upstream skills that needed a local patch (`skills/rag`) plus originals
-authored here:
+**Since 2026-09-12 the operator's own skills are on that same rail.** `rag`,
+`android-phone` and `nix-dev-toolkit` were extracted to
+[`github:kattakath/claude-skills`](https://github.com/kattakath/claude-skills) and are pinned as `kattakath-claude-skills`, so the
+only difference between "someone else's skill" and "mine" is now who can push to the repo
+([`agent-resource-externalization.md`](agent-resource-externalization.md)):
+
+- **`rag`** — local RAG over the pgvector store: how to ingest and query via the `postgres`
+  MCP server and the in-DB `embed()` function (the local-rag capsule's
+  `services.pgvectorLocal` + `services.ollamaLocal`).
+- **`android-phone`** — operator knowledge for `packages/android-phone.nix`, global so ADB
+  sessions launched from ANY directory know the wrapper's command surface and adb footguns,
+  not just sessions rooted in this repo.
+- **`nix-dev-toolkit`** — how to make *another* repo self-sufficient with Nix: a working
+  `flake.nix` template + `.envrc` (`assets/`), the env-catalogue pattern, a project-local
+  Postgres+pgvector stack, and `nix run .#<verb>` lifecycle apps (`references/`). Global
+  precisely because the point is to apply it to a repo that does **not** have it yet — its
+  `stack-up`/`deploy-prod`/`env-doctor` app names are the template's, **not** flake apps of
+  this repo. Carries the Nix/Postgres/Prisma traps (`withPackages` union prefix, socket port,
+  the macOS socket-length cap).
+
+**One tree stays vendored, deliberately** — the top-level `skills/` directory:
 
 - **`skills/{explain,compare,map,zoom,why,tldr,diagram}`** — the Brain Signals `/explain`
   family: seven one-file skills that encode the same answer shape as the output style at
   command granularity, which is why they are wired from `modules/shared/claude-brain.nix`
-  rather than `home.nix`'s big skills block. Declared as RAW path literals, not `"${…}"`
+  rather than `home.nix`'s big skills block — and why they did **not** follow the other three
+  out. They are one kit with that output style; splitting them across two repos would let the
+  two halves drift with nothing to catch it. Declared as RAW path literals, not `"${…}"`
   strings: upstream branches on that (its `mkSkillEntry`) — a real path becomes a plain
   recursive `home.file` entry, a path-like string gets an extra `runCommandLocal` symlink farm.
-- **`skills/android-phone`** — operator knowledge for `packages/android-phone.nix`, global so
-  ADB sessions launched from ANY directory know the wrapper's command surface and adb
-  footguns, not just sessions rooted in this repo.
-- **`skills/nix-dev-toolkit`** — how to make *another* repo self-sufficient with Nix: a
-  working `flake.nix` template + `.envrc` (`assets/`), the env-catalogue pattern, a
-  project-local Postgres+pgvector stack, and `nix run .#<verb>` lifecycle apps
-  (`references/`). Global precisely because the point is to apply it to a repo that does
-  **not** have it yet — its `stack-up`/`deploy-prod`/`env-doctor` app names are the
-  template's, **not** flake apps of this repo. Carries the Nix/Postgres/Prisma traps
-  (`withPackages` union prefix, socket port, the macOS socket-length cap).
 
-### `plugins/`
+### The operator's marketplace (EXTRACTED 2026-09-12)
 
-This repo's OWN Claude Code plugin marketplace (`kattakath-nix-config`), the third alongside
-`xai-grok-build` (pinned flake input) and `claude-plugins-official` (HTTPS).
-`plugins/.claude-plugin/marketplace.json` lists each in-repo plugin; `modules/shared/home.nix`
-declares it as one entry of `local.claudePlugins.marketplaces`, pinned as a **Nix source path**
-(`source = "${../../plugins}"`, a literal that must stay in the repo that owns the tree), and
-`modules/shared/claude-plugins.nix` registers it and installs its derived
-`<plugin>@kattakath-nix-config` ids through the one `home.activation.claudeCodePlugins` script
-every marketplace shares. Because it is a source path, the store path changes whenever plugin
-content changes — the entry's `repin` (defaulted true for any `/`-prefixed source) keys the
-marketplace re-pin (and a reinstall of the copies under `~/.claude/plugins/cache`) off exactly
-that, so an in-repo plugin can never serve a previous generation's content.
+The operator's OWN Claude Code plugin marketplace is
+[`github:kattakath/claude-plugins`](https://github.com/kattakath/claude-plugins) — **not a tree in this repo** since 2026-09-12
+([`agent-resource-externalization.md`](agent-resource-externalization.md)). It is pinned as
+the `kattakath-claude-plugins` input and is the third marketplace alongside `xai-grok-build`
+(also a pinned input) and `claude-plugins-official` (HTTPS).
 
-Today, three:
+That repo's `.claude-plugin/marketplace.json` lists its plugins with `./plugins/<name>`
+relative sources — the shape every owner-operated marketplace on GitHub uses, measured;
+external `{{source:github,…,sha}}` entries are what *catalogs* need, and this is not one.
+`modules/shared/home.nix` declares it as the `kattakath` entry of
+`local.claudePlugins.marketplaces` with `source = "${{kattakath-claude-plugins}}"` — an input's
+**store path**, which carries none of the relative-literal trap the old `"${{../../plugins}}"`
+form did, because a store path is absolute and means the same thing from any file in any
+flake. `modules/shared/claude-plugins.nix` registers it and installs the derived
+`<plugin>@kattakath` ids through the one `home.activation.claudeCodePlugins` script every
+marketplace shares.
 
-- **`plugins/llmstxt`** — `llms.txt` authoring skill + `/llmstxt` command + a stdlib-only spec
-  linter; see `plugins/llmstxt/README.md`.
-- **`plugins/page-lab`** — userscript authoring AND live-page diagnosis in one unit: the
+`repin` still defaults true (the source starts with `/`) and is still load-bearing: the store
+path moves on every content bump and `plugin install` COPIES into `~/.claude/plugins/cache`,
+so without the re-pin a bump would serve a previous generation's content forever.
+
+Two plugins:
+
+- **`llmstxt`** — `llms.txt` authoring skill + `/llmstxt` command + a stdlib-only spec
+  linter; see the plugin's own `README.md` in [`kattakath/claude-plugins`](https://github.com/kattakath/claude-plugins).
+- **`page-lab`** — userscript authoring AND live-page diagnosis in one unit: the
   measure-before-you-select method, four browser probes, the pre-vetted code patterns, the
   Greasy Fork rulebook, the GM_* portability matrix, a two-way element **picker**, CDP
   diagnosis (performance / network / console), the `/userscript` + `/devtools` + `/pick`
   commands, and `scripts/userscript-meta-lint.sh`. **`checks.<system>.userscripts` runs that
-  same linter**, so CI, the plugin's own users, and a by-hand run over nix-personal's private
-  scripts share ONE rulebook and cannot drift.
+  same linter** (from the pinned input), as does nix-personal's own userscripts gate, so CI,
+  the plugin's own users and both userscript repos share ONE rulebook and cannot drift.
   **Merged 2026-09-07 from `userscript-author` + `chrome-devtools`.** They were split on
   2026-09-06 and cross-referenced, which held only while neither needed the other mid-motion.
   The verb that broke it is **pick**: the operator points at an element, the agent measures
@@ -1560,20 +1589,31 @@ Today, three:
   carries the live `webSocketDebuggerUrl` — and falls back to the file only when nothing
   answers, which is precisely when the file is fresh. Hence **both** a `port` (probe hint) and
   a `userDataDir` option.
-- **`plugins/seargraph`** — the `seargraph-langgraph` **subagent** (LangGraph pipeline
-  design/implementation for the SEARGraph project: fidelity metrics, constrained optimization,
-  iterative refinement, character embeddings). It is a plugin rather than a vendored skill
-  as a SCOPING choice, not a structural necessity — corrected 2026-09-06, the earlier claim
-  that "only a plugin can ship a subagent" is false. The pinned home-manager DOES expose
-  `programs.claude-code.agents` (modules/programs/claude-code/options.nix:215, an
-  `agentsDir` at :341, written by default.nix:334,:337 through lib.nix:38-42 to
-  `${configDir}/agents/<name>.md`). What that option cannot do is scope the agent: it
-  installs GLOBALLY into `~/.claude/agents/`, whereas a plugin is enabled per-project.
+
+**`seargraph` was deleted, not moved into that repo (2026-09-12).** It was the
+`seargraph-langgraph` subagent (LangGraph pipeline design for the private SEARGraph project:
+fidelity metrics, constrained optimization, iterative refinement, character embeddings),
+wrapped in a plugin as a SCOPING choice — corrected 2026-09-06, the earlier claim that "only a
+plugin can ship a subagent" is false. The pinned home-manager DOES expose
+`programs.claude-code.agents` (modules/programs/claude-code/options.nix:215, an `agentsDir` at
+:341, written by default.nix:334,:337 through lib.nix:38-42 to `${configDir}/agents/<name>.md`).
+What that option cannot do is scope the agent: it installs GLOBALLY into `~/.claude/agents/`.
+
+The scoping reasoning was right and the mechanism was wrong. **A project's own
+`.claude/agents/` is the canonical way to scope an agent** — no plugin, no marketplace entry,
+no Nix wiring, and it cannot be loaded in sessions that have nothing to do with that project.
+The file now lives at `SEARGraph/.claude/agents/seargraph-langgraph.md`.
+
 Adding one = a `plugins/<name>/` tree with `.claude-plugin/plugin.json` + a `marketplace.json`
-entry + its bare name in `local.claudePlugins.marketplaces.kattakath-nix-config.plugins`;
-validate with `claude plugin validate --strict`. A
-**skill** that needs no command/hook/MCP/agent surface still belongs in top-level `skills/` —
-reach for a plugin only when the unit is more than a skill.
+entry **in that repo**, then `nix flake update kattakath-claude-plugins` here and its bare name
+in `local.claudePlugins.marketplaces.kattakath.plugins`; validate with
+`claude plugin validate --strict`. Iterate without the push/update loop via
+`nix flake check --override-input kattakath-claude-plugins path:../claude-plugins`.
+
+A **skill** that needs no command/hook/MCP/agent surface belongs in
+[`kattakath/claude-skills`](https://github.com/kattakath/claude-skills), not in a plugin —
+reach for a plugin only when the unit is more than a skill. An agent for ONE project belongs
+in that project's `.claude/agents/`, per the seargraph record above.
 
 ### Project memory
 
