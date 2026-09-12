@@ -281,8 +281,11 @@ closed by removal, at none of the cost that was declined.
    (the free Universal cert covers `*.kattakath.com`, one label only).
 2. ~~Which servers to publish first~~ — **`memory` + `sequential-thinking`**. Both tokenless.
 3. **Does anything belong on `nixpi` instead**, given §6's uptime limit? Still open.
-4. **Add Grok's redirect URI** to the portal allowlist? Now the *only* way Grok can reach any of
-   this — §7 removed its direct path. Still open, and now load-bearing rather than optional.
+4. ~~Add Grok's redirect URI to the portal allowlist~~ — **done 2026-09-12**, `https://grok.com/*`.
+   §7 removed Grok's direct path, so the portal is its only door, and `grok.com/connectors` takes
+   a URL with no header field — which rules the service-token origin out for it entirely. The
+   client URL for any cloud client is the PORTAL, `https://mcp.kattakath.com/mcp`, never
+   `connector.kattakath.com`.
 5. ~~Prune two stale `playground-*` OAuth clients in `OAUTH_KV`~~ — **moot**: nothing reads that
    namespace any more. Deleting the namespace itself is a separate destructive step, not done.
 
