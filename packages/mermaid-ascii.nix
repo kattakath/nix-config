@@ -13,16 +13,16 @@
 }:
 buildGoModule rec {
   pname = "mermaid-ascii";
-  version = "1.4.0";
+  version = "1.6.1";
 
   src = fetchFromGitHub {
     owner = "AlexanderGrooff";
     repo = "mermaid-ascii";
     rev = version; # upstream tags are bare "1.4.0" (no leading v)
-    hash = "sha256-BAO0WnKbkHTkoZRZFtPuMiJvOcfBndeoShEym1QrFzs=";
+    hash = "sha256-KYCJIgLwjJR5RM1AdGrV47UhFgpLqwro42E54pzhYWE=";
   };
 
-  vendorHash = "sha256-aB9sbTtlHbptM2995jizGFtSmEIg3i8zWkXz1zzbIek=";
+  vendorHash = "sha256-S/K6W8KC6YzwZPioucoiwOMd29LPv0J22T3MS0X+W5g=";
 
   meta = {
     description = "Render Mermaid graphs as ASCII in your terminal";
