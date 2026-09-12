@@ -357,6 +357,29 @@ let
   # the gateway config via mkConfig's `settings.servers` (telegram appended below,
   # opt-in). The 12 base ones fall back to pinned npx/uvx launchers; postgres and
   # wordpress are special (pinned version + Keychain-injected env via a wrapper).
+  # cloudflared connector for the PUBLISHED gateway. arg0 is a nix-* wrapper per
+  # .claude/rules/launchd-naming.md (hm-launchd would rewrite it anyway, but the
+  # token read has to happen somewhere and a wrapper is that somewhere).
+  #
+  # The connector token is read from the login Keychain AT LAUNCH, so it is never
+  # in argv, never in the /nix/store, and never in this file — the same
+  # passwordCommand shape context7/github use. Store it after the terranix apply
+  # prints it:  secret set cf:cloudflare.com:mcp-connector
+  mcpTunnelConnector = pkgs.writeShellScriptBin "nix-mcp-tunnel-connector" ''
+    set -euo pipefail
+    TUNNEL_TOKEN="$(/usr/bin/security find-generic-password -a "$(id -un)" \
+      -s cf:cloudflare.com:mcp-connector -w 2>/dev/null || true)"
+    if [ -z "$TUNNEL_TOKEN" ]; then
+      echo "nix-mcp-tunnel-connector: no token in the login Keychain under" >&2
+      echo "  cf:cloudflare.com:mcp-connector" >&2
+      echo "Run the terranix apply for infra/cloudflare/mcp-public.nix, then:" >&2
+      echo "  secret set cf:cloudflare.com:mcp-connector" >&2
+      exit 1
+    fi
+    export TUNNEL_TOKEN
+    exec ${lib.getExe pkgs.cloudflared} --no-autoupdate tunnel run
+  '';
+
   customStdioServers = {
     duckduckgo = {
       command = uvx;
@@ -1046,6 +1069,19 @@ in
         };
         StandardOutPath = "${config.home.homeDirectory}/Library/Logs/mcp-gateway-public.log";
         StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/mcp-gateway-public.log";
+      };
+    };
+
+    # The connector that makes :8097 reachable. Same gate as the gateway agent, so
+    # an empty `public` list creates neither — no process, no tunnel, no exposure.
+    launchd.agents.mcp-tunnel-connector = lib.mkIf (cfg.public != [ ]) {
+      enable = true;
+      config = {
+        ProgramArguments = [ (lib.getExe mcpTunnelConnector) ];
+        RunAtLoad = true;
+        KeepAlive = true;
+        StandardOutPath = "${config.home.homeDirectory}/Library/Logs/mcp-tunnel-connector.log";
+        StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/mcp-tunnel-connector.log";
       };
     };
 
