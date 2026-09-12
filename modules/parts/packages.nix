@@ -52,6 +52,18 @@ in
         # CDP client would otherwise need --experimental-websocket; nodejs_22 removes the
         # flag from the fleet path. See packages/page-lab-pick.nix for why this exists at
         # all when `node <the script>` already works.
+        # `superhook` / `superhook-digest` — the hook supervisor as CLIs, so
+        # `.claude/settings.json` can name a bare command instead of a store path it
+        # cannot hold. Scripts come from the same pinned marketplace input as the
+        # plugins. See packages/superhook.nix for why this is not a plugin hook.
+        inherit
+          (pkgs.callPackage ../../packages/superhook.nix {
+            superhookSrc = "${inputs.kattakath-claude-plugins}/plugins/superhook";
+          })
+          superhook
+          superhook-digest
+          ;
+
         page-lab-pick = pkgs.callPackage ../../packages/page-lab-pick.nix {
           # The plugin tree comes from the pinned input, not from this repo — see
           # flake.nix `kattakath-claude-plugins`.

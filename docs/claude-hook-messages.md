@@ -18,10 +18,10 @@ the decoder: **scan the first keywords of the message, not the harness label.**
 
 - The harness prefixes every non-approve hook outcome with "error", including deliberate
   DENY/block decisions.
-- `type: "prompt"` hooks (the Write|Edit gate) cannot be wrapped by `superhook.js`, and
+- `type: "prompt"` hooks (the Write|Edit gate) cannot be wrapped by `superhook`, and
   their full prompt is echoed in the rendering — the verdict hides at the end. Shortening
   the rubric would trade judge accuracy for cosmetics; not worth it.
-- Command hooks under `superhook.js` always self-identify (`superhook:` / `stop-gate`),
+- Command hooks under `superhook` always self-identify (`superhook:` / `stop-gate`),
   fail open on crashes, and break identical-reason loops after 3 hits — a hook problem is
   therefore loud but never session-fatal.
 
