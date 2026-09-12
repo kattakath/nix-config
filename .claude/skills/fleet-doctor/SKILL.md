@@ -34,11 +34,9 @@ archived its repo, so sweeping it would report stale branches nobody can merge.
 A satellite still on disk is a working copy that outlived its remote — do not
 re-add it.
 
-**Not every listed repo is a flake.** `provisioner-template` and
-`hyperframes-selfhost` carry no `flake.nix` by design, so the flake-shaped steps
-below (lock freshness, `nix flake check`) do not apply to them — skip that step
-for those repos rather than reporting a failure. Their git, branch, PR and CI
-checks still apply normally.
+**Every listed repo is a flake now.** The manifest is down to the two composition
+repos, so every flake-shaped step below (lock freshness, `nix flake check`) applies
+to every member — there is no longer a flake-less member to skip.
 
 ## Modes
 
