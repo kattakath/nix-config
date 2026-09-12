@@ -111,14 +111,26 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
 - [ ] `writeShellApplication` for scripts; shellcheck via that path.
 - [ ] No new `environment.etc` hacks for things nix-darwin models.
 - [ ] Determinate Nix: no `nix.enable = true` / no hand-written `nix.custom.conf`.
-- [ ] Small supporting flakes (ircc-whatsapp-bot, nix-mcp-gateway, and any new
-      extraction — the seven satellites are now in-tree capsules, ADR-002) use
-      flake-parts, not hand-rolled `forAll`/`forAllSystems` boilerplate — see
-      `docs/flake-architecture-strategy-adr.md`. A new one scaffolded without it,
+- [ ] **flake-parts everywhere, including here.** The small supporting flakes that
+      remain (ircc-whatsapp-bot, nix-mcp-gateway, and any new one) use flake-parts,
+      not hand-rolled `forAll`/`forAllSystems` boilerplate — ADR-001
+      (`docs/flake-architecture-strategy-adr.md`). A new one scaffolded without it,
       or an old hand-rolled pattern creeping back in via copy-paste, is a finding.
-      **`nix-config`'s own core engine is explicitly out of scope** — the ADR
-      decided against migrating it; don't flag `forAllSystems`/`mkDarwin`/`mkNixos`
-      here as hygiene debt.
+      **`nix-config`'s own engine is no longer the exception.** ADR-001 §2 said
+      "do not migrate the core engine"; ADR-002
+      (`docs/monoflake-capsule-adr.md`) superseded that and wave 2 did the
+      migration, so a surviving `forAllSystems` fold or a new `genAttrs systems`
+      in this repo IS hygiene debt now. The engine is `modules/parts/*.nix`,
+      one flake-parts module per concern, discovered by `import-tree`.
+- [ ] **Capsule boundary.** Anything under `modules/features/<name>/` is a capsule:
+      `flake-module.nix` is the only file outside code may import, and nothing in
+      the directory may reach out with a `..` path literal. That is enforced by
+      `ast-grep/rules/capsule-must-not-reach-out.yml` + `checks.<system>.capsule-registry`,
+      so a violation is a build failure, not a review finding — but a capsule that
+      smuggles a value out through `specialArgs`, an overlay, or a runtime-built
+      store path is invisible to both gates (ADR-002 §7.6) and IS a finding here.
+      Never widen the seam to make red go green; add a typed engine seam
+      (`fleet.*` in `modules/parts/`) instead, the way `fleet.vastRawServed` does.
 
 ### F. Mechanical gate (mandatory after fixes)
 
