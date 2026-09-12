@@ -139,11 +139,11 @@ One line per path; the *why* and the per-file specifics are in
 | `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix` (`local.folders.*` — inbox paths; unset = system default), `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`services.macosGithubRunner` — LIVE on `macos`, see § Configuration). |
 | `modules/nixos/` | `core.nix` (user + keys-only **loopback-bound** sshd with `openFirewall = false` + a firewall that opens **no** TCP port + avahi + nix-ld + zram + GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). |
 | `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `key-recovery`, `spotlight-launchers`, plus single-purpose CLIs (`android-phone`, `jsonresume`, `mermaid-ascii`, `claude-otel-doctor`, …). Root `bootstrap.sh` is the no-Nix stage 1. The media/photo CLIs are **not here** — they live in the `media-cli` capsule. |
-| `userscripts/` | The **public** Violentmonkey `.user.js` scripts, declared by name in `modules/shared/home.nix`; authored via the portable `plugins/page-lab` (method + picker + diagnosis) + project skill `userscript-author` (Nix declaration), gated by `checks.<system>.userscripts` — which **runs the plugin's own linter**, so the Greasy Fork rulebook lives once. Private ones merge in from nix-personal — keys must not collide, and that tree is **not** covered by the gate. Mechanism + why Chromium allows nothing declarative: `modules/shared/chromium.nix`. |
+| *(userscripts — EXTRACTED)* | The public `.user.js` scripts live in the pinned input `kattakath-userscripts` (`github:kattakath/userscripts`) since 2026-09-12, declared by name in `modules/shared/home.nix`; authored via the portable `page-lab` plugin (method + picker + diagnosis) + project skill `userscript-author` (Nix declaration), gated by `checks.<system>.userscripts`, which **runs the plugin's own linter against that input** — the Greasy Fork rulebook lives once and the gate followed the content out. Private ones merge in from nix-personal, which pins its own `gitlab:ismailkattakath/userscripts` and runs the same linter — keys must not collide across the two. Mechanism + why Chromium allows nothing declarative: `modules/shared/chromium.nix`. |
 | `infra/` | terranix (Nix → Terraform JSON): `cloudflare/nixpi-tunnel.nix`, `cloudflare/mcp-public.nix` (the published MCP stack — tunnel, origin hostname, Access app + service token, portal registrations). Applied only via the `cf-*` / `mcp-public-*` apps. |
 | `secrets/` | agenix recipients (`secrets.nix`) + the operator pubkey (`operator-key.nix`, single-sourced into both recipients and `authorizedKeys`) + **four** ciphertexts: `cloudflared-token.age` (operator-only) and three host-decrypted on `macos` — `gh-app-dontsell-ai-key.age`, `gh-app-fleet-key.age`, `gitlab-runner-token.age`. |
-| `skills/` | **Global** Claude Code skills vendored here (forks needing a patch + originals): `rag`, `android-phone`, `nix-dev-toolkit`, plus the Brain Signals `/explain` family (`explain`, `compare`, `map`, `zoom`, `why`, `tldr`, `diagram`). Most global skills instead come from pinned `flake = false` inputs. |
-| `plugins/` | This repo's own Claude Code plugin marketplace (`kattakath-nix-config`); today `plugins/llmstxt`, `plugins/seargraph`, `plugins/page-lab`. Declared as DATA in `local.claudePlugins.marketplaces` (`modules/shared/home.nix`), registered + installed by `modules/shared/claude-plugins.nix`. Reach for a plugin only when the unit is more than a skill (a command, hook, MCP server, or `agents/`) **or is meant to be publishable outside the fleet**. |
+| `skills/` | **Global** Claude Code skills still in-tree: ONLY the Brain Signals `/explain` family (`explain`, `compare`, `map`, `zoom`, `why`, `tldr`, `diagram`) — they are one kit with the output style in `modules/shared/claude-brain.nix` and are declared there, next to what they encode. `rag`, `android-phone` and `nix-dev-toolkit` were **extracted 2026-09-12** to `github:kattakath/claude-skills` and pinned back as `kattakath-claude-skills`. Every other global skill already came from a pinned `flake = false` input; these now do too, so the rail is uniform. |
+| *(plugins — EXTRACTED)* | The operator's own marketplace is `github:kattakath/claude-plugins` (`llmstxt`, `page-lab`), pinned as `kattakath-claude-plugins` and registered from that input's **store path** since 2026-09-12 — there is no `plugins/` tree here any more. Still declared as DATA in `local.claudePlugins.marketplaces` (`modules/shared/home.nix`) and installed by `modules/shared/claude-plugins.nix`; only the `source` moved. `seargraph` is gone entirely — a project-specific agent belongs in that project's `.claude/agents/`, which is where it now lives. Reach for a plugin only when the unit is more than a skill (a command, hook, MCP server, or `agents/`) **or is meant to be publishable outside the fleet** — and if it is publishable, publish it: see [`docs/agent-resource-externalization.md`](docs/agent-resource-externalization.md). |
 | `.claude/` | Project agent config — see the two tables below. |
 | `claude/` + `qwen/` | The **global** (all-projects) agent context this repo installs on `macos`: `claude/CLAUDE.md` → `~/.claude/CLAUDE.md` (via `programs.claude-code.context`), the Brain Signals kit under `claude/{output-styles,agents,commands,rules}/` (via `claude-brain.nix`), and `qwen/QWEN.md` → `~/.qwen/QWEN.md`. All wired from `modules/shared/home.nix`; do not confuse any of them with **this** file, which is project-scoped. |
 | `.github/workflows/` | `nix-ci.yml` (2 hosted legs), `auto-merge.yml`, `build-devcontainer.yml`, `build-installers.yml`, `claude*.yml`, `gitleaks.yml`, `flakehub-publish.yml`, `update-flake-lock.yml` (the weekly lock bump). |
@@ -152,7 +152,7 @@ One line per path; the *why* and the per-file specifics are in
 **Commands** (`.claude/commands/`): `/eval`, `/hygiene`, `/update-input`, `/superhook-review`,
 `/pretooluse-review`, `/remember-nix`, `/gmail-account`, `/routing-review`,
 `/mcp-scout`, `/fleet-doctor`, `/userscript`. (`/devtools` and `/pick` are **not** here —
-they ship from the `plugins/page-lab` marketplace.)
+they ship from the `page-lab` plugin in `github:kattakath/claude-plugins`.)
 
 **Project skills** (`.claude/skills/`): `nix-hygiene`, `nixpi-firmware-provision`,
 `jsonresume-tailor`, `gmail-mcp-accounts`, `mcp-scout`,
@@ -186,7 +186,7 @@ surface). There is **no project `.mcp.json`**. Inventory + gotchas:
   platform-agnostic.
 - **Paths — two axes, never conflate them:** a Nix **source path literal**
   (`source = ../../claude/CLAUDE.md;`, `callPackage ../../packages/x.nix`,
-  `"${../../skills/rag}"`) is resolved **relative to the `.nix` file at evaluation time**,
+  `"${../../claude/CLAUDE.md}"`) is resolved **relative to the `.nix` file at evaluation time**,
   content-hashed, and copied into `/nix/store` — it **must** be repo-relative (or a store
   path); `$HOME`/XDG is impossible here (`$HOME` is undefined at eval, and a runtime home path
   is neither reproducible nor store-addressable). A `../..` source literal is **correct and
@@ -387,6 +387,11 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   dendritic pattern stays out of scope. **Decision #2 ("do not migrate the core engine") is
   SUPERSEDED by ADR-002 below**, which did migrate it — and answers ADR-001's three objections
   one by one, with objection 3 still standing.
+- [`docs/agent-resource-externalization.md`](docs/agent-resource-externalization.md) —
+  **2026-09-12**: why the operator's own plugins, skills and userscripts left this tree for
+  their own repos while the seven Nix satellites came back in (ADR-002). The measured
+  marketplace survey behind the layout, the two pinning rails, and the rule the migration
+  turned on: **a gate must move with the content it gates.**
 - [`docs/monoflake-capsule-adr.md`](docs/monoflake-capsule-adr.md) — **ADR-002 (2026-09-12,
   DECIDED AND IMPLEMENTED)**: absorbed all seven satellite flakes, moved the flake to
   flake-parts + `import-tree`, and replaced the deleted repo boundaries with **capsules**.
