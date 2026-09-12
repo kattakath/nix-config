@@ -148,7 +148,6 @@ survives, in [`.claude/rules/pr-title.md`](../.claude/rules/pr-title.md).)
 | Repo | Required context(s) | CI workflow needing `merge_group:` |
 | --- | --- | --- |
 | `kattakath/nix-config` | `required-checks`, `Scan for secrets` | `nix-ci.yml`, `gitleaks.yml` |
-| `kattakath/nix-keychain-secrets` | `checks` | `ci.yml` |
 | `kattakath/nix-local-rag` | `checks` | `ci.yml` |
 | `kattakath/nix-mcp-gateway` | `checks` | `ci.yml` |
 | `kattakath/nix-vast-provision` | `checks` | `ci.yml` |
