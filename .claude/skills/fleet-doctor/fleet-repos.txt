@@ -11,24 +11,12 @@
 # etc.) are deliberately excluded; fleet-doctor is scoped to declarative-infra
 # hygiene, not general dev-repo housekeeping.
 #
-# Membership does NOT require nix-config to consume the flake as an input:
-# provisioner-template and hyperframes-selfhost are listed and neither is one.
-# The test is "is this a fleet repo we maintain", not "is it adopted".
-#
 # ircc-whatsapp-bot LEFT this list on 2026-09-12, and unlike every other removal
 # it was not absorbed and not archived. It is a live product repo that simply
 # stopped being wired into the fleet: nix-personal dropped its input, its module
 # import and its service block. It is still maintained, just not from here — and
 # a doctor sweeping it would be housekeeping someone else's product, which is
 # exactly what the scoping rule above excludes.
-#
-# NOR does membership require a flake.nix — the test says "fleet repo", not
-# "fleet flake", and two listed members deliberately have none. A sweep must
-# not try to `nix flake check` these, nor conclude they don't belong here:
-#   provisioner-template  — the scaffold `vast-init-repo` clones; a live Vast
-#                           instance fetches its provision.sh over raw HTTP at boot
-#   hyperframes-selfhost  — the published self-host bundle (this repo vendors a
-#                           copy under packages/hyperframes-selfhost/)
 #
 # Deliberately NOT listed: character-mcp (extracted from nix-personal 2026-09-06)
 # is a deployed Node/Cloudflare-Worker product with no Nix surface at all —
@@ -72,8 +60,27 @@
 #                      The operator's own mined data still sits in ~/Developer/local/brags,
 #                      a deliberately REMOTE-LESS repo that was never a fleet repo, is not
 #                      listed here, and must not be added.
+# THE LAST TWO NON-COMPOSITION LINES CAME OUT on 2026-09-12, which is what takes this
+# manifest to its final shape: nix-config + nix-personal and nothing else. Both were
+# distribution endpoints rather than declarative infra, and both are ARCHIVED:
+#   provisioner-template  — a 3-file scaffold that nothing fetched. `vast-init-repo`
+#                           seeds a new provisioner repo from the IN-TREE assets
+#                           (packages/templates/provisioner/, handed down as
+#                           fleet.vastRawServed), never by cloning this repo — which is
+#                           why the GitHub copy had already drifted (no provision-lib.sh)
+#                           without anything noticing. Nothing in either flake referenced
+#                           it but this line.
+#   hyperframes-selfhost  — the published Kinocut+HyperFrames self-host bundle. REMOVED
+#                           WHOLESALE, not just unwired: the 42-file vendored tree under
+#                           packages/hyperframes-selfhost/, the hf-export/hf-apply/hf-doctor
+#                           apps, infra/hyperframes/stack.nix, the identity `operatorEmail`
+#                           seam that existed only for its Access policy, and all three
+#                           docs are gone from nix-config. v0.1.0 stays readable in the
+#                           archived repo; do not re-add either from a working copy on disk.
+#
+# So the rule this file now encodes is simple: a fleet repo is one of the TWO composition
+# repos. Anything else — a product, a scaffold, a published bundle — is not fleet, however
+# closely related. Adding a third line needs a reason that survives that sentence.
 
 github.com/kattakath/nix-config
 gitlab.com/ismailkattakath/nix-personal
-github.com/kattakath/provisioner-template
-github.com/ismailkattakath/hyperframes-selfhost

@@ -10,7 +10,7 @@
 # derivation names, same `meta.description` strings (they are what
 # `nix flake show` prints).
 #
-# The terranix/hyperframes packages and their apps live in
+# The terranix packages and their apps live in
 # modules/parts/terranix.nix; the devcontainer image in
 # modules/parts/devcontainer.nix — each next to the code that explains it.
 {
