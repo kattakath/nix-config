@@ -142,83 +142,6 @@ let
     __noChroot = false;
   });
 
-  # Claude Code plugins to install from their Nix-pinned marketplaces (see the
-  # programs.claude-code.marketplaces + settings.enabledPlugins below). SINGLE
-  # SOURCE for both the enabledPlugins flags and the idempotent install activation
-  # (home.activation.claudeCodePlugins). Each id is "<plugin>@<marketplace>"; adding
-  # a plugin = pin its marketplace input + marketplaces entry, then append its id here.
-  claudePluginIds = [
-    "grok-build@xai-grok-build"
-    # Anthropic first-party security-review plugin (hook-driven): PostToolUse secret/injection
-    # warnings + a Stop-hook LLM diff review. Its marketplace is claude-plugins-official (below);
-    # the plugin's code is in-repo (source "./plugins/security-guidance"), so it is fully pinned.
-    "security-guidance@claude-plugins-official"
-    # Neon DB: neon-postgres skill + Neon MCP server (from claude-plugins-official →
-    # neondatabase/agent-skills plugins/neon-postgres). Needs neonctl on PATH (macos brew).
-    "neon@claude-plugins-official"
-    # Stripe OFFICIAL plugin (git-subdir of stripe/ai providers/claude/plugin, pinned by the
-    # marketplace sha): the full Stripe agent kit in one unit — 7 skills (stripe-best-practices,
-    # stripe-docs, upgrade-stripe, connect-recommend, stripe-apps, stripe-directory,
-    # stripe-projects), the company-researcher agent, /explain-error + /test-cards commands,
-    # AND the hosted mcp.stripe.com MCP server (type=http; one-time in-client OAuth — no API
-    # key handled here, and nothing to host in the gateway since the server is Stripe-remote).
-    # Pairs with the nixpkgs `stripe-cli` in home.packages below.
-    "stripe@claude-plugins-official"
-    # Anthropic first-party frontend-design skill/plugin (UI/UX generation guidance).
-    "frontend-design@claude-plugins-official"
-    # Resend's OFFICIAL plugin (resend.com/mcp / resend.com/docs/mcp-server): bundles the
-    # resend-cli skill + the hosted mcp.resend.com MCP server (Streamable HTTP, one-time
-    # in-client OAuth via `/mcp` -> select resend — same shape as the stripe entry above; no
-    # API key handled by this plugin). Pairs with the `resend` CLI package (home.packages
-    # below), which instead authenticates non-interactively via RESEND_API_KEY from the
-    # Keychain — the two are independent auth paths to the same Resend account (used by
-    # dontsell-ai/app's outbound/inbound email).
-    "resend@claude-plugins-official"
-    # IN-REPO (plugins/llmstxt, this repo, via the localPluginsMarketplace source path below):
-    # authoring skill + /llmstxt command + a stdlib-only linter for llms.txt — the llmstxt.org
-    # v2 standard for LLM-friendly content. Nothing upstream AUTHORS these files (the ecosystem
-    # is site-build generators + consumers/parsers), and nixpkgs carries only the Sphinx build
-    # plugin (python3Packages.sphinx-llms-txt) — see plugins/llmstxt/README.md for the
-    # reuse-vs-build reasoning, including why the linter is dependency-free stdlib.
-    "llmstxt@${localMarketplaceName}"
-    # IN-REPO (plugins/seargraph, this repo): the seargraph-langgraph subagent —
-    # LangGraph pipeline design/implementation help for the SEARGraph project
-    # (self-evolving agentic image restoration: fidelity metrics, constrained
-    # optimization, iterative refinement, character embeddings). A plugin as a SCOPING
-    # choice, not a capability gap — corrected 2026-09-06, and the correction is already
-    # in docs/repo-map.md § plugins/: programs.claude-code.agents DOES exist. What it
-    # cannot do is scope the agent — it installs globally into ~/.claude/agents/, whereas
-    # a plugin is enabled per project.
-    "seargraph@${localMarketplaceName}"
-    # Userscript authoring AND live-page diagnosis, merged: the measure-before-you-select
-    # method, the browser probes, the pre-vetted patterns, the Greasy Fork rulebook, the
-    # CDP diagnosis surface, and a runnable metadata linter that
-    # `checks.<system>.userscripts` ALSO runs — one rulebook, no drift.
-    #
-    # These were TWO plugins that merely cross-referenced, until one verb needed both
-    # halves in a single motion: PICK. The operator points at an element, the agent
-    # measures that exact node, reads its cascade, prototypes the override live, dates it
-    # in the WHY block, lints it, and proves it after install. Under the split that motion
-    # crossed the plugin boundary four times and needed a seam FILE to narrate the
-    # crossing — a seam that needs its own document is a merge that has not happened yet.
-    # The cost, stated plainly: the diagnosis half is no longer adoptable alone.
-    #
-    # The Nix-specific half (declaring a script in home.nix, activation, the install click)
-    # stays in .claude/skills/userscript-author. The MCP server it drives is wired in
-    # modules/shared/mcp.nix (attach mode, opt-in, off by default).
-    "page-lab@${localMarketplaceName}"
-  ];
-
-  # The marketplace this repo serves ITSELF, from the top-level plugins/ directory: a Nix
-  # SOURCE PATH (store copy), not a flake input or a third-party marketplace, so an in-repo
-  # plugin is pinned by construction and cannot drift. Its store path CHANGES whenever any
-  # plugin content changes, which is exactly what home.activation.claudeCodePlugins keys the
-  # re-pin off. Adding an in-repo plugin = a plugins/<name>/ tree + an entry in
-  # plugins/.claude-plugin/marketplace.json + its id in claudePluginIds above.
-  localMarketplaceName = "kattakath-nix-config";
-  localPluginsMarketplace = "${../../plugins}";
-  localPluginIds = builtins.filter (lib.hasSuffix "@${localMarketplaceName}") claudePluginIds;
-
   # ---- grok-build: repoint its hardcoded `read-only` sandbox at a profile that can start ----
   # xAI's bridge hardcodes `--sandbox read-only` for every non-write run (delegate/review/
   # critique). grok >=1.0.13's `read-only` AND `strict` profiles kernel-deny the container
@@ -315,7 +238,7 @@ let
 
   # `resend` — the official Resend CLI, injecting RESEND_API_KEY from the login Keychain
   # at run time (non-interactive, no browser OAuth). Pairs with the
-  # resend@claude-plugins-official plugin (claudePluginIds below). See packages/resend-cli.nix.
+  # resend@claude-plugins-official plugin (local.claudePlugins.marketplaces below). See packages/resend-cli.nix.
   resendCli = pkgs.callPackage ../../packages/resend-cli.nix { };
 
   # rclip, with its runtime-dependency CHECK disabled — not its dependencies changed.
@@ -489,6 +412,12 @@ in
     # prose; this is the mechanism that satisfies it. Every content class it
     # touches is attrsOf-merging, so a private layer or a fork ADDS to it.
     ./claude-brain.nix
+    # Claude Code plugin marketplaces, N of them: the register-and-install
+    # mechanism, driven by the `local.claudePlugins.marketplaces` attrset this
+    # file fills below. attrsOf, so the private nix-personal layer ADDS its own
+    # marketplace instead of copying the activation script — which is exactly
+    # what it used to do.
+    ./claude-plugins.nix
   ];
 
   # Enable the keychain-secrets capsule's module (installs the secret/set-secret/
@@ -620,6 +549,111 @@ in
     google-photos-icon-nav = ../../userscripts/google-photos-icon-nav.user.js;
   };
 
+  # The PUBLIC half of the Claude Code plugin set — DATA only; the registration
+  # + install mechanism is ./claude-plugins.nix. Same keyed-attrset seam as the
+  # userscripts above: nix-personal adds its own marketplace through
+  # `extraHomeModules` and these three survive untouched. `plugins` is a listOf,
+  # so a private layer can even append a plugin to a marketplace declared here.
+  #
+  # `source` is mkDefault throughout so a downstream layer can repoint one (a
+  # fork of the official marketplace, say) with a plain assignment.
+  local.claudePlugins.marketplaces = {
+    # xAI's grok-build bridge, from a PATCHED store copy of the pinned flake
+    # input (grokBuildPluginPatched in the let block above — read it for WHY the
+    # built-in `read-only` sandbox had to be repointed). Store path ⇒ re-pinned
+    # on every content change, which is the only way the patch actually reaches
+    # ~/.claude/plugins/cache.
+    xai-grok-build = {
+      source = lib.mkDefault "${grokBuildPluginPatched}";
+      plugins = [ "grok-build" ];
+    };
+
+    # Anthropic's official marketplace. HTTPS, not a directory pin: the reserved
+    # name rejects directory sources as untrusted, and an SSH clone fails
+    # non-interactively during activation.
+    claude-plugins-official = {
+      source = lib.mkDefault "https://github.com/anthropics/claude-plugins-official.git";
+      plugins = [
+        # Anthropic first-party security-review plugin (hook-driven): PostToolUse
+        # secret/injection warnings + a Stop-hook LLM diff review. The plugin's code is
+        # in-repo to the marketplace (source "./plugins/security-guidance"), so it is
+        # fully pinned.
+        "security-guidance"
+        # Neon DB: neon-postgres skill + Neon MCP server (from claude-plugins-official →
+        # neondatabase/agent-skills plugins/neon-postgres). Needs neonctl on PATH (macos brew).
+        "neon"
+        # Stripe OFFICIAL plugin (git-subdir of stripe/ai providers/claude/plugin, pinned by
+        # the marketplace sha): the full Stripe agent kit in one unit — 7 skills
+        # (stripe-best-practices, stripe-docs, upgrade-stripe, connect-recommend,
+        # stripe-apps, stripe-directory, stripe-projects), the company-researcher agent,
+        # /explain-error + /test-cards commands, AND the hosted mcp.stripe.com MCP server
+        # (type=http; one-time in-client OAuth — no API key handled here, and nothing to
+        # host in the gateway since the server is Stripe-remote). Pairs with the nixpkgs
+        # `stripe-cli` in home.packages below.
+        "stripe"
+        # Anthropic first-party frontend-design skill/plugin (UI/UX generation guidance).
+        "frontend-design"
+        # Resend's OFFICIAL plugin (resend.com/mcp / resend.com/docs/mcp-server): bundles the
+        # resend-cli skill + the hosted mcp.resend.com MCP server (Streamable HTTP, one-time
+        # in-client OAuth via `/mcp` -> select resend — same shape as the stripe entry above;
+        # no API key handled by this plugin). Pairs with the `resend` CLI package
+        # (home.packages below), which instead authenticates non-interactively via
+        # RESEND_API_KEY from the Keychain — the two are independent auth paths to the same
+        # Resend account (used by dontsell-ai/app's outbound/inbound email).
+        "resend"
+      ];
+    };
+
+    # The marketplace this repo serves ITSELF, from the top-level plugins/ directory: a Nix
+    # SOURCE PATH (store copy), not a flake input or a third-party marketplace, so an in-repo
+    # plugin is pinned by construction and cannot drift. Its store path CHANGES whenever any
+    # plugin content changes, which is what the re-pin in ./claude-plugins.nix keys off.
+    # Adding an in-repo plugin = a plugins/<name>/ tree + an entry in
+    # plugins/.claude-plugin/marketplace.json + its name in the list below.
+    #
+    # `"${../../plugins}"` is a Nix SOURCE PATH LITERAL: resolved relative to THIS file. It
+    # must stay in the repo that owns the tree — moved to another flake it would silently
+    # point at that flake's plugins/ directory instead.
+    kattakath-nix-config = {
+      source = lib.mkDefault "${../../plugins}";
+      plugins = [
+        # IN-REPO (plugins/llmstxt, this repo): authoring skill + /llmstxt command + a
+        # stdlib-only linter for llms.txt — the llmstxt.org v2 standard for LLM-friendly
+        # content. Nothing upstream AUTHORS these files (the ecosystem is site-build
+        # generators + consumers/parsers), and nixpkgs carries only the Sphinx build plugin
+        # (python3Packages.sphinx-llms-txt) — see plugins/llmstxt/README.md for the
+        # reuse-vs-build reasoning, including why the linter is dependency-free stdlib.
+        "llmstxt"
+        # IN-REPO (plugins/seargraph, this repo): the seargraph-langgraph subagent —
+        # LangGraph pipeline design/implementation help for the SEARGraph project
+        # (self-evolving agentic image restoration: fidelity metrics, constrained
+        # optimization, iterative refinement, character embeddings). A plugin as a SCOPING
+        # choice, not a capability gap — corrected 2026-09-06, and the correction is already
+        # in docs/repo-map.md § plugins/: programs.claude-code.agents DOES exist. What it
+        # cannot do is scope the agent — it installs globally into ~/.claude/agents/, whereas
+        # a plugin is enabled per project.
+        "seargraph"
+        # Userscript authoring AND live-page diagnosis, merged: the measure-before-you-select
+        # method, the browser probes, the pre-vetted patterns, the Greasy Fork rulebook, the
+        # CDP diagnosis surface, and a runnable metadata linter that
+        # `checks.<system>.userscripts` ALSO runs — one rulebook, no drift.
+        #
+        # These were TWO plugins that merely cross-referenced, until one verb needed both
+        # halves in a single motion: PICK. The operator points at an element, the agent
+        # measures that exact node, reads its cascade, prototypes the override live, dates it
+        # in the WHY block, lints it, and proves it after install. Under the split that motion
+        # crossed the plugin boundary four times and needed a seam FILE to narrate the
+        # crossing — a seam that needs its own document is a merge that has not happened yet.
+        # The cost, stated plainly: the diagnosis half is no longer adoptable alone.
+        #
+        # The Nix-specific half (declaring a script in home.nix, activation, the install click)
+        # stays in .claude/skills/userscript-author. The MCP server it drives is wired in
+        # modules/shared/mcp.nix (attach mode, opt-in, off by default).
+        "page-lab"
+      ];
+    };
+  };
+
   # Spotlight-launchable "Android Emulator" — click (or re-click) like any
   # normal app: launches if not running, brings the existing window frontmost
   # if it is. Real Mac only. Symlinked into ~/Applications, which Spotlight
@@ -706,8 +740,8 @@ in
       runpodctl # RunPod GPU CLI — RunPod as a second ComfyUI-workflow provider alongside Vast (from nixpkgs, not the untrusted brew tap)
       qwen-code # `qwen` — Alibaba's Gemini-CLI-fork coding agent, pointed at a LOCAL Qwen model served by Ollama's OpenAI-compatible endpoint (config in ~/.qwen/.env below, NOT the global OpenAI env — those generic var names would hijack other tools). Pull the model with `ollama pull qwen3-coder:30b`.
       inngest # `inngest` — CLI + local dev server for Inngest durable workflows (not in Homebrew; nixpkgs has it)
-      stripe-cli # Stripe CLI (`stripe`) — API calls, webhook forwarding (`stripe listen`), event triggers; auth is a one-time `stripe login` browser OAuth (config in ~/.config/stripe, never in git/store — same one-time-CLI-login convention as gh/hf/docker). Pairs with the stripe@claude-plugins-official plugin (claudePluginIds above)
-      resendCli # `resend` — the official Resend CLI (npx-wrapped, not yet in nixpkgs), authenticated non-interactively via RESEND_API_KEY from the login Keychain (packages/resend-cli.nix). Pairs with the resend@claude-plugins-official plugin (claudePluginIds above)
+      stripe-cli # Stripe CLI (`stripe`) — API calls, webhook forwarding (`stripe listen`), event triggers; auth is a one-time `stripe login` browser OAuth (config in ~/.config/stripe, never in git/store — same one-time-CLI-login convention as gh/hf/docker). Pairs with the stripe@claude-plugins-official plugin (local.claudePlugins.marketplaces above)
+      resendCli # `resend` — the official Resend CLI (npx-wrapped, not yet in nixpkgs), authenticated non-interactively via RESEND_API_KEY from the login Keychain (packages/resend-cli.nix). Pairs with the resend@claude-plugins-official plugin (local.claudePlugins.marketplaces above)
       wp-cli # WordPress CLI (`wp`) — manage WordPress installs/plugins/themes/db from the shell; nixpkgs-native (bundles its own PHP), so no Homebrew `wp-cli` formula or `curl … wp-cli.phar` install (single source per the reuse/declarative convention)
       pandoc # Universal doc converter — nixpkgs-native on aarch64-darwin (no Homebrew needed); backs the docx/pptx/xlsx skills' `pandoc` dependency (see programs.claude-code.skills NOTE below)
       poppler-utils # pdftoppm/pdftotext/pdfimages CLI — NOT `poppler` (that's the glib-bindings library, no binaries); moved here from the macos Homebrew `poppler` formula (nixpkgs is the single source per modules/darwin/homebrew.nix's dedup comment); backs the pdf/docx/pptx skills
@@ -960,20 +994,13 @@ in
       # collision risk.
       context = ../../claude/CLAUDE.md;
 
-      # Marketplaces are NOT declared via `marketplaces.*` here. That option writes a
-      # Nix-managed known_marketplaces.json symlink; `claude plugin marketplace add`
-      # and installs need a mutable file, and the reserved name
-      # `claude-plugins-official` must be a GitHub/HTTPS source (directory pins are
-      # rejected as untrusted). All three marketplaces are registered by
-      # home.activation.claudeCodePlugins from:
-      #   - xai-grok-build ← pinned flake input path (grok-build-plugin-cc)
-      #   - claude-plugins-official ← https://github.com/anthropics/claude-plugins-official
-      #   - kattakath-nix-config ← this repo's own plugins/ tree (localPluginsMarketplace)
-      # Plugin install state lives in mutable ~/.claude (like gh/hf one-time logins).
+      # Marketplaces and `settings.enabledPlugins` are NOT declared here — the
+      # marketplace set is DATA (`local.claudePlugins.marketplaces` above) and its
+      # registration + install mechanism lives in ./claude-plugins.nix, which also
+      # records why upstream's `marketplaces.*` option cannot be used.
       # Runtime for grok-build: grok on PATH (~/.grok/bin) + Node; `grok models` must work.
 
-      # Claude Code user settings, now Nix-owned. enabledPlugins keeps declared
-      # plugins switched ON once `claude plugin install` has run (activation below).
+      # Claude Code user settings, now Nix-owned.
       # NOTE: editing any of these in the Claude UI won't persist — a rebuild
       # reverts them; change them HERE instead.
       settings = {
@@ -983,7 +1010,6 @@ in
         skipWorkflowUsageWarning = true;
         inputNeededNotifEnabled = true;
         agentPushNotifEnabled = true;
-        enabledPlugins = lib.genAttrs claudePluginIds (_: true);
 
         # Routing telemetry: export tool_decision/tool_result events (only —
         # no metrics/traces, no prompt/response content) to the local OTel
@@ -1800,101 +1826,6 @@ in
       run rm -f "$HOME/.grok/sandbox.toml"
       run cp -L "${grokSandboxToml}" "$HOME/.grok/sandbox.toml"
       run chmod u+w "$HOME/.grok/sandbox.toml"
-    '';
-
-    # Materialise DECLARED Claude Code plugins (claudePluginIds) + their marketplaces.
-    # installed_plugins.json / known_marketplaces.json stay Claude-owned mutable state
-    # (same "let the tool author its own state" pattern as grokMcp). settings.json is
-    # Nix-managed: temporarily materialise a writable copy for install, then restore
-    # the store symlink so the next switch does not hit "file is in the way".
-    claudeCodePlugins = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-      # home-manager activation scripts run with a bare PATH (no ~/.nix-profile,
-      # no /etc/profiles/per-user/<user>/bin) — `claude` itself is invoked by
-      # absolute store path below so that's fine, but ITS OWN subprocesses are
-      # not: a "git-subdir" plugin source (e.g. neon@claude-plugins-official)
-      # shells out to a bare `git` lookup and fails with "git ... not on PATH"
-      # even though programs.git (same pkgs.git) is on every interactive PATH.
-      export PATH="${pkgs.git}/bin:$PATH"
-      claude="${claudeCode}/bin/claude"
-      if [ -x "$claude" ]; then
-        settings="${config.home.homeDirectory}/.claude/settings.json"
-        settings_target=""
-        if [ -L "$settings" ]; then
-          settings_target=$(readlink "$settings")
-          tmp=$(mktemp)
-          cp -L "$settings" "$tmp"
-          rm -f "$settings"
-          mv "$tmp" "$settings"
-          chmod u+w "$settings"
-        fi
-
-        known_mps="${config.home.homeDirectory}/.claude/plugins/known_marketplaces.json"
-
-        # xAI grok-build marketplace — pinned to a PATCHED store copy of the flake input
-        # (grokBuildPluginPatched), so its path moves whenever the patch OR the upstream pin
-        # changes. `plugin install` COPIES into ~/.claude/plugins/cache, so the old
-        # "already registered?" guard would keep serving the stale, UNPATCHED bridge forever
-        # (exactly the trap documented for the local marketplace below). Key off the store
-        # path recorded in known_marketplaces.json instead, and tear the old pin down first.
-        grok_mp="${grokBuildPluginPatched}"
-        if ! grep -qF "$grok_mp" "$known_mps" 2>/dev/null; then
-          echo "claude-code: (re)pinning xai-grok-build marketplace -> $grok_mp" >&2
-          if "$claude" plugin marketplace list 2>/dev/null | grep -qF 'xai-grok-build'; then
-            "$claude" plugin uninstall --yes 'grok-build@xai-grok-build' >/dev/null 2>&1 || true
-            "$claude" plugin marketplace remove xai-grok-build >/dev/null 2>&1 || true
-          fi
-          "$claude" plugin marketplace add "$grok_mp" 2>&1 || true
-        fi
-
-        # Official marketplace via HTTPS (SSH clone fails non-interactively; reserved
-        # name rejects directory pins — see programs.claude-code comment above).
-        official_mp_src="https://github.com/anthropics/claude-plugins-official.git"
-        if ! "$claude" plugin marketplace list 2>/dev/null | grep -qF 'claude-plugins-official'; then
-          echo "claude-code: adding claude-plugins-official marketplace (HTTPS)..." >&2
-          "$claude" plugin marketplace add "$official_mp_src" 2>&1 || true
-        elif "$claude" plugin marketplace list 2>/dev/null | grep -A2 'claude-plugins-official' | grep -qF 'Directory'; then
-          echo "claude-code: replacing directory pin of claude-plugins-official with HTTPS..." >&2
-          "$claude" plugin marketplace remove claude-plugins-official 2>&1 || true
-          "$claude" plugin marketplace add "$official_mp_src" 2>&1 || true
-        fi
-
-        # This repo's OWN marketplace (plugins/), pinned to a Nix source path. Unlike the two
-        # above it is not a fixed remote: the store path changes whenever any in-repo plugin
-        # changes, and `plugin install` COPIES into ~/.claude/plugins/cache — so a plain
-        # "already registered?" guard would keep serving a previous generation's content
-        # forever. Key off the store path actually recorded in known_marketplaces.json and,
-        # when it has moved, re-pin + drop the stale copies so the loop below reinstalls them.
-        local_mp="${localPluginsMarketplace}"
-        if ! grep -qF "$local_mp" "$known_mps" 2>/dev/null; then
-          echo "claude-code: (re)pinning ${localMarketplaceName} marketplace -> $local_mp" >&2
-          # Tear down the previous pin FIRST (uninstall while the marketplace still resolves),
-          # silently — on a first switch there is nothing to remove and the CLI says so.
-          if "$claude" plugin marketplace list 2>/dev/null | grep -qF '${localMarketplaceName}'; then
-            for id in ${lib.escapeShellArgs localPluginIds}; do
-              "$claude" plugin uninstall --yes "$id" >/dev/null 2>&1 || true
-            done
-            "$claude" plugin marketplace remove ${localMarketplaceName} >/dev/null 2>&1 || true
-          fi
-          "$claude" plugin marketplace add "$local_mp" 2>&1 || true
-        fi
-
-        for id in ${lib.escapeShellArgs claudePluginIds}; do
-          if "$claude" plugin list 2>/dev/null | grep -qF "$id"; then
-            : # already installed — idempotent skip
-          else
-            # Brace ''${id} — a bare `$id…` (unicode ellipsis) is one identifier under
-            # bash nounset and aborts activation with "id…: unbound variable".
-            echo "claude-code: installing plugin ''${id}..." >&2
-            "$claude" plugin install "$id" 2>&1 || true
-          fi
-        done
-
-        # Restore Nix-managed settings symlink for a clean next switch.
-        if [ -n "$settings_target" ]; then
-          rm -f "$settings"
-          ln -s "$settings_target" "$settings"
-        fi
-      fi
     '';
 
     # Regenerate the HTML email signature (JSON Resume + bundled logo) into

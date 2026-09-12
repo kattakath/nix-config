@@ -289,6 +289,37 @@ catch it, and meant a forker got the rule with no way to meet it.
   exclusive with their inline twins upstream, and setting `skills` to a bare path collapses
   `either` to `mergeOneOption`. Keep the attrs branch everywhere.
 
+## Claude Code plugins — a keyed attrset, the fourth seam shape
+
+`local.claudePlugins.marketplaces` (public engine, `modules/shared/claude-plugins.nix`) is an
+`attrsOf submodule` keyed by marketplace name: the public repo declares its three
+(`xai-grok-build`, `claude-plugins-official`, `kattakath-nix-config`) and nix-personal's
+`modules/personal-plugins.nix` adds `ismailkattakath-personal`. Same shape as § Userscripts —
+a merged attrset, not an `extraHomeModules` parameter.
+
+Before 2026-09-12 nix-personal instead carried a near-verbatim 80-line COPY of the whole
+activation script, ordered `entryAfter [ "claudeCodePlugins" ]` so the two would not race on
+mutable `~/.claude`. One `attrsOf` option replaced both the copy and the race.
+
+- **Extendable in two dimensions.** Adding a marketplace is a new key; `plugins` is a
+  `listOf`, so the private layer can also append a plugin to a marketplace the PUBLIC repo
+  declares, without forking its list.
+- **`source` is the one scalar, deliberately.** A marketplace has exactly one source, so two
+  differing definitions *should* be a loud conflict rather than a silent pick. nix-config
+  sets its three with `lib.mkDefault`, so a private layer can still repoint one (a fork of
+  the official marketplace, say) with a plain assignment.
+- **The path literal must NOT move.** `source = "${../plugins}"` is a Nix source path
+  literal, resolved relative to the `.nix` file it is written in. In nix-personal it must
+  stay in nix-personal; moved to the public repo it would silently point at *this* repo's
+  `plugins/` tree and serve the wrong marketplace under the private name. An assertion in
+  the public module rejects anything that is not a `/nix/store` path or an `https://` URL,
+  which catches the other half of the trap (`toString ../plugins`, an impure `~/Developer`
+  path that pins nothing).
+- **The private plugin TREE stays private, on purpose.** Its one plugin teaches
+  nix-personal's `activate` CLI, which the public repo does not ship — a public skill for a
+  binary that does not exist there is doc drift by construction. Keeping it private also
+  keeps the N-marketplace seam exercised on every switch.
+
 ## What this is not
 
 - Not an in-tree `private/` directory (that is still a public git trace).
