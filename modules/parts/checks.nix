@@ -19,7 +19,7 @@
   ...
 }:
 let
-  inherit (inputs) vast-provision home-manager;
+  inherit (inputs) home-manager;
   inherit (config.fleet.identityArgs) loginName;
 in
 {
@@ -213,22 +213,15 @@ in
             );
         }
         // {
-          # Drift guard: nix-config vendors its OWN physical copies of the two
-          # instance-side scripts a live Vast instance fetches over raw HTTP at
-          # boot (packages/vast-bootstrap.sh, packages/templates/provisioner/
-          # provision-lib.sh) — required because PROVISIONING_SCRIPT/
-          # PROVISION_LIB_URL are built from THIS repo's orgName/repoName (the
-          # vast-provision.nix callPackage override above), not the
-          # vast-provision flake input's own identity. The input ALSO carries
-          # its own copies of both files (for its own CI + as what forks
-          # reference). Nothing else catches the two silently diverging — this
-          # fails loudly the moment they do.
-          vast-lib-drift = pkgs.runCommand "vast-lib-drift" { nativeBuildInputs = [ pkgs.diffutils ]; } ''
-            diff -u ${../../packages/vast-bootstrap.sh} ${vast-provision}/packages/vast-bootstrap.sh
-            diff -u ${../../packages/templates/provisioner/provision-lib.sh} \
-              ${vast-provision}/packages/templates/provisioner/provision-lib.sh
-            touch "$out"
-          '';
+          # (`vast-lib-drift` was HERE. It diffed nix-config's copies of the two
+          # raw-served Vast instance-side scripts against the vast-provision
+          # INPUT's copies of the same two files. ADR-002 wave 4 absorbed that
+          # input as modules/features/vast-provision/, so there is no second
+          # tree left to diff and the check's entire premise is gone. What it
+          # was really protecting — those scripts being correct, since nothing
+          # builds them and a syntax error surfaces only on a rented, BILLED
+          # instance — is now `checks.<system>.vast-scripts-lint`, which
+          # shellchecks the surviving copies instead of comparing two of them.)
 
           # Drift guard: modules/shared/hm-launchd/ is a VENDORED FORK of
           # home-manager's modules/launchd/ (swapped in via `disabledModules`
