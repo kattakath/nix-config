@@ -81,3 +81,6 @@ config.tf.json
 *.tfstate.*
 .terraform/
 .terraform.lock.hcl
+
+# Wave-harness captures (scripts/drv-snapshot.sh) — per-wave, machine-local.
+.baseline/
