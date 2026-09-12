@@ -12,8 +12,15 @@
 # hygiene, not general dev-repo housekeeping.
 #
 # Membership does NOT require nix-config to consume the flake as an input:
-# ircc-whatsapp-bot is listed and is not a nix-config input at all.
+# provisioner-template and hyperframes-selfhost are listed and neither is one.
 # The test is "is this a fleet repo we maintain", not "is it adopted".
+#
+# ircc-whatsapp-bot LEFT this list on 2026-09-12, and unlike every other removal
+# it was not absorbed and not archived. It is a live product repo that simply
+# stopped being wired into the fleet: nix-personal dropped its input, its module
+# import and its service block. It is still maintained, just not from here — and
+# a doctor sweeping it would be housekeeping someone else's product, which is
+# exactly what the scoping rule above excludes.
 #
 # NOR does membership require a flake.nix — the test says "fleet repo", not
 # "fleet flake", and two listed members deliberately have none. A sweep must
@@ -72,6 +79,5 @@
 
 github.com/kattakath/nix-config
 gitlab.com/ismailkattakath/nix-personal
-github.com/kattakath/ircc-whatsapp-bot
 github.com/kattakath/provisioner-template
 github.com/ismailkattakath/hyperframes-selfhost

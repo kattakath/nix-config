@@ -112,7 +112,8 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
 - [ ] No new `environment.etc` hacks for things nix-darwin models.
 - [ ] Determinate Nix: no `nix.enable = true` / no hand-written `nix.custom.conf`.
 - [ ] **flake-parts everywhere, including here.** The small supporting flakes that
-      remain (ircc-whatsapp-bot, and any new one) use flake-parts,
+      remain (any new one — the last existing member, ircc-whatsapp-bot, was
+      unwired on 2026-09-12) use flake-parts,
       not hand-rolled `forAll`/`forAllSystems` boilerplate — ADR-001
       (`docs/flake-architecture-strategy-adr.md`). `nix-mcp-gateway` used to be on
       this list and is **archived** (2026-09-12, an unadopted extraction candidate —

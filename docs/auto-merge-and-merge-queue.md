@@ -148,12 +148,14 @@ survives, in [`.claude/rules/pr-title.md`](../.claude/rules/pr-title.md).)
 | Repo | Required context(s) | CI workflow needing `merge_group:` |
 | --- | --- | --- |
 | `kattakath/nix-config` | `required-checks`, `Scan for secrets` | `nix-ci.yml`, `gitleaks.yml` |
-| `kattakath/ircc-whatsapp-bot` | `checks` | `ci.yml` |
 
-Both are public and org-owned, which is what makes the queue available.
-**The one besides `nix-config` is not a `nix-config` input** — membership in this
-table is "has its own CI and its own merge queue", not "is consumed by the fleet flake".
-`ircc-whatsapp-bot` is a product repo; it keeps its own pipeline, so it keeps its own queue.
+`nix-config` is public and org-owned, which is what makes the queue available.
+
+This table had a second row until 2026-09-12: `ircc-whatsapp-bot`. It was never a
+`nix-config` input — it was here because membership is "has its own CI and its own merge
+queue", not "is consumed by the fleet flake". It came out when nix-personal unwired the bot;
+the repo still exists and still has its own pipeline, it is simply no longer the fleet's
+concern.
 
 **ADR-002 took this table from ten repos to three, and that is finished.**
 ([`monoflake-capsule-adr.md`](monoflake-capsule-adr.md).) Each of the seven satellite
