@@ -17,7 +17,7 @@
 #     IgnoreRecommended=false); H.264 only (FB Live RTMP does NOT accept HEVC)
 #   - Audio AAC-LC, 48 kHz stereo, 128 kbps (FB spec)
 # Sources/rationale: Meta Live requirements + Twitch guidelines + OBS Apple-Silicon
-# encoder threads (see the brag-doc research notes / PR description).
+# encoder threads (see the PR description for the measurements).
 #
 #   obs-fb-setup            # or: nix run .#obs-fb-setup
 #   → QUIT OBS first (it rewrites profile files on exit), run this, then launch OBS:

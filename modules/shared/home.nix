@@ -390,7 +390,6 @@ in
     ./chromium.nix # ungoogled-chromium (Homebrew cask) config: sideloaded iCloud Passwords + its native host
     ./default-browser.nix # local.defaultBrowser — the macOS LaunchServices http/https claim
     ./git-allowed-signers.nix # extra allowed_signers principals (option only; nix-personal fills)
-    ./brag-engine.nix # brags-review's redaction-gate dir (option only; nix-personal fills)
     # Local-first RAG stack (loopback launchd Postgres+pgvector + Ollama + in-DB
     # embed()) — the ABSORBED capsule (modules/features/local-rag/). Both of its
     # modules are internally gated on (enable && isDarwin) — a clean no-op on
@@ -805,32 +804,11 @@ in
     # sdkmanager/avdmanager are JVM tools; point them at the nixpkgs JDK 17.
     JAVA_HOME = pkgs.jdk17.home;
 
-    # DATA and CODE are two different places, deliberately, and conflating them is
-    # what broke brags-review.
-    #
-    # BRAG_DATA_DIR is where the pipeline reads/writes: impact.md,
-    # developer-value.md, config.json, linkedin/. It is a git repo with NO REMOTE —
-    # accomplishment notes that are versioned locally and never pushed anywhere,
-    # not even to the private kattakath/brags. That is the point of it.
-    #
-    # BRAG_ENGINE_DIR is the other half — engine/ + config/, i.e. brags-review's
-    # fail-closed redactor and its CLIENT DENYLIST. It is NOT set here: the denylist
-    # is the one genuinely private piece, so it lives in nix-personal (brags/) and
-    # reaches this tree only through the options-only seam
-    # `kattakath.brag.engineDir` (./brag-engine.nix), which also exports the
-    # variable. Unfilled ⇒ unset ⇒ brags-review refuses to run. Fail-closed.
-    # It used to be resolved as "$BRAG_DATA_DIR/engine/redact.py", which does not
-    # exist — python3 exited 2, the gate failed closed as designed, and
-    # brags-review was simply unusable. Hence two variables, never one.
-    #
-    # $HOME-relative (username-portable); change the data location here, once.
-    BRAG_DATA_DIR = "$HOME/Developer/local/brags";
-
     # Where buku keeps `bookmarks.db`. Pinned because buku otherwise scatters it into a
     # platform-guessed data dir, and this DB is the single surviving copy of the merged
     # Chrome+Brave bookmark set — it must live somewhere backed up and obvious, next to
-    # the other $HOME/Developer/local data dirs. $HOME-relative for the same reason
-    # BRAG_DATA_DIR is (username-portable; never a literal /Users/<name>).
+    # the other $HOME/Developer/local data dirs. $HOME-relative so it is
+    # username-portable; never a literal /Users/<name>.
     BUKU_DEFAULT_DBDIR = "$HOME/Developer/local/bookmarks";
     # BASH_ENV (the secret loader) + the loader file itself are now set by
     # programs.keychainSecrets (the keychain-secrets capsule's HM module).
@@ -1126,7 +1104,7 @@ in
         view-usage = "${agent-skills-litellm}/view-usage";
         # ---- Security / methodology skills (from the audit) ----
         # Trail of Bits (CC-BY-SA-4.0): prefer authenticated `gh` over raw GitHub curl/WebFetch —
-        # fits the heavy gh/PR flow (PR open/review, brag PR mining).
+        # fits the heavy gh/PR flow (PR open/review, release/issue triage).
         gh-cli = "${agent-skills-trailofbits}/plugins/gh-cli/skills/gh-cli";
         # Trail of Bits: score dependencies for takeover/typosquat/bus-factor risk — matches the
         # flake-pin provenance discipline (every input is pinned + provenance-checked).
@@ -1144,21 +1122,9 @@ in
         cover-letter-generator = "${agent-skills-jsonresume}/skills/cover-letter-generator";
         interview-prep-generator = "${agent-skills-jsonresume}/skills/interview-prep-generator";
         salary-negotiation-prep = "${agent-skills-jsonresume}/skills/salary-negotiation-prep";
-        # Personal: the Brags personal-branding review flow. The SKILL.md is HERE and
-        # public; only the fail-closed redaction gate it shells out to is private —
-        # nix-personal's brags/, reached via $BRAG_ENGINE_DIR (./brag-engine.nix).
-        # Global so "run my brags review" is invocable by name in any Claude Code /
-        # Claude Desktop session, not just one rooted in this repo.
-        brags-review = "${../../skills/brags-review}";
         # Local RAG over the pgvector store: how to ingest + query via the `postgres`
         # MCP server and the in-DB embed() function (the local-rag capsule's services.pgvectorLocal + services.ollamaLocal).
         rag = "${../../skills/rag}";
-        # `/brag` — the MINE→LEDGER stage of the rebuilt brag-doc pipeline: mines GitHub
-        # PRs/commits + Claude Code sessions (+ optional MCP) into impact.md/developer-value.md.
-        # Vendored from kammradt/brag-skill (MIT), data paths redirected to $BRAG_DATA_DIR
-        # (the remote-less ~/Developer/local/brags repo) so it works under the read-only
-        # Nix skill install — see skills/brag/FORK-NOTES.md.
-        brag = "${../../skills/brag}";
         # Original (not a fork): operator knowledge for the packages/android-phone.nix
         # ADB/scrcpy CLI — global so ANY session (including ~/-rooted ones) knows the
         # wrapper's command surface and the adb footguns it absorbs, not just sessions

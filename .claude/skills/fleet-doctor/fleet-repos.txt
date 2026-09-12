@@ -63,17 +63,13 @@
 #                      from nixpkgs, not from this repo; do not confuse the two.
 # Same rule as the seven above: do not re-add either because a working copy is on disk.
 #
-# A THIRD LINE CAME OUT the same day, for a THIRD reason — absorbed, but NOT as a capsule:
-#   brags            — the brag-doc redaction gate (engine/ + config/scope.json). It went to
-#                      the PRIVATE nix-personal flake as a plain `brags/` directory, not to
-#                      modules/features/, because it is private composition CONTENT, not
-#                      fleet engine: config/scope.json IS a client denylist, and publishing
-#                      it would publish exactly what it exists to scrub. nix-config keeps
-#                      the two PUBLIC skills (skills/brag, skills/brags-review) and the
-#                      options-only seam kattakath.brag.engineDir
-#                      (modules/shared/brag-engine.nix); nix-personal fills it.
-#                      nix-personal is already swept below, so no line replaces this one.
-#                      Not to be confused with $BRAG_DATA_DIR (~/Developer/local/brags) —
+# A THIRD LINE CAME OUT the same day, for a THIRD reason — REMOVED, not absorbed:
+#   brags            — the brag-doc pipeline (the two skills, the kattakath.brag.engineDir
+#                      seam, the redaction gate, $BRAG_DATA_DIR). The repo was archived and
+#                      then the whole subsystem was deleted from both nix-config and
+#                      nix-personal on 2026-09-12, at the operator's request. Nothing in
+#                      either flake references it any more, so nothing replaces this line.
+#                      The operator's own mined data still sits in ~/Developer/local/brags,
 #                      a deliberately REMOTE-LESS repo that was never a fleet repo, is not
 #                      listed here, and must not be added.
 
