@@ -107,9 +107,12 @@ in
   };
 
   # ---- (e) The service token -------------------------------------------------
-  # `duration` is deliberately left at the provider default rather than pinned:
-  # rotating it is a `tofu apply`, and a hard expiry on the ONLY credential the
-  # portal holds would dark every published server the moment it lapsed.
+  # NOTE — this token DOES expire. Leaving `duration` unset does not avoid an
+  # expiry: the provider default is 8760h, so the first apply (2026-09-12) created
+  # one valid until 2027-09-12. It is the ONLY credential the portal holds, so when
+  # it lapses EVERY published server goes dark at once, with no partial failure to
+  # warn you first. Rotating is a `tofu apply` plus re-registering the headers.
+  # Set `duration` explicitly here if a different window is wanted.
   resource.cloudflare_zero_trust_access_service_token.mcp_public = {
     account_id = accountId;
     name = "mcp-public-gateway";
