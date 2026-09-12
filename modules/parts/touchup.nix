@@ -31,6 +31,27 @@
 # TO RE-ENABLE ONE: delete its line. The day this flake genuinely exports an
 # overlay or a nixosModule, that is the edit — a deliberate one, in a file whose
 # only job is saying what the flake exports.
+#
+# ---- `modules` is a FOURTH suppression, and a different kind ----------------
+#
+# The three above are framework noise: flake-parts declares them empty and this
+# flake never had them. `flake.modules` is not empty — ADR-002 wave 3 made it the
+# capsule registry (modules/parts/capsules.nix), and today it really does carry
+# `nixos.cloudflared-connector`. Suppressing it is therefore a DECISION, the one
+# ADR-002 §7.3 says must not happen as a side effect:
+#
+#   github:kattakath/nix-cloudflared-connector published
+#   `nixosModules.cloudflared-connector` to strangers. Absorbed, its only
+#   consumer is hosts/nixpi.nix, reached through `config.flake.modules` INSIDE
+#   this flake — which touchup does not touch. Re-exporting it would add a public
+#   output with no consumer, and ADR-002 §7 is explicit that carrying a seam
+#   nothing consumes is itself a cost. Across all seven satellites there were 2
+#   stars and 0 forks, so there is no downstream to strand.
+#
+# TO RE-PUBLISH: delete the `modules` line below and the whole registry becomes
+# a flake output again — or, to publish exactly one capsule and no more,
+# `touchup.attr.modules.any.attr.<name>.enable` (extras/touchup.nix's own
+# documented "hide a package from users, but not from your own modules" shape).
 { inputs, ... }:
 {
   imports = [ inputs.flake-parts.flakeModules.touchup ];
@@ -39,5 +60,6 @@
     legacyPackages.enable = false;
     nixosModules.enable = false;
     overlays.enable = false;
+    modules.enable = false;
   };
 }

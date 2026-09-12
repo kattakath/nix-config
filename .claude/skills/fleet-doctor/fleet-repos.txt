@@ -32,12 +32,18 @@
 #
 # Maintenance: when a new fleet repo appears (extracted or greenfield), add one
 # line here. Nothing else needs to change — the skill iterates this file.
+#
+# ADR-002 runs this list the OTHER way: each satellite absorbed into nix-config as a
+# capsule is archived and its line comes OUT, because a doctor that sweeps an archived
+# repo reports stale branches nobody can merge. nix-cloudflared-connector left in wave 3
+# (it is now modules/features/cloudflared-connector/); nix-firmware-secrets,
+# nix-keychain-secrets, nix-vast-provision, nix-tart-vms, nix-media-cli and nix-local-rag
+# follow in waves 4-6. Do not re-add one because it is still on disk.
 
 github.com/kattakath/nix-config
 gitlab.com/ismailkattakath/nix-personal
 github.com/kattakath/brags
 github.com/kattakath/ircc-whatsapp-bot
-github.com/kattakath/nix-cloudflared-connector
 github.com/kattakath/nix-firmware-secrets
 github.com/kattakath/nix-inngest
 github.com/kattakath/nix-keychain-secrets
