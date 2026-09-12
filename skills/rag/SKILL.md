@@ -73,7 +73,8 @@ You do **not** create the table or the function — they exist. Just use them.
   starting/pulling on first boot — the `nomic-embed-text` model is fetched once in the
   background; retry shortly. A dimension-mismatch error means the model changed; re-embed.
 - **Keep it read-mostly.** Inserts/updates are fine; avoid schema changes — the table and
-  index are managed declaratively (the extracted local-rag flake's services.pgvectorLocal —
-  github:kattakath/nix-local-rag).
+  index are managed declaratively by `services.pgvectorLocal`, in nix-config's in-tree
+  `modules/features/local-rag/` capsule — formerly the `github:kattakath/nix-local-rag`
+  flake, absorbed by ADR-002 wave 6 and archived.
 - **Reset a corpus** with `TRUNCATE docs;` (or delete by `metadata->>'source'`) before
   re-ingesting a changed document, so you don't accumulate stale chunks.

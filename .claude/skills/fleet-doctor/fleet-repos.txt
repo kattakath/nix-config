@@ -5,10 +5,8 @@
 # ~/.claude/CLAUDE.md "repos live under ~/Developer/<forge>/<owner>/<repo>").
 #
 # This is nix-config's own composition (this repo) + the private composition
-# flake + every satellite fleet repo, whether it was EXTRACTED from nix-config
-# (see each repo's own history / nix-config's CLAUDE.md "extraction" bullets)
-# or authored standalone + the other small flakes nix-config's private layer
-# depends on. It is NOT "every repo on disk" — client/personal repos with no
+# flake + the standalone fleet repos nix-config or its private layer relates to.
+# It is NOT "every repo on disk" — client/personal repos with no
 # Nix/fleet relationship (Infin8, dontsell-ai, silvercreek-ai, deepjobseek,
 # etc.) are deliberately excluded; fleet-doctor is scoped to declarative-infra
 # hygiene, not general dev-repo housekeeping.
@@ -33,23 +31,25 @@
 # Maintenance: when a new fleet repo appears (extracted or greenfield), add one
 # line here. Nothing else needs to change — the skill iterates this file.
 #
-# ADR-002 runs this list the OTHER way: each satellite absorbed into nix-config as a
-# capsule is archived and its line comes OUT, because a doctor that sweeps an archived
-# repo reports stale branches nobody can merge. nix-cloudflared-connector left in wave 3
-# (now modules/features/cloudflared-connector/); nix-firmware-secrets and
-# nix-keychain-secrets in wave 4 (now modules/features/firmware-secrets/ and
-# modules/features/keychain-secrets/); nix-vast-provision, nix-tart-vms, nix-media-cli and
-# nix-local-rag follow in waves 5-6. Do not re-add one because it is still on disk.
+# ADR-002 ran this list the OTHER way, and it is DONE: every satellite absorbed into
+# nix-config as a capsule is archived and its line came OUT, because a doctor that sweeps
+# an archived repo reports stale branches nobody can merge. All seven left, in wave order:
+#   wave 3  nix-cloudflared-connector  -> modules/features/cloudflared-connector/
+#   wave 4  nix-firmware-secrets       -> modules/features/firmware-secrets/
+#   wave 4  nix-keychain-secrets       -> modules/features/keychain-secrets/
+#   wave 4  nix-vast-provision         -> modules/features/vast-provision/
+#   wave 5  nix-tart-vms               -> modules/features/tart-vms/
+#   wave 5  nix-media-cli              -> modules/features/media-cli/
+#   wave 6  nix-local-rag              -> modules/features/local-rag/
+# Do not re-add one because it is still on disk — the working copy outlives the repo.
+# The satellite count is 0; what is left below is the composition pair plus the repos
+# that were never satellites.
 
 github.com/kattakath/nix-config
 gitlab.com/ismailkattakath/nix-personal
 github.com/kattakath/brags
 github.com/kattakath/ircc-whatsapp-bot
 github.com/kattakath/nix-inngest
-github.com/kattakath/nix-local-rag
 github.com/kattakath/nix-mcp-gateway
-github.com/kattakath/nix-media-cli
-github.com/kattakath/nix-tart-vms
-github.com/kattakath/nix-vast-provision
 github.com/kattakath/provisioner-template
 github.com/ismailkattakath/hyperframes-selfhost

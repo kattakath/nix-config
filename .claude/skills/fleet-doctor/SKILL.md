@@ -23,10 +23,16 @@ re-activate. Doing that by hand, repo by repo, is what this skill replaces.
 ## Fleet manifest
 
 `.claude/skills/fleet-doctor/fleet-repos.txt` — one repo per line, relative
-to `~/Developer`. This is the fleet (nix-config + nix-personal + every
-extracted satellite repo), **not** every repo on disk — see the file's own
-header. Add a line there when a new fleet repo is extracted or created; nothing
-else in this skill needs to change.
+to `~/Developer`. This is the fleet (nix-config + nix-personal + the remaining
+standalone fleet repos), **not** every repo on disk — see the file's own header.
+Add a line there when a new fleet repo is created; nothing else in this skill
+needs to change.
+
+**The seven extracted satellites are gone from this list, on purpose.** ADR-002
+absorbed each one into `nix-config` as a `modules/features/<name>/` capsule and
+archived its repo, so sweeping it would report stale branches nobody can merge.
+A satellite still on disk is a working copy that outlived its remote — do not
+re-add it.
 
 **Not every listed repo is a flake.** `brags`, `provisioner-template` and
 `hyperframes-selfhost` carry no `flake.nix` by design, so the flake-shaped steps

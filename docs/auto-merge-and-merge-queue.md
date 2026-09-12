@@ -149,15 +149,33 @@ survives, in [`.claude/rules/pr-title.md`](../.claude/rules/pr-title.md).)
 | --- | --- | --- |
 | `kattakath/nix-config` | `required-checks`, `Scan for secrets` | `nix-ci.yml`, `gitleaks.yml` |
 | `kattakath/nix-mcp-gateway` | `checks` | `ci.yml` |
-| `kattakath/nix-vast-provision` | `checks` | `ci.yml` |
 | `kattakath/ircc-whatsapp-bot` | `checks` | `ci.yml` |
 
-All four are public and org-owned, which is what makes the queue available.
-(ADR-002 took the count from eleven to four: `kattakath/nix-cloudflared-connector` left at
-wave 3, `nix-firmware-secrets` / `nix-keychain-secrets` / `nix-vast-provision` at wave 4,
-`nix-tart-vms` / `nix-media-cli` at wave 5, and `nix-local-rag` at wave 6 — each absorbed
-into `nix-config` as a capsule and its repo archived. One fewer queue and one fewer `ci.yml`
-every time; **all seven satellites are gone.**)
+All three are public and org-owned, which is what makes the queue available.
+**Neither of the two besides `nix-config` is a `nix-config` input** — membership in this
+table is "has its own CI and its own merge queue", not "is consumed by the fleet flake".
+`nix-mcp-gateway` is an unadopted extraction candidate; `ircc-whatsapp-bot` is a product
+repo. Both keep their own pipeline, so both keep their own queue.
+
+**ADR-002 took this table from ten repos to three, and that is finished.**
+([`monoflake-capsule-adr.md`](monoflake-capsule-adr.md).) Each of the seven satellite
+flakes was absorbed into `nix-config` as a `modules/features/<name>/` capsule and its repo
+archived, which retires one ruleset, one merge queue and one `ci.yml` apiece:
+
+| Left at | Repo | Now |
+| --- | --- | --- |
+| wave 3 | `kattakath/nix-cloudflared-connector` | `modules/features/cloudflared-connector/` |
+| wave 4 | `kattakath/nix-firmware-secrets` | `modules/features/firmware-secrets/` |
+| wave 4 | `kattakath/nix-keychain-secrets` | `modules/features/keychain-secrets/` |
+| wave 4 | `kattakath/nix-vast-provision` | `modules/features/vast-provision/` |
+| wave 5 | `kattakath/nix-tart-vms` | `modules/features/tart-vms/` |
+| wave 5 | `kattakath/nix-media-cli` | `modules/features/media-cli/` |
+| wave 6 | `kattakath/nix-local-rag` | `modules/features/local-rag/` |
+
+**The satellite count is 0**, and their ~25 absorbed checks now ride `nix-config`'s single
+`required-checks` aggregate — so the cost of the collapse lands on ONE queue: a userscript
+tweak waits behind a tart-runner change (ADR-002 §7.5). The archiving itself is an operator
+action on GitHub, not something any workflow in this repo performs.
 
 The private `ismailkattakath/nix-personal` (GitLab) is **out of scope**: it has no
 `.gitlab-ci.yml` at all, so there is no pipeline for a merge-when-green rule to
