@@ -34,7 +34,8 @@
 # accountId / zoneId (the SSH host's zone) / domainName also come from flake.nix's
 # single sources (via _module.args in cfTunnelConfig).
 #
-# The runtime connector unit (the `nix-cloudflared-connector` flake) is UNTOUCHED: it
+# The runtime connector unit (the in-tree `modules/features/cloudflared-connector/`
+# capsule, formerly the `nix-cloudflared-connector` flake) is UNTOUCHED: it
 # reads the token at /run/cloudflared-token, which services.firmwareProvisioning
 # copies off the FAT FIRMWARE partition at boot (host-key-independent, so a fresh
 # SD flash does not lock out the tunnel — see hosts/nixpi.nix).
