@@ -332,7 +332,10 @@ in
   # let a change here silently retarget those. Referenced by id instead.
   resource.cloudflare_zero_trust_access_application.nixpi_ssh = {
     account_id = accountId;
-    name = "nixpi SSH";
+    # An Access application is named after what it points at — the same rule
+    # infra/cloudflare/mcp-public.nix states in full. "nixpi SSH" was prose that
+    # duplicated the Type column and had to be kept in sync by hand.
+    name = publicHostname;
     type = "self_hosted";
     domain = publicHostname;
     # `self_hosted_domains` is DEPRECATED and mutually exclusive with
