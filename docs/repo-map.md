@@ -33,8 +33,10 @@ Single source of truth; platform divergence lives in `modules/`, never in ad-hoc
 
 ### `flake.nix`
 
-**Since ADR-002 wave 2 this file is inputs + ONE `flake-parts.lib.mkFlake` call** — 404 lines,
-down from 2,254. Every output is defined in [`modules/parts/`](#modulesparts--the-flake-engine),
+**Since ADR-002 wave 2 this file is inputs + ONE `flake-parts.lib.mkFlake` call** — down from
+2,254 lines, and smaller again since, as removed subsystems took their comments with them.
+The count is deliberately not restated here: nothing gates it, so a number in prose only
+rots. `wc -l flake.nix` is the answer. Every output is defined in [`modules/parts/`](#modulesparts--the-flake-engine),
 one file per concern, discovered by `import-tree`. Nothing below moved *semantically*; the
 acceptance test for that wave was an **empty `nix flake show --json` diff** plus byte-identical
 host toplevels.
@@ -365,7 +367,8 @@ their own top-level section below:
 
 - **`modules/parts/`** — the FLAKE ENGINE. It **may reach anywhere** in the tree.
   → [§ `modules/parts/`](#modulesparts--the-flake-engine)
-- **`modules/features/<name>/`** — the seven CAPSULES (the absorbed satellite flakes). A capsule
+- **`modules/features/<name>/`** — the six CAPSULES (the absorbed satellite flakes that
+  survive; `vast-provision` was removed 2026-09-12). A capsule
   is entered **only** through its `flake-module.nix` and **may not reach outside its own
   directory**. → [§ `modules/features/`](#modulesfeatures--the-seven-capsules)
 
@@ -933,7 +936,7 @@ disables Caddy auto-HTTPS to avoid a redirect loop back through the tunnel).
 ## `modules/parts/` — the flake engine
 
 **ADR-002 wave 2** moved every flake output out of `flake.nix` and into one file per concern.
-`flake.nix` is now **404 lines of inputs plus a single `flake-parts.lib.mkFlake` call**; the
+`flake.nix` is now **inputs plus a single `flake-parts.lib.mkFlake` call and nothing else**; the
 engine is here. These are flake-parts modules and they **may reach anywhere** in the tree — that
 is the asymmetry with `modules/features/`, which may not reach out.
 
