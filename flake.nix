@@ -151,19 +151,17 @@
     # flake-parts directly above — had that not already happened, removing this
     # input would have broken four unrelated `follows` lines at LOCK time.)
 
-    # keychain-secrets — the macOS login-Keychain `secret` CLI + every-shell loader,
-    # EXTRACTED FROM THIS REPO into a standalone MIT flake
-    # (github.com/kattakath/nix-keychain-secrets). The macos host consumes its
-    # home-manager module instead of the vendored packages + loader — dogfooding.
-    keychain-secrets.url = "github:kattakath/nix-keychain-secrets";
-    keychain-secrets.inputs.nixpkgs.follows = "nixpkgs";
-    keychain-secrets.inputs.home-manager.follows = "home-manager";
-    keychain-secrets.inputs.flake-parts.follows = "flake-parts";
+    # (keychain-secrets was an input here until ADR-002 wave 4 ABSORBED it as a
+    # capsule — modules/features/keychain-secrets/. Same module, same
+    # `programs.keychainSecrets` option surface (loaderRelPath BYTE-IDENTICAL —
+    # modules/darwin/core.nix derives BASH_ENV from it), same three darwin
+    # packages/apps, one fewer lock node and one fewer CI pipeline; the origin
+    # repo is archived and its history stays there.)
 
     # media-cli — the media-file CLIs, the launchd work queue behind the Finder
     # Services, and the two media-ADJACENT tools, EXTRACTED FROM THIS REPO into a
     # standalone MIT flake (github.com/kattakath/nix-media-cli). Same dogfooding
-    # move as keychain-secrets above, for the same reason: the whole feature is
+    # move as the absorbed keychain-secrets above, for the same reason: the whole feature is
     # now `programs.mediaCli.enable`, so it can be added or stripped off without
     # hunting leftovers across flake.nix, home.nix and eleven package files.
     media-cli.url = "github:kattakath/nix-media-cli";

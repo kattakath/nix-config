@@ -36,17 +36,16 @@
 # ADR-002 runs this list the OTHER way: each satellite absorbed into nix-config as a
 # capsule is archived and its line comes OUT, because a doctor that sweeps an archived
 # repo reports stale branches nobody can merge. nix-cloudflared-connector left in wave 3
-# (now modules/features/cloudflared-connector/) and nix-firmware-secrets in wave 4 (now
-# modules/features/firmware-secrets/); nix-keychain-secrets, nix-vast-provision,
-# nix-tart-vms, nix-media-cli and nix-local-rag follow in waves 4-6. Do not re-add one
-# because it is still on disk.
+# (now modules/features/cloudflared-connector/); nix-firmware-secrets and
+# nix-keychain-secrets in wave 4 (now modules/features/firmware-secrets/ and
+# modules/features/keychain-secrets/); nix-vast-provision, nix-tart-vms, nix-media-cli and
+# nix-local-rag follow in waves 5-6. Do not re-add one because it is still on disk.
 
 github.com/kattakath/nix-config
 gitlab.com/ismailkattakath/nix-personal
 github.com/kattakath/brags
 github.com/kattakath/ircc-whatsapp-bot
 github.com/kattakath/nix-inngest
-github.com/kattakath/nix-keychain-secrets
 github.com/kattakath/nix-local-rag
 github.com/kattakath/nix-mcp-gateway
 github.com/kattakath/nix-media-cli

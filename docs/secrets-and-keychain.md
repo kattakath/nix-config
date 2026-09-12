@@ -81,8 +81,10 @@ to a `/run` file planted from the FIRMWARE partition.
 Personal tokens live in the macOS **login Keychain** (the single source of truth) or come from
 one-time CLI logins (`gh`/`hf`/`docker`/`claude`). Never literals in `.nix`.
 
-A darwin-only loader (from the `nix-keychain-secrets` flake via `programs.keychainSecrets`,
-installed to `~/.config/secrets/loader.sh`) exports every registered secret into **every**
+A darwin-only loader (from the `modules/features/keychain-secrets/` capsule via
+`programs.keychainSecrets`, installed to `~/.config/secrets/loader.sh` — the path
+`modules/darwin/core.nix` derives `launchd.user.envVariables.BASH_ENV` from, by reference, so
+the two halves cannot drift) exports every registered secret into **every**
 shell — sourced from zsh's `.zshenv` (via `envExtra`) and bash's profile + `.bashrc` +
 `$BASH_ENV`, **NOT** just the login `~/.zprofile`/`~/.bash_profile`. The old login-only wiring
 silently starved non-login shells: `zsh -c`, Claude Code's Bash tool, scripts, launchd.
@@ -95,7 +97,7 @@ root). `SECRETS_DEBUG=1` reports which secrets loaded/failed (names + lengths + 
 ### The `secret` command
 
 The store is managed with a single noun-verb command **`secret <verb>`** (the primary interface;
-from the `nix-keychain-secrets` flake). **There is no `secret get`** — it was removed so that
+from the `modules/features/keychain-secrets/` capsule). **There is no `secret get`** — it was removed so that
 printing a value is always an explicit, named act (`reveal`), never the path of least
 resistance:
 
@@ -145,6 +147,32 @@ is function-only). `set-secret <KEY> [VALUE]` and `remove-secret <KEY>` remain a
 **aliases** for `secret set` / `secret rm`. The mutating verbs forward to `set-secret` so the
 Keychain/index logic lives once, and the Keychain index (`__set_secret_index__`) is
 authoritative — so **no secret names live in `.nix`**.
+
+### The threat model — ambient by design, and what that costs
+
+Rehomed from `nix-keychain-secrets`' `SECURITY.md` when ADR-002 wave 4 absorbed the flake.
+It is not a footnote: it is the reason this store exists *alongside* agenix rather than
+instead of it.
+
+**The loader makes every registered secret AMBIENT in every shell of a process tree — on
+purpose.** The consequence is exact and worth saying out loud: **any process in that tree —
+a compromised dependency, a `postinstall` script, an AI coding agent — can read every
+exported value with `env`.** That is the right trade for *laptop/dev API keys*, where the
+alternative is the token sitting in a dotfile in git. It is the **wrong** trade for
+high-value, server, or shared-machine secrets; those belong in the agenix vault above (or
+sops-nix / 1Password), which decrypt per-consumer and never reach a shell environment.
+
+Two properties bound the blast radius, and neither softens the sentence above:
+
+- Values rest in the **login Keychain** (encrypted at rest) and in process memory. Neither
+  the values nor the key NAMES reach `/nix/store` or git — the index
+  (`__set_secret_index__`) is itself a Keychain item.
+- A secret can be stored **without** an env binding (`secret bind`/`unbind`, or the
+  `=SERVICE` index form). Unbound secrets are never exported and are reached on demand with
+  `copy`/`exec`/`fp`/`reveal` — which is exactly what the three Cloudflare tokens above do.
+
+The upstream repo's "report a vulnerability" section did **not** come along: the flake is
+archived, and this fleet's disclosure path is `SECURITY.md` at the repo root.
 
 ### Two documented behaviours (not bugs)
 
