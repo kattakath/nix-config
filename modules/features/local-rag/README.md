@@ -149,7 +149,8 @@ string, and the only path the career RAG (`career_docs` in `ragdb`) has to
 Claude Code. `checks/module-evaluations.nix` pins that URI as a literal so a
 port/role/db rename fails a check rather than quietly returning zero rows.
 
-[`skills/rag/SKILL.md`](../../../skills/rag/SKILL.md) is how an AI coding agent
+The [`rag` skill](https://github.com/kattakath/claude-skills/tree/main/skills/rag)
+is how an AI coding agent
 is taught to use the resulting `embed()`/`docs` interface.
 
 It travelled out and back: extracted from this repo on 2026-08 (the last
