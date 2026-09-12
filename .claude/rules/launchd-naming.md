@@ -54,7 +54,7 @@ mandatory, not as a security boundary to rely on. Live example:
    logic inside that wrapper — and NOT a `wait4path`, for the reason in item 1: it is
    unreachable from a store-resident wrapper. Canonical examples in
    `modules/shared/mcp.nix`: `telegramMcp` (`nix-telegram-mcp`), `wpMcp`
-   (`nix-mcp-wordpress`), `cloudflaredConnector` (`nix-mcp-tunnel-connector`).
+   (`nix-mcp-wordpress`), `apifyMcp` (`nix-mcp-apify`).
 3. **Before declaring any launchd change done**, mentally (or with the audit below) confirm
    the new unit's `arg0` basename starts with `nix-`.
 
