@@ -633,7 +633,7 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
   for every launchd unit this repo authors**: HM user agents are auto-wrapped here, and any
   hand-written `launchd.daemons`/`launchd.agents` MUST point `arg0` at a
   `writeShellScriptBin "nix-<activity>"` wrapper (canonical:
-  `telegramMcp`/`wpMcp`/`cloudflaredConnector` in `mcp.nix`) — codified as the always-applied
+  `telegramMcp`/`wpMcp`/`apifyMcp` in `mcp.nix`) — codified as the always-applied
   [`launchd-naming.md`](../.claude/rules/launchd-naming.md) rule, which also documents the
   three known-upstream `/bin/sh` exceptions that are NOT ours and must never be renamed.
   Being a vendored fork, it tracks upstream by hand: `upstream-baseline/` holds a byte-exact
