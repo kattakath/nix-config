@@ -663,6 +663,12 @@
             mkdir -p "$state_dir"
             chmod 700 "$state_dir"
             cd "$state_dir"
+            # 0600 on everything tofu writes from here on. Verified: the state file
+            # really does carry
+            # cloudflare_zero_trust_tunnel_cloudflared_token.nixpi.token, so this is
+            # load-bearing, not hygiene. umask covers files tofu creates itself.
+            umask 077
+            chmod 600 terraform.tfstate terraform.tfstate.backup 2>/dev/null || true
             echo "tofu working directory: $state_dir" >&2
 
             rm -f config.tf.json
