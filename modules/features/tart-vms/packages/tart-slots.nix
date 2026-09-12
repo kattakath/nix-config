@@ -5,7 +5,7 @@
 #
 # Why not `/usr/bin/lockf` — the off-the-shelf answer, and the one that DELETED
 # this exact mkdir + pid-file + `kill -0` + stale-reclaim shape over in
-# nix-media-cli (packages/media-queue.nix:396-405: "THE LOCK IS THE KERNEL'S,
+# the media-cli capsule (packages/media-queue.nix:396-405: "THE LOCK IS THE KERNEL'S,
 # NOT OURS … that makes a stale lock structurally impossible"). lockf takes a
 # `flock(2)`, whose entire guarantee is that the kernel drops the lock when the
 # holder dies — and the `vm` marker below must OUTLIVE its acquiring process,
