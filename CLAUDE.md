@@ -126,12 +126,12 @@ One line per path; the *why* and the per-file specifics are in
 | `treefmt.nix` | Single source of truth for format + lint-fix (tools that REWRITE); drives `nix fmt`, the CI gate, and the pre-commit hook. |
 | `sgconfig.yml` + `ast-grep/` | Report-only structural lint (ast-grep): `rules/` mechanises prose conventions, `rule-tests/` proves they fire. Gated by `checks.<system>.ast-grep`, **not** treefmt. |
 | `hosts/` | Per-host entry profiles: `macos.nix`, `nixpi.nix`, `nixvm.nix` (host-only deltas + per-host Homebrew lists). |
-| `modules/shared/` | Home Manager profile on every host: `home.nix`, `mcp.nix`, `terminal-theme.nix` (`local.terminalTheme` — the fleet's one ANSI ring + type, consumed by Ghostty, VS Code and Terminal.app), `chromium.nix` (`programs.ungoogledChromium` — sideloaded CRXes, Apple's Passwords native host, *recommended*-level policy incl. the default search engine, and the LaunchServices default-browser claim, all for the Homebrew cask), `desktop-aesthetics.nix`, `nix-cache.nix`, `nix-ld-libraries.nix`, `wireguard-configs.nix`, `claude-otel.nix`, `claude-bedrock-gate.nix` (Bedrock routing survives a public-only activation), `git-allowed-signers.nix` (option-only seam nix-personal fills), `wallpaper/`, `hm-launchd/`. |
+| `modules/shared/` | Home Manager profile on every host: `home.nix`, `mcp.nix`, `terminal-theme.nix` (`local.terminalTheme` — the fleet's one ANSI ring + type, consumed by Ghostty, VS Code and Terminal.app), `chromium.nix` (`programs.ungoogledChromium` — sideloaded CRXes, Apple's Passwords native host, and *recommended*-level policy incl. the default search engine, all for the Homebrew cask), `default-browser.nix` (the LaunchServices default-browser claim, split out of `chromium.nix`), `desktop-aesthetics.nix`, `nix-cache.nix`, `nix-ld-libraries.nix`, `wireguard-configs.nix`, `claude-otel.nix`, `claude-bedrock-gate.nix` (Bedrock routing survives a public-only activation), `git-allowed-signers.nix` (option-only seam nix-personal fills), `wallpaper/`, `hm-launchd/`. |
 | `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix` (`local.folders.*` — inbox paths; unset = system default), `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`services.macosGithubRunner` — LIVE on `macos`, see § Configuration). |
-| `modules/nixos/` | `core.nix` (user + keys-only sshd + firewall + avahi + nix-ld + zram + GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). |
+| `modules/nixos/` | `core.nix` (user + keys-only **loopback-bound** sshd with `openFirewall = false` + a firewall that opens **no** TCP port + avahi + nix-ld + zram + GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). |
 | `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `key-recovery`, `spotlight-launchers`, plus single-purpose CLIs (`android-phone`, `jsonresume`, `mermaid-ascii`, `claude-otel-doctor`, …). Root `bootstrap.sh` is the no-Nix stage 1. The media/photo CLIs are **no longer here** — they moved to the [`nix-media-cli`](https://github.com/kattakath/nix-media-cli) input (see § Configuration). |
 | `userscripts/` | The **public** Violentmonkey `.user.js` scripts, declared by name in `modules/shared/home.nix`; authored via the portable `plugins/page-lab` (method + picker + diagnosis) + project skill `userscript-author` (Nix declaration), gated by `checks.<system>.userscripts` — which **runs the plugin's own linter**, so the Greasy Fork rulebook lives once. Private ones merge in from nix-personal — keys must not collide, and that tree is **not** covered by the gate. Mechanism + why Chromium allows nothing declarative: `modules/shared/chromium.nix`. |
-| `infra/` | terranix (Nix → Terraform JSON): `cloudflare/nixpi-tunnel.nix`, `hyperframes/stack.nix`. Applied only via the `cf-*` / `hf-*` apps. |
+| `infra/` | terranix (Nix → Terraform JSON): `cloudflare/nixpi-tunnel.nix`, `cloudflare/mcp-public.nix` (the published MCP stack — tunnel, origin hostname, Access app + service token, portal registrations), `hyperframes/stack.nix`. Applied only via the `cf-*` / `mcp-public-*` / `hf-*` apps. |
 | `secrets/` | agenix recipients (`secrets.nix`) + the operator pubkey (`operator-key.nix`, single-sourced into both recipients and `authorizedKeys`) + **four** ciphertexts: `cloudflared-token.age` (operator-only) and three host-decrypted on `macos` — `gh-app-dontsell-ai-key.age`, `gh-app-fleet-key.age`, `gitlab-runner-token.age`. |
 | `skills/` | **Global** Claude Code skills vendored here (forks needing a patch + originals): `brag`, `brags-review`, `rag`, `android-phone`, `nix-dev-toolkit`. Most global skills instead come from pinned `flake = false` inputs. |
 | `plugins/` | This repo's own Claude Code plugin marketplace (`kattakath-nix-config`); today `plugins/llmstxt`, `plugins/seargraph`, `plugins/page-lab`. Reach for a plugin only when the unit is more than a skill (a command, hook, MCP server, or `agents/`) **or is meant to be publishable outside the fleet**. |
@@ -142,7 +142,8 @@ One line per path; the *why* and the per-file specifics are in
 
 **Commands** (`.claude/commands/`): `/eval`, `/hygiene`, `/update-input`, `/superhook-review`,
 `/pretooluse-review`, `/remember-nix`, `/gmail-account`, `/routing-review`,
-`/mcp-scout`, `/fleet-doctor`, `/userscript`, `/devtools`, `/pick`.
+`/mcp-scout`, `/fleet-doctor`, `/userscript`. (`/devtools` and `/pick` are **not** here —
+they ship from the `plugins/page-lab` marketplace.)
 
 **Project skills** (`.claude/skills/`): `nix-hygiene`, `nixpi-firmware-provision`,
 `vast-instance-log-tail`, `jsonresume-tailor`, `gmail-mcp-accounts`, `mcp-scout`,
@@ -303,10 +304,12 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   etuper.com, izzykatt.ca, silvercreek.ai) are still configured out-of-band.
 - **OpenTofu state is the fragile part of the edge, not the config.** State has been lost
   **twice** — both times because `tofu` ran in whatever the CWD happened to be, leaving a
-  gitignored state file behind. There is **no backend block**; instead the `cf-*` apps pin
-  their working directory to `$XDG_STATE_HOME/nix-config-cf-tunnel` (0700, `umask 077`, state
-  0600 — it holds the tunnel connector token in plaintext). Never run `tofu` in a bare
-  directory, and never apply before a `plan` reads clean.
+  gitignored state file behind. There is **no backend block**; instead each terranix app pins
+  its own working directory (0700, `umask 077`, state 0600 — **both** hold a tunnel connector
+  token in plaintext, and the MCP one also holds an Access service-token secret):
+  `cf-*` → `$XDG_STATE_HOME/nix-config-cf-tunnel`, `mcp-public-*` →
+  `$XDG_STATE_HOME/nix-config-mcp-public`. Never run `tofu` in a bare directory, and never
+  apply before a `plan` reads clean.
 - **What magic rollback actually buys** (`deploy.nodes.nixpi.magicRollback = true`): the Pi
   activates behind a watchdog and reverts **itself** to the previous generation unless the
   deployer reconnects over a second ssh session and confirms. A change that kills sshd, the
@@ -344,15 +347,17 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   package, and flake output, with the reasoning. The long form of § Navigating the Codebase.
 - [`docs/mcp-gateway.md`](docs/mcp-gateway.md) — the localhost MCP gateway: server inventory,
   credentials model, opt-ins, how to add one.
-- [`docs/mcp-public-exposure-design.md`](docs/mcp-public-exposure-design.md) — design note (not
-  built): `services.mcpGateway.public = [ … ]` flips a gateway server to publicly reachable.
-  A **second** `mcp-proxy` on `:8097` carries only the published subset (so a leaked credential
-  cannot reach Gmail/Postgres/WordPress on `:8096`), fronted by a cloudflared connector +
-  **one** Access app + **one** service token — which the MCP portal presents via
-  `auth_credentials` `{"headers":{"cf-access-client-id":…}}`, a pattern Cloudflare's own schema
-  documents. Tunnel/DNS/Access are created **once**; a new public server costs one list entry.
-  Also carries the invariant for the standalone-Worker path (**safe when the portal is
-  bypassed**, which Grok proved is not hypothetical) and a correction record for v1.
+- [`docs/mcp-public-exposure-design.md`](docs/mcp-public-exposure-design.md) — **BUILT and live
+  (2026-09-12)**: `services.mcpGateway.public = [ … ]` flips a gateway server to publicly
+  reachable. A **second** `mcp-proxy` on `:8097` carries only the published subset (so a leaked
+  credential cannot reach Gmail/Postgres/WordPress on `:8096`), fronted by a cloudflared
+  connector + **one** Access app + **one** service token, which the MCP portal presents via
+  `auth_credentials` `{"headers":{"cf-access-client-id":…}}`. **Exactly two hostnames, and they
+  do not grow per server:** `mcp.<domain>` is the portal clients talk to, `upstream.<domain>` is
+  the origin only the portal dials. A new public server costs one list entry.
+  The old standalone-Worker invariant (*"safe when the portal is bypassed"*) is **retired** — the
+  last Worker running its own OAuth dropped it, so bypass is now impossible rather than merely
+  survivable. §9 is the correction record.
 - [`docs/open-design.md`](docs/open-design.md) — OpenDesign's declared/imperative boundary:
   adopted cask + updater kill-switch + per-client stdio MCP vs. the app's mutable state.
 - [`docs/secrets-and-keychain.md`](docs/secrets-and-keychain.md) — agenix operator-only vault +

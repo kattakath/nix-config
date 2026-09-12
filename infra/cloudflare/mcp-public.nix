@@ -46,11 +46,17 @@
   #
   # Single-label ONLY: the free Universal cert covers *.<domainName> at exactly one
   # level. A two-label name has no certificate (see calendly.ismail.<domain>).
-  publicSubdomain ? "upstream",
+  #
+  # REQUIRED, not defaulted. A `? default` here is DEAD — the module system
+  # queries `_module.args` and errors before a function-head default is ever
+  # consulted (see the same note at `portalId` below). flake.nix always supplies
+  # all three, and is the single source of their defaults. Matches
+  # infra/cloudflare/nixpi-tunnel.nix, which declares its arguments required.
+  publicSubdomain,
   # Gateway server names published through the portal. Mirrors
   # services.mcpGateway.public; empty renders the tunnel + Access objects but
   # registers no server, so nothing is actually reachable.
-  publicServers ? [ ],
+  publicServers,
   # Remote MCP Workers published under the SAME hostname as the gateway, as a
   # Cloudflare Worker *route* on `<publicSubdomain>/servers/<name>/*` rather than
   # a hostname of their own. They are not on the :8097 proxy — they are
@@ -66,7 +72,7 @@
   # module only registers and gates it. Access covers the whole hostname and
   # Cloudflare checks Access BEFORE a Worker runs, so a route needs no Access
   # object of its own.
-  externalServers ? [ ],
+  externalServers,
   ...
 }:
 let
@@ -104,8 +110,8 @@ let
   #     A THING IS NAMED AFTER WHAT IT POINTS AT.
   #
   #   - an Access application over a hostname is named THAT HOSTNAME
-  #     (`connector.kattakath.com`, `mcp.kattakath.com`, and in the sibling
-  #     module `nixpi.kattakath.com`)
+  #     (`upstream.<domain>`, `mcp.<domain>`, and in the sibling module
+  #     `nixpi.<domain>`)
   #   - an Access application over a published server is named THAT SERVER
   #     (`memory`, `character`)
   #   - a registration's id, its portal app's name, and its `/servers/<x>/mcp`
@@ -135,8 +141,7 @@ let
     ++ map (e: {
       key = "srv_${srvKey e.name}";
       id = e.name;
-      description =
-        e.description or "Cloudflare Worker route under the gateway hostname.";
+      description = e.description or "Cloudflare Worker route under the gateway hostname.";
     }) externalServers;
 
   # Google Workspace. Pinned on EVERY application, including the service-token
@@ -147,8 +152,9 @@ let
   idpGoogleWorkspace = "3227ee11-f5a4-40ae-a1a7-612e1f035c1c";
 
   # Reusable account policy `mcp-allow-operator` — one allow rule on the
-  # operator's identity. Referenced by literal id, the same way
-  # infra/cloudflare/nixpi-tunnel.nix:363 does, because it is an existing account
+  # operator's identity. Referenced by literal id, the same way the sibling
+  # module infra/cloudflare/nixpi-tunnel.nix does for nixpi_ssh, because it is an
+  # existing account
   # object and a second equivalent policy would just add a duplicate to audit.
   # Not a secret: an Access policy id is an identifier, not a credential.
   operatorPolicyId = "b3bd8c38-e231-4203-ba6b-69fe16e498b3";
@@ -276,7 +282,7 @@ in
     name = "mcp-public-gateway";
   };
 
-  # ---- (d) One Access application over the whole published gateway -----------
+  # ---- (d) The one policy every published object is gated by ------------------
   # decision = "non_identity": the caller is a machine (the portal), so there is
   # no user to authenticate and no browser to redirect. A service-token policy is
   # the only thing that can satisfy it — a human hitting this hostname in a
@@ -321,30 +327,35 @@ in
   #
   # The two layers are NOT redundant, which is the question this list keeps
   # raising: a server appears twice in the dashboard because two different hops
-  # gate it. `origin_*` is the portal -> origin hop, gated by a service token.
-  # `portal_*` is the client -> portal hop, gated by the operator's identity.
-  # Deleting the origin app darks the server entirely (its Worker requires the
-  # Access assertion); deleting the portal app makes it invisible to clients.
-  resource.cloudflare_zero_trust_access_application =
-    {
-      # THE origin. Singular, and that is the design: one public hostname for
-      # every published MCP server, whether it is served by the macos mcp-proxy
-      # down the tunnel or by a Worker route at the edge. A second hostname would
-      # mean a second Access application, a second aud and a second DNS record to
-      # keep in sync — which is exactly what this replaced.
-      origin_gateway = originApp publicHost;
+  # gate it. `origin_gateway` is the portal -> origin hop, gated by a service
+  # token. `portal_*` is the client -> portal hop, gated by operator identity.
+  #
+  # Deleting one is NOT symmetric, and the asymmetry is the security-relevant
+  # part. Deleting a `portal_*` app makes that one server invisible to clients —
+  # annoying, and fails closed. Deleting `origin_gateway` fails OPEN for every
+  # gateway server at once: it removes the only gate in front of
+  # 127.0.0.1:8097, and mcp-proxy verifies nothing itself. (An external Worker
+  # route would still fail closed there, because its own code requires the
+  # Access assertion — but nothing on the tunnel side does.)
+  resource.cloudflare_zero_trust_access_application = {
+    # THE origin. Singular, and that is the design: one public hostname for
+    # every published MCP server, whether it is served by the macos mcp-proxy
+    # down the tunnel or by a Worker route at the edge. A second hostname would
+    # mean a second Access application, a second aud and a second DNS record to
+    # keep in sync — which is exactly what this replaced.
+    origin_gateway = originApp publicHost;
 
-      # The portal's OWN Access application — the object that decides WHICH
-      # CLIENTS may register against the portal, via
-      # `oauth_configuration.dynamic_client_registration.allowed_uris`. It was
-      # left undeclared while it was only being read; declaring it puts the
-      # client allowlist in code rather than in whatever the dashboard happens to
-      # hold, so an apply REVERTS an unintended widening instead of keeping it.
-      #
-      # Distinct from `..._mcp_portal` further down: that resource attaches
-      # SERVERS to the portal, this one gates CLIENTS reaching it. One portal,
-      # two objects, different directions.
-      portal = {
+    # The portal's OWN Access application — the object that decides WHICH
+    # CLIENTS may register against the portal, via
+    # `oauth_configuration.dynamic_client_registration.allowed_uris`. It was
+    # left undeclared while it was only being read; declaring it puts the
+    # client allowlist in code rather than in whatever the dashboard happens to
+    # hold, so an apply REVERTS an unintended widening instead of keeping it.
+    #
+    # Distinct from `..._mcp_portal` further down: that resource attaches
+    # SERVERS to the portal, this one gates CLIENTS reaching it. One portal,
+    # two objects, different directions.
+    portal = {
       account_id = accountId;
       name = portalHost; # the naming rule
       type = "mcp_portal";
@@ -384,13 +395,13 @@ in
         }
       ];
     };
-    }
-    // builtins.listToAttrs (
-      map (p: {
-        name = "portal_${srvKey p.id}";
-        value = portalApp p;
-      }) published
-    );
+  }
+  // builtins.listToAttrs (
+    map (p: {
+      name = "portal_${srvKey p.id}";
+      value = portalApp p;
+    }) published
+  );
 
   # ---- The portal, and the attachment that actually publishes a server -------
   # REGISTERING a server and PUBLISHING it are two different things. A

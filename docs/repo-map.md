@@ -704,11 +704,16 @@ Platform branching lives **here** behind `lib.mkIf`, not duplicated across hosts
 
 - **`modules/nixos/core.nix`** — shared NixOS baseline: the `ismail` user + authorized SSH key (the
   operator's static ed25519 key, the sole network login credential on every host), keys-only
-  sshd (no password, no root login), firewall (TCP 22, UDP 5353 for mDNS), avahi
-  `<host>.local` publishing, native `programs.nix-ld`, zram swap, automatic GC. `nixpi`'s sshd
-  is reached over the Cloudflare tunnel
-  (`cloudflared access ssh --hostname nixpi.kattakath.com`); `nixvm` is only ever the throwaway
-  local `nix run .#nixvm` desktop, so it has no networked login path.
+  sshd (no password, no root login, no keyboard-interactive), a firewall that opens **no TCP
+  port at all** (UDP 5353 only, for mDNS), avahi `<host>.local` publishing, native
+  `programs.nix-ld`, zram swap, automatic GC.
+  **sshd binds loopback only** — `listenAddresses = 127.0.0.1 + ::1` with `openFirewall = false`
+  (clearing `allowedTCPPorts` alone is NOT enough; sshd's own module re-opens the port). So
+  `nixpi`'s sshd is reachable *only* from on-host, which in practice means the tunnel connector
+  terminating there (`cloudflared access ssh --hostname nixpi.kattakath.com`) — closing the LAN
+  path that walked around the Access application entirely. Break-glass is the physical console.
+  `nixvm` is only ever the throwaway local `nix run .#nixvm` desktop and has no networked login
+  path either.
 - **`modules/nixos/desktop-vm.nix`** — opt-in `services.desktopVm.enable` (default false): a lightweight X11
   **XFCE** desktop with passwordless autologin (the `loginName` specialArg) plus QEMU/SPICE
   guest integration (`qemuGuest`, `spice-vdagentd`) for the `nixvm` sandbox.
@@ -906,6 +911,41 @@ directly with the real site list. Applied/destroyed via the `cf-tunnel-apply`/`c
 flake apps (an API credential must be exported first — never in Nix); `cf-tunnel-apply` prints
 the token to stdout to be stored via `nix run .#nixpi-vault-token` into
 `secrets/cloudflared-token.age`, never written to git/store in plaintext.
+
+### `infra/cloudflare/mcp-public.nix`
+
+The Cloudflare half of the **published MCP gateway** — the other half is
+`services.mcpGateway.public` in `modules/shared/mcp.nix`, which puts the opt-in subset of
+servers on a SECOND `mcp-proxy` at `127.0.0.1:8097`. Built and live since 2026-09-12; the
+design note is [`docs/mcp-public-exposure-design.md`](mcp-public-exposure-design.md).
+
+Renders, from ONE list: a `cloudflared` tunnel + connector for the Mac, ingress to `:8097`, the
+proxied CNAME, **one** Access application over the origin hostname, **one** `non_identity`
+service-token policy, one portal registration per published server, one `mcp`-type Access
+application per server (portal visibility), and the portal's own `mcp_portal` application
+carrying the DCR allowlist of which clients may register.
+
+**Exactly two hostnames, and they do not grow per server.** `mcp.<domain>` is the portal that
+clients talk to — the only address ever handed out. `upstream.<domain>` is the origin, dialled
+only by the portal, with a service token; a browser gets 403 because the policy is
+`non_identity` and there is no login path. Remote Workers are published as Cloudflare Worker
+**routes** under that same origin (`/servers/<name>/*`), matched at the edge before the tunnel
+is consulted, so a Worker and a laptop-local process share one hostname and one `aud`.
+
+Three objects are required to publish one server, and missing any of them fails **silently**: the
+registration, its attachment to the portal, and its `mcp`-type Access application. A registration
+can sit at `status = "ready"` with its tools discovered and still be invisible to every client —
+and testing at the origin cannot detect it, because the origin answers `200` throughout. Verify a
+publish through `mcp.<domain>`.
+
+Applied via `mcp-public-apply` / `mcp-public-destroy`, with `mcp-public-token` printing **only**
+the raw connector token for piping into `secret set`. State lives in
+`$XDG_STATE_HOME/nix-config-mcp-public` (0700/0600 — it holds the connector token and the Access
+service-token secret in plaintext). Unlike the `cf-*` apps, running these from THIS public repo
+is the sanctioned **bootstrap**: an empty `publicServers` creates the tunnel and Access objects
+and publishes nothing. `mkMcpPublicTofu` refuses the genuinely destructive case — a render that
+publishes 0 servers against state that holds more than 0 (override `MCP_PUBLIC_ALLOW_EMPTY=1`).
+Once anything is published, apply from nix-personal, which supplies the real list.
 
 ### `infra/hyperframes/stack.nix`
 

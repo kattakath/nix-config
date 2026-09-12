@@ -51,6 +51,29 @@ rather than crashing).
 | `wordpress` | docdyhr/mcp-wordpress (pinned) — **CLIENT-SIDE** WordPress admin over a live site's REST API with an Application Password (nothing installed on the site). Creds `WP_URL`/`WP_ADMIN_USER`/`WP_ADMIN_APP_PASSWORD` are Keychain-injected via the `wpMcp` wrapper; canonical **www** host required |
 | `wordpress-adapter` | the official WordPress MCP Adapter (**server-side, SILVERCREEK.AI PROD**), reached via a Keychain-injecting `mcp-remote` wrapper against `https://www.silvercreek.ai`; always-on since prod is always reachable |
 
+## The SECOND gateway — published servers (`services.mcpGateway.public`)
+
+Everything above describes the **private** gateway on `127.0.0.1:8096`, which is reachable only
+from this Mac. A separate opt-in list publishes a subset to the internet:
+
+```nix
+services.mcpGateway.public = [ "memory" "sequential-thinking" ];   # default [ ]
+```
+
+Each name must already be in `hostedServerNames`; `desktop-commander` and `open-design` are
+rejected by assertion. That list drives a **second `mcp-proxy` process** on `127.0.0.1:8097`
+(`mcp-gateway-public.json`) plus a `cloudflared` connector agent
+(`nix-mcp-tunnel-connector`), both launchd agents gated on the list being non-empty.
+
+**Why a second process rather than an ingress onto `:8096`** — the load-bearing decision: Access
+protects a *hostname*, not a path. Tunnelling the main gateway would put a leaked credential in
+front of 7 Gmail accounts, production WordPress, Postgres and Telegram. With a separate process
+an unpublished server is not merely unrouted, it is **absent**.
+
+The Cloudflare half lives in `infra/cloudflare/mcp-public.nix`; the full design, the two-hostname
+model and the three-objects-per-publish trap are in
+[`mcp-public-exposure-design.md`](mcp-public-exposure-design.md).
+
 ## Opt-ins (default off)
 
 - **`telegram`** — chaindead/telegram-mcp. Needs a one-time phone auth **before** activating,
@@ -93,4 +116,6 @@ config-writing install tools are never used.
   Accessibility (TCC) grant `macos-automator` needs.
 - [`gmail-mcp-multi-account-runbook.md`](gmail-mcp-multi-account-runbook.md) — multi-account
   Gmail setup, auth, and a documented silent-wrong-account failure mode.
+- [`mcp-public-exposure-design.md`](mcp-public-exposure-design.md) — the PUBLISHED gateway:
+  `services.mcpGateway.public`, the `:8097` second proxy, and the Cloudflare side.
 - [`private-home-modules.md`](private-home-modules.md) — how private accounts/sites plug in.
