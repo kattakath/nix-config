@@ -755,15 +755,19 @@
         }:
         let
           pkgs = pkgsFor system;
+          # Deliberately does NOT print the token. The nixpi app echoes its
+          # connector token to the terminal, which puts a live secret into
+          # scrollback and any transcript. Here the value is fetched by a separate
+          # `mcp-public-token` app that writes ONLY the raw token to stdout, so it
+          # can be piped straight into the Keychain and never rendered.
           printToken = ''
 
-            echo "----- CONNECTOR TOKEN for the published MCP gateway (SECRET) -----"
-            echo "TUNNEL_TOKEN=$(tofu output -raw mcp_public_connector_token)"
             echo ""
-            echo "Store it in the login Keychain (the connector agent reads it there):"
-            echo "  secret set cf:cloudflare.com:mcp-connector"
-            echo "then set services.mcpGateway.public and activate."
-            echo "----- end -----"
+            echo "Applied. Store the connector token WITHOUT displaying it:"
+            echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- \\"
+            echo "    nix run .#mcp-public-token | secret set cf:cloudflare.com:mcp-connector"
+            echo ""
+            echo "Then set services.mcpGateway.public (from nix-personal) and activate."
           '';
         in
         pkgs.writeShellApplication {
@@ -818,6 +822,34 @@
             tofu ${action}
           ''
           + nixpkgs.lib.optionalString (action == "apply") printToken;
+        };
+
+      # Prints ONLY the raw connector token to stdout — nothing else, no banner —
+      # so it composes: `… | secret set cf:cloudflare.com:mcp-connector`. The value
+      # never reaches a terminal, scrollback, the clipboard, or a transcript.
+      # Read-only: it runs `tofu output`, never plan or apply.
+      mkMcpPublicToken =
+        { system }:
+        let
+          pkgs = pkgsFor system;
+        in
+        pkgs.writeShellApplication {
+          name = "mcp-public-token";
+          runtimeInputs = [ pkgs.opentofu ];
+          text = ''
+            if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
+              echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
+              exit 1
+            fi
+            state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-mcp-public"
+            if [ ! -f "$state_dir/terraform.tfstate" ]; then
+              echo "ERROR: no state at $state_dir — run mcp-public-apply first." >&2
+              exit 1
+            fi
+            cd "$state_dir"
+            # -raw, no trailing banner: stdout is exactly the token.
+            tofu output -raw mcp_public_connector_token
+          '';
         };
 
       # ---- Formatting / lint (treefmt-nix) ------------------------------------
@@ -1484,6 +1516,7 @@
             name = "mcp-public-apply";
             action = "apply";
           };
+          mcp-public-token = mkMcpPublicToken { inherit system; };
           mcp-public-destroy = mkMcpPublicTofu {
             inherit system;
             name = "mcp-public-destroy";
@@ -1866,6 +1899,11 @@
                 type = "app";
                 program = "${self.packages.${system}.mcp-public-apply}/bin/mcp-public-apply";
                 meta.description = "Render infra/cloudflare/mcp-public.nix (terranix), tofu apply it, and print the Mac connector token (needs CLOUDFLARE_API_TOKEN)";
+              };
+              mcp-public-token = {
+                type = "app";
+                program = "${self.packages.${system}.mcp-public-token}/bin/mcp-public-token";
+                meta.description = "Print ONLY the published-gateway connector token to stdout, for piping into `secret set` (needs CLOUDFLARE_API_TOKEN)";
               };
               mcp-public-destroy = {
                 type = "app";
