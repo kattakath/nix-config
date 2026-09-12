@@ -64,6 +64,11 @@ in
     # rebuild the .app may not be registered with LaunchServices yet. Warn and move
     # on; the next activation picks it up. Never fail a rebuild over which browser
     # opens a link.
+    # upstream-first: grepped nix-darwin/modules AND home-manager/modules for
+    # defaultBrowser / LSSetDefaultHandler / default-browser / defaultapplications
+    # — no option exists in either. Custom, because the LaunchServices http/https
+    # claim is an `lsregister`-level call neither project models; `defaultbrowser`
+    # (nixpkgs) is the off-the-shelf binary doing the work, not a hand-rolled one.
     home.activation.defaultBrowser = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       $DRY_RUN_CMD ${lib.getExe pkgs.defaultbrowser} ${lib.escapeShellArg cfg} \
         || /usr/bin/printf '%s\n' "warning: could not make ${cfg} the default browser (cask not registered yet?) — retried next activation"

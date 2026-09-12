@@ -1197,6 +1197,9 @@ in
     # of ~/.claude.json: the claude-code module writes the gateway to a MANAGED plugin .mcp.json
     # (not ~/.claude.json), which grok does not read — so explicit wiring here is the single
     # source of truth. Reuses cfg.endpoints, so grok can never drift from the gateway.
+    # upstream-first: grepped home-manager/modules/programs and nix-darwin/modules
+    # for grok — no module exists for the Grok CLI in either. Custom, and kept to
+    # writing that tool's own config file rather than modelling it.
     home.activation.grokMcp = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       grok="${grokBin}"
       if [ ! -x "$grok" ]; then
@@ -1235,6 +1238,12 @@ in
     # a DIFFERENT error — no GUI session) stays silent, so this can't false-warn on
     # every rebuild. The grant survives rebuilds (a fixed system path, not a store
     # path), so this is a nudge until granted, then permanently silent.
+    # upstream-first: grepped nix-darwin/modules for Accessibility/TCC — the
+    # option EXISTED and was REMOVED. `modules/alias.nix:13-21` keeps
+    # `security.enableAccessibilityAccess` only to assert on it: "was removed,
+    # it's broken since 10.12 because of SIP". So the grant cannot be declared by
+    # anyone, which is exactly why this shim only CHECKS and reports it and never
+    # tries to set it. Upstream's own removal is the citation.
     home.activation.macosAutomatorAccessibilityCheck = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       if probe="$(/usr/bin/osascript -e 'tell application "System Events" to get name of first process' 2>&1)"; then
         : # osascript already has Accessibility — nothing to warn about.

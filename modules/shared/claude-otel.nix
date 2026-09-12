@@ -81,6 +81,10 @@ in
     {
       # The file exporter does not create its parent directory — ensure it
       # exists before the collector's first write attempt.
+      # upstream-first: grepped home-manager/modules/files.nix — `home.file`
+      # LINKS files (and `recursive` only changes how a directory's contents are
+      # linked); there is no option that declares an empty directory. One mkdir
+      # is the smallest thing that closes the gap.
       home.activation.claudeOtelStateDir = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
         /bin/mkdir -p ${lib.escapeShellArg (builtins.dirOf cfg.eventsFile)}
       '';
