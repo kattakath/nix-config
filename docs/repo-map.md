@@ -372,7 +372,7 @@ their own top-level section below:
 
 ### `modules/shared/`
 
-`modules/shared/{home.nix,mcp.nix,chromium.nix,terminal-theme.nix,desktop-aesthetics.nix,nix-cache.nix,nix-ld-libraries.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,git-allowed-signers.nix,wallpaper/,hm-launchd/}`
+`modules/shared/{home.nix,mcp.nix,chromium.nix,terminal-theme.nix,desktop-aesthetics.nix,nix-cache.nix,nix-ld-libraries.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-plugins.nix,git-allowed-signers.nix,wallpaper/,hm-launchd/}`
 — the Home Manager profile loaded on every host.
 
 - **`home.nix`** — git/ssh-signing, zsh+starship, direnv, gh, bash, claude-code + nerd-fonts;
@@ -673,6 +673,36 @@ their own top-level section below:
     cannot silently desync the other. nix-personal keeps only the two values. Companion: the
     `.claude/hooks/pretooluse-bash-guard.js` block, which only covers activations the *agent*
     runs; this covers a switch typed by hand.
+- **`claude-plugins.nix`** — `local.claudePlugins.marketplaces`, the **N-marketplace** Claude
+  Code plugin mechanism. An `attrsOf submodule` keyed by marketplace name, each carrying a
+  `source` (a `/nix/store` path or an `https://` git URL — asserted, so an impure
+  `toString ../plugins` fails loudly), a `plugins` list of BARE names, and a derived `repin`
+  flag. Install ids are derived as `<plugin>@<marketplace>`, single-sourcing
+  `settings.enabledPlugins` and the install loop so a plugin can never be
+  installed-but-disabled through a typo.
+  - **Why it exists.** This was a single-marketplace mechanism inlined in `home.nix`
+    (`claudePluginIds` / `localPluginsMarketplace` / `home.activation.claudeCodePlugins`)
+    until nix-personal needed a second marketplace and grew a near-verbatim 80-line COPY of
+    the activation script, ordered `entryAfter [ "claudeCodePlugins" ]` so the two would not
+    race on mutable `~/.claude`. `attrsOf` merges by key, so the private layer now adds one
+    attribute, there is exactly one script, and the race has no reason to exist. `plugins`
+    being a `listOf` means a private layer can also append a plugin to a marketplace THIS
+    repo declares — impossible before.
+  - **`source` is a scalar on purpose.** A marketplace has exactly one source, so two
+    differing definitions SHOULD be a loud conflict, not a silent pick. It is `mkDefault`
+    here so a downstream layer can repoint one (a fork of the official marketplace, say)
+    with a plain assignment. Everything a private layer needs to ADD merges.
+  - **Path-literal trap.** `source = "${../../plugins}"` is a Nix SOURCE PATH LITERAL,
+    resolved relative to the `.nix` file it is written in. The same line moved to another
+    flake silently re-points at THAT flake's `plugins/`, so each repo's marketplace entry
+    must stay in the repo that owns the tree — which is why nix-personal keeps its
+    `plugins/` directory and a 5-line module, rather than shipping the tree here.
+  - **Two phases, not fused.** Every marketplace is pinned first, then ONE flat install loop
+    runs. Pin-then-install per marketplace would let a later re-pin teardown uninstall a
+    plugin the loop had already installed. `programs.claude-code.marketplaces` (upstream) is
+    still unusable for the same two reasons as before: it writes a Nix-managed
+    `known_marketplaces.json` symlink where the CLI needs a mutable file, and the reserved
+    `claude-plugins-official` rejects directory pins as untrusted.
 - **`git-allowed-signers.nix`** — option-only (`kattakath.git.extraAllowedSignersPrincipals`):
   extra author emails for git SSH signature verify. Split out of `home.nix` purely because a
   Home Manager module declaring `options` cannot also carry bare `config` attrs. The fleet
@@ -1577,12 +1607,14 @@ authored here:
 This repo's OWN Claude Code plugin marketplace (`kattakath-nix-config`), the third alongside
 `xai-grok-build` (pinned flake input) and `claude-plugins-official` (HTTPS).
 `plugins/.claude-plugin/marketplace.json` lists each in-repo plugin; `modules/shared/home.nix`
-pins it as a **Nix source path** (`localPluginsMarketplace = "${../../plugins}"`) and installs
-its ids via the same `claudePluginIds` + `home.activation.claudeCodePlugins` path as every
-other plugin. Because it is a source path, the store path changes whenever plugin content
-changes — activation keys the marketplace re-pin (and a reinstall of the copies under
-`~/.claude/plugins/cache`) off exactly that, so an in-repo plugin can never serve a previous
-generation's content.
+declares it as one entry of `local.claudePlugins.marketplaces`, pinned as a **Nix source path**
+(`source = "${../../plugins}"`, a literal that must stay in the repo that owns the tree), and
+`modules/shared/claude-plugins.nix` registers it and installs its derived
+`<plugin>@kattakath-nix-config` ids through the one `home.activation.claudeCodePlugins` script
+every marketplace shares. Because it is a source path, the store path changes whenever plugin
+content changes — the entry's `repin` (defaulted true for any `/`-prefixed source) keys the
+marketplace re-pin (and a reinstall of the copies under `~/.claude/plugins/cache`) off exactly
+that, so an in-repo plugin can never serve a previous generation's content.
 
 Today, three:
 
@@ -1629,7 +1661,8 @@ Today, three:
   `${configDir}/agents/<name>.md`). What that option cannot do is scope the agent: it
   installs GLOBALLY into `~/.claude/agents/`, whereas a plugin is enabled per-project.
 Adding one = a `plugins/<name>/` tree with `.claude-plugin/plugin.json` + a `marketplace.json`
-entry + its id in `claudePluginIds`; validate with `claude plugin validate --strict`. A
+entry + its bare name in `local.claudePlugins.marketplaces.kattakath-nix-config.plugins`;
+validate with `claude plugin validate --strict`. A
 **skill** that needs no command/hook/MCP/agent surface still belongs in top-level `skills/` —
 reach for a plugin only when the unit is more than a skill.
 
