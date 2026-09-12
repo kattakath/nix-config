@@ -143,17 +143,13 @@
     # `terranix` and this line fails at LOCK time (loudly, not at eval).
     agenix.inputs.systems.follows = "terranix/systems";
 
-    # firmware-secrets — the reflash-safe FAT-firmware-partition secret provisioning
-    # module, EXTRACTED FROM THIS REPO and published as a standalone MIT flake
-    # (github.com/kattakath/nix-firmware-secrets). nixpi now consumes its
-    # nixosModule instead of the vendored copy — dogfooding our own extraction.
-    # The module is pure (config/lib only), so follows our nixpkgs to avoid a 2nd copy.
-    firmware-secrets.url = "github:kattakath/nix-firmware-secrets";
-    firmware-secrets.inputs.nixpkgs.follows = "nixpkgs";
-    # Deduped onto the direct `flake-parts` input declared above (which carries
-    # the nixpkgs-lib follows). Was the anchor itself until wave 2 made this
-    # flake a flake-parts consumer in its own right.
-    firmware-secrets.inputs.flake-parts.follows = "flake-parts";
+    # (firmware-secrets was an input here until ADR-002 wave 4 ABSORBED it as a
+    # capsule — modules/features/firmware-secrets/. Same module, same
+    # `services.firmwareProvisioning` option surface, one fewer lock node and one
+    # fewer CI pipeline; the origin repo is archived and its history stays there.
+    # It was ALSO this flake's flake-parts anchor until wave 2 declared
+    # flake-parts directly above — had that not already happened, removing this
+    # input would have broken four unrelated `follows` lines at LOCK time.)
 
     # keychain-secrets — the macOS login-Keychain `secret` CLI + every-shell loader,
     # EXTRACTED FROM THIS REPO into a standalone MIT flake

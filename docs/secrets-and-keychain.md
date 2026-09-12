@@ -19,7 +19,8 @@ host-decrypted. Assuming one model covers all of them is the mistake to avoid.
 
 `nixpi`'s Cloudflare tunnel token, encrypted to the **operator's `~/.ssh/id_ed25519` alone**.
 This is the **operator-only vault** model: the operator decrypts it on the Mac and plants it on
-nixpi's SD card FIRMWARE partition, where the `nix-firmware-secrets` flake's
+nixpi's SD card FIRMWARE partition, where the in-tree `modules/features/firmware-secrets/`
+capsule's
 `services.firmwareProvisioning` copies it into a `/run` file at boot. **nixpi never decrypts it
 on-device.**
 
