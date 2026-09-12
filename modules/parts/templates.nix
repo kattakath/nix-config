@@ -3,7 +3,7 @@
 # fleet flake (identity override + host deltas over lib.mkDarwin) instead
 # of forking this repo; see README.md § Fork this for your own fleet.
 # Top-level templates/ (nix flake templates) is DISTINCT from
-# packages/templates/ (raw-served Vast.ai provisioner assets).
+# the flake's own `templates` output (a starter consumer fleet flake).
 #
 # `flake.templates` is NOT declared as an option anywhere (flake-parts ships no
 # templates module), so it rides the freeform `types.unique` type — correct

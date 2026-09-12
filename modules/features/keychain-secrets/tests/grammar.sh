@@ -69,13 +69,13 @@ ck "get by SERVICE" "glpat-aaa" "$(secret reveal glab:gitlab.com:token)"
 ck "get by ENV (back-compat after rename)" "glpat-aaa" "$(secret reveal GITLAB_TOKEN)"
 
 echo "== 3. same host, second credential, different privilege =="
-set-secret --no-export vast:gitlab.com:read_repository glpat-ro >/dev/null
-ck "second gitlab token coexists" "glpat-ro" "$(secret reveal vast:gitlab.com:read_repository)"
+set-secret --no-export ci:gitlab.com:read_repository glpat-ro >/dev/null
+ck "second gitlab token coexists" "glpat-ro" "$(secret reveal ci:gitlab.com:read_repository)"
 ck "first one is untouched" "glpat-aaa" "$(secret reveal glab:gitlab.com:token)"
 
 echo "== 4. ls / ls --long =="
 ck "ls prints SERVICE ids" \
-  "OPENAI_API_KEY glab:gitlab.com:token vast:gitlab.com:read_repository" \
+  "OPENAI_API_KEY glab:gitlab.com:token ci:gitlab.com:read_repository" \
   "$(secret ls | tr '\n' ' ' | sed 's/ $//')"
 secret ls --long
 
@@ -122,10 +122,10 @@ done
 set-secret --remove app:example.com:api >/dev/null
 
 echo "== 7. remove by SERVICE =="
-set-secret --remove vast:gitlab.com:read_repository >/dev/null
+set-secret --remove ci:gitlab.com:read_repository >/dev/null
 ck "gone from index" "OPENAI_API_KEY glab:gitlab.com:token" \
   "$(secret ls | tr '\n' ' ' | sed 's/ $//')"
-ck "item deleted" "" "$(secret reveal vast:gitlab.com:read_repository 2>/dev/null)"
+ck "item deleted" "" "$(secret reveal ci:gitlab.com:read_repository 2>/dev/null)"
 
 echo "== 7b. stdin input, and no value prefix in output =="
 # `pbpaste` emits NO trailing newline. The old `read -rs` needed a delimiter,

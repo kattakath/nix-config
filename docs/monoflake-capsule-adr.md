@@ -316,6 +316,17 @@ a capsule that names a file inside it.
 - **The three-system fold stays three.** Adding `x86_64-linux` to flake-parts' `systems` would
   silently spawn x86 checks, formatter and apps. The devcontainer image and its devShell are
   reached with `withSystem "x86_64-linux"` instead.
+- **The `vast-provision` capsule no longer exists (2026-09-12, after this ADR shipped).**
+  Everything §4/S2 says about it is still an accurate record of wave 4 — read it as history,
+  not as a description of the tree. The whole off-fleet GPU control plane (the six `vast-*`
+  CLIs, `runpod-template-apply`, `packages/vast-bootstrap.sh`,
+  `packages/templates/provisioner/`, `fleet.vastRawServed` and `vast-scripts-lint`) was
+  removed wholesale at the operator's request, so the capsule count is **six**, not seven.
+  The S2 hazard that shaped the wave-4 design — "move these files and a BILLED instance
+  404s" — did not bite on removal: every stored Vast template pins a full commit SHA rather
+  than `main`, so all five kept resolving from git history. `kattakath/nix-vast-provision`
+  stays archived and readable.
+
 - **Wave 4 deleted a check and that was the right call.** `checks.<system>.vast-lib-drift` diffed
   nix-config's copy of the boot scripts against the satellite's. Four copies became one, so it
   had nothing left to diff. It was replaced — not dropped — by `vast-scripts-lint`, which

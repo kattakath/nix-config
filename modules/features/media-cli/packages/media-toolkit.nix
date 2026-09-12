@@ -15,8 +15,8 @@
 # shape (git, nix, docker). Everything else is `media-<verb>`.
 #
 # Matches this fleet's own precedent rather than a generic convention:
-# kattakath/nix-vast-provision settled on flat `vast-<verb>` — vast-rent,
-# vast-repo-check, vast-account-vars-set — with no dispatcher layer. This is that
+# The fleet's other extracted CLI sets settled on a flat `<domain>-<verb>`
+# prefix with no dispatcher layer. This is that
 # scheme plus the umbrella it had already grown.
 #
 # Renamed 2026-09-05, from three clashing schemes that had accreted from

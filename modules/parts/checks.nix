@@ -213,50 +213,6 @@ in
             );
         }
         // {
-          # (`vast-lib-drift` was HERE. It diffed nix-config's copies of the two
-          # raw-served Vast instance-side scripts against the vast-provision
-          # INPUT's copies of the same two files. ADR-002 wave 4 absorbed that
-          # input as modules/features/vast-provision/, so there is no second
-          # tree left to diff and the check's entire premise is gone. What it
-          # was really protecting — those scripts being correct, since nothing
-          # builds them and a syntax error surfaces only on a rented, BILLED
-          # instance — is now `checks.<system>.vast-scripts-lint`, which
-          # shellchecks the surviving copies instead of comparing two of them.)
-
-          # Drift guard: modules/shared/hm-launchd/ is a VENDORED FORK of
-          # home-manager's modules/launchd/ (swapped in via `disabledModules`
-          # in modules/shared/home.nix) whose only intended delta is the
-          # nix-<activity> arg0 wrapper (.claude/rules/launchd-naming.md). The
-          # fork tracks nothing automatically, so every home-manager bump can
-          # silently strand it behind upstream fixes. upstream-baseline/ is a
-          # byte-exact copy of the three upstream files the fork shadows,
-          # recording the upstream state the fork was last reviewed against;
-          # this fails loudly the moment the PINNED home-manager's launchd
-          # module moves past it. Text-only diff, so it runs on both systems.
-          # Refresh (on failure): review the diff below, port what applies
-          # into the fork (keeping the nix-* wrapper), then copy the pinned
-          # input's modules/launchd/{default,launchd,types}.nix verbatim over
-          # modules/shared/hm-launchd/upstream-baseline/ (which treefmt
-          # excludes precisely so the copies stay byte-exact).
-          # The 40k context budget for CLAUDE.md, as a GATE rather than a wish.
-          #
-          # CLAUDE.md calls itself "an index, not an encyclopedia ... under the
-          # 40k-char context lint limit", and .github/workflows/claude-config-lint.yml
-          # runs cclint `context --fail-on error`. Measured 2026-09-12 at 34,829
-          # chars (87%): cclint reports 0 errors AND 0 warnings, so nothing in CI
-          # can currently stop the file growing past the limit it claims to have.
-          #
-          # A CHECK, not a treefmt formatter, on this repo's own boundary: the
-          # header of treefmt.nix scopes it to tools that REWRITE, and a size
-          # assertion rewrites nothing. (treefmt-nix does ship `programs.sizelint`,
-          # which is why ADR-002 proposed it — but putting a checker in the
-          # formatter slot is exactly what that header forbids, and the pre-commit
-          # hook IS the `nix fmt` wrapper.)
-          #
-          # This matters more after ADR-002 than before it: the collapse grows the
-          # tree ~64%, and the index is already the thing that drifted 16 ways in
-          # one audit. Raising the ceiling is a deliberate edit here, not a silent
-          # slide.
           claude-md-budget = pkgs.runCommand "claude-md-budget" { } ''
             limit=40000
             size=$(wc -c < ${../../CLAUDE.md} | tr -d " ")

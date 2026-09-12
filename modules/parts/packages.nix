@@ -34,38 +34,6 @@ let
     ;
 in
 {
-  # ---- The five files a rented Vast.ai instance fetches over RAW HTTP -------
-  #
-  # ENGINE-OWNED ON PURPOSE, even though only the vast-provision CAPSULE reads
-  # them. A Vast template is a stored, server-side object: the one
-  # `vast-template-apply` creates bakes in
-  #   PROVISIONING_SCRIPT = https://raw.githubusercontent.com/<org>/<repo>/<rev>
-  #                         /packages/vast-bootstrap.sh
-  #   PROVISION_LIB_URL   = …/packages/templates/provisioner/provision-lib.sh
-  # as literal repo PATHS, and every instance ever rented from that template
-  # re-fetches them. `rev` is `self.rev or "main"`, so a template created from a
-  # dirty tree is pinned to the MOVING `main`. Move either file and that template
-  # 404s on a rented, BILLED instance while `nix flake check` stays green —
-  # ADR-002 §4, finding S2, which is why the absorption moved the Nix and left
-  # these where they are.
-  #
-  # The capsule may not reach back out at them by path
-  # (ast-grep/rules/capsule-must-not-reach-out.yml), so the engine hands them
-  # down as values. The other three are scaffold-only — `vast-init-repo` bakes
-  # them into a new provisioner repo — and live here so all five stay one set.
-  #
-  # These are the ONLY copies. nix-config and the extracted flake each carried
-  # `vast-bootstrap.sh` + `provision-lib.sh` (four copies of two files) with
-  # `checks.vast-lib-drift` diffing them; wave 4 collapsed that to one tree and
-  # deleted the check with its own premise.
-  fleet.vastRawServed = {
-    bootstrap = ../../packages/vast-bootstrap.sh;
-    provision = ../../packages/templates/provisioner/provision.sh;
-    provisionLib = ../../packages/templates/provisioner/provision-lib.sh;
-    marker = ../../packages/templates/provisioner/.provisioner-template.json;
-    readme = ../../packages/templates/provisioner/README.md;
-  };
-
   perSystem =
     {
       config,
@@ -114,12 +82,6 @@ in
           nixpiKit = pkgs.callPackage ../../packages/nixpi-provision.nix {
             inherit orgName repoName;
           };
-
-          # RunPod pod-template provisioning (macOS only) — the RunPod analogue of the
-          # vast-* apps. Creates a RunPod POD template on runpod/comfyui for a workflow from
-          # the --repo workflows repo, provisioned at boot via dockerStartCmd. See
-          # packages/runpod-provision.nix.
-          runpodKit = pkgs.callPackage ../../packages/runpod-provision.nix { };
         in
         {
           inherit (keyKit) key-backup key-recover key-recovery-bootstrap;
@@ -151,21 +113,6 @@ in
           # below still expose them via `config.packages.<name>` and are
           # unchanged. DARWIN-ONLY either way: the Keychain is macOS-only.)
 
-          # (The six `vast-*` CLIs are NOT here. They were a callPackage into
-          # the vast-provision flake INPUT's store path until ADR-002 wave 4
-          # absorbed it; modules/features/vast-provision/flake-module.nix now
-          # registers them, darwin-gated exactly as they were. The `apps` below
-          # still expose them via `config.packages.vast-*`, unchanged — and the
-          # raw-served scripts they point instances at stay engine-owned, as
-          # `fleet.vastRawServed` below explains.)
-
-          runpod-template-apply = runpodKit.template-apply;
-
-          # `jsonresume <download|print|markdown|text>` (macOS only) — fetch a JSON Resume
-          # and render it (PDF via a theme, or theme-less Markdown/plain text to stdout)
-          # via the npm resume CLI. Exposed as a package so `nix flake check`
-          # BUILDS it (writeShellApplication shellcheck). Also on PATH via home.packages
-          # and runnable with `nix run .#jsonresume`. See packages/jsonresume.nix.
           jsonresume = pkgs.callPackage ../../packages/jsonresume.nix {
             defaultUrl = jsonResumeUrl;
           };
@@ -325,52 +272,6 @@ in
           type = "app";
           program = "${config.packages.nixpi-vault-token}/bin/nixpi-vault-token";
           meta.description = "Re-encrypt a new connector token (stdin/$TUNNEL_TOKEN) into secrets/cloudflared-token.age (run from the repo root)";
-        };
-
-        # Vast.ai template provisioning (macOS). vast-template-apply reconciles
-        # (create/update BY NAME) a template that boots via PROVISIONING_SCRIPT ->
-        # the committed bootstrap -> clone the target repo (public/private) + run
-        # its entrypoint; vast-account-vars-set syncs read-only Keychain
-        # tokens to Vast account env vars. See docs/vastai-template-provisioning.md.
-        vast-template-apply = {
-          type = "app";
-          program = "${config.packages.vast-template-apply}/bin/vast-template-apply";
-          meta.description = "Create/update (reconcile-by-name) a Vast.ai template that boots via the PROVISIONING_SCRIPT bootstrap (--template-name, --repo [github:|gitlab:]owner/repo)";
-        };
-        vast-repo-check = {
-          type = "app";
-          program = "${config.packages.vast-repo-check}/bin/vast-repo-check";
-          meta.description = "Validate a repo is a legit provisioner repo (structural: .provisioner-template.json marker + required files; github:/gitlab:)";
-        };
-        vast-account-vars-set = {
-          type = "app";
-          program = "${config.packages.vast-account-vars-set}/bin/vast-account-vars-set";
-          meta.description = "Sync read-only Keychain tokens to Vast.ai account-level env vars (GITLAB_TOKEN/HF_TOKEN/CIVITAI_TOKEN/GH_TOKEN — same name both sides)";
-        };
-        vast-ssh-key-set = {
-          type = "app";
-          program = "${config.packages.vast-ssh-key-set}/bin/vast-ssh-key-set";
-          meta.description = "Register the operator SSH public key on the Vast.ai account (idempotent) for passwordless root SSH into instances";
-        };
-        vast-init-repo = {
-          type = "app";
-          program = "${config.packages.vast-init-repo}/bin/vast-init-repo";
-          meta.description = "Scaffold a new provisioner repo from provisioner-template on GitHub/GitLab, public/private (--repo, --template)";
-        };
-        vast-rent = {
-          type = "app";
-          program = "${config.packages.vast-rent}/bin/vast-rent";
-          meta.description = "Rent a live, BILLED Vast.ai GPU instance from a template (--template-name|--template-hash, --offer, --gpu, --disk, --max-price, --dry-run)";
-        };
-
-        # The RunPod analogue of the vast-* apps. An app, not just a package, for
-        # parity: it is documented alongside its six Vast siblings as a `nix run .#…`,
-        # and it is not on PATH via home.packages, so the package alone left the
-        # documented invocation broken.
-        runpod-template-apply = {
-          type = "app";
-          program = "${config.packages.runpod-template-apply}/bin/runpod-template-apply";
-          meta.description = "Create/replace a RunPod POD template on runpod/comfyui, provisioned at boot via dockerStartCmd from a workflows repo (--workflow-name, --repo)";
         };
 
         # `nix run .#jsonresume -- <download|print|markdown|text> …` — fetch a JSON

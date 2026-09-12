@@ -162,8 +162,8 @@ flake.lock      Pinned input revisions (bumped via `nix flake update`, never han
 treefmt.nix     Single source of truth for formatting + lint (drives nix fmt, CI, and the hook)
 hosts/          Per-host entry profiles (macos.nix, macvm.nix, nixpi.nix, nixvm.nix)
 modules/        parts/ (the flake engine), features/ (capsules — absorbed satellite flakes, one dir each), and the reusable modules split by platform (darwin/ nixos/ shared/)
-packages/       Nix-built artifacts (devcontainer image, key-recovery kit, landing page; also vast-bootstrap.sh + templates/provisioner/ — the raw-served Vast files, which stay here because their repo paths are baked into stored Vast templates; the vast-* CLIs live in modules/features/vast-provision/)
-templates/      Flake template for `nix flake init -t github:kattakath/nix-config` — a starter consumer fleet flake (distinct from packages/templates/, the Vast.ai assets)
+packages/       Nix-built artifacts (devcontainer image, key-recovery kit, landing page, single-purpose CLIs)
+templates/      Flake template for `nix flake init -t github:kattakath/nix-config` — a starter consumer fleet flake
 .claude/        Repo-local Claude Code agents, commands, hooks, skills, and rules
 ```
 
@@ -177,10 +177,6 @@ CI runs on **GitHub Actions** ([`nix-ci.yml`](./.github/workflows/nix-ci.yml)) a
 - [`build-installers`](https://github.com/kattakath/nix-config/actions/workflows/build-installers.yml) builds and publishes the `nixpi` SD image to a rolling pre-release.
 - [`gitleaks`](https://github.com/kattakath/nix-config/actions/workflows/gitleaks.yml) scans every push and PR (and weekly) for leaked secrets.
 - [`flakehub-publish`](https://github.com/kattakath/nix-config/actions/workflows/flakehub-publish.yml) publishes each push to `main` as a rolling release to [FlakeHub](https://flakehub.com/flake/kattakath/nix-config) via [`flakehub-push`](https://github.com/DeterminateSystems/flakehub-push). Auth is OIDC (`id-token: write`) — no long-lived token. Per FlakeHub's [trusted-platform model](https://docs.determinate.systems/flakehub/publishing/), flakes publish only from CI, never ad-hoc from a laptop.
-
-## Vast.ai GPU provisioning
-
-Off-fleet control-plane tooling — a set of `vast-*` darwin flake apps (parallel to the Cloudflare `cf-tunnel-*` apps) that run **on the Mac** to provision external x86_64 cloud GPUs on [Vast.ai](https://vast.ai). Vast is **not** a fleet host — this stays an aarch64-only fleet; the tooling merely reaches out from `macos` to stand up reproducible Vast.ai templates. Each template boots `vastai/base-image`, clones a private provisioner repo, and runs its self-contained `provision.sh` (e.g. a ComfyUI stack). Secrets are never baked into the template — they live as Vast account-level env vars (`vast-account-vars-set`), and `vast-template-apply` / `vast-repo-check` / `vast-ssh-key-set` / `vast-init-repo` cover create-or-replace, repo validation, SSH-key registration, and repo scaffolding. The CLI logic lives in the in-tree `modules/features/vast-provision/` capsule (extracted to `nix-vast-provision` and absorbed back by ADR-002 wave 4); the boot-time scripts Vast fetches over raw HTTP stay at `packages/`, because their repo paths are baked into every stored template. See [`docs/vastai-template-provisioning.md`](docs/vastai-template-provisioning.md) for the full architecture.
 
 ## Secrets
 

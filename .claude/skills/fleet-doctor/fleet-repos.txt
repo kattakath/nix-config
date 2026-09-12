@@ -63,13 +63,12 @@
 # THE LAST TWO NON-COMPOSITION LINES CAME OUT on 2026-09-12, which is what takes this
 # manifest to its final shape: nix-config + nix-personal and nothing else. Both were
 # distribution endpoints rather than declarative infra, and both are ARCHIVED:
-#   provisioner-template  — a 3-file scaffold that nothing fetched. `vast-init-repo`
-#                           seeds a new provisioner repo from the IN-TREE assets
-#                           (packages/templates/provisioner/, handed down as
-#                           fleet.vastRawServed), never by cloning this repo — which is
-#                           why the GitHub copy had already drifted (no provision-lib.sh)
-#                           without anything noticing. Nothing in either flake referenced
-#                           it but this line.
+#   provisioner-template  — a 3-file scaffold that nothing fetched. The tooling that used
+#                           it seeded new provisioner repos from IN-TREE assets, never by
+#                           cloning this repo — which is why the GitHub copy had already
+#                           drifted (no provision-lib.sh) without anything noticing. The
+#                           whole GPU control plane was removed from nix-config the same
+#                           day, so nothing references any of it now.
 #   hyperframes-selfhost  — the published Kinocut+HyperFrames self-host bundle. REMOVED
 #                           WHOLESALE, not just unwired: the 42-file vendored tree under
 #                           packages/hyperframes-selfhost/, the hf-export/hf-apply/hf-doctor

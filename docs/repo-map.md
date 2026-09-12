@@ -58,8 +58,7 @@ Exports:
 - `deploy.nodes.nixpi` — the deploy-rs remote-activation node (see below). **deploy-rs has no
   `flakeModule`** (grepped in the pinned source), so this stays hand-written in the freeform
   `flake` attr, as do `mkDarwin` / `mkNixos` / `mkHomeManagerModule`.
-- `templates.default` (top-level `templates/default/`, distinct from `packages/templates/`'s
-  Vast.ai provisioner assets) — `nix flake init -t github:kattakath/nix-config` scaffolds a
+- `templates.default` (top-level `templates/default/`) — `nix flake init -t github:kattakath/nix-config` scaffolds a
   tiny consumer fleet flake (identity override + host deltas over `lib.mkDarwin`), the
   no-fork alternative to README.md § Fork this for your own fleet.
 
@@ -957,7 +956,7 @@ nothing — hence one regex, not two calls.
 | `systems.nix` | flake-parts' `systems` = the two fleet arches. **`x86_64-linux` is deliberately NOT here** — adding it would silently spawn x86 checks, formatter and apps; the devcontainer reaches it with `withSystem "x86_64-linux"`. |
 | `compose.nix` | `mkDarwin` / `mkNixos` / `mkHomeManagerModule` — **not translated** to flake-parts, kept verbatim as plain Nix functions in the freeform `flake` attr (ADR-001's blast-radius objection, honoured). Also threads each capsule in as a named specialArg. |
 | `hosts.nix` | `darwinConfigurations.macos`, `nixosConfigurations.{nixpi,nixvm}`. |
-| `packages.nix` | `perSystem.packages` + every `apps.*`, and `fleet.vastRawServed` (see `vast-provision` below). |
+| `packages.nix` | `perSystem.packages` + every `apps.*`. |
 | `checks.nix` | The engine's own checks, including `claude-md-budget`, `hm-launchd-drift`, `deploy-schema` and `bedrock-gate-after-loader`. |
 | `capsules.nix` | The capsule registry and its two internal seams — `capsuleModules` and `capsuleSources` — plus `checks.<system>.capsule-registry`. |
 | `terranix.nix` | The `cf-*` / `mcp-public-*` / `hf-*` tofu builders. |
@@ -968,9 +967,11 @@ nothing — hence one regex, not two calls.
 | `lib-option.nix` | The 4-line `mkOption { type = lazyAttrsOf raw; }` declarations for `flake.lib` and `flake.darwinConfigurations`, copied from flake-parts' own `nixosConfigurations.nix:11`. Without them the freeform `types.unique` default would force every seam back into ONE file — silently re-creating the monolith. |
 | `touchup.nix` | What the flake does **not** export. A bare `mkFlake` also emits `legacyPackages`, `nixosModules`, `overlays` and `modules`; this repo has never exported any of them, and the decision (plus the one-line path back) is recorded there. |
 
-## `modules/features/` — the seven capsules
+## `modules/features/` — the six capsules
 
-The seven satellite flakes, absorbed in-tree by **ADR-002** and archived at origin. See
+Seven satellite flakes were absorbed in-tree by **ADR-002** and archived at origin; **six
+remain** — `vast-provision` was removed wholesale on 2026-09-12 along with the rest of the
+off-fleet GPU control plane. See
 [`monoflake-capsule-adr.md`](monoflake-capsule-adr.md), and **§9 of it first** — the correction
 record supersedes the design where they disagree.
 
@@ -1081,27 +1082,6 @@ to build the boundary machinery around it.
   agent can read every exported value with `env` — is merged into
   [`secrets-and-keychain.md`](secrets-and-keychain.md) as *The threat model*, next to the agenix
   vault it is the deliberate counterpart to.
-
-### `vast-provision` (wave 4, 806 lines) — the shape-exception
-
-- **Owns:** the six `vast-*` / `runpod-*` GPU-template CLIs. It registers **NO module at all** —
-  it is `nix run` tooling, so there is no `module.nix` and no `enable` switch was invented to
-  look symmetrical.
-- **The one capsule that does NOT own all its own files.** `packages/vast-bootstrap.sh` and
-  `packages/templates/provisioner/*` stay at the **repo root**: their repo PATHS are baked into
-  every stored Vast template as `PROVISIONING_SCRIPT` / `PROVISION_LIB_URL`, and `rev` is
-  `self.rev or "main"`, so a template made from a dirty tree tracks the moving `main`. Move them
-  and a rented, **BILLED** instance boots and provisioning **404s**, with `nix flake check` green
-  (ADR-002 §4, S2). The engine hands them down as `config.fleet.vastRawServed` —
-  as **values**, because the boundary rule forbids a `../../../packages/…` literal.
-- **Four copies became one.** nix-config and the satellite each carried `vast-bootstrap.sh` and
-  `provision-lib.sh`. The survivor is nix-config's, at the contract path, now mode 755 (matching
-  the satellite) so the derivations referencing it are byte-identical.
-- **A check was deleted, and that was correct.** `checks.<system>.vast-lib-drift` existed to diff
-  the two trees; with one tree left it had nothing to diff. Its purpose is now
-  `checks.<system>.vast-scripts-lint`, which **shellchecks the surviving copies** — the ones that
-  actually reach an instance, which nothing had ever linted — and jq-parses the JSON marker. Both
-  systems, as `vast-lib-drift` ran.
 
 ### `tart-vms` (wave 5, 3,255 lines) — the most LIVE surface
 
@@ -1221,15 +1201,6 @@ Core package set:
   bootstrap/recovery, shellcheck-gated. `key-recover` clones, HARD-FAILS unless the login
   `id -un` == the flake's `loginName` (via the `#identity.loginName` output), then RESTORES
   from an iCloud kit or `--fresh`-FOUNDS a new operator identity, and activates `#macos`.
-- **`vast-bootstrap.sh`** + **`templates/provisioner/`** (`provision.sh`, `provision-lib.sh`,
-  `.provisioner-template.json`, `README.md`) — the boot-time assets of the Vast subsystem.
-  The first two are fetched over raw HTTP from THIS repo by a live Vast instance
-  (`PROVISIONING_SCRIPT` / `PROVISION_LIB_URL`); all four are baked into a repo scaffolded by
-  `vast-init-repo`. **They stay HERE, not in the `modules/features/vast-provision/` capsule**:
-  their repo paths are a contract with already-stored Vast templates, so moving them 404s a
-  rented, BILLED instance (ADR-002 §4, S2). The capsule receives them as
-  `fleet.vastRawServed` (`modules/parts/packages.nix`); nothing builds them, so
-  `checks.<system>.vast-scripts-lint` is their only lint. See § Vast.ai below.
 - **`spotlight-launchers.nix`** — macOS-only: from-scratch `.app` bundle generator (original
   in-Nix SVG/icns icons via librsvg+libicns) giving the Android emulator a
   Spotlight-visible, focus-or-launch identity; consumed by `modules/shared/home.nix`'s
@@ -1291,13 +1262,6 @@ Smaller, single-purpose CLIs:
   login Keychain at run time — wired only via `home.packages`, no matching flake app.
 - **`design-tokens/`** / **`email-signature/`** — small self-contained build-script-backed
   packages for their respective assets.
-- **`packages/runpod-provision.nix`** — the RunPod analogue of the Vast subsystem
-  (`runpod-template-apply`, macOS-only): since the official `runpod/comfyui` image has no
-  Vast-style provisioning hook, it overrides `dockerEntrypoint`/`dockerStartCmd` with a wrapper
-  that clones a private `comfyui-workflows`-shaped repo and runs its `runpod/provision.sh`
-  before handing off to the image's `/start.sh`; secrets are RunPod **account** secrets
-  (`{{ RUNPOD_SECRET_name }}`), never baked into the template.
-
 ## `userscripts/` — the PUBLIC Violentmonkey scripts
 
 Plain `.user.js` files, one per site, referenced by name from
@@ -1411,58 +1375,6 @@ and publishes nothing. `mkMcpPublicTofu` refuses the genuinely destructive case 
 publishes 0 servers against state that holds more than 0 (override `MCP_PUBLIC_ALLOW_EMPTY=1`).
 Once anything is published, apply from nix-personal, which supplies the real list.
 
-### The Vast.ai GPU-template provisioning subsystem
-
-The **`modules/features/vast-provision/` capsule** plus the engine-owned, raw-served
-`packages/vast-bootstrap.sh` and `packages/templates/provisioner/`.
-
-It was extracted from this repo into `github:kattakath/nix-vast-provision` (phase 2 of the
-extraction; phase 1 backported local-only features upstream first) and **absorbed back** by
-ADR-002 wave 4 — the origin repo is archived and keeps the history. It is the only capsule with
-**no module**: there is nothing to enable, just six `nix run` CLIs.
-
-**Off-fleet control plane** darwin flake apps (parallel to the Cloudflare `cf-tunnel-*` apps —
-the tooling runs on the Mac, it provisions external x86_64 cloud GPUs; **Vast is NOT a fleet
-host**). The CLI *logic* —
-
-- `vast-template-apply` (create/REPLACE a template by name — delete+create, since Vast's PUT is
-  broken),
-- `vast-repo-check` (validate a provisioner repo's `.provisioner-template.json` marker),
-- `vast-account-vars-set` (sync read-only Keychain tokens → Vast account env vars, same name both sides),
-- `vast-ssh-key-set` (register the operator SSH key on the Vast account),
-- `vast-init-repo` (scaffold a provisioner repo from the four baked
-  `packages/templates/provisioner/` files),
-- `vast-rent` (rents a live, **BILLED** GPU instance from a template by name/hash — the one
-  command in the kit that spends real money)
-
-— lives in `modules/features/vast-provision/packages/vast-provision.nix`, `callPackage`d by the
-capsule's `flake-module.nix` with `orgName`/`repoName`/`userName` from `config.fleet` and
-`rev = self.rev or "main"` (the URL cache-buster, carried over verbatim — it is why every
-`vast-*` drv changes on every commit, and why `scripts/drv-snapshot.sh` compares them by name).
-
-**The raw-URL construction points at THIS repo's paths**, which is the whole reason the served
-files could not come into the capsule with the Nix: a live Vast instance fetches
-`packages/vast-bootstrap.sh` and `packages/templates/provisioner/provision-lib.sh` over raw
-HTTP at boot (`PROVISIONING_SCRIPT`/`PROVISION_LIB_URL`), from paths baked into every stored
-template. They stay engine-owned and reach the capsule as `fleet.vastRawServed`, because
-`ast-grep/rules/capsule-must-not-reach-out.yml` forbids the capsule reaching back at them by
-path.
-
-`checks.<system>.vast-lib-drift` is **gone** — it diffed this repo's copies against the input's,
-and wave 4 left one tree, so there is nothing to diff. Its real purpose (these scripts are never
-built, so nothing shellchecks them, and a syntax error surfaces only on a rented, BILLED
-instance) is now `checks.<system>.vast-scripts-lint`, which shellchecks all three shell files
-and `jq`-parses the JSON marker, on both systems.
-
-No stack-specific manifest content (a concrete ComfyUI workflow, etc.) is ever vendored in this
-public repo — that belongs in a private aggregator repo
-(`--repo gitlab:... --workflow-name NAME`), never committed here. Templates use `runtype=args` + `OPEN_BUTTON_PORT` +
-`PORTAL_CONFIG` on `vastai/base-image`; instances boot `PROVISIONING_SCRIPT` → the raw-URL
-`vast-bootstrap.sh` (pinned to this flake's rev) → clone a private provisioner repo → run its
-self-contained `provision.sh` (e.g. a ComfyUI stack). Secrets never touch the template — they
-are Vast account-level env vars. See
-[`vastai-template-provisioning.md`](vastai-template-provisioning.md).
-
 ## Claude Code surface
 
 MCP servers have their own doc: [`mcp-gateway.md`](mcp-gateway.md).
@@ -1558,7 +1470,7 @@ Decoder for what these hooks print: [`claude-hook-messages.md`](claude-hook-mess
 ### `.claude/skills/` — project skills
 
 Active only when working in this repo: `nix-hygiene`, `nixpi-firmware-provision`,
-`vast-instance-log-tail`, `jsonresume-tailor`, `gmail-mcp-accounts`,
+`jsonresume-tailor`, `gmail-mcp-accounts`,
 `mcp-scout`, `userscript-author` (its `probes.md` + `patterns.md` flat siblings are the
 measurement instruments and the pre-vetted reuse ladder — see § `userscripts/`),
 `fleet-doctor` (its own `fleet-repos.txt` manifest lists every repo in scope — add
@@ -1674,7 +1586,7 @@ quietly held the real entries.
 `.github/workflows/nix-ci.yml` — 2-leg Nix CI on GitHub Actions, ALL on GitHub-**HOSTED**
 runners (`ubuntu-24.04-arm` for aarch64-linux — evaluates `nixpi`+`nixvm`; `macos-latest` for
 aarch64-darwin — evaluates `macos`; both free & unlimited on public repos). Each leg *builds*
-the lint/format/structural `checks` — `formatting`, `pre-commit`, `vast-scripts-lint`,
+the lint/format/structural `checks` — `formatting`, `pre-commit`,
 `hm-launchd-drift`, `ast-grep`, `deploy-schema`, `capsule-registry` — with `nix-fast-build` (it globs `.#checks.<system>`, so a NEW check needs no workflow edit;
 pushed to the `kattakath` Cachix cache) and
 *evaluates* (no build) its host config toplevel(s). Building host toplevels is deferred to

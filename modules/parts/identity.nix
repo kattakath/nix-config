@@ -112,7 +112,7 @@ let
   # stays secret- and site-free. The real production sites (kattakath.com,
   # snoringirl.com, ismail.kattakath.com, dontsell.ai) are supplied by the
   # private nix-personal composition flake's `nixosConfigurations.nixpi`,
-  # mirroring the Vast-provisioner pattern (`extraHomeModules` for the Mac;
+  # the standard composition seam (`extraHomeModules` for the Mac;
   # `hostedSites` + `extraModules` for nixpi) — see
   # docs/private-home-modules.md.
 

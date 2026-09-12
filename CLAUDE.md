@@ -98,9 +98,6 @@ nix run .#nixpi-provision                     # Plant/update token + Wi-Fi on a 
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-tunnel-apply     # Provision nixpi's tunnel + ingress + CNAME; PRINTS the connector token
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-tunnel-destroy   # Tear the stack down
 
-# Off-fleet GPU control plane (Vast.ai / RunPod) — full surface in docs/vastai-template-provisioning.md
-nix run .#vast-rent -- --template-name NAME --dry-run   # Rents a live, BILLED instance — ALWAYS --dry-run first
-# also: vast-account-vars-set, vast-ssh-key-set, vast-init-repo, vast-repo-check, vast-template-apply, runpod-template-apply
 ```
 
 Prefer the `/eval` and `/update-input` commands over retyping the stage→check→evaluate sequence.
@@ -137,7 +134,7 @@ One line per path; the *why* and the per-file specifics are in
 | `sgconfig.yml` + `ast-grep/` | Report-only structural lint (ast-grep): `rules/` mechanises prose conventions **and the capsule boundary** (`capsule-must-not-reach-out`), `rule-tests/` proves they fire. Gated by `checks.<system>.ast-grep`, **not** treefmt. |
 | `hosts/` | Per-host entry profiles: `macos.nix`, `nixpi.nix`, `nixvm.nix` (host-only deltas + per-host Homebrew lists). |
 | `modules/parts/` | The FLAKE ENGINE, one flake-parts module per concern, discovered by `import-tree` (ADR-002 wave 2): `identity.nix`, `systems.nix`, `compose.nix` (`mkDarwin`/`mkNixos` — kept as plain functions, **not** translated), `hosts.nix`, `packages.nix`, `checks.nix`, `capsules.nix`, `terranix.nix`, `devshell.nix`, `deploy.nix`, `templates.nix`, `devcontainer.nix`, `lib-option.nix`, `touchup.nix` (what the flake does **not** export). The engine **may** reach anywhere. Per-file detail: [`docs/repo-map.md`](docs/repo-map.md) § `modules/parts/`. |
-| `modules/features/` | CAPSULES — **the seven absorbed satellite flakes, one directory each**: `flake-module.nix` (the ONLY file anything outside imports) + `module.nix` + `packages/` + `checks/` + `README.md`. A capsule **may not reach outside its own directory** — mechanical, not convention: `ast-grep/rules/capsule-must-not-reach-out.yml` + `checks.<system>.capsule-registry`. The seven: `cloudflared-connector`, `firmware-secrets` (both NixOS), `keychain-secrets` (the `secret` CLI + every-shell loader), `vast-provision` (the `vast-*` CLIs; **no module** — its raw-served boot scripts stay at `packages/`, see § Important Notes), `tart-vms` (`tart.githubRunners.*` / `tart.gitlabRunner` / `tart.vms.*`), `media-cli` (`programs.mediaCli`), `local-rag` (`services.ollamaLocal` + `services.pgvectorLocal` — the career RAG's `databaseUri` seam). **The satellite count is 0.** One section each: [`docs/repo-map.md`](docs/repo-map.md) § `modules/features/`. |
+| `modules/features/` | CAPSULES — **the absorbed satellite flakes, one directory each**: `flake-module.nix` (the ONLY file anything outside imports) + `module.nix` + `packages/` + `checks/` + `README.md`. A capsule **may not reach outside its own directory** — mechanical, not convention: `ast-grep/rules/capsule-must-not-reach-out.yml` + `checks.<system>.capsule-registry`. The six: `cloudflared-connector`, `firmware-secrets` (both NixOS), `keychain-secrets` (the `secret` CLI + every-shell loader), `tart-vms` (`tart.githubRunners.*` / `tart.gitlabRunner` / `tart.vms.*`), `media-cli` (`programs.mediaCli`), `local-rag` (`services.ollamaLocal` + `services.pgvectorLocal` — the career RAG's `databaseUri` seam). **The satellite count is 0.** One section each: [`docs/repo-map.md`](docs/repo-map.md) § `modules/features/`. |
 | `modules/shared/` | Home Manager profile on every host: `home.nix`, `mcp.nix`, `terminal-theme.nix` (`local.terminalTheme` — the fleet's one ANSI ring + type, consumed by Ghostty, VS Code and Terminal.app), `chromium.nix` (`programs.ungoogledChromium` — sideloaded CRXes, Apple's Passwords native host, and *recommended*-level policy incl. the default search engine, all for the Homebrew cask), `default-browser.nix` (the LaunchServices default-browser claim, split out of `chromium.nix`), `desktop-aesthetics.nix`, `nix-cache.nix`, `nix-ld-libraries.nix`, `wireguard-configs.nix`, `claude-otel.nix`, `claude-bedrock-gate.nix` (`local.claudeBedrock` — AWS region/profile seam, **null by default**; plus the runtime gate that keeps Bedrock routing survivable on a public-only activation), `claude-brain.nix` (the "Brain Signals" answer-shape kit — output style, calibration rule, `/explain` family, `cartographer`, `/task`; every class merges, so a private layer ADDS), `claude-plugins.nix` (`local.claudePlugins.marketplaces` — N Claude Code plugin marketplaces behind ONE activation; `attrsOf`, so nix-personal ADDS a marketplace instead of copying the script), `git-allowed-signers.nix` (option-only seam nix-personal fills), `wallpaper/`, `hm-launchd/`. |
 | `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix` (`local.folders.*` — inbox paths; unset = system default), `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`services.macosGithubRunner` — LIVE on `macos`, see § Configuration). |
 | `modules/nixos/` | `core.nix` (user + keys-only **loopback-bound** sshd with `openFirewall = false` + a firewall that opens **no** TCP port + avahi + nix-ld + zram + GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). |
@@ -158,7 +155,7 @@ One line per path; the *why* and the per-file specifics are in
 they ship from the `plugins/page-lab` marketplace.)
 
 **Project skills** (`.claude/skills/`): `nix-hygiene`, `nixpi-firmware-provision`,
-`vast-instance-log-tail`, `jsonresume-tailor`, `gmail-mcp-accounts`, `mcp-scout`,
+`jsonresume-tailor`, `gmail-mcp-accounts`, `mcp-scout`,
 `fleet-doctor`, `userscript-author`.
 
 **Always-applied rules** (`.claude/rules/`):
@@ -300,14 +297,6 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   so deploy-rs reports SUCCESS. Deploy from the private nix-personal flake, which reuses this
   node against *its* `nixosConfigurations.nixpi`. Also: bare `deploy` with no `--targets` fans
   out over **every** node — always name the target.
-- **Never move `packages/vast-bootstrap.sh` or `packages/templates/provisioner/`.**
-  Their repo PATHS are baked into every STORED Vast.ai template as
-  `PROVISIONING_SCRIPT` / `PROVISION_LIB_URL` — and `rev` is `self.rev or "main"`, so a
-  template made from a dirty tree tracks the moving `main`. Move either and a rented,
-  **BILLED** instance boots and provisioning **404s**, with `nix flake check` green
-  (ADR-002 §4, S2). This is why the `vast-provision` capsule does not own them: the
-  engine hands them down as `fleet.vastRawServed`. `checks.<system>.vast-scripts-lint`
-  is the only thing that lints them, since nothing builds them.
 - **Never run the `cf-*` terranix apps from this public repo** — the twin of the `deploy` trap.
   `mkCfTunnelTofu` calls `cfTunnelConfig` with **no `hostedSites`** (it defaults to `[ ]`), so
   the public tree renders a tunnel whose ingress is **SSH + the catch-all 404 and nothing
@@ -390,8 +379,6 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   ceiling), and the measured reasons stylix and base16.nix were both rejected.
 - [`docs/macos-settings-surface.md`](docs/macos-settings-surface.md) — what macOS settings
   `macos` can configure declaratively, and the TCC/FileVault walls.
-- [`docs/vastai-template-provisioning.md`](docs/vastai-template-provisioning.md) — the Vast.ai
-  GPU-template provisioning subsystem end to end.
 - [`docs/private-home-modules.md`](docs/private-home-modules.md) — composition contract for
   private modules: public engine, private plug-ins, no private references here. **The one
   plug-in seam ADR-002 did NOT collapse.**
