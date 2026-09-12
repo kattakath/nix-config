@@ -122,12 +122,12 @@ One line per path; the *why* and the per-file specifics are in
 | Path | What it owns |
 |---|---|
 | `flake.nix` | Inputs/pins, `forAllSystems`, `mkDarwin`/`mkNixos`, `identityArgs`, all exported configurations/packages/apps/checks, and `deploy.nodes.nixpi` (deploy-rs, magic rollback — read the ⚠ at its definition site). |
-| `flake.lock` | Pinned revisions — bump only via `nix flake update` / `/update-input`, never hand-edit. Held at **61 nodes** by a deliberate `follows` diet plus ADR-002's capsule absorption (each satellite that comes in-tree drops its own node and its private deps — cloudflared-connector took 2, firmware-secrets 2, keychain-secrets 2, vast-provision 2); a `follows` edit is **shape-only** (`nix flake lock`, never a bare `nix flake update`) and `follows = ""` REBINDS to this flake rather than removing — see [`docs/repo-map.md`](docs/repo-map.md) § `flake.lock`. |
+| `flake.lock` | Pinned revisions — bump only via `nix flake update` / `/update-input`, never hand-edit. Held at **59 nodes** by a deliberate `follows` diet plus ADR-002's capsule absorption (each satellite that comes in-tree drops its own node and its private deps — cloudflared-connector took 2, firmware-secrets 2, keychain-secrets 2, vast-provision 2, tart-vms 2); a `follows` edit is **shape-only** (`nix flake lock`, never a bare `nix flake update`) and `follows = ""` REBINDS to this flake rather than removing — see [`docs/repo-map.md`](docs/repo-map.md) § `flake.lock`. |
 | `treefmt.nix` | Single source of truth for format + lint-fix (tools that REWRITE); drives `nix fmt`, the CI gate, and the pre-commit hook. |
 | `sgconfig.yml` + `ast-grep/` | Report-only structural lint (ast-grep): `rules/` mechanises prose conventions **and the capsule boundary** (`capsule-must-not-reach-out`), `rule-tests/` proves they fire. Gated by `checks.<system>.ast-grep`, **not** treefmt. |
 | `hosts/` | Per-host entry profiles: `macos.nix`, `nixpi.nix`, `nixvm.nix` (host-only deltas + per-host Homebrew lists). |
 | `modules/parts/` | The FLAKE ENGINE, one file per concern, discovered by `import-tree` (ADR-002 wave 2): `identity.nix`, `systems.nix`, `compose.nix` (`mkDarwin`/`mkNixos`), `hosts.nix`, `packages.nix`, `checks.nix`, `terranix.nix`, `devshell.nix`, `deploy.nix`, `templates.nix`, `devcontainer.nix`, `lib-option.nix`, `touchup.nix` (what the flake does **not** export), `capsules.nix`. The engine **may** reach anywhere. |
-| `modules/features/` | CAPSULES — the absorbed satellite flakes, one directory each: `flake-module.nix` (the ONLY file anything outside imports) + `module.nix` + `packages/` + `checks/` + `README.md`. A capsule **may not reach outside its own directory**, enforced by `ast-grep/rules/capsule-must-not-reach-out.yml` + `checks.<system>.capsule-registry`, not by convention. Today: `cloudflared-connector`, `firmware-secrets`, `keychain-secrets` (the `secret` CLI + every-shell loader), `vast-provision` (the six `vast-*` GPU-template CLIs — its raw-served boot scripts stay at `packages/`, see § Important Notes). |
+| `modules/features/` | CAPSULES — the absorbed satellite flakes, one directory each: `flake-module.nix` (the ONLY file anything outside imports) + `module.nix` + `packages/` + `checks/` + `README.md`. A capsule **may not reach outside its own directory**, enforced by `ast-grep/rules/capsule-must-not-reach-out.yml` + `checks.<system>.capsule-registry`, not by convention. Today: `cloudflared-connector`, `firmware-secrets`, `keychain-secrets` (the `secret` CLI + every-shell loader), `vast-provision` (the six `vast-*` GPU-template CLIs — its raw-served boot scripts stay at `packages/`, see § Important Notes), `tart-vms` (the whole Tart toolkit: `tart.githubRunners.*` / `tart.gitlabRunner` / `tart.vms.*` + five packages). |
 | `modules/shared/` | Home Manager profile on every host: `home.nix`, `mcp.nix`, `terminal-theme.nix` (`local.terminalTheme` — the fleet's one ANSI ring + type, consumed by Ghostty, VS Code and Terminal.app), `chromium.nix` (`programs.ungoogledChromium` — sideloaded CRXes, Apple's Passwords native host, and *recommended*-level policy incl. the default search engine, all for the Homebrew cask), `default-browser.nix` (the LaunchServices default-browser claim, split out of `chromium.nix`), `desktop-aesthetics.nix`, `nix-cache.nix`, `nix-ld-libraries.nix`, `wireguard-configs.nix`, `claude-otel.nix`, `claude-bedrock-gate.nix` (Bedrock routing survives a public-only activation), `git-allowed-signers.nix` (option-only seam nix-personal fills), `wallpaper/`, `hm-launchd/`. |
 | `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix` (`local.folders.*` — inbox paths; unset = system default), `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`services.macosGithubRunner` — LIVE on `macos`, see § Configuration). |
 | `modules/nixos/` | `core.nix` (user + keys-only **loopback-bound** sshd with `openFirewall = false` + a firewall that opens **no** TCP port + avahi + nix-ld + zram + GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). |
@@ -248,13 +248,13 @@ How a host gets composed — change these knobs, not the hosts' internals:
 - **`macos` runs self-hosted CI runners — two kinds, neither for this repo's CI.**
   (1) `services.macosGithubRunner` (`modules/darwin/github-runner.nix`, `count = 2`): bare-metal
   ephemeral org runners for **`dontsell-ai`**'s nix/cachix/pgvector-heavy CI. (2) `tart.githubRunners.*`
-  (`nix-tart-vms` `darwinModules.github-runner`, configured in `hosts/macos.nix`): **ephemeral
+  (the `tart-vms` capsule's `github-runner.nix`, configured in `hosts/macos.nix`): **ephemeral
   Tart-VM-per-job** runners for `kattakath` + `silvercreek-ai` + `dontsell-ai` (label
   `dontsell-vm`), sharing Apple's hard 2-concurrent-VM budget via a slot semaphore. Both mint ~1h
   tokens from GitHub App keys (agenix); since 2026-09-06 **both lanes share ONE App**,
   `ismailkattakath-ci` (appId 4849830, operator-owned + public), which replaced the retired
   `kattakath-fleet-ci` (4845230), `kattakath-ci` (4243998) and `dontsell-ai` (4689619). The **GitLab**
-  lane rides the same budget: `tart.gitlabRunner` (`darwinModules.gitlab-runner`) runs
+  lane rides the same budget: `tart.gitlabRunner` (the same capsule's `gitlab-runner.nix`) runs
   gitlab-runner declaratively, rendering its config at agent start from the agenix
   `gitlab-runner-token.age`. **This repo's own CI uses none of them** — `nix-ci.yml` is 100%
   GitHub-hosted.
@@ -401,7 +401,7 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   scorecard, the 3 blocking corrections an adversarial pass found (including that `import-tree`'s
   default filter imports *every* `.nix`), the wave plan, and what the collapse gives up.
 - [`docs/macvm-readd-runbook.md`](docs/macvm-readd-runbook.md) — re-adding the removed
-  `macvm` Tart guest (removed 2026-09-05); what survives in `nix-tart-vms`.
+  `macvm` Tart guest (removed 2026-09-05); what survives in the `tart-vms` capsule.
 - [`docs/gmail-mcp-multi-account-runbook.md`](docs/gmail-mcp-multi-account-runbook.md) — TRUE
   simultaneous multi-account Gmail (one process per account) + a silent-wrong-account failure
   mode.

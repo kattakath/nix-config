@@ -1,0 +1,460 @@
+# ---- The satellite's five module-eval checks, carried over -------------------
+#
+# From github:kattakath/nix-tart-vms's own flake.nix `checks` (ADR-002 wave 5).
+# The check BODIES are verbatim; only the plumbing changed, and only because the
+# capsule invariant forces it:
+#
+#   * the four module files and the four tart-runner sub-derivations arrive as
+#     ARGUMENTS instead of as `./modules/…` / `pkgs.callPackage ./packages/…`
+#     literals. A leaf inside a capsule may not reach UP with `..`
+#     (ast-grep/rules/capsule-must-not-reach-out.yml, severity error), so the
+#     entry file passes what a leaf needs DOWN — the fix the rule's own note
+#     prescribes, and the same shape as the three capsules before this one.
+#   * `darwinStubs` is inlined here rather than left in the entry file. It is
+#     used by three of these checks and by nothing else, and it is the OPTION
+#     half of the capsule boundary (ADR-002 §2): an `evalModules` against a
+#     hand-written stub of nix-darwin's surface proves the modules do not
+#     silently depend on anything outside themselves. It stays for that reason —
+#     deleting it would delete the isolation test, not just some scaffolding.
+#     Its known cost is stated in ADR-002 §7.7: the stubs ROT, so a nix-darwin
+#     bump can make isolation pass while real composition fails.
+#
+# `/Users/tester` below is a FIXTURE, not a fleet path — it is the stub's
+# `system.primaryUserHome`, and it never leaves a check derivation. It is one of
+# the three names exempted in ast-grep/rules/nix-hardcoded-home-path.yml, which
+# carries the rationale.
+{
+  lib,
+  pkgs,
+  # The capsule's four module files, passed down from ../flake-module.nix.
+  darwinModule,
+  githubRunnerModule,
+  gitlabRunnerModule,
+  slotsModule,
+  # `pkgs.callPackage ./packages/tart-runner.nix { }`, likewise passed down —
+  # the `state-dir` check greps the built controller/setup/api/poll scripts.
+  tartRunner,
+}:
+let
+  # The nix-darwin option surface the runner modules write to or read
+  # from — stubbed so the module checks smoke-eval without a nix-darwin
+  # input. `system.primaryUser*` are here because slots.nix
+  # derives its durable default from primaryUserHome, and
+  # `activationScripts` because both lanes mkdir that dir before
+  # launchd opens their log paths.
+  darwinStubs = {
+    options.environment.systemPackages = lib.mkOption {
+      type = lib.types.listOf lib.types.package;
+      default = [ ];
+    };
+    options.launchd.user.agents = lib.mkOption {
+      type = lib.types.attrsOf lib.types.anything;
+      default = { };
+    };
+    options.assertions = lib.mkOption {
+      type = lib.types.listOf lib.types.anything;
+      default = [ ];
+    };
+    # mkRenamedOptionModule records its deprecation notice here — the
+    # stub must declare it for the alias to eval.
+    options.warnings = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+    };
+    options.system.primaryUser = lib.mkOption {
+      type = lib.types.str;
+      default = "tester";
+    };
+    options.system.primaryUserHome = lib.mkOption {
+      type = lib.types.str;
+      default = "/Users/tester";
+    };
+    options.system.activationScripts = lib.mkOption {
+      type = lib.types.attrsOf (
+        lib.types.submodule {
+          options.text = lib.mkOption {
+            type = lib.types.lines;
+            default = "";
+          };
+        }
+      );
+      default = { };
+    };
+  };
+in
+{
+  darwin-module =
+    let
+      eval = lib.evalModules {
+        modules = [
+          darwinModule
+          # Stub just the nix-darwin option surface the module writes
+          # to — enough for a smoke eval without a nix-darwin input.
+          {
+            options.environment.systemPackages = lib.mkOption {
+              type = lib.types.listOf lib.types.package;
+              default = [ ];
+            };
+            options.launchd.user.agents = lib.mkOption {
+              type = lib.types.attrsOf lib.types.anything;
+              default = { };
+            };
+          }
+          {
+            _module.args.pkgs = pkgs;
+            tart.vms.smoke = {
+              cpu = 2;
+              memory = 4096;
+              headless = true;
+              autoStart = true;
+              dirs = [ "Downloads:/tmp/downloads" ];
+            };
+          }
+        ];
+      };
+      agent = eval.config.launchd.user.agents."tart-vm-smoke".serviceConfig;
+    in
+    pkgs.runCommand "darwin-module-eval"
+      {
+        arg0 = builtins.head agent.ProgramArguments;
+      }
+      ''
+        # The arg0 rule, asserted mechanically: BTM/TCC legibility
+        # requires a nix-<kebab> wrapper, never bare tart/sh.
+        case "$(basename "$arg0")" in
+          nix-tart-vm-smoke) : ;;
+          *)
+            echo "arg0 rule violated: $arg0" >&2
+            exit 1
+            ;;
+        esac
+        test -x "$arg0"
+        touch "$out"
+      '';
+
+  runner-module =
+    let
+      eval = lib.evalModules {
+        modules = [
+          githubRunnerModule
+          darwinStubs
+          {
+            _module.args.pkgs = pkgs;
+            # Deliberately the OLD name — this check also proves the
+            # tart.runners → tart.githubRunners rename alias fires.
+            tart.runners.smoke = {
+              scope = {
+                type = "org";
+                value = "example-org";
+              };
+              appId = 1;
+              installationId = 1;
+              privateKeyPath = "/etc/github-runner/key.pem";
+              image = {
+                oci = "ghcr.io/cirruslabs/macos-runner:tahoe";
+                digest = "sha256:0000000000000000000000000000000000000000000000000000000000000000";
+              };
+            };
+          }
+        ];
+      };
+      agent = eval.config.launchd.user.agents."tart-runner-smoke".serviceConfig;
+      slotAssert = builtins.head eval.config.assertions;
+    in
+    pkgs.runCommand "runner-module-eval"
+      {
+        arg0 = builtins.head agent.ProgramArguments;
+        slotsOk = if slotAssert.assertion then "1" else "0";
+      }
+      ''
+        # arg0 rule + the <=2-VM assertion, both asserted mechanically.
+        case "$(basename "$arg0")" in
+          nix-tart-runner-smoke) : ;;
+          *) echo "arg0 rule violated: $arg0" >&2; exit 1 ;;
+        esac
+        [ "$slotsOk" = "1" ] || { echo "default runnerSlots failed its own assertion" >&2; exit 1; }
+        test -x "$arg0"
+        touch "$out"
+      '';
+
+  gitlab-runner-module =
+    let
+      eval = lib.evalModules {
+        modules = [
+          gitlabRunnerModule
+          darwinStubs
+          {
+            _module.args.pkgs = pkgs;
+            tart.gitlabRunner = {
+              enable = true;
+              runnerName = "smoke";
+              tokenFile = "/run/agenix/gitlab-runner-token";
+            };
+          }
+        ];
+      };
+      agent = eval.config.launchd.user.agents.gitlab-runner.serviceConfig;
+    in
+    pkgs.runCommand "gitlab-runner-module-eval"
+      {
+        arg0 = builtins.head agent.ProgramArguments;
+      }
+      ''
+        # arg0 rule asserted mechanically; the wrapper's shellcheck
+        # already gated it at build (writeShellApplication).
+        case "$(basename "$arg0")" in
+          nix-gitlab-runner) : ;;
+          *) echo "arg0 rule violated: $arg0" >&2; exit 1 ;;
+        esac
+        test -x "$arg0"
+        # The rendered-config template must reference all four shims.
+        for stage in config prepare run cleanup; do
+          grep -q "nix-gitlab-tart-$stage" "$arg0" || {
+            echo "wrapper lost the $stage shim reference" >&2; exit 1;
+          }
+        done
+        touch "$out"
+      '';
+
+  # The cross-lane state-dir contract, which nothing asserted before
+  # 2026-09-05: BOTH lanes must derive slots, pins and logs from the
+  # ONE tart.runnerStateDir. A base-dir move used to pass every check
+  # whether or not it was internally consistent, and the /tmp literal
+  # left behind in github-runner.nix's log paths went unnoticed for
+  # as long as it existed.
+  state-dir =
+    let
+      stateDir = "/Users/tester/.local/state/tart-runner";
+      # Two instances, ONE image — so exactly one must be elected
+      # the re-pin/pull owner.
+      sharedRunner = {
+        scope = {
+          type = "org";
+          value = "example-org";
+        };
+        appId = 1;
+        installationId = 1;
+        privateKeyPath = "/etc/github-runner/key.pem";
+        image = {
+          oci = "ghcr.io/cirruslabs/macos-runner:tahoe";
+          digest = "sha256:0000000000000000000000000000000000000000000000000000000000000000";
+        };
+      };
+      eval = lib.evalModules {
+        modules = [
+          githubRunnerModule
+          gitlabRunnerModule
+          darwinStubs
+          {
+            _module.args.pkgs = pkgs;
+            tart.runnerStateDir = stateDir;
+            tart.githubRunners = {
+              alpha = sharedRunner;
+              beta = sharedRunner;
+            };
+            tart.gitlabRunner = {
+              enable = true;
+              runnerName = "smoke";
+              tokenFile = "/run/agenix/gitlab-runner-token";
+            };
+          }
+        ];
+      };
+      gh = n: eval.config.launchd.user.agents."tart-runner-${n}".serviceConfig;
+      gl = eval.config.launchd.user.agents.gitlab-runner.serviceConfig;
+    in
+    pkgs.runCommand "state-dir-eval"
+      {
+        inherit stateDir;
+        alphaArg0 = builtins.head (gh "alpha").ProgramArguments;
+        betaArg0 = builtins.head (gh "beta").ProgramArguments;
+        glArg0 = builtins.head gl.ProgramArguments;
+        logPaths = [
+          (gh "alpha").StandardOutPath
+          (gh "alpha").StandardErrorPath
+          (gh "beta").StandardOutPath
+          (gh "beta").StandardErrorPath
+          gl.StandardOutPath
+          gl.StandardErrorPath
+        ];
+        inherit (tartRunner) controller setup;
+        ghApi = tartRunner.api;
+        ghPoll = tartRunner.poll;
+        assertionsOk = if lib.all (a: a.assertion) eval.config.assertions then "1" else "0";
+      }
+      ''
+        fail() { echo "$*" >&2; exit 1; }
+
+        [ "$assertionsOk" = "1" ] || fail "the durable/whitespace state-dir assertions rejected their own default shape"
+
+        # (a)+(b) every agent log path follows the option.
+        for p in $logPaths; do
+          case "$p" in "$stateDir"/*) : ;; *) fail "log path escaped tart.runnerStateDir: $p" ;; esac
+        done
+
+        # (c) THE cross-lane invariant: one slots dir, or the
+        # two-guest semaphore silently stops being shared and a third
+        # guest fails inside Virtualization.framework mid-job.
+        for w in "$alphaArg0" "$betaArg0" "$glArg0"; do
+          grep -Eq "TR_SLOTS_DIR='?$stateDir/slots'?$" "$w" || fail "lane wrapper does not resolve $stateDir/slots: $w"
+        done
+
+        # (d) no volatile literal survives in any wrapper.
+        for w in "$alphaArg0" "$betaArg0" "$glArg0"; do
+          if grep -q "/tmp/" "$w"; then fail "wrapper still carries a /tmp literal: $w"; fi
+        done
+        for p in $logPaths; do
+          case "$p" in /tmp/* | /private/tmp/* | /var/tmp/*) fail "volatile log path: $p" ;; *) : ;; esac
+        done
+
+        # (e) no whitespace anywhere ssh will re-tokenize: it splits
+        # the -o UserKnownHostsFile argument on it.
+        case "$stateDir" in *[[:space:]]*) fail "state dir contains whitespace" ;; esac
+        grep -Eq "TR_KNOWN_HOSTS='?$stateDir/pins/[0-9a-f]{12}\.known_hosts'?$" "$alphaArg0" \
+          || fail "pin path is not a whitespace-free, digest-keyed path under $stateDir"
+
+        # (f) the controller's pre-flight gates on BOTH artifacts a
+        # digest bump renames, and runs OUTSIDE the job function.
+        ctl="$controller/bin/tart-runner-controller"
+        grep -q 'ensure_image || continue' "$ctl" || fail "controller main loop lost its pre-flight guard"
+        grep -q 'base_present && pin_present' "$ctl" || fail "pre-flight no longer gates on BOTH the base image and the host-key pin"
+
+        # (g) the digest-pinned reference must never carry a tag as
+        # well. `repo:tag@sha256:…` is rejected by tart's parser
+        # ("mismatched input '@'") before a byte is fetched, so every
+        # pull — manual or automatic — fails instantly and the host is
+        # left with no base image and no pin. That is what the
+        # 2026-09-05 digest bump actually did.
+        setupBin="$setup/bin/tart-runner-setup"
+        grep -q 'ociRef="\$TR_OCI_IMAGE"' "$setupBin" \
+          || fail "setup no longer strips the tag before appending the digest"
+        grep -q 'pull "\$pinnedRef"' "$setupBin" \
+          || fail "setup does not pull the tag-stripped, digest-pinned ref"
+        if grep -q 'pull "\$TR_OCI_IMAGE@\$TR_OCI_DIGEST"' "$setupBin"; then
+          fail "setup pulls tag+digest together — tart's parser rejects that ref"
+        fi
+
+        # (h) exactly one owner per distinct image.
+        owners=0
+        for w in "$alphaArg0" "$betaArg0"; do
+          if grep -Eq "TR_SETUP_OWNER='?1'?$" "$w"; then owners=$((owners + 1)); fi
+        done
+        [ "$owners" = 1 ] || fail "expected exactly 1 re-pin owner for one shared image, got $owners"
+
+        # (i) THE 2026-09-06 invariant: the controller must NOT wait
+        # for work inside a pre-booted guest. Before this, every lane
+        # cloned an 8 GB guest and ran `./run.sh` in it, so an idle
+        # lane held one of Apple's two guest slots indefinitely. The
+        # comments above say so; these greps are what actually stops
+        # a future edit from putting the long poll back in the guest.
+        apiBin="$ghApi/bin/tart-runner-api"
+        pollBin="$ghPoll/bin/tart-runner-poll"
+        test -x "$pollBin" || fail "no host-side queued-work poller is built"
+
+        # Invocation forms, not the bare words — the controller's own
+        # comments name both scripts to explain why they are gone.
+        if grep -q '\./config\.sh' "$ctl"; then
+          fail "controller still registers the runner with config.sh inside the guest"
+        fi
+        if grep -q '\./run\.sh' "$ctl"; then
+          fail "controller still drives the guest through run.sh (a restart loop, not a one-shot)"
+        fi
+        if grep -q 'registration-token' "$apiBin"; then
+          fail "the API helper still mints legacy runner registration tokens"
+        fi
+        grep -q 'generate-jitconfig' "$apiBin" \
+          || fail "the API helper no longer mints a JIT config"
+        grep -q 'ACTIONS_RUNNER_INPUT_JITCONFIG' "$ctl" \
+          || fail "controller no longer hands the guest a JIT config on stdin"
+        # The `run` subcommand is mandatory: without it Runner.Listener
+        # writes its config, prints usage and exits 0 — a supervisor
+        # reading exit 0 as success would spin launching no-op runners.
+        grep -q 'Runner\.Listener run' "$ctl" \
+          || fail "controller does not invoke Runner.Listener with the mandatory 'run' subcommand"
+        # Bearer tokens must reach curl through --config on stdin, never -H (argv is world-readable via ps).
+        if grep -q 'Authorization: Bearer' "$apiBin"; then
+          fail "the API helper puts a bearer token on a curl command line"
+        fi
+
+        # A guest is booted ONLY on the poll saying there is work.
+        grep -q 'tart-runner-poll' "$ctl" \
+          || fail "controller has no host-side queued-work poll"
+        # Assert the INVARIANT, not one line's shape: every CALL of
+        # run_one_job must sit inside the poll's `0)` arm. An earlier
+        # version pinned the literal `0) run_one_job ;;`, which broke
+        # the moment that arm legitimately grew a backoff — a test
+        # that fails on correct refactors teaches people to delete it.
+        grep -Eq '^[[:space:]]*0\)' "$ctl" \
+          || fail "controller lost the queued-work poll's result case arm"
+        awk '
+          /^[[:space:]]*0\)/ { inarm = 1 }
+          inarm && /^[[:space:]]*;;/ { inarm = 0 }
+          /run_one_job/ && !/run_one_job\(\)/ && !/^[[:space:]]*#/ {
+            if (!inarm) bad++
+          }
+          END { exit (bad ? 1 : 0) }
+        ' "$ctl" \
+          || fail "run_one_job is called outside the poll's 0) arm — an idle lane would boot a guest"
+        # And a runner is created at the forge only AFTER a slot is
+        # held: minting first would leave a registered runner behind
+        # on a slot-wait timeout, and GitHub would dispatch to it.
+        slotLine=$(grep -n 'if ! slot_acquire_pid; then' "$ctl" | head -n1 | cut -d: -f1)
+        jitLine=$(grep -n 'tart-runner-api jitconfig' "$ctl" | head -n1 | cut -d: -f1)
+        [ -n "$slotLine" ] && [ -n "$jitLine" ] \
+          || fail "cannot locate the slot acquire / JIT mint pair in the controller"
+        [ "$slotLine" -lt "$jitLine" ] \
+          || fail "the JIT config is minted before the guest slot is held"
+
+        # (j) the poll interval reaches the lane wrapper — a default
+        # baked only into the controller would silently ignore the option.
+        grep -Eq "TR_POLL_INTERVAL='?[0-9]+'?$" "$alphaArg0" \
+          || fail "lane wrapper does not carry a poll interval"
+
+        touch "$out"
+      '';
+
+  # ---- THE KILL-SWITCH GATE (ADR-002 §2 anatomy, wave 5) -------------------
+  #
+  # NEW — the satellite never needed it, and this fleet does. All four modules
+  # sit in mkDarwin's BASE list (modules/parts/compose.nix), so they are
+  # evaluated by EVERY darwin composition, including nix-personal's own
+  # `lib.mkDarwin` call. compose.nix asserts in prose that they are "inert
+  # unless a host sets tart.githubRunners"; nothing measured it, and a module
+  # that quietly contributes a launchd agent or a systemPackage to every
+  # composition is exactly the failure ADR-002 §8 describes — invisible to
+  # `nix flake check`, visible only on the Mac.
+  #
+  # So: evaluate all four together with ZERO configuration and assert the
+  # contributions are EMPTY. `tart.gitlabRunner.enable` defaults false; the two
+  # attrset options default `{ }`. If any of that changes, this fails here
+  # rather than on the operator's daily machine.
+  inert =
+    let
+      eval = lib.evalModules {
+        modules = [
+          darwinModule
+          githubRunnerModule
+          gitlabRunnerModule
+          slotsModule
+          darwinStubs
+          { _module.args.pkgs = pkgs; }
+        ];
+      };
+      cfg = eval.config;
+    in
+    pkgs.runCommand "tart-vms-inert-eval"
+      {
+        agentCount = toString (builtins.length (builtins.attrNames cfg.launchd.user.agents));
+        pkgCount = toString (builtins.length cfg.environment.systemPackages);
+        activationCount = toString (builtins.length (builtins.attrNames cfg.system.activationScripts));
+        assertionsOk = if lib.all (a: a.assertion) cfg.assertions then "1" else "0";
+      }
+      ''
+        fail() { echo "$*" >&2; exit 1; }
+        [ "$agentCount" = 0 ] || fail "unconfigured tart modules contributed $agentCount launchd agent(s) to EVERY mkDarwin composition"
+        [ "$pkgCount" = 0 ] || fail "unconfigured tart modules contributed $pkgCount systemPackage(s) to EVERY mkDarwin composition"
+        [ "$activationCount" = 0 ] || fail "unconfigured tart modules contributed $activationCount activation script(s) to EVERY mkDarwin composition"
+        [ "$assertionsOk" = 1 ] || fail "unconfigured tart modules failed their own assertions"
+        touch "$out"
+      '';
+}

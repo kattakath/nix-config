@@ -24,8 +24,8 @@ All-in-one Nix mono-repo managing a fully declarative **aarch64-only** fleet:
   `nix run .#nixvm` (a build-vm XFCE desktop — no installed VM, no builder, no runner).
 - A matching **Devcontainer** image.
 
-(The `macvm` Tart guest was removed 2026-09-05 — re-add path + what survives in
-`nix-tart-vms`: [`macvm-readd-runbook.md`](macvm-readd-runbook.md).)
+(The `macvm` Tart guest was removed 2026-09-05 — re-add path + what survives in the
+in-tree `tart-vms` capsule: [`macvm-readd-runbook.md`](macvm-readd-runbook.md).)
 
 Single source of truth; platform divergence lives in `modules/`, never in ad-hoc shell.
 
@@ -69,11 +69,12 @@ achieved entirely via `networking.hostName`-gated `lib.mkIf`, never via a separa
 
 Pinned input revisions; commit every change, never hand-edit.
 
-**The input diet — `follows` is not optional bookkeeping here.** 33 root inputs pull a
+**The input diet — `follows` is not optional bookkeeping here.** 32 root inputs pull a
 transitive graph, and every duplicate node is another fetch, another eval, another thing
-`flake-checker` has to reason about. The lock is held at **63 nodes**; it was **72** before the
+`flake-checker` has to reason about. The lock is held at **59 nodes**; it was **72** before the
 dedupe pass, and **69** before ADR-002 began absorbing the satellites (each one that comes
-in-tree takes its own node and its private deps with it). Two mechanisms, and conflating them is the trap:
+in-tree takes its own node and its private deps with it — five so far, 2 nodes each:
+cloudflared-connector, firmware-secrets, keychain-secrets, vast-provision, tart-vms). Two mechanisms, and conflating them is the trap:
 
 | Form | Means | Use when |
 |---|---|---|
@@ -268,7 +269,7 @@ All four are safe to commit. Full rules: [`secrets-and-keychain.md`](secrets-and
 - **`macos.nix`** — the darwin client host. Imports `../modules/darwin/github-runner.nix` and
   enables `services.macosGithubRunner` with `count = 2` for the **`dontsell-ai`** org (see that
   module's section below) — nix-config's *own* CI is fully GitHub-hosted and uses no runner, but
-  this Mac is not runner-free. Also configures **`tart.githubRunners.*`** (the `nix-tart-vms` input's
+  this Mac is not runner-free. Also configures **`tart.githubRunners.*`** (the `tart-vms` capsule's
   `darwinModules.github-runner`, in `mkDarwin`'s BASE module list): ephemeral **Tart-VM-per-job**
   GitHub Actions runners for `kattakath`, `silvercreek-ai`, and `dontsell-ai` (label
   `dontsell-vm` — the bare-metal pair keeps that org's nix-toolchain CI), one fleet GitHub App
@@ -281,11 +282,11 @@ All four are safe to commit. Full rules: [`secrets-and-keychain.md`](secrets-and
   lanes' logs live under `tart.runnerStateDir` — `~/.local/state/tart-runner` by default,
   durable and user-writable; a volatile root now fails at eval, after the old `/tmp` default
   was purged and darked all three lanes on 2026-09-05. The **GitLab** runner shares the
-  same VM budget declaratively since 2026-09-05: **`tart.gitlabRunner`** (`darwinModules.gitlab-runner`,
+  same VM budget declaratively since 2026-09-05: **`tart.gitlabRunner`** (the same capsule's `gitlab-runner.nix`,
   same base list) runs `pkgs.gitlab-runner` as a GUI LaunchAgent that renders its `config.toml`
   at start from the agenix `gitlab-runner-token.age` (host-decrypted), pointing at the
   `gitlab-tart` slot shims around cirruslabs' first-party executor — the semaphore
-  (`packages/tart-slots.nix` there) is the single protocol both forges speak; only runner
+  (`modules/features/tart-vms/packages/tart-slots.nix`) is the single protocol both forges speak; only runner
   *registration* (minting the glrt- token) remains manual. Carries its own Homebrew brew/cask/masApps lists, incl. a
   `libreoffice` cask backing the docx/pptx/xlsx/pdf Claude Code skills' `soffice` dependency,
   and the `open-design` cask (`greedy = true`, adopted the hand-dragged app in place) paired
@@ -349,7 +350,25 @@ Two subtrees are **not** platform splits and are governed by ADR-002
   (`extras/modules.nix`); that attribute is deliberately **not** re-exported as a public flake
   output — see `modules/parts/touchup.nix` for the decision and the one-line path back.
   Today: `cloudflared-connector` (wave 3), `firmware-secrets`, `keychain-secrets` and
-  `vast-provision` (wave 4). Waves 5-6 add the other three.
+  `vast-provision` (wave 4), `tart-vms` (wave 5). Waves 5-6 add the remaining two.
+
+  **`tart-vms` is the biggest capsule and the one with the most LIVE surface** (3,255 lines;
+  `macos` runs three Tart-VM GitHub runners and a GitLab lane off it). Three things about it
+  are load-bearing and are spelled out in its `flake-module.nix` header: its two runner modules
+  go out through the RAW `capsuleModules` seam so the base list gets **paths**, not
+  `deferredModule` wrappers — both `imports = [ ./slots.nix ]` and the module system dedupes by
+  **path identity**; it imports its **own** nixpkgs with the satellite's narrowed
+  `allowUnfreePredicate` (exactly `tart` / `packer` / `tart-guest-agent`) rather than riding a
+  blanket `allowUnfree`, so a fourth unfree package arriving via a nixpkgs bump still fails the
+  build; and its four module files sit at the capsule ROOT rather than in a nested `modules/`,
+  because `..` anywhere under `modules/features/` is an ast-grep error even when it stays inside
+  the capsule.
+
+  It also carries the one **`capsuleSources`** entry (`modules/parts/capsules.nix`): the path of
+  `packages/gitlab-tart.nix`, which `modules/shared/home.nix` `callPackage`s with the **host's**
+  pkgs to put the five `nix-gitlab-tart-*` slot shims on `PATH`. A derivation built from this
+  flake's perSystem pkgs would be a different drv; publishing the path keeps
+  `flake-module.nix` the only thing outside the capsule that names a file inside it.
 
   **`vast-provision` is the shape-exception, and deliberately so.** It registers NO module at
   all — it is six `nix run` CLIs, so there is no `module.nix` and no `enable` switch to invent
@@ -889,7 +908,8 @@ Core package set:
   Spotlight-visible, focus-or-launch identity; consumed by `modules/shared/home.nix`'s
   `home.file."Applications/*.app"`.
 - `macvm-tart.nix` — removed 2026-09-05 with the `macvm` guest; the generic Tart machinery
-  it wrapped lives on in [`nix-tart-vms`](https://github.com/kattakath/nix-tart-vms),
+  it wrapped lives on in the in-tree `modules/features/tart-vms/` capsule (absorbed from
+  `nix-tart-vms` by ADR-002 wave 5),
   and the re-add path is [`macvm-readd-runbook.md`](macvm-readd-runbook.md).
 
 The no-Nix stage-1 `bootstrap.sh` (the `curl … | bash` entrypoint) lives at the **repo root** —

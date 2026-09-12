@@ -22,7 +22,6 @@ let
     agenix
     media-cli
     local-rag
-    nix-tart-vms
     mcp-servers-nix
     agent-skills-vercel
     agent-skills-anthropic
@@ -49,6 +48,14 @@ let
   # `flake.modules` — see modules/parts/capsules.nix § The RAW module seam for
   # the measurement (deferredModule's wrapper reorders `home.packages`).
   inherit (config.capsuleModules.homeManager) keychain-secrets;
+  # tart-vms (wave 5) — through the RAW seam too, and for a SECOND reason on top
+  # of the home.packages one: both runner modules `imports = [ ./slots.nix ]`,
+  # and the module system dedupes by PATH IDENTITY. `flake.modules`'
+  # deferredModule merge would hand the base list two anonymous
+  # `{ imports = [ … ]; }` wrappers instead of two paths, so the shared
+  # slots.nix would be collected twice. Named as the capsule spells them, then
+  # used as bare paths below.
+  inherit (config.capsuleModules.darwin) tart-github-runner tart-gitlab-runner;
 
   inherit (config.fleet)
     identityArgs
@@ -110,11 +117,6 @@ let
             grok-build-plugin-cc
             media-cli
             local-rag
-            # nix-tart-vms: home.nix installs the gitlab-tart slot shims
-            # (PATH-stable + GC-rooted so ~/.gitlab-runner/config.toml can
-            # reference them). In extraSpecialArgs, NOT per-call — the
-            # two-composition-call-sites lesson.
-            nix-tart-vms
             # jsonResumeUrl: the raw resume.json URL (or null), consumed by home.nix
             # to bake into the jsonresume package as its default --url (darwin
             # home.packages; inert on the NixOS hosts).
@@ -140,6 +142,16 @@ let
           # instead of half-resolving. Same move as the two nixos capsules'
           # cloudflaredConnectorModule / firmwareSecretsModule in mkNixos below.
           keychainSecretsModule = keychain-secrets;
+          # A SOURCE PATH, not a module and not a derivation — home.nix
+          # `callPackage`s it with the HOST's pkgs so the five gitlab-tart slot
+          # shims are built against `nixpkgs.config.allowUnfree` from
+          # hosts/macos.nix, exactly as they were when this came from the
+          # nix-tart-vms input. It was the `nix-tart-vms` flake input until
+          # ADR-002 wave 5; keeping it in extraSpecialArgs rather than per-call
+          # is the two-composition-call-sites lesson, unchanged. Why a capsule
+          # publishes a path at all: modules/parts/capsules.nix § The SOURCE
+          # seam.
+          gitlabTartSource = config.capsuleSources.tart-vms.gitlab-tart;
         };
         users.${idArgs.loginName} = {
           imports = [ ../shared/home.nix ] ++ extraHomeModules;
@@ -270,11 +282,11 @@ let
         # composition has the options (nix-personal calls mkDarwin itself;
         # a per-call wire broke its eval — the PR #452 lesson, second
         # verse). Inert unless a host sets tart.githubRunners (hosts/macos.nix).
-        nix-tart-vms.darwinModules.github-runner
+        tart-github-runner
         # tart.gitlabRunner option surface (declarative gitlab-runner on the
         # same Tart custom executor + slot budget). Same base-list rationale.
         # Inert unless a host enables it (hosts/macos.nix).
-        nix-tart-vms.darwinModules.gitlab-runner
+        tart-gitlab-runner
         ../../hosts/${hostname}.nix
         home-manager.darwinModules.home-manager
         (mkHomeManagerModule {

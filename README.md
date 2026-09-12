@@ -158,10 +158,10 @@ Or just open the repo in a devcontainer-aware editor; `.devcontainer/devcontaine
 ```
 bootstrap.sh    No-Nix curl entrypoint: install Determinate Nix, then hand off to the flake
 flake.nix       Entry point: inputs, darwin/nixos configurations, packages, devShells, checks, deploy nodes
-flake.lock      Pinned input revisions (bumped via `nix flake update`, never hand-edited); 61 nodes, held down by a deliberate `follows` diet plus ADR-002's capsule absorption
+flake.lock      Pinned input revisions (bumped via `nix flake update`, never hand-edited); 59 nodes, held down by a deliberate `follows` diet plus ADR-002's capsule absorption
 treefmt.nix     Single source of truth for formatting + lint (drives nix fmt, CI, and the hook)
 hosts/          Per-host entry profiles (macos.nix, macvm.nix, nixpi.nix, nixvm.nix)
-modules/        Reusable modules, split by platform (darwin/ nixos/ shared/)
+modules/        parts/ (the flake engine), features/ (capsules — absorbed satellite flakes, one dir each), and the reusable modules split by platform (darwin/ nixos/ shared/)
 packages/       Nix-built artifacts (devcontainer image, key-recovery kit, landing page; also vast-bootstrap.sh + templates/provisioner/ — the raw-served Vast files, which stay here because their repo paths are baked into stored Vast templates; the vast-* CLIs live in modules/features/vast-provision/)
 templates/      Flake template for `nix flake init -t github:kattakath/nix-config` — a starter consumer fleet flake (distinct from packages/templates/, the Vast.ai assets)
 .claude/        Repo-local Claude Code agents, commands, hooks, skills, and rules

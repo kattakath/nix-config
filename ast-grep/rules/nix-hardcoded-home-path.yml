@@ -18,9 +18,38 @@ severity: error
 # `[a-z]` start + the trailing `/` require a real lowercase user segment, so
 # /Users/Shared, a bare /home, and `${config.home.homeDirectory}` / "/Users/$USER"
 # are all correctly ignored.
+#
+# ---- THE THREE NON-OPERATOR USERS, and why exempting them is a SCOPE fix ----
+#
+# This rule's own stated harm is "not reproducible and breaks on any other
+# operator/host" — i.e. it governs paths on THIS fleet's machines. Three literal
+# user segments are not that, and all three arrived with the tart-vms capsule
+# (ADR-002 wave 5), where they are CORRECT and have no $HOME/XDG spelling:
+#
+#   admin   the account baked into Cirrus' macOS GUEST images. A path under it
+#           is a path inside a disposable Tart VM, not on the host — there is no
+#           host $HOME that could stand in for it, and the guest's $HOME is not
+#           in scope at eval. See modules/features/tart-vms/github-runner.nix
+#           (`runnerDirInGuest`) and packages/tart-runner.nix (`TR_RUNNER_DIR`).
+#   tester  the `system.primaryUser*` FIXTURE in the capsule's evalModules
+#           stubs. It never leaves a check derivation; substituting a real
+#           $HOME would make the check depend on who ran it — the opposite of
+#           what this rule wants. See checks/module-evaluations.nix.
+#   me      the placeholder in an option `example` (darwin.nix `dirs`). Option
+#           examples are documentation; the rule cannot distinguish `example =`
+#           from a value, so the placeholder is named here instead.
+#
+# This NARROWS the rule by three literal names; it does not loosen what it
+# catches. `/Users/ismail/`, `/home/ismail/` and every other operator home stay
+# errors, and ast-grep/rule-tests/nix-hardcoded-home-path-test.yml proves both
+# halves — the exemptions are in `valid`, the real homes still in `invalid`.
+# KEEP IN SYNC with .claude/hooks/nix-home-path-lint.js, which carries the same
+# three names for the same reason.
 rule:
   kind: string_fragment
   regex: '/(Users|home)/[a-z][a-z0-9._-]*/'
+  not:
+    regex: '/(Users|home)/(admin|tester|me)/'
 
 message: Hardcoded per-user home path inside a Nix string.
 note: |
@@ -28,5 +57,7 @@ note: |
   config.home.homeDirectory, or an XDG dir. A literal /Users/<name>/ or
   /home/<name>/ in a .nix VALUE is not reproducible and breaks on any other
   operator/host. (Nix source path literals like ../../foo are the OTHER axis and
-  are correct — this rule cannot see them.) Same convention as
-  .claude/hooks/nix-home-path-lint.js; keep both in sync.
+  are correct — this rule cannot see them.) Exempt: admin / tester / me — a Tart
+  GUEST account, an evalModules fixture and an option-example placeholder, none
+  of which is a path on a fleet machine; see the header comment. Same convention
+  as .claude/hooks/nix-home-path-lint.js; keep both in sync.
