@@ -86,8 +86,7 @@ _:
     # added here needs it — do not hand-roll a `brew trust` activation step, and
     # note that the *cask* line's own `trusted:` does NOT cover the tap.
     #
-    # nats-server is homebrew-core, so no tap is needed. (runpodctl comes from
-    # nixpkgs via home.nix, not a tap.)
+    # nats-server is homebrew-core, so no tap is needed.
     taps = [
       {
         name = "viarotel-org/escrcpy";

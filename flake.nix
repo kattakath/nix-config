@@ -215,40 +215,6 @@
     # hands the `postgres` MCP server, i.e. the whole career RAG — is unchanged
     # and pinned as a literal by the capsule's own check.)
 
-    # (vast-provision was an input here until ADR-002 wave 4 ABSORBED it as a
-    # capsule — modules/features/vast-provision/. Same six `vast-*` CLIs, same
-    # six apps, one fewer lock node and one fewer CI pipeline; the origin repo
-    # is archived and its history stays there. It was consumed UNLIKE every
-    # other extracted flake — by reaching into its store path for the raw
-    # packages/vast-provision.nix and overriding orgName/repoName/rev, because
-    # its own outputs were hardcoded to its own repo identity. That override is
-    # now just `config.fleet.*` + `self.rev` inside the capsule.
-    #
-    # The two scripts a rented instance fetches over RAW HTTP stay at
-    # packages/vast-bootstrap.sh and packages/templates/provisioner/ — their
-    # repo PATHS are baked into every stored Vast template (ADR-002 §4, S2), so
-    # absorbing the Nix could not absorb them. `checks.<system>.vast-lib-drift`
-    # went with the input: it diffed those copies against the input's, and there
-    # is no second tree left to diff.)
-
-    # (nix-tart-vms was here. ADR-002 wave 5 ABSORBED it into
-    # modules/features/tart-vms/ — the four modules, six packages and ten checks
-    # of the Tart toolkit, including the live tart.githubRunners.* and
-    # tart.gitlabRunner lanes on `macos`. It had been extracted from this repo
-    # on 2026-09-05, removed the same day with the macvm host, and re-added
-    # hours later when the runners landed; the round trip is exactly the churn
-    # the collapse ends. The macvm GUEST stays removed —
-    # docs/macvm-readd-runbook.md, whose step 1 is now an in-tree module rather
-    # than a re-added input.)
-
-    # MCP (Model Context Protocol) server packaging for Claude Code. We use its
-    # `lib.mkConfig` to render a PINNED {mcpServers:{…}} JSON (the 4 packaged
-    # servers become reproducible store-path commands) that our localhost
-    # mcp-proxy gateway consumes via --named-server-config. Threaded to
-    # modules/shared/mcp.nix (darwin-gated) through extraSpecialArgs — NOT as a
-    # home-manager module (the client side uses upstream
-    # `programs.claude-code.mcpServers` directly). Follows our nixpkgs so we
-    # never pull a second package set.
     mcp-servers-nix.url = "github:natsukium/mcp-servers-nix";
     mcp-servers-nix.inputs.nixpkgs.follows = "nixpkgs";
 
