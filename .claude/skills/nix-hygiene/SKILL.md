@@ -60,7 +60,7 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
 | `packages/` | flake apps/packages | `packages` / `apps` |
 | `docs/` | runbooks | — |
 | `.claude/` | agent skills/commands/hooks | — |
-| `infra/` | terranix | `apps` (cf-*, hf-*) |
+| `infra/` | terranix | `apps` (cf-*, mcp-public-*) |
 | `secrets/` | agenix recipients + ciphertext | — |
 
 **Platform branching:** `lib.mkIf` in `modules/`, not copy-paste across hosts.

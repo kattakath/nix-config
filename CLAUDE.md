@@ -193,7 +193,7 @@ surface). There is **no project `.mcp.json`**. Inventory + gotchas:
   idiomatic — never "fix" it to a home path.** The `$HOME`/XDG rule applies only to the *other*
   axis: **runtime paths** — where a program reads/writes or files land at runtime (`home.file`
   TARGET keys are `$HOME`-relative by definition; env vars like
-  `BRAG_DATA_DIR = "$HOME/Developer/…"`; data dirs). Those must be `$HOME`/XDG-relative,
+  `BUKU_DEFAULT_DBDIR = "$HOME/Developer/…"`; data dirs). Those must be `$HOME`/XDG-relative,
   **never a hardcoded `/Users/<name>` or `/home/<name>`** (such a literal in a `.nix` *value* —
   not a comment — is the real anti-pattern to reject, and `nix-home-path-lint.js` flags it).
 - **Systems:** every new output must evaluate on both `aarch64-darwin` and `aarch64-linux`, or
