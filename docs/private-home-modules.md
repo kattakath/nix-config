@@ -320,36 +320,6 @@ mutable `~/.claude`. One `attrsOf` option replaced both the copy and the race.
   binary that does not exist there is doc drift by construction. Keeping it private also
   keeps the N-marketplace seam exercised on every switch.
 
-## Brags redaction gate — an option seam where the *content* is the secret
-
-`kattakath.brag.engineDir` (public engine, `modules/shared/brag-engine.nix`) is the Bedrock
-seam's shape reused, but for a different reason. The other seams hide an **identity** (an
-email, a region, a site list). This one hides a **payload**: nix-personal's `brags/` carries
-`config/scope.json`, the client denylist that `brags-review`'s fail-closed redactor matches
-against. Publishing the denylist publishes exactly what it exists to scrub. Absorbed from
-the archived `github.com/kattakath/brags`, 2026-09-12.
-
-- **The skills stay public.** `skills/brag` and `skills/brags-review` are vendored here and
-  wired into `programs.claude-code.skills` as usual. Only the gate moved.
-- **Unfilled is a *correct* state, not a broken one.** The empty default makes
-  `home.sessionVariables.BRAG_ENGINE_DIR` not exist at all — upstream's own idiom
-  (home-manager `modules/home-environment.nix:645`, `optionalAttrs (v != null)`), because
-  `lib.shell.exportAll` exports every attr and would happily export a `null`. The skill's
-  `${BRAG_ENGINE_DIR:?}` then aborts. A public-only Mac cannot draft a post **ungated**,
-  which is the whole point of a fail-closed gate.
-- **It is a `$HOME` CHECKOUT path, never `"${./brags}"`.** A store path would put the
-  denylist in a world-readable, Cachix-pushed store. Nothing writes into the engine dir at
-  runtime (writes go to `$BRAG_DATA_DIR`), so store-residency would buy nothing.
-- **`engine/` and `config/` must stay siblings.** `redact.py` resolves the scope file as
-  `__file__.parent.parent/config/scope.json`. Splitting the generic Python into this public
-  repo and leaving only the denylist private looks like the cleaner split and is a trap: it
-  forces an edit to the fail-closed gate, and a mis-wired scope path degrades it silently
-  from "blocks client names" to "denylist is empty" — strictly worse than no gate.
-- **Two `BRAG_*` variables, never one.** `BRAG_DATA_DIR` (`~/Developer/local/brags`, a
-  remote-less repo, set publicly in `home.nix`) is DATA; this seam is CODE. Conflating them
-  is the bug the split fixed — the gate resolved to a path that did not exist, `python3`
-  exited 2, and `brags-review` was unusable until the variable was split.
-
 ## What this is not
 
 - Not an in-tree `private/` directory (that is still a public git trace).

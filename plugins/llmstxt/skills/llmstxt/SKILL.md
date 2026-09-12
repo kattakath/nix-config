@@ -149,12 +149,11 @@ pointing at HTML. Fix and re-test. Report what you asked and what happened.
 
 The immediate motivating case, and a good template for any single-document corpus.
 
-1. **Read the source** (e.g. an `impact.md` from the `/brag` skill). Each entry is one
+1. **Read the source** (e.g. an `impact.md` accomplishment ledger). Each entry is one
    accomplishment: what, impact, evidence.
 2. **Decide publication scope first.** This is a *public* artifact by construction. Anything
    that cannot be published must not enter it — see Hard rules. Where a redaction gate exists
-   for this material (the `brags-review` flow has one), run the text through it and treat a
-   failure as fail-closed.
+   for this material, run the text through it and treat a failure as fail-closed.
 3. **Split the corpus.** One markdown file per accomplishment, or per theme where entries
    cluster, at stable URLs. The H1 is the person or the body of work
    (`# Jane Doe — engineering work`), not "Brag document".
