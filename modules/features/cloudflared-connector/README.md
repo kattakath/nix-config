@@ -37,7 +37,7 @@ services.cloudflared-connector = {
 Place `tokenFile` out-of-band with a single line `TUNNEL_TOKEN=<token>`. **Never
 commit the token.** The unit retries on failure, so placing the file after first
 boot self-heals without a rebuild. On `nixpi` that placement is
-`services.firmwareProvisioning` (the `firmware-secrets` flake) copying it off the
+`services.firmwareProvisioning` (the sibling `firmware-secrets` capsule) copying it off the
 SD card's FAT `FIRMWARE` partition — deliberately NOT agenix, because a reflash
 rotates the host key and would strand the only remote path in. See
 [`docs/nixpi-sd-flashing-runbook.md`](../../../docs/nixpi-sd-flashing-runbook.md).
