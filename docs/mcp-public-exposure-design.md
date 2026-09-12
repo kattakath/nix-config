@@ -101,11 +101,32 @@ never enter `endpoints`, so there is nothing to flag.
 | 1 DNS record (the gateway hostname) | — |
 | 1 Access application + 1 service token | — |
 | the `:8097` launchd agent | — |
-| | **one portal `mcp_server` entry, generated from the flag** |
+| the portal itself + its DCR allowlist | — |
+| | **one entry in the `public` list** |
 
-**`public = true` → activate → published.** No new DNS, no new Zero Trust objects.
+**`public = [ … ]` → activate + apply → published.** No new DNS, no new hostname, no new
+credential.
 
----
+### Correction (2026-09-12): one flag, but THREE Cloudflare objects
+
+v2 of this note said the per-server cost was "one portal `mcp_server` entry". That was wrong,
+and the way it was wrong is the interesting part: **registering a server and publishing it are
+different things**, and the failure mode is silent.
+
+| Object | Without it |
+|---|---|
+| `..._mcp_server` (the registration) | nothing exists |
+| `..._mcp_portal.servers[]` (attachment) | registration reaches `status = "ready"`, tools discovered, and **no client can see it** |
+| `..._access_application` `type = "mcp"` + an Allow policy | attached, and **still** invisible to clients |
+
+Measured, in that order: three registrations `ready` and the portal served **nothing**; then all
+three attached and the portal listed **one** — the only one that happened to have an `mcp`-type
+Access app, created by hand in 2026-09-07.
+
+All three are still generated from the **one** list entry, so the operator-facing cost is
+unchanged. What changed is that the module has to emit all three — and that **testing at the
+origin does not detect this**. The origin answered `200` with its service token the entire time
+the portal was empty. Verify a publish through `mcp.<domain>`, never through the origin.
 
 ## 5. Flag surface in `mcp.nix`
 
