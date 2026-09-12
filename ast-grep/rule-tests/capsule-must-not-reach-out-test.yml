@@ -1,0 +1,25 @@
+# Proves the rule FIRES. Without these, a typo'd pattern yields a permanently
+# green check that inspects nothing — the main failure mode of a lint gate.
+#
+# NOTE the scoping asymmetry: `files:` filters the SCAN, not these fixtures
+# (verified — `ast-grep test` runs snippets with no path), so the `invalid`
+# cases below would be perfectly legal in modules/parts/. They are listed here to
+# prove the PATTERN matches; that it only matches inside modules/features/ is the
+# `files:` glob's job.
+id: capsule-must-not-reach-out
+valid:
+  # Downward, inside the capsule — the only legal shape.
+  - '{ module = ./module.nix; }'
+  - '{ check = ./checks/module-evaluates.nix; }'
+  # Reaching the ENGINE the legal way: through an argument or an input, never a
+  # relative path.
+  - '{ inherit (inputs) nixpkgs; }'
+  - '{ pkg = pkgs.cloudflared; }'
+  # A `..` inside a STRING is the other path axis (a runtime path) and belongs to
+  # nix-hardcoded-home-path.yml, not here.
+  - '{ note = "see ../../docs/monoflake-capsule-adr.md"; }'
+invalid:
+  # Out of the capsule entirely.
+  - '{ host = ../../hosts/nixpi.nix; }'
+  # Up to the capsule root from a leaf — still a leaf reaching upward.
+  - '{ module = ../module.nix; }'

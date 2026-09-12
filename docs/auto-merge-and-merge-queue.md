@@ -152,11 +152,13 @@ survives, in [`.claude/rules/pr-title.md`](../.claude/rules/pr-title.md).)
 | `kattakath/nix-firmware-secrets` | `checks` | `ci.yml` |
 | `kattakath/nix-local-rag` | `checks` | `ci.yml` |
 | `kattakath/nix-mcp-gateway` | `checks` | `ci.yml` |
-| `kattakath/nix-cloudflared-connector` | `checks` | `ci.yml` |
 | `kattakath/nix-vast-provision` | `checks` | `ci.yml` |
 | `kattakath/ircc-whatsapp-bot` | `checks` | `ci.yml` |
 
-All eight are public and org-owned, which is what makes the queue available.
+All seven are public and org-owned, which is what makes the queue available.
+(`kattakath/nix-cloudflared-connector` was the eighth until ADR-002 wave 3 absorbed it into
+`nix-config` as a capsule and archived the repo — one fewer queue, one fewer `ci.yml`. The
+remaining satellites leave the same way in waves 4-6.)
 
 The private `ismailkattakath/nix-personal` (GitLab) is **out of scope**: it has no
 `.gitlab-ci.yml` at all, so there is no pipeline for a merge-when-green rule to

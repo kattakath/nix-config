@@ -1,0 +1,60 @@
+# THE CAPSULE BOUNDARY — the mechanism that replaces seven deleted repo
+# boundaries (ADR-002 §2). `modules/parts/` is the engine and MAY reach in;
+# `modules/features/<name>/` is a capsule and MAY NOT reach out.
+#
+# Why a rule and not a sentence in a document: a convention is the same artifact
+# class as the CLAUDE.md index, which drifted 16 ways in a single audit on
+# 2026-09-12. Absorbing the satellites deletes the only *mechanical* isolation
+# this fleet had — separate repos — so it has to be replaced by something that
+# fails a build, not something that fails a review.
+#
+# WHY `..` AND NOT SOMETHING CLEVERER. A Nix source path literal is resolved
+# relative to the .nix file holding it (CLAUDE.md § Conventions, "Paths — two
+# axes"), and ast-grep cannot resolve one. It does not need to: inside a capsule,
+# EVERY parent traversal leaves the capsule or is avoidable.
+#
+#   modules/features/x/thing.nix          `../…` -> modules/features/  OUT
+#   modules/features/x/checks/thing.nix   `../…` -> the capsule root, which is
+#                                         reachable the other way round instead —
+#                                         the entry file passes what a leaf needs
+#                                         DOWN as an argument. See
+#                                         modules/features/cloudflared-connector/
+#                                         checks/module-evaluates.nix, whose
+#                                         `module` arg exists for exactly this.
+#
+# So "a capsule is entered through its flake-module.nix and reached downward from
+# there" is expressible as: no `..` in a path expression under modules/features/.
+#
+# KNOWN BLIND SPOTS, stated rather than implied (ADR-002 §7.6): this cannot see a
+# capsule reaching another via an overlay, via `specialArgs`, or via a
+# store path built at runtime. It covers the path axis only.
+id: capsule-must-not-reach-out
+language: nix
+severity: error
+
+# Scoped to the capsules, not all Nix: `../../hosts/nixpi.nix` in
+# modules/parts/compose.nix is CORRECT and must stay unflagged. Kept as a glob so
+# a NEW capsule is covered the moment its directory exists.
+files:
+  - 'modules/features/**'
+
+# `path_expression` is the Nix grammar's node for an unquoted path literal
+# (`./x.nix`, `../../y`), so this matches the path axis only — a `..` inside a
+# STRING (a runtime path) is a different concern, owned by
+# nix-hardcoded-home-path.yml.
+rule:
+  kind: path_expression
+  regex: '\.\.'
+
+message: A capsule reached outside itself with a parent-directory path literal.
+note: |
+  modules/features/<name>/ is a CAPSULE: nothing inside it may import, read, or
+  callPackage a path outside the directory, and nothing outside it may import
+  anything but its flake-module.nix. Fix it one of two ways:
+    - the file needs something from the ENGINE -> take it as a module/function
+      ARGUMENT that flake-module.nix supplies, or reach it through
+      `inputs.*` / `config.*`, never through a relative path;
+    - the file needs a SIBLING inside the same capsule -> pass it down from
+      flake-module.nix (`module = ./module.nix;`) rather than up from the leaf.
+  Rationale + the blind spots this rule does not cover: ADR-002 §2 and §7.6
+  (docs/monoflake-capsule-adr.md), and modules/parts/capsules.nix.
