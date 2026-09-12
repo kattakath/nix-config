@@ -17,9 +17,15 @@ means articulating from the entry's own captured content only.
 ```bash
 BRAG_DATA_DIR="${BRAG_DATA_DIR:?set once in nix-config home.nix home.sessionVariables}"   # local, remote-less: impact.md + drafts
 IMPACT_PATH="$BRAG_DATA_DIR/impact.md"
-BRAG_ENGINE_DIR="${BRAG_ENGINE_DIR:?set once in nix-config home.nix home.sessionVariables}"   # the kattakath/brags checkout
+BRAG_ENGINE_DIR="${BRAG_ENGINE_DIR:?the redaction gate is not installed — set kattakath.brag.engineDir in the private layer. UNSET MEANS DO NOT RUN.}"
 REDACT="$BRAG_ENGINE_DIR/engine/redact.py"
 ```
+
+`BRAG_DATA_DIR` is set by nix-config (`modules/shared/home.nix`). `BRAG_ENGINE_DIR` is NOT:
+the gate carries a client denylist, so it lives in the private layer and is exported only
+when `kattakath.brag.engineDir` is filled (`modules/shared/brag-engine.nix`). **Unset is not
+a configuration bug to work around — it means the gate is unavailable, and this skill must
+not run.** Never draft a post without a passing `--scan-file`.
 
 ## Steps
 
