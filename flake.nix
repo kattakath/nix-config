@@ -595,11 +595,11 @@
           system,
           publicServers ? [ ],
           publicSubdomain ? "upstream",
-          # Remote MCP Workers on their own hostname, gated by the SAME service
-          # token as the gateway. Entry shape is documented at the module's own
-          # `externalServers` argument (infra/cloudflare/mcp-public.nix) — it
-          # grew optional `id`/`label` for adopting a registration that predates
-          # this module, so do not restate it here and let the two drift.
+          # Remote MCP Workers published under the SAME origin hostname as the
+          # gateway, as Cloudflare Worker routes rather than hostnames of their
+          # own. Entry shape is documented at the module's own `externalServers`
+          # argument (infra/cloudflare/mcp-public.nix) — deliberately not
+          # restated here, so the two cannot drift.
           externalServers ? [ ],
         }:
         terranix.lib.terranixConfiguration {
@@ -1565,7 +1565,7 @@
           }
         ))
 
-        # `secret <set|get|rm|ls|load>` / `set-secret` / `remove-secret` — the
+        # `secret <set|reveal|rm|ls|load>` / `set-secret` / `remove-secret` — the
         # macOS login-Keychain CLI. NOW sourced from the extracted keychain-secrets
         # flake (github:kattakath/nix-keychain-secrets), not vendored packages —
         # dogfooding. The home-manager module (modules/shared/home.nix) installs the
@@ -1787,14 +1787,15 @@
               meta.description = "Delete KEY from the macOS login Keychain and unregister it from the set-secret index (alias for set-secret --remove)";
             };
 
-            # `nix run .#secret -- <set|get|rm|list> …` — the primary noun-verb
+            # `nix run .#secret -- <set|reveal|rm|ls> …` — the primary noun-verb
             # interface to the Keychain secret store (set-secret/remove-secret are
             # its aliases). `secret load` is shell-function-only (mutates the
             # current shell); the app covers the Keychain-only verbs.
             aarch64-darwin.secret = {
               type = "app";
               program = "${self.packages.aarch64-darwin.secret}/bin/secret";
-              meta.description = "Keychain secret store: secret set|get|rm|list (primary interface; set-secret/remove-secret are aliases)";
+              # NO `get`: printing a value is opt-in via `reveal` (CLAUDE.md § Security).
+              meta.description = "Keychain secret store: secret set|reveal|rm|ls (primary interface; set-secret/remove-secret are aliases)";
             };
 
             # nixpi SD-card provisioning (macOS). The executable runbook: build +

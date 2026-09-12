@@ -25,10 +25,12 @@
       isNormalUser = true;
       shell = pkgs.zsh;
       extraGroups = [ "wheel" ];
-      # The operator's SSH public key — the network login credential. sshd is
-      # reachable over the Cloudflare tunnel (nixpi) or the LAN (nixvm); key-only,
-      # no password (settings below). Physical console (getty) is an independent
-      # break-glass path.
+      # The operator's SSH public key — the network login credential. sshd binds
+      # LOOPBACK ONLY on every host this module configures (see listenAddresses
+      # below), so there is no LAN path on nixpi OR nixvm: the only network route
+      # in is the tunnel connector, which terminates on-host and dials
+      # localhost:22. Key-only, no password. Physical console (getty) is an
+      # independent break-glass path.
       openssh.authorizedKeys.keys = [ operatorSshKey ];
     };
 
