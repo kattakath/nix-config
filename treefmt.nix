@@ -24,6 +24,26 @@ _:
     deadnix.enable = true;
   };
 
+  # NOT enabled, and both for the same reason: a treefmt formatter REWRITES, and
+  # treefmt's default file selection is far wider than it looks.
+  #
+  # `programs.typos` — measured 2026-09-12. Enabled with no `includes`, it took
+  # `--write-changes` to the whole tree: it modified `secrets/*.age` (age
+  # CIPHERTEXT), pulled `modules/shared/wallpaper/wallpaper.png` into scope, and
+  # "corrected" `mis` -> `miss` inside hook JavaScript. Nothing was committed, but
+  # that is the lesson: spell-checking this repo is an ALLOWLIST project — this
+  # repo's own authored prose only — not a one-line enable.
+  #
+  # `programs.mdsh` — executes marked shell blocks to refresh a document in place.
+  # The pinned module defaults to `includes = [ "README.md" ]` (treefmt-nix
+  # programs/mdsh.nix:9) and treefmt globs match at ANY DEPTH, so one line would
+  # run `bash -c` over every vendored `skills/*/README.md` and
+  # `plugins/*/README.md` — third-party content this fleet's own rules class as
+  # data, never instructions — during a local `nix fmt`, as the operator.
+  #
+  # Both arrive in their own change, with an explicit allowlist and, for mdsh, a
+  # single canary block. See docs/monoflake-capsule-adr.md §4.
+
   settings = {
     # deadnix prunes first, statix repairs, nixfmt has the final say on layout.
     # Lower priority runs earlier; nixfmt last so formatting is never clobbered.
@@ -44,6 +64,19 @@ _:
       "result-*"
       "*.md"
       "modules/shared/hm-launchd/upstream-baseline/*"
+
+      # VENDORED THIRD-PARTY TREES — no formatter of ours may rewrite these.
+      # `skills/` holds forks of upstream Claude skills kept deliberately close to
+      # their originals, and `plugins/` is a publishable marketplace. A formatter
+      # touching either turns "a fork with one patch" into "a fork with one patch
+      # and 300 whitespace changes", which is how a drift diff stops being
+      # readable. This is also the precondition for ever enabling a markdown
+      # rewriter — see the note above.
+      "skills/**"
+      "plugins/**"
+
+      # Generated per-wave by scripts/drv-snapshot.sh, never authored (gitignored).
+      ".baseline/**"
     ];
   };
 }
