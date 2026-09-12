@@ -350,30 +350,6 @@
         "url": "https://install.determinate.systems/determinate-nixd/tag/v3.22.3/x86_64-linux"
       }
     },
-    "firmware-secrets": {
-      "inputs": {
-        "flake-parts": [
-          "flake-parts"
-        ],
-        "nixpkgs": [
-          "nixpkgs"
-        ],
-        "treefmt-nix": "treefmt-nix"
-      },
-      "locked": {
-        "lastModified": 1788665959,
-        "narHash": "sha256-z4As+ot6mA050shRqmaEgc0LIpFHkBdaHDlJuA7ElOg=",
-        "owner": "kattakath",
-        "repo": "nix-firmware-secrets",
-        "rev": "509bd578dbd790f772c2961050452ca3feb30078",
-        "type": "github"
-      },
-      "original": {
-        "owner": "kattakath",
-        "repo": "nix-firmware-secrets",
-        "type": "github"
-      }
-    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -572,7 +548,7 @@
         "nixpkgs": [
           "nixpkgs"
         ],
-        "treefmt-nix": "treefmt-nix_2"
+        "treefmt-nix": "treefmt-nix"
       },
       "locked": {
         "lastModified": 1788724688,
@@ -633,7 +609,7 @@
         "nixpkgs": [
           "nixpkgs"
         ],
-        "treefmt-nix": "treefmt-nix_3"
+        "treefmt-nix": "treefmt-nix_2"
       },
       "locked": {
         "lastModified": 1788724686,
@@ -762,7 +738,7 @@
         "nixpkgs": [
           "nixpkgs"
         ],
-        "treefmt-nix": "treefmt-nix_4"
+        "treefmt-nix": "treefmt-nix_3"
       },
       "locked": {
         "lastModified": 1788731386,
@@ -922,7 +898,6 @@
         "claude-plugins-official": "claude-plugins-official",
         "deploy-rs": "deploy-rs",
         "determinate": "determinate",
-        "firmware-secrets": "firmware-secrets",
         "flake-parts": "flake-parts_2",
         "git-hooks": "git-hooks",
         "grok-build-plugin-cc": "grok-build-plugin-cc",
@@ -939,7 +914,7 @@
         "nixpkgs": "nixpkgs_3",
         "raspberry-pi-nix": "raspberry-pi-nix",
         "terranix": "terranix",
-        "treefmt-nix": "treefmt-nix_5",
+        "treefmt-nix": "treefmt-nix_4",
         "vast-provision": "vast-provision"
       }
     },
@@ -1103,7 +1078,7 @@
     "treefmt-nix": {
       "inputs": {
         "nixpkgs": [
-          "firmware-secrets",
+          "keychain-secrets",
           "nixpkgs"
         ]
       },
@@ -1124,7 +1099,7 @@
     "treefmt-nix_2": {
       "inputs": {
         "nixpkgs": [
-          "keychain-secrets",
+          "local-rag",
           "nixpkgs"
         ]
       },
@@ -1145,7 +1120,7 @@
     "treefmt-nix_3": {
       "inputs": {
         "nixpkgs": [
-          "local-rag",
+          "nix-tart-vms",
           "nixpkgs"
         ]
       },
@@ -1166,7 +1141,6 @@
     "treefmt-nix_4": {
       "inputs": {
         "nixpkgs": [
-          "nix-tart-vms",
           "nixpkgs"
         ]
       },
@@ -1185,26 +1159,6 @@
       }
     },
     "treefmt-nix_5": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1786901030,
-        "narHash": "sha256-WSFCsDSE5ffgD2MqzkM2CYjeFiKhRF/dJUN8uedb6YE=",
-        "owner": "numtide",
-        "repo": "treefmt-nix",
-        "rev": "27b3b12a8e6375f28ebe122f07d230ca5459bbfa",
-        "type": "github"
-      },
-      "original": {
-        "owner": "numtide",
-        "repo": "treefmt-nix",
-        "type": "github"
-      }
-    },
-    "treefmt-nix_6": {
       "inputs": {
         "nixpkgs": [
           "vast-provision",
@@ -1254,7 +1208,7 @@
         "nixpkgs": [
           "nixpkgs"
         ],
-        "treefmt-nix": "treefmt-nix_6"
+        "treefmt-nix": "treefmt-nix_5"
       },
       "locked": {
         "lastModified": 1788725153,

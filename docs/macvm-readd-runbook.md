@@ -21,7 +21,7 @@ the durable re-add path (it survives refactors where a `git revert` would not).
    ```nix
    nix-tart-vms.url = "github:kattakath/nix-tart-vms";
    nix-tart-vms.inputs.nixpkgs.follows = "nixpkgs";
-   nix-tart-vms.inputs.flake-parts.follows = "firmware-secrets/flake-parts";
+   nix-tart-vms.inputs.flake-parts.follows = "flake-parts";
    ```
 
 2. **Host profile back**: restore `hosts/macvm.nix` from the removal commit
