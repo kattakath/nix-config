@@ -52,7 +52,11 @@ in
         # CDP client would otherwise need --experimental-websocket; nodejs_22 removes the
         # flag from the fleet path. See packages/page-lab-pick.nix for why this exists at
         # all when `node <the script>` already works.
-        page-lab-pick = pkgs.callPackage ../../packages/page-lab-pick.nix { };
+        page-lab-pick = pkgs.callPackage ../../packages/page-lab-pick.nix {
+          # The plugin tree comes from the pinned input, not from this repo — see
+          # flake.nix `kattakath-claude-plugins`.
+          pageLabSrc = "${inputs.kattakath-claude-plugins}/plugins/page-lab";
+        };
       }
       // lib.optionalAttrs (system == "aarch64-linux") {
         # The LIVE nixpi SD image (not a separate installer): prebuilt in CI
