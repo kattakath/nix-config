@@ -483,6 +483,12 @@ in
     # unable to reach any model at all. Must live here, not in nix-personal: a gate
     # in the private layer would be dropped by the activation it defends against.
     ./claude-bedrock-gate.nix
+    # "Brain Signals" — the answer-shape kit for Claude Code (output style +
+    # calibration rule + /explain-family skills + cartographer + /task). Public
+    # because claude/CLAUDE.md already carries the same accessibility rule in
+    # prose; this is the mechanism that satisfies it. Every content class it
+    # touches is attrsOf-merging, so a private layer or a fork ADDS to it.
+    ./claude-brain.nix
   ];
 
   # Enable the keychain-secrets capsule's module (installs the secret/set-secret/

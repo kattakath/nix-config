@@ -1453,6 +1453,21 @@ They hold the **all-projects, machine-wide** context this repo installs on `maco
   session on this machine (AskUserQuestion-for-decisions, reuse-over-rebuild, diagrams as
   rendered ASCII, secret-value redaction, git authorship). The repo-root `CLAUDE.md` is
   **project**-scoped and layers on top of it.
+- **`claude/output-styles/`, `claude/agents/`, `claude/commands/`, `claude/rules/`** — the
+  **Brain Signals** kit, wired by `modules/shared/claude-brain.nix` (not `home.nix`) through
+  `programs.claude-code.{outputStyles,agents,commands,rules}`: the BLUF-first layered output
+  style, its companion calibration rule, the `cartographer` read-only architecture subagent,
+  and `/task` (goal-locked execution). Its seven `/explain`-family skills live one level up in
+  top-level `skills/` — see § Global skills. MOVED HERE from the private nix-personal flake
+  2026-09-12: `claude/CLAUDE.md` already carried the same ADHD/dyslexia answer-shape rule in
+  prose, so the rule and the mechanism that satisfies it now live together and cannot drift.
+  Every option it writes is `attrsOf`-merging, so a private layer or a fork ADDS entries rather
+  than replacing the set; the only two scalars (`settings.outputStyle`,
+  `settings.alwaysThinkingEnabled`) are `lib.mkDefault`, so a plain assignment downstream wins.
+  Two things it must never do, both of which would destroy that seam for everyone: route extra
+  global prose through `context` (already defined as a PATH in `home.nix` — a second path
+  definition is a hard eval error, not a merge; use another `rules.<name>`), or reach for the
+  `rulesDir`/`agentsDir`/`commandsDir` forms (upstream asserts `rules` XOR `rulesDir`).
 - **`qwen/QWEN.md`** → `~/.qwen/QWEN.md` (`home.file`, darwin-only — there is no `programs.qwen`
   module to reach for). The `qwen` counterpart of the same idea, deliberately kept short.
 
@@ -1540,6 +1555,12 @@ forks of upstream skills that needed a local patch (`skills/brag`, `skills/brags
 `skills/rag` — see `skills/brag/FORK-NOTES.md` for the vendoring rationale) plus originals
 authored here:
 
+- **`skills/{explain,compare,map,zoom,why,tldr,diagram}`** — the Brain Signals `/explain`
+  family: seven one-file skills that encode the same answer shape as the output style at
+  command granularity, which is why they are wired from `modules/shared/claude-brain.nix`
+  rather than `home.nix`'s big skills block. Declared as RAW path literals, not `"${…}"`
+  strings: upstream branches on that (its `mkSkillEntry`) — a real path becomes a plain
+  recursive `home.file` entry, a path-like string gets an extra `runCommandLocal` symlink farm.
 - **`skills/android-phone`** — operator knowledge for `packages/android-phone.nix`, global so
   ADB sessions launched from ANY directory know the wrapper's command surface and adb
   footguns, not just sessions rooted in this repo.
