@@ -594,7 +594,7 @@
         {
           system,
           publicServers ? [ ],
-          publicSubdomain ? "connector",
+          publicSubdomain ? "upstream",
           # Remote MCP Workers on their own hostname, gated by the SAME service
           # token as the gateway. Entry shape is documented at the module's own
           # `externalServers` argument (infra/cloudflare/mcp-public.nix) — it
