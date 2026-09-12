@@ -148,16 +148,16 @@ survives, in [`.claude/rules/pr-title.md`](../.claude/rules/pr-title.md).)
 | Repo | Required context(s) | CI workflow needing `merge_group:` |
 | --- | --- | --- |
 | `kattakath/nix-config` | `required-checks`, `Scan for secrets` | `nix-ci.yml`, `gitleaks.yml` |
-| `kattakath/nix-local-rag` | `checks` | `ci.yml` |
 | `kattakath/nix-mcp-gateway` | `checks` | `ci.yml` |
 | `kattakath/nix-vast-provision` | `checks` | `ci.yml` |
 | `kattakath/ircc-whatsapp-bot` | `checks` | `ci.yml` |
 
-All six are public and org-owned, which is what makes the queue available.
-(`kattakath/nix-cloudflared-connector` was the eighth until ADR-002 wave 3 absorbed it into
-`nix-config` as a capsule and archived the repo, and `kattakath/nix-firmware-secrets` the
-seventh until wave 4 did the same — one fewer queue, one fewer `ci.yml`, each time. The
-remaining satellites leave the same way in waves 5-6.)
+All four are public and org-owned, which is what makes the queue available.
+(ADR-002 took the count from eleven to four: `kattakath/nix-cloudflared-connector` left at
+wave 3, `nix-firmware-secrets` / `nix-keychain-secrets` / `nix-vast-provision` at wave 4,
+`nix-tart-vms` / `nix-media-cli` at wave 5, and `nix-local-rag` at wave 6 — each absorbed
+into `nix-config` as a capsule and its repo archived. One fewer queue and one fewer `ci.yml`
+every time; **all seven satellites are gone.**)
 
 The private `ismailkattakath/nix-personal` (GitLab) is **out of scope**: it has no
 `.gitlab-ci.yml` at all, so there is no pipeline for a merge-when-green rule to

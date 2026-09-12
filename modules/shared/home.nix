@@ -56,9 +56,11 @@
   agent-skills-vercel-workflow,
   agent-skills-litellm,
   grok-build-plugin-cc,
-  # The extracted local-rag flake (services.ollamaLocal + services.pgvectorLocal);
-  # its two home-manager modules replace the vendored ollama/postgres-pgvector.
-  local-rag,
+  # The ABSORBED local-rag capsule (services.ollamaLocal +
+  # services.pgvectorLocal — the loopback RAG stack) — a MODULE, not a flake,
+  # since ADR-002 wave 6 brought it in-tree as modules/features/local-rag/.
+  # Threaded in by modules/parts/compose.nix.
+  localRagModule,
   # The ABSORBED keychain-secrets capsule (macOS `secret` CLI + every-shell
   # loader) — a MODULE, not a flake, since ADR-002 wave 4 brought it in-tree as
   # modules/features/keychain-secrets/. Threaded in by modules/parts/compose.nix.
@@ -466,10 +468,11 @@ in
     ./default-browser.nix # local.defaultBrowser — the macOS LaunchServices http/https claim
     ./git-allowed-signers.nix # extra allowed_signers principals (option only; nix-personal fills)
     # Local-first RAG stack (loopback launchd Postgres+pgvector + Ollama + in-DB
-    # embed()), from the extracted flake (github:kattakath/nix-local-rag).
-    # Both modules are internally gated on (enable && isDarwin) — a clean no-op on
-    # the NixOS hosts. Enabled only on the real Mac host below.
-    local-rag.homeManagerModules.default
+    # embed()) — the ABSORBED capsule (modules/features/local-rag/). Both of its
+    # modules are internally gated on (enable && isDarwin) — a clean no-op on
+    # the NixOS hosts, which `checks.local-rag-inert` asserts — and they are
+    # enabled only on the real Mac host below.
+    localRagModule
     # macOS login-Keychain `secret` CLI + every-shell loader — the ABSORBED
     # capsule (modules/features/keychain-secrets/), enabled below.
     # Internally darwin-gated, so it's a clean no-op on the NixOS hosts.
@@ -535,7 +538,7 @@ in
   # ONE INFERENCE AT A TIME, enforced at the SERVER. `OLLAMA_NUM_PARALLEL` is read
   # by `ollama serve`, not by clients, so it cannot be set through
   # home.sessionVariables — a shell variable never reaches the launchd-started
-  # daemon. The local-rag module that owns this agent exposes only
+  # daemon. The local-rag capsule module that owns this agent exposes only
   # enable/host/port/embedModel/embedDim, so the environment is merged into its
   # launchd agent here rather than by forking the input.
   #
@@ -657,7 +660,7 @@ in
       nerd-fonts.jetbrains-mono # "JetBrainsMono Nerd Font" — VS Code editor font (pairs with the JetBrains theme)
       nerd-fonts.ubuntu-mono # "UbuntuMono Nerd Font" — VS Code terminal font (matches the devcontainer)
       inter # "Inter" — proportional UI font; no Nerd Font variant exists (NF only patches monospace fonts), so this is the plain upstream package
-      # Postgres client/server tools WITH pgvector. `services.pgvectorLocal` (the local-rag flake)
+      # Postgres client/server tools WITH pgvector. `services.pgvectorLocal` (the local-rag capsule)
       # already puts a PLAIN postgresql_16 in this profile, whose `share/postgresql` has no
       # `vector.control` — so `initdb`-ing a fresh cluster from it cannot `CREATE EXTENSION vector`.
       # That broke the dontsell-ai/app CI `integration` job whenever it landed on the REPO-level
@@ -1111,7 +1114,7 @@ in
         # review" invocable by name in any Claude Code / Claude Desktop session.
         brags-review = "${../../skills/brags-review}";
         # Local RAG over the pgvector store: how to ingest + query via the `postgres`
-        # MCP server and the in-DB embed() function (the extracted local-rag flake's services.pgvectorLocal + services.ollamaLocal).
+        # MCP server and the in-DB embed() function (the local-rag capsule's services.pgvectorLocal + services.ollamaLocal).
         rag = "${../../skills/rag}";
         # `/brag` — the MINE→LEDGER stage of the rebuilt brag-doc pipeline: mines GitHub
         # PRs/commits + Claude Code sessions (+ optional MCP) into impact.md/developer-value.md.
