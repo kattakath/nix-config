@@ -741,6 +741,85 @@
           + nixpkgs.lib.optionalString (action == "apply") printToken;
         };
 
+      # writeShellApplication wrapper around `tofu <action>` for the PUBLISHED MCP
+      # gateway stack (infra/cloudflare/mcp-public.nix). Deliberately its own
+      # builder rather than a parameter on mkCfTunnelTofu: it is a different stack
+      # with its own state, and — crucially — a different failure mode, so it needs
+      # a different guard.
+      mkMcpPublicTofu =
+        {
+          system,
+          name,
+          action,
+          publicServers ? [ ],
+        }:
+        let
+          pkgs = pkgsFor system;
+          printToken = ''
+
+            echo "----- CONNECTOR TOKEN for the published MCP gateway (SECRET) -----"
+            echo "TUNNEL_TOKEN=$(tofu output -raw mcp_public_connector_token)"
+            echo ""
+            echo "Store it in the login Keychain (the connector agent reads it there):"
+            echo "  secret set cf:cloudflare.com:mcp-connector"
+            echo "then set services.mcpGateway.public and activate."
+            echo "----- end -----"
+          '';
+        in
+        pkgs.writeShellApplication {
+          inherit name;
+          runtimeInputs = [ pkgs.opentofu ];
+          text = ''
+            if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
+              echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
+              echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- ${name}" >&2
+              echo "  (needs Account > Cloudflare Tunnel:Edit + Access: Apps and Policies:Edit," >&2
+              echo "   Access: Service Tokens:Edit, and Zone > DNS:Edit on ${domainName})" >&2
+              exit 1
+            fi
+
+            # Its OWN state directory — a different stack from the nixpi tunnel.
+            # 0700 + umask 077 because this state holds BOTH the connector token
+            # and the Access service-token secret.
+            state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-mcp-public"
+            mkdir -p "$state_dir"
+            chmod 700 "$state_dir"
+            cd "$state_dir"
+            umask 077
+            chmod 600 terraform.tfstate terraform.tfstate.backup 2>/dev/null || true
+            echo "tofu working directory: $state_dir" >&2
+
+            rm -f config.tf.json
+            cp ${mcpPublicConfig { inherit system publicServers; }} config.tf.json
+            tofu init
+
+            # GUARD — the twin of the site-free trap, shaped for THIS stack.
+            # The public tree renders publicServers = [ ], which is correct for the
+            # FIRST apply (create the tunnel and Access objects before publishing
+            # anything). It is destructive later: applying an empty render over
+            # state that already holds registrations DELETES them, un-publishing
+            # every server while reporting success. Refuse exactly that case.
+            rendered=$(${pkgs.jq}/bin/jq '
+              [.resource.cloudflare_zero_trust_access_ai_controls_mcp_server // {} | keys[]]
+              | length' config.tf.json)
+            in_state=$(tofu state list 2>/dev/null \
+              | grep -c '^cloudflare_zero_trust_access_ai_controls_mcp_server\.' || true)
+            if [ "''${rendered:-0}" -eq 0 ] && [ "''${in_state:-0}" -gt 0 ]; then
+              echo "REFUSING: this render publishes 0 servers but state holds ''${in_state}." >&2
+              echo "  Applying would UNPUBLISH every one of them." >&2
+              echo "  This is the public tree, where publicServers defaults to [ ]." >&2
+              echo "  Pass the real list (it must mirror services.mcpGateway.public)," >&2
+              echo "  or override if you genuinely mean to unpublish everything:" >&2
+              echo "    MCP_PUBLIC_ALLOW_EMPTY=1 ${name}" >&2
+              [ "''${MCP_PUBLIC_ALLOW_EMPTY:-}" = "1" ] || exit 1
+              echo "WARNING: MCP_PUBLIC_ALLOW_EMPTY=1 — unpublishing all servers." >&2
+            fi
+
+            tofu ${action}
+          ''
+          + nixpkgs.lib.optionalString (action == "apply") printToken;
+        };
+
       # ---- Formatting / lint (treefmt-nix) ------------------------------------
       # The wrapper backs `nix fmt`; the `.config.build.check` derivation backs
       # the CI formatting gate.
@@ -1400,6 +1479,16 @@
             name = "cf-tunnel-apply";
             action = "apply";
           };
+          mcp-public-apply = mkMcpPublicTofu {
+            inherit system;
+            name = "mcp-public-apply";
+            action = "apply";
+          };
+          mcp-public-destroy = mkMcpPublicTofu {
+            inherit system;
+            name = "mcp-public-destroy";
+            action = "destroy";
+          };
           cf-tunnel-destroy = mkCfTunnelTofu {
             inherit system;
             name = "cf-tunnel-destroy";
@@ -1772,6 +1861,16 @@
                 type = "app";
                 program = "${self.packages.${system}.cf-tunnel-apply}/bin/cf-tunnel-apply";
                 meta.description = "Render infra/cloudflare/nixpi-tunnel.nix (terranix), tofu apply it, and print the connector token (needs CLOUDFLARE_API_TOKEN)";
+              };
+              mcp-public-apply = {
+                type = "app";
+                program = "${self.packages.${system}.mcp-public-apply}/bin/mcp-public-apply";
+                meta.description = "Render infra/cloudflare/mcp-public.nix (terranix), tofu apply it, and print the Mac connector token (needs CLOUDFLARE_API_TOKEN)";
+              };
+              mcp-public-destroy = {
+                type = "app";
+                program = "${self.packages.${system}.mcp-public-destroy}/bin/mcp-public-destroy";
+                meta.description = "tofu destroy the published MCP gateway tunnel/Access/service-token stack (needs CLOUDFLARE_API_TOKEN)";
               };
               cf-tunnel-destroy = {
                 type = "app";
