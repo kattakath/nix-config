@@ -1291,7 +1291,6 @@ Smaller, single-purpose CLIs:
   login Keychain at run time — wired only via `home.packages`, no matching flake app.
 - **`design-tokens/`** / **`email-signature/`** — small self-contained build-script-backed
   packages for their respective assets.
-- **`hyperframes-selfhost(.nix)`** — see [`hyperframes-selfhost.md`](hyperframes-selfhost.md).
 - **`packages/runpod-provision.nix`** — the RunPod analogue of the Vast subsystem
   (`runpod-template-apply`, macOS-only): since the official `runpod/comfyui` image has no
   Vast-style provisioning hook, it overrides `dockerEntrypoint`/`dockerStartCmd` with a wrapper
@@ -1411,10 +1410,6 @@ is the sanctioned **bootstrap**: an empty `publicServers` creates the tunnel and
 and publishes nothing. `mkMcpPublicTofu` refuses the genuinely destructive case — a render that
 publishes 0 servers against state that holds more than 0 (override `MCP_PUBLIC_ALLOW_EMPTY=1`).
 Once anything is published, apply from nix-personal, which supplies the real list.
-
-### `infra/hyperframes/stack.nix`
-
-See [`hyperframes-selfhost.md`](hyperframes-selfhost.md).
 
 ### The Vast.ai GPU-template provisioning subsystem
 
