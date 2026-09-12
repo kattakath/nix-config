@@ -327,9 +327,9 @@ in
       # The portal's OWN Access application — the object that decides WHICH
       # CLIENTS may register against the portal, via
       # `oauth_configuration.dynamic_client_registration.allowed_uris`. It was
-      # left undeclared while it was only being read; declaring it makes "Claude
-      # only" enforced by code rather than by whatever the dashboard happens to
-      # hold, so an apply REVERTS a widened allowlist instead of preserving it.
+      # left undeclared while it was only being read; declaring it puts the
+      # client allowlist in code rather than in whatever the dashboard happens to
+      # hold, so an apply REVERTS an unintended widening instead of keeping it.
       #
       # Distinct from `..._mcp_portal` further down: that resource attaches
       # SERVERS to the portal, this one gates CLIENTS reaching it. One portal,
@@ -349,13 +349,19 @@ in
         enabled = true;
         dynamic_client_registration = {
           enabled = true;
-          # Claude only, deliberately. Grok is NOT allowlisted and must not be
-          # added without being asked for — with no OAuth server left on any
-          # origin, this list is the whole set of clients that can reach any
-          # published MCP server.
+          # THE client allowlist for the whole fleet. With no OAuth server left
+          # on any origin, a client that cannot register here cannot reach any
+          # published MCP server at all — and it is ONE list, not one per server.
+          #
+          # Trailing `/*` is required: cloud clients mint a per-connector
+          # callback path, so an exact URI makes registration 400.
           allowed_uris = [
             "https://claude.ai/api/mcp/*"
             "https://claude.com/api/mcp/*"
+            # Grok's connector callback. grok.com/connectors takes a URL and
+            # nothing else — no header field — so the service-token origin is
+            # unreachable to it and the portal is its only door.
+            "https://grok.com/*"
           ];
           allow_any_on_localhost = true;
           allow_any_on_loopback = true;
