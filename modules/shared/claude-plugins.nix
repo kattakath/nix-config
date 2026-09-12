@@ -240,7 +240,19 @@ in
         )}
 
         for id in ${lib.escapeShellArgs allIds}; do
-          if "$claude" plugin list 2>/dev/null | grep -qF "$id"; then
+          # WHOLE-LINE match, not a substring. `grep -qF "$id"` was a silent
+          # install-skip whenever one marketplace name was a PREFIX of another:
+          # measured 2026-09-12, renaming this repo's marketplace from
+          # `kattakath-nix-config` to `kattakath` meant `llmstxt@kattakath`
+          # matched the still-listed `llmstxt@kattakath-nix-config`, so the loop
+          # declared it installed and installed nothing. Activation was green
+          # and BOTH plugins were absent — the worst shape a guard can fail in.
+          #
+          # `plugin list` prints one id per line after a "❯ " bullet, so
+          # anchoring the tail is enough to require an exact id. Plugin and
+          # marketplace names are kebab-case, so no regex metacharacter can
+          # reach the pattern from ''${id}.
+          if "$claude" plugin list 2>/dev/null | grep -qE "(^|[[:space:]])''${id}[[:space:]]*$"; then
             : # already installed — idempotent skip
           else
             # Brace ''${id} — a bare `$id…` (unicode ellipsis) is one identifier under
