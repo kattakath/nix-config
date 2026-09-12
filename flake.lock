@@ -571,33 +571,6 @@
         "type": "github"
       }
     },
-    "local-rag": {
-      "inputs": {
-        "flake-parts": [
-          "flake-parts"
-        ],
-        "home-manager": [
-          "home-manager"
-        ],
-        "nixpkgs": [
-          "nixpkgs"
-        ],
-        "treefmt-nix": "treefmt-nix"
-      },
-      "locked": {
-        "lastModified": 1788724686,
-        "narHash": "sha256-SnGi/Qj2zGOG3c1/gwhGDq2rJ1cl8vkvnEPOW7UJYNU=",
-        "owner": "kattakath",
-        "repo": "nix-local-rag",
-        "rev": "0b43c5880998392c9db6754731e56f71c662d4a6",
-        "type": "github"
-      },
-      "original": {
-        "owner": "kattakath",
-        "repo": "nix-local-rag",
-        "type": "github"
-      }
-    },
     "mcp-servers-nix": {
       "inputs": {
         "nixpkgs": [
@@ -826,7 +799,6 @@
         "grok-build-plugin-cc": "grok-build-plugin-cc",
         "home-manager": "home-manager",
         "import-tree": "import-tree",
-        "local-rag": "local-rag",
         "mcp-servers-nix": "mcp-servers-nix",
         "nix-darwin": "nix-darwin",
         "nix-homebrew": "nix-homebrew",
@@ -834,7 +806,7 @@
         "nixpkgs": "nixpkgs_3",
         "raspberry-pi-nix": "raspberry-pi-nix",
         "terranix": "terranix",
-        "treefmt-nix": "treefmt-nix_2"
+        "treefmt-nix": "treefmt-nix"
       }
     },
     "rpi-bluez-firmware-src": {
@@ -995,27 +967,6 @@
       }
     },
     "treefmt-nix": {
-      "inputs": {
-        "nixpkgs": [
-          "local-rag",
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1786901030,
-        "narHash": "sha256-WSFCsDSE5ffgD2MqzkM2CYjeFiKhRF/dJUN8uedb6YE=",
-        "owner": "numtide",
-        "repo": "treefmt-nix",
-        "rev": "27b3b12a8e6375f28ebe122f07d230ca5459bbfa",
-        "type": "github"
-      },
-      "original": {
-        "owner": "numtide",
-        "repo": "treefmt-nix",
-        "type": "github"
-      }
-    },
-    "treefmt-nix_2": {
       "inputs": {
         "nixpkgs": [
           "nixpkgs"
