@@ -79,14 +79,15 @@ let
   stateDir = "${config.home.homeDirectory}/Library/Application Support/nix-media-queue";
   logFile = "${config.home.homeDirectory}/${cfg.logRelPath}";
 
-  # See the arg0 note in the header. wait4path stays INSIDE the wrapper: launchd
-  # can start an agent before /nix/store is mounted.
+  # See the arg0 note in the header. No wait4path inside: a store-resident
+  # wrapper cannot execute before /nix is mounted anyway (launchd must open the
+  # wrapper AND its /nix/store interpreter first), so the line was dead code;
+  # KeepAlive is what makes launchd retry a too-early exec.
   mkAgentProgram =
     name: exe:
     let
       wrapper = pkgs.writeShellScriptBin "nix-${name}" ''
         set -euo pipefail
-        /bin/wait4path /nix/store
         exec ${exe}
       '';
     in

@@ -28,10 +28,17 @@
   hostedSites,
   cloudflaredConnectorModule,
   firmwareSecretsModule,
+  raspberryPiNix,
   ...
 }:
 {
   imports = [
+    # The Pi's own hardware: kernel, firmware, boot config and the sd-image
+    # builder, from the pinned raspberry-pi-nix input threaded through mkNixos
+    # specialArgs (modules/parts/compose.nix). Owned HERE so that nix-config
+    # builds this host standalone and the private flake never has to name them.
+    raspberryPiNix.nixosModules.raspberry-pi
+    raspberryPiNix.nixosModules.sd-image
     # Both of these are IN-TREE CAPSULES
     # (modules/features/cloudflared-connector/ and modules/features/firmware-secrets/),
     # absorbed from standalone flakes by ADR-002 waves 3 and 4. Each arrives
