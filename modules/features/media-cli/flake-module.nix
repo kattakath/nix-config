@@ -94,10 +94,12 @@
 # knob is `waitForNixStore` (modules/launchd/default.nix:47-52), which upstream
 # itself documents as the trade "appear[s] under its own name, rather than as
 # 'sh' … but the agent will fail to start if launchd runs it before the Nix store
-# is mounted" — i.e. it drops wait4path entirely rather than moving it inside a
-# named wrapper. No option produces a `nix-*` arg0 that still waits, so
-# ./module.nix's own wrapper stands → custom, because upstream has no such
-# option. (That is also exactly what modules/shared/hm-launchd/ exists for on the
+# is mounted" — i.e. it drops wait4path entirely. Nothing CAN "still wait"
+# from inside a store-resident wrapper (launchd must exec it out of /nix first),
+# so the only properties upstream does not offer are the `nix-` PREFIX and a
+# store-bash interpreter instead of `#!/bin/sh` — the two the TCC measurement
+# was made with. ./module.nix's own wrapper stands → custom, because upstream
+# has no option for either. (modules/shared/hm-launchd/ does the same on the
 # ENGINE side; this capsule cannot reach it and does not need to.)
 # UPSTREAM FIRST → ✅ `flake-parts.flakeModules.modules` exists and is already
 # adopted by modules/parts/capsules.nix → using its shape.

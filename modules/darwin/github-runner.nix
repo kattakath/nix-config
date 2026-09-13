@@ -44,10 +44,13 @@ let
   cfg = config.services.macosGithubRunner;
   host = "macos";
   user = "_github-runner";
-  # Upstream nixpkgs' `github-runner` only bundles `externals/node24` — Node 20 was EOL'd
-  # and dropped from nixpkgs entirely (pkgs/by-name/gi/github-runner/package.nix: "Node.js
-  # 20.x has reached EOL and was removed from Nixpkgs, thus omitted here"), so its
-  # `nodeRuntimes` option has no `nodejs_20` left to point at even if overridden. But many
+  # Upstream nixpkgs' `github-runner` bundles only `externals/node24` BY DEFAULT — Node 20
+  # is EOL and omitted from the default `nodeRuntimes` (pinned pkgs/by-name/gi/github-runner/
+  # package.nix:19-34), but `override { nodeRuntimes = [ "node24" "node20" ]; }` is still
+  # accepted (:27-34, :253-254) and links the real, insecure-flagged nodejs_20, which would
+  # need `permittedInsecurePackages`. This module keeps the alias instead: no insecure
+  # allowlist, `using: node20` actions run on Node 24 (a deliberate choice, not a nixpkgs
+  # limitation — re-decide if an action ever breaks on 24). But many
   # GitHub-authored actions (actions/checkout@v4, actions/setup-node@v4, ...) still declare
   # `using: node20` in their action.yml, and the runner execs `externals/node<version>/bin/
   # node` verbatim per-action — so a plain `pkgs.github-runner` fails those steps with

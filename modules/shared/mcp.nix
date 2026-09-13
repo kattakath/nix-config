@@ -1179,7 +1179,12 @@ in
     # ---- Client side B: VS Code (home-manager-managed → pure declarative file) --
     # VS Code is managed here (programs.vscode in modules/shared/home.nix), so its
     # MCP config is just a Nix-written file at the user mcp.json (coexists with the
-    # settings.json HM already writes there). VS Code speaks `type = "http"` natively,
+    # settings.json HM already writes there). UPSTREAM HAS CAUGHT UP: pinned
+    # home-manager now writes this exact path from `programs.vscode.profiles.<n>.userMcp`
+    # (mkVscodeModule.nix:136-145, :393-411) and can feed it from the `programs.mcp`
+    # hub — the moment any profile sets it, this `home.file` collides. Migrating
+    # both clients to the hub is the next abstraction pass; until then this stays
+    # the only writer. VS Code speaks `type = "http"` natively,
     # so it connects to the SAME gateway processes — no extra server instances.
     # GATED on programs.vscode.enable: drop VS Code and this file is never written (no
     # stray Code/User/ dir). Read-only/Nix-managed: add servers to `hostedServerNames`.

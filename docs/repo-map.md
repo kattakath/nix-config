@@ -736,11 +736,13 @@ their own top-level section below:
   `telegramMcp`/`wpMcp`/`apifyMcp` in `mcp.nix`) — codified as the always-applied
   [`launchd-naming.md`](../.claude/rules/launchd-naming.md) rule, which also documents the
   three known-upstream `/bin/sh` exceptions that are NOT ours and must never be renamed.
-  Being a vendored fork, it tracks upstream by hand: `upstream-baseline/` holds a byte-exact
-  copy of the upstream files it shadows (treefmt-excluded so it stays verbatim), and
-  `checks.<system>.hm-launchd-drift` diffs the pinned home-manager's `modules/launchd/`
-  against it — a home-manager bump that moves that module fails the check until the fork is
-  re-reviewed and the baseline refreshed (procedure in the check's comment in `flake.nix`).
+  Since 2026-09-13 the fork is ONE file: `default.nix` (the `mutateConfig` delta); the
+  agent submodule `launchd.nix` and `types.nix` are imported from the pinned home-manager
+  tree through `modulesPath`, so the 2,200 lines that never differed are no longer copied
+  (nor is a byte-exact `upstream-baseline/`). `checks.<system>.hm-launchd-drift` pins the
+  sha256 of upstream's `default.nix` at the last-reviewed revision — a home-manager bump
+  that moves it fails the check with the fork-vs-upstream diff until the fork is re-reviewed
+  and the hash re-pinned (`modules/parts/checks.nix`).
 
 ### Home-Manager modules that are not in `modules/shared/`
 

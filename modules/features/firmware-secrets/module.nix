@@ -22,7 +22,7 @@
 let
   cfg = config.services.firmwareProvisioning;
   # PRIOR ART: systemd's own LoadCredential=, which nixpkgs already uses for exactly
-  # this shape -- nixos/modules/services/networking/cloudflared.nix:406 loads the
+  # this shape -- nixos/modules/services/networking/cloudflared.nix:387-390 loads the
   # tunnel credentials + cert straight off an operator-supplied path. Grepped the
   # pinned nixpkgs for it; the option exists and fits the general idea, so a copy
   # unit is still custom ON PURPOSE, for three things credentials cannot do:

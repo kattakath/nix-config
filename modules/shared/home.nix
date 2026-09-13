@@ -10,13 +10,15 @@
 # The Keychain is macOS-only, so the Linux hosts get no personal-token mechanism
 # here (use one-time CLI logins: gh/hf/docker/claude).
 #
-# SYSTEM/SERVICE secrets are separate from this profile — two agenix ciphertexts on
-# two models: nixpi's Cloudflare tunnel token (secrets/cloudflared-token.age) is an
+# SYSTEM/SERVICE secrets are separate from this profile — FOUR agenix ciphertexts on
+# two models (secrets/secrets.nix is the count of record): nixpi's Cloudflare tunnel
+# token (secrets/cloudflared-token.age) is an
 # operator-only vault (encrypted to the operator's key alone, decrypted on the Mac,
 # planted on the FAT FIRMWARE partition → /run/cloudflared-token) precisely BECAUSE
 # host-decryption would bind it to the SSH host key a fresh SD flash rotates (see
-# hosts/nixpi.nix); the macos runner's GitHub App key (gh-app-dontsell-ai-key.age)
-# IS host-decrypted into /run/agenix at activation — macos's host key is stable.
+# hosts/nixpi.nix); the three runner secrets (gh-app-dontsell-ai-key.age,
+# gh-app-fleet-key.age, gitlab-runner-token.age) ARE host-decrypted into /run/agenix
+# at activation — macos's host key is stable.
 #
 # Deliberately MINIMAL: no nixvim/tmux — the operator uses VSCode/Cursor and
 # prefers a lean profile with starship for the shell prompt. Add tools only for
@@ -490,9 +492,13 @@ in
   # ONE INFERENCE AT A TIME, enforced at the SERVER. `OLLAMA_NUM_PARALLEL` is read
   # by `ollama serve`, not by clients, so it cannot be set through
   # home.sessionVariables — a shell variable never reaches the launchd-started
-  # daemon. The local-rag capsule module that owns this agent exposes only
-  # enable/host/port/embedModel/embedDim, so the environment is merged into its
-  # launchd agent here rather than by forking the input.
+  # daemon.
+  # upstream option home-manager.services.ollama.environmentVariables exists →
+  # using it (pinned modules/services/ollama.nix:73, merged into the agent's
+  # EnvironmentVariables at :117 under upstream's own OLLAMA_HOST). Previously
+  # merged by hand into `launchd.agents.ollama.config`, which is where the
+  # agent-name trap below bit; a typed option under the service name cannot
+  # be misspelled into a silent second agent.
   #
   # WHY 1: a 6.1GB vision model is the whole GPU. photo-describe already
   # serialises within a run (one worker, one image at a time), but that lock
@@ -501,41 +507,30 @@ in
   # GPU. Ollama then queues them rather than thrashing, so the failure mode was
   # slow rather than broken; this makes the constraint explicit and puts it where
   # the resource actually is instead of in one of its callers.
-  # NOTE THE AGENT NAME. Pinned home-manager declares this agent as
-  # `launchd.agents.ollama` (modules/services/ollama.nix:110) — NOT `ollama-local`,
-  # which is only this repo's name for the *service option block*. `launchd.agents`
-  # is `attrsOf (submodule …)` with a free-form name, so a wrong name here does not
-  # error: it silently creates a SECOND, disabled agent and every setting below is
-  # dropped. That happened — from some point until 2026-09-12 the three OLLAMA_*
-  # variables were declared on `ollama-local` (enable = false, no plist written) and
-  # were never in effect. The ProcessType brake below survived only because
-  # home-manager's own module happens to set it too (ollama.nix:127), which is why
-  # the 2026-09-05 power measurement still looked right.
-  launchd.agents.ollama.config = lib.mkIf isMacosHost {
-    EnvironmentVariables = {
-      OLLAMA_NUM_PARALLEL = "1";
-      # Never more than one runner resident — with only 1 loaded model the
-      # worst-case draw is exactly one generation, sized for the 35W-charger
-      # power budget (2026-09-05 research: docs cite ollama FAQ defaults of
-      # 3×GPU).
-      OLLAMA_MAX_LOADED_MODELS = "1";
-      # Finite unload timer, explicit rather than the implicit 5m default.
-      # Idle SHOULD be RAM-only, but the idle-burn bug class (ollama#2129,
-      # #13232) is filed against qwen3-vl variants — the exact vision model
-      # this fleet runs — so a bounded TTL is the safety net, not an
-      # optimization. 10m keeps batch describe runs warm between bursts.
-      OLLAMA_KEEP_ALIVE = "10m";
-    };
-    # The graceful power brake: background QoS pins every CPU thread of
-    # `ollama serve` AND its spawned llama-server runners (Darwin-BG inherits
-    # across fork/exec) to the E-cluster. The model itself runs 100% on the
-    # GPU (Metal), which QoS does NOT gate — so tokens/sec dips only modestly
-    # while the P-cluster stays free/cool. Accepted cost: background I/O tier
-    # makes multi-GB model cold-loads noticeably slower. GPU wattage itself is
-    # capped only by macOS Low Power Mode (the operator-side half of this
-    # change). Verify with: sudo powermetrics --samplers cpu_power,gpu_power
-    # (P-cluster ~idle during a describe burst = the brake works).
-    ProcessType = "Background";
+  # HISTORY (why the typed option matters): the agent is `launchd.agents.ollama`
+  # (ollama.nix:110), NOT `ollama-local` — that is only this repo's name for the
+  # service option block. `launchd.agents` is a free-form attrsOf, so until
+  # 2026-09-12 these three variables sat on a silently-created, disabled
+  # `ollama-local` agent and were never in effect.
+  #
+  # The power brake (`ProcessType = "Background"`: every CPU thread of `ollama
+  # serve` and its llama-server runners on the E-cluster; the model runs on the
+  # GPU, which QoS does not gate) is set by upstream itself (ollama.nix:124) and
+  # is no longer repeated here. Verify with: sudo powermetrics --samplers
+  # cpu_power,gpu_power (P-cluster ~idle during a describe burst = it works).
+  services.ollama.environmentVariables = lib.mkIf isMacosHost {
+    OLLAMA_NUM_PARALLEL = "1";
+    # Never more than one runner resident — with only 1 loaded model the
+    # worst-case draw is exactly one generation, sized for the 35W-charger
+    # power budget (2026-09-05 research: docs cite ollama FAQ defaults of
+    # 3×GPU).
+    OLLAMA_MAX_LOADED_MODELS = "1";
+    # Finite unload timer, explicit rather than the implicit 5m default.
+    # Idle SHOULD be RAM-only, but the idle-burn bug class (ollama#2129,
+    # #13232) is filed against qwen3-vl variants — the exact vision model
+    # this fleet runs — so a bounded TTL is the safety net, not an
+    # optimization. 10m keeps batch describe runs warm between bursts.
+    OLLAMA_KEEP_ALIVE = "10m";
   };
   services.pgvectorLocal.enable = isMacosHost;
 
@@ -628,16 +623,6 @@ in
       ];
     };
 
-    # The marketplace this repo serves ITSELF, from the top-level plugins/ directory: a Nix
-    # SOURCE PATH (store copy), not a flake input or a third-party marketplace, so an in-repo
-    # plugin is pinned by construction and cannot drift. Its store path CHANGES whenever any
-    # plugin content changes, which is what the re-pin in ./claude-plugins.nix keys off.
-    # Adding an in-repo plugin = a plugins/<name>/ tree + an entry in
-    # plugins/.claude-plugin/marketplace.json + its name in the list below.
-    #
-    # `"${../../plugins}"` is a Nix SOURCE PATH LITERAL: resolved relative to THIS file. It
-    # must stay in the repo that owns the tree — moved to another flake it would silently
-    # point at that flake's plugins/ directory instead.
     # This operator's OWN published marketplace, from the PINNED flake input
     # `kattakath-claude-plugins` (github:kattakath/claude-plugins) — not a local
     # directory. Extracted from this repo's plugins/ tree 2026-09-12 so the
@@ -897,42 +882,6 @@ in
   # the freshness-gated `activate` CLI, which only the private nix-personal flake
   # can build because only it composes the full host. See
   # docs/private-home-modules.md.
-
-  # GLOBAL Claude Code instructions — user-level rules loaded in every project/session
-  # on this Mac (the sole Claude Code client host). Declarative equivalent of hand-writing
-  # ~/.claude/CLAUDE.md; the strict "decisions/confirmations = AskUserQuestion options"
-  # rule + reuse-over-rebuild preference live here so they apply everywhere, not just in
-  # this repo. Darwin-only.
-  # The custom grok sandbox profile the patched grok-build bridge asks for (see
-  # grokBuildPluginPatched in the let block above for WHY the built-in `read-only` is
-  # unusable here). Unlike ~/.grok/config.toml — which grok itself rewrites, so mcp.nix
-  # merges into it via `grok mcp add` — sandbox.toml is pure user input that grok only ever
-  # READS, so it is safe to own declaratively.
-  #
-  # IT MUST BE A REAL FILE, NOT A STORE SYMLINK. This block previously used
-  # `home.file`, on the recorded finding that "a store symlink here is accepted
-  # (verified); grok only refuses symlinks for $GROK_HOME and hooks-paths entries".
-  # THAT VERIFICATION IS STALE — grok now counts sandbox.toml itself as a
-  # hooks-paths registry entry, so the symlink puts it in exactly the category it
-  # refuses, and EVERY grok run dies before starting:
-  #     sandbox could not be applied: hook write-deny ensure failed:
-  #     Grok hooks-paths registry has wrong type (expected real file):
-  #     /Users/<user>/.grok/sandbox.toml
-  # It fails closed — grok refuses to run rather than run unsandboxed — so the
-  # symptom is a total grok-build outage, not a silent loss of protection.
-  # Materialised by copy at activation instead, the same way the Finder Services
-  # bundles are (see home.activation.mediaServices above, and the commit that
-  # made them copies rather than symlinks for a different macOS-side reason).
-  # `force`/rm because grok drops a 0-byte placeholder here that would otherwise
-  # be left in place.
-  #
-  # `deny` is kernel-enforced (Seatbelt) for BOTH read and write, and closes the
-  # `mv secret x && cat x` bypass — it is what actually protects credentials now that the
-  # base profile is `workspace`. Every entry must be a real path (a symlink component makes
-  # grok refuse to start, which is the whole bug being worked around) and must NOT cover
-  # ~/.grok/auth.json: denying that leaves grok unable to read its own token and it exits
-  # "Not signed in" (verified). Darwin-only — grok is only on the Mac.
-  # (Materialised by home.activation.grokSandboxProfile, below.)
 
   # qwen-code local-model wiring. `qwen` (Alibaba's coding-agent CLI, in
   # home.packages above) auto-loads ~/.qwen/.env — a qwen-SCOPED env file, so we
@@ -1383,9 +1332,7 @@ in
     gh.enable = true;
 
     direnv = {
-      enable = true;
-      enableBashIntegration = true;
-      enableZshIntegration = true;
+      enable = true; # shell integrations default on (home-manager misc/shell.nix)
       nix-direnv.enable = true;
     };
 
@@ -1733,8 +1680,7 @@ in
     };
 
     zsh = {
-      enable = true;
-      enableCompletion = true;
+      enable = true; # enableCompletion defaults true (zsh/default.nix)
       autosuggestion.enable = true;
       syntaxHighlighting.enable = true;
 

@@ -32,7 +32,7 @@
     # The nixpkgs-lib line is upstream-blessed, not a hack: `terranix` already
     # carries exactly this follows, and flake-parts documents the override with a
     # 23.05 floor our nixpkgs.lib clears by three years. Note nixpkgs-lib CANNOT be
-    # `follows = ""` — flake-parts does `inherit (nixpkgs-lib) lib` (lib.nix:12),
+    # `follows = ""` — flake-parts does `inherit (nixpkgs-lib) lib` (flake.nix:11),
     # so rebinding the name to THIS flake makes it `lib` of a thing with no `lib`.
     flake-parts.url = "github:hercules-ci/flake-parts";
     flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
@@ -40,7 +40,7 @@
     # The module index: `modules/parts/*.nix` are discovered by reading the
     # directory, never by a hand-written `imports = [ … ]` that drifts.
     #
-    # MEASURED TRAP (import-tree default.nix:48): its DEFAULT filter is EVERY
+    # MEASURED TRAP (import-tree default.nix:64): its DEFAULT filter is EVERY
     # `.nix` file that is not under a `/_` path — so pointing it at `./modules`
     # bare would feed home-manager modules, NixOS modules and callPackage
     # functions to the FLAKE module system, which is an eval failure, not a
@@ -376,11 +376,11 @@
   #
   # WHY THE `.match` REGEX IS MANDATORY. import-tree's DEFAULT filter is every
   # `.nix` file under the path that is not below a `/_` segment (pinned
-  # import-tree default.nix:48 — `nixFilter = andNot (hasInfix "/_")
+  # import-tree default.nix:64 — `nixFilter = andNot (hasInfix "/_")
   # (hasSuffix ".nix")`). `./modules` also holds home-manager modules, NixOS
   # modules and callPackage functions; handing any of those to the FLAKE module
   # system is an eval failure, not a warning. The regex is matched against the
-  # path RELATIVE to the added root (default.nix:88-96), i.e. "/parts/hosts.nix".
+  # path RELATIVE to the added root (default.nix:85-87), i.e. "/parts/hosts.nix".
   #
   # It is written as an ALLOWLIST of the engine directory rather than a denylist
   # of everything else, so a new `modules/<anything>/` tree stays invisible here

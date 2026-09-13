@@ -130,7 +130,7 @@ let
       };
     in
     # grepped nixpkgs for a .app-bundle generator — `pkgs.writeDarwinBundle`
-    # EXISTS (all-packages.nix:842) → custom anyway, because reading its
+    # EXISTS (all-packages.nix:913) → custom anyway, because reading its
     # implementation rules it out on three counts
     # (build-support/make-darwin-bundle/write-darwin-bundle.nix):
     #   :13  CFBundleIdentifier is HARDCODED to "org.nixos.$name" with no

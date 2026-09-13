@@ -183,6 +183,7 @@ every one of them is fine:
 | `org.nixos.github-runner-macos-*` | **ours, and deliberate** — the boot-ordering exception above |
 
 Anything else whose `Label` is one of ours (`org.nixos.*` — every nix-darwin unit this repo
-authors carries that prefix, including `org.nixos.open-*` and `org.nixos.file-rotation-*` —
-or `org.nix-community.home.*`, or `com.kattakath.*`) is a real violation: fix it by wrapping
+authors carries that prefix, including `org.nixos.open-*` — or `org.nix-community.home.*`, or
+`com.kattakath.*`, where the `com.kattakath.file-rotation.*` sweeps live) is a real violation:
+fix it by wrapping
 `arg0` in a `nix-<activity>` `writeShellScriptBin`.
