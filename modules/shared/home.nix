@@ -962,6 +962,17 @@ in
       showSpaceControl = "ctrl+opt+space";
       # Re-shoot thumbnails when the grid opens (slower open, never stale).
       spaceControlUpdateScreenshotsOnOpen = true;
+      # Rotation. The app ships NO default for any of these (all four are
+      # optional AppHotKey fields with no fallback), so without them the only
+      # navigation is the direct ⌃⌥<n> jumps and the grid. ⌃⌥←/→ mirrors the
+      # macOS ⌃←/→ Spaces gesture this replaces; `loopWorkspaces` defaults true
+      # upstream so next-after-last wraps.
+      switchToNextWorkspace = "ctrl+opt+right";
+      switchToPreviousWorkspace = "ctrl+opt+left";
+      switchToRecentWorkspace = "ctrl+opt+tab";
+      # The ⌘⇥-style workspace switcher (README calls ⌥⇥ its default; it is not
+      # set unless configured).
+      showWorkspaceSwitcher = "opt+tab";
     };
   };
 
