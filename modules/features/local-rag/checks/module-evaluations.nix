@@ -40,8 +40,8 @@ let
   hm = mkHm [
     module
     {
-      services.ollamaLocal.enable = true;
-      services.pgvectorLocal.enable = true;
+      local.rag.ollama.enable = true;
+      local.rag.pgvector.enable = true;
     }
   ];
 
@@ -64,7 +64,7 @@ in
   # TWO ASSERTIONS CARRY MORE WEIGHT THAN THE REST, and are why this is not
   # ceremony:
   #
-  #   * `services.pgvectorLocal.databaseUri` is pinned as a LITERAL. That option
+  #   * `local.rag.pgvector.databaseUri` is pinned as a LITERAL. That option
   #     is the seam modules/shared/mcp.nix hands to the `postgres` MCP server as
   #     `env.DATABASE_URI`, i.e. the whole career RAG (`career_docs` in `ragdb`)
   #     reaches Claude Code through this one string. Reading the option back to
@@ -79,15 +79,15 @@ in
   #     `nix flake check`.
   module-evaluates =
     let
-      inherit (hm.config) services launchd;
+      inherit (hm.config) services launchd local;
     in
     pkgs.runCommand "local-rag-eval" { } ''
       test "${pkgs.lib.boolToString services.ollama.enable}" = "true"
       test "${services.ollama.host}" = "127.0.0.1"
       test "${toString services.ollama.port}" = "11434"
-      test "${services.ollamaLocal.embedModel}" = "nomic-embed-text"
-      test "${toString services.ollamaLocal.embedDim}" = "768"
-      test "${services.pgvectorLocal.databaseUri}" = "postgresql://mcp@127.0.0.1:5433/ragdb"
+      test "${local.rag.ollama.embedModel}" = "nomic-embed-text"
+      test "${toString local.rag.ollama.embedDim}" = "768"
+      test "${local.rag.pgvector.databaseUri}" = "postgresql://mcp@127.0.0.1:5433/ragdb"
       test "${pkgs.lib.boolToString launchd.agents.ollama.enable}" = "true"
       # Proves the log override merges onto UPSTREAM's agent rather than
       # forking it — upstream declares no StandardOutPath of its own.
@@ -116,11 +116,11 @@ in
     pkgs.runCommand "local-rag-inert" { } ''
       fail() { echo "local-rag-inert: $*" >&2; exit 1; }
       test "${pkgs.lib.boolToString c.services.ollama.enable}" = "false" \
-        || fail "services.ollama.enable is true with services.ollamaLocal.enable unset"
+        || fail "services.ollama.enable is true with local.rag.ollama.enable unset"
       test "${bool (c.launchd.agents ? ollama-local-pull)}" = no \
-        || fail "launchd.agents.ollama-local-pull exists with services.ollamaLocal.enable unset"
+        || fail "launchd.agents.ollama-local-pull exists with local.rag.ollama.enable unset"
       test "${bool (c.launchd.agents ? postgres-pgvector)}" = no \
-        || fail "launchd.agents.postgres-pgvector exists with services.pgvectorLocal.enable unset"
+        || fail "launchd.agents.postgres-pgvector exists with local.rag.pgvector.enable unset"
       test "${pkgNames hmOff}" = "${pkgNames hmBare}" \
         || fail "home.packages differs from a config without this module: [${pkgNames hmOff}] vs [${pkgNames hmBare}]"
       echo ok > "$out"

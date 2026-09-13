@@ -201,7 +201,7 @@ one-time steps are inherently manual — do these after activating a fresh Mac:
   alone comes back as H.264 and thumbnails fine. Find them with
   `mdfind -onlyin ~/Pictures 'kMDItemCodecs == "vp09"'`, then run
   `media-transcode <file>...` (on PATH from the `modules/features/media-cli/` capsule via
-  `programs.mediaCli.enable`; it left this repo in the 2026-09-05 extraction, was renamed
+  `local.mediaCli.enable`; it left this repo in the 2026-09-05 extraction, was renamed
   there, and came back in-tree with ADR-002 wave 5)
   — it detects the codec, re-encodes on the hardware encoder, preserves
   the dates, and skips anything already editor-safe. The container is not the

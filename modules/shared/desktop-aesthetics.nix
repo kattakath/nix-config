@@ -83,24 +83,10 @@ in
       # otherwise LAUNCH it and pop a window on every single rebuild — the exact
       # regression the old vendored-profile import had to be fixed for.
       #
-      # DETECTION IS `pgrep`, AND IT MUST NOT BE A PIPE. This comment used to claim the
-      # opposite — "use `ps`, NOT `pgrep`, because pgrep exits 1 from the activation
-      # context while Terminal is demonstrably running" — and that was a MISDIAGNOSIS of
-      # the bug below. `pgrep` was never the problem; the pipe was.
-      #
-      # home-manager's generated activate script runs under `set -o pipefail` (its line
-      # 3). `grep -q` exits the instant it matches, which closes the pipe, which kills
-      # `ps` with SIGPIPE — so the PIPELINE reports 141 even though the match SUCCEEDED,
-      # and `pipefail` hands that 141 to the `if`. The step then skipped forever, on a
-      # machine where Terminal was running the whole time. Measured in the exact
-      # activation context (`launchctl asuser <uid> sudo -u <user>`, per nix-darwin's
-      # own activate script):
-      #
-      #   set -o pipefail; ps -Ao comm | grep -q '…/Terminal$'   -> exit 141   FAIL
-      #   set -o pipefail; pgrep -x Terminal >/dev/null          -> exit 0     PASS
-      #
-      # So: no pipe in a guard that runs under `pipefail`, and never `cmd | grep -q` when
-      # the producer is long enough to still be writing. `pgrep` needs neither.
+      # DETECTION IS `pgrep`, NOT A `ps | grep -q` PIPE: home-manager's activate
+      # script runs under `set -o pipefail`, and `grep -q` closing the pipe early
+      # makes the pipeline report 141 on a SUCCESSFUL match. Measured; the full
+      # story is docs/repo-map.md § desktop-aesthetics.nix.
       #
       # Re-run every activation, and cheap: EVERY property is compared before it is
       # written, so a settled Mac is a true no-op — and a profile ADDED later gets

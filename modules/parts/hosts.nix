@@ -5,9 +5,8 @@
 # than through a `let` binding only this file could see. `darwinConfigurations`
 # is declared mergeable in modules/parts/lib-option.nix; `nixosConfigurations`
 # flake-parts already declares (modules/nixosConfigurations.nix:11).
-{ config, inputs, ... }:
+{ config, ... }:
 let
-  inherit (inputs) nixpkgs;
   inherit (config.flake.lib) mkDarwin mkNixos;
 in
 {
@@ -54,15 +53,6 @@ in
     "nixvm" = mkNixos {
       system = "aarch64-linux";
       hostname = "nixvm";
-      extraModules = [
-        # The `build-vm` variant runs on the aarch64-darwin Mac, so its QEMU
-        # runner must be macOS-native. host.pkgs is the pkgs whose qemu the
-        # generated run-nixvm-vm executes — point it at aarch64-darwin. LAZY:
-        # only the `system.build.vm` path forces this, so the aarch64-linux
-        # toplevel eval (CI) never pulls in darwin pkgs. The rest of the variant
-        # (graphics, desktop) lives in hosts/nixvm.nix.
-        { virtualisation.vmVariant.virtualisation.host.pkgs = nixpkgs.legacyPackages."aarch64-darwin"; }
-      ];
     };
 
     # (There is no separate `nixpi-installer`. The LIVE `nixpi` sdImage above

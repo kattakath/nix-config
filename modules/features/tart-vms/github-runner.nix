@@ -1,9 +1,9 @@
-# tart.githubRunners.<name> — N ephemeral GitHub Actions runner controllers on
+# local.tart.githubRunners.<name> — N ephemeral GitHub Actions runner controllers on
 # one host, each an isolated Tart-VM-per-job loop (see ./packages/tart-runner.nix
 # for the engine + provenance). Instances share the hard Apple Virtualization
 # budget of TWO concurrent macOS guests via the slot semaphore (options in
 # ./slots.nix, shared with the GitLab lane); the module asserts the
-# configured ceiling never exceeds it. `tart.runners` is a renamed-option
+# configured ceiling never exceeds it. `local.tart.runners` is a renamed-option
 # alias from before the GitLab lane made the name ambiguous.
 #
 # The wait for work is HOST-SIDE (a REST poll every `pollIntervalSeconds`), so
@@ -31,7 +31,7 @@
   ...
 }:
 let
-  cfg = config.tart;
+  cfg = config.local.tart;
   engine = pkgs.callPackage ./packages/tart-runner.nix { };
 
   runnerType = lib.types.submodule (
@@ -84,7 +84,7 @@ let
         # `tart` is the toolchain discriminator: a job that lands here runs in a
         # stock Cirrus guest, NOT on the host, so it sees no nix, no cachix and
         # no host postgres. The counterpart bare-metal lane
-        # (nix-config `services.macosGithubRunner`) carries `nix` for the same
+        # (nix-config `local.macosGithubRunner`) carries `nix` for the same
         # reason. Keep BOTH sides positive: a set that is merely "the other one
         # minus `tart`" is unmatchable, because GitHub has no negative selector
         # and this list is a strict superset of the bare-metal one.
@@ -251,10 +251,10 @@ in
 {
   imports = [
     ./slots.nix
-    (lib.mkRenamedOptionModule [ "tart" "runners" ] [ "tart" "githubRunners" ])
+    (lib.mkRenamedOptionModule [ "local" "tart" "runners" ] [ "local" "tart" "githubRunners" ])
   ];
 
-  options.tart = {
+  options.local.tart = {
     githubRunners = lib.mkOption {
       type = lib.types.attrsOf runnerType;
       default = { };
@@ -266,7 +266,7 @@ in
     assertions = [
       {
         assertion = cfg.runnerSlots <= 2;
-        message = "tart.runnerSlots must be <= 2: Apple's Virtualization framework refuses a third concurrent macOS guest.";
+        message = "local.tart.runnerSlots must be <= 2: Apple's Virtualization framework refuses a third concurrent macOS guest.";
       }
     ];
 
@@ -277,7 +277,7 @@ in
     # nix-darwin's activation-scripts run userLaunchd BETWEEN the two.
     # `mkdir -p` is idempotent, so the GitLab lane declaring the same line is
     # harmless — and each lane must declare it itself, since this module is
-    # the only one here that knows tart.githubRunners exists.
+    # the only one here that knows local.tart.githubRunners exists.
     system.activationScripts.preActivation.text = lib.mkAfter ''
       sudo --user=${config.system.primaryUser} -- /bin/mkdir -p ${lib.escapeShellArg cfg.runnerStateDir}
     '';

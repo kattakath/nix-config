@@ -23,7 +23,7 @@
 #     secret set CLAUDE_CODE_USE_BEDROCK 1   # enable
 #     secret rm  CLAUDE_CODE_USE_BEDROCK     # disable — don't rely on "0",
 #                                            # likely still truthy as a string
-#   (`programs.keychainSecrets` — the loader providing `secret` — is wired in
+#   (`local.keychainSecrets` — the loader providing `secret` — is wired in
 #   modules/shared/home.nix, so this toggle works whether the host activates
 #   public-only or through the private overlay.)
 #
@@ -59,7 +59,7 @@
 #
 # Why this lives in the PUBLIC repo: a gate shipped from nix-personal would be
 # dropped by the very activation it defends against. Same reasoning as
-# `programs.keychainSecrets` being wired here.
+# `local.keychainSecrets` being wired here.
 let
   # Offline and CLI-free on purpose: `aws` is not reliably on PATH during shell
   # init, and a network call (`aws sts get-caller-identity`) would tax every new

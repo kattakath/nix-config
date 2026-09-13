@@ -21,7 +21,7 @@ host-decrypted. Assuming one model covers all of them is the mistake to avoid.
 This is the **operator-only vault** model: the operator decrypts it on the Mac and plants it on
 nixpi's SD card FIRMWARE partition, where the in-tree `modules/features/firmware-secrets/`
 capsule's
-`services.firmwareProvisioning` copies it into a `/run` file at boot. **nixpi never decrypts it
+`local.firmwareProvisioning` copies it into a `/run` file at boot. **nixpi never decrypts it
 on-device.**
 
 Why not host-decrypt it? agenix binds a secret to the host's SSH host key, and a fresh SD flash
@@ -36,9 +36,9 @@ host itself.
 
 | Secret | Consumer | Content |
 |---|---|---|
-| `gh-app-dontsell-ai-key.age` | `services.macosGithubRunner` (`modules/darwin/github-runner.nix`) — the bare-metal `_github-runner` **daemons** | GitHub App RS256 `.pem` |
-| `gh-app-fleet-key.age` | `tart.githubRunners.*` (the `tart-vms` capsule, `hosts/macos.nix`) — the login-user Tart **agents** | the *same* App's RS256 `.pem` |
-| `gitlab-runner-token.age` | `tart.gitlabRunner` — renders `config.toml` at agent start | the bare `glrt-` token, one line |
+| `gh-app-dontsell-ai-key.age` | `local.macosGithubRunner` (`modules/darwin/github-runner.nix`) — the bare-metal `_github-runner` **daemons** | GitHub App RS256 `.pem` |
+| `gh-app-fleet-key.age` | `local.tart.githubRunners.*` (the `tart-vms` capsule, `hosts/macos.nix`) — the login-user Tart **agents** | the *same* App's RS256 `.pem` |
+| `gitlab-runner-token.age` | `local.tart.gitlabRunner` — renders `config.toml` at agent start | the bare `glrt-` token, one line |
 
 **The two `gh-app-*` files hold identical key material, and that is deliberate — not duplication
 to clean up.** Both authenticate as the `ismailkattakath-ci` App (appId 4849830), but an agenix
@@ -82,7 +82,7 @@ Personal tokens live in the macOS **login Keychain** (the single source of truth
 one-time CLI logins (`gh`/`hf`/`docker`/`claude`). Never literals in `.nix`.
 
 A darwin-only loader (from the `modules/features/keychain-secrets/` capsule via
-`programs.keychainSecrets`, installed to `~/.config/secrets/loader.sh` — the path
+`local.keychainSecrets`, installed to `~/.config/secrets/loader.sh` — the path
 `modules/darwin/core.nix` derives `launchd.user.envVariables.BASH_ENV` from, by reference, so
 the two halves cannot drift) exports every registered secret into **every**
 shell — sourced from zsh's `.zshenv` (via `envExtra`) and bash's profile + `.bashrc` +

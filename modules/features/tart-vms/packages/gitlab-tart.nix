@@ -2,7 +2,7 @@
 # gitlab-tart-executor (ephemeral Tart VM per GitLab CI job, custom-executor
 # interface) packaged from its release binary — nixpkgs carries it nowhere —
 # plus SLOT SHIMS that make its VMs share the host's two-macOS-guest budget
-# with the GitHub tart.runners controllers (packages/tart-slots.nix is the
+# with the GitHub local.tart.runners controllers (packages/tart-slots.nix is the
 # single protocol; the executor itself knows nothing about slots).
 #
 # Shim contract (gitlab-runner config.toml [runners.custom] points at these):
@@ -24,7 +24,7 @@
 #   nix-gitlab-tart-config   passthrough (executor's config stage).
 # `tart-gitlab-print-config` prints the exact config.toml stanza with these
 # store paths, for a hand-managed config.toml. The declarative alternative is
-# ../gitlab-runner.nix (tart.gitlabRunner.*), which renders config.toml
+# ../gitlab-runner.nix (local.tart.gitlabRunner.*), which renders config.toml
 # at agent start from a runtime token file — either way the glrt-… runner
 # token never enters the store (the fleet's no-secrets-in-nix boundary).
 #
