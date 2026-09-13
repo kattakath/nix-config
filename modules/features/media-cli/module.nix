@@ -36,12 +36,18 @@
 # /bin/sh is attributable and gets EPERM without an explicit grant. So a worker
 # whose arg0 is /bin/sh runs, logs nothing useful, and quietly does no work.
 #
-# Upstream home-manager wraps every agent as
+# Upstream home-manager's DEFAULT (`waitForNixStore = true`) wraps every agent as
 #   ProgramArguments = [ "/bin/sh" "-c" "wait4path … && exec …" ]
-# which is exactly that failure mode. This module therefore builds its OWN
-# `nix-<activity>` wrapper and sets ProgramArguments itself, keeping wait4path
-# inside it. That also means this flake works with UPSTREAM home-manager and
-# needs no vendored launchd fork.
+# which is exactly that failure mode; its `waitForNixStore = false` (pinned
+# modules/launchd/default.nix:37-53) names the launcher after the agent key but
+# still runs it through `#!/bin/sh`. This module therefore builds its OWN
+# `nix-<activity>` wrapper and sets ProgramArguments itself. Two honest notes:
+# the `/bin/wait4path` line inside that wrapper is DEAD CODE (a store-resident
+# wrapper cannot run before the store is mounted — modules/shared/hm-launchd/
+# default.nix explains; KeepAlive is the real mitigation), and on the engine the
+# vendored hm-launchd fork re-wraps this agent once more (nix-media-queue →
+# nix-media-queue → media-worker). Both are queued for the next abstraction
+# pass; the capsule stays independent of the fork either way.
 {
   config,
   lib,

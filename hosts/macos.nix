@@ -480,7 +480,7 @@
     # ---- Mac App Store apps (masApps) ----------------------------------------
     # macos only — a sandbox host cannot sign into an App Store login, so any
     # masApps entry fails brew bundle there.
-    # `mas` brew stays for on-demand installs; anything listed here is also
+    # `mas` itself comes from nixpkgs (modules/darwin/core.nix); anything listed here is also
     # protected from onActivation.cleanup = "uninstall" (undeclared MAS apps
     # get removed — that is how Xcode was wiped before this entry).
     masApps = {

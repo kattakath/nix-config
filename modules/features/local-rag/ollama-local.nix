@@ -11,7 +11,7 @@
 # loopback HTTP from an in-DB `embed()` function.
 #
 #   upstream option home-manager.services.ollama exists -> using it
-#   (pinned home-manager modules/services/ollama.nix:108-126 — launchd.agents.ollama
+#   (pinned home-manager modules/services/ollama.nix:110-126 — launchd.agents.ollama
 #   with EnvironmentVariables/KeepAlive/ProcessType, plus home.packages; options
 #   host/port at :28-44; auto-imported by modules/modules.nix:95, which readDir's
 #   ./services)
@@ -19,11 +19,14 @@
 # So bind address and port are `services.ollama.host` / `.port` — set them
 # there, not here. They stay loopback (127.0.0.1) by upstream default; widening
 # them is on you, Ollama has no auth. Extra server env goes through upstream's
-# `services.ollama.environmentVariables` (:71-85), not a wrapper script.
+# `services.ollama.environmentVariables` (:73), not a wrapper script.
 #
 # grepped home-manager/modules/services/ollama.nix for pull/model/embed — no
-# option exists -> the pull agent below is custom, because upstream models the
-# SERVER only and never fetches a model.
+# option exists -> the pull agent below is custom, because upstream's HM module
+# models the SERVER only and never fetches a model. (Prior art for the shape:
+# NixOS `services.ollama.loadModels`, pinned nixos/modules/services/misc/
+# ollama.nix:151-169 — a separate one-shot `ollama-model-loader` unit, which is
+# exactly what the pull agent is on launchd.)
 #
 # macOS-ONLY: gated on stdenv.hostPlatform.isDarwin, so enabling it on a Linux host is a
 # clean no-op (safe for mixed nix-darwin + NixOS fleets, and for `nix flake
