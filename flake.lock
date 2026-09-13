@@ -540,11 +540,11 @@
     "kattakath-claude-plugins": {
       "flake": false,
       "locked": {
-        "lastModified": 1789312015,
-        "narHash": "sha256-Vg53/j/J5ft8p00ybh5LSLPOwCgB3eTA5KAsCJInCg4=",
+        "lastModified": 1789315008,
+        "narHash": "sha256-dSFrUXRnT8D1GOOUIRMDfMgGL+HdRQAlZNlK76ORXt4=",
         "owner": "kattakath",
         "repo": "claude-plugins",
-        "rev": "54cf28c62baa7bcb109ab49ae6e9818c0d853831",
+        "rev": "860b2e565d8b3cf89d1f01322433bcdb1ad27f5f",
         "type": "github"
       },
       "original": {
