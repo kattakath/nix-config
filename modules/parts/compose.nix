@@ -332,6 +332,71 @@ let
       ]
       ++ extraModules;
     };
+  # `activate` for a PRIVATE COMPOSITION flake -- the freshness-gated
+  # darwin-rebuild wrapper (packages/activate.nix). MECHANISM lives here under
+  # the shape/values contract; the private flake supplies only values: its own
+  # live checkout path (--hard/--yolo mutate and commit its flake.lock, which
+  # only makes sense against a mutable git checkout, never the store copy of
+  # `self`) and the local nix-config checkout path for --local. Everything
+  # else defaults sensibly IN THE PACKAGE FILE, remoteUrl included -- it is
+  # this repo's own URL, a public value beside the mechanism that uses it.
+  # Every argument except `system` is forwarded verbatim, so the parameter
+  # list and its defaults live in ONE place -- the package file -- and cannot
+  # drift against a copy here. Required there: nixPersonalDir, nixConfigDir.
+  # Optional there: darwinHostname, remoteUrl, remoteBranch.
+  mkActivateCli =
+    { system, ... }@args:
+    nixpkgs.legacyPackages.${system}.callPackage ../../packages/activate.nix (
+      builtins.removeAttrs args [ "system" ]
+    );
+
+  # Remote-deploy `nix run` app for a NixOS host that cannot self-build -- a
+  # nixos-rebuild switch dispatched FROM the invoking machine, built AND
+  # activated on the remote. MECHANISM here, values from the caller: which
+  # flake (the private composition's `self`, so the switch carries its private
+  # layer), which hostname, which remote.
+  #
+  # --build-host DEFAULTS TO THE REMOTE, deliberately. The measured case
+  # (nixpi, 2026-09-07): a Caddy-serving generation cannot build on the Mac at
+  # all -- Determinate's native Linux builder cannot `cp --no-preserve=mode`
+  # into $out, so nixpkgs' `Caddyfile-formatted` dies with EPERM and takes
+  # etc.drv and the whole toplevel with it. Without this default the obvious
+  # `nix run .#<host>` ALWAYS fails for such a host. This is not "building
+  # heavy on the remote": everything substitutes from cache.nixos.org + Cachix
+  # and only the handful of TEXT derivations (Caddyfile, units, etc, activate,
+  # toplevel) are realised there.
+  #
+  # "$@" is appended LAST so a caller can still override, e.g.
+  # `nix run .#<host> -- --build-host ""` to force a local build.
+  #
+  # NOTE localhost is NOT a usable --build-host: nixos-rebuild treats it as a
+  # remote to ssh into UNCONDITIONALLY, and macOS runs no local sshd by design
+  # (confirmed: "connection refused"). A tunnelled remote needs
+  # NIX_SSHOPTS="-F <config>" with a ProxyCommand Host block -- see
+  # docs/nixpi-sd-flashing-runbook.md.
+  mkRemoteNixosSwitchApp =
+    {
+      system,
+      flake,
+      hostname,
+      remote,
+    }:
+    let
+      pkgs = nixpkgs.legacyPackages.${system};
+    in
+    {
+      type = "app";
+      program = "${pkgs.writeShellScript "activate-${hostname}" ''
+        set -euo pipefail
+        exec ${pkgs.nixos-rebuild}/bin/nixos-rebuild switch \
+          --flake "${flake}#${hostname}" \
+          --target-host "${remote}" \
+          --build-host "${remote}" \
+          --use-remote-sudo "$@"
+      ''}";
+      meta.description = "Build ON ${hostname}'s remote + switch it to this private composition (#${hostname})";
+    };
+
 in
 {
   # ---- Composition API (private flakes, local overrides) --------------------
@@ -346,6 +411,8 @@ in
       mkDarwin
       mkNixos
       mkHomeManagerModule
+      mkActivateCli
+      mkRemoteNixosSwitchApp
       identityArgs
       ;
   };
