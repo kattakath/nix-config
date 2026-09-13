@@ -660,15 +660,7 @@ in
     };
   };
 
-  # `mkdir -p` is belt-and-braces for nix-darwin#1240: a screencapture.location
-  # that does not exist is silently ignored and captures fall back to ~/Desktop.
-  # ~/Downloads always exists on a real macOS account, so this is a no-op.
-  # Deliberately NO `chown`: unlike the old dedicated Screengrab dir, ~/Downloads
-  # is a large pre-existing user folder that is already correctly owned — a
-  # recursive-adjacent ownership change there is risk with no upside.
   system.activationScripts.postActivation.text = lib.mkIf (config.networking.hostName == "macos") ''
-        mkdir -p "${folders.downloads}"
-
         # Docker Desktop "Start when you log in" (settings-store AutoStart) races our
         # quiet open-docker agent and opens the dashboard.
         #
