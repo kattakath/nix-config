@@ -321,7 +321,15 @@ All four are safe to commit. Full rules: [`secrets-and-keychain.md`](secrets-and
   and the `open-design` cask (`greedy = true`, adopted the hand-dragged app in place) paired
   with `launchd.user.envVariables.OD_UPDATE_ENABLED = "0"` so versioning belongs to brew, not
   the app's drift-prone self-updater — the full declared/imperative boundary is
-  [`open-design.md`](open-design.md).
+  [`open-design.md`](open-design.md). Since 2026-09-13 also the `flashspace` cask (virtual
+  workspace manager): the app comes from brew because nixpkgs' `flashspace` is a major behind
+  (3.3.39 vs 4.18.79) and the Nix build re-signs the bundle ad-hoc, which would tie its
+  Accessibility grant to each rebuild; workspaces are DATA in `modules/shared/home.nix`
+  (`programs.flashspace.profiles`, `package = null`), app settings go through an
+  `xdg.configFile` hatch there because the HM module's `settings` emits a TOML the app never
+  reads beside a JSON profiles file, autostart is an `open-flashspace` `mkNixAgent` in
+  `modules/darwin/core.nix`, and `system.defaults.spaces.spans-displays = false` declares
+  its one OS requirement.
 - `macvm.nix` — removed 2026-09-05 with the rest of the `macvm` Tart guest; re-add path:
   [`macvm-readd-runbook.md`](macvm-readd-runbook.md).
 - **`nixpi.nix`** — Pi 4, LIVE: boot fixes + cloudflared + upstream `services.caddy`. Its
