@@ -418,6 +418,13 @@ in
         disable-shadow = true;
       };
 
+      # "Displays have separate Spaces" ON — FlashSpace's one stated OS
+      # requirement (its README, § Installation). false IS the macOS default;
+      # declared so a stray toggle cannot silently break workspace switching.
+      # upstream option nix-darwin.system.defaults.spaces.spans-displays exists →
+      # using it (pinned modules/system/defaults/spaces.nix:7). Logout to apply.
+      spaces.spans-displays = false;
+
       # Finder grouping + sort. nix-darwin's typed `finder` options don't model
       # these two keys, so they go through the CustomUserPreferences escape hatch
       # (a raw `defaults write` into com.apple.finder). FXPreferredGroupBy sets the
@@ -523,6 +530,12 @@ in
     open-maccy = mkNixAgent {
       suffix = "maccy";
       app = "Maccy";
+    }; # menu-bar only (LSUIElement)
+    # FlashSpace (cask, hosts/macos.nix). Its own "Launch at login" toggle is
+    # SMAppService — leave it OFF, this agent is the declarative equivalent.
+    open-flashspace = mkNixAgent {
+      suffix = "flashspace";
+      app = "FlashSpace";
     }; # menu-bar only (LSUIElement)
     open-docker = mkNixAgent {
       suffix = "docker";
