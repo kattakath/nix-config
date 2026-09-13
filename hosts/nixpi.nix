@@ -132,8 +132,8 @@
   #
   # upstream option nixpkgs.networking.supplicant exists → using it
   # (nixos/modules/services/networking/supplicant.nix — `configFile.path` at
-  # :107, the generated unit at :63-90, instantiation `supplicant-<iface>` at
-  # :251, and a udev rule at :262 that adds SYSTEMD_WANTS when the interface
+  # :108, the generated unit at :63-90, instantiation `supplicant-<iface>` at
+  # :250, and a udev rule at :263 that adds SYSTEMD_WANTS when the interface
   # appears). This replaced a hand-written systemd unit whose ExecStart spelled
   # out `wpa_supplicant -c … -i wlan0` itself.
   #

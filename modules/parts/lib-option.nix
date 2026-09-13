@@ -1,4 +1,4 @@
-# ---- Two flake outputs that MUST be mergeable across files ------------------
+# ---- One flake output that MUST be mergeable across files -------------------
 #
 # flake-parts' `flake` option is freeform, and its freeform type is
 # `lazyAttrsOf (types.unique { … } types.raw)` (pinned flake-parts
@@ -10,14 +10,14 @@
 #   flake.lib                   modules/parts/compose.nix contributes the three
 #                               builders; modules/parts/terranix.nix contributes
 #                               the three renderers. Two files, one attrset.
-#   flake.darwinConfigurations  one host today, but the whole point of this wave
-#                               is that a future host/capsule can add one
-#                               without editing someone else's file.
 #
-# The fix is upstream's own: declare each as `lazyAttrsOf raw`, copying
-# flake-parts' `modules/nixosConfigurations.nix:11` verbatim in shape (that is
-# why `nixosConfigurations` needs no declaration here — flake-parts already
-# ships exactly this for it, and none for `darwinConfigurations`).
+# The fix is upstream's own: declare it as `lazyAttrsOf raw`, copying
+# flake-parts' `modules/nixosConfigurations.nix:11` verbatim in shape. Nothing
+# else is declared here: flake-parts ships that for `nixosConfigurations`, and
+# `darwinConfigurations` comes from nix-darwin's own flake-parts module (pinned
+# nix-darwin flake-module.nix:6-10, exported as `flakeModules.default` at
+# flake.nix:59) which modules/parts/hosts.nix imports. A second declaration
+# here was a duplicate — removed 2026-09-13.
 #
 # Leaving these undeclared is the single most expensive mistake available in a
 # modular flake-parts design: it silently re-creates today's monolith by making
@@ -32,17 +32,6 @@
         The composition API private flakes consume:
         `nix-config.lib.mkDarwin { …; extraHomeModules = [ … ]; }`.
         Contributed to by more than one part, hence `lazyAttrsOf`, not `unique`.
-      '';
-    };
-
-    darwinConfigurations = lib.mkOption {
-      type = lib.types.lazyAttrsOf lib.types.raw;
-      default = { };
-      description = ''
-        Instantiated nix-darwin configurations, used by `darwin-rebuild`.
-        Mirrors flake-parts' own `flake.nixosConfigurations`
-        (modules/nixosConfigurations.nix:11), which upstream declares and this
-        one it does not.
       '';
     };
   };
