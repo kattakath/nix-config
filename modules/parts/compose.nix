@@ -21,6 +21,7 @@ let
     determinate
     agenix
     mcp-servers-nix
+    raspberry-pi-nix
     agent-skills-vercel
     agent-skills-anthropic
     agent-skills-cloudflare
@@ -134,8 +135,8 @@ let
             # (or null), baked into the email-signature package as its default
             # --tokens-url (darwin only; inert on the NixOS hosts).
             tokensUrl
-            # operatorSshKey: fleet operator public key — home.nix writes
-            # ~/.ssh/allowed_signers from it so git can verify SSH commit sigs
+            # operatorSshKey: fleet operator public key — home.nix feeds it to
+            # programs.git.signing.allowedSigners so git can verify SSH commit sigs
             # (and the file stays in lockstep with secrets/operator-key.nix).
             operatorSshKey
             ;
@@ -224,6 +225,12 @@ let
         # half-resolving.
         cloudflaredConnectorModule = cloudflared-connector;
         firmwareSecretsModule = firmware-secrets;
+        # The Pi's hardware modules (kernel/firmware/sd-image) reach
+        # hosts/nixpi.nix through here, NOT through a per-call `extraModules`:
+        # that per-call wiring made the private nix-personal flake repeat the
+        # same two modules to build the same Pi — a shape leak. nix-config must
+        # build every host standalone; the private layer passes data only.
+        raspberryPiNix = raspberry-pi-nix;
       };
       modules = [
         { nixpkgs.hostPlatform = system; }

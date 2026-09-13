@@ -7,7 +7,7 @@
 # flake-parts already declares (modules/nixosConfigurations.nix:11).
 { config, inputs, ... }:
 let
-  inherit (inputs) nixpkgs raspberry-pi-nix;
+  inherit (inputs) nixpkgs;
   inherit (config.flake.lib) mkDarwin mkNixos;
 in
 {
@@ -38,13 +38,11 @@ in
     # private nix-personal flake (docs/private-home-modules.md). It used to say
     # "kattakath.com static landing page" — that apex left nixpi on 2026-09-07
     # and is a DNS-only CNAME to GitHub Pages now.
+    # No extraModules: hosts/nixpi.nix imports its own Pi hardware modules (via
+    # mkNixos specialArgs), so this call and nix-personal's are both data-only.
     "nixpi" = mkNixos {
       system = "aarch64-linux";
       hostname = "nixpi";
-      extraModules = [
-        raspberry-pi-nix.nixosModules.raspberry-pi
-        raspberry-pi-nix.nixosModules.sd-image
-      ];
     };
 
     # Throwaway aarch64-linux dev VM, materialised ONLY as the graphical

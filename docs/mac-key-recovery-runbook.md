@@ -100,8 +100,9 @@ ssh-add --apple-use-keychain ~/.ssh/id_ed25519
 ```
 
 Home Manager then owns the durable signing surface (`commit.gpgsign` / `tag.gpgsign`,
-`gpg.format=ssh`, absolute `$HOME/.ssh/…` signingkey + `allowedSignersFile` from
-`secrets/operator-key.nix` × `userEmail`, login `ssh-keychain-load` LaunchAgent).
+`gpg.format=ssh`, absolute `$HOME/.ssh/…` signingkey, and the allowed-signers file at
+`$XDG_CONFIG_HOME/git/allowed_signers` from `secrets/operator-key.nix` × `userEmail` — all
+through `programs.git.signing`; login `ssh-keychain-load` LaunchAgent).
 Add `--fresh` to skip the confirmation on a headless box.
 
 ## Why recovery is split in two

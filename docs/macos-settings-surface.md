@@ -184,8 +184,8 @@ arch prefix. Rule of thumb enforced in the header: tools available in nixpkgs st
 ## 4. Home Manager layer (`modules/shared/home.nix`)
 
 Per-user config; the GUI/macOS blocks are gated `lib.mkIf pkgs.stdenv.isDarwin`.
-Configured today: `programs.git` (SSH commit/tag signing + `gpg.ssh.allowedSignersFile`),
-`home.file.".ssh/allowed_signers"` (operator pubkey × `userEmail`), `programs.ssh`
+Configured today: `programs.git.signing` (SSH commit/tag signing; its `allowedSigners`
+lines = operator pubkey × `userEmail`, private principals appended by nix-personal), `programs.ssh`
 (`UseKeychain` / `AddKeysToAgent` / `IdentityFile` on Darwin), login
 `launchd.agents.ssh-keychain-load` (loads Keychain identities into the agent for
 GUI git signing), `programs.zsh` + `starship` + `bash`, `programs.gh`,

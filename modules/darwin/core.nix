@@ -309,13 +309,8 @@ in
   environment.systemPackages = with pkgs; [
     coreutils
     curl
-    # Mac App Store CLI, for on-demand installs alongside homebrew.masApps.
-    # From nixpkgs, NOT a brew: modules/darwin/xcode-license.nix already uses
-    # `pkgs.mas` as a store path in its activation script, so the brew existed
-    # only to put the SAME tool on the interactive PATH — a second copy of a
-    # package the fleet already depends on. No buildEnv collision either way,
-    # since nothing else ships `mas`.
-    mas
+    # `mas` (Mac App Store CLI) is on PATH through programs.mas
+    # (modules/darwin/xcode-license.nix; pinned programs/mas.nix:205).
   ];
 
   system = {
@@ -439,13 +434,6 @@ in
         FXArrangeGroupViewBy = "Date Modified";
         FK_StandardViewSettings = finderStandardViewSettings;
         StandardViewSettings = finderLegacyViewSettings;
-      };
-
-      # Menu bar: never show (always hidden).
-      # AutoHideMenuBarOption maps to System Settings > Menu Bar dropdown:
-      # 0 = Always, 1 = On Desktop Only, 2 = In Full Screen Only, 3 = Never
-      CustomUserPreferences."com.apple.controlcenter" = {
-        AutoHideMenuBarOption = 3;
       };
     };
 

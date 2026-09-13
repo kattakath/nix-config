@@ -199,12 +199,10 @@ let
                      'sandbox: write ? undefined : "${grokSandboxProfile}",'
   '';
 
-  # Absolute operator SSH paths under $HOME. Git treats a non-absolute
-  # gpg.ssh.allowedSignersFile as worktree-relative (would look in <repo>/.ssh/).
+  # Absolute operator SSH paths under $HOME.
   sshDir = "${config.home.homeDirectory}/.ssh";
   operatorPrivateKey = "${sshDir}/id_ed25519";
   operatorPublicKey = "${sshDir}/id_ed25519.pub";
-  allowedSignersFile = "${sshDir}/allowed_signers";
 
   # Shared by bash/zsh interactive init (GUI apps use launchd.agents.ssh-keychain-load).
   sshKeychainLoadShell = ''
@@ -408,7 +406,6 @@ in
     ./claude-otel.nix # local OTel Collector for Claude Code's routing-decision telemetry (macos only)
     ./chromium.nix # ungoogled-chromium (Homebrew cask) config: sideloaded iCloud Passwords + its native host
     ./default-browser.nix # local.defaultBrowser — the macOS LaunchServices http/https claim
-    ./git-allowed-signers.nix # extra allowed_signers principals (option only; nix-personal fills)
     # Local-first RAG stack (loopback launchd Postgres+pgvector + Ollama + in-DB
     # embed()) — the ABSORBED capsule (modules/features/local-rag/). Both of its
     # modules are internally gated on (enable && isDarwin) — a clean no-op on
@@ -932,14 +929,6 @@ in
     source = ../../qwen/QWEN.md;
   };
 
-  # Git SSH allowed_signers (principal = userEmail, key = operatorSshKey).
-  # Extra principals: options.kattakath.git.extraAllowedSignersPrincipals
-  # (git-allowed-signers.nix), filled from nix-personal.
-  # HM target is home-relative; programs.git uses absolute allowedSignersFile.
-  home.file.".ssh/allowed_signers".text = lib.concatMapStrings (principal: ''
-    ${principal} namespaces="git" ${operatorSshKey}
-  '') (lib.unique ([ userEmail ] ++ config.kattakath.git.extraAllowedSignersPrincipals));
-
   # ---- FlashSpace app settings (macOS only) -------------------------------------
   # grepped home-manager/modules for flashspace — `programs.flashspace.settings`
   # exists but is INERT (it emits settings.toml, which the app never reads next
@@ -1199,14 +1188,26 @@ in
         user.email = lib.mkDefault userEmail;
         init.defaultBranch = "main";
         pull.rebase = true;
-        # SSH commit/tag signing (GitHub/GitLab Verified). Absolute $HOME paths —
-        # non-absolute allowedSignersFile is worktree-relative. Forge still needs
-        # the pubkey as a *Signing* key (docs/mac-key-recovery-runbook.md).
-        commit.gpgsign = true;
-        tag.gpgsign = true;
-        gpg.format = "ssh";
-        user.signingkey = operatorPublicKey;
-        gpg.ssh.allowedSignersFile = allowedSignersFile;
+      };
+
+      # SSH commit/tag signing (GitHub/GitLab Verified). The forge still needs
+      # the pubkey as a *Signing* key (docs/mac-key-recovery-runbook.md).
+      # upstream option home-manager.programs.git.signing exists → using it
+      # (pinned programs/git.nix:63-116; impl :470-506 writes
+      # $XDG_CONFIG_HOME/git/allowed_signers and points gpg.ssh.allowedSignersFile
+      # at it). This replaced a hand-written ~/.ssh/allowed_signers, five raw INI
+      # keys and a custom option (kattakath.git.extraAllowedSignersPrincipals)
+      # that nix-personal filled — private principals now append to THIS
+      # upstream `lines` option, so the private layer touches no custom seam.
+      # `format` is explicit because home.stateVersion 24.05 predates the "ssh"
+      # default (git.nix:20-31). `signer` is left to upstream (nixpkgs' ssh-keygen).
+      signing = {
+        key = operatorPublicKey;
+        format = "ssh";
+        signByDefault = true;
+        allowedSigners = ''
+          ${userEmail} namespaces="git" ${operatorSshKey}
+        '';
       };
 
       # Per-directory identity under ~/Developer/<host>/<owner>/. Work email lives

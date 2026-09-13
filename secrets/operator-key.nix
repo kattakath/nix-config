@@ -7,7 +7,7 @@
 # consumer, so rotating the key touches ONE file instead of several in lockstep:
 #   flake.nix                  → operatorSshKey → mkNixos specialArgs + HM
 #   modules/nixos/core.nix     → users.users.<op>.openssh.authorizedKeys.keys
-#   modules/shared/home.nix    → ~/.ssh/allowed_signers (git SSH signature trust)
+#   modules/shared/home.nix    → programs.git.signing.allowedSigners (git SSH signature trust)
 #   secrets/secrets.nix        → the `operator` agenix recipient
 #
 # After rotation also re-register the pubkey on GitHub as a *Signing* key

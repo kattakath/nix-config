@@ -748,17 +748,12 @@ let
   endpointFor =
     name: transport: "http://${gatewayHost}:${toString gatewayPort}/servers/${name}/${transport}";
 
-  # CLIENT SIDE: shape each hosted URL into a Streamable HTTP entry. The URL is
-  # already built (in the `endpoints` option); this only wraps it as data.
-  httpEntries = lib.mapAttrs (_: url: {
-    type = "http";
-    inherit url;
-  }) cfg.endpoints;
-
-  # VS Code uses `servers` as the top-level key (NOT `mcpServers` — a mismatch VS
-  # Code silently ignores) and takes `type = "http"` directly, so it connects to
-  # the SAME gateway processes as claude-code. Same hosted servers, no desktop-commander.
-  vscodeMcpJson = builtins.toJSON { servers = httpEntries; };
+  # CLIENT SIDE: every hosted URL becomes one entry in home-manager's
+  # `programs.mcp.servers` hub (pinned programs/mcp.nix:127-135; a bare `url` is
+  # typed "http" by lib.hm.mcp.addType, lib/mcp.nix:144-152), from which each
+  # client's own module renders its file. The URL is already built (in the
+  # `endpoints` option); this only wraps it as data.
+  hubServers = lib.mapAttrs (_: url: { inherit url; }) cfg.endpoints;
 
   # Grok CLI (xAI, grok 0.2.x) is a 4th MCP client living OUTSIDE Nix: a self-updating
   # binary at ~/.grok/bin/grok (on PATH via home.sessionPath), config at ~/.grok/config.toml.
@@ -1123,8 +1118,19 @@ in
       }
     ];
 
+    # ---- The hub: one declaration, every client ------------------------------
+    programs.mcp = {
+      enable = true;
+      servers = hubServers;
+    };
+
     # ---- Client side A: Claude Code (home-manager module) ----------------------
-    programs.claude-code.mcpServers = httpEntries // {
+    # upstream option home-manager.programs.claude-code.enableMcpIntegration
+    # exists → using it (pinned claude-code/options.nix:41-59; merge at
+    # default.nix:47-50, where `mcpServers` entries win on collision). Only the
+    # two per-client stdio servers stay declared here.
+    programs.claude-code.enableMcpIntegration = true;
+    programs.claude-code.mcpServers = {
       # NOT hosted — a shell/RCE surface stays a per-client stdio server.
       desktop-commander = {
         type = "stdio";
@@ -1176,21 +1182,14 @@ in
       };
     };
 
-    # ---- Client side B: VS Code (home-manager-managed → pure declarative file) --
-    # VS Code is managed here (programs.vscode in modules/shared/home.nix), so its
-    # MCP config is just a Nix-written file at the user mcp.json (coexists with the
-    # settings.json HM already writes there). UPSTREAM HAS CAUGHT UP: pinned
-    # home-manager now writes this exact path from `programs.vscode.profiles.<n>.userMcp`
-    # (mkVscodeModule.nix:136-145, :393-411) and can feed it from the `programs.mcp`
-    # hub — the moment any profile sets it, this `home.file` collides. Migrating
-    # both clients to the hub is the next abstraction pass; until then this stays
-    # the only writer. VS Code speaks `type = "http"` natively,
-    # so it connects to the SAME gateway processes — no extra server instances.
-    # GATED on programs.vscode.enable: drop VS Code and this file is never written (no
-    # stray Code/User/ dir). Read-only/Nix-managed: add servers to `hostedServerNames`.
-    home.file = lib.mkIf config.programs.vscode.enable {
-      "Library/Application Support/Code/User/mcp.json".text = vscodeMcpJson;
-    };
+    # ---- Client side B: VS Code (home-manager-managed) -------------------------
+    # upstream option home-manager.programs.vscode.profiles.<n>.enableMcpIntegration
+    # exists → using it (pinned mkVscodeModule.nix:123-134; the user mcp.json is
+    # written at :393-411 with `servers` as the top-level key and `type = "http"`
+    # added per entry — the exact file a hand-written home.file produced here
+    # until 2026-09-13, one profile setting away from a collision). GATED on
+    # programs.vscode.enable: drop VS Code and nothing is written.
+    programs.vscode.profiles.default.enableMcpIntegration = lib.mkIf config.programs.vscode.enable true;
 
     # ---- Client side C: Grok CLI (stateful ~/.grok/config.toml → grok owns the merge)
     # No `programs.grok` HM module and a stateful config.toml, so an activation script merges
