@@ -700,9 +700,14 @@ in
     telegram.enable = true;
   };
 
-  # Make Home-Manager-installed font packages discoverable by applications.
-  # Essential on Linux (registers fonts with fontconfig); harmless no-op on macOS.
-  fonts.fontconfig.enable = true;
+  # Make Home-Manager-installed font packages discoverable by applications —
+  # LINUX ONLY. On macOS this is NOT what makes fonts visible: pinned
+  # home-manager targets/darwin/fonts.nix already rsyncs every package's
+  # share/fonts into ~/Library/Fonts/HomeManager unconditionally. And it is not
+  # a no-op there either: fontconfig.nix:315-350 is not platform-gated, so it
+  # was adding two dummy packages and running `fc-cache -f` on every darwin
+  # profile build for nothing.
+  fonts.fontconfig.enable = pkgs.stdenv.hostPlatform.isLinux;
 
   # PERSONAL, cross-host packages only — tools wanted on EVERY machine, not
   # project toolchains (those live in each repo's own devShell). claude-code is
@@ -763,7 +768,6 @@ in
       design-tokens # `design-tokens [--tokens-url URL] [--out DIR]` — transform the gist DTCG tokens.json into SCSS/CSS/JS via Style Dictionary, to ~/.local/share/design-tokens/ (packages/design-tokens/)
       jobspy # `jobspy --search … --location …` — scrape jobs (LinkedIn/Indeed/…) into CSV/JSON via python-jobspy in an ephemeral uv env (packages/jobspy.nix)
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
-      jdk17 # JRE for the Android sdkmanager/avdmanager (JVM tools); emulator itself needs no Java
       qwen-code # `qwen` — Alibaba's Gemini-CLI-fork coding agent, pointed at a LOCAL Qwen model served by Ollama's OpenAI-compatible endpoint (config in ~/.qwen/.env below, NOT the global OpenAI env — those generic var names would hijack other tools). Pull the model with `ollama pull qwen3-coder:30b`.
       inngest # `inngest` — CLI + local dev server for Inngest durable workflows (not in Homebrew; nixpkgs has it)
       stripe-cli # Stripe CLI (`stripe`) — API calls, webhook forwarding (`stripe listen`), event triggers; auth is a one-time `stripe login` browser OAuth (config in ~/.config/stripe, never in git/store — same one-time-CLI-login convention as gh/hf/docker). Pairs with the stripe@claude-plugins-official plugin (local.claudePlugins.marketplaces above)
@@ -829,8 +833,6 @@ in
     RCLIP_USE_ONNX_ON_MACOS = "1";
 
     ANDROID_HOME = androidSdkRoot;
-    # sdkmanager/avdmanager are JVM tools; point them at the nixpkgs JDK 17.
-    JAVA_HOME = pkgs.jdk17.home;
 
     # Where buku keeps `bookmarks.db`. Pinned because buku otherwise scatters it into a
     # platform-guessed data dir, and this DB is the single surviving copy of the merged
@@ -976,6 +978,18 @@ in
   programs = {
     # Let Home Manager manage itself.
     home-manager.enable = true;
+
+    # JDK 17 for the Android sdkmanager/avdmanager (JVM tools; the emulator
+    # itself needs no Java), so darwin-only like the rest of the Android block.
+    # upstream option home-manager.programs.java exists → using it (pinned
+    # programs/java.nix:19-37: the package + JAVA_HOME = "${package.home}" in
+    # sessionVariables, which is exactly what a bare home.packages entry plus a
+    # hand-set JAVA_HOME used to spell out — and it kept a JDK on the Linux hosts
+    # that have no Android tooling).
+    java = {
+      enable = pkgs.stdenv.hostPlatform.isDarwin;
+      package = pkgs.jdk17;
+    };
 
     # Claude Code CLI. On darwin we manage it via the module (not just as a bare
     # package) so ./mcp.nix can attach `mcpServers` — the localhost MCP gateway's
@@ -1262,21 +1276,15 @@ in
       enableDefaultConfig = false;
 
       settings = {
-        # Defaults + Keychain-backed agent for git SSH signing / non-interactive SSH.
-        # Paths absolute under $HOME.
+        # Keychain-backed agent for git SSH signing / non-interactive SSH. Only the
+        # three values that carry a DECISION are set; the rest of home-manager's
+        # retired default block (ForwardAgent/Compression/ServerAlive*/HashKnownHosts/
+        # Control*/UserKnownHostsFile) were OpenSSH's own compiled defaults restated,
+        # so they are left to ssh_config(5). `enableDefaultConfig = false` stays.
         "*" = {
-          ForwardAgent = false;
           AddKeysToAgent = "yes";
           UseKeychain = "yes";
           IdentityFile = operatorPrivateKey;
-          Compression = false;
-          ServerAliveInterval = 0;
-          ServerAliveCountMax = 3;
-          HashKnownHosts = false;
-          UserKnownHostsFile = "${sshDir}/known_hosts";
-          ControlMaster = "no";
-          ControlPath = "${sshDir}/master-%r@%n:%p";
-          ControlPersist = "no";
         };
 
         # Local NixOS hosts (mDNS .local) — agent forwarding on for interactive
