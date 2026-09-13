@@ -43,7 +43,7 @@
 # satellites and never became capsules: they were extraction candidates nix-config never
 # adopted, so nothing arrived in-tree when they left. Archived, not deleted (ADR-002 §7.8)
 # — both stay public and readable, which is where the "why it wasn't adopted" lives:
-#   nix-mcp-gateway  — a THIN, GENERIC `services.mcpGateway` broker module. The fleet kept
+#   nix-mcp-gateway  — a THIN, GENERIC `local.mcpGateway` broker module. The fleet kept
 #                      its own fully-wired ~20-server deployment in modules/shared/mcp.nix,
 #                      which carries the long-form note (one generic module vs. one
 #                      concrete deployment — never two competing options).

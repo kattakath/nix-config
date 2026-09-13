@@ -75,7 +75,7 @@ Pick the matching pattern, in order of preference:
 | mcp-servers-nix packages it | `gatewayConfig.programs.<name>.enable = true` (+ `passwordCommand` for tokens) | `context7`, `github` |
 | npm/PyPI, no secrets | `customStdioServers.<name>` with **pinned version** npx/uvx launcher | `mcpfinder`, `postgres` |
 | Needs secrets | `writeShellScriptBin "nix-mcp-<name>"` Keychain wrapper (warn-but-exec), referenced via `lib.getExe` | `wpMcp`, `apifyMcp` |
-| Exits without one-time auth/state | Same wrapper + `services.mcpGateway.<name>.enable` opt-in, merged via `lib.optionalAttrs` | `telegram` |
+| Exits without one-time auth/state | Same wrapper + `local.mcpGateway.<name>.enable` opt-in, merged via `lib.optionalAttrs` | `telegram` |
 
 Then, always:
 

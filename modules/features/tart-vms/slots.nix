@@ -1,11 +1,11 @@
-# tart.runnerSlots / tart.runnerStateDir — the host-wide concurrent-VM budget
+# local.tart.runnerSlots / local.tart.runnerStateDir — the host-wide concurrent-VM budget
 # and the DURABLE state directory shared by BOTH CI lanes (github-runner.nix's
 # controllers and gitlab-runner.nix's custom executor). Options only; each
 # lane's module imports this file and the module system dedupes the shared
 # path, so a consumer may list either lane or both.
 { config, lib, ... }:
 let
-  cfg = config.tart;
+  cfg = config.local.tart;
 
   # Volatile roots, refused outright. Two independent authors already do this:
   # nix-darwin modules/services/github-runner/service.nix:30 asserts a runner
@@ -26,7 +26,7 @@ let
   underVolatileRoot = p: lib.any (root: p == root || lib.hasPrefix "${root}/" p) volatileRoots;
 in
 {
-  options.tart = {
+  options.local.tart = {
     runnerSlots = lib.mkOption {
       type = lib.types.ints.positive;
       default = 2;
@@ -61,7 +61,7 @@ in
       # crash-looped every ~60s with 0 runners registered — silently, for a
       # day. An eval failure is the loudest signal available; take it.
       assertion = !(underVolatileRoot cfg.runnerStateDir);
-      message = "tart.runnerStateDir must not be under a volatile root (${lib.concatStringsSep ", " volatileRoots}): it holds SSH host-key pins, the slot semaphore and both lanes' logs, and macOS purges those paths.";
+      message = "local.tart.runnerStateDir must not be under a volatile root (${lib.concatStringsSep ", " volatileRoots}): it holds SSH host-key pins, the slot semaphore and both lanes' logs, and macOS purges those paths.";
     }
     {
       # Measured on OpenSSH_10.3p1: ssh re-tokenizes the argument to
@@ -73,7 +73,7 @@ in
       # the other lane. Hence ~/.local/state and not ~/Library/Application
       # Support.
       assertion = builtins.match ".*[[:space:]].*" cfg.runnerStateDir == null;
-      message = "tart.runnerStateDir must not contain whitespace: the host-key pin is passed as `ssh -o UserKnownHostsFile=<dir>/pins/…`, and ssh splits that option's argument on whitespace into multiple filenames.";
+      message = "local.tart.runnerStateDir must not contain whitespace: the host-key pin is passed as `ssh -o UserKnownHostsFile=<dir>/pins/…`, and ssh splits that option's argument on whitespace into multiple filenames.";
     }
   ];
 }

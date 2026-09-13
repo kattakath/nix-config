@@ -20,7 +20,7 @@
   ...
 }:
 let
-  cfg = config.services.firmwareProvisioning;
+  cfg = config.local.firmwareProvisioning;
   # PRIOR ART: systemd's own LoadCredential=, which nixpkgs already uses for exactly
   # this shape -- nixos/modules/services/networking/cloudflared.nix:387-390 loads the
   # tunnel credentials + cert straight off an operator-supplied path. Grepped the
@@ -66,7 +66,7 @@ let
     };
 in
 {
-  options.services.firmwareProvisioning = {
+  options.local.firmwareProvisioning = {
     firmwareDir = lib.mkOption {
       type = lib.types.str;
       default = "/boot/firmware";

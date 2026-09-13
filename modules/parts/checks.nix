@@ -58,7 +58,7 @@ in
           bedrock-gate-after-loader =
             let
               hm = config.flake.darwinConfigurations.macos.config.home-manager.users.${loginName};
-              loaderMark = hm.programs.keychainSecrets.loaderRelPath;
+              loaderMark = hm.local.keychainSecrets.loaderRelPath;
               # From claude-bedrock-gate.nix's `gateShell`. `+x`, not a value
               # test, because Bedrock is selected by mere PRESENCE.
               gateMark = "CLAUDE_CODE_USE_BEDROCK+x";
@@ -115,7 +115,7 @@ in
           #   hosts/nixpi.nix orders the firmware-planted token
           #     `before`/`requiredBy` "cloudflared-connector.service", a name the
           #     CAPSULE owns.
-          #   services.firmwareProvisioning derives "firmware-file-<key>.service"
+          #   local.firmwareProvisioning derives "firmware-file-<key>.service"
           #     from each attribute key, and hosts/nixpi.nix's supplicant override
           #     names "firmware-file-wifi.service" back by hand.
           #   The /run targets are the handoff between the firmware partition and

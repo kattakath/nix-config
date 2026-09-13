@@ -1,6 +1,6 @@
 # infra/cloudflare/mcp-public.nix — terranix module for the PUBLISHED MCP gateway.
 #
-# Pairs with `services.mcpGateway.public` in modules/shared/mcp.nix. That flag puts
+# Pairs with `local.mcpGateway.public` in modules/shared/mcp.nix. That flag puts
 # the opt-in subset of gateway servers on a SECOND mcp-proxy (127.0.0.1:8097) on
 # macos; this module is everything Cloudflare-side that makes it reachable:
 #
@@ -54,7 +54,7 @@
   # infra/cloudflare/nixpi-tunnel.nix, which declares its arguments required.
   publicSubdomain,
   # Gateway server names published through the portal. Mirrors
-  # services.mcpGateway.public; empty renders the tunnel + Access objects but
+  # local.mcpGateway.public; empty renders the tunnel + Access objects but
   # registers no server, so nothing is actually reachable.
   publicServers,
   # Remote MCP Workers published under the SAME hostname as the gateway, as a
@@ -136,7 +136,7 @@ let
     map (n: {
       key = "srv_${srvKey n}";
       id = n;
-      description = "Published from the macos MCP gateway (services.mcpGateway.public).";
+      description = "Published from the macos MCP gateway (local.mcpGateway.public).";
     }) publicServers
     ++ map (e: {
       key = "srv_${srvKey e.name}";
@@ -267,7 +267,7 @@ in
     content = "${tunnelId}.cfargotunnel.com";
     proxied = true;
     ttl = 1;
-    comment = "published MCP gateway (services.mcpGateway.public) - Access service token only";
+    comment = "published MCP gateway (local.mcpGateway.public) - Access service token only";
   };
 
   # ---- (e) The service token -------------------------------------------------

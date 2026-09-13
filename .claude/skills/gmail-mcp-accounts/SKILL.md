@@ -2,7 +2,7 @@
 name: gmail-mcp-accounts
 description: >
   Add, remove, or authenticate accounts for the self-hosted multi-account
-  Gmail MCP (services.mcpGateway.gmail.accounts, modules/shared/mcp.nix) —
+  Gmail MCP (local.mcpGateway.gmail.accounts, modules/shared/mcp.nix) —
   TRUE simultaneous multi-account Gmail via ArtyMcLabin/Gmail-MCP-Server, one
   process per account, unlike the built-in single-account connector. Use when
   asked to "add a gmail account", "authenticate gmail mcp", "gmail multi

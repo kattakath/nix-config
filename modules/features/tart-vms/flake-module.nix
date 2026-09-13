@@ -15,7 +15,7 @@
 #    both `imports = [ ./slots.nix ]`, and the module system dedupes modules by
 #    PATH identity. The satellite said so at its own export site and exported
 #    paths, not `import`ed functions, for exactly this reason: a consumer listing
-#    both must not get two `tart.runnerSlots` declarations. They therefore go out
+#    both must not get two `local.tart.runnerSlots` declarations. They therefore go out
 #    through `capsuleModules` (`lazyAttrsOf raw`, a definition passed through
 #    UNCHANGED — modules/parts/capsules.nix § The RAW module seam) and NOT
 #    through `flake.modules`, whose `deferredModule` element type wraps every
@@ -100,7 +100,7 @@
 
 #
 # ---- ./darwin.nix HAS NO CONSUMER TODAY, and is kept on purpose -------------
-# `tart.vms.<name>` (the generic guest lifecycle module) lost its only consumer
+# `local.tart.vms.<name>` (the generic guest lifecycle module) lost its only consumer
 # when `macvm` was removed on 2026-09-05. docs/macvm-readd-runbook.md is the
 # standing plan to bring that host back and names this module as step 1, so
 # archiving the satellite without keeping it would delete the runbook's
@@ -131,12 +131,12 @@
   # nix-darwin's own `_class` string, so these are accepted anywhere a
   # nix-darwin module is.
   capsuleModules.darwin = {
-    # tart.githubRunners.* — ephemeral Tart-VM-per-job GitHub runners.
+    # local.tart.githubRunners.* — ephemeral Tart-VM-per-job GitHub runners.
     tart-github-runner = ./github-runner.nix;
-    # tart.gitlabRunner.* — declarative gitlab-runner on the same custom
+    # local.tart.gitlabRunner.* — declarative gitlab-runner on the same custom
     # executor and the same two-guest slot budget.
     tart-gitlab-runner = ./gitlab-runner.nix;
-    # tart.vms.* — the generic guest lifecycle module. No consumer today; see
+    # local.tart.vms.* — the generic guest lifecycle module. No consumer today; see
     # the ./darwin.nix note above.
     tart-vms = ./darwin.nix;
   };

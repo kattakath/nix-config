@@ -14,7 +14,7 @@ description: >
 # nixpi firmware provisioning
 
 nixpi reads two operator-planted files off the SD card's FAT `FIRMWARE` partition at
-boot (`services.firmwareProvisioning`, the in-tree
+boot (`local.firmwareProvisioning`, the in-tree
 `modules/features/firmware-secrets/` capsule),
 copying each into a root-only `/run` file before its consumer starts:
 
