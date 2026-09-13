@@ -39,7 +39,7 @@
   orgName,
   flakeRef,
   # Git commit author email (same as flake identityArgs.userEmail) — principal
-  # for ~/.ssh/allowed_signers so local git SSH signature verify matches commits.
+  # for the allowed-signers file so local git SSH signature verify matches commits.
   userEmail,
 }:
 let
@@ -225,13 +225,15 @@ in
             FIX_ETC=0
             FRESH=0
 
-            # Interim allowed_signers + Keychain unlock (HM rewrites allowed_signers
-            # on activate from operator-key.nix × userEmail). Principal must match
+            # Interim allowed_signers + Keychain unlock (HM rewrites it on activate
+            # from operator-key.nix × userEmail through programs.git.signing, at
+            # $XDG_CONFIG_HOME/git/allowed_signers). Principal must match
             # programs.git user.email or local SSH signature verify stays broken.
             seed_git_ssh_signing() {
+              mkdir -p "$HOME/.config/git"
               printf '%s namespaces="git" %s\n' "${userEmail}" \
-                "$(cat "$HOME/.ssh/id_ed25519.pub")" > "$HOME/.ssh/allowed_signers"
-              chmod 600 "$HOME/.ssh/allowed_signers"
+                "$(cat "$HOME/.ssh/id_ed25519.pub")" > "$HOME/.config/git/allowed_signers"
+              chmod 600 "$HOME/.config/git/allowed_signers"
               ssh-add --apple-use-keychain "$HOME/.ssh/id_ed25519" 2>/dev/null || true
             }
 
