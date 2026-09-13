@@ -134,7 +134,7 @@ cd "$(dirname "$0")/../assets" && exec rclip "$@"
 **`modules/features/media-cli/` capsule**. They left for
 [`kattakath/nix-media-cli`](https://github.com/kattakath/nix-media-cli) on 2026-09-05 and came
 back in-tree on 2026-09-12 (ADR-002 wave 5); either way they reach the Mac as
-`programs.mediaCli.enable`, which is the whole point of the switch. `rclip` stays outside the
+`local.mediaCli.enable`, which is the whole point of the switch. `rclip` stays outside the
 capsule: it is the VECTOR half, a third-party tool this repo merely installs, and it reaches
 the stack through that module's `extraSearchPackages` seam.
 

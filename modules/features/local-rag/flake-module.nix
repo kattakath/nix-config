@@ -9,7 +9,7 @@
 # `embed()` function that joins them so retrieval is plain SQL. No API key,
 # nothing leaves the machine. See ./README.md.
 #
-# THE SEAM THAT MATTERS. `services.pgvectorLocal.databaseUri` is read by
+# THE SEAM THAT MATTERS. `local.rag.pgvector.databaseUri` is read by
 # modules/shared/mcp.nix and handed to the gateway's `postgres` MCP server as
 # `env.DATABASE_URI`. That one string is how the career RAG (`career_docs` in
 # `ragdb`) reaches Claude Code, and it is the named acceptance criterion for
@@ -21,8 +21,8 @@
 #   modules/pgvector-local.nix  -> ./pgvector-local.nix   BYTE-IDENTICAL
 #     The two stay ADJACENT because pgvector-local.nix:51 does
 #     `imports = [ ./ollama-local.nix ]` — that relative literal is the whole
-#     reason `services.pgvectorLocal` can single-source `embedModel`/`embedDim`
-#     from `services.ollamaLocal` even when a consumer imports only the
+#     reason `local.rag.pgvector` can single-source `embedModel`/`embedDim`
+#     from `local.rag.ollama` even when a consumer imports only the
 #     postgres half. Flattening them to the capsule root (rather than keeping a
 #     `modules/` subdirectory) also keeps that literal a SIBLING path, which is
 #     what the capsule invariant permits.
@@ -46,8 +46,8 @@
 # apply and no `-packages` check is invented to look symmetrical.
 #
 # NO `programs.localRag.enable`. ADR-002 §4 names a wrapping third switch as
-# "the two-switch regression the brief forbids": `services.ollamaLocal.enable`
-# and `services.pgvectorLocal.enable` each gate their own
+# "the two-switch regression the brief forbids": `local.rag.ollama.enable`
+# and `local.rag.pgvector.enable` each gate their own
 # `config = lib.mkIf (cfg.enable && isDarwin)`, and a consumer that wants only
 # the embedding half must keep being able to say so. `./checks/…`'s `inert`
 # check is what makes that design honest rather than merely smaller.
@@ -74,7 +74,7 @@
 #
 # i.e. the wrap does NOT bite here — this capsule contributes nothing to
 # `home.packages` directly (its packages arrive via upstream's own
-# `services.ollama` and via `services.pgvectorLocal`, both from inside the two
+# `services.ollama` and via `local.rag.pgvector`, both from inside the two
 # modules), so the extra level of `imports` leaves the collected order where it
 # was. `capsuleModules` is chosen anyway, for two reasons that are not
 # "it measured different":

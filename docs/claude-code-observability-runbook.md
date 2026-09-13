@@ -17,7 +17,7 @@ to analyze — no external service, no dashboard, nothing leaves the machine.
 
 | Piece | Role | Lives |
 |---|---|---|
-| `services.claudeOtel` | Enables the collector + generates its config; exposes `otlpEndpoint`/`eventsFile` options | `modules/shared/claude-otel.nix` |
+| `local.claudeOtel` | Enables the collector + generates its config; exposes `otlpEndpoint`/`eventsFile` options | `modules/shared/claude-otel.nix` |
 | `otelcol-contrib` (`pkgs.opentelemetry-collector-contrib`) | The collector binary itself — official upstream, prebuilt/substitutable on `aarch64-darwin`, no local compile | nixpkgs |
 | `launchd.agents.claude-otel-collector` | Always-on launchd agent (same `RunAtLoad`/`KeepAlive` shape as `mcp-gateway`), auto-wrapped to `nix-claude-otel-collector` by `hm-launchd` | `modules/shared/claude-otel.nix` |
 | `programs.claude-code.settings.env` | The `CLAUDE_CODE_ENABLE_TELEMETRY`/`OTEL_*` env vars Claude Code reads from `~/.claude/settings.json` at startup | `modules/shared/home.nix` |
@@ -26,7 +26,7 @@ to analyze — no external service, no dashboard, nothing leaves the machine.
 | `/routing-review` | Reads the events file, buckets `tool_decision` by `source`, proposes deterministic hardening | `.claude/commands/routing-review.md` |
 | `routing-review-digest.js` | `SessionStart` nudge — mirrors `superhook-digest.js`: surfaces unreviewed `user_temporary`/`user_permanent` decisions in context, only once a small threshold is crossed | `.claude/hooks/routing-review-digest.js`, wired in `.claude/settings.json` |
 
-**If you ever override `services.claudeOtel.eventsFile` or `otlpEndpoint`
+**If you ever override `local.claudeOtel.eventsFile` or `otlpEndpoint`
 from their defaults**, the two non-Nix-templated consumers (`claude-otel-doctor`
 and `routing-review-digest.js` — plain scripts, not built from the Nix
 option value) need to be told separately: `CLAUDE_OTEL_EVENTS_FILE` and
@@ -118,7 +118,7 @@ human-judgment decisions; there was zero real data when `3` was picked.
 | Path | What |
 |---|---|
 | `modules/shared/claude-otel.nix` | Collector config generation + launchd agent |
-| `modules/shared/home.nix` | Import + `services.claudeOtel.enable` + `programs.claude-code.settings.env` |
+| `modules/shared/home.nix` | Import + `local.claudeOtel.enable` + `programs.claude-code.settings.env` |
 | `packages/claude-otel-doctor.nix` | Health check, wired as `nix run .#claude-otel-doctor` |
 | `.claude/commands/routing-review.md` | The analysis/hardening-proposal loop |
 | `.claude/hooks/routing-review-digest.js` | `SessionStart` nudge, registered in `.claude/settings.json` |

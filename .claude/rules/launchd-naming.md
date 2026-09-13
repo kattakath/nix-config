@@ -83,7 +83,7 @@ Measured on this machine, 2026-09-06:
 
 It then **never self-heals**: launchd parks the job on an "Executable appearance"
 retry event that does **not** fire when the file arrives via a *volume mount*.
-`services.macosGithubRunner`'s two daemons sat at `runs = 1,
+`local.macosGithubRunner`'s two daemons sat at `runs = 1,
 state = spawn scheduled` for an entire 10h52m uptime, and `darwin-rebuild switch`
 did not recover them (nix-darwin only re-bootstraps daemons whose plist changed).
 
@@ -113,7 +113,7 @@ and `~/Downloads`. The runner daemons run as `_github-runner` and touch only
 `/var/lib`; they read none of those. Only BTM legibility is lost, and the process
 after `exec` is still `nix-github-runner-<instance>`.
 
-Live example: `services.macosGithubRunner` in `modules/darwin/github-runner.nix`.
+Live example: `local.macosGithubRunner` in `modules/darwin/github-runner.nix`.
 
 ### A CRASH is retried; a failed EXEC is not — that asymmetry is the whole bug
 

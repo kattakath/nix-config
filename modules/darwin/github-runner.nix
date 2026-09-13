@@ -41,7 +41,7 @@
   ...
 }:
 let
-  cfg = config.services.macosGithubRunner;
+  cfg = config.local.macosGithubRunner;
   host = "macos";
   user = "_github-runner";
   # Upstream nixpkgs' `github-runner` bundles only `externals/node24` BY DEFAULT — Node 20
@@ -219,7 +219,7 @@ let
   instances = map mkInstance (lib.range 1 cfg.count);
 in
 {
-  options.services.macosGithubRunner = {
+  options.local.macosGithubRunner = {
     enable = lib.mkEnableOption ''
       self-hosted GitHub Actions runner(s) on the `macos` host (hand-rolled launchd
       daemons — nix-darwin's own `services.github-runners` is incompatible with
@@ -262,7 +262,7 @@ in
     #
     # This lane is BARE METAL: the job runs directly on the Mac, so it sees the
     # operator's nix, cachix and a postgres+pgvector on PATH. The OTHER macOS
-    # lane in this fleet (`tart.githubRunners.*`, the tart-vms capsule) boots a stock
+    # lane in this fleet (`local.tart.githubRunners.*`, the tart-vms capsule) boots a stock
     # Cirrus guest per job that has NONE of that. Both register into the same
     # org and the same `Default` runner group.
     #
@@ -306,7 +306,7 @@ in
         {self-hosted, macOS, ARM64} ∪ extraLabels.
 
         `nix` is the toolchain discriminator that tells this bare-metal lane
-        apart from the Tart-VM lane (`tart.githubRunners.*`), which carries
+        apart from the Tart-VM lane (`local.tart.githubRunners.*`), which carries
         `tart` instead. Matching is case-insensitive, so `ARM64` here satisfies
         a job asking for `arm64`.
       '';

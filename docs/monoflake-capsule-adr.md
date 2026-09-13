@@ -142,7 +142,7 @@ commit — or it cries wolf on day one and gets disabled.
 | **3** | Capsule scaffold + `cloudflared-connector` (241 lines, cleanest) | snapshot the four nixpi firmware names as literal assertions first — a rename is invisible until the next flash (~40 min trip) |
 | **4** | `firmware-secrets`, `keychain-secrets`, `vast-provision` | per-capsule standalone-eval + ast-grep green |
 | **5** | `tart-vms`, `media-cli` — 70% of the lines, but nix-config consumes 4 attributes and nix-personal **zero** | the 7 module checks + the kill-switch gate |
-| **6** | `local-rag` — a coordinated 3-repo change | `modules/shared/mcp.nix`'s `services.pgvectorLocal.databaseUri` still resolves; that seam carries the whole career RAG |
+| **6** | `local-rag` — a coordinated 3-repo change | `modules/shared/mcp.nix`'s `local.rag.pgvector.databaseUri` still resolves; that seam carries the whole career RAG |
 | **7** | Docs generators on; retire 7 rulesets; archive 7 repos; flip ADR-001 to Superseded | `checks.docs-drift` green |
 | **8** | *Separately:* `nixosOptionsDoc` `warningsAreErrors = true` | land `false` first; never in a collapse PR |
 
@@ -361,8 +361,8 @@ real option tree. **It was not added as a check.** Three measured reasons:
 | `nixosConfigurations.nixpi` | 25,345 | 7 | **0** |
 | `nixosConfigurations.nixvm` | 25,294 | 0 | **0** |
 
-The seven are `tart.githubRunners.<name>.{appId,cpu,image,image.oci,memoryMB,scope}` and
-`tart.gitlabRunner.package`. A textual scan of the whole tree finds **324 option sites**
+The seven are `local.tart.githubRunners.<name>.{appId,cpu,image,image.oci,memoryMB,scope}` and
+`local.tart.gitlabRunner.package`. A textual scan of the whole tree finds **324 option sites**
 (302 `mkOption` + 22 `mkEnableOption` — §3's "~325" was accurate) of which **15 `mkOption` sites
 carry no `description`**; **10 of those 15 are `darwinStubs`**, the `evalModules` fixture in
 `modules/features/tart-vms/checks/module-evaluations.nix` that deliberately approximates
@@ -377,9 +377,9 @@ the 7 rows above (two are submodules whose nested sub-option is also undocumente
    absent key, so the obvious `opt ? description` audit returns **zero missing** and is wrong.
    That false negative was hit while producing the table above.
 2. **It cannot see most of this repo's options.** `home-manager.users` renders as **one opaque
-   row** in a darwin option tree, so `programs.mediaCli`, `programs.keychainSecrets`,
-   `local.terminalTheme`, `services.ollamaLocal` / `services.pgvectorLocal` and
-   `programs.ungoogledChromium` — five of the seven capsules' public surface — are **not covered
+   row** in a darwin option tree, so `local.mediaCli`, `local.keychainSecrets`,
+   `local.terminalTheme`, `local.rag.ollama` / `local.rag.pgvector` and
+   `local.ungoogledChromium` — five of the seven capsules' public surface — are **not covered
    at all**. The generator does not solve the nominated problem, which is the same measured
    verdict §3 reached for flake-parts `partitions`.
 3. **Nothing consumes the output.** Rendering 26k options per host on every CI run, for a

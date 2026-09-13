@@ -12,9 +12,16 @@
 # The runner's QEMU is macOS-native (host.pkgs = aarch64-darwin, set in flake.nix);
 # the aarch64-linux guest closure builds on the native Linux builder or is
 # substituted from Cachix.
-{ ... }:
+{ darwinPkgs, ... }:
 {
   imports = [ ../modules/nixos/desktop-vm.nix ];
+
+  # The `build-vm` variant runs on the aarch64-darwin Mac, so its QEMU runner
+  # must be macOS-native: host.pkgs is the pkgs whose qemu the generated
+  # run-nixvm-vm executes. `darwinPkgs` arrives through mkNixos specialArgs
+  # (modules/parts/compose.nix) and is only forced by the `system.build.vm`
+  # path, so the aarch64-linux toplevel eval never pulls in darwin pkgs.
+  virtualisation.vmVariant.virtualisation.host.pkgs = darwinPkgs;
 
   networking.hostName = "nixvm";
 

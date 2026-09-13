@@ -5,7 +5,7 @@
 # Personal token VALUES are intentionally NOT managed here. On macOS they live
 # in the login Keychain (encrypted at rest) — stored/registered by `secret set`
 # and exported into EVERY shell (not just login ones) by the darwin-only loader
-# from the keychain-secrets capsule (programs.keychainSecrets), which loads once per
+# from the keychain-secrets capsule (local.keychainSecrets), which loads once per
 # process tree and lets descendants inherit. Nothing plaintext is written to disk.
 # The Keychain is macOS-only, so the Linux hosts get no personal-token mechanism
 # here (use one-time CLI logins: gh/hf/docker/claude).
@@ -66,8 +66,8 @@
   kattakath-claude-plugins,
   kattakath-claude-skills,
   kattakath-userscripts,
-  # The ABSORBED local-rag capsule (services.ollamaLocal +
-  # services.pgvectorLocal — the loopback RAG stack) — a MODULE, not a flake,
+  # The ABSORBED local-rag capsule (local.rag.ollama +
+  # local.rag.pgvector — the loopback RAG stack) — a MODULE, not a flake,
   # since ADR-002 wave 6 brought it in-tree as modules/features/local-rag/.
   # Threaded in by modules/parts/compose.nix.
   localRagModule,
@@ -75,7 +75,7 @@
   # loader) — a MODULE, not a flake, since ADR-002 wave 4 brought it in-tree as
   # modules/features/keychain-secrets/. Threaded in by modules/parts/compose.nix.
   keychainSecretsModule,
-  # The ABSORBED media-cli capsule (programs.mediaCli — the CLIs, the launchd
+  # The ABSORBED media-cli capsule (local.mediaCli — the CLIs, the launchd
   # work queue and the Finder Services) — a MODULE, not a flake, since ADR-002
   # wave 5 brought it in-tree as modules/features/media-cli/. Threaded in by
   # modules/parts/compose.nix.
@@ -101,7 +101,7 @@ let
   androidSdkRoot = "/opt/homebrew/share/android-commandlinetools";
 
   # Qwen Code (`qwen`) MCP wiring — reuse the SAME localhost gateway Claude Code
-  # uses (services.mcpGateway.endpoints: one Streamable-HTTP /mcp URL per hosted
+  # uses (local.mcpGateway.endpoints: one Streamable-HTTP /mcp URL per hosted
   # server), so qwen can never drift from the other clients. But CURATE to a
   # coding-focused subset: a local qwen3-coder model degrades when handed too many
   # tools, so the GUI/automation/external-state servers (mobile-mcp,
@@ -121,13 +121,10 @@ let
     "mcp-jq"
     "postgres"
   ];
-  qwenMcpServers =
-    lib.mapAttrs
-      (_: url: {
-        httpUrl = url;
-        timeout = 8000;
-      })
-      (lib.filterAttrs (n: _: builtins.elem n qwenGatewayServers) config.services.mcpGateway.endpoints);
+  qwenMcpServers = lib.mapAttrs (_: url: {
+    httpUrl = url;
+    timeout = 8000;
+  }) (lib.filterAttrs (n: _: builtins.elem n qwenGatewayServers) config.local.mcpGateway.endpoints);
 
   # VS Code Marketplace mirror — provided by the nix-vscode-extensions overlay,
   # which the darwin host (macos) adds to nixpkgs.overlays. Only referenced
@@ -211,6 +208,16 @@ let
     fi
   '';
 
+  # The ONE interactive-shell init both shells get, parameterised on the shell
+  # name fnm needs. fnm: `--use-on-cd` installs a chpwd hook (interactive only),
+  # honours .nvmrc/.node-version, absolute store path so it resolves before the
+  # nix profile is on PATH, and falls through to the Homebrew node when no
+  # project version is active. Kept in one string so bash and zsh cannot drift.
+  interactiveShellInit = shell: ''
+    eval "$(${pkgs.fnm}/bin/fnm env --use-on-cd --shell ${shell})"
+    ${sshKeychainLoadShell}
+  '';
+
   # `mermaid-ascii` — render Mermaid graphs as ASCII in the terminal. Packaged from
   # upstream (not in nixpkgs); see packages/mermaid-ascii.nix.
   mermaidAscii = pkgs.callPackage ../../packages/mermaid-ascii.nix { };
@@ -273,15 +280,10 @@ let
   # deliberately independent of the XMP half. It reaches the media stack through
   # that capsule's `extraSearchPackages` seam, which exists for exactly this.
   #
-  # NOTHING IN THE MERGE PATH CATCHES THIS CLASS OF FAILURE. `nix flake check`
-  # evaluates darwinConfigurations with the build SKIPPED, and CI is deliberately
-  # lean the same way — nix-ci.yml says so at the top: it does NOT build the host
-  # toplevels, it only EVALUATES their drvPath. A package that evaluates but cannot
-  # BUILD therefore passes every gate and first fails at `activate`, on the real Mac.
-  # Measured: rclip broke activation while `nix flake check` AND `build
-  # (aarch64-darwin)` both reported green on the PR that introduced it.
-  # So when adding or overriding a PACKAGE, the only real gate is building the
-  # closure yourself:  nix build .#darwinConfigurations.macos.system
+  # NO GATE BUILDS THE DARWIN CLOSURE (flake check and CI only evaluate it), so
+  # a package override that cannot build first fails at `activate` — this one
+  # did. Build it yourself: nix build .#darwinConfigurations.macos.system
+  # (docs/repo-map.md § checks, "No gate BUILDS the darwin closure").
   rclipCli = pkgs.rclip.overridePythonAttrs (_: {
     dontCheckRuntimeDeps = true;
   });
@@ -393,7 +395,7 @@ in
     # .workflow copy loop, the bundle-id cleanup, the two launchd agents, the
     # macos-only gate on a closure too big for a Tart guest) lives in the
     # media-cli CAPSULE's own module, which owns the reasoning along with the
-    # code. See `programs.mediaCli` below. Imported UNCONDITIONALLY — it is
+    # code. See `local.mediaCli` below. Imported UNCONDITIONALLY — it is
     # internally gated on (enable && isDarwin), and `checks.media-cli-inert`
     # asserts that an unset `enable` contributes nothing at all, which is the
     # state the two NixOS hosts are in.
@@ -438,14 +440,14 @@ in
 
   # Enable the keychain-secrets capsule's module (installs the secret/set-secret/
   # remove-secret CLIs + the ~/.config/secrets/loader.sh every-shell loader).
-  programs.keychainSecrets.enable = true;
+  local.keychainSecrets.enable = true;
 
   # The whole media stack, from the media-cli capsule: the CLIs, the durable
   # launchd work queue, and the Finder right-click Services. macos ONLY —
   # MEASURED, the closure (ffmpeg, exiftool, auge, rclip's OpenCLIP model) is too
   # much for a Tart guest's disk, so a sandbox gets neither the CLIs nor the menu.
   # This one gate is now the entire "which hosts get the media stack" decision.
-  programs.mediaCli = {
+  local.mediaCli = {
     enable = isMacosHost;
     # `auge` is Apple's Vision framework from the shell — photo-describe already
     # has it hermetically, this puts it on PATH for direct use ("is this shot any
@@ -484,7 +486,7 @@ in
 
   # RAG stack (Ollama + pgvector) backs the postgres MCP server — real Mac only.
 
-  services.ollamaLocal.enable = isMacosHost;
+  local.rag.ollama.enable = isMacosHost;
 
   # ONE INFERENCE AT A TIME, enforced at the SERVER. `OLLAMA_NUM_PARALLEL` is read
   # by `ollama serve`, not by clients, so it cannot be set through
@@ -529,19 +531,19 @@ in
     # optimization. 10m keeps batch describe runs warm between bursts.
     OLLAMA_KEEP_ALIVE = "10m";
   };
-  services.pgvectorLocal.enable = isMacosHost;
+  local.rag.pgvector.enable = isMacosHost;
 
   # Claude Code routing telemetry collector — real Mac only (same gate
   # as the RAG stack above). See modules/shared/claude-otel.nix and
   # the programs.claude-code.settings.env block below that points Claude Code
   # at it.
-  services.claudeOtel.enable = isMacosHost;
+  local.claudeOtel.enable = isMacosHost;
 
   # ungoogled-chromium's declarative surface — real Mac only, since only
   # hosts/macos.nix declares the cask. Writes
   # the External Extensions + NativeMessagingHosts files that make the sideloaded
   # iCloud Passwords extension talk to macOS Passwords.app; see chromium.nix.
-  programs.ungoogledChromium.enable = isMacosHost;
+  local.ungoogledChromium.enable = isMacosHost;
 
   # Opera Air owns http/https; Chromium is the DEBUGGING browser, not the daily one.
   # The claim itself is browser-agnostic and lives in ./default-browser.nix — the short
@@ -561,7 +563,7 @@ in
   # `"${input}/x.user.js"` satisfies the option's `path` type (it starts with
   # "/"), and being absolute it carries none of the relative-literal trap the
   # old repo-relative form did. See modules/shared/chromium.nix for the option.
-  programs.ungoogledChromium.userScripts.scripts = {
+  local.ungoogledChromium.userScripts.scripts = {
     google-photos-icon-nav = "${kattakath-userscripts}/google-photos-icon-nav.user.js";
   };
 
@@ -690,7 +692,7 @@ in
     recursive = true;
   };
 
-  services.mcpGateway = lib.mkIf isMacosHost {
+  local.mcpGateway = lib.mkIf isMacosHost {
     # Telegram USER-account server (read/triage + draft-only send). Real Mac only.
     # Inert until the one-time auth is done (TG_APP_ID/TG_API_HASH in the Keychain +
     # ~/.telegram-mcp/session.json) — see modules/shared/mcp.nix `telegramMcp`.
@@ -729,7 +731,7 @@ in
       nerd-fonts.jetbrains-mono # "JetBrainsMono Nerd Font" — VS Code editor font (pairs with the JetBrains theme)
       nerd-fonts.ubuntu-mono # "UbuntuMono Nerd Font" — VS Code terminal font (matches the devcontainer)
       inter # "Inter" — proportional UI font; no Nerd Font variant exists (NF only patches monospace fonts), so this is the plain upstream package
-      # Postgres client/server tools WITH pgvector. `services.pgvectorLocal` (the local-rag capsule)
+      # Postgres client/server tools WITH pgvector. `local.rag.pgvector` (the local-rag capsule)
       # already puts a PLAIN postgresql_16 in this profile, whose `share/postgresql` has no
       # `vector.control` — so `initdb`-ing a fresh cluster from it cannot `CREATE EXTENSION vector`.
       # That broke the dontsell-ai/app CI `integration` job whenever it landed on the REPO-level
@@ -743,7 +745,7 @@ in
     # registry — see ./mcp.nix). On the Linux hosts we don't enable that module,
     # so install the bare CLI here instead. Avoids a buildEnv /bin collision.
     ++ lib.optionals (!stdenv.hostPlatform.isDarwin) [ claudeCode ]
-    # secret/set-secret/remove-secret now come from programs.keychainSecrets
+    # secret/set-secret/remove-secret now come from local.keychainSecrets
     # (the keychain-secrets capsule's HM module), not this list.
     ++ lib.optionals stdenv.hostPlatform.isDarwin [
       androidEmu
@@ -786,7 +788,7 @@ in
     # /etc/profiles/per-user/<user>/bin/nix-gitlab-tart-* paths — GC-rooted
     # by the profile and upgraded in place, unlike bare /nix/store paths from
     # `nix run` output (which garbage-collect out from under the runner).
-    # The executor VMs share the tart.runners two-guest slot budget; the
+    # The executor VMs share the local.tart.runners two-guest slot budget; the
     # token-bearing config.toml itself stays imperative (hosts/macos.nix).
     ++ lib.optionals isMacosHost (
       builtins.attrValues {
@@ -799,7 +801,7 @@ in
           ;
       }
     )
-  # The media stack itself is NOT listed here any more — `programs.mediaCli`
+  # The media stack itself is NOT listed here any more — `local.mediaCli`
   # above installs it, along with exiftool/auge/rclipCli via that module's
   # extraSearchPackages seam.
   #
@@ -838,7 +840,7 @@ in
     # username-portable; never a literal /Users/<name>.
     BUKU_DEFAULT_DBDIR = "$HOME/Developer/local/bookmarks";
     # BASH_ENV (the secret loader) + the loader file itself are now set by
-    # programs.keychainSecrets (the keychain-secrets capsule's HM module).
+    # local.keychainSecrets (the keychain-secrets capsule's HM module).
 
     # The JSON Resume CLIs (jsonresume.org, npm globals: `resumed` — the maintained
     # tool this repo prefers — and legacy `resume-cli`) render PDFs via puppeteer,
@@ -1026,14 +1028,14 @@ in
         # no metrics/traces, no prompt/response content) to the local OTel
         # Collector defined in modules/shared/claude-otel.nix, read by
         # /routing-review to find deterministic-vs-model-judgment hardening
-        # candidates. isMacosHost-gated (services.claudeOtel.enable above) —
+        # candidates. isMacosHost-gated (local.claudeOtel.enable above) —
         # unset off the real Mac, so this block is empty there and Claude Code's
         # telemetry stays off by default.
         env = lib.mkIf isMacosHost {
           CLAUDE_CODE_ENABLE_TELEMETRY = "1";
           OTEL_LOGS_EXPORTER = "otlp";
           OTEL_EXPORTER_OTLP_PROTOCOL = "grpc";
-          OTEL_EXPORTER_OTLP_ENDPOINT = config.services.claudeOtel.otlpEndpoint;
+          OTEL_EXPORTER_OTLP_ENDPOINT = config.local.claudeOtel.otlpEndpoint;
           OTEL_LOG_TOOL_DETAILS = "1";
         };
       };
@@ -1152,7 +1154,7 @@ in
         interview-prep-generator = "${agent-skills-jsonresume}/skills/interview-prep-generator";
         salary-negotiation-prep = "${agent-skills-jsonresume}/skills/salary-negotiation-prep";
         # Local RAG over the pgvector store: how to ingest + query via the `postgres`
-        # MCP server and the in-DB embed() function (the local-rag capsule's services.pgvectorLocal + services.ollamaLocal).
+        # MCP server and the in-DB embed() function (the local-rag capsule's local.rag.pgvector + local.rag.ollama).
         # ---- THIS operator's OWN published skills, from the pinned flake input
         # `kattakath-claude-skills` (github:kattakath/claude-skills). Extracted from
         # this repo's skills/ tree 2026-09-12 onto the SAME rail as every
@@ -1300,25 +1302,13 @@ in
         # Mac is not on its LAN (it has no public IP and no port-forward; the
         # `*.local` block above covers the mDNS path).
         #
-        # This block is why it lives in Nix rather than in a hand-edit: the
-        # runbooks have long said "add a `ProxyCommand cloudflared access ssh
-        # --hostname %h` to ~/.ssh/config", but that file is a READ-ONLY
-        # /nix/store symlink owned by this module — the instruction was
-        # unfollowable. Declaring it here makes it real, and makes it apply to
-        # BOTH deploy-rs legs at once: `deploy` shells out to the system `ssh` for
-        # activation AND `nix copy --to ssh://…` for the closure, and both read
-        # ~/.ssh/config. (deploy-rs joins its own `sshOpts` with spaces into
-        # NIX_SSHOPTS, which nix re-splits on whitespace, so a spaced
-        # `-o ProxyCommand=…` there would be mangled for the copy leg. ~/.ssh/config
-        # is the one place a spaced ProxyCommand survives both.)
-        #
-        # cloudflared comes from the store, NOT `/opt/homebrew/bin` and not bare
-        # PATH: ssh runs the ProxyCommand via `/bin/sh -c` with whatever
-        # environment the caller had, so a PATH assumption turns into an opaque
-        # "Connection closed" at the worst possible moment. The Homebrew cask
-        # (hosts/macos.nix) stays for interactive `cloudflared tunnel` / `access
-        # login` work; a duplicated Go binary is cheaper than a nondeterministic
-        # deploy path.
+        # Declared here, not hand-edited: ~/.ssh/config is a read-only store
+        # symlink this module owns, and this is the one place a spaced
+        # ProxyCommand survives BOTH deploy-rs legs (ssh + `nix copy`) — the
+        # why, incl. the NIX_SSHOPTS re-splitting, is docs/repo-map.md
+        # § modules/parts/deploy.nix. cloudflared is the STORE binary, never
+        # PATH/`/opt/homebrew`: ssh runs ProxyCommand via `/bin/sh -c` with the
+        # caller's environment, and a PATH miss is an opaque "Connection closed".
         #
         # This path ALSO needs a Cloudflare Zero Trust *Access Application* for the
         # hostname — hand-created, not modelled in terranix, and it silently
@@ -1374,17 +1364,14 @@ in
     bash = {
       enable = true;
       # macOS Keychain secret loader is wired into bash's profileExtra/bashrcExtra
-      # by programs.keychainSecrets (the keychain-secrets capsule's HM module).
+      # by local.keychainSecrets (the keychain-secrets capsule's HM module).
 
       # fnm (Fast Node Manager) shell hook — darwin-only (node dev is Mac-only; the
       # servers stay lean). `--use-on-cd` auto-switches Node on `cd` into a dir with
       # a .nvmrc/.node-version. Absolute store path so it resolves before the nix
       # profile is on PATH. When no project version is active/installed, PATH falls
       # through to the Homebrew node (an inert dependency of bruno-cli/devcontainer).
-      initExtra = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin ''
-        eval "$(${pkgs.fnm}/bin/fnm env --use-on-cd --shell bash)"
-        ${sshKeychainLoadShell}
-      '';
+      initExtra = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin (interactiveShellInit "bash");
     };
 
     # zsh as the interactive shell — matches the devcontainer default
@@ -1712,7 +1699,7 @@ in
       };
 
       # macOS Keychain secret loader is wired into zsh's envExtra (.zshenv) by
-      # programs.keychainSecrets (the keychain-secrets capsule's HM module).
+      # local.keychainSecrets (the keychain-secrets capsule's HM module).
       # envExtra is types.lines, so this definition MERGES with that one.
 
       # Claude Code renders `!` bash-mode output in an append-only viewport, not
@@ -1742,10 +1729,7 @@ in
       # (.zshrc, interactive) not envExtra, because `--use-on-cd` installs a chpwd
       # hook that only makes sense in an interactive shell. Honors .nvmrc and
       # .node-version; falls through to the Homebrew node when no version is active.
-      initContent = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin ''
-        eval "$(${pkgs.fnm}/bin/fnm env --use-on-cd --shell zsh)"
-        ${sshKeychainLoadShell}
-      '';
+      initContent = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin (interactiveShellInit "zsh");
     };
 
     # ---- VS Code (macOS only) --------------------------------------------------

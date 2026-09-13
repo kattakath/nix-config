@@ -54,11 +54,17 @@ in
   #
   # This node still ships here because it is the ENGINE, not the deployment —
   # same public-engine / private-plug-in contract as `mkNixos { hostedSites }`
-  # and `mkDarwin { extraHomeModules }`. nix-personal re-exports its own
-  # `deploy.nodes.nixpi` by reusing these settings against ITS
-  # `nixosConfigurations.nixpi` (see docs/private-home-modules.md), so the
-  # rollback semantics, timeouts and ssh plumbing are single-sourced here and
-  # never re-derived in the private tree.
+  # and `mkDarwin { extraHomeModules }`: a private flake re-exports it against
+  # ITS `nixosConfigurations.nixpi` (docs/private-home-modules.md shows how), so
+  # the rollback semantics, timeouts and ssh plumbing are single-sourced here.
+  #
+  # STATUS 2026-09-13: nix-personal does NOT re-export it yet. With
+  # `remoteBuild` off, deploy-rs builds the Pi closure on the Mac, and nixpkgs'
+  # caddy `Caddyfile-formatted` derivation EPERMs on Determinate's native Linux
+  # builder (docs/repo-map.md § hosts/), so the private `nix run .#nixpi` is a
+  # `nixos-rebuild switch --build-host nixpi` instead — no magic rollback on
+  # that path. The node becomes live for the private tree once the Pi closure
+  # can be built off-Pi again (or the node grows `remoteBuild = true`).
   #
   # `deploy` with no `--targets` fans out over EVERY node, so an
   # argument-less `deploy` in this repo IS a live-Pi deploy. Always name the

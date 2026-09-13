@@ -123,8 +123,8 @@ let
   # domainName (nixpi's Caddy vhost + the darwin file-rotation launchd label).
   # userName only builds userEmail above, and orgName is consumed only by
   # PACKAGES (via callPackage, not specialArgs) — the Mac's runner lanes take
-  # their org from their own options (services.macosGithubRunner.org,
-  # tart.githubRunners.<name>.scope), never from identityArgs — so neither is
+  # their org from their own options (local.macosGithubRunner.org,
+  # local.tart.githubRunners.<name>.scope), never from identityArgs — so neither is
   # threaded.
   identityArgs = {
     inherit

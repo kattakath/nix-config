@@ -145,7 +145,7 @@
 
     # (firmware-secrets was an input here until ADR-002 wave 4 ABSORBED it as a
     # capsule — modules/features/firmware-secrets/. Same module, same
-    # `services.firmwareProvisioning` option surface, one fewer lock node and one
+    # `local.firmwareProvisioning` option surface, one fewer lock node and one
     # fewer CI pipeline; the origin repo is archived and its history stays there.
     # It was ALSO this flake's flake-parts anchor until wave 2 declared
     # flake-parts directly above — had that not already happened, removing this
@@ -153,17 +153,17 @@
 
     # (keychain-secrets was an input here until ADR-002 wave 4 ABSORBED it as a
     # capsule — modules/features/keychain-secrets/. Same module, same
-    # `programs.keychainSecrets` option surface (loaderRelPath BYTE-IDENTICAL —
+    # `local.keychainSecrets` option surface (loaderRelPath BYTE-IDENTICAL —
     # modules/darwin/core.nix derives BASH_ENV from it), same three darwin
     # packages/apps, one fewer lock node and one fewer CI pipeline; the origin
     # repo is archived and its history stays there.)
 
     # (media-cli was an input here until ADR-002 wave 5 ABSORBED it as a capsule
-    # — modules/features/media-cli/. Same module, same `programs.mediaCli`
+    # — modules/features/media-cli/. Same module, same `local.mediaCli`
     # option surface, the same eleven package derivations byte-for-byte, one
     # fewer lock node and one fewer CI pipeline; the origin repo is archived and
     # its history stays there. It had been EXTRACTED from this repo on
-    # 2026-09-05 to prove `programs.mediaCli.enable = false` could strip the
+    # 2026-09-05 to prove `local.mediaCli.enable = false` could strip the
     # whole feature in one line — which it still does, now from in-tree.)
 
     # (cloudflared-connector was an input here until ADR-002 wave 3 ABSORBED it as
@@ -201,7 +201,7 @@
     # — modules/features/local-rag/. The local-first RAG stack: a loopback
     # launchd Postgres+pgvector, a local Ollama embed model, and the in-DB
     # embed() function that makes retrieval plain SQL. Same two home-manager
-    # modules (services.ollamaLocal + services.pgvectorLocal), now reached
+    # modules (local.rag.ollama + local.rag.pgvector), now reached
     # through the flake's own capsule registry instead of a fetch.
     #
     # It was the LAST satellite, and the last `follows = "flake-parts"` line —
@@ -211,7 +211,7 @@
     # unpin (ircc grew a `botOnly` output) a prerequisite rather than part of
     # this diff.
     #
-    # `services.pgvectorLocal.databaseUri` — the seam modules/shared/mcp.nix
+    # `local.rag.pgvector.databaseUri` — the seam modules/shared/mcp.nix
     # hands the `postgres` MCP server, i.e. the whole career RAG — is unchanged
     # and pinned as a literal by the capsule's own check.)
 
