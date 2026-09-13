@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  modulesPath,
   ...
 }:
 
@@ -35,7 +36,7 @@ let
           '';
         };
         config = lib.mkOption {
-          type = lib.types.submodule (import ./launchd.nix);
+          type = lib.types.submodule (import "${modulesPath}/launchd/launchd.nix");
           default = { };
           example = {
             ProgramArguments = [
@@ -90,8 +91,15 @@ let
   # nothing inside ever runs. Removed rather than left as false reassurance.
   # The real mitigation is KeepAlive, which makes launchd retry the exec until
   # the store appears — see the KeepAlive audit note in the fleet's launchd
-  # agents. Vendored from home-manager modules/launchd; only this function
-  # differs, and checks.<system>.hm-launchd-drift gates the divergence.
+  # agents.
+  #
+  # WHAT IS VENDORED: this file only. `launchd.nix` (the agent submodule) and
+  # `types.nix` are imported straight from the PINNED home-manager tree via
+  # `modulesPath` (pinned modules/default.nix:34 passes `toString ./.` to every
+  # module), so the 2,200 lines that never differed are not copied here.
+  # checks.<system>.hm-launchd-drift pins the sha256 of upstream's default.nix:
+  # when the pinned input moves, the check fails with the fork-vs-upstream diff
+  # so this function gets re-reviewed and the hash re-pinned.
   mutateConfig =
     cnf:
     let

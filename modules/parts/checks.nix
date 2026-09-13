@@ -229,18 +229,21 @@ in
             touch "$out"
           '';
 
+          # The vendored launchd fork (modules/shared/hm-launchd/default.nix) copies
+          # ONE upstream file; launchd.nix/types.nix are imported from the pinned
+          # input itself. So drift is one hash: upstream's default.nix at the
+          # revision the fork was last reviewed against. A mismatch prints the
+          # fork-vs-upstream diff — port what applies, then re-pin `expected`.
           hm-launchd-drift = pkgs.runCommand "hm-launchd-drift" { nativeBuildInputs = [ pkgs.diffutils ]; } ''
-            drift=0
-            for f in default.nix launchd.nix types.nix; do
-              diff -u ${../shared/hm-launchd/upstream-baseline}/"$f" \
-                ${home-manager}/modules/launchd/"$f" || drift=1
-            done
-            if [ "$drift" -ne 0 ]; then
-              echo "hm-launchd-drift: the pinned home-manager's modules/launchd/ no longer" >&2
-              echo "matches modules/shared/hm-launchd/upstream-baseline/ — upstream moved." >&2
-              echo "Re-review the vendored fork (modules/shared/hm-launchd/) against the" >&2
-              echo "diff above, port what applies, then refresh the baseline verbatim from" >&2
-              echo "the pinned input (see the comment at this check in flake.nix)." >&2
+            upstream=${home-manager}/modules/launchd/default.nix
+            expected=a16a4bf28ca400708261105816955e66184964485a6e5ac067cdea34491614c3
+            actual=$(sha256sum "$upstream" | cut -d' ' -f1)
+            if [ "$actual" != "$expected" ]; then
+              echo "hm-launchd-drift: pinned home-manager modules/launchd/default.nix moved" >&2
+              echo "(sha256 $actual, reviewed $expected). Re-review the vendored fork" >&2
+              echo "(modules/shared/hm-launchd/default.nix) against this diff, port what" >&2
+              echo "applies, then re-pin \`expected\` in modules/parts/checks.nix." >&2
+              diff -u "$upstream" ${../shared/hm-launchd/default.nix} >&2 || true
               exit 1
             fi
             touch "$out"
