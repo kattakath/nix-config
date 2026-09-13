@@ -490,7 +490,7 @@ in
   # Derived from the keychain-secrets module rather than restated, so the two
   # cannot drift.
   launchd.user.envVariables.BASH_ENV = "${home}/${
-    config.home-manager.users.${loginName}.programs.keychainSecrets.loaderRelPath
+    config.home-manager.users.${loginName}.local.keychainSecrets.loaderRelPath
   }";
 
   # ---- Launch-at-login agents (declarative "Open at Login") ------------------

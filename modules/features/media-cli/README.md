@@ -10,7 +10,7 @@ and push the slow work into a queue that survives a logout.** Local, offline,
 macOS-native. One home-manager switch turns the whole thing on or off.
 
 ```nix
-programs.mediaCli.enable = true;
+local.mediaCli.enable = true;
 ```
 
 That single option installs the CLIs, registers a durable launchd work queue,
@@ -91,7 +91,7 @@ In-tree, so there is nothing to pin. `modules/parts/compose.nix` threads this ca
 it unconditionally, and the one decision left is the switch:
 
 ```nix
-programs.mediaCli.enable = isMacosHost;
+local.mediaCli.enable = isMacosHost;
 ```
 
 **There is no `nix run .#media-describe`.** This capsule publishes no packages and no apps on

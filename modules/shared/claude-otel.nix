@@ -15,10 +15,10 @@
   ...
 }:
 let
-  cfg = config.services.claudeOtel;
+  cfg = config.local.claudeOtel;
 in
 {
-  options.services.claudeOtel = {
+  options.local.claudeOtel = {
     enable = lib.mkEnableOption "local OTel Collector receiving Claude Code's routing-decision telemetry";
 
     otlpEndpoint = lib.mkOption {

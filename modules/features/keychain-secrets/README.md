@@ -26,7 +26,7 @@ root) and exports each value to every descendant.
 ## How it is wired here
 
 `modules/shared/home.nix` imports this capsule's `module.nix` and sets
-`programs.keychainSecrets.enable = true`; it is darwin-gated internally, so it is a clean
+`local.keychainSecrets.enable = true`; it is darwin-gated internally, so it is a clean
 no-op on `nixpi`/`nixvm`. The module reaches the consumer through
 `modules/parts/compose.nix` as the `keychainSecretsModule` specialArg — **not** through
 `flake.modules`, for a measured reason recorded in `modules/parts/capsules.nix` § The RAW
@@ -35,7 +35,7 @@ module seam.
 Two things outside this directory depend on it and must not drift:
 
 - **`modules/darwin/core.nix`** derives `launchd.user.envVariables.BASH_ENV` from
-  `programs.keychainSecrets.loaderRelPath` **by reference**. That is what closes the
+  `local.keychainSecrets.loaderRelPath` **by reference**. That is what closes the
   `$BASH_ENV` gap for a bash spawned by a GUI app or a launchd job, which descends from no
   shell at all. `checks/module-evaluates.nix` pins the option's default as a literal so a
   silent rename cannot move one half without the other.

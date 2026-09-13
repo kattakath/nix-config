@@ -19,7 +19,7 @@ Declarative lifecycle + plug-and-play provisioning for
 flake: one `tart-vm` CLI that creates/pulls/**bakes** a generic image,
 starts/stops/doctors it, and **bootstraps** it over SSH into *your* machine
 (your login user, Determinate Nix, your nix-darwin flake, your key) — plus a
-nix-darwin module (`tart.vms.<name>`) for the host side.
+nix-darwin module (`local.tart.vms.<name>`) for the host side.
 
 **Why this exists:** the Tart ecosystem has excellent pieces — Tart itself,
 cirruslabs' [packer plugin](https://github.com/cirruslabs/packer-plugin-tart)
@@ -59,9 +59,9 @@ Nothing to add to `flake.nix`. The capsule registers itself, so:
 
 The two runner modules are already in `mkDarwin`'s base list
 (`modules/parts/compose.nix`), so **every** darwin composition in the fleet has
-the `tart.githubRunners.*` and `tart.gitlabRunner` option surface; they are
+the `local.tart.githubRunners.*` and `local.tart.gitlabRunner` option surface; they are
 inert until a host sets them, which `checks.<system>.tart-vms-inert` asserts
-rather than assumes. `tart.vms.*` is registered but in **no** composition — see
+rather than assumes. `local.tart.vms.*` is registered but in **no** composition — see
 [`docs/macvm-readd-runbook.md`](../../../docs/macvm-readd-runbook.md).
 
 Use them as bare PATHS in a module list, never wrapped: both runner modules
@@ -143,7 +143,7 @@ optional start-at-login via launchd:
 {
   imports = [ inputs.tart-vms.darwinModules.default ];
 
-  tart.vms.dev = {
+  local.tart.vms.dev = {
     cpu = 6;
     memory = 12288;          # MiB
     headless = true;
@@ -263,7 +263,7 @@ ran a persistent `macvm` sandbox guest until 2026-09-05 (see its
 for the measured VirtioFS-coherence and quarantine-xattr findings that shaped
 this design, and what re-adding the guest would take).
 
-## Ephemeral GitHub Actions runners (`tart.githubRunners.*`)
+## Ephemeral GitHub Actions runners (`local.tart.githubRunners.*`)
 
 Every CI job gets a fresh, disposable macOS VM; the VM is the security
 boundary (a hostile workflow only destroys its own throwaway guest).
@@ -276,8 +276,8 @@ imports = [ config.capsuleModules.darwin.tart-github-runner ];
 # BOTH lanes' logs. Defaults to ~/.local/state/tart-runner (derived from
 # nix-darwin's system.primaryUserHome). It must be reboot-durable, writable by
 # the GUI login user, and whitespace-free; the module asserts all three.
-tart.runnerStateDir = "/Users/me/.local/state/tart-runner";
-tart.githubRunners.myorg = {
+local.tart.runnerStateDir = "/Users/me/.local/state/tart-runner";
+local.tart.githubRunners.myorg = {
   scope = { type = "org"; value = "myorg"; };   # or type = "repo"; value = "owner/repo"
   appId = 123456;              # one GitHub App (public) serves many installs
   installationId = 7890123;    # this scope's installation of that App
@@ -365,7 +365,7 @@ The GitLab half needs no custom controller — cirruslabs'
 already runs each GitLab CI job in an ephemeral Tart VM via gitlab-runner's
 custom-executor interface. This flake packages its release binary (nixpkgs
 carries it nowhere) and adds **slot shims** so its VMs share the host's
-two-macOS-guest budget with the `tart.githubRunners.*` GitHub controllers —
+two-macOS-guest budget with the `local.tart.githubRunners.*` GitHub controllers —
 `packages/tart-slots.nix` is the single semaphore protocol both speak
 (GitHub slots are pid-owned; GitLab slots are keyed by the executor's
 deterministic `gitlab-<CI_JOB_ID>` VM name, since its prepare process exits
@@ -392,7 +392,7 @@ the GUI login session; it also still speaks the legacy registration-token
 flow.) Registration — minting the token — stays a one-time manual act.
 
 ```nix
-tart.gitlabRunner = {
+local.tart.gitlabRunner = {
   enable = true;
   runnerName = "my-mac";
   tokenFile = "/run/agenix/gitlab-runner-token"; # agenix, or any runtime path
@@ -401,7 +401,7 @@ tart.gitlabRunner = {
 # Same option, same directory as the GitHub lane above — that shared value IS
 # the two-guest semaphore. Point the two lanes at different dirs and each gets
 # its own budget, which Apple's framework will then refuse mid-job.
-tart.runnerStateDir = "/Users/me/.local/state/tart-runner";
+local.tart.runnerStateDir = "/Users/me/.local/state/tart-runner";
 ```
 
 **Imperative** — keep your own `~/.gitlab-runner/config.toml`:

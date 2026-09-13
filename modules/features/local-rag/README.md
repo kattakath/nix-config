@@ -40,8 +40,8 @@ through `extraSpecialArgs` as `localRagModule`, and `modules/shared/home.nix`
 imports it **unconditionally** and enables it on `macos` only:
 
 ```nix
-services.ollamaLocal.enable = isMacosHost;
-services.pgvectorLocal.enable = isMacosHost;
+local.rag.ollama.enable = isMacosHost;
+local.rag.pgvector.enable = isMacosHost;
 ```
 
 Both modules gate their own `config` on `enable && isDarwin`, so the import is a
@@ -59,7 +59,7 @@ Both default to loopback-only, no auth needed:
 
 ```nix
 {
-  services.ollamaLocal = {
+  local.rag.ollama = {
     enable = true;
     # embedModel = "nomic-embed-text";  # default, 768-dim
     # embedDim = 768;           # must match embedModel's output dimension
@@ -72,7 +72,7 @@ Both default to loopback-only, no auth needed:
   #   port = 11434;             # default
   # };
 
-  services.pgvectorLocal = {
+  local.rag.pgvector = {
     enable = true;
     # port = 5433;              # default; off 5432 to dodge a Homebrew postgres
     # role = "mcp";             # default; owns `db`, no rights elsewhere
@@ -95,12 +95,12 @@ call at runtime.
 
 Once the agents are running (`launchctl list | grep -E 'ollama|postgres-pgvector'`),
 connect with any Postgres client — `psql`, a script, or your own MCP
-`postgres` server — using `config.services.pgvectorLocal.databaseUri`
+`postgres` server — using `config.local.rag.pgvector.databaseUri`
 (read-only, computed from `role`/`port`/`db`; no secret in it, trust auth on
 127.0.0.1):
 
 ```sh
-psql "$(nix eval --raw .#homeConfigurations.\"you\".config.services.pgvectorLocal.databaseUri)"
+psql "$(nix eval --raw .#homeConfigurations.\"you\".config.local.rag.pgvector.databaseUri)"
 ```
 
 or just hardcode the default shape: `postgresql://mcp@127.0.0.1:5433/ragdb`.
@@ -144,7 +144,7 @@ LIMIT 8;
 ## Used in production
 
 This backs the `postgres` MCP server on `macos`. `modules/shared/mcp.nix` hands
-that server `services.pgvectorLocal.databaseUri` as `env.DATABASE_URI` — one
+that server `local.rag.pgvector.databaseUri` as `env.DATABASE_URI` — one
 string, and the only path the career RAG (`career_docs` in `ragdb`) has to
 Claude Code. `checks/module-evaluations.nix` pins that URI as a literal so a
 port/role/db rename fails a check rather than quietly returning zero rows.

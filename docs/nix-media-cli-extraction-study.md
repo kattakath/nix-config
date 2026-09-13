@@ -173,7 +173,7 @@ nix-media-cli/
 ├── flake.nix                  flake-parts; systems = [ "aarch64-darwin" ]
 ├── flake.lock
 ├── packages/                  the 8 derivations
-├── modules/media-cli.nix      programs.mediaCli → the launchd agents
+├── modules/media-cli.nix      local.mediaCli → the launchd agents
 ├── .github/workflows/         ci.yml · flakehub-publish.yml · auto-merge.yml
 ├── LICENSE · README.md · CONTRIBUTING.md · CODE_OF_CONDUCT.md · SECURITY.md
 └── .gitignore
@@ -188,8 +188,8 @@ nix-media-cli/
 | auto-merge | CI-bot **GitHub App** token via `actions/create-github-app-token`, never `GITHUB_TOKEN` (which would silently stop `flakehub-publish` from firing) |
 | Branch ruleset | `protect-main`: squash-only, required `checks` status, `merge_queue` / `ALLGREEN`. **Needs an org-owned repo** — hence `kattakath/`, not a personal account |
 | **Every package gets an app** | Fixes correction #3. All 8 exported as both `packages.*` and `apps.*` |
-| HM module | `programs.mediaCli.enable`, gated `stdenv.isDarwin` **internally**, exported as `homeManagerModules.default`. Owns the two `launchd.agents` and the `~/Library/Services` activation |
-| Model override | `programs.mediaCli.visionModel` — today the model name is only overridable per-invocation (`--model`), not per-fork. Answers the grant's §9 question: **yes, expose it** |
+| HM module | `local.mediaCli.enable`, gated `stdenv.isDarwin` **internally**, exported as `homeManagerModules.default`. Owns the two `launchd.agents` and the `~/Library/Services` activation |
+| Model override | `local.mediaCli.visionModel` — today the model name is only overridable per-invocation (`--model`), not per-fork. Answers the grant's §9 question: **yes, expose it** |
 
 Consumption side, matching the existing `.follows` diet:
 
@@ -261,7 +261,7 @@ Every stage is independently revertible; no stage leaves the Mac without working
 | 2 | nix-config | `packages, darwinConfigurations` | Isolate `media-worker`'s dispatch into `dispatch_job()` (§ 5). Pure refactor, no behaviour change | `git revert` |
 | 3 | nix-media-cli | *(new repo)* | Scaffold only — `flake.nix`, CI, FlakeHub, auto-merge, ruleset, LICENSE. **No packages yet.** Prove the pipeline is green before anything depends on it | Delete the repo |
 | 4 | nix-media-cli | `packages` | Copy the 8 derivations verbatim (post-rename). CI must build all 8 | `git revert` |
-| 5 | nix-media-cli | `modules` | Add `modules/media-cli.nix` (`programs.mediaCli`), port the `launchd.agents` and the `~/Library/Services` activation, add `visionModel` | `git revert` |
+| 5 | nix-media-cli | `modules` | Add `modules/media-cli.nix` (`local.mediaCli`), port the `launchd.agents` and the `~/Library/Services` activation, add `visionModel` | `git revert` |
 | 6 | nix-config | `flake, darwinConfigurations, packages, docs` | **The swap.** Add the input with its `.follows` pins, import `homeManagerModules.default`, delete the 10 local files. Verify `flake.lock` stays at 60 nodes | `git revert` — the deleted files come back with it |
 | 7 | nix-config | `packages, docs` | Drop the stage-1 aliases | `git revert` |
 
