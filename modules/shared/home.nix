@@ -989,6 +989,30 @@ in
     ${principal} namespaces="git" ${operatorSshKey}
   '') (lib.unique ([ userEmail ] ++ config.kattakath.git.extraAllowedSignersPrincipals));
 
+  # ---- FlashSpace app settings (macOS only) -------------------------------------
+  # grepped home-manager/modules for flashspace — `programs.flashspace.settings`
+  # exists but is INERT (it emits settings.toml, which the app never reads next
+  # to a profiles.json; see the programs.flashspace block below) → custom,
+  # because the only file the app opens is settings.JSON. Same target dir and
+  # generator the module itself uses (pkgs.formats.json), so this collapses to
+  # one option the day upstream emits both files in one format.
+  #
+  # Keys are AppSettings' FLAT fields (upstream AppSettings.swift) — the HM
+  # example's nested `integrations = { … }` table is not that shape. Only what
+  # is deliberately chosen is set; everything else is the app default.
+  xdg.configFile."flashspace/settings.json" = lib.mkIf isMacosHost {
+    source = (pkgs.formats.json { }).generate "flashspace-settings" {
+      # Sparkle keeps the cask's `auto_updates` promise (hosts/macos.nix).
+      checkForUpdatesAutomatically = true;
+      # Static: one display per workspace (the README default; dynamic mode
+      # cannot show an empty workspace and this host is single-display).
+      displayMode = "static";
+      showFloatingNotifications = true;
+      # No workspace-change hook script yet (SketchyBar is not adopted).
+      enableIntegrations = false;
+    };
+  };
+
   # ---- Home Manager program modules --------------------------------------------
   programs = {
     # Let Home Manager manage itself.
@@ -1558,6 +1582,102 @@ in
           "super+shift+arrow_right=next_tab"
         ];
       };
+    };
+
+    # ---- FlashSpace: workspaces as DATA -------------------------------------
+    # upstream option home-manager.programs.flashspace exists → using it (pinned
+    # modules/programs/flashspace.nix, added 2026-04-22). `package = null`: the
+    # app is the Homebrew cask (hosts/macos.nix says why — version + signing).
+    #
+    # Only `profiles` is used here. The module's `settings` option is NOT — it
+    # writes settings.TOML next to profiles.JSON, but the app picks ONE format
+    # from whichever `profiles.<ext>` exists (json → toml → yaml, default json;
+    # upstream ConfigSerializer.detectFormat) and then reads `settings.json`, so
+    # the toml is silently ignored. Settings therefore go through the
+    # `xdg.configFile."flashspace/settings.json"` hatch below the programs block.
+    #
+    # The GUI is a VIEWER for this config: every edit there calls saveToDisk()
+    # under `try?`, which fails without a word against a read-only store symlink.
+    # Change workspaces HERE, then restart the app — it has no config watcher.
+    #
+    # Schema, verified against upstream models (Profile / Workspace / MacApp):
+    # ids are real UUIDs (`uuidgen`, minted once, never regenerated — the app
+    # keys state by them); `display` is NSScreen.localizedName (irrelevant on a
+    # single display: the app resolves to the current one); hotkeys are
+    # "mod+key" strings whose modifier tokens are EXACTLY `cmd`/`ctrl`/`opt`/
+    # `shift` (upstream KeyModifiersMap splits on "+" and exact-matches — the HM
+    # example's "control+option+1" parses as a bare "1"); `bundleIdentifier`
+    # read from each app's Info.plist. ⌃⌥<n> is chosen because ⌘<n> is
+    # browser/editor tab switching and ⌥⇥ is the app's own workspace switcher.
+    #
+    # A STARTER layout from the apps this host carries — reshape freely.
+    flashspace = lib.mkIf isMacosHost {
+      enable = true;
+      package = null;
+      profiles.profiles = [
+        {
+          id = "3878f6a9-cc18-4b58-b1c3-8620f3c0a5ed";
+          name = "Default";
+          workspaces =
+            let
+              display = "Built-in Retina Display";
+              app = name: bundleIdentifier: { inherit name bundleIdentifier; };
+            in
+            [
+              {
+                id = "32344e37-195a-422d-bf42-f31d62ad3e87";
+                name = "Code";
+                inherit display;
+                shortcut = "ctrl+opt+1";
+                symbolIconName = "chevron.left.forwardslash.chevron.right";
+                apps = [
+                  (app "Visual Studio Code" "com.microsoft.VSCode")
+                  (app "Ghostty" "com.mitchellh.ghostty")
+                ];
+              }
+              {
+                id = "6226a96c-e505-4154-a5f2-c3d449981a76";
+                name = "Web";
+                inherit display;
+                shortcut = "ctrl+opt+2";
+                symbolIconName = "globe";
+                apps = [ (app "Chromium" "org.chromium.Chromium") ];
+              }
+              {
+                id = "bf7ec7c4-2d13-48b3-93e9-62a55ec3c06b";
+                name = "Chat";
+                inherit display;
+                shortcut = "ctrl+opt+3";
+                symbolIconName = "bubble.left.and.bubble.right.fill";
+                apps = [
+                  (app "Slack" "com.tinyspeck.slackmacgap")
+                  (app "Microsoft Teams" "com.microsoft.teams2")
+                  (app "Telegram" "ru.keepcoder.Telegram")
+                  (app "WhatsApp" "net.whatsapp.WhatsApp")
+                ];
+              }
+              {
+                id = "f6292209-183c-4199-8292-2d5566787e36";
+                name = "Notes";
+                inherit display;
+                shortcut = "ctrl+opt+4";
+                symbolIconName = "note.text";
+                apps = [ (app "Obsidian" "md.obsidian") ];
+              }
+              {
+                id = "3ad92875-27a9-407b-947e-3b860e1c49b9";
+                name = "AI";
+                inherit display;
+                shortcut = "ctrl+opt+5";
+                symbolIconName = "sparkles";
+                apps = [
+                  (app "Claude" "com.anthropic.claudefordesktop")
+                  (app "Open Design" "io.open-design.desktop")
+                ];
+              }
+            ];
+        }
+      ];
     };
 
     starship = {
