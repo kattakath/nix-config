@@ -394,19 +394,6 @@
         name = "escrcpy";
         postinstall = "/usr/bin/xattr -dr com.apple.quarantine /Applications/Escrcpy.app";
       }
-      # FlashSpace — virtual workspace manager (replaces macOS Spaces; NOT a
-      # tiling WM, it hides/shows whole apps per workspace). Cask, not nixpkgs'
-      # `flashspace`, for two measured reasons (2026-09-13): the nixpkgs package
-      # is 3.3.39 on the pin AND on master while upstream is 4.18.79, and the Nix
-      # build re-signs the bundle ad-hoc (upstream ships Developer-ID + notarized)
-      # — an ad-hoc app's Accessibility grant is keyed to the binary hash, so it
-      # would need re-granting after every rebuild. `auto_updates`: the app's own
-      # Sparkle feed keeps it current, brew only bootstraps. Same "Homebrew ships
-      # the app, Nix owns the config" split as ghostty/ungoogled-chromium:
-      # workspaces + settings live in modules/shared/home.nix (programs.flashspace,
-      # package = null). The Accessibility grant itself is a one-time manual TCC
-      # step (docs/macos-settings-surface.md § 5).
-      "flashspace"
       # Google Drive for desktop — the File Provider client (a mounted volume under
       # ~/Library/CloudStorage/, NOT a plain folder). It replaced `google-chrome`
       # here: Chrome's only load-bearing job on this host was rendering JSON Resume

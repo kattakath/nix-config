@@ -226,17 +226,16 @@ has a commented `services.yabai`/`services.skhd` placeholder.
 ⚠️ Every WM needs a **manual** Accessibility / Screen-Recording grant after install
 — that's a TCC permission Nix cannot pre-authorize (see §7).
 
-**Adopted (2026-09-13): FlashSpace** — not in the table because it is neither a nix-darwin
-service nor a tiling WM: a virtual *workspace* manager that hides/shows whole apps per
-workspace and deliberately does no layouts. It has a home-manager module
-(`programs.flashspace`) but no nix-darwin one; the fleet uses the **cask** for the app
-(`package = null`) and the HM module for `profiles` only — its `settings` option is inert as
-shipped (TOML beside a JSON profiles file; the app reads one format, chosen by which
-`profiles.<ext>` exists), so settings go through an `xdg.configFile` JSON hatch in
-`modules/shared/home.nix`. Two manual steps after the first activation: grant
-**Accessibility** (§7), and move every app onto ONE macOS Space per display (FlashSpace
-replaces Spaces, it does not layer on them). Its in-app "Launch at login" stays OFF —
-`open-flashspace` in `modules/darwin/core.nix` is the declarative start (§5a).
+**Evaluated and removed (2026-09-13): FlashSpace.** A virtual *workspace* manager that
+hides/shows whole **apps** (never individual windows) on ONE macOS Space. It conflicts with
+this operator's model — one native-fullscreen app per desktop — and cannot deliver the goal
+that motivated it: a live grid of every desktop. macOS does not render windows on inactive
+Spaces, so any "overview" (Mission Control included) is snapshots, not live views. The only
+way to watch several apps at once is to put them on one screen: macOS 15's built-in Window ▸
+Move & Resize tiling on a dedicated "monitor" desktop covers that with zero software. Kept
+for the record: home-manager's `programs.flashspace.settings` was inert as shipped (fixed
+upstream in nix-community/home-manager#9947), and the app's hotkey tokens are exactly
+`cmd`/`ctrl`/`opt`/`shift`.
 
 ---
 
