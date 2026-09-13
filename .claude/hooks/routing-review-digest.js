@@ -9,7 +9,7 @@
  * "should this become a deterministic hook?" backlog stays visible instead
  * of requiring a manually-remembered /routing-review.
  *
- * The local OTel Collector (services.claudeOtel, modules/shared/claude-otel.nix)
+ * The local OTel Collector (local.claudeOtel, modules/shared/claude-otel.nix)
  * writes one JSON line per OTLP logs export batch to
  * ~/.local/state/claude-otel/events.jsonl. Each line is a full OTLP LogsData
  * object: resourceLogs[].scopeLogs[].logRecords[], each record's attributes[]
@@ -70,7 +70,7 @@ try {
   const hooksDir = path.join(projectDir, ".claude", "hooks");
   const statePath = path.join(hooksDir, ".routing-review-state.json");
   // Same CLAUDE_OTEL_EVENTS_FILE override as packages/claude-otel-doctor.nix —
-  // both are generic, non-Nix-templated consumers of services.claudeOtel's
+  // both are generic, non-Nix-templated consumers of local.claudeOtel's
   // eventsFile default and need to agree if it's ever overridden.
   const eventsPath =
     process.env.CLAUDE_OTEL_EVENTS_FILE ||

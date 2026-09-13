@@ -36,7 +36,7 @@
 #
 # The runtime connector unit (the in-tree `modules/features/cloudflared-connector/`
 # capsule, formerly the `nix-cloudflared-connector` flake) is UNTOUCHED: it
-# reads the token at /run/cloudflared-token, which services.firmwareProvisioning
+# reads the token at /run/cloudflared-token, which local.firmwareProvisioning
 # copies off the FAT FIRMWARE partition at boot (host-key-independent, so a fresh
 # SD flash does not lock out the tunnel — see hosts/nixpi.nix).
 #

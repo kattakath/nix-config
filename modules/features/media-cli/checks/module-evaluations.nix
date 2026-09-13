@@ -20,9 +20,9 @@ let
     home-manager.lib.homeManagerConfiguration {
       inherit pkgs;
       # `extra` is its OWN module, never `base // extra`: `//` is a
-      # SHALLOW merge, so `{ programs.mediaCli.ollamaHost = …; }`
+      # SHALLOW merge, so `{ local.mediaCli.ollamaHost = …; }`
       # replaces the whole `programs` attrset and takes
-      # `programs.mediaCli.enable = true` with it — the module then
+      # `local.mediaCli.enable = true` with it — the module then
       # defines no agents at all and the assertion below dies on a
       # missing attribute instead of testing anything. The module
       # system merges module lists deeply; that is its job.
@@ -32,7 +32,7 @@ let
           home.username = "tester";
           home.homeDirectory = "/Users/tester";
           home.stateVersion = "24.05";
-          programs.mediaCli.enable = true;
+          local.mediaCli.enable = true;
         }
         extra
       ];
@@ -107,15 +107,15 @@ in
   host-reaches-worker =
     let
       a = workerArg0 (mkHm {
-        programs.mediaCli.ollamaHost = "127.0.0.1:11434";
+        local.mediaCli.ollamaHost = "127.0.0.1:11434";
       });
       b = workerArg0 (mkHm {
-        programs.mediaCli.ollamaHost = "sentinel.invalid:65000";
+        local.mediaCli.ollamaHost = "sentinel.invalid:65000";
       });
     in
     pkgs.runCommand "media-cli-host-reaches-worker" { } ''
       test "${a}" != "${b}" || {
-        echo "programs.mediaCli.ollamaHost does not reach the launchd worker" >&2
+        echo "local.mediaCli.ollamaHost does not reach the launchd worker" >&2
         echo "both hosts produced arg0: ${a}" >&2
         exit 1
       }
@@ -125,7 +125,7 @@ in
   # THE KILL-SWITCH GATE (ADR-002 §2 anatomy). This module is imported
   # UNCONDITIONALLY by modules/shared/home.nix — the profile every host in the
   # fleet runs, `nixpi` and `nixvm` included — and only then gated to the real
-  # Mac by `programs.mediaCli.enable = isMacosHost`. So "off" is the state two
+  # Mac by `local.mediaCli.enable = isMacosHost`. So "off" is the state two
   # of three hosts are in, and anything this module leaks while off lands on
   # them: a launchd agent on a Linux box, an `OLLAMA_HOST` in a server's
   # environment, an activation step that copies Finder Services onto NixOS.
@@ -144,13 +144,13 @@ in
     pkgs.runCommand "media-cli-inert" { } ''
       fail() { echo "media-cli-inert: $*" >&2; exit 1; }
       test "${bool (c.launchd.agents ? media-queue)}" = no \
-        || fail "launchd.agents.media-queue exists with programs.mediaCli.enable unset"
+        || fail "launchd.agents.media-queue exists with local.mediaCli.enable unset"
       test "${bool (c.launchd.agents ? media-queue-power)}" = no \
-        || fail "launchd.agents.media-queue-power exists with programs.mediaCli.enable unset"
+        || fail "launchd.agents.media-queue-power exists with local.mediaCli.enable unset"
       test "${bool (c.home.sessionVariables ? OLLAMA_HOST)}" = no \
-        || fail "home.sessionVariables.OLLAMA_HOST is set with programs.mediaCli.enable unset"
+        || fail "home.sessionVariables.OLLAMA_HOST is set with local.mediaCli.enable unset"
       test "${bool (c.home.activation ? mediaCliQuickActions)}" = no \
-        || fail "the ~/Library/Services activation runs with programs.mediaCli.enable unset"
+        || fail "the ~/Library/Services activation runs with local.mediaCli.enable unset"
       test "${pkgNames hmOff}" = "${pkgNames hmBare}" \
         || fail "home.packages differs from a config without this module: [${pkgNames hmOff}] vs [${pkgNames hmBare}]"
       echo ok > "$out"

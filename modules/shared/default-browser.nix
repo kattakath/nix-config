@@ -4,7 +4,7 @@
 # LaunchServices, and any installed browser can hold it. It lived in
 # `modules/shared/chromium.nix` while Chromium was the answer; it moved here when it
 # stopped being (Opera Air is the default, Chromium is the debugging browser whose
-# profile `services.mcpGateway.chromeDevtools.userDataDir` points at).
+# profile `local.mcpGateway.chromeDevtools.userDataDir` points at).
 #
 # `defaultbrowser` takes the SHORT name (`operaair`, `chromium`, `safari`, `opera`),
 # NOT the bundle id — `com.operasoftware.OperaAir` is rejected as "not available as an

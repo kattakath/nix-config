@@ -111,7 +111,7 @@ in
           # macvm host, 2026-09-05 — docs/macvm-readd-runbook.md.)
 
           # Health check for the local Claude Code routing-telemetry OTel
-          # Collector (services.claudeOtel, modules/shared/claude-otel.nix).
+          # Collector (local.claudeOtel, modules/shared/claude-otel.nix).
           claude-otel-doctor = pkgs.callPackage ../../packages/claude-otel-doctor.nix { };
 
           # Deterministic ADB wired/wireless operator + scrcpy mirroring for a
