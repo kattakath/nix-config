@@ -15,7 +15,7 @@ local MCP gateway (`modules/shared/mcp.nix`).
 | Google Cloud OAuth client (**Desktop app** type) | ONE shared client (`client_id`/`client_secret`) authenticates every account — Google allows the same Desktop client across arbitrary accounts | Your Google Cloud Console; secret in the login Keychain |
 | `gmailAlias` | Sanitizes an email (`lower`, `@`/`.`/`+` → `_`) into a tool-prefix/filename-safe token — internal only, never part of the config surface | `modules/shared/mcp.nix` |
 | `mkGmailMcp` | `writeShellScriptBin` wrapper: reads the shared client id/secret from Keychain at launch, materializes `~/.gmail-mcp/gcp-oauth.keys.json`, execs the server with `--tool-prefix=<alias>_` | `modules/shared/mcp.nix` |
-| `services.mcpGateway.gmail.accounts` | `listOf str` of **plain email addresses** — the only thing you edit to add/remove an account. Empty by default | `modules/shared/mcp.nix` option |
+| `local.mcpGateway.gmail.accounts` | `listOf str` of **plain email addresses** — the only thing you edit to add/remove an account. Empty by default | `modules/shared/mcp.nix` option |
 | `~/.gmail-mcp/credentials-<alias>.json` | Per-account OAuth token, produced by the **one-time interactive auth step** (not by Nix) | `$HOME`, never in git/store |
 
 ## Public/private split (same contract as nixpi's `hostedSites`)
@@ -152,7 +152,7 @@ unset) on the *next* invocation.
 
 ## Removing or rotating an account
 
-1. Remove the email from `services.mcpGateway.gmail.accounts` (whichever list
+1. Remove the email from `local.mcpGateway.gmail.accounts` (whichever list
    it's in), evaluate, commit, push, activate.
 2. `rm ~/.gmail-mcp/credentials-<alias>.json` — the gateway no longer
    references it, and the local token should not linger.
@@ -204,7 +204,7 @@ Command: `/gmail-account`.
 
 | Path | What |
 |---|---|
-| `modules/shared/mcp.nix` | `gmailAlias`, `mkGmailMcp`, `services.mcpGateway.gmail.accounts` option, gateway wiring |
-| `hosts/<host>.nix` | Public accounts for that host, via `home-manager.users.<user>.services.mcpGateway.gmail.accounts` |
+| `modules/shared/mcp.nix` | `gmailAlias`, `mkGmailMcp`, `local.mcpGateway.gmail.accounts` option, gateway wiring |
+| `hosts/<host>.nix` | Public accounts for that host, via `home-manager.users.<user>.local.mcpGateway.gmail.accounts` |
 | private composition flake | Private accounts, via `extraHomeModules` (see `docs/private-home-modules.md`) |
 | `~/.gmail-mcp/` | Runtime state: shared `gcp-oauth.keys.json` + per-account `credentials-<alias>.json` (never in git) |

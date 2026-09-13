@@ -19,9 +19,9 @@ name: nix-ci
 #
 # ALL-HOSTED BY CHOICE. No leg of THIS repo's CI targets a self-hosted runner —
 # a statement about this workflow, NOT about the fleet. `macos` runs six
-# self-hosted lanes for OTHER consumers: 2 bare-metal (`services.macosGithubRunner`,
-# dontsell-ai), 3 ephemeral Tart-VM-per-job (`tart.githubRunners.*` — kattakath,
-# silvercreek-ai, dontsell-vm), and 1 GitLab (`tart.gitlabRunner`); see hosts/macos.nix.
+# self-hosted lanes for OTHER consumers: 2 bare-metal (`local.macosGithubRunner`,
+# dontsell-ai), 3 ephemeral Tart-VM-per-job (`local.tart.githubRunners.*` — kattakath,
+# silvercreek-ai, dontsell-vm), and 1 GitLab (`local.tart.gitlabRunner`); see hosts/macos.nix.
 # We stay hosted because hosted native-ARM + macOS STANDARD runners are free &
 # unlimited for public repos, Cachix serves the warmed closure so cold builds stay
 # fast, and hosted removes both the availability SPOF AND the public-repo fork-PR RCE

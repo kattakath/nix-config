@@ -1,6 +1,6 @@
 # nix-darwin module: declarative Tart VMs on the HOST Mac.
 #
-#   tart.vms.<name> = { cpu = 4; memory = 8192; headless = true; autoStart = true; };
+#   local.tart.vms.<name> = { cpu = 4; memory = 8192; headless = true; autoStart = true; };
 #
 # Each VM with autoStart = true gets a launchd user agent that runs
 # `tart set` (cpu/memory) and then `tart run` with the declared shares.
@@ -28,7 +28,7 @@
   ...
 }:
 let
-  cfg = config.tart;
+  cfg = config.local.tart;
 
   vmModule =
     { name, ... }:
@@ -91,7 +91,7 @@ let
             Consequence of that default: macOS purges /tmp, so the log of the
             run you want to debug may already be gone. Set this for any VM you
             intend to diagnose. (The CI lanes' own state has no such excuse —
-            tart.runnerStateDir is durable by default, see ./slots.nix.)
+            local.tart.runnerStateDir is durable by default, see ./slots.nix.)
           '';
         };
 
@@ -122,7 +122,7 @@ let
   autoStartVms = lib.filterAttrs (_: vm: vm.autoStart) cfg.vms;
 in
 {
-  options.tart = {
+  options.local.tart = {
     package = lib.mkOption {
       type = lib.types.package;
       default = pkgs.tart;

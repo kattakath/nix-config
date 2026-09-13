@@ -248,6 +248,12 @@ Only **one** of deploy-rs' two `deployChecks` is wired into `checks.<system>`:
   build-depends on the full aarch64-linux toplevel. It only asserts an upstream invariant
   (`activate.nixos` adds its own activator scripts), which is not worth a Pi closure build per
   CI leg.
+- **No gate BUILDS the darwin closure.** `nix flake check` evaluates `darwinConfigurations`
+  with the build skipped, and CI (`nix-ci.yml`) deliberately only evaluates the host
+  toplevels' drvPaths. A package that *evaluates* but cannot *build* therefore passes every
+  gate and first fails at `activate`, on the real Mac — measured when `rclip` broke activation
+  while the check and the CI build leg were both green. When adding or overriding a PACKAGE
+  the only real gate is `nix build .#darwinConfigurations.macos.system` yourself.
 
 It is added via `deployChecksFor system` folded into `forAllSystems`, guarded by
 `lib.optionalAttrs (deploy-rs.lib ? ${system})`, **not** the README's `mapAttrs …
@@ -288,7 +294,7 @@ public key they all share is single-sourced in **`secrets/operator-key.nix`** (a
   key**, landing in `/run/agenix/`: `gh-app-dontsell-ai-key.age` and `gh-app-fleet-key.age` (the
   two runner lanes' GitHub App RS256 keys — **identical key material on purpose**, because an
   agenix secret has one owner and the lanes run as different users) and
-  `gitlab-runner-token.age` (the `glrt-` token `tart.gitlabRunner` renders its `config.toml`
+  `gitlab-runner-token.age` (the `glrt-` token `local.tart.gitlabRunner` renders its `config.toml`
   from). The host-decryption path is live; do not describe it as unused.
 
 All four are safe to commit. Full rules: [`secrets-and-keychain.md`](secrets-and-keychain.md).
@@ -296,9 +302,9 @@ All four are safe to commit. Full rules: [`secrets-and-keychain.md`](secrets-and
 ## `hosts/` — per-host entry profiles
 
 - **`macos.nix`** — the darwin client host. Imports `../modules/darwin/github-runner.nix` and
-  enables `services.macosGithubRunner` with `count = 2` for the **`dontsell-ai`** org (see that
+  enables `local.macosGithubRunner` with `count = 2` for the **`dontsell-ai`** org (see that
   module's section below) — nix-config's *own* CI is fully GitHub-hosted and uses no runner, but
-  this Mac is not runner-free. Also configures **`tart.githubRunners.*`** (the `tart-vms` capsule's
+  this Mac is not runner-free. Also configures **`local.tart.githubRunners.*`** (the `tart-vms` capsule's
   `darwinModules.github-runner`, in `mkDarwin`'s BASE module list): ephemeral **Tart-VM-per-job**
   GitHub Actions runners for `kattakath`, `silvercreek-ai`, and `dontsell-ai` (label
   `dontsell-vm` — the bare-metal pair keeps that org's nix-toolchain CI), one fleet GitHub App
@@ -308,10 +314,10 @@ All four are safe to commit. Full rules: [`secrets-and-keychain.md`](secrets-and
   clone and the host-key pin are content-keyed by `oci@digest`, so a digest bump renames both;
   one elected instance per image re-pulls and re-pins itself on its next cycle
   (`tart-runner-setup-kattakath [image|pin|all]` pre-warms that by hand). Slots, pins and both
-  lanes' logs live under `tart.runnerStateDir` — `~/.local/state/tart-runner` by default,
+  lanes' logs live under `local.tart.runnerStateDir` — `~/.local/state/tart-runner` by default,
   durable and user-writable; a volatile root now fails at eval, after the old `/tmp` default
   was purged and darked all three lanes on 2026-09-05. The **GitLab** runner shares the
-  same VM budget declaratively since 2026-09-05: **`tart.gitlabRunner`** (the same capsule's `gitlab-runner.nix`,
+  same VM budget declaratively since 2026-09-05: **`local.tart.gitlabRunner`** (the same capsule's `gitlab-runner.nix`,
   same base list) runs `pkgs.gitlab-runner` as a GUI LaunchAgent that renders its `config.toml`
   at start from the agenix `gitlab-runner-token.age` (host-decrypted), pointing at the
   `gitlab-tart` slot shims around cirruslabs' first-party executor — the semaphore
@@ -382,7 +388,7 @@ their own top-level section below:
 
 ### `modules/shared/`
 
-`modules/shared/{home.nix,mcp.nix,chromium.nix,terminal-theme.nix,desktop-aesthetics.nix,nix-cache.nix,nix-ld-libraries.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-plugins.nix,git-allowed-signers.nix,wallpaper/,hm-launchd/}`
+`modules/shared/{home.nix,mcp.nix,chromium.nix,terminal-theme.nix,desktop-aesthetics.nix,nix-cache.nix,nix-ld-libraries.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-plugins.nix,wallpaper/,hm-launchd/}`
 — the Home Manager profile loaded on every host.
 
 - **`home.nix`** — git/ssh-signing, zsh+starship, direnv, gh, bash, claude-code + nerd-fonts;
@@ -399,7 +405,7 @@ their own top-level section below:
   `packages/spotlight-launchers.nix`, macos-only).
 - **`mcp.nix`** — the claude-code MCP-server config. See [`mcp-gateway.md`](mcp-gateway.md);
   the per-client stdio `open-design` entry's boundary doc is [`open-design.md`](open-design.md).
-- **`chromium.nix`** — `programs.ungoogledChromium`, real-Mac-only: the declarative surface for
+- **`chromium.nix`** — `local.ungoogledChromium`, real-Mac-only: the declarative surface for
   the Homebrew `ungoogled-chromium` cask. Installs **no** browser (`programs.chromium.package =
   null`) — nixpkgs' `chromium`/`ungoogled-chromium` are `*-linux` only, so the `.app` must be a
   cask; this module contributes only the files Chromium reads out of its user-data dir, via
@@ -564,7 +570,7 @@ their own top-level section below:
   media CLIs and the Finder Services left for
   [`kattakath/nix-media-cli`](https://github.com/kattakath/nix-media-cli) on 2026-09-05 and came
   back in-tree on 2026-09-12 as `modules/features/media-cli/` (ADR-002 wave 5). They reach the
-  Mac as one home-manager module: `programs.mediaCli.enable`, set from `home.nix` on
+  Mac as one home-manager module: `local.mediaCli.enable`, set from `home.nix` on
   `isMacosHost`. Everything that used to be documented here — the three `QueueDirectories`
   tiers, `ProcessType = "Background"`, the `SIGSTOP`/`SIGCONT` pause, the `MAINPID` orphan
   adoption, the deliberate absence of a GUI status surface — lives with the code, in that
@@ -582,7 +588,7 @@ their own top-level section below:
     `checks.<system>.media-cli-module` asserts the arg0 is both `nix-*` AND a store path.
   - **The vision model** was a hardcoded literal, so no environment variable could have
     overridden it. It is now a `defaultModel` derivation argument, surfaced as
-    `programs.mediaCli.visionModel`.
+    `local.mediaCli.visionModel`.
 
   `rclip` stays HERE (`rclipCli` in `home.nix`, with its `dontCheckRuntimeDeps` override and
   `RCLIP_USE_ONNX_ON_MACOS`): it is a third-party search tool this repo merely installs, and
@@ -635,7 +641,14 @@ their own top-level section below:
     `terminal-theme.nix`; this module owns **delivery**, never the palette. Driven through
     Terminal's own AppleScript `settings set` API since Terminal owns `com.apple.Terminal`
     and clobbers direct plist writes. Guarded on Terminal already running so a rebuild never
-    launches it (`ps`, not `pgrep` — the latter can't see it from activation). Every property
+    launches it — with **`pgrep -x Terminal`, never a `ps | grep -q` pipe**. An earlier
+    comment claimed the opposite ("`pgrep` can't see it from activation"); that was a
+    misdiagnosis. home-manager's generated activate script runs under `set -o pipefail`,
+    `grep -q` exits the instant it matches, the closed pipe kills `ps` with SIGPIPE, and the
+    pipeline reports 141 on a *successful* match — so the guard skipped forever on a Mac
+    where Terminal was running. Measured in the real activation context
+    (`launchctl asuser <uid> sudo -u <user>`): the pipe form exits 141, `pgrep` exits 0. Rule:
+    no pipe in a guard that runs under `pipefail`. Every property
     is compared before it is written, so a settled Mac is a true no-op. This repo used to
     VENDOR an "Ubuntu" profile + generator here; #319 dropped that, and Apple's scripting
     interface replaced it — which is also why the ANSI ring is unreachable (it lives only in
@@ -648,7 +661,7 @@ their own top-level section below:
 - **`wireguard-configs.nix`** — operator-managed WG confs synced to `~/.config/wireguard`, no
   autostart; import-only for the `WireGuard.app` GUI (the `vpn` CLI left with the `macvm`
   guest, 2026-09-05 — [`macvm-readd-runbook.md`](macvm-readd-runbook.md)).
-- **`claude-otel.nix`** — `services.claudeOtel`, real-Mac-only: a local OTel Collector
+- **`claude-otel.nix`** — `local.claudeOtel`, real-Mac-only: a local OTel Collector
   receiving Claude Code's native OpenTelemetry `tool_decision`/`tool_result` events over
   localhost OTLP, writing a rotating JSONL for `/routing-review` to mine for
   deterministic-routing hardening candidates. See
@@ -678,7 +691,7 @@ their own top-level section below:
     hand-repaired. It degrades to Claude Code's default provider rather than erroring.
     Offline and CLI-free by design (local files only; no `aws sts` call per shell).
   - **Why the mechanism is public.** A gate shipped from nix-personal would be dropped by
-    the very activation it defends against — the same reasoning as `programs.keychainSecrets`
+    the very activation it defends against — the same reasoning as `local.keychainSecrets`
     — and the identity *writing* belongs next to the gate that reads it, so a change to one
     cannot silently desync the other. nix-personal keeps only the two values. Companion: the
     `.claude/hooks/pretooluse-bash-guard.js` block, which only covers activations the *agent*
@@ -752,7 +765,7 @@ waves 5-6 absorb them).
 
 - **`modules/features/keychain-secrets/`** (an IN-TREE CAPSULE — it was extracted from this
   repo into the standalone MIT `nix-keychain-secrets` flake, then absorbed back by ADR-002
-  wave 4) — `programs.keychainSecrets`: the macOS login-Keychain `secret` CLI
+  wave 4) — `local.keychainSecrets`: the macOS login-Keychain `secret` CLI
   (`secret`/`set-secret`/`remove-secret`/`pb-conceal`) plus `~/.config/secrets/loader.sh`, a
   loader wired into **all four** shell entry points so even the non-interactive bash an agent
   spawns gets the operator's tokens. Darwin-gated internally, a clean no-op on the NixOS
@@ -761,7 +774,7 @@ waves 5-6 absorb them).
 
   **It is a security surface, so two cross-file contracts are gated rather than trusted.**
   (1) `modules/darwin/core.nix` derives `launchd.user.envVariables.BASH_ENV` from
-  `programs.keychainSecrets.loaderRelPath` **by reference** — that is the only thing covering
+  `local.keychainSecrets.loaderRelPath` **by reference** — that is the only thing covering
   a bash spawned by a GUI app or a launchd job, which descends from no shell at all; the
   capsule's `checks/module-evaluates.nix` pins that option's DEFAULT as a literal, so a
   rename cannot move one half without the other. (2) `modules/shared/claude-bedrock-gate.nix`
@@ -780,7 +793,7 @@ waves 5-6 absorb them).
 
 - **`modules/features/local-rag/`** (an IN-TREE CAPSULE — extracted from this repo to
   `kattakath/nix-local-rag` on 2026-08 and absorbed back by ADR-002 wave 6, the last
-  satellite) — `services.ollamaLocal` + `services.pgvectorLocal`, the loopback RAG stack
+  satellite) — `local.rag.ollama` + `local.rag.pgvector`, the loopback RAG stack
   (launchd Postgres+pgvector+pgsql-http, a local Ollama embed model, and the in-DB `embed()`
   that makes retrieval plain SQL). Threaded in as `localRagModule` through the RAW
   `capsuleModules` seam. **It measured drv-identical on BOTH seams** — unlike keychain-secrets
@@ -788,7 +801,7 @@ waves 5-6 absorb them).
   consistency and because order-insensitivity here is a property of today's contents, not of
   the class; the reasoning is in its `flake-module.nix` header.
 
-  The seam that matters is `services.pgvectorLocal.databaseUri`: `modules/shared/mcp.nix`
+  The seam that matters is `local.rag.pgvector.databaseUri`: `modules/shared/mcp.nix`
   hands it to the `postgres` MCP server as `env.DATABASE_URI`, which is the career RAG's only
   path to Claude Code. `checks.<system>.local-rag-module` pins that URI as a **literal** so a
   port/role/db rename fails there instead of silently returning zero rows, and
@@ -803,7 +816,7 @@ waves 5-6 absorb them).
   than part of the absorption diff.
 - **`modules/features/media-cli/`** (an IN-TREE CAPSULE — it was extracted from this repo to
   `kattakath/nix-media-cli` on 2026-09-05 and absorbed back by ADR-002 wave 5) —
-  `programs.mediaCli`, the eleven media CLIs + the launchd work queue + the Finder Services,
+  `local.mediaCli`, the eleven media CLIs + the launchd work queue + the Finder Services,
   `macos`-only because of closure size. Threaded in as `mediaCliModule` through the RAW
   `capsuleModules` seam rather than `flake.modules` — see § `modules/features/` for the
   measurement. Its eleven packages are deliberately **not** re-published as flake outputs
@@ -836,7 +849,7 @@ waves 5-6 absorb them).
 - **`xcode-license.nix`** (macos only) — runs *before* `brew bundle` to `mas install` Xcode
   when declared in `masApps` and `xcodebuild -license accept`, so formulae are not blocked by
   an unaccepted SDK license (Brewfile order is brews→casks→mas).
-- **`github-runner.nix`** — `services.macosGithubRunner`: N hand-rolled launchd daemons running
+- **`github-runner.nix`** — `local.macosGithubRunner`: N hand-rolled launchd daemons running
   **ephemeral, org-level self-hosted GitHub Actions runners**. Built then retired 2026-07-16
   once nix-config's own CI no longer needed one; **revived 2026-08-23 for a different consumer**
   — `dontsell-ai`'s repos, whose macOS + Playwright + Prisma jobs neither GitHub-hosted (no
@@ -859,7 +872,7 @@ waves 5-6 absorb them).
   - **Labels:** `extraLabels` (default `[ "nix" ]`) is passed as `--labels` **without**
     `--no-default-labels`, so the effective set is `{self-hosted, macOS, ARM64} ∪ extraLabels`
     — GitHub assigns the first three server-side. `nix` is the **positive** toolchain
-    discriminator against the Tart-VM lane (`tart.githubRunners.*`, which carries `tart` and
+    discriminator against the Tart-VM lane (`local.tart.githubRunners.*`, which carries `tart` and
     runs in a stock Cirrus guest with no nix/cachix/postgres). Both lanes register into
     `dontsell-ai`'s single `Default` group, so without `nix` the only thing telling this lane
     apart is the *absence* of `tart`, and GitHub has no negative selector. **Widening a label
@@ -897,13 +910,13 @@ flake, and never imported by path from the host.
 
 - **`modules/features/cloudflared-connector/`** (an IN-TREE CAPSULE, not an input — it was
   the `nix-cloudflared-connector` flake until ADR-002 wave 3 absorbed it) — opt-in
-  `services.cloudflared-connector.enable`
+  `local.cloudflaredConnector.enable`
   (default false); hardened `systemd.services.cloudflared-connector` running a
   **remotely-managed (token)** Cloudflare Tunnel — no `cloudflared tunnel login`, no cert.pem.
   Token read from `tokenFile` (module default `/etc/secrets/cloudflared-token`,
   operator-placed), never in git; an activation script warns (doesn't abort) if absent. Only
   `nixpi` enables it — and `nixpi` **overrides `tokenFile` to `/run/cloudflared-token`**, a
-  root-only file that `services.firmwareProvisioning` populates at boot from the token
+  root-only file that `local.firmwareProvisioning` populates at boot from the token
   operator-planted on the SD card's FAT `FIRMWARE` partition. This deliberately replaced
   agenix: agenix binds the token to nixpi's SSH host key, but a fresh SD flash rotates that
   key, breaking decryption and killing the tunnel — the sole remote path in.
@@ -916,7 +929,7 @@ flake, and never imported by path from the host.
   `--dry-activate` on an already-provisioned card.
 - **`modules/features/firmware-secrets/`** (an IN-TREE CAPSULE — it was extracted from this
   repo into the standalone MIT `nix-firmware-secrets` flake, then absorbed back by ADR-002
-  wave 4) — `services.firmwareProvisioning`, a reusable `files.<name>` mechanism: each entry
+  wave 4) — `local.firmwareProvisioning`, a reusable `files.<name>` mechanism: each entry
   becomes a oneshot that, once `/boot/firmware` is mounted, copies an operator-planted file off
   the FAT `FIRMWARE` partition into a root-only `/run` file before its consumer starts
   (`required` fails the unit if absent; else it skips cleanly). `nixpi` uses it for BOTH the
@@ -1064,7 +1077,7 @@ to build the boundary machinery around it.
 
 ### `keychain-secrets` (wave 4, 1,336 lines)
 
-- **Owns:** `programs.keychainSecrets` — the `secret set/reveal/rm/ls/exec/copy/fp/bind/unbind/adopt/load`
+- **Owns:** `local.keychainSecrets` — the `secret set/reveal/rm/ls/exec/copy/fp/bind/unbind/adopt/load`
   CLI over the macOS login Keychain, plus a home-manager loader that exports registered secrets
   into **every** shell, including the non-login bash an AI coding agent spawns for its tools.
   Nothing secret — **not even the key names** — reaches the store or git.
@@ -1075,7 +1088,7 @@ to build the boundary machinery around it.
   repo's darwin CI leg builds none of its packages, so dropping them would have been ADR-002
   §7.4's "highest-cost silent loss").
 - **Two cross-file contracts, now GATED rather than trusted** — this is a security surface:
-  - `programs.keychainSecrets.loaderRelPath` is preserved **byte-identical** (name, type,
+  - `local.keychainSecrets.loaderRelPath` is preserved **byte-identical** (name, type,
     default), because `modules/darwin/core.nix` derives `launchd.user.envVariables.BASH_ENV` from
     it **by reference** — the only thing covering a bash spawned by a GUI app or a launchd job.
     The eval check pins that default as a **LITERAL** rather than reading the option back, so the
@@ -1102,8 +1115,8 @@ to build the boundary machinery around it.
 modules sit in `mkDarwin`'s **base list**, so every darwin composition — nix-personal's
 included — evaluates them.
 
-- **Owns:** `tart.githubRunners.*` (ephemeral Tart-VM-per-job runners), `tart.gitlabRunner`,
-  `tart.vms.*`, `tart.runnerSlots` / `tart.runnerStateDir`, and five packages.
+- **Owns:** `local.tart.githubRunners.*` (ephemeral Tart-VM-per-job runners), `local.tart.gitlabRunner`,
+  `local.tart.vms.*`, `local.tart.runnerSlots` / `local.tart.runnerStateDir`, and five packages.
 - **Seam:** `capsuleModules.darwin` — the RAW seam, for a reason independent of `home.packages`
   ordering: both runner modules do `imports = [ ./slots.nix ]`, and **the module system dedupes
   by PATH identity**. `deferredModule` would hand the base list two anonymous
@@ -1125,7 +1138,7 @@ included — evaluates them.
 - **Checks:** five eval checks carried verbatim, five build checks folded into one
   `tart-vms-packages`, plus a NEW `tart-vms-inert` — `compose.nix` had always ASSERTED IN PROSE
   that these modules are inert in every composition, and nothing measured it.
-- **`./darwin.nix` (`tart.vms.*`) has no consumer today and is kept on purpose:**
+- **`./darwin.nix` (`local.tart.vms.*`) has no consumer today and is kept on purpose:**
   [`macvm-readd-runbook.md`](macvm-readd-runbook.md)'s step 1 *is* that module. Its re-add step is
   now a `compose.nix` line, not a re-added input.
 - **Two stale `modules/…` references survive** inside `''…''` shell script bodies
@@ -1137,9 +1150,9 @@ included — evaluates them.
 
 One option in `modules/shared/home.nix`, and **nothing at all** in nix-personal.
 
-- **Owns:** `programs.mediaCli` — eleven media/photo CLIs, a durable launchd work queue
+- **Owns:** `local.mediaCli` — eleven media/photo CLIs, a durable launchd work queue
   (~1,300 lines) and four Finder right-click Services. One switch turns all of it on or off:
-  `programs.mediaCli.enable = false` removes the CLIs, both launchd agents, the Services and the
+  `local.mediaCli.enable = false` removes the CLIs, both launchd agents, the Services and the
   companion tools together.
 - **Seam:** `capsuleModules.homeManager.media-cli` — the most exposed of any capsule to
   `deferredModule` reordering, since it contributes the Mac's largest single `home.packages`
@@ -1161,7 +1174,7 @@ One option in `modules/shared/home.nix`, and **nothing at all** in nix-personal.
   that every queue mechanism here is launchd's own, which is what answers *"why hand-roll a job
   queue"* with *"we did not"*.
 - **Checks:** six, including `media-cli-queue-state-machine` and `media-cli-inert` (an unset
-  `programs.mediaCli.enable` must define no agent, no session variable, no activation step and no
+  `local.mediaCli.enable` must define no agent, no session variable, no activation step and no
   package — the state `nixpi`/`nixvm` are in, since `home.nix` imports the capsule
   unconditionally).
 - **NOT re-published, on purpose** (ADR-002 §7.3): the satellite's 11 packages and 9 apps.
@@ -1171,19 +1184,19 @@ One option in `modules/shared/home.nix`, and **nothing at all** in nix-personal.
 
 ### `local-rag` (wave 6, 473 lines) — the last satellite
 
-- **Owns:** `services.ollamaLocal` + `services.pgvectorLocal` — a loopback-only
+- **Owns:** `local.rag.ollama` + `local.rag.pgvector` — a loopback-only
   Postgres + pgvector + pgsql-http and a loopback-only Ollama, wired by bootstrap SQL into an
   in-DB `public.embed(text)` `SECURITY DEFINER` function, a `public.docs` table and an HNSW
   cosine index. Ingest and retrieval are both **plain SQL**; no API key, nothing leaves the
   machine.
 - **The seam the whole wave was gated on:** `modules/shared/mcp.nix`'s
-  `env.DATABASE_URI = config.services.pgvectorLocal.databaseUri`. That one string is the career
+  `env.DATABASE_URI = config.local.rag.pgvector.databaseUri`. That one string is the career
   RAG's only path to the `postgres` MCP server, and `checks.local-rag-module` pins its value as a
   **LITERAL**, so a port/role/db rename fails there instead of quietly returning zero rows.
 - **Layout:** the two modules sit at the capsule ROOT, not under `modules/`, so that
   `pgvector-local.nix`'s `imports = [ ./ollama-local.nix ]` stays a **sibling** path. That
-  literal is load-bearing — it is how `services.pgvectorLocal` single-sources
-  `embedModel`/`embedDim` from `services.ollamaLocal` even when a consumer imports only the
+  literal is load-bearing — it is how `local.rag.pgvector` single-sources
+  `embedModel`/`embedDim` from `local.rag.ollama` even when a consumer imports only the
   postgres half.
 - **Deliberately NO `programs.localRag.enable`.** ADR-002 §4 names a wrapping third switch as the
   two-switch regression the brief forbids; each module keeps gating its own
@@ -1209,7 +1222,7 @@ Core package set:
   `nixpi-flash`/`nixpi-provision`/`nixpi-wifi-creds`/`nixpi-vault-token`
   `writeShellApplication` flake apps that flash the SD card and plant the token+Wi-Fi onto its
   FIRMWARE partition — the executable companion to the `modules/features/firmware-secrets/`
-  capsule's `services.firmwareProvisioning`.
+  capsule's `local.firmwareProvisioning`.
 - **`key-recovery.nix`** — macOS-only: the `key-backup`/`key-recover` apps, stage 2 of Mac
   bootstrap/recovery, shellcheck-gated. `key-recover` clones, HARD-FAILS unless the login
   `id -un` == the flake's `loginName` (via the `#identity.loginName` output), then RESTORES
@@ -1242,7 +1255,7 @@ Smaller, single-purpose CLIs:
   `fidelity-enhance.nix` — left for `kattakath/nix-media-cli` on 2026-09-05 (which is where
   the `photo-describe` → `media-describe` renaming happened) and came back on 2026-09-12 as
   `modules/features/media-cli/packages/`, with their reasoning intact in their own headers.
-  This repo consumes them as `programs.mediaCli` (see § `modules/shared/` above). There is no
+  This repo consumes them as `local.mediaCli` (see § `modules/shared/` above). There is no
   `nix run .#media-describe`: the capsule publishes **no** packages or apps, on purpose — the
   CLIs reach the Mac through `home.packages` and a second perSystem-pkgs copy would be eleven
   `nix flake show` rows nothing consumes. The one-line path back is in the capsule's
@@ -1268,7 +1281,7 @@ Smaller, single-purpose CLIs:
   `jsonresume-tailor` skill.
 - **`mermaid-ascii.nix`** — packages `AlexanderGrooff/mermaid-ascii`, not in nixpkgs, for the
   diagrams-as-ASCII convention.
-- **`claude-otel-doctor.nix`** — health check for the `services.claudeOtel` collector (launchd
+- **`claude-otel-doctor.nix`** — health check for the `local.claudeOtel` collector (launchd
   agent, OTLP port, events-file freshness). See
   [`claude-code-observability-runbook.md`](claude-code-observability-runbook.md).
 - **`resend-cli.nix`** — the official Resend CLI, not yet in nixpkgs so `npx`-wrapped and
@@ -1280,7 +1293,7 @@ Smaller, single-purpose CLIs:
 
 Plain `.user.js` files, one per site. They no longer live in this tree: they are
 `github:kattakath/userscripts`, pinned as the `kattakath-userscripts` input and referenced by
-name from `modules/shared/home.nix`'s `programs.ungoogledChromium.userScripts.scripts`
+name from `modules/shared/home.nix`'s `local.ungoogledChromium.userScripts.scripts`
 (`"${kattakath-userscripts}/<name>.user.js"` — a string, which satisfies the option's `path`
 type because it is absolute). The option, the materialisation, and the reason Chromium allows
 nothing more declarative all live in
@@ -1367,7 +1380,7 @@ the token to stdout to be stored via `nix run .#nixpi-vault-token` into
 ### `infra/cloudflare/mcp-public.nix`
 
 The Cloudflare half of the **published MCP gateway** — the other half is
-`services.mcpGateway.public` in `modules/shared/mcp.nix`, which puts the opt-in subset of
+`local.mcpGateway.public` in `modules/shared/mcp.nix`, which puts the opt-in subset of
 servers on a SECOND `mcp-proxy` at `127.0.0.1:8097`. Built and live since 2026-09-12; the
 design note is [`docs/mcp-public-exposure-design.md`](mcp-public-exposure-design.md).
 
@@ -1523,7 +1536,7 @@ only difference between "someone else's skill" and "mine" is now who can push to
 
 - **`rag`** — local RAG over the pgvector store: how to ingest and query via the `postgres`
   MCP server and the in-DB `embed()` function (the local-rag capsule's
-  `services.pgvectorLocal` + `services.ollamaLocal`).
+  `local.rag.pgvector` + `local.rag.ollama`).
 - **`android-phone`** — operator knowledge for `packages/android-phone.nix`, global so ADB
   sessions launched from ANY directory know the wrapper's command surface and adb footguns,
   not just sessions rooted in this repo.
@@ -1593,7 +1606,7 @@ Two plugins:
   date and a re-measure recipe — because `chrome-devtools-mcp@1.8.0` exposes **29** of the ~57
   tools its generated docs describe (those are written from `main`), so the entire Extensions
   group and 12 of 13 Memory tools do not exist yet. The MCP server itself is opt-in in
-  `modules/shared/mcp.nix` (`services.mcpGateway.chromeDevtools.enable`), in ATTACH mode
+  `modules/shared/mcp.nix` (`local.mcpGateway.chromeDevtools.enable`), in ATTACH mode
   against **Opera Air**; read that option's warning before enabling it. The attach flag is
   **chosen at spawn time** by the `nix-mcp-chrome-devtools` wrapper, because measured
   2026-09-07 no single upstream flag works in both modes a browser can be in: one put into
@@ -1658,8 +1671,8 @@ job.
 Do **not** read that as "the Mac has no runners": `macos` hosts **six** runner lanes — two
 bare-metal ephemeral runners on the **`dontsell-ai`** org
 (`modules/darwin/github-runner.nix` above), three ephemeral Tart-VM-per-job runners
-(`tart.githubRunners.*` — `kattakath`, `silvercreek-ai`, `dontsell-vm`), and one GitLab runner
-(`tart.gitlabRunner`). None of them serve *this* repo's CI. The facts are about different repos.
+(`local.tart.githubRunners.*` — `kattakath`, `silvercreek-ai`, `dontsell-vm`), and one GitLab runner
+(`local.tart.gitlabRunner`). None of them serve *this* repo's CI. The facts are about different repos.
 
 Also in `.github/workflows/`: `auto-merge.yml`, `build-devcontainer.yml`,
 `build-installers.yml`, `claude*.yml`, `gitleaks.yml`, and `flakehub-publish.yml` — the last

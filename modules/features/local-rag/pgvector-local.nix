@@ -1,10 +1,10 @@
-# home-manager module: services.pgvectorLocal
+# home-manager module: local.rag.pgvector
 #
 # Local PostgreSQL + pgvector, as a loopback-only launchd user agent (darwin).
 #
 # WHY: a real pgvector store for vector-similarity / RAG work, bootstrapped
 # with a plain-SQL RAG interface — a `docs` table plus an in-DB `embed(text)`
-# function that calls `services.ollamaLocal` (modules/ollama-local.nix) over
+# function that calls `local.rag.ollama` (modules/ollama-local.nix) over
 # loopback HTTP. Same shape as any other Home Manager `launchd.agents` unit —
 # bound to 127.0.0.1, started at login (RunAtLoad), kept alive (KeepAlive).
 # Nothing listens off-box.
@@ -18,7 +18,7 @@
 #     has no rights anywhere else, so a consumer's blast radius is exactly
 #     that one database.
 # The connection URI therefore carries no secret and is safe to emit into the
-# store; it is exposed read-only as `services.pgvectorLocal.databaseUri`. This
+# store; it is exposed read-only as `local.rag.pgvector.databaseUri`. This
 # module does NOT wire that URI into any MCP server or client itself — that's
 # on you: point your own Postgres-backed tool (MCP server, script, whatever)
 # at it. See README.md "Security model" + "Install" for the shape.
@@ -35,13 +35,13 @@
   ...
 }:
 let
-  cfg = config.services.pgvectorLocal;
+  cfg = config.local.rag.pgvector;
   # Ollama's COORDINATES come from home-manager's own `services.ollama`
   # (upstream option home-manager.services.ollama.host/.port exists -> using it;
   # pinned home-manager modules/services/ollama.nix:28-44). The embed MODEL and
-  # its dimension are this flake's addition on top, in `services.ollamaLocal`.
+  # its dimension are this flake's addition on top, in `local.rag.ollama`.
   ollama = config.services.ollama;
-  embed = config.services.ollamaLocal;
+  embed = config.local.rag.ollama;
 in
 {
   imports = [
@@ -51,7 +51,7 @@ in
     ./ollama-local.nix
   ];
 
-  options.services.pgvectorLocal = {
+  options.local.rag.pgvector = {
     enable = lib.mkEnableOption "local Postgres + pgvector RAG store as a launchd user agent (darwin)";
 
     port = lib.mkOption {
@@ -181,7 +181,7 @@ in
         GRANT ALL ON public.docs TO ${cfg.role};
         GRANT USAGE, SELECT ON SEQUENCE public.docs_id_seq TO ${cfg.role};
 
-        -- services.pgvectorLocal.extraSql: consumer-supplied idempotent SQL
+        -- local.rag.pgvector.extraSql: consumer-supplied idempotent SQL
         -- (domain tables from a private layer). Appended INSIDE this file so
         -- the .rag-sql stamp covers it and edits re-apply on rebuild.
         ${cfg.extraSql}

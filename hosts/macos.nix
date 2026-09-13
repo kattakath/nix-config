@@ -50,7 +50,7 @@
   # rotates. Use `age -R` directly, NOT `agenix -e` (which silently encrypts
   # empty stdin when non-interactive), and verify the recipient tags match the
   # file being replaced.
-  services.macosGithubRunner = {
+  local.macosGithubRunner = {
     enable = true;
     org = "dontsell-ai";
     appId = 4849830;
@@ -58,7 +58,7 @@
     count = 2;
   };
 
-  # ---- Ephemeral Tart-VM CI runners (tart.githubRunners.*, the tart-vms capsule) --
+  # ---- Ephemeral Tart-VM CI runners (local.tart.githubRunners.*, the tart-vms capsule) --
   # Every job gets a disposable macOS VM; the VM is the isolation boundary.
   # All instances share ONE fleet GitHub App ("ismailkattakath-ci", public,
   # appId 4849830, owned by the OPERATOR's personal account, not an org) and
@@ -102,7 +102,7 @@
   # bumping the digest below renames both — one elected instance re-pulls and
   # re-pins itself on its next cycle; the other two share that image/base/pin.
   # `tart-runner-setup-kattakath [image|pin|all]` pre-warms a bump by hand.
-  # Slots, pins and both lanes' logs live in tart.runnerStateDir
+  # Slots, pins and both lanes' logs live in local.tart.runnerStateDir
   # (~/.local/state/tart-runner) — durable by assertion, never /tmp.
   age.secrets."gh-app-fleet-key" = {
     file = ../secrets/gh-app-fleet-key.age;
@@ -110,7 +110,7 @@
     mode = "0400";
   };
   # The GitLab lane's glrt- runner token (runner "macos-ismail-dev",
-  # gitlab.com). tart.gitlabRunner's agent renders config.toml from it at
+  # gitlab.com). local.tart.gitlabRunner's agent renders config.toml from it at
   # start — the token never enters the store; secrets/secrets.nix has the
   # registration/rotation story.
   age.secrets."gitlab-runner-token" = {
@@ -118,7 +118,7 @@
     owner = loginName;
     mode = "0400";
   };
-  tart =
+  local.tart =
     let
       fleetApp = {
         appId = 4849830;
@@ -220,7 +220,7 @@
   # is added by the PRIVATE nix-personal flake instead, via extraHomeModules —
   # see the option's description in modules/shared/mcp.nix for the contract.
   home-manager.users.${loginName} = {
-    services.mcpGateway.gmail.accounts = [
+    local.mcpGateway.gmail.accounts = [
       "ismail@kattakath.com"
       "ismailkattakath@gmail.com"
     ];
@@ -246,7 +246,7 @@
     # window — because an open remote-debugging port is an unauthenticated control
     # channel over a profile holding live logins. Measured 2026-09-07: Opera stores
     # no persistent consent key, so there is nothing to make it stop asking.
-    services.mcpGateway.chromeDevtools.enable = true;
+    local.mcpGateway.chromeDevtools.enable = true;
   };
 
   # ---- OpenDesign: kill the in-app self-updater --------------------------------
@@ -283,7 +283,7 @@
       "git"
       "git-cliff" # release stage — changelog / release notes (GitLab CI)
       "git-filter-repo"
-      # gitlab-runner moved OFF brew 2026-09-05: tart.gitlabRunner below runs
+      # gitlab-runner moved OFF brew 2026-09-05: local.tart.gitlabRunner below runs
       # pkgs.gitlab-runner as a launchd agent with a runtime-rendered config
       # (the tart-vms capsule's gitlab-runner.nix). After activating, retire
       # the brew copy once: `brew services stop gitlab-runner`.

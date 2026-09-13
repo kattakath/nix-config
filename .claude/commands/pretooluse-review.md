@@ -17,7 +17,7 @@ telemetry stream already carries all three, first-hand.
 
 ## 1. Load the stream
 
-Read `~/.local/state/claude-otel/events.jsonl` (path from `services.claudeOtel.eventsFile`,
+Read `~/.local/state/claude-otel/events.jsonl` (path from `local.claudeOtel.eventsFile`,
 `modules/shared/claude-otel.nix`). Missing or empty → report **"no telemetry events yet"**,
 suggest `nix run .#claude-otel-doctor` to confirm the collector is receiving, and stop.
 

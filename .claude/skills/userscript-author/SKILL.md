@@ -4,7 +4,7 @@ description: >
   Declare and gate a Violentmonkey userscript FOR THIS FLEET: the file lands in
   the pinned `kattakath/userscripts` repo (public) or
   `gitlab:ismailkattakath/userscripts` (private), then gets its one-line entry in
-  `programs.ungoogledChromium.userScripts.scripts` (`modules/shared/home.nix`
+  `local.ungoogledChromium.userScripts.scripts` (`modules/shared/home.nix`
   here, `modules/userscripts.nix` in nix-personal) and a `nix flake update` of
   that input. Use when asked to "make <site> do X", "write a
   userscript for <site>", "fix my <site> script", or "this site's X annoys me".

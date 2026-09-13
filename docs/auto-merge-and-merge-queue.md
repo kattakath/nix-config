@@ -180,7 +180,7 @@ action on GitHub, not something any workflow in this repo performs.
 **Then three became two.** `kattakath/nix-mcp-gateway` was **archived on 2026-09-12**,
 retiring its ruleset, its merge queue and its `ci.yml` exactly as the seven above did — but
 for the **opposite reason**. It was never a satellite and never became a capsule: it was an
-unadopted extraction candidate, a thin generic `services.mcpGateway` broker module the fleet
+unadopted extraction candidate, a thin generic `local.mcpGateway` broker module the fleet
 never consumed, because `modules/shared/mcp.nix` is and always was the fleet's own wired
 deployment. Nothing came in-tree when it left, because nothing was ever taken in.
 `kattakath/nix-inngest` was archived the same day for the same reason; it never appeared in

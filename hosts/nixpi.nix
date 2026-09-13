@@ -85,7 +85,7 @@
 
   # SSH over the Cloudflare Tunnel — loginless, token-based connector. Both the
   # connector token AND the Wi-Fi credentials are delivered from the SD card's FAT
-  # FIRMWARE partition via `services.firmwareProvisioning`
+  # FIRMWARE partition via `local.firmwareProvisioning`
   # (the firmware-secrets capsule), NOT agenix. WHY NOT agenix: it
   # encrypts to nixpi's SSH HOST key, but a fresh SD flash mints a new host key, so
   # the ciphertext stops decrypting and the tunnel dies — and with SSH being
@@ -95,8 +95,8 @@
   # docs/nixpi-sd-flashing-runbook.md). Each planted file is copied into a root-only
   # /run file before its consumer starts, so the secret is never world-readable at
   # rest, on argv, or in the store.
-  services.cloudflared-connector.enable = true;
-  services.cloudflared-connector.tokenFile = "/run/cloudflared-token";
+  local.cloudflaredConnector.enable = true;
+  local.cloudflaredConnector.tokenFile = "/run/cloudflared-token";
 
   # nixpi runs exactly ONE connector — the primary, above. dontsell.ai's second,
   # independent connector was hand-written HERE, then moved to the private
@@ -109,7 +109,7 @@
   # share this host's tunnel; it needs its own connector again. See
   # docs/private-home-modules.md.
 
-  services.firmwareProvisioning.files = {
+  local.firmwareProvisioning.files = {
     # Connector token (`TUNNEL_TOKEN=<token>`). REQUIRED — the connector cannot start
     # without it, so the install unit fails (and blocks the connector) if it is absent.
     cloudflared-token = {

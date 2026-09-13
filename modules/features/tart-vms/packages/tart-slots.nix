@@ -1,5 +1,5 @@
 # The host-wide VM-slot semaphore, as a sourceable shell library — the SINGLE
-# protocol every VM-spawning CI system on the host speaks (GitHub tart.runners
+# protocol every VM-spawning CI system on the host speaks (GitHub local.tart.runners
 # controllers, the GitLab executor shims). Apple's Virtualization framework
 # refuses a third concurrent macOS guest; this is where that budget is shared.
 #

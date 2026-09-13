@@ -1,4 +1,4 @@
-# tart.gitlabRunner — a declarative gitlab-runner (custom executor → ephemeral
+# local.tart.gitlabRunner — a declarative gitlab-runner (custom executor → ephemeral
 # Tart VM per job, via packages/gitlab-tart.nix's slot shims) as a GUI-session
 # LaunchAgent.
 #
@@ -6,11 +6,11 @@
 # modules/services/gitlab-runner.nix): it runs a launchd DAEMON under a
 # dedicated `gitlab-runner` service user, and Tart guests can only boot in the
 # GUI login user's session (Virtualization.framework needs the unlocked
-# data-protection keychain — same constraint as tart.runners); its `script =`
+# data-protection keychain — same constraint as local.tart.runners); its `script =`
 # also execs a bare-`sh` arg0, and its registration flow is the legacy
 # REGISTRATION_TOKEN model, not the modern glrt- authentication token.
 #
-# Secret delivery is the CONSUMER's job, same contract as tart.githubRunners:
+# Secret delivery is the CONSUMER's job, same contract as local.tart.githubRunners:
 # `tokenFile` points at a runtime file holding ONLY the glrt- runner token
 # (agenix output, manual install, …) — no token material transits Nix. The
 # config.toml is rendered AT AGENT START into ~/.config/nix-gitlab-runner/
@@ -24,7 +24,7 @@
 # tags key to render, and the legacy `--tag-list` belonged to the dead
 # REGISTRATION_TOKEN flow. So tags are manual for exactly the same reason
 # minting the token is — same one-time act, same place to do it. GitHub's lanes
-# (tart.githubRunners, and nix-config's services.macosGithubRunner) are the
+# (local.tart.githubRunners, and nix-config's local.macosGithubRunner) are the
 # opposite: labels ARE declared in Nix and applied at every re-registration.
 #
 # GitLab matches a job's `tags:` as a subset of the runner's tag_list, same
@@ -39,8 +39,8 @@
   ...
 }:
 let
-  cfg = config.tart.gitlabRunner;
-  tartCfg = config.tart;
+  cfg = config.local.tart.gitlabRunner;
+  tartCfg = config.local.tart;
   gitlabTart = pkgs.callPackage ./packages/gitlab-tart.nix { };
 
   runner = pkgs.writeShellApplication {
@@ -53,7 +53,7 @@ let
       umask 077
 
       # Slot-semaphore knobs for the nix-gitlab-tart-* shims (inherited by the
-      # custom-executor children); shared with the GitHub tart.runners lane.
+      # custom-executor children); shared with the GitHub local.tart.runners lane.
       export TR_SLOTS_DIR=${lib.escapeShellArg "${tartCfg.runnerStateDir}/slots"}
       export TR_SLOTS_MAX=${toString tartCfg.runnerSlots}
 
@@ -99,11 +99,11 @@ let
   };
 in
 {
-  # Shares tart.runnerSlots / tart.runnerStateDir with the GitHub lane (the
+  # Shares local.tart.runnerSlots / local.tart.runnerStateDir with the GitHub lane (the
   # module system dedupes the double import when a consumer lists both lanes).
   imports = [ ./slots.nix ];
 
-  options.tart.gitlabRunner = {
+  options.local.tart.gitlabRunner = {
     enable = lib.mkEnableOption "declarative gitlab-runner with the Tart custom executor";
     url = lib.mkOption {
       type = lib.types.str;
@@ -141,7 +141,7 @@ in
 
     # Same durable-state mkdir as the GitHub lane, declared here too because
     # neither module may read the other's options (this one never declares
-    # tart.githubRunners). `mkdir -p` is idempotent and preActivation.text is
+    # local.tart.githubRunners). `mkdir -p` is idempotent and preActivation.text is
     # a lines option, so both declaring it merges cleanly. preActivation, not
     # postActivation: nix-darwin runs userLaunchd — which loads this agent and
     # opens StandardOutPath below — between the two.

@@ -12,7 +12,7 @@
 # `homeManagerConfiguration` lives on the FLAKE's `lib`, not on `pkgs.lib`.
 #
 # THE LITERAL `.config/secrets/loader.sh` BELOW IS THE POINT, not laziness. It
-# pins the DEFAULT of `programs.keychainSecrets.loaderRelPath`, which
+# pins the DEFAULT of `local.keychainSecrets.loaderRelPath`, which
 # modules/darwin/core.nix derives `launchd.user.envVariables.BASH_ENV` from BY
 # REFERENCE — so a silent change to that default would move the GUI/launchd half
 # of the loader without moving the shell half, and nothing else would notice.
@@ -39,7 +39,7 @@ let
         home.username = "tester";
         home.homeDirectory = homeDir;
         home.stateVersion = "24.05";
-        programs.keychainSecrets.enable = true;
+        local.keychainSecrets.enable = true;
       }
     ];
   };

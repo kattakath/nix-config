@@ -1,7 +1,7 @@
 # Private, localhost-only MCP gateway for Claude Code (darwin / the Mac).
 #
 # RELATED, AND NOT A RIVAL IMPLEMENTATION: github.com/kattakath/nix-mcp-gateway
-# WAS a standalone public flake that also declared `services.mcpGateway` — ARCHIVED
+# WAS a standalone public flake that also declared `local.mcpGateway` — ARCHIVED
 # 2026-09-12 as an extraction candidate nix-config never adopted. Archived, not
 # deleted (ADR-002 §7.8), so it stays public and readable. It was a THIN, GENERIC
 # broker module; this file is the fleet's fully-wired ~20-server CONFIGURATION of
@@ -9,7 +9,7 @@
 # one concrete deployment — never two competing options. That repo's
 # modules/mcp-gateway.nix carries a "WHAT THIS IS NOT" header saying so from its
 # side; this note is the missing half. The archiving settles the question for good:
-# this file is the fleet's ONLY `services.mcpGateway`, and there is no live rival
+# this file is the fleet's ONLY `local.mcpGateway`, and there is no live rival
 # implementation to reconcile with or migrate to.
 #
 # WHAT THIS DOES
@@ -33,7 +33,7 @@
 # SERVER SIDE (this box, 127.0.0.1:8096)
 #   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 19 servers (21
 #   with telegram + the local WordPress adapter, +1 per configured
-#   `services.mcpGateway.gmail.accounts` alias — `gmail-<alias>`, one process
+#   `local.mcpGateway.gmail.accounts` alias — `gmail-<alias>`, one process
 #   per Google/Workspace account, 0 in this public repo — see mkGmailMcp's
 #   comment), each reachable at /servers/<name>/sse.
 #   `gatewayConfig` is rendered by mcp-servers-nix's `lib.mkConfig`, so the 7 packaged
@@ -62,13 +62,13 @@
   ...
 }:
 let
-  cfg = config.services.mcpGateway;
+  cfg = config.local.mcpGateway;
 
   # localhost-only gateway endpoint.
   gatewayHost = "127.0.0.1";
   gatewayPort = 8096;
   # The PUBLISHED gateway. A second mcp-proxy, not a second port on the same
-  # process — see services.mcpGateway.public for why that separation is the
+  # process — see local.mcpGateway.public for why that separation is the
   # whole security argument.
   publicGatewayPort = 8097;
 
@@ -95,7 +95,7 @@ let
   # local state at ~/.telegram-mcp/session.json (pinned via TG_SESSION_PATH so the
   # launchd subprocess finds it regardless of its cwd; HOME is set for the same
   # reason). The server REFUSES to start without a session, so this is opt-in
-  # (services.mcpGateway.telegram.enable) and must be enabled only AFTER the one-time
+  # (local.mcpGateway.telegram.enable) and must be enabled only AFTER the one-time
   # auth below — a server that exits at startup could dark the whole gateway. Basename
   # nix-* for the BTM origin rule. Store the pair + auth once:
   #     secret set TG_APP_ID <app_id> ; secret set TG_API_HASH <api_hash>
@@ -510,7 +510,7 @@ let
     # owns ONLY `ragdb` and connects loopback-trust with no secret. The DB is a
     # loopback launchd agent — from the ABSORBED local-rag capsule
     # (modules/features/local-rag/, in-tree since ADR-002 wave 6), which
-    # single-sources the URI via services.pgvectorLocal.databaseUri. THIS LINE
+    # single-sources the URI via local.rag.pgvector.databaseUri. THIS LINE
     # IS THE CAREER RAG's whole path to Claude Code; the capsule's own check
     # pins the option's value as a literal so a rename fails there first.
     #
@@ -540,7 +540,7 @@ let
         "postgres-mcp"
         "--access-mode=unrestricted"
       ];
-      env.DATABASE_URI = config.services.pgvectorLocal.databaseUri;
+      env.DATABASE_URI = config.local.rag.pgvector.databaseUri;
     };
     # WordPress admin for the live site over its REST API — command is the
     # Keychain-injecting wpMcp wrapper above, so no secret lands in the gateway JSON.
@@ -781,7 +781,7 @@ let
   grokDesiredNames = lib.concatStringsSep " " (builtins.attrNames cfg.endpoints);
 in
 {
-  options.services.mcpGateway = {
+  options.local.mcpGateway = {
     enable =
       lib.mkEnableOption "the localhost MCP gateway (a sparfenyuk mcp-proxy launchd user agent hosting the shared packaged + custom MCP servers on 127.0.0.1)"
       // {
@@ -1092,7 +1092,7 @@ in
       {
         assertion = builtins.all (n: builtins.elem n hostedServerNames) cfg.public;
         message =
-          "services.mcpGateway.public lists a server the gateway does not host: "
+          "local.mcpGateway.public lists a server the gateway does not host: "
           + toString (builtins.filter (n: !(builtins.elem n hostedServerNames)) cfg.public)
           + ". Publishable names must appear in hostedServerNames "
           + "(packaged + customStdioServers).";
@@ -1111,7 +1111,7 @@ in
             ]
           ) cfg.public);
         message =
-          "services.mcpGateway.public must never contain desktop-commander "
+          "local.mcpGateway.public must never contain desktop-commander "
           + "(shell/RCE surface) or open-design (stdio-only upstream with a known "
           + "silent-death bug). Both are per-client stdio by design and are not "
           + "gateway-hosted at all.";

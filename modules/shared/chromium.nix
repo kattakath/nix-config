@@ -54,7 +54,7 @@
   ...
 }:
 let
-  cfg = config.programs.ungoogledChromium;
+  cfg = config.local.ungoogledChromium;
 
   # ---- CRX fetching (Chrome Web Store, fetched once and pinned) ---------------
   # Bumping `version` REQUIRES a new `hash` — the CWS endpoint serves whatever the
@@ -186,7 +186,7 @@ let
   };
 in
 {
-  options.programs.ungoogledChromium = {
+  options.local.ungoogledChromium = {
     enable = lib.mkEnableOption ''
       declarative config for the Homebrew-installed ungoogled-chromium (darwin only).
       Installs no browser — declare the `ungoogled-chromium` cask on the host

@@ -26,7 +26,7 @@ let
           fsType = "ext4";
         };
         system.stateVersion = "24.05";
-        services.cloudflared-connector = {
+        local.cloudflaredConnector = {
           enable = true;
           tokenFile = "/run/cloudflared-token";
           extraArgs = [

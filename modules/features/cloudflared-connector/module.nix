@@ -14,7 +14,7 @@
 # from the environment, so it never appears on the command line (argv is
 # world-readable via /proc) nor in a world-readable /nix/store path.
 #
-# ACTIVATION: opt in with `services.cloudflared-connector.enable = true`. A
+# ACTIVATION: opt in with `local.cloudflaredConnector.enable = true`. A
 # boot-time activation script warns (does not abort) if `tokenFile` is missing —
 # the unit fails at start and systemd retries (Restart=on-failure), so placing the
 # file after first boot self-heals without a rebuild.
@@ -25,10 +25,10 @@
   ...
 }:
 let
-  cfg = config.services.cloudflared-connector;
+  cfg = config.local.cloudflaredConnector;
 in
 {
-  options.services.cloudflared-connector = {
+  options.local.cloudflaredConnector = {
     enable = lib.mkEnableOption "Cloudflare Tunnel connector (remotely-managed, token from file)";
 
     package = lib.mkPackageOption pkgs "cloudflared" { };

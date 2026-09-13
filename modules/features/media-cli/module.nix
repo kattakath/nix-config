@@ -1,4 +1,4 @@
-# home-manager module: programs.mediaCli
+# home-manager module: local.mediaCli
 #
 # One switch for the whole media stack: the CLIs on PATH, the durable launchd
 # work queue that drains them, and the Finder right-click Services that feed it.
@@ -55,7 +55,7 @@
   ...
 }:
 let
-  cfg = config.programs.mediaCli;
+  cfg = config.local.mediaCli;
   inherit (pkgs.stdenv.hostPlatform) isDarwin;
 
   # ONE graph, shared with ./flake-module.nix — see ./package-graph.nix. The two
@@ -102,7 +102,7 @@ let
   };
 in
 {
-  options.programs.mediaCli = {
+  options.local.mediaCli = {
     enable = lib.mkEnableOption ''
       the media-file CLIs, the launchd work queue that drains them, and the
       Finder right-click Services that feed it (macOS only; a no-op elsewhere)
@@ -137,7 +137,7 @@ in
       default = "127.0.0.1:11434";
       description = ''
         Where `media-describe` looks for Ollama's HTTP API. Threaded into the
-        package at BUILD time, like {option}`programs.mediaCli.visionModel`,
+        package at BUILD time, like {option}`local.mediaCli.visionModel`,
         and NOT delivered by the `OLLAMA_HOST` session variable alone.
 
         The session variable reaches an interactive shell; it does not reach

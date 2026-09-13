@@ -1,4 +1,4 @@
-# home-manager module: programs.keychainSecrets
+# home-manager module: local.keychainSecrets
 #
 # A macOS login-Keychain secret store exposed as a noun-verb CLI plus a loader
 # that exports your registered secrets into EVERY shell — login, non-login,
@@ -39,7 +39,7 @@
   ...
 }:
 let
-  cfg = config.programs.keychainSecrets;
+  cfg = config.local.keychainSecrets;
   setSecret = pkgs.callPackage ./packages/set-secret.nix { };
   # The pasteboard half `secret copy` pipes to. Installed alongside the CLI so
   # it is usable on its own with any value on stdin, not only via the Keychain.
@@ -297,7 +297,7 @@ let
   sourceLoader = ''[ -r "${loaderPath}" ] && . "${loaderPath}" || true'';
 in
 {
-  options.programs.keychainSecrets = {
+  options.local.keychainSecrets = {
     enable = lib.mkEnableOption "macOS login-Keychain secret store + every-shell loader (secret/set-secret/remove-secret)";
     loaderRelPath = lib.mkOption {
       type = lib.types.str;

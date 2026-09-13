@@ -28,7 +28,7 @@ in
     operator
   ];
   # macos self-hosted GitHub Actions runner's GitHub App private key, for the
-  # `dontsell-ai` org (modules/darwin/github-runner.nix, services.macosGithubRunner).
+  # `dontsell-ai` org (modules/darwin/github-runner.nix, local.macosGithubRunner).
   # 2026-08-23: upgraded from a static PAT to a GitHub App — every registration
   # mints a fresh ~1hr installation token from this key rather than using a
   # long-lived bearer credential directly. Org-level registration serves every
@@ -55,7 +55,7 @@ in
   # The fleet-wide CI GitHub App ("ismailkattakath-ci", appId 4849830, PUBLIC
   # so it installs beyond its owning personal account) — ONE key serves every
   # install: kattakath + silvercreek-ai + dontsell-ai orgs and the personal
-  # account. Powers tart.githubRunners.* — the ephemeral Tart-VM-per-job
+  # account. Powers local.tart.githubRunners.* — the ephemeral Tart-VM-per-job
   # runners (nix-tart-vms darwinModules.github-runner, hosts/macos.nix). Same
   # model as the dontsell key above: HOST-decrypted at activation. Content is
   # the raw .pem.
@@ -89,7 +89,7 @@ in
     macos
   ];
   # The macos GitLab runner's glrt- authentication token (runner
-  # "macos-ismail-dev" on gitlab.com), for tart.gitlabRunner (nix-tart-vms
+  # "macos-ismail-dev" on gitlab.com), for local.tart.gitlabRunner (nix-tart-vms
   # darwinModules.gitlab-runner, hosts/macos.nix): HOST-decrypted at
   # activation → the agent renders gitlab-runner's config.toml from it at
   # start, so the token lives only here and in the runner's 0600 runtime

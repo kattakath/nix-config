@@ -186,7 +186,7 @@ stdio-only   ·   localhost HTTP   ·   localhost HTTP + published
 Proposed:
 
 ```nix
-services.mcpGateway.public = [ "nixos" "context7" "memory" ];
+local.mcpGateway.public = [ "nixos" "context7" "memory" ];
 ```
 
 A list, not a per-server attribute, so the default is **empty** — opt-in by construction. The

@@ -167,7 +167,7 @@ agree, because git is doing the copying.
 2. `nix flake update <input>` here, commit the `flake.lock`.
 3. For a plugin, add its bare name to `local.claudePlugins.marketplaces.kattakath.plugins`;
    for a skill, add a `programs.claude-code.skills.<name>` entry; for a userscript, add a
-   `programs.ungoogledChromium.userScripts.scripts.<name>` entry.
+   `local.ungoogledChromium.userScripts.scripts.<name>` entry.
 
 During development, skip the push/update loop with
 `nix flake check --override-input kattakath-claude-plugins path:../claude-plugins`.

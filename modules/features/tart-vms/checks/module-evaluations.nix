@@ -102,7 +102,7 @@ in
           }
           {
             _module.args.pkgs = pkgs;
-            tart.vms.smoke = {
+            local.tart.vms.smoke = {
               cpu = 2;
               memory = 4096;
               headless = true;
@@ -141,8 +141,8 @@ in
           {
             _module.args.pkgs = pkgs;
             # Deliberately the OLD name — this check also proves the
-            # tart.runners → tart.githubRunners rename alias fires.
-            tart.runners.smoke = {
+            # local.tart.runners → local.tart.githubRunners rename alias fires.
+            local.tart.runners.smoke = {
               scope = {
                 type = "org";
                 value = "example-org";
@@ -185,7 +185,7 @@ in
           darwinStubs
           {
             _module.args.pkgs = pkgs;
-            tart.gitlabRunner = {
+            local.tart.gitlabRunner = {
               enable = true;
               runnerName = "smoke";
               tokenFile = "/run/agenix/gitlab-runner-token";
@@ -218,7 +218,7 @@ in
 
   # The cross-lane state-dir contract, which nothing asserted before
   # 2026-09-05: BOTH lanes must derive slots, pins and logs from the
-  # ONE tart.runnerStateDir. A base-dir move used to pass every check
+  # ONE local.tart.runnerStateDir. A base-dir move used to pass every check
   # whether or not it was internally consistent, and the /tmp literal
   # left behind in github-runner.nix's log paths went unnoticed for
   # as long as it existed.
@@ -247,12 +247,12 @@ in
           darwinStubs
           {
             _module.args.pkgs = pkgs;
-            tart.runnerStateDir = stateDir;
-            tart.githubRunners = {
+            local.tart.runnerStateDir = stateDir;
+            local.tart.githubRunners = {
               alpha = sharedRunner;
               beta = sharedRunner;
             };
-            tart.gitlabRunner = {
+            local.tart.gitlabRunner = {
               enable = true;
               runnerName = "smoke";
               tokenFile = "/run/agenix/gitlab-runner-token";
@@ -289,7 +289,7 @@ in
 
         # (a)+(b) every agent log path follows the option.
         for p in $logPaths; do
-          case "$p" in "$stateDir"/*) : ;; *) fail "log path escaped tart.runnerStateDir: $p" ;; esac
+          case "$p" in "$stateDir"/*) : ;; *) fail "log path escaped local.tart.runnerStateDir: $p" ;; esac
         done
 
         # (c) THE cross-lane invariant: one slots dir, or the
@@ -419,13 +419,13 @@ in
   # sit in mkDarwin's BASE list (modules/parts/compose.nix), so they are
   # evaluated by EVERY darwin composition, including nix-personal's own
   # `lib.mkDarwin` call. compose.nix asserts in prose that they are "inert
-  # unless a host sets tart.githubRunners"; nothing measured it, and a module
+  # unless a host sets local.tart.githubRunners"; nothing measured it, and a module
   # that quietly contributes a launchd agent or a systemPackage to every
   # composition is exactly the failure ADR-002 §8 describes — invisible to
   # `nix flake check`, visible only on the Mac.
   #
   # So: evaluate all four together with ZERO configuration and assert the
-  # contributions are EMPTY. `tart.gitlabRunner.enable` defaults false; the two
+  # contributions are EMPTY. `local.tart.gitlabRunner.enable` defaults false; the two
   # attrset options default `{ }`. If any of that changes, this fails here
   # rather than on the operator's daily machine.
   inert =

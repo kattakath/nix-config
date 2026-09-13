@@ -3,7 +3,7 @@
 > **HISTORICAL, TWICE OVER.** This brief was answered and the extraction SHIPPED on
 > 2026-09-05 into [`kattakath/nix-media-cli`](https://github.com/kattakath/nix-media-cli);
 > ADR-002 wave 5 then absorbed that flake BACK on 2026-09-12 as the in-tree capsule
-> `modules/features/media-cli/`. nix-config still consumes it as `programs.mediaCli` — the
+> `modules/features/media-cli/`. nix-config still consumes it as `local.mediaCli` — the
 > option surface never moved, only the code. Kept for the reasoning, not as a plan. Its file
 > inventory and line references describe nix-config *before* the extraction, so they match
 > neither shape today.
@@ -187,7 +187,7 @@ top-level contents — `.github/`, `.gitignore`, `CODE_OF_CONDUCT.md`,
 
 **`kattakath/nix-keychain-secrets`** (same scaffolding, **plus** a `modules/` dir):
 same files as above, plus `modules/keychain-secrets.nix` — a home-manager module
-exposing `programs.keychainSecrets` (camelCase option name), gated
+exposing `local.keychainSecrets` (camelCase option name), gated
 `stdenv.isDarwin` internally so it's a clean no-op on non-Darwin hosts in a mixed
 fleet, exported as `homeManagerModules.default`.
 

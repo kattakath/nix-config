@@ -163,7 +163,7 @@ let
           # — a consumer left writing
           # `localRagModule.homeManagerModules.default` fails loudly instead of
           # half-resolving. RAW seam again, for the `home.packages` ordering
-          # reason above: `services.ollamaLocal` turns on home-manager's own
+          # reason above: `local.rag.ollama` turns on home-manager's own
           # `services.ollama`, which contributes to that list.
           localRagModule = local-rag;
           # A SOURCE PATH, not a module and not a derivation — home.nix
@@ -231,6 +231,12 @@ let
         # same two modules to build the same Pi — a shape leak. nix-config must
         # build every host standalone; the private layer passes data only.
         raspberryPiNix = raspberry-pi-nix;
+        # For hosts/nixvm.nix's `build-vm` variant, whose QEMU runner executes
+        # on the aarch64-darwin Mac. LAZY: only `system.build.vm` forces it, so
+        # the aarch64-linux toplevel eval (CI) never pulls in darwin pkgs. Same
+        # principle as raspberryPiNix above — a host's shape lives in its own
+        # file, never in a per-call `extraModules`.
+        darwinPkgs = nixpkgs.legacyPackages."aarch64-darwin";
       };
       modules = [
         { nixpkgs.hostPlatform = system; }
@@ -307,13 +313,13 @@ let
         # host-decrypted GitHub App key. Inert unless a host actually declares
         # `age.secrets.*`.
         agenix.darwinModules.default
-        # tart.githubRunners.* option surface (ephemeral Tart-VM CI runners) —
+        # local.tart.githubRunners.* option surface (ephemeral Tart-VM CI runners) —
         # in the BASE list, not per-call extraModules, so EVERY mkDarwin
         # composition has the options (nix-personal calls mkDarwin itself;
         # a per-call wire broke its eval — the PR #452 lesson, second
-        # verse). Inert unless a host sets tart.githubRunners (hosts/macos.nix).
+        # verse). Inert unless a host sets local.tart.githubRunners (hosts/macos.nix).
         tart-github-runner
-        # tart.gitlabRunner option surface (declarative gitlab-runner on the
+        # local.tart.gitlabRunner option surface (declarative gitlab-runner on the
         # same Tart custom executor + slot budget). Same base-list rationale.
         # Inert unless a host enables it (hosts/macos.nix).
         tart-gitlab-runner

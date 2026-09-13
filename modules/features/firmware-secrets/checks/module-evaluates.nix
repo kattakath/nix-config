@@ -30,7 +30,7 @@ let
           fsType = "ext4";
         };
         system.stateVersion = "24.05";
-        services.firmwareProvisioning = {
+        local.firmwareProvisioning = {
           docsHint = "See RUNBOOK.md.";
           files.demo-token = {
             source = "demo-token";

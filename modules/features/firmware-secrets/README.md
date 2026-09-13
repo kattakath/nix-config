@@ -39,7 +39,7 @@ it into `mkNixos`'s `specialArgs` as `firmwareSecretsModule`, and
 this directory imports its files by path, which is what makes it a capsule.
 
 ```nix
-services.firmwareProvisioning.files.my-token = {
+local.firmwareProvisioning.files.my-token = {
   source     = "my-token";              # basename planted on the FAT partition
   target     = "/run/my-token";         # root-only /run file your service reads
   required   = true;                    # fail the unit if the plant is missing
@@ -54,7 +54,7 @@ stays LAN-only rather than restart-looping a supplicant).
 
 ### The unit names are a load-bearing contract
 
-`services.firmwareProvisioning` derives `firmware-file-<key>.service` from each
+`local.firmwareProvisioning` derives `firmware-file-<key>.service` from each
 attribute key, and `hosts/nixpi.nix` names those units back by hand in its
 `before` / `after` / `requiredBy` edges. A rename anywhere in that triangle still
 evaluates and still `--dry-activate`s on an already-provisioned card — it only bites
@@ -62,7 +62,7 @@ on the NEXT FLASH. `checks.<system>.nixpi-firmware-names`
 ([`modules/parts/checks.nix`](../../parts/checks.nix)) pins all four names for
 exactly that reason. Do not relax it.
 
-### Options (`services.firmwareProvisioning`)
+### Options (`local.firmwareProvisioning`)
 
 | Option | Default | Meaning |
 |---|---|---|

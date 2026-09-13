@@ -9,13 +9,13 @@ the durable re-add path (it survives refactors where a `git revert` would not).
 
 | Asset | Where it lives now |
 |---|---|
-| ALL generic Tart machinery — lifecycle CLI (`tart-vm`), plug-and-play `bootstrap`, packer golden-image `bake`, `tart-guest-agent` packaging, a `tart.vms.<name>` darwin module | **`modules/features/tart-vms/`, in THIS repo.** It was `github:kattakath/nix-tart-vms` until ADR-002 wave 5 absorbed it as a capsule; the origin repo is archived. `tart.vms.*` (`modules/features/tart-vms/darwin.nix`) is the one module in the fleet with **no consumer today**, kept precisely so this runbook still has a step 1. |
+| ALL generic Tart machinery — lifecycle CLI (`tart-vm`), plug-and-play `bootstrap`, packer golden-image `bake`, `tart-guest-agent` packaging, a `local.tart.vms.<name>` darwin module | **`modules/features/tart-vms/`, in THIS repo.** It was `github:kattakath/nix-tart-vms` until ADR-002 wave 5 absorbed it as a capsule; the origin repo is archived. `local.tart.vms.*` (`modules/features/tart-vms/darwin.nix`) is the one module in the fleet with **no consumer today**, kept precisely so this runbook still has a step 1. |
 | A baked, operator-neutral **golden image** (`tahoe-golden`) | `~/.tart/vms/` on the macos host (imperative artifact — check `tart list` before assuming) |
 | The removed thin layer, verbatim | git history — the removal commit is tagged in the PR that cites this runbook; `git show <removal>^:hosts/macvm.nix` etc. |
 
 ## Re-add procedure
 
-1. **Module back — no input, no lock change.** The `tart.vms.<name>` module is
+1. **Module back — no input, no lock change.** The `local.tart.vms.<name>` module is
    already in-tree and already registered by the capsule
    (`modules/features/tart-vms/flake-module.nix`, `capsuleModules.darwin.tart-vms`);
    it is simply not in any composition. Add it to `mkDarwin`'s base list in

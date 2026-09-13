@@ -1,4 +1,4 @@
-# home-manager module: services.ollamaLocal
+# home-manager module: local.rag.ollama
 #
 # The EMBEDDING half of the local RAG stack. Ollama itself is NOT hand-rolled
 # here: home-manager already ships `services.ollama`, whose darwin path emits a
@@ -7,7 +7,7 @@
 # `home.packages`. This module turns that on and adds the one thing upstream
 # has no opinion about — making sure an EMBED model is actually present, since
 # nothing in a pgvector store can generate embeddings on its own and
-# `services.pgvectorLocal` (modules/pgvector-local.nix) calls Ollama over
+# `local.rag.pgvector` (modules/pgvector-local.nix) calls Ollama over
 # loopback HTTP from an in-DB `embed()` function.
 #
 #   upstream option home-manager.services.ollama exists -> using it
@@ -38,12 +38,12 @@
   ...
 }:
 let
-  cfg = config.services.ollamaLocal;
+  cfg = config.local.rag.ollama;
   ollama = config.services.ollama;
   logDir = "${config.home.homeDirectory}/Library/Logs";
 in
 {
-  options.services.ollamaLocal = {
+  options.local.rag.ollama = {
     enable = lib.mkEnableOption ''
       the local RAG embedding runtime: home-manager's `services.ollama` plus a
       one-shot agent that pulls `embedModel` (darwin)
@@ -54,7 +54,7 @@ in
       default = "nomic-embed-text";
       description = ''
         Ollama model pulled (once, by the one-shot agent) and used for
-        embeddings. Must match `services.ollamaLocal.embedDim` below for
+        embeddings. Must match `local.rag.ollama.embedDim` below for
         whatever model you choose — `nomic-embed-text` is 768-dim.
       '';
     };
@@ -64,7 +64,7 @@ in
       default = 768;
       description = ''
         Output dimension of `embedModel`. Consumed by
-        `services.pgvectorLocal` to size the `vector(...)` column — must match
+        `local.rag.pgvector` to size the `vector(...)` column — must match
         the model above, or `embed()` calls will fail with a dimension
         mismatch.
       '';

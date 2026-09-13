@@ -134,9 +134,9 @@ One line per path; the *why* and the per-file specifics are in
 | `sgconfig.yml` + `ast-grep/` | Report-only structural lint (ast-grep): `rules/` mechanises prose conventions **and the capsule boundary** (`capsule-must-not-reach-out`), `rule-tests/` proves they fire. Gated by `checks.<system>.ast-grep`, **not** treefmt. |
 | `hosts/` | Per-host entry profiles: `macos.nix`, `nixpi.nix`, `nixvm.nix` (host-only deltas + per-host Homebrew lists). |
 | `modules/parts/` | The FLAKE ENGINE, one flake-parts module per concern, discovered by `import-tree` (ADR-002 wave 2): `identity.nix`, `systems.nix`, `compose.nix` (`mkDarwin`/`mkNixos` — kept as plain functions, **not** translated), `hosts.nix`, `packages.nix`, `checks.nix`, `capsules.nix`, `terranix.nix`, `devshell.nix`, `deploy.nix`, `templates.nix`, `devcontainer.nix`, `lib-option.nix`, `touchup.nix` (what the flake does **not** export). The engine **may** reach anywhere. Per-file detail: [`docs/repo-map.md`](docs/repo-map.md) § `modules/parts/`. |
-| `modules/features/` | CAPSULES — **the absorbed satellite flakes, one directory each**: `flake-module.nix` (the ONLY file anything outside imports) + `module.nix` + `packages/` + `checks/` + `README.md`. A capsule **may not reach outside its own directory** — mechanical, not convention: `ast-grep/rules/capsule-must-not-reach-out.yml` + `checks.<system>.capsule-registry`. The six: `cloudflared-connector`, `firmware-secrets` (both NixOS), `keychain-secrets` (the `secret` CLI + every-shell loader), `tart-vms` (`tart.githubRunners.*` / `tart.gitlabRunner` / `tart.vms.*`), `media-cli` (`programs.mediaCli`), `local-rag` (`services.ollamaLocal` + `services.pgvectorLocal` — the career RAG's `databaseUri` seam). **The satellite count is 0.** One section each: [`docs/repo-map.md`](docs/repo-map.md) § `modules/features/`. |
-| `modules/shared/` | Home Manager profile on every host: `home.nix`, `mcp.nix`, `terminal-theme.nix` (`local.terminalTheme` — the fleet's one ANSI ring + type, consumed by Ghostty, VS Code and Terminal.app), `chromium.nix` (`programs.ungoogledChromium` — sideloaded CRXes, Apple's Passwords native host, and *recommended*-level policy incl. the default search engine, all for the Homebrew cask), `default-browser.nix` (the LaunchServices default-browser claim, split out of `chromium.nix`), `desktop-aesthetics.nix`, `nix-cache.nix`, `nix-ld-libraries.nix`, `wireguard-configs.nix`, `claude-otel.nix`, `claude-bedrock-gate.nix` (`local.claudeBedrock` — AWS region/profile seam, **null by default**; plus the runtime gate that keeps Bedrock routing survivable on a public-only activation), `claude-brain.nix` (the "Brain Signals" answer-shape kit — output style, calibration rule, `/explain` family, `cartographer`, `/task`; every class merges, so a private layer ADDS), `claude-plugins.nix` (`local.claudePlugins.marketplaces` — N Claude Code plugin marketplaces behind ONE activation; `attrsOf`, so nix-personal ADDS a marketplace instead of copying the script), `git-allowed-signers.nix` (option-only seam nix-personal fills), `wallpaper/`, `hm-launchd/`. |
-| `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix` (`local.folders.*` — inbox paths; unset = system default), `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`services.macosGithubRunner` — LIVE on `macos`, see § Configuration). |
+| `modules/features/` | CAPSULES — **the absorbed satellite flakes, one directory each**: `flake-module.nix` (the ONLY file anything outside imports) + `module.nix` + `packages/` + `checks/` + `README.md`. A capsule **may not reach outside its own directory** — mechanical, not convention: `ast-grep/rules/capsule-must-not-reach-out.yml` + `checks.<system>.capsule-registry`. The six: `cloudflared-connector`, `firmware-secrets` (both NixOS), `keychain-secrets` (the `secret` CLI + every-shell loader), `tart-vms` (`local.tart.githubRunners.*` / `local.tart.gitlabRunner` / `local.tart.vms.*`), `media-cli` (`local.mediaCli`), `local-rag` (`local.rag.ollama` + `local.rag.pgvector` — the career RAG's `databaseUri` seam). **The satellite count is 0.** One section each: [`docs/repo-map.md`](docs/repo-map.md) § `modules/features/`. |
+| `modules/shared/` | Home Manager profile on every host: `home.nix`, `mcp.nix`, `terminal-theme.nix` (`local.terminalTheme` — the fleet's one ANSI ring + type, consumed by Ghostty, VS Code and Terminal.app), `chromium.nix` (`local.ungoogledChromium` — sideloaded CRXes, Apple's Passwords native host, and *recommended*-level policy incl. the default search engine, all for the Homebrew cask), `default-browser.nix` (the LaunchServices default-browser claim, split out of `chromium.nix`), `desktop-aesthetics.nix`, `nix-cache.nix`, `nix-ld-libraries.nix`, `wireguard-configs.nix`, `claude-otel.nix`, `claude-bedrock-gate.nix` (`local.claudeBedrock` — AWS region/profile seam, **null by default**; plus the runtime gate that keeps Bedrock routing survivable on a public-only activation), `claude-brain.nix` (the "Brain Signals" answer-shape kit — output style, calibration rule, `/explain` family, `cartographer`, `/task`; every class merges, so a private layer ADDS), `claude-plugins.nix` (`local.claudePlugins.marketplaces` — N Claude Code plugin marketplaces behind ONE activation; `attrsOf`, so nix-personal ADDS a marketplace instead of copying the script), `wallpaper/`, `hm-launchd/`. |
+| `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix` (`local.folders.*` — inbox paths; unset = system default), `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`local.macosGithubRunner` — LIVE on `macos`, see § Configuration). |
 | `modules/nixos/` | `core.nix` (user + keys-only **loopback-bound** sshd with `openFirewall = false` + a firewall that opens **no** TCP port + avahi + nix-ld + zram + GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). |
 | `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `key-recovery`, `spotlight-launchers`, plus single-purpose CLIs (`android-phone`, `jsonresume`, `mermaid-ascii`, `claude-otel-doctor`, …). Root `bootstrap.sh` is the no-Nix stage 1. The media/photo CLIs are **not here** — they live in the `media-cli` capsule. |
 | *(userscripts — EXTRACTED)* | The public `.user.js` scripts live in the pinned input `kattakath-userscripts` (`github:kattakath/userscripts`) since 2026-09-12, declared by name in `modules/shared/home.nix`; authored via the portable `page-lab` plugin (method + picker + diagnosis) + project skill `userscript-author` (Nix declaration), gated by `checks.<system>.userscripts`, which **runs the plugin's own linter against that input** — the Greasy Fork rulebook lives once and the gate followed the content out. Private ones merge in from nix-personal, which pins its own `gitlab:ismailkattakath/userscripts` and runs the same linter — keys must not collide across the two. Mechanism + why Chromium allows nothing declarative: `modules/shared/chromium.nix`. |
@@ -246,8 +246,8 @@ How a host gets composed — change these knobs, not the hosts' internals:
   ([`docs/private-home-modules.md`](docs/private-home-modules.md)); the public tree never
   references a private repo.
 - **Whole features are ONE enable flag — and they are all IN-TREE now.** The media stack
-  (`programs.mediaCli`) and the Keychain secret store (`programs.keychainSecrets`) are each one
-  switch: `programs.mediaCli.enable = false` removes the CLIs, both launchd agents, the Finder
+  (`local.mediaCli`) and the Keychain secret store (`local.keychainSecrets`) are each one
+  switch: `local.mediaCli.enable = false` removes the CLIs, both launchd agents, the Finder
   Services and the companion tools together — no orphaned package, no dangling session variable,
   no stale menu item to hunt down. **They no longer arrive as flake INPUTS.** ADR-002 absorbed
   all seven satellites as `modules/features/<name>/` capsules (waves 3-6) and the origin repos
@@ -257,15 +257,15 @@ How a host gets composed — change these knobs, not the hosts' internals:
 - **Binary cache:** the public `kattakath` Cachix cache is consumed tokenless by every host
   (`modules/shared/nix-cache.nix`); only CI and the operator's Keychain hold the write token.
 - **`macos` runs self-hosted CI runners — two kinds, neither for this repo's CI.**
-  (1) `services.macosGithubRunner` (`modules/darwin/github-runner.nix`, `count = 2`): bare-metal
-  ephemeral org runners for **`dontsell-ai`**'s nix/cachix/pgvector-heavy CI. (2) `tart.githubRunners.*`
+  (1) `local.macosGithubRunner` (`modules/darwin/github-runner.nix`, `count = 2`): bare-metal
+  ephemeral org runners for **`dontsell-ai`**'s nix/cachix/pgvector-heavy CI. (2) `local.tart.githubRunners.*`
   (the `tart-vms` capsule's `github-runner.nix`, configured in `hosts/macos.nix`): **ephemeral
   Tart-VM-per-job** runners for `kattakath` + `silvercreek-ai` + `dontsell-ai` (label
   `dontsell-vm`), sharing Apple's hard 2-concurrent-VM budget via a slot semaphore. Both mint ~1h
   tokens from GitHub App keys (agenix); since 2026-09-06 **both lanes share ONE App**,
   `ismailkattakath-ci` (appId 4849830, operator-owned + public), which replaced the retired
   `kattakath-fleet-ci` (4845230), `kattakath-ci` (4243998) and `dontsell-ai` (4689619). The **GitLab**
-  lane rides the same budget: `tart.gitlabRunner` (the same capsule's `gitlab-runner.nix`) runs
+  lane rides the same budget: `local.tart.gitlabRunner` (the same capsule's `gitlab-runner.nix`) runs
   gitlab-runner declaratively, rendering its config at agent start from the agenix
   `gitlab-runner-token.age`. **This repo's own CI uses none of them** — `nix-ci.yml` is 100%
   GitHub-hosted.
@@ -298,9 +298,11 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   live Pi a Caddy with **zero vhosts** — every site goes dark
   while sshd stays up. **Magic rollback cannot save you from that**: it only reverts an
   activation that leaves the host **unreachable**, and a site-free Pi is perfectly reachable,
-  so deploy-rs reports SUCCESS. Deploy from the private nix-personal flake, which reuses this
-  node against *its* `nixosConfigurations.nixpi`. Also: bare `deploy` with no `--targets` fans
-  out over **every** node — always name the target.
+  so deploy-rs reports SUCCESS. Deploy from the private nix-personal flake — today that is its
+  `nix run .#nixpi` (`nixos-rebuild --build-host nixpi`, **no** magic rollback), because the
+  Pi closure cannot be built on the Mac (caddy EPERM, § `hosts/` in repo-map); a re-export of
+  this node is the target shape, not the current one. Also: bare `deploy` with no `--targets`
+  fans out over **every** node — always name the target.
 - **Never run the `cf-*` terranix apps from this public repo** — the twin of the `deploy` trap.
   `mkCfTunnelTofu` calls `cfTunnelConfig` with **no `hostedSites`** (it defaults to `[ ]`), so
   the public tree renders a tunnel whose ingress is **SSH + the catch-all 404 and nothing
@@ -362,7 +364,7 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
 - [`docs/mcp-gateway.md`](docs/mcp-gateway.md) — the localhost MCP gateway: server inventory,
   credentials model, opt-ins, how to add one.
 - [`docs/mcp-public-exposure-design.md`](docs/mcp-public-exposure-design.md) — **BUILT and live
-  (2026-09-12)**: `services.mcpGateway.public = [ … ]` flips a gateway server public. A **second**
+  (2026-09-12)**: `local.mcpGateway.public = [ … ]` flips a gateway server public. A **second**
   `mcp-proxy` on `:8097` carries only that subset (a leaked credential cannot reach
   Gmail/Postgres/WordPress on `:8096`), behind one cloudflared connector + **one** Access app +
   **one** service token. **Exactly two hostnames and they do not grow per server**
@@ -426,7 +428,7 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   answer [`docs/nix-media-cli-extraction-study.md`](docs/nix-media-cli-extraction-study.md) —
   **HISTORY TWICE OVER, not a plan**: the extraction shipped in 2026-09, then ADR-002 wave 5
   brought the whole stack back in-tree as the `media-cli` capsule. Still one switch
-  (`programs.mediaCli.enable`); the `media-<verb>` renaming proposal is the one undecided part,
+  (`local.mediaCli.enable`); the `media-<verb>` renaming proposal is the one undecided part,
   and it is this repo's call again.
 - [`docs/claude-desktop-instructions.md`](docs/claude-desktop-instructions.md) — the one Claude
   behaviour this repo can't manage declaratively (account-level Desktop instructions) + the

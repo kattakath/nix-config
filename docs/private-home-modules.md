@@ -88,7 +88,7 @@ tunnel-provisioning code on its own. A site whose zone lives in a different
 Cloudflare account (dontsell.ai's DontSell account vs. the primary Personal
 account) needs its own `cloudflared` connector, since a `cfargotunnel.com`
 CNAME only resolves within the same account as the tunnel. That bespoke unit
-is hand-written (`services.cloudflared-connector` is a singleton, so a second
+is hand-written (`local.cloudflaredConnector` is a singleton, so a second
 tunnel can't reuse its option surface) and travels via `extraModules`, not a
 generic loop over `hostedSites` — see nix-personal's
 `modules/nixpi-dontsell-tunnel.nix` for the exact unit + firmware-file entry
@@ -103,14 +103,21 @@ ingress):
 nixos-rebuild switch --flake ~/path/to/private#nixpi --target-host ismail@nixpi.kattakath.com
 ```
 
-**Preferred: deploy-rs with magic rollback.** `nixos-rebuild --target-host` has no
-undo — a generation that breaks sshd, the tunnel connector, or networking leaves
+**Preferred in principle: deploy-rs with magic rollback.** `nixos-rebuild --target-host`
+has no undo — a generation that breaks sshd, the tunnel connector, or networking leaves
 the Pi simply *gone*, recoverable only by pulling the SD card and reflashing
 (`docs/nixpi-sd-flashing-runbook.md`, ~40 min). The public engine therefore
 exports a `deploy.nodes.nixpi` (`magicRollback`/`autoRollback` on, `remoteBuild`
-off) and the private flake is its **intended caller** — re-export the node against
+off) and a private flake is its **intended caller** — re-export the node against
 *your* `nixosConfigurations.nixpi` so the rollback semantics, timeouts and ssh
 plumbing stay single-sourced in the public tree:
+
+> **What nix-personal actually runs today (2026-09-13):** it does **not** re-export the
+> node. With `remoteBuild` off, deploy-rs builds the Pi closure on the Mac, and nixpkgs'
+> caddy `Caddyfile-formatted` derivation EPERMs on Determinate's native Linux builder
+> (`repo-map.md` § `hosts/`), so its `nix run .#nixpi` is a
+> `nixos-rebuild switch --target-host … --build-host nixpi` — built ON the Pi, **no magic
+> rollback**. The snippet below is the target shape once the closure builds off-Pi again.
 
 ```nix
 # private flake — reuse the public node's settings, swap the target config
@@ -216,7 +223,7 @@ Prefer:
 
 ## Userscripts — a merged attrset, not a second option
 
-`programs.ungoogledChromium.userScripts.scripts` (public engine,
+`local.ungoogledChromium.userScripts.scripts` (public engine,
 `modules/shared/chromium.nix`) is an **attrset seam** rather than an `extraHomeModules`
 parameter: the public repo declares its scripts from `userscripts/`, nix-personal's
 `modules/userscripts.nix` adds its own from *its* `userscripts/`, and Home Manager merges
