@@ -13,25 +13,32 @@
 # even when Xcode is about to be installed later in the same brew bundle (or is
 # already on disk from a prior MAS install but still unlicensed after a wipe).
 #
-# upstream-first: grepped nix-darwin/modules for xcode — the only hits are the
-# App Store id (`modules/homebrew.nix`, `modules/programs/mas.nix`, Xcode =
-# 497799835). nix-darwin models INSTALLING Xcode and owns no licence-acceptance
-# option, so accepting it stays custom — and reuses nix-darwin's own activation
-# ordering rather than inventing a new hook.
+# upstream-first, two halves:
+#   INSTALL — upstream option nix-darwin.programs.mas exists → using it (pinned
+#   modules/programs/mas.nix:149-176: `packages.<name> = <id>` installed as the
+#   mas user via the same sudo model this file used to hand-roll, :41-45, with an
+#   idempotent `is_installed` guard, :98-114; emitted as activationScripts.mas,
+#   :207, which activation-scripts.nix:137 runs immediately BEFORE homebrew).
+#   Two traps: `programs.mas.update` defaults TRUE (:178-185) and would run
+#   `mas update` on every activation, so it is forced off here — versions belong
+#   to the operator (modules/darwin/homebrew.nix); and Xcode must ALSO stay in
+#   `homebrew.masApps`, or brew bundle's cleanup uninstalls it (homebrew.nix:196).
+#   LICENCE — grepped nix-darwin/modules for `license accept|xcodebuild`: nothing
+#   beyond the App Store id examples, so acceptance stays custom, injected into
+#   nix-darwin's own activation ordering rather than a new hook.
 #
 # Fix
 # ---
-# Inject into `system.activationScripts.homebrew` via `lib.mkBefore` so this
-# runs as root *immediately before* the brew-bundle body (activation order is
-# fixed in nix-darwin: … → mas → homebrew → postActivation). When
-# `homebrew.masApps.Xcode` is set, also proactively `mas install` that app as
-# the Homebrew user so a clean bootstrap has Xcode.app before any formulae.
+# `programs.mas` installs Xcode (when `homebrew.masApps.Xcode` is set) in the
+# `mas` activation step; the licence accept is injected into
+# `system.activationScripts.homebrew` via `lib.mkBefore`, so it runs as root
+# *immediately before* the brew-bundle body (activation order is fixed in
+# nix-darwin: … → mas → homebrew → postActivation).
 #
 # Scoped to `networking.hostName == "macos"`.
 {
   config,
   lib,
-  pkgs,
   ...
 }:
 
@@ -40,27 +47,20 @@ let
   # Present only when the host declares Xcode in masApps (hosts/macos.nix).
   xcodeMasId = cfg.masApps.Xcode or null;
   enabled = cfg.enable && config.networking.hostName == "macos";
-  brewUser = cfg.user;
-  brewPrefix = cfg.prefix;
-  masBin = lib.getExe pkgs.mas;
 in
 {
   config = lib.mkIf enabled {
+    programs.mas = {
+      enable = true;
+      packages = lib.optionalAttrs (xcodeMasId != null) { Xcode = xcodeMasId; };
+      # Never `mas update` at activation — see the header.
+      update = false;
+    };
+
     system.activationScripts.homebrew.text = lib.mkBefore ''
       # ---- Xcode presence + license (must precede brew bundle) ----------------
       echo >&2 "Xcode: ensuring app + license before Homebrew bundle..."
 
-      ${lib.optionalString (xcodeMasId != null) ''
-        if [ ! -d /Applications/Xcode.app ]; then
-          echo >&2 "Xcode: /Applications/Xcode.app missing — mas install ${toString xcodeMasId} as ${brewUser}"
-          # Same privilege model as brew bundle: primary user + mas on PATH.
-          if ! PATH="${brewPrefix}/bin:${lib.makeBinPath [ pkgs.mas ]}:$PATH" \
-            /usr/bin/sudo --preserve-env=PATH --user=${lib.escapeShellArg brewUser} --set-home \
-            ${masBin} install ${toString xcodeMasId}; then
-            echo >&2 "warning: Xcode mas install failed (Apple ID / network?). brew bundle may still install it later; license accept below is best-effort."
-          fi
-        fi
-      ''}
 
       # Prefer full Xcode.app developer dir when present.
       if [ -d /Applications/Xcode.app/Contents/Developer ]; then
