@@ -61,6 +61,61 @@ flake — see `nixosConfigurations.nixpi` below.
 4. Public `darwin-rebuild switch --flake github:kattakath/nix-config#macos` remains
    the **fleet-only** path (no private modules).
 
+## Shape and values — the tier contract
+
+The operator's rule, adopted 2026-09-13 and enforced since: **the private flake must not
+contribute to the shape of config at all — it extends only.** Shape is determined here,
+generically; public-safe specifics also live here; only discreet specifics live privately.
+
+| Tier | Owns | Lives |
+|---|---|---|
+| **1. Shape** | option declarations, module mechanisms, composition builders, activation logic, CLIs, package definitions | here, public |
+| **2. Public values** | concrete settings that are fine in the open (defaults, fleet hostnames, this repo's own URL) | here, public |
+| **3. Discreet values** | the same *kind* of settings, for things that should not be public (personal sites, org accounts, zone ids) | private flake |
+
+**The falsifiable form:** delete the private flake entirely and this repo must still
+evaluate, build and activate a coherent (if less personalised) system. Verified 2026-09-13:
+`nix build .#darwinConfigurations.macos.system` succeeds standalone. Every break under that
+test is a shape leak.
+
+### The mechanical test
+
+A file in the private flake is SHAPE (and must move here) if it declares an option, defines
+a package/app/CLI/derivation, contains activation or ordering logic, decides structure (a
+format, a schema, a registry layout), or is the only place a behaviour is described. It is
+VALUES (and may stay) if it only sets an option declared here, adds a key/element to an
+`attrsOf`/`listOf` owned here, supplies a literal, or passes `extraHomeModules` /
+`extraModules` / parameters into a builder exported here.
+
+Two deliberate refinements, both judged rather than mechanical:
+
+- **Private applications are content, not config shape.** A personal tool whose very domain
+  is discreet cannot move here without defeating the point; it plugs into the public
+  `home.packages` seam like any other value. The contract governs configuration structure,
+  not the visibility of every program the operator runs.
+- **Trivial glue is values-adjacent.** A private `checks.*` that wraps a public rulebook
+  around a private input in a few policy-free lines stays private, because a public check
+  structurally cannot read a private input. The rulebook must still come from here — one
+  rulebook, two gates, one per visibility.
+
+### Worked seams, in increasing size
+
+| Seam | Shape (here) | Values (private) |
+|---|---|---|
+| plugin marketplace | `local.claudePlugins.marketplaces` (attrsOf) + install mechanism | one added key |
+| RAG domain table | `local.rag.pgvector.extraSql` + the pgvector stack | one private table |
+| page-lab site register | alias format + per-alias stack descriptions, in the plugin | alias→host file via `home.file` |
+| activation CLI | `lib.mkActivateCli` → `packages/activate.nix` (moved here 2026-09-13) | two checkout paths |
+| remote NixOS switch | `lib.mkRemoteNixosSwitchApp` (moved here 2026-09-13) | flake, hostname, remote |
+| hosts | `lib.mkDarwin` / `lib.mkNixos` | `extraHomeModules`, `hostedSites` |
+
+### Adding a private value without contributing shape
+
+1. Find or declare the public option/parameter **here** first — generic, defaulted, documented.
+2. Set it in the private flake with values only; the module carries a header saying which
+   public seam it fills and why the value is discreet.
+3. Prove removability: the standalone system build above must still pass without it.
+
 ### nixpi (real sites + dontsell.ai's tunnel)
 
 Same contract, `lib.mkNixos` instead of `lib.mkDarwin`:
