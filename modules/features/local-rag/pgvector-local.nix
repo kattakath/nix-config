@@ -85,6 +85,21 @@ in
       description = "Postgres data directory (initdb target, PGDATA).";
     };
 
+    extraSql = lib.mkOption {
+      type = lib.types.lines;
+      default = "";
+      description = ''
+        Extra SQL appended to the RAG bootstrap and applied under the same
+        stamp: it runs as the cluster superuser against `db` whenever the
+        combined bootstrap text changes, so it MUST be idempotent
+        (`CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`, …).
+        This is the seam a private layer fills with domain tables — a
+        consumer creating its own table must also GRANT it to `role`
+        (the statements run as superuser, so ownership does not default
+        to `role` the way `public.docs`'s explicit grants do).
+      '';
+    };
+
     databaseUri = lib.mkOption {
       type = lib.types.str;
       readOnly = true;
@@ -155,6 +170,11 @@ in
         GRANT EXECUTE ON FUNCTION public.embed(text) TO ${cfg.role};
         GRANT ALL ON public.docs TO ${cfg.role};
         GRANT USAGE, SELECT ON SEQUENCE public.docs_id_seq TO ${cfg.role};
+
+        -- services.pgvectorLocal.extraSql: consumer-supplied idempotent SQL
+        -- (domain tables from a private layer). Appended INSIDE this file so
+        -- the .rag-sql stamp covers it and edits re-apply on rebuild.
+        ${cfg.extraSql}
       '';
 
       runScript = pkgs.writeShellApplication {
