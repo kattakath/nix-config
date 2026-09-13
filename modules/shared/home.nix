@@ -1010,6 +1010,16 @@ in
       showFloatingNotifications = true;
       # No workspace-change hook script yet (SketchyBar is not adopted).
       enableIntegrations = false;
+      # Space Control — the grid overview of every workspace (live thumbnails,
+      # pick with 0-9/arrows). The reason FlashSpace is here at all: it replaces
+      # the Mission-Control-strip + four-finger-swipe loop of one fullscreen app
+      # per desktop. OFF upstream by default with no hotkey (SpaceControlSettings
+      # .swift:12-13). Thumbnails come from ScreenCaptureKit, so this needs a
+      # SECOND manual TCC grant, Screen Recording, next to Accessibility.
+      enableSpaceControl = true;
+      showSpaceControl = "ctrl+opt+space";
+      # Re-shoot thumbnails when the grid opens (slower open, never stale).
+      spaceControlUpdateScreenshotsOnOpen = true;
     };
   };
 
