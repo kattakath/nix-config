@@ -7,8 +7,7 @@ community resource.
 
 | Resource | Now lives in | Pinned as |
 |---|---|---|
-| `page-lab`, `llmstxt` plugins | `github:kattakath/claude-plugins` | `kattakath-claude-plugins` |
-| `rag`, `nix-dev-toolkit`, `android-phone` skills | `github:kattakath/claude-skills` | `kattakath-claude-skills` |
+| `page-lab`, `llmstxt`, `superhook`, `claude-code-nix` plugins **and** `rag`, `nix-dev-toolkit`, `android-phone` skills | `github:kattakath/ai` | `kattakath-ai` — **one repo per owner since 2026-09-14** (`claude-plugins` renamed, `claude-skills` absorbed then archived) |
 | public userscripts | `github:kattakath/userscripts` | ~~`kattakath-userscripts`~~ — **pin dropped 2026-09-14** |
 | private userscripts | `gitlab:ismailkattakath/userscripts` | ~~pinned by **nix-personal**~~ — **pin dropped 2026-09-14** |
 | `seargraph` agent | `ismailkattakath/SEARGraph` `.claude/agents/` | nothing — see § Deletions |
@@ -60,7 +59,7 @@ There is no separate nix-darwin/home-manager convention to adopt for this: **the
 scheme *is* the standard** (`github:`, `gitlab:`, `sourcehut:~user/`, `git+ssh://`).
 
 Both rails are live, because they serve different people: strangers run
-`/plugin marketplace add kattakath/claude-plugins`; this fleet pins the input.
+`/plugin marketplace add kattakath/ai`; this fleet pins the input.
 
 ## Why one marketplace repo and not one repo per plugin
 
@@ -96,7 +95,7 @@ not gate its consumers, and the build still went green. Measured 2026-08-31: nix
 
 Extracting the tree and leaving that check alone would have been strictly worse than the
 original hole — a green build over an **empty directory**. So both operands moved to the
-inputs: the linter from `kattakath-claude-plugins`, the scripts from
+inputs: the linter from `kattakath-ai`, the scripts from
 `kattakath-userscripts`. nix-personal did the same for its own pinned private repo, which was
 the first time those four scripts had ever been gated.
 
@@ -185,4 +184,4 @@ agree, because git is doing the copying.
    any more — a script is **published**, not declared; see the 2026-09-14 update above.)
 
 During development, skip the push/update loop with
-`nix flake check --override-input kattakath-claude-plugins path:../claude-plugins`.
+`nix flake check --override-input kattakath-ai path:../ai`.

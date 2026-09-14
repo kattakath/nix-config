@@ -176,7 +176,7 @@ Three rules, each mechanising a convention that was **prompt-only** until now:
 
 | Rule | Lang | Mechanises | Notes |
 |---|---|---|---|
-| `nix-hardcoded-home-path` | nix | CLAUDE.md § Conventions "Paths — two axes" (runtime half) | The gate half of the [`claude-code-nix`](https://github.com/kattakath/claude-plugins/tree/main/plugins/claude-code-nix) plugin's `nix-home-path-lint` hook, which is PostToolUse and so only ever sees *Claude's* writes — a human or flake-bump commit slipped through. Matches `string_fragment` nodes only, so comments and Nix source path literals are exempt by construction rather than by heuristic. Keep the regex in sync with the hook. |
+| `nix-hardcoded-home-path` | nix | CLAUDE.md § Conventions "Paths — two axes" (runtime half) | The gate half of the [`claude-code-nix`](https://github.com/kattakath/ai/tree/main/plugins/claude-code-nix) plugin's `nix-home-path-lint` hook, which is PostToolUse and so only ever sees *Claude's* writes — a human or flake-bump commit slipped through. Matches `string_fragment` nodes only, so comments and Nix source path literals are exempt by construction rather than by heuristic. Keep the regex in sync with the hook. |
 | `launchd-bare-interpreter-arg0` | nix | [`.claude/rules/launchd-naming.md`](../.claude/rules/launchd-naming.md) | Flags `ProgramArguments[0]` / `Program` pointing at a bare `sh`/`bash`/`python3`/`node`/… so Background Task Manager can't list a fleet agent as generic persistence. Only sees units authored *here*; the three known upstream `/bin/sh` daemons live in no `.nix` file and must not be renamed. |
 | `hook-json-parse-must-be-guarded` | javascript | the "never wedge a turn" invariant every `.claude/hooks/*.js` header states | An unguarded `JSON.parse` of untrusted event JSON throws and surfaces as a hook error. Scoped by `files:` to the hooks. First mechanical check those ~1.3k lines have ever had — `claude-config-lint.yml` checks frontmatter, never hook JS. |
 
@@ -1255,7 +1255,7 @@ Smaller, single-purpose CLIs:
   for a PHYSICAL Android device; hardens around two live-reproduced adb bugs, an mDNS-cache
   staleness and duplicate-transport device listings. Its operator knowledge is also a GLOBAL
   skill — `android-phone` in the pinned
-  [`kattakath/claude-skills`](https://github.com/kattakath/claude-skills).
+  [`kattakath/ai`](https://github.com/kattakath/ai).
 - **The media packages are NOT here — they are in the `media-cli` capsule.**
   `media-quick-actions.nix`, `media-queue.nix`, `media-toolkit.nix`, `media-describe.nix`,
   `media.nix`, `media-fix.nix`, `media-fix-extension.nix`, `media-extract-audio.nix` and
@@ -1328,7 +1328,7 @@ keeps the seam available if a script ever has to be fleet-pinned again (a privat
 must not go to a public fork).
 
 **The authoring METHOD is unchanged and lives in the plugin.** The portable
-[`page-lab` plugin](https://github.com/kattakath/claude-plugins/tree/main/plugins/page-lab)
+[`page-lab` plugin](https://github.com/kattakath/ai/tree/main/plugins/page-lab)
 owns the probes, the patterns, the Greasy Fork rulebook and the metadata linter; it **measures
 the live page** before it writes a selector, routing on the diff between the state the site
 already gives you and the state you want:
@@ -1497,7 +1497,7 @@ content-hashed into the store — see `CLAUDE.md` § Code Style on the two path 
   `.claude/settings.json` stays unsupervised prompt-based — that one is a genuine semantic
   judgment call, unlike the Bash gate's mostly-syntactic rules.
 - **`superhook-digest`** — SessionStart digest of supervisor findings. Both it and the
-  wrapper are PATH packages built from the pinned `kattakath-claude-plugins` input
+  wrapper are PATH packages built from the pinned `kattakath-ai` input
   (`packages/superhook.nix`); they are no longer files in `.claude/hooks/`.
 - **`routing-review-digest.js`** — SessionStart nudge for unreviewed
   `user_temporary`/`user_permanent` Claude Code routing decisions; mirrors
@@ -1506,7 +1506,7 @@ content-hashed into the store — see `CLAUDE.md` § Code Style on the two path 
 - **`fleet-doctor-digest.js`** — SessionStart nudge when `/fleet-doctor` hasn't run in a while;
   reads only a local timestamp, no network/git calls, so it stays fast on every session start.
 - **`autostage-nix`** — PostToolUse git-purity net. EXTRACTED 2026-09-12 to the
-  [`claude-code-nix`](https://github.com/kattakath/claude-plugins/tree/main/plugins/claude-code-nix) plugin; it arrives as a
+  [`claude-code-nix`](https://github.com/kattakath/ai/tree/main/plugins/claude-code-nix) plugin; it arrives as a
   plugin hook, which is why `.claude/settings.json` no longer lists it (keeping both would
   fire it twice).
 - **`nix-home-path-lint`** — same plugin, same extraction. PostToolUse, `.nix` only: flags a hardcoded
@@ -1535,8 +1535,9 @@ PINNED `flake = false` inputs (`agent-skills-vercel` = vercel-labs/skills → `f
 **NOT vendored**; `nix flake update` bumps them.
 
 **Since 2026-09-12 the operator's own skills are on that same rail.** `rag`,
-`android-phone` and `nix-dev-toolkit` were extracted to
-[`github:kattakath/claude-skills`](https://github.com/kattakath/claude-skills) and are pinned as `kattakath-claude-skills`, so the
+`android-phone` and `nix-dev-toolkit` were extracted out of this tree, and since
+2026-09-14 live beside the plugins in
+[`github:kattakath/ai`](https://github.com/kattakath/ai), pinned as `kattakath-ai`, so the
 only difference between "someone else's skill" and "mine" is now who can push to the repo
 ([`agent-resource-externalization.md`](agent-resource-externalization.md)):
 
@@ -1568,16 +1569,16 @@ only difference between "someone else's skill" and "mine" is now who can push to
 ### The operator's marketplace (EXTRACTED 2026-09-12)
 
 The operator's OWN Claude Code plugin marketplace is
-[`github:kattakath/claude-plugins`](https://github.com/kattakath/claude-plugins) — **not a tree in this repo** since 2026-09-12
+[`github:kattakath/ai`](https://github.com/kattakath/ai) — **not a tree in this repo** since 2026-09-12
 ([`agent-resource-externalization.md`](agent-resource-externalization.md)). It is pinned as
-the `kattakath-claude-plugins` input and is the third marketplace alongside `xai-grok-build`
+the `kattakath-ai` input and is the third marketplace alongside `xai-grok-build`
 (also a pinned input) and `claude-plugins-official` (HTTPS).
 
 That repo's `.claude-plugin/marketplace.json` lists its plugins with `./plugins/<name>`
 relative sources — the shape every owner-operated marketplace on GitHub uses, measured;
 external `{{source:github,…,sha}}` entries are what *catalogs* need, and this is not one.
 `modules/shared/home.nix` declares it as the `kattakath` entry of
-`local.claudePlugins.marketplaces` with `source = "${{kattakath-claude-plugins}}"` — an input's
+`local.claudePlugins.marketplaces` with `source = "${{kattakath-ai}}"` — an input's
 **store path**, which carries none of the relative-literal trap the old `"${{../../plugins}}"`
 form did, because a store path is absolute and means the same thing from any file in any
 flake. `modules/shared/claude-plugins.nix` registers it and installs the derived
@@ -1591,7 +1592,7 @@ so without the re-pin a bump would serve a previous generation's content forever
 Two plugins:
 
 - **`llmstxt`** — `llms.txt` authoring skill + `/llmstxt` command + a stdlib-only spec
-  linter; see the plugin's own `README.md` in [`kattakath/claude-plugins`](https://github.com/kattakath/claude-plugins).
+  linter; see the plugin's own `README.md` in [`kattakath/ai`](https://github.com/kattakath/ai).
 - **`page-lab`** — userscript authoring AND live-page diagnosis in one unit: the
   measure-before-you-select method, four browser probes, the pre-vetted code patterns, the
   Greasy Fork rulebook, the GM_* portability matrix, a two-way element **picker**, CDP
@@ -1640,13 +1641,20 @@ no Nix wiring, and it cannot be loaded in sessions that have nothing to do with 
 The file now lives at `SEARGraph/.claude/agents/seargraph-langgraph.md`.
 
 Adding one = a `plugins/<name>/` tree with `.claude-plugin/plugin.json` + a `marketplace.json`
-entry **in that repo**, then `nix flake update kattakath-claude-plugins` here and its bare name
+entry **in that repo**, then `nix flake update kattakath-ai` here and its bare name
 in `local.claudePlugins.marketplaces.kattakath.plugins`; validate with
 `claude plugin validate --strict`. Iterate without the push/update loop via
-`nix flake check --override-input kattakath-claude-plugins path:../claude-plugins`.
+`nix flake check --override-input kattakath-ai path:../ai`.
+
+**A SECOND source costs one input and its own entries — no new mechanism.**
+`local.claudePlugins.marketplaces` is `attrsOf` and `programs.claude-code.skills` is a
+plain attrset, so both already take N. The operator's `ismailkattakath/ai` and
+`izzykatt/ai` are deliberately NOT pinned here: they aggregate experiments, and an
+experiment has no business being always-on global context on the working Mac. Add one
+when it has earned that, or scope it to a project instead.
 
 A **skill** that needs no command/hook/MCP/agent surface belongs in
-[`kattakath/claude-skills`](https://github.com/kattakath/claude-skills), not in a plugin —
+[`kattakath/ai`](https://github.com/kattakath/ai)'s `skills/`, not in a plugin —
 reach for a plugin only when the unit is more than a skill. An agent for ONE project belongs
 in that project's `.claude/agents/`, per the seargraph record above.
 

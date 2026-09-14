@@ -63,8 +63,7 @@
   # marketplace, the skills and the public userscripts each live in their own
   # repo now, so they can be maintained — and adopted — like any community
   # resource, while Nix keeps the pin, the wiring and the gates.
-  kattakath-claude-plugins,
-  kattakath-claude-skills,
+  kattakath-ai,
   # The ABSORBED local-rag capsule (local.rag.ollama +
   # local.rag.pgvector — the loopback RAG stack) — a MODULE, not a flake,
   # since ADR-002 wave 6 brought it in-tree as modules/features/local-rag/.
@@ -261,7 +260,7 @@ let
   # home.packages resolves against `pkgs`; modules/parts/packages.nix exports the same
   # two for `nix run`/`nix build`, from this same file.
   superhookCli = pkgs.callPackage ../../packages/superhook.nix {
-    superhookSrc = "${kattakath-claude-plugins}/plugins/superhook";
+    superhookSrc = "${kattakath-ai}/plugins/superhook";
   };
 
   # rclip, with its runtime-dependency CHECK disabled — not its dependencies changed.
@@ -617,7 +616,7 @@ in
     };
 
     # This operator's OWN published marketplace, from the PINNED flake input
-    # `kattakath-claude-plugins` (github:kattakath/claude-plugins) — not a local
+    # `kattakath-ai` (github:kattakath/ai) — not a local
     # directory. Extracted from this repo's plugins/ tree 2026-09-12 so the
     # plugins can be maintained, versioned and adopted like any community
     # resource; Nix keeps the pin (flake.lock), the wiring (here) and the gates
@@ -634,9 +633,9 @@ in
     #
     # Adding a plugin = a plugins/<name>/ tree IN THAT REPO + an entry in its
     # .claude-plugin/marketplace.json + its bare name below + `nix flake update
-    # kattakath-claude-plugins`.
+    # kattakath-ai`.
     kattakath = {
-      source = lib.mkDefault "${kattakath-claude-plugins}";
+      source = lib.mkDefault "${kattakath-ai}";
       plugins = [
         # llmstxt: authoring skill + /llmstxt command + a stdlib-only linter for the
         # llmstxt.org v2 standard. Nothing upstream AUTHORS these files (the ecosystem is
@@ -1116,29 +1115,33 @@ in
         # Local RAG over the pgvector store: how to ingest + query via the `postgres`
         # MCP server and the in-DB embed() function (the local-rag capsule's local.rag.pgvector + local.rag.ollama).
         # ---- THIS operator's OWN published skills, from the pinned flake input
-        # `kattakath-claude-skills` (github:kattakath/claude-skills). Extracted from
-        # this repo's skills/ tree 2026-09-12 onto the SAME rail as every
-        # third-party pin above — the only difference between someone else's skill
-        # and one of these is who can push to the repo. Cherry-picked per skill, so
-        # adding one there does not silently install it here.
+        # `kattakath-ai` (github:kattakath/ai) — the SAME pin the marketplace
+        # comes from, since 2026-09-14. Extracted from this repo's skills/ tree
+        # 2026-09-12, briefly its own `claude-skills` repo, now one repo per
+        # owner. Same rail as every third-party pin above — the only difference
+        # between someone else's skill and one of these is who can push to the
+        # repo. Cherry-picked per skill, so adding one there does not silently
+        # install it here, and that stays true for any FURTHER source added:
+        # this attrset and `local.claudePlugins.marketplaces` are both N-entry
+        # already, so a second repo costs one input + its own entries.
         #
         # The /explain family (explain/compare/map/zoom/why/tldr/diagram) did NOT
         # move: it is one kit with the Brain Signals output style and is declared in
         # modules/shared/claude-brain.nix, next to the style it encodes.
-        rag = "${kattakath-claude-skills}/skills/rag";
+        rag = "${kattakath-ai}/skills/rag";
         # Original (not a fork): operator knowledge for the packages/android-phone.nix
         # ADB/scrcpy CLI — global so ANY session (including ~/-rooted ones) knows the
         # wrapper's command surface and the adb footguns it absorbs, not just sessions
         # rooted in this repo. Lives next to the package it documents so they can't
         # drift apart silently.
-        android-phone = "${kattakath-claude-skills}/skills/android-phone";
+        android-phone = "${kattakath-ai}/skills/android-phone";
 
         # Making a repo self-sufficient with Nix: dev shell, env catalogue, project-local
         # Postgres+pgvector stack, self-hosted runner, and `nix run .#<verb>` lifecycle apps.
         # Global rather than repo-scoped precisely because the point is to apply it to a repo
         # that does NOT have it yet. Carries the Nix/Postgres/Prisma traps that cost real
         # debugging time (withPackages union prefix, socket port, macOS socket length cap).
-        nix-dev-toolkit = "${kattakath-claude-skills}/skills/nix-dev-toolkit";
+        nix-dev-toolkit = "${kattakath-ai}/skills/nix-dev-toolkit";
       };
     };
 
