@@ -59,9 +59,14 @@ in
             let
               hm = config.flake.darwinConfigurations.macos.config.home-manager.users.${loginName};
               loaderMark = hm.local.keychainSecrets.loaderRelPath;
-              # From claude-bedrock-gate.nix's `gateShell`. `+x`, not a value
-              # test, because Bedrock is selected by mere PRESENCE.
-              gateMark = "CLAUDE_CODE_USE_BEDROCK+x";
+              # From claude-bedrock-gate.nix's `gateShell`. A shell variable
+              # PRIVATE to that snippet, so it marks the gate without pinning the
+              # test's shape: it used to be `CLAUDE_CODE_USE_BEDROCK+x` (a
+              # presence test, correct while anthropics/claude-code#8063 made
+              # every string truthy) and became a truthiness `case` once that was
+              # fixed. This check is about ORDERING, not about how the gate
+              # decides, so it should survive the next such change too.
+              gateMark = "__bedrock_on";
 
               surfaces = {
                 "programs.zsh.envExtra (~/.zshenv)" = hm.programs.zsh.envExtra;
