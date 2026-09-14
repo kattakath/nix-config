@@ -680,8 +680,27 @@ let
         enable = true;
         package = pkgs.mcp-server-fetch;
       };
-      memory.enable = true;
-      sequential-thinking.enable = true;
+      # The framework's DEFAULT mcp-server-memory is 2026.7.10, whose tsc step
+      # fails with "Cannot find name 'process'" across index.ts - it compiles
+      # without @types/node in scope. That is not a config error and no flag works
+      # around it; the derivation simply does not build, and because the gateway
+      # JSON depends on every enabled server it took the whole darwin-system down
+      # on 2026-09-14. Same shape as the fetch override directly above, and the
+      # same remedy: this flake's top-level nixpkgs ships 2026.8.18, which builds.
+      #
+      # Verified by REALISING it, not by a green build line - `nix build
+      # --print-out-paths` happily prints the output path of a derivation it has
+      # only planned.
+      memory = {
+        enable = true;
+        package = pkgs.mcp-server-memory;
+      };
+      # Same @modelcontextprotocol/servers monorepo as memory above, so the same
+      # 2026.7.10 tsc breakage and the same nixpkgs 2026.8.18 remedy.
+      sequential-thinking = {
+        enable = true;
+        package = pkgs.mcp-server-sequential-thinking;
+      };
       # Grounded, READ-ONLY nixpkgs/NixOS/Home-Manager/nix-darwin option+package lookup
       # (utensils/mcp-nixos). This repo authors config for exactly those three module
       # surfaces every session; a real lookup kills hallucinated package/option names.
