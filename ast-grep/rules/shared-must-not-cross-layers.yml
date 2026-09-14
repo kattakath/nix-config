@@ -1,0 +1,64 @@
+# THE SHARED-PROFILE BOUNDARY — the layer that had no rule until 2026-09-14.
+#
+# modules/ has three kinds of directory and, until this rule, only two of them
+# said what they may touch:
+#
+#   modules/parts/     the ENGINE. Explicitly licensed to reach anywhere
+#                      (CLAUDE.md § Navigating: "The engine may reach anywhere").
+#   modules/features/  CAPSULES. May not reach out - capsule-must-not-reach-out.yml.
+#   modules/shared/    the home-manager profile. Nothing said, nothing checked.
+#
+# That asymmetry is not harmless. A capsule that reaches out FAILS THE BUILD; a
+# shared module that reaches anywhere just works, so coupling accumulates with
+# nothing pushing back. modules/shared/ is 15 files and mcp.nix alone is ~1,200
+# lines, which is what an unbounded layer looks like after a year.
+#
+# WHAT SHARED MAY STILL DO, deliberately unflagged: reach DOWN into this repo's
+# own content trees. Measured 2026-09-14, that is packages/ (9 references),
+# skills/ (8), claude/ (6) and qwen/ (1) - a `callPackage ../../packages/x.nix`
+# or `source = ../../claude/CLAUDE.md` is correct and idiomatic (CLAUDE.md
+# § Conventions, "Paths - two axes"). Siblings inside shared/ are fine too.
+#
+# WHAT IT MAY NOT DO is cross a LAYER:
+#
+#   ../features/…   a capsule is entered through its flake-module.nix BY THE
+#                   ENGINE. A shared module reaching a capsule inverts the
+#                   layering and silently re-couples what ADR-002 separated.
+#   ../parts/…      the engine composes shared; shared must not call back up.
+#   ../../hosts/…   hosts import shared. The reverse is a cycle.
+#   ../../infra/…   terranix is a different axis entirely and shares no runtime.
+#
+# TRUE THE DAY IT LANDED: zero violations existed when this rule was written, so
+# it went in at severity `error` rather than as an aspiration to clean up later.
+# It fences the layer where it already sits instead of describing a migration.
+#
+# SAME BLIND SPOTS as the capsule rule, stated rather than implied: this covers
+# the PATH axis only. It cannot see a shared module reaching a capsule through
+# specialArgs, an overlay, or a store path built at runtime.
+id: shared-must-not-cross-layers
+language: nix
+severity: error
+
+# Scoped to the profile, not all Nix: `../../hosts/nixpi.nix` in
+# modules/parts/compose.nix is CORRECT and must stay unflagged.
+files:
+  - 'modules/shared/**'
+
+rule:
+  kind: path_expression
+  regex: '\.\..*/(features|parts|hosts|infra)/'
+
+message: A shared module crossed a layer boundary with a parent-directory path literal.
+note: |
+  modules/shared/ is the home-manager profile. It may reach DOWN into this
+  repo's content trees (packages/, skills/, claude/, qwen/) and sideways to its
+  own siblings - but not into modules/features/, modules/parts/, hosts/ or
+  infra/.
+
+  Reach a CAPSULE through the engine, which imports its flake-module.nix and
+  passes what is needed down as a module argument - never with a relative path.
+  Reach the ENGINE not at all: composition flows parts -> shared, never back.
+
+  If a shared module genuinely needs something from a capsule, that is a signal
+  the thing belongs in the capsule's own module surface (an option it sets), not
+  a path the profile reaches for.
