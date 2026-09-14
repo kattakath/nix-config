@@ -1,0 +1,30 @@
+# Proves the rule FIRES. Without these, a typo'd pattern yields a permanently
+# green check that inspects nothing — the main failure mode of a lint gate.
+#
+# Same scoping asymmetry as capsule-must-not-reach-out-test.yml: `files:` filters
+# the SCAN, not these fixtures, so the `invalid` cases below are perfectly legal
+# in modules/parts/. They prove the PATTERN matches; that it only matches inside
+# modules/shared/ is the `files:` glob's job.
+id: shared-must-not-cross-layers
+valid:
+  # Down into the repo's own content trees — the whole point of the profile, and
+  # every one of these shapes is live in modules/shared today.
+  - '{ pkg = ../../packages/mermaid-ascii.nix; }'
+  - '{ src = ../../claude/CLAUDE.md; }'
+  - '{ skill = ../../skills/explain; }'
+  - '{ qwen = ../../qwen/QWEN.md; }'
+  # A sibling inside shared/.
+  - '{ theme = ./terminal-theme.nix; }'
+  - '{ launchd = ./launchd-launcher.nix; }'
+  # A `..` inside a STRING is the other path axis (a runtime path) and belongs to
+  # nix-hardcoded-home-path.yml, not here.
+  - '{ note = "the engine lives in ../parts/compose.nix"; }'
+invalid:
+  # Sideways into a capsule — must go through the engine instead.
+  - '{ cap = ../features/media-cli/module.nix; }'
+  # Up into the engine — composition flows parts -> shared, never back.
+  - '{ engine = ../parts/compose.nix; }'
+  # Up into a host — hosts import shared, so this is a cycle.
+  - '{ host = ../../hosts/macos.nix; }'
+  # Across into terranix, a different axis with no shared runtime.
+  - '{ tf = ../../infra/cloudflare/nixpi-tunnel.nix; }'
