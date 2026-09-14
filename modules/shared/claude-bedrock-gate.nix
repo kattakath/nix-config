@@ -21,8 +21,12 @@
 #   settings.json every time). Instead it lives purely in the macOS Keychain,
 #   outside any store path, toggled with:
 #     secret set CLAUDE_CODE_USE_BEDROCK 1   # enable
-#     secret rm  CLAUDE_CODE_USE_BEDROCK     # disable — don't rely on "0",
-#                                            # likely still truthy as a string
+#     secret set CLAUDE_CODE_USE_BEDROCK 0   # disable (`secret rm` also works)
+#
+#   `0` IS a real off-switch since Claude Code 1.0.124 fixed
+#   anthropics/claude-code#8063, where every string evaluated truthy. Setting it
+#   is nicer than removing it: the handle stays in `secret ls`, so the toggle's
+#   existence — and its current state — remain visible.
 #   (`local.keychainSecrets` — the loader providing `secret` — is wired in
 #   modules/shared/home.nix, so this toggle works whether the host activates
 #   public-only or through the private overlay.)
@@ -221,9 +225,22 @@ let
 
   # Runs in every shell, AFTER the Keychain loader has exported the variable.
   gateShell = ''
-    # Bedrock is selected by the mere PRESENCE of CLAUDE_CODE_USE_BEDROCK, so `=0`
-    # is not an "off" — hence the `+x` test rather than a value test.
-    if [ -n "''${CLAUDE_CODE_USE_BEDROCK+x}" ]; then
+    # Match Claude Code's OWN truthiness set, so this gate is never stricter than
+    # the runtime it guards: 1/true/yes/on (lowercased, trimmed) select Bedrock;
+    # everything else — including `0` — does not.
+    #
+    # This used to be a PRESENCE test (`+x`), because anthropics/claude-code#8063
+    # had every string evaluating truthy, so `=0` really did mean "on". That was
+    # fixed in 1.0.124 ("Fix Bedrock and Vertex environment variables evaluating
+    # all strings as truthy") and the issue is closed. Verified behaviourally on
+    # 2.1.260 rather than from the changelog: `=0` routes to anthropic.com, `=1`
+    # routes to bedrock. A presence test now warns about a value the runtime
+    # already ignores.
+    case "$(printf '%s' "''${CLAUDE_CODE_USE_BEDROCK:-}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')" in
+      1 | true | yes | on) __bedrock_on=1 ;;
+      *) __bedrock_on=0 ;;
+    esac
+    if [ "$__bedrock_on" -eq 1 ]; then
       if ! __bedrock_reason=$(${gate}/bin/nix-bedrock-gate 2>/dev/null); then
         unset CLAUDE_CODE_USE_BEDROCK
         # Only for a human: a non-interactive shell (BASH_ENV, scripts, launchd)
@@ -234,6 +251,7 @@ let
       fi
       unset __bedrock_reason
     fi
+    unset __bedrock_on
   '';
 in
 {
