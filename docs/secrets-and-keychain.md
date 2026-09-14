@@ -117,13 +117,26 @@ resistance:
 
 ### Cloudflare tokens — scoped, and deliberately NOT ambient
 
-There are three Cloudflare entries, and the split is the point:
+There are several Cloudflare entries, and the split is the point. **Which handle you reach
+for is not cosmetic** — the broad one is refused on the newest API surface:
 
 | Keychain entry | Scope | Bound to an env var? |
 |---|---|---|
 | `cf:cloudflare.com:nixpi-tunnel` | Account **Cloudflare Tunnel:Edit** (Personal only) + **DNS / Zone Settings / Dynamic URL Redirects :Edit** on `kattakath.com` + `snoringirl.com` | **no** — `secret exec` only |
-| `cf:cloudflare.com:dontsell-dns` | **DNS / Zone Settings / Page Rules :Edit** on `dontsell.ai` only | **no** |
+| `cf:cloudflare.com:mcp-public` | the **only** handle that works on `/access/ai-controls/mcp/*` — use it for every `mcp-public` render, plan, apply and verification | **no** |
+| `cf:cloudflare.com:mcp-connector` | the published gateway's tunnel connector token (a credential the connector runs with, not an API token) | **no** — read at launch by `nix-mcp-tunnel-connector` |
 | `cf:cloudflare.com:api` | broad (both accounts, all zones) — kept for ad-hoc work | **no** (was bound, now unbound) |
+
+**Measured 2026-09-14:** `cf:cloudflare.com:api`, despite being the broad token, returns
+**403 Forbidden** on `/accounts/<id>/access/ai-controls/mcp/servers/*`. A `tofu plan` for the
+mcp-public stack therefore aborts at refresh with it. Reach for `cf:cloudflare.com:mcp-public`.
+The apps' own error text said `:api` until that date — it was wrong, and is now fixed in
+`modules/parts/terranix.nix`.
+
+`cf:cloudflare.com:dontsell-dns` was a fourth entry, scoped to `dontsell.ai` only. That zone's
+terranix module was deleted on 2026-09-14 (its apex had moved to Vercel out-of-band and the
+module had drifted from live DNS on every record), so nothing in this fleet reaches for that
+handle any more — it can be removed from the Keychain whenever convenient.
 
 The broad token used to be `secret bind`-ed to `CLOUDFLARE_API_TOKEN`, so **every** shell — and
 therefore every process the operator ever launched, including this repo's own agent tooling —

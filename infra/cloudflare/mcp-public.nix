@@ -113,7 +113,7 @@ let
   #     (`upstream.<domain>`, `mcp.<domain>`, and in the sibling module
   #     `nixpi.<domain>`)
   #   - an Access application over a published server is named THAT SERVER
-  #     (`memory`, `character`)
+  #     (`memory`, `sequential-thinking`)
   #   - a registration's id, its portal app's name, and its `/servers/<x>/mcp`
   #     path segment are all the SAME string — the server's name.
   #

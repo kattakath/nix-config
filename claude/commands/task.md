@@ -75,7 +75,12 @@ While executing:
 - Long-running or external state (CI, deploy, a boot): use `Monitor` rather than
   polling loops or foreground sleeps.
 - Verifying a real app behaves: the `run` skill. Nix changes landing on this machine:
-  the `activation` skill (`activate`, and what `--hard/--yolo/--soft` mean).
+  the **`activate` CLI** — `activate --help` spells out `--hard/--yolo/--soft/--local`.
+  (This read "the `activation` skill" until 2026-09-14. That plugin ships from the private
+  `ismailkattakath-personal` marketplace, which is being removed along with the nix-personal
+  flake, so the skill name may resolve to nothing — do not route to it. The CLI itself is
+  safe to name: its mechanism moved into the public `kattakath/nix-config` on 2026-09-13
+  as `packages/activate.nix` / `lib.mkActivateCli`, so it outlives the private layer.)
 - Genuinely stuck after two real attempts: say so and offer `grok-build:grok-delegate`
   for a second diagnosis. Do not silently keep grinding.
 

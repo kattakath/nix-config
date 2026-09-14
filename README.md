@@ -15,8 +15,7 @@ A single Nix flake that manages complete, reproducible system configurations acr
 | Host | Type | System | Machine | Role |
 |------|------|--------|---------|------|
 | `macos` | [nix-darwin](https://github.com/LnL7/nix-darwin) | `aarch64-darwin` | Apple Silicon Mac | Client only — no remote/incoming traffic |
-| `macvm` | [nix-darwin](https://github.com/LnL7/nix-darwin) | `aarch64-darwin` | Tart guest VM on the Mac | Sandbox, same operator identity as every host; leaner Homebrew, no MCP gateway; host `macvm-tart-*` (SSH, shared `~/Downloads`); activate as `ismail` |
-| `nixpi` | NixOS | `aarch64-linux` | Raspberry Pi 4 | **LIVE server** — static-key SSH over a Cloudflare Tunnel connector + Caddy landing page |
+| `nixpi` | NixOS | `aarch64-linux` | Raspberry Pi 4 | **LIVE server** — Access-gated, loopback-bound SSH over a Cloudflare Tunnel connector + Caddy |
 | `nixvm` | NixOS | `aarch64-linux` | Throwaway QEMU dev VM on the Mac | Ephemeral XFCE desktop via `nix run .#nixvm` — not installed |
 | `devcontainer` | OCI image | `aarch64-linux` + `x86_64-linux` | Dev container (multi-arch manifest, published to GHCR) | — |
 
@@ -157,12 +156,12 @@ Or just open the repo in a devcontainer-aware editor; `.devcontainer/devcontaine
 
 ```
 bootstrap.sh    No-Nix curl entrypoint: install Determinate Nix, then hand off to the flake
-flake.nix       Entry point: inputs, darwin/nixos configurations, packages, devShells, checks, deploy nodes
-flake.lock      Pinned input revisions (bumped via `nix flake update`, never hand-edited); 59 nodes, held down by a deliberate `follows` diet plus ADR-002's capsule absorption
+flake.nix       Entry point: inputs/pins and ONE `flake-parts.lib.mkFlake` call — every output itself lives in modules/parts/
+flake.lock      Pinned input revisions (bumped via `nix flake update`, never hand-edited); 58 nodes, held down by a deliberate `follows` diet plus ADR-002's capsule absorption
 treefmt.nix     Single source of truth for formatting + lint (drives nix fmt, CI, and the hook)
-hosts/          Per-host entry profiles (macos.nix, macvm.nix, nixpi.nix, nixvm.nix)
+hosts/          Per-host entry profiles (macos.nix, nixpi.nix, nixvm.nix)
 modules/        parts/ (the flake engine), features/ (capsules — absorbed satellite flakes, one dir each), and the reusable modules split by platform (darwin/ nixos/ shared/)
-packages/       Nix-built artifacts (devcontainer image, key-recovery kit, landing page, single-purpose CLIs)
+packages/       Nix-built artifacts (devcontainer image, key-recovery kit, SD-card provisioning apps, single-purpose CLIs)
 templates/      Flake template for `nix flake init -t github:kattakath/nix-config` — a starter consumer fleet flake
 .claude/        Repo-local Claude Code agents, commands, hooks, skills, and rules
 ```
@@ -180,7 +179,7 @@ CI runs on **GitHub Actions** ([`nix-ci.yml`](./.github/workflows/nix-ci.yml)) a
 
 ## Secrets
 
-No plaintext secrets live in this repo. Two committed secrets are encrypted with [agenix](https://github.com/ryantm/agenix) (recipients declared in `secrets/secrets.nix`), on **two different models**. `nixpi`'s Cloudflare Tunnel token (`secrets/cloudflared-token.age`) is encrypted to the **operator's key alone** — an **operator-only vault**: the operator decrypts it on the Mac and plants it on the SD card's FAT `FIRMWARE` partition, from where it is copied into a `/run` file at boot, and it is **never** decrypted on `nixpi` (a fresh SD flash rotates the host key, which would break host-key decryption and kill the only remote path in). The `macos` self-hosted runner's GitHub **App** key (`secrets/gh-app-dontsell-ai-key.age`) is encrypted to the operator **plus the `macos` host key**, so it *is* host-decrypted into `/run/agenix/` at activation — safe there because that host key is stable, and the App key only ever mints short-lived (~1 h) tokens, so no long-lived PAT exists. Personal tokens stay out of Nix and git entirely (macOS Keychain / CLI logins). The Cachix substituter is public and read-only (URL + public key, no token). See [SECURITY.md](./SECURITY.md) for the full model.
+No plaintext secrets live in this repo. **Four** committed secrets are encrypted with [agenix](https://github.com/ryantm/agenix) (recipients declared in `secrets/secrets.nix`), on **two different models**. `nixpi`'s Cloudflare Tunnel token (`secrets/cloudflared-token.age`) is encrypted to the **operator's key alone** — an **operator-only vault**: the operator decrypts it on the Mac and plants it on the SD card's FAT `FIRMWARE` partition, from where it is copied into a `/run` file at boot, and it is **never** decrypted on `nixpi` (a fresh SD flash rotates the host key, which would break host-key decryption and kill the only remote path in). The other **three** — the two self-hosted-runner GitHub **App** keys (`secrets/gh-app-dontsell-ai-key.age`, `secrets/gh-app-fleet-key.age`) and the GitLab runner token (`secrets/gitlab-runner-token.age`) — are encrypted to the operator **plus the `macos` host key**, so they *are* host-decrypted into `/run/agenix/` at activation — safe there because that host key is stable, and the App keys only ever mint short-lived (~1 h) tokens, so no long-lived PAT exists. Personal tokens stay out of Nix and git entirely (macOS Keychain / CLI logins). The Cachix substituter is public and read-only (URL + public key, no token). See [SECURITY.md](./SECURITY.md) for the full model.
 
 ## Contributing
 

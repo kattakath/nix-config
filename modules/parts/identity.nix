@@ -109,8 +109,8 @@ let
   # `cfTunnelConfig` maps the SAME shape to tunnel ingress + DNS (also
   # overridable — see modules/parts/terranix.nix). Public hosts pass nothing, so
   # `hostedSites` defaults to `[ ]`: Caddy runs, zero vhosts, the sdImage
-  # stays secret- and site-free. The real production sites (kattakath.com,
-  # snoringirl.com, ismail.kattakath.com, dontsell.ai) are supplied by the
+  # stays secret- and site-free. The real production sites (today two:
+  # snoringirl.com and ismail.kattakath.com) are supplied by the
   # private nix-personal composition flake's `nixosConfigurations.nixpi`,
   # the standard composition seam (`extraHomeModules` for the Mac;
   # `hostedSites` + `extraModules` for nixpi) — see

@@ -198,8 +198,8 @@ nix run .#nixpi-provision -- --wifi       # just refresh Wi-Fi from this Mac's n
   `nixpi.kattakath.com` from first boot with no LAN cable, keyboard, or monitor.
 
 If you skip planting, the Pi still boots and is reachable on the LAN (`nixpi.local`),
-but the Cloudflare tunnel / public `kattakath.com` stays down until you plant the
-token and reboot.
+but the Cloudflare tunnel stays down — no `ssh nixpi` and no hosted site — until you
+plant the token and reboot.
 
 ## 5. First-boot expectations (don't mistake a slow-but-healthy boot for failure)
 
@@ -311,5 +311,7 @@ ext4 errors, the card or write is corrupt.
   does.
 - **What `nixpi` does once booted:** `hosts/nixpi.nix` +
   the `modules/features/cloudflared-connector/` capsule — the Cloudflare Tunnel connector carrying
-  static-key SSH (`ssh://localhost:22`) and Caddy serving the `kattakath.com`
-  landing page. Token + Wi-Fi are planted per §4b (nixpi-firmware-provision skill).
+  Access-gated, loopback-bound SSH (`ssh://localhost:22`) and Caddy serving whatever
+  `hostedSites` the composing flake passed. **From THIS public repo that is zero vhosts**;
+  the real list (two sites today) comes from nix-personal. Token + Wi-Fi are planted per
+  §4b (nixpi-firmware-provision skill).
