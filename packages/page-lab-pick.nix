@@ -19,7 +19,7 @@
   writeShellApplication,
   nodejs_22,
   # The page-lab plugin tree. A PINNED FLAKE INPUT since 2026-09-12
-  # (github:kattakath/claude-plugins) — it used to be a repo-relative `plugins/page-lab`
+  # (github:kattakath/ai) — it used to be a repo-relative `plugins/page-lab`
   # source literal, until the plugin was extracted so it could be
   # maintained and adopted like any published plugin. Passed by
   # modules/parts/packages.nix; there is no default, so a missing pin is an eval

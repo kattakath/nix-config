@@ -23,8 +23,9 @@ re-activate. Doing that by hand, repo by repo, is what this skill replaces.
 ## Fleet manifest
 
 `.claude/skills/fleet-doctor/fleet-repos.txt` — one repo per line, relative
-to `~/Developer`. This is the fleet (nix-config + nix-personal + the remaining
-standalone fleet repos), **not** every repo on disk — see the file's own header.
+to `~/Developer`. This is the fleet — today exactly two lines, nix-config and
+nix-personal — **not** every repo on disk; see the file's own header for every
+removal and its reason.
 Add a line there when a new fleet repo is created; nothing else in this skill
 needs to change.
 
@@ -37,6 +38,20 @@ re-add it.
 **Every listed repo is a flake now.** The manifest is down to the two composition
 repos, so every flake-shaped step below (lock freshness, `nix flake check`) applies
 to every member — there is no longer a flake-less member to skip.
+
+**PENDING (2026-09-14): nix-personal is being DISSOLVED.** It is still cloned, still
+pinned, still the sanctioned way macos is activated — so it stays in the manifest and
+every step below still runs against it **today**. But it is shrinking fast (its
+userscripts module and both gates, its private plugin marketplace, `leolistRag`,
+`pageLabSites` and `leolist-crawlee` all came out on 2026-09-13/14), and the mechanisms it
+used to own keep moving into this public repo under the shape/values contract — `activate`
+itself became `packages/activate.nix` / `lib.mkActivateCli` here on 2026-09-13 (commit
+b923914), leaving the private flake supplying values only.
+
+**Two steps below die with it, and are flagged in place: D (cross-repo pin) and G (host
+re-activation).** When the repo is actually gone, delete its manifest line *and* those two
+steps. Do not leave either pointing at nothing, and do not invent a substitute command for
+G — ask.
 
 ## Modes
 
@@ -118,12 +133,16 @@ repo/workflow-specific (see this session's Cachix-name and
 `update-flake-lock` fixes as examples of "why generic auto-fix doesn't
 work here"). Suggest a fork to investigate if the user wants it fixed now.
 
-### D. Cross-repo pin freshness
+### D. Cross-repo pin freshness — **the only such pin; dies with nix-personal**
 
-Repos whose `flake.lock` pins another fleet repo as an input (today:
-`nix-personal` → `nix-config`; check others' `flake.nix` inputs against the
-manifest for new cases) — compare the locked rev against that repo's current
-`origin/<default>` HEAD:
+There is exactly **one** cross-repo pin in the fleet: `nix-personal` → `nix-config`.
+It is real and worth checking **today** (last bumped 2026-09-14, commit aa1561e), but it
+is the only operand this step has, so when nix-personal is dissolved the step becomes a
+no-op and should be **deleted, not left sweeping an empty manifest**. Nothing pins
+nix-config in the other direction. Still re-check `flake.nix` inputs against the manifest
+before assuming a new case exists.
+
+Compare the locked rev against `nix-config`'s current `origin/main` HEAD:
 
 ```bash
 jq -r '.nodes["nix-config"].locked.rev' "$HOME/Developer/gitlab.com/ismailkattakath/nix-personal/flake.lock"
@@ -164,6 +183,18 @@ Only if repos touched in this run actually compose macos (i.e. their
 # `nix run .#macos` (fleet-only baseline, drops the private layer).
 cd "$HOME/Developer/gitlab.com/ismailkattakath/nix-personal" && activate
 ```
+
+**This landing step is CORRECT TODAY and is on death row (2026-09-14).** `activate` is
+still on PATH and still instantiated by nix-personal — but only with *values*: the CLI's
+whole ~250-line body moved into this public repo on 2026-09-13 (commit b923914) as
+`packages/activate.nix`, exported as `lib.mkActivateCli`. So the *mechanism* survives the
+dissolution; the *instantiation on PATH* does not.
+
+When nix-personal is gone and `activate` stops resolving: **stop and ask the operator
+which command lands a generation now.** Do not substitute one on your own — in
+particular, do not "fix" it to the public-repo rebuild banned in the comment above. That
+ban exists because the failure it produced was silent, and nothing in an audit sweep is
+worth guessing about an activation.
 
 (The macvm guest and its tar-sync activation flow were removed 2026-09-05 —
 docs/macvm-readd-runbook.md.)

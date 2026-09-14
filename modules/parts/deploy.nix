@@ -45,9 +45,8 @@ in
   # below points at THIS repo's `nixosConfigurations.nixpi`, which is the
   # SITE-FREE public baseline. `hostedSites` defaults to `[ ]` here, so a
   # successful deploy from this tree hands the live Pi a Caddy with ZERO
-  # vhosts and no dontsell.ai connector unit — kattakath.com, snoringirl.com,
-  # ismail.kattakath.com and dontsell.ai all go dark, while sshd and the
-  # primary tunnel keep working. Magic rollback CANNOT save you from that: it
+  # vhosts — snoringirl.com and ismail.kattakath.com both go dark, while sshd
+  # and the primary tunnel keep working. Magic rollback CANNOT save you from that: it
   # only reverts an activation that leaves the host UNREACHABLE, and a
   # site-free Pi is perfectly reachable — deploy-rs would report SUCCESS.
   # The real sites live in the private nix-personal flake; deploy from there.

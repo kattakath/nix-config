@@ -86,9 +86,11 @@ Pinned input revisions; commit every change, never hand-edit.
 
 **The input diet — `follows` is not optional bookkeeping here.** 32 root inputs pull a
 transitive graph, and every duplicate node is another fetch, another eval, another thing
-`flake-checker` has to reason about. The lock is held at **56 nodes**; it was **72** before the
-dedupe pass, and **69** before ADR-002 absorbed the satellites. Each absorption takes the
-satellite's own node and its private deps with it:
+`flake-checker` has to reason about. The lock sits at **58 nodes** today; it bottomed out at
+**56** the day ADR-002 finished, was **69** before ADR-002 absorbed the satellites, and **72**
+before the dedupe pass. The wave table below is that ADR's accounting, not a live count —
+inputs added since carried it back up, and the 2026-09-14 userscripts removal took it 59 → 58.
+Each absorption takes the satellite's own node and its private deps with it:
 
 | Wave | Absorbed | Nodes dropped | Lock after |
 |---|---|---|---|
@@ -174,7 +176,7 @@ Three rules, each mechanising a convention that was **prompt-only** until now:
 
 | Rule | Lang | Mechanises | Notes |
 |---|---|---|---|
-| `nix-hardcoded-home-path` | nix | CLAUDE.md § Conventions "Paths — two axes" (runtime half) | The gate half of the [`claude-code-nix`](https://github.com/kattakath/claude-plugins/tree/main/plugins/claude-code-nix) plugin's `nix-home-path-lint` hook, which is PostToolUse and so only ever sees *Claude's* writes — a human or flake-bump commit slipped through. Matches `string_fragment` nodes only, so comments and Nix source path literals are exempt by construction rather than by heuristic. Keep the regex in sync with the hook. |
+| `nix-hardcoded-home-path` | nix | CLAUDE.md § Conventions "Paths — two axes" (runtime half) | The gate half of the [`claude-code-nix`](https://github.com/kattakath/ai/tree/main/plugins/claude-code-nix) plugin's `nix-home-path-lint` hook, which is PostToolUse and so only ever sees *Claude's* writes — a human or flake-bump commit slipped through. Matches `string_fragment` nodes only, so comments and Nix source path literals are exempt by construction rather than by heuristic. Keep the regex in sync with the hook. |
 | `launchd-bare-interpreter-arg0` | nix | [`.claude/rules/launchd-naming.md`](../.claude/rules/launchd-naming.md) | Flags `ProgramArguments[0]` / `Program` pointing at a bare `sh`/`bash`/`python3`/`node`/… so Background Task Manager can't list a fleet agent as generic persistence. Only sees units authored *here*; the three known upstream `/bin/sh` daemons live in no `.nix` file and must not be renamed. |
 | `hook-json-parse-must-be-guarded` | javascript | the "never wedge a turn" invariant every `.claude/hooks/*.js` header states | An unguarded `JSON.parse` of untrusted event JSON throws and surfaces as a hook error. Scoped by `files:` to the hooks. First mechanical check those ~1.3k lines have ever had — `claude-config-lint.yml` checks frontmatter, never hook JS. |
 
@@ -449,10 +451,15 @@ their own top-level section below:
     deliberately not `~/Documents`/`~/Desktop`, which are TCC-walled and would need Chromium a
     Full Disk Access grant to read a `file://` from) plus a generated `index.html` of install
     links. `null` (e.g. `lib.mkForce null`) keeps a declaration but skips the file.
-    **This attrset is the public/private seam:** `modules/shared/home.nix` declares the public
-    scripts from `userscripts/`, nix-personal adds its own via `extraHomeModules`, and the two
-    merge — so keys must be distinct across the two repos, since the module system treats a
-    repeated key as a **conflict**, not an override.
+
+    **EMPTY since 2026-09-14, and kept on purpose.** No host declares a script any more —
+    every one was published to Greasy/Sleazy Fork instead (see § Userscripts below for the
+    trade). `xdg.dataFile` is gated on the attrset being non-empty, so an empty one writes
+    nothing at all; `enable` still sideloads Violentmonkey itself, which is what the published
+    scripts install into. The option stays because it is a free seam and a private script that
+    must not reach a public fork is still a real case. It remains the public/private merge
+    point, so if both repos ever repopulate it, **keys must be distinct** — the module system
+    treats a repeated key as a **conflict**, not an override.
 
     **Nix owns the files, never Violentmonkey's database**, and that is a Chromium wall rather
     than a shortcut. bitbloxhub's Firefox pattern (enterprise policy → `browser.storage.managed`
@@ -462,13 +469,13 @@ their own top-level section below:
     fork would need lives in MDM-owned `/Library/Managed Preferences/org.chromium.Chromium.plist`,
     unreachable from Home Manager (the **recommended** level is reachable — see
     `hideBookmarkBar` below — but it cannot lock a value, which is what that trick relies on).
-    A userscript is installed by **navigating** to it, so install stays one click
-    per script off the index page — and **no script has an update channel, public or private.**
-    `checks.<system>.userscripts` in `flake.nix` bans `@downloadURL`/`@updateURL`/`@installURL`
-    outright, so **every** change is a `@version` bump plus that same click-through; Violentmonkey
-    then falls back to `lastInstallURL`, which is exactly the `file://` path Nix wrote. The keys
-    are banned because Greasy Fork strips them on upload anyway, and pointed at this repo they
-    would let a push to `main` mutate an installed script with no activation.
+    A userscript is installed by **navigating** to it, so a declared script cost one click per
+    script off the index page and had **no update channel** — `checks.<system>.userscripts`
+    banned `@downloadURL`/`@updateURL`/`@installURL` outright (pointed at this repo they would
+    let a push to `main` mutate an installed script with no activation), so every change was a
+    `@version` bump plus that same click-through. That gate is gone with the scripts; a
+    fork-published copy gets the `@updateURL` the declared one was forbidden, which is exactly
+    why the fleet stopped declaring them.
     **Never put a secret in a userscript** — `source` is
     copied into the world-readable store, private flake or not.
   - **`hideBookmarkBar`** — one of two *policy* surfaces, and the place this repo writes
@@ -942,9 +949,18 @@ Uses upstream `services.caddy.virtualHosts` directly (in `hosts/nixpi.nix`), **n
 module**: one `http://<domain>` vhost per `mkNixos`'s `hostedSites` parameter (see
 [`private-home-modules.md`](private-home-modules.md)), each `file_server`ing its `root`. This
 public repo passes no `hostedSites` (`[ ]` default), so the public
-`nixosConfigurations.nixpi` boots Caddy with **zero vhosts** — the real production sites
-(`kattakath.com`, `snoringirl.com`, `ismail.kattakath.com`, `dontsell.ai`) live only in the
-private layer. Caddy sits **behind** the Cloudflare Tunnel (tunnel → Caddy on :80), so no
+`nixosConfigurations.nixpi` boots Caddy with **zero vhosts** — the real production site list
+lives only in the private layer. It is **two sites** today — `snoringirl.com` and
+`ismail.kattakath.com` — down from four: `dontsell.ai`'s apex moved to Vercel 2026-09-06 (its
+terranix module deleted 2026-09-14) and `kattakath.com` left for GitHub Pages 2026-09-07.
+`ismail.kattakath.com` is the one to be careful about: it was dropped from `hostedSites` on
+2026-09-12 as collateral in an unrelated commit **while the site stayed live** (the running
+generation and the cf-tunnel state both predated the drop), and was **restored 2026-09-14** —
+config catching up to production, not a decision to keep it here. Moving it to GitHub Pages is
+still the intent, and it is an ordered migration: the `tofu` apply goes **last**. Until then that
+line is what stops a routine deploy dropping the vhost (502) or a `cf-tunnel-apply` deleting the
+DNS record (NXDOMAIN) — the ≤2-ingress site-free guard catches neither, because this render has
+three entries. Caddy sits **behind** the Cloudflare Tunnel (tunnel → Caddy on :80), so no
 public IP/port-forward is needed and TLS terminates at Cloudflare's edge (the `http://` prefix
 disables Caddy auto-HTTPS to avoid a redirect loop back through the tunnel).
 
@@ -1239,7 +1255,7 @@ Smaller, single-purpose CLIs:
   for a PHYSICAL Android device; hardens around two live-reproduced adb bugs, an mDNS-cache
   staleness and duplicate-transport device listings. Its operator knowledge is also a GLOBAL
   skill — `android-phone` in the pinned
-  [`kattakath/claude-skills`](https://github.com/kattakath/claude-skills).
+  [`kattakath/ai`](https://github.com/kattakath/ai).
 - **The media packages are NOT here — they are in the `media-cli` capsule.**
   `media-quick-actions.nix`, `media-queue.nix`, `media-toolkit.nix`, `media-describe.nix`,
   `media.nix`, `media-fix.nix`, `media-fix-extension.nix`, `media-extract-audio.nix` and
@@ -1281,38 +1297,41 @@ Smaller, single-purpose CLIs:
   login Keychain at run time — wired only via `home.packages`, no matching flake app.
 - **`design-tokens/`** / **`email-signature/`** — small self-contained build-script-backed
   packages for their respective assets.
-## Userscripts — the PUBLIC Violentmonkey scripts (EXTRACTED 2026-09-12)
 
-Plain `.user.js` files, one per site. They no longer live in this tree: they are
-`github:kattakath/userscripts`, pinned as the `kattakath-userscripts` input and referenced by
-name from `modules/shared/home.nix`'s `local.ungoogledChromium.userScripts.scripts`
-(`"${kattakath-userscripts}/<name>.user.js"` — a string, which satisfies the option's `path`
-type because it is absolute). The option, the materialisation, and the reason Chromium allows
-nothing more declarative all live in
-[`modules/shared/chromium.nix`](../modules/shared/chromium.nix) — see § `chromium.nix` above.
-Why they left: [`agent-resource-externalization.md`](agent-resource-externalization.md).
+## Userscripts — REMOVED from the fleet entirely (2026-09-14, commit `535f1ef`)
 
-Private counterparts are `gitlab:ismailkattakath/userscripts`, pinned by **nix-personal**, and
-merge into the same attrset ([`private-home-modules.md`](private-home-modules.md)); **keys must
-not collide across the two repos.**
+**The fleet declares zero userscripts, and gates none.** That commit deleted the
+`kattakath-userscripts` input, every `local.ungoogledChromium.userScripts.scripts` entry and
+`checks.<system>.userscripts`; nix-personal (`c013aa5`) deleted `modules/userscripts.nix`, its
+own `gitlab:ismailkattakath/userscripts` input and both `checks.userscripts-lint` /
+`checks.userscripts-meta` the same day. The scripts are **published to Greasy Fork** (Sleazy
+Fork for adult-site scripts) instead — the last one out, `google-photos-icon-nav`, is
+`greasyfork.org/scripts/595764`.
 
-**Both halves are gated now, one gate per visibility.** `checks.<system>.userscripts` runs the
-page-lab linter against the `kattakath-userscripts` input; nix-personal runs the same linter
-against its own pinned private input. This is the fix for a measured hole: the check used to
-glob `${self}/userscripts/*.user.js` — this tree only — while this repo owned the *option* for
-both layers, and owning an option buys the consumer nothing. Measured 2026-08-31,
-nix-personal's `civitai-declutter` had shipped with **no `@license`** and the check never saw
-it. A public check still cannot read a private input, so the split is structural; what changed
-is that the private side now has a gate of its own instead of a by-hand ritual nobody ran.
+**Why publication beat declaration, stated as the trade it is.** A fork-installed copy carries
+`@updateURL` and **self-updates**; a Nix-materialised `file://` copy structurally cannot, because
+the old pipeline *banned* `@downloadURL`/`@updateURL`/`@installURL` outright — pointed at this
+repo they would have let a push to `main` mutate an installed script with no activation. So every
+change cost a `@version` bump, a `flake update`, an `activate` and a manual install click, and the
+end state was still a script that never updated itself. Publishing inverts that: one upload, and
+every install everywhere follows. What was given up is the declarative guarantee — a fresh Mac no
+longer ends up with the scripts installed, and the linter no longer runs in this repo's CI (it
+still lives in the `page-lab` plugin, and Greasy Fork enforces its own rules at upload).
 
-**Authoring path — two layers since 2026-09-06, driven by `/userscript`; never freehand.**
-The **method** is the portable [`page-lab` plugin](https://github.com/kattakath/claude-plugins/tree/main/plugins/page-lab)
-(probes, patterns, Greasy Fork rulebook, the metadata linter — it knows nothing about Nix); the
-**delivery** is the project skill
-[`userscript-author`](../.claude/skills/userscript-author/SKILL.md) (the `home.nix` line, the
-gate, `activate`, the install click). It **measures the live page** with claude-in-chrome
-before it writes a selector, then routes on the diff between the state the site already gives you
-and the state you want:
+**The option is deliberately KEPT, with zero scripts.**
+`local.ungoogledChromium.userScripts` (`enable` + the `attrsOf (nullOr path)` `scripts` attrset)
+stays in [`modules/shared/chromium.nix`](../modules/shared/chromium.nix) — see § `chromium.nix`
+above for the materialisation and the reason Chromium allows nothing more declarative.
+Violentmonkey is still sideloaded by `enable`; `scripts` is simply empty, and
+`xdg.dataFile` is gated on non-empty so an empty attrset writes nothing. It costs nothing and
+keeps the seam available if a script ever has to be fleet-pinned again (a private one, say, that
+must not go to a public fork).
+
+**The authoring METHOD is unchanged and lives in the plugin.** The portable
+[`page-lab` plugin](https://github.com/kattakath/ai/tree/main/plugins/page-lab)
+owns the probes, the patterns, the Greasy Fork rulebook and the metadata linter; it **measures
+the live page** before it writes a selector, routing on the diff between the state the site
+already gives you and the state you want:
 
 | Diff verdict | What it means | What to write |
 |---|---|---|
@@ -1320,31 +1339,26 @@ and the state you want:
 | **DOM-IDENTICAL** | the switch is a **pure CSS media query** — no selector can force it | lift that condition's rules and re-serve them in a **band** |
 | **STATE-B-UNREACHABLE** | the state does not exist; you are constructing UI | every invented selector carries its own measured line in the file's WHY block |
 
-The metadata block is **seeded from an already-gated script**, never hand-typed, so the contract
-lives in exactly one place — which `checks.<system>.userscripts` proves on every PR for the
-public input, and nix-personal's own check proves for the private one (above). Escalation is
-mechanical, not a judgment call: at a **4th script**, the first TS/JSX need, or `GM_*` plus a
-settings UI, the skill **stops** and proposes adopting `vite-plugin-monkey` as its own PR — this
-tree never grows a bundler of its own, and never commits minified output.
+The project skill [`userscript-author`](../.claude/skills/userscript-author/SKILL.md) is now
+only the *delivery* half — publish, then install — and no longer touches Nix.
 
-- **`google-photos-icon-nav.user.js`** — makes `photos.google.com` render **its own**
-  narrow-viewport icon rail at every window width, handing the reclaimed width to the photo grid.
-  **The measurement is the design:** the DOM is *identical* either side of the responsive
-  breakpoint — same tags, same classes, same attributes — so the switch is a **pure CSS media
-  query** and there is nothing a selector can force. So the script lifts Google's own `@media`
-  blocks out of their wrapper and replays them unconditionally, selected by `conditionText`
-  within an **800–1200px band** (never a hardcoded pixel; all blocks sharing a width are
-  accumulated, widest wins) and re-applied from a `document.head` **`childList`** MutationObserver
-  — not from history hooks, and never with `subtree`, which over this ~1.8 MB DOM would fire
-  thousands of times a scroll. Consequence: the file contains **not one Google class name**, so
-  the JSCompiler churn (`RSjvib`, `JBVD2d`, …) that breaks every hand-written Photos userscript
-  cannot break it; an unreadable cross-origin sheet degrades it to a **no-op**, which is the
-  correct failure — the page renders stock, nothing is mangled. Two page properties still shape
-  it: the grid is **JS-virtualised** — tile geometry *and* thumbnail request sizes derive from the
-  measured pane width — so the CSS must be followed by a synthetic `resize`, coalesced in one
-  `rAF`; and only the pane **wrapper** may ever be shifted, because it is the `position:absolute`
-  containing block for the main pane, which sits at `left:0` inside it, so moving both would
-  double the offset.
+**The worked example, kept because the lesson outlives the file.**
+`google-photos-icon-nav` makes `photos.google.com` render **its own** narrow-viewport icon rail
+at every window width, handing the reclaimed width to the photo grid. *The measurement was the
+design:* the DOM is *identical* either side of the responsive breakpoint — same tags, same
+classes, same attributes — so the switch is a **pure CSS media query** and nothing a selector can
+force. The script therefore lifts Google's own `@media` blocks out of their wrapper and replays
+them unconditionally, selected by `conditionText` within an **800–1200px band** (never a
+hardcoded pixel; all blocks sharing a width are accumulated, widest wins) and re-applied from a
+`document.head` **`childList`** MutationObserver — not from history hooks, and never with
+`subtree`, which over this ~1.8 MB DOM would fire thousands of times a scroll. Consequence: the
+file contains **not one Google class name**, so the JSCompiler churn (`RSjvib`, `JBVD2d`, …) that
+breaks every hand-written Photos userscript cannot break it; an unreadable cross-origin sheet
+degrades it to a **no-op**, which is the correct failure. Two page properties still shape it: the
+grid is **JS-virtualised** — tile geometry *and* thumbnail request sizes derive from the measured
+pane width — so the CSS must be followed by a synthetic `resize`, coalesced in one `rAF`; and only
+the pane **wrapper** may ever be shifted, because it is the `position:absolute` containing block
+for the main pane, which sits at `left:0` inside it, so moving both would double the offset.
 
 ## `infra/` — terranix (Nix → OpenTofu/Terraform JSON)
 
@@ -1453,7 +1467,7 @@ content-hashed into the store — see `CLAUDE.md` § Code Style on the two path 
 | `/gmail-account` | add/authenticate/remove a Gmail MCP multi-account, see [`gmail-mcp-multi-account-runbook.md`](gmail-mcp-multi-account-runbook.md) |
 | `/routing-review` | triage Claude Code's own OTel tool-decision log for deterministic-routing hardening candidates, see [`claude-code-observability-runbook.md`](claude-code-observability-runbook.md) |
 | `/mcp-scout` | discover → vet → DECLARATIVELY adopt an MCP server into the gateway via skill `mcp-scout`; imperative installer CLIs / config-writing install tools are never used |
-| `/userscript` | measure → replay → declare → gate a Violentmonkey userscript via skill `userscript-author`; **no selector ships that was not dumped from the live page**, and `@require`/`@resource` CDN deps are never used |
+| `/userscript` | measure → replay → **publish** a Violentmonkey userscript, via the `page-lab` plugin's method skill + the project skill `userscript-author` (delivery only since 2026-09-14 — nothing is declared or gated in Nix); **no selector ships that was not dumped from the live page**, and `@require`/`@resource` CDN deps are never used |
 | `/fleet-doctor` | fleet-wide consistency sweep (branches/worktrees/PRs/CI/cross-repo pins/GC/host re-activation) across every repo in `.claude/skills/fleet-doctor/fleet-repos.txt`, via skill `fleet-doctor`; composes `nix-hygiene`, `git-purity.md`, `pr-title.md` |
 
 ### `.claude/rules/` — always applied
@@ -1483,7 +1497,7 @@ content-hashed into the store — see `CLAUDE.md` § Code Style on the two path 
   `.claude/settings.json` stays unsupervised prompt-based — that one is a genuine semantic
   judgment call, unlike the Bash gate's mostly-syntactic rules.
 - **`superhook-digest`** — SessionStart digest of supervisor findings. Both it and the
-  wrapper are PATH packages built from the pinned `kattakath-claude-plugins` input
+  wrapper are PATH packages built from the pinned `kattakath-ai` input
   (`packages/superhook.nix`); they are no longer files in `.claude/hooks/`.
 - **`routing-review-digest.js`** — SessionStart nudge for unreviewed
   `user_temporary`/`user_permanent` Claude Code routing decisions; mirrors
@@ -1492,7 +1506,7 @@ content-hashed into the store — see `CLAUDE.md` § Code Style on the two path 
 - **`fleet-doctor-digest.js`** — SessionStart nudge when `/fleet-doctor` hasn't run in a while;
   reads only a local timestamp, no network/git calls, so it stays fast on every session start.
 - **`autostage-nix`** — PostToolUse git-purity net. EXTRACTED 2026-09-12 to the
-  [`claude-code-nix`](https://github.com/kattakath/claude-plugins/tree/main/plugins/claude-code-nix) plugin; it arrives as a
+  [`claude-code-nix`](https://github.com/kattakath/ai/tree/main/plugins/claude-code-nix) plugin; it arrives as a
   plugin hook, which is why `.claude/settings.json` no longer lists it (keeping both would
   fire it twice).
 - **`nix-home-path-lint`** — same plugin, same extraction. PostToolUse, `.nix` only: flags a hardcoded
@@ -1505,8 +1519,8 @@ Decoder for what these hooks print: [`claude-hook-messages.md`](claude-hook-mess
 
 Active only when working in this repo: `nix-hygiene`, `nixpi-firmware-provision`,
 `jsonresume-tailor`, `gmail-mcp-accounts`,
-`mcp-scout`, `userscript-author` (its `probes.md` + `patterns.md` flat siblings are the
-measurement instruments and the pre-vetted reuse ladder — see § `userscripts/`),
+`mcp-scout`, `userscript-author` (the FLEET half only — how a script reaches this Mac now that
+nothing is declared in Nix; the method lives in the `page-lab` plugin — see § Userscripts),
 `fleet-doctor` (its own `fleet-repos.txt` manifest lists every repo in scope — add
 a line there when a new flake is extracted from this repo, nothing else needs to change).
 `skills-lock.json` (the `npx skills` CLI lockfile) pins any CLI-vendored ones (currently none —
@@ -1521,8 +1535,9 @@ PINNED `flake = false` inputs (`agent-skills-vercel` = vercel-labs/skills → `f
 **NOT vendored**; `nix flake update` bumps them.
 
 **Since 2026-09-12 the operator's own skills are on that same rail.** `rag`,
-`android-phone` and `nix-dev-toolkit` were extracted to
-[`github:kattakath/claude-skills`](https://github.com/kattakath/claude-skills) and are pinned as `kattakath-claude-skills`, so the
+`android-phone` and `nix-dev-toolkit` were extracted out of this tree, and since
+2026-09-14 live beside the plugins in
+[`github:kattakath/ai`](https://github.com/kattakath/ai), pinned as `kattakath-ai`, so the
 only difference between "someone else's skill" and "mine" is now who can push to the repo
 ([`agent-resource-externalization.md`](agent-resource-externalization.md)):
 
@@ -1554,16 +1569,16 @@ only difference between "someone else's skill" and "mine" is now who can push to
 ### The operator's marketplace (EXTRACTED 2026-09-12)
 
 The operator's OWN Claude Code plugin marketplace is
-[`github:kattakath/claude-plugins`](https://github.com/kattakath/claude-plugins) — **not a tree in this repo** since 2026-09-12
+[`github:kattakath/ai`](https://github.com/kattakath/ai) — **not a tree in this repo** since 2026-09-12
 ([`agent-resource-externalization.md`](agent-resource-externalization.md)). It is pinned as
-the `kattakath-claude-plugins` input and is the third marketplace alongside `xai-grok-build`
+the `kattakath-ai` input and is the third marketplace alongside `xai-grok-build`
 (also a pinned input) and `claude-plugins-official` (HTTPS).
 
 That repo's `.claude-plugin/marketplace.json` lists its plugins with `./plugins/<name>`
 relative sources — the shape every owner-operated marketplace on GitHub uses, measured;
 external `{{source:github,…,sha}}` entries are what *catalogs* need, and this is not one.
 `modules/shared/home.nix` declares it as the `kattakath` entry of
-`local.claudePlugins.marketplaces` with `source = "${{kattakath-claude-plugins}}"` — an input's
+`local.claudePlugins.marketplaces` with `source = "${{kattakath-ai}}"` — an input's
 **store path**, which carries none of the relative-literal trap the old `"${{../../plugins}}"`
 form did, because a store path is absolute and means the same thing from any file in any
 flake. `modules/shared/claude-plugins.nix` registers it and installs the derived
@@ -1577,14 +1592,15 @@ so without the re-pin a bump would serve a previous generation's content forever
 Two plugins:
 
 - **`llmstxt`** — `llms.txt` authoring skill + `/llmstxt` command + a stdlib-only spec
-  linter; see the plugin's own `README.md` in [`kattakath/claude-plugins`](https://github.com/kattakath/claude-plugins).
+  linter; see the plugin's own `README.md` in [`kattakath/ai`](https://github.com/kattakath/ai).
 - **`page-lab`** — userscript authoring AND live-page diagnosis in one unit: the
   measure-before-you-select method, four browser probes, the pre-vetted code patterns, the
   Greasy Fork rulebook, the GM_* portability matrix, a two-way element **picker**, CDP
   diagnosis (performance / network / console), the `/userscript` + `/devtools` + `/pick`
-  commands, and `scripts/userscript-meta-lint.sh`. **`checks.<system>.userscripts` runs that
-  same linter** (from the pinned input), as does nix-personal's own userscripts gate, so CI,
-  the plugin's own users and both userscript repos share ONE rulebook and cannot drift.
+  commands, and `scripts/userscript-meta-lint.sh`. That linter used to be run by
+  `checks.<system>.userscripts` here and by nix-personal's twin gate; **both gates went with the
+  scripts on 2026-09-14** (§ Userscripts), so the rulebook now has exactly one consumer — the
+  plugin's own users — plus Greasy Fork's own checks at upload.
   **Merged 2026-09-07 from `userscript-author` + `chrome-devtools`.** They were split on
   2026-09-06 and cross-referenced, which held only while neither needed the other mid-motion.
   The verb that broke it is **pick**: the operator points at an element, the agent measures
@@ -1625,13 +1641,20 @@ no Nix wiring, and it cannot be loaded in sessions that have nothing to do with 
 The file now lives at `SEARGraph/.claude/agents/seargraph-langgraph.md`.
 
 Adding one = a `plugins/<name>/` tree with `.claude-plugin/plugin.json` + a `marketplace.json`
-entry **in that repo**, then `nix flake update kattakath-claude-plugins` here and its bare name
+entry **in that repo**, then `nix flake update kattakath-ai` here and its bare name
 in `local.claudePlugins.marketplaces.kattakath.plugins`; validate with
 `claude plugin validate --strict`. Iterate without the push/update loop via
-`nix flake check --override-input kattakath-claude-plugins path:../claude-plugins`.
+`nix flake check --override-input kattakath-ai path:../ai`.
+
+**A SECOND source costs one input and its own entries — no new mechanism.**
+`local.claudePlugins.marketplaces` is `attrsOf` and `programs.claude-code.skills` is a
+plain attrset, so both already take N. The operator's `ismailkattakath/ai` and
+`izzykatt/ai` are deliberately NOT pinned here: they aggregate experiments, and an
+experiment has no business being always-on global context on the working Mac. Add one
+when it has earned that, or scope it to a project instead.
 
 A **skill** that needs no command/hook/MCP/agent surface belongs in
-[`kattakath/claude-skills`](https://github.com/kattakath/claude-skills), not in a plugin —
+[`kattakath/ai`](https://github.com/kattakath/ai)'s `skills/`, not in a plugin —
 reach for a plugin only when the unit is more than a skill. An agent for ONE project belongs
 in that project's `.claude/agents/`, per the seargraph record above.
 

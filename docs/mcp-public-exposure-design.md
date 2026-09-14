@@ -2,7 +2,10 @@
 
 **Status:** **BUILT and live** as of 2026-09-12. v2 rewrote a v1 that answered the wrong question
 (see §9); §7/§7a were revised again the same day, when `character-mcp` migrated off its own OAuth
-onto the shared service token.
+onto the shared service token — and again on **2026-09-14**, when `character-mcp` was
+decommissioned. **§7's external-Worker shape is still fully supported and has zero users**:
+`character` was its only one, so it now reads as the *retired worked example*. The gateway half
+(§§1–6) is unaffected and still publishes `memory` + `sequential-thinking`.
 
 **The ask, verbatim:** *"Can we integrate this feature with our `mcp.nix` so that by flipping a
 flag, an MCP server can be made reached public with connector protection?"* — i.e. publish
@@ -152,7 +155,7 @@ and it stays true whichever mechanism answers.
 | Object | Name |
 |---|---|
 | Access application over a hostname | that hostname — `upstream.kattakath.com`, `mcp.kattakath.com`, `nixpi.kattakath.com` |
-| Access application over a published server | that server — `memory`, `character` |
+| Access application over a published server | that server — `memory`, `sequential-thinking` |
 | registration id · portal app name · `/servers/<x>/mcp` path segment | the **same string**: the server's name |
 
 In the dashboard, "Application name" and "Destinations" now read identically for every row this
@@ -210,18 +213,26 @@ that one list, the way `hostedSites` already drives ingress + DNS + rulesets.
 | **The Mac must be awake and online** | the gateway is on the laptop. Sleep it and every published server goes dark. Servers needing real uptime belong on `nixpi`, not here. |
 | **Two commands, not one** | `activate` handles the Mac side (agent + tunnel config). The Cloudflare side is a terranix apply. Wiring both to one list still leaves two applies. |
 | **Shared fate within the public gateway** | one `mcp-proxy` process; a crash darks all published servers (but not the private ones). |
-| **Access is the only boundary** | unlike `character-mcp`, the gateway has no OAuth of its own. §3's second process is what bounds the damage. |
+| **Access is the only boundary** | the gateway has no OAuth of its own (unlike `character-mcp`, the one Worker that ever did — retired 2026-09-14). §3's second process is what bounds the damage. |
 | **Portal costs** | brokering drops independent MFA / purpose justification; logs are dashboard-only (Logpush is Enterprise); DLP does not apply to portal traffic; the feature is beta. |
 
 ---
 
-## 7. External Workers: same flag, same credential (settled 2026-09-12)
+## 7. External Workers: same flag, same credential — SUPPORTED, zero users
+
+> **Read the status line first.** The mechanism below is live in the engine
+> (`externalServers` on `infra/cloudflare/mcp-public.nix`, threaded from
+> `lib.mcpPublicConfig`) and costs nothing at an empty list. **Nothing uses it today.**
+> `character` was its only user ever, and `character-mcp` was decommissioned **2026-09-14** —
+> so everywhere it appears below it is the **retired worked example**, kept because it is the
+> only thing that ever exercised this path end to end.
 
 For a server that must be up when the Mac is asleep, a standalone Worker is still the answer —
 but it does **not** get a hostname of its own. It is published at the same origin as every
 gateway server, as a Cloudflare Worker **route** on `upstream.<domain>/servers/<name>/*`.
 
 ```nix
+# the shape — `character` is the retired example, not a live entry
 externalMcpServers = [
   { name = "character"; description = "…"; }
 ];
@@ -240,6 +251,14 @@ single application.
 | Client bypassing the portal | **possible** — drive the Worker's OAuth directly | **impossible** — no AS to drive |
 | Tool gating | advisory | **enforced** |
 
+### What decommissioning it costs (2026-09-14)
+
+The list is now empty, and the next `mcp-public-apply` **removes** `character`'s three Cloudflare
+objects: the `ai-controls` MCP server registration, its `type = "mcp"` Access application, and
+its element of the portal's `servers` list. **That destroy is intended, not drift** — read the
+plan before approving it, then approve it. What terraform does *not* own and will not clean up:
+the Worker itself, its Hyperdrive binding and its KV namespace. Those need `wrangler` by hand.
+
 ### Why this replaced the per-Worker OAuth shape
 
 The old invariant was *"every publicly reachable server must be safe when the portal is
@@ -250,28 +269,31 @@ portal's tool gating did not apply.
 
 Migrating that Worker to bearer removed the bypass instead of documenting it. Dropping
 `OAuthProvider` also deleted an **unauthenticated** `POST /oauth/register` that accepted any
-`redirect_uri` — deferred audit item #5, closed as a side effect.
+`redirect_uri` — deferred audit item #5, closed as a side effect. Both of those closures
+**survive the decommission**: the shape the next Worker inherits is the bearer one, and the
+OAuth code path is gone from the design rather than merely unused.
 
 **Cost, stated so it is a choice:** Grok-direct is gone permanently, and there is no scope model
-left — the tool set is the whole grant. The migration is a `tofu` **replace**, not an update:
-`auth_type` is ForceNew in the provider, so oauth → bearer destroys and recreates the
-registration (keeping its stable `id`, so the portal-side `type = "mcp"` app re-binds).
+left — the tool set is the whole grant. The migration was a `tofu` **replace**, not an update:
+`auth_type` is ForceNew in the provider, so oauth → bearer destroyed and recreated the
+registration (keeping its stable `id`, so the portal-side `type = "mcp"` app re-bound).
 
 ### The Worker still verifies the assertion itself
 
-Access is the boundary, but the origin does not trust the network alone. `worker/access.ts` pins
-`iss`, the application's `aud`, and the service token's `common_name`. Without the `aud` pin, any
-Access application in the account would be a skeleton key for this one.
+Access is the boundary, but the origin does not trust the network alone. The retired Worker's
+`worker/access.ts` pinned `iss`, the application's `aud`, and the service token's `common_name`,
+and any future one must do the same. Without the `aud` pin, any Access application in the
+account would be a skeleton key for this one.
 
 ### Two Access apps per server is CORRECT, not a duplicate
 
-A server appears twice in the dashboard because **two different hops** gate it. Both must stay —
-and note the origin app is shared by every server, not one per server:
+A published server appears twice in the dashboard because **two different hops** gate it. Both
+must stay — and note the origin app is shared by every server, not one per server:
 
 | App | `type` | Gates |
 |---|---|---|
 | `upstream.<domain>` | `self_hosted` on the origin hostname | the **portal → origin** hop, by service token. **One app for all servers.** |
-| `<name>` (e.g. `character`) | `mcp`, `destinations: [{via_mcp_server_portal}]` | the **client → portal** hop for that one server, by operator identity |
+| `<name>` (e.g. `memory`) | `mcp`, `destinations: [{via_mcp_server_portal}]` | the **client → portal** hop for that one server, by operator identity |
 
 Deleting the second would not tighten anything; it would unpublish the server from the portal.
 What *was* redundant and got deleted on 2026-09-12 is a **third**, older app —
@@ -290,7 +312,8 @@ matches most-specific-path-first, it had been **shadowing** the hostname app and
 
 The "enforcement lever" recorded here as **DECLINED** (tightening each Worker's DCR to the portal
 callback, to close audit finding MCP-5) is **moot**: the Workers have no DCR to tighten. MCP-5 is
-closed by removal, at none of the cost that was declined.
+closed by removal, at none of the cost that was declined — and doubly so since 2026-09-14, when
+the last Worker of any kind was decommissioned (§7).
 
 ---
 

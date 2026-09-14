@@ -537,35 +537,19 @@
         "type": "github"
       }
     },
-    "kattakath-claude-plugins": {
+    "kattakath-ai": {
       "flake": false,
       "locked": {
-        "lastModified": 1789320932,
-        "narHash": "sha256-G4+95wUd82c+E4v6Uni+DjVw6cwvwvLkcHAChLo06Yo=",
+        "lastModified": 1789398550,
+        "narHash": "sha256-VF9g5tv5gGJTSobK3tLEp06u5nzIvVHquXAZGCJcxCM=",
         "owner": "kattakath",
-        "repo": "claude-plugins",
-        "rev": "b14719b86d7da747cbd781d2f4b890fe914284ea",
+        "repo": "ai",
+        "rev": "2fdcf7c627f0837bda35f80466a90170ee72fce0",
         "type": "github"
       },
       "original": {
         "owner": "kattakath",
-        "repo": "claude-plugins",
-        "type": "github"
-      }
-    },
-    "kattakath-claude-skills": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1789226086,
-        "narHash": "sha256-BDfVKJzkbwa2RH7qM5hjQjbNHf8s53NSQX+2vl0C4sg=",
-        "owner": "kattakath",
-        "repo": "claude-skills",
-        "rev": "9097d59f18eb88c48bf3ab838503e98df21e0584",
-        "type": "github"
-      },
-      "original": {
-        "owner": "kattakath",
-        "repo": "claude-skills",
+        "repo": "ai",
         "type": "github"
       }
     },
@@ -831,8 +815,7 @@
         "grok-build-plugin-cc": "grok-build-plugin-cc",
         "home-manager": "home-manager",
         "import-tree": "import-tree",
-        "kattakath-claude-plugins": "kattakath-claude-plugins",
-        "kattakath-claude-skills": "kattakath-claude-skills",
+        "kattakath-ai": "kattakath-ai",
         "mcp-servers-nix": "mcp-servers-nix",
         "nix-darwin": "nix-darwin",
         "nix-homebrew": "nix-homebrew",

@@ -346,18 +346,30 @@
     # A directory path literal copies the WORKTREE (a stray .DS_Store became a
     # closure input once — see nix-personal's .claude/rules/store-copied-trees.md);
     # a flake input copies the GIT TREE, so that footgun cannot fire for these.
-    kattakath-claude-plugins = {
-      # The marketplace this operator publishes: `page-lab` + `llmstxt`.
-      # Registered from the input's STORE PATH in modules/shared/home.nix, which
-      # is why there is no path-literal trap here — a store path is absolute and
-      # means the same thing from any file in any flake.
-      url = "github:kattakath/claude-plugins";
-      flake = false;
-    };
-    kattakath-claude-skills = {
-      # `rag`, `nix-dev-toolkit`, `android-phone` — cherry-picked per skill in
-      # programs.claude-code.skills, the same shape as every third-party pin.
-      url = "github:kattakath/claude-skills";
+    kattakath-ai = {
+      # ONE repo per owner, carrying all three unit types this fleet consumes:
+      #   skills/    `rag`, `nix-dev-toolkit`, `android-phone` — cherry-picked
+      #              per skill in programs.claude-code.skills, the same shape as
+      #              every third-party pin above.
+      #   plugins/   the marketplace this operator publishes, registered from the
+      #              input's STORE PATH in modules/shared/home.nix — which is why
+      #              there is no path-literal trap here: a store path is absolute
+      #              and means the same thing from any file in any flake.
+      #   mcp/       server.json declarations (MCP registry schema).
+      #
+      # Renamed from `kattakath/claude-plugins` on 2026-09-14 and absorbed
+      # `kattakath/claude-skills` (now archived) the same day, taking the pin
+      # count 2 -> 1. GitHub redirects the old name, so nothing that still points
+      # at either breaks.
+      #
+      # THE ONLY agent-resource repo this PUBLIC fleet pins. The operator's two
+      # personal ones — `ismailkattakath/ai` and `izzykatt/ai` — are deliberately
+      # absent: they are experiment aggregators, and an experiment has no business
+      # being always-on global context on the working Mac. Both consume the same
+      # interface when wanted (`local.claudePlugins.marketplaces` is `attrsOf`,
+      # `programs.claude-code.skills` is a plain attrset — both already take N
+      # entries), added deliberately and activated, or scoped to a project.
+      url = "github:kattakath/ai";
       flake = false;
     };
   };
