@@ -65,7 +65,6 @@
   # resource, while Nix keeps the pin, the wiring and the gates.
   kattakath-claude-plugins,
   kattakath-claude-skills,
-  kattakath-userscripts,
   # The ABSORBED local-rag capsule (local.rag.ollama +
   # local.rag.pgvector — the loopback RAG stack) — a MODULE, not a flake,
   # since ADR-002 wave 6 brought it in-tree as modules/features/local-rag/.
@@ -554,18 +553,13 @@ in
   # The PUBLIC half of the userscript set. Private ones are added to this same
   # attrset by the nix-personal flake through `extraHomeModules`, which is the
   # whole point of keying it — keys must stay distinct across the two repos.
-  # The scripts themselves live in the PINNED input `kattakath-userscripts`
-  # (github:kattakath/userscripts), extracted from this repo 2026-09-12 — so a
-  # userscript is maintained, versioned and adoptable like any published
-  # userscript, while this file keeps the declaration and Nix keeps the pin.
-  # `checks.<system>.userscripts` lints THAT INPUT, so the gate followed the
-  # content out instead of going quietly green on an empty directory.
-  # `"${input}/x.user.js"` satisfies the option's `path` type (it starts with
-  # "/"), and being absolute it carries none of the relative-literal trap the
-  # old repo-relative form did. See modules/shared/chromium.nix for the option.
-  local.ungoogledChromium.userScripts.scripts = {
-    google-photos-icon-nav = "${kattakath-userscripts}/google-photos-icon-nav.user.js";
-  };
+  # NO userscripts are declared any more (2026-09-14). All of them were
+  # published instead - google-photos-icon-nav is
+  # https://greasyfork.org/en/scripts/595764 - and a fork-installed copy is the
+  # only one that carries an `@updateURL`, so it updates itself while a
+  # materialised file never could. The option in modules/shared/chromium.nix
+  # stays: it is generic, documented, and the next private script can declare
+  # itself without rebuilding the mechanism.
 
   # The PUBLIC half of the Claude Code plugin set — DATA only; the registration
   # + install mechanism is ./claude-plugins.nix. Same keyed-attrset seam as the

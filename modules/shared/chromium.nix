@@ -234,7 +234,7 @@ in
         type = with lib.types; attrsOf (nullOr path);
         default = { };
         example = lib.literalExpression ''
-          { google-photos-icon-nav = "''${kattakath-userscripts}/google-photos-icon-nav.user.js"; }
+          { my-script = "''${some-pinned-input}/my-script.user.js"; }
         '';
         description = ''
           Userscripts to materialise into

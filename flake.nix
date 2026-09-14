@@ -360,12 +360,6 @@
       url = "github:kattakath/claude-skills";
       flake = false;
     };
-    kattakath-userscripts = {
-      # The PUBLIC Violentmonkey scripts. `checks.<system>.userscripts` lints
-      # THIS INPUT rather than a local tree, so the gate follows the content.
-      url = "github:kattakath/userscripts";
-      flake = false;
-    };
   };
 
   # ---- Entry point: flake-parts + import-tree (ADR-002 wave 2) --------------
