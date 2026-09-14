@@ -1,40 +1,57 @@
 ---
 name: userscript-author
 description: >
-  Declare and gate a Violentmonkey userscript FOR THIS FLEET: the file lands in
-  the pinned `kattakath/userscripts` repo (public) or
-  `gitlab:ismailkattakath/userscripts` (private), then gets its one-line entry in
-  `local.ungoogledChromium.userScripts.scripts` (`modules/shared/home.nix`
-  here, `modules/userscripts.nix` in nix-personal) and a `nix flake update` of
-  that input. Use when asked to "make <site> do X", "write a
+  The FLEET layer for Violentmonkey userscripts — what the portable plugin cannot
+  know: how a script reaches this Mac, and why this repo no longer declares or
+  gates any. Since 2026-09-14 delivery is PUBLICATION (Greasy/Sleazy Fork, then
+  one install click), not a Nix declaration. Use alongside the
+  `page-lab:userscript-author` skill when asked to "make <site> do X", "write a
   userscript for <site>", "fix my <site> script", or "this site's X annoys me".
-  The authoring METHOD lives in the portable `userscript-author` plugin
-  (published at kattakath/claude-plugins); this skill owns only what is specific to this
-  fleet — the Nix declaration, the gate, and how a script reaches the browser here.
+  The authoring METHOD lives in that plugin (published at kattakath/claude-plugins);
+  this skill owns only the delivery and install reality of this fleet.
 ---
 
 # Userscript author — the FLEET layer
 
-**Method is not here.** Measuring, diffing, replaying, the code patterns, the probes and the
-Greasy Fork rulebook all live in the **`userscript-author` plugin**
-([`kattakath/claude-plugins`](https://github.com/kattakath/claude-plugins/tree/main/plugins/page-lab)), which is deliberately
-portable — it stops at a lint-clean `.user.js` and knows nothing about Nix. Invoke it as the
-`page-lab:userscript-author` skill, or read
-[its SKILL.md](https://github.com/kattakath/claude-plugins/blob/main/plugins/page-lab/skills/userscript-author/SKILL.md).
+**Method is not here.** Measuring, routing, diffing, replaying, the code patterns, the probes and
+the Greasy Fork rulebook all live in the **`page-lab` plugin**
+([`kattakath/claude-plugins`](https://github.com/kattakath/claude-plugins/tree/main/plugins/page-lab)),
+which is deliberately portable — it stops at a lint-clean, proven `.user.js` and knows nothing
+about Nix. Invoke it as the `page-lab:userscript-author` skill.
 
-**This skill owns the delivery half the plugin cannot:** declaring the script in Nix, this
-repo's gate, and the install reality on this Mac.
+**This skill owns the delivery half** — which, since 2026-09-14, is publication rather than a
+Nix declaration.
 
 ```
-[plugin] wish → shelf → measure → diff → write
-[here]   → declare in home.nix → gate → PR → activate → one click
+[plugin] wish → shelf → route → measure → diff → write → lint → prove
+[here]   → publish to the fork → install once → it self-updates
 ```
+
+## What this repo stopped doing, and why (2026-09-14, commit 535f1ef)
+
+One commit removed **all three at once**: the `kattakath-userscripts` input, every
+`local.ungoogledChromium.userScripts.scripts` entry, and `checks.<system>.userscripts`.
+nix-personal dropped its `modules/userscripts.nix`, its own `userscripts` input and **both** of
+its gates the same day.
+
+- **Publication beat materialisation on one measured fact.** A fork-installed copy is the only
+  one that carries an `@updateURL`, so it updates itself; a file materialised into
+  `$XDG_DATA_HOME` never could — every change needed an `activate` plus a manual click. The
+  last script out, `google-photos-icon-nav`, is `greasyfork.org/scripts/595764`.
+- **The gate was deleted, not re-pointed.** Aiming it at `${self}` would have been a green build
+  over an empty directory — strictly worse than no gate, and exactly the failure its own comment
+  warned about. See the long-form note that replaced it in `modules/parts/checks.nix`.
+- **The rulebook did not move.** It is still the plugin's `scripts/userscript-meta-lint.sh`, now
+  running in CI in the repositories that own the scripts. One rulebook, run where the content is.
+- **The OPTION stays.** `local.ungoogledChromium.userScripts` in `modules/shared/chromium.nix` is
+  generic and documented, `enable` still defaults `true`, `scripts` is `{ }`. **Do not describe
+  it as removed.**
 
 ## Standing preference (thin by design — append, never invent)
 
 | # | Statement | Confidence | Evidence |
 |---|---|---|---|
-| **UI-1** | Give me **the site's own compact/narrow chrome at full width** — navigation shrinks, content takes the reclaimed space. | **VERIFIED** | the entire purpose of `google-photos-icon-nav.user.js` (kattakath/userscripts) |
+| **UI-1** | Give me **the site's own compact/narrow chrome at full width** — navigation shrinks, content takes the reclaimed space. | **VERIFIED** | the entire purpose of `google-photos-icon-nav`, now `greasyfork.org/scripts/595764` |
 
 - **Correction, load-bearing:** the 80px rail, the hover peek-back, the hidden storage footer and
   the 1px `Collections` divider are **Google's own design at its own breakpoint**, inherited as
@@ -46,133 +63,72 @@ repo's gate, and the install reality on this Mac.
 
 ## Hard rules (fleet-specific — the plugin carries the rest)
 
-1. **Seed from the gated script, delete its body** —
-   `cp userscripts/google-photos-icon-nav.user.js userscripts/<kebab>.user.js`. That file is
-   checked by CI on every PR, so its header is correct **by construction**; never hand-type a
-   metadata block. Keep the block, retarget `@name` / `@description` / `@match` / `@homepageURL`
-   / `@supportURL`, **reset `@version` to `1.0.0`**, and **DELETE THE BODY** — it is a
-   `document-start` CSS-replay script, so its `@run-at` and style-injection shape are **wrong**
-   for a DOM script (plugin `patterns.md` § `@run-at`).
-2. **Never a secret** — `source` is copied into the **world-readable Nix store**, private flake
-   or not (`modules/shared/chromium.nix`).
-3. Follow [git-purity](../../rules/git-purity.md) + [pr-title](../../rules/pr-title.md); the index
-   is root [`CLAUDE.md`](../../../CLAUDE.md), long form
-   [`docs/repo-map.md`](../../../docs/repo-map.md) § `userscripts/`.
+1. **Never a secret.** A published script is world-readable; so was the Nix store copy. There is
+   no longer a private lane that changes this — the private userscripts repo and its gate are
+   both gone.
+2. **A script that must not be public has no path today.** Reviving the Nix lane needs all three
+   back together (a pinned input holding the file, one line in `scripts`, the gate restored) —
+   **ask the operator**, do not improvise a half of it.
+3. If a change here *does* touch `.nix`, follow [git-purity](../../rules/git-purity.md) +
+   [pr-title](../../rules/pr-title.md); the index is root [`CLAUDE.md`](../../../CLAUDE.md).
+   Authoring and publishing a script touches **no file in this repo at all**.
 
-## Declare it
+## Deliver it
 
-- [ ] Push the `.user.js` to the right userscripts repo first — `kattakath/userscripts`
-      (public) or `gitlab:ismailkattakath/userscripts` (private) — then
-      `nix flake update <that input>` and commit the lock. The scripts left this tree
-      2026-09-12; see [`agent-resource-externalization.md`](../../../docs/agent-resource-externalization.md).
-- [ ] Add **exactly one line** — `<kebab> = "''${kattakath-userscripts}/<kebab>.user.js";` —
-      inside the existing `scripts = { … };` attrset of `modules/shared/home.nix` (or of
-      nix-personal's `modules/userscripts.nix` for a private one). Nothing else changes.
-- [ ] That is a **string**, not a path literal, and it satisfies the option's `path` type
-      because a store path is absolute. **Never "fix" it to a `$HOME` path** — and never
-      reintroduce a repo-relative literal; `checks.<system>.page-lab` fails the build on one.
-- [ ] **Key collision:** nix-personal's private keys are **invisible from this repo**, and the
-      module system treats a repeated key as a **conflict, not an override** — **ASK the
-      operator** before claiming a plausible name.
+- [ ] Lint with the plugin's `scripts/userscript-meta-lint.sh` — the only gate left, and it is
+      the same one the deleted check ran.
+- [ ] **Publish** per the plugin's `greasyfork.md`: Greasy Fork, or **Sleazy Fork** for an
+      adult-adjacent site (one codebase, but a site lands on only one of the two).
+- [ ] Install from the fork page, once. `@updateURL` then does the rest — **this is the whole
+      reason the fleet stopped materialising files**, so never hand the operator a raw file to
+      install when a fork listing is possible.
+- [ ] The script's source of truth is its own repo/listing, **not this tree**. The old sync URL
+      `raw.githubusercontent.com/kattakath/nix-config/main/userscripts/<kebab>.user.js` is
+      **dead** — there is no `userscripts/` directory here.
 
-## Gate
+## Install reality on this Mac
 
-```bash
-git add -A
-nix build .#checks.aarch64-darwin.userscripts
-nix fmt
-git add -A                        # fmt may rewrite
-git status --porcelain '*.nix'    # clean of ??
-nix flake check
-```
-
-`checks.<system>.userscripts` **runs the plugin's linter** —
-the plugin's `scripts/userscript-meta-lint.sh` — so the rulebook lives in exactly
-one place and CI, the plugin and any other consumer cannot drift apart. Its contract is in the
-plugin README; what it deliberately does **not** check is `patterns.md` § 10.
-
-- [ ] If `nix` is unavailable: run the linter directly
-      (`userscript-meta-lint.sh <dir>`, from the page-lab plugin),
-      `nix-instantiate --parse` the changed `.nix`, and state the rest is **CI-deferred**.
-- [ ] **A private script is gated by nix-personal, not by this repo.** Since the
-      2026-09-12 extraction this check lints the pinned `kattakath-userscripts`
-      input, and nix-personal lints its own pinned
-      `gitlab:ismailkattakath/userscripts` — one linter, two gates, one per
-      visibility. A public check cannot read a private input, so this split is
-      structural, not an oversight.
-
-      **The history is why the gate had to move with the content.** It used to
-      glob `${self}/userscripts/*.user.js` — this repo's tree only — while owning
-      the *option* for both. Owning an option does not gate its consumers, and
-      **the build still went green**, which was the trap: measured 2026-08-31,
-      nix-personal's `civitai-declutter` had shipped with **no `@license`** and
-      the check never saw it. Extracting the tree without repointing the check
-      would have been strictly worse — a green build over an empty directory.
-
-## Install reality (no Nix↔Violentmonkey bridge)
-
-- Activation is the operator's move: **`activate`** from nix-personal — **NEVER**
-  `darwin-rebuild switch --flake .#macos` from this repo.
-- It rewrites `~/.local/share/userscripts/` + `index.html`, and **never touches Violentmonkey's DB.**
+- **Violentmonkey is still sideloaded** (`userScripts.enable` defaults `true` in
+  `modules/shared/chromium.nix`), so the extension is there even though zero scripts are declared.
+- **`~/.local/share/userscripts/` no longer exists.** `xdg.dataFile` is gated on
+  `scripts != { }`, so with an empty attrset nothing is materialised and **there is no
+  `index.html` to click through** — verified absent on disk 2026-09-14. Installing now means
+  navigating to the fork listing.
 - One-time per profile, in `chrome://extensions`: **Allow User Scripts** + **Allow access to
   file URLs** (Chrome 138+ refuses to let policy set the first).
-- A **click-through in `index.html` is required for a new script and after every edit** — Claude
-  cannot install a script, flip a toggle, or drive Violentmonkey's dialog.
+- Claude cannot install a script, flip a toggle, or drive Violentmonkey's dialog. That click is
+  always the operator's.
+- **Activation is no longer part of the loop.** Publishing changes nothing in the Nix closure, so
+  a userscript no longer needs `activate` at all.
 
-## Live-edit loop — which file to track HERE
-
-The loop itself, its gotchas and the `Install`-vs-`+ Track` trap are in the plugin. What is
-fleet-specific is **which of the three copies is the writable one** (measured 2026-08-31):
-
-| Path | Mode | Track it? |
-|---|---|---|
-| `userscripts/<kebab>.user.js` (repo) | `-rw-r--r--` | **YES** — the only writable copy |
-| `$XDG_DATA_HOME/userscripts/<kebab>.user.js` | symlink → `/nix/store/…` | **no** — read-only build artifact |
-| `$XDG_DATA_HOME/userscripts/index.html` | symlink → `/nix/store/…` | **no** — that is the *install* path, and it installs the read-only copy |
-
-Also fleet-specific: **the gate cannot see an unstaged edit** — it globs the **git tree**, so
-finish with the gate above (`git add -A` first), not with a green browser. And the materialised
-copy stays stale for the whole session; reconcile at the end with the gate, then `activate`.
-
-## Live-edit loop (no operator at the keyboard — fallback)
+## Live-edit loop — no operator at the keyboard (fallback)
 
 When there is no human to click an installer — an agent-driven session — inject the saved body
 straight into a matching Kapture tab. There is no plugin for this; it is one POST, so a wrapper
 earned nothing (`plugins/userscript-preview` did exactly this and was retired 2026-09-04):
 
 ```bash
-python3 - <<'EOF'
+python3 - <<'PYEOF'
 import json, re, urllib.request, pathlib
-raw = pathlib.Path('userscripts/<kebab>.user.js').read_text()
+raw = pathlib.Path('<path to the .user.js you are editing>').read_text()
 body = re.sub(r"//\s*==UserScript==.*?//\s*==/UserScript==", "", raw, flags=re.S).strip()
 req = urllib.request.Request("http://127.0.0.1:61822/tab/<tabId>/evaluate",
     data=json.dumps({"code": body, "timeout": 30000}).encode(),
     headers={"Content-Type": "application/json"}, method="POST")
 print(urllib.request.urlopen(req, timeout=40).read().decode()[:200])
-EOF
+PYEOF
 ```
 
+- The file path is **wherever you are authoring it** — a scratch path or the script's own repo.
+  It is no longer `userscripts/<kebab>.user.js` in this tree, and the old three-copy
+  writable/read-only table died with that directory.
 - Tab must have Kapture connected and **Allow JS execution** (`evalAllowed`).
-- The IIFE **must** call `window.__nix<Name>Teardown()` first, or each inject stacks
-  another observer. A leftover `data-*Init` early-return makes inject a no-op instead
-  — do not add one.
-- Injecting over an OLDER installed build that predates its teardown makes the two
-  copies fight for last-in-head until the tab pegs, and the POST times out (measured
-  2026-09-04). Install the new version first, or use the tracked loop.
-- Injection dies on reload. Ship with `activate` + click as usual.
-
-## Publish
-
-The rulebook is the plugin's
-[`greasyfork.md`](https://github.com/kattakath/claude-plugins/blob/main/plugins/page-lab/skills/userscript-author/greasyfork.md).
-The only fleet-specific part is the sync source for a script that lives here:
-
-```
-https://raw.githubusercontent.com/kattakath/nix-config/main/userscripts/<kebab>.user.js
-```
-
-Sync is a **site-side setting** on Greasy Fork, not the banned `@updateURL` — the file stays
-clean, and users still update from Greasy Fork.
+- The IIFE **must** call `window.__nix<Name>Teardown()` first, or each inject stacks another
+  observer. A leftover `data-*Init` early-return makes inject a no-op instead — do not add one.
+- Injecting over an OLDER installed build that predates its teardown makes the two copies fight
+  for last-in-head until the tab pegs, and the POST times out (measured 2026-09-04). Install the
+  new version first, or edit against a clean tab.
+- Injection dies on reload. Ship by publishing, as above.
 
 ## Report format (always end with this)
 
@@ -184,16 +140,16 @@ clean, and users still update from Greasy Fork.
 - **Diff verdict:** DOM-DIFFERS | DOM-IDENTICAL | STATE-B-UNREACHABLE
 - **Approach:** (attribute set | rules lifted by condition in band X–Y | constructed UI)
 - **Selectors shipped:** (each one, with the date measured — or "none")
-- **Files:** userscripts/<kebab>.user.js · modules/shared/home.nix
-- **Gates:** userscripts ✅/❌ · fmt ✅/❌ · flake check ✅/❌
-- **Operator action:** activate, then click <kebab> in index.html and confirm
-- **Verdict:** SHIPPED | BLOCKED (why) | ESCALATED (vite-plugin-monkey)
+- **Lint:** plugin `userscript-meta-lint.sh` ✅/❌
+- **Published:** Greasy Fork | Sleazy Fork | not yet (why) — with the listing URL
+- **Operator action:** install from the listing once; it self-updates thereafter
+- **Verdict:** SHIPPED | BLOCKED (why) | ESCALATED (vite-plugin-monkey, in the script's own repo)
 ```
 
 ## Compose with existing automation
 
 ```
-/userscript <site> <wish>  → this skill + the userscript-author plugin
-/eval                      → eval only
-/hygiene                   → doc/index drift after the PR lands
+/userscript <site> <wish>  → this skill + page-lab:userscript-author
+/eval                      → only if a .nix was actually touched (authoring touches none)
+/hygiene                   → doc/index drift, if a PR here ever lands
 ```

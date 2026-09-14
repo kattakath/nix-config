@@ -9,11 +9,21 @@ community resource.
 |---|---|---|
 | `page-lab`, `llmstxt` plugins | `github:kattakath/claude-plugins` | `kattakath-claude-plugins` |
 | `rag`, `nix-dev-toolkit`, `android-phone` skills | `github:kattakath/claude-skills` | `kattakath-claude-skills` |
-| public userscripts | `github:kattakath/userscripts` | `kattakath-userscripts` |
-| private userscripts | `gitlab:ismailkattakath/userscripts` | pinned by **nix-personal** |
+| public userscripts | `github:kattakath/userscripts` | ~~`kattakath-userscripts`~~ — **pin dropped 2026-09-14** |
+| private userscripts | `gitlab:ismailkattakath/userscripts` | ~~pinned by **nix-personal**~~ — **pin dropped 2026-09-14** |
 | `seargraph` agent | `ismailkattakath/SEARGraph` `.claude/agents/` | nothing — see § Deletions |
 
-Lock nodes: **56 → 59**.
+Lock nodes at the time: **56 → 59**.
+
+> **Update, 2026-09-14 — the userscript half went one step further, out of Nix entirely.**
+> Both userscript pins are gone (nix-config `535f1ef`, nix-personal `c013aa5`), along with every
+> script declaration and **all three** lint gates (`checks.<system>.userscripts` here;
+> `checks.userscripts-lint` + `checks.userscripts-meta` there). The scripts are **published to
+> Greasy/Sleazy Fork** instead. The reason is the one thing extraction could not fix: this
+> pipeline **banned** `@updateURL`, so a materialised `file://` copy could never self-update,
+> while a fork-installed one does. `local.ungoogledChromium.userScripts` survives as an empty
+> option. Lock nodes 59 → 58. Details: [`repo-map.md`](repo-map.md) § Userscripts.
+> The plugin and skill rows above are unaffected — those pins are live.
 
 ## Why this is not ADR-002 in reverse
 
@@ -87,8 +97,13 @@ not gate its consumers, and the build still went green. Measured 2026-08-31: nix
 Extracting the tree and leaving that check alone would have been strictly worse than the
 original hole — a green build over an **empty directory**. So both operands moved to the
 inputs: the linter from `kattakath-claude-plugins`, the scripts from
-`kattakath-userscripts`. nix-personal does the same for its own pinned private repo, which
-is the first time those four scripts have ever been gated.
+`kattakath-userscripts`. nix-personal did the same for its own pinned private repo, which was
+the first time those four scripts had ever been gated.
+
+**The rule held when the content left for good.** On 2026-09-14 the scripts moved out of Nix
+altogether, to Greasy/Sleazy Fork — and all three gates were deleted in the same commits rather
+than left green over nothing. The gate went where the content went; here that destination
+enforces its own rules at upload, so the gate had no operand left to hold.
 
 Same for `checks.<system>.page-lab`, and for `packages/page-lab-pick.nix`, whose
 repo-relative `plugins/page-lab/scripts/pick-element.mjs` source literal was the one genuinely
@@ -158,7 +173,7 @@ agree, because git is doing the copying.
 | `claude/` (CLAUDE.md, Brain Signals kit) | operator identity and an accessibility calibration, not a community resource; `context` must also be a single path |
 | `skills/{explain,compare,map,zoom,why,tldr,diagram}` | one kit with the output style in `modules/shared/claude-brain.nix` — splitting them lets the two halves drift |
 | `.claude/` | project-scoped by definition; it must live in the repo it governs |
-| `.claude/skills/userscript-author` | it is about *this repo's* Nix declaration and gate, not about userscripts |
+| `.claude/skills/userscript-author` | it is about how a script reaches *this Mac* — the fleet's delivery reality, not the portable authoring method (it stopped being about a Nix declaration or gate on 2026-09-14, when both ceased to exist) |
 | nix-personal's `activation` plugin | documents a CLI only that flake ships |
 
 ## Adding to an extracted repo
@@ -166,8 +181,8 @@ agree, because git is doing the copying.
 1. Commit in that repo and push.
 2. `nix flake update <input>` here, commit the `flake.lock`.
 3. For a plugin, add its bare name to `local.claudePlugins.marketplaces.kattakath.plugins`;
-   for a skill, add a `programs.claude-code.skills.<name>` entry; for a userscript, add a
-   `local.ungoogledChromium.userScripts.scripts.<name>` entry.
+   for a skill, add a `programs.claude-code.skills.<name>` entry. (There is no userscript step
+   any more — a script is **published**, not declared; see the 2026-09-14 update above.)
 
 During development, skip the push/update loop with
 `nix flake check --override-input kattakath-claude-plugins path:../claude-plugins`.

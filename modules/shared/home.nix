@@ -1331,12 +1331,15 @@ in
     # no option in either project can quiet them. `--show-activation-logs` /
     # NH_SHOW_ACTIVATION_LOGS puts them back for a run.
     #
-    # ONLY the package + env here. The flake POINTER is private (it names the
-    # nix-personal checkout), so `darwinFlake` is set there — see
-    # docs/private-home-modules.md. nix-personal's `activate` is what actually
-    # calls nh, and it gates on a tty: nh's own progress ticker repaints ~15x/s
-    # with NO off switch (measured: NH_NOM=0 and NO_COLOR=1 both change nothing),
-    # so under a pipe it is far worse than plain darwin-rebuild.
+    # ONLY the package + env here — deliberately NO `flake`/`darwinFlake`
+    # pointer. Whatever that names is what a bare `nh darwin switch` activates,
+    # which makes it the same footgun as `darwin-rebuild --flake .#macos`: point
+    # it at this repo and the command silently drops the private layer. Leaving
+    # it unset means `nh darwin switch` needs an explicit path, and `activate`
+    # (the only sanctioned entry point) already passes one. It gates on a tty:
+    # nh's own progress ticker repaints ~15x/s with NO off switch (measured:
+    # NH_NOM=0 and NO_COLOR=1 both change nothing), so under a pipe it is far
+    # worse than plain darwin-rebuild.
     #
     # clean stays off: GC is the fleet's own story (nix.gc on nixpi; Determinate
     # owns it on darwin), and the module warns when both are enabled.

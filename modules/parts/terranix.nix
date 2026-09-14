@@ -234,7 +234,7 @@ let
 
         echo ""
         echo "Applied. Store the connector token WITHOUT displaying it:"
-        echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- \\"
+        echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:mcp-public -- \\"
         echo "    nix run .#mcp-public-token | secret set cf:cloudflare.com:mcp-connector"
         echo ""
         echo "Then set local.mcpGateway.public (from nix-personal) and activate."
@@ -246,9 +246,11 @@ let
       text = ''
         if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
           echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
-          echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- ${name}" >&2
+          echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:mcp-public -- ${name}" >&2
           echo "  (needs Account > Cloudflare Tunnel:Edit + Access: Apps and Policies:Edit," >&2
           echo "   Access: Service Tokens:Edit, and Zone > DNS:Edit on ${domainName})" >&2
+          echo "  NOT cf:cloudflare.com:api — measured 2026-09-14: that broad handle" >&2
+          echo "  403s on /access/ai-controls/mcp/servers/*, so tofu aborts at refresh." >&2
           exit 1
         fi
 

@@ -170,8 +170,10 @@ let
   # Nix, so nothing reproduced them and they would drift silently. Declared here
   # for every zone THIS module manages — the SSH host's zone plus each hosted
   # site's zone. Zones outside this module (aloshy.ai, etuper.com, izzykatt.ca,
-  # silvercreek.ai) are deliberately NOT covered: they have no terranix module in
-  # this repo, and dontsell.ai has its own in the private flake.
+  # silvercreek.ai, dontsell.ai) are deliberately NOT covered: they have no
+  # terranix module anywhere. dontsell.ai had one in the private flake until
+  # 2026-09-14; its apex moved to Vercel out-of-band, the module drifted from
+  # live DNS on every record, and it was deleted rather than re-synced.
   #
   # `value` is schema-typed `dynamic`, so a string for the scalar settings and an
   # attrset for security_header — matching exactly what the API returns, so
@@ -329,8 +331,11 @@ in
   # to loopback — the two halves are one control and neither works alone.
   #
   # The policy is NOT declared here. `mcp-allow-operator` is a REUSABLE policy
-  # shared with the MCP portal and character-mcp; owning it from this module would
-  # let a change here silently retarget those. Referenced by id instead.
+  # shared with every published MCP server's portal app; owning it from this
+  # module would let a change here silently retarget those. Referenced by id
+  # instead. (It was shared with character-mcp too until that project was
+  # decommissioned on 2026-09-14 — the reuse argument is unchanged, the example
+  # is just one fewer.)
   resource.cloudflare_zero_trust_access_application.nixpi_ssh = {
     account_id = accountId;
     # An Access application is named after what it points at — the same rule
