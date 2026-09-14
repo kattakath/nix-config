@@ -7,7 +7,7 @@ description: >
   one install click), not a Nix declaration. Use alongside the
   `page-lab:userscript-author` skill when asked to "make <site> do X", "write a
   userscript for <site>", "fix my <site> script", or "this site's X annoys me".
-  The authoring METHOD lives in that plugin (published at kattakath/claude-plugins);
+  The authoring METHOD lives in that plugin (published at kattakath/ai);
   this skill owns only the delivery and install reality of this fleet.
 ---
 
@@ -15,7 +15,7 @@ description: >
 
 **Method is not here.** Measuring, routing, diffing, replaying, the code patterns, the probes and
 the Greasy Fork rulebook all live in the **`page-lab` plugin**
-([`kattakath/claude-plugins`](https://github.com/kattakath/claude-plugins/tree/main/plugins/page-lab)),
+([`kattakath/ai`](https://github.com/kattakath/ai/tree/main/plugins/page-lab)),
 which is deliberately portable — it stops at a lint-clean, proven `.user.js` and knows nothing
 about Nix. Invoke it as the `page-lab:userscript-author` skill.
 
