@@ -239,9 +239,19 @@ in
           # input itself. So drift is one hash: upstream's default.nix at the
           # revision the fork was last reviewed against. A mismatch prints the
           # fork-vs-upstream diff — port what applies, then re-pin `expected`.
+          #
+          # REVIEWED 2026-09-14 against home-manager 87c391f. Upstream ADOPTED the
+          # fork's whole argument: `launchd.agents.<name>.launcher.name` (so agents
+          # show a recognisable prefix in Login Items) and `.launcher.shell` (whose
+          # own docs now cite the TCC behaviour this fleet measured — "with /bin/sh
+          # the attribution follows Apple's shell, with a store-resident shell it
+          # follows the launcher itself"). Nothing upstream changed BREAKS the fork,
+          # which is self-contained, so this bump is a re-pin only. But the fork is
+          # now largely redundant and retiring it is tracked separately: see
+          # docs/repo-map.md § modules/shared/hm-launchd.
           hm-launchd-drift = pkgs.runCommand "hm-launchd-drift" { nativeBuildInputs = [ pkgs.diffutils ]; } ''
             upstream=${home-manager}/modules/launchd/default.nix
-            expected=a16a4bf28ca400708261105816955e66184964485a6e5ac067cdea34491614c3
+            expected=aca5d10fe12bb477c9faf0965608747849225d0b53f4f48642431f27da83899d
             actual=$(sha256sum "$upstream" | cut -d' ' -f1)
             if [ "$actual" != "$expected" ]; then
               echo "hm-launchd-drift: pinned home-manager modules/launchd/default.nix moved" >&2
