@@ -145,8 +145,8 @@ in
           LANGUAGE sql
           -- STABLE is load-bearing, not a nicety: without it the function is
           -- VOLATILE (SQL default), so `ORDER BY embedding <=> embed('q')` — the
-          -- one retrieval pattern every consumer uses (the `rag` skill, the
-          -- leolist-ops plugin) — re-evaluates embed() PER ROW and the planner
+          -- one retrieval pattern every consumer uses (the `rag` skill, and any
+          -- domain table a private layer adds) — re-evaluates embed() PER ROW and the planner
           -- refuses the HNSW index. Measured 2026-09-12 on docs (5,979 rows):
           -- inline embed() seq-scanned in 115,117 ms (one Ollama POST per row);
           -- STABLE makes Postgres evaluate it once and use the index → 132 ms.
