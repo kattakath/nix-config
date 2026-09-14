@@ -647,97 +647,106 @@ let
   # consumes via --named-server-config. mkConfig PINS the 7 packaged servers;
   # settings.servers carries the 12 custom ones verbatim. flavor "claude-code"
   # emits the `mcpServers` key mcp-proxy expects (it ignores any extra fields).
+  # The packaged servers' definitions, named ONCE so the private gateway and the
+  # published one cannot diverge. They did: the published config used to rebuild
+  # this attrset as a bare `enable = true` per name, which silently dropped every
+  # `package` and `passwordCommand` the real definition carries. That is how the
+  # 2026-09-14 memory/sequential-thinking breakage survived being fixed - the fix
+  # landed here, the public gateway kept building the broken framework default,
+  # and nothing but a real activation could tell.
+  packagedPrograms = {
+    context7 = {
+      enable = true;
+      # An API key raises context7's rate limits. Fetched at gateway LAUNCH from
+      # the login Keychain (`set-secret CONTEXT7_API_KEY <key>`) by the module's
+      # passwordCommand wrapper, which does `export CONTEXT7_API_KEY=$(security …)`
+      # then execs context7-mcp — so the value is NEVER in argv or the /nix/store
+      # (same pattern as the cloudflared connector above). context7-mcp reads the
+      # env var (`cliOptions.apiKey || process.env.CONTEXT7_API_KEY`); an absent
+      # key => empty export => it runs unauthenticated exactly as before. No
+      # ~/.zprofile export is needed — the wrapper reads the Keychain itself, and
+      # launchd user agents don't source login shells anyway.
+      passwordCommand.CONTEXT7_API_KEY = [
+        "/usr/bin/security"
+        "find-generic-password"
+        "-a"
+        "$(id -un)"
+        "-s"
+        "CONTEXT7_API_KEY"
+        "-w"
+      ];
+    };
+    # The framework's DEFAULT mcp-server-fetch is 2026.1.26, which calls httpx
+    # `AsyncClient(proxies=…)` — a kwarg httpx 0.28 renamed to `proxy` — so every fetch
+    # crashed ("unexpected keyword argument 'proxies'"). This flake's top-level nixpkgs
+    # ships mcp-server-fetch 2026.7.10, already fixed to `proxy=`; use that build instead.
+    fetch = {
+      enable = true;
+      package = pkgs.mcp-server-fetch;
+    };
+    # The framework's DEFAULT mcp-server-memory is 2026.7.10, whose tsc step
+    # fails with "Cannot find name 'process'" across index.ts - it compiles
+    # without @types/node in scope. That is not a config error and no flag works
+    # around it; the derivation simply does not build, and because the gateway
+    # JSON depends on every enabled server it took the whole darwin-system down
+    # on 2026-09-14. Same shape as the fetch override directly above, and the
+    # same remedy: this flake's top-level nixpkgs ships 2026.8.18, which builds.
+    #
+    # Verified by REALISING it, not by a green build line - `nix build
+    # --print-out-paths` happily prints the output path of a derivation it has
+    # only planned.
+    memory = {
+      enable = true;
+      package = pkgs.mcp-server-memory;
+    };
+    # Same @modelcontextprotocol/servers monorepo as memory above, so the same
+    # 2026.7.10 tsc breakage and the same nixpkgs 2026.8.18 remedy.
+    sequential-thinking = {
+      enable = true;
+      package = pkgs.mcp-server-sequential-thinking;
+    };
+    # Grounded, READ-ONLY nixpkgs/NixOS/Home-Manager/nix-darwin option+package lookup
+    # (utensils/mcp-nixos). This repo authors config for exactly those three module
+    # surfaces every session; a real lookup kills hallucinated package/option names.
+    # No token. Kept Nix-built/pinned (not a uvx runtime fetch) for reproducibility;
+    # mcp-nixos 2.4.3's `test_read_text_file` is brittle on aarch64-darwin (it asserts
+    # a sampled /nix/store text file contains no "Error" substring — a false positive,
+    # unrelated to the server), so doCheck is disabled just to let it build.
+    nixos = {
+      enable = true;
+      package = pkgs.mcp-nixos.overrideAttrs (_: {
+        doCheck = false;
+        doInstallCheck = false;
+      });
+    };
+    # Terraform Registry provider/module/policy schema docs (hashicorp/terraform-mcp-server)
+    # for the terranix → Cloudflare IaC under infra/. Registry-docs only (no HCP/TFE token
+    # supplied) => read-only. mcp-proxy hosts it like the rest.
+    terraform.enable = true;
+    # GitHub's official MCP server (typed PR/CI/issue/code-search tools) — more reliable
+    # than scraping `gh` output for the one-PR-per-session + GitHub-hosted-CI flow. The PAT
+    # is fetched at gateway LAUNCH from the login Keychain via passwordCommand (same pattern
+    # as context7 above), so it is NEVER in argv or the /nix/store. Set it once with
+    # `secret set GITHUB_PERSONAL_ACCESS_TOKEN <pat>`; an absent key => empty export => the
+    # server starts but its calls fail auth until a token is present (it degrades, not crashes).
+    github = {
+      enable = true;
+      passwordCommand.GITHUB_PERSONAL_ACCESS_TOKEN = [
+        "/usr/bin/security"
+        "find-generic-password"
+        "-a"
+        "$(id -un)"
+        "-s"
+        "gh:github.com:pat"
+        "-w"
+      ];
+    };
+  };
+
   gatewayConfig = mcp-servers-nix.lib.mkConfig pkgs {
     flavor = "claude-code";
     fileName = "mcp-gateway.json";
-    programs = {
-      context7 = {
-        enable = true;
-        # An API key raises context7's rate limits. Fetched at gateway LAUNCH from
-        # the login Keychain (`set-secret CONTEXT7_API_KEY <key>`) by the module's
-        # passwordCommand wrapper, which does `export CONTEXT7_API_KEY=$(security …)`
-        # then execs context7-mcp — so the value is NEVER in argv or the /nix/store
-        # (same pattern as the cloudflared connector above). context7-mcp reads the
-        # env var (`cliOptions.apiKey || process.env.CONTEXT7_API_KEY`); an absent
-        # key => empty export => it runs unauthenticated exactly as before. No
-        # ~/.zprofile export is needed — the wrapper reads the Keychain itself, and
-        # launchd user agents don't source login shells anyway.
-        passwordCommand.CONTEXT7_API_KEY = [
-          "/usr/bin/security"
-          "find-generic-password"
-          "-a"
-          "$(id -un)"
-          "-s"
-          "CONTEXT7_API_KEY"
-          "-w"
-        ];
-      };
-      # The framework's DEFAULT mcp-server-fetch is 2026.1.26, which calls httpx
-      # `AsyncClient(proxies=…)` — a kwarg httpx 0.28 renamed to `proxy` — so every fetch
-      # crashed ("unexpected keyword argument 'proxies'"). This flake's top-level nixpkgs
-      # ships mcp-server-fetch 2026.7.10, already fixed to `proxy=`; use that build instead.
-      fetch = {
-        enable = true;
-        package = pkgs.mcp-server-fetch;
-      };
-      # The framework's DEFAULT mcp-server-memory is 2026.7.10, whose tsc step
-      # fails with "Cannot find name 'process'" across index.ts - it compiles
-      # without @types/node in scope. That is not a config error and no flag works
-      # around it; the derivation simply does not build, and because the gateway
-      # JSON depends on every enabled server it took the whole darwin-system down
-      # on 2026-09-14. Same shape as the fetch override directly above, and the
-      # same remedy: this flake's top-level nixpkgs ships 2026.8.18, which builds.
-      #
-      # Verified by REALISING it, not by a green build line - `nix build
-      # --print-out-paths` happily prints the output path of a derivation it has
-      # only planned.
-      memory = {
-        enable = true;
-        package = pkgs.mcp-server-memory;
-      };
-      # Same @modelcontextprotocol/servers monorepo as memory above, so the same
-      # 2026.7.10 tsc breakage and the same nixpkgs 2026.8.18 remedy.
-      sequential-thinking = {
-        enable = true;
-        package = pkgs.mcp-server-sequential-thinking;
-      };
-      # Grounded, READ-ONLY nixpkgs/NixOS/Home-Manager/nix-darwin option+package lookup
-      # (utensils/mcp-nixos). This repo authors config for exactly those three module
-      # surfaces every session; a real lookup kills hallucinated package/option names.
-      # No token. Kept Nix-built/pinned (not a uvx runtime fetch) for reproducibility;
-      # mcp-nixos 2.4.3's `test_read_text_file` is brittle on aarch64-darwin (it asserts
-      # a sampled /nix/store text file contains no "Error" substring — a false positive,
-      # unrelated to the server), so doCheck is disabled just to let it build.
-      nixos = {
-        enable = true;
-        package = pkgs.mcp-nixos.overrideAttrs (_: {
-          doCheck = false;
-          doInstallCheck = false;
-        });
-      };
-      # Terraform Registry provider/module/policy schema docs (hashicorp/terraform-mcp-server)
-      # for the terranix → Cloudflare IaC under infra/. Registry-docs only (no HCP/TFE token
-      # supplied) => read-only. mcp-proxy hosts it like the rest.
-      terraform.enable = true;
-      # GitHub's official MCP server (typed PR/CI/issue/code-search tools) — more reliable
-      # than scraping `gh` output for the one-PR-per-session + GitHub-hosted-CI flow. The PAT
-      # is fetched at gateway LAUNCH from the login Keychain via passwordCommand (same pattern
-      # as context7 above), so it is NEVER in argv or the /nix/store. Set it once with
-      # `secret set GITHUB_PERSONAL_ACCESS_TOKEN <pat>`; an absent key => empty export => the
-      # server starts but its calls fail auth until a token is present (it degrades, not crashes).
-      github = {
-        enable = true;
-        passwordCommand.GITHUB_PERSONAL_ACCESS_TOKEN = [
-          "/usr/bin/security"
-          "find-generic-password"
-          "-a"
-          "$(id -un)"
-          "-s"
-          "gh:github.com:pat"
-          "-w"
-        ];
-      };
-    };
+    programs = packagedPrograms;
     settings.servers = customStdioServers;
   };
 
@@ -752,11 +761,10 @@ let
   publicGatewayConfig = mcp-servers-nix.lib.mkConfig pkgs {
     flavor = "claude-code";
     fileName = "mcp-gateway-public.json";
-    # mkConfig's `programs` are per-server enables; mirror only the published
-    # packaged ones. Anything not listed is simply absent from this process.
-    programs = lib.genAttrs publicPackaged (_: {
-      enable = true;
-    });
+    # FILTER the shared definitions rather than regenerating them, so a package
+    # override or passwordCommand set once applies to both processes. Anything not
+    # listed is simply absent from this process.
+    programs = lib.filterAttrs (n: _: builtins.elem n publicPackaged) packagedPrograms;
     settings.servers = publicCustom;
   };
 
