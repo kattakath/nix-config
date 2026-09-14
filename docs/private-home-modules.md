@@ -9,15 +9,14 @@ flake** and plug in through a fixed contract.
 | Layer | Lives where | Contains |
 |---|---|---|
 | **Engine** | `github:kattakath/nix-config` (public) | hosts, shared profile, `lib.mkDarwin` / `lib.mkHomeManagerModule` / `lib.mkNixos` / `lib.cfTunnelConfig` |
-| **Private stack** | your private forge (GitLab/GitHub) | home-manager modules, real hosted-site content, and dontsell.ai's bespoke tunnel — only you should see these |
+| **Private stack** | your private forge (GitLab/GitHub) | home-manager modules and real hosted-site content — only you should see these |
 | **Contract (darwin)** | `extraHomeModules` on `lib.mkDarwin` | list of HM modules; public hosts pass `[]` |
 | **Contract (nixpi)** | `hostedSites` + `extraModules` on `lib.mkNixos` | real site list (`{ domain; zoneId ? null; root; www ? true; ownTunnel ? false }`) + any bespoke modules; public `nixosConfigurations.nixpi` passes neither, defaulting to `[]`/no extras |
 
 **No private stack is referenced from this repository** — not as a flake input, not
 as a path, not as a URL. The public `flake.lock` never locks a private repo. This
 also means nixpi's own `hostedSites` content (site HTML/assets, real Cloudflare
-zone ids for `kattakath.com`, `snoringirl.com`, `ismail.kattakath.com`, and
-`dontsell.ai`'s tunnel) now lives **only** in the private nix-personal composition
+zone ids) now lives **only** in the private nix-personal composition
 flake — see `nixosConfigurations.nixpi` below.
 
 ## Contract
@@ -116,7 +115,7 @@ Two deliberate refinements, both judged rather than mechanical:
    public seam it fills and why the value is discreet.
 3. Prove removability: the standalone system build above must still pass without it.
 
-### nixpi (real sites + dontsell.ai's tunnel)
+### nixpi (real sites)
 
 Same contract, `lib.mkNixos` instead of `lib.mkDarwin`:
 
@@ -126,17 +125,28 @@ nixosConfigurations.nixpi = nix-config.lib.mkNixos {
   system = "aarch64-linux";
   hostname = "nixpi";
   hostedSites = [
-    { domain = "kattakath.com"; zoneId = "…"; root = ./sites/landing; }
-    # … snoringirl.com, ismail.kattakath.com …
-    { domain = "dontsell.ai"; root = ./sites/dontsell-landing; ownTunnel = true; }
+    { domain = "snoringirl.com"; zoneId = "…"; root = ./sites/snoringirl; }
+    # a subdomain of the apex zone, so no www vhost/redirect:
+    { domain = "ismail.kattakath.com"; zoneId = "…"; root = ./sites/ismail-landing; www = false; }
   ];
   extraModules = [
     raspberry-pi-nix.nixosModules.raspberry-pi
     raspberry-pi-nix.nixosModules.sd-image
-    ./modules/nixpi-dontsell-tunnel.nix # dontsell.ai's own connector — see below
   ];
 };
 ```
+
+**Removing a site from this list is an OUTWARD, ORDERED change — never a tidy-up.**
+Measured 2026-09-12: `ismail.kattakath.com` was dropped from `hostedSites` as collateral in an
+unrelated commit, and nothing failed — the site stayed up, because nixpi's *running generation*
+and the cf-tunnel OpenTofu state both predated the drop. Config said gone, production said
+serving, and they were one command apart from diverging in two different directions: the next
+nixpi deploy would have dropped the Caddy vhost while Cloudflare kept routing (**502**), and the
+next `cf-tunnel-apply` would have deleted the DNS record outright (**NXDOMAIN**). The site-free
+guard catches neither — it refuses only at ≤2 ingress entries, and that render had three. The
+entry was **restored 2026-09-14**, config catching up to production. The rule: retire a site by
+standing up the new origin first, cutting DNS over, and only then removing the line — with the
+`tofu` apply **last**.
 
 `ownTunnel = true` is a **shape marker only** — `hostedSites` never triggers
 tunnel-provisioning code on its own. A site whose zone lives in a different
@@ -145,10 +155,13 @@ account) needs its own `cloudflared` connector, since a `cfargotunnel.com`
 CNAME only resolves within the same account as the tunnel. That bespoke unit
 is hand-written (`local.cloudflaredConnector` is a singleton, so a second
 tunnel can't reuse its option surface) and travels via `extraModules`, not a
-generic loop over `hostedSites` — see nix-personal's
-`modules/nixpi-dontsell-tunnel.nix` for the exact unit + firmware-file entry
-(moved here wholesale from what used to be hardcoded in this repo's
-`hosts/nixpi.nix`).
+generic loop over `hostedSites`. **No site uses it today** — dontsell.ai was
+the only one, and it left nixpi on 2026-09-06 when its apex moved to Vercel;
+its connector module and, on 2026-09-14, its terranix zone module were both
+deleted. The marker stays because the engine still honours it; for the exact shape
+of such a unit (systemd service + its firmware-file token entry), recover
+nix-personal's `modules/nixpi-dontsell-tunnel.nix` from git history — it was itself
+moved there wholesale from what used to be hardcoded in this repo's `hosts/nixpi.nix`.
 
 Deploy nixpi from the private flake (build locally, switch remotely — nixpi has
 no local build capacity and is reached only via the Cloudflare Tunnel's SSH
@@ -232,11 +245,11 @@ no local sshd by design. Per `nixos-rebuild --help`: *"If --build-host is not
 explicitly specified or empty, building will take place locally"* — omitting
 the flag is exactly what you want.
 
-One planting gap to know about: this repo's public `nixpi-flash`/`nixpi-provision`
-apps (`packages/nixpi-provision.nix`) only plant the **primary** `cloudflared-token`
-onto a freshly flashed SD card's FIRMWARE partition. dontsell.ai's second token
-(`cloudflared-token-dontsell`) needs its own plant step — currently manual (`cp`
-onto the mounted FIRMWARE partition) — until/unless nix-personal automates it.
+A planting gap that used to matter here is now closed: this repo's public
+`nixpi-flash`/`nixpi-provision` apps (`packages/nixpi-provision.nix`) plant only the
+**primary** `cloudflared-token` onto a freshly flashed SD card's FIRMWARE partition.
+The only second token that ever needed a manual plant was dontsell.ai's, and that
+tunnel is retired — so one token is now the whole story.
 
 ## Ops checklist
 
@@ -378,6 +391,6 @@ mutable `~/.claude`. One `attrsOf` option replaced both the copy and the race.
   `flake.lock` for every clone/CI job).
 - Not required for the fleet's *baseline*: a clean Mac bootstrap and the CI-published
   nixpi sdImage both stay on public `#macos` / `#nixpi` alone — Caddy runs with zero
-  vhosts, no dontsell tunnel, no personal HM modules. The real production nixpi (4
-  live sites + dontsell.ai) and a Mac with personal modules both require activating
-  from the private nix-personal flake instead.
+  vhosts, no personal HM modules. The real production nixpi (**two** live sites today)
+  and a Mac with personal modules both require activating from the private
+  nix-personal flake instead.

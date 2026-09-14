@@ -37,8 +37,7 @@ let
     agent-skills-litellm
     claude-plugins-official
     grok-build-plugin-cc
-    kattakath-claude-plugins
-    kattakath-claude-skills
+    kattakath-ai
     ;
 
   # ABSORBED capsules (ADR-002 waves 3 and 4), reached through the flake's own
@@ -119,8 +118,7 @@ let
             # This operator's OWN extracted agent resources (flake.nix): the
             # published plugin marketplace and the published skills. Same rail
             # as the third-party pins above.
-            kattakath-claude-plugins
-            kattakath-claude-skills
+            kattakath-ai
             # jsonResumeUrl: the raw resume.json URL (or null), consumed by home.nix
             # to bake into the jsonresume package as its default --url (darwin
             # home.packages; inert on the NixOS hosts).
