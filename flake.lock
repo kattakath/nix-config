@@ -569,22 +569,6 @@
         "type": "github"
       }
     },
-    "kattakath-userscripts": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1789247972,
-        "narHash": "sha256-QqsLpwMm25YD/BH4st4MuXtAmyZ3TKyeh19Tguknr7g=",
-        "owner": "kattakath",
-        "repo": "userscripts",
-        "rev": "f067b459e7576e7b39083c2555af57fdac3708f4",
-        "type": "github"
-      },
-      "original": {
-        "owner": "kattakath",
-        "repo": "userscripts",
-        "type": "github"
-      }
-    },
     "libcamera-src": {
       "flake": false,
       "locked": {
@@ -849,7 +833,6 @@
         "import-tree": "import-tree",
         "kattakath-claude-plugins": "kattakath-claude-plugins",
         "kattakath-claude-skills": "kattakath-claude-skills",
-        "kattakath-userscripts": "kattakath-userscripts",
         "mcp-servers-nix": "mcp-servers-nix",
         "nix-darwin": "nix-darwin",
         "nix-homebrew": "nix-homebrew",
