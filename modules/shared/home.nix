@@ -381,13 +381,12 @@ let
 
 in
 {
-  # Replace HM's stock launchd module so agents use nix-* BTM basenames
-  # (modules/shared/hm-launchd). That is upstream's own `waitForNixStore = false`
-  # trade: a named launcher instead of a `/bin/sh -c wait4path` arg0, accepting
-  # that launchd's exec fails outright if it fires before /nix is mounted.
-  disabledModules = [ "launchd/default.nix" ];
-
   imports = [
+    # Every launchd agent gets a `nix-<name>` arg0 whose interpreter is
+    # store-resident. This was a 560-line vendored fork of home-manager's launchd
+    # module until 87c391f made it expressible upstream; see the file for why the
+    # arg0 is load-bearing (TCC attribution) rather than cosmetic.
+    ./launchd-launcher.nix
     # The media stack — CLIs, the launchd work queue, and the Finder right-click
     # Services — is ONE option. Everything this block used to spell out (the
     # .workflow copy loop, the bundle-id cleanup, the two launchd agents, the
@@ -398,7 +397,6 @@ in
     # asserts that an unset `enable` contributes nothing at all, which is the
     # state the two NixOS hosts are in.
     mediaCliModule
-    ./hm-launchd # patched home-manager launchd (nix-* ProgramArguments)
     ./mcp.nix # darwin-gated MCP server registry for Claude Code
     ./terminal-theme.nix # the fleet terminal palette + type, held once (no consumers yet)
     ./desktop-aesthetics.nix # Terminal.app 16pt (all darwin) + wallpaper (opt-out)

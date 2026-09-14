@@ -19,7 +19,6 @@
   ...
 }:
 let
-  inherit (inputs) home-manager;
   inherit (config.fleet.identityArgs) loginName;
 in
 {
@@ -234,35 +233,13 @@ in
             touch "$out"
           '';
 
-          # The vendored launchd fork (modules/shared/hm-launchd/default.nix) copies
-          # ONE upstream file; launchd.nix/types.nix are imported from the pinned
-          # input itself. So drift is one hash: upstream's default.nix at the
-          # revision the fork was last reviewed against. A mismatch prints the
-          # fork-vs-upstream diff — port what applies, then re-pin `expected`.
-          #
-          # REVIEWED 2026-09-14 against home-manager 87c391f. Upstream ADOPTED the
-          # fork's whole argument: `launchd.agents.<name>.launcher.name` (so agents
-          # show a recognisable prefix in Login Items) and `.launcher.shell` (whose
-          # own docs now cite the TCC behaviour this fleet measured — "with /bin/sh
-          # the attribution follows Apple's shell, with a store-resident shell it
-          # follows the launcher itself"). Nothing upstream changed BREAKS the fork,
-          # which is self-contained, so this bump is a re-pin only. But the fork is
-          # now largely redundant and retiring it is tracked separately: see
-          # docs/repo-map.md § modules/shared/hm-launchd.
-          hm-launchd-drift = pkgs.runCommand "hm-launchd-drift" { nativeBuildInputs = [ pkgs.diffutils ]; } ''
-            upstream=${home-manager}/modules/launchd/default.nix
-            expected=aca5d10fe12bb477c9faf0965608747849225d0b53f4f48642431f27da83899d
-            actual=$(sha256sum "$upstream" | cut -d' ' -f1)
-            if [ "$actual" != "$expected" ]; then
-              echo "hm-launchd-drift: pinned home-manager modules/launchd/default.nix moved" >&2
-              echo "(sha256 $actual, reviewed $expected). Re-review the vendored fork" >&2
-              echo "(modules/shared/hm-launchd/default.nix) against this diff, port what" >&2
-              echo "applies, then re-pin \`expected\` in modules/parts/checks.nix." >&2
-              diff -u "$upstream" ${../shared/hm-launchd/default.nix} >&2 || true
-              exit 1
-            fi
-            touch "$out"
-          '';
+          # NOTE: `hm-launchd-drift` lived here until 2026-09-14. It pinned the
+          # sha256 of home-manager's modules/launchd/default.nix so the 560-line
+          # vendored fork of that file could not silently fall behind upstream.
+          # Both retired together: home-manager 87c391f added
+          # `launchd.agents.<name>.launcher.{name,shell}`, which expresses what the
+          # fork existed to do, so modules/shared/launchd-launcher.nix now sets
+          # three upstream options instead. There is nothing vendored left to drift.
 
           # Structural lint (ast-grep). A CHECK, deliberately not a treefmt
           # formatter: treefmt-nix ships no ast-grep program, and the pre-commit
