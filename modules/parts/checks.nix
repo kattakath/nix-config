@@ -275,70 +275,38 @@ in
             touch "$out"
           '';
 
-          # Userscript syntax + metadata gate. A .user.js is never parsed at build
-          # time — Nix only copies it into the store — so a syntax error ships
-          # silently and surfaces as Violentmonkey's useless "Syntax error?" toast
-          # with no line number. This caught a real one: backticks inside a CSS
-          # comment nested in a GM_addStyle(`…`) template literal terminate the
-          # string. The metadata half gates against the ONE rulebook Greasy Fork
-          # and Sleazy Fork share, because sharing a script is the point of writing
-          # one and every such rejection is silent at authoring time: a missing key
-          # is only noticed at upload, and an @updateURL only bites months later
-          # when `main` moves under an installed copy.
+          # THE USERSCRIPT GATE IS GONE (2026-09-14), and its absence is the
+          # point, not an oversight.
           #
-          # SCOPE, and the trap: this reads THIS repo's `userscripts/` only.
-          # nix-personal's private scripts live in its own tree, which this flake
-          # never reads — owning the `userscripts` OPTION does NOT extend the gate
-          # to its consumers, and the build still goes green. Falsified 2026-08-31:
-          # nix-personal's civitai-declutter had shipped since 2026-08-30 with no
-          # @license at all and this check never saw it. The linter takes a path,
-          # so covering a private tree is one by-hand command, not a second gate.
+          # It linted the `kattakath-userscripts` input: a .user.js is never
+          # parsed at build time - Nix only copies it into the store - so a
+          # syntax error shipped silently and surfaced as Violentmonkey's
+          # useless "Syntax error?" toast with no line number. It caught a real
+          # one (backticks inside a CSS comment nested in a GM_addStyle template
+          # literal) and a real missing @license.
           #
-          # Deliberately NOT gated: @require. Greasy Fork says libraries "should
-          # be @require-d", which pulls against this repo (no SRI, fetched at
-          # install, unpinnable by Nix) — but its rule grants both a
-          # "valid technical reason" exemption and an inline-with-attribution
-          # path, so the tension is real and resolved, not a lint. The lint does
-          # enforce the attribution half.
-          # The rules themselves are NOT inline here. They live in the portable
-          # `page-lab` plugin's `scripts/userscript-meta-lint.sh`, and this
-          # check just runs it. One rulebook, so CI, the plugin's own users and a
-          # by-hand run on nix-personal's private scripts cannot drift apart —
-          # the alternative was a second copy of the same grep list that only CI
-          # ever exercised.
+          # Every script it covered has since been PUBLISHED - the last,
+          # google-photos-icon-nav, is greasyfork.org/scripts/595764 - and the
+          # input repository was deleted, so the check had no operand left.
+          # Re-pointing it at `${self}` would have been the exact failure the
+          # old comment here warned about: a green build over an empty
+          # directory, which is strictly worse than no gate at all.
           #
-          # BOTH OPERANDS ARE NOW PINNED INPUTS, not `${self}` (changed
-          # 2026-09-12 when both trees were extracted): the linter comes from
-          # `kattakath-claude-plugins` and the scripts from
-          # `kattakath-userscripts`. THE GATE HAD TO MOVE WITH THE CONTENT. Its
-          # scope note used to read "this reads THIS repo's userscripts/ only",
-          # and that hole has already cost once — nix-personal's
-          # civitai-declutter shipped 2026-08-30 with no @license and this check
-          # never saw it. Leaving `${self}/userscripts` here after the extraction
-          # would have been strictly worse than that: a green build over an
-          # empty directory.
+          # The rulebook did not move. It is still page-lab's
+          # `scripts/userscript-meta-lint.sh`, and it still runs on every push -
+          # in the two repositories that now own the scripts
+          # (github:ismailkattakath/userscripts, github:izzykatt/userscripts),
+          # whose CI runs that same script plus eslint. One rulebook, run where
+          # the content is: the same principle that moved the gate here in the
+          # first place, applied once more.
           #
-          # STILL NOT COVERED, and still by design: nix-personal's private
-          # scripts, now `gitlab:ismailkattakath/userscripts`. That flake pins
-          # them itself and runs its own copy of this linter — a public check
-          # cannot read a private input.
-          userscripts =
-            pkgs.runCommand "userscripts"
-              {
-                nativeBuildInputs = with pkgs; [
-                  nodejs
-                  bash
-                ];
-              }
-              ''
-                bash ${inputs.kattakath-claude-plugins}/plugins/page-lab/scripts/userscript-meta-lint.sh \
-                  ${inputs.kattakath-userscripts}
-                touch "$out"
-              '';
+          # The `local.ungoogledChromium.userScripts` OPTION in
+          # modules/shared/chromium.nix stays, unused and documented. If a
+          # script is ever declared again, restore this gate with it.
 
-          # page-lab's OWN integrity, distinct from the userscripts gate above:
-          # that one asks "are the shipped scripts publishable", this one asks
-          # "is the plugin itself sound". Three things, each a real past failure
+          # page-lab's OWN integrity, distinct from the userscript gate that
+          # used to sit above: that one asked "are the shipped scripts
+          # publishable", this one asks "is the plugin itself sound". Three things, each a real past failure
           # mode rather than ceremony:
           #  1. every .mjs/.js parses and every .sh is syntactically valid — a
           #     plugin script is never executed by a build, so a syntax error
