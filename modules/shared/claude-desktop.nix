@@ -125,7 +125,57 @@ let
   rendered = lib.mapAttrs render (gatewayServers // stdioServers // cfg.extraServers);
 
   desiredJson = pkgs.writeText "claude-desktop-mcp-servers.json" (builtins.toJSON rendered);
-  jq = lib.getExe pkgs.jq;
+  # ONE implementation of the merge, shared by the activation block and the
+  # WatchPaths agent below.
+  #
+  # WHY AN AGENT AND NOT JUST ACTIVATION. The ownership note above was right that
+  # Desktop WRITES this file — but not about what that costs. A RUNNING Desktop
+  # rewrites it wholesale from its own in-memory state, which does not contain
+  # the key we merged in, so the merge is DESTROYED rather than merely unloaded.
+  # Measured 2026-09-15: activation merged mcpServers at 07:56:51, Desktop
+  # rewrote the file without it at 07:58:31, and `restart Claude Desktop to load
+  # it` was unreachable advice by then. Activating with Desktop open lost the
+  # whole key, every time.
+  #
+  # LOOP SAFETY, and why this compares instead of always writing. The original
+  # activation `mv`d unconditionally, touching mtime even on a no-op — under a
+  # file watch that is a self-retriggering loop. This writes ONLY when the merged
+  # result differs from what is on disk, so our own write never wakes the agent
+  # again.
+  syncScript = pkgs.writeShellApplication {
+    name = "claude-desktop-mcp-sync";
+    runtimeInputs = [
+      pkgs.jq
+      pkgs.coreutils
+      pkgs.diffutils
+    ];
+    text = ''
+      f=${lib.escapeShellArg cfg.configFile}
+      # Desktop not installed / never launched: nothing to merge into.
+      [ -d "$(dirname "$f")" ] || exit 0
+      [ -s "$f" ] || printf '{}\n' > "$f"
+      tmp=$(mktemp)
+      # Keep everything; inside .mcpServers keep FOREIGN entries (no marker),
+      # drop OUR stale ones, then lay the current rendering on top.
+      if jq --arg m ${marker} --arg v ${lib.escapeShellArg markerValue} \
+           --slurpfile want ${desiredJson} '
+             .mcpServers = (
+               ((.mcpServers // {}) | with_entries(select((.value.env[$m] // "") != $v)))
+               + $want[0]
+             )' "$f" > "$tmp"; then
+        if cmp -s "$tmp" "$f"; then
+          rm -f "$tmp"
+        else
+          mv "$tmp" "$f"
+          echo "claude-desktop: mcpServers written to $f" >&2
+        fi
+      else
+        rm -f "$tmp"
+        echo "claude-desktop: could not merge mcpServers into $f (left untouched)" >&2
+        exit 1
+      fi
+    '';
+  };
 in
 {
   options.local.claudeDesktop = {
@@ -187,29 +237,34 @@ in
       }
     ];
 
+    # Apply once at activation...
     home.activation.claudeDesktopMcp = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-      f=${lib.escapeShellArg cfg.configFile}
-      if [ -d "$(dirname "$f")" ]; then
-        [ -s "$f" ] || printf '{}\n' > "$f"
-        before=$(${jq} -c '.mcpServers // {}' "$f")
-        tmp=$(mktemp)
-        # Keep everything; inside .mcpServers keep FOREIGN entries (no marker),
-        # drop OUR stale ones, then lay the current rendering on top.
-        if ${jq} --arg m ${marker} --arg v ${lib.escapeShellArg markerValue} \
-             --slurpfile want ${desiredJson} '
-               .mcpServers = (
-                 ((.mcpServers // {}) | with_entries(select((.value.env[$m] // "") != $v)))
-                 + $want[0]
-               )' "$f" > "$tmp"; then
-          if ! ${jq} -e --argjson b "$before" '.mcpServers == $b' "$tmp" >/dev/null; then
-            echo "claude-desktop: mcpServers updated in $f — restart Claude Desktop to load it" >&2
-          fi
-          mv "$tmp" "$f"
-        else
-          rm -f "$tmp"
-          echo "claude-desktop: could not merge mcpServers into $f (left untouched)" >&2
-        fi
-      fi
+      ${lib.getExe syncScript}
     '';
+
+    # ...and re-apply whenever Desktop rewrites the file out from under us.
+    #
+    # UPSTREAM FIRST: home-manager (pinned 87c391f) declares WatchPaths itself,
+    # modules/launchd/launchd.nix:367, and uses it upstream in
+    # modules/services/git-sync.nix:115 — so this is launchd's own file-watch
+    # primitive, not a polling loop of ours. arg0 becomes
+    # nix-claude-desktop-mcp-sync via modules/shared/launchd-launcher.nix, which
+    # is what .claude/rules/launchd-naming.md requires.
+    launchd.agents.claude-desktop-mcp-sync = {
+      enable = true;
+      config = {
+        ProgramArguments = [ (lib.getExe syncScript) ];
+        # Desktop writes this file on quit and on preference changes; each write
+        # wakes the agent, which re-merges only if the result actually differs.
+        WatchPaths = [ cfg.configFile ];
+        # Repair at login too, so a file clobbered while logged out is correct
+        # before Desktop is next launched.
+        RunAtLoad = true;
+        # Damp a burst of Desktop writes. This is launchd's own default, stated
+        # so the ping-pong window is a choice rather than something inherited.
+        ThrottleInterval = 10;
+        StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/claude-desktop-mcp-sync.log";
+      };
+    };
   };
 }
