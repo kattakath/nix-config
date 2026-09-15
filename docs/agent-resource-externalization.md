@@ -183,5 +183,8 @@ agree, because git is doing the copying.
    for a skill, add a `programs.claude-code.skills.<name>` entry. (There is no userscript step
    any more — a script is **published**, not declared; see the 2026-09-14 update above.)
 
+The global `harvest` skill walks these steps (and decides first whether the thing is worth
+keeping at all).
+
 During development, skip the push/update loop with
 `nix flake check --override-input kattakath-ai path:../ai`.
