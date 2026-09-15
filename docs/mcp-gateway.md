@@ -84,17 +84,17 @@ model and the three-objects-per-publish trap are in
   `mcp-proxy` spawns every named server at startup and an unreachable endpoint would fail that
   server on boot; enable only while working against the local clone.
 - **`gmail-<sanitized-email>`** — one per `local.mcpGateway.gmail.accounts` entry, a list of
-  PLAIN EMAIL ADDRESSES (`hosts/macos.nix` sets the operator's own two:
-  `ismail@kattakath.com`, `ismailkattakath@gmail.com`). ArtyMcLabin/Gmail-MCP-Server (maintained
+  PLAIN EMAIL ADDRESSES (`hosts/macos.nix` sets the operator's own four:
+  `ismail@kattakath.com`, `ismailkattakath@gmail.com`, `izzy@silvercreek.ai`,
+  `aloshyakasoto@gmail.com`). ArtyMcLabin/Gmail-MCP-Server (maintained
   fork of the archived GongRzhe original) run as ONE process **PER** Google/Workspace account
   (each with its own `--tool-prefix`, sanitized from the email since MCP tool names can't
   contain `@`/`.`) for TRUE simultaneous multi-account Gmail, unlike the
   single-account-per-connection built-in connector. Uses a shared OAuth Desktop-app client from
   the Keychain plus a separate one-time browser auth per account (mirrors telegram's
-  session-file pattern, not the OAuth-cache one). Any OTHER account (some belonging to people
-  other than the operator) is supplied by the private nix-personal flake via
-  `extraHomeModules` instead, same contract as nixpi's `hostedSites` (see
-  [`private-home-modules.md`](private-home-modules.md)). Runbook:
+  session-file pattern, not the OAuth-cache one). Anyone else's address never goes in this
+  public list; the private nix-personal flake that used to add such accounts via
+  `extraHomeModules` is sunsetting. Runbook:
   [`gmail-mcp-multi-account-runbook.md`](gmail-mcp-multi-account-runbook.md).
 
 ## Auth caches
