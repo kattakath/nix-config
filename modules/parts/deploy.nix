@@ -45,13 +45,14 @@ in
   # retired (2026-09-15) — there is no longer a site-free baseline to trip
   # over.
   #
-  # STATUS unchanged from before the retirement: with `remoteBuild` off,
-  # deploy-rs builds the Pi closure on the Mac, and nixpkgs' caddy
-  # `Caddyfile-formatted` derivation EPERMs on Determinate's native Linux
-  # builder (docs/repo-map.md § hosts/) — so `nixos-rebuild switch
-  # --build-host nixpi` (no magic rollback) is still how a real deploy
-  # happens today. This node activates once the Pi closure can build off-Pi
-  # again (or the node grows `remoteBuild = true`).
+  # `remoteBuild = false` means the MAC builds — which is correct, because it
+  # does not actually build: `.github/workflows/warm-nixpi-cache.yml` warms the
+  # whole nixpi closure into Cachix on every closure change, so the Mac
+  # substitutes it. The caddy `Caddyfile-formatted` EPERM on Determinate's
+  # native Linux builder (docs/repo-map.md § hosts/) therefore only bites on a
+  # cache MISS. Building on the Pi is NOT the fallback — it is hard-blocked by
+  # .claude/hooks/pretooluse-bash-guard.js Rule 1d, because a power cut during
+  # an SD-card build corrupts the card.
   #
   # `deploy` with no `--targets` fans out over EVERY node, so an
   # argument-less `deploy` in this repo IS a live-Pi deploy. Always name the

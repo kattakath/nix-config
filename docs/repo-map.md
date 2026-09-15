@@ -168,7 +168,7 @@ not on lines. ast-grep's own documented layout: `sgconfig.yml` at the repo root 
 relative to it) pointing at `ast-grep/rules/` and `ast-grep/rule-tests/`. Namespaced under
 `ast-grep/` so a bare `rules/` never gets confused with `.claude/rules/` (Claude prompt rules).
 
-Gated by `checks.<system>.ast-grep` (a `runCommand`, shaped like `hm-launchd-drift`) — **not** a
+Gated by `checks.<system>.ast-grep` (a `runCommand`) — **not** a
 treefmt formatter. treefmt-nix ships no `programs.ast-grep`, and none of these rules has a
 mechanical `fix:`, so the honest home is a check. `ast-grep` is also in the devShell (from the
 same pinned nixpkgs) for iterating on rules; the binary is `ast-grep` — there is no `sg` alias.
@@ -346,23 +346,24 @@ All four are safe to commit. Full rules: [`secrets-and-keychain.md`](secrets-and
     plain `chmod` in `$out` on the same builder works). That failure cascades to `etc.drv` and
     the toplevel, so **any** Mac-side build of a Caddy-serving nixpi generation dies. Upstream
     already skips the derivation when `buildPlatform != hostPlatform`, which does not help here
-    (both are `aarch64-linux`). Workaround: realise the toplevel **on the Pi** — the only
-    derivations left after substitution are text assembly (`Caddyfile-formatted`, unit files,
-    `etc`, `activate`, `system`), zero compilation, so this does not violate "never build heavy
-    on the Pi". Ship the tracked private tree over (`git ls-files | tar`, ~3 MiB), then
-    `nixos-rebuild switch --flake path:~/nix-personal#nixpi` locally on the Pi; it substitutes
-    the rest straight from Cachix/cache.nixos.org instead of pushing ~436 MiB through the
-    tunnel. `--builders`/`--max-jobs 0` are **not** an option: the operator is `Trusted: 0`
-    against the local daemon, so client-side builder settings are silently ignored.
-    - **Do not compare store paths across the two hosts** while doing this. The Mac
-      evaluates nix-personal as a **git** flake and the shipped copy on the Pi is a
-      **path** flake, so `self` differs and the two produce **different `nixos-system-nixpi`
-      derivations for identical content** (measured: `520mq98p…` on the Mac vs `24jhkclg…`
-      on the Pi, same `26.11.…d2f6794` label). Only Mac-vs-Mac or Pi-vs-Pi comparisons mean
-      anything. To prove a change is closure-neutral, diff the **Mac-side** `drvPath` across
-      the two revs; to prove the Pi didn't move, check that `nixos-rebuild` reports the same
-      `/run/current-system` and that `nix-env --list-generations` did **not** add a generation
-      (`nix-env --set` to an unchanged path creates none).
+    (both are `aarch64-linux`). Measured 2026-09-15: **only that one operation fails** — `cat >`,
+    `install -m` and `cp` + `chmod` all succeed on the same builder, so this is a narrow,
+    undocumented, unreported builder bug rather than a general chmod ban.
+    - **THE ANSWER IS NOT TO BUILD ON THE PI.** That was the old workaround, and it is now
+      hard-blocked (`.claude/hooks/pretooluse-bash-guard.js` Rule 1d): the Pi is on an SD card,
+      and a power cut mid-build corrupts it, which needs hands on the hardware to reflash.
+      Instead `.github/workflows/warm-nixpi-cache.yml` builds the toplevel on a real
+      `ubuntu-24.04-arm` runner — where that `cp` works — and pushes the closure to Cachix on
+      every nixpi-closure change. Both the Mac and the Pi then substitute, and the EPERM never
+      enters the path.
+    - **The EPERM only fires on a cache MISS**, and a miss can OUTLIVE the warm: if you
+      evaluate a nixpi change before CI has pushed it, Nix records the 404 in its narinfo
+      negative cache for an hour (`narinfo-cache-negative-ttl`, default 3600), so it keeps
+      planning a build against an already-warmed cache. **You cannot clear that from the CLI**
+      — the operator is `Trusted: 0` against the local daemon, so `--narinfo-cache-negative-ttl 0`
+      is answered with *"ignoring the client-specified setting … you are not a trusted user"*
+      (same reason `--builders`/`--max-jobs 0` are ignored). Wait it out, or add the operator to
+      `determinateNix.customSettings.trusted-users`.
 - **`nixvm.nix`** — a SLIM throwaway aarch64-linux dev VM: no disko, no runner, no install;
   materialised only as the graphical `nix run .#nixvm` build-vm, whose guest builds locally on
   the native Linux builder or substitutes from Cachix.
@@ -753,13 +754,14 @@ their own top-level section below:
   `telegramMcp`/`wpMcp`/`apifyMcp` in `mcp.nix`) — codified as the always-applied
   [`launchd-naming.md`](../.claude/rules/launchd-naming.md) rule, which also documents the
   three known-upstream `/bin/sh` exceptions that are NOT ours and must never be renamed.
-  Since 2026-09-13 the fork is ONE file: `default.nix` (the `mutateConfig` delta); the
-  agent submodule `launchd.nix` and `types.nix` are imported from the pinned home-manager
-  tree through `modulesPath`, so the 2,200 lines that never differed are no longer copied
-  (nor is a byte-exact `upstream-baseline/`). `checks.<system>.hm-launchd-drift` pins the
-  sha256 of upstream's `default.nix` at the last-reviewed revision — a home-manager bump
-  that moves it fails the check with the fork-vs-upstream diff until the fork is re-reviewed
-  and the hash re-pinned (`modules/parts/checks.nix`).
+  **The fork is GONE (2026-09-14).** It shrank to one file, then to none: the pinned
+  home-manager grew the three options it existed for, so `modules/shared/launchd-launcher.nix`
+  (53 lines) now just sets them — `waitForNixStore = false`, `launcher.name`, `launcher.shell`
+  — and upstream's own `mutateConfig` rewrites both `Program` and `ProgramArguments`. The
+  drift check that guarded the fork (`hm-launchd-drift`, which pinned the sha256 of upstream's
+  `default.nix`) went with it; there is nothing left to drift against. This is the repo's
+  worked example of the [`upstream-first`](../.claude/rules/upstream-first.md) rule paying
+  off: a 560-line vendored copy deleted the moment the input owned the behaviour.
 
 ### Home-Manager modules that are not in `modules/shared/`
 
@@ -996,7 +998,7 @@ nothing — hence one regex, not two calls.
 | `compose.nix` | `mkDarwin` / `mkNixos` / `mkHomeManagerModule` — **not translated** to flake-parts, kept verbatim as plain Nix functions in the freeform `flake` attr (ADR-001's blast-radius objection, honoured). Also threads each capsule in as a named specialArg. |
 | `hosts.nix` | `darwinConfigurations.macos`, `nixosConfigurations.{nixpi,nixvm}`. |
 | `packages.nix` | `perSystem.packages` + every `apps.*`. |
-| `checks.nix` | The engine's own checks, including `claude-md-budget`, `hm-launchd-drift`, `deploy-schema` and `bedrock-gate-after-loader`. |
+| `checks.nix` | The engine's own checks, including `claude-md-budget`, `capsule-registry`, `deploy-schema` and `bedrock-gate-after-loader`. |
 | `capsules.nix` | The capsule registry and its two internal seams — `capsuleModules` and `capsuleSources` — plus `checks.<system>.capsule-registry`. |
 | `terranix.nix` | The `cf-*` / `mcp-public-*` tofu builders. |
 | `devshell.nix` | `devShells` + the `git-hooks.nix` wiring. |
@@ -1496,7 +1498,22 @@ content-hashed into the store — see `CLAUDE.md` § Code Style on the two path 
 - **`pretooluse-bash-guard.js`** — `PreToolUse:Bash`: deterministic port of the
   Cloudflare-API-call / Cloudflare-docs / desktop-commander-nudge / approved-CLI policy that
   used to live as a `type: "prompt"` LLM-judged hook; see the file header for the 2026-08-19
-  incident that motivated the switch.
+  incident that motivated the switch. Also carries **Rule 1c** (a `secret reveal` /
+  `security …-w` that would print a secret VALUE into the transcript) and **Rule 1d** (any shape
+  that BUILDS on nixpi — `--build-host <pi>`, `deploy --remote-build`, `ssh <pi> nix build`,
+  `--builders ssh://<pi>`; the `--target-host` form is deliberately allowed, since it builds
+  here and only activates there). Rule 1b — which blocked `deploy` and public-`#macos`
+  activation while a private layer existed — was RETIRED 2026-09-15 with that layer.
+- **`.claude/hooks/tests/*.sh`** — the guard's case suites (`rule1c-secret-egress.sh`,
+  `rule1d-no-build-on-nixpi.sh`), **gated by `claude-config-lint.yml`**. Each asserts BOTH
+  halves — the shapes that must block and the shapes that must stay approved — and that the
+  hook does not throw. That last assertion is the load-bearing one: `superhook` and the
+  script's own `catch` both fail OPEN, so a crash silently disarms every rule at once. Measured
+  2026-09-15: retiring Rule 1b removed its constants but left the code referencing them, and
+  the guard threw `ReferenceError` on every Bash call — approving everything, including the
+  secret-egress and Cloudflare blocks — until these suites were wired into CI. Cases live in a
+  FILE rather than an argv because they are execution-shaped by construction and would
+  otherwise trip the very rule under test.
 - Both are wrapped by **`superhook`** (crash-safety + loop-breaking + logging — the sole
   supervisor for command-type decision hooks). It structurally CANNOT wrap `type: "prompt"`
   hooks, which is why the remaining `Write|Edit` secret-detection gate in
@@ -1679,7 +1696,7 @@ quietly held the real entries.
 runners (`ubuntu-24.04-arm` for aarch64-linux — evaluates `nixpi`+`nixvm`; `macos-latest` for
 aarch64-darwin — evaluates `macos`; both free & unlimited on public repos). Each leg *builds*
 the lint/format/structural `checks` — `formatting`, `pre-commit`,
-`hm-launchd-drift`, `ast-grep`, `deploy-schema`, `capsule-registry` — with `nix-fast-build` (it globs `.#checks.<system>`, so a NEW check needs no workflow edit;
+`claude-md-budget`, `ast-grep`, `deploy-schema`, `capsule-registry` — with `nix-fast-build` (it globs `.#checks.<system>`, so a NEW check needs no workflow edit;
 pushed to the `kattakath` Cachix cache) and
 *evaluates* (no build) its host config toplevel(s). Building host toplevels is deferred to
 release time (`build-installers`, also hosted).

@@ -50,3 +50,19 @@ jobs:
           npx --yes @carlrannaberg/cclint@0.2.10 agents   --fail-on error
           npx --yes @carlrannaberg/cclint@0.2.10 commands --fail-on error
           npx --yes @carlrannaberg/cclint@0.2.10 context  --fail-on error
+
+      # The PreToolUse guard's own case suites. They were ORPHANED until
+      # 2026-09-15 — written, committed, and run by nothing — which is how the
+      # guard came to throw ReferenceError on every call and fail OPEN (a
+      # retired rule's code outlived its constants) with no gate noticing.
+      # Each suite asserts both halves: the shapes that must BLOCK and the
+      # shapes that must stay APPROVED, plus that the hook never crashes
+      # (a crash fails open, so "approve" alone is not proof of health).
+      # Node is already set up above; the suites need only node + python3,
+      # both present on ubuntu-24.04.
+      - name: Run the PreToolUse guard's case suites
+        run: |
+          for t in .claude/hooks/tests/*.sh; do
+            echo "── $t"
+            bash "$t"
+          done

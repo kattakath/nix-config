@@ -54,32 +54,33 @@
  * bigger blast radius than one ad-hoc scoped API call. Flip
  * RULE1_API_HOST_BLOCKING to `true` to restore the hard block.
  *
- * NEW RULE (2026-08-30, deploy-rs adoption review): Rule 1b hard-blocks the two
- * LIVE-FLEET ACTIVATIONS that this public repo can launch and that both report
- * SUCCESS while doing damage — `deploy` (deploy-rs; the node here points at the
- * SITE-FREE nixpi, and magic rollback only reverts an UNREACHABLE host) and
- * `darwin-rebuild switch --flake .#macos` (drops the private nix-personal layer).
- * Both traps were already documented loudly in CLAUDE.md/README/flake.nix, but
- * documentation is not a brake, and adding the `deploy` CLI to the darwin devShell
- * is what first put one of them on PATH. Same tier as CF_TERRANIX_APP.
+ * RULE 1b IS RETIRED (2026-09-15). It hard-blocked the two live-fleet activations
+ * this repo could launch — `deploy` and `darwin-rebuild switch --flake .#macos` —
+ * because both reported SUCCESS while dropping the private nix-personal layer or
+ * deploying a site-free nixpi. That layer was retired and folded into this repo,
+ * so this tree now carries the real data and BOTH commands are the sanctioned
+ * ones. The rule, its constants and its `permissions.deny` twin are all gone.
+ *
+ * RULE 1d REPLACED IT (2026-09-15), inverting what is dangerous: the risk is no
+ * longer "which flake activates" but "which machine BUILDS". nixpi is a Pi 4 on
+ * an SD card; a power cut mid-build corrupts the card and the fix needs hands on
+ * the hardware. So 1d blocks the shapes that build ON the Pi (`--build-host <pi>`,
+ * `deploy --remote-build`, `ssh <pi> nix build`, `--builders ssh://<pi>`) and
+ * deliberately ALLOWS `--target-host` and `deploy --targets`, which build here and
+ * only activate there. CI keeps that possible by warming the closure into Cachix
+ * (.github/workflows/warm-nixpi-cache.yml).
  *
  * THIS HOOK IS NOT THE ONLY LAYER, AND MUST NOT BE (2026-09-06 audit). It runs
  * wrapped by superhook.js, whose FIRST job is crash safety: if this script
  * throws, times out, or exits non-zero, superhook emits `{"decision":"approve"}`
- * so the session is never wedged (superhook.js's "crash safety" branch). That
- * is right for a guard whose job is mostly nudges — and wrong for the two
- * LIVE-FLEET brakes in Rule 1b, which would then FAIL OPEN on a bug in this
- * file. `deploy` therefore also sits in `permissions.deny` in
- * .claude/settings.json: config-layer denials are evaluated by the harness
- * itself, independently of any hook, so the brake survives this script
- * crashing. Keep the two in sync — a Rule 1b addition should ask whether it
- * belongs in `deny` too.
- *
- * `darwin-rebuild switch` is deliberately NOT in `deny`: the SANCTIONED
- * activation path (`../nix-personal#macos`) is the same binary, and a
- * `Bash(darwin-rebuild switch:*)` pattern would block it while still missing
- * `darwin-rebuild --flake .#macos switch` (flag order). The per-segment logic
- * below handles what a prefix pattern cannot.
+ * so the session is never wedged. That is right for a guard whose job is mostly
+ * nudges, and it is exactly why a crash is a SILENT DISARM of every rule at once.
+ * Measured 2026-09-15: retiring Rule 1b removed its constants but left the code
+ * referencing them, and this file threw ReferenceError on EVERY Bash call —
+ * approving everything, including the secret-egress block — with no gate noticing.
+ * The fix is `.claude/hooks/tests/*.sh`, run by claude-config-lint.yml: each suite
+ * asserts the must-BLOCK shapes, the must-stay-APPROVED shapes, AND that the hook
+ * does not throw. Add a case there with every rule change.
  *
  * Contract (superhook.js, NOT the raw Claude Code hook protocol, since this
  * always runs wrapped): always exit 0; stdout is
