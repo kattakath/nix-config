@@ -1278,7 +1278,8 @@ in
         }
         # GitLab personal namespace (ismailkattakath). gitlab.com-specific so
         # github.com/ismailkattakath keeps the GitHub noreply. Address lives in
-        # ~/.config/git/gitlab.inc (nix-personal); missing include is a silent no-op.
+        # ~/.config/git/gitlab.inc, written by hosts/macos.nix; missing include is a
+        # silent no-op.
         {
           condition = "hasconfig:remote.*.url:**/gitlab.com/ismailkattakath/**";
           path = "${config.home.homeDirectory}/.config/git/gitlab.inc";
@@ -1291,19 +1292,25 @@ in
           condition = "gitdir:${config.home.homeDirectory}/Developer/gitlab.com/ismailkattakath/";
           path = "${config.home.homeDirectory}/.config/git/gitlab.inc";
         }
-        # github.com/izzykatt org ONLY — the separate public-facing persona. Scoped to
-        # the forge (**/github.com/izzykatt/**), not the bare org name, so a same-named
-        # namespace on any other forge keeps the default identity. Unlike every other
-        # include here, izzykatt.inc overrides user.NAME as well as the address — the
-        # persona is a different name, not just a different mailbox.
+        # The izzykatt persona — a separate public-facing identity that exists on TWO
+        # forges: github.com/izzykatt (an org) and gitlab.com/izzykatt (a group, added
+        # 2026-09-15). Each forge is still matched EXPLICITLY rather than by the bare
+        # org name, so a same-named namespace on some third forge keeps the default
+        # identity. Unlike every other include here, izzykatt.inc overrides user.NAME
+        # as well as the address — the persona is a different name, not just a
+        # different mailbox.
         #
-        # The gitdir condition is not redundant: hasconfig matches on a REMOTE, so it
+        # These must stay AFTER the gitlab.com/ismailkattakath block: git applies
+        # includes in order and the last match wins, so a repo that moves from the
+        # personal namespace into the izzykatt group picks up the persona.
+        #
+        # The gitdir conditions are not redundant: hasconfig matches on a REMOTE, so it
         # cannot fire between `git init` and `git remote add`, and that window is
         # exactly where a first commit lands with the wrong author. Same fix as the
         # gitlab.com block above.
         #
-        # Address lives in ~/.config/git/izzykatt.inc (nix-personal); missing include
-        # is a silent no-op.
+        # Address lives in ~/.config/git/izzykatt.inc, written by hosts/macos.nix;
+        # missing include is a silent no-op.
         {
           condition = "hasconfig:remote.*.url:**/github.com/izzykatt/**";
           path = "${config.home.homeDirectory}/.config/git/izzykatt.inc";
@@ -1314,6 +1321,18 @@ in
         }
         {
           condition = "gitdir:${config.home.homeDirectory}/Developer/github.com/izzykatt/";
+          path = "${config.home.homeDirectory}/.config/git/izzykatt.inc";
+        }
+        {
+          condition = "hasconfig:remote.*.url:**/gitlab.com/izzykatt/**";
+          path = "${config.home.homeDirectory}/.config/git/izzykatt.inc";
+        }
+        {
+          condition = "hasconfig:remote.*.url:**:gitlab.com:izzykatt/**";
+          path = "${config.home.homeDirectory}/.config/git/izzykatt.inc";
+        }
+        {
+          condition = "gitdir:${config.home.homeDirectory}/Developer/gitlab.com/izzykatt/";
           path = "${config.home.homeDirectory}/.config/git/izzykatt.inc";
         }
       ];
