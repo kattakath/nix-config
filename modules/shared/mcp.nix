@@ -52,6 +52,10 @@
 #   mcp-proxy serves BOTH /mcp and /sse per server concurrently, so an SSE-only
 #   client (e.g. Grok) just points its OWN config at `endpointFor <name> "sse"`.
 #
+# CLIENT SIDE D — Claude Desktop (and Cowork via its bridge) — lives in
+# ./claude-desktop.nix: the same `endpoints` rendered as mcp-remote stdio shims
+# into Desktop's stateful claude_desktop_config.json (docs/claude-desktop-mcp.md).
+#
 # SCOPE: darwin only (the Mac is the sole MCP client host; keeps the Pi/VM lean).
 # There is no project ./.mcp.json — this user-scope gateway is the single source.
 {
