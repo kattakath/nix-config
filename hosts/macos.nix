@@ -13,6 +13,7 @@
 {
   config,
   lib,
+  pkgs,
   loginName,
   ...
 }:
@@ -37,6 +38,18 @@ in
   # `local.rag.ollama.manageServer = false` so the capsule stops standing up a
   # competing one — two servers on 11434 means one wins and the other flaps.
   local.ollamaDaemon.enable = true;
+
+  # Machine-wide CLIs — the mechanism for "shared between both accounts". A
+  # systemPackages entry is ONE store path on PATH for every user, so neither
+  # profile has to declare it and neither can drift to a different version.
+  #
+  # grok was a per-user `curl … | bash` install in ~/.grok/bin until
+  # 2026-09-15; packages/grok.nix pins the vendor's signed artifact instead, and
+  # the PATH entry that used to point at the mutable copy is deliberately gone
+  # from modules/shared/home.nix. Per-user grok STATE stays in ~/.grok.
+  environment.systemPackages = [
+    (pkgs.callPackage ../packages/grok.nix { })
+  ];
 
   nixpkgs.config.allowUnfree = true;
 
@@ -356,13 +369,10 @@ in
         context = ../claude/CLAUDE.md;
       };
 
-      # The grok CLI is NOT a Nix package — its own installer drops a
-      # self-updating Mach-O binary in ~/.grok/bin and keeps per-user state
-      # there (agent_id, active_sessions.json). So this declares the PATH entry,
-      # exactly as modules/shared/home.nix does for the operator, and the binary
-      # still has to be installed once under this account. Sharing one binary
-      # across accounts is the wrong shape anyway: the identity is per-user.
-      home.sessionPath = [ "$HOME/.grok/bin" ];
+      # grok needs NO per-user declaration: it is a pinned package shared
+      # through environment.systemPackages below, and its per-user state
+      # (agent_id, sessions, plugins) lives in ~/.grok, which each account gets
+      # on first run.
     };
 
   # ---- Gmail multi-account MCP (modules/shared/mcp.nix, a home-manager option
