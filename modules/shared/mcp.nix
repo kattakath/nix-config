@@ -31,20 +31,20 @@
 # account owns the GUI session, `darwin-rebuild switch` cannot load the agent.
 #
 # SERVER SIDE (this box, 127.0.0.1:8096)
-#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 19 servers (21
+#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 20 servers (22
 #   with telegram + the local WordPress adapter, +1 per configured
 #   `local.mcpGateway.gmail.accounts` alias — `gmail-<alias>`, one process
 #   per Google/Workspace account, 0 in this public repo — see mkGmailMcp's
 #   comment), each reachable at /servers/<name>/sse.
 #   `gatewayConfig` is rendered by mcp-servers-nix's `lib.mkConfig`, so the 7 packaged
 #   servers (context7/fetch/memory/sequential-thinking/nixos/terraform/github) are
-#   PINNED store-path commands; the 12 without a module (+ telegram / the local
+#   PINNED store-path commands; the 13 without a module (+ telegram / the local
 #   WordPress adapter / gmail-<alias> when configured) fall
 #   back to pinned npx/uvx launchers (still a runtime fetch, but acceptable on the Mac
 #   where Node/uv already live).
 #
 # CLIENT SIDE (programs.claude-code.mcpServers)
-#   The 19 hosted servers (21+ with every opt-in) are wired as `type = "http"` (Streamable HTTP — the
+#   The 20 hosted servers (22+ with every opt-in) are wired as `type = "http"` (Streamable HTTP — the
 #   current MCP standard; the legacy HTTP+SSE transport was deprecated in the
 #   2025-03-26 spec) pointing at /servers/<name>/mcp; desktop-commander and
 #   open-design stay `type = "stdio"`. The claude-code module writes these into a managed
@@ -359,7 +359,7 @@ let
 
   # The servers with no mcp-servers-nix module, as raw stdio commands. Merged into
   # the gateway config via mkConfig's `settings.servers` (telegram appended below,
-  # opt-in). The 12 base ones fall back to pinned npx/uvx launchers; postgres and
+  # opt-in). The 13 base ones fall back to pinned npx/uvx launchers; postgres and
   # wordpress are special (pinned version + Keychain-injected env via a wrapper).
   # cloudflared connector for the PUBLISHED gateway. arg0 is a nix-* wrapper per
   # .claude/rules/launchd-naming.md (hm-launchd would rewrite it anyway, but the
@@ -388,6 +388,28 @@ let
     duckduckgo = {
       command = uvx;
       args = [ "duckduckgo-mcp-server" ];
+    };
+    # arXiv literature loop (blazickjp/arxiv-mcp-server, Apache-2.0): search,
+    # abstracts, section-level LaTeX reads, BibTeX export, citation graphs and
+    # on-disk topic watches. No credentials. Runtime uvx fetch — no nixpkgs or
+    # mcp-servers-nix package exists — so both drift axes are pinned, as for
+    # postgres below: the release (0.7.2), and `--python 3.12` so uv never picks
+    # a newest interpreter its wheels (aiohttp/pydantic-core/lxml) lag behind; a
+    # server that fails to install darks the whole gateway. The package already
+    # bounds `mcp<2` itself, so no `--with` is needed. `--storage-path` moves
+    # downloaded papers + watches off the default ~/.arxiv-mcp-server dotdir to
+    # XDG data. No network at startup: an offline launch still handshakes.
+    arxiv = {
+      command = uvx;
+      args = [
+        "--python"
+        "3.12"
+        "--from"
+        "arxiv-mcp-server==0.7.2"
+        "arxiv-mcp-server"
+        "--storage-path"
+        "${config.xdg.dataHome}/arxiv-mcp-server/papers"
+      ];
     };
     json-yaml-toml = {
       command = uvx;
@@ -628,7 +650,7 @@ let
     };
   };
 
-  # Every server NAME the gateway hosts (7 packaged + 12 base custom, plus
+  # Every server NAME the gateway hosts (7 packaged + 13 base custom, plus
   # opt-ins). Single source
   # for the client SSE URLs, so the two sides can never drift. Order/names MUST
   # match the packaged servers enabled in `gatewayConfig.programs` below.
@@ -645,7 +667,7 @@ let
 
   # SERVER SIDE: a {mcpServers:{name:{command,args,env}}} JSON that mcp-proxy
   # consumes via --named-server-config. mkConfig PINS the 7 packaged servers;
-  # settings.servers carries the 12 custom ones verbatim. flavor "claude-code"
+  # settings.servers carries the 13 custom ones verbatim. flavor "claude-code"
   # emits the `mcpServers` key mcp-proxy expects (it ignores any extra fields).
   # The packaged servers' definitions, named ONCE so the private gateway and the
   # published one cannot diverge. They did: the published config used to rebuild

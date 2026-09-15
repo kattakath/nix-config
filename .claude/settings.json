@@ -62,6 +62,7 @@
       "Agent(Plan)",
       "Agent(general-purpose)",
       "mcp__context7__*",
+      "mcp__arxiv__*",
       "mcp__duckduckgo__*",
       "mcp__fetch__*",
       "mcp__sequentialthinking__*",
