@@ -213,6 +213,34 @@ const DARWIN_SWITCH_VERB = /\bswitch\b/;
 // repo now carries its own real data, so activating it is no longer a trap).
 const ACTIVATION_ARGV0 = new Set(["darwin-rebuild", "home-manager"]);
 
+// ---- Rule 1d: never BUILD on nixpi (2026-09-15) -----------------------------
+// nixpi is a Pi 4 on an SD card. A build there is slow, and a power cut mid-build
+// corrupts the card — recoverable only by physically reflashing it
+// (docs/nixpi-sd-flashing-runbook.md, ~40 min), which defeats the entire
+// remotely-managed design. The Pi must only ever SUBSTITUTE a closure CI already
+// built and pushed to Cachix (.github/workflows/warm-nixpi-cache.yml).
+//
+// This blocks the SHAPES that make the Pi build, and deliberately NOT the ones
+// that build elsewhere and only activate there:
+//   BLOCKED   nixos-rebuild … --build-host <pi>     (builds ON the Pi)
+//   BLOCKED   deploy … --remote-build               (deploy-rs, same effect)
+//   BLOCKED   ssh <pi> … nix build / nixos-rebuild  (a build in a remote shell)
+//   ALLOWED   nixos-rebuild … --target-host <pi>    (builds HERE, activates there)
+//   ALLOWED   deploy --targets .#nixpi              (remoteBuild = false)
+// The distinction is the whole point: --target-host is the sanctioned path.
+const PI_HOSTS = String.raw`(?:\S+@)?nixpi(?:\.kattakath\.com|\.local)?`;
+// --build-host pointing at the Pi, in any spelling (=, space, quoted).
+const BUILD_HOST_PI = new RegExp(String.raw`--build-host[=\s]+["']?` + PI_HOSTS + String.raw`\b`, "i");
+// deploy-rs' own flag for the same thing.
+const DEPLOY_REMOTE_BUILD = /--remote-build\b/;
+// `ssh <pi> … nix build|nixos-rebuild|nix-build` — a build dispatched into the Pi.
+const SSH_BUILD_ON_PI = new RegExp(
+  String.raw`\bssh\b[^\n|;&]*\b` + PI_HOSTS + String.raw`\b[^\n|;&]*\b(?:nix(?:os-rebuild|-build)?\s+build|nixos-rebuild|nix-build)\b`,
+  "i",
+);
+// A remote BUILDER pointed at the Pi (`--builders ssh://…nixpi`, `--store ssh://…`).
+const BUILDERS_PI = new RegExp(String.raw`--(?:builders|store)[=\s]+["']?ssh(?:-ng)?://` + PI_HOSTS, "i");
+
 // ---- the Bedrock trap (2026-08-30) -----------------------------------------
 // CLAUDE_CODE_USE_BEDROCK lives in the login Keychain, so it SURVIVES any
 // activation. Its companions AWS_REGION/AWS_PROFILE come only from the private
@@ -301,55 +329,44 @@ function main() {
       "This applies/destroys Cloudflare infra. Use mcp__cloudflare__execute (or __search) instead, or confirm this is intentional and re-run manually.",
     );
   }
-  // ---- Rule 1b: live-fleet activation launched from THIS public repo ----------
-  // Ranked with the terranix apply block, not with the Rule 3 nudges, because
-  // both of these SUCCEED and do their damage silently — nothing downstream
-  // reports failure:
-  //   `deploy` — the deploy-rs CLI now ships in the darwin devShell, so it is on
-  //     PATH for the first time. `deploy.nodes.nixpi` in THIS repo points at the
-  //     SITE-FREE public `nixosConfigurations.nixpi` (`hostedSites` defaults to
-  //     `[ ]`), so a deploy from this tree hands the live Pi a Caddy with zero
-  //     vhosts — every site goes dark while sshd and the primary tunnel stay up.
-  //     deploy-rs reports SUCCESS, and magicRollback cannot save it: rollback
-  //     fires only for an UNREACHABLE host, and a site-free Pi is reachable.
-  //     Worse, a bare `deploy` with no `--targets` fans out over EVERY node
-  //     (upstream `src/cli.rs` defaults the target to `.`), so the argument-less
-  //     form IS a live-Pi deploy. Blocked in every shape, `--dry-activate`
-  //     included: that still copies a closure to the live Pi, and the whole point
-  //     is that the RIGHT flake to deploy from is nix-personal, not this one.
-  //   `darwin-rebuild switch --flake .#macos` — silently drops the private
-  //     nix-personal layer (CLAUDE.md § Important Notes). `activate` is the real entry.
-  // Neither block is a veto — the operator can still run either by hand.
-  if (segs.includes("deploy")) {
-    emit(
-      "block",
-      "`deploy` (deploy-rs) from this public repo targets the SITE-FREE nixosConfigurations.nixpi — a successful deploy dark-sites the live Pi and magic rollback cannot catch it.",
-      "Deploy from the private nix-personal flake, not this one. A bare `deploy` also fans out over every node — always `--targets`. Confirm intent and run it manually if this really is what you want.",
-    );
-  }
-  // Activation of the public `#macos` in any of its spellings, plus the bare
-  // no-`--flake` form. `build`/`check`/`--dry-run` shapes still fall through —
-  // they do not activate.
-  const darwinSwitchSegs = rawSegs.filter((seg, i) => segs[i] === "darwin-rebuild" && DARWIN_SWITCH_VERB.test(seg));
-  const publicMacosActivation =
-    PUBLIC_MACOS_APP.test(cmd) || darwinSwitchSegs.some((seg) => PUBLIC_MACOS_REFS.some((re) => re.test(seg)));
-  const bareDarwinSwitch = darwinSwitchSegs.some((seg) => !HAS_FLAKE_FLAG.test(seg));
-  if (publicMacosActivation || bareDarwinSwitch) {
-    const what = publicMacosActivation
-      ? "Activates the PUBLIC `#macos` composition from this repo"
-      : "A bare `darwin-rebuild switch` re-activates whatever flake the system profile recorded — it may well be this public tree";
-    // Two different severities, because the consequences differ in kind: with the
-    // Bedrock switch live this destroys the operator's own AI access, so the
-    // message has to lead with the recovery path, not with the layering theory.
-    emit(
-      "block",
-      bedrockSelected
-        ? `${what}, which drops the private nix-personal layer — including AWS_REGION/AWS_PROFILE. CLAUDE_CODE_USE_BEDROCK is set in this environment and lives in the Keychain, so it SURVIVES: Bedrock would stay selected with no region, Claude Code would reach no model, and settings.json is a read-only /nix symlink you cannot hand-repair. That is the chicken-and-egg outage.`
-        : `${what}, which silently drops the private nix-personal layer (CLAUDE.md § Important Notes).`,
-      bedrockSelected
-        ? "Use `activate` (nix-personal's freshness-gated CLI for the private composition) — it restores AWS_REGION/AWS_PROFILE in the same switch. If you must run the public one, `secret rm CLAUDE_CODE_USE_BEDROCK` FIRST and open a new shell, so Claude Code falls back to its default provider and survives. `darwin-rebuild build` is always safe."
-        : "Use `activate` (nix-personal's CLI for the private composition), or ask first. `darwin-rebuild build --flake .#macos` is fine for verification.",
-    );
+  // (Rule 1b RETIRED 2026-09-15 — it blocked `deploy` and public-`#macos`
+  // activation because both silently dropped the private nix-personal layer.
+  // That layer is gone: this repo carries its own real data, so both commands
+  // are now the correct, sanctioned ones. Its constants were deleted with it.)
+
+  // ---- Rule 1d: never BUILD on nixpi ----------------------------------------
+  // See the constants above for the full why. Ranked with the blocks because the
+  // damage is physical: a power cut during an SD-card build corrupts the card and
+  // the fix needs hands on the hardware.
+  //
+  // Matched PER-SEGMENT and gated on that segment's argv0, never as a substring
+  // of the whole command — the same discipline the retired Rule 1b used, and for
+  // the same reason: a `git commit -m "…--build-host nixpi…"` or an `echo` that
+  // merely MENTIONS the shape must not be blocked. (Measured the day this rule
+  // landed: a substring match blocked the very commit that introduced it.)
+  {
+    const buildsOnPi = rawSegs.some((seg, i) => {
+      switch (segs[i]) {
+        case "nixos-rebuild":
+          return BUILD_HOST_PI.test(seg);
+        case "deploy":
+          return DEPLOY_REMOTE_BUILD.test(seg);
+        case "ssh":
+          return SSH_BUILD_ON_PI.test(seg);
+        case "nix":
+        case "nix-build":
+          return BUILDERS_PI.test(seg) || BUILD_HOST_PI.test(seg);
+        default:
+          return false;
+      }
+    });
+    if (buildsOnPi) {
+      emit(
+        "block",
+        "This builds ON nixpi (a Pi 4 on an SD card). A build there is slow, and a power cut mid-build corrupts the card — which then needs a physical reflash (~40 min, docs/nixpi-sd-flashing-runbook.md) and defeats the remotely-managed design.",
+        "The Pi should only SUBSTITUTE. CI warms the whole nixpi closure into Cachix on every closure change (.github/workflows/warm-nixpi-cache.yml), so after that lands use `nixos-rebuild switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com` (builds HERE, activates there) or `deploy --targets .#nixpi`. If the Mac still wants to BUILD instead of fetch, the cache is merely not warm yet — or Nix negatively cached an earlier 404 for up to an hour; retry with `--narinfo-cache-negative-ttl 0` rather than moving the build onto the Pi.",
+      );
+    }
   }
   // ---- Rule 1c: printing a secret into the transcript ------------------------
   // Ranked with the blocks, not the nudges, for the reason the others are: it
