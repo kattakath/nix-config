@@ -18,6 +18,32 @@ in
     "macos" = mkDarwin {
       system = "aarch64-darwin";
       hostname = "macos";
+      # OPERATOR-ONLY, and deliberately NOT in hosts/macos.nix: this records
+      # where this Mac's working tree happens to sit, which is machine trivia
+      # rather than fleet policy. mkDarwin loads hosts/<hostname>.nix out of
+      # THIS repo, and templates/default scaffolds downstream Macs with the
+      # same `hostname = "macos"` — so anything put there would follow a clone
+      # home and plant a DANGLING /etc/nix-darwin/flake.nix (activation still
+      # succeeds; `darwin-rebuild` then silently ignores it, because `-e` is
+      # false on a broken link). `extraModules` here is evaluated only for our
+      # own flake.darwinConfigurations, so consumers never see it.
+      extraModules = [
+        (
+          { config, loginName, ... }:
+          {
+            # Makes a bare `sudo darwin-rebuild switch` work — no --flake, no
+            # #attr, no cd. Upstream takes `dirname $(readlink -f
+            # /etc/nix-darwin/flake.nix)` as the flake and defaults the
+            # attribute to `scutil --get LocalHostName`, which is already
+            # `macos` here. A plain STRING source is the load-bearing part: a
+            # path literal would copy a frozen snapshot into the store, while a
+            # string symlinks the live tree, so a rebuild sees edits.
+            environment.etc."nix-darwin/flake.nix".source = "${
+              config.users.users.${loginName}.home
+            }/Developer/github.com/kattakath/nix-config/flake.nix";
+          }
+        )
+      ];
     };
 
     # The former `macvm` Tart guest was REMOVED 2026-09-05 — deliberately, as
