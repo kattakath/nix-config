@@ -212,42 +212,139 @@
 
   # ---- Gmail multi-account MCP (modules/shared/mcp.nix, a home-manager option
   # — set via home-manager.users)
-  # These two emails are safe to name in the PUBLIC repo — both are the
-  # operator's own accounts under identities already public elsewhere in this
-  # very tree (userEmail = ismail@kattakath.com in flake.nix's identityArgs;
-  # kattakath.com is this repo's own namesake domain). Any OTHER account
-  # (family/associates, or accounts the operator would rather not name here)
-  # is added by the PRIVATE nix-personal flake instead, via extraHomeModules —
-  # see the option's description in modules/shared/mcp.nix for the contract.
-  home-manager.users.${loginName} = {
-    local.mcpGateway.gmail.accounts = [
-      "ismail@kattakath.com"
-      "ismailkattakath@gmail.com"
-    ];
+  # The operator's COMPLETE Gmail roster. All four are the operator's own
+  # accounts under identities already public elsewhere in this very tree:
+  # userEmail = ismail@kattakath.com (identityArgs) and its namesake domain;
+  # silvercreek.ai, whose production WordPress this gateway already drives
+  # (`wordpress-adapter`); and the operator's `aloshy` handle (the aloshy.ai
+  # zone). The retired nix-personal flake supplied seven further accounts; the
+  # operator kept only these two of them (2026-09-15, #524) and intentionally
+  # dropped the rest. Anyone else's address still never belongs here — see the
+  # option's description in modules/shared/mcp.nix.
+  #
+  # `operatorSshKey` is a home-manager module arg (extraSpecialArgs,
+  # modules/parts/compose.nix) — NOT one of this file's own specialArgs — so
+  # this definition must be a function to receive it, matching
+  # modules/shared/home.nix's own signature.
+  home-manager.users.${loginName} =
+    { operatorSshKey, ... }:
+    {
+      local.mcpGateway.gmail.accounts = [
+        "ismail@kattakath.com"
+        "ismailkattakath@gmail.com"
+        "izzy@silvercreek.ai"
+        "aloshyakasoto@gmail.com"
+      ];
 
-    # Chrome DevTools Protocol, in ATTACH mode against Opera Air. The attach flag is
-    # picked at spawn time by probing /json/version — neither --browser-url nor
-    # --autoConnect works in both browser modes; see modules/shared/mcp.nix. One flag turns on BOTH the gateway server and the
-    # `nix-chromium-debug` launcher — they are gated together on purpose, so there
-    # is no state where something can reach a browser without the operator having
-    # enabled debugging deliberately (in-browser, or via that launcher).
-    #
-    # Safe to leave on permanently, MEASURED 2026-09-06 rather than assumed: with
-    # nothing listening on the port, the server still answers `initialize` and
-    # stays alive (45s, no exit) — it only touches a browser lazily, when a tool
-    # needs one. So it does NOT dark the gateway the way a server that exits at
-    # startup would (the failure mode postgres and localAdapter warn about in
-    # modules/shared/mcp.nix). Individual tool calls simply fail until a browser
-    # is listening; `devtools-doctor.sh` in the chrome-devtools plugin says which
-    # of the three causes it is.
-    #
-    # What is NOT persistent, deliberately: debugging itself. Opera Air re-prompts
-    # per session and `nix-chromium-debug` is hand-run and dies with the browser
-    # window — because an open remote-debugging port is an unauthenticated control
-    # channel over a profile holding live logins. Measured 2026-09-07: Opera stores
-    # no persistent consent key, so there is nothing to make it stop asking.
-    local.mcpGateway.chromeDevtools.enable = true;
-  };
+      # ---- Published MCP gateway server list -------------------------------
+      # MUST mirror config.fleet.publicMcpServers (modules/parts/identity.nix) —
+      # terranix (modules/parts/terranix.nix) renders outside any host's module
+      # system, so it reads a separate copy of this same value rather than this
+      # option directly. Kept as a literal here (not threaded through
+      # specialArgs) since it changes rarely; grep confirms drift instantly now
+      # that both live in one repo.
+      local.mcpGateway.public = [
+        "memory"
+        "sequential-thinking"
+      ];
+
+      # ---- Infin8 AWS SSO profiles (upstream home-manager option) -----------
+      # Folded in from nix-personal's aws-sso.nix (2026-09-15). Not secrets —
+      # start URL, account IDs, role names; SSO tokens stay in ~/.aws/sso/cache.
+      # Claude Code's Bedrock identity selects the SDLC profile at runtime via
+      # `secret set AWS_PROFILE infin8-takeoff-sdlc` (modules/shared/claude-bedrock-gate.nix);
+      # `region` lives on the profile itself, which is why it's set below.
+      programs.awscli = {
+        enable = true;
+        settings = {
+          "sso-session infin8" = {
+            sso_start_url = "https://d-9a676f27ed.awsapps.com/start";
+            sso_region = "us-east-2";
+            sso_registration_scopes = "sso:account:access";
+          };
+          "profile infin8-takeoff-sdlc" = {
+            sso_session = "infin8";
+            sso_account_id = "319826235970";
+            sso_role_name = "AdministratorAccess";
+            region = "ca-central-1";
+            output = "json";
+          };
+          "profile infin8it-takeoff-prod" = {
+            sso_session = "infin8";
+            sso_account_id = "996122083124";
+            sso_role_name = "AdministratorAccess";
+            region = "ca-central-1";
+            output = "json";
+          };
+        };
+      };
+
+      # ---- Extra git identities (upstream home-manager option) --------------
+      # Folded in from nix-personal's git-identities.nix (2026-09-15). Public
+      # nix-config carries the includeIf *conditions* (modules/shared/home.nix);
+      # this carries the *addresses* they point at. allowedSigners lets GitLab
+      # verify SSH commit signatures and `git log --show-signature` work locally
+      # — operatorSshKey is the fleet operator public key (identityArgs).
+      programs.git.signing.allowedSigners = ''
+        ismail@kattakath.com namespaces="git" ${operatorSshKey}
+        izzy@silvercreek.ai namespaces="git" ${operatorSshKey}
+        hi@izzykatt.ca namespaces="git" ${operatorSshKey}
+      '';
+
+      home.file.".config/git/gitlab.inc".text = ''
+        [user]
+        	email = ismail@kattakath.com
+      '';
+
+      home.file.".config/git/silvercreek.inc".text = ''
+        [user]
+        	email = izzy@silvercreek.ai
+      '';
+
+      # The only include here that also overrides user.name: a different public
+      # persona (github.com/izzykatt), not another mailbox for the same person.
+      home.file.".config/git/izzykatt.inc".text = ''
+        [user]
+        	name = Izzy Katt
+        	email = hi@izzykatt.ca
+      '';
+
+      # ---- Infin8 LiteLLM proxy (OpenAI-compatible clients) ------------------
+      # Folded in from nix-personal's openai-gateway.nix (2026-09-15). Both vars
+      # are load-bearing: openai-python/-node >= 1.0 read OPENAI_BASE_URL, older
+      # openai-python and the LiteLLM SDK read OPENAI_API_BASE. The `/v1` suffix
+      # is load-bearing too — see the retired module's header (git history) for
+      # the measured 401/404-vs-routing failure mode without it. The key itself
+      # is a LiteLLM virtual key in the Keychain (`openai.com:api`), unrelated
+      # to this URL.
+      home.sessionVariables = {
+        OPENAI_BASE_URL = "https://ai.infin8it.ca/v1";
+        OPENAI_API_BASE = "https://ai.infin8it.ca/v1";
+      };
+
+      # Chrome DevTools Protocol, in ATTACH mode against Opera Air. The attach flag is
+      # picked at spawn time by probing /json/version — neither --browser-url nor
+      # --autoConnect works in both browser modes; see modules/shared/mcp.nix. One flag turns on BOTH the gateway server and the
+      # `nix-chromium-debug` launcher — they are gated together on purpose, so there
+      # is no state where something can reach a browser without the operator having
+      # enabled debugging deliberately (in-browser, or via that launcher).
+      #
+      # Safe to leave on permanently, MEASURED 2026-09-06 rather than assumed: with
+      # nothing listening on the port, the server still answers `initialize` and
+      # stays alive (45s, no exit) — it only touches a browser lazily, when a tool
+      # needs one. So it does NOT dark the gateway the way a server that exits at
+      # startup would (the failure mode postgres and localAdapter warn about in
+      # modules/shared/mcp.nix). Individual tool calls simply fail until a browser
+      # is listening; `devtools-doctor.sh` in the chrome-devtools plugin says which
+      # of the three causes it is.
+      #
+      # What is NOT persistent, deliberately: debugging itself. Opera Air re-prompts
+      # per session and `nix-chromium-debug` is hand-run and dies with the browser
+      # window — because an open remote-debugging port is an unauthenticated control
+      # channel over a profile holding live logins. Measured 2026-09-07: Opera stores
+      # no persistent consent key, so there is nothing to make it stop asking.
+      local.mcpGateway.chromeDevtools.enable = true;
+    };
 
   # ---- OpenDesign: kill the in-app self-updater --------------------------------
   # Pairs with the greedy `open-design` cask below — versioning belongs to brew,

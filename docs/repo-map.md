@@ -17,9 +17,9 @@ All-in-one Nix mono-repo managing a fully declarative **aarch64-only** fleet:
   traffic; it is the SSH *client*, reaching `nixpi` via `cloudflared access ssh` over the
   tunnel, and builds `aarch64-linux` locally on Determinate's native Linux builder.
 - **`nixpi`** (aarch64-linux) — NixOS Raspberry Pi 4, the **LIVE server**: static-key SSH
-  over a Cloudflare Tunnel connector + Caddy. Generic and **site-free in this public repo** —
-  the real hosted sites are supplied by the private
-  nix-personal composition flake (see [`private-home-modules.md`](private-home-modules.md)).
+  over a Cloudflare Tunnel connector + Caddy, serving its real sites directly
+  (`config.fleet.hostedSites`, `modules/parts/identity.nix` — two today, `snoringirl.com` and
+  `ismail.kattakath.com`).
 - **`nixvm`** (aarch64-linux) — a throwaway NixOS dev VM materialised **only** as
   `nix run .#nixvm` (a build-vm XFCE desktop — no installed VM, no builder, no runner).
 - A matching **Devcontainer** image.
@@ -225,13 +225,12 @@ the declarative `Host nixpi.<domain>` block in `modules/shared/home.nix` (store-
 That block replaces the old "hand-edit `~/.ssh/config`" instruction in the runbooks, which was
 unfollowable — the file is a read-only `/nix/store` symlink.
 
-⚠ **`deploy --targets .#nixpi` from THIS repo would deploy a site-free Pi** — the same class of
-trap as `darwin-rebuild switch --flake .#macos`. This node ships here as the **engine**, not the
-deployment: the private nix-personal flake is the intended caller and reuses these settings
-against *its* `nixosConfigurations.nixpi` (see
-[`private-home-modules.md`](private-home-modules.md)), so the rollback semantics/timeouts/ssh
-plumbing are single-sourced here. Magic rollback does **not** protect against this — it reverts
-an *unreachable* host, and a site-free Pi is reachable.
+`deploy --targets .#nixpi` deploys the real Pi directly — the private nix-personal flake that
+used to gate this (a separate checkout carrying the real `hostedSites`) was retired 2026-09-15;
+this repo's own `nixosConfigurations.nixpi` now carries the real data. `remoteBuild = false`
+still means the Pi never builds, and the caddy `Caddyfile-formatted` EPERM on Determinate's
+native Linux builder still means `nixos-rebuild --build-host nixpi` (no magic rollback) is the
+working path today, not this deploy-rs node — see `hosts/` above.
 
 Only **one** of deploy-rs' two `deployChecks` is wired into `checks.<system>`:
 
@@ -678,16 +677,15 @@ their own top-level section below:
     the hook **exports** a file-derived `AWS_REGION`, because Claude Code reads the region
     from the environment only (anthropics/claude-code#18962). ADR-003's split: identity is
     content, the gate is governance.
-  - **`local.claudeBedrock.{region,profile}` is DEPRECATED.** `null` by default, kept only so
-    the sunsetting nix-personal keeps evaluating; a value pins `AWS_*` into the read-only
-    `settings.json`, overriding the file, and raises a warning. Delete it once no definition
-    remains. There is still deliberately **no `enable` option**: `CLAUDE_CODE_USE_BEDROCK`
-    stays in the login Keychain (`secret set|rm`) so it remains a runtime toggle.
+  - **`local.claudeBedrock.{region,profile}` is DEPRECATED.** `null` by default; a value pins
+    `AWS_*` into the read-only `settings.json`, overriding the file, and raises a warning. Its
+    own header says to delete it now that nix-personal (the only repo that ever set it) is
+    retired — not yet done as of this writing.
   - **`adoptAwsConfig` — the one-shot migration.** When no `home.file` entry targets
     `.aws/config`, an activation step between `writeBoundary` and `linkGeneration` replaces a
-    leftover store symlink with a real `0600` copy. Without it, home-manager's orphan cleanup
-    deletes the symlink — and every profile with it — on the first activation without the
-    private layer. Its own cleanup skips regular files, which is what makes the copy safe.
+    leftover store symlink with a real `0600` copy. Ran once, when nix-personal's `aws-sso.nix`
+    (which store-symlinked the file) stopped being evaluated — home-manager's orphan cleanup
+    would otherwise have deleted the symlink and every profile with it.
   - **The trap it closes** is unchanged: the Keychain flag survives every activation, a
     missing identity does not, and a read-only `settings.json` cannot be hand-repaired. It
     degrades to Claude Code's default provider rather than erroring. Offline and CLI-free by
@@ -727,8 +725,9 @@ their own top-level section below:
 - **`git-allowed-signers.nix`** — option-only (`kattakath.git.extraAllowedSignersPrincipals`):
   extra author emails for git SSH signature verify. Split out of `home.nix` purely because a
   Home Manager module declaring `options` cannot also carry bare `config` attrs. The fleet
-  default principal stays `userEmail` in `home.nix`; private identities append here from
-  nix-personal — one of the seams in [`private-home-modules.md`](private-home-modules.md).
+  default principal stays `userEmail` in `home.nix`; the extra identities
+  (`izzy@silvercreek.ai`, `hi@izzykatt.ca`) are appended directly in `hosts/macos.nix` now that
+  nix-personal is retired.
 - **`wallpaper/wallpaper.png`** — the vendored desktop wallpaper `desktop-aesthetics.nix`
   installs. It is copied to `~/.local/share/nix-desktop-wallpaper.png` via `home.file` and
   pointed at from there, **not** referenced as a store path directly: `settings.picture` set
@@ -945,11 +944,11 @@ flake, and never imported by path from the host.
 ### Web serving on `nixpi`
 
 Uses upstream `services.caddy.virtualHosts` directly (in `hosts/nixpi.nix`), **no wrapper
-module**: one `http://<domain>` vhost per `mkNixos`'s `hostedSites` parameter (see
-[`private-home-modules.md`](private-home-modules.md)), each `file_server`ing its `root`. This
-public repo passes no `hostedSites` (`[ ]` default), so the public
-`nixosConfigurations.nixpi` boots Caddy with **zero vhosts** — the real production site list
-lives only in the private layer. It is **two sites** today — `snoringirl.com` and
+module**: one `http://<domain>` vhost per `mkNixos`'s `hostedSites` parameter, each
+`file_server`ing its `root`. `hostedSites` still defaults to `[ ]` (the parameter stays generic),
+but `modules/parts/hosts.nix`'s own `nixpi` call passes the real list directly
+(`config.fleet.hostedSites`, `modules/parts/identity.nix`) since the private nix-personal flake
+that used to supply it was retired 2026-09-15. It is **two sites** today — `snoringirl.com` and
 `ismail.kattakath.com` — down from four: `dontsell.ai`'s apex moved to Vercel 2026-09-06 (its
 terranix module deleted 2026-09-14) and `kattakath.com` left for GitHub Pages 2026-09-07.
 `ismail.kattakath.com` is the one to be careful about: it was dropped from `hostedSites` on
@@ -1374,10 +1373,11 @@ Declares `nixpi`'s **remotely-managed** Cloudflare Tunnel itself:
   `cloudflare_zero_trust_tunnel_cloudflared_token` data source).
 
 A pure function of its `hostedSites`/`domainName`/`accountId`/`zoneId` module args (same
-shape/default as `mkNixos` — see [`private-home-modules.md`](private-home-modules.md)); the
-public `cfTunnelConfig`/`cf-tunnel-apply`/`cf-tunnel-destroy` flake apps pass none, rendering
-an ingress with zero sites, while the private nix-personal flake calls `lib.cfTunnelConfig`
-directly with the real site list. Applied/destroyed via the `cf-tunnel-apply`/`cf-tunnel-destroy`
+shape/default as `mkNixos`); `cf-tunnel-apply`/`cf-tunnel-destroy` pass the fleet's real
+`hostedSites` (`config.fleet.hostedSites`), while their `*-destroy` counterparts deliberately
+keep the `[ ]` default so tearing the real stack down still needs the explicit
+`CF_TUNNEL_ALLOW_SITE_FREE=1` override (`modules/parts/terranix.nix`). Applied/destroyed via the
+`cf-tunnel-apply`/`cf-tunnel-destroy`
 flake apps (an API credential must be exported first — never in Nix); `cf-tunnel-apply` prints
 the token to stdout to be stored via `nix run .#nixpi-vault-token` into
 `secrets/cloudflared-token.age`, never written to git/store in plaintext.
@@ -1411,11 +1411,11 @@ publish through `mcp.<domain>`.
 Applied via `mcp-public-apply` / `mcp-public-destroy`, with `mcp-public-token` printing **only**
 the raw connector token for piping into `secret set`. State lives in
 `$XDG_STATE_HOME/nix-config-mcp-public` (0700/0600 — it holds the connector token and the Access
-service-token secret in plaintext). Unlike the `cf-*` apps, running these from THIS public repo
-is the sanctioned **bootstrap**: an empty `publicServers` creates the tunnel and Access objects
-and publishes nothing. `mkMcpPublicTofu` refuses the genuinely destructive case — a render that
-publishes 0 servers against state that holds more than 0 (override `MCP_PUBLIC_ALLOW_EMPTY=1`).
-Once anything is published, apply from nix-personal, which supplies the real list.
+service-token secret in plaintext). `mcp-public-apply` passes the fleet's real
+`publicMcpServers` (`config.fleet.publicMcpServers`); `mcp-public-destroy` deliberately keeps
+the `[ ]` default so tearing down the real registrations still needs the explicit
+`MCP_PUBLIC_ALLOW_EMPTY=1` override — `mkMcpPublicTofu` refuses a render that publishes 0
+servers against state that holds more than 0.
 
 ## Claude Code surface
 

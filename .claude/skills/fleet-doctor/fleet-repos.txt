@@ -81,19 +81,13 @@
 # else — a product, a scaffold, a published bundle — is not fleet, however closely related.
 # Adding a line needs a reason that survives that sentence.
 #
-# THE THESIS IS MID-CHANGE (2026-09-14): it read "one of the TWO composition repos", and the
-# count is on its way to ONE. nix-personal is being DISSOLVED — on 2026-09-13/14 it lost its
-# userscripts module and both gates, its private plugin marketplace, `leolistRag`,
-# `pageLabSites` and `leolist-crawlee`, while the mechanisms it owned kept moving into
-# nix-config under the shape/values contract (`activate` became nix-config's
-# packages/activate.nix + lib.mkActivateCli on 2026-09-13, commit b923914; the private flake
-# now supplies values only).
-#
-# ITS LINE STAYS UNTIL THE REPO IS ACTUALLY GONE. It is still cloned, still pins nix-config,
-# and is still what activates macos — a doctor that skipped it today would miss the one
-# cross-repo pin in the fleet. When the repo is retired, remove the line below AND steps D
-# and G of SKILL.md, which exist only to serve it. Do not pre-emptively delete either half:
-# dropping the line first leaves two live steps sweeping nothing.
+# THE COUNT WENT TO ONE on 2026-09-15. nix-personal is fully RETIRED — every value it held
+# (AWS SSO profiles, extra gmail accounts, git identities, the OpenAI gateway, the real
+# `hostedSites`) is folded directly into nix-config (`hosts/macos.nix`,
+# `modules/parts/identity.nix`); the `activate` CLI it depended on
+# (packages/activate.nix / lib.mkActivateCli) is deleted along with it — there is only one
+# checkout to activate now (`darwin-rebuild switch --flake .#macos` /
+# `nixos-rebuild switch --flake .#nixpi` directly). Its line came out of this manifest and
+# steps D and G of SKILL.md, which existed only to serve it, were collapsed to match.
 
 github.com/kattakath/nix-config
-gitlab.com/ismailkattakath/nix-personal

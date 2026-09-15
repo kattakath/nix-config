@@ -91,10 +91,10 @@ model and the three-objects-per-publish trap are in
   contain `@`/`.`) for TRUE simultaneous multi-account Gmail, unlike the
   single-account-per-connection built-in connector. Uses a shared OAuth Desktop-app client from
   the Keychain plus a separate one-time browser auth per account (mirrors telegram's
-  session-file pattern, not the OAuth-cache one). Any OTHER account (some belonging to people
-  other than the operator) is supplied by the private nix-personal flake via
-  `extraHomeModules` instead, same contract as nixpi's `hostedSites` (see
-  [`private-home-modules.md`](private-home-modules.md)). Runbook:
+  session-file pattern, not the OAuth-cache one). All accounts (including several belonging to
+  people other than the operator) are listed directly in `hosts/macos.nix` — the private
+  composition flake that used to add extra ones via `extraHomeModules` was retired 2026-09-15
+  (see [`private-home-modules.md`](private-home-modules.md) § History). Runbook:
   [`gmail-mcp-multi-account-runbook.md`](gmail-mcp-multi-account-runbook.md).
 
 ## Auth caches
@@ -119,4 +119,5 @@ config-writing install tools are never used.
   Gmail setup, auth, and a documented silent-wrong-account failure mode.
 - [`mcp-public-exposure-design.md`](mcp-public-exposure-design.md) — the PUBLISHED gateway:
   `local.mcpGateway.public`, the `:8097` second proxy, and the Cloudflare side.
-- [`private-home-modules.md`](private-home-modules.md) — how private accounts/sites plug in.
+- [`private-home-modules.md`](private-home-modules.md) — the `extraHomeModules`/`hostedSites`
+  composition seams, and the nixpi deploy runbook.

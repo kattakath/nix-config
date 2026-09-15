@@ -867,13 +867,11 @@ in
     "$HOME/.grok/bin"
   ];
 
-  # No activation shorthand is defined here on purpose. This public engine is the
-  # fleet-only BASELINE: any alias it could ship would point at its own `#macos`,
-  # i.e. exactly the switch that silently drops the private layer (see
-  # claude-bedrock-gate.nix for what that costs). The real day-to-day command is
-  # the freshness-gated `activate` CLI, which only the private nix-personal flake
-  # can build because only it composes the full host. See
-  # docs/private-home-modules.md.
+  # No activation shorthand is defined here on purpose. `darwin-rebuild switch
+  # --flake .#macos` is the day-to-day command directly — the `activate` CLI
+  # that used to reconcile this repo against a separate private composition
+  # flake was retired 2026-09-15 along with that flake; there is only one
+  # checkout to activate now.
 
   # qwen-code local-model wiring. `qwen` (Alibaba's coding-agent CLI, in
   # home.packages above) auto-loads ~/.qwen/.env — a qwen-SCOPED env file, so we

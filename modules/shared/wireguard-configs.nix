@@ -2,8 +2,7 @@
 #
 # Privacy: confs contain private keys and must NEVER be Nix store paths / flake
 # inputs / committed sources. This module only `cp`s from a directory you
-# maintain outside git at activation time. See docs/private-home-modules.md
-# (private flake).
+# maintain outside git at activation time (~/.local/share/wireguard-configs).
 #
 # grepped nix-darwin/modules for wireguard / wg-quick — an option DOES exist,
 # `networking.wg-quick.interfaces` (modules/services/wg-quick.nix:208), and two

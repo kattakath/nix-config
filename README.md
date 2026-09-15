@@ -126,9 +126,9 @@ deploy --targets .#nixpi                # Same Pi, remotely, with deploy-rs magi
                                         # itself instead of needing an SD-card reflash.
 ```
 
-Both `.#macos` and `.#nixpi` here are the **public baseline** — no personal Home Manager
-modules, and a Pi serving **zero** sites. The real hosts are activated from the private
-composition flake ([`docs/private-home-modules.md`](docs/private-home-modules.md)).
+Both `.#macos` and `.#nixpi` here are also the **real** hosts — the private composition flake
+that used to supply personal Home Manager modules and the Pi's real sites was retired
+2026-09-15 and folded directly into this repo (`hosts/macos.nix`, `modules/parts/identity.nix`).
 
 ### Bring up the dev VM
 

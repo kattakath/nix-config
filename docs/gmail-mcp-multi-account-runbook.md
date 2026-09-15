@@ -22,17 +22,11 @@ local MCP gateway (`modules/shared/mcp.nix`).
 
 Real email addresses are personal data — some may belong to people other than
 the operator (family/associates whose inboxes they manage). `gmail.accounts`
-is a plain Nix list, so:
-
-- **Public** (`hosts/<host>.nix` in the public repo): only accounts the
-  operator is comfortable naming publicly — typically identities already
-  public elsewhere in the same tree (e.g. the repo's own `userEmail`/domain).
-- **Private** (the operator's private composition flake, via
-  `extraHomeModules` — see `docs/private-home-modules.md`): everything else.
-
-`listOf`-typed options **merge** across defining modules — the private list
-*adds to*, never replaces, the public one. Both sides evaluate independently;
-`nix flake check` on the public repo never needs the private list to pass.
+is a plain Nix list, set directly in `hosts/macos.nix` — every account is
+public since the private composition flake that used to add extra ones was
+retired 2026-09-15 (see `docs/private-home-modules.md` § History). The
+`extraHomeModules` seam it used still exists generically on `lib.mkDarwin`,
+just unused today.
 
 ## One-time setup: the shared OAuth client (do this once per Google Cloud project)
 
@@ -205,6 +199,5 @@ Command: `/gmail-account`.
 | Path | What |
 |---|---|
 | `modules/shared/mcp.nix` | `gmailAlias`, `mkGmailMcp`, `local.mcpGateway.gmail.accounts` option, gateway wiring |
-| `hosts/<host>.nix` | Public accounts for that host, via `home-manager.users.<user>.local.mcpGateway.gmail.accounts` |
-| private composition flake | Private accounts, via `extraHomeModules` (see `docs/private-home-modules.md`) |
+| `hosts/<host>.nix` | All accounts for that host, via `home-manager.users.<user>.local.mcpGateway.gmail.accounts` |
 | `~/.gmail-mcp/` | Runtime state: shared `gcp-oauth.keys.json` + per-account `credentials-<alias>.json` (never in git) |

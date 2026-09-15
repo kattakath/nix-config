@@ -23,8 +23,8 @@ re-activate. Doing that by hand, repo by repo, is what this skill replaces.
 ## Fleet manifest
 
 `.claude/skills/fleet-doctor/fleet-repos.txt` — one repo per line, relative
-to `~/Developer`. This is the fleet — today exactly two lines, nix-config and
-nix-personal — **not** every repo on disk; see the file's own header for every
+to `~/Developer`. This is the fleet — today exactly **one** line, nix-config
+itself — **not** every repo on disk; see the file's own header for every
 removal and its reason.
 Add a line there when a new fleet repo is created; nothing else in this skill
 needs to change.
@@ -35,23 +35,10 @@ archived its repo, so sweeping it would report stale branches nobody can merge.
 A satellite still on disk is a working copy that outlived its remote — do not
 re-add it.
 
-**Every listed repo is a flake now.** The manifest is down to the two composition
-repos, so every flake-shaped step below (lock freshness, `nix flake check`) applies
-to every member — there is no longer a flake-less member to skip.
-
-**PENDING (2026-09-14): nix-personal is being DISSOLVED.** It is still cloned, still
-pinned, still the sanctioned way macos is activated — so it stays in the manifest and
-every step below still runs against it **today**. But it is shrinking fast (its
-userscripts module and both gates, its private plugin marketplace, `leolistRag`,
-`pageLabSites` and `leolist-crawlee` all came out on 2026-09-13/14), and the mechanisms it
-used to own keep moving into this public repo under the shape/values contract — `activate`
-itself became `packages/activate.nix` / `lib.mkActivateCli` here on 2026-09-13 (commit
-b923914), leaving the private flake supplying values only.
-
-**Two steps below die with it, and are flagged in place: D (cross-repo pin) and G (host
-re-activation).** When the repo is actually gone, delete its manifest line *and* those two
-steps. Do not leave either pointing at nothing, and do not invent a substitute command for
-G — ask.
+**`nix-personal` is RETIRED (2026-09-15).** Every value it held is folded directly into
+this repo (`hosts/macos.nix`, `modules/parts/identity.nix`); the `activate` CLI it
+depended on is deleted. Steps D (cross-repo pin) and G (host re-activation) below were
+the two that existed only to serve it — both collapsed to match.
 
 ## Modes
 
@@ -110,7 +97,7 @@ Findings: any local branch that isn't the default and has no unique commits
 ahead of its remote counterpart → auto-fix (delete). Any branch/worktree
 with unique unmerged commits, or any dirty `git status`, → report only.
 
-### B. Per-repo: open PRs (GitHub repos only — nix-personal is GitLab, skip)
+### B. Per-repo: open PRs
 
 ```bash
 gh pr list --repo kattakath/<repo> --state open --json number,title,isDraft,mergeStateStatus,statusCheckRollup
@@ -133,35 +120,14 @@ repo/workflow-specific (see this session's Cachix-name and
 `update-flake-lock` fixes as examples of "why generic auto-fix doesn't
 work here"). Suggest a fork to investigate if the user wants it fixed now.
 
-### D. Cross-repo pin freshness — **the only such pin; dies with nix-personal**
-
-There is exactly **one** cross-repo pin in the fleet: `nix-personal` → `nix-config`.
-It is real and worth checking **today** (last bumped 2026-09-14, commit aa1561e), but it
-is the only operand this step has, so when nix-personal is dissolved the step becomes a
-no-op and should be **deleted, not left sweeping an empty manifest**. Nothing pins
-nix-config in the other direction. Still re-check `flake.nix` inputs against the manifest
-before assuming a new case exists.
-
-Compare the locked rev against `nix-config`'s current `origin/main` HEAD:
-
-```bash
-jq -r '.nodes["nix-config"].locked.rev' "$HOME/Developer/gitlab.com/ismailkattakath/nix-personal/flake.lock"
-git -C "$HOME/Developer/github.com/kattakath/nix-config" rev-parse origin/main
-```
-
-Stale → auto-fix: `nix flake lock --update-input nix-config`, `nix flake
-check`, and only if that passes: commit (message states old→new rev and
-why) + push. If `nix flake check` fails after the bump, **stop, revert the
-lock change, and report** — never leave a repo mid-bump.
-
-### E. Nix-config's own hygiene
+### D. Nix-config's own hygiene
 
 If nix-config itself is in scope, compose the **nix-hygiene** skill
 (`.claude/skills/nix-hygiene/SKILL.md`) rather than re-deriving its
 checklist here — run it in the same mode (`audit`/`fix`) fleet-doctor was
 given.
 
-### F. Garbage collection
+### E. Garbage collection
 
 ```bash
 # host
@@ -171,30 +137,17 @@ sudo nix-collect-garbage -d
 # nixpi — report only, never collect without an explicit ask (live server)
 ```
 
-### G. Host re-activation
+### F. Host re-activation
 
 Only if repos touched in this run actually compose macos (i.e. their
 `flake.lock`/`flake.nix` changed) or the user asked for it directly:
 
 ```bash
-# macos — ALWAYS via nix-personal's private composition, never
-# `darwin-rebuild switch --flake .#macos` from nix-config directly (see
-# memory: never-darwin-rebuild-from-public-repo) and never nix-config's own
-# `nix run .#macos` (fleet-only baseline, drops the private layer).
-cd "$HOME/Developer/gitlab.com/ismailkattakath/nix-personal" && activate
+# macos — directly, from this repo. The `activate` CLI (and the private
+# nix-personal composition it reconciled against) was retired 2026-09-15;
+# there is only one checkout to activate now.
+darwin-rebuild switch --flake .#macos
 ```
-
-**This landing step is CORRECT TODAY and is on death row (2026-09-14).** `activate` is
-still on PATH and still instantiated by nix-personal — but only with *values*: the CLI's
-whole ~250-line body moved into this public repo on 2026-09-13 (commit b923914) as
-`packages/activate.nix`, exported as `lib.mkActivateCli`. So the *mechanism* survives the
-dissolution; the *instantiation on PATH* does not.
-
-When nix-personal is gone and `activate` stops resolving: **stop and ask the operator
-which command lands a generation now.** Do not substitute one on your own — in
-particular, do not "fix" it to the public-repo rebuild banned in the comment above. That
-ban exists because the failure it produced was silent, and nothing in an audit sweep is
-worth guessing about an activation.
 
 (The macvm guest and its tar-sync activation flow were removed 2026-09-05 —
 docs/macvm-readd-runbook.md.)
@@ -208,7 +161,6 @@ docs/macvm-readd-runbook.md.)
 - **Branches/worktrees:** clean | findings: …
 - **Open PRs:** none | repo #n — title — CI status — action (report only)
 - **CI:** all green | repo — workflow — conclusion — needs investigation
-- **Pins:** in sync | repo — bumped old→new, check ✅, pushed
 - **GC:** host freed X | guest freed Y (or skipped, VM down) | nixpi: N free (report only)
 - **Hosts:** macos re-activated | skipped (why)
 - **Verdict:** CLEAN | FIXED (list what) | NEEDS ATTENTION (why, and what needs a human decision)
@@ -218,7 +170,7 @@ docs/macvm-readd-runbook.md.)
 
 ```
 /fleet-doctor [audit|fix] [scope]   → this skill
-/hygiene [scope]                     → nix-config's own LEAN/DRY pass (composed by step E)
+/hygiene [scope]                     → nix-config's own LEAN/DRY pass (composed by step D)
 /eval                                → nix-config eval only, no cross-repo scope
 gh pr list / gh run list             → what this skill's B/C steps wrap
 ```

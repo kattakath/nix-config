@@ -204,45 +204,14 @@ const SECRET_REVEAL = new RegExp(CMD_POS + String.raw`(?:\S*/)?secret\s+reveal\b
 const SECURITY_PRINTS_VALUE = new RegExp(
   CMD_POS + String.raw`(?:\S*/)?security\b[^\n|;&]*\bfind-(?:generic|internet)-password\b[^\n|;&]*(?:\s-w\b|\s-g\b)`,
 );
-// Rule 1b (2026-08-30 review): the activation shapes that are a trap.
-// Matched per-SEGMENT alongside an `argv0 === "darwin-rebuild"` test rather than
-// as one big regex over the whole command, so flag ORDER is irrelevant
-// (`darwin-rebuild --flake .#macos switch` reads the same as the canonical form)
-// and a `.#macos` merely mentioned in a neighbouring `git`/`echo` segment can
-// never trigger it. `build`/`check`/`--dry-run` shapes stay approved — they do
-// not activate.
+// `switch` vs `build`/`check`/`--dry-run` — only `switch` actually activates.
+// Matched per-SEGMENT alongside an `argv0 === "darwin-rebuild"` test rather
+// than as one big regex over the whole command, so flag ORDER is irrelevant.
 const DARWIN_SWITCH_VERB = /\bswitch\b/;
-// Every flake-ref shape that resolves to THIS public tree's `#macos`. The original
-// rule matched only the canonical `--flake .#macos`, which let four equivalent
-// spellings straight through (2026-08-30 Bedrock review):
-//   `--flake .`            — no attr, so nix-darwin resolves it by hostname → #macos
-//   `--flake ~/…/nix-config` / an absolute path to this checkout
-//   `--flake github:kattakath/nix-config#macos` — the remote is the same tree
-// The attr is `(?:#macos)?` — either spelled out or absent (nix-darwin then
-// resolves it by hostname, which on this Mac IS macos). Deliberately NOT a
-// wildcard `#[\w-]*`: that would also swallow another host's `--flake .#<host>`
-// whose activation this rule has nothing to say about, and would attach a message
-// naming the wrong composition. A trailing `(?=…)` guard keeps `../nix-personal`
-// and longer path suffixes out.
-const PUBLIC_MACOS_REFS = [
-  /--flake[=\s]+\.(?:#macos)?(?=\s|$|["';|])/,
-  /--flake[=\s]+["']?[~/][^\s"';|]*nix-config(?:#macos)?(?=\s|$|["';|])/i,
-  /--flake[=\s]+["']?github:kattakath\/nix-config(?:#macos)?(?=\s|$|["';|])/i,
-];
-// `--flake` absent entirely: a bare `darwin-rebuild switch` re-activates whatever
-// flake the current system profile recorded — unknowable from here, so it is
-// treated as suspect rather than assumed safe. `activate` is the sanctioned entry
-// point either way, so this costs nothing legitimate.
-const HAS_FLAKE_FLAG = /--flake\b/;
-// `nix run .#macos` is a REAL activation app (apps.aarch64-darwin.macos, the
-// first-activation path from CLAUDE.md § Build & Commands) — same damage as
-// `darwin-rebuild switch`, and it was never covered.
-const PUBLIC_MACOS_APP = /\bnix\s+run\s+["']?(?:\.|github:kattakath\/nix-config)#macos\b/;
-// Commands that activate SOMETHING but are not the public-repo trap: `activate`
-// (the freshness-gated private composition CLI from nix-personal) and a
-// `home-manager switch`. Used only for the non-blocking Bedrock heads-up below —
-// never to block.
-const ACTIVATION_ARGV0 = new Set(["activate", "darwin-rebuild", "home-manager"]);
+// Commands that activate something. Used only for the non-blocking Bedrock
+// heads-up below — never to block (see § Rule 1b retirement, 2026-09-15: this
+// repo now carries its own real data, so activating it is no longer a trap).
+const ACTIVATION_ARGV0 = new Set(["darwin-rebuild", "home-manager"]);
 
 // ---- the Bedrock trap (2026-08-30) -----------------------------------------
 // CLAUDE_CODE_USE_BEDROCK lives in the login Keychain, so it SURVIVES any
