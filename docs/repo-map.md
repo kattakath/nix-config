@@ -385,7 +385,7 @@ their own top-level section below:
 
 ### `modules/shared/`
 
-`modules/shared/{home.nix,mcp.nix,chromium.nix,terminal-theme.nix,desktop-aesthetics.nix,nix-cache.nix,nix-ld-libraries.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-plugins.nix,claude-guardrails.nix,wallpaper/,hm-launchd/}`
+`modules/shared/{home.nix,mcp.nix,chromium.nix,default-browser.nix,terminal-theme.nix,desktop-aesthetics.nix,nix-cache.nix,nix-ld-libraries.nix,launchd-launcher.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-plugins.nix,claude-guardrails.nix,wallpaper/}`
 — the Home Manager profile loaded on every host.
 
 - **`home.nix`** — git/ssh-signing, zsh+starship, direnv, gh, bash, claude-code + nerd-fonts;
@@ -406,8 +406,10 @@ their own top-level section below:
   the Homebrew `ungoogled-chromium` cask. Installs **no** browser (`programs.chromium.package =
   null`) — nixpkgs' `chromium`/`ungoogled-chromium` are `*-linux` only, so the `.app` must be a
   cask; this module contributes only the files Chromium reads out of its user-data dir, via
-  upstream HM `programs.chromium` (no custom shell), plus two recommended-level policies and
-  the LaunchServices default-browser claim. Five surfaces, five sideloaded extensions:
+  upstream HM `programs.chromium` (no custom shell), plus two recommended-level policies. The
+  LaunchServices default-browser claim is NOT here any more — it left with `local.defaultBrowser`
+  when Chromium stopped being the default (`chromium.nix:10`). Five surfaces, five sideloaded
+  extensions:
   - **`External Extensions/<id>.json`** — pinned `fetchurl` CRXes installed as
     `external_crx` + `external_version`. The Web Store `external_update_url` is **dead** here
     (ungoogled's `disable-webstore-urls.patch`), so a local CRX is the only path; the official
@@ -596,6 +598,15 @@ their own top-level section below:
   `RCLIP_USE_ONNX_ON_MACOS`): it is a third-party search tool this repo merely installs, and
   the VECTOR half of retrieval, deliberately independent of the XMP half. It reaches the stack
   through that module's `extraSearchPackages` seam, alongside `exiftool` and `auge`.
+- **`default-browser.nix`** — `local.defaultBrowser`, a fleet-level concern rather than a
+  Chromium one: the HTTP/HTTPS handler is a LaunchServices property any installed browser can
+  hold, so it moved out of `chromium.nix` when Opera Air became the default and Chromium became
+  the debugging browser. Takes `defaultbrowser`'s SHORT name (`operaair`, `chromium`, `safari`)
+  — a bundle id is rejected — and `null` claims nothing. Two behaviours worth knowing before
+  blaming an activation: the tool early-returns when the handler already matches, so a settled
+  Mac is a true no-op; and the activation that actually CHANGES it raises one macOS consent
+  dialog, which is Launch Services' documented behaviour for browser schemes, not a bug. `duti`
+  was passed over — bundle ids, but no idempotence guard, so it would re-ask every activation.
 - **`terminal-theme.nix`** — `local.terminalTheme`, the ONE place the fleet's 16-slot ANSI
   ring, ground/ink/cursor, and font face + per-surface sizes are stated. Publishes a derived
   view at `config.lib.terminalTheme` (`byName`, `ghosttyPalette`, `toRgb16`) through
