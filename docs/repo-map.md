@@ -637,10 +637,13 @@ their own top-level section below:
   at this path" and remains reusable; `local.ubersicht.htmlWidget` is single-sourced from
   `outputPath` here so writer and reader cannot drift. A `launchd.agents.next-right-thing`
   (`StartInterval`, default 20 min, `nix-next-right-thing` arg0 via `launchd-launcher.nix`) runs
-  four scripts from `packages/next-right-thing/`: `art.sh` caches a fallback wallpaper,
-  `decide.sh` calls `claude -p` under an enumerated read-only tool allowlist (never `tg_send`, and
-  never `tg_read` — despite the name it MARKS MESSAGES READ), `render.sh` emits one self-contained
-  Duochrome card, `run.sh` publishes atomically via a same-filesystem rename. It shows exactly ONE
+  six scripts from `packages/next-right-thing/`: `probe.sh` is cheap change-detection that decides
+  whether a run earns a model call at all, `gather.sh` collects candidate signal as plain text
+  using no MCP and no model, `art.sh` caches a fallback wallpaper, `decide.sh` calls `claude -p`
+  under an enumerated read-only tool allowlist (never `tg_send`, and never `tg_read` — despite the
+  name it MARKS MESSAGES READ), `render.sh` emits one self-contained Duochrome card, and `run.sh`
+  publishes atomically via a same-filesystem rename. The `probe`/`gather` pair is the cost control:
+  the expensive step is reached only when something actually changed. It shows exactly ONE
   action: a dashboard forgives a bad ranking because the eye finds the real item among nine, but
   with one card a wrong pick IS the product — hence the art fallback, which lets the generator
   decline to speak. Darwin-gated; a clean no-op on `nixpi`.
