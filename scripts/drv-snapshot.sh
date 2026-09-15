@@ -6,10 +6,12 @@
 # be accepted on `diff baseline after` being empty rather than on reading a
 # 4,000-line patch and hoping.
 #
-# It deliberately covers [redacted] too: nix-config's own outputs can be
-# byte-identical while the PRIVATE composition breaks, because [redacted]
-# supplies hostedSites/extraHomeModules through seams this repo only declares.
-# That is the failure this whole migration most needs to catch.
+# It used to ALSO evaluate the private [redacted] composition, because this
+# repo's outputs could be byte-identical while that flake broke on a seam only
+# declared here. [redacted] was retired 2026-09-15 and its values folded in,
+# so that leg is gone — every baseline captured before then carries a
+# `personal.tsv` this script no longer writes, which `--compare` reports as a
+# missing file rather than a real change. Re-baseline rather than chasing it.
 #
 # WHY THIS IS NOT A FLAKE PACKAGE. Adding it to `packages` would add a row to
 # `nix flake show`, i.e. perturb the very baseline it exists to measure. It is a
@@ -18,7 +20,6 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PERSONAL="${NIX_PERSONAL:-$HOME/Developer/gitlab.com/[redacted]}"
 OUT=""
 COMPARE=""
 
@@ -26,7 +27,6 @@ usage() {
   cat >&2 <<'USAGE'
 usage: drv-snapshot.sh --out DIR        capture a snapshot into DIR
        drv-snapshot.sh --compare DIR    capture to a temp dir and diff against DIR
-Environment: NIX_PERSONAL=<path>  (default ~/Developer/gitlab.com/[redacted])
 USAGE
   exit 2
 }
@@ -98,18 +98,6 @@ for k,v in sorted(d.items()):
   done
   sort -o "$dir/outputs.tsv" "$dir/outputs.tsv"
 
-  echo "  [redacted] (the private composition) ..." >&2
-  if [ -d "$PERSONAL" ]; then
-    if v=$(cd "$PERSONAL" && nix eval --raw \
-        --override-input nix-config "path:$REPO" \
-        '.#darwinConfigurations.macos.config.system.build.toplevel.drvPath' 2>/dev/null); then
-      printf 'personal:darwin:macos\t%s\n' "$v" > "$dir/personal.tsv"
-    else
-      printf 'personal:darwin:macos\t<EVAL-FAILED>\n' > "$dir/personal.tsv"
-    fi
-  else
-    printf 'personal:darwin:macos\t<NIX_PERSONAL-not-found>\n' > "$dir/personal.tsv"
-  fi
 }
 
 if [ -n "$COMPARE" ]; then
