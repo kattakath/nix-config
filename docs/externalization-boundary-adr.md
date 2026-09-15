@@ -118,7 +118,7 @@ Its six harness dimensions, against what this fleet already runs:
 | Human oversight & approval gates | `pretooluse-bash-guard.js`, `stop-gate.js`, `superhook` |
 | Observability & structured feedback | OTel → `/routing-review`; the superhook incident log |
 | Configuration, permissions, policy encoding | `settings.json` as a read-only store symlink |
-| Context budget management | `qwen` is handed **11 of 30** gateway servers, deliberately |
+| Context budget management | `qwen` is handed **11 of 31** gateway servers, deliberately |
 | Agent loop & control flow | vendor-owned — not this fleet's |
 
 **Five of six already built.** What the paper does **not** supply is the thing the proposal
@@ -143,13 +143,14 @@ not exist.
 
 ## 5. The per-surface decision, by blast radius
 
-The discriminator is not purity, it is **what happens when the resource is wrong**.
+The discriminator is not purity, it is **what happens when the resource is wrong**. Counts below are
+**2026-09-15** and they move; `modules/shared/mcp.nix` is the live source, never this table (§10.1).
 
 | Surface | Decision | Failure blast radius |
 |---|---|---|
 | **Plugins** (9, 3 marketplaces) | **Already runtime-owned — keep** | Claude owns mutable `~/.claude/plugins` anyway; a bad plugin is one bad plugin |
 | **Skills** (63) | **MAY be overlaid, additively** | Plain markdown. No build step, no credential, no process. Failure = one missing skill, invisible |
-| **MCP servers** (32) | **STAY Nix-owned** | A server that exits at startup **darks the entire gateway** — every client, every server |
+| **MCP servers** (33) | **STAY Nix-owned** | A server that exits at startup **darks the entire gateway** — every client, every server |
 
 The MCP row is not hypothetical. On **2026-09-14** a bumped `mcp-servers-nix` built a broken
 `mcp-server-memory`, which took the whole darwin system down; commit `ea4e755` rolled the input
@@ -165,7 +166,7 @@ Three further things the MCP rail would lose by moving:
 2. **The `public ⊆ hosted` assertion.** `local.mcpGateway.public` is checked against the hosted
    set at eval. An overlay-supplied server is not in that set at eval time, so the assertion
    silently stops covering it.
-3. **Per-client curation.** `qwen` gets 11 of 30 servers because a local qwen3-coder degrades when
+3. **Per-client curation.** `qwen` gets 11 of 31 servers because a local qwen3-coder degrades when
    handed too many tools. That is a *harness* decision; a flat dotfolder has nowhere to put it.
 
 ## 6. Most of the proposal is already implemented — the delta is one decision
@@ -236,6 +237,21 @@ mutability, `github:kattakath/ai`'s independence, and per-client curation are al
 
 ## 10. Correction record
 
-**Empty — nothing has been implemented.** ADR-002's §9 had to overturn four of its own §3
-"ADOPT" rows and one of its core mechanisms, all of which read as settled before execution began.
-Treat every measured claim above as measured and every design claim as untested.
+Nothing here has been *implemented*, so there is no execution record yet. ADR-002's §9 had to
+overturn four of its own §3 "ADOPT" rows and one of its core mechanisms, all of which read as
+settled before execution began. Treat every measured claim above as measured **at its date**, and
+every design claim as untested.
+
+### 10.1 The MCP counts went stale within the hour
+
+This ADR merged as #520. **#519 merged 20 minutes before it**, adding `arxiv-mcp-server` as the
+13th base custom stdio launcher — so every MCP count written here was wrong on arrival: hosted
+30 → **31**, total 32 → **33**, and Qwen's curated subset 11-of-30 → **11-of-31** (arxiv was
+deliberately left out of that subset). Corrected above.
+
+Worth recording rather than quietly fixing, because it is the same failure the CLAUDE.md trim in
+that PR had just fixed twice: `docs/repo-map.md` claiming 58 lock nodes against a real 57, and
+its ast-grep table claiming three rules against a real five. **A hand-maintained count in prose
+drifts on the next merge, not on some distant future date.** The durable form is a pointer to the
+source of truth — `modules/shared/mcp.nix` here — with the number as a dated snapshot, which is
+how §5 now reads.
