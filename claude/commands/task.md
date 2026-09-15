@@ -75,7 +75,7 @@ While executing:
 - Long-running or external state (CI, deploy, a boot): use `Monitor` rather than
   polling loops or foreground sleeps.
 - Verifying a real app behaves: the `run` skill. Nix changes landing on `nix-config`:
-  plain `darwin-rebuild switch --flake .#macos` / `nixos-rebuild switch --flake .#nixpi`
+  plain `sudo darwin-rebuild switch --flake .#macos` / `nixos-rebuild switch --flake .#nixpi`
   directly — the freshness-gated `activate` CLI (and the private nix-personal flake it
   reconciled against) was retired 2026-09-15; there is only one checkout to activate now.
 - Genuinely stuck after two real attempts: say so and offer `grok-build:grok-delegate`

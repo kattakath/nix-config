@@ -61,7 +61,7 @@ the two that existed only to serve it — both collapsed to match.
 | `nix flake lock --update-input <sibling>` + `nix flake check`, commit + push **only if check passes** | Committing/pushing anything that isn't this skill's own mechanical fix (stray WIP is reported, never committed) |
 | Deleting a **local-only branch already merged into the repo's default branch** | Force-push, `git reset --hard`, `git clean -f`, any destructive git op |
 | Re-running `nix fmt` / the repo's own format-fix on a repo already being touched | Reactivating a host when the guest/host is unreachable — report as skipped, don't retry-loop |
-| Re-activating macos (`activate`) when its composing repos moved | Disk operations of any kind (`diskutil`, partitioning) |
+| Re-activating macos (`sudo darwin-rebuild switch --flake .#macos`) when its composing repos moved | Disk operations of any kind (`diskutil`, partitioning) |
 | Nixpi: **disk-usage report only** — no GC/activation without an explicit ask (it's the live server; see `docs/nixpi-sd-flashing-runbook.md`) | Rotating secrets/tokens, editing `secrets/*.age`, anything with `secret set` |
 
 These map onto the global Git Safety Protocol (never commit unless asked,
@@ -146,7 +146,7 @@ Only if repos touched in this run actually compose macos (i.e. their
 # macos — directly, from this repo. The `activate` CLI (and the private
 # nix-personal composition it reconciled against) was retired 2026-09-15;
 # there is only one checkout to activate now.
-darwin-rebuild switch --flake .#macos
+sudo darwin-rebuild switch --flake .#macos
 ```
 
 (The macvm guest and its tar-sync activation flow were removed 2026-09-05 —

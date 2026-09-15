@@ -12,7 +12,7 @@ let
 in
 {
   # ---- macOS system configurations ---------------------------------------
-  # Built with `darwin-rebuild switch --flake .#macos`.
+  # Built with `sudo darwin-rebuild switch --flake .#macos`.
   flake.darwinConfigurations = {
     # Apple Silicon Mac (aarch64-darwin), client only — no incoming traffic.
     "macos" = mkDarwin {

@@ -37,7 +37,7 @@
 
       # `nix run .#macos` — first activation before darwin-rebuild is on PATH
       # (mirrors the engine's apps.aarch64-darwin.macos). Thereafter:
-      #   darwin-rebuild switch --flake .#macos
+      #   sudo darwin-rebuild switch --flake .#macos
       apps.${system}.macos = {
         type = "app";
         program = "${pkgs.writeShellScript "activate-macos" ''
