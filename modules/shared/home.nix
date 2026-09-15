@@ -1128,6 +1128,11 @@ in
         # move: it is one kit with the Brain Signals output style and is declared in
         # modules/shared/claude-brain.nix, next to the style it encodes.
         rag = "${kattakath-ai}/skills/rag";
+        # Take stock before installing: inventory (skills, deferred MCP tools, plugins,
+        # connectors, CLIs) -> rank by blast radius -> vet by trust tier -> adopt through
+        # THIS harness. Global because the need arises in any repo; it never installs an
+        # MCP server itself — it hands a vetted record to nix-config's `mcp-scout`.
+        capability-broker = "${kattakath-ai}/skills/capability-broker";
         # Original (not a fork): operator knowledge for the packages/android-phone.nix
         # ADB/scrcpy CLI — global so ANY session (including ~/-rooted ones) knows the
         # wrapper's command surface and the adb footguns it absorbs, not just sessions
