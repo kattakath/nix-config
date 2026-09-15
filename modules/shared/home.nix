@@ -492,6 +492,12 @@ in
   # RAG stack (Ollama + pgvector) backs the postgres MCP server — real Mac only.
 
   local.rag.ollama.enable = isMacosHost;
+  # The SERVER moved to a machine-wide daemon (`local.ollamaDaemon`,
+  # modules/darwin/ollama-daemon.nix) so a second account shares one process and
+  # one 31 GB model store. The capsule keeps everything else — the embed model,
+  # its dimension, and the one-shot pull agent, which now targets a server it
+  # does not own.
+  local.rag.ollama.manageServer = false;
 
   # ONE INFERENCE AT A TIME, enforced at the SERVER. `OLLAMA_NUM_PARALLEL` is read
   # by `ollama serve`, not by clients, so it cannot be set through
