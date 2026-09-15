@@ -332,11 +332,45 @@ Home Manager profile. What the split is and is not:
   `claude-guardrails.nix`. `programs.claude-code.enable` is the load-bearing line there —
   those modules only set `programs.claude-code.*`, which defaults OFF, so importing them
   without it produces a BYTE-IDENTICAL system.
-- **A never-logged-in account blocks activation.** A user launchd agent can only bootstrap
-  into that user's GUI session, so any agent declared for an account that has not logged in
-  fails (`Bootstrap failed: 125`), `darwin-rebuild` exits non-zero, and the abort lands BEFORE
-  `/run/current-system` is re-pointed — leaving system packages installed and unreachable at
-  once. `local.mediaCli.enable` for Izzy is therefore FALSE until his first login.
+- **A never-logged-in account blocks activation, SILENTLY.** A user launchd agent can only
+  bootstrap into that user's own GUI session, so any agent declared for an account that has
+  never logged in fails with `Bootstrap failed: 125: Domain does not support specified
+  action`. Home Manager's activation then exits non-zero, `activate` runs under `set -e`, and
+  the abort lands ~80 lines short of its final `ln -sfn … /run/current-system`. So the system
+  **profile** advances while `/run/current-system` and
+  `/nix/var/nix/gcroots/current-system` stay on the OLD generation — and
+  `/run/current-system/sw/bin` is what PATH resolves. Packages end up installed and
+  unreachable at the same time.
+
+  **`darwin-rebuild` still exits 0**, so nothing announces it. Do not go looking for a
+  non-zero exit code; diagnose by comparing `nix eval .#darwinConfigurations.macos.system`
+  against `readlink -f /run/current-system`. The system profile is NOT the authority here.
+  (It stranded four generations deep before anyone noticed, 2026-09-15.)
+
+  **`launchd.enable = false` does not fix it — it is a no-op.** The option reads like the
+  class-wide switch, but upstream uses `cfg.enable` in exactly one place, an assertion
+  (pinned home-manager `modules/launchd/default.nix:232`): `agentPlists` filters on the
+  PER-AGENT flag (`:166`) and `home.activation.setupLaunchAgents` is gated on `isDarwin`
+  alone (`:242`). Measured — it evaluated `false` and both agents still bootstrapped. The
+  working spelling is `launchd.agents.<name>.enable` (`:20`), and it needs `lib.mkForce`
+  because the agents are unconditionally `true` at their source.
+
+  Removal is safe on a domain-less user even though installation is not: `bootoutAgent`
+  whitelists that same error (`:326`) where `bootstrapAgent` treats it as fatal — which is
+  why the per-agent `false` works at all.
+
+  **THREE flips are parked on Izzy's first login**, not one, and the cost is upstream's
+  per-agent design: a new agent added to `modules/shared/home.nix` starts aborting his
+  activation again until it is listed in his block too.
+
+  | Line in `hosts/macos.nix` | Landed |
+  |---|---|
+  | `local.mediaCli.enable = lib.mkForce false` | `dd23d3b` |
+  | `launchd.agents.ssh-keychain-load.enable = lib.mkForce false` | `ffcd3e4` |
+  | `launchd.agents.next-right-thing.enable = lib.mkForce false` | `ffcd3e4` |
+
+  Whether they are still deferred is checked by `/fleet-doctor` § G (Parked deferrals), not
+  by this paragraph — a comment nobody re-reads is how they would rot.
 
 - **`macos.nix`** — the darwin client host. Imports `../modules/darwin/github-runner.nix` and
   enables `local.macosGithubRunner` with `count = 2` for the **`dontsell-ai`** org (see that
