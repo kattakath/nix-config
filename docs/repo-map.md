@@ -385,7 +385,7 @@ their own top-level section below:
 
 ### `modules/shared/`
 
-`modules/shared/{home.nix,mcp.nix,chromium.nix,default-browser.nix,ubersicht.nix,terminal-theme.nix,desktop-aesthetics.nix,nix-cache.nix,nix-ld-libraries.nix,launchd-launcher.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,wallpaper/}`
+`modules/shared/{home.nix,mcp.nix,chromium.nix,default-browser.nix,ubersicht.nix,next-right-thing.nix,terminal-theme.nix,desktop-aesthetics.nix,nix-cache.nix,nix-ld-libraries.nix,launchd-launcher.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,wallpaper/}`
 — the Home Manager profile loaded on every host.
 
 - **`home.nix`** — git/ssh-signing, zsh+starship, direnv, gh, bash, claude-code + nerd-fonts;
@@ -615,7 +615,21 @@ their own top-level section below:
   activation shim, no launchd unit. Upstream-first: neither home-manager nor nix-darwin has an
   Übersicht option (grepped 2026-09-15). The app itself is the `ubersicht` cask in
   `hosts/macos.nix`; the file goes into an `<iframe srcDoc>` so a full HTML document keeps its
-  own `<head>`/CSS instead of leaking into Übersicht's page.
+  own `<head>`/CSS instead of leaking into Übersicht's page. The file lives in
+  `~/.local/share/ubersicht/`, NOT `~/Documents`/`~/Desktop`/`~/Downloads`: Übersicht shells out
+  via `/bin/sh`, which TCC denies in those three.
+- **`next-right-thing.nix`** — `local.nextRightThing`, the generator that decides what the
+  Übersicht widget SAYS. Split from `ubersicht.nix` so that module stays "render whatever HTML is
+  at this path" and remains reusable; `local.ubersicht.htmlWidget` is single-sourced from
+  `outputPath` here so writer and reader cannot drift. A `launchd.agents.next-right-thing`
+  (`StartInterval`, default 20 min, `nix-next-right-thing` arg0 via `launchd-launcher.nix`) runs
+  four scripts from `packages/next-right-thing/`: `art.sh` caches a fallback wallpaper,
+  `decide.sh` calls `claude -p` under an enumerated read-only tool allowlist (never `tg_send`, and
+  never `tg_read` — despite the name it MARKS MESSAGES READ), `render.sh` emits one self-contained
+  Duochrome card, `run.sh` publishes atomically via a same-filesystem rename. It shows exactly ONE
+  action: a dashboard forgives a bad ranking because the eye finds the real item among nine, but
+  with one card a wrong pick IS the product — hence the art fallback, which lets the generator
+  decline to speak. Darwin-gated; a clean no-op on `nixpi`.
 - **`terminal-theme.nix`** — `local.terminalTheme`, the ONE place the fleet's 16-slot ANSI
   ring, ground/ink/cursor, and font face + per-surface sizes are stated. Publishes a derived
   view at `config.lib.terminalTheme` (`byName`, `ghosttyPalette`, `toRgb16`) through
@@ -737,10 +751,6 @@ their own top-level section below:
   Desktop's own keys survive. `desktop-commander` is excluded (it is a Desktop Extension
   already). Everything here is also proxied into a linked Cowork session as
   `mcp__remote-devices__<name>__*`. Contract held by `checks.claude-desktop-config-shape`.
-  The merge is NOT activation-only: a running Desktop rewrites the whole file from memory
-  and drops the key, so `launchd.agents.claude-desktop-mcp-sync` re-applies it on
-  `WatchPaths` (upstream's own option) and at login. It writes only when the result differs,
-  which is what keeps a file watch from retriggering on its own write.
   Full rationale: [`docs/claude-desktop-mcp.md`](claude-desktop-mcp.md).
 - **`claude-plugins.nix`** — `local.claudePlugins.marketplaces`, the **N-marketplace** Claude
   Code plugin mechanism. An `attrsOf submodule` keyed by marketplace name, each carrying a

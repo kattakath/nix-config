@@ -408,6 +408,8 @@ in
     ./claude-otel.nix # local OTel Collector for Claude Code's routing-decision telemetry (macos only)
     ./chromium.nix # ungoogled-chromium (Homebrew cask) config: sideloaded iCloud Passwords + its native host
     ./default-browser.nix # local.defaultBrowser — the macOS LaunchServices http/https claim
+    ./ubersicht.nix # local.ubersicht — the one full-screen HTML Übersicht widget (cask in hosts/macos.nix)
+    ./next-right-thing.nix # local.nextRightThing — decides what that widget says
     # Local-first RAG stack (loopback launchd Postgres+pgvector + Ollama + in-DB
     # embed()) — the ABSORBED capsule (modules/features/local-rag/). Both of its
     # modules are internally gated on (enable && isDarwin) — a clean no-op on
@@ -553,6 +555,24 @@ in
   # handler name is what `defaultbrowser` takes, never the bundle id. Only the real Mac
   # declares any browser cask, so this is a no-op elsewhere.
   local.defaultBrowser = lib.mkIf isMacosHost "operaair";
+
+  # The one Übersicht widget: a single HTML file rendered full-screen, re-read every
+  # five minutes (module: ./ubersicht.nix; the app is the `ubersicht` cask). The
+  # value is a runtime shell string read by the widget's `cat`, so it never enters
+  # the store. Real Mac only — nothing else declares the cask.
+  #
+  # NOT ~/Documents, and not ~/Desktop or ~/Downloads: Übersicht is unsandboxed and
+  # runs `command` through /bin/sh, which TCC denies inside those three directories
+  # (measured on this fleet — a /nix/store arg0 reads ~/Downloads fine, /bin/sh gets
+  # EPERM). ~/.local/share is outside TCC, and is the right home for a file that
+  # aggregates private mail, Telegram and calendar data in plaintext anyway.
+  # Single-sourced from the generator so the writer and the reader cannot drift:
+  # a path typed twice is a path that eventually disagrees, and the failure mode
+  # is a widget silently rendering a file nothing updates any more.
+  local.ubersicht.htmlWidget = lib.mkIf isMacosHost config.local.nextRightThing.outputPath;
+
+  # The generator: scan, rank, publish ONE action (module: ./next-right-thing.nix).
+  local.nextRightThing.enable = isMacosHost;
 
   # The PUBLIC half of the userscript set. Private ones are added to this same
   # attrset by the nix-personal flake through `extraHomeModules`, which is the
