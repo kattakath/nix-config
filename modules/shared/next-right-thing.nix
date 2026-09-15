@@ -32,29 +32,15 @@ let
     mkdir -p $out/libexec
     cp ${scriptDir}/render.sh ${scriptDir}/decide.sh ${scriptDir}/art.sh \
        ${scriptDir}/run.sh ${scriptDir}/probe.sh ${scriptDir}/gather.sh \
-       ${scriptDir}/render-swiftbar.sh \
        $out/libexec/
     chmod +x $out/libexec/*.sh
   '';
 
-  # $HOME-relative at runtime, derived lexically from outputPath so the writer
-  # and both readers can never disagree about where the verdict lives.
+  # $HOME-relative at runtime, derived lexically from outputPath so the verdict
+  # always lands next to the card it produced. Nothing in-tree reads it any more
+  # (the menu-bar surface is gone); it stays as the decision record — `jq .` on it
+  # says why the card reads the way it does, and any future surface reads it free.
   verdictPath = "${builtins.dirOf cfg.outputPath}/verdict.json";
-
-  # SwiftBar launches plugins with a minimal PATH, so the plugin is wrapped
-  # rather than symlinked raw — otherwise `jq` is simply missing and the item
-  # silently never appears.
-  swiftbarPlugin = pkgs.writeShellApplication {
-    name = "next-right-thing-swiftbar";
-    runtimeInputs = with pkgs; [
-      jq
-      coreutils
-    ];
-    text = ''
-      export NRT_VERDICT="${verdictPath}"
-      exec ${libexec}/libexec/render-swiftbar.sh
-    '';
-  };
 
   generator = pkgs.writeShellApplication {
     name = "next-right-thing";
@@ -155,49 +141,6 @@ in
       '';
     };
 
-    swiftbar = {
-      enable = lib.mkOption {
-        type = lib.types.bool;
-        default = true;
-        description = ''
-          Publish the verdict to the macOS menu bar via SwiftBar, in addition to
-          the Übersicht card.
-
-          The menu bar is the PRIMARY surface, and the reason is measured rather
-          than aesthetic: this operator runs one fullscreen app per desktop, and
-          Übersicht draws at `kCGDesktopWindowLevel` with
-          `setIgnoresMouseEvents:YES` — so its card is both covered by a
-          fullscreen app and permanently unclickable. The menu bar strip stays
-          drawn in fullscreen here (`_HIHideMenuBar = 0`,
-          `AppleMenuBarVisibleInFullscreen = 1`) and its dropdown can carry a
-          link, so the action is actually actionable.
-
-          The plugin makes no model call — it reads the verdict the agent already
-          published, so a second surface costs a `cat`.
-        '';
-      };
-
-      pluginDir = lib.mkOption {
-        type = lib.types.str;
-        default = ".local/share/swiftbar-plugins";
-        description = ''
-          `$HOME`-relative SwiftBar plugin directory. Keep it a stable home path:
-          pointing SwiftBar's own preference at a `/nix/store` path resolves and
-          then breaks on every rebuild (SwiftBar issue #330).
-        '';
-      };
-
-      refresh = lib.mkOption {
-        type = lib.types.str;
-        default = "5m";
-        description = ''
-          SwiftBar's filename-convention refresh interval. It can be far shorter
-          than the generator's cadence because the plugin only re-reads a local
-          file — the decision still happens once per agent run.
-        '';
-      };
-    };
-
     artTokenEnv = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = "CIVITAI_API_TOKEN";
@@ -218,26 +161,7 @@ in
   };
 
   config = lib.mkIf (cfg.enable && pkgs.stdenv.hostPlatform.isDarwin) {
-    home.packages = [ generator ] ++ lib.optional cfg.swiftbar.enable pkgs.swiftbar;
-
-    home.file = lib.mkIf cfg.swiftbar.enable {
-      # SwiftBar resolves symlinks for plugin files, so a Home Manager link into
-      # the store is fine here (PluginManger.swift). The NAME carries the refresh
-      # interval — that is SwiftBar's documented convention, not decoration.
-      "${cfg.swiftbar.pluginDir}/next-right-thing.${cfg.swiftbar.refresh}.sh" = {
-        source = lib.getExe swiftbarPlugin;
-        executable = true;
-      };
-    };
-
-    # SwiftBar reads its plugin folder from its own preference domain; without
-    # this it opens a first-run folder picker and the plugin never loads.
-    targets.darwin.defaults = lib.mkIf cfg.swiftbar.enable {
-      "com.ameba.SwiftBar" = {
-        PluginDirectory = "${config.home.homeDirectory}/${cfg.swiftbar.pluginDir}";
-        SwiftBarLaunchAtLogin = true;
-      };
-    };
+    home.packages = [ generator ];
 
     launchd.agents.next-right-thing = {
       enable = true;
