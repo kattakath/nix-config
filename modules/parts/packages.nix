@@ -20,14 +20,11 @@
   ...
 }:
 let
-  inherit (inputs) agenix;
 
   inherit (config.fleet)
     darwinSystems
     orgName
     repoName
-    flakeRef
-    userEmail
     jsonResumeUrl
     logoUrl
     tokensUrl
@@ -80,18 +77,6 @@ in
       }
       // lib.optionalAttrs isDarwin (
         let
-          # Key-recovery kit (macOS only). Exposed as packages so `nix flake check`
-          # BUILDS them — which is what runs writeShellApplication's shellcheck on
-          # key-backup/key-recover and the explicit shellcheck on the no-Nix
-          # bootstrap script. Before this, the recovery scripts lived as loose bash
-          # in an iCloud folder that nothing linted and nothing evaluated.
-          keyKit = pkgs.callPackage ../../packages/key-recovery.nix {
-            # The PINNED agenix, not `nix run github:ryantm/agenix` at runtime:
-            # a recovery must not depend on whatever agenix master is that day.
-            agenix = agenix.packages.${system}.default;
-            inherit orgName flakeRef userEmail;
-          };
-
           # nixpi SD-card provisioning toolkit (macOS only). Exposed as packages so
           # `nix flake check` BUILDS them — running writeShellApplication's shellcheck
           # on each of the four apps. See packages/nixpi-provision.nix.
@@ -100,8 +85,6 @@ in
           };
         in
         {
-          inherit (keyKit) key-backup key-recover key-recovery-bootstrap;
-
           nixpi-wifi-creds = nixpiKit.wifi-creds;
           nixpi-provision = nixpiKit.provision;
           nixpi-flash = nixpiKit.flash;
@@ -204,29 +187,6 @@ in
           type = "app";
           program = "${self.nixosConfigurations.nixvm.config.system.build.vm}/bin/run-nixvm-vm";
           meta.description = "Boot a THROWAWAY nixvm dev VM with an XFCE desktop in a QEMU window (builds locally on the native Linux builder)";
-        };
-
-        # `nix run .#key-backup` — on a HEALTHY Mac, before you wipe it:
-        # publishes the passphrase-encrypted operator key + the bootstrap
-        # script + a (non-secret) fingerprint manifest into iCloud.
-        key-backup = {
-          type = "app";
-          program = "${config.packages.key-backup}/bin/key-backup";
-          meta.description = "Publish the encrypted key-recovery kit to iCloud (run BEFORE resetting this Mac)";
-        };
-
-        # `nix run .#key-recover` — stage 2 of recovery/founding. bootstrap.sh
-        # execs this once Determinate Nix exists. It clones, verifies the macOS
-        # login == this flake's `loginName` (#identity.loginName), then either
-        # (kit) decrypts the operator key + re-keys agenix to the new host key,
-        # or (--fresh, no kit) FOUNDS a new operator identity + re-initialises
-        # the macos service secret to a placeholder — then activates #macos.
-        # Stage 1 (the stale-Nix preflight + the installer itself) cannot run
-        # under Nix and lives in bootstrap.sh at the repo root.
-        key-recover = {
-          type = "app";
-          program = "${config.packages.key-recover}/bin/key-recover";
-          meta.description = "Restore (kit) or found (--fresh) the operator key, re-key agenix to this Mac's host key, and activate #macos";
         };
 
         # `nix run github:kattakath/nix-config#macos` — one-line first

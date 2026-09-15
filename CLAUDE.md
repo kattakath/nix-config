@@ -83,9 +83,9 @@ deploy --targets .#nixpi                     # Same, via deploy-rs w/ magicRollb
 nix run .#nixvm                              # Build + boot the throwaway nixvm XFCE build-vm in a native QEMU window
 nix eval .#nixosConfigurations.nixpi.config.system.build.toplevel   # Fast single-target eval
 
-# Bootstrap a clean/reset Mac (no Nix yet): install Determinate Nix, then hand off to key-recover —
-# restores from an iCloud kit if present, else FOUNDS a fresh operator identity.
-# `| bash -s -- --check` for a dry run; `--fresh` skips the confirm. See docs/mac-key-recovery-runbook.md
+# Bootstrap a clean/reset Mac (no Nix yet): install Determinate Nix, clone, activate #macos.
+# `| bash -s -- --check` for a dry run. It does NOT manage SSH keys — a lost machine's
+# keypair stays lost and every agenix secret is vendor-re-issuable. See docs/new-mac-runbook.md
 curl -fsSL https://raw.githubusercontent.com/kattakath/nix-config/main/bootstrap.sh | bash
 
 # nixpi SD card
@@ -139,7 +139,7 @@ One line per path; the *why* and the per-file specifics are in
 | `modules/shared/` | The Home Manager profile on every host. Modules that DECLARE a `local.*` option: `mcp.nix`, terminal theme, chromium, default browser, übersicht (the one HTML widget) + next-right-thing (what it says), wireguard, desktop aesthetics (the wallpaper), claude plugins/otel/desktop. Option-free modules that just configure: `home.nix`, nix cache, nix-ld, launchd-launcher, claude brain/bedrock-gate/guardrails — `local.claudeBedrock` was DELETED 2026-09-15, so do not look for it. |
 | `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix`, `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`local.macosGithubRunner` — LIVE, see § Configuration), `ollama-daemon.nix` (`local.ollamaDaemon` — ONE machine-wide `ollama serve`, so both accounts share one process and one 31 GB model store). |
 | `modules/nixos/` | `core.nix` (user + keys-only **loopback-bound** sshd, `openFirewall = false`, a firewall that opens **no** TCP port, avahi, nix-ld, zram, GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). |
-| `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `key-recovery`, `spotlight-launchers`, plus single-purpose CLIs. `grok.nix` is the tree's ONLY prebuilt vendor binary (SRI-pinned, `dontFixup` to keep xAI's signature); `fal.nix` ships `fal` + `fal-gen` as ephemeral `uv` envs. Both are SHARED via `environment.systemPackages`, not per-user. Root `bootstrap.sh` is the no-Nix stage 1. The media/photo CLIs live in the `media-cli` capsule instead. |
+| `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `spotlight-launchers`, plus single-purpose CLIs. `grok.nix` is the tree's ONLY prebuilt vendor binary (SRI-pinned, `dontFixup` to keep xAI's signature); `fal.nix` ships `fal` + `fal-gen` as ephemeral `uv` envs. Both are SHARED via `environment.systemPackages`, not per-user. Root `bootstrap.sh` is the no-Nix stage 1. The media/photo CLIs live in the `media-cli` capsule instead. |
 | `infra/` | terranix (Nix → Terraform JSON): `cloudflare/nixpi-tunnel.nix`, `cloudflare/mcp-public.nix`. Applied only via the `cf-*` / `mcp-public-*` apps. |
 | `secrets/` | agenix recipients + the operator pubkey + **four** ciphertexts — one operator-only, three host-decrypted on `macos`. Details in § Security. |
 | `sites/` | The static sites `nixpi`'s Caddy serves. Referenced by **directory** path literal (`config.fleet.hostedSites[].root`), so every byte lands in the LIVE closure — see [`store-copied-trees`](.claude/rules/store-copied-trees.md). |
@@ -368,7 +368,7 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   logged in to FlakeHub, or `native-linux-builder` silently vanishes and every aarch64-linux
   build fails with a `platform mismatch` that looks unrelated to auth. Manual, per-machine step:
   see "Manual steps Nix can't do" in
-  [`docs/mac-key-recovery-runbook.md`](docs/mac-key-recovery-runbook.md). Heavy multi-core
+  [`docs/new-mac-runbook.md`](docs/new-mac-runbook.md). Heavy multi-core
   builds (e.g. the Pi SD image) still go to GitHub CI / Cachix.
 
 ## Documentation
@@ -395,8 +395,8 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   in, and the rule it turned on: **a gate must move with the content it gates.**
 - [`docs/nixpi-sd-flashing-runbook.md`](docs/nixpi-sd-flashing-runbook.md) — flashing the `nixpi`
   SD card (full verified `dd` write).
-- [`docs/mac-key-recovery-runbook.md`](docs/mac-key-recovery-runbook.md) — rebuilding `macos` from
-  a wiped Mac + the iCloud kit; also the manual steps Nix can't do.
+- [`docs/new-mac-runbook.md`](docs/new-mac-runbook.md) — standing up `macos` from a wiped
+  Mac (no key recovery: rotate, don't transport); also the manual steps Nix can't do.
 - [`docs/macvm-readd-runbook.md`](docs/macvm-readd-runbook.md) — re-adding the removed `macvm`
   Tart guest (2026-09-05); what survives in the `tart-vms` capsule.
 - [`docs/gmail-mcp-multi-account-runbook.md`](docs/gmail-mcp-multi-account-runbook.md) — TRUE
