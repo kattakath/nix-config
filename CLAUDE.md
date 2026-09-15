@@ -293,16 +293,28 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   `nix flake check` and fails with confusing "file not found" / stale-eval errors. ALWAYS
   `git add` before evaluating — enforced by [git-purity](.claude/rules/git-purity.md) and the
   Stop hook.
-- **`nixpi` is LIVE.** Changes must pass CI (which pushes closures to Cachix) before
-  activation; pull prebuilt paths, never build heavy on the Pi. `deploy.nodes.nixpi` and the
-  `cf-tunnel-*`/`mcp-public-*` terranix apps all render this repo's real data directly now (the
-  private nix-personal flake that used to gate this was retired 2026-09-15) — `mkCfTunnelTofu`
-  and `mkMcpPublicTofu` still **refuse** a render that would blank an already-provisioned tunnel
-  or unpublish a live server (overrides: `CF_TUNNEL_ALLOW_SITE_FREE=1` / `MCP_PUBLIC_ALLOW_EMPTY=1`)
-  — that guard stays as a "do you really mean to destroy this" check, independent of the split
-  that used to exist. Bare `deploy` with no `--targets` still fans out over **every** node —
-  always name the target. `nix run .#nixpi` remains `nixos-rebuild --build-host nixpi` (no magic
-  rollback) until the Pi closure can build off-Pi again (caddy EPERM, § `hosts/` in repo-map).
+- **`nixpi` is LIVE, and it must NEVER build.** It is a Pi 4 on an SD card: a build there is
+  slow, and a power cut mid-build corrupts the card, which needs hands on the hardware to
+  reflash (~40 min) — defeating the remotely-managed design. So the Pi only ever
+  **substitutes**. `.github/workflows/warm-nixpi-cache.yml` builds the toplevel on a real
+  `ubuntu-24.04-arm` runner and pushes the closure to Cachix on **every** nixpi-closure change
+  (including `sites/**` and `modules/parts/**`); after it lands, both the Mac and the Pi fetch
+  rather than build. Sanctioned commands: `nixos-rebuild switch --flake .#nixpi --target-host
+  ismail@nixpi.kattakath.com` (builds HERE, activates there) or `deploy --targets .#nixpi`.
+  **Building on the Pi is hard-blocked** by `.claude/hooks/pretooluse-bash-guard.js` (Rule 1d):
+  `--build-host <pi>`, `deploy --remote-build`, `ssh <pi> nix build`, `--builders ssh://<pi>`.
+  - **If the Mac plans a BUILD instead of a fetch, the cache is merely not warm yet** — or Nix
+    negatively cached an earlier 404 (`narinfo-cache-negative-ttl`, default **1 h**), which
+    makes an already-warmed cache look broken. Retry with `--narinfo-cache-negative-ttl 0`;
+    never "fix" it by moving the build onto the Pi. Only on a genuine miss does nixpkgs' caddy
+    `Caddyfile-formatted` EPERM appear (§ aarch64-linux builds, below).
+- `deploy.nodes.nixpi` and the `cf-tunnel-*`/`mcp-public-*` terranix apps all render this repo's
+  real data directly now (the private nix-personal flake that used to gate this was retired
+  2026-09-15) — `mkCfTunnelTofu` and `mkMcpPublicTofu` still **refuse** a render that would blank
+  an already-provisioned tunnel or unpublish a live server (overrides:
+  `CF_TUNNEL_ALLOW_SITE_FREE=1` / `MCP_PUBLIC_ALLOW_EMPTY=1`) — that guard stays as a "do you
+  really mean to destroy this" check. Bare `deploy` with no `--targets` still fans out over
+  **every** node — always name the target.
 - **The edge's TLS floor and the SSH Access gate are DECLARED, not clicked.**
   `infra/cloudflare/nixpi-tunnel.nix` owns `cloudflare_zone_setting` (ssl=strict,
   min_tls=1.2, always_use_https, HSTS) for the SSH host's zone and every hosted site's
@@ -340,8 +352,11 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   unusable because it needs `nix.enable = true`, which Determinate disables (nix-darwin#1505).
   It also **cannot run `cp --no-preserve=mode` into `$out`** (EPERM "setting permissions"),
   which breaks nixpkgs' caddy `Caddyfile-formatted` and therefore every Mac-side build of a
-  Caddy-serving `nixpi` generation — realise that toplevel **on the Pi** instead (text
-  derivations only; see [`docs/repo-map.md`](docs/repo-map.md) § `hosts/`).
+  Caddy-serving `nixpi` generation. Measured 2026-09-15: **only that one operation fails** —
+  `cat >`, `install -m` and `cp` + `chmod` all succeed on the same builder, so this is a narrow
+  (undocumented, unreported) builder bug, not a general chmod ban. **Do not work around it by
+  building on the Pi** — `warm-nixpi-cache.yml` builds the closure on a real ARM Linux runner
+  and pushes it to Cachix, so the Mac substitutes and never runs that `cp` at all.
   **Account entitlement alone is not enough** — the local `determinate-nixd` must also be
   logged in to FlakeHub, or `native-linux-builder` silently vanishes and every aarch64-linux
   build fails with a `platform mismatch` that looks unrelated to auth. Manual, per-machine step:
