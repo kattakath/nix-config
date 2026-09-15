@@ -407,6 +407,9 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   messages (why DENYs read as "errors", how to read a prompt-hook denial).
 - [`docs/claude-desktop-instructions.md`](docs/claude-desktop-instructions.md) — the one Claude
   behaviour this repo can't manage declaratively + the canonical "diagrams as ASCII" wording.
+- [`docs/answer-shape-evidence.md`](docs/answer-shape-evidence.md) — the published standards
+  (COGA, ISO 24495-1, BDA) and measured effect sizes behind § Answer shape, so the rules stop
+  being re-litigated as taste. **A diagram that carries no data measurably HURTS** (g ≈ −0.4).
 - [`docs/terminal-theme.md`](docs/terminal-theme.md) — the one terminal palette: provider
   contract, per-surface coverage (**4/16** on Terminal.app is an OS ceiling), and the measured
   reasons stylix and base16.nix were both rejected.

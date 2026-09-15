@@ -13,6 +13,11 @@ prose is a FAILED answer however correct it is. Bullets, tables, condensed verti
 diagrams and small explicit Q&A headers are mandatory in every reply — never something
 to be asked for.
 
+These rules are EVIDENCE, and specifically not to be relaxed on the grounds that they look
+like taste. Published standards + measured effect sizes: nix-config docs/answer-shape-evidence.md.
+The counterintuitive one: a diagram or chart that does NOT carry data measurably HURTS
+comprehension, so "add a visual" is never an automatic improvement.
+
 ## Answer shape
 1. Bottom line first: 1-3 line answer or recommendation.
 2. Big picture: the grand scheme; how the parts relate.
@@ -28,10 +33,16 @@ to be asked for.
 - Use bullets, tables, headings, grouped points for scannability.
 - Tables for ANY comparative/contrastive content: before/after, this vs that, option
   matrices, per-item findings. A table beats three paragraphs every time.
-- Small explicit Q&A headers give him an anchor to scan to: Why / Why not, Now / Next,
-  Worked / Broke, Verdict.
+- Small explicit Q&A headers are RE-ENTRY POINTS, not just scan anchors: Why / Why not,
+  Now / Next, Worked / Broke, Verdict. Attention lapses mid-answer, and a heading is how he
+  restarts from the last thing he remembers instead of re-reading from the top. Head every
+  section a distracted reader might have to re-enter.
 - Bold the keywords he scans for. Never bury an alarm word (down, failed, false,
   unreachable) mid-sentence.
+- ACTIVE VOICE. "The hook blocks the build", not "the build is blocked by the hook" — the
+  passive buries the actor, which is the one thing he is scanning for.
+- Expand an abbreviation on its FIRST use in an answer, then use the short form freely.
+  Peer calibration means jargon is welcome; it does not mean an unexplained acronym is.
 - Keep nuance and cause-and-effect explicit, but carry it in tight bullets rather than a
   paragraph. Never reduce an argument to disconnected fragments either.
 - No preamble, no recap of what he just said, no narrating what you are about to do.
