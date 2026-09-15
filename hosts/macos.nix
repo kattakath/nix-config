@@ -388,6 +388,46 @@ in
       imports = [ ../modules/shared/home.nix ];
       home.stateVersion = "24.05";
 
+      # NO launchd agents until Izzy has logged in once — delete this block the
+      # moment he has, together with local.mediaCli.enable above.
+      #
+      # A user agent can only bootstrap into that user's OWN GUI session, and
+      # `gui/502` does not exist before a first login:
+      #
+      #   Failed to start agent 'gui/502/org.nix-community.home.ssh-keychain-load'
+      #     Bootstrap failed: 125: Domain does not support specified action
+      #
+      # home-manager's activation then exits non-zero, `activate` runs under
+      # `set -e`, and the abort lands ~80 lines short of its final
+      # `ln -sfn … /run/current-system` — so the system profile advances while
+      # /run/current-system, which is what PATH and the `current-system` GC root
+      # resolve through, stays on the PREVIOUS generation. dd23d3b fixed exactly
+      # this for local.mediaCli's two agents; these two come from the SHARED
+      # profile, where neither is optional, so they kept aborting afterwards.
+      #
+      # upstream-first: grepped the pinned home-manager modules/launchd. It has
+      # TWO spellings and only one of them works — `launchd.enable` (default.nix:211)
+      # reads like the class-wide switch ("Whether to enable Home Manager to define
+      # per-user daemons"), but its implementation uses `cfg.enable` in exactly one
+      # place, an assertion (:232): `agentPlists` filters on the PER-AGENT flag
+      # (:166) and `home.activation.setupLaunchAgents` is gated on `isDarwin`
+      # alone (:242). Measured here — `launchd.enable = false` evaluated, both
+      # agents still bootstrapped, activation still aborted. So it is the
+      # per-agent `enable` (:20) or nothing.
+      #
+      # Removal is safe on a domain-less user even though installation is not:
+      # the module's `bootoutAgent` whitelists "Domain does not support specified
+      # action" (:326) where `bootstrapAgent` treats it as an error.
+      #
+      # COST of the working spelling: it is per-agent, so a new agent added to
+      # modules/shared/home.nix will start aborting Izzy's activation again until
+      # it is listed here too. That is upstream's wart, not a choice.
+      # mkForce: both are set to `true` unconditionally at their source
+      # (next-right-thing.nix, and home.nix's ssh-keychain-load), so a plain
+      # `false` here is a definition CONFLICT, not an override.
+      launchd.agents.ssh-keychain-load.enable = lib.mkForce false;
+      launchd.agents.next-right-thing.enable = lib.mkForce false;
+
       # ---- Singletons: exactly one instance, and it is the operator's --------
       # Each of these binds a fixed loopback port or owns a single credential, so
       # a second copy does not "also run" — one wins and the other flaps under
