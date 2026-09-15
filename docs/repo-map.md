@@ -668,34 +668,30 @@ their own top-level section below:
   localhost OTLP, writing a rotating JSONL for `/routing-review` to mine for
   deterministic-routing hardening candidates. See
   [`claude-code-observability-runbook.md`](claude-code-observability-runbook.md).
-- **`claude-bedrock-gate.nix`** — **both halves of Bedrock routing**: the AWS identity
-  (`local.claudeBedrock.{region,profile}`) and a `nix-bedrock-gate` shell hook that makes
-  Claude Code's Bedrock routing conditional on that identity actually resolving, instead of
-  on `CLAUDE_CODE_USE_BEDROCK` merely existing.
-  - **The identity seam.** `local.claudeBedrock.region`/`.profile` are `nullOr str`,
-    **`null` in this public repo and only ever given a value by nix-personal's two-line
-    `modules/claude-bedrock.nix`**. When non-null they are written into
-    `~/.claude/settings.json`'s `env` block as `AWS_REGION`/`AWS_PROFILE` (via
-    `optionalAttrs` — a null passthrough would emit a literal `null`, since `null` is
-    inside the json value type). **The null default is load-bearing, not a placeholder**:
-    the gate's first detector is "AWS_REGION resolves nowhere → the private layer is not
-    active", so a non-null public default would turn it permanently green and reproduce the
-    exact outage below. There is deliberately **no `enable` option**: declaring
-    `CLAUDE_CODE_USE_BEDROCK` in Nix would apply it to every session and kill the runtime
-    toggle, which is why it stays in the login Keychain (`secret set|rm`) — the module
-    header carries that reasoning in full.
-  - **The trap it closes.** `CLAUDE_CODE_USE_BEDROCK` lives in the login Keychain (so it
-    stays toggleable) and survives every activation, but its companions
-    `AWS_REGION`/`AWS_PROFILE` (values from the private layer) and `~/.aws/config` (a store
-    symlink from nix-personal's `aws-sso.nix`) do not — so activating the public `#macos`
-    directly drops them while the Keychain entry survives, leaving Bedrock selected with no
-    region, no profile, no reachable model, and a read-only `settings.json` that cannot be
-    hand-repaired. It degrades to Claude Code's default provider rather than erroring.
-    Offline and CLI-free by design (local files only; no `aws sts` call per shell).
-  - **Why the mechanism is public.** A gate shipped from nix-personal would be dropped by
-    the very activation it defends against — the same reasoning as `local.keychainSecrets`
-    — and the identity *writing* belongs next to the gate that reads it, so a change to one
-    cannot silently desync the other. nix-personal keeps only the two values. Companion: the
+- **`claude-bedrock-gate.nix`** — **Bedrock routing's governance**: a `nix-bedrock-gate` shell
+  hook that makes Claude Code's Bedrock routing conditional on an AWS identity actually
+  resolving, instead of on `CLAUDE_CODE_USE_BEDROCK` merely existing.
+  - **The identity is runtime-owned (2026-09).** `~/.aws/config` belongs to the `aws` CLI
+    (`aws configure sso`), like the SSO tokens in `~/.aws/sso/cache` always did — it is in
+    no repo. The gate resolves the profile (`AWS_PROFILE`, else `default`) and the region
+    (shell → `settings.json` `env` → that profile's `region` key; never `sso_region`), and
+    the hook **exports** a file-derived `AWS_REGION`, because Claude Code reads the region
+    from the environment only (anthropics/claude-code#18962). ADR-003's split: identity is
+    content, the gate is governance.
+  - **`local.claudeBedrock.{region,profile}` is DEPRECATED.** `null` by default, kept only so
+    the sunsetting nix-personal keeps evaluating; a value pins `AWS_*` into the read-only
+    `settings.json`, overriding the file, and raises a warning. Delete it once no definition
+    remains. There is still deliberately **no `enable` option**: `CLAUDE_CODE_USE_BEDROCK`
+    stays in the login Keychain (`secret set|rm`) so it remains a runtime toggle.
+  - **`adoptAwsConfig` — the one-shot migration.** When no `home.file` entry targets
+    `.aws/config`, an activation step between `writeBoundary` and `linkGeneration` replaces a
+    leftover store symlink with a real `0600` copy. Without it, home-manager's orphan cleanup
+    deletes the symlink — and every profile with it — on the first activation without the
+    private layer. Its own cleanup skips regular files, which is what makes the copy safe.
+  - **The trap it closes** is unchanged: the Keychain flag survives every activation, a
+    missing identity does not, and a read-only `settings.json` cannot be hand-repaired. It
+    degrades to Claude Code's default provider rather than erroring. Offline and CLI-free by
+    design (local files only; no `aws sts` call per shell). Companion: the
     `.claude/hooks/pretooluse-bash-guard.js` block, which only covers activations the *agent*
     runs; this covers a switch typed by hand.
 - **`claude-plugins.nix`** — `local.claudePlugins.marketplaces`, the **N-marketplace** Claude
