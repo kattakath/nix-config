@@ -12,7 +12,9 @@ let
 in
 {
   # ---- macOS system configurations ---------------------------------------
-  # Built with `sudo darwin-rebuild switch --flake .#macos`.
+  # Built with `activate` (packages/activate.nix) — or any equivalent
+  # `darwin-rebuild switch`; the extraModules entry below is what lets the bare
+  # form find this flake at all.
   flake.darwinConfigurations = {
     # Apple Silicon Mac (aarch64-darwin), client only — no incoming traffic.
     "macos" = mkDarwin {
