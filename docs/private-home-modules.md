@@ -6,7 +6,7 @@ discreet values — real hosted-site content, employer AWS/AI-gateway details,
 extra personal identities — through two seams on `lib.mkDarwin`/`lib.mkNixos`.
 That flake was **fully retired 2026-09-15**: every value it held is now
 folded directly into this repo (`hosts/macos.nix`, `modules/parts/identity.nix`)
-as plain public Nix. See ADR-003 §10 for the correction record.
+as plain public Nix.
 
 The two seams themselves are unchanged and still real — just currently unused,
 since there's no second composition calling into them:
@@ -68,16 +68,15 @@ sshd, the tunnel connector, or networking leaves the Pi simply *gone*,
 recoverable only by pulling the SD card and reflashing
 (`docs/nixpi-sd-flashing-runbook.md`, ~40 min).
 
-> **What actually runs today:** with `remoteBuild` off, deploy-rs would build
-> the Pi closure on the Mac, and nixpkgs' caddy `Caddyfile-formatted`
-> derivation EPERMs on Determinate's native Linux builder
-> (`repo-map.md` § `hosts/`) — so the real deploy path is
-> `nixos-rebuild switch --build-host nixpi` (built **on** the Pi, **no** magic
-> rollback), not the deploy-rs node. The node activates once the Pi closure
-> can build off-Pi again (or it grows `remoteBuild = true`).
+> **Never `--build-host nixpi`.** It is hard-blocked (Rule 1d): the Pi is on an
+> SD card and a power cut mid-build corrupts it. The caddy `Caddyfile-formatted`
+> EPERM on Determinate's native Linux builder (`repo-map.md` § `hosts/`) is
+> routed around, not surrendered to — `.github/workflows/warm-nixpi-cache.yml`
+> builds the closure on a real ARM Linux runner and pushes it to Cachix, so the
+> Mac substitutes and realises nothing.
 
 ```bash
-deploy --targets .#nixpi              # magic rollback armed, once buildable off-Pi
+deploy --targets .#nixpi              # magic rollback armed
 deploy --targets .#nixpi --dry-activate  # rehearse first
 ```
 

@@ -65,6 +65,7 @@ let
     jsonResumeUrl
     logoUrl
     tokensUrl
+    publicMcpServers
     ;
 
   # The Home-Manager sub-module embedded in every host, built from an identity
@@ -135,6 +136,14 @@ let
             # programs.git.signing.allowedSigners so git can verify SSH commit sigs
             # (and the file stays in lockstep with secrets/operator-key.nix).
             operatorSshKey
+            # publicMcpServers: the ONE list of servers published on the public MCP
+            # gateway. hosts/macos.nix sets `local.mcpGateway.public` from it, and
+            # modules/parts/terranix.nix renders the SAME value into the portal
+            # registrations. terranix renders outside any host's module system, so
+            # it cannot read that option back — threading the fleet value to BOTH
+            # consumers is what stops the two halves drifting into a portal entry
+            # pointing at a server the gateway does not host.
+            publicMcpServers
             ;
           # MODULE, not a flake — hence the name. It was the `keychain-secrets`
           # flake INPUT, consumed as `.homeManagerModules.default`, until ADR-002
@@ -328,59 +337,6 @@ let
       ]
       ++ extraModules;
     };
-  # Remote-deploy `nix run` app for a NixOS host that cannot self-build -- a
-  # nixos-rebuild switch dispatched FROM the invoking machine, built HERE and
-  # activated on the remote. MECHANISM here, values from the caller: which
-  # flake, which hostname, which remote.
-  #
-  # IT DOES NOT PASS --build-host, and that is the point. It used to default
-  # --build-host to the REMOTE, because a Caddy-serving nixpi generation could
-  # not be realised on the Mac at all (Determinate's native Linux builder
-  # EPERMs on the `cp --no-preserve=mode` inside nixpkgs' `Caddyfile-formatted`,
-  # taking etc.drv and the toplevel with it). That default made the obvious
-  # `nix run .#<host>` BUILD ON THE PI -- slow, and a power cut mid-build
-  # corrupts the SD card, which needs hands on the hardware to reflash.
-  #
-  # The EPERM is now routed around instead of surrendered to: CI warms the whole
-  # nixpi closure into Cachix on every closure change
-  # (.github/workflows/warm-nixpi-cache.yml), built on a real aarch64 Linux
-  # runner where that `cp` works. So the invoking machine SUBSTITUTES the
-  # closure and realises nothing, and the remote only activates. Building on the
-  # remote is now blocked outright by .claude/hooks/pretooluse-bash-guard.js
-  # (Rule 1d).
-  #
-  # If the caller ever does need a remote build, "$@" is appended LAST so it can
-  # be passed explicitly -- but for nixpi that is the wrong answer; a cache miss
-  # means the warm has not landed yet (or Nix negatively cached an earlier 404
-  # for up to an hour -- retry with `--narinfo-cache-negative-ttl 0`).
-  #
-  # NOTE localhost is NOT a usable --build-host either: nixos-rebuild treats it
-  # as a remote to ssh into UNCONDITIONALLY, and macOS runs no local sshd by
-  # design (confirmed: "connection refused"). A tunnelled remote needs
-  # NIX_SSHOPTS="-F <config>" with a ProxyCommand Host block -- see
-  # docs/nixpi-sd-flashing-runbook.md.
-  mkRemoteNixosSwitchApp =
-    {
-      system,
-      flake,
-      hostname,
-      remote,
-    }:
-    let
-      pkgs = nixpkgs.legacyPackages.${system};
-    in
-    {
-      type = "app";
-      program = "${pkgs.writeShellScript "activate-${hostname}" ''
-        set -euo pipefail
-        exec ${pkgs.nixos-rebuild}/bin/nixos-rebuild switch \
-          --flake "${flake}#${hostname}" \
-          --target-host "${remote}" \
-          --use-remote-sudo "$@"
-      ''}";
-      meta.description = "Build HERE (substituting from Cachix) + switch ${hostname} remotely (#${hostname})";
-    };
-
 in
 {
   # ---- Composition API (private flakes, local overrides) --------------------
@@ -395,7 +351,6 @@ in
       mkDarwin
       mkNixos
       mkHomeManagerModule
-      mkRemoteNixosSwitchApp
       identityArgs
       ;
   };
