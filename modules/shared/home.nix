@@ -1278,7 +1278,8 @@ in
         }
         # GitLab personal namespace (ismailkattakath). gitlab.com-specific so
         # github.com/ismailkattakath keeps the GitHub noreply. Address lives in
-        # ~/.config/git/gitlab.inc ([redacted]); missing include is a silent no-op.
+        # ~/.config/git/gitlab.inc, written by hosts/macos.nix; missing include is a
+        # silent no-op.
         {
           condition = "hasconfig:remote.*.url:**/[redacted]/**";
           path = "${config.home.homeDirectory}/.config/git/gitlab.inc";
@@ -1291,19 +1292,25 @@ in
           condition = "gitdir:${config.home.homeDirectory}/Developer/[redacted]/";
           path = "${config.home.homeDirectory}/.config/git/gitlab.inc";
         }
-        # github.com/[redacted] org ONLY — the separate public-facing persona. Scoped to
-        # the forge (**/github.com/[redacted]/**), not the bare org name, so a same-named
-        # namespace on any other forge keeps the default identity. Unlike every other
-        # include here, [redacted].inc overrides user.NAME as well as the address — the
-        # persona is a different name, not just a different mailbox.
+        # The [redacted] persona — a separate public-facing identity that exists on TWO
+        # forges: github.com/[redacted] (an org) and gitlab.com/[redacted] (a group, added
+        # 2026-09-15). Each forge is still matched EXPLICITLY rather than by the bare
+        # org name, so a same-named namespace on some third forge keeps the default
+        # identity. Unlike every other include here, [redacted].inc overrides user.NAME
+        # as well as the address — the persona is a different name, not just a
+        # different mailbox.
         #
-        # The gitdir condition is not redundant: hasconfig matches on a REMOTE, so it
+        # These must stay AFTER the [redacted] block: git applies
+        # includes in order and the last match wins, so a repo that moves from the
+        # personal namespace into the [redacted] group picks up the persona.
+        #
+        # The gitdir conditions are not redundant: hasconfig matches on a REMOTE, so it
         # cannot fire between `git init` and `git remote add`, and that window is
         # exactly where a first commit lands with the wrong author. Same fix as the
         # gitlab.com block above.
         #
-        # Address lives in ~/.config/git/[redacted].inc ([redacted]); missing include
-        # is a silent no-op.
+        # Address lives in ~/.config/git/[redacted].inc, written by hosts/macos.nix;
+        # missing include is a silent no-op.
         {
           condition = "hasconfig:remote.*.url:**/github.com/[redacted]/**";
           path = "${config.home.homeDirectory}/.config/git/[redacted].inc";
@@ -1314,6 +1321,18 @@ in
         }
         {
           condition = "gitdir:${config.home.homeDirectory}/Developer/github.com/[redacted]/";
+          path = "${config.home.homeDirectory}/.config/git/[redacted].inc";
+        }
+        {
+          condition = "hasconfig:remote.*.url:**/gitlab.com/[redacted]/**";
+          path = "${config.home.homeDirectory}/.config/git/[redacted].inc";
+        }
+        {
+          condition = "hasconfig:remote.*.url:**:gitlab.com:[redacted]/**";
+          path = "${config.home.homeDirectory}/.config/git/[redacted].inc";
+        }
+        {
+          condition = "gitdir:${config.home.homeDirectory}/Developer/gitlab.com/[redacted]/";
           path = "${config.home.homeDirectory}/.config/git/[redacted].inc";
         }
       ];
