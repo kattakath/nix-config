@@ -146,7 +146,7 @@ provider-agnostic.
    measured justification beside the value.
 2. `git add -A && nix flake check` — the type rejects anything that is not
    uppercase `#RRGGBB`, and the ring must be exactly 16 entries.
-3. `darwin-rebuild switch --flake .#macos`. (This step used to read "`activate` from
+3. `sudo darwin-rebuild switch --flake .#macos`. (This step used to read "`activate` from
    nix-personal — **never** darwin-rebuild from this repo"; that private flake and its
    `activate` CLI were retired 2026-09-15, and this is now the correct command.)
 4. Run `ghostty +validate-config` on the live Mac. `package = null` means
