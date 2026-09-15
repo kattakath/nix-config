@@ -344,6 +344,31 @@ in
     fi
   '';
 
+  # FAST USER SWITCHING — the thing that makes a second account reachable at all
+  # without logging out. It is OFF by default on a single-account Mac, and that
+  # is the second half of "izzy user not found anywhere": unhiding the account
+  # puts it in the login window, but with no switcher there is nowhere to switch
+  # FROM while the operator is signed in.
+  #
+  # upstream-first: grepped the pinned nix-darwin for MultipleSessionEnabled and
+  # UserSwitcher — `system.defaults.controlcenter` models only BatteryShowPercentage,
+  # Sound, Bluetooth, AirDrop, Display, FocusModes and NowPlaying, and
+  # MultipleSessionEnabled appears nowhere under modules/. No option exists →
+  # the CustomSystemPreferences / CustomUserPreferences escape hatch, which this
+  # tree already uses for the same reason (modules/darwin/core.nix:425).
+  # The domain MUST be the absolute path. nix-darwin renders this attribute name
+  # straight into `defaults write <domain> …` running as root, and a bare
+  # `.GlobalPreferences` there resolves to ROOT'S OWN preferences
+  # (/var/root/Library/Preferences/.GlobalPreferences), not the machine-wide
+  # file. Measured: the first spelling wrote `1` into root's plist while
+  # /Library/Preferences/.GlobalPreferences stayed unset and FUS stayed off —
+  # an activation that reports success and changes nothing observable.
+  system.defaults.CustomSystemPreferences."/Library/Preferences/.GlobalPreferences".MultipleSessionEnabled =
+    true;
+  # Menu-bar visibility is a PER-USER Control Center setting, hence the user
+  # hatch: 18 is "Show in Menu Bar" for a Control Center module (2 is hide).
+  system.defaults.CustomUserPreferences."com.apple.controlcenter".UserSwitcher = 18;
+
   # A deliberately MINIMAL profile — it imports the one module it needs, NOT
   # modules/shared/home.nix. That profile is the operator's: MCP gateway,
   # Keychain loader, git signing, agent surface. Handing it to a second account
