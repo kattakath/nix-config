@@ -1187,10 +1187,18 @@ in
         # path — including throwaway agent clones. Two patterns per org cover https + ssh://
         # (**/org/**) and scp-style ssh git@github.com:org/… (**:org/**).
         #
-        # The address itself lives in ~/.config/git/silvercreek.inc, deployed by the private
-        # nix-personal flake — never this public repo, same convention as infin8.inc above.
-        # A missing include is a silent no-op, so a host without the private layer simply
-        # falls back to the default identity rather than failing.
+        # The address itself lives in ~/.config/git/silvercreek.inc, written by
+        # hosts/macos.nix since nix-personal (which used to deploy it) was retired
+        # 2026-09-15. A missing include is a silent no-op, so a host that does not write
+        # the file simply falls back to the default identity rather than failing.
+        #
+        # KNOWN DEBT, deliberately not fixed in the 2026-09-15 hygiene pass:
+        # upstream option home-manager.programs.git.includes[].contents EXISTS
+        # (pinned programs/git.nix:206, impl :236-241 generates the include file via
+        # writeText + toGitINI) → this condition/content split into a separate
+        # `home.file` should collapse into one `includes` entry. Left alone because
+        # the four silvercreek conditions and their content live in different files
+        # and a wrong edit changes COMMIT AUTHORSHIP; do it as its own change.
         {
           condition = "hasconfig:remote.*.url:**/dontsell-ai/**";
           path = "${config.home.homeDirectory}/.config/git/silvercreek.inc";

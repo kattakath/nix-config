@@ -100,9 +100,9 @@ nix flake check
 
 Then open a PR for the change, titled per
 [pr-title](../../rules/pr-title.md). Activation is the
-operator's move (`activate` — never `darwin-rebuild` from this public repo; that CLI is
-instantiated by the nix-personal flake, which is being dissolved as of 2026-09-14 — if
-`activate` ever stops resolving, **ask** rather than substituting a rebuild command);
-verify after activation with
+operator's move: `darwin-rebuild switch --flake .#macos`. (This used to say "`activate`,
+never `darwin-rebuild` from this public repo" — the nix-personal flake that instantiated
+that CLI was retired 2026-09-15 and the CLI deleted with it, so the rebuild IS the
+sanctioned command now.) Verify after activation with
 `curl -s http://127.0.0.1:8096/servers/<name>/mcp -o /dev/null -w '%{http_code}'`
 and `tail ~/Library/Logs/mcp-gateway.log`.

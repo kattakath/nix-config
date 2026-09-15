@@ -73,13 +73,13 @@ scripts/drv-snapshot.sh --compare .baseline/wave0-final   # "moved code, changed
 # Activation
 darwin-rebuild switch --flake .#macos        # Activate macos — this repo now carries all of its own data
 nix run github:kattakath/nix-config#macos    # FIRST activation of macos straight from the flake (before darwin-rebuild is on PATH)
-nixos-rebuild switch --flake .#nixpi         # Activate the Pi (LIVE server — must pass CI/Cachix first, never build heavy on the Pi)
-deploy --targets .#nixpi                     # deploy-rs w/ magicRollback: an unreachable Pi auto-reverts instead of
-                                             #   needing a physical SD-card pull. ALWAYS --targets (bare `deploy` fans
-                                             #   out over every node). --dry-activate to rehearse. remoteBuild is off
-                                             #   (the Pi never builds), and caddy's Caddyfile-formatted derivation
-                                             #   still EPERMs on the Mac's native Linux builder — `nixos-rebuild switch
-                                             #   --build-host nixpi` remains the working path until that's fixed.
+nixos-rebuild switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com
+                                             # Activate the Pi: builds HERE (substituting the CI-warmed closure from
+                                             #   Cachix), activates THERE. NEVER --build-host — the Pi must not build
+                                             #   (hard-blocked by the PreToolUse guard, Rule 1d).
+deploy --targets .#nixpi                     # Same, via deploy-rs w/ magicRollback: an unreachable Pi auto-reverts
+                                             #   instead of needing a physical SD-card pull. ALWAYS --targets (bare
+                                             #   `deploy` fans out over every node). --dry-activate to rehearse.
 nix run .#nixvm                              # Build + boot the throwaway nixvm XFCE build-vm in a native QEMU window
 nix eval .#nixosConfigurations.nixpi.config.system.build.toplevel   # Fast single-target eval
 
@@ -136,16 +136,18 @@ One line per path; the *why* and the per-file specifics are in
 | `hosts/` | Per-host entry profiles: `macos.nix`, `nixpi.nix`, `nixvm.nix` (host-only deltas + per-host Homebrew lists). |
 | `modules/parts/` | The FLAKE ENGINE — one flake-parts module per concern, discovered by `import-tree`. The engine **may** reach anywhere. |
 | `modules/features/` | The six CAPSULES (the absorbed satellites): `cloudflared-connector`, `firmware-secrets`, `keychain-secrets`, `tart-vms`, `media-cli`, `local-rag`. `flake-module.nix` is the ONLY file anything outside imports, and **a capsule may not reach outside its own directory** — enforced by `ast-grep` + `checks.<system>.capsule-registry`, not by convention. **Satellite count: 0.** |
-| `modules/shared/` | The Home Manager profile on every host: `home.nix`, `mcp.nix`, and the `local.*` provider modules (terminal theme, chromium, default browser, nix cache, nix-ld, wireguard, claude brain/plugins/otel/bedrock, wallpaper, hm-launchd). |
+| `modules/shared/` | The Home Manager profile on every host: `home.nix`, `mcp.nix`, and the `local.*` provider modules (terminal theme, chromium, default browser, nix cache, nix-ld, wireguard, claude brain/plugins/otel/bedrock, wallpaper, launchd-launcher). |
 | `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix`, `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`local.macosGithubRunner` — LIVE, see § Configuration). |
 | `modules/nixos/` | `core.nix` (user + keys-only **loopback-bound** sshd, `openFirewall = false`, a firewall that opens **no** TCP port, avahi, nix-ld, zram, GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). |
 | `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `key-recovery`, `spotlight-launchers`, plus single-purpose CLIs. Root `bootstrap.sh` is the no-Nix stage 1. The media/photo CLIs live in the `media-cli` capsule instead. |
 | `infra/` | terranix (Nix → Terraform JSON): `cloudflare/nixpi-tunnel.nix`, `cloudflare/mcp-public.nix`. Applied only via the `cf-*` / `mcp-public-*` apps. |
 | `secrets/` | agenix recipients + the operator pubkey + **four** ciphertexts — one operator-only, three host-decrypted on `macos`. Details in § Security. |
+| `sites/` | The static sites `nixpi`'s Caddy serves. Referenced by **directory** path literal (`config.fleet.hostedSites[].root`), so every byte lands in the LIVE closure — see [`store-copied-trees`](.claude/rules/store-copied-trees.md). |
+| `templates/` | `nix flake init -t` starter that consumes this engine's `lib.mkDarwin` (`identity` + `extraModules`) instead of forking `hosts/`. |
 | `skills/` | **Global** skills still in-tree: ONLY the Brain Signals `/explain` family, declared in `modules/shared/claude-brain.nix` next to the output style they encode. Every other global skill arrives from a pinned input. |
 | `claude/` + `qwen/` | The **global** (all-projects) agent context this repo installs on `macos` — not to be confused with **this** file, which is project-scoped. |
 | `.claude/` | Project agent config — see the lists below. |
-| `.github/workflows/` | `nix-ci.yml` (2 hosted legs), `auto-merge.yml`, `build-*`, `claude*.yml`, `gitleaks.yml`, `flakehub-publish.yml`, `update-flake-lock.yml`. |
+| `.github/workflows/` | `nix-ci.yml` (2 hosted legs), `warm-nixpi-cache.yml` (**keeps the Pi from ever building** — see § Important Notes), `auto-merge.yml`, `build-*`, `claude*.yml`, `gitleaks.yml`, `flakehub-publish.yml`, `update-flake-lock.yml`. |
 | `docs/` | Runbooks + design docs — indexed at the bottom of this file. |
 
 **Gone on purpose — do not re-add.** There is no `plugins/` tree (the operator's marketplace is
@@ -176,8 +178,10 @@ the whole tree into the store — check for stray `.DS_Store`/etc. before commit
 `superhook` PATH package, since a checked-in `settings.json` can hold neither a store path nor
 `${CLAUDE_PLUGIN_ROOT}`), plus the `*-digest.js` SessionStart nudges. `autostage-nix` and
 `nix-home-path-lint` arrive as PLUGIN hooks from `claude-code-nix@kattakath` — do not re-add them
-here or each fires twice. Message decoder:
-[`docs/claude-hook-messages.md`](docs/claude-hook-messages.md).
+here or each fires twice. The guard's case suites are `.claude/hooks/tests/*.sh`, **gated by
+`claude-config-lint.yml`** — they assert both halves (must-BLOCK and must-stay-APPROVED) and that
+the hook never throws, because a throw fails OPEN and silently disarms every rule. Message
+decoder: [`docs/claude-hook-messages.md`](docs/claude-hook-messages.md).
 
 **MCP servers**: one localhost `mcp-proxy` gateway (`modules/shared/mcp.nix`, darwin-only) on
 `127.0.0.1:8096` hosting every server as HTTP; `desktop-commander` and `open-design` stay

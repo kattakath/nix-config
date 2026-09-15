@@ -223,12 +223,16 @@
   # the whole set. Anyone else's address still never belongs here — see the
   # option's description in modules/shared/mcp.nix.
   #
-  # `operatorSshKey` is a home-manager module arg (extraSpecialArgs,
-  # modules/parts/compose.nix) — NOT one of this file's own specialArgs — so
-  # this definition must be a function to receive it, matching
-  # modules/shared/home.nix's own signature.
+  # `operatorSshKey` and `publicMcpServers` are home-manager module args
+  # (extraSpecialArgs, modules/parts/compose.nix) — NOT this file's own
+  # specialArgs — so this definition must be a function to receive them,
+  # matching modules/shared/home.nix's own signature.
   home-manager.users.${loginName} =
-    { operatorSshKey, ... }:
+    {
+      operatorSshKey,
+      publicMcpServers,
+      ...
+    }:
     {
       local.mcpGateway.gmail.accounts = [
         "ismail@kattakath.com"
@@ -238,16 +242,12 @@
       ];
 
       # ---- Published MCP gateway server list -------------------------------
-      # MUST mirror config.fleet.publicMcpServers (modules/parts/identity.nix) —
-      # terranix (modules/parts/terranix.nix) renders outside any host's module
-      # system, so it reads a separate copy of this same value rather than this
-      # option directly. Kept as a literal here (not threaded through
-      # specialArgs) since it changes rarely; grep confirms drift instantly now
-      # that both live in one repo.
-      local.mcpGateway.public = [
-        "memory"
-        "sequential-thinking"
-      ];
+      # THE fleet value (config.fleet.publicMcpServers, modules/parts/identity.nix),
+      # not a copy of it. terranix renders the same binding into the portal
+      # registrations; it cannot read this option back, because it renders
+      # outside any host's module system — so one source feeds both halves
+      # rather than two lists that must be hand-kept equal.
+      local.mcpGateway.public = publicMcpServers;
 
       # ---- Infin8 AWS SSO profiles (upstream home-manager option) -----------
       # Folded in from nix-personal's aws-sso.nix (2026-09-15). Not secrets —
