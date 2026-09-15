@@ -1596,6 +1596,11 @@ only difference between "someone else's skill" and "mine" is now who can push to
   `stack-up`/`deploy-prod`/`env-doctor` app names are the template's, **not** flake apps of
   this repo. Carries the Nix/Postgres/Prisma traps (`withPackages` union prefix, socket port,
   the macOS socket-length cap).
+- **`harvest`** — the end-of-task half of the loop `capability-broker` starts: gate on worth
+  (repeats, hard-won, not already covered), choose skill/subagent/workflow/plugin — or memory
+  or project config when it is not an artifact — strip secrets and machine paths, then land it
+  as a `kattakath/ai` PR followed by a pin bump here. It mechanises § "Adding to an extracted
+  repo" in [`agent-resource-externalization.md`](agent-resource-externalization.md).
 
 **One tree stays vendored, deliberately** — the top-level `skills/` directory:
 
