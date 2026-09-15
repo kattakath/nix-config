@@ -50,7 +50,10 @@ mandatory, not as a security boundary to rely on. Live example:
 ## Mandatory behavior
 
 1. **Home Manager user agents** (`launchd.user.agents.*`) are wrapped automatically by
-   `modules/shared/hm-launchd/`, which forces `arg0` to `nix-<name>`. Do not bypass it.
+   `modules/shared/launchd-launcher.nix`, which forces `arg0` to `nix-<name>`. Do not bypass
+   it. It is no longer a vendored fork: the 560-line copy of upstream's launchd module was
+   RETIRED 2026-09-14 once the pinned home-manager grew the three options it needed
+   (`waitForNixStore`, `launcher.name`, `launcher.shell`).
    This is upstream's own `waitForNixStore = false` trade, in its words (pinned
    home-manager `modules/launchd/default.nix:47-52`): the agent "appear[s] under its own
    name, rather than as 'sh' … but the agent will fail to start if launchd runs it before
@@ -105,7 +108,7 @@ emits `/bin/sh -c '/bin/wait4path /nix/store && exec <command>'` — the same sh
 **Scope this narrowly.** It applies ONLY to a `launchd.daemons` unit that must run
 at boot from a store path. It does NOT apply to `launchd.user.agents` (they start
 after login, long after `/nix` is mounted) — those keep the `nix-*` wrapper, and
-`modules/shared/hm-launchd/` still enforces it.
+`modules/shared/launchd-launcher.nix` still enforces it.
 
 **Why the cost is acceptable here:** this rule's load-bearing half is TCC — an
 adhoc-signed `/nix/store` `arg0` keeps read access to `~/Desktop`, `~/Documents`

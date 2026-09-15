@@ -18,11 +18,13 @@ Canonical docs: [`docs/gmail-mcp-multi-account-runbook.md`](../../../docs/gmail-
 
 - **Never print a client secret, access token, or refresh token** — pipe
   values directly between Keychain/file/curl, report only success/failure.
-- **Public vs private**: only add an email to a public `hosts/<host>.nix` if
-  it's already public elsewhere in that same tree (the operator's own
-  identity). Every other account — family/associates, anything the operator
-  hasn't already named publicly — goes in the private composition flake via
-  `extraHomeModules`, same contract as nixpi's `hostedSites`. If unsure, ask.
+- **Which addresses may be listed at all**: only add an email to
+  `hosts/<host>.nix` if it is already public elsewhere in that same tree (an
+  identity the operator has already named). Anyone else's address does NOT go in
+  — and there is no longer a private flake to put it in: nix-personal was
+  retired 2026-09-15, and of the seven extra accounts it carried the operator
+  kept exactly two (#524) and dropped the rest rather than publish them. If
+  unsure, ask — do not add.
 - **A Console test user MUST exist before auth is attempted** — Audience →
   Add users, or the flow rejects the account outright.
 - **The OAuth client must be Desktop app type**, not Web application — Web
