@@ -6,8 +6,9 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
     # macOS system layer (standalone, not NixOS). Follows the parent nixpkgs
-    # so we never download a second copy of the package set.
-    nix-darwin.url = "github:LnL7/nix-darwin";
+    # so we never download a second copy of the package set. Upstream moved off
+    # `LnL7/` to its own org — that old slug only still works via a redirect.
+    nix-darwin.url = "github:nix-darwin/nix-darwin";
     nix-darwin.inputs.nixpkgs.follows = "nixpkgs";
 
     # User layer, shared by every host.
