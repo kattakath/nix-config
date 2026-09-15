@@ -540,11 +540,11 @@
     "kattakath-ai": {
       "flake": false,
       "locked": {
-        "lastModified": 1789398550,
-        "narHash": "sha256-VF9g5tv5gGJTSobK3tLEp06u5nzIvVHquXAZGCJcxCM=",
+        "lastModified": 1789462849,
+        "narHash": "sha256-pckwaORjCeKjgQRCVRTW8NjPTp6BKXXdsYLuNtidzbc=",
         "owner": "kattakath",
         "repo": "ai",
-        "rev": "2fdcf7c627f0837bda35f80466a90170ee72fce0",
+        "rev": "6383f05d7fafa74183526548ea712c788c0568e2",
         "type": "github"
       },
       "original": {
