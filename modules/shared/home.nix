@@ -499,49 +499,14 @@ in
   # does not own.
   local.rag.ollama.manageServer = false;
 
-  # ONE INFERENCE AT A TIME, enforced at the SERVER. `OLLAMA_NUM_PARALLEL` is read
-  # by `ollama serve`, not by clients, so it cannot be set through
-  # home.sessionVariables — a shell variable never reaches the launchd-started
-  # daemon.
-  # upstream option home-manager.services.ollama.environmentVariables exists →
-  # using it (pinned modules/services/ollama.nix:73, merged into the agent's
-  # EnvironmentVariables at :117 under upstream's own OLLAMA_HOST). Previously
-  # merged by hand into `launchd.agents.ollama.config`, which is where the
-  # agent-name trap below bit; a typed option under the service name cannot
-  # be misspelled into a silent second agent.
-  #
-  # WHY 1: a 6.1GB vision model is the whole GPU. photo-describe already
-  # serialises within a run (one worker, one image at a time), but that lock
-  # covers the WORKER only — a hand-run `photo-describe` alongside a draining
-  # queue, or `qwen` mid-sweep, would otherwise put two inferences on the same
-  # GPU. Ollama then queues them rather than thrashing, so the failure mode was
-  # slow rather than broken; this makes the constraint explicit and puts it where
-  # the resource actually is instead of in one of its callers.
-  # HISTORY (why the typed option matters): the agent is `launchd.agents.ollama`
-  # (ollama.nix:110), NOT `ollama-local` — that is only this repo's name for the
-  # service option block. `launchd.agents` is a free-form attrsOf, so until
-  # 2026-09-12 these three variables sat on a silently-created, disabled
-  # `ollama-local` agent and were never in effect.
-  #
-  # The power brake (`ProcessType = "Background"`: every CPU thread of `ollama
-  # serve` and its llama-server runners on the E-cluster; the model runs on the
-  # GPU, which QoS does not gate) is set by upstream itself (ollama.nix:124) and
-  # is no longer repeated here. Verify with: sudo powermetrics --samplers
-  # cpu_power,gpu_power (P-cluster ~idle during a describe burst = it works).
-  services.ollama.environmentVariables = lib.mkIf isMacosHost {
-    OLLAMA_NUM_PARALLEL = "1";
-    # Never more than one runner resident — with only 1 loaded model the
-    # worst-case draw is exactly one generation, sized for the 35W-charger
-    # power budget (2026-09-05 research: docs cite ollama FAQ defaults of
-    # 3×GPU).
-    OLLAMA_MAX_LOADED_MODELS = "1";
-    # Finite unload timer, explicit rather than the implicit 5m default.
-    # Idle SHOULD be RAM-only, but the idle-burn bug class (ollama#2129,
-    # #13232) is filed against qwen3-vl variants — the exact vision model
-    # this fleet runs — so a bounded TTL is the safety net, not an
-    # optimization. 10m keeps batch describe runs warm between bursts.
-    OLLAMA_KEEP_ALIVE = "10m";
-  };
+  # The server-side tuning that used to live here (OLLAMA_NUM_PARALLEL,
+  # MAX_LOADED_MODELS, KEEP_ALIVE) moved to `local.ollamaDaemon.environmentVariables`
+  # in modules/darwin/ollama-daemon.nix, along with the reasoning for each value.
+  # It HAD to move: `services.ollama.environmentVariables` only ever reaches
+  # home-manager's own agent, so once the server became a system daemon this
+  # block evaluated fine and configured nothing — the 35W power budget was
+  # silently unenforced. Do not re-add it here.
+
   local.rag.pgvector.enable = isMacosHost;
 
   # Claude Code routing telemetry collector — real Mac only (same gate
