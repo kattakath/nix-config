@@ -105,7 +105,15 @@ writeShellApplication {
 
     if [ -e /etc/nix-darwin/flake.nix ]; then
       dir=$(dirname "$(readlink -f /etc/nix-darwin/flake.nix)")
-      echo "activate: flake $dir"
+      # Name the ATTRIBUTE too, not just the tree. A bare rebuild resolves it from
+      # `scutil --get LocalHostName`, which macOS can change at RUNTIME on an mDNS
+      # collision (two hosts claiming one .local name) — nix-darwin re-forces the
+      # declared name every activation, so it self-heals, but in the window
+      # between, the bare form fails with `attribute 'darwinConfigurations.<other>'
+      # missing` and nothing on screen explains why. Printing it costs nothing and
+      # makes that failure legible. NOT verified here: this fleet has one Mac, so
+      # there is nothing to collide with.
+      echo "activate: flake $dir#$(/usr/sbin/scutil --get LocalHostName)"
       if git -C "$dir" rev-parse --git-dir >/dev/null 2>&1; then
         branch=$(git -C "$dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')
         rev=$(git -C "$dir" rev-parse --short HEAD 2>/dev/null || echo '?')

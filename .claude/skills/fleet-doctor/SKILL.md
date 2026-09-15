@@ -152,14 +152,43 @@ Only if repos touched in this run actually compose macos (i.e. their
 `flake.lock`/`flake.nix` changed) or the user asked for it directly:
 
 ```bash
-# macos — directly, from this repo. The `activate` CLI (and the private
-# nix-personal composition it reconciled against) was retired 2026-09-15;
-# there is only one checkout to activate now.
-sudo darwin-rebuild switch --flake .#macos
+# macos — from anywhere. `activate` (packages/activate.nix) self-elevates via
+# Touch ID, names the flake dir + branch@rev + (DIRTY) before it builds, and
+# warns if /run/current-system has drifted from the system profile.
+activate
 ```
 
 (The macvm guest and its tar-sync activation flow were removed 2026-09-05 —
 docs/macvm-readd-runbook.md.)
+
+### G. Parked deferrals — are they still deferred?
+
+Three settings are switched OFF only until Izzy logs in once. They are
+LOAD-BEARING, not cosmetic: flipping them early re-strands
+`/run/current-system` (a user launchd agent cannot bootstrap into a GUI session
+that does not exist, home-manager exits non-zero, and `activate` dies under
+`set -e` ~80 lines before it repoints that symlink). Flipping them LATE just
+leaves Izzy without his media Quick Actions and ssh-agent.
+
+A comment at the call site is not re-read; this is. Check the gate, not the
+calendar:
+
+```bash
+# Does Izzy have a GUI session yet? (uid 502)
+launchctl print gui/502 >/dev/null 2>&1 && echo "gui/502 EXISTS — flip them" \
+                                        || echo "gui/502 absent — keep deferred"
+```
+
+If it exists, flip all three together and re-activate:
+
+- `hosts/macos.nix` — `local.mediaCli.enable` back to `true` (dd23d3b)
+- `hosts/macos.nix` — delete both
+  `launchd.agents.{ssh-keychain-load,next-right-thing}.enable = lib.mkForce false`
+  lines in Izzy's home-manager block (ffcd3e4)
+
+Then confirm the four pointers agree — flake eval, `/nix/var/nix/profiles/system`,
+`/run/current-system`, `/nix/var/nix/gcroots/current-system`. `activate` warns on
+a mismatch, but only for the two it can see.
 
 ## Report format (always end with this)
 
