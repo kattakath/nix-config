@@ -11,8 +11,8 @@ place now.
 
 MCP servers for Claude Code are provided by a localhost **gateway**
 (`modules/shared/mcp.nix`, **darwin-only**): one `mcp-proxy` launchd agent on
-**`127.0.0.1:8096`**, started at login, hosting all **19** servers (**20** with the opt-in
-`telegram`). Each hosted server is wired into `programs.claude-code.mcpServers` as **HTTP**
+**`127.0.0.1:8096`**, started at login, hosting all **20** servers (**22** with the opt-in
+`telegram` and `wordpress-adapter-local`). Each hosted server is wired into `programs.claude-code.mcpServers` as **HTTP**
 (Streamable HTTP; a legacy `sse` path is also served for SSE-only clients such as Grok, via the
 same `endpointFor` single source of truth).
 
@@ -34,11 +34,12 @@ argv or the `/nix/store` (`context7` → `CONTEXT7_API_KEY`, `github` →
 `GITHUB_PERSONAL_ACCESS_TOKEN`; an absent key means an empty export and the server degrades
 rather than crashing).
 
-## The 12 custom stdio launchers
+## The 13 custom stdio launchers
 
 | Server | Notes |
 |---|---|
 | `duckduckgo` | web search |
+| `arxiv` | arXiv literature loop via `arxiv-mcp-server` (pinned, `--python 3.12`): search, abstracts, section-level LaTeX reads, BibTeX, Semantic Scholar citation graphs, topic watches. No credentials; papers + watches under `$XDG_DATA_HOME/arxiv-mcp-server/papers` |
 | `json-yaml-toml` | structured-data convert/query/diff/merge/schema |
 | `mcp-jq` | `jq` over files and payloads |
 | `mcpfinder` | cross-registry MCP-server **DISCOVERY** (Official MCP Registry + Glama + Smithery, `@mcpfinder/server` pinned), wired **discovery-only**: its config-writing `add_mcp_server_config` tool is deny-listed in `.claude/settings.json`, since MCP adoption in this repo is always a pinned declaration in `mcp.nix` via the `mcp-scout` skill, never an imperative install |
