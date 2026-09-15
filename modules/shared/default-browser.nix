@@ -3,8 +3,9 @@
 # This is a fleet-level concern, not a Chromium one — the handler is a property of
 # LaunchServices, and any installed browser can hold it. It lived in
 # `modules/shared/chromium.nix` while Chromium was the answer; it moved here when it
-# stopped being (Opera Air is the default, Chromium is the debugging browser whose
-# profile `local.mcpGateway.chromeDevtools.userDataDir` points at).
+# stopped being (Chrome is the default — it alone carries the passkey entitlement, see
+# hosts/macos.nix; Chromium is the debugging browser whose profile
+# `local.mcpGateway.chromeDevtools.userDataDir` points at).
 #
 # `defaultbrowser` takes the SHORT name (`operaair`, `chromium`, `safari`, `opera`),
 # NOT the bundle id — `com.operasoftware.OperaAir` is rejected as "not available as an
