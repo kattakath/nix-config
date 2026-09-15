@@ -11,6 +11,13 @@
 #   nix run github:kattakath/nix-config#macos
 # Thereafter: sudo darwin-rebuild switch --flake .#macos
 { config, loginName, ... }:
+let
+  # DERIVED, never a `/Users/izzy` literal — a hardcoded home path in a .nix
+  # value is the anti-pattern `nix-home-path-lint` rejects. Casks carrying this
+  # as `args.appdir` land in Izzy's home instead of the shared /Applications,
+  # which is what keeps them out of the operator's Finder/Spotlight/Launchpad.
+  izzyApps = "${config.users.users.izzy.home}/Applications";
+in
 {
   imports = [
     ../modules/darwin/core.nix
@@ -208,6 +215,42 @@
   users.users.${loginName} = {
     name = loginName;
     home = "/Users/${loginName}";
+  };
+
+  # ---- Izzy: the second, STANDARD account ---------------------------------
+  # Deliberately NOT an admin and never `system.primaryUser` (that stays
+  # `loginName`, modules/darwin/core.nix): a fresh Mac is FOUNDED as the
+  # operator via bootstrap.sh → key-recover, and this account is created on
+  # top of that. Omitting `gid` leaves him in `staff` (20); adding him to
+  # `admin` (80) is what would make him a second administrator, so don't.
+  #
+  # `knownUsers` is the CREATE/DELETE switch, not a label — nix-darwin creates
+  # only users listed here, and REMOVING a name from this list DELETES the
+  # account on the next activation. The home directory survives that, but the
+  # account does not; treat an edit here as destructive.
+  #
+  # uid 502 is the next free slot (501 = operator, 533 = _github-runner).
+  users.users.izzy = {
+    name = "izzy";
+    uid = 502;
+    description = "Izzy";
+    home = "/Users/izzy";
+    createHome = true;
+    shell = "/bin/zsh";
+  };
+  users.knownUsers = [ "izzy" ];
+
+  # A deliberately MINIMAL profile — it imports the one module it needs, NOT
+  # modules/shared/home.nix. That profile is the operator's: MCP gateway,
+  # Keychain loader, git signing, agent surface. Handing it to a second account
+  # would duplicate every agent and secret loader on the machine.
+  home-manager.users.izzy = {
+    imports = [ ../modules/shared/default-browser.nix ];
+    home.stateVersion = "24.05";
+    # Per-user by construction: the http/https claim is a LaunchServices
+    # setting, so this changes Izzy's default browser only — the operator keeps
+    # Chrome (set in modules/shared/home.nix).
+    local.defaultBrowser = "opera";
   };
 
   # ---- Gmail multi-account MCP (modules/shared/mcp.nix, a home-manager option
@@ -435,7 +478,15 @@
       # below: BlackHole is a virtual output device, so routing an app's audio
       # into it gives Audacity a capture source for system audio, which macOS
       # otherwise refuses to expose.
-      "audacity"
+      # IZZY-ONLY (see `izzyApps`). The blackhole-2ch driver above stays SHARED —
+      # it is a system audio device (/Library), not an app, and cannot be
+      # per-user even in principle.
+      {
+        name = "audacity";
+        args = {
+          appdir = izzyApps;
+        };
+      }
       # Android SDK cmdline tools (sdkmanager/avdmanager) — backs `android-emu`
       # (modules/shared/home.nix), which boots VIRTUAL Android emulators.
       "android-commandlinetools"
@@ -443,8 +494,14 @@
       "android-platform-tools"
       "blackhole-2ch"
       "bruno"
-      # CapCut — the fleet's video editor.
-      "capcut"
+      # CapCut — the video editor. IZZY-ONLY (see `izzyApps`): installed into his
+      # home, so it never appears in the operator's Finder/Spotlight/Launchpad.
+      {
+        name = "capcut";
+        args = {
+          appdir = izzyApps;
+        };
+      }
       # Claude Desktop — the chat GUI (distinct from the claude-code CLI, nixpkgs).
       "claude"
       "docker-desktop"
@@ -533,7 +590,7 @@
       # ungoogled-chromium cask. Settings live in modules/shared/home.nix.
       "ghostty"
       "iina"
-      "inkscape"
+      # Inkscape is gone on purpose (2026-09-15) — do not re-add.
       # LibreOffice — provides the `soffice` CLI the docx/pptx/xlsx/pdf Claude Code
       # skills (modules/shared/home.nix programs.claude-code.skills) already hardcode
       # as their document-conversion engine. Cask (not nixpkgs libreoffice-bin)
@@ -567,6 +624,20 @@
         name = "open-design";
         greedy = true;
       }
+      # Opera — IZZY-ONLY (see `izzyApps`), and his default browser
+      # (home-manager.users.izzy above). Declared here for the first time: it was
+      # a hand-installed .app until 2026-09-15, which `cleanup = "uninstall"`
+      # never touched because Homebrew did not know about it.
+      #
+      # A cask move does NOT move a profile — profiles are per-user, so Izzy gets
+      # a FRESH Opera. The operator's old profile (60 saved logins and the
+      # Claude↔Opera MCP connector grant) does not come with it.
+      {
+        name = "opera";
+        args = {
+          appdir = izzyApps;
+        };
+      }
       "proton-drive"
       "raspberry-pi-imager"
       "slack"
@@ -589,6 +660,11 @@
       "ungoogled-chromium"
       "visual-studio-code"
       "whatsapp"
+      # Wireshark — SHARED (plain /Applications). Its packet capture needs the
+      # ChmodBPF privileged helper, which the cask installs as a system
+      # LaunchDaemon; that is machine-wide by design and cannot be per-user, so
+      # scoping the .app to one home would only hide the GUI, not the capability.
+      "wireshark"
     ];
 
     # ---- Mac App Store apps (masApps) ----------------------------------------
