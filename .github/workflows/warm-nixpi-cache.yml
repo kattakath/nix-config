@@ -1,0 +1,107 @@
+name: warm-nixpi-cache
+
+# WARM THE LIVE nixpi CLOSURE INTO CACHIX — so nothing ever builds it on the Pi.
+#
+# THE PROBLEM THIS SOLVES. `nixpi` is a Pi 4 on an SD card. Building a generation
+# on it is slow, and a power cut mid-build corrupts the card — which needs physical
+# proximity to reflash (docs/nixpi-sd-flashing-runbook.md, ~40 min), defeating the
+# whole remotely-managed design. So the Pi must only ever SUBSTITUTE a closure
+# someone else built.
+#
+# The Mac cannot be that someone reliably: nixpkgs' caddy module realises a
+# `Caddyfile-formatted` derivation whose builder runs `cp --no-preserve=mode` into
+# $out, and that ONE operation EPERMs on Determinate's native Linux builder
+# (measured 2026-09-15: `cat >`, `install -m` and `cp`+`chmod` all succeed there —
+# only `--no-preserve=mode` fails). So a Mac-side realisation of any Caddy-serving
+# nixpi generation dies, and the tempting fallback is `--build-host nixpi`, i.e.
+# building on the Pi. That fallback is blocked by .claude/hooks/pretooluse-bash-guard.js.
+#
+# THE FIX IS THIS JOB. A real aarch64 Linux runner (where that `cp` works) builds
+# the toplevel and cachix-action pushes the closure. Afterwards BOTH the Mac and the
+# Pi substitute it and neither builds anything — the EPERM never enters the path.
+#
+# WHY NOT just reuse build-installers. That workflow already warms the closure, but
+# only as a side effect of building the ~5.7 GB sdImage for the Release, and only on
+# ITS path filter. Warming must fire on EVERY input to the nixpi closure (a one-line
+# `sites/**` copy edit changes Caddy's vhost root and therefore the closure), and a
+# multi-GB image rebuild + Release re-upload is far too heavy a price for that. So
+# the two concerns are split: this job warms (cheap, broad trigger), build-installers
+# publishes the dd-able image (heavy, narrow trigger, drvPath-gated).
+#
+# WHY NO drvPath GATE HERE. build-installers gates because a no-op there re-uploads
+# multi-GB Release assets. This job uploads nothing and pushes only paths Cachix does
+# not already hold, so an unchanged closure costs one runner spin-up and a no-op
+# push. A gate would add more machinery than it saves.
+#
+# THE NEGATIVE-CACHE TRAP, because it makes a WARMED cache look broken. If you
+# evaluate a nixpi change locally BEFORE this job has pushed it, Nix records the 404
+# in its narinfo negative cache for an hour (`narinfo-cache-negative-ttl`, default
+# 3600). For that hour the Mac keeps planning a BUILD — and hitting the caddy EPERM —
+# even though Cachix now has the path. It is not a broken cache and not a reason to
+# build on the Pi: wait it out, or re-run with
+# `--narinfo-cache-negative-ttl 0`.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "flake.nix"
+      - "flake.lock"
+      - "hosts/nixpi.nix"
+      - "modules/nixos/**"
+      - "modules/shared/**"
+      # The flake ENGINE composes the host: modules/parts/identity.nix carries
+      # config.fleet.hostedSites (the real vhost list, folded in when nix-personal
+      # was retired 2026-09-15) and hosts.nix/compose.nix make the mkNixos call.
+      - "modules/parts/**"
+      # cloudflared-connector + firmware-secrets are imported by hosts/nixpi.nix.
+      - "modules/features/**"
+      # Served site trees: `hostedSites[].root` is a DIRECTORY path literal, so
+      # every byte lands in the live closure (.claude/rules/store-copied-trees.md).
+      - "sites/**"
+      # Baked in as users.users.<login>.openssh.authorizedKeys.
+      - "secrets/operator-key.nix"
+      - ".github/workflows/warm-nixpi-cache.yml"
+  workflow_dispatch:
+
+# Warming is idempotent and cheap; a superseding push makes an in-flight warm
+# pointless, so cancel it rather than pushing a closure nobody will deploy.
+concurrency:
+  group: warm-nixpi-cache-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  warm:
+    name: warm (nixpi toplevel)
+    runs-on: ubuntu-24.04-arm # native aarch64-linux: builds what the Pi runs
+    # Cold RPi kernel is the worst case; a warmed closure is minutes.
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Same pins as nix-ci.yml / build-installers-impl.yml.
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            extra-substituters = https://kattakath.cachix.org
+            extra-trusted-public-keys = kattakath.cachix.org-1:y/w6wnb4ZArdlbfWJ82c81uCXeYgG/sGDUYCszavmEw=
+
+      # No pushFilter: unlike build-installers there is no dd-able image here, so
+      # everything realised belongs in the cache.
+      - uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
+        with:
+          name: kattakath
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      # Flakes evaluate the git tree, not the worktree (.claude/rules/git-purity.md).
+      - name: Stage tree (git purity)
+        run: git add -A
+
+      - name: Build the nixpi toplevel
+        run: |
+          nix build .#nixosConfigurations.nixpi.config.system.build.toplevel \
+            --no-link --print-build-logs --print-out-paths
