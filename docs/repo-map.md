@@ -728,6 +728,10 @@ their own top-level section below:
   Desktop's own keys survive. `desktop-commander` is excluded (it is a Desktop Extension
   already). Everything here is also proxied into a linked Cowork session as
   `mcp__remote-devices__<name>__*`. Contract held by `checks.claude-desktop-config-shape`.
+  The merge is NOT activation-only: a running Desktop rewrites the whole file from memory
+  and drops the key, so `launchd.agents.claude-desktop-mcp-sync` re-applies it on
+  `WatchPaths` (upstream's own option) and at login. It writes only when the result differs,
+  which is what keeps a file watch from retriggering on its own write.
   Full rationale: [`docs/claude-desktop-mcp.md`](claude-desktop-mcp.md).
 - **`claude-plugins.nix`** — `local.claudePlugins.marketplaces`, the **N-marketplace** Claude
   Code plugin mechanism. An `attrsOf submodule` keyed by marketplace name, each carrying a
