@@ -305,6 +305,39 @@ All four are safe to commit. Full rules: [`secrets-and-keychain.md`](secrets-and
 
 ## `hosts/` — per-host entry profiles
 
+**`macos` carries TWO accounts since 2026-09-15.** `ismail` is `system.primaryUser` and owns
+the operator profile; `izzy` (uid 502) is a second ADMINISTRATOR with a deliberately minimal
+Home Manager profile. What the split is and is not:
+
+- **Admin, but never primary.** `gid` stays at the `staff` default rather than 80: macOS models
+  an administrator as staff-primary PLUS supplementary `admin`, exactly how the operator's own
+  account looks, and making admin the PRIMARY group would drop Izzy out of `staff` — which the
+  group-writable appdir repair depends on. nix-darwin does NOT model supplementary groups
+  (`extraGroups` is commented out in its `modules/users/user.nix`), so a `dseditgroup`
+  activation shim grants it, guarded by `checkmember` so a settled Mac is a true no-op.
+  `users.knownUsers` is the CREATE/DELETE switch — removing a name from it DELETES the account.
+- **Per-user apps use `args.appdir`.** CapCut, Audacity and Opera install into Izzy's home
+  instead of the shared `/Applications`, which is what keeps them out of the operator's
+  Finder/Spotlight/Launchpad. Two traps: `appdir` only applies at INSTALL time, so an
+  already-installed cask silently does not move (uninstall first); and `brew bundle` runs as
+  `homebrew.user` (the operator) under sudo, so it creates the target as `root:staff 0755` and
+  Izzy's own Home Manager then dies with EPERM on its `~/Applications` symlink. A
+  `postActivation` `mkBefore` block chowns it to `izzy:staff 0775` — both accounts are in
+  `staff`, so brew and HM can each write. Ordering is why it is `mkBefore`: postActivation runs
+  after `homebrew` and home-manager appends its own block there.
+- **Shared, not duplicated:** ollama (one system daemon), `grok` and `fal` (one
+  `environment.systemPackages` entry each). Per-user by construction and therefore declared
+  twice: the default browser (a LaunchServices claim — Izzy gets Opera, the operator Chrome)
+  and the Claude surface (`~/.claude`), where Izzy gets `claude-brain.nix` +
+  `claude-guardrails.nix`. `programs.claude-code.enable` is the load-bearing line there —
+  those modules only set `programs.claude-code.*`, which defaults OFF, so importing them
+  without it produces a BYTE-IDENTICAL system.
+- **A never-logged-in account blocks activation.** A user launchd agent can only bootstrap
+  into that user's GUI session, so any agent declared for an account that has not logged in
+  fails (`Bootstrap failed: 125`), `darwin-rebuild` exits non-zero, and the abort lands BEFORE
+  `/run/current-system` is re-pointed — leaving system packages installed and unreachable at
+  once. `local.mediaCli.enable` for Izzy is therefore FALSE until his first login.
+
 - **`macos.nix`** — the darwin client host. Imports `../modules/darwin/github-runner.nix` and
   enables `local.macosGithubRunner` with `count = 2` for the **`dontsell-ai`** org (see that
   module's section below) — nix-config's *own* CI is fully GitHub-hosted and uses no runner, but
@@ -958,6 +991,29 @@ waves 5-6 absorb them).
   - Also pins `postgresql`+pgvector onto the runners' PATH (`modules/shared/home.nix`, `hiPrio`
     to resolve the duplicate `bin/psql`).
 
+- **`ollama-daemon.nix`** — `local.ollamaDaemon`: ONE machine-wide `ollama serve`, so
+  every account shares one process and one model store. It exists because a second account
+  cannot share home-manager's `services.ollama`: that emits `launchd.agents.ollama`, which
+  lives inside ONE login session and keeps its models in that user's home, forcing a choice
+  between a duplicate 31 GB store and a server that vanishes when the operator logs out.
+  Models live in `/var/lib/ollama/models` (the same `/var/lib` convention `github-runner.nix`
+  uses); relocating the existing 31 GB was a RENAME, since /Users and /private/var are
+  firmlinked onto the same APFS data volume.
+
+  **upstream-first:** grepped the pinned nix-darwin — `modules/services/` has no `ollama.nix`
+  and the string appears nowhere under `modules/`. Nothing models this, so the daemon is
+  custom, but built on nix-darwin's own `launchd.daemons` primitive.
+
+  Two details are load-bearing. It uses `command`, not `ProgramArguments`, because the
+  boot-ordering exception in [`launchd-naming`](../.claude/rules/launchd-naming.md) applies:
+  a `RunAtLoad` daemon whose arg0 is a store path loses the race against determinate-nixd
+  mounting `/nix`, exits 78, and never self-heals. And `environmentVariables` carries the
+  POWER BUDGET (`OLLAMA_MAX_LOADED_MODELS=1`, `OLLAMA_NUM_PARALLEL=1`, `OLLAMA_KEEP_ALIVE=10m`).
+  Those moved here from `services.ollama.environmentVariables` in `modules/shared/home.nix` —
+  they had to, because that option only ever reaches home-manager's own agent, so the block
+  went inert the moment the capsule stopped managing the server. The local-rag capsule gained
+  `local.rag.ollama.manageServer` (set false) so it does not stand up a competitor on 11434.
+
 ### `modules/nixos/`
 
 - **`modules/nixos/core.nix`** — shared NixOS baseline: the `ismail` user + authorized SSH key (the
@@ -1301,6 +1357,28 @@ One option in `modules/shared/home.nix`, and **nothing at all** in nix-personal.
 
 Core package set:
 
+- **`grok.nix`** — xAI's `grok` CLI, and the tree's ONLY prebuilt vendor binary. It replaces
+  a per-user `curl … | bash` install that put a self-updating Mach-O in each account's
+  `~/.grok/bin`, outside the store and outside git. The URL pattern was read out of xAI's own
+  install.sh rather than guessed; xAI publishes NO checksum, so the `hash` is our SRI pin,
+  cross-checked byte-for-byte against the copy their installer had already placed locally —
+  a reproduction of a verified install rather than fresh trust in a URL. `dontFixup` and
+  `dontStrip` are load-bearing: nixpkgs' default fixup rewrites Mach-O headers and would
+  invalidate xAI's Developer ID signature. Unfree via a predicate naming ONE package, so a
+  second unfree arrival fails rather than being waved through. The self-updater is
+  deliberately defeated (read-only store, and the `$HOME/.grok/bin` PATH entry is gone) —
+  updating is a version+hash bump. Per-user state still lives in `~/.grok`, which is what
+  makes one shared binary correct rather than a conflict.
+- **`fal.nix`** — fal.ai as two binaries, because the vendor ships two different things:
+  `fal` (their own CLI — a serverless runtime, `fal run`/`fal deploy`) and `fal-gen` (ours, a
+  thin wrapper over `fal-client`, since the vendor ships NO inference CLI). Both are ephemeral
+  `uv run --with` environments, the same shape as the media-cli capsule's `fidelity-enhance`,
+  because none of fal's dependency tree is in nixpkgs. Reads `FAL_KEY` from the login Keychain
+  and never prints it. Rejected on the way here: `buildPythonApplication` (hand-packaging a
+  serverless runtime's whole tree) and the registry's community fal MCP servers (all
+  single-source, confidence 0.40, no update date — not enough for a long-running process
+  holding an API key). **This is CLOUD inference**, unlike the rest of the media stack, which
+  runs against the local ollama daemon.
 - **`devcontainer-image.nix`** — MULTI-ARCH devcontainer OCI image (arm64+amd64,
   `dockerTools.streamLayeredImage`), published to GHCR as a manifest list; arch-parameterized
   loader path inside.

@@ -1,7 +1,8 @@
 # macOS host config for "macos" (Apple Silicon, aarch64-darwin) — the fleet's
 # sole client Mac. No public tunnel / inbound SSH from the internet; the machine
 # may still run local agent services (MCP gateway) and a self-hosted GitLab CI
-# runner for private pipelines (civitai-live-wallpaper — see gitlab-runner brew).
+# runner for private pipelines (civitai-live-wallpaper, now under the gitlab.com/izzykatt
+# group — see `local.tart.gitlabRunner` below; gitlab-runner moved OFF brew 2026-09-05).
 # Home Manager and the nix-vscode-extensions overlay are wired centrally by
 # mkDarwin in flake.nix — this file only provides host-specific settings.
 #
