@@ -86,10 +86,11 @@ Pinned input revisions; commit every change, never hand-edit.
 
 **The input diet — `follows` is not optional bookkeeping here.** 32 root inputs pull a
 transitive graph, and every duplicate node is another fetch, another eval, another thing
-`flake-checker` has to reason about. The lock sits at **58 nodes** today; it bottomed out at
+`flake-checker` has to reason about. The lock sits at **57 nodes** today; it bottomed out at
 **56** the day ADR-002 finished, was **69** before ADR-002 absorbed the satellites, and **72**
 before the dedupe pass. The wave table below is that ADR's accounting, not a live count —
-inputs added since carried it back up, and the 2026-09-14 userscripts removal took it 59 → 58.
+inputs added since carried it back up, the 2026-09-14 userscripts removal took it 59 → 58, and
+the `kattakath-ai` consolidation (one repo per owner, same day) took it 58 → 57.
 Each absorption takes the satellite's own node and its private deps with it:
 
 | Wave | Absorbed | Nodes dropped | Lock after |
@@ -172,12 +173,14 @@ treefmt formatter. treefmt-nix ships no `programs.ast-grep`, and none of these r
 mechanical `fix:`, so the honest home is a check. `ast-grep` is also in the devShell (from the
 same pinned nixpkgs) for iterating on rules; the binary is `ast-grep` — there is no `sg` alias.
 
-Three rules, each mechanising a convention that was **prompt-only** until now:
+Five rules, each mechanising a convention that was **prompt-only** until now:
 
 | Rule | Lang | Mechanises | Notes |
 |---|---|---|---|
 | `nix-hardcoded-home-path` | nix | CLAUDE.md § Conventions "Paths — two axes" (runtime half) | The gate half of the [`claude-code-nix`](https://github.com/kattakath/ai/tree/main/plugins/claude-code-nix) plugin's `nix-home-path-lint` hook, which is PostToolUse and so only ever sees *Claude's* writes — a human or flake-bump commit slipped through. Matches `string_fragment` nodes only, so comments and Nix source path literals are exempt by construction rather than by heuristic. Keep the regex in sync with the hook. |
 | `launchd-bare-interpreter-arg0` | nix | [`.claude/rules/launchd-naming.md`](../.claude/rules/launchd-naming.md) | Flags `ProgramArguments[0]` / `Program` pointing at a bare `sh`/`bash`/`python3`/`node`/… so Background Task Manager can't list a fleet agent as generic persistence. Only sees units authored *here*; the three known upstream `/bin/sh` daemons live in no `.nix` file and must not be renamed. |
+| `capsule-must-not-reach-out` | nix | ADR-002's capsule boundary (§ `modules/features/`) | Scoped by `files:` to `modules/features/**`; flags a `path_expression` escaping the capsule's own directory. The file-layer half of the boundary — `checks.<system>.capsule-registry` is the option-layer half. Blind to overlays, `specialArgs` and runtime-built store paths (ADR-002 §7.6, §9.3). |
+| `shared-must-not-cross-layers` | nix | the `modules/shared/` layer boundary (`662db6a`, 2026-09-14) | The Home Manager profile may reach **down** into `packages/`, `skills/` and `claude/` — never **across** into `modules/features/`, nor **up** into `modules/parts/`, `hosts/` or `infra/`. |
 | `hook-json-parse-must-be-guarded` | javascript | the "never wedge a turn" invariant every `.claude/hooks/*.js` header states | An unguarded `JSON.parse` of untrusted event JSON throws and surfaces as a hook error. Scoped by `files:` to the hooks. First mechanical check those ~1.3k lines have ever had — `claude-config-lint.yml` checks frontmatter, never hook JS. |
 
 Two things the check does that a naive `ast-grep scan` would not:
