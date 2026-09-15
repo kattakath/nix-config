@@ -5,7 +5,7 @@
 # unpublish refusal, the pinned 0700 state directory — is a recorded incident,
 # not hygiene; none of it is rewritten, only rehomed.
 #
-# `cfTunnelConfig` / `mcpPublicConfig` / `terranixRender` join `flake.lib`
+# `cfTunnelConfig` / `mcpPublicConfig` join `flake.lib`
 # ALONGSIDE the builders in modules/parts/compose.nix. That is only possible
 # because `flake.lib` is declared `lazyAttrsOf raw` in
 # modules/parts/lib-option.nix — under flake-parts' freeform `types.unique`
@@ -99,19 +99,6 @@ let
           };
         }
       ];
-    };
-
-  # ---- Generic terranix renderer for external/private callers -----------
-  # A raw wrapper around this flake's own pinned `terranix` input -- lets a
-  # private composition flake render ITS OWN terranix module (e.g. a
-  # different Cloudflare account's tunnel stack) without needing its own
-  # terranix flake input. No site-specific content lives here; this is
-  # purely a library primitive, mirroring cfTunnelConfig's own closure
-  # trick but fully generic (any modules list, any system).
-  terranixRender =
-    { system, modules }:
-    terranix.lib.terranixConfiguration {
-      inherit system modules;
     };
 
   # writeShellApplication wrapper around `tofu <action>` for the rendered
@@ -333,7 +320,6 @@ in
     inherit
       cfTunnelConfig
       mcpPublicConfig
-      terranixRender
       ;
   };
 
