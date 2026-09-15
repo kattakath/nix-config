@@ -329,27 +329,34 @@ let
       ++ extraModules;
     };
   # Remote-deploy `nix run` app for a NixOS host that cannot self-build -- a
-  # nixos-rebuild switch dispatched FROM the invoking machine, built AND
+  # nixos-rebuild switch dispatched FROM the invoking machine, built HERE and
   # activated on the remote. MECHANISM here, values from the caller: which
-  # flake (the private composition's `self`, so the switch carries its private
-  # layer), which hostname, which remote.
+  # flake, which hostname, which remote.
   #
-  # --build-host DEFAULTS TO THE REMOTE, deliberately. The measured case
-  # (nixpi, 2026-09-07): a Caddy-serving generation cannot build on the Mac at
-  # all -- Determinate's native Linux builder cannot `cp --no-preserve=mode`
-  # into $out, so nixpkgs' `Caddyfile-formatted` dies with EPERM and takes
-  # etc.drv and the whole toplevel with it. Without this default the obvious
-  # `nix run .#<host>` ALWAYS fails for such a host. This is not "building
-  # heavy on the remote": everything substitutes from cache.nixos.org + Cachix
-  # and only the handful of TEXT derivations (Caddyfile, units, etc, activate,
-  # toplevel) are realised there.
+  # IT DOES NOT PASS --build-host, and that is the point. It used to default
+  # --build-host to the REMOTE, because a Caddy-serving nixpi generation could
+  # not be realised on the Mac at all (Determinate's native Linux builder
+  # EPERMs on the `cp --no-preserve=mode` inside nixpkgs' `Caddyfile-formatted`,
+  # taking etc.drv and the toplevel with it). That default made the obvious
+  # `nix run .#<host>` BUILD ON THE PI -- slow, and a power cut mid-build
+  # corrupts the SD card, which needs hands on the hardware to reflash.
   #
-  # "$@" is appended LAST so a caller can still override, e.g.
-  # `nix run .#<host> -- --build-host ""` to force a local build.
+  # The EPERM is now routed around instead of surrendered to: CI warms the whole
+  # nixpi closure into Cachix on every closure change
+  # (.github/workflows/warm-nixpi-cache.yml), built on a real aarch64 Linux
+  # runner where that `cp` works. So the invoking machine SUBSTITUTES the
+  # closure and realises nothing, and the remote only activates. Building on the
+  # remote is now blocked outright by .claude/hooks/pretooluse-bash-guard.js
+  # (Rule 1d).
   #
-  # NOTE localhost is NOT a usable --build-host: nixos-rebuild treats it as a
-  # remote to ssh into UNCONDITIONALLY, and macOS runs no local sshd by design
-  # (confirmed: "connection refused"). A tunnelled remote needs
+  # If the caller ever does need a remote build, "$@" is appended LAST so it can
+  # be passed explicitly -- but for nixpi that is the wrong answer; a cache miss
+  # means the warm has not landed yet (or Nix negatively cached an earlier 404
+  # for up to an hour -- retry with `--narinfo-cache-negative-ttl 0`).
+  #
+  # NOTE localhost is NOT a usable --build-host either: nixos-rebuild treats it
+  # as a remote to ssh into UNCONDITIONALLY, and macOS runs no local sshd by
+  # design (confirmed: "connection refused"). A tunnelled remote needs
   # NIX_SSHOPTS="-F <config>" with a ProxyCommand Host block -- see
   # docs/nixpi-sd-flashing-runbook.md.
   mkRemoteNixosSwitchApp =
@@ -369,10 +376,9 @@ let
         exec ${pkgs.nixos-rebuild}/bin/nixos-rebuild switch \
           --flake "${flake}#${hostname}" \
           --target-host "${remote}" \
-          --build-host "${remote}" \
           --use-remote-sudo "$@"
       ''}";
-      meta.description = "Build ON ${hostname}'s remote + switch it to this private composition (#${hostname})";
+      meta.description = "Build HERE (substituting from Cachix) + switch ${hostname} remotely (#${hostname})";
     };
 
 in
