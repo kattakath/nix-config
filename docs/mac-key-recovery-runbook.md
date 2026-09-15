@@ -240,3 +240,35 @@ one-time steps are inherently manual — do these after activating a fresh Mac:
   A stale/never-updated `determinate-nixd` binary can also hide this — the
   version this was verified against required `sudo determinate-nixd upgrade`
   first when the daemon was a patch behind.
+
+- **A changed `/etc/nix/nix.custom.conf` is INERT until the nix daemon
+  restarts — activation does not bounce it.** The file itself is fully
+  declarative (`determinateNix.customSettings` regenerates it every
+  activation), so nothing here is ever hand-edited. But the **daemon reads that
+  config at startup**, and Determinate owns the daemon (`nix.enable = false`),
+  so nix-darwin never restarts it: grepped the pinned determinate module, its
+  only `system.activationScripts` hook is a `mkdir` for the linux-builder
+  working directory.
+  The symptom is genuinely confusing, because the two halves disagree:
+  `nix config show trusted-users` reports the NEW value (the client just reads
+  the merged file) while the daemon keeps enforcing the old one. Measured
+  2026-09-15 with `trusted-users`: the file said `extra-trusted-users = ismail`
+  and `nix config show` agreed, yet every override came back
+  `ignoring the client-specified setting '…', because it is a restricted
+  setting and you are not a trusted user` — across two activations, because the
+  daemon had been up since before either of them.
+  Fix (needs sudo), using **Determinate's** label, not `org.nixos.nix-daemon`:
+
+  ```bash
+  sudo launchctl kickstart -k system/systems.determinate.nix-daemon
+  ```
+
+  A reboot does the same. **On a from-scratch Mac the same ordering applies** —
+  the installer starts the daemon, then `nix run .#macos` writes the file, so
+  the setting is inert until something restarts it — but it self-heals on the
+  first reboot, which is why it only really bites when changing a daemon-level
+  setting on a machine that is already up.
+  Scope: this is not specific to `trusted-users`. Everything in that file
+  (`extra-substituters`, `extra-trusted-public-keys`, `sandbox`) is
+  daemon-read-at-startup; the existing entries simply predate any running
+  daemon, so nobody noticed until one changed.
