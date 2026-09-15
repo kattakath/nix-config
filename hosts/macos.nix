@@ -253,7 +253,7 @@ in
   # An administrator (admin group, granted below) but never
   # `system.primaryUser` — that stays `loginName` (modules/darwin/core.nix), so
   # a fresh Mac is still FOUNDED as the operator via bootstrap.sh →
-  # key-recover and this account is created on top of that.
+  # bootstrap.sh and this account is created on top of that.
   #
   # `gid` is deliberately left at the `staff` default rather than set to 80:
   # macOS models an administrator as staff-primary PLUS supplementary admin

@@ -14,7 +14,7 @@
 #   * The SD card's FAT FIRMWARE partition is the one thing macOS can write, so it
 #     carries the secrets a fresh flash needs (host-key-independent — see the module
 #     and hosts/nixpi.nix for why NOT agenix).
-#   * macOS-only tools are called by absolute path (house style — cf. key-recovery.nix);
+#   * macOS-only tools are called by absolute path (house style);
 #     age/zstd/grep/etc. are pinned via runtimeInputs.
 #   * The token vault (secrets/cloudflared-token.age) is read from the WORKING TREE
 #     (run these from the repo root) so a freshly `nixpi-vault-token`-ed token is

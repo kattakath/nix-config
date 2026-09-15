@@ -15,32 +15,23 @@
 #   0. clear a leftover "Nix Store" APFS volume + stale /etc entries
 #   1. install Determinate Nix (curl CLI installer — NOT the .pkg)
 #   2. move the installer's /etc/nix/nix.custom.conf aside (nix-darwin owns it)
-#   3. hand off to `nix run <flake>#key-recover`, which does everything else:
-#        - KIT PRESENT (iCloud recovery kit) -> restore your operator key; agenix
-#          is operator-only, so the restored key already decrypts the vault (no
-#          re-key), then activate #macos.
-#        - NO KIT -> FOUND a fresh operator identity (new keypair; agenix's
-#          recipient in secrets/operator-key.nix repointed to it; the old vault
-#          ciphertext stays encrypted to the lost key, unrecoverable), then
-#          activate #macos.
-#      key-recover first verifies your macOS login == the flake's loginName and
-#      HARD-FAILS with fork instructions if it does not.
+#   3. clone the repo and activate it
 #
-# Everything after step 3 lives in the flake (packages/key-recovery.nix), where
-# it is shellcheck-gated by writeShellApplication and evaluated in CI. This file
-# is the ONLY thing copied out-of-band; it is shellchecked as a derivation
-# (key-recovery-bootstrap) and `nix run .#key-backup` publishes it into the
-# iCloud kit — so the offline copy is always the exact bytes CI linted.
+# It does NOT manage your SSH keys. That is deliberate: key custody is a
+# personal choice, and this fleet's posture is that a lost machine's keypair
+# STAYS lost. Nothing here is unrecoverable — every agenix secret is re-issuable
+# from the vendor that minted it (Cloudflare, GitHub, GitLab), and a new pubkey
+# just gets re-uploaded wherever passwordless auth is wanted. See
+# docs/new-mac-runbook.md for that checklist.
 #
 # FORKING for your own fleet? Point --flake at your fork (or edit FLAKE_DEFAULT):
 #     curl -fsSL https://raw.githubusercontent.com/<you>/nix-config/main/bootstrap.sh \
 #       | bash -s -- --flake=github:<you>/nix-config
 #   See the README "Fork this for your own fleet" section.
 #
-# USAGE (curl above, or the copy the kit ships, on disk):
-#     ./bootstrap.sh              # recover (kit) or found (no kit) this Mac
+# USAGE (curl above, or on disk):
+#     ./bootstrap.sh              # install Nix, clone, activate #macos
 #     ./bootstrap.sh --check      # report state, change NOTHING
-#     ./bootstrap.sh --fresh      # no-kit founding mode, skip the confirm (headless)
 #
 set -euo pipefail
 { # ==== download-completeness guard =========================================
@@ -49,8 +40,6 @@ set -euo pipefail
   # install, no partial dd. Every statement below lives inside this brace group.
 
   FLAKE_DEFAULT="github:kattakath/nix-config" # forkers: --flake=github:<you>/nix-config
-  KIT_DEFAULT="$HOME/Library/Mobile Documents/com~apple~CloudDocs/nix-key-recovery" # == key-recover's kitDir
-  BLOB_NAME="id_ed25519.age"
   NIX_BIN="/nix/var/nix/profiles/default/bin/nix"
 
   # A leftover "Nix Store" volume holds only APFS metadata (~25 KB); a real store
@@ -60,21 +49,7 @@ set -euo pipefail
   FLAKE="$FLAKE_DEFAULT"
   CHECK=0
   FORCE_CLEAN=0
-  FORCE_FRESH=0
-  PASSTHRU=""
 
-  # Under `curl … | bash`, $0/BASH_SOURCE[0] is "bash", not a path, so [ -f ] is
-  # false and we fall through to the canonical iCloud kit dir. An on-disk run from
-  # INSIDE a kit (the offline copy) wins. Detection must NOT read bytes: a dataless
-  # iCloud .age still passes [ -f ], and key-recover owns the materialise loop.
-  self="${BASH_SOURCE[0]:-}"
-  if [ -n "$self" ] && [ -f "$self" ] && [ -f "$(dirname "$self")/$BLOB_NAME" ]; then
-    KIT_DIR="$(cd "$(dirname "$self")" && pwd)"
-  else
-    KIT_DIR="$KIT_DEFAULT"
-  fi
-  KIT_PRESENT=0
-  [ -f "$KIT_DIR/$BLOB_NAME" ] && KIT_PRESENT=1
 
   # Under a pipe, stdin IS the script stream — a bare `read` would eat the next
   # line of THIS script. Probe for a controlling terminal once; every interactive
@@ -146,12 +121,31 @@ set -euo pipefail
     case "$arg" in
       --check | --dry-run) CHECK=1 ;;
       --force-clean-nix-volume) FORCE_CLEAN=1 ;;
-      --fresh) FORCE_FRESH=1 ;; # acknowledge no-kit founding; skip the confirm (headless)
       --flake=*) FLAKE="${arg#--flake=}" ;;
-      # Anything else is for the stage-2 app (--redecrypt, --fix-etc, ...).
-      *) PASSTHRU="$PASSTHRU $arg" ;;
+      *) die "unknown option '$arg' (see the USAGE block at the top of this file)" ;;
     esac
   done
+
+  # Clone target, DERIVED from --flake so a fork works with no second flag.
+  # `github:<owner>/<repo>` is the only form supported here; anything else and you
+  # are past what a no-Nix bootstrap should be parsing, so clone by hand and run
+  # `sudo -H nix run <your-checkout>#macos` yourself.
+  #
+  # The resulting directory MUST match the environment.etc."nix-darwin/flake.nix"
+  # target in modules/parts/hosts.nix, or the /etc/nix-darwin symlink that makes a
+  # bare `darwin-rebuild switch` work lands dangling on a fresh Mac. Both sides
+  # spell ~/Developer/github.com/<owner>/<repo>.
+  case "$FLAKE" in
+    github:*/*)
+      FLAKE_PATH="${FLAKE#github:}"
+      FLAKE_OWNER="${FLAKE_PATH%%/*}"
+      FLAKE_REPO="${FLAKE_PATH#*/}"
+      FLAKE_REPO="${FLAKE_REPO%%/*}" # drop any /ref suffix
+      REPO_DIR="$HOME/Developer/github.com/$FLAKE_OWNER/$FLAKE_REPO"
+      REPO_HTTPS="https://github.com/$FLAKE_OWNER/$FLAKE_REPO.git"
+      ;;
+    *) die "--flake must look like github:<owner>/<repo> (got '$FLAKE')" ;;
+  esac
 
   # ---- helpers ----------------------------------------------------------------
 
@@ -286,22 +280,16 @@ set -euo pipefail
       echo "  [STALE] /etc/nix/nix.custom.conf is the installer's stub — a real run moves it aside"
     fi
     echo
-    if [ "$KIT_PRESENT" -eq 1 ]; then
-      echo "  Recovery kit found at $KIT_DIR — would hand off to:"
-      echo "    nix run $FLAKE#key-recover -- --check --kit \"$KIT_DIR\""
+    if [ -d "$REPO_DIR/.git" ]; then
+      echo "  [ok]  repo already cloned at $REPO_DIR"
     else
-      echo "  No recovery kit at $KIT_DIR — a real run FOUNDS a fresh operator identity. Would hand off to:"
-      echo "    nix run $FLAKE#key-recover -- --check --fresh"
+      echo "  [note] a real run clones $REPO_HTTPS -> $REPO_DIR"
     fi
-    if nix_installed; then
-      if [ "$KIT_PRESENT" -eq 1 ]; then
-        say "Handing off to the flake's key-recover app (dry run, kit)"
-        exec "$NIX_BIN" run "$FLAKE#key-recover" -- --check --kit "$KIT_DIR"
-      else
-        say "Handing off to the flake's key-recover app (dry run, founding)"
-        exec "$NIX_BIN" run "$FLAKE#key-recover" -- --check --fresh
-      fi
-    fi
+    echo "  Then: sudo -H $NIX_BIN run \"$REPO_DIR#macos\"   (first activation)"
+    echo
+    echo "  This script does NOT touch SSH keys. On a Mac whose keypair is gone,"
+    echo "  generate a new one, re-upload the pubkey wherever passwordless auth is"
+    echo "  wanted, and rotate the agenix secrets — docs/new-mac-runbook.md."
     exit 0
   fi
 
@@ -404,32 +392,40 @@ To delete it anyway (DESTRUCTIVE): --force-clean-nix-volume"
     echo "    moved -> $NCC_BAK  (original content preserved)"
   fi
 
-  # 3. Hand off to the flake. Everything from here (decrypt/found, clone, agenix
-  # recipient repoint on founding, darwin-rebuild) is a writeShellApplication in
-  # packages/key-recovery.nix, lint-gated at build time + evaluated by CI. The repo is
-  # public, so this needs no key — the key is what it restores (or founds).
-  if [ "$KIT_PRESENT" -eq 1 ]; then
-    say "Recovery kit found at $KIT_DIR — restoring your operator identity."
-    notify "Nix installed. Restoring your key and activating…"
-    # shellcheck disable=SC2086 # deliberate word-splitting: PASSTHRU is a flag list
-    exec nix run "$FLAKE#key-recover" -- --kit "$KIT_DIR" $PASSTHRU
+  # 3. Clone, then activate. The repo is PUBLIC, so this needs no key — which is
+  # the whole point: nothing about getting a Mac running depends on recovering a
+  # secret. `git` is Xcode's command line tools; the Determinate installer above
+  # has already triggered that install if it was missing.
+  if [ ! -d "$REPO_DIR/.git" ]; then
+    say "Cloning $REPO_HTTPS -> $REPO_DIR"
+    mkdir -p "${REPO_DIR%/*}"
+    git clone "$REPO_HTTPS" "$REPO_DIR"
   else
-    say "No recovery kit found (looked in $KIT_DIR)."
-    warn "FOUNDING MODE: there is no operator identity to restore, so this will"
-    warn "GENERATE a brand-new operator keypair and stand up your OWN ecosystem —"
-    warn "agenix's operator recipient (secrets/operator-key.nix) is repointed to the"
-    warn "new key. agenix is an operator-only vault, so there is NO host-key re-key;"
-    warn "the old vault ciphertext (cloudflared-token.age) stays encrypted to the lost"
-    warn "key and is unrecoverable — re-establish it from source (cf-tunnel-apply +"
-    warn "nixpi-vault-token) once your hosts are up."
-    if [ "$FORCE_FRESH" -ne 1 ]; then
-      confirm "No kit found. Found a NEW operator identity for this flake and activate #macos?" \
-        || die "aborted — no kit and you declined founding mode. Nix is installed; nothing else changed.
-Re-run with --fresh to proceed non-interactively (e.g. headless), or drop in a
-recovery kit to restore an existing identity instead."
-    fi
-    notify "Nix installed. Founding a fresh operator identity and activating…"
-    # shellcheck disable=SC2086 # deliberate word-splitting: PASSTHRU is a flag list
-    exec nix run "$FLAKE#key-recover" -- --fresh $PASSTHRU
+    say "Repo already present at $REPO_DIR — leaving it alone."
   fi
+
+  # The flake hardcodes ONE loginName, and home-manager keys on it. Activating
+  # under a different macOS login half-applies: a home-manager generation for a
+  # POSIX user that does not exist, and /Users/<wrong> paths baked into the
+  # closure. Cheap to check, confusing to debug — so check. This attrset
+  # references no flake inputs, so the eval is instant and fetches nothing.
+  WANT_LOGIN="$("$NIX_BIN" eval --raw "$REPO_DIR#identity.loginName")"
+  HAVE_LOGIN="$(id -un)"
+  if [ "$WANT_LOGIN" != "$HAVE_LOGIN" ]; then
+    die "this flake is built for the macOS login '$WANT_LOGIN', but you are '$HAVE_LOGIN'.
+Fork it and change loginName in modules/parts/identity.nix (see the README's
+\"Fork this for your own fleet\" section), then re-run with
+    --flake=github:<you>/nix-config"
+  fi
+
+  # `sudo -H`, not a bare run: nix-darwin dropped darwin-rebuild's sudo
+  # self-elevation in its 2025-01-30 root migration, so the #macos app exits 1
+  # as a normal user. -H because nix warns when $HOME is not owned by root.
+  #
+  # This is the ONLY time the long form is needed. It plants
+  # /etc/nix-darwin/flake.nix and puts `activate` on PATH, so every later rebuild
+  # is just `activate` from any directory.
+  say "Activating #macos (first switch — this is the slow one)"
+  notify "Nix installed. Activating this Mac…"
+  exec sudo -H "$NIX_BIN" run "$REPO_DIR#macos"
 } # ==== end download-completeness guard ======================================

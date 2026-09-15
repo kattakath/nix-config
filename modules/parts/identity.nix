@@ -191,7 +191,7 @@ in
 
     # ---- Machine-readable identity ------------------------------------------
     # The flake's single-source identity bindings, surfaced so `bootstrap.sh`
-    # can guard on them BEFORE activating. `key-recover` reads
+    # can guard on them BEFORE activating. bootstrap.sh reads
     #   nix eval --raw <flake>#identity.loginName
     # right after cloning and HARD-FAILS if it does not equal the macOS login
     # (`id -un`): a mismatch would half-activate home-manager for a POSIX user that

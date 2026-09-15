@@ -27,6 +27,24 @@ in
     {
       checks =
         lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
+          # ---- bootstrap.sh is the ONE script no derivation wraps ------------
+          #
+          # Every other script in this tree is a `writeShellApplication`, which
+          # shellchecks it at build time. `bootstrap.sh` cannot be: it runs on a
+          # Mac that has no Nix yet, so it is plain bash copied out-of-band
+          # through `curl … | bash`. That makes it the single highest-stakes
+          # unlinted file here — it runs as the user, calls sudo, and deletes an
+          # APFS volume.
+          #
+          # It carried a gate until 2026-09-15 (the `key-recovery-bootstrap`
+          # derivation, which went with packages/key-recovery.nix). This is that
+          # gate, standing on its own rather than riding a package that happened
+          # to also ship the script.
+          bootstrap-lint = pkgs.runCommand "bootstrap-lint" { nativeBuildInputs = [ pkgs.shellcheck ]; } ''
+            shellcheck --shell=bash ${../../bootstrap.sh}
+            touch $out
+          '';
+
           # ---- The shell-init ORDERING contract, tested for the first time ----
           #
           # TWO modules write into the SAME three home-manager options, and the
