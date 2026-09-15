@@ -48,9 +48,10 @@ verdict="$(printf '%s' "$verdict" | jq -c --argjson p "$probe_deg" \
 # and macOS puts $TMPDIR on a different volume from $HOME — so a $TMPDIR temp
 # would make `mv` a copy, reintroducing the torn-read this guards against.
 # Explicit XXXXXX because GNU mktemp shadows BSD here and rejects `-t name`.
-# Persist the verdict itself, not just the rendered HTML. The menu bar plugin
-# reads THIS — so a second surface costs a `cat`, never a second model call, and
-# a restyle re-renders with no spend at all.
+# Persist the verdict itself, not just the rendered HTML. It is the decision
+# record — `jq .` on it says why the card reads the way it does — and it is the
+# seam any second surface would read, for a `cat` rather than a second model
+# call.
 VERDICT_FILE="${NRT_VERDICT:-$(dirname "$OUT")/verdict.json}"
 vtmp="$(mktemp "$(dirname "$VERDICT_FILE")/.verdict.XXXXXX")"
 printf '%s\n' "$verdict" > "$vtmp"; chmod 600 "$vtmp"; mv -f "$vtmp" "$VERDICT_FILE"
