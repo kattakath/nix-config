@@ -18,15 +18,18 @@ local MCP gateway (`modules/shared/mcp.nix`).
 | `local.mcpGateway.gmail.accounts` | `listOf str` of **plain email addresses** — the only thing you edit to add/remove an account. Empty by default | `modules/shared/mcp.nix` option |
 | `~/.gmail-mcp/credentials-<alias>.json` | Per-account OAuth token, produced by the **one-time interactive auth step** (not by Nix) | `$HOME`, never in git/store |
 
-## Public/private split (same contract as nixpi's `hostedSites`)
+## Which addresses belong in this list
 
-Real email addresses are personal data — some may belong to people other than
-the operator (family/associates whose inboxes they manage). `gmail.accounts`
-is a plain Nix list, set directly in `hosts/macos.nix` — every account is
-public since the private composition flake that used to add extra ones was
-retired 2026-09-15 (see `docs/private-home-modules.md` § History). The
-`extraHomeModules` seam it used still exists generically on `lib.mkDarwin`,
-just unused today.
+Real email addresses are personal data. `gmail.accounts` is a plain Nix list
+set directly in `hosts/macos.nix`, and it holds **only the operator's own
+accounts, each under an identity already public elsewhere in this tree**.
+Anyone else's address never goes in it.
+
+The private nix-personal flake used to add further accounts through
+`extraHomeModules`; it was fully retired 2026-09-15 and only two of its seven
+were carried over (#524) — the rest were intentionally dropped rather than
+made public. That `extraHomeModules` seam still exists generically on
+`lib.mkDarwin`, just unused today.
 
 ## One-time setup: the shared OAuth client (do this once per Google Cloud project)
 
