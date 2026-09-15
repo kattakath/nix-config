@@ -348,9 +348,13 @@ Home Manager profile. What the split is and is not:
   `modules/launchd/default.nix:564`), the generation's `activate` then does
   `exit "$launchdStatus"`, `launchctl asuser` passes a child status through (verified: a child
   exiting 7 yields 7), and `$systemConfig/activate` is `darwin-rebuild`'s last statement under
-  `set -e`. Grep that construct, never a line number: the generation's `activate` is GENERATED
-  per user per generation, and the same `exit` sat at 833, 848 and 936 across three of them on
-  one afternoon.
+  `set -e`. Cite that one by CONSTRUCT, not line: the generation's `activate` is GENERATED per
+  user per generation, and the same `exit` sat at 833, 848 and 936 across three of them on one
+  afternoon. The pinned-input citations around it (`modules/launchd/default.nix:166`, `:232`,
+  `:326`, `:564`) are the opposite case and stay — a `/nix/store` flake input only moves on a
+  `flake.lock` bump, which is a reviewed event, and that is the same basis
+  [`upstream-first`](../.claude/rules/upstream-first.md) already requires citing. **The rule is
+  not "no line numbers" — it is "no line numbers into generated artifacts."**
 
   So it is not silent for lack of a signal — it is silent because **nobody reads the exit code
   of an interactive activation**, and because a status read through a pipe
