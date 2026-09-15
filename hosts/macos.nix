@@ -10,7 +10,12 @@
 # `nixos-rebuild switch --flake .#nixpi`; see flake.nix apps.aarch64-darwin.macos):
 #   nix run github:kattakath/nix-config#macos
 # Thereafter: sudo darwin-rebuild switch --flake .#macos
-{ config, loginName, ... }:
+{
+  config,
+  lib,
+  loginName,
+  ...
+}:
 let
   # DERIVED, never a `/Users/izzy` literal — a hardcoded home path in a .nix
   # value is the anti-pattern `nix-home-path-lint` rejects. Casks carrying this
@@ -239,6 +244,31 @@ in
     shell = "/bin/zsh";
   };
   users.knownUsers = [ "izzy" ];
+
+  # `args.appdir` into another user's home has ONE sharp edge, measured
+  # 2026-09-15 on the first activation: `brew bundle` runs as `homebrew.user`
+  # (the operator) under sudo, so it MKDIRs the target as root:staff 0755 —
+  # and Izzy's own Home Manager then dies with
+  #   ln: failed to create symbolic link '/Users/izzy/Applications/Home Manager Apps'
+  # because neither account can write it.
+  #
+  # Both accounts are in `staff` (izzy is deliberately not in `admin`), so
+  # owning the directory by the account and making it group-writable lets the
+  # operator's brew AND Izzy's Home Manager both write. Ordering is the whole
+  # point of `mkBefore`: this lands in `postActivation`, which runs AFTER
+  # `homebrew` (nix-darwin activation-scripts.nix:138) and, via mkBefore,
+  # BEFORE home-manager's own postActivation block (home-manager
+  # nix-darwin/default.nix:19) — the only window where the repair is useful.
+  #
+  # upstream-first: grepped the pinned nix-darwin for appdir/user/ownership —
+  # `homebrew.user` and `caskArgs.appdir` exist, but nothing reconciles the two
+  # across accounts. No option owns this; hence the shim.
+  system.activationScripts.postActivation.text = lib.mkBefore ''
+    printf '%s\n' "izzy: reconciling ${izzyApps} ownership (brew writes as ${loginName}, HM writes as izzy)"
+    mkdir -p ${lib.escapeShellArg izzyApps}
+    chown izzy:staff ${lib.escapeShellArg izzyApps}
+    chmod 775 ${lib.escapeShellArg izzyApps}
+  '';
 
   # A deliberately MINIMAL profile — it imports the one module it needs, NOT
   # modules/shared/home.nix. That profile is the operator's: MCP gateway,
@@ -664,7 +694,9 @@ in
       # ChmodBPF privileged helper, which the cask installs as a system
       # LaunchDaemon; that is machine-wide by design and cannot be per-user, so
       # scoping the .app to one home would only hide the GUI, not the capability.
-      "wireshark"
+      # `wireshark-app` is the CURRENT name — plain `wireshark` still resolves but
+      # warns "was renamed to wireshark-app" on every activation.
+      "wireshark-app"
     ];
 
     # ---- Mac App Store apps (masApps) ----------------------------------------
