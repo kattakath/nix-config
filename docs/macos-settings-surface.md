@@ -134,7 +134,7 @@ Option names below are verified against the pinned nix-darwin source
 - **`WindowManager`** (Stage Manager) — `GloballyEnabled`, `AutoHide`, `StandardHideDesktopIcons`, `HideDesktop`, `EnableTilingByEdgeDrag`, `EnableTiledWindowMargins`, …
 - **`spaces`** — `spans-displays`
 - **`SoftwareUpdate`** — `AutomaticallyInstallMacOSUpdates`
-- **`LaunchServices`** — `LSQuarantine` (the "app downloaded from the internet" prompt — a safety guard; left ON deliberately). NB nix-darwin models **no** default-*handler* option: the default browser is not a `defaults` key at all but a LaunchServices binding, done from Home Manager instead — see `local.ungoogledChromium.makeDefaultBrowser` (`modules/shared/chromium.nix`) and § 7 below.
+- **`LaunchServices`** — `LSQuarantine` (the "app downloaded from the internet" prompt — a safety guard; left ON deliberately). NB nix-darwin models **no** default-*handler* option: the default browser is not a `defaults` key at all but a LaunchServices binding, done from Home Manager instead — see `local.defaultBrowser` (`modules/shared/default-browser.nix` — it left `chromium.nix`, and `makeDefaultBrowser` no longer exists) and § 7 below.
 - **`smb`** · **`magicmouse`** · **`universalaccess`** · **`ActivityMonitor`** · **`hitoolbox`** · **`iCal`** — present, niche
 
 ### Beyond `system.defaults` (top-level nix-darwin options)
