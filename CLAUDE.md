@@ -408,6 +408,10 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   what the fleet builds for a home-manager capsule, the inward hole in the ast-grep gate, and
   the loss §7 failed to list (a plain copy leaves 126 commits of provenance in the archived
   origin repos, so `git blame` dead-ends at the collapse commit).
+- [`docs/externalization-boundary-adr.md`](docs/externalization-boundary-adr.md) — **ADR-003
+  (2026-09-15, DECIDED, NOT IMPLEMENTED)**: what agent content may leave this repo. Nix is the
+  **harness**; governance (pins, secrets, curation) never leaves. Skills MAY overlay from `$HOME`;
+  **MCP servers may not** — a bad one darks the gateway.
 - [`docs/macvm-readd-runbook.md`](docs/macvm-readd-runbook.md) — re-adding the removed
   `macvm` Tart guest (removed 2026-09-05); what survives in the `tart-vms` capsule.
 - [`docs/gmail-mcp-multi-account-runbook.md`](docs/gmail-mcp-multi-account-runbook.md) — TRUE
