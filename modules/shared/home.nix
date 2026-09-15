@@ -548,11 +548,33 @@ in
   # iCloud Passwords extension talk to macOS Passwords.app; see chromium.nix.
   local.ungoogledChromium.enable = isMacosHost;
 
-  # Opera Air owns http/https; Chromium is the DEBUGGING browser, not the daily one.
-  # The claim itself is browser-agnostic and lives in ./default-browser.nix — the short
-  # handler name is what `defaultbrowser` takes, never the bundle id. Only the real Mac
-  # declares any browser cask, so this is a no-op elsewhere.
-  local.defaultBrowser = lib.mkIf isMacosHost "operaair";
+  # Google Chrome owns http/https; Chromium stays the DEBUGGING browser, not the daily
+  # one. The claim itself is browser-agnostic and lives in ./default-browser.nix — the
+  # short handler name is what `defaultbrowser` takes, never the bundle id (it is the
+  # last dot-component of the bundle id, lowercased: `com.google.Chrome` → `chrome`,
+  # `org.chromium.Chromium` → `chromium`). Only the real Mac declares any browser cask,
+  # so this is a no-op elsewhere.
+  #
+  # WHY NOT CHROMIUM, which is what this Mac had drifted to live: PASSKEYS. Reaching a
+  # macOS Passwords.app passkey needs `com.apple.developer.web-browser.public-key-credential`,
+  # a RESTRICTED entitlement Apple grants per-Team-ID to registered browser vendors on
+  # request. Measured 2026-09-15 with `codesign -d --entitlements`: the ungoogled-chromium
+  # cask carries SEVEN entitlements, all hardware/sandbox (camera, bluetooth, usb, …), no
+  # passkey grant and no `keychain-access-groups` at ALL — so neither the iCloud Keychain
+  # nor the profile Touch ID authenticator can work. Opera/Opera Air both carry the grant
+  # plus `…webauthn`, `…webauthn-uvk` and Google's own `com.google.common.folsom` group;
+  # Chrome carries it too, and Safari has the WebKit equivalent.
+  #
+  # So this is NOT fixable by swapping Chromium builds, and the obvious swap is worse: the
+  # plain (googled) `chromium` cask is DISABLED in Homebrew since 2026-09-01 for failing
+  # the Gatekeeper check, i.e. not Developer-ID notarized — and a restricted entitlement
+  # needs an Apple-authorized Team ID to carry it. A community rebuild
+  # can never obtain the grant — do not re-attempt this with a different Chromium.
+  #
+  # The sideloaded iCloud Passwords extension does not rescue it either: that extension
+  # does PASSWORDS (and verification codes). On macOS a passkey comes from the OS
+  # AuthenticationServices API the browser itself calls, never through an extension.
+  local.defaultBrowser = lib.mkIf isMacosHost "chrome";
 
   # The PUBLIC half of the userscript set. Private ones are added to this same
   # attrset by the nix-personal flake through `extraHomeModules`, which is the

@@ -492,11 +492,35 @@
         name = "escrcpy";
         postinstall = "/usr/bin/xattr -dr com.apple.quarantine /Applications/Escrcpy.app";
       }
+      # Google Chrome — the DAILY browser and the holder of http/https
+      # (`local.defaultBrowser = "chrome"`, modules/shared/home.nix). It is here for
+      # exactly one reason, and it is not a preference: PASSKEYS.
+      #
+      # Reaching a macOS Passwords.app passkey requires the RESTRICTED entitlement
+      # `com.apple.developer.web-browser.public-key-credential`, which Apple grants
+      # per-Team-ID to registered browser vendors on request. Verified 2026-09-15 with
+      # `codesign -d --entitlements` on the installed apps:
+      #
+      #   Chrome (EQHXZ8M8AV)    grant + com.google.common.folsom (iCloud Keychain)
+      #                                + com.google.Chrome.webauthn{,-uvk} (Touch ID)
+      #   Opera / Opera Air      same shape, Opera's own Team ID
+      #   Safari                 the WebKit equivalent
+      #   ungoogled-chromium     NEITHER — seven entitlements, all hardware/sandbox,
+      #                          and no `keychain-access-groups` key at all
+      #
+      # So no Chromium swap fixes it, and the obvious one is worse: the plain (googled)
+      # `chromium` cask has been DISABLED in Homebrew since 2026-09-01 for failing the
+      # Gatekeeper check — so not Developer-ID notarized, and a restricted entitlement
+      # needs an Apple-authorized Team ID. A community rebuild
+      # can never obtain the grant. Do not re-attempt this with another Chromium.
+      #
+      # It does NOT take any job back from ungoogled-chromium below.
+      # PUPPETEER_EXECUTABLE_PATH stays pointed at /Applications/Chromium.app on
+      # purpose, so JSON Resume PDF rendering keeps its pinned, ad-free engine rather
+      # than following an auto_updates cask.
+      "google-chrome"
       # Google Drive for desktop — the File Provider client (a mounted volume under
-      # ~/Library/CloudStorage/, NOT a plain folder). It replaced `google-chrome`
-      # here: Chrome's only load-bearing job on this host was rendering JSON Resume
-      # PDFs through puppeteer, and that now points at the ungoogled-chromium cask
-      # (PUPPETEER_EXECUTABLE_PATH, modules/shared/home.nix).
+      # ~/Library/CloudStorage/, NOT a plain folder).
       "google-drive"
       # GCP CLI (gcloud/gsutil/bq) — Google-official SDK cask so `gcloud components
       # install` works and it self-updates (vs. the pinned nixpkgs derivation).
