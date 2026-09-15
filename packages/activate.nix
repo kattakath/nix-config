@@ -15,7 +15,7 @@
 # declaratively, instead of on every invocation.
 #
 # `-H` because nix warns when $HOME is not owned by root — the same reason
-# packages/key-recovery.nix:452 spells its own escalation `sudo -H`.
+# bootstrap.sh spells its own first-activation escalation `sudo -H` too.
 #
 # Deliberately generic: no repo path, no hostname, no `--flake`. A bare
 # `darwin-rebuild switch` resolves the flake through /etc/nix-darwin and the
@@ -37,7 +37,7 @@ writeShellApplication {
     rebuild=/run/current-system/sw/bin/darwin-rebuild
     if [ ! -x "$rebuild" ]; then
       echo "activate: $rebuild is missing — this Mac has never been activated." >&2
-      echo "activate: bootstrap it first with 'nix run .#macos' (see docs/mac-key-recovery-runbook.md)." >&2
+      echo "activate: bootstrap it first with 'nix run .#macos' (see docs/new-mac-runbook.md)." >&2
       exit 1
     fi
 
