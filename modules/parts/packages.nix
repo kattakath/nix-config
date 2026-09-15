@@ -192,17 +192,33 @@ in
         # `nix run github:kattakath/nix-config#macos` — one-line first
         # activation of the macos nix-darwin host straight from the flake (the
         # darwin analog of nixpi's `nixos-rebuild switch --flake …#nixpi`).
-        # After Determinate Nix is
-        # installed but before darwin-rebuild is on PATH, this builds
-        # darwin-rebuild from the flake and `switch`es against this SAME
-        # revision (${self}); darwin-rebuild self-elevates via sudo/Touch ID.
-        # Subsequent rebuilds just use `sudo darwin-rebuild switch --flake .#macos`.
+        # After Determinate Nix is installed but before darwin-rebuild is on
+        # PATH, this builds darwin-rebuild from the flake and `switch`es against
+        # this SAME revision (${self}).
+        #
+        # It SELF-ELEVATES, because darwin-rebuild does NOT. Since nix-darwin's
+        # 2025-01-30 root migration `switch` is a bare `id -u` test followed by
+        # `exit 1` — PAM is never reached, so a non-root caller gets a dead end
+        # instead of this fleet's Touch ID sudo prompt. Upstream deliberately
+        # pushed that decision to the caller; packages/activate.nix already makes
+        # it once for every LATER rebuild, and this is the same call for the
+        # first one. The alternative is a documented command that cannot work as
+        # typed — which is exactly how the sudo-self-elevation removal broke a
+        # recovery mid-flight once before. `-H` because nix warns when $HOME is
+        # not owned by root.
+        #
+        # After this one run, /etc/nix-darwin and `activate` both exist, so no
+        # later rebuild needs this form.
         macos = {
           type = "app";
           program = "${pkgs.writeShellScript "activate-macos" ''
-            exec ${self.darwinConfigurations.macos.config.system.build.darwin-rebuild}/bin/darwin-rebuild switch --flake "${self}#macos" "$@"
+            rebuild=${self.darwinConfigurations.macos.config.system.build.darwin-rebuild}/bin/darwin-rebuild
+            if [ "$(id -u)" -eq 0 ]; then
+              exec "$rebuild" switch --flake "${self}#macos" "$@"
+            fi
+            exec /usr/bin/sudo -H "$rebuild" switch --flake "${self}#macos" "$@"
           ''}";
-          meta.description = "First activation of the macos nix-darwin host from the flake (after Determinate Nix)";
+          meta.description = "First activation of the macos nix-darwin host from the flake (self-elevates via sudo/Touch ID; after Determinate Nix)";
         };
 
         # (The #macvm activation app, the macvm-tart-* Tart lifecycle apps,
