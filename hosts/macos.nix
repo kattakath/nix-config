@@ -217,9 +217,10 @@
   # userEmail = ismail@kattakath.com (identityArgs) and its namesake domain;
   # silvercreek.ai, whose production WordPress this gateway already drives
   # (`wordpress-adapter`); and the operator's `aloshy` handle (the aloshy.ai
-  # zone). The retired nix-personal flake supplied seven further accounts; the
-  # operator kept only these two of them (2026-09-15, #524) and intentionally
-  # dropped the rest. Anyone else's address still never belongs here — see the
+  # zone). The private nix-personal flake used to ADD further accounts via
+  # extraHomeModules; it was fully retired 2026-09-15, and the operator chose to
+  # keep only the two below from its list of seven (#524), so this list is now
+  # the whole set. Anyone else's address still never belongs here — see the
   # option's description in modules/shared/mcp.nix.
   #
   # `operatorSshKey` is a home-manager module arg (extraSpecialArgs,

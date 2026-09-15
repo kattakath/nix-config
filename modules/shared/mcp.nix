@@ -34,7 +34,7 @@
 #   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 20 servers (22
 #   with telegram + the local WordPress adapter, +1 per configured
 #   `local.mcpGateway.gmail.accounts` alias — `gmail-<alias>`, one process
-#   per Google/Workspace account, 0 in this public repo — see mkGmailMcp's
+#   per Google/Workspace account, the roster in hosts/macos.nix — see mkGmailMcp's
 #   comment), each reachable at /servers/<name>/sse.
 #   `gatewayConfig` is rendered by mcp-servers-nix's `lib.mkConfig`, so the 7 packaged
 #   servers (context7/fetch/memory/sequential-thinking/nixos/terraform/github) are
@@ -148,12 +148,13 @@ let
   # populated by a SEPARATE one-time interactive `auth` run per account (opens a
   # browser; the tool itself writes that file, this wrapper never touches it).
   #
-  # WHICH accounts run is cfg.gmail.accounts, empty by default here — real
-  # email addresses are set in `hosts/macos.nix` instead (several belong to
-  # family/associates whose inboxes the operator manages; all are public
-  # there since nix-personal, which used to keep them out of this repo, was
-  # retired 2026-09-15). An account with no completed auth exits at startup,
-  # so only add an email here AFTER its one-time browser login is done.
+  # WHICH accounts run is cfg.gmail.accounts, empty by default here — the real
+  # list is set in `hosts/macos.nix`, and holds ONLY the operator's own
+  # accounts, each under an identity already public in this tree. Anyone
+  # else's address never goes there. (The private nix-personal flake used to
+  # add further accounts; it was fully retired 2026-09-15 and only two of its
+  # seven were carried over — #524.) An account with no completed auth exits
+  # at startup, so only add an email AFTER its one-time browser login is done.
   # Basename nix-* for the BTM origin rule.
   # Setup once (shared client), then once per account:
   #     secret set GMAIL_OAUTH_CLIENT_ID <client_id>
@@ -904,11 +905,12 @@ in
         single-account-per-connection built-in connector (see mkGmailMcp's
         comment above; gmailAlias sanitizes each email into a tool-prefix/
         filename-safe token internally — this list itself stays plain
-        emails). Empty by default here — the real list is set in
-        `hosts/macos.nix` instead, including several accounts belonging to
-        people other than the operator (family/associates whose inboxes he
-        manages), public since nix-personal, which used to keep them out of
-        this repo, was retired 2026-09-15. All accounts share ONE Google Cloud
+        emails). Empty by default; hosts/macos.nix sets the operator's own
+        accounts, each under an identity already public in this tree. Never
+        list anyone else's address here: it is personal data in a public
+        repo. (The private nix-personal flake used to add such accounts via
+        `extraHomeModules`; it was fully retired 2026-09-15 and only the
+        operator's own two were carried over.) All accounts share ONE Google Cloud
         OAuth Desktop-app client (GMAIL_OAUTH_CLIENT_ID/SECRET in the
         Keychain); each account ALSO needs its OWN completed one-time browser
         auth (~/.gmail-mcp/credentials-<sanitized-email>.json) BEFORE being
