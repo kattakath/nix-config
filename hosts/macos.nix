@@ -308,6 +308,15 @@ in
         # (threaded as a module arg by modules/parts/compose.nix) rather than
         # copied — one definition, two users.
         mediaCliModule
+        # Agentic surface. Both of these take only `{ pkgs, lib, ... }`, so they
+        # drop into a second profile unchanged — no operator-specific arg, no
+        # fork. `~/.claude` is per-user by construction, so each account needs
+        # its own declaration; the store paths behind them are shared, so this
+        # costs no disk.
+        ../modules/shared/claude-brain.nix
+        # Guardrails matter MORE on a second account, not less: the deny list is
+        # what stops an agent force-pushing or merging on Izzy's behalf.
+        ../modules/shared/claude-guardrails.nix
       ];
       home.stateVersion = "24.05";
       # Per-user by construction: the http/https claim is a LaunchServices
@@ -335,6 +344,25 @@ in
       # and each drains its OWN queue directory. They can only overlap under fast
       # user switching, where both sessions are live at once.
       local.mediaCli.enable = true;
+
+      # Without this the two claude-* imports above are INERT: they only set
+      # `programs.claude-code.*`, and the module defaults to disabled, so a
+      # profile that imports them and forgets this produces a byte-identical
+      # system (measured — the drvPath did not move).
+      programs.claude-code = {
+        enable = true;
+        # The same global, all-projects context the operator gets. A repo-
+        # relative source literal, so both accounts resolve to one store path.
+        context = ../claude/CLAUDE.md;
+      };
+
+      # The grok CLI is NOT a Nix package — its own installer drops a
+      # self-updating Mach-O binary in ~/.grok/bin and keeps per-user state
+      # there (agent_id, active_sessions.json). So this declares the PATH entry,
+      # exactly as modules/shared/home.nix does for the operator, and the binary
+      # still has to be installed once under this account. Sharing one binary
+      # across accounts is the wrong shape anyway: the identity is per-user.
+      home.sessionPath = [ "$HOME/.grok/bin" ];
     };
 
   # ---- Gmail multi-account MCP (modules/shared/mcp.nix, a home-manager option
