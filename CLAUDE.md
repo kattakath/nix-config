@@ -71,7 +71,7 @@ scripts/drv-snapshot.sh --compare .baseline/wave0-final   # "moved code, changed
 # Agent hygiene (LEAN/DRY/docs drift → fix → fmt → check): /hygiene  or skill nix-hygiene
 
 # Activation
-darwin-rebuild switch --flake .#macos        # Activate macos — this repo now carries all of its own data
+sudo darwin-rebuild switch --flake .#macos        # Activate macos — this repo now carries all of its own data
 nix run github:kattakath/nix-config#macos    # FIRST activation of macos straight from the flake (before darwin-rebuild is on PATH)
 nixos-rebuild switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com
                                              # Activate the Pi: builds HERE (substituting the CI-warmed closure from
