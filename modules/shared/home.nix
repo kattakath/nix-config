@@ -1146,6 +1146,12 @@ in
         # that does NOT have it yet. Carries the Nix/Postgres/Prisma traps that cost real
         # debugging time (withPackages union prefix, socket port, macOS socket length cap).
         nix-dev-toolkit = "${kattakath-ai}/skills/nix-dev-toolkit";
+
+        # End-of-task counterpart to capability-broker: decide whether a session's
+        # discovery is worth keeping, pick the artifact type, strip secrets and machine
+        # paths, and land it as a kattakath/ai PR + a pin bump HERE — never a loose file
+        # in ~/.claude, which this fleet's activation would not preserve.
+        harvest = "${kattakath-ai}/skills/harvest";
       };
     };
 
