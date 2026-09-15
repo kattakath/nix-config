@@ -8,7 +8,15 @@
 { config, ... }:
 let
   inherit (config.flake.lib) mkDarwin mkNixos;
-  inherit (config.fleet) hostedSites;
+  inherit (config.fleet) hostedSites orgName repoName;
+
+  # Where THIS operator's working tree lives, relative to $HOME. Spelled once
+  # here because bootstrap.sh derives the very same path from --flake
+  # ($HOME/Developer/github.com/$FLAKE_OWNER/$FLAKE_REPO) — two derivations of one
+  # invariant, and the /etc/nix-darwin symlink below silently dangles if they
+  # ever disagree. Owner and repo come from config.fleet so an org or repo rename
+  # moves both halves together.
+  operatorFlakeRelPath = "Developer/github.com/${orgName}/${repoName}/flake.nix";
 in
 {
   # ---- macOS system configurations ---------------------------------------
@@ -42,7 +50,7 @@ in
             # string symlinks the live tree, so a rebuild sees edits.
             environment.etc."nix-darwin/flake.nix".source = "${
               config.users.users.${loginName}.home
-            }/Developer/github.com/kattakath/nix-config/flake.nix";
+            }/${operatorFlakeRelPath}";
           }
         )
       ];
