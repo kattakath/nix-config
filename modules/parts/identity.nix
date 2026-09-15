@@ -100,21 +100,37 @@ let
   cloudflareAccountId = "726e0b2aa2bc2c6944f96a042e3c461b";
   cloudflareZoneId = "6e28971881e488941d052bbbf50d69cd"; # the domainName zone
 
-  # ---- Sites served on nixpi: composition hook, not a live list -----------
+  # ---- Sites served on nixpi ------------------------------------------------
   # nixpi's Caddy vhosts are driven ENTIRELY by mkNixos's `hostedSites`
-  # parameter (see modules/parts/compose.nix) — this public repo defines the
-  # SHAPE and the GENERIC Caddy-generation code (hosts/nixpi.nix), never any real
-  # site. Shape: { domain; zoneId ? null; root; www ? true; ownTunnel ? false }
-  # (root = a path Caddy file_servers). infra/cloudflare/nixpi-tunnel.nix's
-  # `cfTunnelConfig` maps the SAME shape to tunnel ingress + DNS (also
-  # overridable — see modules/parts/terranix.nix). Public hosts pass nothing, so
-  # `hostedSites` defaults to `[ ]`: Caddy runs, zero vhosts, the sdImage
-  # stays secret- and site-free. The real production sites (today two:
-  # snoringirl.com and ismail.kattakath.com) are supplied by the
-  # private nix-personal composition flake's `nixosConfigurations.nixpi`,
-  # the standard composition seam (`extraHomeModules` for the Mac;
-  # `hostedSites` + `extraModules` for nixpi) — see
-  # docs/private-home-modules.md.
+  # parameter (see modules/parts/compose.nix): hosts/nixpi.nix generates one
+  # Caddy virtualHost per entry, and infra/cloudflare/nixpi-tunnel.nix's
+  # `cfTunnelConfig` maps the SAME shape to tunnel ingress + DNS
+  # (modules/parts/terranix.nix). Shape: { domain; zoneId ? null; root;
+  # www ? true; ownTunnel ? false } (root = a path Caddy file_servers).
+  # Formerly supplied by the private nix-personal composition flake; folded in
+  # here when that flake was retired (2026-09-15) — see docs/repo-map.md.
+  hostedSites = [
+    {
+      domain = "snoringirl.com";
+      zoneId = "21de2a6be1b268b2b151ae0b3592e562";
+      root = ../../sites/snoringirl;
+    }
+    {
+      domain = "ismail.kattakath.com";
+      zoneId = "6e28971881e488941d052bbbf50d69cd";
+      root = ../../sites/ismail-landing;
+      www = false;
+    }
+  ];
+
+  # ---- MCP servers exposed on the public gateway ---------------------------
+  # MUST mirror hosts/macos.nix's `local.mcpGateway.public` — both read this
+  # one value, so the two can never drift (docs/mcp-public-exposure-design.md).
+  # Consumed by modules/parts/terranix.nix's mcpPublicConfig/mkMcpPublicTofu.
+  publicMcpServers = [
+    "memory"
+    "sequential-thinking"
+  ];
 
   # ---- Shared identity, as threaded into BOTH builders --------------------
   # Threaded into mkNixos + mkDarwin so system specialArgs and the embedded
@@ -167,6 +183,8 @@ in
         operatorSshKey
         cloudflareAccountId
         cloudflareZoneId
+        hostedSites
+        publicMcpServers
         identityArgs
         ;
     };

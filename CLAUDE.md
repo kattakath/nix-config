@@ -47,7 +47,7 @@ Fully declarative **aarch64-only** fleet, single source of truth, platform diver
 | Host | System | Role |
 |---|---|---|
 | `macos` | aarch64-darwin | The sole client Mac (nix-darwin). No incoming traffic; it is the SSH *client*, reaching `nixpi` via `cloudflared access ssh`. Builds `aarch64-linux` locally on Determinate's native Linux builder. |
-| `nixpi` | aarch64-linux | **LIVE server** (NixOS on a Pi 4): Access-gated, loopback-bound SSH over a Cloudflare Tunnel connector + Caddy. **Site-free in this public repo** — the real site list comes from the private nix-personal flake ([`docs/private-home-modules.md`](docs/private-home-modules.md)). |
+| `nixpi` | aarch64-linux | **LIVE server** (NixOS on a Pi 4): Access-gated, loopback-bound SSH over a Cloudflare Tunnel connector + Caddy, serving its real sites directly (`config.fleet.hostedSites`, `modules/parts/identity.nix`). |
 | `nixvm` | aarch64-linux | Throwaway XFCE build-vm, materialised **only** as `nix run .#nixvm`. No installed disk, no builder, no runner. |
 | devcontainer | +`x86_64-linux` | The one exception to aarch64-only, so it runs on x86_64 Codespaces. |
 
@@ -71,14 +71,15 @@ scripts/drv-snapshot.sh --compare .baseline/wave0-final   # "moved code, changed
 # Agent hygiene (LEAN/DRY/docs drift → fix → fmt → check): /hygiene  or skill nix-hygiene
 
 # Activation
-darwin-rebuild switch --flake .#macos        # ⚠ NEVER run this from THIS repo for a real switch — it silently
-                                             #   drops the private nix-personal layer. Use `activate`, or ask first.
+darwin-rebuild switch --flake .#macos        # Activate macos — this repo now carries all of its own data
 nix run github:kattakath/nix-config#macos    # FIRST activation of macos straight from the flake (before darwin-rebuild is on PATH)
 nixos-rebuild switch --flake .#nixpi         # Activate the Pi (LIVE server — must pass CI/Cachix first, never build heavy on the Pi)
-deploy --targets .#nixpi                     # ⚠ Same trap as above: from THIS repo it deploys a SITE-FREE Pi. Deploy from
-                                             #   nix-personal. deploy-rs w/ magicRollback: an unreachable Pi auto-reverts
-                                             #   instead of needing a physical SD-card pull. ALWAYS --targets (bare `deploy`
-                                             #   fans out over every node). --dry-activate to rehearse.
+deploy --targets .#nixpi                     # deploy-rs w/ magicRollback: an unreachable Pi auto-reverts instead of
+                                             #   needing a physical SD-card pull. ALWAYS --targets (bare `deploy` fans
+                                             #   out over every node). --dry-activate to rehearse. remoteBuild is off
+                                             #   (the Pi never builds), and caddy's Caddyfile-formatted derivation
+                                             #   still EPERMs on the Mac's native Linux builder — `nixos-rebuild switch
+                                             #   --build-host nixpi` remains the working path until that's fixed.
 nix run .#nixvm                              # Build + boot the throwaway nixvm XFCE build-vm in a native QEMU window
 nix eval .#nixosConfigurations.nixpi.config.system.build.toplevel   # Fast single-target eval
 
@@ -115,11 +116,11 @@ evaluates on one system can still break the other.
   locally, validate syntax with `nix-instantiate --parse` and say the rest is CI-deferred. The
   SessionStart hook reports which mode you're in.
 - **`scripts/drv-snapshot.sh` is the second test** — the acceptance harness ADR-002 built. It
-  captures `nix flake show --json`, all three host toplevels, every package/check drvPath **and
-  nix-personal's own `macos` toplevel** (via `--override-input`). `--out DIR` captures,
-  `--compare DIR` diffs. Use it whenever a change is meant to MOVE code without changing what
-  the fleet BUILDS; baselines live in gitignored `.baseline/`. It is deliberately **not** a flake
-  package — that would add a `nix flake show` row and perturb the baseline it measures.
+  captures `nix flake show --json`, all three host toplevels, and every package/check drvPath.
+  `--out DIR` captures, `--compare DIR` diffs. Use it whenever a change is meant to MOVE code
+  without changing what the fleet BUILDS; baselines live in gitignored `.baseline/`. It is
+  deliberately **not** a flake package — that would add a `nix flake show` row and perturb the
+  baseline it measures.
 
 ## Navigating the Codebase
 
@@ -167,7 +168,9 @@ change, off `main`),
 [`launchd-naming`](.claude/rules/launchd-naming.md) (every launchd unit exposes a `nix-<kebab>`
 `arg0` — never a bare `sh`/`python3`),
 [`upstream-first`](.claude/rules/upstream-first.md) (grep the **pinned** input's option surface
-before writing custom Nix, and cite the result).
+before writing custom Nix, and cite the result). Scoped to `sites/**`:
+[`store-copied-trees`](.claude/rules/store-copied-trees.md) (a directory path literal copies
+the whole tree into the store — check for stray `.DS_Store`/etc. before committing).
 
 **Hooks** (`.claude/hooks/`): `stop-gate.js` + `pretooluse-bash-guard.js` (both wrapped by the
 `superhook` PATH package, since a checked-in `settings.json` can hold neither a store path nor
@@ -242,19 +245,19 @@ How a host gets composed — change these knobs, not the hosts' internals:
   **nothing in the fleet uses it** — every host runs the same operator identity.
 - **Per-host divergence is a gate, not a fork.** `networking.hostName`-gated `lib.mkIf` (or
   `osConfig`) inside `modules/`; never a second identity, never a copy-pasted host block.
-- **Private layer plugs in, never leaks out.** `lib.mkDarwin { extraHomeModules }` /
-  `mkNixos { hostedSites }` are the seams the private nix-personal flake fills
-  ([`docs/private-home-modules.md`](docs/private-home-modules.md)); the public tree never
-  references a private repo.
+- **No private layer any more.** `lib.mkDarwin { extraHomeModules }` / `mkNixos { hostedSites }`
+  are still generic, optional composition hooks (both default to `[ ]`), but the private
+  nix-personal flake that used to fill them was retired 2026-09-15 — its values (AWS SSO
+  profiles, extra gmail accounts, git identities, the OpenAI gateway, the real `hostedSites`)
+  are folded directly into `hosts/macos.nix` and `modules/parts/identity.nix`. See
+  [`docs/repo-map.md`](docs/repo-map.md).
 - **Whole features are ONE enable flag — and they are all IN-TREE now.** The media stack
   (`local.mediaCli`) and the Keychain secret store (`local.keychainSecrets`) are each one
   switch: `local.mediaCli.enable = false` removes the CLIs, both launchd agents, the Finder
   Services and the companion tools together — no orphaned package, no dangling session variable,
   no stale menu item to hunt down. **They no longer arrive as flake INPUTS.** ADR-002 absorbed
   all seven satellites as `modules/features/<name>/` capsules (waves 3-6) and the origin repos
-  are archived, so "feature X plugs in as an input" is false for every one of them. What is still
-  a plug-in seam is the **private layer** (`extraHomeModules` / `hostedSites`) — that half is
-  untouched and is proven on every wave by the drv harness evaluating nix-personal.
+  are archived, so "feature X plugs in as an input" is false for every one of them.
 - **Binary cache:** the public `kattakath` Cachix cache is consumed tokenless by every host
   (`modules/shared/nix-cache.nix`); only CI and the operator's Keychain hold the write token.
 - **`macos` runs self-hosted CI runners — two kinds, neither for this repo's CI.**
@@ -290,28 +293,16 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   `nix flake check` and fails with confusing "file not found" / stale-eval errors. ALWAYS
   `git add` before evaluating — enforced by [git-purity](.claude/rules/git-purity.md) and the
   Stop hook.
-- **Never `darwin-rebuild switch --flake .#macos` from this public repo.** It silently drops
-  the private nix-personal layer. Use `activate` (nix-personal) or ask first.
 - **`nixpi` is LIVE.** Changes must pass CI (which pushes closures to Cachix) before
-  activation; pull prebuilt paths, never build heavy on the Pi.
-- **Never `deploy --targets .#nixpi` from this public repo.** `deploy.nodes.nixpi` here points
-  at the **site-free** public `nixosConfigurations.nixpi`, so a *successful* deploy hands the
-  live Pi a Caddy with **zero vhosts** — every site goes dark
-  while sshd stays up. **Magic rollback cannot save you from that**: it only reverts an
-  activation that leaves the host **unreachable**, and a site-free Pi is perfectly reachable,
-  so deploy-rs reports SUCCESS. Deploy from the private nix-personal flake — today that is its
-  `nix run .#nixpi` (`nixos-rebuild --build-host nixpi`, **no** magic rollback), because the
-  Pi closure cannot be built on the Mac (caddy EPERM, § `hosts/` in repo-map); a re-export of
-  this node is the target shape, not the current one. Also: bare `deploy` with no `--targets`
-  fans out over **every** node — always name the target.
-- **Never run the `cf-*` terranix apps from this public repo** — the twin of the `deploy` trap.
-  `mkCfTunnelTofu` calls `cfTunnelConfig` with **no `hostedSites`** (it defaults to `[ ]`), so
-  the public tree renders a tunnel whose ingress is **SSH + the catch-all 404 and nothing
-  else**, with no site CNAMEs and no www→apex rulesets. A *successful* apply of that blanks
-  the live tunnel and deletes every site record in state, while reporting SUCCESS — exactly
-  the failure shape `deploy` has. `mkCfTunnelTofu` now **refuses** a render with ≤2 ingress
-  entries (override: `CF_TUNNEL_ALLOW_SITE_FREE=1`), but run those apps from the private
-  nix-personal flake, which supplies the real site list.
+  activation; pull prebuilt paths, never build heavy on the Pi. `deploy.nodes.nixpi` and the
+  `cf-tunnel-*`/`mcp-public-*` terranix apps all render this repo's real data directly now (the
+  private nix-personal flake that used to gate this was retired 2026-09-15) — `mkCfTunnelTofu`
+  and `mkMcpPublicTofu` still **refuse** a render that would blank an already-provisioned tunnel
+  or unpublish a live server (overrides: `CF_TUNNEL_ALLOW_SITE_FREE=1` / `MCP_PUBLIC_ALLOW_EMPTY=1`)
+  — that guard stays as a "do you really mean to destroy this" check, independent of the split
+  that used to exist. Bare `deploy` with no `--targets` still fans out over **every** node —
+  always name the target. `nix run .#nixpi` remains `nixos-rebuild --build-host nixpi` (no magic
+  rollback) until the Pi closure can build off-Pi again (caddy EPERM, § `hosts/` in repo-map).
 - **The edge's TLS floor and the SSH Access gate are DECLARED, not clicked.**
   `infra/cloudflare/nixpi-tunnel.nix` owns `cloudflare_zone_setting` (ssl=strict,
   min_tls=1.2, always_use_https, HSTS) for the SSH host's zone and every hosted site's
@@ -370,8 +361,6 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   per server.** §9 is its correction record.
 - [`docs/secrets-and-keychain.md`](docs/secrets-and-keychain.md) — agenix operator-only vault +
   the login-Keychain loader and the `secret` CLI.
-- [`docs/private-home-modules.md`](docs/private-home-modules.md) — the public-engine /
-  private-plug-in contract. **The one seam ADR-002 did NOT collapse.**
 - **ADRs, in order** — [`ADR-001`](docs/flake-architecture-strategy-adr.md) (flake-parts for the
   small supporting flakes; **superseded in part**, and its objection 3 still stands);
   [`ADR-002`](docs/monoflake-capsule-adr.md) (decided **and implemented**: absorbed all seven

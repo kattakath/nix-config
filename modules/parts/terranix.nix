@@ -18,6 +18,8 @@ let
     domainName
     cloudflareAccountId
     cloudflareZoneId
+    hostedSites
+    publicMcpServers
     ;
 
   # Per-system nixpkgs accessor (legacyPackages avoids a redundant eval). The
@@ -124,6 +126,7 @@ let
       system,
       name,
       action,
+      hostedSites ? [ ],
     }:
     let
       pkgs = pkgsFor system;
@@ -174,15 +177,13 @@ let
         echo "tofu working directory: $state_dir" >&2
 
         rm -f config.tf.json
-        cp ${cfTunnelConfig { inherit system; }} config.tf.json
+        cp ${cfTunnelConfig { inherit system hostedSites; }} config.tf.json
 
-        # SITE-FREE GUARD — the twin of the `deploy` trap.
-        # The public repo's cf-tunnel apps call cfTunnelConfig with no
-        # `hostedSites` (it defaults to [ ]), which renders a tunnel whose
-        # ingress is SSH + the catch-all 404 and NO site DNS/redirects. A
+        # SITE-FREE GUARD — the twin of the `deploy` trap. A caller that passes
+        # no `hostedSites` (or an accidentally emptied one) renders a tunnel
+        # whose ingress is SSH + the catch-all 404 and NO site DNS/redirects. A
         # successful apply of that would take every site dark and delete the
-        # records/rulesets from state, while reporting SUCCESS. The real site
-        # list lives in the private nix-personal flake; run it from there.
+        # records/rulesets from state, while reporting SUCCESS.
         # One ingress entry == SSH only; two == SSH + catch-all, still site-free.
         ingress_count=$(
           ${pkgs.jq}/bin/jq '
@@ -191,10 +192,8 @@ let
         )
         if [ "''${ingress_count:-0}" -le 2 ]; then
           echo "REFUSING: rendered config is SITE-FREE (ingress entries: ''${ingress_count})." >&2
-          echo "  This is the public tree, where hostedSites defaults to [ ]." >&2
           echo "  Applying it would blank the live tunnel's ingress and delete" >&2
           echo "  every site CNAME + www->apex ruleset that is in state." >&2
-          echo "  Run the cf-tunnel apps from the PRIVATE nix-personal flake instead." >&2
           echo "  Override only if you genuinely mean a site-free tunnel:" >&2
           echo "    CF_TUNNEL_ALLOW_SITE_FREE=1 ${name}" >&2
           [ "''${CF_TUNNEL_ALLOW_SITE_FREE:-}" = "1" ] || exit 1
@@ -237,7 +236,8 @@ let
         echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:mcp-public -- \\"
         echo "    nix run .#mcp-public-token | secret set cf:cloudflare.com:mcp-connector"
         echo ""
-        echo "Then set local.mcpGateway.public (from nix-personal) and activate."
+        echo "local.mcpGateway.public (hosts/macos.nix) must already list the same"
+        echo "servers as config.fleet.publicMcpServers — activate after storing the token."
       '';
     in
     pkgs.writeShellApplication {
@@ -270,11 +270,11 @@ let
         tofu init
 
         # GUARD — the twin of the site-free trap, shaped for THIS stack.
-        # The public tree renders publicServers = [ ], which is correct for the
-        # FIRST apply (create the tunnel and Access objects before publishing
-        # anything). It is destructive later: applying an empty render over
-        # state that already holds registrations DELETES them, un-publishing
-        # every server while reporting success. Refuse exactly that case.
+        # publicServers = [ ] is correct for the FIRST apply (create the
+        # tunnel and Access objects before publishing anything). It is
+        # destructive later: applying an empty render over state that already
+        # holds registrations DELETES them, un-publishing every server while
+        # reporting success. Refuse exactly that case.
         rendered=$(${pkgs.jq}/bin/jq '
           [.resource.cloudflare_zero_trust_access_ai_controls_mcp_server // {} | keys[]]
           | length' config.tf.json)
@@ -345,16 +345,23 @@ in
       # writeShellApplication shellcheck on each wrapper.
       packages = {
         cf-tunnel-apply = mkCfTunnelTofu {
-          inherit system;
+          inherit system hostedSites;
           name = "cf-tunnel-apply";
           action = "apply";
         };
         mcp-public-apply = mkMcpPublicTofu {
           inherit system;
+          publicServers = publicMcpServers;
           name = "mcp-public-apply";
           action = "apply";
         };
         mcp-public-token = mkMcpPublicToken { inherit system; };
+        # destroy intentionally keeps hostedSites/publicServers at their [ ]
+        # default: rendering "nothing" against non-empty state is exactly what
+        # trips the guards above, so tearing down the real stack still needs
+        # the explicit CF_TUNNEL_ALLOW_SITE_FREE=1 / MCP_PUBLIC_ALLOW_EMPTY=1
+        # override. That friction is a "do you really mean to destroy this"
+        # gate, independent of whether this repo also holds the real data.
         mcp-public-destroy = mkMcpPublicTofu {
           inherit system;
           name = "mcp-public-destroy";

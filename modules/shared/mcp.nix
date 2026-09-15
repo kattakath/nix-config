@@ -148,16 +148,13 @@ let
   # populated by a SEPARATE one-time interactive `auth` run per account (opens a
   # browser; the tool itself writes that file, this wrapper never touches it).
   #
-  # WHICH accounts run is cfg.gmail.accounts, empty by default and
-  # deliberately NOT populated here — real email addresses are personal data
-  # that doesn't belong in a public repo, and several of the accounts this
-  # was built for aren't even the operator's own (family/associates whose
-  # inboxes he manages). The real list is supplied by the PRIVATE nix-personal
-  # composition flake via `extraHomeModules`, same contract as nixpi's
-  # `hostedSites` (docs/private-home-modules.md) — public `hosts/macos.nix`
-  # passes only its own two already-public addresses. An account with no
-  # completed auth exits at startup, so only add an email here AFTER its
-  # one-time browser login is done. Basename nix-* for the BTM origin rule.
+  # WHICH accounts run is cfg.gmail.accounts, empty by default here — real
+  # email addresses are set in `hosts/macos.nix` instead (several belong to
+  # family/associates whose inboxes the operator manages; all are public
+  # there since nix-personal, which used to keep them out of this repo, was
+  # retired 2026-09-15). An account with no completed auth exits at startup,
+  # so only add an email here AFTER its one-time browser login is done.
+  # Basename nix-* for the BTM origin rule.
   # Setup once (shared client), then once per account:
   #     secret set GMAIL_OAUTH_CLIENT_ID <client_id>
   #     secret set GMAIL_OAUTH_CLIENT_SECRET <client_secret>
@@ -907,13 +904,11 @@ in
         single-account-per-connection built-in connector (see mkGmailMcp's
         comment above; gmailAlias sanitizes each email into a tool-prefix/
         filename-safe token internally — this list itself stays plain
-        emails). Empty by default and deliberately NOT populated in this
-        public repo beyond the operator's own two already-public addresses
-        (hosts/macos.nix): other accounts here are personal data, some
-        belonging to people other than the operator, supplied instead by the
-        PRIVATE nix-personal flake via `extraHomeModules` — the same
-        composition contract as nixpi's `hostedSites`
-        (docs/private-home-modules.md). All accounts share ONE Google Cloud
+        emails). Empty by default here — the real list is set in
+        `hosts/macos.nix` instead, including several accounts belonging to
+        people other than the operator (family/associates whose inboxes he
+        manages), public since nix-personal, which used to keep them out of
+        this repo, was retired 2026-09-15. All accounts share ONE Google Cloud
         OAuth Desktop-app client (GMAIL_OAUTH_CLIENT_ID/SECRET in the
         Keychain); each account ALSO needs its OWN completed one-time browser
         auth (~/.gmail-mcp/credentials-<sanitized-email>.json) BEFORE being

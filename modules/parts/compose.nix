@@ -328,24 +328,6 @@ let
       ]
       ++ extraModules;
     };
-  # `activate` for a PRIVATE COMPOSITION flake -- the freshness-gated
-  # darwin-rebuild wrapper (packages/activate.nix). MECHANISM lives here under
-  # the shape/values contract; the private flake supplies only values: its own
-  # live checkout path (--hard/--yolo mutate and commit its flake.lock, which
-  # only makes sense against a mutable git checkout, never the store copy of
-  # `self`) and the local nix-config checkout path for --local. Everything
-  # else defaults sensibly IN THE PACKAGE FILE, remoteUrl included -- it is
-  # this repo's own URL, a public value beside the mechanism that uses it.
-  # Every argument except `system` is forwarded verbatim, so the parameter
-  # list and its defaults live in ONE place -- the package file -- and cannot
-  # drift against a copy here. Required there: nixPersonalDir, nixConfigDir.
-  # Optional there: darwinHostname, remoteUrl, remoteBranch.
-  mkActivateCli =
-    { system, ... }@args:
-    nixpkgs.legacyPackages.${system}.callPackage ../../packages/activate.nix (
-      builtins.removeAttrs args [ "system" ]
-    );
-
   # Remote-deploy `nix run` app for a NixOS host that cannot self-build -- a
   # nixos-rebuild switch dispatched FROM the invoking machine, built AND
   # activated on the remote. MECHANISM here, values from the caller: which
@@ -396,10 +378,10 @@ let
 in
 {
   # ---- Composition API (private flakes, local overrides) --------------------
-  # The composition contract: this public flake is the engine;
-  # private stacks plug in via `extraHomeModules` without forking hosts/.
-  # Consumers: a private flake calls `nix-config.lib.mkDarwin { …; extraHomeModules = [ … ]; }`.
-  # The terranix renderers join this same attrset from
+  # The composition contract: this public flake is the engine; a private
+  # stack could plug in via `extraHomeModules` without forking hosts/ (no
+  # caller does today — see docs/repo-map.md, nix-personal retired
+  # 2026-09-15). The terranix renderers join this same attrset from
   # modules/parts/terranix.nix — see modules/parts/lib-option.nix for why that
   # is possible at all.
   flake.lib = {
@@ -407,7 +389,6 @@ in
       mkDarwin
       mkNixos
       mkHomeManagerModule
-      mkActivateCli
       mkRemoteNixosSwitchApp
       identityArgs
       ;

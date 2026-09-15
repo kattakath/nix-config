@@ -8,6 +8,7 @@
 { config, ... }:
 let
   inherit (config.flake.lib) mkDarwin mkNixos;
+  inherit (config.fleet) hostedSites;
 in
 {
   # ---- macOS system configurations ---------------------------------------
@@ -32,16 +33,17 @@ in
   # Built with `nixos-rebuild switch --flake .#<hostname>`.
   # SD card image for the Pi: nix build .#nixosConfigurations.nixpi.config.system.build.sdImage
   flake.nixosConfigurations = {
-    # Raspberry Pi 4 — the fleet's LIVE server. SITE-FREE in this public repo:
-    # `hostedSites` defaults to [ ], so the real vhost list arrives from the
-    # private nix-personal flake (docs/private-home-modules.md). It used to say
+    # Raspberry Pi 4 — the fleet's LIVE server, carrying its real site list
+    # directly (config.fleet.hostedSites, modules/parts/identity.nix) since the
+    # private nix-personal flake was retired 2026-09-15. It used to say
     # "kattakath.com static landing page" — that apex left nixpi on 2026-09-07
     # and is a DNS-only CNAME to GitHub Pages now.
-    # No extraModules: hosts/nixpi.nix imports its own Pi hardware modules (via
-    # mkNixos specialArgs), so this call and nix-personal's are both data-only.
+    # No extraModules: hosts/nixpi.nix imports its own Pi hardware modules via
+    # mkNixos specialArgs.
     "nixpi" = mkNixos {
       system = "aarch64-linux";
       hostname = "nixpi";
+      inherit hostedSites;
     };
 
     # Throwaway aarch64-linux dev VM, materialised ONLY as the graphical

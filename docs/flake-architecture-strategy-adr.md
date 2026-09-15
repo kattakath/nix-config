@@ -131,11 +131,12 @@ session that produced this ADR.
 - The extraction-and-`.follows`-compose contract (`docs/private-home-modules.md`) stays
   the primary cross-repo modularity mechanism — flake-parts changes each repo's
   *internals*, not the *contract* between repos.
-  **(Half superseded.** The nix-config ↔ nix-personal half is untouched and load-bearing:
-  `mkDarwin { extraHomeModules }` / `mkNixos { hostedSites }` are exactly as they were, and
-  the drv harness evaluates nix-personal on every wave to prove it. The *satellite* half is
-  gone — ADR-002 replaced seven `.follows`-composed inputs with seven in-tree capsules, and
-  the boundary they used to get from being separate repos is now
+  **(Fully superseded now.** The nix-config ↔ nix-personal half held until 2026-09-15, when
+  nix-personal was fully retired and folded into this repo — `mkDarwin { extraHomeModules }` /
+  `mkNixos { hostedSites }` are unchanged as generic mechanisms, but there is no second
+  composition calling into them any more. The *satellite* half went the same way earlier —
+  ADR-002 replaced seven `.follows`-composed inputs with seven in-tree capsules, and the
+  boundary they used to get from being separate repos is now
   `ast-grep/rules/capsule-must-not-reach-out.yml` + `checks.<system>.capsule-registry`.)
 - No change to any currently-running service or host activation as a direct result of
   this ADR — this is a structural/authoring improvement, not a runtime one.
