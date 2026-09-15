@@ -361,7 +361,26 @@ Home Manager profile. What the split is and is not:
   (`activate | tail`) is the PIPE's, not the command's. That misreading is exactly how an
   earlier revision of this paragraph came to claim exit 0. It is the same family as the
   `cmd | grep -q` trap that returns 141 on a SUCCESSFUL match under `pipefail` (§ Home Manager
-  activation): **a status taken through a pipe describes the pipe.** Diagnose by comparing
+  activation): **a status taken through a pipe describes the pipe.**
+
+  The obvious fix is itself a trap, and this fleet hit all three rungs of it. `$PIPESTATUS`
+  is a BASH array; in zsh — the login shell here — it does not exist, so **every** index
+  expands to the empty string, not just `[0]`. zsh's array is lowercase `$pipestatus` and is
+  1-indexed. And either array is clobbered by the NEXT command, an assignment included, so it
+  must be captured on the same line, lowercase first. Measured:
+
+  ```
+  sh -c 'exit 3' | cat; LO=("${pipestatus[@]}")   # -> (3 0)   correct
+  sh -c 'exit 3' | cat; UP=("${PIPESTATUS[@]}")   # -> ()      empty at every index
+  ```
+
+  So the rule is not "use `[1]`" — that still yields nothing in zsh and still reads as a pass.
+  Either do not pipe (`cmd > /tmp/out 2>&1; RC=$?`, then read the file) or use lowercase
+  `${pipestatus[1]}` captured immediately. **A bare `EXIT=` in your output is a BROKEN PROBE,
+  not a passing one** — an empty status reads as "no failure" when it means "the instrument
+  returned nothing".
+
+  Diagnose by comparing
   `nix eval .#darwinConfigurations.macos.system` against `readlink -f /run/current-system`;
   the system profile is NOT the authority here. (It stranded four generations deep before
   anyone noticed, 2026-09-15.)
