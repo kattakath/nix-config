@@ -638,6 +638,41 @@ in
       ];
     };
 
+    # Upstash's OWN marketplace (github:upstash/context7), HTTPS like
+    # claude-plugins-official above — the KEY must be the name upstream declares
+    # in its .claude-plugin/marketplace.json ("context7-marketplace"), because
+    # the activation loop in ./claude-plugins.nix greps `plugin marketplace
+    # list` for it and derives the install id as "<plugin>@<key>".
+    #
+    # WHY NOT the `context7` entry in claude-plugins-official: Anthropic's copy
+    # is `external_plugins/context7`, which carries a .mcp.json and NOTHING else
+    # — no skill, no agent, no command. It would add a second MCP server and
+    # zero behaviour. The value here is the SKILL: skills/context7-mcp's
+    # description auto-triggers on "setup/config questions, code involving
+    # libraries, API references, framework names", so Context7 gets consulted
+    # without the operator naming the tool. It also brings a docs-researcher
+    # subagent (sonnet — keeps fetched docs out of the main context) and
+    # /context7:docs.
+    #
+    # ACCEPTED COST, eyes open: the plugin's own .mcp.json registers a SECOND
+    # context7 at mcp.context7.com (headers from a node headersHelper reading
+    # CONTEXT7_API_KEY), so the fleet now has two paths to one service —
+    # mcp__plugin_hm_context7__* (the gateway's, keyed from the login Keychain,
+    # modules/shared/mcp.nix) and mcp__plugin_context7_context7__* (this one,
+    # anonymous unless CONTEXT7_API_KEY is exported into Claude Code's env).
+    # Distinct tool namespaces, so nothing collides; the plugin was taken
+    # unmodified on purpose rather than patched, to keep it a plain upstream
+    # pin. Patch out the .mcp.json (the grokBuildPluginPatched pattern in the
+    # let block above) if the duplicate ever actually costs something.
+    #
+    # NOTE for the upstream-first rule (.claude/rules/upstream-first.md):
+    # Context7 serves a CRAWLED snapshot, not this flake's pinned inputs. It is
+    # a lead; the citable grep still has to run against flake.lock.
+    context7-marketplace = {
+      source = lib.mkDefault "https://github.com/upstash/context7.git";
+      plugins = [ "context7" ];
+    };
+
     # This operator's OWN published marketplace, from the PINNED flake input
     # `kattakath-ai` (github:kattakath/ai) — not a local
     # directory. Extracted from this repo's plugins/ tree 2026-09-12 so the
