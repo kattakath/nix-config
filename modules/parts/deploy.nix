@@ -39,31 +39,19 @@ in
 {
   # ---- Remote activation: deploy-rs nodes (MAGIC ROLLBACK) -----------------
   #
-  # ⚠ NEVER `deploy .#nixpi` FROM THIS PUBLIC REPO for a real deploy. ⚠
+  # `deploy --targets .#nixpi` deploys the REAL nixpi config: `hostedSites`
+  # (config.fleet.hostedSites, modules/parts/identity.nix) carries the real
+  # site list directly in this repo since the private nix-personal flake was
+  # retired (2026-09-15) — there is no longer a site-free baseline to trip
+  # over.
   #
-  # Exactly the same trap as `darwin-rebuild switch --flake .#macos`: the node
-  # below points at THIS repo's `nixosConfigurations.nixpi`, which is the
-  # SITE-FREE public baseline. `hostedSites` defaults to `[ ]` here, so a
-  # successful deploy from this tree hands the live Pi a Caddy with ZERO
-  # vhosts — snoringirl.com and ismail.kattakath.com both go dark, while sshd
-  # and the primary tunnel keep working. Magic rollback CANNOT save you from that: it
-  # only reverts an activation that leaves the host UNREACHABLE, and a
-  # site-free Pi is perfectly reachable — deploy-rs would report SUCCESS.
-  # The real sites live in the private nix-personal flake; deploy from there.
-  #
-  # This node still ships here because it is the ENGINE, not the deployment —
-  # same public-engine / private-plug-in contract as `mkNixos { hostedSites }`
-  # and `mkDarwin { extraHomeModules }`: a private flake re-exports it against
-  # ITS `nixosConfigurations.nixpi` (docs/private-home-modules.md shows how), so
-  # the rollback semantics, timeouts and ssh plumbing are single-sourced here.
-  #
-  # STATUS 2026-09-13: nix-personal does NOT re-export it yet. With
-  # `remoteBuild` off, deploy-rs builds the Pi closure on the Mac, and nixpkgs'
-  # caddy `Caddyfile-formatted` derivation EPERMs on Determinate's native Linux
-  # builder (docs/repo-map.md § hosts/), so the private `nix run .#nixpi` is a
-  # `nixos-rebuild switch --build-host nixpi` instead — no magic rollback on
-  # that path. The node becomes live for the private tree once the Pi closure
-  # can be built off-Pi again (or the node grows `remoteBuild = true`).
+  # STATUS unchanged from before the retirement: with `remoteBuild` off,
+  # deploy-rs builds the Pi closure on the Mac, and nixpkgs' caddy
+  # `Caddyfile-formatted` derivation EPERMs on Determinate's native Linux
+  # builder (docs/repo-map.md § hosts/) — so `nixos-rebuild switch
+  # --build-host nixpi` (no magic rollback) is still how a real deploy
+  # happens today. This node activates once the Pi closure can build off-Pi
+  # again (or the node grows `remoteBuild = true`).
   #
   # `deploy` with no `--targets` fans out over EVERY node, so an
   # argument-less `deploy` in this repo IS a live-Pi deploy. Always name the

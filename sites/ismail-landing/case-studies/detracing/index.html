@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>De-tracing: recovering the design system inside an auto-traced logo — Ismail Kattakath</title>
+<meta name="description" content="An analysis-by-synthesis loop rebuilt an auto-traced logo into 14 primitives and 15 constants — with an AI vision critic in the loop and a drift certificate as proof. Residual: 1.5%.">
+<link rel="canonical" href="https://ismail.kattakath.com/case-studies/detracing/">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="author" content="Ismail Kattakath">
+<meta name="theme-color" content="#000000">
+
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://ismail.kattakath.com/case-studies/detracing/">
+<meta property="og:site_name" content="Ismail Kattakath">
+<meta property="og:title" content="De-tracing: recovering the design system inside an auto-traced logo">
+<meta property="og:description" content="An analysis-by-synthesis loop rebuilt an auto-traced logo into 14 primitives and 15 constants — with an AI vision critic in the loop and a drift certificate as proof. Residual: 1.5%.">
+<meta property="og:image" content="https://ismail.kattakath.com/case-studies/detracing/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Tri-color drift map: blue agreement, green added, red removed">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="De-tracing: recovering the design system inside an auto-traced logo">
+<meta name="twitter:description" content="An analysis-by-synthesis loop rebuilt an auto-traced logo into 14 primitives and 15 constants — with an AI vision critic in the loop and a drift certificate as proof. Residual: 1.5%.">
+<meta name="twitter:image" content="https://ismail.kattakath.com/case-studies/detracing/og.png">
+<meta name="twitter:image:alt" content="Tri-color drift map: blue agreement, green added, red removed">
+
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="mask-icon" href="/favicon.svg" color="#000000">
+<link rel="apple-touch-icon" href="/favicon.svg">
+
+<link rel="preload" href="../../fonts/roboto.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="../../fonts/roboto-mono.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../../styles.css?v=20260813a">
+<script src="../../site.js?v=20260813a" defer></script>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "De-tracing: recovering the design system inside an auto-traced logo",
+  "description": "An analysis-by-synthesis loop rebuilt an auto-traced logo into 14 primitives and 15 constants — with an AI vision critic in the loop and a drift certificate as proof. Residual: 1.5%.",
+  "url": "https://ismail.kattakath.com/case-studies/detracing/",
+  "image": "https://ismail.kattakath.com/case-studies/detracing/og.png",
+  "author": { "@type": "Person", "name": "Ismail Kattakath", "url": "https://ismail.kattakath.com" },
+  "publisher": { "@type": "Person", "name": "Ismail Kattakath", "url": "https://ismail.kattakath.com" }
+}
+</script>
+
+<style>
+  /* ---------- Layer 3½: case-study components (built on Layer 2 tokens only —
+     no new colour, radius, shadow, or type family; see /evidence/ for siblings). ---------- */
+  .cs-hero-lead { max-width: 62ch; }
+  .cs-figure {
+    border: var(--rule-base) solid var(--ink);
+    margin-top: clamp(20px, 3vw, 28px);
+    background: var(--ground);
+  }
+  .cs-figure svg { display: block; width: 100%; height: auto; }
+  .cs-figcaption {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--ink);
+    margin-top: 10px;
+    max-width: 68ch;
+  }
+  .cs-legend {
+    display: flex;
+    gap: clamp(14px, 2.4vw, 24px);
+    flex-wrap: wrap;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    margin: 18px 0 4px;
+  }
+  .cs-legend i { display: inline-block; width: 11px; height: 11px; margin-right: 7px; vertical-align: -1px; border: var(--rule-hair) solid var(--ink); }
+  .cs-loop {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.5;
+    border: var(--rule-base) solid var(--ink);
+    padding: 20px;
+    overflow-x: auto;
+    white-space: pre;
+    margin-top: clamp(20px, 3vw, 28px);
+  }
+  .cs-loop b { font-weight: 700; }
+  .cs-eq {
+    font-family: var(--font-mono);
+    font-size: 14.5px;
+    border: var(--rule-base) solid var(--ink);
+    padding: 14px 18px;
+    margin-top: 18px;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .cs-fals {
+    border-left: var(--rule-bar) solid var(--ink);
+    padding: 4px 0 4px 20px;
+    margin-top: 20px;
+    max-width: 72ch;
+  }
+  .cs-fals + .cs-fals { margin-top: 24px; }
+  .cs-fals p { margin: 8px 0 0; }
+  .cs-video {
+    border: var(--rule-base) solid var(--ink);
+    margin-top: clamp(20px, 3vw, 28px);
+  }
+  .cs-video video { width: 100%; display: block; background: var(--ink); }
+  .cs-prose { max-width: 72ch; }
+  .cs-prose + .cs-prose { margin-top: 14px; }
+</style>
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-header" role="banner">
+  <a class="brand" href="/" aria-label="Ismail Kattakath — home">
+    <img src="/logo.svg" alt="Ismail Kattakath" width="1120" height="460">
+  </a>
+  <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-nav" hidden>
+    <span class="nav-toggle-glyph" aria-hidden="true"></span><span class="nav-toggle-text">Menu</span>
+  </button>
+  <nav id="primary-nav" class="nav" aria-label="Primary">
+    <a href="/#work">Work</a>
+    <a href="/#stack">Stack</a>
+    <a href="/#contact">Contact</a>
+    <a class="dc-btn nav-cta" href="https://calendly.com/ismailkattakath/google-meet" target="_blank" rel="noopener">Book a call</a>
+  </nav>
+</header>
+
+<main id="main" tabindex="-1">
+
+  <section id="top" class="hero dc-invert" aria-label="Case study introduction">
+    <div class="hero-grid">
+      <div class="hero-col">
+        <p class="dc-label">Case study — methodology</p>
+        <h1 class="hero-title">De-tracing: recovering the design system inside an auto-traced logo</h1>
+        <p class="hero-lead cs-hero-lead">A client logo arrived as auto-traced vector soup: 92 wobbly segments, no symmetry, stroke widths wandering 30–37 units. Instead of redrawing it, I ran an analysis-by-synthesis loop — measure, fit closed-form, render, diff, repeat — with an AI vision model as the critic. Out came 14 primitives, 15 constants, four motion equations, and a drift certificate proving the residual is 1.5% and every unit of it intentional.</p>
+        <div class="hero-cta">
+          <a class="dc-btn dc-btn--lg dc-btn--fill" href="https://calendly.com/ismailkattakath/google-meet" target="_blank" rel="noopener">Book a 30-min call</a>
+          <a class="dc-btn dc-btn--lg" href="/">More work</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-label="At a glance" style="padding-top:clamp(36px,5vw,64px)">
+    <div class="stat-band">
+      <div class="stat"><p class="dc-num stat-num">92→14</p><p class="dc-label stat-label">Segments → primitives</p></div>
+      <div class="stat"><p class="dc-num stat-num">0.0000u</p><p class="dc-label stat-label">Mirror-symmetry deviation</p></div>
+      <div class="stat"><p class="dc-num stat-num">3</p><p class="dc-label stat-label">Hypotheses falsified</p></div>
+      <div class="stat"><p class="dc-num stat-num">1.5%</p><p class="dc-label stat-label">Final residual, all declared</p></div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="cs-proof-h">
+    <div class="section-head">
+      <h2 id="cs-proof-h">The proof, first</h2>
+      <span class="dc-label">01 — The artifact</span>
+    </div>
+    <div class="grid-body">
+      <p class="cs-prose">This is the final deliverable of the verification pipeline: a symmetric-difference map of the original logo against the parametric rebuild, computed in-browser by SVG cross-masking. Blue is agreement. Green is what the rebuild added (a uniform 36-unit stroke reaching past the source's thin passages). Red is what it removed (hand-drawn excess at corners and letter feet). The colors are orthogonal RGB channels because the sets are disjoint — if any two classes overlapped, additive mixing would betray it as yellow. No yellow exists in this image; its absence is the correctness proof.</p>
+      <div class="cs-legend" role="list">
+        <span role="listitem"><i style="background:#3b7dd8"></i>agreement · 27.5%</span>
+        <span role="listitem"><i style="background:#28a745"></i>added · 1.2%</span>
+        <span role="listitem"><i style="background:#d73a49"></i>removed · 0.25%</span>
+        <span role="listitem"><i style="background:#F2C879"></i>violation · must be absent</span>
+      </div>
+      <figure>
+        <div class="cs-figure"><svg role="img" aria-label="Classification map: blue agreement, green added, red removed" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" version="1.1">
+          <title>SCI logo — drift check (symmetric difference) + source archive</title>
+          <desc>g#legacy (defs) = original traced source, byte-verbatim, native 512 coords — the backup.
+g#rebuild (defs) = final parametric geometry, unmodified. Displayed output = symmetric
+difference: each layer masked by the other's inverse (mask geometry inlined for renderer
+compatibility), so agreement cancels and only drift renders, color-coded per diff convention: red = removed (legacy-only), green = added (rebuild-only), blue = common (intersection), via alpha-recolor filters on the display instances (archived layers untouched). Recover either logo with
+&lt;use href="#legacy"/&gt; or &lt;use href="#rebuild"/&gt;. Archived 2026-08-13.</desc>
+          <defs>
+            <g id="legacy">
+              <path
+             id="container"
+             style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+             d="m 163.01366,63.519537 c -6.48357,0.185774 -11.85734,2.678117 -15.29492,11.884755 -7.84293,21.043761 25.81444,12.412199 31.24416,20.958983 5.42972,8.546785 4.89733,38.624585 0.99023,50.058595 -3.9071,11.43402 -14.53664,24.39129 -19.89454,36.12695 -5.34354,11.73567 -13.73161,24.26069 -20.10938,35.91017 l -18.89061,35.6953 -20.10938,35.91212 -19.349615,35.25 c -6.262853,12.15223 -13.689203,23.72919 -20.0957,35.91015 l -19.232417,35.35156 c -6.751241,12.22406 -15.098069,24.23206 -17.439456,38.58204 -2.341388,14.33561 0.02851,32.63521 10.011712,43.76757 9.983218,11.13237 17.353475,19.43506 33.398445,21.18751 16.04497,1.75245 39.356891,-1.19224 56.019531,0 16.66263,1.19224 38.46914,-1.39334 54.58593,0 16.11679,1.39334 31.0118,-4.6822 39.11329,-16.90626 8.10148,-12.23842 6.96753,-26.66108 5.1289,-38.75586 -1.83864,-12.09477 -9.35153,-22.01976 -22.68164,-26.22851 -13.33011,-4.20875 -38.85535,-4.40933 -53.11914,-2.88671 -14.27815,1.50825 -28.21177,-17.00786 -15.95898,-27.37891 12.25278,-10.37106 36.68615,-2.78762 51.82617,-4.19532 15.14002,-1.40771 37.39127,1.12201 30.16601,-21.54492 -3.706,0.0287 -5.86118,-4.19475 -8.61914,-5.7461 -15.81514,1.93919 -38.68265,2.34051 -54.58398,1.43556 -15.90133,-0.90496 -28.13955,-0.0427 -38.89844,11.37695 -10.77325,11.40528 -10.58705,30.71054 -7.03906,44.61522 3.56236,13.89032 15.19781,24.07487 30.13672,25.88478 14.93892,1.80991 37.69208,-1.69557 53.0332,1.55077 15.35548,3.23198 16.01549,30.61207 -1.32227,31.48829 -17.33776,0.87623 -38.92791,-0.4022 -56.02148,0 -17.09357,0.4022 -38.653351,-0.14422 -54.554678,-0.0293 -15.886962,0.10055 -27.121041,-16.31916 -25.785157,-30.0371 1.350248,-13.71795 12.584269,-24.27482 18.128905,-36.44142 5.559001,-12.18096 13.098786,-24.54804 19.476554,-36.55663 6.377768,-12.02296 13.517536,-24.07451 20.082036,-35.93946 6.56451,-11.86494 12.22489,-23.37138 19.34961,-35.23633 7.11034,-11.87931 13.25749,-24.76351 19.46289,-36.55663 6.19103,-11.80749 14.20569,-22.25051 19.86524,-34.71876 5.64518,-12.48262 13.84803,-23.49981 20.03906,-35.98242 6.19103,-12.49698 12.62565,-22.03499 19.62109,-34.96289 7.0098,-12.92791 1.19244,-38.51115 3.31836,-52.70312 2.12592,-14.19197 0.99202,-42.302471 -17.23633,-38.783207 -10.25344,1.979579 -20.42568,-1.59628 -28.76173,-1.357416 z m 185.35548,1.205068 c -0.47958,0.02169 -0.96611,0.07297 -1.45899,0.152348 -15.77205,2.542489 -41.45532,-6.765777 -44.52929,12.927736 -3.07397,19.693513 2.54249,39.214311 0,57.457021 -2.54249,18.24272 8.27385,28.49854 15.35547,42.10157 7.09599,13.58867 12.33943,24.0029 19.47851,36.54297 l 20.75587,36.71485 c 7.0098,12.45388 13.38686,24.95192 20.10937,37.33398 6.70815,12.39643 13.89064,24.44744 20.65624,36.80077 l 19.63672,36.38478 c 6.29158,12.26715 14.92444,24.5197 20.58399,36.87304 5.65955,12.35333 15.74212,25.02311 20.28126,37.10352 4.53913,12.09478 0.73397,27.17777 -12.22267,34.38867 -12.94227,7.22526 -37.6062,1.42227 -52.70313,3.31836 -0.73258,-17.6825 0.97678,-49.84446 0,-66.07617 -0.97677,-16.23171 7.03734,-51.45329 -14.03515,-49.14063 -21.08685,2.31266 -8.25795,31.35668 -11.8203,50.57617 -3.56236,19.21949 4.68277,42.87776 0,66.07618 -4.68278,23.19841 18.57256,29.27418 38.78319,25.85547 20.21063,-3.41872 41.79963,3.89388 57.09766,-8.97657 15.31238,-12.87045 20.91422,-24.41984 23.34179,-42.73437 2.42758,-18.31454 -9.53746,-33.13812 -16.86327,-47.77539 -7.34018,-14.63726 -15.75706,-28.34168 -23.47071,-42.60547 l -22.98241,-41.65625 -23.22852,-42.84961 c -7.72802,-14.03396 -16.56235,-28.48318 -23.61524,-42.44532 -7.06726,-13.9765 -16.87757,-27.95462 -22.98242,-41.6582 -6.11921,-13.71795 -19.11944,-29.38844 -23.52929,-42.56054 -4.40985,-13.15774 -6.56403,-49.442567 7.28319,-54.685552 h 10e-4 3.33789 0.004 c 3.07045,0.198285 6.9113,0.665643 9.58398,0 20.14959,-1.878583 12.01752,-28.116821 -2.84961,-27.443363 z M 293.76171,356.47265 c -12.31024,-0.35911 -26.70296,4.19387 -36.91601,11.92189 -10.19868,7.74238 -15.02541,18.93209 -18.63086,31.64453 -3.60545,12.71244 -4.19408,31.74551 -1.91015,45.49218 2.28393,13.74668 4.91181,26.15757 14.72266,36.98829 9.81085,10.83071 19.33588,13.54623 33.80078,16.47656 14.46489,2.93032 33.3966,-1.69627 49.15429,1.11914 15.75768,2.81541 22.25085,-21.66015 7.28321,-25.95509 -14.95328,-4.3093 -35.6966,-0.6608 -50.37696,-1.33593 -14.66599,-0.68949 -24.79235,-9.26563 -28.16797,-21.90625 -3.36126,-12.62626 -2.64269,-26.1005 -1.01952,-38.88476 1.62317,-12.78427 9.92522,-26.61697 24.56249,-27.14845 14.63726,-0.53148 33.48281,-3.50558 49.1543,-1.12109 15.6715,2.37011 19.80799,-25.63982 4.66797,-26.14258 z" />
+              <path
+             fill-opacity="0.91"
+             d="m 279.39747,143.87989 c -18.21398,-5.53028 -18.58746,15.59967 -26.21492,26.93314 -7.62747,11.34783 -28.48449,8.46059 -37.31856,14.39307 -8.83407,5.93247 -7.12472,37.59148 7.51255,36.24123 14.63726,-1.35025 24.74976,2.94469 33.39709,15.44167 8.63297,12.49698 -2.54249,33.13854 7.90039,43.81124 10.45724,10.65835 31.27117,-0.87622 41.90079,9.81085 10.62961,10.70143 20.28245,18.15653 17.45267,34.24459 -2.84414,16.08806 25.15196,17.78306 34.01476,12.68371 8.87717,-5.08497 14.34998,-32.37722 2.15465,-38.78372 -12.19532,-6.39213 -25.6978,-2.01101 -37.34728,-14.36434 -11.66385,-12.33897 -12.48262,-21.17304 -11.86495,-39.84669 0.61767,-18.67364 -27.16297,-10.52906 -38.72627,-12.98536 -11.57766,-2.44194 -22.39401,-18.51564 -21.5896,-30.12203 0.8044,-11.60638 9.12135,-28.41266 22.88239,-28.82923 13.74668,-0.41657 20.49792,-24.17519 5.84629,-28.62813 z"
+             fill="#ffffff"
+             id="liquid"
+             style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1" />
+              <path
+             fill-opacity="0.9"
+             d="m 249.23235,74.931045 c -24.13209,-4.108202 -29.26016,34.014765 -5.74573,37.347285 23.51442,3.33253 27.49335,-33.641285 5.74573,-37.347285 z"
+             fill="#ffffff"
+             id="bottom-bubble"
+             style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1" />
+              <path
+             fill-opacity="0.86"
+             d="m 289.45251,33.274453 c -17.33776,-7.052892 -23.27023,18.257078 -9.68157,23.844808 13.58867,5.587729 21.40287,-19.075847 9.68157,-23.844808 z"
+             fill="#ffffff"
+             id="mid-bubble"
+             style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1" />
+              <path
+             fill-opacity="0.87"
+             d="M 237.74088,11.72794 C 217.51589,5.9534743 207.61885,36.2766 227.36982,43.645508 247.12079,51.014415 256.70181,17.143297 237.74088,11.72794 Z"
+             fill="#ffffff"
+             id="top-bubble"
+             style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1" />
+            </g>
+            <g id="rebuild">
+              <path fill="none" stroke="#000000" stroke-width="36" stroke-linecap="round" stroke-linejoin="round" d="M 159.5,80 H 196 V 146 L 45.41,419.8 A 44 44 0 0 0 83.97,485 H 182.5 A 28.75 28.75 0 0 0 182.5,427.5 H 145.25 A 28.75 28.75 0 0 1 145.25,370 H 206.5 M 352.5,80 H 316 V 146 L 466.59,419.8 A 44 44 0 0 1 428.03,485 H 410.25 A 28.75 28.75 0 0 1 381.5,456.25 V 370 M 340.6,370 H 309.6 A 57.5 57.5 0 0 0 309.6,485 H 340.6"/>
+              <g fill="#000000" stroke="#000000" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m 279.39747,143.87989 c -18.21398,-5.53028 -18.58746,15.59967 -26.21492,26.93314 -7.62747,11.34783 -28.48449,8.46059 -37.31856,14.39307 -8.83407,5.93247 -7.12472,37.59148 7.51255,36.24123 14.63726,-1.35025 24.74976,2.94469 33.39709,15.44167 8.63297,12.49698 -2.54249,33.13854 7.90039,43.81124 10.45724,10.65835 31.27117,-0.87622 41.90079,9.81085 10.62961,10.70143 20.28245,18.15653 17.45267,34.24459 -2.84414,16.08806 25.15196,17.78306 34.01476,12.68371 8.87717,-5.08497 14.34998,-32.37722 2.15465,-38.78372 -12.19532,-6.39213 -25.6978,-2.01101 -37.34728,-14.36434 -11.66385,-12.33897 -12.48262,-21.17304 -11.86495,-39.84669 0.61767,-18.67364 -27.16297,-10.52906 -38.72627,-12.98536 -11.57766,-2.44194 -22.39401,-18.51564 -21.5896,-30.12203 0.8044,-11.60638 9.12135,-28.41266 22.88239,-28.82923 13.74668,-0.41657 20.49792,-24.17519 5.84629,-28.62813 z"/><path d="m 249.23235,74.931045 c -24.13209,-4.108202 -29.26016,34.014765 -5.74573,37.347285 23.51442,3.33253 27.49335,-33.641285 5.74573,-37.347285 z"/><path d="m 289.45251,33.274453 c -17.33776,-7.052892 -23.27023,18.257078 -9.68157,23.844808 13.58867,5.587729 21.40287,-19.075847 9.68157,-23.844808 z"/><path d="M 237.74088,11.72794 C 217.51589,5.9534743 207.61885,36.2766 227.36982,43.645508 247.12079,51.014415 256.70181,17.143297 237.74088,11.72794 Z"/>
+              </g>
+            </g>
+            <filter id="tint-removed" x="-5%" y="-5%" width="110%" height="110%">
+              <feFlood flood-color="#d73a49"/><feComposite in2="SourceAlpha" operator="in"/>
+            </filter>
+            <filter id="tint-added" x="-5%" y="-5%" width="110%" height="110%">
+              <feFlood flood-color="#28a745"/><feComposite in2="SourceAlpha" operator="in"/>
+            </filter>
+            <filter id="tint-common" x="-5%" y="-5%" width="110%" height="110%">
+              <feFlood flood-color="#3b7dd8"/><feComposite in2="SourceAlpha" operator="in"/>
+            </filter>
+            <mask id="is-rebuild" maskUnits="userSpaceOnUse">
+              <path fill="none" stroke="#fff" stroke-width="36" stroke-linecap="round" stroke-linejoin="round" d="M 159.5,80 H 196 V 146 L 45.41,419.8 A 44 44 0 0 0 83.97,485 H 182.5 A 28.75 28.75 0 0 0 182.5,427.5 H 145.25 A 28.75 28.75 0 0 1 145.25,370 H 206.5 M 352.5,80 H 316 V 146 L 466.59,419.8 A 44 44 0 0 1 428.03,485 H 410.25 A 28.75 28.75 0 0 1 381.5,456.25 V 370 M 340.6,370 H 309.6 A 57.5 57.5 0 0 0 309.6,485 H 340.6"/>
+              <g fill="#fff" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"><path d="m 279.39747,143.87989 c -18.21398,-5.53028 -18.58746,15.59967 -26.21492,26.93314 -7.62747,11.34783 -28.48449,8.46059 -37.31856,14.39307 -8.83407,5.93247 -7.12472,37.59148 7.51255,36.24123 14.63726,-1.35025 24.74976,2.94469 33.39709,15.44167 8.63297,12.49698 -2.54249,33.13854 7.90039,43.81124 10.45724,10.65835 31.27117,-0.87622 41.90079,9.81085 10.62961,10.70143 20.28245,18.15653 17.45267,34.24459 -2.84414,16.08806 25.15196,17.78306 34.01476,12.68371 8.87717,-5.08497 14.34998,-32.37722 2.15465,-38.78372 -12.19532,-6.39213 -25.6978,-2.01101 -37.34728,-14.36434 -11.66385,-12.33897 -12.48262,-21.17304 -11.86495,-39.84669 0.61767,-18.67364 -27.16297,-10.52906 -38.72627,-12.98536 -11.57766,-2.44194 -22.39401,-18.51564 -21.5896,-30.12203 0.8044,-11.60638 9.12135,-28.41266 22.88239,-28.82923 13.74668,-0.41657 20.49792,-24.17519 5.84629,-28.62813 z"/><path d="m 249.23235,74.931045 c -24.13209,-4.108202 -29.26016,34.014765 -5.74573,37.347285 23.51442,3.33253 27.49335,-33.641285 5.74573,-37.347285 z"/><path d="m 289.45251,33.274453 c -17.33776,-7.052892 -23.27023,18.257078 -9.68157,23.844808 13.58867,5.587729 21.40287,-19.075847 9.68157,-23.844808 z"/><path d="M 237.74088,11.72794 C 217.51589,5.9534743 207.61885,36.2766 227.36982,43.645508 247.12079,51.014415 256.70181,17.143297 237.74088,11.72794 Z"/></g>
+            </mask>
+            <mask id="not-rebuild" maskUnits="userSpaceOnUse">
+              <rect width="512" height="512" fill="#fff"/>
+              <path fill="none" stroke="#000000" stroke-width="36" stroke-linecap="round" stroke-linejoin="round" d="M 159.5,80 H 196 V 146 L 45.41,419.8 A 44 44 0 0 0 83.97,485 H 182.5 A 28.75 28.75 0 0 0 182.5,427.5 H 145.25 A 28.75 28.75 0 0 1 145.25,370 H 206.5 M 352.5,80 H 316 V 146 L 466.59,419.8 A 44 44 0 0 1 428.03,485 H 410.25 A 28.75 28.75 0 0 1 381.5,456.25 V 370 M 340.6,370 H 309.6 A 57.5 57.5 0 0 0 309.6,485 H 340.6"/>
+              <g fill="#000000" stroke="#000000" stroke-width="10" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m 279.39747,143.87989 c -18.21398,-5.53028 -18.58746,15.59967 -26.21492,26.93314 -7.62747,11.34783 -28.48449,8.46059 -37.31856,14.39307 -8.83407,5.93247 -7.12472,37.59148 7.51255,36.24123 14.63726,-1.35025 24.74976,2.94469 33.39709,15.44167 8.63297,12.49698 -2.54249,33.13854 7.90039,43.81124 10.45724,10.65835 31.27117,-0.87622 41.90079,9.81085 10.62961,10.70143 20.28245,18.15653 17.45267,34.24459 -2.84414,16.08806 25.15196,17.78306 34.01476,12.68371 8.87717,-5.08497 14.34998,-32.37722 2.15465,-38.78372 -12.19532,-6.39213 -25.6978,-2.01101 -37.34728,-14.36434 -11.66385,-12.33897 -12.48262,-21.17304 -11.86495,-39.84669 0.61767,-18.67364 -27.16297,-10.52906 -38.72627,-12.98536 -11.57766,-2.44194 -22.39401,-18.51564 -21.5896,-30.12203 0.8044,-11.60638 9.12135,-28.41266 22.88239,-28.82923 13.74668,-0.41657 20.49792,-24.17519 5.84629,-28.62813 z"/><path d="m 249.23235,74.931045 c -24.13209,-4.108202 -29.26016,34.014765 -5.74573,37.347285 23.51442,3.33253 27.49335,-33.641285 5.74573,-37.347285 z"/><path d="m 289.45251,33.274453 c -17.33776,-7.052892 -23.27023,18.257078 -9.68157,23.844808 13.58867,5.587729 21.40287,-19.075847 9.68157,-23.844808 z"/><path d="M 237.74088,11.72794 C 217.51589,5.9534743 207.61885,36.2766 227.36982,43.645508 247.12079,51.014415 256.70181,17.143297 237.74088,11.72794 Z"/>
+              </g>
+            </mask>
+            <mask id="not-legacy" maskUnits="userSpaceOnUse">
+              <rect width="512" height="512" fill="#fff"/>
+              <path
+             id="container"
+             style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
+             d="m 163.01366,63.519537 c -6.48357,0.185774 -11.85734,2.678117 -15.29492,11.884755 -7.84293,21.043761 25.81444,12.412199 31.24416,20.958983 5.42972,8.546785 4.89733,38.624585 0.99023,50.058595 -3.9071,11.43402 -14.53664,24.39129 -19.89454,36.12695 -5.34354,11.73567 -13.73161,24.26069 -20.10938,35.91017 l -18.89061,35.6953 -20.10938,35.91212 -19.349615,35.25 c -6.262853,12.15223 -13.689203,23.72919 -20.0957,35.91015 l -19.232417,35.35156 c -6.751241,12.22406 -15.098069,24.23206 -17.439456,38.58204 -2.341388,14.33561 0.02851,32.63521 10.011712,43.76757 9.983218,11.13237 17.353475,19.43506 33.398445,21.18751 16.04497,1.75245 39.356891,-1.19224 56.019531,0 16.66263,1.19224 38.46914,-1.39334 54.58593,0 16.11679,1.39334 31.0118,-4.6822 39.11329,-16.90626 8.10148,-12.23842 6.96753,-26.66108 5.1289,-38.75586 -1.83864,-12.09477 -9.35153,-22.01976 -22.68164,-26.22851 -13.33011,-4.20875 -38.85535,-4.40933 -53.11914,-2.88671 -14.27815,1.50825 -28.21177,-17.00786 -15.95898,-27.37891 12.25278,-10.37106 36.68615,-2.78762 51.82617,-4.19532 15.14002,-1.40771 37.39127,1.12201 30.16601,-21.54492 -3.706,0.0287 -5.86118,-4.19475 -8.61914,-5.7461 -15.81514,1.93919 -38.68265,2.34051 -54.58398,1.43556 -15.90133,-0.90496 -28.13955,-0.0427 -38.89844,11.37695 -10.77325,11.40528 -10.58705,30.71054 -7.03906,44.61522 3.56236,13.89032 15.19781,24.07487 30.13672,25.88478 14.93892,1.80991 37.69208,-1.69557 53.0332,1.55077 15.35548,3.23198 16.01549,30.61207 -1.32227,31.48829 -17.33776,0.87623 -38.92791,-0.4022 -56.02148,0 -17.09357,0.4022 -38.653351,-0.14422 -54.554678,-0.0293 -15.886962,0.10055 -27.121041,-16.31916 -25.785157,-30.0371 1.350248,-13.71795 12.584269,-24.27482 18.128905,-36.44142 5.559001,-12.18096 13.098786,-24.54804 19.476554,-36.55663 6.377768,-12.02296 13.517536,-24.07451 20.082036,-35.93946 6.56451,-11.86494 12.22489,-23.37138 19.34961,-35.23633 7.11034,-11.87931 13.25749,-24.76351 19.46289,-36.55663 6.19103,-11.80749 14.20569,-22.25051 19.86524,-34.71876 5.64518,-12.48262 13.84803,-23.49981 20.03906,-35.98242 6.19103,-12.49698 12.62565,-22.03499 19.62109,-34.96289 7.0098,-12.92791 1.19244,-38.51115 3.31836,-52.70312 2.12592,-14.19197 0.99202,-42.302471 -17.23633,-38.783207 -10.25344,1.979579 -20.42568,-1.59628 -28.76173,-1.357416 z m 185.35548,1.205068 c -0.47958,0.02169 -0.96611,0.07297 -1.45899,0.152348 -15.77205,2.542489 -41.45532,-6.765777 -44.52929,12.927736 -3.07397,19.693513 2.54249,39.214311 0,57.457021 -2.54249,18.24272 8.27385,28.49854 15.35547,42.10157 7.09599,13.58867 12.33943,24.0029 19.47851,36.54297 l 20.75587,36.71485 c 7.0098,12.45388 13.38686,24.95192 20.10937,37.33398 6.70815,12.39643 13.89064,24.44744 20.65624,36.80077 l 19.63672,36.38478 c 6.29158,12.26715 14.92444,24.5197 20.58399,36.87304 5.65955,12.35333 15.74212,25.02311 20.28126,37.10352 4.53913,12.09478 0.73397,27.17777 -12.22267,34.38867 -12.94227,7.22526 -37.6062,1.42227 -52.70313,3.31836 -0.73258,-17.6825 0.97678,-49.84446 0,-66.07617 -0.97677,-16.23171 7.03734,-51.45329 -14.03515,-49.14063 -21.08685,2.31266 -8.25795,31.35668 -11.8203,50.57617 -3.56236,19.21949 4.68277,42.87776 0,66.07618 -4.68278,23.19841 18.57256,29.27418 38.78319,25.85547 20.21063,-3.41872 41.79963,3.89388 57.09766,-8.97657 15.31238,-12.87045 20.91422,-24.41984 23.34179,-42.73437 2.42758,-18.31454 -9.53746,-33.13812 -16.86327,-47.77539 -7.34018,-14.63726 -15.75706,-28.34168 -23.47071,-42.60547 l -22.98241,-41.65625 -23.22852,-42.84961 c -7.72802,-14.03396 -16.56235,-28.48318 -23.61524,-42.44532 -7.06726,-13.9765 -16.87757,-27.95462 -22.98242,-41.6582 -6.11921,-13.71795 -19.11944,-29.38844 -23.52929,-42.56054 -4.40985,-13.15774 -6.56403,-49.442567 7.28319,-54.685552 h 10e-4 3.33789 0.004 c 3.07045,0.198285 6.9113,0.665643 9.58398,0 20.14959,-1.878583 12.01752,-28.116821 -2.84961,-27.443363 z M 293.76171,356.47265 c -12.31024,-0.35911 -26.70296,4.19387 -36.91601,11.92189 -10.19868,7.74238 -15.02541,18.93209 -18.63086,31.64453 -3.60545,12.71244 -4.19408,31.74551 -1.91015,45.49218 2.28393,13.74668 4.91181,26.15757 14.72266,36.98829 9.81085,10.83071 19.33588,13.54623 33.80078,16.47656 14.46489,2.93032 33.3966,-1.69627 49.15429,1.11914 15.75768,2.81541 22.25085,-21.66015 7.28321,-25.95509 -14.95328,-4.3093 -35.6966,-0.6608 -50.37696,-1.33593 -14.66599,-0.68949 -24.79235,-9.26563 -28.16797,-21.90625 -3.36126,-12.62626 -2.64269,-26.1005 -1.01952,-38.88476 1.62317,-12.78427 9.92522,-26.61697 24.56249,-27.14845 14.63726,-0.53148 33.48281,-3.50558 49.1543,-1.12109 15.6715,2.37011 19.80799,-25.63982 4.66797,-26.14258 z" />
+              <path
+             fill-opacity="0.91"
+             d="m 279.39747,143.87989 c -18.21398,-5.53028 -18.58746,15.59967 -26.21492,26.93314 -7.62747,11.34783 -28.48449,8.46059 -37.31856,14.39307 -8.83407,5.93247 -7.12472,37.59148 7.51255,36.24123 14.63726,-1.35025 24.74976,2.94469 33.39709,15.44167 8.63297,12.49698 -2.54249,33.13854 7.90039,43.81124 10.45724,10.65835 31.27117,-0.87622 41.90079,9.81085 10.62961,10.70143 20.28245,18.15653 17.45267,34.24459 -2.84414,16.08806 25.15196,17.78306 34.01476,12.68371 8.87717,-5.08497 14.34998,-32.37722 2.15465,-38.78372 -12.19532,-6.39213 -25.6978,-2.01101 -37.34728,-14.36434 -11.66385,-12.33897 -12.48262,-21.17304 -11.86495,-39.84669 0.61767,-18.67364 -27.16297,-10.52906 -38.72627,-12.98536 -11.57766,-2.44194 -22.39401,-18.51564 -21.5896,-30.12203 0.8044,-11.60638 9.12135,-28.41266 22.88239,-28.82923 13.74668,-0.41657 20.49792,-24.17519 5.84629,-28.62813 z"
+             fill="#ffffff"
+             id="liquid"
+             style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1" />
+              <path
+             fill-opacity="0.9"
+             d="m 249.23235,74.931045 c -24.13209,-4.108202 -29.26016,34.014765 -5.74573,37.347285 23.51442,3.33253 27.49335,-33.641285 5.74573,-37.347285 z"
+             fill="#ffffff"
+             id="bottom-bubble"
+             style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1" />
+              <path
+             fill-opacity="0.86"
+             d="m 289.45251,33.274453 c -17.33776,-7.052892 -23.27023,18.257078 -9.68157,23.844808 13.58867,5.587729 21.40287,-19.075847 9.68157,-23.844808 z"
+             fill="#ffffff"
+             id="mid-bubble"
+             style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1" />
+              <path
+             fill-opacity="0.87"
+             d="M 237.74088,11.72794 C 217.51589,5.9534743 207.61885,36.2766 227.36982,43.645508 247.12079,51.014415 256.70181,17.143297 237.74088,11.72794 Z"
+             fill="#ffffff"
+             id="top-bubble"
+             style="fill:#000000;fill-opacity:1;stroke:#000000;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1" />
+            </mask>
+          </defs>
+          <use href="#legacy" mask="url(#is-rebuild)" filter="url(#tint-common)"/>
+          <use href="#legacy" mask="url(#not-rebuild)" filter="url(#tint-removed)"/>
+          <use href="#rebuild" mask="url(#not-legacy)" filter="url(#tint-added)"/>
+        </svg>
+        </div>
+        <figcaption class="cs-figcaption">sci-logo-drift-check.svg — self-contained: both source and rebuild are archived byte-pristine in its defs; the rendered output is only their difference.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="cs-loop-h">
+    <div class="section-head">
+      <h2 id="cs-loop-h">Analysis by synthesis, run by hand and critic</h2>
+      <span class="dc-label">02 — The loop</span>
+    </div>
+    <div class="grid-body">
+      <p class="cs-prose">The method hypothesizes a parametric model, renders it, compares against the source raster, and lets the residual drive the next update. Three properties distinguish it from gradient-based vectorization (DiffVG-class methods): fits are closed-form, so the output is interpretable constants rather than Bézier soup; model <em>selection</em> happens inside the loop — a hypothesis can be rejected and replaced, not merely tuned; and the critic is perceptual, catching failures that pixel metrics structurally cannot.</p>
+      <div class="cs-loop">        ┌──────────────┐
+        │ raster ref R*│◄─────────────┐
+        └──────┬───────┘              │
+               ▼                      │
+        ┌──────────────┐      ┌───────┴───────┐
+        │ <b>MEASURE</b>      │      │ <b>CRITIC</b>        │
+        │ cross-secs,  │      │ vision model +│
+        │ extents, sym │      │ human, in the │
+        └──────┬───────┘      │ deploy context│
+               ▼              └───────▲───────┘
+        ┌──────────────┐              │
+        │ <b>FIT / SOLVE</b>  │      ┌───────┴───────┐
+        │ θ ← closed-  │      │ <b>DIFF</b>          │
+        │ form per     │      │ overlay, XOR  │
+        │ component    │      │ L = 1 − IoU   │
+        └──────┬───────┘      └───────▲───────┘
+               ▼                      │
+        ┌──────────────┐      ┌───────┴───────┐
+        │ <b>SYNTHESIZE</b>   │─────►│ <b>RASTERIZE</b>     │
+        │ V = G(θ)     │      │ R = Rast(V)   │
+        └──────────────┘      └───────────────┘</div>
+      <p class="cs-prose" style="margin-top:14px">Coordinate descent over components — walls, then lips, then bottom topology, then letters — each verified locally before the next. The loss:</p>
+      <div class="cs-eq">L(θ) = |Rast(G(θ)) ⊕ R*| / |Rast(G(θ)) ∪ R*| ∖ E     E = declared-intentional deviations</div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="cs-const-h">
+    <div class="section-head">
+      <h2 id="cs-const-h">Fifteen constants were hiding in the wobble</h2>
+      <span class="dc-label">03 — What measurement found</span>
+    </div>
+    <div class="grid-body">
+      <p class="cs-prose">Cross-sections of the traced walls fit straight lines with slopes 0.5506 and 0.5510 — the designer meant 0.55. The midline sat at 255.3 on a 512 canvas — they meant 256. Perpendicular stroke thickness clustered at 32; letter arm lines landed on 370 / 427.5 / 485 with the S's lobes at radius 28.75 and the C's lobe at exactly twice that. The original had a design system; the tracing had buried it. The rebuild's entire geometry is those recovered constants plus tangency math — corner fillets solved exactly, symmetry by mirrored coordinates rather than by drawing.</p>
+      <div class="cs-eq">fillet center:  x_c = c − k(y_b − R) + R·√(1+k²)        r_C = 2·r_S = 57.5</div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="cs-fals-h">
+    <div class="section-head">
+      <h2 id="cs-fals-h">Three hypotheses died. That is the point.</h2>
+      <span class="dc-label">04 — Falsifications</span>
+    </div>
+    <div class="grid-body">
+      <p class="cs-prose">Gradient methods tune a hypothesis; they cannot reject one. This loop did, three times — each caught by measurement or by looking, each replacing a model class, not a parameter:</p>
+      <div class="cs-fals">
+        <p class="dc-label">Falsified 01 · bottom topology</p>
+        <p>Modeled: one continuous bottom stroke. Measured: the source's bottom edge terminates <em>into</em> the letters — the left piece becomes the S, the right piece rises as the I, and the gap around the C cuts through to white. The rebuild's topology was restructured, not re-tuned.</p>
+      </div>
+      <div class="cs-fals">
+        <p class="dc-label">Falsified 02 · the lip "curl"</p>
+        <p>Modeled: an arc with a descending tail. Row-profile measurement showed the lip occupies exactly one stroke-width vertically — it is a horizontal bar with a round cap; the "curl" was the cap's curvature. The model class changed from arc to segment.</p>
+      </div>
+      <div class="cs-fals">
+        <p class="dc-label">Falsified 03 · containment proof</p>
+        <p>A clip-path "proof" checked the arc midspan and missed that its own sharp corners leaked 42 units past the stroke. The render caught it; the corrected clip follows the fillet arcs, and the re-proof samples 3,000 boundary points instead of arguing about them.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="cs-miss-h">
+    <div class="section-head">
+      <h2 id="cs-miss-h">The failure catalog is the finding</h2>
+      <span class="dc-label">05 — What the numbers missed</span>
+    </div>
+    <div class="grid-body">
+      <p class="cs-prose">Three defects passed every numerical assertion and fell only to a vision check in the real rendering context: a WebKit thumbnail bug that dropped an element cairosvg rendered fine; blind probe points that sampled gaps in the geometry and reported success; and a CSS-class refactor that was leaner and degraded catastrophically in CSS-less rasterizers. The generalizable result: <em>loops with derivable ground truth close themselves; perceptual-quality loops need a vision oracle</em> — and knowing where that boundary sits is worth more than pretending it isn't there.</p>
+      <p class="cs-prose">That boundary is directly load-bearing for production document-AI: OCR training loops can self-evaluate (render → rasterize → recognize → compare gives free ground truth), while layout fidelity, rendering QA, and "does this extraction <em>look</em> right" sit on the oracle side. The same architecture I run for clients — automated metrics for what is derivable, model-vision review for what is perceptual.</p>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="cs-motion-h">
+    <div class="section-head">
+      <h2 id="cs-motion-h">Motion and theming, same discipline</h2>
+      <span class="dc-label">06 — Also recovered</span>
+    </div>
+    <div class="grid-body">
+      <p class="cs-prose">The rebuilt mark animates: a seamless 4-second loop where bubbles detach from the liquid under constant-flux inflation (r ∝ t<sup>1/3</sup>), rise under Stokes drag toward a terminal velocity that equals the conveyor's handoff speed — the physics lands the animation constraint for free — and ring with a damped quadrupole wobble. The liquid surface is a translating sine strip: a traveling wave is its own shape in uniform translation, so the loop seals by periodicity, not by careful keyframing. Theming collapsed to a single input: <span class="dc-num" style="font-weight:400">currentColor</span> drives structure, liquid strata, and effects through masks that encode alpha, not color — one asset, every theme, verified by pixel-sampling through the actual CSS inheritance path.</p>
+      <div class="cs-eq">v(t) = v_t·(1 − e^(−t/τ)),  v_t = conveyor speed      ε(t) = ε₀·e^(−λt)·cos(ωt)</div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="cs-film-h">
+    <div class="section-head">
+      <h2 id="cs-film-h">The loop, replayed</h2>
+      <span class="dc-label">07 — The film</span>
+    </div>
+    <div class="grid-body">
+      <p class="cs-prose">Fifty seconds, stop-motion: model states are the parametric builder with components progressively unlocked; every chart datum is computed by rasterizing that frame and counting pixels. Yellow appears exactly three times — at the falsifications.</p>
+      <div class="cs-video">
+        <video controls preload="metadata" poster="og.png" src="detracing-film.mp4">Your browser doesn't play this video — the drift map above tells the same story.</video>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="cs-ledger-h">
+    <div class="section-head">
+      <h2 id="cs-ledger-h">Ledger</h2>
+      <span class="dc-label">08 — Results</span>
+    </div>
+    <div class="grid-body">
+      <div class="dc-table-wrap">
+        <table class="dc-table">
+          <caption>Before (traced) vs after (parametric)</caption>
+          <thead>
+            <tr><th scope="col">Dimension</th><th scope="col">Before (traced)</th><th scope="col">After (parametric)</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Geometry</td><td>92 segments, 6-decimal soup</td><td class="val">14 primitives, 15 constants</td></tr>
+            <tr><td>Symmetry</td><td>uncontrolled</td><td class="val">0.0000u mirror deviation, by construction</td></tr>
+            <tr><td>Stroke</td><td>30–37u wandering</td><td class="val">36u uniform, letters included</td></tr>
+            <tr><td>Theming</td><td>hardcoded fills</td><td class="val">one input: currentColor</td></tr>
+            <tr><td>Motion</td><td>none</td><td class="val">4s sealed loop, 4 equations</td></tr>
+            <tr><td>Residual vs source</td><td>—</td><td class="val">1.5%, fully enumerated &amp; intentional</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="cs-prose" style="margin-top:16px;font-size:15px">Method framing, honestly calibrated: this is human-in-the-loop iterative refinement with closed-form fits and an AI vision critic — one documented execution of a method, not a theory. The execution trace, assets, and per-frame data are available on request.</p>
+    </div>
+  </section>
+
+  <section id="contact" class="section" aria-labelledby="cs-hire-h">
+    <div class="contact dc-invert">
+      <div class="contact-copy">
+        <p class="dc-label" style="margin-bottom:20px">09 — Hire this rigor</p>
+        <h2 id="cs-hire-h">The logo was the vehicle. The method is the product.</h2>
+        <p>Measurement before modeling, closed-form over curve-fitting, verification as a deliverable, and a vision critic exactly where metrics go blind. If your document pipeline, extraction QA, or AI product needs that discipline — that's the conversation worth having.</p>
+      </div>
+      <div class="contact-actions">
+        <a class="dc-btn dc-btn--lg" href="https://calendly.com/ismailkattakath/google-meet" target="_blank" rel="noopener">Book a 30-min call</a>
+        <a class="dc-btn dc-btn--lg" href="/">More work</a>
+        <div class="contact-row">
+          <a class="dc-btn" href="https://linkedin.com/in/ismailkattakath" target="_blank" rel="noopener">LinkedIn</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer" role="contentinfo">
+  <a class="brand" href="/" aria-label="Ismail Kattakath — home">
+    <img src="/logo.svg" alt="Ismail Kattakath" width="1120" height="460">
+  </a>
+  <div class="footer-links">
+    <a class="dc-meta" href="https://linkedin.com/in/ismailkattakath" target="_blank" rel="noopener">LinkedIn</a>
+    <a class="dc-meta" href="https://github.com/ismailkattakath" target="_blank" rel="noopener">GitHub</a>
+  </div>
+</footer>
+
+</body>
+</html>
