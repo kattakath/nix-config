@@ -222,12 +222,17 @@ in
     home = "/Users/${loginName}";
   };
 
-  # ---- Izzy: the second, STANDARD account ---------------------------------
-  # Deliberately NOT an admin and never `system.primaryUser` (that stays
-  # `loginName`, modules/darwin/core.nix): a fresh Mac is FOUNDED as the
-  # operator via bootstrap.sh → key-recover, and this account is created on
-  # top of that. Omitting `gid` leaves him in `staff` (20); adding him to
-  # `admin` (80) is what would make him a second administrator, so don't.
+  # ---- Izzy: the second ADMINISTRATOR account -----------------------------
+  # An administrator (admin group, granted below) but never
+  # `system.primaryUser` — that stays `loginName` (modules/darwin/core.nix), so
+  # a fresh Mac is still FOUNDED as the operator via bootstrap.sh →
+  # key-recover and this account is created on top of that.
+  #
+  # `gid` is deliberately left at the `staff` default rather than set to 80:
+  # macOS models an administrator as staff-primary PLUS supplementary admin
+  # membership (that is exactly how the operator's own account looks), and
+  # making admin the PRIMARY group would drop Izzy out of `staff` — which the
+  # group-writable appdir repair below depends on.
   #
   # `knownUsers` is the CREATE/DELETE switch, not a label — nix-darwin creates
   # only users listed here, and REMOVING a name from this list DELETES the
@@ -268,6 +273,17 @@ in
     mkdir -p ${lib.escapeShellArg izzyApps}
     chown izzy:staff ${lib.escapeShellArg izzyApps}
     chmod 775 ${lib.escapeShellArg izzyApps}
+
+    # Administrator rights. nix-darwin does NOT model supplementary groups —
+    # `extraGroups` is commented out in modules/users/user.nix:49 of the pinned
+    # input — and `users.groups` only creates groups, it cannot add a member to
+    # the pre-existing system `admin`. So this is the off-the-shelf macOS tool
+    # doing the work, not a hand-rolled one; `checkmember` keeps it idempotent,
+    # so a settled Mac is a true no-op rather than a write every activation.
+    if ! /usr/sbin/dseditgroup -o checkmember -m izzy admin >/dev/null 2>&1; then
+      printf '%s\n' "izzy: granting admin group membership"
+      /usr/sbin/dseditgroup -o edit -a izzy -t user admin
+    fi
   '';
 
   # A deliberately MINIMAL profile — it imports the one module it needs, NOT
