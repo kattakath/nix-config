@@ -115,7 +115,7 @@ Its six harness dimensions, against what this fleet already runs:
 | Paper's harness dimension | `nix-config` today |
 |---|---|
 | Sandboxing & execution isolation | launchd agents; gateway bound to `127.0.0.1`; the patched grok sandbox profile |
-| Human oversight & approval gates | `pretooluse-bash-guard.js`, `stop-gate.js`, `superhook` |
+| Human oversight & approval gates | `pretooluse-bash-guard.js`, `stop-gate.js`, `superhook` — **this repo only** (§10.4); fleet-wide floor: `claude-guardrails.nix` |
 | Observability & structured feedback | OTel → `/routing-review`; the superhook incident log |
 | Configuration, permissions, policy encoding | `settings.json` as a read-only store symlink |
 | Context budget management | `qwen` is handed **11 of 31** gateway servers, deliberately |
@@ -286,3 +286,20 @@ miniature — read-if-present at runtime, a silent degrade when absent, and a on
 `adoptAwsConfig` migration so leaving Nix cannot delete the content. Still not an implementation
 of `local.agentOverlay`; recorded because it is the first measured instance of "content out,
 governance in".
+
+### 10.4 §4 credited project hooks as fleet harness
+
+§4 listed `pretooluse-bash-guard.js`, `stop-gate.js` and `superhook` as this fleet's "human
+oversight & approval gates". They are — **for sessions rooted in this repo.** All of them are
+wired in `.claude/settings.json`, which is project scope; the user-scope `settings.json` Nix
+writes carried no `permissions`, no hooks and no sandbox. So a session in any other repo ran
+with no gate at all, while the VS Code extension and the `claude` terminal profile start in
+`bypassPermissions`. Worse, the MCP gateway *is* global: `mcpfinder`'s
+`add_mcp_server_config` was deny-listed here and callable from everywhere else.
+
+The boundary in §1 survives, and this is an instance of it: governance belongs to the harness,
+and the harness had simply not been extended past one repo. Fixed by
+`modules/shared/claude-guardrails.nix` — a user-scope `permissions.deny` floor for policy that is
+wrong in every repo. Repo-specific policy (Cloudflare scoping, nixpi builds) deliberately stays
+project-scoped. A deny rule matches the command text Claude writes, not every way to run a
+program, so the tested project guard remains the deeper layer here.

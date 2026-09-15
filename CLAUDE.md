@@ -136,7 +136,7 @@ One line per path; the *why* and the per-file specifics are in
 | `hosts/` | Per-host entry profiles: `macos.nix`, `nixpi.nix`, `nixvm.nix` (host-only deltas + per-host Homebrew lists). |
 | `modules/parts/` | The FLAKE ENGINE — one flake-parts module per concern, discovered by `import-tree`. The engine **may** reach anywhere. |
 | `modules/features/` | The six CAPSULES (the absorbed satellites): `cloudflared-connector`, `firmware-secrets`, `keychain-secrets`, `tart-vms`, `media-cli`, `local-rag`. `flake-module.nix` is the ONLY file anything outside imports, and **a capsule may not reach outside its own directory** — enforced by `ast-grep` + `checks.<system>.capsule-registry`, not by convention. **Satellite count: 0.** |
-| `modules/shared/` | The Home Manager profile on every host: `home.nix`, `mcp.nix`, and the `local.*` provider modules (terminal theme, chromium, default browser, nix cache, nix-ld, wireguard, claude brain/plugins/otel/bedrock, wallpaper, launchd-launcher). |
+| `modules/shared/` | The Home Manager profile on every host: `home.nix`, `mcp.nix`, and the `local.*` provider modules (terminal theme, chromium, default browser, nix cache, nix-ld, wireguard, claude brain/plugins/otel/bedrock/guardrails, wallpaper, launchd-launcher). |
 | `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix`, `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`local.macosGithubRunner` — LIVE, see § Configuration). |
 | `modules/nixos/` | `core.nix` (user + keys-only **loopback-bound** sshd, `openFirewall = false`, a firewall that opens **no** TCP port, avahi, nix-ld, zram, GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). |
 | `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `key-recovery`, `spotlight-launchers`, plus single-purpose CLIs. Root `bootstrap.sh` is the no-Nix stage 1. The media/photo CLIs live in the `media-cli` capsule instead. |
@@ -182,6 +182,9 @@ here or each fires twice. The guard's case suites are `.claude/hooks/tests/*.sh`
 `claude-config-lint.yml`** — they assert both halves (must-BLOCK and must-stay-APPROVED) and that
 the hook never throws, because a throw fails OPEN and silently disarms every rule. Message
 decoder: [`docs/claude-hook-messages.md`](docs/claude-hook-messages.md).
+All of the above is **project-scoped** — it guards sessions in THIS repo only. The fleet-wide
+floor for every other repo is user-scope `permissions.deny` in
+`modules/shared/claude-guardrails.nix` (policy that is wrong everywhere; repo policy stays here).
 
 **MCP servers**: one localhost `mcp-proxy` gateway (`modules/shared/mcp.nix`, darwin-only) on
 `127.0.0.1:8096` hosting every server as HTTP; `desktop-commander` and `open-design` stay
