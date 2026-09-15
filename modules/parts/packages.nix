@@ -120,6 +120,14 @@ in
           # Also on PATH via home.packages, macos only (modules/shared/home.nix).
           android-phone = pkgs.callPackage ../../packages/android-phone.nix { };
 
+          # fal.ai: the vendor's own deploy CLI (`fal`) plus `fal-gen`, a thin
+          # inference wrapper the vendor does not ship. Ephemeral uv
+          # environments, the same shape as fidelity-enhance and jobspy, because
+          # none of fal's dependency tree is in nixpkgs. Shared through
+          # environment.systemPackages (hosts/macos.nix); reads FAL_KEY from the
+          # login Keychain.
+          fal = pkgs.callPackage ../../packages/fal.nix { };
+
           # xAI's grok CLI — a vendor-signed PREBUILT binary, the first in this
           # tree. It replaces a `curl … | bash` install that put a
           # self-updating copy in each user's ~/.grok/bin, outside the store and
