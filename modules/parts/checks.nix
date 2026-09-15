@@ -35,8 +35,8 @@ in
           #   modules/features/keychain-secrets/module.nix  lib.mkAfter  (= 1500)
           #     exports every registered Keychain secret into the shell.
           #   modules/shared/claude-bedrock-gate.nix        lib.mkOrder 1600
-          #     reads CLAUDE_CODE_USE_BEDROCK and unsets it when the private AWS
-          #     layer is absent.
+          #     reads CLAUDE_CODE_USE_BEDROCK and unsets it when no AWS identity
+          #     resolves from ~/.aws/config.
           #
           # Run the gate BEFORE the loader and it sees an UNSET variable and does
           # nothing at all — the failure is silent, degrades Claude Code to a

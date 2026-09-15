@@ -64,6 +64,20 @@
 # Why this lives in the PUBLIC repo: a gate shipped from nix-personal would be
 # dropped by the very activation it defends against. Same reasoning as
 # `local.keychainSecrets` being wired here.
+#
+# WHERE THE IDENTITY LIVES NOW: ~/.aws/config, owned by the `aws` CLI.
+# nix-personal is sunsetting, and with it the only definitions of
+# `local.claudeBedrock` and the store-symlinked ~/.aws/config described above.
+# The identity is therefore RUNTIME state — exactly like the SSO tokens in
+# ~/.aws/sso/cache always were: `aws configure sso` writes the profile, the gate
+# reads it, and the shell hook exports that profile's `region`, because Claude
+# Code takes the region from the ENVIRONMENT only (anthropics/claude-code#18962).
+# This is ADR-003's split (docs/externalization-boundary-adr.md): identity is
+# content and may live outside every repo; the gate is governance and stays here.
+# The trap above is unchanged — the Keychain flag still outlives a missing file —
+# only the source of the companions moved. `adoptAwsConfig` (section (c)) turns a
+# leftover store symlink into a real file, so the first activation without the
+# private layer cannot delete the operator's profiles.
 let
   # Offline and CLI-free on purpose: `aws` is not reliably on PATH during shell
   # init, and a network call (`aws sts get-caller-identity`) would tax every new
@@ -98,12 +112,18 @@ let
       SETTINGS="''${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
 
       quiet=0
+      mode=check
       case "''${1:-}" in
         --quiet) quiet=1 ;;
+        --region)
+          quiet=1
+          mode=region
+          ;;
         -h | --help)
-          printf 'usage: nix-bedrock-gate [--quiet]\n\n'
+          printf 'usage: nix-bedrock-gate [--quiet | --region]\n\n'
           printf 'Exit 0 if Claude Code can actually route to Bedrock; 1 otherwise\n'
-          printf '(reason on stdout). Values are never printed.\n'
+          printf '(reason on stdout). Values are never printed, except that\n'
+          printf '--region prints the resolved region for the shell hook to export.\n'
           exit 0
           ;;
       esac
@@ -147,34 +167,50 @@ let
         ' "$2"
       }
 
-      # ---- 1. region ---------------------------------------------------------
-      # Absent is the public-activation signature. Present-but-malformed is the
-      # "there is a value, but a wrong one" case the operator asked to rule out.
-      region=$(resolve AWS_REGION)
-      [ -n "$region" ] || region=$(resolve AWS_DEFAULT_REGION)
-      [ -n "$region" ] ||
-        fail "AWS_REGION resolves nowhere (not in the shell, not in settings.json) — the private nix-personal layer is not active."
-      case "$region" in
-        [a-z][a-z]-*-[0-9] | [a-z][a-z]-*-[0-9][0-9]) : ;;
-        *) fail "AWS_REGION is set but is not a well-formed AWS region name." ;;
-      esac
-
-      # ---- 2. profile (optional) --------------------------------------------
-      # An absent AWS_PROFILE is NOT a failure — the SDK falls back to `default`.
-      # But whichever profile it lands on still has to be DEFINED, and ~/.aws/config
-      # is itself a private-layer store symlink, so this is a second independent
-      # detector of the same dropped layer.
+      # ---- 1. profile --------------------------------------------------------
+      # Resolved FIRST, because the region may live on it. An absent AWS_PROFILE is
+      # NOT a failure — the SDK falls back to `default`.
       profile=$(resolve AWS_PROFILE)
       if [ -n "$profile" ]; then section="profile $profile"; else section="default"; fi
-
       body=$(section_body "$section" "$AWS_CONFIG") || body=""
+
+      # ---- 2. region ---------------------------------------------------------
+      # Shell, then settings.json, then the resolved profile's own `region` key in
+      # ~/.aws/config — the file `aws configure sso` writes, so that file can be the
+      # ONE runtime-owned source. Anchored on the bare key so `sso_region` (the SSO
+      # portal's region, not the Bedrock one) can never match. Present-but-malformed
+      # is the "there is a value, but a wrong one" case the operator asked to rule out.
+      region=$(resolve AWS_REGION)
+      [ -n "$region" ] || region=$(resolve AWS_DEFAULT_REGION)
+      [ -n "$region" ] || region=$(printf '%s\n' "$body" | awk -F= '
+        /^[[:space:]]*region[[:space:]]*=/ { v = $2; gsub(/[[:space:]]/, "", v); print v; exit }
+      ')
+      if [ -z "$region" ]; then
+        # No region AND no profile body almost always means the profile itself is
+        # missing — say that, not the downstream symptom.
+        [ -n "$body" ] ||
+          fail "no AWS region resolves, and the resolved AWS profile is not defined in ~/.aws/config — run \`aws configure sso\`."
+        fail "no AWS region resolves (shell, settings.json, or \`region\` on the active profile in ~/.aws/config) — add \`region\` to that profile."
+      fi
+      case "$region" in
+        [a-z][a-z]-*-[0-9] | [a-z][a-z]-*-[0-9][0-9]) : ;;
+        *) fail "the resolved AWS region is not a well-formed AWS region name." ;;
+      esac
+      if [ "$mode" = region ]; then
+        printf '%s\n' "$region"
+        exit 0
+      fi
+
+      # ---- 3. the profile must be DEFINED -------------------------------------
+      # Whichever profile the SDK lands on has to exist; since ~/.aws/config is
+      # runtime state, "never ran `aws configure sso`" is the common way to miss it.
       if [ -z "$body" ] && ! section_body "$section" "$AWS_CREDS" >/dev/null 2>&1; then
         # Static keys in the environment need no profile at all.
         [ -n "''${AWS_ACCESS_KEY_ID:-}" ] ||
-          fail "the resolved AWS profile is not defined in ~/.aws/config or ~/.aws/credentials, and no static keys are in the environment."
+          fail "the resolved AWS profile is not defined in ~/.aws/config or ~/.aws/credentials, and no static keys are in the environment — run \`aws configure sso\`."
       fi
 
-      # ---- 3. auth freshness -------------------------------------------------
+      # ---- 4. auth freshness -------------------------------------------------
       # These profiles are SSO, so "authenticated" means an unexpired SSO access
       # token in the cache. Only the TOKEN files carry `accessToken`; the sibling
       # client-REGISTRATION file also has an `expiresAt` (months out) and would
@@ -241,7 +277,17 @@ let
       *) __bedrock_on=0 ;;
     esac
     if [ "$__bedrock_on" -eq 1 ]; then
-      if ! __bedrock_reason=$(${gate}/bin/nix-bedrock-gate 2>/dev/null); then
+      if __bedrock_reason=$(${gate}/bin/nix-bedrock-gate 2>/dev/null); then
+        # The gate may have found the region only on the ~/.aws/config profile.
+        # Claude Code reads it from the environment alone, so export it. A value in
+        # settings.json's `env` still wins inside the session — which is why the
+        # deprecated `local.claudeBedrock.region` must stay null.
+        if [ -z "''${AWS_REGION:-}" ] && [ -z "''${AWS_DEFAULT_REGION:-}" ] &&
+          __bedrock_region=$(${gate}/bin/nix-bedrock-gate --region 2>/dev/null); then
+          export AWS_REGION="$__bedrock_region"
+        fi
+        unset __bedrock_region
+      else
         unset CLAUDE_CODE_USE_BEDROCK
         # Only for a human: a non-interactive shell (BASH_ENV, scripts, launchd)
         # still gets the unset, silently.
@@ -258,11 +304,14 @@ in
   # Declared UNCONDITIONALLY: an `options` attribute may never sit inside a
   # `mkIf`. Only the `config` half below is platform-gated.
   #
+  # DEPRECATED, kept only so the sunsetting nix-personal keeps EVALUATING until
+  # its last activation: removing the options outright would turn its
+  # `local.claudeBedrock.region = …` into an "option does not exist" error on the
+  # very activation that migrates it. Setting either now warns. Delete the pair
+  # (and section (b)) once no definition remains anywhere.
+  #
   # OVERRIDABLE, not extendable — one AWS identity per host, so a `listOf` would
-  # misdescribe the shape. No `mkDefault` is needed: an option `default` is not a
-  # definition, so nix-personal's plain assignment wins outright. Extensibility is
-  # not lost downstream either — the sink `programs.claude-code.settings.env` is a
-  # recursive attrs type, so any module may still add other env keys.
+  # misdescribe the shape.
   options.local.claudeBedrock = {
     region = lib.mkOption {
       # `str`, NOT `strMatching`: the gate above already validates the SHAPE at
@@ -273,15 +322,14 @@ in
       default = null;
       example = "us-east-1";
       description = ''
-        AWS region Claude Code uses when Bedrock routing is on, written into
-        `~/.claude/settings.json`'s `env` block. `null` = unset.
+        DEPRECATED. AWS region pinned into `~/.claude/settings.json`'s `env`
+        block. The region now comes from the active profile's `region` key in
+        the runtime-owned `~/.aws/config` (`aws configure sso`); a value here
+        OVERRIDES that file in every session, so it warns when set.
 
-        NULL IS LOAD-BEARING, NOT A PLACEHOLDER. The gate's FIRST detector
-        ("AWS_REGION resolves nowhere → the private nix-personal layer is not
-        active") only works while this public repo supplies no region. Giving
-        this a non-null default here turns that detector permanently green on a
-        public-only activation and reproduces the very outage this module exists
-        to prevent. Never give it a value in nix-config.
+        Never give it a value in nix-config: a public default would shadow every
+        operator's own profile, and would make the gate's "no region resolves"
+        detector permanently green.
       '';
     };
 
@@ -290,10 +338,11 @@ in
       default = null;
       example = "my-sso-profile";
       description = ''
-        AWS profile Claude Code uses when Bedrock routing is on. `null` = leave
-        AWS_PROFILE unset, i.e. the SDK's `default` profile. Same null invariant
-        as `region`: the gate uses an undefined profile as a second, independent
-        detector of the dropped private layer.
+        DEPRECATED. AWS profile pinned into `~/.claude/settings.json`'s `env`
+        block. `null` = leave AWS_PROFILE to the shell, else the SDK's `default`
+        profile — select a non-default one at runtime instead (a `[default]`
+        profile in `~/.aws/config`, or `secret set AWS_PROFILE <name>`). Warns
+        when set; same null invariant as `region`.
       '';
     };
 
@@ -341,5 +390,55 @@ in
           AWS_PROFILE = config.local.claudeBedrock.profile;
         };
     })
+
+    {
+      warnings =
+        lib.optional
+          (config.local.claudeBedrock.region != null || config.local.claudeBedrock.profile != null)
+          (
+            "local.claudeBedrock.{region,profile} is deprecated: it pins AWS_* into the read-only "
+            + "~/.claude/settings.json, overriding the runtime-owned ~/.aws/config. Put `region` on "
+            + "the profile (`aws configure sso`) and drop the definition."
+          );
+    }
+
+    # ---- (c) migration: adopt a store-symlinked ~/.aws/config --------------
+    # The day no module declares ~/.aws/config any more (nix-personal's
+    # `aws-sso.nix` gone), home-manager's orphan cleanup DELETES the old
+    # generation's symlink — and with it every profile, since the content existed
+    # only in the store. Upstream has no "stop managing, keep the content" option
+    # (pinned home-manager modules/files.nix: `home.file.<name>` offers `force`
+    # and `onChange`, and `legacyCleanup` rm's any orphan that "links into a Home
+    # Manager generation"). The same cleanup explicitly SKIPS a regular file
+    # ("does not link into a Home Manager generation. Skipping delete."), so
+    # replacing the link with a real copy just before `linkGeneration` hands the
+    # file to its runtime owner, the `aws` CLI, with nothing lost.
+    #
+    # Gated on "no home.file entry targets it", evaluated in the SAME config: while
+    # any layer still manages the path this is absent, so it can never fight
+    # `checkLinkTargets` over a file home-manager is about to link. One-shot by
+    # construction — after the first run there is no store symlink left to match.
+    # Delete this section once nix-personal is gone.
+    (lib.mkIf
+      (
+        pkgs.stdenv.hostPlatform.isDarwin
+        && !lib.any (f: f.enable && f.target == ".aws/config") (lib.attrValues config.home.file)
+      )
+      {
+        home.activation.adoptAwsConfig = lib.hm.dag.entryBetween [ "linkGeneration" ] [ "writeBoundary" ] ''
+          awsCfg="$HOME/.aws/config"
+          hmFiles="$(readlink -e ${builtins.storeDir})/*-home-manager-files/*"
+          if [[ -L "$awsCfg" && "$(readlink "$awsCfg")" == $hmFiles ]]; then
+            if [[ -r "$awsCfg" ]]; then
+              run cp -L $VERBOSE_ARG "$awsCfg" "$awsCfg.adopt"
+              run chmod 600 "$awsCfg.adopt"
+              run mv -f $VERBOSE_ARG "$awsCfg.adopt" "$awsCfg"
+            else
+              warnEcho "~/.aws/config links into a dead home-manager generation; run \`aws configure sso\` to recreate it."
+            fi
+          fi
+        '';
+      }
+    )
   ];
 }
