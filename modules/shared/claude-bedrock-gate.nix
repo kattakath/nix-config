@@ -4,8 +4,9 @@
   config,
   ...
 }:
-# Claude Code's Bedrock routing: the AWS identity (`local.claudeBedrock`) and the
-# runtime gate that makes selecting Bedrock safe when that identity is absent.
+# Claude Code's Bedrock routing: the runtime gate that makes selecting Bedrock
+# safe when the AWS identity is absent. The identity itself is NOT declared
+# here (or anywhere in Nix) any more — see WHERE THE IDENTITY LIVES NOW below.
 #
 # WHY CLAUDE_CODE_USE_BEDROCK IS NOT DECLARED HERE — or anywhere in Nix.
 # (Moved verbatim from nix-personal's `modules/claude-bedrock.nix`, which this
@@ -28,30 +29,25 @@
 #   is nicer than removing it: the handle stays in `secret ls`, so the toggle's
 #   existence — and its current state — remain visible.
 #   (`local.keychainSecrets` — the loader providing `secret` — is wired in
-#   modules/shared/home.nix, so this toggle works whether the host activates
-#   public-only or through the private overlay.)
+#   modules/shared/home.nix.)
 #
-#   REGION and PROFILE are static identity, not a toggle, so they're safe to
-#   declare in Nix: harmless even when Bedrock is off, since Claude Code only
-#   consults them once CLAUDE_CODE_USE_BEDROCK is truthy at runtime.
-#
-# That is also why `local.claudeBedrock` deliberately has NO `enable` option —
-# see the option declarations below.
+# This module therefore declares NO options at all: not the toggle (above), and
+# since 2026-09-15 not the identity either (below).
 #
 # THE TRAP this gate exists to close. The Keychain flag survives every
-# activation. Its companions do NOT:
+# activation and every reboot. The AWS identity it needs does NOT — it is
+# ordinary runtime state on disk:
 #
-#   AWS_REGION / AWS_PROFILE  ← values from nix-personal via `local.claudeBedrock`,
-#     written HERE into ~/.claude/settings.json — and ABSENT BY DEFAULT, because
-#     the public repo supplies no region/profile (see the null invariant below).
-#   [profile …] / [sso-session …]  ← nix-personal aws-sso.nix → ~/.aws/config
+#   AWS_PROFILE          ← the shell, or the Keychain (`secret set AWS_PROFILE …`)
+#   [profile …] / [sso-session …] + that profile's `region`  ← ~/.aws/config
+#   the SSO token itself ← ~/.aws/sso/cache, expiring every few hours
 #
-# Both of those come from the PRIVATE layer. Activating the public
-# `nix-config#macos` directly drops them, while the Keychain entry survives
-# untouched — so Bedrock stays selected with no region and no profile, Claude Code
-# can reach no model, and `settings.json` is read-only under /nix so it cannot be
-# hand-repaired. The agent needed to undo the activation is the thing the
-# activation just killed: chicken-and-egg, and the operator has hit it repeatedly.
+# Any of those can be missing — a fresh Mac before `aws configure sso`, an
+# expired session, a profile renamed — while the Keychain flag sits there
+# saying "use Bedrock". Bedrock then stays selected with no usable identity,
+# Claude Code can reach no model, and `settings.json` is read-only under /nix so
+# it cannot be hand-repaired. The agent needed to diagnose it is the thing that
+# just lost its model: chicken-and-egg, and the operator has hit it repeatedly.
 #
 # The `.claude/hooks/pretooluse-bash-guard.js` block only covers activations the
 # AI runs. This module covers the other half — a switch typed by hand in a normal
@@ -66,18 +62,20 @@
 # `local.keychainSecrets` being wired here.
 #
 # WHERE THE IDENTITY LIVES NOW: ~/.aws/config, owned by the `aws` CLI.
-# nix-personal is sunsetting, and with it the only definitions of
-# `local.claudeBedrock` and the store-symlinked ~/.aws/config described above.
+# It is in NO repo. nix-personal used to define `local.claudeBedrock.{region,
+# profile}` and store-symlink ~/.aws/config; it was retired 2026-09-15 and
+# those options were deleted with it (nothing sets them anywhere, so the pair
+# and the settings.json writer they fed are gone — see the `config` block).
 # The identity is therefore RUNTIME state — exactly like the SSO tokens in
 # ~/.aws/sso/cache always were: `aws configure sso` writes the profile, the gate
 # reads it, and the shell hook exports that profile's `region`, because Claude
 # Code takes the region from the ENVIRONMENT only (anthropics/claude-code#18962).
+# Select a non-default profile with `secret set AWS_PROFILE <name>`.
 # This is ADR-003's split (docs/externalization-boundary-adr.md): identity is
 # content and may live outside every repo; the gate is governance and stays here.
-# The trap above is unchanged — the Keychain flag still outlives a missing file —
-# only the source of the companions moved. `adoptAwsConfig` (section (c)) turns a
-# leftover store symlink into a real file, so the first activation without the
-# private layer cannot delete the operator's profiles.
+# `adoptAwsConfig` (section (c)) turned the leftover store symlink into a real
+# file on the first activation after aws-sso.nix stopped being evaluated, so
+# that transition could not delete the operator's profiles.
 let
   # Offline and CLI-free on purpose: `aws` is not reliably on PATH during shell
   # init, and a network call (`aws sts get-caller-identity`) would tax every new
@@ -279,9 +277,9 @@ let
     if [ "$__bedrock_on" -eq 1 ]; then
       if __bedrock_reason=$(${gate}/bin/nix-bedrock-gate 2>/dev/null); then
         # The gate may have found the region only on the ~/.aws/config profile.
-        # Claude Code reads it from the environment alone, so export it. A value in
-        # settings.json's `env` still wins inside the session — which is why the
-        # deprecated `local.claudeBedrock.region` must stay null.
+        # Claude Code reads it from the environment alone, so export it. Nothing
+        # writes AWS_* into settings.json's `env` any more (that would win inside
+        # the session and shadow the file), which is why nothing needs to here.
         if [ -z "''${AWS_REGION:-}" ] && [ -z "''${AWS_DEFAULT_REGION:-}" ] &&
           __bedrock_region=$(${gate}/bin/nix-bedrock-gate --region 2>/dev/null); then
           export AWS_REGION="$__bedrock_region"
@@ -301,57 +299,17 @@ let
   '';
 in
 {
-  # Declared UNCONDITIONALLY: an `options` attribute may never sit inside a
-  # `mkIf`. Only the `config` half below is platform-gated.
+  # This module declares NO options. `local.claudeBedrock.{region,profile}` was
+  # deprecated when the AWS identity became runtime-owned, and DELETED
+  # 2026-09-15 once nix-personal — the only thing that ever set them — was
+  # retired. Do not reintroduce them: a value there pins `AWS_*` into the
+  # read-only `settings.json` and overrides the runtime `~/.aws/config` in every
+  # session, which is exactly the failure this module exists to prevent.
   #
-  # DEPRECATED, kept only so the sunsetting nix-personal keeps EVALUATING until
-  # its last activation: removing the options outright would turn its
-  # `local.claudeBedrock.region = …` into an "option does not exist" error on the
-  # very activation that migrates it. Setting either now warns. Delete the pair
-  # (and section (b)) once no definition remains anywhere.
-  #
-  # OVERRIDABLE, not extendable — one AWS identity per host, so a `listOf` would
-  # misdescribe the shape.
-  options.local.claudeBedrock = {
-    region = lib.mkOption {
-      # `str`, NOT `strMatching`: the gate above already validates the SHAPE at
-      # runtime, and doing it twice means a malformed region fails at eval with a
-      # type error instead of degrading to a working provider — the exact outcome
-      # this whole module exists to avoid.
-      type = lib.types.nullOr lib.types.str;
-      default = null;
-      example = "us-east-1";
-      description = ''
-        DEPRECATED. AWS region pinned into `~/.claude/settings.json`'s `env`
-        block. The region now comes from the active profile's `region` key in
-        the runtime-owned `~/.aws/config` (`aws configure sso`); a value here
-        OVERRIDES that file in every session, so it warns when set.
-
-        Never give it a value in nix-config: a public default would shadow every
-        operator's own profile, and would make the gate's "no region resolves"
-        detector permanently green.
-      '';
-    };
-
-    profile = lib.mkOption {
-      type = lib.types.nullOr lib.types.str;
-      default = null;
-      example = "my-sso-profile";
-      description = ''
-        DEPRECATED. AWS profile pinned into `~/.claude/settings.json`'s `env`
-        block. `null` = leave AWS_PROFILE to the shell, else the SDK's `default`
-        profile — select a non-default one at runtime instead (a `[default]`
-        profile in `~/.aws/config`, or `secret set AWS_PROFILE <name>`). Warns
-        when set; same null invariant as `region`.
-      '';
-    };
-
-    # There is deliberately NO `enable` option here. CLAUDE_CODE_USE_BEDROCK must
-    # stay in the macOS login Keychain (see the header): a Nix-declared
-    # `settings.json` `env` entry would apply to EVERY session and permanently
-    # kill the runtime toggle. Do not add one.
-  };
-
+  # There is deliberately no `enable` option either. CLAUDE_CODE_USE_BEDROCK
+  # must stay in the macOS login Keychain (see the header): a Nix-declared
+  # `settings.json` `env` entry would apply to EVERY session and permanently
+  # kill the runtime toggle. Do not add one.
   config = lib.mkMerge [
     # ---- (a) the gate ------------------------------------------------------
     # Darwin-only: the Keychain loader that exports the variable is itself
@@ -373,34 +331,13 @@ in
       programs.bash.bashrcExtra = lib.mkOrder 1600 gateShell;
     })
 
-    # ---- (b) the identity --------------------------------------------------
-    # Guard carried over verbatim from nix-personal's claude-bedrock.nix: it
-    # defends against a home-manager module set that never enables
-    # programs.claude-code. It covers the Linux hosts for free, because
-    # `programs.claude-code` is itself mkIf isDarwin in modules/shared/home.nix.
-    (lib.mkIf config.programs.claude-code.enable {
-      # optionalAttrs, never a null passthrough: `null` is INSIDE the json value
-      # type, so a null would be emitted as a literal `null` into settings.json
-      # rather than omitting the key.
-      programs.claude-code.settings.env =
-        lib.optionalAttrs (config.local.claudeBedrock.region != null) {
-          AWS_REGION = config.local.claudeBedrock.region;
-        }
-        // lib.optionalAttrs (config.local.claudeBedrock.profile != null) {
-          AWS_PROFILE = config.local.claudeBedrock.profile;
-        };
-    })
-
-    {
-      warnings =
-        lib.optional
-          (config.local.claudeBedrock.region != null || config.local.claudeBedrock.profile != null)
-          (
-            "local.claudeBedrock.{region,profile} is deprecated: it pins AWS_* into the read-only "
-            + "~/.claude/settings.json, overriding the runtime-owned ~/.aws/config. Put `region` on "
-            + "the profile (`aws configure sso`) and drop the definition."
-          );
-    }
+    # (b) was the IDENTITY section: it wrote AWS_REGION/AWS_PROFILE into
+    # `programs.claude-code.settings.env` from the deprecated
+    # `local.claudeBedrock` options, alongside a warning when either was set.
+    # Both are gone (2026-09-15) with the options themselves — the identity is
+    # runtime state now: `~/.aws/config` for the profile's `region`, and the
+    # shell hook above exports it because Claude Code reads the region from the
+    # environment only.
 
     # ---- (c) migration: adopt a store-symlinked ~/.aws/config --------------
     # The day no module declares ~/.aws/config any more (nix-personal's

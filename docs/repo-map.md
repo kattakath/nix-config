@@ -675,12 +675,17 @@ their own top-level section below:
     no repo. The gate resolves the profile (`AWS_PROFILE`, else `default`) and the region
     (shell → `settings.json` `env` → that profile's `region` key; never `sso_region`), and
     the hook **exports** a file-derived `AWS_REGION`, because Claude Code reads the region
-    from the environment only (anthropics/claude-code#18962). ADR-003's split: identity is
-    content, the gate is governance.
-  - **`local.claudeBedrock.{region,profile}` is DEPRECATED.** `null` by default; a value pins
-    `AWS_*` into the read-only `settings.json`, overriding the file, and raises a warning. Its
-    own header says to delete it now that nix-personal (the only repo that ever set it) is
-    retired — not yet done as of this writing.
+    from the environment only (anthropics/claude-code#18962). Select a non-default profile
+    with `secret set AWS_PROFILE <name>`. ADR-003's split: identity is content, the gate is
+    governance.
+  - **This module declares NO options.** `local.claudeBedrock.{region,profile}` — which wrote
+    `AWS_*` into `settings.json`'s `env` — was deprecated when the identity became
+    runtime-owned and **deleted 2026-09-15**, once nix-personal (the only thing that ever set
+    it) was retired. The settings.json writer and its deprecation warning went with it. Do not
+    reintroduce them: a value there overrides the runtime `~/.aws/config` in every session,
+    which is the exact failure this module exists to prevent. There is deliberately no
+    `enable` option either — `CLAUDE_CODE_USE_BEDROCK` stays in the login Keychain so it
+    remains a runtime toggle.
   - **`adoptAwsConfig` — the one-shot migration.** When no `home.file` entry targets
     `.aws/config`, an activation step between `writeBoundary` and `linkGeneration` replaces a
     leftover store symlink with a real `0600` copy. Ran once, when nix-personal's `aws-sso.nix`
@@ -722,12 +727,14 @@ their own top-level section below:
     still unusable for the same two reasons as before: it writes a Nix-managed
     `known_marketplaces.json` symlink where the CLI needs a mutable file, and the reserved
     `claude-plugins-official` rejects directory pins as untrusted.
-- **`git-allowed-signers.nix`** — option-only (`kattakath.git.extraAllowedSignersPrincipals`):
-  extra author emails for git SSH signature verify. Split out of `home.nix` purely because a
-  Home Manager module declaring `options` cannot also carry bare `config` attrs. The fleet
-  default principal stays `userEmail` in `home.nix`; the extra identities
-  (`izzy@silvercreek.ai`, `hi@izzykatt.ca`) are appended directly in `hosts/macos.nix` now that
-  nix-personal is retired.
+- **Git SSH signing principals** — no module of its own any more. `git-allowed-signers.nix`
+  and its custom `kattakath.git.extraAllowedSignersPrincipals` option were **deleted**
+  2026-09-13 in favour of upstream's own `programs.git.signing` (pinned home-manager
+  `programs/git.nix:63-116`; impl `:470-506` writes `$XDG_CONFIG_HOME/git/allowed_signers` and
+  points `gpg.ssh.allowedSignersFile` at it). `modules/shared/home.nix` sets the fleet default
+  principal (`userEmail`); because `allowedSigners` is a `lines` option, extra identities
+  simply **append** — `hosts/macos.nix` adds `izzy@silvercreek.ai` and `hi@izzykatt.ca` there,
+  which is how the retired nix-personal layer's principals came across with no custom seam.
 - **`wallpaper/wallpaper.png`** — the vendored desktop wallpaper `desktop-aesthetics.nix`
   installs. It is copied to `~/.local/share/nix-desktop-wallpaper.png` via `home.file` and
   pointed at from there, **not** referenced as a store path directly: `settings.picture` set
