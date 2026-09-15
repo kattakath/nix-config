@@ -385,7 +385,7 @@ their own top-level section below:
 
 ### `modules/shared/`
 
-`modules/shared/{home.nix,mcp.nix,chromium.nix,default-browser.nix,terminal-theme.nix,desktop-aesthetics.nix,nix-cache.nix,nix-ld-libraries.nix,launchd-launcher.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-plugins.nix,claude-guardrails.nix,wallpaper/}`
+`modules/shared/{home.nix,mcp.nix,chromium.nix,default-browser.nix,terminal-theme.nix,desktop-aesthetics.nix,nix-cache.nix,nix-ld-libraries.nix,launchd-launcher.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,wallpaper/}`
 — the Home Manager profile loaded on every host.
 
 - **`home.nix`** — git/ssh-signing, zsh+starship, direnv, gh, bash, claude-code + nerd-fonts;
@@ -719,6 +719,16 @@ their own top-level section below:
   OpenTofu-state plaintext, `gh pr merge`, force-push) — never repo policy. Deny rules still
   apply in `bypassPermissions` (it skips prompts; a deny is not one), but they match the command
   text Claude writes, not `sh -c` or an absolute binary path — a floor, not a boundary.
+- **`claude-desktop.nix`** — `local.claudeDesktop`, **Client side D** of the MCP hub: the
+  gateway's `endpoints` plus the per-client stdio servers rendered into Claude Desktop's
+  stateful `claude_desktop_config.json`. Desktop accepts ONLY the stdio shape, so every
+  `url` becomes a pinned `mcp-remote` shim (`lib.hm.mcp.transformMcpServer` + one
+  `extraTransform`, the codex module's pattern); an activation merges ONLY `.mcpServers`
+  and ONLY entries carrying the `NIX_CONFIG_MANAGED` env marker, so hand-added servers and
+  Desktop's own keys survive. `desktop-commander` is excluded (it is a Desktop Extension
+  already). Everything here is also proxied into a linked Cowork session as
+  `mcp__remote-devices__<name>__*`. Contract held by `checks.claude-desktop-config-shape`.
+  Full rationale: [`docs/claude-desktop-mcp.md`](claude-desktop-mcp.md).
 - **`claude-plugins.nix`** — `local.claudePlugins.marketplaces`, the **N-marketplace** Claude
   Code plugin mechanism. An `attrsOf submodule` keyed by marketplace name, each carrying a
   `source` (a `/nix/store` path or an `https://` git URL — asserted, so an impure
