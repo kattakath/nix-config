@@ -34,6 +34,23 @@ writeShellApplication {
     git
   ];
   text = ''
+    # `--dry-run` is a BUILD flag, not a rehearsal. darwin-rebuild files it under
+    # extraBuildFlags (darwin-rebuild:59) and then runs `nix-env -p … --set` and
+    # `$systemConfig/activate` for `switch` UNCONDITIONALLY — so the profile
+    # advances, activation is attempted against a path the dry build never
+    # realised, and /run/current-system is left behind. That is the same drift
+    # the check below reports, arrived at from the other direction. Measured
+    # here 2026-09-15: two `--dry-run` invocations advanced the profile two
+    # generations without ever repointing /run/current-system.
+    for arg in "$@"; do
+      if [ "$arg" = "--dry-run" ]; then
+        echo "activate: --dry-run does NOT rehearse a switch — darwin-rebuild applies it to the" >&2
+        echo "activate:   BUILD only, then sets the profile and activates anyway." >&2
+        echo "activate:   To rehearse, build without activating:  darwin-rebuild build" >&2
+        exit 2
+      fi
+    done
+
     rebuild=/run/current-system/sw/bin/darwin-rebuild
     if [ ! -x "$rebuild" ]; then
       echo "activate: $rebuild is missing — this Mac has never been activated." >&2
@@ -41,11 +58,51 @@ writeShellApplication {
       exit 1
     fi
 
+    # P7 — /run/current-system is NOT authoritative, and this script trusts it
+    # for $rebuild above. A per-user home-manager activation that fails (an
+    # account with no GUI session: "Bootstrap failed: 125") aborts `activate`
+    # under `set -e` ~80 lines before its closing
+    # `ln -sfn … /run/current-system`, so the system PROFILE advances while that
+    # symlink — and the current-system GC root, and PATH — stay on the old
+    # generation. It sat four generations behind before anyone noticed, and only
+    # because four pointers were compared by hand. Mechanise the comparison.
+    #
+    # WARN, never block: a stale pointer is precisely the state someone runs
+    # `activate` to repair, and this run is what fixes it.
+    profile=$(readlink -f /nix/var/nix/profiles/system 2>/dev/null || true)
+    running=$(readlink -f /run/current-system 2>/dev/null || true)
+    if [ -n "$profile" ] && [ -n "$running" ] && [ "$profile" != "$running" ]; then
+      echo "activate: WARNING — /run/current-system has drifted from the system profile." >&2
+      echo "activate:   profile : $profile" >&2
+      echo "activate:   running : $running" >&2
+      echo "activate:   A previous activation aborted before repointing it (usually a" >&2
+      echo "activate:   per-user launchd agent failing for an account that has never" >&2
+      echo "activate:   logged in). PATH resolves through the RUNNING one. Continuing;" >&2
+      echo "activate:   a successful switch repoints it." >&2
+    fi
+
     # Say WHAT is about to be activated before elevating. A bare rebuild finds
     # its flake through /etc/nix-darwin, so nothing on screen would otherwise
     # name the tree — and this worktree is shared by several agent sessions that
     # hop branches. Untracked files count as dirty on purpose: flakes ignore
     # them, so a "clean-looking" tree can still build something unexpected.
+    # P5 — a DANGLING /etc/nix-darwin/flake.nix is the quiet failure: `ln -s`
+    # never checks its target, so activation happily plants a broken link (a
+    # moved or renamed clone), `-e` is then false, and darwin-rebuild silently
+    # ignores it and falls through to the legacy `<darwin>` path with an error
+    # that names none of this. `activate` is the one place positioned to say so,
+    # because it already resolves the link. An activation-time assertion would be
+    # wrong: the path legitimately does not exist during the first activation
+    # that creates it.
+    if [ -L /etc/nix-darwin/flake.nix ] && [ ! -e /etc/nix-darwin/flake.nix ]; then
+      echo "activate: WARNING — /etc/nix-darwin/flake.nix is DANGLING." >&2
+      echo "activate:   points at: $(readlink -f /etc/nix-darwin/flake.nix 2>/dev/null || readlink /etc/nix-darwin/flake.nix)" >&2
+      echo "activate:   Nothing is there, so a bare \`darwin-rebuild switch\` will ignore it" >&2
+      echo "activate:   and fail against the legacy <darwin> path. The clone probably moved:" >&2
+      echo "activate:   fix the environment.etc target in modules/parts/hosts.nix, then" >&2
+      echo "activate:   re-activate once WITH --flake to repair the link." >&2
+    fi
+
     if [ -e /etc/nix-darwin/flake.nix ]; then
       dir=$(dirname "$(readlink -f /etc/nix-darwin/flake.nix)")
       echo "activate: flake $dir"
