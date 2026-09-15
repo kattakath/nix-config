@@ -49,6 +49,27 @@ in
       one-shot agent that pulls `embedModel` (darwin)
     '';
 
+    manageServer = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Whether this capsule stands up the ollama SERVER itself, via
+        home-manager's `services.ollama` (a per-user `launchd.agents.ollama`).
+
+        Set false when something else already serves ollama on
+        `services.ollama.host`/`.port` — on this fleet that is the machine-wide
+        `local.ollamaDaemon` (modules/darwin/ollama-daemon.nix), which exists so
+        a SECOND account shares one server and one model store instead of
+        duplicating 31 GB per login.
+
+        The rest of the capsule is unaffected: `embedModel` is still pulled, and
+        the pull agent still targets host/port — it simply talks to a server it
+        no longer owns. Leaving this true alongside the system daemon would put
+        two `ollama serve` processes on the same port, where one wins and the
+        other flaps under KeepAlive.
+      '';
+    };
+
     embedModel = lib.mkOption {
       type = lib.types.str;
       default = "nomic-embed-text";
@@ -100,7 +121,7 @@ in
       };
     in
     {
-      services.ollama.enable = true;
+      services.ollama.enable = cfg.manageServer;
 
       # Upstream sets no StandardOutPath, so the server's log would vanish into
       # launchd's sink. Merge the historical path back onto upstream's own
@@ -111,9 +132,15 @@ in
       # operator-visible regression.
       # (pinned home-manager modules/launchd/default.nix:36 — `config` is
       # `submodule (import ./launchd.nix)`; StandardOutPath at launchd.nix:437)
-      launchd.agents.ollama.config = {
-        StandardOutPath = "${logDir}/ollama-local.log";
-        StandardErrorPath = "${logDir}/ollama-local.log";
+      #
+      # Gated with the server itself: with `manageServer = false` there is no
+      # `launchd.agents.ollama` to attach a log path to, and configuring one
+      # would resurrect the agent as an empty unit.
+      launchd.agents.ollama = lib.mkIf cfg.manageServer {
+        config = {
+          StandardOutPath = "${logDir}/ollama-local.log";
+          StandardErrorPath = "${logDir}/ollama-local.log";
+        };
       };
 
       # One-shot: RunAtLoad, no KeepAlive. A failed pull exits non-zero and
