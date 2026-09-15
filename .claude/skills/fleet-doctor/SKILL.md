@@ -57,12 +57,13 @@ the two that existed only to serve it — both collapsed to match.
 | Auto-fix (no per-repo prompt in `fix` mode) | Always confirm first |
 |---|---|
 | `git fetch --prune` (read-only) | Merging any PR, for any reason |
-| `nix-collect-garbage -d` (host) | Deleting a branch/worktree with commits not on its remote/default branch |
+| Reporting host disk usage (`df -h /nix`) — collection is automatic now, see step E | Deleting a branch/worktree with commits not on its remote/default branch |
 | `nix flake lock --update-input <sibling>` + `nix flake check`, commit + push **only if check passes** | Committing/pushing anything that isn't this skill's own mechanical fix (stray WIP is reported, never committed) |
 | Deleting a **local-only branch already merged into the repo's default branch** | Force-push, `git reset --hard`, `git clean -f`, any destructive git op |
 | Re-running `nix fmt` / the repo's own format-fix on a repo already being touched | Reactivating a host when the guest/host is unreachable — report as skipped, don't retry-loop |
 | Re-activating macos (`sudo darwin-rebuild switch --flake .#macos`) when its composing repos moved | Disk operations of any kind (`diskutil`, partitioning) |
 | Nixpi: **disk-usage report only** — no GC/activation without an explicit ask (it's the live server; see `docs/nixpi-sd-flashing-runbook.md`) | Rotating secrets/tokens, editing `secrets/*.age`, anything with `secret set` |
+| — | `sudo nix-collect-garbage -d` on the host — determinate-nixd collects in the background now, and `-d` drops **every** old generation, leaving no rollback target |
 
 These map onto the global Git Safety Protocol (never commit unless asked,
 never force-push, never merge without explicit confirmation) — `fix` mode
@@ -129,10 +130,18 @@ given.
 
 ### E. Garbage collection
 
+**macos collects itself now.** `determinateNix.determinateNixd.garbageCollector.strategy
+= "automatic"` (2026-09-15, `modules/parts/compose.nix`) hands background collection to
+determinate-nixd, and `customSettings.auto-optimise-store = true` hard-links duplicates as
+paths land. So this step is a **report**, and a hand-run collection is only for "I want the
+space back now" — not routine upkeep.
+
 ```bash
 # host
-df -h / | tail -1
-sudo nix-collect-garbage -d
+df -h /nix | tail -1
+sudo nix-collect-garbage -d     # only on an explicit ask; the background collector
+                                # otherwise handles this, and `-d` drops EVERY old
+                                # generation, leaving no rollback target
 
 # nixpi — report only, never collect without an explicit ask (live server)
 ```
