@@ -335,17 +335,27 @@ Home Manager profile. What the split is and is not:
 - **A never-logged-in account blocks activation, SILENTLY.** A user launchd agent can only
   bootstrap into that user's own GUI session, so any agent declared for an account that has
   never logged in fails with `Bootstrap failed: 125: Domain does not support specified
-  action`. Home Manager's activation then exits non-zero, `activate` runs under `set -e`, and
-  the abort lands ~80 lines short of its final `ln -sfn … /run/current-system`. So the system
-  **profile** advances while `/run/current-system` and
-  `/nix/var/nix/gcroots/current-system` stay on the OLD generation — and
-  `/run/current-system/sw/bin` is what PATH resolves. Packages end up installed and
-  unreachable at the same time.
+  action`. Home Manager's activation then exits non-zero and **nix-darwin's own**
+  `$systemConfig/activate` — not the `activate` CLI — runs under `set -e`, so the abort lands
+  ~80 lines short of its final `ln -sfn … /run/current-system`. The system **profile**
+  advances while `/run/current-system` and `/nix/var/nix/gcroots/current-system` stay on the
+  OLD generation — and `/run/current-system/sw/bin` is what PATH resolves. Packages end up
+  installed and unreachable at the same time.
 
-  **`darwin-rebuild` still exits 0**, so nothing announces it. Do not go looking for a
-  non-zero exit code; diagnose by comparing `nix eval .#darwinConfigurations.macos.system`
-  against `readlink -f /run/current-system`. The system profile is NOT the authority here.
-  (It stranded four generations deep before anyone noticed, 2026-09-15.)
+  **`darwin-rebuild` exits 1.** MEASURED 2026-09-15 by re-enabling one of Izzy's agents and
+  capturing the status with no pipe (`> file 2>&1; RC=$?`): broken run 1, healthy run 0.
+  Every link propagates — `setupLaunchAgents` returns 1 (pinned home-manager
+  `modules/launchd/default.nix:564`), the generation's `activate` does `exit "$launchdStatus"`
+  (`:847`), `launchctl asuser` passes a child status through (verified: a child exiting 7
+  yields 7), and `$systemConfig/activate` is `darwin-rebuild`'s last statement under `set -e`.
+
+  So it is not silent for lack of a signal — it is silent because **nobody reads the exit code
+  of an interactive activation**, and because a status read through a pipe
+  (`activate | tail`) is the PIPE's, not the command's. That misreading is exactly how an
+  earlier revision of this paragraph came to claim exit 0. Diagnose by comparing
+  `nix eval .#darwinConfigurations.macos.system` against `readlink -f /run/current-system`;
+  the system profile is NOT the authority here. (It stranded four generations deep before
+  anyone noticed, 2026-09-15.)
 
   **`launchd.enable = false` does not fix it — it is a no-op.** The option reads like the
   class-wide switch, but upstream uses `cfg.enable` in exactly one place, an assertion
