@@ -108,6 +108,53 @@ in
                 ''
             );
         }
+        // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
+          # ---- Claude Desktop only accepts the stdio shape ----------------------
+          #
+          # modules/shared/claude-desktop.nix renders the MCP hub into Desktop's
+          # claude_desktop_config.json. Desktop's parser is the narrowest client
+          # in the fleet: {command, args, env} and nothing else — a `url` or
+          # `type` key is rejected by its schema and the entry silently vanishes
+          # from the app. The module's shim transform is what keeps that from
+          # happening, and a future hub change (a new transport key, an upstream
+          # transformMcpServer that stops stripping `type`) would break it
+          # without any eval error. So: read the REAL rendering from the macos
+          # config and assert its shape, plus the two agreements the module
+          # makes with the rest of the tree — every gateway endpoint is present
+          # (parity with Claude Code is the whole point), and desktop-commander
+          # is not (it is a Desktop Extension already; twice = 20 duplicate tools).
+          claude-desktop-config-shape =
+            let
+              hm = config.flake.darwinConfigurations.macos.config.home-manager.users.${loginName};
+              servers = hm.local.claudeDesktop.renderedServers;
+              endpoints = builtins.attrNames hm.local.mcpGateway.endpoints;
+              badShape = lib.filterAttrs (
+                _: s: !(s ? command && s ? args) || s ? url || s ? type || !(s ? env && s.env ? NIX_CONFIG_MANAGED)
+              ) servers;
+              missing = builtins.filter (n: !(servers ? ${n})) endpoints;
+              problems =
+                lib.optional (
+                  badShape != { }
+                ) "non-stdio or unmarked entries: ${toString (builtins.attrNames badShape)}"
+                ++ lib.optional (missing != [ ]) "gateway endpoints missing from Desktop: ${toString missing}"
+                ++ lib.optional (
+                  servers ? desktop-commander
+                ) "desktop-commander rendered (it is a Desktop Extension already)";
+            in
+            pkgs.runCommand "claude-desktop-config-shape" { } (
+              if problems == [ ] then
+                ''
+                  echo "claude-desktop: ${toString (lib.length (builtins.attrNames servers))} stdio-shaped entries, all ${toString (lib.length endpoints)} gateway endpoints present" > "$out"
+                ''
+              else
+                ''
+                  echo "claude-desktop-config-shape: the Desktop rendering broke its contract." >&2
+                  ${lib.concatStringsSep "\n" (map (p: ''echo "  ✘ ${p}" >&2'') problems)}
+                  echo "See modules/shared/claude-desktop.nix (toStdioShim / excludeServers)." >&2
+                  exit 1
+                ''
+            );
+        }
         // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
           # ---- The four names a reflash depends on, pinned ---------------------
           #
