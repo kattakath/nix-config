@@ -295,6 +295,33 @@ let
           determinateNix.customSettings = {
             extra-substituters = [ cachixUrl ];
             extra-trusted-public-keys = [ cachixKey ];
+            # WHY THE OPERATOR IS TRUSTED (2026-09-15). Nix's default is
+            # `trusted-users = root`, and a NON-trusted user's client-side
+            # settings are silently discarded by the daemon. That is not a
+            # theoretical limit — it is the root cause of the "nixpi must build
+            # itself" saga: after CI warms the closure into Cachix, a Mac that
+            # had already queried those paths while they were absent keeps the
+            # 404 in its narinfo NEGATIVE cache for an hour and goes on planning
+            # a BUILD. The one-word fix, `--narinfo-cache-negative-ttl 0`, is
+            # answered with "ignoring the client-specified setting … you are not
+            # a trusted user", so the operator cannot clear it at all and the
+            # tempting escape is to move the build onto the Pi (now blocked,
+            # .claude/hooks/pretooluse-bash-guard.js Rule 1d). Same mechanism
+            # silently ignores `--builders` and `--max-jobs 0`.
+            #
+            # Cost, stated rather than waved past: a trusted user can set
+            # substituters and other restricted settings for their own builds,
+            # which is close to root-equivalent for store CONTENT. Accepted here
+            # because this is a single-operator Mac where that user already has
+            # admin + sudo and owns this very file — the grant adds no capability
+            # they lacked, it only stops the daemon discarding their intent.
+            #
+            # `extra-trusted-users`, not `trusted-users`: appends rather than
+            # replacing, so `root` survives and a future Determinate default is
+            # not clobbered — same additive shape as the two lines above.
+            # `identity.loginName` (not a literal) so a per-host `identity`
+            # override, which templates/default/ uses, trusts ITS own operator.
+            extra-trusted-users = [ identity.loginName ];
           };
           # LINUX BUILDS ON macOS (for `nix run .#nixvm`, `.#nixpi`):
           # Determinate's NATIVE Linux builder (Apple Virtualization framework —
