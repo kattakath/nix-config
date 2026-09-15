@@ -71,8 +71,12 @@ scripts/drv-snapshot.sh --compare .baseline/wave0-final   # "moved code, changed
 # Agent hygiene (LEAN/DRY/docs drift → fix → fmt → check): /hygiene  or skill nix-hygiene
 
 # Activation
-sudo darwin-rebuild switch --flake .#macos        # Activate macos — this repo now carries all of its own data
-nix run github:kattakath/nix-config#macos    # FIRST activation of macos straight from the flake (before darwin-rebuild is on PATH)
+activate                                     # Activate macos, from ANY directory. `darwin-rebuild switch` that self-elevates
+                                             #   (Touch ID) and prints the flake dir + branch@rev (+ DIRTY) before it builds.
+                                             #   No --flake/#attr: modules/parts/hosts.nix plants /etc/nix-darwin/flake.nix,
+                                             #   which darwin-rebuild resolves, and the attr defaults to LocalHostName (= macos).
+                                             #   `sudo darwin-rebuild switch` works too but names nothing it is about to build.
+nix run github:kattakath/nix-config#macos    # FIRST activation only, straight from the flake (before `activate` exists). Self-elevates.
 nixos-rebuild switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com
                                              # Activate the Pi: builds HERE (substituting the CI-warmed closure from
                                              #   Cachix), activates THERE. NEVER --build-host — the Pi must not build
@@ -139,7 +143,7 @@ One line per path; the *why* and the per-file specifics are in
 | `modules/shared/` | The Home Manager profile on every host. Modules that DECLARE a `local.*` option: `mcp.nix`, terminal theme, chromium, default browser, übersicht (the one HTML widget) + next-right-thing (what it says), wireguard, desktop aesthetics (the wallpaper), claude plugins/otel/desktop. Option-free modules that just configure: `home.nix`, nix cache, nix-ld, launchd-launcher, claude brain/bedrock-gate/guardrails — `local.claudeBedrock` was DELETED 2026-09-15, so do not look for it. |
 | `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix`, `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`local.macosGithubRunner` — LIVE, see § Configuration), `ollama-daemon.nix` (`local.ollamaDaemon` — ONE machine-wide `ollama serve`, so both accounts share one process and one 31 GB model store). |
 | `modules/nixos/` | `core.nix` (user + keys-only **loopback-bound** sshd, `openFirewall = false`, a firewall that opens **no** TCP port, avahi, nix-ld, zram, GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). |
-| `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `spotlight-launchers`, plus single-purpose CLIs. `grok.nix` is the tree's ONLY prebuilt vendor binary (SRI-pinned, `dontFixup` to keep xAI's signature); `fal.nix` ships `fal` + `fal-gen` as ephemeral `uv` envs. Both are SHARED via `environment.systemPackages`, not per-user. Root `bootstrap.sh` is the no-Nix stage 1. The media/photo CLIs live in the `media-cli` capsule instead. |
+| `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `activate` (the self-elevating rebuild above), `spotlight-launchers`, plus single-purpose CLIs. `grok.nix` is the tree's ONLY prebuilt vendor binary (SRI-pinned, `dontFixup` to keep xAI's signature); `fal.nix` ships `fal` + `fal-gen` as ephemeral `uv` envs. Both are SHARED via `environment.systemPackages`, not per-user. Root `bootstrap.sh` is the no-Nix stage 1. The media/photo CLIs live in the `media-cli` capsule instead. |
 | `infra/` | terranix (Nix → Terraform JSON): `cloudflare/nixpi-tunnel.nix`, `cloudflare/mcp-public.nix`. Applied only via the `cf-*` / `mcp-public-*` apps. |
 | `secrets/` | agenix recipients + the operator pubkey + **four** ciphertexts — one operator-only, three host-decrypted on `macos`. Details in § Security. |
 | `sites/` | The static sites `nixpi`'s Caddy serves. Referenced by **directory** path literal (`config.fleet.hostedSites[].root`), so every byte lands in the LIVE closure — see [`store-copied-trees`](.claude/rules/store-copied-trees.md). |
