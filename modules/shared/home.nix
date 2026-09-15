@@ -1638,6 +1638,16 @@ in
       mutableExtensionsDir = true;
 
       profiles.default = {
+        # settings.json is a REAL file, not a store symlink, so VS Code's own
+        # Settings UI can save into it (a store symlink is read-only and the UI
+        # refuses). Upstream home-manager option — see its
+        # modules/programs/vscode/mkVscodeModule.nix. Each activation merges
+        # `dynamic * static` via jq: keys you set by hand survive, keys declared
+        # below always win. Same trade as mutableExtensionsDir above — the live
+        # settings are Nix PLUS whatever you clicked, not reproducible from the
+        # flake alone.
+        mutableUserSettings = true;
+
         # PERSONAL extensions only — the standing toolkit wanted in every repo,
         # resolved from the Marketplace mirror. Publisher/name are lowercased in
         # Nix per nix-vscode-extensions' convention. Project/stack-specific
@@ -1738,6 +1748,11 @@ in
           "editor.codeActionsOnSave" = {
             "source.organizeImports" = "explicit";
           };
+          # -- Python (editor-wide, NOT path-bound) --
+          # Picks the language-server IMPLEMENTATION (Pylance when present, else
+          # Jedi) — a personal editor preference, unlike the python.* settings
+          # the note below excludes, which hardcode per-project interpreter paths.
+          "python.languageServer" = "Default";
           # NOTE: genuinely project-specific settings (python.*/[python]/mypy,
           # files.associations, git.defaultBranchName, and the files/search
           # exclude blocks for build artifacts) intentionally live in each
