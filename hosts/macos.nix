@@ -373,86 +373,72 @@ in
   # modules/shared/home.nix. That profile is the operator's: MCP gateway,
   # Keychain loader, git signing, agent surface. Handing it to a second account
   # would duplicate every agent and secret loader on the machine.
+  # Izzy runs the SAME Home Manager profile as the operator — the whole of
+  # modules/shared/home.nix, not a hand-picked subset. Everything that is
+  # genuinely per-user comes along unchanged: every CLI, the full Claude surface
+  # and guardrails, media-cli and its Finder Services, chromium, wireguard, the
+  # terminal theme, next-right-thing, and his own `secret` Keychain store.
+  #
+  # Only two classes of thing are overridden below, and neither is a preference:
+  # MACHINE-WIDE SINGLETONS, which physically cannot run twice, and the handful
+  # of settings that are per-PERSON rather than per-machine.
   home-manager.users.izzy =
-    { mediaCliModule, ... }:
+    { lib, ... }:
     {
-      imports = [
-        ../modules/shared/default-browser.nix
-        # The media stack, taken from the SAME capsule the operator uses
-        # (threaded as a module arg by modules/parts/compose.nix) rather than
-        # copied — one definition, two users.
-        mediaCliModule
-        # Agentic surface. Both of these take only `{ pkgs, lib, ... }`, so they
-        # drop into a second profile unchanged — no operator-specific arg, no
-        # fork. `~/.claude` is per-user by construction, so each account needs
-        # its own declaration; the store paths behind them are shared, so this
-        # costs no disk.
-        ../modules/shared/claude-brain.nix
-        # Guardrails matter MORE on a second account, not less: the deny list is
-        # what stops an agent force-pushing or merging on Izzy's behalf.
-        ../modules/shared/claude-guardrails.nix
-      ];
+      imports = [ ../modules/shared/home.nix ];
       home.stateVersion = "24.05";
-      # Per-user by construction: the http/https claim is a LaunchServices
-      # setting, so this changes Izzy's default browser only — the operator keeps
-      # Chrome (set in modules/shared/home.nix).
-      local.defaultBrowser = "opera";
 
-      # The Finder right-click media Services — image fix, describe, and the rest
-      # — plus the CLIs behind them. `installQuickActions` defaults true, so
-      # `enable` alone is what puts the context menu in Izzy's ~/Library/Services.
+      # ---- Singletons: exactly one instance, and it is the operator's --------
+      # Each of these binds a fixed loopback port or owns a single credential, so
+      # a second copy does not "also run" — one wins and the other flaps under
+      # KeepAlive, which is worse than not having it. `mkForce` because
+      # modules/shared/home.nix sets each of these unconditionally.
       #
-      # Services are PER-USER by construction (~/Library/Services), which is why
-      # this cannot be inherited from the operator and has to be declared again
-      # for the account that needs it.
+      #   mcpGateway  127.0.0.1:8096, plus :8097 and the ONE Cloudflare
+      #               connector token behind local.mcpGateway.public. Its master
+      #               switch is `config = lib.mkIf cfg.enable` (mcp.nix:1002), so
+      #               this one line removes the gateway, the public proxy and the
+      #               tunnel connector together.
+      #   pgvector    127.0.0.1:5433 and a single Postgres datadir.
+      #   claudeOtel  127.0.0.1:4317/:4318 (the OTel collector's gRPC + HTTP).
       #
-      # Deliberately NOT the operator's full block from modules/shared/home.nix:
-      # `extraSearchPackages` there adds `auge` and the rclip CLI, and the two
-      # heavy sub-options stay at their defaults of OFF — `fidelityEnhance` pulls
-      # about a gigabyte, and `obsFacebookSetup` does nothing without a
-      # `FB_PERSISTENT_STREAM_KEY` in the login Keychain, which is per-user and
-      # Izzy has no reason to hold.
-      #
-      # Its two launchd agents are duplicated per account, which is correct and
-      # not a conflict: a user agent runs only inside that user's GUI session,
-      # and each drains its OWN queue directory. They can only overlap under fast
-      # user switching, where both sessions are live at once.
-      # TEMPORARILY FALSE (2026-09-15) — flip back to `true` the moment Izzy has
-      # logged in once.
-      #
-      # Not a change of mind about the feature: the Quick Actions themselves are
-      # fine. The problem is the capsule's two launchd agents. A user agent can
-      # only bootstrap into that user's GUI session, and Izzy has never logged
-      # in, so `gui/502` does not exist:
-      #
-      #   Failed to start agent 'gui/502/org.nix-community.home.media-queue'
-      #     Bootstrap failed: 125: Domain does not support specified action
-      #
-      # That makes `darwin-rebuild switch` exit non-zero, and the abort happens
-      # BEFORE /run/current-system is re-pointed — so the system profile updates
-      # (generation 395 had grok and fal in it) while /run/current-system/sw/bin,
-      # which is what PATH actually resolves, stayed on the previous generation.
-      # Machine-wide packages were installed and unreachable at once, which is a
-      # far worse failure than a missing right-click menu.
-      #
-      # His first login creates gui/502 and makes this a one-line revert.
-      local.mediaCli.enable = false;
+      # Izzy still USES all three — they listen on loopback, which is shared.
+      # What he does not do is start a second one.
+      local.mcpGateway.enable = lib.mkForce false;
+      local.rag.pgvector.enable = lib.mkForce false;
+      local.claudeOtel.enable = lib.mkForce false;
+      # The ollama SERVER is already machine-wide (local.ollamaDaemon), so all
+      # that is left in the capsule for a second account is the one-shot model
+      # pull — and two agents racing to pull the same model into one shared store
+      # is pure duplication.
+      local.rag.ollama.enable = lib.mkForce false;
 
-      # Without this the two claude-* imports above are INERT: they only set
-      # `programs.claude-code.*`, and the module defaults to disabled, so a
-      # profile that imports them and forgets this produces a byte-identical
-      # system (measured — the drvPath did not move).
-      programs.claude-code = {
-        enable = true;
-        # The same global, all-projects context the operator gets. A repo-
-        # relative source literal, so both accounts resolve to one store path.
-        context = ../claude/CLAUDE.md;
+      # ---- Per-person, not per-machine --------------------------------------
+      # A LaunchServices http/https claim is per-user by construction, so this
+      # genuinely differs rather than conflicting. mkForce because home.nix sets
+      # it with mkIf, not mkDefault.
+      local.defaultBrowser = lib.mkForce "opera";
+
+      # home.nix sets these from identityArgs with mkDefault, so a plain
+      # assignment wins. This is only the FALLBACK identity: the includeIf rules
+      # in home.nix still decide per repo, so github.com/izzykatt and
+      # gitlab.com/izzykatt behave identically for both accounts. Without this,
+      # commits from this account would author as the operator and the two would
+      # be indistinguishable in history.
+      programs.git.settings.user = {
+        name = "Izzy Katt";
+        email = "hi@izzykatt.ca";
       };
 
-      # grok needs NO per-user declaration: it is a pinned package shared
-      # through environment.systemPackages below, and its per-user state
-      # (agent_id, sessions, plugins) lives in ~/.grok, which each account gets
-      # on first run.
+      # ---- Waiting on his first login ---------------------------------------
+      # A user launchd agent can only bootstrap into that user's GUI session.
+      # Izzy has never logged in, so `gui/502` does not exist and every agent
+      # fails with `Bootstrap failed: 125`, which makes darwin-rebuild exit
+      # non-zero — and the abort lands BEFORE /run/current-system is re-pointed,
+      # leaving machine-wide packages installed and unreachable at the same time.
+      #
+      # Flip to `true` after his first login; nothing else needs to change.
+      local.mediaCli.enable = lib.mkForce false;
     };
 
   # ---- Gmail multi-account MCP (modules/shared/mcp.nix, a home-manager option
