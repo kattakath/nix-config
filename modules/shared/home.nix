@@ -914,13 +914,11 @@ in
   home.sessionPath = lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
     "${androidSdkRoot}/emulator"
     "${androidSdkRoot}/platform-tools"
-    # xAI Grok CLI: a self-updating prebuilt binary installed to ~/.grok/bin by
-    # `curl -fsSL https://x.ai/cli/install.sh | bash` (no nixpkgs/brew package
-    # exists, and `grok` updates itself, so pinning it in Nix would fight its
-    # updater). It lives outside the Nix store and /opt/homebrew, so Homebrew's
-    # cleanup="uninstall" never touches it; this line is the declarative PATH
-    # entry (the source of truth over the installer's own ~/.zshrc edit).
-    "$HOME/.grok/bin"
+    # `$HOME/.grok/bin` is GONE on purpose (2026-09-15). grok is now a pinned
+    # package (packages/grok.nix) shared through environment.systemPackages, so
+    # this entry would only let a stale, self-updated per-user copy shadow the
+    # reviewed one. Per-user grok STATE still lives in ~/.grok — just not the
+    # binary. Do not re-add it.
   ];
 
   # No activation shorthand is defined here on purpose. `darwin-rebuild switch
