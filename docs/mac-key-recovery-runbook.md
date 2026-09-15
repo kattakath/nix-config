@@ -269,6 +269,29 @@ one-time steps are inherently manual — do these after activating a fresh Mac:
   first reboot, which is why it only really bites when changing a daemon-level
   setting on a machine that is already up.
   Scope: this is not specific to `trusted-users`. Everything in that file
-  (`extra-substituters`, `extra-trusted-public-keys`, `sandbox`) is
-  daemon-read-at-startup; the existing entries simply predate any running
-  daemon, so nobody noticed until one changed.
+  (`extra-substituters`, `extra-trusted-public-keys`, `sandbox`,
+  `auto-optimise-store`) is daemon-read-at-startup, and so is
+  `/etc/determinate/config.json` (`determinateNixd.garbageCollector.strategy`);
+  the older entries simply predate any running daemon, so nobody noticed until
+  one changed. One kickstart covers both files — the same process reads them.
+
+  **Verify BEHAVIOURALLY, never with `nix config show`.** Per the paragraph
+  above, that command reports the client's parse of the file, so it says "true"
+  the moment activation finishes and can never distinguish a daemon that picked
+  the setting up from one that did not. Each setting needs its own probe. For
+  `trusted-users`, attempt a restricted override (e.g.
+  `--narinfo-cache-negative-ttl 0`) and check it is not refused. For
+  `auto-optimise-store`, add two differently-NAMED files with IDENTICAL bytes
+  and compare inodes — different store paths, one inode means the daemon
+  deduplicated on the way in:
+
+  ```bash
+  d=$(mktemp -d); echo probe-$$ > "$d/alpha.txt"; cp "$d/alpha.txt" "$d/beta.txt"
+  a=$(nix store add-path "$d/alpha.txt"); b=$(nix store add-path "$d/beta.txt")
+  [ "$(stat -c %i "$a")" = "$(stat -c %i "$b")" ] && echo deduplicated || echo NOT
+  ```
+
+  (`stat -c` is GNU syntax on purpose: this fleet puts GNU coreutils ahead of
+  the BSD tools on `PATH`, so a bare `stat` is GNU's — reach for
+  `/usr/bin/stat -f` only when you specifically want the BSD one. The two probe
+  paths are garbage and the background collector now reaps them on its own.)
