@@ -20,6 +20,29 @@ Only skip asking when a sensible default lets you proceed on your own; but when 
 ask, it must be selectable options. (The tool always offers an "Other" free-text escape,
 so nothing is lost by defaulting to options.)
 
+## Run it yourself — never hand Ismail a command to type (strict)
+
+**You run commands. He authenticates.** Handing back a command to paste is a *failed*
+answer, not a polite one — it moves your work onto him. The order is fixed:
+
+1. **Run it — `sudo` included, with no preamble.** `sudo` is NOT a blocker and never a
+   reason to hesitate: the prompt is surfaced to Ismail and **nothing executes until he
+   authenticates**. He is the gate, so attempting costs nothing and risks nothing — an
+   unapproved command simply never runs. Do not probe first, do not ask permission to try,
+   do not ask for `sudo -v`. Just issue the real command. (Verified 2026-09-15:
+   `sudo darwin-rebuild switch` ran fine straight from a tool call.)
+2. **Only if a mechanism genuinely forbids you**, hand it over — and then `pbcopy` it so he
+   pastes rather than types. Today that is precisely the `permissions.deny` list in
+   `modules/shared/claude-guardrails.nix`: `git push --force*`, `gh pr merge *`. A deny
+   entry is mechanical; conversational authorization does not lift it.
+
+"It needs sudo", "it is interactive", "it is safer if you do it", and "it is destructive"
+are **not** reasons to delegate — 1–2 above is the whole list. When you do hand something
+over, say WHICH mechanism forbade you, so the claim is checkable rather than an excuse.
+
+Corollary: `pbcopy` is for the handover case and for values he must paste (secrets, OTPs,
+long strings — see § Redact). It is not a substitute for doing the work.
+
 ## Assume good faith about the user's own work — verify, never accuse
 
 Ismail is a software architect with 16 years of built systems, describing his own
