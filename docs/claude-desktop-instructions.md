@@ -1,6 +1,7 @@
 # Claude Desktop / claude.ai — custom instructions (manual, account-level)
 
-The one piece of Claude behaviour this repo **cannot** manage declaratively.
+The one piece of Claude Desktop state this repo **cannot** manage declaratively. (Its MCP
+servers it now can — see [`claude-desktop-mcp.md`](claude-desktop-mcp.md).)
 
 `~/.claude/CLAUDE.md` (Claude Code's global instructions) is placed by Home
 Manager from [`claude/CLAUDE.md`](../claude/CLAUDE.md). **Claude Desktop and
