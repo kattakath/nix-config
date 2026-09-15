@@ -891,8 +891,9 @@ in
     #   SKIP_DOWNLOAD    — any `npm i` that pulls puppeteer skips the browser fetch
     #                      (so `npm i -g resumed puppeteer` / a theme install never breaks).
     #   EXECUTABLE_PATH  — puppeteer launches that system browser at runtime instead.
-    # Points at the `ungoogled-chromium` cask, NOT google-chrome: Chrome was dropped
-    # from every host, and rendering was the only thing it was still load-bearing for.
+    # Points at the `ungoogled-chromium` cask, NOT google-chrome, even though Chrome is
+    # declared again (it holds http/https for passkeys — see hosts/macos.nix). A pinned,
+    # ad-free engine must not follow an `auto_updates` cask mid-render.
     # Verified 2026-08-31 — puppeteer launched this binary (reports Chrome/152.0.7977.64)
     # and `page.pdf()` returned a valid `%PDF-` document. That cask is macos-only
     # (`isMacosHost` below), so off the real Mac this path does not exist and the var is inert
