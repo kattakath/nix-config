@@ -121,13 +121,15 @@ Its six harness dimensions, against what this fleet already runs:
 | Context budget management | `qwen` is handed **11 of 31** gateway servers, deliberately |
 | Agent loop & control flow | vendor-owned — not this fleet's |
 
-**Five of six already built.** What the paper does **not** supply is the thing the proposal
-depends on:
+**Five of six already built.** What the paper — and the ecosystem it surveys — does and does
+**not** supply for the proposal (corrected; see §10.2):
 
-| Needed by the proposal | The paper |
+| Needed by the proposal | The paper / the ecosystem |
 |---|---|
-| A config standard the CLI follows | **MCP is never named** |
-| Registries / package managers for skills | absent |
+| A skill format the CLI follows | **Exists.** The paper names `SKILL.md` and manifests (§4.3.1) and Claude Code's skill system (§4.3.3); Agent Skills is an adopted open standard, and all 63 pinned skills here already use it |
+| A tool-binding protocol | **Exists.** MCP, cited in §4.3.4 as the runtime binding layer; §5.2 surveys agent–tool protocols |
+| Registries / marketplaces | **Exist.** §4.5 cites "existing skill marketplaces" (SkillProbe); the Official MCP Registry is what `mcp-scout` already queries |
+| A standard *location* for runtime-installed config (`mcp.json`, a shared skills dir) | absent — de-facto only (`~/.agents/`, per-vendor dotfolders) |
 | Versioning, dependency pinning | absent |
 | Reproducibility, supply-chain trust | absent |
 | Governance mechanics | deferred to future work (§8.4) |
@@ -137,9 +139,11 @@ It does, however, name two of this design's risks under its own *boundary condit
 **portability and staleness**, and unsafe composition. Staleness is the unpinned-runtime-clone
 problem. Unsafe composition is the failure mode this fleet actually suffered on 2026-09-14.
 
-**Conclusion: there is no standard to adopt.** Building this means *defining* one, which is a
-motto-relevant fact — the reuse weighting cannot be satisfied by pointing at prior art that does
-not exist.
+**Conclusion: the formats are standard; the reproducibility is not.** Skills and MCP servers
+already have standard shapes and registries, and this fleet uses both. What has no standard is
+the part this ADR turns on — **where a runtime install lands, and how it is pinned and made
+reproducible**. Building the overlay means defining *that*, which is the motto-relevant fact: the
+reuse weighting is satisfied for the formats and cannot be satisfied for the pinning.
 
 ## 5. The per-surface decision, by blast radius
 
@@ -214,9 +218,10 @@ Only if and when it is built. Additive, never authoritative:
    might also write needs a declared owner before any of this is safe.
 4. **Secrets cannot cross the seam.** Anything needing a credential must stay Nix-side, so the
    overlay is permanently a second-class citizen for exactly the servers that matter most.
-5. **No prior art to reuse.** Per §4 there is no standard, no registry and no pinning convention
-   for agent skills. This would be bespoke — and the motto weights reuse at 2x, so the burden of
-   proof sits on this design, not on keeping the status quo.
+5. **No prior art for the part that matters.** Per §4 the formats and registries are standard,
+   but there is no pinning or reproducibility convention for runtime-installed agent resources.
+   That half would be bespoke — and the motto weights reuse at 2x, so the burden of proof sits on
+   this design, not on keeping the status quo.
 6. **It makes `~/.claude` load-bearing.** Today it is *derived*: deletable, reconstructed by
    `activate`. After this it holds state that exists nowhere else unless the operator remembered
    to version-control it. That is a new backup obligation, and it is the operator's, not Nix's.
@@ -226,7 +231,8 @@ mutability, `github:kattakath/ai`'s independence, and per-client curation are al
 
 ## 9. Open, not decided
 
-1. **Directory name and shape.** `~/.agent/` (vendor-neutral) vs. consuming each vendor's own
+1. **Directory name and shape.** `~/.agents/` (vendor-neutral, and the de-facto name already
+   used by `vercel-labs/skills`) vs. consuming each vendor's own
    folder. Vendor-neutral is cleaner and has no consumer; per-vendor matches what CLIs actually
    write and has no schema.
 2. **Whether to build it at all.** Nothing today is blocked by its absence. The honest trigger is
@@ -255,3 +261,28 @@ its ast-grep table claiming three rules against a real five. **A hand-maintained
 drifts on the next merge, not on some distant future date.** The durable form is a pointer to the
 source of truth — `modules/shared/mcp.nix` here — with the number as a dated snapshot, which is
 how §5 now reads.
+
+### 10.2 §4 misread the paper
+
+§4 claimed the paper "never names" MCP and that registries for skills were "absent", and §8.5
+built on that ("no standard, no registry"). Checked against the PDF, both are wrong: §4.3.4 cites
+**MCP** as the runtime binding layer, §4.3.1/§4.4 name **`SKILL.md`** and `AGENTS.md`, §4.3.3
+names Claude Code's skill system, and §4.5 cites SkillProbe on "existing **skill marketplaces**".
+Outside the paper, Agent Skills is an adopted open standard, and this repo's own `mcp-scout`
+skill queries the Official MCP Registry.
+
+The **decision survives**, because it never rested on the formats: nothing standardises where a
+runtime install lands or how it is pinned, and §5's blast-radius argument is independent of both.
+What changed is the stated reason — §4's table and conclusion and §8.5 now say "standard formats,
+no reproducibility standard" instead of "no standard". §9.1's `~/.agent/` became `~/.agents/`,
+the name already in use. Likely cause, recorded so the next read is careful: the HTML rendering
+truncates before §5, and §4.3.4's single MCP citation is easy to miss in a skim.
+
+### 10.3 First application outside agent resources
+
+#522 applied this boundary to the **AWS identity**: `~/.aws/config` left every repo and is owned
+by the `aws` CLI, while `nix-bedrock-gate` (governance) stayed in Nix. It is the §7 shape in
+miniature — read-if-present at runtime, a silent degrade when absent, and a one-shot
+`adoptAwsConfig` migration so leaving Nix cannot delete the content. Still not an implementation
+of `local.agentOverlay`; recorded because it is the first measured instance of "content out,
+governance in".
