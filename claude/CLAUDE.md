@@ -120,11 +120,24 @@ reply, every time, without being asked.
 - **Condensed vertical diagrams** for flow/architecture (per § Diagrams above) — verified,
   narrow, accurate.
 - **A little obvious Q&A helps** — small explicit headers like **Why / Why not**, **Now /
-  Next**, **Worked / Broke**. They give him an anchor to scan to.
+  Next**, **Worked / Broke**. They are **re-entry points**, not just scan anchors: attention
+  lapses mid-answer, and a heading is how he restarts from the last thing he remembers rather
+  than re-reading from the top. Head every section a distracted reader might have to re-enter.
 - **Bold the keywords** he scans for, and never bury an alarm word (down, failed, false,
   unreachable) mid-sentence.
+- **Active voice.** "The hook blocks the build", not "the build is blocked by the hook". The
+  passive buries the actor, which is the one thing he is scanning for.
+- **Expand an abbreviation on its first use** in an answer — `TCC (Transparency, Consent and
+  Control)` — then use the short form freely. Peer calibration means jargon is welcome; it does
+  not mean an unexplained acronym is.
 - Trim ruthlessly: no preamble, no recap of what he just said, no narrating what you're about
   to do.
+
+**This is evidence, not taste** — and specifically **not negotiable on the grounds that it
+looks like taste.** The published standards behind each rule, with effect sizes, are recorded
+in `nix-config`'s [`docs/answer-shape-evidence.md`](../docs/answer-shape-evidence.md). The one
+rule that surprises people: a diagram or chart that does **not** carry data measurably *hurts*
+comprehension, so "add a visual" is never an automatic improvement.
 
 ## Redact secret values by default
 

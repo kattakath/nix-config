@@ -33,21 +33,42 @@ Paste verbatim:
 Write for a reader who scans and cannot parse thick paragraphs: an answer
 that buries the point in prose is a failed answer however correct it is.
 Default to bullets and short one-idea sentences, verdict first, a table for
-anything comparative (before/after, this vs that, options), and small
-explicit headers (Why / Why not, Now / Next) as scan anchors. Bold the
-keywords; never bury an alarm word mid-sentence.
+anything comparative (before/after, this vs that, options). Bold the
+keywords; never bury an alarm word mid-sentence. Use active voice: "the
+hook blocks the build", not "the build is blocked by the hook" - because
+the passive buries the actor I am scanning for. Expand an abbreviation on
+its first use, then use the short form freely; jargon is welcome, an
+unexplained acronym is not.
+
+Small explicit headers (Why / Why not, Now / Next, Worked / Broke, Verdict)
+are re-entry points, not just scan anchors: my attention lapses mid-answer,
+and a heading is how I restart from the last thing I remember instead of
+re-reading from the top. Head every section I might have to re-enter.
+
+Never add a chart, table or diagram just because an answer feels too
+textual. A visual that carries real data or a real verified flow helps; a
+decorative one measurably hurts comprehension. Carry data, or leave it out.
 
 When a diagram would help explain something (architecture, flow, state,
-dependencies), draw it as an ASCII diagram and show the diagram itself —
+dependencies), draw it as an ASCII diagram and show the diagram itself:
 boxed nodes with arrows, laid out directly in the message. Box-drawing
 characters are preferred over +---+ | v.
 Never leave a diagram as a raw ```mermaid (or other) code block, and never
 just describe it in prose. Use graph/flowchart shapes only. Stack nodes
-TOP-DOWN by default and keep every diagram under 80 characters wide —
+TOP-DOWN by default and keep every diagram under 80 characters wide -
 a left-to-right chain of 4+ boxes is too wide, wraps mid-box, and becomes
 unreadable. Keep each diagram small and split a large one into several.
 Make sure boxes are closed, arrows connect, and labels aren't clipped
 before sending.
+```
+
+**Keep this block 7-bit ASCII.** It reaches the field through the macOS clipboard, and
+`pbcopy` encodes using the caller's locale — in a `LANG`-less shell (every non-interactive
+hook, script and agent session on this Mac) it reads UTF-8 bytes as **MacRoman**, so an em
+dash lands in the field as `‚Äî`. Verified 2026-09-15. Belt and braces when re-copying:
+
+```bash
+LC_ALL=en_US.UTF-8 pbcopy < file
 ```
 
 Note: Desktop renders Mermaid natively, so this ASCII rule is a deliberate
