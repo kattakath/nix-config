@@ -1580,6 +1580,12 @@ only difference between "someone else's skill" and "mine" is now who can push to
 - **`rag`** — local RAG over the pgvector store: how to ingest and query via the `postgres`
   MCP server and the in-DB `embed()` function (the local-rag capsule's
   `local.rag.pgvector` + `local.rag.ollama`).
+- **`capability-broker`** — the "have → rank → find → vet → adopt" protocol for any goal
+  that needs a capability the session may lack. Inventory first (skills, deferred MCP tools,
+  `claude mcp list`, plugins, connectors, CLIs), lightest capability wins, trust tiers gate
+  what may happen unattended, and adoption goes through the harness: a new MCP server is a
+  vetted record handed to `mcp-scout` in this repo, never a `claude mcp add` (which the
+  `claude-guardrails.nix` floor denies anyway). Global because the need shows up in any repo.
 - **`android-phone`** — operator knowledge for `packages/android-phone.nix`, global so ADB
   sessions launched from ANY directory know the wrapper's command surface and adb footguns,
   not just sessions rooted in this repo.
