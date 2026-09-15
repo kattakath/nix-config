@@ -398,6 +398,10 @@ in
     # state the two NixOS hosts are in.
     mediaCliModule
     ./mcp.nix # darwin-gated MCP server registry for Claude Code
+    # Client side D: the SAME servers rendered into Claude Desktop's stateful
+    # claude_desktop_config.json (stdio shims over the gateway; merge one key).
+    # Reaches Cowork through Desktop's device bridge. Gated on the gateway.
+    ./claude-desktop.nix
     ./terminal-theme.nix # the fleet terminal palette + type, held once (no consumers yet)
     ./desktop-aesthetics.nix # Terminal.app 16pt (all darwin) + wallpaper (opt-out)
     ./wireguard-configs.nix # operator-managed WG confs → ~/.config/wireguard (no autostart)
