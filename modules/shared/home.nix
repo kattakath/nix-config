@@ -432,6 +432,9 @@ in
     # marketplace instead of copying the activation script — which is exactly
     # what it used to do.
     ./claude-plugins.nix
+    # The GLOBAL guardrail floor: user-scope permissions.deny for every repo on
+    # this Mac. Project hooks in .claude/ only ever covered this repo.
+    ./claude-guardrails.nix
   ];
 
   # Enable the keychain-secrets capsule's module (installs the secret/set-secret/
