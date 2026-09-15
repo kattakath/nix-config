@@ -26,7 +26,7 @@ User environments are layered on with [Home-Manager](https://github.com/nix-comm
 On a new or freshly-reset Mac there is no Nix yet, so a single zero-dependency script
 ([`bootstrap.sh`](./bootstrap.sh)) does the irreducible minimum — installs Determinate
 Nix, then hands off to the flake. Run it straight from the repo over TLS, like
-Determinate's own installer (it **auto-detects** an iCloud recovery kit):
+Determinate's own installer:
 
 ```bash
 # Dry run — reports exactly what it would do, changes nothing:
@@ -36,21 +36,21 @@ curl -fsSL https://raw.githubusercontent.com/kattakath/nix-config/main/bootstrap
 curl -fsSL https://raw.githubusercontent.com/kattakath/nix-config/main/bootstrap.sh | bash
 ```
 
-It clones the flake, verifies your macOS login equals the flake's `loginName` (hard-fails
-with fork instructions if not), then:
+It installs Determinate Nix, clones the flake, verifies your macOS login equals the flake's
+`loginName` (hard-fails with fork instructions if not), and activates `#macos`. That first
+activation plants `/etc/nix-darwin` and puts `activate` on `PATH`, so every later rebuild is
+a bare `activate` from any directory.
 
-- **recovery kit present** (`~/Library/Mobile Documents/com~apple~CloudDocs/nix-key-recovery`,
-  published beforehand by `nix run .#key-backup`) → restores your operator key,
-  activates `#macos`;
-- **no kit** → **founds** a brand-new operator identity (a fresh keypair; the agenix
-  recipient is repointed to it — the old vault ciphertext stays encrypted to the lost
-  key, see the trust model), then activates `#macos`. Afterward: register `~/.ssh/id_ed25519.pub` on GitHub
-  (auth + signing) and `nix run .#key-backup`. Add `--fresh` to skip the confirmation on a
-  headless box.
+**It does not touch your SSH keys.** Key custody is your choice, and this fleet's posture is
+that a lost machine's keypair stays lost — every agenix secret is re-issuable by the vendor
+that minted it (Cloudflare, GitHub, GitLab). On a Mac whose old key is gone: generate a new
+one, re-upload the pubkey wherever passwordless auth is wanted, repoint
+`secrets/operator-key.nix`, and re-encrypt the vault. Checklist:
+[`docs/new-mac-runbook.md`](docs/new-mac-runbook.md).
 
-Prefer not to trust the raw URL? The kit ships the same (CI-linted) `bootstrap.sh` — run the
-on-disk copy, `./bootstrap.sh`. (It still needs network: it downloads the Determinate
-installer and `nix run`s the flake — it is not fully offline.)
+Prefer not to trust the raw URL? Clone the repo first and run the on-disk copy,
+`./bootstrap.sh`. (It still needs network: it downloads the Determinate installer and
+`nix run`s the flake — it is not fully offline.)
 
 ### Fork this for your own fleet
 
@@ -82,7 +82,7 @@ edit the identity, `git init && git add -A`, `nix run .#macos`.
      | bash -s -- --flake=github:<you>/nix-config
    ```
 
-   With no kit it **founds your own keys** and activates `#macos`.
+   It activates `#macos`; your keys are yours to generate and register.
 
 The `loginName` guard is what makes this safe: if your login does not match the flake's
 `loginName`, bootstrap stops **before** activating and tells you to fork and set `loginName` —
@@ -91,9 +91,9 @@ rather than half-activating home-manager for a user that does not exist.
 > **Trust model.** You are piping remote code into `bash`, and it uses `sudo`. The anchor is
 > the repo over TLS from `raw.githubusercontent.com` (**your own fork**, in the fork flow —
 > pin a commit SHA in place of `/main/` for a stronger guarantee). `bootstrap.sh` is the exact
-> bytes CI shellchecks (the `key-recovery-bootstrap` derivation) and that `nix run .#key-backup`
-> publishes into the kit; a truncated download runs nothing (it is brace-guarded). **No secret
-> transits the pipe** — passphrases are read from `/dev/tty`, `osascript` is only ever used for
+> bytes CI shellchecks (the `bootstrap-lint` derivation); a truncated download runs nothing
+> (it is brace-guarded). **No secret
+> transits the pipe** — nothing here reads a secret at all, `osascript` is only ever used for
 > notices, and privilege escalation goes through `sudo` / Touch ID. Founding mode mints a **new**
 > identity: old service-secret contents are unrecoverable (and revocable).
 
@@ -161,7 +161,7 @@ flake.lock      Pinned input revisions (bumped via `nix flake update`, never han
 treefmt.nix     Single source of truth for formatting + lint (drives nix fmt, CI, and the hook)
 hosts/          Per-host entry profiles (macos.nix, nixpi.nix, nixvm.nix)
 modules/        parts/ (the flake engine), features/ (capsules — absorbed satellite flakes, one dir each), and the reusable modules split by platform (darwin/ nixos/ shared/)
-packages/       Nix-built artifacts (devcontainer image, key-recovery kit, SD-card provisioning apps, single-purpose CLIs)
+packages/       Nix-built artifacts (devcontainer image, SD-card provisioning apps, single-purpose CLIs)
 templates/      Flake template for `nix flake init -t github:kattakath/nix-config` — a starter consumer fleet flake
 .claude/        Repo-local Claude Code agents, commands, hooks, skills, and rules
 ```

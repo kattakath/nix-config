@@ -96,7 +96,7 @@ revert `com.apple.Terminal`.
 | **`statusBarItem.*`** | Remote-window chrome. Shares nothing with the ANSI ring. |
 | **VS Code font fallback chain** | `'Ubuntu Mono', monospace` is a VS Code-only concern the provider has no opinion about. Only the face name and size are derived. |
 | **`nixpi` / devcontainer / `nixvm`** | `nixpi` is headless — no emulator to theme. The devcontainer references tokens, not literals, so it inherits transitively. `nixvm`'s `xfce4-terminal` exists only under `nix run .#nixvm`. |
-| **`\033[1;3Xm` escapes** in `bootstrap.sh`, `key-recovery.nix` | Palette followers by construction. |
+| **`\033[1;3Xm` escapes** in `bootstrap.sh` | Palette followers by construction. |
 
 ## Why not stylix, and why not base16.nix
 

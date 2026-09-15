@@ -79,7 +79,7 @@ nicer visual Mermaid. To instead let Desktop render real diagrams, replace the
 
 ## After a machine reset
 
-Restoring `macos` (see [`mac-key-recovery-runbook.md`](mac-key-recovery-runbook.md))
+Restoring `macos` (see [`new-mac-runbook.md`](new-mac-runbook.md))
 brings back Claude Code's `CLAUDE.md` automatically. The Desktop field is **not**
 part of that — after signing Claude Desktop back into the account, confirm the
 text above is present under Profile → Instructions for Claude, and re-paste from

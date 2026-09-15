@@ -1387,10 +1387,16 @@ Core package set:
   `writeShellApplication` flake apps that flash the SD card and plant the token+Wi-Fi onto its
   FIRMWARE partition — the executable companion to the `modules/features/firmware-secrets/`
   capsule's `local.firmwareProvisioning`.
-- **`key-recovery.nix`** — macOS-only: the `key-backup`/`key-recover` apps, stage 2 of Mac
-  bootstrap/recovery, shellcheck-gated. `key-recover` clones, HARD-FAILS unless the login
-  `id -un` == the flake's `loginName` (via the `#identity.loginName` output), then RESTORES
-  from an iCloud kit or `--fresh`-FOUNDS a new operator identity, and activates `#macos`.
+- `key-recovery.nix` — **removed 2026-09-15**, with its `key-backup`/`key-recover` apps and
+  the iCloud kit. Early-days scaffolding: key custody is the operator's choice, and this
+  fleet's posture is that a lost machine's keypair stays lost, because every agenix secret is
+  re-issuable by the vendor that minted it. What it did now lives in `bootstrap.sh` (clone +
+  the `loginName` guard + activate) and [`new-mac-runbook.md`](new-mac-runbook.md) (the
+  rotate-don't-transport checklist).
+- **`activate.nix`** — macOS-only: `activate`, a `darwin-rebuild switch` that re-execs under
+  `sudo -H` (Touch ID) instead of dying with "system activation must now be run as root", and
+  names the flake dir + `branch@rev` (with `(DIRTY)`) before elevating. Needs no `--flake` or
+  `#attr` because `modules/parts/hosts.nix` plants `/etc/nix-darwin/flake.nix`.
 - **`spotlight-launchers.nix`** — macOS-only: from-scratch `.app` bundle generator (original
   in-Nix SVG/icns icons via librsvg+libicns) giving the Android emulator a
   Spotlight-visible, focus-or-launch identity; consumed by `modules/shared/home.nix`'s
@@ -1401,8 +1407,8 @@ Core package set:
   and the re-add path is [`macvm-readd-runbook.md`](macvm-readd-runbook.md).
 
 The no-Nix stage-1 `bootstrap.sh` (the `curl … | bash` entrypoint) lives at the **repo root** —
-it is shellchecked as the `key-recovery-bootstrap` derivation and `key-backup` publishes it
-into the iCloud kit as the offline copy.
+it is shellchecked as the `bootstrap-lint` derivation (`checks.<system>.bootstrap-lint`), so
+the `curl … | bash` bytes are gated exactly like every in-flake script.
 
 Smaller, single-purpose CLIs:
 
