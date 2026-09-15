@@ -120,6 +120,29 @@ in
           # Also on PATH via home.packages, macos only (modules/shared/home.nix).
           android-phone = pkgs.callPackage ../../packages/android-phone.nix { };
 
+          # xAI's grok CLI — a vendor-signed PREBUILT binary, the first in this
+          # tree. It replaces a `curl … | bash` install that put a
+          # self-updating copy in each user's ~/.grok/bin, outside the store and
+          # outside git. Shared via environment.systemPackages (hosts/macos.nix)
+          # so both accounts run one reviewed version; per-user state stays in
+          # ~/.grok. Darwin-only by meta.platforms, so it never evaluates into
+          # the two NixOS hosts.
+          # Built from a NARROWED unfree instance, not `pkgs`, and not
+          # `allowUnfree = true`: grok is a closed-source vendor binary, and the
+          # same reasoning modules/features/tart-vms/flake-module.nix records
+          # applies — a predicate listing one name means a SECOND unfree package
+          # arriving later fails here instead of being waved through. The host
+          # itself already sets `allowUnfree = true` (hosts/macos.nix), so this
+          # only matters for the standalone `nix build .#grok` output, which is
+          # what CI and the cache consume.
+          grok =
+            (import inputs.nixpkgs {
+              inherit system;
+              config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "grok" ];
+            }).callPackage
+              ../../packages/grok.nix
+              { };
+
           # (`secret` / `set-secret` / `remove-secret` — the macOS login-Keychain
           # CLIs — are NOT here. They were `inherit (keychain-secrets.packages.
           # ${system}) …` from the extracted flake until ADR-002 wave 4 absorbed
