@@ -175,7 +175,7 @@ for p in "$HOME"/Library/LaunchAgents/*.plist /Library/LaunchAgents/*.plist /Lib
 done
 ```
 
-**Expected hits, in full** — this audit prints five `BARE-INTERP` lines on `macos` today and
+**Expected hits, in full** — this audit prints six `BARE-INTERP` lines on `macos` today and
 every one of them is fine:
 
 | Label | Why it is `/bin/sh` |
@@ -184,6 +184,7 @@ every one of them is fine:
 | `org.nixos.activate-agenix` | upstream agenix (§ Known upstream exceptions) |
 | `systems.determinate.nix-installer.nix-hook` | the Determinate installer (§ Known upstream exceptions) |
 | `org.nixos.github-runner-macos-*` | **ours, and deliberate** — the boot-ordering exception above |
+| `org.nixos.ollama` | **ours, and deliberate** — same exception (`local.ollamaDaemon`, 2026-09-15). A `RunAtLoad` daemon serving from a store path; it runs as root against `/var/lib/ollama` and reads none of the TCC folders, so only BTM legibility is lost and the process after `exec` is still `ollama`. |
 
 Anything else whose `Label` is one of ours (`org.nixos.*` — every nix-darwin unit this repo
 authors carries that prefix, including `org.nixos.open-*` — or `org.nix-community.home.*`, or
