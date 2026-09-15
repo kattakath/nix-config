@@ -25,6 +25,13 @@
 # `sh -c 'x'`. This is a FLOOR against the common, accidental shape — the
 # project-scoped superhook guard stays the deeper, tested layer in this repo.
 #
+# THE TWO mcpfinder RULES ARE ALSO IN `.claude/settings.json`, ON PURPOSE — that
+# is not duplication to clean up. This file is materialised by Home Manager into
+# ~/.claude, which the devcontainer deliberately does NOT mount (.devcontainer/
+# devcontainer.json: "No volume for ~/.claude (deliberate — don't re-add one)").
+# Inside that container, and in any clone on a machine this HM config never
+# touched, the checked-in project copy is the only floor there is.
+#
 # SCOPE RULE for adding an entry: it must be a FLEET-WIDE policy already written
 # down somewhere (claude/CLAUDE.md, mcp-scout, CLAUDE.md § Security), and wrong
 # in every repo. Repo-specific policy (Cloudflare scoping, nixpi builds) stays in
