@@ -119,7 +119,7 @@ nix flake show
 ### Activate a host
 
 ```bash
-darwin-rebuild switch --flake .#macos   # macOS (Apple Silicon) — client only
+sudo darwin-rebuild switch --flake .#macos   # macOS (Apple Silicon) — client only
 nixos-rebuild  switch --flake .#nixpi   # Raspberry Pi 4 — the live server
 deploy --targets .#nixpi                # Same Pi, remotely, with deploy-rs magic rollback:
                                         # an activation that leaves the Pi unreachable reverts

@@ -30,7 +30,8 @@ is installed (`curl -fsSL https://install.determinate.systems/nix | sh -s -- ins
    nix run .#macos
    ```
 
-   Thereafter: `darwin-rebuild switch --flake .#macos`.
+   Thereafter: `sudo darwin-rebuild switch --flake .#macos` (nix-darwin requires root for
+   system activation).
 
 ## What you inherit
 

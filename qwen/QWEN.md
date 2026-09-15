@@ -48,7 +48,7 @@ adds project specifics on top. Keep this file short and specific.
   `.nix` file and must be repo-relative — never "fix" it to `$HOME`/XDG. Only *runtime* paths
   must be `$HOME`/XDG-relative (never a hardcoded `/Users/<name>`). See the repo `CLAUDE.md`.
 - Activation is hard to reverse — prefer `build` to verify, and `switch` only when
-  explicitly asked. `darwin-rebuild switch --flake .#macos` is the correct command (the
+  explicitly asked. `sudo darwin-rebuild switch --flake .#macos` is the correct command (the
   private `nix-personal` layer it used to drop was retired 2026-09-15, and the `activate`
   CLI went with it). **Never build on `nixpi`** — it is a Pi 4 on an SD card, and a power
   cut mid-build corrupts the card; CI warms its closure into Cachix, so use

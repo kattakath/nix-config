@@ -205,7 +205,7 @@ in
         # installed but before darwin-rebuild is on PATH, this builds
         # darwin-rebuild from the flake and `switch`es against this SAME
         # revision (${self}); darwin-rebuild self-elevates via sudo/Touch ID.
-        # Subsequent rebuilds just use `darwin-rebuild switch --flake .#macos`.
+        # Subsequent rebuilds just use `sudo darwin-rebuild switch --flake .#macos`.
         macos = {
           type = "app";
           program = "${pkgs.writeShellScript "activate-macos" ''

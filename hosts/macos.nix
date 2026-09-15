@@ -9,7 +9,7 @@
 # on PATH) — a single line straight from the flake (the darwin analog of nixpi's
 # `nixos-rebuild switch --flake .#nixpi`; see flake.nix apps.aarch64-darwin.macos):
 #   nix run github:kattakath/nix-config#macos
-# Thereafter: darwin-rebuild switch --flake .#macos
+# Thereafter: sudo darwin-rebuild switch --flake .#macos
 { config, loginName, ... }:
 {
   imports = [

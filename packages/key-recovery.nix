@@ -511,7 +511,7 @@ in
                 "  # 2. Persist the new operator key (secrets/operator-key.nix) + reactivate:" \
                 "  cd $REPO_DIR" \
                 "  git commit -am 'found fresh operator identity' && git push" \
-                "  darwin-rebuild switch --flake .#macos" \
+                "  sudo darwin-rebuild switch --flake .#macos" \
                 "" \
                 "  # 3. Publish a recovery kit so THIS machine is keyed next time:" \
                 "  nix run .#key-backup" \
