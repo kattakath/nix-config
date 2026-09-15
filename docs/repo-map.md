@@ -600,9 +600,23 @@ their own top-level section below:
   through that module's `extraSearchPackages` seam, alongside `exiftool` and `auge`.
 - **`default-browser.nix`** — `local.defaultBrowser`, a fleet-level concern rather than a
   Chromium one: the HTTP/HTTPS handler is a LaunchServices property any installed browser can
-  hold, so it moved out of `chromium.nix` when Opera Air became the default and Chromium became
-  the debugging browser. Takes `defaultbrowser`'s SHORT name (`operaair`, `chromium`, `safari`)
-  — a bundle id is rejected — and `null` claims nothing. Two behaviours worth knowing before
+  hold, so it moved out of `chromium.nix` once Chromium stopped being the daily browser and
+  became the debugging one. Takes `defaultbrowser`'s SHORT name — the last dot-component of the
+  bundle id, lowercased (`com.google.Chrome` → `chrome`, `org.chromium.Chromium` → `chromium`,
+  also `operaair`, `opera`, `safari`); a bundle id itself is rejected, and `null` claims
+  nothing. **The fleet holds `chrome`, and the reason is PASSKEYS, not preference.** Reaching a
+  macOS Passwords.app passkey needs the RESTRICTED entitlement
+  `com.apple.developer.web-browser.public-key-credential`, which Apple grants per-Team-ID to
+  registered browser vendors on request. Verified 2026-09-15 with `codesign -d --entitlements`:
+  Chrome (`EQHXZ8M8AV`) carries it plus `com.google.common.folsom` (iCloud Keychain) and
+  `com.google.Chrome.webauthn{,-uvk}` (Touch ID); Opera and Opera Air carry the same shape;
+  Safari has the WebKit equivalent; **ungoogled-chromium carries NEITHER** — seven
+  entitlements, all hardware/sandbox, and no `keychain-access-groups` key at all. So no
+  Chromium swap fixes it, and the plain (googled) `chromium` cask is worse: DISABLED in
+  Homebrew since 2026-09-01 for failing the Gatekeeper check. A community rebuild can never
+  obtain the grant — do not re-attempt. The sideloaded iCloud Passwords extension does not
+  rescue it either; that does passwords, while a macOS passkey comes from the
+  AuthenticationServices API the browser itself calls. Two behaviours worth knowing before
   blaming an activation: the tool early-returns when the handler already matches, so a settled
   Mac is a true no-op; and the activation that actually CHANGES it raises one macOS consent
   dialog, which is Launch Services' documented behaviour for browser schemes, not a bug. `duti`
