@@ -385,7 +385,7 @@ their own top-level section below:
 
 ### `modules/shared/`
 
-`modules/shared/{home.nix,mcp.nix,chromium.nix,terminal-theme.nix,desktop-aesthetics.nix,nix-cache.nix,nix-ld-libraries.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-plugins.nix,wallpaper/,hm-launchd/}`
+`modules/shared/{home.nix,mcp.nix,chromium.nix,terminal-theme.nix,desktop-aesthetics.nix,nix-cache.nix,nix-ld-libraries.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-plugins.nix,claude-guardrails.nix,wallpaper/,hm-launchd/}`
 — the Home Manager profile loaded on every host.
 
 - **`home.nix`** — git/ssh-signing, zsh+starship, direnv, gh, bash, claude-code + nerd-fonts;
@@ -698,6 +698,16 @@ their own top-level section below:
     design (local files only; no `aws sts` call per shell). Companion: the
     `.claude/hooks/pretooluse-bash-guard.js` block, which only covers activations the *agent*
     runs; this covers a switch typed by hand.
+- **`claude-guardrails.nix`** — the **global guardrail floor**: user-scope
+  `programs.claude-code.settings.permissions.deny` (upstream `jsonFormat.type`, so the list
+  concatenates with any other module's), darwin-gated, no options, no hooks, no scripts. Exists
+  because every decision hook in `.claude/` is project-scoped — sessions in any other repo had
+  none of them while VS Code starts in `bypassPermissions`, and the globally-wired `mcpfinder`
+  exposed its config-writing tool everywhere but here. Entry rule: a fleet-wide policy already
+  written down (imperative MCP adoption, secret values in the transcript, `/run/agenix` and
+  OpenTofu-state plaintext, `gh pr merge`, force-push) — never repo policy. Deny rules still
+  apply in `bypassPermissions` (it skips prompts; a deny is not one), but they match the command
+  text Claude writes, not `sh -c` or an absolute binary path — a floor, not a boundary.
 - **`claude-plugins.nix`** — `local.claudePlugins.marketplaces`, the **N-marketplace** Claude
   Code plugin mechanism. An `attrsOf submodule` keyed by marketplace name, each carrying a
   `source` (a `/nix/store` path or an `https://` git URL — asserted, so an impure
@@ -1493,6 +1503,9 @@ content-hashed into the store — see `CLAUDE.md` § Code Style on the two path 
   and must not be renamed.
 
 ### `.claude/hooks/`
+
+Every hook below is **project-scoped** (`.claude/settings.json`): it guards sessions rooted in
+this repo only. The fleet-wide floor is `modules/shared/claude-guardrails.nix` (§ `modules/shared/`).
 
 - **`stop-gate.js`** — Stop gate: blocks until configs evaluate clean.
 - **`pretooluse-bash-guard.js`** — `PreToolUse:Bash`: deterministic port of the
