@@ -274,6 +274,16 @@ in
     home = "/Users/izzy";
     createHome = true;
     shell = "/bin/zsh";
+    # LOAD-BEARING, and the default is wrong for a human. nix-darwin's
+    # `isHidden` defaults to TRUE (modules/users/user.nix) because the option
+    # exists for SERVICE accounts — `_github-runner` above is exactly that case.
+    # Left at the default, izzy is created correctly in every other respect —
+    # uid, admin group, password, home — and is simply INVISIBLE: absent from
+    # the login window, from Fast User Switching, and from System Settings ▸
+    # Users & Groups. The account cannot be logged into at all, which also means
+    # its `gui/502` launchd domain never exists, which is what made its media
+    # agents unbootstrappable. Verified via `dscl . -read /Users/izzy IsHidden`.
+    isHidden = false;
   };
   users.knownUsers = [ "izzy" ];
 
@@ -296,6 +306,27 @@ in
   # `homebrew.user` and `caskArgs.appdir` exist, but nothing reconciles the two
   # across accounts. No option owns this; hence the shim.
   system.activationScripts.postActivation.text = lib.mkBefore ''
+    # CONVERGE IsHidden, because nix-darwin will not. `users.users.izzy.isHidden`
+    # is applied ONLY inside the user-CREATION branch (pinned
+    # modules/users/default.nix:306); the "Update properties on known users"
+    # block a few lines below re-applies PrimaryGroupID and RealName but never
+    # IsHidden. So flipping the option on an account that already exists changes
+    # nothing, for ever — the declaration reads correct and the machine ignores
+    # it, which is exactly the drift this repo exists to prevent.
+    #
+    # The default is TRUE, aimed at service accounts like `_github-runner`. Left
+    # there, a human account is created perfectly — uid, admin, password, home —
+    # and is simply INVISIBLE: no login window entry, no Fast User Switching, no
+    # System Settings ▸ Users & Groups. It cannot be logged into, so its
+    # `gui/502` launchd domain never exists, so its user agents can never
+    # bootstrap. That is the whole chain behind "izzy user not found anywhere".
+    #
+    # Idempotent: dscl -create is a write-if-different, and this reads back 0.
+    if [ "$(/usr/bin/dscl . -read /Users/izzy IsHidden 2>/dev/null | /usr/bin/awk '{print $2}')" != "0" ]; then
+      printf '%s\n' "izzy: unhiding the account (nix-darwin only sets IsHidden at creation)"
+      /usr/bin/dscl . -create /Users/izzy IsHidden 0
+    fi
+
     printf '%s\n' "izzy: reconciling ${izzyApps} ownership (brew writes as ${loginName}, HM writes as izzy)"
     mkdir -p ${lib.escapeShellArg izzyApps}
     chown izzy:staff ${lib.escapeShellArg izzyApps}
