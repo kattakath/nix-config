@@ -49,6 +49,10 @@ in
   # from modules/shared/home.nix. Per-user grok STATE stays in ~/.grok.
   environment.systemPackages = [
     (pkgs.callPackage ../packages/grok.nix { })
+    # fal.ai — `fal` (the vendor's deploy CLI) and `fal-gen` (inference). Cloud
+    # inference, unlike the rest of the media stack, which runs against the
+    # local ollama daemon; it bills, and it needs FAL_KEY in the Keychain.
+    (pkgs.callPackage ../packages/fal.nix { })
   ];
 
   nixpkgs.config.allowUnfree = true;
