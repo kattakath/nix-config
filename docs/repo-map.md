@@ -345,14 +345,19 @@ Home Manager profile. What the split is and is not:
   **`darwin-rebuild` exits 1.** MEASURED 2026-09-15 by re-enabling one of Izzy's agents and
   capturing the status with no pipe (`> file 2>&1; RC=$?`): broken run 1, healthy run 0.
   Every link propagates — `setupLaunchAgents` returns 1 (pinned home-manager
-  `modules/launchd/default.nix:564`), the generation's `activate` does `exit "$launchdStatus"`
-  (`:847`), `launchctl asuser` passes a child status through (verified: a child exiting 7
-  yields 7), and `$systemConfig/activate` is `darwin-rebuild`'s last statement under `set -e`.
+  `modules/launchd/default.nix:564`), the generation's `activate` then does
+  `exit "$launchdStatus"`, `launchctl asuser` passes a child status through (verified: a child
+  exiting 7 yields 7), and `$systemConfig/activate` is `darwin-rebuild`'s last statement under
+  `set -e`. Grep that construct, never a line number: the generation's `activate` is GENERATED
+  per user per generation, and the same `exit` sat at 833, 848 and 936 across three of them on
+  one afternoon.
 
   So it is not silent for lack of a signal — it is silent because **nobody reads the exit code
   of an interactive activation**, and because a status read through a pipe
   (`activate | tail`) is the PIPE's, not the command's. That misreading is exactly how an
-  earlier revision of this paragraph came to claim exit 0. Diagnose by comparing
+  earlier revision of this paragraph came to claim exit 0. It is the same family as the
+  `cmd | grep -q` trap that returns 141 on a SUCCESSFUL match under `pipefail` (§ Home Manager
+  activation): **a status taken through a pipe describes the pipe.** Diagnose by comparing
   `nix eval .#darwinConfigurations.macos.system` against `readlink -f /run/current-system`;
   the system profile is NOT the authority here. (It stranded four generations deep before
   anyone noticed, 2026-09-15.)
