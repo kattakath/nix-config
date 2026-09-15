@@ -220,6 +220,11 @@ let
   # upstream (not in nixpkgs); see packages/mermaid-ascii.nix.
   mermaidAscii = pkgs.callPackage ../../packages/mermaid-ascii.nix { };
   androidPhone = pkgs.callPackage ../../packages/android-phone.nix { };
+  # `activate` — self-elevating `darwin-rebuild switch`. nix-darwin dropped sudo
+  # self-elevation in its 2025-01-30 root migration and ships no option to
+  # restore it (grepped the pinned modules/ for sudo|elevate|rebuild|activate);
+  # see packages/activate.nix for why this is a wrapper and not a sudoers rule.
+  darwinActivate = pkgs.callPackage ../../packages/activate.nix { };
 
   # `jsonresume <download|print>` — fetch a JSON Resume and render it to PDF via the
   # npm resume CLI. jsonResumeUrl (from flake.nix) is baked in as its default --url,
@@ -759,6 +764,7 @@ in
     # secret/set-secret/remove-secret now come from local.keychainSecrets
     # (the keychain-secrets capsule's HM module), not this list.
     ++ lib.optionals stdenv.hostPlatform.isDarwin [
+      darwinActivate # `activate [extra darwin-rebuild args]` — `darwin-rebuild switch` that re-execs under sudo, so a forgotten `sudo` becomes the Touch ID sheet instead of exit 1; names the flake + branch/rev it is about to activate first (packages/activate.nix)
       androidEmu
       awscli2 # AWS CLI v2 — SSO login into the Infin8 accounts; profiles live in ~/.aws/config (uncommitted, has account IDs/SSO URL — not this public repo)
       # buku — the bookmark manager of record (SQLite + CLI), chosen over rolling anything
