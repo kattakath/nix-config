@@ -290,14 +290,43 @@ in
   # modules/shared/home.nix. That profile is the operator's: MCP gateway,
   # Keychain loader, git signing, agent surface. Handing it to a second account
   # would duplicate every agent and secret loader on the machine.
-  home-manager.users.izzy = {
-    imports = [ ../modules/shared/default-browser.nix ];
-    home.stateVersion = "24.05";
-    # Per-user by construction: the http/https claim is a LaunchServices
-    # setting, so this changes Izzy's default browser only — the operator keeps
-    # Chrome (set in modules/shared/home.nix).
-    local.defaultBrowser = "opera";
-  };
+  home-manager.users.izzy =
+    { mediaCliModule, ... }:
+    {
+      imports = [
+        ../modules/shared/default-browser.nix
+        # The media stack, taken from the SAME capsule the operator uses
+        # (threaded as a module arg by modules/parts/compose.nix) rather than
+        # copied — one definition, two users.
+        mediaCliModule
+      ];
+      home.stateVersion = "24.05";
+      # Per-user by construction: the http/https claim is a LaunchServices
+      # setting, so this changes Izzy's default browser only — the operator keeps
+      # Chrome (set in modules/shared/home.nix).
+      local.defaultBrowser = "opera";
+
+      # The Finder right-click media Services — image fix, describe, and the rest
+      # — plus the CLIs behind them. `installQuickActions` defaults true, so
+      # `enable` alone is what puts the context menu in Izzy's ~/Library/Services.
+      #
+      # Services are PER-USER by construction (~/Library/Services), which is why
+      # this cannot be inherited from the operator and has to be declared again
+      # for the account that needs it.
+      #
+      # Deliberately NOT the operator's full block from modules/shared/home.nix:
+      # `extraSearchPackages` there adds `auge` and the rclip CLI, and the two
+      # heavy sub-options stay at their defaults of OFF — `fidelityEnhance` pulls
+      # about a gigabyte, and `obsFacebookSetup` does nothing without a
+      # `FB_PERSISTENT_STREAM_KEY` in the login Keychain, which is per-user and
+      # Izzy has no reason to hold.
+      #
+      # Its two launchd agents are duplicated per account, which is correct and
+      # not a conflict: a user agent runs only inside that user's GUI session,
+      # and each drains its OWN queue directory. They can only overlap under fast
+      # user switching, where both sessions are live at once.
+      local.mediaCli.enable = true;
+    };
 
   # ---- Gmail multi-account MCP (modules/shared/mcp.nix, a home-manager option
   # — set via home-manager.users)
