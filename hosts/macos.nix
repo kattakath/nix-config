@@ -212,17 +212,22 @@
 
   # ---- Gmail multi-account MCP (modules/shared/mcp.nix, a home-manager option
   # — set via home-manager.users)
-  # These two emails are safe to name in the PUBLIC repo — both are the
-  # operator's own accounts under identities already public elsewhere in this
-  # very tree (userEmail = ismail@kattakath.com in flake.nix's identityArgs;
-  # kattakath.com is this repo's own namesake domain). Any OTHER account
-  # (family/associates, or accounts the operator would rather not name here)
-  # is added by the PRIVATE nix-personal flake instead, via extraHomeModules —
-  # see the option's description in modules/shared/mcp.nix for the contract.
+  # The operator's COMPLETE Gmail roster. All four are the operator's own
+  # accounts under identities already public elsewhere in this very tree:
+  # userEmail = ismail@kattakath.com (identityArgs) and its namesake domain;
+  # silvercreek.ai, whose production WordPress this gateway already drives
+  # (`wordpress-adapter`); and the operator's `aloshy` handle (the aloshy.ai
+  # zone). The private nix-personal flake used to ADD further accounts via
+  # extraHomeModules; it is sunsetting, and the operator chose to keep only the
+  # two below from that list (2026-09-15), so this list is now the whole set.
+  # Anyone else's address still never belongs here — see the option's
+  # description in modules/shared/mcp.nix.
   home-manager.users.${loginName} = {
     local.mcpGateway.gmail.accounts = [
       "ismail@kattakath.com"
       "ismailkattakath@gmail.com"
+      "izzy@silvercreek.ai"
+      "aloshyakasoto@gmail.com"
     ];
 
     # Chrome DevTools Protocol, in ATTACH mode against Opera Air. The attach flag is

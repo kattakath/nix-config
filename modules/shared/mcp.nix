@@ -34,7 +34,7 @@
 #   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 20 servers (22
 #   with telegram + the local WordPress adapter, +1 per configured
 #   `local.mcpGateway.gmail.accounts` alias — `gmail-<alias>`, one process
-#   per Google/Workspace account, 0 in this public repo — see mkGmailMcp's
+#   per Google/Workspace account, the roster in hosts/macos.nix — see mkGmailMcp's
 #   comment), each reachable at /servers/<name>/sse.
 #   `gatewayConfig` is rendered by mcp-servers-nix's `lib.mkConfig`, so the 7 packaged
 #   servers (context7/fetch/memory/sequential-thinking/nixos/terraform/github) are
@@ -907,13 +907,11 @@ in
         single-account-per-connection built-in connector (see mkGmailMcp's
         comment above; gmailAlias sanitizes each email into a tool-prefix/
         filename-safe token internally — this list itself stays plain
-        emails). Empty by default and deliberately NOT populated in this
-        public repo beyond the operator's own two already-public addresses
-        (hosts/macos.nix): other accounts here are personal data, some
-        belonging to people other than the operator, supplied instead by the
-        PRIVATE nix-personal flake via `extraHomeModules` — the same
-        composition contract as nixpi's `hostedSites`
-        (docs/private-home-modules.md). All accounts share ONE Google Cloud
+        emails). Empty by default; hosts/macos.nix sets the operator's own
+        accounts, each under an identity already public in this tree. Never
+        list anyone else's address here: it is personal data in a public
+        repo. (The private nix-personal flake used to add such accounts via
+        `extraHomeModules`; it is sunsetting.) All accounts share ONE Google Cloud
         OAuth Desktop-app client (GMAIL_OAUTH_CLIENT_ID/SECRET in the
         Keychain); each account ALSO needs its OWN completed one-time browser
         auth (~/.gmail-mcp/credentials-<sanitized-email>.json) BEFORE being
