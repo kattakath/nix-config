@@ -295,6 +295,19 @@ let
           determinateNix.customSettings = {
             extra-substituters = [ cachixUrl ];
             extra-trusted-public-keys = [ cachixKey ];
+
+            # DEDUPLICATE AS PATHS LAND (2026-09-15). This store ran its whole
+            # life with hard-linking off: the first `nix store optimise` after a
+            # 22.1 GiB garbage collection linked 326,352 files and returned a
+            # further ~4 GiB, and `nix-collect-garbage` had been reporting "hard
+            # linking is currently saving 0.0 KiB" all along. Setting it here
+            # makes that continuous rather than a ritual nobody remembers to run
+            # — the cost is a hash+link step on every store write, which is the
+            # right trade on a machine that substitutes whole fleet closures.
+            # Allowed: it is absent from Determinate's `disallowedOptions`
+            # (modules/nix-darwin/default.nix) and used in their own test flake.
+            auto-optimise-store = true;
+
             # WHY THE OPERATOR IS TRUSTED (2026-09-15). Nix's default is
             # `trusted-users = root`, and a NON-trusted user's client-side
             # settings are silently discarded by the daemon. That is not a
@@ -323,6 +336,15 @@ let
             # override, which templates/default/ uses, trusts ITS own operator.
             extra-trusted-users = [ identity.loginName ];
           };
+          # Let determinate-nixd collect garbage in the background instead of
+          # waiting for a hand-run `sudo nix-collect-garbage -d` (the 2026-09-15
+          # one freed 22.1 GiB, i.e. it had been deferred far too long). Two
+          # consequences, accepted rather than discovered later: old generations
+          # are reaped on ITS schedule, so there is no guaranteed rollback target
+          # on this Mac; and collected flake-input sources are re-fetched on the
+          # next eval. Neither touches nixpi — it is a separate daemon, and
+          # deploy-rs magicRollback protects the Pi's own generation.
+          determinateNix.determinateNixd.garbageCollector.strategy = "automatic";
           # LINUX BUILDS ON macOS (for `nix run .#nixvm`, `.#nixpi`):
           # Determinate's NATIVE Linux builder (Apple Virtualization framework —
           # no remote builder, no Docker) is ENABLED on this host, so aarch64-linux
