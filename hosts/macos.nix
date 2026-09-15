@@ -360,7 +360,26 @@ in
       # not a conflict: a user agent runs only inside that user's GUI session,
       # and each drains its OWN queue directory. They can only overlap under fast
       # user switching, where both sessions are live at once.
-      local.mediaCli.enable = true;
+      # TEMPORARILY FALSE (2026-09-15) — flip back to `true` the moment Izzy has
+      # logged in once.
+      #
+      # Not a change of mind about the feature: the Quick Actions themselves are
+      # fine. The problem is the capsule's two launchd agents. A user agent can
+      # only bootstrap into that user's GUI session, and Izzy has never logged
+      # in, so `gui/502` does not exist:
+      #
+      #   Failed to start agent 'gui/502/org.nix-community.home.media-queue'
+      #     Bootstrap failed: 125: Domain does not support specified action
+      #
+      # That makes `darwin-rebuild switch` exit non-zero, and the abort happens
+      # BEFORE /run/current-system is re-pointed — so the system profile updates
+      # (generation 395 had grok and fal in it) while /run/current-system/sw/bin,
+      # which is what PATH actually resolves, stayed on the previous generation.
+      # Machine-wide packages were installed and unreachable at once, which is a
+      # far worse failure than a missing right-click menu.
+      #
+      # His first login creates gui/502 and makes this a one-line revert.
+      local.mediaCli.enable = false;
 
       # Without this the two claude-* imports above are INERT: they only set
       # `programs.claude-code.*`, and the module defaults to disabled, so a
