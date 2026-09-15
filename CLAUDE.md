@@ -124,60 +124,61 @@ evaluates on one system can still break the other.
 ## Navigating the Codebase
 
 One line per path; the *why* and the per-file specifics are in
-[`docs/repo-map.md`](docs/repo-map.md).
+[`docs/repo-map.md`](docs/repo-map.md), whose section headings match this table.
 
 | Path | What it owns |
 |---|---|
-| `flake.nix` | **Inputs/pins and ONE `flake-parts.lib.mkFlake` call — nothing else** (was 2,254 lines before ADR-002 wave 2; a fraction of that now). Every output lives in `modules/parts/`. `flake-parts` is a DIRECT input and its `nixpkgs-lib` **cannot** be `follows = ""`. |
-| `flake.lock` | Pinned revisions — bump only via `nix flake update` / `/update-input`, never hand-edit. **57 nodes** today (58 before the `kattakath-ai` consolidation, 56 right after ADR-002, 69 before it) — a `follows` diet plus the capsule absorption; **no satellite input survives**. A `follows` edit is **shape-only** (`nix flake lock`, never a bare `nix flake update`) and `follows = ""` REBINDS to this flake rather than removing. Per-wave node accounting + the deliberate duplicates: [`docs/repo-map.md`](docs/repo-map.md) § `flake.lock`. |
+| `flake.nix` | **Inputs/pins and ONE `flake-parts.lib.mkFlake` call — nothing else.** Every output lives in `modules/parts/`. `flake-parts` is a DIRECT input; its `nixpkgs-lib` **cannot** be `follows = ""`. |
+| `flake.lock` | Pinned revisions — bump only via `nix flake update` / `/update-input`, never hand-edit. A `follows` edit is **shape-only** (`nix flake lock`, never a bare `nix flake update`), and `follows = ""` REBINDS to this flake rather than removing. |
 | `treefmt.nix` | Single source of truth for format + lint-fix (tools that REWRITE); drives `nix fmt`, the CI gate, and the pre-commit hook. |
-| `sgconfig.yml` + `ast-grep/` | Report-only structural lint (ast-grep): `rules/` mechanises prose conventions **and both layer boundaries** — `capsule-must-not-reach-out` (a capsule may not reach out) and `shared-must-not-cross-layers` (the HM profile may reach DOWN into `packages/`/`skills/`/`claude/`, never across into `features/` or up into `parts/`/`hosts/`/`infra/`). `rule-tests/` proves they fire. Gated by `checks.<system>.ast-grep`, **not** treefmt. |
+| `sgconfig.yml` + `ast-grep/` | Report-only structural lint mechanising both layer boundaries: a capsule may not reach **out**, and `modules/shared/` may reach **down** only. Gated by `checks.<system>.ast-grep`, **not** treefmt. |
 | `hosts/` | Per-host entry profiles: `macos.nix`, `nixpi.nix`, `nixvm.nix` (host-only deltas + per-host Homebrew lists). |
-| `modules/parts/` | The FLAKE ENGINE, one flake-parts module per concern, discovered by `import-tree` (ADR-002 wave 2): `identity.nix`, `systems.nix`, `compose.nix` (`mkDarwin`/`mkNixos` — kept as plain functions, **not** translated), `hosts.nix`, `packages.nix`, `checks.nix`, `capsules.nix`, `terranix.nix`, `devshell.nix`, `deploy.nix`, `templates.nix`, `devcontainer.nix`, `lib-option.nix`, `touchup.nix` (what the flake does **not** export). The engine **may** reach anywhere. Per-file detail: [`docs/repo-map.md`](docs/repo-map.md) § `modules/parts/`. |
-| `modules/features/` | CAPSULES — **the absorbed satellite flakes, one directory each**: `flake-module.nix` (the ONLY file anything outside imports) + `module.nix` + `packages/` + `checks/` + `README.md`. A capsule **may not reach outside its own directory** — mechanical, not convention: `ast-grep/rules/capsule-must-not-reach-out.yml` + `checks.<system>.capsule-registry`. The six: `cloudflared-connector`, `firmware-secrets` (both NixOS), `keychain-secrets` (the `secret` CLI + every-shell loader), `tart-vms` (`local.tart.githubRunners.*` / `local.tart.gitlabRunner` / `local.tart.vms.*`), `media-cli` (`local.mediaCli`), `local-rag` (`local.rag.ollama` + `local.rag.pgvector` — the career RAG's `databaseUri` seam). **The satellite count is 0.** One section each: [`docs/repo-map.md`](docs/repo-map.md) § `modules/features/`. |
-| `modules/shared/` | Home Manager profile on every host: `home.nix`, `mcp.nix`, `terminal-theme.nix` (`local.terminalTheme` — the fleet's one ANSI ring + type, consumed by Ghostty, VS Code and Terminal.app), `chromium.nix` (`local.ungoogledChromium` — sideloaded CRXes, Apple's Passwords native host, and *recommended*-level policy incl. the default search engine, all for the Homebrew cask), `default-browser.nix` (the LaunchServices default-browser claim, split out of `chromium.nix`), `desktop-aesthetics.nix`, `nix-cache.nix`, `nix-ld-libraries.nix`, `wireguard-configs.nix`, `claude-otel.nix`, `claude-bedrock-gate.nix` (`local.claudeBedrock` — AWS region/profile seam, **null by default**; plus the runtime gate that keeps Bedrock routing survivable on a public-only activation), `claude-brain.nix` (the "Brain Signals" answer-shape kit — output style, calibration rule, `/explain` family, `cartographer`, `/task`; every class merges, so a private layer ADDS), `claude-plugins.nix` (`local.claudePlugins.marketplaces` — N Claude Code plugin marketplaces behind ONE activation; `attrsOf`, so nix-personal ADDS a marketplace instead of copying the script), `wallpaper/`, `hm-launchd/`. |
-| `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix` (`local.folders.*` — inbox paths; unset = system default), `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`local.macosGithubRunner` — LIVE on `macos`, see § Configuration). |
-| `modules/nixos/` | `core.nix` (user + keys-only **loopback-bound** sshd with `openFirewall = false` + a firewall that opens **no** TCP port + avahi + nix-ld + zram + GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). |
-| `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `key-recovery`, `spotlight-launchers`, plus single-purpose CLIs (`android-phone`, `jsonresume`, `mermaid-ascii`, `claude-otel-doctor`, …). Root `bootstrap.sh` is the no-Nix stage 1. The media/photo CLIs are **not here** — they live in the `media-cli` capsule. |
-| *(userscripts — GONE, 2026-09-14)* | **The fleet declares zero userscripts.** The `kattakath-userscripts` input, every script declaration and `checks.<system>.userscripts` are all removed (nix-personal lost its own input, `modules/userscripts.nix` and both its lint gates the same day). Every script was **published to Greasy/Sleazy Fork** instead: a fork-installed copy carries `@updateURL` and self-updates, which a Nix-materialised `file://` copy never could. The `local.ungoogledChromium.userScripts` **option is deliberately KEPT** with zero scripts (`modules/shared/chromium.nix`) — Violentmonkey is still sideloaded, and the seam costs nothing empty. |
-| `infra/` | terranix (Nix → Terraform JSON): `cloudflare/nixpi-tunnel.nix`, `cloudflare/mcp-public.nix` (the published MCP stack — tunnel, origin hostname, Access app + service token, portal registrations). Applied only via the `cf-*` / `mcp-public-*` apps. |
-| `secrets/` | agenix recipients (`secrets.nix`) + the operator pubkey (`operator-key.nix`, single-sourced into both recipients and `authorizedKeys`) + **four** ciphertexts: `cloudflared-token.age` (operator-only) and three host-decrypted on `macos` — `gh-app-dontsell-ai-key.age`, `gh-app-fleet-key.age`, `gitlab-runner-token.age`. |
-| `skills/` | **Global** Claude Code skills still in-tree: ONLY the Brain Signals `/explain` family (`explain`, `compare`, `map`, `zoom`, `why`, `tldr`, `diagram`) — they are one kit with the output style in `modules/shared/claude-brain.nix` and are declared there, next to what they encode. `rag`, `android-phone` and `nix-dev-toolkit` were **extracted 2026-09-12** and since 2026-09-14 live in `github:kattakath/ai`, pinned as `kattakath-ai` — the same pin the marketplace comes from. Every other global skill already came from a pinned `flake = false` input; these now do too, so the rail is uniform. |
-| *(plugins — EXTRACTED)* | The operator's own marketplace is `github:kattakath/ai` (`llmstxt`, `page-lab`, `superhook`, `claude-code-nix`), pinned as `kattakath-ai` and registered from that input's **store path** since 2026-09-12 — **one repo per owner** since 2026-09-14, carrying `skills/` + `plugins/` + `mcp/`, so the pin count went 2 → 1. A second source costs one input and its own entries (both consumer options are already N-entry); `ismailkattakath/ai` and `izzykatt/ai` are deliberately **not** pinned (experiment aggregators — an experiment has no business being always-on global context). There is no `plugins/` tree in THIS repo any more. Still declared as DATA in `local.claudePlugins.marketplaces` (`modules/shared/home.nix`) and installed by `modules/shared/claude-plugins.nix`; only the `source` moved. `seargraph` is gone entirely — a project-specific agent belongs in that project's `.claude/agents/`, which is where it now lives. Reach for a plugin only when the unit is more than a skill (a command, hook, MCP server, or `agents/`) **or is meant to be publishable outside the fleet** — and if it is publishable, publish it: see [`docs/agent-resource-externalization.md`](docs/agent-resource-externalization.md). |
-| `.claude/` | Project agent config — see the two tables below. |
-| `claude/` + `qwen/` | The **global** (all-projects) agent context this repo installs on `macos`: `claude/CLAUDE.md` → `~/.claude/CLAUDE.md` (via `programs.claude-code.context`), the Brain Signals kit under `claude/{output-styles,agents,commands,rules}/` (via `claude-brain.nix`), and `qwen/QWEN.md` → `~/.qwen/QWEN.md`. All wired from `modules/shared/home.nix`; do not confuse any of them with **this** file, which is project-scoped. |
-| `.github/workflows/` | `nix-ci.yml` (2 hosted legs), `auto-merge.yml`, `build-devcontainer.yml`, `build-installers.yml`, `claude*.yml`, `gitleaks.yml`, `flakehub-publish.yml`, `update-flake-lock.yml` (the weekly lock bump). |
-| `docs/` | Runbooks + this repo's design docs — indexed at the bottom of this file. |
+| `modules/parts/` | The FLAKE ENGINE — one flake-parts module per concern, discovered by `import-tree`. The engine **may** reach anywhere. |
+| `modules/features/` | The six CAPSULES (the absorbed satellites): `cloudflared-connector`, `firmware-secrets`, `keychain-secrets`, `tart-vms`, `media-cli`, `local-rag`. `flake-module.nix` is the ONLY file anything outside imports, and **a capsule may not reach outside its own directory** — enforced by `ast-grep` + `checks.<system>.capsule-registry`, not by convention. **Satellite count: 0.** |
+| `modules/shared/` | The Home Manager profile on every host: `home.nix`, `mcp.nix`, and the `local.*` provider modules (terminal theme, chromium, default browser, nix cache, nix-ld, wireguard, claude brain/plugins/otel/bedrock, wallpaper, hm-launchd). |
+| `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix`, `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`local.macosGithubRunner` — LIVE, see § Configuration). |
+| `modules/nixos/` | `core.nix` (user + keys-only **loopback-bound** sshd, `openFirewall = false`, a firewall that opens **no** TCP port, avahi, nix-ld, zram, GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). |
+| `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `key-recovery`, `spotlight-launchers`, plus single-purpose CLIs. Root `bootstrap.sh` is the no-Nix stage 1. The media/photo CLIs live in the `media-cli` capsule instead. |
+| `infra/` | terranix (Nix → Terraform JSON): `cloudflare/nixpi-tunnel.nix`, `cloudflare/mcp-public.nix`. Applied only via the `cf-*` / `mcp-public-*` apps. |
+| `secrets/` | agenix recipients + the operator pubkey + **four** ciphertexts — one operator-only, three host-decrypted on `macos`. Details in § Security. |
+| `skills/` | **Global** skills still in-tree: ONLY the Brain Signals `/explain` family, declared in `modules/shared/claude-brain.nix` next to the output style they encode. Every other global skill arrives from a pinned input. |
+| `claude/` + `qwen/` | The **global** (all-projects) agent context this repo installs on `macos` — not to be confused with **this** file, which is project-scoped. |
+| `.claude/` | Project agent config — see the lists below. |
+| `.github/workflows/` | `nix-ci.yml` (2 hosted legs), `auto-merge.yml`, `build-*`, `claude*.yml`, `gitleaks.yml`, `flakehub-publish.yml`, `update-flake-lock.yml`. |
+| `docs/` | Runbooks + design docs — indexed at the bottom of this file. |
+
+**Gone on purpose — do not re-add.** There is no `plugins/` tree (the operator's marketplace is
+`github:kattakath/ai`, pinned as `kattakath-ai`), and the fleet declares **zero userscripts**
+(published to Greasy Fork instead, so an installed copy self-updates — which a Nix-materialised
+`file://` copy never could). Both:
+[`docs/agent-resource-externalization.md`](docs/agent-resource-externalization.md).
 
 **Commands** (`.claude/commands/`): `/eval`, `/hygiene`, `/update-input`, `/superhook-review`,
-`/pretooluse-review`, `/remember-nix`, `/gmail-account`, `/routing-review`,
-`/mcp-scout`, `/fleet-doctor`, `/userscript`. (`/devtools` and `/pick` are **not** here —
-they ship from the `page-lab` plugin in `github:kattakath/ai`.)
+`/pretooluse-review`, `/remember-nix`, `/gmail-account`, `/routing-review`, `/mcp-scout`,
+`/fleet-doctor`, `/userscript`. (`/devtools` and `/pick` ship from the `page-lab` plugin instead.)
 
 **Project skills** (`.claude/skills/`): `nix-hygiene`, `nixpi-firmware-provision`,
-`jsonresume-tailor`, `gmail-mcp-accounts`, `mcp-scout`,
-`fleet-doctor`, `userscript-author`.
+`jsonresume-tailor`, `gmail-mcp-accounts`, `mcp-scout`, `fleet-doctor`, `userscript-author`.
 
 **Always-applied rules** (`.claude/rules/`):
-[`git-purity.md`](.claude/rules/git-purity.md) (stage `.nix` before eval),
-[`pr-title.md`](.claude/rules/pr-title.md) (PR title = comma-separated touched components;
-one PR per change, off `main`),
-[`launchd-naming.md`](.claude/rules/launchd-naming.md) (every launchd unit this repo authors
-exposes a `nix-<kebab>` `arg0` — never a bare `sh`/`python3`),
-[`upstream-first.md`](.claude/rules/upstream-first.md) (grep the **pinned** input's option
-surface before writing custom Nix, and cite the result).
+[`git-purity`](.claude/rules/git-purity.md) (stage `.nix` before eval),
+[`pr-title`](.claude/rules/pr-title.md) (title = comma-separated touched components; one PR per
+change, off `main`),
+[`launchd-naming`](.claude/rules/launchd-naming.md) (every launchd unit exposes a `nix-<kebab>`
+`arg0` — never a bare `sh`/`python3`),
+[`upstream-first`](.claude/rules/upstream-first.md) (grep the **pinned** input's option surface
+before writing custom Nix, and cite the result).
 
-**Hooks** (`.claude/hooks/`): `stop-gate.js` + `pretooluse-bash-guard.js` (both wrapped by
-`superhook`), and the `*-digest.js` SessionStart nudges. **`superhook` is now a PATH
-package** (`packages/superhook.nix`) built from the pinned marketplace input, because a
-checked-in `settings.json` can hold neither a store path nor `${CLAUDE_PLUGIN_ROOT}`;
-`autostage-nix` and `nix-home-path-lint` left entirely — they arrive as PLUGIN hooks from
-`claude-code-nix@kattakath`. What their messages mean:
+**Hooks** (`.claude/hooks/`): `stop-gate.js` + `pretooluse-bash-guard.js` (both wrapped by the
+`superhook` PATH package, since a checked-in `settings.json` can hold neither a store path nor
+`${CLAUDE_PLUGIN_ROOT}`), plus the `*-digest.js` SessionStart nudges. `autostage-nix` and
+`nix-home-path-lint` arrive as PLUGIN hooks from `claude-code-nix@kattakath` — do not re-add them
+here or each fires twice. Message decoder:
 [`docs/claude-hook-messages.md`](docs/claude-hook-messages.md).
 
 **MCP servers**: one localhost `mcp-proxy` gateway (`modules/shared/mcp.nix`, darwin-only) on
-`127.0.0.1:8096` hosting every server as HTTP; `desktop-commander` stays per-client stdio (RCE
-surface). There is **no project `.mcp.json`**. Inventory + gotchas:
+`127.0.0.1:8096` hosting every server as HTTP; `desktop-commander` and `open-design` stay
+per-client stdio. There is **no project `.mcp.json`**. Inventory + gotchas:
 [`docs/mcp-gateway.md`](docs/mcp-gateway.md).
 
 ## Code Style & Conventions
@@ -360,81 +361,58 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
 ## Documentation
 
 - [`docs/repo-map.md`](docs/repo-map.md) — **the full fleet architecture**: every path, module,
-  package, and flake output, with the reasoning. The long form of § Navigating the Codebase.
+  package and flake output, with the reasoning. The long form of § Navigating the Codebase.
 - [`docs/mcp-gateway.md`](docs/mcp-gateway.md) — the localhost MCP gateway: server inventory,
   credentials model, opt-ins, how to add one.
-- [`docs/mcp-public-exposure-design.md`](docs/mcp-public-exposure-design.md) — **BUILT and live
-  (2026-09-12)**: `local.mcpGateway.public = [ … ]` flips a gateway server public. A **second**
-  `mcp-proxy` on `:8097` carries only that subset (a leaked credential cannot reach
-  Gmail/Postgres/WordPress on `:8096`), behind one cloudflared connector + **one** Access app +
-  **one** service token. **Exactly two hostnames and they do not grow per server**
-  (`mcp.<domain>` portal, `upstream.<domain>` origin); a new public server costs one list entry.
-  §9 is its correction record.
-- [`docs/open-design.md`](docs/open-design.md) — OpenDesign's declared/imperative boundary:
-  adopted cask + updater kill-switch + per-client stdio MCP vs. the app's mutable state.
+- [`docs/mcp-public-exposure-design.md`](docs/mcp-public-exposure-design.md) — **BUILT and live**:
+  `local.mcpGateway.public` flips a server public via a **second** proxy on `:8097`, behind one
+  connector + one Access app + one service token. **Exactly two hostnames, and they never grow
+  per server.** §9 is its correction record.
 - [`docs/secrets-and-keychain.md`](docs/secrets-and-keychain.md) — agenix operator-only vault +
-  login-Keychain loader and the `secret` CLI.
-- [`docs/nixpi-sd-flashing-runbook.md`](docs/nixpi-sd-flashing-runbook.md) — flashing the
-  `nixpi` SD card (full verified `dd` write).
-- [`docs/mac-key-recovery-runbook.md`](docs/mac-key-recovery-runbook.md) — rebuilding `macos`
-  from a wiped Mac + the iCloud key-recovery kit; also the manual steps Nix can't do.
-- [`docs/flakehub-input-freshness.md`](docs/flakehub-input-freshness.md) — the automated weekly
-  `flake.lock` bump flow.
-- [`docs/terminal-theme.md`](docs/terminal-theme.md) — the one terminal palette: provider
-  contract, per-surface coverage (16/16 Ghostty + VS Code, **4/16** Terminal.app — an OS
-  ceiling), and the measured reasons stylix and base16.nix were both rejected.
-- [`docs/macos-settings-surface.md`](docs/macos-settings-surface.md) — what macOS settings
-  `macos` can configure declaratively, and the TCC/FileVault walls.
-- [`docs/private-home-modules.md`](docs/private-home-modules.md) — composition contract for
-  private modules: public engine, private plug-ins, no private references here. **The one
-  plug-in seam ADR-002 did NOT collapse.**
-- [`docs/flake-architecture-strategy-adr.md`](docs/flake-architecture-strategy-adr.md) — ADR-001
-  (2026-08-20), **Superseded in part**: flake-parts for the small supporting flakes; the
-  dendritic pattern stays out of scope. **Decision #2 ("do not migrate the core engine") is
-  SUPERSEDED by ADR-002 below**, which did migrate it — and answers ADR-001's three objections
-  one by one, with objection 3 still standing.
-- [`docs/agent-resource-externalization.md`](docs/agent-resource-externalization.md) —
-  **2026-09-12**: why the operator's own plugins, skills and userscripts left this tree for
-  their own repos while the seven Nix satellites came back in (ADR-002). The measured
-  marketplace survey behind the layout, the two pinning rails, and the rule the migration
-  turned on: **a gate must move with the content it gates.** The userscript half went one
-  step further on 2026-09-14 — published to Greasy Fork, so both pins are gone.
-- [`docs/monoflake-capsule-adr.md`](docs/monoflake-capsule-adr.md) — **ADR-002 (2026-09-12,
-  DECIDED AND IMPLEMENTED)**: absorbed all seven satellite flakes, moved the flake to
-  flake-parts + `import-tree`, and replaced the deleted repo boundaries with **capsules**.
-  `flake.nix` 2,254 → 404 lines; lock 69 → 56. **Read §9 first** — the correction record for
-  what execution found the design got wrong: four §3 "ADOPT" rows that did not ship (`mdsh`,
-  `typos`, `sizelint`, `nixosOptionsDoc`), the measurement that `flake.modules` itself CHANGES
-  what the fleet builds for a home-manager capsule, the inward hole in the ast-grep gate, and
-  the loss §7 failed to list (a plain copy leaves 126 commits of provenance in the archived
-  origin repos, so `git blame` dead-ends at the collapse commit).
-- [`docs/externalization-boundary-adr.md`](docs/externalization-boundary-adr.md) — **ADR-003
-  (2026-09-15, DECIDED, NOT IMPLEMENTED)**: what agent content may leave this repo. Nix is the
-  **harness**; governance (pins, secrets, curation) never leaves. Skills MAY overlay from `$HOME`;
-  **MCP servers may not** — a bad one darks the gateway.
-- [`docs/macvm-readd-runbook.md`](docs/macvm-readd-runbook.md) — re-adding the removed
-  `macvm` Tart guest (removed 2026-09-05); what survives in the `tart-vms` capsule.
+  the login-Keychain loader and the `secret` CLI.
+- [`docs/private-home-modules.md`](docs/private-home-modules.md) — the public-engine /
+  private-plug-in contract. **The one seam ADR-002 did NOT collapse.**
+- **ADRs, in order** — [`ADR-001`](docs/flake-architecture-strategy-adr.md) (flake-parts for the
+  small supporting flakes; **superseded in part**, and its objection 3 still stands);
+  [`ADR-002`](docs/monoflake-capsule-adr.md) (decided **and implemented**: absorbed all seven
+  satellites onto flake-parts + `import-tree` as capsules — **read §9 first**, the record of what
+  execution found the design got wrong); [`ADR-003`](docs/externalization-boundary-adr.md)
+  (decided, **NOT implemented**: Nix is the **harness**, governance never leaves; skills MAY
+  overlay from `$HOME`, **MCP servers may not**).
+- [`docs/agent-resource-externalization.md`](docs/agent-resource-externalization.md) — why the
+  operator's plugins, skills and userscripts left this tree while the seven satellites came back
+  in, and the rule it turned on: **a gate must move with the content it gates.**
+- [`docs/nixpi-sd-flashing-runbook.md`](docs/nixpi-sd-flashing-runbook.md) — flashing the `nixpi`
+  SD card (full verified `dd` write).
+- [`docs/mac-key-recovery-runbook.md`](docs/mac-key-recovery-runbook.md) — rebuilding `macos` from
+  a wiped Mac + the iCloud kit; also the manual steps Nix can't do.
+- [`docs/macvm-readd-runbook.md`](docs/macvm-readd-runbook.md) — re-adding the removed `macvm`
+  Tart guest (2026-09-05); what survives in the `tart-vms` capsule.
 - [`docs/gmail-mcp-multi-account-runbook.md`](docs/gmail-mcp-multi-account-runbook.md) — TRUE
-  simultaneous multi-account Gmail (one process per account) + a silent-wrong-account failure
-  mode.
-- [`docs/claude-code-observability-runbook.md`](docs/claude-code-observability-runbook.md) —
-  local OTel Collector for Claude Code's own `tool_decision` telemetry + the `/routing-review`
-  loop.
+  simultaneous multi-account Gmail + a silent-wrong-account failure mode.
+- [`docs/claude-code-observability-runbook.md`](docs/claude-code-observability-runbook.md) — local
+  OTel for Claude Code's own `tool_decision` telemetry + the `/routing-review` loop.
 - [`docs/claude-hook-messages.md`](docs/claude-hook-messages.md) — decoder for this repo's hook
   messages (why DENYs read as "errors", how to read a prompt-hook denial).
-- [`docs/auto-merge-and-merge-queue.md`](docs/auto-merge-and-merge-queue.md) — how every fleet
-  flake merges itself once CI is green (CI bot App token, merge-queue ruleset, `merge_group:`).
-- [`docs/mcp-gateway-accessibility-tcc.md`](docs/mcp-gateway-accessibility-tcc.md) — the
-  one-time Accessibility (TCC) grant `macos-automator` needs.
-- [`docs/photo-system.md`](docs/photo-system.md) — the photo retrieval system end to end: what
-  `photo-describe` writes into a file vs. what `rclip` keeps beside the folder — the
-  durable/derived split, and how to search each.
-- [`docs/nix-media-cli-extraction-grant.md`](docs/nix-media-cli-extraction-grant.md) + its
-  answer [`docs/nix-media-cli-extraction-study.md`](docs/nix-media-cli-extraction-study.md) —
-  **HISTORY TWICE OVER, not a plan**: the extraction shipped in 2026-09, then ADR-002 wave 5
-  brought the whole stack back in-tree as the `media-cli` capsule. Still one switch
-  (`local.mediaCli.enable`); the `media-<verb>` renaming proposal is the one undecided part,
-  and it is this repo's call again.
 - [`docs/claude-desktop-instructions.md`](docs/claude-desktop-instructions.md) — the one Claude
-  behaviour this repo can't manage declaratively (account-level Desktop instructions) + the
-  canonical "diagrams as ASCII" wording.
+  behaviour this repo can't manage declaratively + the canonical "diagrams as ASCII" wording.
+- [`docs/terminal-theme.md`](docs/terminal-theme.md) — the one terminal palette: provider
+  contract, per-surface coverage (**4/16** on Terminal.app is an OS ceiling), and the measured
+  reasons stylix and base16.nix were both rejected.
+- [`docs/macos-settings-surface.md`](docs/macos-settings-surface.md) — what `macos` can configure
+  declaratively, and the TCC/FileVault walls.
+- [`docs/mcp-gateway-accessibility-tcc.md`](docs/mcp-gateway-accessibility-tcc.md) — the one-time
+  Accessibility (TCC) grant `macos-automator` needs.
+- [`docs/open-design.md`](docs/open-design.md) — OpenDesign's declared/imperative boundary: cask +
+  updater kill-switch + per-client stdio MCP vs. the app's mutable state.
+- [`docs/photo-system.md`](docs/photo-system.md) — the photo retrieval system end to end: the
+  durable/derived split between what `photo-describe` writes and what `rclip` keeps, and how to
+  search each.
+- [`docs/auto-merge-and-merge-queue.md`](docs/auto-merge-and-merge-queue.md) — how every fleet
+  flake merges itself once CI is green (CI bot App token, ruleset, `merge_group:`).
+- [`docs/flakehub-input-freshness.md`](docs/flakehub-input-freshness.md) — the automated weekly
+  `flake.lock` bump flow.
+- [`docs/nix-media-cli-extraction-grant.md`](docs/nix-media-cli-extraction-grant.md) + its
+  [study](docs/nix-media-cli-extraction-study.md) — **HISTORY, not a plan**: extracted in 2026-09,
+  then ADR-002 brought the whole stack back in-tree as the `media-cli` capsule. Only the
+  `media-<verb>` rename is still undecided, and it is this repo's call again.
