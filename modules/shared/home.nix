@@ -1188,7 +1188,7 @@ in
       };
 
       # SSH commit/tag signing (GitHub/GitLab Verified). The forge still needs
-      # the pubkey as a *Signing* key (docs/mac-key-recovery-runbook.md).
+      # the pubkey as a *Signing* key (docs/new-mac-runbook.md).
       # upstream option home-manager.programs.git.signing exists → using it
       # (pinned programs/git.nix:63-116; impl :470-506 writes
       # $XDG_CONFIG_HOME/git/allowed_signers and points gpg.ssh.allowedSignersFile
@@ -1831,7 +1831,7 @@ in
 
   # Login oneshot: load Keychain SSH identities into the agent for GUI git signing
   # (shells use sshKeychainLoadShell). First-time: ssh-add --apple-use-keychain
-  # on the operator private key (key-recover does this). hm-launchd → nix-ssh-keychain-load.
+  # on the operator private key. hm-launchd → nix-ssh-keychain-load.
   launchd.agents.ssh-keychain-load = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     enable = true;
     config = {
