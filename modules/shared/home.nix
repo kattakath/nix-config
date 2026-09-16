@@ -1866,7 +1866,7 @@ in
 
   # Login oneshot: load Keychain SSH identities into the agent for GUI git signing
   # (shells use sshKeychainLoadShell). First-time: ssh-add --apple-use-keychain
-  # on the operator private key. hm-launchd → nix-ssh-keychain-load.
+  # on the operator private key. launchd-launcher.nix → nix-ssh-keychain-load.
   launchd.agents.ssh-keychain-load = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     enable = true;
     config = {

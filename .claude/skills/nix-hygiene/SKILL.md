@@ -81,13 +81,17 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
 - [ ] Experimental dual paths (e.g. old and new sshd) collapsed to one.
 - [ ] Commented-out blocks with no near-term intent removed or ticketed in `memory/` (gitignored).
 - [ ] Dead options, unused `let` bindings (deadnix/statix will catch some — don't rely only on them).
-- [ ] Vendor copies justified (e.g. `hm-launchd`) with a one-line "why not upstream" comment.
+- [ ] Vendor copies justified with a one-line "why not upstream" comment — and re-checked
+      each pass, because the justification expires. The last one, `hm-launchd` (560 lines of
+      forked home-manager), was RETIRED 2026-09-14 once the pinned input grew the three
+      options it needed. That is the outcome to aim for, not a permanent fork.
 
 ### C. DRY / modular / atomic
 
 - [ ] One path for one fact (e.g. the `~/Downloads` path shape shared conceptually host/guest).
 - [ ] No host-specific lists in shared modules without `mkIf` / hostName / `isMacosHost`.
-- [ ] Launchd BTM basenames: `nix-<activity>` via `mkNixAgent` / `hm-launchd` (never bare `sh`/`open`).
+- [ ] Launchd BTM basenames: `nix-<activity>` via `mkNixAgent` (`modules/darwin/core.nix`) or
+      `modules/shared/launchd-launcher.nix` for HM agents (never bare `sh`/`open`).
 - [ ] Secrets: never plaintext in `.nix`; agenix vault vs Keychain rules unchanged.
 
 ### D. Comments & docs
@@ -189,7 +193,7 @@ If `nix` unavailable: `nix-instantiate --parse` on changed `.nix` + state CI-def
    filesystems = `cp` + `rm`, so a guest rotation destroys host files).
 4. **Putting `.utm` / IPSW / disk images in the flake.**
 5. **Hand-editing `flake.lock`.**
-6. **HM launchd without `hm-launchd` / `nix-*` basename** — BTM phantoms return.
+6. **HM launchd bypassing `launchd-launcher.nix` / without a `nix-*` basename** — BTM phantoms return.
 
 ## Compose with existing automation
 
