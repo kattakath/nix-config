@@ -20,6 +20,9 @@
 }:
 let
   inherit (config.fleet.identityArgs) loginName;
+  # The published-gateway port, for the template-consumer check below. Read from
+  # config.fleet — NOT identityArgs, which is the attrset a consumer replaces.
+  inherit (config.fleet) publicMcpPort;
 in
 {
   perSystem =
@@ -169,6 +172,107 @@ in
                   echo "claude-desktop-config-shape: the Desktop rendering broke its contract." >&2
                   ${lib.concatStringsSep "\n" (map (p: ''echo "  ✘ ${p}" >&2'') problems)}
                   echo "See modules/shared/claude-desktop.nix (toStdioShim / excludeServers)." >&2
+                  exit 1
+                ''
+            );
+
+          # ---- The composition API, exercised AS A STRANGER WOULD -------------
+          #
+          # `lib.mkDarwin` / `lib.mkNixos` are published outputs (flakehub-publish
+          # ships this flake `visibility: public`), and both grew a consumer hole
+          # that nothing in the tree could see, because every in-tree caller is
+          # the operator and passes the fleet's own values.
+          #
+          #   2026-09-15  mkDarwin { hostname = "macos"; } gave a stranger the
+          #               operator's host: an admin account, two runner lanes,
+          #               34 casks.                                  (c4a522a)
+          #   2026-09-16  publicMcpPort was routed through identityArgs — the one
+          #               attrset a consumer REPLACES — so a template-shaped
+          #               four-field identity turned `local.mcpGateway.public`
+          #               into "attribute 'publicMcpPort' missing", and only once
+          #               they enabled the feature.
+          #   2026-09-16  mkNixos still handed out `users.users.<operator>` with
+          #               the operator's SSH key and trusted-users.
+          #
+          # Every one of those EVALUATED cleanly for the fleet. So this check
+          # calls the builders the way templates/default/flake.nix does — a
+          # neutral host, an identity with exactly the four fields the template
+          # documents, nothing else — and FORCES the attributes that carry the
+          # failure. Eval-only, which is all it needs to be: each of the three was
+          # an eval error or an eval-visible value, and `nix flake check` is
+          # eval-only too.
+          #
+          # Forcing the right leaf is load-bearing. `home.stateVersion` and the
+          # agent's `.enable` both pass while the port is missing; only the argv
+          # that embeds the port pulls it in.
+          template-consumer =
+            let
+              # EXACTLY what templates/default/flake.nix documents. Do not add a
+              # field here to make a failure go away — that is the bug.
+              consumerIdentity = {
+                loginName = "stranger";
+                fullName = "A Stranger";
+                userEmail = "stranger@example.invalid";
+                domainName = "example.invalid";
+              };
+
+              mac = config.flake.lib.mkDarwin {
+                system = "aarch64-darwin";
+                hostname = "generic-darwin";
+                identity = consumerIdentity;
+                extraModules = [
+                  { users.users.stranger.home = "/Users/stranger"; }
+                  {
+                    home-manager.users.stranger = {
+                      home.stateVersion = "24.05";
+                      # The opt-in that used to explode.
+                      local.mcpGateway.public = [ "memory" ];
+                    };
+                  }
+                ];
+              };
+              macHm = mac.config.home-manager.users.stranger;
+
+              box = config.flake.lib.mkNixos {
+                system = "aarch64-linux";
+                hostname = "generic-linux";
+                identity = consumerIdentity;
+                # Deliberately NO operatorSshKey — a consumer does not pass one.
+                extraModules = [
+                  {
+                    system.stateVersion = "24.05";
+                    networking.hostName = "strangerbox";
+                  }
+                ];
+              };
+              boxUsers = box.config.users.users;
+
+              problems =
+                # Forces publicMcpPort through the agent's argv.
+                lib.optional (
+                  !lib.any (
+                    a: a == toString publicMcpPort
+                  ) macHm.launchd.agents.mcp-gateway-public.config.ProgramArguments
+                ) "the published gateway agent does not bind publicMcpPort for a template consumer"
+                ++ lib.optional (
+                  boxUsers ? ${loginName}
+                ) "mkNixos created the OPERATOR's account (${loginName}) on a consumer's host"
+                ++ lib.optional (
+                  boxUsers.stranger.openssh.authorizedKeys.keys != [ ]
+                ) "mkNixos granted SSH keys a consumer never asked for"
+                ++ lib.optional (lib.elem loginName box.config.nix.settings.trusted-users) "mkNixos put the operator in a consumer's nix trusted-users";
+            in
+            pkgs.runCommand "template-consumer" { } (
+              if problems == [ ] then
+                ''
+                  echo "mkDarwin + mkNixos evaluate for a four-field template identity, and leak no operator state" > "$out"
+                ''
+              else
+                ''
+                  echo "template-consumer: the published composition API leaks or breaks." >&2
+                  ${lib.concatStringsSep "\n" (map (p: ''echo "  ✘ ${p}" >&2'') problems)}
+                  echo "See modules/parts/compose.nix — identityArgs is REPLACED by a consumer;" >&2
+                  echo "fleet constants belong in mkHomeManagerModule's inherit list instead." >&2
                   exit 1
                 ''
             );
