@@ -33,7 +33,10 @@
 # re-registers — this is also what makes it self-healing: a crashed or completed
 # run just comes back on its own, no manual `svc.sh start`). Only trusted push
 # jobs should target `runs-on: [self-hosted, ...]` — never fork-PR workflows,
-# since the daemon inherits the operator's login environment.
+# because a fork-PR job still runs with real credentials: the daemon has no
+# login environment to inherit (it runs as uid 533 `_github-runner` from
+# /Library/LaunchDaemons with a bare PATH this module sets itself), but it
+# DOES still hold the org token and repo access for its job's duration.
 {
   config,
   pkgs,
