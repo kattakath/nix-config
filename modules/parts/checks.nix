@@ -22,7 +22,7 @@ let
   inherit (config.fleet.identityArgs) loginName;
   # The published-gateway port, for the template-consumer check below. Read from
   # config.fleet — NOT identityArgs, which is the attrset a consumer replaces.
-  inherit (config.fleet) publicMcpPort;
+  inherit (config.fleet) publicMcpPort domainName;
 in
 {
   perSystem =
@@ -172,6 +172,58 @@ in
                   echo "claude-desktop-config-shape: the Desktop rendering broke its contract." >&2
                   ${lib.concatStringsSep "\n" (map (p: ''echo "  ✘ ${p}" >&2'') problems)}
                   echo "See modules/shared/claude-desktop.nix (toStdioShim / excludeServers)." >&2
+                  exit 1
+                ''
+            );
+
+          # ---- Rule 1d names the Pi in JavaScript, twice --------------------
+          #
+          # `.claude/hooks/pretooluse-bash-guard.js` is the ONLY mechanical block
+          # on the fleet's most expensive irreversible failure: a build on the
+          # LIVE Pi's SD card, recoverable only by physically reflashing it
+          # (~40 min, docs/nixpi-sd-flashing-runbook.md). It identifies the Pi
+          # with a literal regex, `nixpi(?:\.kattakath\.com|\.local)?`, because a
+          # hook is plain node with no access to this flake.
+          #
+          # The hostname comes from nixosConfigurations and the domain from
+          # config.fleet.domainName. Rename either and the guard matches nothing
+          # — and the hook FAILS OPEN by construction (its catch emits
+          # `{"decision":"approve"}`), so a non-match and a crash are
+          # indistinguishable from "allowed". The rule-1d test suite carries the
+          # SAME literal by hand, so it would keep passing against a guard that no
+          # longer matches the real host. Two copies, one green CI, zero guard.
+          #
+          # This cannot make the hook read Nix, but it can make the rename LOUD:
+          # a domain or host change now fails the build until both copies follow.
+          rule1d-guard-knows-the-pi =
+            let
+              guard = builtins.readFile ../../.claude/hooks/pretooluse-bash-guard.js;
+              suite = builtins.readFile ../../.claude/hooks/tests/rule1d-no-build-on-nixpi.sh;
+              piName = "nixpi";
+              # As it appears INSIDE the regex literal, where dots are escaped.
+              escapedDomain = lib.replaceStrings [ "." ] [ "\\." ] domainName;
+              problems =
+                lib.optional (
+                  !(config.flake.nixosConfigurations ? ${piName})
+                ) "nixosConfigurations.${piName} is gone — rule 1d guards a host that no longer exists"
+                ++
+                  lib.optional (!(lib.hasInfix piName guard && lib.hasInfix escapedDomain guard))
+                    "the guard's PI_HOSTS does not name ${piName}.${domainName} — it now matches NOTHING, and the hook fails open"
+                ++
+                  lib.optional (!(lib.hasInfix "${piName}.${domainName}" suite))
+                    "the rule-1d suite does not exercise ${piName}.${domainName}, so it would pass against a disarmed guard";
+            in
+            pkgs.runCommand "rule1d-guard-knows-the-pi" { } (
+              if problems == [ ] then
+                ''
+                  echo "rule 1d and its suite both name ${piName}.${domainName}" > "$out"
+                ''
+              else
+                ''
+                  echo "rule1d-guard-knows-the-pi: the nixpi build-block is out of sync with the fleet." >&2
+                  ${lib.concatStringsSep "\n" (map (p: ''echo "  ✘ ${p}" >&2'') problems)}
+                  echo "Update PI_HOSTS in .claude/hooks/pretooluse-bash-guard.js AND the PI=" >&2
+                  echo "assignment in .claude/hooks/tests/rule1d-no-build-on-nixpi.sh." >&2
                   exit 1
                 ''
             );
