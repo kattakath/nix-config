@@ -415,6 +415,7 @@ in
     ./default-browser.nix # local.defaultBrowser — the macOS LaunchServices http/https claim
     ./ubersicht.nix # local.ubersicht — the one full-screen HTML Übersicht widget (cask in hosts/macos.nix)
     ./next-right-thing.nix # local.nextRightThing — decides what that widget says
+    ./containers.nix # local.containers — per-user Colima (services.colima) replacing the Docker Desktop cask
     # Local-first RAG stack (loopback launchd Postgres+pgvector + Ollama + in-DB
     # embed()) — the ABSORBED capsule (modules/features/local-rag/). Both of its
     # modules are internally gated on (enable && isDarwin) — a clean no-op on

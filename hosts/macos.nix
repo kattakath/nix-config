@@ -703,6 +703,13 @@ in
       # channel over a profile holding live logins. Measured 2026-09-07: Opera stores
       # no persistent consent key, so there is nothing to make it stop asking.
       local.mcpGateway.chromeDevtools.enable = true;
+
+      # Per-user container runtime (Colima via home-manager's services.colima),
+      # replacing the docker-desktop cask whose privileged helper was bound to
+      # one username. Operator only for now — the izzy block above asserts he has
+      # no launchd agents until his first login. Why/cost/migration:
+      # modules/shared/containers.nix.
+      local.containers.enable = true;
     };
 
   # ---- OpenDesign: kill the in-app self-updater --------------------------------
@@ -825,7 +832,10 @@ in
       }
       # Claude Desktop — the chat GUI (distinct from the claude-code CLI, nixpkgs).
       "claude"
-      "docker-desktop"
+      # `docker-desktop` is GONE (2026-09-16): its privileged helper bound the
+      # machine-wide socket to one username. The runtime is now per-user Colima —
+      # modules/shared/containers.nix (`local.containers`); the `docker*` brews
+      # above stay as the client.
       "dropbox"
       # escrcpy — graphical frontend for scrcpy (the `scrcpy` brew above), for
       # driving a PHYSICAL Android phone by mouse instead of remembering flags.
