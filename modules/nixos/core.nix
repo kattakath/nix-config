@@ -31,7 +31,14 @@
       # in is the tunnel connector, which terminates on-host and dials
       # localhost:22. Key-only, no password. Physical console (getty) is an
       # independent break-glass path.
-      openssh.authorizedKeys.keys = [ operatorSshKey ];
+      #
+      # `lib.optional`, not a bare list: `mkNixos` defaults `operatorSshKey` to
+      # null so a downstream consumer does not silently inherit the operator's
+      # login credential (see the parameter's note in modules/parts/compose.nix).
+      # A null here means "no key was granted", which leaves the account
+      # key-only with no keys — unreachable over the network, console only —
+      # rather than `[ null ]`, which is a type error at build time.
+      openssh.authorizedKeys.keys = lib.optional (operatorSshKey != null) operatorSshKey;
     };
 
     services.openssh = {
