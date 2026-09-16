@@ -23,7 +23,21 @@ valid:
   - '{ runnerDirInGuest = "/Users/admin/actions-runner"; }'
   - '{ stateDir = "/Users/tester/.local/state/tart-runner"; }'
   - '{ example = [ "Downloads:/Users/me/Downloads" ]; }'
+  # `users.users.<name>.home` DECLARES where a home is, and is the one place the
+  # literal is required rather than merely tolerated: $HOME is undefined at eval
+  # and `config.users.users.<n>.home` here would be a self-reference. The audit
+  # that found the trailing-slash gap cited this exact line as one the rule
+  # should catch; it is a FALSE positive, and the rule exempts it by SHAPE (the
+  # `home` attrpath) rather than by account name, so it survives a rename.
+  - '{ users.users.izzy.home = "/Users/izzy"; }'
+  - '{ home = "/Users/izzy"; }'
 invalid:
+  # THE TRAILING-SLASH GAP (2026-09-16). A path ending AT the home directory
+  # passed the old pattern, which required a `/` after the user segment — so a
+  # value that is merely a home path, rather than a home DECLARATION, slipped
+  # through both this rule and the companion hook.
+  - '{ dir = "/home/izzy"; }'
+  - '{ stateDir = "/Users/ismail"; }'
   - '{ dir = "/Users/ismail/Developer/x"; }'
   - '{ dir = "/home/ismail/.config/foo"; }'
   # Inside an indented string (a script body) counts too.

@@ -238,6 +238,37 @@ let
           .resource // {} | to_entries[] | .key as $type
           | .value | keys[] | $type + "." + .
         ' config.tf.json | sort > .render-addrs
+        # EMPTY-STATE GUARD — the mirror of the drop check, and the hole it
+        # closes was found the same day the drop check shipped. The comparison
+        # above is state MINUS render, so an EMPTY state yields an empty
+        # difference and refuses nothing, while the floor check passes because
+        # the render is full. Both guards are blind to a CREATE over live infra.
+        #
+        # That is not hypothetical here: tofu state is per-USER, under this
+        # account's XDG_STATE_HOME. A second admin on this Mac has no such
+        # directory, so `tofu` from their session sees a pristine workspace and
+        # plans to create a tunnel, DNS records and Access objects that already
+        # exist. State has been lost twice before from a wrong working directory;
+        # this is the same wound through a different door.
+        #
+        # A genuine first apply is indistinguishable from that by construction —
+        # both are "no state, full render" — so this refuses BOTH and makes the
+        # first apply say so explicitly. First applies are rare and deliberate;
+        # the accident is neither.
+        render_count=$(wc -l < .render-addrs | tr -d ' ')
+        if [ ! -s .state-addrs ] && [ "''${render_count:-0}" -gt 0 ]; then
+          echo "REFUSING: state is EMPTY but this render declares ''${render_count} resource(s)." >&2
+          echo "  Working directory: $state_dir" >&2
+          echo "  Applying now would try to CREATE infrastructure that may already" >&2
+          echo "  exist, and a tofu apply has NO rollback." >&2
+          echo "  Most likely you are running as a DIFFERENT USER than the one whose" >&2
+          echo "  state holds the live stack — tofu state here is per-user." >&2
+          echo "  If this really is the first apply for this account, say so:" >&2
+          echo "    CF_TUNNEL_ALLOW_CREATE=1 ${name}" >&2
+          [ "''${CF_TUNNEL_ALLOW_CREATE:-}" = "1" ] || exit 1
+          echo "WARNING: CF_TUNNEL_ALLOW_CREATE=1 set — proceeding against empty state." >&2
+        fi
+
         dropped=$(comm -23 .state-addrs .render-addrs)
         if [ -n "$dropped" ]; then
           echo "REFUSING: this render DROPS resources that state already holds:" >&2
@@ -380,6 +411,37 @@ let
           .resource // {} | to_entries[] | .key as $type
           | .value | keys[] | $type + "." + .
         ' config.tf.json | sort > .render-addrs
+        # EMPTY-STATE GUARD — the mirror of the drop check, and the hole it
+        # closes was found the same day the drop check shipped. The comparison
+        # above is state MINUS render, so an EMPTY state yields an empty
+        # difference and refuses nothing, while the floor check passes because
+        # the render is full. Both guards are blind to a CREATE over live infra.
+        #
+        # That is not hypothetical here: tofu state is per-USER, under this
+        # account's XDG_STATE_HOME. A second admin on this Mac has no such
+        # directory, so `tofu` from their session sees a pristine workspace and
+        # plans to create a tunnel, DNS records and Access objects that already
+        # exist. State has been lost twice before from a wrong working directory;
+        # this is the same wound through a different door.
+        #
+        # A genuine first apply is indistinguishable from that by construction —
+        # both are "no state, full render" — so this refuses BOTH and makes the
+        # first apply say so explicitly. First applies are rare and deliberate;
+        # the accident is neither.
+        render_count=$(wc -l < .render-addrs | tr -d ' ')
+        if [ ! -s .state-addrs ] && [ "''${render_count:-0}" -gt 0 ]; then
+          echo "REFUSING: state is EMPTY but this render declares ''${render_count} resource(s)." >&2
+          echo "  Working directory: $state_dir" >&2
+          echo "  Applying now would try to CREATE infrastructure that may already" >&2
+          echo "  exist, and a tofu apply has NO rollback." >&2
+          echo "  Most likely you are running as a DIFFERENT USER than the one whose" >&2
+          echo "  state holds the live stack — tofu state here is per-user." >&2
+          echo "  If this really is the first apply for this account, say so:" >&2
+          echo "    MCP_PUBLIC_ALLOW_CREATE=1 ${name}" >&2
+          [ "''${MCP_PUBLIC_ALLOW_CREATE:-}" = "1" ] || exit 1
+          echo "WARNING: MCP_PUBLIC_ALLOW_CREATE=1 set — proceeding against empty state." >&2
+        fi
+
         dropped=$(comm -23 .state-addrs .render-addrs)
         if [ -n "$dropped" ]; then
           echo "REFUSING: this render DROPS objects that state already holds:" >&2
