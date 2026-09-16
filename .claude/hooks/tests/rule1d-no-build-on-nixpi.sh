@@ -50,8 +50,15 @@ ck block "$SH $DC '$NR switch --flake .#nixpi $BH $PI'"
 ck block "/bin/$SH $LC \"ssh nixpi nix build .#foo\""
 ck block "env $NR switch $BH=nixpi"
 ck block "sudo -u ismail $NR switch $BH=nixpi"
-# A payload containing `&&` proves the unwrap runs BEFORE the segment split.
+# A payload containing `&&` proves the wrapper's payload is re-segmented.
 ck block "$SH $DC 'true $AND nix build .#foo --builders ssh://nixpi'"
+# A QUOTED payload on a remote shell. The old splitter was quote-blind and the
+# ssh regex stopped at `[^\n|;&]`, so the `&&` inside the quotes cut the match
+# short and this was APPROVED — a build on the SD card.
+ck block "ssh $PI 'true $AND nix build .#foo'"
+# A REAL second line that RUNS the shape (as opposed to quoting it) still blocks.
+ck block "echo hi
+$SH $DC '$NR switch $BH nixpi'"
 
 echo "== must APPROVE (builds HERE, or does not build at all) =="
 ck approve "$NR switch --flake .#nixpi $TH ismail@$PI"
@@ -68,9 +75,16 @@ echo "== must APPROVE: the shape MENTIONED as data, not run =="
 ck approve "git commit -m \"blocks $BH $PI now\""
 ck approve "echo \"do not run: ssh $PI nix build\""
 ck approve "grep -rn \"$BH\" .claude/hooks/"
-# A wrapper quoted INSIDE a message is not at a command position, so it is not
-# unwrapped — the regression the CMD_POS anchor on SHELL_DASH_C exists to stop.
+# A wrapper quoted INSIDE a message is part of that message's segment, so it is
+# never mistaken for one that would RUN.
 ck approve "git commit -m \"$SH $DC '$NR switch $BH nixpi' is blocked\""
+# The MULTI-LINE version, which is the shape this repo actually writes. Until
+# quote-aware splitting (2026-09-16) the body's newline was read as a command
+# boundary, so this exact commit message was BLOCKED — the third time this rule
+# would have blocked its own carrier commit.
+ck approve "git commit -m \"fix the guard
+
+$SH $DC '$NR switch $BH nixpi' is blocked now\""
 
 echo
 echo "pass=$pass fail=$fail"
