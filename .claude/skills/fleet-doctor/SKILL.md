@@ -36,9 +36,15 @@ A satellite still on disk is a working copy that outlived its remote — do not
 re-add it.
 
 **`nix-personal` is RETIRED (2026-09-15).** Every value it held is folded directly into
-this repo (`hosts/macos.nix`, `modules/parts/identity.nix`); the `activate` CLI it
-depended on is deleted. Steps D (cross-repo pin) and G (host re-activation) below were
-the two that existed only to serve it — both collapsed to match.
+this repo (`hosts/macos.nix`, `modules/parts/identity.nix`). Steps D (cross-repo pin) and
+G (host re-activation) below were the two that existed only to serve it — both collapsed
+to match.
+
+`activate` did NOT go with it. The CLI that was retired was nix-personal's
+freshness-gated one; this repo grew its own the same day (`packages/activate.nix`,
+114c9a4) and it is the activation command CLAUDE.md names — a self-elevating
+`darwin-rebuild switch` that works from any directory and prints the flake dir and
+branch@rev before it builds. Step F below already runs it.
 
 ## Modes
 
@@ -61,7 +67,7 @@ the two that existed only to serve it — both collapsed to match.
 | `nix flake lock --update-input <sibling>` + `nix flake check`, commit + push **only if check passes** | Committing/pushing anything that isn't this skill's own mechanical fix (stray WIP is reported, never committed) |
 | Deleting a **local-only branch already merged into the repo's default branch** | Force-push, `git reset --hard`, `git clean -f`, any destructive git op |
 | Re-running `nix fmt` / the repo's own format-fix on a repo already being touched | Reactivating a host when the guest/host is unreachable — report as skipped, don't retry-loop |
-| Re-activating macos (`sudo darwin-rebuild switch --flake .#macos`) when its composing repos moved | Disk operations of any kind (`diskutil`, partitioning) |
+| Re-activating macos (`activate`) when its composing repos moved | Disk operations of any kind (`diskutil`, partitioning) |
 | Nixpi: **disk-usage report only** — no GC/activation without an explicit ask (it's the live server; see `docs/nixpi-sd-flashing-runbook.md`) | Rotating secrets/tokens, editing `secrets/*.age`, anything with `secret set` |
 | — | `sudo nix-collect-garbage -d` on the host — determinate-nixd collects in the background now, and `-d` drops **every** old generation, leaving no rollback target |
 

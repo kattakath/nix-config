@@ -84,10 +84,13 @@
 # THE COUNT WENT TO ONE on 2026-09-15. nix-personal is fully RETIRED — every value it held
 # (AWS SSO profiles, extra gmail accounts, git identities, the OpenAI gateway, the real
 # `hostedSites`) is folded directly into nix-config (`hosts/macos.nix`,
-# `modules/parts/identity.nix`); the `activate` CLI it depended on
-# (packages/activate.nix / lib.mkActivateCli) is deleted along with it — there is only one
-# checkout to activate now (`darwin-rebuild switch --flake .#macos` /
-# `nixos-rebuild switch --flake .#nixpi` directly). Its line came out of this manifest and
-# steps D and G of SKILL.md, which existed only to serve it, were collapsed to match.
+# `modules/parts/identity.nix`) — there is only one checkout to activate now. Its line
+# came out of this manifest and steps D and G of SKILL.md, which existed only to serve
+# it, were collapsed to match.
+#
+# What was retired was nix-personal's FRESHNESS-GATED `activate` (lib.mkActivateCli),
+# which reconciled two checkouts. nix-config grew its own `activate` the same day
+# (packages/activate.nix, 114c9a4) and that one is live and on PATH: a self-elevating
+# `darwin-rebuild switch` that works from any directory. Use it.
 
 github.com/kattakath/nix-config
