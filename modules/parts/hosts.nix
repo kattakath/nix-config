@@ -8,7 +8,15 @@
 { config, ... }:
 let
   inherit (config.flake.lib) mkDarwin mkNixos;
-  inherit (config.fleet) hostedSites orgName repoName;
+  inherit (config.fleet)
+    hostedSites
+    orgName
+    repoName
+    # The operator's login credential. Reached here rather than defaulted inside
+    # mkNixos so the grant is written where the host is declared — see the
+    # `operatorSshKey` note in modules/parts/compose.nix.
+    operatorSshKey
+    ;
 
   # Where THIS operator's working tree lives, relative to $HOME. Spelled once
   # here because bootstrap.sh derives the very same path from --flake
@@ -79,7 +87,10 @@ in
     "nixpi" = mkNixos {
       system = "aarch64-linux";
       hostname = "nixpi";
-      inherit hostedSites;
+      # EXPLICIT, because it is the login credential. mkNixos defaults it to
+      # null so a downstream consumer of `lib.mkNixos` cannot inherit it by
+      # omission; the fleet's own hosts opt in here, where the host is declared.
+      inherit hostedSites operatorSshKey;
     };
 
     # Throwaway aarch64-linux dev VM, materialised ONLY as the graphical
@@ -91,6 +102,7 @@ in
     "nixvm" = mkNixos {
       system = "aarch64-linux";
       hostname = "nixvm";
+      inherit operatorSshKey;
     };
 
     # (There is no separate `nixpi-installer`. The LIVE `nixpi` sdImage above
