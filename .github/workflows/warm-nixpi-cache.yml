@@ -102,6 +102,27 @@ jobs:
         run: git add -A
 
       - name: Build the nixpi toplevel
+        id: build
         run: |
-          nix build .#nixosConfigurations.nixpi.config.system.build.toplevel \
-            --no-link --print-build-logs --print-out-paths
+          out=$(nix build .#nixosConfigurations.nixpi.config.system.build.toplevel \
+            --no-link --print-build-logs --print-out-paths)
+          echo "out=$out" >> "$GITHUB_OUTPUT"
+
+      # This workflow exists to guarantee ONE property: the Pi can substitute
+      # rather than build. Building proves it was MADE, not that Cachix received
+      # it — the push is cachix-action's implicit post step, and nothing here
+      # asserted it landed. A silent push failure leaves a GREEN run that
+      # authorises a deploy, the Mac then plans a build, hits the documented
+      # caddy EPERM on the native Linux builder, and the tempting fallback is
+      # building on the Pi: hazard #1, the physical-reflash one. Worse, the repo
+      # already documents a DIFFERENT, benign cause for the same symptom (the 1h
+      # narinfo negative cache), which trains the operator to wait it out.
+      - name: Verify the closure is actually substitutable from Cachix
+        run: |
+          out='${{ steps.build.outputs.out }}'
+          if ! nix path-info --store https://kattakath.cachix.org "$out" >/dev/null 2>&1; then
+            echo "::error::$out is NOT in Cachix — the Pi would have to BUILD it." >&2
+            echo "The build succeeded but the push did not land. Check CACHIX_AUTH_TOKEN." >&2
+            exit 1
+          fi
+          echo "substitutable: $out"
