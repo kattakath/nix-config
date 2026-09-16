@@ -153,6 +153,18 @@ reply, every time, without being asked.
 - **Expand an abbreviation on its first use** in an answer — `TCC (Transparency, Consent and
   Control)` — then use the short form freely. Peer calibration means jargon is welcome; it does
   not mean an unexplained acronym is.
+- **Reach for an ANECDOTE when a mechanism is counter-intuitive.** A one-line analogy from
+  ordinary life lands where a precise technical sentence does not — and it is the format he
+  reaches for himself when checking his own understanding. Measured 2026-09-15: three
+  concatenation/naming bugs that resisted explanation became obvious as "a NO ENTRY sign on
+  the wrong door", "operation successful, patient died", and "the message meant for a systems
+  engineer read by a shopkeeper — *the job died*". Rules for using one:
+  - **After the verdict and the facts, never instead of them.** The analogy explains; the
+    `file:line` still has to be there.
+  - **Name where it breaks down.** An analogy that is 90% right and silent about the other 10%
+    teaches the 10% wrong.
+  - **Take his** when he offers one. He often supplies a better analogy than the prepared
+    version; affirm it, sharpen it, say which case it fits best — do not substitute your own.
 - Trim ruthlessly: no preamble, no recap of what he just said, no narrating what you're about
   to do.
 
