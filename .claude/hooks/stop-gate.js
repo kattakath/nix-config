@@ -200,11 +200,36 @@ const finishOk = (systemMessage) => {
   process.exit(0);
 };
 
-// Not a git repo or no nix files yet: nothing to gate.
+// Not a git repo: nothing to gate. But ONLY that — this catch used to approve on
+// ANY git failure, which made the entire Stop gate fail open in silence.
+//
+// Measured 2026-09-16 in a cross-owned checkout (a tree owned by one account,
+// worked in as another): git refuses with "detected dubious ownership in
+// repository", this catch swallowed it, and git-purity, the nix syntax check and
+// the flake check were all reported green WITHOUT RUNNING. A gate that cannot
+// fire is worse than no gate, because with no gate you at least know you are
+// unprotected — this is the same class of defect as the audit that found it.
+//
+// So: distinguish the two. "not a git repository" is the legitimate no-op.
+// Anything else — dubious ownership, a broken index, git missing from PATH —
+// BLOCKS and says plainly that no gate ran.
 try {
   run("git rev-parse --is-inside-work-tree");
-} catch {
-  approve();
+} catch (e) {
+  const msg = `${(e && e.stderr) || ""}${(e && e.message) || ""}`;
+  if (/not a git repository/i.test(msg)) {
+    approve();
+  }
+  block(
+    `The Stop gate could not talk to git, so NOTHING was checked — not git purity, ` +
+      `not nix syntax, not flake check. This is a hard block rather than a silent pass ` +
+      `because a gate that cannot fire is worse than no gate.\n\n` +
+      `git said: ${msg.trim().split("\n")[0] || "(no output)"}\n\n` +
+      `The usual cause is a cross-owned checkout — working in a tree owned by another ` +
+      `account, which git rejects as "dubious ownership". Fix the ownership, or work in ` +
+      `the clone that /etc/nix-darwin/flake.nix resolves to, rather than adding an ` +
+      `exception that would re-open this.`,
+  );
 }
 
 // 1. Git purity — untracked .nix files make flake evaluation untrustworthy.
