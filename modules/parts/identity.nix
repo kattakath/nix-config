@@ -115,12 +115,11 @@ let
       zoneId = "21de2a6be1b268b2b151ae0b3592e562";
       root = ../../sites/snoringirl;
     }
-    {
-      domain = "ismail.kattakath.com";
-      zoneId = "6e28971881e488941d052bbbf50d69cd";
-      root = ../../sites/ismail-landing;
-      www = false;
-    }
+    # ismail.kattakath.com moved OFF nixpi/Caddy to GitHub Pages 2026-09-16 (nixpi
+    # was down; decoupled from the Pi). Now served by the kattakath/ismail-landing
+    # repo; DNS is a plain CNAME -> kattakath.github.io (DNS-only), no longer a
+    # tunnel CNAME here. sites/ismail-landing stays as the content source that
+    # seeded that repo. Re-add an entry here only to serve it from nixpi again.
   ];
 
   # ---- MCP servers exposed on the public gateway ---------------------------
