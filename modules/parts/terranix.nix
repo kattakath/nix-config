@@ -223,22 +223,35 @@ let
           # nothing to drop.
           : > .state-addrs.raw
         fi
-        grep -E '^cloudflare_(dns_record|ruleset)\.' .state-addrs.raw \
+        # EVERY cloudflare_* type, not an allow-list of two. The first version of
+        # this guard named `dns_record|ruleset` and therefore inspected 2 of the 6
+        # types the config renders — so a render dropping
+        # `cloudflare_zero_trust_access_application.nixpi_ssh` (the SSH Access gate
+        # that VANISHED on 2026-08-20 and took ssh plus both deploy legs with it)
+        # or any `cloudflare_zone_setting` (the ssl=strict / min_tls / HSTS floor)
+        # passed both this check and the floor above, and was applied. An
+        # allow-list is the wrong shape here: the failure mode of forgetting to
+        # add a type is silent deletion, so the default must be "covered".
+        grep -E '^cloudflare_[a-z0-9_]+\.' .state-addrs.raw \
           | sort > .state-addrs || true
         ${pkgs.jq}/bin/jq -r '
-          (.resource.cloudflare_dns_record // {} | keys[] | "cloudflare_dns_record." + .),
-          (.resource.cloudflare_ruleset    // {} | keys[] | "cloudflare_ruleset."    + .)
+          .resource // {} | to_entries[] | .key as $type
+          | .value | keys[] | $type + "." + .
         ' config.tf.json | sort > .render-addrs
         dropped=$(comm -23 .state-addrs .render-addrs)
         if [ -n "$dropped" ]; then
           echo "REFUSING: this render DROPS resources that state already holds:" >&2
           printf '%s\n' "$dropped" | sed 's/^/    /' >&2
-          echo "  Applying it would DELETE each of them at Cloudflare." >&2
+          echo "  Applying it would DELETE each of them at Cloudflare, and a tofu" >&2
+          echo "  apply has NO rollback — not a generation, not magicRollback." >&2
           echo "  Usually this means hostedSites lost an entry it should still have." >&2
           echo "  Override only if you genuinely mean to delete them:" >&2
-          echo "    CF_TUNNEL_ALLOW_SITE_FREE=1 ${name}" >&2
-          [ "''${CF_TUNNEL_ALLOW_SITE_FREE:-}" = "1" ] || exit 1
-          echo "WARNING: CF_TUNNEL_ALLOW_SITE_FREE=1 set — proceeding with the deletions." >&2
+          echo "    CF_TUNNEL_ALLOW_DROPS=1 ${name}" >&2
+          # Its OWN variable. Sharing CF_TUNNEL_ALLOW_SITE_FREE would mean an
+          # operator standing down the floor for a legitimate site removal also
+          # silently stood down this check on the same run.
+          [ "''${CF_TUNNEL_ALLOW_DROPS:-}" = "1" ] || exit 1
+          echo "WARNING: CF_TUNNEL_ALLOW_DROPS=1 set — proceeding with the deletions." >&2
         fi
 
         # "$@" is forwarded LAST so a caller can add flags (-auto-approve,
@@ -353,6 +366,31 @@ let
           echo "    MCP_PUBLIC_ALLOW_EMPTY=1 ${name}" >&2
           [ "''${MCP_PUBLIC_ALLOW_EMPTY:-}" = "1" ] || exit 1
           echo "WARNING: MCP_PUBLIC_ALLOW_EMPTY=1 — unpublishing all servers." >&2
+        fi
+
+        # PARTIAL loss, which the check above cannot see. It fires only when the
+        # render publishes ZERO servers, so a render that keeps three of five
+        # passes it and then deletes two registrations, their portal attachments
+        # and their Access applications — reporting success. Same delta shape as
+        # the nixpi builder, over every rendered type rather than an allow-list,
+        # for the same reason: forgetting a type here deletes silently.
+        grep -E '^cloudflare_[a-z0-9_]+\.' .state-addrs.raw \
+          | sort > .state-addrs || true
+        ${pkgs.jq}/bin/jq -r '
+          .resource // {} | to_entries[] | .key as $type
+          | .value | keys[] | $type + "." + .
+        ' config.tf.json | sort > .render-addrs
+        dropped=$(comm -23 .state-addrs .render-addrs)
+        if [ -n "$dropped" ]; then
+          echo "REFUSING: this render DROPS objects that state already holds:" >&2
+          printf '%s\n' "$dropped" | sed 's/^/    /' >&2
+          echo "  Applying it would DELETE each of them, and a tofu apply has NO" >&2
+          echo "  rollback. Usually this means local.mcpGateway.public and" >&2
+          echo "  config.fleet.publicMcpServers have drifted apart." >&2
+          echo "  Override only if you genuinely mean to delete them:" >&2
+          echo "    MCP_PUBLIC_ALLOW_DROPS=1 ${name}" >&2
+          [ "''${MCP_PUBLIC_ALLOW_DROPS:-}" = "1" ] || exit 1
+          echo "WARNING: MCP_PUBLIC_ALLOW_DROPS=1 set — proceeding with the deletions." >&2
         fi
 
         # See the note on the nixpi builder: forwarded last, cannot weaken the
