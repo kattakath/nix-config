@@ -366,13 +366,22 @@ Home Manager profile. What the split is and is not:
   The obvious fix is itself a trap, and this fleet hit all three rungs of it. `$PIPESTATUS`
   is a BASH array; in zsh — the login shell here — it does not exist, so **every** index
   expands to the empty string, not just `[0]`. zsh's array is lowercase `$pipestatus` and is
-  1-indexed. And either array is clobbered by the NEXT command, an assignment included, so it
-  must be captured on the same line, lowercase first. Measured:
+  1-indexed. And either array is destroyed by the next COMMAND that runs — an assignment
+  counts, a newline does not. Measured:
 
   ```
   sh -c 'exit 3' | cat; LO=("${pipestatus[@]}")   # -> (3 0)   correct
-  sh -c 'exit 3' | cat; UP=("${PIPESTATUS[@]}")   # -> ()      empty at every index
+  sh -c 'exit 3' | cat; UP=("${PIPESTATUS[@]}")   # -> ()      empty at EVERY index
+  sh -c 'exit 5' | cat
+  echo "(${pipestatus[@]})"                       # -> (5 0)   survives a newline
+  sh -c 'exit 7' | cat
+  : ; echo "(${pipestatus[@]})"                   # -> (0)     one no-op command destroys it
   ```
+
+  So the rule is **capture before anything else runs**, not "same line" — reading it on the
+  following line works, because the expansion happens while building the next command's
+  arguments rather than after that command has run. Same line, lowercase first, nothing in
+  between is simply the version that cannot go wrong.
 
   So the rule is not "use `[1]`" — that still yields nothing in zsh and still reads as a pass.
   Either do not pipe (`cmd > /tmp/out 2>&1; RC=$?`, then read the file) or use lowercase
