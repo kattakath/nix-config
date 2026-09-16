@@ -332,6 +332,7 @@ Home Manager profile. What the split is and is not:
   `claude-guardrails.nix`. `programs.claude-code.enable` is the load-bearing line there —
   those modules only set `programs.claude-code.*`, which defaults OFF, so importing them
   without it produces a BYTE-IDENTICAL system.
+- **Switching between them from a terminal: `sudo launchctl asuser <uid> sudo -u <user> -i`, then re-point `SSH_AUTH_SOCK` (sudo's `env_keep` carries the stale one) — never `su`** — `su` (and `su -`/`sudo -i`) keeps the caller's Aqua session, so the SSH agent socket, clipboard, GUI launches and HM env guards all stay the caller's; the measured table is in [`new-mac-runbook.md` § Two accounts on one Mac](new-mac-runbook.md#two-accounts-on-one-mac).
 - **A never-logged-in account blocks activation, SILENTLY.** A user launchd agent can only
   bootstrap into that user's own GUI session, so any agent declared for an account that has
   never logged in fails with `Bootstrap failed: 125: Domain does not support specified
@@ -1462,7 +1463,10 @@ Core package set:
   runs against the local ollama daemon.
 - **`devcontainer-image.nix`** — MULTI-ARCH devcontainer OCI image (arm64+amd64,
   `dockerTools.streamLayeredImage`), published to GHCR as a manifest list; arch-parameterized
-  loader path inside.
+  loader path inside. It is a **CI/Codespaces artifact, not a local-Mac path**: the `vscode`
+  user is pinned to uid/gid 1000 (`updateRemoteUserUID: false`, because fakeNss's
+  `/etc/passwd` is read-only), so on a Linux host every file it writes into a mounted workspace
+  is owned by uid 1000 — neither Mac account (`ismail` 501, `izzy` 502).
 - **`nixpi-provision.nix`** — macOS-only: the four
   `nixpi-flash`/`nixpi-provision`/`nixpi-wifi-creds`/`nixpi-vault-token`
   `writeShellApplication` flake apps that flash the SD card and plant the token+Wi-Fi onto its
