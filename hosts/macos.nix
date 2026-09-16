@@ -552,6 +552,21 @@ in
         email = "hi@izzykatt.ca";
       };
 
+      # `types.lines` MERGES across definitions (appends, does not replace), so this
+      # ADDS a second valid signer for hi@izzykatt.ca rather than replacing the
+      # one modules/shared/home.nix's own allowedSigners already lists (both
+      # accounts trusting the operator's key, per 825efe8 — deliberate: same
+      # person, one key, multiple personas). This account's actual keypair
+      # (~/.ssh/id_ed25519, generated locally 2026-09-16) is a DIFFERENT key —
+      # so without this line, izzy's own commits sign correctly (that only
+      # needed a keypair to exist) but `git verify-commit`/`log
+      # --show-signature` on THIS account report "No principal matched"
+      # forever, because the key this account actually signs with was never in
+      # the list this account checks against. Either key now verifies him.
+      programs.git.signing.allowedSigners = ''
+        hi@izzykatt.ca namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBi26eg956+XCl9XsH68Z0Mi6dYYPtUBdcvHE/aK2O1e
+      '';
+
       # ---- No media agents for the second account ----------------------------
       # A user launchd agent can only bootstrap into that user's GUI session, and
       # while `gui/502` did not exist every agent failed with
