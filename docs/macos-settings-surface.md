@@ -4,7 +4,7 @@ A map of **what macOS settings this repo can drive declaratively**, what it
 *actually* sets today, and the hard walls macOS puts in the way. Scoped to the
 `macos` host (aarch64-darwin, the fleet's sole Mac — see `hosts/macos.nix`).
 
-The machine is assembled by `mkDarwin` in `flake.nix`, which stacks four
+The machine is assembled by `mkDarwin` in `modules/parts/compose.nix`, which stacks four
 configuration layers. "What can be configured" is bounded by which layers are
 wired in — so the layers are the spine of this doc.
 

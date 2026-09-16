@@ -19,7 +19,8 @@
 # Sources/rationale: Meta Live requirements + Twitch guidelines + OBS Apple-Silicon
 # encoder threads (see the PR description for the measurements).
 #
-#   obs-fb-setup            # or: nix run .#obs-fb-setup
+#   obs-fb-setup            # on PATH via local.mediaCli; the capsule publishes
+#                           # NO flake apps, so there is no `nix run .#` form
 #   → QUIT OBS first (it rewrites profile files on exit), run this, then launch OBS:
 #     Profile ▸ "Facebook", verify Settings ▸ Output shows "Apple VT H264 Hardware
 #     Encoder" + 6000, Settings ▸ Video shows 1920x1080 @ 30, then Start Streaming.

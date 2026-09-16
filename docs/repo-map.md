@@ -205,7 +205,7 @@ and `utils/systems` deduped — § `flake.lock` above) exists for one property
 not have: **an undo**. It is consumed purely as a `lib` (`activate.nixos`, `deployChecks`) plus
 the `deploy` CLI in the devShell — it is **not** a NixOS/HM module and no host imports it.
 
-`deploy.nodes.nixpi` (defined in `flake.nix` right after `nixosConfigurations`):
+`deploy.nodes.nixpi` (defined in [`modules/parts/deploy.nix`](../modules/parts/deploy.nix)):
 
 | Setting | Value | Why |
 |---|---|---|

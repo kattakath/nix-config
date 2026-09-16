@@ -297,7 +297,7 @@ in
   ];
 
   # NOTE: hostPlatform is set per-host from the darwinSystem `system` arg (via
-  # the mkDarwin helper in flake.nix), NOT hardcoded here — so this shared module
+  # the mkDarwin helper in modules/parts/compose.nix), NOT hardcoded here — so this shared module
   # serves any aarch64-darwin host this flake declares.
 
   # NOTE: no `nix.settings.experimental-features` here. This host runs Determinate

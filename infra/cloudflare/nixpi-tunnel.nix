@@ -18,7 +18,7 @@
 #       vault (`nix run .#nixpi-vault-token` -> secrets/cloudflared-token.age) and
 #       plant on the FIRMWARE partition — NEVER written to git or the store.
 #
-# The SITES it serves are single-sourced as `hostedSites` in flake.nix
+# The SITES it serves are single-sourced as `hostedSites` in modules/parts/identity.nix
 # ([ { domain; zoneId ? null; root; www ? true; ownTunnel ? false } ]) and threaded
 # here via _module.args, so adding a site is ONE list entry — the ingress rule is
 # generated for every site EXCEPT those with `ownTunnel = true`; the apex CNAME and
@@ -60,7 +60,7 @@ let
   # A stable Terraform resource key from a domain: kattakath.com -> kattakath_com.
   siteKey = domain: builtins.replaceStrings [ "." "-" ] [ "_" "_" ] domain;
 
-  # ---- Per-site generation (one entry in flake.nix's hostedSites -> all of this) ----
+  # ---- Per-site generation (one entry in modules/parts/identity.nix's hostedSites -> all of this) ----
   # Web ingress rule: <domain> -> the local Caddy on :80. Excludes sites that opt
   # into `ownTunnel = true` — a `cfargotunnel.com` CNAME only resolves within the
   # SAME Cloudflare account as the tunnel (confirmed via Cloudflare's own docs), so
