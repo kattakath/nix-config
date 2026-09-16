@@ -57,6 +57,13 @@
   # local.mcpGateway.public; empty renders the tunnel + Access objects but
   # registers no server, so nothing is actually reachable.
   publicServers,
+  # The loopback port the second mcp-proxy binds, and therefore the port this
+  # tunnel's ingress must reach. REQUIRED, like the three above — and passed
+  # rather than written here because modules/shared/mcp.nix binds the same
+  # number and the two files cannot see each other. Both now read
+  # modules/parts/identity.nix's `publicMcpPort`; changing one alone used to be
+  # a silent 502 on the public endpoint.
+  publicMcpPort,
   # Remote MCP Workers published under the SAME hostname as the gateway, as a
   # Cloudflare Worker *route* on `<publicSubdomain>/servers/<name>/*` rather than
   # a hostname of their own. They are not on the :8097 proxy — they are
@@ -247,7 +254,7 @@ in
       ingress = [
         {
           hostname = publicHost;
-          service = "http://127.0.0.1:8097";
+          service = "http://127.0.0.1:${toString publicMcpPort}";
         }
         # Mandatory catch-all. Without it the connector would happily proxy any
         # other hostname routed to this tunnel.

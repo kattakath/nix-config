@@ -680,7 +680,11 @@ in
       "duf"
       "ffmpeg"
       "gettext"
-      "git"
+      # `git` is NOT brewed. Home Manager's programs.git already installs it AND
+      # owns its config (~/.config/git/config, the includeIf identities, signing).
+      # Both were git 2.55.0 on 2026-09-16, and `/opt/homebrew/bin` precedes the
+      # nix profile in the login shell — so the brewed copy shadowed the one this
+      # repo actually configures. Identical today; a silent divergence tomorrow.
       "git-cliff" # release stage — changelog / release notes (GitLab CI)
       "git-filter-repo"
       # gitlab-runner moved OFF brew 2026-09-05: local.tart.gitlabRunner below runs
@@ -707,7 +711,9 @@ in
       # adb; the android-platform-tools cask provides the adb mobile-mcp uses).
       "scrcpy"
       "shellcheck"
-      "starship"
+      # `starship` is NOT brewed either, for the same reason as `git` above:
+      # programs.starship installs it and writes ~/.config/starship.toml, both
+      # were 1.26.0, and the brewed one won the PATH.
       "swiftlint" # lint stage — SwiftLint --strict gate (GitLab CI)
       "switchaudio-osx"
       "tree"
