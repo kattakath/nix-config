@@ -24,6 +24,17 @@ let
   # as `args.appdir` land in Izzy's home instead of the shared /Applications,
   # which is what keeps them out of the operator's Finder/Spotlight/Launchpad.
   izzyApps = "${config.users.users.izzy.home}/Applications";
+
+  # The ONE GitHub App both self-hosted runner lanes authenticate as —
+  # "ismailkattakath-ci", operator-owned and public. It was spelled twice, 68
+  # lines apart, in two `let` scopes that cannot see each other: once for the
+  # bare-metal lane and once inside `local.tart`'s `fleetApp`. Three comments in
+  # this file already say the two lanes share one App, and App rotation is
+  # already a documented multi-file ritual (secrets/secrets.nix) — 4689619,
+  # 4845230 and 4243998 were all retired on 2026-09-06 — so leaving the id
+  # duplicated added a fourth place to forget. `installationId` legitimately
+  # differs per lane and stays at each call site.
+  fleetAppId = 4849830;
 in
 {
   imports = [
@@ -92,7 +103,7 @@ in
   local.macosGithubRunner = {
     enable = true;
     org = "dontsell-ai";
-    appId = 4849830;
+    appId = fleetAppId;
     installationId = 159496676;
     count = 2;
   };
@@ -160,7 +171,7 @@ in
   local.tart =
     let
       fleetApp = {
-        appId = 4849830;
+        appId = fleetAppId;
         privateKeyPath = config.age.secrets."gh-app-fleet-key".path;
         image = {
           oci = "ghcr.io/cirruslabs/macos-runner:tahoe";

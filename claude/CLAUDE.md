@@ -206,6 +206,7 @@ is sensitive, treat it as sensitive.
   is the default when nobody says otherwise.
 - **Honor the repo's configured identity — don't hard-code the author.** Author email is set
   declaratively per repo/org via git `includeIf` (e.g. any `dontsell-ai` repo → the SilverCreek
-  identity, `~/.config/git/dontsell.inc`; work emails stay out of the public config). Let the
+  identity, `~/.config/git/silvercreek.inc` — ONE file serves both `dontsell-ai`
+  and `silvercreek-ai`; work emails stay out of the public config). Let the
   git config resolve it; never override the author on the command line except to *repair* a
   commit that predates the config being active.
