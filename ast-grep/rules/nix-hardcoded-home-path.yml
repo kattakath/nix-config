@@ -43,13 +43,44 @@ severity: error
 # catches. `/Users/ismail/`, `/home/ismail/` and every other operator home stay
 # errors, and ast-grep/rule-tests/nix-hardcoded-home-path-test.yml proves both
 # halves — the exemptions are in `valid`, the real homes still in `invalid`.
-# KEEP IN SYNC with .claude/hooks/nix-home-path-lint.js, which carries the same
-# three names for the same reason.
+# KEEP IN SYNC with the companion hook `nix-home-path-lint.js`, which carries the
+# same three names for the same reason.
+#
+# THE TWO ARE OUT OF SYNC AS OF 2026-09-16, and saying so here is the point —
+# an unqualified "keep in sync" next to a rule that has diverged is worse than
+# no instruction, because it reads as a guarantee. This rule gained the
+# terminator fix and the `users.users.*.home` exemption; the hook has neither,
+# so it still misses a path that ends AT the home directory. The hook is not in
+# this tree to fix: it arrives as a PLUGIN hook from `claude-code-nix` in
+# kattakath/ai (CLAUDE.md § Hooks — deliberately not re-added here, or it would
+# fire twice). Closing the gap needs a change in that repo. Until it lands, the
+# hook is the LOOSER of the two and this gate is the one that holds.
+# TERMINATOR, not a literal trailing slash (fixed 2026-09-16). The old pattern
+# required a `/` AFTER the user segment, so a path that ENDS at the home
+# directory slipped through both this rule and the companion hook — and the one
+# that slipped through was `home = "/Users/izzy";` in hosts/macos.nix, a value,
+# in this repo, added the day the second account arrived. `($|[^a-z0-9._-])`
+# accepts end-of-fragment or any character that cannot continue a username, so
+# `/Users/izzy`, `/Users/izzy/x` and `/Users/izzy ` all match while
+# `/Users/Shared` (uppercase) and `/Users/$USER` (not [a-z]) still do not.
 rule:
   kind: string_fragment
-  regex: '/(Users|home)/[a-z][a-z0-9._-]*/'
+  regex: '/(Users|home)/[a-z][a-z0-9._-]*($|[^a-z0-9._-])'
   not:
-    regex: '/(Users|home)/(admin|tester|me)/'
+    any:
+      - regex: '/(Users|home)/(admin|tester|me|stranger)($|[^a-z0-9._-])'
+      # `users.users.<name>.home = "/Users/<name>";` DECLARES where a home is.
+      # It is the one place the literal is not just allowed but required: $HOME
+      # is undefined at eval, and `config.users.users.<n>.home` here would be a
+      # self-reference. Exempted by SHAPE rather than by name, so it keeps
+      # holding when the account is renamed — and so that every other use of a
+      # home path stays an error.
+      - inside:
+          kind: binding
+          stopBy: end
+          has:
+            field: attrpath
+            regex: '(^|\.)home$'
 
 message: Hardcoded per-user home path inside a Nix string.
 note: |
@@ -60,4 +91,6 @@ note: |
   are correct — this rule cannot see them.) Exempt: admin / tester / me — a Tart
   GUEST account, an evalModules fixture and an option-example placeholder, none
   of which is a path on a fleet machine; see the header comment. Same convention
-  as .claude/hooks/nix-home-path-lint.js; keep both in sync.
+  as the companion `nix-home-path-lint.js` hook — which LAGS this rule as of
+  2026-09-16 (no terminator fix, no home-declaration exemption) and lives in
+  kattakath/ai, not this tree. This gate is the stricter of the two.
