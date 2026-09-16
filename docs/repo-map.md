@@ -1537,7 +1537,9 @@ Smaller, single-purpose CLIs:
   [`claude-code-observability-runbook.md`](claude-code-observability-runbook.md).
 - **`resend-cli.nix`** — the official Resend CLI, not yet in nixpkgs so `npx`-wrapped and
   version-pinned same as `mcp-wordpress`/`telegram-mcp`; injects `RESEND_API_KEY` from the
-  login Keychain at run time — wired only via `home.packages`, no matching flake app.
+  login Keychain at run time — wired only via `home.packages`, no matching flake app. The
+  lookup is by Keychain **service** `resend.com:api`, not by the env name, so set it with
+  `pbpaste | secret set --env RESEND_API_KEY resend.com:api`.
 - **`design-tokens/`** / **`email-signature/`** — small self-contained build-script-backed
   packages for their respective assets.
 
