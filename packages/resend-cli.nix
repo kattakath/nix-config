@@ -14,7 +14,11 @@
 # integration (Vercel env `RESEND_API_KEY`, sourced from this same Keychain entry).
 # Resilient by design (warns, does not abort) so a missing secret can't break other Keychain-
 # dependent activation steps: `resend` itself will simply fail auth until one is set.
-#   secret set RESEND_API_KEY <key>   # Resend dashboard -> API Keys
+# The Keychain SERVICE is `resend.com:api` (the <tool>:<host>:<kind> convention), and the
+# lookup below is by service — so `secret set RESEND_API_KEY <key>` would store it under
+# the service `RESEND_API_KEY` and this wrapper would never find it. Bind the env name
+# explicitly instead, and pipe the value so it never reaches argv or shell history:
+#   pbpaste | secret set --env RESEND_API_KEY resend.com:api   # Resend dashboard -> API Keys
 {
   writeShellApplication,
   nodejs,
@@ -25,7 +29,7 @@ writeShellApplication {
   text = ''
     key="$(/usr/bin/security find-generic-password -a "$(id -un)" -s resend.com:api -w 2>/dev/null || true)"
     if [ -z "$key" ]; then
-      echo "resend: RESEND_API_KEY not found in the login Keychain — auth will fail until set (secret set RESEND_API_KEY <key>)." >&2
+      echo "resend: no login-Keychain secret for service resend.com:api — auth will fail until set (pbpaste | secret set --env RESEND_API_KEY resend.com:api)." >&2
     fi
     export RESEND_API_KEY="$key"
     exec npx -y resend-cli@2.14.0 "$@"
