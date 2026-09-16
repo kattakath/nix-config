@@ -50,5 +50,5 @@ note: |
   `pkgs.writeShellScriptBin "nix-<activity>" ''…''` and point
   ProgramArguments[0] (or Program) at that wrapper — never directly at
   ${pkgs.bash}/bin/sh or a python/node interpreter. Home Manager user agents are
-  wrapped automatically by modules/shared/hm-launchd/; do not bypass it. Full
+  wrapped automatically by modules/shared/launchd-launcher.nix; do not bypass it. Full
   rationale + audit script: .claude/rules/launchd-naming.md.
