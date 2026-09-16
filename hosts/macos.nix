@@ -25,6 +25,11 @@ let
   # which is what keeps them out of the operator's Finder/Spotlight/Launchpad.
   izzyApps = "${config.users.users.izzy.home}/Applications";
 
+  # DERIVED for the same reason as izzyApps. This one is a Directory Services
+  # NODE path rather than a filesystem path, but it is still a per-user literal,
+  # and the ast-grep gate cannot tell the two apart — nor should it have to.
+  izzyDsNode = "/Users/${config.users.users.izzy.name}";
+
   # The ONE GitHub App both self-hosted runner lanes authenticate as —
   # "ismailkattakath-ci", operator-owned and public. It was spelled twice, 68
   # lines apart, in two `let` scopes that cannot see each other: once for the
@@ -305,7 +310,7 @@ in
   #   ln: failed to create symbolic link '/Users/izzy/Applications/Home Manager Apps'
   # because neither account can write it.
   #
-  # Both accounts are in `staff` (izzy is deliberately not in `admin`), so
+  # Both accounts are in `staff`, so
   # owning the directory by the account and making it group-writable lets the
   # operator's brew AND Izzy's Home Manager both write. Ordering is the whole
   # point of `mkBefore`: this lands in `postActivation`, which runs AFTER
@@ -326,16 +331,21 @@ in
     # it, which is exactly the drift this repo exists to prevent.
     #
     # The default is TRUE, aimed at service accounts like `_github-runner`. Left
-    # there, a human account is created perfectly — uid, admin, password, home —
+    # there, a human account is created perfectly — uid, admin, home (NOT a
+    # password: the pinned nix-darwin has no `password`/`hashedPassword` option
+    # and account creation runs `sysadminctl -addUser` without one, so a
+    # wipe-and-rebuild yields a PASSWORDLESS admin. That step is genuinely not
+    # expressible in Nix on darwin and belongs in
+    # docs/new-mac-runbook.md § Manual steps Nix can't do) —
     # and is simply INVISIBLE: no login window entry, no Fast User Switching, no
     # System Settings ▸ Users & Groups. It cannot be logged into, so its
     # `gui/502` launchd domain never exists, so its user agents can never
     # bootstrap. That is the whole chain behind "izzy user not found anywhere".
     #
     # Idempotent: dscl -create is a write-if-different, and this reads back 0.
-    if [ "$(/usr/bin/dscl . -read /Users/izzy IsHidden 2>/dev/null | /usr/bin/awk '{print $2}')" != "0" ]; then
+    if [ "$(/usr/bin/dscl . -read ${izzyDsNode} IsHidden 2>/dev/null | /usr/bin/awk '{print $2}')" != "0" ]; then
       printf '%s\n' "izzy: unhiding the account (nix-darwin only sets IsHidden at creation)"
-      /usr/bin/dscl . -create /Users/izzy IsHidden 0
+      /usr/bin/dscl . -create ${izzyDsNode} IsHidden 0
     fi
 
     printf '%s\n' "izzy: reconciling ${izzyApps} ownership (brew writes as ${loginName}, HM writes as izzy)"
@@ -399,8 +409,23 @@ in
       imports = [ ../modules/shared/home.nix ];
       home.stateVersion = "24.05";
 
-      # NO launchd agents until Izzy has logged in once — delete this block the
-      # moment he has, together with local.mediaCli.enable above.
+      # NO launchd agents for the second account. PERMANENT per-account policy —
+      # do NOT delete this block.
+      #
+      # It used to say "delete this the moment he has logged in once". He HAS
+      # logged in; obeying that instruction now would be actively harmful, which
+      # is why it is gone rather than merely stale. Four agents are ALREADY
+      # registered and running in `gui/502` as orphans — next-right-thing,
+      # media-queue, media-queue-power and an ssh-keychain-load in an EX_CONFIG 78
+      # respawn loop — left behind from before these disables landed. Re-enabling
+      # the declared agents would put a SECOND copy of each alongside them.
+      #
+      # Those orphans cannot be reached from here: home-manager skips its launchd
+      # cleanup when there is no previous generation, and izzy's profile
+      # directory is empty, so the skip is permanent and self-perpetuating. They
+      # need a one-time manual `launchctl bootout gui/502/<label>` plus plist
+      # removal from ~izzy/Library/LaunchAgents. Rebuilding provably cannot do it.
+      # (Audited 2026-09-16, report finding H2.)
       #
       # A user agent can only bootstrap into that user's OWN GUI session, and
       # `gui/502` does not exist before a first login:
@@ -460,12 +485,12 @@ in
             assertion = enabled == [ ];
             message = ''
               izzy has ${toString (builtins.length enabled)} ENABLED launchd agent(s): ${lib.concatStringsSep ", " enabled}.
-              izzy has never logged in, so `gui/502` does not exist and bootstrapping any
-              agent into it fails with "Domain does not support specified action" — which
-              aborts activation and strands /run/current-system on the previous generation.
-              Either add `launchd.agents.<name>.enable = lib.mkForce false;` next to the two
-              above, or — if he HAS now logged in once — delete this whole block together
-              with `local.mediaCli.enable` and this assertion.
+              The second account runs NO user launchd agents. That is a permanent policy,
+              not a wait-for-first-login workaround — he has since logged in, and four
+              agents are already running in `gui/502` as unmanaged orphans that activation
+              cannot remove, so enabling a declared one adds a SECOND copy beside it.
+              Add `launchd.agents.<name>.enable = lib.mkForce false;` next to the two above.
+              Do NOT "fix" this by deleting the block or the assertion.
             '';
           }
         ];
@@ -486,6 +511,21 @@ in
       #
       # Izzy still USES all three — they listen on loopback, which is shared.
       # What he does not do is start a second one.
+      #
+      # SAY THE SECOND HALF OUT LOUD, because "singleton" makes this sound like a
+      # port decision and it is also a CREDENTIAL one. mcp-proxy runs as the
+      # OPERATOR on 127.0.0.1:8096 with no authentication, so the second account
+      # needs no privilege at all — just a TCP connect — to drive GitHub, Apify,
+      # Telegram, WordPress and four Gmail accounts AS THE OPERATOR. Probe-
+      # confirmed 2026-09-16: as izzy, :8096 and :8097 both answered at the
+      # application layer (HTTP 404, connect 0.4ms — the server replying).
+      #
+      # That is INTENDED (operator ruling, 2026-09-16): one human, two accounts,
+      # and the loopback boundary is not being asked to carry a trust boundary it
+      # was never given. Recorded here so it stays a decision rather than an
+      # assumption — if a THIRD party ever gets an account on this Mac, this line
+      # is the one that has to change first, and it needs authentication or
+      # per-user gateways rather than a comment.
       local.mcpGateway.enable = lib.mkForce false;
       local.rag.pgvector.enable = lib.mkForce false;
       local.claudeOtel.enable = lib.mkForce false;
@@ -512,14 +552,19 @@ in
         email = "hi@izzykatt.ca";
       };
 
-      # ---- Waiting on his first login ---------------------------------------
-      # A user launchd agent can only bootstrap into that user's GUI session.
-      # Izzy has never logged in, so `gui/502` does not exist and every agent
-      # fails with `Bootstrap failed: 125`, which makes darwin-rebuild exit
-      # non-zero — and the abort lands BEFORE /run/current-system is re-pointed,
-      # leaving machine-wide packages installed and unreachable at the same time.
+      # ---- No media agents for the second account ----------------------------
+      # A user launchd agent can only bootstrap into that user's GUI session, and
+      # while `gui/502` did not exist every agent failed with
+      # `Bootstrap failed: 125`, making darwin-rebuild exit non-zero — with the
+      # abort landing BEFORE /run/current-system is re-pointed, leaving
+      # machine-wide packages installed and unreachable at the same time.
       #
-      # Flip to `true` after his first login; nothing else needs to change.
+      # This used to read "flip to `true` after his first login". He has logged
+      # in, and flipping it now is the WRONG move: two of this capsule's agents
+      # (media-queue, media-queue-power — 602 runs) are already in `gui/502` as
+      # orphans activation cannot remove, so enabling the declared ones doubles
+      # them. See the launchd block above for why, and for the manual bootout
+      # that is the only way to clear them.
       local.mediaCli.enable = lib.mkForce false;
     };
 
