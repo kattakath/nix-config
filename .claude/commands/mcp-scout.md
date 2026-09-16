@@ -11,4 +11,5 @@ wrapper if secrets; opt-in gate if it exits without auth) → update the server
 counts + `.claude/settings.json` permissions → `/eval` → PR.
 
 **Never install imperatively** — no installer CLIs, no `claude mcp add`, no
-mcpfinder `add_mcp_server_config` (deny-listed). Adoption is a Nix declaration.
+mcpfinder write tools — it ships none today, and only its four read-only tools
+are pre-approved, so a new one prompts. Adoption is a Nix declaration.
