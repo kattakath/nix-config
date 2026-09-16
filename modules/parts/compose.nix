@@ -376,10 +376,29 @@ let
             #
             # Cost, stated rather than waved past: a trusted user can set
             # substituters and other restricted settings for their own builds,
-            # which is close to root-equivalent for store CONTENT. Accepted here
-            # because this is a single-operator Mac where that user already has
-            # admin + sudo and owns this very file — the grant adds no capability
-            # they lacked, it only stops the daemon discarding their intent.
+            # which is close to root-equivalent for store CONTENT. Accepted for
+            # the OPERATOR alone: that user already has admin + sudo and owns
+            # this very file, so the grant adds no capability they lacked — it
+            # only stops the daemon discarding their intent.
+            #
+            # TWO ADMIN ACCOUNTS SINCE 2026-09-15, ONE TRUSTED USER — on purpose.
+            # `izzy` (uid 502) is an administrator too and is deliberately NOT
+            # listed: "admin" is a macOS role, "trusted" is a Nix-daemon role,
+            # and only the operator holds the second. Concrete consequence
+            # (audited 2026-09-16): from izzy's session every restricted client
+            # option — `--option …`, and in particular the documented nixpi
+            # cache-trap escape `--narinfo-cache-negative-ttl 0` — is answered
+            # with "ignoring the client-specified setting … you are not a
+            # trusted user", exactly as it was for the operator before this
+            # line. What still works for izzy is everything DAEMON-side: the
+            # Cachix substituter and key above are daemon settings, so his
+            # builds substitute from the fleet cache like anyone else's. If he
+            # ever needs the escape hatch, the operator runs it — or this list
+            # grows by one name as a recorded decision, not a default.
+            #
+            # Lands in /etc/nix/nix.custom.conf (rendered by customSettings),
+            # which the daemon reads only at startup — see
+            # docs/new-mac-runbook.md, "INERT until the nix daemon restarts".
             #
             # `extra-trusted-users`, not `trusted-users`: appends rather than
             # replacing, so `root` survives and a future Determinate default is
