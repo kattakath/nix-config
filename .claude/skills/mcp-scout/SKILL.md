@@ -20,7 +20,8 @@ Capability need → Discover (registries) → Vet (trust/supply chain) → Decla
 ## Hard rules
 
 - **Never install imperatively.** No `npx add-mcp`, no `@getmcp/cli`, no
-  `claude mcp add`, no mcpfinder `add_mcp_server_config` (deny-listed), no
+  `claude mcp add`, no mcpfinder write tool (it ships none; only its four
+  read-only tools are pre-approved, so a new one prompts), no
   edits to `~/.claude.json` / `.mcp.json` / client config files. Those files
   are Home-Manager-managed; imperative writes fail or drift. If asked to
   "install" a server, do this pipeline instead and say why.
@@ -34,7 +35,7 @@ Capability need → Discover (registries) → Vet (trust/supply chain) → Decla
 In rough order of preference:
 
 1. **Gateway `mcpfinder` server** (discovery-only wiring):
-   `search_mcp_servers` / `get_mcp_server_details` — cross-registry over the
+   `search_mcp_servers` / `get_server_details` — cross-registry over the
    Official MCP Registry + Glama + Smithery.
 2. **Official MCP Registry REST API** via the gateway `fetch` server:
    `https://registry.modelcontextprotocol.io/v0/servers?search=<term>`.

@@ -61,7 +61,22 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # To re-verify after any plugin/marketplace change, read a real tool name out
     # of a live session rather than reasoning about it; the prefix has changed
     # once already and will not announce the next change.
-    "mcp__plugin_hm_mcpfinder__add_mcp_server_config"
+    #
+    # THE TOOL-NAME HALF WAS DEAD TOO, and d39fc80 only fixed the prefix. Read
+    # from a live session's namespace 2026-09-16: the pinned @mcpfinder/server
+    # registers FOUR tools — browse_categories, get_install_config,
+    # get_server_details, search_mcp_servers — and `add_mcp_server_config` is not
+    # among them. So this deny named a tool that does not exist, which by this
+    # file's own header is not a weak guardrail but NO guardrail; meanwhile
+    # .claude/settings.json pre-approved the whole server by wildcard, sitting
+    # wider than the thing nominally narrowing it.
+    #
+    # It is gone rather than re-spelled, because there is no write tool to name.
+    # The narrowing now lives where it can actually hold: settings.json lists the
+    # four read-only tools EXPLICITLY, so a write tool introduced by a future
+    # version pin is not matched by anything and prompts instead of being
+    # auto-approved. A deny cannot be written against a name nobody knows yet;
+    # an allow-list does not need one.
     "Bash(claude mcp add *)"
     "Bash(claude mcp add-json *)"
     "Bash(claude mcp add-from-claude-desktop *)"
