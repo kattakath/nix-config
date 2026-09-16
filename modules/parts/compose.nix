@@ -66,6 +66,7 @@ let
     logoUrl
     tokensUrl
     publicMcpServers
+    publicMcpPort
     ;
 
   # The Home-Manager sub-module embedded in every host, built from an identity
@@ -144,6 +145,20 @@ let
             # consumers is what stops the two halves drifting into a portal entry
             # pointing at a server the gateway does not host.
             publicMcpServers
+            # publicMcpPort: the loopback port that gateway binds, and the port
+            # the tunnel's ingress routes to. It rides HERE, not in identityArgs,
+            # and the distinction is the whole point: identityArgs is what a
+            # consumer OVERRIDES through mkDarwin's `identity`, so anything routed
+            # through it is ABSENT the moment they pass their own. This list is
+            # fleet constants, supplied whatever identity the caller brings.
+            #
+            # It went into identityArgs on 2026-09-16 and broke exactly that way:
+            # a template consumer's documented four-field identity turned
+            # `local.mcpGateway.public = [ … ]` into "attribute 'publicMcpPort'
+            # missing", naming a symbol that appears nowhere in the template, its
+            # README or the option description — and only once they enabled the
+            # feature. Its sibling above was always here; they belong together.
+            publicMcpPort
             ;
           # MODULE, not a flake — hence the name. It was the `keychain-secrets`
           # flake INPUT, consumed as `.homeManagerModules.default`, until ADR-002
