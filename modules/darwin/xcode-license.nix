@@ -57,6 +57,46 @@ in
       update = false;
     };
 
+    # ---- PRE-FLIGHT: a signed-out App Store must abort BEFORE any mutation ---
+    #
+    # Upstream's mas activation script does `exit 0` when `mas list` reports
+    # "not signed in" (pinned modules/programs/mas.nix:56-58). That `exit` is
+    # TOP-LEVEL in $systemConfig/activate, so it ends the WHOLE activation with
+    # status 0 — skipping brew bundle, BOTH home-manager profiles, and the
+    # closing `ln -sfn … /run/current-system`. The system profile advances while
+    # /run/current-system, the current-system GC root and therefore PATH stay on
+    # the previous generation, and `darwin-rebuild` reports SUCCESS. It is the
+    # one silent-success path in this fleet, and it fires on exactly the case
+    # this flake exists to serve: a freshly wiped Mac that has not signed in yet.
+    #
+    # `system.checks.text` is the sanctioned slot for a pre-mutation refusal: it
+    # is compiled into the same activate script but runs near its TOP (upstream
+    # activation-scripts.nix orders `checks` right after preActivation), and
+    # `darwin-rebuild check` runs exactly this block, so it doubles as a
+    # rehearsal. Refusing here converts a silent half-apply into a loud no-op.
+    #
+    # Gated on `packages != { }` so it only fires when mas actually has work —
+    # i.e. when the host declares Xcode in masApps. `|| true` on the sudo so a
+    # missing/odd user cannot itself abort the check.
+    system.checks.text = lib.mkAfter (
+      lib.optionalString (config.programs.mas.packages != { }) ''
+        masOut=$(
+          sudo --preserve-env=PATH --set-home \
+            --user=${lib.escapeShellArg config.programs.mas.user} \
+            ${lib.getExe config.programs.mas.package} list 2>&1
+        ) || true
+        if printf '%s' "$masOut" | /usr/bin/grep -qi "not signed in"; then
+          printf >&2 '\e[1;31merror: the App Store is not signed in, aborting activation\e[0m\n'
+          printf >&2 'programs.mas is installing %s, and upstream would `exit 0` mid-activation\n' \
+            ${lib.escapeShellArg (toString (builtins.attrNames config.programs.mas.packages))}
+          printf >&2 'leaving the system profile advanced but /run/current-system stale.\n'
+          printf >&2 'Sign in as %s (App Store > Sign In), then re-run.\n' \
+            ${lib.escapeShellArg config.programs.mas.user}
+          exit 2
+        fi
+      ''
+    );
+
     system.activationScripts.homebrew.text = lib.mkBefore ''
       # ---- Xcode presence + license (must precede brew bundle) ----------------
       echo >&2 "Xcode: ensuring app + license before Homebrew bundle..."
