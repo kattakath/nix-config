@@ -103,6 +103,18 @@ in
     # what autoRollback reverts. So a Caddy that will not START is a failed
     # deploy, not a green one.
     #
+    # NOT COVERED, AND IT BIT FOR REAL ON 2026-09-16: magicRollback assumes
+    # `activate-rs` SURVIVES long enough to run its own timer. It does not when the
+    # activation tears down the control channel. Stopping
+    # `cloudflared-connector.service` killed the SSH session driving the deploy,
+    # SIGHUP'd `activate-rs` before the 120s confirm window ever opened, and left
+    # the Pi half-activated — old units stopped, new ones never started, both sites
+    # at HTTP 530, and no remote way in. NO TIMEOUT VALUE FIXES THIS: a longer
+    # `confirmTimeout` cannot help a process that is already dead. The fix is
+    # upstream and lives in the connector unit itself (`restartIfChanged = false`,
+    # modules/features/cloudflared-connector/module.nix) so the channel never drops
+    # during activation at all.
+    #
     # NOT COVERED, and it is narrower than it sounds: a Caddy that starts
     # CLEANLY and serves something useless — an empty site directory, a
     # file_server root with no index. systemd sees a healthy process and
