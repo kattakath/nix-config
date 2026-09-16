@@ -28,8 +28,8 @@
 #    for. `checks.media-cli-module` asserts the arg0 is both `nix-*` AND a store
 #    path, which is what keeps "module-evaluates" a meaningful gate rather than a
 #    tautology. (It also means this module needs no vendored launchd fork — it
-#    works against UPSTREAM home-manager, independently of
-#    modules/shared/hm-launchd/.)
+#    works against UPSTREAM home-manager, needing no fork at all — which is why
+#    it was unaffected when the vendored one was retired 2026-09-14.)
 #
 # 3. THE launchd COMMENT BLOCK IN ./module.nix IS THE ARGUMENT, NOT DECORATION.
 #    The `QueueDirectories` / `ProcessType` / `KeepAlive` / `RunAtLoad` /
@@ -99,8 +99,8 @@
 # so the only properties upstream does not offer are the `nix-` PREFIX and a
 # store-bash interpreter instead of `#!/bin/sh` — the two the TCC measurement
 # was made with. ./module.nix's own wrapper stands → custom, because upstream
-# has no option for either. (modules/shared/hm-launchd/ does the same on the
-# ENGINE side; this capsule cannot reach it and does not need to.)
+# has no option for either. (modules/shared/launchd-launcher.nix does the same on
+# the ENGINE side; this capsule cannot reach it and does not need to.)
 # UPSTREAM FIRST → ✅ `flake-parts.flakeModules.modules` exists and is already
 # adopted by modules/parts/capsules.nix → using its shape.
 { inputs, lib, ... }:
