@@ -174,7 +174,8 @@ change, off `main`),
 [`launchd-naming`](.claude/rules/launchd-naming.md) (every launchd unit exposes a `nix-<kebab>`
 `arg0` — never a bare `sh`/`python3`),
 [`upstream-first`](.claude/rules/upstream-first.md) (grep the **pinned** input's option surface
-before writing custom Nix, and cite the result). Scoped to `sites/**`:
+before writing custom Nix, and cite the result — plus, for a CLI or wrapper, check whether a
+community TOOL already owns it, which an option grep structurally cannot see). Scoped to `sites/**`:
 [`store-copied-trees`](.claude/rules/store-copied-trees.md) (a directory path literal copies
 the whole tree into the store — check for stray `.DS_Store`/etc. before committing).
 
