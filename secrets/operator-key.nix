@@ -5,7 +5,7 @@
 #
 # Imported as a plain string (this file evaluates to the bare key) by every
 # consumer, so rotating the key touches ONE file instead of several in lockstep:
-#   flake.nix                  → operatorSshKey → mkNixos specialArgs + HM
+#   modules/parts/identity.nix → operatorSshKey → mkNixos specialArgs + HM
 #   modules/nixos/core.nix     → users.users.<op>.openssh.authorizedKeys.keys
 #   modules/shared/home.nix    → programs.git.signing.allowedSigners (git SSH signature trust)
 #   secrets/secrets.nix        → the `operator` agenix recipient

@@ -78,7 +78,7 @@
   # wave 5 brought it in-tree as modules/features/media-cli/. Threaded in by
   # modules/parts/compose.nix.
   mediaCliModule,
-  # Raw resume.json URL (single-sourced in flake.nix as jsonResumeUrl; null to
+  # Raw resume.json URL (single-sourced in modules/parts/identity.nix as jsonResumeUrl; null to
   # disable) — baked into the jsonresume package below as its default --url.
   jsonResumeUrl,
   logoUrl,
@@ -227,7 +227,7 @@ let
   darwinActivate = pkgs.callPackage ../../packages/activate.nix { };
 
   # `jsonresume <download|print>` — fetch a JSON Resume and render it to PDF via the
-  # npm resume CLI. jsonResumeUrl (from flake.nix) is baked in as its default --url,
+  # npm resume CLI. jsonResumeUrl (from modules/parts/identity.nix) is baked in as its default --url,
   # so there is no ambient env var. See packages/jsonresume.nix.
   jsonresume = pkgs.callPackage ../../packages/jsonresume.nix {
     defaultUrl = jsonResumeUrl;

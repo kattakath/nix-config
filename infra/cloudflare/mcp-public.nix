@@ -49,8 +49,8 @@
   #
   # REQUIRED, not defaulted. A `? default` here is DEAD — the module system
   # queries `_module.args` and errors before a function-head default is ever
-  # consulted (see the same note at `portalId` below). flake.nix always supplies
-  # all three, and is the single source of their defaults. Matches
+  # consulted (see the same note at `portalId` below). modules/parts/terranix.nix
+  # always supplies them, and is the single source of their defaults. Matches
   # infra/cloudflare/nixpi-tunnel.nix, which declares its arguments required.
   publicSubdomain,
   # Gateway server names published through the portal. Mirrors
@@ -89,7 +89,7 @@ let
   # The MCP server portal these registrations attach to. Fixed identifiers rather
   # than module arguments, the same way `tunnelName` is: this module describes ONE
   # account's stack, and a terranix module argument would have to be threaded
-  # through `_module.args` in flake.nix anyway (a default in the function head is
+  # through `_module.args` in modules/parts/terranix.nix anyway (a default in the function head is
   # NOT honoured for a module argument — the module system queries `_module.args`
   # and errors before the default is ever consulted).
   #

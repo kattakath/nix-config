@@ -2,7 +2,7 @@
 # (jsonresume.org) plus a logo SVG, BOTH fetched from the same gist (one source of truth).
 # A thin writeShellApplication mirroring packages/jsonresume.nix: resume.json is fetched with
 # `curl` from the baked-in `defaultUrl` and logo.svg from `logoUrl` (both composed from
-# `jsonResumeGistId` in flake.nix); the logo is cached locally, rasterized to PNG with
+# `jsonResumeGistId` in modules/parts/identity.nix); the logo is cached locally, rasterized to PNG with
 # `rsvg-convert` (librsvg), and embedded as a base64 data URI — one paste-ready
 # `signature.html`.
 #
@@ -22,13 +22,13 @@
   coreutils,
   librsvg,
   lib,
-  # Raw resume.json URL baked at build time (flake.nix jsonResumeUrl). null → no default,
+  # Raw resume.json URL baked at build time (modules/parts/identity.nix's jsonResumeUrl). null → no default,
   # caller must pass --url.
   defaultUrl ? null,
-  # Raw logo.svg URL baked at build time (flake.nix logoUrl, same gist). null → no default;
+  # Raw logo.svg URL baked at build time (modules/parts/identity.nix's logoUrl, same gist). null → no default;
   # the generator then relies on a previously cached logo (or skips, best-effort).
   logoUrl ? null,
-  # Raw tokens.json (DTCG brand tokens) URL baked at build time (flake.nix tokensUrl, same
+  # Raw tokens.json (DTCG brand tokens) URL baked at build time (modules/parts/identity.nix's tokensUrl, same
   # gist). null → no default; the generator then uses built-in colour/font fallbacks.
   tokensUrl ? null,
 }:

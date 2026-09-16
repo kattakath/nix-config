@@ -214,11 +214,11 @@
   networking.firewall.allowedTCPPorts = [ 80 ]; # 443 omitted: TLS terminates at Cloudflare's edge
   services.caddy = {
     enable = true;
-    # One vhost per `hostedSites` entry (single source in flake.nix). Address each as
+    # One vhost per `hostedSites` entry (single source in modules/parts/identity.nix). Address each as
     # `http://<domain>` so Caddy serves plain HTTP and DISABLES automatic HTTPS — TLS
     # terminates at Cloudflare's edge, and an http→https redirect would loop back
     # through the tunnel forever. www is a 301 edge redirect (infra/cloudflare/nixpi-tunnel.nix),
-    # not a vhost. Adding a site = one entry in flake.nix's hostedSites.
+    # not a vhost. Adding a site = one entry in modules/parts/identity.nix's hostedSites.
     virtualHosts = lib.listToAttrs (
       map (site: {
         name = "http://${site.domain}";
