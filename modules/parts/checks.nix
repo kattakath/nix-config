@@ -43,10 +43,51 @@ in
           # derivation, which went with packages/key-recovery.nix). This is that
           # gate, standing on its own rather than riding a package that happened
           # to also ship the script.
-          bootstrap-lint = pkgs.runCommand "bootstrap-lint" { nativeBuildInputs = [ pkgs.shellcheck ]; } ''
-            shellcheck --shell=bash ${../../bootstrap.sh}
-            touch $out
-          '';
+          #
+          # Since 2026-09-16 it also asserts the ONE invariant bootstrap.sh shares
+          # with the flake. bootstrap.sh computes the clone directory from
+          # `--flake` (`$HOME/Developer/github.com/$FLAKE_OWNER/$FLAKE_REPO`,
+          # :144) while modules/parts/hosts.nix:19 computes the
+          # /etc/nix-darwin symlink target from config.fleet's orgName/repoName —
+          # two independent derivations of one path. hosts.nix:16 states the
+          # consequence itself: the symlink "silently dangles if they ever
+          # disagree", activation still SUCCEEDS, and `darwin-rebuild` then
+          # ignores the broken link. So `activate`, the documented everyday
+          # command, resolves its flake through a pointer at nothing and says
+          # nothing. Shellcheck cannot see that; a string comparison can.
+          bootstrap-lint =
+            let
+              expectedPrefix = "Developer/github.com/${config.fleet.orgName}/${config.fleet.repoName}";
+              expectedFlake = "github:${config.fleet.orgName}/${config.fleet.repoName}";
+              script = builtins.readFile ../../bootstrap.sh;
+              problems =
+                lib.optional (
+                  !lib.hasInfix ''FLAKE_DEFAULT="${expectedFlake}"'' script
+                ) "bootstrap.sh's FLAKE_DEFAULT is not ${expectedFlake}"
+                ++ lib.optional (
+                  !lib.hasInfix ''REPO_DIR="$HOME/Developer/github.com/$FLAKE_OWNER/$FLAKE_REPO"'' script
+                ) "bootstrap.sh no longer builds the clone path as $HOME/Developer/github.com/<owner>/<repo>";
+            in
+            pkgs.runCommand "bootstrap-lint" { nativeBuildInputs = [ pkgs.shellcheck ]; } (
+              ''
+                shellcheck --shell=bash ${../../bootstrap.sh}
+              ''
+              + (
+                if problems == [ ] then
+                  ''
+                    echo "bootstrap.sh clones to ~/${expectedPrefix}, which is what hosts.nix symlinks /etc/nix-darwin at" > "$out"
+                  ''
+                else
+                  ''
+                    echo "bootstrap-lint: bootstrap.sh and the flake disagree about where this repo lives." >&2
+                    ${lib.concatStringsSep "\n" (map (x: ''echo "  ✘ ${x}" >&2'') problems)}
+                    echo "modules/parts/hosts.nix builds /etc/nix-darwin -> ~/${expectedPrefix}/flake.nix." >&2
+                    echo "A disagreement leaves that symlink DANGLING, and a dangling one is silent:" >&2
+                    echo "activation succeeds and darwin-rebuild ignores the broken link." >&2
+                    exit 1
+                  ''
+              )
+            );
 
           # ---- The shell-init ORDERING contract, tested for the first time ----
           #
