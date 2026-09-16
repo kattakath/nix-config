@@ -196,6 +196,29 @@ let
     {
       system,
       hostname,
+      # WHICH host profile to load — the twin of mkDarwin's `hostModule` below,
+      # and it outlived that fix (c4a522a) by a day because only the darwin half
+      # was hardened. Same mechanism: `hostname` is a STRING indexing the
+      # ENGINE's directory, so a downstream consumer inherits the operator's
+      # host wholesale. Measured 2026-09-16 — `mkNixos { hostname = "nixvm"; }`
+      # for a caller with no connection to this fleet evaluated to
+      # `users.users.ismail` present, holding the OPERATOR'S ssh-ed25519 public
+      # key as its sole authorized key, with `loginName` in
+      # `nix.settings.trusted-users` (modules/nixos/core.nix:18-21, :34) and
+      # `wheel`. `lib.mkNixos` is a real flake output and flakehub-publish.yml
+      # publishes this flake with `visibility: public`.
+      #
+      # Point it at `hosts/generic-linux.nix` for a host that carries nothing
+      # personal. `hostname` still selects the default and is otherwise unused.
+      hostModule ? ../../hosts/${hostname}.nix,
+      identity ? identityArgs,
+      # The login credential, granted as `authorizedKeys` by
+      # modules/nixos/core.nix. DEFAULTS TO NONE, deliberately unlike `identity`
+      # above: a name being wrong is cosmetic, a key being wrong is an ACCOUNT on
+      # someone else's server. The fleet's own hosts pass the fleet value
+      # explicitly at the call site (modules/parts/hosts.nix), so the grant is
+      # visible where the host is declared rather than inherited silently.
+      operatorSshKey ? null,
       extraModules ? [ ],
       # Sites Caddy serves on this host — see the comment in
       # modules/parts/identity.nix and docs/private-home-modules.md. Public hosts
@@ -215,7 +238,7 @@ let
       # expose — NOT a secret) consumed by modules/shared/nix-cache.nix;
       # operatorSshKey (the authorizedKeys credential) by modules/nixos/core.nix.
       # Both are NixOS-only, so they are not in mkDarwin's specialArgs.
-      specialArgs = identityArgs // {
+      specialArgs = identity // {
         inherit
           cachixUrl
           cachixKey
@@ -245,11 +268,11 @@ let
       };
       modules = [
         { nixpkgs.hostPlatform = system; }
-        ../../hosts/${hostname}.nix
+        hostModule
         ../nixos/core.nix
         ../shared/nix-cache.nix # Cachix binary cache (read)
         home-manager.nixosModules.home-manager
-        (mkHomeManagerModule { idArgs = identityArgs; }) # NixOS hosts use the global identity
+        (mkHomeManagerModule { idArgs = identity; })
       ]
       ++ extraModules;
     };
