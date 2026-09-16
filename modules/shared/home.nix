@@ -1092,10 +1092,13 @@ in
         # no metrics/traces, no prompt/response content) to the local OTel
         # Collector defined in modules/shared/claude-otel.nix, read by
         # /routing-review to find deterministic-vs-model-judgment hardening
-        # candidates. isMacosHost-gated (local.claudeOtel.enable above) —
-        # unset off the real Mac, so this block is empty there and Claude Code's
-        # telemetry stays off by default.
-        env = lib.mkIf isMacosHost {
+        # candidates. Gated on the SAME predicate as the collector itself
+        # (claude-otel.nix:43, `local.claudeOtel.enable`) — not on isMacosHost,
+        # which is a DIFFERENT predicate a second account can force false
+        # (hosts/macos.nix's izzy block) while this exporter stayed on,
+        # shipping that account's telemetry into the operator's collector
+        # while its own /routing-review read nothing.
+        env = lib.mkIf config.local.claudeOtel.enable {
           CLAUDE_CODE_ENABLE_TELEMETRY = "1";
           OTEL_LOGS_EXPORTER = "otlp";
           OTEL_EXPORTER_OTLP_PROTOCOL = "grpc";
