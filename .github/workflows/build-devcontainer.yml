@@ -38,6 +38,15 @@ on:
       - "flake.nix"
       - "flake.lock"
       - "packages/**"
+      # The flake ENGINE. modules/parts/devcontainer.nix DEFINES this image and
+      # modules/parts/devshell.nix supplies its whole baked toolchain through
+      # `inherit (config) devPackages`, so an edit to either changes what gets
+      # published while matching none of the paths above. Missing until
+      # 2026-09-16 — and c594d9f edited this very file's comments to point AT
+      # modules/parts/devcontainer.nix without adding it here, which is how a
+      # stale GHCR :latest went unnoticed. Over-firing is free: the gate job
+      # suppresses no-op runs by drvPath.
+      - "modules/parts/**"
       - ".devcontainer/**"
       - ".github/workflows/build-devcontainer.yml"
   push:
@@ -46,6 +55,15 @@ on:
       - "flake.nix"
       - "flake.lock"
       - "packages/**"
+      # The flake ENGINE. modules/parts/devcontainer.nix DEFINES this image and
+      # modules/parts/devshell.nix supplies its whole baked toolchain through
+      # `inherit (config) devPackages`, so an edit to either changes what gets
+      # published while matching none of the paths above. Missing until
+      # 2026-09-16 — and c594d9f edited this very file's comments to point AT
+      # modules/parts/devcontainer.nix without adding it here, which is how a
+      # stale GHCR :latest went unnoticed. Over-firing is free: the gate job
+      # suppresses no-op runs by drvPath.
+      - "modules/parts/**"
       - ".devcontainer/**"
       - ".github/workflows/build-devcontainer.yml"
   workflow_dispatch:
