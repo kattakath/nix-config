@@ -13,11 +13,14 @@
 # saving keystrokes it would be a net loss.
 #
 # IT IS PURELY ADDITIVE. Every underlying binary stays on PATH under its own
-# name, because three consumers already hardcode those names and must keep
+# name, because two consumers already hardcode those names and must keep
 # working: the Finder Services bake absolute /nix/store paths into their
-# document.wflow, `nix run .#media-describe` names the app, and the operator's
-# own notes are written in the direct form. A dispatcher that REPLACED them
-# would be a breaking change bought for a shorter help listing.
+# document.wflow, and the operator's own notes are written in the direct form.
+# A dispatcher that REPLACED them would be a breaking change bought for a
+# shorter help listing. (A third was claimed here until 2026-09-16 —
+# `nix run .#media-describe` — but this capsule publishes no apps at all, so
+# that consumer never existed. See the README's "There is no
+# `nix run .#media-describe`".)
 #
 # THE LINE THE DISPATCHER DRAWS: `media` is what a HUMAN types; the bare names
 # are what MACHINES call. Every tool an operator runs BY HAND belongs behind the

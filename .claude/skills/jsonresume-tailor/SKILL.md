@@ -35,7 +35,7 @@ version stays diffable, re-renderable, and honest.
 
 - **`jsonresume`** wrapper (`packages/jsonresume.nix`, on PATH via home-manager) —
   `download` / `validate` / `print` / `markdown` / `text`. It bakes in the default
-  resume URL from `jsonResumeGistId` (flake.nix), so `jsonresume download` with no
+  resume URL from `jsonResumeGistId` (modules/parts/identity.nix), so `jsonresume download` with no
   `--url` fetches the canonical resume.
 - **Rendering CLIs** (npm globals): `resumed` (+ `puppeteer`) preferred, `resume-cli`
   fallback / for md-text. PDF renders through system Chrome (the puppeteer policy in

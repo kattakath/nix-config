@@ -37,7 +37,7 @@
 #       default/--url URL downloaded to a throwaway workdir. Schema-validates the input
 #       first unless --no-validate. Aliases: md, txt.
 #
-# `defaultUrl` is baked in at build time (composed in flake.nix as `jsonResumeUrl`
+# `defaultUrl` is baked in at build time (composed in modules/parts/identity.nix as `jsonResumeUrl`
 # from jsonResumeGistId + userName) — so there is NO ambient env var: the one
 # consumer carries its own default, and `--url`/`--path` override per-invocation.
 # curl/jq/coreutils are PINNED from Nix; node/npm/resumed/resume come from the CALLER's
@@ -60,7 +60,7 @@
   curl,
   jq,
   coreutils,
-  # Default resume URL baked in at build time (flake.nix jsonResumeUrl). null → no
+  # Default resume URL baked in at build time (modules/parts/identity.nix's jsonResumeUrl). null → no
   # default, so download/print require an explicit --url / --path.
   defaultUrl ? null,
 }:
@@ -190,7 +190,7 @@ writeShellApplication {
         [ -f "$path" ] || die "no such file: $path"
         cp "$path" "$work/resume.json"
       else
-        url="$(resolve_url "$url")" || die "no --path/--url given and no built-in default URL (set jsonResumeGistId in flake.nix)"
+        url="$(resolve_url "$url")" || die "no --path/--url given and no built-in default URL (set jsonResumeGistId in modules/parts/identity.nix)"
         curl -fsSL "$url" -o "$work/resume.json" || die "download failed: $url"
       fi
       jq -e . "$work/resume.json" >/dev/null 2>&1 || die "input is not valid JSON"
@@ -229,7 +229,7 @@ writeShellApplication {
           esac
         done
 
-        url="$(resolve_url "$url")" || die "no --url given and no built-in default (set jsonResumeGistId in flake.nix)"
+        url="$(resolve_url "$url")" || die "no --url given and no built-in default (set jsonResumeGistId in modules/parts/identity.nix)"
         mkdir -p "$dest"
         out="$dest/resume.json"
         curl -fsSL "$url" -o "$out" || die "download failed: $url"
@@ -257,7 +257,7 @@ writeShellApplication {
           [ -f "$path" ] || die "no such file: $path"
           cp "$path" "$work/resume.json"
         else
-          url="$(resolve_url "$url")" || die "no --path/--url given and no built-in default URL (set jsonResumeGistId in flake.nix)"
+          url="$(resolve_url "$url")" || die "no --path/--url given and no built-in default URL (set jsonResumeGistId in modules/parts/identity.nix)"
           curl -fsSL "$url" -o "$work/resume.json" || die "download failed: $url"
         fi
         jq -e . "$work/resume.json" >/dev/null 2>&1 || die "input is not valid JSON"
@@ -291,7 +291,7 @@ writeShellApplication {
           [ -f "$path" ] || die "no such file: $path"
           input="$path"
         else
-          url="$(resolve_url "")" || die "no --path given and no built-in default URL (set jsonResumeGistId in flake.nix)"
+          url="$(resolve_url "")" || die "no --path given and no built-in default URL (set jsonResumeGistId in modules/parts/identity.nix)"
           input="$(mktemp /tmp/jsonresume.XXXXXX.json)"
           curl -fsSL "$url" -o "$input" || die "download failed: $url"
         fi
