@@ -88,6 +88,35 @@ in
     magicRollback = true;
     autoRollback = true;
 
+    # WHAT THE PAIR DOES AND DOES NOT COVER, measured 2026-09-16 because an audit
+    # claimed "a dead Caddy is a GREEN deploy with both sites down" and that is
+    # WRONG. Recorded here so it is not re-raised.
+    #
+    # COVERED. The two ingresses really are separate — `nixpi.<domain>` ->
+    # ssh://localhost:22, the sites -> http://localhost:80 — and magicRollback's
+    # confirmation really does ride the SSH one, so it alone proves nothing about
+    # Caddy. But `autoRollback` covers exactly that gap: a unit that fails to
+    # start makes switch-to-configuration exit 4 (pinned nixpkgs
+    # pkgs/by-name/sw/switch-to-configuration-ng/src/main.rs — "warning: the
+    # following units failed", then `exit_code = 4` at :2683 and
+    # `std::process::exit(exit_code)` at :2699), and a non-zero activation is
+    # what autoRollback reverts. So a Caddy that will not START is a failed
+    # deploy, not a green one.
+    #
+    # NOT COVERED, and it is narrower than it sounds: a Caddy that starts
+    # CLEANLY and serves something useless — an empty site directory, a
+    # file_server root with no index. systemd sees a healthy process and
+    # activation exits 0. The reason this is not worth a probe: every
+    # `hostedSites[].root` is a Nix path literal copied into the closure, so the
+    # directory cannot be missing at runtime; it can only be empty, which is a
+    # content mistake visible in `git status` before it is ever deployed.
+    #
+    # A post-activation curl gate was considered and REJECTED. It would run on
+    # the live Pi, it cannot be tested from here, and a probe that is wrong in
+    # either direction turns every deploy into a rollback loop on the one host
+    # whose recovery path is a 40-minute physical reflash. That trade is the
+    # wrong way round for a failure mode that `git status` already shows.
+
     # The Pi must NEVER build. remoteBuild = true copies the *derivation* and
     # runs `nix build --store ssh-ng://` on the target — a Pi 4 building the
     # closure (worst case the cold linux-rpi kernel) is exactly what
