@@ -243,6 +243,21 @@ in
     in
     {
       # Postgres client tools (psql/createdb/…) on PATH for manual queries.
+      #
+      # This is the fleet's ONLY profile-level postgres, and deliberately so —
+      # `modules/shared/home.nix` carried a second, pgvector-only copy until
+      # 2026-09-16. It is `withPackages`, so `share/postgresql` carries BOTH
+      # `vector.control` and `http.control`: an `initdb` from PATH can
+      # `CREATE EXTENSION vector` (which a plain postgresql_16 cannot) and
+      # `CREATE EXTENSION http`.
+      #
+      # SECOND CONSUMER, so do not narrow this to the RAG's own needs: the
+      # dontsell-ai/app CI `integration` job needs pgvector whenever it lands on
+      # the REPO-level runner (`macos-throwaway`), which runs out of this profile.
+      # The ORG runners get their own copy from modules/darwin/github-runner.nix
+      # and do not depend on this line. That job therefore rides on
+      # `local.rag.pgvector.enable`, which modules/shared/home.nix sets to
+      # `isMacosHost` — turning it off on the Mac would break the job.
       home.packages = [ pgPkg ];
 
       launchd.agents.postgres-pgvector = {
