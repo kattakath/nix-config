@@ -581,16 +581,12 @@ in
   # the whole set. Anyone else's address still never belongs here — see the
   # option's description in modules/shared/mcp.nix.
   #
-  # `operatorSshKey` and `publicMcpServers` are home-manager module args
-  # (extraSpecialArgs, modules/parts/compose.nix) — NOT this file's own
-  # specialArgs — so this definition must be a function to receive them,
-  # matching modules/shared/home.nix's own signature.
+  # `publicMcpServers` is a home-manager module arg (extraSpecialArgs,
+  # modules/parts/compose.nix) — NOT this file's own specialArgs — so this
+  # definition must be a function to receive it, matching
+  # modules/shared/home.nix's own signature.
   home-manager.users.${loginName} =
-    {
-      operatorSshKey,
-      publicMcpServers,
-      ...
-    }:
+    { publicMcpServers, ... }:
     {
       local.mcpGateway.gmail.accounts = [
         "ismail@kattakath.com"
@@ -637,36 +633,6 @@ in
           };
         };
       };
-
-      # ---- Extra git identities (upstream home-manager option) --------------
-      # Folded in from nix-personal's git-identities.nix (2026-09-15). Public
-      # nix-config carries the includeIf *conditions* (modules/shared/home.nix);
-      # this carries the *addresses* they point at. allowedSigners lets GitLab
-      # verify SSH commit signatures and `git log --show-signature` work locally
-      # — operatorSshKey is the fleet operator public key (identityArgs).
-      programs.git.signing.allowedSigners = ''
-        ismail@kattakath.com namespaces="git" ${operatorSshKey}
-        izzy@silvercreek.ai namespaces="git" ${operatorSshKey}
-        hi@izzykatt.ca namespaces="git" ${operatorSshKey}
-      '';
-
-      home.file.".config/git/gitlab.inc".text = ''
-        [user]
-        	email = ismail@kattakath.com
-      '';
-
-      home.file.".config/git/silvercreek.inc".text = ''
-        [user]
-        	email = izzy@silvercreek.ai
-      '';
-
-      # The only include here that also overrides user.name: a different public
-      # persona (github.com/izzykatt), not another mailbox for the same person.
-      home.file.".config/git/izzykatt.inc".text = ''
-        [user]
-        	name = Izzy Katt
-        	email = hi@izzykatt.ca
-      '';
 
       # ---- Infin8 LiteLLM proxy (OpenAI-compatible clients) ------------------
       # Folded in from nix-personal's openai-gateway.nix (2026-09-15). Both vars
@@ -996,6 +962,15 @@ in
     # `mas` itself comes from nixpkgs (modules/darwin/core.nix); anything listed here is also
     # protected from onActivation.cleanup = "uninstall" (undeclared MAS apps
     # get removed — that is how Xcode was wiped before this entry).
+    #
+    # That reaping is MACHINE-WIDE, not per-account. `brew bundle --force-cleanup`
+    # runs once, as the primary user (`ismail`), and Homebrew's mas extension
+    # uninstalls every installed-but-undeclared App Store app it sees — and
+    # `mas list` sees the whole machine, so an app izzy bought on HIS Apple ID is
+    # reaped by ismail's activation just the same. Policy: anything izzy wants to
+    # keep is declared HERE (or installed outside MAS). The value itself,
+    # `homebrew.onActivation.cleanup = "uninstall"` (modules/darwin/homebrew.nix),
+    # stays — the fix is to declare, not to stop cleaning.
     masApps = {
       # Official client is App Store–only (no Homebrew cask). This GUI is the
       # ONLY way macos touches WireGuard — no CLI tools, no vpn operator. The
