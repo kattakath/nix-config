@@ -63,6 +63,10 @@
   lib,
   config,
   mcp-servers-nix,
+  # THE published-gateway port, from modules/parts/identity.nix via
+  # extraSpecialArgs. Not a literal here: infra/cloudflare/mcp-public.nix routes
+  # the tunnel's ingress at the same number and cannot see this file.
+  publicMcpPort,
   ...
 }:
 let
@@ -74,7 +78,7 @@ let
   # The PUBLISHED gateway. A second mcp-proxy, not a second port on the same
   # process — see local.mcpGateway.public for why that separation is the
   # whole security argument.
-  publicGatewayPort = 8097;
+  publicGatewayPort = publicMcpPort;
 
   # Android SDK root — single-sourced from modules/shared/home.nix's ANDROID_HOME
   # (the android-commandlinetools Homebrew cask install prefix), not re-declared

@@ -132,6 +132,15 @@ let
     "sequential-thinking"
   ];
 
+  # The loopback port the SECOND mcp-proxy binds, and therefore the port the
+  # published tunnel's ingress must point at. Single-sourced here because its two
+  # consumers cannot see each other: modules/shared/mcp.nix binds it (a Home
+  # Manager module) and infra/cloudflare/mcp-public.nix routes to it (a terranix
+  # module). It was written 8097 in both. A change to one alone is silent and
+  # outward-facing — the connector proxies to a dead port and the public endpoint
+  # 502s — so the two spellings are exactly the drift this file exists to stop.
+  publicMcpPort = 8097;
+
   # ---- Shared identity, as threaded into BOTH builders --------------------
   # Threaded into mkNixos + mkDarwin so system specialArgs and the embedded
   # Home-Manager block can never drift. Only args with a live module consumer
@@ -148,6 +157,8 @@ let
       fullName
       userEmail
       domainName
+      # modules/shared/mcp.nix binds the published gateway to this port.
+      publicMcpPort
       ;
   };
 in
@@ -185,6 +196,7 @@ in
         cloudflareZoneId
         hostedSites
         publicMcpServers
+        publicMcpPort
         identityArgs
         ;
     };

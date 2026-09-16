@@ -20,6 +20,7 @@ let
     cloudflareZoneId
     hostedSites
     publicMcpServers
+    publicMcpPort
     ;
 
   # Per-system nixpkgs accessor (legacyPackages avoids a redundant eval). The
@@ -93,6 +94,7 @@ let
               publicServers
               publicSubdomain
               externalServers
+              publicMcpPort
               ;
             accountId = cloudflareAccountId;
             zoneId = cloudflareZoneId;
