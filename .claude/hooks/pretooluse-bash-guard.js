@@ -165,7 +165,7 @@ const DESKTOP_COMMANDER_TOOLS = new Set(["ls", "find", "stat", "ps", "kill"]);
 // handles the two evasions a bare `\.#` misses: a quoted flake ref, and the
 // `github:kattakath/nix-config#…` form that runs the same app without a checkout.
 const CF_TERRANIX_APP =
-  /\bnix\s+run\s+["']?(?:\.|github:kattakath\/nix-config)#(?:cf-tunnel|mcp-public|hf)-(?:apply|destroy)\b/;
+  /\bnix\s+run\s+["']?(?:\.|github:kattakath\/nix-config)#(?:cf-tunnel|mcp-public)-(?:apply|destroy)\b/;
 
 // Rule 1c — the two ways a secret VALUE reaches stdout, and therefore this
 // session's transcript. Deliberately WHOLE-COMMAND regexes, not the
@@ -196,7 +196,7 @@ const CMD_POS = String.raw`(?:^|(?<!\\)[\n;|&(]|\$\(|\x60)\s*`;
 // So collapse escaped PAIRS to a non-backslash placeholder first; whatever
 // backslash survives is genuinely escaping the character after it. Length is
 // preserved (two chars in, two out) so reported offsets stay meaningful.
-const unescapePairs = (c) => c.replace(/\\\\/g, "  ");
+const unescapePairs = (c) => c.replace(/\\\\/g, "\0\0");
 const SECRET_REVEAL = new RegExp(CMD_POS + String.raw`(?:\S*/)?secret\s+reveal\b`);
 // The bypass that matters more: the agent does not need the CLI at all.
 // `security find-generic-password -w` (or -g) prints the value directly, and
@@ -235,8 +235,14 @@ const BUILD_HOST_PI = new RegExp(String.raw`--build-host[=\s]+["']?` + PI_HOSTS 
 // deploy-rs' own flag for the same thing.
 const DEPLOY_REMOTE_BUILD = /--remote-build\b/;
 // `ssh <pi> … nix build|nixos-rebuild|nix-build` — a build dispatched into the Pi.
+// `[\s\S]*`, NOT `[^\n|;&]*`. That character class existed to stop a match
+// spanning two commands back when the splitter was quote-blind — but it also
+// stopped the match at a separator INSIDE the remote payload, so
+// `ssh nixpi 'true && nix build …'` sailed straight through. Segments are
+// quote-bounded now (splitTopLevel), so the segment IS the boundary and the
+// class only re-opened the hole it was meant to close.
 const SSH_BUILD_ON_PI = new RegExp(
-  String.raw`\bssh\b[^\n|;&]*\b` + PI_HOSTS + String.raw`\b[^\n|;&]*\b(?:nix(?:os-rebuild|-build)?\s+build|nixos-rebuild|nix-build)\b`,
+  String.raw`\bssh\b[\s\S]*\b` + PI_HOSTS + String.raw`\b[\s\S]*\b(?:nix(?:os-rebuild|-build)?\s+build|nixos-rebuild|nix-build)\b`,
   "i",
 );
 // A remote BUILDER pointed at the Pi (`--builders ssh://…nixpi`, `--store ssh://…`).
@@ -271,48 +277,90 @@ function emit(decision, reason, systemMessage) {
 }
 
 // ---- top-level command segmentation (best-effort, not a full shell parser) ----
-// Splits on ;, &&, ||, |, and newlines — matches the granularity the retired
-// prompt rule reasoned in ("this AND that", "piped into"). Quoting edge cases
-// (a ';' inside a quoted string) are not handled — same limitation the LLM
-// version had in practice, and false-negatives here just fall through to the
-// Rule-4 default-approve, never a false BLOCK.
+// Splits on ;, &&, ||, |, and newlines — the granularity the retired prompt rule
+// reasoned in ("this AND that", "piped into").
 //
-// UNWRAP `sh -c` FIRST (2026-09-16). Every per-argv0 rule — 1d above all — asks
-// "what command is this segment?" and falls through to `default: false` when the
-// answer is unknown. An interpreter wrapper makes the answer permanently
-// unknown: `bash -c '<anything>'` has argv0 === "bash", so the guard APPROVED a
-// build on the Pi's SD card, and would approve every other per-argv0 rule's
-// shape too. Rewriting the payload in place BEFORE the split — rather than
-// teaching argv0 about `-c` — is what makes a payload containing `&&` segment
-// correctly afterwards.
+// QUOTE-AWARE, since 2026-09-16, and that is a correctness fix rather than
+// polish. The previous splitter was a bare regex, so a ';' or a NEWLINE inside a
+// quoted string read as a command boundary. That was survivable while every rule
+// was gated on a segment's argv0 — a fragment of prose has a harmless argv0 —
+// but the `sh -c` unwrap below made it reachable: a multi-line `git commit -m`
+// whose body quoted `bash -c '<a blocked shape>'` had that line split into its
+// own segment, unwrapped, and BLOCKED. This file's own test suite records the
+// rule blocking its carrier commit twice already; that would have been a third.
 //
-// Anchored at CMD_POS, so only a wrapper that would actually RUN is unwrapped.
-// Without that anchor a commit message QUOTING the shape starts getting blocked,
-// which is the exact regression Rule 1d's per-argv0 gating was written to avoid.
-// Not a shell parser: an escaped or nested same-quote inside the payload is not
-// handled, and that failure direction is the safe one — no match leaves the
-// wrapper intact, i.e. exactly today's default-approve.
-const SHELL_DASH_C =
-  CMD_POS +
-  String.raw`(?:(?:[A-Za-z_][A-Za-z0-9_]*=\S*|sudo|doas|env|exec|nohup|setsid|time|nice)\s+)*` +
-  String.raw`(?:\S*/)?(?:ba|z|da|k|a)?sh\s+-[a-zA-Z]*c\s+(['"])([\s\S]*?)\1`;
-function unwrapShellC(cmd) {
-  let out = cmd;
-  // Depth-capped: `bash -c "bash -c '…'"` is two layers; three is generous and
-  // guarantees termination whatever the payload looks like.
-  for (let d = 0; d < 3; d++) {
-    const next = out.replace(new RegExp(SHELL_DASH_C, "gi"), (_m, _q, payload) => `; ${payload} ;`);
-    if (next === out) break;
-    out = next;
+// Not a shell parser. It tracks single quotes, double quotes and a backslash
+// escape outside single quotes. Heredocs, $'…' and nested command substitution
+// are out of scope — and every one of them fails toward MORE segments, i.e.
+// toward the old behaviour, never toward silently merging two real commands.
+function splitTopLevel(cmd) {
+  const out = [];
+  let cur = "";
+  let quote = null;
+  for (let i = 0; i < cmd.length; i++) {
+    const ch = cmd[i];
+    if (quote) {
+      // Inside single quotes a backslash is literal; inside double quotes it escapes.
+      if (ch === "\\" && quote === '"' && i + 1 < cmd.length) {
+        cur += ch + cmd[++i];
+        continue;
+      }
+      if (ch === quote) quote = null;
+      cur += ch;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      quote = ch;
+      cur += ch;
+      continue;
+    }
+    if (ch === "\\" && i + 1 < cmd.length) {
+      cur += ch + cmd[++i];
+      continue;
+    }
+    if (ch === ";" || ch === "\n" || ch === "|" || ch === "&") {
+      // Consume the second character of `&&` / `||` so it does not open an
+      // empty segment.
+      if ((ch === "&" || ch === "|") && cmd[i + 1] === ch) i++;
+      out.push(cur);
+      cur = "";
+      continue;
+    }
+    cur += ch;
   }
-  return out;
+  out.push(cur);
+  return out.map((x) => x.trim()).filter(Boolean);
 }
 
-function segments(cmd) {
-  return unwrapShellC(cmd)
-    .split(/&&|\|\||[;|\n]/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+// UNWRAP `sh -c` (2026-09-16). Every per-argv0 rule — 1d above all — asks "what
+// command is this segment?" and falls through to `default: false` when the
+// answer is unknown. An interpreter wrapper makes it permanently unknown:
+// `bash -c '<anything>'` has argv0 === "bash", so the guard APPROVED a build on
+// the Pi's SD card, and would approve every other per-argv0 rule's shape too.
+//
+// Anchored to the START of an already-split segment, NOT at a regex
+// command-position over the whole string. That ordering is the fix: splitting
+// first means a wrapper quoted inside someone's prose is still part of that
+// prose's segment, so it is never mistaken for a wrapper that would RUN.
+const SHELL_DASH_C_SEG = new RegExp(
+  String.raw`^(?:(?:[A-Za-z_][A-Za-z0-9_]*=\S*|sudo|doas|env|exec|nohup|setsid|time|nice)\s+)*` +
+    String.raw`(?:\S*/)?(?:ba|z|da|k|a)?sh\s+-[a-zA-Z]*c\s+(['"])([\s\S]*)\1\s*$`,
+  "i",
+);
+
+// The wrapper segment is KEPT as well as expanded: other rules still reason
+// about it, and the payload's own segments are appended so `segs[i]` stays
+// aligned with `rawSegs[i]`. Depth-capped at 3 for `bash -c "bash -c '…'"`.
+function segments(cmd, depth = 0) {
+  const raw = splitTopLevel(cmd);
+  if (depth >= 3) return raw;
+  const out = [];
+  for (const seg of raw) {
+    out.push(seg);
+    const m = seg.match(SHELL_DASH_C_SEG);
+    if (m && m[2].trim()) out.push(...segments(m[2], depth + 1));
+  }
+  return out;
 }
 
 // Transparent wrappers: each execs the REST of the segment, so the command that
