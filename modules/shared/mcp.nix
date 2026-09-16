@@ -24,11 +24,16 @@
 # `open-design` (stdio-only upstream with a known silent-death bug — see the
 # Client side A block for the full rationale).
 #
-# REQUIREMENT: a launchd USER (GUI) agent lives in the `gui/<uid>` domain, which
-# only exists while that uid has an active GUI login. This targets the flake
-# `loginName` (uid 502), so that account must be the one logged into the Mac —
-# which it is (the active console user is `ismail`). If a different
-# account owns the GUI session, `darwin-rebuild switch` cannot load the agent.
+# CONSTRAINT (tracked for removal, not yet fixed — 2026-09-16): by default a
+# launchd USER agent lives in the GUI-only `gui/<uid>` domain, which only
+# exists while that uid has an active GUI login. This agent targets `loginName`
+# (uid 501, ismail), so the gateway only runs while ismail owns the console
+# session — a second account gets no gateway of its own, and neither gets one
+# before first login. Upstream already ships the fix: `domain = "user"`
+# (pinned home-manager modules/launchd/default.nix:21-27) bootstraps into
+# `user/<uid>` with no GUI login required at all. Not applied here yet — it
+# needs a live-tested activation before landing, same as the mkForce'd agents
+# in hosts/macos.nix that exist to work around this identical limitation.
 #
 # SERVER SIDE (this box, 127.0.0.1:8096)
 #   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 20 servers (22
