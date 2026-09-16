@@ -89,6 +89,27 @@ in
       wants = [ "network-online.target" ];
       wantedBy = [ "multi-user.target" ];
 
+      # NEVER let a config switch restart this unit. This connector IS the
+      # control channel every remote deploy rides — deploy-rs and `nixos-rebuild
+      # --target-host` both reach the Pi through it — so the default
+      # `restartIfChanged = true` makes activation tear down its own transport:
+      # switch-to-configuration stops the unit, the SSH session dies, and
+      # `activate-rs` is SIGHUP'd BEFORE magicRollback's confirm timer can fire.
+      # `Restart = "on-failure"` below does not save it either, because a
+      # DELIBERATE stop is not a failure — so the connector stays down and the Pi
+      # is unreachable until someone power-cycles it by hand.
+      # Measured 2026-09-16: that is exactly how both hosted sites went to HTTP
+      # 530 with no remote way back in (sshd is loopback-bound and
+      # `allowedTCPPorts = [ ]`, so this connector is the only door).
+      # Upstream option, not a custom mechanism — nixos/lib/systemd-unit-options.nix:548.
+      # nixpkgs' own sshd takes the same precaution for the same reason
+      # (services/networking/ssh/sshd.nix:829, `stopIfChanged = false`).
+      # COST, and it is a real one: a cloudflared package or argument change does
+      # NOT take effect at activation. Restart it deliberately once the deploy has
+      # confirmed green — nothing is riding it at that point:
+      #   ssh <pi> sudo systemctl restart cloudflared-connector
+      restartIfChanged = false;
+
       serviceConfig = {
         # Token via env (EnvironmentFile), NOT argv. `tunnel run` with no name/UUID
         # picks up TUNNEL_TOKEN from the environment for a remotely-managed tunnel.
