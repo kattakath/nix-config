@@ -17,6 +17,22 @@
 # `-H` because nix warns when $HOME is not owned by root — the same reason
 # bootstrap.sh spells its own first-activation escalation `sudo -H` too.
 #
+# upstream-first (.claude/rules/upstream-first.md): grepped the pinned nix-darwin
+# modules/ for sudo|elevate|rebuild|activate — NO option restores self-elevation.
+# The only sudo-adjacent surface is `security.sudo.extraConfig`, which would take
+# the opposite route (a NOPASSWD rule REMOVES the prompt rather than raising it).
+#
+# But the rule's grep has a blind spot, and this hit it: `nh` (nix-helper, 4.4.2,
+# already on PATH here) has `--elevation-strategy`, so the community DOES own this
+# and a modules/ grep could never see it — nh is a package, not an option. The
+# reason we still do not use it is measured, not ignorance: modules/shared/home.nix
+# deliberately sets NO `programs.nh.darwinFlake` pointer because nh's progress
+# ticker repaints ~15x/s with no off switch (NH_NOM=0 and NO_COLOR=1 both measured
+# to change nothing), which is worse than plain darwin-rebuild under a pipe and
+# unreadable in Claude Code's append-only viewport. That rejects nh's OUTPUT, not
+# its elevation — so if the ticker is ever fixable, this wrapper is the thing to
+# retire, keeping only the three diagnostics below that nh has no equivalent for.
+#
 # Deliberately generic: no repo path, no hostname, no `--flake`. A bare
 # `darwin-rebuild switch` resolves the flake through /etc/nix-darwin and the
 # attribute through `scutil --get LocalHostName`, so this works on any darwin
