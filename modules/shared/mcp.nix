@@ -427,8 +427,11 @@ let
     };
     # MCP-server DISCOVERY (mcpfinder.dev — @mcpfinder/server, AGPL-3.0):
     # cross-registry search over the Official MCP Registry + Glama + Smithery
-    # via `search_mcp_servers` / `get_mcp_server_details`. Wired
-    # DISCOVERY-ONLY: its third tool, `add_mcp_server_config`, writes client
+    # via `search_mcp_servers` / `get_server_details`. Wired
+    # DISCOVERY-ONLY. It registers FOUR tools (browse_categories,
+    # get_install_config, get_server_details, search_mcp_servers), all read-only
+    # — verified from a live session's namespace 2026-09-16. It had a fifth,
+    # `add_mcp_server_config`, which writes client
     # config files imperatively — the exact anti-pattern this gateway exists
     # to avoid (a server is ADOPTED by declaring it in this file, pinned, and
     # rebuilding — the `mcp-scout` skill in nix-config codifies that flow).
