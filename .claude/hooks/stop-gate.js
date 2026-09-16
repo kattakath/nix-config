@@ -217,19 +217,27 @@ try {
   run("git rev-parse --is-inside-work-tree");
 } catch (e) {
   const msg = `${(e && e.stderr) || ""}${(e && e.message) || ""}`;
+  // if/else, NOT a bare `if` followed by block(). approve() ends in
+  // process.exit(0), so a fallthrough is unreachable TODAY — but that makes the
+  // control flow depend on a side effect in another function. Make approve()
+  // returnable (unit-testing it is the obvious reason, and this file now has a
+  // suite) and the fallthrough would silently turn the legitimate no-op into a
+  // hard block on every non-git directory: fail-CLOSED everywhere. An explicit
+  // else costs nothing and does not depend on what approve() does.
   if (/not a git repository/i.test(msg)) {
     approve();
+  } else {
+    block(
+      `The Stop gate could not talk to git, so NOTHING was checked — not git purity, ` +
+        `not nix syntax, not flake check. This is a hard block rather than a silent pass ` +
+        `because a gate that cannot fire is worse than no gate.\n\n` +
+        `git said: ${msg.trim().split("\n")[0] || "(no output)"}\n\n` +
+        `The usual cause is a cross-owned checkout — working in a tree owned by another ` +
+        `account, which git rejects as "dubious ownership". Fix the ownership, or work in ` +
+        `the clone that /etc/nix-darwin/flake.nix resolves to, rather than adding an ` +
+        `exception that would re-open this.`,
+    );
   }
-  block(
-    `The Stop gate could not talk to git, so NOTHING was checked — not git purity, ` +
-      `not nix syntax, not flake check. This is a hard block rather than a silent pass ` +
-      `because a gate that cannot fire is worse than no gate.\n\n` +
-      `git said: ${msg.trim().split("\n")[0] || "(no output)"}\n\n` +
-      `The usual cause is a cross-owned checkout — working in a tree owned by another ` +
-      `account, which git rejects as "dubious ownership". Fix the ownership, or work in ` +
-      `the clone that /etc/nix-darwin/flake.nix resolves to, rather than adding an ` +
-      `exception that would re-open this.`,
-  );
 }
 
 // 1. Git purity — untracked .nix files make flake evaluation untrustworthy.
