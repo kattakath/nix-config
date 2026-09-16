@@ -276,20 +276,97 @@ function emit(decision, reason, systemMessage) {
 // (a ';' inside a quoted string) are not handled — same limitation the LLM
 // version had in practice, and false-negatives here just fall through to the
 // Rule-4 default-approve, never a false BLOCK.
+//
+// UNWRAP `sh -c` FIRST (2026-09-16). Every per-argv0 rule — 1d above all — asks
+// "what command is this segment?" and falls through to `default: false` when the
+// answer is unknown. An interpreter wrapper makes the answer permanently
+// unknown: `bash -c '<anything>'` has argv0 === "bash", so the guard APPROVED a
+// build on the Pi's SD card, and would approve every other per-argv0 rule's
+// shape too. Rewriting the payload in place BEFORE the split — rather than
+// teaching argv0 about `-c` — is what makes a payload containing `&&` segment
+// correctly afterwards.
+//
+// Anchored at CMD_POS, so only a wrapper that would actually RUN is unwrapped.
+// Without that anchor a commit message QUOTING the shape starts getting blocked,
+// which is the exact regression Rule 1d's per-argv0 gating was written to avoid.
+// Not a shell parser: an escaped or nested same-quote inside the payload is not
+// handled, and that failure direction is the safe one — no match leaves the
+// wrapper intact, i.e. exactly today's default-approve.
+const SHELL_DASH_C =
+  CMD_POS +
+  String.raw`(?:(?:[A-Za-z_][A-Za-z0-9_]*=\S*|sudo|doas|env|exec|nohup|setsid|time|nice)\s+)*` +
+  String.raw`(?:\S*/)?(?:ba|z|da|k|a)?sh\s+-[a-zA-Z]*c\s+(['"])([\s\S]*?)\1`;
+function unwrapShellC(cmd) {
+  let out = cmd;
+  // Depth-capped: `bash -c "bash -c '…'"` is two layers; three is generous and
+  // guarantees termination whatever the payload looks like.
+  for (let d = 0; d < 3; d++) {
+    const next = out.replace(new RegExp(SHELL_DASH_C, "gi"), (_m, _q, payload) => `; ${payload} ;`);
+    if (next === out) break;
+    out = next;
+  }
+  return out;
+}
+
 function segments(cmd) {
-  return cmd
+  return unwrapShellC(cmd)
     .split(/&&|\|\||[;|\n]/)
     .map((s) => s.trim())
     .filter(Boolean);
 }
 
-// First real token of a segment: skip leading VAR=val env assignments and a
-// leading `sudo`/`exec`/`command`/`time`/`nice` wrapper, strip any path prefix.
+// Transparent wrappers: each execs the REST of the segment, so the command that
+// actually runs is a LATER token, not this one. `env`/`doas`/`nohup`/`setsid`
+// were missing, which hid `env nixos-rebuild … --build-host nixpi` from every
+// per-argv0 rule for the same reason `bash -c` did.
+const TRANSPARENT_WRAPPERS = new Set([
+  "sudo",
+  "doas",
+  "exec",
+  "command",
+  "time",
+  "nice",
+  "env",
+  "nohup",
+  "setsid",
+  "stdbuf",
+  "ionice",
+]);
+// Wrapper flags that CONSUME the next token. Skipping the flag but not its value
+// leaves argv0 === the username (`sudo -u izzy nix …` -> "izzy"), which falls
+// through to default-approve just as silently as the wrapper itself did.
+const WRAPPER_FLAGS_WITH_VALUE = new Set(["-u", "--user", "-g", "--group", "-C", "-p", "--prompt"]);
+
+// First real token of a segment: skip leading VAR=val assignments, transparent
+// wrappers and those wrappers' own flags; strip any path prefix.
 function argv0(segment) {
   const tokens = segment.split(/\s+/);
   let i = 0;
-  while (i < tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i])) i++;
-  while (i < tokens.length && ["sudo", "exec", "command", "time", "nice"].includes(tokens[i])) i++;
+  let sawWrapper = false;
+  // ONE loop, not two. `env FOO=1 cmd` interleaves an assignment with a wrapper,
+  // and two sequential loops stop at the first token that is not of the kind the
+  // loop they are in is scanning for.
+  while (i < tokens.length) {
+    const tok = tokens[i];
+    if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(tok)) {
+      i++;
+      continue;
+    }
+    // Path-stripped, so `/usr/bin/sudo` is skipped like a bare `sudo`. The old
+    // list compared the RAW token, so an absolute path defeated it.
+    if (TRANSPARENT_WRAPPERS.has(tok.split("/").pop().toLowerCase())) {
+      i++;
+      sawWrapper = true;
+      continue;
+    }
+    // Only AFTER a wrapper: a leading `-flag` on the real command is that
+    // command's own business, and consuming it would misread argv0.
+    if (sawWrapper && tok.startsWith("-")) {
+      i += WRAPPER_FLAGS_WITH_VALUE.has(tok) ? 2 : 1;
+      continue;
+    }
+    break;
+  }
   const tok = tokens[i] || "";
   return tok.split("/").pop().toLowerCase();
 }

@@ -131,7 +131,16 @@ let
     in
     pkgs.writeShellApplication {
       inherit name;
-      runtimeInputs = [ pkgs.opentofu ];
+      # coreutils/gnugrep/gnused are for the DROPPED-RECORD guard below. Pinning
+      # them is the point: the guard is the thing standing between a bad render
+      # and four deleted zones, so it must not resolve `comm` off the caller's
+      # ambient PATH.
+      runtimeInputs = [
+        pkgs.opentofu
+        pkgs.coreutils
+        pkgs.gnugrep
+        pkgs.gnused
+      ];
       text = ''
         if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
           echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
@@ -188,10 +197,52 @@ let
         fi
 
         tofu init
+
+        # DROPPED-RECORD GUARD — the site-free check above is an ABSOLUTE FLOOR,
+        # so it only fires when EVERY site is gone. A render that keeps one site
+        # and drops three sails past it (ingress 3 > 2) and then deletes three
+        # CNAMEs and three www->apex rulesets while reporting success. The floor
+        # cannot see that, because it never looks at what is already live.
+        # This does: compare the addresses state holds against the addresses this
+        # render declares, and refuse on any DROP.
+        #
+        # Read through an `if`, never `|| true`: a locked, corrupt or
+        # otherwise-unreadable state would yield an empty list, which reads as
+        # "nothing to lose" — a guard that fails OPEN exactly when it matters.
+        if ! tofu state list > .state-addrs.raw 2> .state-list.err; then
+          if [ -s terraform.tfstate ]; then
+            echo "REFUSING: 'tofu state list' failed, so this run cannot tell whether" >&2
+            echo "  an apply would delete live records. Proceeding blind is the one" >&2
+            echo "  thing this guard exists to prevent. tofu said:" >&2
+            sed 's/^/    /' .state-list.err >&2
+            exit 1
+          fi
+          # No state at all: this is the FIRST apply, and there is genuinely
+          # nothing to drop.
+          : > .state-addrs.raw
+        fi
+        grep -E '^cloudflare_(dns_record|ruleset)\.' .state-addrs.raw \
+          | sort > .state-addrs || true
+        ${pkgs.jq}/bin/jq -r '
+          (.resource.cloudflare_dns_record // {} | keys[] | "cloudflare_dns_record." + .),
+          (.resource.cloudflare_ruleset    // {} | keys[] | "cloudflare_ruleset."    + .)
+        ' config.tf.json | sort > .render-addrs
+        dropped=$(comm -23 .state-addrs .render-addrs)
+        if [ -n "$dropped" ]; then
+          echo "REFUSING: this render DROPS resources that state already holds:" >&2
+          printf '%s\n' "$dropped" | sed 's/^/    /' >&2
+          echo "  Applying it would DELETE each of them at Cloudflare." >&2
+          echo "  Usually this means hostedSites lost an entry it should still have." >&2
+          echo "  Override only if you genuinely mean to delete them:" >&2
+          echo "    CF_TUNNEL_ALLOW_SITE_FREE=1 ${name}" >&2
+          [ "''${CF_TUNNEL_ALLOW_SITE_FREE:-}" = "1" ] || exit 1
+          echo "WARNING: CF_TUNNEL_ALLOW_SITE_FREE=1 set — proceeding with the deletions." >&2
+        fi
+
         # "$@" is forwarded LAST so a caller can add flags (-auto-approve,
         # -target, -refresh=false) without a second app. It cannot weaken the
-        # guards above: those run before tofu is invoked at all, and refusing
-        # exits the script rather than falling through to this line.
+        # guards above: those run before tofu ${action} is invoked at all, and
+        # refusing exits the script rather than falling through to this line.
         tofu ${action} "$@"
       ''
       + nixpkgs.lib.optionalString (action == "apply") printToken;
@@ -229,7 +280,15 @@ let
     in
     pkgs.writeShellApplication {
       inherit name;
-      runtimeInputs = [ pkgs.opentofu ];
+      # gnugrep/gnused/coreutils are the guard's, not the app's — see the twin
+      # note on the nixpi builder: a guard must not resolve its tools off the
+      # caller's ambient PATH.
+      runtimeInputs = [
+        pkgs.opentofu
+        pkgs.coreutils
+        pkgs.gnugrep
+        pkgs.gnused
+      ];
       text = ''
         if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
           echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
@@ -265,8 +324,24 @@ let
         rendered=$(${pkgs.jq}/bin/jq '
           [.resource.cloudflare_zero_trust_access_ai_controls_mcp_server // {} | keys[]]
           | length' config.tf.json)
-        in_state=$(tofu state list 2>/dev/null \
-          | grep -c '^cloudflare_zero_trust_access_ai_controls_mcp_server\.' || true)
+        # `2>/dev/null … || true` FAILED OPEN. A locked, corrupt or
+        # otherwise-unreadable state produced an empty list, `in_state` read 0,
+        # and the refusal below never fired — so the one situation where you most
+        # want a refusal was the one that sailed straight through to an apply
+        # that unpublishes every server. Separate the two cases it conflated:
+        # "state says zero" and "state could not be read".
+        if ! tofu state list > .state-addrs.raw 2> .state-list.err; then
+          if [ -s terraform.tfstate ]; then
+            echo "REFUSING: 'tofu state list' failed, so this run cannot tell whether" >&2
+            echo "  an apply would unpublish live servers. tofu said:" >&2
+            sed 's/^/    /' .state-list.err >&2
+            exit 1
+          fi
+          # No state at all: the FIRST apply, which legitimately publishes none.
+          : > .state-addrs.raw
+        fi
+        in_state=$(grep -c '^cloudflare_zero_trust_access_ai_controls_mcp_server\.' \
+          .state-addrs.raw || true)
         if [ "''${rendered:-0}" -eq 0 ] && [ "''${in_state:-0}" -gt 0 ]; then
           echo "REFUSING: this render publishes 0 servers but state holds ''${in_state}." >&2
           echo "  Applying would UNPUBLISH every one of them." >&2
