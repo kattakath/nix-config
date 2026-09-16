@@ -52,7 +52,8 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
 
 | Path | Owns | Typical flake output |
 |---|---|---|
-| `flake.nix` / `flake.lock` | pins, `mkDarwin`/`mkNixos`, apps | all |
+| `flake.nix` / `flake.lock` | inputs/pins and ONE `mkFlake` call — nothing else | — |
+| `modules/parts/` | the flake ENGINE: `mkDarwin`/`mkNixos`, apps, checks, identity | all |
 | `hosts/<name>.nix` | host-only deltas | `darwinConfigurations` / `nixosConfigurations` |
 | `modules/shared/` | cross-host HM + shared options | both |
 | `modules/darwin/` | macOS system | `darwinConfigurations` |
@@ -73,7 +74,7 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
 - [ ] `git status` — no surprise WIP; stage only intentional hygiene.
 - [ ] Touched/scope files still match the CLAUDE.md + `docs/repo-map.md` story (no orphan
       modules, no path whose one-liner and map section disagree).
-- [ ] Flake apps in `flake.nix` have matching `packages/*` and runbook mentions if user-facing.
+- [ ] Flake apps in `modules/parts/packages.nix` have matching `packages/*` and runbook mentions if user-facing.
 - [ ] Reverse: runbooks mention only apps/paths that still exist.
 
 ### B. LEAN / abandoned
