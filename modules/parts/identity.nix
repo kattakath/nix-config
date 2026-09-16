@@ -157,8 +157,6 @@ let
       fullName
       userEmail
       domainName
-      # modules/shared/mcp.nix binds the published gateway to this port.
-      publicMcpPort
       ;
   };
 in
