@@ -383,7 +383,7 @@ in
   # MACHINE-WIDE SINGLETONS, which physically cannot run twice, and the handful
   # of settings that are per-PERSON rather than per-machine.
   home-manager.users.izzy =
-    { lib, ... }:
+    { config, lib, ... }:
     {
       imports = [ ../modules/shared/home.nix ];
       home.stateVersion = "24.05";
@@ -427,6 +427,37 @@ in
       # `false` here is a definition CONFLICT, not an override.
       launchd.agents.ssh-keychain-load.enable = lib.mkForce false;
       launchd.agents.next-right-thing.enable = lib.mkForce false;
+
+      # MECHANIZE THAT COST. The list above is per-agent because upstream gives
+      # no class-wide switch, so it silently goes stale the moment anything adds
+      # an agent to the shared profile — and the way it reports that is a
+      # `set -e` abort ~80 lines short of the final `ln -sfn … /run/current-system`,
+      # i.e. a SILENT four-generation drift that looked like a successful switch.
+      # This turns the next occurrence into a `nix flake check` failure that
+      # names the agent, BEFORE anything is activated.
+      #
+      # Reaches the surface: home-manager's OS integration flattens every
+      # `home-manager.users.<u>.assertions` into the system's own, prefixed
+      # "<u> profile: " (pinned home-manager nixos/common.nix:191-199), and
+      # nix-darwin evaluates `assertions` while building the toplevel.
+      assertions =
+        let
+          enabled = lib.attrNames (lib.filterAttrs (_: a: a.enable) config.launchd.agents);
+        in
+        [
+          {
+            assertion = enabled == [ ];
+            message = ''
+              izzy has ${toString (builtins.length enabled)} ENABLED launchd agent(s): ${lib.concatStringsSep ", " enabled}.
+              izzy has never logged in, so `gui/502` does not exist and bootstrapping any
+              agent into it fails with "Domain does not support specified action" — which
+              aborts activation and strands /run/current-system on the previous generation.
+              Either add `launchd.agents.<name>.enable = lib.mkForce false;` next to the two
+              above, or — if he HAS now logged in once — delete this whole block together
+              with `local.mediaCli.enable` and this assertion.
+            '';
+          }
+        ];
 
       # ---- Singletons: exactly one instance, and it is the operator's --------
       # Each of these binds a fixed loopback port or owns a single credential, so
