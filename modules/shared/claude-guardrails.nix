@@ -48,9 +48,20 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # ── Imperative MCP adoption (mcp-scout: "installation IS declaration") ──
     # The gateway is the single MCP source; a runtime add lands in ~/.claude.json,
     # outside flake.lock, Cachix and the public ⊆ hosted assertion (ADR-003 §5).
-    # Both tool-name spellings: the HM-managed plugin prefix is what sessions see.
-    "mcp__plugin_claude-code-home-manager_mcpfinder__add_mcp_server_config"
-    "mcp__mcpfinder__add_mcp_server_config"
+    # THE PREFIX IS THE WHOLE RULE. A deny naming a tool that does not exist is
+    # not a weak guardrail, it is NO guardrail — and it fails silently, because
+    # nothing reports a rule that never matches.
+    #
+    # Measured 2026-09-15 from a live session's own tool namespace: servers
+    # arrive as `mcp__plugin_hm_<server>__<tool>`. The two spellings that lived
+    # here before — a bare `mcp__mcpfinder__…` and an older, longer plugin prefix
+    # — matched NOTHING, so imperative MCP adoption was ungated the whole time.
+    # modules/shared/home.nix:660 in this same repo already had it right.
+    #
+    # To re-verify after any plugin/marketplace change, read a real tool name out
+    # of a live session rather than reasoning about it; the prefix has changed
+    # once already and will not announce the next change.
+    "mcp__plugin_hm_mcpfinder__add_mcp_server_config"
     "Bash(claude mcp add *)"
     "Bash(claude mcp add-json *)"
     "Bash(claude mcp add-from-claude-desktop *)"

@@ -11,9 +11,9 @@
       "Write",
       "Glob",
       "Grep",
-      "mcp__desktop-commander__*",
-      "mcp__cloudflare__*",
-      "mcp__cloudflare-docs__*",
+      "mcp__plugin_hm_desktop-commander__*",
+      "mcp__plugin_hm_cloudflare__*",
+      "mcp__plugin_hm_cloudflare-docs__*",
       "Bash(git add:*)",
       "Bash(git status:*)",
       "Bash(git diff:*)",
@@ -61,22 +61,15 @@
       "Agent(Explore)",
       "Agent(Plan)",
       "Agent(general-purpose)",
-      "mcp__context7__*",
-      "mcp__arxiv__*",
-      "mcp__duckduckgo__*",
-      "mcp__fetch__*",
-      "mcp__sequentialthinking__*",
-      "mcp__memory__*",
-      "mcp__json-yaml-toml__*",
-      "mcp__mcp-jq__*",
-      "mcp__mcpfinder__*",
-      "mcp__open-design__list_projects",
-      "mcp__open-design__get_active_context",
-      "mcp__open-design__get_artifact",
-      "mcp__open-design__get_project",
-      "mcp__open-design__get_file",
-      "mcp__open-design__search_files",
-      "mcp__open-design__list_files",
+      "mcp__plugin_hm_context7__*",
+      "mcp__plugin_hm_arxiv__*",
+      "mcp__plugin_hm_duckduckgo__*",
+      "mcp__plugin_hm_fetch__*",
+      "mcp__plugin_hm_sequential-thinking__*",
+      "mcp__plugin_hm_memory__*",
+      "mcp__plugin_hm_json-yaml-toml__*",
+      "mcp__plugin_hm_mcp-jq__*",
+      "mcp__plugin_hm_mcpfinder__*",
       "mcp__plugin_hm_open-design__list_projects",
       "mcp__plugin_hm_open-design__get_active_context",
       "mcp__plugin_hm_open-design__get_artifact",
@@ -88,8 +81,7 @@
     "deny": [
       "Bash(home-manager switch:*)",
       "Bash(rm -rf:*)",
-      "mcp__mcpfinder__add_mcp_server_config",
-      "mcp__plugin_claude-code-home-manager_mcpfinder__add_mcp_server_config"
+      "mcp__plugin_hm_mcpfinder__add_mcp_server_config"
     ]
   },
   "hooks": {
@@ -99,7 +91,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "command -v nix >/dev/null 2>&1 && echo 'nix present: full two-system flake check available locally.' || echo 'nix ABSENT on host: local checks are syntax-only; full aarch64-darwin/aarch64-linux evaluation is CI-deferred to GitHub Actions (nix-ci.yml).'; u=$(cd \"${CLAUDE_PROJECT_DIR:-.}\" && git ls-files --others --exclude-standard -- '*.nix' 2>/dev/null); [ -n \"$u\" ] && echo \"WARNING: untracked .nix files present — run 'git add -A' before evaluating:\" && echo \"$u\" || true",
+            "command": "command -v nix >/dev/null 2>&1 && echo 'nix present: full two-system flake check available locally.' || echo 'nix ABSENT on host: local checks are syntax-only; full aarch64-darwin/aarch64-linux evaluation is CI-deferred to GitHub Actions (nix-ci.yml).'; u=$(cd \"${CLAUDE_PROJECT_DIR:-.}\" && git ls-files --others --exclude-standard -- '*.nix' 2>/dev/null); [ -n \"$u\" ] && echo \"WARNING: untracked .nix files present \u2014 run 'git add -A' before evaluating:\" && echo \"$u\" || true",
             "timeout": 10
           },
           {
@@ -136,7 +128,7 @@
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "Validate this file write for a Nix mono-repo (the Nix store is world-readable, so a plaintext secret VALUE must never be committed). Judge the CONTENT for a real embedded secret, and separately the WRITE TARGET path.\n\nDENY if the content embeds a hardcoded secret VALUE:\n- a private-key block: 'BEGIN PRIVATE KEY', 'BEGIN RSA PRIVATE KEY', 'BEGIN OPENSSH PRIVATE KEY', 'BEGIN EC PRIVATE KEY';\n- a real credential literal: 'ghp_'/'github_pat_'/'glpat-'/'sk-ant-'/'AKIA'/'sk-' followed by actual key material;\n- a bare high-entropy token or password assigned to a literal (e.g. `password = \"<actual-value>\"`, or TUNNEL_TOKEN set to an ACTUAL token string).\n\nDENY if the WRITE TARGET (the file_path being written) is an OS system path — /etc/, /usr/, /var/, /tmp/, /System/, /Library/, /private/etc/, /private/var/ — or uses a LITERAL '../' path-traversal sequence escaping the project. An absolute path outside this repo's root is NOT traversal and NOT by itself a reason to deny — see the approve list. This concerns the file being WRITTEN, NOT paths merely mentioned inside the content.\n\nAPPROVE (never block) — these are legitimate and routine in this repo:\n- SSH PUBLIC keys ('ssh-ed25519 AAAA', 'ssh-rsa AAAA', 'ecdsa-sha2-nistp…') and agenix .age ciphertext.\n- Cloudflare/similar-provider ACCOUNT ID or ZONE ID values (32-char lowercase hex, e.g. `accountId = \"434ac7d950e7332255e286dbaa353d8f\";`) — these are IDENTIFIERS, not credentials; this repo's own nix-config/flake.nix already commits its own `cloudflareAccountId`/`cloudflareZoneId` the same way with a comment saying exactly this. The actual secret in this pattern is always a separate API TOKEN read from an env var (`CLOUDFLARE_API_TOKEN`) or a `tunnel_id`/token data source — never the account/zone id itself. Do not confuse a resource identifier with a credential just because it is a long hex string.\n- The env-var NAME/placeholder 'TUNNEL_TOKEN=' with NO real value — e.g. 'TUNNEL_TOKEN=<token>', 'TUNNEL_TOKEN=$(…)', or documentation of the token-file format.\n- Nix/shell/systemd config OR docs that COPY or REFERENCE an operator-planted secret FILE (from /boot/firmware, /Volumes/FIRMWARE, a /run path, an agenix .age path, or the FAT FIRMWARE partition). Copying/installing a secret the operator places out-of-band is this repo's standard pattern (modules/nixos/firmware-provisioning.nix) — it is NOT embedding a secret.\n- Markdown/docs describing the provisioning/flashing/tunnel flow, even when they name tokens, secrets, or keys.\n- User-owned config paths outside the project (~/.claude/, ~/.config/, /Users/<name>/.claude/).\n- Absolute paths into ANY of the user's OWN sibling working trees under /Users/<name>/Developer/<forge>/<owner>/ — EVERY forge host (github.com, gitlab.com, etc.) and EVERY owner/org namespace under that person's account qualifies as a sibling, not just ones matching this repo's own owner. Examples: github.com/kattakath/*, github.com/ismailkattakath/*, gitlab.com/ismailkattakath/*, or any other forge/owner pair — the private nix-personal composition checkout is only ONE example among many, never treat it as the boundary. Cross-repo, cross-forge, cross-owner sessions are routine in this fleet; do NOT invent an unstated 'same parent directory structure' or 'same owner as this repo' requirement — only a literal '../' escape or the OS system paths above justify a target-based DENY.\n\nWhen unsure whether something is a real secret VALUE versus a name, placeholder, format example, or file reference, APPROVE.",
+            "prompt": "Validate this file write for a Nix mono-repo (the Nix store is world-readable, so a plaintext secret VALUE must never be committed). Judge the CONTENT for a real embedded secret, and separately the WRITE TARGET path.\n\nDENY if the content embeds a hardcoded secret VALUE:\n- a private-key block: 'BEGIN PRIVATE KEY', 'BEGIN RSA PRIVATE KEY', 'BEGIN OPENSSH PRIVATE KEY', 'BEGIN EC PRIVATE KEY';\n- a real credential literal: 'ghp_'/'github_pat_'/'glpat-'/'sk-ant-'/'AKIA'/'sk-' followed by actual key material;\n- a bare high-entropy token or password assigned to a literal (e.g. `password = \"<actual-value>\"`, or TUNNEL_TOKEN set to an ACTUAL token string).\n\nDENY if the WRITE TARGET (the file_path being written) is an OS system path \u2014 /etc/, /usr/, /var/, /tmp/, /System/, /Library/, /private/etc/, /private/var/ \u2014 or uses a LITERAL '../' path-traversal sequence escaping the project. An absolute path outside this repo's root is NOT traversal and NOT by itself a reason to deny \u2014 see the approve list. This concerns the file being WRITTEN, NOT paths merely mentioned inside the content.\n\nAPPROVE (never block) \u2014 these are legitimate and routine in this repo:\n- SSH PUBLIC keys ('ssh-ed25519 AAAA', 'ssh-rsa AAAA', 'ecdsa-sha2-nistp\u2026') and agenix .age ciphertext.\n- Cloudflare/similar-provider ACCOUNT ID or ZONE ID values (32-char lowercase hex, e.g. `accountId = \"434ac7d950e7332255e286dbaa353d8f\";`) \u2014 these are IDENTIFIERS, not credentials; this repo's own nix-config/flake.nix already commits its own `cloudflareAccountId`/`cloudflareZoneId` the same way with a comment saying exactly this. The actual secret in this pattern is always a separate API TOKEN read from an env var (`CLOUDFLARE_API_TOKEN`) or a `tunnel_id`/token data source \u2014 never the account/zone id itself. Do not confuse a resource identifier with a credential just because it is a long hex string.\n- The env-var NAME/placeholder 'TUNNEL_TOKEN=' with NO real value \u2014 e.g. 'TUNNEL_TOKEN=<token>', 'TUNNEL_TOKEN=$(\u2026)', or documentation of the token-file format.\n- Nix/shell/systemd config OR docs that COPY or REFERENCE an operator-planted secret FILE (from /boot/firmware, /Volumes/FIRMWARE, a /run path, an agenix .age path, or the FAT FIRMWARE partition). Copying/installing a secret the operator places out-of-band is this repo's standard pattern (modules/nixos/firmware-provisioning.nix) \u2014 it is NOT embedding a secret.\n- Markdown/docs describing the provisioning/flashing/tunnel flow, even when they name tokens, secrets, or keys.\n- User-owned config paths outside the project (~/.claude/, ~/.config/, /Users/<name>/.claude/).\n- Absolute paths into ANY of the user's OWN sibling working trees under /Users/<name>/Developer/<forge>/<owner>/ \u2014 EVERY forge host (github.com, gitlab.com, etc.) and EVERY owner/org namespace under that person's account qualifies as a sibling, not just ones matching this repo's own owner. Examples: github.com/kattakath/*, github.com/ismailkattakath/*, gitlab.com/ismailkattakath/*, or any other forge/owner pair \u2014 the private nix-personal composition checkout is only ONE example among many, never treat it as the boundary. Cross-repo, cross-forge, cross-owner sessions are routine in this fleet; do NOT invent an unstated 'same parent directory structure' or 'same owner as this repo' requirement \u2014 only a literal '../' escape or the OS system paths above justify a target-based DENY.\n\nWhen unsure whether something is a real secret VALUE versus a name, placeholder, format example, or file reference, APPROVE.",
             "timeout": 15
           }
         ]
