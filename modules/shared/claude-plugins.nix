@@ -181,6 +181,24 @@ in
       export PATH="${pkgs.git}/bin:$PATH"
       claude="${lib.getExe config.programs.claude-code.package}"
       if [ -x "$claude" ]; then
+       (
+        # A SUBSHELL, and the reason is the trap below rather than scoping.
+        #
+        # Everything from here to the restore de-symlinks ~/.claude/settings.json
+        # into a mutable copy and then makes ~76 lines of `claude` calls that talk
+        # to the NETWORK. Reaching the tail of the block was the only thing that
+        # put the symlink back, so an abort or an interrupt in between stranded
+        # settings.json as an unmanaged regular file — which looks completely
+        # normal and silently stops tracking the flake, freezing this fleet's
+        # permissions.deny floor at whatever it happened to be.
+        #
+        # A bare `trap … EXIT` here would be WORSE than the bug: home-manager's
+        # own activation sets one (pinned generation's activate:232,
+        # `trap 'run rm -f "$newGenGcPath"' EXIT`) to drop the temporary GC root
+        # that keeps the new generation from being collected mid-activation.
+        # EXIT traps replace rather than stack, so ours would have leaked that
+        # root on every run. Scoping to a subshell leaves home-manager's intact
+        # and still fires on any exit from this block.
         settings="${config.home.homeDirectory}/.claude/settings.json"
         settings_target=""
         if [ -L "$settings" ]; then
@@ -190,6 +208,7 @@ in
           rm -f "$settings"
           mv "$tmp" "$settings"
           chmod u+w "$settings"
+          trap 'if [ -n "$settings_target" ]; then rm -f "$settings"; ln -s "$settings_target" "$settings"; fi' EXIT
         fi
 
         known_mps="${config.home.homeDirectory}/.claude/plugins/known_marketplaces.json"
@@ -262,11 +281,14 @@ in
           fi
         done
 
-        # Restore Nix-managed settings symlink for a clean next switch.
+        # Restore the Nix-managed symlink for a clean next switch. The EXIT trap
+        # above does this too; this stays as the success path so the intent is
+        # readable where it happens, and both are idempotent (rm then ln).
         if [ -n "$settings_target" ]; then
           rm -f "$settings"
           ln -s "$settings_target" "$settings"
         fi
+       )
       fi
     '';
   };
