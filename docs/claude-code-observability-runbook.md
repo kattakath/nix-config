@@ -19,7 +19,7 @@ to analyze — no external service, no dashboard, nothing leaves the machine.
 |---|---|---|
 | `local.claudeOtel` | Enables the collector + generates its config; exposes `otlpEndpoint`/`eventsFile` options | `modules/shared/claude-otel.nix` |
 | `otelcol-contrib` (`pkgs.opentelemetry-collector-contrib`) | The collector binary itself — official upstream, prebuilt/substitutable on `aarch64-darwin`, no local compile | nixpkgs |
-| `launchd.agents.claude-otel-collector` | Always-on launchd agent (same `RunAtLoad`/`KeepAlive` shape as `mcp-gateway`), auto-wrapped to `nix-claude-otel-collector` by `hm-launchd` | `modules/shared/claude-otel.nix` |
+| `launchd.agents.claude-otel-collector` | Always-on launchd agent (same `RunAtLoad`/`KeepAlive` shape as `mcp-gateway`), auto-wrapped to `nix-claude-otel-collector` by `modules/shared/launchd-launcher.nix` | `modules/shared/claude-otel.nix` |
 | `programs.claude-code.settings.env` | The `CLAUDE_CODE_ENABLE_TELEMETRY`/`OTEL_*` env vars Claude Code reads from `~/.claude/settings.json` at startup | `modules/shared/home.nix` |
 | `~/.local/state/claude-otel/events.jsonl` | Rotating JSONL (50 MiB, 5 backups) of `claude_code.*` log events | `$HOME`, never in git/store |
 | `nix run .#claude-otel-doctor` | Runtime health check: launchd agent loaded, OTLP port listening, events file freshness | `packages/claude-otel-doctor.nix` |

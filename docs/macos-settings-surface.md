@@ -255,7 +255,7 @@ from this nix-config, not bare `sh`/`python3` or third-party helpers.
 | Bad (shows as phantom `sh` / `python3` / `open`) | Good |
 |---|---|
 | nix-darwin `script = ''…''` (wraps `/bin/sh -c wait4path`) | `ProgramArguments = [ "${writeShellScriptBin "nix-…"}/bin/nix-…" ]` |
-| stock home-manager launchd (default `/bin/sh -c wait4path`) | `modules/shared/hm-launchd` (vendored HM launchd; named `nix-*` launcher, upstream's `waitForNixStore = false` trade — no wait4path) |
+| stock home-manager launchd (default `/bin/sh -c wait4path`) | `modules/shared/launchd-launcher.nix` (sets upstream's own `waitForNixStore = false` + `launcher.name`/`launcher.shell` — named `nix-*` launcher, no wait4path; the vendored `hm-launchd` fork it replaced was retired 2026-09-14) |
 | bare `/usr/bin/open -a App` | `mkNixAgent` in `modules/darwin/core.nix` |
 
 "Unidentified developer" is expected for unsigned `/nix/store` wrappers (Developer ID

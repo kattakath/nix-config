@@ -43,8 +43,9 @@
 # still runs it through `#!/bin/sh`. This module therefore builds its OWN
 # `nix-<activity>` wrapper and sets ProgramArguments itself. Two honest notes:
 # the `/bin/wait4path` line inside that wrapper is DEAD CODE (a store-resident
-# wrapper cannot run before the store is mounted — modules/shared/hm-launchd/
-# default.nix explains; KeepAlive is the real mitigation), and on the engine the
+# wrapper cannot run before the store is mounted — the pinned home-manager's
+# modules/launchd/default.nix:47-52 explains; KeepAlive is the real mitigation),
+# and on the engine the
 # launchd launcher re-wraps this agent once more (nix-media-queue →
 # nix-media-queue → media-worker). Both are queued for the next abstraction
 # pass; the capsule stays independent of the fork either way.

@@ -364,8 +364,8 @@ let
   # opt-in). The 13 base ones fall back to pinned npx/uvx launchers; postgres and
   # wordpress are special (pinned version + Keychain-injected env via a wrapper).
   # cloudflared connector for the PUBLISHED gateway. arg0 is a nix-* wrapper per
-  # .claude/rules/launchd-naming.md (hm-launchd would rewrite it anyway, but the
-  # token read has to happen somewhere and a wrapper is that somewhere).
+  # .claude/rules/launchd-naming.md (launchd-launcher.nix would rename it anyway,
+  # but the token read has to happen somewhere and a wrapper is that somewhere).
   #
   # The connector token is read from the login Keychain AT LAUNCH, so it is never
   # in argv, never in the /nix/store, and never in this file — the same
