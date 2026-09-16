@@ -267,6 +267,20 @@ let
     {
       system,
       hostname,
+      # WHICH host profile to load. Defaults to this repo's `hosts/<hostname>.nix`,
+      # which is right for the fleet's own hosts — but `hostname` is a STRING that
+      # indexes the ENGINE's directory, so a downstream consumer passing
+      # `hostname = "macos"` silently inherits the OPERATOR'S 929-line host:
+      # `users.users.izzy` (an admin account, ungated at hosts/macos.nix:270), both
+      # self-hosted CI runner lanes, and 34 Homebrew casks. Measured 2026-09-15 —
+      # `mkDarwin { hostname = "macos"; }` evaluated to `users.users ? izzy == true`
+      # for a caller with no connection to this fleet.
+      #
+      # That defeats the reason templates/ exists: consume the engine INSTEAD of
+      # forking it. So the host is now a MODULE, not just a name — pass your own,
+      # or point at `hosts/generic-darwin.nix` for a host that carries nothing
+      # personal. `hostname` still selects the default and is otherwise unused.
+      hostModule ? ../../hosts/${hostname}.nix,
       identity ? identityArgs,
       extraModules ? [ ],
       # Private / third-party home-manager modules (see docs/private-home-modules.md).
@@ -377,7 +391,7 @@ let
         # same Tart custom executor + slot budget). Same base-list rationale.
         # Inert unless a host enables it (hosts/macos.nix).
         tart-gitlab-runner
-        ../../hosts/${hostname}.nix
+        hostModule
         home-manager.darwinModules.home-manager
         (mkHomeManagerModule {
           idArgs = identity;
