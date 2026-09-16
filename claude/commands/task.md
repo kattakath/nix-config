@@ -75,9 +75,10 @@ While executing:
 - Long-running or external state (CI, deploy, a boot): use `Monitor` rather than
   polling loops or foreground sleeps.
 - Verifying a real app behaves: the `run` skill. Nix changes landing on `nix-config`:
-  plain `sudo darwin-rebuild switch --flake .#macos` / `nixos-rebuild switch --flake .#nixpi`
-  directly — the freshness-gated `activate` CLI (and the private nix-personal flake it
-  reconciled against) was retired 2026-09-15; there is only one checkout to activate now.
+  `activate` (from any directory) / `nixos-rebuild switch --flake .#nixpi`. The CLI that
+  was retired 2026-09-15 was nix-personal's FRESHNESS-GATED one, which reconciled two
+  checkouts; there is only one checkout now, and nix-config's own `activate`
+  (packages/activate.nix) is live and is what CLAUDE.md names.
 - Genuinely stuck after two real attempts: say so and offer `grok-build:grok-delegate`
   for a second diagnosis. Do not silently keep grinding.
 
