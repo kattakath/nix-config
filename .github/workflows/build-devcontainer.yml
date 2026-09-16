@@ -2,7 +2,7 @@ name: build-devcontainer
 
 # Nix-built, MULTI-ARCH devcontainer image for nix-config.
 # The image is produced by `pkgs.dockerTools.streamLayeredImage`, exposed as
-# packages.<system>.devcontainerImage in flake.nix, and published to GHCR.
+# packages.<system>.devcontainerImage in modules/parts/devcontainer.nix, and published to GHCR.
 # .devcontainer/devcontainer.json just pulls the `image:` this builds — the
 # heavyweight toolchain (a working nix + the warm devShell closure + node +
 # claude-code + gh) is baked in, so create-time setup is near-zero.
@@ -13,7 +13,7 @@ name: build-devcontainer
 # container), so the image is published for BOTH arches and :latest is a manifest
 # list. flake.nix keeps x86_64-linux OUT of the fleet's linuxSystems and adds it
 # ONLY for the image (devcontainerSystems), so the single-arch host invariant is
-# intact — see the devcontainerSystems comment in flake.nix.
+# intact — see the devcontainerSystems comment in modules/parts/systems.nix.
 #
 # SHAPE. `gate` (eval) → `images` (the per-arch build matrix) → `manifest`. Each
 # arch builds + smoke-tests + runs the regression guards on its OWN NATIVE runner

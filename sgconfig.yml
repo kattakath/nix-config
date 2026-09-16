@@ -8,7 +8,7 @@
 # mechanical `fix:`. Wiring a report-only checker into treefmt would make
 # `nix fmt` — and the pre-commit hook, which is literally the same binary —
 # fail with no way to `nix fmt` your way out. So it is its own flake check:
-# `nix build .#checks.<system>.ast-grep` (see flake.nix § Checks).
+# `nix build .#checks.<system>.ast-grep` (see modules/parts/checks.nix).
 #
 # Paths are relative to THIS file, which is why it must stay at the repo root.
 # Namespaced under ast-grep/ because a bare rules/ would collide conceptually

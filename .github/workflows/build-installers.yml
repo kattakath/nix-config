@@ -4,8 +4,8 @@ name: build-installers
 # changes. The image is stable and rarely needs rebuilding, and the re-publish is
 # genuinely expensive (see the `gate` job): the ~1h cold RPi kernel build PLUS a
 # non-idempotent multi-GB GitHub-Release re-upload. A path filter narrows the
-# firing; the drvPath gate then suppresses the no-op runs a monolithic flake.nix
-# would otherwise trigger.
+# firing; the drvPath gate then suppresses the no-op runs a broad filter would
+# otherwise trigger.
 #
 # It builds the ONE prebuilt aarch64-linux artifact — the LIVE nixpi sdImage, the
 # flashable artifact itself (not a bootstrap installer: the token + Wi-Fi are planted
@@ -34,8 +34,19 @@ on:
       - "hosts/nixpi.nix"
       - "modules/nixos/**"
       - "modules/shared/**"
+      # The flake ENGINE. It composes the nixpi closure (mkNixos in compose.nix,
+      # hostedSites + operatorSshKey in identity.nix), so an edit here can change
+      # the image without touching any file above. Missing until 2026-09-16,
+      # while warm-nixpi-cache.yml already watched it — so a parts-only change
+      # rewarmed the cache and left installer-latest serving a STALE image, and
+      # a reflash shipped the old content with nothing to notice.
+      - "modules/parts/**"
+      - "modules/features/**"
+      # Caddy serves these by directory path literal, so every byte is in the
+      # LIVE closure and therefore in the image.
+      - "sites/**"
       # Baked into the image as users.users.<login>.openssh.authorizedKeys (via
-      # flake.nix operatorSshKey → modules/nixos/core.nix). A rotate that only
+      # modules/parts/identity.nix operatorSshKey → modules/nixos/core.nix). A rotate that only
       # touches this file MUST republish the image, or a reflash ships the old
       # pubkey and Permission denied (publickey) locks the operator out. Do NOT
       # add secrets/*.age here — the vault (e.g. cloudflared-token.age) is
@@ -62,13 +73,13 @@ jobs:
   # GATE: build + re-upload the nixpi image only when its CONTENT changed.
   #
   # The trigger is a path filter on flake.nix/flake.lock/hosts/nixpi.nix + the
-  # modules the live nixpi image pulls in, but flake.nix is monolithic and the
+  # modules the live nixpi image pulls in, but that filter is coarse and the
   # module globs are broad — an unrelated edit can fire a full ~1h build AND a full
   # multi-GB GitHub-Release re-upload even though the image bytes are IDENTICAL.
   # Unlike a deduping registry (GHCR/Cachix skip a blob they already hold),
   # softprops/action-gh-release re-uploads the ENTIRE .img asset every run, so a
   # no-op re-publish is genuinely costly here. A path filter cannot tell an
-  # image-affecting flake.nix edit from an unrelated one; only the derivation can.
+  # image-affecting edit from an unrelated one; only the derivation can.
   # So we ask Nix what the image evaluates to (its drvPath — pure eval, NO build, NO
   # realisation) and compare against what was last successfully published.
   #

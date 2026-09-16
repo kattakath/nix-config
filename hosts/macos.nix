@@ -4,11 +4,11 @@
 # runner for private pipelines (civitai-live-wallpaper, now under the gitlab.com/izzykatt
 # group — see `local.tart.gitlabRunner` below; gitlab-runner moved OFF brew 2026-09-05).
 # Home Manager and the nix-vscode-extensions overlay are wired centrally by
-# mkDarwin in flake.nix — this file only provides host-specific settings.
+# mkDarwin in modules/parts/compose.nix — this file only provides host-specific settings.
 #
 # First activation (after Determinate Nix is installed, before darwin-rebuild is
 # on PATH) — a single line straight from the flake (the darwin analog of nixpi's
-# `nixos-rebuild switch --flake .#nixpi`; see flake.nix apps.aarch64-darwin.macos):
+# `nixos-rebuild switch --flake .#nixpi`; see modules/parts/packages.nix's apps.<system>.macos):
 #   nix run github:kattakath/nix-config#macos
 # Thereafter: sudo darwin-rebuild switch --flake .#macos
 {

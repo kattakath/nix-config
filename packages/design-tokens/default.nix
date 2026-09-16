@@ -1,7 +1,7 @@
 # `design-tokens` — transform the gist-hosted DTCG brand tokens (tokens.json) into SCSS / CSS
 # / JS via Style Dictionary, so the website / component library / any consumer builds from
 # the same single source of truth. A writeShellApplication that fetches tokens.json from the
-# baked-in `tokensUrl` (composed from `jsonResumeGistId` in flake.nix — the same gist as
+# baked-in `tokensUrl` (composed from `jsonResumeGistId` in modules/parts/identity.nix — the same gist as
 # resume.json + logo.svg) and runs Style Dictionary (v4, via npx) with the bundled config.
 #
 #   design-tokens [--tokens-url URL] [--out DIR]
@@ -19,7 +19,7 @@
   coreutils,
   nodejs,
   lib,
-  # Raw tokens.json URL baked at build time (flake.nix tokensUrl, same gist). null → no
+  # Raw tokens.json URL baked at build time (modules/parts/identity.nix's tokensUrl, same gist). null → no
   # default; caller must pass --tokens-url.
   tokensUrl ? null,
 }:

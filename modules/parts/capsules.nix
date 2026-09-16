@@ -128,7 +128,7 @@
     { pkgs, ... }:
     {
       # ---- The mandatory companion to import-tree's `.match` -----------------
-      # ADR-002 §4 finding S3: flake.nix reaches the capsules with an
+      # ADR-002 §4 finding S3: the engine reaches the capsules with an
       # import-tree regex that ends in `/flake-module\.nix`. A capsule whose
       # entry file is MISNAMED is therefore simply never imported — its module
       # never registers, its checks never appear, and `nix flake check` is
