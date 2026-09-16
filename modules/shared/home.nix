@@ -1002,6 +1002,33 @@ in
     source = ../../qwen/QWEN.md;
   };
 
+  # ---- Git identity include files -----------------------------------------------
+  # The ADDRESSES that programs.git.includes (below) route to. Declared in the
+  # shared profile — not under one `home-manager.users.<name>` — because the
+  # includeIf conditions are shared: a condition whose target file is missing is
+  # a silent git no-op, and that is exactly how the second account authored
+  # silvercreek-ai/dontsell-ai commits as its fallback identity (2026-09-16 audit,
+  # H11). Same `home.file` target the conditions name, so the two cannot drift.
+  # The work identity (infin8.inc) is deliberately NOT here: it is hand-placed
+  # and stays out of this public repo.
+  home.file.".config/git/gitlab.inc".text = ''
+    [user]
+    	email = ismail@kattakath.com
+  '';
+
+  home.file.".config/git/silvercreek.inc".text = ''
+    [user]
+    	email = izzy@silvercreek.ai
+  '';
+
+  # The only include that also overrides user.name: a different public persona
+  # (github.com/izzykatt), not another mailbox for the same person.
+  home.file.".config/git/izzykatt.inc".text = ''
+    [user]
+    	name = Izzy Katt
+    	email = hi@izzykatt.ca
+  '';
+
   # ---- Home Manager program modules --------------------------------------------
   programs = {
     # Let Home Manager manage itself.
@@ -1259,8 +1286,14 @@ in
         key = operatorPublicKey;
         format = "ssh";
         signByDefault = true;
+        # One principal per address the includes below can author as: the
+        # default identity plus the three addresses in the .inc files. All sign
+        # with the same operator key, on BOTH accounts — the same person.
         allowedSigners = ''
           ${userEmail} namespaces="git" ${operatorSshKey}
+          ismail@kattakath.com namespaces="git" ${operatorSshKey}
+          izzy@silvercreek.ai namespaces="git" ${operatorSshKey}
+          hi@izzykatt.ca namespaces="git" ${operatorSshKey}
         '';
       };
 
@@ -1280,18 +1313,18 @@ in
         # path — including throwaway agent clones. Two patterns per org cover https + ssh://
         # (**/org/**) and scp-style ssh git@github.com:org/… (**:org/**).
         #
-        # The address itself lives in ~/.config/git/silvercreek.inc, written by
-        # hosts/macos.nix since nix-personal (which used to deploy it) was retired
-        # 2026-09-15. A missing include is a silent no-op, so a host that does not write
-        # the file simply falls back to the default identity rather than failing.
+        # The address itself lives in ~/.config/git/silvercreek.inc, written by the
+        # `home.file` block at the bottom of this module — for EVERY account, since
+        # 2026-09-16. It used to be written by hosts/macos.nix under the operator's
+        # user only, so on the second account all of these conditions dangled (a
+        # missing include is a silent no-op) and he authored as the fallback identity.
         #
         # KNOWN DEBT, deliberately not fixed in the 2026-09-15 hygiene pass:
         # upstream option home-manager.programs.git.includes[].contents EXISTS
-        # (pinned programs/git.nix:206, impl :236-241 generates the include file via
+        # (pinned programs/git.nix:204, impl :235-241 generates the include file via
         # writeText + toGitINI) → this condition/content split into a separate
         # `home.file` should collapse into one `includes` entry. Left alone because
-        # the four silvercreek conditions and their content live in different files
-        # and a wrong edit changes COMMIT AUTHORSHIP; do it as its own change.
+        # a wrong edit changes COMMIT AUTHORSHIP; do it as its own change.
         {
           condition = "hasconfig:remote.*.url:**/dontsell-ai/**";
           path = "${config.home.homeDirectory}/.config/git/silvercreek.inc";
@@ -1310,8 +1343,7 @@ in
         }
         # GitLab personal namespace (ismailkattakath). gitlab.com-specific so
         # github.com/ismailkattakath keeps the GitHub noreply. Address lives in
-        # ~/.config/git/gitlab.inc, written by hosts/macos.nix; missing include is a
-        # silent no-op.
+        # ~/.config/git/gitlab.inc, written at the bottom of this module.
         {
           condition = "hasconfig:remote.*.url:**/gitlab.com/ismailkattakath/**";
           path = "${config.home.homeDirectory}/.config/git/gitlab.inc";
@@ -1341,8 +1373,8 @@ in
         # exactly where a first commit lands with the wrong author. Same fix as the
         # gitlab.com block above.
         #
-        # Address lives in ~/.config/git/izzykatt.inc, written by hosts/macos.nix;
-        # missing include is a silent no-op.
+        # Address lives in ~/.config/git/izzykatt.inc, written at the bottom of this
+        # module.
         {
           condition = "hasconfig:remote.*.url:**/github.com/izzykatt/**";
           path = "${config.home.homeDirectory}/.config/git/izzykatt.inc";
