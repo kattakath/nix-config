@@ -81,9 +81,14 @@ nixos-rebuild switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com
                                              # Activate the Pi: builds HERE (substituting the CI-warmed closure from
                                              #   Cachix), activates THERE. NEVER --build-host — the Pi must not build
                                              #   (hard-blocked by the PreToolUse guard, Rule 1d).
-deploy --targets .#nixpi                     # Same, via deploy-rs w/ magicRollback: an unreachable Pi auto-reverts
+nix develop -c deploy --targets .#nixpi      # Same, via deploy-rs w/ magicRollback: an unreachable Pi auto-reverts
                                              #   instead of needing a physical SD-card pull. ALWAYS --targets (bare
                                              #   `deploy` fans out over every node). --dry-activate to rehearse.
+                                             #   `nix develop -c` is NOT optional: deploy-rs is consumed as a flake
+                                             #   LIB, so the `deploy` CLI exists only in the devShell
+                                             #   (modules/parts/devshell.nix). A bare `deploy` is NOT on PATH and
+                                             #   exits 1 with EMPTY output — a silent failure, not a missing-command
+                                             #   error. Measured 2026-09-16.
 nix run .#nixvm                              # Build + boot the throwaway nixvm XFCE build-vm in a native QEMU window
 nix eval .#nixosConfigurations.nixpi.config.system.build.toplevel   # Fast single-target eval
 
@@ -312,7 +317,8 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   `ubuntu-24.04-arm` runner and pushes the closure to Cachix on **every** nixpi-closure change
   (including `sites/**` and `modules/parts/**`); after it lands, both the Mac and the Pi fetch
   rather than build. Sanctioned commands: `nixos-rebuild switch --flake .#nixpi --target-host
-  ismail@nixpi.kattakath.com` (builds HERE, activates there) or `deploy --targets .#nixpi`.
+  ismail@nixpi.kattakath.com` (builds HERE, activates there) or `nix develop -c deploy
+  --targets .#nixpi` (devShell-only — a bare `deploy` is not on PATH and fails silently).
   **Building on the Pi is hard-blocked** by `.claude/hooks/pretooluse-bash-guard.js` (Rule 1d):
   `--build-host <pi>`, `deploy --remote-build`, `ssh <pi> nix build`, `--builders ssh://<pi>`.
   - **If the Mac plans a BUILD instead of a fetch, the cache is merely not warm yet** — or Nix
