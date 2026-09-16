@@ -22,7 +22,7 @@
 #   ./result | docker load                           # local smoke test
 #   ./result | gzip --fast | skopeo copy docker-archive:/dev/stdin docker://...  # CI push
 #
-# `devPackages` is the SHARED dev toolchain list from flake.nix (devPackagesFor),
+# `devPackages` is the SHARED dev toolchain list from modules/parts/devshell.nix (config.devPackages),
 # the same list the `nix develop` devShell uses — so image and shell never drift.
 {
   pkgs,
@@ -44,7 +44,7 @@ let
   # Pieces the removed devcontainer Features provided, plus base userland. `nix`
   # is the whole point; `nodejs` is required because Claude Code's JS hooks run
   # bare `node` under /bin/sh; `claude-code` is UNFREE (image is built with the
-  # allowUnfree pkgs from flake.nix's pkgsUnfreeFor).
+  # allowUnfree pkgs from modules/parts/devcontainer.nix).
   extraTools = with pkgs; [
     nix
     nodejs_22

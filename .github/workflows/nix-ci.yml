@@ -103,7 +103,7 @@ jobs:
           # aarch64-darwin (Apple Silicon) — the `macos` host; also builds the
           # aarch64-darwin lint checks. GitHub-hosted `macos-latest` (a free
           # STANDARD macOS runner on a public repo). Eval only — no toplevel
-          # builds. (`macvm` was removed 2026-09-05 — see flake.nix § the
+          # builds. (`macvm` was removed 2026-09-05 — see modules/parts/hosts.nix § the
           # former macvm Tart guest and docs/macvm-readd-runbook.md.)
           - name: aarch64-darwin
             runs-on: macos-latest
