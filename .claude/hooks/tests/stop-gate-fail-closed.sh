@@ -59,6 +59,23 @@ case "$reason" in
   *) printf '  FAIL  reason did not say nothing was checked: %.60s\n' "$reason"; fail=$((fail+1));;
 esac
 
+echo "== approve() must not FALL THROUGH into block() =="
+# Regression guard for the shape, not just the outcome. The catch used to be a
+# bare `if (...) { approve(); }` followed unconditionally by block(). That was
+# harmless ONLY because approve() ends in process.exit(0) — control flow
+# depending on a side effect in another function. Make approve() returnable
+# (unit-testing it is the obvious reason) and every non-git directory would get
+# a hard block instead of the legitimate no-op. Asserting exactly ONE decision
+# object on stdout catches the fallthrough directly, and would still catch it if
+# approve() ever stopped exiting.
+raw=$(printf '{}' | CLAUDE_PROJECT_DIR="$TMP/plain" GIT_CONFIG_GLOBAL=/dev/null node "$H" 2>/dev/null)
+n=$(printf '%s' "$raw" | grep -o '"decision"' | wc -l | tr -d ' ')
+if [ "$n" = "1" ]; then
+  printf '  ok    one      exactly one decision object on the approve path\n'; pass=$((pass+1))
+else
+  printf '  FAIL  want=1 got=%s  stdout: %.60s\n' "$n" "$raw"; fail=$((fail+1))
+fi
+
 echo
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]
