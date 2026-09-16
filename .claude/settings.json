@@ -69,7 +69,10 @@
       "mcp__plugin_hm_memory__*",
       "mcp__plugin_hm_json-yaml-toml__*",
       "mcp__plugin_hm_mcp-jq__*",
-      "mcp__plugin_hm_mcpfinder__*",
+      "mcp__plugin_hm_mcpfinder__browse_categories",
+      "mcp__plugin_hm_mcpfinder__get_install_config",
+      "mcp__plugin_hm_mcpfinder__get_server_details",
+      "mcp__plugin_hm_mcpfinder__search_mcp_servers",
       "mcp__plugin_hm_open-design__list_projects",
       "mcp__plugin_hm_open-design__get_active_context",
       "mcp__plugin_hm_open-design__get_artifact",
@@ -80,8 +83,7 @@
     ],
     "deny": [
       "Bash(home-manager switch:*)",
-      "Bash(rm -rf:*)",
-      "mcp__plugin_hm_mcpfinder__add_mcp_server_config"
+      "Bash(rm -rf:*)"
     ]
   },
   "hooks": {
