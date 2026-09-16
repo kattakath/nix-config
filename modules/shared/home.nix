@@ -782,14 +782,13 @@ in
       nerd-fonts.jetbrains-mono # "JetBrainsMono Nerd Font" — VS Code editor font (pairs with the JetBrains theme)
       nerd-fonts.ubuntu-mono # "UbuntuMono Nerd Font" — VS Code terminal font (matches the devcontainer)
       inter # "Inter" — proportional UI font; no Nerd Font variant exists (NF only patches monospace fonts), so this is the plain upstream package
-      # Postgres client/server tools WITH pgvector. `local.rag.pgvector` (the local-rag capsule)
-      # already puts a PLAIN postgresql_16 in this profile, whose `share/postgresql` has no
-      # `vector.control` — so `initdb`-ing a fresh cluster from it cannot `CREATE EXTENSION vector`.
-      # That broke the dontsell-ai/app CI `integration` job whenever it landed on the REPO-level
-      # runner (`macos-throwaway`), which runs from this profile; the org runners get theirs from
-      # modules/darwin/github-runner.nix. `hiPrio` because both derivations provide `bin/psql` and a
-      # profile collision is otherwise a build error — this one is a superset, so it should win.
-      (lib.hiPrio (postgresql_16.withPackages (p: [ p.pgvector ])))
+      # Postgres lives in the local-rag capsule, NOT here. See pgvector-local.nix's
+      # `pgPkg` — it is what puts a pgvector-capable postgresql_16 in this profile.
+      # (A second `hiPrio (postgresql_16.withPackages [ pgvector ])` used to sit here
+      # and was wrong twice over: its comment called it the superset when the capsule's
+      # is — the capsule adds pgsql-http too — so `hiPrio` made the SUBSET win, and a
+      # profile `initdb` got no `http.control`. And because this list is SHARED, it put
+      # 408 MiB of postgres into nixpi's SD-card closure for a Mac-only CI reason.)
     ]
     # claude-code: on darwin it is installed by the programs.claude-code module
     # below (so the mcp-servers-nix integration can inject the shared MCP
@@ -1702,6 +1701,31 @@ in
     # omitted — see notes below).
     vscode = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
       enable = true;
+
+      # NO nix VS Code — the CASK is the real one. `visual-studio-code` is in
+      # hosts/macos.nix's cask list, and `code` on PATH resolves to
+      # /opt/homebrew/bin/code -> /Applications/Visual Studio Code.app. The nix
+      # package was a fully shadowed second copy: 925.9 MiB of closure plus a
+      # duplicate app in ~/Applications/Home Manager Apps, on every darwin
+      # profile (measured 2026-09-16, vscode-1.136.1).
+      #
+      # upstream option home-manager.programs.vscode.package is `nullable = true`
+      # (pinned modules/programs/vscode/mkVscodeModule.nix:444-447) → using it.
+      # Null removes ONLY the package (`home.packages = mkIf (cfg.package != null)`,
+      # :501). Everything this module is actually here for survives, because none
+      # of it is derived from the package:
+      #   * settings/keybindings/tasks land in `userDir`, which is built from
+      #     `nameShort` ("Code"), NOT from the package (:35-39) — so they land in
+      #     the directory the CASK app reads.
+      #   * extensions are still symlinked into the extensions dir (:663-664),
+      #     unconditionally.
+      # The one thing dropped is the `.extensions-immutable.json` onChange hook
+      # (:666-683, explicitly gated on `cfg.package != null`), which force-
+      # regenerates extensions.json by running `code --list-extensions`. VS Code
+      # regenerates that file itself on next launch; with `mutableExtensionsDir`
+      # already true this profile was never relying on a locked extensions dir.
+      package = null;
+
       # Allow hand-installed / Settings-Sync extensions alongside the declared
       # ones — lower-maintenance than a fully locked extensions dir.
       mutableExtensionsDir = true;
