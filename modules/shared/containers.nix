@@ -9,11 +9,11 @@
 #   /var/run/docker.sock -> $HOME_OF_THAT_ONE_USER/.docker/run/docker.sock  (srwxr-xr-x)
 #
 # The helper hardcodes the account that first launched the app, and the system
-# socket is a symlink INTO that account's home. The second account (`izzy`,
-# uid 502) therefore gets EACCES on every `docker` call — and if he ever launched
-# the app himself, the helper would be re-bound to him and the operator's docker
-# would break instead. One runtime per machine, owned by whoever clicked first,
-# is the opposite of the two-account model this host adopted on 2026-09-15.
+# socket is a symlink INTO that account's home. Any other account on the machine
+# therefore gets EACCES on every `docker` call — and were it to launch the app
+# itself, the helper would re-bind to it and break the first account instead. One
+# runtime per machine, owned by whoever clicked first, is not a runtime a
+# declarative config can own.
 #
 # WHAT OFF-THE-SHELF OPTION THIS USES (upstream-first, pinned home-manager
 # `modules/services/colima.nix`):
@@ -68,18 +68,13 @@
 # executor, local-rag is native postgres, and the devcontainer image is a
 # CI/Codespaces artifact.
 #
-# COST: one VM per LOGGED-IN account, started at login (`RunAtLoad`), each
-# holding `cpu`/`memory` below while it runs. With both accounts logged in that
-# is 2 × 4 GiB reserved to the guests. Tune `memory` (GiB) here; `disk` is a
+# COST: one VM per LOGGED-IN account, started at login (`RunAtLoad`), holding
+# `cpu`/`memory` below while it runs. Tune `memory` (GiB) here; `disk` is a
 # sparse image and can only ever be INCREASED after creation.
 #
-# IZZY: per-user is the point, so the intent is that he has this too — but not
-# yet. hosts/macos.nix `home-manager.users.izzy` carries an assertion that he has
-# ZERO enabled launchd agents until his first login (`gui/502` does not exist
-# before then, and bootstrapping any agent into it aborts activation). This
-# option therefore defaults OFF and is enabled in the OPERATOR's block only;
-# the day that izzy block is deleted, add `local.containers.enable = true;`
-# next to his other `local.*` lines (or let a shared default take over).
+# The option defaults OFF and is enabled per account, because a second account's
+# agents cannot be bootstrapped before its first login (`gui/<uid>` does not
+# exist until then, and bootstrapping into it aborts activation).
 #
 # MIGRATION — the first `activate` after this lands removes the cask through
 # `brew bundle --cleanup` (onActivation.cleanup = "uninstall"). The cask
