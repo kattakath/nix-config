@@ -22,8 +22,8 @@
         # `hostname` names YOUR machine and selects the ENGINE's host profile.
         # `generic-darwin` carries nothing personal — just the darwin system layer
         # and allowUnfree. Do NOT change this to "macos": that is the operator's
-        # own 929-line host, and it would create their `izzy` admin account, both
-        # of their CI runner lanes and 34 of their Homebrew casks on YOUR Mac.
+        # own ~900-line host, and it would create their user account, both of
+        # their CI runner lanes and 34 of their Homebrew casks on YOUR Mac.
         # Your machine gets described in ./hosts/macos.nix via extraModules below.
         hostname = "generic-darwin";
         # EDIT ME — the identity threaded into every module (specialArgs).

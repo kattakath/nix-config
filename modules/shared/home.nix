@@ -1072,10 +1072,9 @@ in
         # /routing-review to find deterministic-vs-model-judgment hardening
         # candidates. Gated on the SAME predicate as the collector itself
         # (claude-otel.nix:43, `local.claudeOtel.enable`) — not on isMacosHost,
-        # which is a DIFFERENT predicate a second account can force false
-        # (hosts/macos.nix's izzy block) while this exporter stayed on,
-        # shipping that account's telemetry into the operator's collector
-        # while its own /routing-review read nothing.
+        # which is a DIFFERENT predicate: an account with the collector off but
+        # isMacosHost true would keep exporting into a collector that is not
+        # running, and its own /routing-review would read nothing.
         env = lib.mkIf config.local.claudeOtel.enable {
           CLAUDE_CODE_ENABLE_TELEMETRY = "1";
           OTEL_LOGS_EXPORTER = "otlp";
@@ -1269,7 +1268,7 @@ in
         signByDefault = true;
         # One principal per address the includes below can author as: the
         # default identity plus the three addresses in the .inc files. All sign
-        # with the same operator key, on BOTH accounts — the same person.
+        # with the same operator key — the same person, several personas.
         allowedSigners = ''
           ${userEmail} namespaces="git" ${operatorSshKey}
           ismail@kattakath.com namespaces="git" ${operatorSshKey}

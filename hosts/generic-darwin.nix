@@ -4,9 +4,9 @@
 # (`hosts/<hostname>.nix`), and `templates/default` used to pass
 # `hostname = "macos"`. That handed every downstream consumer the OPERATOR'S host:
 # measured 2026-09-15, `mkDarwin { hostname = "macos"; }` evaluated for an
-# unrelated caller to `users.users ? izzy == true` — an ADMIN ACCOUNT created on a
-# stranger's Mac — plus `users.knownUsers`, both self-hosted CI runner lanes, and
-# 34 Homebrew casks.
+# unrelated caller to the operator's own account and `users.knownUsers` — user
+# accounts created on a stranger's Mac — plus both self-hosted CI runner lanes
+# and 34 Homebrew casks.
 #
 # That is the exact failure `templates/` exists to prevent: the composition API is
 # there so people CONSUME this engine instead of forking it, and a seam that drags
