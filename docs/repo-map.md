@@ -311,9 +311,16 @@ profile. A second ADMINISTRATOR account (`izzy`, uid 502) lived here from 2026-0
 (Opera/CapCut/Audacity) and FileVault enrolment. Three things it taught outlive it, because
 they bite any future second account:
 
-- **`users.knownUsers` is the CREATE/DELETE switch.** Removing a name from it DELETES that
-  account on the next activation. `isHidden` defaults `true` and is applied ONLY at creation,
-  so flipping it later needs a converge shim.
+- **`users.knownUsers` is the DELETE switch, and deleting is NOT "remove the name".**
+  Measured 2026-09-17, against the pinned nix-darwin `modules/users/default.nix:26`:
+  `deletedUsers = filter (n: isDeleted cfg.users n) cfg.knownUsers` — a user is deleted only
+  while its name is STILL in `knownUsers` and its `users.users.<name>` entry is GONE. Drop
+  both at once (the intuitive spelling) and nix-darwin simply stops knowing the account:
+  activation exits 0, says nothing, and the account survives. To retire one declaratively,
+  delete `users.users.<name>` first, activate, THEN drop the name from `knownUsers`. It also
+  refuses any uid ≤ 501, and it removes the directory RECORD only — the home directory,
+  `admin` group membership and FileVault enrolment are all left behind. `isHidden` likewise
+  defaults `true` and is applied ONLY at creation, so flipping it later needs a converge shim.
 - **Homebrew `args.appdir` only applies at INSTALL time**, and `brew bundle` runs as
   `homebrew.user` under sudo — so a per-user cask directory is created `root:staff 0755` and
   the owning account's own Home Manager then dies with EPERM on its `~/Applications` symlink.
