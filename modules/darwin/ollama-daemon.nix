@@ -2,12 +2,11 @@
 #
 # WHY A DAEMON AND NOT THE PER-USER AGENT. home-manager's `services.ollama`
 # emits `launchd.agents.ollama`, which lives inside ONE user's GUI session: it
-# starts at that user's login and its models sit in that user's home. With a
-# second account on the machine (hosts/macos.nix `users.users.izzy`) that shape
-# forces a choice between two bad outcomes — a second 31 GB model store, or a
-# server that only exists while the operator happens to be logged in. A system
-# daemon has neither problem: one process, one model store, reachable on
-# loopback by whoever is logged in.
+# starts at that user's login and its models sit in that user's home — so the
+# server exists only while that one account happens to be logged in, and any
+# further account on the machine would need its own 31 GB model store. A system
+# daemon has neither problem: one process, one model store, up from boot and
+# reachable on loopback by whoever is logged in.
 #
 # upstream-first: grepped the pinned nix-darwin for an ollama service —
 # `modules/services/` has NO ollama.nix and the string appears nowhere under

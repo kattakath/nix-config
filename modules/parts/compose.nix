@@ -308,11 +308,10 @@ let
       # WHICH host profile to load. Defaults to this repo's `hosts/<hostname>.nix`,
       # which is right for the fleet's own hosts — but `hostname` is a STRING that
       # indexes the ENGINE's directory, so a downstream consumer passing
-      # `hostname = "macos"` silently inherits the OPERATOR'S 929-line host:
-      # `users.users.izzy` (an admin account, ungated at hosts/macos.nix:270), both
-      # self-hosted CI runner lanes, and 34 Homebrew casks. Measured 2026-09-15 —
-      # `mkDarwin { hostname = "macos"; }` evaluated to `users.users ? izzy == true`
-      # for a caller with no connection to this fleet.
+      # `hostname = "macos"` silently inherits the OPERATOR'S ~900-line host:
+      # the operator's own account, both self-hosted CI runner lanes, and 34
+      # Homebrew casks — all evaluated for a caller with no connection to this
+      # fleet (measured 2026-09-15).
       #
       # That defeats the reason templates/ exists: consume the engine INSTEAD of
       # forking it. So the host is now a MODULE, not just a name — pass your own,
@@ -381,20 +380,15 @@ let
             # this very file, so the grant adds no capability they lacked — it
             # only stops the daemon discarding their intent.
             #
-            # TWO ADMIN ACCOUNTS SINCE 2026-09-15, ONE TRUSTED USER — on purpose.
-            # `izzy` (uid 502) is an administrator too and is deliberately NOT
-            # listed: "admin" is a macOS role, "trusted" is a Nix-daemon role,
-            # and only the operator holds the second. Concrete consequence
-            # (audited 2026-09-16): from izzy's session every restricted client
-            # option — `--option …`, and in particular the documented nixpi
-            # cache-trap escape `--narinfo-cache-negative-ttl 0` — is answered
-            # with "ignoring the client-specified setting … you are not a
-            # trusted user", exactly as it was for the operator before this
-            # line. What still works for izzy is everything DAEMON-side: the
-            # Cachix substituter and key above are daemon settings, so his
-            # builds substitute from the fleet cache like anyone else's. If he
-            # ever needs the escape hatch, the operator runs it — or this list
-            # grows by one name as a recorded decision, not a default.
+            # "admin" is a macOS role, "trusted" is a Nix-daemon role — they are
+            # NOT the same grant. Any future account gets the macOS one by
+            # itself; this list grows only as a recorded decision. From an
+            # untrusted session every restricted client option (`--option …`,
+            # notably the documented nixpi cache-trap escape
+            # `--narinfo-cache-negative-ttl 0`) is answered with "ignoring the
+            # client-specified setting … you are not a trusted user", while
+            # everything DAEMON-side — the Cachix substituter and key above —
+            # still applies.
             #
             # Lands in /etc/nix/nix.custom.conf (rendered by customSettings),
             # which the daemon reads only at startup — see
