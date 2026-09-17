@@ -728,28 +728,6 @@ in
         # PATH package instead (packages/superhook.nix). Enabling the plugin too would add
         # a second copy of /superhook-review next to .claude/commands/superhook-review.md.
         "claude-code-nix"
-        # foundation-audit: "is this repo solid enough to build on?" — four
-        # lane-scoped agents (architecture, duplication-by-purpose, activation
-        # failure modes, dead surface) and an orchestrator that RE-VERIFIES its
-        # own top findings before reporting. Authored 2026-09-16 out of the audit
-        # this repo ran on itself the day before; its three worked examples are
-        # that run's real findings, two of which were fixed the next day.
-        #
-        # ZERO executable surface, unlike claude-code-nix above: 10 .md + one
-        # manifest, and the manifest declares no hooks, no mcpServers, no agents
-        # and no scripts. It is markdown that enters context — so enabling it
-        # globally adds trigger-matched skills and one command, nothing that runs.
-        #
-        # OVERLAP, stated rather than discovered later: .claude/skills/nix-hygiene
-        # covers ~two of these lanes. The boundary is scope and verb —
-        # `nix-hygiene` is THIS repo, and it FIXES then re-runs the gates;
-        # foundation-audit is repo-agnostic and audit-only. Use /hygiene here;
-        # use /foundation-audit on a repo you are deciding whether to build on.
-        #
-        # UNVERIFIED at adoption: the packaged form has never been executed —
-        # the method ran as ad-hoc prompts, the plugin has not. Its severity
-        # scale is N=1. Treat the first run as the smoke test.
-        "foundation-audit"
       ];
     };
   };
