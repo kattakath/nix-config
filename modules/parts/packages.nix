@@ -134,6 +134,17 @@ in
               ../../packages/grok.nix
               { };
 
+          # Google's Antigravity CLI — a vendor-provided PREBUILT binary. It
+          # replaces the moving `curl … | bash` installer and is shared through
+          # hosts/macos.nix; the package is Darwin-only like the host install.
+          antigravity-cli =
+            (import inputs.nixpkgs {
+              inherit system;
+              config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "antigravity-cli" ];
+            }).callPackage
+              ../../packages/antigravity-cli.nix
+              { };
+
           # (`secret` / `set-secret` / `remove-secret` — the macOS login-Keychain
           # CLIs — are NOT here. They were `inherit (keychain-secrets.packages.
           # ${system}) …` from the extracted flake until ADR-002 wave 4 absorbed
