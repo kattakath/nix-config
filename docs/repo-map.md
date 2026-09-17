@@ -1439,7 +1439,7 @@ One option in `modules/shared/home.nix`, and **nothing at all** in nix-personal.
 
 Core package set:
 
-- **`grok.nix`** — xAI's `grok` CLI, and the tree's ONLY prebuilt vendor binary. It replaces
+- **`grok.nix`** — xAI's `grok` CLI, one of the tree's pinned prebuilt vendor binaries. It replaces
   a per-user `curl … | bash` install that put a self-updating Mach-O in each account's
   `~/.grok/bin`, outside the store and outside git. The URL pattern was read out of xAI's own
   install.sh rather than guessed; xAI publishes NO checksum, so the `hash` is our SRI pin,
@@ -1451,6 +1451,10 @@ Core package set:
   deliberately defeated (read-only store, and the `$HOME/.grok/bin` PATH entry is gone) —
   updating is a version+hash bump. Per-user state still lives in `~/.grok`, which is what
   makes one shared binary correct rather than a conflict.
+- **`antigravity-cli.nix`** — Google's `agy` CLI, pinned from the Darwin ARM64 archive named
+  by the vendor's release manifest. It replaces the moving `curl -fsSL
+  https://antigravity.google/cli/install.sh | bash` bootstrapper, so the binary is shared
+  through `environment.systemPackages` and updates are reviewed as a version + hash bump.
 - **`fal.nix`** — fal.ai as two binaries, because the vendor ships two different things:
   `fal` (their own CLI — a serverless runtime, `fal run`/`fal deploy`) and `fal-gen` (ours, a
   thin wrapper over `fal-client`, since the vendor ships NO inference CLI). Both are ephemeral

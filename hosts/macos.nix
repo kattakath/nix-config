@@ -60,12 +60,12 @@ in
   # systemPackages entry is ONE store path on PATH for every user, so neither
   # profile has to declare it and neither can drift to a different version.
   #
-  # grok was a per-user `curl … | bash` install in ~/.grok/bin until
-  # 2026-09-15; packages/grok.nix pins the vendor's signed artifact instead, and
-  # the PATH entry that used to point at the mutable copy is deliberately gone
-  # from modules/shared/home.nix. Per-user grok STATE stays in ~/.grok.
+  # grok and Antigravity were per-user `curl … | bash` installs until
+  # 2026-09-15 and 2026-09-16 respectively; their packages pin the vendor
+  # artifacts instead. Per-user state remains in ~/.grok and ~/.antigravity.
   environment.systemPackages = [
     (pkgs.callPackage ../packages/grok.nix { })
+    (pkgs.callPackage ../packages/antigravity-cli.nix { })
     # fal.ai — `fal` (the vendor's deploy CLI) and `fal-gen` (inference). Cloud
     # inference, unlike the rest of the media stack, which runs against the
     # local ollama daemon; it bills, and it needs FAL_KEY in the Keychain.
