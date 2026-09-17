@@ -305,34 +305,18 @@ All four are safe to commit. Full rules: [`secrets-and-keychain.md`](secrets-and
 
 ## `hosts/` — per-host entry profiles
 
-**`macos` carries TWO accounts since 2026-09-15.** `ismail` is `system.primaryUser` and owns
-the operator profile; `izzy` (uid 502) is a second ADMINISTRATOR with a deliberately minimal
-Home Manager profile. What the split is and is not:
+**`macos` carries ONE account.** `ismail` is `system.primaryUser` and owns the operator
+profile. A second ADMINISTRATOR account (`izzy`, uid 502) lived here from 2026-09-15 to
+2026-09-17 and was then **deleted forever** — account, home directory, per-user casks
+(Opera/CapCut/Audacity) and FileVault enrolment. Three things it taught outlive it, because
+they bite any future second account:
 
-- **Admin, but never primary.** `gid` stays at the `staff` default rather than 80: macOS models
-  an administrator as staff-primary PLUS supplementary `admin`, exactly how the operator's own
-  account looks, and making admin the PRIMARY group would drop Izzy out of `staff` — which the
-  group-writable appdir repair depends on. nix-darwin does NOT model supplementary groups
-  (`extraGroups` is commented out in its `modules/users/user.nix`), so a `dseditgroup`
-  activation shim grants it, guarded by `checkmember` so a settled Mac is a true no-op.
-  `users.knownUsers` is the CREATE/DELETE switch — removing a name from it DELETES the account.
-- **Per-user apps use `args.appdir`.** CapCut, Audacity and Opera install into Izzy's home
-  instead of the shared `/Applications`, which is what keeps them out of the operator's
-  Finder/Spotlight/Launchpad. Two traps: `appdir` only applies at INSTALL time, so an
-  already-installed cask silently does not move (uninstall first); and `brew bundle` runs as
-  `homebrew.user` (the operator) under sudo, so it creates the target as `root:staff 0755` and
-  Izzy's own Home Manager then dies with EPERM on its `~/Applications` symlink. A
-  `postActivation` `mkBefore` block chowns it to `izzy:staff 0775` — both accounts are in
-  `staff`, so brew and HM can each write. Ordering is why it is `mkBefore`: postActivation runs
-  after `homebrew` and home-manager appends its own block there.
-- **Shared, not duplicated:** ollama (one system daemon), `grok` and `fal` (one
-  `environment.systemPackages` entry each). Per-user by construction and therefore declared
-  twice: the default browser (a LaunchServices claim — Izzy gets Opera, the operator Chrome)
-  and the Claude surface (`~/.claude`), where Izzy gets `claude-brain.nix` +
-  `claude-guardrails.nix`. `programs.claude-code.enable` is the load-bearing line there —
-  those modules only set `programs.claude-code.*`, which defaults OFF, so importing them
-  without it produces a BYTE-IDENTICAL system.
-- **Switching between them from a terminal: `sudo launchctl asuser <uid> sudo -u <user> -i`, then re-point `SSH_AUTH_SOCK` (sudo's `env_keep` carries the stale one) — never `su`** — `su` (and `su -`/`sudo -i`) keeps the caller's Aqua session, so the SSH agent socket, clipboard, GUI launches and HM env guards all stay the caller's; the measured table is in [`new-mac-runbook.md` § Two accounts on one Mac](new-mac-runbook.md#two-accounts-on-one-mac).
+- **`users.knownUsers` is the CREATE/DELETE switch.** Removing a name from it DELETES that
+  account on the next activation. `isHidden` defaults `true` and is applied ONLY at creation,
+  so flipping it later needs a converge shim.
+- **Homebrew `args.appdir` only applies at INSTALL time**, and `brew bundle` runs as
+  `homebrew.user` under sudo — so a per-user cask directory is created `root:staff 0755` and
+  the owning account's own Home Manager then dies with EPERM on its `~/Applications` symlink.
 - **A never-logged-in account blocks activation, SILENTLY.** A user launchd agent can only
   bootstrap into that user's own GUI session, so any agent declared for an account that has
   never logged in fails with `Bootstrap failed: 125: Domain does not support specified
@@ -343,7 +327,7 @@ Home Manager profile. What the split is and is not:
   OLD generation — and `/run/current-system/sw/bin` is what PATH resolves. Packages end up
   installed and unreachable at the same time.
 
-  **`darwin-rebuild` exits 1.** MEASURED 2026-09-15 by re-enabling one of Izzy's agents and
+  **`darwin-rebuild` exits 1.** MEASURED 2026-09-15 by re-enabling one such agent and
   capturing the status with no pipe (`> file 2>&1; RC=$?`): broken run 1, healthy run 0.
   Every link propagates — `setupLaunchAgents` returns 1 (pinned home-manager
   `modules/launchd/default.nix:564`), the generation's `activate` then does
@@ -407,18 +391,9 @@ Home Manager profile. What the split is and is not:
   whitelists that same error (`:326`) where `bootstrapAgent` treats it as fatal — which is
   why the per-agent `false` works at all.
 
-  **THREE flips are parked on Izzy's first login**, not one, and the cost is upstream's
-  per-agent design: a new agent added to `modules/shared/home.nix` starts aborting his
-  activation again until it is listed in his block too.
-
-  | Line in `hosts/macos.nix` | Landed |
-  |---|---|
-  | `local.mediaCli.enable = lib.mkForce false` | `dd23d3b` |
-  | `launchd.agents.ssh-keychain-load.enable = lib.mkForce false` | `ffcd3e4` |
-  | `launchd.agents.next-right-thing.enable = lib.mkForce false` | `ffcd3e4` |
-
-  Whether they are still deferred is checked by `/fleet-doctor` § G (Parked deferrals), not
-  by this paragraph — a comment nobody re-reads is how they would rot.
+  The cost is upstream's per-agent design: every agent added to `modules/shared/home.nix`
+  would have to be listed again in such an account's block, or its activation starts
+  aborting anew.
 
 - **`macos.nix`** — the darwin client host. Imports `../modules/darwin/github-runner.nix` and
   enables `local.macosGithubRunner` with `count = 2` for the **`dontsell-ai`** org (see that
@@ -920,8 +895,9 @@ their own top-level section below:
   `programs/git.nix:63-116`; impl `:470-506` writes `$XDG_CONFIG_HOME/git/allowed_signers` and
   points `gpg.ssh.allowedSignersFile` at it). `modules/shared/home.nix` sets the fleet default
   principal (`userEmail`); because `allowedSigners` is a `lines` option, extra identities
-  simply **append** — `hosts/macos.nix` adds `izzy@silvercreek.ai` and `hi@izzykatt.ca` there,
-  which is how the retired nix-personal layer's principals came across with no custom seam.
+  simply **append** — the persona addresses `izzy@silvercreek.ai` and `hi@izzykatt.ca` are
+  listed alongside it, which is how the retired nix-personal layer's principals came across
+  with no custom seam.
 - **`wallpaper/wallpaper.png`** — the vendored desktop wallpaper `desktop-aesthetics.nix`
   installs. It is copied to `~/.local/share/nix-desktop-wallpaper.png` via `home.file` and
   pointed at from there, **not** referenced as a store path directly: `settings.picture` set
@@ -1470,7 +1446,7 @@ Core package set:
   loader path inside. It is a **CI/Codespaces artifact, not a local-Mac path**: the `vscode`
   user is pinned to uid/gid 1000 (`updateRemoteUserUID: false`, because fakeNss's
   `/etc/passwd` is read-only), so on a Linux host every file it writes into a mounted workspace
-  is owned by uid 1000 — neither Mac account (`ismail` 501, `izzy` 502).
+  is owned by uid 1000 — not the Mac account (`ismail` 501).
 - **`nixpi-provision.nix`** — macOS-only: the four
   `nixpi-flash`/`nixpi-provision`/`nixpi-wifi-creds`/`nixpi-vault-token`
   `writeShellApplication` flake apps that flash the SD card and plant the token+Wi-Fi onto its

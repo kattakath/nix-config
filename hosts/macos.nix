@@ -13,23 +13,11 @@
 # Thereafter: sudo darwin-rebuild switch --flake .#macos
 {
   config,
-  lib,
   pkgs,
   loginName,
   ...
 }:
 let
-  # DERIVED, never a `/Users/izzy` literal — a hardcoded home path in a .nix
-  # value is the anti-pattern `nix-home-path-lint` rejects. Casks carrying this
-  # as `args.appdir` land in Izzy's home instead of the shared /Applications,
-  # which is what keeps them out of the operator's Finder/Spotlight/Launchpad.
-  izzyApps = "${config.users.users.izzy.home}/Applications";
-
-  # DERIVED for the same reason as izzyApps. This one is a Directory Services
-  # NODE path rather than a filesystem path, but it is still a per-user literal,
-  # and the ast-grep gate cannot tell the two apart — nor should it have to.
-  izzyDsNode = "/Users/${config.users.users.izzy.name}";
-
   # The ONE GitHub App both self-hosted runner lanes authenticate as —
   # "ismailkattakath-ci", operator-owned and public. It was spelled twice, 68
   # lines apart, in two `let` scopes that cannot see each other: once for the
@@ -265,324 +253,6 @@ in
     home = "/Users/${loginName}";
   };
 
-  # ---- Izzy: the second ADMINISTRATOR account -----------------------------
-  # An administrator (admin group, granted below) but never
-  # `system.primaryUser` — that stays `loginName` (modules/darwin/core.nix), so
-  # a fresh Mac is still FOUNDED as the operator via bootstrap.sh →
-  # bootstrap.sh and this account is created on top of that.
-  #
-  # `gid` is deliberately left at the `staff` default rather than set to 80:
-  # macOS models an administrator as staff-primary PLUS supplementary admin
-  # membership (that is exactly how the operator's own account looks), and
-  # making admin the PRIMARY group would drop Izzy out of `staff` — which the
-  # group-writable appdir repair below depends on.
-  #
-  # `knownUsers` is the CREATE/DELETE switch, not a label — nix-darwin creates
-  # only users listed here, and REMOVING a name from this list DELETES the
-  # account on the next activation. The home directory survives that, but the
-  # account does not; treat an edit here as destructive.
-  #
-  # uid 502 is the next free slot (501 = operator, 533 = _github-runner).
-  users.users.izzy = {
-    name = "izzy";
-    uid = 502;
-    description = "Izzy";
-    home = "/Users/izzy";
-    createHome = true;
-    shell = "/bin/zsh";
-    # LOAD-BEARING, and the default is wrong for a human. nix-darwin's
-    # `isHidden` defaults to TRUE (modules/users/user.nix) because the option
-    # exists for SERVICE accounts — `_github-runner` above is exactly that case.
-    # Left at the default, izzy is created correctly in every other respect —
-    # uid, admin group, password, home — and is simply INVISIBLE: absent from
-    # the login window, from Fast User Switching, and from System Settings ▸
-    # Users & Groups. The account cannot be logged into at all, which also means
-    # its `gui/502` launchd domain never exists, which is what made its media
-    # agents unbootstrappable. Verified via `dscl . -read /Users/izzy IsHidden`.
-    isHidden = false;
-  };
-  users.knownUsers = [ "izzy" ];
-
-  # `args.appdir` into another user's home has ONE sharp edge, measured
-  # 2026-09-15 on the first activation: `brew bundle` runs as `homebrew.user`
-  # (the operator) under sudo, so it MKDIRs the target as root:staff 0755 —
-  # and Izzy's own Home Manager then dies with
-  #   ln: failed to create symbolic link '/Users/izzy/Applications/Home Manager Apps'
-  # because neither account can write it.
-  #
-  # Both accounts are in `staff`, so
-  # owning the directory by the account and making it group-writable lets the
-  # operator's brew AND Izzy's Home Manager both write. Ordering is the whole
-  # point of `mkBefore`: this lands in `postActivation`, which runs AFTER
-  # `homebrew` (nix-darwin activation-scripts.nix:138) and, via mkBefore,
-  # BEFORE home-manager's own postActivation block (home-manager
-  # nix-darwin/default.nix:19) — the only window where the repair is useful.
-  #
-  # upstream-first: grepped the pinned nix-darwin for appdir/user/ownership —
-  # `homebrew.user` and `caskArgs.appdir` exist, but nothing reconciles the two
-  # across accounts. No option owns this; hence the shim.
-  system.activationScripts.postActivation.text = lib.mkBefore ''
-    # CONVERGE IsHidden, because nix-darwin will not. `users.users.izzy.isHidden`
-    # is applied ONLY inside the user-CREATION branch (pinned
-    # modules/users/default.nix:306); the "Update properties on known users"
-    # block a few lines below re-applies PrimaryGroupID and RealName but never
-    # IsHidden. So flipping the option on an account that already exists changes
-    # nothing, for ever — the declaration reads correct and the machine ignores
-    # it, which is exactly the drift this repo exists to prevent.
-    #
-    # The default is TRUE, aimed at service accounts like `_github-runner`. Left
-    # there, a human account is created perfectly — uid, admin, home (NOT a
-    # password: the pinned nix-darwin has no `password`/`hashedPassword` option
-    # and account creation runs `sysadminctl -addUser` without one, so a
-    # wipe-and-rebuild yields a PASSWORDLESS admin. That step is genuinely not
-    # expressible in Nix on darwin and belongs in
-    # docs/new-mac-runbook.md § Manual steps Nix can't do) —
-    # and is simply INVISIBLE: no login window entry, no Fast User Switching, no
-    # System Settings ▸ Users & Groups. It cannot be logged into, so its
-    # `gui/502` launchd domain never exists, so its user agents can never
-    # bootstrap. That is the whole chain behind "izzy user not found anywhere".
-    #
-    # Idempotent: dscl -create is a write-if-different, and this reads back 0.
-    if [ "$(/usr/bin/dscl . -read ${izzyDsNode} IsHidden 2>/dev/null | /usr/bin/awk '{print $2}')" != "0" ]; then
-      printf '%s\n' "izzy: unhiding the account (nix-darwin only sets IsHidden at creation)"
-      /usr/bin/dscl . -create ${izzyDsNode} IsHidden 0
-    fi
-
-    printf '%s\n' "izzy: reconciling ${izzyApps} ownership (brew writes as ${loginName}, HM writes as izzy)"
-    mkdir -p ${lib.escapeShellArg izzyApps}
-    chown izzy:staff ${lib.escapeShellArg izzyApps}
-    chmod 775 ${lib.escapeShellArg izzyApps}
-
-    # Administrator rights. nix-darwin does NOT model supplementary groups —
-    # `extraGroups` is commented out in modules/users/user.nix:49 of the pinned
-    # input — and `users.groups` only creates groups, it cannot add a member to
-    # the pre-existing system `admin`. So this is the off-the-shelf macOS tool
-    # doing the work, not a hand-rolled one; `checkmember` keeps it idempotent,
-    # so a settled Mac is a true no-op rather than a write every activation.
-    if ! /usr/sbin/dseditgroup -o checkmember -m izzy admin >/dev/null 2>&1; then
-      printf '%s\n' "izzy: granting admin group membership"
-      /usr/sbin/dseditgroup -o edit -a izzy -t user admin
-    fi
-  '';
-
-  # FAST USER SWITCHING — the thing that makes a second account reachable at all
-  # without logging out. It is OFF by default on a single-account Mac, and that
-  # is the second half of "izzy user not found anywhere": unhiding the account
-  # puts it in the login window, but with no switcher there is nowhere to switch
-  # FROM while the operator is signed in.
-  #
-  # upstream-first: grepped the pinned nix-darwin for MultipleSessionEnabled and
-  # UserSwitcher — `system.defaults.controlcenter` models only BatteryShowPercentage,
-  # Sound, Bluetooth, AirDrop, Display, FocusModes and NowPlaying, and
-  # MultipleSessionEnabled appears nowhere under modules/. No option exists →
-  # the CustomSystemPreferences / CustomUserPreferences escape hatch, which this
-  # tree already uses for the same reason (modules/darwin/core.nix:425).
-  # The domain MUST be the absolute path. nix-darwin renders this attribute name
-  # straight into `defaults write <domain> …` running as root, and a bare
-  # `.GlobalPreferences` there resolves to ROOT'S OWN preferences
-  # (/var/root/Library/Preferences/.GlobalPreferences), not the machine-wide
-  # file. Measured: the first spelling wrote `1` into root's plist while
-  # /Library/Preferences/.GlobalPreferences stayed unset and FUS stayed off —
-  # an activation that reports success and changes nothing observable.
-  system.defaults.CustomSystemPreferences."/Library/Preferences/.GlobalPreferences".MultipleSessionEnabled =
-    true;
-  # Menu-bar visibility is a PER-USER Control Center setting, hence the user
-  # hatch: 18 is "Show in Menu Bar" for a Control Center module (2 is hide).
-  system.defaults.CustomUserPreferences."com.apple.controlcenter".UserSwitcher = 18;
-
-  # A deliberately MINIMAL profile — it imports the one module it needs, NOT
-  # modules/shared/home.nix. That profile is the operator's: MCP gateway,
-  # Keychain loader, git signing, agent surface. Handing it to a second account
-  # would duplicate every agent and secret loader on the machine.
-  # Izzy runs the SAME Home Manager profile as the operator — the whole of
-  # modules/shared/home.nix, not a hand-picked subset. Everything that is
-  # genuinely per-user comes along unchanged: every CLI, the full Claude surface
-  # and guardrails, media-cli and its Finder Services, chromium, wireguard, the
-  # terminal theme, next-right-thing, and his own `secret` Keychain store.
-  #
-  # Only two classes of thing are overridden below, and neither is a preference:
-  # MACHINE-WIDE SINGLETONS, which physically cannot run twice, and the handful
-  # of settings that are per-PERSON rather than per-machine.
-  home-manager.users.izzy =
-    { config, lib, ... }:
-    {
-      imports = [ ../modules/shared/home.nix ];
-      home.stateVersion = "24.05";
-
-      # NO launchd agents for the second account. PERMANENT per-account policy —
-      # do NOT delete this block.
-      #
-      # It used to say "delete this the moment he has logged in once". He HAS
-      # logged in; obeying that instruction now would be actively harmful, which
-      # is why it is gone rather than merely stale. Four agents are ALREADY
-      # registered and running in `gui/502` as orphans — next-right-thing,
-      # media-queue, media-queue-power and an ssh-keychain-load in an EX_CONFIG 78
-      # respawn loop — left behind from before these disables landed. Re-enabling
-      # the declared agents would put a SECOND copy of each alongside them.
-      #
-      # Those orphans cannot be reached from here: home-manager skips its launchd
-      # cleanup when there is no previous generation, and izzy's profile
-      # directory is empty, so the skip is permanent and self-perpetuating. They
-      # need a one-time manual `launchctl bootout gui/502/<label>` plus plist
-      # removal from ~izzy/Library/LaunchAgents. Rebuilding provably cannot do it.
-      # (Audited 2026-09-16, report finding H2.)
-      #
-      # A user agent can only bootstrap into that user's OWN GUI session, and
-      # `gui/502` does not exist before a first login:
-      #
-      #   Failed to start agent 'gui/502/org.nix-community.home.ssh-keychain-load'
-      #     Bootstrap failed: 125: Domain does not support specified action
-      #
-      # home-manager's activation then exits non-zero, `activate` runs under
-      # `set -e`, and the abort lands ~80 lines short of its final
-      # `ln -sfn … /run/current-system` — so the system profile advances while
-      # /run/current-system, which is what PATH and the `current-system` GC root
-      # resolve through, stays on the PREVIOUS generation. dd23d3b fixed exactly
-      # this for local.mediaCli's two agents; these two come from the SHARED
-      # profile, where neither is optional, so they kept aborting afterwards.
-      #
-      # upstream-first: grepped the pinned home-manager modules/launchd. It has
-      # TWO spellings and only one of them works — `launchd.enable` (default.nix:211)
-      # reads like the class-wide switch ("Whether to enable Home Manager to define
-      # per-user daemons"), but its implementation uses `cfg.enable` in exactly one
-      # place, an assertion (:232): `agentPlists` filters on the PER-AGENT flag
-      # (:166) and `home.activation.setupLaunchAgents` is gated on `isDarwin`
-      # alone (:242). Measured here — `launchd.enable = false` evaluated, both
-      # agents still bootstrapped, activation still aborted. So it is the
-      # per-agent `enable` (:20) or nothing.
-      #
-      # Removal is safe on a domain-less user even though installation is not:
-      # the module's `bootoutAgent` whitelists "Domain does not support specified
-      # action" (:326) where `bootstrapAgent` treats it as an error.
-      #
-      # COST of the working spelling: it is per-agent, so a new agent added to
-      # modules/shared/home.nix will start aborting Izzy's activation again until
-      # it is listed here too. That is upstream's wart, not a choice.
-      # mkForce: both are set to `true` unconditionally at their source
-      # (next-right-thing.nix, and home.nix's ssh-keychain-load), so a plain
-      # `false` here is a definition CONFLICT, not an override.
-      launchd.agents.ssh-keychain-load.enable = lib.mkForce false;
-      launchd.agents.next-right-thing.enable = lib.mkForce false;
-
-      # MECHANIZE THAT COST. The list above is per-agent because upstream gives
-      # no class-wide switch, so it silently goes stale the moment anything adds
-      # an agent to the shared profile — and the way it reports that is a
-      # `set -e` abort ~80 lines short of the final `ln -sfn … /run/current-system`,
-      # i.e. a SILENT four-generation drift that looked like a successful switch.
-      # This turns the next occurrence into a `nix flake check` failure that
-      # names the agent, BEFORE anything is activated.
-      #
-      # Reaches the surface: home-manager's OS integration flattens every
-      # `home-manager.users.<u>.assertions` into the system's own, prefixed
-      # "<u> profile: " (pinned home-manager nixos/common.nix:191-199), and
-      # nix-darwin evaluates `assertions` while building the toplevel.
-      assertions =
-        let
-          enabled = lib.attrNames (lib.filterAttrs (_: a: a.enable) config.launchd.agents);
-        in
-        [
-          {
-            assertion = enabled == [ ];
-            message = ''
-              izzy has ${toString (builtins.length enabled)} ENABLED launchd agent(s): ${lib.concatStringsSep ", " enabled}.
-              The second account runs NO user launchd agents. That is a permanent policy,
-              not a wait-for-first-login workaround — he has since logged in, and four
-              agents are already running in `gui/502` as unmanaged orphans that activation
-              cannot remove, so enabling a declared one adds a SECOND copy beside it.
-              Add `launchd.agents.<name>.enable = lib.mkForce false;` next to the two above.
-              Do NOT "fix" this by deleting the block or the assertion.
-            '';
-          }
-        ];
-
-      # ---- Singletons: exactly one instance, and it is the operator's --------
-      # Each of these binds a fixed loopback port or owns a single credential, so
-      # a second copy does not "also run" — one wins and the other flaps under
-      # KeepAlive, which is worse than not having it. `mkForce` because
-      # modules/shared/home.nix sets each of these unconditionally.
-      #
-      #   mcpGateway  127.0.0.1:8096, plus :8097 and the ONE Cloudflare
-      #               connector token behind local.mcpGateway.public. Its master
-      #               switch is `config = lib.mkIf cfg.enable` (mcp.nix:1002), so
-      #               this one line removes the gateway, the public proxy and the
-      #               tunnel connector together.
-      #   pgvector    127.0.0.1:5433 and a single Postgres datadir.
-      #   claudeOtel  127.0.0.1:4317/:4318 (the OTel collector's gRPC + HTTP).
-      #
-      # Izzy still USES all three — they listen on loopback, which is shared.
-      # What he does not do is start a second one.
-      #
-      # SAY THE SECOND HALF OUT LOUD, because "singleton" makes this sound like a
-      # port decision and it is also a CREDENTIAL one. mcp-proxy runs as the
-      # OPERATOR on 127.0.0.1:8096 with no authentication, so the second account
-      # needs no privilege at all — just a TCP connect — to drive GitHub, Apify,
-      # Telegram, WordPress and four Gmail accounts AS THE OPERATOR. Probe-
-      # confirmed 2026-09-16: as izzy, :8096 and :8097 both answered at the
-      # application layer (HTTP 404, connect 0.4ms — the server replying).
-      #
-      # That is INTENDED (operator ruling, 2026-09-16): one human, two accounts,
-      # and the loopback boundary is not being asked to carry a trust boundary it
-      # was never given. Recorded here so it stays a decision rather than an
-      # assumption — if a THIRD party ever gets an account on this Mac, this line
-      # is the one that has to change first, and it needs authentication or
-      # per-user gateways rather than a comment.
-      local.mcpGateway.enable = lib.mkForce false;
-      local.rag.pgvector.enable = lib.mkForce false;
-      local.claudeOtel.enable = lib.mkForce false;
-      # The ollama SERVER is already machine-wide (local.ollamaDaemon), so all
-      # that is left in the capsule for a second account is the one-shot model
-      # pull — and two agents racing to pull the same model into one shared store
-      # is pure duplication.
-      local.rag.ollama.enable = lib.mkForce false;
-
-      # ---- Per-person, not per-machine --------------------------------------
-      # A LaunchServices http/https claim is per-user by construction, so this
-      # genuinely differs rather than conflicting. mkForce because home.nix sets
-      # it with mkIf, not mkDefault.
-      local.defaultBrowser = lib.mkForce "opera";
-
-      # home.nix sets these from identityArgs with mkDefault, so a plain
-      # assignment wins. This is only the FALLBACK identity: the includeIf rules
-      # in home.nix still decide per repo, so github.com/izzykatt and
-      # gitlab.com/izzykatt behave identically for both accounts. Without this,
-      # commits from this account would author as the operator and the two would
-      # be indistinguishable in history.
-      programs.git.settings.user = {
-        name = "Izzy Katt";
-        email = "hi@izzykatt.ca";
-      };
-
-      # `types.lines` MERGES across definitions (appends, does not replace), so this
-      # ADDS a second valid signer for hi@izzykatt.ca rather than replacing the
-      # one modules/shared/home.nix's own allowedSigners already lists (both
-      # accounts trusting the operator's key, per 825efe8 — deliberate: same
-      # person, one key, multiple personas). This account's actual keypair
-      # (~/.ssh/id_ed25519, generated locally 2026-09-16) is a DIFFERENT key —
-      # so without this line, izzy's own commits sign correctly (that only
-      # needed a keypair to exist) but `git verify-commit`/`log
-      # --show-signature` on THIS account report "No principal matched"
-      # forever, because the key this account actually signs with was never in
-      # the list this account checks against. Either key now verifies him.
-      programs.git.signing.allowedSigners = ''
-        hi@izzykatt.ca namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBi26eg956+XCl9XsH68Z0Mi6dYYPtUBdcvHE/aK2O1e
-      '';
-
-      # ---- No media agents for the second account ----------------------------
-      # A user launchd agent can only bootstrap into that user's GUI session, and
-      # while `gui/502` did not exist every agent failed with
-      # `Bootstrap failed: 125`, making darwin-rebuild exit non-zero — with the
-      # abort landing BEFORE /run/current-system is re-pointed, leaving
-      # machine-wide packages installed and unreachable at the same time.
-      #
-      # This used to read "flip to `true` after his first login". He has logged
-      # in, and flipping it now is the WRONG move: two of this capsule's agents
-      # (media-queue, media-queue-power — 602 runs) are already in `gui/502` as
-      # orphans activation cannot remove, so enabling the declared ones doubles
-      # them. See the launchd block above for why, and for the manual bootout
-      # that is the only way to clear them.
-      local.mediaCli.enable = lib.mkForce false;
-    };
-
   # ---- Gmail multi-account MCP (modules/shared/mcp.nix, a home-manager option
   # — set via home-manager.users)
   # The operator's COMPLETE Gmail roster. All four are the operator's own
@@ -687,9 +357,7 @@ in
 
       # Per-user container runtime (Colima via home-manager's services.colima),
       # replacing the docker-desktop cask whose privileged helper was bound to
-      # one username. Operator only for now — the izzy block above asserts he has
-      # no launchd agents until his first login. Why/cost/migration:
-      # modules/shared/containers.nix.
+      # one username. Why/cost/migration: modules/shared/containers.nix.
       local.containers.enable = true;
     };
 
@@ -783,19 +451,6 @@ in
       # source is the accepted cost of a Photoshop-shaped tool; the FOSS
       # alternatives (GIMP, Krita) are deliberately not carried.
       "affinity"
-      # Audacity — multi-track audio editor. Pairs with the blackhole-2ch cask
-      # below: BlackHole is a virtual output device, so routing an app's audio
-      # into it gives Audacity a capture source for system audio, which macOS
-      # otherwise refuses to expose.
-      # IZZY-ONLY (see `izzyApps`). The blackhole-2ch driver above stays SHARED —
-      # it is a system audio device (/Library), not an app, and cannot be
-      # per-user even in principle.
-      {
-        name = "audacity";
-        args = {
-          appdir = izzyApps;
-        };
-      }
       # Android SDK cmdline tools (sdkmanager/avdmanager) — backs `android-emu`
       # (modules/shared/home.nix), which boots VIRTUAL Android emulators.
       "android-commandlinetools"
@@ -803,14 +458,6 @@ in
       "android-platform-tools"
       "blackhole-2ch"
       "bruno"
-      # CapCut — the video editor. IZZY-ONLY (see `izzyApps`): installed into his
-      # home, so it never appears in the operator's Finder/Spotlight/Launchpad.
-      {
-        name = "capcut";
-        args = {
-          appdir = izzyApps;
-        };
-      }
       # Claude Desktop — the chat GUI (distinct from the claude-code CLI, nixpkgs).
       "claude"
       # `docker-desktop` is GONE (2026-09-16): its privileged helper bound the
@@ -936,20 +583,6 @@ in
         name = "open-design";
         greedy = true;
       }
-      # Opera — IZZY-ONLY (see `izzyApps`), and his default browser
-      # (home-manager.users.izzy above). Declared here for the first time: it was
-      # a hand-installed .app until 2026-09-15, which `cleanup = "uninstall"`
-      # never touched because Homebrew did not know about it.
-      #
-      # A cask move does NOT move a profile — profiles are per-user, so Izzy gets
-      # a FRESH Opera. The operator's old profile (60 saved logins and the
-      # Claude↔Opera MCP connector grant) does not come with it.
-      {
-        name = "opera";
-        args = {
-          appdir = izzyApps;
-        };
-      }
       "proton-drive"
       "raspberry-pi-imager"
       "slack"
@@ -988,12 +621,9 @@ in
     # protected from onActivation.cleanup = "uninstall" (undeclared MAS apps
     # get removed — that is how Xcode was wiped before this entry).
     #
-    # That reaping is MACHINE-WIDE, not per-account. `brew bundle --force-cleanup`
-    # runs once, as the primary user (`ismail`), and Homebrew's mas extension
-    # uninstalls every installed-but-undeclared App Store app it sees — and
-    # `mas list` sees the whole machine, so an app izzy bought on HIS Apple ID is
-    # reaped by ismail's activation just the same. Policy: anything izzy wants to
-    # keep is declared HERE (or installed outside MAS). The value itself,
+    # That reaping is MACHINE-WIDE and `mas list` sees every App Store app on the
+    # machine, whichever Apple ID bought it. Policy: anything to keep is declared
+    # HERE (or installed outside MAS). The value itself,
     # `homebrew.onActivation.cleanup = "uninstall"` (modules/darwin/homebrew.nix),
     # stays — the fix is to declare, not to stop cleaning.
     masApps = {
