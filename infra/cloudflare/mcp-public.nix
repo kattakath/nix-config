@@ -158,13 +158,33 @@ let
   # it everywhere costs nothing and removes the "which apps did we pin?" question.
   idpGoogleWorkspace = "3227ee11-f5a4-40ae-a1a7-612e1f035c1c";
 
-  # Reusable account policy `mcp-allow-operator` — one allow rule on the
-  # operator's identity. Referenced by literal id, the same way the sibling
-  # module infra/cloudflare/nixpi-tunnel.nix does for nixpi_ssh, because it is an
-  # existing account
-  # object and a second equivalent policy would just add a duplicate to audit.
-  # Not a secret: an Access policy id is an identifier, not a credential.
-  operatorPolicyId = "b3bd8c38-e231-4203-ba6b-69fe16e498b3";
+  # Reusable account policy `mcp-allow-operator`. It EXISTS (id below) and, measured
+  # 2026-09-20 via the API, its one rule is `include = [ { email = <the operator's
+  # mailbox> } ]`. ADR-004 phase 3 DECLARES it here so it can become a DOMAIN rule —
+  # every account on the Workspace domain, through the Workspace IdP — which is what
+  # makes offboarding a single lever (suspend the account, no Terraform change) and
+  # onboarding a second human a Workspace action rather than a policy edit.
+  #
+  # NOT APPLIED. This is the proposed diff, awaiting the operator (ADR-004 §8.4):
+  #   1. import the live object into THIS stack's state, never let an apply create a
+  #      second copy:   tofu import cloudflare_zero_trust_access_policy.mcp_allow_operator \
+  #                       <accountId>/b3bd8c38-e231-4203-ba6b-69fe16e498b3
+  #   2. in the stack's own state dir ($XDG_STATE_HOME/nix-config-mcp-public — there
+  #      is NO plan app; `tofu plan -out=policy.tfplan` by hand, token via
+  #      `secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:mcp-public -- …`) the plan
+  #      MUST read `0 to add, 1 to change, 0 to destroy`, the one change being
+  #      include email → email_domain (a `session_duration -> null` line is API noise).
+  #      A `+ create` means the import was SKIPPED: the wrapper's guards compare
+  #      state-minus-render and empty-state, so they CANNOT catch it — an apply would
+  #      mint a second policy and leave nixpi_ssh on the old one. A `-/+ replace`
+  #      would delete the object nixpi_ssh references. Either → stop.
+  #      (Review: docs/secrets-recovery-and-identity-adr.md §9.11.)
+  #   3. infra/cloudflare/nixpi-tunnel.nix keeps referencing the SAME object by its
+  #      literal id (a different tofu stack cannot reference this resource); the
+  #      rule change lands for nixpi_ssh too, because it is one policy.
+  # Consequence to weigh before applying: with one human on the domain the allowed
+  # set is unchanged; with a second, they are in — which is the intent.
+  operatorPolicyId = "\${cloudflare_zero_trust_access_policy.mcp_allow_operator.id}";
 
   # Declared on every application. Anything genuinely shared lives here exactly
   # once, so two apps cannot drift apart again.
@@ -287,6 +307,17 @@ in
   resource.cloudflare_zero_trust_access_service_token.mcp_public = {
     account_id = accountId;
     name = "mcp-public-gateway";
+  };
+
+  # ---- The reusable operator policy, as a DOMAIN rule (draft, see operatorPolicyId) --
+  # `email_domain` = any account on the Workspace domain. `require`-ing the Google
+  # IdP is deliberately NOT added: `allowed_idps` on every application already pins
+  # it, and a second copy of the same constraint is a second thing to drift.
+  resource.cloudflare_zero_trust_access_policy.mcp_allow_operator = {
+    account_id = accountId;
+    name = "mcp-allow-operator";
+    decision = "allow";
+    include = [ { email_domain.domain = domainName; } ];
   };
 
   # ---- (d) The one policy every published object is gated by ------------------

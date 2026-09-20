@@ -29,6 +29,20 @@ let
   # `kattakath` org, NO LONGER the repo owner (that's orgName) — just the person.
   userName = "ismailkattakath";
 
+  # ---- The CANONICAL identity (ADR-004 §2.6, docs/identity-and-offboarding.md) ---
+  # The Google Workspace account. GitHub login (SSO), FlakeHub/Determinate auth,
+  # Cloudflare Access (Google is the only IdP) and GCP Secret Manager — the
+  # secrets-recovery backend — all trace back to THIS account; suspending it is
+  # the single offboarding lever. Spelled from loginName + domainName because
+  # that is how Workspace mints it, so the three cannot drift apart.
+  #
+  # NOT in identityArgs: that attrset is what a template consumer REPLACES with a
+  # documented four-field identity, and a fifth required field there is the exact
+  # breakage `publicMcpPort` caused on 2026-09-16 (modules/parts/compose.nix).
+  # Fleet code reads it as config.fleet.googleAccount; the home profile gets it
+  # through mkHomeManagerModule's fleet-constants inherit list.
+  googleAccount = "${loginName}@${domainName}";
+
   # Git identity. Its own binding rather than "${loginName}@${domainName}",
   # so the commit address can be GitHub's noreply (which never leaks a real
   # mailbox) without dragging the POSIX account name along with it.
@@ -186,6 +200,7 @@ in
         fullName
         userName
         userEmail
+        googleAccount
         jsonResumeGistId
         jsonResumeUrl
         logoUrl
@@ -223,6 +238,7 @@ in
         orgName
         domainName
         userName
+        googleAccount
         ;
     };
   };

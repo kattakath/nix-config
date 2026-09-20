@@ -1,8 +1,10 @@
 # Identity and offboarding — one lever
 
 **The Google Workspace account on the org domain is the canonical identity.** Everything else
-signs in through it or is bound to it. Phase 3 of ADR-004 writes that down as a `googleAccount`
-binding in `modules/parts/identity.nix`; this page is the property it encodes.
+signs in through it or is bound to it. It is the `googleAccount` binding in
+`modules/parts/identity.nix` (`config.fleet.googleAccount`, also `flake.identity.googleAccount`;
+spelled `${loginName}@${domainName}` because that is how Workspace mints it); this page is the
+property it encodes.
 
 ## The single lever
 
@@ -26,7 +28,7 @@ is not applied.
 | Tier | Who / what | How it authenticates | Granted by |
 |---|---|---|---|
 | **Universal baseline** | every human | the Google account, everywhere (SSO / OIDC) | existing on the domain |
-| **Privileged exception — AWS** | specific people, per product | AWS IAM Identity Center (SSO), profiles in a *local* `~/.aws/config`, sessions minted at `aws sso login` | per person, per product; revoked in Identity Center, not by Workspace suspension alone |
+| **Privileged exception — AWS** | specific people, per product | AWS IAM Identity Center (SSO), profiles in a *local* `~/.aws/config` (the `cloud-cli` capsule ships only `config.example`), sessions minted at `aws sso login` | per person, per product; revoked in Identity Center, not by Workspace suspension alone |
 | **CI deploys** | GitHub Actions | **OIDC** (`id-token: write`) — FlakeHub publishing, and any future cloud deploy | the workflow, never a human's credential |
 
 The middle tier is why the secrets backend is GCP and not AWS (ADR-004 §2.2): recovery must be

@@ -330,10 +330,11 @@ in
   # so the origin never sees a JWT. That is why modules/nixos/core.nix binds sshd
   # to loopback — the two halves are one control and neither works alone.
   #
-  # The policy is NOT declared here. `mcp-allow-operator` is a REUSABLE policy
-  # shared with every published MCP server's portal app; owning it from this
-  # module would let a change here silently retarget those. Referenced by id
-  # instead. (It was shared with character-mcp too until that project was
+  # The policy is NOT declared here — it is declared in infra/cloudflare/mcp-public.nix
+  # (as a Workspace-domain rule, ADR-004 phase 3; not yet applied) and referenced
+  # from THIS stack by its literal id, because a different tofu stack cannot
+  # reference that resource. One object, two stacks: a rule change applied there
+  # reaches nixpi_ssh here. (It was shared with character-mcp too until that project was
   # decommissioned on 2026-09-14 — the reuse argument is unchanged, the example
   # is just one fewer.)
   resource.cloudflare_zero_trust_access_application.nixpi_ssh = {

@@ -35,9 +35,34 @@ is installed (`curl -fsSL https://install.determinate.systems/nix | sh -s -- ins
 
 ## What you inherit
 
-`hostname = "macos"` imports the engine's full `hosts/macos.nix` profile —
-its system defaults, Home Manager profile, and Homebrew app list. Your
-`hosts/macos.nix` merges on top: add to lists, or `lib.mkForce` to replace an
-engine value (it already force-disables the engine's operator-specific CI
-runners and Gmail-MCP accounts). Browse the engine's `hosts/` and `modules/`
-to see what else there is to override.
+`hostname = "generic-darwin"` imports the engine's neutral darwin layer — the system
+modules, the shared Home Manager profile and its capsules, **nothing operator-specific**:
+no CI runners, no Gmail accounts, no Homebrew cask list of someone else's (every
+`OPERATOR-ONLY`-marked block in the engine stays in the engine's own `hosts/macos.nix`).
+Your `hosts/macos.nix` merges on top: add to lists, flip a `local.*` switch, or
+`lib.mkForce` to replace an engine value. Browse the engine's `modules/` to see what
+there is; every capsule is off until you enable it.
+
+## Your secrets on a new machine
+
+Personal tokens live in the macOS **login Keychain** (`secret set <NAME>`), never in this
+flake. To make them recoverable, opt into the GCP Secret Manager backend — every human here
+has a Google Workspace identity, so recovery is gated on that one login:
+
+1. Install Determinate Nix, `git init && git add -A`, `nix run .#macos` (the steps above).
+2. In `hosts/macos.nix`, set
+   `home-manager.users.<login>.local.keychainSecrets.backend.type = "gcp";` and re-activate.
+   The project id is **not** written here — the commands read `gcloud config get-value project`.
+3. `gcloud auth login` (your Workspace account), and enable the Secret Manager API on the
+   project once.
+4. `secrets-rehydrate` → the Keychain is repopulated; open a new shell. Touch ID prompts on
+   later reads behave exactly as before.
+
+`secrets-status` shows what is cached, what is in the backend and whether they agree
+(hashes, never values). `secrets-push <SERVICE>` sends one Keychain item to the backend.
+None of these is ever run by activation. With the backend left at `"none"` the Keychain is
+the **only** copy of your secrets — back it up yourself before wiping a Mac.
+
+The same rule for cloud CLIs: `local.cloudCli.aws.enable = true` installs the AWS CLI and
+`~/.aws/config.example` with placeholders; the real `~/.aws/config` (account ids, roles,
+regions) is yours, written locally, never committed.

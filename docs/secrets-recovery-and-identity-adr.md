@@ -1,11 +1,11 @@
 # ADR-004: secrets recovery via GCP Secret Manager, Google-canonical identity, and two deferrals
 
-**Status:** **Decided. Phases 1 and 2 of 3 shipped** 2026-09-20 — Phase 1 docs and markers,
-Phase 2 the `keychain-secrets` extension (§9 is its execution record). Phase 3 (shape-not-content
-AWS capsule, `googleAccount` binding, template, the Access-policy diff) follows the §8 answers
-recorded in §9.0. **What `macos` builds has not changed:** `backend.type` is still `"none"` on the
-host, and under that default the loader, `home.activation` and the `darwin-system` drv were
-measured byte-identical to the pre-ADR-004 tree.
+**Status:** **Decided and IMPLEMENTED — all three phases shipped** 2026-09-20 (Phase 1 docs and
+markers; Phase 2 the `keychain-secrets` extension; Phase 3 the `cloud-cli` capsule, the
+`googleAccount` binding, the inventory moves, the template, and the Access-policy DRAFT). §9 is
+the execution record. Two things are deliberately still the operator's: `backend.type` is
+`"none"` on `macos` (flip it after enabling the Secret Manager API), and the Access-policy change
+is declared but **not applied** (§9.10).
 
 **Read §9 before trusting §§1-8.** It records what Phase 2's execution found the design (and
 the brief it came from) got wrong. Where §9 and an earlier section disagree, §9 is what the
@@ -246,15 +246,80 @@ earlier with "reauthentication failed" — the two go through different scopes. 
 is therefore necessary but not sufficient; `list_remote`'s loud failure is what actually gates
 a run.
 
+### 9.7 Phase 3 — what moved, what did not, and why
+- **AWS profiles (inventory #1): moved.** `programs.awscli.settings` left `hosts/macos.nix`;
+  the new `cloud-cli` capsule (`modules/features/cloud-cli/`, born in-tree) installs the CLI +
+  `aws-sso-util` and writes `~/.aws/config.example`. The operator's live `~/.aws/config` was a
+  store symlink; `adoptAwsConfig` (already in `claude-bedrock-gate.nix`) turns it into a real
+  `0600` file on the first activation, so nothing is lost.
+- **Git identities (inventory #3): moved, with the same adoption trick.** `silvercreek.inc`,
+  `izzykatt.inc` and `allowed_signers` are hand-placed now (`adoptGitIdentityFiles` in
+  `home.nix` copies the existing symlinks out before orphan cleanup). `gitlab.inc` STAYS in
+  Nix, derived from `config.fleet.googleAccount` — no literal mailbox left in `home.nix`.
+- **Gmail account list (inventory #2): NOT moved — blocked by ADR-003, reported rather than
+  forced.** `local.mcpGateway.gmail.accounts` is consumed at EVAL time (one launchd agent per
+  address, `modules/shared/mcp.nix:213`), so it cannot be read from a local file without moving
+  gateway-config generation to launchd start — which is ADR-003 §7's MCP overlay, explicitly
+  "not built, and not built first". The four addresses stay, marked OPERATOR-ONLY; the
+  `next-right-thing` scripts' default account aliases are the same content and stay with them.
+  Moving them is a decision for ADR-003's own trigger, not a side effect of this one.
+
+### 9.8 `googleAccount` is a fleet constant, not an identity arg
+Adding it to `identityArgs` would have re-created the 2026-09-16 `publicMcpPort` breakage for
+every template consumer (a fifth required field in a documented four-field identity). It rides
+`config.fleet` and `mkHomeManagerModule`'s fleet-constants list instead, and `flake.identity`
+exposes it for `bootstrap.sh`-style reads.
+
+### 9.9 Found in passing — the template had never evaluated for a consumer
+`nix flake init -t` + fill placeholders + eval FAILED on `main` too, twice over: the template's
+`local.macosGithubRunner.enable = lib.mkForce false` named an option that does not exist for
+`hostname = "generic-darwin"`, and `hosts/generic-darwin.nix` declared no
+`users.users.<login>` at all, so `home.homeDirectory` was null. `checks.template-consumer` was
+green throughout because it added the user by hand and never used the template's own host
+file. Fixed: the dead kill-switch is gone, the generic host declares the account (the
+`/Users/<name>` literal the ast-grep rule exempts by shape), and the check no longer masks it.
+Gate result after the fix: the template evaluates as shipped AND with both new knobs on
+(`cloud-cli` file present, four `secrets-*` CLIs and the loader's backend export present).
+
+### 9.10 The Access policy: declared as a domain rule, deliberately un-applied
+`infra/cloudflare/mcp-public.nix` now declares `cloudflare_zero_trust_access_policy.
+mcp_allow_operator` with `include = [ { email_domain.domain = domainName; } ]` and every
+portal application references it by resource instead of by literal id. Rendered and
+inspected: one policy, `decision = allow`, one `email_domain` rule. It has NOT been applied
+and must not be by an agent: the operator `tofu import`s the live object (id in the file
+header) and applies after a plan that shows exactly one change. `nixpi-tunnel.nix` keeps the
+literal id — a different tofu stack — and the rule change reaches `nixpi_ssh` through the
+shared object. The `terranix-infra-reviewer` review is recorded in §9.11.
+
+### 9.11 Reviewer's findings on the policy draft
+Run as this repo's `terranix-infra-reviewer` (review/plan only; it rendered the module,
+`tofu validate`d the render against the locally cached provider 5.25.0 in a scratch copy, and
+read only state ADDRESSES). Verdict: **safe to land as a draft** — renders, validates,
+`include[].email_domain.domain` exists in the pinned schema, every `portal*` app references
+the resource, `origin_gateway` untouched. Findings that shape the operator's apply:
+
+| Sev | Finding |
+|---|---|
+| blocker | The `mcp-public-apply` wrapper's guards compare state−render and empty-state; a **skipped import** shows up as neither. An apply without `tofu import` creates a SECOND policy and leaves `nixpi_ssh` on the old one — "one lever" silently becomes two. Gate: plan must read `0 add / 1 change / 0 destroy`. |
+| blocker | The plan must show `~ update in-place`, never `-/+ replace`: a replace deletes the object `nixpi_ssh` references (sole remote path to the Pi). |
+| warning | Cross-stack blast radius: the moment it applies, `nixpi_ssh` is domain-gated too — intended (§8.4), and both stacks pin `allowed_idps` to the Workspace IdP, so "any @domain" is "any Workspace account", nothing else. |
+| warning | `session_duration "24h" -> null` may appear as API-default noise; anything else on this resource, or any change on another, is drift. |
+| fixed | The header named a `mcp-public-plan` app that does not exist → replaced with the hand `tofu plan` in the state dir. `nixpi-tunnel.nix`'s "not declared anywhere" comment → reworded. |
+| deferred | `mcp-public.nix` declares no `required_providers` (the sibling does); adding it changes the locked provider alias and needs `state replace-provider` — a separate change, not this one. |
+
+Import address (5.25.0 docs): `tofu import cloudflare_zero_trust_access_policy.mcp_allow_operator '<accountId>/b3bd8c38-e231-4203-ba6b-69fe16e498b3'`. Rollback after apply: restore the email rule via dashboard/API and `tofu state rm` the resource — never by putting the mailbox back in Nix (§9.0).
+
+
 ## Measured (filled in at each gate)
 
 | Metric | Baseline (2026-09-20) | After Phase 1 | After Phase 2 | After Phase 3 |
 |---|---|---|---|---|
-| `flake.nix` lines | 415 | 415 | 415 | |
-| `nix flake check` rows (`checks.*`) | 29 | 29 | 30 | |
-| green rows in `nix flake check` | 82 | 82 | 87 | |
-| capsules | 6 | 6 | 6 | |
-| `local.*` option roots | 22 | 22 | 22 | |
-| `OPERATOR-ONLY` marker lines | 3 (prose variants) | 31 (28 added) | 31 | |
-| ast-grep rules | 5 | 5 | 6 | |
-| `macos` `darwin-system` drv | baseline | identical | identical (`backend.type = "none"`) | |
+| `flake.nix` lines | 415 | 415 | 415 | 415 |
+| `nix flake check` rows (`checks.*`) | 29 | 29 | 30 | 32 |
+| green rows in `nix flake check` | 82 | 82 | 87 | 89 |
+| capsules | 6 | 6 | 6 | 7 |
+| `local.*` option roots | 22 | 22 | 22 | 23 (`local.cloudCli`) |
+| `OPERATOR-ONLY` marker lines | 3 (prose variants) | 31 (28 added) | 31 | 27 (four blocks left Nix) |
+| ast-grep rules | 5 | 5 | 6 | 6 |
+| `macos` `darwin-system` drv | baseline | identical | identical (`backend.type = "none"`) | MOVED — awscli via the capsule, three git files left `home.file` (declared, expected) |
+| committed real ids outside `identity.nix` | 2 AWS account ids, 1 start-URL id, 7 mailboxes | same | same | 0 ids; 4 mailboxes (Gmail list, §9.7) |

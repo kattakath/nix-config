@@ -144,7 +144,7 @@ One line per path; the *why* and the per-file specifics are in
 | `sgconfig.yml` + `ast-grep/` | Report-only structural lint mechanising both layer boundaries: a capsule may not reach **out**, and `modules/shared/` may reach **down** only. Gated by `checks.<system>.ast-grep`, **not** treefmt. |
 | `hosts/` | Per-host entry profiles: `macos.nix`, `nixpi.nix`, `nixvm.nix` (host-only deltas + per-host Homebrew lists). |
 | `modules/parts/` | The FLAKE ENGINE — one flake-parts module per concern, discovered by `import-tree`. The engine **may** reach anywhere. |
-| `modules/features/` | The six CAPSULES (the absorbed satellites): `cloudflared-connector`, `firmware-secrets`, `keychain-secrets`, `tart-vms`, `media-cli`, `local-rag`. `flake-module.nix` is the ONLY file anything outside imports, and **a capsule may not reach outside its own directory** — enforced by `ast-grep` + `checks.<system>.capsule-registry`, not by convention. **Satellite count: 0.** |
+| `modules/features/` | The seven CAPSULES — six absorbed satellites (`cloudflared-connector`, `firmware-secrets`, `keychain-secrets`, `tart-vms`, `media-cli`, `local-rag`) plus `cloud-cli` (born in-tree 2026-09-20: AWS CLI + `~/.aws/config.example`, never the real file). `flake-module.nix` is the ONLY file anything outside imports, and **a capsule may not reach outside its own directory** — enforced by `ast-grep` + `checks.<system>.capsule-registry`, not by convention. **Satellite count: 0.** |
 | `modules/shared/` | The Home Manager profile on every host. Modules that DECLARE a `local.*` option: `mcp.nix`, terminal theme, chromium, default browser, übersicht (the one HTML widget) + next-right-thing (what it says), wireguard, desktop aesthetics (the wallpaper), claude plugins/otel/desktop. Option-free modules that just configure: `home.nix`, nix cache, nix-ld, launchd-launcher, claude brain/bedrock-gate/guardrails — `local.claudeBedrock` was DELETED 2026-09-15, so do not look for it. |
 | `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix`, `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`local.macosGithubRunner` — LIVE, see § Configuration), `ollama-daemon.nix` (`local.ollamaDaemon` — ONE machine-wide `ollama serve`, so both accounts share one process and one 31 GB model store). |
 | `modules/nixos/` | `core.nix` (user + keys-only **loopback-bound** sshd, `openFirewall = false`, a firewall that opens **no** TCP port, avahi, nix-ld, zram, GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). |
@@ -262,7 +262,10 @@ How a host gets composed — change these knobs, not the hosts' internals:
 
 - **Identity once.** `loginName = "ismail"`, `domainName = "kattakath.com"`, `fullName`,
   `userEmail` are `identityArgs` in `modules/parts/identity.nix`, threaded through
-  `specialArgs`/`extraSpecialArgs`. `mkDarwin` accepts a per-host `identity` override, but
+  `specialArgs`/`extraSpecialArgs`. The CANONICAL identity is `config.fleet.googleAccount`
+  (the Workspace account — GitHub, FlakeHub, Cloudflare Access and Secret Manager all trace
+  to it; [`docs/identity-and-offboarding.md`](docs/identity-and-offboarding.md)); it is a fleet
+  constant, deliberately NOT in `identityArgs`. `mkDarwin` accepts a per-host `identity` override, but
   **nothing in the fleet uses it** — every host runs the same operator identity.
 - **Per-host divergence is a gate, not a fork.** `networking.hostName`-gated `lib.mkIf` (or
   `osConfig`) inside `modules/`; never a second identity, never a copy-pasted host block.
@@ -270,7 +273,10 @@ How a host gets composed — change these knobs, not the hosts' internals:
   are still generic, optional composition hooks (both default to `[ ]`), but the private
   nix-personal flake that used to fill them was retired 2026-09-15 — its values (AWS SSO
   profiles, extra gmail accounts, git identities, the OpenAI gateway, the real `hostedSites`)
-  are folded directly into `hosts/macos.nix` and `modules/parts/identity.nix`. See
+  were folded directly into `hosts/macos.nix` and `modules/parts/identity.nix` — and on
+  2026-09-20 (ADR-004) the AWS profiles and the personal git-identity files left Nix again for
+  hand-placed local files (`~/.aws/config`, `~/.config/git/{silvercreek,izzykatt}.inc`,
+  `allowed_signers`): the repo ships shape, the operator's content stays on the Mac. See
   [`docs/repo-map.md`](docs/repo-map.md).
 - **Whole features are ONE enable flag — and they are all IN-TREE now.** The media stack
   (`local.mediaCli`) and the Keychain secret store (`local.keychainSecrets`) are each one

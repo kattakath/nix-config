@@ -291,37 +291,18 @@ in
       # rather than two lists that must be hand-kept equal.
       local.mcpGateway.public = publicMcpServers;
 
-      # ---- Infin8 AWS SSO profiles (upstream home-manager option) -----------
-      # Folded in from nix-personal's aws-sso.nix (2026-09-15). Not secrets —
-      # start URL, account IDs, role names; SSO tokens stay in ~/.aws/sso/cache.
-      # Claude Code's Bedrock identity selects the SDLC profile at runtime via
-      # `secret set AWS_PROFILE infin8-takeoff-sdlc` (modules/shared/claude-bedrock-gate.nix);
-      # `region` lives on the profile itself, which is why it's set below.
-      # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
-      programs.awscli = {
-        enable = true;
-        settings = {
-          "sso-session infin8" = {
-            sso_start_url = "https://d-9a676f27ed.awsapps.com/start";
-            sso_region = "us-east-2";
-            sso_registration_scopes = "sso:account:access";
-          };
-          "profile infin8-takeoff-sdlc" = {
-            sso_session = "infin8";
-            sso_account_id = "319826235970";
-            sso_role_name = "AdministratorAccess";
-            region = "ca-central-1";
-            output = "json";
-          };
-          "profile infin8it-takeoff-prod" = {
-            sso_session = "infin8";
-            sso_account_id = "996122083124";
-            sso_role_name = "AdministratorAccess";
-            region = "ca-central-1";
-            output = "json";
-          };
-        };
-      };
+      # ---- AWS CLI: tool + shape, content stays local (ADR-004 phase 3) -------
+      # Until 2026-09-20 this block carried `programs.awscli.settings` with two real
+      # account ids and an SSO start-URL id — reconnaissance in a public repo
+      # (ADR-004 §7, inventory #1). The cloud-cli capsule now installs the CLI and
+      # writes ~/.aws/config.example; the real ~/.aws/config is the operator's,
+      # written by `aws configure sso` / by hand, outside Nix and git. The first
+      # activation after this change keeps the existing profiles: `adoptAwsConfig`
+      # (modules/shared/claude-bedrock-gate.nix) turns the leftover store symlink
+      # into a real 0600 file instead of letting orphan cleanup delete it.
+      # Claude Code's Bedrock profile is still selected at runtime with
+      # `secret set AWS_PROFILE <profile>`.
+      local.cloudCli.aws.enable = true;
 
       # ---- Infin8 LiteLLM proxy (OpenAI-compatible clients) ------------------
       # Folded in from nix-personal's openai-gateway.nix (2026-09-15). Both vars
