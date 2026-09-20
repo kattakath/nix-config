@@ -119,6 +119,51 @@ The two gated checks are `checks.aarch64-darwin.keychain-secrets-module` (the lo
 `$BASH_ENV` wiring and sentinel, on a throwaway home-manager config) and
 `keychain-secrets-clis` (builds all four CLIs, which is what runs shellcheck over them).
 
+## Backend — Secret Manager as the source of truth (ADR-004, off by default)
+
+The Keychain is a **fast local cache**; GCP Secret Manager is the **durable copy** — when you
+turn it on. `local.keychainSecrets.backend.type` defaults to `"none"`, and with `"none"`
+**nothing changes**: the loader, `home.activation` and the host's drv are byte-identical to the
+pre-ADR-004 tree and the four CLIs below are not even installed
+(`checks.aarch64-darwin.keychain-secrets-backend-inert` proves both halves).
+
+```nix
+local.keychainSecrets.backend.type = "gcp";   # in your USER's home-manager block, not a profile
+# backend.project stays null in a public repo — the CLIs read `gcloud config get-value project`
+# backend.prefix defaults to "fleet-" (Secret Manager ids allow only [A-Za-z0-9_-])
+```
+
+| Command | Does | Network |
+|---|---|---|
+| `secrets-status [--offline]` | one row per registered secret: in Keychain? ref, mode, **drift** vs. latest remote version — compared by sha256, never printed; lists `remote-only` strays | yes, unless `--offline` or no backend |
+| `secrets-rehydrate [--dry-run]` | pulls every `<prefix>*` secret that carries this store's annotations back into the Keychain **through `set-secret`** (the index's single writer), so bindings return too; idempotent — matching values are skipped; reference-mode secrets only land in the manifest | yes |
+| `secrets-push <SERVICE> [<ACCOUNT>] [--mode cached\|reference] [--ref REF]` | pushes **one** Keychain item: creates the secret if needed, adds a version only when the value changed, records SERVICE/ENV/ACCOUNT/MODE as annotations | yes |
+| `secrets-resolve <REF\|ID\|SERVICE>` | prints one value to stdout, nothing else — the `mode = "reference"` runtime helper | yes |
+
+Every one of them **fails loudly and touches nothing** when there is no active `gcloud` SSO
+session, when the Secret Manager API is disabled on the project, or when no backend is
+configured — and `gcloud` runs with `--quiet` so it can never prompt from inside a script.
+**None of them is ever run by activation**: `ast-grep/rules/activation-must-not-touch-secrets.yml`
+fails the build on any `home.activation` / `system.activationScripts` text that names them.
+
+**How the two sides map.** A secret's id is `sanitize(<prefix> + SERVICE)` (every character
+outside `[A-Za-z0-9_-]` becomes `_`, e.g. `fleet-gh_github_com_pat`), and the exact SERVICE,
+ENV binding, account and mode ride on the secret as **annotations** — so rehydrate needs
+nothing stored locally to rebuild a fresh Mac. `~/.config/secrets/refs.tsv` (`SERVICE REF
+MODE ENV`, 0600, outside Nix and git) caches that mapping and holds any explicit `--ref`
+override.
+
+**`mode = "reference"`.** `secrets-push --mode reference SVC` unbinds the item so the value
+is no longer ambient; new shells get `$<ENV>_REF=projects/…/secrets/…` instead, and the
+consuming tool calls `secrets-resolve "$<ENV>_REF"` when it actually needs the value. A bare
+resource name in an agent transcript is a pointer, useless without an SSO identity — this is
+now the primary defence for anything log-adjacent; `secret copy` / `pb-conceal` are the second
+layer.
+
+**Fresh Mac:** bootstrap → activate → `gcloud auth login` → `secrets-rehydrate` → open a new
+shell. Touch ID / ACL prompts on later reads are exactly as before, because the items were
+written by the same `set-secret` path.
+
 ## When to use something else
 
 | You want… | Use |
