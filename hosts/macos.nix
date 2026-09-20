@@ -93,6 +93,7 @@ in
   # rotates. Use `age -R` directly, NOT `agenix -e` (which silently encrypts
   # empty stdin when non-interactive), and verify the recipient tags match the
   # file being replaced.
+  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
   local.macosGithubRunner = {
     enable = true;
     org = "dontsell-ai";
@@ -161,6 +162,7 @@ in
     owner = loginName;
     mode = "0400";
   };
+  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
   local.tart =
     let
       fleetApp = {
@@ -273,6 +275,7 @@ in
   home-manager.users.${loginName} =
     { publicMcpServers, ... }:
     {
+      # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
       local.mcpGateway.gmail.accounts = [
         "ismail@kattakath.com"
         "ismailkattakath@gmail.com"
@@ -294,6 +297,7 @@ in
       # Claude Code's Bedrock identity selects the SDLC profile at runtime via
       # `secret set AWS_PROFILE infin8-takeoff-sdlc` (modules/shared/claude-bedrock-gate.nix);
       # `region` lives on the profile itself, which is why it's set below.
+      # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
       programs.awscli = {
         enable = true;
         settings = {
@@ -327,6 +331,7 @@ in
       # the measured 401/404-vs-routing failure mode without it. The key itself
       # is a LiteLLM virtual key in the Keychain (`openai.com:api`), unrelated
       # to this URL.
+      # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
       home.sessionVariables = {
         OPENAI_BASE_URL = "https://ai.infin8it.ca/v1";
         OPENAI_API_BASE = "https://ai.infin8it.ca/v1";
@@ -595,6 +600,7 @@ in
       # Cask because it is a signed .app with no nixpkgs/home-manager packaging;
       # the ONE widget the fleet declares (a full-screen HTML file) is placed by
       # modules/shared/ubersicht.nix (local.ubersicht.htmlWidget).
+      # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
       "ubersicht"
       # ungoogled-chromium — Chromium without the Google integration. Cask because
       # nixpkgs' chromium/ungoogled-chromium are *-linux only (no darwin build), and
@@ -644,6 +650,7 @@ in
       # (Brewfile installs brews before masApps — without that, formulae fail with
       # "You have not agreed to the Xcode license" on first activation).
       Xcode = 497799835;
+      # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
       # Plash — put a website on your desktop as the wallpaper. App Store–only
       # (no Homebrew cask). https://apps.apple.com/ca/app/plash/id1494023538
       Plash = 1494023538;

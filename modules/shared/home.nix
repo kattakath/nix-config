@@ -229,6 +229,7 @@ let
   # `jsonresume <download|print>` — fetch a JSON Resume and render it to PDF via the
   # npm resume CLI. jsonResumeUrl (from modules/parts/identity.nix) is baked in as its default --url,
   # so there is no ambient env var. See packages/jsonresume.nix.
+  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
   jsonresume = pkgs.callPackage ../../packages/jsonresume.nix {
     defaultUrl = jsonResumeUrl;
   };
@@ -237,6 +238,7 @@ let
   # (jsonResumeUrl baked as its default --url) plus the logo.svg fetched from the same gist
   # (logoUrl), rasterized via librsvg. Also run on activation (home.activation.emailSignature)
   # and `nix run .#email-signature`. See packages/email-signature/ (default.nix).
+  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
   email-signature = pkgs.callPackage ../../packages/email-signature {
     defaultUrl = jsonResumeUrl;
     inherit logoUrl tokensUrl;
@@ -408,12 +410,15 @@ in
     # Reaches Cowork through Desktop's device bridge. Gated on the gateway.
     ./claude-desktop.nix
     ./terminal-theme.nix # the fleet terminal palette + type, held once (no consumers yet)
+    # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
     ./desktop-aesthetics.nix # Terminal.app 16pt (all darwin) + wallpaper (opt-out)
     ./wireguard-configs.nix # operator-managed WG confs → ~/.config/wireguard (no autostart)
     ./claude-otel.nix # local OTel Collector for Claude Code's routing-decision telemetry (macos only)
     ./chromium.nix # ungoogled-chromium (Homebrew cask) config: sideloaded iCloud Passwords + its native host
     ./default-browser.nix # local.defaultBrowser — the macOS LaunchServices http/https claim
+    # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
     ./ubersicht.nix # local.ubersicht — the one full-screen HTML Übersicht widget (cask in hosts/macos.nix)
+    # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
     ./next-right-thing.nix # local.nextRightThing — decides what that widget says
     ./containers.nix # local.containers — per-user Colima (services.colima) replacing the Docker Desktop cask
     # Local-first RAG stack (loopback launchd Postgres+pgvector + Ollama + in-DB
@@ -458,6 +463,7 @@ in
   # MEASURED, the closure (ffmpeg, exiftool, auge, rclip's OpenCLIP model) is too
   # much for a Tart guest's disk, so a sandbox gets neither the CLIs nor the menu.
   # This one gate is now the entire "which hosts get the media stack" decision.
+  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
   local.mediaCli = {
     enable = isMacosHost;
     # `auge` is Apple's Vision framework from the shell — photo-describe already
@@ -568,9 +574,11 @@ in
   # Single-sourced from the generator so the writer and the reader cannot drift:
   # a path typed twice is a path that eventually disagrees, and the failure mode
   # is a widget silently rendering a file nothing updates any more.
+  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
   local.ubersicht.htmlWidget = lib.mkIf isMacosHost config.local.nextRightThing.outputPath;
 
   # The generator: scan, rank, publish ONE action (module: ./next-right-thing.nix).
+  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
   local.nextRightThing.enable = isMacosHost;
 
   # The PUBLIC half of the userscript set. Private ones are added to this same
@@ -994,6 +1002,7 @@ in
     	email = ismail@kattakath.com
   '';
 
+  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
   home.file.".config/git/silvercreek.inc".text = ''
     [user]
     	email = izzy@silvercreek.ai
@@ -1001,6 +1010,7 @@ in
 
   # The only include that also overrides user.name: a different public persona
   # (github.com/izzykatt), not another mailbox for the same person.
+  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
   home.file.".config/git/izzykatt.inc".text = ''
     [user]
     	name = Izzy Katt
@@ -1262,6 +1272,7 @@ in
       # upstream `lines` option, so the private layer touches no custom seam.
       # `format` is explicit because home.stateVersion 24.05 predates the "ssh"
       # default (git.nix:20-31). `signer` is left to upstream (nixpkgs' ssh-keygen).
+      # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
       signing = {
         key = operatorPublicKey;
         format = "ssh";

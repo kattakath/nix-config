@@ -18,6 +18,7 @@ let
     operatorSshKey
     ;
 
+  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
   # Where THIS operator's working tree lives, relative to $HOME. Spelled once
   # here because bootstrap.sh derives the very same path from --flake
   # ($HOME/Developer/github.com/$FLAKE_OWNER/$FLAKE_REPO) — two derivations of one

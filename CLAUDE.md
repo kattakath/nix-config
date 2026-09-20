@@ -247,7 +247,11 @@ per-client stdio. There is **no project `.mcp.json`**. Inventory + gotchas:
   `secret <set|reveal|rm|ls|exec|copy|fp|bind|unbind|adopt|load>` (there is **no `secret get`** —
   printing a value is opt-in via `reveal`); no secret *names* live in `.nix` either (the Keychain index is
   authoritative). Servers/CLIs read them at launch via `passwordCommand`-style wrappers, so no
-  value ever reaches argv or the store.
+  value ever reaches argv or the store. **Durable copy (ADR-004, off by default):**
+  `local.keychainSecrets.backend.type = "gcp"` adds `secrets-{status,rehydrate,push,resolve}` over
+  GCP Secret Manager — operator-invoked after `gcloud auth login`, **never by activation**
+  (`ast-grep/rules/activation-must-not-touch-secrets.yml`). Project id is read from `gcloud`
+  at runtime, never a Nix string.
 - **Never display a secret value** — using one is fine, echoing/logging/committing it is not.
 - Mechanism, history, and the two documented loader footguns:
   [`docs/secrets-and-keychain.md`](docs/secrets-and-keychain.md).
@@ -401,6 +405,12 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   execution found the design got wrong); [`ADR-003`](docs/externalization-boundary-adr.md)
   (decided, **NOT implemented**: Nix is the **harness**, governance never leaves; skills MAY
   overlay from `$HOME`, **MCP servers may not**).
+  [`ADR-004`](docs/secrets-recovery-and-identity-adr.md) (decided, **Phase 1 of 3 shipped — docs
+  and `OPERATOR-ONLY` markers only**: GCP Secret Manager as the durable source of truth with the
+  login Keychain as cache, Google Workspace canonical, namespace rename + repo split deferred with
+  triggers; §7 is the committed-identifier inventory awaiting approval, §8 the open conflicts).
+- [`docs/identity-and-offboarding.md`](docs/identity-and-offboarding.md) — the single lever:
+  suspend the Workspace account and every derived login goes with it; the three privilege tiers.
 - [`docs/agent-resource-externalization.md`](docs/agent-resource-externalization.md) — why the
   operator's plugins, skills and userscripts left this tree while the seven satellites came back
   in, and the rule it turned on: **a gate must move with the content it gates.**
