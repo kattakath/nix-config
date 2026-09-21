@@ -77,6 +77,8 @@ jobs:
   warm:
     name: warm (nixpi toplevel)
     runs-on: ubuntu-24.04-arm # native aarch64-linux: builds what the Pi runs
+    outputs:
+      out: ${{ steps.build.outputs.out }}
     # Cold RPi kernel is the worst case; a warmed closure is minutes.
     timeout-minutes: 120
     steps:
@@ -117,21 +119,47 @@ jobs:
             --no-link --print-build-logs --print-out-paths)
           echo "out=$out" >> "$GITHUB_OUTPUT"
 
-      # This workflow exists to guarantee ONE property: the Pi can substitute
-      # rather than build. Building proves it was MADE, not that Cachix received
-      # it — the push is cachix-action's implicit post step, and nothing here
-      # asserted it landed. A silent push failure leaves a GREEN run that
-      # authorises a deploy, the Mac then plans a build, hits the documented
-      # caddy EPERM on the native Linux builder, and the tempting fallback is
-      # building on the Pi: hazard #1, the physical-reflash one. Worse, the repo
-      # already documents a DIFFERENT, benign cause for the same symptom (the 1h
-      # narinfo negative cache), which trains the operator to wait it out.
+  # This workflow exists to guarantee ONE property: the Pi can substitute
+  # rather than build. Building proves it was MADE, not that Cachix received
+  # it. A silent push failure leaves a GREEN run that authorises a deploy, the
+  # Mac then plans a build, hits the documented caddy EPERM on the native Linux
+  # builder, and the tempting fallback is building on the Pi: hazard #1, the
+  # physical-reflash one. Worse, the repo already documents a DIFFERENT, benign
+  # cause for the same symptom (the 1h narinfo negative cache), which trains the
+  # operator to wait it out.
+  #
+  # A SEPARATE JOB, on purpose (2026-09-21). cachix-action v17 pushes through a
+  # background daemon and flushes it in its POST step, which runs after every
+  # regular step of the job. As a regular step this check ran BEFORE that flush,
+  # so attempt 1 failed on every genuinely new closure and attempt 2 passed
+  # (nothing to rebuild, the first attempt's post step had landed it) — measured
+  # on f9ef26c, b590c0b and b793ae6. `needs: warm` orders it after the post
+  # step. No Nix needed: a narinfo GET on the cache is exactly what
+  # `nix path-info --store` did, minus an installer.
+  verify:
+    name: verify (closure in Cachix)
+    needs: warm
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
       - name: Verify the closure is actually substitutable from Cachix
+        env:
+          OUT: ${{ needs.warm.outputs.out }}
         run: |
-          out='${{ steps.build.outputs.out }}'
-          if ! nix path-info --store https://kattakath.cachix.org "$out" >/dev/null 2>&1; then
-            echo "::error::$out is NOT in Cachix — the Pi would have to BUILD it." >&2
-            echo "The build succeeded but the push did not land. Check CACHIX_AUTH_TOKEN." >&2
-            exit 1
-          fi
-          echo "substitutable: $out"
+          set -euo pipefail
+          [ -n "$OUT" ] || { echo "::error::warm job produced no store path" >&2; exit 1; }
+          hash="${OUT#/nix/store/}"; hash="${hash%%-*}"
+          url="https://kattakath.cachix.org/${hash}.narinfo"
+          # A few short retries only: the post-step flush is already done when
+          # this job starts, so anything beyond a brief propagation delay is a
+          # real miss and must fail the run.
+          for i in 1 2 3 4 5 6; do
+            if curl -fsSI --max-time 20 "$url" >/dev/null; then
+              echo "substitutable: $OUT"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::$OUT is NOT in Cachix — the Pi would have to BUILD it." >&2
+          echo "The build succeeded but the push did not land. Check CACHIX_AUTH_TOKEN." >&2
+          exit 1
