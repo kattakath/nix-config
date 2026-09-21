@@ -16,7 +16,7 @@ name: build-installers-impl
 # other orgs; see nix-ci.yml header). The heaviest
 # job (cold RPi kernel, ~1h) fits inside hosted's 6h limit, and Cachix serves the
 # warmed closure so it is usually minutes. Hosted lacks Nix + the substituter, so this
-# workflow installs them (install-nix-action + cachix-action, same pins as nix-ci).
+# workflow installs them (install-nix-action + cachix-action, same pins as build-installers.yml / gitleaks.yml; nix-ci.yml runs Determinate Nix since 2026-09-21).
 #
 # CACHIX — WARM the toplevel, EXCLUDE the image. cachix-action pushes the paths
 # realised during the build, so a real `nixos-rebuild switch --flake .#nixpi` on the
@@ -49,7 +49,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # UPSTREAM Nix + the kattakath substituter (same pins as nix-ci.yml, kept
+      # UPSTREAM Nix + the kattakath substituter (same pins as build-installers.yml, kept
       # inline to match build-installers' own self-consistent pin choice).
       - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31
         with:
