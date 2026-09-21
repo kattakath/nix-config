@@ -959,16 +959,17 @@ in
 
       port = lib.mkOption {
         type = lib.types.port;
-        default = 61867;
+        default = 9222;
         description = ''
           Loopback port probed FIRST for a live `/json/version`. When it answers, the
           server attaches with `--browser-url` and the browser's own live
           `webSocketDebuggerUrl` is used; when nothing answers on any candidate port the
           server falls back to `--autoConnect` against `userDataDir`.
 
-          61867 rather than the conventional 9222 because that is the port Opera Air
-          chose for itself in consent mode, and pinning it on the launch command
-          (`--remote-debugging-port=61867`) is what keeps it stable across restarts.
+          9222 is the conventional CDP port AND the one `nix-chromium-debug` opens by
+          default, so the probe hint and the launcher now agree. It was 61867 until
+          2026-09-21 — the port Opera Air picked for itself in consent mode — but Opera
+          was removed from this Mac that day, so pinning its port outlived its reason.
           It binds to 127.0.0.1 only — never expose or forward it; that turns a
           local-only debugging channel into a remote one.
 
@@ -980,8 +981,8 @@ in
 
       userDataDir = lib.mkOption {
         type = lib.types.str;
-        default = "${config.home.homeDirectory}/Library/Application Support/com.operasoftware.OperaAir";
-        example = "${config.home.homeDirectory}/Library/Application Support/Chromium";
+        default = "${config.home.homeDirectory}/Library/Application Support/Chromium";
+        example = "${config.home.homeDirectory}/Library/Application Support/Google/Chrome";
         description = ''
           Browser profile directory `--autoConnect` reads `DevToolsActivePort` from — the
           file the browser writes when its debugging server starts, naming the port it
@@ -990,12 +991,14 @@ in
 
           It is a directory rather than a port BECAUSE the port is no longer knowable in
           advance: a browser put into debugging mode from `chrome://inspect/#remote-debugging`
-          picks its own (measured: Opera Air on 61867), and the browser WebSocket UUID
+          picks its own (measured 2026-09-07 on the since-removed Opera Air: 61867), and
+          the browser WebSocket UUID
           changes on every launch. Both live in `DevToolsActivePort`, so upstream resolving
           it at connect time is the only shape that survives a browser restart.
 
-          Defaults to Opera Air, the browser this fleet enables debugging on. Point it at
-          any Chromium profile — the layout is the same. Note this is the USER DATA dir (the
+          Defaults to Chromium, the browser this fleet enables debugging on since Opera
+          was removed (2026-09-21). Point it at any Chromium-family profile — the layout
+          is the same. Note this is the USER DATA dir (the
           one holding `DevToolsActivePort` and `Default/`), not the `Default/` profile inside it.
         '';
       };
@@ -1016,7 +1019,7 @@ in
     #
     # NO LONGER THE ONLY ROUTE, and no longer the one this module's server assumes.
     # A running browser CAN now be switched into debugging mode from
-    # `chrome://inspect/#remote-debugging` (Chrome/Chromium M144+, and Opera Air),
+    # `chrome://inspect/#remote-debugging` (Chrome/Chromium M144+),
     # which is how the browser this gateway attaches to is actually enabled — it
     # picks its own port and writes it to `DevToolsActivePort` [F-NO-JSON-HTTP].
     # This wrapper stays for the flag route, which is still the only way to open a
@@ -1024,9 +1027,10 @@ in
     # get a debug port on an --isolated throwaway profile.
     #
     # It launches CHROMIUM specifically. `chromeDevtools.userDataDir` selects which
-    # profile the SERVER attaches to and defaults to Opera Air, so the two are
-    # independent: running this does not make the gateway talk to Chromium unless
-    # userDataDir points there too.
+    # profile the SERVER attaches to and now also defaults to Chromium, so the two
+    # AGREE out of the box — they stayed independent knobs, though: point userDataDir
+    # at another Chromium-family profile and this wrapper still launches Chromium.
+    # (Until 2026-09-21 the default was Opera Air, which is no longer installed.)
     #
     # Why a wrapper at all, rather than a declared browser flag: the .app is a
     # Homebrew cask, so `programs.chromium.package` is null, and upstream's own
