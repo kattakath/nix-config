@@ -284,7 +284,8 @@ keeping it out of `devPackagesFor` keeps a from-source Rust build out of the dev
 (`deploy-rs-0.1.0`) is in **no** binary cache — verified absent from both `cache.nixos.org` and
 `kattakath.cachix.org`, on both arches — while `pkgs.deploy-rs` (`0-unstable-*`) substitutes
 fine. So a fresh Mac's first `nix develop` builds it, and the first real deploy builds the
-`aarch64-linux` `activate` for nixpi's closure on Determinate's ~1-CPU Linux builder.
+`aarch64-linux` `activate` for nixpi's closure on Determinate's native Linux builder (1 CPU /
+8 GiB by default; sizable via `determinateNix.determinateNixd.builder.*` — see CLAUDE.md).
 Deliberately **not** warmed via `checks`: `checks` is strictly lint-only (`nix flake check`,
 `/eval`, `nix-ci.yml` all build it), and paying a Rust build on every `/eval` to save it on a
 rare fresh-machine `nix develop` is the worse trade.

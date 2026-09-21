@@ -127,6 +127,23 @@
     # audit finding (2026-07). Applies to all NixOS hosts.
     zramSwap.enable = true;
 
+    # ONE garbage collector, not two (2026-09-21). determinate-nixd runs on the
+    # NixOS hosts now (modules/parts/compose.nix) and its collector defaults to
+    # `automatic`, which targets ">= 30 GB free" and goes "urgent" under 5 % —
+    # Determinate's best-practices page says never to pair it with a timer. On
+    # nixpi's SD card that 30 GB target may be unreachable, so the automatic
+    # collector could churn writes on low-endurance flash forever. Keep the
+    # proven weekly timer below and switch nixd's off. UPSTREAM FIRST: the
+    # determinate nixosModule exposes no `garbageCollector` option (only
+    # `enable` + `edgeCacheSubstituters`, modules/nixos.nix in the pinned input)
+    # and writes /etc/determinate/config.json only when edgeCacheSubstituters is
+    # set, so this plain environment.etc entry is the documented knob
+    # (https://docs.determinate.systems/determinate-nix/determinate-nixd/) and
+    # cannot collide with it.
+    environment.etc."determinate/config.json".text = builtins.toJSON {
+      garbageCollector.strategy = "disabled";
+    };
+
     # Automatic store GC + on-the-fly reclaim — a long-lived host (nixpi's SD
     # card) must self-trim or the store fills the disk. audit follow-up (2026-07).
     nix.gc = {
@@ -138,6 +155,15 @@
     # up to max-free — prevents ENOSPC during large builds.
     nix.settings.min-free = 3 * 1024 * 1024 * 1024; # 3 GiB
     nix.settings.max-free = 10 * 1024 * 1024 * 1024; # 10 GiB
+
+    # Periodic TRIM instead of online `discard` (Determinate best-practices § "Don't
+    # mount your Nix store with online discard"): a weekly fstrim reclaims freed
+    # blocks in one batch, where a `discard` mount option would issue one
+    # synchronous request per freed extent during every GC. Neither root (the SD
+    # image's ext4) nor /mnt/storage mounts with `discard`, so this is the missing
+    # half. Upstream option: services.fstrim (nixos/modules/services/misc/fstrim.nix),
+    # default interval weekly.
+    services.fstrim.enable = true;
 
     environment.systemPackages = with pkgs; [
       git
