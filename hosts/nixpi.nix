@@ -211,6 +211,7 @@
   # Static landing page, served by upstream Caddy sitting BEHIND the Cloudflare
   # tunnel (tunnel → Caddy on :80). Future services add more `virtualHosts` here
   # rather than a new tunnel per-service; no public IP / port-forward is needed.
+  # Widening this list fails `nixpi-security-posture` (modules/parts/checks.nix).
   networking.firewall.allowedTCPPorts = [ 80 ]; # 443 omitted: TLS terminates at Cloudflare's edge
   services.caddy = {
     enable = true;

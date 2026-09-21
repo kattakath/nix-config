@@ -41,6 +41,8 @@
       openssh.authorizedKeys.keys = lib.optional (operatorSshKey != null) operatorSshKey;
     };
 
+    # Pinned for nixpi by `nixpi-security-posture` (modules/parts/checks.nix):
+    # relaxing any line in this block fails `nix flake check`.
     services.openssh = {
       enable = true;
 
@@ -88,6 +90,8 @@
       };
     };
 
+    # Also pinned by `nixpi-security-posture`, which gates the port-RANGE,
+    # per-interface and trusted-interface paths into the same accept rule.
     networking.firewall = {
       enable = true;
       # Port 22 is deliberately NOT opened: sshd binds loopback only (above) and

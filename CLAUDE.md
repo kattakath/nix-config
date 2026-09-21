@@ -121,7 +121,8 @@ and ast-grep structural-lint gates). Run it before declaring any change done —
 evaluates on one system can still break the other.
 
 - Two-system coverage is mandatory: `aarch64-darwin` and `aarch64-linux`.
-- CI (`.github/workflows/nix-ci.yml`) splits it across 2 GitHub-hosted legs and requires the
+- CI (`.github/workflows/nix-ci.yml`) splits it across GitHub-hosted legs DERIVED from the
+  fleet's host systems (today 2), and requires the
   aggregate `required-checks` job. Details: [`docs/repo-map.md`](docs/repo-map.md) § CI.
 - **Never report a config as passing on a system only CI evaluated.** If `nix` is unavailable
   locally, validate syntax with `nix-instantiate --parse` and say the rest is CI-deferred. The
@@ -148,8 +149,8 @@ One line per path; the *why* and the per-file specifics are in
 | `modules/parts/` | The FLAKE ENGINE — one flake-parts module per concern, discovered by `import-tree`. The engine **may** reach anywhere. |
 | `modules/features/` | The seven CAPSULES — six absorbed satellites (`cloudflared-connector`, `firmware-secrets`, `keychain-secrets`, `tart-vms`, `media-cli`, `local-rag`) plus `cloud-cli` (born in-tree 2026-09-20: AWS CLI + `~/.aws/config.example`, never the real file). `flake-module.nix` is the ONLY file anything outside imports, and **a capsule may not reach outside its own directory** — enforced by `ast-grep` + `checks.<system>.capsule-registry`, not by convention. **Satellite count: 0.** |
 | `modules/shared/` | The Home Manager profile on every host. Modules that DECLARE a `local.*` option: `mcp.nix`, terminal theme, chromium, default browser, übersicht (the one HTML widget) + next-right-thing (what it says), wireguard, desktop aesthetics (the wallpaper), claude plugins/otel/desktop. Option-free modules that just configure: `home.nix`, nix cache, nix-ld, launchd-launcher, claude brain/bedrock-gate/guardrails — `local.claudeBedrock` was DELETED 2026-09-15, so do not look for it. |
-| `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix`, `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`local.macosGithubRunner` — LIVE, see § Configuration), `ollama-daemon.nix` (`local.ollamaDaemon` — ONE machine-wide `ollama serve`, so both accounts share one process and one 31 GB model store). |
-| `modules/nixos/` | `core.nix` (user + keys-only **loopback-bound** sshd, `openFirewall = false`, a firewall that opens **no** TCP port, avahi, nix-ld, zram, GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). |
+| `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix`, `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`local.macosGithubRunner` — LIVE, see § Configuration), `ollama-daemon.nix` (`local.ollamaDaemon` — ONE machine-wide `ollama serve`, so every account shares one process and one 31 GB model store), `claude-managed-settings.nix` (`local.claudeManagedSettings` — the root-owned Claude Code MANAGED settings file; `enable = false` DELETES it). |
+| `modules/nixos/` | `core.nix` (user + keys-only **loopback-bound** sshd, `openFirewall = false`, a firewall that opens **no** TCP port, avahi, nix-ld, zram, GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). `nixpi`'s composed posture is GATED — `checks.<system>.nixpi-security-posture` (built on BOTH systems: the edits it guards are made on the Mac). |
 | `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `activate` (the self-elevating rebuild above), `spotlight-launchers`, plus single-purpose CLIs. `grok.nix` and `antigravity-cli.nix` are SRI-pinned prebuilt vendor binaries (`grok` also needs `dontFixup` to keep xAI's signature); `fal.nix` ships `fal` + `fal-gen` as ephemeral `uv` envs. These are SHARED via `environment.systemPackages`, not per-user. Root `bootstrap.sh` is the no-Nix stage 1. The media/photo CLIs live in the `media-cli` capsule instead. |
 | `infra/` | terranix (Nix → Terraform JSON): `cloudflare/nixpi-tunnel.nix`, `cloudflare/mcp-public.nix`. Applied only via the `cf-*` / `mcp-public-*` apps. |
 | `secrets/` | agenix recipients + the operator pubkey + **four** ciphertexts — one operator-only, three host-decrypted on `macos`. Details in § Security. |
@@ -158,7 +159,7 @@ One line per path; the *why* and the per-file specifics are in
 | `skills/` | **Global** skills still in-tree: ONLY the Brain Signals `/explain` family, declared in `modules/shared/claude-brain.nix` next to the output style they encode. Every other global skill arrives from a pinned input. |
 | `claude/` + `qwen/` | The **global** (all-projects) agent context this repo installs on `macos` — not to be confused with **this** file, which is project-scoped. |
 | `.claude/` | Project agent config — see the lists below. |
-| `.github/workflows/` | `nix-ci.yml` (2 hosted legs), `warm-nixpi-cache.yml` (**keeps the Pi from ever building** — see § Important Notes), `auto-merge.yml`, `build-*`, `claude*.yml`, `gitleaks.yml`, `flakehub-publish.yml`, `update-flake-lock.yml`. |
+| `.github/workflows/` | `nix-ci.yml` (hosted legs DERIVED from the fleet's own host systems), `warm-nixpi-cache.yml` (**keeps the Pi from ever building** — see § Important Notes), `auto-merge.yml`, `build-*`, `claude*.yml`, `gitleaks.yml`, `flakehub-publish.yml`, `update-flake-lock.yml`. |
 | `docs/` | Runbooks + design docs — indexed at the bottom of this file. |
 
 **Gone on purpose — do not re-add.** There is no `plugins/` tree (the operator's marketplace is
@@ -194,9 +195,13 @@ here or each fires twice. The guard's case suites are `.claude/hooks/tests/*.sh`
 `claude-config-lint.yml`** — they assert both halves (must-BLOCK and must-stay-APPROVED) and that
 the hook never throws, because a throw fails OPEN and silently disarms every rule. Message
 decoder: [`docs/claude-hook-messages.md`](docs/claude-hook-messages.md).
-All of the above is **project-scoped** — it guards sessions in THIS repo only. The fleet-wide
-floor for every other repo is user-scope `permissions.deny` in
-`modules/shared/claude-guardrails.nix` (policy that is wrong everywhere; repo policy stays here).
+All of the above is **project-scoped** — it guards sessions in THIS repo only. Policy that is
+wrong in EVERY repo sits in two wider tiers instead: user-scope `permissions.deny` in
+`modules/shared/claude-guardrails.nix`, and above it the root-owned MANAGED file
+`modules/darwin/claude-managed-settings.nix` (`macos` only) — a managed deny cannot be
+retracted by any lower scope, and every per-key precedence sentence in claude-code 2.1.260
+puts managed first. It carries the secret-value denies + attribution keys. Deny lists from
+every scope COMBINE, so that duplication is deliberate, not drift.
 
 **MCP servers**: one localhost `mcp-proxy` gateway (`modules/shared/mcp.nix`, darwin-only) on
 `127.0.0.1:8096` hosting every server as HTTP; `desktop-commander` and `open-design` stay
@@ -264,7 +269,8 @@ How a host gets composed — change these knobs, not the hosts' internals:
 
 - **Identity once.** `loginName = "ismail"`, `domainName = "kattakath.com"`, `fullName`,
   `userEmail` are `identityArgs` in `modules/parts/identity.nix`, threaded through
-  `specialArgs`/`extraSpecialArgs`. The CANONICAL identity is `config.fleet.googleAccount`
+  `specialArgs`/`extraSpecialArgs`. Those four are a **closed** typed submodule, so a fifth
+  field fails at eval here instead of in a template consumer's build. The CANONICAL identity is `config.fleet.googleAccount`
   (the Workspace account — GitHub, FlakeHub, Cloudflare Access and Secret Manager all trace
   to it; [`docs/identity-and-offboarding.md`](docs/identity-and-offboarding.md)); it is a fleet
   constant, deliberately NOT in `identityArgs`. `mkDarwin` accepts a per-host `identity` override, but
