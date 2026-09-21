@@ -403,6 +403,14 @@ in
             git
             gnutar
             gzip
+            # A JOB THAT TALKS HTTP NEEDS THIS, and nothing about the runner says it is absent.
+            # dontsell-ai/app's deploy registers its functions with Inngest by PUTting the app's
+            # serve endpoint. That step failed 2026-09-21 with `curl: command not found` — caught
+            # only because the step had just been rewritten to fail loudly; the same call written
+            # the old way (`|| true`) would have reported success and left production registered
+            # against the WRONG Inngest account. `openssl` was already here for the same family of
+            # reasons; `curl` simply never got added beside it.
+            curl
             # A JOB THAT PROBES PORTS NEEDS THIS, and its absence does not look like an absence.
             # dontsell-ai/app's e2e job frees stale webServer ports with
             # `lsof -ti tcp:$p 2>/dev/null || true` in a pre-flight AND an always() reaper. With no
