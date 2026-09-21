@@ -4,8 +4,11 @@ This repo follows the FlakeHub ["keep your inputs fresh"][bp] best practice with
 two cooperating pieces:
 
 - **`.github/workflows/nix-ci.yml` — the `flake-checker` job.** Advisory (never
-  fails a build): warns on every PR/push when the `nixos-unstable` input in
-  `flake.lock` drifts stale or off a supported branch.
+  fails a build): warns on every PR/push when a `github:NixOS/nixpkgs` input in
+  `flake.lock` drifts stale or off a supported branch. Since 2026-09-21 the root
+  `nixpkgs` is FlakeHub's `DeterminateSystems/nixpkgs-weekly` (a weekly snapshot
+  of nixos-unstable), which flake-checker does not inspect; freshness for it is
+  the weekly bump below.
 - **`.github/workflows/update-flake-lock.yml`.** Scheduled every Monday: runs
   `nix flake update` and opens a PR with the regenerated `flake.lock`. The
   automated counterpart to the manual `/update-input` command.
