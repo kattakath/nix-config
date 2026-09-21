@@ -525,6 +525,20 @@ in
 
   local.rag.pgvector.enable = isMacosHost;
 
+  # dontsell-ai/app's LOCAL dev database, in the same loopback cluster as the
+  # RAG store but a separate db + scoped role (blast radius = one database).
+  # Declared here because the run-wrapper rewrites pg_hba.conf with a
+  # truncating redirect on every launch: a hand-added entry — which is what
+  # the app repo's CLAUDE.md used to instruct — silently disappears at the
+  # next restart and the app then fails with `no pg_hba.conf entry for host
+  # "127.0.0.1"`. Diagnosed 2026-09-21 after exactly that.
+  local.rag.pgvector.extraDatabases = lib.mkIf isMacosHost [
+    {
+      db = "dontsell_dev";
+      role = "dontsell";
+    }
+  ];
+
   # Claude Code routing telemetry collector — real Mac only (same gate
   # as the RAG stack above). See modules/shared/claude-otel.nix and
   # the programs.claude-code.settings.env block below that points Claude Code
