@@ -49,6 +49,14 @@ let
     set-secret = setSecret;
     pb-conceal = pbConceal;
   };
+  # ADR-004 Phase 2: the write/recovery side. Config-free derivations (they read
+  # SECRETS_BACKEND* from the environment the loader exports), so these are the
+  # SAME drvs flake-module.nix publishes as packages.
+  backendCmds = pkgs.callPackage ./packages/secrets-backend.nix {
+    set-secret = setSecret;
+    secret = secretCmd;
+  };
+  refsPath = "${config.home.homeDirectory}/${cfg.refsRelPath}";
   loaderPath = "${config.home.homeDirectory}/${cfg.loaderRelPath}";
 
   # The loader.sh body: a one-time-per-process-tree Keychain load + the
@@ -141,7 +149,30 @@ let
           fi
           unset __ss_account __ss_kc __ss_index __ss_rc __ss_rest __ss_k __ss_v __ss_e __ss_s
           unset -f __ss_dbg 2>/dev/null || true
-        fi
+        fi${
+          lib.optionalString (cfg.backend.type != "none") ''
+
+            # -- ADR-004: the secret backend, and reference-mode refs ---------------------
+            # Static knobs for the secrets-* CLIs. Read at runtime, never baked, so the
+            # project id is not a Nix string in this public repo (backend.project stays
+            # null here and the CLIs fall back to `gcloud config get-value project`).
+            export SECRETS_BACKEND=${cfg.backend.type}
+            ${lib.optionalString (
+              cfg.backend.project != null
+            ) "export SECRETS_BACKEND_PROJECT=${lib.escapeShellArg cfg.backend.project}"}
+            export SECRETS_BACKEND_PREFIX=${lib.escapeShellArg cfg.backend.prefix}
+            export SECRETS_REFS_FILE=${lib.escapeShellArg refsPath}
+            # mode = "reference": the VALUE is neither cached nor exported; only the
+            # resource name is, as $<ENV>_REF, for the consumer to secrets-resolve.
+            if [ -r "$SECRETS_REFS_FILE" ]; then
+              while IFS="$(printf '\t')" read -r __sr_svc __sr_ref __sr_mode __sr_env; do
+                if [ "$__sr_mode" = reference ] && [ -n "$__sr_env" ]; then
+                  export "''${__sr_env}_REF=$__sr_ref"
+                fi
+              done < "$SECRETS_REFS_FILE"
+              unset __sr_svc __sr_ref __sr_mode __sr_env
+            fi''
+        }
 
         # -- interactive helpers (defined always; touch the Keychain only if called) --
         # Resolve SERVICE -> its ENV binding via the index, then export (or, for
@@ -304,6 +335,56 @@ in
       default = ".config/secrets/loader.sh";
       description = "Path of the generated loader script, relative to the home directory.";
     };
+
+    # ---- ADR-004 Phase 2: durable source of truth behind the Keychain cache -------------
+    # All defaults make every existing item behave EXACTLY as before: with `type = "none"`
+    # the loader text, home.activation and the host's drv are byte-identical to the
+    # pre-ADR-004 tree, and the four secrets-* CLIs are not even installed.
+    backend = {
+      type = lib.mkOption {
+        type = lib.types.enum [
+          "none"
+          "gcp"
+        ];
+        default = "none";
+        description = ''
+          Where the real values live. `gcp` = Google Secret Manager (the only implemented
+          backend; chosen because every human here has a Workspace identity by definition —
+          ADR-004 §2). `none` = the login Keychain is the ONLY copy; secrets-rehydrate exits
+          with an explanation and touches nothing.
+        '';
+      };
+      project = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        description = ''
+          GCP project id. LEAVE NULL IN A PUBLIC REPO: a project id is reconnaissance, and
+          the CLIs fall back to `gcloud config get-value project` at runtime (or to
+          SECRETS_BACKEND_PROJECT in the environment). A private consumer flake may set it.
+        '';
+      };
+      prefix = lib.mkOption {
+        type = lib.types.str;
+        default = "fleet-";
+        description = ''
+          Prefix of every secret id this store owns in the project. Shape, not content.
+          Secret Manager ids allow only [A-Za-z0-9_-], so a `/`-style prefix cannot be
+          spelled; `-` stands in for it. The full ref of SERVICE is
+          projects/<project>/secrets/<sanitize(prefix + SERVICE)>.
+        '';
+      };
+    };
+
+    refsRelPath = lib.mkOption {
+      type = lib.types.str;
+      default = ".config/secrets/refs.tsv";
+      description = ''
+        The local manifest (SERVICE, REF, MODE, ENV — tab-separated, 0600) that caches each
+        item's Secret Manager ref and its mode, written by secrets-push / secrets-rehydrate,
+        read by the loader for `mode = "reference"` exports. Outside Nix and git by design:
+        it names a project.
+      '';
+    };
   };
 
   # macOS-only: a clean no-op on Linux hosts.
@@ -313,6 +394,16 @@ in
       setSecret
       removeSecret
       pbConceal
+    ]
+    # ADR-004: the four backend CLIs arrive ONLY when a backend is declared. With
+    # `backend.type = "none"` nothing is installed and nothing changes — measured on the
+    # real host: home.activation, the loader and the darwin-system drv stay byte-identical.
+    # Declaring ≠ installing.
+    ++ lib.optionals (cfg.backend.type != "none") [
+      backendCmds.secrets-status
+      backendCmds.secrets-rehydrate
+      backendCmds.secrets-push
+      backendCmds.secrets-resolve
     ];
 
     # The loader file (a REAL file so $BASH_ENV can name it).
