@@ -329,7 +329,7 @@ in
         OPENAI_API_BASE = "https://ai.infin8it.ca/v1";
       };
 
-      # Chrome DevTools Protocol, in ATTACH mode against Opera Air. The attach flag is
+      # Chrome DevTools Protocol, in ATTACH mode against Chromium. The attach flag is
       # picked at spawn time by probing /json/version — neither --browser-url nor
       # --autoConnect works in both browser modes; see modules/shared/mcp.nix. One flag turns on BOTH the gateway server and the
       # `nix-chromium-debug` launcher — they are gated together on purpose, so there
@@ -345,11 +345,13 @@ in
       # is listening; `devtools-doctor.sh` in the chrome-devtools plugin says which
       # of the three causes it is.
       #
-      # What is NOT persistent, deliberately: debugging itself. Opera Air re-prompts
-      # per session and `nix-chromium-debug` is hand-run and dies with the browser
-      # window — because an open remote-debugging port is an unauthenticated control
-      # channel over a profile holding live logins. Measured 2026-09-07: Opera stores
-      # no persistent consent key, so there is nothing to make it stop asking.
+      # What is NOT persistent, deliberately: debugging itself. The in-browser toggle
+      # re-prompts per session and `nix-chromium-debug` is hand-run and dies with the
+      # browser window — because an open remote-debugging port is an unauthenticated
+      # control channel over a profile holding live logins. Measured 2026-09-07 on the
+      # then-default Opera Air: a Chromium-family browser stores no persistent consent
+      # key, so there is nothing to make it stop asking. Opera was removed from this Mac
+      # on 2026-09-21; the attach target is now Chromium (modules/shared/mcp.nix).
       local.mcpGateway.chromeDevtools.enable = true;
 
       # Per-user container runtime (Colima via home-manager's services.colima),

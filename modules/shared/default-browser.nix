@@ -7,9 +7,10 @@
 # hosts/macos.nix; Chromium is the debugging browser whose profile
 # `local.mcpGateway.chromeDevtools.userDataDir` points at).
 #
-# `defaultbrowser` takes the SHORT name (`operaair`, `chromium`, `safari`, `opera`),
-# NOT the bundle id — `com.operasoftware.OperaAir` is rejected as "not available as an
-# HTTP handler". Run the CLI with NO ARGUMENTS for a read-only list of the handlers it
+# `defaultbrowser` takes the SHORT name (`chrome`, `chromium`, `safari`), NOT the
+# bundle id — measured 2026-09-07, `com.operasoftware.OperaAir` was rejected as "not
+# available as an HTTP handler" (that browser has since been removed; the rejection is
+# a property of the bundle-id FORM, not of Opera). Run the CLI with NO ARGUMENTS for a read-only list of the handlers it
 # recognises, with the current default starred; that doubles as this option's doctor.
 {
   config,
@@ -24,7 +25,7 @@ in
   options.local.defaultBrowser = lib.mkOption {
     type = lib.types.nullOr lib.types.str;
     default = null;
-    example = "operaair";
+    example = "chromium";
     description = ''
       Short `defaultbrowser` handler name to claim `http`/`https` (and so
       `public.html`) for in LaunchServices, making it the macOS default browser.

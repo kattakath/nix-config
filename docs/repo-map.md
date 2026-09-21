@@ -2067,7 +2067,8 @@ Two plugins:
   tools its generated docs describe (those are written from `main`), so the entire Extensions
   group and 12 of 13 Memory tools do not exist yet. The MCP server itself is opt-in in
   `modules/shared/mcp.nix` (`local.mcpGateway.chromeDevtools.enable`), in ATTACH mode
-  against **Opera Air**; read that option's warning before enabling it. The attach flag is
+  against **Chromium** (it was Opera Air until 2026-09-21, when Opera was removed from
+  the Mac); read that option's warning before enabling it. The attach flag is
   **chosen at spawn time** by the `nix-mcp-chrome-devtools` wrapper, because measured
   2026-09-07 no single upstream flag works in both modes a browser can be in: one put into
   debugging from `chrome://inspect/#remote-debugging` 404s every `/json/*` path, so
