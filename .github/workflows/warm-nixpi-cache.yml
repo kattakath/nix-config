@@ -16,8 +16,8 @@ name: warm-nixpi-cache
 # nixpi generation dies, and the tempting fallback is `--build-host nixpi`, i.e.
 # building on the Pi. That fallback is blocked by .claude/hooks/pretooluse-bash-guard.js.
 #
-# THE FIX IS THIS JOB. A real aarch64 Linux runner (where that `cp` works) builds
-# the toplevel and cachix-action pushes the closure. Afterwards BOTH the Mac and the
+# THE FIX IS THIS WORKFLOW — `warm` then `verify`. A real aarch64 Linux runner (where that `cp` works) builds
+# the toplevel and cachix-action pushes the closure; `verify` then proves it landed. Afterwards BOTH the Mac and the
 # Pi substitute it and neither builds anything — the EPERM never enters the path.
 #
 # WHY NOT just reuse build-installers. That workflow already warms the closure, but

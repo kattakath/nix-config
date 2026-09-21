@@ -69,7 +69,7 @@ branch@rev before it builds. Step F below already runs it.
 | Re-running `nix fmt` / the repo's own format-fix on a repo already being touched | Reactivating a host when the guest/host is unreachable — report as skipped, don't retry-loop |
 | Re-activating macos (`activate`) when its composing repos moved | Disk operations of any kind (`diskutil`, partitioning) |
 | Nixpi: **disk-usage report only** — no GC/activation without an explicit ask (it's the live server; see `docs/nixpi-sd-flashing-runbook.md`) | Rotating secrets/tokens, editing `secrets/*.age`, anything with `secret set` |
-| — | `sudo nix-collect-garbage -d` on the host — determinate-nixd collects in the background now, and `-d` drops **every** old generation, leaving no rollback target |
+| — | `sudo nix-collect-garbage -d` on the host — determinate-nixd collects in the background on macos (on nixpi its collector is `disabled` and the weekly `nix.gc` timer collects — `modules/nixos/core.nix`), and `-d` drops **every** old generation, leaving no rollback target |
 
 These map onto the global Git Safety Protocol (never commit unless asked,
 never force-push, never merge without explicit confirmation) — `fix` mode

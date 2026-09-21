@@ -68,5 +68,8 @@ jobs:
         run: |
           set -euo pipefail
           rev=$(jq -r '.nodes[.nodes[.root].inputs.nixpkgs].locked.rev' flake.lock)
+          # The root nixpkgs is a FlakeHub tarball node since 2026-09-21; it still
+          # carries `.locked.rev`, but fail loudly rather than run `github:NixOS/nixpkgs/null`.
+          [ -n "$rev" ] && [ "$rev" != null ] || { echo "::error::no nixpkgs rev in flake.lock" >&2; exit 1; }
           nix run "github:NixOS/nixpkgs/$rev#gitleaks" -- \
             detect --source . --redact --verbose --exit-code 1

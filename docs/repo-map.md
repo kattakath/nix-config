@@ -1034,7 +1034,7 @@ waves 5-6 absorb them).
   once nix-config's own CI no longer needed one; **revived 2026-08-23 for a different consumer**
   — `dontsell-ai`'s repos, whose macOS + Playwright + Prisma jobs neither GitHub-hosted (no
   hosted-minutes budget on that org) nor the native Linux builder (build-only, ephemeral,
-  1-CPU/8 GB) can serve. `hosts/macos.nix` enables it with `count = 2`.
+  1 CPU / 8 GiB by default) can serve. `hosts/macos.nix` enables it with `count = 2`.
   - **Hand-rolled on purpose:** nix-darwin's `services.github-runners` hard-asserts
     `nix.enable = true` (it takes the runner's `nix` from `config.nix.package`), which is
     mutually exclusive with Determinate Nix (`nix.enable = false`). This module reproduces

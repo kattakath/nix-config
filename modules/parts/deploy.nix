@@ -190,7 +190,7 @@ in
   #                      `nix flake check`, /eval and nix-ci.yml build, and all
   #                      three are deliberately lint-only (see
   #                      modules/parts/checks.nix). Adding it would turn every
-  #                      `/eval` into a Pi-closure build on Determinate's 1-CPU
+  #                      `/eval` into a Pi-closure build on Determinate's (by default 1-CPU)
   #                      Linux builder. All it asserts is that `activate.nixos`
   #                      produced its two wrapper scripts — an upstream
   #                      invariant, not a property of OUR config.
