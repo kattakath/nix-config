@@ -133,8 +133,15 @@ in
           arch = "host";
           vmType = "vz";
           mountType = "virtiofs";
-          cpu = 4;
-          memory = 4;
+          # Sized for the 36 GiB / 12-core (6P+6E) M3 Pro, 2026-09-21: cpu = the
+          # P-core count (idle vCPUs are free); memory is a hard budget, not a soft
+          # cap — vz commits pages lazily, and Lima attaches a virtio balloon device but
+          # never inflates it (zero `TargetVirtualMachineMemorySize` calls in
+          # lima-vm/lima, checked 2026-09-21), so the guest page cache grows into it
+          # and only a VM restart hands it back. 12 GiB (~33%) leaves ~24 GiB
+          # for native Ollama models + GUI. The 4/4 before was Lima's builtin floor.
+          cpu = 6;
+          memory = 12;
           disk = 100;
         };
       };

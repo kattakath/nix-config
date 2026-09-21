@@ -117,6 +117,15 @@
       pb-conceal = pkgs.callPackage ./packages/pb-conceal.nix { };
       secret = pkgs.callPackage ./packages/secret.nix { inherit set-secret pb-conceal; };
       remove-secret = pkgs.callPackage ./packages/remove-secret.nix { inherit set-secret; };
+      # ADR-004 Phase 2. Config-free by design (see the package header), so the
+      # module installs these exact derivations.
+      backend = pkgs.callPackage ./packages/secrets-backend.nix { inherit set-secret secret; };
+      inherit (backend)
+        secrets-status
+        secrets-rehydrate
+        secrets-push
+        secrets-resolve
+        ;
     in
     {
       # `pb-conceal` is deliberately NOT exported. nix-config has never carried
@@ -125,7 +134,17 @@
       # grow the public output surface in a wave whose acceptance test is that
       # the surface did not move. It is still BUILT on every PR, by the
       # `-clis` check below.
-      packages = lib.optionalAttrs isDarwin { inherit set-secret remove-secret secret; };
+      packages = lib.optionalAttrs isDarwin {
+        inherit
+          set-secret
+          remove-secret
+          secret
+          secrets-status
+          secrets-rehydrate
+          secrets-push
+          secrets-resolve
+          ;
+      };
 
       checks = lib.optionalAttrs isDarwin {
         keychain-secrets-module = import ./checks/module-evaluates.nix {
@@ -147,11 +166,24 @@
         # calls that "the highest-cost silent loss available" and refuses it.
         keychain-secrets-clis = pkgs.runCommand "keychain-secrets-clis" { } ''
           for bin in ${secret}/bin/secret ${set-secret}/bin/set-secret \
-                     ${remove-secret}/bin/remove-secret ${pb-conceal}/bin/pb-conceal; do
+                     ${remove-secret}/bin/remove-secret ${pb-conceal}/bin/pb-conceal \
+                     ${secrets-status}/bin/secrets-status ${secrets-rehydrate}/bin/secrets-rehydrate \
+                     ${secrets-push}/bin/secrets-push ${secrets-resolve}/bin/secrets-resolve; do
             test -x "$bin"
           done
           echo ok > "$out"
         '';
+
+        # ADR-004 Phase 2's gate, as a standing check: the backend options are INERT for
+        # activation (no gcloud / secrets-* text reaches home.activation under either
+        # backend) and the loader is byte-identical to a config that never heard of a
+        # backend when backend.type = "none". Same argument-passing shape as
+        # module-evaluates.nix, for the capsule-invariant reason stated there.
+        keychain-secrets-backend-inert = import ./checks/backend-inert.nix {
+          inherit (inputs) home-manager;
+          inherit pkgs;
+          module = ./module.nix;
+        };
       };
     };
 }
