@@ -23,6 +23,36 @@ let
   # The published-gateway port, for the template-consumer check below. Read from
   # config.fleet — NOT identityArgs, which is the attrset a consumer replaces.
   inherit (config.fleet) publicMcpPort domainName;
+
+  # The ONE shared shape in this file, and only because `determinate-daemon` is
+  # literally the same check run against two hosts whose contracts are opposites
+  # (see both halves below). Every other check here stays inline: a helper that
+  # served two unrelated checks would just hide their differences.
+  mkHostContract =
+    {
+      pkgs,
+      name,
+      subject,
+      expect,
+      advice,
+    }:
+    let
+      broken = builtins.filter (e: !e.ok) expect;
+    in
+    pkgs.runCommand name { } (
+      if broken == [ ] then
+        ''
+          echo "${subject}: ${toString (builtins.length expect)} assertions ok" > "$out"
+        ''
+      else
+        ''
+          echo "${name}: ${subject} — broken." >&2
+          ${lib.concatMapStringsSep "\n" (e: ''echo "  ✘ ${e.name}" >&2'') broken}
+          echo "" >&2
+          ${lib.concatMapStringsSep "\n" (l: ''echo "${l}" >&2'') advice}
+          exit 1
+        ''
+    );
 in
 {
   perSystem =
@@ -371,6 +401,88 @@ in
                   exit 1
                 ''
             );
+
+          # ---- Determinate owns this daemon, so `nix.*` here is INERT ---------
+          #
+          # PRs #542/#543 put the whole fleet on Determinate Nix. On the Mac the
+          # module's contract is SUBTRACTIVE: `determinateNix.enable` implies
+          # `nix.enable = false`, so nix-darwin renders no /etc/nix/nix.conf at
+          # all and determinate-nixd owns the daemon outright. Every consequence
+          # of that is invisible to the evaluator:
+          #
+          #   - anything written to `nix.settings` on this host is DROPPED. Not
+          #     an error, not a warning — the option still type-checks, still
+          #     evaluates, and renders nothing. That is why the Cachix
+          #     substituter and the operator's trusted-users grant live in
+          #     `determinateNix.customSettings` (modules/parts/compose.nix), and
+          #     why this asserts they are STILL there. A future edit that
+          #     "tidies" them back onto nix.settings evaluates clean and quietly
+          #     un-trusts the operator — whose only documented escape from the
+          #     nixpi narinfo negative-cache trap is a client-side
+          #     --narinfo-cache-negative-ttl that an untrusted daemon discards.
+          #   - `nix.linux-builder` stays unusable, because it REQUIRES
+          #     nix.enable = true (nix-darwin#1505). Flipping `nix.enable` back is
+          #     therefore not a small change: it takes nix.conf off Determinate.
+          #   - `external-builders` is reserved — Determinate renders it itself
+          #     for the native Linux builder and customSettings asserts on it.
+          #     Upstream's assert is the real gate; this line exists so the rule
+          #     is legible NEXT TO the settings that are allowed, rather than
+          #     discovered by tripping it.
+          #
+          # Darwin-gated to the CI leg that already evaluates this host
+          # (.github/workflows/nix-ci.yml). The nixpi half lives in the isLinux
+          # block below and asserts the OPPOSITE things, on purpose.
+          #
+          # NOT COVERED: this reads the Nix-side declaration only. It cannot see
+          # whether determinate-nixd is actually running, whether the account
+          # entitlement at dtr.mn/features is live, or whether the local daemon
+          # is logged in to FlakeHub — and that last one is what makes
+          # `native-linux-builder` silently vanish. Those are runtime facts; the
+          # runbook owns them (docs/new-mac-runbook.md).
+          determinate-daemon =
+            let
+              mac = config.flake.darwinConfigurations.macos.config;
+              custom = mac.determinateNix.customSettings or { };
+            in
+            mkHostContract {
+              inherit pkgs;
+              name = "determinate-daemon";
+              subject = "macos: Determinate owns /etc/nix/nix.conf";
+              expect = [
+                {
+                  name = "determinateNix.enable is true (the darwin module is in the module list)";
+                  ok = mac.determinateNix.enable or false;
+                }
+                {
+                  name = "nix.enable is false — nix-darwin must NOT render a second nix.conf";
+                  ok = !(mac.nix.enable or true);
+                }
+                {
+                  name = "the Cachix substituter is routed through customSettings, where it is not silently dropped";
+                  ok = (custom.extra-substituters or [ ]) != [ ];
+                }
+                {
+                  name = "its trusted public key rides the same path";
+                  ok = (custom.extra-trusted-public-keys or [ ]) != [ ];
+                }
+                {
+                  name = "the operator is in extra-trusted-users, or the daemon discards their client settings";
+                  ok = (custom.extra-trusted-users or [ ]) != [ ];
+                }
+                {
+                  name = "external-builders is NOT hand-set (reserved; Determinate renders it)";
+                  ok = !(custom ? external-builders);
+                }
+              ];
+              advice = [
+                "modules/parts/compose.nix sets determinateNix.enable, which implies"
+                "nix.enable = false. With it off, nix-darwin renders NO /etc/nix/nix.conf,"
+                "so every nix.settings line on this host is silently inert — the cache, the"
+                "trusted-users grant and the rest belong in determinateNix.customSettings."
+                "Do not 'fix' this by re-enabling nix.enable; that takes the daemon back"
+                "from determinate-nixd. See PRs #542/#543 and CLAUDE.md, aarch64-linux builds."
+              ];
+            };
         }
         // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
           # ---- The four names a reflash depends on, pinned ---------------------
@@ -479,8 +591,191 @@ in
                   exit 1
                 ''
             );
+
+          # ---- Determinate owns this daemon TOO — and `nix.*` stays LIVE ------
+          #
+          # The mirror of the darwin `determinate-daemon` above, and the whole
+          # reason it is a separate list: it is NOT the same contract. The pinned
+          # input's modules/nixos.nix is ADDITIVE — it swaps `nix.package` for
+          # Determinate's Nix, points nix-daemon's ExecStart at determinate-nixd,
+          # and merely RETARGETS the generated conf to /etc/nix/nix.custom.conf,
+          # which the nixd-managed /etc/nix/nix.conf includes. `nix.settings`
+          # therefore keeps applying, and both modules/nixos/core.nix and
+          # modules/shared/nix-cache.nix are written assuming exactly that.
+          #
+          # The expensive failure guarded here is ONE substituter.
+          # install.determinate.systems is the only cache holding the prebuilt
+          # aarch64-linux Determinate Nix (verified 2026-09-21 in nix-cache.nix:
+          # a HIT there, a MISS on cache.nixos.org AND on Cachix). Lose that line
+          # — by dropping the module, by copying the darwin side's
+          # `nix.enable = false` across, or by editing nix-cache.nix — and
+          # nixpi's closure now contains a Nix that must be COMPILED FROM C++
+          # SOURCE. On a Pi 4 that CLAUDE.md says must never build at all, that is
+          # the ~40-minute reflash (docs/nixpi-sd-flashing-runbook.md), arrived at
+          # without a single eval error and without failing `nix flake check`.
+          #
+          # Every lookup goes through `or`, for the reason nixpi-firmware-names
+          # states directly above: drop the module and `config.determinate` stops
+          # existing, so a direct read degrades into "attribute 'determinate'
+          # missing" inside a trivial-builder stack trace instead of the
+          # explanation below. A guard whose message nobody reads is not a guard.
+          #
+          # NOT COVERED: `nix.settings` being live is asserted, not the content of
+          # /etc/nix/nix.conf on the running Pi — the file is rendered at
+          # activation and this is eval. It also says nothing about nixvm, which
+          # gets the same module and would be a second (cheap) host to add if it
+          # ever stops being throwaway.
+          determinate-daemon =
+            let
+              pi = config.flake.nixosConfigurations.nixpi.config;
+              # toString, not lib.any: the option is a LIST here but is a bare
+              # string in plenty of systemd modules, and the check should survive
+              # that rather than throw. Only the bool escapes, so the store path
+              # inside never becomes a build input of this derivation.
+              execStart = toString (pi.systemd.services.nix-daemon.serviceConfig.ExecStart or "");
+              subs = pi.nix.settings.extra-substituters or [ ];
+            in
+            mkHostContract {
+              inherit pkgs;
+              name = "determinate-daemon";
+              subject = "nixpi: Determinate runs the daemon, nix.settings still applies";
+              expect = [
+                {
+                  name = "determinate.enable is true (the nixosModule is in the module list)";
+                  ok = pi.determinate.enable or false;
+                }
+                {
+                  name = "nix.package is Determinate's Nix, not nixpkgs'";
+                  ok = (pi.nix.package.pname or "") == "determinate-nix";
+                }
+                {
+                  name = "nix-daemon.service execs determinate-nixd";
+                  ok = lib.hasInfix "determinate-nixd" execStart;
+                }
+                {
+                  name = "the generated nix.conf is retargeted to nix/nix.custom.conf";
+                  ok = (pi.environment.etc."nix/nix.conf".target or null) == "nix/nix.custom.conf";
+                }
+                {
+                  name = "nix.enable is still TRUE — unlike darwin, nix.settings must keep rendering";
+                  ok = pi.nix.enable or false;
+                }
+                {
+                  name = "install.determinate.systems is a substituter, or this Pi BUILDS Nix from source";
+                  ok = lib.elem "https://install.determinate.systems" subs;
+                }
+              ];
+              advice = [
+                "modules/parts/compose.nix wires determinate.nixosModules.default into"
+                "every NixOS host, and modules/shared/nix-cache.nix supplies the ONE"
+                "substituter that has a prebuilt aarch64-linux Determinate Nix."
+                "Without both, nixpi's next generation compiles Nix from C++ source on an"
+                "SD card that CLAUDE.md says must never build. Fix the wiring; do not"
+                "relax this, and never answer it by building on the Pi."
+              ];
+            };
         }
         // {
+          # ---- The rules file and the ciphertexts beside it, joined by a human -
+          #
+          # `secrets/secrets.nix` is consumed by exactly ONE thing — the `agenix`
+          # CLI — and is never imported into a host config, so nothing in this
+          # flake has ever forced it to agree with the directory it describes.
+          # Its top-level keys ARE the filenames, the .age files sit next to it,
+          # and the join between the two lists is performed by eye.
+          #
+          # Both directions fail silently, and differently:
+          #
+          #   on disk, undeclared : `agenix -r` — the re-key you run after
+          #     changing recipients — iterates the RULES, not the directory. A
+          #     ciphertext the rules do not name is skipped, so it keeps its old
+          #     recipient set while its siblings move to the new one. Nothing says
+          #     so until a host cannot decrypt it at activation.
+          #   declared, absent    : `agenix -e <name>` CREATES a missing file
+          #     rather than complaining, so a typo'd key here reads as "that
+          #     secret was never set up" instead of "you have been editing a file
+          #     the fleet does not read".
+          #
+          # The fleet's concrete exposure is the pair that must move TOGETHER:
+          # gh-app-dontsell-ai-key.age and gh-app-fleet-key.age hold identical key
+          # material on purpose (one GitHub App, two owning users — the
+          # `_github-runner` daemons vs. the login-user Tart agents; secrets.nix
+          # carries the full why), so rotating the App key means re-encrypting
+          # BOTH. Dropping one from the rules is precisely how that becomes a
+          # one-sided rotation, and the half that was skipped is the half nobody
+          # looks at until CI stops registering runners.
+          #
+          # NOT COVERED, and deliberately: this compares NAMES. It cannot see
+          # whether a ciphertext's real age recipients match the `publicKeys` list
+          # beside it — an `agenix -e` after a recipient edit with no `-r` leaves
+          # exactly that disagreement — nor that the two gh-app-* files still hold
+          # the same key material. Both need the private key, which this sandbox
+          # does not have and must not.
+          #
+          # Ungated: it is a readDir plus two list comparisons, identical and
+          # cheap on both systems, and the rules file is not platform-specific.
+          secrets-sync =
+            let
+              onDisk = lib.attrNames (
+                lib.filterAttrs (n: t: t == "regular" && lib.hasSuffix ".age" n) (builtins.readDir ../../secrets)
+              );
+              declared = lib.attrNames (import ../../secrets/secrets.nix);
+              unlisted = lib.subtractLists declared onDisk;
+              absent = lib.subtractLists onDisk declared;
+              # No backticks in any of these strings: they land inside a
+              # double-quoted `echo` in the builder, where bash runs them as
+              # command substitution and the quoted tool name silently
+              # DISAPPEARS from the message (measured while proving this check
+              # can fail). Quote command names with '' instead.
+              problems =
+                map (
+                  f: "secrets/${f} is COMMITTED but secrets.nix does not declare it — 'agenix -r' will skip it"
+                ) unlisted
+                ++ map (f: "secrets.nix DECLARES ${f}, but no such ciphertext exists under secrets/") absent;
+            in
+            pkgs.runCommand "secrets-sync" { } (
+              if problems == [ ] then
+                ''
+                  echo "secrets/: ${toString (lib.length onDisk)} .age files on disk, and secrets.nix declares exactly those ${toString (lib.length declared)}" > "$out"
+                ''
+              else
+                ''
+                  echo "secrets-sync: secrets/secrets.nix and secrets/ disagree." >&2
+                  ${lib.concatStringsSep "\n" (map (p: ''echo "  ✘ ${p}" >&2'') problems)}
+                  echo "" >&2
+                  echo "The rules file is the ONLY index agenix has: a file it does not name is" >&2
+                  echo "never re-keyed, and a name with no file is silently created on first edit." >&2
+                  echo "Note gh-app-dontsell-ai-key.age and gh-app-fleet-key.age must BOTH be" >&2
+                  echo "listed — same App key, two owning users, so a rotation touches both." >&2
+                  exit 1
+                ''
+            );
+
+          # THERE IS NO `flake-inputs-follows` CHECK, and that is a finding, not
+          # an omission. The job — prove the hand-maintained `follows` graph in
+          # flake.lock is deduped — is owned upstream by `nix-auto-follow`
+          # (--check mode), and the Motto weights an off-the-shelf tool ~2x. But
+          # the PINNED nixpkgs does not package it: measured 2026-09-21 against
+          # rev dc5d91f8, `nix-auto-follow` is absent from
+          # legacyPackages.{aarch64-darwin,aarch64-linux}, and the only
+          # "auto-follow" string anywhere under pkgs/ belongs to an unrelated
+          # lean-modules update script.
+          #
+          # The three ways to have it anyway are all worse than not having it:
+          # vendoring the tool, fetching it at eval time (which makes an
+          # eval-only check reach the network), or hand-rolling a lock-graph
+          # walker — the last being exactly the reinvented wheel the Motto
+          # rejects, over a file format Nix may change under us. Add the check
+          # the day nixpkgs packages the tool; until then a `follows` edit stays
+          # what CLAUDE.md says it is — shape-only, `nix flake lock`, never a
+          # bare `nix flake update`.
+          #
+          # Note also that a naive dedupe checker would be WRONG here anyway:
+          # `flake-parts` is a direct input whose `nixpkgs-lib` cannot be
+          # `follows = ""` (that REBINDS to this flake rather than removing), so
+          # any adopted tool must be shown to tolerate that case before it gates
+          # anything.
+
           claude-md-budget = pkgs.runCommand "claude-md-budget" { } ''
             limit=40000
             size=$(wc -c < ${../../CLAUDE.md} | tr -d " ")
