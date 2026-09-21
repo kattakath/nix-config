@@ -202,3 +202,16 @@ one-time steps are inherently manual — do these after activating a fresh Mac:
   the BSD tools on `PATH`, so a bare `stat` is GNU's — reach for
   `/usr/bin/stat -f` only when you specifically want the BSD one. The two probe
   paths are garbage and the background collector now reaps them on its own.)
+
+## Hand-placed files that never come back from a rebuild (ADR-004, 2026-09-20)
+
+These are the operator's CONTENT; the flake ships only their shape. A fresh Mac needs them
+written by hand (or restored from your own backup) — a missing one degrades silently:
+
+| File | Why it is not in Nix | Shape |
+|---|---|---|
+| `~/.aws/config` | account ids / start-URL ids are reconnaissance; every user's differs | copy `~/.aws/config.example` (written by `local.cloudCli.aws`) or `aws configure sso` |
+| `~/.config/git/silvercreek.inc`, `~/.config/git/izzykatt.inc` | personal mailboxes and a persona | `[user]` + `email` (+ `name` for the persona) — the `includes` in `modules/shared/home.nix` name them |
+| `~/.config/git/allowed_signers` | lists every mailbox you author as | `<mailbox> namespaces="git" <your ssh public key>`, one line per address; signing works without it, only VERIFYING needs it |
+| `~/.config/git/infin8.inc` | the work identity (always was hand-placed) | `[user]` + `email` |
+| the login Keychain's secrets | never in Nix | `secret set …`, or `gcloud auth login` → `secrets-rehydrate` once `local.keychainSecrets.backend.type = "gcp"` |

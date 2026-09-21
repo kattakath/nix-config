@@ -1,3 +1,4 @@
+# OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
 # macOS desktop "look" — Terminal.app's type + colours, and the custom wallpaper
 # (macOS only).
 #

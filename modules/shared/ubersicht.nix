@@ -1,3 +1,4 @@
+# OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
 # Übersicht — the one declared desktop widget: a single HTML file, rendered
 # full-screen behind every window with no chrome, re-read every five minutes.
 #

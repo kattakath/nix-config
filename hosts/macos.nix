@@ -93,6 +93,7 @@ in
   # rotates. Use `age -R` directly, NOT `agenix -e` (which silently encrypts
   # empty stdin when non-interactive), and verify the recipient tags match the
   # file being replaced.
+  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
   local.macosGithubRunner = {
     enable = true;
     org = "dontsell-ai";
@@ -161,6 +162,7 @@ in
     owner = loginName;
     mode = "0400";
   };
+  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
   local.tart =
     let
       fleetApp = {
@@ -273,6 +275,7 @@ in
   home-manager.users.${loginName} =
     { publicMcpServers, ... }:
     {
+      # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
       local.mcpGateway.gmail.accounts = [
         "ismail@kattakath.com"
         "ismailkattakath@gmail.com"
@@ -288,36 +291,18 @@ in
       # rather than two lists that must be hand-kept equal.
       local.mcpGateway.public = publicMcpServers;
 
-      # ---- Infin8 AWS SSO profiles (upstream home-manager option) -----------
-      # Folded in from nix-personal's aws-sso.nix (2026-09-15). Not secrets —
-      # start URL, account IDs, role names; SSO tokens stay in ~/.aws/sso/cache.
-      # Claude Code's Bedrock identity selects the SDLC profile at runtime via
-      # `secret set AWS_PROFILE infin8-takeoff-sdlc` (modules/shared/claude-bedrock-gate.nix);
-      # `region` lives on the profile itself, which is why it's set below.
-      programs.awscli = {
-        enable = true;
-        settings = {
-          "sso-session infin8" = {
-            sso_start_url = "https://d-9a676f27ed.awsapps.com/start";
-            sso_region = "us-east-2";
-            sso_registration_scopes = "sso:account:access";
-          };
-          "profile infin8-takeoff-sdlc" = {
-            sso_session = "infin8";
-            sso_account_id = "319826235970";
-            sso_role_name = "AdministratorAccess";
-            region = "ca-central-1";
-            output = "json";
-          };
-          "profile infin8it-takeoff-prod" = {
-            sso_session = "infin8";
-            sso_account_id = "996122083124";
-            sso_role_name = "AdministratorAccess";
-            region = "ca-central-1";
-            output = "json";
-          };
-        };
-      };
+      # ---- AWS CLI: tool + shape, content stays local (ADR-004 phase 3) -------
+      # Until 2026-09-20 this block carried `programs.awscli.settings` with two real
+      # account ids and an SSO start-URL id — reconnaissance in a public repo
+      # (ADR-004 §7, inventory #1). The cloud-cli capsule now installs the CLI and
+      # writes ~/.aws/config.example; the real ~/.aws/config is the operator's,
+      # written by `aws configure sso` / by hand, outside Nix and git. The first
+      # activation after this change keeps the existing profiles: `adoptAwsConfig`
+      # (modules/shared/claude-bedrock-gate.nix) turns the leftover store symlink
+      # into a real 0600 file instead of letting orphan cleanup delete it.
+      # Claude Code's Bedrock profile is still selected at runtime with
+      # `secret set AWS_PROFILE <profile>`.
+      local.cloudCli.aws.enable = true;
 
       # ---- Infin8 LiteLLM proxy (OpenAI-compatible clients) ------------------
       # Folded in from nix-personal's openai-gateway.nix (2026-09-15). Both vars
@@ -327,6 +312,7 @@ in
       # the measured 401/404-vs-routing failure mode without it. The key itself
       # is a LiteLLM virtual key in the Keychain (`openai.com:api`), unrelated
       # to this URL.
+      # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
       home.sessionVariables = {
         OPENAI_BASE_URL = "https://ai.infin8it.ca/v1";
         OPENAI_API_BASE = "https://ai.infin8it.ca/v1";
@@ -595,6 +581,7 @@ in
       # Cask because it is a signed .app with no nixpkgs/home-manager packaging;
       # the ONE widget the fleet declares (a full-screen HTML file) is placed by
       # modules/shared/ubersicht.nix (local.ubersicht.htmlWidget).
+      # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
       "ubersicht"
       # ungoogled-chromium — Chromium without the Google integration. Cask because
       # nixpkgs' chromium/ungoogled-chromium are *-linux only (no darwin build), and
@@ -644,6 +631,7 @@ in
       # (Brewfile installs brews before masApps — without that, formulae fail with
       # "You have not agreed to the Xcode license" on first activation).
       Xcode = 497799835;
+      # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
       # Plash — put a website on your desktop as the wallpaper. App Store–only
       # (no Homebrew cask). https://apps.apple.com/ca/app/plash/id1494023538
       Plash = 1494023538;

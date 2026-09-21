@@ -21,6 +21,7 @@
 # `scutil --set LocalHostName` imposes, and therefore what a bare
 # `darwin-rebuild switch` later reads back to pick the flake attribute. Setting a
 # name here would rename every consumer's Mac to the same thing.
+{ loginName, ... }:
 {
   # The one thing genuinely required of a darwin host rather than chosen by it:
   # `modules/darwin/core.nix` is the system layer every Mac needs (stateVersion,
@@ -28,6 +29,19 @@
   # in mkDarwin's base list — `hosts/macos.nix:30` imports it too — so a host
   # profile is the thing that opts a Mac into the system layer at all.
   imports = [ ../modules/darwin/core.nix ];
+
+  # The account the identity names. core.nix reads `users.users.${loginName}.home`
+  # (home-manager's homeDirectory comes from it on darwin), so without this block a
+  # consumer's eval died with "home.homeDirectory … null" — hosts/macos.nix declares
+  # the same block for the fleet, and `checks.template-consumer` used to add it by
+  # hand, which is why the gap was invisible until the template itself was
+  # evaluated (ADR-004 §9.9, 2026-09-20). Same shape as the fleet host: the literal
+  # `/Users/<name>` is the one place a home path is REQUIRED (the ast-grep rule
+  # exempts `users.users.*.home` for exactly this).
+  users.users.${loginName} = {
+    name = loginName;
+    home = "/Users/${loginName}";
+  };
 
   # Most real configs need this the moment they add a cask or a font; enabling it
   # here saves every consumer the same first-run failure. Flip it off in your own

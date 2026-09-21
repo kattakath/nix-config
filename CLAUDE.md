@@ -144,7 +144,7 @@ One line per path; the *why* and the per-file specifics are in
 | `sgconfig.yml` + `ast-grep/` | Report-only structural lint mechanising both layer boundaries: a capsule may not reach **out**, and `modules/shared/` may reach **down** only. Gated by `checks.<system>.ast-grep`, **not** treefmt. |
 | `hosts/` | Per-host entry profiles: `macos.nix`, `nixpi.nix`, `nixvm.nix` (host-only deltas + per-host Homebrew lists). |
 | `modules/parts/` | The FLAKE ENGINE — one flake-parts module per concern, discovered by `import-tree`. The engine **may** reach anywhere. |
-| `modules/features/` | The six CAPSULES (the absorbed satellites): `cloudflared-connector`, `firmware-secrets`, `keychain-secrets`, `tart-vms`, `media-cli`, `local-rag`. `flake-module.nix` is the ONLY file anything outside imports, and **a capsule may not reach outside its own directory** — enforced by `ast-grep` + `checks.<system>.capsule-registry`, not by convention. **Satellite count: 0.** |
+| `modules/features/` | The seven CAPSULES — six absorbed satellites (`cloudflared-connector`, `firmware-secrets`, `keychain-secrets`, `tart-vms`, `media-cli`, `local-rag`) plus `cloud-cli` (born in-tree 2026-09-20: AWS CLI + `~/.aws/config.example`, never the real file). `flake-module.nix` is the ONLY file anything outside imports, and **a capsule may not reach outside its own directory** — enforced by `ast-grep` + `checks.<system>.capsule-registry`, not by convention. **Satellite count: 0.** |
 | `modules/shared/` | The Home Manager profile on every host. Modules that DECLARE a `local.*` option: `mcp.nix`, terminal theme, chromium, default browser, übersicht (the one HTML widget) + next-right-thing (what it says), wireguard, desktop aesthetics (the wallpaper), claude plugins/otel/desktop. Option-free modules that just configure: `home.nix`, nix cache, nix-ld, launchd-launcher, claude brain/bedrock-gate/guardrails — `local.claudeBedrock` was DELETED 2026-09-15, so do not look for it. |
 | `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix`, `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`local.macosGithubRunner` — LIVE, see § Configuration), `ollama-daemon.nix` (`local.ollamaDaemon` — ONE machine-wide `ollama serve`, so both accounts share one process and one 31 GB model store). |
 | `modules/nixos/` | `core.nix` (user + keys-only **loopback-bound** sshd, `openFirewall = false`, a firewall that opens **no** TCP port, avahi, nix-ld, zram, GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). |
@@ -247,7 +247,11 @@ per-client stdio. There is **no project `.mcp.json`**. Inventory + gotchas:
   `secret <set|reveal|rm|ls|exec|copy|fp|bind|unbind|adopt|load>` (there is **no `secret get`** —
   printing a value is opt-in via `reveal`); no secret *names* live in `.nix` either (the Keychain index is
   authoritative). Servers/CLIs read them at launch via `passwordCommand`-style wrappers, so no
-  value ever reaches argv or the store.
+  value ever reaches argv or the store. **Durable copy (ADR-004, off by default):**
+  `local.keychainSecrets.backend.type = "gcp"` adds `secrets-{status,rehydrate,push,resolve}` over
+  GCP Secret Manager — operator-invoked after `gcloud auth login`, **never by activation**
+  (`ast-grep/rules/activation-must-not-touch-secrets.yml`). Project id is read from `gcloud`
+  at runtime, never a Nix string.
 - **Never display a secret value** — using one is fine, echoing/logging/committing it is not.
 - Mechanism, history, and the two documented loader footguns:
   [`docs/secrets-and-keychain.md`](docs/secrets-and-keychain.md).
@@ -258,7 +262,10 @@ How a host gets composed — change these knobs, not the hosts' internals:
 
 - **Identity once.** `loginName = "ismail"`, `domainName = "kattakath.com"`, `fullName`,
   `userEmail` are `identityArgs` in `modules/parts/identity.nix`, threaded through
-  `specialArgs`/`extraSpecialArgs`. `mkDarwin` accepts a per-host `identity` override, but
+  `specialArgs`/`extraSpecialArgs`. The CANONICAL identity is `config.fleet.googleAccount`
+  (the Workspace account — GitHub, FlakeHub, Cloudflare Access and Secret Manager all trace
+  to it; [`docs/identity-and-offboarding.md`](docs/identity-and-offboarding.md)); it is a fleet
+  constant, deliberately NOT in `identityArgs`. `mkDarwin` accepts a per-host `identity` override, but
   **nothing in the fleet uses it** — every host runs the same operator identity.
 - **Per-host divergence is a gate, not a fork.** `networking.hostName`-gated `lib.mkIf` (or
   `osConfig`) inside `modules/`; never a second identity, never a copy-pasted host block.
@@ -266,7 +273,10 @@ How a host gets composed — change these knobs, not the hosts' internals:
   are still generic, optional composition hooks (both default to `[ ]`), but the private
   nix-personal flake that used to fill them was retired 2026-09-15 — its values (AWS SSO
   profiles, extra gmail accounts, git identities, the OpenAI gateway, the real `hostedSites`)
-  are folded directly into `hosts/macos.nix` and `modules/parts/identity.nix`. See
+  were folded directly into `hosts/macos.nix` and `modules/parts/identity.nix` — and on
+  2026-09-20 (ADR-004) the AWS profiles and the personal git-identity files left Nix again for
+  hand-placed local files (`~/.aws/config`, `~/.config/git/{silvercreek,izzykatt}.inc`,
+  `allowed_signers`): the repo ships shape, the operator's content stays on the Mac. See
   [`docs/repo-map.md`](docs/repo-map.md).
 - **Whole features are ONE enable flag — and they are all IN-TREE now.** The media stack
   (`local.mediaCli`) and the Keychain secret store (`local.keychainSecrets`) are each one
@@ -401,6 +411,12 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   execution found the design got wrong); [`ADR-003`](docs/externalization-boundary-adr.md)
   (decided, **NOT implemented**: Nix is the **harness**, governance never leaves; skills MAY
   overlay from `$HOME`, **MCP servers may not**).
+  [`ADR-004`](docs/secrets-recovery-and-identity-adr.md) (decided, **Phase 1 of 3 shipped — docs
+  and `OPERATOR-ONLY` markers only**: GCP Secret Manager as the durable source of truth with the
+  login Keychain as cache, Google Workspace canonical, namespace rename + repo split deferred with
+  triggers; §7 is the committed-identifier inventory awaiting approval, §8 the open conflicts).
+- [`docs/identity-and-offboarding.md`](docs/identity-and-offboarding.md) — the single lever:
+  suspend the Workspace account and every derived login goes with it; the three privilege tiers.
 - [`docs/agent-resource-externalization.md`](docs/agent-resource-externalization.md) — why the
   operator's plugins, skills and userscripts left this tree while the seven satellites came back
   in, and the rule it turned on: **a gate must move with the content it gates.**

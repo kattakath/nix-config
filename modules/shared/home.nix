@@ -34,7 +34,6 @@
   domainName,
   # Fleet operator ed25519 PUBLIC key (secrets/operator-key.nix) — single source
   # for authorizedKeys + agenix recipient + git SSH allowed_signers principal.
-  operatorSshKey,
   # SOURCE PATH of the tart-vms capsule's packages/gitlab-tart.nix — the five
   # gitlab-tart slot shims below. A path, not a derivation, deliberately: they
   # are `callPackage`d with THIS host's pkgs (hosts/macos.nix's
@@ -69,6 +68,8 @@
   # since ADR-002 wave 6 brought it in-tree as modules/features/local-rag/.
   # Threaded in by modules/parts/compose.nix.
   localRagModule,
+  cloudCliModule,
+  googleAccount,
   # The ABSORBED keychain-secrets capsule (macOS `secret` CLI + every-shell
   # loader) — a MODULE, not a flake, since ADR-002 wave 4 brought it in-tree as
   # modules/features/keychain-secrets/. Threaded in by modules/parts/compose.nix.
@@ -229,6 +230,7 @@ let
   # `jsonresume <download|print>` — fetch a JSON Resume and render it to PDF via the
   # npm resume CLI. jsonResumeUrl (from modules/parts/identity.nix) is baked in as its default --url,
   # so there is no ambient env var. See packages/jsonresume.nix.
+  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
   jsonresume = pkgs.callPackage ../../packages/jsonresume.nix {
     defaultUrl = jsonResumeUrl;
   };
@@ -237,6 +239,7 @@ let
   # (jsonResumeUrl baked as its default --url) plus the logo.svg fetched from the same gist
   # (logoUrl), rasterized via librsvg. Also run on activation (home.activation.emailSignature)
   # and `nix run .#email-signature`. See packages/email-signature/ (default.nix).
+  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
   email-signature = pkgs.callPackage ../../packages/email-signature {
     defaultUrl = jsonResumeUrl;
     inherit logoUrl tokensUrl;
@@ -408,12 +411,15 @@ in
     # Reaches Cowork through Desktop's device bridge. Gated on the gateway.
     ./claude-desktop.nix
     ./terminal-theme.nix # the fleet terminal palette + type, held once (no consumers yet)
+    # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
     ./desktop-aesthetics.nix # Terminal.app 16pt (all darwin) + wallpaper (opt-out)
     ./wireguard-configs.nix # operator-managed WG confs → ~/.config/wireguard (no autostart)
     ./claude-otel.nix # local OTel Collector for Claude Code's routing-decision telemetry (macos only)
     ./chromium.nix # ungoogled-chromium (Homebrew cask) config: sideloaded iCloud Passwords + its native host
     ./default-browser.nix # local.defaultBrowser — the macOS LaunchServices http/https claim
+    # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
     ./ubersicht.nix # local.ubersicht — the one full-screen HTML Übersicht widget (cask in hosts/macos.nix)
+    # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
     ./next-right-thing.nix # local.nextRightThing — decides what that widget says
     ./containers.nix # local.containers — per-user Colima (services.colima) replacing the Docker Desktop cask
     # Local-first RAG stack (loopback launchd Postgres+pgvector + Ollama + in-DB
@@ -422,6 +428,9 @@ in
     # the NixOS hosts, which `checks.local-rag-inert` asserts — and they are
     # enabled only on the real Mac host below.
     localRagModule
+    # The AWS CLI + ~/.aws/config.example capsule (ADR-004 phase 3). Enabled per
+    # user (hosts/macos.nix); a no-op here until then.
+    cloudCliModule
     # macOS login-Keychain `secret` CLI + every-shell loader — the ABSORBED
     # capsule (modules/features/keychain-secrets/), enabled below.
     # Internally darwin-gated, so it's a clean no-op on the NixOS hosts.
@@ -458,6 +467,7 @@ in
   # MEASURED, the closure (ffmpeg, exiftool, auge, rclip's OpenCLIP model) is too
   # much for a Tart guest's disk, so a sandbox gets neither the CLIs nor the menu.
   # This one gate is now the entire "which hosts get the media stack" decision.
+  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
   local.mediaCli = {
     enable = isMacosHost;
     # `auge` is Apple's Vision framework from the shell — photo-describe already
@@ -568,9 +578,11 @@ in
   # Single-sourced from the generator so the writer and the reader cannot drift:
   # a path typed twice is a path that eventually disagrees, and the failure mode
   # is a widget silently rendering a file nothing updates any more.
+  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
   local.ubersicht.htmlWidget = lib.mkIf isMacosHost config.local.nextRightThing.outputPath;
 
   # The generator: scan, rank, publish ONE action (module: ./next-right-thing.nix).
+  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
   local.nextRightThing.enable = isMacosHost;
 
   # The PUBLIC half of the userscript set. Private ones are added to this same
@@ -981,30 +993,21 @@ in
   };
 
   # ---- Git identity include files -----------------------------------------------
-  # The ADDRESSES that programs.git.includes (below) route to. Declared in the
-  # shared profile — not under one `home-manager.users.<name>` — because the
-  # includeIf conditions are shared: a condition whose target file is missing is
-  # a silent git no-op, and that is exactly how the second account authored
-  # silvercreek-ai/dontsell-ai commits as its fallback identity (2026-09-16 audit,
-  # H11). Same `home.file` target the conditions name, so the two cannot drift.
-  # The work identity (infin8.inc) is deliberately NOT here: it is hand-placed
-  # and stays out of this public repo.
+  # The ADDRESSES that programs.git.includes (below) route to. gitlab.inc is
+  # DERIVED — its address is the canonical Google account (config.fleet.googleAccount,
+  # identity.nix), so no literal mailbox is written here.
+  #
+  # silvercreek.inc / izzykatt.inc / allowed_signers left Nix on 2026-09-20
+  # (ADR-004 §7, inventory #3): they name mailboxes and a persona that are the
+  # operator's alone, in a public repo. They are now HAND-PLACED under
+  # ~/.config/git/, exactly like the work identity infin8.inc always was. A
+  # missing include file is a silent git no-op — so after a fresh bootstrap,
+  # write them before authoring in those namespaces (docs/new-mac-runbook.md).
+  # `adoptGitIdentityFiles` below keeps the EXISTING copies across the activation
+  # that stops managing them.
   home.file.".config/git/gitlab.inc".text = ''
     [user]
-    	email = ismail@kattakath.com
-  '';
-
-  home.file.".config/git/silvercreek.inc".text = ''
-    [user]
-    	email = izzy@silvercreek.ai
-  '';
-
-  # The only include that also overrides user.name: a different public persona
-  # (github.com/izzykatt), not another mailbox for the same person.
-  home.file.".config/git/izzykatt.inc".text = ''
-    [user]
-    	name = Izzy Katt
-    	email = hi@izzykatt.ca
+    	email = ${googleAccount}
   '';
 
   # ---- Home Manager program modules --------------------------------------------
@@ -1262,20 +1265,21 @@ in
       # upstream `lines` option, so the private layer touches no custom seam.
       # `format` is explicit because home.stateVersion 24.05 predates the "ssh"
       # default (git.nix:20-31). `signer` is left to upstream (nixpkgs' ssh-keygen).
+      # The principals file (allowed_signers) is HAND-PLACED since 2026-09-20 — it
+      # lists every mailbox the operator authors as, two of which are personal
+      # personas that do not belong in a public repo (ADR-004 §7, inventory #3).
+      # Upstream's `signing.allowedSigners` would write it from Nix, so it is left
+      # empty and `gpg.ssh.allowedSignersFile` points at the runtime path instead;
+      # `adoptGitIdentityFiles` above kept the previously generated copy. Signing
+      # itself needs no principals file — only VERIFYING does — so a fresh machine
+      # signs correctly before the file exists. Shape of a line:
+      #   <mailbox> namespaces="git" <the operator ssh public key>
       signing = {
         key = operatorPublicKey;
         format = "ssh";
         signByDefault = true;
-        # One principal per address the includes below can author as: the
-        # default identity plus the three addresses in the .inc files. All sign
-        # with the same operator key — the same person, several personas.
-        allowedSigners = ''
-          ${userEmail} namespaces="git" ${operatorSshKey}
-          ismail@kattakath.com namespaces="git" ${operatorSshKey}
-          izzy@silvercreek.ai namespaces="git" ${operatorSshKey}
-          hi@izzykatt.ca namespaces="git" ${operatorSshKey}
-        '';
       };
+      settings.gpg.ssh.allowedSignersFile = "${config.home.homeDirectory}/.config/git/allowed_signers";
 
       # Per-directory identity under ~/Developer/<host>/<owner>/. Work email lives
       # in ~/.config/git/infin8.inc (not in this public repo); missing include is a
@@ -1947,6 +1951,28 @@ in
   };
 
   home.activation = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
+    # The one-shot adoption, same shape as claude-bedrock-gate.nix's `adoptAwsConfig`:
+    # when a file we USED to manage is still a symlink into a home-manager
+    # generation, copy it out as a real 0600 file BEFORE linkGeneration's orphan
+    # cleanup would delete it. A no-op on a machine where the file is already real
+    # or absent, so it is safe to leave in place forever (and it is what a
+    # template consumer's fresh Mac hits: absent → nothing).
+    adoptGitIdentityFiles = lib.hm.dag.entryBetween [ "linkGeneration" ] [ "writeBoundary" ] ''
+      hmFiles="$(readlink -e ${builtins.storeDir})/*-home-manager-files/*"
+      for f in "$HOME/.config/git/silvercreek.inc" "$HOME/.config/git/izzykatt.inc" \
+               "$HOME/.config/git/allowed_signers"; do
+        if [[ -L "$f" && "$(readlink "$f")" == $hmFiles ]]; then
+          if [[ -r "$f" ]]; then
+            run cp -L $VERBOSE_ARG "$f" "$f.adopt"
+            run chmod 600 "$f.adopt"
+            run mv -f $VERBOSE_ARG "$f.adopt" "$f"
+          else
+            warnEcho "$f links into a dead home-manager generation; recreate it by hand (docs/new-mac-runbook.md)."
+          fi
+        fi
+      done
+    '';
+
     # ~/.grok/sandbox.toml as a REAL FILE, not a store symlink — grok counts it as a
     # hooks-paths registry entry and refuses to start on a symlink, taking every
     # grok-build run down with it. Rationale in full beside grokSandboxToml above.

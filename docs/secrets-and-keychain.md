@@ -6,6 +6,24 @@ this file holds the mechanism, the history, and the two documented footguns.
 **The one rule above all:** the `/nix/store` is world-readable, so a plaintext secret never
 goes in a `.nix` file — not as a literal, not in a comment, not in an `args` list.
 
+## Three coexisting models — which one a secret uses is decided by WHERE it must exist
+
+Not one model with exceptions: three, each owning a different place a secret has to be.
+
+| Model | Owns | Bound to | Recovery |
+|---|---|---|---|
+| **agenix** (`secrets/*.age`) | host-bound material a NixOS or macOS *system* needs at activation — runner App keys, the GitLab token | an SSH host key (+ the operator key) | re-issue from the vendor; re-encrypt |
+| **Firmware-partition planting** (`local.firmwareProvisioning`) | what `nixpi` needs *before* it has a host key at all — the tunnel token, Wi-Fi | the SD card's FAT `FIRMWARE` partition | `nixpi-flash` / `nixpi-provision` plant it again |
+| **Secret Manager → login Keychain** (`local.keychainSecrets.backend`, ADR-004) | the operator's *personal* tokens, injected into every shell | the operator's Google identity; the Keychain is a fast local cache | `gcloud auth login` → `secrets-rehydrate` — shipped, **off by default** (`backend.type = "none"` until the operator flips it) |
+
+The first two are unchanged by ADR-004 and never will be touched by `secrets-*`: agenix stays
+the Pi/firmware side's owner. Only the third gains a durable source of truth — and only once
+`backend.type = "gcp"` is set; until then the login Keychain is its ONLY copy, so back it up
+independently before wiping a Mac. The four commands (`secrets-status`, `secrets-rehydrate`,
+`secrets-push`, `secrets-resolve`), the `mode = "reference"` export and the annotation-based
+mapping are documented in the capsule's README § Backend; the rule that activation never calls
+any of them is `ast-grep/rules/activation-must-not-touch-secrets.yml`.
+
 ## agenix — an operator-only vault
 
 Encrypted secrets are committed via **agenix**: recipients are declared in
