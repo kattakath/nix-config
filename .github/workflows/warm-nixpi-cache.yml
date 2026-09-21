@@ -83,12 +83,19 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Same pins as nix-ci.yml / build-installers-impl.yml.
+      #
+      # install.determinate.systems: the nixpi closure includes Determinate Nix
+      # (modules/parts/compose.nix wires determinate.nixosModules.default into
+      # every NixOS host). That package is prebuilt ONLY there — a MISS on
+      # cache.nixos.org and Cachix — so without this substituter the runner
+      # compiles Nix from C++ source on every warm. Same URL + key the NixOS
+      # hosts themselves use (modules/shared/nix-cache.nix).
       - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
-            extra-substituters = https://kattakath.cachix.org
-            extra-trusted-public-keys = kattakath.cachix.org-1:y/w6wnb4ZArdlbfWJ82c81uCXeYgG/sGDUYCszavmEw=
+            extra-substituters = https://kattakath.cachix.org https://install.determinate.systems
+            extra-trusted-public-keys = kattakath.cachix.org-1:y/w6wnb4ZArdlbfWJ82c81uCXeYgG/sGDUYCszavmEw= cache.flakehub.com-3:hJuILl5sVK4iKm86JzgdXW12Y2Hwd5G07qKtHTOcDCM=
 
       # No pushFilter: unlike build-installers there is no dd-able image here, so
       # everything realised belongs in the cache.

@@ -47,7 +47,7 @@ Fully declarative **aarch64-only** fleet, single source of truth, platform diver
 | Host | System | Role |
 |---|---|---|
 | `macos` | aarch64-darwin | The sole client Mac (nix-darwin). **ONE account**: `ismail` (`system.primaryUser`) — a second admin account existed 2026-09-15 to 2026-09-17 and was deleted forever. No incoming traffic; it is the SSH *client*, reaching `nixpi` via `cloudflared access ssh`. Builds `aarch64-linux` locally on Determinate's native Linux builder. |
-| `nixpi` | aarch64-linux | **LIVE server** (NixOS on a Pi 4): Access-gated, loopback-bound SSH over a Cloudflare Tunnel connector + Caddy, serving its real sites directly (`config.fleet.hostedSites`, `modules/parts/identity.nix`). |
+| `nixpi` | aarch64-linux | **LIVE server** (NixOS on a Pi 4): Access-gated, loopback-bound SSH over a Cloudflare Tunnel connector + Caddy, serving its real sites directly (`config.fleet.hostedSites`, `modules/parts/identity.nix`). Runs **Determinate Nix** (nixosModule, since 2026-09-21) with `nix.settings` still live; the prebuilt Nix substitutes from `install.determinate.systems`. |
 | `nixvm` | aarch64-linux | Throwaway XFCE build-vm, materialised **only** as `nix run .#nixvm`. No installed disk, no builder, no runner. |
 | devcontainer | +`x86_64-linux` | The one exception to aarch64-only, so it runs on x86_64 Codespaces. |
 
