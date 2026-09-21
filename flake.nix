@@ -78,19 +78,38 @@
     # source inputs (rpi-linux-*, rpi-firmware*, libcamera, libpisp, rpicam-apps), out
     # of 62 nodes total.
     #
-    # WHY IT STAYS: it is the only source of the `linux-rpi` vendor kernel and the
-    # bcm2711 sdImage builder. nixos-hardware's raspberry-pi/4 profile is board TUNING
-    # only — it does not ship a kernel — so it is not a drop-in. And hosts/nixpi.nix:53
-    # and :62 carry two mkForce workarounds written specifically against linux-rpi's
-    # behaviour (tpm2 modules-shrunk failure; systemd-initrd stage-1 hang), which a
-    # kernel swap would invalidate rather than inherit.
+    # WHY IT STAYS: the bcm2711 sdImage builder — hosts/nixpi.nix:41 imports
+    # `nixosModules.sd-image`, and nixos-hardware has none. (Grepped its raspberry-pi/
+    # tree 2026-09-21: the only `sdImage` hits are a README line and
+    # common/firmware.nix.) And hosts/nixpi.nix:53 and :62 carry two mkForce
+    # workarounds written specifically against linux-rpi's behaviour (tpm2
+    # modules-shrunk failure; systemd-initrd stage-1 hang), which a kernel swap would
+    # invalidate rather than inherit.
     #
-    # MIGRATION TRIGGER — revisit when either fires, not on a schedule:
-    #   1. a kernel CVE affecting the Pi 4 with no backport onto this frozen rev, or
-    #   2. a nixpkgs bump that breaks the modules-shrunk build against this kernel.
-    # EXIT PATH: mainline `linux_rpi4` from nixpkgs + nixos-hardware's raspberry-pi/4
-    # for tuning, re-testing both mkForce workarounds (they may become unnecessary),
-    # and rebuilding the SD image from scratch (docs/nixpi-sd-flashing-runbook.md).
+    # IT IS **NOT** "the only source of the kernel" — that claim stood here and was
+    # FALSE, corrected 2026-09-21. nixos-hardware's raspberry-pi/4 DOES ship a kernel:
+    # default.nix:31-32 sets boot.kernelPackages from common/kernel.nix, which builds
+    # the SAME raspberrypi/linux vendor tree (`pname = "linux-rpi"`, tag
+    # stable_20260911, 6.18.50). Ours is 6.6.51 off a rev frozen 2025-03, so the gap is
+    # twelve minor versions of one lineage — not a vendor-vs-mainline switch. The
+    # sdImage builder is the whole remaining reason, and it is a smaller one.
+    #
+    # MIGRATION TRIGGER — revisit when any fires, not on a schedule:
+    #   1. a kernel CVE affecting the Pi 4 with no backport onto this frozen rev,
+    #   2. a nixpkgs bump that breaks the modules-shrunk build against this kernel, or
+    #   3. nixpkgs finishing the linux_rpi4 removal below — a clock we do not control.
+    # EXIT PATH: nixos-hardware's raspberry-pi/4 for BOTH kernel and tuning, plus a
+    # replacement for the sdImage half (the one piece it does not cover — unverified,
+    # cost it before committing), re-testing both mkForce workarounds (they may become
+    # unnecessary at 6.18) and rebuilding the SD image from scratch
+    # (docs/nixpi-sd-flashing-runbook.md).
+    #
+    # NOT via nixpkgs' `linux_rpi4`, which this comment used to name as the exit: it is
+    # 6.12.75-1+rpt1 — also a Pi vendor kernel, never "mainline" — and evaluating it
+    # against the pinned nixpkgs now prints "linux-rpi series will be removed in a
+    # future release. Please change to use nixos-hardware." Measured 2026-09-21. The
+    # named exit path is itself being deleted, and upstream points where this one now
+    # does.
     raspberry-pi-nix.url = "github:nix-community/raspberry-pi-nix";
     raspberry-pi-nix.inputs.nixpkgs.follows = "nixpkgs";
 
