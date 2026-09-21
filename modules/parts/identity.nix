@@ -7,9 +7,11 @@
 # WHY `lazyAttrsOf raw` AND NOT `uniq`/`unique`: so more than one file can
 # contribute to the same attrset — `modules/parts/systems.nix` adds the system
 # lists to this very option. This copies flake-parts' own
-# `modules/nixosConfigurations.nix:11` (`types.lazyAttrsOf types.raw`); a
+# `modules/nixosConfigurations.nix:12` (`types.lazyAttrsOf types.raw`); a
 # `types.unique` here would force every seam back into one file, which is
-# exactly the monolith this wave is undoing.
+# exactly the monolith this wave is undoing. It is now the option's FREEFORM
+# type rather than its whole type — see `options.fleet` below, where
+# `identityArgs` alone is declared and typed.
 # OPERATOR-ONLY — every VALUE in this file (names, emails, gist, Cloudflare ids, sites,
 # the SSH key) is this operator's. The SHAPE (`config.fleet.*`, `flake.identity`) is the
 # engine; a consumer supplies its own values through mkDarwin's `identity` argument.
@@ -181,14 +183,69 @@ let
   };
 in
 {
+  # Freeform by default, typed where a mistake is expensive — the shape
+  # flake-parts gives its OWN top-level option (pinned flake-parts
+  # `modules/flake.nix:11-28`: a submodule whose only module sets
+  # `freeformType = types.lazyAttrsOf … types.raw`, into which its sibling modules
+  # declare individual typed sub-options, e.g. `modules/nixosConfigurations.nix:12`).
+  # The mechanism is upstream's: nixpkgs `lib/modules.nix:220` declares
+  # `_module.freeformType` ("merge all definitions that don't have an associated
+  # option together using this type"), so every attr but `identityArgs` keeps the
+  # `lazyAttrsOf raw` merge it has today — `hostedSites`, `operatorSshKey` and the
+  # rest are untouched. Zero custom Nix.
   options.fleet = lib.mkOption {
-    type = lib.types.lazyAttrsOf lib.types.raw;
+    type = lib.types.submodule {
+      freeformType = lib.types.lazyAttrsOf lib.types.raw;
+
+      # WHY ONLY THIS ONE IS TYPED: identityArgs is the attrset a template
+      # consumer REPLACES (`identity ? identityArgs`, compose.nix), so its FIELD
+      # SET is a published contract — and the way it breaks is by GROWING.
+      # `publicMcpPort` was added here on 2026-09-16 and only exploded in a
+      # consumer's build (see the note on googleAccount above, and checks.nix's
+      # `template-consumer`). A closed submodule moves that failure to THIS file:
+      # a fifth field now fails with "The option `fleet.identityArgs.<field>'
+      # does not exist" on the first read of any single field.
+      #
+      # It constrains the DECLARATION, not the call: mkDarwin/mkNixos receive a
+      # consumer's `identity` through `specialArgs`, which is outside the module
+      # type system by construction — so this buys the declaration site type
+      # errors and docs, and buys a consumer nothing.
+      options.identityArgs = lib.mkOption {
+        type = lib.types.submodule {
+          options = {
+            loginName = lib.mkOption {
+              type = lib.types.str;
+              description = "The POSIX account on every host — the `loginName` binding above.";
+            };
+            fullName = lib.mkOption {
+              type = lib.types.str;
+              description = "The human's display name, read by modules/shared/home.nix.";
+            };
+            userEmail = lib.mkOption {
+              type = lib.types.str;
+              description = "The git commit address — the `userEmail` binding above.";
+            };
+            domainName = lib.mkOption {
+              type = lib.types.str;
+              description = "nixpi's Caddy vhosts and the darwin file-rotation launchd label.";
+            };
+          };
+        };
+        description = ''
+          The four-field identity threaded into BOTH builders' specialArgs and the
+          embedded Home-Manager block — exactly the set `templates/default/flake.nix`
+          documents. Adding a field is a BREAKING change for every template
+          consumer, which is what the closed submodule is for.
+        '';
+      };
+    };
     default = { };
     description = ''
       The fleet's single-source `let` bindings: identity, owner, cache,
       Cloudflare ids and the system lists. Read as `config.fleet.<name>` from
-      any `modules/parts/*.nix`. Declared `lazyAttrsOf raw` so several files can
-      contribute (identity.nix + systems.nix today).
+      any `modules/parts/*.nix`. Freeform `lazyAttrsOf raw` so several files can
+      contribute (identity.nix + systems.nix today); only `identityArgs` is
+      declared and typed.
     '';
   };
 

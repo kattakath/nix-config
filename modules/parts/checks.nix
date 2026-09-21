@@ -24,10 +24,13 @@ let
   # config.fleet — NOT identityArgs, which is the attrset a consumer replaces.
   inherit (config.fleet) publicMcpPort domainName;
 
-  # The ONE shared shape in this file, and only because `determinate-daemon` is
-  # literally the same check run against two hosts whose contracts are opposites
-  # (see both halves below). Every other check here stays inline: a helper that
-  # served two unrelated checks would just hide their differences.
+  # The ONE shared shape in this file. It was born for `determinate-daemon`,
+  # which is literally the same check run against two hosts whose contracts are
+  # opposites (see both halves below); `nixpi-security-posture` is the third
+  # consumer, and took it because it wants exactly this behaviour — report EVERY
+  # broken leg, not the first. That is the bar for reaching for it. Every other
+  # check here stays inline: a helper that served two unrelated checks would
+  # just hide their differences.
   mkHostContract =
     {
       pkgs,
@@ -483,6 +486,99 @@ in
                 "from determinate-nixd. See PRs #542/#543 and CLAUDE.md, aarch64-linux builds."
               ];
             };
+
+          # ---- The managed floor is not silently empty -------------------------
+          #
+          # modules/darwin/claude-managed-settings.nix installs a ROOT-OWNED policy
+          # file that outranks user and project scope, and its secret-value denies
+          # are a hand-maintained DUPLICATE of the user-scope list in
+          # modules/shared/claude-guardrails.nix. That duplication is deliberate —
+          # deriving one from the other yields [ ] the moment a rule is reworded,
+          # and a well-formed EMPTY floor is the failure this repo has recorded
+          # twice — but a duplicate with no gate drifts the first time only one
+          # side is edited.
+          #
+          # This reads the BYTES the module installs (system.build.claudeManagedSettings,
+          # the very derivation the activation script copies) rather than rebuilding
+          # the attrset, because a check that re-derives its subject agrees with
+          # itself while the file on disk says something else.
+          #
+          # THE CLASSIFIER IS ITSELF GATED, and that is the point. `secretRules`
+          # below selects the secret-value family out of the user list by pattern.
+          # If a future reword made that pattern match NOTHING, the superset test
+          # would pass over an empty set — the exact vacuum this check exists to
+          # catch, reintroduced inside the check. So the count is asserted first:
+          # the classifier must keep finding at least as many rules as it finds
+          # today, or this check fails and asks to be re-read.
+          #
+          # NOT COVERED: that Claude Code ACCEPTS every key. `pkgs.formats.json`
+          # guarantees the bytes parse, and a superset test guarantees nothing was
+          # dropped — but an unrecognised key is accepted, listed and enforces
+          # nothing, which only `/status` on the running Mac can reveal. That step
+          # is in docs/new-mac-runbook.md, and it is a runtime fact, not an eval one.
+          claude-managed-settings =
+            let
+              mac = config.flake.darwinConfigurations.macos.config;
+              hm = mac.home-manager.users.${loginName};
+              userDeny = hm.programs.claude-code.settings.permissions.deny or [ ];
+              # The secret-value family, by the verbs that PRINT a secret.
+              secretRules = builtins.filter (
+                r:
+                builtins.match ".*(secret reveal|find-generic-password|find-internet-password|agenix|/run/agenix).*" r
+                != null
+              ) userDeny;
+              # Today's count, pinned. Raise it deliberately when the family grows;
+              # a DROP means either a real retraction or a reworded rule the pattern
+              # above no longer sees, and both deserve a human.
+              minSecretRules = 12;
+            in
+            pkgs.runCommand "claude-managed-settings"
+              {
+                managed = mac.system.build.claudeManagedSettings;
+                nativeBuildInputs = [ pkgs.jq ];
+              }
+              ''
+                if [ "${toString (builtins.length secretRules)}" -lt "${toString minSecretRules}" ]; then
+                  echo "claude-managed-settings: the secret-rule CLASSIFIER now matches only ${toString (builtins.length secretRules)} rules (expected >= ${toString minSecretRules})." >&2
+                  echo "" >&2
+                  echo "This check filters modules/shared/claude-guardrails.nix's deny list by pattern to" >&2
+                  echo "decide what the managed floor must also carry. A shrinking match means a rule was" >&2
+                  echo "reworded out of the pattern, not that policy relaxed — so the superset test below" >&2
+                  echo "would have started passing over a smaller set. Re-read both lists, then either fix" >&2
+                  echo "the pattern or lower minSecretRules on purpose." >&2
+                  exit 1
+                fi
+
+                jq -e 'type == "object"' "$managed" > /dev/null
+
+                managedDeny=$(jq -r '.permissions.deny // [] | .[]' "$managed")
+                if [ -z "$managedDeny" ]; then
+                  echo "claude-managed-settings: the MANAGED permissions.deny list is EMPTY." >&2
+                  echo "A well-formed, root-owned, completely empty floor is the silent-vacuum failure" >&2
+                  echo "modules/shared/claude-guardrails.nix records twice. Restore the rules." >&2
+                  exit 1
+                fi
+
+                missing=0
+                while IFS= read -r rule; do
+                  [ -n "$rule" ] || continue
+                  if ! printf '%s\n' "$managedDeny" | grep -qxF "$rule"; then
+                    echo "  MISSING from the managed floor: $rule" >&2
+                    missing=1
+                  fi
+                done <<< "${lib.concatStringsSep "\n" secretRules}"
+
+                if [ "$missing" -ne 0 ]; then
+                  echo "" >&2
+                  echo "claude-managed-settings: modules/shared/claude-guardrails.nix denies the rules above," >&2
+                  echo "but modules/darwin/claude-managed-settings.nix does not. The two lists are a" >&2
+                  echo "deliberate duplicate (deriving one yields [ ] on a reword), so an edit to one" >&2
+                  echo "must be made in the other. Add them and re-run." >&2
+                  exit 1
+                fi
+
+                echo "managed floor carries all ${toString (builtins.length secretRules)} secret-value rules from the user scope" > "$out"
+              '';
         }
         // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
           # ---- The four names a reflash depends on, pinned ---------------------
@@ -676,6 +772,304 @@ in
             };
         }
         // {
+          # ---- nixpi's security posture, which until now only PROSE held ------
+          #
+          # modules/nixos/core.nix:46-102 carries three careful paragraphs on why
+          # sshd binds loopback only, why `openFirewall = false` is the knob that
+          # actually keeps 22 shut, and why the TCP allow-list stays tiny. A
+          # comment cannot fail a build. Every one of those lines is a one-token
+          # edit away from reopening the LAN path that the Cloudflare Access
+          # application in front of nixpi.<domain> is meant to be the only way
+          # through — and Access enforces at the EDGE, so a LAN connection to
+          # port 22 is not merely unauthenticated, it produces NO ACCESS LOG AT
+          # ALL. There is nothing to notice afterwards. That is what makes this
+          # worth an eval-time gate rather than a comment.
+          #
+          # Each leg names its own silent-failure mode:
+          #
+          #   openFirewall — upstream's default is TRUE (pinned nixpkgs
+          #     nixos/modules/services/networking/ssh/sshd.nix:312, and :874 feeds
+          #     cfg.ports straight into allowedTCPPorts). It is false ONLY because
+          #     core.nix:55 says so, so deleting that one line reopens 22 on the
+          #     LAN with no other file changing.
+          #   listenAddresses NON-EMPTY is its own leg, and deliberately comes
+          #     before the all-loopback leg: an EMPTY list emits no ListenAddress
+          #     line at all, and OpenSSH then binds the WILDCARD. `all isLoopback
+          #     [ ]` is true — the vacuous pass would assert the exact opposite of
+          #     the truth. The loopback leg is then a sorted EQUALITY rather than
+          #     a subset test, so it also proves both families are still bound.
+          #   the RENDERED ListenAddress lines are a leg of their own, because
+          #     reading the listenAddresses OPTION is not the same as reading what
+          #     sshd will parse. `services.openssh.extraConfig` is where upstream
+          #     puts its OWN generated block (mkOrder 0, sshd.nix:893-902); an
+          #     operator's text merges AFTER it (types.lines, :749-752), and
+          #     sshd.nix:85-89 cats the whole string into sshd_config verbatim.
+          #     sshd treats ListenAddress CUMULATIVELY, so
+          #     `extraConfig = "ListenAddress 0.0.0.0"` adds a wildcard bind while
+          #     listenAddresses — and therefore every option-reading leg here —
+          #     stays exactly as it was. Measured: all thirteen legs this check
+          #     had before went green under precisely that override. The corollary
+          #     is why the leg PARSES rather than greps: `hasInfix "ListenAddress"
+          #     extraConfig` is TRUE on a healthy host, because upstream's own
+          #     generated block lives in the same string.
+          #   no explicit `port` on a listen address, because nixpkgs renders
+          #     `ListenAddress ::1:22` UNBRACKETED (sshd.nix:901). OpenSSH reads
+          #     that as the address ::0.1.0.34, the v6 bind fails EADDRNOTAVAIL,
+          #     and sshd SURVIVES (a failed bind is fatal only if EVERY bind
+          #     fails) — so v6 loopback silently vanishes. Measured with
+          #     `sshd -G`; the transcript is at core.nix:65-74.
+          #   the firewall allow-list is FOUR legs, not one. nixpi runs the
+          #     IPTABLES backend (networking.nftables.enable is false, measured),
+          #     and firewall-iptables.nix renders the same `-j nixos-fw-accept`
+          #     rule from three independent inputs: allowedTCPPorts (:164-165),
+          #     allowedTCPPortRanges (:182-183), and — for both of those — the
+          #     PER-INTERFACE sets, since every one of those loops walks
+          #     `cfg.allInterfaces`, which is `interfaces` merged under a
+          #     "default" key (firewall.nix:305-311). Measured: a
+          #     `[ { from = 22; to = 22; } ]` range and an
+          #     `interfaces.eth0.allowedTCPPorts = [ 22 ]` EACH reopened 22 with
+          #     the allowedTCPPorts leg still green. `trustedInterfaces` is the
+          #     fourth and bluntest: :149 accepts ALL traffic arriving on a named
+          #     interface, no port list consulted. Upstream sets it to [ "lo" ]
+          #     itself (firewall.nix:334), so the leg pins that value rather than
+          #     emptiness.
+          #   buildMachines empty is a SEPARATE leg from distributedBuilds,
+          #     because upstream says in its own words that the latter does not
+          #     inhibit the former: nixos/modules/config/nix-remote-build.nix:227,
+          #     with :248 rendering /etc/nix/machines on `buildMachines != [ ]`
+          #     alone. A stale machines file then sits there for any later
+          #     `--builders @/etc/nix/machines` to pick up. `nix.settings.builders`
+          #     is a third leg because upstream nulls it only WHILE
+          #     distributedBuilds is false (:253) — reading the rendered value
+          #     catches an edit that re-enables one without the other.
+          #
+          # The TCP leg pins [ 80 ] rather than [ ], because that is the truth:
+          # hosts/nixpi.nix:215 opens the Caddy ORIGIN port (443 omitted — TLS
+          # terminates at Cloudflare's edge) and core.nix:100's [ ] MERGES with
+          # it. Port 80 is therefore genuinely reachable on the LAN today; this
+          # check's job is to make WIDENING that list loud, not to bless its
+          # current width. A legitimate new port means editing this literal on
+          # purpose — that friction is the feature, so do not answer a failure
+          # here by deleting the leg.
+          #
+          # Why not nixpkgs' own `assertions`: its only natural home is
+          # modules/nixos/core.nix, which nixvm and every `lib.mkNixos` consumer
+          # also import — baking "exactly one open TCP port" in there breaks a
+          # stranger's host, the precise leak the template-consumer check above
+          # exists to prevent. `assertions` also reports one message where
+          # mkHostContract reports every broken leg. This is a FLEET contract
+          # about one named host, not a host contract.
+          #
+          # Every lookup goes through `or`, with the default chosen to FAIL —
+          # `allowedTCPPorts or null`, never `or [ ]` — for the reason
+          # nixpi-firmware-names gives above: a dropped module must produce THIS
+          # message, not "attribute missing" from inside a trivial-builder stack
+          # trace.
+          #
+          # `or` does NOT cover a listen address's `addr`, and assuming it did
+          # was a live bug here. The submodule declares `addr` as `nullOr str`
+          # with default null (sshd.nix:325-328), so the attribute always EXISTS:
+          # `a.addr or ""` never fires, and a malformed entry reached
+          # `null < "127.0.0.1"` — a throw, which is precisely the
+          # trivial-builder stack trace the paragraph above refuses to emit. The
+          # addresses are therefore collected, swept for null by a leg of their
+          # own, and only then compared. `&&` is lazy in its right operand, and
+          # BOTH guarded legs need that: the same malformed entry also makes
+          # upstream's own render throw, because sshd.nix:901 interpolates
+          # `addr` straight into a string ("cannot coerce null to a string",
+          # measured), and the rendered-ListenAddress leg is the one thing here
+          # that forces extraConfig.
+          #
+          # Ungated, like secrets-sync below and unlike the two nixpi checks in
+          # the isLinux block above: this is an eval plus an echo, with nothing
+          # aarch64-linux about either half. Both legs are worth paying for
+          # because the edits it guards are made ON the Mac — Linux-gating it
+          # would let an operator relax core.nix, run `/eval` clean, and learn
+          # otherwise only from CI minutes later. Cost measured 2026-09-21: one
+          # extra nixpi module eval on the darwin leg (~1 s here; nothing else on
+          # that leg forces this config — rule1d-guard-knows-the-pi above reads
+          # only whether the ATTRIBUTE exists), and no aarch64-linux build,
+          # because only numbers and strings escape into the derivation.
+          #
+          # NOT COVERED: this is EVAL, not runtime — no `sshd -G`, no
+          # `iptables -S`, and an already-flashed Pi keeps whatever its current
+          # generation has until the next deploy. Four further paths are known
+          # and deliberately ungated:
+          #
+          #   `networking.firewall.extraCommands` — the iptables backend's raw
+          #     escape hatch (firewall-iptables.nix:235, option at :290). It is
+          #     already NON-EMPTY on nixpi (the nat module contributes its own
+          #     teardown preamble), so there is no empty-string baseline to
+          #     assert, and a hand-written
+          #     `ip46tables -A nixos-fw --dport 22 -j nixos-fw-accept` inside it
+          #     is invisible to every leg above.
+          #   `extraInputRules` — not a path on this host at all: it exists only
+          #     in firewall-nftables.nix (:24-26, rendered at :179), and nixpi is
+          #     on iptables. Flipping networking.nftables.enable moves the whole
+          #     rule set to a renderer none of these legs read, so that flip needs
+          #     new legs rather than an edit to these.
+          #   UDP, ports and ranges both. The failure this check exists to catch
+          #     is an unauthenticated, unlogged path to sshd, and sshd is TCP.
+          #   the rest of sshd_config. A `Port` smuggled through extraConfig is
+          #     harmless here — the binds stay loopback and the allow-list is
+          #     pinned — but nothing above reads, say, a `Match` block that
+          #     relaxes one of the auth settings.
+          #
+          # It cannot see the MAC side either, so "nixpi must never BUILD" stays
+          # owned by .claude/hooks/pretooluse-bash-guard.js Rule 1d and
+          # deploy.nix's `remoteBuild = false`; note too that buildMachines ON
+          # nixpi would make it a build CLIENT dispatching work OUT, not a
+          # builder — the build legs here are about a leaf host growing outbound
+          # build trust (an SSH build key on an SD card, activation newly
+          # depending on a reachable builder) and about that stray
+          # /etc/nix/machines, NOT about the Pi compiling. Nothing here stops the
+          # Pi compiling locally either: nix.settings max-jobs is "auto" today,
+          # so a cache miss still grinds the SD card; `max-jobs = 0` in
+          # hosts/nixpi.nix is the change that would mechanise that, and it is
+          # deliberately not asserted from here. The Access application itself
+          # lives in Cloudflare's API (infra/cloudflare/nixpi-tunnel.nix) and its
+          # 2026-08-20 disappearance was invisible to eval then and still is. And
+          # it says nothing about nixvm, which shares modules/nixos/core.nix.
+          #
+          # Values measured against the live config on 2026-09-21.
+          nixpi-security-posture =
+            let
+              pi = config.flake.nixosConfigurations.nixpi.config;
+              fw = pi.networking.firewall or { };
+              ssh = pi.services.openssh or { };
+              sshSettings = ssh.settings or { };
+              listen = ssh.listenAddresses or [ ];
+              sshPorts = ssh.ports or [ ];
+              # null, not [ ]: "the module vanished" must read as BROKEN, and the
+              # legs below refuse to compare against it rather than throw.
+              tcp = fw.allowedTCPPorts or null;
+              tcpRanges = fw.allowedTCPPortRanges or null;
+              trusted = fw.trustedInterfaces or null;
+              # `allInterfaces`, not `interfaces`: it is the internal option the
+              # backend actually iterates (firewall.nix:305-311), so a future
+              # upstream route into those same loops surfaces here as a new key
+              # rather than slipping past a read of the user-facing option.
+              interfaceKeys = lib.attrNames (fw.allInterfaces or { });
+
+              sortStrings = lib.sort (a: b: a < b);
+              addrs = map (a: a.addr or null) listen;
+              addrsWellFormed = !(lib.elem null addrs);
+
+              # Parse the MERGED extraConfig — upstream's generated block plus
+              # whatever was appended after it — back into the addresses sshd
+              # will bind. sshd reads keywords case-insensitively and accepts
+              # `=` as a separator, hence the lowercase and the character class;
+              # a leading `#` is not whitespace, so comments do not match.
+              listenArg =
+                l:
+                let
+                  m = builtins.match "[[:space:]]*listenaddress[[:space:]=]+([^[:space:]]+).*" (lib.toLower l);
+                in
+                if m == null then null else builtins.head m;
+              renderedAddrs = lib.remove null (map listenArg (lib.splitString "\n" (ssh.extraConfig or "")));
+
+              loopback = [
+                "127.0.0.1"
+                "::1"
+              ];
+              caddyOrigin = [ 80 ]; # hosts/nixpi.nix:215
+            in
+            mkHostContract {
+              inherit pkgs;
+              name = "nixpi-security-posture";
+              subject = "nixpi: loopback-only sshd, one open port, no build trust";
+              expect = [
+                {
+                  name = "the firewall is enabled at all";
+                  ok = fw.enable or false;
+                }
+                {
+                  name = "the TCP allow-list is EXACTLY the Caddy origin port — it has not grown";
+                  ok = tcp == caddyOrigin;
+                }
+                {
+                  name = "the TCP port-RANGE allow-list is empty — a range reaches the same accept rule";
+                  ok = tcpRanges == [ ];
+                }
+                {
+                  name = "no per-interface allow-list exists — only the 'default' pseudo-interface";
+                  ok = interfaceKeys == [ "default" ];
+                }
+                {
+                  name = "trustedInterfaces is loopback alone — a trusted interface accepts EVERYTHING on it";
+                  ok = trusted == [ "lo" ];
+                }
+                {
+                  name = "no sshd port appears in the TCP allow-list";
+                  ok = tcp != null && sshPorts != [ ] && !(lib.any (p: lib.elem p tcp) sshPorts);
+                }
+                {
+                  name = "services.openssh.openFirewall is false (upstream defaults it TRUE)";
+                  ok = !(ssh.openFirewall or true);
+                }
+                {
+                  name = "listenAddresses is NON-EMPTY — an empty list is the WILDCARD bind";
+                  ok = listen != [ ];
+                }
+                {
+                  # No backticks in any leg name or advice line — see the note in
+                  # secrets-sync below: they land inside a double-quoted echo in
+                  # the builder, where bash runs them as command substitution and
+                  # the quoted text silently DISAPPEARS from the message.
+                  name = "every listen address carries a string addr — it defaults to null, which no sort can order";
+                  ok = addrsWellFormed;
+                }
+                {
+                  name = "sshd binds loopback only, and BOTH families";
+                  ok = addrsWellFormed && sortStrings addrs == loopback;
+                }
+                {
+                  name = "the RENDERED ListenAddress lines are loopback only — none smuggled through extraConfig";
+                  ok = addrsWellFormed && sortStrings renderedAddrs == loopback;
+                }
+                {
+                  name = "no listen address carries an explicit port (it renders unbracketed)";
+                  ok = lib.all (a: (a.port or null) == null) listen;
+                }
+                {
+                  name = "sshd refuses passwords";
+                  ok = !(sshSettings.PasswordAuthentication or true);
+                }
+                {
+                  name = "sshd refuses keyboard-interactive";
+                  ok = !(sshSettings.KbdInteractiveAuthentication or true);
+                }
+                {
+                  name = "root may not log in over ssh";
+                  ok = (sshSettings.PermitRootLogin or "yes") == "no";
+                }
+                {
+                  name = "nix.distributedBuilds is off";
+                  ok = !(pi.nix.distributedBuilds or true);
+                }
+                {
+                  name = "nix.buildMachines is empty — it alone renders /etc/nix/machines";
+                  ok = (pi.nix.buildMachines or null) == [ ];
+                }
+                {
+                  name = "the rendered nix.settings.builders is null";
+                  ok = (pi.nix.settings.builders or "missing") == null;
+                }
+              ];
+              advice = [
+                "modules/nixos/core.nix:46-102 owns the sshd and firewall half;"
+                "hosts/nixpi.nix:215 owns the one open port (Caddy's origin, 80)."
+                "sshd is reachable ONLY through the on-host tunnel connector, which"
+                "dials localhost:22. Reopening 22 on the LAN, or binding the wildcard,"
+                "walks straight around the Cloudflare Access application — Access runs"
+                "at the EDGE, so such a connection is unauthenticated AND unlogged."
+                "A port RANGE, a per-interface list and a trusted interface all reach"
+                "the same iptables accept rule, which is why each has its own leg."
+                "The build legs keep this leaf host free of outbound build trust and"
+                "of a stray /etc/nix/machines. Fix the config; do not relax this."
+              ];
+            };
+
           # ---- The rules file and the ciphertexts beside it, joined by a human -
           #
           # `secrets/secrets.nix` is consumed by exactly ONE thing — the `agenix`
