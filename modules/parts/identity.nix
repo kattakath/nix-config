@@ -143,6 +143,11 @@ let
     # repo; DNS is a plain CNAME -> kattakath.github.io (DNS-only), no longer a
     # tunnel CNAME here. sites/ismail-landing stays as the content source that
     # seeded that repo. Re-add an entry here only to serve it from nixpi again.
+    #
+    # DO NOT DELETE THAT TREE AS DEAD WEIGHT: its fonts/ subdir is LIVE, and not
+    # for a site — modules/shared/next-right-thing.nix reads it for the übersicht
+    # widget's typography. Absent from `hostedSites` means "Caddy no longer serves
+    # it", not "nothing uses it".
   ];
 
   # ---- MCP servers exposed on the public gateway ---------------------------
