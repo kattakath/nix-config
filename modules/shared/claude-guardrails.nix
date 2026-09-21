@@ -12,12 +12,18 @@
 # here and callable everywhere else. Measured 2026-09-15.
 #
 # UPSTREAM FIRST. `programs.claude-code.settings` is `jsonFormat.type`
-# (home-manager 87c391f, modules/programs/claude-code/options.nix) — freeform,
-# and module-system list merging concatenates `permissions.deny` across modules,
-# so this file ADDS to whatever else sets it. Its own example block shows
-# `permissions.deny`. No hook, no script, no activation step: Claude Code
-# enforces deny rules itself, in every permission mode — `bypassPermissions`
-# skips PROMPTS, and a deny is not a prompt.
+# (home-manager efa3ccb, modules/programs/claude-code/options.nix) — freeform,
+# so ANY settings.json key passes through untyped, and module-system list
+# merging concatenates `permissions.deny` across modules, so this file ADDS to
+# whatever else sets it. Its own example block shows `permissions.deny`. No
+# hook, no script, no activation step: Claude Code enforces deny rules itself,
+# in every permission mode — `bypassPermissions` skips PROMPTS, and a deny is
+# not a prompt.
+#
+# NOT ONLY DENIES. `settings.attribution` below is the other half of the same
+# floor: a policy that lived as prose in claude/CLAUDE.md and therefore had to
+# be re-won every session against a harness default that asserts the opposite.
+# A setting is won once. The SCOPE RULE below governs both halves.
 #
 # WHAT A DENY RULE IS NOT. Claude Code's docs are explicit that a Bash deny
 # "isn't a security boundary around the program": it matches the command text
@@ -44,6 +50,53 @@
 # Top-level `lib.mkIf isDarwin`, matching ./claude-brain.nix: programs.claude-code
 # is darwin-only (home.nix), and the gate keeps nixpi/nixvm byte-identical.
 lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
+  # ── AI attribution on git artifacts: OFF, as a SETTING (claude/CLAUDE.md
+  #    § Git authorship) ──────────────────────────────────────────────────────
+  # That section forbids a `Co-Authored-By: Claude` trailer on commits and a
+  # "Generated with Claude Code" footer on PR/issue bodies. Claude Code injects
+  # a session-start reminder asserting the opposite and claiming to supersede
+  # earlier guidance, so the prose rule was an argument the model had to win on
+  # every session — and § Git authorship already records the recurring cost of
+  # merely FLAGGING that conflict each time (2026-09-12). This states the same
+  # policy where the harness reads it, instead of where a model must recall it.
+  #
+  # UPSTREAM FIRST: grepped the pinned home-manager (efa3ccb,
+  # modules/programs/claude-code/options.nix) — there is NO typed
+  # `programs.claude-code.settings.attribution` option, and none is needed:
+  # `settings` is `inherit (jsonFormat) type`, so the attrs below reach
+  # settings.json verbatim through `pkgs.formats.json`.
+  #
+  # VERIFIED AGAINST THE SCHEMA, not from memory — by this file's own standard
+  # a key that matches nothing is not a weak setting but NO setting, and it
+  # fails silently. `attribution` is a real top-level key in
+  # json.schemastore.org/claude-code-settings.json, `additionalProperties:
+  # false`, with exactly three sub-keys — `commit` (string), `pr` (string),
+  # `sessionUrl` (boolean) — and it is documented at
+  # code.claude.com/docs/en/settings-reference § Git and attribution. It landed
+  # in claude-code 2.0.62; this fleet runs 2.1.260. Checked 2026-09-21. That
+  # schema is not an outside opinion: home-manager stamps its URL into the
+  # rendered file as `"$schema"`, so it is the contract this very settings.json
+  # declares it satisfies.
+  #
+  # ALL THREE OR NOTHING. Upstream, verbatim: "Once you set `commit` or `pr`,
+  # Claude Code ignores the deprecated `includeCoAuthoredBy` setting and uses
+  # its default text for whichever of the two you left unset." So a lone
+  # `commit = ""` does not merely leave the PR footer alone — it also REVIVES
+  # that footer for anyone who was relying on `includeCoAuthoredBy = false`.
+  # `sessionUrl` is a separate `Claude-Session` trailer emitted ONLY from a
+  # cloud or Remote Control session, i.e. never visibly from this terminal,
+  # which is exactly why it must be declared rather than noticed in a PR later.
+  #
+  # NOT `includeCoAuthoredBy = false`: deprecated since 2.0.62, blind to
+  # `sessionUrl`, and ignored outright once `attribution` is set. It is also
+  # the key the pinned home-manager's own `settings` EXAMPLE still shows — the
+  # example is stale, the schema is not.
+  programs.claude-code.settings.attribution = {
+    commit = "";
+    pr = "";
+    sessionUrl = false;
+  };
+
   programs.claude-code.settings.permissions.deny = [
     # ── Imperative MCP adoption (mcp-scout: "installation IS declaration") ──
     # The gateway is the single MCP source; a runtime add lands in ~/.claude.json,
@@ -97,6 +150,62 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     "Read(~/.local/state/nix-config-cf-tunnel/**)"
     "Read(~/.local/state/nix-config-mcp-public/**)"
     "Read(~/.aws/sso/cache/**)"
+    # `agenix -d FILE` was the one shape in this family still open, and it is
+    # the bluntest of them: it prints an age ciphertext's PLAINTEXT straight
+    # into the transcript. Fleet-wide policy already forbids it in two places —
+    # claude/CLAUDE.md § Redact names "`.age` plaintext" outright, and
+    # CLAUDE.md § Security says "Never display a secret value" — and it is
+    # wrong in every repo, so it belongs at this floor and not in a `.claude/`.
+    # Verified against the PINNED agenix (ryantm/agenix b027ee2,
+    # pkgs/agenix.sh): `-d|--decrypt` sets DECRYPT_ONLY and takes FILE, and the
+    # dispatch line appends `-o -`, so the cleartext goes to stdout by
+    # construction. `-i/--identity` may PRECEDE it, hence both flag positions —
+    # the same reason `security find-generic-password` needs two entries above.
+    # No space before `*`, so `-d*` also matches a bare `agenix -d`.
+    "Bash(agenix -d*)"
+    "Bash(agenix --decrypt*)"
+    "Bash(agenix * -d*)"
+    "Bash(agenix * --decrypt*)"
+    # agenix is NOT on PATH — it exists only in this repo's devShell
+    # (modules/parts/devshell.nix), so the one-shot spelling is a `nix develop
+    # -c` away and the four rules above never see it. Claude Code strips a
+    # FIXED wrapper list before matching (timeout/time/nice/nohup/stdbuf,
+    # `command`/`builtin`, `noglob`, flagless `xargs`) and upstream states that
+    # environment runners — `direnv exec`, `devbox run`, `mise exec`, `npx`,
+    # `docker exec` — are deliberately NOT in it. `nix develop -c` is one of
+    # those, so it needs its own pair rather than inheriting the plain ones.
+    "Bash(nix develop * agenix -d*)"
+    "Bash(nix develop * agenix --decrypt*)"
+    # `age -d` matters MORE than `agenix -d`, on the same logic that made
+    # `security find-generic-password -w` non-negotiable above: agenix is only
+    # a wrapper, while `age` itself is brew-installed on this Mac
+    # (hosts/macos.nix brews) and therefore on PATH in every repo, no devShell
+    # required. `age --decrypt -i <key> <file>` prints the identical plaintext.
+    "Bash(age -d*)"
+    "Bash(age --decrypt*)"
+    "Bash(age * -d*)"
+    "Bash(age * --decrypt*)"
+    # DELIBERATELY NOT COVERED, named so the gap is a decision and not a miss:
+    #   · `agenix -e FILE` under `EDITOR=cat`. `-e` is the SANCTIONED editing
+    #     path (CLAUDE.md § Security), so denying it breaks the documented
+    #     workflow to buy back an evasion one env var reopens anyway.
+    #   · `* agenix -d*` — a LEADING wildcard would cover every runner at once,
+    #     and is rejected on measured cost: the project guard's Rule 1c matched
+    #     a literal string anywhere rather than at command position and blocked
+    #     its OWN commit message within a minute of being written, then blocked
+    #     the fix. A deny rule has no command-position anchor to reach for.
+    #   · `/opt/homebrew/bin/age -d`, `sh -c 'agenix -d …'`, and `nix run
+    #     github:ryantm/agenix -- -d` — the by-path / by-subshell class the
+    #     header already names as out of reach, plus a spelling this fleet has
+    #     no reason to produce (agenix is a devShell package here, not an app).
+    #   · The ciphertexts themselves. `secrets/*.age` is committed to a PUBLIC
+    #     repo, so reading one leaks nothing; the value exists only after a
+    #     decrypt, which is the verb these rules name. No `Read(secrets/**)`.
+    # And NO catch-all `Read(**)`. A blanket Read deny disables Bash
+    # auto-approve across the board — it trades one narrow leak for a
+    # permanently noisier session everywhere, which is how a floor gets turned
+    # off wholesale by an irritated operator. The four narrow `Read(...)` path
+    # denies above are the shape that holds; a fifth broad one would undo them.
 
     # ── Irreversible remote actions an unattended agent must not take ──
     # A merge is a production trigger in more than one repo this Mac works on
