@@ -181,6 +181,7 @@ Five rules, each mechanising a convention that was **prompt-only** until now:
 | `launchd-bare-interpreter-arg0` | nix | [`.claude/rules/launchd-naming.md`](../.claude/rules/launchd-naming.md) | Flags `ProgramArguments[0]` / `Program` pointing at a bare `sh`/`bash`/`python3`/`node`/… so Background Task Manager can't list a fleet agent as generic persistence. Only sees units authored *here*; the three known upstream `/bin/sh` daemons live in no `.nix` file and must not be renamed. |
 | `capsule-must-not-reach-out` | nix | ADR-002's capsule boundary (§ `modules/features/`) | Scoped by `files:` to `modules/features/**`; flags a `path_expression` escaping the capsule's own directory. The file-layer half of the boundary — `checks.<system>.capsule-registry` is the option-layer half. Blind to overlays, `specialArgs` and runtime-built store paths (ADR-002 §7.6, §9.3). |
 | `shared-must-not-cross-layers` | nix | the `modules/shared/` layer boundary (`662db6a`, 2026-09-14) | The Home Manager profile may reach **down** into `packages/`, `skills/` and `claude/` — never **across** into `modules/features/`, nor **up** into `modules/parts/`, `hosts/` or `infra/`. |
+| `activation-must-not-touch-secrets` | nix | ADR-004 §2.5 ([`secrets-recovery-and-identity-adr.md`](secrets-recovery-and-identity-adr.md)) | A `home.activation` / `system.activationScripts` / `system.userActivationScripts` string that names `secrets-{rehydrate,push,resolve,status}` or `gcloud secrets`/`gcloud auth`. Activation must never touch a secret backend; the CLIs are operator-invoked after `gcloud auth login`. Eval-time twin: `checks.aarch64-darwin.keychain-secrets-backend-inert`. |
 | `hook-json-parse-must-be-guarded` | javascript | the "never wedge a turn" invariant every `.claude/hooks/*.js` header states | An unguarded `JSON.parse` of untrusted event JSON throws and surfaces as a hook error. Scoped by `files:` to the hooks. First mechanical check those ~1.3k lines have ever had — `claude-config-lint.yml` checks frontmatter, never hook JS. |
 
 Two things the check does that a naive `ast-grep scan` would not:
@@ -1288,6 +1289,13 @@ to build the boundary machinery around it.
   CLI over the macOS login Keychain, plus a home-manager loader that exports registered secrets
   into **every** shell, including the non-login bash an AI coding agent spawns for its tools.
   Nothing secret — **not even the key names** — reaches the store or git.
+- **ADR-004 (2026-09-20), additive:** `local.keychainSecrets.backend.{type,project,prefix}` +
+  `refsRelPath`, four new packages (`secrets-status`, `secrets-rehydrate`, `secrets-push`,
+  `secrets-resolve` — `packages/secrets-backend.nix`, config read at RUNTIME so the perSystem
+  packages and the module install the same drvs) and one new check
+  (`keychain-secrets-backend-inert`). With `backend.type = "none"` (the default, and what
+  `macos` runs today) the loader, `home.activation` and the `darwin-system` drv were measured
+  byte-identical to the pre-ADR-004 tree and no CLI is installed. README § Backend.
 - **Seam:** `capsuleModules.homeManager.keychain-secrets` (the raw seam; this is the capsule whose
   measurement produced it).
 - **Checks:** `keychain-secrets-module` and `keychain-secrets-clis` (the satellite's four package

@@ -47,7 +47,12 @@ let
   # Home-manager capsule modules come through the RAW seam, not
   # `flake.modules` — see modules/parts/capsules.nix § The RAW module seam for
   # the measurement (deferredModule's wrapper reorders `home.packages`).
-  inherit (config.capsuleModules.homeManager) keychain-secrets media-cli local-rag;
+  inherit (config.capsuleModules.homeManager)
+    keychain-secrets
+    media-cli
+    local-rag
+    cloud-cli
+    ;
   # tart-vms (wave 5) — through the RAW seam too, and for a SECOND reason on top
   # of the home.packages one: both runner modules `imports = [ ./slots.nix ]`,
   # and the module system dedupes by PATH IDENTITY. `flake.modules`'
@@ -67,6 +72,7 @@ let
     tokensUrl
     publicMcpServers
     publicMcpPort
+    googleAccount
     ;
 
   # The Home-Manager sub-module embedded in every host, built from an identity
@@ -159,6 +165,12 @@ let
             # README or the option description — and only once they enabled the
             # feature. Its sibling above was always here; they belong together.
             publicMcpPort
+            # googleAccount: the canonical identity (identity.nix). A FLEET constant,
+            # so it rides here rather than in identityArgs for the reason stated on
+            # publicMcpPort above — a consumer's four-field identity must keep working.
+            # home.nix derives the gitlab.com include's address from it, so no
+            # literal address is left in that file (ADR-004 §7, inventory #3).
+            googleAccount
             ;
           # MODULE, not a flake — hence the name. It was the `keychain-secrets`
           # flake INPUT, consumed as `.homeManagerModules.default`, until ADR-002
@@ -186,6 +198,10 @@ let
           # reason above: `local.rag.ollama` turns on home-manager's own
           # `services.ollama`, which contributes to that list.
           localRagModule = local-rag;
+          # Fourth of the same shape (ADR-004 phase 3, born in-tree — no flake
+          # input ever existed): the AWS CLI + `~/.aws/config.example` capsule,
+          # modules/features/cloud-cli/. RAW seam for the home.packages reason.
+          cloudCliModule = cloud-cli;
           # A SOURCE PATH, not a module and not a derivation — home.nix
           # `callPackage`s it with the HOST's pkgs so the five gitlab-tart slot
           # shims are built against `nixpkgs.config.allowUnfree` from
