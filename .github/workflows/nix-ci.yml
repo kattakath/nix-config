@@ -12,10 +12,18 @@ name: nix-ci
 #   2. EVALUATE each host config's toplevel (cheap: forces full module eval,
 #      catching config/option/type errors) WITHOUT building it.
 #
-# ONE LEG PER SYSTEM, on its arch-native GitHub-HOSTED runner:
-#   aarch64-linux  -> `ubuntu-24.04-arm`. Evaluates nixpi + nixvm.
+# ONE LEG PER HOST SYSTEM, on its arch-native GitHub-HOSTED runner:
+#   aarch64-linux  -> `ubuntu-24.04-arm`
 #   aarch64-darwin -> `macos-latest` (Apple Silicon; a free STANDARD runner on a
 #                     public repo).
+# The LEGS THEMSELVES ARE DERIVED: the `legs` job reads each host
+# configuration's OWN system out of the flake and emits the build matrix, so
+# neither half of the coverage invariant can rot silently. A leg owning zero
+# hosts cannot exist (legs come from hosts); a host owned by no leg HARD-FAILS
+# `legs`, because the only hard-coded fact left is the system -> `runs-on`
+# lookup, which GitHub owns and the flake cannot tell us. Adding a host to
+# modules/parts/hosts.nix therefore either lands on an existing leg or stops CI
+# until someone names its runner.
 #
 # ALL-HOSTED BY CHOICE. No leg of THIS repo's CI targets a self-hosted runner —
 # a statement about this workflow, NOT about the fleet. `macos` runs six
@@ -71,17 +79,134 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: DeterminateSystems/flake-checker-action@786422608c7bded2bbc9741ad9f91356842bf520 # v14
 
-  # One leg per system, on its arch-native runner. fail-fast:false so one
+  # Derive the build matrix from the fleet, ONCE. The attrs were a hard-coded
+  # `matrix.eval-attrs` string per leg, so a host added to modules/parts/hosts.nix
+  # was SILENTLY UNTESTED until someone remembered to edit this file too.
+  # Deriving the LEGS (not just their attrs) is what closes the other direction:
+  # a host whose system no leg claims is a host nothing evaluates, and the
+  # runner lookup below turns that into a loud failure instead of a green run.
+  #
+  # ONE job, not a step inside each leg: the check needs the WHOLE host->system
+  # list to know what is unclaimed, which no single leg can see, and asking it
+  # per leg would answer it once per leg and duplicate the leg list to compare
+  # against.
+  #
+  # Runs on macOS because this evaluator must reach BOTH systems' configurations,
+  # and only that direction is measured (2026-09-21, aarch64-darwin: the command
+  # below returned both aarch64-linux NixOS toplevels by derivation name). ~4s.
+  legs:
+    name: legs
+    runs-on: macos-latest
+    timeout-minutes: 15
+    outputs:
+      matrix: ${{ steps.derive.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: DeterminateSystems/determinate-nix-action@8d87e8d5e5b8a8309d4281094560f127d9a265f1 # v3.22.5
+        with:
+          extra-conf: |
+            extra-substituters = https://kattakath.cachix.org
+            extra-trusted-public-keys = kattakath.cachix.org-1:y/w6wnb4ZArdlbfWJ82c81uCXeYgG/sGDUYCszavmEw=
+
+      # Flakes evaluate the git tree, not the working dir — stage everything
+      # BEFORE any nix invocation (see .claude/rules/git-purity.md).
+      - name: Stage tree (git purity)
+        run: git add -A
+
+      # UPSTREAM FIRST (measured 2026-09-21 under the Determinate Nix pinned
+      # above). `nix flake show --json --all-systems` answers this off the shelf:
+      # it emits a flake-schemas `inventory` whose host children carry
+      # `forSystems`, classified by the CONFIGURATION's own system — measured
+      # `nixosConfigurations.nixpi -> ["aarch64-linux"]`,
+      # `darwinConfigurations.macos -> ["aarch64-darwin"]` — which is precisely
+      # the question asked here, so no hand-written `--apply` expression walks
+      # `config.nixpkgs.hostPlatform.system` any more.
+      #
+      # `--all-systems` is LOAD-BEARING: without it, children belonging to any
+      # other system come back as `{"filtered": true}` (measured — both NixOS
+      # hosts, on an aarch64-darwin evaluator), so classification would silently
+      # follow the RUNNER's arch. The `inventory` shape is flake-schemas, which
+      # Determinate Nix emits; upstream Nix emits the flat legacy shape with no
+      # such key, which parses to ZERO rows (probed). Neither degradation is
+      # assumed away — the two guards below fail the job on each, so a revert to
+      # cachix/install-nix-action cannot quietly ship a fleet with no legs.
+      - name: Derive one leg per host system
+        id: derive
+        run: |
+          set -euo pipefail
+
+          # A TEMP file, not the workspace: this step is also the thing a human runs
+          # by hand to debug the matrix, and `> inventory.json` there leaves an
+          # untracked file in the repo — which flakes then evaluate around, and which
+          # lands in a `git add -A` (measured: it did, on the branch that added this).
+          inventory=$(mktemp)
+          trap 'rm -f "$inventory"' EXIT
+          nix flake show --json --all-systems > "$inventory"
+
+          # `x=$(cmd)` carries the command's exit status, so `set -e` still
+          # aborts on a broken eval. `mapfile -t x < <(cmd)` and `cmd | while
+          # read` both DISCARD it — never reach for those here.
+          rows=$(jq -r '
+            def hosts($cat; $suffix):
+              (.inventory[$cat].output.children // {})
+              | to_entries[]
+              | . as $e
+              | { name: ($cat + "." + $e.key),
+                  attr: (".#" + $cat + "." + $e.key + $suffix),
+                  systems: ($e.value.forSystems // []) };
+            [ hosts("nixosConfigurations";  ".config.system.build.toplevel.drvPath"),
+              hosts("darwinConfigurations"; ".system.drvPath") ][]
+            | . as $h
+            | if ($h.systems | length) == 0
+              then "?\t" + $h.name
+              else ($h.systems[] | . + "\t" + $h.attr)
+              end
+          ' "$inventory")
+
+          if [ -z "$rows" ]; then
+            echo "::error::no host configuration found — the inventory shape changed (upstream Nix emits the flat legacy shape) and this job would emit an empty matrix."
+            exit 1
+          fi
+          unclassified=$(printf '%s\n' "$rows" | awk -F'\t' '$1 == "?" { print $2 }')
+          if [ -n "$unclassified" ]; then
+            printf '::error::host %s carries no forSystems — it would be claimed by no leg.\n' $unclassified
+            exit 1
+          fi
+
+          # The ONE hard-coded fact: `runs-on` is a per-system GitHub fact, not
+          # one the flake can tell us. An unmapped system means a real host that
+          # no leg would evaluate, so it stops CI here.
+          include='[]'
+          for sys in $(printf '%s\n' "$rows" | cut -f1 | sort -u); do
+            case "$sys" in
+              aarch64-linux)  runner=ubuntu-24.04-arm ;;
+              aarch64-darwin) runner=macos-latest ;;
+              *)
+                echo "::error::host configuration(s) declare system '$sys', which no CI leg claims — add its runner to this lookup."
+                exit 1
+                ;;
+            esac
+            attrs=$(printf '%s\n' "$rows" | awk -F'\t' -v s="$sys" '$1 == s { print $2 }' | paste -sd' ' -)
+            include=$(printf '%s' "$include" | jq -c --arg n "$sys" --arg r "$runner" --arg a "$attrs" \
+              '. + [{ name: $n, "runs-on": $r, "eval-attrs": $a }]')
+            echo "leg $sys ($runner): $attrs"
+          done
+
+          printf 'matrix=%s\n' "$(printf '%s' "$include" | jq -c '{ include: . }')" >> "$GITHUB_OUTPUT"
+
+  # One leg per host system, on its arch-native runner. fail-fast:false so one
   # leg's failure doesn't cancel the other — the aggregate required-checks
   # job decides the overall result. Each entry is its own status check
-  # `build (<name>)`; required-checks (needs: [build]) is the single stable
-  # branch-protection anchor, so renaming/adding legs never requires
-  # re-anchoring the ruleset.
+  # `build (<name>)`; required-checks is the single stable branch-protection
+  # anchor, so renaming/adding legs never requires re-anchoring the ruleset.
   #
-  # `matrix.name` is the flake system this leg targets — it both titles the
-  # check (`build (<system>)`) and selects `.#checks.<system>`.
+  # `matrix.name` is the flake system this leg targets — it titles the check
+  # (`build (<system>)`) and selects `.#checks.<system>`; `matrix.eval-attrs`
+  # carries the host attrs `legs` derived for it.
   build:
     name: build (${{ matrix.name }})
+    needs: [legs]
     runs-on: ${{ matrix.runs-on }}
     # 45, not 30: headroom bought BEFORE ADR-002's collapse lands ~25 absorbed
     # satellite checks on this leg. The failure being avoided is a deadlock, not
@@ -92,27 +217,7 @@ jobs:
     timeout-minutes: 45 # lint + eval only; no toplevel builds
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          # aarch64-linux — evaluates both NixOS hosts (nixpi, nixvm); also builds
-          # the aarch64-linux lint checks. (The nixpi sdImage is the live `nixpi`
-          # toplevel already evaluated here; its image drvPath is gated separately in
-          # build-installers.yml.)
-          - name: aarch64-linux
-            # GitHub-hosted native ARM (free & unlimited on public repos).
-            runs-on: ubuntu-24.04-arm
-            eval-attrs: >-
-              .#nixosConfigurations.nixpi.config.system.build.toplevel.drvPath
-              .#nixosConfigurations.nixvm.config.system.build.toplevel.drvPath
-          # aarch64-darwin (Apple Silicon) — the `macos` host; also builds the
-          # aarch64-darwin lint checks. GitHub-hosted `macos-latest` (a free
-          # STANDARD macOS runner on a public repo). Eval only — no toplevel
-          # builds. (`macvm` was removed 2026-09-05 — see modules/parts/hosts.nix § the
-          # former macvm Tart guest and docs/macvm-readd-runbook.md.)
-          - name: aarch64-darwin
-            runs-on: macos-latest
-            eval-attrs: >-
-              .#darwinConfigurations.macos.system.drvPath
+      matrix: ${{ fromJSON(needs.legs.outputs.matrix) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -120,7 +225,8 @@ jobs:
       # Every fleet host runs Determinate Nix now, so CI evaluating on upstream Nix
       # tested a Nix nothing runs — and it forwent parallel evaluation + lazy trees,
       # which Determinate's docs put at "5x or more" on exactly this job's work
-      # (`nix flake check` / `nix flake show` / `nix eval --json`). Free: the action
+      # (nix-fast-build over `.#checks.<system>`, and the `nix eval` below —
+      # `nix flake show` in `legs` likewise). Free: the action
       # is MIT and needs no FlakeHub login; only FlakeHub Cache (a separate action,
       # deliberately absent) is paid. Flakes are on by default, so no
       # `experimental-features` line. Pinned by commit, like every action here.
@@ -153,16 +259,28 @@ jobs:
             --flake ".#checks.${{ matrix.name }}" \
             --cachix-cache kattakath
 
-      # EVALUATE (not build) this leg's host config(s). Resolving each toplevel's
-      # .drvPath forces a full module-system eval, so a broken config (bad option,
-      # type error, missing module) fails CI in seconds — without paying for the
-      # actual build. Building is deferred to release / on-machine activation.
+      # EVALUATE (not build) every host config this leg owns. Resolving each
+      # toplevel's .drvPath forces a full module-system eval, so a broken config
+      # (bad option, type error, missing module) fails CI in seconds — without
+      # paying for the actual build. Building is deferred to release / on-machine
+      # activation.
       - name: Evaluate host config(s) (no build)
-        if: matrix.eval-attrs != ''
         env:
+          # Derived by `legs` from each configuration's own system — never listed.
           EVAL_ATTRS: ${{ matrix.eval-attrs }}
         run: |
           set -euo pipefail
+
+          # `legs` cannot emit an empty leg today, so this is the belt to that
+          # derivation's braces: a leg that evaluates nothing is a vacuous gate,
+          # green while testing zero hosts. The old `if: matrix.eval-attrs != ''`
+          # made exactly that state SKIP silently; it is a hard failure now.
+          if [ -z "$EVAL_ATTRS" ]; then
+            echo "::error::leg '${{ matrix.name }}' carries no host attrs — it would evaluate nothing."
+            exit 1
+          fi
+          echo "evaluating $(printf '%s\n' $EVAL_ATTRS | wc -l | tr -d ' ') host attr(s) for ${{ matrix.name }}"
+
           for a in $EVAL_ATTRS; do
             echo "::group::eval $a"
             # NEVER `nix eval … && echo`: POSIX exempts every non-final command
@@ -177,18 +295,21 @@ jobs:
           echo "✓ host config(s) evaluate."
 
   # Aggregate gate — the ONE stable-named required check branch protection anchors
-  # to. Runs even if a leg fails (if: always()) and fails if any leg failed or was
-  # cancelled. Renaming/adding build legs never requires re-anchoring the ruleset.
+  # to. Runs even if a leg fails (if: always()) and fails if any needed job failed,
+  # was cancelled, or was SKIPPED. 'skipped' is load-bearing: a failed `legs` does
+  # not fail `build`, it skips it, and a skipped job is neither failure nor
+  # cancelled — without it this gate would report green over zero legs.
+  # Renaming/adding build legs never requires re-anchoring the ruleset.
   required-checks:
     name: required-checks
-    needs: [build]
+    needs: [legs, build]
     runs-on: ubuntu-24.04
     if: always()
     steps:
       - name: Verify all build legs passed
         run: |
-          if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
-            echo "✗ One or more build legs failed or were cancelled."
+          if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}" == "true" ]]; then
+            echo "✗ One or more required jobs failed, were cancelled, or were skipped."
             exit 1
           fi
           echo "✓ All build legs passed."
