@@ -1,3 +1,4 @@
+# OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
 # `jsonresume <download|print|validate|markdown|text>` — fetch a JSON Resume
 # (jsonresume.org) and render/validate it. A thin, self-contained wrapper that is
 # DUAL-ENGINE over the JSON Resume CLIs:

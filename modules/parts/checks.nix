@@ -313,8 +313,10 @@ in
                 system = "aarch64-darwin";
                 hostname = "generic-darwin";
                 identity = consumerIdentity;
+                # No `users.users.stranger.home` here any more: hosts/generic-darwin.nix
+                # declares the account itself since 2026-09-20 (ADR-004 §9.9). Adding it
+                # by hand was what hid the gap from this check.
                 extraModules = [
-                  { users.users.stranger.home = "/Users/stranger"; }
                   {
                     home-manager.users.stranger = {
                       home.stateVersion = "24.05";
