@@ -184,7 +184,7 @@ writeShellApplication {
 
       # Everything happens in a throwaway workdir named resume.json, so both
       # validation and `resume export` find their default input there.
-      work="$(mktemp -d /tmp/jsonresume-flat.XXXXXX)"
+      work="$(mktemp -d "''${TMPDIR:-/tmp}/jsonresume-flat.XXXXXX")"
       trap 'rm -rf "$work"' EXIT
 
       if [ -n "$path" ]; then
@@ -252,7 +252,7 @@ writeShellApplication {
         done
 
         have resumed || have resume || die "neither resumed nor resume-cli on PATH — install: npm i -g resumed"
-        work="$(mktemp -d /tmp/jsonresume-val.XXXXXX)"
+        work="$(mktemp -d "''${TMPDIR:-/tmp}/jsonresume-val.XXXXXX")"
         trap 'rm -rf "$work"' EXIT
         if [ -n "$path" ]; then
           [ -f "$path" ] || die "no such file: $path"
@@ -293,7 +293,7 @@ writeShellApplication {
           input="$path"
         else
           url="$(resolve_url "")" || die "no --path given and no built-in default URL (set jsonResumeGistId in modules/parts/identity.nix)"
-          input="$(mktemp /tmp/jsonresume.XXXXXX.json)"
+          input="$(mktemp "''${TMPDIR:-/tmp}/jsonresume.XXXXXX.json")"
           curl -fsSL "$url" -o "$input" || die "download failed: $url"
         fi
         jq -e . "$input" >/dev/null 2>&1 || die "input is not valid JSON: $input"
@@ -307,7 +307,7 @@ writeShellApplication {
 
         # Themes resolve from the CWD's node_modules, so install the theme into a
         # throwaway workdir and export there, then move the PDF out.
-        work="$(mktemp -d /tmp/jsonresume-work.XXXXXX)"
+        work="$(mktemp -d "''${TMPDIR:-/tmp}/jsonresume-work.XXXXXX")"
         trap 'rm -rf "$work"' EXIT
         cp "$input" "$work/resume.json"
         ( cd "$work" && npm init -y >/dev/null 2>&1 && npm i "$pkg" >/dev/null 2>&1 ) \

@@ -772,6 +772,95 @@ in
             };
         }
         // {
+          # ---- The two indexes CLAUDE.md promises to keep, kept -----------------
+          #
+          # CLAUDE.md opens by calling itself "an index, not an encyclopedia" and
+          # binds the author: "When you change repo shape, update the one-liner
+          # here AND the section there." Nothing enforced that, and both halves had
+          # already drifted when this was written (2026-09-21):
+          #
+          #   · hosts/generic-darwin.nix and hosts/generic-linux.nix — load-bearing
+          #     (templates/default/flake.nix builds on them, and checks.template-consumer
+          #     is the gate that keeps a stranger's identity working) — appeared in
+          #     NEITHER CLAUDE.md nor docs/repo-map.md. Zero hits in both.
+          #   · docs/private-home-modules.md — 11 live references across .nix and
+          #     other docs — was linked from neither index.
+          #
+          # Both are readDir-vs-readFile, the same shape as capsule-registry, and
+          # both are identical and cheap on BOTH systems, so they sit in the
+          # ungated block for the reason secrets-sync gives: an eval plus an echo
+          # with nothing platform-specific in either half.
+          #
+          # SUBSTRING, not a parsed list. A parser over CLAUDE.md's prose would
+          # break on every table reflow and become the thing people delete. The
+          # question worth mechanising is only "is this file NAMED anywhere the
+          # reader would look" — a file nobody mentions is the failure; the exact
+          # sentence is a human's call.
+          #
+          # NOT COVERED: that the mention is TRUE or current. A row naming a file
+          # and describing it wrongly passes both checks. These catch absence, not
+          # rot — and rot is what /hygiene and a reader are for.
+          hosts-documented =
+            let
+              hostFiles = lib.naturalSort (
+                lib.attrNames (
+                  lib.filterAttrs (n: t: t == "regular" && lib.hasSuffix ".nix" n) (builtins.readDir ../../hosts)
+                )
+              );
+              claudeMd = builtins.readFile ../../CLAUDE.md;
+              repoMap = builtins.readFile ../../docs/repo-map.md;
+              undocumented = builtins.filter (
+                f: !(lib.hasInfix f claudeMd) && !(lib.hasInfix f repoMap)
+              ) hostFiles;
+            in
+            pkgs.runCommand "hosts-documented" { } (
+              if undocumented == [ ] then
+                ''
+                  echo "hosts/: all ${toString (lib.length hostFiles)} host profiles are named in CLAUDE.md or docs/repo-map.md" > "$out"
+                ''
+              else
+                ''
+                  echo "hosts-documented: host profiles that no index names." >&2
+                  ${lib.concatMapStringsSep "\n" (f: ''echo "  ${f}" >&2'') undocumented}
+                  echo "" >&2
+                  echo "CLAUDE.md calls itself an index and binds the author to update it when repo" >&2
+                  echo "shape changes. A host file named nowhere is invisible to the next reader and" >&2
+                  echo "to every agent that reads CLAUDE.md as its map. Name it in the hosts/ row of" >&2
+                  echo "CLAUDE.md, or in the matching section of docs/repo-map.md, and re-run." >&2
+                  exit 1
+                ''
+            );
+
+          docs-indexed =
+            let
+              docFiles = lib.naturalSort (
+                lib.attrNames (
+                  lib.filterAttrs (n: t: t == "regular" && lib.hasSuffix ".md" n && n != "repo-map.md") (
+                    builtins.readDir ../../docs
+                  )
+                )
+              );
+              claudeMd = builtins.readFile ../../CLAUDE.md;
+              repoMap = builtins.readFile ../../docs/repo-map.md;
+              unlinked = builtins.filter (f: !(lib.hasInfix f claudeMd) && !(lib.hasInfix f repoMap)) docFiles;
+            in
+            pkgs.runCommand "docs-indexed" { } (
+              if unlinked == [ ] then
+                ''
+                  echo "docs/: all ${toString (lib.length docFiles)} documents are referenced from CLAUDE.md or repo-map.md" > "$out"
+                ''
+              else
+                ''
+                  echo "docs-indexed: documents no index references." >&2
+                  ${lib.concatMapStringsSep "\n" (f: ''echo "  docs/${f}" >&2'') unlinked}
+                  echo "" >&2
+                  echo "An unlinked document is one nobody finds and nobody updates, which is how a" >&2
+                  echo "runbook rots into a trap. Link it from CLAUDE.md's Documentation list or from" >&2
+                  echo "docs/repo-map.md. repo-map.md itself is exempt: it is the index, not an entry." >&2
+                  exit 1
+                ''
+            );
+
           # ---- nixpi's security posture, which until now only PROSE held ------
           #
           # modules/nixos/core.nix:46-102 carries three careful paragraphs on why

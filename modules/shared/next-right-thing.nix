@@ -26,6 +26,13 @@ let
   # Repo-relative SOURCE path literals: evaluated relative to this file, hashed,
   # copied into the store. Not $HOME paths — those are impossible at eval time.
   scriptDir = ../../packages/next-right-thing;
+  # The one LIVE consumer of sites/ismail-landing/. That site moved to GitHub Pages
+  # 2026-09-16 and `hostedSites` no longer lists it (modules/parts/identity.nix), so
+  # the tree reads as a dead archive — but this widget's typography comes out of its
+  # fonts/ subdir, and deleting the archive would break an unrelated übersicht widget
+  # with nothing in sites/ to warn you. Vendoring a second copy of two .woff2 files
+  # to decouple them would trade a findable coupling for a silent divergence; the
+  # comment is the cheaper half. identity.nix carries the matching back-pointer.
   fontDir = ../../sites/ismail-landing/fonts;
 
   libexec = pkgs.runCommand "next-right-thing-libexec" { } ''
