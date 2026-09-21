@@ -93,10 +93,36 @@ jobs:
           inputs=$(jq -r '.nodes[.root].inputs | keys[] | select(. != "grok-build-plugin-cc")' flake.lock | tr '\n' ' ')
           echo "list=$inputs" >> "$GITHUB_OUTPUT"
 
-      - uses: DeterminateSystems/update-flake-lock@da03c0f078bc4b2c37ee4f7e072d34bf8f188bb3 # v29
+      - id: update
+        uses: DeterminateSystems/update-flake-lock@da03c0f078bc4b2c37ee4f7e072d34bf8f188bb3 # v29
         with:
           inputs: ${{ steps.updatable-inputs.outputs.list }}
           token: ${{ steps.app-token.outputs.token }}
           pr-title: "chore: bump flake inputs (automated nix flake update)"
           pr-labels: dependencies
           commit-msg: "chore: bump flake inputs"
+
+      # WHY ARMING LIVES HERE AND NOT IN auto-merge.yml. That workflow does fire on
+      # this PR, but its `if:` accepts only PRs whose author is `ismailkattakath` —
+      # and this one is authored by the CI bot App, so a lockfile bump was never
+      # armed: #512, #506, #488 and #487 all sat at autoMerge=false, two merged by
+      # hand and two closed unmerged. The one-line alternative — widening that guard
+      # to also accept the App's `…[bot]` login — was rejected twice over. The guard
+      # exists to keep FORK PRs away from the App-token step, so every extra login
+      # listed there loosens a security boundary to fix a problem that is not about
+      # authorship; and it would hard-code a bot login that silently stops matching
+      # the day the App is renamed (three predecessor Apps were retired in 2026
+      # alone), reintroducing exactly this failure with no signal. Arming from inside
+      # this job instead reuses the token already minted above, is scheduled-only so
+      # a fork can never reach it, and cannot be broken by a later edit to that
+      # guard. Squash is the only method `protect-main` allows and matches the
+      # queue's own `merge_method`. The `if:` is the no-op case: when every input was
+      # already fresh the action opens no PR and emits an empty number, so the step
+      # skips instead of failing the scheduled run.
+      - name: Arm auto-merge on the bump PR
+        if: steps.update.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.update.outputs.pull-request-number }}
+        run: gh pr merge --squash --auto "$PR_NUMBER"
