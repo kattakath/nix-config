@@ -31,10 +31,21 @@ let
 in
 {
   imports = [
+    ../modules/darwin/claude-managed-settings.nix
     ../modules/darwin/core.nix
     ../modules/darwin/github-runner.nix
     ../modules/darwin/ollama-daemon.nix
   ];
+
+  # Root-owned Claude Code policy at /Library/Application Support/ClaudeCode/
+  # managed-settings.json — the tier that outranks user, project and `--settings`
+  # scope. It carries the secret-value denies and the no-AI-attribution keys, and
+  # it ADDS to the user-scope floor in modules/shared/claude-guardrails.nix
+  # rather than replacing it (deny lists from several scopes combine); each scope
+  # reaches sessions the other cannot. Setting this to `false` and re-running
+  # `activate` REMOVES the file — it does not merely stop rewriting it — so the
+  # kill switch is real. Every key's justification lives in that module's header.
+  local.claudeManagedSettings.enable = true;
 
   # ONE ollama for the whole machine. The per-user agent could not be shared:
   # it lives in a single login session and keeps its models in that user's home,

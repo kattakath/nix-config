@@ -98,6 +98,19 @@ one-time steps are inherently manual — do these after activating a fresh Mac:
   logins and any Keychain-stored personal tokens are re-established by hand (Nix
   manages only the *service* secrets via agenix — see the "Secrets — agenix"
   convention in `CLAUDE.md`, not personal logins).
+- **Claude Code's MANAGED settings need a `/status` check — `nix flake check` cannot verify
+  this.** `local.claudeManagedSettings` (on `macos`) writes a root-owned
+  `/Library/Application Support/ClaudeCode/managed-settings.json` at activation. Open Claude
+  Code and run **`/status`**: `Enterprise managed settings (file)` must appear under **Setting
+  sources**. If that line is absent the file is misplaced or unparsed and the whole tier
+  enforces nothing, however green the flake check was — claude-code 2.1.260's own words for
+  that case are "Managed settings document could not be parsed as a JSON object; none of its
+  settings are in effect." `pkgs.formats.json` already guarantees the bytes PARSE, so what
+  `/status` actually confirms is PLACEMENT. The residual gap nothing in this repo closes is a
+  key this build does not recognise: accepted, listed, enforcing nothing.
+  If the fresh Mac already carries an MDM or hand-placed file at that path, activation does not
+  clobber it — it ABORTS with exit 2 and names both paths; rename the foreign file by appending
+  `.before-nix-darwin`, or set `local.claudeManagedSettings.enable = false`.
 - **Tart VM disks are NOT restored by a rebuild.** They live under `~/.tart/`; neither this repo nor the key kit restores them (the `macvm` guest itself was removed 2026-09-05 — re-add path: [`macvm-readd-runbook.md`](macvm-readd-runbook.md)).
 - **Google Takeout video shows the generic MP4 icon — re-encode with
   `fix-google-video`.** Google's Storage Saver tier transcodes to
