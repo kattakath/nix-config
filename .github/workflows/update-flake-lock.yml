@@ -58,8 +58,9 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
 
-      # UPSTREAM Nix (NOT DeterminateSystems/nix-installer-action — that installs
-      # Determinate Nix only), matching nix-ci.yml / flakehub-publish.yml.
+      # UPSTREAM Nix, matching flakehub-publish.yml (nix-ci.yml / warm-nixpi-cache.yml
+      # run Determinate Nix since 2026-09-21; `nix flake update` gains nothing from
+      # parallel eval, so this job stays on the upstream-compatibility side).
       #
       # access-tokens: `nix flake update` re-resolves every unpinned `github:`
       # input's HEAD via the GitHub REST API (unlike a plain eval/build, which

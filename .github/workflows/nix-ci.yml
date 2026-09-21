@@ -115,12 +115,17 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # UPSTREAM Nix (NOT DeterminateSystems/nix-installer-action — that installs
-      # Determinate Nix only, as of 2026-01-01).
-      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31
+      # DETERMINATE Nix (2026-09-21; was cachix/install-nix-action, upstream Nix).
+      # Every fleet host runs Determinate Nix now, so CI evaluating on upstream Nix
+      # tested a Nix nothing runs — and it forwent parallel evaluation + lazy trees,
+      # which Determinate's docs put at "5x or more" on exactly this job's work
+      # (`nix flake check` / `nix flake show` / `nix eval --json`). Free: the action
+      # is MIT and needs no FlakeHub login; only FlakeHub Cache (a separate action,
+      # deliberately absent) is paid. Flakes are on by default, so no
+      # `experimental-features` line. Pinned by commit, like every action here.
+      - uses: DeterminateSystems/determinate-nix-action@8d87e8d5e5b8a8309d4281094560f127d9a265f1 # v3.22.5
         with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
+          extra-conf: |
             extra-substituters = https://kattakath.cachix.org
             extra-trusted-public-keys = kattakath.cachix.org-1:y/w6wnb4ZArdlbfWJ82c81uCXeYgG/sGDUYCszavmEw=
 
