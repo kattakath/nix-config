@@ -1,9 +1,11 @@
-# Binary cache (Cachix) consumed by the NixOS hosts via standard `nix.settings`.
+# Binary caches consumed by the NixOS hosts via standard `nix.settings`.
 #
-# NixOS-ONLY module. The macOS host (`macos`) runs Determinate Nix, where
-# `nix.*` is unavailable and the Cachix cache is routed through
-# `determinateNix.customSettings` in flake.nix instead — so this module is wired
-# into mkNixos's module list only, NOT mkDarwin's.
+# NixOS-ONLY module. The macOS host (`macos`) runs Determinate Nix's DARWIN
+# module, where `nix.*` is unavailable and the Cachix cache is routed through
+# `determinateNix.customSettings` in modules/parts/compose.nix instead — so this
+# module is wired into mkNixos's module list only, NOT mkDarwin's. (The NixOS
+# hosts run Determinate Nix too since 2026-09-21, but its nixosModule keeps
+# `nix.settings` live — it only retargets the rendered file to nix.custom.conf.)
 #
 # kattakath.cachix.org is the single public CI cache: GitHub Actions
 # (cachix/cachix-action in .github/workflows/nix-ci.yml) builds the flake outputs
@@ -23,7 +25,21 @@
 {
   nix.settings = {
     # Appended to (not replacing) the default cache.nixos.org substituter.
-    extra-substituters = [ cachixUrl ];
-    extra-trusted-public-keys = [ cachixKey ];
+    #
+    # install.determinate.systems is Determinate's PUBLIC cache (no token): it is
+    # where the prebuilt Determinate Nix package the nixosModule installs comes
+    # from — verified 2026-09-21: the aarch64-linux `determinate-nix-3.22.3`
+    # output is a HIT there and a MISS on cache.nixos.org and Cachix. Without it
+    # a NixOS host (or the warm-cache runner) would BUILD Nix from C++ source.
+    # The key is the one Determinate's own NixOS install guide names
+    # (https://docs.determinate.systems/guides/advanced-installation/).
+    extra-substituters = [
+      cachixUrl
+      "https://install.determinate.systems"
+    ];
+    extra-trusted-public-keys = [
+      cachixKey
+      "cache.flakehub.com-3:hJuILl5sVK4iKm86JzgdXW12Y2Hwd5G07qKtHTOcDCM="
+    ];
   };
 }
