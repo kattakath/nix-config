@@ -101,7 +101,15 @@ let
           fi
 
           # Encrypted key + real TTY: let age prompt (never capture the passphrase).
-          if [ -r /dev/tty ] && [ -w /dev/tty ]; then
+          # PROBE BY OPENING, not by `-r`/`-w` (2026-09-21): /dev/tty always exists
+          # and is 0666, so the permission test passes in a process with NO
+          # controlling terminal (Claude Code's Bash tool, `nohup … &`, launchd),
+          # where open(2) then fails with ENXIO "Device not configured". That
+          # made age die on the "real TTY" branch and the osascript fallback below
+          # was never reached — measured on a nixpi-flash run that wrote the
+          # image fine and then planted an EMPTY cloudflared-token. Opening the
+          # device is the only test that answers the question being asked.
+          if ( : </dev/tty ) 2>/dev/null && ( : >/dev/tty ) 2>/dev/null; then
             # age reads the passphrase from the controlling terminal.
             if age -d -i "$key" "$vault_path" >"$dest" </dev/tty 2>/dev/tty; then
               return 0
