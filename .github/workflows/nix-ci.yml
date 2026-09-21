@@ -55,11 +55,12 @@ permissions:
 jobs:
   # Advisory input-freshness gate — the FlakeHub "keep your inputs fresh" best
   # practice (https://docs.determinate.systems/flakehub/best-practices/). Warns
-  # (does NOT fail; fail-mode defaults off) when a `github:NixOS/nixpkgs` input
-  # in flake.lock drifts stale or off a supported branch. Since 2026-09-21 the
-  # root `nixpkgs` is a FlakeHub tarball (DeterminateSystems/nixpkgs-weekly), which
-  # flake-checker does not inspect — the job now only covers any github-type
-  # nixpkgs still reachable through other inputs. Deliberately NOT in
+  # (does NOT fail; fail-mode defaults off) on the ROOT `nixpkgs` lock node only
+  # (flake-checker never looks at transitive inputs; read from its src/flake.rs
+  # 2026-09-21). Since 2026-09-21 that node is a FlakeHub tarball
+  # (DeterminateSystems/nixpkgs-weekly): the branch/owner checks no-op on a
+  # tarball, but the 30-day staleness check STILL fires on `lastModified`, so
+  # the job stays a stale-snapshot alarm if the Monday bump stalls. Deliberately NOT in
   # required-checks' `needs` — it's advisory, pairing with the scheduled
   # update-flake-lock.yml that actually cuts the bump PR.
   flake-checker:

@@ -290,6 +290,9 @@ jobs:
           # floating nixpkgs we do not control), which is exactly the unpinned
           # upstream ref this repo's CI convention forbids.
           rev=$(jq -r '.nodes[.nodes[.root].inputs.nixpkgs].locked.rev' flake.lock)
+          # The root nixpkgs is a FlakeHub tarball node since 2026-09-21; it still
+          # carries `.locked.rev`, but fail loudly rather than run `github:NixOS/nixpkgs/null`.
+          [ -n "$rev" ] && [ "$rev" != null ] || { echo "::error::no nixpkgs rev in flake.lock" >&2; exit 1; }
           nix run "github:NixOS/nixpkgs/$rev#skopeo" -- --insecure-policy copy --format oci \
             docker-archive:image.tar \
             "docker://${REF}:${SHA}-${{ matrix.arch }}"
