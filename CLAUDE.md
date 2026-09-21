@@ -57,7 +57,9 @@ Full map: [`docs/repo-map.md`](docs/repo-map.md).
 
 ```bash
 git add -A                                   # MANDATORY before any eval — flakes ignore untracked files
-nix flake check                              # Evaluate every output + formatting/lint/pre-commit checks (the test suite)
+nix flake check --all-systems --no-build     # Evaluate every output on BOTH systems, build nothing — a bare check on the
+                                             #   Mac silently OMITS aarch64-linux ("incompatible systems"), measured 2026-09-21
+nix flake check                              # Build the native-system formatting/lint/pre-commit checks (the test suite)
 nix flake show                               # List exported darwin/nixosConfigurations + packages
 nix fmt                                      # Format + lint-fix all .nix via treefmt (nixfmt + statix + deadnix)
 nix develop                                  # Dev shell (nixd LSP, treefmt, home-manager); installs pre-commit hooks
@@ -374,9 +376,12 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   fleet lives on `macos` — two bare-metal, three Tart-VM, one GitLab — and none of them serve
   this repo's CI; see § Configuration.)
 - **aarch64-linux builds on the Mac** go to Determinate's **native Linux builder** (Apple
-  Virtualization; ephemeral ~1-CPU/8 GB VM, no provisioning). It is a FlakeHub/account feature
-  enabled at https://dtr.mn/features, **not** settable from Nix (`external-builders` is
-  rejected by `determinateNix.customSettings`), and nix-darwin's `nix.linux-builder` is
+  Virtualization; ephemeral VM, **1 CPU / 8 GiB by default**). The account entitlement is
+  enabled at https://dtr.mn/features; the VM itself **is** settable from Nix since the pinned
+  `determinate` module grew `determinateNix.determinateNixd.builder.{state,memoryBytes,cpuCount}`
+  (rendered to `/etc/determinate/config.json`) — only the raw `external-builders` line is
+  reserved and rejected by `customSettings`. Upstream says do **not** change `cpuCount`;
+  `memoryBytes` is the knob if a Linux build ever OOMs. nix-darwin's `nix.linux-builder` is
   unusable because it needs `nix.enable = true`, which Determinate disables (nix-darwin#1505).
   It also **cannot run `cp --no-preserve=mode` into `$out`** (EPERM "setting permissions"),
   which breaks nixpkgs' caddy `Caddyfile-formatted` and therefore every Mac-side build of a

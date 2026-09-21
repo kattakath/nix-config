@@ -7,7 +7,10 @@ allowed-tools: Bash(git add:*), Bash(git status:*), Bash(nix flake check:*), Bas
 Run the canonical evaluation gate for this Nix mono-repo, in order:
 
 1. **Git purity** — run `git add -A`, then `git status --porcelain '*.nix'` to confirm no untracked `.nix` files remain. Flakes ignore untracked files, so this MUST happen before evaluation.
-2. **Cross-platform evaluation** — run `nix flake check` to evaluate every flake output across `aarch64-darwin` and `aarch64-linux`. To scope to a single host, evaluate its toplevel directly, e.g. `nix eval .#darwinConfigurations.macos.config.system.build.toplevel.drvPath` (or `.#nixosConfigurations.<nixpi|nixvm>.config.system.build.toplevel.drvPath`).
+2. **Cross-platform evaluation** — TWO commands, because a bare `nix flake check` on the Mac silently prints "omitted these incompatible systems: aarch64-linux" and evaluates only darwin (measured 2026-09-21):
+   1. `nix flake check --all-systems --no-build` — evaluates every output on BOTH `aarch64-darwin` and `aarch64-linux` (cheap under Determinate's parallel evaluation), building nothing.
+   2. `nix flake check` — builds the native-system checks (formatting, ast-grep, pre-commit, capsule checks).
+   To scope to a single host, evaluate its toplevel directly, e.g. `nix eval .#darwinConfigurations.macos.config.system.build.toplevel.drvPath` (or `.#nixosConfigurations.<nixpi|nixvm>.config.system.build.toplevel.drvPath`).
 3. **Report** — relay the per-system pass/fail result and a clear `READY` / `BLOCKED` verdict. If `nix` is unavailable locally, state clearly that results are syntax-only (`nix-instantiate --parse` where possible) and full evaluation is CI-deferred to GitHub Actions (see `.github/workflows/nix-ci.yml`).
 
 $ARGUMENTS may name a single config (e.g. `macos`, `nixpi`, `nixvm`) to scope the evaluation.
