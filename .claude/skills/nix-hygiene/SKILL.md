@@ -119,7 +119,7 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
       then `grep -rn "<concept>" "$src/modules/"`.
 - [ ] `writeShellApplication` for scripts; shellcheck via that path.
 - [ ] No new `environment.etc` hacks for things nix-darwin models.
-- [ ] Determinate Nix: no `nix.enable = true` / no hand-written `nix.custom.conf`.
+- [ ] Determinate Nix (darwin): no `nix.enable = true` / no hand-written `nix.custom.conf`. On the NixOS hosts the nixosModule keeps `nix.*` live, so `nix.settings` there is correct, not drift.
 - [ ] **flake-parts everywhere, including here.** The small supporting flakes that
       remain (any new one — the last existing member, ircc-whatsapp-bot, was
       unwired on 2026-09-12) use flake-parts,

@@ -13,7 +13,7 @@ wired in — so the layers are the spine of this doc.
 | **nix-darwin** (system) | macOS System Settings (`defaults`), launchd, users, security, networking | `modules/darwin/core.nix` + the `mkDarwin` module list |
 | **Homebrew** (declarative) | GUI apps (casks) + CLI formulae nixpkgs doesn't carry | `modules/darwin/homebrew.nix` |
 | **Home Manager** (per-user) | dotfiles + `programs.*` + per-user launchd agents | `modules/shared/home.nix`, `modules/shared/mcp.nix` |
-| **Determinate Nix** | the Nix daemon + `/etc/nix/nix.conf` | `flake.nix` (`determinateNix.*`) |
+| **Determinate Nix** | the Nix daemon + `/etc/nix/nix.conf` (nixd-owned; the declarative half is `/etc/nix/nix.custom.conf`) | `modules/parts/compose.nix` (`determinateNix.*`) |
 
 > **Structural constraint:** Determinate Nix sets `nix.enable = false`, so the
 > **entire `nix.*` option tree is unavailable on this host**. The only Nix knob is

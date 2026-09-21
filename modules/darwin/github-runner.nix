@@ -4,7 +4,7 @@
 # builds use Determinate's native Linux builder). Revived 2026-08-23 for a DIFFERENT
 # consumer: `dontsell-ai`'s repos, whose CI/deploy workflows need real macOS +
 # Playwright + Prisma jobs that neither GitHub-hosted (org has no hosted-minutes
-# budget configured) nor the native builder (build-only, ephemeral, 1-CPU/8GB — not
+# budget configured) nor the native builder (build-only, ephemeral, 1-CPU/8GB by default — not
 # a persistent-daemon host) can serve. Generalized from a single hardcoded instance
 # to N parallel ones — `nixvm`'s own runner history already proved 2 in parallel
 # before that fleet was retired too.
