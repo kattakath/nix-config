@@ -100,6 +100,55 @@ in
       '';
     };
 
+    extraDatabases = lib.mkOption {
+      type = lib.types.listOf (
+        lib.types.submodule {
+          options = {
+            db = lib.mkOption {
+              type = lib.types.str;
+              description = "Database created on bootstrap, owned by `role`.";
+            };
+            role = lib.mkOption {
+              type = lib.types.str;
+              description = "Non-superuser role scoped to `db` only, reachable on 127.0.0.1.";
+            };
+            extensions = lib.mkOption {
+              type = lib.types.listOf lib.types.str;
+              default = [ "vector" ];
+              description = ''
+                Extensions created in `db` AS SUPERUSER on bootstrap. `vector`
+                by default: a scoped role cannot `CREATE EXTENSION` itself, so
+                a consumer whose migrations assume pgvector would otherwise
+                fail on its first run and need a manual superuser step.
+              '';
+            };
+          };
+        }
+      );
+      default = [ ];
+      description = ''
+        ADDITIONAL loopback databases bootstrapped in this same cluster, each
+        with its own scoped role — for consumers that must not share `db`
+        (e.g. an app's local dev database next to the RAG store).
+
+        WHY THIS IS AN OPTION AND NOT A MANUAL STEP: the run-wrapper rewrites
+        `pg_hba.conf` with a TRUNCATING redirect on EVERY launch, so a
+        hand-added entry survives only until the next restart and then the
+        consumer gets `no pg_hba.conf entry for host "127.0.0.1"`. Anything
+        that needs TCP access has to be declared here. (Diagnosed 2026-09-21,
+        after dontsell-ai/app's local dev database lost its hand-added line.)
+
+        Same security model as `db`/`role`: loopback-only, `trust`, each role
+        scoped to exactly one database, no secret in the store.
+      '';
+      example = [
+        {
+          db = "dontsell_dev";
+          role = "dontsell";
+        }
+      ];
+    };
+
     databaseUri = lib.mkOption {
       type = lib.types.str;
       readOnly = true;
@@ -187,6 +236,13 @@ in
         ${cfg.extraSql}
       '';
 
+      # Stamp for the extra-database spec: the bootstrap block re-runs when
+      # this text changes, so adding an entry applies on the next rebuild
+      # instead of needing the cluster wiped.
+      extraDbSpec = lib.concatMapStrings (
+        e: "${e.db}:${e.role}:${lib.concatStringsSep "," e.extensions};"
+      ) cfg.extraDatabases;
+
       runScript = pkgs.writeShellApplication {
         name = "postgres-pgvector-run";
         runtimeInputs = [ pgPkg ];
@@ -210,6 +266,10 @@ in
             printf '%s\n' "local   all   all   peer"
             printf '%s\n' "host    ${cfg.db}   ${cfg.role}   127.0.0.1/32   trust"
             printf '%s\n' "host    ${cfg.db}   ${cfg.role}   ::1/128   trust"
+            ${lib.concatMapStrings (e: ''
+              printf '%s\n' "host    ${e.db}   ${e.role}   127.0.0.1/32   trust"
+              printf '%s\n' "host    ${e.db}   ${e.role}   ::1/128   trust"
+            '') cfg.extraDatabases}
           } > "$DATADIR/pg_hba.conf"
 
           # Ensure the scoped role + database + RAG schema. Re-runs when the
@@ -217,7 +277,8 @@ in
           # path), so schema edits re-apply on rebuild; otherwise skipped for a
           # fast launch. All idempotent.
           if [ ! -f "$DATADIR/.pgvector-local-bootstrapped" ] \
-             || [ "$(cat "$DATADIR/.rag-sql" 2>/dev/null || true)" != "${ragSql}" ]; then
+             || [ "$(cat "$DATADIR/.rag-sql" 2>/dev/null || true)" != "${ragSql}" ] \
+             || [ "$(cat "$DATADIR/.extra-dbs" 2>/dev/null || true)" != "${extraDbSpec}" ]; then
             pg_ctl -D "$DATADIR" -w \
               -o "-p $PORT -c listen_addresses=127.0.0.1 -c unix_socket_directories=$DATADIR" start
             if ! psql -h "$DATADIR" -p "$PORT" -U "$OSUSER" -d postgres -tAc \
@@ -231,9 +292,28 @@ in
             psql -h "$DATADIR" -p "$PORT" -U "$OSUSER" -d ${cfg.db} -v ON_ERROR_STOP=1 \
               -c "GRANT ALL ON SCHEMA public TO ${cfg.role};" \
               -f ${ragSql}
+
+            # local.rag.pgvector.extraDatabases — same shape as the RAG pair
+            # above (scoped role owns exactly one db), unrolled per entry. The
+            # extensions run as SUPERUSER: a scoped role cannot CREATE
+            # EXTENSION, so a consumer's first migration would otherwise fail.
+            ${lib.concatMapStrings (e: ''
+              if ! psql -h "$DATADIR" -p "$PORT" -U "$OSUSER" -d postgres -tAc \
+                   "SELECT 1 FROM pg_roles WHERE rolname='${e.role}'" | grep -q 1; then
+                createuser -h "$DATADIR" -p "$PORT" -U "$OSUSER" ${e.role}
+              fi
+              if [ "$(psql -h "$DATADIR" -p "$PORT" -U "$OSUSER" -d postgres -tAc \
+                   "SELECT 1 FROM pg_database WHERE datname='${e.db}'")" != "1" ]; then
+                createdb -h "$DATADIR" -p "$PORT" -U "$OSUSER" -O ${e.role} ${e.db}
+              fi
+              psql -h "$DATADIR" -p "$PORT" -U "$OSUSER" -d ${e.db} -v ON_ERROR_STOP=1 \
+                -c "GRANT ALL ON SCHEMA public TO ${e.role};" \
+                ${lib.concatMapStrings (x: ''-c "CREATE EXTENSION IF NOT EXISTS ${x};" '') e.extensions}
+            '') cfg.extraDatabases}
             pg_ctl -D "$DATADIR" -w stop
             touch "$DATADIR/.pgvector-local-bootstrapped"
             printf '%s\n' "${ragSql}" > "$DATADIR/.rag-sql"
+            printf '%s\n' "${extraDbSpec}" > "$DATADIR/.extra-dbs"
           fi
 
           exec postgres -D "$DATADIR" -p "$PORT" \
