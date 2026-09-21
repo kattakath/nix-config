@@ -2,8 +2,18 @@
   description = "Greenfield aarch64 Nix mono-repo: macOS (nix-darwin) client, a Raspberry Pi 4 NixOS server (nixpi), and a throwaway aarch64-linux NixOS dev VM (nixvm) booted only via `nix run .#nixvm` — single source of truth across the fleet.";
 
   inputs = {
-    # Unstable channel as the single source of truth for every platform.
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    # nixpkgs — ONE tree for every platform, pinned through FlakeHub's
+    # `DeterminateSystems/nixpkgs-weekly` (2026-09-21): a weekly snapshot of
+    # nixos-unstable, the same tree Determinate's own NixOS module puts in the
+    # `nixpkgs` registry entry and the same one macos's nix.conf already names
+    # as `extra-nix-path`. So the three places a nixpkgs reference resolves — the
+    # flake, `nix run nixpkgs#…`, and `<nixpkgs>` — now agree. Cadence is weekly,
+    # not HEAD; update-flake-lock.yml bumps it like any other input (`0.1` is a
+    # FlakeHub version constraint = latest 0.1.x). This is the FREE half of the
+    # org-adoption guide's "point nixpkgs at a Determinate distribution" step —
+    # Secure Packages (`secure-packages-rolling`) is access-gated and was
+    # deliberately NOT adopted.
+    nixpkgs.url = "https://flakehub.com/f/DeterminateSystems/nixpkgs-weekly/0.1";
 
     # macOS system layer (standalone, not NixOS). Follows the parent nixpkgs
     # so we never download a second copy of the package set. Upstream moved off
@@ -115,10 +125,20 @@
     terranix.url = "github:terranix/terranix";
     terranix.inputs.nixpkgs.follows = "nixpkgs";
 
-    # Determinate Nix — on the `macos` host ONLY, `determinate-nixd` takes over
-    # the Nix daemon and owns /etc/nix/nix.conf (nix.enable = false there). The
-    # NixOS hosts stay on standard `nix.settings`. Sourced from FlakeHub.
+    # Determinate Nix on EVERY host. On `macos` `determinate-nixd` takes over the
+    # Nix daemon and owns /etc/nix/nix.conf (nix.enable = false there); on the
+    # NixOS hosts (nixpi, nixvm — since 2026-09-21) its nixosModule swaps
+    # `nix.package`, runs `determinate-nixd` as the daemon and moves the
+    # generated conf to nix.custom.conf, so standard `nix.settings` still works
+    # there. Sourced from FlakeHub.
     determinate.url = "https://flakehub.com/f/DeterminateSystems/determinate/*";
+    # determinate's own `nixpkgs` IS nixpkgs-weekly/0.1 — the very tree the root
+    # `nixpkgs` above now pins — so following it is a pure lock dedupe (one node
+    # fewer), not a substitution. Its `nix` input (nix-src, with ITS OWN nixpkgs)
+    # is deliberately NOT followed: that is what builds the Determinate Nix
+    # package, and re-basing it would turn a cache HIT on
+    # install.determinate.systems into a from-source C++ build on every host.
+    determinate.inputs.nixpkgs.follows = "nixpkgs";
 
     # agenix — encrypted secrets committed to THIS repo (age, SSH-key based).
     # The sole secret (./secrets/cloudflared-token.age) is encrypted to the

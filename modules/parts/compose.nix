@@ -302,6 +302,17 @@ let
         hostModule
         ../nixos/core.nix
         ../shared/nix-cache.nix # Cachix binary cache (read)
+        # Determinate Nix on the NixOS hosts too (2026-09-21, the org-adoption
+        # guide's "install Determinate Nix" step). Unlike the darwin module, this
+        # one does NOT disable `nix.*`: it swaps `nix.package` for Determinate's
+        # Nix, runs `determinate-nixd` as nix-daemon's ExecStart, and retargets
+        # the generated nix.conf to /etc/nix/nix.custom.conf (included by the
+        # nixd-managed one) — so core.nix's `nix.settings` and nix-cache.nix keep
+        # applying unchanged. It is prebuilt: the aarch64-linux Nix package is
+        # served by install.determinate.systems (nix-cache.nix carries that
+        # substituter + key precisely so the Pi and the warm-cache runner FETCH
+        # it rather than build a C++ Nix). nixpi must never build (CLAUDE.md).
+        determinate.nixosModules.default
         home-manager.nixosModules.home-manager
         (mkHomeManagerModule { idArgs = identity; })
       ]
