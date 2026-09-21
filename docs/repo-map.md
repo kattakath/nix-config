@@ -433,7 +433,11 @@ they bite any future second account:
   and the `open-design` cask (`greedy = true`, adopted the hand-dragged app in place) paired
   with `launchd.user.envVariables.OD_UPDATE_ENABLED = "0"` so versioning belongs to brew, not
   the app's drift-prone self-updater — the full declared/imperative boundary is
-  [`open-design.md`](open-design.md).
+  [`open-design.md`](open-design.md). Also imports `../modules/darwin/claude-managed-settings.nix`
+  and sets `local.claudeManagedSettings.enable = true` — the root-owned Claude Code policy tier
+  (§ `modules/darwin/`); it is the only host that has one. Consequence worth recognising when it
+  fires: a PRE-EXISTING unowned `managed-settings.json` (an MDM payload, a hand-placed file)
+  now FAILS activation with exit 2 rather than being clobbered.
 - `macvm.nix` — removed 2026-09-05 with the rest of the `macvm` Tart guest; re-add path:
   [`macvm-readd-runbook.md`](macvm-readd-runbook.md).
 - **`nixpi.nix`** — Pi 4, LIVE: boot fixes + cloudflared + upstream `services.caddy`. Its
@@ -872,6 +876,12 @@ their own top-level section below:
     makes Claude Code ignore the deprecated `includeCoAuthoredBy` and fall back to its DEFAULT
     PR text, and `sessionUrl` is a separate `Claude-Session` trailer that appears only from
     cloud/Remote Control sessions.
+  - **Not the top tier any more.** Since 2026-09-21 `modules/darwin/claude-managed-settings.nix`
+    restates the secret-value denies and all three `attribution` keys at **managed** scope on
+    `macos`, where a deny cannot be retracted by any lower scope and every per-key precedence
+    sentence in claude-code 2.1.260 puts managed first. The two are ADDITIVE, not a
+    replacement: this file is the only tier that reaches the devcontainer and machines this
+    Home Manager config never touched. See § `modules/darwin/`.
 - **`claude-desktop.nix`** — `local.claudeDesktop`, **Client side D** of the MCP hub: the
   gateway's `endpoints` plus the per-client stdio servers rendered into Claude Desktop's
   stateful `claude_desktop_config.json`. Desktop accepts ONLY the stdio shape, so every
@@ -1016,7 +1026,7 @@ waves 5-6 absorb them).
 
 ### `modules/darwin/`
 
-`modules/darwin/{core.nix,user-folders.nix,homebrew.nix,nix-homebrew.nix,xcode-license.nix,github-runner.nix}`
+`modules/darwin/{core.nix,user-folders.nix,homebrew.nix,nix-homebrew.nix,xcode-license.nix,github-runner.nix,ollama-daemon.nix,claude-managed-settings.nix}`
 
 - **`core.nix`** — macOS system defaults (dock/finder/NSGlobalDomain, Touch ID for sudo,
   `stateVersion = 5`). On **macos only**: login openers (`nix-*` BTM wrappers) + two
@@ -1095,6 +1105,80 @@ waves 5-6 absorb them).
   went inert the moment the capsule stopped managing the server. The local-rag capsule gained
   `local.rag.ollama.manageServer` (set false) so it does not stand up a competitor on 11434.
 
+- **`claude-managed-settings.nix`** (macos only, `local.claudeManagedSettings`) — the fleet's
+  strongest agent-policy tier: a **root-owned** `/Library/Application Support/ClaudeCode/
+  managed-settings.json`, written by `system.activationScripts.postActivation` with `install`
+  (so content, mode 0644 and root:wheel are re-asserted every activation, not hoped for) —
+  **marker FIRST, policy second**, because activation runs under `set -e`: policy-first meant a
+  marker that failed to land stranded a root-owned policy file the kill switch could then never
+  delete, while the inverted order's worst partial state is a marker with no policy, which
+  `enable = false` cleans up. It also defines `system.activationScripts.checks.text`
+  (`mkAfter`) — an **ownership precondition that ABORTS activation with exit 2** if
+  `managed-settings.json` exists WITHOUT the `.nix-config-owned` marker beside it, naming both
+  paths and telling the operator to rename the foreign file `.before-nix-darwin` (or set
+  `enable = false`). It sits in `checks`, not `postActivation`, because `checks` is spliced
+  BEFORE /etc, launchd, defaults and Homebrew, so activation can still back out cleanly.
+  **What managed scope buys**, claimed only as far as the shipped binary (claude-code 2.1.260)
+  evidences it, and split because the two halves lean on different properties: the deny list
+  needs UNION, not override — "--disallowedTools and other deny and ask rules from the command
+  line or the current session still apply", plus "Cannot delete permission rules from read-only
+  settings" for the no-retraction half; `attribution` is value-resolved and needs the LADDER,
+  where the strongest honest claim is that every per-key precedence sentence naming the sources
+  puts managed first (`processWrapper`: "Honored from managed settings, a --settings/SDK-supplied
+  settings file, and user settings, in that precedence order"; `modelPicker`: "the
+  highest-precedence of those that defines modelPicker wins outright") and none states the
+  reverse. NOT evidence for either, though this page cited it as such: `server-managed > MDM >
+  managed-settings.json` describes how managed SOURCES compose AMONG THEMSELVES (first-wins vs
+  merge) — a no-op here, since this fleet has exactly one managed source. So the floor still
+  holds in a session where `~/.claude` was never materialised or was hand-edited,
+  and under `bypassPermissions`, which this fleet's VS Code extension and `claude` terminal
+  profile both start in.
+  - **Content = the SECRET-VALUE denies + the three `attribution` keys**, restated verbatim
+    from `modules/shared/claude-guardrails.nix`. The duplication is the point, not drift:
+    `permissions.deny` lists from every scope COMBINE (duplicates dropped), and each scope
+    reaches where the other cannot — user scope reaches the devcontainer and any clone on a
+    machine this Home Manager config never touched, managed scope reaches a session whose
+    `~/.claude` was never written. Deriving one from the other by string-matching was rejected
+    for the same reason `claude-guardrails.nix` records twice in its BODY (the `mcpfinder` note
+    and the `attribution` note — not its header): a reworded upstream rule would yield a
+    well-formed and completely EMPTY floor. The reverse pointer lives where an editor actually
+    lands, immediately above the secret-value deny group in that file: *EDIT THIS GROUP, EDIT
+    IT TWICE.*
+  - **Scope rule for a new entry, one notch stricter than the user floor:** it must already be
+    in `claude-guardrails.nix` AND be pure "never print a secret value" / "never sign work as
+    an AI". Nothing that merely narrows a workflow, because there is no in-session override
+    here — undoing a wrong entry is a rebuild, not a `/permissions` click. That is why the
+    imperative-MCP and irreversible-remote groups (`gh pr merge`, force-push) stay at user
+    scope.
+  - **Path spellings are load-bearing:** only `//` and `~/`. A single leading `/` anchors at
+    the settings SOURCE, and what that resolves to for the managed tier is undocumented — a
+    `Read(/run/agenix/**)` spelled that way would match nothing, silently. The four `Read`
+    rules port verbatim from the user-scope file because they already carry the safe spelling.
+  - **The kill switch is real:** `enable = false` DELETES the file rather than merely stopping
+    the rewrite, guarded by a `.nix-config-owned` marker beside it so it can never remove an
+    MDM payload this fleet did not place. The marker claims the PATH in both directions —
+    while it is present, `enable = false` may delete that file; while it is absent, activation
+    REFUSES to write one. Refuse, not adopt: adopting would let a rebuild claim ownership of a
+    file we never wrote, which `enable = false` would then delete.
+  - **upstream-first:** no nix-darwin option writes an arbitrary `/Library` file —
+    `environment.etc` is hard-coded to `/etc` (`modules/system/etc.nix`), and
+    `environment.launchAgents`/`launchDaemons` to `/Library/Launch*`
+    (`modules/system/launchd.nix`); `system.patches` only reverses a diff over files that
+    already exist, and `system.defaults.CustomSystemPreferences` writes a preferences DOMAIN,
+    not a JSON file at a path. Home Manager's `programs.claude-code` writes under `$HOME` as
+    the user. Anthropic's own channel is an MDM configuration profile; this fleet has no MDM.
+  - **No `managed-mcp.json` here, deliberately** — deploying that file suppresses the
+    claude.ai connectors Claude Code fetches for itself unless `allowAllClaudeAiMcps` is set
+    alongside, and this fleet runs four Gmail connectors plus Drive, Calendar and Slack. MCP's
+    source of truth stays `modules/shared/mcp.nix` (ADR-003 §5).
+  - **Coverage limit + how to verify:** managed settings do NOT reach an Anthropic-hosted
+    cloud session (only server-managed ones do), which is a further reason the user- and
+    project-scope layers stay put. `nix flake check` cannot see any of this — `/status` inside
+    Claude Code must list `Enterprise managed settings (file)` under `Setting sources`; that is
+    a step in [`new-mac-runbook.md`](new-mac-runbook.md) § Manual steps Nix can't do. Because
+    `pkgs.formats.json` already guarantees the bytes parse, what `/status` confirms is
+    PLACEMENT; an unrecognised key stays accepted, listed and enforcing nothing.
+
 ### `modules/nixos/`
 
 - **`modules/nixos/core.nix`** — shared NixOS baseline: the `ismail` user + authorized SSH key (the
@@ -1109,6 +1193,83 @@ waves 5-6 absorb them).
   path that walked around the Access application entirely. Break-glass is the physical console.
   `nixvm` is only ever the throwaway local `nix run .#nixvm` desktop and has no networked login
   path either.
+
+  **That posture is now a GATE, not just these paragraphs** —
+  `checks.<system>.nixpi-security-posture` (2026-09-21, `modules/parts/checks.nix` via
+  `mkHostContract`, so it reports every broken leg at once). It is **ungated** — built on
+  `aarch64-darwin` as well as `aarch64-linux`, because the edits it guards are made ON the Mac:
+  Linux-gating it would let an operator relax `core.nix`, run `/eval` clean, and learn otherwise
+  only from CI. Cost measured 2026-09-21: one extra `nixpi` module eval on the darwin leg (~1 s;
+  nothing else on that leg forces this config), and no `aarch64-linux` build, because only
+  numbers and strings escape into the derivation. A comment cannot fail a build, and
+  each of these lines is a one-token edit away from reopening the LAN path that Cloudflare
+  Access is meant to be the only way through — Access enforces at the EDGE, so a LAN connection
+  to port 22 is not merely unauthenticated, it produces **no access log at all**. 18 legs, each
+  naming its own silent-failure mode:
+  - `openFirewall = false` — upstream defaults it **true** and feeds `cfg.ports` straight into
+    `allowedTCPPorts`, so deleting that one line reopens 22 with no other file changing.
+  - `listenAddresses` NON-EMPTY, checked BEFORE the loopback leg: an empty list emits no
+    `ListenAddress` line and OpenSSH binds the WILDCARD, while `all isLoopback [ ]` is vacuously
+    true. The loopback leg is then a sorted EQUALITY, so it also proves both families are bound.
+  - every listen address carries a **string** `addr` — its own leg, and the precondition both
+    sorted comparisons need. The submodule declares `addr` as `nullOr str` defaulting to null
+    (pinned nixpkgs `sshd.nix:325-328`), so the attribute always EXISTS, `a.addr or ""` never
+    fires, and a malformed entry reached `null < "127.0.0.1"` — a throw from inside a
+    trivial-builder stack trace instead of this check's own message. Both dependent legs are
+    guarded by a lazy `&&`: the rendered leg below forces `extraConfig`, where upstream
+    interpolates `addr` straight into a string (`sshd.nix:901`, "cannot coerce null to a
+    string" — measured), so guarding only the sort was not enough.
+  - the **RENDERED** `ListenAddress` lines are loopback only — a wildcard smuggled through
+    `services.openssh.extraConfig` binds exactly as well as one in `listenAddresses`, and no
+    option read catches it. This leg parses the MERGED `extraConfig` back into addresses and
+    compares sorted. A bare `hasInfix "ListenAddress"` was NOT viable: upstream puts its own
+    generated block in that same string at `mkOrder 0` (`sshd.nix:893-902`), so the grep is
+    TRUE on a healthy host. The parser lowercases each line (sshd keywords are
+    case-insensitive) and accepts `=` as a separator; a leading `#` is not whitespace, so
+    comments do not match.
+  - no explicit `port` on a listen address — nixpkgs renders `ListenAddress ::1:22`
+    UNBRACKETED, OpenSSH reads that as `::0.1.0.34`, the v6 bind fails, and sshd SURVIVES
+    (a failed bind is fatal only if every bind fails), so v6 loopback silently vanishes.
+  - the allow-list is **four** legs, not one, because four options reach the same iptables
+    accept rule. `allowedTCPPorts` is EXACTLY `[ 80 ]` — core.nix's `[ ]` MERGES with
+    `hosts/nixpi.nix`'s Caddy ORIGIN port (443 omitted; TLS terminates at Cloudflare).
+    `allowedTCPPortRanges` is `[ ]` (`firewall-iptables.nix:182-183`). The per-interface sets
+    are read through the INTERNAL `allInterfaces` (`firewall.nix:305-311`) rather than the
+    user-facing `interfaces`, because `allInterfaces` is the attrset every one of the four
+    accept loops actually walks (`:165`, `:183`, `:195`, `:213`), so a future upstream route
+    into those loops surfaces here as a new key instead of slipping past. And
+    `trustedInterfaces` is `[ "lo" ]` — a trusted interface accepts EVERYTHING on it, no port
+    list consulted (`firewall-iptables.nix:149`), and upstream sets that value itself
+    (`firewall.nix:334`), so the leg pins it rather than emptiness. The check's job is to make
+    WIDENING loud, not to bless the current width: a legitimate new port means editing the
+    literal on purpose. Plus password / keyboard-interactive / root-login denials.
+  - `distributedBuilds`, `buildMachines` and the rendered `nix.settings.builders` are three
+    SEPARATE legs, because upstream says the first does not inhibit the second (`buildMachines
+    != [ ]` alone renders `/etc/nix/machines`) and nulls the third only WHILE `distributedBuilds`
+    is false. This is about a leaf host growing **outbound** build trust and a stray machines
+    file — not about the Pi compiling, which stays owned by the PreToolUse guard's Rule 1d and
+    `deploy.nix`'s `remoteBuild = false`.
+
+  **Not nixpkgs' own `assertions`:** their only natural home is `modules/nixos/core.nix`, which
+  `nixvm` and every `lib.mkNixos` consumer also import — baking "exactly one open TCP port" in
+  there breaks a stranger's host, the precise leak the `template-consumer` check exists to
+  prevent. This is a FLEET contract about one named host. **Not covered:** it is EVAL, not
+  runtime — no `sshd -G`, and no `iptables -S` (that, not `nft list ruleset`, is the runtime
+  counterpart: nixpi runs the **iptables** backend, `networking.nftables.enable = false`,
+  measured); an already-flashed Pi also keeps its current generation until the next deploy.
+  Four further paths are known and deliberately ungated: `networking.firewall.extraCommands`,
+  the iptables backend's raw escape hatch (`firewall-iptables.nix:235`), already NON-EMPTY on
+  nixpi because the nat module contributes its own teardown preamble, so there is no empty
+  baseline to assert against; `extraInputRules`, which is not a path on this host at all — it
+  exists only in `firewall-nftables.nix` (`:24-26`, rendered at `:179`), so flipping
+  `networking.nftables.enable` moves the whole rule set to a renderer none of these legs read
+  and needs NEW legs rather than an edit to these; **UDP**, ports and ranges both, since the
+  failure this check exists to catch is an unauthenticated unlogged path to sshd and sshd is
+  TCP; and the rest of `sshd_config` — a `Port` smuggled through `extraConfig` is harmless
+  here (the binds stay loopback, the allow-list is pinned) but a `Match` block relaxing an auth
+  setting is invisible. Nothing here stops the Pi compiling locally either (`max-jobs` is
+  still `auto`), and the Access application itself lives in Cloudflare's API, where its
+  2026-08-20 disappearance was invisible to eval then and still is.
 - **`modules/nixos/desktop-vm.nix`** — opt-in `services.desktopVm.enable` (default false): a lightweight X11
   **XFCE** desktop with passwordless autologin (the `loginName` specialArg) plus QEMU/SPICE
   guest integration (`qemuGuest`, `spice-vdagentd`) for the `nixvm` sandbox.
@@ -1201,12 +1362,12 @@ nothing — hence one regex, not two calls.
 
 | File | Owns |
 |---|---|
-| `identity.nix` | `loginName` / `domainName` / `fullName` / `userEmail`, threaded through `specialArgs` — the `identityArgs` that used to be `let` bindings in `flake.nix`. |
+| `identity.nix` | `loginName` / `domainName` / `fullName` / `userEmail`, threaded through `specialArgs` — the `identityArgs` that used to be `let` bindings in `flake.nix`. `options.fleet` is a **submodule with a `lazyAttrsOf raw` freeformType**, so the other ~26 fleet attrs still merge across files while `identityArgs` alone is a CLOSED four-field typed submodule: a fifth field now fails here with "option … does not exist" instead of exploding in a template consumer's build, the way `publicMcpPort` did on 2026-09-16. It constrains the DECLARATION only — a consumer's `identity` arrives through `specialArgs`, outside the module type system. Shape copied from flake-parts' own top-level `flake` option. |
 | `systems.nix` | flake-parts' `systems` = the two fleet arches. **`x86_64-linux` is deliberately NOT here** — adding it would silently spawn x86 checks, formatter and apps; the devcontainer reaches it with `withSystem "x86_64-linux"`. |
 | `compose.nix` | `mkDarwin` / `mkNixos` / `mkHomeManagerModule` — **not translated** to flake-parts, kept verbatim as plain Nix functions in the freeform `flake` attr (ADR-001's blast-radius objection, honoured). Also threads each capsule in as a named specialArg. |
 | `hosts.nix` | `darwinConfigurations.macos`, `nixosConfigurations.{nixpi,nixvm}`. |
 | `packages.nix` | `perSystem.packages` + every `apps.*`. |
-| `checks.nix` | The engine's own checks, including `claude-md-budget`, `capsule-registry`, `deploy-schema` and `bedrock-gate-after-loader`. |
+| `checks.nix` | The engine's own checks, including `claude-md-budget`, `capsule-registry`, `deploy-schema`, `bedrock-gate-after-loader`, the two `determinate-daemon` halves and `nixpi-security-posture` (§ `modules/nixos/`). Its one shared helper, `mkHostContract`, reports EVERY broken leg rather than the first — that behaviour, not code reuse, is the bar for reaching for it. |
 | `capsules.nix` | The capsule registry and its two internal seams — `capsuleModules` and `capsuleSources` — plus `checks.<system>.capsule-registry`. |
 | `terranix.nix` | The `cf-*` / `mcp-public-*` tofu builders. |
 | `devshell.nix` | `devShells` + the `git-hooks.nix` wiring. |
@@ -1747,7 +1908,9 @@ content-hashed into the store — see `CLAUDE.md` § Code Style on the two path 
 ### `.claude/hooks/`
 
 Every hook below is **project-scoped** (`.claude/settings.json`): it guards sessions rooted in
-this repo only. The fleet-wide floor is `modules/shared/claude-guardrails.nix` (§ `modules/shared/`).
+this repo only. Two wider tiers carry the fleet-wide floor: user-scope
+`modules/shared/claude-guardrails.nix` (§ `modules/shared/`) and, above it on `macos`,
+root-owned managed scope in `modules/darwin/claude-managed-settings.nix` (§ `modules/darwin/`).
 
 - **`stop-gate.js`** — Stop gate: blocks until configs evaluate clean.
 - **`pretooluse-bash-guard.js`** — `PreToolUse:Bash`: deterministic port of the
@@ -1958,14 +2121,49 @@ quietly held the real entries.
 
 ## CI, release, publishing
 
-`.github/workflows/nix-ci.yml` — 2-leg Nix CI on GitHub Actions, ALL on GitHub-**HOSTED**
-runners (`ubuntu-24.04-arm` for aarch64-linux — evaluates `nixpi`+`nixvm`; `macos-latest` for
-aarch64-darwin — evaluates `macos`; both free & unlimited on public repos). Each leg *builds*
+`.github/workflows/nix-ci.yml` — native multi-system Nix CI on GitHub Actions, ALL on
+GitHub-**HOSTED** runners (`ubuntu-24.04-arm` for aarch64-linux, `macos-latest` for
+aarch64-darwin; both free & unlimited on public repos). The leg COUNT is no longer a fixed 2:
+a `legs` job derives the build matrix from the fleet's own host systems (below), so the
+workflow's jobs are `flake-checker` (advisory), `legs`, one `build` leg per host system, and
+the aggregate `required-checks`. Each build leg *builds*
 the lint/format/structural `checks` — `formatting`, `pre-commit`,
 `claude-md-budget`, `ast-grep`, `deploy-schema`, `capsule-registry` — with `nix-fast-build` (it globs `.#checks.<system>`, so a NEW check needs no workflow edit;
 pushed to the `kattakath` Cachix cache) and
 *evaluates* (no build) its host config toplevel(s). Building host toplevels is deferred to
 release time (`build-installers`, also hosted).
+
+**BOTH halves of the coverage invariant are DERIVED, not listed** (2026-09-21) — the legs as
+well as the hosts each leg evaluates. One `legs` job (on `macos-latest`, because this evaluator
+must reach both systems' configurations) emits
+`{include:[{name,runs-on,eval-attrs}]}`, which `build` consumes via
+`strategy.matrix: ${{ fromJSON(needs.legs.outputs.matrix) }}`. Legs therefore come FROM hosts:
+a leg owning **zero** hosts is structurally impossible, and the reachable failure is the
+inverse — a HOST no leg claims hard-fails `legs` with *add its runner to this lookup*. Today
+that reproduces the old hard-coded lists exactly (aarch64-linux → `nixpi`+`nixvm`,
+aarch64-darwin → `macos`), but a host added to `modules/parts/hosts.nix` now either lands on an
+existing leg or stops CI until someone names its runner; previously it was silently untested
+until someone remembered this file. It runs as ONE job, not a step inside each leg, because the
+check needs the whole host→system list that no single leg can see. The ONE hard-coded fact left
+is the system → `runs-on` lookup, which GitHub owns and the flake cannot answer.
+
+**`nix flake show --json --all-systems` IS the source.** An earlier claim here that it could
+not serve was re-measured and is false, so the off-the-shelf tool was adopted and both
+hand-written `--apply` expressions walking `config.nixpkgs.hostPlatform.system` are retired.
+Its flake-schemas `inventory` carries `forSystems` per host child, classified by the
+CONFIGURATION's own system — measured on aarch64-darwin: `nixosConfigurations.nixpi →
+["aarch64-linux"]`, `darwinConfigurations.macos → ["aarch64-darwin"]`. Two degradations are
+real, and each is now a GUARD rather than a reason to reject: without `--all-systems`,
+foreign-system children come back `{"filtered": true}` (measured), so classification would
+silently follow the RUNNER's arch; and upstream Nix emits the flat legacy shape with no
+`inventory` key, which parses to ZERO rows (probed). Both fail the job loudly, so a revert to
+`cachix/install-nix-action` cannot quietly ship a fleet with no legs. The empty-attrs test
+inside a leg survives as the belt to that derivation's braces (`nix-ci.yml:272-275`) and is a
+hard failure, never the old `if: matrix.eval-attrs != ''` skip, which made a vacuous leg go
+green while testing nothing. `required-checks` accordingly `needs: [legs, build]` and fails on
+**`'skipped'`** as well — a failed `legs` does not fail `build`, it SKIPS it, and skipped is
+neither failure nor cancelled, so without that the aggregate gate would report green over zero
+legs.
 
 **No workflow in this repo targets a self-hosted runner** — every leg is GitHub-hosted (fork
 PRs need no runner fallback), and day-to-day local aarch64-linux builds use Determinate's

@@ -138,6 +138,15 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # ── Secret VALUES reaching the transcript (claude/CLAUDE.md § Redact) ──
     # Mirrors Rule 1c of the project guard at floor strength. Using a secret is
     # still fine: `secret exec`, passwordCommand wrappers, launchd.
+    #
+    # EDIT THIS GROUP, EDIT IT TWICE. Every rule from here down to the end of the
+    # `age` block is restated verbatim in modules/darwin/claude-managed-settings.nix
+    # (root-owned managed scope, the tier above this one). Deriving one list from
+    # the other by string match was rejected: it yields `[ ]` the moment a rule is
+    # reworded — a well-formed, completely empty floor. That is the silent vacuum
+    # the mcpfinder note above and the `attribution` note below both record: a
+    # rule matching nothing is not a weak floor but NO floor, and nothing reports
+    # it. Nothing checks these two lists agree either.
     "Bash(secret reveal *)"
     "Bash(security find-generic-password -w*)"
     "Bash(security find-generic-password * -w*)"
