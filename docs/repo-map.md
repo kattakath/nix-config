@@ -129,6 +129,7 @@ What the current lock drops, and the evidence for each:
 | `agenix.inputs.systems.follows = "terranix/systems"` | dedupe | **Cannot** be `""`: `import systems` feeds agenix's `packages`, which our devShell pulls. Identical rev to terranix's. |
 | `deploy-rs.inputs.utils.inputs.systems.follows = "terranix/systems"` | dedupe | Same: flake-utils' `outputs = { self, systems }` is a *closed* pattern doing `import systems`. |
 | `deploy-rs.inputs.flake-compat.follows = ""` | drop | Non-flake `import` shim only. |
+| `determinate.inputs.nixpkgs.follows = "nixpkgs"` | dedupe | Legit only since 2026-09-21, when the root `nixpkgs` moved onto FlakeHub's `DeterminateSystems/nixpkgs-weekly/0.1` — the **same flake URL** determinate declares, so this is one node fewer and not a re-point. It feeds only the `determinate-nixd` wrapper derivation (a `cp` of a prebuilt binary). Its `nix` input (nix-src) keeps its own tree on purpose — see the bullet below. |
 | `git-hooks.inputs.flake-compat.follows = ""` | drop | `outputs = { self, nixpkgs, ... }` never destructures it; `default.nix`/`shell.nix` read the rev from git-hooks' *own vendored* `flake.lock`, and we only ever call `lib.<system>.run`. |
 | `flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs"` | dedupe | Our extracted flakes all call `flake-parts.lib.mkFlake` (forced — never droppable) at the **same rev**, yet each shipped its own flake-parts *and* its own `nixpkgs.lib`: 8 nodes for one library, now 1. The `nixpkgs-lib` half is upstream-blessed — `terranix` already carries that exact line, and flake-parts documents the override behind a 23.05 floor our `nixpkgs.lib` clears by three years. **The anchor moved twice:** it was `firmware-secrets/flake-parts` (an arbitrary satellite) until ADR-002 wave 2 made this flake a flake-parts consumer and declared it directly, which is the only reason wave 4 could delete the `firmware-secrets` (and then `keychain-secrets`, `vast-provision`) inputs without breaking the remaining `follows` at lock time. Absorbed capsules left this row one by one — `vast-provision` at wave 4, `media-cli` at wave 5, and `local-rag` at wave 6 — so **no `follows = "flake-parts"` line survives**: every flake-parts consumer left in the lock is this flake itself. The `nixpkgs-lib` half stays and is the whole row now. |
 
@@ -137,9 +138,11 @@ What the current lock drops, and the evidence for each:
 - **`raspberrypi/linux` ×3** — three *different* revs; a deliberate kernel-branch matrix that
   raspberry-pi-nix selects from at eval time. A `follows` between them silently swaps the LIVE
   Pi's kernel.
-- **Determinate's `nixpkgs` trees** (`nixpkgs-weekly`, nix-src's own, `nixpkgs-23-11`,
-  `nixpkgs-regression`) — its build/regression pins, reached through `root.determinate`. Not
-  ours to re-point; forcing them rebuilds the daemon closure against an untested nixpkgs.
+- **nix-src's `nixpkgs` trees** (its own `nixpkgs-weekly` pin, `nixpkgs-23-11`,
+  `nixpkgs-regression`) — the build/regression pins of `determinate → nix`. Not ours to
+  re-point: that tree builds the Determinate Nix package, and re-basing it turns a cache HIT on
+  `install.determinate.systems` into a from-source C++ Nix build on every NixOS host and on the
+  warm-cache runner. (determinate's *own* top-level `nixpkgs` is now followed — table above.)
 - **The surviving `flake-compat`** belongs to `determinate → nix → git-hooks-nix`, not to us.
 - **terranix's `flake-parts`** stays on its own rev: it imports flake-parts internals
   (`flakeModules.partitions`, `flake-parts-lib.importApply`), and folding it in would net one
