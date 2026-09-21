@@ -852,15 +852,26 @@ their own top-level section below:
     `.claude/hooks/pretooluse-bash-guard.js` block, which only covers activations the *agent*
     runs; this covers a switch typed by hand.
 - **`claude-guardrails.nix`** — the **global guardrail floor**: user-scope
-  `programs.claude-code.settings.permissions.deny` (upstream `jsonFormat.type`, so the list
-  concatenates with any other module's), darwin-gated, no options, no hooks, no scripts. Exists
-  because every decision hook in `.claude/` is project-scoped — sessions in any other repo had
-  none of them while VS Code starts in `bypassPermissions`, and the globally-wired `mcpfinder`
-  exposed its config-writing tool everywhere but here. Entry rule: a fleet-wide policy already
-  written down (imperative MCP adoption, secret values in the transcript, `/run/agenix` and
-  OpenTofu-state plaintext, `gh pr merge`, force-push) — never repo policy. Deny rules still
-  apply in `bypassPermissions` (it skips prompts; a deny is not one), but they match the command
-  text Claude writes, not `sh -c` or an absolute binary path — a floor, not a boundary.
+  `programs.claude-code.settings` (upstream `jsonFormat.type`, so it is freeform and the deny
+  list concatenates with any other module's), darwin-gated, no options, no hooks, no scripts.
+  Exists because every decision hook in `.claude/` is project-scoped — sessions in any other repo
+  had none of them while VS Code starts in `bypassPermissions`, and the globally-wired
+  `mcpfinder` exposed its config-writing tool everywhere but here. Two halves:
+  - `permissions.deny`. Entry rule: a fleet-wide policy already written down (imperative MCP
+    adoption, secret values in the transcript — `secret reveal`, `security find-*-password
+    -w/-g`, and since 2026-09-21 `agenix -d` / `age -d` age decryption — `/run/agenix` and
+    OpenTofu-state plaintext, `gh pr merge`, force-push) — never repo policy. Deny rules still
+    apply in `bypassPermissions` (it skips prompts; a deny is not one), but they match the
+    command text Claude writes, not `sh -c` or an absolute binary path — a floor, not a
+    boundary. **No catch-all `Read(**)`**: a blanket Read deny disables Bash auto-approve
+    everywhere, so the path denies stay narrow on purpose.
+  - `attribution = { commit = ""; pr = ""; sessionUrl = false; }` (2026-09-21) — mechanises
+    `claude/CLAUDE.md` § Git authorship, which forbids `Co-Authored-By: Claude` trailers and
+    "Generated with Claude Code" PR footers but had to be re-won each session against Claude
+    Code's own session-start reminder. All three sub-keys are required: setting only `commit`
+    makes Claude Code ignore the deprecated `includeCoAuthoredBy` and fall back to its DEFAULT
+    PR text, and `sessionUrl` is a separate `Claude-Session` trailer that appears only from
+    cloud/Remote Control sessions.
 - **`claude-desktop.nix`** — `local.claudeDesktop`, **Client side D** of the MCP hub: the
   gateway's `endpoints` plus the per-client stdio servers rendered into Claude Desktop's
   stateful `claude_desktop_config.json`. Desktop accepts ONLY the stdio shape, so every
