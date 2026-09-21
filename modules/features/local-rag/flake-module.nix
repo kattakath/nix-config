@@ -156,6 +156,7 @@ in
       checks = lib.optionalAttrs isDarwin {
         local-rag-module = checks.module-evaluates;
         local-rag-inert = checks.inert;
+        local-rag-extra-dbs = checks.extra-databases;
       };
     };
 }

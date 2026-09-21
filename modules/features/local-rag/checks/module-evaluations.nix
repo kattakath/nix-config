@@ -125,4 +125,42 @@ in
         || fail "home.packages differs from a config without this module: [${pkgNames hmOff}] vs [${pkgNames hmBare}]"
       echo ok > "$out"
     '';
+
+  # THE pg_hba GATE. The run-wrapper rewrites pg_hba.conf with a TRUNCATING
+  # redirect on every launch, so a hand-added entry for a second database
+  # survives only until the next restart — the consumer then gets
+  # `no pg_hba.conf entry for host "127.0.0.1"` with the server plainly up.
+  # (dontsell-ai/app's local dev database lost its line exactly this way;
+  # diagnosed 2026-09-21.) This asserts an `extraDatabases` entry reaches the
+  # generated wrapper — BOTH the auth line and the superuser `CREATE
+  # EXTENSION`, since a scoped role cannot create one itself — and that the
+  # RAG's own entry still survives beside it.
+  extra-databases =
+    let
+      hmExtra = mkHm [
+        module
+        {
+          local.rag.pgvector.enable = true;
+          local.rag.pgvector.extraDatabases = [
+            {
+              db = "appdb";
+              role = "appuser";
+            }
+          ];
+        }
+      ];
+      runner = builtins.head hmExtra.config.launchd.agents.postgres-pgvector.config.ProgramArguments;
+    in
+    pkgs.runCommand "local-rag-extra-dbs" { } ''
+      fail() { echo "local-rag-extra-dbs: $*" >&2; exit 1; }
+      grep -q 'host .*appdb .*appuser .*127\.0\.0\.1/32 .*trust' ${runner} \
+        || fail "extraDatabases entry never reached pg_hba.conf in the wrapper"
+      grep -q 'host .*appdb .*appuser .*::1/128 .*trust' ${runner} \
+        || fail "extraDatabases entry missing its IPv6 loopback line"
+      grep -q 'CREATE EXTENSION IF NOT EXISTS vector' ${runner} \
+        || fail "extraDatabases entry bootstraps no pgvector (scoped roles cannot CREATE EXTENSION)"
+      grep -q 'host .*ragdb .*mcp .*127\.0\.0\.1/32 .*trust' ${runner} \
+        || fail "the RAG store's own pg_hba entry was displaced by extraDatabases"
+      echo ok > "$out"
+    '';
 }
