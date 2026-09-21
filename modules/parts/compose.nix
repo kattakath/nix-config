@@ -442,13 +442,16 @@ let
           # no remote builder, no Docker) is ENABLED on this host, so aarch64-linux
           # and x86_64-linux derivations build locally on-demand. Verify with
           # `determinate-nixd version` (shows `native-linux-builder`); it appears
-          # as an `external-builders` entry in `nix config show`. It is NOT
-          # configured from Nix — `external-builders` is a reserved setting
-          # Determinate manages and `determinateNix.customSettings` rejects it
-          # (asserts at eval); it is a FlakeHub/account-level feature enabled
-          # out-of-band via https://dtr.mn/features. It is a build-only, ephemeral,
-          # 1-CPU/8GB sandbox — heavy multi-core builds (e.g. the cold RPi kernel)
-          # are still best done in the GitHub-hosted CI. nix-darwin's
+          # as an `external-builders` entry in `nix config show`. The raw
+          # `external-builders` line is reserved — Determinate renders it and
+          # `determinateNix.customSettings` rejects it (asserts at eval) — but the
+          # VM itself IS configurable here since the pinned module grew
+          # `determinateNix.determinateNixd.builder.{state,memoryBytes,cpuCount}`
+          # (-> /etc/determinate/config.json; defaults enabled / 8 GiB / 1 CPU,
+          # and upstream's option text says do NOT change cpuCount). The account
+          # entitlement is still out-of-band: https://dtr.mn/features. It is a
+          # build-only, ephemeral sandbox — heavy multi-core builds (e.g. the cold
+          # RPi kernel) are still best done in the GitHub-hosted CI. nix-darwin's
           # `nix.linux-builder` is unusable here — it requires `nix.enable = true`,
           # which Determinate turns off (nix-darwin#1505).
         }

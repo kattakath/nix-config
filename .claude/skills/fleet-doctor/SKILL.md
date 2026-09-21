@@ -152,6 +152,18 @@ sudo nix-collect-garbage -d     # only on an explicit ask; the background collec
 # nixpi — report only, never collect without an explicit ask (live server)
 ```
 
+### E2. Determinate Nix version drift (macos)
+
+The Mac's Nix is upgraded by `sudo determinate-nixd upgrade`, NOT by `activate` — the
+`determinate` flake input only pins the NixOS hosts' Nix. Nothing else reports the drift
+(found 2026-09-21: 3.22.4 running while 3.22.5 was advised). Report it; upgrade only in
+`fix` mode:
+
+```bash
+determinate-nixd status 2>&1 | grep -m1 -i 'now available' || echo "determinate-nixd: current"
+sudo determinate-nixd upgrade     # fix mode only; restarts the daemon (seconds)
+```
+
 ### F. Host re-activation
 
 Only if repos touched in this run actually compose macos (i.e. their
@@ -177,6 +189,7 @@ docs/macvm-readd-runbook.md.)
 - **Open PRs:** none | repo #n — title — CI status — action (report only)
 - **CI:** all green | repo — workflow — conclusion — needs investigation
 - **GC:** host freed X | guest freed Y (or skipped, VM down) | nixpi: N free (report only)
+- **Determinate Nix (macos):** current | X.Y.Z advised, running A.B.C — upgraded | report only
 - **Hosts:** macos re-activated | skipped (why)
 - **Verdict:** CLEAN | FIXED (list what) | NEEDS ATTENTION (why, and what needs a human decision)
 ```
