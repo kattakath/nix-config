@@ -142,7 +142,7 @@ in
             # (`0-unstable-*`) substitutes fine. So on a machine that has not
             # built it yet, `nix develop` pays a from-source Rust build, and the
             # first real deploy pays a SECOND one for the aarch64-linux `activate`
-            # baked into nixpi's closure (on Determinate's ~1-CPU Linux builder).
+            # baked into nixpi's closure (on Determinate's native Linux builder: 1 CPU / 8 GiB by default, sizable via determinateNixd.builder.*).
             # Deliberately NOT mitigated by adding it to `checks` to warm Cachix:
             # `checks` is what `nix flake check` / `/eval` / nix-ci.yml build and
             # is kept strictly lint-only (see modules/parts/checks.nix) — paying

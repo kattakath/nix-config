@@ -61,7 +61,7 @@ The one-command path (`nix run .#nixpi-flash`, §4) handles acquisition for you:
 - **default (no flag)** — `nix build` the sdImage. The Cachix warm substitutes the
   kernel/intermediates, but the *final* image assembly is an `aarch64-linux` build.
   The client Mac can now do this locally on **Determinate's native Linux builder**,
-  but that runs on a small ephemeral ~1-CPU/8 GB VM, so a full SD-image assembly is
+  but that runs on a small ephemeral VM (1 CPU / 8 GiB by default; `determinateNixd.builder.memoryBytes` raises it if the assembly OOMs), so a full SD-image assembly is
   slow there — prefer `--release` unless you specifically want a from-source image.
   (It also completes on any other aarch64-linux builder, e.g. the devcontainer.)
 - **`--image FILE.img.zst`** — flash a local prebuilt image you already have.
