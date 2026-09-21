@@ -403,6 +403,16 @@ in
             git
             gnutar
             gzip
+            # A JOB THAT PROBES PORTS NEEDS THIS, and its absence does not look like an absence.
+            # dontsell-ai/app's e2e job frees stale webServer ports with
+            # `lsof -ti tcp:$p 2>/dev/null || true` in a pre-flight AND an always() reaper. With no
+            # lsof on this path the redirect ate "command not found", `|| true` ate the status, and
+            # both steps passed having checked nothing — for weeks. On 2026-09-21 a cancelled run
+            # orphaned its mock server on :5444 and next-server on :3100; the reaper reported
+            # success while both stayed alive, and the next run died on "…is already used". The app
+            # repo now falls back to /usr/sbin/lsof, so this line is belt to that braces: the next
+            # workflow to reach for lsof should simply find it.
+            lsof
             openssl
             (postgresql_16.withPackages (p: [ p.pgvector ]))
             nix
