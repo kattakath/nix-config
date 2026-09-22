@@ -279,6 +279,14 @@ a gate for it would be the bespoke wheel this repo's motto rejects. What is chea
 where rot collects: **if a status is asserted in two places, that pair is a known rot site.**
 Update the pair or assert it once and link.
 
+**Why this lives in an ADR rather than a rules file**, since that was asked and the answer is
+easy to lose: a rule keeps its evidence. Lifted somewhere general it arrives with no instances
+attached, and a general rule nobody can point at an example of is precisely the thing that goes
+stale unread — which would make this section an instance of itself. **Move it only when a second
+instance appears OUTSIDE this ADR's orbit**, not because it feels like it deserves promotion.
+(One already has: `fleet-doctor` claimed a merge queue serialised PRs for hours after #560
+removed it — the exception that shows this generalises, and the first half of that trigger.)
+
 ## 9. What this ADR does not do
 
 - It does not move the six other zones. That is 3.1's accepted cost, not an oversight.
