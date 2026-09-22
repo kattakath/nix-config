@@ -123,13 +123,38 @@ in
 
     visionModel = lib.mkOption {
       type = lib.types.str;
-      default = "huihui_ai/qwen3-vl-abliterated";
+      default = "huihui_ai/qwen3-vl-abliterated:8b-instruct";
       example = "qwen2.5vl:7b";
       description = ''
         The Ollama vision model `media-describe` asks for a caption, when no
         `--model` is given. Ollama is a SOFT dependency: with it absent or the
         model unpulled, a run still writes Vision labels and a rating and says
         so, rather than failing and leaving a library half-tagged.
+
+        THE `:8b-instruct` TAG IS LOAD-BEARING — do not shorten it back to the
+        bare name. Bare resolves to `:latest`, which on this line is the
+        THINKING variant, and thinking is the cause of the empty-caption class
+        `media-describe` documents at its `ask()` (12 of 461 photos in one
+        folder deliberating past the 1024-token cap and never answering,
+        180s each). Measured 2026-09-22 over the same 9 photos, same prompt,
+        same `temperature:0 seed:42 num_predict:1024`:
+
+          tag            captioned  thinking  tokens/caption  median wall
+          8b-instruct        9/9       0 ch        ~24           16.1s
+          8b (thinking)      8/9    ~1400 ch      ~400           ~45s
+          30b-a3b            7/9    ~1600 ch      ~514           ~43s
+
+        Note the direction: a BIGGER model was WORSE. Deliberation expands to
+        fill the budget, so more capacity overran the cap more often, not
+        less. With no thinking at all the failure is not merely rarer, it is
+        structurally impossible — a 24-token caption cannot exhaust a
+        1024-token cap. The cap and the short-prompt fallback stay anyway;
+        they cost nothing when nothing overflows.
+
+        Cost, stated honestly: on ONE of the 9 (a Play Store page embedding
+        four screenshots) reasoning genuinely helped, and only `30b-a3b` read
+        the page rather than one of its thumbnails. `--model` still overrides
+        per run for that case.
       '';
     };
 

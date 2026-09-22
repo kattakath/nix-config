@@ -169,7 +169,7 @@
   # the flag is exactly how "which model actually ran?" stops being answerable
   # from the derivation. A fork or the home-manager option sets this; an
   # operator uses --model.
-  defaultModel ? "huihui_ai/qwen3-vl-abliterated",
+  defaultModel ? "huihui_ai/qwen3-vl-abliterated:8b-instruct",
   # The Ollama endpoint, build-time for the SAME reason as defaultModel above —
   # and here it is not a style choice, it is the only delivery that works.
   # `OLLAMA_HOST` reaches an interactive shell through
