@@ -5,8 +5,15 @@
 # Run this as the FIRST thing on a clean (new OR freshly-reset) Mac, straight
 # from the repo over TLS — exactly like Determinate's installer:
 #
-#     curl -fsSL https://raw.githubusercontent.com/kattakath/nix-config/main/bootstrap.sh | bash
 #     curl -fsSL https://raw.githubusercontent.com/kattakath/nix-config/main/bootstrap.sh | bash -s -- --check
+#     curl -fsSL https://raw.githubusercontent.com/kattakath/nix-config/main/bootstrap.sh | bash
+#
+# --check FIRST on a freshly-RESET Mac, not as an optional nicety. A reset leaves
+# the "Nix Store" APFS volume and its /etc entries behind, and step 0 below then
+# deletes them and REBOOTS — and a `curl | bash` stream cannot resume itself, so
+# you finish by re-running the command by hand. That is a two-command bootstrap,
+# and --check is what tells you so BEFORE you start rather than 20 minutes in.
+# A brand-new Mac never takes that branch and is a single pass.
 #
 # On a wiped Mac there is no Nix, no repo and no SSH key, so the thing that
 # installs Nix cannot itself be run by Nix. This is plain bash with zero

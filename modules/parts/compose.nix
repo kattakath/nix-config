@@ -10,7 +10,12 @@
 #
 # Path literals are the one edit: they are resolved relative to THIS file
 # (CLAUDE.md § Paths — two axes), so `./hosts/x.nix` became `../../hosts/x.nix`.
-{ config, inputs, ... }:
+{
+  config,
+  inputs,
+  lib,
+  ...
+}:
 let
   inherit (inputs)
     nixpkgs
@@ -454,6 +459,54 @@ let
           # RPi kernel) are still best done in the GitHub-hosted CI. nix-darwin's
           # `nix.linux-builder` is unusable here — it requires `nix.enable = true`,
           # which Determinate turns off (nix-darwin#1505).
+          #
+          # POST-ACTIVATION NUDGE. The builder above is an account entitlement
+          # PLUS a per-machine daemon login, and only the first half is declared
+          # anywhere. A fresh Mac — or a rebuilt daemon — is logged out, the
+          # rendered `external-builders` is empty, and every aarch64-linux build
+          # then dies with "platform mismatch — Required system: 'aarch64-linux',
+          # Current system: 'aarch64-darwin'". That reads as a flake bug and is
+          # not one: it is an AUTH gap, and the cost of not saying so is an hour
+          # of debugging the wrong layer (docs/new-mac-runbook.md records it as a
+          # manual step precisely because it kept being rediscovered).
+          #
+          # Nothing here can perform the login — it needs a FlakeHub token from a
+          # browser — so this only PROBES and prints the fix, the same shape as
+          # the macos-automator TCC nudge in modules/shared/mcp.nix:1317. It is
+          # silent once the feature is advertised, and silent when the binary is
+          # absent or errors, so it cannot nag on a healthy rebuild.
+          #
+          # Probes `version` (the FEATURE list), not `status` (the login flag):
+          # the feature is what a build actually consumes, and it also catches
+          # the daemon that is logged in but too STALE to offer it — the second
+          # failure mode the runbook records, which a login check would miss.
+          #
+          # upstream-first: `system.activationScripts.postActivation` is
+          # nix-darwin's own last-phase hook (verified against the pinned module:
+          # it sits alongside extraActivation/extraPostActivation/
+          # extraUserPostActivation), so this adds no scheduling of ours.
+          system.activationScripts.postActivation.text = lib.mkAfter ''
+            if [ -x /usr/local/bin/determinate-nixd ] \
+              && dnd_version="$(/usr/local/bin/determinate-nixd version 2>/dev/null)"; then
+              case "$dnd_version" in
+                *native-linux-builder*) : ;; # entitled AND logged in — nothing to say.
+                *)
+                  echo "" >&2
+                  echo "  ⚠ Determinate's native Linux builder is NOT active on this Mac." >&2
+                  echo "    Every aarch64-linux build — nix run .#nixvm, .#nixpi, the Pi closure —" >&2
+                  echo "    fails with 'platform mismatch'. That is an AUTH gap, not a config bug." >&2
+                  echo "    One-time, per machine:" >&2
+                  echo "      1. mint a token:  https://flakehub.com/user/settings?editview=tokens" >&2
+                  echo "      2. store it:      secret set FLAKEHUB_TOKEN" >&2
+                  echo "      3. log in:        secret exec FLAKEHUB_TOKEN -- sh -c \\" >&2
+                  echo "           'determinate-nixd auth login token --token-file <(printf %s \"\$FLAKEHUB_TOKEN\")'" >&2
+                  echo "    If it persists, the daemon may be stale:  sudo determinate-nixd upgrade" >&2
+                  echo "    Verify:  determinate-nixd version | grep native-linux-builder" >&2
+                  echo "    Details: docs/new-mac-runbook.md" >&2
+                  ;;
+              esac
+            fi
+          '';
         }
         nix-homebrew.darwinModules.nix-homebrew # declaratively install brew (arch-correct prefix)
         # Provides `age.secrets.*` (host-decrypted agenix secrets) — dropped when
