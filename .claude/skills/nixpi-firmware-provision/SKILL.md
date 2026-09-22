@@ -44,8 +44,14 @@ decrypts it on-device.
   needs an aarch64-linux builder). Wi-Fi is auto-detected unless you pass
   `--ssid`/`--wifi-conf` (needed on a band-split network — see gotchas).
 - `nix run .#nixpi-provision [--all|--token|--wifi]` — plant onto an already-mounted card.
-- `nix run .#nixpi-wifi-creds [--ssid S] [--psk P] [--country CC]` — emit a
+- `nix run .#nixpi-wifi-creds [--ssid S [--psk P]]... [--country CC]` — emit a
   `wpa_supplicant.conf` from this Mac's current Wi-Fi (SSID + keychain PSK + locale country).
+  **`--ssid` is repeatable**: each one opens a `network={}` block, the `--psk` after it
+  belongs to it, and the blocks are ranked by a descending `priority=` — first is the
+  AP nixpi prefers, the rest are fallbacks it drops to when that one is gone. A
+  non-ASCII SSID (an emoji one is real) is emitted as a **hex** `ssid=` plus a decoded
+  comment, because a quoted UTF-8 literal has to survive the pipe, FAT and
+  wpa_supplicant's parser intact.
 - `nix run .#nixpi-vault-token` — re-encrypt a new token (stdin/`$TUNNEL_TOKEN`) into the vault.
 
 Run them from the repo root (they read the vault at `secrets/cloudflared-token.age`).
