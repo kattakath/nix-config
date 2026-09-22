@@ -2187,6 +2187,26 @@ quietly held the real entries.
 
 ## CI, release, publishing
 
+**Three checks exist ONLY on `aarch64-linux`**, so the documented local gate — a bare
+`nix flake check`, which is darwin-native on the Mac — never builds them:
+`cloudflared-connector-module`, `firmware-secrets-module`, `nixpi-firmware-names`
+(measured 2026-09-22: 18 linux checks, 40 darwin, 3 linux-only). Every other linux check
+has a darwin twin with identical logic, so the bare command does exercise those.
+
+Build the three locally when you touch what they cover — Determinate's native Linux
+builder runs them fine, verified with `--rebuild` so they genuinely executed:
+
+```bash
+nix build --no-link .#checks.aarch64-linux.{cloudflared-connector-module,firmware-secrets-module,nixpi-firmware-names}
+```
+
+**Not** `nix flake check --all-systems` (builds on). It does reach the linux checks —
+proven by `checks.aarch64-linux.pre-commit` emitting builder log lines and a non-zero
+BUILDER exit — but that check FAILS on the native Linux builder with
+`FileNotFoundError` from pre-commit's treefmt hook, for a builder-environment reason,
+not a code one. It passes on CI's real `ubuntu-24.04-arm` runner. A gate that cries
+wolf is worse than no gate; same class as the caddy `cp --no-preserve=mode` EPERM.
+
 `.github/workflows/nix-ci.yml` — native multi-system Nix CI on GitHub Actions, ALL on
 GitHub-**HOSTED** runners (`ubuntu-24.04-arm` for aarch64-linux, `macos-latest` for
 aarch64-darwin; both free & unlimited on public repos). The leg COUNT is no longer a fixed 2:
