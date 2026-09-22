@@ -106,7 +106,7 @@ which is what runs shellcheck over them. The one-line path back is in `flake-mod
 |---|---|---|
 | `enable` | `false` | the whole switch |
 | `installQuickActions` | `true` | the four Finder right-click Services |
-| `visionModel` | `huihui_ai/qwen3-vl-abliterated` | baked into `media-describe` at build time |
+| `visionModel` | `huihui_ai/qwen3-vl-abliterated:8b-instruct` | baked into `media-describe` at build time |
 | `ollamaHost` | `127.0.0.1:11434` | exported as `OLLAMA_HOST` |
 | `logRelPath` | `Library/Logs/nix-media-queue.log` | where Console.app looks |
 | `extraSearchPackages` | `[ pkgs.exiftool ]` | companion tools; `[ ]` for none |
