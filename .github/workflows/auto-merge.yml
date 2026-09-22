@@ -1,16 +1,24 @@
 name: auto-merge
 
 # Arm GitHub's native auto-merge ("merge when ready") on pull requests authored by
-# the operator. With the `merge_queue` rule active on `main`, arming a PR ENQUEUES
-# it: GitHub builds the entry against the projected merged result and merges it
-# once `required-checks` + `Scan for secrets` report green on that entry. Nothing
-# here bypasses a gate — it only removes the manual click.
+# the operator: the PR merges itself the moment `required-checks` + `Scan for
+# secrets` report green ON THE PR. Nothing here bypasses a gate — it only removes
+# the manual click.
 #
-# WHY A MERGE QUEUE AND NOT JUST AUTO-MERGE. `protect-main` requires branches to be
-# up to date. Plain auto-merge does not update a stale head branch, so the moment a
-# second PR is open it sits armed forever behind the first. The queue exists for
-# exactly that: it "does not require a pull request author to update their pull
-# request branch and wait for status checks to finish before trying to merge".
+# NO MERGE QUEUE (removed 2026-09-22). A queue cannot reduce a pipeline to one CI
+# run, by GitHub's own design: "Once a pull request has passed all required branch
+# protection checks, a user with write access to the repository can add the pull
+# request to the queue" — so the PR is gated FIRST, and the queue then re-runs the
+# same gate on its own `gh-readonly-queue/main/...` entry. Measured on PR #558:
+# 10m27s on the PR, 21 s to enqueue, 7m29s in the queue, 19 min open->merge.
+#
+# The queue's stated justification had also expired. It was adopted because
+# `protect-main` required branches to be up to date and plain auto-merge will not
+# update a stale head branch — but `strict_required_status_checks_policy` was
+# turned OFF when the queue landed (the queue subsumed it), so the stall it
+# avoided no longer exists. What is genuinely given up is cross-PR semantic
+# conflict detection, which at a queue depth that was always 1 was never exercised;
+# the post-merge `push: main` leg catches a bad merge within ~8 min instead.
 #
 # WHY AN APP TOKEN, NOT `GITHUB_TOKEN`. Auto-merge attributes the merge to whoever
 # ARMED it, and events produced by the default `GITHUB_TOKEN` never start new
@@ -21,7 +29,8 @@ name: auto-merge
 # `vars.CI_BOT_CLIENT_ID` + `secrets.CI_BOT_APP_PRIVATE_KEY` pair already used by
 # `update-flake-lock.yml`.
 #
-# See docs/auto-merge-and-merge-queue.md for the per-repo setup this depends on.
+# See docs/auto-merge-and-merge-queue.md for the per-repo setup this depends on,
+# and for the full record of why the queue was added and then removed.
 
 on:
   pull_request:
@@ -55,11 +64,11 @@ jobs:
           private-key: ${{ secrets.CI_BOT_APP_PRIVATE_KEY }}
 
       # Idempotent — re-arming an already-armed PR is a no-op, which is what makes
-      # the `synchronize` trigger safe: it RE-ARMS a PR that GitHub kicked out of
-      # the queue (a conflict, or a failed queue build) as soon as the fix is
-      # pushed. Conflicts themselves are never auto-resolved; this only re-queues
-      # once the branch is mergeable again. Squash is the only merge method
-      # `protect-main` allows, and matches the queue's own `merge_method`.
+      # the `synchronize` trigger safe: it RE-ARMS a PR that GitHub disarmed (a
+      # conflict, or a failed required check) as soon as the fix is pushed.
+      # Conflicts themselves are never auto-resolved; this only re-arms once the
+      # branch is mergeable again. Squash is the only merge method `protect-main`
+      # allows.
       - name: Arm auto-merge
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
