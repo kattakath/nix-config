@@ -293,82 +293,80 @@ in
   # modules/parts/compose.nix) — NOT this file's own specialArgs — so this
   # definition must be a function to receive it, matching
   # modules/shared/home.nix's own signature.
-  home-manager.users.${loginName} =
-    { publicMcpServers, ... }:
-    {
-      # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
-      local.mcpGateway.gmail.accounts = [
-        "ismail@kattakath.com"
-        "ismailkattakath@gmail.com"
-        "izzy@silvercreek.ai"
-        "aloshyakasoto@gmail.com"
-      ];
+  home-manager.users.${loginName} = _: {
+    # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
+    local.mcpGateway.gmail.accounts = [
+      "ismail@kattakath.com"
+      "ismailkattakath@gmail.com"
+      "izzy@silvercreek.ai"
+      "aloshyakasoto@gmail.com"
+    ];
 
-      # ---- Published MCP gateway server list -------------------------------
-      # THE fleet value (config.fleet.publicMcpServers, modules/parts/identity.nix),
-      # not a copy of it. terranix renders the same binding into the portal
-      # registrations; it cannot read this option back, because it renders
-      # outside any host's module system — so one source feeds both halves
-      # rather than two lists that must be hand-kept equal.
-      local.mcpGateway.public = publicMcpServers;
+    # NO `local.mcpGateway.public` any more. It named which hosted servers to
+    # ALSO run on a second proxy; since 2026-09-22 there is one proxy and every
+    # hosted server is published, so a subset is neither expressible nor wanted.
+    #
+    # `config.fleet.publicMcpServers` still exists and still feeds terranix,
+    # which renders outside any host's module system and cannot read the roster
+    # back. `checks.<system>.mcp-published-parity` asserts the two agree.
 
-      # ---- AWS CLI: tool + shape, content stays local (ADR-004 phase 3) -------
-      # Until 2026-09-20 this block carried `programs.awscli.settings` with two real
-      # account ids and an SSO start-URL id — reconnaissance in a public repo
-      # (ADR-004 §7, inventory #1). The cloud-cli capsule now installs the CLI and
-      # writes ~/.aws/config.example; the real ~/.aws/config is the operator's,
-      # written by `aws configure sso` / by hand, outside Nix and git. The first
-      # activation after this change keeps the existing profiles: `adoptAwsConfig`
-      # (modules/shared/claude-bedrock-gate.nix) turns the leftover store symlink
-      # into a real 0600 file instead of letting orphan cleanup delete it.
-      # Claude Code's Bedrock profile is still selected at runtime with
-      # `secret set AWS_PROFILE <profile>`.
-      local.cloudCli.aws.enable = true;
+    # ---- AWS CLI: tool + shape, content stays local (ADR-004 phase 3) -------
+    # Until 2026-09-20 this block carried `programs.awscli.settings` with two real
+    # account ids and an SSO start-URL id — reconnaissance in a public repo
+    # (ADR-004 §7, inventory #1). The cloud-cli capsule now installs the CLI and
+    # writes ~/.aws/config.example; the real ~/.aws/config is the operator's,
+    # written by `aws configure sso` / by hand, outside Nix and git. The first
+    # activation after this change keeps the existing profiles: `adoptAwsConfig`
+    # (modules/shared/claude-bedrock-gate.nix) turns the leftover store symlink
+    # into a real 0600 file instead of letting orphan cleanup delete it.
+    # Claude Code's Bedrock profile is still selected at runtime with
+    # `secret set AWS_PROFILE <profile>`.
+    local.cloudCli.aws.enable = true;
 
-      # ---- Infin8 LiteLLM proxy (OpenAI-compatible clients) ------------------
-      # Folded in from nix-personal's openai-gateway.nix (2026-09-15). Both vars
-      # are load-bearing: openai-python/-node >= 1.0 read OPENAI_BASE_URL, older
-      # openai-python and the LiteLLM SDK read OPENAI_API_BASE. The `/v1` suffix
-      # is load-bearing too — see the retired module's header (git history) for
-      # the measured 401/404-vs-routing failure mode without it. The key itself
-      # is a LiteLLM virtual key in the Keychain (`openai.com:api`), unrelated
-      # to this URL.
-      # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
-      home.sessionVariables = {
-        OPENAI_BASE_URL = "https://ai.infin8it.ca/v1";
-        OPENAI_API_BASE = "https://ai.infin8it.ca/v1";
-      };
-
-      # Chrome DevTools Protocol, in ATTACH mode against Chromium. The attach flag is
-      # picked at spawn time by probing /json/version — neither --browser-url nor
-      # --autoConnect works in both browser modes; see modules/shared/mcp.nix. One flag turns on BOTH the gateway server and the
-      # `nix-chromium-debug` launcher — they are gated together on purpose, so there
-      # is no state where something can reach a browser without the operator having
-      # enabled debugging deliberately (in-browser, or via that launcher).
-      #
-      # Safe to leave on permanently, MEASURED 2026-09-06 rather than assumed: with
-      # nothing listening on the port, the server still answers `initialize` and
-      # stays alive (45s, no exit) — it only touches a browser lazily, when a tool
-      # needs one. So it does NOT dark the gateway the way a server that exits at
-      # startup would (the failure mode postgres and localAdapter warn about in
-      # modules/shared/mcp.nix). Individual tool calls simply fail until a browser
-      # is listening; `devtools-doctor.sh` in the chrome-devtools plugin says which
-      # of the three causes it is.
-      #
-      # What is NOT persistent, deliberately: debugging itself. The in-browser toggle
-      # re-prompts per session and `nix-chromium-debug` is hand-run and dies with the
-      # browser window — because an open remote-debugging port is an unauthenticated
-      # control channel over a profile holding live logins. Measured 2026-09-07 on the
-      # then-default Opera Air: a Chromium-family browser stores no persistent consent
-      # key, so there is nothing to make it stop asking. Opera was removed from this Mac
-      # on 2026-09-21; the attach target is now Chromium (modules/shared/mcp.nix).
-      local.mcpGateway.chromeDevtools.enable = true;
-
-      # Per-user container runtime (Colima via home-manager's services.colima),
-      # replacing the docker-desktop cask whose privileged helper was bound to
-      # one username. Why/cost/migration: modules/shared/containers.nix.
-      local.containers.enable = true;
+    # ---- Infin8 LiteLLM proxy (OpenAI-compatible clients) ------------------
+    # Folded in from nix-personal's openai-gateway.nix (2026-09-15). Both vars
+    # are load-bearing: openai-python/-node >= 1.0 read OPENAI_BASE_URL, older
+    # openai-python and the LiteLLM SDK read OPENAI_API_BASE. The `/v1` suffix
+    # is load-bearing too — see the retired module's header (git history) for
+    # the measured 401/404-vs-routing failure mode without it. The key itself
+    # is a LiteLLM virtual key in the Keychain (`openai.com:api`), unrelated
+    # to this URL.
+    # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
+    home.sessionVariables = {
+      OPENAI_BASE_URL = "https://ai.infin8it.ca/v1";
+      OPENAI_API_BASE = "https://ai.infin8it.ca/v1";
     };
+
+    # Chrome DevTools Protocol, in ATTACH mode against Chromium. The attach flag is
+    # picked at spawn time by probing /json/version — neither --browser-url nor
+    # --autoConnect works in both browser modes; see modules/shared/mcp.nix. One flag turns on BOTH the gateway server and the
+    # `nix-chromium-debug` launcher — they are gated together on purpose, so there
+    # is no state where something can reach a browser without the operator having
+    # enabled debugging deliberately (in-browser, or via that launcher).
+    #
+    # Safe to leave on permanently, MEASURED 2026-09-06 rather than assumed: with
+    # nothing listening on the port, the server still answers `initialize` and
+    # stays alive (45s, no exit) — it only touches a browser lazily, when a tool
+    # needs one. So it does NOT dark the gateway the way a server that exits at
+    # startup would (the failure mode postgres and localAdapter warn about in
+    # modules/shared/mcp.nix). Individual tool calls simply fail until a browser
+    # is listening; `devtools-doctor.sh` in the chrome-devtools plugin says which
+    # of the three causes it is.
+    #
+    # What is NOT persistent, deliberately: debugging itself. The in-browser toggle
+    # re-prompts per session and `nix-chromium-debug` is hand-run and dies with the
+    # browser window — because an open remote-debugging port is an unauthenticated
+    # control channel over a profile holding live logins. Measured 2026-09-07 on the
+    # then-default Opera Air: a Chromium-family browser stores no persistent consent
+    # key, so there is nothing to make it stop asking. Opera was removed from this Mac
+    # on 2026-09-21; the attach target is now Chromium (modules/shared/mcp.nix).
+    local.mcpGateway.chromeDevtools.enable = true;
+
+    # Per-user container runtime (Colima via home-manager's services.colima),
+    # replacing the docker-desktop cask whose privileged helper was bound to
+    # one username. Why/cost/migration: modules/shared/containers.nix.
+    local.containers.enable = true;
+  };
 
   # ---- OpenDesign: kill the in-app self-updater --------------------------------
   # Pairs with the greedy `open-design` cask below — versioning belongs to brew,

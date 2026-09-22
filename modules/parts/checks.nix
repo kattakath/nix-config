@@ -218,11 +218,52 @@ in
           # makes with the rest of the tree — every gateway endpoint is present
           # (parity with Claude Code is the whole point), and desktop-commander
           # is not (it is a Desktop Extension already; twice = 20 duplicate tools).
+          # The check that replaces two deleted assertions, and catches the
+          # direction they could not.
+          #
+          # `local.mcpGateway.public` used to name a SUBSET to publish, and an
+          # assertion refused a name the gateway did not host. It could not refuse
+          # the opposite — a newly HOSTED server nobody remembered to publish —
+          # which is exactly the silent failure worth guarding once "publish
+          # everything" became the rule.
+          #
+          # terranix renders outside any host's module system and cannot read the
+          # roster back, so `config.fleet.publicMcpServers` is a hand-kept mirror.
+          # This makes the mirror mechanical: set equality, both directions.
+          mcp-published-parity =
+            let
+              hm = config.flake.darwinConfigurations.macos.config.home-manager.users.${loginName};
+              hosted = lib.naturalSort hm.local.mcpGateway.hostedServers;
+              published = lib.naturalSort config.fleet.publicMcpServers;
+              missing = lib.subtractLists published hosted;
+              extra = lib.subtractLists hosted published;
+              problems =
+                lib.optional (
+                  missing != [ ]
+                ) "hosted but NOT published (terranix will never register them): ${toString missing}"
+                ++ lib.optional (
+                  extra != [ ]
+                ) "published but NOT hosted (terranix registers a dead upstream): ${toString extra}";
+            in
+            pkgs.runCommand "mcp-published-parity" { } (
+              if problems == [ ] then
+                "echo 'mcp: hosted roster == fleet.publicMcpServers (${toString (lib.length hosted)} servers)' > $out"
+              else
+                ''
+                  echo "mcp-published-parity: the gateway roster and config.fleet.publicMcpServers disagree." >&2
+                  ${lib.concatMapStringsSep "\n" (x: ''echo "  ${x}" >&2'') problems}
+                  echo "" >&2
+                  echo "  Both must list every hosted server. Fix modules/parts/identity.nix" >&2
+                  echo "  or the server set in modules/shared/mcp.nix." >&2
+                  exit 1
+                ''
+            );
+
           claude-desktop-config-shape =
             let
               hm = config.flake.darwinConfigurations.macos.config.home-manager.users.${loginName};
               servers = hm.local.claudeDesktop.renderedServers;
-              endpoints = builtins.attrNames hm.local.mcpGateway.endpoints;
+              endpoints = builtins.attrNames hm.local.claudeDesktop.renderedServers;
               badShape = lib.filterAttrs (
                 _: s: !(s ? command && s ? args) || s ? url || s ? type || !(s ? env && s.env ? NIX_CONFIG_MANAGED)
               ) servers;
@@ -353,8 +394,13 @@ in
                   {
                     home-manager.users.stranger = {
                       home.stateVersion = "24.05";
-                      # The opt-in that used to explode.
-                      local.mcpGateway.public = [ "memory" ];
+                      # The opt-in that used to explode was `local.mcpGateway.public`,
+                      # removed 2026-09-22 with the second proxy. What this check
+                      # actually guards is that a template consumer can EVALUATE the
+                      # gateway at all — the original failure was a missing
+                      # identityArg, not anything about publishing — so it now reads
+                      # the option that replaced it.
+                      local.mcpGateway.telegram.enable = false;
                     };
                   }
                 ];
@@ -378,10 +424,8 @@ in
               problems =
                 # Forces publicMcpPort through the agent's argv.
                 lib.optional (
-                  !lib.any (
-                    a: a == toString publicMcpPort
-                  ) macHm.launchd.agents.mcp-gateway-public.config.ProgramArguments
-                ) "the published gateway agent does not bind publicMcpPort for a template consumer"
+                  !lib.any (a: a == toString publicMcpPort) macHm.launchd.agents.mcp-gateway.config.ProgramArguments
+                ) "the gateway agent does not bind publicMcpPort for a template consumer"
                 ++ lib.optional (
                   boxUsers ? ${loginName}
                 ) "mkNixos created the OPERATOR's account (${loginName}) on a consumer's host"
