@@ -5,7 +5,8 @@
 onto the shared service token — and again on **2026-09-14**, when `character-mcp` was
 decommissioned. **§7's external-Worker shape is still fully supported and has zero users**:
 `character` was its only one, so it now reads as the *retired worked example*. The gateway half
-(§§1–6) is unaffected and still publishes `memory` + `sequential-thinking`.
+(§§1–6) is unaffected. **2026-09-22: the published list went from those two to ALL 26 hosted
+servers** by operator decision — see §8.2, and read §3 knowing its bound no longer binds.
 
 **The ask, verbatim:** *"Can we integrate this feature with our `mcp.nix` so that by flipping a
 flag, an MCP server can be made reached public with connector protection?"* — i.e. publish
@@ -322,6 +323,14 @@ the last Worker of any kind was decommissioned (§7).
 1. ~~Hostname for the public gateway~~ — **`upstream.kattakath.com`**, single-label as required
    (the free Universal cert covers `*.kattakath.com`, one label only).
 2. ~~Which servers to publish first~~ — **`memory` + `sequential-thinking`**. Both tokenless.
+   **Superseded 2026-09-22:** the operator chose to publish **all 26** hosted servers, having been
+   shown the tiering (machine control / personal / credentialed / reference) and §3's argument
+   against it. Consequences, stated rather than re-argued: the `:8097` process is now a copy of
+   `:8096`, so §3's bound is nil until a name is removed; a leaked Access service token reaches
+   the Gmail accounts, Telegram, prod WordPress, Postgres, the Cloudflare account,
+   `macos-automator` (RCE) and `chrome-devtools` (live sessions); and §6's "the Mac must be awake"
+   limit now applies to everything rather than to two tokenless servers. Narrowing is one edit to
+   `config.fleet.publicMcpServers` plus an apply that confirms the drops.
 3. **Does anything belong on `nixpi` instead**, given §6's uptime limit? Still open.
 4. ~~Add Grok's redirect URI to the portal allowlist~~ — **done 2026-09-12**, `https://grok.com/*`.
    §7 removed Grok's direct path, so the portal is its only door, and `grok.com/connectors` takes
