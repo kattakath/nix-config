@@ -192,12 +192,26 @@ in
             # and docs/repo-map.md says so, so the scoping rides `nix develop`
             # rather than re-introducing direnv auto-load.
             export CLOUDSDK_CONFIG="''${XDG_CONFIG_HOME:-$HOME/.config}/gcloud-nix-config"
+            # CLOUDSDK_CONFIG scopes gcloud. It does NOT scope Terraform.
+            #
+            # Measured 2026-09-22, and it cost an afternoon: the google provider's
+            # Go auth library ignores CLOUDSDK_CONFIG and reads the WELL-KNOWN ADC
+            # path (~/.config/gcloud/…) instead. So `gcloud` was correctly scoped
+            # to this repo while `tofu` silently authenticated with the GLOBAL
+            # credential — the exact silent-wrong-account failure this block exists
+            # to prevent, reappearing one layer down. It surfaced as a 403 on
+            # `iam.serviceAccounts.getAccessToken` that no IAM grant could fix,
+            # because the grant was on the right account and the call was not.
+            #
+            # GOOGLE_APPLICATION_CREDENTIALS is the knob that library DOES read.
+            export GOOGLE_APPLICATION_CREDENTIALS="$CLOUDSDK_CONFIG/application_default_credentials.json"
             if [ ! -f "$CLOUDSDK_CONFIG/application_default_credentials.json" ]; then
               echo "gcloud: scoped to $CLOUDSDK_CONFIG (not yet authenticated)."
               echo "  One-time. BOTH are needed — the CLI and Terraform read DIFFERENT files:"
               echo "    gcloud auth login                      # the gcloud CLI"
               echo "    gcloud auth application-default login  # ADC, what tofu reads"
               echo "    gcloud config set project <project-id>"
+              echo "  Run them INSIDE this shell so they land in the scoped dir."
             fi
           '';
         };
