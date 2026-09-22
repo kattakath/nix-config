@@ -95,8 +95,9 @@ nix run .#nixvm                              # Build + boot the throwaway nixvm 
 nix eval .#nixosConfigurations.nixpi.config.system.build.toplevel   # Fast single-target eval
 
 # Bootstrap a clean/reset Mac (no Nix yet): install Determinate Nix, clone, activate #macos.
-# `| bash -s -- --check` for a dry run. It does NOT manage SSH keys — a lost machine's
-# keypair stays lost and every agenix secret is vendor-re-issuable. See docs/new-mac-runbook.md
+# On a RESET Mac run `| bash -s -- --check` FIRST — it names the leftover "Nix Store" volume
+# that forces a reboot + a manual re-run mid-bootstrap. It does NOT manage SSH keys — a lost
+# keypair stays lost, every agenix secret is vendor-re-issuable. See docs/new-mac-runbook.md
 curl -fsSL https://raw.githubusercontent.com/kattakath/nix-config/main/bootstrap.sh | bash
 
 # nixpi SD card
