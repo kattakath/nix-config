@@ -426,7 +426,7 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   [`ADR-004`](docs/secrets-recovery-and-identity-adr.md) (decided, **Phase 1 of 3 shipped — docs
   + `OPERATOR-ONLY` markers only**: GCP Secret Manager durable, Keychain as cache, Workspace
   canonical; rename + repo split deferred with triggers; §7 awaits approval, §8 the conflicts);
-  [`ADR-005`](docs/iac-coverage-adr.md) (decided, **NOT implemented**: Cloudflare + GCP
+  [`ADR-005`](docs/iac-coverage-adr.md) (decided and **IMPLEMENTED**: Cloudflare + GCP
   under terranix, Workspace not).
 - [`docs/identity-and-offboarding.md`](docs/identity-and-offboarding.md) — the single lever:
   suspend the Workspace account and every derived login goes with it; the three privilege tiers.
