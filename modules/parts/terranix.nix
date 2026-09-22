@@ -853,6 +853,106 @@ let
   # so it composes: `… | secret set cf:cloudflare.com:mcp-connector`. The value
   # never reaches a terminal, scrollback, the clipboard, or a transcript.
   # Read-only: it runs `tofu output`, never plan or apply.
+  # ---- Force the portal to re-poll every published server --------------------
+  # A CLIENT of Cloudflare's own documented endpoint, not something our proxy
+  # implements. The direction matters and is easy to get backwards: the portal is
+  # an MCP CLIENT against upstream.<domain>, so it calls `initialize`,
+  # `tools/list` and `prompts/list` on us. `/sync` is the opposite direction — WE
+  # ask Cloudflare to run that poll now instead of waiting for its own schedule.
+  #
+  #   POST /accounts/{account_id}/access/ai-controls/mcp/servers/{id}/sync
+  #   "Sync MCP Server Capabilities", NO request body
+  #   — cloudflare/api-schemas openapi.json, one of nine ai-controls/mcp paths
+  #
+  # WHY IT EXISTS HERE. Restarting the gateway takes ~33s, and mcp-proxy does not
+  # bind its socket until all 26 stdio children are spawned and handshaked
+  # (mcp_server.py: loop at :183, uvicorn.Server at :237). So the whole window is
+  # connection-REFUSED, and anything Cloudflare polls during it records
+  # `status = error` — which does NOT self-heal on the next poll in practice.
+  # Measured twice on 2026-09-22, once on telegram and once across the portal.
+  #
+  # So: activate, then run this. It converts "wait and hope the next poll is
+  # clean" into a deterministic step with an exit code.
+  #
+  # NOT a health check we invented, and deliberately not a loop that watches
+  # anything — there is no lifecycle protocol to drive (refresh/restart/health all
+  # 404). The portal's entire model is poll-and-record; this is its one lever.
+  mkMcpPublicSync =
+    { system }:
+    let
+      pkgs = pkgsFor system;
+      api = "https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/access/ai-controls/mcp/servers";
+
+      # THE REGISTRATION ID IS NOT THE SERVER NAME for four of these, and calling
+      # the wrong one is a silent 404 rather than an error. Cloudflare rejects `_`
+      # in a registration id (`7001 ID must contain lowercase letters, numbers,
+      # and hyphens only`), so infra/cloudflare/mcp-public.nix maps underscore to
+      # hyphen for the id ONLY — the gmail-<sanitized-email> names keep their
+      # underscores in the upstream URL, because that is the literal mcp-proxy
+      # path.
+      #
+      # This is the same `cfId` transform, applied to the same list, and it has to
+      # be: `publicMcpServers` holds NAMES, this endpoint addresses IDs. Found by
+      # running the app — all four gmail entries came back unreachable while the
+      # other 21 were ready.
+      registrationIds = map (nixpkgs.lib.replaceStrings [ "_" ] [ "-" ]) publicMcpServers;
+    in
+    pkgs.writeShellApplication {
+      name = "mcp-public-sync";
+      runtimeInputs = [
+        pkgs.curl
+        pkgs.jq
+        pkgs.coreutils
+      ];
+      text = ''
+        if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
+          echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
+          echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:mcp-public -- mcp-public-sync" >&2
+          echo "  (NOT cf:cloudflare.com:api — that handle 403s on /access/ai-controls/*)" >&2
+          exit 1
+        fi
+
+        ok=0
+        bad=0
+        for id in ${nixpkgs.lib.escapeShellArgs registrationIds}; do
+          # No request body: the endpoint takes path parameters only.
+          out=$(curl -sS --max-time 60 -X POST \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "${api}/$id/sync" 2>/dev/null || true)
+
+          status=$(printf '%s' "$out" | jq -r '.result.status // "unreachable"')
+          tools=$(printf '%s' "$out" | jq -r '(.result.tools // []) | length')
+
+          if [ "$status" = "ready" ]; then
+            printf '  ok     %-34s tools=%s\n' "$id" "$tools"
+            ok=$((ok + 1))
+          else
+            # error_details is documented and distinguishes the two failures that
+            # look identical from outside: `is_upstream` is literally "True = MCP
+            # server returned an error. False = couldn't reach the server". Print
+            # it, because reading it wrong cost a wrong diagnosis twice.
+            cause=$(printf '%s' "$out" | jq -r '.result.error_details.cause // .result.error // "?"')
+            up=$(printf '%s' "$out" | jq -r '.result.error_details.is_upstream // "?"')
+            printf '  FAIL   %-34s status=%s is_upstream=%s :: %s\n' "$id" "$status" "$up" "$cause"
+            bad=$((bad + 1))
+          fi
+        done
+
+        echo "----"
+        echo "synced: $ok ready, $bad not ready"
+        if [ "$bad" -gt 0 ]; then
+          echo "" >&2
+          echo "is_upstream=true  -> that SERVER answered badly. Check what it" >&2
+          echo "                     advertises in initialize: a server that claims" >&2
+          echo "                     prompts/resources and then errors on the list" >&2
+          echo "                     call fails the whole registration." >&2
+          echo "is_upstream=false -> Cloudflare could not REACH it. Check the" >&2
+          echo "                     connector and that the proxy finished starting." >&2
+          exit 1
+        fi
+      '';
+    };
+
   mkMcpPublicToken =
     { system }:
     let
@@ -906,6 +1006,7 @@ in
           action = "apply";
         };
         mcp-public-token = mkMcpPublicToken { inherit system; };
+        mcp-public-sync = mkMcpPublicSync { inherit system; };
         cf-zones-apply = mkCfZonesTofu {
           inherit system;
           name = "cf-zones-apply";
@@ -1008,6 +1109,11 @@ in
           type = "app";
           program = "${config.packages.cf-zones-apply}/bin/cf-zones-apply";
           meta.description = "tofu apply kattakath.com's DNS records (mail included) — refuses a shrunken render, an empty state, or any dropped record (needs CLOUDFLARE_API_TOKEN)";
+        };
+        mcp-public-sync = {
+          type = "app";
+          program = "${config.packages.mcp-public-sync}/bin/mcp-public-sync";
+          meta.description = "Ask Cloudflare to re-poll every published MCP server NOW (POST .../servers/{id}/sync) — run it after `activate`, since the proxy refuses connections for ~33s while it spawns and anything polled in that window latches status=error (needs CLOUDFLARE_API_TOKEN)";
         };
         mcp-public-token = {
           type = "app";
