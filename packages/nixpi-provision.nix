@@ -7,6 +7,8 @@
 #                                 + verified dd + auto-plant (fresh reflash)
 #   nix run .#nixpi-provision   — plant token/wifi onto a mounted card (update either)
 #   nix run .#nixpi-wifi-creds  — emit a wpa_supplicant.conf from the Mac's Wi-Fi
+#                                 (--ssid is repeatable: first = preferred AP, the
+#                                  rest are ranked fallbacks)
 #   nix run .#nixpi-vault-token — re-encrypt a new connector token into the vault (rotate)
 #
 # These are the ONLY supported way to provision an SD card, so the runbook is
@@ -176,66 +178,132 @@ let
       gawk
     ];
     text = ''
-      # Emit a wpa_supplicant.conf for nixpi from the Mac's current Wi-Fi network.
-      # Reads the SSID + keychain PSK of the network this Mac is on; --ssid/--country
-      # override. Prints to stdout (pipe into nixpi-provision --wifi-conf, or a file).
-      ssid=""
-      psk=""
+      # Emit a wpa_supplicant.conf for nixpi. With no arguments it reads the SSID +
+      # keychain PSK of the network this Mac is on.
+      #
+      # --ssid is REPEATABLE. Each one opens a new network={} block and the --psk
+      # that FOLLOWS it belongs to it; blocks are emitted in the order given and
+      # carry a descending `priority=`, so the first --ssid is the one nixpi
+      # prefers and the rest are fallbacks. One --ssid emits exactly what this
+      # tool always emitted, priority line included (there is nothing to rank).
+      #
+      # WHY FALLBACKS ARE WORTH THE COMPLEXITY: nixpi is headless, its sshd binds
+      # loopback only (modules/nixos/core.nix) and the sole route in is the
+      # Cloudflare tunnel — which needs WORKING INTERNET, not merely a LAN. One
+      # network={} therefore makes its single AP a single point of failure whose
+      # recovery is a physical SD-card pull (~40 min,
+      # docs/nixpi-sd-flashing-runbook.md). A second block is the difference
+      # between "the router got reset" and that trip to the shelf. Measured
+      # 2026-09-22: a two-block config failed over to the backup AP in ~6 s.
+      #
+      # Prints to stdout (pipe into nixpi-provision --wifi-conf, or a file).
+      ssids=()
+      psks=()
       country=""
       while [ $# -gt 0 ]; do
         case "$1" in
-          --ssid) ssid="''${2:?}"; shift 2 ;;
-          --psk) psk="''${2:?}"; shift 2 ;;
+          # A new --ssid opens a block with an EMPTY psk slot; --psk fills the slot
+          # of the most recent one. --psk before any --ssid is the auto-detect case
+          # (one network, this Mac's), so it seeds slot 0.
+          --ssid) ssids+=("''${2:?}"); psks+=(""); shift 2 ;;
+          --psk)
+            if [ ''${#ssids[@]} -eq 0 ]; then ssids+=(""); psks+=(""); fi
+            psks[''${#psks[@]}-1]="''${2:?}"; shift 2 ;;
           --country) country="''${2:?}"; shift 2 ;;
-          -h | --help) echo "usage: nixpi-wifi-creds [--ssid SSID] [--psk PSK] [--country CC]"; exit 0 ;;
+          -h | --help) echo "usage: nixpi-wifi-creds [--ssid SSID [--psk PSK]]... [--country CC]"; exit 0 ;;
           *) echo "nixpi-wifi-creds: unknown argument: $1" >&2; exit 1 ;;
         esac
       done
+      if [ ''${#ssids[@]} -eq 0 ]; then ssids+=(""); psks+=(""); fi
 
-      if [ -z "$ssid" ]; then
+      if [ -z "''${ssids[0]}" ]; then
         wifi_dev=$(/usr/sbin/networksetup -listallhardwareports \
           | awk '/Wi-Fi/{getline; print $2; exit}')
         wifi_dev="''${wifi_dev:-en0}"
         # Modern macOS gates `networksetup -getairportnetwork` behind Location
         # privacy (it lies "not associated"); `ipconfig getsummary` reports the SSID
         # without that. Fall back to networksetup if ipconfig ever comes up empty.
-        ssid=$(/usr/sbin/ipconfig getsummary "$wifi_dev" 2>/dev/null \
+        ssids[0]=$(/usr/sbin/ipconfig getsummary "$wifi_dev" 2>/dev/null \
           | sed -n 's/^[[:space:]]*SSID : //p' | head -1)
-        if [ -z "$ssid" ]; then
-          ssid=$(/usr/sbin/networksetup -getairportnetwork "$wifi_dev" \
+        if [ -z "''${ssids[0]}" ]; then
+          ssids[0]=$(/usr/sbin/networksetup -getairportnetwork "$wifi_dev" \
             | sed 's/^Current Wi-Fi Network: //')
         fi
       fi
-      case "$ssid" in
-        "" | *"not associated"* | *"not currently"*)
-          echo "nixpi-wifi-creds: could not determine the current Wi-Fi SSID; pass --ssid (and --psk)." >&2
-          exit 1 ;;
-      esac
 
-      # PSK: --psk wins; else read it from the keychain for this SSID (may prompt for
-      # keychain auth). Band-split networks (e.g. a separate '<name>-5G') can be saved
-      # under a different name than the one you flash — pass --ssid/--psk then.
-      if [ -z "$psk" ]; then
-        if ! psk=$(/usr/bin/security find-generic-password -wa "$ssid" 2>/dev/null) || [ -z "$psk" ]; then
-          echo "nixpi-wifi-creds: no saved password for '$ssid' in the keychain; pass --psk." >&2
-          exit 1
+      # Every block needs a resolvable SSID and PSK before anything is printed —
+      # a half-written conf that plants cleanly and then cannot associate is the
+      # failure this tool exists to prevent.
+      for i in "''${!ssids[@]}"; do
+        case "''${ssids[i]}" in
+          "" | *"not associated"* | *"not currently"*)
+            echo "nixpi-wifi-creds: could not determine the current Wi-Fi SSID; pass --ssid (and --psk)." >&2
+            exit 1 ;;
+        esac
+
+        # PSK: --psk wins; else read it from the keychain for this SSID (may prompt
+        # for keychain auth). Band-split networks (e.g. a separate '<name>-5G') can
+        # be saved under a different name than the one you flash — pass --ssid/--psk
+        # then.
+        if [ -z "''${psks[i]}" ]; then
+          # `cur`, not the array element inline: inside a Nix indented string a
+          # doubled apostrophe is an escape marker, so an apostrophe written
+          # immediately before an escaped interpolation is swallowed as part of it
+          # and the interpolation becomes REAL Nix. nixfmt then reformats the
+          # expression into the middle of the message, which is how this was caught.
+          # A braceless `$cur` cannot collide. (The same trap is why this comment
+          # spells the characters out instead of showing them.)
+          cur="''${ssids[i]}"
+          if ! psks[i]=$(/usr/bin/security find-generic-password -wa "$cur" 2>/dev/null) || [ -z "''${psks[i]}" ]; then
+            echo "nixpi-wifi-creds: no saved password for '$cur' in the keychain; pass --psk." >&2
+            exit 1
+          fi
         fi
-      fi
+      done
 
       if [ -z "$country" ]; then
         country=$(/usr/bin/defaults read -g AppleLocale 2>/dev/null | sed 's/.*_//' | cut -c1-2)
         [ -n "$country" ] || country="US"
       fi
 
-      cat <<EOF
-      country=$country
-      ctrl_interface=/run/wpa_supplicant
-      update_config=1
-      network={
-          ssid="$ssid"
-          psk="$psk"
-      }
-      EOF
+      # wpa_supplicant takes an SSID either as a QUOTED string or as raw HEX with no
+      # quotes, and the same for a psk. Hex is used for anything that is not plain
+      # printable ASCII, because a quoted UTF-8 literal has to survive this script,
+      # the pipe, a FAT filesystem and wpa_supplicant's own parser intact, and an
+      # emoji SSID is not hypothetical — measured 2026-09-22, `aloshy.` + U+1F170 +
+      # U+1F178, which wpa_supplicant logs back as
+      # `aloshy.\xf0\x9f\x85\xb0\xf0\x9f\x85\xb8`. Hex has no chain of luck in it.
+      # A quoted value still gets \ and " escaped, which is what wpa_supplicant's
+      # quoted form accepts.
+      needs_hex() { LC_ALL=C printf '%s' "$1" | LC_ALL=C grep -q '[^ -~]'; }
+      to_hex() { LC_ALL=C printf '%s' "$1" | od -An -tx1 | tr -d ' \n'; }
+      quote() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'; }
+
+      printf 'country=%s\n' "$country"
+      printf 'ctrl_interface=/run/wpa_supplicant\n'
+      printf 'update_config=1\n'
+      n=''${#ssids[@]}
+      for i in "''${!ssids[@]}"; do
+        printf 'network={\n'
+        if needs_hex "''${ssids[i]}"; then
+          # The SSID is not a secret, so the decoded form goes in a comment: a hex
+          # blob nobody can read is how the wrong network gets planted twice.
+          printf '    # ssid (decoded): %s\n' "''${ssids[i]}"
+          printf '    ssid=%s\n' "$(to_hex "''${ssids[i]}")"
+        else
+          printf '    ssid="%s"\n' "$(quote "''${ssids[i]}")"
+        fi
+        if needs_hex "''${psks[i]}"; then
+          printf '    psk=%s\n' "$(to_hex "''${psks[i]}")"
+        else
+          printf '    psk="%s"\n' "$(quote "''${psks[i]}")"
+        fi
+        # Only RANK when there is something to rank: one network emits exactly what
+        # this tool emitted before priorities existed, so a single-AP card keeps
+        # byte-for-byte the same conf.
+        if [ "$n" -gt 1 ]; then printf '    priority=%s\n' "$((n - i))"; fi
+        printf '}\n'
+      done
     '';
   };
 
@@ -322,8 +390,10 @@ let
             image=""
             use_release=""
             wifi_conf=""
-            ssid=""
-            psk=""
+            # Collected verbatim and handed to nixpi-wifi-creds in ORDER: --ssid is
+            # repeatable there (first = preferred, rest = fallbacks), and flattening
+            # the pairs here would silently drop every AP but one.
+            wc_args=()
             country=""
             while [ $# -gt 0 ]; do
               case "$1" in
@@ -331,10 +401,10 @@ let
                 --image) image="''${2:?}"; shift 2 ;;
                 --release) use_release=1; shift ;;
                 --wifi-conf) wifi_conf="''${2:?}"; shift 2 ;;
-                --ssid) ssid="''${2:?}"; shift 2 ;;
-                --psk) psk="''${2:?}"; shift 2 ;;
+                --ssid) wc_args+=(--ssid "''${2:?}"); shift 2 ;;
+                --psk) wc_args+=(--psk "''${2:?}"); shift 2 ;;
                 --country) country="''${2:?}"; shift 2 ;;
-                -h | --help) echo "usage: nixpi-flash --disk /dev/diskN [--image FILE.img.zst | --release] [--wifi-conf FILE | --ssid SSID [--psk PSK] [--country CC]]"; exit 0 ;;
+                -h | --help) echo "usage: nixpi-flash --disk /dev/diskN [--image FILE.img.zst | --release] [--wifi-conf FILE | [--ssid SSID [--psk PSK]]... [--country CC]]"; exit 0 ;;
                 *) echo "nixpi-flash: unknown argument: $1" >&2; exit 1 ;;
               esac
             done
@@ -420,11 +490,9 @@ let
             # On a BAND-SPLIT network (e.g. joined to `FOO-5G` but the keychain stores the
             # base `FOO` PSK) nixpi-provision's auto Wi-Fi detect fails — pin it with --ssid
             # or a prebuilt --wifi-conf. Build the conf here when --ssid is given.
-            if [ -z "$wifi_conf" ] && [ -n "$ssid" ]; then
+            if [ -z "$wifi_conf" ] && [ ''${#wc_args[@]} -gt 0 ]; then
               wifi_conf="$tmp/wpa.conf"
-              wc_args=(--ssid "$ssid")
-              [ -n "$psk" ] && wc_args+=(--psk "$psk")
-              [ -n "$country" ] && wc_args+=(--country "$country")
+              if [ -n "$country" ]; then wc_args+=(--country "$country"); fi
               ${wifi-creds}/bin/nixpi-wifi-creds "''${wc_args[@]}" > "$wifi_conf"
             fi
             prov_args=(--all)
