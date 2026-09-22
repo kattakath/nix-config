@@ -99,27 +99,6 @@ let
   # via config.home.sessionVariables.ANDROID_HOME, not re-declared there).
   androidSdkRoot = "/opt/homebrew/share/android-commandlinetools";
 
-  # Qwen Code (`qwen`) MCP wiring — ONE entry, the portal, like every other
-  # client since 2026-09-22.
-  #
-  # It used to curate 11 of the 26 loopback endpoints, because a local
-  # qwen3-coder degrades when handed too many tools. That curation is GONE, not
-  # forgotten: with one portal URL there is no per-server list to filter, and the
-  # portal's own per-user enable state is where a subset now lives.
-  #
-  # UNVERIFIED and flagged rather than assumed: the portal requires OAuth, and
-  # `qwen` is configured here with a bare `httpUrl`. If it has no OAuth flow it
-  # will simply fail to connect — the DCR allowlist already permits any loopback
-  # callback, so an allowlist entry cannot be the missing piece. Test before
-  # trusting this block; if it cannot authenticate, delete it rather than leave a
-  # config that silently does nothing.
-  qwenMcpServers = {
-    kattakath-portal = {
-      httpUrl = config.local.mcpGateway.portalEndpoint;
-      timeout = 8000;
-    };
-  };
-
   # VS Code Marketplace mirror — provided by the nix-vscode-extensions overlay,
   # which the darwin host (macos) adds to nixpkgs.overlays. Only referenced
   # inside the `mkIf isDarwin` vscode block, so the Linux hosts (which don't
@@ -849,7 +828,6 @@ in
       design-tokens # `design-tokens [--tokens-url URL] [--out DIR]` — transform the gist DTCG tokens.json into SCSS/CSS/JS via Style Dictionary, to ~/.local/share/design-tokens/ (packages/design-tokens/)
       jobspy # `jobspy --search … --location …` — scrape jobs (LinkedIn/Indeed/…) into CSV/JSON via python-jobspy in an ephemeral uv env (packages/jobspy.nix)
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
-      qwen-code # `qwen` — Alibaba's Gemini-CLI-fork coding agent, pointed at a LOCAL Qwen model served by Ollama's OpenAI-compatible endpoint (config in ~/.qwen/.env below, NOT the global OpenAI env — those generic var names would hijack other tools). Pull the model with `ollama pull qwen3-coder:30b`.
       inngest # `inngest` — CLI + local dev server for Inngest durable workflows (not in Homebrew; nixpkgs has it)
       stripe-cli # Stripe CLI (`stripe`) — API calls, webhook forwarding (`stripe listen`), event triggers; auth is a one-time `stripe login` browser OAuth (config in ~/.config/stripe, never in git/store — same one-time-CLI-login convention as gh/hf/docker). Pairs with the stripe@claude-plugins-official plugin (local.claudePlugins.marketplaces above)
       resendCli # `resend` — the official Resend CLI (npx-wrapped, not yet in nixpkgs), authenticated non-interactively via RESEND_API_KEY from the login Keychain (packages/resend-cli.nix). Pairs with the resend@claude-plugins-official plugin (local.claudePlugins.marketplaces above)
@@ -963,53 +941,6 @@ in
   # flake was retired 2026-09-15 along with that flake; there is only one
   # checkout to activate now.
 
-  # qwen-code local-model wiring. `qwen` (Alibaba's coding-agent CLI, in
-  # home.packages above) auto-loads ~/.qwen/.env — a qwen-SCOPED env file, so we
-  # point it at the LOCAL Ollama OpenAI-compatible endpoint WITHOUT exporting the
-  # generic OPENAI_* names into every shell (which would hijack any other
-  # OpenAI-compatible tool). OPENAI_API_KEY is a required-but-ignored dummy for a
-  # local server. Change the model here (must match an `ollama pull`ed tag);
-  # nothing here starts Ollama — it's the always-on launch agent on macos.
-  # Darwin-only (Ollama + this personal tooling live on the Mac).
-  home.file.".qwen/.env" = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
-    text = ''
-      OPENAI_BASE_URL=http://localhost:11434/v1
-      OPENAI_API_KEY=ollama
-      OPENAI_MODEL=qwen3-coder:30b
-    '';
-  };
-
-  # `qwen` settings.json — validated against the installed 0.16.0 build (keys it
-  # accepted with no warning: general.checkpointing, telemetry, tools.toolSearch,
-  # tools.approvalMode, mcpServers via httpUrl). Model auth stays in ~/.qwen/.env
-  # (env beats settings.json), so no secret ever lands here. checkpointing on =
-  # file-edit snapshots (safe autonomous edits, `/restore`); toolSearch on =
-  # retrieval over the tool surface (tames tool count for the local model);
-  # approvalMode "default" = ask before each edit/shell. mcpServers reuses the
-  # gateway (curated `qwenMcpServers`), macos-only. Darwin-wide otherwise so a guest
-  # still gets a sane config (minus MCP, since its gateway is off).
-  home.file.".qwen/settings.json" = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
-    text = builtins.toJSON (
-      {
-        general.checkpointing.enabled = true;
-        telemetry.enabled = false;
-        tools = {
-          toolSearch.enabled = true;
-          approvalMode = "default";
-        };
-      }
-      // lib.optionalAttrs isMacosHost { mcpServers = qwenMcpServers; }
-    );
-  };
-
-  # Global `qwen` context (all projects) — the qwen counterpart of ~/.claude/CLAUDE.md.
-  # Read-only store symlink like that file; qwen's own save_memory targets this path,
-  # so memory-to-file is intentionally inert here (persistence, if wanted, is managed
-  # auto-memory in a separate dir). Darwin-only (qwen is installed on darwin only).
-  home.file.".qwen/QWEN.md" = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
-    source = ../../qwen/QWEN.md;
-  };
-
   # ---- Git identity include files -----------------------------------------------
   # The ADDRESSES that programs.git.includes (below) route to. gitlab.inc is
   # DERIVED — its address is the canonical Google account (config.fleet.googleAccount,
@@ -1074,7 +1005,15 @@ in
       # marketplace set is DATA (`local.claudePlugins.marketplaces` above) and its
       # registration + install mechanism lives in ./claude-plugins.nix, which also
       # records why upstream's `marketplaces.*` option cannot be used.
-      # Runtime for grok-build: grok on PATH (~/.grok/bin) + Node; `grok models` must work.
+      # Runtime for grok-build: grok on PATH + Node; `grok models` must work.
+      #
+      # The `grok` BINARY stays (packages/grok.nix) even though grok is no longer
+      # an MCP client. Removed 2026-09-22: its `~/.grok/config.toml` MCP wiring,
+      # so claude-code and claude-desktop are the only MCP clients this flake
+      # configures. The binary is kept for exactly one reason — the grok-build
+      # bridge shells out to `grok models`, so deleting the package would break a
+      # Claude Code plugin rather than tidy anything. Remove the package only
+      # together with the grok-build plugin and its flake input.
 
       # Claude Code user settings, now Nix-owned.
       # NOTE: editing any of these in the Claude UI won't persist — a rebuild
