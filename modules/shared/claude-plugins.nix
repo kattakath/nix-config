@@ -182,35 +182,20 @@ in
       claude="${lib.getExe config.programs.claude-code.package}"
       if [ -x "$claude" ]; then
        (
-        # A SUBSHELL, and the reason is the trap below rather than scoping.
+        # NO de-symlink dance here any more, and none is needed: since
+        # modules/shared/claude-code-settings.nix, ~/.claude/settings.json is a
+        # REAL writable file that Nix re-asserts its own keys into on every
+        # rebuild. What stood here until 2026-09-22 de-symlinked it into a mutable
+        # copy for the ~76 lines of NETWORKED `claude` calls below and restored it
+        # under a subshell EXIT trap — because an abort in between stranded
+        # settings.json as an unmanaged regular file that "looks completely normal
+        # and silently stops tracking the flake, freezing this fleet's
+        # permissions.deny floor at whatever it happened to be".
         #
-        # Everything from here to the restore de-symlinks ~/.claude/settings.json
-        # into a mutable copy and then makes ~76 lines of `claude` calls that talk
-        # to the NETWORK. Reaching the tail of the block was the only thing that
-        # put the symlink back, so an abort or an interrupt in between stranded
-        # settings.json as an unmanaged regular file — which looks completely
-        # normal and silently stops tracking the flake, freezing this fleet's
-        # permissions.deny floor at whatever it happened to be.
-        #
-        # A bare `trap … EXIT` here would be WORSE than the bug: home-manager's
-        # own activation sets one (pinned generation's activate:232,
-        # `trap 'run rm -f "$newGenGcPath"' EXIT`) to drop the temporary GC root
-        # that keeps the new generation from being collected mid-activation.
-        # EXIT traps replace rather than stack, so ours would have leaked that
-        # root on every run. Scoping to a subshell leaves home-manager's intact
-        # and still fires on any exit from this block.
-        settings="${config.home.homeDirectory}/.claude/settings.json"
-        settings_target=""
-        if [ -L "$settings" ]; then
-          settings_target=$(readlink "$settings")
-          tmp=$(mktemp)
-          cp -L "$settings" "$tmp"
-          rm -f "$settings"
-          mv "$tmp" "$settings"
-          chmod u+w "$settings"
-          trap 'if [ -n "$settings_target" ]; then rm -f "$settings"; ln -s "$settings_target" "$settings"; fi' EXIT
-        fi
-
+        # That hazard is GONE rather than mitigated: there is no symlink to strand,
+        # and an interrupt now leaves exactly the writable file the next activation
+        # merges into. Do not re-add the trap — the subshell is kept only because
+        # the plugin calls below still want their own scope.
         known_mps="${config.home.homeDirectory}/.claude/plugins/known_marketplaces.json"
 
         ${lib.concatStringsSep "\n\n  " (
@@ -281,13 +266,8 @@ in
           fi
         done
 
-        # Restore the Nix-managed symlink for a clean next switch. The EXIT trap
-        # above does this too; this stays as the success path so the intent is
-        # readable where it happens, and both are idempotent (rm then ln).
-        if [ -n "$settings_target" ]; then
-          rm -f "$settings"
-          ln -s "$settings_target" "$settings"
-        fi
+        # No symlink restore: settings.json is a real file now
+        # (modules/shared/claude-code-settings.nix). Nothing to put back.
        )
       fi
     '';
