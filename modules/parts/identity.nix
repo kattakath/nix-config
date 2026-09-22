@@ -154,9 +154,56 @@ let
   # MUST mirror hosts/macos.nix's `local.mcpGateway.public` — both read this
   # one value, so the two can never drift (docs/mcp-public-exposure-design.md).
   # Consumed by modules/parts/terranix.nix's mcpPublicConfig/mkMcpPublicTofu.
+  #
+  # EVERY hosted server, by operator decision (2026-09-22). This is the WHOLE of
+  # `local.mcpGateway.endpoints`, so the :8097 process is now a full copy of the
+  # :8096 one and the second-process split of docs/mcp-public-exposure-design.md
+  # §3 no longer bounds anything: a leaked Access service token reaches all of
+  # it. The tiers that argument was written about, named so the cost stays
+  # legible rather than buried in an alphabetical list:
+  #   - machine control : macos-automator (arbitrary AppleScript = RCE on this
+  #                       Mac), chrome-devtools (live browser cookies/sessions),
+  #                       mobile-mcp (the attached device)
+  #   - personal        : gmail-* (four accounts), telegram (the operator's own
+  #                       account), wordpress + wordpress-adapter (prod writes)
+  #   - credentialed    : github (PAT, repo write), cloudflare (this account),
+  #                       postgres (the local pgvector store), apify (paid)
+  #   - reference       : the remaining ten are stateless lookup/compute
+  # Narrow it by deleting names here; the next apply then DROPS their Cloudflare
+  # objects, which the mkMcpPublicTofu drop-guard will make you confirm.
+  #
+  # The gmail-* names are `gmailAlias` (modules/shared/mcp.nix) applied to
+  # hosts/macos.nix's `local.mcpGateway.gmail.accounts` — lowercased, with
+  # @/./+ replaced by _. They are spelled out rather than derived because
+  # terranix renders outside any host's module system and cannot read that
+  # option back; the mcp.nix assertion catches a name the gateway does not host.
   publicMcpServers = [
+    "apify"
+    "arxiv"
+    "chrome-devtools"
+    "cloudflare"
+    "cloudflare-docs"
+    "context7"
+    "duckduckgo"
+    "fetch"
+    "github"
+    "gmail-aloshyakasoto_gmail_com"
+    "gmail-ismail_kattakath_com"
+    "gmail-ismailkattakath_gmail_com"
+    "gmail-izzy_silvercreek_ai"
+    "json-yaml-toml"
+    "macos-automator"
+    "mcp-jq"
+    "mcpfinder"
     "memory"
+    "mobile-mcp"
+    "nixos"
+    "postgres"
     "sequential-thinking"
+    "telegram"
+    "terraform"
+    "wordpress"
+    "wordpress-adapter"
   ];
 
   # The loopback port the SECOND mcp-proxy binds, and therefore the port the
