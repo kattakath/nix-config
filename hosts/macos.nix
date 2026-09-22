@@ -604,6 +604,43 @@ in
       # ships to Chrome and Firefox ONLY — lives in modules/shared/chromium.nix.
       "ungoogled-chromium"
       "visual-studio-code"
+      # VoiceInk — the fleet's dictation, REPLACING Apple's built-in (F5 / mic key).
+      # Three things Apple's has no knob for, and they are the whole reason:
+      #   1. custom vocabulary — Apple's personalisation only ingests proper nouns
+      #      from Contacts, so `nixos-rebuild`/`agenix`/`flake.lock` mangle every
+      #      time and cannot be taught. VoiceInk takes an explicit word list.
+      #   2. local LLM cleanup — points at `local.ollamaDaemon` on 127.0.0.1:11434,
+      #      so transcript repair costs no API key and no egress.
+      #   3. engine choice — Whisper / Parakeet on the Neural Engine, both local.
+      # GPL-3.0, which is why it wins over the (more polished) closed-source
+      # MacWhisper: same feature set, community Lego over proprietary monolith.
+      # Do NOT "correct" that licence from the GitHub API — api.github.com reports
+      # `NOASSERTION / Other` for Beingpax/VoiceInk (its classifier trips over the
+      # paid-licence notice sitting beside the LICENSE file). The file itself is
+      # verbatim GPLv3 and the README states it. Verified 2026-09-22.
+      #
+      # Buying a licence buys automatic updates and support, not the code; the
+      # cask takes the upstream signed build and `auto_updates` is true, so this
+      # entry only bootstraps the app the way `affinity` above does.
+      #
+      # Worth configuring once installed: VoiceInk has per-app MODES, so a
+      # terminal/editor mode can carry the Nix vocabulary and a plain-prose mode
+      # can leave it out. That is the feature Apple's Dictation has no analogue
+      # for at all.
+      #
+      # Apple's Dictation is NOT disabled by installing this — the mic key keeps
+      # working; VoiceInk binds its own hotkey. Nothing here reaches into the
+      # com.apple.speech.* domains, deliberately: that is imperative Mac state and
+      # a user can want both.
+      #
+      # KNOWN DEAD END, do not waste time on it: neither this nor any other
+      # third-party dictation app can type into Terminal.app, which holds
+      # `SecureKeyboardEntry = 1` (its own pref, not ours). Secure event input
+      # forbids one process injecting keystrokes into another. Ghostty is the
+      # fleet's terminal and does not hold it except at a password prompt, so the
+      # limitation is real but narrow. Clipboard-paste output mode is the
+      # documented workaround if Terminal.app ever matters.
+      "voiceink"
       "whatsapp"
       # Wireshark — SHARED (plain /Applications). Its packet capture needs the
       # ChmodBPF privileged helper, which the cask installs as a system
