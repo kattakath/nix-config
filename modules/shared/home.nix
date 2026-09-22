@@ -99,31 +99,26 @@ let
   # via config.home.sessionVariables.ANDROID_HOME, not re-declared there).
   androidSdkRoot = "/opt/homebrew/share/android-commandlinetools";
 
-  # Qwen Code (`qwen`) MCP wiring — reuse the SAME localhost gateway Claude Code
-  # uses (local.mcpGateway.endpoints: one Streamable-HTTP /mcp URL per hosted
-  # server), so qwen can never drift from the other clients. But CURATE to a
-  # coding-focused subset: a local qwen3-coder model degrades when handed too many
-  # tools, so the GUI/automation/external-state servers (mobile-mcp,
-  # macos-automator, cloudflare*) are left out — add a name here to
-  # expose more. macos-only (the gateway runs only there), so
-  # the mcpServers block is gated on isMacosHost below.
-  qwenGatewayServers = [
-    "context7"
-    "fetch"
-    "memory"
-    "sequential-thinking"
-    "github"
-    "nixos"
-    "terraform"
-    "duckduckgo"
-    "json-yaml-toml"
-    "mcp-jq"
-    "postgres"
-  ];
-  qwenMcpServers = lib.mapAttrs (_: url: {
-    httpUrl = url;
-    timeout = 8000;
-  }) (lib.filterAttrs (n: _: builtins.elem n qwenGatewayServers) config.local.mcpGateway.endpoints);
+  # Qwen Code (`qwen`) MCP wiring — ONE entry, the portal, like every other
+  # client since 2026-09-22.
+  #
+  # It used to curate 11 of the 26 loopback endpoints, because a local
+  # qwen3-coder degrades when handed too many tools. That curation is GONE, not
+  # forgotten: with one portal URL there is no per-server list to filter, and the
+  # portal's own per-user enable state is where a subset now lives.
+  #
+  # UNVERIFIED and flagged rather than assumed: the portal requires OAuth, and
+  # `qwen` is configured here with a bare `httpUrl`. If it has no OAuth flow it
+  # will simply fail to connect — the DCR allowlist already permits any loopback
+  # callback, so an allowlist entry cannot be the missing piece. Test before
+  # trusting this block; if it cannot authenticate, delete it rather than leave a
+  # config that silently does nothing.
+  qwenMcpServers = {
+    kattakath-portal = {
+      httpUrl = config.local.mcpGateway.portalEndpoint;
+      timeout = 8000;
+    };
+  };
 
   # VS Code Marketplace mirror — provided by the nix-vscode-extensions overlay,
   # which the darwin host (macos) adds to nixpkgs.overlays. Only referenced
@@ -771,10 +766,19 @@ in
   };
 
   local.mcpGateway = lib.mkIf isMacosHost {
-    # Telegram USER-account server (read/triage + draft-only send). Real Mac only.
-    # Inert until the one-time auth is done (TG_APP_ID/TG_API_HASH in the Keychain +
-    # ~/.telegram-mcp/session.json) — see modules/shared/mcp.nix `telegramMcp`.
-    telegram.enable = true;
+    # Telegram OFF since 2026-09-22, and the architecture is what turned it off.
+    #
+    # Its `initialize` advertises the `prompts` and `resources` capabilities and
+    # then answers both with `-32000 failed to unmarshal arguments`, so the portal
+    # marks the registration `error` and discovers 0 of its 5 tools. That was
+    # survivable while clients also had a loopback path — Claude Code kept the
+    # tools even though the portal did not.
+    #
+    # With every client going through the portal, "hosted but unpublished" means
+    # nothing can reach it at all, so hosting it costs a process and buys zero
+    # tools. Re-enable when chaindead/telegram-mcp either implements those methods
+    # or stops advertising them.
+    telegram.enable = false;
   };
 
   # Make Home-Manager-installed font packages discoverable by applications —

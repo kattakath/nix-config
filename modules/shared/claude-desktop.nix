@@ -116,13 +116,17 @@ let
       ];
     };
 
-  # Gateway endpoints (name → /mcp URL) come from the ONE place they are built.
-  gatewayServers = lib.mapAttrs (_: url: { inherit url; }) gw.endpoints;
-  # Per-client stdio servers Claude Code declares directly, minus the one that
-  # is already a Desktop Extension.
-  stdioServers = removeAttrs config.programs.claude-code.mcpServers cfg.excludeServers;
+  # ONE entry, the portal, from the one place it is built. Was an attrset of 26
+  # loopback URLs until 2026-09-22; Desktop now reaches every server through the
+  # same Workspace-authenticated door as every other client.
+  gatewayServers.kattakath-portal.url = gw.portalEndpoint;
 
-  rendered = lib.mapAttrs render (gatewayServers // stdioServers // cfg.extraServers);
+  # `stdioServers` is GONE with the servers it carried: `desktop-commander` moved
+  # onto the proxy and `open-design` left the fleet, so Claude Code declares no
+  # per-client MCP server for Desktop to inherit. `excludeServers` therefore has
+  # nothing left to exclude — kept as an option because `extraServers` still
+  # composes, and a consumer may add their own.
+  rendered = lib.mapAttrs render (gatewayServers // cfg.extraServers);
 
   desiredJson = pkgs.writeText "claude-desktop-mcp-servers.json" (builtins.toJSON rendered);
   # ONE implementation of the merge, shared by the activation block and the
