@@ -187,7 +187,19 @@ let
   # makes offboarding a single lever (suspend the account, no Terraform change) and
   # onboarding a second human a Workspace action rather than a policy edit.
   #
-  # NOT APPLIED. This is the proposed diff, awaiting the operator (ADR-004 §8.4):
+  # APPLIED 2026-09-22. The steps below are kept as the RECORD of how it landed,
+  # not as pending work — and because the same sequence is what any future edit to
+  # this policy needs. What is live NOW:
+  #   include = [ { email_domain = { domain = "kattakath.com" } } ]
+  # So nixpi SSH (nixpi-tunnel.nix pins this policy by literal id) admits ANY
+  # kattakath.com Workspace account, not just the operator's mailbox. That is the
+  # intended single-lever offboarding, but it is a WIDENING — state it plainly here
+  # rather than let a stale "NOT APPLIED" understate the live blast radius.
+  # The apply also dropped the policy's `session_duration = "24h"`, which this
+  # resource does not declare; re-auth cadence for all four bound apps now follows
+  # each application's own setting.
+  #
+  # How it landed (ADR-004 §8.4), retained for the next edit:
   #   1. import the live object into THIS stack's state, never let an apply create a
   #      second copy:   tofu import cloudflare_zero_trust_access_policy.mcp_allow_operator \
   #                       <accountId>/b3bd8c38-e231-4203-ba6b-69fe16e498b3
@@ -331,7 +343,7 @@ in
     name = "mcp-public-gateway";
   };
 
-  # ---- The reusable operator policy, as a DOMAIN rule (draft, see operatorPolicyId) --
+  # ---- The reusable operator policy, as a DOMAIN rule (LIVE since 2026-09-22) ------
   # `email_domain` = any account on the Workspace domain. `require`-ing the Google
   # IdP is deliberately NOT added: `allowed_idps` on every application already pins
   # it, and a second copy of the same constraint is a second thing to drift.
