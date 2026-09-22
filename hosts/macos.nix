@@ -604,6 +604,55 @@ in
       # ships to Chrome and Firefox ONLY — lives in modules/shared/chromium.nix.
       "ungoogled-chromium"
       "visual-studio-code"
+      # VoiceInk — the fleet's dictation, REPLACING Apple's built-in (F5 / mic key).
+      # Three things Apple's has no knob for, and they are the whole reason:
+      #   1. custom vocabulary — Apple's personalisation only ingests proper nouns
+      #      from Contacts, so `nixos-rebuild`/`agenix`/`flake.lock` mangle every
+      #      time and cannot be taught. VoiceInk takes an explicit word list.
+      #   2. local LLM cleanup — points at `local.ollamaDaemon` on 127.0.0.1:11434,
+      #      so transcript repair costs no API key and no egress.
+      #   3. engine choice — Whisper / Parakeet on the Neural Engine, both local.
+      # GPL-3.0, which is why it wins over the (more polished) closed-source
+      # MacWhisper: same feature set, community Lego over proprietary monolith.
+      # Do NOT "correct" that licence from the GitHub API — api.github.com reports
+      # `NOASSERTION / Other` for Beingpax/VoiceInk (its classifier trips over the
+      # paid-licence notice sitting beside the LICENSE file). The file itself is
+      # verbatim GPLv3 and the README states it. Verified 2026-09-22.
+      #
+      # Buying a licence buys automatic updates and support, not the code; the
+      # cask takes the upstream signed build and `auto_updates` is true, so this
+      # entry only bootstraps the app the way `affinity` above does.
+      #
+      # Worth configuring once installed: VoiceInk has per-app MODES, so a
+      # terminal/editor mode can carry the Nix vocabulary and a plain-prose mode
+      # can leave it out. That is the feature Apple's Dictation has no analogue
+      # for at all.
+      #
+      # Apple's Dictation is NOT disabled by installing this — the mic key keeps
+      # working; VoiceInk binds its own hotkey. Nothing here reaches into the
+      # com.apple.speech.* domains, deliberately: that is imperative Mac state and
+      # a user can want both.
+      #
+      # Terminal.app + Secure Keyboard Entry — MEASURED, and NOT the dead end it
+      # looks like. Terminal.app holds `SecureKeyboardEntry = 1` (its own pref,
+      # not ours; the menu item reads checked), and that IS what makes Apple's own
+      # Dictation refuse there. It does NOT block a third-party app's
+      # clipboard-paste output: measured 2026-09-22 on macOS 27, with Terminal
+      # frontmost and the menu item verified checked, a synthetic Cmd-V from
+      # System Events landed its text in the shell. So paste-mode works.
+      #
+      # The probe that LIES, so nobody re-derives the wrong answer from it:
+      # `ioreg -l -d 1 -k IOConsoleUsers | grep -i secure` exposes NO
+      # kCGSSessionSecureInputPID key at all on macOS 27. It reports "not
+      # asserted" while the menu is plainly checked. It is not evidence either way
+      # on this OS — read the menu item, not the kernel.
+      #
+      # STILL UNTESTED, and the real risk if dictation misbehaves in Terminal.app:
+      # whether a GLOBAL HOTKEY fires while Terminal.app is frontmost. Registering
+      # one means observing keystrokes, which is the half of secure input that
+      # genuinely does bite — unlike posting, which the test above shows passes.
+      # Configure VoiceInk's output as paste, not keystroke, before judging it.
+      "voiceink"
       "whatsapp"
       # Wireshark — SHARED (plain /Applications). Its packet capture needs the
       # ChmodBPF privileged helper, which the cask installs as a system
