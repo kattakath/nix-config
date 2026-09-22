@@ -35,6 +35,8 @@ in
     ../modules/darwin/core.nix
     ../modules/darwin/github-runner.nix
     ../modules/darwin/ollama-daemon.nix
+    ../modules/darwin/yt-dlp-web-ui.nix
+    ../modules/darwin/metube.nix
   ];
 
   # Root-owned Claude Code policy at /Library/Application Support/ClaudeCode/
@@ -54,6 +56,14 @@ in
   # `local.rag.ollama.manageServer = false` so the capsule stops standing up a
   # competing one — two servers on 11434 means one wins and the other flaps.
   local.ollamaDaemon.enable = true;
+
+  # Replaces the Colima container of the same name. Loopback only. Downloads
+  # land in ~/.local/share/yt-dlp-webui/downloads.
+  local.ytDlpWebUi.enable = true;
+
+  # Loopback MeTube for the sideloaded Chrome extension. The extension's
+  # options still need the address typed once: http://127.0.0.1:8081
+  local.meTube.enable = true;
 
   # Machine-wide CLIs — the mechanism for "shared between both accounts". A
   # systemPackages entry is ONE store path on PATH for every user, so neither
