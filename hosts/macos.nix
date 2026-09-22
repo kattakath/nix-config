@@ -604,6 +604,30 @@ in
       # ships to Chrome and Firefox ONLY — lives in modules/shared/chromium.nix.
       "ungoogled-chromium"
       "visual-studio-code"
+      # NO DICTATION CASK HERE, ON PURPOSE — read this before adding one.
+      # `voiceink` was declared and reverted the same day (#550, #552). The trap
+      # is not that it is bad software; it is that the licence you can verify
+      # from a terminal is NOT the licence that governs the thing a cask
+      # installs:
+      #
+      #   VoiceInk    GPL-3.0 SOURCE, paywalled BINARY. First launch asks for
+      #               Microphone + Accessibility + Screen Recording, then shows
+      #               "Buy VoiceInk License" and transcribes nothing until you
+      #               pay or start a 7-day trial. `brew info` does not say so.
+      #   MacWhisper  paid Pro tier, same shape.
+      #   superwhisper  subscription.
+      #   aqua-voice  subscription AND cloud — audio leaves the Mac.
+      #   handy       genuinely free and open source; the only one of the five
+      #               that a cask actually delivers working.
+      #
+      # So "it is GPL" is not a reason to declare a cask. This repo declares
+      # BINARIES, and the question for a binary is whether it runs, not what
+      # its source is licensed as. Check the paywall before the licence.
+      #
+      # Separately, and independent of cost: any of these that offers Screen
+      # Recording for "transcript accuracy" is asking to read whatever is on
+      # screen — hostnames, paths, secret values. Decline it; a custom
+      # vocabulary buys the same jargon accuracy without the capability.
       "whatsapp"
       # Wireshark — SHARED (plain /Applications). Its packet capture needs the
       # ChmodBPF privileged helper, which the cask installs as a system
