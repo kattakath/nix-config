@@ -158,7 +158,7 @@ One line per path; the *why* and the per-file specifics are in
 | `sites/` | The static sites `nixpi`'s Caddy serves. Referenced by **directory** path literal (`config.fleet.hostedSites[].root`), so every byte lands in the LIVE closure — see [`store-copied-trees`](.claude/rules/store-copied-trees.md). |
 | `templates/` | `nix flake init -t` starter that consumes this engine's `lib.mkDarwin` (`identity` + `extraModules`) instead of forking `hosts/`. |
 | `skills/` | **Global** skills still in-tree: ONLY the Brain Signals `/explain` family, declared in `modules/shared/claude-brain.nix` next to the output style they encode. Every other global skill arrives from a pinned input. |
-| `claude/` + `qwen/` | The **global** (all-projects) agent context this repo installs on `macos` — not to be confused with **this** file, which is project-scoped. |
+| `claude/` | The **global** (all-projects) agent context this repo installs on `macos` — not to be confused with **this** file, which is project-scoped. |
 | `.claude/` | Project agent config — see the lists below. |
 | `.github/workflows/` | `nix-ci.yml` (hosted legs DERIVED from the fleet's own host systems), `warm-nixpi-cache.yml` (**keeps the Pi from ever building** — see § Important Notes), `auto-merge.yml`, `build-*`, `claude*.yml`, `gitleaks.yml`, `flakehub-publish.yml`, `update-flake-lock.yml`. |
 | `docs/` | Runbooks + design docs — indexed at the bottom of this file. |
