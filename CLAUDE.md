@@ -424,9 +424,10 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   (decided, **NOT implemented**: Nix is the **harness**, governance never leaves; skills MAY
   overlay from `$HOME`, **MCP servers may not**).
   [`ADR-004`](docs/secrets-recovery-and-identity-adr.md) (decided, **Phase 1 of 3 shipped — docs
-  and `OPERATOR-ONLY` markers only**: GCP Secret Manager as the durable source of truth with the
-  login Keychain as cache, Google Workspace canonical, namespace rename + repo split deferred with
-  triggers; §7 is the committed-identifier inventory awaiting approval, §8 the open conflicts).
+  + `OPERATOR-ONLY` markers only**: GCP Secret Manager durable, Keychain as cache, Workspace
+  canonical; rename + repo split deferred with triggers; §7 awaits approval, §8 the conflicts);
+  [`ADR-005`](docs/iac-coverage-adr.md) (decided, **NOT implemented**: the rest of Cloudflare
+  under terranix on an encrypted R2 backend; GCP too, Workspace not).
 - [`docs/identity-and-offboarding.md`](docs/identity-and-offboarding.md) — the single lever:
   suspend the Workspace account and every derived login goes with it; the three privilege tiers.
 - [`docs/agent-resource-externalization.md`](docs/agent-resource-externalization.md) — why the
@@ -467,6 +468,5 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
 - [`docs/flakehub-input-freshness.md`](docs/flakehub-input-freshness.md) — the automated weekly
   `flake.lock` bump flow.
 - [`docs/nix-media-cli-extraction-grant.md`](docs/nix-media-cli-extraction-grant.md) + its
-  [study](docs/nix-media-cli-extraction-study.md) — **HISTORY, not a plan**: extracted in 2026-09,
-  then ADR-002 brought the whole stack back in-tree as the `media-cli` capsule. Only the
-  `media-<verb>` rename is still undecided, and it is this repo's call again.
+  [study](docs/nix-media-cli-extraction-study.md) — **HISTORY**: extracted 2026-09, then ADR-002
+  brought it back in-tree as the `media-cli` capsule. Only the `media-<verb>` rename is open.
