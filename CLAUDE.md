@@ -59,7 +59,7 @@ Full map: [`docs/repo-map.md`](docs/repo-map.md).
 git add -A                                   # MANDATORY before any eval — flakes ignore untracked files
 nix flake check --all-systems --no-build     # Evaluate every output on BOTH systems, build nothing — a bare check on the
                                              #   Mac silently OMITS aarch64-linux ("incompatible systems"), measured 2026-09-21
-nix flake check                              # Build the native-system formatting/lint/pre-commit checks (the test suite)
+nix flake check                              # Builds them — THE SUITE. The --no-build line RUNS no check; run BOTH lines
 nix flake show                               # List exported darwin/nixosConfigurations + packages
 nix fmt                                      # Format + lint-fix all .nix via treefmt (nixfmt + statix + deadnix)
 nix develop                                  # Dev shell (nixd LSP, treefmt, home-manager); installs pre-commit hooks
@@ -426,8 +426,8 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   [`ADR-004`](docs/secrets-recovery-and-identity-adr.md) (decided, **Phase 1 of 3 shipped — docs
   + `OPERATOR-ONLY` markers only**: GCP Secret Manager durable, Keychain as cache, Workspace
   canonical; rename + repo split deferred with triggers; §7 awaits approval, §8 the conflicts);
-  [`ADR-005`](docs/iac-coverage-adr.md) (decided, **NOT implemented**: the rest of Cloudflare
-  under terranix on an encrypted R2 backend; GCP too, Workspace not).
+  [`ADR-005`](docs/iac-coverage-adr.md) (decided and **IMPLEMENTED**: Cloudflare + GCP
+  under terranix, Workspace not).
 - [`docs/identity-and-offboarding.md`](docs/identity-and-offboarding.md) — the single lever:
   suspend the Workspace account and every derived login goes with it; the three privilege tiers.
 - [`docs/agent-resource-externalization.md`](docs/agent-resource-externalization.md) — why the
