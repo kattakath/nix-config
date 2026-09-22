@@ -72,18 +72,30 @@
   # extraSpecialArgs. Not a literal here: infra/cloudflare/mcp-public.nix routes
   # the tunnel's ingress at the same number and cannot see this file.
   publicMcpPort,
+  # The zone the portal lives on, from the same identityArgs thread. Needed here
+  # since 2026-09-22: clients address `mcp.<domainName>` rather than loopback.
+  domainName,
   ...
 }:
 let
   cfg = config.local.mcpGateway;
 
-  # localhost-only gateway endpoint.
+  # THE gateway endpoint. Loopback-bound: the cloudflared connector reaches it
+  # from on-host, and nothing else can. Clients do NOT talk to this — they go out
+  # to the portal and back in through the tunnel, so every call carries a
+  # Workspace identity rather than being trusted for running on this machine.
   gatewayHost = "127.0.0.1";
-  gatewayPort = 8096;
-  # The PUBLISHED gateway. A second mcp-proxy, not a second port on the same
-  # process — see local.mcpGateway.public for why that separation is the
-  # whole security argument.
-  publicGatewayPort = publicMcpPort;
+  # ONE proxy, on the port the tunnel's ingress already targets.
+  #
+  # There were TWO until 2026-09-22 — a private :8096 for local clients and a
+  # published :8097 — because Access protects a HOSTNAME, not a path, so tunnelling
+  # the private one would have exposed every server to a leaked service token.
+  # That argument was load-bearing while 2 of 26 servers were published. Publishing
+  # ALL of them killed it: both processes hosted the same set, so the split bounded
+  # nothing but a crash while costing a duplicate instance of every server —
+  # measured at 50 processes for 25 servers, two copies of each fighting over one
+  # Gmail credential file, one MTProto session and one memory graph.
+  gatewayPort = publicMcpPort;
 
   # Android SDK root — single-sourced from modules/shared/home.nix's ANDROID_HOME
   # (the android-commandlinetools Homebrew cask install prefix), not re-declared
@@ -396,6 +408,26 @@ let
   '';
 
   customStdioServers = {
+    # SHELL/RCE SURFACE, on the gateway and published — an operator decision
+    # taken 2026-09-22 with the consequence stated rather than implied: anything
+    # holding a valid Workspace session for this domain can drive a shell on this
+    # Mac through it. It was excluded from the gateway until then, and two
+    # assertions used to make that structural.
+    #
+    # What changed is not the risk, it is the architecture: with every server
+    # published, the private/published split bounded nothing, so keeping ONE
+    # server off the proxy bought a second transport and a second process tree
+    # for no isolation. The gate that matters is Access + Workspace OAuth
+    # restricted to the domain, which is the same gate every other server is
+    # behind.
+    desktop-commander = {
+      command = npx;
+      args = [
+        "-y"
+        "@wonderwhy-er/desktop-commander@latest"
+      ];
+    };
+
     duckduckgo = {
       command = uvx;
       args = [ "duckduckgo-mcp-server" ];
@@ -786,37 +818,18 @@ let
     settings.servers = customStdioServers;
   };
 
-  # The PUBLISHED gateway's config: the same mkConfig call, narrowed to the
-  # opt-in subset. Building it from `cfg.public` (not from a second hand-kept
-  # list) is what makes the flag the single source of truth — a name can never be
-  # published without also being hosted, because both derive from the same
-  # attrsets.
-  publicPackaged = builtins.filter (n: builtins.elem n cfg.public) packagedServerNames;
-  publicCustom = lib.filterAttrs (n: _: builtins.elem n cfg.public) customStdioServers;
+  # THE client URL, and there is only one. Clients no longer address a server
+  # each on loopback; they address the PORTAL, which fronts every published
+  # server behind one Workspace-authenticated door.
+  #
+  # `mcp.<domain>` is Cloudflare-operated and cannot be pointed at the tunnel —
+  # it dials `upstream.<domain>` with a service token, which is what reaches the
+  # proxy here. Two hostnames, and the count does not grow per server.
+  portalUrl = "https://mcp.${domainName}/mcp";
 
-  publicGatewayConfig = mcp-servers-nix.lib.mkConfig pkgs {
-    flavor = "claude-code";
-    fileName = "mcp-gateway-public.json";
-    # FILTER the shared definitions rather than regenerating them, so a package
-    # override or passwordCommand set once applies to both processes. Anything not
-    # listed is simply absent from this process.
-    programs = lib.filterAttrs (n: _: builtins.elem n publicPackaged) packagedPrograms;
-    settings.servers = publicCustom;
-  };
-
-  # Gateway URL for a server + transport path. transport "mcp" = Streamable HTTP
-  # (current standard); "sse" = legacy, still served for SSE-only clients (Grok
-  # et al.) — point their own config at `endpointFor <name> "sse"`. Single source
-  # of truth for every client's URLs.
-  endpointFor =
-    name: transport: "http://${gatewayHost}:${toString gatewayPort}/servers/${name}/${transport}";
-
-  # CLIENT SIDE: every hosted URL becomes one entry in home-manager's
-  # `programs.mcp.servers` hub (pinned programs/mcp.nix:127-135; a bare `url` is
-  # typed "http" by lib.hm.mcp.addType, lib/mcp.nix:144-152), from which each
-  # client's own module renders its file. The URL is already built (in the
-  # `endpoints` option); this only wraps it as data.
-  hubServers = lib.mapAttrs (_: url: { inherit url; }) cfg.endpoints;
+  # One entry, consumed as data by every client module. The attribute NAME is
+  # what a client shows the user, so it names the portal rather than a server.
+  hubServers.kattakath-portal.url = cfg.portalEndpoint;
 
   # Grok CLI (xAI, grok 0.2.x) is a 4th MCP client living OUTSIDE Nix: a self-updating
   # binary at ~/.grok/bin/grok (on PATH via home.sessionPath), config at ~/.grok/config.toml.
@@ -834,14 +847,9 @@ let
   # One idempotent `grok mcp add` per endpoint. `|| true` keeps a rebuild from aborting on a
   # transient grok error (best-effort, self-heals next switch; `mcp add` only writes TOML, so
   # a down gateway does NOT make it fail).
-  grokAddLines = lib.concatStringsSep "\n" (
-    lib.mapAttrsToList (
-      name: url:
-      ''"$grok" mcp add --transport http --scope user ${lib.escapeShellArg name} ${lib.escapeShellArg url} >/dev/null 2>&1 || true''
-    ) cfg.endpoints
-  );
-  # Space-padded desired-name set for the prune membership test.
-  grokDesiredNames = lib.concatStringsSep " " (builtins.attrNames cfg.endpoints);
+  grokAddLines = ''"$grok" mcp add --transport http --scope user kattakath-portal ${lib.escapeShellArg portalUrl} >/dev/null 2>&1 || true'';
+  grokDesiredNames = "kattakath-portal";
+
 in
 {
   options.local.mcpGateway = {
@@ -853,50 +861,36 @@ in
         default = pkgs.stdenv.hostPlatform.isDarwin;
       };
 
-    endpoints = lib.mkOption {
-      type = lib.types.attrsOf lib.types.str;
+    portalEndpoint = lib.mkOption {
+      type = lib.types.str;
       readOnly = true;
       internal = true;
-      # THE single source of truth every client consumes as DATA (name -> url) and
-      # the ONE place a gateway URL is constructed: `endpointFor` is invoked here
-      # and nowhere else. desktop-commander is deliberately absent (stdio, claude-
-      # code only). readOnly => the default IS the value (never reassigned).
-      default = lib.genAttrs hostedServerNames (name: endpointFor name "mcp");
+      default = portalUrl;
       description = ''
-        Read-only map of hosted MCP server name -> its 127.0.0.1 Streamable-HTTP
-        (/mcp) gateway URL. Populated once from `endpointFor`; consumed as data by
-        every client (claude-code / VS Code / Claude Desktop), none of which
-        re-derive a URL.
+        THE client URL, and the only one. Every client — Claude Code, Claude
+        Desktop, Grok, anything else — points here; none of them addresses a
+        server directly any more.
+
+        Was an attrset of 26 loopback URLs until 2026-09-22. Collapsing it to one
+        is what removed the second proxy, the duplicate process per server, and
+        the class of bug where a newly hosted server was silently not published.
       '';
     };
 
-    public = lib.mkOption {
+    hostedServers = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      default = [ ];
-      example = [
-        "memory"
-        "sequential-thinking"
-      ];
+      readOnly = true;
+      internal = true;
+      default = hostedServerNames;
       description = ''
-        Gateway server names to ALSO publish on a SECOND mcp-proxy instance
-        (${toString publicGatewayPort}) that a cloudflared connector exposes at
-        the public gateway hostname, behind ONE Cloudflare Access application
-        whose policy is a service token. The MCP portal presents that token to
-        the origin (`auth_credentials = {"headers":{"cf-access-client-id":…}}`),
-        so remote clients keep talking to the portal and this gateway needs no
-        OAuth of its own.
+        Every server this proxy hosts. Read by `checks.<system>.mcp-published-parity`
+        to assert it equals `config.fleet.publicMcpServers` — terranix renders
+        outside any host's module system and cannot read this back, so the two
+        lists are kept honest by a check rather than by convention.
 
-        A SEPARATE PROCESS on purpose, not a tunnel onto ${toString gatewayPort}.
-        Access protects a HOSTNAME, not a path — exposing the main gateway would
-        make a leaked service token reach every path on it, including the Gmail
-        accounts, WordPress, Postgres and Telegram servers. Here, an unpublished
-        server is not in the published process at all: structurally unreachable,
-        not merely unrouted.
-
-        Empty by default — publishing is opt-in, never deny-by-omission. Names
-        must be servers the gateway actually hosts; `desktop-commander` and
-        `open-design` are ineligible by construction since they are per-client
-        stdio and never enter `endpoints`.
+        There is no `public` option any more. It listed which of the hosted
+        servers to ALSO run on a second proxy; with one proxy and everything
+        published, a subset is not expressible and was not wanted.
       '';
     };
 
@@ -1105,43 +1099,10 @@ in
       };
     };
 
-    # ---- Server side B: the PUBLISHED gateway ---------------------------------
-    # Only materialised when something is actually published, so the default
-    # configuration grows no new process and opens no new surface.
-    launchd.agents.mcp-gateway-public = lib.mkIf (cfg.public != [ ]) {
-      enable = true;
-      config = {
-        ProgramArguments = [
-          (lib.getExe' pkgs.mcp-proxy "mcp-proxy")
-          "--log-level"
-          "ERROR"
-          # STILL loopback. The connector reaches it from on-host; nothing binds
-          # a routable address. Publishing is the tunnel's job, not this bind's.
-          "--host"
-          gatewayHost
-          "--port"
-          (toString publicGatewayPort)
-          "--named-server-config"
-          "${publicGatewayConfig}"
-        ];
-        RunAtLoad = true;
-        KeepAlive = true;
-        EnvironmentVariables = {
-          PATH =
-            lib.makeBinPath [
-              pkgs.nodejs
-              pkgs.uv
-            ]
-            + ":/usr/bin:/bin";
-        };
-        StandardOutPath = "${config.home.homeDirectory}/Library/Logs/mcp-gateway-public.log";
-        StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/mcp-gateway-public.log";
-      };
-    };
-
-    # The connector that makes :8097 reachable. Same gate as the gateway agent, so
-    # an empty `public` list creates neither — no process, no tunnel, no exposure.
-    launchd.agents.mcp-tunnel-connector = lib.mkIf (cfg.public != [ ]) {
+    # The connector, and the ONLY way anything reaches the proxy. No longer
+    # conditional: with clients going through the portal, a gateway without a
+    # tunnel is a gateway nothing can talk to.
+    launchd.agents.mcp-tunnel-connector = {
       enable = true;
       config = {
         ProgramArguments = [ (lib.getExe mcpTunnelConnector) ];
@@ -1152,37 +1113,16 @@ in
       };
     };
 
-    # Publishing is the one place in this module where a typo has a security
-    # consequence, so both failure modes are eval-time, not runtime.
-    assertions = [
-      {
-        assertion = builtins.all (n: builtins.elem n hostedServerNames) cfg.public;
-        message =
-          "local.mcpGateway.public lists a server the gateway does not host: "
-          + toString (builtins.filter (n: !(builtins.elem n hostedServerNames)) cfg.public)
-          + ". Publishable names must appear in hostedServerNames "
-          + "(packaged + customStdioServers).";
-      }
-      {
-        # Belt and braces. These two are per-client stdio and never enter
-        # hostedServerNames, so the assertion above already rejects them — this
-        # one names them explicitly so the failure explains WHY rather than
-        # reading as a typo.
-        assertion =
-          !(builtins.any (
-            n:
-            builtins.elem n [
-              "desktop-commander"
-              "open-design"
-            ]
-          ) cfg.public);
-        message =
-          "local.mcpGateway.public must never contain desktop-commander "
-          + "(shell/RCE surface) or open-design (stdio-only upstream with a known "
-          + "silent-death bug). Both are per-client stdio by design and are not "
-          + "gateway-hosted at all.";
-      }
-    ];
+    # The assertions that policed `local.mcpGateway.public` are GONE with the
+    # option. They refused a published name the gateway did not host, and refused
+    # `desktop-commander` / `open-design` outright. Neither is expressible now:
+    # there is no subset to get wrong, `open-design` was removed from the fleet,
+    # and `desktop-commander` is published deliberately.
+    #
+    # What replaces them is `checks.<system>.mcp-published-parity`, which asserts
+    # the hosted roster equals `config.fleet.publicMcpServers` — catching the
+    # direction the old assertion could not: a newly hosted server that nobody
+    # remembered to publish.
 
     # ---- The hub: one declaration, every client ------------------------------
     programs.mcp = {
@@ -1193,60 +1133,11 @@ in
     # ---- Client side A: Claude Code (home-manager module) ----------------------
     # upstream option home-manager.programs.claude-code.enableMcpIntegration
     # exists → using it (pinned claude-code/options.nix:41-59; merge at
-    # default.nix:47-50, where `mcpServers` entries win on collision). Only the
-    # two per-client stdio servers stay declared here.
+    # default.nix:47-50, where `mcpServers` entries win on collision). Nothing is
+    # declared here any more: the two per-client stdio servers are gone —
+    # `desktop-commander` moved onto the proxy, `open-design` was removed from the
+    # fleet — so the hub's single portal entry is the whole client config.
     programs.claude-code.enableMcpIntegration = true;
-    programs.claude-code.mcpServers = {
-      # NOT hosted — a shell/RCE surface stays a per-client stdio server.
-      desktop-commander = {
-        type = "stdio";
-        command = npx;
-        args = [
-          "-y"
-          "@wonderwhy-er/desktop-commander@latest"
-        ];
-      };
-      # NOT hosted either. OpenDesign's MCP is stdio-only (zero HTTP/SSE
-      # transports in the shipped bundle) and upstream carries a known
-      # silent-death bug (nexu-io/open-design#7273) — one server crashing at
-      # startup darks the WHOLE gateway, so it stays per-client like
-      # desktop-commander. The command is the cask-installed app's own Electron
-      # helper run as plain Node against the bundle's daemon CLI — upstream's
-      # sanctioned invocation. `--daemon-url` is ABSENT on purpose: sidecar
-      # re-discovery survives ephemeral-port restarts, and an explicit URL
-      # disables the headless bootstrap entirely (mcp-bootstrap guard). The app
-      # itself is the `open-design` cask in hosts/macos.nix; everything the
-      # daemon mutates lives in its own $HOME data dir — the declared/imperative
-      # boundary is docs/open-design.md.
-      open-design = {
-        type = "stdio";
-        command = "/Applications/Open Design.app/Contents/Frameworks/Open Design Helper.app/Contents/MacOS/Open Design Helper";
-        args = [
-          "/Applications/Open Design.app/Contents/Resources/app/prebundled/daemon/daemon-cli.mjs"
-          "mcp"
-        ];
-        env = {
-          # The ONLY sanctioned relocation lever (upstream AGENTS.md data-dir
-          # contract). Unset, `od mcp` falls back to <cwd>/.od inside the
-          # read-only bundle → EPERM (upstream #848). Absolute and pre-expanded
-          # (upstream #390: a relative value gets path.resolve'd wrongly).
-          OD_DATA_DIR = "${config.home.homeDirectory}/Library/Application Support/Open Design/namespaces/release-stable/data";
-          OD_SIDECAR_IPC_PATH = "/tmp/open-design/ipc/release-stable/daemon.sock";
-          # The bootstrap guard demands an ABSOLUTE command and a JSON-array
-          # string literally containing "--headless"; -g -j = background+hidden.
-          OD_MCP_BOOTSTRAP_COMMAND = "/usr/bin/open";
-          OD_MCP_BOOTSTRAP_ARGS = builtins.toJSON [
-            "-g"
-            "-j"
-            "/Applications/Open Design.app"
-            "--args"
-            "--headless"
-          ];
-          # The helper is an Electron binary; this flag makes it a plain Node.
-          ELECTRON_RUN_AS_NODE = "1";
-        };
-      };
-    };
 
     # ---- Client side B: VS Code (home-manager-managed) -------------------------
     # upstream option home-manager.programs.vscode.profiles.<n>.enableMcpIntegration

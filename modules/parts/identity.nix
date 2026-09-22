@@ -155,11 +155,15 @@ let
   # one value, so the two can never drift (docs/mcp-public-exposure-design.md).
   # Consumed by modules/parts/terranix.nix's mcpPublicConfig/mkMcpPublicTofu.
   #
-  # EVERY hosted server, by operator decision (2026-09-22). This is the WHOLE of
-  # `local.mcpGateway.endpoints`, so the :8097 process is now a full copy of the
-  # :8096 one and the second-process split of docs/mcp-public-exposure-design.md
-  # §3 no longer bounds anything: a leaked Access service token reaches all of
-  # it. The tiers that argument was written about, named so the cost stays
+  # EVERY hosted server, by operator decision (2026-09-22). It must EQUAL
+  # `local.mcpGateway.hostedServers`, and `checks.<system>.mcp-published-parity`
+  # asserts exactly that — terranix renders outside any host's module system and
+  # cannot read the roster back, so a check keeps the two honest.
+  #
+  # The second proxy this list used to select a subset for is GONE. There is one
+  # process, it hosts all of these, and a leaked Access service token reaches all
+  # of it — which is the same statement as before, minus the pretence that a
+  # subset was protecting anything. The tiers that argument was written about, named so the cost stays
   # legible rather than buried in an alphabetical list:
   #   - machine control : macos-automator (arbitrary AppleScript = RCE on this
   #                       Mac), chrome-devtools (live browser cookies/sessions),
@@ -200,6 +204,10 @@ let
     "chrome-devtools"
     "cloudflare"
     "cloudflare-docs"
+    # The shell/RCE surface, published by operator decision 2026-09-22. It was
+    # kept off the gateway entirely until then; see its entry in
+    # modules/shared/mcp.nix for what that decision accepts.
+    "desktop-commander"
     "context7"
     "duckduckgo"
     "fetch"
