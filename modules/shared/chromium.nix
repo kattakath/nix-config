@@ -355,6 +355,22 @@ in
       '';
     };
 
+    meTube = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Sideload MeTube Downloader. Right-click a YouTube link, or click the
+        toolbar button, and it POSTs that URL to the MeTube address saved in
+        the extension's own options. This module installs the extension. It
+        does not fill in that address: Chrome stores it in the profile, which
+        Nix does not own. Point it at the agent from `local.meTube`,
+        `http://127.0.0.1:8081`.
+
+        Same acknowledgement gate as every other extension here: Chromium
+        leaves it disabled until it is enabled once.
+      '';
+    };
+
     darkTheme = lib.mkOption {
       type = lib.types.bool;
       default = true;
@@ -424,6 +440,12 @@ in
           id = "faeadnfmdfamenfhaipofoffijhlnkif";
           version = "1.0.1";
           hash = "sha256-HcajUNEDGhOhxosEOQu/dGQK9m9IGoIz75aKN/UWBMU=";
+        })
+        ++ lib.optional cfg.meTube (crxExtension {
+          name = "metube-downloader";
+          id = "fbmkmdnlhacefjljljlbhkodfmfkijdh";
+          version = "1.9";
+          hash = "sha256-9xQwpgPf7HEvt7lu+Pd1N2E1TyWbPI/I/W+4ST/cAng=";
         });
 
       nativeMessagingHosts = lib.optional cfg.applePasswords applePasswordsHost;
