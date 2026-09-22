@@ -1064,6 +1064,56 @@ in
           # it says nothing about nixvm, which shares modules/nixos/core.nix.
           #
           # Values measured against the live config on 2026-09-21.
+          # The watchdog and the firmware-secrets capsule share three facts, and
+          # NOTHING but this check makes them agree: the runtime wpa config path,
+          # the card filename behind it, and the unit that consumes it. Rename any
+          # of them in one place and the watchdog keeps evaluating, keeps starting,
+          # and silently rewrites or restarts the wrong thing — the failure only
+          # shows up during an outage, which is the one moment nobody can debug it
+          # (no LAN sshd, tunnel down, SD card in another room).
+          #
+          # Ungated on purpose, like nixpi-security-posture below: every edit it
+          # guards is made ON the Mac, so Linux-gating it would let `/eval` pass
+          # clean and leave the operator to learn otherwise from CI minutes later.
+          # Only strings escape into the derivation, so it costs no aarch64-linux
+          # build.
+          uplink-watchdog-paths-agree =
+            let
+              pi = config.flake.nixosConfigurations.nixpi.config;
+              w = pi.local.uplinkWatchdog;
+              wifi = pi.local.firmwareProvisioning.files.wifi or null;
+              problems =
+                lib.optional (
+                  !w.enable
+                ) "local.uplinkWatchdog is disabled on nixpi — the fallback ladder is dead code"
+                ++ lib.optional (
+                  wifi == null
+                ) "local.firmwareProvisioning.files.wifi is gone — the watchdog rewrites a file nothing plants"
+                ++ lib.optionals (wifi != null) (
+                  lib.optional (toString w.wpaRuntimeConf != toString wifi.target)
+                    "watchdog wpaRuntimeConf (${toString w.wpaRuntimeConf}) != firmware wifi target (${toString wifi.target})"
+                  ++
+                    lib.optional (!(lib.hasSuffix wifi.source (toString w.wpaSourceConf)))
+                      "watchdog wpaSourceConf (${toString w.wpaSourceConf}) does not end in the planted filename (${wifi.source})"
+                  ++
+                    lib.optional (!(builtins.elem w.supplicantUnit (wifi.before or [ ])))
+                      "watchdog restarts ${w.supplicantUnit}, which is not among the units the planted file is ordered before"
+                );
+            in
+            pkgs.runCommand "uplink-watchdog-paths-agree" { } (
+              if problems == [ ] then
+                ''
+                  echo "uplink watchdog agrees with firmware provisioning on ${toString w.wpaRuntimeConf}" > "$out"
+                ''
+              else
+                ''
+                  echo "uplink-watchdog-paths-agree: the watchdog and firmware provisioning disagree." >&2
+                  ${lib.concatStringsSep "\n" (map (x: ''echo "  ✘ ${x}" >&2'') problems)}
+                  echo "Fix modules/nixos/uplink-watchdog.nix or hosts/nixpi.nix so both name the same file." >&2
+                  exit 1
+                ''
+            );
+
           nixpi-security-posture =
             let
               pi = config.flake.nixosConfigurations.nixpi.config;
