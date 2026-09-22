@@ -168,6 +168,37 @@ in
           # coverage is lost; run `nix fmt` before committing.
           shellHook = ''
             echo "nix-config devShell ready on ${system} — run 'nix fmt' before committing (pre-commit auto-install disabled: .git is shared with a Nix-less host; CI enforces the gate)"
+
+            # ---- gcloud: scope THIS repo to its own account + project -----------
+            # CLOUDSDK_CONFIG, deliberately NOT CLOUDSDK_ACTIVE_CONFIG_NAME.
+            #
+            # Measured 2026-09-22 against the live config dir: a named
+            # configuration is only `configurations/config_<name>`, holding
+            # settings (account, project, region). `credentials.db` AND
+            # `application_default_credentials.json` sit at the TOP of the config
+            # dir and are SHARED by every named configuration.
+            #
+            # That asymmetry is the trap. The google Terraform provider (ADR-005
+            # phase 3) authenticates via ADC, so a named configuration yields a
+            # CORRECT `gcloud` and a `tofu` still acting as whoever last ran
+            # `gcloud auth application-default login` — wrong project, no error,
+            # exactly the silent-wrong-account shape docs/gmail-mcp-multi-account
+            # -runbook.md records. Repointing the whole dir moves both together.
+            #
+            # XDG, never inside the worktree: this directory holds live
+            # credentials and must not sit where `git add -A` can reach it.
+            #
+            # devShell-only on purpose. This repo dropped its `.envrc` in 2fa73b9
+            # and docs/repo-map.md says so, so the scoping rides `nix develop`
+            # rather than re-introducing direnv auto-load.
+            export CLOUDSDK_CONFIG="''${XDG_CONFIG_HOME:-$HOME/.config}/gcloud-nix-config"
+            if [ ! -f "$CLOUDSDK_CONFIG/application_default_credentials.json" ]; then
+              echo "gcloud: scoped to $CLOUDSDK_CONFIG (not yet authenticated)."
+              echo "  One-time. BOTH are needed — the CLI and Terraform read DIFFERENT files:"
+              echo "    gcloud auth login                      # the gcloud CLI"
+              echo "    gcloud auth application-default login  # ADC, what tofu reads"
+              echo "    gcloud config set project <project-id>"
+            fi
           '';
         };
       };
