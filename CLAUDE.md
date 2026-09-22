@@ -462,7 +462,8 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   durable/derived split between what `photo-describe` writes and what `rclip` keeps, and how to
   search each.
 - [`docs/auto-merge-and-merge-queue.md`](docs/auto-merge-and-merge-queue.md) — how every fleet
-  flake merges itself once CI is green (CI bot App token, ruleset, `merge_group:`).
+  flake merges itself once CI is green (App token, ruleset). **No merge queue** since
+  2026-09-22; §3 records why, and what to re-check before re-adopting one.
 - [`docs/flakehub-input-freshness.md`](docs/flakehub-input-freshness.md) — the automated weekly
   `flake.lock` bump flow.
 - [`docs/nix-media-cli-extraction-grant.md`](docs/nix-media-cli-extraction-grant.md) + its
