@@ -172,6 +172,23 @@ let
   # Narrow it by deleting names here; the next apply then DROPS their Cloudflare
   # objects, which the mkMcpPublicTofu drop-guard will make you confirm.
   #
+  # `telegram` WAS here and was removed 2026-09-22, for an upstream bug rather
+  # than a policy call. Its `initialize` ADVERTISES the `prompts` and `resources`
+  # capabilities, and then both `prompts/list` and `resources/list` answer
+  # `-32000 failed to unmarshal arguments: unexpected end of JSON input`.
+  # Cloudflare's portal syncs what a server advertises, so it called them, got an
+  # internal error, and marked the whole registration `status = error` —
+  # contributing 0 of its 5 tools while still occupying a portal slot.
+  #
+  # Measured on 127.0.0.1:8097, so this is the server, not the edge: `memory`
+  # advertises no prompts and answers `-32601 Method not found`, which the portal
+  # tolerates. A clean "not implemented" is fine; a malformed error is not.
+  #
+  # It is UNAFFECTED on the private gateway (:8096) — `tools/list` works there, so
+  # Claude Code keeps all 5 tools. Only the PUBLISHED copy is withdrawn. Re-add it
+  # when chaindead/telegram-mcp either implements those methods or stops
+  # advertising them.
+  #
   # The gmail-* names are `gmailAlias` (modules/shared/mcp.nix) applied to
   # hosts/macos.nix's `local.mcpGateway.gmail.accounts` — lowercased, with
   # @/./+ replaced by _. They are spelled out rather than derived because
@@ -200,7 +217,6 @@ let
     "nixos"
     "postgres"
     "sequential-thinking"
-    "telegram"
     "terraform"
     "wordpress"
     "wordpress-adapter"
