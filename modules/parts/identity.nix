@@ -280,14 +280,56 @@ let
   # which is granted to the operator and to nobody else. No key file exists.
   gcpAutomationServiceAccount = "tofu-fleet@kattakath-family.iam.gserviceaccount.com";
 
-  # The loopback port the SECOND mcp-proxy binds, and therefore the port the
+  # The loopback port the gateway's mcp-proxy binds, and therefore the port the
   # published tunnel's ingress must point at. Single-sourced here because its two
   # consumers cannot see each other: modules/shared/mcp.nix binds it (a Home
   # Manager module) and infra/cloudflare/mcp-public.nix routes to it (a terranix
   # module). It was written 8097 in both. A change to one alone is silent and
   # outward-facing — the connector proxies to a dead port and the public endpoint
   # 502s — so the two spellings are exactly the drift this file exists to stop.
+  #
+  # (It was the SECOND proxy's port until 2026-09-22; the private :8096 one is
+  # gone and this is now the only gateway port.)
   publicMcpPort = 8097;
+
+  # ---- The Cloudflare Access organisation, as data ------------------------
+  # Rendered by infra/cloudflare/access-org.nix. Read that module's header before
+  # changing anything here: the resource models the WHOLE organisation with every
+  # attribute optional, so a field dropped from this attrset is an instruction to
+  # BLANK it, and `authDomain` is the sign-in host for every Access application in
+  # the account — nixpi's SSH gate included.
+  #
+  # `name` and `authDomain` are mirrored live state, not settings chosen here.
+  # Note `name` is "Family" and is NOT `orgName` ("kattakath", the GitHub org) —
+  # two different namespaces that happen to describe the same person.
+  #
+  # WHY THE BRANDING MATTERS AT ALL: the login page is the ONLY surface in the
+  # connector flow that carries the operator's mark. Claude renders a generic
+  # globe for every custom connector — `serverInfo.icons` exists in MCP spec
+  # 2025-11-25 but Claude does not read it (anthropics/claude-ai-mcp#152, open
+  # since 2026-04-06), and Cloudflare's portal object has no icon field to put one
+  # in either. Measured 2026-09-22.
+  #
+  # `logoUrl` must be a URL Cloudflare can FETCH, not a file: the login page is
+  # rendered by Cloudflare, so the asset is hosted rather than committed here.
+  #
+  # It is the WORDMARK (512x132) and not the square icon, deliberately — the login
+  # header is wide and the mark that fills it is the horizontal one. Verified
+  # byte-identical to ~/Pictures/logo.svg.
+  #
+  # NOT a duplicate of `logoUrl` above: that one is a DIFFERENT lockup
+  # (1080x426, from the resume gist) consumed by the email-signature package.
+  # Different aspect ratios for different surfaces — do not "DRY" them into one.
+  accessOrg = {
+    name = "Family";
+    authDomain = "kattakath.cloudflareaccess.com";
+    loginDesign = {
+      logoUrl = "https://raw.githubusercontent.com/kattakath/kattakath.github.io/refs/heads/main/logo.svg";
+      backgroundColor = "#300a24";
+      headerText = "Sign in with your @${domainName} email";
+      footerText = "Members only";
+    };
+  };
 
   # ---- Shared identity, as threaded into BOTH builders --------------------
   # Threaded into mkNixos + mkDarwin so system specialArgs and the embedded
@@ -399,6 +441,7 @@ in
         hostedSites
         publicMcpServers
         publicMcpPort
+        accessOrg
         gcpBillingAccountId
         gcpBudgetAmount
         gcpBudgetCurrency

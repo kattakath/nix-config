@@ -105,7 +105,7 @@ nix run .#nixpi-provision                     # Plant/update token + Wi-Fi on a 
 # Flashing: do a FULL verified write (confirm dd's ~5.6GB byte count) — see docs/nixpi-sd-flashing-runbook.md
 # Companions: nixpi-wifi-creds (emit wpa_supplicant.conf from this Mac), nixpi-vault-token (re-encrypt a rotated token)
 
-# terranix — 5 stacks, one GCS backend. *-plan first; every *-destroy is hard-blocked by the guard.
+# terranix — 6 stacks, one GCS backend. *-plan first; every *-destroy is hard-blocked by the guard.
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-tunnel-apply     # nixpi's tunnel + ingress + CNAME; PRINTS the connector token
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-zones-{plan,apply}          # kattakath.com DNS records
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#mcp-public-{apply,sync,token}  # published MCP gateway; `sync` re-polls the portal
@@ -153,7 +153,7 @@ One line per path; the *why* and the per-file specifics are in
 | `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix`, `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`local.macosGithubRunner` — LIVE, see § Configuration), `ollama-daemon.nix` (`local.ollamaDaemon` — ONE machine-wide `ollama serve`, so every account shares one process and one 31 GB model store), `claude-managed-settings.nix` (`local.claudeManagedSettings` — the root-owned Claude Code MANAGED settings file; `enable = false` DELETES it). |
 | `modules/nixos/` | `core.nix` (user + keys-only **loopback-bound** sshd, `openFirewall = false`, a firewall that opens **no** TCP port, avahi, nix-ld, zram, GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). `nixpi`'s composed posture is GATED — `checks.<system>.nixpi-security-posture` (built on BOTH systems: the edits it guards are made on the Mac). |
 | `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `activate` (the self-elevating rebuild above), `spotlight-launchers`, plus single-purpose CLIs. `grok.nix`/`antigravity-cli.nix` are SRI-pinned prebuilt vendor binaries, SHARED via `environment.systemPackages`, not per-user. Root `bootstrap.sh` is the no-Nix stage 1; the media/photo CLIs live in the `media-cli` capsule. |
-| `infra/` | terranix (Nix → Terraform JSON). Five stacks: `cloudflare/{nixpi-tunnel,mcp-public,zones}.nix` (+ `kattakath-dns.nix`, records as data), `gcp/{foundation,budget}.nix`. Applied only via the `cf-*`/`mcp-public-*`/`gcp-*` apps; state in GCS (§ Important Notes). |
+| `infra/` | terranix (Nix → Terraform JSON). Six stacks: `cloudflare/{nixpi-tunnel,mcp-public,zones,access-org}.nix` (+ `kattakath-dns.nix`, records as data), `gcp/{foundation,budget}.nix`. Applied only via the `cf-*`/`mcp-public-*`/`gcp-*` apps; state in GCS (§ Important Notes). |
 | `secrets/` | agenix recipients + the operator pubkey + **four** ciphertexts — one operator-only, three host-decrypted on `macos`. Details in § Security. |
 | `sites/` | The static sites `nixpi`'s Caddy serves. Referenced by **directory** path literal (`config.fleet.hostedSites[].root`), so every byte lands in the LIVE closure — see [`store-copied-trees`](.claude/rules/store-copied-trees.md). |
 | `templates/` | `nix flake init -t` starter that consumes this engine's `lib.mkDarwin` (`identity` + `extraModules`) instead of forking `hosts/`. |

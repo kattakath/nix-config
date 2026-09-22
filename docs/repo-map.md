@@ -1797,15 +1797,16 @@ for the main pane, which sits at `left:0` inside it, so moving both would double
 
 ## `infra/` — terranix (Nix → OpenTofu/Terraform JSON)
 
-**Five stacks, and the split is deliberate: a stack is a blast radius, not a category.**
+**Six stacks, and the split is deliberate: a stack is a blast radius, not a category.**
 
 | Stack | State | Breaking it takes down |
 |---|---|---|
 | `cf-tunnel` | GCS `cf-tunnel/` | the Pi |
 | `mcp-public` | GCS `mcp-public/` | the MCP portal |
 | `cf-zones` | GCS `cf-zones/` | **mail** |
+| `cf-access-org` | GCS `cf-access-org/` | **every Access app at once** |
 | `gcp-budget` | GCS `gcp-budget/` | the spend alert |
-| `gcp-foundation` | **local** | the bucket the other four live in |
+| `gcp-foundation` | **local** | the bucket the others live in |
 
 State is the shared, versioned bucket `kattakath-tofu-state`, **encrypted** with a passphrase
 read from the login Keychain at run time via `TF_ENCRYPTION` (ADR-005 phase 1 —
@@ -1826,6 +1827,39 @@ Cloudflare creates with the portal). Importing one twice is how a plan grows a d
 Its guard is shaped for its own failure mode — a **record-count floor** — because the way this
 stack hurts you is a shrunken render silently deleting mail, not a bad tunnel. Applied via
 `cf-zones-apply`; `cf-zones-plan` is read-only. There is no `cf-zones-destroy`.
+
+### `infra/cloudflare/access-org.nix`
+
+The Zero Trust **organisation** — one resource, `cloudflare_zero_trust_organization`, and its
+own stack because it sits *above* the other two Cloudflare ones rather than beside them:
+`auth_domain` is the sign-in host for **every** Access application in the account, so a bad
+apply takes out nixpi's SSH gate and the MCP portal together. One resource is not an argument
+for folding it into a neighbour; the rule keys on consequence, not line count.
+
+**What it is for:** the login page's branding (`login_design` — logo, background, header,
+footer), which is the *only* surface in the MCP connector flow carrying the operator's mark.
+Claude renders a generic globe for every custom connector — `serverInfo.icons` exists in MCP
+spec 2025-11-25 but Claude does not read it
+([anthropics/claude-ai-mcp#152](https://github.com/anthropics/claude-ai-mcp/issues/152)), and
+Cloudflare's portal object has no icon field either (both measured 2026-09-22). The logo is the
+**wordmark** (512x132), not the square icon, because the login header is wide — and it is a
+URL Cloudflare fetches, not an upload, so the asset is hosted rather than committed here.
+
+**Two traps, both guarded in the wrapper:**
+
+1. **Every attribute is optional** in the pinned provider (5.25.0, verified via
+   `tofu providers schema -json`). There is no "manage only `login_design`" mode, so a render
+   declaring just the branding is not a safe subset — it describes an organisation whose other
+   fields are unset. The module therefore **mirrors** the live object, and the rule for editing
+   it inverts the usual one: *do not remove a field you are not using.* An omission is an
+   instruction to blank it. The wrapper refuses outright if the render has lost `auth_domain`.
+2. **Import, never create.** There is one organisation per account, created 2026-07-03. The
+   wrapper refuses an apply against state that does not already track it and prints the import
+   command, because a create here is a clobber.
+
+Data lives in `config.fleet.accessOrg` (`modules/parts/identity.nix`). Applied via
+`cf-access-org-apply`; `cf-access-org-plan` is read-only. There is **no** destroy app — there is
+no API to delete an organisation, so a destroy would merely blank one.
 
 ### `infra/gcp/foundation.nix`
 
