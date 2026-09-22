@@ -1897,8 +1897,9 @@ content-hashed into the store — see `CLAUDE.md` § Code Style on the two path 
 - [`pr-title.md`](../.claude/rules/pr-title.md) — a PR title is the comma-separated list of the
   components the change touches (first-level `nix flake show` output category for flake outputs,
   or a top-level dot-folder with its dot stripped). Also states the default shape: **one PR per
-  change, branched off `main`** — the merge queue serializes them, so PRs are independent (the
-  old "one open PR per working session" consolidation policy was retired 2026-08-30).
+  change, branched off `main`** — a single ~10 min CI gate per PR keeps them independent (the
+  old "one open PR per working session" consolidation policy was retired 2026-08-30; the merge
+  queue that later justified it was itself removed 2026-09-22).
 - [`launchd-naming.md`](../.claude/rules/launchd-naming.md) — every launchd unit this repo
   authors must expose a `nix-<kebab>` `arg0` basename (never a bare `sh`/`python3`); documents
   the known upstream `/bin/sh` exceptions (`org.nixos.activate-system`,
