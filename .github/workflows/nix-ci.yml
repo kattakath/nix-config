@@ -98,15 +98,33 @@ jobs:
   # per leg would answer it once per leg and duplicate the leg list to compare
   # against.
   #
-  # Runs on LINUX, not macOS — worth ~27 s, and NOT for the reason it looks like.
-  # Measured 2026-09-22, same job either side: macOS 2m10s (run 35723793664),
-  # Linux 1m43s (run 35749500311). The runner swap is the small half: on Linux,
-  # allocation + checkout + Determinate install total 13 s. The other 1m26s is
-  # `nix flake show --all-systems` ITSELF — fetching the nixpkgs tarball and
-  # evaluating all three host configs — which is arch-independent and is where any
-  # further saving has to come from. Kept on Linux anyway: `build` NEEDS this job's
-  # output, so every second here is on the critical path of every run, ahead of a
-  # macOS boot it can no longer overlap with.
+  # Runs on LINUX, not macOS. Measured 2026-09-22, same job either side: macOS
+  # 2m10s (run 35723793664), Linux 49s-1m43s (runs 35750682716 / 35749500311).
+  #
+  # DO NOT OPTIMISE THIS JOB FURTHER — measured, not assumed. `build` NEEDS its
+  # output, so `legs` is the one job every run waits on, which makes it look like
+  # the lever. It is not:
+  #
+  #   * The EVAL is ~3 s. `nix flake show --json --all-systems`, locally, warm
+  #     store, `--option eval-cache false`: 2.82 s. There is no expression here
+  #     to make faster.
+  #   * The CI cost is the COLD-STORE FETCH of the flake's inputs (38-86 s), and
+  #     all three jobs pay it INDEPENDENTLY — `legs` is simply the one that pays
+  #     it first. Removing it from `legs` moves the tax, it does not remove it.
+  #   * A store cache between runs (`nix-community/cache-nix-action`) is the
+  #     off-the-shelf answer, and it fails its OWN test here: its README says
+  #     "The action may slow down your workflow. You should test whether the
+  #     action is useful in your case." Saving/restoring a Nix store through the
+  #     GitHub Actions cache is the same order of transfer as the fetch it
+  #     avoids — the exact trade `nix-fast-build` was removed for on 2026-09-22
+  #     (117 s of tool closure to orchestrate 76 s of work; see the build step).
+  #   * `legs` is not the critical path anyway. On run 35750682716 it was 49 s of
+  #     ~5m40s; `build (aarch64-darwin)` was 4m45s, of which 61 s is Determinate's
+  #     own install on a macOS runner (6 s on Linux — a 10x runner tax no action
+  #     of ours controls) and 2m38s is already Cachix-substituted.
+  #
+  # The one thing that WOULD help is a warm self-hosted runner, and this workflow
+  # rejects that deliberately — see the ALL-HOSTED note in the file header.
   #
   # `--all-systems` is what makes the evaluator's own arch irrelevant: it is the
   # flag that stops non-native children coming back as `{"filtered": true}`, in
