@@ -1,6 +1,6 @@
 # ADR-005 — Everything declarative: Cloudflare under terranix, GCP alongside it
 
-**Status:** **DECIDED, NOT IMPLEMENTED.** Four decisions taken 2026-09-22 (§3). Nothing in this
+**Status:** **DECIDED. Phases 0 and 2 SHIPPED 2026-09-22; phase 1 is BLOCKED on billing (§6).** Four decisions taken 2026-09-22 (§3). Nothing in this
 note has been applied; §6 is the phased plan and §8 the items that must be verified *before*
 phase 1, not assumed.
 
@@ -190,9 +190,9 @@ during non-interactive execution`. Active accounts are `ismail@kattakath.com` (p
 
 | Phase | Deliverable | Gate |
 |---|---|---|
-| **0** | Cleanup: delete the orphan Access policy (`Allow Workspace domain (browser SSO)`, apps=0); re-discover the stale `telegram` registration | Import a clean account, not cruft |
-| **1** | R2 bucket + state encryption + backend block; migrate both existing stacks | `tofu plan` reads **no changes** on both, from the new backend |
-| **2** | `cf-zones` stack: ~21 `kattakath.com` records + `mta-sts` | `plan` reads `0 to add, 0 to change, 0 to destroy` after import |
+| **0** | ~~Cleanup~~ — **DONE.** Orphan policy deleted (3 remain, all referenced). `telegram` re-registered twice; it still reads `error` — see below | Import a clean account, not cruft |
+| **1** | R2 bucket + state encryption + backend block; migrate both existing stacks | **BLOCKED:** R2 is not enabled on the account (`Please enable R2 through the Cloudflare Dashboard`) and GCP billing is `False`, so BOTH candidate backends need a billing decision first |
+| **2** | ~~`cf-zones` stack~~ — **DONE.** 22 records imported; `cf-zones-plan` reads *"No changes. Your infrastructure matches the configuration."* | met |
 | **3** | GCP survey (needs auth), then a `infra/gcp/` terranix module | Same zero-diff gate |
 | **4** | `docs/workspace-runbook.md` — what is configured by hand and how to verify it | Reviewed against `identity-and-offboarding.md` |
 
@@ -221,14 +221,26 @@ live, and applying it would change production to match a guess.
    fires. Test it; do not assume it.
 2. **State encryption + R2 together.** Both are configured in the same block; confirm on a
    throwaway stack before migrating a state that holds live tokens.
-3. **`ismail.kattakath.com` appears in `cf-tunnel` state** while
-   `modules/parts/identity.nix` records that the site moved to GitHub Pages 2026-09-16. Either
-   the state row is stale or the record is still managed. Resolve before phase 2 — an import that
-   double-claims a record is how a plan grows a destroy.
+3. ~~**`ismail.kattakath.com` appears in `cf-tunnel` state**~~ — **RESOLVED 2026-09-22, and it
+   was real.** `cf-tunnel` state OWNED the record while its render no longer declared it, so the
+   next `cf-tunnel-apply` planned a **destroy** of the record serving the GitHub Pages site. The
+   drop-delta guard would have refused rather than deleted — the hazard was a permanently blocked
+   apply, not data loss. Fixed by `tofu state rm` (untracks, does not delete) and re-import into
+   `cf-zones`, which now owns it. The same apply also cleared a second piece of drift: the tunnel
+   ingress still routed `ismail.kattakath.com` to the Pi.
 4. **cf-terraforming against provider v5.** The provider is 5.25.0 (2026-09-11); confirm the
    generated import IDs match the resource types this repo actually declares.
 
 ---
+
+## 8a. Findings from executing phases 0 and 2
+
+| Finding | Detail |
+|---|---|
+| **`telegram` is stuck on Cloudflare's side** | Through the exact edge path with the exact service token it returns its **5 tools in under a second**, and a *freshly created* registration still reads `error` immediately. Not the server, not the tunnel, not the token — the portal is beta. One server of 26; left as-is rather than chased. |
+| **The module system cost an infinite recursion for nothing** | Routing the records through `config.fleet.dnsRecords` recursed: `config` inside a terranix `_module.args` block resolves to *that* module's config. The error names `dnsRecords` rather than the cause. Data with ONE consumer is now a plain list (`infra/cloudflare/kattakath-dns.nix`). |
+| **A top-level `assert` in a terranix module is the same trap** | `assert …; { … }` forces a module argument while the module is still being constructed. Both assertions now live inside the rendered value, where they fire at render time. |
+| **The record count was 22, not the ~21 estimated** | §2's estimate was one low. |
 
 ## 9. What this ADR does not do
 
