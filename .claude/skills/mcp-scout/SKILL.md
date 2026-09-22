@@ -107,5 +107,28 @@ flake was retired 2026-09-15 and its CLI with it — but nix-config grew its own
 the same day, packages/activate.nix, and that is the sanctioned command. `sudo
 darwin-rebuild switch --flake .#macos` is the equivalent, and names nothing it is about
 to build.) Verify after activation with
-`curl -s http://127.0.0.1:8096/servers/<name>/mcp -o /dev/null -w '%{http_code}'`
-and `tail ~/Library/Logs/mcp-gateway.log`.
+
+```bash
+# The port is fleet.publicMcpPort. No flake output and no module option exposes it
+# (`identity` carries only the four identityArgs; `local.mcpGateway` declares no `port` —
+# the gateway binds a `let` binding threaded in via extraSpecialArgs), so read the
+# constant itself. Verified 2026-09-22.
+port=$(grep -oE 'publicMcpPort = [0-9]+' modules/parts/identity.nix | grep -oE '[0-9]+')
+curl -s -X POST "http://127.0.0.1:$port/servers/<name>/mcp" \
+  -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"scout","version":"1"}}}' \
+  -o /dev/null -w '%{http_code}\n'      # 200 = healthy
+tail ~/Library/Logs/mcp-gateway.log
+```
+
+Two things changed on 2026-09-22 that this probe has to respect. The `:8096` private gateway
+is **gone** — one proxy now, on `fleet.publicMcpPort`. And the endpoint needs a **POST
+`initialize`**: measured 2026-09-22, a bare `GET` on a perfectly healthy server returns
+**406**, because the transport requires an `Accept` of both `application/json` and
+`text/event-stream`. A GET-based health check reports every server as broken.
+
+**Then publish it.** A newly hosted server MUST also be added to
+`config.fleet.publicMcpServers` (`modules/parts/identity.nix`) or
+`checks.<system>.mcp-published-parity` fails the build — hosted-but-unpublished is
+unreachable now that every client comes in through the portal. After activating, run
+`nix run .#mcp-public-sync` so the portal re-polls and picks up the new tools.

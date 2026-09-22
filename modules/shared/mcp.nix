@@ -1,4 +1,9 @@
-# Private, localhost-only MCP gateway for Claude Code (darwin / the Mac).
+# The fleet's MCP gateway (darwin / the Mac): one shared instance of every
+# server, published through Cloudflare, reached by every client as ONE connector.
+#
+# NOT "private, localhost-only" any more. It was until 2026-09-22, and the rest
+# of this header was rewritten with it — the bind address is still 127.0.0.1, but
+# that is now the tunnel's on-host origin, not the client-facing surface.
 #
 # RELATED, AND NOT A RIVAL IMPLEMENTATION: github.com/kattakath/nix-mcp-gateway
 # WAS a standalone public flake that also declared `local.mcpGateway` — ARCHIVED
@@ -13,16 +18,18 @@
 # implementation to reconcile with or migrate to.
 #
 # WHAT THIS DOES
-# Instead of every MCP client (Claude Code, Cursor, Claude Desktop) spawning its
-# OWN stdio copy of each server per session, we run ONE shared instance of each
+# Instead of every MCP client (Claude Code, Claude Desktop) spawning its OWN
+# stdio copy of each server per session, we run ONE shared instance of each
 # server behind sparfenyuk/mcp-proxy — a launchd USER agent bound to 127.0.0.1,
-# started at login (RunAtLoad) and kept alive. Clients connect over HTTP to a
-# single long-lived process per server: shared memory-graph state, one cache, no
-# duplicate spawns, always up. Nothing listens off-box (host is 127.0.0.1 — no
-# tunnel, no Access). `desktop-commander` is deliberately EXCLUDED from the
-# gateway (shell/RCE surface) and stays a per-client stdio server, as does
-# `open-design` (stdio-only upstream with a known silent-death bug — see the
-# Client side A block for the full rationale).
+# started at login (RunAtLoad) and kept alive: shared memory-graph state, one
+# cache, no duplicate spawns, always up.
+#
+# `desktop-commander` — a shell/RCE surface — was kept off the gateway entirely
+# until 2026-09-22 and is now hosted like everything else, by operator decision;
+# its entry in customStdioServers records what that accepts. `open-design` left
+# the fleet in the same change (the APP is still installed as a cask — only its
+# stdio MCP server is gone; docs/open-design.md). There are no per-client stdio
+# servers left: every server this file declares is on the proxy.
 #
 # CONSTRAINT (tracked for removal, not yet fixed — 2026-09-16): by default a
 # launchd USER agent lives in the GUI-only `gui/<uid>` domain, which only
@@ -35,29 +42,46 @@
 # needs a live-tested activation before landing, same as the mkForce'd agents
 # in hosts/macos.nix that exist to work around this identical limitation.
 #
-# SERVER SIDE (this box, 127.0.0.1:8096)
-#   `mcp-proxy --named-server-config <gatewayConfig>` hosts all 20 servers (22
-#   with telegram + the local WordPress adapter, +1 per configured
-#   `local.mcpGateway.gmail.accounts` alias — `gmail-<alias>`, one process
-#   per Google/Workspace account, the roster in hosts/macos.nix — see mkGmailMcp's
-#   comment), each reachable at /servers/<name>/sse.
-#   `gatewayConfig` is rendered by mcp-servers-nix's `lib.mkConfig`, so the 7 packaged
-#   servers (context7/fetch/memory/sequential-thinking/nixos/terraform/github) are
-#   PINNED store-path commands; the 13 without a module (+ telegram / the local
-#   WordPress adapter / gmail-<alias> when configured) fall
-#   back to pinned npx/uvx launchers (still a runtime fetch, but acceptable on the Mac
-#   where Node/uv already live).
+# SERVER SIDE (this box, 127.0.0.1:<publicMcpPort>)
+#   `mcp-proxy --named-server-config <gatewayConfig>` hosts every server in
+#   `hostedServerNames`, each reachable at /servers/<name>/mcp. That roster must
+#   equal `config.fleet.publicMcpServers` in BOTH directions — 26 servers today,
+#   including one `gmail-<alias>` process per Google/Workspace account (the roster
+#   is in hosts/macos.nix; see mkGmailMcp). The equality is not a convention:
+#   `checks.<system>.mcp-published-parity` fails the build on either mismatch,
+#   because a hosted-but-unpublished server is invisible and a published-but-
+#   unhosted one registers a dead upstream with Cloudflare.
 #
-# CLIENT SIDE (programs.claude-code.mcpServers)
-#   The 20 hosted servers (22+ with every opt-in) are wired as `type = "http"` (Streamable HTTP — the
-#   current MCP standard; the legacy HTTP+SSE transport was deprecated in the
-#   2025-03-26 spec) pointing at /servers/<name>/mcp; desktop-commander and
-#   open-design stay `type = "stdio"`. The claude-code module writes these into a managed
-#   .mcp.json plugin dir — it does NOT clobber the stateful ~/.claude.json.
+#   `gatewayConfig` is rendered by mcp-servers-nix's `lib.mkConfig`, so the
+#   packaged servers (context7/fetch/memory/sequential-thinking/nixos/terraform/
+#   github) are PINNED store-path commands; the rest fall back to pinned npx/uvx
+#   launchers (still a runtime fetch, but acceptable on the Mac where Node/uv
+#   already live).
 #
-# CLIENT SIDE D — Claude Desktop (and Cowork via its bridge) — lives in
-# ./claude-desktop.nix: the same `endpoints` rendered as mcp-remote stdio shims
-# into Desktop's stateful claude_desktop_config.json (docs/claude-desktop-mcp.md).
+#   ONE PORT, not two. A second proxy on :8096 served local clients until
+#   2026-09-22 — see gatewayPort below for why publishing every server killed
+#   that split's only justification.
+#
+#   `telegram` is the one server in neither list: withdrawn from
+#   publicMcpServers 2026-09-22 (it advertises `prompts`/`resources` then answers
+#   -32000 on both, which darks portal discovery) AND left off the gateway by its
+#   `local.mcpGateway.telegram.enable = false` default. Those two facts are now
+#   COUPLED — see that option for what enabling it costs.
+#
+# CLIENT SIDE — every client gets ONE connector, not a server list.
+#   Clients do not address this box at all. They dial the portal
+#   (`portalUrl`, https://mcp.<domainName>/mcp), which Cloudflare Access
+#   authenticates against Workspace and proxies back in through the tunnel to the
+#   port above. So the client config is a single entry regardless of how many
+#   servers exist, and every call carries an identity instead of being trusted
+#   for running on this machine.
+#
+#   That one entry is declared ONCE, in `hubServers`, and rendered per client by
+#   home-manager's `programs.mcp` hub: Claude Code via
+#   `programs.claude-code.enableMcpIntegration`, VS Code via its own
+#   `enableMcpIntegration`. Claude Desktop needs a renderer the hub does not
+#   ship, so ./claude-desktop.nix wraps the same portal URL in an mcp-remote
+#   stdio shim (Desktop's schema takes no `url`) — docs/claude-desktop-mcp.md.
 #
 # SCOPE: darwin only (the Mac is the sole MCP client host; keeps the Pi/VM lean).
 # There is no project ./.mcp.json — this user-scope gateway is the single source.
@@ -583,7 +607,7 @@ let
     # This server is a `uvx` RUNTIME fetch (no nixpkgs/mcp-servers-nix package exists),
     # so its resolution can DRIFT — and because mcp-proxy spawns every named server at
     # startup, ONE server that fails to install/import crashes the whole gateway (nothing
-    # binds :8096, ALL servers go dark). Two load-bearing pins guard the two ways it drifts:
+    # binds the port, ALL servers go dark). Two load-bearing pins guard the two ways it drifts:
     #
     # 1. `--python 3.12`: postgres-mcp depends on pglast, whose current release ships no
     #    wheel for CPython 3.14 (uv's default newest interpreter) and fails to source-build
@@ -626,6 +650,17 @@ let
   # Keychain-exporting wrapper above, so no secret ever lands in the gateway JSON.
   # Excluded from `hostedServerNames` entirely when disabled, so its absence costs
   # nothing and it can't dark the gateway before the one-time auth is done.
+  #
+  # ENABLING IT NOW FAILS `nix flake check`, and that is deliberate rather than a
+  # bug to route around. It joins `hostedServerNames` but is absent from
+  # `config.fleet.publicMcpServers` (withdrawn 2026-09-22, identity.nix has the
+  # measurement), so `checks.<system>.mcp-published-parity` reports "hosted but
+  # NOT published". Before 2026-09-22 that combination was the NORMAL state — a
+  # server could be hosted privately and simply not published. With one proxy and
+  # one portal there is no private half to hold it, so the parity check is right
+  # and the honest options are both edits, not overrides: re-publish it (only once
+  # the upstream -32000 is fixed, or the portal registration errors again), or
+  # leave this off.
   // lib.optionalAttrs cfg.telegram.enable {
     telegram = {
       command = lib.getExe telegramMcp;

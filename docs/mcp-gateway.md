@@ -1,29 +1,63 @@
-# MCP gateway — the localhost server fleet
+# MCP gateway — the fleet's server fleet, behind one connector
 
 The detail behind [`CLAUDE.md`](../CLAUDE.md) § Navigating the Codebase → `modules/shared/mcp.nix`.
 `CLAUDE.md` keeps only the pointer; the inventory and the per-server gotchas live here.
-**When you add or remove a server, update this file, the server-count comments in
-`modules/shared/mcp.nix`, and nothing in `CLAUDE.md` (it carries no count)** — count drift
-across those comments is a recurring bug, which is why the count lives in exactly one prose
-place now.
+**When you add or remove a server, update this file and `config.fleet.publicMcpServers`
+(`modules/parts/identity.nix`) — and nothing in `CLAUDE.md` (it carries no count).** Count drift
+across prose was a recurring bug, which is why the count lives in exactly one prose place and
+the roster itself is now machine-checked (see § Parity).
 
 ## Shape
 
-MCP servers for Claude Code are provided by a localhost **gateway**
-(`modules/shared/mcp.nix`, **darwin-only**): one `mcp-proxy` launchd agent on
-**`127.0.0.1:8096`**, started at login, hosting all **20** servers (**22** with the opt-in
-`telegram` and `wordpress-adapter-local`). Each hosted server is wired into `programs.claude-code.mcpServers` as **HTTP**
-(Streamable HTTP; a legacy `sse` path is also served for SSE-only clients such as Grok, via the
-same `endpointFor` single source of truth).
+One `mcp-proxy` launchd agent (`modules/shared/mcp.nix`, **darwin-only**) bound to
+**`127.0.0.1:<publicMcpPort>`**, started at login, hosting all **26** servers, each at
+`/servers/<name>/mcp` (Streamable HTTP).
 
-Two servers stay **per-client stdio**, deliberately outside the gateway (they are *not* in the
-hosted counts): `desktop-commander` — an RCE surface — and `open-design`, whose upstream is
-stdio-only and carries a known silent-death bug (nexu-io/open-design#7273); one server crashing
-at startup darks the whole gateway, so it must not live in it. `open-design`'s full
-declared-vs-imperative boundary is [`open-design.md`](open-design.md).
+**Clients never address that port.** They dial one connector —
+`https://mcp.kattakath.com/mcp`, the Cloudflare MCP portal — which authenticates against
+Google Workspace and proxies back in through the tunnel. So every client config is a *single
+entry* whose size does not change when the roster does, and every call carries an identity
+instead of being trusted for running on this machine.
+
+| | Before 2026-09-22 | Now |
+|---|---|---|
+| proxies | 2 (`:8096` private, `:8097` published) | **1** |
+| what a client declares | 20+ loopback URLs | **1 portal URL** |
+| published servers | 2 of 26 | **26 of 26** |
+| per-client stdio servers | `desktop-commander`, `open-design` | **none** |
+| processes | ~50 (two copies of each server) | **26** |
+
+The second proxy existed because Cloudflare Access protects a *hostname*, not a path, so
+tunnelling the private gateway would have exposed every server to a leaked service token. That
+argument was load-bearing while 2 of 26 were published; publishing all of them killed it —
+both processes then hosted the same set, so the split bounded nothing but a crash while costing
+a duplicate instance of every server, two copies fighting over one Gmail credential file, one
+MTProto session and one memory graph.
+
+`desktop-commander` — an RCE surface kept off the gateway entirely until then — is now hosted
+like everything else, by operator decision. `open-design` left the fleet in the same change;
+the **app** is still installed as a cask, only its stdio MCP server is gone
+([`open-design.md`](open-design.md)).
+
+**What this accepts, stated plainly:** a leaked Access service token now reaches four Gmail
+accounts, production WordPress, Postgres, the Cloudflare account, `macos-automator` (arbitrary
+AppleScript on this Mac), `chrome-devtools` (live browser sessions) and `desktop-commander`
+(shell). Identity-gated at the edge, not bounded by absence.
 
 There is **no project `.mcp.json`** — the user-scope gateway is the single source (the Mac is
 the sole MCP client host; the Pi/VM stay lean).
+
+## Parity — the roster is checked, not remembered
+
+`checks.<system>.mcp-published-parity` asserts `local.mcpGateway.hostedServers` equals
+`config.fleet.publicMcpServers` in **both** directions, and fails the build otherwise:
+
+- *hosted but NOT published* — the server exists and no client can ever see it.
+- *published but NOT hosted* — terranix registers a dead upstream with Cloudflare.
+
+This replaced the assertions that used to police `local.mcpGateway.public`. They could only
+catch a published name that was not hosted; the parity check also catches the direction that
+actually kept happening — a newly hosted server nobody remembered to publish.
 
 ## The 7 packaged servers (`mcp-servers-nix`)
 
@@ -52,32 +86,18 @@ rather than crashing).
 | `wordpress` | docdyhr/mcp-wordpress (pinned) — **CLIENT-SIDE** WordPress admin over a live site's REST API with an Application Password (nothing installed on the site). Creds `WP_URL`/`WP_ADMIN_USER`/`WP_ADMIN_APP_PASSWORD` are Keychain-injected via the `wpMcp` wrapper; canonical **www** host required |
 | `wordpress-adapter` | the official WordPress MCP Adapter (**server-side, SILVERCREEK.AI PROD**), reached via a Keychain-injecting `mcp-remote` wrapper against `https://www.silvercreek.ai`; always-on since prod is always reachable |
 
-## The SECOND gateway — published servers (`local.mcpGateway.public`)
+## Publishing — `config.fleet.publicMcpServers`
 
-Everything above describes the **private** gateway on `127.0.0.1:8096`, which is reachable only
-from this Mac. A separate opt-in list publishes servers to the internet:
+There is no `local.mcpGateway.public` option any more. The roster is a fleet constant in
+`modules/parts/identity.nix`, and it drives three things from one list: the proxy's own server
+set, the `cloudflared` connector agent (`nix-mcp-tunnel-connector`), and the Cloudflare
+registrations.
 
-```nix
-local.mcpGateway.public = publicMcpServers;   # default [ ]; the fleet value is ALL 26
-```
+Narrow it by deleting names there; the next apply DROPS their Cloudflare objects, which the
+`mkMcpPublicTofu` drop-guard makes you confirm.
 
-Each name must already be in `hostedServerNames`; `desktop-commander` and `open-design` are
-rejected by assertion. That list drives a **second `mcp-proxy` process** on `127.0.0.1:8097`
-(`mcp-gateway-public.json`) plus a `cloudflared` connector agent
-(`nix-mcp-tunnel-connector`), both launchd agents gated on the list being non-empty.
-
-**Since 2026-09-22 the list is every hosted server** (`config.fleet.publicMcpServers`,
-`modules/parts/identity.nix`), by operator decision. Read the next paragraph as the cost of
-that, not as a protection still in force.
-
-**Why a second process rather than an ingress onto `:8096`** — Access protects a *hostname*, not
-a path, so tunnelling the main gateway would put a leaked credential in front of every path on
-it. A separate process makes an unpublished server **absent** rather than merely unrouted —
-which is real, and which the current full list buys nothing from: with all 26 published, the two
-processes host the same set and a leaked Access service token reaches four Gmail accounts,
-Telegram, production WordPress, Postgres, the Cloudflare account, `macos-automator` (arbitrary
-AppleScript on this Mac) and `chrome-devtools` (live browser sessions). The split still bounds a
-*crash*, and it starts bounding exposure again the moment a name is removed from the list.
+After any `activate` that restarts the gateway, run `nix run .#mcp-public-sync` to ask the
+portal to re-poll — registrations otherwise keep the tool list they last saw.
 
 The Cloudflare half lives in `infra/cloudflare/mcp-public.nix`; the full design, the two-hostname
 model and the three-objects-per-publish trap are in
@@ -86,7 +106,12 @@ model and the three-objects-per-publish trap are in
 ## Opt-ins (default off)
 
 - **`telegram`** — chaindead/telegram-mcp. Needs a one-time phone auth **before** activating,
-  or it darks the gateway.
+  or it darks the gateway. **Enabling it now also fails `nix flake check`**, deliberately: it
+  was withdrawn from `publicMcpServers` on 2026-09-22 (it advertises `prompts`/`resources` then
+  answers `-32000` on both, which darked portal discovery), so turning it on makes it hosted
+  but unpublished — exactly what § Parity refuses. Before the collapse that combination was
+  normal, because a private gateway could hold it; there is no private half now. Re-publish it
+  only once the upstream bug is fixed.
 - **`wordpress-adapter-local`** — mirrors `wordpress-adapter` against a LOCAL `wp-env` clone
   (`http://localhost:8888`). Gated behind `local.mcpGateway.localAdapter.enable` because
   `mcp-proxy` spawns every named server at startup and an unreachable endpoint would fail that
@@ -127,7 +152,8 @@ config-writing install tools are never used.
   Accessibility (TCC) grant `macos-automator` needs.
 - [`gmail-mcp-multi-account-runbook.md`](gmail-mcp-multi-account-runbook.md) — multi-account
   Gmail setup, auth, and a documented silent-wrong-account failure mode.
-- [`mcp-public-exposure-design.md`](mcp-public-exposure-design.md) — the PUBLISHED gateway:
-  `local.mcpGateway.public`, the `:8097` second proxy, and the Cloudflare side.
+- [`mcp-public-exposure-design.md`](mcp-public-exposure-design.md) — the PUBLISHED gateway's
+  design and the Cloudflare side. Read its §10 first: the two-proxy model the body describes
+  was collapsed on 2026-09-22.
 - [`private-home-modules.md`](private-home-modules.md) — the `extraHomeModules`/`hostedSites`
   composition seams, and the nixpi deploy runbook.

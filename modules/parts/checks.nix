@@ -259,20 +259,39 @@ in
                 ''
             );
 
+          # The reachability arm must be sourced from the GATEWAY, never from the
+          # rendering it is checking. Until 2026-09-22 it was: `endpoints` read
+          # `local.mcpGateway.endpoints`, the 26 loopback URLs, and the check
+          # asserted every one reached Desktop. #572 deleted that option and
+          # repointed the line at `renderedServers` — the same attrset as
+          # `servers` — so `missing` became `filter (n: !(servers ? n))
+          # (attrNames servers)`, which is `[ ]` for every possible input. The
+          # arm went on reporting success while asserting nothing.
+          #
+          # There is no per-server endpoint set to compare against any more, so
+          # the invariant that replaces it is the one the collapse created: the
+          # portal URL mcp.nix builds must be what Desktop actually dials. That
+          # still crosses a module boundary, which is the whole point — a check
+          # whose two sides come from one expression can only ever pass.
           claude-desktop-config-shape =
             let
               hm = config.flake.darwinConfigurations.macos.config.home-manager.users.${loginName};
               servers = hm.local.claudeDesktop.renderedServers;
-              endpoints = builtins.attrNames hm.local.claudeDesktop.renderedServers;
+              portalEndpoint = hm.local.mcpGateway.portalEndpoint;
+              # Flatten every rendered entry's argv; the portal is an mcp-remote
+              # shim, so its URL rides in `args`, not in a `url` key (Desktop's
+              # schema rejects one — that is what toStdioShim exists for).
+              renderedArgs = lib.concatMap (s: s.args or [ ]) (builtins.attrValues servers);
               badShape = lib.filterAttrs (
                 _: s: !(s ? command && s ? args) || s ? url || s ? type || !(s ? env && s.env ? NIX_CONFIG_MANAGED)
               ) servers;
-              missing = builtins.filter (n: !(servers ? ${n})) endpoints;
               problems =
                 lib.optional (
                   badShape != { }
                 ) "non-stdio or unmarked entries: ${toString (builtins.attrNames badShape)}"
-                ++ lib.optional (missing != [ ]) "gateway endpoints missing from Desktop: ${toString missing}"
+                ++
+                  lib.optional (!(builtins.elem portalEndpoint renderedArgs))
+                    "Desktop dials no entry at the gateway's portalEndpoint (${portalEndpoint}) — it would start with zero fleet servers"
                 ++ lib.optional (
                   servers ? desktop-commander
                 ) "desktop-commander rendered (it is a Desktop Extension already)";
@@ -280,7 +299,7 @@ in
             pkgs.runCommand "claude-desktop-config-shape" { } (
               if problems == [ ] then
                 ''
-                  echo "claude-desktop: ${toString (lib.length (builtins.attrNames servers))} stdio-shaped entries, all ${toString (lib.length endpoints)} gateway endpoints present" > "$out"
+                  echo "claude-desktop: ${toString (lib.length (builtins.attrNames servers))} stdio-shaped entries, dialling the gateway portal at ${portalEndpoint}" > "$out"
                 ''
               else
                 ''

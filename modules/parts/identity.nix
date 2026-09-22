@@ -184,14 +184,20 @@ let
   # internal error, and marked the whole registration `status = error` —
   # contributing 0 of its 5 tools while still occupying a portal slot.
   #
-  # Measured on 127.0.0.1:8097, so this is the server, not the edge: `memory`
+  # Measured on the gateway itself, so this is the server, not the edge: `memory`
   # advertises no prompts and answers `-32601 Method not found`, which the portal
   # tolerates. A clean "not implemented" is fine; a malformed error is not.
   #
-  # It is UNAFFECTED on the private gateway (:8096) — `tools/list` works there, so
-  # Claude Code keeps all 5 tools. Only the PUBLISHED copy is withdrawn. Re-add it
-  # when chaindead/telegram-mcp either implements those methods or stops
-  # advertising them.
+  # WITHDRAWING IT NOW COSTS THE TOOLS, which it did not when this was written.
+  # The first draft said telegram was "unaffected on the private gateway (:8096),
+  # so Claude Code keeps all 5 tools" — true for about a day. The same 2026-09-22
+  # change that withdrew it also collapsed the two proxies into one and put every
+  # client behind the portal, so there is no private gateway left to keep serving
+  # it: withdrawn here means gone from every client, not merely unpublished.
+  # `local.mcpGateway.telegram.enable` is therefore also off, and turning it on
+  # alone fails mcp-published-parity — that option's comment has the detail.
+  # Re-add it here when chaindead/telegram-mcp either implements those methods or
+  # stops advertising them.
   #
   # The gmail-* names are `gmailAlias` (modules/shared/mcp.nix) applied to
   # hosts/macos.nix's `local.mcpGateway.gmail.accounts` — lowercased, with
