@@ -1808,6 +1808,20 @@ for the main pane, which sits at `left:0` inside it, so moving both would double
 | `gcp-budget` | GCS `gcp-budget/` | the spend alert |
 | `gcp-foundation` | **local** | the bucket the others live in |
 
+**Run every one of these inside `nix develop`.** Not a style preference — `CLOUDSDK_CONFIG`
+scopes `gcloud`, but it does **not** scope Terraform: the Go auth library ignores it and reads
+the well-known ADC path instead, so only the devShell's `GOOGLE_APPLICATION_CREDENTIALS`
+(`modules/parts/devshell.nix`) points tofu at this repo's credentials. Measured 2026-09-22: a
+bare `nix run .#cf-access-org-plan` failed at `Initializing the backend` with
+`izzy@silvercreek.ai does not have storage.objects.list access` — a correct `gcloud` account and
+a tofu authenticated as a **different Workspace tenant** entirely. The 403 was the lucky
+outcome; the shape to fear is an ambient credential that *does* have access and writes to the
+wrong place silently. Canonical invocation:
+
+```bash
+nix develop -c bash -c 'secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- nix run .#<app>'
+```
+
 State is the shared, versioned bucket `kattakath-tofu-state`, **encrypted** with a passphrase
 read from the login Keychain at run time via `TF_ENCRYPTION` (ADR-005 phase 1 —
 [`iac-coverage-adr.md`](iac-coverage-adr.md)). Two of these states hold secrets in plaintext

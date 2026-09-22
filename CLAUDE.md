@@ -65,11 +65,11 @@ nix fmt                                      # Format + lint-fix all .nix via tr
 nix develop                                  # Dev shell (nixd LSP, treefmt, home-manager); installs pre-commit hooks
 nix build .#checks.<system>.formatting       # CI formatting/lint gate
 nix build .#checks.<system>.ast-grep         # Structural-lint gate (report-only; rules in ast-grep/rules/)
-ast-grep scan --no-ignore hidden .           # Same scan by hand (devShell); --no-ignore hidden or .claude/ is SKIPPED
+ast-grep scan --no-ignore hidden .           # Same scan by hand (devShell); without --no-ignore hidden, .claude/ is SKIPPED
 ast-grep test --skip-snapshot-tests          # Prove each rule still fires (fixtures in ast-grep/rule-tests/)
 nix build .#checks.<system>.capsule-registry # readDir modules/features == the capsules import-tree loaded
 nix build .#checks.<system>.claude-md-budget # THIS file must stay under 40,000 BYTES (wc -c) — a GATE
-scripts/drv-snapshot.sh --compare .baseline/wave0-final   # "moved code, changed no build" (see § Testing)
+scripts/drv-snapshot.sh --compare .baseline/wave0-final   # "moved code, changed no build" (§ Testing)
 # Agent hygiene (LEAN/DRY/docs drift → fix → fmt → check): /hygiene  or skill nix-hygiene
 
 # Activation
@@ -78,7 +78,7 @@ activate                                     # Activate macos, from ANY director
                                              #   No --flake/#attr: modules/parts/hosts.nix plants /etc/nix-darwin/flake.nix,
                                              #   which darwin-rebuild resolves, and the attr defaults to LocalHostName (= macos).
                                              #   `sudo darwin-rebuild switch` works too but names nothing it is about to build.
-nix run github:kattakath/nix-config#macos    # FIRST activation only, straight from the flake (before `activate` exists). Self-elevates.
+nix run github:kattakath/nix-config#macos    # FIRST activation only, straight from the flake (before `activate` exists)
 nixos-rebuild switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com
                                              # Activate the Pi: builds HERE (substituting the CI-warmed closure from
                                              #   Cachix), activates THERE. NEVER --build-host — the Pi must not build
@@ -105,11 +105,12 @@ nix run .#nixpi-provision                     # Plant/update token + Wi-Fi on a 
 # Flashing: do a FULL verified write (confirm dd's ~5.6GB byte count) — see docs/nixpi-sd-flashing-runbook.md
 # Companions: nixpi-wifi-creds (emit wpa_supplicant.conf from this Mac), nixpi-vault-token (re-encrypt a rotated token)
 
-# terranix — 6 stacks, one GCS backend. *-plan first; every *-destroy is hard-blocked by the guard.
+# terranix — 6 stacks, one GCS backend. Run inside `nix develop` or tofu picks the WRONG ADC.
+# *-plan first; every *-destroy is hard-blocked by the guard.
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-tunnel-apply     # nixpi's tunnel + ingress + CNAME; PRINTS the connector token
-CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-zones-{plan,apply}          # kattakath.com DNS records
+CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-zones-{plan,apply}         # kattakath.com DNS records
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#mcp-public-{apply,sync,token}  # published MCP gateway; `sync` re-polls the portal
-nix run .#gcp-{foundation,budget}-{plan,apply}              # GCP APIs/SA/state bucket; the 5 CAD spend ALERT
+nix run .#gcp-{foundation,budget}-{plan,apply}              # GCP APIs/SA/state bucket; the 5 CAD ALERT
 
 ```
 
@@ -148,7 +149,7 @@ One line per path; the *why* and the per-file specifics are in
 | `sgconfig.yml` + `ast-grep/` | Report-only structural lint mechanising both layer boundaries: a capsule may not reach **out**, and `modules/shared/` may reach **down** only. Gated by `checks.<system>.ast-grep`, **not** treefmt. |
 | `hosts/` | Per-host entry profiles: `macos.nix`, `nixpi.nix`, `nixvm.nix` (host-only deltas + per-host Homebrew lists), plus identity-free `generic-darwin.nix`/`generic-linux.nix` that `templates/` and `checks.<system>.template-consumer` build on. |
 | `modules/parts/` | The FLAKE ENGINE — one flake-parts module per concern, discovered by `import-tree`. The engine **may** reach anywhere. |
-| `modules/features/` | The seven CAPSULES — six absorbed satellites (`cloudflared-connector`, `firmware-secrets`, `keychain-secrets`, `tart-vms`, `media-cli`, `local-rag`) plus `cloud-cli` (born in-tree 2026-09-20: AWS CLI + `~/.aws/config.example`, never the real file). `flake-module.nix` is the ONLY file anything outside imports, and **a capsule may not reach outside its own directory** — enforced by `ast-grep` + `checks.<system>.capsule-registry`, not by convention. **Satellite count: 0.** |
+| `modules/features/` | The seven CAPSULES — six absorbed satellites (`cloudflared-connector`, `firmware-secrets`, `keychain-secrets`, `tart-vms`, `media-cli`, `local-rag`) plus `cloud-cli` (in-tree since 2026-09-20). `flake-module.nix` is the ONLY file anything outside imports, and **a capsule may not reach outside its own directory** — enforced by `ast-grep` + `checks.<system>.capsule-registry`, not by convention. **Satellite count: 0.** |
 | `modules/shared/` | The Home Manager profile on every host. Modules that DECLARE a `local.*` option: `mcp.nix`, terminal theme, chromium, default browser, übersicht (the one HTML widget) + next-right-thing (what it says), wireguard, desktop aesthetics (the wallpaper), claude plugins/otel/desktop. Option-free modules that just configure: `home.nix`, nix cache, nix-ld, launchd-launcher, claude brain/bedrock-gate/guardrails — `local.claudeBedrock` was DELETED 2026-09-15, so do not look for it. |
 | `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix`, `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`local.macosGithubRunner` — LIVE, see § Configuration), `ollama-daemon.nix` (`local.ollamaDaemon` — ONE machine-wide `ollama serve`, so every account shares one process and one 31 GB model store), `claude-managed-settings.nix` (`local.claudeManagedSettings` — the root-owned Claude Code MANAGED settings file; `enable = false` DELETES it). |
 | `modules/nixos/` | `core.nix` (user + keys-only **loopback-bound** sshd, `openFirewall = false`, a firewall that opens **no** TCP port, avahi, nix-ld, zram, GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). `nixpi`'s composed posture is GATED — `checks.<system>.nixpi-security-posture` (built on BOTH systems: the edits it guards are made on the Mac). |
