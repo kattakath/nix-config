@@ -96,6 +96,19 @@ PR #558:
 queue itself then disabled. With strict off, plain auto-merge has nothing to stall
 on — so by 2026-09-22 the queue's only remaining job was the 7m29s it added.
 
+*What was given up, second, and not anticipated.* The queue's extra run was also an
+accidental **grace period**: ~7m29s between a PR going green and actually merging. A
+branch still being pushed to was implicitly relying on that window. Removing it
+**exposed** an operator error rather than causing one — auto-merge did exactly what it
+is built to do — but masking an error is not the same as preventing it, and the mask is
+gone. Measured the same day, PR #567: auto-merge fired the moment CI went green while
+commits were still being pushed, squashed two phases and left **five later commits
+behind**.
+
+**Mitigation: park work-in-flight as a draft.** Arming survives the draft state and
+releases on `ready_for_review` — verified on #559 (armed 15:30:33 while draft, ready
+16:11:31, merged 16:19:54).
+
 *What was given up, honestly.* Cross-PR semantic conflict detection: two PRs each
 green alone, broken together. At `min_entries_to_merge: 1` and one entry per queue
 run across the whole visible history, queue depth here was always **1**, so that

@@ -1356,7 +1356,7 @@ in
             limit=40000
             size=$(wc -c < ${../../CLAUDE.md} | tr -d " ")
             if [ "$size" -gt "$limit" ]; then
-              echo "claude-md-budget: CLAUDE.md is $size chars, over the $limit-char" >&2
+              echo "claude-md-budget: CLAUDE.md is $size BYTES, over the $limit-byte" >&2
               echo "context-lint budget it documents for itself." >&2
               echo "" >&2
               echo "CLAUDE.md is an INDEX. The full per-path detail belongs in" >&2
@@ -1364,7 +1364,7 @@ in
               echo "rather than raising this limit reflexively." >&2
               exit 1
             fi
-            echo "CLAUDE.md: $size/$limit chars"
+            echo "CLAUDE.md: $size/$limit bytes"
             touch "$out"
           '';
 
