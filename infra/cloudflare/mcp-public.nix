@@ -106,6 +106,20 @@ let
   # not start with a digit and may only hold letters/digits/underscore/dash.
   srvKey = name: builtins.replaceStrings [ "." "-" ] [ "_" "_" ] name;
 
+  # Cloudflare's OWN id rule for an ai-controls MCP registration, which is NOT the
+  # Terraform one above and not ours to choose: measured 2026-09-22, the API
+  # answers 400 `7001 ID must contain lowercase letters, numbers, and hyphens
+  # only`. The four `gmail-<sanitized-email>` servers carry underscores (mcp.nix's
+  # `gmailAlias` maps @/./+ to `_`), so all four registrations were REJECTED while
+  # the other 22 created cleanly.
+  #
+  # Underscore -> hyphen, and ONLY for the registration id. The upstream URL and
+  # the display name keep the real server name, because the gateway route
+  # `/servers/gmail-ismail_kattakath_com/mcp` is the literal mcp-proxy path — sanitize
+  # that and the portal dials a 404. This is a no-op for every name without an
+  # underscore, so none of the 22 live registrations sees a ForceNew replacement.
+  cfId = name: builtins.replaceStrings [ "_" ] [ "-" ] name;
+
   # The gateway serves Streamable HTTP at /servers/<name>/mcp — the same path
   # shape `endpointFor` builds for local clients, so the published URL and the
   # loopback URL can never drift.
@@ -123,6 +137,12 @@ let
   #     (`memory`, `sequential-thinking`)
   #   - a registration's id, its portal app's name, and its `/servers/<x>/mcp`
   #     path segment are all the SAME string — the server's name.
+  #
+  #     ONE forced exception (2026-09-22): Cloudflare rejects `_` in a
+  #     registration id, so the id alone runs through `cfId` (underscore ->
+  #     hyphen). The display name and the path segment still carry the real name,
+  #     so the dashboard still reads identically; only the four `gmail-*` rows
+  #     have an id that differs from their name, and only by that substitution.
   #
   # So in the dashboard "Application name" and "Destinations" read identically
   # for every row, and the "Type" column is what says which layer it is. Nothing
@@ -143,11 +163,13 @@ let
     map (n: {
       key = "srv_${srvKey n}";
       id = n;
+      regId = cfId n;
       description = "Published from the macos MCP gateway (local.mcpGateway.public).";
     }) publicServers
     ++ map (e: {
       key = "srv_${srvKey e.name}";
       id = e.name;
+      regId = cfId e.name;
       description = e.description or "Cloudflare Worker route under the gateway hostname.";
     }) externalServers;
 
@@ -346,7 +368,9 @@ in
       name = p.key;
       value = {
         account_id = accountId;
-        inherit (p) id description;
+        inherit (p) description;
+        # `regId`, not `id` — Cloudflare rejects underscores here. See `cfId`.
+        id = p.regId;
         name = p.id;
         hostname = serverUrl p.id;
         auth_type = "bearer";
