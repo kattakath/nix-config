@@ -263,6 +263,28 @@ a run.
   "not built, and not built first". The four addresses stay, marked OPERATOR-ONLY; the
   `next-right-thing` scripts' default account aliases are the same content and stay with them.
   Moving them is a decision for ADR-003's own trigger, not a side effect of this one.
+- **Claude Code user settings: joined the class 2026-09-22, and the class is now named.**
+  `~/.claude/settings.json` was a read-only store symlink until
+  `modules/shared/claude-code-settings.nix` made it a real file that Nix merges its own keys
+  into on every activation. It is therefore LOCAL AND UNBACKED, exactly like `~/.aws/config`
+  and the `*.inc` files above — the fourth member, not an exception.
+
+  What is at risk is smaller than it looks, and that is why it was accepted rather than solved:
+  the merge re-asserts the Nix baseline (the `permissions.deny` floor, `attribution`, the OTel
+  `env`) on every activation, so losing the file loses the OPERATOR's preferences only — a model
+  picker and a theme, minutes to re-set. The self-healing half was the half that mattered.
+
+  **The trigger, and it names the inventory rather than the example:** when a SECOND piece of
+  operator content genuinely needs restoring after machine loss, create ONE private
+  operator-content repo for all of them at once — not one repo for the first file that raises
+  the question. A private repo for a single preferences file would re-open the private layer
+  retired 2026-09-15 and be bigger than its problem.
+
+  **`nix-config` is not a candidate at any size**, and the reason is not what the file contains.
+  Its `env` today is `CLAUDE_CODE_ENABLE_TELEMETRY` plus four `OTEL_*` vars — no secrets, no
+  account material, measured by reading the live file's keys. The disqualifier is that the UI
+  WRITES INTO IT FREELY: a key pasted into the app tomorrow would be published by the next
+  commit. Today's cleanliness is a property of today, not a guarantee.
 
 ### 9.8 `googleAccount` is a fleet constant, not an identity arg
 Adding it to `identityArgs` would have re-created the 2026-09-16 `publicMcpPort` breakage for
