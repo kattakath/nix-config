@@ -50,7 +50,19 @@
     # half-resolving.
     cloudflaredConnectorModule
     firmwareSecretsModule
+    # Imported by PATH, unlike the two capsules above, because it is a plain
+    # in-tree NixOS module rather than a capsule with its own flake-module.nix.
+    ../modules/nixos/uplink-watchdog.nix
   ];
+
+  # The router this host is dual-homed onto keeps its LAN alive while losing its
+  # uplink, and neither dhcpcd nor wpa_supplicant can see that: end0 keeps carrier
+  # so it keeps the lower metric, and wlan0 stays associated to an AP that is
+  # beaconing perfectly well with nothing behind it. Both paths are then dead and
+  # the tunnel — the only route in — goes with them. The watchdog probes the
+  # default route and escalates; the module header carries the full reasoning and
+  # the upstream-first grep that justifies it being ours.
+  local.uplinkWatchdog.enable = true;
 
   networking.hostName = "nixpi";
 
