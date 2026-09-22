@@ -54,6 +54,27 @@
  * bigger blast radius than one ad-hoc scoped API call. Flip
  * RULE1_API_HOST_BLOCKING to `true` to restore the hard block.
  *
+ * POLICY CHANGE (2026-09-22, publish-all-MCP-servers task): the terranix family
+ * SPLITS. `-destroy` stays hard-blocked unconditionally; `-apply` downgrades to a
+ * non-blocking nudge (RULE1_TERRANIX_APPLY_BLOCKING = false below).
+ *
+ * The 2026-08-19 note above justified the hard block with one word: apply/destroy
+ * mutate fleet infra "sight-unseen". That word is what stopped being true, and
+ * only for apply. Every `*-apply` app now renders its config, runs THREE guards
+ * (empty-render, empty-state, drop-delta) and prints a full tofu plan before it
+ * touches anything — so the operator sees the object list first. The block was
+ * also self-defeating in practice: it fired on the sanctioned command while the
+ * equivalent bare `tofu apply` in the same pinned state directory sailed through,
+ * i.e. it pushed work AWAY from the guarded wrapper toward the unguarded path.
+ * A guard that makes the safe route the inconvenient one is not a guard.
+ *
+ * `-destroy` keeps the hard block because none of that applies to it: teardown
+ * has no plan worth reading (everything goes), the drop-delta guard is inverted
+ * by design, and docs/mcp-public-exposure-design.md records that
+ * `mcp-public-destroy` cannot even clean up fully — the portal registrations and
+ * tunnel config survive in the API and need hand deletion. Flip
+ * RULE1_TERRANIX_APPLY_BLOCKING to `true` to restore the old undivided block.
+ *
  * RULE 1b IS RETIRED (2026-09-15). It hard-blocked the two live-fleet activations
  * this repo could launch — `deploy` and `darwin-rebuild switch --flake .#macos` —
  * because both reported SUCCESS while dropping the private nix-personal layer or
@@ -94,6 +115,8 @@ const fs = require("node:fs");
 
 const RULE3_BLOCKING = false; // see POLICY CHANGE above; true = restore old hard block
 const RULE1_API_HOST_BLOCKING = false; // see 2026-08-19 POLICY CHANGE above; true = restore hard block
+const RULE1_TERRANIX_APPLY_BLOCKING = false; // see 2026-09-22 POLICY CHANGE above; true = restore hard block
+// NOTE: `-destroy` is NOT covered by that flag and stays hard-blocked unconditionally.
 
 // Rule 4's allowlist — also the Rule 3 exemption set (a raw ls/find/stat/ps/kill
 // riding alongside one of these in a compound command is "part of a larger
@@ -166,6 +189,11 @@ const DESKTOP_COMMANDER_TOOLS = new Set(["ls", "find", "stat", "ps", "kill"]);
 // `github:kattakath/nix-config#…` form that runs the same app without a checkout.
 const CF_TERRANIX_APP =
   /\bnix\s+run\s+["']?(?:\.|github:kattakath\/nix-config)#(?:cf-tunnel|mcp-public)-(?:apply|destroy)\b/;
+
+// The DESTROY half of that family, split out 2026-09-22 so `apply` can relax
+// while teardown stays hard-blocked. See the POLICY CHANGE note in the header.
+const CF_TERRANIX_DESTROY =
+  /\bnix\s+run\s+["']?(?:\.|github:kattakath\/nix-config)#(?:cf-tunnel|mcp-public)-destroy\b/;
 
 // Rule 1c — the two ways a secret VALUE reaches stdout, and therefore this
 // session's transcript. Deliberately WHOLE-COMMAND regexes, not the
@@ -448,11 +476,26 @@ function main() {
   const nudges = [];
 
   // ---- Rule 1: Cloudflare API calls (terranix apply/destroy, wrangler, api.cloudflare.com) ----
-  if (CF_TERRANIX_APP.test(cmd)) {
+  if (CF_TERRANIX_DESTROY.test(cmd)) {
     emit(
       "block",
-      "Runs a terranix Cloudflare apply/destroy app, which mutates live infra via the API.",
-      "This applies/destroys Cloudflare infra. Use mcp__cloudflare__execute (or __search) instead, or confirm this is intentional and re-run manually.",
+      "Runs a terranix Cloudflare DESTROY app, which tears down live infra via the API.",
+      "This DESTROYS Cloudflare infra and tofu has no rollback. Re-run it manually if that is genuinely the intent.",
+    );
+  }
+  if (CF_TERRANIX_APP.test(cmd)) {
+    // apply-only by here: the destroy branch above already returned.
+    if (RULE1_TERRANIX_APPLY_BLOCKING) {
+      emit(
+        "block",
+        "Runs a terranix Cloudflare apply app, which mutates live infra via the API.",
+        "This applies Cloudflare infra. Use mcp__cloudflare__execute (or __search) instead, or confirm this is intentional and re-run manually.",
+      );
+    }
+    nudges.push(
+      "Applies Cloudflare infra via terranix. The wrapper's own guards (empty-render, " +
+        "empty-state, drop-delta) run before tofu, and `tofu apply` has NO rollback — " +
+        "read its plan output before it proceeds.",
     );
   }
   // (Rule 1b RETIRED 2026-09-15 — it blocked `deploy` and public-`#macos`
