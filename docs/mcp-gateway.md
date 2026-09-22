@@ -55,10 +55,10 @@ rather than crashing).
 ## The SECOND gateway — published servers (`local.mcpGateway.public`)
 
 Everything above describes the **private** gateway on `127.0.0.1:8096`, which is reachable only
-from this Mac. A separate opt-in list publishes a subset to the internet:
+from this Mac. A separate opt-in list publishes servers to the internet:
 
 ```nix
-local.mcpGateway.public = [ "memory" "sequential-thinking" ];   # default [ ]
+local.mcpGateway.public = publicMcpServers;   # default [ ]; the fleet value is ALL 26
 ```
 
 Each name must already be in `hostedServerNames`; `desktop-commander` and `open-design` are
@@ -66,10 +66,18 @@ rejected by assertion. That list drives a **second `mcp-proxy` process** on `127
 (`mcp-gateway-public.json`) plus a `cloudflared` connector agent
 (`nix-mcp-tunnel-connector`), both launchd agents gated on the list being non-empty.
 
-**Why a second process rather than an ingress onto `:8096`** — the load-bearing decision: Access
-protects a *hostname*, not a path. Tunnelling the main gateway would put a leaked credential in
-front of 7 Gmail accounts, production WordPress, Postgres and Telegram. With a separate process
-an unpublished server is not merely unrouted, it is **absent**.
+**Since 2026-09-22 the list is every hosted server** (`config.fleet.publicMcpServers`,
+`modules/parts/identity.nix`), by operator decision. Read the next paragraph as the cost of
+that, not as a protection still in force.
+
+**Why a second process rather than an ingress onto `:8096`** — Access protects a *hostname*, not
+a path, so tunnelling the main gateway would put a leaked credential in front of every path on
+it. A separate process makes an unpublished server **absent** rather than merely unrouted —
+which is real, and which the current full list buys nothing from: with all 26 published, the two
+processes host the same set and a leaked Access service token reaches four Gmail accounts,
+Telegram, production WordPress, Postgres, the Cloudflare account, `macos-automator` (arbitrary
+AppleScript on this Mac) and `chrome-devtools` (live browser sessions). The split still bounds a
+*crash*, and it starts bounding exposure again the moment a name is removed from the list.
 
 The Cloudflare half lives in `infra/cloudflare/mcp-public.nix`; the full design, the two-hostname
 model and the three-objects-per-publish trap are in
