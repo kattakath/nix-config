@@ -1907,7 +1907,7 @@ servers against state that holds more than 0.
 
 MCP servers have their own doc: [`mcp-gateway.md`](mcp-gateway.md).
 
-### `claude/` + `qwen/` — the GLOBAL agent context (not `.claude/`)
+### `claude/` — the GLOBAL agent context (not `.claude/`)
 
 Two top-level directories that are easy to mistake for the project-scoped `.claude/` tree.
 They hold the **all-projects, machine-wide** context this repo installs on `macos`:
@@ -1933,8 +1933,6 @@ They hold the **all-projects, machine-wide** context this repo installs on `maco
   global prose through `context` (already defined as a PATH in `home.nix` — a second path
   definition is a hard eval error, not a merge; use another `rules.<name>`), or reach for the
   `rulesDir`/`agentsDir`/`commandsDir` forms (upstream asserts `rules` XOR `rulesDir`).
-- **`qwen/QWEN.md`** → `~/.qwen/QWEN.md` (`home.file`, darwin-only — there is no `programs.qwen`
-  module to reach for). The `qwen` counterpart of the same idea, deliberately kept short.
 
 Both are source-path literals (`../../claude/CLAUDE.md`), so they are repo-relative and
 content-hashed into the store — see `CLAUDE.md` § Code Style on the two path axes.
