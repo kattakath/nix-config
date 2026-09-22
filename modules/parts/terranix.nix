@@ -23,6 +23,13 @@ let
     publicMcpPort
     ;
 
+  # kattakath.com's records, as a PLAIN LIST rather than a `fleet.*` option.
+  # Reading them through the module system recursed: `config` inside a terranix
+  # `_module.args` block resolves to that module's own config (measured
+  # 2026-09-22, the error names `dnsRecords` rather than the cause). One consumer,
+  # so an option bought nothing anyway.
+  dnsRecords = import ../../infra/cloudflare/kattakath-dns.nix;
+
   # Per-system nixpkgs accessor (legacyPackages avoids a redundant eval). The
   # tofu builders below take a `system` rather than a `pkgs`, so they keep
   # their original shape; inside `perSystem` this is the same value as the
@@ -294,6 +301,134 @@ let
       + nixpkgs.lib.optionalString (action == "apply") printToken;
     };
 
+  # ---- kattakath.com ZONE RECORDS (terranix -> OpenTofu) -------------------
+  # Renders infra/cloudflare/zones.nix. The third stack; see that file's header
+  # for why mail does not ride in the Pi's plan.
+  cfZonesConfig =
+    { system }:
+    terranix.lib.terranixConfiguration {
+      inherit system;
+      modules = [
+        ../../infra/cloudflare/zones.nix
+        {
+          _module.args = {
+            inherit domainName dnsRecords;
+            accountId = cloudflareAccountId;
+            zoneId = cloudflareZoneId;
+          };
+        }
+      ];
+    };
+
+  # Its own builder, its own state dir, its own guard — the same reasoning that
+  # kept mcp-public separate from cf-tunnel. The failure mode here is unique:
+  # this stack is ALL data and no infrastructure, so the damaging mistake is not
+  # a bad tunnel, it is a SHRUNKEN render silently deleting mail records.
+  mkCfZonesTofu =
+    {
+      system,
+      name,
+      action,
+    }:
+    let
+      pkgs = pkgsFor system;
+      # The floor. Not a magic number: a render that has lost records relative to
+      # state is the only way this stack can hurt you, and MX/DKIM/DMARC loss is
+      # not something a plan skimmed at speed reliably catches.
+      minRecords = 20;
+    in
+    pkgs.writeShellApplication {
+      inherit name;
+      runtimeInputs = [
+        pkgs.opentofu
+        pkgs.coreutils
+        pkgs.gnugrep
+        pkgs.gnused
+        pkgs.jq
+      ];
+      text = ''
+        if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
+          echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
+          echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- ${name}" >&2
+          echo "  (needs Zone > DNS:Edit on ${domainName})" >&2
+          exit 1
+        fi
+
+        # Its OWN state directory. 0700 + umask 077 like the others; this state
+        # holds no token, but it holds the zone, and the two prior state losses
+        # were both about a stray working directory rather than about secrets.
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-cf-zones"
+        mkdir -p "$state_dir"
+        chmod 700 "$state_dir"
+        cd "$state_dir"
+        umask 077
+        chmod 600 terraform.tfstate terraform.tfstate.backup 2>/dev/null || true
+        echo "tofu working directory: $state_dir" >&2
+
+        rm -f config.tf.json
+        cp ${cfZonesConfig { inherit system; }} config.tf.json
+        chmod 600 config.tf.json
+        tofu init
+
+        rendered=$(jq '[.resource.cloudflare_dns_record // {} | keys[]] | length' config.tf.json)
+        echo "rendered records: $rendered" >&2
+
+        # FLOOR GUARD — catches "the data file lost half its records" before the
+        # delta guard below has to reason about which ones.
+        if [ "''${rendered:-0}" -lt ${toString minRecords} ]; then
+          echo "REFUSING: render declares ''${rendered} records, under the ${toString minRecords} floor." >&2
+          echo "  modules/parts/dns.nix has probably lost entries. Applying this" >&2
+          echo "  would DELETE the missing ones — including mail records." >&2
+          echo "    CF_ZONES_ALLOW_SHRINK=1 ${name}   # only if you truly mean it" >&2
+          [ "''${CF_ZONES_ALLOW_SHRINK:-}" = "1" ] || exit 1
+          echo "WARNING: CF_ZONES_ALLOW_SHRINK=1 — proceeding under the floor." >&2
+        fi
+
+        # Same three-part guard the other two stacks carry, and for the same
+        # reasons. See mkMcpPublicTofu for the full rationale on each.
+        if ! tofu state list > .state-addrs.raw 2> .state-list.err; then
+          if [ -s terraform.tfstate ]; then
+            echo "REFUSING: 'tofu state list' failed, so this run cannot tell whether" >&2
+            echo "  an apply would delete live records. tofu said:" >&2
+            sed 's/^/    /' .state-list.err >&2
+            exit 1
+          fi
+          : > .state-addrs.raw
+        fi
+        grep -E '^cloudflare_[a-z0-9_]+\.' .state-addrs.raw | sort > .state-addrs || true
+        jq -r '
+          .resource // {} | to_entries[] | .key as $type
+          | .value | keys[] | $type + "." + .
+        ' config.tf.json | sort > .render-addrs
+
+        render_count=$(wc -l < .render-addrs | tr -d ' ')
+        if [ ! -s .state-addrs ] && [ "''${render_count:-0}" -gt 0 ]; then
+          echo "REFUSING: state is EMPTY but this render declares ''${render_count} resource(s)." >&2
+          echo "  Working directory: $state_dir" >&2
+          echo "  For THIS stack that is the expected shape of a first IMPORT, and" >&2
+          echo "  applying instead of importing would try to CREATE records that" >&2
+          echo "  already exist at Cloudflare. Import first (ADR-005 phase 2)." >&2
+          echo "    CF_ZONES_ALLOW_CREATE=1 ${name}" >&2
+          [ "''${CF_ZONES_ALLOW_CREATE:-}" = "1" ] || exit 1
+          echo "WARNING: CF_ZONES_ALLOW_CREATE=1 set — proceeding against empty state." >&2
+        fi
+
+        dropped=$(comm -23 .state-addrs .render-addrs)
+        if [ -n "$dropped" ]; then
+          echo "REFUSING: this render DROPS objects that state already holds:" >&2
+          printf '%s\n' "$dropped" | sed 's/^/    /' >&2
+          echo "  Applying it would DELETE each record at Cloudflare, and a tofu" >&2
+          echo "  apply has NO rollback. If one of these is mail, the failure is" >&2
+          echo "  silent until a message bounces." >&2
+          echo "    CF_ZONES_ALLOW_DROPS=1 ${name}" >&2
+          [ "''${CF_ZONES_ALLOW_DROPS:-}" = "1" ] || exit 1
+          echo "WARNING: CF_ZONES_ALLOW_DROPS=1 set — proceeding with the deletions." >&2
+        fi
+
+        tofu ${action} "$@"
+      '';
+    };
+
   # writeShellApplication wrapper around `tofu <action>` for the PUBLISHED MCP
   # gateway stack (infra/cloudflare/mcp-public.nix). Deliberately its own
   # builder rather than a parameter on mkCfTunnelTofu: it is a different stack
@@ -519,6 +654,20 @@ in
           action = "apply";
         };
         mcp-public-token = mkMcpPublicToken { inherit system; };
+        cf-zones-apply = mkCfZonesTofu {
+          inherit system;
+          name = "cf-zones-apply";
+          action = "apply";
+        };
+        # No `cf-zones-destroy`. Tearing down this stack means deleting every DNS
+        # record for the zone — mail included — and there is no scenario where
+        # that is a thing you reach for as an app. Remove records from
+        # modules/parts/dns.nix instead and let the drop guard make you confirm.
+        cf-zones-plan = mkCfZonesTofu {
+          inherit system;
+          name = "cf-zones-plan";
+          action = "plan";
+        };
         # destroy intentionally keeps hostedSites/publicServers at their [ ]
         # default: rendering "nothing" against non-empty state is exactly what
         # trips the guards above, so tearing down the real stack still needs
@@ -557,6 +706,16 @@ in
           type = "app";
           program = "${config.packages.mcp-public-apply}/bin/mcp-public-apply";
           meta.description = "Render infra/cloudflare/mcp-public.nix (terranix), tofu apply it, and print the Mac connector token (needs CLOUDFLARE_API_TOKEN)";
+        };
+        cf-zones-plan = {
+          type = "app";
+          program = "${config.packages.cf-zones-plan}/bin/cf-zones-plan";
+          meta.description = "Render infra/cloudflare/zones.nix (terranix) and tofu PLAN kattakath.com's DNS records — read-only, run it before cf-zones-apply (needs CLOUDFLARE_API_TOKEN)";
+        };
+        cf-zones-apply = {
+          type = "app";
+          program = "${config.packages.cf-zones-apply}/bin/cf-zones-apply";
+          meta.description = "tofu apply kattakath.com's DNS records (mail included) — refuses a shrunken render, an empty state, or any dropped record (needs CLOUDFLARE_API_TOKEN)";
         };
         mcp-public-token = {
           type = "app";
