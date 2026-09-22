@@ -24,12 +24,16 @@ applications, `nixpi.kattakath.com` among them, so that one change widened SSH t
 mailbox to the domain — intended, and worth knowing. The apply also dropped the policy's
 `session_duration = "24h"`, which the resource does not declare.
 
-**The caveat that replaces it, and it is bigger.** Suspension revokes every login that
-authenticates *as the human*. It does **not** revoke a domain-wide-delegated service-account
-key, which authenticates as itself and then impersonates whoever it likes. One exists:
-`ws-domain-admin`, key in the login Keychain. Deleting it is a manual step that no amount of
-suspending accounts performs — [`workspace-runbook.md`](workspace-runbook.md) §4 is the ordered
-procedure, and §2 is why it cannot be code.
+**The caveat that replaces it — latent, not live.** Suspension revokes every login that
+authenticates *as the human*. It would **not** revoke a domain-wide-delegated service-account
+key, which authenticates as itself and then impersonates whoever it likes.
+
+An account shaped for exactly that exists — `ws-domain-admin`, with a USER_MANAGED key in the
+login Keychain — but **verified 2026-09-22, the Admin console's delegation table is EMPTY**, so
+it currently grants nothing and holds no GCP project role either. The lever is intact today.
+What it costs is an unused long-lived credential on a domain-admin-shaped account, which
+[`workspace-runbook.md`](workspace-runbook.md) §2 recommends deleting, and §4 folds into
+offboarding either way.
 
 ## Privilege tiers
 
@@ -50,9 +54,10 @@ available to the baseline human, and only Google is universal here.
 
 ## What offboarding DOES need, beyond the lever
 
-Exactly two things, both in [`workspace-runbook.md`](workspace-runbook.md) §4: delete the
-`ws-domain-admin` USER_MANAGED key, and remove its domain-wide delegation entry in the Admin
-console. Until both are done, that identity still acts as any user in the domain.
+Two things, both in [`workspace-runbook.md`](workspace-runbook.md) §4: delete the
+`ws-domain-admin` USER_MANAGED key, and confirm the Admin console's delegation table holds no row
+for it. With that table empty they are cheap insurance; the day a row appears there, they are the
+difference between offboarding and the appearance of it.
 
 ## Then, at leisure (hygiene, not access)
 
