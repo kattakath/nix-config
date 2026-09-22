@@ -1,6 +1,6 @@
 # ADR-005 — Everything declarative: Cloudflare under terranix, GCP alongside it
 
-**Status:** **DECIDED. Phases 0, 1, 2 and the GCP half of 3 SHIPPED 2026-09-22.** Four decisions taken 2026-09-22 (§3). Nothing in this
+**Status:** **DECIDED and FULLY IMPLEMENTED 2026-09-22 — phases 0 through 4.** Four decisions taken 2026-09-22 (§3). Nothing in this
 note has been applied; §6 is the phased plan and §8 the items that must be verified *before*
 phase 1, not assumed.
 
@@ -194,7 +194,7 @@ during non-interactive execution`. Active accounts are `ismail@kattakath.com` (p
 | **1** | ~~R2 bucket~~ — **DONE on GCS instead.** The operator opened a billing account, which made GCS available; it also has the native state locking §8.1 flagged as unverified for R2. Bucket `kattakath-tofu-state` (versioned, uniform access, public access prevented, 10 non-current versions), all four stacks migrated, state **encrypted** with a Keychain passphrase via `TF_ENCRYPTION` | met: every stack re-plans clean from the remote backend |
 | **2** | ~~`cf-zones` stack~~ — **DONE.** 22 records imported; `cf-zones-plan` reads *"No changes. Your infrastructure matches the configuration."* | met |
 | **3** | ~~GCP survey~~ — **DONE.** `infra/gcp/foundation.nix` (APIs, automation identity, state bucket) and `infra/gcp/budget.nix` (a 5 CAD spend ALERT). Everything created by hand during the session is imported, so both re-plan clean | met |
-| **4** | `docs/workspace-runbook.md` — what is configured by hand and how to verify it | Reviewed against `identity-and-offboarding.md` |
+| **4** | ~~`docs/workspace-runbook.md`~~ — **DONE**, and it found a hole: a domain-wide-delegated service-account key SURVIVES suspending the human account, so the "single lever" had an exception nothing named. `identity-and-offboarding.md` corrected | met: reviewed against that doc, which is now consistent |
 
 **The gate is the same every time, and it is the only one that matters:** an import is correct
 when the plan is **empty**. A non-empty plan after import means the Nix does not describe what is

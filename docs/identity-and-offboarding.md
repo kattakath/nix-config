@@ -17,11 +17,19 @@ property it encodes.
 | Cloudflare Access — MCP portal, published servers, `nixpi` SSH | the only IdP is the Workspace domain (`Kattakath Google Workspace`, type `google-apps`), measured 2026-09-20 |
 | Secrets recovery (Secret Manager → Keychain, ADR-004) | IAM on the GCP project is granted to the Workspace identity |
 
-**One caveat, measured, not assumed:** the reusable Access policy `mcp-allow-operator` today
-allows by **email**, not by domain (ADR-004 §8.4). Suspension still revokes — the email cannot
-authenticate through a suspended account — but *adding* a second human needs a policy edit until
-that policy is re-declared as `email_domain`. The proposed terranix diff is in ADR-004 §8.4; it
-is not applied.
+**~~One caveat~~ — RESOLVED 2026-09-22.** `mcp-allow-operator` now allows by **`email_domain`**
+(`kattakath.com`), applied through terranix after importing the live object so no duplicate
+policy was minted. Adding a second human is a Workspace action, not a policy edit. It gates 28
+applications, `nixpi.kattakath.com` among them, so that one change widened SSH to the Pi from one
+mailbox to the domain — intended, and worth knowing. The apply also dropped the policy's
+`session_duration = "24h"`, which the resource does not declare.
+
+**The caveat that replaces it, and it is bigger.** Suspension revokes every login that
+authenticates *as the human*. It does **not** revoke a domain-wide-delegated service-account
+key, which authenticates as itself and then impersonates whoever it likes. One exists:
+`ws-domain-admin`, key in the login Keychain. Deleting it is a manual step that no amount of
+suspending accounts performs — [`workspace-runbook.md`](workspace-runbook.md) §4 is the ordered
+procedure, and §2 is why it cannot be code.
 
 ## Privilege tiers
 
@@ -36,9 +44,15 @@ available to the baseline human, and only Google is universal here.
 
 ## What offboarding does NOT need
 
-- **No Terraform change** for Cloudflare, once §8.4's policy is domain-based. Today: one edit.
+- **No Terraform change** for Cloudflare — the policy is domain-based as of 2026-09-22.
 - **No CI credential rotation.** CI never held a human's token.
 - **No config edit before suspension.** Access is gone the moment the account is.
+
+## What offboarding DOES need, beyond the lever
+
+Exactly two things, both in [`workspace-runbook.md`](workspace-runbook.md) §4: delete the
+`ws-domain-admin` USER_MANAGED key, and remove its domain-wide delegation entry in the Admin
+console. Until both are done, that identity still acts as any user in the domain.
 
 ## Then, at leisure (hygiene, not access)
 

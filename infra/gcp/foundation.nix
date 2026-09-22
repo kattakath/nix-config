@@ -95,6 +95,27 @@ in
     description = "Impersonated by OpenTofu. No keys: see infra/gcp/foundation.nix.";
   };
 
+  # ---- The Workspace domain-admin identity ----------------------------------
+  # Declared so it stops being invisible: it existed since 2026-09-07 and NOTHING
+  # in this repo mentioned it until ADR-005 phase 4 went looking.
+  #
+  # ONLY the account is managed here. Its power is not: domain-wide delegation is
+  # granted in the Workspace ADMIN CONSOLE (client id + OAuth scopes), which no
+  # Terraform provider can reach — `hashicorp/terraform-provider-googleworkspace`
+  # was archived 2025-06-30. That boundary is the whole reason ADR-005 keeps
+  # Workspace as a runbook, and docs/workspace-runbook.md is that runbook.
+  #
+  # Its USER_MANAGED key is deliberately NOT declared. Terraform managing a key
+  # would mean the private key lands in state; the key lives in the login Keychain
+  # (`gcp:kattakath-family:ws-domain-admin-key`) instead. See the runbook for why
+  # that key is the one credential that OUTLIVES suspending the human account.
+  resource.google_service_account.ws_domain_admin = {
+    project = projectId;
+    account_id = "ws-domain-admin";
+    display_name = "Workspace Domain Admin (fleet automation)";
+    description = "Domain-wide delegation for Admin SDK domain + site verification";
+  };
+
   # Lets the service account be used as a quota/consumer identity on the project.
   resource.google_project_iam_member.tofu_service_usage = {
     project = projectId;
