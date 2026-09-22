@@ -389,6 +389,14 @@ in
     ./desktop-aesthetics.nix # Terminal.app 16pt (all darwin) + wallpaper (opt-out)
     ./wireguard-configs.nix # operator-managed WG confs → ~/.config/wireguard (no autostart)
     ./claude-otel.nix # local OTel Collector for Claude Code's routing-decision telemetry (macos only)
+    # Makes ~/.claude/settings.json LAYERED — a real writable file the app and
+    # the operator can edit, with Nix's own keys (the permissions.deny floor,
+    # attribution, env) merged back in on every rebuild. Upstream renders it
+    # `install -Dm444` into the store, which is why the model picker could not
+    # be changed. Must be imported AFTER nothing in particular, but it disables
+    # upstream's home.file entry, so it has to be loaded at all — which this
+    # explicit list, not auto-discovery, is what guarantees.
+    ./claude-code-settings.nix
     ./chromium.nix # ungoogled-chromium (Homebrew cask) config: sideloaded iCloud Passwords + its native host
     ./default-browser.nix # local.defaultBrowser — the macOS LaunchServices http/https claim
     # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
