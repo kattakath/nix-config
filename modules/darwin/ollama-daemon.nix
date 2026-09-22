@@ -26,6 +26,58 @@
 }:
 let
   cfg = config.local.ollamaDaemon;
+
+  # Ollama's GPU probe is a ~30s watchdog around a `llama-server` discovery
+  # subprocess. When it times out, ollama does not fail and does not retry — it
+  # logs one WARN, records `library=cpu total_vram="0 B"`, drops the default
+  # context from 32768 to 4096, and serves that way for the life of the process.
+  # Measured 2026-09-22 on this Mac: three of four starts fell back, and a
+  # config-unchanged `launchctl kickstart -k` recovered Metal every time.
+  #
+  # So the fault is TRANSIENT, not a misconfiguration. Nothing about running as
+  # a root system daemon prevents Metal — verified by running the same binary
+  # four ways (user+shell, root+shell, daemon with and without SessionCreate);
+  # all four reached `library=Metal ... "Apple M3 Pro" 28.1 GiB`. Do not
+  # "fix" this by converting the daemon to a per-user agent: that trades the
+  # shared model store away for nothing.
+  #
+  # The log is the only signal. `/api/ps` reports `size_vram` solely while a
+  # model is resident, so an idle server looks identical either way.
+  metalGuard = pkgs.writeShellApplication {
+    name = "nix-ollama-metal-guard";
+    text = ''
+      LOG=${lib.escapeShellArg cfg.logPath}
+      STAMP=${lib.escapeShellArg (builtins.dirOf cfg.modelsPath + "/.metal-guard-stamp")}
+      COOLDOWN=1800
+
+      [ -r "$LOG" ] || exit 0
+
+      # Bounded read: this log is append-only and never rotated, so grepping the
+      # whole file every interval would grow without limit. The last few hundred
+      # lines always contain the most recent startup banner.
+      last=$(tail -n 2000 "$LOG" | grep 'inference compute' | tail -1 || true)
+      [ -n "$last" ] || exit 0
+
+      case "$last" in
+        *library=cpu*) ;;
+        *) exit 0 ;;
+      esac
+
+      # Rate limit. If a restart does NOT recover Metal, the next line would
+      # still read library=cpu and we would kickstart forever. One attempt per
+      # cooldown turns a permanent failure into a slow server instead of a
+      # restart loop.
+      now=$(date +%s)
+      if [ -f "$STAMP" ]; then
+        prev=$(cat "$STAMP" 2>/dev/null || echo 0)
+        if [ $(( now - prev )) -lt "$COOLDOWN" ]; then exit 0; fi
+      fi
+      printf '%s\n' "$now" > "$STAMP"
+
+      printf 'nix-ollama-metal-guard: ollama is on CPU; kickstarting org.nixos.ollama\n' >&2
+      /bin/launchctl kickstart -k system/org.nixos.ollama
+    '';
+  };
 in
 {
   options.local.ollamaDaemon = {
@@ -117,6 +169,27 @@ in
         is for tuning only.
       '';
     };
+
+    logPath = lib.mkOption {
+      type = lib.types.str;
+      default = "/var/log/ollama-daemon.log";
+      description = ''
+        Where the daemon's stdout/stderr land. Named because `metalGuard` reads
+        it: the CPU-fallback it heals is visible ONLY in this log.
+      '';
+    };
+
+    metalGuard = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Watch for ollama's transient GPU-discovery timeout and restart the
+        daemon once when it lands on CPU. The fallback is silent — one WARN,
+        then an 8x smaller context and CPU inference for the life of the
+        process — so without this the only symptom is "generation feels slow".
+        Set false to observe the raw behaviour.
+      '';
+    };
   };
 
   config = lib.mkIf (cfg.enable && pkgs.stdenv.hostPlatform.isDarwin) {
@@ -171,8 +244,29 @@ in
           HOME = builtins.dirOf cfg.modelsPath;
         };
 
-        StandardOutPath = "/var/log/ollama-daemon.log";
-        StandardErrorPath = "/var/log/ollama-daemon.log";
+        StandardOutPath = cfg.logPath;
+        StandardErrorPath = cfg.logPath;
+      };
+    };
+
+    # A SECOND unit rather than logic inside `ollama serve`: the thing being
+    # healed is the server's own startup, so the healer cannot live inside it.
+    # StartInterval (not a hand-rolled sleep loop) is launchd's own primitive
+    # for this, and the body is a bounded tail+grep — cheap enough that 5
+    # minutes costs nothing and bounds the window spent on CPU.
+    launchd.daemons.ollama-metal-guard = lib.mkIf cfg.metalGuard {
+      # `command` for the same boot-ordering reason the daemon above documents:
+      # a store-path arg0 with RunAtLoad loses the /nix mount race and NEVER
+      # self-heals. After exec the process is `nix-ollama-metal-guard`, which is
+      # what the launchd-naming rule is actually about.
+      command = "${metalGuard}/bin/nix-ollama-metal-guard";
+      serviceConfig = {
+        RunAtLoad = true;
+        StartInterval = 300;
+        # Explicitly NOT KeepAlive: this is a periodic one-shot that exits 0.
+        ProcessType = "Background";
+        StandardOutPath = cfg.logPath;
+        StandardErrorPath = cfg.logPath;
       };
     };
   };
