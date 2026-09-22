@@ -1,8 +1,8 @@
 # ADR-005 — Everything declarative: Cloudflare under terranix, GCP alongside it
 
-**Status:** **DECIDED and FULLY IMPLEMENTED 2026-09-22 — phases 0 through 4.** Four decisions taken 2026-09-22 (§3). Nothing in this
-note has been applied; §6 is the phased plan and §8 the items that must be verified *before*
-phase 1, not assumed.
+**Status:** **DECIDED and FULLY IMPLEMENTED 2026-09-22 — phases 0 through 4.** Four decisions
+taken in §3, all five stacks live, every one re-planning clean. §6 records what each phase
+actually delivered, §8 what executing them invalidated, and §8a/§8b the traps each one cost.
 
 **The ask, verbatim:** *"make sure the Cloudflare config is clean, lean and up to date, and
 henceforth we maintain it via IaC … so that we have everything declarative and consistent. Need
@@ -194,7 +194,7 @@ during non-interactive execution`. Active accounts are `ismail@kattakath.com` (p
 | **1** | ~~R2 bucket~~ — **DONE on GCS instead.** The operator opened a billing account, which made GCS available; it also has the native state locking §8.1 flagged as unverified for R2. Bucket `kattakath-tofu-state` (versioned, uniform access, public access prevented, 10 non-current versions), all four stacks migrated, state **encrypted** with a Keychain passphrase via `TF_ENCRYPTION` | met: every stack re-plans clean from the remote backend |
 | **2** | ~~`cf-zones` stack~~ — **DONE.** 22 records imported; `cf-zones-plan` reads *"No changes. Your infrastructure matches the configuration."* | met |
 | **3** | ~~GCP survey~~ — **DONE.** `infra/gcp/foundation.nix` (APIs, automation identity, state bucket) and `infra/gcp/budget.nix` (a 5 CAD spend ALERT). Everything created by hand during the session is imported, so both re-plan clean | met |
-| **4** | ~~`docs/workspace-runbook.md`~~ — **DONE**, and it found a hole: a domain-wide-delegated service-account key SURVIVES suspending the human account, so the "single lever" had an exception nothing named. `identity-and-offboarding.md` corrected | met: reviewed against that doc, which is now consistent |
+| **4** | ~~`docs/workspace-runbook.md`~~ — **DONE.** It found `ws-domain-admin`, an account no file in this repo mentioned, carrying a long-lived key. The first write-up called that a live hole in the single lever; the Admin console then showed the delegation table **empty**, so it was latent, not live — §8b. The key was deleted anyway, and the account's own description now states what is true | met: reviewed against `identity-and-offboarding.md`, which is consistent with it |
 
 **The gate is the same every time, and it is the only one that matters:** an import is correct
 when the plan is **empty**. A non-empty plan after import means the Nix does not describe what is
@@ -213,14 +213,18 @@ live, and applying it would change production to match a guess.
 
 ---
 
-## 8. Verify before phase 1 — not assumptions
+## 8. What execution invalidated
 
-1. **State locking on R2.** OpenTofu's S3 backend has `use_lockfile` (conditional-write based).
-   Whether R2's conditional-write support satisfies it is **unverified here**. Single-operator
-   use makes this low-consequence today and high-consequence the moment 7's second trigger
-   fires. Test it; do not assume it.
-2. **State encryption + R2 together.** Both are configured in the same block; confirm on a
-   throwaway stack before migrating a state that holds live tokens.
+Written as "verify before phase 1". Phase 1 then went somewhere else, so items 1 and 2 were
+never reached — kept, struck through, because *why* they stopped mattering is the useful part.
+
+1. ~~**State locking on R2.**~~ **MOOT — the backend is GCS.** R2 was never enabled on the
+   account (`Please enable R2 through the Cloudflare Dashboard`), the operator opened GCP
+   billing instead, and GCS has native locking. The concern that made this item worth writing
+   was real; the product it was about is not in the fleet.
+2. ~~**State encryption + R2 together.**~~ **MOOT for R2, DONE for GCS.** Encryption shipped in
+   the same change as the backend, as §3.2 required. Verified by reading an object back: pbkdf2
+   metadata, zero occurrences of any resource type in the payload.
 3. ~~**`ismail.kattakath.com` appears in `cf-tunnel` state**~~ — **RESOLVED 2026-09-22, and it
    was real.** `cf-tunnel` state OWNED the record while its render no longer declared it, so the
    next `cf-tunnel-apply` planned a **destroy** of the record serving the GitHub Pages site. The
@@ -251,6 +255,37 @@ live, and applying it would change production to match a guess.
 | **Budget currency must match the billing account** | The account is CAD; a USD budget is rejected as a bare `400 Request contains an invalid argument` — no field violation, no mention of currency, and gcloud returns the identical error. |
 | **The foundation stack runs as the OPERATOR, not the SA** | Running it as the automation account would require granting that account serviceUsageAdmin + iam.serviceAccountAdmin + projectIamAdmin — the power to re-grant itself anything. The privileged bootstrap stays with the human; the narrow stacks use the least-privileged identity it creates. |
 | **Migrating unencrypted state needs an explicit `unencrypted` fallback method** | An empty `fallback {}` is an `Invalid expression`. The migration config declares `method "unencrypted" "migrate" {}` and references it; the committed prelude has no fallback and sets `enforced = true`, so a post-migration unencrypted payload is an error rather than a silent downgrade. |
+
+## 8c. The rot this ADR kept demonstrating
+
+`checks.<system>.docs-indexed` refuses a document nothing **links**. Nothing refuses a document
+nothing **updates**, and every documentation failure in this work was the second kind — a true
+sentence that went stale while the thing it described moved:
+
+| Stale claim | Moved underneath it |
+|---|---|
+| This §'s own status tail: *"Nothing in this note has been applied"* | 20 words after a header reading FULLY IMPLEMENTED |
+| `CLAUDE.md`'s pointer here: *"NOT implemented"*, *"R2 backend"* | phases 0-4 shipped; the backend became GCS |
+| §6 phase 4: the delegation key *"SURVIVES suspending"* | corrected to latent hours later, then the key was deleted |
+| §8.1-2: *"verify before phase 1"* | phase 1 went to GCS, so neither was ever reached |
+| `identity-and-offboarding.md`: the `email_domain` caveat | the policy was applied the same day |
+
+**The shape:** a status written once, restated somewhere else, then updated in one place. Every
+instance here was a pair — a bold header and its own tail, a document and its index entry, a
+finding and the correction that followed it.
+
+**No check is proposed.** "Documentation agrees with reality" is not mechanisable, and inventing
+a gate for it would be the bespoke wheel this repo's motto rejects. What is cheap is knowing
+where rot collects: **if a status is asserted in two places, that pair is a known rot site.**
+Update the pair or assert it once and link.
+
+**Why this lives in an ADR rather than a rules file**, since that was asked and the answer is
+easy to lose: a rule keeps its evidence. Lifted somewhere general it arrives with no instances
+attached, and a general rule nobody can point at an example of is precisely the thing that goes
+stale unread — which would make this section an instance of itself. **Move it only when a second
+instance appears OUTSIDE this ADR's orbit**, not because it feels like it deserves promotion.
+(One already has: `fleet-doctor` claimed a merge queue serialised PRs for hours after #560
+removed it — the exception that shows this generalises, and the first half of that trigger.)
 
 ## 9. What this ADR does not do
 
