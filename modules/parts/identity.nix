@@ -232,6 +232,19 @@ let
   #   gcloud billing accounts describe <id> --format='value(currencyCode)'
   gcpBudgetCurrency = "CAD";
 
+  # The GCP project the fleet uses. A public identifier; ADR-004 keeps it out of
+  # the KEYCHAIN-backend code path (read from gcloud at runtime there), but
+  # terranix renders outside any shell and needs it at eval.
+  gcpProjectId = "kattakath-family";
+
+  # OpenTofu state bucket (ADR-005 phase 1). Bucket names are a GLOBAL namespace,
+  # so this one is prefixed with the org name rather than being a bare "state".
+  gcpStateBucket = "kattakath-tofu-state";
+
+  # One of the three regions Always Free covers (us-west1/us-central1/us-east1).
+  # State is kilobytes, so this stays free and therefore inside the 5 CAD alert.
+  gcpStateBucketLocation = "US-CENTRAL1";
+
   # The service account terranix impersonates for GCP. An identifier, not a
   # credential: impersonating it requires roles/iam.serviceAccountTokenCreator,
   # which is granted to the operator and to nobody else. No key file exists.
@@ -360,6 +373,9 @@ in
         gcpBudgetAmount
         gcpBudgetCurrency
         gcpAutomationServiceAccount
+        gcpProjectId
+        gcpStateBucket
+        gcpStateBucketLocation
         identityArgs
         ;
     };

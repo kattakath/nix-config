@@ -25,6 +25,10 @@ let
     gcpBudgetAmount
     gcpBudgetCurrency
     gcpAutomationServiceAccount
+    gcpProjectId
+    gcpStateBucket
+    gcpStateBucketLocation
+    googleAccount
     ;
 
   # kattakath.com's records, as a PLAIN LIST rather than a `fleet.*` option.
@@ -60,6 +64,7 @@ let
       # the single flake bindings above (one source of truth, no re-hardcoding).
       modules = [
         ../../infra/cloudflare/nixpi-tunnel.nix
+        (tofuGcsBackend "cf-tunnel")
         {
           _module.args = {
             inherit domainName hostedSites;
@@ -98,6 +103,7 @@ let
       inherit system;
       modules = [
         ../../infra/cloudflare/mcp-public.nix
+        (tofuGcsBackend "mcp-public")
         {
           _module.args = {
             inherit
@@ -209,6 +215,7 @@ let
           echo "WARNING: CF_TUNNEL_ALLOW_SITE_FREE=1 set — proceeding site-free." >&2
         fi
 
+        ${tofuRemoteStatePrelude}
         tofu init
 
         # DROPPED-RECORD GUARD — the site-free check above is an ABSOLUTE FLOOR,
@@ -314,6 +321,7 @@ let
       inherit system;
       modules = [
         ../../infra/cloudflare/zones.nix
+        (tofuGcsBackend "cf-zones")
         {
           _module.args = {
             inherit domainName dnsRecords;
@@ -372,6 +380,7 @@ let
         rm -f config.tf.json
         cp ${cfZonesConfig { inherit system; }} config.tf.json
         chmod 600 config.tf.json
+        ${tofuRemoteStatePrelude}
         tofu init
 
         rendered=$(jq '[.resource.cloudflare_dns_record // {} | keys[]] | length' config.tf.json)
@@ -433,6 +442,142 @@ let
       '';
     };
 
+  # The GCS backend, as a module each remote-state stack composes in. One `prefix`
+  # per stack inside ONE bucket: separate state objects, shared lifecycle and
+  # versioning, and no second bucket to forget to configure.
+  #
+  # Credentials are ADC (the operator). Deliberately not the automation service
+  # account: the backend is read/written by every stack including the Cloudflare
+  # ones, which have no google provider at all, and the operator is the identity
+  # that already owns the bucket.
+  tofuGcsBackend = prefix: {
+    terraform.backend.gcs = {
+      bucket = gcpStateBucket;
+      inherit prefix;
+    };
+  };
+
+  # ---- Remote state: the GCS backend's encryption, shared ------------------
+  # ADR-005 phase 1. Sourced by every stack that keeps state remotely, so the
+  # encryption can never be configured on one stack and forgotten on another.
+  #
+  # ENCRYPTION IS NOT OPTIONAL HERE. Two of these states hold secrets in
+  # PLAINTEXT today — the cf-tunnel connector token and the mcp-public Access
+  # service-token secret. Moving those into object storage unencrypted would take
+  # a secret that is currently 0600 on one disk and put it in a bucket. The ADR
+  # says encryption ships with the backend or the phase does not ship.
+  #
+  # The passphrase is read from the login Keychain at RUN TIME and handed over in
+  # TF_ENCRYPTION, so the whole encryption config exists only in the process
+  # environment — never in /nix/store (world-readable), never in argv, never in
+  # the rendered config.tf.json. Same shape as every other secret wrapper in this
+  # repo (see modules/shared/mcp.nix).
+  #
+  # LOSE THE PASSPHRASE AND THE STATE IS UNREADABLE. It lives in the login
+  # Keychain as `tofu:state:passphrase`. The bucket keeps 10 versions and every
+  # one of them is encrypted with this key, so the key is the backup that matters.
+  tofuRemoteStatePrelude = ''
+    pass="$(/usr/bin/security find-generic-password -a "$(id -un)" -s tofu:state:passphrase -w 2>/dev/null || true)"
+    if [ -z "$pass" ]; then
+      echo "ERROR: no state-encryption passphrase in the login Keychain." >&2
+      echo "  Expected service: tofu:state:passphrase" >&2
+      echo "  Without it this stack's remote state cannot be decrypted." >&2
+      exit 1
+    fi
+    export TF_ENCRYPTION="
+      key_provider \"pbkdf2\" \"fleet\" {
+        passphrase = \"$pass\"
+      }
+      method \"aes_gcm\" \"fleet\" {
+        keys = key_provider.pbkdf2.fleet
+      }
+      state {
+        method = method.aes_gcm.fleet
+        enforced = true
+      }
+    "
+    unset pass
+  '';
+
+  # ---- GCP foundation (terranix -> OpenTofu) -------------------------------
+  # Renders infra/gcp/foundation.nix: enabled APIs, the automation service
+  # account and its three bindings, and the OpenTofu state bucket. Everything in
+  # it was created by hand on 2026-09-22 and is imported, so the plan reads empty.
+  gcpFoundationConfig =
+    { system }:
+    terranix.lib.terranixConfiguration {
+      inherit system;
+      modules = [
+        ../../infra/gcp/foundation.nix
+        {
+          _module.args = {
+            projectId = gcpProjectId;
+            billingAccountId = gcpBillingAccountId;
+            operatorAccount = googleAccount;
+            automationServiceAccount = gcpAutomationServiceAccount;
+            stateBucket = gcpStateBucket;
+            stateBucketLocation = gcpStateBucketLocation;
+          };
+        }
+      ];
+    };
+
+  mkGcpFoundationTofu =
+    {
+      system,
+      name,
+      action,
+    }:
+    let
+      pkgs = pkgsFor system;
+    in
+    pkgs.writeShellApplication {
+      inherit name;
+      runtimeInputs = [
+        pkgs.opentofu
+        pkgs.coreutils
+        pkgs.jq
+      ];
+      text = ''
+        adc="''${GOOGLE_APPLICATION_CREDENTIALS:-''${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}/application_default_credentials.json}"
+        if [ ! -f "$adc" ]; then
+          echo "ERROR: no Application Default Credentials at $adc" >&2
+          echo "  Inside 'nix develop':  gcloud auth application-default login" >&2
+          exit 1
+        fi
+        echo "ADC: $adc" >&2
+
+        # LOCAL STATE, deliberately — this stack declares the bucket every other
+        # stack's state lives in, so it cannot live there itself. See the header
+        # of infra/gcp/foundation.nix.
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-gcp-foundation"
+        mkdir -p "$state_dir"
+        chmod 700 "$state_dir"
+        cd "$state_dir"
+        umask 077
+        chmod 600 terraform.tfstate terraform.tfstate.backup 2>/dev/null || true
+        echo "tofu working directory: $state_dir" >&2
+
+        rm -f config.tf.json
+        cp ${gcpFoundationConfig { inherit system; }} config.tf.json
+        chmod 600 config.tf.json
+        ${tofuRemoteStatePrelude}
+        tofu init
+
+        # The refusal that matters here is DELETION of the state bucket: it holds
+        # every other stack's state, and `prevent_destroy` in the resource only
+        # stops tofu, not a render that drops the resource entirely.
+        if ! jq -e '.resource.google_storage_bucket.tofu_state' config.tf.json >/dev/null; then
+          echo "REFUSING: this render declares NO state bucket." >&2
+          echo "  Every other stack keeps its state there. Applying would orphan" >&2
+          echo "  or delete it." >&2
+          exit 1
+        fi
+
+        tofu ${action} "$@"
+      '';
+    };
+
   # ---- GCP billing budget (terranix -> OpenTofu) ---------------------------
   # Renders infra/gcp/budget.nix. A FOURTH stack, and the first non-Cloudflare
   # one: a different provider, a different credential (ADC, not an API token) and
@@ -444,6 +589,7 @@ let
       inherit system;
       modules = [
         ../../infra/gcp/budget.nix
+        (tofuGcsBackend "gcp-budget")
         {
           _module.args = {
             billingAccountId = gcpBillingAccountId;
@@ -515,6 +661,7 @@ let
         rm -f config.tf.json
         cp ${gcpBudgetConfig { inherit system; }} config.tf.json
         chmod 600 config.tf.json
+        ${tofuRemoteStatePrelude}
         tofu init
 
         # The budget is ONE object, so the elaborate delta guards the Cloudflare
@@ -598,6 +745,7 @@ let
 
         rm -f config.tf.json
         cp ${mcpPublicConfig { inherit system publicServers; }} config.tf.json
+        ${tofuRemoteStatePrelude}
         tofu init
 
         # GUARD — the twin of the site-free trap, shaped for THIS stack.
@@ -772,6 +920,16 @@ in
           name = "cf-zones-plan";
           action = "plan";
         };
+        gcp-foundation-plan = mkGcpFoundationTofu {
+          inherit system;
+          name = "gcp-foundation-plan";
+          action = "plan";
+        };
+        gcp-foundation-apply = mkGcpFoundationTofu {
+          inherit system;
+          name = "gcp-foundation-apply";
+          action = "apply";
+        };
         gcp-budget-plan = mkGcpBudgetTofu {
           inherit system;
           name = "gcp-budget-plan";
@@ -820,6 +978,16 @@ in
           type = "app";
           program = "${config.packages.mcp-public-apply}/bin/mcp-public-apply";
           meta.description = "Render infra/cloudflare/mcp-public.nix (terranix), tofu apply it, and print the Mac connector token (needs CLOUDFLARE_API_TOKEN)";
+        };
+        gcp-foundation-plan = {
+          type = "app";
+          program = "${config.packages.gcp-foundation-plan}/bin/gcp-foundation-plan";
+          meta.description = "Render infra/gcp/foundation.nix (terranix) and tofu PLAN the GCP APIs, automation identity and state bucket — read-only (needs ADC)";
+        };
+        gcp-foundation-apply = {
+          type = "app";
+          program = "${config.packages.gcp-foundation-apply}/bin/gcp-foundation-apply";
+          meta.description = "tofu apply the GCP foundation — enabled APIs, the impersonated automation service account, and the OpenTofu state bucket (needs ADC)";
         };
         gcp-budget-plan = {
           type = "app";

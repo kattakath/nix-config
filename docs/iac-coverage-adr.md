@@ -1,6 +1,6 @@
 # ADR-005 — Everything declarative: Cloudflare under terranix, GCP alongside it
 
-**Status:** **DECIDED. Phases 0 and 2 SHIPPED 2026-09-22; phase 1 is BLOCKED on billing (§6).** Four decisions taken 2026-09-22 (§3). Nothing in this
+**Status:** **DECIDED. Phases 0, 1, 2 and the GCP half of 3 SHIPPED 2026-09-22.** Four decisions taken 2026-09-22 (§3). Nothing in this
 note has been applied; §6 is the phased plan and §8 the items that must be verified *before*
 phase 1, not assumed.
 
@@ -191,9 +191,9 @@ during non-interactive execution`. Active accounts are `ismail@kattakath.com` (p
 | Phase | Deliverable | Gate |
 |---|---|---|
 | **0** | ~~Cleanup~~ — **DONE.** Orphan policy deleted (3 remain, all referenced). `telegram` re-registered twice; it still reads `error` — see below | Import a clean account, not cruft |
-| **1** | R2 bucket + state encryption + backend block; migrate both existing stacks | **BLOCKED:** R2 is not enabled on the account (`Please enable R2 through the Cloudflare Dashboard`) and GCP billing is `False`, so BOTH candidate backends need a billing decision first |
+| **1** | ~~R2 bucket~~ — **DONE on GCS instead.** The operator opened a billing account, which made GCS available; it also has the native state locking §8.1 flagged as unverified for R2. Bucket `kattakath-tofu-state` (versioned, uniform access, public access prevented, 10 non-current versions), all four stacks migrated, state **encrypted** with a Keychain passphrase via `TF_ENCRYPTION` | met: every stack re-plans clean from the remote backend |
 | **2** | ~~`cf-zones` stack~~ — **DONE.** 22 records imported; `cf-zones-plan` reads *"No changes. Your infrastructure matches the configuration."* | met |
-| **3** | GCP survey (needs auth), then a `infra/gcp/` terranix module | Same zero-diff gate |
+| **3** | ~~GCP survey~~ — **DONE.** `infra/gcp/foundation.nix` (APIs, automation identity, state bucket) and `infra/gcp/budget.nix` (a 5 CAD spend ALERT). Everything created by hand during the session is imported, so both re-plan clean | met |
 | **4** | `docs/workspace-runbook.md` — what is configured by hand and how to verify it | Reviewed against `identity-and-offboarding.md` |
 
 **The gate is the same every time, and it is the only one that matters:** an import is correct
@@ -241,6 +241,16 @@ live, and applying it would change production to match a guess.
 | **The module system cost an infinite recursion for nothing** | Routing the records through `config.fleet.dnsRecords` recursed: `config` inside a terranix `_module.args` block resolves to *that* module's config. The error names `dnsRecords` rather than the cause. Data with ONE consumer is now a plain list (`infra/cloudflare/kattakath-dns.nix`). |
 | **A top-level `assert` in a terranix module is the same trap** | `assert …; { … }` forces a module argument while the module is still being constructed. Both assertions now live inside the rendered value, where they fire at render time. |
 | **The record count was 22, not the ~21 estimated** | §2's estimate was one low. |
+
+## 8b. Findings from executing phases 1 and 3
+
+| Finding | Detail |
+|---|---|
+| **The google provider ignores `CLOUDSDK_CONFIG`** | Its Go auth library reads the well-known ADC path, so `gcloud` was scoped to this repo while `tofu` silently used the GLOBAL credential. It surfaced as a 403 on `iam.serviceAccounts.getAccessToken` that no IAM grant could fix — because the grant was on the right account and the call was not. The devShell now exports `GOOGLE_APPLICATION_CREDENTIALS` as well. |
+| **A quota project BREAKS impersonation** | Setting one makes the client attach `x-goog-user-project` to every call *including the impersonation call*, and that header is itself serviceusage-gated. With impersonation the final call carries the service account's credential and needs no quota project at all. |
+| **Budget currency must match the billing account** | The account is CAD; a USD budget is rejected as a bare `400 Request contains an invalid argument` — no field violation, no mention of currency, and gcloud returns the identical error. |
+| **The foundation stack runs as the OPERATOR, not the SA** | Running it as the automation account would require granting that account serviceUsageAdmin + iam.serviceAccountAdmin + projectIamAdmin — the power to re-grant itself anything. The privileged bootstrap stays with the human; the narrow stacks use the least-privileged identity it creates. |
+| **Migrating unencrypted state needs an explicit `unencrypted` fallback method** | An empty `fallback {}` is an `Invalid expression`. The migration config declares `method "unencrypted" "migrate" {}` and references it; the committed prelude has no fallback and sets `enforced = true`, so a post-migration unencrypted payload is an error rather than a silent downgrade. |
 
 ## 9. What this ADR does not do
 
