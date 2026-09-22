@@ -633,13 +633,25 @@ in
       # com.apple.speech.* domains, deliberately: that is imperative Mac state and
       # a user can want both.
       #
-      # KNOWN DEAD END, do not waste time on it: neither this nor any other
-      # third-party dictation app can type into Terminal.app, which holds
-      # `SecureKeyboardEntry = 1` (its own pref, not ours). Secure event input
-      # forbids one process injecting keystrokes into another. Ghostty is the
-      # fleet's terminal and does not hold it except at a password prompt, so the
-      # limitation is real but narrow. Clipboard-paste output mode is the
-      # documented workaround if Terminal.app ever matters.
+      # Terminal.app + Secure Keyboard Entry — MEASURED, and NOT the dead end it
+      # looks like. Terminal.app holds `SecureKeyboardEntry = 1` (its own pref,
+      # not ours; the menu item reads checked), and that IS what makes Apple's own
+      # Dictation refuse there. It does NOT block a third-party app's
+      # clipboard-paste output: measured 2026-09-22 on macOS 27, with Terminal
+      # frontmost and the menu item verified checked, a synthetic Cmd-V from
+      # System Events landed its text in the shell. So paste-mode works.
+      #
+      # The probe that LIES, so nobody re-derives the wrong answer from it:
+      # `ioreg -l -d 1 -k IOConsoleUsers | grep -i secure` exposes NO
+      # kCGSSessionSecureInputPID key at all on macOS 27. It reports "not
+      # asserted" while the menu is plainly checked. It is not evidence either way
+      # on this OS — read the menu item, not the kernel.
+      #
+      # STILL UNTESTED, and the real risk if dictation misbehaves in Terminal.app:
+      # whether a GLOBAL HOTKEY fires while Terminal.app is frontmost. Registering
+      # one means observing keystrokes, which is the half of secure input that
+      # genuinely does bite — unlike posting, which the test above shows passes.
+      # Configure VoiceInk's output as paste, not keystroke, before judging it.
       "voiceink"
       "whatsapp"
       # Wireshark — SHARED (plain /Applications). Its packet capture needs the
