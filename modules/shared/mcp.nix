@@ -54,8 +54,6 @@
 #   2025-03-26 spec) pointing at /servers/<name>/mcp; desktop-commander and
 #   open-design stay `type = "stdio"`. The claude-code module writes these into a managed
 #   .mcp.json plugin dir — it does NOT clobber the stateful ~/.claude.json.
-#   mcp-proxy serves BOTH /mcp and /sse per server concurrently, so an SSE-only
-#   client (e.g. Grok) just points its OWN config at `endpointFor <name> "sse"`.
 #
 # CLIENT SIDE D — Claude Desktop (and Cowork via its bridge) — lives in
 # ./claude-desktop.nix: the same `endpoints` rendered as mcp-remote stdio shims
@@ -528,7 +526,7 @@ let
     # clear provenance — the unscoped `applescript-mcp` npm pkg lists no repo). This
     # is a POWERFUL surface (execute_script can `do shell script` and drive any app) —
     # but localhost-only like the rest of the gateway (127.0.0.1, no off-box exposure),
-    # and unlike desktop-commander we DO share it across clients (incl. Grok) by
+    # and unlike a per-client server we DO share it across clients by
     # request. First control of another app triggers a one-time macOS TCC "Automation"
     # consent prompt. `--package … <bin>` is the maintainer's recommended npx form
     # (sidesteps scoped-package bin inference). Runs under the gateway's GUI launchd
@@ -831,25 +829,6 @@ let
   # what a client shows the user, so it names the portal rather than a server.
   hubServers.kattakath-portal.url = cfg.portalEndpoint;
 
-  # Grok CLI (xAI, grok 0.2.x) is a 4th MCP client living OUTSIDE Nix: a self-updating
-  # binary at ~/.grok/bin/grok (on PATH via home.sessionPath), config at ~/.grok/config.toml.
-  # That file is STATEFUL (grok writes [cli] installer/channel, UI prefs, sessions; auth is
-  # in a sibling auth.json), so — exactly like Claude Desktop — we never own the whole file:
-  # we delegate the MERGE to the tool that authors the format. `grok mcp add` is add-or-update
-  # (idempotent), runs purely OFFLINE (exit 0, no daemon — it only writes TOML), and rewrites
-  # ONLY the [mcp_servers.<name>] table. Grok speaks Streamable HTTP natively (--transport http),
-  # so it consumes the SAME cfg.endpoints /mcp URLs every other client uses (no SSE fallback).
-  # Reuses cfg.endpoints, so Grok can never drift from the gateway.
-  grokBin = "${config.home.homeDirectory}/.grok/bin/grok";
-  # Loopback gateway URL prefix — the marker identifying entries WE manage, so stale-entry
-  # pruning below never touches a user's own (non-gateway) MCP servers.
-  grokGatewayPrefix = "http://${gatewayHost}:${toString gatewayPort}/servers/";
-  # One idempotent `grok mcp add` per endpoint. `|| true` keeps a rebuild from aborting on a
-  # transient grok error (best-effort, self-heals next switch; `mcp add` only writes TOML, so
-  # a down gateway does NOT make it fail).
-  grokAddLines = ''"$grok" mcp add --transport http --scope user kattakath-portal ${lib.escapeShellArg portalUrl} >/dev/null 2>&1 || true'';
-  grokDesiredNames = "kattakath-portal";
-
 in
 {
   options.local.mcpGateway = {
@@ -868,7 +847,7 @@ in
       default = portalUrl;
       description = ''
         THE client URL, and the only one. Every client — Claude Code, Claude
-        Desktop, Grok, anything else — points here; none of them addresses a
+        Desktop — points here; neither addresses a
         server directly any more.
 
         Was an attrset of 26 loopback URLs until 2026-09-22. Collapsing it to one
@@ -1181,46 +1160,6 @@ in
     # until 2026-09-13, one profile setting away from a collision). GATED on
     # programs.vscode.enable: drop VS Code and nothing is written.
     programs.vscode.profiles.default.enableMcpIntegration = lib.mkIf config.programs.vscode.enable true;
-
-    # ---- Client side C: Grok CLI (stateful ~/.grok/config.toml → grok owns the merge)
-    # No `programs.grok` HM module and a stateful config.toml, so an activation script merges
-    # ONLY the [mcp_servers] tables via grok's OWN CLI, which stays robust to grok's TOML schema
-    # (the `enabled` flag, --scope, future keys) since grok, not us, renders it. USER scope (not
-    # project) so the servers aren't blocked by grok's folder-trust gate. GATED on the grok binary
-    # existing (~/.grok/bin/grok) — no grok installed, nothing runs and no stray files are created.
-    # We do NOT lean on grok's [compat.claude] mcps=true scan
-    # of ~/.claude.json: the claude-code module writes the gateway to a MANAGED plugin .mcp.json
-    # (not ~/.claude.json), which grok does not read — so explicit wiring here is the single
-    # source of truth. Reuses cfg.endpoints, so grok can never drift from the gateway.
-    # upstream-first: grepped home-manager/modules/programs and nix-darwin/modules
-    # for grok — no module exists for the Grok CLI in either. Custom, and kept to
-    # writing that tool's own config file rather than modelling it.
-    home.activation.grokMcp = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-      grok="${grokBin}"
-      if [ ! -x "$grok" ]; then
-        : # Grok CLI not installed — nothing to configure, no stray files.
-      else
-        # 1) Add/update every gateway endpoint (idempotent: `mcp add` = add-or-update).
-        ${grokAddLines}
-        # 2) Prune stale gateway entries we no longer manage. Only touch servers whose URL is
-        #    under OUR loopback gateway prefix, so a user's own MCP servers are never removed;
-        #    drop any such entry no longer present in cfg.endpoints.
-        desired=" ${grokDesiredNames} "
-        "$grok" mcp list 2>/dev/null | while IFS= read -r line; do
-          name="''${line%%:*}"
-          name="''${name#"''${name%%[![:space:]]*}"}"   # strip leading whitespace
-          url="''${line#*: }"
-          case "$url" in
-            ${grokGatewayPrefix}*) ;;                     # a gateway entry we own
-            *) continue ;;                                # foreign server — leave it
-          esac
-          case "$desired" in
-            *" $name "*) ;;                               # still desired — keep
-            *) "$grok" mcp remove --scope user "$name" >/dev/null 2>&1 || true ;;
-          esac
-        done
-      fi
-    '';
 
     # ---- macos-automator Accessibility (TCC) preflight — non-fatal nudge -------
     # The macos-automator server drives System Events UI scripting via

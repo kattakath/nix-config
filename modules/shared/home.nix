@@ -1005,7 +1005,15 @@ in
       # marketplace set is DATA (`local.claudePlugins.marketplaces` above) and its
       # registration + install mechanism lives in ./claude-plugins.nix, which also
       # records why upstream's `marketplaces.*` option cannot be used.
-      # Runtime for grok-build: grok on PATH (~/.grok/bin) + Node; `grok models` must work.
+      # Runtime for grok-build: grok on PATH + Node; `grok models` must work.
+      #
+      # The `grok` BINARY stays (packages/grok.nix) even though grok is no longer
+      # an MCP client. Removed 2026-09-22: its `~/.grok/config.toml` MCP wiring,
+      # so claude-code and claude-desktop are the only MCP clients this flake
+      # configures. The binary is kept for exactly one reason — the grok-build
+      # bridge shells out to `grok models`, so deleting the package would break a
+      # Claude Code plugin rather than tidy anything. Remove the package only
+      # together with the grok-build plugin and its flake input.
 
       # Claude Code user settings, now Nix-owned.
       # NOTE: editing any of these in the Claude UI won't persist — a rebuild
