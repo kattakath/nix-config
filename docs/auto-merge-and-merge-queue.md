@@ -161,8 +161,12 @@ gh api repos/kattakath/<repo>/rulesets/<id> --jq '{bypass: .bypass_actors, pr: (
 
 ## Cost today
 
-**One blocking CI run per PR.** `build-installers.yml` remains deliberately **not**
-a required check — its non-cancellable runs have no business gating a merge.
+**One blocking CI run per PR.** Measured on the PR that removed the queue (#560,
+2026-09-22): **9m43s open -> merged**, against 18m56s for PR #558 the same morning
+under the queue.
+
+`build-installers.yml` remains deliberately **not** a required check — its
+non-cancellable runs have no business gating a merge.
 
 The post-merge `push: main` run is **kept**: with no queue entry to validate the
 projected merge, it is the only thing that evaluates what actually landed, and it

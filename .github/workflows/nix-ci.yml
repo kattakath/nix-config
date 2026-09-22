@@ -98,11 +98,15 @@ jobs:
   # per leg would answer it once per leg and duplicate the leg list to compare
   # against.
   #
-  # Runs on LINUX, not macOS. The Nix work here is ~4 s of `nix flake show`, but a
-  # `macos-latest` runner spends ~2 min on allocation + Determinate install before
-  # reaching it — and `build` NEEDS this job's output, so that boot sat on the
-  # critical path of every run, ahead of a second macOS boot (measured 2026-09-22,
-  # run 35723793664: legs 2m10s, then build (aarch64-darwin) 4m43s).
+  # Runs on LINUX, not macOS — worth ~27 s, and NOT for the reason it looks like.
+  # Measured 2026-09-22, same job either side: macOS 2m10s (run 35723793664),
+  # Linux 1m43s (run 35749500311). The runner swap is the small half: on Linux,
+  # allocation + checkout + Determinate install total 13 s. The other 1m26s is
+  # `nix flake show --all-systems` ITSELF — fetching the nixpkgs tarball and
+  # evaluating all three host configs — which is arch-independent and is where any
+  # further saving has to come from. Kept on Linux anyway: `build` NEEDS this job's
+  # output, so every second here is on the critical path of every run, ahead of a
+  # macOS boot it can no longer overlap with.
   #
   # `--all-systems` is what makes the evaluator's own arch irrelevant: it is the
   # flag that stops non-native children coming back as `{"filtered": true}`, in
