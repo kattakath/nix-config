@@ -37,3 +37,9 @@ change onto its branch. CI is a single ~10 min gate per PR and auto-merge lands 
 green (see [`docs/auto-merge-and-merge-queue.md`](../../docs/auto-merge-and-merge-queue.md)),
 so independent PRs are the cheap, reviewable shape — batching only widens the blast
 radius of one red check.
+
+**Park work-in-flight as a DRAFT.** With no merge queue, auto-merge lands a PR the
+moment its checks go green — there is no second run to sit behind. A branch you are
+still pushing to can therefore merge out from under you mid-stream (#567 lost five
+commits that way, 2026-09-22). Arming survives the draft state and releases on
+`ready_for_review`, so opening as a draft costs nothing and removes the race.
