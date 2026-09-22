@@ -40,15 +40,15 @@ name: nix-ci
 #
 # READ from the kattakath Cachix cache is public. WRITE needs CACHIX_AUTH_TOKEN,
 # and EVERY run that GitHub hands the secret to now writes — same-repo branch PRs
-# and `merge_group` included, not just push-to-main. The gate is GitHub's, not
-# ours: a `pull_request` from a FORK is given no repo secret at all, and a
-# Dependabot PR reads a SEPARATE secret store this token is not in. Restricting
-# it to `push` on top of that bought no safety and cost a rebuild — measured on
-# PR #550, the PR leg built /nix/store/kln8kjyq…-pre-commit-run, was refused
-# (403), and the push-to-main leg rebuilt the IDENTICAL path minutes later. The
-# four tree-dependent checks (ast-grep, formatting, pre-commit, page-lab) take
-# `self`, so every commit re-derives them; letting the PR leg push is what makes
-# the BLOCKING merge-queue run skip them (~76 s darwin, ~14 s linux).
+# included, not just push-to-main. The gate is GitHub's, not ours: a
+# `pull_request` from a FORK is given no repo secret at all, and a Dependabot PR
+# reads a SEPARATE secret store this token is not in. Restricting it to `push` on
+# top of that bought no safety and cost a rebuild — measured on PR #550, the PR
+# leg built /nix/store/kln8kjyq…-pre-commit-run, was refused (403), and the
+# push-to-main leg rebuilt the IDENTICAL path minutes later. The four
+# tree-dependent checks (ast-grep, formatting, pre-commit, page-lab) take `self`,
+# so every commit re-derives them under a new rev; the PR leg's push is what lets
+# the post-merge `push: main` leg substitute the unchanged rest.
 #
 # The blast radius is unchanged: pushing requires a branch in THIS repo, which
 # only the operator can create, and a store path is its own derivation hash — a
@@ -58,11 +58,6 @@ on:
   pull_request:
   push:
     branches: [main]
-  # REQUIRED by the merge queue: a queue entry is built on its own
-  # `gh-readonly-queue/main/...` ref, which emits NEITHER `pull_request` NOR
-  # `push`. Without this trigger the `required-checks` context never reports on a
-  # queued entry and every merge times out. See docs/auto-merge-and-merge-queue.md.
-  merge_group:
   workflow_dispatch:
 
 concurrency:
@@ -103,12 +98,21 @@ jobs:
   # per leg would answer it once per leg and duplicate the leg list to compare
   # against.
   #
-  # Runs on macOS because this evaluator must reach BOTH systems' configurations,
-  # and only that direction is measured (2026-09-21, aarch64-darwin: the command
-  # below returned both aarch64-linux NixOS toplevels by derivation name). ~4s.
+  # Runs on LINUX, not macOS. The Nix work here is ~4 s of `nix flake show`, but a
+  # `macos-latest` runner spends ~2 min on allocation + Determinate install before
+  # reaching it — and `build` NEEDS this job's output, so that boot sat on the
+  # critical path of every run, ahead of a second macOS boot (measured 2026-09-22,
+  # run 35723793664: legs 2m10s, then build (aarch64-darwin) 4m43s).
+  #
+  # `--all-systems` is what makes the evaluator's own arch irrelevant: it is the
+  # flag that stops non-native children coming back as `{"filtered": true}`, in
+  # EITHER direction. The guards below are the proof obligation — if a Linux
+  # evaluator could not classify `darwinConfigurations`, `macos` comes back with
+  # no `forSystems` and the `unclassified` check HARD-FAILS this job. A silent
+  # green over a half-covered fleet is not reachable from here.
   legs:
     name: legs
-    runs-on: macos-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     outputs:
       matrix: ${{ steps.derive.outputs.matrix }}
@@ -138,7 +142,8 @@ jobs:
       # `--all-systems` is LOAD-BEARING: without it, children belonging to any
       # other system come back as `{"filtered": true}` (measured — both NixOS
       # hosts, on an aarch64-darwin evaluator), so classification would silently
-      # follow the RUNNER's arch. The `inventory` shape is flake-schemas, which
+      # follow the RUNNER's arch. This job runs on Linux, so the flag now carries
+      # the darwin host too; see the job's header for why that is safe to assert. The `inventory` shape is flake-schemas, which
       # Determinate Nix emits; upstream Nix emits the flat legacy shape with no
       # such key, which parses to ZERO rows (probed). Neither degradation is
       # assumed away — the two guards below fail the job on each, so a revert to
@@ -223,9 +228,9 @@ jobs:
     # 45, not 30: headroom bought BEFORE ADR-002's collapse lands ~25 absorbed
     # satellite checks on this leg. The failure being avoided is a deadlock, not
     # a slow build — if the budget is breached first, the PR that raises the
-    # timeout cannot itself get through the merge queue. Job names are untouched
-    # on purpose: `required-checks` and `Scan for secrets` are named in branch
-    # protection, so renaming either silently un-requires it.
+    # timeout cannot itself go green. Job names are untouched on purpose:
+    # `required-checks` and `Scan for secrets` are named in branch protection, so
+    # renaming either silently un-requires it.
     timeout-minutes: 45 # lint + eval only; no toplevel builds
     strategy:
       fail-fast: false
@@ -265,7 +270,8 @@ jobs:
       # not only when it is hand-rolled. `nix run github:Mic92/nix-fast-build/<rev>`
       # fetched 97 paths / 306.8 MiB (1.4 GiB unpacked) on EVERY darwin run to
       # orchestrate 39 checks whose entire build cost on that leg is ~76 s: measured
-      # 117 s of the merge-queue leg's 231 s (run 35698919468), i.e. HALF the leg,
+      # 117 s of a 231 s darwin leg (run 35698919468, merge_group — the queue existed
+      # then), i.e. HALF the leg,
       # because it bundles its own `nix` and with it apple-sdk/cctools/ld64. The
       # linux leg pays 108 MiB for the same tool, which is why this only ever read
       # as a darwin problem. Determinate Nix is already installed by the step above,

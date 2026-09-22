@@ -33,6 +33,7 @@ this stays a prompt rule rather than a fully mechanical one.
 
 Default GitHub behaviour: **one PR per logical change, branched off `main`.** There
 is no session-batching rule — an already-open PR is not a reason to pile the next
-change onto its branch. The repo's **merge queue** serializes and validates
-integration (see [`docs/auto-merge-and-merge-queue.md`](../../docs/auto-merge-and-merge-queue.md)),
-so independent PRs are the cheap, reviewable shape.
+change onto its branch. CI is a single ~10 min gate per PR and auto-merge lands it
+green (see [`docs/auto-merge-and-merge-queue.md`](../../docs/auto-merge-and-merge-queue.md)),
+so independent PRs are the cheap, reviewable shape — batching only widens the blast
+radius of one red check.
