@@ -206,6 +206,50 @@ let
     "wordpress-adapter"
   ];
 
+  # ---- GCP billing -----------------------------------------------------------
+  # The billing account the fleet's GCP project is linked to. An IDENTIFIER, not a
+  # credential — the same class as `cloudflareAccountId` above, and committed for
+  # the same reason: it names an object, it does not authorise anything. Spending
+  # needs ADC, which lives in the operator's gcloud config dir and never in git.
+  gcpBillingAccountId = "016854-91C33C-F9E522";
+
+  # Single digit, by operator instruction (2026-09-22): a deliberately tiny number
+  # so ANY real spend trips it, since the fleet's only intended GCP cost is
+  # Terraform state — kilobytes, inside Always Free, i.e. nothing.
+  #
+  # A STRING because google.type.Money carries int64 `units` as a JSON string.
+  #
+  # AND IT IS AN ALERT, NOT A CAP. Google offers no hard spending limit; see the
+  # header of infra/gcp/budget.nix. Lowering this number does not buy more safety,
+  # it buys an earlier email.
+  gcpBudgetAmount = "5";
+
+  # MUST equal the billing account's own currency. Measured 2026-09-22: this
+  # account is CAD, and a USD budget on it is rejected as a bare
+  # `400 Request contains an invalid argument` — no field violation, no mention of
+  # currency, and gcloud gives the identical error, which is why it reads like a
+  # malformed request rather than a mismatched one. Check with:
+  #   gcloud billing accounts describe <id> --format='value(currencyCode)'
+  gcpBudgetCurrency = "CAD";
+
+  # The GCP project the fleet uses. A public identifier; ADR-004 keeps it out of
+  # the KEYCHAIN-backend code path (read from gcloud at runtime there), but
+  # terranix renders outside any shell and needs it at eval.
+  gcpProjectId = "kattakath-family";
+
+  # OpenTofu state bucket (ADR-005 phase 1). Bucket names are a GLOBAL namespace,
+  # so this one is prefixed with the org name rather than being a bare "state".
+  gcpStateBucket = "kattakath-tofu-state";
+
+  # One of the three regions Always Free covers (us-west1/us-central1/us-east1).
+  # State is kilobytes, so this stays free and therefore inside the 5 CAD alert.
+  gcpStateBucketLocation = "US-CENTRAL1";
+
+  # The service account terranix impersonates for GCP. An identifier, not a
+  # credential: impersonating it requires roles/iam.serviceAccountTokenCreator,
+  # which is granted to the operator and to nobody else. No key file exists.
+  gcpAutomationServiceAccount = "tofu-fleet@kattakath-family.iam.gserviceaccount.com";
+
   # The loopback port the SECOND mcp-proxy binds, and therefore the port the
   # published tunnel's ingress must point at. Single-sourced here because its two
   # consumers cannot see each other: modules/shared/mcp.nix binds it (a Home
@@ -325,6 +369,13 @@ in
         hostedSites
         publicMcpServers
         publicMcpPort
+        gcpBillingAccountId
+        gcpBudgetAmount
+        gcpBudgetCurrency
+        gcpAutomationServiceAccount
+        gcpProjectId
+        gcpStateBucket
+        gcpStateBucketLocation
         identityArgs
         ;
     };

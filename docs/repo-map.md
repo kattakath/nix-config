@@ -1797,6 +1797,55 @@ for the main pane, which sits at `left:0` inside it, so moving both would double
 
 ## `infra/` — terranix (Nix → OpenTofu/Terraform JSON)
 
+**Five stacks, and the split is deliberate: a stack is a blast radius, not a category.**
+
+| Stack | State | Breaking it takes down |
+|---|---|---|
+| `cf-tunnel` | GCS `cf-tunnel/` | the Pi |
+| `mcp-public` | GCS `mcp-public/` | the MCP portal |
+| `cf-zones` | GCS `cf-zones/` | **mail** |
+| `gcp-budget` | GCS `gcp-budget/` | the spend alert |
+| `gcp-foundation` | **local** | the bucket the other four live in |
+
+State is the shared, versioned bucket `kattakath-tofu-state`, **encrypted** with a passphrase
+read from the login Keychain at run time via `TF_ENCRYPTION` (ADR-005 phase 1 —
+[`iac-coverage-adr.md`](iac-coverage-adr.md)). Two of these states hold secrets in plaintext
+inside the payload, which is why encryption is not optional. `gcp-foundation` keeps local state
+because it *declares* that bucket.
+
+### `infra/cloudflare/zones.nix` + `infra/cloudflare/kattakath-dns.nix`
+
+`kattakath.com`'s 22 DNS records — the module renders, the sibling file is the data. Only this
+zone is declared, and the line is drawn by **ownership, not secrecy**: DNS is a public query, so
+publishing the operator's own zone discloses nothing `dig` does not, while the other six zones
+belong to businesses that are not only his.
+
+Records owned by another stack are deliberately absent (`nixpi`, `upstream`, and `mcp`, which
+Cloudflare creates with the portal). Importing one twice is how a plan grows a destroy.
+
+Its guard is shaped for its own failure mode — a **record-count floor** — because the way this
+stack hurts you is a shrunken render silently deleting mail, not a bad tunnel. Applied via
+`cf-zones-apply`; `cf-zones-plan` is read-only. There is no `cf-zones-destroy`.
+
+### `infra/gcp/foundation.nix`
+
+Enabled APIs, the automation service account, its IAM bindings, and the OpenTofu state bucket.
+
+**Runs as the OPERATOR, not the service account it declares.** Running it as that account would
+need `serviceUsageAdmin` + `iam.serviceAccountAdmin` + `projectIamAdmin` — the power to re-grant
+itself anything. The privileged bootstrap stays with the human; the narrow stacks use the
+least-privileged identity it creates, by **impersonation**, with no key file anywhere.
+
+It also declares `ws-domain-admin`, the Workspace-facing account — the account only. Its
+authority would live in the Admin console, which no provider reaches:
+[`workspace-runbook.md`](workspace-runbook.md).
+
+### `infra/gcp/budget.nix`
+
+A **5 CAD** spend budget. **An alert, not a cap** — Google offers no hard spending limit on a
+billing account, and the currency must match the account's own or the API rejects it as a bare
+`400`. Applied via `gcp-budget-apply`.
+
 ### `infra/cloudflare/nixpi-tunnel.nix`
 
 Declares `nixpi`'s **remotely-managed** Cloudflare Tunnel itself:
