@@ -1082,6 +1082,40 @@ in
         ];
         RunAtLoad = true;
         KeepAlive = true;
+
+        # ✅ upstream option `SoftResourceLimits.NumberOfFiles` exists → using it
+        # (pinned home-manager modules/launchd/launchd.nix:471 and :521; 4096 is
+        # upstream's OWN example value at :567). No supervisor, no health-check
+        # daemon, no retry wrapper — launchd already models this.
+        #
+        # THE TRAP: a launchd agent inherits launchd's limit, not a shell's.
+        # Measured 2026-09-22:
+        #   launchctl limit maxfiles  ->  256 soft
+        #   ulimit -n (interactive)   ->  1048576
+        #   lsof -p <proxy> | wc -l   ->  106   (41% of 256 at STEADY STATE)
+        # So mcp-proxy run by hand works and the same binary under launchd does
+        # not — which is why this never looked like a resource problem.
+        #
+        # WHY IT BLOWS: mcp-proxy spawns and fully handshakes each named server
+        # SEQUENTIALLY (mcp_server.py:183 loop; proxy_server.py:18 awaits
+        # `initialize()`), each child costing at least 3 pipe fds plus whatever it
+        # opens. 26 of those on top of a 106-fd baseline exhausts 256 mid-loop:
+        # `OSError: [Errno 24] Too many open files`, 6,240 occurrences in
+        # ~/Library/Logs/mcp-gateway.log before this was found.
+        #
+        # AND IT IS NOT PARTIAL. All 26 children live in one AsyncExitStack, and
+        # the listening socket is not created until the loop completes
+        # (Starlette at :222, uvicorn.Server at :237). So the failure is not "some
+        # servers missing" — it is the whole gateway, and startup is binary:
+        # connection-refused, then fully ready. That is also why the portal latched
+        # `status = error` on servers that were fine; it was being REFUSED, not
+        # reading a half-ready proxy.
+        #
+        # Not a workaround, so it has no retirement condition: it is the correct
+        # limit for a process that fans out to 26 children. Revisit only if 4096 is
+        # ever approached, which at 106 steady-state would mean a leak.
+        SoftResourceLimits.NumberOfFiles = 4096;
+
         EnvironmentVariables = {
           # npx/uvx children need Node/uv on PATH (mcp-proxy itself is absolute above);
           # mobile-mcp additionally needs `adb` (platform-tools) + the emulator binary.
