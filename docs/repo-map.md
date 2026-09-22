@@ -271,7 +271,22 @@ deploy-rs.lib` — deploy-rs exports `lib` for four systems, and that idiom woul
 ### devShell
 
 Entered with `nix develop` (in the devcontainer or on a nix host). There is **no**
-`.envrc`/direnv auto-load — run `nix develop` explicitly.
+`.envrc`/direnv auto-load — run `nix develop` explicitly. (`programs.direnv` + `nix-direnv` ARE
+enabled fleet-wide in `modules/shared/home.nix`; this repo alone opts out, since `2fa73b9`.)
+
+**The shell sets `CLOUDSDK_CONFIG`** to `$XDG_CONFIG_HOME/gcloud-nix-config`, so `gcloud` and any
+`tofu` run here use an account and project scoped to this repo rather than whatever is globally
+active. It is **not** `CLOUDSDK_ACTIVE_CONFIG_NAME`, and the difference is load-bearing: measured
+2026-09-22, a named configuration is only `configurations/config_<name>` (account, project,
+region), while `credentials.db` and `application_default_credentials.json` sit at the TOP of the
+config dir, shared by every configuration. The google Terraform provider reads **ADC**, so a
+named configuration gives a correct `gcloud` and a `tofu` silently authenticated as whoever last
+ran `gcloud auth application-default login`. Repointing the whole directory moves both.
+
+First use needs **two** logins, because the CLI and Terraform read different files:
+`gcloud auth login` **and** `gcloud auth application-default login`, then
+`gcloud config set project <id>`. The shell prints these until ADC exists. The directory is under
+XDG, never in the worktree — it holds live credentials.
 
 The `deploy` CLI is in the devShell on **darwin only** (from the deploy-rs *input*, not
 `pkgs.deploy-rs`, so the CLI and the `activate` binary baked into nixpi's closure come from one
