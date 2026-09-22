@@ -2,13 +2,30 @@
 
 Standing up a Mac — brand new, or freshly wiped — from nothing.
 
-## The one command
+## The one command — but run `--check` first on a RESET Mac
 
 ```bash
+# 1. Dry run. Reports state, changes NOTHING. On a freshly-reset Mac, do this first.
+curl -fsSL https://raw.githubusercontent.com/kattakath/nix-config/main/bootstrap.sh | bash -s -- --check
+
+# 2. Real run.
 curl -fsSL https://raw.githubusercontent.com/kattakath/nix-config/main/bootstrap.sh | bash
 ```
 
-`| bash -s -- --check` reports what it would do and changes nothing.
+**Why `--check` is not optional on a reset Mac.** A macOS reset leaves the
+`Nix Store` APFS volume and its `/etc` entries behind. Step 1 below deletes them
+and then **reboots** — and a `curl … | bash` stream cannot resume itself, so you
+finish the job by re-running the command **by hand**. So a reset Mac is a
+*two-command* bootstrap with a restart in the middle, and `--check` is what tells
+you that before you start rather than twenty minutes in. Read its output for:
+
+| `--check` line | What it means for your next hour |
+|---|---|
+| `[STALE] 'Nix Store' volume …` | The reboot branch WILL fire. Expect two runs. |
+| `[KEEP] 'Nix Store' volume … holds N bytes` | A real store, just unmounted. `sudo diskutil mount` it — do not let anything delete it. |
+| `[STALE] /etc/synthetic.conf has a nix entry` | Also reboot-forcing (an `/etc/fstab`-only hit is not). |
+| `[?] … root-only and sudo is not cached` | Run `sudo -v`, then re-check — it is not a "no". |
+| all `[ok]`/`[note]` | Single pass, no restart. A brand-new Mac always reads this way. |
 
 It does four things, and only the first three are irreducible:
 
@@ -157,6 +174,16 @@ one-time steps are inherently manual — do these after activating a fresh Mac:
      `<(...)` process substitution, then `rm` the file immediately after.
   4. Confirm: `determinate-nixd status` shows `Logged in: true`, and
      `determinate-nixd version` lists `native-linux-builder`.
+
+  **Activation now tells you this instead of letting you find it.** Since
+  2026-09-22 `system.activationScripts.postActivation` (in
+  `modules/parts/compose.nix`, beside the builder's own comment) probes
+  `determinate-nixd version` and prints the four steps above whenever
+  `native-linux-builder` is absent — so a fresh Mac surfaces the gap on its very
+  first `nix run .#macos` rather than at the first confusing `platform mismatch`.
+  It probes the FEATURE list, not the login flag, so it also catches the stale
+  daemon in the paragraph below. It is silent once the feature is advertised and
+  silent when the binary is missing, and it never fails activation.
   A stale/never-updated `determinate-nixd` binary can also hide this — the
   version this was verified against required `sudo determinate-nixd upgrade`
   first when the daemon was a patch behind.
