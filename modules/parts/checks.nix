@@ -797,6 +797,23 @@ in
           # reader would look" — a file nobody mentions is the failure; the exact
           # sentence is a human's call.
           #
+          # The substring test is `grep -F` IN THE BUILDER — NOT lib.hasInfix at
+          # eval time. Do not "simplify" it back. hasInfix compiles to
+          # `builtins.match ".*<needle>.*"`, and a leading `.*` makes std::regex
+          # recurse once per input character: against docs/repo-map.md (175 KB)
+          # that is ~175k stack frames, which overflows the nix-eval-jobs worker
+          # and SIGSEGVs — reported as "possible infinite recursion", which it is
+          # not. It fails on aarch64-linux while PASSING on aarch64-darwin (the
+          # two std::regex implementations size their frames differently), so it
+          # reads as a one-platform mystery rather than an input-size ceiling.
+          # Measured 2026-09-21: docs-indexed shipped green on the Mac and was
+          # red on the Linux leg of every nix-ci run from the commit that added
+          # it. grep -F is a fixed-string scan — no stack growth, no regex
+          # metacharacters to escape — and a 175 KB search belongs in a builder
+          # anyway. hosts-documented only escaped the crash by short-circuiting
+          # on CLAUDE.md first; it is one unmentioned host away from the same
+          # SIGSEGV, so both moved.
+          #
           # NOT COVERED: that the mention is TRUE or current. A row naming a file
           # and describing it wrongly passes both checks. These catch absence, not
           # rot — and rot is what /hygiene and a reader are for.
@@ -807,29 +824,41 @@ in
                   lib.filterAttrs (n: t: t == "regular" && lib.hasSuffix ".nix" n) (builtins.readDir ../../hosts)
                 )
               );
-              claudeMd = builtins.readFile ../../CLAUDE.md;
-              repoMap = builtins.readFile ../../docs/repo-map.md;
-              undocumented = builtins.filter (
-                f: !(lib.hasInfix f claudeMd) && !(lib.hasInfix f repoMap)
-              ) hostFiles;
             in
-            pkgs.runCommand "hosts-documented" { } (
-              if undocumented == [ ] then
-                ''
+            pkgs.runCommand "hosts-documented"
+              {
+                indexes = [
+                  ../../CLAUDE.md
+                  ../../docs/repo-map.md
+                ];
+              }
+              ''
+                undocumented=()
+                for f in ${lib.escapeShellArgs hostFiles}; do
+                  hit=
+                  for idx in $indexes; do
+                    if grep -qF -- "$f" "$idx"; then
+                      hit=1
+                      break
+                    fi
+                  done
+                  [ -n "$hit" ] || undocumented+=("$f")
+                done
+
+                if [ ''${#undocumented[@]} -eq 0 ]; then
                   echo "hosts/: all ${toString (lib.length hostFiles)} host profiles are named in CLAUDE.md or docs/repo-map.md" > "$out"
-                ''
-              else
-                ''
-                  echo "hosts-documented: host profiles that no index names." >&2
-                  ${lib.concatMapStringsSep "\n" (f: ''echo "  ${f}" >&2'') undocumented}
-                  echo "" >&2
-                  echo "CLAUDE.md calls itself an index and binds the author to update it when repo" >&2
-                  echo "shape changes. A host file named nowhere is invisible to the next reader and" >&2
-                  echo "to every agent that reads CLAUDE.md as its map. Name it in the hosts/ row of" >&2
-                  echo "CLAUDE.md, or in the matching section of docs/repo-map.md, and re-run." >&2
-                  exit 1
-                ''
-            );
+                  exit 0
+                fi
+
+                echo "hosts-documented: host profiles that no index names." >&2
+                printf '  %s\n' "''${undocumented[@]}" >&2
+                echo "" >&2
+                echo "CLAUDE.md calls itself an index and binds the author to update it when repo" >&2
+                echo "shape changes. A host file named nowhere is invisible to the next reader and" >&2
+                echo "to every agent that reads CLAUDE.md as its map. Name it in the hosts/ row of" >&2
+                echo "CLAUDE.md, or in the matching section of docs/repo-map.md, and re-run." >&2
+                exit 1
+              '';
 
           docs-indexed =
             let
@@ -840,26 +869,40 @@ in
                   )
                 )
               );
-              claudeMd = builtins.readFile ../../CLAUDE.md;
-              repoMap = builtins.readFile ../../docs/repo-map.md;
-              unlinked = builtins.filter (f: !(lib.hasInfix f claudeMd) && !(lib.hasInfix f repoMap)) docFiles;
             in
-            pkgs.runCommand "docs-indexed" { } (
-              if unlinked == [ ] then
-                ''
+            pkgs.runCommand "docs-indexed"
+              {
+                indexes = [
+                  ../../CLAUDE.md
+                  ../../docs/repo-map.md
+                ];
+              }
+              ''
+                unlinked=()
+                for f in ${lib.escapeShellArgs docFiles}; do
+                  hit=
+                  for idx in $indexes; do
+                    if grep -qF -- "$f" "$idx"; then
+                      hit=1
+                      break
+                    fi
+                  done
+                  [ -n "$hit" ] || unlinked+=("$f")
+                done
+
+                if [ ''${#unlinked[@]} -eq 0 ]; then
                   echo "docs/: all ${toString (lib.length docFiles)} documents are referenced from CLAUDE.md or repo-map.md" > "$out"
-                ''
-              else
-                ''
-                  echo "docs-indexed: documents no index references." >&2
-                  ${lib.concatMapStringsSep "\n" (f: ''echo "  docs/${f}" >&2'') unlinked}
-                  echo "" >&2
-                  echo "An unlinked document is one nobody finds and nobody updates, which is how a" >&2
-                  echo "runbook rots into a trap. Link it from CLAUDE.md's Documentation list or from" >&2
-                  echo "docs/repo-map.md. repo-map.md itself is exempt: it is the index, not an entry." >&2
-                  exit 1
-                ''
-            );
+                  exit 0
+                fi
+
+                echo "docs-indexed: documents no index references." >&2
+                printf '  docs/%s\n' "''${unlinked[@]}" >&2
+                echo "" >&2
+                echo "An unlinked document is one nobody finds and nobody updates, which is how a" >&2
+                echo "runbook rots into a trap. Link it from CLAUDE.md's Documentation list or from" >&2
+                echo "docs/repo-map.md. repo-map.md itself is exempt: it is the index, not an entry." >&2
+                exit 1
+              '';
 
           # ---- nixpi's security posture, which until now only PROSE held ------
           #
