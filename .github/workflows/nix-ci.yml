@@ -38,9 +38,21 @@ name: nix-ci
 # fallback. Day-to-day local aarch64-linux builds use Determinate's native Linux
 # builder on the Mac.
 #
-# READ from the kattakath Cachix cache is public. WRITE needs
-# CACHIX_AUTH_TOKEN (a repo secret; absent on fork PRs → push no-ops). The cache
-# is warmed reactively by this workflow's push-to-main run and by release builds.
+# READ from the kattakath Cachix cache is public. WRITE needs CACHIX_AUTH_TOKEN,
+# and EVERY run that GitHub hands the secret to now writes — same-repo branch PRs
+# and `merge_group` included, not just push-to-main. The gate is GitHub's, not
+# ours: a `pull_request` from a FORK is given no repo secret at all, and a
+# Dependabot PR reads a SEPARATE secret store this token is not in. Restricting
+# it to `push` on top of that bought no safety and cost a rebuild — measured on
+# PR #550, the PR leg built /nix/store/kln8kjyq…-pre-commit-run, was refused
+# (403), and the push-to-main leg rebuilt the IDENTICAL path minutes later. The
+# four tree-dependent checks (ast-grep, formatting, pre-commit, page-lab) take
+# `self`, so every commit re-derives them; letting the PR leg push is what makes
+# the BLOCKING merge-queue run skip them (~76 s darwin, ~14 s linux).
+#
+# The blast radius is unchanged: pushing requires a branch in THIS repo, which
+# only the operator can create, and a store path is its own derivation hash — a
+# branch cannot overwrite main's content under an existing path.
 
 on:
   pull_request:
@@ -239,7 +251,7 @@ jobs:
       - uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
         with:
           name: kattakath
-          authToken: ${{ github.event_name == 'push' && secrets.CACHIX_AUTH_TOKEN || '' }}
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
 
       # Flakes evaluate the git tree, not the working dir — stage everything
       # BEFORE any nix invocation (see .claude/rules/git-purity.md).
@@ -249,15 +261,37 @@ jobs:
       # Build this leg's SYSTEM lint/format checks and push to Cachix.
       - name: Build lint checks + push to Cachix
         env:
-          CACHIX_AUTH_TOKEN: ${{ github.event_name == 'push' && secrets.CACHIX_AUTH_TOKEN || '' }}
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
         run: |
+          set -euo pipefail
+
+          # `--cachix-cache` is passed ONLY when a token exists. Without one the
+          # flag still starts a push and cachix answers 403 "You're not
+          # authorized to access binary cache kattakath" per path — logged at
+          # Info level, so the leg stays GREEN while pushing nothing. That is the
+          # worst shape a failure can take: loud in the log, invisible to the
+          # gate. Fork and Dependabot runs simply build without pushing now.
+          #
+          # An `if`, NOT `[ -n ... ] && flags=...`: POSIX exempts every non-final
+          # command of an AND-OR list from errexit, the same trap the host-eval
+          # loop below documents. And a STRING, not an array: `shell: bash` is
+          # /bin/bash on the macOS runner, which is bash 3.2, where `${arr[@]}`
+          # on an EMPTY array is an unbound-variable error under `set -u`.
+          cachix_flags=""
+          if [ -n "${CACHIX_AUTH_TOKEN:-}" ]; then
+            cachix_flags="--cachix-cache kattakath"
+          fi
+
           # Pinned to a specific rev (as of 2026-07-05; no newer release tag
           # exists yet) rather than the default branch, matching this repo's
           # convention of not executing unpinned upstream refs in CI.
+          #
+          # Word splitting on $cachix_flags is DELIBERATE: two flags, or none.
+          # shellcheck disable=SC2086
           nix run github:Mic92/nix-fast-build/561be51b96d376c9c6c49a063cfdc83af81f4929 -- \
             --skip-cached --no-nom \
             --flake ".#checks.${{ matrix.name }}" \
-            --cachix-cache kattakath
+            $cachix_flags
 
       # EVALUATE (not build) every host config this leg owns. Resolving each
       # toplevel's .drvPath forces a full module-system eval, so a broken config
