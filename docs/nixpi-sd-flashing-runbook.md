@@ -196,6 +196,17 @@ nix run .#nixpi-provision -- --wifi       # just refresh Wi-Fi from this Mac's n
   `country=` (the Pi 4 radio is rfkill-blocked without a regulatory domain). Wi-Fi is
   OPTIONAL — without it the Pi is LAN-only. With it, a headless Pi reaches
   `nixpi.kattakath.com` from first boot with no LAN cable, keyboard, or monitor.
+- **Plant a FALLBACK AP, not just one.** `--ssid` is repeatable
+  (`nixpi-wifi-creds --ssid PRIMARY --ssid BACKUP`), and the blocks come out ranked
+  by `priority=`. One AP makes that AP a single point of failure whose recovery is
+  this runbook (~40 min): the Pi has no LAN sshd (`modules/nixos/core.nix` binds
+  loopback only), so the only route in is the tunnel, and the tunnel needs working
+  INTERNET rather than merely a LAN. Measured 2026-09-22: a two-block config failed
+  over to the second AP in ~6 s and reached the internet through it.
+- **The wired link does NOT make this redundant** when both interfaces face the same
+  router. If that router keeps LAN carrier but loses its uplink, `end0` keeps a
+  default route at metric 1002 and beats a working `wlan0` at 3003 — traffic
+  blackholes down the wired path. Unplug Ethernet to force the failover.
 
 If you skip planting, the Pi still boots and is reachable on the LAN (`nixpi.local`),
 but the Cloudflare tunnel stays down — no `ssh nixpi` and no hosted site — until you
