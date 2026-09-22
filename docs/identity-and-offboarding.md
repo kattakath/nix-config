@@ -28,12 +28,11 @@ mailbox to the domain — intended, and worth knowing. The apply also dropped th
 authenticates *as the human*. It would **not** revoke a domain-wide-delegated service-account
 key, which authenticates as itself and then impersonates whoever it likes.
 
-An account shaped for exactly that exists — `ws-domain-admin`, with a USER_MANAGED key in the
-login Keychain — but **verified 2026-09-22, the Admin console's delegation table is EMPTY**, so
-it currently grants nothing and holds no GCP project role either. The lever is intact today.
-What it costs is an unused long-lived credential on a domain-admin-shaped account, which
-[`workspace-runbook.md`](workspace-runbook.md) §2 recommends deleting, and §4 folds into
-offboarding either way.
+An account shaped for exactly that exists — `ws-domain-admin` — but **verified 2026-09-22, the
+Admin console's delegation table is EMPTY**, it holds no GCP project role, and its USER_MANAGED
+key was **deleted the same day** along with its Keychain material
+([`workspace-runbook.md`](workspace-runbook.md) §2). The lever is intact, and there is no longer
+a key sitting ready should someone add a delegation row later.
 
 ## Privilege tiers
 
@@ -54,10 +53,10 @@ available to the baseline human, and only Google is universal here.
 
 ## What offboarding DOES need, beyond the lever
 
-Two things, both in [`workspace-runbook.md`](workspace-runbook.md) §4: delete the
-`ws-domain-admin` USER_MANAGED key, and confirm the Admin console's delegation table holds no row
-for it. With that table empty they are cheap insurance; the day a row appears there, they are the
-difference between offboarding and the appearance of it.
+Two confirmations, both in [`workspace-runbook.md`](workspace-runbook.md) §4: that
+`ws-domain-admin` carries no USER_MANAGED key, and that the Admin console's delegation table
+holds no row for it. Both are true as of 2026-09-22. They are cheap insurance while that holds;
+the day either changes, they are the difference between offboarding and the appearance of it.
 
 ## Then, at leisure (hygiene, not access)
 

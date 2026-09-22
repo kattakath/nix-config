@@ -17,13 +17,12 @@
 # binding, a bucket setting), and the per-user-state hazard that motivated a
 # remote backend is about the stacks that change weekly.
 #
-# THE CHICKEN AND EGG, NAMED
-# ==========================
-# This stack IMPERSONATES the very service account it declares. That works
-# because the account already exists. On a fresh GCP project it would not, and
-# the bootstrap is one manual step — create the service account and grant the
-# operator token-creator on it — before the first apply. Written down here so the
-# next person does not discover it as a failure.
+# WHO RUNS IT
+# ===========
+# The OPERATOR, as themselves — not the automation service account this stack
+# declares. See the note on `provider.google` below for why that is a privilege
+# decision rather than convenience. It also removes a chicken-and-egg: a stack
+# that impersonated the account it creates could never run on a fresh project.
 {
   lib,
   projectId,
@@ -105,15 +104,23 @@ in
   # was archived 2025-06-30. That boundary is the whole reason ADR-005 keeps
   # Workspace as a runbook, and docs/workspace-runbook.md is that runbook.
   #
-  # Its USER_MANAGED key is deliberately NOT declared. Terraform managing a key
-  # would mean the private key lands in state; the key lives in the login Keychain
-  # (`gcp:kattakath-family:ws-domain-admin-key`) instead. See the runbook for why
-  # that key is the one credential that OUTLIVES suspending the human account.
+  # It has NO user-managed key, and should not regain one: the last was deleted
+  # 2026-09-22 (docs/workspace-runbook.md §2) once the Admin console confirmed no
+  # delegation was ever registered to it. Terraform must never manage one either —
+  # a declared key means the private material lands in state.
+  #
+  # The SYSTEM_MANAGED key Google rotates is a different thing and is what makes
+  # impersonation work. Leave it.
   resource.google_service_account.ws_domain_admin = {
     project = projectId;
     account_id = "ws-domain-admin";
     display_name = "Workspace Domain Admin (fleet automation)";
-    description = "Domain-wide delegation for Admin SDK domain + site verification";
+    # The description is the FIX for the finding, not decoration. It previously
+    # read "Domain-wide delegation for Admin SDK domain + site verification",
+    # which described an intention that was never carried out — and which reads to
+    # an auditor as authority that exists. No delegation was ever registered
+    # (verified 2026-09-22 in the Admin console). Say what is true.
+    description = "UNUSED as of 2026-09-22: no domain-wide delegation registered, no project roles, no user-managed key. See docs/workspace-runbook.md before granting it anything.";
   };
 
   # Lets the service account be used as a quota/consumer identity on the project.

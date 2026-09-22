@@ -57,30 +57,36 @@ can only be checked by eye, and why this page records what it looked like.
 `infra/gcp/foundation.nix` therefore declares **the account only**, and says so at the
 resource. That split is the honest one: the identity is code, the authority is a console screen.
 
-### Its key: a liability today, an exception to the single lever tomorrow
+### Its key — DELETED 2026-09-22
 
-`ws-domain-admin` has a **USER_MANAGED** key (created 2026-09-07), stored in the login Keychain
-as `gcp:kattakath-family:ws-domain-admin-key` — not loose on disk, which is the standard pattern
-here and the right call.
+`ws-domain-admin` carried a **USER_MANAGED** key (created 2026-09-07, id `22ada9c0…`) with its
+private material in the login Keychain. It granted nothing: no delegation was registered, and the
+account holds no GCP project role. An unused long-lived credential on a domain-admin-shaped
+account is the cheapest thing in this fleet to remove and the most expensive to explain later, so
+it was removed — both halves:
 
-**Today it grants nothing in Workspace**, because no delegation is registered (above). It is an
-unused long-lived credential attached to an account with no Workspace authority and no GCP
-project roles. That makes it pure liability rather than pure risk: nothing depends on it, and it
-can only ever become more powerful, never less.
+```
+gcloud iam service-accounts keys delete 22ada9c0… --iam-account=ws-domain-admin@…
+secret rm gcp:kattakath-family:ws-domain-admin-key
+```
 
-**The moment a delegation IS registered, it becomes the exception to the single lever.** The
-lever in [`identity-and-offboarding.md`](identity-and-offboarding.md) revokes everything that
-authenticates *as the human*. A delegated key does not: it authenticates as itself and then
-impersonates whoever it likes.
+Checked first, and this is the check to repeat before deleting any key: no env binding, no
+launchd agent, no reference anywhere in this repo outside its own documentation.
 
-**Anecdote, because the asymmetry is easy to miss:** suspending the account changes the locks on
-the building. A delegated key is a master key cut for a contractor — the new locks do not know
-about it. *(Where it breaks down today: no such key has been cut yet. The blank is signed but not
-filled in.)*
+**One key remains and must stay: the `SYSTEM_MANAGED` one.** That is Google's own, rotated by
+Google, and it is what makes *impersonation* possible. Deleting it is not a hardening step.
 
-**Recommendation: delete the key** unless something is verified to use it. An unused credential
-on a domain-admin-shaped account is the cheapest thing in this fleet to remove and the most
-expensive to explain later.
+**Why this mattered even though nothing was delegated.** The lever in
+[`identity-and-offboarding.md`](identity-and-offboarding.md) revokes everything that
+authenticates *as the human*. A delegated key would not: it authenticates as itself and then
+impersonates whoever it likes. No delegation existed — but a key sitting ready on an account
+named for delegation is one console click away from that being true, and the click leaves no
+trace in this repo.
+
+**Anecdote:** suspending the account changes the locks on the building. A delegated key is a
+master key cut for a contractor — the new locks do not know about it. *(Where it broke down here:
+the key was cut but no door had been fitted to it. Destroying it while that was still true cost
+nothing.)*
 
 ---
 
@@ -92,12 +98,10 @@ Run inside `nix develop`, so gcloud and ADC are scoped to this repo.
 # The account exists and is not disabled
 gcloud iam service-accounts describe ws-domain-admin@kattakath-family.iam.gserviceaccount.com
 
-# KEYS. A second USER_MANAGED key appearing here is an incident, not drift.
+# KEYS. Expected: exactly ONE, and SYSTEM_MANAGED. Any USER_MANAGED key here is
+# an incident, not drift — the last one was deleted 2026-09-22.
 gcloud iam service-accounts keys list \
   --iam-account=ws-domain-admin@kattakath-family.iam.gserviceaccount.com
-
-# The key material is in the Keychain, and `fp` proves identity without printing it
-secret fp gcp:kattakath-family:ws-domain-admin-key
 
 # The Workspace-facing APIs are the three expected ones
 gcloud services list --enabled --project=kattakath-family | grep -E 'admin|drive|gmail'
@@ -121,15 +125,15 @@ live — at which point §4 steps 2 and 3 become mandatory rather than precautio
 every *derived human login* with no checklist. This is the part that suspension does not cover:
 
 1. **Suspend the Workspace account.** Everything in that document's table goes at once.
-2. **Delete the `ws-domain-admin` USER_MANAGED key** — the step the single lever cannot do:
+2. **Delete any USER_MANAGED key** on `ws-domain-admin` — the step the single lever cannot do.
+   There is none as of 2026-09-22; confirm rather than assume:
    ```bash
    gcloud iam service-accounts keys delete <KEY_ID> \
      --iam-account=ws-domain-admin@kattakath-family.iam.gserviceaccount.com
    ```
 3. **Check the Admin console delegation table** and remove any row for that client, so a future
    key cannot inherit the authority.
-4. `secret rm gcp:kattakath-family:ws-domain-admin-key`.
-5. Then the "at leisure" hygiene in the identity doc.
+4. Then the "at leisure" hygiene in the identity doc.
 
 **Steps 2 and 3 are the whole reason this page exists.** They are invisible from the repo and
 they survive the single lever. With the delegation table empty they are currently cheap
