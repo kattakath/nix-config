@@ -237,8 +237,8 @@ jobs:
       # Every fleet host runs Determinate Nix now, so CI evaluating on upstream Nix
       # tested a Nix nothing runs — and it forwent parallel evaluation + lazy trees,
       # which Determinate's docs put at "5x or more" on exactly this job's work
-      # (nix-fast-build over `.#checks.<system>`, and the `nix eval` below —
-      # `nix flake show` in `legs` likewise). Free: the action
+      # (`nix build` over every `.#checks.<system>.*`, and the two `nix eval`s
+      # below — `nix flake show` in `legs` likewise). Free: the action
       # is MIT and needs no FlakeHub login; only FlakeHub Cache (a separate action,
       # deliberately absent) is paid. Flakes are on by default, so no
       # `experimental-features` line. Pinned by commit, like every action here.
@@ -259,39 +259,65 @@ jobs:
         run: git add -A
 
       # Build this leg's SYSTEM lint/format checks and push to Cachix.
+      #
+      # PLAIN `nix build`, NOT nix-fast-build (dropped 2026-09-22). The motto cuts
+      # both ways — a tool is a violation of it when it is BIGGER THAN THE PROBLEM,
+      # not only when it is hand-rolled. `nix run github:Mic92/nix-fast-build/<rev>`
+      # fetched 97 paths / 306.8 MiB (1.4 GiB unpacked) on EVERY darwin run to
+      # orchestrate 39 checks whose entire build cost on that leg is ~76 s: measured
+      # 117 s of the merge-queue leg's 231 s (run 35698919468), i.e. HALF the leg,
+      # because it bundles its own `nix` and with it apple-sdk/cctools/ld64. The
+      # linux leg pays 108 MiB for the same tool, which is why this only ever read
+      # as a darwin problem. Determinate Nix is already installed by the step above,
+      # so `nix build` costs no closure at all.
+      #
+      # GIVEN UP, deliberately: COLLAPSIBLE per-check log groups (`--print-build-logs`
+      # still prefixes every line with its derivation), the step-summary report, and
+      # `--skip-cached` — a cached check is now SUBSTITUTED rather than skipped.
+      # These outputs are `touch $out`-sized, so that trade is bytes, not seconds.
+      # KEPT: the gate itself. Every check still builds, and a failure still fails
+      # the leg.
       - name: Build lint checks + push to Cachix
         env:
           CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          SYSTEM: ${{ matrix.name }}
         run: |
           set -euo pipefail
 
-          # `--cachix-cache` is passed ONLY when a token exists. Without one the
-          # flag still starts a push and cachix answers 403 "You're not
-          # authorized to access binary cache kattakath" per path — logged at
-          # Info level, so the leg stays GREEN while pushing nothing. That is the
-          # worst shape a failure can take: loud in the log, invisible to the
-          # gate. Fork and Dependabot runs simply build without pushing now.
-          #
-          # An `if`, NOT `[ -n ... ] && flags=...`: POSIX exempts every non-final
-          # command of an AND-OR list from errexit, the same trap the host-eval
-          # loop below documents. And a STRING, not an array: `shell: bash` is
-          # /bin/bash on the macOS runner, which is bash 3.2, where `${arr[@]}`
-          # on an EMPTY array is an unbound-variable error under `set -u`.
-          cachix_flags=""
-          if [ -n "${CACHIX_AUTH_TOKEN:-}" ]; then
-            cachix_flags="--cachix-cache kattakath"
+          # ENUMERATED from the flake, never listed here — the same reason `legs`
+          # derives its matrix rather than hard-coding it: a check added to
+          # modules/parts/checks.nix must not be able to go silently unbuilt.
+          # `builtins.attrNames` forces the attrset only, not the 39 derivations
+          # inside it, so this is an eval of the checks ATTRSET, not of the checks.
+          names=$(nix eval --raw ".#checks.${SYSTEM}" \
+            --apply 'cs: builtins.concatStringsSep " " (builtins.attrNames cs)')
+          if [ -z "$names" ]; then
+            echo "::error::leg '${SYSTEM}' exposes no checks — this gate would build NOTHING while reporting green."
+            exit 1
           fi
+          attrs=""
+          for n in $names; do attrs="$attrs .#checks.${SYSTEM}.$n"; done
+          echo "building $(printf '%s' "$names" | wc -w | tr -d ' ') check(s) for ${SYSTEM}"
 
-          # Pinned to a specific rev (as of 2026-07-05; no newer release tag
-          # exists yet) rather than the default branch, matching this repo's
-          # convention of not executing unpinned upstream refs in CI.
-          #
-          # Word splitting on $cachix_flags is DELIBERATE: two flags, or none.
+          # --no-link: a `result` symlink here would be an untracked file in a tree
+          # the NEXT step re-evaluates as a flake.
+          # Word splitting on $attrs is DELIBERATE: one installable per check.
           # shellcheck disable=SC2086
-          nix run github:Mic92/nix-fast-build/561be51b96d376c9c6c49a063cfdc83af81f4929 -- \
-            --skip-cached --no-nom \
-            --flake ".#checks.${{ matrix.name }}" \
-            $cachix_flags
+          paths=$(nix build --no-link --print-out-paths --print-build-logs $attrs)
+
+          # Pushed EXPLICITLY, not by a post-build hook: a hook is a daemon-side
+          # setting, and whether a client-set one survives Determinate's daemon on
+          # a hosted runner is not something this gate should be quietly betting on.
+          # `cachix push` on the paths just built is observable in the log.
+          if [ -z "${CACHIX_AUTH_TOKEN:-}" ]; then
+            echo "no CACHIX_AUTH_TOKEN (fork or Dependabot run) — built, not pushed."
+            exit 0
+          fi
+          if ! command -v cachix > /dev/null 2>&1; then
+            echo "::error::cachix is not on PATH. cachix-action above installed it, so this is a PATH regression, not a missing token — the push would otherwise be skipped SILENTLY."
+            exit 1
+          fi
+          printf '%s\n' "$paths" | cachix push kattakath
 
       # EVALUATE (not build) every host config this leg owns. Resolving each
       # toplevel's .drvPath forces a full module-system eval, so a broken config
