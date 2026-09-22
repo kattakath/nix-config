@@ -107,14 +107,29 @@ with unique unmerged commits, or any dirty `git status`, → report only.
 ### B. Per-repo: open PRs
 
 ```bash
-gh pr list --repo kattakath/<repo> --state open --json number,title,isDraft,mergeStateStatus,statusCheckRollup
+gh pr list --repo kattakath/<repo> --state open \
+  --json number,title,isDraft,mergeStateStatus,statusCheckRollup,autoMergeRequest
 ```
 
-Multiple open PRs are **normal** — each change gets its own PR and the merge
-queue serializes them. Findings are: a PR whose title doesn't follow
-[`pr-title.md`](../../rules/pr-title.md), a stale PR with no activity, or one
-sitting on red CI. Report CI status per PR; never merge here regardless of
-mode — see the confirm table above.
+Multiple open PRs are **normal** — each change gets its own PR and a single CI
+gate lands them independently. (The merge queue that used to serialize them was
+removed 2026-09-22 — [`auto-merge-and-merge-queue.md`](../../../docs/auto-merge-and-merge-queue.md).)
+
+Findings are: a PR whose title doesn't follow
+[`pr-title.md`](../../rules/pr-title.md), a stale PR with no activity, one
+sitting on red CI, or one **never armed** — `autoMergeRequest == null` on a
+non-draft PR means `auto-merge.yml` did not arm it and it will sit open
+forever. A DRAFT with `autoMergeRequest` set is fine: arming survives the draft
+state and releases on `ready_for_review` (observed on #559, 2026-09-22).
+
+Read `autoMergeRequest.enabledBy.login`, not just the field's presence: it must
+be `app/ismailkattakath-ci`. Anything armed by `github-actions` means something
+used `GITHUB_TOKEN` — which merges SILENTLY and stops every `push: main`
+workflow from firing, the failure that doc calls its single most important
+detail. That is a finding even though the PR looks healthy.
+
+Report CI status per PR; never merge here regardless of mode — see the confirm
+table above.
 
 ### C. Per-repo: latest CI run
 
