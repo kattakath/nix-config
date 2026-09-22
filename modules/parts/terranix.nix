@@ -21,6 +21,10 @@ let
     hostedSites
     publicMcpServers
     publicMcpPort
+    gcpBillingAccountId
+    gcpBudgetAmount
+    gcpBudgetCurrency
+    gcpAutomationServiceAccount
     ;
 
   # kattakath.com's records, as a PLAIN LIST rather than a `fleet.*` option.
@@ -429,6 +433,106 @@ let
       '';
     };
 
+  # ---- GCP billing budget (terranix -> OpenTofu) ---------------------------
+  # Renders infra/gcp/budget.nix. A FOURTH stack, and the first non-Cloudflare
+  # one: a different provider, a different credential (ADC, not an API token) and
+  # a different blast radius. Mixing it into a Cloudflare stack would mean one
+  # plan that can fail for two unrelated reasons.
+  gcpBudgetConfig =
+    { system }:
+    terranix.lib.terranixConfiguration {
+      inherit system;
+      modules = [
+        ../../infra/gcp/budget.nix
+        {
+          _module.args = {
+            billingAccountId = gcpBillingAccountId;
+            budgetAmount = gcpBudgetAmount;
+            budgetCurrency = gcpBudgetCurrency;
+            automationServiceAccount = gcpAutomationServiceAccount;
+          };
+        }
+      ];
+    };
+
+  # No API token to check here: the google provider authenticates via ADC, which
+  # the devShell scopes to this repo (CLOUDSDK_CONFIG, modules/parts/devshell.nix).
+  # That is exactly why the guard below checks for ADC rather than an env var — an
+  # unset CLOUDFLARE_API_TOKEN fails loudly, but a MISSING ADC file makes the
+  # provider fall back to whatever other credential it can find, which is how you
+  # apply to the wrong account without noticing.
+  mkGcpBudgetTofu =
+    {
+      system,
+      name,
+      action,
+    }:
+    let
+      pkgs = pkgsFor system;
+    in
+    pkgs.writeShellApplication {
+      inherit name;
+      runtimeInputs = [
+        pkgs.opentofu
+        pkgs.coreutils
+        pkgs.jq
+      ];
+      text = ''
+        adc="''${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}/application_default_credentials.json"
+        if [ ! -f "$adc" ]; then
+          echo "ERROR: no Application Default Credentials at $adc" >&2
+          echo "  The google provider reads ADC, not 'gcloud auth login'. Both are needed:" >&2
+          echo "    gcloud auth login" >&2
+          echo "    gcloud auth application-default login" >&2
+          echo "  Run them inside 'nix develop', so they land in this repo's scoped" >&2
+          echo "  gcloud config dir rather than the global one." >&2
+          exit 1
+        fi
+        echo "ADC: $adc" >&2
+
+        # NO quota project, and that is the fix rather than an omission.
+        #
+        # Measured 2026-09-22, in this order: user ADC 403s on billingbudgets
+        # without a quota project; setting one (ADC field AND the provider's
+        # GOOGLE_BILLING_PROJECT) then 403s on `serviceusage.services.use` even
+        # with roles/owner held DIRECTLY on the project. The reason the second
+        # error looks like the first is that a quota project makes the client
+        # attach `x-goog-user-project` to EVERY call — including the
+        # impersonation call — and that header is itself serviceusage-gated.
+        #
+        # With impersonation the final API call carries the SERVICE ACCOUNT's
+        # credential, which needs no quota project at all. So the quota project
+        # was never the fix; it was the thing breaking impersonation.
+
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-gcp-budget"
+        mkdir -p "$state_dir"
+        chmod 700 "$state_dir"
+        cd "$state_dir"
+        umask 077
+        chmod 600 terraform.tfstate terraform.tfstate.backup 2>/dev/null || true
+        echo "tofu working directory: $state_dir" >&2
+
+        rm -f config.tf.json
+        cp ${gcpBudgetConfig { inherit system; }} config.tf.json
+        chmod 600 config.tf.json
+        tofu init
+
+        # The budget is ONE object, so the elaborate delta guards the Cloudflare
+        # stacks carry would be ceremony here. The one mistake worth refusing is
+        # the opposite of theirs: a render that would DELETE the alarm and leave
+        # the account unwatched.
+        rendered=$(jq '[.resource.google_billing_budget // {} | keys[]] | length' config.tf.json)
+        if [ "''${rendered:-0}" -lt 1 ] && [ -s terraform.tfstate ]; then
+          echo "REFUSING: render declares no budget but state holds one." >&2
+          echo "  Applying would DELETE the spend alarm and leave the billing" >&2
+          echo "  account unwatched. That is never an accident worth allowing." >&2
+          exit 1
+        fi
+
+        tofu ${action} "$@"
+      '';
+    };
+
   # writeShellApplication wrapper around `tofu <action>` for the PUBLISHED MCP
   # gateway stack (infra/cloudflare/mcp-public.nix). Deliberately its own
   # builder rather than a parameter on mkCfTunnelTofu: it is a different stack
@@ -668,6 +772,16 @@ in
           name = "cf-zones-plan";
           action = "plan";
         };
+        gcp-budget-plan = mkGcpBudgetTofu {
+          inherit system;
+          name = "gcp-budget-plan";
+          action = "plan";
+        };
+        gcp-budget-apply = mkGcpBudgetTofu {
+          inherit system;
+          name = "gcp-budget-apply";
+          action = "apply";
+        };
         # destroy intentionally keeps hostedSites/publicServers at their [ ]
         # default: rendering "nothing" against non-empty state is exactly what
         # trips the guards above, so tearing down the real stack still needs
@@ -706,6 +820,16 @@ in
           type = "app";
           program = "${config.packages.mcp-public-apply}/bin/mcp-public-apply";
           meta.description = "Render infra/cloudflare/mcp-public.nix (terranix), tofu apply it, and print the Mac connector token (needs CLOUDFLARE_API_TOKEN)";
+        };
+        gcp-budget-plan = {
+          type = "app";
+          program = "${config.packages.gcp-budget-plan}/bin/gcp-budget-plan";
+          meta.description = "Render infra/gcp/budget.nix (terranix) and tofu PLAN the GCP spend ALERT — read-only (needs ADC, not an API token)";
+        };
+        gcp-budget-apply = {
+          type = "app";
+          program = "${config.packages.gcp-budget-apply}/bin/gcp-budget-apply";
+          meta.description = "tofu apply the GCP billing budget — an ALERT at thresholds, NOT a spending cap; Google offers no hard cap (needs ADC)";
         };
         cf-zones-plan = {
           type = "app";
