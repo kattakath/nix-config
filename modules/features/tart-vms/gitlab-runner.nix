@@ -92,6 +92,9 @@ let
           prepare_exec = "${gitlabTart.prepare}/bin/nix-gitlab-tart-prepare"
           run_exec = "${gitlabTart.run}/bin/nix-gitlab-tart-run"
           cleanup_exec = "${gitlabTart.cleanup}/bin/nix-gitlab-tart-cleanup"
+      ${lib.optionalString (
+        cfg.defaultImage != null
+      ) "    prepare_args = [ \"--default-image\", ${builtins.toJSON cfg.defaultImage} ]"}
       EOF
 
       exec gitlab-runner run --config "$confDir/config.toml" --working-directory "$HOME"
@@ -127,6 +130,19 @@ in
       type = lib.types.ints.positive;
       default = 2;
       description = "Global job concurrency; may exceed the VM budget — the slot shims serialize.";
+    };
+    defaultImage = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "ghcr.io/cirruslabs/macos-runner@sha256:<digest>";
+      description = ''
+        Tart image for a job whose .gitlab-ci.yml names no `image:`, passed to
+        gitlab-tart-executor's prepare stage as `--default-image` through
+        gitlab-runner's own `prepare_args`. Without it, such a job fails in
+        prepare as runner_system_failure, with the executor's misleading
+        "CUSTOM_ENV_CI_JOB_ID is missing and no --default-image was set".
+        Pin by digest, as the GitHub lane does: a tag would move under the job.
+      '';
     };
     package = lib.mkOption {
       type = lib.types.package;
