@@ -2791,11 +2791,11 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   canonical; rename + repo split deferred; §7 awaits approval, §8 the conflicts);
   [`ADR-005`](docs/iac-coverage-adr.md) (decided and **IMPLEMENTED**: Cloudflare + GCP under
   terranix, Workspace not — §8c is its doc-rot record);
-  [`ADR-006`](docs/mcp-gateway-succession-adr.md) (**name only, NOT implemented**: IBM ContextForge
-  is the named successor to `mcp-proxy` — bought for identity propagation, **not** for the startup
-  barrier, which §8's `translate`-sidecar option fixes far more cheaply. **Read §3** — "runs stdio
-  servers on the host" is FALSE as stated: a ContextForge *gateway* rejects stdio, so every server
-  needs its own `mcpgateway.translate` sidecar, taking the fleet to ~57 processes and 28 agents).
+  [`ADR-006`](docs/mcp-gateway-succession-adr.md) (**name only, NOT implemented**: ContextForge is a
+  candidate for the **PORTAL layer**, NOT a successor to `mcp-proxy` — it rejects stdio outright, so
+  it sits ABOVE a bridge you keep either way. **Read §1a**: the layer it competes with is the
+  Cloudflare MCP Portal, which wins on every axis but one — per-user credential injection into a
+  local child, which no remote portal can do and which is unreachable today anyway).
 - [`docs/workspace-runbook.md`](docs/workspace-runbook.md) — Workspace by hand (the provider is
   archived, ADR-005 §3.3): inventory, verify, and the delegation table no CLI can read.
 - [`docs/identity-and-offboarding.md`](docs/identity-and-offboarding.md) — the single lever:
