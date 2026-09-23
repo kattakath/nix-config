@@ -1,7 +1,7 @@
 # Claude Desktop / Cowork — MCP parity with Claude Code (2026-09-15)
 
-**Decision: Claude Desktop is "Client side D" of the MCP hub.** The same servers Claude
-Code gets — every localhost-gateway endpoint plus the per-client stdio servers — are
+**Decision: Claude Desktop is "Client side D" of the MCP hub.** The same connector Claude
+Code gets — the Cloudflare MCP portal in front of the gateway — is
 rendered into Desktop's `claude_desktop_config.json` by
 [`modules/shared/claude-desktop.nix`](../modules/shared/claude-desktop.nix). Cowork gets
 them for free through Desktop's device bridge.
@@ -26,17 +26,21 @@ move the shim transform with it.
 
 ## What gets written
 
+Since 2026-09-22 this is **one** entry, not a per-server list: `programs.claude-code.mcpServers`
+is empty (desktop-commander moved onto the proxy, open-design left the fleet), and the hub
+carries a single portal URL.
+
 ```
-programs.mcp.servers (hub)            programs.claude-code.mcpServers
-  26 gateway endpoints (url)            desktop-commander  ── excluded (Desktop Extension already)
-        │                               open-design        ── copied verbatim (already stdio)
+programs.mcp.servers (hub)
+  kattakath-portal (url = https://mcp.kattakath.com/mcp)
+        │
         v  toStdioShim
   { command = <store>/npx;
     args = [ -y mcp-remote@<pin> <url> --transport http-only ];
     env  = { NIX_CONFIG_MANAGED = "claude-desktop"; } }
         │
         v  activation: jq merges ONLY .mcpServers, ONLY marked entries
-  claude_desktop_config.json  (27 entries; foreign entries + other keys untouched)
+  claude_desktop_config.json  (1 entry; foreign entries + other keys untouched)
         │
         v  Desktop device bridge
   Cowork cloud session: mcp__remote-devices__<name>__*
@@ -59,7 +63,7 @@ programs.mcp.servers (hub)            programs.claude-code.mcpServers
 |---|---|---|
 | Desktop app | this file | yes |
 | Cowork, Mac linked | Desktop bridge → `mcp__remote-devices__<name>__*` | yes — without publishing them |
-| Cowork, Mac **not** linked (phone, closed laptop) | remote connector = the **public** gateway (`local.mcpGateway.public`, :8097 behind Cloudflare Access) | no, by design — keep account-credential servers off the public list |
+| Cowork, Mac **not** linked (phone, closed laptop) | remote connector = the same portal (`config.fleet.publicMcpServers`, behind Cloudflare Access) | **yes** since 2026-09-22 — all 26 are published, so this row no longer differs from the one above |
 
 Skills and plugins are **not** in scope here: in Desktop/Cowork they are account state
 (Settings → Capabilities, the claude.ai plugin catalog), not files. The plan for those is
@@ -102,8 +106,9 @@ Ordering no longer matters: you can activate with Desktop open. It still needs a
 ## The contract, checked
 
 `checks.aarch64-darwin.claude-desktop-config-shape` reads the real macos rendering and
-fails if any entry is not `{command, args}` + marker, if any gateway endpoint is missing
-(parity is the point), or if `desktop-commander` sneaks in (20 duplicate tools). It exists
+fails if any entry is not `{command, args}` + marker, if no rendered entry dials the
+gateway's own `portalEndpoint` (two modules, one URL — the parity that is left once there is
+one connector), or if `desktop-commander` sneaks in. It exists
 because the failure mode is silent: a wrong-shaped entry does not error, it disappears from
 the app.
 

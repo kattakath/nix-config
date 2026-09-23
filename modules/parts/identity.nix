@@ -184,14 +184,20 @@ let
   # internal error, and marked the whole registration `status = error` —
   # contributing 0 of its 5 tools while still occupying a portal slot.
   #
-  # Measured on 127.0.0.1:8097, so this is the server, not the edge: `memory`
+  # Measured on the gateway itself, so this is the server, not the edge: `memory`
   # advertises no prompts and answers `-32601 Method not found`, which the portal
   # tolerates. A clean "not implemented" is fine; a malformed error is not.
   #
-  # It is UNAFFECTED on the private gateway (:8096) — `tools/list` works there, so
-  # Claude Code keeps all 5 tools. Only the PUBLISHED copy is withdrawn. Re-add it
-  # when chaindead/telegram-mcp either implements those methods or stops
-  # advertising them.
+  # WITHDRAWING IT NOW COSTS THE TOOLS, which it did not when this was written.
+  # The first draft said telegram was "unaffected on the private gateway (:8096),
+  # so Claude Code keeps all 5 tools" — true for about a day. The same 2026-09-22
+  # change that withdrew it also collapsed the two proxies into one and put every
+  # client behind the portal, so there is no private gateway left to keep serving
+  # it: withdrawn here means gone from every client, not merely unpublished.
+  # `local.mcpGateway.telegram.enable` is therefore also off, and turning it on
+  # alone fails mcp-published-parity — that option's comment has the detail.
+  # Re-add it here when chaindead/telegram-mcp either implements those methods or
+  # stops advertising them.
   #
   # The gmail-* names are `gmailAlias` (modules/shared/mcp.nix) applied to
   # hosts/macos.nix's `local.mcpGateway.gmail.accounts` — lowercased, with
@@ -274,14 +280,56 @@ let
   # which is granted to the operator and to nobody else. No key file exists.
   gcpAutomationServiceAccount = "tofu-fleet@kattakath-family.iam.gserviceaccount.com";
 
-  # The loopback port the SECOND mcp-proxy binds, and therefore the port the
+  # The loopback port the gateway's mcp-proxy binds, and therefore the port the
   # published tunnel's ingress must point at. Single-sourced here because its two
   # consumers cannot see each other: modules/shared/mcp.nix binds it (a Home
   # Manager module) and infra/cloudflare/mcp-public.nix routes to it (a terranix
   # module). It was written 8097 in both. A change to one alone is silent and
   # outward-facing — the connector proxies to a dead port and the public endpoint
   # 502s — so the two spellings are exactly the drift this file exists to stop.
+  #
+  # (It was the SECOND proxy's port until 2026-09-22; the private :8096 one is
+  # gone and this is now the only gateway port.)
   publicMcpPort = 8097;
+
+  # ---- The Cloudflare Access organisation, as data ------------------------
+  # Rendered by infra/cloudflare/access-org.nix. Read that module's header before
+  # changing anything here: the resource models the WHOLE organisation with every
+  # attribute optional, so a field dropped from this attrset is an instruction to
+  # BLANK it, and `authDomain` is the sign-in host for every Access application in
+  # the account — nixpi's SSH gate included.
+  #
+  # `name` and `authDomain` are mirrored live state, not settings chosen here.
+  # Note `name` is "Family" and is NOT `orgName` ("kattakath", the GitHub org) —
+  # two different namespaces that happen to describe the same person.
+  #
+  # WHY THE BRANDING MATTERS AT ALL: the login page is the ONLY surface in the
+  # connector flow that carries the operator's mark. Claude renders a generic
+  # globe for every custom connector — `serverInfo.icons` exists in MCP spec
+  # 2025-11-25 but Claude does not read it (anthropics/claude-ai-mcp#152, open
+  # since 2026-04-06), and Cloudflare's portal object has no icon field to put one
+  # in either. Measured 2026-09-22.
+  #
+  # `logoUrl` must be a URL Cloudflare can FETCH, not a file: the login page is
+  # rendered by Cloudflare, so the asset is hosted rather than committed here.
+  #
+  # It is the WORDMARK (512x132) and not the square icon, deliberately — the login
+  # header is wide and the mark that fills it is the horizontal one. Verified
+  # byte-identical to ~/Pictures/logo.svg.
+  #
+  # NOT a duplicate of `logoUrl` above: that one is a DIFFERENT lockup
+  # (1080x426, from the resume gist) consumed by the email-signature package.
+  # Different aspect ratios for different surfaces — do not "DRY" them into one.
+  accessOrg = {
+    name = "Family";
+    authDomain = "kattakath.cloudflareaccess.com";
+    loginDesign = {
+      logoUrl = "https://raw.githubusercontent.com/kattakath/kattakath.github.io/refs/heads/main/logo.svg";
+      backgroundColor = "#300a24";
+      headerText = "Sign in with your @${domainName} email";
+      footerText = "Members only";
+    };
+  };
 
   # ---- Shared identity, as threaded into BOTH builders --------------------
   # Threaded into mkNixos + mkDarwin so system specialArgs and the embedded
@@ -393,6 +441,7 @@ in
         hostedSites
         publicMcpServers
         publicMcpPort
+        accessOrg
         gcpBillingAccountId
         gcpBudgetAmount
         gcpBudgetCurrency

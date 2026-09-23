@@ -113,6 +113,22 @@ gcloud services list --enabled --project=kattakath-family | grep -E 'admin|drive
 **Scopes cannot be verified from a CLI** — there is no public API for the delegation table.
 Admin console → Security → API controls → Domain-wide delegation.
 
+**Sign in as `ismail@kattakath.com` to do it, and as nothing else.** It is the only account in
+this fleet with Admin console access on `kattakath.com`. The Mac holds four Google logins (the
+four `gmail-*` MCP servers), and the other three cannot open that screen at all — notably
+`izzy@silvercreek.ai`, which *is* a full Workspace account with GCP access, but on a **different
+tenant**. "Log in to Google and check" is therefore not a well-formed instruction here; three
+of the four answers are a permission error.
+
+That tenant boundary is real and was measured rather than assumed: running a terranix app under
+`izzy@silvercreek.ai`'s ADC on 2026-09-22 failed with
+`does not have storage.objects.list access` on `kattakath-tofu-state` — a different Workspace,
+correctly walled off from this project. The consequence worth keeping: **suspending
+`ismail@kattakath.com` does not touch `izzy@silvercreek.ai`**, because the single lever in
+[`identity-and-offboarding.md`](identity-and-offboarding.md) is scoped to *this* domain. That is
+correct, not a gap — the silvercreek identity is a different business's to revoke — but it means
+the lever is one-per-tenant, and this fleet's Mac is signed into two.
+
 **Expected state, as of 2026-09-22: the API clients table is EMPTY.** Any row appearing there is
 a change worth explaining, and a row for `ws-domain-admin` means the latent risk in §2 just went
 live — at which point §4 steps 2 and 3 become mandatory rather than precautionary.

@@ -4,9 +4,12 @@
 (see §9); §7/§7a were revised again the same day, when `character-mcp` migrated off its own OAuth
 onto the shared service token — and again on **2026-09-14**, when `character-mcp` was
 decommissioned. **§7's external-Worker shape is still fully supported and has zero users**:
-`character` was its only one, so it now reads as the *retired worked example*. The gateway half
-(§§1–6) is unaffected. **2026-09-22: the published list went from those two to ALL 26 hosted
-servers** by operator decision — see §8.2, and read §3 knowing its bound no longer binds.
+`character` was its only one, so it now reads as the *retired worked example*.
+
+> **⚠ READ §10 FIRST.** On **2026-09-22** the published list went from two servers to **all 26**,
+> and the two-proxy model that §§1–6 describe as current was **collapsed into one**. §3 — the
+> "decisive constraint" — is now history, not architecture. §10 records what replaced it and
+> what that trade gave up.
 
 **The ask, verbatim:** *"Can we integrate this feature with our `mcp.nix` so that by flipping a
 flag, an MCP server can be made reached public with connector protection?"* — i.e. publish
@@ -356,3 +359,51 @@ its four objections were wrong or weak, and it answered a question that had not 
 
 Kept from v1 because it remains correct: the invariant in §7, the redirect-URI analysis in §7a,
 and the verified provider-resource list in §2.
+
+---
+
+## 10. The second gateway is GONE — read §3 as history (2026-09-22)
+
+**§3 is the load-bearing section of this note, and its conclusion no longer holds.** It argued
+for a *second* `mcp-proxy` process on `:8097` so that an unpublished server would be
+structurally **absent** from the tunnelled hostname rather than merely unrouted — because
+Cloudflare Access protects a hostname, not a path. That reasoning was correct, and it was
+correct *because 2 of 26 servers were published*.
+
+Publishing all 26 removed its premise. Both processes then hosted the identical set, so the
+split bounded nothing but a crash, while costing:
+
+| | Two proxies | One proxy |
+|---|---|---|
+| processes | ~50 | **26** |
+| copies of each server | 2 | 1 |
+| Gmail credential file | 2 writers | 1 |
+| MTProto session / memory graph | 2 writers | 1 |
+| ports | `:8096` + `:8097` | `:8097` only |
+
+Two writers per credential file is the part that made this urgent rather than merely wasteful:
+duplicated servers were contending over one Gmail credential store, one Telegram session and
+one memory graph.
+
+**What is true now:** one proxy, on `publicMcpPort`; every client reaches every server through
+the portal at `https://mcp.<domainName>/mcp`; there is no `local.mcpGateway.public` option, and
+the roster is `config.fleet.publicMcpServers` with `checks.<system>.mcp-published-parity`
+enforcing hosted == published in both directions.
+
+**What was traded away, said plainly:** absence is no longer a boundary. Every published
+server is reachable at one hostname behind one Access gate, so the blast radius of a leaked
+service token is the whole roster — including `desktop-commander` (shell), `macos-automator`
+(arbitrary AppleScript) and four Gmail accounts. The protection is identity at the edge, not
+structural absence. Narrowing `publicMcpServers` is the only lever that restores absence, and
+it now removes the server from *every* client rather than from the public copy only.
+
+**Anecdote:** §3 built a separate locked room for the two items worth publishing, so the rest
+of the house stayed out of reach even if that room's key leaked. Then everything was moved into
+that room. The second door was still there, still locked — with nothing left on the other side
+of it. *(Where it breaks down: the second door did still contain a fire — a crash in the public
+copy could not dark the private one. That is the one thing genuinely given up, and it was worth
+26 duplicate processes only while the room was nearly empty.)*
+
+The prose in §§1–6 is preserved rather than rewritten, because the *reasoning* is what a future
+reader needs when they consider narrowing the list again — at which point §3's argument becomes
+live a second time.

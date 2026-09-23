@@ -1797,15 +1797,30 @@ for the main pane, which sits at `left:0` inside it, so moving both would double
 
 ## `infra/` — terranix (Nix → OpenTofu/Terraform JSON)
 
-**Five stacks, and the split is deliberate: a stack is a blast radius, not a category.**
+**Six stacks, and the split is deliberate: a stack is a blast radius, not a category.**
 
 | Stack | State | Breaking it takes down |
 |---|---|---|
 | `cf-tunnel` | GCS `cf-tunnel/` | the Pi |
 | `mcp-public` | GCS `mcp-public/` | the MCP portal |
 | `cf-zones` | GCS `cf-zones/` | **mail** |
+| `cf-access-org` | GCS `cf-access-org/` | **every Access app at once** |
 | `gcp-budget` | GCS `gcp-budget/` | the spend alert |
-| `gcp-foundation` | **local** | the bucket the other four live in |
+| `gcp-foundation` | **local** | the bucket the others live in |
+
+**Run every one of these inside `nix develop`.** Not a style preference — `CLOUDSDK_CONFIG`
+scopes `gcloud`, but it does **not** scope Terraform: the Go auth library ignores it and reads
+the well-known ADC path instead, so only the devShell's `GOOGLE_APPLICATION_CREDENTIALS`
+(`modules/parts/devshell.nix`) points tofu at this repo's credentials. Measured 2026-09-22: a
+bare `nix run .#cf-access-org-plan` failed at `Initializing the backend` with
+`izzy@silvercreek.ai does not have storage.objects.list access` — a correct `gcloud` account and
+a tofu authenticated as a **different Workspace tenant** entirely. The 403 was the lucky
+outcome; the shape to fear is an ambient credential that *does* have access and writes to the
+wrong place silently. Canonical invocation:
+
+```bash
+nix develop -c bash -c 'secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- nix run .#<app>'
+```
 
 State is the shared, versioned bucket `kattakath-tofu-state`, **encrypted** with a passphrase
 read from the login Keychain at run time via `TF_ENCRYPTION` (ADR-005 phase 1 —
@@ -1826,6 +1841,39 @@ Cloudflare creates with the portal). Importing one twice is how a plan grows a d
 Its guard is shaped for its own failure mode — a **record-count floor** — because the way this
 stack hurts you is a shrunken render silently deleting mail, not a bad tunnel. Applied via
 `cf-zones-apply`; `cf-zones-plan` is read-only. There is no `cf-zones-destroy`.
+
+### `infra/cloudflare/access-org.nix`
+
+The Zero Trust **organisation** — one resource, `cloudflare_zero_trust_organization`, and its
+own stack because it sits *above* the other two Cloudflare ones rather than beside them:
+`auth_domain` is the sign-in host for **every** Access application in the account, so a bad
+apply takes out nixpi's SSH gate and the MCP portal together. One resource is not an argument
+for folding it into a neighbour; the rule keys on consequence, not line count.
+
+**What it is for:** the login page's branding (`login_design` — logo, background, header,
+footer), which is the *only* surface in the MCP connector flow carrying the operator's mark.
+Claude renders a generic globe for every custom connector — `serverInfo.icons` exists in MCP
+spec 2025-11-25 but Claude does not read it
+([anthropics/claude-ai-mcp#152](https://github.com/anthropics/claude-ai-mcp/issues/152)), and
+Cloudflare's portal object has no icon field either (both measured 2026-09-22). The logo is the
+**wordmark** (512x132), not the square icon, because the login header is wide — and it is a
+URL Cloudflare fetches, not an upload, so the asset is hosted rather than committed here.
+
+**Two traps, both guarded in the wrapper:**
+
+1. **Every attribute is optional** in the pinned provider (5.25.0, verified via
+   `tofu providers schema -json`). There is no "manage only `login_design`" mode, so a render
+   declaring just the branding is not a safe subset — it describes an organisation whose other
+   fields are unset. The module therefore **mirrors** the live object, and the rule for editing
+   it inverts the usual one: *do not remove a field you are not using.* An omission is an
+   instruction to blank it. The wrapper refuses outright if the render has lost `auth_domain`.
+2. **Import, never create.** There is one organisation per account, created 2026-07-03. The
+   wrapper refuses an apply against state that does not already track it and prints the import
+   command, because a create here is a clobber.
+
+Data lives in `config.fleet.accessOrg` (`modules/parts/identity.nix`). Applied via
+`cf-access-org-apply`; `cf-access-org-plan` is read-only. There is **no** destroy app — there is
+no API to delete an organisation, so a destroy would merely blank one.
 
 ### `infra/gcp/foundation.nix`
 
@@ -1902,6 +1950,66 @@ service-token secret in plaintext). `mcp-public-apply` passes the fleet's real
 the `[ ]` default so tearing down the real registrations still needs the explicit
 `MCP_PUBLIC_ALLOW_EMPTY=1` override — `mkMcpPublicTofu` refuses a render that publishes 0
 servers against state that holds more than 0.
+
+## Building `aarch64-linux` on the Mac, and deploying `nixpi`
+
+The long form of CLAUDE.md § Important Notes. Those bullets keep the imperatives; the
+measurements that justify them live here, because they are read once and obeyed thereafter.
+
+### The native Linux builder
+
+`aarch64-linux` builds on the Mac go to **Determinate's native Linux builder** (Apple
+Virtualization; an ephemeral VM, **1 CPU / 8 GiB by default**). The account entitlement is
+enabled at <https://dtr.mn/features>.
+
+The VM **is** settable from Nix: the pinned `determinate` module grew
+`determinateNix.determinateNixd.builder.{state,memoryBytes,cpuCount}`, rendered to
+`/etc/determinate/config.json`. Only the raw `external-builders` line is reserved and rejected
+by `customSettings`. Upstream says do **not** change `cpuCount`; `memoryBytes` is the knob if a
+Linux build ever OOMs.
+
+nix-darwin's own `nix.linux-builder` is unusable here: it requires `nix.enable = true`, which
+Determinate disables (nix-darwin#1505).
+
+**Account entitlement alone is not enough.** The local `determinate-nixd` must ALSO be logged in
+to FlakeHub, or `native-linux-builder` silently vanishes and every `aarch64-linux` build fails
+with a `platform mismatch` that reads as a platform problem rather than an auth one. It is a
+manual, per-machine step — see "Manual steps Nix can't do" in
+[`new-mac-runbook.md`](new-mac-runbook.md).
+
+#### The one operation it cannot do
+
+The builder **cannot run `cp --no-preserve=mode` into `$out`** — EPERM, "setting permissions".
+That breaks nixpkgs' caddy `Caddyfile-formatted`, and therefore every Mac-side build of a
+Caddy-serving `nixpi` generation.
+
+Measured 2026-09-15: **only that one operation fails.** `cat >`, `install -m`, and `cp` followed
+by `chmod` all succeed on the same builder. So this is a narrow (undocumented, unreported)
+builder bug, not a general chmod ban — which matters, because the tempting diagnosis is "the
+builder can't set permissions" and that would send you looking for a fix that does not exist.
+
+**Do not work around it by building on the Pi.** `warm-nixpi-cache.yml` builds the closure on a
+real ARM Linux runner and pushes it to Cachix, so the Mac substitutes and never runs that `cp`
+at all. Heavy multi-core builds (the Pi SD image) go to GitHub CI / Cachix for the same reason.
+
+### What magic rollback actually buys
+
+`deploy.nodes.nixpi.magicRollback = true`: the Pi activates behind a watchdog and reverts
+**itself** to the previous generation unless the deployer reconnects over a second ssh session
+and confirms.
+
+That converts the fleet's worst failure into an ordinary one. A change that kills sshd, the
+tunnel connector, or networking becomes a **failed deploy** instead of a trip to the shelf to
+pull the SD card and reflash ([`nixpi-sd-flashing-runbook.md`](nixpi-sd-flashing-runbook.md),
+~40 min with hands on the hardware).
+
+`nixos-rebuild switch --target-host` has **no such undo** — it is the faster command and the one
+with no safety net. `remoteBuild = false` keeps the build off the Pi either way.
+
+**Anecdote:** it is the climber's rope. It does not stop the fall; it stops the fall from being
+the end of the trip. *(Where it breaks down: the rope is anchored to the deployer's second ssh
+session — lose your own connectivity mid-deploy and the Pi rolls back a change that was
+perfectly fine.)*
 
 ## Claude Code surface
 

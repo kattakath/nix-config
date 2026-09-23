@@ -65,10 +65,10 @@ nix fmt                                      # Format + lint-fix all .nix via tr
 nix develop                                  # Dev shell (nixd LSP, treefmt, home-manager); installs pre-commit hooks
 nix build .#checks.<system>.formatting       # CI formatting/lint gate
 nix build .#checks.<system>.ast-grep         # Structural-lint gate (report-only; rules in ast-grep/rules/)
-ast-grep scan --no-ignore hidden .           # Same scan by hand (devShell); --no-ignore hidden or .claude/ is SKIPPED
+ast-grep scan --no-ignore hidden .           # Same scan by hand (devShell); without --no-ignore hidden, .claude/ is SKIPPED
 ast-grep test --skip-snapshot-tests          # Prove each rule still fires (fixtures in ast-grep/rule-tests/)
 nix build .#checks.<system>.capsule-registry # readDir modules/features == the capsules import-tree loaded
-nix build .#checks.<system>.claude-md-budget # THIS file must stay under 40,000 chars — it is a GATE
+nix build .#checks.<system>.claude-md-budget # THIS file must stay under 40,000 BYTES (wc -c) — a GATE
 scripts/drv-snapshot.sh --compare .baseline/wave0-final   # "moved code, changed no build" (see § Testing)
 # Agent hygiene (LEAN/DRY/docs drift → fix → fmt → check): /hygiene  or skill nix-hygiene
 
@@ -86,11 +86,9 @@ nixos-rebuild switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com
 nix develop -c deploy --targets .#nixpi      # Same, via deploy-rs w/ magicRollback: an unreachable Pi auto-reverts
                                              #   instead of needing a physical SD-card pull. ALWAYS --targets (bare
                                              #   `deploy` fans out over every node). --dry-activate to rehearse.
-                                             #   `nix develop -c` is NOT optional: deploy-rs is consumed as a flake
-                                             #   LIB, so the `deploy` CLI exists only in the devShell
-                                             #   (modules/parts/devshell.nix). A bare `deploy` is NOT on PATH and
-                                             #   exits 1 with EMPTY output — a silent failure, not a missing-command
-                                             #   error. Measured 2026-09-16.
+                                             #   `nix develop -c` is NOT optional: deploy-rs is a flake LIB, so the
+                                             #   CLI exists only in the devShell. A bare `deploy` exits 1 with EMPTY
+                                             #   output — silent failure, not "command not found". Measured 2026-09-16.
 nix run .#nixvm                              # Build + boot the throwaway nixvm XFCE build-vm in a native QEMU window
 nix eval .#nixosConfigurations.nixpi.config.system.build.toplevel   # Fast single-target eval
 
@@ -107,9 +105,12 @@ nix run .#nixpi-provision                     # Plant/update token + Wi-Fi on a 
 # Flashing: do a FULL verified write (confirm dd's ~5.6GB byte count) — see docs/nixpi-sd-flashing-runbook.md
 # Companions: nixpi-wifi-creds (emit wpa_supplicant.conf from this Mac), nixpi-vault-token (re-encrypt a rotated token)
 
-# Cloudflare tunnel (terranix)
-CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-tunnel-apply     # Provision nixpi's tunnel + ingress + CNAME; PRINTS the connector token
-CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-tunnel-destroy   # Tear the stack down
+# terranix — 6 stacks, one GCS backend. Run inside `nix develop` or tofu picks the WRONG ADC.
+# *-plan first; every *-destroy is hard-blocked by the guard.
+CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-tunnel-apply     # nixpi's tunnel + ingress + CNAME; PRINTS the connector token
+CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-zones-{plan,apply}         # kattakath.com DNS records
+CLOUDFLARE_API_TOKEN=<scoped> nix run .#mcp-public-{apply,sync,token}  # published MCP gateway; `sync` re-polls the portal
+nix run .#gcp-{foundation,budget}-{plan,apply}              # GCP APIs/SA/state bucket; the 5 CAD spend ALERT
 
 ```
 
@@ -152,8 +153,8 @@ One line per path; the *why* and the per-file specifics are in
 | `modules/shared/` | The Home Manager profile on every host. Modules that DECLARE a `local.*` option: `mcp.nix`, terminal theme, chromium, default browser, übersicht (the one HTML widget) + next-right-thing (what it says), wireguard, desktop aesthetics (the wallpaper), claude plugins/otel/desktop. Option-free modules that just configure: `home.nix`, nix cache, nix-ld, launchd-launcher, claude brain/bedrock-gate/guardrails — `local.claudeBedrock` was DELETED 2026-09-15, so do not look for it. |
 | `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix`, `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`local.macosGithubRunner` — LIVE, see § Configuration), `ollama-daemon.nix` (`local.ollamaDaemon` — ONE machine-wide `ollama serve`, so every account shares one process and one 31 GB model store), `claude-managed-settings.nix` (`local.claudeManagedSettings` — the root-owned Claude Code MANAGED settings file; `enable = false` DELETES it). |
 | `modules/nixos/` | `core.nix` (user + keys-only **loopback-bound** sshd, `openFirewall = false`, a firewall that opens **no** TCP port, avahi, nix-ld, zram, GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). `nixpi`'s composed posture is GATED — `checks.<system>.nixpi-security-posture` (built on BOTH systems: the edits it guards are made on the Mac). |
-| `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `activate` (the self-elevating rebuild above), `spotlight-launchers`, plus single-purpose CLIs. `grok.nix` and `antigravity-cli.nix` are SRI-pinned prebuilt vendor binaries (`grok` also needs `dontFixup` to keep xAI's signature); `fal.nix` ships `fal` + `fal-gen` as ephemeral `uv` envs. These are SHARED via `environment.systemPackages`, not per-user. Root `bootstrap.sh` is the no-Nix stage 1. The media/photo CLIs live in the `media-cli` capsule instead. |
-| `infra/` | terranix (Nix → Terraform JSON): `cloudflare/nixpi-tunnel.nix`, `cloudflare/mcp-public.nix`. Applied only via the `cf-*` / `mcp-public-*` apps. |
+| `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `activate` (the self-elevating rebuild above), `spotlight-launchers`, plus single-purpose CLIs. `grok.nix`/`antigravity-cli.nix` are SRI-pinned prebuilt vendor binaries, SHARED via `environment.systemPackages`, not per-user. Root `bootstrap.sh` is the no-Nix stage 1; the media/photo CLIs live in the `media-cli` capsule. |
+| `infra/` | terranix (Nix → Terraform JSON). Six stacks: `cloudflare/{nixpi-tunnel,mcp-public,zones,access-org}.nix` (+ `kattakath-dns.nix`, records as data), `gcp/{foundation,budget}.nix`. Applied only via the `cf-*`/`mcp-public-*`/`gcp-*` apps; state in GCS (§ Important Notes). |
 | `secrets/` | agenix recipients + the operator pubkey + **four** ciphertexts — one operator-only, three host-decrypted on `macos`. Details in § Security. |
 | `sites/` | The static sites `nixpi`'s Caddy serves. Referenced by **directory** path literal (`config.fleet.hostedSites[].root`), so every byte lands in the LIVE closure — see [`store-copied-trees`](.claude/rules/store-copied-trees.md). |
 | `templates/` | `nix flake init -t` starter that consumes this engine's `lib.mkDarwin` (`identity` + `extraModules`) instead of forking `hosts/`. |
@@ -163,10 +164,9 @@ One line per path; the *why* and the per-file specifics are in
 | `.github/workflows/` | `nix-ci.yml` (hosted legs DERIVED from the fleet's own host systems), `warm-nixpi-cache.yml` (**keeps the Pi from ever building** — see § Important Notes), `auto-merge.yml`, `build-*`, `claude*.yml`, `gitleaks.yml`, `flakehub-publish.yml`, `update-flake-lock.yml`. |
 | `docs/` | Runbooks + design docs — indexed at the bottom of this file. |
 
-**Gone on purpose — do not re-add.** There is no `plugins/` tree (the operator's marketplace is
-`github:kattakath/ai`, pinned as `kattakath-ai`), and the fleet declares **zero userscripts**
-(published to Greasy Fork instead, so an installed copy self-updates — which a Nix-materialised
-`file://` copy never could). Both:
+**Gone on purpose — do not re-add.** No `plugins/` tree (the marketplace is
+`github:kattakath/ai`, pinned as `kattakath-ai`); **zero userscripts** (published to Greasy
+Fork, so an installed copy self-updates). Why:
 [`docs/agent-resource-externalization.md`](docs/agent-resource-externalization.md).
 
 **Commands** (`.claude/commands/`): `/eval`, `/hygiene`, `/update-input`, `/superhook-review`,
@@ -204,10 +204,11 @@ retracted by any lower scope, and every per-key precedence sentence in claude-co
 puts managed first. It carries the secret-value denies + attribution keys. Deny lists from
 every scope COMBINE, so that duplication is deliberate, not drift.
 
-**MCP servers**: one localhost `mcp-proxy` gateway (`modules/shared/mcp.nix`, darwin-only) on
-`127.0.0.1:8096` hosting every server as HTTP; `desktop-commander` and `open-design` stay
-per-client stdio. There is **no project `.mcp.json`**. Inventory + gotchas:
-[`docs/mcp-gateway.md`](docs/mcp-gateway.md).
+**MCP servers**: ONE `mcp-proxy` gateway (`modules/shared/mcp.nix`, darwin-only) on
+`127.0.0.1:<publicMcpPort>` hosting all 26; no per-client stdio servers remain. Clients declare
+ONE connector — the portal at `https://mcp.<domainName>/mcp` — not a server list;
+`checks.*.mcp-published-parity` holds hosted == `fleet.publicMcpServers`. No project
+`.mcp.json`. Inventory: [`docs/mcp-gateway.md`](docs/mcp-gateway.md).
 
 ## Code Style & Conventions
 
@@ -359,63 +360,46 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   **vanished once** (2026-08-20) and took `ssh` + both deploy legs with it; declaring it
   means a rebuild restores the gate. Zones with no terranix module here (aloshy.ai,
   etuper.com, izzykatt.ca, silvercreek.ai) are still configured out-of-band.
-- **OpenTofu state is the fragile part of the edge, not the config.** State has been lost
-  **twice** — both times because `tofu` ran in whatever the CWD happened to be, leaving a
-  gitignored state file behind. There is **no backend block**; instead each terranix app pins
-  its own working directory (0700, `umask 077`, state 0600 — **both** hold a tunnel connector
-  token in plaintext, and the MCP one also holds an Access service-token secret):
-  `cf-*` → `$XDG_STATE_HOME/nix-config-cf-tunnel`, `mcp-public-*` →
-  `$XDG_STATE_HOME/nix-config-mcp-public`. Never run `tofu` in a bare directory, and never
-  apply before a `plan` reads clean.
-- **What magic rollback actually buys** (`deploy.nodes.nixpi.magicRollback = true`): the Pi
-  activates behind a watchdog and reverts **itself** to the previous generation unless the
-  deployer reconnects over a second ssh session and confirms. A change that kills sshd, the
-  tunnel connector, or networking becomes a *failed deploy* instead of a trip to the shelf to
-  pull the SD card and reflash (`docs/nixpi-sd-flashing-runbook.md`, ~40 min). `nixos-rebuild
-  switch --target-host` has no such undo. `remoteBuild = false` keeps the build off the Pi.
+- **OpenTofu state is the fragile part of the edge, not the config.** State was lost **twice**
+  to `tofu` running in whatever the CWD happened to be. Since ADR-005 all six stacks share a
+  **GCS backend** (`fleet.gcpStateBucket`, versioned) **encrypted** with a Keychain passphrase
+  (`tofu:state:passphrase`) — state holds a connector token and an Access service-token secret
+  in plaintext, so **losing that passphrase makes all state unreadable**. Never apply before a
+  `plan` reads clean.
+- **What magic rollback buys** (`deploy.nodes.nixpi.magicRollback = true`): the Pi reverts
+  **itself** unless the deployer reconnects and confirms, so a change that kills sshd, the
+  tunnel or networking is a *failed deploy* rather than a trip to the shelf to reflash (~40 min).
+  `nixos-rebuild switch --target-host` has no such undo. Detail: `docs/repo-map.md`.
 - `home-manager switch` activates and is hard to reverse; prefer `build` to verify, and
   `switch` only when explicitly asked. `home-manager generations` lists,
   `home-manager rollback` reverts.
 - **`nix run .#nixvm` is the only way `nixvm` is ever booted** — a `nixos-rebuild build-vm`
   runner exposed as a flake app (XFCE desktop, native QEMU/Cocoa window on macOS, no
   macOS-guest path, no VM config outside Nix) booting a throwaway overlay. There is no
-  installed `nixvm` disk, no builder VM, and no runner on it. (Every self-hosted runner in the
-  fleet lives on `macos` — two bare-metal, three Tart-VM, one GitLab — and none of them serve
-  this repo's CI; see § Configuration.)
+  installed `nixvm` disk, no builder VM, and no runner on it. (Every self-hosted runner lives on
+  `macos`, and none serve this repo's CI — see § Configuration.)
 - **aarch64-linux builds on the Mac** go to Determinate's **native Linux builder** (Apple
-  Virtualization; ephemeral VM, **1 CPU / 8 GiB by default**). The account entitlement is
-  enabled at https://dtr.mn/features; the VM itself **is** settable from Nix since the pinned
-  `determinate` module grew `determinateNix.determinateNixd.builder.{state,memoryBytes,cpuCount}`
-  (rendered to `/etc/determinate/config.json`) — only the raw `external-builders` line is
-  reserved and rejected by `customSettings`. Upstream says do **not** change `cpuCount`;
-  `memoryBytes` is the knob if a Linux build ever OOMs. nix-darwin's `nix.linux-builder` is
-  unusable because it needs `nix.enable = true`, which Determinate disables (nix-darwin#1505).
-  It also **cannot run `cp --no-preserve=mode` into `$out`** (EPERM "setting permissions"),
-  which breaks nixpkgs' caddy `Caddyfile-formatted` and therefore every Mac-side build of a
-  Caddy-serving `nixpi` generation. Measured 2026-09-15: **only that one operation fails** —
-  `cat >`, `install -m` and `cp` + `chmod` all succeed on the same builder, so this is a narrow
-  (undocumented, unreported) builder bug, not a general chmod ban. **Do not work around it by
-  building on the Pi** — `warm-nixpi-cache.yml` builds the closure on a real ARM Linux runner
-  and pushes it to Cachix, so the Mac substitutes and never runs that `cp` at all.
-  **Account entitlement alone is not enough** — the local `determinate-nixd` must also be
-  logged in to FlakeHub, or `native-linux-builder` silently vanishes and every aarch64-linux
-  build fails with a `platform mismatch` that looks unrelated to auth. Manual, per-machine step:
-  see "Manual steps Nix can't do" in
-  [`docs/new-mac-runbook.md`](docs/new-mac-runbook.md). Heavy multi-core
-  builds (e.g. the Pi SD image) still go to GitHub CI / Cachix.
+  Virtualization; ephemeral VM, 1 CPU / 8 GiB). Two traps, both costly to rediscover:
+  `determinate-nixd` must be logged in to FlakeHub or the builder silently vanishes and every
+  build fails with an unrelated-looking `platform mismatch`; and it **cannot** `cp
+  --no-preserve=mode` into `$out`, which breaks nixpkgs' caddy `Caddyfile-formatted` and so
+  every Mac-side build of a Caddy-serving `nixpi` generation. **Never fix that by building on
+  the Pi** — CI warms the cache so the Mac substitutes instead. `memoryBytes` (not `cpuCount`)
+  is the knob if a Linux build OOMs. Full measurements, and why it is NOT a general chmod ban:
+  [`docs/repo-map.md`](docs/repo-map.md) § Building aarch64-linux on the Mac.
 
 ## Documentation
 
 - [`docs/repo-map.md`](docs/repo-map.md) — **the full fleet architecture**: every path, module,
   package and flake output, with the reasoning. The long form of § Navigating the Codebase.
-- [`docs/mcp-gateway.md`](docs/mcp-gateway.md) — the localhost MCP gateway: server inventory,
+- [`docs/mcp-gateway.md`](docs/mcp-gateway.md) — the MCP gateway: server inventory,
   credentials model, opt-ins, how to add one.
-- [`docs/mcp-public-exposure-design.md`](docs/mcp-public-exposure-design.md) — **BUILT and live**:
-  `local.mcpGateway.public` flips a server public via a **second** proxy on `:8097`, behind one
-  connector + one Access app + one service token. **Exactly two hostnames, and they never grow
-  per server.** §9 is its correction record.
-- [`docs/secrets-and-keychain.md`](docs/secrets-and-keychain.md) — agenix operator-only vault +
-  the login-Keychain loader and the `secret` CLI.
+- [`docs/mcp-public-exposure-design.md`](docs/mcp-public-exposure-design.md) — the published
+  gateway, behind one connector + one Access app + one service token. **Exactly two hostnames,
+  and they never grow per server.** **Read §10 first** — the two-proxy model §§1-6 describe was
+  collapsed 2026-09-22; §9 is its correction record.
+- [`docs/secrets-and-keychain.md`](docs/secrets-and-keychain.md) — agenix operator-only vault,
+  the login-Keychain loader, the `secret` CLI.
 - **ADRs, in order** — [`ADR-001`](docs/flake-architecture-strategy-adr.md) (flake-parts for the
   small supporting flakes; **superseded in part**, and its objection 3 still stands);
   [`ADR-002`](docs/monoflake-capsule-adr.md) (decided **and implemented**: absorbed all seven
@@ -425,14 +409,16 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   overlay from `$HOME`, **MCP servers may not**).
   [`ADR-004`](docs/secrets-recovery-and-identity-adr.md) (decided, **Phase 1 of 3 shipped — docs
   + `OPERATOR-ONLY` markers only**: GCP Secret Manager durable, Keychain as cache, Workspace
-  canonical; rename + repo split deferred with triggers; §7 awaits approval, §8 the conflicts);
-  [`ADR-005`](docs/iac-coverage-adr.md) (decided and **IMPLEMENTED**: Cloudflare + GCP
-  under terranix, Workspace not).
+  canonical; rename + repo split deferred; §7 awaits approval, §8 the conflicts);
+  [`ADR-005`](docs/iac-coverage-adr.md) (decided and **IMPLEMENTED**: Cloudflare + GCP under
+  terranix, Workspace not — §8c is its doc-rot record).
+- [`docs/workspace-runbook.md`](docs/workspace-runbook.md) — Workspace by hand (the provider is
+  archived, ADR-005 §3.3): inventory, verify, and the delegation table no CLI can read.
 - [`docs/identity-and-offboarding.md`](docs/identity-and-offboarding.md) — the single lever:
   suspend the Workspace account and every derived login goes with it; the three privilege tiers.
 - [`docs/agent-resource-externalization.md`](docs/agent-resource-externalization.md) — why the
-  operator's plugins, skills and userscripts left this tree while the seven satellites came back
-  in, and the rule it turned on: **a gate must move with the content it gates.**
+  operator's plugins, skills and userscripts left while the seven satellites came back, and the
+  rule it turned on: **a gate must move with the content it gates.**
 - [`docs/nixpi-sd-flashing-runbook.md`](docs/nixpi-sd-flashing-runbook.md) — flashing the `nixpi`
   SD card (full verified `dd` write).
 - [`docs/new-mac-runbook.md`](docs/new-mac-runbook.md) — standing up `macos` from a wiped
@@ -442,31 +428,30 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
 - [`docs/gmail-mcp-multi-account-runbook.md`](docs/gmail-mcp-multi-account-runbook.md) — TRUE
   simultaneous multi-account Gmail + a silent-wrong-account failure mode.
 - [`docs/claude-code-observability-runbook.md`](docs/claude-code-observability-runbook.md) — local
-  OTel for Claude Code's own `tool_decision` telemetry + the `/routing-review` loop.
+  OTel for Claude Code's `tool_decision` telemetry + the `/routing-review` loop.
 - [`docs/claude-hook-messages.md`](docs/claude-hook-messages.md) — decoder for this repo's hook
   messages (why DENYs read as "errors", how to read a prompt-hook denial).
 - [`docs/claude-desktop-instructions.md`](docs/claude-desktop-instructions.md) — the one Claude
   behaviour this repo can't manage declaratively + the canonical "diagrams as ASCII" wording.
 - [`docs/answer-shape-evidence.md`](docs/answer-shape-evidence.md) — the published standards
-  (COGA, ISO 24495-1, BDA) and measured effect sizes behind § Answer shape, so the rules stop
-  being re-litigated as taste. **A diagram that carries no data measurably HURTS** (g ≈ −0.4).
+  (COGA, ISO 24495-1, BDA) and effect sizes behind § Answer shape, so the rules stop being
+  re-litigated as taste. **A diagram that carries no data measurably HURTS** (g ≈ −0.4).
 - [`docs/terminal-theme.md`](docs/terminal-theme.md) — the one terminal palette: provider
-  contract, per-surface coverage (**4/16** on Terminal.app is an OS ceiling), and the measured
-  reasons stylix and base16.nix were both rejected.
-- [`docs/macos-settings-surface.md`](docs/macos-settings-surface.md) — what `macos` can configure
+  contract, per-surface coverage (**4/16** on Terminal.app is an OS ceiling), and why stylix
+  and base16.nix were both rejected.
+- [`docs/macos-settings-surface.md`](docs/macos-settings-surface.md) — what `macos` configures
   declaratively, and the TCC/FileVault walls.
 - [`docs/mcp-gateway-accessibility-tcc.md`](docs/mcp-gateway-accessibility-tcc.md) — the one-time
-  Accessibility (TCC) grant `macos-automator` needs.
+  Accessibility (TCC) grant for `macos-automator`.
 - [`docs/open-design.md`](docs/open-design.md) — OpenDesign's declared/imperative boundary: cask +
-  updater kill-switch + per-client stdio MCP vs. the app's mutable state.
-- [`docs/photo-system.md`](docs/photo-system.md) — the photo retrieval system end to end: the
-  durable/derived split between what `photo-describe` writes and what `rclip` keeps, and how to
-  search each.
+  updater kill-switch vs. the app's mutable state. Its MCP server left the fleet 2026-09-22.
+- [`docs/photo-system.md`](docs/photo-system.md) — photo retrieval end to end: the
+  durable/derived split between what `photo-describe` writes and what `rclip` keeps.
 - [`docs/auto-merge-and-merge-queue.md`](docs/auto-merge-and-merge-queue.md) — how every fleet
   flake merges itself once CI is green (App token, ruleset). **No merge queue** since
-  2026-09-22; §3 records why, and what to re-check before re-adopting one.
-- [`docs/flakehub-input-freshness.md`](docs/flakehub-input-freshness.md) — the automated weekly
+  2026-09-22; §3 records why, and what to re-check before re-adopting.
+- [`docs/flakehub-input-freshness.md`](docs/flakehub-input-freshness.md) — the weekly automated
   `flake.lock` bump flow.
 - [`docs/nix-media-cli-extraction-grant.md`](docs/nix-media-cli-extraction-grant.md) + its
   [study](docs/nix-media-cli-extraction-study.md) — **HISTORY**: extracted 2026-09, then ADR-002
-  brought it back in-tree as the `media-cli` capsule. Only the `media-<verb>` rename is open.
+  brought it back as the `media-cli` capsule. Only the `media-<verb>` rename is open.
