@@ -34,6 +34,7 @@ in
     ../modules/darwin/claude-managed-settings.nix
     ../modules/darwin/core.nix
     ../modules/darwin/github-runner.nix
+    ../modules/darwin/launchd-reconcile.nix
     ../modules/darwin/ollama-daemon.nix
     ../modules/darwin/yt-dlp-web-ui.nix
     ../modules/darwin/metube.nix
