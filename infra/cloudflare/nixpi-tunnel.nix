@@ -334,7 +334,7 @@ in
   # to loopback — the two halves are one control and neither works alone.
   #
   # The policy is NOT declared here — it is declared in infra/cloudflare/mcp-public.nix
-  # (as a Workspace-domain rule, ADR-004 phase 3; not yet applied) and referenced
+  # (as a Workspace-domain rule, ADR-004 phase 3, LIVE since 2026-09-22) and referenced
   # from THIS stack by its literal id, because a different tofu stack cannot
   # reference that resource. One object, two stacks: a rule change applied there
   # reaches nixpi_ssh here. (It was shared with character-mcp too until that project was
