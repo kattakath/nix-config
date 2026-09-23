@@ -122,6 +122,23 @@ in
                 derived default.
               '';
             };
+
+            autoUpdate = lib.mkOption {
+              type = lib.types.bool;
+              default = false;
+              description = ''
+                Let Claude Code refresh this marketplace in the background and
+                update its plugins: the same switch as /plugin → Marketplaces →
+                Enable auto-update, declared instead of clicked. Official
+                Anthropic marketplaces already default to on; a third-party one
+                defaults to off.
+
+                Only meaningful for an https:// source (a store path has nothing
+                to fetch), and asserted as such. It trades the flake.lock pin for
+                the remote's own release discipline: whatever lands on the
+                tracked branch reaches this Mac on the next background refresh.
+              '';
+            };
           };
         }
       )
@@ -147,15 +164,36 @@ in
   # with no settings and no activation. Contributing an activation script there
   # would change those hosts' closures for no benefit.
   config = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
-    assertions = lib.mapAttrsToList (name: mp: {
-      assertion = lib.hasPrefix "/nix/store/" mp.source || lib.hasPrefix "https://" mp.source;
-      message = ''
-        local.claudePlugins.marketplaces.${name}.source must be a /nix/store path
-        or an https:// URL, got: ${mp.source}
-        A path like /Users/... means `toString ../plugins` was used instead of
-        string interpolation ("''${../plugins}") — that pins nothing and drifts.
-      '';
-    }) cfg.marketplaces;
+    assertions =
+      lib.mapAttrsToList (name: mp: {
+        assertion = lib.hasPrefix "/nix/store/" mp.source || lib.hasPrefix "https://" mp.source;
+        message = ''
+          local.claudePlugins.marketplaces.${name}.source must be a /nix/store path
+          or an https:// URL, got: ${mp.source}
+          A path like /Users/... means `toString ../plugins` was used instead of
+          string interpolation ("''${../plugins}") — that pins nothing and drifts.
+        '';
+      }) cfg.marketplaces
+      ++ lib.mapAttrsToList (name: mp: {
+        assertion = mp.autoUpdate -> lib.hasPrefix "https://" mp.source;
+        message = ''
+          local.claudePlugins.marketplaces.${name}.autoUpdate needs an https:// source;
+          a /nix/store path has nothing to fetch, so it would silently never update.
+        '';
+      }) cfg.marketplaces;
+
+    # autoUpdate is a key on the marketplace's `extraKnownMarketplaces` entry. The
+    # `source` below is the exact shape `claude plugin marketplace add <https url>`
+    # writes there itself (measured, CLI 2.1.x), so this merges onto that entry
+    # instead of declaring a second, differently-shaped one. settings.json is
+    # deep-merged with Nix winning on its own keys (./claude-code-settings.nix).
+    programs.claude-code.settings.extraKnownMarketplaces = lib.mapAttrs (_: mp: {
+      source = {
+        source = "git";
+        url = mp.source;
+      };
+      autoUpdate = true;
+    }) (lib.filterAttrs (_: mp: mp.autoUpdate) cfg.marketplaces);
 
     # Keeps every declared plugin switched ON once `claude plugin install` has
     # run below. Editing this in the Claude UI will not persist — a rebuild
