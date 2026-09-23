@@ -180,6 +180,14 @@ let
       bundleId,
       icns,
       launcher,
+      # Extra names Spotlight should ALSO match this bundle on. Apple's own
+      # mechanism, used by its own apps: Calendar answers "iCal", Contacts
+      # answers "Address Book", System Settings answers "System Preferences" /
+      # "Preferences" / "Settings" (read straight out of /System/Applications).
+      # Verified 2026-09-23 that it works on a plain UNSIGNED third-party bundle
+      # too, not just Apple's: a throwaway .app carrying the key indexed as
+      # `kMDItemAlternateNames` and `mdfind` matched on it.
+      alternateNames ? [ ],
     }:
     # grepped nixpkgs for a .app-bundle generator — `pkgs.writeDarwinBundle`
     # EXISTS (all-packages.nix:913) → custom anyway, because reading its
@@ -208,7 +216,16 @@ let
         <key>CFBundlePackageType</key><string>APPL</string>
         <key>CFBundleShortVersionString</key><string>1.0</string>
         <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
-        <key>LSMinimumSystemVersion</key><string>11.0</string>
+        <key>LSMinimumSystemVersion</key><string>11.0</string>${
+          # A plain quoted string, not an indented one: Nix strips an
+          # indented string's common leading whitespace, which would flatten
+          # these two lines to column 0 in the emitted plist.
+          lib.optionalString (alternateNames != [ ]) (
+            "\n  <key>CFBundleAlternateNames</key>\n  <array>"
+            + lib.concatMapStrings (n: "<string>${n}</string>") alternateNames
+            + "</array>"
+          )
+        }
       </dict>
       </plist>
       PLIST
@@ -401,6 +418,49 @@ let
         ;
     };
 
+  # ---- An APP ALIAS, not a fleet operation -------------------------------
+  # A bundle whose only job is to make another app findable under a name it does
+  # not carry itself. Separate from mkCommandApp on purpose: that one runs fleet
+  # commands, this one opens an app.
+  #
+  # WHY A SECOND BUNDLE INSTEAD OF EDITING THE REAL ONE. `CFBundleAlternateNames`
+  # belongs in Ghostty's own Info.plist — but /Applications/Ghostty.app is a
+  # HOMEBREW CASK (hosts/macos.nix), so editing it is imperative twice over: the
+  # next `brew upgrade` clobbers it, and a modified bundle fails its code
+  # signature, which can re-trigger Gatekeeper and reset the app's TCC grants.
+  # A sibling .app in ~/Applications carries the names instead, touches nothing
+  # Homebrew owns, and is reproduced by a rebuild on any Mac.
+  mkAliasApp =
+    {
+      name,
+      bundleId,
+      alternateNames,
+      # Shell text that opens the real app.
+      launchCommand,
+    }:
+    let
+      slug = lib.replaceStrings [ " " ] [ "-" ] (lib.toLower name);
+      launcher = writeShellApplication {
+        name = "launcher";
+        text = ''
+          exec ${launchCommand}
+        '';
+      };
+    in
+    mkAppBundle {
+      inherit
+        name
+        slug
+        bundleId
+        launcher
+        alternateNames
+        ;
+      # The fleet mark, deliberately: this bundle shares a NAME with
+      # /System/Applications/Utilities/Terminal.app, so the icon is the only
+      # thing telling the two rows apart in Spotlight's results.
+      icns = fleetMarkIcns;
+    };
+
 in
 {
   androidEmulatorApp = mkLauncherApp {
@@ -434,6 +494,32 @@ in
   #   · anything that INSTALLS or REMOVES a package. This fleet is declarative:
   #     installing is an edit to hosts/macos.nix followed by `activate`, so the
   #     honest Spotlight action is "Nix Open Repo", not `nix profile install`.
+  # Spotlight aliases — bundles that exist only so another app answers to a
+  # name it does not carry. One today.
+  aliasApps = {
+    # "Terminal" LITERALLY, chosen over "Ghostty Terminal"/"Shell": it competes
+    # head-on with /System/Applications/Utilities/Terminal.app, which is the
+    # point — one query, both rows, pick by icon. Spotlight's own ranking learns
+    # which one gets clicked, so Apple's will outrank this at first.
+    "Terminal" = mkAliasApp {
+      name = "Terminal";
+      # NOT com.apple.Terminal — a duplicate bundle id makes LaunchServices pick
+      # one of the two at random for every `open -b` and URL handler in the system.
+      bundleId = "com.kattakath.ghostty-terminal";
+      alternateNames = [
+        "Ghostty"
+        "Shell"
+        "Console"
+        "Prompt"
+      ];
+      # `-n` because this is a terminal LAUNCHER: clicking it should hand you a
+      # window, not merely focus one that is already open. No --background or
+      # watermark here — those belong to the three fleet operations; this is an
+      # ordinary terminal and wears local.terminalTheme like every other window.
+      launchCommand = "/usr/bin/open -na Ghostty.app";
+    };
+  };
+
   commandApps = {
     # The everyday one. `activate` self-elevates, so this raises the Touch ID
     # sheet in the new Ghostty window rather than dying on a sudo with no tty.
