@@ -126,7 +126,20 @@
     # `homebrew.*` module, which still owns brews/casks (see
     # modules/darwin/homebrew.nix). No `nixpkgs` input to follow — the module
     # uses the consumer's pkgs.
-    nix-homebrew.url = "github:zhaofengli/nix-homebrew";
+    # PINNED to the last rev carrying brew 6.x. Upstream e0fdde28b5 (2026-09-20,
+    # merged as c11cccfdd3) bumped its own brew-src 6.0.22 -> 7.0.4, and brew 7
+    # breaks activation here: the Homebrew bundle step reaches
+    # Library/Homebrew/brew.rb without HOMEBREW_ORIGINAL_BREW_FILE in the
+    # environment, and 7.x fetches that key unconditionally —
+    #   config.rb:36:in 'fetch': key not found: "HOMEBREW_ORIGINAL_BREW_FILE"
+    # Measured 2026-09-23: it also relinks /opt/homebrew at the broken tree BEFORE
+    # the bundle step fails, so a failed activation leaves brew broken on disk,
+    # not merely unreconciled.
+    #
+    # Unpin once nix-homebrew's wrapper sets that variable (or brew 7 stops
+    # requiring it). A floating url would silently re-break this on the next
+    # `nix flake update`, which is exactly how it broke.
+    nix-homebrew.url = "github:zhaofengli/nix-homebrew/09a921d0181146cf6163ec2cc1db7b6fd539a885";
     # Pin the brew CLI nix-homebrew installs to 6.0.15 (latest, 2026-08-03),
     # overriding nix-homebrew's default 6.0.11. The Homebrew cask JSON API advanced
     # to a new artifact stanza (`command_wrapper`/`generated_script`) that 6.0.11
