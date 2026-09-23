@@ -1411,6 +1411,92 @@ in
         };
       };
 
+      # ---- Every Access service token NAMES its own expiry ---------------------
+      # `duration` is Optional+Computed with a provider default of 8760h, so
+      # omitting it does not mean "no expiry" — it means a one-year expiry nobody
+      # wrote down. For mcp-public that credential is the portal's ONLY one, so
+      # its lapse takes every published server dark at once.
+      #
+      # Declared HERE rather than in modules/parts/checks.nix because `flake.lib`
+      # exports only two of the six renderers; the other four are in scope only
+      # inside this file.
+      #
+      # WHAT THIS CANNOT DO, so the limit is a choice and not an oversight: eval
+      # is pure, so it cannot know today's date or read `expires_at`. It asserts
+      # only that the window is a DECLARED number and that the number is legal.
+      # Days-LEFT is a runtime concern, not a build-time one.
+      checks.access-service-token-duration =
+        let
+          pkgs = pkgsFor system;
+          inherit (nixpkgs) lib;
+          # `.config` is terranix's passthru — the rendered Terraform attrset at
+          # EVAL time, no build. Only strings escape, so this costs no
+          # aarch64-linux build. The two GCP stacks are absent on purpose: a
+          # Cloudflare resource cannot appear in them.
+          renders = [
+            {
+              stack = "cf-tunnel";
+              cfg = (cfTunnelConfig { inherit system hostedSites; }).config;
+            }
+            {
+              stack = "mcp-public";
+              cfg =
+                (mcpPublicConfig {
+                  inherit system;
+                  publicServers = publicMcpServers;
+                }).config;
+            }
+            {
+              stack = "cf-zones";
+              cfg = (cfZonesConfig { inherit system; }).config;
+            }
+            {
+              stack = "cf-access-org";
+              cfg = (cfAccessOrgConfig { inherit system; }).config;
+            }
+          ];
+
+          # Deliberately STRICTER than Go's time.ParseDuration: no leading sign,
+          # no bare `0`, no leading-dot form. A token lifetime is never negative
+          # and never zero, so the narrowing is the point. The provider ships NO
+          # validator on this attribute, so a typo is otherwise a 400 at apply.
+          wellFormed =
+            d: d == "forever" || builtins.match "([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+" d != null;
+
+          tokens = lib.concatMap (
+            r:
+            lib.mapAttrsToList (name: v: {
+              inherit name;
+              inherit (r) stack;
+              duration = v.duration or null;
+            }) (r.cfg.resource.cloudflare_zero_trust_access_service_token or { })
+          ) renders;
+
+          problems =
+            map (t: "${t.stack}: ${t.name} declares no duration, so it inherits the provider default 8760h") (
+              lib.filter (t: t.duration == null) tokens
+            )
+            ++ map (t: "${t.stack}: ${t.name} duration ${t.duration} is neither a Go duration nor forever") (
+              lib.filter (t: t.duration != null && !(wellFormed t.duration)) tokens
+            );
+        in
+        pkgs.runCommand "access-service-token-duration" { } (
+          if problems == [ ] then
+            "echo 'access service tokens: ${toString (builtins.length tokens)} rendered, every one with an explicit duration' > $out"
+          else
+            ''
+              echo "access-service-token-duration: a service token leaves its expiry to the provider." >&2
+              ${lib.concatMapStringsSep "\n" (x: ''echo "  ${x}" >&2'') problems}
+              echo "" >&2
+              echo "  The default is 8760h and it is SILENT. For mcp-public that credential" >&2
+              echo "  is the portal's only one, so its lapse takes every published server" >&2
+              echo "  dark at once, with no partial failure first." >&2
+              echo "  Declare duration in infra/cloudflare/<stack>.nix. Changing it later is" >&2
+              echo "  an in-place update, not a replacement, so it cannot rotate the secret." >&2
+              exit 1
+            ''
+        );
+
       # `nix run .#cf-tunnel-apply` / `.#cf-tunnel-destroy` — render
       # infra/cloudflare/nixpi-tunnel.nix (terranix) then `tofu init` + apply
       # (destroy). Provisions nixpi's remotely-managed tunnel + ingress +
