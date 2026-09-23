@@ -158,14 +158,15 @@ One line per path; the *why* and the per-file specifics are in
 | `secrets/` | agenix recipients + the operator pubkey + **four** ciphertexts — one operator-only, three host-decrypted on `macos`. Details in § Security. |
 | `sites/` | TWO trees, ONE Caddy-served: `snoringirl` (`config.fleet.hostedSites[].root`, a **directory** literal, so every byte lands in the LIVE closure — [`store-copied-trees`](.claude/rules/store-copied-trees.md)). `ismail-landing` is NOT served: `next-right-thing.nix`'s fonts. |
 | `templates/` | `nix flake init -t` starter that consumes this engine's `lib.mkDarwin` (`identity` + `extraModules`) instead of forking `hosts/`. |
-| `skills/` | **Global** skills still in-tree: ONLY the Brain Signals `/explain` family, declared in `modules/shared/claude-brain.nix` next to the output style they encode. Every other global skill arrives from a pinned input. |
-| `claude/` | The **global** (all-projects) agent context this repo installs on `macos` — not to be confused with **this** file, which is project-scoped. |
+| `claude/` | The **global** (all-projects) agent context this repo installs on `macos` (`CLAUDE.md` + one rule — plugins cannot carry either) — not to be confused with **this** file, which is project-scoped. |
 | `.claude/` | Project agent config — see the lists below. |
 | `.github/workflows/` | `nix-ci.yml` (hosted legs DERIVED from the fleet's own host systems), `warm-nixpi-cache.yml` (**keeps the Pi from ever building** — see § Important Notes), `auto-merge.yml`, `build-*`, `claude*.yml`, `gitleaks.yml`, `flakehub-publish.yml`, `update-flake-lock.yml`. |
 | `docs/` | Runbooks + design docs — indexed at the bottom of this file. |
 
-**Gone on purpose — do not re-add.** No `plugins/` tree (the marketplace is
-`github:kattakath/ai`, pinned as `kattakath-ai`); **zero userscripts** (published to Greasy
+**Gone on purpose — do not re-add.** No `plugins/` or `skills/` tree: both live in
+`github:kattakath/skills`, installed as an **auto-updating git marketplace** (a merge there
+ships, no pin bump here) and pinned as `kattakath-skills` only for the `superhook` /
+`page-lab-pick` PATH packages; **zero userscripts** (published to Greasy
 Fork, so an installed copy self-updates). Why:
 [`docs/agent-resource-externalization.md`](docs/agent-resource-externalization.md).
 
@@ -174,7 +175,7 @@ Fork, so an installed copy self-updates). Why:
 `/fleet-doctor`, `/userscript`. (`/devtools` and `/pick` ship from the `page-lab` plugin instead.)
 
 **Project skills** (`.claude/skills/`): `nix-hygiene`, `nixpi-firmware-provision`,
-`jsonresume-tailor`, `gmail-mcp-accounts`, `mcp-scout`, `fleet-doctor`, `userscript-author`.
+`gmail-mcp-accounts`, `mcp-scout`, `fleet-doctor`, `userscript-author`.
 
 **Always-applied rules** (`.claude/rules/`):
 [`git-purity`](.claude/rules/git-purity.md) (stage `.nix` before eval),
