@@ -95,9 +95,14 @@ let
     stage: body:
     writeShellApplication {
       name = "nix-gitlab-tart-${stage}";
+      # `tart` too: gitlab-tart-executor, exec'd from these shims, shells out to a
+      # BARE `tart` and inherits this PATH. $TART above covers only the slot code.
+      # Without it every job failed in prepare with "tart command not found in
+      # PATH" (measured 2026-09-23, once --default-image let prepare get that far).
       runtimeInputs = [
         coreutils
         gnugrep
+        tart
       ];
       text = body;
     };
