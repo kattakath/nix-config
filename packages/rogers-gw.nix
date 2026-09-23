@@ -94,6 +94,8 @@ writeShellApplication {
       logs [TYPE] [WINDOW]
                           TYPE   = system | event | firewall   (default: system)
                           WINDOW = Today | Yesterday | 'Last week' | 'Last month' | 'Last 90 days'
+      collect [WINDOW]    ONE authenticated run -> one JSON document with status +
+                          all three log types. Built for a daily archive.
       raw PAGE            any .jst page, as text
       rawhtml PAGE        any .jst page, unprocessed HTML
       ports               which management ports the gateway exposes (no auth)
@@ -103,6 +105,7 @@ writeShellApplication {
                             secret exec ROGERS_GW_PASSWORD=rogers:cgm4981:admin-password -- rogers-gw status
       ROGERS_GW_HOST      default: the default route's gateway
       ROGERS_GW_USER      default: admin
+      ROGERS_GW_JSON      set to emit raw JSON from `logs` instead of TSV
       ROGERS_GW_FULL      set to keep the nav tree in page output
 
     This is an INSPECTION tool. It authenticates once and never retries credentials:
@@ -119,13 +122,55 @@ writeShellApplication {
       fi
     }
 
-    # Single attempt, by design. A retry here feeds Device.Users.User.3.NumOfFailedAttempts.
+    # Single attempt, by design. A retry here feeds Device.Users.User.3.NumOfFailedAttempts
+    # (check.jst:215-224), whose lockout policy is read at :111-115 — a loop can lock the
+    # household out of its own gateway. LOGGED_IN makes this idempotent so a multi-fetch
+    # run (collect) authenticates ONCE, which also keeps one PHP session rather than four.
+    LOGGED_IN=""
     login() {
+      [ -n "$LOGGED_IN" ] && return 0
       curl -s -o /dev/null -c "$JAR" \
         --data-urlencode "username=$USER_NAME" \
         --data-urlencode "password=$ROGERS_GW_PASSWORD" \
         --data-urlencode "locale=false" \
         "http://$GW/check.jst"
+      LOGGED_IN=1
+    }
+
+    # The per-session CSRF token, scraped once. troubleshooting_logs.jst:220 emits it as
+    # `var token = "<?% echo($_SESSION['Csrf_token']);?>"`, and :240-243 sends it as the
+    # csrfp_token header. Upstream suggests GET is not verified at all (verifyGetFor
+    # empty) — UNCONFIRMED here, so we keep sending it; it is harmless.
+    TOKEN=""
+    csrf_token() {
+      [ -n "$TOKEN" ] && { printf '%s' "$TOKEN"; return 0; }
+      login
+      TOKEN=$(fetch troubleshooting_logs.jst | sed -n 's/.*var token *= *"\([^"]*\)".*/\1/p' | head -1)
+      if [ -z "$TOKEN" ]; then
+        echo "rogers-gw: no CSRF token in page — not authenticated (check ROGERS_GW_PASSWORD / ROGERS_GW_USER)" >&2
+        exit 1
+      fi
+      printf '%s' "$TOKEN"
+    }
+
+    # Fetch a log window as RAW JSON, validated. The endpoint does NOT return a useful
+    # status on auth failure — ajax_troubleshooting_logs.jst:20-24 emits an HTML
+    # alert("Please Login First!") with HTTP 200 — so the body must be type-checked
+    # before it reaches jq, or the user gets a jq parse error instead of "log in".
+    log_json() {
+      local mode="$1" timef="$2" out
+      out=$(curl -s -b "$JAR" -H "csrfp_token: $(csrf_token)" \
+              --get --data-urlencode "mode=$mode" --data-urlencode "timef=$timef" \
+              "http://$GW/actionHandler/ajax_troubleshooting_logs.jst")
+      if ! printf '%s' "$out" | jq -e 'type == "array"' >/dev/null 2>&1; then
+        if printf '%s' "$out" | grep -qi 'Please Login First\|location.href'; then
+          echo "rogers-gw: session rejected by $mode/$timef — not authenticated" >&2
+        else
+          echo "rogers-gw: $mode/$timef did not return a JSON array (firmware change?)" >&2
+        fi
+        return 1
+      fi
+      printf '%s' "$out"
     }
 
     fetch() { curl -s -b "$JAR" "http://$GW/$1"; }
@@ -185,23 +230,57 @@ writeShellApplication {
         need_password "$cmd"
         mode="''${1:-system}"
         timef="''${2:-Today}"
-        login
-        # The per-session CSRF token is inlined in the page as `var token = "..."`
-        # (troubleshooting_logs.jst:220) and sent as the csrfp_token header
-        # (:240-243). Upstream's config suggests GET is not verified at all
-        # (verifyGetFor empty), which would make this scrape unnecessary -- that is
-        # UNCONFIRMED on this box, so we keep sending it. It is harmless.
-        tok=$(fetch troubleshooting_logs.jst | sed -n 's/.*var token *= *"\([^"]*\)".*/\1/p' | head -1)
-        if [ -z "$tok" ]; then
-          echo "rogers-gw: no CSRF token in page (not authenticated?)" >&2
+        if [ "$mode" = all ]; then
+          echo "rogers-gw: 'logs all' emits JSON; use: rogers-gw collect" >&2
           exit 1
         fi
-        curl -s -b "$JAR" -H "csrfp_token: $tok" \
-          --get --data-urlencode "mode=$mode" --data-urlencode "timef=$timef" \
-          "http://$GW/actionHandler/ajax_troubleshooting_logs.jst" \
-        | jq -r '.[] | [(.time//"-"), (.Level//.Type//"-"), (.Des//"-")] | @tsv' \
-        | sed -e 's/\\n//g' -e 's/[[:space:]]\{2,\}/ /g' -e 's/ *\t */\t/g'
+        raw=$(log_json "$mode" "$timef") || exit 1
+        if [ -n "''${ROGERS_GW_JSON:-}" ]; then
+          printf '%s\n' "$raw" | jq .
+        else
+          printf '%s\n' "$raw" \
+          | jq -r '.[] | [(.time//"-"), (.Level//.Type//"-"), (.Des//"-")] | @tsv' \
+          | sed -e 's/\\n//g' -e 's/[[:space:]]\{2,\}/ /g' -e 's/ *\t */\t/g'
+        fi
         ;;
+
+      # One authenticated run that captures everything worth keeping, as ONE JSON
+      # document on stdout. Built for a DAILY archive: accumulate these and the
+      # patterns (WAN re-acquisitions, radio restarts, their timing) become greppable.
+      #
+      # The WAN DHCP lease is the sleeper field here: `DHCP Expire Time` counting DOWN
+      # normally means the WAN held; a jump back to near-full lease means the gateway
+      # RE-ACQUIRED its WAN address, which its own event log does NOT record (that log
+      # is OneWifi-only, no WAN/DOCSIS tier). Two consecutive captures date an outage
+      # the gateway will not admit to.
+      collect)
+        need_password "$cmd"
+        timef="''${1:-Today}"
+        login
+        status_txt=$(fetch connection_status.jst | text)
+        sys=$(log_json system "$timef")   || sys='[]'
+        evt=$(log_json event "$timef")    || evt='[]'
+        fw=$(log_json firewall "$timef")  || fw='[]'
+        jq -n \
+          --arg gw "$GW" \
+          --arg window "$timef" \
+          --arg captured "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+          --arg status "$status_txt" \
+          --argjson system "$sys" \
+          --argjson event "$evt" \
+          --argjson firewall "$fw" \
+          '{capturedAt:$captured, gateway:$gw, window:$window,
+            status:{
+              raw: ($status | split("\n")),
+              wanIp:        ($status | capture("WAN IP Address \\(IPv4\\):\n(?<v>[0-9.]+)";"n").v? // null),
+              dhcpExpire:   ($status | capture("DHCP Expire Time:\n(?<v>[^\n]+)";"n").v? // null),
+              internet:     ($status | capture("Internet:\n(?<v>[^\n]+)";"n").v? // null),
+              lanClients:   ($status | capture("No of Clients connected:\n(?<v>[0-9]+)";"n").v? // null)
+            },
+            counts:{system:($system|length), event:($event|length), firewall:($firewall|length)},
+            logs:{system:$system, event:$event, firewall:$firewall}}'
+        ;;
+
       ports)
         for p in 22 23 80 443 161 7547 8080 8443; do
           (timeout 2 bash -c "echo > /dev/tcp/$GW/$p" 2>/dev/null && echo "$p OPEN") || true

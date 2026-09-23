@@ -175,7 +175,16 @@ already inside a log line gains another layer. Depth varies because the number o
 | `connection_status.jst` | 5 |
 | `ajax_troubleshooting_logs.jst` | 3 |
 
-That matches what we measured (status ~2 deep, logs ~3 deep).
+**Measured depth is lower than that suggests.** Re-tested 2026-09-23 against a real
+55,590-byte authenticated capture of `troubleshooting_logs.jst`: after stripping tags,
+the body carries **3** entity references and **one** decode pass clears all of them.
+An earlier claim in this file of "status ~2 deep, logs ~3 deep" did not reproduce and
+has been withdrawn.
+
+The mechanism above still matters: the call counts are real, they differ per file, and
+a payload can arrive multiply-escaped. But do not infer a specific depth from them —
+measure the endpoint you are actually reading. `rogers-gw` decodes twice, which is one
+more pass than anything observed and still bounded.
 
 **Decoding to a fixpoint is therefore unsafe in general**: it cannot distinguish a
 server-applied layer from entity text that was genuinely in the data. A device
