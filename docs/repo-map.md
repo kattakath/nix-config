@@ -1088,6 +1088,17 @@ waves 5-6 absorb them).
   the reconciler skips it, so a deliberate `bootout` survives the next activation. The disabled DB
   cannot serve as that signal — `bootout` does not write it, and all six labels read `=> enabled`
   while three were absent.
+- **`packages/launchd-doctor.nix`** (app `nix run .#launchd-doctor`) — runtime health check for
+  every launchd unit this fleet installs. Covers the three things that **cannot** be flake
+  checks, because all three are properties of the running machine rather than the evaluated
+  config: declared-vs-loaded drift (and non-zero last-exit, which is what catches the exit-78
+  boot/mount class), unrotated log growth, and the litter left by removed features in launchd's
+  disabled DB and `~/Library/Logs`. **No Nix-time threading**, same contract as
+  `claude-otel-doctor.nix` — the installed plists ARE the declared set, and threading a Nix
+  manifest in would make the doctor agree with the config by construction, which is the one
+  thing a drift check must not do. Read-only: it prints remedies, never runs them. Wired as
+  step E3 of the `fleet-doctor` skill, under **always confirm** — bootstrapping a daemon the
+  operator deliberately booted out is exactly the wrong move.
 - **`logging.nix`** (macos only) — rotation for the launchd agent logs, via
   `system.newsyslog.{enable,files}` (pinned `modules/system/newsyslog.nix:11-160`,
   registered `module-list.nix:45`). Upstream, and **never used by this fleet** until
