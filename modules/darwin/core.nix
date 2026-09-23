@@ -106,7 +106,7 @@ let
     {
       serviceConfig = {
         ProgramArguments = [
-          "${pkgs.writeShellScriptBin "nix-${suffix}" ''
+          "${pkgs.writeShellScriptBin "nix-open-${suffix}" ''
             set -eu
             ${openCmd}
             # Re-hide while the app finishes starting (Electron often shows late).
@@ -129,7 +129,7 @@ let
               /bin/sleep 0.5
               i=$((i + 1))
             done
-          ''}/bin/nix-${suffix}"
+          ''}/bin/nix-open-${suffix}"
         ];
         RunAtLoad = true;
       };
