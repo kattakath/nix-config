@@ -257,6 +257,12 @@ in
         runnerId = 54669377;
         tokenFile = config.age.secrets."gitlab-runner-token".path;
         concurrent = 2;
+        # civitai-live-wallpaper's .gitlab-ci.yml was written for the SHELL runner
+        # this replaced, so its jobs name no `image:`; every one failed in prepare
+        # until this existed (main red since 2026-08-04's last green). The same
+        # digest-pinned image the GitHub lane uses, so it is already on disk.
+        # Written as <repo>@<digest>, tag dropped: that is the name Tart stores it under.
+        defaultImage = "${builtins.head (builtins.split ":" fleetApp.image.oci)}@${fleetApp.image.digest}";
       };
     };
 
