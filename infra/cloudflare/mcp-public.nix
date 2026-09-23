@@ -663,10 +663,17 @@ in
     name = portalName;
     hostname = portalHost;
 
-    # Declared, not left to the provider. Both are optional+computed, so omitting
-    # them plans as `true -> (known after apply)` and the apply is free to reset
-    # the operator's choice. These are the values that were live on 2026-09-12.
-    allow_code_mode = true;
+    # Declared, not left to the provider: optional+computed, so omitting it plans
+    # as `-> (known after apply)` and the apply is free to reset the operator's
+    # choice. `opt_in` was the live value on 2026-09-12 and still is.
+    #
+    # `allow_code_mode = true` sat beside this until 2026-09-23 and is GONE: the
+    # boolean is deprecated, and declaring it made every plan emit "Attribute
+    # Deprecated". Cloudflare replaced it with this four-value enum on 2026-07-30
+    # (off / opt_in / default_on / enforced) and migrated existing portals by
+    # exactly the mapping this keeps — a portal that allowed Code Mode became
+    # `opt_in`. So dropping the boolean is a rename, not a behaviour change, and
+    # the plan that proved it read `No changes`.
     code_mode = "opt_in";
 
     # Every registration this module owns, gateway and external alike. Referenced
