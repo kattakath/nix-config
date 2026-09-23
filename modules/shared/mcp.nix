@@ -452,6 +452,25 @@ let
       ];
     };
 
+    # The SERVER half of Kapture. modules/shared/chromium.nix owns the extension
+    # (`local.chromium.kaptureMcp`) and its own docs called this out as a real
+    # follow-up: the server lived in ~/.claude.json at user scope, imperative and
+    # invisible to a rebuild. It is the only MCP server this fleet ran that way.
+    #
+    # `bridge` is the subcommand, not a flag — kapture-mcp exposes the local
+    # websocket bridge the extension connects back to. A running bridge with ZERO
+    # connected tabs is DARK, not ready: a tab is only visible after the operator
+    # toggles it from the extension's toolbar popup, which is why hosting this
+    # grants nothing on its own.
+    kapture = {
+      command = npx;
+      args = [
+        "-y"
+        "kapture-mcp@latest"
+        "bridge"
+      ];
+    };
+
     duckduckgo = {
       command = uvx;
       args = [ "duckduckgo-mcp-server" ];
