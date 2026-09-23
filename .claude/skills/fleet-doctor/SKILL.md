@@ -190,13 +190,14 @@ across four activations that each reported success. Report only; every remedy ne
 nix run .#launchd-doctor        # exit 1 = findings; LAUNCHD_DOCTOR_WARN_KB tunes the log threshold
 ```
 
-Four sections, and they are **not** equally urgent:
+**Five** sections, and they are **not** equally urgent:
 
 | Section | Urgency | Remedy |
 |---|---|---|
 | `NOT LOADED` | **act now** — a fleet unit is silently absent | `sudo launchctl bootstrap <domain> <plist>`; `modules/darwin/launchd-reconcile.nix` makes the next activation do it |
 | `EXIT <n>` | investigate — loaded but failing every spawn | read the unit's log; `exit 78` is the boot/mount race, not a crash |
-| log size | routine | long-lived agents are fd-pinned and **not** covered by `system.newsyslog` (see `modules/darwin/logging.nix`) |
+| `ORPHANED` | **act now after any rename/removal** — nix-darwin's removal loop is **single-transition** (pinned `modules/system/launchd.nix:150-161`), so a plist it misses at that one generation boundary is orphaned **permanently** and keeps running | the `launchctl bootout … ; rm …` line the doctor prints. Check it on the first `activate` after a unit is renamed — e.g. `metube`/`yt-dlp-web-ui` moving to Home Manager on 2026-09-22 renamed `org.nixos.*` → `org.nix-community.home.*` |
+| log size | **investigate — NOT routine since 2026-09-22** | every declared launchd log now reaches a rotator (`modules/darwin/logging.nix`): `system.newsyslog` rename+create for the jobs that re-exec, hourly `logrotate --copytruncate` for the long-lived `KeepAlive` ones, which newsyslog by design can never reclaim. An oversized log therefore means a **broken rotator**, not physics — check the two ticks are in their domains (`launchctl print gui/$UID/org.nix-community.home.file-rotation-logs`, `sudo launchctl print system/org.nixos.file-rotation-logs-system`), then their own logs and state files (`~/.local/state/logrotate/agents.state`, `/var/lib/logrotate/daemons.state`) |
 | disabled-DB / orphan logs | cosmetic | litter from removed features; delete only when sure the feature is gone |
 
 **Never bootstrap in `fix` mode without asking.** It is under **always confirm**: starting a

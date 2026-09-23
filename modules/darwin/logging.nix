@@ -75,11 +75,42 @@
 #       PATH, so the set must be deduped.
 # Reading both keys off the composed agents and uniq-ing makes both structural.
 #
-# THREE SOURCES, TWO TIERS. Home Manager agents and nix-darwin user agents are
-# the user tier (rotated as the login user); `launchd.daemons` is the root tier
-# and needs its own copy of the tick, because a user agent cannot truncate a
-# root-owned file in /var/log. This module lives at the nix-darwin layer
-# precisely because that is the only layer that can see all three.
+# FOUR SOURCES, TWO TIERS. Home Manager `launchd.agents`, nix-darwin
+# `launchd.user.agents` and nix-darwin `launchd.agents` are the user tier,
+# rotated as the login user; `launchd.daemons` is the root tier and needs its own
+# copy of the tick, because a login-user agent cannot truncate a root-owned file
+# in /var/log. This module lives at the nix-darwin layer precisely because that
+# is the only layer that can see all four.
+#
+# The fourth source is easy to miss: nix-darwin's `launchd.agents` (system-wide
+# /Library/LaunchAgents, pinned modules/launchd/default.nix:139, rendered to
+# environment.launchAgents at :211) is a DIFFERENT option from
+# `launchd.user.agents` (~/Library/LaunchAgents, rendered to
+# environment.userLaunchAgents). Nothing in this tree uses it today — it is
+# enumerated anyway so a first use is not silently unrotated behind a green gate.
+#
+# TIER IS DECIDED BY WHO CAN WRITE THE FILE, not by who classified it. A path
+# goes to the ROOT tick if ANY daemon declares it (root can truncate a user-owned
+# file; a login user cannot truncate root's), and to the user tick otherwise.
+# Without that rule a path that is long-lived in the user tier and re-exec in the
+# root tier would leave the newsyslog set GLOBALLY (see "PATHS WIN OVER AGENTS"
+# below) and then land on a login-user logrotate that gets EPERM — covered on
+# paper, reclaiming nothing in practice. No such path exists today;
+# `checks.<system>.launchd-log-rotation` asserts it from the composed daemons
+# rather than trusting that to stay true.
+#
+# THE USER TICK IS A HOME MANAGER AGENT, not `launchd.user.agents` — the same
+# move metube and yt-dlp-web-ui made on 2026-09-22, for the same reason.
+# nix-darwin's user-agent activation is diff-gated (pinned
+# modules/system/launchd.nix:36) and modules/darwin/launchd-reconcile.nix filters
+# `config.launchd.daemons` ONLY, so a nix-darwin user agent that falls out of its
+# launchd domain is never re-bootstrapped: its plist stops changing and every
+# later activation skips it. Home Manager probes with `launchctl print` and
+# re-bootstraps (pinned home-manager modules/launchd/default.nix:411-419). A
+# rotator that silently stops is precisely the unbounded-growth failure this
+# module exists to end, and no flake check can observe a launchd domain. The ROOT
+# tick stays a nix-darwin daemon — Home Manager has no root tier — and
+# launchd-reconcile.nix already covers that tier.
 {
   config,
   lib,
@@ -89,10 +120,16 @@
 }:
 let
   hmAgents = config.home-manager.users.${loginName}.launchd.agents or { };
-  darwinAgents = config.launchd.user.agents or { };
+  darwinUserAgents = config.launchd.user.agents or { };
+  darwinSystemAgents = config.launchd.agents or { };
   daemons = config.launchd.daemons or { };
 
-  home = "/Users/${loginName}";
+  # The nix-darwin option, not a literal — modules/darwin/core.nix:13 and
+  # user-folders.nix:28 already read it, and a `/Users/${loginName}` string here
+  # would be the hardcoded-home anti-pattern CLAUDE.md § Conventions rejects
+  # (and one ast-grep/rules/nix-hardcoded-home-path.yml structurally cannot see,
+  # because the interpolation splits the string_fragment).
+  home = config.users.users.${loginName}.home;
 
   # Derived classification — see the header. Conservative on purpose: anything
   # that is not provably a re-exec is treated as long-lived.
@@ -125,11 +162,14 @@ let
     };
 
   hmSplit = split hmAgents [ "config" ];
-  darwinSplit = split darwinAgents [ "serviceConfig" ];
+  darwinUserSplit = split darwinUserAgents [ "serviceConfig" ];
+  darwinSystemSplit = split darwinSystemAgents [ "serviceConfig" ];
   daemonSplit = split daemons [ "serviceConfig" ];
   userSplit = {
-    reExec = lib.unique (hmSplit.reExec ++ darwinSplit.reExec);
-    longLived = lib.unique (hmSplit.longLived ++ darwinSplit.longLived);
+    reExec = lib.unique (hmSplit.reExec ++ darwinUserSplit.reExec ++ darwinSystemSplit.reExec);
+    longLived = lib.unique (
+      hmSplit.longLived ++ darwinUserSplit.longLived ++ darwinSystemSplit.longLived
+    );
   };
 
   # A path written by ANY long-lived declaration cannot be rename+create'd, even
@@ -137,6 +177,13 @@ let
   allLongLived = lib.unique (userSplit.longLived ++ daemonSplit.longLived);
   userReExec = lib.subtractLists allLongLived userSplit.reExec;
   daemonReExec = lib.subtractLists allLongLived daemonSplit.reExec;
+
+  # WRITABILITY, not authorship, picks the tick — see the header. Every path a
+  # daemon declares in EITHER bucket is root's to truncate, so it goes to the
+  # root tick even when only a user agent classified it long-lived.
+  daemonDeclared = lib.unique (daemonSplit.reExec ++ daemonSplit.longLived);
+  daemonLongLived = lib.filter (p: lib.elem p daemonDeclared) allLongLived;
+  userLongLived = lib.subtractLists daemonDeclared allLongLived;
 
   # ---- mechanism 1: newsyslog, for the logs that re-exec ---------------------
   entry = owner: group: path: {
@@ -181,17 +228,23 @@ let
   # onto PATH, and a launchd job starts with a near-empty one. logrotate shells
   # out to gzip for `compress`, so without this the rotation silently stops
   # compressing. (pgvector-local.nix:246-248 uses the same idiom for the same
-  # reason.) The `nix-` prefix IS hand-written here: launchd-launcher.nix only
-  # renames home-manager agents, and these two are a nix-darwin agent and a
-  # nix-darwin daemon.
+  # reason.)
+  #
+  # `binName` is separate from `name` because the two ticks sit in different
+  # layers. The ROOT tick is a hand-written nix-darwin daemon, so it must spell
+  # the `nix-` arg0 out itself (.claude/rules/launchd-naming.md item 2). The USER
+  # tick is a home-manager agent, and launchd-launcher.nix already forces
+  # `launcher.name = "nix-<attr>"` — naming the inner script `nix-…` as well maps
+  # one name to two store paths, which is why metube ships `metube-run`.
   mkTick =
     {
       name,
+      binName,
       paths,
       stateFile,
     }:
     pkgs.writeShellApplication {
-      name = "nix-${name}";
+      name = binName;
       runtimeInputs = [ pkgs.gzip ];
       text = ''
         mkdir -p "$(dirname ${lib.escapeShellArg stateFile})"
@@ -203,12 +256,14 @@ let
 
   userTick = mkTick {
     name = "file-rotation-logs";
-    paths = userSplit.longLived;
+    binName = "file-rotation-logs-run";
+    paths = userLongLived;
     stateFile = "${home}/.local/state/logrotate/agents.state";
   };
   daemonTick = mkTick {
     name = "file-rotation-logs-system";
-    paths = daemonSplit.longLived;
+    binName = "nix-file-rotation-logs-system";
+    paths = daemonLongLived;
     stateFile = "/var/lib/logrotate/daemons.state";
   };
 in
@@ -232,6 +287,20 @@ in
       default = allLongLived;
       description = "Log paths handed to logrotate --copytruncate.";
     };
+    userLongLivedPaths = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      readOnly = true;
+      internal = true;
+      default = userLongLived;
+      description = "The long-lived paths the login-user logrotate tick truncates.";
+    };
+    daemonLongLivedPaths = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      readOnly = true;
+      internal = true;
+      default = daemonLongLived;
+      description = "The long-lived paths the root logrotate tick truncates.";
+    };
   };
 
   config = lib.mkIf (config.networking.hostName == "macos") {
@@ -243,9 +312,13 @@ in
 
     # Hourly, matching the Trash sweeps in modules/darwin/core.nix. This tick is
     # itself a re-exec job, so its own log lands in the newsyslog set above with
-    # no special-casing — the classification sees it like any other agent.
-    launchd.user.agents.file-rotation-logs = {
-      serviceConfig = {
+    # no special-casing — the classification sees it like any other agent, which
+    # is also why declaring it into `hmAgents` (read at the top of this file) is
+    # not a cycle: the split reads only KeepAlive and the two path keys, never
+    # ProgramArguments.
+    home-manager.users.${loginName}.launchd.agents.file-rotation-logs = {
+      enable = true;
+      config = {
         ProgramArguments = [ (lib.getExe userTick) ];
         StartInterval = 3600;
         RunAtLoad = true;
