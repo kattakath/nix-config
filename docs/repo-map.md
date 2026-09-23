@@ -558,14 +558,23 @@ their own top-level section below:
   one `mapAttrs'` rather than nine more `home.file` lines here.
 - **`spotlight-actions.nix`** — macos-only: maps `spotlight-launchers`' `commandApps` **and**
   `aliasApps` into `~/Applications/<name>.app`. The one alias is **`Terminal`**, which opens
-  Ghostty: it carries `CFBundleAlternateNames = [Ghostty, Shell, Console, Prompt]`, Apple's own
-  mechanism (Calendar answers "iCal", System Settings answers "Preferences"), **verified
-  2026-09-23 to work on a plain unsigned third-party bundle** — a throwaway `.app` carrying the
-  key indexed as `kMDItemAlternateNames` and `mdfind` matched it. It is a SIBLING bundle rather
-  than an edit to `/Applications/Ghostty.app` because that is a Homebrew cask: an edit is
-  clobbered by the next `brew upgrade` and breaks the bundle's code signature. It shares the
-  name of `/System/Applications/Utilities/Terminal.app` deliberately — the gold icon is what
-  tells the two rows apart, and Spotlight's ranking learns which gets clicked. Uses `home.file` with `recursive = true`, **not**
+  Ghostty, and it works on the bundle's own NAME — verified: `mdfind` for an app named
+  `*terminal*` returns both `/System/Applications/Utilities/Terminal.app` and this one. It
+  shares that name deliberately (one query, both rows); the gold icon tells them apart, and
+  Spotlight's ranking learns which gets clicked. The bundle **id** is NOT shared
+  (`com.kattakath.ghostty-terminal`) — a duplicate id makes LaunchServices pick one of the two
+  at random for every `open -b` and URL handler.
+  It is a SIBLING bundle rather than an edit to `/Applications/Ghostty.app` because that is a
+  Homebrew cask: an edit is clobbered by the next `brew upgrade` and breaks the bundle's code
+  signature.
+  **`CFBundleAlternateNames` was tried and REMOVED**, and the finding is worth keeping: Apple's
+  alias key (Calendar answers "iCal", System Settings answers "Preferences") does work on a
+  plain unsigned third-party bundle, but NOT through `home.file`'s `recursive = true`, which
+  symlinks `Info.plist` into `/nix/store`. Measured 2026-09-23, same bundle both ways: a real
+  copied directory indexed all four names, the symlinked one indexed none. The display name
+  survives either way because it comes from the filename. Recovering the synonyms would mean
+  COPYING the bundle — home-manager's `targets.darwin.copyApps` exists for exactly that, at the
+  price of an App Management TCC grant and a subfolder. Uses `home.file` with `recursive = true`, **not**
   home-manager's `targets.darwin.copyApps` ("works with Spotlight",
   `modules/targets/darwin/copyapps.nix:14`): that option's default is
   `isDarwin && stateVersion >= 25.11` and this profile is on 24.05, so what is live is the
