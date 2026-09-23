@@ -553,7 +553,17 @@ their own top-level section below:
   (LibreOffice/poppler/pandoc), a gap flagged inline at that skills block since it was first
   wired. Also declares a Spotlight-visible, focus-or-launch `.app` bundle for the Android
   emulator (`home.file."Applications/Android Emulator.app"`, backed by
-  `packages/spotlight-launchers.nix`, macos-only).
+  `packages/spotlight-launchers.nix`, macos-only). The nine COMMAND bundles from the same
+  package land via `./spotlight-actions.nix` instead — a separate module so the mapping is
+  one `mapAttrs'` rather than nine more `home.file` lines here.
+- **`spotlight-actions.nix`** — macos-only: maps `spotlight-launchers.commandApps` into
+  `~/Applications/<name>.app`. Uses `home.file` with `recursive = true`, **not**
+  home-manager's `targets.darwin.copyApps` ("works with Spotlight",
+  `modules/targets/darwin/copyapps.nix:14`): that option's default is
+  `isDarwin && stateVersion >= 25.11` and this profile is on 24.05, so what is live is the
+  older `linkApps` — `~/Applications/Home Manager Apps` is a SYMLINK into `/nix/store`, which
+  Spotlight does not index. Both also nest the bundles in a subfolder, and `copyApps` needs
+  the App Management TCC grant (a click, per Mac).
 - **`mcp.nix`** — the claude-code MCP-server config. See [`mcp-gateway.md`](mcp-gateway.md);
   the per-client stdio `open-design` entry's boundary doc is [`open-design.md`](open-design.md).
 - **`chromium.nix`** — `local.ungoogledChromium`, real-Mac-only: the declarative surface for
@@ -1952,9 +1962,41 @@ Core package set:
   names the flake dir + `branch@rev` (with `(DIRTY)`) before elevating. Needs no `--flake` or
   `#attr` because `modules/parts/hosts.nix` plants `/etc/nix-darwin/flake.nix`.
 - **`spotlight-launchers.nix`** — macOS-only: from-scratch `.app` bundle generator (original
-  in-Nix SVG/icns icons via librsvg+libicns) giving the Android emulator a
-  Spotlight-visible, focus-or-launch identity; consumed by `modules/shared/home.nix`'s
-  `home.file."Applications/*.app"`.
+  in-Nix SVG/icns icons via librsvg+libicns), in two makers. `mkLauncherApp` gives the Android
+  emulator a Spotlight-visible, focus-or-launch identity (consumed by
+  `modules/shared/home.nix`'s `home.file."Applications/Android Emulator.app"`).
+  `mkCommandApp` emits **one bundle per fleet operation** — the three `commandApps`
+  (`Nix Activate`, `Nix Flake Check`, `Nix Open Repo`) planted by
+  `modules/shared/spotlight-actions.nix`. Three `shape`s: `terminal` opens a **Ghostty**
+  window running the command (`--wait-after-command=true -e /bin/zsh -lc …`) so `activate`'s
+  Touch ID sheet and the build log are both visible; `shell` opens an ordinary interactive
+  Ghostty window via its own `--working-directory`; `quiet` runs straight from the launcher
+  (no consumer today). The working tree resolves through `/etc/nix-darwin/flake.nix` — the
+  same link `darwin-rebuild` follows — and travels as an **argv element**, never an exported
+  variable: measured 2026-09-23 on Ghostty 1.3.1, a second `open -n` opens a window in the
+  EXISTING process, which does not inherit the launcher's environment.
+  Both Ghostty shapes share one `ghosttyLook` list: `--background=#6b4300` — the darkest stop
+  of the mark's own `goldDeep` gradient, **8.65:1** against the theme's `#FFFFFF` ink (the
+  obvious brighter golds fail AA: `#b57b12` is 3.62:1) — plus the same mark again as a
+  `bottom-right` corner watermark at `opacity 0.35`. `background-image-fit = none` is
+  load-bearing there: it is the only fit that does NOT scale to the window, so the mark stays
+  a corner mark instead of the full-bleed backdrop `contain` (the default) would give. The
+  image is a 256px PNG rasterised into the store, because Ghostty's `background-image` takes
+  **PNG or JPEG only** and will not read the `.svg`. All of it is per-window on the command
+  line, so `local.terminalTheme`'s `#300A24` ground is untouched everywhere else.
+  All three wear ONE shared `.icns`, the operator's gold chevron
+  (`packages/fleet-mark.svg`, a verbatim copy of `~/Pictures/icon.svg`); the non-square
+  434.94 x 448 canvas is rewritten to a centred 560 x 560 viewBox **in Nix**, behind an
+  `assert`, so the committed file stays refreshable with a plain `cp`.
+  **Started at nine, cut to three the same day** — `Nix Deploy nixpi` (deploy-rs failed even
+  after a successful Cloudflare Access login) and `Nix Launchd Doctor` (`launchd-doctor` is
+  not on a login shell's PATH) were both BROKEN; update-inputs / rollback /
+  determinate-status / search-packages / a `code`-based editor bundle were dropped as unused.
+  The package header records each, so none returns as an oversight.
+  **Not Spotlight's "Actions" lane** — that is App Intents (Swift + signing) or Shortcuts.app
+  (iCloud sqlite; the `shortcuts` CLI has no `import`), and a Shortcuts shell script launched
+  from Spotlight needs a hand-granted Full Disk Access on `Spotlight.app`. Neither is
+  declarable, so the Applications lane is the only one a flake can own.
 - `macvm-tart.nix` — removed 2026-09-05 with the `macvm` guest; the generic Tart machinery
   it wrapped lives on in the in-tree `modules/features/tart-vms/` capsule (absorbed from
   `nix-tart-vms` by ADR-002 wave 5),
