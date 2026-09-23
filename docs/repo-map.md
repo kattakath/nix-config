@@ -1061,6 +1061,17 @@ waves 5-6 absorb them).
   `enable`/`onActivation` with `cleanup = "uninstall"`/`taps`. The actual
   `brews`/`casks`/`masApps` lists live **per host** in `hosts/<host>.nix` so each darwin
   host carries its own app set.
+- **`packages/launchd-doctor.nix`** (app `nix run .#launchd-doctor`) — runtime health check for
+  every launchd unit this fleet installs. Covers the three things that **cannot** be flake
+  checks, because all three are properties of the running machine rather than the evaluated
+  config: declared-vs-loaded drift (and non-zero last-exit, which is what catches the exit-78
+  boot/mount class), unrotated log growth, and the litter left by removed features in launchd's
+  disabled DB and `~/Library/Logs`. **No Nix-time threading**, same contract as
+  `claude-otel-doctor.nix` — the installed plists ARE the declared set, and threading a Nix
+  manifest in would make the doctor agree with the config by construction, which is the one
+  thing a drift check must not do. Read-only: it prints remedies, never runs them. Wired as
+  step E3 of the `fleet-doctor` skill, under **always confirm** — bootstrapping a daemon the
+  operator deliberately booted out is exactly the wrong move.
 - **`nix-homebrew.nix`** — Homebrew-itself install via `nix-homebrew`.
 - **`xcode-license.nix`** (macos only) — runs *before* `brew bundle` to `mas install` Xcode
   when declared in `masApps` and `xcodebuild -license accept`, so formulae are not blocked by
