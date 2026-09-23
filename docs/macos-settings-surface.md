@@ -300,7 +300,7 @@ Gate with `networking.hostName` (set in `hosts/*.nix`).
 
 ```nix
 # core.nix pattern (GUI openers — quiet: dock/menu-bar OK, no window flash)
-open-maccy = mkNixAgent { suffix = "maccy"; app = "Maccy"; };  # → …/bin/nix-maccy
+open-maccy = mkNixAgent { suffix = "maccy"; app = "Maccy"; };  # → …/bin/nix-open-maccy
 ```
 
 Each opener runs `open -g -j`, then re-hides the process via System Events for
