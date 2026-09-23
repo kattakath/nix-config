@@ -1303,6 +1303,23 @@ in
       # packages too so `nix flake check` builds them and runs the
       # writeShellApplication shellcheck on each wrapper.
       packages = {
+        # The two oldest stacks had no plan app until 2026-09-23, which made
+        # CLAUDE.md's "*-plan first" unfollowable for the two LARGEST blast radii
+        # — the Pi's tunnel and the MCP portal. Their apply was the only look you
+        # got. Both builders already gate every apply-only side effect on
+        # `action == "apply"` (the connector-token echo), so plan is the same
+        # wrapper with the same guards and no writes.
+        cf-tunnel-plan = mkCfTunnelTofu {
+          inherit system hostedSites;
+          name = "cf-tunnel-plan";
+          action = "plan";
+        };
+        mcp-public-plan = mkMcpPublicTofu {
+          inherit system;
+          publicServers = publicMcpServers;
+          name = "mcp-public-plan";
+          action = "plan";
+        };
         cf-tunnel-apply = mkCfTunnelTofu {
           inherit system hostedSites;
           name = "cf-tunnel-apply";
@@ -1403,6 +1420,16 @@ in
       # All need a live token in the environment, e.g.
       #   CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-tunnel-apply
       apps = {
+        cf-tunnel-plan = {
+          type = "app";
+          program = "${config.packages.cf-tunnel-plan}/bin/cf-tunnel-plan";
+          meta.description = "Render infra/cloudflare/nixpi-tunnel.nix (terranix) and tofu PLAN nixpi's tunnel + ingress + zone settings — read-only, run it before cf-tunnel-apply (needs CLOUDFLARE_API_TOKEN)";
+        };
+        mcp-public-plan = {
+          type = "app";
+          program = "${config.packages.mcp-public-plan}/bin/mcp-public-plan";
+          meta.description = "Render infra/cloudflare/mcp-public.nix (terranix) and tofu PLAN the published MCP gateway — read-only, and unlike the apply it prints no connector token (needs CLOUDFLARE_API_TOKEN)";
+        };
         cf-tunnel-apply = {
           type = "app";
           program = "${config.packages.cf-tunnel-apply}/bin/cf-tunnel-apply";
