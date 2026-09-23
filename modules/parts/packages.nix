@@ -41,6 +41,41 @@ in
     }:
     let
       isDarwin = lib.elem system darwinSystems;
+
+      # `nix run .#nixvm`'s CWD-INDEPENDENT entry point. Darwin-only in practice —
+      # only `apps` (below) forces it, and that whole block is `optionalAttrs isDarwin`.
+      #
+      # WHY a wrapper at all: upstream resolves `virtualisation.diskImage` against the
+      # CALLER's working directory (qemu-vm.nix:129 readlink -f's it, 156 lines before its
+      # own `cd "$TMPDIR"` at :285), so the same command grew a different 8 GiB root — and
+      # a different saved browser session — per directory it was invoked from. Same root
+      # cause as the tofu state lost twice (modules/parts/terranix.nix), same fix shape: pin
+      # an XDG state dir. `NIX_DISK_IMAGE` is upstream's OWN override hook, so nothing here
+      # is patched or overridden — grepped the pinned tree, `diskImage` and this env var are
+      # the only two levers that exist (`virtualisation.vz.diskImage` is a different backend).
+      #
+      # WHY the mkdir is load-bearing, not tidiness: nothing in qemu-vm.nix creates the
+      # image's parent, and `readlink -f` exits 1 on a missing one — which :129's own
+      # `|| test -z` swallows, so :131 skips creation while :1355 still emits `-drive file=`.
+      # A bare XDG path in `virtualisation.diskImage` would break with no diagnostic.
+      #
+      # WHY it is NOT in `packages`, unlike every other writeShellApplication here: its text
+      # embeds the VM, so `nix flake check` would BUILD the whole aarch64-linux XFCE closure
+      # on the darwin leg, which has no Linux builder. Cost: shellcheck runs on first
+      # `nix run` instead of in CI.
+      nixvmRunner = pkgs.writeShellApplication {
+        name = "nixvm-run";
+        runtimeInputs = [ pkgs.coreutils ];
+        text = ''
+          # 0700 because this image holds the guest's logged-in browser session.
+          state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nixvm"
+          mkdir -p "$state_dir"
+          chmod 700 "$state_dir"
+          export NIX_DISK_IMAGE="$state_dir/nixvm.qcow2"
+          echo "nixvm root disk (PERSISTS across runs; delete it to reset): $NIX_DISK_IMAGE" >&2
+          exec ${self.nixosConfigurations.nixvm.config.system.build.vm}/bin/run-nixvm-vm "$@"
+        '';
+      };
     in
     {
       packages = {
@@ -98,9 +133,10 @@ in
           claude-otel-doctor = pkgs.callPackage ../../packages/claude-otel-doctor.nix { };
 
           # Runtime health check for every launchd unit this fleet installs:
-          # declared-vs-loaded drift, non-zero exits, unrotated log growth,
-          # disabled-DB orphans, orphan logs. None of the four can be a flake
-          # check — they are properties of the running machine, not the config.
+          # declared-but-not-loaded (incl. non-zero exits), loaded-but-not-declared
+          # orphan plists, unrotated log growth, disabled-DB orphans, orphan logs.
+          # None of the five can be a flake check — they are properties of the
+          # running machine, not the config.
           launchd-doctor = pkgs.callPackage ../../packages/launchd-doctor.nix { };
 
           # Deterministic ADB wired/wireless operator + scrcpy mirroring for a
@@ -193,17 +229,19 @@ in
       );
 
       apps = lib.optionalAttrs isDarwin {
-        # `nix run .#nixvm` — build the graphical build-vm variant and
-        # boot it in a native macOS QEMU window: a THROWAWAY XFCE dev VM (no
-        # installed disk, no provisioning). The runner wrapper is a darwin
-        # derivation (host.pkgs = aarch64-darwin); the aarch64-linux guest
-        # closure builds on Determinate's native Linux builder (enabled on the
-        # macos host) or is substituted from Cachix. run-nixvm-vm is the
-        # qemu-vm.nix script name for "nixvm".
+        # `nix run .#nixvm` — build the graphical build-vm variant and boot it in a
+        # native macOS QEMU window: an UNPROVISIONED XFCE dev VM (no installed disk,
+        # no partitioning) whose Nix STORE is rebuilt per boot but whose ROOT — so
+        # /home, so browser logins — PERSISTS in the XDG state dir `nixvmRunner` pins
+        # above. Disposable, not ephemeral: `rm` that qcow2 to reset. The runner is a
+        # darwin derivation (host.pkgs = aarch64-darwin); the aarch64-linux guest
+        # closure builds on Determinate's native Linux builder (enabled on the macos
+        # host) or is substituted from Cachix. run-nixvm-vm is the qemu-vm.nix script
+        # name for "nixvm"; nixvm-run is our wrapper around it.
         nixvm = {
           type = "app";
-          program = "${self.nixosConfigurations.nixvm.config.system.build.vm}/bin/run-nixvm-vm";
-          meta.description = "Boot a THROWAWAY nixvm dev VM with an XFCE desktop in a QEMU window (builds locally on the native Linux builder)";
+          program = "${nixvmRunner}/bin/nixvm-run";
+          meta.description = "Boot the disposable nixvm XFCE dev VM in a QEMU window — store rebuilt per boot, root disk PERSISTS at $XDG_STATE_HOME/nixvm (guest builds on the native Linux builder)";
         };
 
         # `nix run github:kattakath/nix-config#macos` — one-line first
@@ -249,11 +287,12 @@ in
           meta.description = "Check the local Claude Code OTel Collector: launchd agent, OTLP port, events file";
         };
 
-        # Declared-vs-loaded and log hygiene for every fleet launchd unit.
+        # Declared-vs-loaded drift, orphan plists and log hygiene, for every
+        # fleet launchd unit.
         launchd-doctor = {
           type = "app";
           program = "${config.packages.launchd-doctor}/bin/launchd-doctor";
-          meta.description = "Check every fleet launchd unit: loaded, exit codes, log growth, disabled-DB and log orphans";
+          meta.description = "Check every fleet launchd unit: loaded, exit codes, orphaned plists, log growth, disabled-DB and log orphans";
         };
 
         # Deterministic ADB wired/wireless operator + scrcpy mirroring.

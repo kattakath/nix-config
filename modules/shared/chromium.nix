@@ -242,10 +242,11 @@ in
           generated `index.html` linking each one. Set an entry to `null` (e.g.
           `lib.mkForce null`) to keep a declaration but skip the file.
 
-          This attrset is the public/private seam: this repo declares the public
-          scripts, the private nix-personal flake adds its own through
-          `extraHomeModules`, and the two merge. Keys must be distinct — the module
-          system treats a repeated key as a conflict, not an override.
+          This attrset is a generic merge seam: any layer composed in through
+          `extraHomeModules` adds its own keys and the definitions merge. There is
+          no second caller today — the private nix-personal flake that filled it was
+          retired 2026-09-15 — but keys must still be distinct: the module system
+          treats a repeated key as a conflict, not an override.
 
           **Nix owns the files, not Violentmonkey's database**, and that is a
           Chromium limitation rather than a shortcut. bitbloxhub's Firefox pattern

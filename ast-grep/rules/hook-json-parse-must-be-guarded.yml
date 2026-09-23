@@ -1,17 +1,20 @@
-# Guards the one invariant every hook in .claude/hooks/ states in its own header
-# and which nothing enforced until now: "a PostToolUse lint must never wedge a
-# turn: any unexpected error exits 0".
+# Guards the crash-safety invariant every hook in .claude/hooks/ relies on and
+# which nothing enforced until now: an unexpected error must exit 0 rather than
+# wedge the turn. The two SessionStart digests say so in their own headers; the
+# PreToolUse guard and the Stop gate leave it implicit, which is worse.
 #
 # An uncaught throw in a hook is not a soft failure — Claude Code surfaces the
 # non-zero exit as a hook error, and for a Stop/PreToolUse hook that means the
 # turn or the tool call is blocked with a stack trace instead of a decision.
-# JSON.parse is the single likeliest thrower in this codebase: every hook parses
-# untrusted event JSON off stdin, and several parse on-disk state files that a
-# crashed earlier run may have left truncated.
+# JSON.parse is the single likeliest thrower in this codebase: the two gates
+# parse untrusted event JSON off stdin, and three of the four parse on-disk state
+# files that a crashed earlier run may have left truncated.
 #
-# These 10 files are otherwise UNLINTED — .github/workflows/claude-config-lint.yml
-# checks agent/command/context frontmatter, never the hook JS — so this is the
-# first mechanical check any of that 1.3k lines has ever had.
+# Nothing STATICALLY lints these four files (~1.3k lines):
+# .github/workflows/claude-config-lint.yml checks agent/command/context
+# frontmatter, then runs `.claude/hooks/tests/*.sh` — behavioural case suites
+# covering only pretooluse-bash-guard.js and stop-gate.js. The two SessionStart
+# digests have no coverage at all, and a throw there is just as fatal.
 id: hook-json-parse-must-be-guarded
 language: javascript
 severity: error
@@ -33,7 +36,8 @@ rule:
 message: Unguarded JSON.parse in a Claude Code hook — a malformed payload would wedge the turn.
 note: |
   Wrap it in try/catch and degrade gracefully (`process.exit(0)` for an advisory
-  hook, an explicit allow/approve for a gate). Every existing hook already does
-  this — see .claude/hooks/nix-home-path-lint.js (stdin parse) and
-  .claude/hooks/superhook.js (state-file parse) for the two shapes. Decoder for
-  what a hook failure looks like to the operator: docs/claude-hook-messages.md.
+  hook, an explicit allow/approve for a gate). Two in-tree shapes to copy:
+  .claude/hooks/pretooluse-bash-guard.js parses stdin and `emit("approve")`s on a
+  malformed payload; .claude/hooks/stop-gate.js wraps its state-file reads in a
+  `readJson(p, fallback)` helper. Decoder for what a hook failure looks like to
+  the operator: docs/claude-hook-messages.md.

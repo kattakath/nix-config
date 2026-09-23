@@ -12,9 +12,22 @@ description: >
 # nix-hygiene
 
 **Floor (already automated):** `nix fmt` / treefmt (nixfmt + statix + deadnix),
-ast-grep structural lint (`checks.<system>.ast-grep` — hardcoded home paths, launchd
-bare-interpreter arg0, unguarded `JSON.parse` in hooks; rules in `ast-grep/rules/`),
-Stop gate + `/eval` (`git add` → `nix flake check`), CI `nix-ci.yml`.
+ast-grep structural lint (`checks.<system>.ast-grep`), Stop gate + `/eval`
+(`git add` → `nix flake check`), CI `nix-ci.yml`.
+
+**The ast-grep floor is SIX rules, and every one `severity: error` — a match FAILS the
+build, it is not a review finding.** "Report-only" means only that it never rewrites a
+file (unlike treefmt); see `sgconfig.yml`. `ls ast-grep/rules/` is the authoritative
+inventory — re-read it each pass rather than trusting this list, which has drifted before:
+
+| Rule (`ast-grep/rules/<id>.yml`) | Catches |
+|---|---|
+| `nix-hardcoded-home-path` | `/Users/<name>` or `/home/<name>` inside a Nix **string** (a `users.users.<n>.home` declaration is exempt by shape) |
+| `launchd-bare-interpreter-arg0` | `Program`/`ProgramArguments` arg0 ending in `/bin/{sh,bash,python3,node,env,…}` instead of a `nix-<kebab>` wrapper |
+| `hook-json-parse-must-be-guarded` | a `JSON.parse` in `.claude/hooks/*.js` that no `try` encloses |
+| `capsule-must-not-reach-out` | ANY `..` in a **path literal** under `modules/features/**` — escaping or not. `../module.nix` from a `checks/` leaf stays inside the capsule and still fails: a leaf takes what it needs as an ARGUMENT |
+| `shared-must-not-cross-layers` | `modules/shared/` reaching UP via `..` into `features`/`parts`/`hosts`/`infra` |
+| `activation-must-not-touch-secrets` | an `activation*` binding naming `secrets-{rehydrate,push,resolve,status}` or `gcloud {secrets,auth}` (ADR-004) |
 
 **This skill:** judgmental hygiene — architecture, host scope, docs↔code,
 abandoned experiments, comment rot — then **fix** and **re-gate**.
@@ -136,8 +149,10 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
       in this repo IS hygiene debt now. The engine is `modules/parts/*.nix`,
       one flake-parts module per concern, discovered by `import-tree`.
 - [ ] **Capsule boundary.** Anything under `modules/features/<name>/` is a capsule:
-      `flake-module.nix` is the only file outside code may import, and nothing in
-      the directory may reach out with a `..` path literal. That is enforced by
+      `flake-module.nix` is the only file outside code may import, and no file in
+      the directory may hold a `..` path literal — **including one that escapes
+      nothing**, like a `checks/` leaf reaching `../module.nix`; the entry file
+      passes that DOWN as an argument instead. That is enforced by
       `ast-grep/rules/capsule-must-not-reach-out.yml` + `checks.<system>.capsule-registry`,
       so a violation is a build failure, not a review finding — but a capsule that
       smuggles a value out through `specialArgs`, an overlay, or a runtime-built
