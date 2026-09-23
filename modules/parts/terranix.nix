@@ -109,6 +109,7 @@ let
           _module.args = {
             inherit
               domainName
+              googleAccount
               publicServers
               publicSubdomain
               externalServers
