@@ -1441,15 +1441,44 @@ in
           # unbounded log and no build ever goes red.
           #
           # This does NOT read the module's own inputs back at it. It re-walks the
-          # three composed sources here (HM agents, nix-darwin user agents,
-          # daemons) and collects every StandardOutPath/StandardErrorPath, then
-          # asserts that set is exactly the union of what the module says it
-          # covers — and that the two buckets do not overlap, since rename+create
-          # racing copytruncate on one path is a corruption, not a redundancy.
+          # FOUR composed sources here (HM agents, nix-darwin user agents,
+          # nix-darwin system-wide agents, daemons) and collects every
+          # StandardOutPath/StandardErrorPath, then asserts that set is exactly
+          # the union of what the module says it covers — and that the two buckets
+          # do not overlap, since rename+create racing copytruncate on one path is
+          # a corruption, not a redundancy.
+          #
+          # `launchd.agents` (system-wide /Library/LaunchAgents, pinned nix-darwin
+          # modules/launchd/default.nix:139) is the source that is easy to forget:
+          # it is a different option from `launchd.user.agents`, nothing in the
+          # tree uses it today, and a gate that walked only three sources would
+          # stay green on the first unit declared there.
+          #
+          # COVERED IS NOT ENOUGH — the covering tick must also be able to WRITE
+          # the file. Long-lived-wins precedence is global, so a path could leave
+          # the newsyslog set because a user agent classified it long-lived while
+          # a root daemon owns it; a login-user logrotate then gets EPERM and the
+          # set-equality assertions above would still pass. The tier assertions
+          # re-derive the daemon-declared paths here and demand that none of them
+          # sit in the user tick's set.
           launchd-log-rotation =
             let
               mac = config.flake.darwinConfigurations.macos.config;
               rot = mac.local.launchdLogRotation;
+              pathsIn =
+                attrs: key:
+                lib.unique (
+                  lib.concatMap (
+                    unit:
+                    let
+                      c = unit.${key} or { };
+                    in
+                    lib.filter (x: x != null && x != "") [
+                      (c.StandardOutPath or null)
+                      (c.StandardErrorPath or null)
+                    ]
+                  ) (lib.attrValues attrs)
+                );
               sources = [
                 {
                   attrs = mac.home-manager.users.${loginName}.launchd.agents;
@@ -1460,29 +1489,25 @@ in
                   key = "serviceConfig";
                 }
                 {
+                  attrs = mac.launchd.agents;
+                  key = "serviceConfig";
+                }
+                {
                   attrs = mac.launchd.daemons;
                   key = "serviceConfig";
                 }
               ];
-              declared = lib.unique (
-                lib.concatMap (
-                  src:
-                  lib.concatMap (
-                    unit:
-                    let
-                      c = unit.${src.key} or { };
-                    in
-                    lib.filter (x: x != null && x != "") [
-                      (c.StandardOutPath or null)
-                      (c.StandardErrorPath or null)
-                    ]
-                  ) (lib.attrValues src.attrs)
-                ) sources
-              );
+              declared = lib.unique (lib.concatMap (src: pathsIn src.attrs src.key) sources);
               covered = lib.unique (rot.reExecPaths ++ rot.longLivedPaths);
               uncovered = lib.subtractLists covered declared;
               phantom = lib.subtractLists declared covered;
               overlap = lib.intersectLists rot.reExecPaths rot.longLivedPaths;
+              # Tier, re-derived here rather than taken from the module.
+              daemonDeclared = pathsIn mac.launchd.daemons "serviceConfig";
+              rootInUserTick = lib.intersectLists rot.userLongLivedPaths daemonDeclared;
+              tickSets = lib.unique (rot.userLongLivedPaths ++ rot.daemonLongLivedPaths);
+              unticked = lib.subtractLists tickSets rot.longLivedPaths;
+              stray = lib.subtractLists rot.longLivedPaths tickSets;
             in
             mkHostContract {
               inherit pkgs;
@@ -1505,6 +1530,14 @@ in
                   name = "the long-lived set is non-empty — an empty one means the classifier broke";
                   ok = rot.longLivedPaths != [ ];
                 }
+                {
+                  name = "every long-lived path is in exactly one tick (unticked: ${toString unticked}, stray: ${toString stray})";
+                  ok = unticked == [ ] && stray == [ ];
+                }
+                {
+                  name = "no root-owned log is handed to the login-user tick (EPERM: ${toString rootInUserTick})";
+                  ok = rootInUserTick == [ ];
+                }
               ];
               advice = [
                 "modules/darwin/logging.nix derives both sets from the KeepAlive shape of"
@@ -1512,6 +1545,9 @@ in
                 "was dropped, not that the agent needs no rotation. A path in BOTH means the"
                 "long-lived-wins precedence (lib.subtractLists) was bypassed — newsyslog's"
                 "rename+create racing logrotate's copytruncate on one file loses data."
+                "A path in the user tick that a daemon also declares means the tier rule"
+                "(any daemon declaration -> root tick) was bypassed: the login user cannot"
+                "truncate root's file, so the path would be covered and still never shrink."
               ];
             };
 
