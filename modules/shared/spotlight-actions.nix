@@ -1,6 +1,16 @@
-# Spotlight-runnable fleet operations — `activate`, `nix flake check`, the nixpi
-# deploy, and six more, each as a real .app in ~/Applications so Spotlight's
-# Applications lane indexes it. Type "nix" in Spotlight and the whole set lists.
+# The .app bundles this fleet plants in ~/Applications so Spotlight's
+# Applications lane indexes them. Two kinds, both from
+# packages/spotlight-launchers.nix:
+#
+#   commandApps — `Nix Activate`, `Nix Flake Check`, `Nix Open Repo`. Type "nix"
+#                 in Spotlight and the three list together.
+#   aliasApps   — `Terminal`, which opens Ghostty. It exists only so Ghostty
+#                 answers to a name it does not carry; the key that does the
+#                 work (CFBundleAlternateNames) belongs in Ghostty's own
+#                 Info.plist, but that is a Homebrew cask and editing it would
+#                 be clobbered by the next upgrade AND break its code signature.
+#
+# The two merge into one `home.file` map below — same placement rules, same gate.
 #
 # WHY NOT SPOTLIGHT'S "ACTIONS" LANE (the one macOS 26 added, and the one people
 # reach for first): it is fed only by App Intents — a Swift-only framework
@@ -50,7 +60,10 @@ let
   # Its own callPackage rather than a value threaded from home.nix: the two
   # calls are identical, so Nix realises ONE derivation, and this module stays
   # independently importable instead of depending on a binding next door.
-  inherit (pkgs.callPackage ../../packages/spotlight-launchers.nix { }) commandApps;
+  inherit (pkgs.callPackage ../../packages/spotlight-launchers.nix { })
+    commandApps
+    aliasApps
+    ;
 in
 {
   # `recursive = true` for the same reason the Android Emulator bundle uses it
@@ -63,6 +76,6 @@ in
         source = app;
         recursive = true;
       }
-    ) commandApps
+    ) (commandApps // aliasApps)
   );
 }
