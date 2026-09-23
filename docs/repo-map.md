@@ -2770,6 +2770,13 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   **two items deliberately NOT done** — the provider pin (ADR-004 deferred it; needs a plan
   run) and device posture (**zero enrolled devices, so a `device_posture` require evaluates
   false forever and takes the tier OFFLINE**). Carries the apply stop-conditions.
+- [`docs/rdkb-gateway-contract.md`](docs/rdkb-gateway-contract.md) — the **HTTP contract**
+  of the household's Rogers CGM4981 gateway (RDK-B firmware): auth, the server-side
+  lockout counter, session lifetime, CSRF, the JSON log endpoint and why entity depth
+  varies per page — every claim cited `file:line` against Apache-2.0 `rdkcentral/webui`,
+  which **is** this device's UI source. Carries an explicit confirmed-vs-unconfirmed
+  table. Read before writing anything that talks to the gateway; it also records why
+  monitoring must NOT be built on it (the Cloudflare tunnel is the better WAN signal).
 - [`docs/secrets-and-keychain.md`](docs/secrets-and-keychain.md) — agenix operator-only vault,
   the login-Keychain loader, the `secret` CLI.
 - **ADRs, in order** — [`ADR-001`](docs/flake-architecture-strategy-adr.md) (flake-parts for the
