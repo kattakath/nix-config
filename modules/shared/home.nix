@@ -761,6 +761,7 @@ in
         "harvest"
         "jsonresume-tailor"
         "github-release-gate"
+        "skill-curator"
         # The answer-shape kit: output style, the /explain family, cartographer, /task.
         # modules/shared/claude-brain.nix selects its (namespaced) output style.
         "brain-signals"
