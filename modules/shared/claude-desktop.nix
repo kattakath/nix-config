@@ -1,28 +1,34 @@
 # Client side D: Claude Desktop (and, through its device bridge, Cowork).
 #
 # WHAT THIS DOES
-# Renders the SAME MCP servers Claude Code gets — the localhost gateway's
-# hosted endpoints (modules/shared/mcp.nix) plus the per-client stdio servers
-# in programs.claude-code.mcpServers — into Claude Desktop's own config file,
-# ~/Library/Application Support/Claude/claude_desktop_config.json. Desktop
-# does not read ~/.claude/*, .mcp.json, or the home-manager MCP hub, so
-# without this the Mac's 20+ gateway servers (telegram, gmail-<alias>,
-# wordpress, memory, …) exist for Claude Code only.
+# Renders the SAME MCP connector Claude Code gets — the Cloudflare portal in
+# front of the gateway (modules/shared/mcp.nix) — into Claude Desktop's own
+# config file, ~/Library/Application Support/Claude/claude_desktop_config.json.
+# Desktop does not read ~/.claude/*, .mcp.json, or the home-manager MCP hub, so
+# without this the fleet's 26 servers exist for Claude Code only.
+#
+# ONE entry, not a server list. Until 2026-09-22 this rendered an attrset of 26
+# loopback URLs, one shim process per server; everything now reaches every
+# server through the single Workspace-authenticated portal, so the count here no
+# longer tracks the roster and adding a server changes nothing in this file.
 #
 # Everything Desktop loads is ALSO proxied into a linked Cowork cloud session
 # as mcp__remote-devices__<name>__* (the same path Desktop Commander and
 # Kapture take today), so this one file is what gives Cowork the fleet's
 # servers without publishing anything on the public gateway.
 #
-# THE TRANSPORT TRAP (why every gateway entry is an mcp-remote shim)
+# THE TRANSPORT TRAP (why the portal entry is an mcp-remote shim)
 # Desktop's parser accepts ONLY the stdio shape — {command, args, env}. A
 # `url` or `type` key fails its schema validation and the entry is dropped (or
-# the whole mcpServers block is). The gateway speaks Streamable HTTP on
-# 127.0.0.1, so each hosted server is wrapped in `mcp-remote` (geelen/mcp-remote:
-# a stdio⇄Streamable-HTTP bridge), pinned by version and launched by the SAME
-# store-path npx the gateway itself uses. Shims, not servers: the gateway still
-# hosts exactly one instance of each; Desktop just gets one thin bridge process
-# per server.
+# the whole mcpServers block is). The portal speaks Streamable HTTP, so it is
+# wrapped in `mcp-remote` (geelen/mcp-remote: a stdio⇄Streamable-HTTP bridge),
+# pinned by version and launched by the SAME store-path npx the gateway itself
+# uses. A shim, not a server: one thin bridge process, and the OAuth handshake
+# Access requires happens inside it.
+#
+# `checks.<system>.claude-desktop-config-shape` asserts the rendered argv
+# actually carries `local.mcpGateway.portalEndpoint` — two modules, one URL, so
+# a broken hub wiring fails the build instead of leaving Desktop with no servers.
 #
 # THE OWNERSHIP TRAP (why an activation merge, not home.file)
 # claude_desktop_config.json is STATEFUL and Desktop-owned: today it holds
@@ -45,12 +51,21 @@
 # `programs.claude-desktop.enableMcpIntegration = true` and the shim transform
 # moves upstream with it.
 #
-# DELIBERATELY NOT RENDERED
-#   desktop-commander — already installed in Desktop as a Desktop Extension
-#     (.mcpb, `ant.dir.gh.wonderwhy-er.desktopcommandermcp`); a second copy via
-#     this file would load the same 20 tools twice.
+# DELIBERATELY NOT RENDERED — and no longer sufficient on its own.
+#   desktop-commander is already installed in Desktop as a Desktop Extension
+#   (.mcpb, `ant.dir.gh.wonderwhy-er.desktopcommandermcp`), so this file has
+#   never rendered a second copy. `excludeServers` and the matching arm of
+#   checks.<system>.claude-desktop-config-shape still enforce that.
 #
-# SCOPE: darwin only, and only when the gateway is on (the endpoints are its).
+#   What changed 2026-09-22: desktop-commander moved ONTO the gateway and into
+#   publicMcpServers, so Desktop now receives it through the portal entry
+#   regardless — the duplicate this exclusion was written to prevent is back, by
+#   a route the exclusion cannot see. It is one connector, all-or-nothing: the
+#   portal cannot serve Desktop a subset. Left as-is deliberately (duplicate tool
+#   names are a nuisance, not a failure, and the extension is the faster path);
+#   the fix, if it ever matters, is to uninstall the .mcpb — not to edit here.
+#
+# SCOPE: darwin only, and only when the gateway is on (the portal entry is its).
 # Gated further at activation on the Desktop support dir existing — no Desktop,
 # no stray file. Desktop reads the file at launch: restart it after a switch
 # that changes the set (the activation prints a reminder only when it did).

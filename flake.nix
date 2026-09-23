@@ -278,7 +278,10 @@
     # Grok Build <-> Claude Code bridge (/grok-build:{review,critique,delegate,
     # import,...}). Pinned flake=false; its self-contained plugin dir is wired into
     # programs.claude-code.plugins (modules/shared/home.nix, darwin-gated). Needs
-    # grok on PATH (home.sessionPath ~/.grok/bin) + Node; grok must be authenticated.
+    # grok on PATH + Node; grok must be authenticated. That PATH entry is the
+    # STORE one from hosts/macos.nix's environment.systemPackages, NOT
+    # `~/.grok/bin` — home.sessionPath dropped that on purpose 2026-09-15 so a
+    # stale self-updated copy cannot shadow the pinned binary (packages/grok.nix).
     grok-build-plugin-cc = {
       url = "github:xai-org/grok-build-plugin-cc";
       flake = false;
