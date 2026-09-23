@@ -1,10 +1,15 @@
-# ADR-006: the MCP gateway's named successor — IBM ContextForge, not yet
+# ADR-006: IBM ContextForge is a PORTAL-layer alternative, not `mcp-proxy`'s successor
 
 **Status:** **Decided (name only). NOT implemented** — 2026-09-23. Nothing has shipped:
 `modules/shared/mcp.nix` still runs `pkgs.mcp-proxy` v0.12.0, there is no `contextforge` package,
-no second port, and no behaviour change on any host. This ADR records **which** replacement is
-chosen, the evidence for it, what was rejected, and the **trigger conditions** that would start
-the work — so the question is answered from a decision rather than re-derived.
+no second port, and no behaviour change on any host.
+
+**This ADR was amended the day it was written, and the amendment is the point.** It was drafted as
+"ContextForge succeeds `mcp-proxy`". That framing is a **category error**: a ContextForge *gateway*
+federates peers that are ALREADY HTTP/SSE and rejects stdio outright (§3), so it cannot replace a
+stdio bridge — it sits ABOVE one. The layer it actually competes with is the **Cloudflare MCP
+Portal**, which this fleet already runs. §1a is that comparison, and it is the section to read
+first; the original framing survives nowhere in this document.
 
 **Read §12 before trusting §§1-11, and read §13 — it is still empty.** ADR-002's §9 had to
 overturn four of its own "ADOPT" rows. This document is only the design state. Where execution
@@ -30,17 +35,48 @@ verifiable that way is marked **UNVERIFIED** in place.
 ## 1. Decision
 
 1. **IBM ContextForge (`IBM/mcp-context-forge`, PyPI `mcp-contextforge-gateway`) is the named
-   successor** to `pkgs.mcp-proxy` as this fleet's MCP (Model Context Protocol) gateway.
-2. **It is not adopted now.** No packaging, no port, no registration change in this PR.
-3. **It is not bought for the startup barrier.** §2 shows the barrier is a property of *one
+   candidate for the PORTAL layer** — federation, auth, identity, per-server policy, catalog. It is
+   **NOT** a candidate to replace `pkgs.mcp-proxy`, which does a different job (stdio → HTTP) that
+   ContextForge does not do at all.
+2. **It is not adopted now**, and on today's evidence the Cloudflare MCP Portal **wins** (§1a). No
+   packaging, no port, no registration change in this PR.
+3. **`mcp-proxy` stays either way.** Adopting ContextForge would ADD a layer, not remove one — the
+   stdio bridging still has to happen, whether by `mcp-proxy` as today or by 27
+   `mcpgateway.translate` sidecars (§3).
+4. **It is not bought for the startup barrier.** §2 shows the barrier is a property of *one
    process spawning 27 stdio children sequentially*, and §8's cheaper adjacent option fixes it
-   without ContextForge at all. ContextForge is bought for **identity propagation and per-user
+   **without ContextForge at all**. ContextForge is bought for **identity propagation and per-user
    downstream credentials** (§5) — which are **currently unreachable through this fleet's
    Cloudflare portal**, and that is why this is a future decision and not a present one.
-4. **Hard requirement on any migration:** the published path segment is derived **deterministically
+5. **Hard requirement on any migration:** the published path segment is derived **deterministically
    in Nix** (a UUIDv5 of the server name), never read back from a database. See §7.
-5. **Hard requirement on any migration:** the Admin UI and Admin API stay **off**, and adoption is
+6. **Hard requirement on any migration:** the Admin UI and Admin API stay **off**, and adoption is
    declarative — no `mcp-scout` violation, no admin-UI registration.
+
+## 1a. The comparison this ADR was missing — ContextForge vs the Cloudflare MCP Portal
+
+The first draft compared ContextForge against `mcp-proxy`. Wrong pairing. `mcp-proxy` bridges stdio
+to HTTP; ContextForge **cannot** (§3). What ContextForge replaces is the layer above:
+
+| | **Cloudflare MCP Portal** (today) | **ContextForge** |
+|---|---|---|
+| Runs where | **Cloudflare's edge** — zero processes on this Mac | **This Mac** — 1 gateway + 2 forked jq workers |
+| Federation of N servers behind one URL | ✅ | ✅ |
+| Authentication | **Google Workspace SSO via Access** | JWT / OAuth it issues itself |
+| Per-server authorization | ✅ — per-server Access apps, three tiers (ADR-006 predates none of this; applied 2026-09-23) | RBAC / teams |
+| DDoS absorption, TLS, anycast | ✅ **free, always-on** | ❌ — would need the tunnel anyway |
+| Secrets to operate | **0** | **≥2** (`JWT_SECRET_KEY`, `AUTH_ENCRYPTION_SECRET`) |
+| Packaging cost | **0** — it is a managed service | §6 — not in nixpkgs |
+| Per-user credential injection **into a local stdio child** | ❌ **impossible** — a remote portal cannot set env vars on this Mac's children | ✅ **the one genuine advantage** |
+
+**The portal wins on every axis but one.** That one — injecting a different credential into a local
+child process per caller — is structurally impossible for *any* remote gateway, which is why it is
+the only reason ContextForge is named at all. And §5 shows it is **currently unreachable**, because
+the mechanism needs the client to send a custom header and grok.com sends none.
+
+**Consequence for anyone reading this later:** adopting ContextForge means **self-hosting a layer
+Cloudflare currently gives you free**, and carrying two secrets, a database and a package to do it.
+Do not start that because the gateway feels slow — see §2, it is not.
 
 ## 2. The measured weakness — and the one that measured fine
 
@@ -314,6 +350,12 @@ credentials, no persisted state) before pointing it at `memory`, `postgres` or a
 
 ## 11. Trigger conditions — what starts the migration
 
+**Re-pointed by the §1a amendment.** The question is NOT "when do we replace `mcp-proxy`" — on this
+evidence, never: ContextForge cannot do its job. It is **"when would we self-host the portal
+layer"**, and the honest baseline answer is *when Cloudflare stops being the right place for it*.
+Triggers 1-3 below are the per-user-credential path; **trigger 6 is the one that would move this
+on its own.**
+
 Checkable, in priority order. **Any one is sufficient.**
 
 | # | Trigger | How it is checked |
@@ -323,6 +365,8 @@ Checkable, in priority order. **Any one is sufficient.**
 | 3 | **`translate`-sidecars-in-front-of-`mcp-proxy` is tried and fails.** | The §9 deferred option is implemented and the ~29.4 s barrier does not fall, or per-agent supervision proves unworkable. Then the decomposition must come with a gateway that expects it. |
 | 4 | **`pkgs.mcp-proxy` stops being maintained**, or #229/#232 land a breaking change this fleet cannot follow. | `nix search`/upstream releases: no release in 12 months, or the fleet's config shape no longer expressible. |
 | 5 | **ContextForge enters nixpkgs.** | `nix search nixpkgs contextforge` returns a result, or `python3Packages ? mcp-contextforge-gateway` is `true`. This collapses §6 — the single largest cost — to near zero. |
+
+| 6 | **Cloudflare stops being the right home for the portal layer.** The MCP Portal leaves beta on terms this fleet will not take, starts charging per server, is deprecated, or the fleet leaves Cloudflare. | A pricing/deprecation notice, or an operator decision to move off Cloudflare. This is the trigger that would move this ADR **on its own merits** — every other trigger is about credentials. |
 
 **Counter-trigger — what would *un*-name it:** the project archives or stalls (no release in 6
 months); a critical advisory class reaches a loopback-only single-user deployment; `cpex`'s
