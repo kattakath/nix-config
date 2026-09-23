@@ -143,15 +143,39 @@ in
         };
       };
 
-      # One-shot: RunAtLoad, no KeepAlive. A failed pull exits non-zero and
-      # stays visible in `launchctl print` and the log below — when this ran
-      # inside the old server wrapper it had to be swallowed with `|| true`, or
-      # a missing model would have taken `ollama serve` down with it.
+      # Retry-until-success, using launchd's own keys rather than a second retry
+      # loop of ours.
+      #
+      # This was RunAtLoad with no KeepAlive, on the reasoning that a failed pull
+      # "stays visible". It did — and then stayed FAILED for the whole login
+      # session. Measured 2026-09-22: `runs = 1, last exit code = 1`, and ten
+      # consecutive "could not connect to ollama server" lines in the log below.
+      #
+      # Note what that does NOT mean: the poll at :104 already waits 120 x 1s for
+      # the server, so this is not a missing wait. It is a pull that exhausted a
+      # two-minute budget on a cold login — the machine-wide daemon
+      # (`local.ollamaDaemon`, since `manageServer = false` here) was still coming
+      # up — and then had no second chance until the next login.
+      #
+      # KeepAlive.SuccessfulExit = false is launchd's "restart until it exits 0",
+      # which is exactly the semantic wanted, and the same Lego media-cli's queue
+      # already uses (modules/features/media-cli/module.nix:315). ThrottleInterval
+      # raises launchd's flat ~10s respawn floor to a minute, because a model pull
+      # is not something to retry ten times a minute. The poll at :104 STAYS: it is
+      # what makes the common case succeed in a single spawn, so removing it would
+      # turn every cold login into a throttled respawn.
+      #
+      # Cost, accepted: a pull that can never succeed (genuinely offline, or a
+      # renamed model) now retries every 60s instead of failing once, so the log
+      # below grows. That log is in the newsyslog rotation set for exactly this
+      # reason.
       launchd.agents.ollama-local-pull = {
         enable = true;
         config = {
           ProgramArguments = [ (lib.getExe pullScript) ];
           RunAtLoad = true;
+          KeepAlive.SuccessfulExit = false;
+          ThrottleInterval = 60;
           StandardOutPath = "${logDir}/ollama-local-pull.log";
           StandardErrorPath = "${logDir}/ollama-local-pull.log";
         };
