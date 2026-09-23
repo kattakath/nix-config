@@ -359,8 +359,9 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
 - **OpenTofu state is the fragile part of the edge, not the config.** State was lost **twice**
   to `tofu` running in whatever the CWD happened to be. Since ADR-005 five of the six share a
   **GCS backend** (`fleet.gcpStateBucket`, versioned) **encrypted** with a Keychain passphrase
-  (`tofu:state:passphrase`) — state holds a connector token and an Access service-token secret
-  in plaintext, so **losing that passphrase makes all state unreadable**. `gcp-foundation` alone
+  (`tofu:state:passphrase`) — the state PAYLOAD holds a connector token and an Access
+  service-token secret, which is why encryption is not optional and why **losing that
+  passphrase makes all state unreadable**. `gcp-foundation` alone
   keeps **local** (still encrypted) state: it declares that bucket. Never apply before a
   `plan` reads clean.
 - **Magic rollback** (`deploy.nodes.nixpi.magicRollback = true`): a change that kills sshd, the
