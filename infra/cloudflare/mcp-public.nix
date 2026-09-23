@@ -181,6 +181,7 @@ let
     desktop-commander = "operator"; # arbitrary shell + filesystem
     macos-automator = "operator"; # AppleScript/JXA, incl. `do shell script`
     chrome-devtools = "operator"; # evaluate_script in the logged-in browser
+    kapture = "operator"; # CDP over the whole browser profile, via the local bridge
     mobile-mcp = "operator"; # drives a real device over adb
     postgres = "operator"; # general SQL executor
     wordpress = "operator"; # prod site admin: users, app passwords
