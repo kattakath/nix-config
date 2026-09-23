@@ -1,7 +1,8 @@
 # ADR-005 — Everything declarative: Cloudflare under terranix, GCP alongside it
 
 **Status:** **DECIDED and FULLY IMPLEMENTED 2026-09-22 — phases 0 through 4.** Four decisions
-taken in §3, all five stacks live, every one re-planning clean. §6 records what each phase
+taken in §3, all five stacks live and re-planning clean; a SIXTH (`cf-access-org`, §4) was
+added 2026-09-22. §6 records what each phase
 actually delivered, §8 what executing them invalidated, and §8a/§8b the traps each one cost.
 
 **The ask, verbatim:** *"make sure the Cloudflare config is clean, lean and up to date, and
@@ -133,7 +134,7 @@ fork.
 
 ## 4. Target shape
 
-Three stacks, one backend, one rule for what belongs where:
+Three stacks at decision time, **four today**, one backend, one rule for what belongs where:
 
 > **A stack is a blast radius, not a category.**
 
@@ -142,10 +143,36 @@ Three stacks, one backend, one rule for what belongs where:
 | `cf-tunnel` | nixpi's tunnel, ingress, hosted-site DNS + zone settings | Breaking it takes the Pi offline |
 | `mcp-public` | the published MCP gateway, portal, Access, service token | Breaking it takes the MCP portal offline |
 | `cf-zones` **(new)** | `kattakath.com` DNS records not owned above, the `mta-sts` Worker | Breaking it takes **mail** down |
+| `cf-access-org` **(added 2026-09-22)** | the Zero Trust organisation: `auth_domain` + the login page's branding | Breaking it locks **every** Access application at once |
 
 Mail is the argument for the third stack. `MX`, DKIM, DMARC and MTA-STS records are the highest
 consequence-per-byte objects in the account and they share no failure mode with a tunnel. They
 should not ride in a plan whose other half is a Pi.
+
+**The fourth stack is the rule applied to its own limit case: one resource, its own blast
+radius.** `cloudflare_zero_trust_organization` owns `auth_domain`, the sign-in host for every
+Access application in the account — so it sits *above* both `cf-tunnel` and `mcp-public` rather
+than beside them, and a bad apply takes out nixpi's SSH gate and the MCP portal together. That
+it contains a single resource is not an argument for folding it into a neighbour; the rule keys
+on consequence, not on line count.
+
+Two things make it sharper than the others, and both are written at the module:
+
+- **Every attribute is optional** in the pinned provider (5.25.0, verified via
+  `tofu providers schema -json`). There is no "manage only `login_design`" mode, so a render
+  that declares just the branding is not a safe subset — it is a description of an organisation
+  whose other fields are unset. The module therefore **mirrors** the live object.
+- **Import, never create.** There is one organisation per account and it predates this repo, so
+  the damaging shape is an apply against empty state. The wrapper refuses exactly that, and
+  refuses a render that has lost `auth_domain`.
+
+*Why it is under IaC at all:* the login page is the only surface in the whole MCP connector flow
+that carries the operator's mark. Claude renders a generic globe for every custom connector —
+`serverInfo.icons` exists in MCP spec 2025-11-25 but Claude does not read it
+([anthropics/claude-ai-mcp#152](https://github.com/anthropics/claude-ai-mcp/issues/152), open
+since 2026-04-06), and Cloudflare's portal object carries no icon field to put one in either
+(measured 2026-09-22, the object has no logo/icon/branding key). Branding is therefore *only*
+available at sign-in, which makes it worth declaring rather than clicking.
 
 ### Import mechanism
 

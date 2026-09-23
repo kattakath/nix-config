@@ -21,6 +21,7 @@ let
     hostedSites
     publicMcpServers
     publicMcpPort
+    accessOrg
     gcpBillingAccountId
     gcpBudgetAmount
     gcpBudgetCurrency
@@ -330,6 +331,252 @@ let
           };
         }
       ];
+    };
+
+  cfAccessOrgConfig =
+    { system }:
+    terranix.lib.terranixConfiguration {
+      inherit system;
+      modules = [
+        ../../infra/cloudflare/access-org.nix
+        (tofuGcsBackend "cf-access-org")
+        {
+          _module.args = {
+            accountId = cloudflareAccountId;
+            inherit (accessOrg) authDomain loginDesign;
+            orgName = accessOrg.name;
+          };
+        }
+      ];
+    };
+
+  # A FOURTH Cloudflare stack, for ONE resource, and that is the right shape:
+  # `cloudflare_zero_trust_organization` owns `auth_domain`, the sign-in host for
+  # EVERY Access application in the account. Breaking it takes out nixpi's SSH
+  # gate and the MCP portal together — a blast radius that shares nothing with a
+  # tunnel or a DNS record, which is exactly when ADR-005 §4 says to split.
+  #
+  # The guard here is not the zones stack's "did the render shrink". There is
+  # exactly ONE organisation per account and it has existed since 2026-07-03, so
+  # the damaging shape is an apply against EMPTY state: that is a create where
+  # only an import is correct.
+  mkCfAccessOrgTofu =
+    {
+      system,
+      name,
+      action,
+    }:
+    let
+      pkgs = pkgsFor system;
+    in
+    pkgs.writeShellApplication {
+      inherit name;
+      runtimeInputs = [
+        pkgs.opentofu
+        pkgs.coreutils
+        pkgs.gnugrep
+        pkgs.gnused
+        pkgs.jq
+      ];
+      text = ''
+        if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
+          echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
+          echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- ${name}" >&2
+          echo "  (needs Account > Access: Organizations:Edit — the scoped" >&2
+          echo "   cf:cloudflare.com:mcp-public handle 403s on /access/organizations)" >&2
+          exit 1
+        fi
+
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-cf-access-org"
+        mkdir -p "$state_dir"
+        chmod 700 "$state_dir"
+        cd "$state_dir"
+        umask 077
+        chmod 600 terraform.tfstate terraform.tfstate.backup 2>/dev/null || true
+        echo "tofu working directory: $state_dir" >&2
+
+        rm -f config.tf.json
+        cp ${cfAccessOrgConfig { inherit system; }} config.tf.json
+        chmod 600 config.tf.json
+        ${tofuRemoteStatePrelude}
+        tofu init
+
+        echo "auth_domain this render declares: $(jq -r '
+          .resource.cloudflare_zero_trust_organization.fleet.auth_domain // "MISSING"
+        ' config.tf.json)" >&2
+
+        # EMPTY STATE = an import has not happened. Applying here would try to
+        # CREATE an organisation that already exists.
+        if ! tofu state list > .state-addrs.raw 2> .state-list.err; then
+          if [ -s terraform.tfstate ]; then
+            echo "REFUSING: 'tofu state list' failed, so this run cannot tell whether" >&2
+            echo "  the organisation is already tracked. tofu said:" >&2
+            sed 's/^/    /' .state-list.err >&2
+            exit 1
+          fi
+          : > .state-addrs.raw
+        fi
+        if ! grep -q '^cloudflare_zero_trust_organization\.' .state-addrs.raw; then
+          echo "REFUSING: state does not track the organisation yet." >&2
+          echo "  There is exactly ONE per account and it has existed since" >&2
+          echo "  2026-07-03, so the correct first move is an IMPORT, never a" >&2
+          echo "  create:" >&2
+          echo "    nix run .#cf-access-org-import" >&2
+          echo "  then re-run ${name} and read the plan: it must show NO changes" >&2
+          echo "  before any apply." >&2
+          exit 1
+        fi
+
+        # ---- The guard that matters: a NULL-WRITE check -----------------------
+        # Everything below is one mechanism, so read it once rather than per-test.
+        # The provider's encoder (internal/apijson/encoder.go:406-409 @ 5.25.0)
+        # omits a key only when it is null in BOTH plan and state; when it is null
+        # in the plan and SET in state it sends an explicit JSON `null`, and
+        # Update marshals against prior state (resource.go:129). So for this
+        # resource "absent from the render" means DELETE, not "leave alone".
+        #
+        # `computed_optional` attributes are exempt — the framework refills them
+        # from state — which leaves exactly these six able to be silently deleted.
+        # They are absent from the render because they are unset live; if anyone
+        # sets one in the dashboard, this refuses instead of reverting it.
+        state_json=$(tofu show -json 2>/dev/null || true)
+        if [ -z "$state_json" ]; then
+          echo "REFUSING: could not read state as JSON, so this run cannot tell" >&2
+          echo "  whether an apply would null out an organisation attribute." >&2
+          exit 1
+        fi
+        # NOT `|| true`. A jq that errors here would yield an empty result, which
+        # reads identically to "nothing would be clobbered" — the fail-OPEN shape
+        # this repo already hit once on the mcp-public drop guard. Tested against
+        # a populated state, a clean state and malformed input (jq exits 5).
+        if ! clobbered=$(printf '%s' "$state_json" | jq -r --slurpfile cfg config.tf.json '
+          ($cfg[0].resource.cloudflare_zero_trust_organization.fleet) as $render
+          | [ "session_duration", "user_seat_expiration_inactive_time",
+              "warp_auth_session_duration", "custom_pages", "mfa_config",
+              "mfa_ssh_piv_key_requirements" ] as $risky
+          | ( .values.root_module.resources // [] )
+          | map(select(.type == "cloudflare_zero_trust_organization"))
+          | .[0].values // {}
+          | to_entries
+          | map(select((.key | IN($risky[])) and .value != null and ($render[.key] == null)))
+          | .[].key
+        '); then
+          echo "REFUSING: could not evaluate the null-write guard against state." >&2
+          echo "  An empty result and a failed query look the same, so this run" >&2
+          echo "  cannot tell whether an apply would delete an org attribute." >&2
+          exit 1
+        fi
+        if [ -n "$clobbered" ]; then
+          echo "REFUSING: state holds attributes this render does not declare." >&2
+          printf '%s\n' "$clobbered" | sed 's/^/    /' >&2
+          echo "" >&2
+          echo "  For THIS resource an omission is not a no-op — the provider sends" >&2
+          echo "  an explicit null, which DELETES the setting at Cloudflare. Each" >&2
+          echo "  name above is a live Access policy (session lifetimes, custom" >&2
+          echo "  pages, MFA configuration) that an apply would silently clear." >&2
+          echo "  Declare it in infra/cloudflare/access-org.nix with its live value," >&2
+          echo "  then re-run. Do not override this one." >&2
+          exit 1
+        fi
+
+        # auth_domain: compare the render against STATE, not against "". An
+        # omission already fails at EVAL (it is a required module argument), so
+        # the reachable failure is a WRONG value — a typo in identity.nix — and
+        # only state can catch that.
+        render_ad=$(jq -r '
+          .resource.cloudflare_zero_trust_organization.fleet.auth_domain // ""
+        ' config.tf.json)
+        if ! state_ad=$(printf '%s' "$state_json" | jq -r '
+          ( .values.root_module.resources // [] )
+          | map(select(.type == "cloudflare_zero_trust_organization"))
+          | .[0].values.auth_domain // ""
+        '); then
+          echo "REFUSING: could not read auth_domain out of state." >&2
+          exit 1
+        fi
+        if [ -n "$state_ad" ] && [ "$render_ad" != "$state_ad" ]; then
+          echo "REFUSING: this render CHANGES the sign-in host." >&2
+          echo "    state:  $state_ad" >&2
+          echo "    render: $render_ad" >&2
+          echo "  auth_domain is the sign-in host for EVERY Access application in" >&2
+          echo "  the account. Rewriting it locks nixpi's SSH gate and the MCP" >&2
+          echo "  portal in the same apply. If this is a typo in" >&2
+          echo "  modules/parts/identity.nix (fleet.accessOrg.authDomain), fix it." >&2
+          echo "  If you genuinely mean to move the sign-in host:" >&2
+          echo "    CF_ACCESS_ORG_ALLOW_AUTH_DOMAIN_CHANGE=1 ${name}" >&2
+          [ "''${CF_ACCESS_ORG_ALLOW_AUTH_DOMAIN_CHANGE:-}" = "1" ] || exit 1
+          echo "WARNING: proceeding with an auth_domain change." >&2
+        fi
+
+        ${pkgs.lib.optionalString (action == "apply") ''
+          # The interactive confirmation is the last line of defence here, because
+          # unlike the sibling stacks this one has no address-level drop guard —
+          # its whole risk is at the ATTRIBUTE level, inside one resource.
+          for a in "$@"; do
+            case "$a" in
+              -auto-approve|--auto-approve)
+                echo "REFUSING: -auto-approve on the Access organisation." >&2
+                echo "  Read the diff. An unattended apply here can rewrite the" >&2
+                echo "  sign-in host for every Access application in the account." >&2
+                exit 1
+                ;;
+            esac
+          done
+        ''}
+
+        tofu ${action} "$@"
+      '';
+    };
+
+  # The import, as an APP rather than a paragraph in a runbook. Both other
+  # cf-access-org apps refuse until state tracks the organisation, so the import
+  # is MANDATORY — and doing it by hand means reconstructing `TF_ENCRYPTION` in an
+  # interactive shell, which puts the state passphrase into the operator's own
+  # history. That is the one secret-handling regression every other wrapper here
+  # exists to avoid, so it gets a wrapper too. It imports and stops: no plan, no
+  # apply, nothing that can write to Cloudflare.
+  mkCfAccessOrgImport =
+    { system }:
+    let
+      pkgs = pkgsFor system;
+    in
+    pkgs.writeShellApplication {
+      name = "cf-access-org-import";
+      runtimeInputs = [
+        pkgs.opentofu
+        pkgs.coreutils
+      ];
+      text = ''
+        if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
+          echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
+          echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- cf-access-org-import" >&2
+          exit 1
+        fi
+
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-cf-access-org"
+        mkdir -p "$state_dir"
+        chmod 700 "$state_dir"
+        cd "$state_dir"
+        umask 077
+        rm -f config.tf.json
+        cp ${cfAccessOrgConfig { inherit system; }} config.tf.json
+        chmod 600 config.tf.json
+        ${tofuRemoteStatePrelude}
+        tofu init
+
+        # Read-only at Cloudflare: the provider's ImportState reads the org with
+        # a GET (resource.go:229-270). The registry docs for 5.25.0 claim this
+        # resource has no import support; the source disagrees and the source is
+        # what runs. If it ever stops working, that claim is where to look first.
+        echo "Importing the Zero Trust organisation into state (no writes)..." >&2
+        tofu import cloudflare_zero_trust_organization.fleet ${cloudflareAccountId}
+
+        echo "" >&2
+        echo "Imported. NEXT, and do not skip it:" >&2
+        echo "  nix run .#cf-access-org-plan" >&2
+        echo "It must report NO changes. Anything else — especially a line ending" >&2
+        echo "in '-> null' — means the render is missing something state holds." >&2
+      '';
     };
 
   # Its own builder, its own state dir, its own guard — the same reasoning that
@@ -1021,6 +1268,30 @@ in
           name = "cf-zones-plan";
           action = "plan";
         };
+        # No `cf-access-org-destroy` — but NOT because destroy is dangerous here.
+        # It is the opposite, and the distinction is worth getting right because
+        # it is the panic button: the provider's Delete is an EMPTY function
+        # (resource.go:225-227 @ 5.25.0), and its ModifyPlan says so out loud —
+        # "will remove the resource from the Terraform state but will not change
+        # it in the API". So `tofu destroy` / `tofu state rm` DETACHES Terraform
+        # from the organisation and touches nothing at Cloudflare. That is the
+        # right move the moment an apply looks wrong.
+        #
+        # It gets no app only because it is a one-line recovery in the state dir,
+        # not something to make routine. Do not "fix" this comment back into
+        # saying destroy is unsafe: an earlier draft claimed exactly that, and it
+        # would have cost a reader the safest move available at the worst moment.
+        cf-access-org-import = mkCfAccessOrgImport { inherit system; };
+        cf-access-org-plan = mkCfAccessOrgTofu {
+          inherit system;
+          name = "cf-access-org-plan";
+          action = "plan";
+        };
+        cf-access-org-apply = mkCfAccessOrgTofu {
+          inherit system;
+          name = "cf-access-org-apply";
+          action = "apply";
+        };
         gcp-foundation-plan = mkGcpFoundationTofu {
           inherit system;
           name = "gcp-foundation-plan";
@@ -1104,6 +1375,21 @@ in
           type = "app";
           program = "${config.packages.cf-zones-plan}/bin/cf-zones-plan";
           meta.description = "Render infra/cloudflare/zones.nix (terranix) and tofu PLAN kattakath.com's DNS records — read-only, run it before cf-zones-apply (needs CLOUDFLARE_API_TOKEN)";
+        };
+        cf-access-org-import = {
+          type = "app";
+          program = "${config.packages.cf-access-org-import}/bin/cf-access-org-import";
+          meta.description = "Import the EXISTING Cloudflare Zero Trust organisation into state — read-only at Cloudflare, and the mandatory first step before any cf-access-org plan or apply (needs CLOUDFLARE_API_TOKEN)";
+        };
+        cf-access-org-plan = {
+          type = "app";
+          program = "${config.packages.cf-access-org-plan}/bin/cf-access-org-plan";
+          meta.description = "Render infra/cloudflare/access-org.nix (terranix) and tofu PLAN the Access organisation + login-page branding — read-only; it must report NO changes (needs CLOUDFLARE_API_TOKEN)";
+        };
+        cf-access-org-apply = {
+          type = "app";
+          program = "${config.packages.cf-access-org-apply}/bin/cf-access-org-apply";
+          meta.description = "tofu apply the Access organisation — refuses an un-imported state, an auth_domain change, and any attribute state holds that the render omits (an omission here DELETES it); -auto-approve is rejected (needs CLOUDFLARE_API_TOKEN)";
         };
         cf-zones-apply = {
           type = "app";
