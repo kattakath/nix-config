@@ -16,8 +16,10 @@ on:
     branches: [main]
   pull_request:
   schedule:
-    # Weekly scan — Sunday 02:00 UTC
-    - cron: "0 2 * * 0"
+    # Weekly scan — Sunday 02:41 UTC
+    # Off the hour: GitHub delays or drops :00 schedules under load (see
+    # update-flake-lock.yml); this one's 2026-09-20 run was dropped.
+    - cron: "41 2 * * 0"
   workflow_dispatch:
 
 concurrency:
