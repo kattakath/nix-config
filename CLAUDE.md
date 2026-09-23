@@ -105,11 +105,10 @@ nix run .#nixpi-provision                     # Plant/update token + Wi-Fi on a 
 # Companions: nixpi-wifi-creds (emit wpa_supplicant.conf from this Mac), nixpi-vault-token (re-encrypt a rotated token)
 
 # terranix — 6 stacks, 5 on one GCS backend. Run inside `nix develop` or tofu picks the WRONG ADC.
-# *-plan first; cf-tunnel + mcp-public have NO plan app — their apply is the only look. Every
-# *-destroy is hard-blocked by the guard.
-CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-tunnel-apply     # nixpi's tunnel + ingress + CNAME; PRINTS the connector token
+# ALWAYS *-plan first — every stack has one. Every *-destroy is hard-blocked by the guard.
+CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-tunnel-{plan,apply}        # nixpi's tunnel + ingress + CNAME; apply PRINTS the connector token
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-zones-{plan,apply}         # kattakath.com DNS records
-CLOUDFLARE_API_TOKEN=<scoped> nix run .#mcp-public-{apply,sync,token}  # published MCP gateway; `sync` re-polls the portal
+CLOUDFLARE_API_TOKEN=<scoped> nix run .#mcp-public-{plan,apply,sync,token}  # published MCP gateway; `sync` re-polls the portal
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-access-org-{import,plan,apply}  # Zero Trust org; `import` FIRST or plan/apply refuse
 nix run .#gcp-{foundation,budget}-{plan,apply}              # GCP APIs/SA/state bucket; the 5 CAD spend ALERT
 
