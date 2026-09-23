@@ -2752,6 +2752,11 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   gateway, behind one connector + one Access app + one service token. **Exactly two hostnames,
   and they never grow per server.** **Read §10 first** — the two-proxy model §§1-6 describe was
   collapsed 2026-09-22; §9 is its correction record.
+- [`docs/mcp-portal-hardening-plan.md`](docs/mcp-portal-hardening-plan.md) — the verified
+  2026-09-23 plan behind #596/#597: service-token expiry, per-server policy tiers, and the
+  **two items deliberately NOT done** — the provider pin (ADR-004 deferred it; needs a plan
+  run) and device posture (**zero enrolled devices, so a `device_posture` require evaluates
+  false forever and takes the tier OFFLINE**). Carries the apply stop-conditions.
 - [`docs/secrets-and-keychain.md`](docs/secrets-and-keychain.md) — agenix operator-only vault,
   the login-Keychain loader, the `secret` CLI.
 - **ADRs, in order** — [`ADR-001`](docs/flake-architecture-strategy-adr.md) (flake-parts for the
