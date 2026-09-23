@@ -139,6 +139,14 @@ in
           # running machine, not the config.
           launchd-doctor = pkgs.callPackage ../../packages/launchd-doctor.nix { };
 
+          # Ad-hoc inspection CLI for the household's Rogers CGM4981 (RDK-B)
+          # gateway, which exposes NO shell (22/23 closed, 161 silent; only
+          # 80/443/53 answer). Speaks the contract in docs/rdkb-gateway-contract.md.
+          # INSPECTION ONLY — a failed login increments a persisted server-side
+          # lockout counter, so it authenticates once and never retries. The
+          # fleet's WAN-health signal stays the Cloudflare tunnel to nixpi.
+          rogers-gw = pkgs.callPackage ../../packages/rogers-gw.nix { };
+
           # Deterministic ADB wired/wireless operator + scrcpy mirroring for a
           # physical Android device (adb/scrcpy resolved at runtime from the
           # android-platform-tools/scrcpy Homebrew formulae, hosts/macos.nix).
@@ -293,6 +301,15 @@ in
           type = "app";
           program = "${config.packages.launchd-doctor}/bin/launchd-doctor";
           meta.description = "Check every fleet launchd unit: loaded, exit codes, orphaned plists, log growth, disabled-DB and log orphans";
+        };
+
+        # Ask the household gateway a question without clicking its GUI. Needs the
+        # password injected, never inlined:
+        #   secret exec ROGERS_GW_PASSWORD=rogers:cgm4981:admin-password -- nix run .#rogers-gw -- status
+        rogers-gw = {
+          type = "app";
+          program = "${config.packages.rogers-gw}/bin/rogers-gw";
+          meta.description = "Inspect the Rogers CGM4981 gateway: status, connected devices and logs, without the GUI";
         };
 
         # Deterministic ADB wired/wireless operator + scrcpy mirroring.
