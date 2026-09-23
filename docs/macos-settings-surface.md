@@ -185,9 +185,15 @@ is "almost anything `defaults`-backed," not "only the typed options."
 Manages the **entire** brew surface with `onActivation.cleanup = "uninstall"`
 (anything not listed is removed on activation):
 
-- **`casks`** — GUI apps (currently ~25: browsers, editors, Docker Desktop, Slack, …)
-- **`brews`** — CLI formulae (~45: cloudflared, kubernetes-cli, ffmpeg, pyenv, …)
-- **`masApps`** — Mac App Store apps (empty today) · **`taps`** — third-party taps (none today)
+- **`casks`** — GUI apps (**30** today: browsers, editors, Slack, …). There is no Docker cask —
+  containers are `local.containers` (per-user Colima), which replaced Docker Desktop.
+- **`brews`** — CLI formulae (**38**: cloudflared, kubernetes-cli, ffmpeg, pyenv, …)
+- **`masApps`** — Mac App Store apps: **four**, not none (Display My IP, Plash, WireGuard,
+  Xcode) · **`taps`** — **one** (`viarotel-org/escrcpy`, `modules/darwin/homebrew.nix`)
+- Counts re-derived 2026-09-23 from the EVALUATED config, not from grepping `hosts/macos.nix` —
+  a grep of the source under-counted `brews` and over-counted `masApps` on the attempt that
+  produced this correction. `nix eval .#darwinConfigurations.macos.config.homebrew` is the
+  answer; the source list is a claim about it.
 - **`onActivation`** — `autoUpdate` / `upgrade` / `cleanup` policy
 
 `nix-homebrew` (`modules/darwin/nix-homebrew.nix`) installs brew *itself* at the
@@ -199,8 +205,10 @@ arch prefix. Rule of thumb enforced in the header: tools available in nixpkgs st
 ## 4. Home Manager layer (`modules/shared/home.nix`)
 
 Per-user config; the GUI/macOS blocks are gated `lib.mkIf pkgs.stdenv.isDarwin`.
-Configured today: `programs.git.signing` (SSH commit/tag signing; its `allowedSigners`
-lines = operator pubkey × `userEmail`, private principals appended by nix-personal), `programs.ssh`
+Configured today: `programs.git.signing` (SSH commit/tag signing with the operator
+pubkey; the principals file is **hand-placed** at `~/.config/git/allowed_signers` since
+2026-09-20 because it names personal mailboxes, so upstream's `allowedSigners` is left
+empty and `gpg.ssh.allowedSignersFile` points at that runtime path), `programs.ssh`
 (`UseKeychain` / `AddKeysToAgent` / `IdentityFile` on Darwin), login
 `launchd.agents.ssh-keychain-load` (loads Keychain identities into the agent for
 GUI git signing), `programs.zsh` + `starship` + `bash`, `programs.gh`,

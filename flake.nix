@@ -387,8 +387,9 @@
     # opposite answer. See docs/agent-resource-externalization.md.
     #
     # A directory path literal copies the WORKTREE (a stray .DS_Store became a
-    # closure input once — see nix-personal's .claude/rules/store-copied-trees.md);
-    # a flake input copies the GIT TREE, so that footgun cannot fire for these.
+    # closure input once — see .claude/rules/store-copied-trees.md, which was
+    # ported into this tree when nix-personal was retired 2026-09-15); a flake
+    # input copies the GIT TREE, so that footgun cannot fire for these.
     kattakath-ai = {
       # ONE repo per owner, carrying all three unit types this fleet consumes:
       #   skills/    `rag`, `nix-dev-toolkit`, `android-phone` — cherry-picked
