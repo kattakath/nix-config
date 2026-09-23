@@ -149,7 +149,7 @@ let
             # (and the file stays in lockstep with secrets/operator-key.nix).
             operatorSshKey
             # publicMcpServers: the ONE list of servers published on the public MCP
-            # gateway. hosts/macos.nix sets `local.mcpGateway.public` from it, and
+            # gateway. The macos gateway hosts exactly this list, and
             # modules/parts/terranix.nix renders the SAME value into the portal
             # registrations. terranix renders outside any host's module system, so
             # it cannot read that option back — threading the fleet value to BOTH

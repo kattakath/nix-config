@@ -28,6 +28,17 @@
  * gets the exact same crash-safety and 3-strikes loop-breaker Stop already has,
  * which the old prompt hook structurally could never get.
  *
+ * RULE NUMBERING — the "4 rules" above are the ORIGIN SET, not the current one.
+ * Rules 1-4 are what the retired prompt gate carried and what this file first
+ * ported; every number since is an addition made here. The code implements SIX
+ * rules today: Rule 1 (Cloudflare API — terranix apply/destroy, wrangler,
+ * api.cloudflare.com), Rule 1c (printing a secret VALUE), Rule 1d (building ON
+ * nixpi), Rule 2 (Cloudflare docs fetches), Rule 3 (desktop-commander nudge) and
+ * Rule 4 (default approve + the approved-CLI allowlist). Rule 1b was added after
+ * the port and retired 2026-09-15 (see below). Numbers and letters are frozen
+ * once assigned — a retired one is never reused — so every rule keeps the name
+ * its test cases in .claude/hooks/tests/ and the incident notes already use.
+ *
  * POLICY CHANGE, not just a mechanical port: Rule 3 (desktop-commander) is a
  * TOOL-PREFERENCE nudge, not a safety concern — nothing bad happens if `find`
  * runs directly instead of via the MCP tool. The old hook enforced it as a hard
@@ -473,8 +484,9 @@ function main() {
   // `/opt/homebrew/bin/wrangler` and `./wrangler` are caught the same as a
   // bare `wrangler` (a raw-string regex previously missed both — 2026-08-19
   // push-review finding).
-  // rawSegs keeps the FULL text of each segment (Rule 1b needs the flags, not
-  // just argv0); segs is the argv0-per-segment view every other rule reasons in.
+  // rawSegs keeps the FULL text of each segment (Rule 1d needs the flags, not
+  // just argv0 — it matches on --build-host/--remote-build/--builders); segs is
+  // the argv0-per-segment view every other rule reasons in.
   // Same index space, so `segs[i]` is `rawSegs[i]`'s command name.
   const rawSegs = segments(cmd);
   const segs = rawSegs.map(argv0);

@@ -82,7 +82,7 @@ let
   # application gated by a SERVICE TOKEN, and one portal registration per
   # published server.
   #
-  # `publicServers` MUST mirror `local.mcpGateway.public`. It is passed
+  # `publicServers` IS `config.fleet.publicMcpServers`. It is passed
   # rather than read from the darwin config because terranix renders outside
   # any host's module system — the pairing is documented in
   # docs/mcp-public-exposure-design.md and the mcp.nix option text. Empty (the
@@ -994,8 +994,9 @@ let
         echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:mcp-public -- \\"
         echo "    nix run .#mcp-public-token | secret set cf:cloudflare.com:mcp-connector"
         echo ""
-        echo "local.mcpGateway.public (hosts/macos.nix) must already list the same"
-        echo "servers as config.fleet.publicMcpServers — activate after storing the token."
+        echo "The gateway roster is config.fleet.publicMcpServers — one list, and"
+        echo "checks.<system>.mcp-published-parity holds it equal to what the gateway"
+        echo "hosts. Activate after storing the token."
       '';
     in
     pkgs.writeShellApplication {
@@ -1074,7 +1075,7 @@ let
           echo "REFUSING: this render publishes 0 servers but state holds ''${in_state}." >&2
           echo "  Applying would UNPUBLISH every one of them." >&2
           echo "  This is the public tree, where publicServers defaults to [ ]." >&2
-          echo "  Pass the real list (it must mirror local.mcpGateway.public)," >&2
+          echo "  Pass the real list (config.fleet.publicMcpServers)," >&2
           echo "  or override if you genuinely mean to unpublish everything:" >&2
           echo "    MCP_PUBLIC_ALLOW_EMPTY=1 ${name}" >&2
           [ "''${MCP_PUBLIC_ALLOW_EMPTY:-}" = "1" ] || exit 1
@@ -1129,8 +1130,8 @@ let
           echo "REFUSING: this render DROPS objects that state already holds:" >&2
           printf '%s\n' "$dropped" | sed 's/^/    /' >&2
           echo "  Applying it would DELETE each of them, and a tofu apply has NO" >&2
-          echo "  rollback. Usually this means local.mcpGateway.public and" >&2
-          echo "  config.fleet.publicMcpServers have drifted apart." >&2
+          echo "  rollback. Usually this means config.fleet.publicMcpServers lost a" >&2
+          echo "  name that Cloudflare still has registered." >&2
           echo "  Override only if you genuinely mean to delete them:" >&2
           echo "    MCP_PUBLIC_ALLOW_DROPS=1 ${name}" >&2
           [ "''${MCP_PUBLIC_ALLOW_DROPS:-}" = "1" ] || exit 1
