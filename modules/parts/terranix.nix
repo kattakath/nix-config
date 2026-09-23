@@ -1351,7 +1351,13 @@ let
         cid="$(tofu output -raw mcp_worker_client_id)"
         csec="$(tofu output -raw mcp_worker_client_secret)"
         if [ -z "$cid" ] || [ -z "$csec" ]; then
-          echo "ERROR: worker token outputs are empty — is mcp_worker applied?" >&2
+          echo "The CI-worker lane is NOT applied — this is the expected state." >&2
+          echo "  It was built and RETIRED on 2026-09-23: a Service Auth policy on a" >&2
+          echo "  per-server mcp-type app grants a non-identity session access to" >&2
+          echo "  NOTHING, so the token reached zero servers. See the note in" >&2
+          echo "  infra/cloudflare/mcp-public.nix." >&2
+          echo "  This probe is kept to re-test that, should Cloudflare change it:" >&2
+          echo "  restore mcp_worker + mcp_worker_service_auth, apply, and re-run." >&2
           exit 1
         fi
 
