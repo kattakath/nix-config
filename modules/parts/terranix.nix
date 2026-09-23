@@ -177,9 +177,9 @@ let
         # `tofu` in whatever directory happened to be the CWD, leaving a
         # gitignored, unbacked-up state file behind. Pin the working directory
         # to an XDG state path instead, so state has one stable home no matter
-        # where the app is invoked from. NOTE: this state contains the tunnel
-        # CONNECTOR TOKEN in plaintext (it is a `data` source result), so the
-        # directory is created 0700 and must never be committed or synced.
+        # where the app is invoked from. NOTE: the state PAYLOAD carries the tunnel
+        # connector token (a `data` source result) — encrypted at rest since
+        # ADR-005, but the dir is still 0700 and must never be committed or synced.
         state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-cf-tunnel"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
@@ -188,12 +188,16 @@ let
         # scratch — the rendered config.tf.json and the guards' address lists.
         umask 077
         # The tfstate chmod is NOT a GCS-era vestige, and this is the one line of
-        # why for all six wrappers: ADR-005 moved this stack's state to the
-        # bucket, but it did not delete the PRE-migration local state left in this
-        # same XDG dir (verified 2026-09-22: terraform.tfstate.backup still here,
-        # carrying cloudflare_zero_trust_tunnel_cloudflared_token.nixpi.token in
-        # plaintext). Only gcp-foundation still writes these files live; the other
-        # five keep the line to harden that leftover.
+        # why for all six wrappers: ADR-005 moved this stack's state to the bucket
+        # but did not delete the local copy tofu wrote during the migration, so a
+        # `terraform.tfstate.backup` still sits in this XDG dir. Measured
+        # 2026-09-22 by reading the bytes: it is ENCRYPTED, same
+        # `key_provider.pbkdf2.fleet` envelope as the remote object, one serial
+        # behind it — NOT the pre-migration plaintext an earlier draft of this
+        # comment claimed. It is a redundant offline snapshot, not an exposure.
+        # Only gcp-foundation still writes these files live (and its local state is
+        # encrypted too); the other five keep the line because 0600 on a stale
+        # encrypted state costs nothing and the file is real.
         chmod 600 terraform.tfstate terraform.tfstate.backup 2>/dev/null || true
         echo "tofu working directory: $state_dir" >&2
 
