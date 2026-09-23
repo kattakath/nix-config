@@ -97,6 +97,12 @@ in
           # Collector (local.claudeOtel, modules/shared/claude-otel.nix).
           claude-otel-doctor = pkgs.callPackage ../../packages/claude-otel-doctor.nix { };
 
+          # Runtime health check for every launchd unit this fleet installs:
+          # declared-vs-loaded drift, non-zero exits, unrotated log growth,
+          # disabled-DB orphans, orphan logs. None of the four can be a flake
+          # check — they are properties of the running machine, not the config.
+          launchd-doctor = pkgs.callPackage ../../packages/launchd-doctor.nix { };
+
           # Deterministic ADB wired/wireless operator + scrcpy mirroring for a
           # physical Android device (adb/scrcpy resolved at runtime from the
           # android-platform-tools/scrcpy Homebrew formulae, hosts/macos.nix).
@@ -241,6 +247,13 @@ in
           type = "app";
           program = "${config.packages.claude-otel-doctor}/bin/claude-otel-doctor";
           meta.description = "Check the local Claude Code OTel Collector: launchd agent, OTLP port, events file";
+        };
+
+        # Declared-vs-loaded and log hygiene for every fleet launchd unit.
+        launchd-doctor = {
+          type = "app";
+          program = "${config.packages.launchd-doctor}/bin/launchd-doctor";
+          meta.description = "Check every fleet launchd unit: loaded, exit codes, log growth, disabled-DB and log orphans";
         };
 
         # Deterministic ADB wired/wireless operator + scrcpy mirroring.
