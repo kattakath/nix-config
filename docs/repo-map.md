@@ -506,7 +506,7 @@ their own top-level section below:
 
 ### `modules/shared/`
 
-`modules/shared/{home.nix,mcp.nix,chromium.nix,default-browser.nix,ubersicht.nix,next-right-thing.nix,terminal-theme.nix,desktop-aesthetics.nix,nix-cache.nix,nix-ld-libraries.nix,launchd-launcher.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,wallpaper/}`
+`modules/shared/{home.nix,mcp.nix,chromium.nix,default-browser.nix,ubersicht.nix,next-right-thing.nix,terminal-theme.nix,desktop-aesthetics.nix,nix-cache.nix,nix-ld-libraries.nix,launchd-launcher.nix,containers.nix,metube.nix,yt-dlp-web-ui.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,wallpaper/}`
 — the Home Manager profile loaded on every host.
 
 - **`home.nix`** — git/ssh-signing, zsh+starship, direnv, gh, bash, claude-code + nerd-fonts;
@@ -973,6 +973,27 @@ their own top-level section below:
   worked example of the [`upstream-first`](../.claude/rules/upstream-first.md) rule paying
   off: a 560-line vendored copy deleted the moment the input owned the behaviour.
 
+- **`metube.nix`** / **`yt-dlp-web-ui.nix`** (macos only) — `local.meTube` (127.0.0.1:8081,
+  for the sideloaded Chrome extension) and `local.ytDlpWebUi` (127.0.0.1:3033, replacing the
+  Colima container of the same name). Both are loopback-only `KeepAlive` agents whose wrapper
+  does the `mkdir -p`, the legacy-layout migration and the env exports that home-manager's
+  pure-`exec` launcher structurally cannot.
+  **They lived in `modules/darwin/` as `launchd.user.agents` until 2026-09-22.** The move buys
+  self-heal: nix-darwin's user-agent activation is diff-gated (`modules/system/launchd.nix:19,36`
+  — `if ! diff`, load, else skip) and `modules/darwin/launchd-reconcile.nix` covers
+  `launchd.daemons` **only**, so a nix-darwin user agent that has left its launchd domain is
+  never re-bootstrapped; Home Manager probes with `launchctl print` and re-bootstraps
+  (`modules/launchd/default.nix:411-419`) — which is why 22 HM agents survived the 2026-09-22
+  outage and the system tier did not. Cost of the move: the Label changes
+  `org.nixos.<n>` → `org.nix-community.home.<n>`, so both plists exist for one activation and
+  the loser of the port bind KeepAlive-thrashes briefly. nix-darwin unloads and `rm`s the old
+  plist in the same switch (`modules/system/launchd.nix:150-161`) but that removal is
+  **single-transition** — run `nix run .#launchd-doctor` right after the first activation; its
+  orphaned-plists section exists for exactly this failure.
+  The inner wrapper dropped its `nix-` prefix (`metube-run`, not `nix-metube`):
+  `launchd-launcher.nix` already renames arg0 to `nix-<agent>`, so the old spelling produced
+  two store paths with one name.
+
 ### Home-Manager modules that are not in `modules/shared/`
 
 Three whole features reach the Mac's Home Manager profile from outside this directory, each
@@ -1041,7 +1062,7 @@ waves 5-6 absorb them).
 
 ### `modules/darwin/`
 
-`modules/darwin/{core.nix,user-folders.nix,homebrew.nix,nix-homebrew.nix,xcode-license.nix,github-runner.nix,ollama-daemon.nix,claude-managed-settings.nix}`
+`modules/darwin/{core.nix,user-folders.nix,homebrew.nix,nix-homebrew.nix,xcode-license.nix,launchd-reconcile.nix,logging.nix,github-runner.nix,ollama-daemon.nix,claude-managed-settings.nix}`
 
 - **`core.nix`** — macOS system defaults (dock/finder/NSGlobalDomain, Touch ID for sudo,
   `stateVersion = 5`). On **macos only**: login openers (`nix-*` BTM wrappers) + two
@@ -1110,27 +1131,51 @@ waves 5-6 absorb them).
   thing a drift check must not do. Read-only: it prints remedies, never runs them. Wired as
   step E3 of the `fleet-doctor` skill, under **always confirm** — bootstrapping a daemon the
   operator deliberately booted out is exactly the wrong move.
-- **`logging.nix`** (macos only) — rotation for the launchd agent logs, via
-  `system.newsyslog.{enable,files}` (pinned `modules/system/newsyslog.nix:11-160`,
-  registered `module-list.nix:45`). Upstream, and **never used by this fleet** until
-  2026-09-22 — which is how `~/Library/Logs` reached **231 MB**.
-  **Why only some logs.** launchd opens `StandardOutPath` **once at spawn** and hands the fd
-  to the child; macOS `newsyslog` does rename+create and has **no `copytruncate`** (`man 5
-  newsyslog.conf`: flags are `B C D G J N U Z` only). For a long-lived `KeepAlive` agent,
-  rotation therefore renames the file out from under a process still writing to that inode —
-  the archive grows, the new file stays empty, nothing is reclaimed. Verified with `lsof`:
-  `mcp-tunnel-connector` (pid 832) and `mcp-gateway` (pid 61665) each hold fd **1u and 2u**
-  directly on their log. So this covers only agents that **re-exec** (one-shot, interval,
-  queue-driven), which genuinely re-open the path on the next spawn. The long-lived set is
-  deliberately absent — rotating those needs a pid file plus `signal`, which needs the
-  launcher wrapper to write one first. Do not "complete" the list without that.
+- **`logging.nix`** (macos only) — rotation for **every launchd log this fleet declares**:
+  Home Manager agents, nix-darwin user agents, and `launchd.daemons`. Two mechanisms, because
+  macOS gives two different physics.
+  **Mechanism 1 — the logs that re-exec:** `system.newsyslog.{enable,files}` (pinned
+  `modules/system/newsyslog.nix:11-160`, registered `module-list.nix:45`). Upstream, and
+  **never used by this fleet** until 2026-09-22 — which is how `~/Library/Logs` reached
+  **231 MB**. launchd opens `StandardOutPath` **once at spawn** and hands the fd to the child;
+  macOS `newsyslog` does rename+create and has **no `copytruncate`** (`man 5 newsyslog.conf`:
+  flags are `B C D G J N U Z` only), so this works only where the process genuinely re-opens
+  the path on its next spawn. Its win over mechanism 2 is that it is **lossless**.
+  **Mechanism 2 — the long-lived (`KeepAlive`) logs:** `pkgs.logrotate` with its own
+  `copytruncate` directive, on an hourly `StartInterval` tick — one as a user agent
+  (`file-rotation-logs`), one as a root daemon (`file-rotation-logs-system`, because a login
+  user cannot truncate `/var/log`). **Why truncation and not `pidFile` + `signal`:** the
+  pinned nix-darwin module really does expose both (`newsyslog.nix:130-160`), so the option
+  grep hits — but newsyslog only *delivers* a signal and the program must reopen its own path.
+  `cloudflared --help` has **zero** sighup/reopen/rotate surface and `mcp-proxy` is a Python
+  process with no handler, so the only effective signal is one that kills the process —
+  rotation-by-restart, dropping the tunnel. Truncation needs no cooperation at all, because
+  **launchd's inherited fd is O_APPEND**: measured 2026-09-22, `lsof +fg -p 61665` on the live
+  `mcp-gateway` prints flags `R,W,AP` on fd **1u and 2u**, so every write seeks to EOF and a
+  truncate to zero is reclaimed immediately by the same running process. `mcp-tunnel-connector`
+  (pid 832) holds its log the same way. Cost, stated up front: `copytruncate`'s man page warns
+  of "a very small time slice between copying the file and truncating it, so some logging data
+  might be lost" — which is exactly why the re-exec set keeps mechanism 1 instead of folding
+  into one tool. Custom surface disclosed: neither pinned input ships a logrotate module
+  (grepped both, zero hits), so the config + the two ticks are this repo's — far smaller than
+  forking home-manager's launcher (`modules/launchd/default.nix:140-143` emits exactly
+  `#!<shell>` + `exec <args>`; there is no pid-file seam) for a signal that reclaims nothing.
+  **Classification is derived, not hand-picked** (it used to be a typed list of attr names):
+  `KeepAlive` absent → re-exec; `KeepAlive.SuccessfulExit == false` → re-exec; anything else →
+  long-lived. The residual case is deliberately conservative — a re-exec job misfiled as
+  long-lived still gets its bytes back, while the reverse silently reclaims nothing. And
+  **paths win over agents**: a path claimed by any long-lived declaration leaves the newsyslog
+  set, which is what resolves `/var/log/ollama-daemon.log` being written by BOTH the `KeepAlive`
+  `ollama` daemon and the `StartInterval` `ollama-metal-guard` — the one log in the fleet no
+  mechanism could reach before.
   **Paths are derived, not typed**, off the composed agents, because a hand-written list
   walks into two traps: `claude-desktop-mcp-sync` declares `StandardErrorPath` and **no**
   `StandardOutPath` (enumerate one key and the file is silently missed), and `media-queue` +
   `media-queue-power` declare the **same** path — 4 declarations, one file — so a per-agent
-  list double-covers it. Reading both keys and `lib.unique`-ing makes both structural. What
-  stays hand-picked is the only part needing judgement: *which agents re-exec*.
-  Gate: `sudo newsyslog -nv -f <rendered>` parses every entry and resolves every path.
+  list double-covers it. Reading both keys and `lib.unique`-ing makes both structural.
+  Gates: `sudo newsyslog -nv -f <rendered>` parses every entry and resolves every path;
+  `logrotate -d --state <tmp> <rendered>` dry-runs the copytruncate half. Neither is a flake
+  check — run them by hand after changing the set.
 - **`nix-homebrew.nix`** — Homebrew-itself install via `nix-homebrew`.
 - **`xcode-license.nix`** (macos only) — runs *before* `brew bundle` to `mas install` Xcode
   when declared in `masApps` and `xcodebuild -license accept`, so formulae are not blocked by
@@ -1452,7 +1497,7 @@ nothing — hence one regex, not two calls.
 | `compose.nix` | `mkDarwin` / `mkNixos` / `mkHomeManagerModule` — **not translated** to flake-parts, kept verbatim as plain Nix functions in the freeform `flake` attr (ADR-001's blast-radius objection, honoured). Also threads each capsule in as a named specialArg. Its two composition seams (`extraHomeModules`, `hostedSites`) and the nixpi deploy runbook are written up in [`private-home-modules.md`](private-home-modules.md) — the filename is historical (the private `nix-personal` flake it was named for was retired 2026-09-15); the seams and the runbook are current. |
 | `hosts.nix` | `darwinConfigurations.macos`, `nixosConfigurations.{nixpi,nixvm}`. |
 | `packages.nix` | `perSystem.packages` + every `apps.*`. |
-| `checks.nix` | The engine's own checks, including `claude-md-budget`, `capsule-registry`, `deploy-schema`, `bedrock-gate-after-loader`, the two `determinate-daemon` halves and `nixpi-security-posture` (§ `modules/nixos/`). Its one shared helper, `mkHostContract`, reports EVERY broken leg rather than the first — that behaviour, not code reuse, is the bar for reaching for it. |
+| `checks.nix` | The engine's own checks, including `claude-md-budget`, `capsule-registry`, `deploy-schema`, `bedrock-gate-after-loader`, `launchd-log-rotation` (every declared launchd log reaches exactly one rotator, and never both — re-walks the composed agents itself rather than reading `logging.nix`'s own answer back), the two `determinate-daemon` halves and `nixpi-security-posture` (§ `modules/nixos/`). Its one shared helper, `mkHostContract`, reports EVERY broken leg rather than the first — that behaviour, not code reuse, is the bar for reaching for it. |
 | `capsules.nix` | The capsule registry and its two internal seams — `capsuleModules` and `capsuleSources` — plus `checks.<system>.capsule-registry`. |
 | `terranix.nix` | The `cf-*` / `mcp-public-*` tofu builders. |
 | `devshell.nix` | `devShells` + the `git-hooks.nix` wiring. |

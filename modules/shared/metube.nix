@@ -1,4 +1,4 @@
-# MeTube as a per-user launchd agent. Loopback only.
+# home-manager module: local.meTube — MeTube on 127.0.0.1, started at login.
 #
 # The app ships with no login. SECURITY.md says that is intentional: a login,
 # if wanted, is a reverse proxy. This agent binds 127.0.0.1 so the open API is
@@ -8,11 +8,27 @@
 # come from chrome-extension://<id>, which is not a site we can name. The
 # README says to use * for that case. * does not send credentials, and there
 # is no login cookie to send.
+#
+# WHY HOME MANAGER AND NOT nix-darwin's `launchd.user.agents` (moved 2026-09-22).
+# Both layers can place a user agent; only one repairs it. nix-darwin's
+# activation is diff-gated — `if ! diff` the plist, load, else skip (pinned
+# nix-darwin modules/system/launchd.nix:19,36) — and modules/darwin/
+# launchd-reconcile.nix covers `launchd.daemons` ONLY, so a nix-darwin user
+# agent that has fallen out of its launchd domain is never re-bootstrapped.
+# Home Manager probes with `launchctl print` and re-bootstraps an
+# up-to-date-but-not-loaded agent (pinned home-manager modules/launchd/
+# default.nix:411-419) — which is why 22 HM agents survived the 2026-09-22
+# outage while the system tier did not (launchd-reconcile.nix:8-11).
+#
+# The move renames the Label `org.nixos.metube` -> `org.nix-community.home.metube`.
+# nix-darwin unloads and removes any user-agent plist the new generation lacks
+# (pinned modules/system/launchd.nix:150-161), so the old one goes in the same
+# switch — but that removal is SINGLE-TRANSITION. Run `nix run .#launchd-doctor`
+# after the first activation; its orphaned-plists section exists for exactly this.
 {
   config,
   lib,
   pkgs,
-  loginName,
   ...
 }:
 let
@@ -23,7 +39,7 @@ let
   # STATE_DIR, so cookies.txt cannot be fetched through /download/. The
   # first layout put the mp3s in a child of STATE_DIR, so the button
   # 404'd and Chromium saved that text/plain error as a .txt.
-  home = "/Users/${loginName}";
+  home = config.home.homeDirectory;
   # Video and audio go to the standard home folders. State stays under
   # ~/.local so cookies.txt is not inside either of those trees: the
   # download routes 404 anything whose path is under STATE_DIR.
@@ -31,7 +47,11 @@ let
   stateDir = "${rootDir}/state";
   videoDir = "${home}/Movies";
   audioDir = "${home}/Music";
-  runner = pkgs.writeShellScriptBin "nix-metube" ''
+  # NOT `nix-metube`: modules/shared/launchd-launcher.nix already defaults
+  # `launcher.name = "nix-${name}"` for every agent, so the arg0 the operator
+  # and TCC see is `nix-metube` regardless. Naming the inner script that too
+  # produced `nix-metube` exec'ing `nix-metube` — two store paths, one name.
+  runner = pkgs.writeShellScriptBin "metube-run" ''
     set -eu
     mkdir -p ${lib.escapeShellArg videoDir} ${lib.escapeShellArg audioDir} \
       ${lib.escapeShellArg stateDir} ${lib.escapeShellArg "${rootDir}/tmp"}
@@ -96,15 +116,21 @@ in
     };
   };
 
-  config = lib.mkIf cfg.enable {
-    launchd.user.agents.metube = {
-      serviceConfig = {
-        ProgramArguments = [ "${runner}/bin/nix-metube" ];
+  # The darwin test is NOT redundant with home-manager's own launchd assertion:
+  # `launchd.enable` defaults to isDarwin, so on nixpi/nixvm the agent would
+  # silently evaluate to nothing while `pkgs.callPackage` above still had to
+  # build for aarch64-linux. modules/shared/home.nix imports this file for
+  # EVERY host. House spelling: modules/shared/next-right-thing.nix:170.
+  config = lib.mkIf (cfg.enable && pkgs.stdenv.hostPlatform.isDarwin) {
+    launchd.agents.metube = {
+      enable = true;
+      config = {
+        ProgramArguments = [ (lib.getExe runner) ];
         RunAtLoad = true;
         KeepAlive = true;
         ThrottleInterval = 10;
-        StandardOutPath = "/Users/${loginName}/Library/Logs/metube.log";
-        StandardErrorPath = "/Users/${loginName}/Library/Logs/metube.log";
+        StandardOutPath = "${home}/Library/Logs/metube.log";
+        StandardErrorPath = "${home}/Library/Logs/metube.log";
       };
     };
   };
