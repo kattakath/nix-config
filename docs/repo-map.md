@@ -990,9 +990,9 @@ their own top-level section below:
     `plugins/` directory and a 5-line module until it was retired 2026-09-15, rather than
     shipping the tree here. Nothing in this repo can trip the trap today: there is no
     `plugins/` tree here either, so none of the four `source` values in
-    `modules/shared/home.nix` is a repo-relative path literal — two are `https://` git URLs,
-    and two are store paths from pinned inputs (`kattakath-ai`, the patched grok-build
-    plugin).
+    `modules/shared/home.nix` is a repo-relative path literal — three are `https://` git URLs
+    (`kattakath` among them since 2026-09-23), and one is a store path (the patched
+    grok-build plugin).
   - **Two phases, not fused.** Every marketplace is pinned first, then ONE flat install loop
     runs. Pin-then-install per marketplace would let a later re-pin teardown uninstall a
     plugin the loop had already installed. `programs.claude-code.marketplaces` (upstream) is
@@ -2454,7 +2454,7 @@ root-owned managed scope in `modules/darwin/claude-managed-settings.nix` (§ `mo
   `.claude/settings.json` stays unsupervised prompt-based — that one is a genuine semantic
   judgment call, unlike the Bash gate's mostly-syntactic rules.
 - **`superhook-digest`** — SessionStart digest of supervisor findings. Both it and the
-  wrapper are PATH packages built from the pinned `kattakath-ai` input
+  wrapper are PATH packages built from the pinned `kattakath-skills` input
   (`packages/superhook.nix`); they are no longer files in `.claude/hooks/`.
 - **`routing-review-digest.js`** — SessionStart nudge for unreviewed
   `user_temporary`/`user_permanent` Claude Code routing decisions; mirrors
@@ -2475,7 +2475,7 @@ Decoder for what these hooks print: [`claude-hook-messages.md`](claude-hook-mess
 ### `.claude/skills/` — project skills
 
 Active only when working in this repo: `nix-hygiene`, `nixpi-firmware-provision`,
-`jsonresume-tailor`, `gmail-mcp-accounts`,
+`gmail-mcp-accounts`,
 `mcp-scout`, `userscript-author` (the FLEET half only — how a script reaches this Mac now that
 nothing is declared in Nix; the method lives in the `page-lab` plugin — see § Userscripts),
 `fleet-doctor` (its own `fleet-repos.txt` manifest lists every repo in scope — add
@@ -2490,6 +2490,8 @@ Placed at `~/.claude/skills/<name>/` declaratively by `programs.claude-code.skil
 PINNED `flake = false` inputs (`agent-skills-vercel` = vercel-labs/skills → `find-skills`;
 `agent-skills-anthropic` = anthropics/claude-code → the plugin-dev + hookify authoring skills),
 **NOT vendored**; `nix flake update` bumps them.
+
+**Since 2026-09-23 the operator's own skills are NOT on this rail** — they install as plugins from the `kattakath` git marketplace (§ The operator's marketplace). Pinned-era record:
 
 **Since 2026-09-12 the operator's own skills are on that same rail.** `rag`,
 `android-phone` and `nix-dev-toolkit` were extracted out of this tree, and since
@@ -2535,6 +2537,18 @@ only difference between "someone else's skill" and "mine" is now who can push to
   recursive `home.file` entry, a path-like string gets an extra `runCommandLocal` symlink farm.
 
 ### The operator's marketplace (EXTRACTED 2026-09-12)
+
+> **Update, 2026-09-23 — delivered as a git marketplace, not the pin.** The repo is now
+> [`github:kattakath/skills`](https://github.com/kattakath/skills) (renamed from `kattakath/ai`).
+> `home.nix` registers it as `https://github.com/kattakath/skills.git` with `autoUpdate = true`
+> (`local.claudePlugins.marketplaces.<name>.autoUpdate`, which renders
+> `extraKnownMarketplaces.<name>.autoUpdate`). Its plugins carry no `version`, so every commit on
+> its `main` is a release, gated by that repo's own `validate.yml`. Its top-level `skills/` are
+> published as marketplace-root plugins, so the `programs.claude-code.skills` cherry-picks are
+> gone, and the Brain Signals kit moved there as the `brain-signals` plugin. The input survives
+> as `kattakath-skills`, for the `superhook` and `page-lab-pick` PATH packages only. A plugin's
+> `bin/` reaches the Bash tool's PATH but **not** a hook's (measured), which is why `superhook`
+> is still a package. The rest of this section is the pinned-era record.
 
 The operator's OWN Claude Code plugin marketplace is
 [`github:kattakath/ai`](https://github.com/kattakath/ai) — **not a tree in this repo** since 2026-09-12
@@ -2609,11 +2623,10 @@ The scoping reasoning was right and the mechanism was wrong. **A project's own
 no Nix wiring, and it cannot be loaded in sessions that have nothing to do with that project.
 The file now lives at `SEARGraph/.claude/agents/seargraph-langgraph.md`.
 
-Adding one = a `plugins/<name>/` tree with `.claude-plugin/plugin.json` + a `marketplace.json`
-entry **in that repo**, then `nix flake update kattakath-ai` here and its bare name
-in `local.claudePlugins.marketplaces.kattakath.plugins`; validate with
-`claude plugin validate --strict`. Iterate without the push/update loop via
-`nix flake check --override-input kattakath-ai path:../ai`.
+Adding one = a `plugins/<name>/` tree (or a `skills/<name>/` plus a marketplace-root entry)
+and a `marketplace.json` entry **in that repo**, then its bare name in
+`local.claudePlugins.marketplaces.kattakath.plugins` here. **No pin bump:** a change to an
+already-enabled plugin ships from a merge there. Validate with `claude plugin validate .`.
 
 **A SECOND source costs one input and its own entries — no new mechanism.**
 `local.claudePlugins.marketplaces` is `attrsOf` and `programs.claude-code.skills` is a

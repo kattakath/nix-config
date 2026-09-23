@@ -334,7 +334,7 @@
     agent-skills-jsonresume = {
       # Paramchoudhary/ResumeSkills (MIT, 1.4k★): 21 job-search agent skills. We cherry-pick a LEAN,
       # complementary subset in programs.claude-code.skills (JD analysis / ATS / cover-letter / interview /
-      # salary) — NOT resume-tailor, which the json-native .claude/skills/jsonresume-tailor supersedes.
+      # salary) — NOT resume-tailor, which the json-native jsonresume-tailor (kattakath/skills) supersedes.
       # These are plain-markdown workflows over pasted text; they DON'T touch resume.json / resume-cli.
       url = "github:Paramchoudhary/ResumeSkills";
       flake = false;
@@ -390,30 +390,26 @@
     # closure input once — see .claude/rules/store-copied-trees.md, which was
     # ported into this tree when nix-personal was retired 2026-09-15); a flake
     # input copies the GIT TREE, so that footgun cannot fire for these.
-    kattakath-ai = {
-      # ONE repo per owner, carrying all three unit types this fleet consumes:
-      #   skills/    `rag`, `nix-dev-toolkit`, `android-phone` — cherry-picked
-      #              per skill in programs.claude-code.skills, the same shape as
-      #              every third-party pin above.
-      #   plugins/   the marketplace this operator publishes, registered from the
-      #              input's STORE PATH in modules/shared/home.nix — which is why
-      #              there is no path-literal trap here: a store path is absolute
-      #              and means the same thing from any file in any flake.
-      #   mcp/       server.json declarations (MCP registry schema).
+    kattakath-skills = {
+      # github:kattakath/skills (renamed from kattakath/ai 2026-09-23; GitHub
+      # redirects the old name). Agent Skills in skills/, Claude Code plugins in
+      # plugins/, published as the `kattakath` marketplace.
       #
-      # Renamed from `kattakath/claude-plugins` on 2026-09-14 and absorbed
-      # `kattakath/claude-skills` (now archived) the same day, taking the pin
-      # count 2 -> 1. GitHub redirects the old name, so nothing that still points
-      # at either breaks.
+      # PINNED FOR TWO PATH PACKAGES ONLY: `superhook`/`superhook-digest` and
+      # `page-lab-pick` run plugin scripts as fleet CLIs (a checked-in hook can
+      # name a bare command but not a store path, and a plugin's own bin/ is on
+      # the Bash tool's PATH, NOT a hook's — measured 2026-09-23). Plugins and
+      # skills themselves are NOT read from here: Claude Code fetches them from
+      # the same repo as an auto-updating git marketplace (modules/shared/
+      # home.nix), so a merge there ships without a bump here. This pin moves
+      # with the weekly update-flake-lock run.
       #
       # THE ONLY agent-resource repo this PUBLIC fleet pins. The operator's two
       # personal ones — `ismailkattakath/ai` and `izzykatt/ai` — are deliberately
       # absent: they are experiment aggregators, and an experiment has no business
-      # being always-on global context on the working Mac. Both consume the same
-      # interface when wanted (`local.claudePlugins.marketplaces` is `attrsOf`,
-      # `programs.claude-code.skills` is a plain attrset — both already take N
-      # entries), added deliberately and activated, or scoped to a project.
-      url = "github:kattakath/ai";
+      # being always-on global context on the working Mac. Either can join as one
+      # more `local.claudePlugins.marketplaces` entry, or be scoped to a project.
+      url = "github:kattakath/skills";
       flake = false;
     };
   };
