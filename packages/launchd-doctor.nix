@@ -1,11 +1,15 @@
 # Runtime health check for every launchd unit this fleet installs.
 #
-# Covers the three gaps that CANNOT be flake checks, because all three are
-# properties of the RUNNING machine, not of the evaluated config:
-#   (a) declared-vs-loaded drift — a plist on disk whose job is not in its domain
-#   (b) log growth — launchd agent logs have no rotation until newsyslog covers them
-#   (c) launchd's disabled DB and ~/Library/Logs both accumulate keys/files for
-#       units that no longer exist
+# Covers the gaps that CANNOT be flake checks, because every one is a property of
+# the RUNNING machine, not of the evaluated config:
+#   (a) declared but not loaded — a plist on disk whose job is absent from its
+#       domain — plus a non-zero last exit, which is the exit-78 class
+#   (b) loaded but not declared — a plist no current generation ships. THE INVERSE
+#       of (a), and it needs its own check: nix-darwin's removal loop is
+#       single-transition, so an orphan it misses once is orphaned permanently
+#   (c) log growth — agent logs have no rotation until newsyslog covers them
+#   (d,e) launchd's disabled DB and ~/Library/Logs accumulate keys/files for units
+#       that no longer exist
 # `nix flake check` proves what the config SAYS. Only this proves what launchd DID.
 #
 # NO NIX-TIME THREADING, deliberately — same contract as claude-otel-doctor.nix.
@@ -71,6 +75,17 @@ writeShellApplication {
       /usr/bin/plutil -extract StandardErrorPath raw -o - "$1" 2>/dev/null || true
     }
 
+    # What the CURRENT generations ship. Hoisted above (a) because (a)'s remedy
+    # depends on it: telling the operator to bootstrap a plist that no generation
+    # declares would RESURRECT a retired agent.
+    gen_declared=$(
+      {
+        ls "$HOME/.local/state/home-manager/gcroots/current-home/LaunchAgents" 2>/dev/null
+        ls /run/current-system/user/Library/LaunchAgents 2>/dev/null
+        ls /run/current-system/Library/LaunchDaemons 2>/dev/null
+      } | sort -u
+    )
+
     echo "=== launchd doctor ==="
     echo "scope: ''${#plists[@]} unit(s) installed by this fleet"
     echo
@@ -83,7 +98,13 @@ writeShellApplication {
       if ! out=$(/bin/launchctl print "$target" 2>/dev/null); then
         echo "  NOT LOADED  $label"
         echo "              plist is on disk but the job is absent from $(domain_of "$p")."
-        echo "              remedy: sudo launchctl bootstrap $(domain_of "$p") $p"
+        if echo "$gen_declared" | grep -qxF "$(basename "$p")"; then
+          echo "              remedy: sudo launchctl bootstrap $(domain_of "$p") $p"
+        else
+          # Do NOT offer bootstrap here: no generation declares this unit, so
+          # starting it would resurrect something deliberately retired.
+          echo "              and NO generation declares it — see 'orphaned plists' below."
+        fi
         rc=1
         continue
       fi
@@ -97,7 +118,37 @@ writeShellApplication {
     done
     echo
 
-    # ---- (b) log growth ------------------------------------------------------
+    # ---- (b) installed, but in NO current generation --------------------------
+    # The INVERSE of (a), and it needs its own check: (a) asks "is what we declare
+    # actually loaded", this asks "is what is loaded still declared".
+    #
+    # Found the hard way on 2026-09-22. nix-darwin removes a retired user agent by
+    # scanning /run/current-system/user/Library/LaunchAgents and deleting whatever
+    # the NEW generation lacks (modules/system/launchd.nix:150-161). That is a
+    # SINGLE-TRANSITION mechanism: it only ever sees the one generation boundary
+    # where the agent disappeared. Miss that boundary and the plist is orphaned
+    # permanently — the loop can never see it again, because the directory it
+    # scans no longer lists it either. org.nixos.open-docker survived exactly that
+    # way, kept running `open -a Docker` against an app deleted six days earlier,
+    # and was caught only incidentally by its non-zero exit in (a). An orphan that
+    # exits 0 would have been invisible.
+    echo "--- orphaned plists (installed, in no current generation) ---"
+    if [ -z "$gen_declared" ]; then
+      echo "  SKIPPED — found no generation manifest to compare against."
+    else
+      for p in "''${plists[@]}"; do
+        base=$(basename "$p")
+        if ! echo "$gen_declared" | grep -qxF "$base"; then
+          echo "  ORPHANED  ''${base%.plist}"
+          echo "            installed at $p, but no current generation declares it."
+          echo "            remedy: launchctl bootout $(domain_of "$p")/''${base%.plist} ; rm $p"
+          rc=1
+        fi
+      done
+    fi
+    echo
+
+    # ---- (c) log growth ------------------------------------------------------
     echo "--- log size (warn at ''${warn_kb} KiB) ---"
     declare -a seen=()
     for p in "''${plists[@]}"; do
@@ -118,7 +169,7 @@ writeShellApplication {
     echo "  (unlisted = under threshold)"
     echo
 
-    # ---- (c) disabled-DB keys with no plist ----------------------------------
+    # ---- (d) disabled-DB keys with no plist ----------------------------------
     echo "--- launchd disabled-DB orphans ---"
     for dom in "gui/$uid" system; do
       /bin/launchctl print-disabled "$dom" 2>/dev/null |
@@ -136,7 +187,7 @@ writeShellApplication {
     echo "        entry makes a later bootstrap of that label fail with error 119."
     echo
 
-    # ---- (d) logs no installed unit writes -----------------------------------
+    # ---- (e) logs no installed unit writes -----------------------------------
     echo "--- orphan logs in ~/Library/Logs ---"
     declare -a declared=()
     for p in "''${plists[@]}"; do
