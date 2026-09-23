@@ -323,6 +323,8 @@ ext4 errors, the card or write is corrupt.
 - **What `nixpi` does once booted:** `hosts/nixpi.nix` +
   the `modules/features/cloudflared-connector/` capsule — the Cloudflare Tunnel connector carrying
   Access-gated, loopback-bound SSH (`ssh://localhost:22`) and Caddy serving whatever
-  `hostedSites` the composing flake passed. **From THIS public repo that is zero vhosts**;
-  the real list (two sites today) comes from nix-personal. Token + Wi-Fi are planted per
+  `hostedSites` the composing flake passed. **That list lives in THIS repo** —
+  `config.fleet.hostedSites` in `modules/parts/identity.nix`, **one entry today**
+  (`snoringirl.com`). `mkNixos`'s parameter still defaults to `[ ]`, so a `templates/`
+  consumer that passes nothing gets zero vhosts. Token + Wi-Fi are planted per
   §4b (nixpi-firmware-provision skill).

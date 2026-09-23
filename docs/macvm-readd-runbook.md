@@ -49,8 +49,15 @@ the durable re-add path (it survives refactors where a `git revert` would not).
    override in `modules/darwin/core.nix`, `.claude/{commands/vpn.md,`
    `skills/{macvm-tart,wireguard-vpn}}`, `docs/{macvm-tart-runbook,wireguard-vpn}.md`.
 
-5. **Private layer**: nix-personal's `darwinConfigurations.macvm` +
-   `apps.macvm` (removed in its own commit the same day).
+5. **Private layer — UNFOLLOWABLE as written; there is no private layer.** This
+   step used to say "restore nix-personal's `darwinConfigurations.macvm` +
+   `apps.macvm`". That flake was retired 2026-09-15 and its values folded into
+   `hosts/macos.nix` + `modules/parts/identity.nix`, so there is no second repo
+   to edit. Both halves live in THIS flake now, and step 2 already covers them:
+   the host attribute goes in `flake.darwinConfigurations`
+   (`modules/parts/hosts.nix`), and the `#macvm` activation app goes back beside
+   `apps.macos` in `modules/parts/packages.nix` — its removal comment still marks
+   the exact site.
 
 6. **VM itself**: `tart clone tahoe-golden macvm` (if the golden image
    survived) — else `nix run .#macvm-tart-bake` — then

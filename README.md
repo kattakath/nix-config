@@ -1,6 +1,6 @@
 # nix-config
 
-> One declarative Nix flake for my aarch64 fleet — my Mac, a Raspberry Pi server, a throwaway dev VM, and a prebuilt devcontainer.
+> One declarative Nix flake for my aarch64 fleet — my Mac, a Raspberry Pi server, a disposable dev VM, and a prebuilt devcontainer.
 
 [![build-devcontainer](https://github.com/kattakath/nix-config/actions/workflows/build-devcontainer.yml/badge.svg)](https://github.com/kattakath/nix-config/actions/workflows/build-devcontainer.yml)
 [![gitleaks](https://github.com/kattakath/nix-config/actions/workflows/gitleaks.yml/badge.svg)](https://github.com/kattakath/nix-config/actions/workflows/gitleaks.yml)
@@ -16,7 +16,7 @@ A single Nix flake that manages complete, reproducible system configurations acr
 |------|------|--------|---------|------|
 | `macos` | [nix-darwin](https://github.com/LnL7/nix-darwin) | `aarch64-darwin` | Apple Silicon Mac | Client only — no remote/incoming traffic |
 | `nixpi` | NixOS | `aarch64-linux` | Raspberry Pi 4 | **LIVE server** — Access-gated, loopback-bound SSH over a Cloudflare Tunnel connector + Caddy |
-| `nixvm` | NixOS | `aarch64-linux` | Throwaway QEMU dev VM on the Mac | Ephemeral XFCE desktop via `nix run .#nixvm` — not installed |
+| `nixvm` | NixOS | `aarch64-linux` | Disposable QEMU dev VM on the Mac | XFCE desktop via `nix run .#nixvm` — not installed; its root disk persists in `$XDG_STATE_HOME/nixvm` |
 | `devcontainer` | OCI image | `aarch64-linux` + `x86_64-linux` | Dev container (multi-arch manifest, published to GHCR) | — |
 
 User environments are layered on with [Home-Manager](https://github.com/nix-community/home-manager), and the devcontainer image is prebuilt and published to GHCR so it starts with a warm Nix store. This is an **aarch64-only** fleet — there is no x86_64 *host* anywhere. The devcontainer image is the one exception: it is published multi-arch (arm64 + amd64) so it also runs on x86_64 GitHub Codespaces.
@@ -132,8 +132,8 @@ that used to supply personal Home Manager modules and the Pi's real sites was re
 
 ### Bring up the dev VM
 
-`nixvm` is not installed anywhere — it exists only as a throwaway graphical VM (XFCE in a
-native QEMU window on macOS, booted from a fresh overlay each time):
+`nixvm` is not installed anywhere — it exists only as a disposable graphical VM (XFCE in a
+native QEMU window on macOS), with no disk layout to partition:
 
 ```bash
 nix run .#nixvm
@@ -141,6 +141,15 @@ nix run .#nixvm
 
 Its `aarch64-linux` guest builds locally on Determinate's native Linux builder (or
 substitutes from Cachix), so no provisioning, builder VM, or self-hosted runner is involved.
+
+**It is disposable, not ephemeral.** The Nix store is a fresh image on every boot, but the
+*root* filesystem is a qcow2 that is created once and reused — so `/home`, and anything you
+signed into there, survives a reboot. `nix run .#nixvm` pins that image to
+`${XDG_STATE_HOME:-$HOME/.local/state}/nixvm/nixvm.qcow2` and prints the path on each boot,
+so you get one VM no matter which directory you run from; deleting that file is the reset.
+(Running `./result/bin/run-nixvm-vm` by hand instead takes upstream's default — `nixvm.qcow2`
+in the current directory, which means a *separate* VM per directory. `*.qcow2` is gitignored,
+so a stray image in the repo root cannot be swept into a commit by `git add -A`.)
 
 ### Use the devcontainer
 
@@ -157,7 +166,7 @@ Or just open the repo in a devcontainer-aware editor; `.devcontainer/devcontaine
 ```
 bootstrap.sh    No-Nix curl entrypoint: install Determinate Nix, then hand off to the flake
 flake.nix       Entry point: inputs/pins and ONE `flake-parts.lib.mkFlake` call — every output itself lives in modules/parts/
-flake.lock      Pinned input revisions (bumped via `nix flake update`, never hand-edited); 58 nodes, held down by a deliberate `follows` diet plus ADR-002's capsule absorption
+flake.lock      Pinned input revisions (bumped via `nix flake update`, never hand-edited); 56 nodes, held down by a deliberate `follows` diet plus ADR-002's capsule absorption
 treefmt.nix     Single source of truth for formatting + lint (drives nix fmt, CI, and the hook)
 hosts/          Per-host entry profiles (macos.nix, nixpi.nix, nixvm.nix)
 modules/        parts/ (the flake engine), features/ (capsules — absorbed satellite flakes, one dir each), and the reusable modules split by platform (darwin/ nixos/ shared/)

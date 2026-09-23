@@ -422,11 +422,12 @@ in
     # capsule (modules/features/keychain-secrets/), enabled below.
     # Internally darwin-gated, so it's a clean no-op on the NixOS hosts.
     keychainSecretsModule
-    # Gate CLAUDE_CODE_USE_BEDROCK (Keychain, survives every activation) on the
-    # AWS identity that only the PRIVATE layer supplies — so activating the public
-    # #macos degrades Claude Code to its default provider instead of leaving it
-    # unable to reach any model at all. Must live here, not in nix-personal: a gate
-    # in the private layer would be dropped by the activation it defends against.
+    # Gate CLAUDE_CODE_USE_BEDROCK (Keychain, survives every activation) on an
+    # AWS identity NO repo declares — ~/.aws/config is runtime state owned by the
+    # `aws` CLI — so a Mac carrying the flag without a usable identity degrades
+    # Claude Code to its default provider instead of leaving it unable to reach
+    # any model at all. Must live in this public repo: a gate shipped from a
+    # private overlay would be dropped by the activation it defends against.
     ./claude-bedrock-gate.nix
     # "Brain Signals" — the answer-shape kit for Claude Code (output style +
     # calibration rule + /explain-family skills + cartographer + /task). Public
@@ -436,9 +437,10 @@ in
     ./claude-brain.nix
     # Claude Code plugin marketplaces, N of them: the register-and-install
     # mechanism, driven by the `local.claudePlugins.marketplaces` attrset this
-    # file fills below. attrsOf, so the private nix-personal layer ADDS its own
-    # marketplace instead of copying the activation script — which is exactly
-    # what it used to do.
+    # file fills below. attrsOf, so a layer composed in through `extraHomeModules`
+    # ADDS its own marketplace instead of copying the activation script — which is
+    # exactly what the private nix-personal flake did before it was retired
+    # 2026-09-15.
     ./claude-plugins.nix
     # The GLOBAL guardrail floor: user-scope permissions.deny for every repo on
     # this Mac. Project hooks in .claude/ only ever covered this repo.
@@ -586,9 +588,10 @@ in
   # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
   local.nextRightThing.enable = isMacosHost;
 
-  # The PUBLIC half of the userscript set. Private ones are added to this same
-  # attrset by the nix-personal flake through `extraHomeModules`, which is the
-  # whole point of keying it — keys must stay distinct across the two repos.
+  # The userscript set. Keying it is what lets a layer composed in through
+  # `extraHomeModules` add its own without touching this file; keys must stay
+  # distinct across the layers. No such layer exists today — the private
+  # nix-personal flake was retired 2026-09-15.
   # NO userscripts are declared any more (2026-09-14). All of them were
   # published instead - google-photos-icon-nav is
   # https://greasyfork.org/en/scripts/595764 - and a fork-installed copy is the
@@ -597,11 +600,11 @@ in
   # stays: it is generic, documented, and the next private script can declare
   # itself without rebuilding the mechanism.
 
-  # The PUBLIC half of the Claude Code plugin set — DATA only; the registration
-  # + install mechanism is ./claude-plugins.nix. Same keyed-attrset seam as the
-  # userscripts above: nix-personal adds its own marketplace through
-  # `extraHomeModules` and these three survive untouched. `plugins` is a listOf,
-  # so a private layer can even append a plugin to a marketplace declared here.
+  # The Claude Code plugin set — DATA only; the registration + install mechanism
+  # is ./claude-plugins.nix. Same keyed-attrset seam as the userscripts above: a
+  # layer composed in through `extraHomeModules` adds its own marketplace and the
+  # four declared below survive untouched. `plugins` is a listOf, so such a layer
+  # can even append a plugin to a marketplace declared here.
   #
   # `source` is mkDefault throughout so a downstream layer can repoint one (a
   # fork of the official marketplace, say) with a plain assignment.
@@ -718,8 +721,9 @@ in
         # page-lab: userscript authoring AND live-page diagnosis, merged — the
         # measure-before-you-select method, the browser probes, the pre-vetted patterns,
         # the Greasy Fork rulebook, the CDP diagnosis surface, and a runnable metadata
-        # linter that `checks.<system>.userscripts` ALSO runs, now against the pinned
-        # input rather than a local path. One rulebook, no drift.
+        # linter. That linter is the plugin's own now: `checks.<system>.userscripts` was
+        # RETIRED 2026-09-14 with the userscripts it linted (the fleet declares zero —
+        # docs/agent-resource-externalization.md), so nothing in this repo runs it.
         #
         # The Nix-specific half (declaring a script in home.nix, activation, the install
         # click) stays in .claude/skills/userscript-author — it is about THIS repo, not
@@ -1268,8 +1272,9 @@ in
       # $XDG_CONFIG_HOME/git/allowed_signers and points gpg.ssh.allowedSignersFile
       # at it). This replaced a hand-written ~/.ssh/allowed_signers, five raw INI
       # keys and a custom option (kattakath.git.extraAllowedSignersPrincipals)
-      # that nix-personal filled — private principals now append to THIS
-      # upstream `lines` option, so the private layer touches no custom seam.
+      # that the private nix-personal flake filled; both went when that flake was
+      # retired 2026-09-15, and any future layer appends to the upstream `lines`
+      # option instead of a custom seam.
       # `format` is explicit because home.stateVersion 24.05 predates the "ssh"
       # default (git.nix:20-31). `signer` is left to upstream (nixpkgs' ssh-keygen).
       # The principals file (allowed_signers) is HAND-PLACED since 2026-09-20 — it
