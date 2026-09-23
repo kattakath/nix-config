@@ -7,7 +7,13 @@
 #   (b) loaded but not declared — a plist no current generation ships. THE INVERSE
 #       of (a), and it needs its own check: nix-darwin's removal loop is
 #       single-transition, so an orphan it misses once is orphaned permanently
-#   (c) log growth — agent logs have no rotation until newsyslog covers them
+#   (c) log growth — rotation IS live, and it is two mechanisms, not one
+#       (modules/darwin/logging.nix, 2026-09-22): `system.newsyslog` rename+create
+#       for the jobs that re-exec, and an hourly `logrotate --copytruncate` tick
+#       for the long-lived KeepAlive ones, which newsyslog BY DESIGN can never
+#       reclaim — launchd's fd survives the rename. So a log over the threshold
+#       here means a BROKEN rotator (tick out of its domain, unwritable state
+#       file, wrong tier), not an absent one
 #   (d,e) launchd's disabled DB and ~/Library/Logs accumulate keys/files for units
 #       that no longer exist
 # `nix flake check` proves what the config SAYS. Only this proves what launchd DID.

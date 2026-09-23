@@ -1131,9 +1131,12 @@ waves 5-6 absorb them).
   thing a drift check must not do. Read-only: it prints remedies, never runs them. Wired as
   step E3 of the `fleet-doctor` skill, under **always confirm** — bootstrapping a daemon the
   operator deliberately booted out is exactly the wrong move.
-- **`logging.nix`** (macos only) — rotation for **every launchd log this fleet declares**:
-  Home Manager agents, nix-darwin user agents, and `launchd.daemons`. Two mechanisms, because
-  macOS gives two different physics.
+- **`logging.nix`** (macos only) — rotation for **every launchd log this fleet declares**,
+  off **four** composed sources: Home Manager `launchd.agents`, nix-darwin
+  `launchd.user.agents`, nix-darwin `launchd.agents` (system-wide `/Library/LaunchAgents` —
+  a different option, pinned `modules/launchd/default.nix:139`, unused in this tree but
+  enumerated so a first use is not silently unrotated) and `launchd.daemons`. Two mechanisms,
+  because macOS gives two different physics.
   **Mechanism 1 — the logs that re-exec:** `system.newsyslog.{enable,files}` (pinned
   `modules/system/newsyslog.nix:11-160`, registered `module-list.nix:45`). Upstream, and
   **never used by this fleet** until 2026-09-22 — which is how `~/Library/Logs` reached
@@ -1142,9 +1145,23 @@ waves 5-6 absorb them).
   flags are `B C D G J N U Z` only), so this works only where the process genuinely re-opens
   the path on its next spawn. Its win over mechanism 2 is that it is **lossless**.
   **Mechanism 2 — the long-lived (`KeepAlive`) logs:** `pkgs.logrotate` with its own
-  `copytruncate` directive, on an hourly `StartInterval` tick — one as a user agent
-  (`file-rotation-logs`), one as a root daemon (`file-rotation-logs-system`, because a login
-  user cannot truncate `/var/log`). **Why truncation and not `pidFile` + `signal`:** the
+  `copytruncate` directive, on an hourly `StartInterval` tick — one as a **Home Manager**
+  agent (`file-rotation-logs`), one as a root daemon (`file-rotation-logs-system`, because a
+  login user cannot truncate `/var/log`).
+  **Why the user tick is a Home Manager agent and not `launchd.user.agents`:** the same move
+  `metube`/`yt-dlp-web-ui` made on 2026-09-22. nix-darwin's user-agent activation is
+  diff-gated (pinned `modules/system/launchd.nix:36`) and `launchd-reconcile.nix` filters
+  `config.launchd.daemons` only, so a nix-darwin user agent that leaves its launchd domain has
+  an unchanged plist and is skipped by every later activation — the rotator stops, the logs it
+  covers grow unbounded, and **no check can go red**, because a flake check cannot observe a
+  launchd domain. Home Manager probes with `launchctl print` and re-bootstraps. The root tick
+  stays nix-darwin (Home Manager has no root tier) and `launchd-reconcile.nix` covers it.
+  **Which tick owns a path is decided by writability, not authorship:** any path **a daemon
+  declares in either bucket** goes to the root tick, everything else to the user tick. Without
+  that rule, a path classified long-lived by a user agent but owned by root would leave the
+  newsyslog set globally and land on a login-user `logrotate` that gets EPERM — covered on
+  paper, reclaiming nothing. `checks.<system>.launchd-log-rotation` asserts it independently.
+  **Why truncation and not `pidFile` + `signal`:** the
   pinned nix-darwin module really does expose both (`newsyslog.nix:130-160`), so the option
   grep hits — but newsyslog only *delivers* a signal and the program must reopen its own path.
   `cloudflared --help` has **zero** sighup/reopen/rotate surface and `mcp-proxy` is a Python
