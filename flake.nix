@@ -1,5 +1,5 @@
 {
-  description = "Greenfield aarch64 Nix mono-repo: macOS (nix-darwin) client, a Raspberry Pi 4 NixOS server (nixpi), and a throwaway aarch64-linux NixOS dev VM (nixvm) booted only via `nix run .#nixvm` — single source of truth across the fleet.";
+  description = "Greenfield aarch64 Nix mono-repo: macOS (nix-darwin) client, a Raspberry Pi 4 NixOS server (nixpi), and a disposable aarch64-linux NixOS dev VM (nixvm) booted only via `nix run .#nixvm` — single source of truth across the fleet.";
 
   inputs = {
     # nixpkgs — ONE tree for every platform, pinned through FlakeHub's

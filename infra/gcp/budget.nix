@@ -107,10 +107,10 @@ in
     # `disable_default_iam_recipients` — that block is meaningful only alongside a
     # Monitoring channel or a Pub/Sub topic, neither of which exists here.
     #
-    # Omitting it is also the behaviour we want: with no rule, Cloudflare— sorry,
-    # Google — emails every billing-account admin and user by default, which is
-    # the operator. A Monitoring channel would add a second API, a second
-    # resource and a second thing to keep alive to deliver the same email.
+    # Omitting it is also the behaviour we want: with no rule, Google emails
+    # every billing-account admin and user by default, which is the operator. A
+    # Monitoring channel would add a second API, a second resource and a second
+    # thing to keep alive to deliver the same email.
   };
 
   output.budget_name.value = "\${google_billing_budget.fleet.name}";
