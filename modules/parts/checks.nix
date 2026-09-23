@@ -6,11 +6,14 @@
 # .github/workflows/nix-ci.yml.
 #
 # `checks.formatting` and `checks.pre-commit` are NOT here: they come from the
-# treefmt-nix / git-hooks.nix flakeModules in modules/parts/devshell.nix, and
-# `checks.deploy-schema` from modules/parts/deploy.nix. flake-parts declares
-# `checks` as `lazyAttrsOf types.package` (pinned modules/checks.nix:14), so all
-# four files merge into one per-system attrset — and every entry must be a
-# derivation, which is why none of these are a bare `runCommand` argument set.
+# treefmt-nix / git-hooks.nix flakeModules in modules/parts/devshell.nix,
+# `checks.deploy-schema` from modules/parts/deploy.nix, and
+# `checks.access-service-token-duration` from modules/parts/terranix.nix — that
+# last one cannot live here, because `flake.lib` exports only two of the six
+# terranix renderers and the check reads four. flake-parts declares `checks` as
+# `lazyAttrsOf types.package` (pinned modules/checks.nix:14), so all five files
+# merge into one per-system attrset — and every entry must be a derivation,
+# which is why none of these are a bare `runCommand` argument set.
 {
   config,
   inputs,
