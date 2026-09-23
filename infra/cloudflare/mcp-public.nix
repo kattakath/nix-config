@@ -46,6 +46,10 @@
   domainName,
   accountId,
   zoneId,
+  # The Workspace account — the ONE human. Required, like every argument here:
+  # the tier policies below narrow `operator` and `trusted` from "any account on
+  # the domain" to this mailbox, which is the whole point of the split.
+  googleAccount,
   # THE origin hostname: where published MCP servers actually are, as opposed to
   # `mcp.<domainName>`, the portal clients talk to. "upstream" is the Cloudflare
   # portal's own word for a server registered behind it, and it is mechanism-
@@ -83,7 +87,7 @@
   # independent origins with their own uptime — but a client cannot tell, and
   # should not care, which side of the edge answers.
   #
-  # Each entry: { name; description ? ""; }
+  # Each entry: { name; description ? ""; tier ? "operator"; }
   # No `host` and no `id`: there is exactly ONE public hostname, and a server's
   # NAME is its id, its Access application name and its path segment — see THE
   # NAMING RULE below.
@@ -138,6 +142,83 @@ let
   # loopback URL can never drift.
   serverUrl = name: "https://${publicHost}/servers/${name}/mcp";
 
+  # ============================ THE TIERS ===================================
+  # WHO may see WHICH server through the portal. Only IDENTITY selectors work
+  # here: Cloudflare enforces Emails, Groups, Country and Device Posture on a
+  # portal-authorized mcp app and silently drops independent MFA, purpose
+  # justification and temporary authentication. There is NO selector for WHICH
+  # CLIENT connected, so a tier separates PEOPLE — never claude.ai from grok.com.
+  #
+  # Tiers are EXCLUSIVE, not cumulative. Access evaluates an app's policies in
+  # ASCENDING precedence and the first matching Allow or Block ends evaluation —
+  # so a wider allow behind a tighter one still admits everyone the tighter one
+  # rejected. One tier per server.
+  #
+  # WHAT THIS BUYS TODAY: nothing, and that is not an oversight. One human is on
+  # the domain, so all three tiers admit the same person. It buys the structure
+  # BEFORE the second human exists, and it does NOT buy containment — the direct
+  # URL plus the service token still reaches all 26 (see the header).
+  tierPolicyIds = {
+    operator = "\${cloudflare_zero_trust_access_policy.mcp_tier_operator.id}";
+    trusted = "\${cloudflare_zero_trust_access_policy.mcp_tier_trusted.id}";
+    domain = "\${cloudflare_zero_trust_access_policy.mcp_tier_domain.id}";
+  };
+
+  # Membership is checked HERE, not at the call site, so a gateway name and an
+  # external Worker's `tier` field fail the same actionable way.
+  policyIdFor =
+    tier:
+    tierPolicyIds.${tier} or (throw ''
+      mcp-public: unknown tier "${tier}".
+      Valid tiers: ${builtins.concatStringsSep ", " (builtins.attrNames tierPolicyIds)}.
+    '');
+
+  # One row per published server. NO default and no `or` fallback: a server added
+  # to fleet.publicMcpServers must be classified by what it can DO, or the throw
+  # fails the render here rather than widening its audience at Cloudflare.
+  serverTier = {
+    # operator — executes code, drives this Mac, or holds prod/personal data.
+    desktop-commander = "operator"; # arbitrary shell + filesystem
+    macos-automator = "operator"; # AppleScript/JXA, incl. `do shell script`
+    chrome-devtools = "operator"; # evaluate_script in the logged-in browser
+    mobile-mcp = "operator"; # drives a real device over adb
+    postgres = "operator"; # general SQL executor
+    wordpress = "operator"; # prod site admin: users, app passwords
+    wordpress-adapter = "operator"; # same prod site, via the abilities API
+    github = "operator"; # PAT-backed: push, merge, delete, create
+    cloudflare = "operator"; # account API — can edit the gate you read
+    "gmail-aloshyakasoto_gmail_com" = "operator";
+    "gmail-ismail_kattakath_com" = "operator";
+    "gmail-ismailkattakath_gmail_com" = "operator";
+    "gmail-izzy_silvercreek_ai" = "operator";
+
+    # trusted — side effects that OUTLIVE the request: money, or bytes on disk.
+    apify = "trusted"; # actor runs are billed
+    memory = "trusted"; # writes the shared knowledge graph
+    arxiv = "trusted"; # downloads papers + persists topic watches
+
+    # domain — read-only lookups, no credentials, no persisted side effect.
+    context7 = "domain";
+    cloudflare-docs = "domain";
+    duckduckgo = "domain";
+    fetch = "domain";
+    json-yaml-toml = "domain";
+    mcp-jq = "domain";
+    mcpfinder = "domain";
+    nixos = "domain";
+    sequential-thinking = "domain";
+    terraform = "domain";
+  };
+
+  tierOf =
+    name:
+    serverTier.${name} or (throw ''
+      mcp-public: published server "${name}" has no tier.
+      Classify it in `serverTier` by what it can DO — operator (shell/prod/
+      personal data), trusted (spend or persisted state), or domain (read-only).
+      Publishing it untiered would hand it the widest audience by accident.
+    '');
+
   # ============================ THE NAMING RULE =============================
   # ONE rule, applied to every object this module owns:
   #
@@ -177,14 +258,31 @@ let
       key = "srv_${srvKey n}";
       id = n;
       regId = cfId n;
+      policyId = policyIdFor (tierOf n);
       description = "Published from the macos MCP gateway (fleet.publicMcpServers).";
     }) publicServers
     ++ map (e: {
       key = "srv_${srvKey e.name}";
       id = e.name;
       regId = cfId e.name;
+      # An unclassified external origin defaults to the TIGHTEST tier, not the
+      # widest: a new Worker nobody has classified should fail closed.
+      policyId = policyIdFor (e.tier or "operator");
       description = e.description or "Cloudflare Worker route under the gateway hostname.";
     }) externalServers;
+
+  # `tierOf` catches roster -> tier only. A name DELETED from fleet.publicMcpServers
+  # would leave a stale row here forever, describing a server Cloudflare no longer
+  # knows about. mcp-published-parity checks both directions for exactly this
+  # reason (its one-directional predecessor missed the opposite) — match it.
+  publishedIds = map (p: p.id) published;
+  strayTiers = builtins.filter (k: !(builtins.elem k publishedIds)) (builtins.attrNames serverTier);
+  tierGuard =
+    x:
+    if strayTiers == [ ] then
+      x
+    else
+      throw "mcp-public: serverTier classifies unpublished server(s): ${toString strayTiers}";
 
   # Google Workspace. Pinned on EVERY application, including the service-token
   # origins whose only policy is `non_identity`. Empty means "accept every
@@ -216,9 +314,8 @@ let
   #   1. import the live object into THIS stack's state, never let an apply create a
   #      second copy:   tofu import cloudflare_zero_trust_access_policy.mcp_allow_operator \
   #                       <accountId>/b3bd8c38-e231-4203-ba6b-69fe16e498b3
-  #   2. in the stack's own state dir ($XDG_STATE_HOME/nix-config-mcp-public — there
-  #      is NO plan app; `tofu plan -out=policy.tfplan` by hand, token via
-  #      `secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:mcp-public -- …`) the plan
+  #   2. `nix run .#mcp-public-plan` (added #592; token via
+  #      `secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:mcp-public -- …`) — the plan
   #      MUST read `0 to add, 1 to change, 0 to destroy`, the one change being
   #      include email → email_domain (a `session_duration -> null` line is API noise).
   #      A `+ create` means the import was SKIPPED: the wrapper's guards compare
@@ -277,23 +374,33 @@ let
   # hostname and therefore no browser cookie or CORS behaviour.
   portalApp =
     p:
-    accessAppCommon
-    // {
-      name = p.id; # rule 3
-      type = "mcp";
-      destinations = [
-        {
-          type = "via_mcp_server_portal";
-          mcp_server_id = "\${cloudflare_zero_trust_access_ai_controls_mcp_server.${p.key}.id}";
-        }
-      ];
-      policies = [
-        {
-          id = operatorPolicyId;
-          precedence = 1;
-        }
-      ];
-    };
+    tierGuard (
+      accessAppCommon
+      // {
+        name = p.id; # rule 3
+        type = "mcp";
+        destinations = [
+          {
+            type = "via_mcp_server_portal";
+            mcp_server_id = "\${cloudflare_zero_trust_access_ai_controls_mcp_server.${p.key}.id}";
+          }
+        ];
+        # ONE policy per app, from the server's tier — NOT the shared
+        # `operatorPolicyId` this used to hand every server. Single, not a list +
+        # genList: every tier yields exactly one id, and list plumbing would
+        # document behaviour the code never exercises.
+        #
+        # `decision = "bypass"` is FORBIDDEN on these: bypass and Service Auth are
+        # evaluated BEFORE Block and Allow whatever the precedence numbers say, so
+        # one bypass policy here silently defeats every tier.
+        policies = [
+          {
+            id = p.policyId;
+            precedence = 1;
+          }
+        ];
+      }
+    );
 
   # Service-token headers, referenced from the portal registration. Terraform
   # resolves these at apply time; the secret is never a literal in this file.
@@ -375,11 +482,48 @@ in
   # `email_domain` = any account on the Workspace domain. `require`-ing the Google
   # IdP is deliberately NOT added: `allowed_idps` on every application already pins
   # it, and a second copy of the same constraint is a second thing to drift.
+  # DO NOT DELETE, and do not narrow: infra/cloudflare/nixpi-tunnel.nix pins this
+  # object by LITERAL ID from a DIFFERENT tofu stack, for the Pi's SSH gate.
+  # Narrowing it here would narrow who can SSH the Pi, in the same apply, with no
+  # plan line naming the Pi. Since the tier split it has only ONE referent left in
+  # this file (the `portal` front door), which makes it LOOK unused. It is not.
   resource.cloudflare_zero_trust_access_policy.mcp_allow_operator = {
     account_id = accountId;
     name = "mcp-allow-operator";
     decision = "allow";
     include = [ { email_domain.domain = domainName; } ];
+  };
+
+  # ---- The tier policies — NEW objects, never an edit to the one above --------
+  # Three policies rather than one, so the read-only shelf can be widened later
+  # without that widening reaching either the Pi's SSH gate or this Mac's shell.
+  resource.cloudflare_zero_trust_access_policy.mcp_tier_domain = {
+    account_id = accountId;
+    name = "mcp-tier-domain";
+    decision = "allow";
+    # Identical rule to mcp_allow_operator TODAY — deliberately a second object
+    # with the same body, so the two can diverge without a cross-stack surprise.
+    include = [ { email_domain.domain = domainName; } ];
+  };
+
+  resource.cloudflare_zero_trust_access_policy.mcp_tier_trusted = {
+    account_id = accountId;
+    name = "mcp-tier-trusted";
+    decision = "allow";
+    # An explicit mailbox, not a group object: `include` is a SET whose rules are
+    # OR'd, so N emails need no cloudflare_zero_trust_access_group — which would
+    # also need an Access: Organizations/IdPs/Groups scope this stack's token is
+    # not documented to carry.
+    include = [ { email.email = googleAccount; } ];
+  };
+
+  resource.cloudflare_zero_trust_access_policy.mcp_tier_operator = {
+    account_id = accountId;
+    name = "mcp-tier-operator";
+    decision = "allow";
+    # `email`, not `email_domain`: the whole point is that a second human on the
+    # Workspace domain must not also get a shell on this Mac.
+    include = [ { email.email = googleAccount; } ];
   };
 
   # ---- (d) The one policy every published object is gated by ------------------
