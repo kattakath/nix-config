@@ -556,8 +556,16 @@ their own top-level section below:
   `packages/spotlight-launchers.nix`, macos-only). The nine COMMAND bundles from the same
   package land via `./spotlight-actions.nix` instead — a separate module so the mapping is
   one `mapAttrs'` rather than nine more `home.file` lines here.
-- **`spotlight-actions.nix`** — macos-only: maps `spotlight-launchers.commandApps` into
-  `~/Applications/<name>.app`. Uses `home.file` with `recursive = true`, **not**
+- **`spotlight-actions.nix`** — macos-only: maps `spotlight-launchers`' `commandApps` **and**
+  `aliasApps` into `~/Applications/<name>.app`. The one alias is **`Terminal`**, which opens
+  Ghostty: it carries `CFBundleAlternateNames = [Ghostty, Shell, Console, Prompt]`, Apple's own
+  mechanism (Calendar answers "iCal", System Settings answers "Preferences"), **verified
+  2026-09-23 to work on a plain unsigned third-party bundle** — a throwaway `.app` carrying the
+  key indexed as `kMDItemAlternateNames` and `mdfind` matched it. It is a SIBLING bundle rather
+  than an edit to `/Applications/Ghostty.app` because that is a Homebrew cask: an edit is
+  clobbered by the next `brew upgrade` and breaks the bundle's code signature. It shares the
+  name of `/System/Applications/Utilities/Terminal.app` deliberately — the gold icon is what
+  tells the two rows apart, and Spotlight's ranking learns which gets clicked. Uses `home.file` with `recursive = true`, **not**
   home-manager's `targets.darwin.copyApps` ("works with Spotlight",
   `modules/targets/darwin/copyapps.nix:14`): that option's default is
   `isDarwin && stateVersion >= 25.11` and this profile is on 24.05, so what is live is the
