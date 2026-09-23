@@ -128,9 +128,10 @@ model and the three-objects-per-publish trap are in
   the Keychain plus a separate one-time browser auth per account (mirrors telegram's
   session-file pattern, not the OAuth-cache one). Anyone else's address never goes in this
   public list; the private nix-personal flake that used to add such accounts via
-  `extraHomeModules` was fully retired 2026-09-15, and only the operator's own two of its
-  seven accounts were carried over (see
-  [`private-home-modules.md`](private-home-modules.md) § History). Runbook:
+  `extraHomeModules` was fully retired 2026-09-15, and **two** of the four above are what
+  survived its list of seven — so those four are the WHOLE roster now, not a public subset of
+  a longer private one (the per-address reasoning lives in `hosts/macos.nix`'s own comment on
+  the option, #524). Runbook:
   [`gmail-mcp-multi-account-runbook.md`](gmail-mcp-multi-account-runbook.md).
 
 ## Auth caches

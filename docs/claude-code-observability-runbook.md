@@ -38,11 +38,18 @@ only these two scripts need the manual nudge.
 ## Scope: real Mac only
 
 Gated on `isMacosHost` (`networking.hostName == "macos"`) — the same gate as
-the RAG stack, MCP public tunnel, and telegram. `macvm` keeps base Claude
-Code + the MCP gateway but gets no telemetry collector and no `env` block,
-same as those other Mac-only sub-features. This is a deliberate scope limit,
-not an oversight: `macvm`'s own Claude Code sessions are not captured by
-this system.
+the RAG stack, MCP public tunnel, and telegram. `macos` is the fleet's only
+darwin host today, and `programs.claude-code` is itself darwin-only
+(`modules/shared/claude-brain.nix`), so `nixpi`/`nixvm` run no Claude Code
+for this system to instrument.
+
+The gate still earns its keep as a second darwin host's off-switch. **History:**
+when the `macvm` Tart guest existed it sat on the excluded side of exactly this
+gate — base Claude Code + the MCP gateway, but no telemetry collector and no
+`env` block, a deliberate scope limit rather than an oversight. That guest was
+REMOVED 2026-09-05 ([`macvm-readd-runbook.md`](macvm-readd-runbook.md)); keeping
+the gate means a re-added `macvm` lands on the excluded side again with no edit
+here.
 
 ## Setup
 

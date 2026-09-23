@@ -252,7 +252,9 @@ VM name is always a parameter: leading positional (`tart-vm start dev`) or
 - **Bake trusts less:** Apple's signed IPSW + a vendored, readable, rev-pinned
   HCL template + a hash-pinned plugin binary (checked against upstream's
   published SHA256SUMS).
-- Details and reporting: [SECURITY.md](./SECURITY.md).
+- Details and reporting: the repo-root [`SECURITY.md`](../../../SECURITY.md) —
+  this capsule has no policy of its own (the archived `nix-tart-vms` satellite
+  carried one; absorption folded reporting into the mono-repo's single policy).
 
 ## Used in production
 

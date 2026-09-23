@@ -975,10 +975,10 @@ their own top-level section below:
     (`claudePluginIds` / `localPluginsMarketplace` / `home.activation.claudeCodePlugins`)
     until nix-personal needed a second marketplace and grew a near-verbatim 80-line COPY of
     the activation script, ordered `entryAfter [ "claudeCodePlugins" ]` so the two would not
-    race on mutable `~/.claude`. `attrsOf` merges by key, so the private layer now adds one
-    attribute, there is exactly one script, and the race has no reason to exist. `plugins`
-    being a `listOf` means a private layer can also append a plugin to a marketplace THIS
-    repo declares — impossible before.
+    race on mutable `~/.claude`. `attrsOf` merges by key, so that second marketplace became
+    one more attribute instead, there is exactly one script, and the race has no reason to
+    exist. `plugins` being a `listOf` means a layer composed in through `extraHomeModules`
+    can also append a plugin to a marketplace THIS repo declares — impossible before.
   - **`source` is a scalar on purpose.** A marketplace has exactly one source, so two
     differing definitions SHOULD be a loud conflict, not a silent pick. It is `mkDefault`
     here so a downstream layer can repoint one (a fork of the official marketplace, say)
@@ -986,8 +986,13 @@ their own top-level section below:
   - **Path-literal trap.** `source = "${../../plugins}"` is a Nix SOURCE PATH LITERAL,
     resolved relative to the `.nix` file it is written in. The same line moved to another
     flake silently re-points at THAT flake's `plugins/`, so each repo's marketplace entry
-    must stay in the repo that owns the tree — which is why nix-personal keeps its
-    `plugins/` directory and a 5-line module, rather than shipping the tree here.
+    must stay in the repo that owns the tree — which is why nix-personal kept its own
+    `plugins/` directory and a 5-line module until it was retired 2026-09-15, rather than
+    shipping the tree here. Nothing in this repo can trip the trap today: there is no
+    `plugins/` tree here either, so none of the four `source` values in
+    `modules/shared/home.nix` is a repo-relative path literal — two are `https://` git URLs,
+    and two are store paths from pinned inputs (`kattakath-ai`, the patched grok-build
+    plugin).
   - **Two phases, not fused.** Every marketplace is pinned first, then ONE flat install loop
     runs. Pin-then-install per marketplace would let a later re-pin teardown uninstall a
     plugin the loop had already installed. `programs.claude-code.marketplaces` (upstream) is
@@ -1768,8 +1773,9 @@ to build the boundary machinery around it.
 ### `tart-vms` (wave 5, 3,255 lines) — the most LIVE surface
 
 `macos` runs three Tart-VM GitHub runners and a GitLab lane off this capsule, and both runner
-modules sit in `mkDarwin`'s **base list**, so every darwin composition — nix-personal's
-included — evaluates them.
+modules sit in `mkDarwin`'s **base list**, so EVERY `mkDarwin` composition evaluates them —
+the one exported host (`macos`) and the stranger-identity Mac that
+`checks.<system>.template-consumer` composes alike, not just the host that enables them.
 
 - **Owns:** `local.tart.githubRunners.*` (ephemeral Tart-VM-per-job runners), `local.tart.gitlabRunner`,
   `local.tart.vms.*`, `local.tart.runnerSlots` / `local.tart.runnerStateDir`, and five packages.
@@ -1805,7 +1811,7 @@ included — evaluates them.
 
 ### `media-cli` (wave 5, 4,559 lines) — the LARGEST, with the narrowest live surface
 
-One option in `modules/shared/home.nix`, and **nothing at all** in nix-personal.
+**One option** in `modules/shared/home.nix` is the capsule's entire live surface.
 
 - **Owns:** `local.mediaCli` — eleven media/photo CLIs, a durable launchd work queue
   (~1,300 lines) and four Finder right-click Services. One switch turns all of it on or off:
