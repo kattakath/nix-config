@@ -539,19 +539,19 @@
         "type": "github"
       }
     },
-    "kattakath-ai": {
+    "kattakath-skills": {
       "flake": false,
       "locked": {
-        "lastModified": 1789462849,
-        "narHash": "sha256-pckwaORjCeKjgQRCVRTW8NjPTp6BKXXdsYLuNtidzbc=",
+        "lastModified": 1790099031,
+        "narHash": "sha256-ahrx7huo4wr+zxm22gEiVxLx4svjX86JY2k8EbK/OVU=",
         "owner": "kattakath",
-        "repo": "ai",
-        "rev": "6383f05d7fafa74183526548ea712c788c0568e2",
+        "repo": "skills",
+        "rev": "0c1b03b7ca0fb7d3f862087eb1867253630581e4",
         "type": "github"
       },
       "original": {
         "owner": "kattakath",
-        "repo": "ai",
+        "repo": "skills",
         "type": "github"
       }
     },
@@ -801,7 +801,7 @@
         "grok-build-plugin-cc": "grok-build-plugin-cc",
         "home-manager": "home-manager",
         "import-tree": "import-tree",
-        "kattakath-ai": "kattakath-ai",
+        "kattakath-skills": "kattakath-skills",
         "mcp-servers-nix": "mcp-servers-nix",
         "nix-darwin": "nix-darwin",
         "nix-homebrew": "nix-homebrew",
