@@ -2732,3 +2732,80 @@ loader-exported like every personal token) for ad-hoc local `cachix push kattaka
 never in Nix or git, and consumers still substitute tokenless (read stays public). Note the
 token does NOT influence builds or substitution — Nix sandboxes scrub the environment, so it is
 only ever consumed by the `cachix` CLI at push time.
+
+## Documentation index — every `docs/*.md`, annotated
+
+Moved here from CLAUDE.md on 2026-09-23. CLAUDE.md is an index and was chronically within
+~170 bytes of its 40,000-byte gate; an annotated list of another file's contents is exactly
+the "encyclopedia" its own header says belongs here. It keeps a short pointer plus only the
+read-this-first warnings that stop someone acting on a superseded design doc.
+
+`checks.<system>.docs-indexed` accepts EITHER file, so this section is what satisfies it for
+the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
+
+
+- [`docs/repo-map.md`](docs/repo-map.md) — **the full fleet architecture**: every path, module,
+  package and flake output, with the reasoning. The long form of § Navigating the Codebase.
+- [`docs/mcp-gateway.md`](docs/mcp-gateway.md) — the MCP gateway: server inventory,
+  credentials model, opt-ins, how to add one.
+- [`docs/mcp-public-exposure-design.md`](docs/mcp-public-exposure-design.md) — the published
+  gateway, behind one connector + one Access app + one service token. **Exactly two hostnames,
+  and they never grow per server.** **Read §10 first** — the two-proxy model §§1-6 describe was
+  collapsed 2026-09-22; §9 is its correction record.
+- [`docs/secrets-and-keychain.md`](docs/secrets-and-keychain.md) — agenix operator-only vault,
+  the login-Keychain loader, the `secret` CLI.
+- **ADRs, in order** — [`ADR-001`](docs/flake-architecture-strategy-adr.md) (flake-parts for the
+  small supporting flakes; **superseded in part**, and its objection 3 still stands);
+  [`ADR-002`](docs/monoflake-capsule-adr.md) (decided **and implemented**: absorbed all seven
+  satellites onto flake-parts + `import-tree` as capsules — **read §9 first**, the record of what
+  execution found the design got wrong); [`ADR-003`](docs/externalization-boundary-adr.md)
+  (decided, **NOT implemented**: Nix is the **harness**, governance never leaves; skills MAY
+  overlay from `$HOME`, **MCP servers may not**).
+  [`ADR-004`](docs/secrets-recovery-and-identity-adr.md) (decided, **Phase 1 of 3 shipped — docs
+  + `OPERATOR-ONLY` markers only**: GCP Secret Manager durable, Keychain as cache, Workspace
+  canonical; rename + repo split deferred; §7 awaits approval, §8 the conflicts);
+  [`ADR-005`](docs/iac-coverage-adr.md) (decided and **IMPLEMENTED**: Cloudflare + GCP under
+  terranix, Workspace not — §8c is its doc-rot record).
+- [`docs/workspace-runbook.md`](docs/workspace-runbook.md) — Workspace by hand (the provider is
+  archived, ADR-005 §3.3): inventory, verify, and the delegation table no CLI can read.
+- [`docs/identity-and-offboarding.md`](docs/identity-and-offboarding.md) — the single lever:
+  suspend the Workspace account and every derived login goes with it; the three privilege tiers.
+- [`docs/agent-resource-externalization.md`](docs/agent-resource-externalization.md) — why the
+  operator's plugins, skills and userscripts left while the seven satellites came back, and the
+  rule it turned on: **a gate must move with the content it gates.**
+- [`docs/nixpi-sd-flashing-runbook.md`](docs/nixpi-sd-flashing-runbook.md) — flashing the `nixpi`
+  SD card (full verified `dd` write).
+- [`docs/new-mac-runbook.md`](docs/new-mac-runbook.md) — standing up `macos` from a wiped
+  Mac (no key recovery: rotate, don't transport); also the manual steps Nix can't do.
+- [`docs/macvm-readd-runbook.md`](docs/macvm-readd-runbook.md) — re-adding the removed `macvm`
+  Tart guest (2026-09-05); what survives in the `tart-vms` capsule.
+- [`docs/gmail-mcp-multi-account-runbook.md`](docs/gmail-mcp-multi-account-runbook.md) — TRUE
+  simultaneous multi-account Gmail + a silent-wrong-account failure mode.
+- [`docs/claude-code-observability-runbook.md`](docs/claude-code-observability-runbook.md) — local
+  OTel for Claude Code's `tool_decision` telemetry + the `/routing-review` loop.
+- [`docs/claude-hook-messages.md`](docs/claude-hook-messages.md) — decoder for this repo's hook
+  messages (why DENYs read as "errors", how to read a prompt-hook denial).
+- [`docs/claude-desktop-instructions.md`](docs/claude-desktop-instructions.md) — the one Claude
+  behaviour this repo can't manage declaratively + the canonical "diagrams as ASCII" wording.
+- [`docs/answer-shape-evidence.md`](docs/answer-shape-evidence.md) — the published standards
+  (COGA, ISO 24495-1, BDA) and effect sizes behind § Answer shape, so the rules stop being
+  re-litigated as taste. **A diagram that carries no data measurably HURTS** (g ≈ −0.4).
+- [`docs/terminal-theme.md`](docs/terminal-theme.md) — the one terminal palette: provider
+  contract, per-surface coverage (**4/16** on Terminal.app is an OS ceiling), and why stylix
+  and base16.nix were both rejected.
+- [`docs/macos-settings-surface.md`](docs/macos-settings-surface.md) — what `macos` configures
+  declaratively, and the TCC/FileVault walls.
+- [`docs/mcp-gateway-accessibility-tcc.md`](docs/mcp-gateway-accessibility-tcc.md) — the one-time
+  Accessibility (TCC) grant for `macos-automator`.
+- [`docs/open-design.md`](docs/open-design.md) — OpenDesign's declared/imperative boundary: cask +
+  updater kill-switch vs. the app's mutable state. Its MCP server left the fleet 2026-09-22.
+- [`docs/photo-system.md`](docs/photo-system.md) — photo retrieval end to end: the
+  durable/derived split between what `photo-describe` writes and what `rclip` keeps.
+- [`docs/auto-merge-and-merge-queue.md`](docs/auto-merge-and-merge-queue.md) — how every fleet
+  flake merges itself once CI is green (App token, ruleset). **No merge queue** since
+  2026-09-22; §3 records why, and what to re-check before re-adopting.
+- [`docs/flakehub-input-freshness.md`](docs/flakehub-input-freshness.md) — the weekly automated
+  `flake.lock` bump flow.
+- [`docs/nix-media-cli-extraction-grant.md`](docs/nix-media-cli-extraction-grant.md) + its
+  [study](docs/nix-media-cli-extraction-study.md) — **HISTORY**: extracted 2026-09, then ADR-002
+  brought it back as the `media-cli` capsule. Only the `media-<verb>` rename is open.
