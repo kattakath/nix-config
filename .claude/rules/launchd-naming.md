@@ -49,10 +49,15 @@ mandatory, not as a security boundary to rely on. Live example:
 
 ## Mandatory behavior
 
-1. **Home Manager user agents** (`launchd.user.agents.*`) are wrapped automatically by
+1. **Home Manager user agents** (`launchd.agents.*` — home-manager's spelling; the
+   `launchd.user.agents.*` path is **nix-darwin's**, a different layer, and confusing the two
+   is how this line was wrong until 2026-09-22) are wrapped automatically by
    `modules/shared/launchd-launcher.nix`, which forces `arg0` to `nix-<name>`. Do not bypass
-   it. It is no longer a vendored fork: the 560-line copy of upstream's launchd module was
-   RETIRED 2026-09-14 once the pinned home-manager grew the three options it needed
+   it — and therefore do NOT name the inner script `nix-<name>` as well, or one name maps to
+   two store paths (`metube-run`, not `nix-metube`; see `modules/shared/metube.nix`).
+   `launchd-launcher.nix` is no longer a vendored fork: the 560-line copy of upstream's
+   launchd module was RETIRED 2026-09-14 once the pinned home-manager grew the three
+   options it needed
    (`waitForNixStore`, `launcher.name`, `launcher.shell`).
    This is upstream's own `waitForNixStore = false` trade, in its words (pinned
    home-manager `modules/launchd/default.nix:47-52`): the agent "appear[s] under its own
@@ -61,8 +66,8 @@ mandatory, not as a security boundary to rely on. Live example:
    is itself a `/nix/store` script with a `/nix/store` interpreter, so launchd needs the
    store mounted just to exec it. Cover an early-boot start with `KeepAlive` (which makes
    launchd retry the failed exec), not with a wait4path line that cannot run.
-2. **Any launchd unit you hand-write** — a `launchd.user.agents` entry with an explicit
-   `ProgramArguments`, or a nix-darwin `launchd.daemons`/`launchd.agents` you author — MUST
+2. **Any launchd unit you hand-write** — a nix-darwin `launchd.user.agents` or
+   `launchd.daemons` entry, which the launcher in item 1 does NOT reach — MUST
    point `arg0` at a `pkgs.writeShellScriptBin "nix-<activity>" ''…''` wrapper, **never**
    directly at `${pkgs.bash}/bin/sh -c …` or `${python}/bin/python3 …`. Put the `exec`
    logic inside that wrapper — and NOT a `wait4path`, for the reason in item 1: it is
@@ -106,9 +111,10 @@ emits `/bin/sh -c '/bin/wait4path /nix/store && exec <command>'` — the same sh
 `activate-system` and `activate-agenix` use, for the same reason.
 
 **Scope this narrowly.** It applies ONLY to a `launchd.daemons` unit that must run
-at boot from a store path. It does NOT apply to `launchd.user.agents` (they start
-after login, long after `/nix` is mounted) — those keep the `nix-*` wrapper, and
-`modules/shared/launchd-launcher.nix` still enforces it.
+at boot from a store path. It does NOT apply to user agents of either layer (they start
+after login, long after `/nix` is mounted) — those keep the `nix-*` wrapper, which
+`modules/shared/launchd-launcher.nix` supplies for home-manager's `launchd.agents` and which
+a nix-darwin `launchd.user.agents` entry must spell out by hand.
 
 **Why the cost is acceptable here:** this rule's load-bearing half is TCC — an
 adhoc-signed `/nix/store` `arg0` keeps read access to `~/Desktop`, `~/Documents`

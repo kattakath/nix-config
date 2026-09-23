@@ -37,8 +37,6 @@ in
     ../modules/darwin/launchd-reconcile.nix
     ../modules/darwin/logging.nix
     ../modules/darwin/ollama-daemon.nix
-    ../modules/darwin/yt-dlp-web-ui.nix
-    ../modules/darwin/metube.nix
   ];
 
   # Root-owned Claude Code policy at /Library/Application Support/ClaudeCode/
@@ -59,13 +57,9 @@ in
   # competing one — two servers on 11434 means one wins and the other flaps.
   local.ollamaDaemon.enable = true;
 
-  # Replaces the Colima container of the same name. Loopback only. Downloads
-  # land in ~/.local/share/yt-dlp-webui/downloads.
-  local.ytDlpWebUi.enable = true;
-
-  # Loopback MeTube for the sideloaded Chrome extension. The extension's
-  # options still need the address typed once: http://127.0.0.1:8081
-  local.meTube.enable = true;
+  # `local.ytDlpWebUi` and `local.meTube` used to be enabled here, at DARWIN
+  # scope. Both are Home Manager modules since 2026-09-22 — their enables moved
+  # into the `home-manager.users.${loginName}` block below.
 
   # Machine-wide CLIs — the mechanism for "shared between both accounts". A
   # systemPackages entry is ONE store path on PATH for every user, so neither
@@ -363,6 +357,14 @@ in
     # key, so there is nothing to make it stop asking. Opera was removed from this Mac
     # on 2026-09-21; the attach target is now Chromium (modules/shared/mcp.nix).
     local.mcpGateway.chromeDevtools.enable = true;
+
+    # Replaces the Colima container of the same name. Loopback only. Downloads
+    # land in ~/.local/share/yt-dlp-webui/downloads.
+    local.ytDlpWebUi.enable = true;
+
+    # Loopback MeTube for the sideloaded Chrome extension. The extension's
+    # options still need the address typed once: http://127.0.0.1:8081
+    local.meTube.enable = true;
 
     # Per-user container runtime (Colima via home-manager's services.colima),
     # replacing the docker-desktop cask whose privileged helper was bound to

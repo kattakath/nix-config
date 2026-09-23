@@ -404,6 +404,11 @@ in
     # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
     ./next-right-thing.nix # local.nextRightThing — decides what that widget says
     ./containers.nix # local.containers — per-user Colima (services.colima) replacing the Docker Desktop cask
+    # The two loopback download servers. They were nix-darwin `launchd.user.agents`
+    # until 2026-09-22; moved here because Home Manager re-bootstraps an agent that
+    # has left its launchd domain and the system tier does not (see either header).
+    ./metube.nix # local.meTube — MeTube on 127.0.0.1:8081 for the Chrome extension
+    ./yt-dlp-web-ui.nix # local.ytDlpWebUi — yt-dlp-web-ui on 127.0.0.1:3033
     # Local-first RAG stack (loopback launchd Postgres+pgvector + Ollama + in-DB
     # embed()) — the ABSORBED capsule (modules/features/local-rag/). Both of its
     # modules are internally gated on (enable && isDarwin) — a clean no-op on
