@@ -1,4 +1,4 @@
-# yt-dlp-web-ui as a per-user launchd agent on the Mac.
+# home-manager module: local.ytDlpWebUi — yt-dlp-web-ui on 127.0.0.1.
 #
 # Loopback only. Downloads stay in the login user's home, the same directory
 # the Colima trial was aimed at. A system daemon would put them in /var/lib
@@ -7,17 +7,22 @@
 # The agent binary is built from source (packages/yt-dlp-web-ui.nix). yt-dlp,
 # ffmpeg, deno and aria2 come from nixpkgs and are put on PATH: launchd does
 # not inherit Homebrew, and YouTube extraction fails without deno.
+#
+# WHY HOME MANAGER AND NOT nix-darwin's `launchd.user.agents` — see the same
+# paragraph in modules/shared/metube.nix; both moved layers together on
+# 2026-09-22 for the self-heal Home Manager has and the system tier does not.
+# The Label becomes `org.nix-community.home.yt-dlp-web-ui`.
 {
   config,
   lib,
   pkgs,
-  loginName,
   ...
 }:
 let
   cfg = config.local.ytDlpWebUi;
   pkg = pkgs.callPackage ../../packages/yt-dlp-web-ui.nix { };
-  stateDir = "/Users/${loginName}/.local/share/yt-dlp-webui";
+  home = config.home.homeDirectory;
+  stateDir = "${home}/.local/share/yt-dlp-webui";
   configFile = pkgs.writeText "yt-dlp-web-ui-config.yml" ''
     server:
       host: 127.0.0.1
@@ -31,10 +36,10 @@ let
     logging:
       enable_file_logging: false
   '';
-  # Basename `nix-yt-dlp-web-ui`, not a bare shell. Login Items names a
-  # background item by ProgramArguments[0], and a /bin/sh wrapper shows up as
-  # "sh". See modules/darwin/core.nix.
-  runner = pkgs.writeShellScriptBin "nix-yt-dlp-web-ui" ''
+  # Plain name, not `nix-yt-dlp-web-ui`: modules/shared/launchd-launcher.nix
+  # already renames arg0 to `nix-<agent>`, which is what Login Items and TCC
+  # attribute the process by. Two scripts with the same name was the old shape.
+  runner = pkgs.writeShellScriptBin "yt-dlp-web-ui-run" ''
     set -eu
     mkdir -p ${lib.escapeShellArg "${stateDir}/downloads"}
     exec ${lib.getExe pkg} -conf ${configFile}
@@ -57,10 +62,14 @@ in
     };
   };
 
-  config = lib.mkIf cfg.enable {
-    launchd.user.agents.yt-dlp-web-ui = {
-      serviceConfig = {
-        ProgramArguments = [ "${runner}/bin/nix-yt-dlp-web-ui" ];
+  # isDarwin is load-bearing, not decoration — modules/shared/home.nix imports
+  # this for nixpi and nixvm too, and `launchd.enable` defaulting to isDarwin
+  # would hide the agent while still forcing the package to build there.
+  config = lib.mkIf (cfg.enable && pkgs.stdenv.hostPlatform.isDarwin) {
+    launchd.agents.yt-dlp-web-ui = {
+      enable = true;
+      config = {
+        ProgramArguments = [ (lib.getExe runner) ];
         RunAtLoad = true;
         KeepAlive = true;
         ThrottleInterval = 10;
@@ -68,8 +77,8 @@ in
         # state directory does not exist until the script creates it.
         # Library/Logs already exists. stateDir does not, until the script
         # creates it, and launchd opens these files before that script runs.
-        StandardOutPath = "/Users/${loginName}/Library/Logs/yt-dlp-web-ui.log";
-        StandardErrorPath = "/Users/${loginName}/Library/Logs/yt-dlp-web-ui.log";
+        StandardOutPath = "${home}/Library/Logs/yt-dlp-web-ui.log";
+        StandardErrorPath = "${home}/Library/Logs/yt-dlp-web-ui.log";
         EnvironmentVariables = {
           PATH = lib.makeBinPath [
             pkgs.yt-dlp

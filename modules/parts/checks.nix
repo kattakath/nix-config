@@ -1431,6 +1431,90 @@ in
             touch "$out"
           '';
 
+          # ---- every declared launchd log reaches exactly one rotator -------
+          #
+          # modules/darwin/logging.nix splits every log path into two buckets —
+          # newsyslog rename+create for the jobs that re-exec, logrotate
+          # --copytruncate for the long-lived ones — and the whole claim of that
+          # module is that NOTHING falls between them. That claim is worth a gate,
+          # because the failure is silent: a new KeepAlive agent simply grows an
+          # unbounded log and no build ever goes red.
+          #
+          # This does NOT read the module's own inputs back at it. It re-walks the
+          # three composed sources here (HM agents, nix-darwin user agents,
+          # daemons) and collects every StandardOutPath/StandardErrorPath, then
+          # asserts that set is exactly the union of what the module says it
+          # covers — and that the two buckets do not overlap, since rename+create
+          # racing copytruncate on one path is a corruption, not a redundancy.
+          launchd-log-rotation =
+            let
+              mac = config.flake.darwinConfigurations.macos.config;
+              rot = mac.local.launchdLogRotation;
+              sources = [
+                {
+                  attrs = mac.home-manager.users.${loginName}.launchd.agents;
+                  key = "config";
+                }
+                {
+                  attrs = mac.launchd.user.agents;
+                  key = "serviceConfig";
+                }
+                {
+                  attrs = mac.launchd.daemons;
+                  key = "serviceConfig";
+                }
+              ];
+              declared = lib.unique (
+                lib.concatMap (
+                  src:
+                  lib.concatMap (
+                    unit:
+                    let
+                      c = unit.${src.key} or { };
+                    in
+                    lib.filter (x: x != null && x != "") [
+                      (c.StandardOutPath or null)
+                      (c.StandardErrorPath or null)
+                    ]
+                  ) (lib.attrValues src.attrs)
+                ) sources
+              );
+              covered = lib.unique (rot.reExecPaths ++ rot.longLivedPaths);
+              uncovered = lib.subtractLists covered declared;
+              phantom = lib.subtractLists declared covered;
+              overlap = lib.intersectLists rot.reExecPaths rot.longLivedPaths;
+            in
+            mkHostContract {
+              inherit pkgs;
+              name = "launchd-log-rotation";
+              subject = "macos: every declared launchd log has exactly one rotator";
+              expect = [
+                {
+                  name = "no declared log path is unrotated (missing: ${toString uncovered})";
+                  ok = uncovered == [ ];
+                }
+                {
+                  name = "no rotated path is undeclared (stale: ${toString phantom})";
+                  ok = phantom == [ ];
+                }
+                {
+                  name = "newsyslog and logrotate sets are disjoint (both: ${toString overlap})";
+                  ok = overlap == [ ];
+                }
+                {
+                  name = "the long-lived set is non-empty — an empty one means the classifier broke";
+                  ok = rot.longLivedPaths != [ ];
+                }
+              ];
+              advice = [
+                "modules/darwin/logging.nix derives both sets from the KeepAlive shape of"
+                "every composed agent and daemon; a path in neither bucket means a source"
+                "was dropped, not that the agent needs no rotation. A path in BOTH means the"
+                "long-lived-wins precedence (lib.subtractLists) was bypassed — newsyslog's"
+                "rename+create racing logrotate's copytruncate on one file loses data."
+              ];
+            };
+
           # NOTE: `hm-launchd-drift` lived here until 2026-09-14. It pinned the
           # sha256 of home-manager's modules/launchd/default.nix so the 560-line
           # vendored fork of that file could not silently fall behind upstream.
