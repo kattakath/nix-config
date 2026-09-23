@@ -74,11 +74,16 @@ slice**, not the ceiling — §2 shows how much more is reachable.
   `127.0.0.1:8081` and `127.0.0.1:3033`. Both were nix-darwin `launchd.user.agents` until
   2026-09-22; Home Manager re-bootstraps an agent that has left its launchd domain and the
   system tier does not.
-- `launchd.user.agents.file-rotation-logs` + `launchd.daemons.file-rotation-logs-system`
-  (`modules/darwin/logging.nix`, **macos only**) — hourly `logrotate --copytruncate` over
-  every long-lived (`KeepAlive`) launchd log, user tier and root tier. The short-lived logs
-  go through `system.newsyslog` in the same module instead. Truncation is what reclaims: the
-  fd launchd hands the child is **O_APPEND**, so rename+create would free nothing.
+- `launchd.agents.file-rotation-logs` (Home-Manager side) + `launchd.daemons.file-rotation-logs-system`
+  (both declared in `modules/darwin/logging.nix`, **macos only**) — hourly
+  `logrotate --copytruncate` over every long-lived (`KeepAlive`) launchd log, user tier and
+  root tier. The short-lived logs go through `system.newsyslog` in the same module instead.
+  Truncation is what reclaims: the fd launchd hands the child is **O_APPEND**, so
+  rename+create would free nothing. The user tick is a **Home Manager** agent, not a
+  nix-darwin `launchd.user.agents` one, for the same self-healing reason as the two download
+  servers above — a rotator that falls out of its domain and is never re-bootstrapped is the
+  silent unbounded-growth failure the module exists to end. Which tick owns a path is decided
+  by **who can write the file**: any path a daemon declares goes to the root tick.
 
 ---
 
