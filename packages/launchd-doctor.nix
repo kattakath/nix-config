@@ -14,8 +14,22 @@
 #       reclaim — launchd's fd survives the rename. So a log over the threshold
 #       here means a BROKEN rotator (tick out of its domain, unwritable state
 #       file, wrong tier), not an absent one
-#   (d,e) launchd's disabled DB and ~/Library/Logs accumulate keys/files for units
-#       that no longer exist
+#   (d) a fleet label launchd has DISABLED — it refuses to bootstrap with error
+#       119 until `launchctl enable`. ONLY `disabled` is reported: launchd has no
+#       operation to DELETE a key (`enable` on an enabled key is a no-op, and the
+#       only removal is hand-editing disabled.<uid>.plist), so an `enabled`
+#       leftover is untouchable and printing it is noise wearing a remedy
+#   (e) fleet-shaped logs in ~/Library/Logs that no installed unit writes
+#
+# (d) AND (e) SHARE A ROOT, and it is worth naming: this doctor knows what the
+# fleet DECLARES AS LAUNCHD UNITS, not everything that lives in the same
+# namespace. Unscoped, (d) reported every leftover key as if it were actionable
+# and (e) reported macOS's own fsck_hfs.log as fleet litter. Both are now scoped
+# to what the check can actually prove — (e) twice over: lowercase-kebab names
+# only (Apple and third-party logs are CamelCase, spaced, or snake_case), and
+# never a basename that still resolves to a /nix/store command, which is what
+# keeps android-emu.log off the list while packages/spotlight-launchers.nix
+# still launches it.
 # `nix flake check` proves what the config SAYS. Only this proves what launchd DID.
 #
 # NO NIX-TIME THREADING, deliberately — same contract as claude-otel-doctor.nix.
@@ -175,37 +189,53 @@ writeShellApplication {
     echo "  (unlisted = under threshold)"
     echo
 
-    # ---- (d) disabled-DB keys with no plist ----------------------------------
-    echo "--- launchd disabled-DB orphans ---"
+    # ---- (d) fleet labels launchd has DISABLED -------------------------------
+    # A leftover key reading `enabled` is NOT reported: there is nothing to run.
+    # Reporting it also drifted with every unrelated change (9, then 10, then 11
+    # depending on which plists existed that hour), which is how a section ends
+    # up costing attention without ever being actionable.
+    echo "--- launchd disabled-DB (fleet labels reading 'disabled') ---"
     for dom in "gui/$uid" system; do
-      /bin/launchctl print-disabled "$dom" 2>/dev/null |
-        grep -oE '"[^"]+"' | tr -d '"' |
-        grep -E "$ours" |
-        while IFS= read -r label; do
-          found=""
-          for p in "''${plists[@]}"; do
-            [ "$(basename "$p" .plist)" = "$label" ] && found=1 && break
-          done
-          [ -n "$found" ] || echo "  $dom  $label  (no plist installed)"
-        done
+      while IFS= read -r label; do
+        echo "  $dom  $label"
+        echo "      remedy: /bin/launchctl enable $dom/$label"
+        rc=1
+      done < <(/bin/launchctl print-disabled "$dom" 2>/dev/null |
+        grep '=> disabled' | grep -oE '"[^"]+"' | tr -d '"' | grep -E "$ours")
     done
-    echo "  note: cosmetic while every key reads 'enabled'. A stale 'disabled'"
-    echo "        entry makes a later bootstrap of that label fail with error 119."
+    echo "  (silent = no fleet label is disabled; a disabled one fails"
+    echo "   bootstrap with error 119 until enabled)"
     echo
 
-    # ---- (e) logs no installed unit writes -----------------------------------
-    echo "--- orphan logs in ~/Library/Logs ---"
+    # ---- (e) fleet-shaped logs no installed unit writes ----------------------
+    echo "--- ~/Library/Logs: fleet-shaped, written by no installed unit ---"
     declare -a declared=()
     for p in "''${plists[@]}"; do
       while IFS= read -r f; do [ -n "$f" ] && declared+=("$f"); done < <(logs_of "$p")
     done
     while IFS= read -r f; do
       for d in "''${declared[@]:-}"; do [ "$d" = "$f" ] && continue 2; done
+      # A live fleet CLI with no launchd unit of its own still writes here.
+      # Looking the basename up in the profile bin dirs is the RUNTIME way to
+      # see that, and keeps the no-nix-time-threading contract in the header.
+      #
+      # NOT `command -v`: writeShellApplication pins PATH to runtimeInputs, so
+      # the operator's own profile is invisible from inside this script. Measured
+      # — android-emu lives at /etc/profiles/per-user/<user>/bin and `command -v`
+      # found nothing, which is the false positive this whole section is about.
+      base=$(basename "$f" .log)
+      owned=""
+      for b in "/etc/profiles/per-user/$(/usr/bin/id -un)/bin" \
+               "$HOME/.nix-profile/bin" /run/current-system/sw/bin; do
+        [ -e "$b/$base" ] && owned=1 && break
+      done
+      [ -n "$owned" ] && continue
       kb=$(( $(/usr/bin/stat -f%z "$f") / 1024 ))
       echo "  $(printf '%8d' "$kb") KiB  $f"
-    done < <(find "$HOME/Library/Logs" -maxdepth 1 -name '*.log' | sort)
-    echo "  remedy: no installed unit writes these. rm when you are satisfied"
-    echo "          the owning feature is really gone."
+    done < <(find "$HOME/Library/Logs" -maxdepth 1 -name '*.log' |
+      grep -E '/[a-z0-9]+(-[a-z0-9]+)*\.log$' | sort)
+    echo "  a candidate, NOT a verdict: this compares against installed launchd"
+    echo "  units only. Confirm the owning feature is gone before removing."
     echo
 
     if [ "$rc" -ne 0 ]; then
