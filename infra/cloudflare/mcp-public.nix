@@ -345,15 +345,30 @@ in
   };
 
   # ---- (e) The service token -------------------------------------------------
-  # NOTE — this token DOES expire. Leaving `duration` unset does not avoid an
-  # expiry: the provider default is 8760h, so the first apply (2026-09-12) created
-  # one valid until 2027-09-12. It is the ONLY credential the portal holds, so when
-  # it lapses EVERY published server goes dark at once, with no partial failure to
-  # warn you first. Rotating is a `tofu apply` plus re-registering the headers.
-  # Set `duration` explicitly here if a different window is wanted.
+  # `duration` is DECLARED, not inherited. Leaving it unset does not avoid an
+  # expiry: the provider defaults it to 8760h, so the first apply (2026-09-12)
+  # silently minted one valid until 2027-09-12. It is the ONLY credential the
+  # portal holds, so when it lapses EVERY published server goes dark at once,
+  # with no partial failure to warn you first.
+  #
+  # CHANGING it is an IN-PLACE update, never a replacement: `duration` carries no
+  # RequiresReplace plan modifier (only account_id/zone_id do), Update PUTs the
+  # same token id, and the provider keeps the old client_secret when the API
+  # returns none. So `tokenHeaders` above never moves and nothing goes dark.
+  # Rotation is structurally two fields away, not one — client_secret_version and
+  # previous_client_secret_expires_at each require the other — so a duration edit
+  # cannot rotate the secret by accident.
+  #
+  # Cloudflare resets the expiry RELATIVE TO THE UPDATE, which is why re-applying
+  # an UNCHANGED value renews nothing. Renewal is a CHANGED duration.
+  #
+  # 8760h is the value already live, so declaring it is a zero-diff no-op — which
+  # is the point: it moves the number out of this comment and into the render,
+  # where `checks.<system>.access-service-token-duration` can hold it.
   resource.cloudflare_zero_trust_access_service_token.mcp_public = {
     account_id = accountId;
     name = "mcp-public-gateway";
+    duration = "8760h";
   };
 
   # ---- The reusable operator policy, as a DOMAIN rule (LIVE since 2026-09-22) ------
