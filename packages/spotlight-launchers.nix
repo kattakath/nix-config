@@ -180,14 +180,6 @@ let
       bundleId,
       icns,
       launcher,
-      # Extra names Spotlight should ALSO match this bundle on. Apple's own
-      # mechanism, used by its own apps: Calendar answers "iCal", Contacts
-      # answers "Address Book", System Settings answers "System Preferences" /
-      # "Preferences" / "Settings" (read straight out of /System/Applications).
-      # Verified 2026-09-23 that it works on a plain UNSIGNED third-party bundle
-      # too, not just Apple's: a throwaway .app carrying the key indexed as
-      # `kMDItemAlternateNames` and `mdfind` matched on it.
-      alternateNames ? [ ],
     }:
     # grepped nixpkgs for a .app-bundle generator — `pkgs.writeDarwinBundle`
     # EXISTS (all-packages.nix:913) → custom anyway, because reading its
@@ -216,16 +208,7 @@ let
         <key>CFBundlePackageType</key><string>APPL</string>
         <key>CFBundleShortVersionString</key><string>1.0</string>
         <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
-        <key>LSMinimumSystemVersion</key><string>11.0</string>${
-          # A plain quoted string, not an indented one: Nix strips an
-          # indented string's common leading whitespace, which would flatten
-          # these two lines to column 0 in the emitted plist.
-          lib.optionalString (alternateNames != [ ]) (
-            "\n  <key>CFBundleAlternateNames</key>\n  <array>"
-            + lib.concatMapStrings (n: "<string>${n}</string>") alternateNames
-            + "</array>"
-          )
-        }
+        <key>LSMinimumSystemVersion</key><string>11.0</string>
       </dict>
       </plist>
       PLIST
@@ -421,20 +404,37 @@ let
   # ---- An APP ALIAS, not a fleet operation -------------------------------
   # A bundle whose only job is to make another app findable under a name it does
   # not carry itself. Separate from mkCommandApp on purpose: that one runs fleet
-  # commands, this one opens an app.
+  # commands, this one opens an app. The alias works on the bundle's own NAME —
+  # Spotlight indexes `~/Applications/<name>.app` and offers it like any app.
   #
-  # WHY A SECOND BUNDLE INSTEAD OF EDITING THE REAL ONE. `CFBundleAlternateNames`
-  # belongs in Ghostty's own Info.plist — but /Applications/Ghostty.app is a
-  # HOMEBREW CASK (hosts/macos.nix), so editing it is imperative twice over: the
-  # next `brew upgrade` clobbers it, and a modified bundle fails its code
-  # signature, which can re-trigger Gatekeeper and reset the app's TCC grants.
-  # A sibling .app in ~/Applications carries the names instead, touches nothing
-  # Homebrew owns, and is reproduced by a rebuild on any Mac.
+  # NOT via `CFBundleAlternateNames`, and the reason is measured. That key is
+  # Apple's own alias mechanism, used by its own apps (Calendar answers "iCal",
+  # System Settings answers "System Preferences" / "Preferences" / "Settings",
+  # read straight out of /System/Applications), and it DOES work on a plain
+  # unsigned third-party bundle — a throwaway .app carrying it indexed as
+  # `kMDItemAlternateNames` and `mdfind` matched on it.
+  #
+  # It does NOT survive the way these bundles are PLANTED. `home.file` with
+  # `recursive = true` symlinks every file inside the .app, so `Info.plist` is a
+  # link into /nix/store — and Spotlight's app importer will not read alternate
+  # names through it. Measured 2026-09-23, same bundle both ways: a real copied
+  # directory indexed all four names, the symlinked one indexed none. The
+  # DISPLAY name survives either way (it comes from the filename), which is why
+  # the alias still does its job. Getting the extra names would mean COPYING the
+  # bundle instead — home-manager's `targets.darwin.copyApps` exists for exactly
+  # this, at the price of an App Management TCC grant and a subfolder; not worth
+  # it for bonus synonyms.
+  #
+  # WHY A SECOND BUNDLE INSTEAD OF EDITING THE REAL ONE. /Applications/Ghostty.app
+  # is a HOMEBREW CASK (hosts/macos.nix), so editing its Info.plist is imperative
+  # twice over: the next `brew upgrade` clobbers it, and a modified bundle fails
+  # its code signature, which can re-trigger Gatekeeper and reset the app's TCC
+  # grants. A sibling .app in ~/Applications touches nothing Homebrew owns and is
+  # reproduced by a rebuild on any Mac.
   mkAliasApp =
     {
       name,
       bundleId,
-      alternateNames,
       # Shell text that opens the real app.
       launchCommand,
     }:
@@ -453,7 +453,6 @@ let
         slug
         bundleId
         launcher
-        alternateNames
         ;
       # The fleet mark, deliberately: this bundle shares a NAME with
       # /System/Applications/Utilities/Terminal.app, so the icon is the only
@@ -506,12 +505,6 @@ in
       # NOT com.apple.Terminal — a duplicate bundle id makes LaunchServices pick
       # one of the two at random for every `open -b` and URL handler in the system.
       bundleId = "com.kattakath.ghostty-terminal";
-      alternateNames = [
-        "Ghostty"
-        "Shell"
-        "Console"
-        "Prompt"
-      ];
       # `-n` because this is a terminal LAUNCHER: clicking it should hand you a
       # window, not merely focus one that is already open. No --background or
       # watermark here — those belong to the three fleet operations; this is an
