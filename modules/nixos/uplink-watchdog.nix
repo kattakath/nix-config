@@ -125,10 +125,27 @@ let
           # Step 2: the router itself is the problem — leave its SSID for the
           # fallback by inverting the priorities in the RUNTIME copy only.
           echo "uplink-watchdog: still down — moving wlan0 to the fallback network"
-          sed -e 's/priority=${toString cfg.primaryPriority}/priority=__T__/' \
-              -e 's/priority=${toString cfg.fallbackPriority}/priority=${toString cfg.primaryPriority}/' \
-              -e 's/priority=__T__/priority=${toString cfg.fallbackPriority}/' \
-              "$WPA_CARD" > "$WPA_LIVE.new"
+          # The two priority VALUES are READ OFF THE CARD, never hardcoded. The
+          # card is written by nixpi-wifi-creds, which ranks n networks as
+          # priority=n..1 — so a two-AP card carries 2/1, while a hand-written
+          # conf may use any pair. Hardcoding one pair meant the sed silently
+          # matched NOTHING against the other, leaving this step a no-op that
+          # restarted the supplicant with an identical config. Measured
+          # 2026-09-23 on the live card. Extraction is sed/sort/head only, so
+          # it adds no runtimeInputs.
+          hi=$(sed -n 's/.*priority=\([0-9]\{1,\}\).*/\1/p' "$WPA_CARD" | sort -rn | head -1)
+          lo=$(sed -n 's/.*priority=\([0-9]\{1,\}\).*/\1/p' "$WPA_CARD" | sort -n  | head -1)
+          if [ -n "$hi" ] && [ "$hi" != "$lo" ]; then
+            sed -e "s/priority=$hi$/priority=__T__/" \
+                -e "s/priority=$lo$/priority=$hi/" \
+                -e "s/priority=__T__/priority=$lo/" \
+                "$WPA_CARD" > "$WPA_LIVE.new"
+          else
+            # One network, or an unranked conf: there is nothing to invert, and
+            # pretending otherwise would restart the supplicant for no reason.
+            echo "uplink-watchdog: only one ranked network — nothing to invert"
+            cp "$WPA_CARD" "$WPA_LIVE.new"
+          fi
           install -m 0600 "$WPA_LIVE.new" "$WPA_LIVE" && rm -f "$WPA_LIVE.new"
           systemctl restart ${cfg.supplicantUnit}
           set_state fallback
@@ -179,18 +196,6 @@ in
       type = lib.types.str;
       default = "supplicant-wlan0.service";
       description = "Unit restarted after rewriting the runtime config.";
-    };
-
-    primaryPriority = lib.mkOption {
-      type = lib.types.int;
-      default = 10;
-      description = "priority= of the preferred network in the card's config.";
-    };
-
-    fallbackPriority = lib.mkOption {
-      type = lib.types.int;
-      default = 5;
-      description = "priority= of the fallback network in the card's config.";
     };
 
     probeTargets = lib.mkOption {
