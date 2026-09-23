@@ -238,6 +238,11 @@ let
     "gmail-ismailkattakath_gmail_com"
     "gmail-izzy_silvercreek_ai"
     "json-yaml-toml"
+    # Browser automation by LOCAL BRIDGE, as opposed to chrome-devtools (CDP) and
+    # claude-in-chrome (native messaging). Declared 2026-09-23, closing the gap
+    # modules/shared/chromium.nix had recorded as a real follow-up: this repo owned
+    # the extension half and left the server half imperative in ~/.claude.json.
+    "kapture"
     "macos-automator"
     "mcp-jq"
     "mcpfinder"

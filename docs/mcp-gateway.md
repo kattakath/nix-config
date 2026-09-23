@@ -10,7 +10,7 @@ the roster itself is now machine-checked (see § Parity).
 ## Shape
 
 One `mcp-proxy` launchd agent (`modules/shared/mcp.nix`, **darwin-only**) bound to
-**`127.0.0.1:<publicMcpPort>`**, started at login, hosting all **26** servers, each at
+**`127.0.0.1:<publicMcpPort>`**, started at login, hosting all **27** servers, each at
 `/servers/<name>/mcp` (Streamable HTTP).
 
 **Clients never address that port.** They dial one connector —
@@ -68,11 +68,12 @@ argv or the `/nix/store` (`context7` → `CONTEXT7_API_KEY`, `github` →
 `GITHUB_PERSONAL_ACCESS_TOKEN`; an absent key means an empty export and the server degrades
 rather than crashing).
 
-## The 14 custom stdio launchers
+## The 15 custom stdio launchers
 
 | Server | Notes |
 |---|---|
 | `desktop-commander` | **SHELL/RCE surface — hosted AND published.** `@wonderwhy-er/desktop-commander`, on the gateway since 2026-09-22 by operator decision. What that accepts, stated rather than implied: anything holding a valid Workspace session for this domain can drive a shell on this Mac through the portal. It was excluded until then, and two assertions made the exclusion structural; with every server published the private/published split bounded nothing, so keeping this one off bought a second transport and process tree for no isolation. The gate is Access + Workspace OAuth restricted to the domain — the same gate every other server is behind |
+| `kapture` | browser automation by LOCAL BRIDGE — a third route to the same tabs, beside `chrome-devtools` (CDP) and the built-in claude-in-chrome (native messaging). Declared here 2026-09-23; until then this repo owned only the extension half (`local.chromium.kaptureMcp`) and the server lived in `~/.claude.json`, imperative and invisible to a rebuild. **A running bridge with zero connected tabs is DARK, not ready** — a tab becomes visible only when the operator toggles it in the extension's toolbar popup, so hosting this grants nothing on its own |
 | `duckduckgo` | web search |
 | `arxiv` | arXiv literature loop via `arxiv-mcp-server` (pinned, `--python 3.12`): search, abstracts, section-level LaTeX reads, BibTeX, Semantic Scholar citation graphs, topic watches. No credentials; papers + watches under `$XDG_DATA_HOME/arxiv-mcp-server/papers` |
 | `json-yaml-toml` | structured-data convert/query/diff/merge/schema |
