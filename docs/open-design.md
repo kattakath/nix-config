@@ -5,6 +5,15 @@ This page is the honest map of **what this repo declares** and **where declarati
 management stops** — the app is a signed, self-stateful GUI, so the boundary is real
 and deliberate, not an omission.
 
+> **⚠ The MCP half is HISTORY as of 2026-09-22.** `open-design` was removed from the fleet's
+> MCP surface entirely: there is no entry in `programs.claude-code.mcpServers` (that attrset
+> is now empty — every client reaches one portal connector instead), and `mcp.nix` declares no
+> `open-design` server. The **cask, the updater kill-switch and the app's state boundary below
+> are all still live and still correct** — only the "MCP registration" row and § *Why the MCP
+> entry looks the way it does* describe something that no longer exists. They are kept because
+> the stdio-only/silent-death reasoning is exactly what a future reader needs if re-adding it
+> is ever considered.
+
 ## What is declared (and where)
 
 | Layer | Where | Mechanism |

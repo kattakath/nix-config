@@ -1,13 +1,13 @@
 # infra/cloudflare/mcp-public.nix — terranix module for the PUBLISHED MCP gateway.
 #
-# Pairs with `local.mcpGateway.public` in modules/shared/mcp.nix. That flag puts
-# the opt-in subset of gateway servers on a SECOND mcp-proxy (127.0.0.1:8097) on
-# macos; this module is everything Cloudflare-side that makes it reachable:
+# Pairs with `config.fleet.publicMcpServers` (modules/parts/identity.nix), the
+# roster the macos gateway hosts on 127.0.0.1:<publicMcpPort>; this module is
+# everything Cloudflare-side that makes it reachable:
 #
 #   (a) a remotely-managed tunnel + connector for the MAC (distinct from nixpi's —
 #       a connector is per-host, and cloudflared dials OUTBOUND, so the Mac still
 #       accepts no inbound connection);
-#   (b) ingress: <publicHost> -> http://127.0.0.1:8097, plus the mandatory 404
+#   (b) ingress: <publicHost> -> http://127.0.0.1:<publicMcpPort>, plus the mandatory 404
 #       catch-all so nothing else on the Mac is reachable through this tunnel;
 #   (c) the proxied CNAME for <publicHost>;
 #   (d) ONE Access application over that hostname whose policy is a SERVICE TOKEN
@@ -22,11 +22,23 @@
 # which is why publishing a server needs no per-server DNS and no per-server Access
 # object — only a portal registration. See docs/mcp-public-exposure-design.md.
 #
-# WHY A SECOND GATEWAY AND NOT AN INGRESS ONTO :8096 — the load-bearing decision:
-# Access protects a HOSTNAME, not a path. Pointing this tunnel at the main gateway
-# would make a leaked service token reach every path on it: 7 Gmail accounts,
-# production WordPress, Postgres, Telegram. With a separate process an unpublished
-# server is not merely unrouted, it is ABSENT.
+# THERE WAS A SECOND GATEWAY, AND ITS ARGUMENT IS WORTH KEEPING (history, 2026-09-22):
+# Access protects a HOSTNAME, not a path, so pointing this tunnel at a gateway that
+# also served unpublished servers would make a leaked service token reach every path
+# on it. A separate proxy made an unpublished server not merely unrouted but ABSENT.
+# That held while 2 of 26 were published. Publishing ALL of them removed the premise
+# — both processes hosted the identical set — so `local.mcpGateway.public` and the
+# second proxy were deleted together: one proxy, one roster, and
+# `checks.<system>.mcp-published-parity` holds that roster equal to what this module
+# registers.
+#
+# WHAT THAT ACCEPTS, so it is a choice and not an oversight: a leaked service token
+# now reaches the whole roster — four Gmail accounts, production WordPress, Postgres,
+# the Cloudflare account, macos-automator (arbitrary AppleScript on the Mac),
+# chrome-devtools and desktop-commander (shell). The boundary is identity at the
+# edge, not structural absence. Narrowing `fleet.publicMcpServers` is the only lever
+# that restores absence — and the parity check will then fail the build until the
+# gateway side is narrowed to match, which is the intended order.
 #
 # Schemas verified against the pinned provider via `tofu providers schema -json`,
 # not from docs.
@@ -53,11 +65,12 @@
   # always supplies them, and is the single source of their defaults. Matches
   # infra/cloudflare/nixpi-tunnel.nix, which declares its arguments required.
   publicSubdomain,
-  # Gateway server names published through the portal. Mirrors
-  # local.mcpGateway.public; empty renders the tunnel + Access objects but
-  # registers no server, so nothing is actually reachable.
+  # Gateway server names published through the portal — `fleet.publicMcpServers`,
+  # which is also exactly what the gateway hosts (mcp-published-parity enforces
+  # the equality). Empty renders the tunnel + Access objects but registers no
+  # server, so nothing is actually reachable.
   publicServers,
-  # The loopback port the second mcp-proxy binds, and therefore the port this
+  # The loopback port the gateway's mcp-proxy binds, and therefore the port this
   # tunnel's ingress must reach. REQUIRED, like the three above — and passed
   # rather than written here because modules/shared/mcp.nix binds the same
   # number and the two files cannot see each other. Both now read
@@ -66,7 +79,7 @@
   publicMcpPort,
   # Remote MCP Workers published under the SAME hostname as the gateway, as a
   # Cloudflare Worker *route* on `<publicSubdomain>/servers/<name>/*` rather than
-  # a hostname of their own. They are not on the :8097 proxy — they are
+  # a hostname of their own. They are not on the gateway proxy — they are
   # independent origins with their own uptime — but a client cannot tell, and
   # should not care, which side of the edge answers.
   #
@@ -164,7 +177,7 @@ let
       key = "srv_${srvKey n}";
       id = n;
       regId = cfId n;
-      description = "Published from the macos MCP gateway (local.mcpGateway.public).";
+      description = "Published from the macos MCP gateway (fleet.publicMcpServers).";
     }) publicServers
     ++ map (e: {
       key = "srv_${srvKey e.name}";
@@ -328,7 +341,7 @@ in
     content = "${tunnelId}.cfargotunnel.com";
     proxied = true;
     ttl = 1;
-    comment = "published MCP gateway (local.mcpGateway.public) - Access service token only";
+    comment = "published MCP gateway (fleet.publicMcpServers) - Access service token only";
   };
 
   # ---- (e) The service token -------------------------------------------------
@@ -408,7 +421,7 @@ in
   # part. Deleting a `portal_*` app makes that one server invisible to clients —
   # annoying, and fails closed. Deleting `origin_gateway` fails OPEN for every
   # gateway server at once: it removes the only gate in front of
-  # 127.0.0.1:8097, and mcp-proxy verifies nothing itself. (An external Worker
+  # 127.0.0.1:<publicMcpPort>, and mcp-proxy verifies nothing itself. (An external Worker
   # route would still fail closed there, because its own code requires the
   # Access assertion — but nothing on the tunnel side does.)
   resource.cloudflare_zero_trust_access_application = {

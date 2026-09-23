@@ -10,6 +10,17 @@ in two states, design and execution, and its §9 correction record had to overtu
 "ADOPT" rows. This document is currently only the first state. Where execution later disagrees
 with a section here, execution wins and §10 records it.
 
+> **⚠ Its worked examples are now historical (2026-09-22).** The body reasons about a fleet of
+> several agent CLIs — `claude`, `qwen`, `grok`, `gemini` — and uses per-client curation
+> ("`qwen` gets 11 of 31 servers") as its running illustration. **`qwen` was removed from the
+> fleet entirely** (client, config and the `qwen3-coder` model; the `qwen3-vl*` **vision** models
+> stay, they belong to `media-cli` and are unrelated). The MCP clients are now `claude-code` and
+> `claude-desktop`, and per-client curation is **gone with the architecture that allowed it** —
+> every client gets one connector and the same 26 servers, so there is no subset to curate.
+> **The boundary this ADR decides is unaffected**; only its examples are stale. They are left in
+> place because rewriting the illustrations would not change the decision, and §10 is where an
+> actual reversal would be recorded.
+
 **Deciders:** Ismail Kattakath.
 
 **How this was produced:** an inventory of every global agent resource this fleet installs
