@@ -175,8 +175,8 @@ for p in "$HOME"/Library/LaunchAgents/*.plist /Library/LaunchAgents/*.plist /Lib
 done
 ```
 
-**Expected hits, in full** — this audit prints six `BARE-INTERP` lines on `macos` today and
-every one of them is fine:
+**Expected hits, in full** — this audit prints **seven** `BARE-INTERP` lines on `macos` today
+and every one of them is fine:
 
 | Label | Why it is `/bin/sh` |
 |---|---|
@@ -185,6 +185,34 @@ every one of them is fine:
 | `systems.determinate.nix-installer.nix-hook` | the Determinate installer (§ Known upstream exceptions) |
 | `org.nixos.github-runner-macos-*` | **ours, and deliberate** — the boot-ordering exception above |
 | `org.nixos.ollama` | **ours, and deliberate** — same exception (`local.ollamaDaemon`, 2026-09-15). A `RunAtLoad` daemon serving from a store path; it runs as root against `/var/lib/ollama` and reads none of the TCC folders, so only BTM legibility is lost and the process after `exec` is still `ollama`. |
+| `org.nixos.ollama-metal-guard` | **ours, and deliberate** — same exception and the same module (`modules/darwin/ollama-daemon.nix:257`). It was live on disk but missing from this table until 2026-09-22, which is how the prose count read "six" against a seven-line audit. |
+
+## `arg0` carries the GROUPING, because the Label does not
+
+BTM sorts by the **`arg0` basename**. The `Label` never appears in that list, so a
+reverse-DNS grouping segment (`com.kattakath.file-rotation.*`) buys nothing an operator can
+see. Put the group in `arg0`: the login openers are `nix-open-maccy`/`-mail`/`-messages`/
+`-slack`, so they form one contiguous block instead of scattering under d/m/m/s.
+
+Home Manager agents get this for free — `launchd.agents.<n>.launcher.name` defaults to
+`nix-<attr>` (`modules/shared/launchd-launcher.nix`), so `nix-mcp-gateway` /
+`nix-mcp-tunnel-connector` and `nix-media-queue` / `nix-media-queue-power` already sort
+together. The nix-darwin lane hand-rolls its wrapper, which is where a prefix gets dropped —
+`mkNixAgent` passed `suffix = "maccy"` into `nix-${suffix}` and lost the `open-` until
+2026-09-22.
+
+**Two regroupings were considered and REJECTED, so they do not get re-proposed:**
+
+- **The CI runners** (`nix-gitlab-runner`, `nix-tart-runner-*`, `nix-github-runner-macos-*` →
+  `nix-runner-*`). It looks like the same one-token rename and is not:
+  `nix-gitlab-runner` also names a **state directory**, `~/.config/nix-gitlab-runner`,
+  rendered at agent start (`modules/features/tart-vms/gitlab-runner.nix:75`), so the rename
+  is a migration inside a capsule. And the two `github-runner-macos-*` daemons show as `sh`
+  in BTM regardless (the boot-ordering exception above), so renaming their inner binary is
+  invisible there. Cost is real, benefit is alphabetical adjacency among ~25 rows.
+- **Label sub-namespaces** for everything else. Labels are invisible in BTM; renaming one
+  orphans a key in launchd's disabled DB and resets the operator's "Allow in the Background"
+  toggle. Zero visible benefit, two real costs.
 
 Anything else whose `Label` is one of ours (`org.nixos.*` — every nix-darwin unit this repo
 authors carries that prefix, including `org.nixos.open-*` — or `org.nix-community.home.*`, or
