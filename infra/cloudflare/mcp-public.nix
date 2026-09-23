@@ -164,17 +164,32 @@ let
     domain = "\${cloudflare_zero_trust_access_policy.mcp_tier_domain.id}";
   };
 
-  # The CI-worker lane. A worker authenticates with a SERVICE TOKEN, which is
-  # non-identity — and an identity policy can never admit a non-identity caller,
-  # so without this a worker connects and enumerates ZERO tools. Fail-closed, and
-  # therefore opt-in per server.
+  # THERE WAS A CI-WORKER LANE HERE, AND ITS RESULT IS WORTH KEEPING (2026-09-23):
+  # a service token plus a `non_identity` Service Auth policy on the portal front
+  # door AND on each `domain`-tier app. It rendered correctly, planned clean and
+  # applied clean — and reached ZERO servers. Measured with `mcp-worker-probe`:
+  # the token authenticates to the portal and sees only the portal's own three
+  # management tools; `portal_list_servers` returns an EMPTY roster; the toggle
+  # tool refuses to enable anything.
   #
-  # The worker tier is DERIVED, not a second list: it is exactly the `domain`
-  # tier — read-only lookups, no credentials, no persisted side effect. A second
-  # hand-maintained roster would be a second thing to get wrong, and the question
-  # "may a CI runner call this?" has the same answer as "is this read-only?".
-  workerPolicyId = "\${cloudflare_zero_trust_access_policy.mcp_worker_service_auth.id}";
-  workerTier = "domain";
+  # A Service Auth policy on a per-server `mcp`-type app does NOT grant a
+  # non-identity session access to that server. Cloudflare's own wording is the
+  # explanation — the server link appears "for USERS who match an Allow policy",
+  # and a service token is not a user.
+  #
+  # So the lane was fail-closed but non-functional, and a credential that reaches
+  # nothing is pure surface. Retired rather than kept "for later": the probe
+  # survives (packages.mcp-worker-probe) and is what would notice if Cloudflare
+  # starts honouring Service Auth here.
+  #
+  # RETIRING A POLICY HERE TAKES TWO APPLIES, and the first attempt at one failed:
+  # Cloudflare answers 409 `policy is being used by at least one app`, and dropping
+  # the reference and the resource in the SAME render deletes the dependency edge
+  # Terraform needs, so it orders the destroy FIRST. (The wrapper surfaces that as
+  # `Error: failed to make http request` — the 409 is two lines further down.)
+  # Detach first (resource still declared, referenced by nothing), apply, THEN
+  # remove the resource. Generic to any provider whose API refuses to delete an
+  # in-use object, not a Cloudflare quirk.
 
   # Membership is checked HERE, not at the call site, so a gateway name and an
   # external Worker's `tier` field fail the same actionable way.
@@ -413,18 +428,7 @@ let
             id = p.policyId;
             precedence = 1;
           }
-        ]
-        ++ (
-          if p.tier == workerTier then
-            [
-              {
-                id = workerPolicyId;
-                precedence = 2;
-              }
-            ]
-          else
-            [ ]
-        );
+        ];
       }
     );
 
@@ -518,32 +522,6 @@ in
     name = "mcp-allow-operator";
     decision = "allow";
     include = [ { email_domain.domain = domainName; } ];
-  };
-
-  # ---- The CI-worker service token + its Service Auth policy -----------------
-  # `duration` is DECLARED for the reason the gateway token's comment gives at
-  # length: omitting it does not mean "no expiry", it means an expiry nobody
-  # wrote down. 720h (30d) rather than the gateway token's year — a CI credential
-  # that reaches anything at all should rotate often, and unlike the gateway
-  # token its lapse darkens only the worker lane.
-  resource.cloudflare_zero_trust_access_service_token.mcp_worker = {
-    account_id = accountId;
-    name = "mcp-worker";
-    duration = "720h";
-  };
-
-  # `non_identity` is Terraform's spelling of the dashboard's Service Auth.
-  # `allow` would be WRONG: Access would redirect the token to the IdP, and a CI
-  # runner has no browser to complete it.
-  resource.cloudflare_zero_trust_access_policy.mcp_worker_service_auth = {
-    account_id = accountId;
-    name = "mcp-worker: service token only";
-    decision = "non_identity";
-    include = [
-      {
-        service_token.token_id = "\${cloudflare_zero_trust_access_service_token.mcp_worker.id}";
-      }
-    ];
   };
 
   # ---- The tier policies — NEW objects, never an edit to the one above --------
@@ -691,14 +669,6 @@ in
           id = operatorPolicyId;
           precedence = 1;
         }
-        # Without this the worker cannot reach the portal AT ALL, and the
-        # per-server policies below never get a chance to be evaluated. What it
-        # widens is bounded by them: a worker that gets through this door still
-        # sees only the apps carrying the same policy.
-        {
-          id = workerPolicyId;
-          precedence = 2;
-        }
       ];
     };
   }
@@ -763,20 +733,6 @@ in
   data.cloudflare_zero_trust_tunnel_cloudflared_token.mcp_public = {
     account_id = accountId;
     tunnel_id = tunnelId;
-  };
-
-  # The worker credential, surfaced the same way the connector token is: SENSITIVE
-  # outputs the operator reads with `tofu output -raw`, never echoed by an apply
-  # and never written to git or the store. Two outputs, because Access wants the
-  # pair as separate headers (CF-Access-Client-Id / CF-Access-Client-Secret).
-  output.mcp_worker_client_id = {
-    value = "\${cloudflare_zero_trust_access_service_token.mcp_worker.client_id}";
-    sensitive = true;
-  };
-
-  output.mcp_worker_client_secret = {
-    value = "\${cloudflare_zero_trust_access_service_token.mcp_worker.client_secret}";
-    sensitive = true;
   };
 
   output.mcp_public_hostname = {
