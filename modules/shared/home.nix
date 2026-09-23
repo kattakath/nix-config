@@ -650,6 +650,11 @@ in
         # RESEND_API_KEY from the Keychain — the two are independent auth paths to the same
         # Resend account (used by dontsell-ai/app's outbound/inbound email).
         "resend"
+        # Anthropic first-party skill-creator: drafts a skill, runs with/without-skill evals
+        # and optimizes its description so it triggers. kattakath/skills' `harvest` hands its
+        # drafting and testing step to it (kattakath/skills#10) and keeps triage, stripping
+        # and landing. In-repo to the marketplace (source "./plugins/skill-creator").
+        "skill-creator"
       ];
     };
 
