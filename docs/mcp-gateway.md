@@ -140,6 +140,33 @@ OAuth tokens cache per-machine in `~/.mcp-auth`. `cloudflare` needs a one-time b
 and fails gracefully headless; `apify` instead reads `APIFY_TOKEN` from the Keychain at launch
 (no OAuth) and likewise warns without darkening the gateway if the token is missing.
 
+## Which lane — gateway, claude.ai connector, or marketplace plugin
+
+A capability can arrive three ways, and the choice is not a preference. **The gateway is the
+default**; the other two are narrow exceptions.
+
+| Lane | Take it when | Why not otherwise |
+|---|---|---|
+| **This gateway** | everything else | Declarative, pinned, and account-agnostic — one URL every client shares |
+| claude.ai connector | the surface is **Anthropic-native** (Claude Docs, Excalidraw), or it is a **vendor OAuth** you would otherwise rebuild for low volume (Slack, Drive) | Connectors are **per-account state, clicked in a web UI** — undeclarable, unpinnable, and re-done by hand per account |
+| Marketplace plugin | the plugin ships **more than an MCP server** — a skill, an agent, a command | Its MCP half duplicates a gateway server for no gain |
+
+**The account argument is the decisive one.** This Mac drives a personal Claude Max account
+*and* an organisation Teams account. Anything account-scoped must be configured twice and
+drifts; a reset Mac restores the gateway from `activate` and restores nine connectors by
+clicking through nine OAuth flows. That is why the gateway wins by default even where a
+vendor publishes a perfectly good connector.
+
+**The measurement, 2026-09-23** (every MCP tool call across 21 days of transcripts): gateway
+**~3,200 calls / 94%**, all nine claude.ai connectors **218 / 6%**, marketplace plugins **76**
+— of which Neon alone was 70. Standardising on plugins is the one option the data excludes.
+
+**Duplication is only worth removing when it is pure.** `context7` is served by BOTH this
+gateway (107 calls) and `context7@context7-marketplace` (4). Dropping the plugin still LOSES
+something the gateway has no answer for — its `docs-researcher` agent, which fetches docs in
+a subagent instead of the main context. Count what a plugin ships, not just what its server
+answers.
+
 ## Adding a server
 
 Always via the `mcp-scout` skill / `/mcp-scout` command: discover → vet → **declare** in
