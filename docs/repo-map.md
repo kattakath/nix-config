@@ -1089,11 +1089,22 @@ waves 5-6 absorb them).
   cannot serve as that signal — `bootout` does not write it, and all six labels read `=> enabled`
   while three were absent.
 - **`packages/launchd-doctor.nix`** (app `nix run .#launchd-doctor`) — runtime health check for
-  every launchd unit this fleet installs. Covers the three things that **cannot** be flake
-  checks, because all three are properties of the running machine rather than the evaluated
-  config: declared-vs-loaded drift (and non-zero last-exit, which is what catches the exit-78
-  boot/mount class), unrotated log growth, and the litter left by removed features in launchd's
-  disabled DB and `~/Library/Logs`. **No Nix-time threading**, same contract as
+  every launchd unit this fleet installs. Covers what **cannot** be a flake check, because every one is a
+  property of the running machine rather than the evaluated config: **declared but not loaded**
+  (plus non-zero last-exit, which catches the exit-78 boot/mount class), **loaded but not
+  declared**, unrotated log growth, and the litter left by removed features in launchd's
+  disabled DB and `~/Library/Logs`.
+  The **loaded-but-not-declared** half is the inverse of the first and needs its own check.
+  nix-darwin retires a user agent by scanning `/run/current-system/user/Library/LaunchAgents`
+  and deleting whatever the new generation lacks (`modules/system/launchd.nix:150-161`) — a
+  **single-transition** mechanism that only ever sees the one generation boundary where the
+  agent disappeared. Miss it and the plist is orphaned **permanently**, because the directory
+  the loop scans no longer lists it either. `org.nixos.open-docker` survived exactly that way
+  on 2026-09-22, kept running `open -a Docker` against an app deleted six days earlier, and
+  was caught only incidentally by its non-zero exit — an orphan exiting 0 would have been
+  invisible. The two halves also disagree on the remedy, so the first consults the generation
+  manifest before offering `bootstrap`: telling the operator to start a plist no generation
+  declares would resurrect something deliberately retired. **No Nix-time threading**, same contract as
   `claude-otel-doctor.nix` — the installed plists ARE the declared set, and threading a Nix
   manifest in would make the doctor agree with the config by construction, which is the one
   thing a drift check must not do. Read-only: it prints remedies, never runs them. Wired as
