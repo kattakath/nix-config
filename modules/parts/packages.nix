@@ -90,7 +90,7 @@ in
         # plugins. See packages/superhook.nix for why this is not a plugin hook.
         inherit
           (pkgs.callPackage ../../packages/superhook.nix {
-            superhookSrc = "${inputs.kattakath-ai}/plugins/superhook";
+            superhookSrc = "${inputs.kattakath-skills}/plugins/superhook";
           })
           superhook
           superhook-digest
@@ -98,8 +98,8 @@ in
 
         page-lab-pick = pkgs.callPackage ../../packages/page-lab-pick.nix {
           # The plugin tree comes from the pinned input, not from this repo — see
-          # flake.nix `kattakath-ai`.
-          pageLabSrc = "${inputs.kattakath-ai}/plugins/page-lab";
+          # flake.nix `kattakath-skills`.
+          pageLabSrc = "${inputs.kattakath-skills}/plugins/page-lab";
         };
       }
       // lib.optionalAttrs (system == "aarch64-linux") {

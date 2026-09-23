@@ -1,5 +1,17 @@
 # Agent-resource externalization (2026-09-12)
 
+> **Update, 2026-09-23 — delivered as a git marketplace, not the pin.** The repo is now
+> [`github:kattakath/skills`](https://github.com/kattakath/skills) (renamed from `kattakath/ai`).
+> `home.nix` registers it as `https://github.com/kattakath/skills.git` with `autoUpdate = true`
+> (`local.claudePlugins.marketplaces.<name>.autoUpdate`, which renders
+> `extraKnownMarketplaces.<name>.autoUpdate`). Its plugins carry no `version`, so every commit on
+> its `main` is a release, gated by that repo's own `validate.yml`. Its top-level `skills/` are
+> published as marketplace-root plugins, so the `programs.claude-code.skills` cherry-picks are
+> gone, and the Brain Signals kit moved there as the `brain-signals` plugin. The input survives
+> as `kattakath-skills`, for the `superhook` and `page-lab-pick` PATH packages only. A plugin's
+> `bin/` reaches the Bash tool's PATH but **not** a hook's (measured), which is why `superhook`
+> is still a package. The rest of this document is the pinned-era record.
+
 **Decision: the operator's own Claude Code resources — plugins, skills, userscripts —
 leave this tree and come back as pinned `flake = false` inputs.** Nix keeps the pin, the
 wiring, the gates and the service; the content is maintained in its own repo like any

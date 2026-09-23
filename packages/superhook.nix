@@ -14,7 +14,7 @@
 # through a shell with the user's environment — the SessionStart hook in the same file
 # already relies on that, resolving `nix` and `git` by PATH lookup.
 #
-# The scripts come from the PINNED `kattakath-ai` input, not from this repo,
+# The scripts come from the PINNED `kattakath-skills` input, not from this repo,
 # so the copy Claude Code is offered and the copy this fleet executes are the same bytes.
 {
   lib,

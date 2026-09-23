@@ -1639,7 +1639,7 @@ in
               }
               ''
                 rc=0
-                pl=${inputs.kattakath-ai}/plugins/page-lab
+                pl=${inputs.kattakath-skills}/plugins/page-lab
                 for f in "$pl"/scripts/*.mjs "$pl"/scripts/lib/*.mjs "$pl"/scripts/*.js; do
                   node --check "$f" || { echo "  ✘ does not parse: $f" >&2; rc=1; }
                 done
@@ -1659,7 +1659,7 @@ in
                 #  (b) pre-EXTRACTION source literals — a `../plugins/…` or
                 #      `../../skills/rag` still resolves to NOTHING in this tree after
                 #      2026-09-12. Matched as RELATIVE LITERALS on purpose, not as bare
-                #      substrings: `${inputs.kattakath-ai}/plugins/page-lab`
+                #      substrings: `${inputs.kattakath-skills}/plugins/page-lab`
                 #      is the CORRECT new form and contains "plugins/page-lab", so a
                 #      substring grep would flag the fix as the bug.
                 #

@@ -314,3 +314,23 @@ and the harness had simply not been extended past one repo. Fixed by
 wrong in every repo. Repo-specific policy (Cloudflare scoping, nixpi builds) deliberately stays
 project-scoped. A deny rule matches the command text Claude writes, not every way to run a
 program, so the tested project guard remains the deeper layer here.
+
+### 10.4 Plugins gave up the flake.lock pin (2026-09-23)
+
+§1.2 says the decision of *what version* a client sees cannot be externalized. For **plugins**
+the operator reversed that deliberately: the `kattakath` marketplace
+([`github:kattakath/skills`](https://github.com/kattakath/skills)) is now a git source with
+`autoUpdate`, so the version a Mac runs is that repo's `main`, not `flake.lock`. Reasons,
+measured the same day:
+
+- A store-path marketplace is a `directory` source, which Claude Code never refreshes, so every
+  plugin edit cost a pin bump plus an activation. The weekly bump had drifted the pin 4 commits
+  and 8 days behind, and two published plugins had never reached the Mac.
+- It matches what the fleet already accepts for `claude-plugins-official` and `context7`, which
+  have floated on git since they were adopted.
+- The gate moved to where the content is: `kattakath/skills`' own `validate.yml`.
+
+What did **not** move: which marketplace is trusted and which plugins are enabled (still
+declared in `modules/shared/home.nix`), MCP servers (§1.4), and the two PATH packages built from
+plugin scripts, which still come from the pinned `kattakath-skills` input.
+
