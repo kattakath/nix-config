@@ -181,15 +181,16 @@ for p in "$HOME"/Library/LaunchAgents/*.plist /Library/LaunchAgents/*.plist /Lib
 done
 ```
 
-**Expected hits, in full** — this audit prints **seven** `BARE-INTERP` lines on `macos` today
-and every one of them is fine:
+**Expected hits, in full** — this audit prints **seven** `BARE-INTERP` lines on `macos`
+today from the **six** rows below, and every one of them is fine. Six rows, seven lines: the
+runner row is a glob, one line per instance — count the rows and you will come up one short.
 
 | Label | Why it is `/bin/sh` |
 |---|---|
 | `org.nixos.activate-system` | upstream nix-darwin (§ Known upstream exceptions) |
 | `org.nixos.activate-agenix` | upstream agenix (§ Known upstream exceptions) |
 | `systems.determinate.nix-installer.nix-hook` | the Determinate installer (§ Known upstream exceptions) |
-| `org.nixos.github-runner-macos-*` | **ours, and deliberate** — the boot-ordering exception above |
+| `org.nixos.github-runner-macos-*` | **ours, and deliberate** — the boot-ordering exception above. **This row is `local.macosGithubRunner.count` lines, not one** — today `…-dontsell-ai-01` and `…-02`, which is where the seventh line comes from. |
 | `org.nixos.ollama` | **ours, and deliberate** — same exception (`local.ollamaDaemon`, 2026-09-15). A `RunAtLoad` daemon serving from a store path; it runs as root against `/var/lib/ollama` and reads none of the TCC folders, so only BTM legibility is lost and the process after `exec` is still `ollama`. |
 | `org.nixos.ollama-metal-guard` | **ours, and deliberate** — same exception and the same module (`modules/darwin/ollama-daemon.nix:257`). It was live on disk but missing from this table until 2026-09-22, which is how the prose count read "six" against a seven-line audit. |
 

@@ -94,12 +94,17 @@ in
       inherit hostedSites operatorSshKey;
     };
 
-    # Throwaway aarch64-linux dev VM, materialised ONLY as the graphical
+    # Unprovisioned aarch64-linux dev VM, materialised ONLY as the graphical
     # `build-vm` variant behind `nix run .#nixvm` (an XFCE desktop in a
-    # native QEMU window — it boots a THROWAWAY overlay, never an installed
-    # disk). Since Determinate's native Linux builder is now enabled on the
-    # macos host, the aarch64-linux guest closure builds locally with NO
-    # provisioning — there is no installed nixvm, no builder VM, no runner.
+    # native QEMU window — there is no installed disk to partition). Since
+    # Determinate's native Linux builder is now enabled on the macos host, the
+    # aarch64-linux guest closure builds locally with NO provisioning — there
+    # is no installed nixvm, no builder VM, no runner.
+    #
+    # DISPOSABLE, NOT EPHEMERAL — only the Nix store image is rebuilt per boot;
+    # the root qcow2 the `nix run .#nixvm` runner creates on first use is
+    # REUSED thereafter, so /home survives every reboot until it is deleted.
+    # Where that image lands is the runner's business: modules/parts/packages.nix.
     "nixvm" = mkNixos {
       system = "aarch64-linux";
       hostname = "nixvm";

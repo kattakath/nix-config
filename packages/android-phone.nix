@@ -8,9 +8,10 @@
 # something adb's own `mdns`/`pair`/`connect` already do — see the escrcpy
 # tap removal (2026-07-08, modules/darwin/homebrew.nix) for why this repo
 # avoids that. adb/scrcpy themselves come from the `android-platform-tools`/
-# `scrcpy` Homebrew formulae (hosts/macos.nix) — resolved dynamically here,
-# same pattern as packages/vpn.nix's wg/wg-quick lookup, so this derivation
-# has no nixpkgs android-tools dependency to collide with them on PATH.
+# `scrcpy` Homebrew formulae (hosts/macos.nix), so they have no store path to
+# bake in and cannot be `runtimeInputs` — they are resolved at RUNTIME instead,
+# which also keeps this derivation free of a nixpkgs android-tools dependency
+# that would collide with them on PATH.
 #
 # Nuance this wrapper encodes so you don't have to re-learn it each time:
 #   - "pairing port" (Settings > Wireless debugging > Pair device with
@@ -59,8 +60,8 @@ writeShellApplication {
   text = ''
     set -euo pipefail
 
-    # Prefer Homebrew tools on darwin; fall back to PATH (same pattern as
-    # packages/vpn.nix's wg/wg-quick resolution).
+    # Prefer Homebrew tools on darwin; fall back to PATH — see the header: these
+    # are Homebrew formulae, so the path is only knowable at runtime.
     ADB="''${ADB:-}"
     SCRCPY="''${SCRCPY:-}"
     if [ -z "$ADB" ]; then

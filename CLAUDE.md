@@ -1,6 +1,6 @@
 This is `kattakath/nix-config` — the all-in-one, public Nix mono-repo that declaratively
 manages Ismail's entire aarch64-only fleet: one client Mac, one live Raspberry Pi server, a
-throwaway NixOS dev VM, and a devcontainer image. Everything below is
+disposable NixOS dev VM, and a devcontainer image. Everything below is
 guidance for Claude Code (claude.ai/code) when working in this repository.
 
 # CLAUDE.md
@@ -29,11 +29,10 @@ off-the-shelf option didn't fit, not just that one wasn't found.
 - **Community Legos, concretely:** launchd's own primitives
   (`QueueDirectories`/`StartInterval`/`ProcessType`), POSIX mechanisms (`SIGSTOP`/`SIGCONT`,
   `setsid`), and prior art with a name (systemd's `MAINPID` pattern) — reused and cited, not
-  reinvented under a different name. The `media-cli` capsule's
-  `modules/features/media-cli/packages/media-queue.nix` header is the running log of exactly
-  this: what's genuinely custom there, and the grep/research that justified it each time —
-  and its `module.nix` header carries the table proving every queue mechanism is launchd's
-  own, which is why 1,300 lines of queue contain no scheduler of ours.
+  reinvented under a different name. The `media-cli` capsule's `media-queue.nix` and
+  `module.nix` headers are the running log of exactly this: what is genuinely custom there, the
+  research that justified it, and the table proving every queue mechanism is launchd's own —
+  which is why 1,300 lines of queue contain no scheduler of ours.
 - **Proprietary monoliths, avoided:** a broker-based job queue, a bespoke supervision daemon,
   or any other heavy framework is *also* a violation of this motto when it's bigger than the
   problem warrants — reuse cuts both ways. The right-sized community Lego, not the fanciest
@@ -46,9 +45,9 @@ Fully declarative **aarch64-only** fleet, single source of truth, platform diver
 
 | Host | System | Role |
 |---|---|---|
-| `macos` | aarch64-darwin | The sole client Mac (nix-darwin). **ONE account**: `ismail` (`system.primaryUser`) — a second admin account existed 2026-09-15 to 2026-09-17 and was deleted forever. No incoming traffic; it is the SSH *client*, reaching `nixpi` via `cloudflared access ssh`. Builds `aarch64-linux` locally on Determinate's native Linux builder. |
+| `macos` | aarch64-darwin | The sole client Mac (nix-darwin). **ONE account**: `ismail` (`system.primaryUser`) — never a second (one existed 2026-09-15→17, deleted forever). No incoming traffic; it is the SSH *client*, reaching `nixpi` via `cloudflared access ssh`. Builds `aarch64-linux` locally on Determinate's native Linux builder. |
 | `nixpi` | aarch64-linux | **LIVE server** (NixOS on a Pi 4): Access-gated, loopback-bound SSH over a Cloudflare Tunnel connector + Caddy, serving its real sites directly (`config.fleet.hostedSites`, `modules/parts/identity.nix`). Runs **Determinate Nix** (nixosModule, since 2026-09-21) with `nix.settings` still live; the prebuilt Nix substitutes from `install.determinate.systems`. |
-| `nixvm` | aarch64-linux | Throwaway XFCE build-vm, materialised **only** as `nix run .#nixvm`. No installed disk, no builder, no runner. |
+| `nixvm` | aarch64-linux | Unprovisioned XFCE build-vm, **only** as `nix run .#nixvm`. No installed disk, no builder, no runner — but its root disk PERSISTS in `$XDG_STATE_HOME/nixvm`. |
 | devcontainer | +`x86_64-linux` | The one exception to aarch64-only, so it runs on x86_64 Codespaces. |
 
 Full map: [`docs/repo-map.md`](docs/repo-map.md).
@@ -64,7 +63,7 @@ nix flake show                               # List exported darwin/nixosConfigu
 nix fmt                                      # Format + lint-fix all .nix via treefmt (nixfmt + statix + deadnix)
 nix develop                                  # Dev shell (nixd LSP, treefmt, home-manager); installs pre-commit hooks
 nix build .#checks.<system>.formatting       # CI formatting/lint gate
-nix build .#checks.<system>.ast-grep         # Structural-lint gate (report-only; rules in ast-grep/rules/)
+nix build .#checks.<system>.ast-grep         # Structural-lint gate (BLOCKS, no autofix; ast-grep/rules/)
 ast-grep scan --no-ignore hidden .           # Same scan by hand (devShell); without --no-ignore hidden, .claude/ is SKIPPED
 ast-grep test --skip-snapshot-tests          # Prove each rule still fires (fixtures in ast-grep/rule-tests/)
 nix build .#checks.<system>.capsule-registry # readDir modules/features == the capsules import-tree loaded
@@ -89,7 +88,7 @@ nix develop -c deploy --targets .#nixpi      # Same, via deploy-rs w/ magicRollb
                                              #   `nix develop -c` is NOT optional: deploy-rs is a flake LIB, so the
                                              #   CLI exists only in the devShell. A bare `deploy` exits 1 with EMPTY
                                              #   output — silent failure, not "command not found". Measured 2026-09-16.
-nix run .#nixvm                              # Build + boot the throwaway nixvm XFCE build-vm in a native QEMU window
+nix run .#nixvm                              # Build + boot the nixvm XFCE build-vm in a QEMU window (root disk PERSISTS)
 nix eval .#nixosConfigurations.nixpi.config.system.build.toplevel   # Fast single-target eval
 
 # Bootstrap a clean/reset Mac (no Nix yet): install Determinate Nix, clone, activate #macos.
@@ -105,11 +104,13 @@ nix run .#nixpi-provision                     # Plant/update token + Wi-Fi on a 
 # Flashing: do a FULL verified write (confirm dd's ~5.6GB byte count) — see docs/nixpi-sd-flashing-runbook.md
 # Companions: nixpi-wifi-creds (emit wpa_supplicant.conf from this Mac), nixpi-vault-token (re-encrypt a rotated token)
 
-# terranix — 6 stacks, one GCS backend. Run inside `nix develop` or tofu picks the WRONG ADC.
-# *-plan first; every *-destroy is hard-blocked by the guard.
+# terranix — 6 stacks, 5 on one GCS backend. Run inside `nix develop` or tofu picks the WRONG ADC.
+# *-plan first; cf-tunnel + mcp-public have NO plan app — their apply is the only look. Every
+# *-destroy is hard-blocked by the guard.
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-tunnel-apply     # nixpi's tunnel + ingress + CNAME; PRINTS the connector token
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-zones-{plan,apply}         # kattakath.com DNS records
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#mcp-public-{apply,sync,token}  # published MCP gateway; `sync` re-polls the portal
+CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-access-org-{import,plan,apply}  # Zero Trust org; `import` FIRST or plan/apply refuse
 nix run .#gcp-{foundation,budget}-{plan,apply}              # GCP APIs/SA/state bucket; the 5 CAD spend ALERT
 
 ```
@@ -146,15 +147,15 @@ One line per path; the *why* and the per-file specifics are in
 | `flake.nix` | **Inputs/pins and ONE `flake-parts.lib.mkFlake` call — nothing else.** Every output lives in `modules/parts/`. `flake-parts` is a DIRECT input; its `nixpkgs-lib` **cannot** be `follows = ""`. |
 | `flake.lock` | Pinned revisions — bump only via `nix flake update` / `/update-input`, never hand-edit. A `follows` edit is **shape-only** (`nix flake lock`, never a bare `nix flake update`), and `follows = ""` REBINDS to this flake rather than removing. |
 | `treefmt.nix` | Single source of truth for format + lint-fix (tools that REWRITE); drives `nix fmt`, the CI gate, and the pre-commit hook. |
-| `sgconfig.yml` + `ast-grep/` | Report-only structural lint mechanising both layer boundaries: a capsule may not reach **out**, and `modules/shared/` may reach **down** only. Gated by `checks.<system>.ast-grep`, **not** treefmt. |
+| `sgconfig.yml` + `ast-grep/` | SIX rules, every one `severity: error` — a match FAILS the build; "report-only" means only that it never REWRITES a file. Two are the layer boundaries (a capsule may not reach **out**; `modules/shared/` may reach **down** only); the rest guard hardcoded home paths, launchd bare-interpreter `arg0`, unguarded `JSON.parse` in hooks, and activation touching secrets. Gated by `checks.<system>.ast-grep`, **not** treefmt. |
 | `hosts/` | Per-host entry profiles: `macos.nix`, `nixpi.nix`, `nixvm.nix` (host-only deltas + per-host Homebrew lists), plus identity-free `generic-darwin.nix`/`generic-linux.nix` that `templates/` and `checks.<system>.template-consumer` build on. |
 | `modules/parts/` | The FLAKE ENGINE — one flake-parts module per concern, discovered by `import-tree`. The engine **may** reach anywhere. |
 | `modules/features/` | The seven CAPSULES — six absorbed satellites (`cloudflared-connector`, `firmware-secrets`, `keychain-secrets`, `tart-vms`, `media-cli`, `local-rag`) plus `cloud-cli` (born in-tree 2026-09-20: AWS CLI + `~/.aws/config.example`, never the real file). `flake-module.nix` is the ONLY file anything outside imports, and **a capsule may not reach outside its own directory** — enforced by `ast-grep` + `checks.<system>.capsule-registry`, not by convention. **Satellite count: 0.** |
-| `modules/shared/` | The Home Manager profile on every host. Modules that DECLARE a `local.*` option: `mcp.nix`, terminal theme, chromium, default browser, übersicht (the one HTML widget) + next-right-thing (what it says), wireguard, desktop aesthetics (the wallpaper), claude plugins/otel/desktop, metube + yt-dlp-web-ui (the two loopback download servers — moved off `launchd.user.agents` 2026-09-22 for the agent self-heal only Home Manager does). Option-free modules that just configure: `home.nix`, nix cache, nix-ld, launchd-launcher, claude brain/bedrock-gate/guardrails — `local.claudeBedrock` was DELETED 2026-09-15, so do not look for it. |
+| `modules/shared/` | The Home Manager profile on every host. Modules that DECLARE a `local.*` option: `mcp.nix`, terminal theme, chromium, default browser, übersicht (the one HTML widget) + next-right-thing (what it says), wireguard, desktop aesthetics (the wallpaper), containers (`local.containers` — per-user Colima), claude plugins/otel/desktop/code-settings, metube + yt-dlp-web-ui (the two loopback download servers — moved off `launchd.user.agents` 2026-09-22 for the agent self-heal only Home Manager does). Option-free modules that just configure: `home.nix`, nix cache, nix-ld, launchd-launcher, claude brain/bedrock-gate/guardrails — `local.claudeBedrock` was DELETED 2026-09-15, so do not look for it. |
 | `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix`, `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `launchd-reconcile.nix` (option-free — re-bootstraps a `launchd.daemons` unit that left the domain, at switch AND boot; nix-darwin's activation is diff-gated and never does), `logging.nix` (EVERY launchd log, agents AND daemons: `system.newsyslog` rename+create for the ones that re-exec, `logrotate --copytruncate` on an hourly tick for the long-lived ones — launchd's fd is **O_APPEND**, so truncating reclaims where renaming cannot), `github-runner.nix` (`local.macosGithubRunner` — LIVE, see § Configuration), `ollama-daemon.nix` (`local.ollamaDaemon` — ONE machine-wide `ollama serve`, so every account shares one process and one 31 GB model store), `claude-managed-settings.nix` (`local.claudeManagedSettings` — the root-owned Claude Code MANAGED settings file; `enable = false` DELETES it). |
 | `modules/nixos/` | `core.nix` (user + keys-only **loopback-bound** sshd, `openFirewall = false`, a firewall that opens **no** TCP port, avahi, nix-ld, zram, GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). `nixpi`'s composed posture is GATED — `checks.<system>.nixpi-security-posture` (built on BOTH systems: the edits it guards are made on the Mac). |
-| `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `activate` (the self-elevating rebuild above), `spotlight-launchers`, plus single-purpose CLIs. `launchd-doctor` reports what `nix flake check` structurally cannot: declared-vs-loaded drift, non-zero exits, log growth, disabled-DB and log orphans. `grok.nix`/`antigravity-cli.nix` are SRI-pinned prebuilt vendor binaries, SHARED via `environment.systemPackages`, not per-user. Root `bootstrap.sh` is the no-Nix stage 1; the media/photo CLIs live in the `media-cli` capsule. |
-| `infra/` | terranix (Nix → Terraform JSON). Six stacks: `cloudflare/{nixpi-tunnel,mcp-public,zones,access-org}.nix` (+ `kattakath-dns.nix`, records as data), `gcp/{foundation,budget}.nix`. Applied only via the `cf-*`/`mcp-public-*`/`gcp-*` apps; state in GCS (§ Important Notes). |
+| `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `activate` (the self-elevating rebuild above), `spotlight-launchers`, plus single-purpose CLIs. `launchd-doctor` reports what `nix flake check` structurally cannot: drift **both ways** — declared-but-not-loaded, and loaded-but-in-no-generation, which nix-darwin’s single-transition removal loop orphans permanently — plus non-zero exits, log growth, disabled-DB and log orphans. `grok.nix`/`antigravity-cli.nix` are SRI-pinned prebuilt vendor binaries, SHARED via `environment.systemPackages`, not per-user. Root `bootstrap.sh` is the no-Nix stage 1; the media/photo CLIs live in the `media-cli` capsule. |
+| `infra/` | terranix (Nix → Terraform JSON). Six stacks: `cloudflare/{nixpi-tunnel,mcp-public,zones,access-org}.nix` (+ `kattakath-dns.nix`, records as data), `gcp/{foundation,budget}.nix`. Applied only via the `cf-*`/`mcp-public-*`/`gcp-*` apps; state in GCS for five, `gcp-foundation` local (§ Important Notes). |
 | `secrets/` | agenix recipients + the operator pubkey + **four** ciphertexts — one operator-only, three host-decrypted on `macos`. Details in § Security. |
 | `sites/` | The static sites `nixpi`'s Caddy serves. Referenced by **directory** path literal (`config.fleet.hostedSites[].root`), so every byte lands in the LIVE closure — see [`store-copied-trees`](.claude/rules/store-copied-trees.md). |
 | `templates/` | `nix flake init -t` starter that consumes this engine's `lib.mkDarwin` (`identity` + `extraModules`) instead of forking `hosts/`. |
@@ -192,17 +193,16 @@ the whole tree into the store — check for stray `.DS_Store`/etc. before commit
 `superhook` PATH package, since a checked-in `settings.json` can hold neither a store path nor
 `${CLAUDE_PLUGIN_ROOT}`), plus the `*-digest.js` SessionStart nudges. `autostage-nix` and
 `nix-home-path-lint` arrive as PLUGIN hooks from `claude-code-nix@kattakath` — do not re-add them
-here or each fires twice. The guard's case suites are `.claude/hooks/tests/*.sh`, **gated by
-`claude-config-lint.yml`** — they assert both halves (must-BLOCK and must-stay-APPROVED) and that
-the hook never throws, because a throw fails OPEN and silently disarms every rule. Message
+here or each fires twice. `.claude/hooks/tests/*.sh` covers BOTH hooks — three guard-rule suites plus
+`stop-gate-fail-closed.sh` — **gated by `claude-config-lint.yml`**: each asserts both halves
+(must-BLOCK and must-stay-APPROVED) and that it never throws, since a throw fails OPEN. Message
 decoder: [`docs/claude-hook-messages.md`](docs/claude-hook-messages.md).
 All of the above is **project-scoped** — it guards sessions in THIS repo only. Policy that is
-wrong in EVERY repo sits in two wider tiers instead: user-scope `permissions.deny` in
+wrong in EVERY repo sits in two wider tiers: user-scope `permissions.deny` in
 `modules/shared/claude-guardrails.nix`, and above it the root-owned MANAGED file
-`modules/darwin/claude-managed-settings.nix` (`macos` only) — a managed deny cannot be
-retracted by any lower scope, and every per-key precedence sentence in claude-code 2.1.260
-puts managed first. It carries the secret-value denies + attribution keys. Deny lists from
-every scope COMBINE, so that duplication is deliberate, not drift.
+`modules/darwin/claude-managed-settings.nix` (`macos` only; secret-value denies + attribution
+keys) — a managed deny cannot be retracted by any lower scope. Deny lists from every scope
+COMBINE, so that duplication is deliberate, not drift.
 
 **MCP servers**: ONE `mcp-proxy` gateway (`modules/shared/mcp.nix`, darwin-only) on
 `127.0.0.1:<publicMcpPort>` hosting all 26; no per-client stdio servers remain. Clients declare
@@ -336,19 +336,15 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   **substitutes**. `.github/workflows/warm-nixpi-cache.yml` builds the toplevel on a real
   `ubuntu-24.04-arm` runner and pushes the closure to Cachix on **every** nixpi-closure change
   (including `sites/**` and `modules/parts/**`); after it lands, both the Mac and the Pi fetch
-  rather than build. Sanctioned commands: `nixos-rebuild switch --flake .#nixpi --target-host
-  ismail@nixpi.kattakath.com` (builds HERE, activates there) or `nix develop -c deploy
-  --targets .#nixpi` (devShell-only — a bare `deploy` is not on PATH and fails silently).
-  **Building on the Pi is hard-blocked** by `.claude/hooks/pretooluse-bash-guard.js` (Rule 1d):
+  rather than build. The only sanctioned activations are the `--target-host` and
+  `deploy --targets` lines in § Build & Commands. **Building on the Pi is hard-blocked** by `.claude/hooks/pretooluse-bash-guard.js` (Rule 1d):
   `--build-host <pi>`, `deploy --remote-build`, `ssh <pi> nix build`, `--builders ssh://<pi>`.
   - **If the Mac plans a BUILD instead of a fetch, the cache is merely not warm yet** — or Nix
-    negatively cached an earlier 404 (`narinfo-cache-negative-ttl`, default **1 h**), which
-    makes an already-warmed cache look broken. Retry with `--narinfo-cache-negative-ttl 0`;
-    never "fix" it by moving the build onto the Pi. Only on a genuine miss does nixpkgs' caddy
-    `Caddyfile-formatted` EPERM appear (§ aarch64-linux builds, below).
+    negatively cached a 404 (`narinfo-cache-negative-ttl`, default **1 h**), which makes a
+    warmed cache look broken. Retry with `--narinfo-cache-negative-ttl 0`; never "fix" it by
+    moving the build onto the Pi.
 - `deploy.nodes.nixpi` and the `cf-tunnel-*`/`mcp-public-*` terranix apps all render this repo's
-  real data directly now (the private nix-personal flake that used to gate this was retired
-  2026-09-15) — `mkCfTunnelTofu` and `mkMcpPublicTofu` still **refuse** a render that would blank
+  real data directly now — `mkCfTunnelTofu` and `mkMcpPublicTofu` still **refuse** a render that would blank
   an already-provisioned tunnel or unpublish a live server (overrides:
   `CF_TUNNEL_ALLOW_SITE_FREE=1` / `MCP_PUBLIC_ALLOW_EMPTY=1`) — that guard stays as a "do you
   really mean to destroy this" check. Bare `deploy` with no `--targets` still fans out over
@@ -361,31 +357,31 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   means a rebuild restores the gate. Zones with no terranix module here (aloshy.ai,
   etuper.com, izzykatt.ca, silvercreek.ai) are still configured out-of-band.
 - **OpenTofu state is the fragile part of the edge, not the config.** State was lost **twice**
-  to `tofu` running in whatever the CWD happened to be. Since ADR-005 all six stacks share a
+  to `tofu` running in whatever the CWD happened to be. Since ADR-005 five of the six share a
   **GCS backend** (`fleet.gcpStateBucket`, versioned) **encrypted** with a Keychain passphrase
   (`tofu:state:passphrase`) — state holds a connector token and an Access service-token secret
-  in plaintext, so **losing that passphrase makes all state unreadable**. Never apply before a
+  in plaintext, so **losing that passphrase makes all state unreadable**. `gcp-foundation` alone
+  keeps **local** (still encrypted) state: it declares that bucket. Never apply before a
   `plan` reads clean.
-- **What magic rollback buys** (`deploy.nodes.nixpi.magicRollback = true`): the Pi reverts
-  **itself** unless the deployer reconnects and confirms, so a change that kills sshd, the
-  tunnel or networking is a *failed deploy* rather than a trip to the shelf to reflash (~40 min).
-  `nixos-rebuild switch --target-host` has no such undo. Detail: `docs/repo-map.md`.
+- **Magic rollback** (`deploy.nodes.nixpi.magicRollback = true`): a change that kills sshd, the
+  tunnel or networking becomes a *failed deploy* — the Pi reverts **itself** unless the deployer
+  reconnects and confirms. `--target-host` has no such undo. Detail: `docs/repo-map.md`.
 - `home-manager switch` activates and is hard to reverse; prefer `build` to verify, and
   `switch` only when explicitly asked. `home-manager generations` lists,
   `home-manager rollback` reverts.
 - **`nix run .#nixvm` is the only way `nixvm` is ever booted** — a `nixos-rebuild build-vm`
   runner exposed as a flake app (XFCE desktop, native QEMU/Cocoa window on macOS, no
-  macOS-guest path, no VM config outside Nix) booting a throwaway overlay. There is no
-  installed `nixvm` disk, no builder VM, and no runner on it. (Every self-hosted runner lives on
-  `macos`, and none serve this repo's CI — see § Configuration.)
+  macOS-guest path, no VM config outside Nix, no builder VM and no runner on it). **Not
+  stateless:** only the Nix store image is rebuilt per boot — the ROOT disk, so `/home`, persists
+  in `$XDG_STATE_HOME/nixvm/nixvm.qcow2` until you `rm` it. The app's wrapper pins it there
+  because upstream would resolve it against YOUR CWD, i.e. a different VM per directory.
 - **aarch64-linux builds on the Mac** go to Determinate's **native Linux builder** (Apple
-  Virtualization; ephemeral VM, 1 CPU / 8 GiB). Two traps, both costly to rediscover:
-  `determinate-nixd` must be logged in to FlakeHub or the builder silently vanishes and every
-  build fails with an unrelated-looking `platform mismatch`; and it **cannot** `cp
-  --no-preserve=mode` into `$out`, which breaks nixpkgs' caddy `Caddyfile-formatted` and so
-  every Mac-side build of a Caddy-serving `nixpi` generation. **Never fix that by building on
-  the Pi** — CI warms the cache so the Mac substitutes instead. `memoryBytes` (not `cpuCount`)
-  is the knob if a Linux build OOMs. Full measurements, and why it is NOT a general chmod ban:
+  Virtualization; ephemeral VM, 1 CPU / 8 GiB). Two traps: `determinate-nixd` logged OUT of
+  FlakeHub silently kills the builder, and every build then fails as `platform mismatch`; and
+  `cp --no-preserve=mode` into `$out` EPERMs, which breaks nixpkgs' caddy `Caddyfile-formatted`
+  and so every Mac-side build of a Caddy-serving `nixpi` generation. **Never fix that by
+  building on the Pi** — CI warms the cache so the Mac substitutes instead. `memoryBytes` (not
+  `cpuCount`) is the OOM knob. Measurements, and why it is NOT a general chmod ban:
   [`docs/repo-map.md`](docs/repo-map.md) § Building aarch64-linux on the Mac.
 
 ## Documentation

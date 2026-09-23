@@ -67,6 +67,12 @@
 # is what resolves /var/log/ollama-daemon.log being written by BOTH the
 # KeepAlive `ollama` daemon and the StartInterval `ollama-metal-guard`.
 #
+# A THIRD class needs no entry at all: the four open-* login openers
+# (modules/darwin/core.nix, mkNixAgent) declare neither StandardOutPath nor
+# StandardErrorPath (both default null), so they write no log to rotate. Absent
+# from both lists above on purpose, and structurally excluded anyway by the
+# file-rotation- prefix filter below.
+#
 # PATHS ARE DERIVED, NOT TYPED. Two traps a hand-written list walks straight into:
 #   (a) claude-desktop-mcp-sync declares StandardErrorPath and NO StandardOutPath,
 #       so enumerating one key silently misses the file.

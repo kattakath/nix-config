@@ -36,9 +36,10 @@ A satellite still on disk is a working copy that outlived its remote — do not
 re-add it.
 
 **`nix-personal` is RETIRED (2026-09-15).** Every value it held is folded directly into
-this repo (`hosts/macos.nix`, `modules/parts/identity.nix`). Steps D (cross-repo pin) and
-G (host re-activation) below were the two that existed only to serve it — both collapsed
-to match.
+this repo (`hosts/macos.nix`, `modules/parts/identity.nix`). The cross-repo pin-bump step
+existed only to serve it and collapsed with it; the letter it held is now **D. Nix-config's
+own hygiene**, and there is no step G. **Host re-activation did NOT collapse** — it is step
+F below. The checklist runs A, B, C, D, E, E2, E3, F.
 
 `activate` did NOT go with it. The CLI that was retired was nix-personal's
 freshness-gated one; this repo grew its own the same day (`packages/activate.nix`,
@@ -190,19 +191,23 @@ across four activations that each reported success. Report only; every remedy ne
 nix run .#launchd-doctor        # exit 1 = findings; LAUNCHD_DOCTOR_WARN_KB tunes the log threshold
 ```
 
-**Five** sections, and they are **not** equally urgent:
+It prints **five** `--- … ---` sections carrying **six** kinds of finding — the section and
+finding counts are not the same number, and `--- loaded ---` alone reports two. Read the
+section column, not the row count:
 
-| Section | Urgency | Remedy |
-|---|---|---|
-| `NOT LOADED` | **act now** — a fleet unit is silently absent | `sudo launchctl bootstrap <domain> <plist>`; `modules/darwin/launchd-reconcile.nix` makes the next activation do it |
-| `EXIT <n>` | investigate — loaded but failing every spawn | read the unit's log; `exit 78` is the boot/mount race, not a crash |
-| `ORPHANED` | **act now after any rename/removal** — nix-darwin's removal loop is **single-transition** (pinned `modules/system/launchd.nix:150-161`), so a plist it misses at that one generation boundary is orphaned **permanently** and keeps running | the `launchctl bootout … ; rm …` line the doctor prints. Check it on the first `activate` after a unit is renamed — e.g. `metube`/`yt-dlp-web-ui` moving to Home Manager on 2026-09-22 renamed `org.nixos.*` → `org.nix-community.home.*` |
-| log size | **investigate — NOT routine since 2026-09-22** | every declared launchd log now reaches a rotator (`modules/darwin/logging.nix`): `system.newsyslog` rename+create for the jobs that re-exec, hourly `logrotate --copytruncate` for the long-lived `KeepAlive` ones, which newsyslog by design can never reclaim. An oversized log therefore means a **broken rotator**, not physics — check the two ticks are in their domains (`launchctl print gui/$UID/org.nix-community.home.file-rotation-logs`, `sudo launchctl print system/org.nixos.file-rotation-logs-system`), then their own logs and state files (`~/.local/state/logrotate/agents.state`, `/var/lib/logrotate/daemons.state`) |
-| disabled-DB / orphan logs | cosmetic | litter from removed features; delete only when sure the feature is gone |
+| Printed section | Finding | Urgency | Remedy |
+|---|---|---|---|
+| `--- loaded ---` | `NOT LOADED` | **act now** — a fleet unit is silently absent | `sudo launchctl bootstrap <domain> <plist>`; `modules/darwin/launchd-reconcile.nix` makes the next activation do it. The doctor offers that remedy **only** when a current generation declares the unit — otherwise it points you at `ORPHANED` instead of resurrecting something deliberately retired |
+| `--- loaded ---` | `EXIT <n>` | investigate — loaded but failing every spawn | read the unit's log; `exit 78` is the boot/mount race, not a crash |
+| `--- orphaned plists ---` | `ORPHANED` | **act now after any rename/removal** — a plist installed that NO current generation declares | `launchctl bootout <domain>/<label> ; rm <plist>`. nix-darwin's removal loop is **single-transition** (pinned `modules/system/launchd.nix:150-161`), so an orphan it missed at that one generation boundary stays orphaned **permanently** and keeps running — re-activating never clears it. Check it on the first `activate` after a rename — e.g. `metube`/`yt-dlp-web-ui` moving to Home Manager on 2026-09-22 renamed `org.nixos.*` → `org.nix-community.home.*`. An orphan that exits 0 is invisible everywhere else |
+| `--- log size ---` | a log over `LAUNCHD_DOCTOR_WARN_KB` | **investigate — NOT routine since 2026-09-22** | every declared launchd log now reaches a rotator (`modules/darwin/logging.nix`): `system.newsyslog` rename+create for the jobs that re-exec, hourly `logrotate --copytruncate` for the long-lived `KeepAlive` ones, which newsyslog by design can never reclaim. An oversized log therefore means a **broken rotator**, not physics — check the two ticks are in their domains (`launchctl print gui/$UID/org.nix-community.home.file-rotation-logs`, `sudo launchctl print system/org.nixos.file-rotation-logs-system`), then their own logs and state files (`~/.local/state/logrotate/agents.state`, `/var/lib/logrotate/daemons.state`) |
+| `--- launchd disabled-DB orphans ---` | a disabled-DB key with no plist | cosmetic **only while it reads `enabled`** | a stale `disabled` key makes a later `bootstrap` of that label fail with **error 119** — clear it before blaming the plist |
+| `--- orphan logs in ~/Library/Logs ---` | a log no installed unit writes | cosmetic | litter from a removed feature; delete only when sure the feature is gone |
 
 **Never bootstrap in `fix` mode without asking.** It is under **always confirm**: starting a
 daemon the operator deliberately booted out is exactly the wrong move, and
-`/etc/nix-darwin/launchd-hold/<label>` is the supported way to keep one down.
+`/etc/nix-darwin/launchd-hold/<label>` is the supported way to keep one down. That hold
+answers `NOT LOADED` only — an `ORPHANED` unit must never be bootstrapped at all.
 
 ### F. Host re-activation
 

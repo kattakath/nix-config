@@ -18,10 +18,10 @@ All-in-one Nix mono-repo managing a fully declarative **aarch64-only** fleet:
   tunnel, and builds `aarch64-linux` locally on Determinate's native Linux builder.
 - **`nixpi`** (aarch64-linux) — NixOS Raspberry Pi 4, the **LIVE server**: static-key SSH
   over a Cloudflare Tunnel connector + Caddy, serving its real sites directly
-  (`config.fleet.hostedSites`, `modules/parts/identity.nix` — two today, `snoringirl.com` and
-  `ismail.kattakath.com`).
-- **`nixvm`** (aarch64-linux) — a throwaway NixOS dev VM materialised **only** as
-  `nix run .#nixvm` (a build-vm XFCE desktop — no installed VM, no builder, no runner).
+  (`config.fleet.hostedSites`, `modules/parts/identity.nix` — **one** today, `snoringirl.com`).
+- **`nixvm`** (aarch64-linux) — a disposable NixOS dev VM materialised **only** as
+  `nix run .#nixvm` (a build-vm XFCE desktop — no installed VM, no builder, no runner). Its
+  Nix *store* is rebuilt per boot; its *root* disk is a qcow2 that **PERSISTS** until deleted.
 - A matching **Devcontainer** image.
 
 (The `macvm` Tart guest was removed 2026-09-05 — re-add path + what survives in the
@@ -53,8 +53,9 @@ rather than borrowed from an arbitrary satellite anchor. **There are no satellit
 Exports:
 
 - `darwinConfigurations."macos"` (aarch64-darwin).
-- `nixosConfigurations."nixpi"` / `"nixvm"` (aarch64-linux) — `nixvm` is the throwaway GUI dev
-  VM, materialised only via `nix run .#nixvm`.
+- `nixosConfigurations."nixpi"` / `"nixvm"` (aarch64-linux) — `nixvm` is the disposable GUI dev
+  VM, materialised only via `nix run .#nixvm`. The exported base (non-`vmVariant`) toplevel is
+  an EVAL SUBSTRATE only — it carries no `virtualisation.diskImage` and is never booted.
 - `packages` / `devShells` / `checks` / `formatter` per system via flake-parts' `perSystem`
   (the old `forAllSystems` fold is gone).
 - `deploy.nodes.nixpi` — the deploy-rs remote-activation node (see below). **deploy-rs has no
@@ -84,9 +85,9 @@ achieved entirely via `networking.hostName`-gated `lib.mkIf`, never via a separa
 
 Pinned input revisions; commit every change, never hand-edit.
 
-**The input diet — `follows` is not optional bookkeeping here.** 32 root inputs pull a
+**The input diet — `follows` is not optional bookkeeping here.** 31 root inputs pull a
 transitive graph, and every duplicate node is another fetch, another eval, another thing
-`flake-checker` has to reason about. The lock sits at **57 nodes** today; it bottomed out at
+`flake-checker` has to reason about. The lock sits at **56 nodes** today; it bottomed out at
 **56** the day ADR-002 finished, was **69** before ADR-002 absorbed the satellites, and **72**
 before the dedupe pass. The wave table below is that ADR's accounting, not a live count —
 inputs added since carried it back up, the 2026-09-14 userscripts removal took it 59 → 58, and
@@ -160,7 +161,7 @@ Single source of truth for formatting + lint-fix (nixfmt + statix + deadnix). Dr
 `nix fmt`, the `checks.formatting` CI gate, and the pre-commit hook — change a tool here and
 every entrypoint follows.
 
-Scope is deliberately **tools that rewrite files**. Report-only structural lint is a separate
+Scope is deliberately **tools that rewrite files**. Non-rewriting structural lint is a separate
 layer (`sgconfig.yml` below) because the pre-commit hook *is* the `nix fmt` wrapper: a checker
 in a formatter slot would block every commit with a diagnostic nothing can auto-fix.
 
@@ -176,7 +177,9 @@ treefmt formatter. treefmt-nix ships no `programs.ast-grep`, and none of these r
 mechanical `fix:`, so the honest home is a check. `ast-grep` is also in the devShell (from the
 same pinned nixpkgs) for iterating on rules; the binary is `ast-grep` — there is no `sg` alias.
 
-Five rules, each mechanising a convention that was **prompt-only** until now:
+Six rules, each mechanising a convention that was **prompt-only** until now (all
+`severity: error`, so a match FAILS the build — "report-only" means only that none of them
+rewrites a file):
 
 | Rule | Lang | Mechanises | Notes |
 |---|---|---|---|
@@ -485,9 +488,39 @@ they bite any future second account:
       is answered with *"ignoring the client-specified setting … you are not a trusted user"*
       (same reason `--builders`/`--max-jobs 0` are ignored). Wait it out, or add the operator to
       `determinateNix.customSettings.trusted-users`.
-- **`nixvm.nix`** — a SLIM throwaway aarch64-linux dev VM: no disko, no runner, no install;
-  materialised only as the graphical `nix run .#nixvm` build-vm, whose guest builds locally on
-  the native Linux builder or substitutes from Cachix.
+- **`nixvm.nix`** — a SLIM, unprovisioned aarch64-linux dev VM: no disko, no runner, no
+  install; materialised only as the graphical `nix run .#nixvm` build-vm, whose guest builds
+  locally on the native Linux builder or substitutes from Cachix.
+
+  **Disposable, NOT ephemeral — and the split is per-filesystem.** `useNixStoreImage = true`
+  makes the guest's Nix *store* an erofs image rebuilt into `$TMPDIR` on every boot, so store
+  state genuinely does not survive. The *root* filesystem does. Nothing in this repo sets
+  `virtualisation.diskImage`, so it is nixpkgs' default `"./${config.system.name}.qcow2"` —
+  and qemu-vm.nix `readlink -f`s that at line 129, **156 lines before** it `cd`s to `$TMPDIR`
+  at line 285, so a bare relative default resolves against the CALLER'S working directory.
+  Line 131 then creates the image only `if ! test -e`. Consequences: `/home` and everything
+  outside `/nix` survives reboots; the reset is `rm` on the qcow2, nothing in Nix; and
+  **`diskSize` is a create-once ceiling** — raising it does not grow an existing image,
+  because `createEmptyFilesystemImage` sits inside that absence guard. `*.qcow2` is
+  gitignored, so an image left in the repo root cannot be swept into a commit.
+
+  **`nix run .#nixvm` does not inherit the CWD binding.** Its app is a wrapper
+  (`modules/parts/packages.nix`) that creates a 0700 XDG state dir and exports
+  `NIX_DISK_IMAGE` — upstream's own override hook at that same line 129 — so the flake app
+  always boots the SAME VM from anywhere, instead of growing one root disk per directory it
+  was invoked from. Same root cause, and same fix shape, as the OpenTofu state this repo lost
+  twice to running in whatever the CWD happened to be (`modules/parts/terranix.nix`). The
+  per-CWD default is still what a hand-run `./result/bin/run-nixvm-vm` gets, which is why the
+  option itself is left alone.
+
+  `diskImage = null` would make the root a tmpfs and the VM truly stateless (nixpkgs' own
+  option doc: *"the VM's state will not be persistent"*). Deliberately not done — a dev VM
+  that loses your scratch work on reboot is the wrong default; it would also put the whole
+  desktop session in guest RAM.
+
+  The **base** (non-`vmVariant`) config has no `virtualisation.diskImage` at all, because
+  qemu-vm.nix is imported only by the VM variant. It exists purely so the toplevel evaluates
+  in CI and `build.vm` has a coherent substrate; there is no headless `nixvm` you can boot.
 
 ## `modules/` — reusable modules split by platform
 
@@ -499,8 +532,8 @@ their own top-level section below:
 
 - **`modules/parts/`** — the FLAKE ENGINE. It **may reach anywhere** in the tree.
   → [§ `modules/parts/`](#modulesparts--the-flake-engine)
-- **`modules/features/<name>/`** — the six CAPSULES (the absorbed satellite flakes that
-  survive; `vast-provision` was removed 2026-09-12). A capsule
+- **`modules/features/<name>/`** — the seven CAPSULES (the six absorbed satellite flakes that
+  survive — `vast-provision` was removed 2026-09-12 — plus `cloud-cli`, born in-tree). A capsule
   is entered **only** through its `flake-module.nix` and **may not reach outside its own
   directory**. → [§ `modules/features/`](#modulesfeatures--the-seven-capsules)
 
@@ -835,6 +868,30 @@ their own top-level section below:
 - **`wireguard-configs.nix`** — operator-managed WG confs synced to `~/.config/wireguard`, no
   autostart; import-only for the `WireGuard.app` GUI (the `vpn` CLI left with the `macvm`
   guest, 2026-09-05 — [`macvm-readd-runbook.md`](macvm-readd-runbook.md)).
+- **`containers.nix`** — `local.containers`, darwin-only: the **per-user** container runtime,
+  Colima declared through home-manager's own `services.colima` (upstream-first — the pinned
+  nix-darwin has no `virtualisation.*` namespace at all, so a system-level answer does not
+  exist). It replaced the **Docker Desktop cask**, which could not be owned declaratively:
+  measured on `macos` 2026-09-16, `/Library/LaunchDaemons/com.docker.socket.plist` hardcodes
+  the account that first launched the app and `/var/run/docker.sock` is a symlink *into that
+  account's home*, so every other account gets `EACCES` and launching the app as the second
+  user re-binds the helper and breaks the first. Colima is per-user by construction — one
+  launchd agent in the user's own gui domain, `$COLIMA_HOME` and the docker socket under the
+  user's home — so two accounts mean two VMs and no shared helper to fight over. Genuinely
+  custom here: nothing but the `enable` switch and the profile's `settings` values.
+- **`claude-code-settings.nix`** — makes Claude Code's **user-scope** `settings.json` LAYERED:
+  a Nix-owned floor re-asserted every rebuild, merged over a real, writable file the app and
+  the operator can change. Exists because of an UPSTREAM design, not a local mistake: the
+  pinned home-manager's `programs.claude-code` `install -Dm444`s settings.json into the store
+  and symlinks it, so the app cannot persist what its UI writes and a rebuild reverts it — and
+  reading `options.nix` in full turns up **no** mutability option. The operator meets this as
+  "I cannot change the Bedrock model", with the chicken-and-egg that the agent needed to
+  diagnose it is the one that just lost its model. **Why a merge and not
+  `mkOutOfStoreSymlink`:** out-of-store hands over the whole file, floor included, and there
+  is no second user-scope file to split the floor into (`settings.local.json` is PROJECT
+  scope); nor can the floor move up to managed, whose § SCOPE RULE admits only the two
+  never-negotiable rules and whose § COVERAGE LIMIT records that managed settings do not
+  reach an Anthropic-hosted cloud session.
 - **`claude-otel.nix`** — `local.claudeOtel`, real-Mac-only: a local OTel Collector
   receiving Claude Code's native OpenTelemetry `tool_decision`/`tool_result` events over
   localhost OTLP, writing a rotating JSONL for `/routing-review` to mine for
@@ -1252,6 +1309,24 @@ waves 5-6 absorb them).
   went inert the moment the capsule stopped managing the server. The local-rag capsule gained
   `local.rag.ollama.manageServer` (set false) so it does not stand up a competitor on 11434.
 
+- **`metube.nix`** / **`yt-dlp-web-ui.nix`** — `local.meTube` and `local.ytDlpWebUi`, the two
+  local download web UIs, each ONE launchd **user agent** bound to **127.0.0.1** and each
+  built from source in `packages/` (neither is in nixpkgs). Both are on in `hosts/macos.nix`.
+  Shared shape, and the reasons they diverge from the obvious defaults:
+  - **Loopback is the whole auth story.** MeTube ships no login at all — upstream's
+    SECURITY.md says that is deliberate and that a login means a reverse proxy — so binding
+    the open API to the loopback address is what keeps it to this Mac.
+    `CORS_ALLOWED_ORIGINS=*` is required by the Chrome extension, whose requests come from a
+    `chrome-extension://<id>` origin that cannot be named; `*` sends no credentials and there
+    is no login cookie to send.
+  - **Downloads land in the user's own home, never in the state dir.** MeTube's `main.py`
+    `state_dir_guard` 404s any file whose real path is under `STATE_DIR`, so an early layout
+    that put the mp3s inside it made the download button serve a `text/plain` error that the
+    browser saved as a `.txt`. Video/audio therefore go to the standard home folders and
+    state (including `cookies.txt`) stays under `~/.local`.
+  - **`deno` is not optional.** launchd inherits no Homebrew, and yt-dlp's YouTube extraction
+    fails with no JS runtime — so `yt-dlp`, `ffmpeg`, `deno` and `aria2` are put on each
+    agent's PATH explicitly.
 - **`claude-managed-settings.nix`** (macos only, `local.claudeManagedSettings`) — the fleet's
   strongest agent-policy tier: a **root-owned** `/Library/Application Support/ClaudeCode/
   managed-settings.json`, written by `system.activationScripts.postActivation` with `install`
@@ -1338,8 +1413,10 @@ waves 5-6 absorb them).
   `nixpi`'s sshd is reachable *only* from on-host, which in practice means the tunnel connector
   terminating there (`cloudflared access ssh --hostname nixpi.kattakath.com`) — closing the LAN
   path that walked around the Access application entirely. Break-glass is the physical console.
-  `nixvm` is only ever the throwaway local `nix run .#nixvm` desktop and has no networked login
-  path either.
+  `nixvm` is only ever the local `nix run .#nixvm` desktop and has no networked login path
+  either — but note it autologins with **no password** AND keeps a persistent `/home` in its
+  qcow2 (see `nixvm.nix` above), so that image is durable unencrypted local state rather than
+  a scratch buffer.
 
   **That posture is now a GATE, not just these paragraphs** —
   `checks.<system>.nixpi-security-posture` (2026-09-21, `modules/parts/checks.nix` via
@@ -1422,7 +1499,37 @@ waves 5-6 absorb them).
   guest integration (`qemuGuest`, `spice-vdagentd`) for the `nixvm` sandbox.
   `hosts/nixvm.nix` enables it **only inside `virtualisation.vmVariant`**, so the desktop
   materialises for the graphical `nix run .#nixvm` / `build-vm` path — the sole way `nixvm` is
-  ever booted.
+  ever booted. Its `systemPackages` are deliberately two browsers plus a terminal: **plain
+  `chromium`, not `ungoogled-chromium`** — ungoogled patches out the Chrome Web Store and
+  swaps the Google search engine for a "No Search" stub (both measured in
+  `modules/shared/chromium.nix`), and nixpkgs enables Widevine only for plain chromium, so
+  all three cut against a guest whose point is signing into Google. `opera` is not an option
+  at all: nixpkgs removed it 2025-05-19, so the name *throws* at eval on every system. Both
+  browsers substitute from `cache.nixos.org` for aarch64-linux, so neither is ever built on
+  the 1-CPU native Linux builder — but chromium adds ~856 MiB of incremental closure that the
+  erofs store image re-materialises on **every** boot.
+- **`modules/nixos/uplink-watchdog.nix`** — `local.uplinkWatchdog` (default off; `nixpi` turns
+  it on), a systemd timer + oneshot for the failure where the ROUTER keeps its LAN alive but
+  loses its uplink: `end0` keeps carrier so dhcpcd keeps a default route, `wlan0` stays
+  associated because the AP is still beaconing, and **both paths are dead with nothing
+  noticing**. A route-metric change cannot fix it — both default routes terminate on the same
+  router. Upstream-first came back empty (grepped the pinned nixpkgs 2026-09-22: `dhcpcd.nix`
+  exposes no metric/nogateway option, `RouteMetric` is networkd-only and this host runs
+  scripted networking, and nothing under `services/networking/` does connectivity-based
+  failover), so the probe-and-escalate loop is genuinely ours and deliberately small. It
+  probes the DEFAULT ROUTE (never a specific interface — `curl --interface wlan0` fails
+  whenever wlan0 does not own the route, reporting a healthy link as dead) against two IP
+  literals, since DNS may be the broken thing. After `failuresBeforeAction` consecutive
+  failures a three-step ladder runs, each step verified by the next probe rather than
+  assumed: **demote the wired default route** → **invert the Wi-Fi priorities onto the
+  fallback network** → **restore the shipped configuration** and start over. Everything is
+  written to the RUNTIME `wpa_supplicant.conf` only; the card's copy on the FAT `FIRMWARE`
+  partition stays the source of truth, so the worst case of any escalation is one supplicant
+  restart, and a reboot undoes it. Gated by `checks.<system>.uplink-watchdog-paths-agree`,
+  which fails if the watchdog and `local.firmwareProvisioning.files.wifi` stop naming the
+  same runtime file, planted filename, or ordered-before unit. **It cannot conjure an
+  uplink** — the fallback AP only helps while it is actually broadcasting, and a phone
+  hotspot that sleeps with no client attached is not an unattended backup.
 
 ### NixOS modules that are not in `modules/nixos/`
 
@@ -1473,17 +1580,25 @@ module**: one `http://<domain>` vhost per `mkNixos`'s `hostedSites` parameter, e
 `file_server`ing its `root`. `hostedSites` still defaults to `[ ]` (the parameter stays generic),
 but `modules/parts/hosts.nix`'s own `nixpi` call passes the real list directly
 (`config.fleet.hostedSites`, `modules/parts/identity.nix`) since the private nix-personal flake
-that used to supply it was retired 2026-09-15. It is **two sites** today — `snoringirl.com` and
-`ismail.kattakath.com` — down from four: `dontsell.ai`'s apex moved to Vercel 2026-09-06 (its
-terranix module deleted 2026-09-14) and `kattakath.com` left for GitHub Pages 2026-09-07.
-`ismail.kattakath.com` is the one to be careful about: it was dropped from `hostedSites` on
-2026-09-12 as collateral in an unrelated commit **while the site stayed live** (the running
-generation and the cf-tunnel state both predated the drop), and was **restored 2026-09-14** —
-config catching up to production, not a decision to keep it here. Moving it to GitHub Pages is
-still the intent, and it is an ordered migration: the `tofu` apply goes **last**. Until then that
-line is what stops a routine deploy dropping the vhost (502) or a `cf-tunnel-apply` deleting the
-DNS record (NXDOMAIN) — the ≤2-ingress site-free guard catches neither, because this render has
-three entries. Caddy sits **behind** the Cloudflare Tunnel (tunnel → Caddy on :80), so no
+that used to supply it was retired 2026-09-15. It is **one site** today — `snoringirl.com` —
+down from four: `dontsell.ai`'s apex moved to Vercel 2026-09-06 (its terranix module deleted
+2026-09-14), `kattakath.com` left for GitHub Pages 2026-09-07, and `ismail.kattakath.com`
+followed on **2026-09-16**, moved off the Pi while nixpi was down so the landing page stops
+depending on it. That last one is served by the `kattakath/ismail-landing` repo now, and its DNS
+is a plain **CNAME → `kattakath.github.io` (DNS-only)** declared in
+`infra/cloudflare/kattakath-dns.nix` — no longer a proxied tunnel CNAME rendered here.
+
+**`sites/ismail-landing` stays in the tree regardless** — absent from `hostedSites` means "Caddy
+no longer serves it", not "nothing reads it": its `fonts/` subdir is LIVE, read by
+`modules/shared/next-right-thing.nix` for the übersicht widget's typography.
+
+One site also means the `cf-tunnel` **≤2-ingress site-free floor can never fire for it** — this
+render carries three entries (SSH + the site + the mandatory catch-all 404). That floor is an
+absolute "is the render blank" check, not a diff against what is live; the guard that catches a
+single silently-dropped site is the **dropped-record** check beside it, which compares the
+addresses state holds against the addresses the render declares and refuses on any drop.
+
+Caddy sits **behind** the Cloudflare Tunnel (tunnel → Caddy on :80), so no
 public IP/port-forward is needed and TLS terminates at Cloudflare's edge (the `http://` prefix
 disables Caddy auto-HTTPS to avoid a redirect loop back through the tunnel).
 
@@ -1524,11 +1639,14 @@ nothing — hence one regex, not two calls.
 | `lib-option.nix` | The 4-line `mkOption { type = lazyAttrsOf raw; }` declarations for `flake.lib` and `flake.darwinConfigurations`, copied from flake-parts' own `nixosConfigurations.nix:11`. Without them the freeform `types.unique` default would force every seam back into ONE file — silently re-creating the monolith. |
 | `touchup.nix` | What the flake does **not** export. A bare `mkFlake` also emits `legacyPackages`, `nixosModules`, `overlays` and `modules`; this repo has never exported any of them, and the decision (plus the one-line path back) is recorded there. |
 
-## `modules/features/` — the six capsules
+## `modules/features/` — the seven capsules
 
-Seven satellite flakes were absorbed in-tree by **ADR-002** and archived at origin; **six
-remain** — `vast-provision` was removed wholesale on 2026-09-12 along with the rest of the
-off-fleet GPU control plane. See
+**Seven capsules, but only six are absorbed satellites.** Seven satellite flakes were absorbed
+in-tree by **ADR-002** and archived at origin; six remain — `vast-provision` was removed
+wholesale on 2026-09-12 along with the rest of the off-fleet GPU control plane. The seventh
+capsule, `cloud-cli`, has **no satellite provenance at all**: it was born in-tree 2026-09-20
+(below). `checks.<system>.capsule-registry` holds `readDir modules/features` == the set
+`import-tree` loaded, so this count is mechanical rather than remembered. See
 [`monoflake-capsule-adr.md`](monoflake-capsule-adr.md), and **§9 of it first** — the correction
 record supersedes the design where they disagree.
 
@@ -1614,7 +1732,7 @@ to build the boundary machinery around it.
   Nothing secret — **not even the key names** — reaches the store or git.
 - **ADR-004 (2026-09-20), additive:** `local.keychainSecrets.backend.{type,project,prefix}` +
   `refsRelPath`, four new packages (`secrets-status`, `secrets-rehydrate`, `secrets-push`,
-  `secrets-resolve` — `packages/secrets-backend.nix`, config read at RUNTIME so the perSystem
+  `secrets-resolve` — `modules/features/keychain-secrets/packages/secrets-backend.nix`, config read at RUNTIME so the perSystem
   packages and the module install the same drvs) and one new check
   (`keychain-secrets-backend-inert`). With `backend.type = "none"` (the default, and what
   `macos` runs today) the loader, `home.activation` and the `darwin-system` drv were measured
@@ -1680,7 +1798,8 @@ included — evaluates them.
   [`macvm-readd-runbook.md`](macvm-readd-runbook.md)'s step 1 *is* that module. Its re-add step is
   now a `compose.nix` line, not a re-added input.
 - **Two stale `modules/…` references survive** inside `''…''` shell script bodies
-  (`packages/tart-runner.nix:473`, `packages/gitlab-tart.nix:75`). Fixing them changes the script
+  (`modules/features/tart-vms/packages/tart-runner.nix:473`,
+  `modules/features/tart-vms/packages/gitlab-tart.nix:75`). Fixing them changes the script
   text → the drv → `darwin-system`, so they are **recorded** in `flake-module.nix`'s header
   rather than silently rotting.
 
@@ -1748,6 +1867,32 @@ One option in `modules/shared/home.nix`, and **nothing at all** in nix-personal.
   directly, so `deferredModule`'s wrapper has nothing to reorder). Chosen for consistency with
   the other two home-manager capsules, and because order-insensitivity here is a property of
   today's contents rather than of the class.
+
+### `cloud-cli` (born in-tree 2026-09-20) — the one capsule that was never a satellite
+
+`local.cloudCli.aws`: the AWS CLI plus `aws-sso-util`, and **`~/.aws/config.example` —
+placeholders only.** It NEVER writes `~/.aws/config`. That file is the human's, written by
+`aws configure sso` or by copying the example, living outside Nix and git, and it is what
+`modules/shared/claude-bedrock-gate.nix` reads at runtime.
+
+- **Why the real file may not be declared here, even though it holds no credential.** Account
+  ids, SSO start-URL ids and regions are not secrets, but they ARE **reconnaissance** — they
+  tell an attacker where to aim, and this repo is public (ADR-004 §7, inventory #1). Every
+  user's shape differs (SSO admin vs IAM-less junior vs preview-only senior), so no single
+  committed file could be right for anyone but its author. And sessions are SSO/OIDC-minted
+  at `aws sso login`, so almost nothing needs long-lived storage anyway.
+- **Upstream-first, and the option it deliberately does NOT set.** `programs.awscli` supplies
+  the package — pinned `modules/programs/awscli.nix:19` declares the `package` option,
+  defaulting to `awscli2`, and `:62` puts it in `home.packages`. Its `settings` option is left
+  `{ }` **on purpose**, because upstream gates writing `~/.aws/config` on `settings != { }`
+  (`:64`) — the exact boundary this capsule exists to keep. The example file is a plain
+  `home.file`; there is no upstream "write an example" option to reach for.
+- **Seam:** home-manager class, so it rides the RAW `capsuleModules` seam rather than
+  `flake.modules` (`deferredModule`'s wrapper reorders `home.packages`). Its two checks —
+  `cloud-cli-module` and `cloud-cli-inert` — are built on **both** systems, because
+  `awscli2`/`aws-sso-util` are Linux-clean and the Pi/VM profiles must be able to enable it.
+- It is the worked example of **ADR-003's "content out, governance in"** applied to a cloud
+  CLI: the flake ships the TOOL and the SHAPE, the human writes the CONTENT.
 
 ## `packages/`
 
@@ -1854,6 +1999,28 @@ Smaller, single-purpose CLIs:
   `jsonresume-tailor` skill.
 - **`mermaid-ascii.nix`** — packages `AlexanderGrooff/mermaid-ascii`, not in nixpkgs, for the
   diagrams-as-ASCII convention.
+- **`metube.nix`** — MeTube from source; nixpkgs has no package for it. The Angular UI must
+  land at `ui/dist/metube/browser`, the path `app/main.py` actually serves. Python deps come
+  from nixpkgs rather than `uv sync`: the app is a handful of imports and the lockfile would
+  pull a SECOND yt-dlp. `deno`, `ffmpeg` and `aria2` are on PATH because yt-dlp looks them up
+  by name. Consumed by `modules/darwin/metube.nix`.
+- **`yt-dlp-web-ui.nix`** — yt-dlp-web-ui v4 from source, because every easier route is
+  broken: the upstream flake's `systems` list is x86_64-linux only, its Nix still calls
+  `buildGo123Module` and passes the `-host`/`-port` flags v4 removed (`main.go` takes only
+  `-conf`), the published release binaries are Linux ELF, and Docker Hub has no `:v4` tag
+  while `latest` ships a yt-dlp too old for YouTube. v4 `//go:embed`s the UI, so the frontend
+  is built and copied into the tree before `go build`. Consumed by
+  `modules/darwin/yt-dlp-web-ui.nix`.
+- **`page-lab-pick.nix`** — the `page-lab` plugin's two-way element picker as a fleet CLI. It
+  exists for ONE reason: Node 20 here has no global `WebSocket`, so the raw-CDP client must
+  either re-exec with `--experimental-websocket` or run on Node 22+ — pinning `nodejs_22`
+  removes the flag from the fleet path entirely. Not the only way to run the picker (the
+  plugin's `scripts/pick-element.mjs` under `node` still works); this is the reproducible
+  entry point. Deliberately **not** a launchd agent and never automatic: arming a picker
+  swallows the next click on every armed tab, so it stays an explicit act with a visible
+  start and a guaranteed disarm. Its plugin tree is the pinned `kattakath/ai` flake input,
+  passed in by `modules/parts/packages.nix` with no default, so a missing pin is an eval
+  error rather than a silent fallback.
 - **`claude-otel-doctor.nix`** — health check for the `local.claudeOtel` collector (launchd
   agent, OTLP port, events-file freshness). See
   [`claude-code-observability-runbook.md`](claude-code-observability-runbook.md).
@@ -1938,7 +2105,7 @@ for the main pane, which sits at `left:0` inside it, so moving both would double
 | `cf-zones` | GCS `cf-zones/` | **mail** |
 | `cf-access-org` | GCS `cf-access-org/` | **every Access app at once** |
 | `gcp-budget` | GCS `gcp-budget/` | the spend alert |
-| `gcp-foundation` | **local** | the bucket the others live in |
+| `gcp-foundation` | **local** (still encrypted) | the bucket the others live in |
 
 **Run every one of these inside `nix develop`.** Not a style preference — `CLOUDSDK_CONFIG`
 scopes `gcloud`, but it does **not** scope Terraform: the Go auth library ignores it and reads
@@ -1958,7 +2125,10 @@ State is the shared, versioned bucket `kattakath-tofu-state`, **encrypted** with
 read from the login Keychain at run time via `TF_ENCRYPTION` (ADR-005 phase 1 —
 [`iac-coverage-adr.md`](iac-coverage-adr.md)). Two of these states hold secrets in plaintext
 inside the payload, which is why encryption is not optional. `gcp-foundation` keeps local state
-because it *declares* that bucket.
+because it *declares* that bucket — **and it is encrypted too.** The invariant is ENCRYPTION,
+not remoteness: all **six** stacks source the same `tofuRemoteStatePrelude`
+(`modules/parts/terranix.nix`), so the passphrase can never be wired on five stacks and
+forgotten on the sixth. "Local" here says where the file sits, never that it is plaintext.
 
 ### `infra/cloudflare/zones.nix` + `infra/cloudflare/kattakath-dns.nix`
 
@@ -2011,6 +2181,11 @@ no API to delete an organisation, so a destroy would merely blank one.
 
 Enabled APIs, the automation service account, its IAM bindings, and the OpenTofu state bucket.
 
+**Its state is LOCAL but not plaintext.** It cannot live in the bucket it declares, so it sits
+`0600` under `$XDG_STATE_HOME/nix-config-gcp-foundation` — and it still runs
+`tofuRemoteStatePrelude`, so the same Keychain passphrase encrypts it via `TF_ENCRYPTION`. Lose
+`tofu:state:passphrase` and this state is unreadable exactly like the other five.
+
 **Runs as the OPERATOR, not the service account it declares.** Running it as that account would
 need `serviceUsageAdmin` + `iam.serviceAccountAdmin` + `projectIamAdmin` — the power to re-grant
 itself anything. The privileged bootstrap stays with the human; the narrow stacks use the
@@ -2050,10 +2225,14 @@ the token to stdout to be stored via `nix run .#nixpi-vault-token` into
 
 ### `infra/cloudflare/mcp-public.nix`
 
-The Cloudflare half of the **published MCP gateway** — the other half is
-`local.mcpGateway.public` in `modules/shared/mcp.nix`, which puts the opt-in subset of
-servers on a SECOND `mcp-proxy` at `127.0.0.1:8097`. Built and live since 2026-09-12; the
-design note is [`docs/mcp-public-exposure-design.md`](mcp-public-exposure-design.md).
+The Cloudflare half of the **published MCP gateway** — the other half is the single
+`mcp-proxy` in `modules/shared/mcp.nix`, whose whole roster is
+`config.fleet.publicMcpServers`. Built and live since 2026-09-12. There WAS a
+`local.mcpGateway.public` option selecting an opt-in subset onto a SECOND proxy; both were
+deleted on 2026-09-22 when every server became published, so one proxy hosts all 26 and
+`checks.<system>.mcp-published-parity` holds hosted == published. The design note is
+[`docs/mcp-public-exposure-design.md`](mcp-public-exposure-design.md) — read its §10 first,
+which records that collapse.
 
 Renders, from ONE list: a `cloudflared` tunnel + connector for the Mac, ingress to `:8097`, the
 proxied CNAME, **one** Access application over the origin hostname, **one** `non_identity`
@@ -2075,9 +2254,11 @@ and testing at the origin cannot detect it, because the origin answers `200` thr
 publish through `mcp.<domain>`.
 
 Applied via `mcp-public-apply` / `mcp-public-destroy`, with `mcp-public-token` printing **only**
-the raw connector token for piping into `secret set`. State lives in
-`$XDG_STATE_HOME/nix-config-mcp-public` (0700/0600 — it holds the connector token and the Access
-service-token secret in plaintext). `mcp-public-apply` passes the fleet's real
+the raw connector token for piping into `secret set`. **State is the encrypted GCS object, not a
+local file** (ADR-005 — the table above): `$XDG_STATE_HOME/nix-config-mcp-public` is the tofu
+*working* directory only, kept 0700/0600 because this stack's state is one of the two whose
+payload carries secrets — the connector token and the Access service-token secret.
+`mcp-public-apply` passes the fleet's real
 `publicMcpServers` (`config.fleet.publicMcpServers`); `mcp-public-destroy` deliberately keeps
 the `[ ]` default so tearing down the real registrations still needs the explicit
 `MCP_PUBLIC_ALLOW_EMPTY=1` override — `mkMcpPublicTofu` refuses a render that publishes 0
@@ -2093,6 +2274,32 @@ measurements that justify them live here, because they are read once and obeyed 
 `aarch64-linux` builds on the Mac go to **Determinate's native Linux builder** (Apple
 Virtualization; an ephemeral VM, **1 CPU / 8 GiB by default**). The account entitlement is
 enabled at <https://dtr.mn/features>.
+
+It serves **`x86_64-linux` too.** The rendered `external-builders` entry names both systems,
+and an `x86_64-linux` derivation built here returns `uname -m` = `x86_64` (measured
+2026-09-22) — a real second platform, not an idle advertisement. That is what lets
+`packages.x86_64-linux.devcontainerImage` build on this Mac and not only in CI. It does
+**not** dent the aarch64-only invariant: that claim is about **hosts** (§ The fleet), and a
+build-only ephemeral sandbox is not one.
+
+#### It does NOT share Tart's two-guest budget
+
+`local.tart.runnerSlots` is a filesystem semaphore under `local.tart.runnerStateDir/slots`
+([`slots.nix`](../modules/features/tart-vms/slots.nix)), entered only by the two CI lanes'
+shims; `determinate-nixd` has no code path to it. Measured 2026-09-22: **four** builder VMs
+ran concurrently while that directory held **zero** slot markers. The cap the semaphore
+exists to share is specifically on concurrent **macOS** guests (`github-runner.nix`'s
+assertion says so in those words), so a Linux builder guest sits outside both accountings.
+
+Still unmeasured: two Tart macOS guests **plus** a builder VM. Four concurrent Linux guests
+prove the cap is not a global VM cap, which makes a collision unlikely — but nobody has
+booted the mixed case, so treat it as untested rather than safe.
+
+The axis that IS shared is **host RAM**, and nothing bounds it: `max-jobs` is `12` here
+(Determinate raises it to nproc; this repo sets it nowhere), so one `nix build` may start
+twelve guests at 8 GiB each. Less dire than that arithmetic — Virtualization backs guest
+memory lazily, and 66% of 36 GiB was still free with three such VMs live — but the ceiling is
+untested, and a wide parallel build alongside two 8 GiB Tart guests is the case to watch.
 
 The VM **is** settable from Nix: the pinned `determinate` module grew
 `determinateNix.determinateNixd.builder.{state,memoryBytes,cpuCount}`, rendered to
@@ -2428,7 +2635,7 @@ quietly held the real entries.
 **Three checks exist ONLY on `aarch64-linux`**, so the documented local gate — a bare
 `nix flake check`, which is darwin-native on the Mac — never builds them:
 `cloudflared-connector-module`, `firmware-secrets-module`, `nixpi-firmware-names`
-(measured 2026-09-22: 18 linux checks, 40 darwin, 3 linux-only). Every other linux check
+(measured 2026-09-22: 18 linux checks, 41 darwin, 3 linux-only). Every other linux check
 has a darwin twin with identical logic, so the bare command does exercise those.
 
 Build the three locally when you touch what they cover — Determinate's native Linux

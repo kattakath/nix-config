@@ -10,12 +10,12 @@
 #
 # That asymmetry is not harmless. A capsule that reaches out FAILS THE BUILD; a
 # shared module that reaches anywhere just works, so coupling accumulates with
-# nothing pushing back. modules/shared/ is 15 files and mcp.nix alone is ~1,200
+# nothing pushing back. modules/shared/ is 20 files and mcp.nix alone is ~1,200
 # lines, which is what an unbounded layer looks like after a year.
 #
 # WHAT SHARED MAY STILL DO, deliberately unflagged: reach DOWN into this repo's
-# own content trees. Measured 2026-09-14, that is packages/ (9 references),
-# skills/ (8), claude/ (6) and qwen/ (1) - a `callPackage ../../packages/x.nix`
+# own content trees. Measured 2026-09-22, that is packages/ (11 references),
+# skills/ (8), claude/ (6) and sites/ (1) - a `callPackage ../../packages/x.nix`
 # or `source = ../../claude/CLAUDE.md` is correct and idiomatic (CLAUDE.md
 # § Conventions, "Paths - two axes"). Siblings inside shared/ are fine too.
 #
@@ -51,7 +51,7 @@ rule:
 message: A shared module crossed a layer boundary with a parent-directory path literal.
 note: |
   modules/shared/ is the home-manager profile. It may reach DOWN into this
-  repo's content trees (packages/, skills/, claude/, qwen/) and sideways to its
+  repo's content trees (packages/, skills/, claude/, sites/) and sideways to its
   own siblings - but not into modules/features/, modules/parts/, hosts/ or
   infra/.
 

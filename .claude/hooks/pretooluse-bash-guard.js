@@ -278,13 +278,18 @@ const BUILDERS_PI = new RegExp(String.raw`--(?:builders|store)[=\s]+["']?ssh(?:-
 
 // ---- the Bedrock trap (2026-08-30) -----------------------------------------
 // CLAUDE_CODE_USE_BEDROCK lives in the login Keychain, so it SURVIVES any
-// activation. Its companions AWS_REGION/AWS_PROFILE come only from the private
-// layer (nix-personal's claude-bedrock.nix → ~/.claude/settings.json) and its
-// ~/.aws/config profiles, so a public-repo activation DROPS them. Bedrock
-// therefore stays selected with no region and no profile: Claude Code can reach
-// no model, and the agent needed to undo the activation is the thing that just
-// died. settings.json is a read-only /nix store symlink, so it cannot be hand
-// repaired — hence chicken-and-egg, and hence a hard block rather than a nudge.
+// activation. Its companions AWS_REGION/AWS_PROFILE do NOT: since 2026-09-15 no
+// repo declares them, so they are ordinary runtime state — the shell or the
+// Keychain (`secret set AWS_PROFILE`), the hand-placed ~/.aws/config, and an SSO
+// token in ~/.aws/sso/cache that expires every few hours. Any of those can be
+// absent while the Keychain flag still says "use Bedrock": Bedrock stays selected
+// with no region and no profile, Claude Code can reach no model, and the agent
+// needed to fix it is the thing that just died. settings.json is a read-only
+// /nix store symlink, so it cannot be hand repaired either.
+// What CLOSES that trap is modules/shared/claude-bedrock-gate.nix, which unsets
+// the flag for a shell where no identity resolves. All this hook carries is the
+// inverse heads-up below — identity live, flag off — and it is a nudge, never a
+// block.
 // PRESENCE is the test, not the value: per the operator, merely having the
 // variable set selects Bedrock, so `=0` is not a safe "off".
 const bedrockSelected = process.env.CLAUDE_CODE_USE_BEDROCK !== undefined;
@@ -554,7 +559,7 @@ function main() {
   //
   // Not a veto. The operator runs either form by hand whenever they want, and
   // `secret reveal` is the right answer when a script genuinely needs the value
-  // in its own process (see nix-personal's character-mcp proof scripts).
+  // in its own process.
   // Match against the pair-collapsed form (see unescapePairs) so an escaped
   // BACKSLASH before a real separator cannot hide the command after it.
   const cmdEsc = unescapePairs(cmd);
@@ -566,7 +571,7 @@ function main() {
       "Use the verb that fits: `secret copy KEY` hands it to the human via a concealed pasteboard; `secret exec KEY -- CMD` puts it only in the child's env; `secret fp KEY` proves which value it is (digest + length + mdat) without disclosing it. If you genuinely need it printed, run it yourself.",
     );
   }
-  // A legitimate activation (`activate`, a private-flake switch, `home-manager switch`)
+  // A legitimate activation (`darwin-rebuild switch`, `home-manager switch`)
   // is approved — but if the AWS identity vars are live while the Keychain switch
   // is currently OFF, the trap is merely disarmed, not gone: restoring that one
   // Keychain entry re-arms it. Worth one line, never a block.

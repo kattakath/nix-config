@@ -38,10 +38,14 @@ in
       displayManager.lightdm.enable = true;
     };
 
-    # Boot straight into the session with no credential prompt — this is a
-    # throwaway sandbox. autoLogin lives at the top level in current nixpkgs
-    # (moved out of services.xserver.displayManager). With XFCE as the sole
-    # session, nixpkgs auto-selects it, so `defaultSession` is unnecessary.
+    # Boot straight into the session with no credential prompt — this VM is
+    # hand-booted from a local QEMU window and is reachable from no network.
+    # It is NOT a stateless sandbox: /home lives on the root qcow2, which is
+    # created once and reused (see hosts/nixvm.nix), so that image is durable
+    # unencrypted local state rather than a scratch buffer. autoLogin lives at
+    # the top level in current nixpkgs (moved out of
+    # services.xserver.displayManager). With XFCE as the sole session, nixpkgs
+    # auto-selects it, so `defaultSession` is unnecessary.
     services.displayManager.autoLogin = {
       enable = true;
       user = loginName;
@@ -53,8 +57,17 @@ in
     services.qemuGuest.enable = true;
     services.spice-vdagentd.enable = true;
 
-    # A couple of niceties so the desktop isn't bare on first boot.
+    # A couple of niceties so the desktop isn't bare on first boot. Both
+    # browsers substitute for aarch64-linux, so neither is ever built on the
+    # 1-CPU Linux builder. `chromium` and NOT `ungoogled-chromium`: ungoogled
+    # patches out the Chrome Web Store and rewrites the Google search engine
+    # into a "No Search" stub (both measured in modules/shared/chromium.nix),
+    # and nixpkgs enables Widevine only for plain chromium (common.nix:913) —
+    # all three cut against a desktop whose point is signing into Google.
+    # `opera` is not a choice at all: nixpkgs removed it 2025-05-19
+    # (aliases.nix:1932), so the name throws at eval on every system.
     environment.systemPackages = with pkgs; [
+      chromium
       firefox
       xfce4-terminal
     ];

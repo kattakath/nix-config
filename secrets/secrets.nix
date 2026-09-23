@@ -1,10 +1,13 @@
 # agenix rules — declares each committed .age secret and who may decrypt it.
 # Consumed ONLY by the `agenix` CLI (agenix -e/-r), never imported into a system
 # config. Recipients are SSH public keys directly (age's SSH support, no
-# ssh-to-age step). Most secrets here are OPERATOR-ONLY (encrypted to the
-# operator's key alone, never decrypted on any host); the `gh-app-*-key`
-# entries are the exception — HOST-decrypted at activation, so they also carry
-# the `macos` host-key recipient below.
+# ssh-to-age step). TWO MODELS live here and the split is 1/3 — assume neither:
+# `cloudflared-token.age` ALONE is OPERATOR-ONLY (the operator's key, never
+# decrypted on any host). The other THREE — both `gh-app-*-key` files and
+# `gitlab-runner-token.age` — are HOST-DECRYPTED on `macos` at activation, via
+# `age.secrets.*` (hosts/macos.nix, modules/darwin/github-runner.nix), so they
+# also carry the `macos` host-key recipient below. A secret added without
+# picking a model explicitly is one the host silently cannot decrypt.
 #
 # Edit a secret:   nix run github:ryantm/agenix -- -e secrets/<name>.age
 # Re-key after changing recipients:  … -- -r

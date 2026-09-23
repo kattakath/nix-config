@@ -76,6 +76,65 @@ else
   printf '  FAIL  want=1 got=%s  stdout: %.60s\n' "$n" "$raw"; fail=$((fail+1))
 fi
 
+echo "== must BLOCK: rev-parse SUCCEEDS but \`git ls-files\` fails =="
+# The two ls-files queries feed git-purity and the nix syntax check. Until
+# 2026-09-23 each was wrapped in `catch { /* ignore */ }`, so a failure left the
+# answer EMPTY and both gates reported green without running — the same swallow
+# the rev-parse case above documents, one function lower. The bad-config trigger
+# cannot reach here (it breaks rev-parse first and exits), so this needs a shim
+# that lets rev-parse through and fails only ls-files.
+REAL_GIT="$(command -v git)"
+mkdir -p "$TMP/shim"
+cat > "$TMP/shim/git" <<SHIM
+#!/usr/bin/env bash
+for a in "\$@"; do
+  if [ "\$a" = "ls-files" ]; then
+    echo "fatal: simulated ls-files failure" >&2
+    exit 128
+  fi
+done
+exec "$REAL_GIT" "\$@"
+SHIM
+chmod +x "$TMP/shim/git"
+
+# A real repo, so rev-parse succeeds and execution reaches ls-files.
+mkdir -p "$TMP/repo"
+( cd "$TMP/repo" && "$REAL_GIT" init -q . ) 2>/dev/null
+
+shim_decide() {
+  printf '{}' \
+    | PATH="$TMP/shim:$PATH" CLAUDE_PROJECT_DIR="$TMP/repo" GIT_CONFIG_GLOBAL=/dev/null node "$H" 2>/dev/null \
+    | python3 -c 'import json,sys;print(json.load(sys.stdin).get("decision","?"))' 2>/dev/null
+}
+got="$(shim_decide)"
+if [ "$got" = "block" ]; then
+  printf '  ok    block    ls-files failure blocks instead of passing green\n'; pass=$((pass+1))
+else
+  printf '  FAIL  want=block got=%s  ls-files failure was SWALLOWED\n' "$got"; fail=$((fail+1))
+fi
+
+echo "== that block must also say NOTHING was checked =="
+shim_reason=$(printf '{}' \
+  | PATH="$TMP/shim:$PATH" CLAUDE_PROJECT_DIR="$TMP/repo" GIT_CONFIG_GLOBAL=/dev/null node "$H" 2>/dev/null \
+  | python3 -c 'import json,sys;print(json.load(sys.stdin).get("reason",""))' 2>/dev/null)
+case "$shim_reason" in
+  *"NOTHING was checked"*) printf '  ok    reason   names the unchecked gates\n'; pass=$((pass+1));;
+  *) printf '  FAIL  reason did not say nothing was checked: %.60s\n' "$shim_reason"; fail=$((fail+1));;
+esac
+
+echo "== and it must emit exactly ONE decision object (no fall-through) =="
+# gitQueryFailed() ends in an explicit process.exit(0) rather than relying on
+# block()'s. If that is ever removed, the catch falls through with an empty
+# answer and a SECOND decision object lands on stdout behind the first.
+shim_raw=$(printf '{}' \
+  | PATH="$TMP/shim:$PATH" CLAUDE_PROJECT_DIR="$TMP/repo" GIT_CONFIG_GLOBAL=/dev/null node "$H" 2>/dev/null)
+n=$(printf '%s' "$shim_raw" | grep -o '"decision"' | wc -l | tr -d ' ')
+if [ "$n" = "1" ]; then
+  printf '  ok    one      exactly one decision object on the ls-files block path\n'; pass=$((pass+1))
+else
+  printf '  FAIL  want=1 got=%s  stdout: %.60s\n' "$n" "$shim_raw"; fail=$((fail+1))
+fi
+
 echo
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]

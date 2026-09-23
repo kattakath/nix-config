@@ -257,9 +257,10 @@ let
       operatorSshKey ? null,
       extraModules ? [ ],
       # Sites Caddy serves on this host — see the comment in
-      # modules/parts/identity.nix and docs/private-home-modules.md. Public hosts
-      # pass nothing (Caddy still runs, zero vhosts); a private composition flake
-      # overrides it.
+      # modules/parts/identity.nix and docs/private-home-modules.md. The fleet's
+      # own hosts pass `config.fleet.hostedSites` at the call site
+      # (modules/parts/hosts.nix); a caller that passes nothing still gets Caddy,
+      # with zero vhosts.
       hostedSites ? [ ],
     }:
     nixpkgs.lib.nixosSystem {
@@ -291,9 +292,10 @@ let
         firmwareSecretsModule = firmware-secrets;
         # The Pi's hardware modules (kernel/firmware/sd-image) reach
         # hosts/nixpi.nix through here, NOT through a per-call `extraModules`:
-        # that per-call wiring made the private nix-personal flake repeat the
-        # same two modules to build the same Pi — a shape leak. nix-config must
-        # build every host standalone; the private layer passes data only.
+        # that per-call wiring made the private nix-personal flake (retired
+        # 2026-09-15) repeat the same two modules to build the same Pi — a shape
+        # leak. nix-config must build every host standalone; a composition layer
+        # passes data only.
         raspberryPiNix = raspberry-pi-nix;
         # For hosts/nixvm.nix's `build-vm` variant, whose QEMU runner executes
         # on the aarch64-darwin Mac. LAZY: only `system.build.vm` forces it, so
@@ -353,7 +355,8 @@ let
       identity ? identityArgs,
       extraModules ? [ ],
       # Private / third-party home-manager modules (see docs/private-home-modules.md).
-      # Public hosts pass nothing; a private composition flake passes its modules here.
+      # A generic seam with no second caller today — nix-personal, the flake that
+      # used it, was retired 2026-09-15 — and the fleet's own hosts pass nothing.
       extraHomeModules ? [ ],
     }:
     nix-darwin.lib.darwinSystem {
@@ -517,9 +520,10 @@ let
         agenix.darwinModules.default
         # local.tart.githubRunners.* option surface (ephemeral Tart-VM CI runners) —
         # in the BASE list, not per-call extraModules, so EVERY mkDarwin
-        # composition has the options (nix-personal calls mkDarwin itself;
-        # a per-call wire broke its eval — the PR #452 lesson, second
-        # verse). Inert unless a host sets local.tart.githubRunners (hosts/macos.nix).
+        # composition has the options (nix-personal called mkDarwin itself and a
+        # per-call wire broke its eval — the PR #452 lesson, second verse; that
+        # flake went 2026-09-15, but the argument holds for any future caller).
+        # Inert unless a host sets local.tart.githubRunners (hosts/macos.nix).
         tart-github-runner
         # local.tart.gitlabRunner option surface (declarative gitlab-runner on the
         # same Tart custom executor + slot budget). Same base-list rationale.

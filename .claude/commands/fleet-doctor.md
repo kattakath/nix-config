@@ -1,10 +1,10 @@
 ---
 description: >
-  Fleet-wide consistency sweep — branches/worktrees, open PRs, CI, cross-repo
-  flake pins, Nix store GC, host re-activation — across every repo in the
+  Fleet-wide consistency sweep — branches/worktrees, open PRs, CI, nix-config's
+  own hygiene, Nix store GC, host re-activation — across every repo in the
   fleet manifest. Composes the fleet-doctor skill with nix-hygiene, git-purity
   and pr-title.
-argument-hint: "[audit|fix] [repo|host]  # e.g. fix | audit nix-personal"
+argument-hint: "[audit|fix] [repo|host]  # e.g. fix | audit macos"
 ---
 
 Run the **fleet-doctor** project skill (`.claude/skills/fleet-doctor/SKILL.md`) end-to-end.
@@ -17,17 +17,17 @@ Parse `$ARGUMENTS` loosely:
 |---|---|
 | `audit` | Read-only — report findings, fix nothing |
 | `fix` | Audit then apply the skill's auto-fix table (default if omitted) |
-| anything else | Scope: a manifest repo name (`nix-config`, `nix-personal`) or a host (`macos`) |
+| anything else | Scope: a manifest repo name (today only `nix-config` — `nix-personal` was RETIRED 2026-09-15) or a host (`macos`) |
 
 Examples:
 
 - `/fleet-doctor` → fix, full fleet
 - `/fleet-doctor audit` → report only, full fleet
-- `/fleet-doctor fix nix-personal` → fix scoped to one repo
+- `/fleet-doctor fix macos` → fix scoped to one host (repo sweeps skipped and reported as such)
 
 ## Required sequence
 
-1. **Read** `.claude/skills/fleet-doctor/SKILL.md` and follow it (checklist A→G).
+1. **Read** `.claude/skills/fleet-doctor/SKILL.md` and follow it (checklist A→F).
 2. Read `.claude/skills/fleet-doctor/fleet-repos.txt` for the manifest — do not hardcode a repo list elsewhere.
 3. Apply the skill's **fix policy table** exactly — auto-fix only what it lists as auto-fix; everything else is a reported finding, confirmed with the user before acting.
 4. If nix-config itself is in scope: compose the **nix-hygiene** skill (same mode) rather than re-deriving its checks.

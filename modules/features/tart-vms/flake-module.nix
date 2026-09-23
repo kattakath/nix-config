@@ -4,10 +4,13 @@
 # standalone github:kattakath/nix-tart-vms flake by PLAIN COPY — history stays
 # in the archived origin repo, per the operator's decision.
 #
-# The biggest capsule so far (3,255 lines) and the one with the most LIVE
-# surface: `macos` runs three ephemeral Tart-VM CI runners plus a GitLab lane
-# off these modules, and both runner modules sit in mkDarwin's BASE list, so
-# EVERY darwin composition — nix-personal's included — evaluates them.
+# The capsule with the most LIVE surface: `macos` declares three ephemeral
+# Tart-VM GitHub lanes off these modules — only `dontsell-vm` is enabled, the
+# other two are `enable = false` because a lane holds its guest slot for the
+# whole long-poll — plus the enabled GitLab lane. Both runner modules sit in
+# mkDarwin's BASE list, so EVERY darwin composition evaluates them: the fleet's
+# own and any future caller's alike (nix-personal was that other caller until
+# 2026-09-15).
 #
 # ---- THE FOUR THINGS THAT ARE LOAD-BEARING HERE -----------------------------
 #
