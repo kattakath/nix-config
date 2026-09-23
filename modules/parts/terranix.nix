@@ -1288,6 +1288,184 @@ let
       '';
     };
 
+  # The acceptance test the tier split is worth nothing without. It answers ONE
+  # question Cloudflare's docs do not: a per-server Access policy is documented to
+  # keep a non-matching server "hidden from the bot's tool list" — a statement
+  # about DISCOVERY. Nothing says what a `tools/call` NAMING a hidden server does.
+  # That distinction is the whole difference between a boundary and obscurity, and
+  # `modules/parts/identity.nix` is public, so every server name is already known.
+  #
+  # WHY A WRAPPER, and not two curl lines in a runbook: the worker credential
+  # lives in ENCRYPTED remote state, so reading it by hand means reconstructing
+  # TF_ENCRYPTION in an interactive shell — "the one secret-handling regression
+  # every other wrapper here exists to avoid" (see mkCfAccessOrgImport above).
+  # This reads the pair, uses it, and never prints it: stdout is server names and
+  # HTTP codes only.
+  mkMcpWorkerProbe =
+    { system }:
+    let
+      pkgs = pkgsFor system;
+    in
+    pkgs.writeShellApplication {
+      name = "mcp-worker-probe";
+      runtimeInputs = [
+        pkgs.opentofu
+        pkgs.coreutils
+        pkgs.curl
+        pkgs.jq
+      ];
+      text = ''
+        # The tool to attempt on a GATED server. Default is a READ-ONLY Gmail call
+        # on an account this operator owns, so a boundary failure costs a label
+        # list and nothing else. Override with argv[1] to probe another.
+        forbidden="''${1:-gmail-ismail-kattakath-com_ismail_kattakath_com_list_email_labels}"
+
+        if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
+          echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
+          exit 1
+        fi
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-mcp-public"
+        if [ ! -f "$state_dir/config.tf.json" ]; then
+          echo "ERROR: no rendered config at $state_dir — run mcp-public-apply first." >&2
+          exit 1
+        fi
+        cd "$state_dir"
+        umask 077
+
+        # The expectation is DERIVED from the rendered config, never retyped: an
+        # app carrying TWO policies is one the worker's Service Auth policy was
+        # attached to. So this cannot drift from what was actually applied.
+        expected="$(jq -r '
+          .resource.cloudflare_zero_trust_access_application
+          | to_entries
+          | map(select(.key | startswith("portal_")))
+          | map(select((.value.policies | length) == 2))
+          | map(.key | sub("^portal_"; ""))
+          | sort | .[]
+        ' config.tf.json)"
+        expected_n="$(printf '%s\n' "$expected" | grep -c . || true)"
+
+        ${tofuRemoteStatePrelude}
+        tofu init -input=false >&2
+
+        cid="$(tofu output -raw mcp_worker_client_id)"
+        csec="$(tofu output -raw mcp_worker_client_secret)"
+        if [ -z "$cid" ] || [ -z "$csec" ]; then
+          echo "ERROR: worker token outputs are empty — is mcp_worker applied?" >&2
+          exit 1
+        fi
+
+        portal="https://mcp.${domainName}/mcp"
+        hdrs="$(mktemp)"; body="$(mktemp)"
+        trap 'rm -f "$hdrs" "$body"' EXIT
+
+        # Streamable HTTP may answer as SSE; take the last `data:` payload if so.
+        payload() {
+          if head -c 1 "$1" | grep -q '{'; then cat "$1";
+          else grep '^data: ' "$1" | tail -1 | cut -c7-; fi
+        }
+
+        call() {
+          curl -sS --max-time 30 -o "$body" -D "$hdrs" -w '%{http_code}' \
+            -H "CF-Access-Client-Id: $cid" -H "CF-Access-Client-Secret: $csec" \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json, text/event-stream' \
+            ''${session:+-H "Mcp-Session-Id: $session"} \
+            -X POST "$portal" -d "$1"
+        }
+
+        session=""
+        echo "== step 0: initialize as the worker =="
+        code="$(call '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"mcp-worker-probe","version":"1"}}}')"
+        echo "  HTTP $code"
+        if [ "$code" != "200" ]; then
+          echo "  the worker cannot reach the portal at all — Service Auth is not on the front door." >&2
+          exit 1
+        fi
+        session="$(tr -d '\r' < "$hdrs" | awk 'tolower($1)=="mcp-session-id:"{print $2}')"
+
+        # MANDATORY, and omitting it is not a no-op: without this the portal
+        # answers tools/list with its OWN management tools and none of the
+        # upstreams, which reads exactly like "the worker can see nothing".
+        call '{"jsonrpc":"2.0","method":"notifications/initialized"}' >/dev/null
+
+        echo "== step 1: tools/list — what can the worker SEE? =="
+        code="$(call '{"jsonrpc":"2.0","id":2,"method":"tools/list"}')"
+        seen="$(payload "$body" | jq -r '[.result.tools[]?.name] | sort | .[]' 2>/dev/null || true)"
+        seen_n="$(printf '%s\n' "$seen" | grep -c . || true)"
+        echo "  HTTP $code, $seen_n tools visible"
+        echo "  worker-reachable servers per the rendered config ($expected_n):"
+        printf '%s\n' "$expected" | sed 's/^/    /'
+
+        leaked=""
+        for s in $expected; do :; done
+        while read -r t; do
+          [ -z "$t" ] && continue
+          hit=""
+          for s in $expected; do
+            case "$t" in "$s"_*) hit=1 ;; esac
+          done
+          [ -z "$hit" ] && leaked="$leaked $t"
+        done <<< "$seen"
+        if [ -n "$leaked" ]; then
+          echo "  LEAK: tools visible that belong to NO worker-tier server:$leaked"
+        else
+          echo "  OK: every visible tool belongs to a worker-tier server"
+        fi
+
+        echo "== step 1a: what does the PORTAL say this session has? =="
+        code="$(call '{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"portal_list_servers","arguments":{}}}')"
+        echo "  HTTP $code"
+        payload "$body" | jq -r '.result.content[]?.text // empty' 2>/dev/null | head -40 | sed 's/^/    /'
+
+        echo "== step 1b: can the worker TOGGLE a gated server ON? =="
+        echo "  the portal's own management tools are reachable, so the tier is"
+        echo "  only a boundary if they cannot re-enable what it excluded."
+        # Deliberately a bogus id FIRST: the error lists every server the toggle
+        # tool considers available, which is the roster this session could reach.
+        code="$(call '{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"portal_toggle_single_server","arguments":{"server_id":"__probe__","action":"enable"}}}')"
+        echo "  roster the toggle tool offers this session:"
+        payload "$body" | jq -r '.result.content[]?.text // empty' 2>/dev/null | tr ',' '\n' | sed 's/^ */    /' | head -40
+
+        # THE escalation test. `arxiv` is TRUSTED tier — deliberately NOT in the
+        # worker tier, and deliberately not a shell: if a non-identity session can
+        # switch it on, the per-server policy is decoration, and proving that with
+        # desktop-commander would be reckless.
+        echo "  attempting to ENABLE a gated server (arxiv, trusted tier):"
+        code="$(call '{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"portal_toggle_single_server","arguments":{"server_id":"arxiv","action":"enable"}}}')"
+        echo "    HTTP $code -> $(payload "$body" | jq -r '.result.content[]?.text // .error.message // empty' 2>/dev/null | head -c 200)"
+        code="$(call '{"jsonrpc":"2.0","id":11,"method":"tools/list"}')"
+        after="$(payload "$body" | jq -r '[.result.tools[]?.name] | length' 2>/dev/null || echo 0)"
+        echo "    tools visible AFTER the toggle: $after (was $seen_n)"
+        if [ "$after" -gt "$seen_n" ]; then
+          echo "    ESCALATION: a non-identity session switched on a server its policy excluded."
+        else
+          echo "    no escalation: the toggle did not widen this session."
+        fi
+
+        echo "== step 2: tools/call a GATED server — the question =="
+        echo "  target: $forbidden"
+        code="$(call "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"$forbidden\",\"arguments\":{}}}")"
+        out="$(payload "$body")"
+        echo "  HTTP $code"
+        echo "  response: $(printf '%s' "$out" | head -c 300)"
+        echo
+        if [ "$code" = "403" ]; then
+          echo "VERDICT: BOUNDARY — Access refused the call outright (403)."
+        elif printf '%s' "$out" | jq -e '.error' >/dev/null 2>&1; then
+          echo "VERDICT: FILTERED — the portal rejected the tool (JSON-RPC error),"
+          echo "  so a gated server is not merely hidden. Read the error above to"
+          echo "  confirm it is 'unknown tool' and not a server-side argument error:"
+          echo "  a server-side error would mean the call REACHED the gated server."
+        else
+          echo "VERDICT: OBSCURITY — the call SUCCEEDED against a gated server."
+          echo "  The tier filters DISCOVERY only. Since fleet.publicMcpServers is"
+          echo "  public, hiding a name bounds nothing; the answer is the second"
+          echo "  hostname argument recorded in infra/cloudflare/mcp-public.nix."
+        fi
+      '';
+    };
+
 in
 {
   # The renderers, exported for private/external callers (see the header).
@@ -1334,6 +1512,7 @@ in
           action = "apply";
         };
         mcp-public-token = mkMcpPublicToken { inherit system; };
+        mcp-worker-probe = mkMcpWorkerProbe { inherit system; };
         mcp-public-sync = mkMcpPublicSync { inherit system; };
         cf-zones-apply = mkCfZonesTofu {
           inherit system;
