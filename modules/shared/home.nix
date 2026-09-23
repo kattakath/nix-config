@@ -395,6 +395,12 @@ in
     # upstream's home.file entry, so it has to be loaded at all — which this
     # explicit list, not auto-discovery, is what guarantees.
     ./claude-code-settings.nix
+    # Nine Spotlight-findable .app bundles, one per fleet operation (activate,
+    # flake check, deploy nixpi, …). Its own module rather than more
+    # `home.file."Applications/…"` lines here: the module system merges the
+    # two definitions, so the mapping stays one `mapAttrs'` instead of nine
+    # hand-written entries. macos-gated internally.
+    ./spotlight-actions.nix
     ./chromium.nix # ungoogled-chromium (Homebrew cask) config: sideloaded iCloud Passwords + its native host
     ./default-browser.nix # local.defaultBrowser — the macOS LaunchServices http/https claim
     # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
