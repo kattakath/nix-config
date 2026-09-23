@@ -136,11 +136,18 @@
     # 7.0.4 wrapper no longer exports it) and aborted activation. The override
     # existed because nix-homebrew's default was 6.0.11 (2026-08); it is newer now.
     #
-    # PINNED to 09a921d (its brew 6.0.22) until brew 7 can load the
-    # viarotel-org/escrcpy cask: 7.0 disabled `depends_on macos: :catalina`, so
-    # `brew bundle` aborts activation. Upstream fix: viarotel-org/homebrew-escrcpy#61.
-    # UNPIN via kattakath/nix-config#613 once it merges: the cask API follows the
-    # newest brew, so a 6.x pin cannot stay for long.
+    # PINNED to 09a921d (its brew 6.0.22): brew 7 cannot load the viarotel-org/escrcpy
+    # cask. 7.0 disabled `depends_on macos: :catalina`, so `brew bundle` aborts activation.
+    #
+    # UNPIN ONLY WHEN AN UPGRADE IS REQUIRED — e.g. `brew bundle` fails because 6.0.22
+    # cannot parse a cask or formula (the cask API follows the newest brew; 6.0.11 hit
+    # exactly this in 2026-08). Until then this pin needs no attention. When it is:
+    #   1. PREREQUISITE — is viarotel-org/homebrew-escrcpy#61 merged, i.e. does the
+    #      tap's Casks/escrcpy.rb no longer say `macos: :catalina`?
+    #      `gh pr view 61 -R viarotel-org/homebrew-escrcpy --json state`
+    #      Not merged: brew 7 still breaks escrcpy. Resolve that first (fork the tap
+    #      with the #61 change, or drop the cask) before unpinning.
+    #   2. Then unpin per kattakath/nix-config#613.
     nix-homebrew.url = "github:zhaofengli/nix-homebrew/09a921d0181146cf6163ec2cc1db7b6fd539a885";
 
     # Nix -> OpenTofu/Terraform JSON renderer for the Cloudflare-side tunnel
