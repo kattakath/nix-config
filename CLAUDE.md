@@ -397,7 +397,10 @@ Only the pointers whose absence would cause a WRONG ACTION are duplicated here:
   [`ADR-002`](docs/monoflake-capsule-adr.md) (**read §9 first** — what execution found the
   design got wrong), [`ADR-003`](docs/externalization-boundary-adr.md) (decided, NOT
   implemented), [`ADR-004`](docs/secrets-recovery-and-identity-adr.md) (phase 1 of 3 shipped),
-  [`ADR-005`](docs/iac-coverage-adr.md) (**IMPLEMENTED**; §8c is its doc-rot record).
+  [`ADR-005`](docs/iac-coverage-adr.md) (**IMPLEMENTED**; §8c is its doc-rot record),
+  [`ADR-006`](docs/mcp-gateway-succession-adr.md) (ContextForge named as `mcp-proxy`'s successor —
+  **name only, NOT implemented**; **read §3**: a ContextForge gateway REJECTS stdio, so each server
+  needs a `mcpgateway.translate` sidecar).
 - [`docs/mcp-public-exposure-design.md`](docs/mcp-public-exposure-design.md) — **read §10
   first**: the two-proxy model §§1-6 describe was collapsed 2026-09-22.
 - [`docs/secrets-and-keychain.md`](docs/secrets-and-keychain.md) — agenix vault, the
