@@ -77,6 +77,42 @@ let
       "$schema" = "https://json.schemastore.org/claude-code-settings.json";
     }
   );
+
+  # The merge itself, shared by the two activation entries below. Idempotent:
+  # running it twice yields the same file.
+  mergeScript = ''
+    settings="${configDir}/settings.json"
+    run mkdir -p "${configDir}"
+
+    # MIGRATION: previous generations left a read-only store SYMLINK here.
+    # Replace it with a real file once; thereafter this is a no-op.
+    if [ -L "$settings" ]; then
+      run rm -f "$settings"
+    fi
+
+    # A corrupt user file must not brick activation — back it up and start from
+    # an empty object rather than failing the whole switch. Claude Code's own
+    # words for the managed equivalent are that an unparseable document means
+    # "none of its settings are in effect", so silently continuing on top of
+    # garbage would be the worse outcome.
+    base="{}"
+    if [ -s "$settings" ]; then
+      if ${pkgs.jq}/bin/jq -e . "$settings" > /dev/null 2>&1; then
+        base=$(cat "$settings")
+      else
+        run cp "$settings" "$settings.corrupt-$(date +%Y%m%d%H%M%S)"
+        warnEcho "claude-code: $settings was not valid JSON — backed it up and reset the Nix floor onto {}."
+      fi
+    fi
+
+    # RIGHT OPERAND WINS, recursively: the operator's keys survive, Nix's keys
+    # are restored. jq's `*` replaces ARRAYS wholesale rather than concatenating,
+    # which is exactly what permissions.deny needs — the floor is reinstated
+    # entire, not appended to whatever was there.
+    merged=$(printf '%s' "$base" | ${pkgs.jq}/bin/jq -s --slurpfile nix ${nixSettings} '.[0] * $nix[0]')
+    run install -m 600 /dev/null "$settings"
+    printf '%s\n' "$merged" > "$settings"
+  '';
 in
 # isDarwin only, matching claude-brain.nix and claude-guardrails.nix:
 # programs.claude-code is darwin-only in this fleet (home.nix).
@@ -92,37 +128,16 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
   # same file. `entryBetween before after` (home-manager modules/lib/dag.nix:123).
   home.activation.claudeCodeSettingsMerge =
     lib.hm.dag.entryBetween [ "claudeCodePlugins" ] [ "linkGeneration" ]
-      ''
-        settings="${configDir}/settings.json"
-        run mkdir -p "${configDir}"
+      mergeScript;
 
-        # MIGRATION: previous generations left a read-only store SYMLINK here.
-        # Replace it with a real file once; thereafter this is a no-op.
-        if [ -L "$settings" ]; then
-          run rm -f "$settings"
-        fi
-
-        # A corrupt user file must not brick activation — back it up and start from
-        # an empty object rather than failing the whole switch. Claude Code's own
-        # words for the managed equivalent are that an unparseable document means
-        # "none of its settings are in effect", so silently continuing on top of
-        # garbage would be the worse outcome.
-        base="{}"
-        if [ -s "$settings" ]; then
-          if ${pkgs.jq}/bin/jq -e . "$settings" > /dev/null 2>&1; then
-            base=$(cat "$settings")
-          else
-            run cp "$settings" "$settings.corrupt-$(date +%Y%m%d%H%M%S)"
-            warnEcho "claude-code: $settings was not valid JSON — backed it up and reset the Nix floor onto {}."
-          fi
-        fi
-
-        # RIGHT OPERAND WINS, recursively: the operator's keys survive, Nix's keys
-        # are restored. jq's `*` replaces ARRAYS wholesale rather than concatenating,
-        # which is exactly what permissions.deny needs — the floor is reinstated
-        # entire, not appended to whatever was there.
-        merged=$(printf '%s' "$base" | ${pkgs.jq}/bin/jq -s --slurpfile nix ${nixSettings} '.[0] * $nix[0]')
-        run install -m 600 /dev/null "$settings"
-        printf '%s\n' "$merged" > "$settings"
-      '';
+  # AND AGAIN AFTER claudeCodePlugins, because that step's CLI calls write this
+  # file too. `claude plugin marketplace remove` + `add` (the re-registration a
+  # marketplace SOURCE change triggers) rewrites extraKnownMarketplaces.<name>
+  # without the Nix-declared `autoUpdate`. Measured 2026-09-23: the first switch
+  # after moving `kattakath` from a store path to git left autoUpdate absent
+  # until a second switch. The first merge still has to run BEFORE the plugins
+  # step, so the CLI starts from a file that already carries the floor.
+  home.activation.claudeCodeSettingsReassert = lib.hm.dag.entryAfter [
+    "claudeCodePlugins"
+  ] mergeScript;
 }
