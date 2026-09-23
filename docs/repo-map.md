@@ -1099,6 +1099,27 @@ waves 5-6 absorb them).
   thing a drift check must not do. Read-only: it prints remedies, never runs them. Wired as
   step E3 of the `fleet-doctor` skill, under **always confirm** — bootstrapping a daemon the
   operator deliberately booted out is exactly the wrong move.
+- **`logging.nix`** (macos only) — rotation for the launchd agent logs, via
+  `system.newsyslog.{enable,files}` (pinned `modules/system/newsyslog.nix:11-160`,
+  registered `module-list.nix:45`). Upstream, and **never used by this fleet** until
+  2026-09-22 — which is how `~/Library/Logs` reached **231 MB**.
+  **Why only some logs.** launchd opens `StandardOutPath` **once at spawn** and hands the fd
+  to the child; macOS `newsyslog` does rename+create and has **no `copytruncate`** (`man 5
+  newsyslog.conf`: flags are `B C D G J N U Z` only). For a long-lived `KeepAlive` agent,
+  rotation therefore renames the file out from under a process still writing to that inode —
+  the archive grows, the new file stays empty, nothing is reclaimed. Verified with `lsof`:
+  `mcp-tunnel-connector` (pid 832) and `mcp-gateway` (pid 61665) each hold fd **1u and 2u**
+  directly on their log. So this covers only agents that **re-exec** (one-shot, interval,
+  queue-driven), which genuinely re-open the path on the next spawn. The long-lived set is
+  deliberately absent — rotating those needs a pid file plus `signal`, which needs the
+  launcher wrapper to write one first. Do not "complete" the list without that.
+  **Paths are derived, not typed**, off the composed agents, because a hand-written list
+  walks into two traps: `claude-desktop-mcp-sync` declares `StandardErrorPath` and **no**
+  `StandardOutPath` (enumerate one key and the file is silently missed), and `media-queue` +
+  `media-queue-power` declare the **same** path — 4 declarations, one file — so a per-agent
+  list double-covers it. Reading both keys and `lib.unique`-ing makes both structural. What
+  stays hand-picked is the only part needing judgement: *which agents re-exec*.
+  Gate: `sudo newsyslog -nv -f <rendered>` parses every entry and resolves every path.
 - **`nix-homebrew.nix`** — Homebrew-itself install via `nix-homebrew`.
 - **`xcode-license.nix`** (macos only) — runs *before* `brew bundle` to `mas install` Xcode
   when declared in `masApps` and `xcodebuild -license accept`, so formulae are not blocked by
