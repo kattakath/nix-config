@@ -151,8 +151,10 @@ let
   ];
 
   # ---- MCP servers exposed on the public gateway ---------------------------
-  # MUST mirror hosts/macos.nix's `local.mcpGateway.public` — both read this
-  # one value, so the two can never drift (docs/mcp-public-exposure-design.md).
+  # THE one roster. `local.mcpGateway.public` named an opt-in subset until
+  # 2026-09-22; it and the second proxy are gone, so this list is both what the
+  # gateway hosts and what the portal registers, and
+  # `checks.<system>.mcp-published-parity` fails the build if those two diverge.
   # Consumed by modules/parts/terranix.nix's mcpPublicConfig/mkMcpPublicTofu.
   #
   # EVERY hosted server, by operator decision (2026-09-22). It must EQUAL
@@ -164,15 +166,28 @@ let
   # process, it hosts all of these, and a leaked Access service token reaches all
   # of it — which is the same statement as before, minus the pretence that a
   # subset was protecting anything. The tiers that argument was written about, named so the cost stays
-  # legible rather than buried in an alphabetical list:
+  # legible rather than buried in an alphabetical list. They PARTITION the 26 names
+  # below — the bracketed counts must sum to 26, so the arithmetic is checkable
+  # instead of decorative, and a name added below without a tier here shows up as a
+  # sum that no longer lands:
   #   - machine control : macos-automator (arbitrary AppleScript = RCE on this
-  #                       Mac), chrome-devtools (live browser cookies/sessions),
-  #                       mobile-mcp (the attached device)
-  #   - personal        : gmail-* (four accounts), telegram (the operator's own
-  #                       account), wordpress + wordpress-adapter (prod writes)
+  #                       Mac), desktop-commander (a shell, so the same reach by a
+  #                       different door), chrome-devtools (live browser
+  #                       cookies/sessions), mobile-mcp (the attached device)   [4]
+  #   - personal        : gmail-* (four accounts), wordpress + wordpress-adapter
+  #                       (prod writes)                                         [6]
   #   - credentialed    : github (PAT, repo write), cloudflare (this account),
-  #                       postgres (the local pgvector store), apify (paid)
-  #   - reference       : the remaining ten are stateless lookup/compute
+  #                       postgres (the local pgvector store), apify (paid)      [4]
+  #   - reference       : the remaining twelve hold no credential and reach nothing
+  #                       personal — lookup/compute, plus `memory`'s local scratch
+  #                       graph                                                [12]
+  #
+  # desktop-commander is tiered as MACHINE CONTROL deliberately, not as reference:
+  # modules/shared/mcp.nix and docs/mcp-gateway.md both call it the shell/RCE
+  # surface, and a tiering that left it in the "stateless lookup/compute"
+  # remainder would understate the published surface by exactly the server whose
+  # publication was the operator decision of 2026-09-22.
+  #
   # Narrow it by deleting names here; the next apply then DROPS their Cloudflare
   # objects, which the mkMcpPublicTofu drop-guard will make you confirm.
   #
