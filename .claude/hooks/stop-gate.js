@@ -240,12 +240,34 @@ try {
   }
 }
 
+// Both `git ls-files` queries below inherit the rev-parse failure mode above: an
+// empty answer and a failed query are indistinguishable, so swallowing one skips
+// the gate it feeds while the stop still reports green.
+const gitQueryFailed = (e, what, skipped) => {
+  const msg = `${(e && e.stderr) || ""}${(e && e.message) || ""}`;
+  block(
+    `The Stop gate could not ${what}, so ${skipped} — NOTHING was checked there. ` +
+      `This is a hard block rather than a silent pass because a gate that cannot fire ` +
+      `is worse than no gate.\n\n` +
+      `git said: ${msg.trim().split("\n")[0] || "(no output)"}\n\n` +
+      `Same causes as the rev-parse block above: a cross-owned checkout ("dubious ` +
+      `ownership"), a broken index, or git missing from PATH.`,
+  );
+  // Unreachable TODAY — block() ends in process.exit(0). It is here for exactly
+  // the reason the rev-parse branch above uses an explicit else: make block()
+  // returnable (unit-testing it is the obvious reason, and this file has a suite)
+  // and BOTH callers would fall through with an empty answer, silently restoring
+  // the swallow this helper was written to remove — and emitting a second decision
+  // object on stdout behind the first.
+  process.exit(0);
+};
+
 // 1. Git purity — untracked .nix files make flake evaluation untrustworthy.
 let untracked = "";
 try {
   untracked = run("git ls-files --others --exclude-standard -- '*.nix'").trim();
-} catch {
-  /* ignore */
+} catch (e) {
+  gitQueryFailed(e, "list untracked files", "git purity did NOT run");
 }
 if (untracked) {
   block(
@@ -258,8 +280,8 @@ if (untracked) {
 let nixFiles = "";
 try {
   nixFiles = run("git ls-files -- '*.nix'").trim();
-} catch {
-  /* ignore */
+} catch (e) {
+  gitQueryFailed(e, "list tracked .nix files", "neither the syntax check nor `nix flake check` ran");
 }
 if (nixFiles && has("nix-instantiate")) {
   for (const f of nixFiles.split("\n").filter(Boolean)) {
