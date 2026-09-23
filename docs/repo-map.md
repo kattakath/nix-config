@@ -1061,6 +1061,33 @@ waves 5-6 absorb them).
   `enable`/`onActivation` with `cleanup = "uninstall"`/`taps`. The actual
   `brews`/`casks`/`masApps` lists live **per host** in `hosts/<host>.nix` so each darwin
   host carries its own app set.
+- **`launchd-reconcile.nix`** — option-free. Brings back a `launchd.daemons` unit that has left
+  the system domain, at the next activation **and** the next boot. Exists because nix-darwin's
+  launchd activation is **diff-gated** (`modules/system/launchd.nix:19`): an unchanged plist means
+  the reload body never runs, so an absent daemon is never re-bootstrapped — upstream #1199, and
+  the hole Home Manager does **not** have (it probes `launchctl print` and re-bootstraps,
+  `modules/launchd/default.nix:411-419`). That is why 22 user agents stayed healthy through the
+  2026-09-22 outage while `activate-agenix` and both `github-runner-macos-*` daemons sat outside
+  the domain for ~21h, taking `/run/agenix` — and so all three host-decrypted secrets and five CI
+  lanes — with them. The preserved launchd ring held 24k `org.nix` lines across four activations
+  that day and, for those three labels, only `Could not find job with label …`; never a spawn.
+  `launchctl load`'s exit code is documented as meaningless, so each of those activations reported
+  success. `ollama-daemon.nix:212` records the same class costing 10h52m earlier.
+  **Two hooks, deliberately.** `postActivation` covers `darwin-rebuild switch` — *not*
+  `activationScripts.launchd` (upstream `openssh.nix:115`'s phase), because
+  `activation-scripts.nix:128-140` orders `launchd → userLaunchd → … → postActivation` and
+  reconciling last never races a plist the same run is still writing. `launchd.daemons.activate-system.script`
+  (`mkAfter`; `script` is `types.lines`) covers **boot**, because the boot daemon runs only
+  `checks`, `etc` and `keyboard` (`services/activate-system/default.nix:68-70`) — a switch-only fix
+  leaves the next reboot broken. Merging into upstream's own `RunAtLoad` daemon also inherits its
+  sanctioned `/bin/sh -c wait4path` arg0, so the boot half is mount-protected for free.
+  **Not a supervisor**: two launchctl verbs in an idempotent probe, reusing the `enable` +
+  `bootstrap` idiom nix-darwin already ships in `services/openssh.nix:115-116`. Not `kickstart` —
+  that only restarts a job **already** in the domain (`karabiner-elements/default.nix:44`) and
+  cannot bootstrap an absent one. Escape hatch: touch `/etc/nix-darwin/launchd-hold/<label>` and
+  the reconciler skips it, so a deliberate `bootout` survives the next activation. The disabled DB
+  cannot serve as that signal — `bootout` does not write it, and all six labels read `=> enabled`
+  while three were absent.
 - **`packages/launchd-doctor.nix`** (app `nix run .#launchd-doctor`) — runtime health check for
   every launchd unit this fleet installs. Covers the three things that **cannot** be flake
   checks, because all three are properties of the running machine rather than the evaluated

@@ -82,42 +82,31 @@ let
   # not bare `open`. No custom .app icon: unsigned store paths always show
   # "unidentified developer" without a paid Developer ID.
   #
-  # Quiet login launch: `open -g -j` alone is not enough — Slack/Messages/Mail/
-  # Docker (and most Electron apps) ignore `-j` and raise a window after init.
-  # We still pass -g/-j, then re-hide the process via System Events for ~12s so
-  # late window raises never steal focus. Dock / menu-bar icons stay; only the
+  # Quiet login launch: `open -g -j` alone is not enough — Slack/Messages/Mail
+  # (and most Electron apps) ignore `-j` and raise a window after init. We still
+  # pass -g/-j, then re-hide the process via System Events for ~12s so late
+  # window raises never steal focus. Dock / menu-bar icons stay; only the
   # window is suppressed. Needs Accessibility for /usr/bin/osascript (already
   # granted for the MCP gateway — hide is best-effort if missing).
   #
   #   mkNixAgent { suffix = "slack"; app = "Slack"; }
-  #   mkNixAgent {
-  #     suffix = "docker"; app = "Docker";
-  #     processNames = [ "Docker" "Docker Desktop" ];
-  #     extraOpenArgs = [ "--unattended" ];
-  #   }
+  #   mkNixAgent { suffix = "foo"; app = "Foo"; processNames = [ "Foo" "Foo Helper" ]; }
   mkNixAgent =
     {
       suffix,
       app,
       # System Events process name(s) to force-hide (may differ from `open -a`).
       processNames ? [ app ],
-      # Extra args after `open … --args` (app-specific, e.g. Docker --unattended).
-      extraOpenArgs ? [ ],
     }:
     let
-      # AppleScript list literal: {"Slack", "Docker Desktop"}
+      # AppleScript list literal: {"Slack", "Slack Helper"}
       procList = lib.concatMapStringsSep ", " (n: ''"${n}"'') processNames;
-      openArgsShell = lib.concatMapStringsSep " " lib.escapeShellArg extraOpenArgs;
-      openCmd =
-        if extraOpenArgs == [ ] then
-          "/usr/bin/open -g -j -a ${lib.escapeShellArg app}"
-        else
-          "/usr/bin/open -g -j -a ${lib.escapeShellArg app} --args ${openArgsShell}";
+      openCmd = "/usr/bin/open -g -j -a ${lib.escapeShellArg app}";
     in
     {
       serviceConfig = {
         ProgramArguments = [
-          "${pkgs.writeShellScriptBin "nix-${suffix}" ''
+          "${pkgs.writeShellScriptBin "nix-open-${suffix}" ''
             set -eu
             ${openCmd}
             # Re-hide while the app finishes starting (Electron often shows late).
@@ -140,7 +129,7 @@ let
               /bin/sleep 0.5
               i=$((i + 1))
             done
-          ''}/bin/nix-${suffix}"
+          ''}/bin/nix-open-${suffix}"
         ];
         RunAtLoad = true;
       };
@@ -507,21 +496,11 @@ in
   launchd.user.agents = lib.mkIf (config.networking.hostName == "macos") {
     # Agent attr names (open-*) keep launchd Labels stable so existing BTM
     # toggle state is preserved. Turn OFF each app's own "Open at Login" so we
-    # don't double-start (Docker AutoStart is also forced off at activation).
+    # don't double-start.
     open-maccy = mkNixAgent {
       suffix = "maccy";
       app = "Maccy";
     }; # menu-bar only (LSUIElement)
-    open-docker = mkNixAgent {
-      suffix = "docker";
-      app = "Docker";
-      processNames = [
-        "Docker"
-        "Docker Desktop"
-      ];
-      # Backend-first start; dashboard still may flash — re-hide covers it.
-      extraOpenArgs = [ "--unattended" ];
-    };
     open-slack = mkNixAgent {
       suffix = "slack";
       app = "Slack";
@@ -636,75 +615,40 @@ in
   };
 
   system.activationScripts.postActivation.text = lib.mkIf (config.networking.hostName == "macos") ''
-        # Docker Desktop "Start when you log in" (settings-store AutoStart) races our
-        # quiet open-docker agent and opens the dashboard.
-        #
-        # grepped nix-darwin/modules for settings-store / group.com.docker /
-        # "Group Containers" — no option exists → custom, because this setting is
-        # NOT a defaults domain at all: it lives in a Group-Container JSON file
-        # (~/Library/Group Containers/group.com.docker/settings-store.json), so
-        # even system.defaults.CustomUserPreferences — the upstream escape hatch
-        # for arbitrary keys (modules/system/defaults/CustomPreferences.nix:22) —
-        # cannot reach it, since it writes through `defaults`. Hence the JSON
-        # rewrite below, which is `|| true`-guarded and idempotent.
-        #
-        # Keep AutoStart false so
-        # only org.nixos.open-docker drives login start (menu-bar / no UI flash).
-        docker_settings="${home}/Library/Group Containers/group.com.docker/settings-store.json"
-        if [ -f "$docker_settings" ]; then
-          /usr/bin/python3 - "$docker_settings" <<'PY' || true
-    import json, sys
-    path = sys.argv[1]
-    try:
-        with open(path) as f:
-            data = json.load(f)
-    except Exception:
-        sys.exit(0)
-    if data.get("AutoStart") is False:
-        sys.exit(0)
-    data["AutoStart"] = False
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
-    print("docker: AutoStart forced off (open-docker owns login start)", file=sys.stderr)
-    PY
-          chown ${loginName}:staff "$docker_settings" 2>/dev/null || true
-        fi
-
-        # Propagate the GUI PATH (see § GUI PATH above) to Dock-launched apps.
-        # macOS gives a launched app the LAUNCHING process's environment, so an
-        # app opened from the Dock inherits Dock's snapshot — not the current
-        # launchd value. nix-darwin restarts Dock in activationScripts.defaults,
-        # which runs BEFORE activationScripts.userLaunchd emits `launchctl
-        # setenv` (see the generated activate script: Dock restart ~line 1377,
-        # setenv ~line 1481), so Dock always holds the PREVIOUS environment and
-        # every Dock-launched app misses the fix. postActivation is the last
-        # hook, hence the only place this can be corrected.
-        #
-        # grepped nix-darwin/modules for `killall Dock`/`killall cfprefsd` —
-        # ONE hit, and it is the problem rather than the solution:
-        # modules/system/defaults-write.nix:156 does
-        # `killall -qu <primaryUser> Dock || true`, gated at :154 on
-        # `length dock > 0` (always satisfied here) and emitted from
-        # activationScripts.defaults — which activation-scripts.nix:126 orders
-        # BEFORE userLaunchd's setenv at :129. So upstream already restarts the
-        # Dock, just too early to see the new environment, and exposes no
-        # ordering control and no separate GUI-env refresh to fix that with.
-        # Hence the restart here, after the setenv. (An earlier version of this
-        # comment claimed zero hits — corrected 2026-09-06; it contradicted the
-        # ordering argument three lines above it.)
-        #
-        # Stamped so a no-op activation does not bounce the Dock: only restart
-        # when the value actually changed. The stamp lives in /run, which
-        # nix-darwin recreates at boot, so a reboot re-arms it once.
-        gui_path_stamp=/run/nix-darwin-gui-path-stamp
-        gui_path_want=$(sudo --user=${loginName} -- launchctl getenv PATH || true)
-        if [ -n "$gui_path_want" ] \
-          && [ "$(cat "$gui_path_stamp" 2>/dev/null)" != "$gui_path_want" ]; then
-          echo "refreshing Dock so GUI apps inherit the new PATH..." >&2
-          killall Dock 2>/dev/null || true
-          printf '%s' "$gui_path_want" > "$gui_path_stamp"
-        fi
+    # Propagate the GUI PATH (see § GUI PATH above) to Dock-launched apps.
+    # macOS gives a launched app the LAUNCHING process's environment, so an
+    # app opened from the Dock inherits Dock's snapshot — not the current
+    # launchd value. nix-darwin restarts Dock in activationScripts.defaults,
+    # which runs BEFORE activationScripts.userLaunchd emits `launchctl
+    # setenv` (see the generated activate script: Dock restart ~line 1377,
+    # setenv ~line 1481), so Dock always holds the PREVIOUS environment and
+    # every Dock-launched app misses the fix. postActivation is the last
+    # hook, hence the only place this can be corrected.
+    #
+    # grepped nix-darwin/modules for `killall Dock`/`killall cfprefsd` —
+    # ONE hit, and it is the problem rather than the solution:
+    # modules/system/defaults-write.nix:156 does
+    # `killall -qu <primaryUser> Dock || true`, gated at :154 on
+    # `length dock > 0` (always satisfied here) and emitted from
+    # activationScripts.defaults — which activation-scripts.nix:126 orders
+    # BEFORE userLaunchd's setenv at :129. So upstream already restarts the
+    # Dock, just too early to see the new environment, and exposes no
+    # ordering control and no separate GUI-env refresh to fix that with.
+    # Hence the restart here, after the setenv. (An earlier version of this
+    # comment claimed zero hits — corrected 2026-09-06; it contradicted the
+    # ordering argument three lines above it.)
+    #
+    # Stamped so a no-op activation does not bounce the Dock: only restart
+    # when the value actually changed. The stamp lives in /run, which
+    # nix-darwin recreates at boot, so a reboot re-arms it once.
+    gui_path_stamp=/run/nix-darwin-gui-path-stamp
+    gui_path_want=$(sudo --user=${loginName} -- launchctl getenv PATH || true)
+    if [ -n "$gui_path_want" ] \
+      && [ "$(cat "$gui_path_stamp" 2>/dev/null)" != "$gui_path_want" ]; then
+      echo "refreshing Dock so GUI apps inherit the new PATH..." >&2
+      killall Dock 2>/dev/null || true
+      printf '%s' "$gui_path_want" > "$gui_path_stamp"
+    fi
   '';
 
   # Touch ID for sudo — this fleet's sole Mac is Apple Silicon with a sensor.
