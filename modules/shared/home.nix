@@ -1028,6 +1028,17 @@ in
       # reverts them; change them HERE instead.
       settings = {
         theme = "auto";
+        # DECLARED AND VALID, BUT NOT ALWAYS IN EFFECT — do not "fix" it by
+        # deleting it. Verified 2026-09-22 against the published schema
+        # (json.schemastore.org/claude-code-settings.json): `tui` is a real key,
+        # enum fullscreen|default, and it corresponds to the /tui command.
+        # Measured the same day: with this set, `/tui default` still answered
+        # "Already using the default renderer" — so the session had fallen back.
+        # The fullscreen path carries `requires: { ink: true }` in the binary, so
+        # a terminal or session shape that cannot give it the alt-screen renderer
+        # silently gets the classic one instead. `~/.claude.json` holds no `tui`
+        # key either, so this file is the only declaration; the fallback is a
+        # RUNTIME decision, not lost config.
         tui = "fullscreen";
         skipDangerousModePermissionPrompt = true;
         skipWorkflowUsageWarning = true;
@@ -1043,7 +1054,33 @@ in
         # which is a DIFFERENT predicate: an account with the collector off but
         # isMacosHost true would keep exporting into a collector that is not
         # running, and its own /routing-review would read nothing.
-        env = lib.mkIf config.local.claudeOtel.enable {
+        env = {
+          # Keeps the input box's suggested-next-prompt alive under a usage
+          # WARNING. Not a plain on/off switch — the feature is already on by
+          # default (`promptSuggestionEnabled`, absent = enabled). This value
+          # is read a second time, as the only override in the gate that
+          # otherwise silently suppresses suggestions when the account is
+          # near a usage limit (claude-code 2.1.260):
+          #
+          #   let r = status === "allowed_warning"
+          #           && CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION === true;
+          #   if (status !== "allowed" && !r) return "rate_limit";
+          #
+          # So on a heavy account — which this one is — the suggestions vanish
+          # with no message the moment usage reaches `allowed_warning`, and
+          # come back only with this set. It does NOT override a hard limit.
+          #
+          # The other five gates are NOT settable and are worth knowing before
+          # concluding the feature is broken: `cache_cold` (last turn's
+          # input + cache_creation + output over 10,000 tokens — measured here
+          # at only 2.3% of turns), `unfocused` (terminal blurred when the turn
+          # ENDS, which a long agent run makes likely), `elicitation_active`
+          # (any connected MCP client with a pending elicitation),
+          # `pending_permission`, `plan_mode`, and `early_conversation`
+          # (first turn). Every one of them returns silently.
+          CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION = "true";
+        }
+        // lib.optionalAttrs config.local.claudeOtel.enable {
           CLAUDE_CODE_ENABLE_TELEMETRY = "1";
           OTEL_LOGS_EXPORTER = "otlp";
           OTEL_EXPORTER_OTLP_PROTOCOL = "grpc";
