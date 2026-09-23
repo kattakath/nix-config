@@ -65,6 +65,8 @@ let
       iproute2
       systemd
       gnused
+      gnugrep
+      gawk
       coreutils
     ];
     text = ''
