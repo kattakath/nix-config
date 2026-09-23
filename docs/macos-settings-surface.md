@@ -292,7 +292,7 @@ depend on.
 
 | Agents | Host |
 |---|---|
-| `open-maccy` / `open-docker` / `open-slack` / `open-mail` / `open-messages` | **macos only** |
+| `open-maccy` / `open-slack` / `open-mail` / `open-messages` | **macos only** |
 | MCP gateway + public tunnel + RAG (`ollama-local`, `postgres-pgvector`) | **macos only** |
 | `nix-file-rotation-desktop` / `nix-file-rotation-downloads` | **macos only** (the gate protected the former `macvm` guest's VirtioFS-shared `~/Downloads` and is kept — see [`macvm-readd-runbook.md`](macvm-readd-runbook.md)) |
 
@@ -304,14 +304,22 @@ open-maccy = mkNixAgent { suffix = "maccy"; app = "Maccy"; };  # → …/bin/nix
 ```
 
 Each opener runs `open -g -j`, then re-hides the process via System Events for
-~12s (Slack/Messages/Mail/Docker ignore `-j` and raise a window after init).
-Dock icons and menu-bar extras stay; only the window is suppressed. Needs
-Accessibility for `/usr/bin/osascript` (same grant as the MCP gateway).
+~12s (Slack/Messages/Mail ignore `-j` and raise a window after init). Dock icons
+and menu-bar extras stay; only the window is suppressed. Needs Accessibility for
+`/usr/bin/osascript` (same grant as the MCP gateway).
 
 Also: turn OFF each app's own "Open at Login" / SMAppService toggle so you don't
-get double registration. Docker's `settings-store.json` `AutoStart` is forced
-**false** at activation (our `open-docker` owns login start, with
-`--unattended` + re-hide). Docker's privileged `com.docker.vmnetd` is separate.
+get double registration.
+
+**There was a sixth opener, `open-docker`, and a `settings-store.json` `AutoStart`
+rewriter beside it.** Both were deleted on 2026-09-22: Docker Desktop was removed
+from this Mac on 2026-09-16 (`hosts/macos.nix` records why — its privileged helper
+bound the machine-wide socket to a username that was deleted the next day), and
+Colima replaced it. The agent kept running `open -a Docker` against a deleted
+bundle and was the **only** failing `open-*` agent — `exit = 1` at every login,
+and unlogged, because `mkNixAgent` sets no `StandardOutPath`. The rewriter was
+already an activation no-op: its target still exists and already holds
+`"AutoStart": false`, so it early-returned on every run. Do not re-add either.
 
 ## 6. Ecosystem projects (for the toolbox)
 
