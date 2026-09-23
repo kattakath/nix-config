@@ -69,7 +69,7 @@ ast-grep scan --no-ignore hidden .           # Same scan by hand (devShell); wit
 ast-grep test --skip-snapshot-tests          # Prove each rule still fires (fixtures in ast-grep/rule-tests/)
 nix build .#checks.<system>.capsule-registry # readDir modules/features == the capsules import-tree loaded
 nix build .#checks.<system>.claude-md-budget # THIS file must stay under 40,000 BYTES (wc -c) — a GATE
-scripts/drv-snapshot.sh --compare .baseline/wave0-final   # "moved code, changed no build" (§ Testing)
+scripts/drv-snapshot.sh --compare .baseline/wave0-final   # "moved code, changed no build" (see § Testing)
 # Agent hygiene (LEAN/DRY/docs drift → fix → fmt → check): /hygiene  or skill nix-hygiene
 
 # Activation
@@ -78,7 +78,7 @@ activate                                     # Activate macos, from ANY director
                                              #   No --flake/#attr: modules/parts/hosts.nix plants /etc/nix-darwin/flake.nix,
                                              #   which darwin-rebuild resolves, and the attr defaults to LocalHostName (= macos).
                                              #   `sudo darwin-rebuild switch` works too but names nothing it is about to build.
-nix run github:kattakath/nix-config#macos    # FIRST activation only, straight from the flake (before `activate` exists)
+nix run github:kattakath/nix-config#macos    # FIRST activation only, straight from the flake (before `activate` exists). Self-elevates.
 nixos-rebuild switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com
                                              # Activate the Pi: builds HERE (substituting the CI-warmed closure from
                                              #   Cachix), activates THERE. NEVER --build-host — the Pi must not build
@@ -110,7 +110,7 @@ nix run .#nixpi-provision                     # Plant/update token + Wi-Fi on a 
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-tunnel-apply     # nixpi's tunnel + ingress + CNAME; PRINTS the connector token
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-zones-{plan,apply}         # kattakath.com DNS records
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#mcp-public-{apply,sync,token}  # published MCP gateway; `sync` re-polls the portal
-nix run .#gcp-{foundation,budget}-{plan,apply}              # GCP APIs/SA/state bucket; the 5 CAD ALERT
+nix run .#gcp-{foundation,budget}-{plan,apply}              # GCP APIs/SA/state bucket; the 5 CAD spend ALERT
 
 ```
 
@@ -149,7 +149,7 @@ One line per path; the *why* and the per-file specifics are in
 | `sgconfig.yml` + `ast-grep/` | Report-only structural lint mechanising both layer boundaries: a capsule may not reach **out**, and `modules/shared/` may reach **down** only. Gated by `checks.<system>.ast-grep`, **not** treefmt. |
 | `hosts/` | Per-host entry profiles: `macos.nix`, `nixpi.nix`, `nixvm.nix` (host-only deltas + per-host Homebrew lists), plus identity-free `generic-darwin.nix`/`generic-linux.nix` that `templates/` and `checks.<system>.template-consumer` build on. |
 | `modules/parts/` | The FLAKE ENGINE — one flake-parts module per concern, discovered by `import-tree`. The engine **may** reach anywhere. |
-| `modules/features/` | The seven CAPSULES — six absorbed satellites (`cloudflared-connector`, `firmware-secrets`, `keychain-secrets`, `tart-vms`, `media-cli`, `local-rag`) plus `cloud-cli` (in-tree since 2026-09-20). `flake-module.nix` is the ONLY file anything outside imports, and **a capsule may not reach outside its own directory** — enforced by `ast-grep` + `checks.<system>.capsule-registry`, not by convention. **Satellite count: 0.** |
+| `modules/features/` | The seven CAPSULES — six absorbed satellites (`cloudflared-connector`, `firmware-secrets`, `keychain-secrets`, `tart-vms`, `media-cli`, `local-rag`) plus `cloud-cli` (born in-tree 2026-09-20: AWS CLI + `~/.aws/config.example`, never the real file). `flake-module.nix` is the ONLY file anything outside imports, and **a capsule may not reach outside its own directory** — enforced by `ast-grep` + `checks.<system>.capsule-registry`, not by convention. **Satellite count: 0.** |
 | `modules/shared/` | The Home Manager profile on every host. Modules that DECLARE a `local.*` option: `mcp.nix`, terminal theme, chromium, default browser, übersicht (the one HTML widget) + next-right-thing (what it says), wireguard, desktop aesthetics (the wallpaper), claude plugins/otel/desktop. Option-free modules that just configure: `home.nix`, nix cache, nix-ld, launchd-launcher, claude brain/bedrock-gate/guardrails — `local.claudeBedrock` was DELETED 2026-09-15, so do not look for it. |
 | `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix`, `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `github-runner.nix` (`local.macosGithubRunner` — LIVE, see § Configuration), `ollama-daemon.nix` (`local.ollamaDaemon` — ONE machine-wide `ollama serve`, so every account shares one process and one 31 GB model store), `claude-managed-settings.nix` (`local.claudeManagedSettings` — the root-owned Claude Code MANAGED settings file; `enable = false` DELETES it). |
 | `modules/nixos/` | `core.nix` (user + keys-only **loopback-bound** sshd, `openFirewall = false`, a firewall that opens **no** TCP port, avahi, nix-ld, zram, GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`). `nixpi`'s composed posture is GATED — `checks.<system>.nixpi-security-posture` (built on BOTH systems: the edits it guards are made on the Mac). |
@@ -361,17 +361,15 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   means a rebuild restores the gate. Zones with no terranix module here (aloshy.ai,
   etuper.com, izzykatt.ca, silvercreek.ai) are still configured out-of-band.
 - **OpenTofu state is the fragile part of the edge, not the config.** State was lost **twice**
-  to `tofu` running in whatever the CWD happened to be. Since ADR-005 all five stacks share a
+  to `tofu` running in whatever the CWD happened to be. Since ADR-005 all six stacks share a
   **GCS backend** (`fleet.gcpStateBucket`, versioned) **encrypted** with a Keychain passphrase
   (`tofu:state:passphrase`) — state holds a connector token and an Access service-token secret
   in plaintext, so **losing that passphrase makes all state unreadable**. Never apply before a
   `plan` reads clean.
-- **What magic rollback actually buys** (`deploy.nodes.nixpi.magicRollback = true`): the Pi
-  activates behind a watchdog and reverts **itself** to the previous generation unless the
-  deployer reconnects over a second ssh session and confirms. A change that kills sshd, the
-  tunnel connector, or networking becomes a *failed deploy* instead of a trip to the shelf to
-  pull the SD card and reflash (`docs/nixpi-sd-flashing-runbook.md`, ~40 min). `nixos-rebuild
-  switch --target-host` has no such undo. `remoteBuild = false` keeps the build off the Pi.
+- **What magic rollback buys** (`deploy.nodes.nixpi.magicRollback = true`): the Pi reverts
+  **itself** unless the deployer reconnects and confirms, so a change that kills sshd, the
+  tunnel or networking is a *failed deploy* rather than a trip to the shelf to reflash (~40 min).
+  `nixos-rebuild switch --target-host` has no such undo. Detail: `docs/repo-map.md`.
 - `home-manager switch` activates and is hard to reverse; prefer `build` to verify, and
   `switch` only when explicitly asked. `home-manager generations` lists,
   `home-manager rollback` reverts.
@@ -381,26 +379,14 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   installed `nixvm` disk, no builder VM, and no runner on it. (Every self-hosted runner lives on
   `macos`, and none serve this repo's CI — see § Configuration.)
 - **aarch64-linux builds on the Mac** go to Determinate's **native Linux builder** (Apple
-  Virtualization; ephemeral VM, **1 CPU / 8 GiB by default**). The account entitlement is
-  enabled at https://dtr.mn/features; the VM itself **is** settable from Nix since the pinned
-  `determinate` module grew `determinateNix.determinateNixd.builder.{state,memoryBytes,cpuCount}`
-  (rendered to `/etc/determinate/config.json`) — only the raw `external-builders` line is
-  reserved and rejected by `customSettings`. Upstream says do **not** change `cpuCount`;
-  `memoryBytes` is the knob if a Linux build ever OOMs. nix-darwin's `nix.linux-builder` is
-  unusable because it needs `nix.enable = true`, which Determinate disables (nix-darwin#1505).
-  It also **cannot run `cp --no-preserve=mode` into `$out`** (EPERM "setting permissions"),
-  which breaks nixpkgs' caddy `Caddyfile-formatted` and therefore every Mac-side build of a
-  Caddy-serving `nixpi` generation. Measured 2026-09-15: **only that one operation fails** —
-  `cat >`, `install -m` and `cp` + `chmod` all succeed on the same builder, so this is a narrow
-  (undocumented, unreported) builder bug, not a general chmod ban. **Do not work around it by
-  building on the Pi** — `warm-nixpi-cache.yml` builds the closure on a real ARM Linux runner
-  and pushes it to Cachix, so the Mac substitutes and never runs that `cp` at all.
-  **Account entitlement alone is not enough** — the local `determinate-nixd` must also be
-  logged in to FlakeHub, or `native-linux-builder` silently vanishes and every aarch64-linux
-  build fails with a `platform mismatch` that looks unrelated to auth. Manual, per-machine step:
-  see "Manual steps Nix can't do" in
-  [`docs/new-mac-runbook.md`](docs/new-mac-runbook.md). Heavy multi-core
-  builds (e.g. the Pi SD image) still go to GitHub CI / Cachix.
+  Virtualization; ephemeral VM, 1 CPU / 8 GiB). Two traps, both costly to rediscover:
+  `determinate-nixd` must be logged in to FlakeHub or the builder silently vanishes and every
+  build fails with an unrelated-looking `platform mismatch`; and it **cannot** `cp
+  --no-preserve=mode` into `$out`, which breaks nixpkgs' caddy `Caddyfile-formatted` and so
+  every Mac-side build of a Caddy-serving `nixpi` generation. **Never fix that by building on
+  the Pi** — CI warms the cache so the Mac substitutes instead. `memoryBytes` (not `cpuCount`)
+  is the knob if a Linux build OOMs. Full measurements, and why it is NOT a general chmod ban:
+  [`docs/repo-map.md`](docs/repo-map.md) § Building aarch64-linux on the Mac.
 
 ## Documentation
 

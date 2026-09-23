@@ -1951,6 +1951,66 @@ the `[ ]` default so tearing down the real registrations still needs the explici
 `MCP_PUBLIC_ALLOW_EMPTY=1` override — `mkMcpPublicTofu` refuses a render that publishes 0
 servers against state that holds more than 0.
 
+## Building `aarch64-linux` on the Mac, and deploying `nixpi`
+
+The long form of CLAUDE.md § Important Notes. Those bullets keep the imperatives; the
+measurements that justify them live here, because they are read once and obeyed thereafter.
+
+### The native Linux builder
+
+`aarch64-linux` builds on the Mac go to **Determinate's native Linux builder** (Apple
+Virtualization; an ephemeral VM, **1 CPU / 8 GiB by default**). The account entitlement is
+enabled at <https://dtr.mn/features>.
+
+The VM **is** settable from Nix: the pinned `determinate` module grew
+`determinateNix.determinateNixd.builder.{state,memoryBytes,cpuCount}`, rendered to
+`/etc/determinate/config.json`. Only the raw `external-builders` line is reserved and rejected
+by `customSettings`. Upstream says do **not** change `cpuCount`; `memoryBytes` is the knob if a
+Linux build ever OOMs.
+
+nix-darwin's own `nix.linux-builder` is unusable here: it requires `nix.enable = true`, which
+Determinate disables (nix-darwin#1505).
+
+**Account entitlement alone is not enough.** The local `determinate-nixd` must ALSO be logged in
+to FlakeHub, or `native-linux-builder` silently vanishes and every `aarch64-linux` build fails
+with a `platform mismatch` that reads as a platform problem rather than an auth one. It is a
+manual, per-machine step — see "Manual steps Nix can't do" in
+[`new-mac-runbook.md`](new-mac-runbook.md).
+
+#### The one operation it cannot do
+
+The builder **cannot run `cp --no-preserve=mode` into `$out`** — EPERM, "setting permissions".
+That breaks nixpkgs' caddy `Caddyfile-formatted`, and therefore every Mac-side build of a
+Caddy-serving `nixpi` generation.
+
+Measured 2026-09-15: **only that one operation fails.** `cat >`, `install -m`, and `cp` followed
+by `chmod` all succeed on the same builder. So this is a narrow (undocumented, unreported)
+builder bug, not a general chmod ban — which matters, because the tempting diagnosis is "the
+builder can't set permissions" and that would send you looking for a fix that does not exist.
+
+**Do not work around it by building on the Pi.** `warm-nixpi-cache.yml` builds the closure on a
+real ARM Linux runner and pushes it to Cachix, so the Mac substitutes and never runs that `cp`
+at all. Heavy multi-core builds (the Pi SD image) go to GitHub CI / Cachix for the same reason.
+
+### What magic rollback actually buys
+
+`deploy.nodes.nixpi.magicRollback = true`: the Pi activates behind a watchdog and reverts
+**itself** to the previous generation unless the deployer reconnects over a second ssh session
+and confirms.
+
+That converts the fleet's worst failure into an ordinary one. A change that kills sshd, the
+tunnel connector, or networking becomes a **failed deploy** instead of a trip to the shelf to
+pull the SD card and reflash ([`nixpi-sd-flashing-runbook.md`](nixpi-sd-flashing-runbook.md),
+~40 min with hands on the hardware).
+
+`nixos-rebuild switch --target-host` has **no such undo** — it is the faster command and the one
+with no safety net. `remoteBuild = false` keeps the build off the Pi either way.
+
+**Anecdote:** it is the climber's rope. It does not stop the fall; it stops the fall from being
+the end of the trip. *(Where it breaks down: the rope is anchored to the deployer's second ssh
+session — lose your own connectivity mid-deploy and the Pi rolls back a change that was
+perfectly fine.)*
+
 ## Claude Code surface
 
 MCP servers have their own doc: [`mcp-gateway.md`](mcp-gateway.md).
