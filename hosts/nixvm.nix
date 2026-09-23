@@ -1,10 +1,18 @@
-# Throwaway aarch64-linux DEV VM — materialised ONLY as the graphical `build-vm`
-# variant behind `nix run .#nixvm` (an XFCE desktop in a native QEMU/Cocoa
-# window on macOS). It boots a THROWAWAY overlay, never an installed disk: there
-# is no installed nixvm, no builder VM, no self-hosted runner — CI is GitHub-hosted
-# and local aarch64-linux builds use Determinate's native Linux builder (enabled on
+# Unprovisioned aarch64-linux DEV VM — materialised ONLY as the graphical
+# `build-vm` variant behind `nix run .#nixvm` (an XFCE desktop in a native
+# QEMU/Cocoa window on macOS). There is no installed nixvm and no disk layout to
+# provision, no builder VM and no self-hosted runner — CI is GitHub-hosted and
+# local aarch64-linux builds use Determinate's native Linux builder (enabled on
 # the macos host, see flake.nix). Distinct from `nixpi`, which targets real
 # Raspberry Pi 4 hardware via raspberry-pi-nix.
+#
+# DISPOSABLE, NOT EPHEMERAL — only the Nix STORE is rebuilt per boot
+# (useNixStoreImage, below); the ROOT filesystem is a `nixvm.qcow2` that
+# qemu-vm.nix creates only if ABSENT and otherwise reuses, so /home and anything
+# signed in there survives until the image is deleted. `nix run .#nixvm` pins
+# that image to an XDG state dir (the wrapper in modules/parts/packages.nix); a
+# hand-run `./result/bin/run-nixvm-vm` instead resolves `./nixvm.qcow2` against
+# the CALLER'S working directory, which is how one command grows a second VM.
 #
 #   nix run .#nixvm                       # builds config.system.build.vm then boots it
 #   nixos-rebuild build-vm --flake .#nixvm    # equivalent; ./result/bin/run-nixvm-vm
@@ -33,7 +41,7 @@
 
   # The base (non-vmVariant) config is kept a valid, bootable NixOS system so its
   # toplevel evaluates (CI) and `build.vm` has a coherent substrate — the build-vm
-  # overlay supplies the actual throwaway root at run time (overriding fileSystems).
+  # variant supplies the actual root qcow2 at run time (overriding fileSystems).
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
   # VirtIO initrd modules — the root disk device class in QEMU.
@@ -51,8 +59,8 @@
   # Root filesystem: a PLACEHOLDER that only satisfies NixOS's "you must define a
   # root fileSystem" eval requirement for the base toplevel. There is no on-disk
   # layout anymore (disko was dropped with the installed nixvm); the build-vm
-  # variant overrides fileSystems via mkVMOverride (qemu-vm.nix) to boot a
-  # throwaway scratch overlay.
+  # variant overrides fileSystems via mkVMOverride (qemu-vm.nix) to boot the
+  # persistent nixvm.qcow2 instead.
   fileSystems."/" = {
     device = "/dev/disk/by-label/nixos";
     fsType = "ext4";
@@ -64,14 +72,22 @@
   # toplevel. host.pkgs (the QEMU that RUNS the script) is set to aarch64-darwin in
   # flake.nix so the runner is macOS-native.
   virtualisation.vmVariant = {
-    # Turn the desktop on for the windowed VM only (base nixvm stays headless).
+    # Turn the desktop on for the windowed VM only (the base config is an eval
+    # substrate — it has no virtualisation.diskImage and is never booted).
     local.desktopVm.enable = true;
 
     virtualisation = {
       graphics = true; # open a QEMU display window instead of serial-only
       cores = 4;
       memorySize = 4096; # MiB of guest RAM
-      diskSize = 8192; # MiB writable scratch overlay for the throwaway session
+      # MiB ceiling for the ROOT filesystem (/home, /var) - not scratch, and not
+      # the store: qemu-vm.nix creates nixvm.qcow2 only if ABSENT, so what lands
+      # in /home persists. Size it generously ONCE, because raising this later
+      # cannot resize an existing image and deleting the image to adopt a new
+      # size is exactly what discards the state the headroom was for. Near-free:
+      # a qcow2 is lazily allocated (measured 5.7 MiB of real host disk at 8192,
+      # 6.9 MiB at 24576).
+      diskSize = 24576;
       resolution = {
         x = 1440;
         y = 900;
@@ -93,7 +109,8 @@
       #
       # Cost: the image holds the closure rather than borrowing the host's, so
       # `nix run .#nixvm` builds more. It builds on the native Linux builder or
-      # substitutes from Cachix, and this is a throwaway VM - the right trade.
+      # substitutes from Cachix - the right trade for a hand-booted dev VM. This
+      # store image is the ONLY per-boot filesystem here; the root qcow2 is not.
       useNixStoreImage = true;
 
       # The store was not the only share. qemu-vm.nix also ships two by default -

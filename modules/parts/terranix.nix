@@ -1,4 +1,4 @@
-# ---- terranix (Nix -> OpenTofu JSON) and the three tofu app families --------
+# ---- terranix (Nix -> OpenTofu JSON) and the six tofu app families ----------
 #
 # Renderers + `writeShellApplication` wrappers, moved verbatim from flake.nix's
 # `let` (ADR-002 wave 2). Every guard here — the site-free refusal, the
@@ -78,7 +78,7 @@ let
 
   # ---- PUBLISHED MCP gateway (terranix -> OpenTofu) ----------------------
   # Renders infra/cloudflare/mcp-public.nix: the Mac's own tunnel + ingress to
-  # the second mcp-proxy (127.0.0.1:8097), the proxied CNAME, ONE Access
+  # the gateway on 127.0.0.1:<publicMcpPort>, the proxied CNAME, ONE Access
   # application gated by a SERVICE TOKEN, and one portal registration per
   # published server.
   #
@@ -184,11 +184,16 @@ let
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
         cd "$state_dir"
-        # 0600 on everything tofu writes from here on. Verified: the state file
-        # really does carry
-        # cloudflare_zero_trust_tunnel_cloudflared_token.nixpi.token, so this is
-        # load-bearing, not hygiene. umask covers files tofu creates itself.
+        # 0600 on everything written from here on. The umask covers the local
+        # scratch — the rendered config.tf.json and the guards' address lists.
         umask 077
+        # The tfstate chmod is NOT a GCS-era vestige, and this is the one line of
+        # why for all six wrappers: ADR-005 moved this stack's state to the
+        # bucket, but it did not delete the PRE-migration local state left in this
+        # same XDG dir (verified 2026-09-22: terraform.tfstate.backup still here,
+        # carrying cloudflare_zero_trust_tunnel_cloudflared_token.nixpi.token in
+        # plaintext). Only gcp-foundation still writes these files live; the other
+        # five keep the line to harden that leftover.
         chmod 600 terraform.tfstate terraform.tfstate.backup 2>/dev/null || true
         echo "tofu working directory: $state_dir" >&2
 
@@ -230,17 +235,26 @@ let
         # Read through an `if`, never `|| true`: a locked, corrupt or
         # otherwise-unreadable state would yield an empty list, which reads as
         # "nothing to lose" — a guard that fails OPEN exactly when it matters.
+        # Refuses unconditionally: this used to fall through to a "first apply,
+        # nothing to drop" branch whenever a local `terraform.tfstate` was absent,
+        # which ADR-005 made ALWAYS true by moving state to GCS — so the guard
+        # failed open in precisely the case it exists for.
+        # ABSENT state and UNREADABLE state are different answers, and conflating
+        # them either way is a wrong diagnosis. `tofu state list` exits 1 for BOTH
+        # (measured against the pinned opentofu: absent state prints
+        # "No state file was found"), so discriminate on the message: absent means
+        # an empty roster and the actionable guards below, unreadable means this
+        # run genuinely cannot tell and must refuse.
         if ! tofu state list > .state-addrs.raw 2> .state-list.err; then
-          if [ -s terraform.tfstate ]; then
+          if grep -qF "No state file was found" .state-list.err; then
+            : > .state-addrs.raw
+          else
             echo "REFUSING: 'tofu state list' failed, so this run cannot tell whether" >&2
             echo "  an apply would delete live records. Proceeding blind is the one" >&2
             echo "  thing this guard exists to prevent. tofu said:" >&2
             sed 's/^/    /' .state-list.err >&2
             exit 1
           fi
-          # No state at all: this is the FIRST apply, and there is genuinely
-          # nothing to drop.
-          : > .state-addrs.raw
         fi
         # EVERY cloudflare_* type, not an allow-list of two. The first version of
         # this guard named `dns_record|ruleset` and therefore inspected 2 of the 6
@@ -407,14 +421,24 @@ let
 
         # EMPTY STATE = an import has not happened. Applying here would try to
         # CREATE an organisation that already exists.
+        # Unconditional, as in mkCfTunnelTofu — and here the old fall-through was
+        # also a WRONG diagnosis: an unreadable state was reported as "not tracked
+        # yet", sending the operator at an import against state that is fine.
+        # ABSENT state and UNREADABLE state are different answers, and conflating
+        # them either way is a wrong diagnosis. `tofu state list` exits 1 for BOTH
+        # (measured against the pinned opentofu: absent state prints
+        # "No state file was found"), so discriminate on the message: absent means
+        # an empty roster and the actionable guards below, unreadable means this
+        # run genuinely cannot tell and must refuse.
         if ! tofu state list > .state-addrs.raw 2> .state-list.err; then
-          if [ -s terraform.tfstate ]; then
+          if grep -qF "No state file was found" .state-list.err; then
+            : > .state-addrs.raw
+          else
             echo "REFUSING: 'tofu state list' failed, so this run cannot tell whether" >&2
             echo "  the organisation is already tracked. tofu said:" >&2
             sed 's/^/    /' .state-list.err >&2
             exit 1
           fi
-          : > .state-addrs.raw
         fi
         if ! grep -q '^cloudflare_zero_trust_organization\.' .state-addrs.raw; then
           echo "REFUSING: state does not track the organisation yet." >&2
@@ -646,14 +670,22 @@ let
 
         # Same three-part guard the other two stacks carry, and for the same
         # reasons. See mkMcpPublicTofu for the full rationale on each.
+        # Unconditional, as in mkCfTunnelTofu: there is no local state left to probe.
+        # ABSENT state and UNREADABLE state are different answers, and conflating
+        # them either way is a wrong diagnosis. `tofu state list` exits 1 for BOTH
+        # (measured against the pinned opentofu: absent state prints
+        # "No state file was found"), so discriminate on the message: absent means
+        # an empty roster and the actionable guards below, unreadable means this
+        # run genuinely cannot tell and must refuse.
         if ! tofu state list > .state-addrs.raw 2> .state-list.err; then
-          if [ -s terraform.tfstate ]; then
+          if grep -qF "No state file was found" .state-list.err; then
+            : > .state-addrs.raw
+          else
             echo "REFUSING: 'tofu state list' failed, so this run cannot tell whether" >&2
             echo "  an apply would delete live records. tofu said:" >&2
             sed 's/^/    /' .state-list.err >&2
             exit 1
           fi
-          : > .state-addrs.raw
         fi
         grep -E '^cloudflare_[a-z0-9_]+\.' .state-addrs.raw | sort > .state-addrs || true
         jq -r '
@@ -705,7 +737,9 @@ let
   };
 
   # ---- Remote state: the GCS backend's encryption, shared ------------------
-  # ADR-005 phase 1. Sourced by every stack that keeps state remotely, so the
+  # ADR-005 phase 1. The invariant is ENCRYPTION, not remoteness: all SIX stacks
+  # source this, including gcp-foundation, which keeps state LOCAL on purpose (it
+  # declares the bucket the other five live in) and still encrypts it. So the
   # encryption can never be configured on one stack and forgotten on another.
   #
   # ENCRYPTION IS NOT OPTIONAL HERE. Two of these states hold secrets in
@@ -826,10 +860,10 @@ let
     };
 
   # ---- GCP billing budget (terranix -> OpenTofu) ---------------------------
-  # Renders infra/gcp/budget.nix. A FOURTH stack, and the first non-Cloudflare
-  # one: a different provider, a different credential (ADC, not an API token) and
-  # a different blast radius. Mixing it into a Cloudflare stack would mean one
-  # plan that can fail for two unrelated reasons.
+  # Renders infra/gcp/budget.nix. The SIXTH stack, and the second non-Cloudflare
+  # one after gcp-foundation above: a different provider, a different credential
+  # (ADC, not an API token) and a different blast radius. Mixing it into a
+  # Cloudflare stack would mean one plan that can fail for two unrelated reasons.
   gcpBudgetConfig =
     { system }:
     terranix.lib.terranixConfiguration {
@@ -916,8 +950,11 @@ let
         # the opposite of theirs: a render that would DELETE the alarm and leave
         # the account unwatched.
         rendered=$(jq '[.resource.google_billing_budget // {} | keys[]] | length' config.tf.json)
-        if [ "''${rendered:-0}" -lt 1 ] && [ -s terraform.tfstate ]; then
-          echo "REFUSING: render declares no budget but state holds one." >&2
+        # The `&& [ -s terraform.tfstate ]` this carried could never be true —
+        # gcp-budget is GCS-backed too (ADR-005) — so the refusal never fired. A
+        # render with no budget is wrong whatever state holds, so drop the probe.
+        if [ "''${rendered:-0}" -lt 1 ]; then
+          echo "REFUSING: render declares no budget." >&2
           echo "  Applying would DELETE the spend alarm and leave the billing" >&2
           echo "  account unwatched. That is never an accident worth allowing." >&2
           exit 1
@@ -1010,15 +1047,22 @@ let
         # want a refusal was the one that sailed straight through to an apply
         # that unpublishes every server. Separate the two cases it conflated:
         # "state says zero" and "state could not be read".
+        # Unconditional, as in mkCfTunnelTofu: there is no local state left to probe.
+        # ABSENT state and UNREADABLE state are different answers, and conflating
+        # them either way is a wrong diagnosis. `tofu state list` exits 1 for BOTH
+        # (measured against the pinned opentofu: absent state prints
+        # "No state file was found"), so discriminate on the message: absent means
+        # an empty roster and the actionable guards below, unreadable means this
+        # run genuinely cannot tell and must refuse.
         if ! tofu state list > .state-addrs.raw 2> .state-list.err; then
-          if [ -s terraform.tfstate ]; then
+          if grep -qF "No state file was found" .state-list.err; then
+            : > .state-addrs.raw
+          else
             echo "REFUSING: 'tofu state list' failed, so this run cannot tell whether" >&2
             echo "  an apply would unpublish live servers. tofu said:" >&2
             sed 's/^/    /' .state-list.err >&2
             exit 1
           fi
-          # No state at all: the FIRST apply, which legitimately publishes none.
-          : > .state-addrs.raw
         fi
         in_state=$(grep -c '^cloudflare_zero_trust_access_ai_controls_mcp_server\.' \
           .state-addrs.raw || true)
@@ -1096,10 +1140,6 @@ let
       + nixpkgs.lib.optionalString (action == "apply") printToken;
     };
 
-  # Prints ONLY the raw connector token to stdout — nothing else, no banner —
-  # so it composes: `… | secret set cf:cloudflare.com:mcp-connector`. The value
-  # never reaches a terminal, scrollback, the clipboard, or a transcript.
-  # Read-only: it runs `tofu output`, never plan or apply.
   # ---- Force the portal to re-poll every published server --------------------
   # A CLIENT of Cloudflare's own documented endpoint, not something our proxy
   # implements. The direction matters and is easy to get backwards: the portal is
@@ -1200,6 +1240,10 @@ let
       '';
     };
 
+  # Prints ONLY the raw connector token to stdout — nothing else, no banner —
+  # so it composes: `… | secret set cf:cloudflare.com:mcp-connector`. The value
+  # never reaches a terminal, scrollback, the clipboard, or a transcript.
+  # Read-only: `tofu init` then `tofu output`, never plan or apply.
   mkMcpPublicToken =
     { system }:
     let
@@ -1207,18 +1251,32 @@ let
     in
     pkgs.writeShellApplication {
       name = "mcp-public-token";
-      runtimeInputs = [ pkgs.opentofu ];
+      # coreutils for the prelude's `id -un`, as in every sibling wrapper.
+      runtimeInputs = [
+        pkgs.opentofu
+        pkgs.coreutils
+      ];
       text = ''
         if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
           echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
           exit 1
         fi
         state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-mcp-public"
-        if [ ! -f "$state_dir/terraform.tfstate" ]; then
-          echo "ERROR: no state at $state_dir — run mcp-public-apply first." >&2
+        # Gates on the RENDERED CONFIG, not on a local `terraform.tfstate`: ADR-005
+        # moved this stack's state to GCS, so that file never exists and the old
+        # gate made this app unreachable — the fleet's only non-shell path to the
+        # connector token. `tofu init` below needs config.tf.json, which
+        # mcp-public-apply leaves here.
+        if [ ! -f "$state_dir/config.tf.json" ]; then
+          echo "ERROR: no rendered config at $state_dir — run mcp-public-apply first." >&2
           exit 1
         fi
         cd "$state_dir"
+        umask 077
+        # Remote state is ENCRYPTED, so reading one output needs the same prelude
+        # every other wrapper here runs. init writes to STDERR: stdout is the token.
+        ${tofuRemoteStatePrelude}
+        tofu init -input=false >&2
         # -raw, no trailing banner: stdout is exactly the token.
         tofu output -raw mcp_public_connector_token
       '';

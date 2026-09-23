@@ -70,7 +70,7 @@ connections each). One service token, expiring 2027-09-12. One IdP.
 | # | Decision | Chosen |
 |---|---|---|
 | 1 | Where zone data lives | **In-repo, `kattakath.com` only** |
-| 2 | State backend | **Cloudflare R2** |
+| 2 | State backend | ~~**Cloudflare R2**~~ → **SUPERSEDED: GCS** (§3.2, §8.1) |
 | 3 | Google scope | **GCP declarative; Workspace stays a runbook** |
 | 4 | Sequencing | **This ADR first, then build** |
 
@@ -97,9 +97,18 @@ for records already answerable by a public DNS query, and it would hide the oper
 for no gain. **Rejected:** a private data repo — re-introduces exactly the private layer retired
 2026-09-15.
 
-### 3.2 Cloudflare R2 for state
+### 3.2 ~~Cloudflare R2 for state~~ — SUPERSEDED 2026-09-22: the backend is GCS
 
-Today there is **no backend block**, by deliberate design: each app pins its own working
+**What shipped:** R2 was never enabled on the account, the operator opened GCP billing instead,
+and phase 1 migrated every remote-state stack to the versioned, encrypted GCS bucket
+`kattakath-tofu-state` (§6 phase 1, §8.1). Five of six stacks compose it; `gcp-foundation` keeps
+**local** state because it declares that bucket, and is encrypted by the same prelude (§4).
+
+**The rest of this section is kept as history, not as a plan** — the problem statement below is
+still the reason a shared remote backend exists at all, and the CRC32 footgun is worth knowing
+if R2 ever returns.
+
+Before phase 1 there was **no backend block**, by deliberate design: each app pins its own working
 directory (`$XDG_STATE_HOME/nix-config-*`, 0700, umask 077, state 0600) because state was lost
 twice to `tofu` running in whatever the CWD happened to be.
 
@@ -109,11 +118,13 @@ from their session sees a pristine workspace and plans to **create** a tunnel, D
 Access objects that already exist. The `MCP_PUBLIC_ALLOW_CREATE` guard exists precisely because
 neither the drop-delta nor the empty-render check can see that case.
 
-A shared remote backend removes the class rather than guarding it. R2 over GCS because the
-account already exists, the free tier covers a few hundred KB of state, and it does not couple
-Cloudflare's own IaC to a second cloud's availability.
+A shared remote backend removes the class rather than guarding it — **that half held**, and GCS
+delivers it. The R2 argument that did not: the account already exists, the free tier covers a few
+hundred KB of state, and it does not couple Cloudflare's own IaC to a second cloud's
+availability. The first premise was false (R2 was never enabled) and the operator's new billing
+account made the third premise cheap to pay.
 
-**The known footgun, recorded before it is hit:** R2 does not implement CRC32 checksums, so the
+**The R2 footgun, kept because it would bite again:** R2 does not implement CRC32 checksums, so the
 AWS SDK's default returns `Header 'x-amz-checksum-algorithm' with value 'CRC32' not
 implemented`. The backend block needs `skip_s3_checksum = true` plus
 `skip_credentials_validation`, `skip_metadata_api_check`, `skip_requesting_account_id`,
@@ -134,7 +145,10 @@ fork.
 
 ## 4. Target shape
 
-Three stacks at decision time, **four today**, one backend, one rule for what belongs where:
+Three Cloudflare stacks at decision time, **four today** — plus the two GCP stacks §5 decided,
+so **six in all**. **Five** compose one shared backend; `gcp-foundation` keeps **local** state
+because it declares the bucket the other five live in (its local state is still encrypted — it
+sources the same prelude). One rule for what belongs where:
 
 > **A stack is a blast radius, not a category.**
 
@@ -149,7 +163,7 @@ Mail is the argument for the third stack. `MX`, DKIM, DMARC and MTA-STS records 
 consequence-per-byte objects in the account and they share no failure mode with a tunnel. They
 should not ride in a plan whose other half is a Pi.
 
-**The fourth stack is the rule applied to its own limit case: one resource, its own blast
+**`cf-access-org` is the rule applied to its own limit case: one resource, its own blast
 radius.** `cloudflare_zero_trust_organization` owns `auth_domain`, the sign-in host for every
 Access application in the account — so it sits *above* both `cf-tunnel` and `mcp-public` rather
 than beside them, and a bad apply takes out nixpi's SSH gate and the MCP portal together. That
@@ -204,8 +218,9 @@ the worst possible moment, during an offboarding.
 | Provider | `hashicorp/google`, first-party, active | **archived 2025-06-30** |
 | Decision | **Declarative under terranix** | **Runbook, reviewed, not automated** |
 
-**What GCP would cover:** Secret Manager (ADR-004's durable store), service accounts, IAM
-bindings, enabled APIs, and the state bucket if 3.2 is ever revisited.
+**What GCP covers today** (`infra/gcp/foundation.nix`, phase 3): enabled APIs, service accounts,
+IAM bindings, and the state bucket — 3.2 *was* revisited, and the bucket is declared here rather
+than at Cloudflare. **Still not declared:** Secret Manager (ADR-004's durable store).
 
 **Blocked:** the survey could not run — `gcloud` returned `Reauthentication failed. cannot prompt
 during non-interactive execution`. Active accounts are `ismail@kattakath.com` (project
@@ -218,7 +233,7 @@ during non-interactive execution`. Active accounts are `ismail@kattakath.com` (p
 | Phase | Deliverable | Gate |
 |---|---|---|
 | **0** | ~~Cleanup~~ — **DONE.** Orphan policy deleted (3 remain, all referenced). `telegram` re-registered twice; it still reads `error` — see below | Import a clean account, not cruft |
-| **1** | ~~R2 bucket~~ — **DONE on GCS instead.** The operator opened a billing account, which made GCS available; it also has the native state locking §8.1 flagged as unverified for R2. Bucket `kattakath-tofu-state` (versioned, uniform access, public access prevented, 10 non-current versions), all four stacks migrated, state **encrypted** with a Keychain passphrase via `TF_ENCRYPTION` | met: every stack re-plans clean from the remote backend |
+| **1** | ~~R2 bucket~~ — **DONE on GCS instead.** The operator opened a billing account, which made GCS available; it also has the native state locking §8.1 flagged as unverified for R2. Bucket `kattakath-tofu-state` (versioned, uniform access, public access prevented, 10 non-current versions), every remote-state stack migrated — **five** today, `gcp-foundation` excepted by design (§4) — state **encrypted** with a Keychain passphrase via `TF_ENCRYPTION` | met: every remote-state stack re-plans clean from the backend |
 | **2** | ~~`cf-zones` stack~~ — **DONE.** 22 records imported; `cf-zones-plan` reads *"No changes. Your infrastructure matches the configuration."* | met |
 | **3** | ~~GCP survey~~ — **DONE.** `infra/gcp/foundation.nix` (APIs, automation identity, state bucket) and `infra/gcp/budget.nix` (a 5 CAD spend ALERT). Everything created by hand during the session is imported, so both re-plan clean | met |
 | **4** | ~~`docs/workspace-runbook.md`~~ — **DONE.** It found `ws-domain-admin`, an account no file in this repo mentioned, carrying a long-lived key. The first write-up called that a live hole in the single lever; the Admin console then showed the delegation table **empty**, so it was latent, not live — §8b. The key was deleted anyway, and the account's own description now states what is true | met: reviewed against `identity-and-offboarding.md`, which is consistent with it |
@@ -236,7 +251,7 @@ live, and applying it would change production to match a guess.
 | A second business zone needs declarative management | 3.1 — the private-repo option becomes cheaper than six hand-managed zones |
 | A second human gets an account on this Mac | 3.2 is already urgent rather than prudent; do phase 1 first |
 | The Workspace fork gains a second maintainer or Google ships a first-party provider | 3.3 |
-| R2 state locking proves unavailable (§8) | 3.2 — GCS has native locking |
+| ~~R2 state locking proves unavailable (§8)~~ **— FIRED, and R2 never got that far** | 3.2 is settled: the backend is GCS, which has native locking |
 
 ---
 
@@ -296,10 +311,16 @@ sentence that went stale while the thing it described moved:
 | §6 phase 4: the delegation key *"SURVIVES suspending"* | corrected to latent hours later, then the key was deleted |
 | §8.1-2: *"verify before phase 1"* | phase 1 went to GCS, so neither was ever reached |
 | `identity-and-offboarding.md`: the `email_domain` caveat | the policy was applied the same day |
+| §4's *"four today"* and §6 phase 1's *"all four stacks migrated"* | a fifth and sixth stack landed; five share the backend and `gcp-foundation` keeps local state. **This ADR was the LAST file still saying four** — every other source had been corrected to six/five |
+| §3's decision table + §3.2's heading: *"Cloudflare R2"*, plus §5's *"if 3.2 is ever revisited"* and §7's R2-locking trigger | §8.1 **in this same file** already read MOOT. The shortest pair yet — a decision and its own supersession record, one scroll apart, because a struck-through §8 is not where anyone looks up what the backend is |
 
 **The shape:** a status written once, restated somewhere else, then updated in one place. Every
 instance here was a pair — a bold header and its own tail, a document and its index entry, a
 finding and the correction that followed it.
+
+**The last row is this section rotting under its own rule.** The document that names the shape
+held a stale count for hours after every other file was fixed, and this table did not list it —
+so "known rot site" includes **the register of rot sites**. Add the row when you fix the pair.
 
 **No check is proposed.** "Documentation agrees with reality" is not mechanisable, and inventing
 a gate for it would be the bespoke wheel this repo's motto rejects. What is cheap is knowing
