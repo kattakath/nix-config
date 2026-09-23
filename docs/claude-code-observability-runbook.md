@@ -46,10 +46,10 @@ this system.
 
 ## Setup
 
-None beyond normal activation — `sudo darwin-rebuild switch --flake .#macos` (or
-via `nix-personal`, see the fleet's standard activation runbook) brings up
-the collector and writes the env block. No OAuth, no accounts, no manual
-step. Verify with:
+None beyond normal activation — `activate` (`packages/activate.nix`: a
+`darwin-rebuild switch` that self-elevates via Touch ID and works from any
+directory) brings up the collector and writes the env block. No OAuth, no
+accounts, no manual step. Verify with:
 
 ```bash
 nix run .#claude-otel-doctor
@@ -94,7 +94,7 @@ human-judgment decisions; there was zero real data when `3` was picked.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `claude-otel-doctor` reports launchd agent NOT LOADED | Config not activated yet, or activation predates this feature | `sudo darwin-rebuild switch --flake .#macos` |
+| `claude-otel-doctor` reports launchd agent NOT LOADED | Config not activated yet, or activation predates this feature | `activate` |
 | `claude-otel-doctor` reports OTLP port NOT LISTENING | Collector crashed or never started — check its log | `tail ~/Library/Logs/claude-otel-collector.log` |
 | Events file absent | No Claude Code session has run with telemetry active since the collector came up | Run a Claude Code session, then re-check |
 | `events.jsonl` has entries but `skill.name`/`mcp_tool_name` show as `custom`/`mcp` | `OTEL_LOG_TOOL_DETAILS` didn't take effect — settings not activated, or a stale Claude Code session predates the env change | Re-activate, then start a **new** Claude Code session (env vars are read at process startup) |

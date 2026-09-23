@@ -180,9 +180,12 @@ let
   # `tofu plan` reads clean rather than fighting the provider.
   # Zone -> a readable Terraform resource key, DEDUPED BY ZONE ID. Two things
   # force this shape: a Terraform resource name may not start with a digit (so a
-  # raw zone id is illegal), and ismail.kattakath.com shares the apex's zone, so
-  # keying by domain alone would declare the same setting twice for one zone and
-  # the two resources would fight.
+  # raw zone id is illegal), and a hosted site sitting in the SSH host's own zone
+  # would make domain-keying declare that zone's settings twice, with the two
+  # resources fighting. NO site does that today — the sole entry, snoringirl.com,
+  # has its own zone. The dedupe is DEFENSIVE, kept because re-adding such a site
+  # is a one-line change (ismail.kattakath.com was exactly that case until it
+  # moved off nixpi 2026-09-16) and the breakage would surface only at plan time.
   zoneKeyPairs = [
     {
       key = siteKey domainName;

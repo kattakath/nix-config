@@ -4,9 +4,8 @@
 # path shape every repo already lives under (see root CLAUDE.md, global
 # ~/.claude/CLAUDE.md "repos live under ~/Developer/<forge>/<owner>/<repo>").
 #
-# This is nix-config's own composition (this repo) + the private composition
-# flake + the standalone fleet repos nix-config or its private layer relates to.
-# It is NOT "every repo on disk" — client/personal repos with no
+# The manifest is exactly the fleet's COMPOSITION repos — today that is one line,
+# nix-config itself. It is NOT "every repo on disk" — client/personal repos with no
 # Nix/fleet relationship (Infin8, dontsell-ai, silvercreek-ai, deepjobseek,
 # etc.) are deliberately excluded; fleet-doctor is scoped to declarative-infra
 # hygiene, not general dev-repo housekeeping.
@@ -31,22 +30,25 @@
 #   wave 3  nix-cloudflared-connector  -> modules/features/cloudflared-connector/
 #   wave 4  nix-firmware-secrets       -> modules/features/firmware-secrets/
 #   wave 4  nix-keychain-secrets       -> modules/features/keychain-secrets/
-#   wave 4  nix-vast-provision         -> modules/features/vast-provision/
+#   wave 4  nix-vast-provision         -> capsule GONE (removed wholesale 2026-09-12 with the
+#                                         rest of the GPU control plane, see below). Absorbed
+#                                         then deleted, so modules/features/ holds SIX of these
+#                                         seven today (+ cloud-cli, born in-tree 2026-09-20).
 #   wave 5  nix-tart-vms               -> modules/features/tart-vms/
 #   wave 5  nix-media-cli              -> modules/features/media-cli/
 #   wave 6  nix-local-rag              -> modules/features/local-rag/
 # Do not re-add one because it is still on disk — the working copy outlives the repo.
-# The satellite count is 0; what is left below is the composition pair plus the repos
-# that were never satellites.
+# The satellite count is 0.
 #
 # TWO MORE LINES CAME OUT on 2026-09-12, for a DIFFERENT reason. These were never
 # satellites and never became capsules: they were extraction candidates nix-config never
 # adopted, so nothing arrived in-tree when they left. Archived, not deleted (ADR-002 §7.8)
 # — both stay public and readable, which is where the "why it wasn't adopted" lives:
-#   nix-mcp-gateway  — a THIN, GENERIC `local.mcpGateway` broker module. The fleet kept
-#                      its own fully-wired ~20-server deployment in modules/shared/mcp.nix,
-#                      which carries the long-form note (one generic module vs. one
-#                      concrete deployment — never two competing options).
+#   nix-mcp-gateway  — a THIN, GENERIC `local.mcpGateway` broker module. The fleet kept its
+#                      own fully-wired concrete deployment in modules/shared/mcp.nix, which
+#                      carries the long-form note (one generic module vs. one concrete
+#                      deployment — never two competing options). The server count lives
+#                      there and in docs/mcp-gateway.md; it is not repeated here.
 #   nix-inngest      — never wired into any host. The `inngest` CLI that IS on PATH comes
 #                      from nixpkgs, not from this repo; do not confuse the two.
 # Same rule as the seven above: do not re-add either because a working copy is on disk.
@@ -60,9 +62,10 @@
 #                      The operator's own mined data still sits in ~/Developer/local/brags,
 #                      a deliberately REMOTE-LESS repo that was never a fleet repo, is not
 #                      listed here, and must not be added.
-# THE LAST TWO NON-COMPOSITION LINES CAME OUT on 2026-09-12, which is what takes this
-# manifest to its final shape: nix-config + nix-personal and nothing else. Both were
-# distribution endpoints rather than declarative infra, and both are ARCHIVED:
+# THE LAST TWO NON-COMPOSITION LINES CAME OUT on 2026-09-12, leaving the composition pair
+# (nix-config + nix-personal) and nothing else — which held for three days, until the
+# 2026-09-15 retirement below. Both were distribution endpoints rather than declarative
+# infra, and both are ARCHIVED:
 #   provisioner-template  — a 3-file scaffold that nothing fetched. The tooling that used
 #                           it seeded new provisioner repos from IN-TREE assets, never by
 #                           cloning this repo — which is why the GitHub copy had already

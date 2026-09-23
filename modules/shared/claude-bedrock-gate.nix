@@ -9,16 +9,18 @@
 # here (or anywhere in Nix) any more — see WHERE THE IDENTITY LIVES NOW below.
 #
 # WHY CLAUDE_CODE_USE_BEDROCK IS NOT DECLARED HERE — or anywhere in Nix.
-# (Moved verbatim from nix-personal's `modules/claude-bedrock.nix`, which this
-# module absorbed; the reasoning is the reason the gate below has to exist.)
+# (Carried over from the private nix-personal flake's `modules/claude-bedrock.nix`,
+# which this module absorbed before that flake was retired 2026-09-15; the
+# reasoning is the reason the gate below has to exist.)
 #
 #   CLAUDE_CODE_USE_BEDROCK is deliberately excluded from this module. Claude
 #   Code applies settings.json's `env` block to every session, which would
 #   shadow/override whatever the shell already exported — so declaring the
 #   flag here would make it permanently "on" (or permanently "off") regardless
 #   of shell state, defeating the point of a runtime toggle. It must survive
-#   reactivation of BOTH `nix-config#macos` and nix-personal's `#macos` without
-#   being reset, which rules out anything Nix-managed (activation regenerates
+#   every `nix-config#macos` reactivation without being reset (and, while the
+#   private nix-personal flake existed, its `#macos` too), which rules out
+#   anything Nix-managed (activation regenerates
 #   settings.json every time). Instead it lives purely in the macOS Keychain,
 #   outside any store path, toggled with:
 #     secret set CLAUDE_CODE_USE_BEDROCK 1   # enable
@@ -57,9 +59,10 @@
 # provider and KEEPS WORKING. Degrading to a working provider is the whole point;
 # erroring out would just reproduce the outage.
 #
-# Why this lives in the PUBLIC repo: a gate shipped from nix-personal would be
-# dropped by the very activation it defends against. Same reasoning as
-# `local.keychainSecrets` being wired here.
+# Why this lives in the PUBLIC repo: a gate shipped from a private overlay would
+# be dropped by the very activation it defends against — nix-personal was that
+# overlay until it was retired 2026-09-15, and the argument holds for any
+# successor. Same reasoning as `local.keychainSecrets` being wired here.
 #
 # WHERE THE IDENTITY LIVES NOW: ~/.aws/config, owned by the `aws` CLI.
 # It is in NO repo. nix-personal used to define `local.claudeBedrock.{region,
@@ -340,9 +343,9 @@ in
     # environment only.
 
     # ---- (c) migration: adopt a store-symlinked ~/.aws/config --------------
-    # The day no module declares ~/.aws/config any more (nix-personal's
-    # `aws-sso.nix` gone), home-manager's orphan cleanup DELETES the old
-    # generation's symlink — and with it every profile, since the content existed
+    # The day no module declared ~/.aws/config any more (nix-personal's
+    # `aws-sso.nix` retired with it, 2026-09-15), home-manager's orphan cleanup
+    # would DELETE the old generation's symlink — and with it every profile, since the content existed
     # only in the store. Upstream has no "stop managing, keep the content" option
     # (pinned home-manager modules/files.nix: `home.file.<name>` offers `force`
     # and `onChange`, and `legacyCleanup` rm's any orphan that "links into a Home
@@ -355,7 +358,10 @@ in
     # any layer still manages the path this is absent, so it can never fight
     # `checkLinkTargets` over a file home-manager is about to link. One-shot by
     # construction — after the first run there is no store symlink left to match.
-    # Delete this section once nix-personal is gone.
+    # SPENT, not dead: nix-personal went 2026-09-15 and the first activation
+    # after it converted the symlink to a real file, so the runtime match can no
+    # longer fire. Removing the section is a behaviour change — that call is the
+    # operator's, who alone knows whether every Mac has activated since.
     (lib.mkIf
       (
         pkgs.stdenv.hostPlatform.isDarwin

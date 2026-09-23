@@ -68,10 +68,11 @@ argv or the `/nix/store` (`context7` → `CONTEXT7_API_KEY`, `github` →
 `GITHUB_PERSONAL_ACCESS_TOKEN`; an absent key means an empty export and the server degrades
 rather than crashing).
 
-## The 13 custom stdio launchers
+## The 14 custom stdio launchers
 
 | Server | Notes |
 |---|---|
+| `desktop-commander` | **SHELL/RCE surface — hosted AND published.** `@wonderwhy-er/desktop-commander`, on the gateway since 2026-09-22 by operator decision. What that accepts, stated rather than implied: anything holding a valid Workspace session for this domain can drive a shell on this Mac through the portal. It was excluded until then, and two assertions made the exclusion structural; with every server published the private/published split bounded nothing, so keeping this one off bought a second transport and process tree for no isolation. The gate is Access + Workspace OAuth restricted to the domain — the same gate every other server is behind |
 | `duckduckgo` | web search |
 | `arxiv` | arXiv literature loop via `arxiv-mcp-server` (pinned, `--python 3.12`): search, abstracts, section-level LaTeX reads, BibTeX, Semantic Scholar citation graphs, topic watches. No credentials; papers + watches under `$XDG_DATA_HOME/arxiv-mcp-server/papers` |
 | `json-yaml-toml` | structured-data convert/query/diff/merge/schema |

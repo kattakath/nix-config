@@ -11,7 +11,7 @@
 # It declares the bucket that holds every OTHER stack's state. A stack cannot
 # store its state in a bucket it is itself creating — the first `init` would need
 # the bucket to exist before the apply that creates it. So this one keeps local
-# state, in its own pinned directory, and the other four move to GCS.
+# state, in its own pinned directory, and the other five move to GCS.
 #
 # That is not a gap left open: this stack changes roughly never (an API, an IAM
 # binding, a bucket setting), and the per-user-state hazard that motivated a

@@ -241,7 +241,7 @@ let
     '';
 
   # One wrapper per configured email (cfg.gmail.accounts — see mkGmailMcp's
-  # comment for why the list itself lives in the private nix-personal flake).
+  # comment for why the list is set per host rather than defaulted here).
   # Keyed by the RAW email (genAttrs uses list elements as attr names); the
   # sanitized gmailAlias is only used for the derivation's internal naming.
   gmailMcps = lib.genAttrs cfg.gmail.accounts (
@@ -404,8 +404,10 @@ let
 
   # The servers with no mcp-servers-nix module, as raw stdio commands. Merged into
   # the gateway config via mkConfig's `settings.servers` (telegram appended below,
-  # opt-in). The 13 base ones fall back to pinned npx/uvx launchers; postgres and
-  # wordpress are special (pinned version + Keychain-injected env via a wrapper).
+  # opt-in). Eleven of the 14 base ones are a pinned npx/uvx launcher straight up;
+  # apify, wordpress and wordpress-adapter go through a wrapper instead, because
+  # their credentials are read from the Keychain at launch so no secret value ever
+  # reaches argv or the store.
   # cloudflared connector for the PUBLISHED gateway. arg0 is a nix-* wrapper per
   # .claude/rules/launchd-naming.md (launchd-launcher.nix would rename it anyway,
   # but the token read has to happen somewhere and a wrapper is that somewhere).
@@ -494,8 +496,9 @@ let
     # config files imperatively — the exact anti-pattern this gateway exists
     # to avoid (a server is ADOPTED by declaring it in this file, pinned, and
     # rebuilding — the `mcp-scout` skill in nix-config codifies that flow).
-    # That tool is deny-listed in nix-config's .claude/settings.json (mirror
-    # the deny in the user-scope settings via nix-personal for other repos);
+    # That tool is deny-listed in nix-config's .claude/settings.json, and again
+    # user-scope in modules/shared/claude-guardrails.nix so every OTHER repo's
+    # sessions inherit it (deny lists from all scopes combine);
     # the HM-managed client configs are store symlinks anyway, so a stray
     # write attempt fails closed. Version PINNED: one server that crashes at
     # startup darks the whole gateway (see postgres below) — bump deliberately.
@@ -705,8 +708,8 @@ let
     };
   }
   # TRUE simultaneous multi-account Gmail — one server process PER configured
-  # email (see mkGmailMcp above for why, and why the list itself lives in the
-  # private nix-personal flake, not here). Empty cfg.gmail.accounts (the
+  # email (see mkGmailMcp above for why, and why the list is set in
+  # hosts/macos.nix rather than here). Empty cfg.gmail.accounts (the
   # public default) makes this an empty attrset, costing nothing. Server name
   # uses the sanitized gmailAlias, not the raw email (gmailMcps' attr key) —
   # named-server-config entries can't contain "@"/".".
@@ -729,9 +732,10 @@ let
     };
   };
 
-  # Every server NAME the gateway hosts (7 packaged + 13 base custom, plus
-  # opt-ins). Single source
-  # for the client SSE URLs, so the two sides can never drift. Order/names MUST
+  # Every server NAME the gateway hosts (7 packaged + 14 base custom, plus
+  # opt-ins — 26 today: the 21 fixed ones, chrome-devtools, and four gmail).
+  # Single source for the client SSE URLs, so the two sides can never drift.
+  # Order/names MUST
   # match the packaged servers enabled in `gatewayConfig.programs` below.
   packagedServerNames = [
     "context7"
@@ -746,7 +750,8 @@ let
 
   # SERVER SIDE: a {mcpServers:{name:{command,args,env}}} JSON that mcp-proxy
   # consumes via --named-server-config. mkConfig PINS the 7 packaged servers;
-  # settings.servers carries the 13 custom ones verbatim. flavor "claude-code"
+  # settings.servers carries customStdioServers verbatim — 14 base plus whatever
+  # the opt-ins add, so 19 as this host is configured. flavor "claude-code"
   # emits the `mcpServers` key mcp-proxy expects (it ignores any extra fields).
   # The packaged servers' definitions, named ONCE so the private gateway and the
   # published one cannot diverge. They did: the published config used to rebuild

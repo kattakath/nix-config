@@ -208,14 +208,17 @@ archived, which retires one ruleset, one merge queue and one `ci.yml` apiece:
 | wave 3 | `kattakath/nix-cloudflared-connector` | `modules/features/cloudflared-connector/` |
 | wave 4 | `kattakath/nix-firmware-secrets` | `modules/features/firmware-secrets/` |
 | wave 4 | `kattakath/nix-keychain-secrets` | `modules/features/keychain-secrets/` |
-| wave 4 | `kattakath/nix-vast-provision` | `modules/features/vast-provision/` |
+| wave 4 | `kattakath/nix-vast-provision` | absorbed, then **removed wholesale 2026-09-12** — no capsule today |
 | wave 5 | `kattakath/nix-tart-vms` | `modules/features/tart-vms/` |
 | wave 5 | `kattakath/nix-media-cli` | `modules/features/media-cli/` |
 | wave 6 | `kattakath/nix-local-rag` | `modules/features/local-rag/` |
 
 **The satellite count is 0**, and their ~25 absorbed checks now ride `nix-config`'s single
-`required-checks` aggregate. The archiving itself is an operator action on GitHub, not
-something any workflow in this repo performs.
+`required-checks` aggregate. Six of the seven **absorbed** capsules survive; the `vast-provision`
+row stays because this table records a **retired ruleset**, and that stays retired whether or
+not the capsule outlived the absorption (ADR-002 §9; `modules/features/` holds seven capsules
+today, six absorbed satellites plus the in-tree-born `cloud-cli`). The archiving itself is an
+operator action on GitHub, not something any workflow in this repo performs.
 
 **Then three became two, and two became one.** `kattakath/nix-mcp-gateway` was
 **archived on 2026-09-12**, retiring its ruleset, its merge queue and its `ci.yml`
@@ -228,10 +231,10 @@ archived the same day for the same reason; it never appeared in this table, havi
 merge queue of its own. Archived, **not deleted** (ADR-002 §7.8), so both remain public
 and readable.
 
-The private `ismailkattakath/nix-personal` (GitLab) is **out of scope**: it has no
-`.gitlab-ci.yml` at all, so there is no pipeline for a merge-when-green rule to
-wait on. GitLab's equivalent is "merge when pipeline succeeds" plus
-`only_allow_merge_if_pipeline_succeeds` — both meaningless until that repo has CI.
+The private `ismailkattakath/nix-personal` (GitLab) was **retired 2026-09-15** and is no
+longer a question this page has to answer. It never qualified for the table while it lived:
+it carried no `.gitlab-ci.yml` at all, so there was no pipeline for a merge-when-green rule
+to wait on.
 
 ## Failure modes
 
