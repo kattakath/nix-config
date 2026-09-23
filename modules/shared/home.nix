@@ -57,12 +57,10 @@
   agent-skills-vercel-workflow,
   agent-skills-litellm,
   grok-build-plugin-cc,
-  # THIS operator's own agent resources, extracted from this repo 2026-09-12 and
-  # pinned back exactly like the third-party skills above (flake.nix). The
-  # marketplace, the skills and the public userscripts each live in their own
-  # repo now, so they can be maintained — and adopted — like any community
-  # resource, while Nix keeps the pin, the wiring and the gates.
-  kattakath-ai,
+  # github:kattakath/skills, pinned ONLY for the superhook PATH package below. Its
+  # plugins and skills reach Claude Code through the git marketplace instead
+  # (local.claudePlugins.marketplaces.kattakath), not through this input.
+  kattakath-skills,
   # The ABSORBED local-rag capsule (local.rag.ollama +
   # local.rag.pgvector — the loopback RAG stack) — a MODULE, not a flake,
   # since ADR-002 wave 6 brought it in-tree as modules/features/local-rag/.
@@ -242,7 +240,7 @@ let
   # home.packages resolves against `pkgs`; modules/parts/packages.nix exports the same
   # two for `nix run`/`nix build`, from this same file.
   superhookCli = pkgs.callPackage ../../packages/superhook.nix {
-    superhookSrc = "${kattakath-ai}/plugins/superhook";
+    superhookSrc = "${kattakath-skills}/plugins/superhook";
   };
 
   # rclip, with its runtime-dependency CHECK disabled — not its dependencies changed.
@@ -690,27 +688,29 @@ in
       plugins = [ "context7" ];
     };
 
-    # This operator's OWN published marketplace, from the PINNED flake input
-    # `kattakath-ai` (github:kattakath/ai) — not a local
-    # directory. Extracted from this repo's plugins/ tree 2026-09-12 so the
-    # plugins can be maintained, versioned and adopted like any community
-    # resource; Nix keeps the pin (flake.lock), the wiring (here) and the gates
-    # (modules/parts/checks.nix).
+    # This operator's OWN published marketplace, github:kattakath/skills, as a
+    # GIT source with auto-update — the same shape as claude-plugins-official
+    # above, not a pinned store path. Content ships from that repo alone: its
+    # plugins carry no `version`, so every commit on its `main` is a new version,
+    # and Claude Code's background refresh delivers it with the "updated" notice.
+    # The gate is that repo's own CI (`claude plugin validate`, script checks).
     #
-    # NO PATH-LITERAL TRAP HERE, unlike the `"${../../plugins}"` it replaced: a
-    # store path is absolute, so this line means the same thing in any file in
-    # any flake. That trap is the whole reason the old form had to live in the
-    # repo that owned the tree.
+    # WHY NOT THE flake.lock PIN it used until 2026-09-23. A store path is a
+    # `directory` marketplace, which Claude Code never refreshes, so every plugin
+    # edit needed a pin bump here plus an activation. Plugins are runtime-owned
+    # content (ADR-003 §1.4); this repo declares WHICH marketplace and WHICH
+    # plugins, the remote decides what they contain. ADR-003 §10 records that
+    # this moves the version decision out of flake.lock for plugins.
     #
-    # `repin` still defaults true (the source starts with "/"), which is correct
-    # and load-bearing: the store path moves on every content bump, and
-    # `plugin install` COPIES into ~/.claude/plugins/cache.
+    # The `kattakath-skills` flake input still exists, for exactly two PATH
+    # packages built from plugin scripts (superhook, page-lab-pick). No plugin or
+    # skill is read from it.
     #
-    # Adding a plugin = a plugins/<name>/ tree IN THAT REPO + an entry in its
-    # .claude-plugin/marketplace.json + its bare name below + `nix flake update
-    # kattakath-ai`.
+    # Adding a plugin or skill = its tree + marketplace entry IN THAT REPO, then
+    # its bare name below. Changing one that is already listed = a merge there.
     kattakath = {
-      source = lib.mkDefault "${kattakath-ai}";
+      source = lib.mkDefault "https://github.com/kattakath/skills.git";
+      autoUpdate = true;
       plugins = [
         # llmstxt: authoring skill + /llmstxt command + a stdlib-only linter for the
         # llmstxt.org v2 standard. Nothing upstream AUTHORS these files (the ecosystem is
@@ -745,6 +745,19 @@ in
         # PATH package instead (packages/superhook.nix). Enabling the plugin too would add
         # a second copy of /superhook-review next to .claude/commands/superhook-review.md.
         "claude-code-nix"
+        # Skills published at that repo's top level (skills/<name>/, plain Agent
+        # Skills), each installed as its own marketplace-root plugin. They used to be
+        # cherry-picked into programs.claude-code.skills from the pin; the plugin form
+        # keeps the same per-skill granularity and the same bare /<name> invocation.
+        "rag"
+        "capability-broker"
+        "android-phone"
+        "nix-dev-toolkit"
+        "harvest"
+        "jsonresume-tailor"
+        # The answer-shape kit: output style, the /explain family, cartographer, /task.
+        # modules/shared/claude-brain.nix selects its (namespaced) output style.
+        "brain-signals"
       ];
     };
   };
@@ -1204,54 +1217,13 @@ in
         # ---- Job-search skills (Paramchoudhary/ResumeSkills, MIT) ----
         # A LEAN, complementary slice of the 21-skill pack — the text-based job-search steps that
         # AREN'T resume.json-specific. resume-tailor is deliberately OMITTED: the json-native
-        # .claude/skills/jsonresume-tailor (this repo) supersedes it, reading/writing real resume.json
+        # jsonresume-tailor plugin (kattakath/skills) supersedes it, reading/writing real resume.json
         # and rendering via the `jsonresume` wrapper. These pair with the jobspy + Indeed connectors.
         job-description-analyzer = "${agent-skills-jsonresume}/skills/job-description-analyzer";
         resume-ats-optimizer = "${agent-skills-jsonresume}/skills/resume-ats-optimizer";
         cover-letter-generator = "${agent-skills-jsonresume}/skills/cover-letter-generator";
         interview-prep-generator = "${agent-skills-jsonresume}/skills/interview-prep-generator";
         salary-negotiation-prep = "${agent-skills-jsonresume}/skills/salary-negotiation-prep";
-        # Local RAG over the pgvector store: how to ingest + query via the `postgres`
-        # MCP server and the in-DB embed() function (the local-rag capsule's local.rag.pgvector + local.rag.ollama).
-        # ---- THIS operator's OWN published skills, from the pinned flake input
-        # `kattakath-ai` (github:kattakath/ai) — the SAME pin the marketplace
-        # comes from, since 2026-09-14. Extracted from this repo's skills/ tree
-        # 2026-09-12, briefly its own `claude-skills` repo, now one repo per
-        # owner. Same rail as every third-party pin above — the only difference
-        # between someone else's skill and one of these is who can push to the
-        # repo. Cherry-picked per skill, so adding one there does not silently
-        # install it here, and that stays true for any FURTHER source added:
-        # this attrset and `local.claudePlugins.marketplaces` are both N-entry
-        # already, so a second repo costs one input + its own entries.
-        #
-        # The /explain family (explain/compare/map/zoom/why/tldr/diagram) did NOT
-        # move: it is one kit with the Brain Signals output style and is declared in
-        # modules/shared/claude-brain.nix, next to the style it encodes.
-        rag = "${kattakath-ai}/skills/rag";
-        # Take stock before installing: inventory (skills, deferred MCP tools, plugins,
-        # connectors, CLIs) -> rank by blast radius -> vet by trust tier -> adopt through
-        # THIS harness. Global because the need arises in any repo; it never installs an
-        # MCP server itself — it hands a vetted record to nix-config's `mcp-scout`.
-        capability-broker = "${kattakath-ai}/skills/capability-broker";
-        # Original (not a fork): operator knowledge for the packages/android-phone.nix
-        # ADB/scrcpy CLI — global so ANY session (including ~/-rooted ones) knows the
-        # wrapper's command surface and the adb footguns it absorbs, not just sessions
-        # rooted in this repo. Lives next to the package it documents so they can't
-        # drift apart silently.
-        android-phone = "${kattakath-ai}/skills/android-phone";
-
-        # Making a repo self-sufficient with Nix: dev shell, env catalogue, project-local
-        # Postgres+pgvector stack, self-hosted runner, and `nix run .#<verb>` lifecycle apps.
-        # Global rather than repo-scoped precisely because the point is to apply it to a repo
-        # that does NOT have it yet. Carries the Nix/Postgres/Prisma traps that cost real
-        # debugging time (withPackages union prefix, socket port, macOS socket length cap).
-        nix-dev-toolkit = "${kattakath-ai}/skills/nix-dev-toolkit";
-
-        # End-of-task counterpart to capability-broker: decide whether a session's
-        # discovery is worth keeping, pick the artifact type, strip secrets and machine
-        # paths, and land it as a kattakath/ai PR + a pin bump HERE — never a loose file
-        # in ~/.claude, which this fleet's activation would not preserve.
-        harvest = "${kattakath-ai}/skills/harvest";
       };
     };
 
