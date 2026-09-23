@@ -179,6 +179,30 @@ determinate-nixd status 2>&1 | grep -m1 -i 'now available' || echo "determinate-
 sudo determinate-nixd upgrade     # fix mode only; restarts the daemon (seconds)
 ```
 
+### E3. launchd units: declared vs loaded, exits, log growth (macos)
+
+`nix flake check` proves what the config **says**. Nothing proved what launchd actually
+**did** — which is how `activate-agenix` and both `github-runner-macos-*` daemons sat outside
+the system domain for ~21h on 2026-09-22, taking `/run/agenix` and five CI lanes with them,
+across four activations that each reported success. Report only; every remedy needs root:
+
+```bash
+nix run .#launchd-doctor        # exit 1 = findings; LAUNCHD_DOCTOR_WARN_KB tunes the log threshold
+```
+
+Four sections, and they are **not** equally urgent:
+
+| Section | Urgency | Remedy |
+|---|---|---|
+| `NOT LOADED` | **act now** — a fleet unit is silently absent | `sudo launchctl bootstrap <domain> <plist>`; `modules/darwin/launchd-reconcile.nix` makes the next activation do it |
+| `EXIT <n>` | investigate — loaded but failing every spawn | read the unit's log; `exit 78` is the boot/mount race, not a crash |
+| log size | routine | long-lived agents are fd-pinned and **not** covered by `system.newsyslog` (see `modules/darwin/logging.nix`) |
+| disabled-DB / orphan logs | cosmetic | litter from removed features; delete only when sure the feature is gone |
+
+**Never bootstrap in `fix` mode without asking.** It is under **always confirm**: starting a
+daemon the operator deliberately booted out is exactly the wrong move, and
+`/etc/nix-darwin/launchd-hold/<label>` is the supported way to keep one down.
+
 ### F. Host re-activation
 
 Only if repos touched in this run actually compose macos (i.e. their
