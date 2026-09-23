@@ -69,6 +69,16 @@ slice**, not the ceiling — §2 shows how much more is reachable.
   repo's reuse-over-rebuild preference.
 - `launchd.agents.mcp-gateway` (`modules/shared/mcp.nix`, Home-Manager side) — the
   localhost MCP gateway (macos only).
+- `launchd.agents.{metube,yt-dlp-web-ui}` (`modules/shared/{metube,yt-dlp-web-ui}.nix`,
+  Home-Manager side, **macos only**) — the two loopback download servers, on
+  `127.0.0.1:8081` and `127.0.0.1:3033`. Both were nix-darwin `launchd.user.agents` until
+  2026-09-22; Home Manager re-bootstraps an agent that has left its launchd domain and the
+  system tier does not.
+- `launchd.user.agents.file-rotation-logs` + `launchd.daemons.file-rotation-logs-system`
+  (`modules/darwin/logging.nix`, **macos only**) — hourly `logrotate --copytruncate` over
+  every long-lived (`KeepAlive`) launchd log, user tier and root tier. The short-lived logs
+  go through `system.newsyslog` in the same module instead. Truncation is what reclaims: the
+  fd launchd hands the child is **O_APPEND**, so rename+create would free nothing.
 
 ---
 
@@ -293,7 +303,9 @@ depend on.
 | Agents | Host |
 |---|---|
 | `open-maccy` / `open-slack` / `open-mail` / `open-messages` | **macos only** |
-| MCP gateway + public tunnel + RAG (`ollama-local`, `postgres-pgvector`) | **macos only** |
+| MCP gateway + RAG (`ollama-local`, `postgres-pgvector`) — the public tunnel was removed 2026-09-22 | **macos only** |
+| `metube` / `yt-dlp-web-ui` (loopback download servers) | **macos only** |
+| `file-rotation-logs` / `file-rotation-logs-system` (launchd log rotation) | **macos only** |
 | `nix-file-rotation-desktop` / `nix-file-rotation-downloads` | **macos only** (the gate protected the former `macvm` guest's VirtioFS-shared `~/Downloads` and is kept — see [`macvm-readd-runbook.md`](macvm-readd-runbook.md)) |
 
 Gate with `networking.hostName` (set in `hosts/*.nix`).
