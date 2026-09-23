@@ -116,46 +116,41 @@ let
 
       case "$(state)" in
         normal)
-          # Step 1: stop preferring the wired path. If the router is merely a dead
-          # uplink this changes nothing on its own, but it is the cheap, reversible
-          # move and it is what makes step 2's probe meaningful.
-          echo "uplink-watchdog: demoting ${cfg.wiredInterface} default route"
+          # STEP 1: RE-SCAN THE AIR. Restarting the supplicant makes wpa_supplicant
+          # re-evaluate every network in the card and associate with the highest
+          # `priority=` one that is ACTUALLY IN RANGE.
+          #
+          # This is step 1 and not step 2 because of what the fallback network IS on
+          # this host: it is a PHONE HOTSPOT on mobile data, brought up BY HAND when
+          # the house link dies. Its appearance is therefore not a spare AP, it is an
+          # emergency beacon — the operator turning it on IS the signal, and the only
+          # remaining way to reach this host at all (sshd is loopback-bound and the
+          # Cloudflare tunnel needs working internet, so a dead uplink means no LAN
+          # path either). Grabbing it must be the FIRST thing tried, not the second.
+          #
+          # WHY A RESTART IS REQUIRED AND A PRIORITY IS NOT ENOUGH: `priority=` is
+          # consulted at (RE)ASSOCIATION time only. A supplicant already associated to
+          # the lower-priority house AP will NOT roam to a higher-priority SSID that
+          # appears later — there is no bgscan configured, and bgscan governs BSS
+          # roaming within one ESS anyway, not switching between SSIDs. So when the
+          # house AP keeps beaconing but its uplink is dead — the common case here —
+          # nothing moves until something forces re-association. This is that force.
+          echo "uplink-watchdog: uplink down — re-scanning for a higher-priority network"
+          systemctl restart ${cfg.supplicantUnit}
+          set_state wifi-rescanned
+          ;;
+        wifi-rescanned)
+          # STEP 2: still down, so the best Wi-Fi in range does not help either.
+          # Stop preferring the wired path, in case it is the wired router that is
+          # black-holing while something else on Wi-Fi could carry traffic.
+          echo "uplink-watchdog: still down — demoting ${cfg.wiredInterface} default route"
           ip route del default dev ${cfg.wiredInterface} 2>/dev/null || true
           set_state wired-demoted
           ;;
         wired-demoted)
-          # Step 2: the router itself is the problem — leave its SSID for the
-          # fallback by inverting the priorities in the RUNTIME copy only.
-          echo "uplink-watchdog: still down — moving wlan0 to the fallback network"
-          # The two priority VALUES are READ OFF THE CARD, never hardcoded. The
-          # card is written by nixpi-wifi-creds, which ranks n networks as
-          # priority=n..1 — so a two-AP card carries 2/1, while a hand-written
-          # conf may use any pair. Hardcoding one pair meant the sed silently
-          # matched NOTHING against the other, leaving this step a no-op that
-          # restarted the supplicant with an identical config. Measured
-          # 2026-09-23 on the live card. Extraction is sed/sort/head only, so
-          # it adds no runtimeInputs.
-          hi=$(sed -n 's/.*priority=\([0-9]\{1,\}\).*/\1/p' "$WPA_CARD" | sort -rn | head -1)
-          lo=$(sed -n 's/.*priority=\([0-9]\{1,\}\).*/\1/p' "$WPA_CARD" | sort -n  | head -1)
-          if [ -n "$hi" ] && [ "$hi" != "$lo" ]; then
-            sed -e "s/priority=$hi$/priority=__T__/" \
-                -e "s/priority=$lo$/priority=$hi/" \
-                -e "s/priority=__T__/priority=$lo/" \
-                "$WPA_CARD" > "$WPA_LIVE.new"
-          else
-            # One network, or an unranked conf: there is nothing to invert, and
-            # pretending otherwise would restart the supplicant for no reason.
-            echo "uplink-watchdog: only one ranked network — nothing to invert"
-            cp "$WPA_CARD" "$WPA_LIVE.new"
-          fi
-          install -m 0600 "$WPA_LIVE.new" "$WPA_LIVE" && rm -f "$WPA_LIVE.new"
-          systemctl restart ${cfg.supplicantUnit}
-          set_state fallback
-          ;;
-        fallback)
-          # Step 3: nothing worked. Put everything back rather than sit in a
+          # STEP 3: nothing worked. Put everything back rather than sit in a
           # half-changed state, and let the next cycle start the ladder again.
-          echo "uplink-watchdog: fallback did not help — restoring shipped configuration"
+          echo "uplink-watchdog: nothing helped — restoring shipped configuration"
           restore "$gw"
           clear_fails
           ;;
@@ -183,8 +178,11 @@ in
       type = lib.types.path;
       default = "/run/wpa_supplicant-firmware.conf";
       description = ''
-        The RUNTIME wpa_supplicant config. The watchdog edits only this copy, never
-        the card's, so any reboot returns to the shipped network ranking.
+        The RUNTIME wpa_supplicant config. Since 2026-09-23 the watchdog no longer
+        REWRITES this file at all — it only restores it from the card. The priority
+        inversion that used to edit it was removed: inverting is correct for two peer
+        APs, and WRONG here, where the second network is an on-demand phone hotspot
+        that must always be preferred when present.
       '';
     };
 
