@@ -131,6 +131,277 @@ let
   npx = lib.getExe' pkgs.nodejs "npx";
   uvx = lib.getExe' pkgs.uv "uvx";
 
+  # ---- The per-server CATALOG (Nix-agnostic; will become the kattakath-skills flake
+  # input once that repo carries the file — today a local, staged copy) ----------
+  #
+  # WHAT'S IN IT, AND WHY IT'S SHAPED THIS WAY: every entry is the STANDARD
+  # `.mcp.json`/`claude_desktop_config.json` `mcpServers` shape — literally what
+  # each server's own README shows under "add this to your client." `env` values
+  # are `${VAR_NAME}` PLACEHOLDERS, never real values and never a
+  # Keychain/passwordCommand hint — the whole point of the public repo this will
+  # live in is that one entry pastes into ANYONE's own client config with zero
+  # knowledge nix-config exists. A `type: "http"`/`"sse"` entry (cloudflare,
+  # cloudflare-docs) names a remote server with no local command at all — the
+  # schema upstream already has for that.
+  #
+  # WHAT'S DELIBERATELY NOT IN IT: nix-config's OWN fleet-specific hardening —
+  # version/interpreter pins that guard against a runtime `npx`/`uvx` fetch
+  # drifting onto a broken release (postgres, arxiv, mcpfinder, wordpress,
+  # mcp-jq), and the nixpkgs package-attr overrides that repair a framework
+  # default that fails to build on this pin (fetch/memory/sequential-thinking/
+  # nixos). Those stay in `catalogArgOverrides`/`packagedProgramOverrides` below,
+  # entirely inside nix-config — a portable catalog has no business carrying a
+  # THIS-FLEET nixpkgs revision's build repair. Nor is the Keychain/agenix fetch
+  # mechanism in it anywhere: `requiredEnvToPasswordCommand` below is nix-config's
+  # own separate, non-portable mapping from an env-var NAME the catalog names to
+  # the actual `security find-generic-password` invocation that fills it.
+  #
+  # Four `gmail-<account>` published names collapse to ONE `gmail` template here
+  # (see the fan-out at `gmailMcps`/`hostedServerNames` below — unchanged from
+  # before this refactor) — extraction-notes.md has the full per-server reasoning
+  # for every judgment call in this file.
+  mcpCatalog = (builtins.fromJSON (builtins.readFile ./mcp-gateway-catalog.json)).mcpServers;
+
+  # nix-config's OWN mapping from an env-var NAME (as the catalog names it in a
+  # server's `env` block) to the exact Keychain invocation that fills it TODAY —
+  # read out of the pre-catalog file's hand-typed wrappers/passwordCommands, not
+  # invented. This table, and this table alone, is what may never leave
+  # nix-config for the public catalog repo (§ Security: no secret-fetch detail in
+  # a public file). `DATABASE_URI` is the one entry that ISN'T a Keychain
+  # command — postgres's connection string is a loopback-trust, no-secret value
+  # from another fleet-internal option, so it is special-cased directly in
+  # `mkGeneratedStdio` below rather than living in this table.
+  requiredEnvToPasswordCommand = {
+    CONTEXT7_API_KEY = [
+      "/usr/bin/security"
+      "find-generic-password"
+      "-a"
+      "$(id -un)"
+      "-s"
+      "CONTEXT7_API_KEY"
+      "-w"
+    ];
+    GITHUB_PERSONAL_ACCESS_TOKEN = [
+      "/usr/bin/security"
+      "find-generic-password"
+      "-a"
+      "$(id -un)"
+      "-s"
+      "gh:github.com:pat"
+      "-w"
+    ];
+    APIFY_TOKEN = [
+      "/usr/bin/security"
+      "find-generic-password"
+      "-a"
+      "$(id -un)"
+      "-s"
+      "mcp:apify.com:token"
+      "-w"
+    ];
+    WORDPRESS_SITE_URL = [
+      "/usr/bin/security"
+      "find-generic-password"
+      "-a"
+      "$(id -un)"
+      "-s"
+      "mcp:silvercreek.ai:wp_url"
+      "-w"
+    ];
+    WORDPRESS_USERNAME = [
+      "/usr/bin/security"
+      "find-generic-password"
+      "-a"
+      "$(id -un)"
+      "-s"
+      "mcp:silvercreek.ai:wp_user"
+      "-w"
+    ];
+    WORDPRESS_APP_PASSWORD = [
+      "/usr/bin/security"
+      "find-generic-password"
+      "-a"
+      "$(id -un)"
+      "-s"
+      "mcp:silvercreek.ai:wp_app_password"
+      "-w"
+    ];
+  };
+
+  # The 7 mcp-servers-nix `programs.<name>` modules this fleet uses — one source
+  # for both the catalog lookup key and the generated `packagedPrograms` attrset.
+  packagedProgramNames = [
+    "context7"
+    "fetch"
+    "memory"
+    "sequential-thinking"
+    "nixos"
+    "terraform"
+    "github"
+  ];
+
+  # Fleet-specific nixpkgs package-attr overrides for a packaged program whose
+  # FRAMEWORK DEFAULT fails to build/run on this pin — never derivable from the
+  # (Nix-agnostic) catalog, which names only the upstream package, not a nixpkgs
+  # attr in THIS flake's revision. Read out of the pre-catalog file; see
+  # extraction-notes.md "Packaged servers" for the why on each.
+  packagedProgramOverrides = {
+    fetch.package = pkgs.mcp-server-fetch;
+    memory.package = pkgs.mcp-server-memory;
+    sequential-thinking.package = pkgs.mcp-server-sequential-thinking;
+    nixos.package = pkgs.mcp-nixos.overrideAttrs (_: {
+      doCheck = false;
+      doInstallCheck = false;
+    });
+  };
+
+  mkPackagedProgram =
+    name:
+    let
+      entry = mcpCatalog.${name};
+      envNames = builtins.attrNames (entry.env or { });
+    in
+    {
+      enable = true;
+    }
+    // (packagedProgramOverrides.${name} or { })
+    // lib.optionalAttrs (envNames != [ ]) {
+      passwordCommand = lib.genAttrs envNames (v: requiredEnvToPasswordCommand.${v});
+    };
+
+  # Resolves the catalog's PORTABLE command name ("npx"/"uvx" — every plain stdio
+  # entry in this catalog uses one of the two) to this fleet's pinned store-path
+  # executable.
+  resolveCatalogCommand =
+    name:
+    if name == "npx" then
+      npx
+    else if name == "uvx" then
+      uvx
+    else
+      throw "mcp-gateway-catalog.json: unrecognised command '${name}' for a generated stdio server (only npx/uvx are resolved here — anything else needs a hand-written entry in customStdioServers, same as wordpress-adapter/chrome-devtools/gmail)";
+
+  # Fleet-specific ARG overrides for a handful of generated stdio servers: the
+  # catalog carries the PORTABLE/basic invocation (what a README paste would
+  # give you), and these are the drift-guard version/interpreter pins this fleet
+  # needs on top, because mcp-proxy spawns every server sequentially at startup
+  # and ONE that fails to install/import darks the WHOLE gateway (see the
+  # detailed measurements this used to carry inline, preserved here):
+  #
+  #   postgres: `--python 3.12` steers uv away from a CPython whose wheels
+  #     pglast/postgres-mcp's deps lag; `--with mcp<2 --from postgres-mcp==0.3.0`
+  #     pins around mcp 2.0 removing the vendored `fastmcp` that 0.3.0 still
+  #     imports (mcp 2.0 => import crash => gateway dark).
+  #   arxiv: same `--python 3.12` reasoning (aiohttp/pydantic-core/lxml wheels),
+  #     `arxiv-mcp-server==0.7.2` pins the release, and `--storage-path` moves
+  #     downloaded papers off the default ~/.arxiv-mcp-server dotdir to XDG data.
+  #   mcpfinder: `@1.1.0` is pinned because a later release could reintroduce the
+  #     `add_mcp_server_config` write-tool this gateway deny-lists elsewhere.
+  #   wordpress: `@3.3.30` pins the client library version.
+  #   mcp-jq: this fleet's args OMIT the catalog's own README `-y` (kept for
+  #     behavioural parity with the pre-catalog file, not because `-y` is wrong).
+  catalogArgOverrides = {
+    mcp-jq = [ "@247arjun/mcp-jq" ];
+    mcpfinder = [
+      "-y"
+      "@mcpfinder/server@1.1.0"
+    ];
+    postgres = [
+      "--python"
+      "3.12"
+      "--with"
+      "mcp<2"
+      "--from"
+      "postgres-mcp==0.3.0"
+      "postgres-mcp"
+      "--access-mode=unrestricted"
+    ];
+    arxiv = [
+      "--python"
+      "3.12"
+      "--from"
+      "arxiv-mcp-server==0.7.2"
+      "arxiv-mcp-server"
+      "--storage-path"
+      "${config.xdg.dataHome}/arxiv-mcp-server/papers"
+    ];
+    wordpress = [
+      "-y"
+      "mcp-wordpress@3.3.30"
+    ];
+  };
+
+  # Catalog names this fleet generates mechanically into `customStdioServers` —
+  # a plain command/args pass-through, with any `env` names wired to a Keychain
+  # fetch generically (mirroring mcp-servers-nix's OWN `mkServerModule` wrapper
+  # shape for `passwordCommand` — `settings.servers` raw entries have no
+  # equivalent of that, which is WHY this fleet grew hand-rolled Keychain
+  # wrappers per server in the first place; this one function replaces every one
+  # of them that was doing nothing more than "export a var, then exec").
+  #
+  # NOT in this list, and never generated: `cloudflare`/`cloudflare-docs` (the
+  # catalog names them remote `type: "http"` servers; this fleet still bridges
+  # both through `mcp-remote` for OAuth reasons a generic generator can't
+  # express), `wordpress-adapter` (derives a Basic-auth header, not a raw
+  # secret), `chrome-devtools` (dual-mode port-probing at spawn time), and
+  # `gmail` (materializes a credentials file per account). All four stay
+  # hand-written below — see extraction-notes.md for the why on each.
+  generatedStdioNames = [
+    "desktop-commander"
+    "kapture"
+    "duckduckgo"
+    "json-yaml-toml"
+    "macos-automator"
+    "mobile-mcp"
+    "apify"
+    "wordpress"
+    "mcp-jq"
+    "mcpfinder"
+    "postgres"
+    "arxiv"
+  ];
+
+  mkGeneratedStdio =
+    name:
+    let
+      entry = mcpCatalog.${name};
+      cmd = resolveCatalogCommand entry.command;
+      args = catalogArgOverrides.${name} or entry.args or [ ];
+      envNames = builtins.attrNames (entry.env or { });
+    in
+    if envNames == [ ] then
+      {
+        command = cmd;
+        inherit args;
+      }
+    else if envNames == [ "DATABASE_URI" ] then
+      # Not a Keychain secret — see requiredEnvToPasswordCommand's header.
+      {
+        command = cmd;
+        inherit args;
+        env.DATABASE_URI = config.local.rag.pgvector.databaseUri;
+      }
+    else
+      let
+        wrapper = pkgs.writeShellScriptBin "nix-mcp-${name}" ''
+          set -u
+          ${lib.concatMapStringsSep "\n" (v: ''
+            export ${v}="$(${toString requiredEnvToPasswordCommand.${v}} 2>/dev/null || true)"
+            if [ -z "${"$" + v}" ]; then
+              echo "${name}: missing ${v} in the login Keychain — tools will fail until set." >&2
+            fi
+          '') envNames}
+          export HOME="${config.home.homeDirectory}"
+          exec ${cmd} ${lib.concatMapStringsSep " " lib.escapeShellArg args}
+        '';
+      in
+      {
+        command = lib.getExe wrapper;
+        args = [ ];
+      };
+
+  generatedStdioServers = lib.genAttrs generatedStdioNames mkGeneratedStdio;
+
   # chaindead/telegram-mcp (Go, MIT) speaks MTProto as YOUR Telegram USER account —
   # it reads/triages DMs, private groups and channels, and DRAFTS replies
   # (`messages.saveDraft`; you press send — nothing posts under your name). It needs
@@ -191,7 +462,7 @@ let
   # is read from the login Keychain at LAUNCH and materialized into
   # ~/.gmail-mcp/gcp-oauth.keys.json in the exact shape Google's own downloaded
   # credentials JSON uses (never in argv/the store — same shape as
-  # telegramMcp/wpMcp above). Each account gets its OWN GMAIL_CREDENTIALS_PATH —
+  # telegramMcp above). Each account gets its OWN GMAIL_CREDENTIALS_PATH —
   # populated by a SEPARATE one-time interactive `auth` run per account (opens a
   # browser; the tool itself writes that file, this wrapper never touches it).
   #
@@ -258,15 +529,18 @@ let
   # Application Password — NOTHING is installed on the WordPress site itself. The
   # three creds are read from the login Keychain at launch and mapped to the
   # server's WORDPRESS_* env, so no secret ever lands in the gateway JSON / store /
-  # argv (same shape as telegramMcp above). Store them once:
+  # argv. GENERATED now (mkGeneratedStdio, from the "wordpress" catalog entry's
+  # `env` names + `requiredEnvToPasswordCommand` above) rather than a bespoke
+  # wrapper — was `wpMcp`, which did nothing a generic export-then-exec wrapper
+  # doesn't. Store the three once:
   #     secret set WP_URL <https://www.SITE>   # MUST be the canonical www host —
   #       a non-www host that 301-redirects cross-host DROPS the Authorization
   #       header, so REST auth 401s. secret set WP_ADMIN_USER <login> ;
   #     secret set WP_ADMIN_APP_PASSWORD <app-pw>   # wp-admin ▸ Users ▸ Profile ▸
   #       Application Passwords — NOT the login password (WP refuses it for REST).
-  # Resilient by design: on missing creds it warns but STILL execs, so an absent
-  # secret can't dark the shared gateway (unlike telegram, which exits). Basename
-  # nix-* for the BTM origin rule.
+  # Resilient by design: on a missing secret the generated wrapper warns but
+  # STILL execs (same as before), so an absent secret can't dark the shared
+  # gateway (unlike telegram, which exits).
   # chrome-devtools-mcp, with the attach flag chosen AT SPAWN TIME.
   #
   # WHY A WRAPPER, when the motto says reach for the option first: measured
@@ -323,21 +597,6 @@ let
       --no-usage-statistics --no-performance-crux
   '';
 
-  wpMcp = pkgs.writeShellScriptBin "nix-mcp-wordpress" ''
-    set -u
-    site="$(/usr/bin/security find-generic-password -a "$(id -un)" -s mcp:silvercreek.ai:wp_url -w 2>/dev/null || true)"
-    user="$(/usr/bin/security find-generic-password -a "$(id -un)" -s mcp:silvercreek.ai:wp_user -w 2>/dev/null || true)"
-    pass="$(/usr/bin/security find-generic-password -a "$(id -un)" -s mcp:silvercreek.ai:wp_app_password -w 2>/dev/null || true)"
-    if [ -z "$site" ] || [ -z "$user" ] || [ -z "$pass" ]; then
-      echo "mcp-wordpress: missing WP_URL / WP_ADMIN_USER / WP_ADMIN_APP_PASSWORD in the login Keychain — tools will fail until set (see the store-them-once note in mcp.nix)." >&2
-    fi
-    export WORDPRESS_SITE_URL="$site"
-    export WORDPRESS_USERNAME="$user"
-    export WORDPRESS_APP_PASSWORD="$pass"
-    export HOME="${config.home.homeDirectory}"
-    exec ${npx} -y mcp-wordpress@3.3.30
-  '';
-
   # Official WordPress MCP Adapter (WordPress/mcp-adapter), installed ON the site,
   # exposing a Streamable-HTTP MCP endpoint at /wp-json/mcp/mcp-adapter-default-server
   # (default server = 3 meta-tools: discover / get-info / execute Ability — so any core
@@ -383,31 +642,23 @@ let
 
   # Apify's Actors MCP server (apify/actors-mcp-server), run LOCALLY via
   # APIFY_TOKEN — NOT the hosted mcp.apify.com OAuth bridge the `apify` entry
-  # below used until 2026-08-19. That OAuth flow needs an interactive browser
+  # used until 2026-08-19. That OAuth flow needs an interactive browser
   # redirect on first use, which a headless launchd agent can never complete;
   # confirmed stuck in mcp-gateway.log re-issuing a fresh PKCE challenge on
-  # every connection attempt with no way to finish it. The token authenticates
-  # at LAUNCH via `security` (never in argv / never in the store), matching the
-  # wpMcp/telegramMcp Keychain-wrapper shape above. Resilient like wpMcp: warns
-  # but still execs on a missing token, so an absent secret can't dark the
-  # shared gateway. Basename nix-* for the BTM origin rule. Store it once:
+  # every connection attempt with no way to finish it. GENERATED now
+  # (mkGeneratedStdio, from the "apify" catalog entry's `env` names +
+  # requiredEnvToPasswordCommand above) — was `apifyMcp`, a bespoke wrapper
+  # doing nothing a generic export-then-exec wrapper doesn't. Store the token
+  # once:
   #     secret set APIFY_TOKEN <token>   # Apify Console → Settings → Integrations
-  apifyMcp = pkgs.writeShellScriptBin "nix-mcp-apify" ''
-    set -u
-    token="$(/usr/bin/security find-generic-password -a "$(id -un)" -s mcp:apify.com:token -w 2>/dev/null || true)"
-    if [ -z "$token" ]; then
-      echo "mcp-apify: missing APIFY_TOKEN in the login Keychain — tools will fail until set (secret set APIFY_TOKEN <token>)." >&2
-    fi
-    export APIFY_TOKEN="$token"
-    exec ${npx} -y @apify/actors-mcp-server
-  '';
 
   # The servers with no mcp-servers-nix module, as raw stdio commands. Merged into
   # the gateway config via mkConfig's `settings.servers` (telegram appended below,
-  # opt-in). Eleven of the 14 base ones are a pinned npx/uvx launcher straight up;
-  # apify, wordpress and wordpress-adapter go through a wrapper instead, because
-  # their credentials are read from the Keychain at launch so no secret value ever
-  # reaches argv or the store.
+  # opt-in). Most are GENERATED from mcp-gateway-catalog.json (mkGeneratedStdio) —
+  # a plain pinned npx/uvx launcher, with any Keychain secret wired through
+  # requiredEnvToPasswordCommand where the catalog names one. wordpress-adapter and
+  # chrome-devtools stay hand-written wrappers below (see their own comments for
+  # why); gmail's per-account fan-out lives further down.
   # cloudflared connector for the PUBLISHED gateway. arg0 is a nix-* wrapper per
   # .claude/rules/launchd-naming.md (launchd-launcher.nix would rename it anyway,
   # but the token read has to happen somewhere and a wrapper is that somewhere).
@@ -431,442 +682,257 @@ let
     exec ${lib.getExe pkgs.cloudflared} --no-autoupdate tunnel run
   '';
 
-  customStdioServers = {
-    # SHELL/RCE SURFACE, on the gateway and published — an operator decision
-    # taken 2026-09-22 with the consequence stated rather than implied: anything
-    # holding a valid Workspace session for this domain can drive a shell on this
-    # Mac through it. It was excluded from the gateway until then, and two
-    # assertions used to make that structural.
-    #
-    # What changed is not the risk, it is the architecture: with every server
-    # published, the private/published split bounded nothing, so keeping ONE
-    # server off the proxy bought a second transport and a second process tree
-    # for no isolation. The gate that matters is Access + Workspace OAuth
-    # restricted to the domain, which is the same gate every other server is
-    # behind.
-    desktop-commander = {
-      command = npx;
-      args = [
-        "-y"
-        "@wonderwhy-er/desktop-commander@latest"
-      ];
-    };
-
-    # The SERVER half of Kapture. modules/shared/chromium.nix owns the extension
-    # (`local.chromium.kaptureMcp`) and its own docs called this out as a real
-    # follow-up: the server lived in ~/.claude.json at user scope, imperative and
-    # invisible to a rebuild. It is the only MCP server this fleet ran that way.
-    #
-    # `bridge` is the subcommand, not a flag — kapture-mcp exposes the local
-    # websocket bridge the extension connects back to. A running bridge with ZERO
-    # connected tabs is DARK, not ready: a tab is only visible after the operator
-    # toggles it from the extension's toolbar popup, which is why hosting this
-    # grants nothing on its own.
-    kapture = {
-      command = npx;
-      args = [
-        "-y"
-        "kapture-mcp@latest"
-        "bridge"
-      ];
-    };
-
-    duckduckgo = {
-      command = uvx;
-      args = [ "duckduckgo-mcp-server" ];
-    };
-    # arXiv literature loop (blazickjp/arxiv-mcp-server, Apache-2.0): search,
-    # abstracts, section-level LaTeX reads, BibTeX export, citation graphs and
-    # on-disk topic watches. No credentials. Runtime uvx fetch — no nixpkgs or
-    # mcp-servers-nix package exists — so both drift axes are pinned, as for
-    # postgres below: the release (0.7.2), and `--python 3.12` so uv never picks
-    # a newest interpreter its wheels (aiohttp/pydantic-core/lxml) lag behind; a
-    # server that fails to install darks the whole gateway. The package already
-    # bounds `mcp<2` itself, so no `--with` is needed. `--storage-path` moves
-    # downloaded papers + watches off the default ~/.arxiv-mcp-server dotdir to
-    # XDG data. No network at startup: an offline launch still handshakes.
-    arxiv = {
-      command = uvx;
-      args = [
-        "--python"
-        "3.12"
-        "--from"
-        "arxiv-mcp-server==0.7.2"
-        "arxiv-mcp-server"
-        "--storage-path"
-        "${config.xdg.dataHome}/arxiv-mcp-server/papers"
-      ];
-    };
-    json-yaml-toml = {
-      command = uvx;
-      args = [ "mcp-json-yaml-toml" ];
-    };
-    mcp-jq = {
-      command = npx;
-      args = [ "@247arjun/mcp-jq" ];
-    };
-    # MCP-server DISCOVERY (mcpfinder.dev — @mcpfinder/server, AGPL-3.0):
-    # cross-registry search over the Official MCP Registry + Glama + Smithery
-    # via `search_mcp_servers` / `get_server_details`. Wired
-    # DISCOVERY-ONLY. It registers FOUR tools (browse_categories,
-    # get_install_config, get_server_details, search_mcp_servers), all read-only
-    # — verified from a live session's namespace 2026-09-16. It had a fifth,
-    # `add_mcp_server_config`, which writes client
-    # config files imperatively — the exact anti-pattern this gateway exists
-    # to avoid (a server is ADOPTED by declaring it in this file, pinned, and
-    # rebuilding — the `mcp-scout` skill in nix-config codifies that flow).
-    # That tool is deny-listed in nix-config's .claude/settings.json, and again
-    # user-scope in modules/shared/claude-guardrails.nix so every OTHER repo's
-    # sessions inherit it (deny lists from all scopes combine);
-    # the HM-managed client configs are store symlinks anyway, so a stray
-    # write attempt fails closed. Version PINNED: one server that crashes at
-    # startup darks the whole gateway (see postgres below) — bump deliberately.
-    mcpfinder = {
-      command = npx;
-      args = [
-        "-y"
-        "@mcpfinder/server@1.1.0"
-      ];
-    };
-    cloudflare-docs = {
-      command = npx;
-      args = [
-        "-y"
-        "mcp-remote"
-        "https://docs.mcp.cloudflare.com/mcp"
-      ];
-    };
-    cloudflare = {
-      command = npx;
-      args = [
-        "-y"
-        "mcp-remote"
-        "https://mcp.cloudflare.com/mcp"
-        # mcp.cloudflare.com's oauth-authorization-server metadata omits
-        # scopes_supported, so mcp-remote falls back to a hardcoded
-        # "openid email profile" scope request — Cloudflare's /authorize
-        # rejects that ("Unknown OAuth scope") since it validates against its
-        # own product-scope catalog (user:read, account:read, zone:read, …),
-        # not OIDC scopes. mcp-remote also treats an empty string as unset
-        # (falls through to the same bad default), so pass Cloudflare's own
-        # REQUIRED_SCOPES (github.com/cloudflare/mcp src/auth/scopes.ts) as
-        # the minimum valid, non-empty override — the browser consent screen
-        # still lets you pick additional scopes interactively.
-        "--static-oauth-client-metadata"
-        ''{"scope":"user:read offline_access account:read"}''
-      ];
-    };
-    # Apify Store's thousands of ready-made Actors (scrapers/crawlers/automation
-    # for social media, search engines, maps, e-commerce, any website) as tools,
-    # plus Actor search/run/dataset access. Command is the Keychain-injecting
-    # apifyMcp wrapper above — see it for why this is the LOCAL token-based
-    # server rather than the hosted mcp.apify.com OAuth bridge (used until
-    # 2026-08-19, permanently stuck under headless launchd).
-    apify = {
-      command = lib.getExe apifyMcp;
-      args = [ ];
-    };
-    # Native macOS automation: run AppleScript AND JXA (JavaScript for Automation)
-    # through osascript, plus a built-in knowledge base of ready scripts, via the
-    # `execute_script` tool. steipete/macos-automator-mcp (854★, actively maintained;
-    # clear provenance — the unscoped `applescript-mcp` npm pkg lists no repo). This
-    # is a POWERFUL surface (execute_script can `do shell script` and drive any app) —
-    # but localhost-only like the rest of the gateway (127.0.0.1, no off-box exposure),
-    # and unlike a per-client server we DO share it across clients by
-    # request. First control of another app triggers a one-time macOS TCC "Automation"
-    # consent prompt. `--package … <bin>` is the maintainer's recommended npx form
-    # (sidesteps scoped-package bin inference). Runs under the gateway's GUI launchd
-    # agent, so osascript has a real user session.
-    #
-    # ACCESSIBILITY (TCC): System Events UI scripting additionally needs an
-    # Accessibility grant for /usr/bin/osascript — the stable, Apple-signed binary
-    # this server's PATH resolves `osascript` to (nothing earlier on the gateway
-    # PATH provides it). No app in the launchd chain can raise the consent prompt,
-    # so it is a ONE-TIME manual grant (⇧⌘G → /usr/bin/osascript in System Settings
-    # ▸ Privacy & Security ▸ Accessibility). It survives every rebuild because the
-    # grant target is a fixed system path, NOT a store path — see the preflight in
-    # `home.activation.macosAutomatorAccessibilityCheck` below and the full
-    # rationale (incl. why no stable-path launchd wrapper helps) in
-    # docs/mcp-gateway-accessibility-tcc.md.
-    macos-automator = {
-      command = npx;
-      args = [
-        "-y"
-        "--package"
-        "@steipete/macos-automator-mcp"
-        "macos-automator-mcp"
-      ];
-    };
-    # Cross-platform mobile automation — drives Android EMULATORS and physical
-    # devices over ADB (plus iOS), accessibility-first (native a11y tree: no vision
-    # model, no API key, no image tokens), falling back to screenshots+coordinates.
-    # mobile-next/mobile-mcp (5.5k★, Apache-2.0, ~79k dl/mo). Needs `adb` + the
-    # Android SDK, so the gateway agent below adds ${androidSdkHome}/platform-tools to
-    # PATH and exports ANDROID_HOME. Drives any booted `android-emu`
-    # (modules/shared/home.nix) or a USB device with debugging authorized — the adb
-    # server (:5037) is shared per-user, so the gateway and the emulator see each other.
-    mobile-mcp = {
-      command = npx;
-      args = [
-        "-y"
-        "@mobilenext/mobile-mcp@latest"
-      ];
-    };
-    # Local Postgres + pgvector, for vector-similarity / RAG work. crystaldba's
-    # `postgres-mcp` ("Postgres MCP Pro", actively maintained) — a general SQL
-    # executor, so every pgvector op (`<->`/`<=>` distance, HNSW indexes) is just
-    # SQL it can run. (The official @modelcontextprotocol/server-postgres is ARCHIVED
-    # with an unpatched read-only-bypass SQL-injection CVE — deliberately avoided.)
-    # `--access-mode=unrestricted` lets it create tables + insert/query vectors; the
-    # blast radius is bounded not by that flag but by DATABASE_URI's role `mcp`, which
-    # owns ONLY `ragdb` and connects loopback-trust with no secret. The DB is a
-    # loopback launchd agent — from the ABSORBED local-rag capsule
-    # (modules/features/local-rag/, in-tree since ADR-002 wave 6), which
-    # single-sources the URI via local.rag.pgvector.databaseUri. THIS LINE
-    # IS THE CAREER RAG's whole path to Claude Code; the capsule's own check
-    # pins the option's value as a literal so a rename fails there first.
-    #
-    # This server is a `uvx` RUNTIME fetch (no nixpkgs/mcp-servers-nix package exists),
-    # so its resolution can DRIFT — and because mcp-proxy spawns every named server at
-    # startup, ONE server that fails to install/import crashes the whole gateway (nothing
-    # binds the port, ALL servers go dark). Two load-bearing pins guard the two ways it drifts:
-    #
-    # 1. `--python 3.12`: postgres-mcp depends on pglast, whose current release ships no
-    #    wheel for CPython 3.14 (uv's default newest interpreter) and fails to source-build
-    #    it. 3.12 selects a Python with prebuilt pglast wheels, so it installs in ms.
-    # 2. `--with mcp<2` + `--from postgres-mcp==0.3.0`: mcp 2.0.0 (2026-08) REMOVED the
-    #    vendored `mcp.server.fastmcp`, but postgres-mcp 0.3.0 still does
-    #    `from mcp.server.fastmcp import FastMCP`. Unbounded `uvx postgres-mcp` grabbed the
-    #    fresh mcp 2.0 and every import crashed → gateway dark. Constrain mcp to 1.x (which
-    #    still ships fastmcp) and pin the postgres-mcp version so the pair stays deterministic.
-    #    Bump both together deliberately once postgres-mcp supports mcp 2.x.
-    postgres = {
-      command = uvx;
-      args = [
-        "--python"
-        "3.12"
-        "--with"
-        "mcp<2"
-        "--from"
-        "postgres-mcp==0.3.0"
-        "postgres-mcp"
-        "--access-mode=unrestricted"
-      ];
-      env.DATABASE_URI = config.local.rag.pgvector.databaseUri;
-    };
-    # WordPress admin for the live site over its REST API — command is the
-    # Keychain-injecting wpMcp wrapper above, so no secret lands in the gateway JSON.
-    wordpress = {
-      command = lib.getExe wpMcp;
-      args = [ ];
-    };
-    # Official WordPress MCP Adapter (server-side) for PROD silvercreek.ai — command is
-    # the Keychain-injecting mcp-remote wrapper above, so no secret lands in the gateway
-    # JSON. Prod is always reachable, so it's a normal (non-gated) hosted server.
-    wordpress-adapter = {
-      command = lib.getExe wpAdapterMcp;
-      args = [ ];
-    };
-  }
-  # Opt-in (default off): the Telegram USER-account server. Its command is the
-  # Keychain-exporting wrapper above, so no secret ever lands in the gateway JSON.
-  # Excluded from `hostedServerNames` entirely when disabled, so its absence costs
-  # nothing and it can't dark the gateway before the one-time auth is done.
+  # The servers with no mcp-servers-nix module, as raw stdio commands, merged
+  # into the gateway config via mkConfig's `settings.servers` (telegram appended
+  # below, opt-in). `generatedStdioServers` (mkGeneratedStdio, above) supplies
+  # 12 of these mechanically from mcp-gateway-catalog.json:
   #
-  # ENABLING IT NOW FAILS `nix flake check`, and that is deliberate rather than a
-  # bug to route around. It joins `hostedServerNames` but is absent from
-  # `config.fleet.publicMcpServers` (withdrawn 2026-09-22, identity.nix has the
-  # measurement), so `checks.<system>.mcp-published-parity` reports "hosted but
-  # NOT published". Before 2026-09-22 that combination was the NORMAL state — a
-  # server could be hosted privately and simply not published. With one proxy and
-  # one portal there is no private half to hold it, so the parity check is right
-  # and the honest options are both edits, not overrides: re-publish it (only once
-  # the upstream -32000 is fixed, or the portal registration errors again), or
-  # leave this off.
-  // lib.optionalAttrs cfg.telegram.enable {
-    telegram = {
-      command = lib.getExe telegramMcp;
-      args = [ ];
-    };
-  }
-  # Opt-in (default off): Google's Chrome DevTools Protocol server, in ATTACH mode
-  # against a browser that already has remote debugging on. Companion to the
-  # in-repo `page-lab` plugin, which carries the measured behaviour.
+  #   desktop-commander — SHELL/RCE SURFACE, on the gateway and published — an
+  #     operator decision taken 2026-09-22 with the consequence stated rather
+  #     than implied: anything holding a valid Workspace session for this
+  #     domain can drive a shell on this Mac through it. It was excluded from
+  #     the gateway until then, and two assertions used to make that
+  #     structural — what changed is not the risk, it is the architecture:
+  #     with every server published, the private/published split bounded
+  #     nothing, so keeping ONE server off the proxy bought a second
+  #     transport and a second process tree for no isolation. The gate that
+  #     matters is Access + Workspace OAuth restricted to the domain, the same
+  #     gate every other server is behind.
+  #   kapture — the SERVER half of Kapture (modules/shared/chromium.nix owns
+  #     the extension, `local.chromium.kaptureMcp`). `bridge` is the
+  #     subcommand, not a flag — kapture-mcp exposes the local websocket
+  #     bridge the extension connects back to; a running bridge with ZERO
+  #     connected tabs is DARK, not ready, since a tab is only visible after
+  #     the operator toggles it from the extension's toolbar popup.
+  #   duckduckgo, json-yaml-toml — no credentials, no fleet-specific pins.
+  #   arxiv — blazickjp/arxiv-mcp-server (Apache-2.0): search, abstracts,
+  #     section-level LaTeX reads, BibTeX export, citation graphs and on-disk
+  #     topic watches. No credentials; version/interpreter pins and the
+  #     storage-path override live in `catalogArgOverrides` above.
+  #   mcp-jq — no credentials; see `catalogArgOverrides` for the one arg
+  #     difference from the catalog's own README form.
+  #   mcpfinder — MCP-server DISCOVERY (mcpfinder.dev — @mcpfinder/server,
+  #     AGPL-3.0): cross-registry search over the Official MCP Registry +
+  #     Glama + Smithery via `search_mcp_servers`/`get_server_details`. Wired
+  #     DISCOVERY-ONLY: it registers FOUR read-only tools (verified from a
+  #     live session's namespace 2026-09-16); a fifth, `add_mcp_server_config`
+  #     (writes client config files imperatively — the exact anti-pattern this
+  #     gateway exists to avoid), is deny-listed in nix-config's
+  #     `.claude/settings.json` and again user-scope in
+  #     `modules/shared/claude-guardrails.nix`. Version pin lives in
+  #     `catalogArgOverrides` for exactly that reason: don't let a future
+  #     release reintroduce that tool silently.
+  #   macos-automator — native macOS automation via osascript
+  #     (steipete/macos-automator-mcp, 854★). A POWERFUL surface
+  #     (`execute_script` can `do shell script` and drive any app) but
+  #     localhost-only like the rest of the gateway, and shared across clients
+  #     by request. Needs a ONE-TIME Accessibility (TCC) grant for
+  #     /usr/bin/osascript — see `home.activation.macosAutomatorAccessibilityCheck`
+  #     below and docs/mcp-gateway-accessibility-tcc.md.
+  #   mobile-mcp — cross-platform mobile automation over ADB (mobile-next/mobile-mcp,
+  #     5.5k★). Needs `adb` + the Android SDK on PATH — the gateway agent below
+  #     adds ${androidSdkHome}/platform-tools and exports ANDROID_HOME.
+  #   apify — Apify Store's Actors as tools (search/run/dataset access), run
+  #     LOCALLY via APIFY_TOKEN — NOT the hosted mcp.apify.com OAuth bridge
+  #     used until 2026-08-19 (that flow needs an interactive browser redirect
+  #     a headless launchd agent can never complete).
+  #   postgres — local Postgres + pgvector for vector-similarity/RAG work.
+  #     crystaldba's `postgres-mcp` ("Postgres MCP Pro") — a general SQL
+  #     executor, so every pgvector op is just SQL it can run. (The official
+  #     @modelcontextprotocol/server-postgres is ARCHIVED with an unpatched
+  #     read-only-bypass SQL-injection CVE — deliberately avoided.)
+  #     `--access-mode=unrestricted` lets it create tables + insert/query
+  #     vectors; the blast radius is bounded not by that flag but by
+  #     DATABASE_URI's role `mcp`, which owns ONLY `ragdb` and connects
+  #     loopback-trust with no secret (see mkGeneratedStdio's DATABASE_URI
+  #     special case above). THIS LINE IS THE CAREER RAG's whole path to
+  #     Claude Code. Version/interpreter pins live in `catalogArgOverrides`
+  #     for the two ways an unbounded `uvx postgres-mcp` was measured to go
+  #     dark — see that table's header for the detail.
+  #   wordpress — WordPress admin for the live site over its REST API
+  #     (docdyhr/mcp-wordpress, ~59 tools).
   #
-  # ATTACH FLAG CHOSEN AT SPAWN TIME by `nix-mcp-chrome-devtools` above, because
-  # neither upstream flag works in both browser modes — see that wrapper's header for
-  # the measured table. Short version: consent-mode browsers 404 every /json/* path so
-  # `--browser-url` cannot attach [F-NO-JSON-HTTP], and launch-flag browsers leave a
-  # STALE DevToolsActivePort so `--autoConnect` attaches to a dead WebSocket
-  # [F-DEVTOOLSACTIVEPORT-STALE]. The wrapper probes /json/version first and only falls
-  # back to the file when nothing answers, which is precisely when the file is fresh.
-  #
-  # WHY OFF BY DEFAULT, and why attach rather than launch:
-  #  - mcp-proxy spawns every hosted server at startup. In attach mode this one
-  #    needs a browser with debugging already on; with none it is a server that
-  #    cannot work, exactly like localAdapter above.
-  #  - Enabling it is a SECURITY DECISION, not a convenience one. Upstream's own
-  #    warning about that port: "Any application on your machine can connect."
-  #    Anything local can then read page content, cookies and session state and
-  #    act as the signed-in user — and this Mac's browser carries the Apple
-  #    Passwords native host and live sessions. `nix-chromium-debug` therefore
-  #    exists as a deliberate, temporary act, not a login item.
-  #
-  # Telemetry is ON by default upstream; both flags below turn it off. The CrUX
-  # one is the load-bearing half — without it, performance tools send the URLs
-  # being traced to Google.
-  #
-  # Not pinned to a version: `@latest` is upstream's own documented invocation and
-  # the tool surface is still moving (1.8.0 ships 29 of the ~57 tools its docs
-  # describe — measured 2026-09-06). A pin here would freeze a set that is
-  # actively growing; the plugin's references/tools.md says how to re-measure.
-  // lib.optionalAttrs cfg.chromeDevtools.enable {
-    chrome-devtools = {
-      command = lib.getExe chromeDevtoolsMcp;
-      args = [ ];
-    };
-  }
-  # TRUE simultaneous multi-account Gmail — one server process PER configured
-  # email (see mkGmailMcp above for why, and why the list is set in
-  # hosts/macos.nix rather than here). Empty cfg.gmail.accounts (the
-  # public default) makes this an empty attrset, costing nothing. Server name
-  # uses the sanitized gmailAlias, not the raw email (gmailMcps' attr key) —
-  # named-server-config entries can't contain "@"/".".
-  // lib.mapAttrs' (
-    email: mcp:
-    lib.nameValuePair "gmail-${gmailAlias email}" {
-      command = lib.getExe mcp;
-      args = [ ];
+  # cloudflare/cloudflare-docs, wordpress-adapter, and chrome-devtools (opt-in,
+  # below) stay hand-written — see mcp-gateway-catalog.json's header comment
+  # and extraction-notes.md for why each isn't generated.
+  customStdioServers =
+    generatedStdioServers
+    // {
+      # The catalog names both of these remote `type: "http"` servers — see
+      # generatedStdioNames' comment above for why this fleet still bridges
+      # through `mcp-remote` rather than a native remote dial.
+      cloudflare-docs = {
+        command = npx;
+        args = [
+          "-y"
+          "mcp-remote"
+          mcpCatalog.cloudflare-docs.url
+        ];
+      };
+      cloudflare = {
+        command = npx;
+        args = [
+          "-y"
+          "mcp-remote"
+          mcpCatalog.cloudflare.url
+          # mcp.cloudflare.com's oauth-authorization-server metadata omits
+          # scopes_supported, so mcp-remote falls back to a hardcoded
+          # "openid email profile" scope request — Cloudflare's /authorize
+          # rejects that ("Unknown OAuth scope") since it validates against its
+          # own product-scope catalog (user:read, account:read, zone:read, …),
+          # not OIDC scopes. mcp-remote also treats an empty string as unset
+          # (falls through to the same bad default), so pass Cloudflare's own
+          # REQUIRED_SCOPES (github.com/cloudflare/mcp src/auth/scopes.ts) as
+          # the minimum valid, non-empty override — the browser consent screen
+          # still lets you pick additional scopes interactively.
+          "--static-oauth-client-metadata"
+          ''{"scope":"user:read offline_access account:read"}''
+        ];
+      };
+      # Official WordPress MCP Adapter (server-side) for PROD silvercreek.ai — command is
+      # the Keychain-injecting mcp-remote wrapper above, so no secret lands in the gateway
+      # JSON. Prod is always reachable, so it's a normal (non-gated) hosted server.
+      wordpress-adapter = {
+        command = lib.getExe wpAdapterMcp;
+        args = [ ];
+      };
     }
-  ) gmailMcps
-  // lib.optionalAttrs cfg.localAdapter.enable {
-    # Opt-in (default off): the SAME adapter against the LOCAL wp-env clone
-    # (http://localhost:8888). Gated because that endpoint only exists while the clone
-    # runs; mcp-proxy spawns every named server at startup, so wiring an unreachable
-    # endpoint risks a startup-failing server on the shared gateway. Enable only while
-    # working against the local clone.
-    wordpress-adapter-local = {
-      command = lib.getExe wpAdapterMcpLocal;
-      args = [ ];
+    # Opt-in (default off): the Telegram USER-account server. Its command is the
+    # Keychain-exporting wrapper above, so no secret ever lands in the gateway JSON.
+    # Excluded from `hostedServerNames` entirely when disabled, so its absence costs
+    # nothing and it can't dark the gateway before the one-time auth is done.
+    #
+    # ENABLING IT NOW FAILS `nix flake check`, and that is deliberate rather than a
+    # bug to route around. It joins `hostedServerNames` but is absent from
+    # `config.fleet.publicMcpServers` (withdrawn 2026-09-22, identity.nix has the
+    # measurement), so `checks.<system>.mcp-published-parity` reports "hosted but
+    # NOT published". Before 2026-09-22 that combination was the NORMAL state — a
+    # server could be hosted privately and simply not published. With one proxy and
+    # one portal there is no private half to hold it, so the parity check is right
+    # and the honest options are both edits, not overrides: re-publish it (only once
+    # the upstream -32000 is fixed, or the portal registration errors again), or
+    # leave this off.
+    // lib.optionalAttrs cfg.telegram.enable {
+      telegram = {
+        command = lib.getExe telegramMcp;
+        args = [ ];
+      };
+    }
+    # Opt-in (default off): Google's Chrome DevTools Protocol server, in ATTACH mode
+    # against a browser that already has remote debugging on. Companion to the
+    # in-repo `page-lab` plugin, which carries the measured behaviour.
+    #
+    # ATTACH FLAG CHOSEN AT SPAWN TIME by `nix-mcp-chrome-devtools` above, because
+    # neither upstream flag works in both browser modes — see that wrapper's header for
+    # the measured table. Short version: consent-mode browsers 404 every /json/* path so
+    # `--browser-url` cannot attach [F-NO-JSON-HTTP], and launch-flag browsers leave a
+    # STALE DevToolsActivePort so `--autoConnect` attaches to a dead WebSocket
+    # [F-DEVTOOLSACTIVEPORT-STALE]. The wrapper probes /json/version first and only falls
+    # back to the file when nothing answers, which is precisely when the file is fresh.
+    #
+    # WHY OFF BY DEFAULT, and why attach rather than launch:
+    #  - mcp-proxy spawns every hosted server at startup. In attach mode this one
+    #    needs a browser with debugging already on; with none it is a server that
+    #    cannot work, exactly like localAdapter above.
+    #  - Enabling it is a SECURITY DECISION, not a convenience one. Upstream's own
+    #    warning about that port: "Any application on your machine can connect."
+    #    Anything local can then read page content, cookies and session state and
+    #    act as the signed-in user — and this Mac's browser carries the Apple
+    #    Passwords native host and live sessions. `nix-chromium-debug` therefore
+    #    exists as a deliberate, temporary act, not a login item.
+    #
+    # Telemetry is ON by default upstream; both flags below turn it off. The CrUX
+    # one is the load-bearing half — without it, performance tools send the URLs
+    # being traced to Google.
+    #
+    # Not pinned to a version: `@latest` is upstream's own documented invocation and
+    # the tool surface is still moving (1.8.0 ships 29 of the ~57 tools its docs
+    # describe — measured 2026-09-06). A pin here would freeze a set that is
+    # actively growing; the plugin's references/tools.md says how to re-measure.
+    // lib.optionalAttrs cfg.chromeDevtools.enable {
+      chrome-devtools = {
+        command = lib.getExe chromeDevtoolsMcp;
+        args = [ ];
+      };
+    }
+    # TRUE simultaneous multi-account Gmail — one server process PER configured
+    # email (see mkGmailMcp above for why, and why the list is set in
+    # hosts/macos.nix rather than here). Empty cfg.gmail.accounts (the
+    # public default) makes this an empty attrset, costing nothing. Server name
+    # uses the sanitized gmailAlias, not the raw email (gmailMcps' attr key) —
+    # named-server-config entries can't contain "@"/".".
+    // lib.mapAttrs' (
+      email: mcp:
+      lib.nameValuePair "gmail-${gmailAlias email}" {
+        command = lib.getExe mcp;
+        args = [ ];
+      }
+    ) gmailMcps
+    // lib.optionalAttrs cfg.localAdapter.enable {
+      # Opt-in (default off): the SAME adapter against the LOCAL wp-env clone
+      # (http://localhost:8888). Gated because that endpoint only exists while the clone
+      # runs; mcp-proxy spawns every named server at startup, so wiring an unreachable
+      # endpoint risks a startup-failing server on the shared gateway. Enable only while
+      # working against the local clone.
+      wordpress-adapter-local = {
+        command = lib.getExe wpAdapterMcpLocal;
+        args = [ ];
+      };
     };
-  };
 
   # Every server NAME the gateway hosts (7 packaged + 14 base custom, plus
   # opt-ins — 26 today: the 21 fixed ones, chrome-devtools, and four gmail).
   # Single source for the client SSE URLs, so the two sides can never drift.
   # Order/names MUST
   # match the packaged servers enabled in `gatewayConfig.programs` below.
-  packagedServerNames = [
-    "context7"
-    "fetch"
-    "memory"
-    "sequential-thinking"
-    "nixos"
-    "terraform"
-    "github"
-  ];
-  hostedServerNames = packagedServerNames ++ builtins.attrNames customStdioServers;
+  hostedServerNames = packagedProgramNames ++ builtins.attrNames customStdioServers;
 
   # SERVER SIDE: a {mcpServers:{name:{command,args,env}}} JSON that mcp-proxy
   # consumes via --named-server-config. mkConfig PINS the 7 packaged servers;
   # settings.servers carries customStdioServers verbatim — 14 base plus whatever
   # the opt-ins add, so 19 as this host is configured. flavor "claude-code"
   # emits the `mcpServers` key mcp-proxy expects (it ignores any extra fields).
-  # The packaged servers' definitions, named ONCE so the private gateway and the
-  # published one cannot diverge. They did: the published config used to rebuild
-  # this attrset as a bare `enable = true` per name, which silently dropped every
-  # `package` and `passwordCommand` the real definition carries. That is how the
-  # 2026-09-14 memory/sequential-thinking breakage survived being fixed - the fix
-  # landed here, the public gateway kept building the broken framework default,
-  # and nothing but a real activation could tell.
-  packagedPrograms = {
-    context7 = {
-      enable = true;
-      # An API key raises context7's rate limits. Fetched at gateway LAUNCH from
-      # the login Keychain (`set-secret CONTEXT7_API_KEY <key>`) by the module's
-      # passwordCommand wrapper, which does `export CONTEXT7_API_KEY=$(security …)`
-      # then execs context7-mcp — so the value is NEVER in argv or the /nix/store
-      # (same pattern as the cloudflared connector above). context7-mcp reads the
-      # env var (`cliOptions.apiKey || process.env.CONTEXT7_API_KEY`); an absent
-      # key => empty export => it runs unauthenticated exactly as before. No
-      # ~/.zprofile export is needed — the wrapper reads the Keychain itself, and
-      # launchd user agents don't source login shells anyway.
-      passwordCommand.CONTEXT7_API_KEY = [
-        "/usr/bin/security"
-        "find-generic-password"
-        "-a"
-        "$(id -un)"
-        "-s"
-        "CONTEXT7_API_KEY"
-        "-w"
-      ];
-    };
-    # The framework's DEFAULT mcp-server-fetch is 2026.1.26, which calls httpx
-    # `AsyncClient(proxies=…)` — a kwarg httpx 0.28 renamed to `proxy` — so every fetch
-    # crashed ("unexpected keyword argument 'proxies'"). This flake's top-level nixpkgs
-    # ships mcp-server-fetch 2026.7.10, already fixed to `proxy=`; use that build instead.
-    fetch = {
-      enable = true;
-      package = pkgs.mcp-server-fetch;
-    };
-    # The framework's DEFAULT mcp-server-memory is 2026.7.10, whose tsc step
-    # fails with "Cannot find name 'process'" across index.ts - it compiles
-    # without @types/node in scope. That is not a config error and no flag works
-    # around it; the derivation simply does not build, and because the gateway
-    # JSON depends on every enabled server it took the whole darwin-system down
-    # on 2026-09-14. Same shape as the fetch override directly above, and the
-    # same remedy: this flake's top-level nixpkgs ships 2026.8.18, which builds.
-    #
-    # Verified by REALISING it, not by a green build line - `nix build
-    # --print-out-paths` happily prints the output path of a derivation it has
-    # only planned.
-    memory = {
-      enable = true;
-      package = pkgs.mcp-server-memory;
-    };
-    # Same @modelcontextprotocol/servers monorepo as memory above, so the same
-    # 2026.7.10 tsc breakage and the same nixpkgs 2026.8.18 remedy.
-    sequential-thinking = {
-      enable = true;
-      package = pkgs.mcp-server-sequential-thinking;
-    };
-    # Grounded, READ-ONLY nixpkgs/NixOS/Home-Manager/nix-darwin option+package lookup
-    # (utensils/mcp-nixos). This repo authors config for exactly those three module
-    # surfaces every session; a real lookup kills hallucinated package/option names.
-    # No token. Kept Nix-built/pinned (not a uvx runtime fetch) for reproducibility;
-    # mcp-nixos 2.4.3's `test_read_text_file` is brittle on aarch64-darwin (it asserts
-    # a sampled /nix/store text file contains no "Error" substring — a false positive,
-    # unrelated to the server), so doCheck is disabled just to let it build.
-    nixos = {
-      enable = true;
-      package = pkgs.mcp-nixos.overrideAttrs (_: {
-        doCheck = false;
-        doInstallCheck = false;
-      });
-    };
-    # Terraform Registry provider/module/policy schema docs (hashicorp/terraform-mcp-server)
-    # for the terranix → Cloudflare IaC under infra/. Registry-docs only (no HCP/TFE token
-    # supplied) => read-only. mcp-proxy hosts it like the rest.
-    terraform.enable = true;
-    # GitHub's official MCP server (typed PR/CI/issue/code-search tools) — more reliable
-    # than scraping `gh` output for the one-PR-per-session + GitHub-hosted-CI flow. The PAT
-    # is fetched at gateway LAUNCH from the login Keychain via passwordCommand (same pattern
-    # as context7 above), so it is NEVER in argv or the /nix/store. Set it once with
-    # `secret set GITHUB_PERSONAL_ACCESS_TOKEN <pat>`; an absent key => empty export => the
-    # server starts but its calls fail auth until a token is present (it degrades, not crashes).
-    github = {
-      enable = true;
-      passwordCommand.GITHUB_PERSONAL_ACCESS_TOKEN = [
-        "/usr/bin/security"
-        "find-generic-password"
-        "-a"
-        "$(id -un)"
-        "-s"
-        "gh:github.com:pat"
-        "-w"
-      ];
-    };
-  };
+  # The packaged servers' definitions are GENERATED (mkPackagedProgram, above)
+  # from mcp-gateway-catalog.json's `env` names + `packagedProgramOverrides` —
+  # named ONCE so the private gateway and the published one cannot diverge.
+  # They did before this existed: the published config used to rebuild this
+  # attrset as a bare `enable = true` per name, which silently dropped every
+  # `package`/`passwordCommand` the real definition carries. That is how the
+  # 2026-09-14 memory/sequential-thinking breakage survived being fixed - the
+  # fix landed here, the public gateway kept building the broken framework
+  # default, and nothing but a real activation could tell. Per-server detail:
+  #
+  #   context7 — an API key raises rate limits; fetched at gateway LAUNCH from
+  #     the login Keychain by the passwordCommand wrapper mcp-servers-nix
+  #     itself generates (`export CONTEXT7_API_KEY=$(security …)` then execs
+  #     context7-mcp) — never in argv or the store. An absent key => empty
+  #     export => runs unauthenticated exactly as before.
+  #   fetch/memory/sequential-thinking — the FRAMEWORK DEFAULT package for each
+  #     fails to build/run on this pin (httpx `proxies=` kwarg removed for
+  #     fetch; a tsc `Cannot find name 'process'` break for the other two,
+  #     which took the whole darwin-system down on 2026-09-14) — this flake's
+  #     top-level nixpkgs ships fixed builds instead (`packagedProgramOverrides`
+  #     above). Verified by REALISING each override, not a green build line —
+  #     `nix build --print-out-paths` happily prints the output path of a
+  #     derivation it has only planned.
+  #   nixos — grounded, READ-ONLY nixpkgs/NixOS/Home-Manager/nix-darwin
+  #     option+package lookup (utensils/mcp-nixos); this repo authors config
+  #     for exactly those three surfaces every session. No token.
+  #     mcp-nixos 2.4.3's `test_read_text_file` is brittle on aarch64-darwin
+  #     (asserts a sampled /nix/store text file has no "Error" substring — a
+  #     false positive, unrelated to the server), so doCheck is disabled just
+  #     to let it build.
+  #   terraform — Terraform Registry provider/module/policy schema docs
+  #     (hashicorp/terraform-mcp-server) for the terranix → Cloudflare IaC
+  #     under infra/. Registry-docs only (no HCP/TFE token supplied) =>
+  #     read-only.
+  #   github — GitHub's official MCP server (typed PR/CI/issue/code-search
+  #     tools) — more reliable than scraping `gh` output for the one-PR-per-
+  #     session + GitHub-hosted-CI flow. The PAT is fetched at gateway LAUNCH
+  #     from the login Keychain via passwordCommand, never in argv or the
+  #     store. An absent key => empty export => the server starts but its
+  #     calls fail auth until a token is present (degrades, not crashes).
+  packagedPrograms = lib.genAttrs packagedProgramNames mkPackagedProgram;
 
   gatewayConfig = mcp-servers-nix.lib.mkConfig pkgs {
     flavor = "claude-code";

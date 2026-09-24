@@ -1,0 +1,118 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"],
+      "env": { "CONTEXT7_API_KEY": "${CONTEXT7_API_KEY}" }
+    },
+    "fetch": {
+      "command": "uvx",
+      "args": ["mcp-server-fetch"]
+    },
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"]
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"]
+    },
+    "nixos": {
+      "command": "uvx",
+      "args": ["mcp-nixos"]
+    },
+    "terraform": {
+      "command": "terraform-mcp-server"
+    },
+    "github": {
+      "command": "github-mcp-server",
+      "args": ["stdio"],
+      "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}" }
+    },
+    "desktop-commander": {
+      "command": "npx",
+      "args": ["-y", "@wonderwhy-er/desktop-commander@latest"]
+    },
+    "kapture": {
+      "command": "npx",
+      "args": ["-y", "kapture-mcp@latest", "bridge"]
+    },
+    "duckduckgo": {
+      "command": "uvx",
+      "args": ["duckduckgo-mcp-server"]
+    },
+    "arxiv": {
+      "command": "uvx",
+      "args": ["arxiv-mcp-server", "--storage-path", "<path-to-storage>"]
+    },
+    "json-yaml-toml": {
+      "command": "uvx",
+      "args": ["mcp-json-yaml-toml"]
+    },
+    "mcp-jq": {
+      "command": "npx",
+      "args": ["-y", "@247arjun/mcp-jq"]
+    },
+    "mcpfinder": {
+      "command": "npx",
+      "args": ["-y", "@mcpfinder/server"]
+    },
+    "cloudflare-docs": {
+      "type": "http",
+      "url": "https://docs.mcp.cloudflare.com/mcp"
+    },
+    "cloudflare": {
+      "type": "http",
+      "url": "https://mcp.cloudflare.com/mcp"
+    },
+    "macos-automator": {
+      "command": "npx",
+      "args": ["-y", "--package", "@steipete/macos-automator-mcp", "macos-automator-mcp"]
+    },
+    "mobile-mcp": {
+      "command": "npx",
+      "args": ["-y", "@mobilenext/mobile-mcp@latest"]
+    },
+    "postgres": {
+      "command": "uvx",
+      "args": ["postgres-mcp", "--access-mode=unrestricted"],
+      "env": { "DATABASE_URI": "${DATABASE_URI}" }
+    },
+    "apify": {
+      "command": "npx",
+      "args": ["-y", "@apify/actors-mcp-server"],
+      "env": { "APIFY_TOKEN": "${APIFY_TOKEN}" }
+    },
+    "wordpress": {
+      "command": "npx",
+      "args": ["-y", "mcp-wordpress"],
+      "env": {
+        "WORDPRESS_SITE_URL": "${WORDPRESS_SITE_URL}",
+        "WORDPRESS_USERNAME": "${WORDPRESS_USERNAME}",
+        "WORDPRESS_APP_PASSWORD": "${WORDPRESS_APP_PASSWORD}"
+      }
+    },
+    "wordpress-adapter": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://<your-site>/wp-json/mcp/mcp-adapter-default-server",
+        "--header",
+        "Authorization: ${WP_ADAPTER_AUTH}"
+      ]
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": ["-y", "chrome-devtools-mcp@latest"]
+    },
+    "gmail": {
+      "command": "npx",
+      "args": ["-y", "@artymclabin/gmail-mcp"],
+      "env": {
+        "GMAIL_OAUTH_CLIENT_ID": "${GMAIL_OAUTH_CLIENT_ID}",
+        "GMAIL_OAUTH_CLIENT_SECRET": "${GMAIL_OAUTH_CLIENT_SECRET}"
+      }
+    }
+  }
+}
