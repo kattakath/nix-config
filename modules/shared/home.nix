@@ -769,6 +769,8 @@ in
         "jsonresume-tailor"
         "github-release-gate"
         "skill-curator"
+        # Rebuild a raster/auto-traced logo from measured construction geometry (kattakath/skills#23).
+        "logo-construction-geometry"
         # The answer-shape kit: output style, the /explain family, cartographer, /task.
         # modules/shared/claude-brain.nix selects its (namespaced) output style.
         "brain-signals"
