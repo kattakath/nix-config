@@ -713,9 +713,10 @@ in
     # plugins, the remote decides what they contain. ADR-003 §10 records that
     # this moves the version decision out of flake.lock for plugins.
     #
-    # The `kattakath-skills` flake input still exists, for exactly two PATH
-    # packages built from plugin scripts (superhook, page-lab-pick). No plugin or
-    # skill is read from it.
+    # The `kattakath-skills` flake input still exists, for two PATH packages
+    # built from plugin scripts (superhook, page-lab-pick) and, since the MCP
+    # catalog externalization, `modules/shared/mcp.nix`'s `mcpCatalog`. No
+    # plugin or skill is read from it.
     #
     # Adding a plugin or skill = its tree + marketplace entry IN THAT REPO, then
     # its bare name below. Changing one that is already listed = a merge there.

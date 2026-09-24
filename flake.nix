@@ -407,14 +407,20 @@
       # redirects the old name). Agent Skills in skills/, Claude Code plugins in
       # plugins/, published as the `kattakath` marketplace.
       #
-      # PINNED FOR TWO PATH PACKAGES ONLY: `superhook`/`superhook-digest` and
+      # PINNED FOR THREE THINGS: `superhook`/`superhook-digest` and
       # `page-lab-pick` run plugin scripts as fleet CLIs (a checked-in hook can
       # name a bare command but not a store path, and a plugin's own bin/ is on
-      # the Bash tool's PATH, NOT a hook's — measured 2026-09-23). Plugins and
-      # skills themselves are NOT read from here: Claude Code fetches them from
-      # the same repo as an auto-updating git marketplace (modules/shared/
-      # home.nix), so a merge there ships without a bump here. This pin moves
-      # with the weekly update-flake-lock run.
+      # the Bash tool's PATH, NOT a hook's — measured 2026-09-23); and, since the
+      # MCP catalog externalization, `modules/shared/mcp.nix`'s `mcpCatalog`
+      # reads this input's `mcp-clients/catalog.mcp.json` (the Nix-agnostic,
+      # standard `.mcp.json`-shaped server list — secrets never leave nix-config,
+      # only env-var NAMES cross this pin). Plugins and skills themselves are
+      # STILL NOT read from here: Claude Code fetches them from the same repo as
+      # an auto-updating git marketplace (modules/shared/home.nix), so a merge
+      # there ships without a bump here. This pin moves with the weekly
+      # update-flake-lock run — which means the MCP catalog is NOT live the
+      # instant it merges in kattakath/skills; it needs this pin bumped first,
+      # same as the two PATH packages always have.
       #
       # THE ONLY agent-resource repo this PUBLIC fleet pins. The operator's two
       # personal ones — `ismailkattakath/ai` and `izzykatt/ai` — are deliberately
