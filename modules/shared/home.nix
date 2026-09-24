@@ -179,6 +179,25 @@ let
     fi
   '';
 
+  # Shells spawned by launchd agents (mcp-gateway -> desktop-commander, any agent
+  # tool) start WITHOUT SSH_AUTH_SOCK: launchd hands the per-boot agent socket
+  # (/private/tmp/com.apple.launchd.*/Listeners) to Terminal-launched shells, not to
+  # a user agent's children, and a plist cannot name a path that changes every boot.
+  # Without it, `git commit` with signByDefault runs `ssh-keygen -Y sign`, which
+  # finds no agent and blocks forever on a passphrase prompt with no TTY (measured
+  # 2026-09-24: a hung commit; the macOS agent already held the key, and
+  # `launchctl getenv SSH_AUTH_SOCK` returned it). launchctl getenv is launchd's own
+  # lookup; nothing is hand-rolled. Guarded so an existing socket (a Terminal shell,
+  # or a forwarded agent over SSH) is never overridden. Runs for EVERY shell:
+  # zsh envExtra (.zshenv) and bash profileExtra (login), not just interactive ones.
+  sshAuthSockFromLaunchd = ''
+    if [ -z "''${SSH_AUTH_SOCK:-}" ] && [ -x /bin/launchctl ]; then
+      __sock="$(/bin/launchctl getenv SSH_AUTH_SOCK 2>/dev/null)"
+      [ -n "$__sock" ] && export SSH_AUTH_SOCK="$__sock"
+      unset __sock
+    fi
+  '';
+
   # The ONE interactive-shell init both shells get, parameterised on the shell
   # name fnm needs. fnm: `--use-on-cd` installs a chpwd hook (interactive only),
   # honours .nvmrc/.node-version, absolute store path so it resolves before the
@@ -1493,6 +1512,7 @@ in
       # profile is on PATH. When no project version is active/installed, PATH falls
       # through to the Homebrew node (an inert dependency of bruno-cli/devcontainer).
       initExtra = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin (interactiveShellInit "bash");
+      profileExtra = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin sshAuthSockFromLaunchd;
     };
 
     # zsh as the interactive shell — matches the devcontainer default
@@ -1728,6 +1748,7 @@ in
       # hook that only makes sense in an interactive shell. Honors .nvmrc and
       # .node-version; falls through to the Homebrew node when no version is active.
       initContent = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin (interactiveShellInit "zsh");
+      envExtra = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin sshAuthSockFromLaunchd;
     };
 
     # ---- VS Code (macOS only) --------------------------------------------------
