@@ -128,8 +128,10 @@ let
             agent-skills-litellm
             claude-plugins-official
             grok-build-plugin-cc
-            # This operator's OWN agent-resource repo (flake.nix), pinned only
-            # for the superhook / page-lab-pick PATH packages.
+            # This operator's OWN agent-resource repo (flake.nix): the superhook /
+            # page-lab-pick PATH packages, AND (since the MCP catalog
+            # externalization) mcp.nix's mcpCatalog source,
+            # mcp-clients/catalog.mcp.json.
             kattakath-skills
             # jsonResumeUrl: the raw resume.json URL (or null), consumed by home.nix
             # to bake into the jsonresume package as its default --url (darwin

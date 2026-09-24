@@ -165,8 +165,10 @@ One line per path; the *why* and the per-file specifics are in
 
 **Gone on purpose — do not re-add.** No `plugins/` or `skills/` tree: both live in
 `github:kattakath/skills`, installed as an **auto-updating git marketplace** (a merge there
-ships, no pin bump here) and pinned as `kattakath-skills` only for the `superhook` /
-`page-lab-pick` PATH packages; **zero userscripts** (published to Greasy
+ships, no pin bump here) and pinned as `kattakath-skills` for the `superhook` /
+`page-lab-pick` PATH packages and (since the MCP catalog externalization)
+`modules/shared/mcp.nix`'s `mcpCatalog` — that one input use DOES need this pin bumped, same
+as the PATH packages always have; **zero userscripts** (published to Greasy
 Fork, so an installed copy self-updates). Why:
 [`docs/agent-resource-externalization.md`](docs/agent-resource-externalization.md).
 
