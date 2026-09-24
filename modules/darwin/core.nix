@@ -78,63 +78,6 @@ let
       };
     };
 
-  # BTM names ProgramArguments[0] basename (`sfltool dumpbtm`) — use `nix-<app>`
-  # not bare `open`. No custom .app icon: unsigned store paths always show
-  # "unidentified developer" without a paid Developer ID.
-  #
-  # Quiet login launch: `open -g -j` alone is not enough — Slack/Messages/Mail
-  # (and most Electron apps) ignore `-j` and raise a window after init. We still
-  # pass -g/-j, then re-hide the process via System Events for ~12s so late
-  # window raises never steal focus. Dock / menu-bar icons stay; only the
-  # window is suppressed. Needs Accessibility for /usr/bin/osascript (already
-  # granted for the MCP gateway — hide is best-effort if missing).
-  #
-  #   mkNixAgent { suffix = "slack"; app = "Slack"; }
-  #   mkNixAgent { suffix = "foo"; app = "Foo"; processNames = [ "Foo" "Foo Helper" ]; }
-  mkNixAgent =
-    {
-      suffix,
-      app,
-      # System Events process name(s) to force-hide (may differ from `open -a`).
-      processNames ? [ app ],
-    }:
-    let
-      # AppleScript list literal: {"Slack", "Slack Helper"}
-      procList = lib.concatMapStringsSep ", " (n: ''"${n}"'') processNames;
-      openCmd = "/usr/bin/open -g -j -a ${lib.escapeShellArg app}";
-    in
-    {
-      serviceConfig = {
-        ProgramArguments = [
-          "${pkgs.writeShellScriptBin "nix-open-${suffix}" ''
-            set -eu
-            ${openCmd}
-            # Re-hide while the app finishes starting (Electron often shows late).
-            hide() {
-              /usr/bin/osascript -e '
-                tell application "System Events"
-                  repeat with procName in {${procList}}
-                    try
-                      if exists process (procName as text) then
-                        set visible of process (procName as text) to false
-                      end if
-                    end try
-                  end repeat
-                end tell
-              ' 2>/dev/null || true
-            }
-            i=0
-            while [ "$i" -lt 24 ]; do
-              hide
-              /bin/sleep 0.5
-              i=$((i + 1))
-            done
-          ''}/bin/nix-open-${suffix}"
-        ];
-        RunAtLoad = true;
-      };
-    };
-
   # ---- Finder "Show View Options" default template (list view) --------------
   # This is the nested dict that Finder's "Use as Defaults" button writes and
   # that governs any folder WITHOUT its own saved (.DS_Store) view state:
@@ -475,18 +418,31 @@ in
     config.home-manager.users.${loginName}.local.keychainSecrets.loaderRelPath
   }";
 
-  # ---- Launch-at-login agents (declarative "Open at Login") ------------------
-  # macOS System Settings ▸ Login Items is NOT declaratively manageable
-  # (SMAppService / TCC-like). Nix-native: launchd user agents with RunAtLoad.
-  #
+  # ---- User agents (inbox rotations) -----------------------------------------
   # BTM RULE: "Allow in the Background" names each item by ProgramArguments[0]
   # basename (`sfltool dumpbtm`). Always use a `nix-<activity>` wrapper
-  # (mkNixAgent) — never bare /usr/bin/open, /bin/sh, or nix-darwin `script =`
-  # (those wrap as /bin/sh -c wait4path and show as phantom "sh").
+  # (mkTrashSweep) — never bare /bin/sh or nix-darwin `script =` (those wrap as
+  # /bin/sh -c wait4path and show as phantom "sh").
   # The `nix-*` wrapper is also load-bearing for TCC *file access*, not just
   # cosmetics — see docs/macos-settings-surface.md § TCC and a /nix/store arg0.
   #
-  # Host scope: GUI login openers + the rotations are **macos only**. (The
+  # ONE launch-at-login opener survives: Maccy. Slack, Mail and Messages were
+  # removed 2026-09-23 — each still raised a window at login despite `open -g
+  # -j` plus a 12s System Events re-hide loop, and the operator wants a login
+  # with no windows and no Dock churn. Maccy is LSUIElement (menu-bar only), so
+  # it never was part of that complaint and it keeps its opener.
+  #
+  # Maccy had a DIFFERENT bug: a dead menu-bar icon that swallowed the first
+  # click after login, needing a Spotlight relaunch. Cause: two launchers raced
+  # — this agent AND a System Events login item. Measured 2026-09-23: deleting
+  # that login item ALSO cleared Maccy's app-level BTM record, i.e. they were
+  # one registration seen twice, not two. This agent is now the only launcher.
+  # Do NOT re-add an `open-*` agent for a windowed app without a new decision.
+  #
+  # No hide loop here (unlike the retired Slack/Mail/Messages agents): Maccy has
+  # no window to suppress, so `open -g -j` alone is the whole job.
+  #
+  # Host scope: the rotations are **macos only**. (The
   # historical reason the gate exists: the former macvm guest symlinked its
   # ~/Downloads to the host's over Tart VirtioFS, and a guest-side rotation
   # would have been destructive — mv(1) degrades to cp+rm across filesystems,
@@ -494,24 +450,18 @@ in
   # guest is gone (2026-09-05, docs/macvm-readd-runbook.md); keep the gate
   # anyway so a re-added guest can never inherit the sweeps by accident.)
   launchd.user.agents = lib.mkIf (config.networking.hostName == "macos") {
-    # Agent attr names (open-*) keep launchd Labels stable so existing BTM
-    # toggle state is preserved. Turn OFF each app's own "Open at Login" so we
-    # don't double-start.
-    open-maccy = mkNixAgent {
-      suffix = "maccy";
-      app = "Maccy";
-    }; # menu-bar only (LSUIElement)
-    open-slack = mkNixAgent {
-      suffix = "slack";
-      app = "Slack";
-    };
-    open-mail = mkNixAgent {
-      suffix = "mail";
-      app = "Mail";
-    };
-    open-messages = mkNixAgent {
-      suffix = "messages";
-      app = "Messages";
+    # Attr name (open-maccy) keeps the launchd Label stable so existing BTM
+    # toggle state survives. arg0 is a `nix-*` wrapper per
+    # .claude/rules/launchd-naming.md — a bare /usr/bin/open would show in
+    # "Allow in the Background" as a phantom "open".
+    open-maccy.serviceConfig = {
+      ProgramArguments = [
+        "${pkgs.writeShellScriptBin "nix-open-maccy" ''
+          set -eu
+          exec /usr/bin/open -g -j -a Maccy
+        ''}/bin/nix-open-maccy"
+      ];
+      RunAtLoad = true;
     };
 
     # The two inbox sweeps (mkTrashSweep above; hourly tick each; recoverable —
