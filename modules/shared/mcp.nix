@@ -167,7 +167,8 @@ let
   # before this refactor) — extraction-notes.md has the full per-server reasoning
   # for every judgment call in this file.
   mcpCatalog =
-    (builtins.fromJSON (builtins.readFile "${kattakath-skills}/mcp-clients/catalog.mcp.json")).mcpServers;
+    (builtins.fromJSON (builtins.readFile "${kattakath-skills}/mcp-clients/catalog.mcp.json"))
+    .mcpServers;
 
   # nix-config's OWN mapping from an env-var NAME (as the catalog names it in a
   # server's `env` block) to the exact Keychain invocation that fills it TODAY —
