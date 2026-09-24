@@ -332,6 +332,9 @@ let
   #
   # `logoUrl` must be a URL Cloudflare can FETCH, not a file: the login page is
   # rendered by Cloudflare, so the asset is hosted rather than committed here.
+  # Points at the canonical kattakath.com path, not the raw.githubusercontent.com
+  # one the file happens to live at — the domain is the stable published surface;
+  # raw.githubusercontent.com bakes in which repo/branch backs it today.
   #
   # It is the WORDMARK (512x132) and not the square icon, deliberately — the login
   # header is wide and the mark that fills it is the horizontal one. Verified
@@ -344,7 +347,7 @@ let
     name = "Family";
     authDomain = "kattakath.cloudflareaccess.com";
     loginDesign = {
-      logoUrl = "https://raw.githubusercontent.com/kattakath/kattakath.github.io/refs/heads/main/logo.svg";
+      logoUrl = "https://kattakath.com/logo.svg";
       backgroundColor = "#300a24";
       headerText = "Sign in with your @${domainName} email";
       footerText = "Members only";
