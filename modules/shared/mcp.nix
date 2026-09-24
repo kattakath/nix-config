@@ -90,6 +90,10 @@
   lib,
   config,
   mcp-servers-nix,
+  # The Nix-agnostic MCP client-config catalog this file generates
+  # `packagedPrograms`/`customStdioServers` from — kattakath/skills'
+  # `mcp-clients/catalog.mcp.json`, not this repo's. See `mcpCatalog` below.
+  kattakath-skills,
   # THE published-gateway port, from modules/parts/identity.nix via
   # extraSpecialArgs. Not a literal here: infra/cloudflare/mcp-public.nix routes
   # the tunnel's ingress at the same number and cannot see this file.
@@ -131,8 +135,10 @@ let
   npx = lib.getExe' pkgs.nodejs "npx";
   uvx = lib.getExe' pkgs.uv "uvx";
 
-  # ---- The per-server CATALOG (Nix-agnostic; will become the kattakath-skills flake
-  # input once that repo carries the file — today a local, staged copy) ----------
+  # ---- The per-server CATALOG (Nix-agnostic; lives at kattakath/skills'
+  # mcp-clients/catalog.mcp.json, PINNED via the kattakath-skills flake input like
+  # superhook/page-lab-pick — a merge there ships nothing here until this repo's
+  # own pin is bumped, same as those two) ----------------------------------------
   #
   # WHAT'S IN IT, AND WHY IT'S SHAPED THIS WAY: every entry is the STANDARD
   # `.mcp.json`/`claude_desktop_config.json` `mcpServers` shape — literally what
@@ -160,7 +166,8 @@ let
   # (see the fan-out at `gmailMcps`/`hostedServerNames` below — unchanged from
   # before this refactor) — extraction-notes.md has the full per-server reasoning
   # for every judgment call in this file.
-  mcpCatalog = (builtins.fromJSON (builtins.readFile ./mcp-gateway-catalog.json)).mcpServers;
+  mcpCatalog =
+    (builtins.fromJSON (builtins.readFile "${kattakath-skills}/mcp-clients/catalog.mcp.json")).mcpServers;
 
   # nix-config's OWN mapping from an env-var NAME (as the catalog names it in a
   # server's `env` block) to the exact Keychain invocation that fills it TODAY —
@@ -279,7 +286,7 @@ let
     else if name == "uvx" then
       uvx
     else
-      throw "mcp-gateway-catalog.json: unrecognised command '${name}' for a generated stdio server (only npx/uvx are resolved here — anything else needs a hand-written entry in customStdioServers, same as wordpress-adapter/chrome-devtools/gmail)";
+      throw "kattakath-skills's mcp-clients/catalog.mcp.json: unrecognised command '${name}' for a generated stdio server (only npx/uvx are resolved here — anything else needs a hand-written entry in customStdioServers, same as wordpress-adapter/chrome-devtools/gmail)";
 
   # Fleet-specific ARG overrides for a handful of generated stdio servers: the
   # catalog carries the PORTABLE/basic invocation (what a README paste would
@@ -654,7 +661,7 @@ let
 
   # The servers with no mcp-servers-nix module, as raw stdio commands. Merged into
   # the gateway config via mkConfig's `settings.servers` (telegram appended below,
-  # opt-in). Most are GENERATED from mcp-gateway-catalog.json (mkGeneratedStdio) —
+  # opt-in). Most are GENERATED from kattakath-skills's mcp-clients/catalog.mcp.json (mkGeneratedStdio) —
   # a plain pinned npx/uvx launcher, with any Keychain secret wired through
   # requiredEnvToPasswordCommand where the catalog names one. wordpress-adapter and
   # chrome-devtools stay hand-written wrappers below (see their own comments for
@@ -685,7 +692,7 @@ let
   # The servers with no mcp-servers-nix module, as raw stdio commands, merged
   # into the gateway config via mkConfig's `settings.servers` (telegram appended
   # below, opt-in). `generatedStdioServers` (mkGeneratedStdio, above) supplies
-  # 12 of these mechanically from mcp-gateway-catalog.json:
+  # 12 of these mechanically from kattakath-skills's mcp-clients/catalog.mcp.json:
   #
   #   desktop-commander — SHELL/RCE SURFACE, on the gateway and published — an
   #     operator decision taken 2026-09-22 with the consequence stated rather
@@ -753,7 +760,7 @@ let
   #     (docdyhr/mcp-wordpress, ~59 tools).
   #
   # cloudflare/cloudflare-docs, wordpress-adapter, and chrome-devtools (opt-in,
-  # below) stay hand-written — see mcp-gateway-catalog.json's header comment
+  # below) stay hand-written — see kattakath-skills's mcp-clients/catalog.mcp.json's header comment
   # and extraction-notes.md for why each isn't generated.
   customStdioServers =
     generatedStdioServers
@@ -893,7 +900,7 @@ let
   # the opt-ins add, so 19 as this host is configured. flavor "claude-code"
   # emits the `mcpServers` key mcp-proxy expects (it ignores any extra fields).
   # The packaged servers' definitions are GENERATED (mkPackagedProgram, above)
-  # from mcp-gateway-catalog.json's `env` names + `packagedProgramOverrides` —
+  # from kattakath-skills's mcp-clients/catalog.mcp.json's `env` names + `packagedProgramOverrides` —
   # named ONCE so the private gateway and the published one cannot diverge.
   # They did before this existed: the published config used to rebuild this
   # attrset as a bare `enable = true` per name, which silently dropped every
