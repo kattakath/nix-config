@@ -14,6 +14,7 @@ When you change repo shape, update the one-liner here **and** the section there.
 > **Off-the-shelf over hand-rolled.**
 > **Proven patterns over reinvented wheels.**
 > **Community Legos over proprietary monoliths.**
+> **Every choice carries its evidence — the math, the data, or the precedent — and why it beats the alternatives.**
 
 Before writing custom Nix, a custom script, or a custom protocol: is there an existing
 nixpkgs/nix-darwin/home-manager option, a standard Unix/POSIX mechanism, or an established

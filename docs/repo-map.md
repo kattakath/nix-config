@@ -2427,7 +2427,7 @@ They hold the **all-projects, machine-wide** context this repo installs on `maco
 - **`claude/CLAUDE.md`** → `~/.claude/CLAUDE.md`, via `programs.claude-code.context` in
   `modules/shared/home.nix`. That option **replaced a hand-written `home.file` shim** — the
   upstream-first outcome, not a workaround. Holds the user-level rules that apply in every
-  session on this machine (AskUserQuestion-for-decisions, reuse-over-rebuild, diagrams as
+  session on this machine (AskUserQuestion-for-decisions, the evidence-backed reuse motto, diagrams as
   rendered ASCII, secret-value redaction, git authorship). The repo-root `CLAUDE.md` is
   **project**-scoped and layers on top of it.
 - **`claude/output-styles/`, `claude/agents/`, `claude/commands/`, `claude/rules/`** — the
