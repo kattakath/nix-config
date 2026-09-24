@@ -71,6 +71,14 @@ in
   environment.systemPackages = [
     (pkgs.callPackage ../packages/grok.nix { })
     (pkgs.callPackage ../packages/antigravity-cli.nix { })
+    # Claude Code — re-exposed from the HM module, not re-packaged: `finalPackage`
+    # is the MCP-wrapped binary programs.claude-code already builds, so this is the
+    # same store path HM installs, just ALSO linked into /run/current-system/sw/bin.
+    # Why: GUI agent hosts (Open Design) probe a hardcoded dir list that includes
+    # /run/current-system/sw/bin and ~/.nix-profile/bin but NOT
+    # /etc/profiles/per-user/<user>/bin, where HM's useUserPackages puts it — so
+    # grok/agy were detected and claude was not.
+    config.home-manager.users.${loginName}.programs.claude-code.finalPackage
     # fal.ai — `fal` (the vendor's deploy CLI) and `fal-gen` (inference). Cloud
     # inference, unlike the rest of the media stack, which runs against the
     # local ollama daemon; it bills, and it needs FAL_KEY in the Keychain.
