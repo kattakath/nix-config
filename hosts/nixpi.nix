@@ -64,6 +64,13 @@
   # the upstream-first grep that justifies it being ours.
   local.uplinkWatchdog.enable = true;
 
+  # NixOS defaults to a VOLATILE journal (wiped on reboot). The uplink-watchdog's
+  # probe/escalate/restore trail is the best timestamp source for dating a router
+  # outage (nixpi's own clock, unlike the Rogers gateway's ~1h-off log) — but only
+  # if it survives a reboot that a bad enough power event on the shared circuit
+  # could also cause on nixpi itself.
+  services.journald.settings.Journal.Storage = "persistent";
+
   networking.hostName = "nixpi";
 
   # nixpkgs enables systemd stage-1 by default (boot.initrd.systemd.enable), and
