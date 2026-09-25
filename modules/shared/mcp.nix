@@ -540,12 +540,22 @@ let
   # argv. GENERATED now (mkGeneratedStdio, from the "wordpress" catalog entry's
   # `env` names + `requiredEnvToPasswordCommand` above) rather than a bespoke
   # wrapper — was `wpMcp`, which did nothing a generic export-then-exec wrapper
-  # doesn't. Store the three once:
-  #     secret set WP_URL <https://www.SITE>   # MUST be the canonical www host —
-  #       a non-www host that 301-redirects cross-host DROPS the Authorization
-  #       header, so REST auth 401s. secret set WP_ADMIN_USER <login> ;
-  #     secret set WP_ADMIN_APP_PASSWORD <app-pw>   # wp-admin ▸ Users ▸ Profile ▸
-  #       Application Passwords — NOT the login password (WP refuses it for REST).
+  # doesn't. Store the three once. The SERVICE is the canonical id — the $WP_*
+  # names are only env BINDINGS, and both consumers here (this server's
+  # `requiredEnvToPasswordCommand` and `mkWpAdapterMcp`) read the Keychain BY
+  # SERVICE NAME, never the env:
+  #     secret set mcp:silvercreek.ai:wp_url <https://www.SITE>   # MUST be the
+  #       canonical www host — a non-www host that 301-redirects cross-host DROPS
+  #       the Authorization header, so REST auth 401s.
+  #     secret set --env WP_ADMIN_USER mcp:silvercreek.ai:wp_user <login>
+  #     pbpaste | secret set --env WP_ADMIN_APP_PASSWORD mcp:silvercreek.ai:wp_app_password
+  #       # wp-admin ▸ Users ▸ <that user> ▸ Application Passwords — NOT the login
+  #       password (WP refuses it for REST). An app password is 24 ALPHANUMERICS
+  #       (shown in 6 space-separated groups); a value with symbols is a login
+  #       password and will 401. Piping keeps it out of argv and of any agent
+  #       transcript.
+  # `--env` is NOT optional on a rotation: a ':'-shaped SERVICE defaults to
+  # no-export, so a bare `secret set` silently DROPS the existing binding.
   # Resilient by design: on a missing secret the generated wrapper warns but
   # STILL execs (same as before), so an absent secret can't dark the shared
   # gateway (unlike telegram, which exits).
