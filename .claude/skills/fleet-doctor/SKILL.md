@@ -224,6 +224,27 @@ activate
 (The macvm guest and its tar-sync activation flow were removed 2026-09-05 —
 docs/macvm-readd-runbook.md.)
 
+**Read the `branch@rev` line it prints — do not let it scroll past.** The
+`/etc/nix-darwin/flake.nix` link is a fixed path to the **main checkout**, so
+`activate` builds whatever branch *that* tree currently holds — never a
+`.claude/worktrees/*` tree, and never the default branch by default. A session
+working inside a worktree therefore activates another tree's branch state,
+silently and with a clean exit.
+
+So before believing an activation: confirm the main checkout actually contains
+what you landed, comparing against the **remote-tracking** ref
+(`origin/<default>`) — a local `main` can itself be behind. If it is behind,
+that is a **finding**: moving another tree's branch, or committing its dirty
+files, stays in the **always confirm** column and is never an auto-fix.
+
+**Then verify the outcome, rather than trusting the clean exit.** For anything
+newly *declared* (a Claude plugin or skill in `modules/shared/home.nix`, say),
+the built config is what enables it, so read the activated state back — the
+`enabledPlugins` keys of `~/.claude/settings.json` — and compare to what the
+repo declares. Declared but absent means the **tree was stale**, not that the
+marketplace failed: a marketplace's own git sha refreshes on every activation
+regardless, so a fresh sha proves nothing about your change.
+
 ## Report format (always end with this)
 
 ```markdown
@@ -235,7 +256,7 @@ docs/macvm-readd-runbook.md.)
 - **CI:** all green | repo — workflow — conclusion — needs investigation
 - **GC:** host freed X | guest freed Y (or skipped, VM down) | nixpi: N free (report only)
 - **Determinate Nix (macos):** current | X.Y.Z advised, running A.B.C — upgraded | report only
-- **Hosts:** macos re-activated | skipped (why)
+- **Hosts:** macos re-activated (branch@rev built) | skipped (why) | NOT activated — main checkout behind origin
 - **Verdict:** CLEAN | FIXED (list what) | NEEDS ATTENTION (why, and what needs a human decision)
 ```
 
