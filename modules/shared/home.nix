@@ -793,6 +793,10 @@ in
         # The answer-shape kit: output style, the /explain family, cartographer, /task.
         # modules/shared/claude-brain.nix selects its (namespaced) output style.
         "brain-signals"
+        # session-relay: peer-to-peer etiquette for concurrent Claude sessions — find
+        # your own address, publish a calling card, read the peer roster, judge whether
+        # to act on another session's message (kattakath/skills#26).
+        "session-relay"
       ];
     };
   };
