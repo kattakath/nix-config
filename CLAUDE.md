@@ -78,6 +78,11 @@ activate                                     # Activate macos, from ANY director
                                              #   No --flake/#attr: modules/parts/hosts.nix plants /etc/nix-darwin/flake.nix,
                                              #   which darwin-rebuild resolves, and the attr defaults to LocalHostName (= macos).
                                              #   `sudo darwin-rebuild switch` works too but names nothing it is about to build.
+                                             #   That planted link is a STRING path to the MAIN checkout, so `activate` always
+                                             #   builds THAT tree's CURRENT branch — never a .claude/worktrees/* one, and never
+                                             #   `main` by default. From a worktree session READ the branch@rev it prints: work
+                                             #   already merged is ABSENT until the main checkout holds it, so a plugin or skill
+                                             #   that is declared-but-not-installed is a STALE TREE, not a bad marketplace.
 nix run github:kattakath/nix-config#macos    # FIRST activation only, straight from the flake (before `activate` exists). Self-elevates.
 nixos-rebuild switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com
                                              # Activate the Pi: builds HERE (substituting the CI-warmed closure from
