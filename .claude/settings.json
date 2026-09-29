@@ -72,14 +72,7 @@
       "mcp__plugin_hm_mcpfinder__browse_categories",
       "mcp__plugin_hm_mcpfinder__get_install_config",
       "mcp__plugin_hm_mcpfinder__get_server_details",
-      "mcp__plugin_hm_mcpfinder__search_mcp_servers",
-      "mcp__plugin_hm_open-design__list_projects",
-      "mcp__plugin_hm_open-design__get_active_context",
-      "mcp__plugin_hm_open-design__get_artifact",
-      "mcp__plugin_hm_open-design__get_project",
-      "mcp__plugin_hm_open-design__get_file",
-      "mcp__plugin_hm_open-design__search_files",
-      "mcp__plugin_hm_open-design__list_files"
+      "mcp__plugin_hm_mcpfinder__search_mcp_servers"
     ],
     "deny": [
       "Bash(home-manager switch:*)",
