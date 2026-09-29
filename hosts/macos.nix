@@ -340,19 +340,37 @@ in
     # `secret set AWS_PROFILE <profile>`.
     local.cloudCli.aws.enable = true;
 
-    # ---- Infin8 LiteLLM proxy (OpenAI-compatible clients) ------------------
-    # Folded in from nix-personal's openai-gateway.nix (2026-09-15). Both vars
-    # are load-bearing: openai-python/-node >= 1.0 read OPENAI_BASE_URL, older
-    # openai-python and the LiteLLM SDK read OPENAI_API_BASE. The `/v1` suffix
-    # is load-bearing too — see the retired module's header (git history) for
-    # the measured 401/404-vs-routing failure mode without it. The key itself
-    # is a LiteLLM virtual key in the Keychain (`openai.com:api`), unrelated
-    # to this URL.
-    # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
-    home.sessionVariables = {
-      OPENAI_BASE_URL = "https://ai.infin8it.ca/v1";
-      OPENAI_API_BASE = "https://ai.infin8it.ca/v1";
-    };
+    # ---- Infin8 LiteLLM proxy — REMOVED 2026-09-29 -------------------------
+    # `OPENAI_BASE_URL` + `OPENAI_API_BASE` pointed at https://ai.infin8it.ca/v1.
+    # That host is GONE: `dig ai.infin8it.ca` returns zero A-records and a request
+    # to /v1/models fails to connect (verified 2026-09-29). The LiteLLM gateway it
+    # fronted was itself wound down upstream — see takeoff-api-infra's
+    # docs/ai/litellm-not-deployed.md, where the platform (#827), the CDK construct
+    # (#1452) and the app package were all deleted.
+    #
+    # Pointing these at a dead host is worse than leaving them unset: the OpenAI
+    # SDKs treat an explicit base URL as an override, so instead of falling back to
+    # api.openai.com every client silently failed to connect. Measured cost while
+    # they were still set: two takeoff-api-infra test suites
+    # (test_usage_metering, test_llm_determinism) failed locally and passed the
+    # moment the vars were unset — they had been read as pre-existing breakage on
+    # develop.
+    #
+    # Both vars are dropped, not just one. They held the identical dead URL, and
+    # keeping `OPENAI_BASE_URL` alone would preserve exactly the failure above.
+    # Nothing else in this repo reads either name (`rg OPENAI_` — only the
+    # keychain-secrets tests/docs, which are about the API *key*).
+    #
+    # The Keychain entry `openai.com:api` → `OPENAI_API_KEY` was ALSO removed, after
+    # confirming it was the LiteLLM virtual key and not a real OpenAI credential:
+    # api.openai.com rejected it with HTTP 401 "Incorrect API key provided", and
+    # `secret fp` reported len=25 where a genuine OpenAI key is 50+. The Keychain
+    # copy and the ambient env value hashed identically, so the tested value was the
+    # stored one. Removed with `secret rm openai.com:api` (2026-09-29).
+    #
+    # Nothing declarative recreates it — it was never registered in this repo, only
+    # adopted into the Keychain index by hand, so a rebuild will not bring it back.
+    # If a REAL OpenAI key is needed later: `secret set OPENAI_API_KEY`.
 
     # Chrome DevTools Protocol, in ATTACH mode against Chromium. The attach flag is
     # picked at spawn time by probing /json/version — neither --browser-url nor
