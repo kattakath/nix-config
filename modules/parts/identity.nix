@@ -166,14 +166,15 @@ let
   # process, it hosts all of these, and a leaked Access service token reaches all
   # of it — which is the same statement as before, minus the pretence that a
   # subset was protecting anything. The tiers that argument was written about, named so the cost stays
-  # legible rather than buried in an alphabetical list. They PARTITION the 26 names
-  # below — the bracketed counts must sum to 26, so the arithmetic is checkable
+  # legible rather than buried in an alphabetical list. They PARTITION the 27 names
+  # below — the bracketed counts must sum to 27, so the arithmetic is checkable
   # instead of decorative, and a name added below without a tier here shows up as a
   # sum that no longer lands:
   #   - machine control : macos-automator (arbitrary AppleScript = RCE on this
   #                       Mac), desktop-commander (a shell, so the same reach by a
   #                       different door), chrome-devtools (live browser
-  #                       cookies/sessions), mobile-mcp (the attached device)   [4]
+  #                       cookies/sessions), kapture (the same tabs by a local
+  #                       bridge), mobile-mcp (the attached device)             [5]
   #   - personal        : gmail-* (four accounts), wordpress + wordpress-adapter
   #                       (prod writes)                                         [6]
   #   - credentialed    : github (PAT, repo write), cloudflare (this account),
