@@ -189,7 +189,8 @@ Manages the **entire** brew surface with `onActivation.cleanup = "uninstall"`
   containers are `local.containers` (per-user Colima), which replaced Docker Desktop.
 - **`brews`** — CLI formulae (**38**: cloudflared, kubernetes-cli, ffmpeg, pyenv, …)
 - **`masApps`** — Mac App Store apps: **four**, not none (Display My IP, Plash, WireGuard,
-  Xcode) · **`taps`** — **one** (`viarotel-org/escrcpy`, `modules/darwin/homebrew.nix`)
+  Xcode) · **`taps`** — **one** (`ismailkattakath/escrcpy`, our fork of `viarotel-org`
+  until homebrew-escrcpy#61 merges — `modules/darwin/homebrew.nix`)
 - Counts re-derived 2026-09-23 from the EVALUATED config, not from grepping `hosts/macos.nix` —
   a grep of the source under-counted `brews` and over-counted `masApps` on the attempt that
   produced this correction. `nix eval .#darwinConfigurations.macos.config.homebrew` is the
