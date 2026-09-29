@@ -32,9 +32,14 @@ answer, not a polite one — it moves your work onto him. The order is fixed:
    do not ask for `sudo -v`. Just issue the real command. (Verified 2026-09-15:
    `sudo darwin-rebuild switch` ran fine straight from a tool call.)
 2. **Only if a mechanism genuinely forbids you**, hand it over — and then `pbcopy` it so he
-   pastes rather than types. Today that is precisely the `permissions.deny` list in
-   `modules/shared/claude-guardrails.nix`: `git push --force*`, `gh pr merge *`. A deny
-   entry is mechanical; conversational authorization does not lift it.
+   pastes rather than types. That mechanism is the `permissions.deny` list in
+   `modules/shared/claude-guardrails.nix` — **six families, not two**, so re-read the file
+   rather than quoting this line from memory: force-push + `gh pr merge *`; the MCP config
+   writers (`claude mcp add`/`add-json`/`add-from-claude-desktop`, `Edit(~/.claude.json)`);
+   secret REVEAL (`secret reveal *`, `security find-*-password -w*`); decryption (`agenix
+   -d*`, `age -d*`); and reads of decrypted secret paths (`/run/agenix/**`, the tunnel/MCP
+   state dirs, `~/.aws/sso/cache/**`). A deny entry is mechanical; conversational
+   authorization does not lift it.
 
 "It needs sudo", "it is interactive", "it is safer if you do it", and "it is destructive"
 are **not** reasons to delegate — 1–2 above is the whole list. When you do hand something
