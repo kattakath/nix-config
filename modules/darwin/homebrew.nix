@@ -54,10 +54,18 @@ _:
     # a hand-dragged .app no `cleanup` would ever reclaim.
     #
     # Two costs accepted knowingly, both re-verified against the tap at v3.0.8:
-    #   - `depends_on macos: :catalina` is STILL in the cask, so the deprecation
-    #     warning that motivated the 2026-07-08 removal is back on every
-    #     activation. It is cosmetic — not a failure — and staying declarative was
-    #     judged worth it.
+    #   - `depends_on macos: :catalina` was STILL in upstream's cask. Homebrew 7
+    #     DISABLED that form ("There is no replacement"), turning a cosmetic
+    #     deprecation warning into a hard `brew bundle` failure that aborts
+    #     activation — which is why nix-homebrew sat rev-pinned to brew 6.0.22
+    #     (kattakath/nix-config#613). Hence the tap NAME below: our own fork,
+    #     whose `main` carries the one-line fix (`depends_on :macos`, matching
+    #     Homebrew/homebrew-cask#284098) that viarotel-org/homebrew-escrcpy#61
+    #     still has not merged upstream. That unblocked the unpin.
+    #     TEMPORARY — point `name` back at `viarotel-org/escrcpy` the moment #61
+    #     merges: a fork tap stops receiving upstream's version bumps, so this
+    #     costs cask freshness for as long as it stays. Check with
+    #     `gh pr view 61 -R viarotel-org/homebrew-escrcpy --json state`.
     #   - Gatekeeper never evaluates the app: upstream ships it unsigned, so a
     #     quarantined copy is reported "damaged and can't be opened" and will not
     #     launch at all. The cask therefore carries a `postinstall` that strips the
@@ -84,7 +92,10 @@ _:
     # nats-server is homebrew-core, so no tap is needed.
     taps = [
       {
-        name = "viarotel-org/escrcpy";
+        # Our fork, not viarotel-org — see the `depends_on` cost above. brew maps
+        # `<user>/<repo>` to github.com/<user>/homebrew-<repo>, so this resolves to
+        # github.com/ismailkattakath/homebrew-escrcpy (cask token stays `escrcpy`).
+        name = "ismailkattakath/escrcpy";
         trusted = true;
       }
     ];
