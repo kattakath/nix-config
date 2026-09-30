@@ -27,6 +27,16 @@ Canonical docs: [`docs/gmail-mcp-multi-account-runbook.md`](../../../docs/gmail-
   unsure, ask — do not add.
 - **A Console test user MUST exist before auth is attempted** — Audience →
   Add users, or the flow rejects the account outright.
+- **A test user cannot rescue an INTERNAL client.** If the consent screen says
+  "can only be used within its organization", the app's user type is Internal
+  and an out-of-org account is hard-blocked no matter how the test-user list is
+  configured — check that first for any account outside the client's own
+  Workspace org. Measured 2026-09-29: 3 of 4 declared accounts had never had a
+  working credential for exactly this reason.
+- **Testing status expires refresh tokens after 7 days** (External + restricted
+  Gmail scopes), so a working account going `invalid_grant` is expected
+  maintenance, not corruption — see the runbook's setup step 2 for the citation
+  and the per-org-Internal-client alternative.
 - **The OAuth client must be Desktop app type**, not Web application — Web
   clients don't support the loopback redirect this tool uses.
 - **ALWAYS verify the result of a one-time auth run with a direct API call**
@@ -83,7 +93,9 @@ unset tok
 | Symptom | Action |
 |---|---|
 | `redirect_uri_mismatch` | Client is Web-app type — create a Desktop app client instead |
-| Auth rejects the account | Add it as a Console test user first |
+| Auth rejects the account | Add it as a Console test user first — but if the screen says "can only be used within its organization", the client is Internal and a test user cannot fix it (Audience → Make external) |
+| Worked before, now `invalid_grant` | Testing-status 7-day refresh-token expiry — just re-auth that account |
+| Declared in the Nix list but never worked | Roster ≠ credentials on disk; nothing reconciles them. Compare against `ls ~/.gmail-mcp/credentials-*.json` (names only) |
 | Verified email doesn't match target | Known failure mode above — check the default-path file before re-running |
 | Gateway entry for one account exits at launch | No completed auth for that account yet — doesn't affect other accounts, each is its own process |
 | New account not visible after `darwin-rebuild`/activate | Nix file not staged (`git add`), or activated from a flake that doesn't compose the module the account was added to |
