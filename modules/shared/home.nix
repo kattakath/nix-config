@@ -680,6 +680,109 @@ in
         # drafting and testing step to it (kattakath/skills#10) and keeps triage, stripping
         # and landing. In-repo to the marketplace (source "./plugins/skill-creator").
         "skill-creator"
+        # ---- The Claude-Code-MAINTENANCE set (added 2026-09-29) ----------------
+        # Everything below is Anthropic first-party and IN-REPO to the marketplace
+        # (source "./plugins/<name>"), so the marketplace sha pins the bytes — same
+        # guarantee as security-guidance/skill-creator above, no external subdir.
+        #
+        # WHY AS PLUGINS AT ALL, when some of these skills already "exist": seven of
+        # plugin-dev's skills were present as LOOSE directories in ~/.claude/skills/
+        # (agent-development, command-development, hook-development, mcp-integration,
+        # plugin-settings, plugin-structure, skill-development) and hookify's as
+        # `writing-hookify-rules` — materialised by claude.ai ACCOUNT SYNC, which
+        # `claude plugin list` itself flags as "sync is off in this shell; these load
+        # only in a synced session". That is a per-session coin-flip, and it ships the
+        # skill text ONLY: no agents, no commands, no hooks. Declaring the plugins
+        # makes the same content machine-local, deterministic and flake-pinned, and
+        # adds the halves sync never had (plugin-dev's three agents, hookify's four
+        # hook scripts). Rejected alternative: leaving it to sync — measured absent.
+
+        # plugin-dev — the authoring toolkit for THIS repo's own Claude Code artifacts:
+        # 7 skills (plugin structure/settings, skills, agents, commands, hooks, MCP
+        # integration), /create-plugin, and three agents the synced skills do NOT carry:
+        # plugin-validator, skill-reviewer, agent-creator. Pairs with kattakath/skills
+        # (this fleet publishes a marketplace, so plugin authoring is a standing need,
+        # not a one-off) and with `harvest`, which lands new skills into that repo.
+        "plugin-dev"
+        # claude-md-management — /revise-claude-md + the claude-md-improver skill: audits
+        # a CLAUDE.md for quality and folds session learnings back into it. Directly
+        # relevant to a fleet whose behaviour is steered by ~/.claude/CLAUDE.md plus
+        # per-project files; the alternative is hand-auditing prose, which has no check.
+        "claude-md-management"
+        # claude-code-setup — the claude-automation-recommender skill: reads a codebase
+        # and proposes the hooks / skills / MCP servers / subagents it actually warrants.
+        # Was reachable ONLY through claude.ai sync (loaded as claude-code-setup@synced);
+        # declaring it removes that dependency.
+        "claude-code-setup"
+        # mcp-server-dev — build-mcp-server / build-mcp-app / build-mcpb skills: deployment
+        # model, tool design and packaging for MCP servers. SKILLS ONLY — it registers no
+        # MCP server of its own, so it adds nothing to modules/shared/mcp.nix's catalog and
+        # cannot collide with the gateway. Complements mcp-builder (kattakath) rather than
+        # replacing it: this one is Anthropic's own house guidance.
+        "mcp-server-dev"
+        # agent-sdk-dev — /new-sdk-app plus agent-sdk-verifier-{py,ts}: scaffolds and then
+        # VERIFIES Claude Agent SDK apps against the current SDK surface. The verifier is
+        # the value; hand-checking SDK drift against a knowledge cutoff is exactly the
+        # failure mode the claude-api skill exists to prevent.
+        "agent-sdk-dev"
+        # pr-review-toolkit — six review agents (code-reviewer, silent-failure-hunter,
+        # code-simplifier, comment-analyzer, pr-test-analyzer, type-design-analyzer) and
+        # /review-pr.
+        #
+        # TWO SIBLINGS DELIBERATELY REJECTED, both measured in the cached marketplace:
+        #   - `code-simplifier` is a STRICT SUBSET — its agents/code-simplifier.md is the
+        #     same file this plugin already ships. Installing both duplicates one agent.
+        #   - `code-review` ships a single commands/code-review.md, which would sit on top
+        #     of Claude Code's BUILT-IN /code-review skill (levels low..max, `ultra` cloud
+        #     multi-agent, --fix, --comment). Shadowing a strictly more capable built-in
+        #     with a markdown command is a downgrade, so it stays out.
+        "pr-review-toolkit"
+        # commit-commands — /commit, /commit-push-pr, /clean_gone.
+        # CHECKED BEFORE ADDING, because ~/.claude/CLAUDE.md forbids AI attribution on git
+        # artifacts: grepped the plugin for co-authored-by / "generated with" / the robot
+        # emoji / claude.ai-code links — ZERO hits, so it bakes in no trailer to strip.
+        # Re-grep on a marketplace bump rather than trusting this line.
+        "commit-commands"
+        # claude-security — in-session vulnerability scanning of first-party code at a chosen
+        # effort level. Distinct from security-guidance above, which is HOOK-driven and
+        # reactive (PostToolUse pattern warnings + a Stop-hook diff review); this one is an
+        # on-demand deep sweep. Kept as a pair, not a replacement.
+        "claude-security"
+        # hookify — /hookify, /configure, /list, /help, a conversation-analyzer agent, and
+        # the `writing-rules` skill (the synced copy was skill-only, renamed
+        # writing-hookify-rules).
+        #
+        # COST STATED PLAINLY: unlike every other entry here, this plugin ships ACTIVE hooks
+        # — hooks/hooks.json wiring pretooluse.py, posttooluse.py, stop.py and
+        # userpromptsubmit.py, i.e. Python on every tool call and every prompt. At the time
+        # of adding, ~/.claude/settings.json declared NO hooks at all, so these are the
+        # first; security-guidance's own hooks are plugin-level and likewise invisible there.
+        # Watch for interaction with `superhook` (the kattakath hook supervisor on PATH) and
+        # pull this entry first if tool-call latency or hook noise regresses.
+        "hookify"
+        # feature-dev — agents for codebase exploration, architecture design and staged
+        # implementation of a feature. Broader than plugin maintenance; kept because the
+        # exploration/architecture agents are reusable on any repo in this fleet.
+        "feature-dev"
+        # code-modernization — DELIBERATELY ABSENT, and this comment is the reason so it
+        # is not re-added on sight. The plugin CANNOT INSTALL on Claude Code 2.1.268: its
+        # own manifest fails the CLI's own validator.
+        #
+        #   $ claude plugin validate …/plugins/code-modernization
+        #   ✘ userConfig.track: Invalid input
+        #   ✘ userConfig.panel: Invalid input
+        #
+        # Measured 2026-09-29 against the PRISTINE marketplace checkout, so it is upstream's
+        # bug, not a local or activation fault. `track` and `panel` are the only two keys
+        # declaring `"type": "string"` alongside `"options": [...]`, and code-modernization is
+        # the ONLY plugin of the marketplace's 314 using `options` in userConfig at all — the
+        # validator takes an enum some other way. It is an early-access plugin (its hooks call
+        # $.ui.* / ui.render) whose manifest schema is simply ahead of this CLI.
+        #
+        # Declaring it anyway is not harmless: the install loop in ./claude-plugins.nix ends
+        # each attempt with `|| true`, so it would print a red install failure on EVERY
+        # activation forever while installing nothing. Re-test with `claude plugin validate`
+        # after a marketplace refresh or a claude-code bump, and add it back when that passes.
       ];
     };
 
