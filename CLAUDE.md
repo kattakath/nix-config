@@ -81,8 +81,11 @@ activate                                     # Activate macos, from ANY director
                                              #   That planted link is a STRING path to the MAIN checkout, so `activate` always
                                              #   builds THAT tree's CURRENT branch — never a .claude/worktrees/* one, and never
                                              #   `main` by default. From a worktree session READ the branch@rev it prints: work
-                                             #   already merged is ABSENT until the main checkout holds it, so a plugin or skill
-                                             #   that is declared-but-not-installed is a STALE TREE, not a bad marketplace.
+                                             #   already merged is ABSENT until the main checkout holds it. But absence of a
+                                             #   plugin or skill is NOT by itself evidence of a stale tree: activation installs
+                                             #   only STORE-PATH marketplaces, and an https marketplace's plugins arrive at the
+                                             #   NEXT session start. Only a MISSING `extraKnownMarketplaces` entry in
+                                             #   ~/.claude/settings.json points at a stale tree.
 nix run github:kattakath/nix-config#macos    # FIRST activation only, straight from the flake (before `activate` exists). Self-elevates.
 nixos-rebuild switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com
                                              # Activate the Pi: builds HERE (substituting the CI-warmed closure from
