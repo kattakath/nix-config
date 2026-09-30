@@ -2,6 +2,7 @@
 
 > One declarative Nix flake for my aarch64 fleet — my Mac, a Raspberry Pi server, a disposable dev VM, and a prebuilt devcontainer.
 
+[![nix-ci](https://github.com/kattakath/nix-config/actions/workflows/nix-ci.yml/badge.svg)](https://github.com/kattakath/nix-config/actions/workflows/nix-ci.yml)
 [![build-devcontainer](https://github.com/kattakath/nix-config/actions/workflows/build-devcontainer.yml/badge.svg)](https://github.com/kattakath/nix-config/actions/workflows/build-devcontainer.yml)
 [![gitleaks](https://github.com/kattakath/nix-config/actions/workflows/gitleaks.yml/badge.svg)](https://github.com/kattakath/nix-config/actions/workflows/gitleaks.yml)
 [![FlakeHub](https://img.shields.io/endpoint?url=https://flakehub.com/f/kattakath/nix-config/badge)](https://flakehub.com/flake/kattakath/nix-config)
