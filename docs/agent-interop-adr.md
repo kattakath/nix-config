@@ -101,6 +101,13 @@ Two further reasons, either sufficient on its own:
   `Bash` alone is 12,136. Every `grok`/`agy` turn would carry that.
 - **Wrong abstraction.** It exposes *hands*, not a *mind*: you get `Bash(command)`, never
   `ask_claude(prompt)`.
+- **It outlives whatever started it.** Added 2026-09-29, after the research that produced
+  this ADR demonstrated the failure on itself: the subagent probing `claude mcp serve` ran
+  a ~20-second pipeline, reported `completed`, and left the server **alive for 59 minutes**.
+  A pipeline ending in a stdio server does not exit when its writer finishes — the server
+  holds stdin open and the whole tree hangs. It then **ignored `SIGTERM`** and needed
+  `kill -9`. So the surface with no permission gate is also the one that quietly stays
+  resident after the thing that launched it is gone. Check `ps`, not the agent list.
 
 **If inbound delegation is ever wanted, the answer is `claude-agent-acp`**, which has a
 permission round-trip and a session, not a raw toolbox.
