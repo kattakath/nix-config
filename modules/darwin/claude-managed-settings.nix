@@ -98,14 +98,42 @@
 # binary — they are unset on purpose, not for lack of a spelling.
 #
 # ── SCOPE RULE for adding an entry, one notch stricter than the user floor ────
-# It must ALREADY be in modules/shared/claude-guardrails.nix, AND be pure "never
-# print a secret value" or "never sign work as an AI". Nothing that merely
-# narrows a workflow — because there is NO in-session override here: deny beats
-# ask beats allow, an allow cannot carve an exception out of a deny, and 2.1.260
-# refuses the retraction outright ("Cannot delete permission rules from read-only
-# settings"). Undoing a wrong entry is a rebuild, not a /permissions
-# click. The operator's escape hatches are unchanged: a `!`-prefixed command and
-# a plain terminal never go through the permission system at all.
+# A `permissions` entry must ALREADY be in modules/shared/claude-guardrails.nix,
+# AND be pure "never print a secret value" or "never sign work as an AI". Nothing
+# that merely narrows a workflow — because there is NO in-session override here:
+# deny beats ask beats allow, an allow cannot carve an exception out of a deny,
+# and 2.1.260 refuses the retraction outright ("Cannot delete permission rules
+# from read-only settings"). Undoing a wrong entry is a rebuild, not a
+# /permissions click. The operator's escape hatches are unchanged: a `!`-prefixed
+# command and a plain terminal never go through the permission system at all.
+#
+# ── AMENDMENT (2026-09-30, #674): SUPPLY-CHAIN GATES ARE A SECOND ADMITTED CLASS
+# The rule above is written for `permissions`, and it stays exactly as strict
+# there. It does not decide the case of a key that gates what THIRD-PARTY CODE may
+# be loaded from at all, so this amendment decides it rather than letting an entry
+# slip in under a rule that never contemplated it.
+#
+# Admitted, on three grounds that the excluded workflow-narrowing entries below
+# (`gh pr merge *`, the `--force` spellings, the imperative-MCP group) do NOT share:
+#
+#  1. WHO IS RESTRAINED. Those entries restrain the OPERATOR, to protect him from
+#     his own slip — and on his own repos his judgement beats the rule, which is
+#     precisely why they are excluded. A supply-chain gate restrains an UNVETTED
+#     UPSTREAM's ability to land executable configuration on this machine. The
+#     operator's judgement is not the thing being second-guessed.
+#  2. THE FAILURE IS SELF-DESCRIBING, not silent. A blocked source says so and
+#     names the setting — verbatim from 2.1.268: "Plugins from <owner>/<repo> are
+#     blocked by your organization's managed settings (strictKnownMarketplaces or
+#     blockedMarketplaces)." Contrast a mis-spelled permission path, which matches
+#     NOTHING silently and leaves no floor at all (see § PATHS below). The reason
+#     the permissions rule is so strict is that its failures hide; this one's do not.
+#  3. THE COST IS BOUNDED AND PRICED. With owner wildcards the gate costs a rebuild
+#     only to trust a NEW OWNER, not to add a repo. #674 rejected the all-or-nothing
+#     form of exactly this key for exactly that reason.
+#
+# NOT a licence to widen further. This admits gates on the PROVENANCE of loaded
+# code. It does not admit a key because it is merely useful, and it does not
+# loosen the `permissions` rule by one character.
 #
 # ── WHY THE DUPLICATION IS THE POINT, not drift to clean up ───────────────────
 # `permissions.deny` lists from several scopes COMBINE (duplicates removed), so
@@ -237,6 +265,123 @@ let
       # value, and a wrong one here has no in-session undo: the imperative-MCP
       # group (`claude mcp add *`, `Edit(~/.claude.json)`) and the irreversible
       # remote group (`gh pr merge *`, the four `git push --force` spellings).
+    ];
+
+    # ── SUPPLY-CHAIN GATE: which marketplace SOURCES may be added at all ───────
+    # #674's chosen mitigation (option B-prime). This is the ONE workflow-narrowing
+    # family the SCOPE RULE above admits, and the header says why: it restrains an
+    # unvetted THIRD PARTY, not the operator.
+    #
+    # OWNER WILDCARDS are the whole reason this is affordable. `owner/*` is legal
+    # ONLY in the managed policy lists, quoted verbatim from the 2.1.268 binary:
+    #   "ONLY in the managed-settings policy lists (strictKnownMarketplaces /
+    #    blockedMarketplaces) the owner-wildcard form "owner/*" matches every
+    #    repository under exactly that owner. Everywhere else (marketplace add,
+    #    extraKnownMarketplaces, known_marketplaces.json) the value must name a
+    #    single repository — a wildcard is taken literally and fails to clone."
+    # So `/plugin` → Add marketplace KEEPS WORKING for any repo under a trusted
+    # owner; a rebuild is needed only to trust a NEW OWNER. That is what makes this
+    # a gate rather than a padlock, and it is why the all-or-nothing version of this
+    # option was rejected.
+    #
+    # THE GATE DOES NOT REGISTER — the binary's own note on this key:
+    #   "this is a policy gate only — it does NOT register marketplaces. To
+    #    pre-register allowed marketplaces for users, also set
+    #    extraKnownMarketplaces."
+    # That half lives in modules/shared/claude-plugins.nix. Both are required: this
+    # list decides what MAY be added, that one decides what IS added.
+    #
+    # WHY THE EXACT `git` ENTRIES ARE HERE ALONGSIDE THE WILDCARDS, and do not
+    # delete them as redundant: whether a `github`-form wildcard matches a
+    # marketplace DECLARED as a `git` source (which all eight of ours are) is
+    # INFERRED, not measured. It could not be measured — `strictKnownMarketplaces`
+    # enforces only from the real managed file, and CLAUDE_CODE_MANAGED_SETTINGS_PATH
+    # does NOT deliver it: an allowlist naming only a nonexistent owner still
+    # permitted `kattakath/skills` (measured 2026-09-30, isolated CLAUDE_CONFIG_DIR).
+    # So the first activation is the first real test, and these exact entries make
+    # that test SAFE: every marketplace the fleet declares today matches one of them
+    # literally, whatever the wildcards turn out to do. Strings must match BYTE FOR
+    # BYTE — `.git`, a trailing slash and an `ssh://` spelling are different values,
+    # and an entry without `ref` does not cover a source that sets one.
+    #
+    # NEVER let this list reach `[]`, not even transiently: an empty array is not
+    # "unset", it is "allow nothing" (upstream's own table), which would block the
+    # official marketplace fleet-wide. Edit it in one complete change.
+    #
+    # `pathPattern` covers the ONE store-path marketplace (xai-grok-build, a
+    # `directory` source). An exact path is impossible here for the same reason
+    # `allowedMcpServers` was rejected in #674 — the hash rotates on every rebuild
+    # and a stale entry fails SILENTLY. `^/nix/store/` is the right trust boundary
+    # instead: only the Nix daemon can write there, so a path under it is already
+    # something this flake put in place.
+    #
+    # `skills-dir` is NOT optional. Its own description: "In strictKnownMarketplaces:
+    # opt the scan back IN (by default ANY allowlist blocks it)." Omitting it would
+    # silently kill the ~/.claude/skills/ auto-load the moment this key appears.
+    strictKnownMarketplaces = [
+      # Owners trusted wholesale — a new repo under these needs no rebuild.
+      {
+        source = "github";
+        repo = "kattakath/*";
+      }
+      {
+        source = "github";
+        repo = "anthropics/*";
+      }
+      {
+        source = "github";
+        repo = "upstash/*";
+      }
+      {
+        source = "github";
+        repo = "cloudflare/*";
+      }
+      {
+        source = "github";
+        repo = "trailofbits/*";
+      }
+      {
+        source = "github";
+        repo = "obra/*";
+      }
+
+      # The eight declared today, spelled exactly as modules/shared/home.nix
+      # declares them, so nothing in flight depends on the wildcard inference.
+      {
+        source = "git";
+        url = "https://github.com/kattakath/skills.git";
+      }
+      {
+        source = "git";
+        url = "https://github.com/anthropics/claude-plugins-official.git";
+      }
+      {
+        source = "git";
+        url = "https://github.com/anthropics/skills.git";
+      }
+      {
+        source = "git";
+        url = "https://github.com/upstash/context7.git";
+      }
+      {
+        source = "git";
+        url = "https://github.com/cloudflare/skills.git";
+      }
+      {
+        source = "git";
+        url = "https://github.com/trailofbits/skills.git";
+      }
+      {
+        source = "git";
+        url = "https://github.com/obra/superpowers.git";
+      }
+
+      # The store-path marketplace, and the ~/.claude/skills/ auto-load.
+      {
+        source = "pathPattern";
+        pathPattern = "^/nix/store/";
+      }
+      { source = "skills-dir"; }
     ];
   };
 
