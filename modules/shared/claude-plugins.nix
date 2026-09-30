@@ -182,18 +182,50 @@ in
         '';
       }) cfg.marketplaces;
 
-    # autoUpdate is a key on the marketplace's `extraKnownMarketplaces` entry. The
-    # `source` below is the exact shape `claude plugin marketplace add <https url>`
-    # writes there itself (measured, CLI 2.1.x), so this merges onto that entry
-    # instead of declaring a second, differently-shaped one. settings.json is
-    # deep-merged with Nix winning on its own keys (./claude-code-settings.nix).
-    programs.claude-code.settings.extraKnownMarketplaces = lib.mapAttrs (_: mp: {
-      source = {
-        source = "git";
-        url = mp.source;
-      };
-      autoUpdate = true;
-    }) (lib.filterAttrs (_: mp: mp.autoUpdate) cfg.marketplaces);
+    # EVERY declared marketplace lands here — this is the whole point of the
+    # option. Claude Code fetches a settings-declared marketplace itself:
+    # "A marketplace that settings declare but known_marketplaces.json lacks:
+    # Claude Code clones it, then reloads plugins and downloads enabled plugins
+    # that aren't cached yet" (docs/en/plugins/loading § Plugins and
+    # marketplaces that aren't on disk at session start). User scope qualifies.
+    #
+    # DO NOT FILTER THIS BY autoUpdate. Until 2026-09-30 it read
+    # `filterAttrs (_: mp: mp.autoUpdate)`, so only `kattakath` — one of four —
+    # was ever declared. The other three existed on disk purely because the
+    # activation script below re-added them imperatively, which made the
+    # declaration cosmetic and a reset Mac silently short of three marketplaces.
+    # Measured by eval, not read: claude-plugins-official=false,
+    # context7-marketplace=false, kattakath=true, xai-grok-build=false.
+    #
+    # The two facts are independent: WHETHER a marketplace is declared, and
+    # whether Claude Code may refresh it in the background. Emitting
+    # `autoUpdate = true` unconditionally would also contradict the assertion
+    # above, which forbids the flag on a store path.
+    #
+    # Source SHAPE is per-kind and must match what the CLI writes itself, or
+    # this declares a second, differently-shaped entry instead of merging onto
+    # the existing one. Both shapes measured from the live settings.json:
+    #   https:// -> { source = "git";       url  = <url>;  }
+    #   /nix/store -> { source = "directory"; path = <path>; }
+    # settings.json is deep-merged with Nix winning on its own keys
+    # (./claude-code-settings.nix).
+    programs.claude-code.settings.extraKnownMarketplaces = lib.mapAttrs (
+      _: mp:
+      {
+        source =
+          if lib.hasPrefix "/nix/store/" mp.source then
+            {
+              source = "directory";
+              path = mp.source;
+            }
+          else
+            {
+              source = "git";
+              url = mp.source;
+            };
+      }
+      // lib.optionalAttrs mp.autoUpdate { autoUpdate = true; }
+    ) cfg.marketplaces;
 
     # Keeps every declared plugin switched ON once `claude plugin install` has
     # run below. Editing this in the Claude UI will not persist — a rebuild
