@@ -2630,19 +2630,23 @@ only difference between "someone else's skill" and "mine" is now who can push to
 - **`harvest`** — the end-of-task half of the loop `capability-broker` starts: gate on worth
   (repeats, hard-won, not already covered), choose skill/subagent/workflow/plugin — or memory
   or project config when it is not an artifact — strip secrets and machine paths, then land it
-  as a `kattakath/ai` PR followed by a pin bump here. It mechanises § "Adding to an extracted
-  repo" in [`agent-resource-externalization.md`](agent-resource-externalization.md).
+  as a `kattakath/skills` PR. It mechanises § "Adding to an extracted repo" in
+  [`agent-resource-externalization.md`](agent-resource-externalization.md).
+  **No pin bump follows** since 2026-09-23: the marketplace is an https git source with
+  `autoUpdate`, so a merge on `kattakath/skills` `main` ships by itself. A `flake.lock` bump is
+  needed **only** when the thing you landed is consumed through the `kattakath-skills` INPUT —
+  i.e. the `superhook` or `page-lab-pick` PATH packages, or `mcp.nix`'s `mcpCatalog`.
 
-**One tree stays vendored, deliberately** — the top-level `skills/` directory:
+**NOTHING stays vendored** — and in particular there is **no top-level `skills/` directory in
+this repo**. Do not re-create one; CLAUDE.md's "Gone on purpose — do not re-add" covers it.
 
-- **`skills/{explain,compare,map,zoom,why,tldr,diagram}`** — the Brain Signals `/explain`
-  family: seven one-file skills that encode the same answer shape as the output style at
-  command granularity, which is why they are wired from `modules/shared/claude-brain.nix`
-  rather than `home.nix`'s big skills block — and why they did **not** follow the other three
-  out. They are one kit with that output style; splitting them across two repos would let the
-  two halves drift with nothing to catch it. Declared as RAW path literals, not `"${…}"`
-  strings: upstream branches on that (its `mkSkillEntry`) — a real path becomes a plain
-  recursive `home.file` entry, a path-like string gets an extra `runCommandLocal` symlink farm.
+- The Brain Signals `/explain` family (`explain`, `compare`, `map`, `zoom`, `why`, `diagram`)
+  ships as the **`brain-signals` plugin** from the `kattakath` marketplace, which is why it
+  kept its kit-with-the-output-style property while leaving this tree: the style moved WITH the
+  skills, so neither half can drift from the other. `modules/shared/claude-brain.nix` keeps only
+  what has no plugin form — the **style SELECTION** (`settings.outputStyle =
+  "brain-signals:Brain Signals"`, namespaced because a plugin ships it) and the calibration
+  **rule** (`rules.brain-signals-context`, since plugins carry no rules). No skills block.
 
 ### The operator's marketplace (EXTRACTED 2026-09-12)
 
@@ -2659,21 +2663,30 @@ only difference between "someone else's skill" and "mine" is now who can push to
 > is still a package. The rest of this section is the pinned-era record.
 
 The operator's OWN Claude Code plugin marketplace is
-[`github:kattakath/ai`](https://github.com/kattakath/ai) — **not a tree in this repo** since 2026-09-12
-([`agent-resource-externalization.md`](agent-resource-externalization.md)). It is pinned as
-the `kattakath-ai` input and is the third marketplace alongside `xai-grok-build`
-(also a pinned input) and `claude-plugins-official` (HTTPS).
+[`github:kattakath/skills`](https://github.com/kattakath/skills) — **not a tree in this repo** since
+2026-09-12 ([`agent-resource-externalization.md`](agent-resource-externalization.md)). It is **not a
+flake pin**: since 2026-09-23 it is registered as the https git source
+`https://github.com/kattakath/skills.git` with `autoUpdate = true`, and it is one of **FOUR**
+marketplaces — `kattakath`, `claude-plugins-official` (https), `context7-marketplace` (https) and
+`xai-grok-build` (the one `/nix/store` path, from a patched pinned input). The `kattakath-skills`
+input survives for the `superhook` / `page-lab-pick` PATH packages and `mcp.nix`'s `mcpCatalog`
+only — never for the marketplace source. (The renamed-repo and pinned-era history is the quoted
+update block above.)
 
 That repo's `.claude-plugin/marketplace.json` lists its plugins with `./plugins/<name>`
 relative sources — the shape every owner-operated marketplace on GitHub uses, measured;
 external `{{source:github,…,sha}}` entries are what *catalogs* need, and this is not one.
 `modules/shared/home.nix` declares it as the `kattakath` entry of
-`local.claudePlugins.marketplaces` with `source = "${{kattakath-ai}}"` — an input's
-**store path**, which carries none of the relative-literal trap the old `"${{../../plugins}}"`
-form did, because a store path is absolute and means the same thing from any file in any
-flake. `modules/shared/claude-plugins.nix` registers it and installs the derived
-`<plugin>@kattakath` ids through the one `home.activation.claudeCodePlugins` script every
-marketplace shares.
+`local.claudePlugins.marketplaces`. The pinned-era form was `source = "${{kattakath-ai}}"` — an
+input's **store path**, which carried none of the relative-literal trap the older
+`"${{../../plugins}}"` form did, because a store path is absolute and means the same thing from
+any file in any flake. Today the source is the https URL, so neither trap applies.
+
+`modules/shared/claude-plugins.nix` contributes only the **declaration** for this marketplace:
+its `extraKnownMarketplaces` entry (`{ source = "git"; url = …; autoUpdate = true; }`) and the
+`<plugin>@kattakath` keys of `enabledPlugins`. It does **not** register or install them — the
+`home.activation.claudeCodePlugins` script skips every https marketplace and serves exactly ONE
+today (`xai-grok-build`); Claude Code clones and downloads this one itself at session start.
 
 `repin` defaulted true here (the source starts with `/`) and was believed load-bearing on this
 reasoning: the store path moves on every content bump and `plugin install` COPIES into
@@ -2683,7 +2696,15 @@ at load for a directory source — and the `repin` option plus its whole teardow
 The pinned-era record stands as written; see § `claude-plugins.nix` above for what replaced it
 (one `plugin marketplace add`, which only removes a first-session lag).
 
-Two plugins:
+`repin` here is **`false`** — it derives from `hasPrefix "/" source`, and the source is an https
+URL. That matters because `repin` is now the ONLY predicate deciding what activation touches. The
+flag's rationale belongs to **`xai-grok-build`**, the one store-path marketplace: its store path
+moves on every content bump and `plugin install` COPIES into `~/.claude/plugins/cache`, so without
+the re-pin a bump would serve a previous generation's content forever.
+
+Its plugins are the live list at `local.claudePlugins.marketplaces.kattakath.plugins`
+(`modules/shared/home.nix`) — **14** as of 2026-09-30, and read it rather than any prose here.
+Two of them carry write-ups worth keeping:
 
 - **`llmstxt`** — `llms.txt` authoring skill + `/llmstxt` command + a stdlib-only spec
   linter; see the plugin's own `README.md` in [`kattakath/ai`](https://github.com/kattakath/ai).

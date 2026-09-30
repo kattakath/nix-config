@@ -16,7 +16,8 @@ with a section here, execution wins and §10 records it.
 > fleet entirely** (client, config and the `qwen3-coder` model; the `qwen3-vl*` **vision** models
 > stay, they belong to `media-cli` and are unrelated). The MCP clients are now `claude-code` and
 > `claude-desktop`, and per-client curation is **gone with the architecture that allowed it** —
-> every client gets one connector and the same 26 servers, so there is no subset to curate.
+> every client gets one connector and the same **full** roster (`fleet.publicMcpServers`,
+> `modules/parts/identity.nix`), so there is no subset to curate.
 > **The boundary this ADR decides is unaffected**; only its examples are stale. They are left in
 > place because rewriting the illustrations would not change the decision, and §10 is where an
 > actual reversal would be recorded.
@@ -159,13 +160,14 @@ reuse weighting is satisfied for the formats and cannot be satisfied for the pin
 ## 5. The per-surface decision, by blast radius
 
 The discriminator is not purity, it is **what happens when the resource is wrong**. Counts below are
-**2026-09-15** and they move; `modules/shared/mcp.nix` is the live source, never this table (§10.1).
+**2026-09-30** and they move; the live sources are `modules/shared/home.nix` (plugins, skills) and
+`modules/shared/mcp.nix` / `modules/parts/identity.nix` (servers), never this table (§10.1).
 
 | Surface | Decision | Failure blast radius |
 |---|---|---|
-| **Plugins** (9, 3 marketplaces) | **Already runtime-owned — keep** | Claude owns mutable `~/.claude/plugins` anyway; a bad plugin is one bad plugin |
-| **Skills** (63) | **MAY be overlaid, additively** | Plain markdown. No build step, no credential, no process. Failure = one missing skill, invisible |
-| **MCP servers** (33) | **STAY Nix-owned** | A server that exits at startup **darks the entire gateway** — every client, every server |
+| **Plugins** (32, 4 marketplaces) | **Already runtime-owned — keep** | Claude owns mutable `~/.claude/plugins` anyway; a bad plugin is one bad plugin |
+| **Skills** (45) | **MAY be overlaid, additively** | Plain markdown. No build step, no credential, no process. Failure = one missing skill, invisible |
+| **MCP servers** (27) | **STAY Nix-owned** | A server that exits at startup **darks the entire gateway** — every client, every server |
 
 The MCP row is not hypothetical. On **2026-09-14** a bumped `mcp-servers-nix` built a broken
 `mcp-server-memory`, which took the whole darwin system down; commit `ea4e755` rolled the input
@@ -191,7 +193,7 @@ Three further things the MCP rail would lose by moving:
 | Expose agent CLIs as Nix-provided apps | **Done** — `claude-code`, `qwen-code`, `grok` |
 | Content lives in its own version-controlled repo | **Done** — `github:kattakath/ai`, extracted 2026-09-12 |
 | One vendor-neutral file every client reads | **Done** — `~/.config/mcp/mcp.json` + the `:8096` gateway, three clients |
-| Runtime install, Nix does not own the state | **Done for plugins** — `claude plugin marketplace add`; mutable `~/.claude/plugins` |
+| Runtime install, Nix does not own the state | **Done for plugins** — mutable `~/.claude/plugins`. The MECHANISM named here is stale: `claude plugin marketplace add` runs at activation for **store-path sources only** since 2026-09-30 (§10.5); 31 of 32 plugins now arrive from a settings **declaration** Claude Code acts on at session start |
 | Read-if-present, silent no-op when absent | **Precedent** — git `includeIf` → `~/.config/git/infin8.inc` |
 
 So the real delta is a single decision applied to skills and MCP: **hash pin, or runtime clone.**
@@ -333,4 +335,39 @@ measured the same day:
 What did **not** move: which marketplace is trusted and which plugins are enabled (still
 declared in `modules/shared/home.nix`), MCP servers (§1.4), and the two PATH packages built from
 plugin scripts, which still come from the pinned `kattakath-skills` input.
+
+### 10.5 §3's discriminator flipped: the plugin rail is mostly EVALUATED now (2026-09-30)
+
+§3's closing paragraph is the load-bearing line of this ADR's architecture argument: *"the plugin
+rail already works the proposed way and the skills and MCP rails do not:
+`modules/shared/claude-plugins.nix` is an **activation script** … while `programs.claude-code.skills`
+and the gateway config are **evaluated** into store paths."* That sentence no longer describes the
+plugin rail, and the correction is worth more than the sentence was.
+
+**What changed.** `claude-plugins.nix` now does two separable things:
+
+| Half | Mechanism | Covers |
+|---|---|---|
+| `programs.claude-code.settings.extraKnownMarketplaces` + `enabledPlugins` | **EVALUATED** into `settings.json`; Claude Code clones the marketplace and downloads enabled plugins itself at session start | **every** marketplace — 4 of 4, and 31 of 32 plugins |
+| `home.activation.claudeCodePlugins` | activation script; `plugin marketplace add` + `plugin install` | **`repin = true` only** — `hasPrefix "/" source`, so today ONE marketplace (`xai-grok-build`) and ONE id (`grok-build@xai-grok-build`) |
+
+Until this change the activation script registered and installed all four, which made the settings
+declaration cosmetic; the declaration was itself filtered by `autoUpdate`, so only `kattakath`
+reached `settings.json` at all and a reset Mac was silently three marketplaces short.
+
+**So the discriminator is no longer "plugins vs. the other two rails".** It now separates
+**`directory` sources from everything else**, on a measured reason rather than a rail name: a
+changed `source.path` in `settings.json` does not propagate, because the refresh reads
+`known_marketplaces.json` and only an explicit `plugin marketplace add` updates that. Measured
+2026-09-30 in an isolated `CLAUDE_CONFIG_DIR`: `plugin update` reported `"refreshed from source"`
+and served the **previous** generation's content — silent success, stale bytes. A git source has no
+such gap, so it needs no activation at all.
+
+**Does §1's decision survive?** Yes, and it is if anything better supported. §5's blast-radius
+argument never mentioned activation scripts, and the one rail that still needs imperative
+re-pinning is the one whose source is a **store path** — i.e. the Nix-owned end of the spectrum,
+not the runtime-owned end. But §3 can no longer be cited as "the shape one of the three rails
+already has": the shape a rail has is now a property of its SOURCE KIND, and the only remaining
+activation script exists precisely because Nix pins that source. Read this section before reusing
+§3's paragraph in any argument.
 
