@@ -5,12 +5,27 @@
 # front of the gateway (modules/shared/mcp.nix) — into Claude Desktop's own
 # config file, ~/Library/Application Support/Claude/claude_desktop_config.json.
 # Desktop does not read ~/.claude/*, .mcp.json, or the home-manager MCP hub, so
-# without this the fleet's 26 servers exist for Claude Code only.
+# without this the gateway's whole roster exists for Claude Code only.
 #
-# ONE entry, not a server list. Until 2026-09-22 this rendered an attrset of 26
-# loopback URLs, one shim process per server; everything now reaches every
-# server through the single Workspace-authenticated portal, so the count here no
-# longer tracks the roster and adding a server changes nothing in this file.
+# ONE entry, not a server list. Until 2026-09-22 this rendered an attrset of one
+# loopback URL per hosted server (26 of them at the time), one shim process
+# each; everything now reaches every server through the single
+# Workspace-authenticated portal, so no count here tracks the roster and adding
+# a server changes nothing in this file.
+#
+# THE PLUGIN CONSEQUENCE — a plugin-owned MCP server NEVER reaches Desktop.
+# Marketplace plugins are a CLAUDE CODE surface: Claude Code loads an enabled
+# plugin's `.mcp.json` in ADDITION to the portal connector, and Desktop loads no
+# plugins at all. This file renders exactly one entry, the portal, and the portal
+# is all-or-nothing — see § DELIBERATELY NOT RENDERED below, "the portal cannot
+# serve Desktop a subset". So from the commit that deletes a server from
+# `config.fleet.publicMcpServers` and re-declares it in its owning plugin, that
+# server is CLAUDE-CODE-ONLY: silently ABSENT from Claude Desktop and from the
+# Cowork bridge, with nothing able to notice — no check in this repo can read a
+# plugin's `.mcp.json`. The operator accepted exactly that cost for the eight
+# servers moving in #657 (the decision is #658 + #657). The lane rule — who owns
+# a server, and which servers structurally cannot move — is
+# docs/mcp-gateway.md § Which lane.
 #
 # Everything Desktop loads is ALSO proxied into a linked Cowork cloud session
 # as mcp__remote-devices__<name>__* (the same path Desktop Commander and
