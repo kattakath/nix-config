@@ -2860,7 +2860,17 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   candidate for the **PORTAL layer**, NOT a successor to `mcp-proxy` — it rejects stdio outright, so
   it sits ABOVE a bridge you keep either way. **Read §1a**: the layer it competes with is the
   Cloudflare MCP Portal, which wins on every axis but one — per-user credential injection into a
-  local child, which no remote portal can do and which is unreachable today anyway).
+  local child, which no remote portal can do and which is unreachable today anyway);
+  [`ADR-007`](docs/agent-interop-adr.md) (decided, **partially implemented**: **ACP** — Zed's
+  Agent *Client* Protocol, stdio JSON-RPC — is the rail all three agent CLIs already share, and
+  `acpx` is packaged + installed. A2A was REJECTED on transport fit, with the measurement that
+  settles it: **0 A2A strings in `claude`/`grok`/`agy`** against 686/2013/188 MCP. **Read §3
+  before wiring anything into `claude mcp serve`** — it honours NO deny rule and NO hook, so it
+  routes around this repo's entire guardrail floor including the root-owned managed settings.
+  §4 closes the Antigravity lane twice over: the YouTube/Drive premise is false (measured
+  against its real 57-tool list) and wrapping it breaches its ToS by name. §5a records why
+  images go through the `grok` CLI and not `api.x.ai` — the subscription pays for one and not
+  the other, and `XAI_API_KEY` silently flips the lane).
 - [`docs/workspace-runbook.md`](docs/workspace-runbook.md) — Workspace by hand (the provider is
   archived, ADR-005 §3.3): inventory, verify, and the delegation table no CLI can read.
 - [`docs/identity-and-offboarding.md`](docs/identity-and-offboarding.md) — the single lever:
