@@ -206,6 +206,14 @@ in
           # below still expose them via `config.packages.<name>` and are
           # unchanged. DARWIN-ONLY either way: the Keychain is macOS-only.)
 
+          # acpx — headless ACP (Agent Client Protocol) client. The one piece of
+          # cross-agent interop worth installing: it drives `claude`, `grok` and
+          # `agy` over the protocol all three already speak, with a real
+          # permission policy and turn/timeout caps. FOSS (MIT), so unlike grok
+          # and antigravity-cli above it needs no unfree predicate. Not
+          # Darwin-only — ACP is a stdio protocol with nothing macOS-specific.
+          acpx = pkgs.callPackage ../../packages/acpx.nix { };
+
           jsonresume = pkgs.callPackage ../../packages/jsonresume.nix {
             defaultUrl = jsonResumeUrl;
           };
