@@ -406,6 +406,9 @@ Only the pointers whose absence would cause a WRONG ACTION are duplicated here:
   design got wrong), [`ADR-003`](docs/externalization-boundary-adr.md) (decided, NOT
   implemented), [`ADR-004`](docs/secrets-recovery-and-identity-adr.md) (phase 1 of 3 shipped),
   [`ADR-005`](docs/iac-coverage-adr.md) (**IMPLEMENTED**; §8c is its doc-rot record),
+  [`ADR-007`](docs/agent-interop-adr.md) (cross-agent interop: **ACP** is the rail, `acpx` is
+  installed; `claude mcp serve` is CLOSED — it bypasses every deny rule and hook — and
+  wrapping Antigravity is CLOSED on its ToS),
   [`ADR-006`](docs/mcp-gateway-succession-adr.md) (ContextForge as a **PORTAL-layer** candidate —
   **name only, NOT implemented**; it is NOT `mcp-proxy`'s successor, it rejects stdio. **Read §1a**:
   the Cloudflare portal wins on every axis but local credential injection).
