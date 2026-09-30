@@ -402,12 +402,11 @@
       # redirects the old name). Agent Skills in skills/, Claude Code plugins in
       # plugins/, published as the `kattakath` marketplace.
       #
-      # PINNED FOR THREE THINGS: `superhook`/`superhook-digest` and
-      # `page-lab-pick` run plugin scripts as fleet CLIs (a checked-in hook can
-      # name a bare command but not a store path, and a plugin's own bin/ is on
-      # the Bash tool's PATH, NOT a hook's — measured 2026-09-23); and, since the
-      # MCP catalog externalization, `modules/shared/mcp.nix`'s `mcpCatalog`
-      # reads this input's `mcp-clients/catalog.mcp.json` (the Nix-agnostic,
+      # PINNED FOR TWO THINGS: `page-lab-pick` runs a plugin script as a fleet CLI
+      # (a plugin's own bin/ is on the Bash tool's PATH, NOT a hook's — measured
+      # 2026-09-23 and still true), and it backs `checks.<system>.page-lab`; and,
+      # since the MCP catalog externalization, `modules/shared/mcp.nix`'s
+      # `mcpCatalog` reads this input's `mcp-clients/catalog.mcp.json` (the Nix-agnostic,
       # standard `.mcp.json`-shaped server list — secrets never leave nix-config,
       # only env-var NAMES cross this pin). Plugins and skills themselves are
       # STILL NOT read from here: Claude Code fetches them from the same repo as
@@ -415,7 +414,10 @@
       # there ships without a bump here. This pin moves with the weekly
       # update-flake-lock run — which means the MCP catalog is NOT live the
       # instant it merges in kattakath/skills; it needs this pin bumped first,
-      # same as the two PATH packages always have.
+      # same as `page-lab-pick` always has. The `superhook` hooks are the
+      # counter-example, and the reason the distinction is worth stating: they
+      # arrive through the MARKETPLACE, so a merge there ships them immediately
+      # with no bump here (superhook left this pin 2026-09-30).
       #
       # THE ONLY agent-resource repo this PUBLIC fleet pins. The operator's two
       # personal ones — `ismailkattakath/ai` and `izzykatt/ai` — are deliberately

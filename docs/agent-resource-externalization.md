@@ -8,9 +8,12 @@
 > its `main` is a release, gated by that repo's own `validate.yml`. Its top-level `skills/` are
 > published as marketplace-root plugins, so the `programs.claude-code.skills` cherry-picks are
 > gone, and the Brain Signals kit moved there as the `brain-signals` plugin. The input survives
-> as `kattakath-skills`, for the `superhook` and `page-lab-pick` PATH packages only. A plugin's
-> `bin/` reaches the Bash tool's PATH but **not** a hook's (measured), which is why `superhook`
-> is still a package. The rest of this document is the pinned-era record.
+> as `kattakath-skills`, for the `page-lab-pick` PATH package and `mcp.nix`'s `mcpCatalog`. A
+> plugin's `bin/` reaches the Bash tool's PATH but **not** a hook's (measured), which is why
+> `page-lab-pick` is still a package. **`superhook` is no longer one** — see § Round two's
+> correction below: its "a wrapper cannot be a plugin hook" premise was measured false on
+> 2026-09-30 and it now ships as a plugin hook. The rest of this document is the pinned-era
+> record.
 
 **Decision: the operator's own Claude Code resources — plugins, skills, userscripts —
 leave this tree and come back as pinned `flake = false` inputs.** Nix keeps the pin, the
@@ -124,9 +127,49 @@ eval-breaking reference in the move.
 
 | Was | Now |
 |---|---|
-| `.claude/hooks/superhook.js`, `superhook-digest.js` | `superhook` plugin — **and** `superhook` / `superhook-digest` PATH packages (`packages/superhook.nix`) |
+| `.claude/hooks/superhook.js`, `superhook-digest.js` | `superhook` plugin — as PATH packages at the time, **as real plugin hooks since 2026-09-30** (`packages/superhook.nix` deleted) |
 | `.claude/hooks/autostage-nix.js`, `nix-home-path-lint.js` | `claude-code-nix` plugin, as real plugin hooks |
 | `.claude/hooks/pretooluse-bash-guard.js`, `stop-gate.js` | **stay** — fleet policy, see below |
+
+> ### ⚠ CORRECTED 2026-09-30 — read this before the two paragraphs below
+>
+> The reasoning that follows was **wrong on its central factual claim**, and it is kept
+> because the shape of the error is the lesson: a constraint asserted from reading the
+> harness's behaviour, never probed directly, then carried for weeks as the reason for a
+> whole delivery mechanism.
+>
+> **What was measured (Claude Code 2.1.268).** Inside a plugin hook command, **both**
+> `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PROJECT_DIR}` expand — as inline substitution into
+> the command string **and** as exported process environment variables. Verbatim probe:
+>
+> ```
+> EVENT=SessionStart INLINE_PLUGIN=[…/plugin] INLINE_PROJECT=[…/proj]
+>                    ENV_PLUGIN=[…/plugin]    ENV_PROJECT=[…/proj]
+> ```
+>
+> So a plugin hook CAN name the supervisor by absolute path and pass the inner command as
+> arguments — which is what wrapping *is*. "A plugin can only ADD a hook, never wrap one"
+> confused the hook-set merge (additive, true) with the command's own contents (arbitrary,
+> and free to invoke a wrapper).
+>
+> **What is still true, and was a different measurement all along:** a plugin's `bin/`
+> reaches the Bash tool's PATH but **not** a hook's (2026-09-23). That is why the plugin's
+> commands use an absolute `${CLAUDE_PLUGIN_ROOT}` path rather than a bare command name —
+> and why `page-lab-pick` remains a PATH package. The two findings were conflated.
+>
+> **The caveat that shaped the replacement.** `${CLAUDE_PROJECT_DIR}` is the session's LAUNCH
+> CWD, **not** the git root: a session started in `<repo>/sub` gets
+> `CLAUDE_PROJECT_DIR=<repo>/sub`. So each plugin command resolves the root itself with
+> `git rev-parse --show-toplevel`, re-exports it, and **exits 0 silently when the
+> conventional script is absent** — which doubles as what keeps the plugin inert in every
+> unrelated repo. Expansion is **proven for `SessionStart` only**; `Stop` and `PreToolUse`
+> are **inferred** (an isolated `CLAUDE_CONFIG_DIR` cannot authenticate, so those events
+> never fired in the probe), and the existence test is the defensive answer to that gap.
+>
+> Net effect: `packages/superhook.nix` **deleted**, all three `superhook` entries **deleted**
+> from `.claude/settings.json` (not repointed — both scopes firing means the gate runs
+> twice), `.claude/commands/superhook-review.md` **deleted** as a byte-identical duplicate of
+> the plugin's copy, and `"superhook"` added to the enabled plugin list.
 
 **A wrapper cannot be a plugin hook, and this is the constraint worth remembering.**
 `superhook` is named by the consumer's `settings.json` *in front of* an inner hook. A
@@ -148,9 +191,12 @@ Their two `settings.json` entries were **deleted rather than repointed** — kee
 would fire each hook twice. Enabling the plugin globally is safe because both are no-ops in
 a repo with no `.nix` files.
 
-`superhook` the PLUGIN is deliberately **not** in this fleet's enabled list even though the
+~~`superhook` the PLUGIN is deliberately **not** in this fleet's enabled list even though the
 same marketplace ships it: the fleet consumes the PATH packages, and enabling the plugin too
-would load a second `/superhook-review` beside the project's own.
+would load a second `/superhook-review` beside the project's own.~~ **Reversed 2026-09-30**
+(see the correction above): the plugin IS enabled, and the duplicate-`/superhook-review`
+objection was resolved the same way `claude-code-nix`'s was — by **deleting** the in-repo
+copy, which was byte-identical, rather than declining the plugin to protect it.
 
 ### What stayed, and why it is not a failure
 

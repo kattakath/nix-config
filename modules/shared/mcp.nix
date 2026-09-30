@@ -137,8 +137,8 @@ let
 
   # ---- The per-server CATALOG (Nix-agnostic; lives at kattakath/skills'
   # mcp-clients/catalog.mcp.json, PINNED via the kattakath-skills flake input like
-  # superhook/page-lab-pick — a merge there ships nothing here until this repo's
-  # own pin is bumped, same as those two) ----------------------------------------
+  # page-lab-pick — a merge there ships nothing here until this repo's own pin is
+  # bumped, same as that package) ------------------------------------------------
   #
   # WHAT'S IN IT, AND WHY IT'S SHAPED THIS WAY: every entry is the STANDARD
   # `.mcp.json`/`claude_desktop_config.json` `mcpServers` shape — literally what

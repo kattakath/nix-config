@@ -57,10 +57,6 @@
   agent-skills-vercel-workflow,
   agent-skills-litellm,
   grok-build-plugin-cc,
-  # github:kattakath/skills, pinned ONLY for the superhook PATH package below. Its
-  # plugins and skills reach Claude Code through the git marketplace instead
-  # (local.claudePlugins.marketplaces.kattakath), not through this input.
-  kattakath-skills,
   # The ABSORBED local-rag capsule (local.rag.ollama +
   # local.rag.pgvector — the loopback RAG stack) — a MODULE, not a flake,
   # since ADR-002 wave 6 brought it in-tree as modules/features/local-rag/.
@@ -252,15 +248,6 @@ let
   # at run time (non-interactive, no browser OAuth). Pairs with the
   # resend@claude-plugins-official plugin (local.claudePlugins.marketplaces below). See packages/resend-cli.nix.
   resendCli = pkgs.callPackage ../../packages/resend-cli.nix { };
-
-  # The hook supervisor as CLIs. Scripts come from the PINNED marketplace input, so the
-  # bytes Claude Code is offered as a plugin and the bytes this fleet executes are the
-  # same. Declared here (not taken from the flake's own `packages` output) because
-  # home.packages resolves against `pkgs`; modules/parts/packages.nix exports the same
-  # two for `nix run`/`nix build`, from this same file.
-  superhookCli = pkgs.callPackage ../../packages/superhook.nix {
-    superhookSrc = "${kattakath-skills}/plugins/superhook";
-  };
 
   # rclip, with its runtime-dependency CHECK disabled — not its dependencies changed.
   # rclip 3.3.0's wheel declares `coremltools` as a runtime dep on macOS (the Apple
@@ -769,8 +756,9 @@ in
         # userpromptsubmit.py, i.e. Python on every tool call and every prompt. At the time
         # of adding, ~/.claude/settings.json declared NO hooks at all, so these are the
         # first; security-guidance's own hooks are plugin-level and likewise invisible there.
-        # Watch for interaction with `superhook` (the kattakath hook supervisor on PATH) and
-        # pull this entry first if tool-call latency or hook noise regresses.
+        # Watch for interaction with `superhook` (the kattakath hook supervisor, a plugin
+        # hook since 2026-09-30) and pull this entry first if tool-call latency or hook
+        # noise regresses.
         "hookify"
         # feature-dev — agents for codebase exploration, architecture design and staged
         # implementation of a feature. Broader than plugin maintenance; kept because the
@@ -847,10 +835,12 @@ in
     # plugins, the remote decides what they contain. ADR-003 §10 records that
     # this moves the version decision out of flake.lock for plugins.
     #
-    # The `kattakath-skills` flake input still exists, for two PATH packages
-    # built from plugin scripts (superhook, page-lab-pick) and, since the MCP
-    # catalog externalization, `modules/shared/mcp.nix`'s `mcpCatalog`. No
-    # plugin or skill is read from it.
+    # The `kattakath-skills` flake input still exists, for ONE PATH package built
+    # from a plugin script (`page-lab-pick`), its `checks.<system>.page-lab` gate,
+    # and — since the MCP catalog externalization — `modules/shared/mcp.nix`'s
+    # `mcpCatalog`. It was TWO packages until 2026-09-30, when superhook moved to
+    # plugin-hook delivery and `packages/superhook.nix` was deleted. No plugin or
+    # skill is read from the input.
     #
     # Adding a plugin or skill = its tree + marketplace entry IN THAT REPO, then
     # its bare name below. Changing one that is already listed = a merge there.
@@ -884,13 +874,33 @@ in
         # were deleted from .claude/settings.json rather than repointed — leaving both
         # would fire each hook twice. Enabling globally is safe: both are no-ops in a repo
         # with no .nix files.
-        #
-        # `superhook` is deliberately NOT in this list even though the same marketplace
-        # ships it. It is a WRAPPER that settings.json must name in FRONT of an inner
-        # hook, which no plugin can express, so this fleet consumes it as the `superhook`
-        # PATH package instead (packages/superhook.nix). Enabling the plugin too would add
-        # a second copy of /superhook-review next to .claude/commands/superhook-review.md.
         "claude-code-nix"
+        # superhook: the hook SUPERVISOR — crash safety so a throwing gate cannot wedge a
+        # session, plus a 3-strikes loop breaker. Same plugin-hook delivery as
+        # claude-code-nix above, and the same DELETE-don't-repoint rule: the Stop,
+        # PreToolUse:Bash and SessionStart-digest entries left .claude/settings.json in the
+        # same commit that added this line, because a settings entry and a plugin entry
+        # both fire — the gate would run TWICE. /superhook-review left .claude/commands/
+        # for the same reason: the plugin ships a byte-identical copy.
+        #
+        # This line reverses a standing claim, so the correction matters. Until
+        # 2026-09-30 this fleet consumed superhook as a Nix-packaged `superhook` binary on
+        # PATH (packages/superhook.nix, now DELETED) because a wrapper "cannot be a plugin
+        # hook": ''${CLAUDE_PLUGIN_ROOT} was believed not to expand in a hook command, and
+        # a plugin was believed able only to ADD a hook, never to wrap one. Measured on
+        # Claude Code 2.1.268, both halves are FALSE — ''${CLAUDE_PLUGIN_ROOT} and
+        # ''${CLAUDE_PROJECT_DIR} both expand, inline AND as process environment, so a
+        # plugin hook can name the supervisor and pass the inner command as arguments.
+        # (Still TRUE, and a different measurement: a plugin's `bin/` reaches the Bash
+        # tool's PATH but NOT a hook's — which is why the plugin uses an absolute
+        # ''${CLAUDE_PLUGIN_ROOT} path rather than a bare command name.)
+        #
+        # Enabling globally is safe and INERT by construction: each entry resolves the git
+        # root itself (''${CLAUDE_PROJECT_DIR} is the session's LAUNCH CWD, not the repo
+        # root — this fleet starts sessions in worktrees constantly) and exits 0 silently
+        # unless that root holds .claude/hooks/stop-gate.js or pretooluse-bash-guard.js.
+        # Only THIS repo does, so only this repo is gated.
+        "superhook"
         # Skills published at that repo's top level (skills/<name>/, plain Agent
         # Skills), each installed as its own marketplace-root plugin. They used to be
         # cherry-picked into programs.claude-code.skills from the pin; the plugin form
@@ -1017,8 +1027,6 @@ in
       stripe-cli # Stripe CLI (`stripe`) — API calls, webhook forwarding (`stripe listen`), event triggers; auth is a one-time `stripe login` browser OAuth (config in ~/.config/stripe, never in git/store — same one-time-CLI-login convention as gh/hf/docker). Pairs with the stripe@claude-plugins-official plugin (local.claudePlugins.marketplaces above)
       resendCli # `resend` — the official Resend CLI (npx-wrapped, not yet in nixpkgs), authenticated non-interactively via RESEND_API_KEY from the login Keychain (packages/resend-cli.nix). Pairs with the resend@claude-plugins-official plugin (local.claudePlugins.marketplaces above)
       wp-cli # WordPress CLI (`wp`) — manage WordPress installs/plugins/themes/db from the shell; nixpkgs-native (bundles its own PHP), so no Homebrew `wp-cli` formula or `curl … wp-cli.phar` install (single source per the reuse/declarative convention)
-      superhookCli.superhook # Hook supervisor named by .claude/settings.json as `superhook <Event> -- <inner hook>`: crash safety + a 3-strikes loop breaker. A bare command because that file is checked in and can hold neither a store path nor ''${CLAUDE_PLUGIN_ROOT} (packages/superhook.nix)
-      superhookCli.superhook-digest # SessionStart companion: summarises superhook.log incidents since the last review. Reads the LOG, not the native hook_execution_complete counters, which are structurally blind to the two events it counts
       pandoc # Universal doc converter — nixpkgs-native on aarch64-darwin (no Homebrew needed); backs the docx/pptx/xlsx skills' `pandoc` dependency (see programs.claude-code.skills NOTE below)
       poppler-utils # pdftoppm/pdftotext/pdfimages CLI — NOT `poppler` (that's the glib-bindings library, no binaries); moved here from the macos Homebrew `poppler` formula (nixpkgs is the single source per modules/darwin/homebrew.nix's dedup comment); backs the pdf/docx/pptx skills
     ]
