@@ -57,6 +57,15 @@ let
   idsOf = name: mp: map (p: "${p}@${name}") mp.plugins;
   allIds = lib.concatLists (lib.mapAttrsToList idsOf cfg.marketplaces);
 
+  # The imperative half, and ONLY it. An https marketplace is fully covered by
+  # its `extraKnownMarketplaces` declaration plus `enabledPlugins`; a store-path
+  # one is NOT, and the activation block below is the whole reason why.
+  #
+  # `repin` already defaults to `hasPrefix "/" source`, so this is exactly the
+  # store-path set without a second predicate to keep in sync.
+  repinMarketplaces = lib.filterAttrs (_: mp: mp.repin) cfg.marketplaces;
+  repinIds = lib.concatLists (lib.mapAttrsToList idsOf repinMarketplaces);
+
   # Re-indent a generated block to the column its `${…}` interpolation sits at
   # AFTER Nix has stripped the '' string's common indentation (2), so the
   # emitted activation script stays readable when it is dumped for debugging.
@@ -232,10 +241,34 @@ in
     # reverts it; change the declaration instead.
     programs.claude-code.settings.enabledPlugins = lib.genAttrs allIds (_: true);
 
-    # Materialise DECLARED marketplaces + plugins. installed_plugins.json /
-    # known_marketplaces.json stay Claude-owned mutable state; settings.json is
-    # Nix-managed, so temporarily materialise a writable copy for the install
-    # and restore the store symlink afterwards.
+    # STORE-PATH MARKETPLACES ONLY — the irreducible imperative remainder.
+    #
+    # This block used to register every marketplace and install every plugin.
+    # An https marketplace no longer needs either: `extraKnownMarketplaces`
+    # above declares it, `enabledPlugins` marks its plugins wanted, and Claude
+    # Code clones the marketplace and downloads the plugins itself in the
+    # background after session start (docs/en/plugins/loading § Plugins and
+    # marketplaces that aren't on disk at session start).
+    #
+    # A STORE-PATH MARKETPLACE IS NOT COVERED BY THAT, measured 2026-09-30 in an
+    # isolated CLAUDE_CONFIG_DIR against three generations of one directory
+    # marketplace:
+    #   - It installs as version `unknown` (no git repo, so no SHA), and
+    #     `unknown` force-refreshes rather than pinning — that part is fine.
+    #   - But a changed `source.path` in settings.json DOES NOT PROPAGATE.
+    #     `known_marketplaces.json` is what the refresh actually reads, and only
+    #     an explicit `plugin marketplace add` updates it. With settings pointing
+    #     at generation C and known_marketplaces still at B, `plugin update`
+    #     reported `"refreshed from source"` / `updateOutcome: "updated"` and
+    #     served B. Silent success, stale content — the same shape as the
+    #     version footgun this module's header warns about.
+    #   - A settings-declared marketplace the CLI has never registered is
+    #     invisible to it outright: "Available marketplaces:" comes back empty.
+    #
+    # So the re-pin stays, and it stays narrow. If the session-start path is
+    # ever shown to re-point a directory source on a changed settings path, this
+    # whole block can go — that is the one experiment left, and it needs a
+    # logged-in interactive session, which an isolated config cannot have.
     #
     # TWO PHASES, deliberately not fused: every marketplace is pinned FIRST,
     # then one flat install loop runs. A per-marketplace pin-then-install would
@@ -271,49 +304,38 @@ in
         ${lib.concatStringsSep "\n\n  " (
           lib.mapAttrsToList (
             name: mp:
-            reindent (
-              if mp.repin then
-                ''
-                  # ${name} — content-addressed source: its store path moves whenever the
-                  # pinned content changes, and `plugin install` COPIES into
-                  # ~/.claude/plugins/cache, so key off the path actually recorded in
-                  # known_marketplaces.json and tear the old pin down FIRST (uninstall
-                  # while the marketplace still resolves). Silent on a first switch:
-                  # there is nothing to remove and the CLI says so.
-                  mp_src=${lib.escapeShellArg mp.source}
-                  if ! grep -qF "$mp_src" "$known_mps" 2>/dev/null; then
-                    echo "claude-code: (re)pinning ${name} marketplace -> $mp_src" >&2
-                    if "$claude" plugin marketplace list 2>/dev/null | grep -qF ${lib.escapeShellArg name}; then
-                      for id in ${lib.escapeShellArgs (idsOf name mp)}; do
-                        "$claude" plugin uninstall --yes "$id" >/dev/null 2>&1 || true
-                      done
-                      "$claude" plugin marketplace remove ${lib.escapeShellArg name} >/dev/null 2>&1 || true
-                    fi
-                    "$claude" plugin marketplace add "$mp_src" 2>&1 || true
-                  fi
-                ''
-              else
-                ''
-                  # ${name} — fixed remote: register once. The elif repairs a machine
-                  # still holding a stale DIRECTORY pin of this name (the reserved
-                  # `claude-plugins-official` rejects directory pins as untrusted, and an
-                  # SSH clone fails non-interactively — HTTPS is the only shape that
-                  # works). A no-op on a healthy pin.
-                  mp_src=${lib.escapeShellArg mp.source}
-                  if ! "$claude" plugin marketplace list 2>/dev/null | grep -qF ${lib.escapeShellArg name}; then
-                    echo "claude-code: adding ${name} marketplace -> $mp_src" >&2
-                    "$claude" plugin marketplace add "$mp_src" 2>&1 || true
-                  elif "$claude" plugin marketplace list 2>/dev/null | grep -A2 ${lib.escapeShellArg name} | grep -qF 'Directory'; then
-                    echo "claude-code: replacing directory pin of ${name} with $mp_src..." >&2
-                    "$claude" plugin marketplace remove ${lib.escapeShellArg name} 2>&1 || true
-                    "$claude" plugin marketplace add "$mp_src" 2>&1 || true
-                  fi
-                ''
-            )
-          ) cfg.marketplaces
+            reindent ''
+              # ${name} — content-addressed source: its store path moves whenever the
+              # pinned content changes, and `plugin install` COPIES into
+              # ~/.claude/plugins/cache, so key off the path actually recorded in
+              # known_marketplaces.json and tear the old pin down FIRST (uninstall
+              # while the marketplace still resolves). Silent on a first switch:
+              # there is nothing to remove and the CLI says so.
+              mp_src=${lib.escapeShellArg mp.source}
+              if ! grep -qF "$mp_src" "$known_mps" 2>/dev/null; then
+                echo "claude-code: (re)pinning ${name} marketplace -> $mp_src" >&2
+                if "$claude" plugin marketplace list 2>/dev/null | grep -qF ${lib.escapeShellArg name}; then
+                  for id in ${lib.escapeShellArgs (idsOf name mp)}; do
+                    "$claude" plugin uninstall --yes "$id" >/dev/null 2>&1 || true
+                  done
+                  "$claude" plugin marketplace remove ${lib.escapeShellArg name} >/dev/null 2>&1 || true
+                fi
+                "$claude" plugin marketplace add "$mp_src" 2>&1 || true
+              fi
+            ''
+          ) repinMarketplaces
         )}
 
-        for id in ${lib.escapeShellArgs allIds}; do
+        # STORE-PATH IDS ONLY. The re-pin above UNINSTALLS this marketplace's
+        # plugins before re-adding it, so something has to put them back in the
+        # same activation — leaving that to Claude Code's own session-start
+        # download would leave the plugin absent until the next session, and
+        # absent entirely if that download does not cover directory sources.
+        #
+        # An https marketplace's plugins are NOT listed here: they are declared
+        # in `enabledPlugins` above, and Claude Code downloads an enabled plugin
+        # whose marketplace is settings-declared (docs/en/plugins/loading).
+        for id in ${lib.escapeShellArgs repinIds}; do
           # WHOLE-LINE match, not a substring. `grep -qF "$id"` was a silent
           # install-skip whenever one marketplace name was a PREFIX of another:
           # measured 2026-09-12, renaming this repo's marketplace from
