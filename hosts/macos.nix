@@ -71,6 +71,13 @@ in
   environment.systemPackages = [
     (pkgs.callPackage ../packages/grok.nix { })
     (pkgs.callPackage ../packages/antigravity-cli.nix { })
+    # acpx — the headless ACP client that drives the three agents above as PEERS
+    # rather than as separate terminals. Machine-wide for the same reason they
+    # are: it is a client, all per-session state is in its arguments, and the
+    # alternative (`npm i -g acpx`) is a per-user install outside the store.
+    # Node floor matters here — see packages/acpx.nix; it pins nodejs_22 itself
+    # because the fleet default is 20.x and acpx requires >=22.13.
+    (pkgs.callPackage ../packages/acpx.nix { })
     # Claude Code — re-exposed from the HM module, not re-packaged: `finalPackage`
     # is the MCP-wrapped binary programs.claude-code already builds, so this is the
     # same store path HM installs, just ALSO linked into /run/current-system/sw/bin.
