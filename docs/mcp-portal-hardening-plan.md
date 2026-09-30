@@ -27,11 +27,11 @@ most reusable part of this document:
 |---|---|---|---|
 | 0 | **Pin the provider** in `mcp-public.nix` | **YES — first** | Every schema fact below is a fact about **one version**. This stack pins **nothing** today. |
 | 1 | **Token expiry as a checked fact** | **YES** | Zero-risk. `duration` is an **in-place update**, not a replacement. Nothing goes dark. |
-| 2 | **Per-server policy tiers** | **YES, narrowly** | Buys structure before the second human exists. Buys **no isolation today**. One silent way to lock yourself out of all 26. |
+| 2 | **Per-server policy tiers** | **YES, narrowly** | Buys structure before the second human exists. Buys **no isolation today**. One silent way to lock yourself out of every published server. |
 | 3 | **Device posture on sensitive servers** | **NO — do not do this** | Zero enrolled devices. A `device_posture` require evaluates **false forever** and takes the tier **offline**. |
 | 4 | **Ephemeral worker end-to-end** | **NOT YET** | The tier boundary is a **documented discovery filter**, not a documented authorization boundary. Measure before you rely on it. |
 
-**The one sentence that governs all four:** none of this closes the direct-URL hole. Anyone holding the `mcp_public` service token reaches `https://upstream.kattakath.com/servers/<name>/mcp` for **all 26**, regardless of every policy below. Cloudflare says so explicitly. `infra/cloudflare/mcp-public.nix:35-41` already recorded that acceptance.
+**The one sentence that governs all four:** none of this closes the direct-URL hole. Anyone holding the `mcp_public` service token reaches `https://upstream.kattakath.com/servers/<name>/mcp` for **every published server** (`fleet.publicMcpServers`, `modules/parts/identity.nix:223` — the roster is the source of truth, never a number in this plan), regardless of every policy below. Cloudflare says so explicitly. `infra/cloudflare/mcp-public.nix:35-41` already recorded that acceptance.
 
 ---
 
@@ -61,7 +61,7 @@ most reusable part of this document:
 
 # 0. Pin the provider — prerequisite, own PR
 
-**Why:** `infra/cloudflare/mcp-public.nix` has **no `terraform.required_providers` block**. Verified: the block exists only in `access-org.nix:103`, `nixpi-tunnel.nix:235`, `zones.nix:59`. The stack owning **all 26 published servers** is the one stack with no pin.
+**Why:** `infra/cloudflare/mcp-public.nix` has **no `terraform.required_providers` block**. Verified: the block exists only in `access-org.nix:103`, `nixpi-tunnel.nix:235`, `zones.nix:59`. The stack owning **every published server** is the one stack with no pin.
 
 **LOUD — do NOT add `source = "cloudflare/cloudflare"`.** That stack's lockfile records the legacy address `registry.opentofu.org/hashicorp/cloudflare`. Changing `source` moves the **provider address in state**, which needs `tofu state replace-provider` — **state surgery on an encrypted GCS backend, with no flake app lane for it** (`modules/parts/terranix.nix:1143` is `tofu ${action} "$@"`, action fixed to plan|apply|destroy).
 
@@ -97,7 +97,7 @@ most reusable part of this document:
 | Update behaviour | `PUT` same token id; provider **preserves the old `client_secret`** | `resource.go:105,124,160-163` |
 | Renewal semantics | Cloudflare **resets expiry relative to the update** | developers.cloudflare.com service-tokens |
 
-**Consequence:** `client_id`/`client_secret` do not move → `tokenHeaders` (`mcp-public.nix:300`) does not move → the 26 `auth_credentials` see **no diff** → **no re-registration, no dark window**.
+**Consequence:** `client_id`/`client_secret` do not move → `tokenHeaders` (`mcp-public.nix:300`) does not move → every server's `auth_credentials` sees **no diff** → **no re-registration, no dark window**.
 
 **Two traps, stated plainly:**
 - Declaring `8760h` today is a **zero-diff no-op** — that is the point, and it also means **re-applying an unchanged value renews nothing** (no diff, no PUT). Renewal needs a **changed** value.
@@ -134,7 +134,7 @@ most reusable part of this document:
   };
 ```
 
-**Measured, not predicted:** the render diff is exactly one JSON key. Today `{"account_id":"…","name":"mcp-public-gateway"}`; after, that plus `"duration":"8760h"`. Nothing else in the 26-registration render moves.
+**Measured, not predicted:** the render diff is exactly one JSON key. Today `{"account_id":"…","name":"mcp-public-gateway"}`; after, that plus `"duration":"8760h"`. Nothing else in the per-server registration render moves.
 
 ## 1c. The build-time check
 
@@ -254,7 +254,7 @@ most reusable part of this document:
 ## 1e. What NOT to build
 
 - **Do not** bolt an expiry probe onto `packages/launchd-doctor.nix`. Its header scopes it to launchd units on the running machine (`:1-23`, `:35` "NO NIX-TIME THREADING").
-- **Do not** write a poller. Cloudflare ships `cloudflare_notification_policy` with `alert_type = "expiring_service_token_alert"` — the off-the-shelf answer (`upstream-first`). **But it is apply-gated AND scope-gated:** it needs Account Settings Read/Write + Notifications Read/Write, which `cf:cloudflare.com:mcp-public` does not document (`terranix.nix:1014-1020`). If you add it without widening the token, **the apply FAILS and changes nothing** — a new resource has nothing to refresh, the 403 lands on the create, the 26 registrations stay live. Cost is a wasted run, **not an outage**. Defer it to its own PR.
+- **Do not** write a poller. Cloudflare ships `cloudflare_notification_policy` with `alert_type = "expiring_service_token_alert"` — the off-the-shelf answer (`upstream-first`). **But it is apply-gated AND scope-gated:** it needs Account Settings Read/Write + Notifications Read/Write, which `cf:cloudflare.com:mcp-public` does not document (`terranix.nix:1014-1020`). If you add it without widening the token, **the apply FAILS and changes nothing** — a new resource has nothing to refresh, the 403 lands on the create, every existing registration stays live. Cost is a wasted run, **not an outage**. Defer it to its own PR.
 
 **Apply needed for 1b?** Only to make the render authoritative. It plans as **0 to change**. **PR title:** `apps, checks, packages, docs`
 
@@ -264,7 +264,7 @@ most reusable part of this document:
 
 ## 2a. Read this before writing any code
 
-**LOUD — the silent lockout.** `portalApp` (`mcp-public.nix:278-296`) hands `policies = [{ id = operatorPolicyId; precedence = 1; }]` to **every** published server. Repointing that id is an **in-place attribute update at an unchanged resource address**. The drop guard compares **addresses** (`terranix.nix:1128`, `comm -23`); the floor guard counts only `..._mcp_server`. **Neither fires.** A mis-scoped tier policy locks you out of **all 26 portal apps in one irreversible apply, with zero refusals.**
+**LOUD — the silent lockout.** `portalApp` (`mcp-public.nix:278-296`) hands `policies = [{ id = operatorPolicyId; precedence = 1; }]` to **every** published server. Repointing that id is an **in-place attribute update at an unchanged resource address**. The drop guard compares **addresses** (`terranix.nix:1128`, `comm -23`); the floor guard counts only `..._mcp_server`. **Neither fires.** A mis-scoped tier policy locks you out of **EVERY portal app in one irreversible apply, with zero refusals.**
 
 **LOUD — never mutate `mcp_allow_operator`.** `infra/cloudflare/nixpi-tunnel.nix:377` pins it by literal id `b3bd8c38-e231-4203-ba6b-69fe16e498b3` from a **different tofu stack**. Narrowing it narrows **who can SSH the Pi**, in the same apply, with no plan line naming the Pi. Tiering **ADDS** policies.
 
@@ -273,10 +273,10 @@ most reusable part of this document:
 | Buys | Does not buy |
 |---|---|
 | A second Workspace human gets the read-only shelf without a shell on this Mac | **Any isolation today** — one account on the domain, so all tiers admit the same person |
-| Structure before the second human exists | **Containment** — the direct URL + service token reaches all 26 |
+| Structure before the second human exists | **Containment** — the direct URL + service token reaches every published server |
 | — | **MFA / purpose justification / temporary auth** — not enforced on portal-authorized mcp apps |
 
-`docs/mcp-public-exposure-design.md` §10 already settled this: *"absence is no longer a boundary … Narrowing `publicMcpServers` is the only lever that restores absence."* A per-server policy narrows **who**, not **what is reachable**. §8 records that you were shown the four-tier split and **chose to publish all 26** — this is adding identity constraints to an unchanged roster, not re-litigating that.
+`docs/mcp-public-exposure-design.md` §10 already settled this: *"absence is no longer a boundary … Narrowing `publicMcpServers` is the only lever that restores absence."* A per-server policy narrows **who**, not **what is reachable**. §8 records that you were shown the four-tier split and **chose to publish the FULL roster** — this is adding identity constraints to an unchanged roster, not re-litigating that.
 
 ## 2b. Tier data — new `let` bindings after `cfId` (`mcp-public.nix:134`)
 
@@ -354,7 +354,7 @@ most reusable part of this document:
     '');
 ```
 
-Roster coverage verified: all 26 keys set-diff clean against `modules/parts/identity.nix:222` in **both** directions.
+Roster coverage verified: **every** key set-diff clean against `fleet.publicMcpServers` (`modules/parts/identity.nix:223`) in **both** directions — re-run the diff rather than trusting a count here.
 
 ## 2c. The reverse guard — tier → roster
 
@@ -472,8 +472,8 @@ Keep it a single policy, not a list + `genList` — every tier yields exactly on
 | Action | Objects |
 |---|---|
 | **CREATE** | 3 × `cloudflare_zero_trust_access_policy` |
-| **UPDATE IN PLACE** | 26 × `..._access_application.portal_*` — only `policies` changes |
-| **UNCHANGED** | `mcp_allow_operator`, `origin_gateway`, `portal`, all 26 registrations, the portal attachment, the tunnel, DNS, the service token |
+| **UPDATE IN PLACE** | one `..._access_application.portal_*` per published server — only `policies` changes |
+| **UNCHANGED** | `mcp_allow_operator`, `origin_gateway`, `portal`, every registration, the portal attachment, the tunnel, DNS, the service token |
 | **DIFFERENT STACK, UNTOUCHED** | `nixpi_ssh` and its literal policy id |
 
 **STOP the apply if:** any `-/+ replace` on a `portal_*` app (that server disappears from every portal until the create lands); any diff at all on `mcp_allow_operator`; any `+ create` for `mcp_allow_operator` (the import was skipped — an apply mints a second policy and orphans `nixpi_ssh`).
@@ -529,7 +529,7 @@ Keep it a single policy, not a list + `genList` — every tier yields exactly on
 
 **An identity policy cannot admit a non-identity caller.** So without an explicit Service Auth policy on each per-server app, the worker connects and enumerates **zero tools**. Fail-closed. Good.
 
-**LOUD — but that is a DISCOVERY filter, not a proven authorization boundary.** Cloudflare's documented sentence is: *"If a linked MCP server does not have a Service Auth policy matching the token, that server is **hidden from the bot's tool list**."* The docs say **nothing** about what happens when a service-token session issues a `tools/call` naming a tool on a hidden server. And this repo is **public** — `modules/parts/identity.nix:222` lists all 26 names, so "the attacker doesn't know the tool name" is not available as an assumption.
+**LOUD — but that is a DISCOVERY filter, not a proven authorization boundary.** Cloudflare's documented sentence is: *"If a linked MCP server does not have a Service Auth policy matching the token, that server is **hidden from the bot's tool list**."* The docs say **nothing** about what happens when a service-token session issues a `tools/call` naming a tool on a hidden server. And this repo is **public** — `modules/parts/identity.nix:223` lists every published name, so "the attacker doesn't know the tool name" is not available as an assumption.
 
 **Acceptance test that must run before anyone relies on the tier:**
 1. `tools/list` with the worker headers must equal the tier **exactly**.
@@ -704,10 +704,10 @@ nix run .#mcp-public-plan                     # operator only; read it
 # Loud lines, collected
 
 - **NEVER edit or rename `cloudflare_zero_trust_access_policy.mcp_allow_operator`.** `nixpi-tunnel.nix:377` pins it by literal id from another stack — you would move the Pi's SSH gate.
-- **Swapping `operatorPolicyId` wholesale in `portalApp` locks you out of all 26 portal apps in one apply, and NO wrapper guard fires.**
+- **Swapping `operatorPolicyId` wholesale in `portalApp` locks you out of EVERY portal app in one apply, and NO wrapper guard fires.**
 - **A `-/+ replace` on any `portal_*` app** = that server vanishes from every portal until the create lands. No rollback.
 - **`MCP_PUBLIC_ALLOW_DROPS=1` to silence a rename DELETES the live object.**
-- **Never attach a `geo` or `device_posture` require to `mcp_public_service_token` or `origin_gateway`** — the caller there is Cloudflare's own edge, not your laptop. It fails all 26 at once.
+- **Never attach a `geo` or `device_posture` require to `mcp_public_service_token` or `origin_gateway`** — the caller there is Cloudflare's own edge, not your laptop. It fails every published server at once.
 - **Do not ship a `device_posture` require anywhere.** Zero enrolled devices ⇒ it evaluates false ⇒ the tier goes offline.
-- **Do not add `source = "cloudflare/cloudflare"` to `mcp-public.nix`** — that is state surgery (`tofu state replace-provider`) on the encrypted GCS state of the stack owning all 26, with no flake app lane.
+- **Do not add `source = "cloudflare/cloudflare"` to `mcp-public.nix`** — that is state surgery (`tofu state replace-provider`) on the encrypted GCS state of the stack owning every published server, with no flake app lane.
 - **The `geo.country_code` option is a travel lockout** on exactly the servers you would use to fix it. Leave it out.
