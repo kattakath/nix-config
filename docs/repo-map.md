@@ -581,8 +581,13 @@ their own top-level section below:
   older `linkApps` — `~/Applications/Home Manager Apps` is a SYMLINK into `/nix/store`, which
   Spotlight does not index. Both also nest the bundles in a subfolder, and `copyApps` needs
   the App Management TCC grant (a click, per Mac).
-- **`mcp.nix`** — the claude-code MCP-server config. See [`mcp-gateway.md`](mcp-gateway.md);
-  the per-client stdio `open-design` entry's boundary doc is [`open-design.md`](open-design.md).
+- **`mcp.nix`** — the fleet MCP gateway: one `mcp-proxy` hosting every server with **no plugin
+  owner**, reached by every client as ONE portal connector. See
+  [`mcp-gateway.md`](mcp-gateway.md) for the roster, the counting convention (entries vs
+  capabilities) and § Which lane — the 2026-09-30 ownership split that sends a skill's tool half
+  into that skill's marketplace plugin instead. **There are NO per-client stdio servers**: the
+  `open-design` entry that used to be the exception left the fleet on 2026-09-22 (the APP is still
+  a cask — only its stdio MCP server is gone; [`open-design.md`](open-design.md)).
 - **`chromium.nix`** — `local.ungoogledChromium`, real-Mac-only: the declarative surface for
   the Homebrew `ungoogled-chromium` cask. Installs **no** browser (`programs.chromium.package =
   null`) — nixpkgs' `chromium`/`ungoogled-chromium` are `*-linux` only, so the `.app` must be a
@@ -1432,8 +1437,10 @@ waves 5-6 absorb them).
     the user. Anthropic's own channel is an MDM configuration profile; this fleet has no MDM.
   - **No `managed-mcp.json` here, deliberately** — deploying that file suppresses the
     claude.ai connectors Claude Code fetches for itself unless `allowAllClaudeAiMcps` is set
-    alongside, and this fleet runs four Gmail connectors plus Drive, Calendar and Slack. MCP's
-    source of truth stays `modules/shared/mcp.nix` (ADR-003 §5).
+    alongside, and this fleet runs four Gmail connectors plus Drive, Calendar and Slack. For every
+    server with **no plugin owner**, MCP's source of truth stays `modules/shared/mcp.nix` — ADR-003
+    §5's blanket "MCP servers stay Nix-owned" was **scoped** on 2026-09-30 (its §10.6); the owned
+    half now lives in each plugin's `.mcp.json`, which no managed file and no check here can see.
   - **Coverage limit + how to verify:** managed settings do NOT reach an Anthropic-hosted
     cloud session (only server-managed ones do), which is a further reason the user- and
     project-scope layers stay put. `nix flake check` cannot see any of this — `/status` inside
@@ -2315,8 +2322,12 @@ The Cloudflare half of the **published MCP gateway** — the other half is the s
 `mcp-proxy` in `modules/shared/mcp.nix`, whose whole roster is
 `config.fleet.publicMcpServers`. Built and live since 2026-09-12. There WAS a
 `local.mcpGateway.public` option selecting an opt-in subset onto a SECOND proxy; both were
-deleted on 2026-09-22 when every server became published, so one proxy hosts all 26 and
-`checks.<system>.mcp-published-parity` holds hosted == published. The design note is
+deleted on 2026-09-22 when every server became published, so one proxy hosts **every roster
+entry** — 27 today, heading for 19 then 17 as the ownership split (#657/#656) moves the
+plugin-owned servers off the gateway entirely — and
+`checks.<system>.mcp-published-parity` holds hosted == published. That parity is a **Nix-side**
+guarantee only: it cannot read a marketplace plugin's `.mcp.json`, so a name deleted from both
+lists and never declared in its plugin is a silent loss with a green build. The design note is
 [`docs/mcp-public-exposure-design.md`](mcp-public-exposure-design.md) — read its §10 first,
 which records that collapse.
 

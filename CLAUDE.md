@@ -212,11 +212,13 @@ wrong in EVERY repo sits in two wider tiers: user-scope `permissions.deny` in
 keys) — a managed deny cannot be retracted by any lower scope. Deny lists from every scope
 COMBINE, so that duplication is deliberate, not drift.
 
-**MCP servers**: ONE `mcp-proxy` gateway (`modules/shared/mcp.nix`, darwin-only) on
-`127.0.0.1:<publicMcpPort>` hosting all 26; no per-client stdio servers remain. Clients declare
-ONE connector — the portal at `https://mcp.<domainName>/mcp` — not a server list;
-`checks.*.mcp-published-parity` holds hosted == `fleet.publicMcpServers`. No project
-`.mcp.json`. Inventory: [`docs/mcp-gateway.md`](docs/mcp-gateway.md).
+**MCP servers — TWO permanent lanes, by ownership.** ONE `mcp-proxy` gateway
+(`modules/shared/mcp.nix`, darwin-only) on `127.0.0.1:<publicMcpPort>` hosts every server with
+**no plugin owner**; no per-client stdio ones. Clients declare ONE connector — the portal at
+`https://mcp.<domainName>/mcp` — not a server list; `checks.*.mcp-published-parity` holds
+hosted == `fleet.publicMcpServers`. No project `.mcp.json`. **Claude Code ALSO loads an enabled
+plugin's MCP servers; Claude Desktop does NOT** — it sees only the portal, so a plugin-owned
+server never reaches it. Lanes, inventory, counts: [`docs/mcp-gateway.md`](docs/mcp-gateway.md).
 
 ## Code Style & Conventions
 
@@ -330,7 +332,7 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
 | "Does it evaluate?" | `/eval` (stage + `nix flake check`) — no agent needed |
 | LEAN/DRY/doc-drift cleanup | `/hygiene` → skill `nix-hygiene` (audit → fix → gate) |
 | Cross-repo fleet sweep | `/fleet-doctor` (repos listed in `.claude/skills/fleet-doctor/fleet-repos.txt`) |
-| Adopt an MCP server | `/mcp-scout` → skill `mcp-scout` (declare in `mcp.nix`, never install imperatively) |
+| Adopt an MCP server | `/mcp-scout` → skill `mcp-scout` (pick the LANE, declare, never install imperatively) |
 
 ## Important Notes
 
