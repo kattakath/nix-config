@@ -994,10 +994,11 @@ their own top-level section below:
 - **`claude-plugins.nix`** — `local.claudePlugins.marketplaces`, the **N-marketplace** Claude
   Code plugin mechanism. An `attrsOf submodule` keyed by marketplace name, each carrying a
   `source` (a `/nix/store` path or an `https://` git URL — asserted, so an impure
-  `toString ../plugins` fails loudly), a `plugins` list of BARE names, and a derived `repin`
-  flag. Install ids are derived as `<plugin>@<marketplace>`, single-sourcing
-  `settings.enabledPlugins` and the install loop so a plugin can never be
-  installed-but-disabled through a typo.
+  `toString ../plugins` fails loudly), a `plugins` list of BARE names, and an `autoUpdate`
+  flag (https only). Install ids are derived as `<plugin>@<marketplace>`, which is what
+  `settings.enabledPlugins` keys on, so a plugin's id can never drift from its marketplace
+  through a typo. **A `repin` option existed until 2026-09-30** and is GONE — nothing outside
+  the module ever set it, and the teardown it named is deleted (see the two bullets below).
   - **Why it exists.** This was a single-marketplace mechanism inlined in `home.nix`
     (`claudePluginIds` / `localPluginsMarketplace` / `home.activation.claudeCodePlugins`)
     until nix-personal needed a second marketplace and grew a near-verbatim 80-line COPY of
@@ -1020,12 +1021,33 @@ their own top-level section below:
     `modules/shared/home.nix` is a repo-relative path literal — three are `https://` git URLs
     (`kattakath` among them since 2026-09-23), and one is a store path (the patched
     grok-build plugin).
-  - **Two phases, not fused.** Every marketplace is pinned first, then ONE flat install loop
-    runs. Pin-then-install per marketplace would let a later re-pin teardown uninstall a
-    plugin the loop had already installed. `programs.claude-code.marketplaces` (upstream) is
+  - **The activation script is now ONE `marketplace add` per store-path marketplace**
+    (2026-09-30) — no install loop, no uninstall, no marketplace-remove, no two phases. The
+    declarations do the work: `extraKnownMarketplaces` + `enabledPlugins`, and Claude Code's
+    **session-start reconcile** fetches and re-points from there. Four measurements, Claude
+    Code 2.1.268, isolated `CLAUDE_CONFIG_DIR`:
+    1. The session-start reconcile DOES re-point a `directory`-source marketplace when
+       settings' `source.path` changes, and it is **not auth-gated** (a logged-OUT TUI printed
+       `Not logged in` and `Plugins changed. Run /reload-plugins to activate.` in one frame,
+       and `known_marketplaces.json` moved).
+    2. `~/.claude/plugins/cache` is **never read at load** for a directory source — the plugin
+       loads LIVE from the marketplace directory; one whose recorded `installPath` was absent
+       still loaded and ran. **This refutes the module's earlier premise** that `plugin
+       install` COPIES into the cache and so a plain guard would serve a stale generation
+       forever — that claim was measured FALSE, and the teardown built on it is deleted.
+    3. The CLI does not propagate a settings change — neither `plugin update` nor
+       `marketplace update`. `known_marketplaces.json` is what a refresh reads, and only an
+       explicit `plugin marketplace add` writes it.
+    4. `plugin marketplace add <path>` on an already-registered NAME with a DIFFERENT path
+       succeeds and re-points, so no remove-first dance is needed.
+
+    What the one call still buys: **it removes the first-session lag.** Without it a fresh
+    Mac's first session has the plugin absent, and the first session after each content bump
+    serves the previous generation behind a "Plugins changed" notice. Activation runs before
+    any session, so the lag becomes zero. `programs.claude-code.marketplaces` (upstream) is
     still unusable for the same two reasons as before: it writes a Nix-managed
-    `known_marketplaces.json` symlink where the CLI needs a mutable file, and the reserved
-    `claude-plugins-official` rejects directory pins as untrusted.
+    `known_marketplaces.json` symlink where both the CLI and that reconcile need a mutable
+    file, and the reserved `claude-plugins-official` rejects directory pins as untrusted.
 - **Git SSH signing principals** — no module of its own any more. `git-allowed-signers.nix`
   and its custom `kattakath.git.extraAllowedSignersPrincipals` option were **deleted**
   2026-09-13 in favour of upstream's own `programs.git.signing` (pinned home-manager
@@ -2653,9 +2675,13 @@ flake. `modules/shared/claude-plugins.nix` registers it and installs the derived
 `<plugin>@kattakath` ids through the one `home.activation.claudeCodePlugins` script every
 marketplace shares.
 
-`repin` still defaults true (the source starts with `/`) and is still load-bearing: the store
-path moves on every content bump and `plugin install` COPIES into `~/.claude/plugins/cache`,
-so without the re-pin a bump would serve a previous generation's content forever.
+`repin` defaulted true here (the source starts with `/`) and was believed load-bearing on this
+reasoning: the store path moves on every content bump and `plugin install` COPIES into
+`~/.claude/plugins/cache`, so without a re-pin a bump would serve a previous generation's
+content forever. **That premise was measured FALSE on 2026-09-30** — the cache is never read
+at load for a directory source — and the `repin` option plus its whole teardown are deleted.
+The pinned-era record stands as written; see § `claude-plugins.nix` above for what replaced it
+(one `plugin marketplace add`, which only removes a first-session lag).
 
 Two plugins:
 

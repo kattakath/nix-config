@@ -2,10 +2,17 @@
 #
 # Claude Code installs plugins from "marketplaces": a directory (or git URL)
 # carrying a .claude-plugin/marketplace.json. This module owns everything
-# generic about registering them and installing their plugins; WHICH
-# marketplaces exist and which plugins come from each is data, declared through
-# `local.claudePlugins.marketplaces` — by this repo (modules/shared/home.nix)
-# and, additively, by any private layer composed on top of it.
+# generic about DECLARING them — `extraKnownMarketplaces` + `enabledPlugins`,
+# which is all Claude Code needs to fetch a marketplace and download its
+# enabled plugins itself. WHICH marketplaces exist and which plugins come from
+# each is data, declared through `local.claudePlugins.marketplaces` — by this
+# repo (modules/shared/home.nix) and, additively, by any private layer composed
+# on top of it.
+#
+# The one imperative call left is a single `plugin marketplace add` per
+# store-path marketplace, and it only removes a first-session lag — read the
+# activation block's own comment, which carries the 2026-09-30 measurements
+# (including the premise they refuted).
 #
 # It was a SINGLE-marketplace mechanism inlined in home.nix until the private
 # nix-personal flake needed a second one and grew a near-verbatim copy of the
@@ -17,8 +24,9 @@
 #
 # WHY NOT `programs.claude-code.marketplaces` (upstream home-manager,
 # modules/programs/claude-code/options.nix): that option writes a Nix-managed
-# known_marketplaces.json SYMLINK, while `claude plugin marketplace add` and
-# `claude plugin install` need a mutable file; and the reserved name
+# known_marketplaces.json SYMLINK, while both Claude Code's own session-start
+# reconcile and `claude plugin marketplace add` need a mutable file; and the
+# reserved name
 # `claude-plugins-official` must be an HTTPS/GitHub source (a directory pin is
 # rejected as untrusted). Plugin install state therefore stays Claude-owned
 # mutable ~/.claude, like a gh/hf one-time login — the same "let the tool own
@@ -51,11 +59,24 @@
 let
   cfg = config.local.claudePlugins;
 
-  # "<plugin>@<marketplace>" — derived, never spelled twice. Single source for
-  # BOTH settings.enabledPlugins and the install loop, so a plugin can never be
-  # installed-but-disabled (or the reverse) through a typo.
+  # "<plugin>@<marketplace>" — the id shape `settings.enabledPlugins` keys on,
+  # derived from the marketplace name so a plugin's id can never drift from the
+  # marketplace it came from through a typo.
   idsOf = name: mp: map (p: "${p}@${name}") mp.plugins;
   allIds = lib.concatLists (lib.mapAttrsToList idsOf cfg.marketplaces);
+
+  # ONE predicate for "this marketplace is a store path", shared by the three
+  # places that must agree: the assertion, the settings-shape branch, and the
+  # activation guard. It REPLACED a `repin` option whose only value was ever its
+  # derived default (`hasPrefix "/" source`) — nothing in this repo, and nothing
+  # a composed layer could plausibly want, ever set it. Deleted 2026-09-30 with
+  # the re-pin machinery it named.
+  isStorePath = mp: lib.hasPrefix "/nix/store/" mp.source;
+
+  # The only marketplaces the activation guard touches. An https marketplace
+  # needs nothing imperative at all; a store-path one needs one `marketplace
+  # add` on a fresh Mac / after a bump, and the guard's comment says why.
+  storePathMarketplaces = lib.filterAttrs (_: isStorePath) cfg.marketplaces;
 
   # Re-indent a generated block to the column its `${…}` interpolation sits at
   # AFTER Nix has stripped the '' string's common indentation (2), so the
@@ -69,79 +90,61 @@ in
   # exactly the inert shape the two NixOS hosts want.
   options.local.claudePlugins.marketplaces = lib.mkOption {
     type = lib.types.attrsOf (
-      lib.types.submodule (
-        { config, ... }:
-        {
-          options = {
-            source = lib.mkOption {
-              type = lib.types.str;
-              example = "https://github.com/anthropics/claude-plugins-official.git";
-              description = ''
-                Marketplace source exactly as `claude plugin marketplace add`
-                takes it: an absolute /nix/store path, or an https:// git URL.
-                Asserted to be one of those two — a bare `toString ../plugins`
-                yields an impure ~/Developer path that pins nothing.
+      # A plain attrset module — no `{ config, ... }` head: the last option that
+      # read a sibling (`repin`, defaulting off `config.source`) is gone.
+      lib.types.submodule {
+        options = {
+          source = lib.mkOption {
+            type = lib.types.str;
+            example = "https://github.com/anthropics/claude-plugins-official.git";
+            description = ''
+              Marketplace source exactly as `claude plugin marketplace add`
+              takes it: an absolute /nix/store path, or an https:// git URL.
+              Asserted to be one of those two — a bare `toString ../plugins`
+              yields an impure ~/Developer path that pins nothing.
 
-                PATH-LITERAL TRAP: write a store path as `"''${../plugins}"` IN
-                THE FILE THAT OWNS THAT TREE. A Nix source path literal resolves
-                relative to the .nix file it appears in, so the same line moved
-                to another flake silently re-points at THAT flake's directory.
+              PATH-LITERAL TRAP: write a store path as `"''${../plugins}"` IN
+              THE FILE THAT OWNS THAT TREE. A Nix source path literal resolves
+              relative to the .nix file it appears in, so the same line moved
+              to another flake silently re-points at THAT flake's directory.
 
-                SCALAR ON PURPOSE: a marketplace has exactly one source, so two
-                differing definitions SHOULD be a loud conflict rather than a
-                silent pick. Everything a downstream layer needs to ADD —
-                marketplaces (attrsOf) and their plugins (listOf) — merges.
-              '';
-            };
-
-            plugins = lib.mkOption {
-              type = lib.types.listOf lib.types.str;
-              default = [ ];
-              example = [ "llmstxt" ];
-              description = ''
-                Bare plugin names inside this marketplace; the install id is
-                derived as "<plugin>@<marketplace-name>". listOf, so a private
-                layer can append to a marketplace THIS repo declares without
-                forking its list.
-              '';
-            };
-
-            repin = lib.mkOption {
-              type = lib.types.bool;
-              default = lib.hasPrefix "/" config.source;
-              defaultText = lib.literalExpression ''lib.hasPrefix "/" config.source'';
-              description = ''
-                Re-pin whenever `source` differs from the path recorded in
-                known_marketplaces.json: uninstall this marketplace's plugins,
-                remove it, add it again.
-
-                Required for a store-path marketplace, because `plugin install`
-                COPIES into ~/.claude/plugins/cache — a plain "already
-                registered?" guard would keep serving a previous generation's
-                content forever. Pointless for a URL (a fixed remote), hence the
-                derived default.
-              '';
-            };
-
-            autoUpdate = lib.mkOption {
-              type = lib.types.bool;
-              default = false;
-              description = ''
-                Let Claude Code refresh this marketplace in the background and
-                update its plugins: the same switch as /plugin → Marketplaces →
-                Enable auto-update, declared instead of clicked. Official
-                Anthropic marketplaces already default to on; a third-party one
-                defaults to off.
-
-                Only meaningful for an https:// source (a store path has nothing
-                to fetch), and asserted as such. It trades the flake.lock pin for
-                the remote's own release discipline: whatever lands on the
-                tracked branch reaches this Mac on the next background refresh.
-              '';
-            };
+              SCALAR ON PURPOSE: a marketplace has exactly one source, so two
+              differing definitions SHOULD be a loud conflict rather than a
+              silent pick. Everything a downstream layer needs to ADD —
+              marketplaces (attrsOf) and their plugins (listOf) — merges.
+            '';
           };
-        }
-      )
+
+          plugins = lib.mkOption {
+            type = lib.types.listOf lib.types.str;
+            default = [ ];
+            example = [ "llmstxt" ];
+            description = ''
+              Bare plugin names inside this marketplace; the install id is
+              derived as "<plugin>@<marketplace-name>". listOf, so a private
+              layer can append to a marketplace THIS repo declares without
+              forking its list.
+            '';
+          };
+
+          autoUpdate = lib.mkOption {
+            type = lib.types.bool;
+            default = false;
+            description = ''
+              Let Claude Code refresh this marketplace in the background and
+              update its plugins: the same switch as /plugin → Marketplaces →
+              Enable auto-update, declared instead of clicked. Official
+              Anthropic marketplaces already default to on; a third-party one
+              defaults to off.
+
+              Only meaningful for an https:// source (a store path has nothing
+              to fetch), and asserted as such. It trades the flake.lock pin for
+              the remote's own release discipline: whatever lands on the
+              tracked branch reaches this Mac on the next background refresh.
+            '';
+          };
+        };
+      }
     );
     default = { };
     example = lib.literalExpression ''
@@ -166,7 +169,7 @@ in
   config = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     assertions =
       lib.mapAttrsToList (name: mp: {
-        assertion = lib.hasPrefix "/nix/store/" mp.source || lib.hasPrefix "https://" mp.source;
+        assertion = isStorePath mp || lib.hasPrefix "https://" mp.source;
         message = ''
           local.claudePlugins.marketplaces.${name}.source must be a /nix/store path
           or an https:// URL, got: ${mp.source}
@@ -182,131 +185,124 @@ in
         '';
       }) cfg.marketplaces;
 
-    # autoUpdate is a key on the marketplace's `extraKnownMarketplaces` entry. The
-    # `source` below is the exact shape `claude plugin marketplace add <https url>`
-    # writes there itself (measured, CLI 2.1.x), so this merges onto that entry
-    # instead of declaring a second, differently-shaped one. settings.json is
-    # deep-merged with Nix winning on its own keys (./claude-code-settings.nix).
-    programs.claude-code.settings.extraKnownMarketplaces = lib.mapAttrs (_: mp: {
-      source = {
-        source = "git";
-        url = mp.source;
-      };
-      autoUpdate = true;
-    }) (lib.filterAttrs (_: mp: mp.autoUpdate) cfg.marketplaces);
+    # EVERY declared marketplace lands here — this is the whole point of the
+    # option. Claude Code fetches a settings-declared marketplace itself:
+    # "A marketplace that settings declare but known_marketplaces.json lacks:
+    # Claude Code clones it, then reloads plugins and downloads enabled plugins
+    # that aren't cached yet" (docs/en/plugins/loading § Plugins and
+    # marketplaces that aren't on disk at session start). User scope qualifies.
+    #
+    # DO NOT FILTER THIS BY autoUpdate. Until 2026-09-30 it read
+    # `filterAttrs (_: mp: mp.autoUpdate)`, so only `kattakath` — one of four —
+    # was ever declared. The other three existed on disk purely because the
+    # activation script below re-added them imperatively, which made the
+    # declaration cosmetic and a reset Mac silently short of three marketplaces.
+    # Measured by eval, not read: claude-plugins-official=false,
+    # context7-marketplace=false, kattakath=true, xai-grok-build=false.
+    #
+    # The two facts are independent: WHETHER a marketplace is declared, and
+    # whether Claude Code may refresh it in the background. Emitting
+    # `autoUpdate = true` unconditionally would also contradict the assertion
+    # above, which forbids the flag on a store path.
+    #
+    # Source SHAPE is per-kind and must match what the CLI writes itself, or
+    # this declares a second, differently-shaped entry instead of merging onto
+    # the existing one. Both shapes measured from the live settings.json:
+    #   https:// -> { source = "git";       url  = <url>;  }
+    #   /nix/store -> { source = "directory"; path = <path>; }
+    # settings.json is deep-merged with Nix winning on its own keys
+    # (./claude-code-settings.nix).
+    programs.claude-code.settings.extraKnownMarketplaces = lib.mapAttrs (
+      _: mp:
+      {
+        source =
+          if isStorePath mp then
+            {
+              source = "directory";
+              path = mp.source;
+            }
+          else
+            {
+              source = "git";
+              url = mp.source;
+            };
+      }
+      // lib.optionalAttrs mp.autoUpdate { autoUpdate = true; }
+    ) cfg.marketplaces;
 
-    # Keeps every declared plugin switched ON once `claude plugin install` has
-    # run below. Editing this in the Claude UI will not persist — a rebuild
-    # reverts it; change the declaration instead.
+    # Marks every declared plugin WANTED. Claude Code downloads an enabled
+    # plugin whose marketplace it knows about, so this — not an install call —
+    # is what puts plugins on disk. Editing it in the Claude UI will not
+    # persist: a rebuild reverts it; change the declaration instead.
     programs.claude-code.settings.enabledPlugins = lib.genAttrs allIds (_: true);
 
-    # Materialise DECLARED marketplaces + plugins. installed_plugins.json /
-    # known_marketplaces.json stay Claude-owned mutable state; settings.json is
-    # Nix-managed, so temporarily materialise a writable copy for the install
-    # and restore the store symlink afterwards.
+    # ONE `marketplace add` per store-path marketplace, and nothing else. It
+    # buys exactly one thing: the FIRST session after a fresh install or a
+    # content bump sees the plugin already there.
     #
-    # TWO PHASES, deliberately not fused: every marketplace is pinned FIRST,
-    # then one flat install loop runs. A per-marketplace pin-then-install would
-    # let a later marketplace's re-pin teardown uninstall a plugin the loop had
-    # already installed.
+    # WHAT THE DECLARATIONS ABOVE ALREADY DO, for every marketplace including a
+    # store-path one — measured 2026-09-30, Claude Code 2.1.268, isolated
+    # CLAUDE_CONFIG_DIR:
+    #   1. The SESSION-START reconcile re-points a `directory`-source
+    #      marketplace when settings.json's `source.path` changes, and it is NOT
+    #      auth-gated: a logged-OUT TUI rendered `Not logged in` and
+    #      `Plugins changed. Run /reload-plugins to activate.` in the same
+    #      frame, and known_marketplaces.json moved to the new path.
+    #   2. `~/.claude/plugins/cache` is NEVER READ at load for a directory
+    #      source — such a plugin loads LIVE from the marketplace directory. A
+    #      plugin whose recorded `installPath` did not exist on disk still
+    #      loaded and executed.
+    #
+    # THE EARLIER PREMISE WAS MEASURED FALSE. Until 2026-09-30 this module
+    # claimed a store-path marketplace was "NOT COVERED" by the declarations,
+    # because `plugin install` COPIES into the cache and so a plain
+    # already-registered guard "would keep serving a previous generation's
+    # content forever". Finding 2 refutes that: there is no copy in the load
+    # path to go stale. On that premise this block ran an uninstall →
+    # marketplace-remove → re-add → re-install teardown; all of it is now
+    # deleted, along with the `repin` option that named it.
+    #
+    # STILL TRUE, and why the one call survives:
+    #   3. The CLI does NOT propagate a settings change — neither
+    #      `plugin update` NOR `marketplace update`. known_marketplaces.json is
+    #      what a refresh reads, and only an explicit `plugin marketplace add`
+    #      writes it. So the reconcile in finding 1 is the ONLY thing that
+    #      re-points a marketplace, and it happens at SESSION START.
+    #   4. `plugin marketplace add <path>` on an already-registered NAME with a
+    #      DIFFERENT path succeeds and re-points — no remove-first dance.
+    #
+    # Hence the lag this guard removes, and its whole justification: without it
+    # a fresh Mac's first session has the plugin ABSENT (the reconcile writes
+    # known_marketplaces, the plugin is not there yet), and the first session
+    # after each rebuild serves the PREVIOUS generation behind a "Plugins
+    # changed" notice. Activation runs before any session does, so one `add`
+    # collapses that to zero sessions of lag. Drop this block and nothing
+    # breaks permanently — you just pay one stale session per bump.
     home.activation.claudeCodePlugins = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-      # home-manager activation scripts run with a bare PATH (no ~/.nix-profile,
-      # no /etc/profiles/per-user/<user>/bin) — `claude` itself is invoked by
-      # absolute store path below so that's fine, but ITS OWN subprocesses are
-      # not: a "git-subdir" plugin source (e.g. neon@claude-plugins-official)
-      # shells out to a bare `git` lookup and fails with "git ... not on PATH"
-      # even though programs.git (same pkgs.git) is on every interactive PATH.
+      # home-manager activation runs with a bare PATH (no ~/.nix-profile, no
+      # /etc/profiles/per-user/<user>/bin). `claude` is invoked by absolute
+      # store path, but its SUBPROCESSES are not: a bare `git` lookup failed
+      # with "git ... not on PATH" here while every interactive PATH had it.
+      # Measured against `plugin install` on a git-subdir source, which is gone;
+      # kept because `marketplace add` may shell out the same way and one store
+      # path on PATH is free. UNMEASURED for `add` alone — say so, don't imply.
       export PATH="${pkgs.git}/bin:$PATH"
       claude="${lib.getExe config.programs.claude-code.package}"
+      known_mps="${config.home.homeDirectory}/.claude/plugins/known_marketplaces.json"
       if [ -x "$claude" ]; then
-       (
-        # NO de-symlink dance here any more, and none is needed: since
-        # modules/shared/claude-code-settings.nix, ~/.claude/settings.json is a
-        # REAL writable file that Nix re-asserts its own keys into on every
-        # rebuild. What stood here until 2026-09-22 de-symlinked it into a mutable
-        # copy for the ~76 lines of NETWORKED `claude` calls below and restored it
-        # under a subshell EXIT trap — because an abort in between stranded
-        # settings.json as an unmanaged regular file that "looks completely normal
-        # and silently stops tracking the flake, freezing this fleet's
-        # permissions.deny floor at whatever it happened to be".
-        #
-        # That hazard is GONE rather than mitigated: there is no symlink to strand,
-        # and an interrupt now leaves exactly the writable file the next activation
-        # merges into. Do not re-add the trap — the subshell is kept only because
-        # the plugin calls below still want their own scope.
-        known_mps="${config.home.homeDirectory}/.claude/plugins/known_marketplaces.json"
-
         ${lib.concatStringsSep "\n\n  " (
           lib.mapAttrsToList (
             name: mp:
-            reindent (
-              if mp.repin then
-                ''
-                  # ${name} — content-addressed source: its store path moves whenever the
-                  # pinned content changes, and `plugin install` COPIES into
-                  # ~/.claude/plugins/cache, so key off the path actually recorded in
-                  # known_marketplaces.json and tear the old pin down FIRST (uninstall
-                  # while the marketplace still resolves). Silent on a first switch:
-                  # there is nothing to remove and the CLI says so.
-                  mp_src=${lib.escapeShellArg mp.source}
-                  if ! grep -qF "$mp_src" "$known_mps" 2>/dev/null; then
-                    echo "claude-code: (re)pinning ${name} marketplace -> $mp_src" >&2
-                    if "$claude" plugin marketplace list 2>/dev/null | grep -qF ${lib.escapeShellArg name}; then
-                      for id in ${lib.escapeShellArgs (idsOf name mp)}; do
-                        "$claude" plugin uninstall --yes "$id" >/dev/null 2>&1 || true
-                      done
-                      "$claude" plugin marketplace remove ${lib.escapeShellArg name} >/dev/null 2>&1 || true
-                    fi
-                    "$claude" plugin marketplace add "$mp_src" 2>&1 || true
-                  fi
-                ''
-              else
-                ''
-                  # ${name} — fixed remote: register once. The elif repairs a machine
-                  # still holding a stale DIRECTORY pin of this name (the reserved
-                  # `claude-plugins-official` rejects directory pins as untrusted, and an
-                  # SSH clone fails non-interactively — HTTPS is the only shape that
-                  # works). A no-op on a healthy pin.
-                  mp_src=${lib.escapeShellArg mp.source}
-                  if ! "$claude" plugin marketplace list 2>/dev/null | grep -qF ${lib.escapeShellArg name}; then
-                    echo "claude-code: adding ${name} marketplace -> $mp_src" >&2
-                    "$claude" plugin marketplace add "$mp_src" 2>&1 || true
-                  elif "$claude" plugin marketplace list 2>/dev/null | grep -A2 ${lib.escapeShellArg name} | grep -qF 'Directory'; then
-                    echo "claude-code: replacing directory pin of ${name} with $mp_src..." >&2
-                    "$claude" plugin marketplace remove ${lib.escapeShellArg name} 2>&1 || true
-                    "$claude" plugin marketplace add "$mp_src" 2>&1 || true
-                  fi
-                ''
-            )
-          ) cfg.marketplaces
+            reindent ''
+              # ${name} — content-addressed source: the store path moves whenever the
+              # pinned content changes. Key off the path actually RECORDED in
+              # known_marketplaces.json (settings.json is not what the CLI reads), and
+              # re-point in place: `add` on a registered name with a new path succeeds.
+              mp_src=${lib.escapeShellArg mp.source}
+              grep -qF "$mp_src" "$known_mps" 2>/dev/null || "$claude" plugin marketplace add "$mp_src" 2>&1 || true
+            ''
+          ) storePathMarketplaces
         )}
-
-        for id in ${lib.escapeShellArgs allIds}; do
-          # WHOLE-LINE match, not a substring. `grep -qF "$id"` was a silent
-          # install-skip whenever one marketplace name was a PREFIX of another:
-          # measured 2026-09-12, renaming this repo's marketplace from
-          # `kattakath-nix-config` to `kattakath` meant `llmstxt@kattakath`
-          # matched the still-listed `llmstxt@kattakath-nix-config`, so the loop
-          # declared it installed and installed nothing. Activation was green
-          # and BOTH plugins were absent — the worst shape a guard can fail in.
-          #
-          # `plugin list` prints one id per line after a "❯ " bullet, so
-          # anchoring the tail is enough to require an exact id. Plugin and
-          # marketplace names are kebab-case, so no regex metacharacter can
-          # reach the pattern from ''${id}.
-          if "$claude" plugin list 2>/dev/null | grep -qE "(^|[[:space:]])''${id}[[:space:]]*$"; then
-            : # already installed — idempotent skip
-          else
-            # Brace ''${id} — a bare `$id…` (unicode ellipsis) is one identifier under
-            # bash nounset and aborts activation with "id…: unbound variable".
-            echo "claude-code: installing plugin ''${id}..." >&2
-            "$claude" plugin install "$id" 2>&1 || true
-          fi
-        done
-
-        # No symlink restore: settings.json is a real file now
-        # (modules/shared/claude-code-settings.nix). Nothing to put back.
-       )
       fi
     '';
   };
