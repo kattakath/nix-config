@@ -606,12 +606,14 @@ let
       if /usr/bin/curl -fsS --max-time 2 "http://127.0.0.1:$p/json/version" >/dev/null 2>&1; then
         exec ${npx} -y chrome-devtools-mcp@latest \
           --browser-url="http://127.0.0.1:$p" \
+          ${lib.optionalString cfg.chromeDevtools.allowExtensions "--categoryExtensions"} \
           --no-usage-statistics --no-performance-crux
       fi
     done
 
     exec ${npx} -y chrome-devtools-mcp@latest \
       --autoConnect --userDataDir="$dir" \
+      ${lib.optionalString cfg.chromeDevtools.allowExtensions "--categoryExtensions"} \
       --no-usage-statistics --no-performance-crux
   '';
 
@@ -1073,6 +1075,37 @@ in
         that otherwise sends TRACED URLS to Google's CrUX API. Behaviour, the measured
         tool surface and both attach modes: the in-repo `page-lab` plugin'';
 
+      allowExtensions = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Pass `--categoryExtensions` to chrome-devtools-mcp, which lifts its own
+          refusal to navigate/list `chrome-extension://` pages and their service
+          workers ("Navigating to chrome-extension: URLs is not allowed without
+          --categoryExtensions" is the exact refusal this silences). OFF by
+          default: extension pages are extension-PRIVILEGED surfaces (options
+          UIs, install/confirm dialogs, native-messaging hosts), and refusing
+          them is a deliberate boundary against an agent being steered — via a
+          compromised page or injected instructions — into driving one blind.
+
+          Verified 2026-09-30 against the installed 1.10.1 build: upstream's own
+          `--help` claims this "is not supported" with `--browserUrl` /
+          `--autoConnect` (i.e. attach mode, which is the only mode this module
+          runs chrome-devtools-mcp in) "until 149 will be released" — but a
+          direct stdio probe against this fleet's Chrome 152 attach session
+          answered `tools/call new_page` against a `chrome-extension://` URL
+          successfully and returned a working "Extension Pages" / "Extension
+          Service Workers" page list, so the warning is stale for this Chrome
+          version and the flag works today in attach mode. Re-verify with the
+          same probe if this stops working after a Chrome or chrome-devtools-mcp
+          bump — do not assume upstream's help text over a fresh measurement.
+
+          Flip only alongside a deliberate choice to let the gateway drive
+          extension UIs (e.g. Violentmonkey's confirm/options pages for the
+          userscript authoring loop) — never as a blanket default.
+        '';
+      };
+
       port = lib.mkOption {
         type = lib.types.port;
         default = 9222;
@@ -1181,7 +1214,11 @@ in
         echo "nix-chromium-debug: opening CDP on 127.0.0.1:$port" >&2
         echo "  WARNING: any local process can now drive this browser and read its" >&2
         echo "  pages, cookies and session state. Quit Chromium when you are done." >&2
-        exec /usr/bin/open -na "Chromium" --args "--remote-debugging-port=$port"
+        # `-g`: launch without stealing focus — the window still opens (unlike
+        # `-j`, which hides it outright), it just does not jump to the front.
+        # A debug session driven by an agent should not fight the operator for
+        # the foreground on every new tab it opens.
+        exec /usr/bin/open -g -na "Chromium" --args "--remote-debugging-port=$port"
       '')
     ];
 
