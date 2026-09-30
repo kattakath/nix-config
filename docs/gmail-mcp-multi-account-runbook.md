@@ -47,6 +47,34 @@ made public. That `extraHomeModules` seam still exists generically on
      under "Test users". Cap is 100 per app, for the app's lifetime. An
      account NOT listed here will be rejected at authorization regardless of
      anything else being correct.
+   - **VERIFY the "Make external" step actually stuck — nothing else detects
+     it.** Attempt an auth for an account OUTSIDE the client's own Workspace
+     org; Google's consent screen must NOT say *"Access blocked: &lt;org&gt; can
+     only be used within its organization"*. If it does, the app is still
+     Internal and **no amount of test-user configuration will help** — an
+     Internal app cannot authenticate an out-of-org account at all.
+     Measured 2026-09-29: the shared client had drifted back to (or never
+     left) Internal, and **3 of the 4 accounts declared in
+     `local.mcpGateway.gmail.accounts` had no working credential** — exactly
+     the three that live outside the client's org. Nothing warned; the
+     declared roster and reality disagreed silently for weeks.
+
+   > **Cost of "Testing" that decides your ops burden, not just your setup:**
+   > Google expires **refresh tokens after 7 days** for an app whose user type
+   > is External and whose publishing status is Testing — "unless the only
+   > OAuth scopes requested are a subset of name, email address, and user
+   > profile"
+   > ([Google, *Refresh token expiration*](https://developers.google.com/identity/protocols/oauth2#expiration)).
+   > Gmail's `gmail.modify`/`gmail.settings.basic` are restricted scopes, far
+   > outside that subset, so **the expiry applies to every account here** and
+   > each one needs periodic re-auth. That is the likeliest explanation for a
+   > directory full of dead credentials (see § Troubleshooting).
+   >
+   > The alternative shape — one **Internal** client per Workspace org — has no
+   > Testing expiry and is exempt from verification even for restricted scopes,
+   > at the cost of one OAuth client per org. It is **not** adoptable as-is:
+   > `mkGmailMcp` assumes a single shared client, so it would need a per-account
+   > client id. Recorded here as the trade-off, not as a supported option.
 3. **Google Auth Platform → Data Access → Add or remove scopes**: register
    `.../auth/gmail.modify` and `.../auth/gmail.settings.basic` (the tool's
    default scope request) — they only appear in the picker *after* step 1
@@ -170,6 +198,9 @@ unset) on the *next* invocation.
 |---|---|---|
 | `redirect_uri_mismatch` at the consent screen | OAuth client is **Web application** type, not Desktop | Create a new **Desktop app** client (see setup step 4) |
 | Auth flow rejects the account / "app not available to this user" | Email isn't in the Console's test-user list | Audience → Add users, then retry |
+| `Access blocked: <org> can only be used within its organization` | The client is **Internal**, and the account is out-of-org. A test-user entry CANNOT fix this | Audience → **Make external** → Testing, then re-verify per setup step 2 |
+| An account works for weeks, then `invalid_grant` on refresh | Testing-status **7-day refresh-token expiry** (setup step 2) — not corruption | Re-run that account's auth. A directory of dead credentials is this, not a bug |
+| Account is declared in `local.mcpGateway.gmail.accounts` but was never usable | Declared roster ≠ credentials on disk; nothing reconciles them | Compare the list against `ls ~/.gmail-mcp/credentials-*.json` (names only — never print contents) |
 | `HTTP 403` on the profile check, `insufficientPermissions`-shaped error | Gmail API not enabled on the project, or the scope isn't registered on the consent screen | Setup steps 1 and 3 |
 | Gateway server for one account exits immediately at launch | That account's `credentials-<alias>.json` doesn't exist yet (no completed auth) | Run the per-account auth procedure; it doesn't dark the whole gateway — every account is its own process |
 | Verified `emailAddress` doesn't match the target | The silent wrong-account grab (see "Known issue") | Check the default-path file; mv or re-run per the mitigation steps |
