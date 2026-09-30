@@ -1198,6 +1198,15 @@ waves 5-6 absorb them).
   the reconciler skips it, so a deliberate `bootout` survives the next activation. The disabled DB
   cannot serve as that signal — `bootout` does not write it, and all six labels read `=> enabled`
   while three were absent.
+- **`packages/rogers-gw.nix`** (app `nix run .#rogers-gw`) — ad-hoc **inspection-only** CLI for
+  the household's Rogers CGM4981 (RDK-B) gateway, which exposes no shell: 22/23 are closed and
+  161 does not answer, so its web UI is the only management surface and its log table comes from
+  a JSON endpoint the "Show Logs" button never even requests. Reads `ROGERS_GW_PASSWORD` from the
+  login Keychain via `secret exec`, never from argv. **It must stay inspection-only** — the
+  customer-facing log carries only OneWifi entries, and the fleet already has a strictly better
+  "is the WAN up" signal in the Cloudflare tunnel to nixpi, observed from outside the house. The
+  wire contract, cited against the Apache-2.0 `rdkcentral/webui` firmware source, is
+  [`docs/rdkb-gateway-contract.md`](rdkb-gateway-contract.md) — read it before changing anything.
 - **`packages/launchd-doctor.nix`** (app `nix run .#launchd-doctor`) — runtime health check for
   every launchd unit this fleet installs. Covers what **cannot** be a flake check, because every one is a
   property of the running machine rather than the evaluated config: **declared but not loaded**
@@ -1947,6 +1956,18 @@ Core package set:
   by the vendor's release manifest. It replaces the moving `curl -fsSL
   https://antigravity.google/cli/install.sh | bash` bootstrapper, so the binary is shared
   through `environment.systemPackages` and updates are reviewed as a version + hash bump.
+- **`acpx.nix`** — the headless client for **ACP** (Zed's Agent *Client* Protocol), which is
+  the rail `claude`, `grok` and `agy` already share; it drives one from another with a real
+  permission policy (`--permission-policy`, `--deny-all`, `--allowed-tools`, `--max-turns`,
+  `--timeout`). Shares the `environment.systemPackages` lane with the two vendor CLIs above
+  but is the opposite shape: MIT, built from source. Three packaging traps are in its header
+  and all three were measured — upstream ships **pnpm-lock.yaml only** so `buildNpmPackage`
+  cannot consume it (`fetchPnpmDeps` + `pnpmConfigHook` instead), **`fetcherVersion = 2` was
+  removed in the 26.11 release**, and `pnpmConfigHook` does **not** bring `pnpm` with it the
+  way the deprecated `pnpm.configHook` did. It pins `nodejs_22` itself: `engines.node` is
+  `>=22.13` and the fleet default `nodejs` is 20.x, so inheriting fails at import rather than
+  with a version message. Rationale, and the two interop paths that are CLOSED, are
+  [`ADR-007`](agent-interop-adr.md).
 - **`fal.nix`** — fal.ai as two binaries, because the vendor ships two different things:
   `fal` (their own CLI — a serverless runtime, `fal run`/`fal deploy`) and `fal-gen` (ours, a
   thin wrapper over `fal-client`, since the vendor ships NO inference CLI). Both are ephemeral
