@@ -84,6 +84,27 @@ let
       }}";
     };
 
+  # ---- CRX for a LOCAL, repo-authored extension (not the Chrome Web Store) ----
+  # Same shape as crxExtension's output (an `extensions.*` entry needing only
+  # `id`/`version`/`crxPath`), but crxPath is a plain repo path literal instead
+  # of a fetchurl: there is no upstream to pin a hash against. `id` is NOT
+  # free-form — Chrome derives it from the packing key's public half (first 16
+  # bytes of its SHA-256, hex nibbles mapped 0-15 -> a-p), so it MUST match
+  # whatever `--pack-extension --pack-extension-key=<key.pem>` produces for
+  # THIS extension's own key, or Chromium treats it as a different extension
+  # (a fresh un-acknowledged sideload, silently disabled) — verified 2026-09-30
+  # by computing the id independently (openssl + the same algorithm) and cross-
+  # checking against `chrome.management.getAll()` after a real install.
+  localCrxExtension =
+    {
+      id,
+      version,
+      crxPath,
+    }:
+    {
+      inherit id version crxPath;
+    };
+
   icloudPasswordsId = "pejdijmoenmkgeppbflobdenhhabjlaj";
 
   # ---- Default search engine: NOT declarable — settled, do not retry -----------
@@ -389,6 +410,48 @@ in
         other extension here.
       '';
     };
+
+    malayalamFontSetter = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Sideload a small (~10-line) repo-authored extension that sets Chromium's
+        PER-SCRIPT default fonts for Malayalam — standard/sans-serif/fixed to
+        Noto Sans Malayalam, serif to Noto Serif Malayalam (installed system-
+        wide via `fonts.packages`, `hosts/macos.nix`). Source:
+        `chromium-extensions/malayalam-font-setter/`.
+
+        WHY AN EXTENSION AT ALL, given the motto's "reach for a setting first":
+        there is no declarative route that isn't one. Verified 2026-09-30, in
+        order:
+          1. chrome://settings/fonts's per-script picker is a plain user pref
+             (`webkit.webprefs.fonts.<generic>.<ISO15924 script>`, e.g. `.Mlym`
+             for Malayalam) written via `chrome.settingsPrivate` — but that pref
+             does not exist until SOME actor registers it, and neither enabling
+             Malayalam as a browser language (`languageSettingsPrivate
+             .enableLanguage`) nor a plain reload did; `setPref` on it fails
+             outright with "Pref not found".
+          2. No enterprise POLICY exists for it either — checked the official
+             policy docs (inconclusive) then grepped the actual installed
+             Chromium Framework binary for any `PerScript*` or font-policy
+             string directly. None. So this is NOT the same "off by default,
+             recommended-level CFPreferences" shape as `hideBookmarkBar` above
+             — there is no policy layer to write into at all.
+          3. `chrome.fontSettings.setFont()` — the one API actually built for
+             this — is EXTENSION-ONLY (`fontSettings` permission), and its
+             effect is scoped to "while the controlling extension is enabled":
+             measured directly, the setting reverted the instant the
+             extension was removed. So it cannot be a one-shot script either;
+             the extension has to stay installed and reapply on every browser
+             start, which is exactly what `bg.js` does
+             (`onInstalled`/`onStartup` + an unconditional top-level call, so
+             a lazily-started MV3 service worker still catches it).
+
+        ONE MANUAL STEP SURVIVES, same as every other extension here: Chromium
+        parks a fresh external sideload disabled pending acknowledgement.
+        Enable it once in chrome://extensions and it stays enabled forever.
+      '';
+    };
   };
 
   config = lib.mkIf (cfg.enable && pkgs.stdenv.hostPlatform.isDarwin) {
@@ -447,6 +510,11 @@ in
           id = "fbmkmdnlhacefjljljlbhkodfmfkijdh";
           version = "1.9";
           hash = "sha256-9xQwpgPf7HEvt7lu+Pd1N2E1TyWbPI/I/W+4ST/cAng=";
+        })
+        ++ lib.optional cfg.malayalamFontSetter (localCrxExtension {
+          id = "eaaffdlmgpmjccgdneagbjfckkdehama";
+          version = "1.0";
+          crxPath = ./chromium-extensions/malayalam-font-setter.crx;
         });
 
       nativeMessagingHosts = lib.optional cfg.applePasswords applePasswordsHost;
