@@ -7,11 +7,18 @@
 # (adb-qr, adb-wifi, escrcpy, …): those add an untrusted dependency for
 # something adb's own `mdns`/`pair`/`connect` already do — see the escrcpy
 # tap removal (2026-07-08, modules/darwin/homebrew.nix) for why this repo
-# avoids that. adb/scrcpy themselves come from the `android-platform-tools`/
-# `scrcpy` Homebrew formulae (hosts/macos.nix), so they have no store path to
-# bake in and cannot be `runtimeInputs` — they are resolved at RUNTIME instead,
+# avoids that. `adb` comes from the `android-platform-tools` Homebrew CASK
+# (hosts/macos.nix) — mobile-mcp resolves that same one — so it has no store path
+# to bake in and cannot be a `runtimeInput`; it is resolved at RUNTIME instead,
 # which also keeps this derivation free of a nixpkgs android-tools dependency
-# that would collide with them on PATH.
+# that would collide with it on PATH.
+#
+# `scrcpy` MOVED to nixpkgs on 2026-09-29 (modules/shared/home.nix), so that half
+# of the sentence above no longer holds — but the runtime resolution below is kept
+# for it anyway, deliberately: baking in a store path would drag nixpkgs
+# android-tools into this derivation's closure as scrcpy's own wrapper dependency,
+# which is the PATH collision this header exists to avoid. Resolving from PATH
+# picks up the Home Manager profile copy and costs nothing.
 #
 # Nuance this wrapper encodes so you don't have to re-learn it each time:
 #   - "pairing port" (Settings > Wireless debugging > Pair device with
@@ -60,8 +67,12 @@ writeShellApplication {
   text = ''
     set -euo pipefail
 
-    # Prefer Homebrew tools on darwin; fall back to PATH — see the header: these
-    # are Homebrew formulae, so the path is only knowable at runtime.
+    # adb: prefer the Homebrew CASK's copy, fall back to PATH — see the header, the
+    # path is only knowable at runtime. scrcpy keeps the same shape even though it
+    # is a nixpkgs package now: its brew branches simply stop matching once
+    # `cleanup = "uninstall"` removes the old formula, and PATH then resolves the
+    # Home Manager profile copy. Do not "tidy" the brew branches away — a machine
+    # mid-migration still has them, and they cost one `test -x`.
     ADB="''${ADB:-}"
     SCRCPY="''${SCRCPY:-}"
     if [ -z "$ADB" ]; then
@@ -122,7 +133,7 @@ writeShellApplication {
     }
 
     require_adb() { [ -n "$ADB" ] && [ -x "$ADB" ] || die "adb not found — install the android-platform-tools cask or activate the macos host"; }
-    require_scrcpy() { [ -n "$SCRCPY" ] && [ -x "$SCRCPY" ] || die "scrcpy not found — install the scrcpy formula or activate the macos host"; }
+    require_scrcpy() { [ -n "$SCRCPY" ] && [ -x "$SCRCPY" ] || die "scrcpy not found — activate the macos host (it is a nixpkgs package in home.packages), or put scrcpy on PATH"; }
 
     # ---- adb devices -l parsing --------------------------------------------
     # USB lines carry a `usb:` field; already-connected wireless lines have a
