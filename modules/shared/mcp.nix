@@ -1,5 +1,15 @@
 # The fleet's MCP gateway (darwin / the Mac): one shared instance of every
-# server, published through Cloudflare, reached by every client as ONE connector.
+# server WITH NO PLUGIN OWNER, published through Cloudflare, reached by every
+# client as ONE connector.
+#
+# NOT "every MCP server the fleet has" any more, and that is a decision rather
+# than an erosion (2026-09-30, #658 + #657). Two permanent lanes, split by
+# OWNERSHIP: a server that is the tool half of a skill this fleet already ships
+# belongs to that skill's marketplace plugin (`github:kattakath/skills`), and
+# everything unowned lives here, permanently. The gateway does NOT retire. The
+# rule, the three groups that structurally cannot move (gmail = identity,
+# desktop-commander = RCE, the generic utilities = no owner exists) and the
+# per-batch migration sequence are all in docs/mcp-gateway.md.
 #
 # NOT "private, localhost-only" any more. It was until 2026-09-22, and the rest
 # of this header was rewritten with it — the bind address is still 127.0.0.1, but
@@ -45,12 +55,17 @@
 # SERVER SIDE (this box, 127.0.0.1:<publicMcpPort>)
 #   `mcp-proxy --named-server-config <gatewayConfig>` hosts every server in
 #   `hostedServerNames`, each reachable at /servers/<name>/mcp. That roster must
-#   equal `config.fleet.publicMcpServers` in BOTH directions — 26 servers today,
-#   including one `gmail-<alias>` process per Google/Workspace account (the roster
-#   is in hosts/macos.nix; see mkGmailMcp). The equality is not a convention:
+#   equal `config.fleet.publicMcpServers` in BOTH directions — 27 ROSTER ENTRIES
+#   today (24 capabilities: `gmail` is one capability and four entries, one
+#   process per Google/Workspace account, the roster being in hosts/macos.nix;
+#   see mkGmailMcp). Every count in this file is ENTRIES — the convention, and the
+#   19-then-17 end state of the #657 ownership split, are stated once in
+#   docs/mcp-gateway.md § Counting convention. The equality is not a convention:
 #   `checks.<system>.mcp-published-parity` fails the build on either mismatch,
 #   because a hosted-but-unpublished server is invisible and a published-but-
-#   unhosted one registers a dead upstream with Cloudflare.
+#   unhosted one registers a dead upstream with Cloudflare. What it CANNOT see is
+#   the plugin lane: a name deleted from both Nix lists and never declared in its
+#   owning plugin's `.mcp.json` is a SILENT LOSS with a green build.
 #
 #   `gatewayConfig` is rendered by mcp-servers-nix's `lib.mkConfig`, so the
 #   packaged servers (context7/fetch/memory/sequential-thinking/nixos/terraform/
@@ -901,8 +916,10 @@ let
       };
     };
 
-  # Every server NAME the gateway hosts (7 packaged + 14 base custom, plus
-  # opt-ins — 26 today: the 21 fixed ones, chrome-devtools, and four gmail).
+  # Every server NAME the gateway hosts — 27 ROSTER ENTRIES today (7 packaged +
+  # 15 base custom, plus opt-ins: the 22 fixed ones, chrome-devtools, and four
+  # gmail). ENTRIES, not capabilities: gmail is one capability and four entries
+  # (docs/mcp-gateway.md § Counting convention).
   # Single source for the client SSE URLs, so the two sides can never drift.
   # Order/names MUST
   # match the packaged servers enabled in `gatewayConfig.programs` below.
@@ -910,8 +927,9 @@ let
 
   # SERVER SIDE: a {mcpServers:{name:{command,args,env}}} JSON that mcp-proxy
   # consumes via --named-server-config. mkConfig PINS the 7 packaged servers;
-  # settings.servers carries customStdioServers verbatim — 14 base plus whatever
-  # the opt-ins add, so 19 as this host is configured. flavor "claude-code"
+  # settings.servers carries customStdioServers verbatim — 15 base plus whatever
+  # the opt-ins add, so 20 as this host is configured (chrome-devtools + four
+  # gmail). flavor "claude-code"
   # emits the `mcpServers` key mcp-proxy expects (it ignores any extra fields).
   # The packaged servers' definitions are GENERATED (mkPackagedProgram, above)
   # from kattakath-skills's mcp-clients/catalog.mcp.json's `env` names + `packagedProgramOverrides` —

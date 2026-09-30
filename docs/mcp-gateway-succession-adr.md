@@ -15,6 +15,20 @@ first; the original framing survives nowhere in this document.
 overturn four of its own "ADOPT" rows. This document is only the design state. Where execution
 later disagrees, execution wins and §13 records it.
 
+> **AMENDMENT 2026-09-30 — the decision is UNCHANGED and now STRONGER. Nothing below is
+> rewritten.** The MCP roster NARROWS (#658 + #657): a server that is the tool half of a skill this
+> fleet already ships moves into that skill's marketplace plugin, while every server with **no
+> plugin owner** stays on `mcp-proxy` behind the Cloudflare portal, permanently. **`mcp-proxy` is
+> not retired and the portal is not replaced** — so §1's verdict (portal wins on every axis but
+> local credential injection; ContextForge NOT adopted) still stands, and every cost this ADR
+> measured against it now amortises over **fewer servers**: 27 roster entries today, 19 after
+> #657's eight, 17 if #656 unblocks `github` + `postgres`. §6's packaging cost, §7's
+> reconcile-a-Nix-roster-into-a-DB gap, §10.4's unmeasured ~57-process footprint and §9's
+> per-agent `translate` sidecars all get *smaller*, and §8's all-or-nothing cutover barrier gets
+> *lower*, without any of them getting cheaper enough to change the answer. §11 records the
+> counter-trigger this creates. Counting convention (entries vs capabilities):
+> `docs/mcp-gateway.md`.
+
 **Deciders:** Ismail Kattakath.
 
 **How this was produced:** six parallel research passes, each then adversarially refuted against
@@ -372,6 +386,18 @@ Checkable, in priority order. **Any one is sufficient.**
 months); a critical advisory class reaches a loopback-only single-user deployment; `cpex`'s
 `contextforge-org` stops publishing; or `mcphub` ships prebuilt artifacts with no native modules,
 which would re-open §9's runner-up.
+
+**Counter-trigger added 2026-09-30 — the roster SHRANK, which cuts both ways.** The ownership split
+(#658 + #657) takes the gateway from 27 roster entries to 19, then 17. Every cost this ADR weighed
+is per-server, so all of them fall: fewer `translate` sidecars in §9, a smaller §6 packaging
+surface, a smaller §10.4 process footprint, and a lower §8 all-or-nothing cutover barrier — the
+barrier being all-or-nothing is precisely why shrinking the roster matters more than it would for
+an incremental migration. **None of that changes the answer**, because §1a's decisive axis is not
+size: the Cloudflare portal already gives this fleet Workspace identity at the edge with zero
+packaging, and ContextForge's one genuine win (per-user credential injection, §5) stays
+unreachable. But it does mean a future re-evaluation starts from a smaller number, so "too
+expensive to package" weakens as a standing reason — if triggers 5 or 6 ever fire, re-measure §6
+against the **then-current** entry count rather than citing this document's 27.
 
 ## 12. Open, not decided
 
