@@ -34,12 +34,23 @@ answer, not a polite one — it moves your work onto him. The order is fixed:
 2. **Only if a mechanism genuinely forbids you**, hand it over — and then `pbcopy` it so he
    pastes rather than types. That mechanism is the `permissions.deny` list in
    `modules/shared/claude-guardrails.nix` — **six families, not two**, so re-read the file
-   rather than quoting this line from memory: force-push + `gh pr merge *`; the MCP config
+   rather than quoting this line from memory: force-push — **bare `--force`/`-f` ONLY;
+   `--force-with-lease` is deliberately ALLOWED and you are expected to use it** — plus
+   `gh pr merge *`; the MCP config
    writers (`claude mcp add`/`add-json`/`add-from-claude-desktop`, `Edit(~/.claude.json)`);
    secret REVEAL (`secret reveal *`, `security find-*-password -w*`); decryption (`agenix
    -d*`, `age -d*`); and reads of decrypted secret paths (`/run/agenix/**`, the tunnel/MCP
    state dirs, `~/.aws/sso/cache/**`). A deny entry is mechanical; conversational
    authorization does not lift it.
+
+   The `--force-with-lease` carve-out is spelled out above rather than left to the
+   "re-read the file" instruction because that instruction **measurably failed**: on
+   2026-09-29 two independent sessions both told Ismail force-push was denied, each
+   quoting this summary line instead of opening `claude-guardrails.nix:223-229`, whose
+   own comment keeps the lease form allowed as "the safe way to update an agent's own
+   rebased PR branch". Both then handed him a command to paste — the exact outcome
+   rule 1 exists to prevent. A condensed list of *categories* is a pointer, not the
+   policy: before telling him something is forbidden, open the mechanism and quote it.
 
 "It needs sudo", "it is interactive", "it is safer if you do it", and "it is destructive"
 are **not** reasons to delegate — 1–2 above is the whole list. When you do hand something
