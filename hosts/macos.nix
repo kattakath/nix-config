@@ -397,6 +397,17 @@ in
     # on 2026-09-21; the attach target is now Chromium (modules/shared/mcp.nix).
     local.mcpGateway.chromeDevtools.enable = true;
 
+    # Extension-page automation (Violentmonkey's install/confirm and options
+    # UIs, its service worker) turned ON deliberately, 2026-09-30 — verified
+    # first via a direct stdio probe that `--categoryExtensions` actually works
+    # against this fleet's attach-mode Chrome 152 despite upstream's stale
+    # `--help` warning (see the option doc in mcp.nix for the measurement).
+    # Needed for the userscript authoring loop (drive Violentmonkey's confirm
+    # dialog to install/update/track a local script) without hand-rolled raw
+    # CDP. Security tradeoff is real and accepted here, not overlooked: see the
+    # option doc for what this lifts.
+    local.mcpGateway.chromeDevtools.allowExtensions = true;
+
     # Replaces the Colima container of the same name. Loopback only. Downloads
     # land in ~/.local/share/yt-dlp-webui/downloads.
     local.ytDlpWebUi.enable = true;
