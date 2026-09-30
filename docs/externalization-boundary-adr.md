@@ -15,12 +15,16 @@ with a section here, execution wins and §10 records it.
 > ("`qwen` gets 11 of 31 servers") as its running illustration. **`qwen` was removed from the
 > fleet entirely** (client, config and the `qwen3-coder` model; the `qwen3-vl*` **vision** models
 > stay, they belong to `media-cli` and are unrelated). The MCP clients are now `claude-code` and
-> `claude-desktop`, and per-client curation is **gone with the architecture that allowed it** —
-> every client gets one connector and the same **full** roster (`fleet.publicMcpServers`,
-> `modules/parts/identity.nix`), so there is no subset to curate.
-> **The boundary this ADR decides is unaffected**; only its examples are stale. They are left in
-> place because rewriting the illustrations would not change the decision, and §10 is where an
-> actual reversal would be recorded.
+> `claude-desktop`, and per-client curation **by the gateway** is gone with the architecture that
+> allowed it — every client gets one connector onto the same roster (27 entries today; the count
+> lives in `docs/mcp-gateway.md`, never here), so there is no subset for the gateway to curate.
+> **Per-client divergence came back by another door on 2026-09-30, though**, and this sentence is
+> the one to correct: the ownership split (§10.6) puts some servers in marketplace plugins, which
+> **Claude Code loads and Claude Desktop does not** — so the two clients no longer see the same
+> set. Nobody curates that; it falls out of which client reads plugins.
+> **The boundary this ADR decides is not overturned**, but §1.4's blanket rule IS now scoped —
+> see §10.6. Its examples are otherwise left in place because rewriting the illustrations would
+> not change the decision.
 
 **Deciders:** Ismail Kattakath.
 
@@ -43,7 +47,11 @@ supplied the vocabulary and — importantly — **did not** supply the standard.
 3. **The boundary is the eval/activation line.** This is a hard property of Nix, not a preference
    (§3). Anything that must be *read* from `$HOME` can only be read by an activation script.
 4. **The per-surface split is decided by blast radius, not by taste** (§5): plugins are already
-   runtime-owned and stay that way; skills MAY be overlaid; **MCP servers stay Nix-owned**.
+   runtime-owned and stay that way; skills MAY be overlaid; **MCP servers stay Nix-owned**
+   — **SCOPED 2026-09-30, see §10.6:** still true for every server with no plugin owner, which is
+   most of them and includes every credentialed and machine-control one; no longer true as a
+   blanket rule, because a server that is an owned skill's tool half now ships in that plugin's
+   `.mcp.json`. The blast-radius *reasoning* survives intact and is what puts the line there.
 5. **The seam, if built, is `local.agentOverlay`** — additive-only, read-if-present, evaluated
    never and merged at activation, a silent no-op when the directory is absent (§7).
 6. **REJECTED: the full inversion** — "`nix-config` ships only CLIs; every skill, server and
@@ -167,7 +175,7 @@ The discriminator is not purity, it is **what happens when the resource is wrong
 |---|---|---|
 | **Plugins** (32, 4 marketplaces) | **Already runtime-owned — keep** | Claude owns mutable `~/.claude/plugins` anyway; a bad plugin is one bad plugin |
 | **Skills** (45) | **MAY be overlaid, additively** | Plain markdown. No build step, no credential, no process. Failure = one missing skill, invisible |
-| **MCP servers** (27) | **STAY Nix-owned** | A server that exits at startup **darks the entire gateway** — every client, every server |
+| **MCP servers** (27) | **STAY Nix-owned** — *scoped 2026-09-30, §10.6: the UNOWNED ones, which is where every credential and every machine-control surface sits* | A server that exits at startup **darks the entire gateway** — every client, every server. That is exactly why the split lands where it does: a plugin-owned server is spawned per session by one client and darks nothing |
 
 The MCP row is not hypothetical. On **2026-09-14** a bumped `mcp-servers-nix` built a broken
 `mcp-server-memory`, which took the whole darwin system down; commit `ea4e755` rolled the input
@@ -193,7 +201,7 @@ Three further things the MCP rail would lose by moving:
 | Expose agent CLIs as Nix-provided apps | **Done** — `claude-code`, `qwen-code`, `grok` |
 | Content lives in its own version-controlled repo | **Done** — `github:kattakath/ai`, extracted 2026-09-12 |
 | One vendor-neutral file every client reads | **Done** — `~/.config/mcp/mcp.json` + the `:8096` gateway, three clients |
-| Runtime install, Nix does not own the state | **Done for plugins** — mutable `~/.claude/plugins`. The MECHANISM named here is stale: `claude plugin marketplace add` runs at activation for **store-path sources only** since 2026-09-30 (§10.5); 31 of 32 plugins now arrive from a settings **declaration** Claude Code acts on at session start |
+| Runtime install, Nix does not own the state | **Done for plugins** — mutable `~/.claude/plugins`. The MECHANISM named here is stale: `claude plugin marketplace add` runs at activation for **store-path sources only** since 2026-09-30 (§10.7); 31 of 32 plugins now arrive from a settings **declaration** Claude Code acts on at session start |
 | Read-if-present, silent no-op when absent | **Precedent** — git `includeIf` → `~/.config/git/infin8.inc` |
 
 So the real delta is a single decision applied to skills and MCP: **hash pin, or runtime clone.**
@@ -317,7 +325,7 @@ wrong in every repo. Repo-specific policy (Cloudflare scoping, nixpi builds) del
 project-scoped. A deny rule matches the command text Claude writes, not every way to run a
 program, so the tested project guard remains the deeper layer here.
 
-### 10.4 Plugins gave up the flake.lock pin (2026-09-23)
+### 10.5 Plugins gave up the flake.lock pin (2026-09-23)
 
 §1.2 says the decision of *what version* a client sees cannot be externalized. For **plugins**
 the operator reversed that deliberately: the `kattakath` marketplace
@@ -336,7 +344,53 @@ What did **not** move: which marketplace is trusted and which plugins are enable
 declared in `modules/shared/home.nix`), MCP servers (§1.4), and the two PATH packages built from
 plugin scripts, which still come from the pinned `kattakath-skills` input.
 
-### 10.5 §3's discriminator flipped: the plugin rail is mostly EVALUATED now (2026-09-30)
+### 10.6 MCP servers stop being blanket Nix-owned (2026-09-30)
+
+**§1.4 and §5's MCP row are a REVERSAL of a decided row, recorded here rather than edited away.**
+Both said "**MCP servers stay Nix-owned**", full stop. The operator decided (#658, then #657) that
+they stay Nix-owned **only where nothing else owns them**:
+
+- **#658 — the unowned servers keep a fleet-level catalog, permanently.** The servers with no
+  plugin owner stay in `modules/shared/mcp.nix` behind the portal. The gateway does **not** retire.
+  The alternatives — invent skill-less plugins to hold them, or drop the capability — were both
+  rejected.
+- **#657 — the assignable servers move into their owning plugins, and they DISAPPEAR FROM CLAUDE
+  DESKTOP.** Eight of the ten assignable ones move (`mobile-mcp`, `chrome-devtools`, `kapture`,
+  `macos-automator`, `mcpfinder`, `nixos`, `terraform`, `arxiv`); the operator accepted the Desktop
+  loss explicitly. `github` and `postgres` are held back pending **#656**, because each needs a
+  Keychain credential and a plugin `.mcp.json` interpolates `${ENV_VAR}` only.
+
+**§5's blast-radius argument SURVIVES — it is precisely why the line lands here.** §5 said a
+server that exits at startup darks the *entire gateway*, every client, every server, and cited
+2026-09-14's broken `mcp-server-memory` taking the whole darwin system down. That is still true of
+the gateway, and it is the reason the credentialed and machine-control servers stay Nix-owned. It
+is *not* true of a plugin-owned server: Claude Code spawns it per session as local stdio, so it
+darks one session's one server. The failure blast radius genuinely differs between the two lanes,
+so the same discriminator §5 used now produces a two-lane answer instead of a one-lane answer.
+
+**What is GIVEN UP for the moved servers, stated rather than implied:**
+
+1. **The `flake.lock` pin.** Plugin content floats on `github:kattakath/skills`' `main` — the same
+   trade §10.5 already recorded for plugins, now extended to their MCP halves.
+2. **Presence in Claude Desktop** (and the Cowork bridge). Desktop loads no plugins and renders one
+   all-or-nothing portal connector, so a plugin-owned server is Claude-Code-only and silently
+   absent there (`modules/shared/claude-desktop.nix` § THE PLUGIN CONSEQUENCE).
+3. **Machine-checked parity.** `checks.<system>.mcp-published-parity` compares two *Nix* lists and
+   cannot read a plugin's `.mcp.json`, so a name deleted from both and never declared in its plugin
+   is a silent loss with a green build. The migration sequence that compensates is
+   `docs/mcp-gateway.md` § Publishing.
+
+**What is GAINED, and it is a security win this ADR did not anticipate:** `identity.nix`'s
+machine-control tier goes **[5] → [1]**. `macos-automator`, `chrome-devtools`, `kapture` and
+`mobile-mcp` become local plugin stdio and are **not portal-reachable at all**, so a leaked Access
+service token reaches one machine-control server (`desktop-commander`) instead of five.
+
+**Not affected by this entry:** §1.1–1.3, §1.5, §1.6 and §3's eval/activation constraint. The rule
+"governance may not be externalized" still holds for the moved servers — *which* plugin is trusted
+and *which* plugins are enabled remain declared in `modules/shared/home.nix`. What moved is the
+server definition, not the decision to trust its plugin.
+
+### 10.7 §3's discriminator flipped: the plugin rail is mostly EVALUATED now (2026-09-30)
 
 §3's closing paragraph is the load-bearing line of this ADR's architecture argument: *"the plugin
 rail already works the proposed way and the skills and MCP rails do not:

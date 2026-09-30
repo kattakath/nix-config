@@ -1628,7 +1628,7 @@ in
           #     A validator that cannot reject is decoration; this is the check
           #     that keeps the pick contract load-bearing.
           #  3. containment: the rename gate. A stale `plugins/userscript-author`
-          #     or `chrome-devtools@` path is invisible until someone follows it.
+          #     path is invisible until someone follows it.
           page-lab =
             pkgs.runCommand "page-lab"
               {
@@ -1654,8 +1654,23 @@ in
                 # prose and its source literals did not, and a stale one is exactly
                 # the drift this catches.
                 #
-                #  (a) pre-merge plugin ids — userscript-author / chrome-devtools@,
-                #      from the 2026-09 merge that produced page-lab.
+                #  (a) pre-merge plugin PATHS — `plugins/userscript-author` and
+                #      `plugins/chrome-devtools`, from the 2026-09 merge that produced
+                #      page-lab. Both are unambiguous: neither resolves to anything in
+                #      any tree now, and neither is a plugin ID, so a live reference
+                #      cannot collide with them.
+                #
+                #      The bare `chrome-devtools@` alternative was DROPPED (2026-09-30).
+                #      Its job is done — the rename landed in #504 and no `@`-form of
+                #      the pre-merge id was ever written down here, so the literal only
+                #      ever matched the guard's own source. It is now actively harmful:
+                #      `chrome-devtools@<marketplace>` is the CORRECT way to name a live
+                #      plugin, and the MCP-ownership split (#657) has to name exactly
+                #      that. A guard that fails the build on a mere mention of a live
+                #      plugin id is a false positive by construction — the same trap the
+                #      relative-literal note below already calls out for
+                #      `plugins/page-lab`. The path half keeps the containment value;
+                #      the id half had none left to keep.
                 #  (b) pre-EXTRACTION source literals — a `../plugins/…` or
                 #      `../../skills/rag` still resolves to NOTHING in this tree after
                 #      2026-09-12. Matched as RELATIVE LITERALS on purpose, not as bare
@@ -1666,9 +1681,9 @@ in
                 # facts.md RECORDS old names as history; this file CARRIES the grep so
                 # it matches its own source.
                 cd ${self}
-                if grep -rn 'plugins/userscript-author\|plugins/chrome-devtools\|chrome-devtools@' \
+                if grep -rn 'plugins/userscript-author\|plugins/chrome-devtools' \
                      --exclude-dir=.git --exclude=facts.md --exclude=checks.nix . ; then
-                  echo "  ✘ stale pre-merge plugin id above" >&2
+                  echo "  ✘ stale pre-merge plugin PATH above" >&2
                   rc=1
                 fi
                 if grep -rn '\.\./plugins/\|\.\./skills/rag\|\.\./skills/nix-dev-toolkit\|\.\./skills/android-phone\|\.\./userscripts/' \
