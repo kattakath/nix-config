@@ -44,7 +44,6 @@
   # Source-only flake inputs holding Claude Code skills (see programs.claude-code
   # below). flake.nix pins them; nothing is vendored into this repo.
   agent-skills-vercel,
-  agent-skills-anthropic,
   agent-skills-cloudflare,
   agent-skills-anthropic-official,
   agent-skills-jeffallan,
@@ -685,17 +684,29 @@ in
         # (source "./plugins/<name>"), so the marketplace sha pins the bytes — same
         # guarantee as security-guidance/skill-creator above, no external subdir.
         #
-        # WHY AS PLUGINS AT ALL, when some of these skills already "exist": seven of
-        # plugin-dev's skills were present as LOOSE directories in ~/.claude/skills/
-        # (agent-development, command-development, hook-development, mcp-integration,
-        # plugin-settings, plugin-structure, skill-development) and hookify's as
-        # `writing-hookify-rules` — materialised by claude.ai ACCOUNT SYNC, which
-        # `claude plugin list` itself flags as "sync is off in this shell; these load
-        # only in a synced session". That is a per-session coin-flip, and it ships the
-        # skill text ONLY: no agents, no commands, no hooks. Declaring the plugins
-        # makes the same content machine-local, deterministic and flake-pinned, and
-        # adds the halves sync never had (plugin-dev's three agents, hookify's four
-        # hook scripts). Rejected alternative: leaving it to sync — measured absent.
+        # WHY AS PLUGINS, when this repo ALREADY shipped eight of these skills: the
+        # `skills` attrset below (search "Flake-managed GLOBAL skills") used to map
+        # seven plugin-dev skills plus hookify's `writing-rules` out of the
+        # `agent-skills-anthropic` input (= anthropics/claude-code) into
+        # ~/.claude/skills/<name>/. Those entries are REMOVED in the same commit as
+        # this block, and the reason is the point of this note.
+        #
+        # A `skills` entry maps ONE SKILL DIRECTORY. It structurally cannot carry the
+        # rest of a plugin, and the rest is most of the value here: plugin-dev's three
+        # agents (plugin-validator, skill-reviewer, agent-creator) and /create-plugin;
+        # hookify's four commands, its conversation-analyzer agent and its four hook
+        # scripts. Vendoring the skill folders got the prose and dropped the tools.
+        #
+        # Keeping BOTH was the real hazard, and it is why the dedup is not cosmetic:
+        # the same eight skill names would be served twice from two DIFFERENT upstreams
+        # on two DIFFERENT pins — anthropics/claude-code via flake.lock, and
+        # anthropics/claude-plugins-official via the marketplace sha. Nothing keeps
+        # those in step, so the copies drift and a session sees whichever it resolves
+        # first. Measured 2026-09-29: flake.lock at 7779afb12e36, marketplace cache at
+        # 2a8ad9f74633 — already two different trees.
+        #
+        # `find-skills` STAYS in that attrset: it comes from vercel-labs/skills and no
+        # plugin here provides it, so it is not a duplicate.
 
         # plugin-dev — the authoring toolkit for THIS repo's own Claude Code artifacts:
         # 7 skills (plugin structure/settings, skills, agents, commands, hooks, MCP
@@ -1264,17 +1275,15 @@ in
       skills = {
         # Skill discovery from skills.sh (vercel-labs/skills).
         find-skills = "${agent-skills-vercel}/skills/find-skills";
-        # Anthropic's official authoring toolkit for smarter claude-code project
-        # setup — the full plugin-dev skill set (agent/skill/command/hook/plugin/
-        # mcp authoring) plus hookify (hook rules).
-        agent-development = "${agent-skills-anthropic}/plugins/plugin-dev/skills/agent-development";
-        skill-development = "${agent-skills-anthropic}/plugins/plugin-dev/skills/skill-development";
-        command-development = "${agent-skills-anthropic}/plugins/plugin-dev/skills/command-development";
-        hook-development = "${agent-skills-anthropic}/plugins/plugin-dev/skills/hook-development";
-        mcp-integration = "${agent-skills-anthropic}/plugins/plugin-dev/skills/mcp-integration";
-        plugin-structure = "${agent-skills-anthropic}/plugins/plugin-dev/skills/plugin-structure";
-        plugin-settings = "${agent-skills-anthropic}/plugins/plugin-dev/skills/plugin-settings";
-        writing-hookify-rules = "${agent-skills-anthropic}/plugins/hookify/skills/writing-rules";
+        # NO plugin-dev / hookify SKILL ENTRIES HERE, deliberately. They lived here
+        # (seven plugin-dev skills + hookify's writing-rules, out of
+        # `agent-skills-anthropic` = anthropics/claude-code) until 2026-09-29, when the
+        # plugin-dev and hookify PLUGINS were declared in
+        # local.claudePlugins.marketplaces.claude-plugins-official above. A `skills`
+        # entry maps one skill directory and drops the agents, commands and hooks that
+        # are most of those plugins; keeping both served the same eight skill names from
+        # two upstreams on two unrelated pins, which drift. Read the long note on that
+        # marketplace entry before re-adding anything here.
 
         # ---- Tool-driver skills: each pairs with an MCP server / connector this
         # fleet already runs (see flake.nix `agent-skills-*` inputs). Additive,
