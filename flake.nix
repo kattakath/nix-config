@@ -136,19 +136,17 @@
     # 7.0.4 wrapper no longer exports it) and aborted activation. The override
     # existed because nix-homebrew's default was 6.0.11 (2026-08); it is newer now.
     #
-    # PINNED to 09a921d (its brew 6.0.22): brew 7 cannot load the viarotel-org/escrcpy
-    # cask. 7.0 disabled `depends_on macos: :catalina`, so `brew bundle` aborts activation.
+    # UNPINNED again (kattakath/nix-config#613). It had been held at 09a921d (brew
+    # 6.0.22) because brew 7 DISABLED `depends_on macos: :catalina` and the escrcpy
+    # cask still used it, so `brew bundle` aborted every activation. The blocker was
+    # the CASK, not brew: `modules/darwin/homebrew.nix` now taps our own fork, whose
+    # `main` carries the fix — read that tap's comment before touching either, and
+    # re-point it upstream when viarotel-org/homebrew-escrcpy#61 merges.
     #
-    # UNPIN ONLY WHEN AN UPGRADE IS REQUIRED — e.g. `brew bundle` fails because 6.0.22
-    # cannot parse a cask or formula (the cask API follows the newest brew; 6.0.11 hit
-    # exactly this in 2026-08). Until then this pin needs no attention. When it is:
-    #   1. PREREQUISITE — is viarotel-org/homebrew-escrcpy#61 merged, i.e. does the
-    #      tap's Casks/escrcpy.rb no longer say `macos: :catalina`?
-    #      `gh pr view 61 -R viarotel-org/homebrew-escrcpy --json state`
-    #      Not merged: brew 7 still breaks escrcpy. Resolve that first (fork the tap
-    #      with the #61 change, or drop the cask) before unpinning.
-    #   2. Then unpin per kattakath/nix-config#613.
-    nix-homebrew.url = "github:zhaofengli/nix-homebrew/09a921d0181146cf6163ec2cc1db7b6fd539a885";
+    # If a future brew release breaks a cask or formula again, fix the CASK (fork or
+    # drop it); re-pinning brew freezes every cask's parser and only defers the same
+    # failure, which is how 6.0.11 and then 6.0.22 each became a pin in turn.
+    nix-homebrew.url = "github:zhaofengli/nix-homebrew";
 
     # Nix -> OpenTofu/Terraform JSON renderer for the Cloudflare-side tunnel
     # objects (infra/cloudflare/nixpi-tunnel.nix — the remotely-managed tunnel +
