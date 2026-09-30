@@ -63,7 +63,7 @@ programs.mcp.servers (hub)
 |---|---|---|
 | Desktop app | this file | yes |
 | Cowork, Mac linked | Desktop bridge → `mcp__remote-devices__<name>__*` | yes — without publishing them |
-| Cowork, Mac **not** linked (phone, closed laptop) | remote connector = the same portal (`config.fleet.publicMcpServers`, behind Cloudflare Access) | **yes** since 2026-09-22 — all 26 are published, so this row no longer differs from the one above |
+| Cowork, Mac **not** linked (phone, closed laptop) | remote connector = the same portal (`config.fleet.publicMcpServers`, behind Cloudflare Access) | **yes** since 2026-09-22 — **every** hosted server is published, so this row no longer differs from the one above |
 
 Skills and plugins are **not** in scope here: in Desktop/Cowork they are account state
 (Settings → Capabilities, the claude.ai plugin catalog), not files. The plan for those is
