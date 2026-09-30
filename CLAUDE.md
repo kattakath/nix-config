@@ -174,16 +174,18 @@ One line per path; the *why* and the per-file specifics are in
 
 **Gone on purpose — do not re-add.** No `plugins/` or `skills/` tree: both live in
 `github:kattakath/skills`, installed as an **auto-updating git marketplace** (a merge there
-ships, no pin bump here) and pinned as `kattakath-skills` for the `superhook` /
-`page-lab-pick` PATH packages and (since the MCP catalog externalization)
+ships, no pin bump here) and pinned as `kattakath-skills` for the `page-lab-pick` PATH
+package and (since the MCP catalog externalization)
 `modules/shared/mcp.nix`'s `mcpCatalog` — that one input use DOES need this pin bumped, same
-as the PATH packages always have; **zero userscripts** (published to Greasy
+as the PATH package always has; **zero userscripts** (published to Greasy
 Fork, so an installed copy self-updates). Why:
 [`docs/agent-resource-externalization.md`](docs/agent-resource-externalization.md).
 
-**Commands** (`.claude/commands/`): `/eval`, `/hygiene`, `/update-input`, `/superhook-review`,
+**Commands** (`.claude/commands/`): `/eval`, `/hygiene`, `/update-input`,
 `/pretooluse-review`, `/remember-nix`, `/gmail-account`, `/routing-review`, `/mcp-scout`,
-`/fleet-doctor`, `/userscript`. (`/devtools` and `/pick` ship from the `page-lab` plugin instead.)
+`/fleet-doctor`, `/userscript`. (`/devtools` and `/pick` ship from the `page-lab` plugin, and
+`/superhook-review` from the `superhook` plugin — its in-repo copy was byte-identical and was
+deleted 2026-09-30.)
 
 **Project skills** (`.claude/skills/`): `nix-hygiene`, `nixpi-firmware-provision`,
 `gmail-mcp-accounts`, `mcp-scout`, `fleet-doctor`, `userscript-author`.
@@ -200,11 +202,14 @@ community TOOL already owns it, which an option grep structurally cannot see). S
 [`store-copied-trees`](.claude/rules/store-copied-trees.md) (a directory path literal copies
 the whole tree into the store — check for stray `.DS_Store`/etc. before committing).
 
-**Hooks** (`.claude/hooks/`): `stop-gate.js` + `pretooluse-bash-guard.js` (both wrapped by the
-`superhook` PATH package, since a checked-in `settings.json` can hold neither a store path nor
-`${CLAUDE_PLUGIN_ROOT}`), plus the `*-digest.js` SessionStart nudges. `autostage-nix` and
-`nix-home-path-lint` arrive as PLUGIN hooks from `claude-code-nix@kattakath` — do not re-add them
-here or each fires twice. `.claude/hooks/tests/*.sh` covers BOTH hooks — three guard-rule suites plus
+**Hooks** (`.claude/hooks/`): `stop-gate.js` + `pretooluse-bash-guard.js`, plus the
+`*-digest.js` SessionStart nudges. **Neither gate is wired in `.claude/settings.json`** —
+`autostage-nix`/`nix-home-path-lint` (from `claude-code-nix@kattakath`) and, since 2026-09-30,
+`superhook`'s `Stop` + `PreToolUse:Bash` wrappers and its SessionStart digest all arrive as
+PLUGIN hooks. **Do not re-add any of them here, or each fires twice.** The superhook plugin
+finds these two scripts BY CONVENTION at `<git root>/.claude/hooks/<name>.js`, resolving the
+root itself (`${CLAUDE_PROJECT_DIR}` is the session's LAUNCH CWD, not the repo root) and
+no-opping silently where they are absent — so it is inert in every other repo. `.claude/hooks/tests/*.sh` covers BOTH hooks — three guard-rule suites plus
 `stop-gate-fail-closed.sh` — **gated by `claude-config-lint.yml`**: each asserts both halves
 (must-BLOCK and must-stay-APPROVED) and that it never throws, since a throw fails OPEN. Message
 decoder: [`docs/claude-hook-messages.md`](docs/claude-hook-messages.md).
