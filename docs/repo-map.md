@@ -2510,7 +2510,6 @@ content-hashed into the store — see `CLAUDE.md` § Code Style on the two path 
 | `/eval` | stage + `nix flake check` |
 | `/hygiene` | LEAN/DRY audit→fix→gate via skill `nix-hygiene` |
 | `/update-input` | bump one flake input + commit the lock |
-| `/superhook-review` | triage the hook-supervisor log |
 | `/pretooluse-review` | triage `Bash`/`Write\|Edit` gate REJECTIONS from the harness's own OTel `tool_decision` stream (`decision`/`source`/`hook_name`), since prompt-type hooks keep no log of their own |
 | `/remember-nix` | capture into the harness's native per-project memory store (outside the repo) |
 | `/gmail-account` | add/authenticate/remove a Gmail MCP multi-account, see [`gmail-mcp-multi-account-runbook.md`](gmail-mcp-multi-account-runbook.md) |
@@ -2518,6 +2517,11 @@ content-hashed into the store — see `CLAUDE.md` § Code Style on the two path 
 | `/mcp-scout` | discover → vet → DECLARATIVELY adopt an MCP server into the gateway via skill `mcp-scout`; imperative installer CLIs / config-writing install tools are never used |
 | `/userscript` | measure → replay → **publish** a Violentmonkey userscript, via the `page-lab` plugin's method skill + the project skill `userscript-author` (delivery only since 2026-09-14 — nothing is declared or gated in Nix); **no selector ships that was not dumped from the live page**, and `@require`/`@resource` CDN deps are never used |
 | `/fleet-doctor` | fleet-wide consistency sweep (branches/worktrees/PRs/CI/cross-repo pins/GC/host re-activation) across every repo in `.claude/skills/fleet-doctor/fleet-repos.txt`, via skill `fleet-doctor`; composes `nix-hygiene`, `git-purity.md`, `pr-title.md` |
+
+`/superhook-review` is **not** in this table and that is not an omission: the `superhook`
+plugin ships it. The in-repo `.claude/commands/superhook-review.md` was byte-identical to the
+plugin's copy and was deleted 2026-09-30 when superhook moved to plugin-hook delivery — two
+copies of one command is a duplicate, not a fallback.
 
 ### `.claude/rules/` — always applied
 
@@ -2566,9 +2570,38 @@ root-owned managed scope in `modules/darwin/claude-managed-settings.nix` (§ `mo
   hooks, which is why the remaining `Write|Edit` secret-detection gate in
   `.claude/settings.json` stays unsupervised prompt-based — that one is a genuine semantic
   judgment call, unlike the Bash gate's mostly-syntactic rules.
-- **`superhook-digest`** — SessionStart digest of supervisor findings. Both it and the
-  wrapper are PATH packages built from the pinned `kattakath-skills` input
-  (`packages/superhook.nix`); they are no longer files in `.claude/hooks/`.
+- **How the wrapping is delivered — a PLUGIN HOOK since 2026-09-30, no longer a PATH package.**
+  The `superhook` plugin's own `hooks/hooks.json` declares `Stop`, `PreToolUse:Bash` and a
+  `SessionStart` digest, each calling `${CLAUDE_PLUGIN_ROOT}/scripts/superhook.js` in front of
+  this repo's script. Plugin hook entries auto-merge into the effective hook set, so
+  `.claude/settings.json` names **none** of them — and must not, since a settings entry plus a
+  plugin entry fires the gate TWICE (the same rule that applies to `autostage-nix` below).
+  `packages/superhook.nix` is **DELETED**; so is `.claude/commands/superhook-review.md`, whose
+  bytes were identical to the plugin's copy.
+  - **The claim this reverses.** Until then, the received wisdom here was that a wrapper
+    *cannot* be a plugin hook: `${CLAUDE_PLUGIN_ROOT}` supposedly did not expand in a hook
+    command, and a plugin could supposedly only ADD a hook, never wrap one. Measured on Claude
+    Code 2.1.268, **both halves are false** — `${CLAUDE_PLUGIN_ROOT}` and
+    `${CLAUDE_PROJECT_DIR}` both expand in a plugin hook command, as inline substitution into
+    the command string AND as exported process environment.
+  - **Still true, and a DIFFERENT measurement:** a plugin's `bin/` reaches the Bash tool's PATH
+    but **not** a hook's (2026-09-23). That is why the plugin's commands use an absolute
+    `${CLAUDE_PLUGIN_ROOT}` path rather than a bare command name — and why `page-lab-pick`
+    remains a PATH package.
+  - **`${CLAUDE_PROJECT_DIR}` is the session's LAUNCH CWD, not the git root.** Measured: a
+    session started in `<repo>/sub` gets `CLAUDE_PROJECT_DIR=<repo>/sub`. This fleet starts
+    sessions in `.claude/worktrees/*` and subdirectories constantly, so each plugin command
+    resolves the root with `git rev-parse --show-toplevel`, re-exports it (so `superhook.log`
+    lands once per repo, not once per launch directory), and **exits 0 silently if the
+    conventional script is absent** — which is exactly what keeps a globally-enabled plugin
+    inert in every repo that does not carry these two gates.
+  - Expansion is **proven for `SessionStart` only**; `Stop` and `PreToolUse` are **inferred**
+    (an isolated `CLAUDE_CONFIG_DIR` cannot authenticate, so those events never fired in the
+    probe). The existence test is the defensive answer: a failed expansion yields a
+    non-existent path and a no-op, not a crash.
+- **`superhook-digest`** — SessionStart digest of supervisor findings, shipped by the same
+  plugin as `scripts/superhook-digest.js`; no longer a PATH package and never a file in
+  `.claude/hooks/`.
 - **`routing-review-digest.js`** — SessionStart nudge for unreviewed
   `user_temporary`/`user_permanent` Claude Code routing decisions; mirrors
   `superhook-digest` exactly, threshold-gated, see
@@ -2669,9 +2702,12 @@ this repo**. Do not re-create one; CLAUDE.md's "Gone on purpose — do not re-ad
 > its `main` is a release, gated by that repo's own `validate.yml`. Its top-level `skills/` are
 > published as marketplace-root plugins, so the `programs.claude-code.skills` cherry-picks are
 > gone, and the Brain Signals kit moved there as the `brain-signals` plugin. The input survives
-> as `kattakath-skills`, for the `superhook` and `page-lab-pick` PATH packages only. A plugin's
-> `bin/` reaches the Bash tool's PATH but **not** a hook's (measured), which is why `superhook`
-> is still a package. The rest of this section is the pinned-era record.
+> as `kattakath-skills`, for the `page-lab-pick` PATH package (plus its `checks.*.page-lab`
+> gate) and `mcp.nix`'s `mcpCatalog`. A plugin's `bin/` reaches the Bash tool's PATH but **not**
+> a hook's (measured), which is why `page-lab-pick` is still a package. `superhook` WAS the
+> second such package until 2026-09-30, on the stronger claim that a hook wrapper cannot be a
+> plugin hook at all — that claim was **measured false** (see § `.claude/hooks/` above), and it
+> now ships as a plugin hook. The rest of this section is the pinned-era record.
 
 The operator's OWN Claude Code plugin marketplace is
 [`github:kattakath/skills`](https://github.com/kattakath/skills) — **not a tree in this repo** since
