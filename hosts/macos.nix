@@ -94,6 +94,21 @@ in
 
   nixpkgs.config.allowUnfree = true;
 
+  # System-wide, into /Library/Fonts/Nix Fonts (nix-darwin's fonts.packages,
+  # verified 2026-09-30 by building the derivation and checking: pkgs.noto-fonts
+  # itself ships NotoSansMalayalam.ttf + NotoSerifMalayalam.ttf directly, no
+  # split "noto-fonts-malayalam" package exists). Makes the font SELECTABLE
+  # everywhere (Font Book, any app's font picker) — it does not make anything
+  # use it automatically. There is no Chromium policy for per-script font
+  # choice (checked: absent from the official policy docs, and grepped the
+  # installed Chromium Framework binary itself for any PerScript*/font-policy
+  # string — none), so Chromium is pointed at these faces by
+  # `local.chromium.malayalamFontSetter` instead — a repo-authored sideloaded
+  # extension, the only mechanism that can (`chrome.fontSettings.setFont` is
+  # extension-only). That option's description carries the full why, including
+  # the two non-extension routes that were tried and failed.
+  fonts.packages = [ pkgs.noto-fonts ];
+
   # ---- Self-hosted GitHub Actions runner(s) for dontsell-ai ------------------
   # See modules/darwin/github-runner.nix for the full why/how. Org-level
   # registration serves every dontsell-ai repo (app, idea, ...) from this one
