@@ -43,7 +43,7 @@ host toplevels.
 
 Pins `nixpkgs` + `nix-darwin` + `home-manager` + `treefmt-nix` + `git-hooks` + **`flake-parts`**
 + **`import-tree`** + `raspberry-pi-nix` + `nix-vscode-extensions` + `nix-homebrew` + `agenix` +
-Claude Code skill inputs (`agent-skills-vercel`, `agent-skills-anthropic`, both `flake = false`).
+Claude Code skill inputs (`agent-skills-vercel`, `agent-skills-anthropic-official`, both `flake = false`).
 **`flake-parts` is a DIRECT input** with `nixpkgs-lib.follows = "nixpkgs"` — it cannot be
 `follows = ""`, because flake-parts does `inherit (nixpkgs-lib) lib` (`lib.nix:12`), so rebinding
 that name to THIS flake makes it the `lib` of a thing with no `lib`. It was already forced and
@@ -2547,8 +2547,14 @@ prefer the flake path below).
 Placed at `~/.claude/skills/<name>/` declaratively by `programs.claude-code.skills`
 (`modules/shared/home.nix`, darwin-gated) on `darwin-rebuild switch`. Most are sourced from
 PINNED `flake = false` inputs (`agent-skills-vercel` = vercel-labs/skills → `find-skills`;
-`agent-skills-anthropic` = anthropics/claude-code → the plugin-dev + hookify authoring skills),
-**NOT vendored**; `nix flake update` bumps them.
+`agent-skills-anthropic-official` = anthropics/skills → `mcp-builder`, `webapp-testing`,
+`pdf`/`docx`/`pptx`/`xlsx`), **NOT vendored**; `nix flake update` bumps them.
+
+The `agent-skills-anthropic` input (anthropics/claude-code → plugin-dev + hookify authoring
+skills) was REMOVED 2026-09-29. Those eight skills now arrive as the `plugin-dev` and `hookify`
+PLUGINS from `claude-plugins-official`, which also carry the agents, commands and hook scripts a
+skill-directory mapping drops. Keeping both would have served the same eight skill names from two
+upstreams on two unrelated pins.
 
 **Since 2026-09-23 the operator's own skills are NOT on this rail** — they install as plugins from the `kattakath` git marketplace (§ The operator's marketplace). Pinned-era record:
 

@@ -278,12 +278,6 @@
       url = "github:vercel-labs/skills";
       flake = false;
     };
-    # Anthropic's official claude-code repo — source of the plugin-dev + hookify
-    # AUTHORING skills (agent/skill/plugin/hook development) for smarter setup.
-    agent-skills-anthropic = {
-      url = "github:anthropics/claude-code";
-      flake = false;
-    };
     # xAI's OFFICIAL Claude Code plugin (grok-build-plugin-cc) — the sanctioned
     # Grok Build <-> Claude Code bridge (/grok-build:{review,critique,delegate,
     # import,...}). Pinned flake=false; its self-contained plugin dir is wired into
@@ -308,8 +302,11 @@
     };
     agent-skills-anthropic-official = {
       # Anthropic's official skills marketplace (source-available): mcp-builder, webapp-testing,
-      # pdf/docx/pptx/xlsx. DISTINCT from `agent-skills-anthropic` (= anthropics/claude-code, the
-      # plugin-dev + hookify AUTHORING skills) — this is the anthropics/skills content repo.
+      # pdf/docx/pptx/xlsx. This is the anthropics/skills CONTENT repo. There used to be a
+      # sibling `agent-skills-anthropic` (= anthropics/claude-code) for the plugin-dev +
+      # hookify authoring skills; it was removed 2026-09-29 when those arrived as PLUGINS
+      # instead (modules/shared/home.nix, claude-plugins-official) — a plugin carries their
+      # agents, commands and hooks, which a skill-directory mapping cannot.
       url = "github:anthropics/skills";
       flake = false;
     };
