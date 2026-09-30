@@ -364,6 +364,9 @@ and the verified provider-resource list in §2.
 
 ## 10. The second gateway is GONE — read §3 as history (2026-09-22)
 
+> **Then read §11 (2026-09-30).** §3's argument came back to life, and §10's closing "what was
+> traded away" paragraph has been amended in place because half of it reversed.
+
 **§3 is the load-bearing section of this note, and its conclusion no longer holds.** It argued
 for a *second* `mcp-proxy` process on `:8097` so that an unpublished server would be
 structurally **absent** from the tunnelled hostname rather than merely unrouted — because
@@ -394,8 +397,16 @@ enforcing hosted == published in both directions.
 server is reachable at one hostname behind one Access gate, so the blast radius of a leaked
 service token is the whole roster — including `desktop-commander` (shell), `macos-automator`
 (arbitrary AppleScript) and four Gmail accounts. The protection is identity at the edge, not
-structural absence. Narrowing `publicMcpServers` is the only lever that restores absence, and
-it now removes the server from *every* client rather than from the public copy only.
+structural absence. Narrowing `publicMcpServers` is the only lever that restores absence.
+
+**AMENDED 2026-09-30 — the second half of that sentence has REVERSED (#658, #657).** It used to
+end "and it now removes the server from *every* client rather than from the public copy only",
+which was true while narrowing meant deleting a capability. It no longer is. Under the ownership
+split a narrowed server's capability **moves into its owning marketplace plugin**, so it is absent
+from the **portal** while still reachable in Claude Code as local plugin stdio. Narrowing therefore
+restores structural absence **without losing the capability for Claude Code** — the thing §3 said
+was impossible to have both ways. The remaining cost is **Claude Desktop** (and the Cowork bridge),
+which loads no plugins and sees only the portal. See §11.
 
 **Anecdote:** §3 built a separate locked room for the two items worth publishing, so the rest
 of the house stayed out of reach even if that room's key leaked. Then everything was moved into
@@ -406,4 +417,44 @@ copy could not dark the private one. That is the one thing genuinely given up, a
 
 The prose in §§1–6 is preserved rather than rewritten, because the *reasoning* is what a future
 reader needs when they consider narrowing the list again — at which point §3's argument becomes
-live a second time.
+live a second time. **That moment arrived on 2026-09-30; §11 is it.**
+
+## 11. §3 is LIVE AGAIN — narrowing restores absence without losing the capability (2026-09-30)
+
+**Decided, not proposed** (#658 + #657; the rule is `docs/mcp-gateway.md` § Which lane). Two
+permanent MCP lanes, split by **ownership**: a server that is the tool half of a skill this fleet
+already ships moves into that skill's marketplace plugin; every server with **no plugin owner**
+stays on the gateway, permanently. **The gateway does not retire, and neither does this stack** —
+the portal, the tunnel, the Access app and `mcp-public.nix` all survive.
+
+**Why this is §3's argument, back and now satisfiable.** §3 said an unpublished server must be
+structurally **absent** from the tunnelled hostname, not merely unrouted, because Cloudflare Access
+protects a hostname and not a path. §10 recorded that publishing everything removed the premise.
+The ownership split restores it for a *subset*, and — this is the new part — restores it **without
+paying §10's price**, because the capability does not disappear when the portal entry does:
+
+| | §3 (2 of 26 published) | §10 (all published) | §11 (ownership split) |
+|---|---|---|---|
+| absent from the portal | the 24 unpublished | nothing | the **plugin-owned** servers |
+| how absence was bought | a second `mcp-proxy` process, ~50 processes total | not bought | **free** — the server is not on the gateway at all |
+| what absence cost the client | nothing (private gateway served them) | n/a | **Claude Desktop + Cowork lose it entirely** |
+| machine-control servers behind the Access gate | 2 | 5 | **1** (`desktop-commander`) |
+
+**The measurable win is the machine-control tier: [5] → [1].** `macos-automator`,
+`chrome-devtools`, `kapture` and `mobile-mcp` become local plugin stdio, spawned per session by
+Claude Code and **not portal-reachable at all**. A leaked Access service token then reaches one
+machine-control server instead of five (`modules/parts/identity.nix` carries the tier arithmetic
+and the 19-then-17 end state).
+
+**What is still traded away.** Desktop renders exactly one connector and the portal is
+all-or-nothing, so a plugin-owned server is **Claude-Code-only and silently absent from Desktop**
+(`modules/shared/claude-desktop.nix` § THE PLUGIN CONSEQUENCE). The operator accepted that for the
+eight servers of #657. A plugin-owned server also loses its `flake.lock` pin and cannot carry a
+Keychain credential — `.mcp.json` interpolates `${ENV_VAR}` only — which is why `github` and
+`postgres` are held back pending #656.
+
+**Anecdote, extending §10's.** §10 left the locked second door standing with nothing behind it.
+§11 does not rebuild the door — it moves four of the dangerous items **out of the house
+altogether**, into a workshop only the person already standing in the kitchen can open. *(Where it
+breaks down: the visitor at the front door — Claude Desktop — can no longer reach the workshop at
+all. That is the whole cost, and it was accepted, not overlooked.)*
