@@ -337,9 +337,36 @@ in
     # reach before: it is written by the KeepAlive `ollama` daemon, so newsyslog
     # can never reclaim it, and it is shared with `ollama-metal-guard`, so even a
     # re-exec rename would orphan the long-lived writer's fd.
+    # `command`, NOT `serviceConfig.ProgramArguments` — this is the BOOT-ORDERING
+    # EXCEPTION in .claude/rules/launchd-naming.md, and getting it wrong is silent.
+    # A `RunAtLoad` DAEMON with a /nix/store arg0 races the /nix volume: launchd
+    # execs before determinate-nixd mounts it, gets "Missing executable", and exits
+    # 78 EX_CONFIG. It then NEVER self-heals — launchd parks the job on an
+    # "Executable appearance" event that a volume MOUNT does not fire, and
+    # re-activating does not clear it (nix-darwin only re-bootstraps daemons whose
+    # plist changed).
+    #
+    # MEASURED HERE, not theorised: this unit sat at `runs = 1, last exit code =
+    # 78: EX_CONFIG, job state = spawn failed` while /var/log/ollama-daemon.log
+    # grew to 16 MB — i.e. the root rotator this whole tier exists for had never
+    # run once. Found 2026-09-29 by `nix run .#launchd-doctor`; nothing else
+    # reports it, because `nix flake check` proves what the config SAYS.
+    #
+    # No launchd setting fixes it. The rule's measurement table is explicit that a
+    # CRASH is retried but a failed EXEC is not: StartInterval, KeepAlive and
+    # KeepAlive.PathState all leave `runs` at 1. So arg0 must resolve at first
+    # exec, which means it must live OUTSIDE /nix. nix-darwin's `command` option
+    # (pinned modules/launchd/default.nix:47-51) emits
+    # `/bin/sh -c 'wait4path /nix/store && exec <command>'` — the same shape
+    # activate-system and activate-agenix use, for the same reason.
+    #
+    # The cost is BTM legibility: this shows as `sh`, not `nix-file-rotation-logs-
+    # system`. Accepted, and narrowly: the rule's load-bearing half is TCC, and a
+    # root daemon writing /var/log reads none of the TCC-gated user folders.
+    # Do NOT "restore" ProgramArguments to make BTM prettier — it re-breaks boot.
     launchd.daemons.file-rotation-logs-system = {
+      command = lib.getExe daemonTick;
       serviceConfig = {
-        ProgramArguments = [ (lib.getExe daemonTick) ];
         StartInterval = 3600;
         RunAtLoad = true;
         StandardOutPath = "/var/log/file-rotation-logs.log";
