@@ -529,8 +529,25 @@ in
       # The tradeoff is deliberate: Gatekeeper never gets to evaluate this app, so
       # the viarotel-org build is trusted directly. Scoped to this ONE cask — never
       # generalise it to the whole casks list.
+      #
+      # FULLY-QUALIFIED on purpose (`<tap>/<cask>`, brew's own prescribed form). A
+      # bare `escrcpy` token aborted activation the moment the tap moved to our fork
+      # (measured 2026-09-29): the old viarotel-org clone is untapped by `cleanup`
+      # only AFTER the bundle runs, so mid-bundle brew sees the cask in two taps and
+      # refuses — "Cask escrcpy exists in multiple taps … Please use the
+      # fully-qualified name". Qualifying it is also what keeps this unambiguous on a
+      # machine where someone re-taps upstream by hand. Re-point this tap prefix
+      # together with modules/darwin/homebrew.nix when homebrew-escrcpy#61 merges.
+      #
+      # MOVING THIS CASK BETWEEN TAPS NEEDS A ONE-TIME MANUAL STEP, and qualifying the
+      # name is NOT it: brew keys an installed cask to the tap it came from, refuses to
+      # untap while it is installed, and under brew 7 could not even parse the old cask
+      # to uninstall it — so `brew uninstall --cask escrcpy` (bare token, resolves the
+      # INSTALLED record) then `brew untap viarotel-org/escrcpy`, and let the next
+      # activation reinstall from the new tap. Nothing declarative can do this; brew's
+      # `cleanup` untaps only AFTER the install that was already aborting.
       {
-        name = "escrcpy";
+        name = "ismailkattakath/escrcpy/escrcpy";
         postinstall = "/usr/bin/xattr -dr com.apple.quarantine /Applications/Escrcpy.app";
       }
       # Google Chrome — the DAILY browser and the holder of http/https
