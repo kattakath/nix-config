@@ -20,22 +20,6 @@
         "type": "github"
       }
     },
-    "agent-skills-anthropic": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1790372995,
-        "narHash": "sha256-3woThSHJmGaFWT56nYCqhT3FI1o2CL3tkd96Zn7TezM=",
-        "owner": "anthropics",
-        "repo": "claude-code",
-        "rev": "7779afb12e3635f46f56ec823979d68350ae000b",
-        "type": "github"
-      },
-      "original": {
-        "owner": "anthropics",
-        "repo": "claude-code",
-        "type": "github"
-      }
-    },
     "agent-skills-anthropic-official": {
       "flake": false,
       "locked": {
@@ -770,7 +754,6 @@
     "root": {
       "inputs": {
         "agenix": "agenix",
-        "agent-skills-anthropic": "agent-skills-anthropic",
         "agent-skills-anthropic-official": "agent-skills-anthropic-official",
         "agent-skills-cloudflare": "agent-skills-cloudflare",
         "agent-skills-excalidraw": "agent-skills-excalidraw",

@@ -28,7 +28,6 @@ let
     mcp-servers-nix
     raspberry-pi-nix
     agent-skills-vercel
-    agent-skills-anthropic
     agent-skills-cloudflare
     agent-skills-anthropic-official
     agent-skills-jeffallan
@@ -114,7 +113,6 @@ let
           inherit
             mcp-servers-nix
             agent-skills-vercel
-            agent-skills-anthropic
             agent-skills-cloudflare
             agent-skills-anthropic-official
             agent-skills-jeffallan
