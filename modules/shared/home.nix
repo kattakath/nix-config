@@ -634,9 +634,11 @@ in
   local.claudePlugins.marketplaces = {
     # xAI's grok-build bridge, from a PATCHED store copy of the pinned flake
     # input (grokBuildPluginPatched in the let block above — read it for WHY the
-    # built-in `read-only` sandbox had to be repointed). Store path ⇒ re-pinned
-    # on every content change, which is the only way the patch actually reaches
-    # ~/.claude/plugins/cache.
+    # built-in `read-only` sandbox had to be repointed). Store path ⇒ the ONE
+    # marketplace claude-plugins.nix still touches imperatively, and only to
+    # spare the first session after a bump — a directory-source plugin loads
+    # LIVE from the marketplace dir (measured 2026-09-30), so the patch reaches
+    # Claude Code with no cache copy to go stale.
     xai-grok-build = {
       source = lib.mkDefault "${grokBuildPluginPatched}";
       plugins = [ "grok-build" ];
