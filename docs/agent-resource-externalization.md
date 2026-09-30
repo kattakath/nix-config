@@ -10,7 +10,17 @@
 > gone, and the Brain Signals kit moved there as the `brain-signals` plugin. The input survives
 > as `kattakath-skills`, for the `superhook` and `page-lab-pick` PATH packages only. A plugin's
 > `bin/` reaches the Bash tool's PATH but **not** a hook's (measured), which is why `superhook`
-> is still a package. The rest of this document is the pinned-era record.
+> is still a package.
+>
+> **The Brain Signals `/explain` family went too**, and § "What deliberately did NOT move" no
+> longer lists it. `skills/{explain,compare,map,zoom,why,diagram}` — a top-level tree in this
+> repo until 2026-09-23 — is now the `brain-signals` plugin (with the output style, the
+> `cartographer` subagent and `/task`), so the "splitting them lets the two halves drift" reason
+> for keeping it was answered by moving BOTH halves rather than neither. There is no top-level
+> `skills/` directory in this repo any more; `modules/shared/claude-brain.nix` keeps only the
+> style selection and the calibration rule.
+>
+> The rest of this document is the pinned-era record.
 
 **Decision: the operator's own Claude Code resources — plugins, skills, userscripts —
 leave this tree and come back as pinned `flake = false` inputs.** Nix keeps the pin, the
@@ -181,8 +191,7 @@ agree, because git is doing the copying.
 
 | Tree | Why it stays |
 |---|---|
-| `claude/` (CLAUDE.md, Brain Signals kit) | operator identity and an accessibility calibration, not a community resource; `context` must also be a single path |
-| `skills/{explain,compare,map,zoom,why,tldr,diagram}` | one kit with the output style in `modules/shared/claude-brain.nix` — splitting them lets the two halves drift |
+| `claude/` (CLAUDE.md + the Brain Signals calibration rule) | operator identity and an accessibility calibration, not a community resource; `context` must also be a single path, and plugins carry no rules or CLAUDE.md context |
 | `.claude/` | project-scoped by definition; it must live in the repo it governs |
 | `.claude/skills/userscript-author` | it is about how a script reaches *this Mac* — the fleet's delivery reality, not the portable authoring method (it stopped being about a Nix declaration or gate on 2026-09-14, when both ceased to exist) |
 | nix-personal's `activation` plugin | documents a CLI only that flake ships |
@@ -199,4 +208,12 @@ The global `harvest` skill walks these steps (and decides first whether the thin
 keeping at all).
 
 During development, skip the push/update loop with
-`nix flake check --override-input kattakath-ai path:../ai`.
+`nix flake check --override-input kattakath-skills path:../skills` — the input is
+`kattakath-skills` (`flake.nix`), and the repo was renamed from `kattakath/ai` to
+`kattakath/skills` on 2026-09-23, so both halves of the old command were wrong.
+
+**That override only covers what the PIN feeds** — the `superhook` / `page-lab-pick`
+PATH packages and `mcp.nix`'s `mcpCatalog`. Plugin and skill **content** does not go
+through the pin at all any more (the marketplace is an https git source), so an
+override cannot test a plugin edit. Test that by **pushing to `kattakath/skills`
+`main` and starting a new session** — the background refresh is the delivery path.
