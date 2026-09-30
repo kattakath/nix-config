@@ -133,6 +133,18 @@ in
           arch = "host";
           vmType = "vz";
           mountType = "virtiofs";
+          # Home-manager's module default is an EXPLICIT `mounts = []`, which colima
+          # treats as "share nothing" rather than falling back to its own CLI default
+          # of auto-mounting `~`. Without this, every wp-env bind mount under $HOME
+          # resolves to an empty root-owned dir inside the guest (silvercreek.ai's
+          # local WordPress clone hit this 2026-09-24/28: "elementor plugin could not
+          # be found" because wp-content/plugins was never actually shared).
+          mounts = [
+            {
+              location = "~";
+              writable = true;
+            }
+          ];
           # Sized for the 36 GiB / 12-core (6P+6E) M3 Pro, 2026-09-21: cpu = the
           # P-core count (idle vCPUs are free); memory is a hard budget, not a soft
           # cap — vz commits pages lazily, and Lima attaches a virtio balloon device but

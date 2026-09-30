@@ -249,3 +249,24 @@ is sensitive, treat it as sensitive.
   and `silvercreek-ai`; work emails stay out of the public config). Let the
   git config resolve it; never override the author on the command line except to *repair* a
   commit that predates the config being active.
+
+## On repos Ismail owns — CI/CD is a lane-keeper for others, not a gate on him
+
+ON REPOS I OWN, THE CI/CD FLOW IS FOR MAKING SURE OTHERS — BOTS AND HUMANS — KEEP THE LANE.
+NOT ME. I AM THE SUPERUSER. I PUSH STRAIGHT TO IT. EVEN IF IT BREAKS, I DON'T CARE, BECAUSE
+I OWN THE REPO — MINE IS THE BIGGEST STAKE.
+
+- **Scope: repos Ismail owns, stated as such by him.** This does not extend to a client's or
+  employer's repo, or one he merely has admin rights on but doesn't own the stake in
+  (silvercreek.ai and its like still go through the branch/backup/deploy-gate discipline
+  documented in that project's own CLAUDE.md — this rule does not override a project's own
+  safety-first section by default).
+- **How to apply:** on a repo he says he owns, direct pushes to `main`/`master` are HIS
+  call, not something to route through a branch + PR + CI ceremony by default. Don't
+  propose a branch/PR as the "safer" path on his own repos unless he asks for one — the
+  ceremony exists to keep bots and other contributors in their lane, and he isn't in that
+  lane.
+- **What this does NOT waive:** the destructive-action and irreversible-action confirmation
+  rules elsewhere in this file (force-push, `reset --hard`, deleting things) still stand —
+  this is about skipping *process* (PR/CI gatekeeping) on his own repos, not about skipping
+  *confirmation* for actions that are hard to undo regardless of who owns the repo.

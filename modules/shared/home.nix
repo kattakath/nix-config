@@ -20,9 +20,10 @@
 # gh-app-fleet-key.age, gitlab-runner-token.age) ARE host-decrypted into /run/agenix
 # at activation — macos's host key is stable.
 #
-# Deliberately MINIMAL: no nixvim/tmux — the operator uses VSCode/Cursor and
+# Deliberately MINIMAL: no nixvim — the operator uses VSCode/Cursor and
 # prefers a lean profile with starship for the shell prompt. Add tools only for
-# a clear cross-host need.
+# a clear cross-host need. (tmux added 2026-09-24 for persistent SSH sessions
+# on nixpi.)
 {
   pkgs,
   lib,
@@ -966,6 +967,7 @@ in
     with pkgs;
     [
       fh # FlakeHub CLI — flake input publishing/management, wanted on every host
+      tmux # persistent terminal multiplexing — mainly for long-running sessions over SSH on nixpi
       # Terminal background switcher, backing the red/green/blue aliases in
       # programs.zsh below. Off-the-shelf rather than three hand-rolled printfs:
       # it emits the same OSC 10/11/12 but also wraps them for tmux passthrough
