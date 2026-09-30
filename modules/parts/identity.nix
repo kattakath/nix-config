@@ -167,9 +167,10 @@ let
   # of it — which is the same statement as before, minus the pretence that a
   # subset was protecting anything. The tiers that argument was written about, named so the cost stays
   # legible rather than buried in an alphabetical list. They PARTITION the 27 names
-  # below — the bracketed counts must sum to 27, so the arithmetic is checkable
-  # instead of decorative, and a name added below without a tier here shows up as a
-  # sum that no longer lands:
+  # below — ROSTER ENTRIES, not capabilities (gmail is one capability and four
+  # entries; docs/mcp-gateway.md § Counting convention). The bracketed counts must
+  # sum to 27, so the arithmetic is checkable instead of decorative, and a name
+  # added below without a tier here shows up as a sum that no longer lands:
   #   - machine control : macos-automator (arbitrary AppleScript = RCE on this
   #                       Mac), desktop-commander (a shell, so the same reach by a
   #                       different door), chrome-devtools (live browser
@@ -182,6 +183,37 @@ let
   #   - reference       : the remaining twelve hold no credential and reach nothing
   #                       personal — lookup/compute, plus `memory`'s local scratch
   #                       graph                                                [12]
+  #
+  # WHERE THIS ARITHMETIC IS GOING — the END STATE of the ownership split
+  # (decided 2026-09-30, #658 + #657; docs/mcp-gateway.md § Which lane). Eight
+  # entries move OUT of this list into their owning marketplace plugins —
+  # mobile-mcp, chrome-devtools, kapture, macos-automator, mcpfinder, nixos,
+  # terraform, arxiv — and then, if #656's `headersHelper` prototype proves out,
+  # github and postgres follow. Re-tier in the SAME commit as each batch:
+  #
+  #   tier             | today | 19 entries (#657) | 17 entries (+ #656)
+  #   -----------------+-------+-------------------+--------------------
+  #   machine control  |  [5]  |        [1]        |        [1]
+  #   personal         |  [6]  |        [6]        |        [6]
+  #   credentialed     |  [4]  |        [4]        |        [2]
+  #   reference        | [12]  |        [8]        |        [8]
+  #   -----------------+-------+-------------------+--------------------
+  #   sum              |  27   |        19         |        17
+  #
+  # MACHINE CONTROL GOES [5] -> [1], AND THAT IS THE STRONGEST ARGUMENT FOR THE
+  # SPLIT — the one nothing else in this repo had written down. macos-automator,
+  # chrome-devtools, kapture and mobile-mcp become LOCAL PLUGIN STDIO: spawned by
+  # Claude Code per session, never published, NOT PORTAL-REACHABLE AT ALL. The
+  # blast radius of a leaked Access service token therefore falls from five
+  # machine-control servers to ONE (desktop-commander, which stays here because it
+  # is the RCE surface the operator published on purpose, #660). The published
+  # surface shrinks by exactly the tier this comment was written to keep legible.
+  #
+  # What it COSTS, stated rather than implied: a plugin-owned server is
+  # Claude-Code-only. It vanishes from Claude Desktop and the Cowork bridge
+  # (modules/shared/claude-desktop.nix § THE PLUGIN CONSEQUENCE), loses its
+  # flake.lock pin, and cannot carry a Keychain credential — which is exactly why
+  # github and postgres are held back pending #656.
   #
   # desktop-commander is tiered as MACHINE CONTROL deliberately, not as reference:
   # modules/shared/mcp.nix and docs/mcp-gateway.md both call it the shell/RCE
