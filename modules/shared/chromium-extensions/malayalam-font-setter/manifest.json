@@ -1,0 +1,7 @@
+{
+  "manifest_version": 3,
+  "name": "Malayalam Font Setter (one-shot, remove after use)",
+  "version": "1.0",
+  "permissions": ["fontSettings"],
+  "background": { "service_worker": "bg.js" }
+}
