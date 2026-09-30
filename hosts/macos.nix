@@ -444,9 +444,11 @@ in
       "neonctl" # Neon DB CLI (https://neon.tech/docs/reference/neon-cli)
       "ocrmypdf"
       "pyenv"
-      # scrcpy — mirror/control a PHYSICAL Android phone on the Mac (pulls its own
-      # adb; the android-platform-tools cask provides the adb mobile-mcp uses).
-      "scrcpy"
+      # `scrcpy` is NOT brewed any more (2026-09-29): nixpkgs carries it (4.1,
+      # builds and substitutes on aarch64-darwin), so it moved to
+      # modules/shared/home.nix for flake.lock pinning. `adb` deliberately did
+      # NOT move — the android-platform-tools cask below still owns it, because
+      # mobile-mcp and android-phone both resolve that one.
       "shellcheck"
       # `starship` is NOT brewed either, for the same reason as `git` above:
       # programs.starship installs it and writes ~/.config/starship.toml, both
@@ -490,7 +492,8 @@ in
       # modules/shared/containers.nix (`local.containers`); the `docker*` brews
       # above stay as the client.
       "dropbox"
-      # escrcpy — graphical frontend for scrcpy (the `scrcpy` brew above), for
+      # escrcpy — graphical frontend for scrcpy (nixpkgs now, see the note in the
+      # brews list above; escrcpy ships its own copy under Resources/extra), for
       # driving a PHYSICAL Android phone by mouse instead of remembering flags.
       # Complements, never replaces, `android-phone` (packages/android-phone.nix):
       # that CLI still owns the adb pairing/connect footguns it exists to encode,
