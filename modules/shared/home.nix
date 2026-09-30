@@ -626,7 +626,7 @@ in
   # The Claude Code plugin set — DATA only; the registration + install mechanism
   # is ./claude-plugins.nix. Same keyed-attrset seam as the userscripts above: a
   # layer composed in through `extraHomeModules` adds its own marketplace and the
-  # four declared below survive untouched. `plugins` is a listOf, so such a layer
+  # eight declared below survive untouched. `plugins` is a listOf, so such a layer
   # can even append a plugin to a marketplace declared here.
   #
   # `source` is mkDefault throughout so a downstream layer can repoint one (a
@@ -913,6 +913,96 @@ in
         # to act on another session's message (kattakath/skills#26).
         "session-relay"
       ];
+    };
+
+    # ---- UPSTREAM marketplaces of repos this fleet ALREADY PINS as skill inputs
+    # (added 2026-09-30, kattakath/nix-config#650) -----------------------------
+    #
+    # Four of the twelve `agent-skills-*` inputs point at repos that publish their
+    # OWN .claude-plugin/marketplace.json. Declaring those marketplaces is the
+    # off-the-shelf route to the same content: the upstream owns the packaging, the
+    # skill set, and the release discipline, and this repo stops cherry-picking
+    # subdirectories out of a tarball.
+    #
+    # DELIBERATELY `plugins = [ ]` ON ALL FOUR, and that is the whole point of this
+    # PR rather than an oversight. Registering a marketplace INSTALLS NOTHING — it
+    # only makes `<plugin>@<marketplace>` resolvable. The plugins must be enabled
+    # before any of their skills appears — and today NONE of them is: measured
+    # 2026-09-30, the intersection of the 45 skill names declared in
+    # `programs.claude-code.skills` below with all 78 skill names the CURRENTLY
+    # INSTALLED marketplace plugins provide is EMPTY. So removing an input in the
+    # same change would open a real capability gap between the two events, and even
+    # a plugin whose skill directory looks identical (anthropic-agent-skills'
+    # `document-skills` bundles pdf/docx/pptx/xlsx as one unit) has to be enabled
+    # and SEEN in a session before the `skills` entry can go. The sequence is:
+    #   1. this PR — declare the marketplaces;
+    #   2. operator enables the plugins he wants (/plugin, or a `plugins` list here);
+    #   3. verify the skills actually appear in a session;
+    #   4. a FOLLOW-UP PR removes the matching inputs + `skills` entries.
+    # Nothing below removes an input or a skill entry; do not fold step 4 in here.
+    #
+    # `autoUpdate` is left at its `false` default on all four, matching every other
+    # third-party marketplace in this attrset (`claude-plugins-official`,
+    # `context7-marketplace`) — only `kattakath` (the operator's own repo) is `true`.
+    # These are other people's repos, and autoUpdate means whatever lands on their
+    # `main` reaches this Mac on a background refresh with no review. It is also
+    # moot while `plugins = [ ]`: there is nothing installed to update. Revisit it
+    # per-marketplace in step 2, when a plugin is actually enabled.
+    #
+    # LICENCE, and why marketplace-not-vendor is the RIGHT shape here:
+    # `trailofbits/skills` is CC-BY-SA-4.0 — a share-alike licence. Consuming it as
+    # a marketplace leaves the bytes upstream, under their licence, with their
+    # attribution intact; republishing those skills into `kattakath/skills` (the
+    # alternative, since that is where this fleet's own plugins live) would put
+    # CC-BY-SA content into a repo that is not CC-BY-SA, plus 44 forked copies to
+    # keep in step with upstream. `anthropics/skills` has NO LICENSE file at all
+    # (source-available), which is the same argument even harder.
+    #
+    # Every KEY below is the `name` field of that repo's own
+    # .claude-plugin/marketplace.json, fetched and read 2026-09-30 — NOT the repo or
+    # org name. The activation loop in ./claude-plugins.nix greps `plugin
+    # marketplace list` for the key and derives the install id as
+    # "<plugin>@<key>", so a guessed key silently resolves nothing.
+    #   cloudflare/skills     -> "cloudflare"                 (1 plugin)
+    #   trailofbits/skills    -> "trailofbits"                (44 plugins)
+    #   obra/superpowers      -> "superpowers-dev"            (1 plugin)  <- NOT "superpowers"
+    #   anthropics/skills     -> "anthropic-agent-skills"     (5 plugins) <- NOT "anthropic" / "-official"
+
+    # OFFICIAL Cloudflare (Apache-2.0), input `agent-skills-cloudflare`. One plugin,
+    # `cloudflare`, whose skills include the two already declared below
+    # (`cloudflare`, `cloudflare-one`) plus the rest of the product reference.
+    cloudflare = {
+      source = lib.mkDefault "https://github.com/cloudflare/skills.git";
+      plugins = [ ];
+    };
+
+    # Trail of Bits (CC-BY-SA-4.0), input `agent-skills-trailofbits`. 44 plugins,
+    # including the two this repo cherry-picks below (`gh-cli`,
+    # `supply-chain-risk-auditor`). See the licence note above — share-alike is a
+    # positive reason to consume this as a marketplace rather than vendor it.
+    trailofbits = {
+      source = lib.mkDefault "https://github.com/trailofbits/skills.git";
+      plugins = [ ];
+    };
+
+    # obra/superpowers (MIT), input `agent-skills-superpowers`. The marketplace
+    # publishes as `superpowers-dev`; its single `superpowers` plugin is the whole
+    # skills library, of which this repo currently pins ONE skill
+    # (`systematic-debugging`) by subpath.
+    superpowers-dev = {
+      source = lib.mkDefault "https://github.com/obra/superpowers.git";
+      plugins = [ ];
+    };
+
+    # anthropics/skills (no LICENSE file — source-available), input
+    # `agent-skills-anthropic-official`. Its `document-skills` plugin bundles the
+    # four document skills declared below (pdf/docx/pptx/xlsx) as ONE unit, and
+    # `example-skills` carries mcp-builder + webapp-testing. DISTINCT from
+    # `claude-plugins-official` above (anthropics/claude-plugins-official) — two
+    # different Anthropic repos, two different marketplaces.
+    anthropic-agent-skills = {
+      source = lib.mkDefault "https://github.com/anthropics/skills.git";
+      plugins = [ ];
     };
   };
 
