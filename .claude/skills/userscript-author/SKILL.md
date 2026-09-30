@@ -6,8 +6,9 @@ description: >
   gates any. Since 2026-09-14 delivery is PUBLICATION (Greasy/Sleazy Fork, then
   one install click), not a Nix declaration. Use alongside the
   `page-lab:userscript-author` skill when asked to "make <site> do X", "write a
-  userscript for <site>", "fix my <site> script", or "this site's X annoys me".
-  The authoring METHOD lives in that plugin (published at kattakath/ai);
+  userscript for <site>", "fix my <site> script", "this site's X annoys me", or
+  "can I see my userscript edits live/reflected in the browser" (Violentmonkey
+  live-tracking). The authoring METHOD lives in that plugin (published at kattakath/ai);
   this skill owns only the delivery and install reality of this fleet.
 ---
 
@@ -96,10 +97,53 @@ its gates the same day.
   navigating to the fork listing.
 - One-time per profile, in `chrome://extensions`: **Allow User Scripts** + **Allow access to
   file URLs** (Chrome 138+ refuses to let policy set the first).
-- Claude cannot install a script, flip a toggle, or drive Violentmonkey's dialog. That click is
-  always the operator's.
+- Claude cannot install a script, flip a toggle, or drive Violentmonkey's dialog **unless**
+  `local.mcpGateway.chromeDevtools.allowExtensions` is on (it is, on `macos`) — see the
+  live-tracking loop below, which is exactly that exception.
 - **Activation is no longer part of the loop.** Publishing changes nothing in the Nix closure, so
   a userscript no longer needs `activate` at all.
+
+## Live-tracking loop — driving Violentmonkey directly (preferred over the fallback below)
+
+With `local.mcpGateway.chromeDevtools.allowExtensions = true` (`hosts/macos.nix`, option
+documented in `modules/shared/mcp.nix`), chrome-devtools-mcp can navigate and drive
+`chrome-extension://` pages — including Violentmonkey's own install/confirm dialog. This
+supersedes the Kapture-injection fallback below for any script being authored against a
+**local `file://` copy**; reach for that fallback only when `allowExtensions` is off, or the
+script has no local file to track (already published, editing live in place).
+
+1. Navigate any page (`new_page`/`navigate_page`, `background: true` is fine) to the script's
+   `file://` path. Violentmonkey redirects it to
+   `chrome-extension://…/confirm/index.html#<token>`.
+2. On that page: click **Track external edits**, then check **Reload tab**. This tab must
+   **stay open** — the tracking loop lives in it, not in a background poll or in
+   `chrome.storage`. Closing it (or navigating it away) stops detection outright.
+3. Get (or create) the tab the script actually targets, then force it **Chrome-active**, not
+   merely "selected" by tooling:
+   ```js
+   const [tab] = await chrome.tabs.query({url: "https://example.com/*"});
+   await chrome.tabs.update(tab.id, {active: true});
+   ```
+   Run this from any extension-context page (the confirm tab itself works). **This is the
+   load-bearing, easy-to-miss step.** A tab created with `background: true` is `active: false`
+   at Chrome's own tab-model level — a separate axis from OS window focus — and Violentmonkey's
+   "Reload tab" only reloads the tab Chrome considers active. Skip this and you get a session
+   that correctly detects every edit (`chrome.storage.local['code:<id>']` updates right on
+   schedule, visible from any extension page) while the actual browser tab never once reloads —
+   which reads exactly like a broken cache and is not one.
+4. Edit the file. Detection + auto-reload typically lands within tens of seconds once steps 2–3
+   are set up — no `activate`, no browser relaunch, no extension reload needed per edit after
+   that.
+
+**Verifying the edit actually landed:** don't only check `document.styleSheets` / `<style>`
+tags. A script using **Constructable Stylesheets** (`document.adoptedStyleSheets`) injects CSS
+in a way that is invisible to both. Check both surfaces:
+```js
+[...document.querySelectorAll('style')].some(s => s.textContent.includes(MARKER))
+|| [...(document.adoptedStyleSheets||[])].some(s => [...s.cssRules].some(r => r.cssText.includes(MARKER)))
+```
+Checking only the first gives a false "still stale" reading while the real mechanism already
+worked — burned a full session chasing phantom cache/registration bugs before this was caught.
 
 ## Live-edit loop — no operator at the keyboard (fallback)
 
