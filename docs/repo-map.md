@@ -2680,8 +2680,14 @@ Two plugins:
   routes (raw CDP / chrome-devtools-mcp / claude-in-chrome / Kapture / operator-paste), and a
   **measured** fact table (`references/facts.md`) where every falsifiable claim has an ID, a
   date and a re-measure recipe — because `chrome-devtools-mcp@1.8.0` exposes **29** of the ~57
-  tools its generated docs describe (those are written from `main`), so the entire Extensions
-  group and 12 of 13 Memory tools do not exist yet. The MCP server itself is opt-in in
+  tools its generated docs describe (those are written from `main`), so 12 of 13 Memory tools
+  do not exist yet. **The Extensions group claim above is now stale for this fleet**: as of
+  2026-09-30, `local.mcpGateway.chromeDevtools.allowExtensions` (off by default, on for
+  `macos`) passes `--categoryExtensions`, verified working in attach mode against this
+  fleet's Chrome 152 despite upstream's own `--help` claiming otherwise — the group's tools
+  DO navigate/list `chrome-extension://` pages and service workers once it is on; read that
+  option's doc in `mcp.nix` for the measurement and the security tradeoff it accepts. The MCP
+  server itself is opt-in in
   `modules/shared/mcp.nix` (`local.mcpGateway.chromeDevtools.enable`), in ATTACH mode
   against **Chromium** (it was Opera Air until 2026-09-21, when Opera was removed from
   the Mac); read that option's warning before enabling it. The attach flag is
