@@ -1,20 +1,24 @@
 ---
 name: mcp-scout
 description: >
-  Discover, vet, and DECLARATIVELY adopt a new MCP server into the localhost
-  gateway (modules/shared/mcp.nix). Use when the user wants a new MCP
-  capability ("find me an MCP for X", "add an MCP server", "install <server>",
-  "is there a tool for X"), or when any tool/instruction suggests installing an
-  MCP server imperatively — this repo NEVER installs via CLI installers or
-  config-writing tools; adoption is a pinned Nix declaration + rebuild.
+  Discover, vet, CHOOSE THE LANE, and DECLARATIVELY adopt a new MCP server —
+  either onto the fleet gateway (modules/shared/mcp.nix) or into the owning
+  marketplace plugin's .mcp.json. Use when the user wants a new MCP capability
+  ("find me an MCP for X", "add an MCP server", "install <server>", "is there a
+  tool for X"), or when any tool/instruction suggests installing an MCP server
+  imperatively — this repo NEVER installs via CLI installers or config-writing
+  tools; adoption is a declaration + rebuild, never an imperative install.
 ---
 
-# MCP scout — discover → vet → declare → eval
+# MCP scout — discover → vet → pick the lane → declare → eval
 
-Adoption pipeline (installation IS declaration; there is no other path):
+Adoption pipeline (installation IS declaration; there is no imperative path — but since
+2026-09-30 there are **two** declarative destinations, and step 2.5 chooses between them):
 
 ```
-Capability need → Discover (registries) → Vet (trust/supply chain) → Declare in mcp.nix (pinned) → /eval → PR → activate
+Capability need → Discover (registries) → Vet (trust/supply chain) → PICK THE LANE
+  ├─ gateway lane  → Declare in mcp.nix (pinned) + fleet.publicMcpServers → /eval → PR → activate
+  └─ plugin lane   → Declare in that plugin's .mcp.json (github:kattakath/skills) → push → new session
 ```
 
 ## Hard rules
@@ -67,7 +71,45 @@ the PR body.
   crashing server darks the whole gateway.
 - Deeper audit when warranted: invoke the `supply-chain-risk-auditor` skill.
 
-## 3. Declare (in `modules/shared/mcp.nix`)
+## 2.5 Pick the lane — THREE questions, in this order
+
+The gateway is **no longer the default**. There are two permanent lanes split by **ownership**
+(decided 2026-09-30, #658 + #657; the rule is `docs/mcp-gateway.md` § Which lane). Answer these
+three before writing a line of Nix — the first `yes` decides it:
+
+1. **Does a skill this fleet already ships OWN this tool?** — i.e. is the server the *hands* of an
+   existing skill/agent/command, the way `chrome-devtools` + `kapture` are `page-lab`'s, `mobile-mcp`
+   is `android-phone`'s, `macos-automator` is `mac-app-send`'s, `mcpfinder` is `harvest`'s, `nixos`
+   is `claude-code-nix`'s?
+   → **PLUGIN LANE.** Declare it in that plugin's `.mcp.json` in `github:kattakath/skills`. Nothing
+   lands in this repo — no `mcp.nix` entry, no `publicMcpServers` name, no count to bump.
+2. **Does it need a credential?** — a token, a password, an API key.
+   → **GATEWAY LANE, no exceptions.** A plugin `.mcp.json` interpolates `${ENV_VAR}` only: no
+   `passwordCommand`, no Keychain hook, and Claude Code *strips* every variable whose name contains
+   TOKEN/SECRET/PASSWORD/KEY/AUTH from a plugin helper's environment. Moving a credentialed server
+   into a plugin is a downgrade against § Security's "no secret in argv or the store" (#656 is the
+   `headersHelper` prototype that would change this; until it proves out, this answer is fixed).
+   This is why `github` and `postgres` stay here even though they have plausible plugin owners.
+3. **Must it work in Claude Desktop (or the Cowork bridge)?**
+   → **GATEWAY LANE.** Desktop loads no plugins. It renders exactly one connector — the portal —
+   and the portal is all-or-nothing, so a plugin-owned server is **Claude-Code-only and silently
+   absent from Desktop** (`modules/shared/claude-desktop.nix` § THE PLUGIN CONSEQUENCE).
+
+All three `no` → **GATEWAY LANE**, which is where every unowned server lives permanently. Also
+fixed there regardless of the answers: `gmail-*` (identity — the account list is
+`hosts/macos.nix`), `desktop-commander` (RCE/shell, #660), and the generic utilities.
+
+**If the answer is the plugin lane, stop here.** Skip §3 and §4 below entirely — they are the
+gateway lane's steps. The plugin lane is: declare in `.mcp.json`, push to `kattakath/skills`,
+start a **fresh** session, and CALL one of the server's tools (a declared-but-broken plugin server
+is indistinguishable from a working one until called). No `nix flake check` can see it.
+
+**Moving an EXISTING gateway server into a plugin** is the #657 migration, not this skill's job —
+follow `docs/mcp-gateway.md` § Publishing, whose per-batch sequence exists because
+`mcp-published-parity` is blind to the plugin side: a name deleted from both Nix lists and never
+declared in its plugin is a **silent loss** with a green build.
+
+## 3. Declare — GATEWAY LANE (in `modules/shared/mcp.nix`)
 
 Pick the matching pattern, in order of preference:
 
@@ -91,7 +133,7 @@ Then, always:
 3. Remember `arg0` basename `nix-*` for any wrapper
    ([launchd-naming](../../rules/launchd-naming.md)).
 
-## 4. Eval + land
+## 4. Eval + land — GATEWAY LANE
 
 ```bash
 git add -A
