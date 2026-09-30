@@ -584,6 +584,7 @@ let
   # this at startup. A browser that changes mode afterwards is not re-detected until
   # the gateway restarts. The fallback is the lazy one, so an absent browser still
   # does not dark the gateway [F-MCP-SURVIVES-CLOSED-PORT].
+  chromeDevtoolsExtensionsFlag = lib.optionalString cfg.chromeDevtools.allowExtensions "--categoryExtensions";
   chromeDevtoolsMcp = pkgs.writeShellScriptBin "nix-mcp-chrome-devtools" ''
     set -eu
     dir="${cfg.chromeDevtools.userDataDir}"
@@ -606,14 +607,14 @@ let
       if /usr/bin/curl -fsS --max-time 2 "http://127.0.0.1:$p/json/version" >/dev/null 2>&1; then
         exec ${npx} -y chrome-devtools-mcp@latest \
           --browser-url="http://127.0.0.1:$p" \
-          ${lib.optionalString cfg.chromeDevtools.allowExtensions "--categoryExtensions"} \
+          ${chromeDevtoolsExtensionsFlag} \
           --no-usage-statistics --no-performance-crux
       fi
     done
 
     exec ${npx} -y chrome-devtools-mcp@latest \
       --autoConnect --userDataDir="$dir" \
-      ${lib.optionalString cfg.chromeDevtools.allowExtensions "--categoryExtensions"} \
+      ${chromeDevtoolsExtensionsFlag} \
       --no-usage-statistics --no-performance-crux
   '';
 
