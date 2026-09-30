@@ -240,10 +240,25 @@ files, stays in the **always confirm** column and is never an auto-fix.
 **Then verify the outcome, rather than trusting the clean exit.** For anything
 newly *declared* (a Claude plugin or skill in `modules/shared/home.nix`, say),
 the built config is what enables it, so read the activated state back — the
-`enabledPlugins` keys of `~/.claude/settings.json` — and compare to what the
-repo declares. Declared but absent means the **tree was stale**, not that the
-marketplace failed: a marketplace's own git sha refreshes on every activation
-regardless, so a fresh sha proves nothing about your change.
+`enabledPlugins` and `extraKnownMarketplaces` keys of `~/.claude/settings.json`
+— and compare to what the repo declares.
+
+**An absent plugin is a THREE-way split, not a stale tree by default.** Since
+2026-09-30 `home.activation.claudeCodePlugins` is narrowed to store-path
+marketplaces (`repin = true`, derived from `hasPrefix "/" source`), so what
+activation touches is a strict subset of what is declared:
+
+| Case | What activation does | Absent plugin means |
+|---|---|---|
+| **store-path** marketplace (`repin = true` — today only `xai-grok-build`) | re-pins the marketplace and installs its ids | the **tree was stale**, OR activation failed |
+| **https** marketplace (`kattakath`, `claude-plugins-official`, `context7-marketplace`) | **nothing** — no `marketplace add`, no `plugin install` | **normal** until the next session start; Claude Code clones and downloads it itself |
+| marketplace missing from `extraKnownMarketplaces` | n/a — the declaration never reached settings | this, and only this, **proves a stale tree** |
+
+So check the marketplace ENTRY before the plugin. And do not expect activation to
+have moved an https marketplace's sha: it no longer refreshes any of them —
+**Claude Code does**, in the background, and only for a marketplace carrying
+`autoUpdate` (today just `kattakath`). A fresh sha proves nothing about your
+change, and a stale one proves nothing about the tree.
 
 ## Report format (always end with this)
 
