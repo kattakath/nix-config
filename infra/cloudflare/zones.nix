@@ -12,7 +12,7 @@
 # account and share no failure mode with a tunnel. They must not ride in a plan
 # whose other half is a Raspberry Pi.
 #
-# Records come from `config.fleet.dnsRecords` (modules/parts/dns.nix) as DATA and
+# Records come from `config.fleet.dnsRecords` (infra/cloudflare/kattakath-dns.nix) as DATA and
 # are rendered by one `map` — the same shape `hostedSites` and `publicMcpServers`
 # already use. Nothing about a record is computed here; this file is the renderer,
 # that file is the content.
@@ -24,7 +24,7 @@
   lib,
   zoneId,
   domainName,
-  # The records to manage, as `modules/parts/dns.nix` builds them. REQUIRED, not
+  # The records to manage, as `infra/cloudflare/kattakath-dns.nix` builds them. REQUIRED, not
   # defaulted: a `? [ ]` here would render an empty zone, and an empty render
   # against a populated state is the exact shape that DELETES every record while
   # reporting success. Let it fail at eval instead.
