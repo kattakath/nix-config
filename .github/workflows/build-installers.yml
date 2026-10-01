@@ -189,8 +189,21 @@ jobs:
   # eval-only `gate` and cache-only `record-baseline` jobs never receive it.
   installers:
     needs: [gate]
+    # A CALLED workflow cannot request more than its CALLER grants — GitHub refuses the
+    # whole run at startup (`startup_failure`, zero jobs, no log) rather than trimming
+    # the extra. So these three must stay a SUPERSET of
+    # `build-installers-impl.yml`'s `build` job permissions; #697 added
+    # `attestations`/`id-token` there and not here, and every push that touched the
+    # image paths failed to start for 10 runs — the republished image silently stopped
+    # existing while CI looked fine, because a startup failure runs no check.
+    #
+    # `actionlint` does NOT catch this: it lints each file on its own and has no
+    # cross-file caller/callee permission model. That is why the invariant is written
+    # here instead of being left to the gate.
     permissions:
       contents: write
+      attestations: write
+      id-token: write
     # Skip BOTH the ~1h build and the non-idempotent multi-GB upload when the image
     # is unchanged. is_publish is always true for this workflow's triggers; the
     # load-bearing guard is changed (see the gate comment).
