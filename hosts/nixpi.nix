@@ -3,9 +3,14 @@
 # Build a flashable SD card image:
 #   nix build .#nixosConfigurations.nixpi.config.system.build.sdImage
 #
-# SSH ACCESS: over the Cloudflare Tunnel connector below (remotely-managed,
-# token-based — no port-forward, no public IP). mDNS (nixpi.local) also works
-# on the LAN. Wi-Fi is provisioned the same way as the token (a wpa_supplicant.conf
+# SSH ACCESS: TWO ingresses, deliberately. (1) Over the Cloudflare Tunnel
+# connector below (remotely-managed, token-based — no port-forward, no public IP),
+# which is the only INTERNET path and the only one Cloudflare Access gates.
+# (2) `ssh ismail@nixpi.local` from the same LAN segment — `local.lanRecovery`
+# (modules/nixos/lan-recovery.nix) opens sshd's port on end0/wlan0 only, so a dead
+# connector is no longer a total loss of the host. Both are keys-only; the LAN one
+# does NOT traverse Access and is not logged there, which the module header
+# justifies. Wi-Fi is provisioned the same way as the token (a wpa_supplicant.conf
 # planted on the FIRMWARE partition — see the wifi block below), so a headless nixpi
 # reaches nixpi.kattakath.com over the tunnel from first boot with no LAN cable,
 # keyboard, or monitor. The connector token is planted on the SD card's FAT FIRMWARE
@@ -13,15 +18,15 @@
 # see docs/nixpi-sd-flashing-runbook.md) and copied into a root-only /run file by
 # a oneshot before the connector starts. This deliberately does NOT use agenix:
 # agenix binds the token to nixpi's SSH host key, but a fresh SD flash mints a new
-# host key, so the agenix ciphertext stops decrypting and the tunnel dies — and the
-# tunnel is the only remote path in, so that is unrecoverable (the reflash lockout).
-# The connector unit retries on failure (Restart=on-failure) so a token refresh
-# self-heals.
+# host key, so the agenix ciphertext stops decrypting and the tunnel dies — and a
+# token the host cannot decrypt is only fixable from the card or the LAN, which is
+# the reflash lockout this file is shaped around. The connector unit retries on
+# failure (Restart=on-failure) so a token refresh self-heals.
 #
-# NETWORK SSH is the operator's static key (modules/nixos/core.nix) over the tunnel,
-# reached client-side with `cloudflared access ssh --hostname nixpi.kattakath.com`
-# (keys-only, no password). Physical console (getty) is the independent break-glass
-# path.
+# NETWORK SSH is the operator's static key (modules/nixos/core.nix), reached either
+# with `cloudflared access ssh --hostname nixpi.kattakath.com` over the tunnel or
+# directly at `nixpi.local` from the LAN (keys-only, no password, both ways).
+# Physical console (getty) is the independent break-glass path.
 {
   lib,
   pkgs,
@@ -50,9 +55,10 @@
     # half-resolving.
     cloudflaredConnectorModule
     firmwareSecretsModule
-    # Imported by PATH, unlike the two capsules above, because it is a plain
-    # in-tree NixOS module rather than a capsule with its own flake-module.nix.
+    # Imported by PATH, unlike the two capsules above, because both are plain
+    # in-tree NixOS modules rather than capsules with their own flake-module.nix.
     ../modules/nixos/uplink-watchdog.nix
+    ../modules/nixos/lan-recovery.nix
   ];
 
   # The router this host is dual-homed onto keeps its LAN alive while losing its
@@ -63,6 +69,27 @@
   # default route and escalates; the module header carries the full reasoning and
   # the upstream-first grep that justifies it being ours.
   local.uplinkWatchdog.enable = true;
+
+  # SECOND INGRESS. The watchdog above can only ever hand the tunnel a working
+  # uplink; it is powerless when the CONNECTOR itself dies, which is what happened
+  # on 2026-10-01 (Access healthy and still issuing a login URL, zone healthy, the
+  # site answering Cloudflare 1033 and SSH timing out at banner exchange). With
+  # sshd loopback-bound that was a total loss of the host and a ~40-minute physical
+  # reflash. This opens sshd's port on the two LAN interfaces — keys-only, not
+  # internet-reachable — so the LAN becomes a real recovery path. The module header
+  # carries the exposure analysis and the upstream-first grep; the interface list
+  # is cross-checked by `nixpi-security-posture` against the two places these two
+  # names are independently spelled, so a rename cannot leave this list stale.
+  #
+  #   end0  — the Pi 4's wired port (local.uplinkWatchdog.wiredInterface)
+  #   wlan0 — the radio the supplicant instance below owns
+  local.lanRecovery = {
+    enable = true;
+    interfaces = [
+      "end0"
+      "wlan0"
+    ];
+  };
 
   # NixOS defaults to a VOLATILE journal (wiped on reboot). The uplink-watchdog's
   # probe/escalate/restore trail is the best timestamp source for dating a router
