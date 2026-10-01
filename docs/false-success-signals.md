@@ -1,14 +1,19 @@
-# False success signals — four measured instances of one shape
+# False success signals — six measured instances of two shapes
 
 A check that cannot fail is not a check. This file records the specific way that happened here
-**four times in one session**, because each instance looked different and the shape only became
-obvious after the fourth.
+**six times in one session**, because each instance looked different and the shape only became
+obvious after the fourth. Instances 5 and 6 then showed it has a **second half** that is harder to
+see than the first.
 
-**The shape: a success signal the system did not produce.**
+**Shape A — a success signal the system did not produce.** (Instances 1-4.)
+**Shape B — a FALSE ABSENCE: the thing you looked for was not there, and you concluded it does not
+exist.** (Instances 5-6.) Shape A hands you a confirmation you should not trust; shape B hands you
+nothing at all, and nothing reads exactly like "fine".
 
-In every case something printed, exited zero, or read as confirmation — and in every case the thing
-that produced it was not the system being tested. The failure is invisible by construction: there is
-nothing to notice, because the signal says it worked.
+Under shape A something printed, exited zero, or read as confirmation, and the thing that produced it
+was not the system being tested. Under shape B nothing was produced at all. Either way the failure is
+invisible by construction: there is nothing to notice, because the signal says it worked — or because
+there is no signal, and no signal is indistinguishable from a quiet success.
 
 ## The four
 
@@ -22,12 +27,36 @@ nothing to notice, because the signal says it worked.
 Instances 1, 2 and 3 were this session's main agent; 4 was a peer session. The split matters only
 because it shows the shape is not one person's habit.
 
+## The two of shape B — a false ABSENCE
+
+| # | What was concluded | Why the absence was not evidence |
+|---|---|---|
+| 5 | `ls docs/false-success-signals.md` → *No such file*, therefore **this file does not exist** | It existed, on `main`, merged as #715 and indexed in `repo-map.md`. The `ls` ran in a **worktree branched before that merge**, and the confirming `git log -1 -- <path>` was scoped to the same stale tree, so it agreed. A working tree is not the repo |
+| 6 | `build-installers` CI looked clean, therefore the SD image was being republished | **Ten consecutive `startup_failure` runs.** A startup failure creates **no job**, so it runs no check, writes no log, and `gh run view` offers only "likely a workflow file issue". `installer-latest` silently stopped being refreshed for ~10 h while every PR stayed green |
+
+Instance 5 was a peer session; 6 was this session's main agent — and 6 was caused by **#697, whose
+own evidence was sound about the wrong half**: the attestation gate was confirmed *present in the
+built script* and shellcheck accepted it. Both true, both about the **consuming** side. Nothing
+exercised the **publishing** side, where the break was.
+
+The cure for shape B is the mirror of the rule below: **name where the absence would have to show up,
+and read THAT**, rather than reading somewhere it merely could.
+
+| Instead of | Read |
+|---|---|
+| `ls <path>` / `git log -- <path>` in your checkout | `git ls-tree origin/main <path>` — the branch you are actually claiming about |
+| "CI is green, so the job ran" | the run list's **conclusion** per run (`gh run list --workflow=X`), since a `startup_failure` is absent from the checks a PR shows |
+| "the artifact publishes on every merge" | the artifact's own `updatedAt` on the release |
+
 ## The rule
 
 > **If the claim matters, the next read is the evidence.**
 
 Not the exit code of a pipeline, not a message you wrote yourself, not the absence of an error. Run
 the query that observes the *state*, and quote what it returned.
+
+For shape B the same rule reads: **silence is not a measurement.** A thing that never emitted a
+failure may never have run, and a file missing from your tree may only be missing from your tree.
 
 Concretely, for the four above:
 
@@ -59,3 +88,21 @@ not know that it does.
 `nix eval` can hide a `throw`. A guard verified by eval is not known to fire. This is recorded
 separately in the repo's own memory of the incident; it belongs here too because it is the same
 question — *what would failure look like, and did I actually observe it?*
+
+## The gate that structurally cannot catch instance 6
+
+`checks.<system>.actionlint` is a real gate — it was proven to fail (see the corollary above). It
+still cannot see instance 6, and the reason generalises:
+
+```
+actionlint, on the caller + called workflow exactly as they stood on main  ->  exit 0, no diagnostics
+```
+
+A called workflow may not request more permission than its caller grants; GitHub refuses the whole
+run at startup rather than trimming the excess. `actionlint` lints **each file independently** and
+has no cross-file caller/callee permission model, so the invariant lives in a comment at the caller
+in `build-installers.yml` instead.
+
+That is the honest limit worth recording: **some invariants span two files, and a per-file linter
+cannot hold them.** When that is the case, say so where the reader is, rather than assuming the gate
+has it covered.

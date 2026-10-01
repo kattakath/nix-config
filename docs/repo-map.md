@@ -3016,9 +3016,12 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
 - [`docs/answer-shape-evidence.md`](docs/answer-shape-evidence.md) — the published standards
   (COGA, ISO 24495-1, BDA) and effect sizes behind § Answer shape, so the rules stop being
   re-litigated as taste. **A diagram that carries no data measurably HURTS** (g ≈ −0.4).
-- [`docs/false-success-signals.md`](docs/false-success-signals.md) — four measured instances of one
-  shape: a success signal the system did not produce (`--help` exiting zero, `&& echo "done"` after a
-  silent no-op, a NEGATED closing keyword still firing, a clobbered `PIPESTATUS`). Plus the corollary —
+- [`docs/false-success-signals.md`](docs/false-success-signals.md) — six measured instances of TWO
+  shapes. **A:** a success signal the system did not produce (`--help` exiting zero, `&& echo "done"`
+  after a silent no-op, a NEGATED closing keyword still firing, a clobbered `PIPESTATUS`). **B — a
+  false ABSENCE:** `ls` in a worktree branched before the merge "proving" a file does not exist, and
+  ten `startup_failure` runs republishing no image while every PR stayed green (a startup failure
+  creates no job, so it runs no check). Plus the corollary —
   a gate only ever seen green is not known to gate, and why a fail-closed guard must be checked with
   `nix build` rather than `nix eval`.
 - [`docs/terminal-theme.md`](docs/terminal-theme.md) — the one terminal palette: provider
