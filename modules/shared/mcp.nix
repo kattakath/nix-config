@@ -361,7 +361,6 @@ let
     "desktop-commander"
     "duckduckgo"
     "json-yaml-toml"
-    "macos-automator"
     "apify"
     "wordpress"
     "mcp-jq"
@@ -711,13 +710,6 @@ let
   #     `modules/shared/claude-guardrails.nix`. Version pin lives in
   #     `catalogArgOverrides` for exactly that reason: don't let a future
   #     release reintroduce that tool silently.
-  #   macos-automator — native macOS automation via osascript
-  #     (steipete/macos-automator-mcp, 854★). A POWERFUL surface
-  #     (`execute_script` can `do shell script` and drive any app) but
-  #     localhost-only like the rest of the gateway, and shared across clients
-  #     by request. Needs a ONE-TIME Accessibility (TCC) grant for
-  #     /usr/bin/osascript — see `home.activation.macosAutomatorAccessibilityCheck`
-  #     below and docs/mcp-gateway-accessibility-tcc.md.
   #   apify — Apify Store's Actors as tools (search/run/dataset access), run
   #     LOCALLY via APIFY_TOKEN — NOT the hosted mcp.apify.com OAuth bridge
   #     used until 2026-08-19 (that flow needs an interactive browser redirect
@@ -1149,7 +1141,17 @@ in
     programs.vscode.profiles.default.enableMcpIntegration = lib.mkIf config.programs.vscode.enable true;
 
     # ---- macos-automator Accessibility (TCC) preflight — non-fatal nudge -------
-    # The macos-automator server drives System Events UI scripting via
+    # KEPT AFTER macos-automator LEFT THE GATEWAY (#657, 2026-10-01). The server is
+    # mac-app-send's now, but the GRANT it depends on is still this fleet's problem,
+    # and this probe is the only thing that tells the operator it is missing — so
+    # deleting it with the server would have removed the warning and kept the
+    # dependency. MEASURED when the server moved: the grant DID carry to the plugin
+    # lane — System Events UI scripting returned `ghostty` for the frontmost process
+    # through plugin:mac-app-send:macos-automator — because TCC scopes Accessibility
+    # to the BINARY, /usr/bin/osascript, a fixed Apple-signed path, and not to the
+    # parent that spawns it.
+    #
+    # macos-automator drives System Events UI scripting via
     # /usr/bin/osascript, which needs an Accessibility (TCC) grant. Nothing in the
     # gateway's launchd chain can raise the consent prompt, so the grant is a
     # one-time manual step (docs/mcp-gateway-accessibility-tcc.md). This probes it
@@ -1172,7 +1174,7 @@ in
         case "$probe" in
           *"not allowed assistive access"*)
             echo "" >&2
-            echo "  ⚠ MCP gateway: the macos-automator server needs Accessibility for /usr/bin/osascript." >&2
+            echo "  ⚠ mac-app-send's macos-automator server needs Accessibility for /usr/bin/osascript." >&2
             echo "    UI-scripting MCP calls fail until you grant it (one-time; survives rebuilds):" >&2
             echo "      System Settings → Privacy & Security → Accessibility → +  →  ⇧⌘G  →  /usr/bin/osascript  → enable" >&2
             echo "    Verify:  osascript -e 'tell application \"System Events\" to get name of first process'" >&2
