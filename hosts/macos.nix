@@ -348,6 +348,19 @@ in
     # rather than the 14 the reversal was argued on.
     local.mcpGateway.enable = false;
 
+    # The SAME four accounts, now on the plugin lane instead of the gateway. Launchers
+    # land on PATH as `nix-mcp-gmail-<sanitised-address>`; the gmail plugin in
+    # github:kattakath/skills names them in its own `.mcp.json`, so Claude Code spawns
+    # one stdio server per account per session — nothing shared, nothing listening.
+    # The list below under `local.mcpGateway` is now inert (that gateway is disabled)
+    # and goes when mcp.nix does.
+    local.gmailMcp.accounts = [
+      "ismail@kattakath.com"
+      "ismailkattakath@gmail.com"
+      "izzy@silvercreek.ai"
+      "aloshyakasoto@gmail.com"
+    ];
+
     local.mcpGateway.gmail.accounts = [
       "ismail@kattakath.com"
       "ismailkattakath@gmail.com"
