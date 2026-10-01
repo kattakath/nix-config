@@ -38,8 +38,27 @@ the tier brackets in `modules/parts/identity.nix`, and every "N servers" comment
 
 The eight moving: `mobile-mcp`, `chrome-devtools`, `kapture`, `macos-automator`, `mcpfinder`,
 `nixos`, `terraform`, `arxiv`. `github` and `postgres` are the two of the ten assignable ones held
-back — each needs a Keychain credential, and a plugin `.mcp.json` interpolates `${ENV_VAR}` only
-(#656 is the prototype that would unblock them).
+back, **for two different reasons** — do not collapse them:
+
+- **`github`** needs a Keychain credential (`GITHUB_PERSONAL_ACCESS_TOKEN`, delivered today by a
+  `passwordCommand` wrapper), so it waits on #656's `headersHelper` prototype.
+- **`postgres` needs no credential at all.** Its `DATABASE_URI` is a loopback **trust-auth** URI
+  with no password — `modules/shared/mcp.nix:193-196` says it "is the one entry that ISN'T a
+  Keychain command", and `:405` sets `env.DATABASE_URI` straight from
+  `config.local.rag.pgvector.databaseUri`. It is held because **moving it makes the career RAG
+  unreachable from Claude Desktop and the Cowork bridge**: that postgres line is "THE CAREER RAG's
+  whole path to Claude Code" (`mcp.nix:783-784`), and a plugin-owned server never reaches Desktop,
+  which sees only the all-or-nothing portal connector (`modules/shared/claude-desktop.nix:16-27`).
+  It moves in the second batch (→ 17) once that loss has actually been weighed, not when #656
+  lands.
+
+This paragraph used to say both were held because "each needs a Keychain credential, and a plugin
+`.mcp.json` interpolates `${ENV_VAR}` only." That was **false for `postgres`** and was corrected
+2026-09-30. The conclusion did not change; the premise did. Recorded rather than silently fixed
+because a right answer resting on a wrong reason breaks the moment someone checks the reason —
+which is exactly what happened here. (The `${ENV_VAR}`-only half is also narrower than it reads:
+the manifest reference documents `${VAR}`/`${VAR:-default}`, `${user_config.KEY}` with
+`sensitive: true`, and `headersHelper` for remote servers.)
 
 This convention is also what reconciles **#655's "10 of 24"** with the 27 everything else counts:
 24 is the CAPABILITY count (27 entries − 3 gmail duplicates).
