@@ -169,7 +169,7 @@ let
   # legible rather than buried in an alphabetical list. They PARTITION the 27 names
   # below — ROSTER ENTRIES, not capabilities (gmail is one capability and four
   # entries; docs/mcp-gateway.md § Counting convention). The bracketed counts must
-  # sum to 24, so the arithmetic is checkable instead of decorative, and a name
+  # sum to 23, so the arithmetic is checkable instead of decorative, and a name
   # added below without a tier here shows up as a sum that no longer lands:
   #   - machine control : macos-automator (arbitrary AppleScript = RCE on this
   #                       Mac), desktop-commander (a shell, so the same reach by a
@@ -178,9 +178,9 @@ let
   #                       (prod writes)                                         [6]
   #   - credentialed    : github (PAT, repo write), cloudflare (this account),
   #                       postgres (the local pgvector store), apify (paid)      [4]
-  #   - reference       : the remaining twelve hold no credential and reach nothing
+  #   - reference       : the remaining eleven hold no credential and reach nothing
   #                       personal — lookup/compute, plus `memory`'s local scratch
-  #                       graph                                                [12]
+  #                       graph                                                [11]
   #
   # WHERE THIS ARITHMETIC IS GOING — the END STATE of the ownership split
   # (decided 2026-09-30, #658 + #657; docs/mcp-gateway.md § Which lane). Eight
@@ -194,7 +194,19 @@ let
   #   machine control  |  [5]  | [2] |        [1]        |        [1]
   #   personal         |  [6]  | [6] |        [6]        |        [6]
   #   credentialed     |  [4]  | [4] |        [4]        |        [2]
-  #   reference        | [12]  |[12] |        [8]        |        [8]
+  #   reference        | [12]  |[11] |        [8]        |        [8]
+  #
+  # BATCH 3 LANDED (2026-09-30): nixos left for claude-code-nix, whose Nix tooling it
+  # is the hands of. Verified answering first (plugin:claude-code-nix:nixos Connected;
+  # the `nix` tool returned real nixpkgs data for ripgrep).
+  #
+  # THE MOVING SET IS FIVE, NOT EIGHT. terraform and arxiv were misclassified into it:
+  # docs/mcp-gateway.md's ownership table names owners for six servers and neither
+  # appears, and no plugin manifest in the marketplace mentions either. They fall to
+  # #658's fleet-level catalog instead — the class that keeps the gateway in reduced
+  # form. mcpfinder is also not moving (Node 20 vs node:sqlite). So the 27 -> 19
+  # projection below assumed eight movers and is NOT yet re-derived: macos-automator is
+  # the last undecided one, and re-deriving twice is how this arithmetic goes wrong.
   #
   # BATCH 2 LANDED (2026-09-30): chrome-devtools left for page-lab, which now carries
   # the dual-mode attach probe as a plugin script. Verified answering first
@@ -285,7 +297,6 @@ let
     "mcp-jq"
     "mcpfinder"
     "memory"
-    "nixos"
     "postgres"
     "sequential-thinking"
     "terraform"
