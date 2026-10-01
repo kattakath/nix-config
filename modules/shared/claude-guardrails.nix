@@ -105,15 +105,28 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # not a weak guardrail, it is NO guardrail — and it fails silently, because
     # nothing reports a rule that never matches.
     #
-    # Measured 2026-09-15 from a live session's own tool namespace: servers
-    # arrive as `mcp__plugin_hm_<server>__<tool>`. The two spellings that lived
+    # Measured 2026-09-15 from a live session's own tool namespace: servers then
+    # arrived as `mcp__plugin_hm_<server>__<tool>`. The two spellings that lived
     # here before — a bare `mcp__mcpfinder__…` and an older, longer plugin prefix
     # — matched NOTHING, so imperative MCP adoption was ungated the whole time.
     # modules/shared/home.nix:660 in this same repo already had it right.
     #
-    # To re-verify after any plugin/marketplace change, read a real tool name out
-    # of a live session rather than reasoning about it; the prefix has changed
-    # once already and will not announce the next change.
+    # THAT PREFIX IS NOW STALE — it changed again, exactly as this paragraph
+    # predicted. The 2026-09-22 portal collapse made the gateway ONE Claude Code
+    # server (`plugin:hm:kattakath-portal`) hosting every upstream, so its tools
+    # arrive as `mcp__plugin_hm_kattakath-portal__<server>_<tool>` — the upstream
+    # name moved INTO the tool half and lost its `__` separator. Verified from a
+    # fresh `claude mcp list` 2026-10-01. A plugin-owned server is different again:
+    # `mcp__plugin_<plugin>_<server>__<tool>`, e.g.
+    # `mcp__plugin_claude-code-nix_nixos__nix`, measured by calling it.
+    #
+    # .claude/settings.json carried 15 allow entries on the OLD spelling and so
+    # matched nothing from the collapse until #671 fixed them — the same silent
+    # failure this header warns about, in the file next door.
+    #
+    # To re-verify after any plugin/marketplace change, read a real tool name out of
+    # a live session rather than reasoning about it; the prefix has now changed TWICE
+    # and has never announced it.
     #
     # THE TOOL-NAME HALF WAS DEAD TOO, and d39fc80 only fixed the prefix. Read
     # from a live session's namespace 2026-09-16: the pinned @mcpfinder/server
