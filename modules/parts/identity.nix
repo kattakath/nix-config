@@ -169,12 +169,11 @@ let
   # legible rather than buried in an alphabetical list. They PARTITION the 27 names
   # below — ROSTER ENTRIES, not capabilities (gmail is one capability and four
   # entries; docs/mcp-gateway.md § Counting convention). The bracketed counts must
-  # sum to 25, so the arithmetic is checkable instead of decorative, and a name
+  # sum to 24, so the arithmetic is checkable instead of decorative, and a name
   # added below without a tier here shows up as a sum that no longer lands:
   #   - machine control : macos-automator (arbitrary AppleScript = RCE on this
   #                       Mac), desktop-commander (a shell, so the same reach by a
-  #                       different door), chrome-devtools (live browser
-  #                       cookies/sessions)                                     [3]
+  #                       different door)                                      [2]
   #   - personal        : gmail-* (four accounts), wordpress + wordpress-adapter
   #                       (prod writes)                                         [6]
   #   - credentialed    : github (PAT, repo write), cloudflare (this account),
@@ -192,10 +191,15 @@ let
   #
   #   tier             | start | NOW | 19 entries (#657) | 17 entries (+ #656)
   #   -----------------+-------+-----+-------------------+--------------------
-  #   machine control  |  [5]  | [3] |        [1]        |        [1]
+  #   machine control  |  [5]  | [2] |        [1]        |        [1]
   #   personal         |  [6]  | [6] |        [6]        |        [6]
   #   credentialed     |  [4]  | [4] |        [4]        |        [2]
   #   reference        | [12]  |[12] |        [8]        |        [8]
+  #
+  # BATCH 2 LANDED (2026-09-30): chrome-devtools left for page-lab, which now carries
+  # the dual-mode attach probe as a plugin script. Verified answering first
+  # (plugin:page-lab:chrome-devtools Connected; list_pages returned the live page list
+  # plus extension service workers, so --categoryExtensions survived the move).
   #
   # BATCH 1 LANDED (2026-09-30): kapture + mobile-mcp left for page-lab and
   # android-phone, verified answering in a fresh session first (plugin:page-lab:
@@ -262,7 +266,6 @@ let
   publicMcpServers = [
     "apify"
     "arxiv"
-    "chrome-devtools"
     "cloudflare"
     "cloudflare-docs"
     # The shell/RCE surface, published by operator decision 2026-09-22. It was
@@ -278,10 +281,6 @@ let
     "gmail-ismailkattakath_gmail_com"
     "gmail-izzy_silvercreek_ai"
     "json-yaml-toml"
-    # Browser automation by LOCAL BRIDGE, as opposed to chrome-devtools (CDP) and
-    # claude-in-chrome (native messaging). Declared 2026-09-23, closing the gap
-    # modules/shared/chromium.nix had recorded as a real follow-up: this repo owned
-    # the extension half and left the server half imperative in ~/.claude.json.
     "macos-automator"
     "mcp-jq"
     "mcpfinder"

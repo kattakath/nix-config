@@ -103,7 +103,7 @@ in
   # choice (checked: absent from the official policy docs, and grepped the
   # installed Chromium Framework binary itself for any PerScript*/font-policy
   # string — none), so Chromium is pointed at these faces by
-  # `local.chromium.malayalamFontSetter` instead — a repo-authored sideloaded
+  # `local.ungoogledChromium.malayalamFontSetter` instead — a repo-authored sideloaded
   # extension, the only mechanism that can (`chrome.fontSettings.setFont` is
   # extension-only). That option's description carries the full why, including
   # the two non-extension routes that were tried and failed.
@@ -410,18 +410,9 @@ in
     # then-default Opera Air: a Chromium-family browser stores no persistent consent
     # key, so there is nothing to make it stop asking. Opera was removed from this Mac
     # on 2026-09-21; the attach target is now Chromium (modules/shared/mcp.nix).
-    local.mcpGateway.chromeDevtools.enable = true;
-
-    # Extension-page automation (Violentmonkey's install/confirm and options
-    # UIs, its service worker) turned ON deliberately, 2026-09-30 — verified
-    # first via a direct stdio probe that `--categoryExtensions` actually works
-    # against this fleet's attach-mode Chrome 152 despite upstream's stale
-    # `--help` warning (see the option doc in mcp.nix for the measurement).
-    # Needed for the userscript authoring loop (drive Violentmonkey's confirm
-    # dialog to install/update/track a local script) without hand-rolled raw
-    # CDP. Security tradeoff is real and accepted here, not overlooked: see the
-    # option doc for what this lifts.
-    local.mcpGateway.chromeDevtools.allowExtensions = true;
+    # The MCP server moved to the page-lab plugin (#657 batch 2); opening the port
+    # did not, and never was an MCP concern. See local.ungoogledChromium.debugLauncher.
+    local.ungoogledChromium.debugLauncher = true;
 
     # Replaces the Colima container of the same name. Loopback only. Downloads
     # land in ~/.local/share/yt-dlp-webui/downloads.
