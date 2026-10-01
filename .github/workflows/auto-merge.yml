@@ -44,6 +44,47 @@ permissions:
   contents: read
 
 jobs:
+  # ---- WHY A SECOND JOB EXISTS: to make a SKIP legible -------------------------
+  # #683 is "auto-merge sometimes does not arm on ready_for_review", and the reason it
+  # stayed unpinned for weeks is that a job skipped by its `if:` RUNS NOTHING — so the
+  # only artefact is a `skipped` conclusion with no payload, no reason, and no way to
+  # tell a CORRECT skip from the defect. Measured over the last 100 runs: 22 skips, of
+  # which at least 4 are correct by design (2 dependabot, 2 the CI bot — both excluded
+  # deliberately), and the rest are indistinguishable from each other without the
+  # event payload, which the runs API does not expose after the fact.
+  #
+  # So this job records the decision inputs on EVERY run. It is not a fix and does not
+  # claim to be one: the root cause is still unpinned. It makes the NEXT instance
+  # diagnosable instead of leaving us re-measuring from zero.
+  #
+  # IT IS A SEPARATE JOB ON PURPOSE, and this is the load-bearing detail. The guard
+  # could not simply move into a step of the arm job: that `if:` is what keeps a FORK
+  # PR away from the App-token step, which needs a secret a fork cannot read. Moving it
+  # into a step would run the token step for forks first and check afterwards — a
+  # security regression dressed as an observability win. This job therefore takes NO
+  # secrets and does nothing but print.
+  explain:
+    name: arm decision
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Record why the arm job will or will not run
+        env:
+          EVENT: ${{ github.event.action }}
+          DRAFT: ${{ github.event.pull_request.draft }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          printf 'pr=%s event=%s draft=%s author=%s\n' "$PR" "$EVENT" "$DRAFT" "$AUTHOR"
+          if [ "$DRAFT" = "true" ]; then
+            echo "arm will SKIP: PR is a draft (correct — arming a draft is the race #567 lost commits to)"
+          elif [ "$AUTHOR" != "ismailkattakath" ]; then
+            echo "arm will SKIP: author is not the operator (correct — dependabot is armed by arm-dependabot.yml, the CI bot arms itself)"
+          else
+            echo "arm will RUN"
+          fi
+          echo "::notice::arm decision for #$PR on '$EVENT': draft=$DRAFT author=$AUTHOR"
+
   auto-merge:
     name: arm auto-merge
     # The operator's OWN, non-draft PRs only — the "as long as the PR is from me"
