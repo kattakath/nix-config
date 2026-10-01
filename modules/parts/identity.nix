@@ -169,13 +169,12 @@ let
   # legible rather than buried in an alphabetical list. They PARTITION the 27 names
   # below — ROSTER ENTRIES, not capabilities (gmail is one capability and four
   # entries; docs/mcp-gateway.md § Counting convention). The bracketed counts must
-  # sum to 27, so the arithmetic is checkable instead of decorative, and a name
+  # sum to 25, so the arithmetic is checkable instead of decorative, and a name
   # added below without a tier here shows up as a sum that no longer lands:
   #   - machine control : macos-automator (arbitrary AppleScript = RCE on this
   #                       Mac), desktop-commander (a shell, so the same reach by a
   #                       different door), chrome-devtools (live browser
-  #                       cookies/sessions), kapture (the same tabs by a local
-  #                       bridge), mobile-mcp (the attached device)             [5]
+  #                       cookies/sessions)                                     [3]
   #   - personal        : gmail-* (four accounts), wordpress + wordpress-adapter
   #                       (prod writes)                                         [6]
   #   - credentialed    : github (PAT, repo write), cloudflare (this account),
@@ -191,12 +190,20 @@ let
   # terraform, arxiv — and then, if #656's `headersHelper` prototype proves out,
   # github and postgres follow. Re-tier in the SAME commit as each batch:
   #
-  #   tier             | today | 19 entries (#657) | 17 entries (+ #656)
-  #   -----------------+-------+-------------------+--------------------
-  #   machine control  |  [5]  |        [1]        |        [1]
-  #   personal         |  [6]  |        [6]        |        [6]
-  #   credentialed     |  [4]  |        [4]        |        [2]
-  #   reference        | [12]  |        [8]        |        [8]
+  #   tier             | start | NOW | 19 entries (#657) | 17 entries (+ #656)
+  #   -----------------+-------+-----+-------------------+--------------------
+  #   machine control  |  [5]  | [3] |        [1]        |        [1]
+  #   personal         |  [6]  | [6] |        [6]        |        [6]
+  #   credentialed     |  [4]  | [4] |        [4]        |        [2]
+  #   reference        | [12]  |[12] |        [8]        |        [8]
+  #
+  # BATCH 1 LANDED (2026-09-30): kapture + mobile-mcp left for page-lab and
+  # android-phone, verified answering in a fresh session first (plugin:page-lab:
+  # kapture and plugin:android-phone:mobile-mcp both Connected, list_tabs and
+  # mobile_list_available_devices both returned well-formed empty results).
+  # mcpfinder was ATTEMPTED and REVERTED — @mcpfinder/server@1.1.0 imports
+  # node:sqlite, absent on the fleet's Node 20, and the gateway only works because
+  # it pins its own nodejs-24. It stays here until the default Node is >= 22.5.
   #   -----------------+-------+-------------------+--------------------
   #   sum              |  27   |        19         |        17
   #
@@ -275,12 +282,10 @@ let
     # claude-in-chrome (native messaging). Declared 2026-09-23, closing the gap
     # modules/shared/chromium.nix had recorded as a real follow-up: this repo owned
     # the extension half and left the server half imperative in ~/.claude.json.
-    "kapture"
     "macos-automator"
     "mcp-jq"
     "mcpfinder"
     "memory"
-    "mobile-mcp"
     "nixos"
     "postgres"
     "sequential-thinking"
