@@ -65,6 +65,15 @@ let
   idsOf = name: mp: map (p: "${p}@${name}") mp.plugins;
   allIds = lib.concatLists (lib.mapAttrsToList idsOf cfg.marketplaces);
 
+  # The three plugins #648 decided Nix must assert, by bare name. Resolved against the
+  # declared marketplaces so a name cannot drift from its source.
+  alwaysOnNames = [
+    "claude-code-nix"
+    "superhook"
+    "brain-signals"
+  ];
+  alwaysOnIds = lib.filter (id: lib.elem (lib.head (lib.splitString "@" id)) alwaysOnNames) allIds;
+
   # ONE predicate for "this marketplace is a store path", shared by the three
   # places that must agree: the assertion, the settings-shape branch, and the
   # activation guard. It REPLACED a `repin` option whose only value was ever its
@@ -168,7 +177,25 @@ in
   # would change those hosts' closures for no benefit.
   config = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     assertions =
-      lib.mapAttrsToList (name: mp: {
+      # Every always-on name must resolve to exactly one declared plugin. Without
+      # this, renaming a plugin upstream (or dropping its marketplace) would leave a
+      # member matching NOTHING and the guard it exists for would vanish silently —
+      # the same "a rule naming something that does not exist is no rule" failure
+      # claude-guardrails.nix warns about. A build error is the only honest outcome.
+      map (n: {
+        assertion = lib.length (lib.filter (id: lib.hasPrefix "${n}@" id) allIds) == 1;
+        message =
+          let
+            hits = lib.length (lib.filter (id: lib.hasPrefix "${n}@" id) allIds);
+          in
+          ''
+            local.claudePlugins: always-on plugin "${n}" resolves to ${toString hits} declared plugins, expected exactly 1.
+            It is in the curated always-on set (#648), so a name matching nothing would
+            silently disable a guard this repo depends on. Either the plugin was renamed
+            upstream, or its marketplace is no longer declared.
+          '';
+      }) alwaysOnNames
+      ++ lib.mapAttrsToList (name: mp: {
         assertion = isStorePath mp || lib.hasPrefix "https://" mp.source;
         message = ''
           local.claudePlugins.marketplaces.${name}.source must be a /nix/store path
@@ -230,11 +257,36 @@ in
       // lib.optionalAttrs mp.autoUpdate { autoUpdate = true; }
     ) cfg.marketplaces;
 
-    # Marks every declared plugin WANTED. Claude Code downloads an enabled
-    # plugin whose marketplace it knows about, so this — not an install call —
-    # is what puts plugins on disk. Editing it in the Claude UI will not
-    # persist: a rebuild reverts it; change the declaration instead.
-    programs.claude-code.settings.enabledPlugins = lib.genAttrs allIds (_: true);
+    # A CURATED ALWAYS-ON SET OF THREE — not every declared plugin (#648).
+    #
+    # This was `lib.genAttrs allIds (_: true)`, which force-enabled every plugin in
+    # every declared marketplace and made a UI toggle non-durable: a rebuild reverted
+    # whatever the operator chose. That inverted the decided architecture — Nix
+    # guarantees the marketplaces are REGISTERED; which plugins are enabled is a
+    # runtime choice that has to persist.
+    #
+    # MEMBERSHIP RULE: what this repo structurally BREAKS without, not what is merely
+    # useful. Widening the bar was considered and declined (#648).
+    #   claude-code-nix  the `autostage-nix` + `nix-home-path-lint` PreToolUse hooks.
+    #                    Without it a `.nix` edit can reach an eval unstaged, which is
+    #                    the failure git-purity exists to prevent.
+    #   superhook        the `Stop` + `PreToolUse:Bash` wrappers and the SessionStart
+    #                    digest. Since #673 these arrive ONLY as plugin hooks —
+    #                    `.claude/settings.json` wires neither — so without this
+    #                    plugin both of the repo's guards are simply absent. #648 made
+    #                    this member conditional on #651 landing as D1; #651 is closed
+    #                    and #673 merged, so it is now unconditional.
+    #   brain-signals    `claude-brain.nix:34` declares an output style that only this
+    #                    plugin supplies. Dropping it was considered and declined.
+    #
+    # Everything else is the operator's to toggle, and the toggle now PERSISTS. A
+    # fresh machine starts with these three and nothing more; the rest come back on
+    # demand because their marketplace is declared.
+    #
+    # Ids are resolved through `idsOf` rather than written literally, so a member can
+    # never drift from the marketplace it came from, and the assertion below fails the
+    # build if a name stops matching instead of silently enabling nothing.
+    programs.claude-code.settings.enabledPlugins = lib.genAttrs alwaysOnIds (_: true);
 
     # ONE `marketplace add` per store-path marketplace, and nothing else. It
     # buys exactly one thing: the FIRST session after a fresh install or a
