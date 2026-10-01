@@ -38,8 +38,32 @@ green (see [`docs/auto-merge-and-merge-queue.md`](../../docs/auto-merge-and-merg
 so independent PRs are the cheap, reviewable shape — batching only widens the blast
 radius of one red check.
 
-**Park work-in-flight as a DRAFT.** With no merge queue, auto-merge lands a PR the
-moment its checks go green — there is no second run to sit behind. A branch you are
-still pushing to can therefore merge out from under you mid-stream (#567 lost five
-commits that way, 2026-09-22). Arming survives the draft state and releases on
-`ready_for_review`, so opening as a draft costs nothing and removes the race.
+**Park work-in-flight as a DRAFT — but it is NOT free, and the old wording here was
+wrong.** With no merge queue, auto-merge lands a PR the moment its checks go green;
+there is no second run to sit behind, so a branch you are still pushing to can merge out
+from under you mid-stream (#567 lost five commits that way, 2026-09-22). Drafting does
+remove that race.
+
+What it also does is **drop the arming, which `ready_for_review` does not restore.** This
+file used to claim the opposite — "arming survives the draft state and releases on
+`ready_for_review`, so opening as a draft costs nothing" — and that is false. Measured on
+#723, 2026-10-01, from the `auto-merge` workflow's own run list:
+
+| Time | What happened | What the arm job did |
+|---|---|---|
+| 14:01:52 | PR opened, non-draft | `arm decision=success`, **`arm auto-merge=success`** |
+| 14:05:44 | a push to the branch | run **cancelled** by the concurrency group |
+| 14:05:46 | `ready_for_review` | `arm decision=success`, **`arm auto-merge=skipped`** |
+
+The PR came back **unarmed** and stayed that way. Neither the push's run (cancelled) nor
+the `ready_for_review` run restored it — which is issue #683's open bug, reached here by
+following this file's own advice. Not measured: whether the draft conversion or the push
+dropped the arming; only that it was dropped and not restored.
+
+**So the draft dance costs one manual step.** Either:
+
+- open non-draft and finish pushing before CI goes green (fine for a small change), or
+- open as a draft, and after `gh pr ready` **re-arm by hand** and verify it took:
+  `gh pr view <n> --json autoMergeRequest` must be non-null. Do not assume marking it
+  ready re-armed it; the skip is silent and a PR that merely sits there looks the same as
+  one waiting on checks.
