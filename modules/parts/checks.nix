@@ -1664,85 +1664,74 @@ in
           # modules/shared/chromium.nix stays, unused and documented. If a
           # script is ever declared again, restore this gate with it.
 
-          # page-lab's OWN integrity, distinct from the userscript gate that
-          # used to sit above: that one asked "are the shipped scripts
-          # publishable", this one asks "is the plugin itself sound". Three things, each a real past failure
-          # mode rather than ceremony:
-          #  1. every .mjs/.js parses and every .sh is syntactically valid — a
-          #     plugin script is never executed by a build, so a syntax error
-          #     otherwise ships silently and only surfaces mid-session.
-          #  2. the envelope fixtures self-test, INCLUDING the two NEGATIVE ones.
-          #     A validator that cannot reject is decoration; this is the check
-          #     that keeps the pick contract load-bearing.
-          #  3. containment: the rename gate. A stale `plugins/userscript-author`
-          #     path is invisible until someone follows it.
-          page-lab =
-            pkgs.runCommand "page-lab"
-              {
-                nativeBuildInputs = with pkgs; [
-                  nodejs
-                  bash
-                ];
-              }
-              ''
-                rc=0
-                pl=${inputs.kattakath-skills}/plugins/page-lab
-                for f in "$pl"/scripts/*.mjs "$pl"/scripts/lib/*.mjs "$pl"/scripts/*.js; do
-                  node --check "$f" || { echo "  ✘ does not parse: $f" >&2; rc=1; }
-                done
-                for f in "$pl"/scripts/*.sh; do
-                  bash -n "$f" || { echo "  ✘ bad shell syntax: $f" >&2; rc=1; }
-                done
+          # CONTAINMENT ONLY, over THIS repo's own tree (#654). It used to also parse
+          # page-lab's scripts and run its envelope self-test out of
+          # `${inputs.kattakath-skills}`, and those two halves are GONE — not because
+          # they stopped mattering, but because they already run where the content
+          # lives. `kattakath/skills`' own validate.yml does both verbatim:
+          #   :49-56  "Scripts parse"            -> node --check + bash -n
+          #   :62-63  "page-lab envelope self-test" -> the same pick-validate.mjs
+          #                                            --self-test, same fixtures path
+          #
+          # So keeping them here was a SECOND COPY of one gate, and worse than
+          # redundant: the two copies read DIFFERENT revisions — skills CI runs HEAD,
+          # this one ran whatever flake.lock pinned — so they could disagree while both
+          # looked green, and the stale one would be believed. One source of truth; a
+          # second copy is a bug with a delayed fuse. Same principle the userscript
+          # note above records: one rulebook, run where the content is.
+          #
+          # What remains cannot move there, because it is about THIS tree: a stale
+          # pre-merge plugin path or a pre-extraction source literal in nix-config's own
+          # prose and Nix. skills CI cannot see those.
+          page-lab = pkgs.runCommand "page-lab" { } ''
+            rc=0
 
-                node "$pl"/scripts/pick-validate.mjs --self-test \
-                  "$pl"/scripts/fixtures || rc=1
+            # Two gates over THIS repo. page-lab's tree moved out; nix-config's
+            # prose and its source literals did not, and a stale one is exactly
+            # the drift this catches.
+            #
+            #  (a) pre-merge plugin PATHS — `plugins/userscript-author` and
+            #      `plugins/chrome-devtools`, from the 2026-09 merge that produced
+            #      page-lab. Both are unambiguous: neither resolves to anything in
+            #      any tree now, and neither is a plugin ID, so a live reference
+            #      cannot collide with them.
+            #
+            #      The bare `chrome-devtools@` alternative was DROPPED (2026-09-30).
+            #      Its job is done — the rename landed in #504 and no `@`-form of
+            #      the pre-merge id was ever written down here, so the literal only
+            #      ever matched the guard's own source. It is now actively harmful:
+            #      `chrome-devtools@<marketplace>` is the CORRECT way to name a live
+            #      plugin, and the MCP-ownership split (#657) has to name exactly
+            #      that. A guard that fails the build on a mere mention of a live
+            #      plugin id is a false positive by construction — the same trap the
+            #      relative-literal note below already calls out for
+            #      `plugins/page-lab`. The path half keeps the containment value;
+            #      the id half had none left to keep.
+            #  (b) pre-EXTRACTION source literals — a `../plugins/…` or
+            #      `../../skills/rag` still resolves to NOTHING in this tree after
+            #      2026-09-12. Matched as RELATIVE LITERALS on purpose, not as bare
+            #      substrings: `${inputs.kattakath-skills}/plugins/page-lab`
+            #      is the CORRECT new form and contains "plugins/page-lab", so a
+            #      substring grep would flag the fix as the bug.
+            #
+            # facts.md RECORDS old names as history; this file CARRIES the grep so
+            # it matches its own source.
+            cd ${self}
+            if grep -rn 'plugins/userscript-author\|plugins/chrome-devtools' \
+                 --exclude-dir=.git --exclude=facts.md --exclude=checks.nix . ; then
+              echo "  ✘ stale pre-merge plugin PATH above" >&2
+              rc=1
+            fi
+            if grep -rn '\.\./plugins/\|\.\./skills/rag\|\.\./skills/nix-dev-toolkit\|\.\./skills/android-phone\|\.\./userscripts/' \
+                 --exclude-dir=.git --exclude=checks.nix . ; then
+              echo "  ✘ repo-relative literal pointing at an EXTRACTED tree above" >&2
+              echo "    those live in pinned inputs now — see flake.nix" >&2
+              rc=1
+            fi
 
-                # Two gates over THIS repo. page-lab's tree moved out; nix-config's
-                # prose and its source literals did not, and a stale one is exactly
-                # the drift this catches.
-                #
-                #  (a) pre-merge plugin PATHS — `plugins/userscript-author` and
-                #      `plugins/chrome-devtools`, from the 2026-09 merge that produced
-                #      page-lab. Both are unambiguous: neither resolves to anything in
-                #      any tree now, and neither is a plugin ID, so a live reference
-                #      cannot collide with them.
-                #
-                #      The bare `chrome-devtools@` alternative was DROPPED (2026-09-30).
-                #      Its job is done — the rename landed in #504 and no `@`-form of
-                #      the pre-merge id was ever written down here, so the literal only
-                #      ever matched the guard's own source. It is now actively harmful:
-                #      `chrome-devtools@<marketplace>` is the CORRECT way to name a live
-                #      plugin, and the MCP-ownership split (#657) has to name exactly
-                #      that. A guard that fails the build on a mere mention of a live
-                #      plugin id is a false positive by construction — the same trap the
-                #      relative-literal note below already calls out for
-                #      `plugins/page-lab`. The path half keeps the containment value;
-                #      the id half had none left to keep.
-                #  (b) pre-EXTRACTION source literals — a `../plugins/…` or
-                #      `../../skills/rag` still resolves to NOTHING in this tree after
-                #      2026-09-12. Matched as RELATIVE LITERALS on purpose, not as bare
-                #      substrings: `${inputs.kattakath-skills}/plugins/page-lab`
-                #      is the CORRECT new form and contains "plugins/page-lab", so a
-                #      substring grep would flag the fix as the bug.
-                #
-                # facts.md RECORDS old names as history; this file CARRIES the grep so
-                # it matches its own source.
-                cd ${self}
-                if grep -rn 'plugins/userscript-author\|plugins/chrome-devtools' \
-                     --exclude-dir=.git --exclude=facts.md --exclude=checks.nix . ; then
-                  echo "  ✘ stale pre-merge plugin PATH above" >&2
-                  rc=1
-                fi
-                if grep -rn '\.\./plugins/\|\.\./skills/rag\|\.\./skills/nix-dev-toolkit\|\.\./skills/android-phone\|\.\./userscripts/' \
-                     --exclude-dir=.git --exclude=checks.nix . ; then
-                  echo "  ✘ repo-relative literal pointing at an EXTRACTED tree above" >&2
-                  echo "    those live in pinned inputs now — see flake.nix" >&2
-                  rc=1
-                fi
-
-                [ "$rc" = 0 ] || { echo "page-lab integrity check FAILED" >&2; exit 1; }
-                touch "$out"
-              '';
+            [ "$rc" = 0 ] || { echo "page-lab integrity check FAILED" >&2; exit 1; }
+            touch "$out"
+          '';
         };
     };
 }
