@@ -318,6 +318,41 @@ So the minimum is three: `pull-requests: write`, `issues: write`, `contents: wri
 must assert **both** that arming succeeds *and* that the issue closes — a wrongly-scoped token still
 mints fine, and arming precedes any merge, so either assertion alone is silent on the other's failure.
 
+### A NEGATED keyword still closes — and the PR's own link list will not warn you
+
+Two measured facts, both counter-intuitive, both of which cost an unintended state change here.
+
+**1. `fix #N` fires even inside a sentence that denies it.** #713's commit message began:
+
+```
+Does NOT claim to fix #683's root cause.
+```
+
+GitHub matched `fix #683` and **closed #683**, two seconds after the merge — while the PR body said, in
+as many words, *"#683 stays open. This gives it an evidence trail; it does not close it."* The scanner
+reads the verb and the number; **the negation is invisible to it.** The sentence written to disclaim the
+fix is the sentence that performed it.
+
+**Backticks DO suppress it.** #697's body contained `` `Closes #674` `` inside a table describing
+another PR's keyword, and `closingIssuesReferences` listed only its real target. So:
+
+> To mention an issue without closing it: **wrap the reference in backticks**, or keep the verb away from
+> the number — *"does not address the root cause of #683"*.
+
+**2. `closingIssuesReferences` on the PR does NOT predict what a squash merge closes.** Measured on #713:
+
+```
+closes=EMPTY        squash=83629cf        -> and #683 closed anyway
+```
+
+The PR declared **no** closing link. The close came from the **squash commit message**, which GitHub
+assembles from the PR body at merge time — so a keyword buried in body prose becomes a commit keyword
+even though it never registered as a PR link.
+
+That matters because the obvious pre-merge check is exactly the one that fails: querying the PR's closing
+references is **not sufficient**. On a squash-merge repo, read the body as though it were the commit
+message, because it is about to become one.
+
 ### Not the same as parent/child rollup
 
 GitHub does **not** close a parent issue when its last sub-issue closes — measured on #655: all five
