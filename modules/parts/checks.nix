@@ -1280,6 +1280,24 @@ in
                 "0.0.0.0"
                 "::"
               ];
+              # The GLOBAL UDP lists. #718 added a per-interface leg that asserts UDP is
+              # empty on each `-i`-scoped interface, which left the GLOBAL list — the
+              # one that renders with NO interface match — unasserted on every
+              # protocol but TCP. mDNS is why it is non-empty: avahi publishes
+              # `nixpi.local`, which is the entry point the LAN ingress is reached by,
+              # so 5353 is load-bearing and named rather than merely tolerated.
+              udp = fw.allowedUDPPorts or null;
+              udpRanges = fw.allowedUDPPortRanges or null;
+              mdns = [ 5353 ];
+
+              # A RADIO is not a port, so nothing above can see it. `hardware.bluetooth`
+              # is the specific one worth pinning: enabling it powers the controller at
+              # boot (`powerOnBoot` DEFAULTS TO TRUE) in the default `ControllerMode =
+              # "dual"`, i.e. the dangerous direction is the default, and it changes the
+              # host's attack surface without touching a single firewall option.
+              bt = pi.hardware.bluetooth or { };
+              btUnits = lib.filter (n: n == "bluetooth") (lib.attrNames (pi.systemd.services or { }));
+
               caddyOrigin = [ 80 ]; # hosts/nixpi.nix:245
             in
             mkHostContract {
@@ -1310,6 +1328,27 @@ in
                 {
                   name = "services.openssh.openFirewall is false (upstream defaults it TRUE, and it writes the GLOBAL list)";
                   ok = !(ssh.openFirewall or true);
+                }
+                # ---- NOT TCP, AND NOT A PORT. Everything above reads TCP, so the
+                # check stayed green against two whole classes of widening: a UDP
+                # service added to the global list, and a RADIO, which has no port at
+                # all. Same failure shape as the outage itself — a check that cannot
+                # fail for the thing you are worried about.
+                {
+                  name = "the GLOBAL UDP allow-list is mDNS alone — 5353 is how nixpi.local resolves, nothing else belongs";
+                  ok = udp == mdns;
+                }
+                {
+                  name = "no GLOBAL UDP port RANGES — a range is the cheapest way to widen past the leg above";
+                  ok = udpRanges == [ ];
+                }
+                {
+                  name = "hardware.bluetooth is DISABLED — enabling it powers the controller at boot (powerOnBoot defaults TRUE)";
+                  ok = !(bt.enable or false);
+                }
+                {
+                  name = "no bluetooth unit reached the closure — the option above is the declared knob, this is the rendered result";
+                  ok = btUnits == [ ];
                 }
                 # ---- the SECOND INGRESS. A build-time check cannot reach a running
                 # host, so none of this proves the LAN path WORKS. What these five
