@@ -619,11 +619,6 @@ let
       exec ${npx} -y mcp-remote@latest ${apiUrl}/wp-json/mcp/mcp-adapter-default-server${lib.optionalString allowHttp " --allow-http"} --header 'Authorization: ''${WP_ADAPTER_AUTH}'
     '';
 
-  wpAdapterMcp = mkWpAdapterMcp {
-    arg0 = "nix-mcp-wp-adapter";
-    apiUrl = "https://www.silvercreek.ai";
-  };
-
   wpAdapterMcpLocal = mkWpAdapterMcp {
     arg0 = "nix-mcp-wp-adapter-local";
     apiUrl = "http://localhost:8888";
@@ -772,10 +767,6 @@ let
       # Official WordPress MCP Adapter (server-side) for PROD silvercreek.ai — command is
       # the Keychain-injecting mcp-remote wrapper above, so no secret lands in the gateway
       # JSON. Prod is always reachable, so it's a normal (non-gated) hosted server.
-      wordpress-adapter = {
-        command = lib.getExe wpAdapterMcp;
-        args = [ ];
-      };
     }
     # Opt-in (default off): the Telegram USER-account server. Its command is the
     # Keychain-exporting wrapper above, so no secret ever lands in the gateway JSON.
