@@ -26,11 +26,14 @@
       shell = pkgs.zsh;
       extraGroups = [ "wheel" ];
       # The operator's SSH public key — the network login credential. sshd binds
-      # LOOPBACK ONLY on every host this module configures (see listenAddresses
-      # below), so there is no LAN path on nixpi OR nixvm: the only network route
-      # in is the tunnel connector, which terminates on-host and dials
-      # localhost:22. Key-only, no password. Physical console (getty) is an
-      # independent break-glass path.
+      # LOOPBACK ONLY by default on every host this module configures (see
+      # listenAddresses below), so the only network route in is the tunnel
+      # connector, which terminates on-host and dials localhost:22. nixpi OPTS OUT
+      # of that default — `local.lanRecovery` (modules/nixos/lan-recovery.nix)
+      # replaces the bind with the wildcard and opens the port on its two LAN
+      # interfaces alone, because a dead connector was otherwise a 40-minute
+      # physical reflash. nixvm keeps loopback-only. Key-only, no password either
+      # way. Physical console (getty) is an independent break-glass path.
       #
       # `lib.optional`, not a bare list: `mkNixos` defaults `operatorSshKey` to
       # null so a downstream consumer does not silently inherit the operator's
@@ -54,14 +57,19 @@
       # than a mkForce fight with the module.
       openFirewall = false;
 
-      # LOOPBACK ONLY — sshd is reachable exclusively through the Cloudflare
-      # Tunnel, which terminates ON this host and dials localhost:22. Binding
-      # the wildcard address would leave port 22 answering on the LAN, where
-      # the Access application in front of nixpi.<domain> is NOT consulted and
-      # no Access log is produced: an edge-only identity layer that anything on
-      # the same network segment can simply walk around. Both loopback families
-      # are bound because `localhost` may resolve to ::1 first.
-      # Break-glass if the tunnel is ever down: the physical console (getty).
+      # LOOPBACK ONLY — the DEFAULT for every host here, so sshd is reachable
+      # exclusively through the Cloudflare Tunnel, which terminates ON this host
+      # and dials localhost:22. Binding the wildcard leaves port 22 answering on
+      # the LAN, where the Access application in front of nixpi.<domain> is NOT
+      # consulted and no Access log is produced: an edge-only identity layer that
+      # anything on the same network segment can walk around. That cost is now
+      # PAID ON PURPOSE on nixpi — `local.lanRecovery` mkForces the wildcard pair
+      # and scopes the open port to end0/wlan0 — because the alternative measured
+      # on 2026-10-01 was a dead connector with no way in at all. Do not relax it
+      # HERE: this default is what keeps nixvm, and every `lib.mkNixos` consumer,
+      # loopback-only. Both loopback families are bound because `localhost` may
+      # resolve to ::1 first.
+      # Break-glass if both the tunnel and the LAN are down: the console (getty).
       # `port` is deliberately OMITTED so both entries inherit `Port 22` above.
       # Setting it here emits `ListenAddress ::1:22`, and nixpkgs does NOT bracket
       # the address (nixos/modules/services/networking/ssh/sshd.nix:899-902 renders
@@ -94,9 +102,12 @@
     # per-interface and trusted-interface paths into the same accept rule.
     networking.firewall = {
       enable = true;
-      # Port 22 is deliberately NOT opened: sshd binds loopback only (above) and
-      # the tunnel connector reaches it from on-host. Opening it would re-expose
-      # the Access bypass that listenAddresses closes.
+      # Port 22 is deliberately NOT opened HERE, and this list is the GLOBAL one:
+      # firewall-iptables.nix:160-165 renders the `default` pseudo-interface with
+      # no `-i`, so a port added here answers on every interface the host has.
+      # nixpi's LAN recovery path therefore goes through
+      # `networking.firewall.interfaces.<iface>` instead (lan-recovery.nix), never
+      # through this list.
       allowedTCPPorts = [ ];
       allowedUDPPorts = [ 5353 ]; # mDNS
     };

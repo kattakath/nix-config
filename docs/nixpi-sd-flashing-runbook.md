@@ -232,7 +232,26 @@ ssh-keygen -R nixpi.local   # clear any stale host key first
 ```
 
 SSH is the operator's static key (keys-only). On the LAN once mDNS is up:
-`ssh ismail@nixpi.local`. Remotely (e.g. travelling), over the tunnel:
+`ssh ismail@nixpi.local`. **That LAN line only became TRUE on 2026-10-01** — it had
+been written here for months while `modules/nixos/core.nix` bound sshd to loopback,
+so mDNS resolved and the connection then timed out. `local.lanRecovery`
+(`modules/nixos/lan-recovery.nix`) opens sshd's port on `end0`/`wlan0` and makes it
+work. **Two consequences for a flash:**
+
+- **A `--release` flash only carries it once CI has republished.** The image comes
+  from the rolling `installer-latest` pre-release, rebuilt by
+  `build-installers.yml` on any push to `main` touching `hosts/nixpi.nix` or
+  `modules/nixos/**`. Flashing `--release` before that workflow finishes writes the
+  OLD image — tunnel-only, no LAN path. Check the release is newer than the merge.
+- **Verify the LAN path on the FIRST boot, not during the next outage.** It is the
+  one ingress a dead `cloudflared` cannot take away, and a flash is the only moment
+  you have hands on the hardware to notice it is missing:
+
+```bash
+ssh -o ConnectTimeout=5 ismail@nixpi.local true && echo "LAN recovery path LIVE"
+```
+
+Remotely (e.g. travelling), over the tunnel:
 `ssh ismail@nixpi.kattakath.com` — the `ProxyCommand cloudflared access ssh --hostname
 %h` is **declarative now**, in `modules/shared/home.nix`'s `Host nixpi.kattakath.com`
 block (with `StrictHostKeyChecking accept-new` for exactly the fresh-key case below).

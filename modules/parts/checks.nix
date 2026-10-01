@@ -1009,14 +1009,18 @@ in
           #     had before went green under precisely that override. The corollary
           #     is why the leg PARSES rather than greps: `hasInfix "ListenAddress"
           #     extraConfig` is TRUE on a healthy host, because upstream's own
-          #     generated block lives in the same string.
+          #     generated block lives in the same string. Note the direction:
+          #     extraConfig is CUMULATIVE, so it can only ever ADD a bind. Now that
+          #     the expected pair IS the wildcard, this leg no longer catches a
+          #     widening — it catches a THIRD address appearing, and the option leg
+          #     beside it is what catches a narrowing.
           #   no explicit `port` on a listen address, because nixpkgs renders
           #     `ListenAddress ::1:22` UNBRACKETED (sshd.nix:901). OpenSSH reads
           #     that as the address ::0.1.0.34, the v6 bind fails EADDRNOTAVAIL,
           #     and sshd SURVIVES (a failed bind is fatal only if EVERY bind
           #     fails) — so v6 loopback silently vanishes. Measured with
           #     `sshd -G`; the transcript is at core.nix:65-74.
-          #   the firewall allow-list is FOUR legs, not one. nixpi runs the
+          #   the firewall allow-list is SEVERAL legs, not one. nixpi runs the
           #     IPTABLES backend (networking.nftables.enable is false, measured),
           #     and firewall-iptables.nix renders the same `-j nixos-fw-accept`
           #     rule from three independent inputs: allowedTCPPorts (:164-165),
@@ -1027,10 +1031,18 @@ in
           #     `[ { from = 22; to = 22; } ]` range and an
           #     `interfaces.eth0.allowedTCPPorts = [ 22 ]` EACH reopened 22 with
           #     the allowedTCPPorts leg still green. `trustedInterfaces` is the
-          #     fourth and bluntest: :149 accepts ALL traffic arriving on a named
+          #     bluntest: :149 accepts ALL traffic arriving on a named
           #     interface, no port list consulted. Upstream sets it to [ "lo" ]
           #     itself (firewall.nix:334), so the leg pins that value rather than
           #     emptiness.
+          #     SINCE 2026-10-01 the per-interface path is no longer purely a
+          #     widening risk — it is where nixpi's LAN recovery ingress lives. So
+          #     it is read TWICE, in opposite directions: that a per-interface list
+          #     exists at all and names exactly what `local.lanRecovery` declares
+          #     (a narrowing guard), and that each entry carries nothing but the
+          #     sshd port on any protocol (the widening guard the leg always was).
+          #     The GLOBAL list stays pinned to [ 80 ] separately, because that one
+          #     renders with no `-i` and so has no interface scope to speak of.
           #   buildMachines empty is a SEPARATE leg from distributedBuilds,
           #     because upstream says in its own words that the latter does not
           #     inhibit the former: nixos/modules/config/nix-remote-build.nix:227,
@@ -1089,10 +1101,25 @@ in
           # only whether the ATTRIBUTE exists), and no aarch64-linux build,
           # because only numbers and strings escape into the derivation.
           #
-          # NOT COVERED: this is EVAL, not runtime — no `sshd -G`, no
-          # `iptables -S`, and an already-flashed Pi keeps whatever its current
-          # generation has until the next deploy. Four further paths are known
-          # and deliberately ungated:
+          # NOT COVERED, and the 2026-10-01 outage is why this paragraph now comes
+          # with a warning rather than a footnote. THIS CHECK CANNOT TELL YOU THE
+          # PI IS UP. It is EVAL, not runtime — no `sshd -G`, no `iptables -S`, no
+          # TCP connect, no ping — and an already-flashed Pi keeps whatever its
+          # current generation has until the next deploy. On 2026-10-01 every leg
+          # here was GREEN while the host was unreachable by every route: the
+          # connector was dead, the site answered Cloudflare 1033, and SSH timed out
+          # at banner exchange. A green build means "the config still declares the
+          # posture it is supposed to", and nothing more. REACHABILITY IS NOT
+          # CHECKABLE FROM A DERIVATION: a fixed-output network probe would be
+          # cached, non-hermetic, and would make a router outage fail CI for every
+          # unrelated change. What IS checkable, and is the lesson that outage
+          # bought, is that the config still declares a SECOND ingress — so the next
+          # edit that quietly restores the single point of failure fails the build
+          # instead of waiting for the next outage to announce itself. Runtime
+          # health belongs to a monitor, not to `nix flake check`; there is none
+          # today, and that gap is real.
+          #
+          # Four further CONFIG paths are known and deliberately ungated:
           #
           #   `networking.firewall.extraCommands` — the iptables backend's raw
           #     escape hatch (firewall-iptables.nix:235, option at :290). It is
@@ -1135,8 +1162,11 @@ in
           # the card filename behind it, and the unit that consumes it. Rename any
           # of them in one place and the watchdog keeps evaluating, keeps starting,
           # and silently rewrites or restarts the wrong thing — the failure only
-          # shows up during an outage, which is the one moment nobody can debug it
-          # (no LAN sshd, tunnel down, SD card in another room).
+          # shows up during an outage, which is the one moment nobody wants to be
+          # debugging it. Since 2026-10-01 `local.lanRecovery` gives that moment a
+          # LAN sshd to debug FROM, but only while the Pi is on a segment you are
+          # also on; a renamed interface breaks that path too, which is the third
+          # thing `nixpi-security-posture` now joins to these two.
           #
           # Ungated on purpose, like nixpi-security-posture below: every edit it
           # guards is made ON the Mac, so Linux-gating it would let `/eval` pass
@@ -1196,10 +1226,35 @@ in
               # `allInterfaces`, not `interfaces`: it is the internal option the
               # backend actually iterates (firewall.nix:305-311), so a future
               # upstream route into those same loops surfaces here as a new key
-              # rather than slipping past a read of the user-facing option.
-              interfaceKeys = lib.attrNames (fw.allInterfaces or { });
+              # rather than slipping past a read of the user-facing option. The
+              # `default` pseudo-interface is the GLOBAL list under another name
+              # (firewall.nix:308-311) and is covered by its own legs, so the
+              # per-interface legs drop it and read what is genuinely `-i`-scoped.
+              perIface = lib.filterAttrs (n: _: n != "default") (fw.allInterfaces or { });
+              perIfaceEntries = lib.attrValues perIface;
 
               sortStrings = lib.sort (a: b: a < b);
+              perIfaceKeys = sortStrings (lib.attrNames perIface);
+
+              # The SECOND INGRESS half. `or null` so a deleted module reads as
+              # broken here rather than throwing from inside the builder.
+              lan = pi.local.lanRecovery or null;
+              lanIfaces = if lan == null then null else sortStrings lan.interfaces;
+
+              # The same two interface names, spelled independently TWICE more on
+              # this host — the watchdog's wired interface and the supplicant
+              # instances. Joining them here is what makes a rename loud: rename
+              # the radio to wlp2s0 in one place and the LAN port silently never
+              # opens there, which (like the watchdog paths above) only shows up
+              # during an outage, the one moment nobody can debug it.
+              namedIfaces = sortStrings (
+                lib.unique (
+                  lib.optional (
+                    pi.local.uplinkWatchdog.wiredInterface or null != null
+                  ) pi.local.uplinkWatchdog.wiredInterface
+                  ++ lib.attrNames (pi.networking.supplicant or { })
+                )
+              );
               addrs = map (a: a.addr or null) listen;
               addrsWellFormed = !(lib.elem null addrs);
 
@@ -1216,44 +1271,82 @@ in
                 if m == null then null else builtins.head m;
               renderedAddrs = lib.remove null (map listenArg (lib.splitString "\n" (ssh.extraConfig or "")));
 
-              loopback = [
-                "127.0.0.1"
-                "::1"
+              # The two WILDCARD families, mirroring the loopback pair core.nix
+              # declares for every other host. They do not collide: sshd sets
+              # IPV6_V6ONLY on every AF_INET6 listener (openssh sshd.c:851-853 via
+              # misc.c:2044-2056, read at the source), so these are two disjoint
+              # sockets rather than one dual-stack bind plus a duplicate.
+              wildcard = [
+                "0.0.0.0"
+                "::"
               ];
-              caddyOrigin = [ 80 ]; # hosts/nixpi.nix:234
+              caddyOrigin = [ 80 ]; # hosts/nixpi.nix:245
             in
             mkHostContract {
               inherit pkgs;
               name = "nixpi-security-posture";
-              subject = "nixpi: loopback-only sshd, one open port, no build trust";
+              subject = "nixpi: TWO declared ingresses, LAN-scoped sshd, no build trust";
               expect = [
                 {
                   name = "the firewall is enabled at all";
                   ok = fw.enable or false;
                 }
                 {
-                  name = "the TCP allow-list is EXACTLY the Caddy origin port — it has not grown";
+                  name = "the GLOBAL TCP allow-list is EXACTLY the Caddy origin port — it has not grown";
                   ok = tcp == caddyOrigin;
                 }
                 {
-                  name = "the TCP port-RANGE allow-list is empty — a range reaches the same accept rule";
+                  name = "the GLOBAL TCP port-RANGE allow-list is empty — a range reaches the same accept rule";
                   ok = tcpRanges == [ ];
-                }
-                {
-                  name = "no per-interface allow-list exists — only the 'default' pseudo-interface";
-                  ok = interfaceKeys == [ "default" ];
                 }
                 {
                   name = "trustedInterfaces is loopback alone — a trusted interface accepts EVERYTHING on it";
                   ok = trusted == [ "lo" ];
                 }
                 {
-                  name = "no sshd port appears in the TCP allow-list";
+                  name = "no sshd port appears in the GLOBAL TCP allow-list — that renders with no interface match";
                   ok = tcp != null && sshPorts != [ ] && !(lib.any (p: lib.elem p tcp) sshPorts);
                 }
                 {
-                  name = "services.openssh.openFirewall is false (upstream defaults it TRUE)";
+                  name = "services.openssh.openFirewall is false (upstream defaults it TRUE, and it writes the GLOBAL list)";
                   ok = !(ssh.openFirewall or true);
+                }
+                # ---- the SECOND INGRESS. A build-time check cannot reach a running
+                # host, so none of this proves the LAN path WORKS. What these five
+                # legs do is make its DELETION a build failure: the day someone
+                # restores loopback-only sshd or drops the per-interface allow-list,
+                # the single-point-of-failure comes back silently and green, which
+                # is exactly how this check sat passing through a total outage on
+                # 2026-10-01. Deleting a leg here to make a red build go away
+                # recreates that.
+                {
+                  name = "local.lanRecovery is ENABLED — without it the tunnel is the SOLE ingress again";
+                  ok = lan != null && (lan.enable or false);
+                }
+                {
+                  name = "a per-interface TCP allow-list EXISTS — this is the LAN half of the second ingress";
+                  ok = perIfaceKeys != [ ];
+                }
+                {
+                  name = "the per-interface allow-list names EXACTLY the interfaces local.lanRecovery declares";
+                  ok = lanIfaces != null && perIfaceKeys == lanIfaces;
+                }
+                {
+                  name = "those interface names match the ones the watchdog and the supplicants independently spell";
+                  ok = lanIfaces != null && lanIfaces == namedIfaces;
+                }
+                {
+                  name = "each LAN interface opens EXACTLY the sshd port, and nothing else on any protocol";
+                  ok =
+                    perIfaceEntries != [ ]
+                    && sshPorts != [ ]
+                    && lib.all (
+                      e:
+                      (e.allowedTCPPorts or null) == sshPorts
+                      && (e.allowedTCPPortRanges or null) == [ ]
+                      && (e.allowedUDPPorts or null) == [ ]
+                      && (e.allowedUDPPortRanges or null) == [ ]
+                    ) perIfaceEntries;
                 }
                 {
                   name = "listenAddresses is NON-EMPTY — an empty list is the WILDCARD bind";
@@ -1268,12 +1361,12 @@ in
                   ok = addrsWellFormed;
                 }
                 {
-                  name = "sshd binds loopback only, and BOTH families";
-                  ok = addrsWellFormed && sortStrings addrs == loopback;
+                  name = "sshd binds the wildcard EXPLICITLY, and BOTH families — the LAN half needs an off-loopback bind";
+                  ok = addrsWellFormed && sortStrings addrs == wildcard;
                 }
                 {
-                  name = "the RENDERED ListenAddress lines are loopback only — none smuggled through extraConfig";
-                  ok = addrsWellFormed && sortStrings renderedAddrs == loopback;
+                  name = "the RENDERED ListenAddress lines are that same wildcard pair — nothing smuggled through extraConfig";
+                  ok = addrsWellFormed && sortStrings renderedAddrs == wildcard;
                 }
                 {
                   name = "no listen address carries an explicit port (it renders unbracketed)";
@@ -1305,16 +1398,25 @@ in
                 }
               ];
               advice = [
-                "modules/nixos/core.nix:46-102 owns the sshd and firewall half;"
-                "hosts/nixpi.nix:234 owns the one open port (Caddy's origin, 80)."
-                "sshd is reachable ONLY through the on-host tunnel connector, which"
-                "dials localhost:22. Reopening 22 on the LAN, or binding the wildcard,"
-                "walks straight around the Cloudflare Access application — Access runs"
-                "at the EDGE, so such a connection is unauthenticated AND unlogged."
-                "A port RANGE, a per-interface list and a trusted interface all reach"
-                "the same iptables accept rule, which is why each has its own leg."
+                "modules/nixos/core.nix owns the sshd and firewall DEFAULTS;"
+                "modules/nixos/lan-recovery.nix owns the LAN ingress that overrides them;"
+                "hosts/nixpi.nix owns the one globally open port (Caddy's origin, 80)"
+                "and the interface list the LAN ingress is scoped to."
+                "nixpi has TWO ingresses on purpose. The tunnel connector dials"
+                "localhost:22 and is the only INTERNET path and the only one"
+                "Cloudflare Access gates; the LAN path answers on the named"
+                "interfaces alone and does NOT traverse Access, so it is neither"
+                "identity-gated nor logged there. That cost was accepted on"
+                "2026-10-01, when a dead connector left no way in but a 40-minute"
+                "physical reflash; the exposure analysis is in lan-recovery.nix."
+                "So there are two opposite ways to break this host here. WIDENING:"
+                "the GLOBAL list, a port RANGE or a trusted interface all reach the"
+                "same iptables accept rule with no interface match, which is why"
+                "each has its own leg. NARROWING: putting sshd back on loopback, or"
+                "dropping the per-interface list, restores the single point of"
+                "failure that cost the reflash. Fix the config; relax neither half."
                 "The build legs keep this leaf host free of outbound build trust and"
-                "of a stray /etc/nix/machines. Fix the config; do not relax this."
+                "of a stray /etc/nix/machines."
               ];
             };
 
