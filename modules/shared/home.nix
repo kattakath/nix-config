@@ -1114,6 +1114,24 @@ in
       email-signature # `email-signature [--url URL] [--logo-url URL] [--out DIR]` — render a self-contained HTML email signature (JSON Resume + gist logo, base64-embedded) to ~/.local/share/email-signature/signature.html; also regenerated on activation (packages/email-signature/)
       design-tokens # `design-tokens [--tokens-url URL] [--out DIR]` — transform the gist DTCG tokens.json into SCSS/CSS/JS via Style Dictionary, to ~/.local/share/design-tokens/ (packages/design-tokens/)
       jobspy # `jobspy --search … --location …` — scrape jobs (LinkedIn/Indeed/…) into CSV/JSON via python-jobspy in an ephemeral uv env (packages/jobspy.nix)
+      # PREREQUISITE for the MCP ownership split (#657): the `nixos` server moves
+      # out of the gateway into the claude-code-nix plugin, and a plugin's
+      # `.mcp.json` can only name a bare command on PATH — it cannot carry a
+      # `/nix/store/...` path, which rotates on every rebuild, and the plugin file
+      # lives in another repo besides. Measured 2026-09-30: `npx` resolves,
+      # `uvx`/`uv`/`mcp-nixos` do NOT, so without this the plugin spawns nothing.
+      #
+      # WHY THE NIXPKGS BINARY RATHER THAN `pkgs.uv` + `uvx mcp-nixos`: a pinned
+      # build beats a runtime PyPI fetch — same content every time, one source of
+      # truth, and no network at spawn. `pkgs.uv` is deliberately NOT added here;
+      # the only other server that would want it (`postgres`) is HELD, so adding
+      # `uv` now would be a package for nobody.
+      #
+      # No `doCheck = false` needed, unlike the gateway's own `nixos.package`
+      # override in ./mcp.nix — that repaired 2.4.3's brittle `test_read_text_file`
+      # on aarch64-darwin. Measured on 3.0.1: plain `pkgs.mcp-nixos` builds clean,
+      # so the override is now stale and leaves with the gateway entry.
+      mcp-nixos # `mcp-nixos` — grounded, READ-ONLY NixOS/nixpkgs option+package lookup; no token
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       inngest # `inngest` — CLI + local dev server for Inngest durable workflows (not in Homebrew; nixpkgs has it)
       stripe-cli # Stripe CLI (`stripe`) — API calls, webhook forwarding (`stripe listen`), event triggers; auth is a one-time `stripe login` browser OAuth (config in ~/.config/stripe, never in git/store — same one-time-CLI-login convention as gh/hf/docker). Pairs with the stripe@claude-plugins-official plugin (local.claudePlugins.marketplaces above)
