@@ -131,6 +131,66 @@ is gone. That is the failure mode of the #657 migration, and the only defence is
 sequence in § Publishing — declare in the plugin and *verify the tool answers* before deleting
 here, never the other way round. Its two sides must also keep coming from different modules
 (ADR-006 §7) — that property is unchanged by the ownership split.
+
+### Spawn-test against the PATH runtime BEFORE declaring — the second rule of this migration
+
+The gateway launches every stdio server from a **Nix store path**: `npx` comes from
+`lib.getExe' pkgs.nodejs "npx"`, `uvx` from `pkgs.uv`. A plugin's `.mcp.json` cannot do that — it
+may only name a **bare command on PATH**, because a store path rotates on every rebuild and the
+plugin file lives in another repo. **So the two lanes can run different runtimes, and the plugin
+lane is the weaker one.**
+
+Measured 2026-09-30:
+
+| | gateway | plugin lane |
+|---|---|---|
+| Node | pinned `nodejs-24.20.0` | whatever `npx` resolves to — fnm's **v20.20.2** |
+| `node:sqlite` | present | **absent** (arrived in Node 22.5) |
+
+`mcpfinder` was declared, failed with `CONNECTION_CLOSED`, and had to be reverted (skills#43 →
+skills#44): `@mcpfinder/server@1.1.0` imports `node:sqlite`. The pinned `@1.1.0` is a **security
+control** — it holds back `add_mcp_server_config`, which writes client config imperatively — so
+bumping it to escape a Node error is a bad trade and was refused. **`mcpfinder` stays on the
+gateway until the fleet's default Node is ≥ 22.5.**
+
+**The rule: spawn the exact spec against the PATH runtime before declaring it.**
+
+```bash
+npx -y <package>@<version> --help      # or the real entry point
+```
+
+A declaration that has to be reverted costs two PRs and a false green. And note the inverse trap:
+a server whose runtime arrives via a **nix-config package** (`mcp-nixos`, `terraform-mcp-server`,
+`uv`) is **not** spawn-testable until that change is ACTIVATED — merged is not enough. Those
+cannot be verified on paper.
+
+### How to verify a plugin-owned server actually answers
+
+A session already running cannot see a newly declared plugin server — its tool namespace was fixed
+at session start. **A fresh process can.** Three steps:
+
+1. **Confirm the refresh landed** — compare the cached plugin SHA against the marketplace branch:
+   `~/.claude/plugins/installed_plugins.json` → `gitCommitSha` vs `gh api repos/<o>/<r>/commits/main`.
+2. **Connect/fail per server** — `claude mcp list` in a fresh process. Plugin-owned servers appear
+   as `plugin:<plugin>:<server>`.
+3. **Actually invoke it** — a tool that loads is not a tool that answers:
+
+   ```bash
+   claude -p 'Call <tool> once and reply with ONLY its raw result.' \
+     --allowedTools 'mcp__plugin_<plugin>_<server>__<tool>'
+   ```
+
+`--allowedTools` with the **plugin-lane spelling** is what makes step 3 a discriminator rather than
+a green tick: during the duplicate window the gateway still serves the same capability under
+`mcp__plugin_hm_kattakath-portal__<server>_<tool>`, so a bare call can be satisfied by the wrong
+lane. Naming the plugin-lane tool explicitly cannot be.
+
+Judge the result against a criterion written **before** the test. An empty result is often the pass:
+`kapture list_tabs → {"tabs":[]}` is correct (a tab appears only once the operator toggles it), and
+`mobile-mcp mobile_list_available_devices → {"devices":[]}` is correct with no phone attached — what
+mattered there was the **absence** of an `adb`/`ANDROID_HOME` error, which proved the plugin child
+inherits the session environment and let the gateway's Android SDK wiring be deleted rather than
+duplicated.
 ## The 7 packaged servers (`mcp-servers-nix`)
 
 `context7`, `fetch`, `memory`, `sequential-thinking`, `nixos`, `terraform`, `github` — pinned
