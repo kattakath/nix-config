@@ -55,8 +55,8 @@
 # SERVER SIDE (this box, 127.0.0.1:<publicMcpPort>)
 #   `mcp-proxy --named-server-config <gatewayConfig>` hosts every server in
 #   `hostedServerNames`, each reachable at /servers/<name>/mcp. That roster must
-#   equal `config.fleet.publicMcpServers` in BOTH directions — 27 ROSTER ENTRIES
-#   today (24 capabilities: `gmail` is one capability and four entries, one
+#   equal `config.fleet.publicMcpServers` in BOTH directions — 25 ROSTER ENTRIES
+#   today (22 capabilities: `gmail` is one capability and four entries, one
 #   process per Google/Workspace account, the roster being in hosts/macos.nix;
 #   see mkGmailMcp). Every count in this file is ENTRIES — the convention, and the
 #   19-then-17 end state of the #657 ownership split, are stated once in
@@ -137,13 +137,6 @@ let
   # measured at 50 processes for 25 servers, two copies of each fighting over one
   # Gmail credential file, one MTProto session and one memory graph.
   gatewayPort = publicMcpPort;
-
-  # Android SDK root — single-sourced from modules/shared/home.nix's ANDROID_HOME
-  # (the android-commandlinetools Homebrew cask install prefix), not re-declared
-  # here. mobile-mcp locates `adb` via $ANDROID_HOME/platform-tools, so the
-  # gateway launchd agent below puts this on PATH + exports ANDROID_HOME (unlike
-  # osascript, adb is NOT in the base PATH).
-  androidSdkHome = config.home.sessionVariables.ANDROID_HOME;
 
   # Pinned launchers for the servers mcp-servers-nix does not package. Absolute
   # store paths so they resolve under launchd's minimal PATH.
@@ -371,11 +364,9 @@ let
   # hand-written below — see extraction-notes.md for the why on each.
   generatedStdioNames = [
     "desktop-commander"
-    "kapture"
     "duckduckgo"
     "json-yaml-toml"
     "macos-automator"
-    "mobile-mcp"
     "apify"
     "wordpress"
     "mcp-jq"
@@ -765,9 +756,6 @@ let
   #     by request. Needs a ONE-TIME Accessibility (TCC) grant for
   #     /usr/bin/osascript — see `home.activation.macosAutomatorAccessibilityCheck`
   #     below and docs/mcp-gateway-accessibility-tcc.md.
-  #   mobile-mcp — cross-platform mobile automation over ADB (mobile-next/mobile-mcp,
-  #     5.5k★). Needs `adb` + the Android SDK on PATH — the gateway agent below
-  #     adds ${androidSdkHome}/platform-tools and exports ANDROID_HOME.
   #   apify — Apify Store's Actors as tools (search/run/dataset access), run
   #     LOCALLY via APIFY_TOKEN — NOT the hosted mcp.apify.com OAuth bridge
   #     used until 2026-08-19 (that flow needs an interactive browser redirect
@@ -916,8 +904,8 @@ let
       };
     };
 
-  # Every server NAME the gateway hosts — 27 ROSTER ENTRIES today (7 packaged +
-  # 15 base custom, plus opt-ins: the 22 fixed ones, chrome-devtools, and four
+  # Every server NAME the gateway hosts — 25 ROSTER ENTRIES today (7 packaged +
+  # 13 base custom, plus opt-ins: the 20 fixed ones, chrome-devtools, and four
   # gmail). ENTRIES, not capabilities: gmail is one capability and four entries
   # (docs/mcp-gateway.md § Counting convention).
   # Single source for the client SSE URLs, so the two sides can never drift.
@@ -927,8 +915,8 @@ let
 
   # SERVER SIDE: a {mcpServers:{name:{command,args,env}}} JSON that mcp-proxy
   # consumes via --named-server-config. mkConfig PINS the 7 packaged servers;
-  # settings.servers carries customStdioServers verbatim — 15 base plus whatever
-  # the opt-ins add, so 20 as this host is configured (chrome-devtools + four
+  # settings.servers carries customStdioServers verbatim — 13 base plus whatever
+  # the opt-ins add, so 18 as this host is configured (chrome-devtools + four
   # gmail). flavor "claude-code"
   # emits the `mcpServers` key mcp-proxy expects (it ignores any extra fields).
   # The packaged servers' definitions are GENERATED (mkPackagedProgram, above)
@@ -1295,16 +1283,17 @@ in
         SoftResourceLimits.NumberOfFiles = 4096;
 
         EnvironmentVariables = {
-          # npx/uvx children need Node/uv on PATH (mcp-proxy itself is absolute above);
-          # mobile-mcp additionally needs `adb` (platform-tools) + the emulator binary.
+          # npx/uvx children need Node/uv on PATH (mcp-proxy itself is absolute above).
+          # The Android SDK wiring left with mobile-mcp (#657 batch 1): it was the only
+          # server needing adb/emulator, and android-phone's plugin child inherits
+          # ANDROID_HOME from the session instead — measured, it answers with no env
+          # block of its own.
           PATH =
             lib.makeBinPath [
               pkgs.nodejs
               pkgs.uv
             ]
-            + ":${androidSdkHome}/platform-tools:${androidSdkHome}/emulator:/usr/bin:/bin";
-          # mobile-mcp resolves adb via $ANDROID_HOME/platform-tools/adb.
-          ANDROID_HOME = androidSdkHome;
+            + ":/usr/bin:/bin";
         };
         StandardOutPath = "${config.home.homeDirectory}/Library/Logs/mcp-gateway.log";
         StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/mcp-gateway.log";
