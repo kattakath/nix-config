@@ -211,7 +211,7 @@ PLUGIN hooks. **Do not re-add any of them here, or each fires twice.** The super
 finds these two scripts BY CONVENTION at `<git root>/.claude/hooks/<name>.js`, resolving the
 root itself (`${CLAUDE_PROJECT_DIR}` is the session's LAUNCH CWD, not the repo root) and
 no-opping silently where they are absent — so it is inert in every other repo. `.claude/hooks/tests/*.sh` covers BOTH hooks — three guard-rule suites plus
-`stop-gate-fail-closed.sh` — **gated by `claude-config-lint.yml`**: each asserts both halves
+`stop-gate-fail-closed.sh` — **a REQUIRED status check** (`Lint .claude config`, `claude-config-lint.yml`) — it BLOCKS a merge, it does not merely run: each asserts both halves
 (must-BLOCK and must-stay-APPROVED) and that it never throws, since a throw fails OPEN. Message
 decoder: [`docs/claude-hook-messages.md`](docs/claude-hook-messages.md).
 All of the above is **project-scoped** — it guards sessions in THIS repo only. Policy that is
