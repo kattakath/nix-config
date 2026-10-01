@@ -103,6 +103,52 @@ let
   # NixOS builder's specialArgs (modules/shared/nix-cache.nix) and into the
   # macOS host's Determinate customSettings — one literal, no duplication.
   cachixUrl = "https://${orgName}.cachix.org";
+  # ---- nixpi Wi-Fi fallback ladder, ORDERED, most-preferred FIRST ---------------
+  # `nixpi-wifi-creds` turns this into one `network={}` block per entry with a
+  # DESCENDING `priority=`, so the first is the house AP and the rest are fallbacks.
+  #
+  # WHY THE LIST HAS TO BE DECLARED. The generator could ALWAYS emit multiple ranked
+  # blocks (packages/nixpi-provision.nix ranks them) -- what was missing is a roster.
+  # Its default was "whatever Wi-Fi THIS MAC is joined to right now", so the ladder
+  # existed only as whatever arguments a human typed. On 2026-10-01 a reflash erased
+  # it: the two-network config had only ever been HAND-EDITED onto the card over SSH,
+  # which is also how its priorities ended up INVERTED and stranded the host.
+  #
+  # SSIDs ONLY, never the PSKs. An SSID is broadcast in the clear and names nothing
+  # secret; the pre-shared keys stay in the macOS Keychain and are read at generation
+  # time. That split is the reason this can be committed at all.
+  #
+  # The second entry is a phone hotspot started BY HAND, so it is absent from the scan
+  # most of the time -- which costs nothing: wpa_supplicant iterates priority groups
+  # against the SCAN RESULTS, so an absent network is skipped rather than preferred.
+  # Decoded from the hex the Pi's own card carried rather than retyped:
+  # 616c6f7368792ef09f85b0f09f85b8.
+  nixpiWifiNetworks = [
+    "BELL044" # the household Rogers CGM4981 AP -- normal operation
+    "aloshy.🅰🅸" # emergency phone hotspot, hand-started
+  ];
+
+  # ---- nixpi Wi-Fi fallback ladder, ORDERED, most-preferred FIRST ---------------
+  # The SSIDs nixpi should know about, in preference order. `nixpi-wifi-creds` turns
+  # this into one `network={}` block per entry with a DESCENDING `priority=`, so the
+  # first is the house AP and the rest are fallbacks.
+  #
+  # WHY THIS LIST HAS TO LIVE HERE. The generator could always emit multiple blocks
+  # (packages/nixpi-provision.nix:304 ranks them), but with no declared roster its
+  # default was "whatever Wi-Fi THIS MAC happens to be on right now". So the fallback
+  # ladder existed only as whatever arguments a human typed, and the 2026-10-01 reflash
+  # erased it — the two-network config on the old card had only ever been HAND-EDITED
+  # over SSH, which is also why its priorities ended up INVERTED and stranded the host.
+  # Declaring the roster is what makes the ladder survive a reflash.
+  #
+  # SSIDs ONLY, never the PSKs: an SSID is broadcast in the clear and names nothing
+  # secret, while the pre-shared keys stay in the macOS Keychain and are read at
+  # generation time. That split is why this can be committed at all.
+  #
+  # The second entry is a phone hotspot brought up BY HAND, so it is absent from the
+  # scan most of the time. That costs nothing: wpa_supplicant iterates priority groups
+  # against the SCAN RESULTS, so an absent network is simply skipped.
+
   cachixKey = "${orgName}.cachix.org-1:y/w6wnb4ZArdlbfWJ82c81uCXeYgG/sGDUYCszavmEw=";
 
   # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
@@ -535,6 +581,7 @@ in
         hostedSites
         publicMcpServers
         publicMcpPort
+        nixpiWifiNetworks
         accessOrg
         gcpBillingAccountId
         gcpBudgetAmount
