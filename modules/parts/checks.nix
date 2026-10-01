@@ -1418,6 +1418,53 @@ in
           # any adopted tool must be shown to tolerate that case before it gates
           # anything.
 
+          # ---- the workflow YAML is linted by SOMETHING, finally -------------------
+          # 2,083 lines of `.github/workflows/*.yml` were covered by nothing: treefmt
+          # has no YAML tool, sgconfig's rules are Nix and JS, and claude-config-lint
+          # only looks at .claude/. This class has already bitten twice IN THESE FILES
+          # — nix-ci.yml's errexit bug made a REQUIRED gate report green over a failing
+          # eval, and an `if:` made the same gate skip silently. Same shape as why
+          # .claude/hooks/tests exists.
+          #
+          # `-shellcheck` is the point, not a nicety: the real findings were all inside
+          # `run:` blocks, which plain YAML linting cannot see. It caught an actual
+          # quoting bug (SC2027: `'"$SO"'` inside a double-quoted echo unquotes the
+          # variable) plus two `'\''` sequences that are single-quote escaping used in a
+          # DOUBLE-quoted string, where they are simply wrong.
+          #
+          # Run as a flake CHECK rather than a third-party action, following
+          # .github/workflows/gitleaks.yml's precedent: the CLI comes from this repo's
+          # own pinned nixpkgs, which is one less supply-chain edge and makes the gate
+          # reproducible locally instead of only in CI.
+          #
+          # Two SC2086 findings are disabled INLINE with their reason rather than fixed
+          # or globally ignored: both rely on word-splitting deliberately (printf reusing
+          # its format per word; `printf | wc -l` counting attrs), so quoting would be
+          # the regression.
+          actionlint =
+            pkgs.runCommand "actionlint"
+              {
+                nativeBuildInputs = [
+                  pkgs.actionlint
+                  pkgs.shellcheck
+                ];
+              }
+              ''
+                cd ${../../.github/workflows}
+                # actionlint resolves `shellcheck` from PATH; nativeBuildInputs puts it there.
+                if ! actionlint -shellcheck=shellcheck ./*.yml; then
+                  echo "" >&2
+                  echo "actionlint: fix the findings above, or add an inline" >&2
+                  echo "\`# shellcheck disable=SCxxxx\` WITH A ONE-LINE REASON next to the" >&2
+                  echo "line it covers. Do not add a blanket ignore — these files hold the" >&2
+                  echo "required-checks gate, and two silent-green bugs have already shipped" >&2
+                  echo "in them." >&2
+                  exit 1
+                fi
+                echo "actionlint: $(ls ./*.yml | wc -l | tr -d " ") workflow files clean (with shellcheck)"
+                touch "$out"
+              '';
+
           claude-md-budget = pkgs.runCommand "claude-md-budget" { } ''
             limit=40000
             size=$(wc -c < ${../../CLAUDE.md} | tr -d " ")
