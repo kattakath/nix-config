@@ -308,6 +308,30 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    # THE DIAGNOSTIC TOOL THIS LADDER CANNOT BE DEBUGGED WITHOUT.
+    #
+    # Measured 2026-10-01, three times in one session: nothing on this host could
+    # answer "what networks can you see?" or "what are you associated to?".
+    # `wpa_cli` IS already on PATH (the supplicant package ships it) and is UNUSABLE
+    # — it fails to create its client socket even as root:
+    #   /run/wpa_supplicant/client: No such file or directory
+    #   Failed to connect to non-global ctrl_ifname: wlan0  error: Invalid argument
+    # while the server socket /run/wpa_supplicant/wlan0 plainly exists and root can
+    # write that directory. Not chased further; `iw` talks to nl80211 directly and
+    # needs no control socket, so it sidesteps the problem rather than fighting it.
+    #
+    # WHAT IT COST TO NOT HAVE THIS: an association failure could not be told apart
+    # from "the AP was not broadcasting" (the hotspot had idle-timed-off and nothing
+    # on the Pi could say so), and confirming which AP serves an SSID took reading
+    # BSSIDs out of the supplicant journal. One of those answers needed the operator
+    # to power-cycle household Wi-Fi twice, for a question `iw dev wlan0 scan` answers
+    # in two seconds.
+    #
+    # Scoped to this module rather than core.nix on purpose: it is here BECAUSE the
+    # failover ladder exists, so `local.uplinkWatchdog.enable = false` should take it
+    # away too. nixvm has no radio and gains nothing from carrying it.
+    environment.systemPackages = [ pkgs.iw ];
+
     systemd.services.uplink-watchdog = {
       description = "Probe the uplink and fail over when the router stops reaching the internet";
       serviceConfig = {
