@@ -1042,7 +1042,7 @@ in
           #     catches an edit that re-enables one without the other.
           #
           # The TCP leg pins [ 80 ] rather than [ ], because that is the truth:
-          # hosts/nixpi.nix:215 opens the Caddy ORIGIN port (443 omitted — TLS
+          # hosts/nixpi.nix:234 opens the Caddy ORIGIN port (443 omitted — TLS
           # terminates at Cloudflare's edge) and core.nix:100's [ ] MERGES with
           # it. Port 80 is therefore genuinely reachable on the LAN today; this
           # check's job is to make WIDENING that list loud, not to bless its
@@ -1220,7 +1220,7 @@ in
                 "127.0.0.1"
                 "::1"
               ];
-              caddyOrigin = [ 80 ]; # hosts/nixpi.nix:215
+              caddyOrigin = [ 80 ]; # hosts/nixpi.nix:234
             in
             mkHostContract {
               inherit pkgs;
@@ -1306,7 +1306,7 @@ in
               ];
               advice = [
                 "modules/nixos/core.nix:46-102 owns the sshd and firewall half;"
-                "hosts/nixpi.nix:215 owns the one open port (Caddy's origin, 80)."
+                "hosts/nixpi.nix:234 owns the one open port (Caddy's origin, 80)."
                 "sshd is reachable ONLY through the on-host tunnel connector, which"
                 "dials localhost:22. Reopening 22 on the LAN, or binding the wildcard,"
                 "walks straight around the Cloudflare Access application — Access runs"

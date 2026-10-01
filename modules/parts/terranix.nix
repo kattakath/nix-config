@@ -666,7 +666,7 @@ let
         # delta guard below has to reason about which ones.
         if [ "''${rendered:-0}" -lt ${toString minRecords} ]; then
           echo "REFUSING: render declares ''${rendered} records, under the ${toString minRecords} floor." >&2
-          echo "  modules/parts/dns.nix has probably lost entries. Applying this" >&2
+          echo "  infra/cloudflare/kattakath-dns.nix has probably lost entries. Applying this" >&2
           echo "  would DELETE the missing ones — including mail records." >&2
           echo "    CF_ZONES_ALLOW_SHRINK=1 ${name}   # only if you truly mean it" >&2
           [ "''${CF_ZONES_ALLOW_SHRINK:-}" = "1" ] || exit 1
@@ -1528,7 +1528,7 @@ in
         # No `cf-zones-destroy`. Tearing down this stack means deleting every DNS
         # record for the zone — mail included — and there is no scenario where
         # that is a thing you reach for as an app. Remove records from
-        # modules/parts/dns.nix instead and let the drop guard make you confirm.
+        # infra/cloudflare/kattakath-dns.nix instead and let the drop guard make you confirm.
         cf-zones-plan = mkCfZonesTofu {
           inherit system;
           name = "cf-zones-plan";

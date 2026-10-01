@@ -55,8 +55,8 @@
 # SERVER SIDE (this box, 127.0.0.1:<publicMcpPort>)
 #   `mcp-proxy --named-server-config <gatewayConfig>` hosts every server in
 #   `hostedServerNames`, each reachable at /servers/<name>/mcp. That roster must
-#   equal `config.fleet.publicMcpServers` in BOTH directions — 25 ROSTER ENTRIES
-#   today (22 capabilities: `gmail` is one capability and four entries, one
+#   equal `config.fleet.publicMcpServers` in BOTH directions — 22 ROSTER ENTRIES
+#   today (19 capabilities: `gmail` is one capability and four entries, one
 #   process per Google/Workspace account, the roster being in hosts/macos.nix;
 #   see mkGmailMcp). Every count in this file is ENTRIES — the convention, and the
 #   19-then-17 end state of the #657 ownership split, are stated once in
@@ -131,7 +131,9 @@ let
   # There were TWO until 2026-09-22 — a private :8096 for local clients and a
   # published :8097 — because Access protects a HOSTNAME, not a path, so tunnelling
   # the private one would have exposed every server to a leaked service token.
-  # That argument was load-bearing while 2 of 26 servers were published. Publishing
+  # That argument was load-bearing while 2 of 26 servers were published (the roster
+  # has since narrowed to 22; see the ownership split in docs/mcp-gateway.md).
+  # Publishing
   # ALL of them killed it: both processes hosted the same set, so the split bounded
   # nothing but a crash while costing a duplicate instance of every server —
   # measured at 50 processes for 25 servers, two copies of each fighting over one
@@ -852,7 +854,7 @@ let
       };
     };
 
-  # Every server NAME the gateway hosts — 25 ROSTER ENTRIES today (7 packaged +
+  # Every server NAME the gateway hosts — 22 ROSTER ENTRIES today (7 packaged +
   # 13 base custom, plus opt-ins: the 20 fixed ones, chrome-devtools, and four
   # gmail). ENTRIES, not capabilities: gmail is one capability and four entries
   # (docs/mcp-gateway.md § Counting convention).
