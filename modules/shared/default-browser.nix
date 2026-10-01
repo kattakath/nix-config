@@ -5,7 +5,7 @@
 # `modules/shared/chromium.nix` while Chromium was the answer; it moved here when it
 # stopped being (Chrome is the default — it alone carries the passkey entitlement, see
 # hosts/macos.nix; Chromium is the debugging browser whose profile
-# `local.mcpGateway.chromeDevtools.userDataDir` points at).
+# page-lab's chrome-devtools attach probe defaults to).
 #
 # `defaultbrowser` takes the SHORT name (`chrome`, `chromium`, `safari`), NOT the
 # bundle id — measured 2026-09-07, `com.operasoftware.OperaAir` was rejected as "not

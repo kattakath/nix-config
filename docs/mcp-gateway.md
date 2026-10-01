@@ -132,6 +132,32 @@ sequence in § Publishing — declare in the plugin and *verify the tool answers
 here, never the other way round. Its two sides must also keep coming from different modules
 (ADR-006 §7) — that property is unchanged by the ownership split.
 
+### Adding a marketplace under an allowed owner: use `owner/repo`, NOT the https URL
+
+`strictKnownMarketplaces` in the root-owned managed file allowlists **owners** by wildcard
+(`kattakath/*`, `anthropics/*`, …), so a new repo under a trusted owner needs no rebuild. That is
+what makes the gate affordable. But the two add syntaxes produce **different source types**, and the
+wildcard only matches one of them — measured 2026-09-30, same repo, both forms:
+
+| Command | Source it creates | Result |
+|---|---|---|
+| `claude plugin marketplace add kattakath/nix-config` | `github:` | **policy PASSES** (then fails on content, as expected — it is not a marketplace) |
+| `claude plugin marketplace add https://github.com/kattakath/nix-config.git` | `git:` | **`blocked by enterprise policy`** |
+
+So:
+
+> **To add a marketplace under an allowed owner, use the `owner/repo` shorthand.** The full
+> `https://…/repo.git` URL is refused even for an allowed owner.
+
+**This is a usability trap, not a bug.** The full URL is what anyone copy-pastes from a browser
+address bar, and the error blames *policy* rather than *syntax* — so it reads as "my owner is not
+allowed" when the owner is fine. If an add is refused for a repo you believe is allowed, retry with
+the shorthand before touching the allowlist.
+
+The already-declared marketplaces are unaffected either way: they are covered by exact `git:` entries
+in the same list, which is why the gate could be deployed without breaking them. The wildcards add
+the ad-hoc route on top.
+
 ### Spawn-test against the PATH runtime BEFORE declaring — the second rule of this migration
 
 The gateway launches every stdio server from a **Nix store path**: `npx` comes from

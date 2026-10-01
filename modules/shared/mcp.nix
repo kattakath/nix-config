@@ -590,39 +590,6 @@ let
   # this at startup. A browser that changes mode afterwards is not re-detected until
   # the gateway restarts. The fallback is the lazy one, so an absent browser still
   # does not dark the gateway [F-MCP-SURVIVES-CLOSED-PORT].
-  chromeDevtoolsExtensionsFlag = lib.optionalString cfg.chromeDevtools.allowExtensions "--categoryExtensions";
-  chromeDevtoolsMcp = pkgs.writeShellScriptBin "nix-mcp-chrome-devtools" ''
-    set -eu
-    dir="${cfg.chromeDevtools.userDataDir}"
-    active="$dir/DevToolsActivePort"
-
-    # The pinned port first, then whatever the browser recorded for itself. Line 1 of
-    # DevToolsActivePort is trustworthy even when line 2 is not — the port is what the
-    # browser bound, the UUID is a cached copy that Opera does not always refresh.
-    ports="${toString cfg.chromeDevtools.port}"
-    if [ -r "$active" ]; then
-      recorded="$(sed -n 1p "$active" 2>/dev/null | tr -d "[:space:]")"
-      case "$recorded" in
-        ''' | *[!0-9]*) ;;
-        "${toString cfg.chromeDevtools.port}") ;;
-        *) ports="$ports $recorded" ;;
-      esac
-    fi
-
-    for p in $ports; do
-      if /usr/bin/curl -fsS --max-time 2 "http://127.0.0.1:$p/json/version" >/dev/null 2>&1; then
-        exec ${npx} -y chrome-devtools-mcp@latest \
-          --browser-url="http://127.0.0.1:$p" \
-          ${chromeDevtoolsExtensionsFlag} \
-          --no-usage-statistics --no-performance-crux
-      fi
-    done
-
-    exec ${npx} -y chrome-devtools-mcp@latest \
-      --autoConnect --userDataDir="$dir" \
-      ${chromeDevtoolsExtensionsFlag} \
-      --no-usage-statistics --no-performance-crux
-  '';
 
   # Official WordPress MCP Adapter (WordPress/mcp-adapter), installed ON the site,
   # exposing a Streamable-HTTP MCP endpoint at /wp-json/mcp/mcp-adapter-default-server
@@ -726,7 +693,7 @@ let
   #     matters is Access + Workspace OAuth restricted to the domain, the same
   #     gate every other server is behind.
   #   kapture — the SERVER half of Kapture (modules/shared/chromium.nix owns
-  #     the extension, `local.chromium.kaptureMcp`). `bridge` is the
+  #     the extension, `local.ungoogledChromium.kaptureMcp`). `bridge` is the
   #     subcommand, not a flag — kapture-mcp exposes the local websocket
   #     bridge the extension connects back to; a running bridge with ZERO
   #     connected tabs is DARK, not ready, since a tab is only visible after
@@ -873,12 +840,6 @@ let
     # the tool surface is still moving (1.8.0 ships 29 of the ~57 tools its docs
     # describe — measured 2026-09-06). A pin here would freeze a set that is
     # actively growing; the plugin's references/tools.md says how to re-measure.
-    // lib.optionalAttrs cfg.chromeDevtools.enable {
-      chrome-devtools = {
-        command = lib.getExe chromeDevtoolsMcp;
-        args = [ ];
-      };
-    }
     # TRUE simultaneous multi-account Gmail — one server process PER configured
     # email (see mkGmailMcp above for why, and why the list is set in
     # hosts/macos.nix rather than here). Empty cfg.gmail.accounts (the
@@ -1061,105 +1022,6 @@ in
       '';
     };
 
-    chromeDevtools = {
-      enable = lib.mkEnableOption ''
-        Google's chrome-devtools-mcp in the gateway, in ATTACH mode against a browser
-        that already has remote debugging on — found via `--autoConnect` reading
-        `DevToolsActivePort` out of `userDataDir`, NOT via a fixed port. Performance
-        traces, network, console with source-mapped stacks, and the viewport emulation
-        (`resize_page`) that automates the userscript method's otherwise-manual "reach
-        state B" step. OFF by default for TWO independent reasons, either of which alone
-        would justify it: (1) mcp-proxy spawns every hosted server at startup, and in
-        attach mode this one is useless until a browser has debugging enabled — either
-        in-browser at `chrome://inspect/#remote-debugging` or via `nix-chromium-debug`;
-        (2) enabling it is a SECURITY decision — remote debugging is an UNAUTHENTICATED
-        control channel, and upstream states plainly that "Any application on your
-        machine can connect", i.e. any local process can then read that browser's pages,
-        cookies and session state and act as the signed-in user. This Mac's browsers hold
-        the Apple Passwords native host and live logins, so treat a debug-enabled session
-        as exposed for its whole lifetime and quit it when finished. Telemetry flags are
-        set for you (--no-usage-statistics, --no-performance-crux); the second is the one
-        that otherwise sends TRACED URLS to Google's CrUX API. Behaviour, the measured
-        tool surface and both attach modes: the in-repo `page-lab` plugin'';
-
-      allowExtensions = lib.mkOption {
-        type = lib.types.bool;
-        default = false;
-        description = ''
-          Pass `--categoryExtensions` to chrome-devtools-mcp, which lifts its own
-          refusal to navigate/list `chrome-extension://` pages and their service
-          workers ("Navigating to chrome-extension: URLs is not allowed without
-          --categoryExtensions" is the exact refusal this silences). OFF by
-          default: extension pages are extension-PRIVILEGED surfaces (options
-          UIs, install/confirm dialogs, native-messaging hosts), and refusing
-          them is a deliberate boundary against an agent being steered — via a
-          compromised page or injected instructions — into driving one blind.
-
-          Verified 2026-09-30 against the installed 1.10.1 build: upstream's own
-          `--help` claims this "is not supported" with `--browserUrl` /
-          `--autoConnect` (i.e. attach mode, which is the only mode this module
-          runs chrome-devtools-mcp in) "until 149 will be released" — but a
-          direct stdio probe against this fleet's Chrome 152 attach session
-          answered `tools/call new_page` against a `chrome-extension://` URL
-          successfully and returned a working "Extension Pages" / "Extension
-          Service Workers" page list, so the warning is stale for this Chrome
-          version and the flag works today in attach mode. Re-verify with the
-          same probe if this stops working after a Chrome or chrome-devtools-mcp
-          bump — do not assume upstream's help text over a fresh measurement.
-
-          Flip only alongside a deliberate choice to let the gateway drive
-          extension UIs (e.g. Violentmonkey's confirm/options pages for the
-          userscript authoring loop) — never as a blanket default.
-        '';
-      };
-
-      port = lib.mkOption {
-        type = lib.types.port;
-        default = 9222;
-        description = ''
-          Loopback port probed FIRST for a live `/json/version`. When it answers, the
-          server attaches with `--browser-url` and the browser's own live
-          `webSocketDebuggerUrl` is used; when nothing answers on any candidate port the
-          server falls back to `--autoConnect` against `userDataDir`.
-
-          9222 is the conventional CDP port AND the one `nix-chromium-debug` opens by
-          default, so the probe hint and the launcher now agree. It was 61867 until
-          2026-09-21 — the port Opera Air picked for itself in consent mode — but Opera
-          was removed from this Mac that day, so pinning its port outlived its reason.
-          It binds to 127.0.0.1 only — never expose or forward it; that turns a
-          local-only debugging channel into a remote one.
-
-          This is a probe HINT, not the whole answer: line 1 of the profile's
-          `DevToolsActivePort` is probed as a second candidate, so a browser that picked
-          a different port is still found.
-        '';
-      };
-
-      userDataDir = lib.mkOption {
-        type = lib.types.str;
-        default = "${config.home.homeDirectory}/Library/Application Support/Chromium";
-        example = "${config.home.homeDirectory}/Library/Application Support/Google/Chrome";
-        description = ''
-          Browser profile directory `--autoConnect` reads `DevToolsActivePort` from — the
-          file the browser writes when its debugging server starts, naming the port it
-          actually chose and the browser WebSocket path. This, not a port number, is how
-          the server finds the browser [F-AUTOCONNECT-USERDATADIR].
-
-          It is a directory rather than a port BECAUSE the port is no longer knowable in
-          advance: a browser put into debugging mode from `chrome://inspect/#remote-debugging`
-          picks its own (measured 2026-09-07 on the since-removed Opera Air: 61867), and
-          the browser WebSocket UUID
-          changes on every launch. Both live in `DevToolsActivePort`, so upstream resolving
-          it at connect time is the only shape that survives a browser restart.
-
-          Defaults to Chromium, the browser this fleet enables debugging on since Opera
-          was removed (2026-09-21). Point it at any Chromium-family profile — the layout
-          is the same. Note this is the USER DATA dir (the
-          one holding `DevToolsActivePort` and `Default/`), not the `Default/` profile inside it.
-        '';
-      };
-    };
-
     localAdapter.enable = lib.mkEnableOption ''
       the LOCAL WordPress MCP Adapter server (the wp-env clone at http://localhost:8888)
       in the gateway. OFF by default: that endpoint only exists while the local clone is
@@ -1171,64 +1033,6 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    # `nix-chromium-debug` — the CLASSIC, launch-flag route to the CDP port.
-    #
-    # NO LONGER THE ONLY ROUTE, and no longer the one this module's server assumes.
-    # A running browser CAN now be switched into debugging mode from
-    # `chrome://inspect/#remote-debugging` (Chrome/Chromium M144+),
-    # which is how the browser this gateway attaches to is actually enabled — it
-    # picks its own port and writes it to `DevToolsActivePort` [F-NO-JSON-HTTP].
-    # This wrapper stays for the flag route, which is still the only way to open a
-    # port on a browser whose UI toggle you do not want to use, and the only way to
-    # get a debug port on an --isolated throwaway profile.
-    #
-    # It launches CHROMIUM specifically. `chromeDevtools.userDataDir` selects which
-    # profile the SERVER attaches to and now also defaults to Chromium, so the two
-    # AGREE out of the box — they stayed independent knobs, though: point userDataDir
-    # at another Chromium-family profile and this wrapper still launches Chromium.
-    # (Until 2026-09-21 the default was Opera Air, which is no longer installed.)
-    #
-    # Why a wrapper at all, rather than a declared browser flag: the .app is a
-    # Homebrew cask, so `programs.chromium.package` is null, and upstream's own
-    # assertion then FORBIDS `commandLineArgs` — there is no Nix wrapper to pass
-    # them to (see modules/shared/chromium.nix).
-    #
-    # Deliberately a hand-run command and NOT a launchd agent or a login item: the
-    # port is an unauthenticated control channel over a browser holding live logins
-    # and the Apple Passwords native host. It should exist for a session, on
-    # purpose, and die with the window — never come back at boot.
-    home.packages = lib.mkIf cfg.chromeDevtools.enable [
-      (pkgs.writeShellScriptBin "nix-chromium-debug" ''
-        set -euo pipefail
-        # 9222 is the de-facto default every CDP client assumes. Bound to 127.0.0.1
-        # only — never expose or forward it; that turns a local-only debugging
-        # channel into a remote one.
-        port="''${1:-9222}"
-
-        # Relaunching while the same profile is already running silently reuses the
-        # existing process and the port never opens — indistinguishable from the
-        # flag being ignored, and it cost real debugging time to learn. Refuse
-        # instead of producing a browser that looks right and is not.
-        if /usr/bin/pgrep -x "Chromium" >/dev/null 2>&1; then
-          echo "nix-chromium-debug: Chromium is already running." >&2
-          echo "  --remote-debugging-port is a STARTUP flag, so it cannot be added to" >&2
-          echo "  this process. Either quit Chromium completely and re-run, or leave it" >&2
-          echo "  running and turn debugging on in-browser at chrome://inspect/#remote-debugging" >&2
-          echo "  — that needs no relaunch, and the server finds the port it picks." >&2
-          exit 1
-        fi
-
-        echo "nix-chromium-debug: opening CDP on 127.0.0.1:$port" >&2
-        echo "  WARNING: any local process can now drive this browser and read its" >&2
-        echo "  pages, cookies and session state. Quit Chromium when you are done." >&2
-        # `-g`: launch without stealing focus — the window still opens (unlike
-        # `-j`, which hides it outright), it just does not jump to the front.
-        # A debug session driven by an agent should not fight the operator for
-        # the foreground on every new tab it opens.
-        exec /usr/bin/open -g -na "Chromium" --args "--remote-debugging-port=$port"
-      '')
-    ];
-
     # ---- Server side: the mcp-proxy launchd user agent -------------------------
     launchd.agents.mcp-gateway = {
       enable = true;
