@@ -357,6 +357,31 @@ in
       '';
     };
 
+    debugLauncher = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Install `nix-chromium-debug [port]` — a hand-run command that launches Chromium
+        with `--remote-debugging-port` (default 9222, loopback only).
+
+        MOVED HERE from `local.mcpGateway.chromeDevtools.enable` on 2026-09-30, when
+        chrome-devtools stopped being a gateway-hosted server and became `page-lab`'s
+        plugin-owned one (#657 batch 2). The MCP server left; opening the port did not,
+        and it was never an MCP concern — it is a browser concern, which is this module.
+        `kaptureMcp` above is the same shape: this file owns the browser half of a
+        browser-automation server whose client lives elsewhere.
+
+        Deliberately a hand-run command and NOT a launchd agent or login item: the port
+        is an unauthenticated control channel over a browser holding live logins and the
+        Apple Passwords native host. It should exist for a session, on purpose, and die
+        with the window — never come back at boot.
+
+        `page-lab`'s attach probe finds the port either way: it tries the HTTP endpoint
+        first and falls back to `--autoConnect` reading `DevToolsActivePort`. So without
+        this the plugin still works, in the weaker of its two modes.
+      '';
+    };
+
     hideBookmarkBar = lib.mkOption {
       type = lib.types.bool;
       default = true;
@@ -455,6 +480,65 @@ in
   };
 
   config = lib.mkIf (cfg.enable && pkgs.stdenv.hostPlatform.isDarwin) {
+    # `nix-chromium-debug` — the CLASSIC, launch-flag route to the CDP port.
+    #
+    # NO LONGER THE ONLY ROUTE, and no longer the one the server assumes
+    # (that server is page-lab's now — #657 batch 2).
+    # A running browser CAN now be switched into debugging mode from
+    # `chrome://inspect/#remote-debugging` (Chrome/Chromium M144+),
+    # which is how the browser this gateway attaches to is actually enabled — it
+    # picks its own port and writes it to `DevToolsActivePort` [F-NO-JSON-HTTP].
+    # This wrapper stays for the flag route, which is still the only way to open a
+    # port on a browser whose UI toggle you do not want to use, and the only way to
+    # get a debug port on an --isolated throwaway profile.
+    #
+    # It launches CHROMIUM specifically. Which profile the SERVER attaches to is now
+    # page-lab's business, not this module's: its attach probe defaults to the same
+    # Chromium profile path and takes CDP_USER_DATA_DIR to override, so the two AGREE
+    # out of the box while staying independent knobs.
+    # (Until 2026-09-21 the default was Opera Air, which is no longer installed.)
+    #
+    # Why a wrapper at all, rather than a declared browser flag: the .app is a
+    # Homebrew cask, so `programs.chromium.package` is null, and upstream's own
+    # assertion then FORBIDS `commandLineArgs` — there is no Nix wrapper to pass
+    # them to (see modules/shared/chromium.nix).
+    #
+    # Deliberately a hand-run command and NOT a launchd agent or a login item: the
+    # port is an unauthenticated control channel over a browser holding live logins
+    # and the Apple Passwords native host. It should exist for a session, on
+    # purpose, and die with the window — never come back at boot.
+    home.packages = lib.mkIf cfg.debugLauncher [
+      (pkgs.writeShellScriptBin "nix-chromium-debug" ''
+        set -euo pipefail
+        # 9222 is the de-facto default every CDP client assumes. Bound to 127.0.0.1
+        # only — never expose or forward it; that turns a local-only debugging
+        # channel into a remote one.
+        port="''${1:-9222}"
+
+        # Relaunching while the same profile is already running silently reuses the
+        # existing process and the port never opens — indistinguishable from the
+        # flag being ignored, and it cost real debugging time to learn. Refuse
+        # instead of producing a browser that looks right and is not.
+        if /usr/bin/pgrep -x "Chromium" >/dev/null 2>&1; then
+          echo "nix-chromium-debug: Chromium is already running." >&2
+          echo "  --remote-debugging-port is a STARTUP flag, so it cannot be added to" >&2
+          echo "  this process. Either quit Chromium completely and re-run, or leave it" >&2
+          echo "  running and turn debugging on in-browser at chrome://inspect/#remote-debugging" >&2
+          echo "  — that needs no relaunch, and the server finds the port it picks." >&2
+          exit 1
+        fi
+
+        echo "nix-chromium-debug: opening CDP on 127.0.0.1:$port" >&2
+        echo "  WARNING: any local process can now drive this browser and read its" >&2
+        echo "  pages, cookies and session state. Quit Chromium when you are done." >&2
+        # `-g`: launch without stealing focus — the window still opens (unlike
+        # `-j`, which hides it outright), it just does not jump to the front.
+        # A debug session driven by an agent should not fight the operator for
+        # the foreground on every new tab it opens.
+        exec /usr/bin/open -g -na "Chromium" --args "--remote-debugging-port=$port"
+      '')
+    ];
+
     programs.chromium = {
       enable = true;
       # The .app is the Homebrew cask; nixpkgs has no darwin build to point at.
@@ -463,7 +547,10 @@ in
       # Consequence worth knowing before looking for it here: a browser LAUNCH flag
       # cannot be declared in this module at all. The one the fleet needs,
       # `--remote-debugging-port` for chrome-devtools-mcp, is therefore a hand-run
-      # `nix-chromium-debug` wrapper in modules/shared/mcp.nix — which is also the
+      # `nix-chromium-debug` wrapper — declared ABOVE in this file since 2026-09-30.
+      # It lived in modules/shared/mcp.nix while chrome-devtools was a gateway server;
+      # #657 batch 2 made that server plugin-owned, so only the browser half stayed,
+      # and the browser half belongs here — which is also the
       # right shape for it, since that port is an unauthenticated control channel
       # that should live for one session, not persist.
       package = null;
