@@ -157,11 +157,27 @@
 
   local.firmwareProvisioning.files = {
     # Connector token (`TUNNEL_TOKEN=<token>`). REQUIRED — the connector cannot start
-    # without it, so the install unit fails (and blocks the connector) if it is absent.
+    # without it, so the install unit fails (and blocks the connector) when there is
+    # genuinely no token to install. That is still true and still correct.
+    #
+    # WHAT CHANGED, and why the old wording here was dangerously wrong: it read
+    # "fails (and blocks the connector) if it is absent" as if absence were the only
+    # way to fail. An UNREADABLE firmware partition failed it too — via
+    # RequiresMountsFor, as a DEPENDENCY failure, which no Restart= can retry — and
+    # `requiredBy` then turned that into a PERMANENT loss of the only route in. The
+    # connector's own module is explicitly built to survive a missing token
+    # (Restart=on-failure, so a late plant self-heals without a rebuild); a hard
+    # Requires= on a non-restarting oneshot silently overrode that design.
+    #
+    # `cache = true` is what makes `required = true` safe to keep: the last token that
+    # installed cleanly is kept OFF this partition, so a FAT mount that stops working
+    # degrades to "install from cache" instead of "no way in". The unit still fails
+    # loudly on a Pi that was never provisioned, which is the case requiredBy is for.
     cloudflared-token = {
       source = "cloudflared-token";
       target = "/run/cloudflared-token";
       required = true;
+      cache = true;
       before = [ "cloudflared-connector.service" ];
       requiredBy = [ "cloudflared-connector.service" ];
     };
