@@ -32,7 +32,7 @@ the tier brackets in `modules/parts/identity.nix`, and every "N servers" comment
 
 | Moment | Entries | Capabilities |
 |---|---|---|
-| today | **27** | 24 |
+| today | **25** | 22 |
 | after the eight assignable servers move to their plugins (#657) | **19** | 16 |
 | if #656 proves out and `github` + `postgres` follow | **17** | **14** |
 
@@ -60,13 +60,15 @@ which is exactly what happened here. (The `${ENV_VAR}`-only half is also narrowe
 the manifest reference documents `${VAR}`/`${VAR:-default}`, `${user_config.KEY}` with
 `sensitive: true`, and `headersHelper` for remote servers.)
 
-This convention is also what reconciles **#655's "10 of 24"** with the 27 everything else counts:
-24 is the CAPABILITY count (27 entries − 3 gmail duplicates).
+This convention is also what reconciles **#655's "10 of 24"** with the roster count everything
+else uses: the capability count is the entry count minus the 3 gmail duplicates. At the original
+27 entries that was 24; after #657 batch 1 retired `kapture` and `mobile-mcp` it is **25 entries /
+22 capabilities**.
 
 ## Shape
 
 One `mcp-proxy` launchd agent (`modules/shared/mcp.nix`, **darwin-only**) bound to
-**`127.0.0.1:<publicMcpPort>`**, started at login, hosting **27 roster entries** today — every
+**`127.0.0.1:<publicMcpPort>`**, started at login, hosting **25 roster entries** today — every
 server the fleet owns, heading for 19 and then 17 as § Counting convention lays out — each at
 `/servers/<name>/mcp` (Streamable HTTP).
 
@@ -80,9 +82,9 @@ instead of being trusted for running on this machine.
 |---|---|---|---|
 | proxies | 2 (`:8096` private, `:8097` published) | **1** | 1 |
 | what a client declares | 20+ loopback URLs | **1 portal URL** | 1 portal URL **+ each enabled plugin's own `.mcp.json`** |
-| published servers | 2 of 26 | **27 of 27** | **17 of 17** (19 in the first batch) |
+| published servers | 2 of 26 | **25 of 25** | **17 of 17** (19 after the full #657 batch) |
 | per-client stdio servers | `desktop-commander`, `open-design` | **none** | **the plugin-owned ones** — local stdio, Claude Code only, never portal-reachable |
-| processes | ~50 (two copies of each server) | **27** | **17** on the gateway, the rest spawned per-session by Claude Code |
+| processes | ~50 (two copies of each server) | **25** | **17** on the gateway, the rest spawned per-session by Claude Code |
 | machine-control tier (`identity.nix`) | — | **[5]** | **[1]** — `desktop-commander` alone |
 
 The second proxy existed because Cloudflare Access protects a *hostname*, not a path, so
@@ -143,7 +145,7 @@ rather than crashing).
 | Server | Notes |
 |---|---|
 | `desktop-commander` | **SHELL/RCE surface — hosted AND published.** `@wonderwhy-er/desktop-commander`, on the gateway since 2026-09-22 by operator decision. What that accepts, stated rather than implied: anything holding a valid Workspace session for this domain can drive a shell on this Mac through the portal. It was excluded until then, and two assertions made the exclusion structural; with every server published the private/published split bounded nothing, so keeping this one off bought a second transport and process tree for no isolation. The gate is Access + Workspace OAuth restricted to the domain — the same gate every other server is behind |
-| `kapture` | browser automation by LOCAL BRIDGE — a third route to the same tabs, beside `chrome-devtools` (CDP) and the built-in claude-in-chrome (native messaging). Declared here 2026-09-23; until then this repo owned only the extension half (`local.chromium.kaptureMcp`) and the server lived in `~/.claude.json`, imperative and invisible to a rebuild. **A running bridge with zero connected tabs is DARK, not ready** — a tab becomes visible only when the operator toggles it in the extension's toolbar popup, so hosting this grants nothing on its own |
+| ~~`kapture`~~ | **MOVED 2026-09-30** to the `page-lab` plugin (#657 batch 1). The extension half (`local.chromium.kaptureMcp`) stays in nix-config — the plugin owns only the client |
 | `duckduckgo` | web search |
 | `arxiv` | arXiv literature loop via `arxiv-mcp-server` (pinned, `--python 3.12`): search, abstracts, section-level LaTeX reads, BibTeX, Semantic Scholar citation graphs, topic watches. No credentials; papers + watches under `$XDG_DATA_HOME/arxiv-mcp-server/papers` |
 | `json-yaml-toml` | structured-data convert/query/diff/merge/schema |
@@ -153,7 +155,7 @@ rather than crashing).
 | `cloudflare` | Cloudflare API; needs a one-time browser login and fails gracefully headless |
 | `apify` | Apify Store's ready-made scraper/crawler Actors, run **LOCALLY** via `@apify/actors-mcp-server`, authenticated by an `APIFY_TOKEN` read from the Keychain at launch. Switched 2026-08-19 from the hosted `mcp.apify.com` OAuth bridge, which never completed its interactive login under the headless launchd gateway; a missing token warns but does not dark the gateway |
 | `macos-automator` | AppleScript/JXA automation — needs a one-time macOS Accessibility (TCC) grant, see [`mcp-gateway-accessibility-tcc.md`](mcp-gateway-accessibility-tcc.md) |
-| `mobile-mcp` | iOS/Android device + emulator driving |
+| ~~`mobile-mcp`~~ | **MOVED 2026-09-30** to the `android-phone` plugin (#657 batch 1). No longer on the gateway |
 | `postgres` | local Postgres (incl. the RAG store) |
 | `wordpress` | docdyhr/mcp-wordpress (pinned) — **CLIENT-SIDE** WordPress admin over a live site's REST API with an Application Password (nothing installed on the site). Creds are Keychain items `mcp:silvercreek.ai:wp_url`/`:wp_user`/`:wp_app_password`, read BY SERVICE NAME (the `$WP_*` names are only env bindings) and injected by the generated `mkGeneratedStdio` wrapper — `wpMcp` is gone; canonical **www** host required, and the password must be a 24-alphanumeric Application Password, not a login password |
 | `wordpress-adapter` | the official WordPress MCP Adapter (**server-side, SILVERCREEK.AI PROD**), reached via a Keychain-injecting `mcp-remote` wrapper against `https://www.silvercreek.ai`; always-on since prod is always reachable |
@@ -265,7 +267,7 @@ clicking through nine OAuth flows.
 data excludes; the ownership split is not that, and the moved servers are the low-volume tail.
 
 **The security upside, which is the strongest argument for the split.** `identity.nix`'s machine-
-control tier goes **[5] → [1]**: `macos-automator`, `chrome-devtools`, `kapture` and `mobile-mcp`
+control tier goes **[5] → [1]** (now at **[3]**: `kapture` and `mobile-mcp` left in batch 1): `macos-automator`, `chrome-devtools`, `kapture` and `mobile-mcp`
 become local plugin stdio, **not portal-reachable at all**. A leaked Access service token then
 reaches one machine-control server (`desktop-commander`) instead of five.
 
