@@ -1478,11 +1478,17 @@ waves 5-6 absorb them).
   sshd (no password, no root login, no keyboard-interactive), a firewall that opens **no TCP
   port at all** (UDP 5353 only, for mDNS), avahi `<host>.local` publishing, native
   `programs.nix-ld`, zram swap, automatic GC.
-  **sshd binds loopback only** — `listenAddresses = 127.0.0.1 + ::1` with `openFirewall = false`
-  (clearing `allowedTCPPorts` alone is NOT enough; sshd's own module re-opens the port). So
-  `nixpi`'s sshd is reachable *only* from on-host, which in practice means the tunnel connector
-  terminating there (`cloudflared access ssh --hostname nixpi.kattakath.com`) — closing the LAN
-  path that walked around the Access application entirely. Break-glass is the physical console.
+  **sshd binds loopback only BY DEFAULT** — `listenAddresses = 127.0.0.1 + ::1` with
+  `openFirewall = false` (clearing `allowedTCPPorts` alone is NOT enough; sshd's own module
+  re-opens the port). On that default a host's sshd is reachable *only* from on-host, which in
+  practice means the tunnel connector terminating there
+  (`cloudflared access ssh --hostname nixpi.kattakath.com`) — closing the LAN path that walked
+  around the Access application entirely.
+  **`nixpi` OPTS OUT of that default since 2026-10-01** (`lan-recovery.nix`, below), because
+  loopback-only also meant the tunnel was a SINGLE POINT OF FAILURE: when the connector died
+  that day the host was unreachable by every route and recovery was a ~40-minute physical SD
+  reflash. `nixvm`, and every `lib.mkNixos` consumer, keep the loopback-only default. The
+  physical console is the break-glass path below both.
   `nixvm` is only ever the local `nix run .#nixvm` desktop and has no networked login path
   either — but note it autologins with **no password** AND keeps a persistent `/home` in its
   qcow2 (see `nixvm.nix` above), so that image is durable unencrypted local state rather than
@@ -1496,15 +1502,20 @@ waves 5-6 absorb them).
   only from CI. Cost measured 2026-09-21: one extra `nixpi` module eval on the darwin leg (~1 s;
   nothing else on that leg forces this config), and no `aarch64-linux` build, because only
   numbers and strings escape into the derivation. A comment cannot fail a build, and
-  each of these lines is a one-token edit away from reopening the LAN path that Cloudflare
-  Access is meant to be the only way through — Access enforces at the EDGE, so a LAN connection
-  to port 22 is not merely unauthenticated, it produces **no access log at all**. 18 legs, each
-  naming its own silent-failure mode:
+  each of these lines is a one-token edit away from a posture nobody chose — in EITHER
+  direction. **Widening:** a port opened GLOBALLY renders with no interface match, and since
+  Access enforces at the EDGE such a connection is not merely unauthenticated, it produces **no
+  access log at all**. **Narrowing:** putting sshd back on loopback, or dropping the
+  per-interface allow-list, silently restores the single point of failure that cost the
+  2026-10-01 reflash. 22 legs, each naming its own silent-failure mode:
   - `openFirewall = false` — upstream defaults it **true** and feeds `cfg.ports` straight into
-    `allowedTCPPorts`, so deleting that one line reopens 22 with no other file changing.
-  - `listenAddresses` NON-EMPTY, checked BEFORE the loopback leg: an empty list emits no
-    `ListenAddress` line and OpenSSH binds the WILDCARD, while `all isLoopback [ ]` is vacuously
-    true. The loopback leg is then a sorted EQUALITY, so it also proves both families are bound.
+    `allowedTCPPorts`, i.e. the GLOBAL list, so deleting that one line opens 22 on every
+    interface the host has with no other file changing.
+  - `listenAddresses` NON-EMPTY, checked BEFORE the address-equality leg: an empty list emits no
+    `ListenAddress` line and OpenSSH binds the wildcard by default, so an EMPTY list and the
+    declared wildcard pair produce the same binds — and a check cannot tell a deliberate
+    deletion from a careless one. The pair is therefore written out explicitly and compared as a
+    sorted EQUALITY, which also proves both families are bound.
   - every listen address carries a **string** `addr` — its own leg, and the precondition both
     sorted comparisons need. The submodule declares `addr` as `nullOr str` defaulting to null
     (pinned nixpkgs `sshd.nix:325-328`), so the attribute always EXISTS, `a.addr or ""` never
@@ -1513,9 +1524,12 @@ waves 5-6 absorb them).
     guarded by a lazy `&&`: the rendered leg below forces `extraConfig`, where upstream
     interpolates `addr` straight into a string (`sshd.nix:901`, "cannot coerce null to a
     string" — measured), so guarding only the sort was not enough.
-  - the **RENDERED** `ListenAddress` lines are loopback only — a wildcard smuggled through
-    `services.openssh.extraConfig` binds exactly as well as one in `listenAddresses`, and no
-    option read catches it. This leg parses the MERGED `extraConfig` back into addresses and
+  - the **RENDERED** `ListenAddress` lines are that same wildcard pair — an address smuggled
+    through `services.openssh.extraConfig` binds exactly as well as one in `listenAddresses`,
+    and no option read catches it. `extraConfig` is CUMULATIVE, so now that the expected pair IS
+    the wildcard this leg catches a THIRD address appearing rather than a widening; the option
+    leg beside it is what catches a narrowing.
+    This leg parses the MERGED `extraConfig` back into addresses and
     compares sorted. A bare `hasInfix "ListenAddress"` was NOT viable: upstream puts its own
     generated block in that same string at `mkOrder 0` (`sshd.nix:893-902`), so the grep is
     TRUE on a healthy host. The parser lowercases each line (sshd keywords are
@@ -1524,19 +1538,32 @@ waves 5-6 absorb them).
   - no explicit `port` on a listen address — nixpkgs renders `ListenAddress ::1:22`
     UNBRACKETED, OpenSSH reads that as `::0.1.0.34`, the v6 bind fails, and sshd SURVIVES
     (a failed bind is fatal only if every bind fails), so v6 loopback silently vanishes.
-  - the allow-list is **four** legs, not one, because four options reach the same iptables
-    accept rule. `allowedTCPPorts` is EXACTLY `[ 80 ]` — core.nix's `[ ]` MERGES with
-    `hosts/nixpi.nix`'s Caddy ORIGIN port (443 omitted; TLS terminates at Cloudflare).
-    `allowedTCPPortRanges` is `[ ]` (`firewall-iptables.nix:182-183`). The per-interface sets
-    are read through the INTERNAL `allInterfaces` (`firewall.nix:305-311`) rather than the
-    user-facing `interfaces`, because `allInterfaces` is the attrset every one of the four
-    accept loops actually walks (`:165`, `:183`, `:195`, `:213`), so a future upstream route
-    into those loops surfaces here as a new key instead of slipping past. And
-    `trustedInterfaces` is `[ "lo" ]` — a trusted interface accepts EVERYTHING on it, no port
-    list consulted (`firewall-iptables.nix:149`), and upstream sets that value itself
-    (`firewall.nix:334`), so the leg pins it rather than emptiness. The check's job is to make
-    WIDENING loud, not to bless the current width: a legitimate new port means editing the
-    literal on purpose. Plus password / keyboard-interactive / root-login denials.
+  - the allow-list is **several** legs, not one, because several options reach the same iptables
+    accept rule. The GLOBAL `allowedTCPPorts` is EXACTLY `[ 80 ]` — core.nix's `[ ]` MERGES with
+    `hosts/nixpi.nix`'s Caddy ORIGIN port (443 omitted; TLS terminates at Cloudflare) — and that
+    one renders with **no `-i`** (`firewall-iptables.nix:160-165`), which is why a separate leg
+    also asserts no sshd port appears in it. The GLOBAL `allowedTCPPortRanges` is `[ ]`
+    (`:182-183`). The per-interface sets are read through the INTERNAL `allInterfaces`
+    (`firewall.nix:305-311`) rather than the user-facing `interfaces`, because `allInterfaces` is
+    the attrset every one of the four accept loops actually walks (`:165`, `:183`, `:195`,
+    `:213`), so a future upstream route into those loops surfaces here as a new key instead of
+    slipping past — and the `default` key IS the global list under another name
+    (`firewall.nix:308-311`), so the per-interface legs drop it. And `trustedInterfaces` is
+    `[ "lo" ]` — a trusted interface accepts EVERYTHING on it, no port list consulted
+    (`firewall-iptables.nix:149`), and upstream sets that value itself (`firewall.nix:334`), so
+    the leg pins it rather than emptiness. Plus password / keyboard-interactive / root-login
+    denials.
+  - **the SECOND INGRESS, five legs, reading the per-interface path in the OPPOSITE direction.**
+    Since 2026-10-01 that path is not purely a widening risk — it is where `nixpi`'s LAN recovery
+    ingress lives, so its ABSENCE is now a failure too: `local.lanRecovery.enable` is true; a
+    per-interface allow-list exists at all; its keys are EXACTLY the interfaces
+    `local.lanRecovery` declares; those names equal
+    `local.uplinkWatchdog.wiredInterface` ∪ `attrNames networking.supplicant` (the two places
+    `end0` and `wlan0` are independently spelled on this host, so a rename in one cannot leave
+    the LAN list stale); and each named interface opens EXACTLY `services.openssh.ports` and
+    nothing else on any protocol, which is the widening guard the leg always was. The check's job
+    stays "make a change loud", not "bless the current width": a legitimate new port means
+    editing a literal on purpose.
   - `distributedBuilds`, `buildMachines` and the rendered `nix.settings.builders` are three
     SEPARATE legs, because upstream says the first does not inhibit the second (`buildMachines
     != [ ]` alone renders `/etc/nix/machines`) and nulls the third only WHILE `distributedBuilds`
@@ -1547,11 +1574,22 @@ waves 5-6 absorb them).
   **Not nixpkgs' own `assertions`:** their only natural home is `modules/nixos/core.nix`, which
   `nixvm` and every `lib.mkNixos` consumer also import — baking "exactly one open TCP port" in
   there breaks a stranger's host, the precise leak the `template-consumer` check exists to
-  prevent. This is a FLEET contract about one named host. **Not covered:** it is EVAL, not
-  runtime — no `sshd -G`, and no `iptables -S` (that, not `nft list ruleset`, is the runtime
-  counterpart: nixpi runs the **iptables** backend, `networking.nftables.enable = false`,
-  measured); an already-flashed Pi also keeps its current generation until the next deploy.
-  Four further paths are known and deliberately ungated: `networking.firewall.extraCommands`,
+  prevent. This is a FLEET contract about one named host.
+
+  **NOT COVERED — and the headline is that this check CANNOT TELL YOU THE PI IS UP.** It is
+  EVAL, not runtime — no `sshd -G`, no `iptables -S` (that, not `nft list ruleset`, is the
+  runtime counterpart: nixpi runs the **iptables** backend, `networking.nftables.enable = false`,
+  measured), no TCP connect, no ping; an already-flashed Pi also keeps its current generation
+  until the next deploy. On 2026-10-01 **every leg was GREEN while the host was unreachable by
+  every route** — connector dead, site answering Cloudflare 1033, SSH timing out at banner
+  exchange. A green build means "the config still declares the posture it is supposed to", and
+  nothing more. Reachability is not checkable from a derivation (a network probe would be
+  fixed-output cached, non-hermetic, and would fail CI for every unrelated change during a router
+  outage); runtime health belongs to a monitor, and **there is none today**. What that outage DID
+  buy is the second-ingress legs above: the config now has to keep declaring a non-tunnel path,
+  so the next edit that restores the single point of failure fails the build instead of waiting
+  for the next outage to announce itself.
+  Four further CONFIG paths are known and deliberately ungated: `networking.firewall.extraCommands`,
   the iptables backend's raw escape hatch (`firewall-iptables.nix:235`), already NON-EMPTY on
   nixpi because the nat module contributes its own teardown preamble, so there is no empty
   baseline to assert against; `extraInputRules`, which is not a path on this host at all — it
@@ -1560,10 +1598,61 @@ waves 5-6 absorb them).
   and needs NEW legs rather than an edit to these; **UDP**, ports and ranges both, since the
   failure this check exists to catch is an unauthenticated unlogged path to sshd and sshd is
   TCP; and the rest of `sshd_config` — a `Port` smuggled through `extraConfig` is harmless
-  here (the binds stay loopback, the allow-list is pinned) but a `Match` block relaxing an auth
+  here (the allow-lists are pinned per interface) but a `Match` block relaxing an auth
   setting is invisible. Nothing here stops the Pi compiling locally either (`max-jobs` is
   still `auto`), and the Access application itself lives in Cloudflare's API, where its
   2026-08-20 disappearance was invisible to eval then and still is.
+- **`modules/nixos/lan-recovery.nix`** — `local.lanRecovery` (default off; `nixpi` turns it on,
+  `hosts/nixpi.nix`). **The SECOND INGRESS**, added 2026-10-01 after a dead cloudflared connector
+  left the host unreachable by every route — Access healthy and still issuing a login URL, the
+  zone healthy, the site answering HTTP 530 / Cloudflare 1033, SSH timing out *during banner
+  exchange* — and recovery was a ~40-minute physical SD reflash. `uplink-watchdog.nix` had
+  already written the gap down from the other side ("sshd is loopback-bound and the Cloudflare
+  tunnel needs working internet, so a dead uplink means no LAN path either"); the watchdog can
+  only ever hand the tunnel a working uplink and is powerless when the connector itself dies.
+  Two settings, both of them upstream options:
+  `services.openssh.listenAddresses = mkForce [ 0.0.0.0, :: ]` and
+  `networking.firewall.interfaces.<iface>.allowedTCPPorts = services.openssh.ports` for each
+  declared interface. Entry point is **mDNS** — `ssh ismail@nixpi.local`, already published by
+  avahi with UDP 5353 already open in `core.nix` — so no address is written down on either side.
+  - **The scope is an INTERFACE, not a subnet, and that is the design.** nixpi is dual-homed onto
+    one router (`end0` wired, `wlan0` on its SSID) and fails over to a phone HOTSPOT on a
+    different, DHCP-assigned subnet, so a rule written against `10.0.0.0/24` is dead in the state
+    where it is needed most. Interface names are stable across both states;
+    `firewall-iptables.nix:160-165` renders a per-interface entry as `-i <iface>` while the
+    `default` pseudo-interface renders with no `-i` at all.
+  - **`mkForce`, not an append.** `listenAddresses` is a list, so appending would leave sshd with
+    `127.0.0.1` AND `0.0.0.0` on port 22; sshd sets SO_REUSEADDR but not SO_REUSEPORT
+    (`sshd.c:844`), the wildcard bind would lose to the specific address with EADDRINUSE, and a
+    failed bind is fatal only if EVERY bind fails (`sshd.c:857-863` `continue`s) — so the LAN
+    path would silently not exist. Both families are named explicitly and do NOT collide: sshd
+    sets `IPV6_V6ONLY` on every AF_INET6 listener (`sshd.c:851-853` via `misc.c:2044-2056`, read
+    at the source), so `0.0.0.0` and `::` are two disjoint sockets. An explicit pair beats
+    `listenAddresses = [ ]` — same binds, but the empty list is the ACCIDENTAL wildcard this
+    fleet guards against. The wildcard covers loopback, so the connector's `localhost:22` dial is
+    unaffected.
+  - **UPSTREAM FIRST** (grepped the pinned nixpkgs, 2026-10-01). OpenSSH has no
+    bind-to-interface keyword, so the scope cannot live in `sshd_config` at all.
+    `systemd.sockets.sshd.socketConfig.BindToDevice` was considered and REJECTED: SO_BINDTODEVICE
+    is a stronger scope than a filter rule, but one socket unit takes one device, so two
+    interfaces mean forking sshd onto `startWhenNeeded` socket activation plus a second
+    hand-written unit — a bigger change to the host's SSH lifecycle than the thing it protects.
+    An RFC1918 source match via `extraInputRules` was also rejected: that option exists only in
+    `firewall-nftables.nix` and nixpi is on iptables, leaving only `extraCommands` (raw shell,
+    invisible to every leg of `nixpi-security-posture`). Both candidate segments are private
+    already, so the interface IS the RFC1918 scope.
+  - **The exposure, stated plainly.** TCP 22 answers on `end0`/`wlan0`, keys-only
+    (`PasswordAuthentication`/`KbdInteractiveAuthentication` off, `PermitRootLogin no`), to one
+    operator ed25519 key. NOT internet-reachable: no port-forward, no public IP, tunnel
+    outbound-only. The real cost is that a LAN connection does **not** traverse Cloudflare
+    Access, so it is neither identity-gated nor logged there. Accepted because the segment was
+    never zero-exposure — `allowedTCPPorts = [ 80 ]` is the `default` pseudo-interface, i.e. no
+    `-i`, so Caddy has always answered on the LAN. This adds a pubkey-gated service beside an
+    already-LAN-reachable web server and buys back the 40-minute reflash. It cannot reach a host
+    that is off, whose card is corrupt, or whose radio and wired port are both down, and it is no
+    help from off-segment; the physical console stays the last break-glass path.
+  - Gated by the five second-ingress legs of `checks.<system>.nixpi-security-posture` above,
+    which also join the interface list to the two other places those names are spelled.
 - **`modules/nixos/desktop-vm.nix`** — opt-in `services.desktopVm.enable` (default false): a lightweight X11
   **XFCE** desktop with passwordless autologin (the `loginName` specialArg) plus QEMU/SPICE
   guest integration (`qemuGuest`, `spice-vdagentd`) for the `nixvm` sandbox.
@@ -1597,9 +1686,13 @@ waves 5-6 absorb them).
   partition stays the source of truth, so the worst case of any escalation is one supplicant
   restart, and a reboot undoes it. Gated by `checks.<system>.uplink-watchdog-paths-agree`,
   which fails if the watchdog and `local.firmwareProvisioning.files.wifi` stop naming the
-  same runtime file, planted filename, or ordered-before unit. **It cannot conjure an
+  same runtime file, planted filename, or ordered-before unit — and, since 2026-10-01, if either
+  of those interface names stops matching `local.lanRecovery.interfaces`. **It cannot conjure an
   uplink** — the fallback AP only helps while it is actually broadcasting, and a phone
-  hotspot that sleeps with no client attached is not an unattended backup.
+  hotspot that sleeps with no client attached is not an unattended backup. **Nor is it a
+  connector watchdog:** it only ever hands the tunnel a working uplink, so it did nothing for the
+  2026-10-01 outage, where the uplink was fine and `cloudflared` itself was the dead part. That
+  is `lan-recovery.nix`'s job, not this one's.
 
 ### NixOS modules that are not in `modules/nixos/`
 
@@ -1699,7 +1792,7 @@ nothing — hence one regex, not two calls.
 | `compose.nix` | `mkDarwin` / `mkNixos` / `mkHomeManagerModule` — **not translated** to flake-parts, kept verbatim as plain Nix functions in the freeform `flake` attr (ADR-001's blast-radius objection, honoured). Also threads each capsule in as a named specialArg. Its two composition seams (`extraHomeModules`, `hostedSites`) and the nixpi deploy runbook are written up in [`private-home-modules.md`](private-home-modules.md) — the filename is historical (the private `nix-personal` flake it was named for was retired 2026-09-15); the seams and the runbook are current. |
 | `hosts.nix` | `darwinConfigurations.macos`, `nixosConfigurations.{nixpi,nixvm}`. |
 | `packages.nix` | `perSystem.packages` + every `apps.*`. |
-| `checks.nix` | The engine's own checks, including `claude-md-budget`, `capsule-registry`, `deploy-schema`, `bedrock-gate-after-loader`, `launchd-log-rotation` (every declared launchd log reaches exactly one rotator, and never both — re-walks the composed agents itself rather than reading `logging.nix`'s own answer back), the two `determinate-daemon` halves and `nixpi-security-posture` (§ `modules/nixos/`). Its one shared helper, `mkHostContract`, reports EVERY broken leg rather than the first — that behaviour, not code reuse, is the bar for reaching for it. |
+| `checks.nix` | The engine's own checks, including `claude-md-budget`, `capsule-registry`, `deploy-schema`, `bedrock-gate-after-loader`, `launchd-log-rotation` (every declared launchd log reaches exactly one rotator, and never both — re-walks the composed agents itself rather than reading `logging.nix`'s own answer back), the two `determinate-daemon` halves and `nixpi-security-posture` (§ `modules/nixos/` — 22 legs, read in BOTH directions since 2026-10-01: a WIDENING of the firewall fails it, and so does REMOVING the declared LAN recovery ingress). Its one shared helper, `mkHostContract`, reports EVERY broken leg rather than the first — that behaviour, not code reuse, is the bar for reaching for it. |
 | `capsules.nix` | The capsule registry and its two internal seams — `capsuleModules` and `capsuleSources` — plus `checks.<system>.capsule-registry`. |
 | `terranix.nix` | The `cf-*` / `mcp-public-*` tofu builders. |
 | `devshell.nix` | `devShells` + the `git-hooks.nix` wiring. |
