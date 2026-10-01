@@ -67,6 +67,7 @@ nix build .#checks.<system>.formatting       # CI formatting/lint gate
 nix build .#checks.<system>.ast-grep         # Structural-lint gate (BLOCKS, no autofix; ast-grep/rules/)
 ast-grep scan --no-ignore hidden .           # Same scan by hand (devShell); without --no-ignore hidden, .claude/ is SKIPPED
 ast-grep test --skip-snapshot-tests          # Prove each rule still fires (fixtures in ast-grep/rule-tests/)
+nix build .#checks.<system>.actionlint       # .github/workflows/*.yml + shellcheck over every `run:` block
 nix build .#checks.<system>.capsule-registry # readDir modules/features == the capsules import-tree loaded
 nix build .#checks.<system>.claude-md-budget # THIS file must stay under 40,000 BYTES (wc -c) — a GATE
 scripts/drv-snapshot.sh --compare .baseline/wave0-final   # "moved code, changed no build" (see § Testing)
