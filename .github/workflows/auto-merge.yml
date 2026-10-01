@@ -78,11 +78,20 @@ jobs:
       # that drops it would re-break auto-close SILENTLY, and the symptom would look
       # exactly like the bug that took hours to isolate. See #688.
       #
-      # REGRESSION TEST, and it must assert the CLOSE rather than the mint: a token
-      # with the wrong scope still mints fine, so a mint-only check passes while the
-      # thing is broken. The test is the next keyworded PR merged by this workflow —
-      # if its issue auto-closes, the scope is right. #668/#669 serve as that trial
-      # immediately after this lands.
+      # REGRESSION TEST — TWO assertions, because one was not enough and the first
+      # attempt at this narrowing proved it.
+      #
+      #  1. ARMING MUST SUCCEED. The arm step has no `|| true`, so an over-narrowed
+      #     token fails the run loudly. That is the assertion, and it is the one that
+      #     fired: the first narrowing dropped contents:write and this workflow failed
+      #     on its OWN pull_request run, because `pull_request` runs the workflow from
+      #     the PR's version rather than from base. Without it, the symptom is PRs
+      #     quietly never landing.
+      #  2. AUTO-CLOSE MUST STILL FIRE. A wrongly-scoped token still MINTS fine, so a
+      #     mint-only check passes while auto-close is broken.
+      #
+      # Assertion 2 cannot run unless 1 passes — arming precedes any merge — so a test
+      # that checked only the close would have been SILENT on this failure.
       - id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
@@ -90,6 +99,13 @@ jobs:
           private-key: ${{ secrets.CI_BOT_APP_PRIVATE_KEY }}
           permission-pull-requests: write
           permission-issues: write
+          # `enablePullRequestAutoMerge` ALSO needs contents:write — the name does not
+          # suggest it and the docs do not say it. MEASURED: without it the arm step
+          # fails with
+          #   GraphQL: Resource not accessible by integration (enablePullRequestAutoMerge)
+          # (run 36823839504). The first attempt at this narrowing dropped it and broke
+          # arming on its own PR.
+          permission-contents: write
 
       # Idempotent — re-arming an already-armed PR is a no-op, which is what makes
       # the `synchronize` trigger safe: it RE-ARMS a PR that GitHub disarmed (a
@@ -101,4 +117,8 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PR_URL: ${{ github.event.pull_request.html_url }}
-        run: gh pr merge --auto --squash "$PR_URL"
+        run: |
+          if ! gh pr merge --auto --squash "$PR_URL"; then
+            echo "::error::Could not arm auto-merge. 'Resource not accessible by integration (enablePullRequestAutoMerge)' means the App token is scoped too tightly: enablePullRequestAutoMerge needs contents:write as well as pull-requests:write. See the permission-* inputs above."
+            exit 1
+          fi
