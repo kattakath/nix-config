@@ -441,6 +441,35 @@ let
                 -p "$asset" -D "$tmp" --clobber
               image="$tmp/$asset"
               [ -f "$image" ] || { echo "nixpi-flash: download failed: $image" >&2; exit 1; }
+
+              # ---- PROVENANCE GATE: prove the bytes before decompressing them ---------
+              # Until 2026-09-30 this path went download -> zstd -d -> dd with NO
+              # integrity check at all. CLAUDE.md's "verified dd" verifies the WRITE (the
+              # byte count), not the ARTIFACT — and that wording read as cover for a gap
+              # that was really there.
+              #
+              # build-installers-impl.yml now signs the image with a GitHub OIDC identity
+              # (actions/attest-build-provenance). This verifies that signature BEFORE
+              # zstd touches the file, so a tampered or wrong-provenance asset fails while
+              # it is still inert bytes on disk rather than mid-way through a 5.6 GB write
+              # to a block device.
+              #
+              # --repo pins WHICH repo's workflow may have produced it: an attestation
+              # from another repo is rejected even though it is validly signed.
+              echo "nixpi-flash: verifying build provenance of $asset…"
+              if ! gh attestation verify "$image" --repo ${orgName}/${repoName}; then
+                echo "" >&2
+                echo "nixpi-flash: PROVENANCE VERIFICATION FAILED for $asset." >&2
+                echo "  The asset is NOT provably built by ${orgName}/${repoName}'s" >&2
+                echo "  installer workflow. REFUSING to decompress or flash it." >&2
+                echo "" >&2
+                echo "  If this image predates provenance (added 2026-09-30), re-run the" >&2
+                echo "  build-installers workflow to republish it attested. Do NOT bypass" >&2
+                echo "  this to flash an unverified image: the card becomes a live," >&2
+                echo "  Access-gated fleet host." >&2
+                exit 1
+              fi
+              echo "nixpi-flash: provenance OK"
             fi
             if [ -z "$image" ]; then
               echo "nixpi-flash: building the sdImage (needs an aarch64-linux builder — see --release)…"
