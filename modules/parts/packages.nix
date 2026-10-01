@@ -126,6 +126,7 @@ in
           # None of the five can be a flake check — they are properties of the
           # running machine, not the config.
           launchd-doctor = pkgs.callPackage ../../packages/launchd-doctor.nix { };
+          claude-state-gc = pkgs.callPackage ../../packages/claude-state-gc.nix { };
 
           # Ad-hoc inspection CLI for the household's Rogers CGM4981 (RDK-B)
           # gateway, which exposes NO shell (22/23 closed, 161 silent; only
