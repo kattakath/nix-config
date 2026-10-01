@@ -90,6 +90,11 @@ PR #558:
 | `nix-ci` on the queue entry | **7m29s** |
 | merged | — |
 | **open → merged** | **18m56s** |
+
+**That is ONE PR, not the norm — do not read 10m27s as typical.** Measured 2026-10-01 over the
+last 37 successful `pull_request` runs of `nix-ci.yml`: **median 7.1 min**, p90 8.2, max 10.2, min
+5.2. #558's 10m27s sat at the top of that range, and its 18m56s open→merged reflects the queue
+leg that no longer exists.
 | `nix-ci` on `push: main`, after | 8m19s |
 
 *The expiry.* The queue was adopted to escape a strict up-to-date policy that the
@@ -110,11 +115,29 @@ releases on `ready_for_review` — verified on #559 (armed 15:30:33 while draft,
 16:11:31, merged 16:19:54).
 
 *What was given up, honestly.* Cross-PR semantic conflict detection: two PRs each
-green alone, broken together. At `min_entries_to_merge: 1` and one entry per queue
-run across the whole visible history, queue depth here was always **1**, so that
-guarantee was never exercised. The post-merge `push: main` leg still evaluates the
-merged result and surfaces a bad merge within ~8 minutes, and `required_linear_history`
-+ squash makes the follow-up fix a one-commit PR.
+green alone, broken together.
+
+**The reason this costs little is NOT that queue depth was always 1** — that was the
+argument first written here and it does not hold. Depth measures *batching*; a queue at
+depth 1 still rebuilds its entry against main's current tip, so the protection operates
+perfectly well at depth 1.
+
+The real reason is stronger: **PR CI already tests the merged result.** The checkout step
+logs `Merge <sha> into <base>`, so a PR is validated as merged, not as its branch. The
+queue's only marginal value is therefore the ~7-minute window in which `main` can move
+between that merge-test and the actual merge — and across the visible history, with a
+24-27% stale-base share, that window produced **zero** conflicts. The post-merge `push: main` leg still evaluates the
+merged result and surfaces a bad merge, and `required_linear_history` + squash makes the
+follow-up fix a one-commit PR.
+
+**Two caveats on that safety net, measured rather than assumed.** It used to be cancelled
+on roughly a third of merges — 29 cancelled / 70 success / 1 failure over the last 100
+`push: main` runs — because `cancel-in-progress` was a flat `true`, so each merge killed
+the previous merge's run. #698 scoped it to non-`main` refs, so from that commit the leg
+actually completes per merge. And the "~8 minutes" is per **burst**, not per merge: when
+several merges land inside one run's window, one completed run covers the lot, so
+per-merge attribution was what the cancellation destroyed — which is why #698 was a
+measurability fix rather than a coverage one.
 
 **PRs stay independent.** The reasoning survives the queue's removal on different
 grounds: CI is now a single ~10 min gate per PR, so there is no reason to batch a
@@ -131,6 +154,11 @@ rejects the rule outright on a repository owned by a USER account — `422 Valid
 Failed, Invalid rule 'merge_queue'` — with no hint that ownership is the cause.
 This is why all seven satellite flakes were moved off the `ismailkattakath` user
 account into the `kattakath` org. A GitHub **Free** org is enough, for public repos.
+
+**This footgun is now SATISFIED, not outstanding.** Verified 2026-10-01: `kattakath` is an
+`Organization` and `kattakath/nix-config` is public, so merge queues are available here.
+Re-adoption is a **live option**, not blocked — the 422 fact applies to user-owned repos,
+which this no longer is. Only (b) and (c) remain as real work.
 
 **(b) Every workflow producing a REQUIRED context needs a `merge_group:` trigger.**
 A queue entry is built on its own `gh-readonly-queue/main/...` ref, which emits
