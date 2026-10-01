@@ -20,22 +20,6 @@
         "type": "github"
       }
     },
-    "agent-skills-anthropic-official": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1790266835,
-        "narHash": "sha256-xUs7UX8pOcZwR0okaSbI/f8EE5F4Zi/BUd+nIZNafPc=",
-        "owner": "anthropics",
-        "repo": "skills",
-        "rev": "33375500bcea98d610eb30ce10ac4e59b89c390d",
-        "type": "github"
-      },
-      "original": {
-        "owner": "anthropics",
-        "repo": "skills",
-        "type": "github"
-      }
-    },
     "agent-skills-cloudflare": {
       "flake": false,
       "locked": {
@@ -129,22 +113,6 @@
       "original": {
         "owner": "obra",
         "repo": "superpowers",
-        "type": "github"
-      }
-    },
-    "agent-skills-trailofbits": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1790276223,
-        "narHash": "sha256-p/a0ER7FGCtzkigqHGcgAO1Pb2JAWO5XQGjf+cBXSm0=",
-        "owner": "trailofbits",
-        "repo": "skills",
-        "rev": "0cc1c73a5e96749ab32d7ea5e14892fafa6972ae",
-        "type": "github"
-      },
-      "original": {
-        "owner": "trailofbits",
-        "repo": "skills",
         "type": "github"
       }
     },
@@ -738,14 +706,12 @@
     "root": {
       "inputs": {
         "agenix": "agenix",
-        "agent-skills-anthropic-official": "agent-skills-anthropic-official",
         "agent-skills-cloudflare": "agent-skills-cloudflare",
         "agent-skills-excalidraw": "agent-skills-excalidraw",
         "agent-skills-jeffallan": "agent-skills-jeffallan",
         "agent-skills-jsonresume": "agent-skills-jsonresume",
         "agent-skills-mac-automation": "agent-skills-mac-automation",
         "agent-skills-superpowers": "agent-skills-superpowers",
-        "agent-skills-trailofbits": "agent-skills-trailofbits",
         "agent-skills-vercel": "agent-skills-vercel",
         "agent-skills-vercel-agent": "agent-skills-vercel-agent",
         "agent-skills-vercel-workflow": "agent-skills-vercel-workflow",

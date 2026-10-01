@@ -300,16 +300,6 @@
       url = "github:cloudflare/skills";
       flake = false;
     };
-    agent-skills-anthropic-official = {
-      # Anthropic's official skills marketplace (source-available): mcp-builder, webapp-testing,
-      # pdf/docx/pptx/xlsx. This is the anthropics/skills CONTENT repo. There used to be a
-      # sibling `agent-skills-anthropic` (= anthropics/claude-code) for the plugin-dev +
-      # hookify authoring skills; it was removed 2026-09-29 when those arrived as PLUGINS
-      # instead (modules/shared/home.nix, claude-plugins-official) — a plugin carries their
-      # agents, commands and hooks, which a skill-directory mapping cannot.
-      url = "github:anthropics/skills";
-      flake = false;
-    };
     agent-skills-jeffallan = {
       # MIT: `postgres-pro` (senior-Postgres skill) — pairs with the postgres MCP server + local pgvector RAG.
       url = "github:Jeffallan/claude-skills";
@@ -324,12 +314,6 @@
       # Generates .excalidraw diagrams (Playwright render-loop) — pairs with the Excalidraw connector.
       # Root-level SKILL.md, so the whole repo IS the skill dir. No LICENSE file (source-available; personal pin only).
       url = "github:coleam00/excalidraw-diagram-skill";
-      flake = false;
-    };
-    agent-skills-trailofbits = {
-      # Trail of Bits security skills (CC-BY-SA-4.0): gh-cli (prefer authenticated gh over raw curl) +
-      # supply-chain-risk-auditor (dependency takeover/typosquat risk scoring). Wired in programs.claude-code.skills.
-      url = "github:trailofbits/skills";
       flake = false;
     };
     agent-skills-superpowers = {

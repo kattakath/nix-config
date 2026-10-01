@@ -46,11 +46,9 @@
   # below). flake.nix pins them; nothing is vendored into this repo.
   agent-skills-vercel,
   agent-skills-cloudflare,
-  agent-skills-anthropic-official,
   agent-skills-jeffallan,
   agent-skills-mac-automation,
   agent-skills-excalidraw,
-  agent-skills-trailofbits,
   agent-skills-superpowers,
   agent-skills-jsonresume,
   agent-skills-vercel-agent,
@@ -1433,8 +1431,6 @@ in
         # Playwright scripts that launch their own headless chromium) — no MCP server
         # of ours backs it, in particular NOT the gateway `playwright` entry, since
         # that was removed with browservm (2026-08-20).
-        mcp-builder = "${agent-skills-anthropic-official}/skills/mcp-builder";
-        webapp-testing = "${agent-skills-anthropic-official}/skills/webapp-testing";
         # Anthropic document skills: pair with the Google Drive connector (fetch → edit → store).
         # NOTE heavy runtime deps: pandoc + poppler now come from nixpkgs (home.packages
         # above); LibreOffice/soffice comes from the macos-only Homebrew cask
@@ -1444,10 +1440,6 @@ in
         # larger follow-up. Any darwin host inherits this same skills block (gated on
         # stdenv.hostPlatform.isDarwin, not hostName == "macos") but does NOT get the libreoffice
         # cask — soffice is absent there; a known, accepted asymmetry for now.
-        pdf = "${agent-skills-anthropic-official}/skills/pdf";
-        docx = "${agent-skills-anthropic-official}/skills/docx";
-        pptx = "${agent-skills-anthropic-official}/skills/pptx";
-        xlsx = "${agent-skills-anthropic-official}/skills/xlsx";
         # Community (MIT, 10.9k★): senior-Postgres skill — pairs with the `postgres` MCP + pgvector RAG.
         postgres-pro = "${agent-skills-jeffallan}/skills/postgres-pro";
         # Community (MIT): AppleScript/JXA foundation — pairs with the `macos-automator` MCP server.
@@ -1470,10 +1462,8 @@ in
         # ---- Security / methodology skills (from the audit) ----
         # Trail of Bits (CC-BY-SA-4.0): prefer authenticated `gh` over raw GitHub curl/WebFetch —
         # fits the heavy gh/PR flow (PR open/review, release/issue triage).
-        gh-cli = "${agent-skills-trailofbits}/plugins/gh-cli/skills/gh-cli";
         # Trail of Bits: score dependencies for takeover/typosquat/bus-factor risk — matches the
         # flake-pin provenance discipline (every input is pinned + provenance-checked).
-        supply-chain-risk-auditor = "${agent-skills-trailofbits}/plugins/supply-chain-risk-auditor/skills/supply-chain-risk-auditor";
         # obra/superpowers (MIT): the SINGLE systematic-debugging skill (cherry-picked subpath, NOT
         # the whole 14-skill plugin) — a hypothesis-driven debugging methodology.
         systematic-debugging = "${agent-skills-superpowers}/skills/systematic-debugging";
