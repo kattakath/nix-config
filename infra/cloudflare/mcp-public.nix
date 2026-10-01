@@ -230,7 +230,6 @@ let
     json-yaml-toml = "domain";
     mcp-jq = "domain";
     mcpfinder = "domain";
-    nixos = "domain";
     sequential-thinking = "domain";
     terraform = "domain";
   };

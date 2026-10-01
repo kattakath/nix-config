@@ -32,12 +32,28 @@ the tier brackets in `modules/parts/identity.nix`, and every "N servers" comment
 
 | Moment | Entries | Capabilities |
 |---|---|---|
-| today | **25** | 22 |
-| after the eight assignable servers move to their plugins (#657) | **19** | 16 |
+| today | **23** | 20 |
+| after the remaining mover lands (#657) | **22** (pending) | 19 (pending) |
 | if #656 proves out and `github` + `postgres` follow | **17** | **14** |
 
+The 19/16 figures this table used to project assumed **eight** movers. Five move, so the end state is
+higher. The remaining number is deliberately left as "pending" rather than re-derived now:
+`macos-automator` is the last undecided mover (its plugin is not installed yet), and re-deriving this
+arithmetic twice is how it ends up wrong. Fix it once, when that set is final.
+
 The eight moving: `mobile-mcp`, `chrome-devtools`, `kapture`, `macos-automator`, `mcpfinder`,
-`nixos`, `terraform`, `arxiv`. `github` and `postgres` are the two of the ten assignable ones held
+`nixos`, `terraform`, `arxiv`.
+
+> **CORRECTION (2026-09-30): the moving set is FIVE, not eight.** `terraform` and `arxiv` were
+> misclassified into it. The ownership table below names owners for six servers and neither appears,
+> and no plugin manifest in the marketplace mentions either — so they fail the criterion
+> ("the plugin already ships the prose, the server is its hands") and fall to **#658's fleet-level
+> catalog**, the class that keeps this gateway alive in reduced form. `mcpfinder` is also not moving
+> (Node 20 lacks `node:sqlite`; see the spawn-test rule below). Moving: `kapture`, `mobile-mcp`,
+> `chrome-devtools`, `nixos` — all landed — plus `macos-automator`, pending its plugin being
+> installed.
+
+`github` and `postgres` are the two of the ten assignable ones held
 back, **for two different reasons** — do not collapse them:
 
 - **`github`** needs a Keychain credential (`GITHUB_PERSONAL_ACCESS_TOKEN`, delivered today by a
@@ -62,13 +78,13 @@ the manifest reference documents `${VAR}`/`${VAR:-default}`, `${user_config.KEY}
 
 This convention is also what reconciles **#655's "10 of 24"** with the roster count everything
 else uses: the capability count is the entry count minus the 3 gmail duplicates. At the original
-27 entries that was 24; after #657 batch 1 retired `kapture` and `mobile-mcp` it is **25 entries /
-22 capabilities**.
+27 entries that was 24; after #657 batches 1-3 retired `kapture`, `mobile-mcp`, `chrome-devtools`
+and `nixos` it is **23 entries / 20 capabilities**.
 
 ## Shape
 
 One `mcp-proxy` launchd agent (`modules/shared/mcp.nix`, **darwin-only**) bound to
-**`127.0.0.1:<publicMcpPort>`**, started at login, hosting **25 roster entries** today — every
+**`127.0.0.1:<publicMcpPort>`**, started at login, hosting **23 roster entries** today — every
 server the fleet owns, heading for 19 and then 17 as § Counting convention lays out — each at
 `/servers/<name>/mcp` (Streamable HTTP).
 
@@ -82,9 +98,9 @@ instead of being trusted for running on this machine.
 |---|---|---|---|
 | proxies | 2 (`:8096` private, `:8097` published) | **1** | 1 |
 | what a client declares | 20+ loopback URLs | **1 portal URL** | 1 portal URL **+ each enabled plugin's own `.mcp.json`** |
-| published servers | 2 of 26 | **25 of 25** | **17 of 17** (19 after the full #657 batch) |
+| published servers | 2 of 26 | **23 of 23** | **17 of 17** (the #657 end state) |
 | per-client stdio servers | `desktop-commander`, `open-design` | **none** | **the plugin-owned ones** — local stdio, Claude Code only, never portal-reachable |
-| processes | ~50 (two copies of each server) | **25** | **17** on the gateway, the rest spawned per-session by Claude Code |
+| processes | ~50 (two copies of each server) | **23** | **17** on the gateway, the rest spawned per-session by Claude Code |
 | machine-control tier (`identity.nix`) | — | **[5]** | **[1]** — `desktop-commander` alone |
 
 The second proxy existed because Cloudflare Access protects a *hostname*, not a path, so
