@@ -192,12 +192,12 @@ jobs:
 
           docker exec "$CID" sh -c \
             'printf "#!/usr/bin/env sh\nexit 0\n" > /tmp/req.sh && chmod +x /tmp/req.sh && /tmp/req.sh' \
-            || { echo "✗ '\''#!/usr/bin/env sh'\'' script failed to exec — the bootstrap-blocking regression is back"; exit 1; }
+            || { echo "✗ '#!/usr/bin/env sh' script failed to exec — the bootstrap-blocking regression is back"; exit 1; }
           echo "✓ #!/usr/bin/env sh script executed (exit 0)"
 
           for INTERP in bash node; do
             docker exec "$CID" /usr/bin/env "$INTERP" --version >/dev/null 2>&1 \
-              || { echo "✗ /usr/bin/env could not resolve/run '\''$INTERP'\'' via PATH"; exit 1; }
+              || { echo "✗ /usr/bin/env could not resolve/run '$INTERP' via PATH"; exit 1; }
           done
           echo "=== /usr/bin/env bootstrap guard passed (${{ matrix.arch }}) ==="
 
@@ -220,7 +220,7 @@ jobs:
             docker exec "$CID" sh -c '
               IFS=:; found=; for d in $NIX_LD_LIBRARY_PATH; do [ -e "$d/'"$SO"'" ] && found=1; done
               [ -n "$found" ]' \
-              || { echo "✗ '"$SO"' not on NIX_LD_LIBRARY_PATH — nix-ld set regressed to narrow"; exit 1; }
+              || { echo "✗ '$SO' not on NIX_LD_LIBRARY_PATH — nix-ld set regressed to narrow"; exit 1; }
             echo "✓ $SO resolves on NIX_LD_LIBRARY_PATH"
           done
           echo "=== nix-ld library contract guard passed (${{ matrix.arch }}) ==="

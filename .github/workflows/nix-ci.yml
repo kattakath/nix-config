@@ -209,6 +209,9 @@ jobs:
           fi
           unclassified=$(printf '%s\n' "$rows" | awk -F'\t' '$1 == "?" { print $2 }')
           if [ -n "$unclassified" ]; then
+            # shellcheck disable=SC2086  # UNQUOTED ON PURPOSE: printf reuses the format
+            # per word, so word-splitting here prints ONE error line per host. Quoting
+            # would collapse every host into a single %s.
             printf '::error::host %s carries no forSystems — it would be claimed by no leg.\n' $unclassified
             exit 1
           fi
@@ -367,6 +370,8 @@ jobs:
             echo "::error::leg '${{ matrix.name }}' carries no host attrs — it would evaluate nothing."
             exit 1
           fi
+          # shellcheck disable=SC2086  # UNQUOTED ON PURPOSE: word-splitting is what makes
+          # `printf '%s\n' … | wc -l` count the attrs. Quoted, it would always count 1.
           echo "evaluating $(printf '%s\n' $EVAL_ATTRS | wc -l | tr -d ' ') host attr(s) for ${{ matrix.name }}"
 
           for a in $EVAL_ATTRS; do
