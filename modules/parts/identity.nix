@@ -174,7 +174,7 @@ let
   #   - machine control : macos-automator (arbitrary AppleScript = RCE on this
   #                       Mac), desktop-commander (a shell, so the same reach by a
   #                       different door)                                      [1]
-  #   - personal        : gmail-* (four accounts), wordpress + wordpress-adapter
+  #   - personal        : gmail-* (four accounts), wordpress
   #                       (prod writes)                                         [6]
   #   - credentialed    : github (PAT, repo write), cloudflare (this account),
   #                       postgres (the local pgvector store), apify (paid)      [4]
@@ -324,7 +324,6 @@ let
     "sequential-thinking"
     "terraform"
     "wordpress"
-    "wordpress-adapter"
   ];
 
   # ---- GCP billing -----------------------------------------------------------
