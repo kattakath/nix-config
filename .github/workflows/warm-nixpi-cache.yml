@@ -154,6 +154,7 @@ jobs:
           # this job starts, so anything beyond a brief propagation delay is a
           # real miss and must fail the run.
           for i in 1 2 3 4 5 6; do
+            echo "narinfo probe attempt $i/6"
             if curl -fsSI --max-time 20 "$url" >/dev/null; then
               echo "substitutable: $OUT"
               exit 0
