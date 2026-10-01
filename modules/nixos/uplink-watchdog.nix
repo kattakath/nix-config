@@ -72,6 +72,7 @@ let
     text = ''
       STATE=/run/uplink-watchdog.state
       FAILS=/run/uplink-watchdog.fails
+      PREVMETRIC=/run/uplink-watchdog.prevmetric
       WPA_LIVE=${cfg.wpaRuntimeConf}
       WPA_CARD=${cfg.wpaSourceConf}
 
@@ -85,8 +86,17 @@ let
       # restart back to the shipped configuration. A reboot does the same thing
       # on its own, which is why nothing here ever writes to the card.
       restore() {
-        ip route show default dev ${cfg.wiredInterface} | grep -q . || \
-          ip route add default via "$1" dev ${cfg.wiredInterface} metric 1002 2>/dev/null || true
+        # The mirror of the demotion: put the preferred metric back, again ADD before
+        # DELETE. The metric comes from what was actually observed at demote time, so a
+        # host whose DHCP hands out a different value is restored to ITS value rather
+        # than to a number hardcoded here.
+        rgw=$(ip -4 route show default dev ${cfg.wiredInterface} | awk '{print $3; exit}')
+        rmet=$(cat "$PREVMETRIC" 2>/dev/null || echo 1002)
+        if [ -n "$rgw" ]; then
+          if ip route add default via "$rgw" dev ${cfg.wiredInterface} metric "$rmet" 2>/dev/null; then
+            ip route del default via "$rgw" dev ${cfg.wiredInterface} metric ${toString cfg.demotedMetric} 2>/dev/null || true
+          fi
+        fi
         # THE CARD MAY BE UNREADABLE, AND THAT IS THE LIKELIEST REASON THIS RUNS.
         # `writeShellApplication` bakes `set -euo pipefail`, so before this guard a
         # failing `cmp` or `install` aborted restore() BEFORE `set_state normal` — while
@@ -115,8 +125,6 @@ let
         set_state normal
       }
 
-      gw=$(ip route show default dev ${cfg.wiredInterface} | awk '{print $3; exit}')
-      [ -n "$gw" ] || gw=${cfg.wiredGatewayHint}
 
       if ${probe}/bin/uplink-probe; then
         clear_fails
@@ -124,7 +132,7 @@ let
         # is the whole recovery path, and it costs one probe cycle to find out.
         if [ "$(state)" != "normal" ]; then
           echo "uplink-watchdog: uplink healthy while degraded — restoring normal routing/Wi-Fi"
-          restore "$gw"
+          restore
         fi
         exit 0
       fi
@@ -165,14 +173,51 @@ let
           # Stop preferring the wired path, in case it is the wired router that is
           # black-holing while something else on Wi-Fi could carry traffic.
           echo "uplink-watchdog: still down — demoting ${cfg.wiredInterface} default route"
-          ip route del default dev ${cfg.wiredInterface} 2>/dev/null || true
+          # DEMOTE BY METRIC, NEVER BY DELETION — and ADD BEFORE DELETE, so there is no
+          # instant with no default route at all.
+          #
+          # MEASURED on the live host: dhcpcd already installs BOTH legs with distinct
+          # metrics and no configuration from us —
+          #   default via 10.0.0.1 dev end0  metric 1002
+          #   default via 10.0.0.1 dev wlan0 metric 3003
+          # (dhcpcd 10.3.2 uses 1000 + if_nametoindex, +100 for wireless.) So routing
+          # ALREADY expresses the preference this step wants to change. `ip route del`
+          # did not merely demote the wired leg, it DESTROYED a working primitive and
+          # made the restore path the only way back — which is the strand that froze the
+          # ladder in `wired-demoted`.
+          #
+          # Raising end0 above wlan0's 3003 hands the wireless leg the traffic without
+          # touching wlan0 at all. `metric` is part of a route's KEY, so `ip route
+          # replace ... metric N` would ADD a second route rather than change the first;
+          # add-then-delete is the only pair that is correct in both orders. If the add
+          # fails the delete never runs and we keep the preferred route; if the delete
+          # fails we hold two routes and the preferred one still wins. Neither branch
+          # can leave the host with none.
+          #
+          # The gateway is READ FROM THE LIVE ROUTE at the moment of use, not configured:
+          # a hardcoded hint is wrong in the hotspot subnet (the host was observed at
+          # 10.57.169.163 there), and a route added via a wrong gateway is worse than no
+          # route added.
+          dgw=$(ip -4 route show default dev ${cfg.wiredInterface} | awk '{print $3; exit}')
+          dmet=$(ip -4 route show default dev ${cfg.wiredInterface} \
+            | awk '{for (i = 1; i < NF; i++) if ($i == "metric") print $(i + 1); exit}')
+          if [ -n "$dgw" ]; then
+            printf '%s' "''${dmet:-1002}" > "$PREVMETRIC"
+            if ip route add default via "$dgw" dev ${cfg.wiredInterface} metric ${toString cfg.demotedMetric} 2>/dev/null; then
+              ip route del default via "$dgw" dev ${cfg.wiredInterface} metric "''${dmet:-1002}" 2>/dev/null || true
+            else
+              echo "uplink-watchdog: could not add the demoted route; leaving the wired leg preferred" >&2
+            fi
+          else
+            echo "uplink-watchdog: no wired default route to demote" >&2
+          fi
           set_state wired-demoted
           ;;
         wired-demoted)
           # STEP 3: nothing worked. Put everything back rather than sit in a
           # half-changed state, and let the next cycle start the ladder again.
           echo "uplink-watchdog: nothing helped — restoring shipped configuration"
-          restore "$gw"
+          restore
           clear_fails
           ;;
       esac
@@ -189,10 +234,21 @@ in
       description = "Wired interface whose default route is demoted first.";
     };
 
-    wiredGatewayHint = lib.mkOption {
-      type = lib.types.str;
-      default = "10.0.0.1";
-      description = "Gateway used to restore the wired default route when the live route is already gone.";
+    demotedMetric = lib.mkOption {
+      type = lib.types.int;
+      default = 4000;
+      description = ''
+        Metric the wired default route is raised to while demoted. Must be HIGHER than
+        the wireless leg's metric or the demotion changes nothing — dhcpcd gives the
+        wireless leg `1000 + if_nametoindex + 100`, observed as 3003 on this host, so
+        4000 clears it with room to spare.
+
+        This REPLACED a `wiredGatewayHint` holding a hardcoded "10.0.0.1". That option
+        existed only because the old code DELETED the route, leaving nothing to read a
+        gateway from; demoting by metric keeps a route present, so the gateway is read
+        live at the moment of use and the hardcoded value — wrong in the hotspot subnet,
+        where the host was seen at 10.57.169.163 — is gone rather than corrected.
+      '';
     };
 
     wpaRuntimeConf = lib.mkOption {
