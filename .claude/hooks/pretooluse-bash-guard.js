@@ -610,7 +610,7 @@ function main() {
     URL_HOST.lastIndex = 0;
     while ((m = URL_HOST.exec(cmd))) {
       const host = m[1].split(/[/:]/)[0];
-      if (isLocalHost(m[1])) continue; // local gateway (127.0.0.1:8096/servers/cloudflare/...) is never an API call
+      if (isLocalHost(m[1])) continue; // local gateway (127.0.0.1:8097/servers/cloudflare/...) is never an API call
       if (host.toLowerCase() === "api.cloudflare.com") {
         const reason = `Direct HTTP request to ${host} — a Cloudflare API endpoint.`;
         if (RULE1_API_HOST_BLOCKING) {
