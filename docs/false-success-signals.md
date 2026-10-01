@@ -103,9 +103,29 @@ Measured on `#683`, whose timeline carries two bot closures and two manual reope
 | `7362596` (#714) | the same sentence in **plain double quotes** | **YES** — 13:10:42Z |
 | `361091c` (#697) | an ordinary unquoted `Closes` + number, meant to close | **YES** — as intended |
 
-So two things are measured and settled:
+And the two forms that did **not** fire — which is what makes the safe rule measured rather than
+merely reasoned:
 
-> **Negation does not suppress. Plain double quotes do not suppress.**
+| Evidence | Form | Result |
+|---|---|---|
+| `847f86b8` (#720) | the reference **omitted entirely** | **no close** — zero matches for the number anywhere in its commit message |
+| #697's body + `361091c` | `…carried a closing keyword for issue 674` — **no `#`, and the verb not adjacent** | **no link, no close.** Its `closingIssuesReferences` is `[682]` alone; 674 was closed 20 minutes earlier **by a person, with no commit attached** |
+
+So three things are measured and settled:
+
+> **Negation does not suppress. Plain double quotes do not suppress. Dropping the `#` and keeping
+> the verb away from the number does.**
+
+### A confounder, so the archive is not read backwards
+
+That same #697 line records an earlier case: *"#687 carried a closing keyword for issue 674, was
+bot-merged, and that issue **stayed open**"*. That is **not** evidence that closing keywords are
+unreliable, and reading it that way would invert the whole table. It predates the shared App being
+granted `Issues: Write` — before that grant a bot merge could not close anything, which is the
+subject of the auto-close investigation in
+[`auto-merge-and-merge-queue.md`](auto-merge-and-merge-queue.md). Both #683 closures happened
+**after** the grant. So the rows above are measured in the post-grant world, and any non-closure
+from before it says nothing about phrasing.
 
 ### What is NOT established, and why saying so matters here
 
