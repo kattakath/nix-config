@@ -456,7 +456,12 @@ let
               #
               # --repo pins WHICH repo's workflow may have produced it: an attestation
               # from another repo is rejected even though it is validly signed.
-              echo "nixpi-flash: verifying build provenance of $asset…"
+              # BRACES ARE LOAD-BEARING. Written as `$asset…` this was a FATAL
+              # unbound-variable error under `set -u`: the ellipsis is multibyte and
+              # bash took its bytes as part of the identifier, so the name became
+              # `asset…` and the flash died on its first run -- after the download, at
+              # the line that was supposed to protect the write.
+              echo "nixpi-flash: verifying build provenance of ''${asset}…"
               if ! gh attestation verify "$image" --repo ${orgName}/${repoName}; then
                 echo "" >&2
                 echo "nixpi-flash: PROVENANCE VERIFICATION FAILED for $asset." >&2
