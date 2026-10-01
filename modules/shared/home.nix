@@ -1132,6 +1132,23 @@ in
       # on aarch64-darwin. Measured on 3.0.1: plain `pkgs.mcp-nixos` builds clean,
       # so the override is now stale and leaves with the gateway entry.
       mcp-nixos # `mcp-nixos` — grounded, READ-ONLY NixOS/nixpkgs option+package lookup; no token
+      # Same PREREQUISITE shape as mcp-nixos above, for #657 batch 2.
+      #
+      # terraform-mcp-server: a plain nixpkgs binary (1.3.0), so the plugin names it
+      # bare — no uvx, no npx, no Node-version exposure at all. Spawn-verified.
+      terraform-mcp-server # Terraform registry/module lookup for the gateway's `terraform` server, moving to its owning plugin
+      #
+      # uv: needed because `arxiv` launches as `uvx --python 3.12 --from
+      # arxiv-mcp-server==0.7.2 …` and arxiv-mcp-server is NOT in nixpkgs — unlike
+      # mcp-nixos and terraform-mcp-server, there is no packaged alternative, so uvx
+      # is the only route. Spawn-verified end to end.
+      #
+      # CORRECTION: #689's body claimed uv was not needed because "the only other
+      # server that would want it (postgres) is HELD". That was WRONG — `arxiv` is
+      # one of the moving eight and needs uvx too, which the earlier reasoning
+      # missed by looking only at postgres. uv is a genuine requirement, not a
+      # package for nobody.
+      uv # `uv`/`uvx` — ephemeral Python tool runner; the only route for arxiv-mcp-server, which nixpkgs does not package
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       inngest # `inngest` — CLI + local dev server for Inngest durable workflows (not in Homebrew; nixpkgs has it)
       stripe-cli # Stripe CLI (`stripe`) — API calls, webhook forwarding (`stripe listen`), event triggers; auth is a one-time `stripe login` browser OAuth (config in ~/.config/stripe, never in git/store — same one-time-CLI-login convention as gh/hf/docker). Pairs with the stripe@claude-plugins-official plugin (local.claudePlugins.marketplaces above)
