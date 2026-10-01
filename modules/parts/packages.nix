@@ -23,6 +23,7 @@ let
 
   inherit (config.fleet)
     darwinSystems
+    nixpiWifiNetworks
     orgName
     repoName
     jsonResumeUrl
@@ -104,7 +105,7 @@ in
           # `nix flake check` BUILDS them — running writeShellApplication's shellcheck
           # on each of the four apps. See packages/nixpi-provision.nix.
           nixpiKit = pkgs.callPackage ../../packages/nixpi-provision.nix {
-            inherit orgName repoName;
+            inherit nixpiWifiNetworks orgName repoName;
           };
         in
         {
