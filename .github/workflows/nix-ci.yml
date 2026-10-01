@@ -62,7 +62,25 @@ on:
 
 concurrency:
   group: nix-ci-${{ github.ref }}
-  cancel-in-progress: true
+  # PR runs cancel when superseded; `push: main` runs do NOT.
+  #
+  # With a flat `true`, every merge cancelled the previous merge's validation run:
+  # measured 30 cancelled / 69 success / 1 failure over the last 100 `push:main` runs,
+  # and the holes cluster exactly where merge cadence is HIGHEST — anti-correlated with
+  # when you most want the record.
+  #
+  # The fix is for MEASURABILITY, not coverage. Coverage was never the problem: a
+  # superseding commit's tree is a superset, so main's final state was always verified.
+  # What cancellation destroyed was per-merge ATTRIBUTION — which merge broke something,
+  # and whether two independently-green PRs interacted. #683's merge-queue trigger T1
+  # ("3 push:main failures in 30 days caused by two PRs interacting") is UNMEASURABLE
+  # while a third of those runs are cancelled, so this is a precondition for that
+  # trigger being honest rather than a nicety.
+  #
+  # Branch-scoped rather than dropped entirely: a force-push to a PR should still cancel
+  # its in-flight run — that is the case this concurrency group was added for.
+  # gitleaks.yml deliberately keeps a flat `true`: 3/100 cancelled at ~42s, not worth it.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
