@@ -89,6 +89,87 @@ not know that it does.
 separately in the repo's own memory of the incident; it belongs here too because it is the same
 question — *what would failure look like, and did I actually observe it?*
 
+## Instance 3 RECURRED — and the "just backtick it" cure is UNPROVEN
+
+The PR that documented instance 3 **reproduced it while describing it**. Because the example has to
+appear verbatim, the one document most likely to contain a live closing keyword is the one explaining
+that closing keywords fire.
+
+Measured on `#683`, whose timeline carries two bot closures and two manual reopens:
+
+| Squash commit | How the example appeared | Closed the issue? |
+|---|---|---|
+| `83629cf` (#713) | `Does NOT claim to fix` + the number — negated, unquoted | **YES** — 12:53:18Z |
+| `7362596` (#714) | the same sentence in **plain double quotes** | **YES** — 13:10:42Z |
+| `361091c` (#697) | an ordinary unquoted `Closes` + number, meant to close | **YES** — as intended |
+
+And the two forms that did **not** fire — which is what makes the safe rule measured rather than
+merely reasoned:
+
+| Evidence | Form | Result |
+|---|---|---|
+| `847f86b8` (#720) | the reference **omitted entirely** | **no close** — zero matches for the number anywhere in its commit message |
+| #697's body + `361091c` | `…carried a closing keyword for issue 674` — **no `#`, and the verb not adjacent** | **no link, no close.** Its `closingIssuesReferences` is `[682]` alone; 674 was closed 20 minutes earlier **by a person, with no commit attached** |
+
+So three things are measured and settled:
+
+> **Negation does not suppress. Plain double quotes do not suppress. Dropping the `#` and keeping
+> the verb away from the number does.**
+
+### A confounder, so the archive is not read backwards
+
+That same #697 line records an earlier case: *"#687 carried a closing keyword for issue 674, was
+bot-merged, and that issue **stayed open**"*. That is **not** evidence that closing keywords are
+unreliable, and reading it that way would invert the whole table. It predates the shared App being
+granted `Issues: Write` — before that grant a bot merge could not close anything, which is the
+subject of the auto-close investigation in
+[`auto-merge-and-merge-queue.md`](auto-merge-and-merge-queue.md). Both #683 closures happened
+**after** the grant. So the rows above are measured in the post-grant world, and any non-closure
+from before it says nothing about phrasing.
+
+### What is NOT established, and why saying so matters here
+
+A natural next move is "put the reference in backticks". **This file does not have evidence for
+that**, and the near-miss is worth recording:
+
+- The third doc PR (`847f86b8`, #720) closed nothing — but its commit message **does not mention the
+  issue at all**. It is evidence that *omitting* the reference works, **not** that backticking does.
+  Reaching for it as a positive control would have been this file's own shape: a confirmation that
+  proves something adjacent to the claim.
+- A **commit message is not markdown.** GitHub renders code spans in issue and PR *bodies*, where a
+  backticked reference plausibly is skipped; a squash commit message is plain text, so there is no
+  reason to assume the scanner treats backticks as anything but characters.
+
+Treat backticks in a **body** as plausible-but-unverified, and in a **commit message** as no
+protection at all until someone measures it against a throwaway issue.
+
+### The form that IS safe, because it needs no scanner behaviour
+
+**Keep the verb away from the number.** Write "the `#683` example", or "the negated-keyword case",
+or put the number on a different line from the verb. That works regardless of what the scanner
+does, which is the only property worth relying on.
+
+### The pre-merge check reports nothing
+
+`closingIssuesReferences` was **empty on all three PRs** — 0 even on the two that closed the issue.
+The signal exists only in the squash commit message, which GitHub assembles at merge time, so the
+PR's own link list has nothing to show beforehand. See
+[`auto-merge-and-merge-queue.md`](auto-merge-and-merge-queue.md).
+
+### Why prose is the wrong guard
+
+Instance 3 was documented, and the very next document about it fired again. The mechanical form,
+for whoever wants it:
+
+```
+(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]+#[0-9]+
+```
+
+grepped against a prospective commit message or PR body and refused unless the verb and number are
+separated. That would have caught **both** instances; this repo already has the place for it (the
+`PreToolUse` Bash guard, whose test suite is a required check). Not built here — recorded so the
+next person does not re-derive it from two closed issues.
+
 ## The gate that structurally cannot catch instance 6
 
 `checks.<system>.actionlint` is a real gate — it was proven to fail (see the corollary above). It
