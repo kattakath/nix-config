@@ -56,12 +56,21 @@ same way. Losing that passphrase makes all state unreadable.
 
 Run anything terranix inside `nix develop`, or tofu picks the wrong ADC.
 
-## Apps (verified against `modules/parts/terranix.nix`)
+## Apps — RE-VERIFY against `modules/parts/terranix.nix` before trusting this list
 
-- `cf-tunnel-apply`, `cf-tunnel-destroy` — **no plan app.** Plan by hand in the
-  stack's state dir.
-- `mcp-public-apply`, `mcp-public-destroy`, `mcp-public-sync`, `mcp-public-token`
-  — **no plan app** either.
+A heading that says "verified" is not evidence it still is. Check with
+`nix eval --json '.#apps.<system>' --apply builtins.attrNames`, which is one command
+and is how the error below was found.
+
+- `cf-tunnel-plan`, `cf-tunnel-apply`, `cf-tunnel-destroy`.
+- `mcp-public-plan`, `mcp-public-apply`, `mcp-public-destroy`, `mcp-public-sync`,
+  `mcp-public-token`.
+- **Both plan apps EXIST — use them.** This section previously said "no plan app,
+  plan by hand in the stack's state dir" for both, and that was false AND dangerous:
+  planning by hand in a state dir is the wrong-CWD pattern that lost this fleet's
+  OpenTofu state **twice**. Every stack has a `*-plan`; `CLAUDE.md` § Build & Commands
+  has always listed them. Corrected 2026-10-01 after a review following this file
+  could not find a plan app and nearly hand-rolled one.
 - `cf-zones-plan`, `cf-zones-apply` — no destroy app, deliberately: tearing the
   stack down deletes every record including mail.
 - `cf-access-org-import`, `cf-access-org-plan`, `cf-access-org-apply` — no
