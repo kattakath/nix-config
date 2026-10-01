@@ -23,6 +23,21 @@ updates:
       - "/.github/actions/nix-setup"
     schedule:
       interval: "weekly"
+    # Hold a release for 7 days before opening a PR. A SUPPLY-CHAIN window, not a
+    # convenience: a compromised release yanked within a week never reaches a PR
+    # here, so it never becomes a SHA this repo pins.
+    #
+    # It complements SHA-pinning rather than duplicating it. Pinning makes a bump
+    # explicit and reviewable; the cooldown gives the thing being pinned time to
+    # be caught. Pinning alone still walks you onto a malicious release the day it
+    # ships, as long as Dependabot proposes it.
+    #
+    # 7 days is the `default-days` value zizmor's `dependabot-cooldown` rule looks
+    # for and flags at HIGH confidence when absent. No per-severity override: this
+    # repo takes every actions bump as ONE grouped weekly PR, so a split cooldown
+    # would only desynchronise the group.
+    cooldown:
+      default-days: 7
     groups:
       # Collapse every github-actions bump into ONE grouped PR instead of
       # a separate PR per action — one review, one CI run.
