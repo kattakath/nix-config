@@ -87,10 +87,31 @@ let
       restore() {
         ip route show default dev ${cfg.wiredInterface} | grep -q . || \
           ip route add default via "$1" dev ${cfg.wiredInterface} metric 1002 2>/dev/null || true
-        if ! cmp -s "$WPA_CARD" "$WPA_LIVE"; then
-          install -m 0600 "$WPA_CARD" "$WPA_LIVE"
-          systemctl restart ${cfg.supplicantUnit}
+        # THE CARD MAY BE UNREADABLE, AND THAT IS THE LIKELIEST REASON THIS RUNS.
+        # `writeShellApplication` bakes `set -euo pipefail`, so before this guard a
+        # failing `cmp` or `install` aborted restore() BEFORE `set_state normal` — while
+        # step 2 had already run `ip route del default`. The state file stayed
+        # `wired-demoted`, every later cycle re-entered and aborted at the same line,
+        # and nothing retried: a LAN-pingable host with NO DEFAULT ROUTE, permanently.
+        #
+        # Measured 2026-10-01, standalone, both directions: the old form exits 1 with no
+        # `set_state` reached when $WPA_CARD is absent; this form reaches
+        # `STATE=normal`, exit 0 — and still copies the card when it IS readable, so the
+        # restore it exists for is not weakened.
+        #
+        # `cmp -s` is the second trap, not just `install`: an unreadable source makes cmp
+        # ERROR, which makes `! cmp` TRUE, so it entered the branch precisely when it
+        # could not complete it. Hence the `-r` test leads the condition.
+        #
+        # Losing the wifi conf restore is the lesser harm by a wide margin — a reboot
+        # re-reads the card anyway, whereas no default route needs physical hands.
+        if [ -r "$WPA_CARD" ] && ! cmp -s "$WPA_CARD" "$WPA_LIVE"; then
+          install -m 0600 "$WPA_CARD" "$WPA_LIVE" \
+            || echo "uplink-watchdog: could not restore $WPA_LIVE from the card" >&2
+          systemctl restart ${cfg.supplicantUnit} || true
         fi
+        # Reached unconditionally now. Ending the demotion matters more than any step
+        # above succeeding.
         set_state normal
       }
 
