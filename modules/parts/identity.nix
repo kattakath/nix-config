@@ -169,11 +169,11 @@ let
   # legible rather than buried in an alphabetical list. They PARTITION the 27 names
   # below — ROSTER ENTRIES, not capabilities (gmail is one capability and four
   # entries; docs/mcp-gateway.md § Counting convention). The bracketed counts must
-  # sum to 23, so the arithmetic is checkable instead of decorative, and a name
+  # sum to 22, so the arithmetic is checkable instead of decorative, and a name
   # added below without a tier here shows up as a sum that no longer lands:
   #   - machine control : macos-automator (arbitrary AppleScript = RCE on this
   #                       Mac), desktop-commander (a shell, so the same reach by a
-  #                       different door)                                      [2]
+  #                       different door)                                      [1]
   #   - personal        : gmail-* (four accounts), wordpress + wordpress-adapter
   #                       (prod writes)                                         [6]
   #   - credentialed    : github (PAT, repo write), cloudflare (this account),
@@ -189,12 +189,36 @@ let
   # terraform, arxiv — and then, if #656's `headersHelper` prototype proves out,
   # github and postgres follow. Re-tier in the SAME commit as each batch:
   #
-  #   tier             | start | NOW | 19 entries (#657) | 17 entries (+ #656)
-  #   -----------------+-------+-----+-------------------+--------------------
-  #   machine control  |  [5]  | [2] |        [1]        |        [1]
-  #   personal         |  [6]  | [6] |        [6]        |        [6]
-  #   credentialed     |  [4]  | [4] |        [4]        |        [2]
-  #   reference        | [12]  |[11] |        [8]        |        [8]
+  #   DERIVED ONCE, 2026-10-01, with the moving set FINAL AT FIVE. The earlier
+  #   19/17 projection assumed EIGHT movers and was left marked "pending" until the
+  #   set stopped moving, because re-deriving it twice is how it goes wrong.
+  #
+  #   tier             | start | NOW (#657 complete) | if #656 lands
+  #   -----------------+-------+---------------------+---------------
+  #   machine control  |  [5]  |         [1]         |      [1]
+  #   personal         |  [6]  |         [6]         |      [6]
+  #   credentialed     |  [4]  |         [4]         |      [2]
+  #   reference        | [12]  |        [11]         |     [11]
+  #   -----------------+-------+---------------------+---------------
+  #   entries          |  27   |         22          |      20
+  #   capabilities     |  24   |         19          |      17
+  #
+  #   Five moved, not eight: kapture, mobile-mcp, chrome-devtools, macos-automator
+  #   (machine control, [5] -> [1], leaving desktop-commander alone) and nixos
+  #   (reference, [12] -> [11]). The other three of the original ten do NOT move —
+  #   mcpfinder needs node:sqlite, absent on the fleet's Node 20; terraform and arxiv
+  #   have no owning plugin, so #658's fleet-level catalog covers them. #657 IS NOW
+  #   COMPLETE. Only #656's github + postgres remain, and postgres is held on the
+  #   Desktop/career-RAG reason, not a credential one (#690 corrected that premise).
+  #   Capabilities are entries minus the 3 gmail duplicates throughout.
+  #
+  # BATCH 4 / FINAL MOVER (2026-10-01): macos-automator left for mac-app-send. Its
+  # Accessibility (TCC) grant CARRIED — verified by a real action, not a handshake:
+  # System Events UI scripting returned `ghostty` for the frontmost process through
+  # plugin:mac-app-send:macos-automator, with a shell control confirming osascript
+  # holds the grant. TCC scopes Accessibility to the binary (/usr/bin/osascript), not
+  # the parent, so no new grant was needed. The preflight probe in mcp.nix STAYS: the
+  # grant is still depended on, just by a plugin instead of the gateway.
   #
   # BATCH 3 LANDED (2026-09-30): nixos left for claude-code-nix, whose Nix tooling it
   # is the hands of. Verified answering first (plugin:claude-code-nix:nixos Connected;
@@ -293,7 +317,6 @@ let
     "gmail-ismailkattakath_gmail_com"
     "gmail-izzy_silvercreek_ai"
     "json-yaml-toml"
-    "macos-automator"
     "mcp-jq"
     "mcpfinder"
     "memory"

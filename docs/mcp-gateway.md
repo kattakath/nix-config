@@ -32,14 +32,13 @@ the tier brackets in `modules/parts/identity.nix`, and every "N servers" comment
 
 | Moment | Entries | Capabilities |
 |---|---|---|
-| today | **23** | 20 |
-| after the remaining mover lands (#657) | **22** (pending) | 19 (pending) |
-| if #656 proves out and `github` + `postgres` follow | **17** | **14** |
+| today | **22** | 19 |
+| ~~after the remaining mover lands (#657)~~ | **#657 COMPLETE** | — |
+| if #656 proves out and `github` + `postgres` follow | **20** | **17** |
 
-The 19/16 figures this table used to project assumed **eight** movers. Five move, so the end state is
-higher. The remaining number is deliberately left as "pending" rather than re-derived now:
-`macos-automator` is the last undecided mover (its plugin is not installed yet), and re-deriving this
-arithmetic twice is how it ends up wrong. Fix it once, when that set is final.
+**#657 is complete.** Five moved, not the eight originally projected — so the end state is 22
+entries / 19 capabilities, not 19/16. The arithmetic was deliberately left "pending" until the set
+stopped moving and is now derived once, in `modules/parts/identity.nix` alongside the tier table.
 
 The eight moving: `mobile-mcp`, `chrome-devtools`, `kapture`, `macos-automator`, `mcpfinder`,
 `nixos`, `terraform`, `arxiv`.
@@ -79,12 +78,12 @@ the manifest reference documents `${VAR}`/`${VAR:-default}`, `${user_config.KEY}
 This convention is also what reconciles **#655's "10 of 24"** with the roster count everything
 else uses: the capability count is the entry count minus the 3 gmail duplicates. At the original
 27 entries that was 24; after #657 batches 1-3 retired `kapture`, `mobile-mcp`, `chrome-devtools`
-and `nixos` it is **23 entries / 20 capabilities**.
+`nixos` and `macos-automator` it is **22 entries / 19 capabilities**.
 
 ## Shape
 
 One `mcp-proxy` launchd agent (`modules/shared/mcp.nix`, **darwin-only**) bound to
-**`127.0.0.1:<publicMcpPort>`**, started at login, hosting **23 roster entries** today — every
+**`127.0.0.1:<publicMcpPort>`**, started at login, hosting **22 roster entries** today — every
 server the fleet owns, heading for 19 and then 17 as § Counting convention lays out — each at
 `/servers/<name>/mcp` (Streamable HTTP).
 
@@ -98,9 +97,9 @@ instead of being trusted for running on this machine.
 |---|---|---|---|
 | proxies | 2 (`:8096` private, `:8097` published) | **1** | 1 |
 | what a client declares | 20+ loopback URLs | **1 portal URL** | 1 portal URL **+ each enabled plugin's own `.mcp.json`** |
-| published servers | 2 of 26 | **23 of 23** | **17 of 17** (the #657 end state) |
+| published servers | 2 of 26 | **22 of 22** | **20 of 20** (if #656 lands) |
 | per-client stdio servers | `desktop-commander`, `open-design` | **none** | **the plugin-owned ones** — local stdio, Claude Code only, never portal-reachable |
-| processes | ~50 (two copies of each server) | **23** | **17** on the gateway, the rest spawned per-session by Claude Code |
+| processes | ~50 (two copies of each server) | **22** | **17** on the gateway, the rest spawned per-session by Claude Code |
 | machine-control tier (`identity.nix`) | — | **[5]** | **[1]** — `desktop-commander` alone |
 
 The second proxy existed because Cloudflare Access protects a *hostname*, not a path, so
@@ -256,7 +255,7 @@ rather than crashing).
 | `cloudflare-docs` | Cloudflare documentation search |
 | `cloudflare` | Cloudflare API; needs a one-time browser login and fails gracefully headless |
 | `apify` | Apify Store's ready-made scraper/crawler Actors, run **LOCALLY** via `@apify/actors-mcp-server`, authenticated by an `APIFY_TOKEN` read from the Keychain at launch. Switched 2026-08-19 from the hosted `mcp.apify.com` OAuth bridge, which never completed its interactive login under the headless launchd gateway; a missing token warns but does not dark the gateway |
-| `macos-automator` | AppleScript/JXA automation — needs a one-time macOS Accessibility (TCC) grant, see [`mcp-gateway-accessibility-tcc.md`](mcp-gateway-accessibility-tcc.md) |
+| ~~`macos-automator`~~ | **MOVED 2026-10-01** to the `mac-app-send` plugin (#657, final mover). The Accessibility (TCC) grant carried — TCC scopes it to `/usr/bin/osascript`, not the parent. The preflight probe in `mcp.nix` stays. Was: AppleScript/JXA automation — needs a one-time macOS Accessibility (TCC) grant, see [`mcp-gateway-accessibility-tcc.md`](mcp-gateway-accessibility-tcc.md) |
 | ~~`mobile-mcp`~~ | **MOVED 2026-09-30** to the `android-phone` plugin (#657 batch 1). No longer on the gateway |
 | `postgres` | local Postgres (incl. the RAG store) |
 | `wordpress` | docdyhr/mcp-wordpress (pinned) — **CLIENT-SIDE** WordPress admin over a live site's REST API with an Application Password (nothing installed on the site). Creds are Keychain items `mcp:silvercreek.ai:wp_url`/`:wp_user`/`:wp_app_password`, read BY SERVICE NAME (the `$WP_*` names are only env bindings) and injected by the generated `mkGeneratedStdio` wrapper — `wpMcp` is gone; canonical **www** host required, and the password must be a 24-alphanumeric Application Password, not a login password |
