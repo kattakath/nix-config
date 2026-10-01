@@ -22,6 +22,7 @@
 #     (run these from the repo root) so a freshly `nixpi-vault-token`-ed token is
 #     planted without a rebuild.
 {
+  lib,
   writeShellApplication,
   age,
   zstd,
@@ -32,6 +33,9 @@
   gh,
   orgName,
   repoName,
+  # Ordered, most-preferred FIRST. Declared in modules/parts/identity.nix so the
+  # fallback ladder survives a reflash instead of depending on what a human typed.
+  nixpiWifiNetworks,
 }:
 let
   operatorKey = "$HOME/.ssh/id_ed25519";
@@ -214,8 +218,25 @@ let
           *) echo "nixpi-wifi-creds: unknown argument: $1" >&2; exit 1 ;;
         esac
       done
+      # The DECLARED ladder (modules/parts/identity.nix nixpiWifiNetworks), ordered
+      # most-preferred first. Seeded when the caller named no --ssid, so a plain
+      # `nixpi-wifi-creds` reproduces the fleet's intended fallback set instead of
+      # whatever network THIS MAC happens to be joined to. That difference is the
+      # whole point: the old default could not survive a reflash, and on 2026-10-01 it
+      # did not -- the two-network config had only ever been hand-edited onto a card.
+      declared=(${lib.concatMapStringsSep " " (n: "\"" + n + "\"") nixpiWifiNetworks})
+
       if [ ''${#ssids[@]} -eq 0 ]; then ssids+=(""); psks+=(""); fi
 
+      # No --ssid at all AND a declared ladder ⇒ use the ladder. An explicit --ssid
+      # always wins, so a one-off card for a different network stays a one-liner.
+      if [ ''${#ssids[@]} -eq 1 ] && [ -z "''${ssids[0]}" ] && [ ''${#declared[@]} -gt 0 ]; then
+        ssids=("''${declared[@]}")
+        psks=()
+        for _ in "''${declared[@]}"; do psks+=(""); done
+      fi
+
+      # Only reached when nothing was declared and nothing was passed.
       if [ -z "''${ssids[0]}" ]; then
         wifi_dev=$(/usr/sbin/networksetup -listallhardwareports \
           | awk '/Wi-Fi/{getline; print $2; exit}')
