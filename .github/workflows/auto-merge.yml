@@ -57,11 +57,55 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
+      # SCOPED to the two permissions this workflow needs. Without these inputs the
+      # token is minted with the App installation's FULL grant — which for this App
+      # includes contents:write, actions:write and workflows:write, none of which
+      # arming a PR requires.
+      #
+      # `issues: write` IS NOT OPTIONAL HERE, and omitting it is the trap. GitHub
+      # closes a linked issue AS THE MERGING IDENTITY, which for an auto-merge is
+      # this App. Measured over five merges:
+      #
+      #   #687 Closes #674  bot, pre-grant   issue stayed open  (hand-closed +2263s)
+      #   #696 Closes #681  bot, pre-grant   issue stayed open  (hand-closed +1007s)
+      #   #698 Closes #677  bot, pre-grant   issue stayed open
+      #   #697 Closes #682  HUMAN            auto-closed        +1s
+      #   #700 Closes #657  bot, POST-grant  auto-closed        +2s
+      #
+      # The App declared no `issues` permission at all until 2026-10-01 — not even
+      # read — which is the whole of why the three bot merges closed nothing. It now
+      # declares `issues: write`, so the permission exists to request; a narrowing
+      # that drops it would re-break auto-close SILENTLY, and the symptom would look
+      # exactly like the bug that took hours to isolate. See #688.
+      #
+      # REGRESSION TEST — TWO assertions, because one was not enough and the first
+      # attempt at this narrowing proved it.
+      #
+      #  1. ARMING MUST SUCCEED. The arm step has no `|| true`, so an over-narrowed
+      #     token fails the run loudly. That is the assertion, and it is the one that
+      #     fired: the first narrowing dropped contents:write and this workflow failed
+      #     on its OWN pull_request run, because `pull_request` runs the workflow from
+      #     the PR's version rather than from base. Without it, the symptom is PRs
+      #     quietly never landing.
+      #  2. AUTO-CLOSE MUST STILL FIRE. A wrongly-scoped token still MINTS fine, so a
+      #     mint-only check passes while auto-close is broken.
+      #
+      # Assertion 2 cannot run unless 1 passes — arming precedes any merge — so a test
+      # that checked only the close would have been SILENT on this failure.
       - id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           client-id: ${{ vars.CI_BOT_CLIENT_ID }}
           private-key: ${{ secrets.CI_BOT_APP_PRIVATE_KEY }}
+          permission-pull-requests: write
+          permission-issues: write
+          # `enablePullRequestAutoMerge` ALSO needs contents:write — the name does not
+          # suggest it and the docs do not say it. MEASURED: without it the arm step
+          # fails with
+          #   GraphQL: Resource not accessible by integration (enablePullRequestAutoMerge)
+          # (run 36823839504). The first attempt at this narrowing dropped it and broke
+          # arming on its own PR.
+          permission-contents: write
 
       # Idempotent — re-arming an already-armed PR is a no-op, which is what makes
       # the `synchronize` trigger safe: it RE-ARMS a PR that GitHub disarmed (a
@@ -73,4 +117,8 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PR_URL: ${{ github.event.pull_request.html_url }}
-        run: gh pr merge --auto --squash "$PR_URL"
+        run: |
+          if ! gh pr merge --auto --squash "$PR_URL"; then
+            echo "::error::Could not arm auto-merge. 'Resource not accessible by integration (enablePullRequestAutoMerge)' means the App token is scoped too tightly: enablePullRequestAutoMerge needs contents:write as well as pull-requests:write. See the permission-* inputs above."
+            exit 1
+          fi
