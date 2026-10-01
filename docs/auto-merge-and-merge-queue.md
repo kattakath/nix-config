@@ -264,6 +264,66 @@ longer a question this page has to answer. It never qualified for the table whil
 it carried no `.gitlab-ci.yml` at all, so there was no pipeline for a merge-when-green rule
 to wait on.
 
+## Closing keywords and the App token — the whole investigation, in one table
+
+**Keep this table.** It took hours to isolate and the symptom is indistinguishable from "someone forgot
+the keyword", so without it this gets re-diagnosed from scratch.
+
+**Symptom:** a merged PR carrying a GitHub-parsed `Closes #N` did not close `#N`. Every completed issue
+had to be closed by hand, and the project board understated progress — which was twice mis-attributed to
+a missing keyword before anyone measured it.
+
+| PR | keyword | merged by | issue outcome | lag |
+|---|---|---|---|---|
+| #687 | `Closes #674` | `ismailkattakath-ci[bot]` | stayed open → hand-closed | +2,263 s |
+| #696 | `Closes #681` | `ismailkattakath-ci[bot]` | stayed open → hand-closed | +1,007 s |
+| #698 | `Closes #677` | `ismailkattakath-ci[bot]` | stayed open | — |
+| #697 | `Closes #682` | **`ismailkattakath` (human)** | **auto-closed** | **+1 s** |
+| #700 | `Closes #657` | `ismailkattakath-ci[bot]` — **after the App grant** | **auto-closed** | **+2 s** |
+
+Three bot merges with valid keywords closed nothing. One human merge closed in a second. One bot merge
+*after* the fix closed in two. Nothing else changed between #698 and #700.
+
+**Cause: GitHub closes a linked issue AS THE MERGING IDENTITY**, which for an auto-merge is the App — and
+the App declared **no `issues` permission at all**, not even `read`:
+
+```
+$ gh api /apps/ismailkattakath-ci --jq '.permissions'      # BEFORE
+{"actions":"write","contents":"write","metadata":"read",
+ "organization_self_hosted_runners":"write","pull_requests":"write","workflows":"write"}
+```
+
+**That read is PUBLIC and needs no App JWT.** Two sessions spent hours inferring the cause from behaviour
+while querying `/repos/{owner}/{repo}/installation` instead, which requires a JWT and 401s. The
+authoritative view existed the whole time on a different endpoint.
+
+**Fix: add `Issues: Write` to the App and accept the expansion on the installation.** No workflow change
+was needed — `auto-merge.yml` requests no `permission-*` inputs, so its token inherits the installation's
+full grant and the cure was live the moment the expansion was accepted.
+
+### Two traps this left behind
+
+**Narrowing the token must keep `issues: write`.** #679 originally asked to scope it to
+`permission-pull-requests: write` *and nothing else*, which would have **cemented the bug** while reading
+as a least-privilege win.
+
+**And `enablePullRequestAutoMerge` needs `contents: write`** — the name does not suggest it and the docs
+do not say it. The first narrowing dropped it and broke arming on its own PR:
+
+```
+GraphQL: Resource not accessible by integration (enablePullRequestAutoMerge)
+```
+
+So the minimum is three: `pull-requests: write`, `issues: write`, `contents: write`. A regression test
+must assert **both** that arming succeeds *and* that the issue closes — a wrongly-scoped token still
+mints fine, and arming precedes any merge, so either assertion alone is silent on the other's failure.
+
+### Not the same as parent/child rollup
+
+GitHub does **not** close a parent issue when its last sub-issue closes — measured on #655: all five
+children `closed`, parent still `OPEN` 15 s later. That is an unrelated feature. A manual parent close is
+not evidence of this defect returning.
+
 ## Failure modes
 
 | Symptom | Cause | Fix |
