@@ -206,7 +206,6 @@ let
   serverTier = {
     # operator — executes code, drives this Mac, or holds prod/personal data.
     desktop-commander = "operator"; # arbitrary shell + filesystem
-    macos-automator = "operator"; # AppleScript/JXA, incl. `do shell script`
     postgres = "operator"; # general SQL executor
     wordpress = "operator"; # prod site admin: users, app passwords
     wordpress-adapter = "operator"; # same prod site, via the abilities API
