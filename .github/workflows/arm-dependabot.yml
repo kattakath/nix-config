@@ -1,0 +1,109 @@
+# Arms auto-merge on open `dependabot[bot]` PRs.
+#
+# WHY A SEPARATE SCHEDULED WORKFLOW, and why the one-line alternatives cannot work.
+#
+# Dependabot PRs had no unattended landing path: measured n=17, median 4.0 h, p90
+# 110.6 h, 7 over 24 h, 4 over 72 h, and #633 took 113.8 h plus a manual click.
+# Meanwhile `update-flake-lock.yml` self-arms and lands in 0.16 h. The config armed
+# for the author who CAN click and withheld from the robot that never pushes a
+# follow-up — and a Dependabot PR is structurally race-immune, so it is the safest
+# thing in the repo to land unattended.
+#
+# REJECTED 1 — widen `auto-merge.yml`'s login guard to accept `dependabot[bot]`.
+# It cannot work, not merely "is worse". GitHub: "When a Dependabot event triggers a
+# workflow, the only secrets available to the workflow are Dependabot secrets.
+# Actions secrets are not available." So `secrets.CI_BOT_APP_PRIVATE_KEY` resolves
+# EMPTY on a Dependabot-triggered run and the token step fails.
+#
+# REJECTED 2 — arm with `GITHUB_TOKEN` instead. A merge attributed to GITHUB_TOKEN
+# raises no further workflow events, which silently kills `flakehub-publish.yml` on
+# that push. `auto-merge.yml:22-30` calls that this repo's "single most important
+# detail"; trading a publish for a merge is not a fix.
+#
+# REJECTED 3 — copy the App key into a Dependabot secret. This is GitHub's own
+# documented workaround and it creates a SECOND copy of one private key that must
+# rotate in lockstep with the first. One source of truth; a second copy is a bug with
+# a delayed fuse.
+#
+# SO: a scheduled run, which is not a Dependabot event, keeps Actions secrets and can
+# mint the App token exactly as `update-flake-lock.yml:57-61` does. Same shape as that
+# file's own arming step (`:128-134`), and for the same stated reason: arming from a
+# scheduled job a fork can never reach, rather than loosening a guard whose job is to
+# keep fork PRs away from the App-token step.
+name: arm-dependabot
+
+on:
+  schedule:
+    # Off the hour, like the other scheduled workflows here: GitHub warns the
+    # schedule event "can be delayed during periods of high loads", and on-the-hour
+    # crons are the peak. Every 6 h bounds the arming latency, which is what the
+    # acceptance criterion asks for ("under 6 h unattended").
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+# Nothing here needs repo write: the App token does the arming. `pull-requests: read`
+# is only for the listing step's own fallback; the App token supplies the write.
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: arm-dependabot
+  cancel-in-progress: false
+
+jobs:
+  arm:
+    name: Arm auto-merge on Dependabot PRs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.CI_BOT_CLIENT_ID }}
+          private-key: ${{ secrets.CI_BOT_APP_PRIVATE_KEY }}
+
+      # Idempotent: re-arming an already-armed PR is a no-op, which is what makes a
+      # 6-hourly sweep safe. Squash is the only method `protect-main` allows.
+      #
+      # The author filter is on `.author.login` from the API rather than a trigger
+      # condition, because this run is not triggered BY the PR. The value is MEASURED,
+      # not guessed — `gh` renders an App author as `app/<slug>`, and on this repo's
+      # own Dependabot PRs (#633) that is `app/dependabot` with `is_bot=true`. The
+      # bare `dependabot` alternative is belt-and-braces against `gh` changing how it
+      # renders; `app/dependabot` is the form actually observed here.
+      #
+      # It is deliberately EXACT rather than label-based: `update-flake-lock` also
+      # applies the `dependencies` label and its PRs are authored by
+      # `app/ismailkattakath-ci`, so a label filter would arm those too — and they
+      # already arm themselves. Matching the author keeps the two lanes independent.
+      #
+      # No `github.event.*` value is interpolated anywhere in this file: the trigger
+      # is a schedule, and PR numbers reach the shell through a variable from the API
+      # rather than through template expansion. So there is no workflow-injection
+      # surface here, which is the usual hazard in a workflow that reads PR data.
+      #
+      # `--jq` emits nothing when there are no open Dependabot PRs, so the loop body
+      # simply does not run. No PRs is the normal case between weekly bumps.
+      - name: Arm open dependabot[bot] PRs
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          prs=$(gh pr list --state open --limit 50 \
+            --json number,author,isDraft,autoMergeRequest \
+            --jq '.[] | select(.author.login == "app/dependabot" or .author.login == "dependabot")
+                      | select(.isDraft == false)
+                      | select(.autoMergeRequest == null)
+                      | .number')
+          if [ -z "$prs" ]; then
+            echo "no unarmed open dependabot PRs"
+            exit 0
+          fi
+          for n in $prs; do
+            echo "arming #$n"
+            # A single PR that cannot be armed (conflicts, a failing required check
+            # already concluded) must not abort the sweep for the others.
+            gh pr merge --squash --auto "$n" || echo "  could not arm #$n — leaving it"
+          done
