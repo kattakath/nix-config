@@ -57,11 +57,39 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
+      # SCOPED to the two permissions this workflow needs. Without these inputs the
+      # token is minted with the App installation's FULL grant — which for this App
+      # includes contents:write, actions:write and workflows:write, none of which
+      # arming a PR requires.
+      #
+      # `issues: write` IS NOT OPTIONAL HERE, and omitting it is the trap. GitHub
+      # closes a linked issue AS THE MERGING IDENTITY, which for an auto-merge is
+      # this App. Measured over five merges:
+      #
+      #   #687 Closes #674  bot, pre-grant   issue stayed open  (hand-closed +2263s)
+      #   #696 Closes #681  bot, pre-grant   issue stayed open  (hand-closed +1007s)
+      #   #698 Closes #677  bot, pre-grant   issue stayed open
+      #   #697 Closes #682  HUMAN            auto-closed        +1s
+      #   #700 Closes #657  bot, POST-grant  auto-closed        +2s
+      #
+      # The App declared no `issues` permission at all until 2026-10-01 — not even
+      # read — which is the whole of why the three bot merges closed nothing. It now
+      # declares `issues: write`, so the permission exists to request; a narrowing
+      # that drops it would re-break auto-close SILENTLY, and the symptom would look
+      # exactly like the bug that took hours to isolate. See #688.
+      #
+      # REGRESSION TEST, and it must assert the CLOSE rather than the mint: a token
+      # with the wrong scope still mints fine, so a mint-only check passes while the
+      # thing is broken. The test is the next keyworded PR merged by this workflow —
+      # if its issue auto-closes, the scope is right. #668/#669 serve as that trial
+      # immediately after this lands.
       - id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           client-id: ${{ vars.CI_BOT_CLIENT_ID }}
           private-key: ${{ secrets.CI_BOT_APP_PRIVATE_KEY }}
+          permission-pull-requests: write
+          permission-issues: write
 
       # Idempotent — re-arming an already-armed PR is a no-op, which is what makes
       # the `synchronize` trigger safe: it RE-ARMS a PR that GitHub disarmed (a
