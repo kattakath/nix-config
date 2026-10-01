@@ -251,7 +251,6 @@ let
     "fetch"
     "memory"
     "sequential-thinking"
-    "nixos"
     "terraform"
     "github"
   ];
@@ -265,10 +264,6 @@ let
     fetch.package = pkgs.mcp-server-fetch;
     memory.package = pkgs.mcp-server-memory;
     sequential-thinking.package = pkgs.mcp-server-sequential-thinking;
-    nixos.package = pkgs.mcp-nixos.overrideAttrs (_: {
-      doCheck = false;
-      doInstallCheck = false;
-    });
   };
 
   mkPackagedProgram =
