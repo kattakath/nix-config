@@ -208,7 +208,6 @@ let
     desktop-commander = "operator"; # arbitrary shell + filesystem
     postgres = "operator"; # general SQL executor
     wordpress = "operator"; # prod site admin: users, app passwords
-    wordpress-adapter = "operator"; # same prod site, via the abilities API
     github = "operator"; # PAT-backed: push, merge, delete, create
     cloudflare = "operator"; # account API — can edit the gate you read
     "gmail-aloshyakasoto_gmail_com" = "operator";
