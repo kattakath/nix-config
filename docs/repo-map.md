@@ -1246,6 +1246,18 @@ waves 5-6 absorb them).
   (ADR-002 §4's "two-switch regression"). It registers no packages: everything it installs is
   nixpkgs', reached through `home.packages` from inside the two modules.
 
+  **The Postgres daemon is hand-rolled on purpose, and `local-rag-upstream-seam` is why that
+  stays true.** nix-darwin's `services.postgresql` exists and is reachable on `macos`; it was
+  read in full and **refuted** — full record in
+  [`docs/local-rag-upstream-postgres-evidence.md`](docs/local-rag-upstream-postgres-evidence.md),
+  citation in `pgvector-local.nix`'s header. The check pins the four properties the swap would
+  move — the home-manager lane (upstream renders `launchd.user.agents`, `selfHeals = false`),
+  a store-path arg0 (upstream's `script` renders `/bin/sh`, which **`ast-grep` cannot catch**:
+  the literal is in the pinned input, not this repo), `initdb … --auth=peer` under the login
+  user (upstream's `superUser` is `readOnly` `"postgres"`), and a `dataDir` under `$HOME`
+  (upstream's default initdb's a fresh cluster over the live store). Each assertion was
+  falsified before landing, not merely written.
+
   It was the only satellite with a SECOND consumer — `ircc-whatsapp-bot` pinned it too, which
   is why that unpin (ircc grew a `botOnly` output) was an ADR-002 wave-0 prerequisite rather
   than part of the absorption diff.
@@ -3297,6 +3309,19 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   which **is** this device's UI source. Carries an explicit confirmed-vs-unconfirmed
   table. Read before writing anything that talks to the gateway; it also records why
   monitoring must NOT be built on it (the Cloudflare tunnel is the better WAN signal).
+- [`docs/local-rag-upstream-postgres-evidence.md`](docs/local-rag-upstream-postgres-evidence.md)
+  — the **upstream-first record for the `local-rag` capsule's Postgres half**: nix-darwin's
+  `services.postgresql` exists, was read in full against the pinned rev, and was **REFUTED**.
+  Read it before "simplifying" `modules/features/local-rag/pgvector-local.nix` onto that
+  option — it looks like a one-line conventionality fix and every way it regresses is silent.
+  The load-bearing finding: `initialScript`/`ensureDatabases`/`ensureUsers` are **declared and
+  inert**, upstream warning "Currently nix-darwin does not support" them, so the bootstrap can
+  never move — which is what kills the partial adoption too. Plus the lane change
+  (`launchd.user.agents`, `selfHeals = false`, reached by neither mechanism), the `/bin/sh`
+  arg0 that **`ast-grep` structurally cannot catch** because the literal lives in the pinned
+  input, the `readOnly` `superUser = "postgres"` that breaks peer auth, and the `dataDir`
+  default that initdb's a fresh cluster over a live store. Mechanised by
+  `checks.<system>.local-rag-upstream-seam`; carries its own proven-vs-unmeasured table.
 - [`docs/secrets-and-keychain.md`](docs/secrets-and-keychain.md) — agenix operator-only vault,
   the login-Keychain loader, the `secret` CLI.
 - **ADRs, in order** — [`ADR-001`](docs/flake-architecture-strategy-adr.md) (flake-parts for the
