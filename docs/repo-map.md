@@ -539,7 +539,7 @@ their own top-level section below:
 
 ### `modules/shared/`
 
-`modules/shared/{home.nix,mcp.nix,chromium.nix,default-browser.nix,ubersicht.nix,next-right-thing.nix,terminal-theme.nix,desktop-aesthetics.nix,nix-cache.nix,nix-ld-libraries.nix,launchd-launcher.nix,containers.nix,metube.nix,yt-dlp-web-ui.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,wallpaper/}`
+`modules/shared/{home.nix,gmail-mcp.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,ubersicht.nix,next-right-thing.nix,terminal-theme.nix,desktop-aesthetics.nix,nix-cache.nix,nix-ld-libraries.nix,launchd-launcher.nix,containers.nix,metube.nix,yt-dlp-web-ui.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,wallpaper/}`
 — the Home Manager profile loaded on every host.
 
 - **`home.nix`** — git/ssh-signing, zsh+starship, direnv, gh, bash, claude-code + nerd-fonts;
@@ -588,6 +588,43 @@ their own top-level section below:
   into that skill's marketplace plugin instead. **There are NO per-client stdio servers**: the
   `open-design` entry that used to be the exception left the fleet on 2026-09-22 (the APP is still
   a cask — only its stdio MCP server is gone; [`open-design.md`](open-design.md)).
+  **DELETED 2026-10-02 (#734)** — 1,181 lines, gone with the Cloudflare stack. The paragraph
+  above is kept as the record of what it did, not as a description of a file that exists. It
+  remains the SOURCE OF RECORD for every server's real command, version pins and Keychain
+  service id, which is where `gmail-mcp.nix` and `plugin-mcp.nix` read theirs from rather than
+  re-deriving them off an upstream README — recover it with
+  `git show 4f9ea50^:modules/shared/mcp.nix`, never from an upstream default.
+  Other `mcp.nix` mentions further down this document are PRE-#734 and describe the same dead
+  file; they are #734's doc-rot backlog, not live paths.
+- **`gmail-mcp.nix` + `plugin-mcp.nix`** — the LIVE MCP lane, and the whole pattern in two
+  modules. Claude Code spawns a plugin-declared stdio server per session; a plugin's `.mcp.json`
+  can set `env` only to literals or `${VAR}` passthroughs, so it **cannot** run a Keychain read.
+  So the split is: the launcher BINARY here, the `.mcp.json` naming it by binary name in
+  `github:kattakath/skills`. Same arrangement `page-lab` already has with `page-lab-pick`.
+  - `local.gmailMcp.accounts` → `nix-mcp-gmail-<sanitised-address>`, one per Gmail account
+    (`packages/gmail-mcp.nix` — its own file because it materialises an OAuth keys FILE with
+    `umask 077` set BEFORE creation, and derives a per-account `--tool-prefix`).
+  - `local.pluginMcp.servers` → `nix-mcp-{wordpress,apify,postgres}`, the three CREDENTIALED
+    servers the purge left homeless. One generic `packages/keychain-mcp.nix` builds all three —
+    it is the extracted form of the gateway's own `mkGeneratedStdio`, so there is no second copy
+    of "export N variables, exec a pinned interpreter". It writes NO file, so it needs no umask;
+    credentials reach the server through its environment, never argv.
+  - Secret handles (NAMES only; values stay in the login Keychain): `mcp:apify.com:token`,
+    `mcp:silvercreek.ai:wp_url` / `:wp_user` / `:wp_app_password`. `postgres` needs none — its
+    `DATABASE_URI` is the local-rag capsule's `local.rag.pgvector.databaseUri`, loopback `trust`
+    with no password, and the module ASSERTS `local.rag.pgvector.enable` so it cannot declare a
+    server pointing at a store that is switched off.
+  - **Baking the absolute `npx` is NOT sufficient, and this is the trap.** `npx` honours its own
+    store-path shebang, then execs the DOWNLOADED package's bin, whose shebang is
+    `#!/usr/bin/env node` — resolved from the CALLER's PATH. Measured 2026-10-02:
+    `@apify/actors-mcp-server` died with *"requires Node.js 22 or later (you have v20.20.2)"*
+    under fnm's node, until the launcher PREPENDED the pinned `nodejs`/`uv` bin dir to `PATH`.
+    The gateway never hit this because its launchd agent already carried `pkgs.nodejs` on PATH;
+    a plugin-spawned launcher has no such PATH control. `gmail-mcp.nix` bakes `npx` the same way
+    and does **not** prepend — it works today only because its server tolerates node 20.
+  - All three were smoke-tested through a real MCP `initialize` before being declared, not just
+    evaluated: wordpress reported `Connection successful` against silvercreek.ai PROD, apify
+    registered its Actor tools, postgres logged `Successfully connected to database`.
 - **`chromium.nix`** — `local.ungoogledChromium`, real-Mac-only: the declarative surface for
   the Homebrew `ungoogled-chromium` cask. Installs **no** browser (`programs.chromium.package =
   null`) — nixpkgs' `chromium`/`ungoogled-chromium` are `*-linux` only, so the `.app` must be a
