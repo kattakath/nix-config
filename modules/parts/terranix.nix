@@ -323,7 +323,14 @@ let
       text = ''
         if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
           echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
-          echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:nixpi-tunnel -- cf-tunnel-import" >&2
+          echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- cf-tunnel-import" >&2
+          echo "" >&2
+          echo "  NOT cf:cloudflare.com:nixpi-tunnel. MEASURED 2026-10-02: that handle" >&2
+          echo "  reads the tunnel token data source fine, then 403s on the POLICY:" >&2
+          echo "    GET /accounts/<acct>/access/policies/<id> -> 403 code 1010 auth.forbidden" >&2
+          echo "  The tunnel token carries no Access scope, and this stack grew an Access" >&2
+          echo "  POLICY in #737. Same shape this file already records for" >&2
+          echo "  cf:cloudflare.com:mcp-public 403ing on /access/organizations." >&2
           exit 1
         fi
 
