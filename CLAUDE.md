@@ -6,8 +6,10 @@ guidance for Claude Code (claude.ai/code) when working in this repository.
 # CLAUDE.md
 
 **This file is an index, not an encyclopedia.** It stays scannable and under the 40k-char
-context lint limit; the full per-path detail lives in [`docs/repo-map.md`](docs/repo-map.md).
-When you change repo shape, update the one-liner here **and** the section there.
+context lint limit; the full per-path detail lives in **eleven per-domain files** under
+[`docs/map/`](docs/map/), routed by the index [`docs/repo-map.md`](docs/repo-map.md).
+When you change repo shape, update the one-liner here **and** the section in the `map/` file
+the index routes that path to.
 
 ## Motto — ground every development decision in this repo here first
 
@@ -51,7 +53,7 @@ Fully declarative **aarch64-only** fleet, single source of truth, platform diver
 | `nixvm` | aarch64-linux | Unprovisioned XFCE build-vm, **only** as `nix run .#nixvm`. No installed disk, no builder, no runner — but its root disk PERSISTS in `$XDG_STATE_HOME/nixvm`. |
 | devcontainer | +`x86_64-linux` | The one exception to aarch64-only, so it runs on x86_64 Codespaces. |
 
-Full map: [`docs/repo-map.md`](docs/repo-map.md).
+Full map: [`docs/repo-map.md`](docs/repo-map.md) → [`docs/map/`](docs/map/).
 
 ## Build & Commands
 
@@ -83,7 +85,7 @@ activate                                     # Activate macos, from ANY director
                                              #   generation and the fix reads as FAILED. The TELL is a MISSING
                                              #   `Activating <name>` line, so DIFF the step list rather than
                                              #   scanning for errors. Mechanism, the measured cost, and the
-                                             #   plugin/marketplace FALSE alarm: docs/repo-map.md § packages/
+                                             #   plugin/marketplace FALSE alarm: docs/map/packages.md
 nix run github:kattakath/nix-config#macos    # FIRST activation only, straight from the flake (before `activate` exists). Self-elevates.
 nixos-rebuild switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com
                                              # Activate the Pi: builds HERE (substituting the CI-warmed closure from
@@ -93,7 +95,7 @@ nix develop -c deploy --targets .#nixpi      # Same, via deploy-rs w/ magicRollb
                                              #   instead of needing a physical SD-card pull. ALWAYS --targets: bare
                                              #   `deploy` fans out over EVERY node. --dry-activate to rehearse.
                                              #   `nix develop -c` is NOT optional either — outside the devShell a
-                                             #   bare `deploy` exits 1 SILENTLY. Why: docs/repo-map.md § deploy.nodes
+                                             #   bare `deploy` exits 1 SILENTLY. Why: docs/map/entry-points.md § deploy.nodes
 nix run .#nixvm                              # Build + boot the nixvm XFCE build-vm in a QEMU window (root disk PERSISTS)
 nix eval .#nixosConfigurations.nixpi.config.system.build.toplevel   # Fast single-target eval
 
@@ -130,7 +132,7 @@ evaluates on one system can still break the other.
 - Two-system coverage is mandatory: `aarch64-darwin` and `aarch64-linux`.
 - CI (`.github/workflows/nix-ci.yml`) splits it across GitHub-hosted legs DERIVED from the
   fleet's host systems (today 2), and requires the
-  aggregate `required-checks` job. Details: [`docs/repo-map.md`](docs/repo-map.md) § CI.
+  aggregate `required-checks` job. Details: [`docs/map/ci.md`](docs/map/ci.md).
 - **Never report a config as passing on a system only CI evaluated.** If `nix` is unavailable
   locally, validate syntax with `nix-instantiate --parse` and say the rest is CI-deferred. The
   SessionStart hook reports which mode you're in.
@@ -144,7 +146,7 @@ evaluates on one system can still break the other.
 ## Navigating the Codebase
 
 One line per path; the *why* and the per-file specifics are in
-[`docs/repo-map.md`](docs/repo-map.md), whose section headings match this table.
+the `docs/map/` file [`docs/repo-map.md`](docs/repo-map.md) routes each path to.
 
 | Path | What it owns |
 |---|---|
@@ -204,7 +206,7 @@ as PLUGIN hooks, finding these scripts BY CONVENTION. **Do not re-add any of the
 fires TWICE.** `.claude/hooks/tests/*.sh` covers BOTH hooks and is **a REQUIRED status check**
 (`Lint .claude config`, `claude-config-lint.yml`) — it BLOCKS a merge, it does not merely run,
 because a throw fails OPEN. Mechanism:
-[`docs/repo-map.md`](docs/repo-map.md) § `.claude/hooks/`; message decoder:
+[`docs/map/claude.md`](docs/map/claude.md) § `.claude/hooks/`; message decoder:
 [`docs/claude-hook-messages.md`](docs/claude-hook-messages.md).
 All of the above is **project-scoped** — it guards sessions in THIS repo only. Policy that is
 wrong in EVERY repo sits in two wider tiers: user-scope `permissions.deny` in
@@ -299,7 +301,7 @@ How a host gets composed — change these knobs, not the hosts' internals:
   2026-09-20 (ADR-004) the AWS profiles and the personal git-identity files left Nix again for
   hand-placed local files (`~/.aws/config`, `~/.config/git/{silvercreek,izzykatt}.inc`,
   `allowed_signers`): the repo ships shape, the operator's content stays on the Mac. See
-  [`docs/repo-map.md`](docs/repo-map.md).
+  [`docs/map/engine.md`](docs/map/engine.md).
 - **Whole features are ONE enable flag — and they are all IN-TREE now.** The media stack
   (`local.mediaCli`) and the Keychain secret store (`local.keychainSecrets`) are each one
   switch: `local.mediaCli.enable = false` removes the CLIs, both launchd agents, the Finder
@@ -354,7 +356,7 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   - **If the Mac plans a BUILD instead of a fetch, the cache is merely not warm yet** — or Nix
     negatively cached a 404 for **1 h**, which makes a warmed cache look broken. You cannot
     clear that from the CLI (untrusted user); wait it out, and never "fix" it by moving the
-    build onto the Pi. Detail: [`docs/repo-map.md`](docs/repo-map.md) § `hosts/`.
+    build onto the Pi. Detail: [`docs/map/hosts.md`](docs/map/hosts.md).
 - `deploy.nodes.nixpi` and the `cf-*` terranix apps all render this repo's real data directly
   now — `mkCfTunnelTofu` still **refuses** a render that would blank an already-provisioned
   tunnel (override: `CF_TUNNEL_ALLOW_SITE_FREE=1`) — that guard stays as a "do you really mean
@@ -370,33 +372,34 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   `tofu` running in whatever the CWD happened to be. EVERY stack's state is **encrypted** with
   one Keychain passphrase (`tofu:state:passphrase`), so **losing that passphrase makes all
   state unreadable**. Never apply before a `plan` reads clean. Backends, and why encryption is
-  not optional: [`docs/repo-map.md`](docs/repo-map.md) § `infra/`.
+  not optional: [`docs/map/infra.md`](docs/map/infra.md).
 - **Magic rollback** (`deploy.nodes.nixpi.magicRollback = true`): a change that kills sshd, the
   tunnel or networking becomes a *failed deploy* — the Pi reverts **itself** unless the deployer
-  reconnects and confirms. `--target-host` has no such undo. Detail: `docs/repo-map.md`.
+  reconnects and confirms. `--target-host` has no such undo. Detail: `docs/map/hosts.md`.
 - `home-manager switch` activates and is hard to reverse; prefer `build` to verify, and
   `switch` only when explicitly asked. `home-manager generations` lists,
   `home-manager rollback` reverts.
 - **`nix run .#nixvm` is the only way `nixvm` is ever booted**, and it is **NOT stateless** —
   the ROOT disk, so `/home`, PERSISTS in `$XDG_STATE_HOME/nixvm/nixvm.qcow2` until you `rm` it
   (only the Nix store image is rebuilt per boot). The filesystem split, and the per-CWD trap
-  the app's wrapper defeats: [`docs/repo-map.md`](docs/repo-map.md) § `hosts/`.
+  the app's wrapper defeats: [`docs/map/hosts.md`](docs/map/hosts.md).
 - **aarch64-linux builds on the Mac** go to Determinate's **native Linux builder** (ephemeral
   Apple-Virtualization VM). Two traps: `determinate-nixd` logged OUT of FlakeHub silently kills
   it, and every build then fails as `platform mismatch`; and `cp --no-preserve=mode` into `$out`
   EPERMs, which breaks every Mac-side build of a Caddy-serving `nixpi` generation. **Never fix
   that by building on the Pi** — CI warms the cache so the Mac substitutes instead.
   Measurements, the `memoryBytes` OOM knob, and why it is NOT a general chmod ban:
-  [`docs/repo-map.md`](docs/repo-map.md) § Building aarch64-linux on the Mac.
+  [`docs/map/hosts.md`](docs/map/hosts.md) § Building aarch64-linux on the Mac.
 
 ## Documentation
 
 Every `docs/*.md` is listed and annotated in
-[`docs/repo-map.md`](docs/repo-map.md) § Documentation index — that is the map to read.
+[`docs/map/docs-index.md`](docs/map/docs-index.md) — that is the map to read.
 Only the pointers whose absence would cause a WRONG ACTION are duplicated here:
 
-- [`docs/repo-map.md`](docs/repo-map.md) — **the full fleet architecture**, and the long form
-  of every one-liner above. When in doubt, this is the file.
+- [`docs/repo-map.md`](docs/repo-map.md) — the **index** to the full fleet architecture: it
+  routes every one-liner above to its per-domain file under [`docs/map/`](docs/map/). When in
+  doubt, start here.
 - **ADRs** — [`ADR-001`](docs/flake-architecture-strategy-adr.md) (superseded in part),
   [`ADR-002`](docs/monoflake-capsule-adr.md) (**read §9 first** — what execution found the
   design got wrong), [`ADR-003`](docs/externalization-boundary-adr.md) (decided, NOT

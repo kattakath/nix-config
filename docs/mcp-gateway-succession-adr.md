@@ -6,7 +6,7 @@
 > `modules/shared/mcp.nix` is deleted, `infra/cloudflare/mcp-public.nix` is deleted,
 > `https://mcp.kattakath.com/mcp` answers **403**, and MCP servers now come from an enabled
 > plugin's own `.mcp.json`, spawned per session with nothing shared
-> ([`repo-map.md`](repo-map.md) § MCP after the gateway). **§8's side-by-side cutover cannot be
+> ([`map/claude.md`](map/claude.md) § MCP after the gateway). **§8's side-by-side cutover cannot be
 > run** — `packages.mcp-worker-probe` was deleted with the stack, there is no `:8097` to diff
 > against, and `mcp-public.nix:461` does not exist.
 >
@@ -274,7 +274,7 @@ against.
 **Files that change:** `modules/shared/mcp.nix` (the bulk — one agent becomes ~28),
 `modules/parts/identity.nix` (a second port constant), `infra/cloudflare/mcp-public.nix`
 (**2 lines**), `modules/parts/terranix.nix`, `modules/parts/checks.nix`, `docs/mcp-gateway.md`
-(rewrite), `docs/repo-map.md`, `CLAUDE.md`, `.claude/skills/mcp-scout/SKILL.md`, plus a new
+(rewrite), `docs/map/claude.md`, `CLAUDE.md`, `.claude/skills/mcp-scout/SKILL.md`, plus a new
 `packages/contextforge.nix`.
 
 **Files that do NOT change:** `modules/shared/claude-desktop.nix` — clients dial

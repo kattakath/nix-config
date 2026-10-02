@@ -70,7 +70,7 @@ recoverable only by pulling the SD card and reflashing
 
 > **Never `--build-host nixpi`.** It is hard-blocked (Rule 1d): the Pi is on an
 > SD card and a power cut mid-build corrupts it. The caddy `Caddyfile-formatted`
-> EPERM on Determinate's native Linux builder (`repo-map.md` § `hosts/`) is
+> EPERM on Determinate's native Linux builder (`map/hosts.md`) is
 > routed around, not surrendered to — `.github/workflows/warm-nixpi-cache.yml`
 > builds the closure on a real ARM Linux runner and pushes it to Cachix, so the
 > Mac substitutes and realises nothing.

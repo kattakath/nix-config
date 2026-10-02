@@ -25,7 +25,7 @@
 > spawned per session, nothing shared and nothing long-lived. A launcher that needs a Keychain
 > read is a PATH package in nix-config — `local.gmailMcp` + `packages/gmail-mcp.nix` is the live
 > pattern, paired with the `gmail` plugin in `github:kattakath/skills`. See
-> [`repo-map.md`](repo-map.md) § MCP after the gateway.
+> [`map/claude.md`](map/claude.md) § MCP after the gateway.
 >
 > **Why this file still exists rather than being deleted:** it is the only record of several
 > measurements that outlived the gateway and still bind the plugin lane. Those are hoisted into
@@ -522,7 +522,7 @@ in a fresh session.
 
 ## Related
 
-- [`repo-map.md`](repo-map.md) § **MCP after the gateway** — the LIVE architecture. Start there,
+- [`map/claude.md`](map/claude.md) § **MCP after the gateway** — the LIVE architecture. Start there,
   not here.
 - [`gmail-mcp-multi-account-runbook.md`](gmail-mcp-multi-account-runbook.md) — **LIVE.**
   Multi-account Gmail setup, auth, and a documented silent-wrong-account failure mode. The one

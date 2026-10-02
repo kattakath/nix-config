@@ -43,7 +43,7 @@ The gap was real and is now **half** closed. Measured 2026-10-02, before #761:
 |---|---|
 | `README.md` § Repository layout | listed **9 of 29** top-level entries; `packages/` had one clause, `modules/` one clause, no rule for choosing between them |
 | `CLAUDE.md` § Navigating the Codebase | one table row per path, each a sentence — and explicitly *"an index, not an encyclopedia"* |
-| `docs/repo-map.md` | the long form per path, but organised **by path**, so the *comparison* between two paths exists nowhere |
+| `docs/repo-map.md` → `docs/map/` | the long form per path, but organised **by path**, so the *comparison* between two paths exists nowhere |
 | `ast-grep/rules/*.yml` headers | the richest source by far — and the last place anyone looks |
 
 #761 (2026-10-02) fixed the **inventory** half: the README layout block now names every
