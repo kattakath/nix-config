@@ -130,7 +130,7 @@
     programs.nix-ld = {
       enable = true;
       # Shared list — same set the HM shim and the devcontainer image use.
-      libraries = import ../shared/nix-ld-libraries.nix pkgs;
+      libraries = import ../../lib/nix-ld-libraries.nix pkgs;
     };
 
     programs.zsh.enable = true;
