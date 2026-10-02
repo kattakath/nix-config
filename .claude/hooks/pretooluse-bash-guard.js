@@ -60,7 +60,7 @@
  * user holds a correctly-scoped personal CLOUDFLARE_API_TOKEN (Keychain) for
  * exactly these operations and explicitly asked to unblock raw calls after
  * being shown this tradeoff. The terranix apply/destroy check
- * (CF_TERRANIX_APP) and the bare `wrangler` check stay hard-blocked — those
+ * (TERRANIX_MUTATING_APP) and the bare `wrangler` check stay hard-blocked — those
  * mutate broader fleet infra (the nixpi tunnel) sight-unseen, a materially
  * bigger blast radius than one ad-hoc scoped API call. Flip
  * RULE1_API_HOST_BLOCKING to `true` to restore the hard block.
@@ -200,11 +200,32 @@ const DESKTOP_COMMANDER_TOOLS = new Set(["ls", "find", "stat", "ps", "kill"]);
 // gcp-budget are plan/apply only — modules/parts/terranix.nix says why for
 // each), so the DESTROY regex below has exactly one app to catch.
 //
+// THE APPLY REGEX COVERS ALL FIVE, as of 2026-10-02 — it previously named only
+// cf-tunnel, which was never a decision. It was the residue of a two-literal
+// `(?:cf-tunnel|mcp-public)` alternation: when mcp-public was deleted the second
+// literal went and nothing replaced it, leaving four apply apps that mutate live
+// infra matching NO rule. CLAUDE.md states the policy this enforces — "ALWAYS
+// *-plan first — every stack has one" — so covering one stack was incomplete
+// enforcement of an existing rule, not a narrower policy.
+//
+// Every one of the five wrappers has a REFUSING guard, so the nudge's claim holds
+// for all of them; what differs is the worst case, which is why the nudge names it
+// per app (verified in modules/parts/terranix.nix, not assumed):
+//   cf-tunnel-apply      site-free render blanks nixpi's ingress
+//   cf-zones-apply       a render under the record floor DELETES mail records
+//   cf-access-org-apply  un-imported state, or reverting a dashboard auth_domain
+//   gcp-foundation-apply a render declaring NO state bucket
+//   gcp-budget-apply     DELETES the spend alarm, leaving billing unwatched
+//
+// Named TERRANIX_MUTATING_APP, not CF_*: two of the five are GCP, and a `CF_`
+// prefix on a rule that catches `gcp-budget-apply` is the same misdescription
+// this header warns about one paragraph up.
+//
 // Shape copied from PUBLIC_MACOS_APP below rather than reinvented — it already
 // handles the two evasions a bare `\.#` misses: a quoted flake ref, and the
 // `github:kattakath/nix-config#…` form that runs the same app without a checkout.
-const CF_TERRANIX_APP =
-  /\bnix\s+run\s+["']?(?:\.|github:kattakath\/nix-config)#cf-tunnel-(?:apply|destroy)\b/;
+const TERRANIX_MUTATING_APP =
+  /\bnix\s+run\s+["']?(?:\.|github:kattakath\/nix-config)#(?:cf-tunnel-(?:apply|destroy)|cf-zones-apply|cf-access-org-apply|gcp-(?:foundation|budget)-apply)\b/;
 
 // The DESTROY half of that family, split out 2026-09-22 so `apply` can relax
 // while teardown stays hard-blocked. See the POLICY CHANGE note in the header.
@@ -505,19 +526,27 @@ function main() {
       "This DESTROYS Cloudflare infra and tofu has no rollback. Re-run it manually if that is genuinely the intent.",
     );
   }
-  if (CF_TERRANIX_APP.test(cmd)) {
+  if (TERRANIX_MUTATING_APP.test(cmd)) {
     // apply-only by here: the destroy branch above already returned.
     if (RULE1_TERRANIX_APPLY_BLOCKING) {
       emit(
         "block",
-        "Runs a terranix Cloudflare apply app, which mutates live infra via the API.",
-        "This applies Cloudflare infra. Use mcp__cloudflare__execute (or __search) instead, or confirm this is intentional and re-run manually.",
+        "Runs a terranix apply app, which mutates live infra via the API.",
+        "This applies live infra. Run the stack's *-plan first, or confirm this is intentional and re-run manually.",
       );
     }
+    const worstCase = {
+      "cf-tunnel": "a site-free render blanks nixpi's ingress",
+      "cf-zones": "a render under the record floor DELETES mail records",
+      "cf-access-org": "un-imported state, or reverting a dashboard auth_domain",
+      "gcp-foundation": "a render declaring NO state bucket",
+      "gcp-budget": "DELETES the spend alarm, leaving billing unwatched",
+    };
+    const stack = Object.keys(worstCase).find((k) => cmd.includes(`#${k}-`));
     nudges.push(
-      "Applies Cloudflare infra via terranix. The wrapper's own guards (empty-render, " +
-        "empty-state, drop-delta) run before tofu, and `tofu apply` has NO rollback — " +
-        "read its plan output before it proceeds.",
+      `Applies live infra via terranix${stack ? ` (${stack})` : ""}. Run its *-plan first: ` +
+        "`tofu apply` has NO rollback. The wrapper's own REFUSING guard runs before tofu, " +
+        `but it is a floor, not a review${stack ? ` — worst case here, ${worstCase[stack]}` : ""}.`,
     );
   }
   // (Rule 1b RETIRED 2026-09-15 — it blocked `deploy` and public-`#macos`
