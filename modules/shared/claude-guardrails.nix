@@ -3,13 +3,21 @@
 # that applies in EVERY repo on this Mac, not just this one.
 #
 # WHY THIS EXISTS. Every decision hook this fleet runs (`pretooluse-bash-guard`,
-# `stop-gate`, the Write|Edit secret prompt, the mcpfinder deny) lives in THIS
-# repo's `.claude/settings.json` — project scope. A session anywhere else (a work
+# `stop-gate`, the Write|Edit secret prompt) lives in THIS repo's
+# `.claude/settings.json` — project scope. A session anywhere else (a work
 # repo, `~`) got none of it, while the VS Code extension and the `claude`
-# terminal profile start in `bypassPermissions` (home.nix). The MCP gateway, by
-# contrast, IS global: `mcpfinder` is wired into every session through
-# `programs.claude-code.mcpServers`, so its config-writing tool was deny-listed
-# here and callable everywhere else. Measured 2026-09-15.
+# terminal profile start in `bypassPermissions` (home.nix). The MCP gateway was
+# the counter-example that forced the issue: it WAS global — `mcpfinder` reached
+# every session through `programs.claude-code.mcpServers`, so its config-writing
+# tool was deny-listed here and callable everywhere else. Measured 2026-09-15.
+#
+# THAT COUNTER-EXAMPLE IS GONE; THE REASON TO BE GLOBAL IS NOT. The gateway was
+# purged 2026-10-01 — ./mcp.nix deleted, the Cloudflare portal destroyed, the
+# terranix stack removed in #737 — so nothing global ships an MCP server any
+# more: servers arrive ONLY as Claude Code plugins (./plugin-mcp.nix,
+# ./gmail-mcp.nix), which are per-session and carry no fleet-wide write tool.
+# The project-scope gap in the paragraph above is untouched by that, and it was
+# always the load-bearing half: a session in a work repo still gets no hook.
 #
 # UPSTREAM FIRST. `programs.claude-code.settings` is `jsonFormat.type`
 # (home-manager efa3ccb, modules/programs/claude-code/options.nix) — freeform,
@@ -31,12 +39,16 @@
 # `sh -c 'x'`. This is a FLOOR against the common, accidental shape — the
 # project-scoped superhook guard stays the deeper, tested layer in this repo.
 #
-# THE TWO mcpfinder RULES ARE ALSO IN `.claude/settings.json`, ON PURPOSE — that
-# is not duplication to clean up. This file is materialised by Home Manager into
-# ~/.claude, which the devcontainer deliberately does NOT mount (.devcontainer/
-# devcontainer.json: "No volume for ~/.claude (deliberate — don't re-add one)").
-# Inside that container, and in any clone on a machine this HM config never
-# touched, the checked-in project copy is the only floor there is.
+# A RULE RESTATED IN `.claude/settings.json` IS NOT DUPLICATION TO CLEAN UP.
+# This file is materialised by Home Manager into ~/.claude, which the
+# devcontainer deliberately does NOT mount (.devcontainer/devcontainer.json: "No
+# volume for ~/.claude (deliberate — don't re-add one)"). Inside that container,
+# and in any clone on a machine this HM config never touched, the checked-in
+# project copy is the only floor there is. (This paragraph used to name "the two
+# mcpfinder rules" as the live example. There is no such pair any more: the
+# mcpfinder deny was removed 2026-09-16 for naming a tool that does not exist —
+# see the body below — and the project file's four mcpfinder ALLOW entries went
+# with the portal. The reason survives its example.)
 #
 # SCOPE RULE for adding an entry: it must be a FLEET-WIDE policy already written
 # down somewhere (claude/CLAUDE.md, mcp-scout, CLAUDE.md § Security), and wrong
@@ -99,8 +111,10 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
 
   programs.claude-code.settings.permissions.deny = [
     # ── Imperative MCP adoption (mcp-scout: "installation IS declaration") ──
-    # The gateway is the single MCP source; a runtime add lands in ~/.claude.json,
-    # outside flake.lock, Cachix and the public ⊆ hosted assertion (ADR-003 §5).
+    # Servers arrive ONLY as Claude Code plugins now (./plugin-mcp.nix,
+    # ./gmail-mcp.nix) — the gateway that used to be the single source is gone.
+    # The rule is unchanged by that: a runtime add lands in ~/.claude.json,
+    # outside flake.lock, Cachix and every check that can see a declared server.
     # THE PREFIX IS THE WHOLE RULE. A deny naming a tool that does not exist is
     # not a weak guardrail, it is NO guardrail — and it fails silently, because
     # nothing reports a rule that never matches.
@@ -111,22 +125,35 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # — matched NOTHING, so imperative MCP adoption was ungated the whole time.
     # modules/shared/home.nix:660 in this same repo already had it right.
     #
-    # THAT PREFIX IS NOW STALE — it changed again, exactly as this paragraph
-    # predicted. The 2026-09-22 portal collapse made the gateway ONE Claude Code
-    # server (`plugin:hm:kattakath-portal`) hosting every upstream, so its tools
-    # arrive as `mcp__plugin_hm_kattakath-portal__<server>_<tool>` — the upstream
-    # name moved INTO the tool half and lost its `__` separator. Verified from a
-    # fresh `claude mcp list` 2026-10-01. A plugin-owned server is different again:
-    # `mcp__plugin_<plugin>_<server>__<tool>`, e.g.
-    # `mcp__plugin_claude-code-nix_nixos__nix`, measured by calling it.
+    # THAT PREFIX WENT STALE TWICE, exactly as this paragraph predicted. The
+    # 2026-09-22 portal collapse made the gateway ONE Claude Code server
+    # (`plugin:hm:kattakath-portal`) hosting every upstream, so its tools arrived
+    # as `mcp__plugin_hm_kattakath-portal__<server>_<tool>` — the upstream name
+    # moved INTO the tool half and lost its `__` separator. Then the 2026-10-01
+    # purge deleted that server outright, so THAT spelling can never match again
+    # either: it is absent from `claude mcp list`, checked 2026-10-02.
     #
-    # .claude/settings.json carried 15 allow entries on the OLD spelling and so
-    # matched nothing from the collapse until #671 fixed them — the same silent
-    # failure this header warns about, in the file next door.
+    # TWO SHAPES ARE LEFT, both measured 2026-10-02 from a live session's own tool
+    # namespace rather than reasoned about:
+    #   plugin-owned  `mcp__plugin_<plugin>_<server>__<tool>` — e.g.
+    #                 `mcp__plugin_context7_context7__query-docs`,
+    #                 `mcp__plugin_claude-code-nix_nixos__nix`.
+    #   claude.ai connector  `mcp__claude_ai_<Server>__<tool>`, the server's
+    #                 DISPLAY name with spaces as underscores and its case kept —
+    #                 `mcp__claude_ai_cloudflare__docs`. Not a plugin, not in Nix,
+    #                 and so not declarable here; it is named because a capability
+    #                 that left the gateway can land in this lane.
+    #
+    # .claude/settings.json carried 15 allow entries on the pre-collapse spelling
+    # and matched nothing until #671 re-spelled them to the portal's — and the
+    # purge then killed all 15 again. They are now rewritten to the live shapes
+    # above where the capability survived and DELETED where it did not. Same
+    # silent failure, same file next door, twice: an allow is as dead as a deny
+    # when its prefix is, it just fails the other way — a prompt, not a hole.
     #
     # To re-verify after any plugin/marketplace change, read a real tool name out of
-    # a live session rather than reasoning about it; the prefix has now changed TWICE
-    # and has never announced it.
+    # a live session rather than reasoning about it; the prefix has now changed THREE
+    # times and has never announced it.
     #
     # THE TOOL-NAME HALF WAS DEAD TOO, and d39fc80 only fixed the prefix. Read
     # from a live session's namespace 2026-09-16: the pinned @mcpfinder/server
@@ -138,11 +165,20 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # wider than the thing nominally narrowing it.
     #
     # It is gone rather than re-spelled, because there is no write tool to name.
-    # The narrowing now lives where it can actually hold: settings.json lists the
-    # four read-only tools EXPLICITLY, so a write tool introduced by a future
-    # version pin is not matched by anything and prompts instead of being
-    # auto-approved. A deny cannot be written against a name nobody knows yet;
-    # an allow-list does not need one.
+    # The narrowing lived in settings.json instead — the four read-only tools
+    # listed EXPLICITLY, so a write tool introduced by a future version pin
+    # matched no allow rule and prompted. A deny cannot be written against a name
+    # nobody knows yet; an allow-list does not need one.
+    #
+    # THOSE FOUR WENT WITH THE PORTAL and are deliberately NOT re-spelled:
+    # `mcpfinder` is absent from `claude mcp list` (2026-10-02), so its live
+    # prefix cannot be READ from a session, and the paragraphs above forbid
+    # writing one that was merely inferred. Losing an allow fails safe — every
+    # mcpfinder tool now prompts — which is why the gap is acceptable where a
+    # missing deny would not be. `nix-mcp-mcpfinder` is still on PATH
+    # (packages/mcpfinder-mcp.nix) for the plugin that claims it; re-add the
+    # explicit four under the MEASURED `mcp__plugin_<plugin>_mcpfinder__` prefix
+    # once that plugin is live, not before.
     "Bash(claude mcp add *)"
     "Bash(claude mcp add-json *)"
     "Bash(claude mcp add-from-claude-desktop *)"
@@ -168,6 +204,15 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # Host-decrypted agenix plaintext on macos, and the two OpenTofu state dirs
     # that hold a tunnel connector token (+ an Access service-token secret) in
     # plaintext (CLAUDE.md § Important Notes). A Read deny also blocks Edit/Write.
+    #
+    # THE mcp-public ENTRY STAYS, and it is NOT leftover cleanup to finish. #737
+    # deleted that stack's RENDERER, not the operator's state: nothing in Nix ever
+    # created or removes ~/.local/state/nix-config-mcp-public, so a state file
+    # written before the teardown can still be sitting there with an Access
+    # service-token secret in it. A deny whose target file can still exist is
+    # still load-bearing — the rule only dies when the FILE cannot exist, which is
+    # the test the mcpfinder note above applies to a tool NAME. Delete it after
+    # deleting the directory, in that order, never the reverse.
     "Read(//run/agenix/**)"
     "Read(~/.local/state/nix-config-cf-tunnel/**)"
     "Read(~/.local/state/nix-config-mcp-public/**)"
