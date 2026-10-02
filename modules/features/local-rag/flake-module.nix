@@ -10,8 +10,8 @@
 # nothing leaves the machine. See ./README.md.
 #
 # THE SEAM THAT MATTERS. `local.rag.pgvector.databaseUri` is read by
-# modules/shared/mcp.nix and handed to the gateway's `postgres` MCP server as
-# `env.DATABASE_URI`. That one string is how the career RAG (`career_docs` in
+# modules/home/plugin-mcp.nix and handed to the plugin-lane `postgres` MCP
+# launcher as `DATABASE_URI`. That one string is how the career RAG (`career_docs` in
 # `ragdb`) reaches Claude Code, and it is the named acceptance criterion for
 # this wave. ./checks/module-evaluations.nix pins its value as a LITERAL so a
 # port/role/db rename fails a check instead of quietly returning zero rows.

@@ -1,11 +1,13 @@
 # Client side D: Claude Desktop (and, through its device bridge, Cowork).
 #
 # WHAT THIS DOES
-# Renders the SAME MCP connector Claude Code gets — the Cloudflare portal in
-# front of the gateway (modules/shared/mcp.nix) — into Claude Desktop's own
+# Rendered the SAME MCP connector Claude Code got — the Cloudflare portal in
+# front of the gateway — into Claude Desktop's own
 # config file, ~/Library/Application Support/Claude/claude_desktop_config.json.
 # Desktop does not read ~/.claude/*, .mcp.json, or the home-manager MCP hub, so
-# without this the gateway's whole roster exists for Claude Code only.
+# without this the gateway's whole roster reached Claude Code only. Portal and
+# gateway are both DELETED (2026-10-02): `gatewayServers = { }` below means the
+# rendered block is now EMPTY, and only `extraServers` can still add an entry.
 #
 # ONE entry, not a server list. Until 2026-09-22 this rendered an attrset of one
 # loopback URL per hosted server (26 of them at the time), one shim process
