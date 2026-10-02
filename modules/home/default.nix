@@ -173,8 +173,8 @@ let
     fi
   '';
 
-  # Shells spawned by launchd agents (mcp-gateway -> desktop-commander, any agent
-  # tool) start WITHOUT SSH_AUTH_SOCK: launchd hands the per-boot agent socket
+  # Shells spawned by launchd agents (any `launchd.agents` unit, and whatever it
+  # runs) start WITHOUT SSH_AUTH_SOCK: launchd hands the per-boot agent socket
   # (/private/tmp/com.apple.launchd.*/Listeners) to Terminal-launched shells, not to
   # a user agent's children, and a plist cannot name a path that changes every boot.
   # Without it, `git commit` with signByDefault runs `ssh-keygen -Y sign`, which
@@ -396,9 +396,13 @@ in
     # NOTE for anything added to modules/home/ later: THIS LIST is the only entry
     # point for that directory. A module dropped in there and not named here is
     # silently inert — `local.gmailMcp` was, until it was added.
-    # Client side D: the SAME servers rendered into Claude Desktop's stateful
-    # claude_desktop_config.json (stdio shims over the gateway; merge one key).
-    # Reaches Cowork through Desktop's device bridge. Gated on the gateway.
+    # Client side D: the writer for Claude Desktop's stateful
+    # claude_desktop_config.json — it merges ONE key, `mcpServers`, and what it
+    # renders there today is EMPTY. Desktop loads no plugins, so the plugin lane
+    # above cannot reach it; the module stays enabled because "Desktop has no MCP
+    # servers" is a state something must WRITE. NOT gated on any gateway option —
+    # that gating was the 2026-10-01 regression `checks.*.claude-desktop-config-shape`
+    # now has a leg for.
     ./claude-desktop.nix
     ./terminal-theme.nix # the fleet terminal palette + type, held once (no consumers yet)
     # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
@@ -668,8 +672,8 @@ in
         # (stripe-best-practices, stripe-docs, upgrade-stripe, connect-recommend,
         # stripe-apps, stripe-directory, stripe-projects), the company-researcher agent,
         # /explain-error + /test-cards commands, AND the hosted mcp.stripe.com MCP server
-        # (type=http; one-time in-client OAuth — no API key handled here, and nothing to
-        # host in the gateway since the server is Stripe-remote). Pairs with the nixpkgs
+        # (type=http; one-time in-client OAuth — no API key handled here, and nothing for
+        # this fleet to host or launch, since the server is Stripe-remote). Pairs with the nixpkgs
         # `stripe-cli` in home.packages below.
         "stripe"
         # Anthropic first-party frontend-design skill/plugin (UI/UX generation guidance).
@@ -828,11 +832,9 @@ in
     # gateway's mcp__plugin_hm_context7__* existed, keyed from the login
     # Keychain; it died with the gateway 2026-10-02, so
     # mcp__plugin_context7_context7__* is the only path now — anonymous unless
-    # CONTEXT7_API_KEY is exported into Claude Code's env.
-    # Distinct tool namespaces, so nothing collides; the plugin was taken
-    # unmodified on purpose rather than patched, to keep it a plain upstream
-    # pin. Patch out the .mcp.json (the grokBuildPluginPatched pattern in the
-    # let block above) if the duplicate ever actually costs something.
+    # CONTEXT7_API_KEY is exported into Claude Code's env. There is nothing left
+    # to de-duplicate: the plugin's `.mcp.json` is the ONLY path to Context7, so
+    # it is taken unmodified, which also keeps it a plain upstream pin.
     #
     # NOTE for the upstream-first rule (.claude/rules/upstream-first.md):
     # Context7 serves a CRAWLED snapshot, not this flake's pinned inputs. It is
@@ -1126,10 +1128,13 @@ in
     "empire@kattakath" = true;
 
     # DELIBERATELY ABSENT: `brag-dossier`. It is merged in skills, but the brag
-    # subsystem was removed from this repo on 2026-09-12 at the operator's request
-    # (docs/repo-map.md records that nothing replaces it). Enabling the plugin would
-    # reintroduce that capability by the back door, so it stays out until the
-    # operator says otherwise.
+    # subsystem was removed from this repo on 2026-09-12 at the operator's request.
+    # Enabling the plugin would reintroduce that capability by the back door, so it
+    # stays out until the operator says otherwise. The repo map records NOTHING about
+    # it — `brag` appears 0 times across docs/repo-map.md and all eleven docs/map/
+    # files; the two places that do record the removal, and that nothing replaced it,
+    # are .claude/skills/fleet-doctor/fleet-repos.txt (the retired `brags` fleet line)
+    # and the declarative-plugin-floor ADR.
   };
 
   # Spotlight-launchable "Android Emulator" — click (or re-click) like any
@@ -1186,9 +1191,12 @@ in
       # 408 MiB of postgres into nixpi's SD-card closure for a Mac-only CI reason.)
     ]
     # claude-code: on darwin it is installed by the programs.claude-code module
-    # below (so the mcp-servers-nix integration can inject the shared MCP
-    # registry — see ./mcp.nix). On the Linux hosts we don't enable that module,
-    # so install the bare CLI here instead. Avoids a buildEnv /bin collision.
+    # below (which also owns the plugin/marketplace state and the global
+    # CLAUDE.md). The shared MCP registry that module used to inject is GONE —
+    # `modules/shared/mcp.nix` was deleted with the gateway 2026-10-02, and MCP
+    # servers now come only from an enabled plugin's own `.mcp.json`. On the Linux
+    # hosts we don't enable that module, so install the bare CLI here instead.
+    # Avoids a buildEnv /bin collision.
     ++ lib.optionals (!stdenv.hostPlatform.isDarwin) [ claudeCode ]
     # secret/set-secret/remove-secret now come from local.keychainSecrets
     # (the keychain-secrets capsule's HM module), not this list.
@@ -1225,10 +1233,11 @@ in
       # the only other server that would want it (`postgres`) is HELD, so adding
       # `uv` now would be a package for nobody.
       #
-      # No `doCheck = false` needed, unlike the gateway's own `nixos.package`
-      # override in ./mcp.nix — that repaired 2.4.3's brittle `test_read_text_file`
-      # on aarch64-darwin. Measured on 3.0.1: plain `pkgs.mcp-nixos` builds clean,
-      # so the override is now stale and leaves with the gateway entry.
+      # No `doCheck = false` needed. The deleted gateway carried one on its own
+      # `nixos.package`, to repair 2.4.3's brittle `test_read_text_file` on
+      # aarch64-darwin; it went with `modules/shared/mcp.nix` on 2026-10-02 and
+      # nothing here replaces it. Measured on 3.0.1: plain `pkgs.mcp-nixos` builds
+      # clean, so the override was stale before it was deleted.
       mcp-nixos # `mcp-nixos` — grounded, READ-ONLY NixOS/nixpkgs option+package lookup; no token
       # Same PREREQUISITE shape as mcp-nixos above, for #657 batch 2.
       #
@@ -1404,11 +1413,14 @@ in
     };
 
     # Claude Code CLI. On darwin we manage it via the module (not just as a bare
-    # package) so ./mcp.nix can attach `mcpServers` — the localhost MCP gateway's
-    # SSE endpoints (+ desktop-commander stdio) — into a managed .mcp.json.
-    # `package` preserves our darwin strict-sandbox override (claudeCode above,
-    # also used by the VS Code "claude" terminal profile). On the Linux hosts
-    # claude-code stays a plain home.packages entry with no MCP wiring.
+    # package) for the settings/plugin/marketplace surface below — the global
+    # CLAUDE.md, `settings`, `plugins` and `extraKnownMarketplaces`. It attaches
+    # NO `mcpServers`: the module that did (`modules/shared/mcp.nix`, the localhost
+    # gateway's SSE endpoints + desktop-commander stdio) was deleted 2026-10-02, and
+    # servers now arrive only from an enabled plugin's own `.mcp.json`, which this
+    # repo does not write. `package` preserves our darwin strict-sandbox override
+    # (claudeCode above, also used by the VS Code "claude" terminal profile). On the
+    # Linux hosts claude-code stays a plain home.packages entry.
     claude-code = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
       enable = true;
       package = claudeCode;
@@ -1535,11 +1547,11 @@ in
         # servers + the live Cloudflare Tunnel/terranix stack. `cloudflare-one` covers Access/Tunnel.
         cloudflare = "${agent-skills-cloudflare}/skills/cloudflare";
         cloudflare-one = "${agent-skills-cloudflare}/skills/cloudflare-one";
-        # Anthropic official (source-available): mcp-builder tool-design guidance for the
-        # whole MCP gateway; webapp-testing is self-contained (writes native Python
-        # Playwright scripts that launch their own headless chromium) — no MCP server
-        # of ours backs it, in particular NOT the gateway `playwright` entry, since
-        # that was removed with browservm (2026-08-20).
+        # Anthropic official (source-available): mcp-builder is generic tool-design
+        # guidance for AUTHORING an MCP server, not a driver for any server this fleet
+        # runs; webapp-testing is self-contained (writes native Python Playwright
+        # scripts that launch their own headless chromium) — no MCP server of ours
+        # backs it. Neither is backed by the deleted gateway, and neither needs to be.
         # Anthropic document skills: pair with the Google Drive connector (fetch → edit → store).
         # NOTE heavy runtime deps: pandoc + poppler now come from nixpkgs (home.packages
         # above); LibreOffice/soffice comes from the macos-only Homebrew cask

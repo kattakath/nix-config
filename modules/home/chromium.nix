@@ -348,12 +348,16 @@ in
            Installing this extension grants *nothing* on its own — which is also
            why the broad `debugger` permission is less alarming here than it reads.
            A running bridge with zero connected tabs is **dark**, not ready.
-        2. **The MCP server half is NOT declared by this repo.** It lives in
-           `~/.claude.json` at user scope as `npx -y kapture-mcp@latest bridge` —
-           imperative and unpinned, so the bridge can change under a session
-           without a rebuild. This module owns only the browser end. Declaring the
-           server in `mcp.nix` (per CLAUDE.md § Using Subagents) is a real
-           follow-up, not a finished job.
+        2. **The MCP server half is NOT declared by this repo — and never will
+           be.** It is DECLARED, just not here: the `page-lab` plugin's own
+           `.mcp.json` (github:kattakath/skills) carries
+           `npx -y kapture-mcp@latest bridge`. That is the only lane left — the
+           gateway and `modules/shared/mcp.nix` were deleted 2026-10-02, and
+           CLAUDE.md § Using Subagents routes MCP adoption to `/mcp-scout`, which
+           declares into the owning plugin, never into this repo. So this module
+           owns only the browser end, by design and not as a to-do. What IS still
+           loose is the `@latest`: the bridge can change under a session without a
+           rebuild, and no pin here could stop it.
       '';
     };
 
