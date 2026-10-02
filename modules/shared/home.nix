@@ -246,6 +246,11 @@ let
   # resend@claude-plugins-official plugin (local.claudePlugins.marketplaces below). See packages/resend-cli.nix.
   resendCli = pkgs.callPackage ../../packages/resend-cli.nix { };
 
+  # `nix-mcp-mcpfinder` — the mcpfinder MCP server under a Node that can run it. Named by
+  # the mcp-utilities plugin's .mcp.json; see packages/mcpfinder-mcp.nix for why a bare
+  # `npx` entry in that plugin cannot work (node:sqlite, absent on the fleet's 20.x).
+  mcpfinderMcp = pkgs.callPackage ../../packages/mcpfinder-mcp.nix { };
+
   # rclip, with its runtime-dependency CHECK disabled — not its dependencies changed.
   # rclip 3.3.0's wheel declares `coremltools` as a runtime dep on macOS (the Apple
   # Silicon fast path for indexing), but the nixpkgs package does not provide it, so
@@ -1121,7 +1126,15 @@ in
       #
       # terraform-mcp-server: a plain nixpkgs binary (1.3.0), so the plugin names it
       # bare — no uvx, no npx, no Node-version exposure at all. Spawn-verified.
-      terraform-mcp-server # Terraform registry/module lookup for the gateway's `terraform` server, moving to its owning plugin
+      terraform-mcp-server # `terraform-mcp-server` — Terraform registry/module lookup; named bare by the mcp-utilities plugin's `terraform` server
+      # mcpfinder is the one mover that needs a WRAPPER rather than a bare binary. Same
+      # PREREQUISITE shape, one extra reason: its npm package imports `node:sqlite`, which
+      # arrived in Node 22.5, and a plugin's bare `npx` gets fnm's 20.x. Measured
+      # 2026-10-02 — `ERR_UNKNOWN_BUILTIN_MODULE: node:sqlite` on v20.20.2, clean start
+      # under this flake's `pkgs.nodejs` (24.20.0). The wrapper exists only to put that
+      # Node in front of `npx`; the full argument, and the three rejected alternatives,
+      # are in packages/mcpfinder-mcp.nix.
+      mcpfinderMcp # `nix-mcp-mcpfinder` — cross-registry MCP-server DISCOVERY, pinned @1.1.0 (the pin is a security control); named by the mcp-utilities plugin (packages/mcpfinder-mcp.nix)
       #
       # uv: needed because `arxiv` launches as `uvx --python 3.12 --from
       # arxiv-mcp-server==0.7.2 …` and arxiv-mcp-server is NOT in nixpkgs — unlike
