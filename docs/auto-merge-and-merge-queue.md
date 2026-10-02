@@ -27,8 +27,11 @@ is the record of why, and what has to be true before re-adopting one.
 
 A `pull_request`-triggered workflow that runs `gh pr merge --auto --squash` when
 `github.event.pull_request.user.login == 'ismailkattakath'` and the PR is not a
-draft. Re-fires on `synchronize`, so a PR GitHub disarmed (conflict, failed check)
-re-arms itself the moment the fix is pushed.
+draft. Triggers are `opened`, `reopened`, `ready_for_review` and `synchronize`, and
+arming is **idempotent** — so a PR GitHub disarmed re-arms itself: on `synchronize` the
+moment a conflict or failed check is fixed and pushed, and on `ready_for_review` after a
+draft conversion (which disarms — see §3). No arm run is cancelled; `cancel-in-progress`
+is `false`.
 
 It authenticates with an **installation token from the CI bot GitHub App**, never
 `GITHUB_TOKEN`. Auto-merge attributes the merge to whoever armed it, and events
@@ -110,9 +113,31 @@ gone. Measured the same day, PR #567: auto-merge fired the moment CI went green 
 commits were still being pushed, squashed two phases and left **five later commits
 behind**.
 
-**Mitigation: park work-in-flight as a draft.** Arming survives the draft state and
-releases on `ready_for_review` — verified on #559 (armed 15:30:33 while draft, ready
-16:11:31, merged 16:19:54).
+**Mitigation: park work-in-flight as a draft.** Still the right mitigation — but
+**CORRECTED 2026-10-02**, because the mechanism this line asserted was backwards and its
+own evidence refutes it. It read: *"Arming survives the draft state and releases on
+`ready_for_review` — verified on #559 (armed 15:30:33 while draft …)"*. #559's timeline
+says otherwise:
+
+| #559 | What GitHub did |
+|---|---|
+| 15:30:18 | PR created **non-draft** — so 15:30:33's `auto_merge_enabled` is an ordinary open-arm, not an arm "while draft" |
+| 15:48:56 | `convert_to_draft` **and `auto_merge_disabled`, the same second** — the arming was DROPPED |
+| 16:11:31 → 16:11:43 | `ready_for_review`, then a **fresh** `auto_squash_enabled` 12 s later — RE-armed |
+| 16:19:54 | merged |
+
+So conversion **drops** the arming and `ready_for_review` **re-establishes** it. What was
+read as survival was a re-arm. The net effect is the same and drafting remains the
+mitigation, but the distinction is load-bearing: a transition that must re-arm can be
+**lost**, and one that survives cannot.
+
+Measured across all four draft conversions in the visible history: `auto_merge_disabled`
+lands in the same second as `convert_to_draft` every time, and three of the four re-armed
+within ~12 s of the ready transition (#559, #737, #757). The fourth, #723, did not — its
+ready-transition arm run was **cancelled** by `cancel-in-progress`, since turned off
+(#750, `auto-merge.yml`'s `concurrency` block carries the argument). That is the live tail
+of #683, and [`.claude/rules/pr-title.md`](../.claude/rules/pr-title.md) carries the
+operator-facing version.
 
 *What was given up, honestly.* Cross-PR semantic conflict detection: two PRs each
 green alone, broken together.
@@ -367,6 +392,7 @@ not evidence of this defect returning.
 | PR never arms; `arm auto-merge` job fails at the token step | CI bot App not installed on that repo, or the secret/var missing | Install the App on the repo; set `CI_BOT_APP_PRIVATE_KEY` + `CI_BOT_CLIENT_ID` |
 | PR armed, checks green, never merges | Unresolved review thread (`required_review_thread_resolution`) | Resolve the thread |
 | PR armed but never merges, no checks running | Real merge conflict — GitHub disarms it | Resolve and push; `synchronize` re-arms automatically |
+| Drafted, marked ready, green, still unarmed | The draft conversion disarmed it (§3) and the ready transition's arm run did not land — the open tail of #683 | Confirm with `gh pr view <n> --json autoMergeRequest` **after** the arm run concludes; `gh pr ready` again, or arm by hand. Add the payload to #683 |
 | Merged, but nothing published to FlakeHub | Something armed the PR with `GITHUB_TOKEN` | Restore the App token in `auto-merge.yml` |
 | Someone else's PR auto-merged | The author guard was widened | The guard is a literal login; keep it that way |
 | PR merges against a `main` that moved under it | Expected — `strict_required_status_checks_policy` is off by choice (§3) | The `push: main` leg catches it; fix forward |
