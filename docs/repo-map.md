@@ -608,6 +608,47 @@ their own top-level section below:
   can set `env` only to literals or `${VAR}` passthroughs, so it **cannot** run a Keychain read.
   So the split is: the launcher BINARY here, the `.mcp.json` naming it by binary name in
   `github:kattakath/skills`. Same arrangement `page-lab` already has with `page-lab-pick`.
+  - **THE JOIN IS GATED IN BOTH DIRECTIONS, and the second direction crosses the repo
+    boundary.** `plugin-mcp.nix` types `local.pluginMcp.servers` as an **enum**, so naming a
+    server this fleet cannot build fails at eval — that is the forward half, and it has always
+    been there. `checks.<system>.mcp-launcher-parity` (2026-10-02) is the reverse half: it reads
+    every `plugins/*/.mcp.json` out of the pinned `kattakath-skills` input at **eval** time
+    (`builtins.readDir`/`readFile` over a realised input — no import-from-derivation, no
+    network) and asserts SET EQUALITY between the `nix-mcp-*` commands those plugins name and
+    the `nix-mcp-*` derivations `macos` actually composes into `home.packages`. Measured
+    2026-10-02 at pin `5ba108f`: **8 = 8**, no drift either way.
+    - **The built side is read off the composed package list, not re-derived.** A check that
+      re-applied gmail's address sanitisation would agree with a broken rule by sharing it.
+      Derivation name == binary name for all three builders (`writeShellScriptBin` in
+      `packages/keychain-mcp.nix` + `packages/gmail-mcp.nix`, `writeShellApplication` in
+      `packages/mcpfinder-mcp.nix`), each emitting exactly one `$out/bin/<name>`.
+    - **Scope is the `nix-mcp-` prefix, and the exclusions are structural.** Of the 16 servers
+      the plugins declare, 8 are out of this lane: `memory` and `chrome-devtools` are
+      `${CLAUDE_PLUGIN_ROOT}`-relative, which expands **only** inside the owning plugin, so no
+      PATH binary can exist for them even in principle; `mcp-nixos` and `terraform-mcp-server`
+      are bare nixpkgs binaries installed as ordinary packages; `mobile-mcp`,
+      `macos-automator`, `sequential-thinking` and `kapture` are `npx` invocations with no
+      fleet binary at all.
+    - **Why EQUALITY and not containment — the previous pin is the measurement.** At
+      `cc56d06` (two days older) the tree held **zero** `plugins/*/.mcp.json`; the MCP
+      ownership split landed after it. A forward-containment gate ("every plugin-named command
+      is built") would therefore have been **vacuously green** over an empty left-hand set — a
+      gate that passes without testing anything, which is worse than no gate. Set equality
+      instead reports `0 declared vs 8 built` and goes **red**, which is what makes the pin
+      bump load-bearing rather than cosmetic.
+    - **The two non-empty legs are not redundant with that.** Equality alone is degenerate if
+      both sides empty at once (host lists cleared *and* layout moved), and — the everyday
+      value — a layout regression otherwise reads as "8 orphans", sending the reader to
+      `hosts/macos.nix` when the fault is the pinned tree. Verified by pointing the plugin
+      directory at one holding no `.mcp.json`: three legs red, the **first** of them naming the
+      tree rather than the host.
+    - **The cost, stated:** `kattakath-skills` is now load-bearing for a second thing, so an
+      MCP server added over there needs this pin bumped here to stay green.
+      `.github/workflows/update-flake-lock.yml` bumps every input weekly and arms auto-merge,
+      so the join is re-checked on a reviewable PR rather than never — the lag is bounded at
+      one week, not unbounded. When a leg goes red, the plugin is **already** broken on this
+      Mac (the marketplace tracks HEAD, not this pin); the stuck lockfile PR is the symptom,
+      not the fault.
   - `local.gmailMcp.accounts` → `nix-mcp-gmail-<sanitised-address>`, one per Gmail account
     (`packages/gmail-mcp.nix` — its own file because it materialises an OAuth keys FILE with
     `umask 077` set BEFORE creation, and derives a per-account `--tool-prefix`).
@@ -1922,7 +1963,7 @@ nothing — hence one regex, not two calls.
 | `compose.nix` | `mkDarwin` / `mkNixos` / `mkHomeManagerModule` — **not translated** to flake-parts, kept verbatim as plain Nix functions in the freeform `flake` attr (ADR-001's blast-radius objection, honoured). Also threads each capsule in as a named specialArg. Its two composition seams (`extraHomeModules`, `hostedSites`) and the nixpi deploy runbook are written up in [`private-home-modules.md`](private-home-modules.md) — the filename is historical (the private `nix-personal` flake it was named for was retired 2026-09-15); the seams and the runbook are current. |
 | `hosts.nix` | `darwinConfigurations.macos`, `nixosConfigurations.{nixpi,nixvm}`. |
 | `packages.nix` | `perSystem.packages` + every `apps.*`. |
-| `checks.nix` | The engine's own checks, including `claude-md-budget`, `capsule-registry`, `deploy-schema`, `bedrock-gate-after-loader`, `launchd-log-rotation` (every declared launchd log reaches exactly one rotator, and never both — re-walks the composed agents itself rather than reading `logging.nix`'s own answer back), the two `determinate-daemon` halves and `nixpi-security-posture` (§ `modules/nixos/` — 22 legs, read in BOTH directions since 2026-10-01: a WIDENING of the firewall fails it, and so does REMOVING the declared LAN recovery ingress). Its one shared helper, `mkHostContract`, reports EVERY broken leg rather than the first — that behaviour, not code reuse, is the bar for reaching for it. |
+| `checks.nix` | The engine's own checks, including `claude-md-budget`, `capsule-registry`, `deploy-schema`, `bedrock-gate-after-loader`, `launchd-log-rotation` (every declared launchd log reaches exactly one rotator, and never both — re-walks the composed agents itself rather than reading `logging.nix`'s own answer back), `mcp-launcher-parity` (the `nix-mcp-*` launchers this fleet builds == the servers `kattakath/skills`' plugins name, read out of the pinned input at eval time — § `modules/shared/` for the exclusions and the proof it is not vacuous), the two `determinate-daemon` halves and `nixpi-security-posture` (§ `modules/nixos/` — 22 legs, read in BOTH directions since 2026-10-01: a WIDENING of the firewall fails it, and so does REMOVING the declared LAN recovery ingress). Its one shared helper, `mkHostContract`, reports EVERY broken leg rather than the first — that behaviour, not code reuse, is the bar for reaching for it. |
 | `capsules.nix` | The capsule registry and its two internal seams — `capsuleModules` and `capsuleSources` — plus `checks.<system>.capsule-registry`. |
 | `terranix.nix` | The `cf-*` / `gcp-*` tofu builders. The `mcp-public-*` builders and the `mcp-worker-probe` package were deleted 2026-10-02 with that stack. |
 | `devshell.nix` | `devShells` + the `git-hooks.nix` wiring. |
