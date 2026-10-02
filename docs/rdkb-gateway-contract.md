@@ -2,7 +2,7 @@
 
 The household's internet comes through a **Technicolor CGM4981** — Rogers' "Ignite"
 gateway, the Comcast XB8's sibling. When it fails, `nixpi` goes with it
-(`docs/repo-map.md` § nixpi), so being able to *ask the gateway questions* without
+(`docs/map/modules-nixos.md` § nixpi), so being able to *ask the gateway questions* without
 clicking a GUI is operationally useful.
 
 This file records the gateway's **HTTP contract**: how to authenticate, how the

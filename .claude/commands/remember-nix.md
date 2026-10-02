@@ -39,7 +39,8 @@ rather than polishing it like public documentation.
    rather than creating a near-duplicate. Delete an entry that has turned out to be wrong.
 
 3. **Skip what does not belong here.** If the repo already records it — code structure, a past
-   fix, git history, `CLAUDE.md`, `docs/repo-map.md` — do not duplicate it into memory. If the
+   fix, git history, `CLAUDE.md`, `docs/repo-map.md`/`docs/map/` — do not duplicate it into
+   memory. If the
    operator asks to remember one of those anyway, ask what was *non-obvious* about it and store
    that instead.
 

@@ -27,6 +27,36 @@ let
   # config.fleet — NOT identityArgs, which is the attrset a consumer replaces.
   inherit (config.fleet) domainName;
 
+  # ---- the documentation INDEXES, in one place -----------------------------
+  #
+  # Until 2026-10-02 there were exactly two and both docs checks below spelled
+  # them out. docs/repo-map.md was then SPLIT into eleven per-domain files under
+  # docs/map/ behind that index, so "the indexes" is no longer a pair anyone can
+  # hand-list without it rotting: the hosts/ detail lives in docs/map/hosts.md
+  # and the docs/*.md annotations in docs/map/docs-index.md, so a check that
+  # looked only at the old two would have gone red on a MOVE.
+  #
+  # DERIVED, not listed. readDir means a twelfth domain file is an index the
+  # moment it exists — the same reason nix-ci.yml derives its legs rather than
+  # naming them. Two shapes because the two consumers differ: hosts-documented
+  # greps STORE PATHS, docs-indexed resolves link targets relative to each
+  # index's own directory inside `${self}` and so needs REPO-RELATIVE names.
+  mapIndexNames = lib.naturalSort (
+    lib.attrNames (
+      lib.filterAttrs (n: t: t == "regular" && lib.hasSuffix ".md" n) (builtins.readDir ../../docs/map)
+    )
+  );
+  docIndexNames = [
+    "CLAUDE.md"
+    "docs/repo-map.md"
+  ]
+  ++ map (n: "docs/map/${n}") mapIndexNames;
+  docIndexPaths = [
+    ../../CLAUDE.md
+    ../../docs/repo-map.md
+  ]
+  ++ map (n: ../../docs/map + "/${n}") mapIndexNames;
+
   # The ONE shared shape in this file. It was born for `determinate-daemon`,
   # which is literally the same check run against two hosts whose contracts are
   # opposites (see both halves below); `nixpi-security-posture` is the third
@@ -1191,10 +1221,7 @@ in
             in
             pkgs.runCommand "hosts-documented"
               {
-                indexes = [
-                  ../../CLAUDE.md
-                  ../../docs/repo-map.md
-                ];
+                indexes = docIndexPaths;
               }
               ''
                 undocumented=()
@@ -1210,7 +1237,7 @@ in
                 done
 
                 if [ ''${#undocumented[@]} -eq 0 ]; then
-                  echo "hosts/: all ${toString (lib.length hostFiles)} host profiles are named in CLAUDE.md or docs/repo-map.md" > "$out"
+                  echo "hosts/: all ${toString (lib.length hostFiles)} host profiles are named in one of the ${toString (lib.length docIndexPaths)} documentation indexes" > "$out"
                   exit 0
                 fi
 
@@ -1220,19 +1247,37 @@ in
                 echo "CLAUDE.md calls itself an index and binds the author to update it when repo" >&2
                 echo "shape changes. A host file named nowhere is invisible to the next reader and" >&2
                 echo "to every agent that reads CLAUDE.md as its map. Name it in the hosts/ row of" >&2
-                echo "CLAUDE.md, or in the matching section of docs/repo-map.md, and re-run." >&2
+                echo "CLAUDE.md, or in docs/map/hosts.md, and re-run." >&2
                 exit 1
               '';
 
+          # SUBJECTS include docs/map/ since the 2026-10-02 split. `readDir
+          # ../../docs` filtered on `t == "regular"`, and `map` is a DIRECTORY —
+          # so the eleven domain files would have escaped this check entirely, by
+          # the very commit that created them. That is the capsule-registry
+          # lesson in reverse: not a gate that forgot a new file, but a gate whose
+          # scope a reorganisation silently shrank.
+          #
+          # docs/map/*.md are BOTH subjects and indexes, deliberately. Index,
+          # because the detail they now hold is what CLAUDE.md and repo-map.md
+          # used to carry — docs/map/docs-index.md is where every docs/*.md
+          # annotation lives, so excluding it would fail this check on a pure
+          # move. Subject, because an unreachable domain file is exactly the rot
+          # this check exists to catch, and nothing else would notice: the budget
+          # gate proves a file is *gated*, not that a reader can *find* it. There
+          # is no self-satisfaction loophole — a file's own breadcrumb points up
+          # at ../repo-map.md, never at itself.
           docs-indexed =
             let
-              docFiles = lib.naturalSort (
-                lib.attrNames (
-                  lib.filterAttrs (n: t: t == "regular" && lib.hasSuffix ".md" n && n != "repo-map.md") (
-                    builtins.readDir ../../docs
+              docFiles =
+                lib.naturalSort (
+                  lib.attrNames (
+                    lib.filterAttrs (n: t: t == "regular" && lib.hasSuffix ".md" n && n != "repo-map.md") (
+                      builtins.readDir ../../docs
+                    )
                   )
                 )
-              );
+                ++ map (n: "map/${n}") mapIndexNames;
             in
             pkgs.runCommand "docs-indexed" { nativeBuildInputs = [ pkgs.coreutils ]; } ''
               cd ${self}
@@ -1254,7 +1299,7 @@ in
               # a file in this repo.
               linked="$TMPDIR/linked"
               : > "$linked"
-              for idx in CLAUDE.md docs/repo-map.md; do
+              for idx in ${lib.escapeShellArgs docIndexNames}; do
                 grep -oE '\]\([^)[:space:]]+\)' "$idx" \
                   | sed -e 's/^](//' -e 's/)$//' -e 's/#.*$//' \
                   | grep -vE '^[a-zA-Z][a-zA-Z0-9+.-]*:' \
@@ -1270,7 +1315,7 @@ in
               done
 
               if [ ''${#unlinked[@]} -eq 0 ]; then
-                echo "docs/: all ${toString (lib.length docFiles)} documents are reachable by a resolving link from CLAUDE.md or repo-map.md" > "$out"
+                echo "docs/: all ${toString (lib.length docFiles)} documents are reachable by a resolving link from one of the ${toString (lib.length docIndexNames)} indexes" > "$out"
                 exit 0
               fi
 
@@ -1279,11 +1324,13 @@ in
               echo "" >&2
               echo "An unlinked document is one nobody finds and nobody updates, which is how a" >&2
               echo "runbook rots into a trap. Link it from CLAUDE.md's Documentation list or from" >&2
-              echo "docs/repo-map.md. repo-map.md itself is exempt: it is the index, not an entry." >&2
+              echo "docs/map/docs-index.md — or, for a docs/map/ file, from the Contents table" >&2
+              echo "in docs/repo-map.md. Only docs/repo-map.md itself is exempt: it is the root" >&2
+              echo "index, not an entry." >&2
               echo "" >&2
               echo "NOTE: being MENTIONED is no longer enough — the link target must resolve to" >&2
               echo "the file. From CLAUDE.md (repo root) that is docs/<name>.md; from" >&2
-              echo "docs/repo-map.md (already inside docs/) it is the bare <name>.md. Writing the" >&2
+              echo "docs/map/docs-index.md (one level deeper) it is ../<name>.md. Writing the" >&2
               echo "root-relative form from inside docs/ yields docs/docs/<name>.md and fails here." >&2
               exit 1
             '';
@@ -2083,21 +2130,162 @@ in
                 touch "$out"
               '';
 
-          claude-md-budget = pkgs.runCommand "claude-md-budget" { } ''
-            limit=40000
-            size=$(wc -c < ${../../CLAUDE.md} | tr -d " ")
-            if [ "$size" -gt "$limit" ]; then
-              echo "claude-md-budget: CLAUDE.md is $size BYTES, over the $limit-byte" >&2
-              echo "context-lint budget it documents for itself." >&2
-              echo "" >&2
-              echo "CLAUDE.md is an INDEX. The full per-path detail belongs in" >&2
-              echo "docs/repo-map.md — move a section there and leave the one-liner," >&2
-              echo "rather than raising this limit reflexively." >&2
-              exit 1
-            fi
-            echo "CLAUDE.md: $size/$limit bytes"
-            touch "$out"
-          '';
+          # ---- documentation byte budgets -------------------------------------
+          #
+          # ONE check over a TABLE of (file, ceiling) pairs, NOT one runCommand
+          # per document. "One source of truth; a second copy is a bug with a
+          # delayed fuse" — a second near-identical check would drift from this
+          # one the first time either message changed, and the thing being gated
+          # (unbounded documentation growth) is identical for every row.
+          #
+          # STILL NAMED `claude-md-budget`, though it now gates thirteen files.
+          # Checked before keeping it (2026-10-02): no workflow names it. The
+          # required status checks are `required-checks` (nix-ci.yml's aggregate,
+          # which enumerates `.#checks.<system>` from the FLAKE rather than
+          # listing attrs), `Scan for secrets` and `Lint .claude config`, so a
+          # rename would not break branch protection — but
+          # docs/monoflake-capsule-adr.md records this decision under this exact
+          # name, so renaming costs an ADR edit and buys nothing.
+          #
+          # CEILINGS are round numbers ~25-80% above today's bytes, widest on the
+          # smallest files (where a few paragraphs are a large fraction). The gate
+          # exists to stop UNBOUNDED growth, not to make an ordinary edit hostile:
+          # if a row is genuinely full, SPLIT the document the way repo-map.md was
+          # split, rather than raising the number reflexively.
+          #
+          # NO `self`: every row is a path LITERAL, so the derivation is
+          # content-addressed per file and stays a meaningful drv-snapshot row
+          # (the two docs checks above take `self` and had to be excluded from
+          # --compare for exactly that reason — scripts/drv-snapshot.sh:59).
+          #
+          # COVERAGE IS ASSERTED IN BOTH DIRECTIONS, because a budget gate that
+          # silently ignores a new file is worse than no gate — the lesson
+          # capsule-registry was built on. A docs/map/*.md the table does not name
+          # fails this check, and so does a row naming a file that is gone.
+          claude-md-budget =
+            let
+              budgets = {
+                "CLAUDE.md" = {
+                  path = ../../CLAUDE.md;
+                  limit = 40000;
+                };
+                "docs/repo-map.md" = {
+                  path = ../../docs/repo-map.md;
+                  limit = 12000;
+                };
+                "docs/map/ci.md" = {
+                  path = ../../docs/map/ci.md;
+                  limit = 12000;
+                };
+                "docs/map/claude.md" = {
+                  path = ../../docs/map/claude.md;
+                  limit = 40000;
+                };
+                "docs/map/docs-index.md" = {
+                  path = ../../docs/map/docs-index.md;
+                  limit = 24000;
+                };
+                "docs/map/engine.md" = {
+                  path = ../../docs/map/engine.md;
+                  limit = 40000;
+                };
+                "docs/map/entry-points.md" = {
+                  path = ../../docs/map/entry-points.md;
+                  limit = 32000;
+                };
+                "docs/map/hosts.md" = {
+                  path = ../../docs/map/hosts.md;
+                  limit = 28000;
+                };
+                "docs/map/infra.md" = {
+                  path = ../../docs/map/infra.md;
+                  limit = 24000;
+                };
+                "docs/map/modules-darwin.md" = {
+                  path = ../../docs/map/modules-darwin.md;
+                  limit = 36000;
+                };
+                "docs/map/modules-home.md" = {
+                  path = ../../docs/map/modules-home.md;
+                  limit = 88000;
+                };
+                "docs/map/modules-nixos.md" = {
+                  path = ../../docs/map/modules-nixos.md;
+                  limit = 36000;
+                };
+                "docs/map/packages.md" = {
+                  path = ../../docs/map/packages.md;
+                  limit = 36000;
+                };
+              };
+              # What is ON DISK under docs/map/, read at eval time from the git
+              # tree — the other half of the coverage claim.
+              onDisk = lib.naturalSort (
+                lib.attrNames (
+                  lib.filterAttrs (n: t: t == "regular" && lib.hasSuffix ".md" n) (builtins.readDir ../../docs/map)
+                )
+              );
+              gated = lib.naturalSort (
+                map (lib.removePrefix "docs/map/") (lib.filter (lib.hasPrefix "docs/map/") (lib.attrNames budgets))
+              );
+            in
+            pkgs.runCommand "claude-md-budget"
+              {
+                table = lib.concatStringsSep "\n" (
+                  lib.mapAttrsToList (name: b: "${name} ${toString b.limit} ${b.path}") budgets
+                );
+                onDiskList = lib.concatStringsSep "\n" onDisk;
+                gatedList = lib.concatStringsSep "\n" gated;
+              }
+              ''
+                fail=0
+
+                # ---- coverage: docs/map/ on disk == docs/map/ rows in the table ----
+                printf '%s\n' "$onDiskList" | sort > "$TMPDIR/on-disk"
+                printf '%s\n' "$gatedList" | sort > "$TMPDIR/gated"
+
+                ungated=$(comm -23 "$TMPDIR/on-disk" "$TMPDIR/gated")
+                if [ -n "$ungated" ]; then
+                  echo "claude-md-budget: docs/map/ file(s) with NO byte ceiling:" >&2
+                  printf '%s\n' "$ungated" | sed 's|^|  docs/map/|' >&2
+                  echo "" >&2
+                  echo "A budget gate that silently ignores a new file is worse than no gate." >&2
+                  echo "Add a row for each one to \`budgets\` in modules/parts/checks.nix, and" >&2
+                  echo "a routing line to docs/repo-map.md's \`## Contents\` table." >&2
+                  fail=1
+                fi
+
+                orphaned=$(comm -13 "$TMPDIR/on-disk" "$TMPDIR/gated")
+                if [ -n "$orphaned" ]; then
+                  echo "claude-md-budget: budget row(s) for docs/map/ file(s) that do not exist:" >&2
+                  printf '%s\n' "$orphaned" | sed 's|^|  docs/map/|' >&2
+                  echo "" >&2
+                  echo "A dead row gates nothing and reads as coverage. Delete it, or restore" >&2
+                  echo "the file it names." >&2
+                  fail=1
+                fi
+
+                # ---- the ceilings themselves --------------------------------------
+                printf '%s\n' "$table" > "$TMPDIR/table"
+                while read -r name limit store; do
+                  [ -n "$name" ] || continue
+                  size=$(wc -c < "$store" | tr -d " ")
+                  if [ "$size" -gt "$limit" ]; then
+                    echo "claude-md-budget: $name is $size BYTES, over its $limit-byte budget." >&2
+                    echo "" >&2
+                    echo "CLAUDE.md is an INDEX and so is docs/repo-map.md; the per-path detail" >&2
+                    echo "lives in docs/map/<domain>.md. If a domain file is genuinely full," >&2
+                    echo "SPLIT it (add the new file to \`budgets\` and to repo-map.md's Contents)" >&2
+                    echo "rather than raising this limit reflexively." >&2
+                    fail=1
+                  else
+                    echo "$name: $size/$limit bytes"
+                  fi
+                done < "$TMPDIR/table"
+
+                [ "$fail" -eq 0 ] || exit 1
+                echo "doc budgets: ${toString (lib.length (lib.attrNames budgets))} files within budget, all ${toString (lib.length onDisk)} docs/map/ files gated" > "$out"
+              '';
 
           # ---- every declared launchd log reaches exactly one rotator -------
           #

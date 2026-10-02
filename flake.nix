@@ -249,7 +249,7 @@
     # through the flake's own capsule registry instead of a fetch.
     #
     # It was the LAST satellite, and the last `follows = "flake-parts"` line —
-    # see docs/repo-map.md § flake.lock, which tracked that row shrinking as
+    # see docs/map/entry-points.md § flake.lock, which tracked that row shrinking as
     # each capsule landed. It was also the only one with a cross-repo consumer:
     # ircc-whatsapp-bot pinned it too, which is why ADR-002 wave 0 made that
     # unpin (ircc grew a `botOnly` output) a prerequisite rather than part of
