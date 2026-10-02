@@ -539,7 +539,62 @@ let
               exit 1
             fi
             sync
-            echo "nixpi-flash: verified full write ($copied bytes)."
+            echo "nixpi-flash: dd reported $copied bytes. Reading the card back…"
+
+            # ---- READ-BACK VERIFICATION -------------------------------------------
+            # A BYTE COUNT IS NOT A VERIFICATION, and this cost a server. Until this
+            # block existed, the line above said "verified full write" on the strength
+            # of dd's own report — i.e. that dd BELIEVES it wrote N bytes, never that
+            # the card HOLDS them. A card that accepts writes and stores them wrong
+            # (failing or counterfeit flash) passes that check cleanly.
+            #
+            # MEASURED CONSEQUENCE, 2026-10-02: nixpi booted from a card flashed this
+            # way and its ext4 rootfs was corrupt from the FIRST MOUNT —
+            #   First error time:      epoch + 5s
+            #   First error function:  ext4_validate_block_bitmap   EFSCORRUPTED
+            #   Last checked:          1980  (never fsck'd)
+            #   FS Error count:        82
+            # Corruption in the BLOCK BITMAP at first mount is a damaged image on
+            # disk, not wear from use. It served for 23 hours accumulating errors
+            # while every check in this repo stayed green, then blocked its own
+            # deploy and needed a forced fsck. The flash step reported success.
+            #
+            # So: hash what the card actually returns over the region we wrote, and
+            # compare it to the image. `/dev/rdisk` is the RAW character device (no
+            # buffer cache), which is what makes this a read of the MEDIA rather than
+            # a read of the page cache that still holds what we just wrote.
+            #
+            # `head -c "$size"` bounds the read to the image, because the card is
+            # larger and dd would otherwise run to the end of the device.
+            # `cmp`, NOT two hashes. It fails at the FIRST differing byte and prints
+            # the offset, which is diagnostic — "differs at byte 4198400" tells you
+            # where the card went wrong; two mismatched hashes tell you only that it
+            # did. Streaming both sides also avoids reading the card twice.
+            #
+            # `head -c "$size"` bounds the read: the card is LARGER than the image, so
+            # an unbounded cmp runs past the image end and reports EOF as a failure.
+            if ! sudo /bin/dd "if=$rdisk" bs=4m 2>/dev/null \
+                 | head -c "$size" \
+                 | cmp - "$tmp/nixpi.img"; then
+              echo "nixpi-flash: READ-BACK MISMATCH — the card does NOT hold the image." >&2
+              echo "nixpi-flash: the offset above is where it first differs." >&2
+              echo "nixpi-flash: DO NOT BOOT THIS CARD. It accepted the write and stored" >&2
+              echo "nixpi-flash: something else — the signature of failing or counterfeit" >&2
+              echo "nixpi-flash: flash. Booting it produces a filesystem corrupt before" >&2
+              echo "nixpi-flash: Linux ever touches it (measured 2026-10-02)." >&2
+              echo "nixpi-flash: Try a DIFFERENT card before re-running." >&2
+              exit 1
+            fi
+
+            # SAY WHAT WAS COMPARED, NOT "VERIFIED". The old line said "verified full
+            # write" on the strength of a byte count, and that word is what made a
+            # corrupt card look flashed. This check is strictly stronger and still
+            # does NOT prove durability: a card with internal remapping can satisfy
+            # one read-back and fail later, and nothing here tests retention. So the
+            # claim is bounded to exactly what happened.
+            echo "nixpi-flash: read back $size bytes from $rdisk — identical to the image."
+            echo "nixpi-flash: (a matching read-back does not prove the card will RETAIN"
+            echo "nixpi-flash:  it; it proves the write landed. Durability is untested.)"
 
             /usr/sbin/diskutil mount "''${disk}s1" >/dev/null 2>&1 || true
             # On a BAND-SPLIT network (e.g. joined to `FOO-5G` but the keychain stores the
