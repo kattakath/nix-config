@@ -935,6 +935,18 @@ in
         # your own address, publish a calling card, read the peer roster, judge whether
         # to act on another session's message (kattakath/skills#26).
         "session-relay"
+        # ---- MERGED IN skills, NEVER DELIVERED, until the `declared` block below ----
+        # Each was merged into kattakath/skills and absent from this list, so no id
+        # existed to enable. A peer session went to load `prior-art-recon` for a
+        # research task this morning and could not.
+        #
+        # Listing them here is what makes the ids RESOLVABLE: `local.claudePlugins
+        # .declared` asserts every key against this catalogue, so these entries and
+        # the `declared` entries have to land in the same commit or the build fails.
+        "prior-art-recon"
+        "foundation-audit"
+        "mac-app-send"
+        "empire"
         # silent-instruments: the instrument layer under the verification gate pinned in
         # programs.claude-code.skills above. That gate's step 3 is "READ: Full output, check
         # exit code"; this is the catalogue of commands for which that step LIES — a stale
@@ -1075,6 +1087,36 @@ in
     # #753 added the name to the catalogue and enabled NOTHING. This line is what
     # #753 meant.
     "silent-instruments@kattakath" = true;
+
+    # ---- The same failure, four more times ---------------------------------
+    # Measured on the live ~/.claude/settings.json, 2026-10-02, before this block:
+    #   prior-art-recon   ABSENT from enabledPlugins — the one a peer could not load
+    #   empire            ABSENT
+    #   foundation-audit  present, but ONLY because the operator clicked it
+    #   mac-app-send      present, same
+    # So two were unusable and two were working-but-unreproducible: a fresh machine
+    # restored neither. That is the whole case for this lane in four lines.
+    "prior-art-recon@kattakath" = true;
+    "foundation-audit@kattakath" = true;
+    "mac-app-send@kattakath" = true;
+
+    # THE ONE LINE HERE THAT CHANGES EVERY SESSION ON THIS MACHINE. `empire`'s
+    # manifest carries `settings.agent = "empire:queen"`, and a plugin's `settings`
+    # block merges into the effective settings once the plugin is ENABLED — so from
+    # the next session start the main agent wears the Queen persona with no flag.
+    # Measured against Claude Code 2.1.268 with a throwaway probe plugin.
+    #
+    # This is the enablement #751 believed a `plugins` entry was performing. It was
+    # not; that PR was inert and was reverted in #754. Deleting this line is the
+    # whole rollback — and because `declared` is a DEFAULT rather than a lock, a
+    # session can also turn it off until the next `activate`.
+    "empire@kattakath" = true;
+
+    # DELIBERATELY ABSENT: `brag-dossier`. It is merged in skills, but the brag
+    # subsystem was removed from this repo on 2026-09-12 at the operator's request
+    # (docs/repo-map.md records that nothing replaces it). Enabling the plugin would
+    # reintroduce that capability by the back door, so it stays out until the
+    # operator says otherwise.
   };
 
   # Spotlight-launchable "Android Emulator" — click (or re-click) like any
