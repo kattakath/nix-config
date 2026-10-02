@@ -25,7 +25,7 @@ Two different edits regenerate `flake.lock`, and only one of them is a bump:
 
 | Edit | Command | What moves |
 |---|---|---|
-| New/changed **`follows`** (the input diet — see [`repo-map.md`](repo-map.md) § `flake.lock`) | `nix flake lock` | Graph **shape** only. Nodes collapse or disappear; **no rev changes.** |
+| New/changed **`follows`** (the input diet — see [`map/entry-points.md`](map/entry-points.md) § `flake.lock`) | `nix flake lock` | Graph **shape** only. Nodes collapse or disappear; **no rev changes.** |
 | Freshness | `nix flake update` (all) / `nix flake update <name>` (one) | **Revisions.** |
 
 A bare `nix flake update` after a `follows` edit buries the shape change in 31 inputs' worth of
