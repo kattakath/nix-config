@@ -51,6 +51,31 @@ let
       type = lib.types.attrsOf lib.types.anything;
       default = { };
     };
+    # The lane the two CI runners moved to on 2026-10-02. Stubbed as
+    # `attrsOf anything` on purpose: pulling the real home-manager module in
+    # would make this eval pass because UPSTREAM declares the options, which is
+    # the opposite of what the stub is for (ADR-002 §2 — it proves the capsule's
+    # modules reach outside themselves for nothing it has not named). `anything`
+    # merges nested attrsets recursively, so the `state-dir` check below can
+    # still evaluate both lanes together and read one merged agent set.
+    #
+    # COST, stated: a stub cannot apply home-manager's own defaults, so this
+    # file sees exactly the keys the modules WRITE and nothing upstream would
+    # add. That is why the arg0 legs below assert `launcher.name` and
+    # `waitForNixStore` — the two inputs to upstream's `mutateConfig`
+    # (pinned home-manager modules/launchd/default.nix:92-120) — rather than the
+    # post-mutation ProgramArguments, which only exist in a real composition.
+    options.home-manager.users = lib.mkOption {
+      type = lib.types.attrsOf lib.types.anything;
+      default = { };
+    };
+    # nix-darwin's launchd module used to populate this for every
+    # `launchd.user.agents` entry (pinned modules/launchd/default.nix:199);
+    # both lanes now restate it themselves, so the stub must declare it.
+    options.system.requiresPrimaryUser = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+    };
     options.assertions = lib.mkOption {
       type = lib.types.listOf lib.types.anything;
       default = [ ];
@@ -81,6 +106,25 @@ let
       default = { };
     };
   };
+
+  # A unit the module failed to put in the self-healing lane must still produce
+  # a derivation with READABLE failure text rather than an eval throw — the same
+  # reason modules/parts/checks.nix guards its roster legs with `?` ("so a
+  # renamed attribute fails this leg instead of throwing out of the legs below
+  # it"). Measured: without this, moving the gitlab lane back to
+  # `launchd.user.agents` failed with `attribute 'tester' missing` and never
+  # printed the leg that explains what went wrong.
+  absentUnit = {
+    enable = false;
+    waitForNixStore = false;
+    launcher.name = "<no such agent>";
+    config = {
+      Label = "<no such agent>";
+      ProgramArguments = [ "/nonexistent" ];
+      KeepAlive.PathState."<no such agent>" = true;
+    };
+  };
+  homeAgents = eval: (eval.config.home-manager.users.tester or { }).launchd.agents or { };
 in
 {
   darwin-module =
@@ -158,21 +202,47 @@ in
           }
         ];
       };
-      agent = eval.config.launchd.user.agents."tart-runner-smoke".serviceConfig;
+      # THE SELF-HEALING LANE, not `launchd.user.agents` (moved 2026-10-02).
+      # `.config`, not `.serviceConfig`: the two layers store the raw plist
+      # under different attribute names, which is the same trap
+      # modules/darwin/launchd-sources.nix records as its `key` field.
+      unit = (homeAgents eval)."tart-runner-smoke" or absentUnit;
+      agent = unit.config;
       slotAssert = builtins.head eval.config.assertions;
     in
     pkgs.runCommand "runner-module-eval"
       {
         arg0 = builtins.head agent.ProgramArguments;
+        label = agent.Label;
+        enabled = if unit.enable then "1" else "0";
+        launcherName = unit.launcher.name;
+        waits = if unit.waitForNixStore then "1" else "0";
+        strandedCount = toString (builtins.length (builtins.attrNames eval.config.launchd.user.agents));
         slotsOk = if slotAssert.assertion then "1" else "0";
       }
       ''
-        # arg0 rule + the <=2-VM assertion, both asserted mechanically.
+        fail() { echo "$*" >&2; exit 1; }
+
+        # `enable` defaults to FALSE upstream and `agentPlists` filters on it,
+        # so without this leg a lane change renders ZERO plists with no eval
+        # error anywhere.
+        [ "$enabled" = 1 ] || fail "the agent is not declared-and-enabled in home-manager launchd.agents: it renders no plist at all"
+        # The lane itself. A unit back on nix-darwin's launchd.user.agents is
+        # on the selfHeals = false, domain = gui row that NOTHING repairs.
+        [ "$strandedCount" = 0 ] || fail "$strandedCount unit(s) went back to nix-darwin launchd.user.agents, which repairs nothing"
+        # The LABEL is the unit's on-disk identity and its BTM approval key.
+        [ "$label" = "org.nixos.tart-runner-smoke" ] || fail "Label drifted off its pinned on-disk value: $label"
+
+        # arg0 rule. In a real composition upstream's mutateConfig replaces
+        # ProgramArguments with a launcher named `launcher.name`, so THOSE two
+        # options are what decide the arg0 launchd and BTM see.
+        [ "$waits" = 0 ] || fail "waitForNixStore left on: arg0 would become Apple's /bin/sh"
+        [ "$launcherName" = nix-tart-runner-smoke ] || fail "launcher name is not nix-<attr>: $launcherName"
         case "$(basename "$arg0")" in
-          nix-tart-runner-smoke) : ;;
-          *) echo "arg0 rule violated: $arg0" >&2; exit 1 ;;
+          tart-runner-smoke-run) : ;;
+          *) fail "inner script renamed: $arg0" ;;
         esac
-        [ "$slotsOk" = "1" ] || { echo "default runnerSlots failed its own assertion" >&2; exit 1; }
+        [ "$slotsOk" = "1" ] || fail "default runnerSlots failed its own assertion"
         test -x "$arg0"
         touch "$out"
       '';
@@ -193,25 +263,43 @@ in
           }
         ];
       };
-      agent = eval.config.launchd.user.agents.gitlab-runner.serviceConfig;
+      # Self-healing lane, `.config` not `.serviceConfig` — see the
+      # runner-module note above.
+      unit = (homeAgents eval).gitlab-runner or absentUnit;
+      agent = unit.config;
     in
     pkgs.runCommand "gitlab-runner-module-eval"
       {
         arg0 = builtins.head agent.ProgramArguments;
+        label = agent.Label;
+        enabled = if unit.enable then "1" else "0";
+        launcherName = unit.launcher.name;
+        waits = if unit.waitForNixStore then "1" else "0";
+        strandedCount = toString (builtins.length (builtins.attrNames eval.config.launchd.user.agents));
+        tokenGate = builtins.head (builtins.attrNames agent.KeepAlive.PathState);
       }
       ''
+        fail() { echo "$*" >&2; exit 1; }
+
+        [ "$enabled" = 1 ] || fail "the agent is not declared-and-enabled in home-manager launchd.agents: it renders no plist at all"
+        [ "$strandedCount" = 0 ] || fail "$strandedCount unit(s) went back to nix-darwin launchd.user.agents, which repairs nothing"
+        [ "$label" = "org.nixos.gitlab-runner" ] || fail "Label drifted off its pinned on-disk value: $label"
+        # The token PathState gate must survive the lane change — without it
+        # the agent starts before the consumer materializes the token.
+        [ "$tokenGate" = "/run/agenix/gitlab-runner-token" ] || fail "KeepAlive.PathState lost the token gate: $tokenGate"
+
         # arg0 rule asserted mechanically; the wrapper's shellcheck
         # already gated it at build (writeShellApplication).
+        [ "$waits" = 0 ] || fail "waitForNixStore left on: arg0 would become Apple's /bin/sh"
+        [ "$launcherName" = nix-gitlab-runner ] || fail "launcher name is not nix-<attr>: $launcherName"
         case "$(basename "$arg0")" in
-          nix-gitlab-runner) : ;;
-          *) echo "arg0 rule violated: $arg0" >&2; exit 1 ;;
+          gitlab-runner-run) : ;;
+          *) fail "inner script renamed: $arg0" ;;
         esac
         test -x "$arg0"
         # The rendered-config template must reference all four shims.
         for stage in config prepare run cleanup; do
-          grep -q "nix-gitlab-tart-$stage" "$arg0" || {
-            echo "wrapper lost the $stage shim reference" >&2; exit 1;
-          }
+          grep -q "nix-gitlab-tart-$stage" "$arg0" || fail "wrapper lost the $stage shim reference"
         done
         touch "$out"
       '';
@@ -260,8 +348,12 @@ in
           }
         ];
       };
-      gh = n: eval.config.launchd.user.agents."tart-runner-${n}".serviceConfig;
-      gl = eval.config.launchd.user.agents.gitlab-runner.serviceConfig;
+      # BOTH lanes land in the one home-manager agent set now; `anything`
+      # merges the two modules' definitions recursively, so this is also the
+      # proof that the lane change did not split them apart.
+      agents = homeAgents eval;
+      gh = n: (agents."tart-runner-${n}" or absentUnit).config;
+      gl = (agents.gitlab-runner or absentUnit).config;
     in
     pkgs.runCommand "state-dir-eval"
       {
@@ -445,6 +537,12 @@ in
     pkgs.runCommand "tart-vms-inert-eval"
       {
         agentCount = toString (builtins.length (builtins.attrNames cfg.launchd.user.agents));
+        # The lane the CI runners moved to. `cfg.home-manager.users` must stay
+        # EMPTY unconfigured — a stray user key would make every mkDarwin
+        # composition declare a home-manager user, which on a consumer without
+        # home-manager is an eval failure rather than a silent extra.
+        homeUserCount = toString (builtins.length (builtins.attrNames cfg.home-manager.users));
+        primaryUserCount = toString (builtins.length cfg.system.requiresPrimaryUser);
         pkgCount = toString (builtins.length cfg.environment.systemPackages);
         activationCount = toString (builtins.length (builtins.attrNames cfg.system.activationScripts));
         assertionsOk = if lib.all (a: a.assertion) cfg.assertions then "1" else "0";
@@ -452,6 +550,8 @@ in
       ''
         fail() { echo "$*" >&2; exit 1; }
         [ "$agentCount" = 0 ] || fail "unconfigured tart modules contributed $agentCount launchd agent(s) to EVERY mkDarwin composition"
+        [ "$homeUserCount" = 0 ] || fail "unconfigured tart modules contributed $homeUserCount home-manager user(s) to EVERY mkDarwin composition"
+        [ "$primaryUserCount" = 0 ] || fail "unconfigured tart modules put $primaryUserCount entry/entries in system.requiresPrimaryUser, forcing every composition to set system.primaryUser"
         [ "$pkgCount" = 0 ] || fail "unconfigured tart modules contributed $pkgCount systemPackage(s) to EVERY mkDarwin composition"
         [ "$activationCount" = 0 ] || fail "unconfigured tart modules contributed $activationCount activation script(s) to EVERY mkDarwin composition"
         [ "$assertionsOk" = 1 ] || fail "unconfigured tart modules failed their own assertions"
