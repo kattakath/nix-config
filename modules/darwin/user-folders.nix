@@ -1,7 +1,11 @@
 # The macOS user-folder seam — mkOption'd so a host (or the private layer)
 # can relocate an inbox, while an UNSET option is exactly the macOS system
 # default. Only folders with a real consumer are declared (LEAN): desktop and
-# downloads feed the file-rotation sweeps (core.nix).
+# downloads feed the file-rotation sweeps, which live in the HOME-MANAGER layer
+# (modules/home/macos-user-agents.nix) and read these through `osConfig` — the
+# sweeps moved there 2026-10-02 for home-manager's agent self-heal. The option
+# stays declared HERE because the paths are a macOS SYSTEM fact, and because a
+# home-manager copy would be the second source of truth it exists to prevent.
 # Add pictures/documents/movies/music only when
 # something actually consumes them.
 #
@@ -17,7 +21,7 @@
 # macOS reads (and these consumers are nix-darwin SYSTEM modules, not HM);
 # grepped nix-darwin's modules/system/defaults for a folder-location surface —
 # none (dock.nix merely uses ~/Downloads in examples). No upstream option
-# exists → custom, because the seam must live where the sweeps consume it.
+# exists → custom.
 {
   config,
   lib,

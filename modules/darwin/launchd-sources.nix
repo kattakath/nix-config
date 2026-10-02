@@ -51,12 +51,18 @@
 #              not a wider filter.
 #
 # So a `selfHeals = false; domain = "gui"` source is covered by NEITHER — true
-# today of the five live `launchd.user.agents` units. The fleet's standing remedy
-# for that is MIGRATION to the home-manager lane, where upstream already owns the
-# probe (metube and yt-dlp-web-ui moved 2026-09-22 for exactly this; logging.nix's
-# user tick was declared there rather than in `launchd.user.agents` for the same
-# reason, and its header says so). Do not "fix" it by widening the reconciler:
-# that hand-rolls a second re-bootstrap for a lane the fleet is emptying.
+# today of the TWO remaining `launchd.user.agents` units, both in the `tart-vms`
+# capsule (`gitlab-runner`, `tart-runner-dontsell-vm`), which has no
+# home-manager lane and whose `runnerStateDir` default reads nix-darwin's
+# `config.system.primaryUserHome`. It was FIVE until 2026-10-02. The fleet's
+# standing remedy is MIGRATION to the home-manager lane, where upstream already
+# owns the probe (metube and yt-dlp-web-ui moved 2026-09-22 for exactly this;
+# `open-maccy` and the two trash sweeps followed on 2026-10-02 into
+# modules/home/macos-user-agents.nix, Labels pinned so BTM state survived, gated
+# by `checks.<system>.launchd-selfheal-lane`; logging.nix's user tick was
+# declared there rather than in `launchd.user.agents` for the same reason, and
+# its header says so). Do not "fix" it by widening the reconciler: that
+# hand-rolls a second re-bootstrap for a lane the fleet is emptying.
 #
 # NOT A MODULE. hosts/macos.nix imports modules/darwin/*.nix by explicit path
 # (flake.nix's import-tree only matches modules/parts/* and
