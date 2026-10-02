@@ -193,6 +193,51 @@ let
   '';
 
   settingsFile = (pkgs.formats.json { }).generate "claude-managed-settings.json" {
+    # ── THE KEY THAT KEEPS THIS WHOLE FILE FROM BEING IGNORED ────────────────
+    # Managed SOURCES are ranked, and the default is NOT a merge:
+    #   "first-wins, the default: Claude Code uses the highest-ranked source that
+    #    delivers at least one policy key and ignores the rest rather than merging
+    #    them. […] Claude Code shows NO WARNING for the sources it skips."
+    #     — code.claude.com/docs/en/managed-settings
+    # Ranking, highest first: (1) remote/server-managed from claude.ai or a Claude
+    # apps gateway, (2) MDM or OS policy (the macOS plist), (3) THIS FILE plus
+    # managed-settings.d/*.json, (4) the Windows HKCU fallback.
+    #
+    # This fleet plants rank 3. So a rank-1 or rank-2 source arriving with ONE
+    # unrelated policy key would silently void everything below — the
+    # secret-value denies, the attribution keys, strictKnownMarketplaces,
+    # disableSideloadFlags. Silently: no warning, and `nix flake check`
+    # structurally cannot see it either, because this file is PLANTED rather than
+    # evaluated.
+    #
+    # WHY IT IS INERT TODAY, AND WHY THAT IS NOT A GUARANTEE. Measured 2026-10-02:
+    #   rank 1  `claude doctor` -> "Managed settings (remote): not fetched —
+    #           requires an Enterprise or Team subscription" and "Organization
+    #           policy: not applicable to Pro and Max accounts"
+    #   rank 2  /Library/Managed Preferences/ DOES NOT EXIST on this Mac
+    #   rank 3  managed-settings.json present, no managed-settings.d/
+    # So rank 3 is the only managed source present and first-wins cannot fire.
+    # The dependency is the ACCOUNT TIER, not this config — the day this account
+    # becomes Team or Enterprise, rank 1 starts being fetched and the floor can be
+    # skipped without anyone touching the repo.
+    #
+    # "merge" applies every admin source instead: "on most keys the higher-ranked
+    # source's value applies, lists union, and locks take the strictest value."
+    # Lists union and locks take the strictest value is exactly the posture a
+    # guardrail floor wants — an org policy can only ever ADD to the denies here,
+    # never replace them wholesale.
+    #
+    # Needs Claude Code >= v2.1.242; the fleet runs 2.1.268. It is one of the two
+    # CONTROL keys (with wslInheritsWindowsSettings), not a policy key — so a file
+    # containing only control keys does not count as "present" and Claude Code
+    # moves to the next source. That is harmless here: this file carries plenty of
+    # policy keys below.
+    #
+    # Verify with `/status` in a session: the `Setting sources` line ends in
+    # ", merged" when composition is active, and a `Skipped sources` line names any
+    # source that was passed over. `claude doctor` does NOT print either line.
+    managedSourcesBehavior = "merge";
+
     # ── AI attribution on git artifacts: OFF (claude/CLAUDE.md § Git authorship)
     # Byte-identical to modules/shared/claude-guardrails.nix's user-scope copy.
     # ALL THREE OR NOTHING, and that is upstream's rule rather than a preference:
