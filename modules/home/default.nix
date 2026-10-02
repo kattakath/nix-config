@@ -850,10 +850,14 @@ in
     #
     # The `kattakath-skills` flake input still exists, for ONE PATH package built
     # from a plugin script (`page-lab-pick`), its `checks.<system>.page-lab` gate,
-    # and — since the MCP catalog externalization — `modules/shared/mcp.nix`'s
-    # `mcpCatalog`. It was TWO packages until 2026-09-30, when superhook moved to
-    # plugin-hook delivery and `packages/superhook.nix` was deleted. No plugin or
-    # skill is read from the input.
+    # and `checks.<system>.mcp-launcher-parity`, which joins the `nix-mcp-*`
+    # launchers this fleet BUILDS against the servers that repo's `plugins/*/.mcp.json`
+    # NAME. It was TWO packages until 2026-09-30, when superhook moved to
+    # plugin-hook delivery and `packages/superhook.nix` was deleted, and it had a
+    # THIRD consumer — `modules/shared/mcp.nix`'s `mcpCatalog` — until that module
+    # was deleted with the gateway 2026-10-02. No plugin or skill is read from the
+    # input, and no home-manager module takes it at all: all three consumers live
+    # in the flake engine and read `inputs.kattakath-skills` directly.
     #
     # Adding a plugin or skill = its tree + marketplace entry IN THAT REPO, then
     # its bare name below. Changing one that is already listed = a merge there.
