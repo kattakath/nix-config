@@ -78,6 +78,197 @@ let
   });
   appKeyFile = config.age.secrets."gh-app-${cfg.org}-key".path;
 
+  # ---- IDLE SLEEP KILLS A RUNNING JOB, AND THIS MAC SLEEPS AFTER 1 MINUTE -----
+  #
+  # `pmset -g custom` reports `sleep 1` on AC **and** battery (measured
+  # 2026-10-02). Nothing in this fleet held a power assertion while a CI job ran,
+  # so a long job could be cut off mid-flight: red check, truncated log, no
+  # legible cause. A busy CPU does not help — macOS' idle-sleep timer counts
+  # USER inactivity, not load, so a flat-out 40-minute build is exactly as idle
+  # as an empty desktop.
+  #
+  # upstream option: grepped the PINNED nix-darwin/modules AND
+  # home-manager/modules for pmset|caffeinate|IOPMAssertion|idleSleep|
+  # powerManagement — ZERO hits in either (home-manager's two `powermanagement`
+  # hits are KDE's `powermanagementprofilesrc`, a Linux desktop file) → custom,
+  # because neither input models macOS power assertions at all. The nearest
+  # upstream surface is `power.sleep.*`, which exists only in nix-darwin's NixOS
+  # sibling and would set the pmset DEFAULTS — the wrong instrument: lowering
+  # this Mac's idle timer fleet-wide to cover CI would stop an idle laptop
+  # sleeping for the other 23 hours of the day.
+  #
+  # TOOL axis: `/usr/bin/caffeinate` (Apple's own, caffeinate(8), present since
+  # 10.8) owns this → using it, un-wrapped. Nothing is added to `runtimeInputs`:
+  # caffeinate is a system binary with no nixpkgs package, which is also why the
+  # OTHER lane (the `tart-vms` capsule) can hold the same kind of assertion
+  # without importing anything from here — the shared thing is a 20-byte absolute
+  # path, not a helper that would have to cross the capsule boundary.
+  #
+  # WHY A JOB HOOK, AND WHY NOT THE UTILITY FORM ON `runDaemon`.
+  #
+  # `caffeinate -i <utility>` is the shape to reach for in general — its
+  # assertion is bound to a PROCESS LIFETIME rather than to an event, and its
+  # process topology is the opposite of what caffeinate(8) implies. Measured
+  # 2026-10-02:
+  #
+  #   /usr/bin/caffeinate -i /bin/sleep 60 &
+  #   23054 23048 /bin/sleep 60                         <- $! EXEC'd the utility
+  #   23056 23054 /usr/bin/caffeinate -i /bin/sleep 60  <- forked watcher asserts
+  #
+  # So `exec /usr/bin/caffeinate -i … Runner.Listener run` below would have been
+  # launchd-safe: launchd would still be tracking Runner.Listener itself, and
+  # `KeepAlive.SuccessfulExit` would be untouched.
+  #
+  # IT IS STILL WRONG HERE, on a second measurement. `--ephemeral` +
+  # `KeepAlive.SuccessfulExit` does NOT mean a process per job: between jobs the
+  # listener sits in "Listening for Jobs". With NO job running:
+  #
+  #   65976  etime 57:24  _github-runner  (Runner.Listener)   …-dontsell-ai-01
+  #   76673  etime 48:43  _github-runner  (Runner.Listener)   …-dontsell-ai-02
+  #
+  # Wrapping that holds PreventUserIdleSystemSleep for the whole life of an IDLE
+  # runner — permanently, on a host that runs two of them. That is the same harm
+  # as a leaked assertion (this Mac never idle-sleeps again) except unconditional
+  # rather than crash-only, which makes it strictly worse than the leak it would
+  # be preventing. The assertion has to be scoped to the JOB.
+  #
+  # `ACTIONS_RUNNER_HOOK_JOB_STARTED` is GitHub's documented seam for job scope,
+  # and it is the right seam for THIS lane specifically because the runner runs
+  # ON THE HOST here, so a hook's assertion is a HOST assertion. The Tart lane
+  # cannot use a hook at all — its Runner.Listener runs inside a macOS GUEST
+  # (modules/features/tart-vms/packages/tart-runner.nix:705, `exec
+  # ./bin/Runner.Listener run` inside a heredoc piped to `guest_ssh` at :707) —
+  # so a hook there would caffeinate a disposable VM and leave the host free to
+  # sleep. That lane is NOT fixed here: whether Virtualization.framework takes
+  # its own assertion while a guest runs is unmeasured, and a fix built on a
+  # guess would be surface for nothing. See the PR for the one command that
+  # settles it.
+  #
+  # The hook's cost is that it cannot use the utility form: it must RETURN before
+  # the job starts (`exec caffeinate -i …` there would block the job forever), so
+  # what it leaves behind is necessarily detached. `-w` is what makes that safe —
+  # a bare backgrounded `caffeinate -i &` reparents to pid 1 and asserts
+  # unbounded and unattributed, which is a real leak and is NOT what this does.
+  #
+  # WHY IT CANNOT LEAK: `caffeinate -w <pid>` releases when the watched process
+  # exits, with no second step to forget — no job-completed hook (it does not
+  # fire on cancel, crash, or ephemeral exit), no pidfile, no kill. The watched
+  # pid is an ANCESTOR read from live `ps` while it blocks on this very hook, so
+  # it cannot be the already-dead pid that would make `-w` return instantly. The
+  # script verifies the assertion landed anyway, because that failure mode is
+  # otherwise silent. Measured 2026-10-02: `kill -9` on the watched pid made
+  # caffeinate exit on its own, leaving zero assertion rows.
+  wakeAssertionHook = pkgs.writeShellApplication {
+    # `.sh` IS LOAD-BEARING, not decoration. GitHub resolves the hook's
+    # interpreter from the file EXTENSION and a file without `.sh`/`.ps1` does
+    # not run — so the usual extensionless `$out/bin/<name>` would be a silent
+    # no-op. https://docs.github.com/en/actions/how-tos/manage-runners/
+    # self-hosted-runners/run-scripts
+    name = "nix-ci-wake-assertion-job-started.sh";
+    text = ''
+      # THIS HOOK BLOCKS THE JOB AND CAN FAIL IT. GitHub runs it synchronously,
+      # and any non-zero exit marks the job failed (`continue-on-error` does not
+      # apply). So every path below ends in `exit 0`, and the one long-lived
+      # thing it starts is detached with all three fds on /dev/null — an
+      # inherited pipe would make the runner wait for EOF instead of starting
+      # the job.
+
+      # Find the ancestor whose lifetime IS this job's. Runner.Listener spawns a
+      # Runner.Worker per job and the hook runs inside that worker's tree, so the
+      # worker is the tightest handle: it exits on completion, cancellation and
+      # crash alike. Listener is the fallback (with `--ephemeral` it too exits
+      # after one job, just slightly later). Walking the tree rather than
+      # `pgrep Runner.Worker` is deliberate — `count = 2` means two workers can
+      # be live at once and the wrong one is not a safe guess.
+      target=""
+      pid=$PPID
+      depth=0
+      while [ "$pid" -gt 1 ] && [ "$depth" -lt 16 ]; do
+        comm=$(/bin/ps -o comm= -p "$pid" 2>/dev/null || true)
+        [ -n "$comm" ] || break
+        case "''${comm##*/}" in
+          Runner.Worker | Runner.Listener)
+            target="$pid"
+            break
+            ;;
+        esac
+        parent=$(/bin/ps -o ppid= -p "$pid" 2>/dev/null || true)
+        parent=''${parent// /}
+        [ -n "$parent" ] || break
+        pid="$parent"
+        depth=$((depth + 1))
+      done
+
+      if [ -z "$target" ]; then
+        # SAY SO LOUDLY RATHER THAN FAIL. A job that runs unprotected is better
+        # than a job that cannot start, but a SILENT regression here looks
+        # identical to the bug this hook exists to fix.
+        echo "::warning title=No wake assertion::found no Runner.Worker/Runner.Listener ancestor in $depth levels — this job runs with NO idle-sleep guard and macOS may sleep under it"
+        exit 0
+      fi
+
+      # -i and ONLY -i. `-i` is PreventUserIdleSystemSleep: it keeps the SYSTEM
+      # awake on battery as well as AC, which is what `sleep 1` on both power
+      # sources needs. Rejected, each for a reason and not by omission:
+      #   -s  prevents system sleep, but caffeinate(8) says it "is valid only
+      #       when system is running on AC power" — so on battery it would be a
+      #       guard that quietly is not there.
+      #   -d  prevents DISPLAY sleep. A CI job needs no screen, and holding the
+      #       panel lit through a 40-minute build is wasted power.
+      #   -u  declares USER ACTIVITY — it turns the display ON, and with no -t
+      #       it expires after 5 seconds. It also lies to every other consumer
+      #       of user-presence state.
+      #   -m  prevents DISK idle sleep. Not what kills a job: real I/O already
+      #       resets that timer.
+      # No -t: a timeout would be a second number to keep in sync with the
+      # longest job anyone ever writes, and -w already ends the assertion on the
+      # real event.
+      #
+      # WHAT THIS DOES NOT COVER, so nobody reads a green job as proof: `-i`
+      # blocks IDLE sleep only. A forced sleep still wins — closing the lid, or
+      # `pmset sleepnow` — so a closed-lid battery job can still die.
+      /usr/bin/caffeinate -i -w "$target" </dev/null >/dev/null 2>&1 &
+      caffeinate_pid=$!
+
+      # PROVE IT TOOK. `-w` on a pid that has already exited returns 0
+      # immediately, and a backgrounded `&` reports success either way — so
+      # without this check "no assertion" and "assertion held" look identical
+      # from the job log, which is exactly the shape of the bug being fixed.
+      #
+      # Absolute paths throughout: this hook takes NO `runtimeInputs`, so its PATH
+      # is whatever the runner happens to export. Everything it calls is a macOS
+      # system binary that is always there, which is the point — a wake-assertion
+      # guard that depends on a job's PATH is a guard that disappears on the job
+      # that needed it most.
+      #
+      # NO PIPE INTO grep, and NOT a style preference. The obvious spelling,
+      # `pmset -g assertions | grep -q "pid $caffeinate_pid(caffeinate)"`, is
+      # WRONG under this script's `set -o pipefail`: `grep -q` exits at the first
+      # match, `pmset` then dies of SIGPIPE, and pipefail turns the whole
+      # pipeline non-zero — so the check reports FAILURE precisely when it
+      # MATCHED. Measured 2026-10-02 against the built hook: it printed
+      # "::warning::… is not holding" while `pmset -g assertions` showed that
+      # exact pid holding the assertion. A verifier that cries wolf on the
+      # success path is worse than no verifier, so the match is a bash `case`
+      # over a captured string — no second process, nothing to SIGPIPE.
+      #
+      # 2s, not 1s: the assertion is registered by a forked caffeinate a moment
+      # after `&` returns, so the sleep is the real race and 1s is the margin
+      # this measured at.
+      /bin/sleep 2
+      assertions=$(/usr/bin/pmset -g assertions 2>/dev/null || true)
+      case "$assertions" in
+        *"pid $caffeinate_pid(caffeinate)"*)
+          echo "holding PreventUserIdleSystemSleep (caffeinate pid $caffeinate_pid) until pid $target exits"
+          ;;
+        *)
+          echo "::warning title=No wake assertion::caffeinate pid $caffeinate_pid is not holding PreventUserIdleSystemSleep for watched pid $target — this job runs with NO idle-sleep guard"
+          ;;
+      esac
+      exit 0
+    '';
+  };
+
   # Mints a fresh, short-lived (~1hr) installation access token from the App's
   # long-lived private key — GitHub's own documented JWT-then-exchange flow
   # (https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation).
@@ -429,6 +620,13 @@ in
           environment = {
             HOME = i.stateDir;
             RUNNER_ROOT = i.stateDir;
+            # Holds a host wake assertion for the life of each JOB — see the long
+            # note at `wakeAssertionHook`. Set in the DAEMON's environment rather
+            # than in the runner's `.env` file because that is the half this
+            # module owns: `.env` lives in RUNNER_ROOT, which `runDaemon` wipes
+            # on every ephemeral re-registration, and GitHub's docs name the
+            # operating-system environment as the other supported source.
+            ACTIONS_RUNNER_HOOK_JOB_STARTED = "${wakeAssertionHook}/bin/nix-ci-wake-assertion-job-started.sh";
           };
           # nix-darwin wraps this as
           #   /bin/sh -c '/bin/wait4path /nix/store && exec <command>'
