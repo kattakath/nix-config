@@ -120,7 +120,7 @@ nix run .#nixpi-provision                     # Plant/update token + Wi-Fi on a 
 
 # terranix — 5 stacks, 4 on one GCS backend. Run inside `nix develop` or tofu picks the WRONG ADC.
 # ALWAYS *-plan first — every stack has one. Every *-destroy is hard-blocked by the guard.
-CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-tunnel-{plan,apply}        # nixpi's tunnel + ingress + CNAME; apply PRINTS the connector token
+CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-tunnel-{import,plan,apply} # nixpi's tunnel + ingress + CNAME; `import` the SSH policy FIRST
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-zones-{plan,apply}         # kattakath.com DNS records
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-access-org-{import,plan,apply}  # Zero Trust org; `import` FIRST or plan/apply refuse
 nix run .#gcp-{foundation,budget}-{plan,apply}              # GCP APIs/SA/state bucket; the 5 CAD spend ALERT
