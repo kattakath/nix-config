@@ -118,11 +118,10 @@ nix run .#nixpi-provision                     # Plant/update token + Wi-Fi on a 
 # Flashing: do a FULL verified write (confirm dd's ~5.6GB byte count) — see docs/nixpi-sd-flashing-runbook.md
 # Companions: nixpi-wifi-creds (emit wpa_supplicant.conf from this Mac), nixpi-vault-token (re-encrypt a rotated token)
 
-# terranix — 6 stacks, 5 on one GCS backend. Run inside `nix develop` or tofu picks the WRONG ADC.
+# terranix — 5 stacks, 4 on one GCS backend. Run inside `nix develop` or tofu picks the WRONG ADC.
 # ALWAYS *-plan first — every stack has one. Every *-destroy is hard-blocked by the guard.
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-tunnel-{plan,apply}        # nixpi's tunnel + ingress + CNAME; apply PRINTS the connector token
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-zones-{plan,apply}         # kattakath.com DNS records
-CLOUDFLARE_API_TOKEN=<scoped> nix run .#mcp-public-{plan,apply,sync,token}  # published MCP gateway; `sync` re-polls the portal
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-access-org-{import,plan,apply}  # Zero Trust org; `import` FIRST or plan/apply refuse
 nix run .#gcp-{foundation,budget}-{plan,apply}              # GCP APIs/SA/state bucket; the 5 CAD spend ALERT
 
@@ -168,7 +167,7 @@ One line per path; the *why* and the per-file specifics are in
 | `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix`, `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `launchd-reconcile.nix` (option-free — re-bootstraps a `launchd.daemons` unit that left the domain, at switch AND boot; nix-darwin's activation is diff-gated and never does), `logging.nix` (EVERY launchd log, agents AND daemons: `system.newsyslog` rename+create for the ones that re-exec, `logrotate --copytruncate` on an hourly tick for the long-lived ones — launchd's fd is **O_APPEND**, so truncating reclaims where renaming cannot), `github-runner.nix` (`local.macosGithubRunner` — LIVE, see § Configuration), `ollama-daemon.nix` (`local.ollamaDaemon` — ONE machine-wide `ollama serve`, so every account shares one process and one 31 GB model store), `claude-managed-settings.nix` (`local.claudeManagedSettings` — the root-owned Claude Code MANAGED settings file; `enable = false` DELETES it). |
 | `modules/nixos/` | `core.nix` (user + keys-only sshd, **loopback-bound BY DEFAULT**, `openFirewall = false`, a firewall that opens **no** TCP port globally, avahi, nix-ld, zram, GC), `desktop-vm.nix` (opt-in XFCE for `nixvm`), `uplink-watchdog.nix` (hotspot failover when the Rogers uplink dies — NOT a connector watchdog), `lan-recovery.nix` (`local.lanRecovery` — the SECOND ingress: wildcard sshd bind + its port per-interface on `end0`/`wlan0` only; `nixvm` stays loopback-only). `nixpi`'s posture is GATED **both ways** — `checks.<system>.nixpi-security-posture` fails on a firewall WIDENING *and* on the LAN path's REMOVAL (built on BOTH systems; the edits are made on the Mac). It cannot test reachability — every leg was green through the 2026-10-01 total outage. |
 | `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `activate` (the self-elevating rebuild above), `spotlight-launchers` (the Android focus-or-launch bundle, a `Terminal` **alias** bundle that opens Ghostty (so ⌘Space → "terminal" offers it next to Apple's), **plus three `commandApps`** — `Nix Activate`, `Nix Flake Check`, `Nix Open Repo`, each a Spotlight-findable `.app` opening a Ghostty window, all wearing `packages/fleet-mark.svg`; planted by `modules/shared/spotlight-actions.nix`), plus single-purpose CLIs. `claude-state-gc` reports (and with `--prune` removes) the Claude Code runtime state no rebuild touches — orphaned plugin cache versions and interrupted-update clones; DRY RUN by default, never prunes transcripts. `launchd-doctor` reports what `nix flake check` structurally cannot: drift **both ways** — declared-but-not-loaded, and loaded-but-in-no-generation, which nix-darwin’s single-transition removal loop orphans permanently — plus non-zero exits, log growth, disabled-DB and log orphans. `grok.nix`/`antigravity-cli.nix` are SRI-pinned prebuilt vendor binaries, SHARED via `environment.systemPackages`, not per-user — bump them by SIGNATURE + vendor checksum, not by trust (each header says how). `acpx.nix` rides the same shared lane but is the opposite shape: FOSS, built from source via `fetchPnpmDeps`, and it pins `nodejs_22` itself because the fleet default is 20.x (ADR-007). Root `bootstrap.sh` is the no-Nix stage 1; the media/photo CLIs live in the `media-cli` capsule. |
-| `infra/` | terranix (Nix → Terraform JSON). Six stacks: `cloudflare/{nixpi-tunnel,mcp-public,zones,access-org}.nix` (+ `kattakath-dns.nix`, records as data), `gcp/{foundation,budget}.nix`. Applied only via the `cf-*`/`mcp-public-*`/`gcp-*` apps; state in GCS for five, `gcp-foundation` local (§ Important Notes). |
+| `infra/` | terranix (Nix → Terraform JSON). Five stacks: `cloudflare/{nixpi-tunnel,zones,access-org}.nix` (+ `kattakath-dns.nix`, records as data), `gcp/{foundation,budget}.nix`. Applied only via the `cf-*`/`gcp-*` apps; state in GCS for four, `gcp-foundation` local (§ Important Notes). |
 | `secrets/` | agenix recipients + the operator pubkey + **four** ciphertexts — one operator-only, three host-decrypted on `macos`. Details in § Security. |
 | `sites/` | TWO trees, ONE Caddy-served: `snoringirl` (`config.fleet.hostedSites[].root`, a **directory** literal, so every byte lands in the LIVE closure — [`store-copied-trees`](.claude/rules/store-copied-trees.md)). `ismail-landing` is NOT served: `next-right-thing.nix`'s fonts. |
 | `templates/` | `nix flake init -t` starter that consumes this engine's `lib.mkDarwin` (`identity` + `extraModules`) instead of forking `hosts/`. |
@@ -224,8 +223,9 @@ keys) — a managed deny cannot be retracted by any lower scope. Deny lists from
 COMBINE, so that duplication is deliberate, not drift.
 
 **MCP servers — PLUGIN-LOCAL ONLY; the gateway and portal are GONE (2026-10-02).** No shared
-proxy here, no `mcp.<domainName>/mcp`, Cloudflare stack destroyed. `mcp.nix` and
-`infra/cloudflare/mcp-public.nix` are DEAD CODE pending deletion — do not read them as live.
+proxy here, no `mcp.<domainName>/mcp`, Cloudflare stack destroyed. `modules/shared/mcp.nix` and
+`infra/cloudflare/mcp-public.nix` are DELETED (#734, #737) — if a doc still describes them
+as live, the doc is stale, not the code.
 Servers come from an enabled plugin's `.mcp.json`; a launcher needing a Keychain read is a PATH
 package (`local.gmailMcp`, `local.pluginMcp`). **Claude Desktop loads no plugins, so it has NO MCP servers** — an
 empty block, asserted by `checks.*.claude-desktop-config-shape`.
@@ -339,7 +339,7 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
 | Situation | Use |
 |---|---|
 | Explain architecture / get the big picture | `cartographer` agent (read-only, ASCII diagrams) |
-| Touching `infra/**.nix`, or **before any** `cf-tunnel-apply` / `mcp-public-apply` | `terranix-infra-reviewer` agent — reviews + plans, never applies |
+| Touching `infra/**.nix`, or **before any** `cf-tunnel-apply` / `cf-zones-apply` / `cf-access-org-apply` | `terranix-infra-reviewer` agent — reviews + plans, never applies |
 | "Does it evaluate?" | `/eval` (stage + `nix flake check`) — no agent needed |
 | LEAN/DRY/doc-drift cleanup | `/hygiene` → skill `nix-hygiene` (audit → fix → gate) |
 | Cross-repo fleet sweep | `/fleet-doctor` (repos listed in `.claude/skills/fleet-doctor/fleet-repos.txt`) |
@@ -364,11 +364,10 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
     negatively cached a 404 (`narinfo-cache-negative-ttl`, default **1 h**), which makes a
     warmed cache look broken. Retry with `--narinfo-cache-negative-ttl 0`; never "fix" it by
     moving the build onto the Pi.
-- `deploy.nodes.nixpi` and the `cf-tunnel-*`/`mcp-public-*` terranix apps all render this repo's
-  real data directly now — `mkCfTunnelTofu` and `mkMcpPublicTofu` still **refuse** a render that would blank
-  an already-provisioned tunnel or unpublish a live server (overrides:
-  `CF_TUNNEL_ALLOW_SITE_FREE=1` / `MCP_PUBLIC_ALLOW_EMPTY=1`) — that guard stays as a "do you
-  really mean to destroy this" check. Bare `deploy` with no `--targets` still fans out over
+- `deploy.nodes.nixpi` and the `cf-*` terranix apps all render this repo's real data directly
+  now — `mkCfTunnelTofu` still **refuses** a render that would blank an already-provisioned
+  tunnel (override: `CF_TUNNEL_ALLOW_SITE_FREE=1`) — that guard stays as a "do you really mean
+  to destroy this" check. Bare `deploy` with no `--targets` still fans out over
   **every** node — always name the target.
 - **The edge's TLS floor and the SSH Access gate are DECLARED, not clicked.**
   `infra/cloudflare/nixpi-tunnel.nix` owns `cloudflare_zone_setting` (ssl=strict,

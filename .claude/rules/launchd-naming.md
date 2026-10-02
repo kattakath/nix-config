@@ -12,7 +12,7 @@ paths:
 # Launchd Naming — `nix-<kebab>` arg0, NEVER a bare interpreter
 
 Every launchd unit **this repo authors** MUST expose a first argument whose **basename is
-`nix-<activity-in-kebab-case>`** — e.g. `nix-mcp-gateway`, `nix-ollama-local`,
+`nix-<activity-in-kebab-case>`** — e.g. `nix-open-maccy`, `nix-ollama-local`,
 `nix-file-rotation-downloads`. The `arg0` the kernel execs (`ProgramArguments[0]`, or
 `Program` if used) is what macOS's **Background Task Manager (BTM)** and *System Settings →
 Login Items & Extensions* display. A bare interpreter there — `sh`, `bash`, `zsh`, `dash`,
@@ -72,8 +72,8 @@ mandatory, not as a security boundary to rely on. Live example:
    directly at `${pkgs.bash}/bin/sh -c …` or `${python}/bin/python3 …`. Put the `exec`
    logic inside that wrapper — and NOT a `wait4path`, for the reason in item 1: it is
    unreachable from a store-resident wrapper. Canonical examples in
-   `modules/shared/mcp.nix`: `telegramMcp` (`nix-telegram-mcp`), `wpMcp`
-   (`nix-mcp-wordpress`), `apifyMcp` (`nix-mcp-apify`).
+   `modules/darwin/core.nix`: `launchd.user.agents.open-maccy`, whose `arg0` is a
+   `writeShellScriptBin "nix-open-maccy"` wrapping a bare `/usr/bin/open`.
 3. **Before declaring any launchd change done**, mentally (or with the audit below) confirm
    the new unit's `arg0` basename starts with `nix-`.
 
@@ -199,13 +199,13 @@ runner row is a glob, one line per instance — count the rows and you will come
 
 BTM sorts by the **`arg0` basename**. The `Label` never appears in that list, so a
 reverse-DNS grouping segment (`com.kattakath.file-rotation.*`) buys nothing an operator can
-see. Put the group in `arg0`: the login openers are `nix-open-maccy`/`-mail`/`-messages`/
-`-slack`, so they form one contiguous block instead of scattering under d/m/m/s.
+see. Put the group in `arg0`: the trash sweeps are `nix-file-rotation-desktop`/`-downloads`,
+so they form one contiguous block instead of scattering under d/d.
 
 Home Manager agents get this for free — `launchd.agents.<n>.launcher.name` defaults to
-`nix-<attr>` (`modules/shared/launchd-launcher.nix`), so `nix-mcp-gateway` /
-`nix-mcp-tunnel-connector` and `nix-media-queue` / `nix-media-queue-power` already sort
-together. The nix-darwin lane hand-rolls its wrapper, which is where a prefix gets dropped —
+`nix-<attr>` (`modules/shared/launchd-launcher.nix`), so `nix-media-queue` /
+`nix-media-queue-power` and `nix-claude-desktop-mcp-sync` / `nix-claude-otel-collector`
+already sort together. The nix-darwin lane hand-rolls its wrapper, which is where a prefix gets dropped —
 `mkNixAgent` passed `suffix = "maccy"` into `nix-${suffix}` and lost the `open-` until
 2026-09-22.
 
