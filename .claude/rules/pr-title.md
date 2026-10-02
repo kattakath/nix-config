@@ -64,6 +64,12 @@ dropped the arming; only that it was dropped and not restored.
 
 - open non-draft and finish pushing before CI goes green (fine for a small change), or
 - open as a draft, and after `gh pr ready` **re-arm by hand** and verify it took:
-  `gh pr view <n> --json autoMergeRequest` must be non-null. Do not assume marking it
-  ready re-armed it; the skip is silent and a PR that merely sits there looks the same as
-  one waiting on checks.
+  `gh pr view <n> --json autoMergeRequest` must be non-null — **but read it only AFTER the
+  arm run concludes.** Measured 2026-10-02 on #747: read seconds after `gh pr create`, that
+  field is `null` because the query RACES the `auto-merge` workflow, and a not-yet-run arm is
+  indistinguishable from a skipped one. That false negative was reported to the operator as a
+  possible skip before the PR armed and merged on its own moments later. Wait for the run:
+  `gh run list --workflow auto-merge.yml --limit 1 --json conclusion` must not say `null`,
+  or just poll the field instead of reading it once. Do not assume marking it ready re-armed
+  it either; the real skip is silent, and a PR that merely sits there looks the same as one
+  waiting on checks.
