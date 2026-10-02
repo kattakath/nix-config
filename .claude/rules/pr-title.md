@@ -38,38 +38,50 @@ green (see [`docs/auto-merge-and-merge-queue.md`](../../docs/auto-merge-and-merg
 so independent PRs are the cheap, reviewable shape — batching only widens the blast
 radius of one red check.
 
-**Park work-in-flight as a DRAFT — but it is NOT free, and the old wording here was
-wrong.** With no merge queue, auto-merge lands a PR the moment its checks go green;
-there is no second run to sit behind, so a branch you are still pushing to can merge out
-from under you mid-stream (#567 lost five commits that way, 2026-09-22). Drafting does
-remove that race.
+**Park work-in-flight as a DRAFT — it needs no manual step.** With no merge queue,
+auto-merge lands a PR the moment its checks go green; there is no second run to sit behind,
+so a branch you are still pushing to can merge out from under you mid-stream (#567 lost five
+commits that way, 2026-09-22). Drafting removes that race, and costs nothing to undo:
+converting to a draft **does** drop the arming — GitHub fires `auto_merge_disabled` in the
+same second as `convert_to_draft`, on **4 of 4** conversions of an already-armed PR — and
+**`ready_for_review` re-arms it**, as a fresh `auto_squash_enabled` ~10-12 s later.
 
-What it also does is **drop the arming, which `ready_for_review` does not restore.** This
-file used to claim the opposite — "arming survives the draft state and releases on
-`ready_for_review`, so opening as a draft costs nothing" — and that is false. Measured on
-#723, 2026-10-01, from the `auto-merge` workflow's own run list:
+**CORRECTED 2026-10-02 — and this section has now been wrong in BOTH directions.** It first
+claimed arming *survives* the draft state; the 2026-10-01 rewrite claimed `ready_for_review`
+does **not** restore it and told you to re-arm by hand. The second claim is also false, and
+the #723 table it rested on had its two rows **swapped**. Matching each run to its event by
+`head_sha` — the PR head was `848a6c0e` until the push created `78f956b3` — #723 reads:
 
-| Time | What happened | What the arm job did |
-|---|---|---|
-| 14:01:52 | PR opened, non-draft | `arm decision=success`, **`arm auto-merge=success`** |
-| 14:05:44 | a push to the branch | run **cancelled** by the concurrency group |
-| 14:05:46 | `ready_for_review` | `arm decision=success`, **`arm auto-merge=skipped`** |
+| Time | Event | Run head | arm job | Why |
+|---|---|---|---|---|
+| 14:01:52 | `opened`, non-draft | `848a6c0e` | **success** | armed — `auto_squash_enabled` 14:02:02 |
+| 14:04:50 | `convert_to_draft` | no run (no trigger) | — | **`auto_merge_disabled` the same second. THIS dropped it** |
+| 14:05:38 | push → `78f956b3` | — | — | fired BEFORE the ready transition |
+| 14:05:40 | `ready_for_review` | `848a6c0e` | **cancelled** | killed by `cancel-in-progress`, then `true` |
+| 14:05:46 | `synchronize` | `78f956b3` | **skipped** | payload `draft=true` — CORRECT, the push preceded the toggle |
 
-The PR came back **unarmed** and stayed that way. Neither the push's run (cancelled) nor
-the `ready_for_review` run restored it — which is issue #683's open bug, reached here by
-following this file's own advice. Not measured: whether the draft conversion or the push
-dropped the arming; only that it was dropped and not restored.
+The old table read the cancelled run as the push's and the skipped run as the ready
+transition's. Both are the other way round: the cancelled run carries the **pre-push** head,
+so it is the ready transition, and the skip is a by-design draft skip, not the defect. What
+left #723 unarmed is the **cancellation** — removed by #750 (`cancel-in-progress: false`,
+2026-10-02), not by anything in this file.
 
-**So the draft dance costs one manual step.** Either:
+Both of the old claims are refuted at job level, not inferred:
 
-- open non-draft and finish pushing before CI goes green (fine for a small change), or
-- open as a draft, and after `gh pr ready` **re-arm by hand** and verify it took:
-  `gh pr view <n> --json autoMergeRequest` must be non-null — **but read it only AFTER the
-  arm run concludes.** Measured 2026-10-02 on #747: read seconds after `gh pr create`, that
-  field is `null` because the query RACES the `auto-merge` workflow, and a not-yet-run arm is
-  indistinguishable from a skipped one. That false negative was reported to the operator as a
-  possible skip before the PR armed and merged on its own moments later. Wait for the run:
-  `gh run list --workflow auto-merge.yml --limit 1 --json conclusion` must not say `null`,
-  or just poll the field instead of reading it once. Do not assume marking it ready re-armed
-  it either; the real skip is silent, and a PR that merely sits there looks the same as one
-  waiting on checks.
+| What the old text said | Measured |
+|---|---|
+| a push drops the arming | **14/14** `synchronize` runs on non-draft operator PRs armed; #737 was force-pushed 3x while armed and `enabledAt` never moved |
+| `ready_for_review` does not restore it | **3 of the 4** armed-PR conversions re-armed on the ready transition (#559, #737, #757); only #723 did not, by the cancellation above. Of 5 `ready_for_review` runs with a recorded payload, 4 armed and 1 was cancelled — **zero skips** |
+
+**#683 is still open, so glance — do not re-arm.** No draft→ready transition has happened
+since the cancellation was turned off, so its acceptance criterion (exactly one non-skipped
+arm run per transition) has no post-fix sample.
+
+**The one check worth keeping**, true independently of all the above: read
+`gh pr view <n> --json autoMergeRequest` **only AFTER the arm run concludes.** Measured
+2026-10-02 on #747 — read seconds after `gh pr create` it is `null` because the query RACES
+the `auto-merge` workflow, and a not-yet-run arm is indistinguishable from a skipped one.
+That false negative was reported to the operator as a possible skip moments before the PR
+armed and merged on its own. Wait for the run (`gh run list --workflow auto-merge.yml
+--limit 1 --json conclusion` must not say `null`), or poll the field rather than reading it
+once.
