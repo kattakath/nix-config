@@ -83,7 +83,7 @@ in
           #     `nix develop -c shellcheck` BY HAND, which is not a gate.
           #   packages/next-right-thing/{run,decide,render,art,probe,gather}.sh
           #     UNGATED. `cp`'d into a `runCommand` libexec dir
-          #     (modules/shared/next-right-thing.nix), so the generator's own
+          #     (modules/home/next-right-thing.nix), so the generator's own
           #     `writeShellApplication` shellchecks the ~25-line wrapper that `exec`s
           #     them and none of the ~1,000 lines it hands over to.
           #   .claude/hooks/tests/*.sh (4) UNGATED. claude-config-lint.yml RUNS them;
@@ -160,7 +160,7 @@ in
           #
           #   modules/features/keychain-secrets/module.nix  lib.mkAfter  (= 1500)
           #     exports every registered Keychain secret into the shell.
-          #   modules/shared/claude-bedrock-gate.nix        lib.mkOrder 1600
+          #   modules/home/claude-bedrock-gate.nix        lib.mkOrder 1600
           #     reads CLAUDE_CODE_USE_BEDROCK and unsets it when no AWS identity
           #     resolves from ~/.aws/config.
           #
@@ -224,7 +224,7 @@ in
                   echo "bedrock-gate-after-loader: the shell-init ordering contract broke." >&2
                   ${lib.concatStringsSep "\n" (lib.mapAttrsToList (k: v: ''echo "  ✘ ${k}: ${v}" >&2'') broken)}
                   echo "" >&2
-                  echo "modules/shared/claude-bedrock-gate.nix uses lib.mkOrder 1600 and MUST" >&2
+                  echo "modules/home/claude-bedrock-gate.nix uses lib.mkOrder 1600 and MUST" >&2
                   echo "run after modules/features/keychain-secrets/module.nix's lib.mkAfter" >&2
                   echo "(= mkOrder 1500), which is what exports CLAUDE_CODE_USE_BEDROCK from" >&2
                   echo "the Keychain in the first place. Reversed, the gate reads an unset" >&2
@@ -237,7 +237,7 @@ in
         // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
           # ---- Claude Desktop only accepts the stdio shape ----------------------
           #
-          # modules/shared/claude-desktop.nix renders the MCP hub into Desktop's
+          # modules/home/claude-desktop.nix renders the MCP hub into Desktop's
           # claude_desktop_config.json. Desktop's parser is the narrowest client
           # in the fleet: {command, args, env} and nothing else — a `url` or
           # `type` key is rejected by its schema and the entry silently vanishes
@@ -314,7 +314,7 @@ in
                 ''
                   echo "claude-desktop-config-shape: the Desktop rendering broke its contract." >&2
                   ${lib.concatStringsSep "\n" (map (p: ''echo "  ✘ ${p}" >&2'') problems)}
-                  echo "See modules/shared/claude-desktop.nix (toStdioShim / excludeServers)." >&2
+                  echo "See modules/home/claude-desktop.nix (toStdioShim / excludeServers)." >&2
                   exit 1
                 ''
             );
@@ -431,7 +431,7 @@ in
           # is load-bearing. `identity` reaches the builders through `specialArgs`,
           # which is outside the module type system by construction (identity.nix says
           # so), so a renamed field does NOT fail as an option error — it fails as
-          # `attribute 'fullName' missing` from inside modules/shared/home.nix, a
+          # `attribute 'fullName' missing` from inside modules/home/default.nix, a
           # trivial-builder stack trace with no mention of the template. So the field
           # set is compared FIRST, against `lib.attrNames config.fleet.identityArgs` —
           # authoritative because that submodule is CLOSED (a fifth field fails in
@@ -657,7 +657,7 @@ in
           # modules/darwin/claude-managed-settings.nix installs a ROOT-OWNED policy
           # file that outranks user and project scope, and its secret-value denies
           # are a hand-maintained DUPLICATE of the user-scope list in
-          # modules/shared/claude-guardrails.nix. That duplication is deliberate —
+          # modules/home/claude-guardrails.nix. That duplication is deliberate —
           # deriving one from the other yields [ ] the moment a rule is reworded,
           # and a well-formed EMPTY floor is the failure this repo has recorded
           # twice — but a duplicate with no gate drifts the first time only one
@@ -706,7 +706,7 @@ in
                 if [ "${toString (builtins.length secretRules)}" -lt "${toString minSecretRules}" ]; then
                   echo "claude-managed-settings: the secret-rule CLASSIFIER now matches only ${toString (builtins.length secretRules)} rules (expected >= ${toString minSecretRules})." >&2
                   echo "" >&2
-                  echo "This check filters modules/shared/claude-guardrails.nix's deny list by pattern to" >&2
+                  echo "This check filters modules/home/claude-guardrails.nix's deny list by pattern to" >&2
                   echo "decide what the managed floor must also carry. A shrinking match means a rule was" >&2
                   echo "reworded out of the pattern, not that policy relaxed — so the superset test below" >&2
                   echo "would have started passing over a smaller set. Re-read both lists, then either fix" >&2
@@ -720,7 +720,7 @@ in
                 if [ -z "$managedDeny" ]; then
                   echo "claude-managed-settings: the MANAGED permissions.deny list is EMPTY." >&2
                   echo "A well-formed, root-owned, completely empty floor is the silent-vacuum failure" >&2
-                  echo "modules/shared/claude-guardrails.nix records twice. Restore the rules." >&2
+                  echo "modules/home/claude-guardrails.nix records twice. Restore the rules." >&2
                   exit 1
                 fi
 
@@ -735,7 +735,7 @@ in
 
                 if [ "$missing" -ne 0 ]; then
                   echo "" >&2
-                  echo "claude-managed-settings: modules/shared/claude-guardrails.nix denies the rules above," >&2
+                  echo "claude-managed-settings: modules/home/claude-guardrails.nix denies the rules above," >&2
                   echo "but modules/darwin/claude-managed-settings.nix does not. The two lists are a" >&2
                   echo "deliberate duplicate (deriving one yields [ ] on a reword), so an edit to one" >&2
                   echo "must be made in the other. Add them and re-run." >&2
@@ -1925,7 +1925,7 @@ in
           # vendored fork of that file could not silently fall behind upstream.
           # Both retired together: home-manager 87c391f added
           # `launchd.agents.<name>.launcher.{name,shell}`, which expresses what the
-          # fork existed to do, so modules/shared/launchd-launcher.nix now sets
+          # fork existed to do, so modules/home/launchd-launcher.nix now sets
           # three upstream options instead. There is nothing vendored left to drift.
 
           # Structural lint (ast-grep). A CHECK, deliberately not a treefmt
@@ -1980,7 +1980,7 @@ in
           # first place, applied once more.
           #
           # The `local.ungoogledChromium.userScripts` OPTION in
-          # modules/shared/chromium.nix stays, unused and documented. If a
+          # modules/home/chromium.nix stays, unused and documented. If a
           # script is ever declared again, restore this gate with it.
 
           # ---- the launcher<->plugin JOIN, across the repo boundary -------------
@@ -1992,7 +1992,7 @@ in
           # plugin `.mcp.json` files NAME those binaries because only a plugin can
           # declare a server to Claude Code. Different artifacts, different repos.
           #
-          # HALF THE JOIN WAS ALREADY MECHANICAL: modules/shared/plugin-mcp.nix types
+          # HALF THE JOIN WAS ALREADY MECHANICAL: modules/home/plugin-mcp.nix types
           # `local.pluginMcp.servers` as an ENUM, so a name this fleet cannot build
           # fails at eval. What nothing saw is the CROSS-REPO half — that the set of
           # `nix-mcp-*` commands the plugins name EQUALS the set this fleet builds.

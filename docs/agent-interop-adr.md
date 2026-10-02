@@ -90,7 +90,7 @@ This is **documented intended behaviour**, not a defect —
 Code's tools to your MCP client, so your own client is responsible for implementing user
 confirmation for individual tool calls."*
 
-The consequence is specific to this fleet: **`modules/shared/claude-guardrails.nix`, the
+The consequence is specific to this fleet: **`modules/home/claude-guardrails.nix`, the
 superhook guard and `modules/darwin/claude-managed-settings.nix` are all client-side.** On
 this path there is no client of ours, so the managed-settings tier — the one that "cannot be
 retracted by any lower scope" — is simply not on the wire.
@@ -154,7 +154,7 @@ what it is for. What is closed is **driving it from another agent**.
 Claude→Grok delegation needs **no new code**. `xai-grok-build` — installed, and **authored by
 xAI** — already ships a 1,107-line bridge with a `grok-delegate` subagent, session transfer,
 `--resume`, background jobs, and `--permission-mode plan`, running under this repo's own
-`nix-agent-workspace` sandbox profile (`modules/shared/home.nix`).
+`nix-agent-workspace` sandbox profile (`modules/home/default.nix`).
 
 That sandbox is the part worth keeping in view: it is **kernel-enforced** (macOS Seatbelt) and
 denies `~/.ssh`, `~/.aws`, `~/.docker`, `~/.config/gh`, `**/*.pem`, `**/*.age`, `**/.env`.

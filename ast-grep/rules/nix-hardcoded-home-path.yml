@@ -63,9 +63,27 @@ severity: error
 # accepts end-of-fragment or any character that cannot continue a username, so
 # `/Users/izzy`, `/Users/izzy/x` and `/Users/izzy ` all match while
 # `/Users/Shared` (uppercase) and `/Users/$USER` (not [a-z]) still do not.
+#
+# LEADING GUARD, added 2026-10-02 with the `modules/shared` → `modules/home`
+# rename. `modules/home/claude-guardrails.nix` is a REPO-RELATIVE path, and the
+# old pattern matched its `/home/claude-guardrails.nix` tail — so the eight Nix
+# STRINGS that cite a home module by path (five `echo` lines in checks.nix, one
+# option `description`, and three generated-file headers) all became errors the
+# moment the directory was renamed. Those are not home paths and have no
+# `$HOME` spelling; the rule had to narrow.
+#
+# `(^|[^a-zA-Z])` is the narrowing, and it is chosen over adding `modules/home/`
+# to `not.any` DELIBERATELY: a `not` regex exempts the WHOLE fragment, and an
+# uninterpolated `''…''` script body is ONE fragment, so one `modules/home/`
+# mention would have exempted every real `/Users/ismail/` in the same block.
+# This guard exempts nothing but the character immediately before the match.
+# It closes no real case: a genuine hardcoded home is absolute, so what precedes
+# it is start-of-fragment, a quote, a space or `=` — never a letter. A letter
+# there means a RELATIVE path like `modules/home/x`, which this rule never
+# governed.
 rule:
   kind: string_fragment
-  regex: '/(Users|home)/[a-z][a-z0-9._-]*($|[^a-z0-9._-])'
+  regex: '(^|[^a-zA-Z])/(Users|home)/[a-z][a-z0-9._-]*($|[^a-z0-9._-])'
   not:
     any:
       - regex: '/(Users|home)/(admin|tester|me|stranger)($|[^a-z0-9._-])'
@@ -88,7 +106,9 @@ note: |
   config.home.homeDirectory, or an XDG dir. A literal /Users/<name>/ or
   /home/<name>/ in a .nix VALUE is not reproducible and breaks on any other
   operator/host. (Nix source path literals like ../../foo are the OTHER axis and
-  are correct — this rule cannot see them.) Exempt: admin / tester / me — a Tart
+  are correct — this rule cannot see them; a repo-relative path spelled inside a
+  STRING, such as modules/home/x.nix, is exempted by the leading guard instead.)
+  Exempt: admin / tester / me — a Tart
   GUEST account, an evalModules fixture and an option-example placeholder, none
   of which is a path on a fleet machine; see the header comment. Same convention
   as the companion `nix-home-path-lint.js` hook — which LAGS this rule as of

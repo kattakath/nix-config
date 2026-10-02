@@ -60,7 +60,7 @@ let
   jsonResumeGistId = "5fc44006a632f8466f09b61749129a88";
 
   # The raw resume.json URL, derived from the gist id + handle (null when the id is
-  # null). Threaded to the jsonresume package (via home.nix + the packages fold) as
+  # null). Threaded to the jsonresume package (via modules/home/default.nix + the packages fold) as
   # its baked-in default --url — the composition lives here, in one place.
   jsonResumeUrl =
     if jsonResumeGistId == null then
@@ -191,7 +191,7 @@ let
     # seeded that repo. Re-add an entry here only to serve it from nixpi again.
     #
     # DO NOT DELETE THAT TREE AS DEAD WEIGHT: its fonts/ subdir is LIVE, and not
-    # for a site — modules/shared/next-right-thing.nix reads it for the übersicht
+    # for a site — modules/home/next-right-thing.nix reads it for the übersicht
     # widget's typography. Absent from `hostedSites` means "Caddy no longer serves
     # it", not "nothing uses it".
   ];
@@ -285,7 +285,7 @@ let
   # ---- Shared identity, as threaded into BOTH builders --------------------
   # Threaded into mkNixos + mkDarwin so system specialArgs and the embedded
   # Home-Manager block can never drift. Only args with a live module consumer
-  # are carried: loginName (core/host), fullName+userEmail (home.nix),
+  # are carried: loginName (core/host), fullName+userEmail (modules/home/default.nix),
   # domainName (nixpi's Caddy vhost + the darwin file-rotation launchd label).
   # userName only builds userEmail above, and orgName is consumed only by
   # PACKAGES (via callPackage, not specialArgs) — the Mac's runner lanes take
@@ -338,7 +338,7 @@ in
             };
             fullName = lib.mkOption {
               type = lib.types.str;
-              description = "The human's display name, read by modules/shared/home.nix.";
+              description = "The human's display name, read by modules/home/default.nix.";
             };
             userEmail = lib.mkOption {
               type = lib.types.str;

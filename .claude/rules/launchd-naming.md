@@ -52,9 +52,9 @@ mandatory, not as a security boundary to rely on. Live example:
 1. **Home Manager user agents** (`launchd.agents.*` — home-manager's spelling; the
    `launchd.user.agents.*` path is **nix-darwin's**, a different layer, and confusing the two
    is how this line was wrong until 2026-09-22) are wrapped automatically by
-   `modules/shared/launchd-launcher.nix`, which forces `arg0` to `nix-<name>`. Do not bypass
+   `modules/home/launchd-launcher.nix`, which forces `arg0` to `nix-<name>`. Do not bypass
    it — and therefore do NOT name the inner script `nix-<name>` as well, or one name maps to
-   two store paths (`metube-run`, not `nix-metube`; see `modules/shared/metube.nix`).
+   two store paths (`metube-run`, not `nix-metube`; see `modules/home/metube.nix`).
    `launchd-launcher.nix` is no longer a vendored fork: the 560-line copy of upstream's
    launchd module was RETIRED 2026-09-14 once the pinned home-manager grew the three
    options it needed
@@ -113,7 +113,7 @@ emits `/bin/sh -c '/bin/wait4path /nix/store && exec <command>'` — the same sh
 **Scope this narrowly.** It applies ONLY to a `launchd.daemons` unit that must run
 at boot from a store path. It does NOT apply to user agents of either layer (they start
 after login, long after `/nix` is mounted) — those keep the `nix-*` wrapper, which
-`modules/shared/launchd-launcher.nix` supplies for home-manager's `launchd.agents` and which
+`modules/home/launchd-launcher.nix` supplies for home-manager's `launchd.agents` and which
 a nix-darwin `launchd.user.agents` entry must spell out by hand.
 
 **Why the cost is acceptable here:** this rule's load-bearing half is TCC — an
@@ -203,7 +203,7 @@ see. Put the group in `arg0`: the trash sweeps are `nix-file-rotation-desktop`/`
 so they form one contiguous block instead of scattering under d/d.
 
 Home Manager agents get this for free — `launchd.agents.<n>.launcher.name` defaults to
-`nix-<attr>` (`modules/shared/launchd-launcher.nix`), so `nix-media-queue` /
+`nix-<attr>` (`modules/home/launchd-launcher.nix`), so `nix-media-queue` /
 `nix-media-queue-power` and `nix-claude-desktop-mcp-sync` / `nix-claude-otel-collector`
 already sort together. The nix-darwin lane hand-rolls its wrapper, which is where a prefix gets dropped —
 `mkNixAgent` passed `suffix = "maccy"` into `nix-${suffix}` and lost the `open-` until

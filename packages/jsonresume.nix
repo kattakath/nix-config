@@ -48,14 +48,14 @@
 # WHY NOT pkgs.resumed, which DOES exist (nixpkgs by-name/re/resumed, 4.1.0):
 # adoption fails on both of this CLI's paths. (1) PDF: the buildNpmPackage
 # vendors no puppeteer peer, which is exactly why the fleet installs
-# `resumed puppeteer` as TWO npm globals (modules/shared/home.nix ~:741) — a
+# `resumed puppeteer` as TWO npm globals (modules/home/default.nix ~:741) — a
 # store-resident `resumed` could not render `--out resume.pdf`. (2) THEMES: a
 # theme is npm-installed into a throwaway workdir at runtime, and a store
 # `resumed` cannot resolve a module from a directory outside its own closure.
 # Only `resumed validate` would improve, which is not worth splitting the tool
 # across two sources. Revisit if the package ever vendors puppeteer.
 # PDF rendering drives puppeteer via $PUPPETEER_EXECUTABLE_PATH (set in the darwin
-# home profile, modules/shared/home.nix), so a browser download is never needed.
+# home profile, modules/home/default.nix), so a browser download is never needed.
 {
   writeShellApplication,
   curl,

@@ -117,7 +117,7 @@ So the folder is invisible to **modules**, and visible only to **activation**:
 ```
 
 This single line explains why the plugin rail already works the proposed way and the skills and
-MCP rails do not: `modules/shared/claude-plugins.nix` is an **activation script** calling
+MCP rails do not: `modules/home/claude-plugins.nix` is an **activation script** calling
 `claude plugin marketplace add`, while `programs.claude-code.skills` and the gateway config are
 **evaluated** into store paths. The proposal is not new here — it is the shape one of the three
 rails already has.
@@ -171,7 +171,7 @@ reuse weighting is satisfied for the formats and cannot be satisfied for the pin
 ## 5. The per-surface decision, by blast radius
 
 The discriminator is not purity, it is **what happens when the resource is wrong**. Counts below are
-**2026-09-30** and they move; the live source for plugins and skills is `modules/shared/home.nix`,
+**2026-09-30** and they move; the live source for plugins and skills is `modules/home/default.nix`,
 never this table (§10.1). **The servers row has no in-repo source any more** — it was
 `modules/shared/mcp.nix` / `modules/parts/identity.nix`, both of which lost it on 2026-10-02
 (§10.7); the only source now is each plugin's own `.mcp.json`, which nothing here can read.
@@ -330,7 +330,7 @@ with no gate at all, while the VS Code extension and the `claude` terminal profi
 
 The boundary in §1 survives, and this is an instance of it: governance belongs to the harness,
 and the harness had simply not been extended past one repo. Fixed by
-`modules/shared/claude-guardrails.nix` — a user-scope `permissions.deny` floor for policy that is
+`modules/home/claude-guardrails.nix` — a user-scope `permissions.deny` floor for policy that is
 wrong in every repo. Repo-specific policy (Cloudflare scoping, nixpi builds) deliberately stays
 project-scoped. A deny rule matches the command text Claude writes, not every way to run a
 program, so the tested project guard remains the deeper layer here.
@@ -351,7 +351,7 @@ measured the same day:
 - The gate moved to where the content is: `kattakath/skills`' own `validate.yml`.
 
 What did **not** move: which marketplace is trusted and which plugins are enabled (still
-declared in `modules/shared/home.nix`), MCP servers (§1.4), and the two PATH packages built from
+declared in `modules/home/default.nix`), MCP servers (§1.4), and the two PATH packages built from
 plugin scripts, which still come from the pinned `kattakath-skills` input.
 
 ### 10.6 MCP servers stop being blanket Nix-owned (2026-09-30)
@@ -384,7 +384,7 @@ so the same discriminator §5 used now produces a two-lane answer instead of a o
    trade §10.5 already recorded for plugins, now extended to their MCP halves.
 2. **Presence in Claude Desktop** (and the Cowork bridge). Desktop loads no plugins and renders one
    all-or-nothing portal connector, so a plugin-owned server is Claude-Code-only and silently
-   absent there (`modules/shared/claude-desktop.nix` § THE PLUGIN CONSEQUENCE).
+   absent there (`modules/home/claude-desktop.nix` § THE PLUGIN CONSEQUENCE).
 3. **Machine-checked parity.** `checks.<system>.mcp-published-parity` compares two *Nix* lists and
    cannot read a plugin's `.mcp.json`, so a name deleted from both and never declared in its plugin
    is a silent loss with a green build. The migration sequence that compensates is
@@ -397,14 +397,14 @@ service token reaches one machine-control server (`desktop-commander`) instead o
 
 **Not affected by this entry:** §1.1–1.3, §1.5, §1.6 and §3's eval/activation constraint. The rule
 "governance may not be externalized" still holds for the moved servers — *which* plugin is trusted
-and *which* plugins are enabled remain declared in `modules/shared/home.nix`. What moved is the
+and *which* plugins are enabled remain declared in `modules/home/default.nix`. What moved is the
 server definition, not the decision to trust its plugin.
 
 ### 10.7 §3's discriminator flipped: the plugin rail is mostly EVALUATED now (2026-09-30)
 
 §3's closing paragraph is the load-bearing line of this ADR's architecture argument: *"the plugin
 rail already works the proposed way and the skills and MCP rails do not:
-`modules/shared/claude-plugins.nix` is an **activation script** … while `programs.claude-code.skills`
+`modules/home/claude-plugins.nix` is an **activation script** … while `programs.claude-code.skills`
 and the gateway config are **evaluated** into store paths."* That sentence no longer describes the
 plugin rail, and the correction is worth more than the sentence was.
 

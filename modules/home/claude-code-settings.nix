@@ -134,7 +134,7 @@ let
   '';
 in
 # isDarwin only, matching claude-brain.nix and claude-guardrails.nix:
-# programs.claude-code is darwin-only in this fleet (home.nix).
+# programs.claude-code is darwin-only in this fleet (default.nix).
 lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
   # Stop upstream linking its read-only store copy. `enable` is home-manager's own
   # per-file switch (modules/lib/file-type.nix:38) — not a deletion hack. The key

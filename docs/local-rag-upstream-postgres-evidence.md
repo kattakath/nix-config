@@ -113,7 +113,7 @@ arg0 is Apple's shell. That is two failures at once:
 
 - [`.claude/rules/launchd-naming.md`](../.claude/rules/launchd-naming.md) — macOS Background
   Task Manager lists a unit by arg0's basename, so this appears as `sh`.
-- the **measured TCC failure** `modules/shared/launchd-launcher.nix` exists to prevent:
+- the **measured TCC failure** `modules/home/launchd-launcher.nix` exists to prevent:
   "A /nix/store arg0 can read ~/Downloads; `/bin/sh` is refused with EPERM".
 
 The capsule gets the correct arg0 for free: `launchd-launcher.nix` defaults

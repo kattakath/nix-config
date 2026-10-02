@@ -27,7 +27,7 @@ in
   # upstream `services.desktopVm` would collide with this declaration. Matches
   # the in-fleet convention already set by `local.folders`
   # (modules/darwin/user-folders.nix) and `local.wireguardConfigs`
-  # (modules/shared/wireguard-configs.nix). Renamed 2026-09-06.
+  # (modules/home/wireguard-configs.nix). Renamed 2026-09-06.
   options.local.desktopVm.enable = lib.mkEnableOption "lightweight XFCE desktop + guest integration for the nixvm sandbox";
 
   config = lib.mkIf cfg.enable {
@@ -61,7 +61,7 @@ in
     # browsers substitute for aarch64-linux, so neither is ever built on the
     # 1-CPU Linux builder. `chromium` and NOT `ungoogled-chromium`: ungoogled
     # patches out the Chrome Web Store and rewrites the Google search engine
-    # into a "No Search" stub (both measured in modules/shared/chromium.nix),
+    # into a "No Search" stub (both measured in modules/home/chromium.nix),
     # and nixpkgs enables Widevine only for plain chromium (common.nix:913) —
     # all three cut against a desktop whose point is signing into Google.
     # `opera` is not a choice at all: nixpkgs removed it 2025-05-19

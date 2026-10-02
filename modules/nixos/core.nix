@@ -1,6 +1,6 @@
 # Shared NixOS system configuration applied to every NixOS host.
 # Platform-specific hardware lives in hosts/<hostname>.nix.
-# User environment lives in modules/shared/home.nix (via Home Manager).
+# User environment lives in modules/home/default.nix (via Home Manager).
 {
   pkgs,
   lib,

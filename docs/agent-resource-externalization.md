@@ -2,7 +2,7 @@
 
 > **Update, 2026-09-23 — delivered as a git marketplace, not the pin.** The repo is now
 > [`github:kattakath/skills`](https://github.com/kattakath/skills) (renamed from `kattakath/ai`).
-> `home.nix` registers it as `https://github.com/kattakath/skills.git` with `autoUpdate = true`
+> `modules/home/default.nix` registers it as `https://github.com/kattakath/skills.git` with `autoUpdate = true`
 > (`local.claudePlugins.marketplaces.<name>.autoUpdate`, which renders
 > `extraKnownMarketplaces.<name>.autoUpdate`). Its plugins carry no `version`, so every commit on
 > its `main` is a release, gated by that repo's own `validate.yml`. Its top-level `skills/` are
@@ -22,7 +22,7 @@
 > repo until 2026-09-23 — is now the `brain-signals` plugin (with the output style, the
 > `cartographer` subagent and `/task`), so the "splitting them lets the two halves drift" reason
 > for keeping it was answered by moving BOTH halves rather than neither. There is no top-level
-> `skills/` directory in this repo any more; `modules/shared/claude-brain.nix` keeps only the
+> `skills/` directory in this repo any more; `modules/home/claude-brain.nix` keeps only the
 > style selection and the calibration rule.
 >
 > The rest of this document is the pinned-era record.

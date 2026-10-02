@@ -2,7 +2,7 @@
 # "Brain Signals" — the fleet's Claude Code ANSWER-SHAPE kit, SELECTED here and
 # SHIPPED elsewhere. The kit itself (output style, the /explain family, the
 # `cartographer` subagent, `/task`) is the `brain-signals` plugin in
-# github:kattakath/skills, enabled in modules/shared/home.nix like any other
+# github:kattakath/skills, enabled in modules/home/default.nix like any other
 # plugin, so it updates from that repo with no pin bump here. It moved there
 # 2026-09-23: it is content, and this repo declares shape.
 #
@@ -15,8 +15,8 @@
 #
 # EXTENDABLE, DELIBERATELY. `rules` is `attrsOf (either lines path)` and merges
 # per key, so a private layer ADDS its own rule and this one survives. Never
-# route extra global prose through `context` (options.nix:134): modules/shared/
-# home.nix already defines it as a PATH, and a second path definition is a hard
+# route extra global prose through `context` (options.nix:134): modules/home/
+# default.nix already defines it as a PATH, and a second path definition is a hard
 # eval error, not a merge.
 lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
   programs.claude-code = {
