@@ -1303,10 +1303,14 @@ in the repo can catch that; see that fixture file's header for the measurement.
   triage). Paired with `finder.FXRemoveOldTrashItems` so the Trash self-purges, and reading
   `local.folders.{desktop,downloads}` through `osConfig` rather than re-deriving a path.
   **They were `modules/darwin/core.nix`'s `launchd.user.agents` until 2026-10-02** — the
-  same move metube and yt-dlp-web-ui made, for the same self-heal, and they were the last
-  three units on the `selfHeals = false; domain = "gui"` row of
-  `modules/darwin/launchd-sources.nix` outside the `tart-vms` capsule (the capsule's two
-  runners have no home-manager lane and are a separate change).
+  same move metube and yt-dlp-web-ui made, for the same self-heal. They were three of the
+  last five units on the `selfHeals = false; domain = "gui"` row of
+  `modules/darwin/launchd-sources.nix`; the `tart-vms` capsule's two CI runners followed in
+  the same week and **emptied the row**. Those two did NOT need a home-manager lane added to
+  the capsule, which is what the plan here assumed: a nix-darwin module declares straight
+  into `home-manager.users.<primaryUser>.launchd.agents` (the shape `logging.nix` was
+  already using), and for the runners that is the only correct shape, because their plists
+  derive from nix-darwin options. Lane, not layer.
 
   **Two things this move had to preserve that the download servers did not.** The
   **Labels** are pinned to their live values with an explicit `config.Label`
@@ -1441,8 +1445,14 @@ waves 5-6 absorb them).
   what makes `~/Desktop` the capture inbox the sweeps rotate.
   **It declares no launchd AGENT any more.** The Maccy opener and the two `mkTrashSweep`
   rotations left for the home-manager lane on 2026-10-02 — see
-  `modules/home/macos-user-agents.nix` above — so `launchd.user.agents` is now empty across
-  the whole tree outside the `tart-vms` capsule.
+  `modules/home/macos-user-agents.nix` above. With the `tart-vms` CI runners moved the same
+  week, **nothing composed on `macos` is left on `launchd.user.agents` at all**, and
+  `checks.<system>.launchd-selfheal-lane` gates that emptiness as its first leg rather than
+  only naming the five Labels. The one place the option is still WRITTEN is
+  `modules/features/tart-vms/darwin.nix` (`local.tart.vms.*`), which reaches no host:
+  `modules/parts/compose.nix` inherits only the two runner lanes from that capsule, so
+  `local.tart.vms` is not even a declared option on `macos`. It moves with the re-add
+  [`macvm-readd-runbook.md`](macvm-readd-runbook.md) plans.
 - **`user-folders.nix`** — the `local.folders.{desktop,downloads}` options: unset = the
   macOS system default (`~/Desktop`, `~/Downloads`), override = the relocation seam; an
   invalid (non-absolute) value fails loudly at eval rather than silently falling back.
