@@ -327,27 +327,6 @@ in
   # modules/shared/home.nix's own signature.
   home-manager.users.${loginName} = _: {
     # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
-    # ---- THE MCP GATEWAY IS PURGED, 2026-10-01 --------------------------------
-    # The operator's original requirement, reinstated after it was reversed WITHOUT
-    # HIS CONSENT in #655/#658 (see the correction on #658): no central shared MCP
-    # gateway or proxy on macOS, plugin-local servers only, and no published portal.
-    #
-    # This one flag removes all of it on this host: the mcp-proxy launchd agent, the
-    # MCP tunnel connector, `programs.mcp`, and Claude Code's gateway MCP wiring. The
-    # module stays in the tree for now because the Cloudflare side is still declared
-    # and must be DESTROYED THROUGH TERRANIX before its code is deleted — removing the
-    # code first would orphan the Access app, the CNAME, the tunnel ingress and the
-    # portal registrations with nothing left able to manage them.
-    #
-    # WHAT THIS COSTS, accepted knowingly: the servers with no plugin home go dark in
-    # Claude Code until plugins exist for them (gmail x4, wordpress, apify, memory,
-    # sequential-thinking, terraform, mcpfinder, local postgres), and Claude Desktop
-    # loses MCP permanently — Desktop loads no plugins, so nothing can replace the
-    # portal for it. Thirteen other servers were already covered outside the gateway
-    # by plugins, first-party connectors or built-ins, which is why the real loss is 8
-    # rather than the 14 the reversal was argued on.
-    local.mcpGateway.enable = false;
-
     # The SAME four accounts, now on the plugin lane instead of the gateway. Launchers
     # land on PATH as `nix-mcp-gmail-<sanitised-address>`; the gmail plugin in
     # github:kattakath/skills names them in its own `.mcp.json`, so Claude Code spawns
@@ -355,13 +334,6 @@ in
     # The list below under `local.mcpGateway` is now inert (that gateway is disabled)
     # and goes when mcp.nix does.
     local.gmailMcp.accounts = [
-      "ismail@kattakath.com"
-      "ismailkattakath@gmail.com"
-      "izzy@silvercreek.ai"
-      "aloshyakasoto@gmail.com"
-    ];
-
-    local.mcpGateway.gmail.accounts = [
       "ismail@kattakath.com"
       "ismailkattakath@gmail.com"
       "izzy@silvercreek.ai"
