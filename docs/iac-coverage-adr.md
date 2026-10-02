@@ -1,9 +1,18 @@
 # ADR-005 — Everything declarative: Cloudflare under terranix, GCP alongside it
 
 **Status:** **DECIDED and FULLY IMPLEMENTED 2026-09-22 — phases 0 through 4.** Four decisions
-taken in §3, all five stacks live and re-planning clean; a SIXTH (`cf-access-org`, §4) was
-added 2026-09-22. §6 records what each phase
-actually delivered, §8 what executing them invalidated, and §8a/§8b the traps each one cost.
+taken in §3. §6 records what each phase actually delivered, §8 what executing them invalidated,
+and §8a/§8b the traps each one cost.
+
+> **STACK COUNT, 2026-10-02: FIVE.** `mcp-public` was **destroyed and deleted** when the MCP
+> gateway and its portal were purged — 65 Cloudflare objects across two destroy runs, 0
+> registrations (was 27), 0 portals, 0 tunnel, `https://mcp.kattakath.com/mcp` → **403**. Its
+> module, its five `mcp-public-*` apps, its `packages.mcp-worker-probe` helper, its GCS state
+> object and its `fleet.publicMcpServers`/`publicMcpPort` inputs are gone. The remaining five are
+> `cf-tunnel`, `cf-zones`, `cf-access-org`, `gcp-budget` and `gcp-foundation` — **four** on the
+> shared GCS backend, `gcp-foundation` local by design. Teardown record:
+> [`mcp-public-exposure-design.md`](mcp-public-exposure-design.md) §12; the decisions below are
+> unaffected — only the inventory moved. §8c carries this as its newest instance.
 
 **The ask, verbatim:** *"make sure the Cloudflare config is clean, lean and up to date, and
 henceforth we maintain it via IaC … so that we have everything declarative and consistent. Need
@@ -43,6 +52,11 @@ Measured 2026-09-22 against the live account (read-only API sweep), **not** esti
 | Redirect rulesets (ours) | 1 | 6 |
 | Access apps / policies / tokens | **all 32** | 0 |
 | Tunnels + MCP portal + registrations | **all 47** | 0 |
+
+(That 47-object row is the measured gap as of 2026-09-22. For contrast, the 2026-10-02 teardown
+destroyed **65** objects across the MCP half alone — the subsystem roughly doubled in object count
+between being brought under IaC and being removed, which is the best available evidence that
+declaring it was what made removing it safe at all.)
 | Workers | 0 | 1 (`mta-sts`) |
 
 Two corrections to the first-pass reading, both of which shrink the work:
@@ -101,8 +115,9 @@ for no gain. **Rejected:** a private data repo — re-introduces exactly the pri
 
 **What shipped:** R2 was never enabled on the account, the operator opened GCP billing instead,
 and phase 1 migrated every remote-state stack to the versioned, encrypted GCS bucket
-`kattakath-tofu-state` (§6 phase 1, §8.1). Five of six stacks compose it; `gcp-foundation` keeps
-**local** state because it declares that bucket, and is encrypted by the same prelude (§4).
+`kattakath-tofu-state` (§6 phase 1, §8.1). Five of six stacks composed it then, **four of five
+today** (`mcp-public` deleted 2026-10-02); `gcp-foundation` keeps **local** state because it
+declares that bucket, and is encrypted by the same prelude (§4).
 
 **The rest of this section is kept as history, not as a plan** — the problem statement below is
 still the reason a shared remote backend exists at all, and the CRC32 footgun is worth knowing
@@ -115,8 +130,11 @@ twice to `tofu` running in whatever the CWD happened to be.
 That fixed the CWD hazard and left a second one standing, which the 2026-09-22 review named:
 **tofu state is per-USER.** A second admin account on this Mac has no such directory, so `tofu`
 from their session sees a pristine workspace and plans to **create** a tunnel, DNS records and
-Access objects that already exist. The `MCP_PUBLIC_ALLOW_CREATE` guard exists precisely because
-neither the drop-delta nor the empty-render check can see that case.
+Access objects that already exist. The `MCP_PUBLIC_ALLOW_CREATE` guard existed precisely because
+neither the drop-delta nor the empty-render check can see that case. **That guard went with the
+`mcp-public` stack on 2026-10-02 and the hazard it named did NOT go with it** — the per-user
+working-directory trap applies to every remaining stack, and the shared remote backend (not the
+guard) is what removes the class.
 
 A shared remote backend removes the class rather than guarding it — **that half held**, and GCS
 delivers it. The R2 argument that did not: the account already exists, the free tier covers a few
@@ -145,17 +163,18 @@ fork.
 
 ## 4. Target shape
 
-Three Cloudflare stacks at decision time, **four today** — plus the two GCP stacks §5 decided,
-so **six in all**. **Five** compose one shared backend; `gcp-foundation` keeps **local** state
-because it declares the bucket the other five live in (its local state is still encrypted — it
-sources the same prelude). One rule for what belongs where:
+Three Cloudflare stacks at decision time, four by 2026-09-22, **three today** (`mcp-public`
+deleted 2026-10-02) — plus the two GCP stacks §5 decided, so **five in all**. **Four** compose one
+shared backend; `gcp-foundation` keeps **local** state because it declares the bucket the others
+live in (its local state is still encrypted — it sources the same prelude). One rule for what
+belongs where:
 
 > **A stack is a blast radius, not a category.**
 
 | Stack | Owns | Why separate |
 |---|---|---|
 | `cf-tunnel` | nixpi's tunnel, ingress, hosted-site DNS + zone settings | Breaking it takes the Pi offline |
-| `mcp-public` | the published MCP gateway, portal, Access, service token | Breaking it takes the MCP portal offline |
+| ~~`mcp-public`~~ | ~~the published MCP gateway, portal, Access, service token~~ | **DELETED 2026-10-02** — destroyed, not merely unmanaged. Do not re-add a stack to publish MCP |
 | `cf-zones` **(new)** | `kattakath.com` DNS records not owned above, the `mta-sts` Worker | Breaking it takes **mail** down |
 | `cf-access-org` **(added 2026-09-22)** | the Zero Trust organisation: `auth_domain` + the login page's branding | Breaking it locks **every** Access application at once |
 
@@ -165,8 +184,11 @@ should not ride in a plan whose other half is a Pi.
 
 **`cf-access-org` is the rule applied to its own limit case: one resource, its own blast
 radius.** `cloudflare_zero_trust_organization` owns `auth_domain`, the sign-in host for every
-Access application in the account — so it sits *above* both `cf-tunnel` and `mcp-public` rather
-than beside them, and a bad apply takes out nixpi's SSH gate and the MCP portal together. That
+Access application in the account — so it sits *above* the other Cloudflare stacks rather
+than beside them, and a bad apply takes out nixpi's SSH gate along with anything else gated there.
+(At decision time the "anything else" was the MCP portal; since 2026-10-02 nixpi's SSH app is the
+**only** thing behind this `auth_domain`, which makes a bad apply *harder to notice*, not less
+consequential — there is no second victim.) That
 it contains a single resource is not an argument for folding it into a neighbour; the rule keys
 on consequence, not on line count.
 
@@ -195,7 +217,8 @@ emits HCL; this repo renders JSON from Nix. Generating HCL and hand-translating 
 exactly the drift this repo exists to prevent.
 
 DNS records are **data**: a Nix list per zone, rendered by one `map`, the same shape
-`hostedSites` and `publicMcpServers` already use. The generator stays in Nix; cf-terraforming
+`hostedSites` already uses (`publicMcpServers` was the other example of it until the MCP stack was
+deleted 2026-10-02). The generator stays in Nix; cf-terraforming
 supplies the `<zone-id>/<record-id>` pairs that `tofu import` needs.
 
 ---
@@ -233,7 +256,7 @@ during non-interactive execution`. Active accounts are `ismail@kattakath.com` (p
 | Phase | Deliverable | Gate |
 |---|---|---|
 | **0** | ~~Cleanup~~ — **DONE.** Orphan policy deleted (3 remain, all referenced). `telegram` re-registered twice; it still reads `error` — see below | Import a clean account, not cruft |
-| **1** | ~~R2 bucket~~ — **DONE on GCS instead.** The operator opened a billing account, which made GCS available; it also has the native state locking §8.1 flagged as unverified for R2. Bucket `kattakath-tofu-state` (versioned, uniform access, public access prevented, 10 non-current versions), every remote-state stack migrated — **five** today, `gcp-foundation` excepted by design (§4) — state **encrypted** with a Keychain passphrase via `TF_ENCRYPTION` | met: every remote-state stack re-plans clean from the backend |
+| **1** | ~~R2 bucket~~ — **DONE on GCS instead.** The operator opened a billing account, which made GCS available; it also has the native state locking §8.1 flagged as unverified for R2. Bucket `kattakath-tofu-state` (versioned, uniform access, public access prevented, 10 non-current versions), every remote-state stack migrated — **five** then, **four** since `mcp-public` was deleted 2026-10-02, `gcp-foundation` excepted by design (§4) — state **encrypted** with a Keychain passphrase via `TF_ENCRYPTION` | met: every remote-state stack re-plans clean from the backend |
 | **2** | ~~`cf-zones` stack~~ — **DONE.** 22 records imported; `cf-zones-plan` reads *"No changes. Your infrastructure matches the configuration."* | met |
 | **3** | ~~GCP survey~~ — **DONE.** `infra/gcp/foundation.nix` (APIs, automation identity, state bucket) and `infra/gcp/budget.nix` (a 5 CAD spend ALERT). Everything created by hand during the session is imported, so both re-plan clean | met |
 | **4** | ~~`docs/workspace-runbook.md`~~ — **DONE.** It found `ws-domain-admin`, an account no file in this repo mentioned, carrying a long-lived key. The first write-up called that a live hole in the single lever; the Admin console then showed the delegation table **empty**, so it was latent, not live — §8b. The key was deleted anyway, and the account's own description now states what is true | met: reviewed against `identity-and-offboarding.md`, which is consistent with it |
@@ -313,10 +336,19 @@ sentence that went stale while the thing it described moved:
 | `identity-and-offboarding.md`: the `email_domain` caveat | the policy was applied the same day |
 | §4's *"four today"* and §6 phase 1's *"all four stacks migrated"* | a fifth and sixth stack landed; five share the backend and `gcp-foundation` keeps local state. **This ADR was the LAST file still saying four** — every other source had been corrected to six/five |
 | §3's decision table + §3.2's heading: *"Cloudflare R2"*, plus §5's *"if 3.2 is ever revisited"* and §7's R2-locking trigger | §8.1 **in this same file** already read MOOT. The shortest pair yet — a decision and its own supersession record, one scroll apart, because a struck-through §8 is not where anyone looks up what the backend is |
+| §4 + §6 phase 1 + §7's trigger table + this §'s own *"corrected to six/five"* row: **six stacks, five on the backend** | `mcp-public` was destroyed and deleted 2026-10-02; it is **five and four**. The count has now been wrong in this file in BOTH directions — too low while stacks were being added, too high once one was removed — which is the argument for the count living in exactly one place and every other mention pointing at it |
 
 **The shape:** a status written once, restated somewhere else, then updated in one place. Every
 instance here was a pair — a bold header and its own tail, a document and its index entry, a
 finding and the correction that followed it.
+
+**And the 2026-10-02 instance adds a direction nobody designed for: DELETION.** Every row above is
+a claim that went stale because something was *added* or *changed*. A stack being **removed**
+invalidates a different class of sentence — not just counts, but live instructions
+(*"always `*-plan` first — every stack has one"*), guard names, state-bucket prefixes and
+cross-references — and it does so in files that had no reason to be touched. The rot is wider per
+removal than per addition, because an addition leaves old sentences true while a removal makes them
+false.
 
 **The last row is this section rotting under its own rule.** The document that names the shape
 held a stale count for hours after every other file was fixed, and this table did not list it —

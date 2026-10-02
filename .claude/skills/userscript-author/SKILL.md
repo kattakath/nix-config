@@ -98,18 +98,25 @@ its gates the same day.
 - One-time per profile, in `chrome://extensions`: **Allow User Scripts** + **Allow access to
   file URLs** (Chrome 138+ refuses to let policy set the first).
 - Claude cannot install a script, flip a toggle, or drive Violentmonkey's dialog **unless**
-  `local.mcpGateway.chromeDevtools.allowExtensions` is on (it is, on `macos`) — see the
-  live-tracking loop below, which is exactly that exception.
+  `chrome-devtools-mcp` is running with `--categoryExtensions` — see the live-tracking loop below,
+  which is exactly that exception. **That flag moved out of this repo**: it used to be
+  `local.mcpGateway.chromeDevtools.allowExtensions` in `modules/shared/mcp.nix`, which was
+  **deleted 2026-10-02** with the MCP gateway. `chrome-devtools` is the `page-lab` plugin's server
+  now, so whether the flag is passed is that plugin's `.mcp.json` to decide and **nothing here can
+  assert it** — if extension pages are unreachable, check there, not in nix-config.
 - **Activation is no longer part of the loop.** Publishing changes nothing in the Nix closure, so
   a userscript no longer needs `activate` at all.
 
 ## Live-tracking loop — driving Violentmonkey directly (preferred over the fallback below)
 
-With `local.mcpGateway.chromeDevtools.allowExtensions = true` (`hosts/macos.nix`, option
-documented in `modules/shared/mcp.nix`), chrome-devtools-mcp can navigate and drive
+With `chrome-devtools-mcp` started with `--categoryExtensions` (**verified working in attach mode
+against this fleet's Chrome 152 on 2026-09-30**, despite upstream's own `--help` claiming
+otherwise — that measurement still stands). It was `local.mcpGateway.chromeDevtools.allowExtensions`
+in `hosts/macos.nix` until the gateway was deleted 2026-10-02; the flag is now set in the
+`page-lab` plugin's `.mcp.json`. With it on, chrome-devtools-mcp can navigate and drive
 `chrome-extension://` pages — including Violentmonkey's own install/confirm dialog. This
 supersedes the Kapture-injection fallback below for any script being authored against a
-**local `file://` copy**; reach for that fallback only when `allowExtensions` is off, or the
+**local `file://` copy**; reach for that fallback only when `--categoryExtensions` is off, or the
 script has no local file to track (already published, editing live in place).
 
 1. Navigate any page (`new_page`/`navigate_page`, `background: true` is fine) to the script's

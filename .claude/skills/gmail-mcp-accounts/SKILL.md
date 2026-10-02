@@ -2,7 +2,8 @@
 name: gmail-mcp-accounts
 description: >
   Add, remove, or authenticate accounts for the self-hosted multi-account
-  Gmail MCP (local.mcpGateway.gmail.accounts, modules/shared/mcp.nix) —
+  Gmail MCP (local.gmailMcp.accounts, modules/shared/gmail-mcp.nix, launchers
+  from packages/gmail-mcp.nix, declared by the `gmail` plugin's .mcp.json) —
   TRUE simultaneous multi-account Gmail via ArtyMcLabin/Gmail-MCP-Server, one
   process per account, unlike the built-in single-account connector. Use when
   asked to "add a gmail account", "authenticate gmail mcp", "gmail multi
@@ -13,6 +14,25 @@ description: >
 # Gmail MCP multi-account operator
 
 Canonical docs: [`docs/gmail-mcp-multi-account-runbook.md`](../../../docs/gmail-mcp-multi-account-runbook.md).
+
+> **LANE CHANGE 2026-10-01/02 — the capability is LIVE, the plumbing moved.** The central MCP
+> gateway and its Cloudflare portal are **destroyed** and `modules/shared/mcp.nix` is **deleted**.
+> Gmail was deliberately kept. Substitute as you read:
+>
+> | Then | Now |
+> |---|---|
+> | `local.mcpGateway.gmail.accounts` | **`local.gmailMcp.accounts`** (`modules/shared/gmail-mcp.nix`), set in `hosts/macos.nix` |
+> | `mkGmailMcp` inline in `mcp.nix` | **`packages/gmail-mcp.nix`** → one `nix-mcp-gmail-<alias>` launcher per account, on PATH |
+> | one long-lived process per account under a shared proxy | **one stdio child per account PER SESSION**, spawned by Claude Code from the `gmail` plugin's `.mcp.json` in `github:kattakath/skills` |
+> | reachable from Claude Code, Claude Desktop and Cowork | **Claude Code only** — Desktop loads no plugins and now has no MCP servers at all |
+>
+> **Two steps are therefore NOT enough on their own.** Adding an address to
+> `local.gmailMcp.accounts` only puts a launcher on PATH; the `gmail` plugin's `.mcp.json` must
+> also name that binary, or nothing spawns it. And **an already-running session will never see a
+> new account** — its tool namespace was fixed at session start, so start a fresh one.
+>
+> Everything about Google, OAuth, the test-user cap, the 7-day Testing expiry and the
+> wrong-account grab below is **unchanged** — none of it was ever about the gateway.
 
 ## Rules
 
@@ -86,7 +106,10 @@ unset tok
 ```
 
 `<alias>` = the email, lowercased, with `@`/`.`/`+` replaced by `_` (matches
-`gmailAlias` in `modules/shared/mcp.nix` — e.g. `a@b.com` → `a_b_com`).
+`gmailAlias` in `packages/gmail-mcp.nix`, where it is **derived, never passed in** — e.g.
+`a@b.com` → `a_b_com`). It names both the launcher binary (`nix-mcp-gmail-a_b_com`) and the
+per-account credentials file, which is why the account list cannot simply be read from a local
+file at runtime.
 
 ## Failure modes
 
@@ -97,11 +120,14 @@ unset tok
 | Worked before, now `invalid_grant` | Testing-status 7-day refresh-token expiry — just re-auth that account |
 | Declared in the Nix list but never worked | Roster ≠ credentials on disk; nothing reconciles them. Compare against `ls ~/.gmail-mcp/credentials-*.json` (names only) |
 | Verified email doesn't match target | Known failure mode above — check the default-path file before re-running |
-| Gateway entry for one account exits at launch | No completed auth for that account yet — doesn't affect other accounts, each is its own process |
-| New account not visible after `darwin-rebuild`/activate | Nix file not staged (`git add`), or activated from a flake that doesn't compose the module the account was added to |
+| One account's server exits immediately at spawn | No completed auth for that account yet — cannot affect the others, each is its own process and (since 2026-10-01) its own per-session child, so there is no shared proxy left to dark |
+| New account not visible after `activate` | Three distinct causes, check in this order: Nix file not staged (`git add`); the `gmail` plugin's `.mcp.json` doesn't name the new launcher; or the session **predates** the change — start a fresh one. **No `nix flake check` leg can see any of this** |
+| Launcher is on PATH and auth verified, but still no tools | The `gmail` plugin isn't enabled, or you are in a stale session. Prove it with `claude mcp list` in a fresh process, then invoke a tool with the plugin-lane `--allowedTools` spelling (see `docs/mcp-gateway.md` § How to verify a plugin-owned server actually answers) |
 
 ## Removing an account
 
-Remove from `gmail.accounts` (whichever list), evaluate/commit/push/activate,
-then `rm ~/.gmail-mcp/credentials-<alias>.json`. See runbook for full
-rotation/revocation steps.
+Remove from `local.gmailMcp.accounts` (`hosts/macos.nix`),
+evaluate/commit/push/activate, **remove its entry from the `gmail` plugin's
+`.mcp.json` too** (otherwise Claude Code keeps trying to spawn a launcher that
+is no longer on PATH), then `rm ~/.gmail-mcp/credentials-<alias>.json`. See
+runbook for full rotation/revocation steps.

@@ -5,22 +5,44 @@ Workspace connector is single-account-per-connection by design (one OAuth grant,
 no way to hold two accounts open at once). This runs
 [ArtyMcLabin/Gmail-MCP-Server](https://github.com/ArtyMcLabin/Gmail-MCP-Server)
 (a maintained fork of the now-archived GongRzhe original) as **one server
-process per account**, each with its own `--tool-prefix`, side by side in the
-local MCP gateway (`modules/shared/mcp.nix`).
+process per account**, each with its own `--tool-prefix`.
+
+> **LANE CHANGE, 2026-10-01 — this runbook is LIVE, but the option name moved.** These four
+> accounts used to be entries on the central MCP gateway (`local.gmailMcp.accounts` in
+> `modules/shared/mcp.nix`). That gateway and its Cloudflare portal were destroyed on 2026-10-02
+> and the module is **deleted**. Gmail was deliberately kept, so:
+>
+> | Then | Now |
+> |---|---|
+> | `local.gmailMcp.accounts` | **`local.gmailMcp.accounts`** (`modules/shared/gmail-mcp.nix`) |
+> | `mkGmailMcp` inline in `mcp.nix` | **`packages/gmail-mcp.nix`** — one `nix-mcp-gmail-<alias>` launcher per account, on PATH |
+> | one long-lived process per account under `mcp-proxy`, shared by every client | **one stdio child per account PER SESSION**, spawned by Claude Code from the `gmail` plugin's `.mcp.json` in `github:kattakath/skills`, reaped at session end |
+> | reachable from Claude Code, Claude Desktop and Cowork | **Claude Code only** — Desktop loads no plugins, so it has no Gmail (and no MCP servers at all) |
+>
+> **Why the launcher stayed in Nix:** a plugin's `.mcp.json` can set `env` to literals and
+> passthroughs but **cannot run `security find-generic-password`**. The Keychain read, the
+> `gcp-oauth.keys.json` materialisation and the per-account `--tool-prefix` all have to happen in
+> a binary the plugin merely names. That split is the pattern for any future credentialed server.
+>
+> **Everything about Google, OAuth, the test-user cap, the 7-day Testing expiry and the
+> wrong-account grab is UNCHANGED** — it was never about the gateway. Substitute the new option
+> name as you read, and note that the auth commands below are unaffected: they were always run by
+> hand against `~/.gmail-mcp/`, never by Nix.
 
 ## Pieces
 
 | Piece | Role | Lives |
 |---|---|---|
 | Google Cloud OAuth client (**Desktop app** type) | ONE shared client (`client_id`/`client_secret`) authenticates every account — Google allows the same Desktop client across arbitrary accounts | Your Google Cloud Console; secret in the login Keychain |
-| `gmailAlias` | Sanitizes an email (`lower`, `@`/`.`/`+` → `_`) into a tool-prefix/filename-safe token — internal only, never part of the config surface | `modules/shared/mcp.nix` |
-| `mkGmailMcp` | `writeShellScriptBin` wrapper: reads the shared client id/secret from Keychain at launch, materializes `~/.gmail-mcp/gcp-oauth.keys.json`, execs the server with `--tool-prefix=<alias>_` | `modules/shared/mcp.nix` |
-| `local.mcpGateway.gmail.accounts` | `listOf str` of **plain email addresses** — the only thing you edit to add/remove an account. Empty by default | `modules/shared/mcp.nix` option |
+| `gmailAlias` | Sanitizes an email (`lower`, `@`/`.`/`+` → `_`) into a tool-prefix/filename-safe token — internal only, never part of the config surface | `packages/gmail-mcp.nix` (derived there, never passed in) |
+| the launcher (`nix-mcp-gmail-<alias>`) | `writeShellScriptBin` wrapper: reads the shared client id/secret from Keychain at launch, materializes `~/.gmail-mcp/gcp-oauth.keys.json`, execs the server with `--tool-prefix=<alias>_`. `npx` is baked as an absolute store path so the launcher is immune to whatever Node the calling session has on PATH — which matters, because the plugin lane gets fnm's Node, not the fleet default | `packages/gmail-mcp.nix` (was `mkGmailMcp` in `mcp.nix`) |
+| `local.gmailMcp.accounts` | `listOf str` of **plain email addresses** — the only thing you edit to add/remove an account. Empty by default | `modules/shared/gmail-mcp.nix` option; set in `hosts/macos.nix` |
+| the `gmail` plugin's `.mcp.json` | names each launcher **by binary name**, one server entry per account — the declaration half | `github:kattakath/skills` (**not this repo**) |
 | `~/.gmail-mcp/credentials-<alias>.json` | Per-account OAuth token, produced by the **one-time interactive auth step** (not by Nix) | `$HOME`, never in git/store |
 
 ## Which addresses belong in this list
 
-Real email addresses are personal data. `gmail.accounts` is a plain Nix list
+Real email addresses are personal data. `gmailMcp.accounts` is a plain Nix list
 set directly in `hosts/macos.nix`, and it holds **only the operator's own
 accounts, each under an identity already public elsewhere in this tree**.
 Anyone else's address never goes in it.
@@ -55,7 +77,7 @@ made public. That `extraHomeModules` seam still exists generically on
      Internal app cannot authenticate an out-of-org account at all.
      Measured 2026-09-29: the shared client had drifted back to (or never
      left) Internal, and **3 of the 4 accounts declared in
-     `local.mcpGateway.gmail.accounts` had no working credential** — exactly
+     `local.gmailMcp.accounts` had no working credential** — exactly
      the three that live outside the client's org. Nothing warned; the
      declared roster and reality disagreed silently for weeks.
 
@@ -73,7 +95,8 @@ made public. That `extraHomeModules` seam still exists generically on
    > The alternative shape — one **Internal** client per Workspace org — has no
    > Testing expiry and is exempt from verification even for restricted scopes,
    > at the cost of one OAuth client per org. It is **not** adoptable as-is:
-   > `mkGmailMcp` assumes a single shared client, so it would need a per-account
+   > `packages/gmail-mcp.nix` assumes a single shared client (it reads one
+   > `GMAIL_OAUTH_CLIENT_ID`/`_SECRET` pair from the Keychain), so this would need a per-account
    > client id. Recorded here as the trade-off, not as a supported option.
 3. **Google Auth Platform → Data Access → Add or remove scopes**: register
    `.../auth/gmail.modify` and `.../auth/gmail.settings.basic` (the tool's
@@ -119,12 +142,13 @@ made public. That `extraHomeModules` seam still exists generically on
    This sets the **index** to base+your-edit without ever writing to the
    working-tree file — the other uncommitted work stays exactly as its owner
    left it, unstaged, on disk.
-3. **Activate**: `darwin-rebuild switch` (public host) or your private
-   flake's activation app (to pick up accounts from a private module too —
-   `extraHomeModules` accounts only exist once activated from the flake that
-   supplies them).
+3. **Activate**: `activate` (or `darwin-rebuild switch`). This puts the new
+   `nix-mcp-gmail-<alias>` launcher on PATH. **Two things to know since the lane change:**
+   the `gmail` plugin's `.mcp.json` must also name that binary — a launcher on PATH that no
+   plugin names is spawned by nobody — and a **already-running Claude Code session will not see
+   it**, because its tool namespace was fixed at session start. Start a fresh session.
 4. **Run the one-time interactive auth**, using the SAME shared
-   `gcp-oauth.keys.json` (materialized once, on first gateway launch) and a
+   `gcp-oauth.keys.json` (materialized once, on the launcher's first run) and a
    credentials path matching the email's sanitized alias:
    ```bash
    GMAIL_OAUTH_PATH="$HOME/.gmail-mcp/gcp-oauth.keys.json" \
@@ -177,10 +201,12 @@ unset) on the *next* invocation.
 
 ## Removing or rotating an account
 
-1. Remove the email from `local.mcpGateway.gmail.accounts` (whichever list
+1. Remove the email from `local.gmailMcp.accounts` (whichever list
    it's in), evaluate, commit, push, activate.
-2. `rm ~/.gmail-mcp/credentials-<alias>.json` — the gateway no longer
-   references it, and the local token should not linger.
+2. `rm ~/.gmail-mcp/credentials-<alias>.json` — nothing references it any
+   more, and the local token should not linger. **Also remove the account's entry from the
+   `gmail` plugin's `.mcp.json`**, or Claude Code keeps trying to spawn a launcher that no longer
+   exists on PATH.
 3. Optionally revoke the grant from the account's own Google Account →
    Security → Third-party access page (this is the account holder's own
    action, not something scriptable from here).
@@ -200,12 +226,13 @@ unset) on the *next* invocation.
 | Auth flow rejects the account / "app not available to this user" | Email isn't in the Console's test-user list | Audience → Add users, then retry |
 | `Access blocked: <org> can only be used within its organization` | The client is **Internal**, and the account is out-of-org. A test-user entry CANNOT fix this | Audience → **Make external** → Testing, then re-verify per setup step 2 |
 | An account works for weeks, then `invalid_grant` on refresh | Testing-status **7-day refresh-token expiry** (setup step 2) — not corruption | Re-run that account's auth. A directory of dead credentials is this, not a bug |
-| Account is declared in `local.mcpGateway.gmail.accounts` but was never usable | Declared roster ≠ credentials on disk; nothing reconciles them | Compare the list against `ls ~/.gmail-mcp/credentials-*.json` (names only — never print contents) |
+| Account is declared in `local.gmailMcp.accounts` but was never usable | Declared roster ≠ credentials on disk; nothing reconciles them | Compare the list against `ls ~/.gmail-mcp/credentials-*.json` (names only — never print contents) |
 | `HTTP 403` on the profile check, `insufficientPermissions`-shaped error | Gmail API not enabled on the project, or the scope isn't registered on the consent screen | Setup steps 1 and 3 |
-| Gateway server for one account exits immediately at launch | That account's `credentials-<alias>.json` doesn't exist yet (no completed auth) | Run the per-account auth procedure; it doesn't dark the whole gateway — every account is its own process |
+| One account's server exits immediately at spawn | That account's `credentials-<alias>.json` doesn't exist yet (no completed auth) | Run the per-account auth procedure. It cannot take the others down — every account is its own process, and since 2026-10-01 its own per-session child, so there is no shared proxy left to dark |
 | Verified `emailAddress` doesn't match the target | The silent wrong-account grab (see "Known issue") | Check the default-path file; mv or re-run per the mitigation steps |
 | `nix eval`/`darwin-rebuild` doesn't see a newly-added account | New/edited `.nix` file not staged | `git add` it — flakes ignore untracked/unstaged-new files (see `.claude/rules/git-purity.md`) |
 | Adding an account to a private composition flake has no effect on the public repo's `nix flake check` | Expected — `listOf` options merge only when BOTH modules are actually composed together (i.e. evaluated from the flake that supplies `extraHomeModules`) | Evaluate/activate from the flake that has both, not the public-only one |
+| Launcher is on PATH, auth verified, but no `gmail` tools in the session | The `gmail` plugin isn't enabled, its `.mcp.json` doesn't name this alias, or the session predates the change | Enable the plugin; check its `.mcp.json`; start a **fresh** session — and prove it per `mcp-gateway.md` § How to verify a plugin-owned server actually answers. **No `nix flake check` leg can see any of this** |
 
 ## Security notes
 
@@ -232,6 +259,9 @@ Command: `/gmail-account`.
 
 | Path | What |
 |---|---|
-| `modules/shared/mcp.nix` | `gmailAlias`, `mkGmailMcp`, `local.mcpGateway.gmail.accounts` option, gateway wiring |
-| `hosts/<host>.nix` | All accounts for that host, via `home-manager.users.<user>.local.mcpGateway.gmail.accounts` |
+| `packages/gmail-mcp.nix` | the per-account launcher: `gmailAlias` derivation, Keychain read, `gcp-oauth.keys.json`, `--tool-prefix` |
+| `modules/shared/gmail-mcp.nix` | the `local.gmailMcp.accounts` option; puts one launcher per account on PATH |
+| `hosts/macos.nix` | All accounts for that host, via `home-manager.users.<user>.local.gmailMcp.accounts` |
+| `github:kattakath/skills` → the `gmail` plugin's `.mcp.json` | the DECLARATION — one server entry per account, naming the launcher by binary name. **Not in this repo, and invisible to every check here** |
+| ~~`modules/shared/mcp.nix`~~ | **deleted 2026-10-02** — held `mkGmailMcp` and the old gateway wiring |
 | `~/.gmail-mcp/` | Runtime state: shared `gcp-oauth.keys.json` + per-account `credentials-<alias>.json` (never in git) |

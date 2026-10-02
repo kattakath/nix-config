@@ -45,10 +45,11 @@
 # adopted, so nothing arrived in-tree when they left. Archived, not deleted (ADR-002 §7.8)
 # — both stay public and readable, which is where the "why it wasn't adopted" lives:
 #   nix-mcp-gateway  — a THIN, GENERIC `local.mcpGateway` broker module. The fleet kept its
-#                      own fully-wired concrete deployment in modules/shared/mcp.nix, which
-#                      carries the long-form note (one generic module vs. one concrete
-#                      deployment — never two competing options). The server count lives
-#                      there and in docs/mcp-gateway.md; it is not repeated here.
+#                      own fully-wired concrete deployment in modules/shared/mcp.nix (one
+#                      generic module vs. one concrete deployment — never two competing
+#                      options). BOTH are gone now: that module, the gateway and its
+#                      Cloudflare portal were deleted/destroyed 2026-10-02, so there is no
+#                      MCP surface in this repo to sweep. docs/mcp-gateway.md is history.
 #   nix-inngest      — never wired into any host. The `inngest` CLI that IS on PATH comes
 #                      from nixpkgs, not from this repo; do not confuse the two.
 # Same rule as the seven above: do not re-add either because a working copy is on disk.
