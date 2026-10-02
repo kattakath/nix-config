@@ -9,13 +9,24 @@
 # deliberate: cf-terraforming emits HCL, and hand-translating HCL into Nix is
 # exactly the drift this repo exists to prevent. It is used for import IDs only.
 #
-# NOT DECLARED HERE, because another stack already owns them — importing one
-# twice is how a plan grows a destroy:
+# NOT DECLARED HERE, because another stack already owns it — importing one twice
+# is how a plan grows a destroy:
 #   nixpi.kattakath.com     -> cf-tunnel  (infra/cloudflare/nixpi-tunnel.nix)
-#   upstream.kattakath.com  -> mcp-public (infra/cloudflare/mcp-public.nix)
-#   mcp.kattakath.com       -> created by Cloudflare with the MCP portal itself;
-#                              no terranix resource points at it, and adopting it
-#                              would put us in a fight with the portal feature.
+#
+# THE OTHER TWO EXCLUSIONS ARE NOW HISTORY, and one left a live orphan. Both
+# belonged to the mcp-public stack, deleted 2026-10-02. Measured against the API
+# that day (GET /zones?name=kattakath.com -> /dns_records, 24 records):
+#   upstream.kattakath.com  GONE — the teardown took it with the stack. Nothing
+#                           to adopt, nothing to clean up.
+#   mcp.kattakath.com       STILL LIVE, and an ORPHAN: CNAME -> gateway.agents.
+#                           cloudflare.com, proxied, comment "mcp-portal". Created
+#                           by Cloudflare with the portal, so no stack ever owned
+#                           it and the teardown did not reach it — but the portal
+#                           it fronted is destroyed, so it is a public hostname
+#                           pointing at nothing. Deleting it is a DASHBOARD/API
+#                           action by the operator, not an apply from here; do NOT
+#                           adopt it into this list just to delete it, because an
+#                           import + destroy is a longer path to the same button.
 #
 # A PLAIN LIST, not a flake-parts module and not a `fleet.*` option. It has
 # exactly ONE consumer (modules/parts/terranix.nix), and routing it through the
