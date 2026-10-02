@@ -81,9 +81,10 @@
  *
  * `-destroy` keeps the hard block because none of that applies to it: teardown
  * has no plan worth reading (everything goes), the drop-delta guard is inverted
- * by design, and docs/mcp-public-exposure-design.md records that
- * `mcp-public-destroy` cannot even clean up fully — the portal registrations and
- * tunnel config survive in the API and need hand deletion. Flip
+ * by design, and what the one surviving destroy app tears down is nixpi's ONLY
+ * remote ingress — the tunnel, its ingress rules and the Access app in front of
+ * sshd. That app vanished once on its own (2026-08-20) and took `ssh` plus both
+ * deploy legs with it, leaving the LAN path as the sole way back in. Flip
  * RULE1_TERRANIX_APPLY_BLOCKING to `true` to restore the old undivided block.
  *
  * RULE 1b IS RETIRED (2026-09-15). It hard-blocked the two live-fleet activations
@@ -184,27 +185,31 @@ const DESKTOP_COMMANDER_TOOLS = new Set(["ls", "find", "stat", "ps", "kill"]);
 
 // Rule 1: terranix apply/destroy apps that mutate Cloudflare infra via the API.
 //
-// Names DRIFT, and this rule drifted into guarding nothing. It used to read
-// `cf-(?:tunnel|mcp)-(?:apply|destroy)`: `cf-mcp-*` was real, then was removed
-// with the Opera/Kapture MCP servers (6ca8c46), while the terranix family that
-// replaced it — `mcp-public-*` — was never added. So the one app this rule most
-// needed to catch sailed straight through. Derive this list from `nix flake show`
-// when an infra app is added or renamed, not from memory.
+// Names DRIFT in BOTH directions, and this rule has been wrong each way. It
+// used to read `cf-(?:tunnel|mcp)-(?:apply|destroy)`: `cf-mcp-*` was real, then
+// was removed with the Opera/Kapture MCP servers (6ca8c46), while the terranix
+// family that replaced it — `mcp-public-*` — was never added, so the one app
+// this rule most needed to catch sailed straight through. Then that family was
+// DELETED with its stack (2026-10-02, PR #737) and the alternation guarded a
+// name no `nix run` can resolve. Derive this list from `nix flake show` when an
+// infra app is added, renamed or removed, not from memory — the apps it names
+// must still exist, or the rule reads as policy covering something it does not.
 //
-// `mcp-public-token` is deliberately ABSENT: it is read-only (it prints the
-// connector token out of existing state for piping into `secret set`) and
-// mutates nothing.
+// Only `cf-tunnel` survives with both halves: of the five remaining stacks only
+// it exposes a `-destroy` app (cf-zones, cf-access-org, gcp-foundation and
+// gcp-budget are plan/apply only — modules/parts/terranix.nix says why for
+// each), so the DESTROY regex below has exactly one app to catch.
 //
 // Shape copied from PUBLIC_MACOS_APP below rather than reinvented — it already
 // handles the two evasions a bare `\.#` misses: a quoted flake ref, and the
 // `github:kattakath/nix-config#…` form that runs the same app without a checkout.
 const CF_TERRANIX_APP =
-  /\bnix\s+run\s+["']?(?:\.|github:kattakath\/nix-config)#(?:cf-tunnel|mcp-public)-(?:apply|destroy)\b/;
+  /\bnix\s+run\s+["']?(?:\.|github:kattakath\/nix-config)#cf-tunnel-(?:apply|destroy)\b/;
 
 // The DESTROY half of that family, split out 2026-09-22 so `apply` can relax
 // while teardown stays hard-blocked. See the POLICY CHANGE note in the header.
 const CF_TERRANIX_DESTROY =
-  /\bnix\s+run\s+["']?(?:\.|github:kattakath\/nix-config)#(?:cf-tunnel|mcp-public)-destroy\b/;
+  /\bnix\s+run\s+["']?(?:\.|github:kattakath\/nix-config)#cf-tunnel-destroy\b/;
 
 // Rule 1c — the two ways a secret VALUE reaches stdout, and therefore this
 // session's transcript. Deliberately WHOLE-COMMAND regexes, not the
