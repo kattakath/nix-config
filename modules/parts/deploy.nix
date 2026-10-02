@@ -138,7 +138,7 @@ in
     # Deliberately NOT `fastConnection = true`: that flag DROPS
     # `--substitute-on-destination` from the `nix copy`, forcing the entire
     # closure through the Cloudflare Tunnel. Left false so the Pi substitutes
-    # from the public Cachix cache itself (modules/shared/nix-cache.nix) and
+    # from the public Cachix cache itself (modules/nixos/nix-cache.nix) and
     # only the cache misses cross the tunnel.
     fastConnection = false;
 

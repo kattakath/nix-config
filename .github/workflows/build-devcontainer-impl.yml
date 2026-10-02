@@ -203,7 +203,7 @@ jobs:
 
       # REGRESSION GUARD — the nix-ld library contract. The image exposes foreign
       # glibc binaries' shared libs via NIX_LD_LIBRARY_PATH sourced from the SHARED
-      # list (modules/shared/nix-ld-libraries.nix). Asserts NIX_LD points at a real
+      # list (lib/nix-ld-libraries.nix). Asserts NIX_LD points at a real
       # loader and a discriminator soname from the WIDENING (libz.so.1 — the old set
       # had libstdc++ only) resolves. A regression to the narrow set fails here.
       - name: Guard — nix-ld library contract wired (foreign-binary lib resolution)

@@ -862,7 +862,7 @@ in
           # and merely RETARGETS the generated conf to /etc/nix/nix.custom.conf,
           # which the nixd-managed /etc/nix/nix.conf includes. `nix.settings`
           # therefore keeps applying, and both modules/nixos/core.nix and
-          # modules/shared/nix-cache.nix are written assuming exactly that.
+          # modules/nixos/nix-cache.nix are written assuming exactly that.
           #
           # The expensive failure guarded here is ONE substituter.
           # install.determinate.systems is the only cache holding the prebuilt
@@ -928,7 +928,7 @@ in
               ];
               advice = [
                 "modules/parts/compose.nix wires determinate.nixosModules.default into"
-                "every NixOS host, and modules/shared/nix-cache.nix supplies the ONE"
+                "every NixOS host, and modules/nixos/nix-cache.nix supplies the ONE"
                 "substituter that has a prebuilt aarch64-linux Determinate Nix."
                 "Without both, nixpi's next generation compiles Nix from C++ source on an"
                 "SD card that CLAUDE.md says must never build. Fix the wiring; do not"
