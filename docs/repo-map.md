@@ -3308,6 +3308,23 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   against its real 57-tool list) and wrapping it breaches its ToS by name. §5a records why
   images go through the `grok` CLI and not `api.x.ai` — the subscription pays for one and not
   the other, and `XAI_API_KEY` silently flips the lane).
+  [`ADR-008`](docs/declarative-plugin-floor-adr.md) (**PROPOSED, no Nix written — the document
+  IS the deliverable**, at the operator's instruction). Can the fleet declare a plugin enabled
+  **or disabled** in VCS, restored each activation, while ad-hoc choices still survive? Today
+  **no, for all but three names**: `cfg.marketplaces.*.plugins` reaches `enabledPlugins` only
+  through the hardcoded `alwaysOnNames` filter, and `extraKnownMarketplaces` never reads
+  `plugins` at all — which is why **#751 merged and enabled nothing** (reverted in #754).
+  Measured: Nix writes **3** of the **42** live `enabledPlugins` ids; the operator's 39 include
+  **9 explicit `false`**, a value Nix cannot emit. **Read §5 first** — it names the one sentence
+  in the request that cannot be built: for an id Nix declares, "assured" and "overridable in a
+  way that survives activation" are the same value being both fixed and not fixed, so the
+  mechanism forces a per-plugin choice between a root-owned **managed** floor (absolute — a
+  sideload is *"locked by managed settings"*) and a **user-settings** default (re-asserted each
+  activation). §7 holds the five measurements that must land before any code, of which #1 can
+  invalidate the whole shape: the docs say *gateway policy* `extraKnownMarketplaces` maps do not
+  merge and are **silent** on the managed FILE. §4d is the incidental find —
+  `claude-plugins-official` needs **no `source`**, its name being reserved to Anthropic's, yet
+  this repo declares an explicit URL for it. This ADR does **not** reopen #648; §3 upholds it).
 - [`docs/workspace-runbook.md`](docs/workspace-runbook.md) — Workspace by hand (the provider is
   archived, ADR-005 §3.3): inventory, verify, and the delegation table no CLI can read.
 - [`docs/identity-and-offboarding.md`](docs/identity-and-offboarding.md) — the single lever:
