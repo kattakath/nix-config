@@ -980,7 +980,10 @@ in
     # `document-skills` bundles pdf/docx/pptx/xlsx as one unit) has to be enabled
     # and SEEN in a session before the `skills` entry can go. The sequence is:
     #   1. this PR — declare the marketplaces;
-    #   2. operator enables the plugins he wants (/plugin, or a `plugins` list here);
+    #   2. operator enables the plugins he wants — `local.claudePlugins.declared`
+    #      (ADR-008's lane, added 2026-10-02) or /plugin. NOT by adding a name to a
+    #      `plugins` list: that is a catalogue and enables nothing, which is exactly
+    #      what #751 got wrong and #754 reverted;
     #   3. verify the skills actually appear in a session;
     #   4. a FOLLOW-UP PR removes the matching inputs + `skills` entries.
     # Nothing below removes an input or a skill entry; do not fold step 4 in here.
@@ -1048,6 +1051,30 @@ in
       source = lib.mkDefault "https://github.com/anthropics/skills.git";
       plugins = [ ];
     };
+  };
+
+  # ADR-008's `declared` lane: which ids of the catalogue above are actually ON or
+  # OFF, re-asserted into ~/.claude/settings.json on every activation. The list
+  # above is a CATALOGUE and enables nothing (#751 proved that the hard way); this
+  # is the only thing here that does.
+  #
+  # DELIBERATELY SHORT. Membership is not "useful" — that bar belongs to /plugin,
+  # whose toggle stays durable for every id absent from this map. An entry here is
+  # for a choice that must be REPRODUCIBLE on a fresh Mac and REVIEWABLE as a diff.
+  # The three plugins this repo structurally breaks without are NOT here: they are
+  # the always-on set in ./claude-plugins.nix, and the two lanes are asserted
+  # disjoint.
+  local.claudePlugins.declared = {
+    # The PostToolUse instrument layer under the verification gate — see the
+    # `silent-instruments` entry in the kattakath catalogue above for what it is and
+    # why it is a plugin. It is here rather than always-on because nothing in this
+    # repo BREAKS without it: the gate still runs, it just loses the 28 measured
+    # cases where "check the exit code" lies. Reproducible is the requirement, not
+    # unoverridable — a session can still turn it off, until the next `activate`.
+    #
+    # #753 added the name to the catalogue and enabled NOTHING. This line is what
+    # #753 meant.
+    "silent-instruments@kattakath" = true;
   };
 
   # Spotlight-launchable "Android Emulator" — click (or re-click) like any
