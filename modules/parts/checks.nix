@@ -1013,11 +1013,33 @@ in
           # ungated block for the reason secrets-sync gives: an eval plus an echo
           # with nothing platform-specific in either half.
           #
-          # SUBSTRING, not a parsed list. A parser over CLAUDE.md's prose would
-          # break on every table reflow and become the thing people delete. The
-          # question worth mechanising is only "is this file NAMED anywhere the
-          # reader would look" — a file nobody mentions is the failure; the exact
-          # sentence is a human's call.
+          # SUBSTRING for hosts-documented, a RESOLVED LINK for docs-indexed —
+          # and that split is a 2026-10-02 correction, not the original design.
+          #
+          # The substring rule was written for both, and the reasoning still holds
+          # for hosts-documented: a parser over CLAUDE.md's prose would break on
+          # every table reflow and become the thing people delete, so the only
+          # question worth mechanising is "is this file NAMED anywhere the reader
+          # would look". A host profile is named in prose and in table cells, never
+          # linked, so there is no target to resolve and nothing better to test.
+          #
+          # For docs/*.md it was WRONG, and measurably so. A document is always
+          # referenced as a markdown LINK, and a substring test cannot tell a
+          # working link from a broken one. docs/repo-map.md carried 38 links
+          # written `](docs/<name>.md)` from INSIDE docs/, every one resolving to
+          # docs/docs/<name>.md — a directory that has never existed — and
+          # docs-indexed was GREEN on all 38, because `secrets-and-keychain.md` is
+          # a substring of `docs/secrets-and-keychain.md`. The gate proved the
+          # filename was MENTIONED somewhere in the index and was read as proving
+          # the document was reachable from it. Those are different claims, and
+          # only the second is worth a build failure.
+          #
+          # So docs-indexed now requires a link whose target RESOLVES to the file.
+          # That is strictly stronger and it is still not a prose parser: it reads
+          # link targets, which are syntax, and ignores every word around them.
+          # docs-links-resolve below is the companion gate — same resolution
+          # question asked of EVERY link in every tracked markdown file, rather
+          # than only of links pointing at docs/.
           #
           # The substring test is `grep -F` IN THE BUILDER — NOT lib.hasInfix at
           # eval time. Do not "simplify" it back. hasInfix compiles to
@@ -1092,38 +1114,217 @@ in
                 )
               );
             in
-            pkgs.runCommand "docs-indexed"
+            pkgs.runCommand "docs-indexed" { nativeBuildInputs = [ pkgs.coreutils ]; } ''
+              cd ${self}
+
+              # Collect every link target the two indexes carry, each resolved
+              # against ITS OWN directory. That per-index resolution is the whole
+              # correction: the identical string `docs/x.md` is correct written
+              # from CLAUDE.md at the repo root and broken written from
+              # docs/repo-map.md one level inside docs/.
+              #
+              # `realpath -m` is purely lexical and does NOT require the target to
+              # exist, which is what we want here — a broken link still resolves to
+              # some path, it just will not match any real document, and that
+              # mismatch is the failure this check reports. Whether the path exists
+              # at all is docs-links-resolve's question, not this one.
+              #
+              # Dropped before resolving: fragment-only links (`#section`) and
+              # anything carrying a URL scheme (https:, mailto:). Neither can name
+              # a file in this repo.
+              linked="$TMPDIR/linked"
+              : > "$linked"
+              for idx in CLAUDE.md docs/repo-map.md; do
+                grep -oE '\]\([^)[:space:]]+\)' "$idx" \
+                  | sed -e 's/^](//' -e 's/)$//' -e 's/#.*$//' \
+                  | grep -vE '^[a-zA-Z][a-zA-Z0-9+.-]*:' \
+                  | grep -v '^$' \
+                  | while IFS= read -r target; do
+                      realpath -m --relative-to=. "$(dirname "$idx")/$target"
+                    done >> "$linked"
+              done
+
+              unlinked=()
+              for f in ${lib.escapeShellArgs docFiles}; do
+                grep -qxF -- "docs/$f" "$linked" || unlinked+=("$f")
+              done
+
+              if [ ''${#unlinked[@]} -eq 0 ]; then
+                echo "docs/: all ${toString (lib.length docFiles)} documents are reachable by a resolving link from CLAUDE.md or repo-map.md" > "$out"
+                exit 0
+              fi
+
+              echo "docs-indexed: documents that no index LINKS TO resolvably." >&2
+              printf '  docs/%s\n' "''${unlinked[@]}" >&2
+              echo "" >&2
+              echo "An unlinked document is one nobody finds and nobody updates, which is how a" >&2
+              echo "runbook rots into a trap. Link it from CLAUDE.md's Documentation list or from" >&2
+              echo "docs/repo-map.md. repo-map.md itself is exempt: it is the index, not an entry." >&2
+              echo "" >&2
+              echo "NOTE: being MENTIONED is no longer enough — the link target must resolve to" >&2
+              echo "the file. From CLAUDE.md (repo root) that is docs/<name>.md; from" >&2
+              echo "docs/repo-map.md (already inside docs/) it is the bare <name>.md. Writing the" >&2
+              echo "root-relative form from inside docs/ yields docs/docs/<name>.md and fails here." >&2
+              exit 1
+            '';
+
+          # ---- every relative markdown link must RESOLVE on disk ----------------
+          #
+          # docs-indexed above answers "is this document reachable from an index".
+          # This answers the other half, for every link rather than only the ones
+          # pointing at docs/: does the target EXIST. Those came apart on
+          # 2026-10-02 — 38 links in docs/repo-map.md pointed at docs/docs/*, a
+          # directory that has never existed, and no gate in this file noticed,
+          # because the only one looking did a substring test on the filename.
+          # That is the second false-success shape in
+          # docs/false-success-signals.md: a check whose green means something
+          # weaker than what its name is read as promising.
+          #
+          # OFF THE SHELF: lychee --offline (nixpkgs lychee 0.24.2). Measured
+          # 2026-10-02: the aarch64-linux build SUBSTITUTES prebuilt — 7.4 MiB
+          # download, 23.7 MiB unpacked — so the Mac never compiles a Rust crate
+          # for the Linux leg, which was the one real objection to using a tool
+          # here instead of shell. Alternatives weighed and rejected: `mlc` and
+          # `linkchecker` are built around HTTP crawling with no equally direct
+          # local-only mode; `markdown-link-check` is an npm package whose offline
+          # behaviour is a per-file JSON config. Hand-rolled grep + `realpath` was
+          # the fourth option and lost on fragment and scheme handling, which
+          # lychee already gets right — docs-indexed keeps a small version of that
+          # shell only because it needs per-index resolution, which lychee does not
+          # expose.
+          #
+          # OUT OF SCOPE, deliberately:
+          #   · `#anchor` fragments — lychee reports a bare fragment OK because
+          #     --include-fragments is NOT passed. Whether a heading still exists
+          #     is prose rot; that is /hygiene's job and a reader's, not a link
+          #     resolver's.
+          #   · absolute URLs (http:, https:) and mailto: — --offline EXCLUDES
+          #     every scheme-bearing target without a network call, which is also
+          #     what makes this runnable in the build sandbox at all. 145 of the
+          #     400 links in the tree are excluded on this rule.
+          #
+          # `${self}` is the git-tracked tree, so the eval-time walk that builds
+          # mdFiles sees exactly what CI sees — the same reasoning ast-grep uses
+          # below. Scope is EVERY tracked .md, not a hand-listed pair of paths: a
+          # path list is one more thing to update when a document moves, and
+          # repo-wide was already green when this landed (77 files, 400 links, 0
+          # errors), so the wider net cost nothing to adopt.
+          #
+          # THE VACUITY GUARD IS LOAD-BEARING. `lychee` given an input that
+          # matches no file prints "No files found for this input source" to
+          # stderr and EXITS 0 — measured, with `lychee --offline 'docs/nope-*.md'`
+          # reporting "0 Total" and success. A renamed directory would therefore
+          # turn this gate green by checking nothing, which is the "green build
+          # over an empty directory" failure the retired userscript gate's note
+          # further down warns was worse than having no gate. Both halves are
+          # asserted: that warning is fatal here, and a zero link total is fatal.
+          docs-links-resolve =
+            let
+              mdFiles =
+                let
+                  walk =
+                    prefix: dir:
+                    lib.concatLists (
+                      lib.mapAttrsToList (
+                        name: type:
+                        let
+                          rel = if prefix == "" then name else "${prefix}/${name}";
+                        in
+                        if type == "directory" then
+                          walk rel (dir + "/${name}")
+                        else if type == "regular" && lib.hasSuffix ".md" name then
+                          [ rel ]
+                        else
+                          [ ]
+                      ) (builtins.readDir dir)
+                    );
+                in
+                lib.naturalSort (walk "" ../..);
+            in
+            pkgs.runCommand "docs-links-resolve"
               {
-                indexes = [
-                  ../../CLAUDE.md
-                  ../../docs/repo-map.md
+                nativeBuildInputs = [
+                  pkgs.lychee
+                  pkgs.jq
                 ];
+
+                # NOT a network dependency, and nothing here ever opens a socket —
+                # the sandbox has no network and --offline resolves no URL. lychee
+                # builds its reqwest HTTP client during startup regardless of mode,
+                # and that constructor refuses to exist without a trust store:
+                # "No CA certificates were loaded from the system". nixpkgs points
+                # SSL_CERT_FILE at the deliberately absent /no-cert-file.crt inside
+                # the sandbox precisely so this surfaces, so the client must be
+                # handed real roots or lychee cannot start.
+                #
+                # Measured 2026-10-02, and it is a ONE-PLATFORM failure: this check
+                # built green on aarch64-darwin and failed on aarch64-linux at the
+                # first attempt, because the two targets reach for different TLS
+                # backends. Same asymmetry the hasInfix note above records, so the
+                # same conclusion applies — build every check on BOTH systems, not
+                # on the one the author happens to be sitting at.
+                SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
               }
               ''
-                unlinked=()
-                for f in ${lib.escapeShellArgs docFiles}; do
-                  hit=
-                  for idx in $indexes; do
-                    if grep -qF -- "$f" "$idx"; then
-                      hit=1
-                      break
-                    fi
-                  done
-                  [ -n "$hit" ] || unlinked+=("$f")
-                done
+                cd ${self}
 
-                if [ ''${#unlinked[@]} -eq 0 ]; then
-                  echo "docs/: all ${toString (lib.length docFiles)} documents are referenced from CLAUDE.md or repo-map.md" > "$out"
-                  exit 0
+                report="$TMPDIR/report.json"
+                warnings="$TMPDIR/lychee.err"
+
+                rc=0
+                lychee --offline --no-progress --format json \
+                  ${lib.escapeShellArgs mdFiles} > "$report" 2> "$warnings" || rc=$?
+
+                # lychee exits 2 for "link errors found" and 1 for its own
+                # failures, so only 0 and 2 mean the run itself worked and left a
+                # parseable report behind.
+                if [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ]; then
+                  echo "docs-links-resolve: lychee itself failed (exit $rc), so NOTHING was checked." >&2
+                  cat "$warnings" >&2
+                  exit 1
                 fi
 
-                echo "docs-indexed: documents no index references." >&2
-                printf '  docs/%s\n' "''${unlinked[@]}" >&2
-                echo "" >&2
-                echo "An unlinked document is one nobody finds and nobody updates, which is how a" >&2
-                echo "runbook rots into a trap. Link it from CLAUDE.md's Documentation list or from" >&2
-                echo "docs/repo-map.md. repo-map.md itself is exempt: it is the index, not an entry." >&2
-                exit 1
+                if grep -q 'No files found for this input source' "$warnings"; then
+                  echo "docs-links-resolve: lychee was handed an input that matched no file." >&2
+                  grep 'No files found for this input source' "$warnings" >&2
+                  echo "" >&2
+                  echo "This exits 0 in lychee, so the gate would have passed having checked nothing." >&2
+                  echo "The input list is built by an eval-time walk of the tracked tree, so this means" >&2
+                  echo "a file moved between eval and build — re-run, and if it persists, report it." >&2
+                  exit 1
+                fi
+
+                total=$(jq -er '.total' "$report")
+                errors=$(jq -er '.errors' "$report")
+
+                if [ "$total" -eq 0 ]; then
+                  echo "docs-links-resolve: zero links examined across ${toString (lib.length mdFiles)} markdown files." >&2
+                  echo "That is not a pass. Either every link vanished or the inputs did." >&2
+                  exit 1
+                fi
+
+                if [ "$errors" -ne 0 ]; then
+                  echo "docs-links-resolve: $errors unresolvable link target(s)." >&2
+                  echo "" >&2
+                  jq -r '
+                    .error_map
+                    | to_entries[]
+                    | .key as $file
+                    | .value[]
+                    | "  \($file):\(.span.line // 0): \(.url)"
+                  ' "$report" >&2
+                  echo "" >&2
+                  echo "Each target above was resolved relative to the file CONTAINING the link and" >&2
+                  echo "does not exist. The classic case is a root-relative path written from inside a" >&2
+                  echo "subdirectory: docs/<name>.md from docs/repo-map.md resolves to" >&2
+                  echo "docs/docs/<name>.md. From inside docs/ use the bare sibling name." >&2
+                  echo "" >&2
+                  echo "Anchors, http(s) URLs and mailto: links are NOT checked here and cannot be" >&2
+                  echo "the cause of a failure above." >&2
+                  exit 1
+                fi
+
+                echo "markdown links: $total examined across ${toString (lib.length mdFiles)} tracked files, every relative target resolves" > "$out"
               '';
 
           # ---- nixpi's security posture, which until now only PROSE held ------
