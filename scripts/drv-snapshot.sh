@@ -8,10 +8,11 @@
 #
 # It used to ALSO evaluate the private nix-personal composition, because this
 # repo's outputs could be byte-identical while that flake broke on a seam only
-# declared here. nix-personal was retired 2026-09-15 and its values folded in,
-# so that leg is gone — every baseline captured before then carries a
-# `personal.tsv` this script no longer writes, which `--compare` reports as a
-# missing file rather than a real change. Re-baseline rather than chasing it.
+# declared here; nix-personal was retired 2026-09-15 and its values folded in, so
+# that leg is gone. `--compare` therefore derives its file set from the capture it
+# has just taken rather than from a second hand-maintained list, so a file this
+# script stopped writing (a pre-retirement baseline's `personal.tsv`) cannot make
+# a clean run report REJECTED.
 #
 # WHY THIS IS NOT A FLAKE PACKAGE. Adding it to `packages` would add a row to
 # `nix flake show`, i.e. perturb the very baseline it exists to measure. It is a
@@ -113,14 +114,27 @@ if [ -n "$COMPARE" ]; then
   echo "capturing current state ..." >&2
   capture "$tmp"
   rc=0
-  for f in flake-show.json hosts.tsv outputs.tsv personal.tsv; do
-    if diff -u "$COMPARE/$f" "$tmp/$f" > /dev/null 2>&1; then
+  n=0
+  # The fresh capture is the single source of truth for WHICH files a snapshot
+  # consists of, so the compare set cannot drift from what capture() writes.
+  for path in "$tmp"/*; do
+    [ -f "$path" ] || continue
+    f="${path##*/}"
+    n=$((n + 1))
+    if [ ! -f "$COMPARE/$f" ]; then
+      printf '  ABSENT     %s — not in the baseline; re-capture it\n' "$f"; rc=1
+    elif diff -u "$COMPARE/$f" "$path" > /dev/null; then
       printf '  IDENTICAL  %s\n' "$f"
     else
       printf '  CHANGED    %s\n' "$f"; rc=1
-      diff -u "$COMPARE/$f" "$tmp/$f" | sed 's/^/      /' || true
+      diff -u "$COMPARE/$f" "$path" | sed 's/^/      /' || true
     fi
   done
+  # Zero comparable files would otherwise print ACCEPTED on having proved nothing.
+  if [ "$n" -eq 0 ]; then
+    echo "REJECTED: the capture produced no files to compare." >&2
+    exit 1
+  fi
   [ "$rc" -eq 0 ] && echo "ACCEPTED: every output is derivation-identical." \
                   || echo "REJECTED: see the diff above. A wave must not change what is built."
   exit "$rc"
