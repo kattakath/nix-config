@@ -270,11 +270,25 @@ in
       }
     ];
 
+    # RE-REGISTERED BY HAND, because the lane change below dropped it. Pinned
+    # nix-darwin modules/launchd/default.nix:199 maps every
+    # `launchd.user.agents` entry into `system.requiresPrimaryUser`, and
+    # modules/system/primary-user.nix:36-59 turns that list into the guided
+    # "set system.primaryUser" assertion. The GUARANTEE survives the move
+    # without this (./slots.nix's `runnerStateDir` default forces
+    # `config.system.primaryUserHome`, whose own default interpolates
+    # `config.system.primaryUser` and coerces null to a string); the MESSAGE
+    # does not. See the longer note in ./gitlab-runner.nix.
+    system.requiresPrimaryUser = [ "local.tart.githubRunners" ];
+
     # Create the durable state dir as the LOGIN USER before launchd loads the
     # agents and opens StandardOutPath. Shape copied verbatim from nix-darwin
     # modules/system/launchd.nix, which does the same `sudo --user=` mkdir for
     # ~/Library/LaunchAgents; preActivation (not postActivation) because
-    # nix-darwin's activation-scripts run userLaunchd BETWEEN the two.
+    # home-manager's darwin module runs its activation — which loads these
+    # agents and opens StandardOutPath — from `postActivation`, and pinned
+    # nix-darwin modules/system/activation-scripts.nix orders preActivation
+    # :114 before postActivation :140.
     # `mkdir -p` is idempotent, so the GitLab lane declaring the same line is
     # harmless — and each lane must declare it itself, since this module is
     # the only one here that knows local.tart.githubRunners exists.
@@ -282,18 +296,74 @@ in
       sudo --user=${config.system.primaryUser} -- /bin/mkdir -p ${lib.escapeShellArg cfg.runnerStateDir}
     '';
 
-    # One GUI-session LaunchAgent per instance; arg0 is a nix-tart-runner-<name>
-    # wrapper (BTM legibility + TCC read attribution — same rule the VM module
-    # enforces mechanically in checks).
-    launchd.user.agents = lib.mapAttrs' (
+    # ---- THE SELF-HEALING LANE (moved off launchd.user.agents 2026-10-02) ----
+    #
+    # One GUI-session LaunchAgent per instance, in home-manager's
+    # `launchd.agents` rather than nix-darwin's `launchd.user.agents`. Both put
+    # the plist in ~/Library/LaunchAgents under gui/<uid>; only one REPAIRS it,
+    # and modules/darwin/launchd-sources.nix enumerates which. nix-darwin's
+    # activation is diff-gated in BOTH lanes (pinned nix-darwin
+    # modules/system/launchd.nix:19 and :37), so an UNCHANGED plist means the
+    # unload/copy/load body never runs and a unit macOS has dropped stays down
+    # until a human notices — which for an ephemeral CI lane means "0 runners
+    # registered", silently. Home Manager PROBES: pinned home-manager
+    # modules/launchd/default.nix:445-452 takes the `cmp -s` "unchanged" branch
+    # and still asks `agentIsLoaded` (:326-331, `launchctl print
+    # <domain>/<agentName>`), then boots out, installs and bootstraps.
+    #
+    # Declared from THIS nix-darwin module (precedent:
+    # modules/darwin/logging.nix:337) rather than from a second,
+    # home-manager-class capsule module: the per-instance plist is derived from
+    # `local.tart.githubRunners` and from ./slots.nix's `runnerStateDir`, whose
+    # default reads nix-darwin's `config.system.primaryUserHome`, so the module
+    # has to be a nix-darwin module either way. A home-manager sibling would
+    # have to re-derive all of this through an internal option, and a consumer
+    # that imported only the darwin half would lose every runner SILENTLY —
+    # the same shape of failure this migration exists to end.
+    #
+    # LABELS ARE PINNED to their live on-disk values (`org.nixos.<attr>`, which
+    # is what nix-darwin's own `serviceConfig.Label` default produced —
+    # modules/launchd/default.nix:88 interpolates labelPrefix and the attribute
+    # name, and labelPrefix defaults to "org.nixos"). HM would otherwise name these
+    # `org.nix-community.home.<attr>`, a DIFFERENT launchd unit: the old plist
+    # is abandoned and the operator's Background Task Management approval, which
+    # is keyed to the Label, is silently dropped. The override is safe because
+    # the self-heal probe keys off the Label as well — :165 names each plist
+    # after the unit's own Label and :426 reads `agentName` back out of it.
+    #
+    # `enable = true` IS REQUIRED and its absence is SILENT: a `mkEnableOption`
+    # defaulting to FALSE (:20) that `agentPlists` filters on (:166), where
+    # `launchd.user.agents` had no such switch. Without it this evaluates clean
+    # and renders NO plist at all.
+    #
+    # `waitForNixStore = false` + `launcher.name` are EXPLICIT, not left to
+    # modules/home/launchd-launcher.nix's `mkDefault`s — that module belongs to
+    # this fleet's home profile and a capsule may not assume its consumer loads
+    # it. Upstream's default arg0 is `/bin/sh -c "/bin/wait4path /nix/store &&
+    # exec …"` (:112-117), the bare `sh` arg0 .claude/rules/launchd-naming.md
+    # forbids; with it disabled the arg0 is a store-resident launcher named
+    # `nix-tart-runner-<name>` (:99-104, :119) — the SAME basename BTM and TCC
+    # saw before the move.
+    home-manager.users.${config.system.primaryUser}.launchd.agents = lib.mapAttrs' (
       name: r:
       lib.nameValuePair "tart-runner-${name}" {
-        serviceConfig = {
+        enable = true;
+        waitForNixStore = false;
+        launcher = {
+          name = "nix-tart-runner-${name}";
+          shell = pkgs.runtimeShell;
+        };
+        config = {
+          Label = "org.nixos.tart-runner-${name}";
           ProgramArguments = [
-            "${pkgs.writeShellScriptBin "nix-tart-runner-${name}" ''
+            # NOT `nix-tart-runner-<name>`: `launcher.name` above already makes
+            # the arg0 launchd execs a script of that name, so naming this one
+            # the same would be two store paths with one basename (the trap
+            # modules/home/metube.nix records).
+            "${pkgs.writeShellScriptBin "tart-runner-${name}-run" ''
               ${envExports (mkEnv name r)}
               exec ${lib.getExe' engine.controller "tart-runner-controller"}
-            ''}/bin/nix-tart-runner-${name}"
+            ''}/bin/tart-runner-${name}-run"
           ];
           RunAtLoad = true;
           KeepAlive = true;

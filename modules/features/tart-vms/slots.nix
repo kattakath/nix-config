@@ -36,20 +36,36 @@ in
       type = lib.types.str;
       # nix-darwin's own answer to "where does the login user live" —
       # modules/system/primary-user.nix. It is internal, but nix-darwin
-      # consumes it itself (modules/nix/default.nix, modules/environment),
-      # and modules/launchd/default.nix registers every launchd.user.agents
-      # entry in system.requiresPrimaryUser, so a consumer of either lane
-      # cannot leave system.primaryUser null without failing at eval.
+      # consumes it itself (modules/nix/default.nix, modules/environment).
+      #
+      # A consumer of either lane still cannot leave system.primaryUser null,
+      # and after 2026-10-02 the reason is THIS LINE rather than launchd's
+      # bookkeeping. nix-darwin's modules/launchd/default.nix:199 used to
+      # register every `launchd.user.agents` entry in
+      # `system.requiresPrimaryUser` — both lanes moved to home-manager's
+      # `launchd.agents` and lost that, so each one restates the registration
+      # itself. What is NOT lost either way is the hard failure: this default
+      # forces `config.system.primaryUserHome`, whose own default
+      # (primary-user.nix:24-25) interpolates `config.system.primaryUser`, so a
+      # null one coerces to a string and throws. Measured: that error is not
+      # catchable with `builtins.tryEval`, which is exactly why the lanes
+      # restate the registration — upstream's guided assertion is the readable
+      # half, and only a consumer who sets this option explicitly ever sees it.
       default = "${config.system.primaryUserHome}/.local/state/tart-runner";
       defaultText = lib.literalExpression ''"''${config.system.primaryUserHome}/.local/state/tart-runner"'';
       description = ''
         Durable state for BOTH CI lanes: the slot semaphore, the per-image SSH
         host-key pins, and both lanes' agent logs.
 
-        Must be reboot-durable and writable by the GUI login user (these are
-        `launchd.user.agents`, not daemons — /var/lib would need root). It must
-        contain NO whitespace, and must not sit under a volatile root; both are
-        asserted below.
+        Must be reboot-durable and writable by the GUI login user (both lanes
+        are per-user GUI LaunchAgents, not daemons — /var/lib would need root).
+        Unchanged by the 2026-10-02 lane change: home-manager's
+        `launchd.agents` writes the same ~/Library/LaunchAgents and bootstraps
+        the same `gui/<uid>` domain as nix-darwin's `launchd.user.agents` did,
+        so the process still runs as the login user and the semaphore,
+        host-key pins and logs keep the same owner. It must contain NO
+        whitespace, and must not sit under a volatile root; both are asserted
+        below.
       '';
     };
   };
