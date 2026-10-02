@@ -12,7 +12,7 @@ wired in — so the layers are the spine of this doc.
 | --- | --- | --- |
 | **nix-darwin** (system) | macOS System Settings (`defaults`), launchd, users, security, networking | `modules/darwin/core.nix` + the `mkDarwin` module list |
 | **Homebrew** (declarative) | GUI apps (casks) + CLI formulae nixpkgs doesn't carry | `modules/darwin/homebrew.nix` |
-| **Home Manager** (per-user) | dotfiles + `programs.*` + per-user launchd agents | `modules/shared/home.nix`, `modules/shared/mcp.nix` |
+| **Home Manager** (per-user) | dotfiles + `programs.*` + per-user launchd agents | `modules/shared/home.nix`, `modules/shared/gmail-mcp.nix` (`mcp.nix` was deleted 2026-10-02) |
 | **Determinate Nix** | the Nix daemon + `/etc/nix/nix.conf` (nixd-owned; the declarative half is `/etc/nix/nix.custom.conf`) | `modules/parts/compose.nix` (`determinateNix.*`) |
 
 > **Structural constraint:** Determinate Nix sets `nix.enable = false`, so the
@@ -67,8 +67,10 @@ slice**, not the ceiling — §2 shows how much more is reachable.
   so it fails from launchd and its upstream is 404; `macos-trash` is correct but
   absent from nixpkgs), so the hand-rolled `mv` is a justified exception to the
   repo's reuse-over-rebuild preference.
-- `launchd.agents.mcp-gateway` (`modules/shared/mcp.nix`, Home-Manager side) — the
-  localhost MCP gateway (macos only).
+- ~~`launchd.agents.mcp-gateway`~~ — **DELETED 2026-10-02** with `modules/shared/mcp.nix`. There
+  is no shared MCP process on this Mac and nothing listening on `127.0.0.1:8097`; MCP servers are
+  now per-session stdio children spawned by Claude Code from a plugin's `.mcp.json`, which declare
+  no launchd agent at all.
 - `launchd.agents.{metube,yt-dlp-web-ui}` (`modules/shared/{metube,yt-dlp-web-ui}.nix`,
   Home-Manager side, **macos only**) — the two loopback download servers, on
   `127.0.0.1:8081` and `127.0.0.1:3033`. Both were nix-darwin `launchd.user.agents` until
@@ -214,7 +216,7 @@ empty and `gpg.ssh.allowedSignersFile` points at that runtime path), `programs.s
 `launchd.agents.ssh-keychain-load` (loads Keychain identities into the agent for
 GUI git signing), `programs.zsh` + `starship` + `bash`, `programs.gh`,
 `programs.direnv`, `programs.vscode` (declarative extensions + ~80 `userSettings`,
-including `git.enableCommitSigning`), `programs.claude-code` + the MCP gateway,
+including `git.enableCommitSigning`), `programs.claude-code` (the MCP gateway that used to sit beside it was deleted 2026-10-02),
 `fonts.fontconfig`, `home.packages`. GitHub/GitLab **Verified** still requires the
 same pubkey registered as a *Signing* key on the forge (not only Authentication).
 
@@ -273,7 +275,7 @@ way to "start X at login" is a **launchd user agent** with `RunAtLoad`.
 
 **Allow in the Background** names each item by `ProgramArguments[0]`'s **basename**
 (verify with `sfltool dumpbtm`). Fleet rule: that basename **must** be
-`nix-<activity>` (e.g. `nix-maccy`, `nix-mcp-gateway`) so items are obviously
+`nix-<activity>` (e.g. `nix-maccy`, `nix-tart-vm-<name>`; `nix-mcp-gateway` was one until 2026-10-02) so items are obviously
 from this nix-config, not bare `sh`/`python3` or third-party helpers.
 
 | Bad (shows as phantom `sh` / `python3` / `open`) | Good |
@@ -317,7 +319,7 @@ depend on.
 | Agents | Host |
 |---|---|
 | `open-maccy` / `open-slack` / `open-mail` / `open-messages` | **macos only** |
-| MCP gateway + RAG (`ollama-local`, `postgres-pgvector`) — the public tunnel was removed 2026-09-22 | **macos only** |
+| RAG (`ollama-local`, `postgres-pgvector`) — the MCP gateway shared this gate until it was deleted 2026-10-02 | **macos only** |
 | `metube` / `yt-dlp-web-ui` (loopback download servers) | **macos only** |
 | `file-rotation-logs` / `file-rotation-logs-system` (launchd log rotation) | **macos only** |
 | `nix-file-rotation-desktop` / `nix-file-rotation-downloads` | **macos only** (the gate protected the former `macvm` guest's VirtioFS-shared `~/Downloads` and is kept — see [`macvm-readd-runbook.md`](macvm-readd-runbook.md)) |
@@ -332,7 +334,7 @@ open-maccy = mkNixAgent { suffix = "maccy"; app = "Maccy"; };  # → …/bin/nix
 Each opener runs `open -g -j`, then re-hides the process via System Events for
 ~12s (Slack/Messages/Mail ignore `-j` and raise a window after init). Dock icons
 and menu-bar extras stay; only the window is suppressed. Needs Accessibility for
-`/usr/bin/osascript` (same grant as the MCP gateway).
+`/usr/bin/osascript` — TCC scopes the grant to that binary, not to whatever parent spawns it, which is why it survived `macos-automator` moving off the (now deleted) MCP gateway into the `mac-app-send` plugin.
 
 Also: turn OFF each app's own "Open at Login" / SMAppService toggle so you don't
 get double registration.
@@ -381,8 +383,12 @@ already an activation no-op: its target still exists and already holds
    Expect churn: a key that worked on Monterey can be a silent no-op on Sequoia. Add
    a "verify on your macOS version" hedge for `alf`/wallpaper/menu-bar keys.
 5. **App-internal state that apps rewrite at runtime** (e.g. Claude Desktop's config)
-   — reachable only via an activation-script merge, never fully *owned* (see the jq
-   merge in `modules/shared/mcp.nix`).
+   — reachable only via an activation-script merge, never fully *owned* (the jq
+   merge in `modules/shared/claude-desktop.nix`, plus a `WatchPaths` agent, because a
+   **running** Desktop rewrites the whole file from memory rather than ignoring an unknown key).
+   Proof that "never fully owned" is the right framing: a stale entry naming **destroyed**
+   infrastructure survived a full day after the 2026-10-02 purge, because the writer had been
+   switched off instead of made to render an empty set.
 6. **The default web browser — settable, but consent-gated, never silent.** It *is*
    automatable (`local.ungoogledChromium.makeDefaultBrowser` drives nixpkgs'
    `defaultbrowser`), yet macOS reserves the final say for the human: the macOS 26
