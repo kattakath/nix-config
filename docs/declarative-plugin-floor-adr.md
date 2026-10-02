@@ -1,7 +1,10 @@
 # ADR-008 — A declarative plugin floor: `enabledPlugins` in VCS, ad-hoc on top
 
-**Status:** Proposed. **No Nix is written yet** — this document exists to be approved or
-rejected first, at the operator's explicit instruction (2026-10-02).
+**Status:** **Partially accepted, 2026-10-02.** The `declared` lane of §6 is **IMPLEMENTED**
+(`local.claudePlugins.declared`); the `assured` lane is **still proposed and unmeasured**. The
+document was written to be approved before any Nix, at the operator's instruction, and §9a
+records which of §7's open questions the implemented half had to answer and which it sidesteps
+by not touching managed settings at all.
 
 **Supersedes nothing.** It extends the boundary #648 drew, and it does **not** revisit
 #648's decision (see §3) — that decision is upheld here, not overturned.
@@ -255,8 +258,68 @@ a test key into the operator's real `~/.claude/settings.json`.
 
 ## 9. Decision
 
-**Not taken.** This document is the deliverable; the operator asked for the design before any
-Nix. §7 must be measured first — question 1 in particular can invalidate §6.
+**Originally: not taken** — this document was the deliverable, and §7 was to be measured first.
 
-Until then: `empire` stays unenabled, and the nine deliberate `false` entries stay
-machine-local.
+## 9a. Amendment, 2026-10-02 — the `declared` lane is built, `assured` is not
+
+What forced the revisit: `silent-instruments` was added to the catalogue in **#753** and, like
+`empire` in #751, **enabled nothing**. The same defect twice in three PRs is the argument §2
+makes, repeated on a plugin that was actually wanted.
+
+**Split, and why it is a clean split.** All five open questions in §7 are about the `assured`
+lane or about moving existing floor members into it:
+
+| §7 | Question | Status for the implemented half |
+|---|---|---|
+| 1 | Does the **managed FILE**'s `extraKnownMarketplaces` merge? | **Irrelevant.** `declared` writes user scope only; `modules/darwin/claude-managed-settings.nix` is untouched. |
+| 2 | Can `claude-plugins-official` drop its explicit `source`? | **Irrelevant** — orthogonal (§4d, incidental find). Still unmeasured. |
+| 3 | Does a managed `false` read as policy or bug in `/plugin`? | **Irrelevant.** Only `assured` can emit a managed value. |
+| 4 | Should the always-on three move into `assured`? | **Answered: no, not now.** They stay derived in `claude-plugins.nix`, keeping the drift assertion at its `:186`. The two lanes are asserted **disjoint** instead. |
+| 5 | Round-trip risk — "a second writer to the same key needs that path re-read" | **Re-read, and there is no second writer.** `programs.claude-code.settings.enabledPlugins` is one Nix option; both activation entries (`claudeCodeSettingsMerge`, `claudeCodeSettingsReassert`) run the **same** `mergeScript` over the **same** `nixSettings` derivation. Widening that option's VALUE adds no writer and changes no activation ordering. The `install -m 600` race named at `claude-code-settings.nix:113` is a **concurrent-`activate`** hazard that predates this and is unaffected. |
+
+So the lane that needed nothing measured is the lane that shipped.
+
+**The invariant #648 bought, restated**, because "three hardcoded names" was never the point:
+
+> Nix may write an `enabledPlugins` key **only for an id a human named on purpose.** For every
+> other id — including every id in `marketplaces.*.plugins` — the rendered attrset must carry
+> **no key at all**, so `claude-code-settings.nix`'s `jq -s '.[0] * $nix[0]'` (right operand
+> wins **per key**) leaves the operator's value, `false` included, exactly as `/plugin` wrote it.
+
+`lib.genAttrs allIds (_: true)` broke it by **deriving** the set from the catalogue.
+`local.claudePlugins.declared` cannot: it is an operator-written map of literal ids, and
+`allIds` is never its source. Live proof the merge behaves as claimed — 42 ids on this Mac,
+**11 `false`**, of which Nix named **3**; the other 39 survived every activation since #648
+precisely because no key existed for them.
+
+**What shipped**
+
+- `local.claudePlugins.declared` — `attrsOf bool`, full `<plugin>@<marketplace>` ids.
+- `enabledPlugins = cfg.declared // genAttrs alwaysOnIds (_: true)` — floor last, so it wins
+  the merge even if the disjointness assertion were deleted.
+- Three assertions, each **measured firing** via `extendModules` rather than assumed:
+  malformed key; overlap with the always-on three; and a plugin name absent from its own
+  marketplace's catalogue — the last skipped when the marketplace is not declared here, since
+  `<plugin>@synced` (claude.ai sync) is live and its contents are unknowable at eval.
+- `silent-instruments@kattakath = true`, which is what #753 meant.
+
+**Full ids, not bare names** — a change from §6's derived instinct. A bare name resolved
+against `marketplaces` structurally cannot express `<plugin>@synced`, and several of the nine
+live `false` ids are exactly that shape.
+
+**Still deliberately not done**
+
+- The `assured` lane. §7 q1-q3 stand.
+- The nine `false` entries remain machine-local. The lane that can hold them now exists; each
+  is an operator preference and moving one is a per-plugin decision, not a sweep.
+- `empire` stays unenabled — #754's reasoning is unchanged by a mechanism existing.
+
+**Upstream-first, grepped not remembered.** Pinned home-manager `7b4c5ec4`: `enabledPlugins`
+appears in **zero** files under `modules/`, and the whole `programs.claude-code` option surface
+(`enable`, `finalPackage`, `enableMcpIntegration`, `configDir`, `settings`, `context`,
+`plugins`, `marketplaces`, `agents`, `commands`, `skills`, `lspServers`, `mcpServers`) has no
+option for "a marketplace plugin id is enabled". `plugins` is the near miss and is rejected for
+an unrelated reason already recorded in `claude-plugins.nix`'s header (it symlinks plugin
+**directories** and has no marketplace concept). The route taken is upstream's own freeform
+`settings` escape hatch, which this module already drives — a typed, asserted surface over an
+existing mechanism rather than a new one.
