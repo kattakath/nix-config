@@ -333,7 +333,7 @@ them. The hosting/publishing columns are dead.
 | `cloudflare-docs` | Cloudflare documentation search |
 | `cloudflare` | Cloudflare API; needs a one-time browser login and fails gracefully headless |
 | `apify` | Apify Store's ready-made scraper/crawler Actors, run **LOCALLY** via `@apify/actors-mcp-server`, authenticated by an `APIFY_TOKEN` read from the Keychain at launch. Switched 2026-08-19 from the hosted `mcp.apify.com` OAuth bridge, which never completed its interactive login under the headless launchd gateway; a missing token warns but does not dark the gateway |
-| ~~`macos-automator`~~ | **MOVED 2026-10-01** to the `mac-app-send` plugin (#657, final mover). The Accessibility (TCC) grant carried — TCC scopes it to `/usr/bin/osascript`, not the parent. The preflight probe in `mcp.nix` stays. Was: AppleScript/JXA automation — needs a one-time macOS Accessibility (TCC) grant, see [`mcp-gateway-accessibility-tcc.md`](mcp-gateway-accessibility-tcc.md) |
+| ~~`macos-automator`~~ | **MOVED 2026-10-01** to the `mac-app-send` plugin (#657, final mover). The Accessibility (TCC) grant carried — TCC scopes it to `/usr/bin/osascript`, not the parent. The preflight probe in `mcp.nix` stays. Was: AppleScript/JXA automation — needs a one-time macOS Accessibility (TCC) grant, see [`osascript-accessibility-tcc.md`](osascript-accessibility-tcc.md) |
 | ~~`mobile-mcp`~~ | **MOVED 2026-09-30** to the `android-phone` plugin (#657 batch 1). No longer on the gateway |
 | `postgres` | local Postgres (incl. the RAG store) |
 | `wordpress` | docdyhr/mcp-wordpress (pinned) — **CLIENT-SIDE** WordPress admin over a live site's REST API with an Application Password (nothing installed on the site). Creds are Keychain items `mcp:silvercreek.ai:wp_url`/`:wp_user`/`:wp_app_password`, read BY SERVICE NAME (the `$WP_*` names are only env bindings) and injected by the generated `mkGeneratedStdio` wrapper — `wpMcp` is gone; canonical **www** host required, and the password must be a 24-alphanumeric Application Password, not a login password |
@@ -527,7 +527,7 @@ in a fresh session.
 - [`gmail-mcp-multi-account-runbook.md`](gmail-mcp-multi-account-runbook.md) — **LIVE.**
   Multi-account Gmail setup, auth, and a documented silent-wrong-account failure mode. The one
   capability that crossed the purge intact.
-- [`mcp-gateway-accessibility-tcc.md`](mcp-gateway-accessibility-tcc.md) — **still accurate.** The
+- [`osascript-accessibility-tcc.md`](osascript-accessibility-tcc.md) — **still accurate.** The
   one-time Accessibility (TCC) grant `macos-automator` needs; TCC scopes it to
   `/usr/bin/osascript`, not to the parent, which is why it carried unchanged when that server
   moved to the `mac-app-send` plugin.
