@@ -110,7 +110,7 @@ let
   # same way: an attrset whose `imports` are the two sibling modules. Kept as an
   # inline definition rather than a third `module.nix` file because that file
   # would contain nothing but these two lines — and because this is the exact
-  # shape modules/shared/home.nix has always imported, which is what keeps the
+  # shape modules/home/default.nix has always imported, which is what keeps the
   # module-collection order (and therefore `darwin-system`'s drv) unmoved.
   localRag = {
     imports = [

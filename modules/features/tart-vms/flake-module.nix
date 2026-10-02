@@ -144,7 +144,7 @@
     tart-vms = ./darwin.nix;
   };
 
-  # The ONE source path an engine module builds itself — modules/shared/home.nix
+  # The ONE source path an engine module builds itself — modules/home/default.nix
   # installs the five gitlab-tart slot shims with the HOST's pkgs so
   # ~/.gitlab-runner/config.toml can reference stable
   # /etc/profiles/per-user/<user>/bin/nix-gitlab-tart-* paths. Rationale for the

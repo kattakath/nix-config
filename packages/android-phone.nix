@@ -13,7 +13,7 @@
 # which also keeps this derivation free of a nixpkgs android-tools dependency
 # that would collide with it on PATH.
 #
-# `scrcpy` MOVED to nixpkgs on 2026-09-29 (modules/shared/home.nix), so that half
+# `scrcpy` MOVED to nixpkgs on 2026-09-29 (modules/home/default.nix), so that half
 # of the sentence above no longer holds — but the runtime resolution below is kept
 # for it anyway, deliberately: baking in a store path would drag nixpkgs
 # android-tools into this derivation's closure as scrcpy's own wrapper dependency,

@@ -87,7 +87,7 @@ a worker restart (the `MAINPID` pattern, borrowed from systemd by name).
 
 In-tree, so there is nothing to pin. `modules/parts/compose.nix` threads this capsule's
 `module.nix` into every home-manager composition as `mediaCliModule` (through the RAW
-`capsuleModules` seam — see `modules/parts/capsules.nix`), `modules/shared/home.nix` imports
+`capsuleModules` seam — see `modules/parts/capsules.nix`), `modules/home/default.nix` imports
 it unconditionally, and the one decision left is the switch:
 
 ```nix
