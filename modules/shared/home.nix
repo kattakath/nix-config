@@ -935,6 +935,33 @@ in
         # your own address, publish a calling card, read the peer roster, judge whether
         # to act on another session's message (kattakath/skills#26).
         "session-relay"
+        # empire: four agents under ONE rule — whoever reads does not write. A controller
+        # (queen) with NO Write/Edit/Bash that reads, decides and dispatches; a general
+        # that brings an unflaked repo to a VERIFIED flake in an isolated worktree; a
+        # per-repo minister; read-only senate lanes that can return NO.
+        #
+        # THIS LINE CHANGES EVERY SESSION ON THIS MACHINE, which no other entry in this
+        # list does. The plugin manifest carries `settings.agent = "empire:queen"`, and a
+        # plugin's `settings` block is merged into the effective settings when it is
+        # ENABLED — so from the next session start the main agent wears the Queen persona
+        # with no flag. Measured 2026-10-02 against Claude Code 2.1.268 with a throwaway
+        # probe plugin; it is not a documented-but-untested claim. The plugin ships
+        # `defaultEnabled: false` precisely so that enabling is this explicit act.
+        #
+        # Removing this line is the whole rollback: the persona goes with it.
+        #
+        # PERMISSIONS ARE NOT ITS BUSINESS and it declares none — what any agent may do
+        # stays in the operator's floor (claude-guardrails.nix user-scope deny +
+        # claude-managed-settings.nix root-owned managed), where the governed session
+        # cannot edit it. No agent in the plugin uses `bypassPermissions`; verified by
+        # exact-name parsing of all four agent frontmatters, not by grep (a bare
+        # `grep -c Write` matches `TodoWrite` and reports a false positive).
+        #
+        # `nix-dev-toolkit` above is a HARD dependency of this plugin (its manifest's
+        # `dependencies`, which fail closed) — the general refuses to hand-roll a flake.
+        # Do not reorder this list expecting that to matter, but do not delete that entry
+        # expecting empire to survive it either.
+        "empire"
       ];
     };
 
