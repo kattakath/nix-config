@@ -1267,6 +1267,54 @@ in
           # gate proves a file is *gated*, not that a reader can *find* it. There
           # is no self-satisfaction loophole — a file's own breadcrumb points up
           # at ../repo-map.md, never at itself.
+          #
+          # ---- SCOPE: what this gate answers, and what it does NOT -------------
+          #
+          # It answers exactly ONE question: is every document under docs/ named
+          # by a link, in one of the indexes, whose target RESOLVES to that
+          # document's own path. Subjects are the `.md` REGULAR files in docs/
+          # (minus docs/repo-map.md, the root index, which is not an entry) plus
+          # each docs/map/*.md. Indexes are CLAUDE.md, docs/repo-map.md and every
+          # docs/map/*.md. Measured on this tree 2026-10-02: 49 subjects, 13
+          # indexes, green.
+          #
+          # NOT in scope, and each omission is someone else's question:
+          #   · WHETHER THE TARGET EXISTS. `realpath -m` is purely lexical, so a
+          #     link to a deleted file still resolves to a path — it simply will
+          #     not equal any subject. Existence is docs-links-resolve's question,
+          #     over every link in every tracked .md rather than only the ones
+          #     aimed at docs/.
+          #   · FRAGMENT-ONLY LINKS (`#section`) and URL-SCHEMED targets (https:,
+          #     mailto:) are DROPPED before resolving — neither can name a file in
+          #     this repo. A heading that no longer exists is prose rot, not a
+          #     broken index entry.
+          #   · ANYTHING OUTSIDE docs/. A `.md` elsewhere in the tree (a capsule
+          #     README, .claude/**) is never a subject here.
+          #   · WHETHER THE LINK TEXT IS TRUE. A row that links a file correctly
+          #     and describes it wrongly passes. This catches absence, not rot —
+          #     the shared "NOT COVERED" note above applies unchanged.
+          #
+          # HOW IT GOES VACUOUS, and this half is NOT guarded — unlike
+          # docs-links-resolve, which asserts a non-zero link total and treats
+          # lychee's "no files found" as fatal. Both subject lists come from
+          # `builtins.readDir` filtered on `t == "regular"`, and that filter DROPS
+          # DIRECTORY ENTRIES. `map` is a directory, so until it was named
+          # explicitly the eleven domain files were invisible to this check — the
+          # 2026-10-02 split would have shrunk this gate's scope by the very
+          # commit that created them. Measured, with the arithmetic rather than
+          # the intention: docs/ holds 39 `.md` regulars (38 subjects after
+          # dropping repo-map.md) and docs/map/ holds 11, which is the 49 above.
+          # Re-nest docs/map/ one level deeper and `mapIndexNames` evaluates to
+          # `[ ]`, docFiles falls 49 -> 38, and this builder still finds nothing
+          # unlinked, writes a success line and EXITS 0 — eleven documents (22% of
+          # coverage) leave the gate with it still green. The loss is VISIBLE but
+          # not FATAL: both counts are interpolated into the success message at
+          # eval time, so the output reads "all 38 documents … 2 indexes" instead
+          # of 49 and 13. Reading that number is the only thing standing in for a
+          # non-empty assertion here. If this check is ever extended again, the
+          # cheap fix is the one docs-links-resolve already made: assert the
+          # subject and index counts are non-zero AND that docs/map contributed at
+          # all, rather than trusting a reader to notice a smaller number.
           docs-indexed =
             let
               docFiles =

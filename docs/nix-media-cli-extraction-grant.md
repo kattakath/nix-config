@@ -276,9 +276,11 @@ inherit (keychain-secrets.packages.${system}) set-secret remove-secret secret;
 keychain-secrets.homeManagerModules.default
 ```
 
-The `.follows` pins protect `flake.lock`'s deliberate 60-node diet (documented in
-`docs/map/entry-points.md` § `flake.lock`) — a new `nix-media-cli` input should follow the identical
-pattern.
+The `.follows` pins protect `flake.lock`'s deliberate node diet — **56 nodes** as of 2026-10-02,
+down from 69 before ADR-002 absorbed the satellites and 72 before the dedupe pass (the live
+figure and its history are in [`map/entry-points.md`](map/entry-points.md) § `flake.lock`; read
+it there rather than trusting this sentence, which named 60 and matched no figure that document
+has ever carried). A new `nix-media-cli` input should follow the identical pattern.
 
 ---
 

@@ -142,7 +142,8 @@ Smaller, single-purpose CLIs:
   `fidelity-enhance.nix` — left for `kattakath/nix-media-cli` on 2026-09-05 (which is where
   the `photo-describe` → `media-describe` renaming happened) and came back on 2026-09-12 as
   `modules/features/media-cli/packages/`, with their reasoning intact in their own headers.
-  This repo consumes them as `local.mediaCli` (see § `modules/home/` above). There is no
+  This repo consumes them as `local.mediaCli` (see [`modules-home.md`](modules-home.md)
+  § `modules/home/`). There is no
   `nix run .#media-describe`: the capsule publishes **no** packages or apps, on purpose — the
   CLIs reach the Mac through `home.packages` and a second perSystem-pkgs copy would be eleven
   `nix flake show` rows nothing consumes. The one-line path back is in the capsule's
@@ -223,8 +224,9 @@ still lives in the `page-lab` plugin, and Greasy Fork enforces its own rules at 
 
 **The option is deliberately KEPT, with zero scripts.**
 `local.ungoogledChromium.userScripts` (`enable` + the `attrsOf (nullOr path)` `scripts` attrset)
-stays in [`modules/home/chromium.nix`](../../modules/home/chromium.nix) — see § `chromium.nix`
-above for the materialisation and the reason Chromium allows nothing more declarative.
+stays in [`modules/home/chromium.nix`](../../modules/home/chromium.nix) — see
+[`modules-home.md`](modules-home.md) § `chromium.nix` for the materialisation and the reason
+Chromium allows nothing more declarative.
 Violentmonkey is still sideloaded by `enable`; `scripts` is simply empty, and
 `xdg.dataFile` is gated on non-empty so an empty attrset writes nothing. It costs nothing and
 keeps the seam available if a script ever has to be fleet-pinned again (a private one, say, that
