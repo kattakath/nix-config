@@ -52,7 +52,15 @@ let
 
   heartbeat = pkgs.writeShellApplication {
     name = "service-heartbeat";
-    runtimeInputs = [ pkgs.curl ];
+    # systemd EXPLICITLY, for `systemctl is-active`. `writeShellApplication`
+    # prepends runtimeInputs to the inherited PATH rather than replacing it, so a
+    # systemd service would probably find systemctl anyway — "probably" is not a
+    # dependency declaration, and a missing binary here fails the unit, which (by
+    # this module's design) alerts. Correct direction, still worth not relying on.
+    runtimeInputs = [
+      pkgs.curl
+      pkgs.systemd
+    ];
     text = ''
       # ---- 0. The ping URL. WARN, DO NOT ABORT, when it is absent. -------------
       # Taken from cloudflared-connector/module.nix's boot-time behaviour, and for
@@ -108,6 +116,20 @@ let
         exit 1
       fi
       rm -f "$probe"
+
+      # ---- 2b. Are the units that matter actually running? ---------------------
+      # Named units only. `systemctl is-active` per unit rather than
+      # `is-system-running`, because the latter reports `degraded` for ANY failed
+      # unit on the host — including ones whose failure does not stop it serving.
+      # This host currently carries a legitimately-failing `mnt-storage.mount`
+      # (two USB sticks, `nofail` by design), and a blanket check would alert on
+      # that forever until someone muted the whole heartbeat.
+      for unit in ${lib.escapeShellArgs cfg.requireUnits}; do
+        if ! systemctl is-active --quiet "$unit"; then
+          echo "service-heartbeat: FAIL — $unit is not active." >&2
+          exit 1
+        fi
+      done
 
       # ---- 3. Everything passed. Ping. -----------------------------------------
       # `-K -` reads the URL from curl's own config on STDIN, so the URL never
@@ -169,6 +191,34 @@ in
         `OnUnitActiveSec` between self-tests. Set the monitor's grace period to a
         comfortable MULTIPLE of this — a single missed ping should not page anyone,
         or the switch becomes the over-strict monitor its own header warns against.
+      '';
+    };
+
+    requireUnits = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [
+        "caddy.service"
+        "cloudflared.service"
+      ];
+      description = ''
+        Units that must be active for the heartbeat to fire. An ALLOWLIST, never a
+        blanket `systemctl is-system-running` check.
+
+        WHY NOT BLANKET, and this is a reversal worth dating: on 2026-10-02 I argued
+        against checking system state at all, as over-strict. The same day refuted
+        me — this host sat `degraded` for 23 hours with a corrupt rootfs while the
+        tunnel stayed healthy and both of this module's other tests passed. So some
+        system-state check belongs here.
+
+        But blanket `degraded` is still wrong, and for the reason I originally gave:
+        ONE unrelated failed unit silences the whole heartbeat. That is how this
+        repo's acceptance harness came to print REJECTED on every clean run until
+        everyone stopped reading it. Naming the units that actually matter keeps the
+        signal honest in both directions.
+
+        Empty by default: a host that names nothing gets the Caddy and rootfs tests
+        only, exactly as before.
       '';
     };
 
