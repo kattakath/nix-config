@@ -361,93 +361,183 @@ in
           #   2026-09-16  mkNixos still handed out `users.users.<operator>` with
           #               the operator's SSH key and trusted-users.
           #
-          # Every one of those EVALUATED cleanly for the fleet. So this check
-          # calls the builders the way templates/default/flake.nix does — a
-          # neutral host, an identity with exactly the four fields the template
-          # documents, nothing else — and FORCES the attributes that carry the
-          # failure. Eval-only, which is all it needs to be: each of the three was
-          # an eval error or an eval-visible value, and `nix flake check` is
-          # eval-only too.
+          # Every one of those EVALUATED cleanly for the fleet. So this check calls
+          # the builders the way templates/default/flake.nix does and FORCES the
+          # attributes that carry the failure. Eval-only, which is all it needs to
+          # be: each of the three was an eval error or an eval-visible value, and
+          # `nix flake check` is eval-only too.
           #
-          # Forcing the right leaf is load-bearing. `home.stateVersion` and the
-          # agent's `.enable` both pass while the port is missing; only the argv
-          # that embeds the port pulls it in.
+          # IT NOW ACTUALLY READS THE TEMPLATE. Until 2026-10-02 the sentence above
+          # was a claim, not a mechanism: this check RE-IMPLEMENTED the identity as a
+          # four-field literal (`stranger` / `A Stranger` / …) and read nothing at all
+          # out of templates/. Nothing else covered the gap either —
+          #
+          #   · `nix flake check`'s built-in templates schema validates that
+          #     `templates.default.path` is a path and `description` is a string. It
+          #     never evaluates the scaffolded flake.
+          #   · templates/default/flake.nix:10 pins `inputs.nix-config.url =
+          #     "github:kattakath/nix-config"`, i.e. PUBLISHED main. Evaluating it as
+          #     a flake would therefore test whatever is already released, not the
+          #     working tree — the one thing a merge gate must not do.
+          #
+          # Net effect: a renamed identity field in the template shipped green, and
+          # the first person to find out was a stranger running `nix flake init -t`.
+          #
+          # HOW IT READS IT. `import` the template's flake.nix (it is a plain Nix
+          # file) and call its `outputs` with a STUB engine whose `lib.mkDarwin` is
+          # the identity function. That CAPTURES the real argument attrset the
+          # template passes — system, hostname, identity, extraModules — from the
+          # file, with no regex and no second copy. The captured args then go into
+          # THIS tree's `config.flake.lib.mkDarwin`, which is what "override the pin
+          # to the working tree" means in a pure eval: the stub is the only way to
+          # swap the published engine for this one without `builtins.getFlake` (impure)
+          # or a CLI `--override-input` (unavailable inside a check).
+          #
+          # REJECTED: parsing the identity attrset out of the file as TEXT. It would
+          # answer the field-name question and nothing else — the values would still
+          # never reach a builder, so `hostname` and `extraModules` would stay
+          # unexercised, and a regex over Nix source is a parser this repo would then
+          # own. Importing the file reads it as what it is.
+          #
+          # THE FIELD-SET LEG IS A PRECONDITION, not just another leg, and the order
+          # is load-bearing. `identity` reaches the builders through `specialArgs`,
+          # which is outside the module type system by construction (identity.nix says
+          # so), so a renamed field does NOT fail as an option error — it fails as
+          # `attribute 'fullName' missing` from inside modules/shared/home.nix, a
+          # trivial-builder stack trace with no mention of the template. So the field
+          # set is compared FIRST, against `lib.attrNames config.fleet.identityArgs` —
+          # authoritative because that submodule is CLOSED (a fifth field fails in
+          # identity.nix before it can reach a consumer) — and the deep legs are
+          # wrapped in `lib.optionals fieldsAgree`, which never forces them when the
+          # names already disagree. Measured 2026-10-02: renaming `fullName` to
+          # `fullname` in the template turns this check RED with a named message
+          # instead of that stack trace.
+          #
+          # Forcing the right leaf is load-bearing for the rest. `home.stateVersion`
+          # and an agent's `.enable` both pass while an identityArg is missing;
+          # `home-manager.extraSpecialArgs` is the seam where all four values land, so
+          # comparing it against the captured identity proves every field — domainName
+          # included, which has no other observable leaf on `generic-darwin`.
+          #
+          # NOT COVERED: that the scaffolded flake works as a FLAKE. Its `apps` output
+          # and its `self` reference are never forced (the stub `throw`s for both), and
+          # nothing here fetches `inputs.nix-config` — so a broken `apps.macos` or a
+          # bad input ref beyond the url string is still only found by running
+          # `nix flake init -t` for real.
           template-consumer =
             let
-              # EXACTLY what templates/default/flake.nix documents. Do not add a
-              # field here to make a failure go away — that is the bug.
-              consumerIdentity = {
-                loginName = "stranger";
-                fullName = "A Stranger";
-                userEmail = "stranger@example.invalid";
-                domainName = "example.invalid";
-              };
+              # The template, as Nix rather than as text. A SOURCE PATH LITERAL, so
+              # `./hosts/macos.nix` inside it resolves next to it in the store copy.
+              templateFlake = import ../../templates/default/flake.nix;
 
-              mac = config.flake.lib.mkDarwin {
-                system = "aarch64-darwin";
-                hostname = "generic-darwin";
-                identity = consumerIdentity;
-                # No `users.users.stranger.home` here any more: hosts/generic-darwin.nix
-                # declares the account itself since 2026-09-20 (ADR-004 §9.9). Adding it
-                # by hand was what hid the gap from this check.
-                extraModules = [
-                  {
-                    home-manager.users.stranger = {
-                      home.stateVersion = "24.05";
-                      # The opt-in that used to explode was `local.mcpGateway.public`,
-                      # removed 2026-09-22 with the second proxy. What this check
-                      # actually guards is that a template consumer can EVALUATE the
-                      # gateway at all — the original failure was a missing
-                      # identityArg, not anything about publishing — so it now reads
-                      # the option that replaced it.
-                    };
-                  }
-                ];
-              };
-              macHm = mac.config.home-manager.users.stranger;
+              captured =
+                (templateFlake.outputs {
+                  # Only the template's `apps` output reads these, and this check
+                  # forces `darwinConfigurations` alone. `throw` rather than a dummy:
+                  # if the template ever starts reading them on THIS path, that must
+                  # be a loud failure asking for this check to be taught, not a quiet
+                  # evaluation against a lie.
+                  self = throw "checks.template-consumer: the template's `self` is a flake-time value this check does not have";
+                  nix-config = {
+                    # The capture. Returns the argument set instead of building it.
+                    lib.mkDarwin = args: args;
+                    inputs = throw "checks.template-consumer: the template's nixpkgs is only needed by its `apps` output, which this check does not force";
+                  };
+                }).darwinConfigurations.macos;
 
+              templateIdentity = captured.identity;
+              templateLogin = templateIdentity.loginName;
+
+              # The engine's accepted field set, read from the CLOSED submodule's
+              # value rather than restated. Both lists come from `attrNames`, so they
+              # are sorted and a plain `==` is a set comparison.
+              engineFields = lib.attrNames config.fleet.identityArgs;
+              templateFields = lib.attrNames templateIdentity;
+              fieldsAgree = templateFields == engineFields;
+
+              mac = config.flake.lib.mkDarwin captured;
+              macHm = mac.config.home-manager.users.${templateLogin};
+
+              # mkNixos is the other half of the published API and the template does
+              # NOT call it, so it rides the captured identity: these legs are the
+              # 2026-09-16 operator-account leak, kept rather than dropped for want of
+              # a template that exercises them.
               box = config.flake.lib.mkNixos {
                 system = "aarch64-linux";
                 hostname = "generic-linux";
-                identity = consumerIdentity;
+                identity = templateIdentity;
                 # Deliberately NO operatorSshKey — a consumer does not pass one.
                 extraModules = [
                   {
                     system.stateVersion = "24.05";
-                    networking.hostName = "strangerbox";
+                    networking.hostName = "templatebox";
                   }
                 ];
               };
               boxUsers = box.config.users.users;
 
+              fieldList = f: lib.concatStringsSep ", " f;
+
               problems =
-                # Forces publicMcpPort through the agent's argv.
-                # The gateway is PURGED, so a template consumer must inherit NO such
-                # agent. This leg used to assert the opposite (that the agent bound
-                # publicMcpPort); inverted rather than deleted, so "the gateway came
-                # back through the template path" still fails the build.
-                lib.optional (
-                  macHm.launchd.agents ? mcp-gateway || macHm.launchd.agents ? mcp-tunnel-connector
-                ) "a template consumer inherited an MCP gateway agent — the gateway is purged"
-                ++ lib.optional (
-                  boxUsers ? ${loginName}
-                ) "mkNixos created the OPERATOR's account (${loginName}) on a consumer's host"
-                ++ lib.optional (
-                  boxUsers.stranger.openssh.authorizedKeys.keys != [ ]
-                ) "mkNixos granted SSH keys a consumer never asked for"
-                ++ lib.optional (lib.elem loginName box.config.nix.settings.trusted-users) "mkNixos put the operator in a consumer's nix trusted-users";
+                lib.optional (!fieldsAgree)
+                  "templates/default/flake.nix's 'identity' declares { ${fieldList templateFields} }, but fleet.identityArgs accepts { ${fieldList engineFields} } — a consumer scaffolded from this template cannot evaluate"
+                ++
+                  lib.optional (templateFlake.inputs.nix-config.url != config.fleet.flakeRef)
+                    "the template pins '${templateFlake.inputs.nix-config.url}', not ${config.fleet.flakeRef} — 'nix flake init -t' would scaffold a flake pointing at the wrong engine"
+                ++ lib.optionals fieldsAgree (
+                  # Forces the whole darwin + home-manager fixpoint for the TEMPLATE's
+                  # own arguments.
+                  lib.optional (
+                    templateLogin == loginName
+                  ) "the template ships the OPERATOR's login (${loginName}) as its placeholder identity"
+                  ++
+                    lib.optional
+                      (
+                        builtins.intersectAttrs templateIdentity mac.config.home-manager.extraSpecialArgs
+                        != templateIdentity
+                      )
+                      "the template's identity does not survive into home-manager.extraSpecialArgs — some field is dropped or rewritten between mkDarwin and the home profile"
+                  ++ lib.optional (
+                    macHm.programs.git.settings.user.name != templateIdentity.fullName
+                    || macHm.programs.git.settings.user.email != templateIdentity.userEmail
+                  ) "the consumer's git identity is not the one the template declares"
+                  ++
+                    lib.optional
+                      (mac.config.users.users ? ${loginName} || mac.config.system.primaryUser != templateLogin)
+                      "the template's 'hostname' selected a host that creates the OPERATOR's account (${loginName}) — this is the 2026-09-15 regression, via the template"
+                  ++
+                    # The gateway is PURGED, so a template consumer must inherit NO
+                    # such agent. This leg used to assert the opposite (that the agent
+                    # bound publicMcpPort); inverted rather than deleted, so "the
+                    # gateway came back through the template path" still fails.
+                    lib.optional (
+                      macHm.launchd.agents ? mcp-gateway || macHm.launchd.agents ? mcp-tunnel-connector
+                    ) "a template consumer inherited an MCP gateway agent — the gateway is purged"
+                  ++ lib.optional (
+                    boxUsers ? ${loginName}
+                  ) "mkNixos created the OPERATOR's account (${loginName}) on a consumer's host"
+                  ++ lib.optional (
+                    boxUsers.${templateLogin}.openssh.authorizedKeys.keys != [ ]
+                  ) "mkNixos granted SSH keys a consumer never asked for"
+                  ++ lib.optional (lib.elem loginName box.config.nix.settings.trusted-users) "mkNixos put the operator in a consumer's nix trusted-users"
+                );
             in
             pkgs.runCommand "template-consumer" { } (
               if problems == [ ] then
                 ''
-                  echo "mkDarwin + mkNixos evaluate for a four-field template identity, and leak no operator state" > "$out"
+                  echo "templates/default/flake.nix's own arguments build mkDarwin (+ mkNixos on the same identity): ${fieldList templateFields}, host ${captured.hostname}, no operator state" > "$out"
                 ''
               else
                 ''
                   echo "template-consumer: the published composition API leaks or breaks." >&2
                   ${lib.concatStringsSep "\n" (map (p: ''echo "  ✘ ${p}" >&2'') problems)}
-                  echo "See modules/parts/compose.nix — identityArgs is REPLACED by a consumer;" >&2
-                  echo "fleet constants belong in mkHomeManagerModule's inherit list instead." >&2
+                  echo "" >&2
+                  echo "This check READS templates/default/flake.nix and builds with its own" >&2
+                  echo "arguments; fix the template or the engine, never this literal — there" >&2
+                  echo "isn't one any more. See modules/parts/compose.nix (identityArgs is" >&2
+                  echo "REPLACED by a consumer; fleet constants belong in" >&2
+                  echo "mkHomeManagerModule's inherit list) and modules/parts/identity.nix" >&2
+                  echo "(the CLOSED submodule that defines the accepted field set)." >&2
                   exit 1
                 ''
             );
