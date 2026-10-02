@@ -37,7 +37,12 @@
 #   flake.nix's four PACKAGE checks      -> ./checks (folded into `-clis`, below)
 #   tests/grammar.sh                     -> ./tests/grammar.sh (verbatim but for
 #                                                              its own invocation
-#                                                              line)
+#                                                              line; since
+#                                                              2026-10-02 also a
+#                                                              header block and a
+#                                                              file-wide SC2016
+#                                                              directive, for
+#                                                              ./checks/grammar-lint.nix)
 #   README.md                            -> ./README.md       (rehomed; Install
 #                                                              now describes
 #                                                              in-tree use)
@@ -183,6 +188,16 @@
           inherit (inputs) home-manager;
           inherit pkgs;
           module = ./module.nix;
+        };
+
+        # ./tests/grammar.sh cannot RUN in a derivation — no login Keychain in the
+        # sandbox, as its header and ./checks/grammar-lint.nix both say — but it
+        # can be LINTED, and until 2026-10-02 nothing checked it at all. Same
+        # argument-passing shape as the two above, for the same capsule-invariant
+        # reason: the leaf may not write `../tests/grammar.sh`.
+        keychain-secrets-grammar-lint = import ./checks/grammar-lint.nix {
+          inherit pkgs;
+          script = ./tests/grammar.sh;
         };
       };
     };

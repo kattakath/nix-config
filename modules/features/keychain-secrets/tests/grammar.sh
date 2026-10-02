@@ -18,6 +18,19 @@
 # from the real store. Assert on booleans and lengths. If isolation ever breaks,
 # a boolean assertion fails loudly; an echoed value becomes a disclosure in
 # whatever log is capturing the run.
+#
+# LINTED, since 2026-10-02, by ./../checks/grammar-lint.nix (reached as
+# `checks.<system>.keychain-secrets-grammar-lint`). It cannot RUN here for the
+# reason above, but shellcheck needs no Keychain — and until that gate landed
+# nothing checked this file at all, not even for a syntax error.
+#
+# SC2016 is disabled FILE-WIDE and that is not a workaround. This script's whole
+# method is handing shell SOURCE TEXT to the thing under test — `probe '…'` and
+# `secret exec … -- sh -c '…'` pass a program as data, so the single quotes are
+# load-bearing and expanding them would destroy the assertion. Three sites did
+# this on 2026-10-02 and every new test case adds more, so a per-site directive
+# would be a standing tax that says nothing a reader could not already see.
+# shellcheck disable=SC2016
 set -uo pipefail
 
 KC="$HOME/Library/Keychains/zz-kcs-test.keychain-db"
