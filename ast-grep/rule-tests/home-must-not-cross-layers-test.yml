@@ -4,16 +4,27 @@
 # Same scoping asymmetry as capsule-must-not-reach-out-test.yml: `files:` filters
 # the SCAN, not these fixtures, so the `invalid` cases below are perfectly legal
 # in modules/parts/. They prove the PATTERN matches; that it only matches inside
-# modules/shared/ is the `files:` glob's job.
-id: shared-must-not-cross-layers
+# modules/home/ is the `files:` glob's job — which no test here can check, so
+# renaming the directory MUST carry the glob in the same commit or the gate goes
+# permanently, silently green.
+#
+# THE PAIRING IS BY `id:`, NOT BY FILENAME — measured 2026-10-02 when this rule
+# was renamed from shared-must-not-cross-layers. Renaming both files AND the `id:`
+# in both kept all 11 cases bound (`ast-grep test` still reported
+# `home-must-not-cross-layers  ...........`), and breaking one `invalid:` fixture
+# so it no longer matches made the suite FAIL
+# (`FAIL home-must-not-cross-layers  ........M..`, `[Missing] Expect rule … to
+# report issues, but none found`). So the suite is not vacuous: it fails when it
+# should.
+id: home-must-not-cross-layers
 valid:
   # Down into the repo's own content trees — the whole point of the profile, and
-  # every one of these shapes is live in modules/shared today.
+  # every one of these shapes is live in modules/home today.
   - '{ pkg = ../../packages/mermaid-ascii.nix; }'
   - '{ src = ../../claude/CLAUDE.md; }'
   - '{ skill = ../../skills/explain; }'
   - '{ qwen = ../../qwen/QWEN.md; }'
-  # A sibling inside shared/.
+  # A sibling inside home/.
   - '{ theme = ./terminal-theme.nix; }'
   - '{ launchd = ./launchd-launcher.nix; }'
   # A `..` inside a STRING is the other path axis (a runtime path) and belongs to
@@ -22,9 +33,9 @@ valid:
 invalid:
   # Sideways into a capsule — must go through the engine instead.
   - '{ cap = ../features/media-cli/module.nix; }'
-  # Up into the engine — composition flows parts -> shared, never back.
+  # Up into the engine — composition flows parts -> home, never back.
   - '{ engine = ../parts/compose.nix; }'
-  # Up into a host — hosts import shared, so this is a cycle.
+  # Up into a host — hosts import home, so this is a cycle.
   - '{ host = ../../hosts/macos.nix; }'
   # Across into terranix, a different axis with no shared runtime.
   - '{ tf = ../../infra/cloudflare/nixpi-tunnel.nix; }'

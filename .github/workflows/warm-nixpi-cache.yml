@@ -49,7 +49,7 @@ on:
       - "flake.lock"
       - "hosts/nixpi.nix"
       - "modules/nixos/**"
-      - "modules/shared/**"
+      - "modules/home/**"
       # modules/_lib/nix-ld-libraries.nix — imported by modules/nixos/core.nix (`:133`) for
       # programs.nix-ld.libraries, so it IS in this closure. It left
       # modules/shared/ on 2026-10-02 and would otherwise match nothing here.

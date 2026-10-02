@@ -545,15 +545,26 @@ their own top-level section below:
   is entered **only** through its `flake-module.nix` and **may not reach outside its own
   directory**. → [§ `modules/features/`](#modulesfeatures--the-seven-capsules)
 
-### `modules/shared/`
+### `modules/home/`
 
-`modules/shared/{home.nix,gmail-mcp.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,ubersicht.nix,next-right-thing.nix,spotlight-actions.nix,terminal-theme.nix,desktop-aesthetics.nix,launchd-launcher.nix,containers.nix,metube.nix,yt-dlp-web-ui.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,chromium-extensions/,wallpaper/}`
+`modules/home/{default.nix,gmail-mcp.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,ubersicht.nix,next-right-thing.nix,spotlight-actions.nix,terminal-theme.nix,desktop-aesthetics.nix,launchd-launcher.nix,containers.nix,metube.nix,yt-dlp-web-ui.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,chromium-extensions/,wallpaper/}`
 — the Home Manager profile loaded on every host, and **nothing else**: it is 22 `.nix`,
 all home-manager, since `nix-cache.nix` and `nix-ld-libraries.nix` left on 2026-10-02
 (ADR-009 §9b). This manifest also silently omitted `spotlight-actions.nix` and
 `chromium-extensions/` until the same pass.
 
-- **`home.nix`** — git/ssh-signing, zsh+starship, direnv, gh, bash, claude-code + nerd-fonts;
+**It was `modules/shared/` until 2026-10-02**, and the entry point was `home.nix`.
+Both renamed together (ADR-009 §8): `shared` named a SCOPE while every sibling
+(`darwin`, `nixos`, `parts`, `features`) names a CLASS, and once the two
+non-home-manager files left there was nothing left for the scope name to cover.
+`default.nix` is what lets the one import site be the directory literal
+`../home` (`modules/parts/compose.nix:210`). **The `ast-grep` rule moved in the
+same commit** — `files: 'modules/home/**'`, rule and fixtures renamed to
+`home-must-not-cross-layers` — because a glob left pointing at the old path
+matches zero files and the layer boundary stops existing with CI green. Nothing
+in the repo can catch that; see that fixture file's header for the measurement.
+
+- **`default.nix`** (the entry point; was `home.nix`) — git/ssh-signing, zsh+starship, direnv, gh, bash, claude-code + nerd-fonts;
   darwin-only ssh/vscode blocks gated `lib.mkIf pkgs.stdenv.isDarwin`. The ssh block owns
   `Host nixpi.<domain>` with the `cloudflared access ssh` `ProxyCommand` (store path, not
   `/opt/homebrew`) — the *only* remote path to the Pi, and what makes both deploy-rs legs work
@@ -1226,7 +1237,7 @@ all home-manager, since `nix-cache.nix` and `nix-ld-libraries.nix` left on 2026-
   `launchd-launcher.nix` already renames arg0 to `nix-<agent>`, so the old spelling produced
   two store paths with one name.
 
-### Home-Manager modules that are not in `modules/shared/`
+### Home-Manager modules that are not in `modules/home/`
 
 Three whole features reach the Mac's Home Manager profile from outside this directory, each
 behind **one** `enable`. One is now an in-tree capsule; two are still flake inputs (ADR-002
@@ -2519,7 +2530,7 @@ still lives in the `page-lab` plugin, and Greasy Fork enforces its own rules at 
 
 **The option is deliberately KEPT, with zero scripts.**
 `local.ungoogledChromium.userScripts` (`enable` + the `attrsOf (nullOr path)` `scripts` attrset)
-stays in [`modules/shared/chromium.nix`](../modules/shared/chromium.nix) — see § `chromium.nix`
+stays in [`modules/home/chromium.nix`](../modules/home/chromium.nix) — see § `chromium.nix`
 above for the materialisation and the reason Chromium allows nothing more declarative.
 Violentmonkey is still sideloaded by `enable`; `scripts` is simply empty, and
 `xdg.dataFile` is gated on non-empty so an empty attrset writes nothing. It costs nothing and
