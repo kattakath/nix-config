@@ -15,7 +15,7 @@
 # user's foreground apps for CPU. Moving it behind launchd fixes all four with
 # no scheduler of our own.
 #
-# EVERY MECHANISM HERE IS launchd's, NOT OURS — see modules/shared/media-queue.nix:
+# EVERY MECHANISM HERE IS launchd's, NOT OURS — the full list, no exceptions:
 #
 #   QueueDirectories               the queue: launchd starts the worker whenever
 #                                  the directory is non-empty

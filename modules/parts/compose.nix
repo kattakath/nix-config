@@ -470,7 +470,8 @@ let
           #
           # Nothing here can perform the login — it needs a FlakeHub token from a
           # browser — so this only PROBES and prints the fix, the same shape as
-          # the macos-automator TCC nudge in modules/shared/mcp.nix:1317. It is
+          # the macos-automator TCC nudge the gateway used to print (gone with it
+          # 2026-10-02; the grant itself is docs/osascript-accessibility-tcc.md). It is
           # silent once the feature is advertised, and silent when the binary is
           # absent or errors, so it cannot nag on a healthy rebuild.
           #

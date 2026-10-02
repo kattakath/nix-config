@@ -7,7 +7,9 @@
 # third-party or malicious persistence, which is the entire smell that rule
 # exists to prevent. The fix is always the same: point arg0 at a
 # `pkgs.writeShellScriptBin "nix-<activity>"` wrapper and move the
-# wait4path/exec logic inside it (canonical examples in modules/shared/mcp.nix).
+# exec logic inside it (canonical examples: modules/features/tart-vms/darwin.nix's
+# `nix-tart-vm-<name>` and modules/features/media-cli/module.nix's `nix-<activity>`
+# wrappers, each wired straight into ProgramArguments[0]).
 #
 # Scope note: this catches launchd units THIS repo authors in Nix. It cannot see
 # the three known upstream `/bin/sh` daemons (org.nixos.activate-system,
