@@ -2270,8 +2270,8 @@ in
           # `launchctl print gui/<uid>/<Label>` — the real unit.
           #
           # `enable` IS ITS OWN LEG, and it is not redundant with the lane leg.
-          # It is a `mkEnableOption` defaulting to FALSE (:19) and `agentPlists`
-          # filters on it (:170), while `launchd.agents` — the attrset
+          # It is a `mkEnableOption` defaulting to FALSE (:20) and `agentPlists`
+          # filters on it (:166), while `launchd.agents` — the attrset
           # launchd-sources.nix walks — does not. nix-darwin's
           # `launchd.user.agents` has no such switch, so a lane change that
           # forgets it evaluates clean, renders NO plist, and would leave every

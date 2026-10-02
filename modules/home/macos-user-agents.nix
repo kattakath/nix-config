@@ -17,7 +17,7 @@
 #
 # Home Manager PROBES instead of diffing: pinned home-manager
 # modules/launchd/default.nix:445-452 takes the `cmp -s` "unchanged" branch and
-# still asks `agentIsLoaded` (:427-432, a `launchctl print <domain>/<agentName>`),
+# still asks `agentIsLoaded` (:326-330, a `launchctl print <domain>/<agentName>`),
 # falling through to bootout + install + bootstrap on "up-to-date but not
 # loaded". That probe keys off the LABEL, not the attribute name — `:165` names
 # each plist `"${v.config.Label}.plist"` and `:426` derives
@@ -101,8 +101,8 @@ let
     }:
     {
       # REQUIRED, and its absence is silent: `enable` is a `mkEnableOption`
-      # defaulting to FALSE (pinned home-manager modules/launchd/default.nix:19),
-      # and `agentPlists` filters on it (:170), so an agent declared without it
+      # defaulting to FALSE (pinned home-manager modules/launchd/default.nix:20),
+      # and `agentPlists` filters on it (:166), so an agent declared without it
       # evaluates clean and renders NO plist at all. nix-darwin's
       # `launchd.user.agents` has no such switch, which is exactly how a
       # lane change loses a unit without a single eval error. Measured on this
