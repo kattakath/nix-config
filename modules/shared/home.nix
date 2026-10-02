@@ -1500,6 +1500,27 @@ in
         # obra/superpowers (MIT): the SINGLE systematic-debugging skill (cherry-picked subpath, NOT
         # the whole 14-skill plugin) — a hypothesis-driven debugging methodology.
         systematic-debugging = "${agent-skills-superpowers}/skills/systematic-debugging";
+        # obra/superpowers (MIT): the SINGLE verification-before-completion skill, same
+        # cherry-picked-subpath rule as systematic-debugging above. 120 lines, one file, no
+        # references/ — measured at the pin, not estimated.
+        #
+        # WHY ADOPT RATHER THAN WRITE ONE. It is the de facto standard for this (181.9k
+        # installs) and nothing equivalent exists in anthropics/skills (19 skills) or
+        # anthropics/claude-plugins-official (315 plugins) — searched 2026-10-02. Writing our
+        # own would be a second copy of a maintained artifact.
+        #
+        # WHAT IT DOES NOT COVER, and why a kattakath plugin still exists alongside it: its
+        # gate step 3 is "READ: Full output, check exit code", which ASSUMES the exit code you
+        # read is the command's and the output is complete. The instrument layer under that
+        # assumption — a stale ${PIPESTATUS[0]}, a partial API page, a CI run that is green
+        # because its only job SKIPPED, a zsh loop that exits 0 having iterated once over one
+        # blob — is absent from it (verified: the skill ships ONE file and mentions none of
+        # them). That layer is ours; the discipline is not.
+        #
+        # A vanished subpath fails LOUDLY: `cp: cannot stat .../skills/<name>` at build, so a
+        # bump that reorganises upstream breaks activation rather than silently dropping the
+        # skill. Measured 2026-10-02.
+        verification-before-completion = "${agent-skills-superpowers}/skills/verification-before-completion";
         # ---- Job-search skills (Paramchoudhary/ResumeSkills, MIT) ----
         # A LEAN, complementary slice of the 21-skill pack — the text-based job-search steps that
         # AREN'T resume.json-specific. resume-tailor is deliberately OMITTED: the json-native
