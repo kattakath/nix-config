@@ -7,7 +7,7 @@
 #
 # Three things are wired — two via upstream `programs.chromium` (no custom shell) and
 # one via the browser's own preferences domain. The macOS default-browser claim used to
-# be a fourth; it moved to `modules/shared/default-browser.nix` (`local.defaultBrowser`)
+# be a fourth; it moved to `modules/home/default-browser.nix` (`local.defaultBrowser`)
 # when Opera Air became the default and Chromium became the debugging browser:
 #
 #   1. `extensions` → `~/Library/Application Support/Chromium/External Extensions/<id>.json`.
@@ -501,7 +501,7 @@ in
     # Why a wrapper at all, rather than a declared browser flag: the .app is a
     # Homebrew cask, so `programs.chromium.package` is null, and upstream's own
     # assertion then FORBIDS `commandLineArgs` — there is no Nix wrapper to pass
-    # them to (see modules/shared/chromium.nix).
+    # them to (see modules/home/chromium.nix).
     #
     # Deliberately a hand-run command and NOT a launchd agent or a login item: the
     # port is an unauthenticated control channel over a browser holding live logins

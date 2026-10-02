@@ -14,7 +14,7 @@ process per account**, each with its own `--tool-prefix`.
 >
 > | Then | Now |
 > |---|---|
-> | `local.gmailMcp.accounts` | **`local.gmailMcp.accounts`** (`modules/shared/gmail-mcp.nix`) |
+> | `local.gmailMcp.accounts` | **`local.gmailMcp.accounts`** (`modules/home/gmail-mcp.nix`) |
 > | `mkGmailMcp` inline in `mcp.nix` | **`packages/gmail-mcp.nix`** — one `nix-mcp-gmail-<alias>` launcher per account, on PATH |
 > | one long-lived process per account under `mcp-proxy`, shared by every client | **one stdio child per account PER SESSION**, spawned by Claude Code from the `gmail` plugin's `.mcp.json` in `github:kattakath/skills`, reaped at session end |
 > | reachable from Claude Code, Claude Desktop and Cowork | **Claude Code only** — Desktop loads no plugins, so it has no Gmail (and no MCP servers at all) |
@@ -36,7 +36,7 @@ process per account**, each with its own `--tool-prefix`.
 | Google Cloud OAuth client (**Desktop app** type) | ONE shared client (`client_id`/`client_secret`) authenticates every account — Google allows the same Desktop client across arbitrary accounts | Your Google Cloud Console; secret in the login Keychain |
 | `gmailAlias` | Sanitizes an email (`lower`, `@`/`.`/`+` → `_`) into a tool-prefix/filename-safe token — internal only, never part of the config surface | `packages/gmail-mcp.nix` (derived there, never passed in) |
 | the launcher (`nix-mcp-gmail-<alias>`) | `writeShellScriptBin` wrapper: reads the shared client id/secret from Keychain at launch, materializes `~/.gmail-mcp/gcp-oauth.keys.json`, execs the server with `--tool-prefix=<alias>_`. `npx` is baked as an absolute store path so the launcher is immune to whatever Node the calling session has on PATH — which matters, because the plugin lane gets fnm's Node, not the fleet default | `packages/gmail-mcp.nix` (was `mkGmailMcp` in `mcp.nix`) |
-| `local.gmailMcp.accounts` | `listOf str` of **plain email addresses** — the only thing you edit to add/remove an account. Empty by default | `modules/shared/gmail-mcp.nix` option; set in `hosts/macos.nix` |
+| `local.gmailMcp.accounts` | `listOf str` of **plain email addresses** — the only thing you edit to add/remove an account. Empty by default | `modules/home/gmail-mcp.nix` option; set in `hosts/macos.nix` |
 | the `gmail` plugin's `.mcp.json` | names each launcher **by binary name**, one server entry per account — the declaration half | `github:kattakath/skills` (**not this repo**) |
 | `~/.gmail-mcp/credentials-<alias>.json` | Per-account OAuth token, produced by the **one-time interactive auth step** (not by Nix) | `$HOME`, never in git/store |
 
@@ -260,7 +260,7 @@ Command: `/gmail-account`.
 | Path | What |
 |---|---|
 | `packages/gmail-mcp.nix` | the per-account launcher: `gmailAlias` derivation, Keychain read, `gcp-oauth.keys.json`, `--tool-prefix` |
-| `modules/shared/gmail-mcp.nix` | the `local.gmailMcp.accounts` option; puts one launcher per account on PATH |
+| `modules/home/gmail-mcp.nix` | the `local.gmailMcp.accounts` option; puts one launcher per account on PATH |
 | `hosts/macos.nix` | All accounts for that host, via `home-manager.users.<user>.local.gmailMcp.accounts` |
 | `github:kattakath/skills` → the `gmail` plugin's `.mcp.json` | the DECLARATION — one server entry per account, naming the launcher by binary name. **Not in this repo, and invisible to every check here** |
 | ~~`modules/shared/mcp.nix`~~ | **deleted 2026-10-02** — held `mkGmailMcp` and the old gateway wiring |

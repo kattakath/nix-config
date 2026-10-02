@@ -15,7 +15,7 @@
 .claude/hooks/pretooluse.log
 
 # routing-review.md state (events themselves live outside the repo, under
-# ~/.local/state/claude-otel/ — see modules/shared/claude-otel.nix)
+# ~/.local/state/claude-otel/ — see modules/home/claude-otel.nix)
 .claude/hooks/.routing-review-state.json
 
 # fleet-doctor.md state (last full-sweep timestamp, written by the command)

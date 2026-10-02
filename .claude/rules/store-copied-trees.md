@@ -15,7 +15,7 @@ paths:
 | Tree | Referenced from | Lands in |
 |---|---|---|
 | `sites/snoringirl/` | `modules/parts/identity.nix:139` — `hostedSites[].root = ../../sites/snoringirl` | the **live** nixpi closure |
-| `sites/ismail-landing/fonts/` | `modules/shared/next-right-thing.nix:36` — `fontDir = ../../sites/ismail-landing/fonts` | the `macos` home closure (the widget's `NRT_FONT_DIR`) |
+| `sites/ismail-landing/fonts/` | `modules/home/next-right-thing.nix:36` — `fontDir = ../../sites/ismail-landing/fonts` | the `macos` home closure (the widget's `NRT_FONT_DIR`) |
 
 **Absent from `hostedSites` is not absent from a closure** — that is the whole reason the
 second row exists. `sites/ismail-landing` stopped being Caddy-served on 2026-09-16, so the

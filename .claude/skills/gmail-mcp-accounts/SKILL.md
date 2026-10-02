@@ -2,7 +2,7 @@
 name: gmail-mcp-accounts
 description: >
   Add, remove, or authenticate accounts for the self-hosted multi-account
-  Gmail MCP (local.gmailMcp.accounts, modules/shared/gmail-mcp.nix, launchers
+  Gmail MCP (local.gmailMcp.accounts, modules/home/gmail-mcp.nix, launchers
   from packages/gmail-mcp.nix, declared by the `gmail` plugin's .mcp.json) —
   TRUE simultaneous multi-account Gmail via ArtyMcLabin/Gmail-MCP-Server, one
   process per account, unlike the built-in single-account connector. Use when
@@ -21,7 +21,7 @@ Canonical docs: [`docs/gmail-mcp-multi-account-runbook.md`](../../../docs/gmail-
 >
 > | Then | Now |
 > |---|---|
-> | `local.mcpGateway.gmail.accounts` | **`local.gmailMcp.accounts`** (`modules/shared/gmail-mcp.nix`), set in `hosts/macos.nix` |
+> | `local.mcpGateway.gmail.accounts` | **`local.gmailMcp.accounts`** (`modules/home/gmail-mcp.nix`), set in `hosts/macos.nix` |
 > | `mkGmailMcp` inline in `mcp.nix` | **`packages/gmail-mcp.nix`** → one `nix-mcp-gmail-<alias>` launcher per account, on PATH |
 > | one long-lived process per account under a shared proxy | **one stdio child per account PER SESSION**, spawned by Claude Code from the `gmail` plugin's `.mcp.json` in `github:kattakath/skills` |
 > | reachable from Claude Code, Claude Desktop and Cowork | **Claude Code only** — Desktop loads no plugins and now has no MCP servers at all |

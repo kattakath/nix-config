@@ -142,7 +142,7 @@ provider-agnostic.
 
 ## Changing a colour
 
-1. Edit `local.terminalTheme` in `modules/shared/terminal-theme.nix`, keeping the
+1. Edit `local.terminalTheme` in `modules/home/terminal-theme.nix`, keeping the
    measured justification beside the value.
 2. `git add -A && nix flake check` — the type rejects anything that is not
    uppercase `#RRGGBB`, and the ring must be exactly 16 entries.

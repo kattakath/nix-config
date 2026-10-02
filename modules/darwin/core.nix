@@ -1,5 +1,5 @@
 # nix-darwin system module — macOS-specific system preferences.
-# This is "system logic" for the Mac; user logic stays in modules/shared.
+# This is "system logic" for the Mac; user logic stays in modules/home.
 {
   config,
   lib,
