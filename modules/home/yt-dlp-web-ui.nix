@@ -9,7 +9,7 @@
 # not inherit Homebrew, and YouTube extraction fails without deno.
 #
 # WHY HOME MANAGER AND NOT nix-darwin's `launchd.user.agents` — see the same
-# paragraph in modules/shared/metube.nix; both moved layers together on
+# paragraph in modules/home/metube.nix; both moved layers together on
 # 2026-09-22 for the self-heal Home Manager has and the system tier does not.
 # The Label becomes `org.nix-community.home.yt-dlp-web-ui`.
 {
@@ -36,7 +36,7 @@ let
     logging:
       enable_file_logging: false
   '';
-  # Plain name, not `nix-yt-dlp-web-ui`: modules/shared/launchd-launcher.nix
+  # Plain name, not `nix-yt-dlp-web-ui`: modules/home/launchd-launcher.nix
   # already renames arg0 to `nix-<agent>`, which is what Login Items and TCC
   # attribute the process by. Two scripts with the same name was the old shape.
   runner = pkgs.writeShellScriptBin "yt-dlp-web-ui-run" ''
@@ -62,7 +62,7 @@ in
     };
   };
 
-  # isDarwin is load-bearing, not decoration — modules/shared/home.nix imports
+  # isDarwin is load-bearing, not decoration — modules/home/default.nix imports
   # this for nixpi and nixvm too, and `launchd.enable` defaulting to isDarwin
   # would hide the agent while still forcing the package to build there.
   config = lib.mkIf (cfg.enable && pkgs.stdenv.hostPlatform.isDarwin) {

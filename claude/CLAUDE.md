@@ -1,7 +1,7 @@
 # Global Claude Code instructions — Ismail Kattakath
 
 User-level rules that apply in **every** project and session on this machine (placed at
-`~/.claude/CLAUDE.md` declaratively by Home Manager — see `modules/shared/home.nix`).
+`~/.claude/CLAUDE.md` declaratively by Home Manager — see `modules/home/default.nix`).
 Project-level `CLAUDE.md` and `.claude/rules/*` add project specifics on top of these.
 
 ## Decisions & confirmations — ALWAYS click-to-select (strict)
@@ -33,7 +33,7 @@ answer, not a polite one — it moves your work onto him. The order is fixed:
    `sudo darwin-rebuild switch` ran fine straight from a tool call.)
 2. **Only if a mechanism genuinely forbids you**, hand it over — and then `pbcopy` it so he
    pastes rather than types. That mechanism is the `permissions.deny` list in
-   `modules/shared/claude-guardrails.nix` — **six families, not two**, so re-read the file
+   `modules/home/claude-guardrails.nix` — **six families, not two**, so re-read the file
    rather than quoting this line from memory: force-push — **bare `--force`/`-f` ONLY;
    `--force-with-lease` is deliberately ALLOWED and you are expected to use it** — plus
    `gh pr merge *`; the MCP config

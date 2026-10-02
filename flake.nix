@@ -120,7 +120,7 @@
 
     # Daily-updated VS Code Marketplace + Open VSX mirror. Lets us pin editor
     # extensions declaratively (programs.vscode). macOS-only consumer — the
-    # vscode block in modules/shared/home.nix is gated `mkIf isDarwin`, so the
+    # vscode block in modules/home/default.nix is gated `mkIf isDarwin`, so the
     # Linux hosts never reference it (and never receive it as a specialArg).
     nix-vscode-extensions.url = "github:nix-community/nix-vscode-extensions";
     nix-vscode-extensions.inputs.nixpkgs.follows = "nixpkgs";
@@ -275,7 +275,7 @@
 
     # ---- Agent skills for Claude Code (source-only, flake = false) -------------
     # Placed at ~/.claude/skills/<name>/ declaratively by programs.claude-code.skills
-    # (modules/shared/home.nix, darwin-gated). Pinned in flake.lock, bumped via
+    # (modules/home/default.nix, darwin-gated). Pinned in flake.lock, bumped via
     # `nix flake update` — the reproducible replacement for imperative
     # `npx skills add --global`, with NO vendored copies committed here.
     # find-skills: skill discovery from skills.sh.
@@ -286,7 +286,7 @@
     # xAI's OFFICIAL Claude Code plugin (grok-build-plugin-cc) — the sanctioned
     # Grok Build <-> Claude Code bridge (/grok-build:{review,critique,delegate,
     # import,...}). Pinned flake=false; its self-contained plugin dir is wired into
-    # programs.claude-code.plugins (modules/shared/home.nix, darwin-gated). Needs
+    # programs.claude-code.plugins (modules/home/default.nix, darwin-gated). Needs
     # grok on PATH + Node; grok must be authenticated. That PATH entry is the
     # STORE one from hosts/macos.nix's environment.systemPackages, NOT
     # `~/.grok/bin` — home.sessionPath dropped that on purpose 2026-09-15 so a
@@ -394,7 +394,7 @@
       #
       # Plugins and skills themselves are STILL NOT read from here: Claude Code
       # fetches them from the same repo as an auto-updating git marketplace
-      # (modules/shared/home.nix), so a merge there ships without a bump here.
+      # (modules/home/default.nix), so a merge there ships without a bump here.
       # This pin moves with the weekly update-flake-lock run — which means a NEW
       # MCP server merged in kattakath/skills is live in the next session but not
       # yet visible to the parity gate; it needs this pin bumped first, same as

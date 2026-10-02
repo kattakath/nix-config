@@ -29,7 +29,7 @@ _:
   #
   # `programs.typos` — measured 2026-09-12. Enabled with no `includes`, it took
   # `--write-changes` to the whole tree: it modified `secrets/*.age` (age
-  # CIPHERTEXT), pulled `modules/shared/wallpaper/wallpaper.png` into scope, and
+  # CIPHERTEXT), pulled `modules/home/wallpaper/wallpaper.png` into scope, and
   # "corrected" `mis` -> `miss` inside hook JavaScript. Nothing was committed, but
   # that is the lesson: spell-checking this repo is an ALLOWLIST project — this
   # repo's own authored prose only — not a one-line enable.

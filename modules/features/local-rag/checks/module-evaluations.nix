@@ -46,7 +46,7 @@ let
   ];
 
   # The module imported but NEITHER switch set — the state the two NixOS hosts
-  # are in, since modules/shared/home.nix imports it unconditionally.
+  # are in, since modules/home/default.nix imports it unconditionally.
   hmOff = mkHm [ module ];
 
   # The same configuration WITHOUT the module at all, to compare against.
@@ -97,7 +97,7 @@ in
       echo ok > "$out"
     '';
 
-  # THE KILL-SWITCH GATE. modules/shared/home.nix imports this capsule
+  # THE KILL-SWITCH GATE. modules/home/default.nix imports this capsule
   # UNCONDITIONALLY and enables it only on `macos`, so "enable unset contributes
   # nothing" is load-bearing for nixpi and nixvm, not a nicety.
   #
@@ -146,7 +146,7 @@ in
   #   arg0      upstream's `script` renders `[ "/bin/sh" "-c" … ]`
   #             (nix-darwin modules/launchd/default.nix:88-93) —
   #             .claude/rules/launchd-naming.md, and the TCC attribution failure
-  #             modules/shared/launchd-launcher.nix was built to prevent. A store
+  #             modules/home/launchd-launcher.nix was built to prevent. A store
   #             path here is the property that rule protects; `/bin/sh` is the
   #             regression. ast-grep cannot see it, because the offending literal
   #             would live in the pinned input, not in this repo.

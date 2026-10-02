@@ -290,7 +290,7 @@ store paths — all *outward*. The hole found in wave 5 is *inward*: the rule is
 `files: modules/features/**`, so it can only see a file **inside** a capsule reaching out. It
 cannot see a file **outside** a capsule naming a file **inside** one.
 
-That was not hypothetical. `modules/shared/home.nix` must `pkgs.callPackage` the capsule's
+That was not hypothetical. `modules/home/default.nix` must `pkgs.callPackage` the capsule's
 `gitlab-tart.nix` with the **HOST's** pkgs (a derivation built from this flake's perSystem pkgs
 would be a different drv), and a `../features/tart-vms/packages/gitlab-tart.nix` literal there is
 **not flagged by anything**. The fix is a third seam — `capsuleSources.<capsule>.<name>` in
@@ -344,7 +344,7 @@ a capsule that names a file inside it.
   and `packages/gitlab-tart.nix:75` still say `modules/…` inside `''…''` **shell script bodies**.
   Fixing them would change the script text, hence the derivation, hence `darwin-system` — so they
   are recorded in that capsule's `flake-module.nix` header rather than silently rotting.
-- **A docs-only edit is not always drv-neutral.** `modules/shared/home.nix:1118` content-hashes
+- **A docs-only edit is not always drv-neutral.** `modules/home/default.nix:1118` content-hashes
   the `rag` skill tree into the `macos` closure, so correcting one prose pointer in
   its `SKILL.md` **moves `darwin-system`'s drvPath**. Wave 6 measured this, reverted, and
   deferred the edit to wave 7, where it is made deliberately and declared as the wave's only

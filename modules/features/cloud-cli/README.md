@@ -8,7 +8,7 @@ CLI (upstream `programs.awscli`) and `aws-sso-util`, and writes `~/.aws/config.e
 > committed `programs.awscli.settings` block in `hosts/macos.nix`, which carried two real
 > account ids and an SSO start-URL id into a public repo (ADR-004 §7, inventory #1). The first
 > activation after that block left Nix keeps the operator's profiles: `adoptAwsConfig` in
-> `modules/shared/claude-bedrock-gate.nix` turns the leftover store symlink into a real
+> `modules/home/claude-bedrock-gate.nix` turns the leftover store symlink into a real
 > `0600` file rather than letting home-manager's orphan cleanup delete it.
 
 ## Use
@@ -26,7 +26,7 @@ aws sso login --sso-session <name>
 ```
 
 `~/.aws/config` is read at runtime by the `aws` CLI and by `nix-bedrock-gate`
-(`modules/shared/claude-bedrock-gate.nix`); select Claude Code's Bedrock profile with
+(`modules/home/claude-bedrock-gate.nix`); select Claude Code's Bedrock profile with
 `secret set AWS_PROFILE <profile>`.
 
 ## Why the real file is not declared here

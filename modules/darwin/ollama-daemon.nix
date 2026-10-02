@@ -138,7 +138,7 @@ in
         # outrunning the charger.
         #
         # These moved here from `services.ollama.environmentVariables` in
-        # modules/shared/home.nix when the server became a daemon. They HAD to
+        # modules/home/default.nix when the server became a daemon. They HAD to
         # move: that option only reaches home-manager's own agent, so once the
         # capsule stopped managing the server the whole block went inert —
         # declared, evaluated, and reaching nothing. Keep the fact in ONE place,

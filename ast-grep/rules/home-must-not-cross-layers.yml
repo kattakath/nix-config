@@ -10,8 +10,10 @@
 #
 # That asymmetry is not harmless. A capsule that reaches out FAILS THE BUILD; a
 # home module that reaches anywhere just works, so coupling accumulates with
-# nothing pushing back. modules/home/ is 20 files and mcp.nix alone is ~1,200
-# lines, which is what an unbounded layer looks like after a year.
+# nothing pushing back. modules/home/ is 22 .nix files and default.nix alone is
+# ~2,350 lines, which is what an unbounded layer looks like after a year.
+# (Recounted 2026-10-02: the ~1,200-line mcp.nix this line used to cite was
+# deleted in #734, and `git ls-files modules/home` is 27 entries, 22 of them .nix.)
 #
 # WHAT THE HOME PROFILE MAY STILL DO, deliberately unflagged: reach DOWN into
 # this repo's own content trees. Measured 2026-09-22, that is packages/ (11

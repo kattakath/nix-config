@@ -9,7 +9,7 @@
  * "should this become a deterministic hook?" backlog stays visible instead
  * of requiring a manually-remembered /routing-review.
  *
- * The local OTel Collector (local.claudeOtel, modules/shared/claude-otel.nix)
+ * The local OTel Collector (local.claudeOtel, modules/home/claude-otel.nix)
  * writes one JSON line per OTLP logs export batch to
  * ~/.local/state/claude-otel/events.jsonl. Each line is a full OTLP LogsData
  * object: resourceLogs[].scopeLogs[].logRecords[], each record's attributes[]

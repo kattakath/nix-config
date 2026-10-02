@@ -92,5 +92,5 @@ Do not adopt it, and do not let a downstream tool inject it.
 | Surface | Wired how |
 |---|---|
 | Claude Code (all projects) | [`claude/CLAUDE.md`](../claude/CLAUDE.md) § Answer shape → `~/.claude/CLAUDE.md`, placed by Home Manager |
-| Claude Code (output style) | [`plugins/brain-signals/output-styles/brain-signals.md` (kattakath/skills)](https://github.com/kattakath/skills/blob/main/plugins/brain-signals/output-styles/brain-signals.md) via `modules/shared/claude-brain.nix` |
+| Claude Code (output style) | [`plugins/brain-signals/output-styles/brain-signals.md` (kattakath/skills)](https://github.com/kattakath/skills/blob/main/plugins/brain-signals/output-styles/brain-signals.md) via `modules/home/claude-brain.nix` |
 | Claude Desktop / claude.ai | **Manual account-level paste** — canonical text in [`claude-desktop-instructions.md`](claude-desktop-instructions.md). This is the drift surface: nothing verifies it is current. |

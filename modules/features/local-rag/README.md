@@ -36,7 +36,7 @@ No API key, no vector-DB client library, nothing leaves the machine.
 There is no input to add and no flake to fetch. The capsule's
 [`flake-module.nix`](./flake-module.nix) registers both modules as one
 `capsuleModules.homeManager.local-rag`; `modules/parts/compose.nix` threads that
-through `extraSpecialArgs` as `localRagModule`, and `modules/shared/home.nix`
+through `extraSpecialArgs` as `localRagModule`, and `modules/home/default.nix`
 imports it **unconditionally** and enables it on `macos` only:
 
 ```nix

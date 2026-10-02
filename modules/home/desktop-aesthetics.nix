@@ -8,7 +8,7 @@
 #     exposes on `Pro`, which this block also forces as default/startup. UNGATED:
 #     every darwin host. Type size is ergonomics (the operator's eyes), not a
 #     visual tell, so the sandbox VM gets it too. Values come from
-#     `local.terminalTheme` (modules/shared/terminal-theme.nix) — this module owns
+#     `local.terminalTheme` (modules/home/terminal-theme.nix) — this module owns
 #     the DELIVERY, never the palette. This repo used to VENDOR a whole Terminal
 #     profile here ("Ubuntu", plus a generator script) and import it on first
 #     activation; #319 dropped that, and what replaces it is Apple's own scripting
@@ -18,8 +18,8 @@
 #     exactly that, keeping the sandbox visually distinct from the real `macos`
 #     machine at a glance, before you read the hostname.
 #
-# Imported by modules/shared/home.nix; ./wallpaper is resolved relative to THIS file,
-# i.e. modules/shared/, exactly as when it lived in home.nix.
+# Imported by modules/home/default.nix; ./wallpaper is resolved relative to THIS file,
+# i.e. modules/home/, exactly as when it lived in home.nix.
 {
   config,
   lib,

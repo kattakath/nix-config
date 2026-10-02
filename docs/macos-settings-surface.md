@@ -12,7 +12,7 @@ wired in — so the layers are the spine of this doc.
 | --- | --- | --- |
 | **nix-darwin** (system) | macOS System Settings (`defaults`), launchd, users, security, networking | `modules/darwin/core.nix` + the `mkDarwin` module list |
 | **Homebrew** (declarative) | GUI apps (casks) + CLI formulae nixpkgs doesn't carry | `modules/darwin/homebrew.nix` |
-| **Home Manager** (per-user) | dotfiles + `programs.*` + per-user launchd agents | `modules/shared/home.nix`, `modules/shared/gmail-mcp.nix` (`mcp.nix` was deleted 2026-10-02) |
+| **Home Manager** (per-user) | dotfiles + `programs.*` + per-user launchd agents | `modules/home/default.nix`, `modules/home/gmail-mcp.nix` (`mcp.nix` was deleted 2026-10-02) |
 | **Determinate Nix** | the Nix daemon + `/etc/nix/nix.conf` (nixd-owned; the declarative half is `/etc/nix/nix.custom.conf`) | `modules/parts/compose.nix` (`determinateNix.*`) |
 
 > **Structural constraint:** Determinate Nix sets `nix.enable = false`, so the
@@ -71,7 +71,7 @@ slice**, not the ceiling — §2 shows how much more is reachable.
   is no shared MCP process on this Mac and nothing listening on `127.0.0.1:8097`; MCP servers are
   now per-session stdio children spawned by Claude Code from a plugin's `.mcp.json`, which declare
   no launchd agent at all.
-- `launchd.agents.{metube,yt-dlp-web-ui}` (`modules/shared/{metube,yt-dlp-web-ui}.nix`,
+- `launchd.agents.{metube,yt-dlp-web-ui}` (`modules/home/{metube,yt-dlp-web-ui}.nix`,
   Home-Manager side, **macos only**) — the two loopback download servers, on
   `127.0.0.1:8081` and `127.0.0.1:3033`. Both were nix-darwin `launchd.user.agents` until
   2026-09-22; Home Manager re-bootstraps an agent that has left its launchd domain and the
@@ -151,7 +151,7 @@ Option names below are verified against the pinned nix-darwin source
 - **`WindowManager`** (Stage Manager) — `GloballyEnabled`, `AutoHide`, `StandardHideDesktopIcons`, `HideDesktop`, `EnableTilingByEdgeDrag`, `EnableTiledWindowMargins`, …
 - **`spaces`** — `spans-displays`
 - **`SoftwareUpdate`** — `AutomaticallyInstallMacOSUpdates`
-- **`LaunchServices`** — `LSQuarantine` (the "app downloaded from the internet" prompt — a safety guard; left ON deliberately). NB nix-darwin models **no** default-*handler* option: the default browser is not a `defaults` key at all but a LaunchServices binding, done from Home Manager instead — see `local.defaultBrowser` (`modules/shared/default-browser.nix` — it left `chromium.nix`, and `makeDefaultBrowser` no longer exists) and § 7 below.
+- **`LaunchServices`** — `LSQuarantine` (the "app downloaded from the internet" prompt — a safety guard; left ON deliberately). NB nix-darwin models **no** default-*handler* option: the default browser is not a `defaults` key at all but a LaunchServices binding, done from Home Manager instead — see `local.defaultBrowser` (`modules/home/default-browser.nix` — it left `chromium.nix`, and `makeDefaultBrowser` no longer exists) and § 7 below.
 - **`smb`** · **`magicmouse`** · **`universalaccess`** · **`ActivityMonitor`** · **`hitoolbox`** · **`iCal`** — present, niche
 
 ### Beyond `system.defaults` (top-level nix-darwin options)
@@ -205,7 +205,7 @@ arch prefix. Rule of thumb enforced in the header: tools available in nixpkgs st
 
 ---
 
-## 4. Home Manager layer (`modules/shared/home.nix`)
+## 4. Home Manager layer (`modules/home/default.nix`)
 
 Per-user config; the GUI/macOS blocks are gated `lib.mkIf pkgs.stdenv.isDarwin`.
 Configured today: `programs.git.signing` (SSH commit/tag signing with the operator
@@ -281,7 +281,7 @@ from this nix-config, not bare `sh`/`python3` or third-party helpers.
 | Bad (shows as phantom `sh` / `python3` / `open`) | Good |
 |---|---|
 | nix-darwin `script = ''…''` (wraps `/bin/sh -c wait4path`) | `ProgramArguments = [ "${writeShellScriptBin "nix-…"}/bin/nix-…" ]` |
-| stock home-manager launchd (default `/bin/sh -c wait4path`) | `modules/shared/launchd-launcher.nix` (sets upstream's own `waitForNixStore = false` + `launcher.name`/`launcher.shell` — named `nix-*` launcher, no wait4path; the vendored `hm-launchd` fork it replaced was retired 2026-09-14) |
+| stock home-manager launchd (default `/bin/sh -c wait4path`) | `modules/home/launchd-launcher.nix` (sets upstream's own `waitForNixStore = false` + `launcher.name`/`launcher.shell` — named `nix-*` launcher, no wait4path; the vendored `hm-launchd` fork it replaced was retired 2026-09-14) |
 | bare `/usr/bin/open -a App` | `mkNixAgent` in `modules/darwin/core.nix` |
 
 "Unidentified developer" is expected for unsigned `/nix/store` wrappers (Developer ID
@@ -384,7 +384,7 @@ already an activation no-op: its target still exists and already holds
    a "verify on your macOS version" hedge for `alf`/wallpaper/menu-bar keys.
 5. **App-internal state that apps rewrite at runtime** (e.g. Claude Desktop's config)
    — reachable only via an activation-script merge, never fully *owned* (the jq
-   merge in `modules/shared/claude-desktop.nix`, plus a `WatchPaths` agent, because a
+   merge in `modules/home/claude-desktop.nix`, plus a `WatchPaths` agent, because a
    **running** Desktop rewrites the whole file from memory rather than ignoring an unknown key).
    Proof that "never fully owned" is the right framing: a stale entry naming **destroyed**
    infrastructure survived a full day after the 2026-10-02 purge, because the writer had been
