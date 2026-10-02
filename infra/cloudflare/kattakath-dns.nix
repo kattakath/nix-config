@@ -18,15 +18,20 @@
 # that day (GET /zones?name=kattakath.com -> /dns_records, 24 records):
 #   upstream.kattakath.com  GONE — the teardown took it with the stack. Nothing
 #                           to adopt, nothing to clean up.
-#   mcp.kattakath.com       STILL LIVE, and an ORPHAN: CNAME -> gateway.agents.
-#                           cloudflare.com, proxied, comment "mcp-portal". Created
-#                           by Cloudflare with the portal, so no stack ever owned
-#                           it and the teardown did not reach it — but the portal
-#                           it fronted is destroyed, so it is a public hostname
-#                           pointing at nothing. Deleting it is a DASHBOARD/API
-#                           action by the operator, not an apply from here; do NOT
-#                           adopt it into this list just to delete it, because an
-#                           import + destroy is a longer path to the same button.
+#   mcp.kattakath.com       DELETED 2026-10-02, by API, after the portal it fronted
+#                           was destroyed. It was a CNAME -> gateway.agents.
+#                           cloudflare.com, proxied, comment "mcp-portal", created
+#                           by Cloudflare WITH the portal — so no stack ever owned
+#                           it and the teardown did not reach it. It was removed
+#                           with a DELETE on /dns_records, NOT by adopting it here
+#                           first: an import + destroy is a longer path to the same
+#                           button, and it would have left a dead entry in this
+#                           list. Verified gone by re-query (total_count 0).
+#                           THE RULE THIS PROVES, for the next Cloudflare-created
+#                           record: a hostname this repo never declared is not
+#                           this repo's to delete declaratively. Adopting one just
+#                           to remove it adds a destroy to a plan that should only
+#                           ever add and update.
 #
 # A PLAIN LIST, not a flake-parts module and not a `fleet.*` option. It has
 # exactly ONE consumer (modules/parts/terranix.nix), and routing it through the
