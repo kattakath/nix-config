@@ -182,21 +182,9 @@
     # ssh-to-age step, no Go build. Follows our nixpkgs.
     agenix.url = "github:ryantm/agenix";
     agenix.inputs.nixpkgs.follows = "nixpkgs";
-    # agenix pulls a WHOLE SECOND nix-darwin tree plus a stale (April-2025)
-    # home-manager, used at exactly three eval sites — all inside its own `checks`
-    # / `darwinConfigurations` / `legacyPackages` integration tests, which we never
-    # force (we consume `packages.<system>.default` and `darwinModules.default`
-    # only). Deduped onto ours rather than dropped, because agenix's `outputs`
-    # pattern is CLOSED (no `...`): the names must still resolve, and our newer
-    # trees expose the same `lib.darwinSystem` / `darwinModules` surface anyway.
-    agenix.inputs.darwin.follows = "nix-darwin";
-    agenix.inputs.home-manager.follows = "home-manager";
-    # `systems` (nix-systems/default) is genuinely FORCED — `import systems` feeds
-    # agenix's `packages`, which our devShell pulls — so it can only be deduped,
-    # never dropped. Three inputs pull the identical rev; terranix's copy is the
-    # arbitrary-but-stable anchor for all of them. Fragility worth knowing: drop
-    # `terranix` and this line fails at LOCK time (loudly, not at eval).
-    agenix.inputs.systems.follows = "terranix/systems";
+    # `nixpkgs` is agenix's ONLY declared input — it no longer declares `darwin`,
+    # `home-manager` or `systems`, so a `follows` for any of those is a hard Nix
+    # warning on every eval rather than a silent no-op.
 
     # (firmware-secrets was an input here until ADR-002 wave 4 ABSORBED it as a
     # capsule — modules/features/firmware-secrets/. Same module, same
@@ -248,8 +236,9 @@
     # following it to "" would delete the very API this input is here for.
     deploy-rs.inputs.flake-compat.follows = "";
     # flake-utils' only input is `systems`, and it does `import systems` in a CLOSED
-    # outputs pattern — forced, so dedupe onto the same anchor agenix uses rather
-    # than drop. Same rev, third fetch of a two-file repo otherwise.
+    # outputs pattern — forced, so dedupe onto terranix's copy rather than drop (same
+    # rev, a second fetch of a two-file repo otherwise). This is now the ONLY holder of
+    # that anchor: drop `terranix` and this line fails at LOCK time, not at eval.
     deploy-rs.inputs.utils.inputs.systems.follows = "terranix/systems";
 
     # (local-rag was an input here until ADR-002 wave 6 ABSORBED it as a capsule
@@ -266,9 +255,9 @@
     # unpin (ircc grew a `botOnly` output) a prerequisite rather than part of
     # this diff.
     #
-    # `local.rag.pgvector.databaseUri` — the seam modules/shared/mcp.nix
-    # hands the `postgres` MCP server, i.e. the whole career RAG — is unchanged
-    # and pinned as a literal by the capsule's own check.)
+    # `local.rag.pgvector.databaseUri` — the seam modules/home/plugin-mcp.nix
+    # hands its `postgres` MCP launcher as `DATABASE_URI`, i.e. the whole career
+    # RAG — is unchanged and pinned as a literal by the capsule's own check.)
 
     mcp-servers-nix.url = "github:natsukium/mcp-servers-nix";
     mcp-servers-nix.inputs.nixpkgs.follows = "nixpkgs";
