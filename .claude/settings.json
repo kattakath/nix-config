@@ -62,12 +62,10 @@
       "Agent(general-purpose)",
       "mcp__plugin_context7_context7__*"
     ],
-    "ask": [
+    "deny": [
+      "Bash(home-manager switch:*)",
       "Bash(rm -rf:*)",
       "Bash(sudo rm -rf:*)"
-    ],
-    "deny": [
-      "Bash(home-manager switch:*)"
     ]
   },
   "hooks": {
