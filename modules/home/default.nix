@@ -430,6 +430,12 @@ in
     # has left its launchd domain and the system tier does not (see either header).
     ./metube.nix # local.meTube — MeTube on 127.0.0.1:8081 for the Chrome extension
     ./yt-dlp-web-ui.nix # local.ytDlpWebUi — yt-dlp-web-ui on 127.0.0.1:3033
+    # The Maccy login opener and the two inbox Trash sweeps — the SAME move,
+    # 2026-10-02, for the same self-heal, and the last three units off
+    # nix-darwin's `launchd.user.agents`. Their Labels are pinned to the live
+    # ones (BTM toggle state is keyed to the Label), which is the one thing the
+    # two servers above did not need. macos-gated internally, on osConfig.
+    ./macos-user-agents.nix
     # Local-first RAG stack (loopback launchd Postgres+pgvector + Ollama + in-DB
     # embed()) — the ABSORBED capsule (modules/features/local-rag/). Both of its
     # modules are internally gated on (enable && isDarwin) — a clean no-op on

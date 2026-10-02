@@ -618,10 +618,11 @@ their own top-level section below:
 
 ### `modules/home/`
 
-`modules/home/{default.nix,gmail-mcp.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,ubersicht.nix,next-right-thing.nix,spotlight-actions.nix,terminal-theme.nix,desktop-aesthetics.nix,launchd-launcher.nix,containers.nix,metube.nix,yt-dlp-web-ui.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,chromium-extensions/,wallpaper/}`
-— the Home Manager profile loaded on every host, and **nothing else**: it is 22 `.nix`,
+`modules/home/{default.nix,gmail-mcp.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,ubersicht.nix,next-right-thing.nix,spotlight-actions.nix,terminal-theme.nix,desktop-aesthetics.nix,launchd-launcher.nix,containers.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,chromium-extensions/,wallpaper/}`
+— the Home Manager profile loaded on every host, and **nothing else**: it is 23 `.nix`,
 all home-manager, since `nix-cache.nix` and `nix-ld-libraries.nix` left on 2026-10-02
-(ADR-009 §9b). This manifest also silently omitted `spotlight-actions.nix` and
+(ADR-009 §9b) and `macos-user-agents.nix` arrived from `modules/darwin/core.nix` the
+same day. This manifest also silently omitted `spotlight-actions.nix` and
 `chromium-extensions/` until the same pass.
 
 **It was `modules/shared/` until 2026-10-02**, and the entry point was `home.nix`.
@@ -1287,6 +1288,35 @@ in the repo can catch that; see that fixture file's header for the measurement.
   worked example of the [`upstream-first`](../.claude/rules/upstream-first.md) rule paying
   off: a 560-line vendored copy deleted the moment the input owned the behaviour.
 
+- **`macos-user-agents.nix`** (macos only, gated on `osConfig.networking.hostName`) — the
+  Maccy login opener and the two inbox Trash sweeps: **`~/Desktop`**, the capture inbox
+  (⇧⌘4/⇧⌘5 land there by macOS's own default; the real Mac sets no
+  `screencapture.location`) swept whole after **1 day**; **`~/Downloads`**, the
+  browser/AirDrop inbox, swept after **7 days** of disposable types only
+  (media/installers/archives allowlist — documents and directories stay for manual
+  triage). Paired with `finder.FXRemoveOldTrashItems` so the Trash self-purges, and reading
+  `local.folders.{desktop,downloads}` through `osConfig` rather than re-deriving a path.
+  **They were `modules/darwin/core.nix`'s `launchd.user.agents` until 2026-10-02** — the
+  same move metube and yt-dlp-web-ui made, for the same self-heal, and they were the last
+  three units on the `selfHeals = false; domain = "gui"` row of
+  `modules/darwin/launchd-sources.nix` outside the `tart-vms` capsule (the capsule's two
+  runners have no home-manager lane and are a separate change).
+
+  **Two things this move had to preserve that the download servers did not.** The
+  **Labels** are pinned to their live values with an explicit `config.Label`
+  (`com.kattakath.file-rotation.trash-{desktop,downloads}`, `org.nixos.open-maccy`): taking
+  home-manager's `org.nix-community.home.<attr>` default would make each a DIFFERENT launchd
+  unit and drop the operator's Background Task Management approval. That is safe because the
+  self-heal probe keys off the Label too — upstream names each plist
+  `"${v.config.Label}.plist"` and reads `agentName` back out of that filename. And the
+  **arg0** stays a store-resident `nix-*` script, which is what grants the two sweeps read
+  access to the TCC-protected folders at all; `launchd-launcher.nix` supplies it from the
+  attribute name, so the inner scripts are named `file-rotation-<inbox>-sweep` /
+  `open-maccy-run` to avoid one name mapping to two store paths.
+  `checks.<system>.launchd-selfheal-lane` gates the lane, the three Labels, the per-agent
+  `enable` (a `mkEnableOption` defaulting to **false** — a lane change that forgets it
+  renders no plist and throws no error) and the arg0.
+
 - **`metube.nix`** / **`yt-dlp-web-ui.nix`** (macos only) — `local.meTube` (127.0.0.1:8081,
   for the sideloaded Chrome extension) and `local.ytDlpWebUi` (127.0.0.1:3033, replacing the
   Colima container of the same name). Both are loopback-only `KeepAlive` agents whose wrapper
@@ -1399,19 +1429,22 @@ waves 5-6 absorb them).
 `modules/darwin/{core.nix,user-folders.nix,homebrew.nix,nix-homebrew.nix,xcode-license.nix,launchd-reconcile.nix,logging.nix,github-runner.nix,ollama-daemon.nix,claude-managed-settings.nix}`
 
 - **`core.nix`** — macOS system defaults (dock/finder/NSGlobalDomain, Touch ID for sudo,
-  `stateVersion = 5`). On **macos only**: login openers (`nix-*` BTM wrappers) + two
-  `mkTrashSweep` rotations into `~/.Trash` (paired with `finder.FXRemoveOldTrashItems` so
-  Trash self-purges): **`~/Desktop`** — the capture inbox (⇧⌘4/⇧⌘5 land there by macOS's own
-  default; the real Mac sets no `screencapture.location`) swept whole after **1 day**;
-  **`~/Downloads`** — the browser/AirDrop inbox, swept after **7 days** of disposable types
-  only (media/installers/archives allowlist; documents and directories stay for manual
-  triage). `screencapture.location` is now unset everywhere (the shared-inbox override left
-  with the `macvm` guest, 2026-09-05).
+  `stateVersion = 5`), plus the GUI `PATH`/`BASH_ENV` `launchd.user.envVariables` and the
+  post-activation Dock refresh that makes them reachable. `screencapture.location` is unset
+  everywhere (the shared-inbox override left with the `macvm` guest, 2026-09-05), which is
+  what makes `~/Desktop` the capture inbox the sweeps rotate.
+  **It declares no launchd AGENT any more.** The Maccy opener and the two `mkTrashSweep`
+  rotations left for the home-manager lane on 2026-10-02 — see
+  `modules/home/macos-user-agents.nix` above — so `launchd.user.agents` is now empty across
+  the whole tree outside the `tart-vms` capsule.
 - **`user-folders.nix`** — the `local.folders.{desktop,downloads}` options: unset = the
   macOS system default (`~/Desktop`, `~/Downloads`), override = the relocation seam; an
   invalid (non-absolute) value fails loudly at eval rather than silently falling back.
-  Consumed by core.nix's sweeps/screencapture gate — folder paths are never re-derived
-  inline.
+  Consumed through `osConfig` by `modules/home/macos-user-agents.nix`'s sweeps (they left
+  core.nix on 2026-10-02) — folder paths are never re-derived inline, and the option stays
+  declared in the nix-darwin layer because the paths are a macOS system fact and a
+  home-manager copy of the default would be the second source of truth it exists to
+  prevent.
 - **`homebrew.nix`** — the declarative Homebrew **framework**: owns only
   `enable`/`onActivation` with `cleanup = "uninstall"`/`taps`. The actual
   `brews`/`casks`/`masApps` lists live **per host** in `hosts/<host>.nix` so each darwin
