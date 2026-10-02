@@ -311,6 +311,12 @@ the declarative `Host nixpi.<domain>` block in `modules/home/default.nix` (store
 That block replaces the old "hand-edit `~/.ssh/config`" instruction in the runbooks, which was
 unfollowable — the file is a read-only `/nix/store` symlink.
 
+**Two invocation traps, both of which fail without saying so.** `deploy-rs` is consumed as a
+flake **lib**, so the `deploy` CLI exists only inside the devShell: `nix develop -c` is not a
+style preference. Measured 2026-09-16 — a bare `deploy` outside the devShell **exits 1 with
+EMPTY output**, a silent failure rather than a `command not found`. And a bare `deploy` with no
+`--targets` **fans out over EVERY node in `deploy.nodes`**, so always name the target.
+
 `deploy --targets .#nixpi` deploys the real Pi directly — the private nix-personal flake that
 used to gate this (a separate checkout carrying the real `hostedSites`) was retired 2026-09-15;
 this repo's own `nixosConfigurations.nixpi` now carries the real data. `remoteBuild = false`
@@ -2492,7 +2498,26 @@ Core package set:
 - **`activate.nix`** — macOS-only: `activate`, a `darwin-rebuild switch` that re-execs under
   `sudo -H` (Touch ID) instead of dying with "system activation must now be run as root", and
   names the flake dir + `branch@rev` (with `(DIRTY)`) before elevating. Needs no `--flake` or
-  `#attr` because `modules/parts/hosts.nix` plants `/etc/nix-darwin/flake.nix`.
+  `#attr` because `modules/parts/hosts.nix` plants `/etc/nix-darwin/flake.nix`, which
+  `darwin-rebuild` resolves, and the attr defaults to `LocalHostName` (= `macos`).
+  `sudo darwin-rebuild switch` works too, but names nothing it is about to build.
+
+  **It always builds the MAIN checkout, never the worktree you are sitting in — and that is
+  CLAUDE.md § Build & Commands' "MERGING IS STEP 1 OF 2".** The planted link is a **STRING**
+  path to the main checkout, so `activate` builds THAT tree's CURRENT branch: never a
+  `.claude/worktrees/*` one, and never `main` by default either. From a worktree session, work
+  that is already merged on `origin/main` is therefore **ABSENT** from the build until the main
+  checkout holds it — `git -C <main checkout> merge --ff-only origin/main` comes FIRST, or you
+  rebuild the same generation and the fix reads as failed. Measured cost of skipping it: **70
+  min on #725, three activations on #732.** The TELL is a **MISSING `Activating <name>` line**,
+  so DIFF the step list against the previous run rather than scanning it for errors — there is
+  no error to find. This is why the command prints `branch@rev`: READ that line.
+
+  **The one FALSE alarm in that diagnosis.** A missing plugin or skill is NOT by itself
+  evidence of a stale tree. Activation installs only **STORE-PATH** marketplaces; an `https`
+  marketplace's plugins arrive at the **NEXT session start**, not at switch time. Only a
+  MISSING `extraKnownMarketplaces` entry in `~/.claude/settings.json` actually points at a
+  stale tree.
 - **`spotlight-launchers.nix`** — macOS-only: from-scratch `.app` bundle generator (original
   in-Nix SVG/icns icons via librsvg+libicns), in two makers. `mkLauncherApp` gives the Android
   emulator a Spotlight-visible, focus-or-launch identity (consumed by
@@ -2711,7 +2736,8 @@ wrong place silently. Canonical invocation:
 nix develop -c bash -c 'secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- nix run .#<app>'
 ```
 
-State is the shared, versioned bucket `kattakath-tofu-state`, **encrypted** with a passphrase
+State is the shared, versioned bucket `kattakath-tofu-state` (named once, as
+`fleet.gcpStateBucket`), **encrypted** with a passphrase
 read from the login Keychain at run time via `TF_ENCRYPTION` (ADR-005 phase 1 —
 [`iac-coverage-adr.md`](iac-coverage-adr.md)). `cf-tunnel`'s state holds a secret in plaintext
 inside the payload (the connector token), which is why encryption is not optional — it was two
@@ -2815,7 +2841,16 @@ Declares `nixpi`'s **remotely-managed** Cloudflare Tunnel itself:
   mandatory catch-all `http_status:404`),
 - one proxied `cloudflare_dns_record` CNAME per site → `<tunnel-id>.cfargotunnel.com`,
 - the connector **token** surfaced as a sensitive `output` (via the
-  `cloudflare_zero_trust_tunnel_cloudflared_token` data source).
+  `cloudflare_zero_trust_tunnel_cloudflared_token` data source),
+- **the edge's TLS floor, DECLARED rather than clicked** — a `cloudflare_zone_setting` per
+  setting (`ssl = strict`, `min_tls_version = 1.2`, `always_use_https`, HSTS) for the SSH
+  host's zone **and** every hosted site's zone,
+- **the SSH Access gate** — `cloudflare_zero_trust_access_application.nixpi_ssh`. Declaring it
+  is not tidiness: that object **vanished once, on 2026-08-20**, and took `ssh` plus both deploy
+  legs down with it. Declared, a rebuild restores the gate instead of a dashboard click.
+
+Zones with no terranix module here (aloshy.ai, etuper.com, izzykatt.ca, silvercreek.ai) are
+still configured out-of-band, so none of the above applies to them.
 
 A pure function of its `hostedSites`/`domainName`/`accountId`/`zoneId` module args (same
 shape/default as `mkNixos`); `cf-tunnel-apply`/`cf-tunnel-destroy` pass the fleet's real
@@ -3120,8 +3155,11 @@ root-owned managed scope in `modules/darwin/claude-managed-settings.nix` (§ `mo
   `--builders ssh://<pi>`; the `--target-host` form is deliberately allowed, since it builds
   here and only activates there). Rule 1b — which blocked `deploy` and public-`#macos`
   activation while a private layer existed — was RETIRED 2026-09-15 with that layer.
-- **`.claude/hooks/tests/*.sh`** — the guard's case suites (`rule1c-secret-egress.sh`,
-  `rule1d-no-build-on-nixpi.sh`), **gated by `claude-config-lint.yml`**. Each asserts BOTH
+- **`.claude/hooks/tests/*.sh`** — the case suites for BOTH hooks: three guard-rule suites
+  (`rule1-terranix-apply-vs-destroy.sh`, `rule1c-secret-egress.sh`,
+  `rule1d-no-build-on-nixpi.sh`) plus `stop-gate-fail-closed.sh`, **gated by
+  `claude-config-lint.yml`** as the REQUIRED `Lint .claude config` status check — it BLOCKS a
+  merge, it does not merely run. Each asserts BOTH
   halves — the shapes that must block and the shapes that must stay approved — and that the
   hook does not throw. That last assertion is the load-bearing one: `superhook` and the
   script's own `catch` both fail OPEN, so a crash silently disarms every rule at once. Measured
