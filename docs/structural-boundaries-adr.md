@@ -233,7 +233,8 @@ needs a *decision* written down, because nothing else will remind anyone.
 Two further asymmetries worth naming:
 
 - **`shared-must-not-cross-layers` went in at `severity: error` with zero existing
-  violations** (measured 2026-09-22), so it fences a layer where it already sits rather than
+  violations** — its own header: *"TRUE THE DAY IT LANDED"*, 2026-09-14 — so it fences a layer
+  where it already sits rather than
   describing a migration. The same is **not** available for §3b: a `shared`/`darwin`/`nixos`
   misfiling is not expressible as a path regex, because the evidence is the *option namespace a
   file writes into*, which ast-grep cannot resolve.
