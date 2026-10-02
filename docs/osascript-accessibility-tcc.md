@@ -1,6 +1,6 @@
 # macOS Accessibility (TCC) for `macos-automator`
 
-> **The filename is the only stale thing here — the grant and its reasoning are STILL CORRECT.**
+> **The grant and its reasoning are STILL CORRECT.**
 > The MCP gateway (`modules/shared/mcp.nix`) was deleted 2026-10-02, and `macos-automator` had
 > already moved to the **`mac-app-send` plugin** on 2026-10-01, where Claude Code spawns it per
 > session. **The grant carried over unchanged**, and this document explains exactly why it had to:
