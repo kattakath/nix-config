@@ -221,30 +221,99 @@ Costs, stated plainly:
   `nixpi` and `nixvm` would get `declared` only. Acceptable: neither runs interactive
   sessions.
 
-## 7. Open questions — must be measured before any code
+## 7. The five open questions — ALL NOW ANSWERED
 
-These are recorded as **unknown**, not as risks hand-waved away. Each one can change the
-shape in §6.
+**These answers were measured the same day and then LOST for an hour.** The revision carrying
+them was pushed to its branch after #755 had already auto-merged, so `main` kept the
+unanswered version — and kept a §4d claim that had already been measured false. nix-config's
+own `pr-title` rule documents that race (#567 lost five commits to it); it caught two sessions
+in opposite directions within an hour, and §4d needed its own PR (#759) to repair. Recovered
+from the orphaned branch commit.
 
-1. **Does managed-file `extraKnownMarketplaces` merge with the user file's?** The docs state
-   it for *gateway policy*: *"Gateway policy `extraKnownMarketplaces` maps do not merge, so
-   all marketplaces required by the group must be explicitly listed."* Whether the managed
-   **file** behaves the same is **not stated**. If it does not merge, moving any marketplace
-   into managed means moving **all** of them, and §6 changes materially.
-2. **Can `claude-plugins-official` really be declared with no `source`** (§4d), and does
-   dropping the explicit URL survive a session start and an `autoUpdate` refresh?
-3. **Does a managed `enabledPlugins: false` hide the plugin from `/plugin`, or show it as
-   blocked?** Determines whether an `assured = false` reads as a policy or as a bug.
-4. **Where should the always-on three live** once `assured` exists — stay in
-   `claude-plugins.nix`'s derived form, or move into `assured` as data? The derived form
-   buys the drift assertion at :186; moving them would need that assertion rebuilt.
-5. **Round-trip risk.** `claudeCodeSettingsReassert` runs `install -m 600 /dev/null` on the
-   settings file (`claude-code-settings.nix:113`) and two concurrent activations race there.
-   Adding a second writer to the same key needs that path re-read, not assumed.
 
-**Verification method for 1-3:** an isolated `CLAUDE_CONFIG_DIR`, not this machine. A
-previous probe in this repo used `CLAUDE_CONFIG_HOME`, which **does not isolate** — it wrote
-a test key into the operator's real `~/.claude/settings.json`.
+Measured or sourced 2026-10-02. Two answers changed the design; one closed a hazard nobody
+had asked about.
+
+### 7.1 Does managed `extraKnownMarketplaces` merge with the user file's? — WRONG QUESTION
+
+The no-merge sentence is scoped to **gateway policy versus gateway policy**, not to the
+managed file versus user settings:
+
+> That policy's `extraKnownMarketplaces` map doesn't merge **with any other policy's**, so
+> list every marketplace the group needs in it.
+> — *Plugins / org, "Assign release channels to user groups"*
+
+This fleet has no gateway policies, so the warning never applied. But chasing it surfaced a
+real hazard that §6 depends on — 7.2.
+
+### 7.2 THE HAZARD: managed SOURCES are `first-wins`, and a skipped one is silent
+
+> **`"first-wins"`, the default:** Claude Code uses the highest-ranked source that delivers at
+> least one policy key and **ignores the rest** rather than merging them. […] Claude Code shows
+> **no warning** for the sources it skips.
+> — *Managed settings, "How Claude Code combines managed sources"*
+
+Ranking, highest first: **1** remote (server-managed from claude.ai or a gateway) · **2** MDM /
+OS policy · **3** `managed-settings.json` + `managed-settings.d/*.json` · **4** HKCU.
+
+**This fleet's `claude-managed-settings.nix` plants rank 3.** So a rank-1 or rank-2 source
+appearing with *one unrelated policy key* would silently void the entire root-owned floor —
+secret-value denies, attribution keys, `strictKnownMarketplaces`, `disableSideloadFlags` — with
+no warning and no eval-time signal. That is a bigger exposure than anything this ADR proposes.
+
+**Measured inert on this machine, today:**
+
+| Rank | Source | State |
+|---|---|---|
+| 1 | remote / server-managed | `claude doctor`: **"Managed settings (remote): not fetched — requires an Enterprise or Team subscription"**, and **"Organization policy: not applicable to Pro and Max accounts"** |
+| 2 | MDM plist | `/Library/Managed Preferences/` **does not exist** |
+| 3 | managed file | `managed-settings.json` present; **no `managed-settings.d/`** |
+
+So rank 3 is the only managed source present, and first-wins cannot fire. **The dependency is
+the account tier, not the config** — the day this account becomes Team or Enterprise, rank 1
+starts being fetched and the floor can be skipped silently. `managedSourcesBehavior = "merge"`
+is the documented mitigation (needs ≥ v2.1.242; the fleet runs 2.1.268), and `/status` then
+prints `Setting sources` plus a `Skipped sources` line.
+
+**This belongs in `claude-managed-settings.nix` regardless of whether §6 is ever built.** It is
+the one actionable item this ADR produced, and it is independent of the plugin question.
+
+### 7.3 Does the official marketplace need a source? — YES. §4d was wrong
+
+See §4d, rewritten. `source` is required for registration; the name-only form is for
+`pluginSuggestionMarketplaces` and allowlists. `home.nix` is right as it stands.
+
+### 7.4 How does a managed `enabledPlugins: false` render? — NOT MEASURED, and deliberately so
+
+Answering it requires writing a key into a **root-owned security-policy file**. That is a
+system-settings modification, it is declaratively owned by this repo (the
+`.nix-config-owned` marker sits beside it), and a hand-edit would be a live policy change on
+the operator's only machine. **Not done.** The docs give the adjacent behaviour — a sideload
+against a managed entry reports `plugin is locked by managed settings` — which is enough to
+design against. If `assured` is ever built, this is measured in a VM, not here.
+
+### 7.5 Does the settings.json write race get worse? — NO. And §6 needs no new writer
+
+`claude-code-settings.nix:112` merges with `jq -s '.[0] * $nix[0]'`. jq's `*` is a **recursive
+object merge with the right operand winning**, and it **replaces arrays wholesale**. So:
+
+- `enabledPlugins` is an **object** → Nix's declared ids win per id, the operator's other ids
+  survive untouched. **That is already exactly the §6 `declared` lane.**
+- The `install -m 600 /dev/null` race at `:132` is a **pre-existing two-concurrent-activations
+  hazard** documented in place. Widening the attrset Nix emits adds **no new writer** and no
+  new collision surface.
+
+**This is the finding that shrinks §6.** The `declared` lane needs no mechanism at all — only
+changing `enabledPlugins = lib.genAttrs alwaysOnIds (_: true)` into a merge of the derived
+always-on map with an operator-supplied `attrsOf bool`. The existing merge, re-assert and DAG
+ordering already deliver the semantics.
+
+### 7.6 Incidental, and worth keeping: `CLAUDE_CONFIG_DIR` really does isolate
+
+Proven by hash: `~/.claude/settings.json` was byte-identical before and after a probe run
+under `CLAUDE_CONFIG_DIR`. This matters because **`CLAUDE_CONFIG_HOME` does not isolate** — an
+earlier probe in this repo used it and wrote a test key into the operator's real settings file.
+Use `CLAUDE_CONFIG_DIR`, and checksum the real file either side anyway.
 
 ## 8. Alternatives considered
 
@@ -259,6 +328,34 @@ a test key into the operator's real `~/.claude/settings.json`.
 ## 9. Decision
 
 **Originally: not taken** — this document was the deliverable, and §7 was to be measured first.
+
+## 9b. First deliveries through the lane, 2026-10-02
+
+The mechanism landed in #758; **what it delivers** landed separately in #757, and the split was
+deliberate rather than tidy: *which* plugins are on is an operator decision, not a mechanism
+decision, so the session that built the lane declined to enable four plugins on a peer's
+proposal. Four more ids, each the same failure `silent-instruments` had:
+
+| Plugin | State before, measured on the live `settings.json` |
+|---|---|
+| `prior-art-recon` | **absent** from `enabledPlugins` — a peer session tried to load it and could not |
+| `empire` | **absent** |
+| `foundation-audit` | present, but only because the operator had clicked it |
+| `mac-app-send` | present, same |
+
+Two unusable, two working-but-unreproducible. A fresh machine restored neither — which is the
+whole case for this lane, in four lines.
+
+`empire@kattakath = true` is the one entry that changes every session on this machine, via its
+manifest's `settings.agent`. It is the enablement **#751 believed a `plugins` entry was
+performing**; it was not, and that PR was reverted in #754. Deleting the line is the rollback.
+
+`brag-dossier` stays **out**, though it is merged in skills: the brag subsystem was removed
+from this repo at the operator's request, and enabling the plugin would reintroduce that
+capability by the back door.
+
+Nix now writes **8** `enabledPlugins` ids where it wrote **3** — read off the rendered option,
+not inferred.
 
 ## 9a. Amendment, 2026-10-02 — the `declared` lane is built, `assured` is not
 
