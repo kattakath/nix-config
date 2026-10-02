@@ -8,8 +8,10 @@
 > its `main` is a release, gated by that repo's own `validate.yml`. Its top-level `skills/` are
 > published as marketplace-root plugins, so the `programs.claude-code.skills` cherry-picks are
 > gone, and the Brain Signals kit moved there as the `brain-signals` plugin. The input survives
-> as `kattakath-skills`, for the `page-lab-pick` PATH package, `mcp.nix`'s `mcpCatalog`, and
-> `checks.<system>.page-lab` (`modules/parts/checks.nix`) — **four consumers, not the "two PATH
+> as `kattakath-skills`, for the `page-lab-pick` PATH package and
+> `checks.<system>.page-lab` (`modules/parts/checks.nix`) — **TWO consumers since 2026-10-02**,
+> when `mcp.nix`'s `mcpCatalog` went with the gateway (`superhook` had already become a plugin hook
+> 2026-09-30). It was **four consumers, not the "two PATH
 > packages" this document said until 2026-09-30**. A plugin's `bin/` reaches the Bash tool's
 > PATH but **not** a hook's (measured), which is why `page-lab-pick` is still a package.
 > **`superhook` is no longer one** — see § Round two's correction below: its "a wrapper cannot
@@ -258,8 +260,9 @@ During development, skip the push/update loop with
 `kattakath-skills` (`flake.nix`), and the repo was renamed from `kattakath/ai` to
 `kattakath/skills` on 2026-09-23, so both halves of the old command were wrong.
 
-**That override only covers what the PIN feeds** — the `superhook` / `page-lab-pick`
-PATH packages and `mcp.nix`'s `mcpCatalog`. Plugin and skill **content** does not go
+**That override only covers what the PIN feeds** — today the `page-lab-pick`
+PATH package and its check alone (`superhook` became a plugin hook 2026-09-30; `mcp.nix`'s
+`mcpCatalog` died with the gateway 2026-10-02). Plugin and skill **content** does not go
 through the pin at all any more (the marketplace is an https git source), so an
 override cannot test a plugin edit. Test that by **pushing to `kattakath/skills`
 `main` and starting a new session** — the background refresh is the delivery path.

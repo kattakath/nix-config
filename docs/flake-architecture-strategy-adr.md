@@ -21,7 +21,9 @@ hosts, and any pitch claiming host-management benefit is overclaiming.
 > The flakes it still applies to are the ones that were never satellites — and that set
 > narrowed too, from two to **one**. `nix-mcp-gateway` was **archived 2026-09-12** as an
 > extraction candidate `nix-config` never adopted (archived, not deleted, per ADR-002 §7.8;
-> the fleet's own gateway is and always was `modules/shared/mcp.nix`). `nix-inngest` was
+> the fleet's own gateway was and always had been `modules/shared/mcp.nix` — itself **deleted
+> 2026-10-02** when the gateway was purged, so neither the satellite nor its in-tree replacement
+> exists today). `nix-inngest` was
 > archived the same day for the same reason and never appeared in this ADR. Finally
 > `ircc-whatsapp-bot` was unwired from nix-personal the same day — not archived, just no
 > longer a fleet repo — so decision #1 now governs an **empty** category.

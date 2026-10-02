@@ -53,7 +53,7 @@ Both were **measured**, by the design's author and independently reproduced by t
 scoped rule flagged `feat/media/x.nix`, left a byte-identical `feat/tart/y.nix` alone, and exited
 non-zero. The option-layer stub failed with `error: attribute 'beta' missing`.
 
-The design also spotted that **`modules/shared/mcp.nix` and `modules/darwin/github-runner.nix`
+The design also spotted that **`modules/shared/mcp.nix` (deleted 2026-10-02) and `modules/darwin/github-runner.nix`
 already are capsules** and promotes them. Reuse of shape.
 
 ### Anatomy
@@ -142,7 +142,7 @@ commit — or it cries wolf on day one and gets disabled.
 | **3** | Capsule scaffold + `cloudflared-connector` (241 lines, cleanest) | snapshot the four nixpi firmware names as literal assertions first — a rename is invisible until the next flash (~40 min trip) |
 | **4** | `firmware-secrets`, `keychain-secrets`, `vast-provision` | per-capsule standalone-eval + ast-grep green |
 | **5** | `tart-vms`, `media-cli` — 70% of the lines, but nix-config consumes 4 attributes and nix-personal **zero** | the 7 module checks + the kill-switch gate |
-| **6** | `local-rag` — a coordinated 3-repo change | `modules/shared/mcp.nix`'s `local.rag.pgvector.databaseUri` still resolves; that seam carries the whole career RAG |
+| **6** | `local-rag` — a coordinated 3-repo change | `modules/shared/mcp.nix`'s `local.rag.pgvector.databaseUri` still resolves; that seam carries the whole career RAG. (**The CONSUMER is gone since 2026-10-02** — `mcp.nix` was deleted with the gateway, so the URI is now produced here and consumed by a plugin-declared `postgres` server this repo cannot see. The wave's acceptance criterion was met at the time; it is no longer testable in the same way.) |
 | **7** | Docs generators on; retire 7 rulesets; archive 7 repos; flip ADR-001 to Superseded | `checks.docs-drift` green |
 | **8** | *Separately:* `nixosOptionsDoc` `warningsAreErrors = true` | land `false` first; never in a collapse PR |
 

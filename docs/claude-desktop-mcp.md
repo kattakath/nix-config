@@ -1,9 +1,33 @@
-# Claude Desktop / Cowork — MCP parity with Claude Code (2026-09-15)
+# Claude Desktop / Cowork — MCP (2026-09-15, rewritten 2026-10-02)
 
-**Decision: Claude Desktop is "Client side D" of the MCP hub.** The same connector Claude
-Code gets — the Cloudflare MCP portal in front of the gateway — is
-rendered into Desktop's `claude_desktop_config.json` by
-[`modules/shared/claude-desktop.nix`](../modules/shared/claude-desktop.nix). Cowork gets
+> # ⚠ CURRENT STATE: Claude Desktop has **NO MCP SERVERS**, and that is deliberate.
+>
+> The gateway and its Cloudflare portal were destroyed on 2026-10-02, and **Claude Desktop loads
+> no plugins** — so there is nothing left for it to dial.
+> [`modules/shared/claude-desktop.nix`](../modules/shared/claude-desktop.nix) now renders an
+> **empty `mcpServers` block**, and Cowork, which reaches servers through Desktop's bridge, has
+> none either.
+>
+> **The module stays ENABLED. Do not "clean it up" by switching it off.** *"Desktop has no MCP
+> servers"* is a state something must **write**. A disabled module writes nothing, which leaves
+> whatever is already on disk — and that is not hypothetical: for a full day after the purge a
+> stale `kattakath-portal` entry pointing at **destroyed** infrastructure survived exactly that
+> way, because the first attempt set `enable = false` instead of emptying the render (#732).
+> An empty set from an *enabled* writer and an empty set from a *disabled* one are different
+> claims, and only the first is true here. `checks.aarch64-darwin.claude-desktop-config-shape`
+> asserts both halves: the module is on, **and** it renders nothing.
+>
+> The merge still protects foreign state: `preferences`, `coworkUserFilesPath`, `extraServers`
+> and anything a human added in Desktop's UI survive an empty render, because only entries
+> carrying the `NIX_CONFIG_MANAGED` marker are ever touched.
+>
+> **Everything below is the design record**, including the clobber that forced the watch agent —
+> which is still live machinery and still the reason this module is not a one-line activation.
+
+**The original decision (superseded as to its subject, not its mechanism): Claude Desktop is
+"Client side D" of the MCP hub.** The same connector Claude Code got — the Cloudflare MCP portal
+in front of the gateway — was rendered into Desktop's `claude_desktop_config.json` by
+[`modules/shared/claude-desktop.nix`](../modules/shared/claude-desktop.nix). Cowork got
 them for free through Desktop's device bridge.
 
 This is the first piece of Desktop state nix-config manages;
@@ -26,9 +50,13 @@ move the shim transform with it.
 
 ## What gets written
 
-Since 2026-09-22 this is **one** entry, not a per-server list: `programs.claude-code.mcpServers`
-is empty (desktop-commander moved onto the proxy, open-design left the fleet), and the hub
-carries a single portal URL.
+**Since 2026-10-02: NOTHING — an empty `mcpServers` object.** The flow below is the shape the
+renderer still has (and would use again if a `url` ever reappeared via `extraServers`), but there
+is no portal entry at the top of it any more. Read it as the mechanism, not the inventory.
+
+From 2026-09-22 to 2026-10-02 it was **one** entry, not a per-server list:
+`programs.claude-code.mcpServers` was empty (desktop-commander moved onto the proxy, open-design
+left the fleet), and the hub carried a single portal URL.
 
 ```
 programs.mcp.servers (hub)
@@ -46,10 +74,11 @@ programs.mcp.servers (hub)
   Cowork cloud session: mcp__remote-devices__<name>__*
 ```
 
-- **Shims, not servers.** The gateway still hosts one instance of each; Desktop launches
+- **Shims, not servers.** The gateway hosted one instance of each; Desktop launched
   one thin `mcp-remote` bridge per server. ~27 node processes at launch; first launch after
-  a pin bump fetches `mcp-remote@<pin>` into `~/.npm/_npx` (a runtime fetch, the same trade
-  the gateway's npx/uvx launchers already make).
+  a pin bump fetched `mcp-remote@<pin>` into `~/.npm/_npx` (a runtime fetch, the same trade
+  the gateway's npx/uvx launchers made). **Zero such processes today** — which is the one
+  unambiguous win of the empty render.
 - **The marker is an env var** (`NIX_CONFIG_MANAGED`) because it is the one extra field
   Desktop's stdio schema tolerates and every server ignores. It is how the merge tells
   *ours* (rewrite, prune when stale) from *theirs* (a server added in Desktop's UI — never
@@ -59,11 +88,18 @@ programs.mcp.servers (hub)
 
 ## What this gives Cowork — and what it does not
 
+**Current answer: nothing, on every row.** The table below is the 2026-09-22 state, kept because it
+is the clearest statement of what was given up on 2026-10-02 — all three rows are now **no**.
+
 | Surface | Path | Includes telegram / gmail-* / wordpress? |
 |---|---|---|
-| Desktop app | this file | yes |
-| Cowork, Mac linked | Desktop bridge → `mcp__remote-devices__<name>__*` | yes — without publishing them |
-| Cowork, Mac **not** linked (phone, closed laptop) | remote connector = the same portal (`config.fleet.publicMcpServers`, behind Cloudflare Access) | **yes** since 2026-09-22 — **every** hosted server is published, so this row no longer differs from the one above |
+| Desktop app | this file | ~~yes~~ → **no** (empty render) |
+| Cowork, Mac linked | Desktop bridge → `mcp__remote-devices__<name>__*` | ~~yes — without publishing them~~ → **no** (nothing to bridge) |
+| Cowork, Mac **not** linked (phone, closed laptop) | remote connector = the same portal (`config.fleet.publicMcpServers`, behind Cloudflare Access) | ~~yes since 2026-09-22~~ → **no** — the portal is destroyed and `publicMcpServers` deleted |
+
+**Say this plainly, because no check can:** `gmail` survives the purge for **Claude Code only**
+(`local.gmailMcp` + the `gmail` plugin). Desktop and Cowork lost it, along with every other
+server, and nothing in this repo detects that.
 
 Skills and plugins are **not** in scope here: in Desktop/Cowork they are account state
 (Settings → Capabilities, the claude.ai plugin catalog), not files. The plan for those is
@@ -105,18 +141,21 @@ Ordering no longer matters: you can activate with Desktop open. It still needs a
 
 ## The contract, checked
 
-`checks.aarch64-darwin.claude-desktop-config-shape` reads the real macos rendering and
-fails if any entry is not `{command, args}` + marker, if no rendered entry dials the
-gateway's own `portalEndpoint` (two modules, one URL — the parity that is left once there is
-one connector), or if `desktop-commander` sneaks in. It exists
-because the failure mode is silent: a wrong-shaped entry does not error, it disappears from
-the app.
+`checks.aarch64-darwin.claude-desktop-config-shape` reads the real macos rendering. **Inverted
+2026-10-02**: it used to fail if no rendered entry dialled the gateway's own `portalEndpoint` (two
+modules, one URL); it now asserts the render is **EMPTY**, paired with a leg asserting
+`claudeDesktop.enable` is still **true**. Both legs are needed, and a deleted check would have
+caught neither direction — an empty set from a disabled module is a different claim from an empty
+set from an enabled one, and the disabled case leaves stale content on disk (#732). The shape rules
+still apply to anything `extraServers` adds: `{command, args}` + marker, and no
+`desktop-commander`. It all exists because the failure mode is silent — a wrong-shaped entry does
+not error, it disappears from the app.
 
 ## Knobs
 
 | Option | Default | Why you'd touch it |
 |---|---|---|
-| `local.claudeDesktop.enable` | darwin && gateway on | off on a Mac without Desktop |
+| `local.claudeDesktop.enable` | darwin (**no longer gated on a gateway** — there isn't one) | off on a Mac without Desktop. **Not** the way to express "no servers": see the header |
 | `.mcpRemoteVersion` | pinned | deliberate bump, here, not `@latest` |
 | `.excludeServers` | `[ "desktop-commander" ]` | another server later installed as a Desktop Extension |
 | `.extraServers` | `{}` | a Desktop-only server (hub shape; `url` is shimmed) |

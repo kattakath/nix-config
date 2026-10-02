@@ -28,7 +28,7 @@ inventory, a verification command per item, and the two things that must never b
 | Admin-SDK automation identity | `ws-domain-admin@kattakath-family.iam.gserviceaccount.com` | account **declared**; its power is not — see §2 |
 | Terraform automation identity | `tofu-fleet@kattakath-family.iam.gserviceaccount.com` | **declared**, impersonated, no key |
 | Workspace-facing APIs | `admin`, `drive`, `gmail` | **declared** (`infra/gcp/foundation.nix`) |
-| Gmail MCP accounts | 4, each its own process | **declared** (`hosts/macos.nix`) |
+| Gmail MCP accounts | 4, each its own process | **declared** (`hosts/macos.nix`, `local.gmailMcp.accounts`) — since 2026-10-01 one stdio child **per session** from the `gmail` plugin, not a long-lived gateway process |
 
 Everything marked *declared* re-plans clean. Everything else is in this document because there
 is nowhere else to put it.
@@ -115,7 +115,8 @@ Admin console → Security → API controls → Domain-wide delegation.
 
 **Sign in as `ismail@kattakath.com` to do it, and as nothing else.** It is the only account in
 this fleet with Admin console access on `kattakath.com`. The Mac holds four Google logins (the
-four `gmail-*` MCP servers), and the other three cannot open that screen at all — notably
+four Gmail MCP accounts, `local.gmailMcp.accounts`), and the other three cannot open that screen at
+all — notably
 `izzy@silvercreek.ai`, which *is* a full Workspace account with GCP access, but on a **different
 tenant**. "Log in to Google and check" is therefore not a well-formed instruction here; three
 of the four answers are a permission error.

@@ -135,11 +135,11 @@ of these has been moved**.
 | # | Where | What | Proposed disposition |
 |---|---|---|---|
 | 1 | `hosts/macos.nix:301-314` | AWS SSO start-URL id `d-…`, two 12-digit account ids, role names, regions — written into `~/.aws/config` by `programs.awscli.settings` | **Move** → local `~/.aws/config` (already the rule ADR-003 §10.3 and `repo-map.md` § bedrock-gate *claim* holds — the code contradicts the docs since the 2026-09-15 fold-in). The new `local.cloudCli.aws` capsule ships `config.example` with placeholders. |
-| 2 | `hosts/macos.nix:277-280` | four personal Gmail addresses (`local.mcpGateway.gmail.accounts`) | **Ask.** The comment argues they are already public elsewhere in the tree. They are still personal emails outside `identity.nix`. Options: leave (marked OPERATOR-ONLY, done), or move the list to a Keychain item / local file the module reads at launch. |
+| 2 | `hosts/macos.nix` | four personal Gmail addresses (**`local.gmailMcp.accounts`** since 2026-10-01; was `local.mcpGateway.gmail.accounts`) | **Ask.** The comment argues they are already public elsewhere in the tree. They are still personal emails outside `identity.nix`. Options: leave (marked OPERATOR-ONLY, done), or move the list to a Keychain item / local file the module reads at launch. |
 | 3 | `modules/shared/home.nix:997-1010, 1265-1280` | three git-identity emails in `*.inc` files and in `allowedSigners` | **Ask.** Same shape as #2. The `infin8.inc` work identity is already hand-placed outside the repo (home.nix:990) — the same treatment would fit `silvercreek.inc` / `izzykatt.inc`. |
 | 4 | `modules/parts/identity.nix:40` | JSON Resume gist id | **Leave** — inside `identity.nix`, now marked OPERATOR-ONLY. |
 | 5 | `modules/parts/identity.nix:100-101, 115` | Cloudflare account id, two zone ids | **Leave** — identifiers, inside `identity.nix`, marked. |
-| 6 | `infra/cloudflare/{mcp-public,nixpi-tunnel}.nix` | Access IdP UUID, reusable policy UUID | **Leave** — resource ids, not tenant ids; they are how terranix references existing account objects. (§8.4 is about the policy's *content*, not its id.) |
+| 6 | `infra/cloudflare/nixpi-tunnel.nix` (`mcp-public.nix` **deleted 2026-10-02**) | Access IdP UUID, reusable policy UUID | **Leave** — resource ids, not tenant ids; they are how terranix references existing account objects. (§8.4 is about the policy's *content*, not its id.) |
 | 7 | `.claude/settings.json:133` | one 32-hex id | **Ask** — looked like a Cloudflare id by shape; not verified. |
 | 8 | `packages/next-right-thing/render.sh:12` | one personal email in a code comment (an example payload) | **Trivial** — replace with `someone@example.com` when Phase 3 touches nearby files. |
 | 9 | `docs/*.md`, `sites/ismail-landing/index.html`, `CLAUDE.md:80` | emails in prose, a mailto on the operator's own landing page, an ssh target | **Leave** — documentation and published website content, not configuration. |
@@ -257,12 +257,20 @@ a run.
   `home.nix` copies the existing symlinks out before orphan cleanup). `gitlab.inc` STAYS in
   Nix, derived from `config.fleet.googleAccount` — no literal mailbox left in `home.nix`.
 - **Gmail account list (inventory #2): NOT moved — blocked by ADR-003, reported rather than
-  forced.** `local.mcpGateway.gmail.accounts` is consumed at EVAL time (one launchd agent per
-  address, `modules/shared/mcp.nix:213`), so it cannot be read from a local file without moving
-  gateway-config generation to launchd start — which is ADR-003 §7's MCP overlay, explicitly
-  "not built, and not built first". The four addresses stay, marked OPERATOR-ONLY; the
-  `next-right-thing` scripts' default account aliases are the same content and stay with them.
-  Moving them is a decision for ADR-003's own trigger, not a side effect of this one.
+  forced.** It was `local.mcpGateway.gmail.accounts`, consumed at EVAL time (one launchd agent per
+  address), so it could not be read from a local file without moving gateway-config generation to
+  launchd start — ADR-003 §7's MCP overlay, explicitly "not built, and not built first". The four
+  addresses stay, marked OPERATOR-ONLY; the `next-right-thing` scripts' default account aliases are
+  the same content and stay with them.
+  **Re-examined 2026-10-02 and the blocker is GONE — the conclusion is not.** The gateway was
+  destroyed and the option is now `local.gmailMcp.accounts` (`modules/shared/gmail-mcp.nix`), which
+  declares **no launchd agent at all**: it puts one `nix-mcp-gmail-<alias>` launcher per address on
+  PATH, and Claude Code spawns them per session. So the eval-time-launchd-agent argument no longer
+  applies. What still blocks the move is narrower and worth stating precisely: the **alias is
+  derived from the address at eval time** (it names the binary and the per-account credentials
+  file), so a runtime-read list would have to generate binaries at runtime too. Same answer, better
+  reason — and that is a reason to re-check, not to assume: this item's original rationale was
+  obsolete for a day before anyone looked.
 - **Claude Code user settings: joined the class 2026-09-22, and the class is now named.**
   `~/.claude/settings.json` was a read-only store symlink until
   `modules/shared/claude-code-settings.nix` made it a real file that Nix merges its own keys
@@ -304,7 +312,32 @@ Gate result after the fix: the template evaluates as shipped AND with both new k
 (`cloud-cli` file present, four `secrets-*` CLIs and the loader's backend export present).
 
 ### 9.10 The Access policy: declared as a domain rule, deliberately un-applied
-`infra/cloudflare/mcp-public.nix` now declares `cloudflare_zero_trust_access_policy.
+
+> **OUTCOME, 2026-10-02 — the shared policy SURVIVED the stack that declared it, and that is the
+> best possible vindication of §9.11's two blockers.** When the whole `mcp-public` subsystem was
+> destroyed (65 objects, 27 registrations → 0, portal → 0), Cloudflare **refused** to delete
+> `mcp_allow_operator`:
+>
+> ```
+> 409  code 12132  "policy is being used by at least one app"
+> ```
+>
+> The app still using it is **`nixpi.kattakath.com`'s SSH Access application** — exactly the
+> cross-stack coupling §9.11's reviewer flagged as *"cross-stack blast radius"* and as the reason a
+> `-/+ replace` must never be allowed ("a replace deletes the object `nixpi_ssh` references (sole
+> remote path to the Pi)"). **The API's reference count did what the plan gate was there to do.**
+>
+> Read the refusal as a **protection, not as leftover debt.** A destroy that had succeeded here
+> would have reproduced the 2026-08-20 outage — when this class of object vanished and took `ssh`
+> plus both deploy legs with it — deliberately. The object stays. **Do not "finish the cleanup."**
+>
+> Two things to carry forward: `infra/cloudflare/mcp-public.nix` is **deleted**, so the policy is
+> no longer declared in any terranix stack and `nixpi-tunnel.nix`'s literal id is the only
+> reference left — if domain-gating is still wanted, it is now that stack's to declare. And the
+> general lesson: **a stack is a blast radius only for resources it declares, never for objects it
+> shares.**
+
+`infra/cloudflare/mcp-public.nix` declared `cloudflare_zero_trust_access_policy.
 mcp_allow_operator` with `include = [ { email_domain.domain = domainName; } ]` and every
 portal application references it by resource instead of by literal id. Rendered and
 inspected: one policy, `decision = allow`, one `email_domain` rule. It has NOT been applied
@@ -313,7 +346,7 @@ header) and applies after a plan that shows exactly one change. `nixpi-tunnel.ni
 literal id — a different tofu stack — and the rule change reaches `nixpi_ssh` through the
 shared object. The `terranix-infra-reviewer` review is recorded in §9.11.
 
-### 9.11 Reviewer's findings on the policy draft
+### 9.11 Reviewer's findings on the policy draft — both blockers proved load-bearing (see §9.10)
 Run as this repo's `terranix-infra-reviewer` (review/plan only; it rendered the module,
 `tofu validate`d the render against the locally cached provider 5.25.0 in a scratch copy, and
 read only state ADDRESSES). Verdict: **safe to land as a draft** — renders, validates,
