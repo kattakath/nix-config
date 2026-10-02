@@ -6,6 +6,13 @@
 # are asserted, because a rule that only ever proves its BLOCK cases cannot
 # tell you it has stopped approving the things it should approve.
 #
+# Every case was `mcp-public-*` until 2026-10-02: that stack and its five apps
+# were deleted (PR #737), so those cases asserted a verdict on a flake attr that
+# no longer resolves. They are re-pointed at `cf-tunnel-*` — the only surviving
+# terranix family with both an apply and a destroy app — keeping each evasion
+# shape (quoted ref, `github:` ref, a `secret exec` prefix, extra tofu args, a
+# compound command) rather than dropping coverage with the names.
+#
 # Same file-not-argv discipline as rule1c/rule1d: the strings below are
 # execution-shaped, so writing them on a command line would trip the rule that
 # carries them.
@@ -27,24 +34,23 @@ ck() { # ck <want> <cmd>
   else printf '  FAIL  want=%s got=%s  %s\n' "$1" "$got" "$2"; fail=$((fail+1)); fi
 }
 
-echo "== must BLOCK (teardown: no readable plan, and it cannot even clean up fully) =="
-ck block "$NR .#mcp-public-destroy"
+echo "== must BLOCK (teardown: no readable plan, and it drops nixpi's only remote ingress) =="
 ck block "$NR .#cf-tunnel-destroy"
+ck block "$NR \".#cf-tunnel-destroy\""
 ck block "$NR github:kattakath/nix-config#cf-tunnel-destroy"
-ck block "secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:mcp-public -- $NR .#mcp-public-destroy"
+ck block "secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:nixpi-tunnel -- $NR .#cf-tunnel-destroy"
 
 echo "== must stay APPROVED (apply: the wrapper's own guards + a plan run first) =="
-ck approve "$NR .#mcp-public-apply"
 ck approve "$NR .#cf-tunnel-apply"
-ck approve "$NR .#mcp-public-apply -- -parallelism=2 -auto-approve"
-ck approve "secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:mcp-public -- $NR .#mcp-public-apply"
-ck approve "$NR github:kattakath/nix-config#mcp-public-apply"
+ck approve "$NR .#cf-tunnel-apply -- -parallelism=2 -auto-approve"
+ck approve "secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:nixpi-tunnel -- $NR .#cf-tunnel-apply"
+ck approve "$NR github:kattakath/nix-config#cf-tunnel-apply"
 
 echo "== an apply must not launder a destroy sitting next to it =="
-ck block "$NR .#mcp-public-apply $AND $NR .#cf-tunnel-destroy"
+ck block "$NR .#cf-tunnel-apply $AND $NR .#cf-tunnel-destroy"
 
-echo "== unrelated apps are untouched by either half =="
-ck approve "$NR .#mcp-public-token"
+echo "== read-only and unrelated apps are untouched by either half =="
+ck approve "$NR .#cf-tunnel-plan"
 ck approve "$NR .#nixvm"
 
 echo "-- pass=$pass fail=$fail"
