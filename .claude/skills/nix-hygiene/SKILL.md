@@ -26,7 +26,7 @@ inventory — re-read it each pass rather than trusting this list, which has dri
 | `launchd-bare-interpreter-arg0` | `Program`/`ProgramArguments` arg0 ending in `/bin/{sh,bash,python3,node,env,…}` instead of a `nix-<kebab>` wrapper |
 | `hook-json-parse-must-be-guarded` | a `JSON.parse` in `.claude/hooks/*.js` that no `try` encloses |
 | `capsule-must-not-reach-out` | ANY `..` in a **path literal** under `modules/features/**` — escaping or not. `../module.nix` from a `checks/` leaf stays inside the capsule and still fails: a leaf takes what it needs as an ARGUMENT |
-| `shared-must-not-cross-layers` | `modules/shared/` reaching UP via `..` into `features`/`parts`/`hosts`/`infra` |
+| `home-must-not-cross-layers` | `modules/home/` reaching UP via `..` into `features`/`parts`/`hosts`/`infra` |
 | `activation-must-not-touch-secrets` | an `activation*` binding naming `secrets-{rehydrate,push,resolve,status}` or `gcloud {secrets,auth}` (ADR-004) |
 
 **This skill:** judgmental hygiene — architecture, host scope, docs↔code,
@@ -71,7 +71,7 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
 | `flake.nix` / `flake.lock` | inputs/pins and ONE `mkFlake` call — nothing else | — |
 | `modules/parts/` | the flake ENGINE: `mkDarwin`/`mkNixos`, apps, checks, identity | all |
 | `hosts/<name>.nix` | host-only deltas | `darwinConfigurations` / `nixosConfigurations` |
-| `modules/shared/` | cross-host HM + shared options | both |
+| `modules/home/` | cross-host HM + shared options | both |
 | `modules/darwin/` | macOS system | `darwinConfigurations` |
 | `modules/nixos/` | NixOS system | `nixosConfigurations` |
 | `packages/` | flake apps/packages | `packages` / `apps` |
@@ -108,7 +108,7 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
 - [ ] One path for one fact (e.g. the `~/Downloads` path shape shared conceptually host/guest).
 - [ ] No host-specific lists in shared modules without `mkIf` / hostName / `isMacosHost`.
 - [ ] Launchd BTM basenames: `nix-<activity>` via `mkNixAgent` (`modules/darwin/core.nix`) or
-      `modules/shared/launchd-launcher.nix` for HM agents (never bare `sh`/`open`).
+      `modules/home/launchd-launcher.nix` for HM agents (never bare `sh`/`open`).
 - [ ] Secrets: never plaintext in `.nix`; agenix vault vs Keychain rules unchanged.
 
 ### D. Comments & docs

@@ -65,7 +65,7 @@ in
 
   config = lib.mkIf (cfg.htmlWidget != null && pkgs.stdenv.hostPlatform.isDarwin) {
     home.file."${cfg.widgetsDir}/html-fullscreen.jsx".text = ''
-      // Managed by nix-config (modules/shared/ubersicht.nix) — edits are overwritten.
+      // Managed by nix-config (modules/home/ubersicht.nix) — edits are overwritten.
       // Double-quoted so `$HOME` still expands and a path with spaces survives.
       export const command = "cat \"${cfg.htmlWidget}\"";
 

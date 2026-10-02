@@ -61,7 +61,7 @@ in
     # The TUNNELLED hostname, not nixpi.local: the Pi has no public IP and no
     # port-forward, and the LAN name only resolves when the Mac happens to be
     # on the same network. Reaching it needs a `ProxyCommand cloudflared
-    # access ssh --hostname %h`, which modules/shared/home.nix now declares as
+    # access ssh --hostname %h`, which modules/home/default.nix now declares as
     # a real `Host nixpi.<domain>` block — so plain `ssh` resolves it, and so
     # does the `nix copy --to ssh://…` leg (nix shells out to the system ssh,
     # which reads ~/.ssh/config). That is why `sshOpts` stays EMPTY: deploy-rs

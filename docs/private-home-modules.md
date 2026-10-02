@@ -84,7 +84,7 @@ deploy --targets .#nixpi --dry-activate  # rehearse first
 target.
 
 Reaching `nixpi.kattakath.com` needs a Cloudflare Access SSH proxy (it's a
-tunnelled hostname, not directly reachable). `modules/shared/home.nix` ships a
+tunnelled hostname, not directly reachable). `modules/home/default.nix` ships a
 `Host nixpi.kattakath.com` block with
 `ProxyCommand <store-path>/bin/cloudflared access ssh --hostname %h`, so plain
 `ssh`, `nixos-rebuild --target-host`, and both deploy-rs legs (`ssh` for

@@ -4,7 +4,7 @@
 # `~/.aws/config.example` — placeholders only. It NEVER writes `~/.aws/config`:
 # that file is the human's, written by `aws configure sso` (or by copying the
 # example and filling it in), lives outside Nix and git, and is what
-# modules/shared/claude-bedrock-gate.nix reads at runtime.
+# modules/home/claude-bedrock-gate.nix reads at runtime.
 #
 # WHY the real file may not be declared here, even though it holds no credential:
 #   * Account ids, SSO start-URL ids and regions are not secrets, but they ARE
@@ -57,7 +57,7 @@ in
       # sessions are SSO-minted (`aws sso login`), so nothing here needs long-lived storage.
       #
       # Claude Code's Bedrock route selects a profile at runtime with
-      # `secret set AWS_PROFILE <profile>` (modules/shared/claude-bedrock-gate.nix).
+      # `secret set AWS_PROFILE <profile>` (modules/home/claude-bedrock-gate.nix).
 
       [sso-session <<SESSION_NAME>>]
       sso_start_url = https://<<START_URL_ID>>.awsapps.com/start

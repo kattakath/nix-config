@@ -25,7 +25,7 @@ root) and exports each value to every descendant.
 
 ## How it is wired here
 
-`modules/shared/home.nix` imports this capsule's `module.nix` and sets
+`modules/home/default.nix` imports this capsule's `module.nix` and sets
 `local.keychainSecrets.enable = true`; it is darwin-gated internally, so it is a clean
 no-op on `nixpi`/`nixvm`. The module reaches the consumer through
 `modules/parts/compose.nix` as the `keychainSecretsModule` specialArg — **not** through
@@ -39,7 +39,7 @@ Two things outside this directory depend on it and must not drift:
   `$BASH_ENV` gap for a bash spawned by a GUI app or a launchd job, which descends from no
   shell at all. `checks/module-evaluates.nix` pins the option's default as a literal so a
   silent rename cannot move one half without the other.
-- **`modules/shared/claude-bedrock-gate.nix`** runs at `lib.mkOrder 1600` on the same three
+- **`modules/home/claude-bedrock-gate.nix`** runs at `lib.mkOrder 1600` on the same three
   shell-init options this module writes at `lib.mkAfter` (= 1500), because it *reads* a
   variable this loader exports. `checks.<system>.bedrock-gate-after-loader`
   (`modules/parts/checks.nix`) asserts that order against the real `macos` config.
