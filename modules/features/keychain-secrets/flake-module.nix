@@ -16,7 +16,7 @@
 #     rename there is a silent loss of secrets for every non-shell-descended
 #     process; ./checks/module-evaluates.nix pins the default as a literal so it
 #     cannot move unnoticed.
-#   * The ORDERING contract with modules/shared/claude-bedrock-gate.nix — this
+#   * The ORDERING contract with modules/home/claude-bedrock-gate.nix — this
 #     module's `lib.mkAfter` (= mkOrder 1500) vs. the gate's `lib.mkOrder 1600`
 #     on the same three shell-init options — now has a test. It could not live
 #     in here (a capsule may not reach outside itself, and the gate is engine

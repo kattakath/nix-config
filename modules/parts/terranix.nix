@@ -841,7 +841,7 @@ let
   # TF_ENCRYPTION, so the whole encryption config exists only in the process
   # environment — never in /nix/store (world-readable), never in argv, never in
   # the rendered config.tf.json. Same shape as every other secret wrapper in this
-  # repo (see modules/shared/gmail-mcp.nix).
+  # repo (see modules/home/gmail-mcp.nix).
   #
   # LOSE THE PASSPHRASE AND THE STATE IS UNREADABLE. It lives in the login
   # Keychain as `tofu:state:passphrase`. The bucket keeps 10 versions and every

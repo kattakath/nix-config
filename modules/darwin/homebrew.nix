@@ -11,7 +11,7 @@
 # Manager is the single source, and a duplicate on PATH causes buildEnv
 # collisions): aws-cdk, awscli, make, node (unversioned), uv, gh, git-lfs, the
 # claude-code cask, 6 font casks, pandoc, poppler, and `mas` — see
-# modules/shared/home.nix, and modules/darwin/core.nix for `mas` (which the
+# modules/home/default.nix, and modules/darwin/core.nix for `mas` (which the
 # fleet already consumed as `pkgs.mas` from xcode-license.nix's activation).
 _:
 

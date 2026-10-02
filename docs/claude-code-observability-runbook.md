@@ -17,10 +17,10 @@ to analyze — no external service, no dashboard, nothing leaves the machine.
 
 | Piece | Role | Lives |
 |---|---|---|
-| `local.claudeOtel` | Enables the collector + generates its config; exposes `otlpEndpoint`/`eventsFile` options | `modules/shared/claude-otel.nix` |
+| `local.claudeOtel` | Enables the collector + generates its config; exposes `otlpEndpoint`/`eventsFile` options | `modules/home/claude-otel.nix` |
 | `otelcol-contrib` (`pkgs.opentelemetry-collector-contrib`) | The collector binary itself — official upstream, prebuilt/substitutable on `aarch64-darwin`, no local compile | nixpkgs |
-| `launchd.agents.claude-otel-collector` | Always-on launchd agent (`RunAtLoad` + `KeepAlive`; `mcp-gateway` had the same shape until it was deleted 2026-10-02), auto-wrapped to `nix-claude-otel-collector` by `modules/shared/launchd-launcher.nix` | `modules/shared/claude-otel.nix` |
-| `programs.claude-code.settings.env` | The `CLAUDE_CODE_ENABLE_TELEMETRY`/`OTEL_*` env vars Claude Code reads from `~/.claude/settings.json` at startup | `modules/shared/home.nix` |
+| `launchd.agents.claude-otel-collector` | Always-on launchd agent (`RunAtLoad` + `KeepAlive`; `mcp-gateway` had the same shape until it was deleted 2026-10-02), auto-wrapped to `nix-claude-otel-collector` by `modules/home/launchd-launcher.nix` | `modules/home/claude-otel.nix` |
+| `programs.claude-code.settings.env` | The `CLAUDE_CODE_ENABLE_TELEMETRY`/`OTEL_*` env vars Claude Code reads from `~/.claude/settings.json` at startup | `modules/home/default.nix` |
 | `~/.local/state/claude-otel/events.jsonl` | Rotating JSONL (50 MiB, 5 backups) of `claude_code.*` log events | `$HOME`, never in git/store |
 | `nix run .#claude-otel-doctor` | Runtime health check: launchd agent loaded, OTLP port listening, events file freshness | `packages/claude-otel-doctor.nix` |
 | `/routing-review` | Reads the events file, buckets `tool_decision` by `source`, proposes deterministic hardening | `.claude/commands/routing-review.md` |
@@ -41,7 +41,7 @@ Gated on `isMacosHost` (`networking.hostName == "macos"`) — the same gate as
 the RAG stack (and, until 2026-10-02, the MCP public tunnel and telegram, both gone with the
 gateway). `macos` is the fleet's only
 darwin host today, and `programs.claude-code` is itself darwin-only
-(`modules/shared/claude-brain.nix`), so `nixpi`/`nixvm` run no Claude Code
+(`modules/home/claude-brain.nix`), so `nixpi`/`nixvm` run no Claude Code
 for this system to instrument.
 
 The gate still earns its keep as a second darwin host's off-switch. **History:**
@@ -125,8 +125,8 @@ human-judgment decisions; there was zero real data when `3` was picked.
 
 | Path | What |
 |---|---|
-| `modules/shared/claude-otel.nix` | Collector config generation + launchd agent |
-| `modules/shared/home.nix` | Import + `local.claudeOtel.enable` + `programs.claude-code.settings.env` |
+| `modules/home/claude-otel.nix` | Collector config generation + launchd agent |
+| `modules/home/default.nix` | Import + `local.claudeOtel.enable` + `programs.claude-code.settings.env` |
 | `packages/claude-otel-doctor.nix` | Health check, wired as `nix run .#claude-otel-doctor` |
 | `.claude/commands/routing-review.md` | The analysis/hardening-proposal loop |
 | `.claude/hooks/routing-review-digest.js` | `SessionStart` nudge, registered in `.claude/settings.json` |

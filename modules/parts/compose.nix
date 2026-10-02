@@ -84,7 +84,7 @@ let
   # that override
   # (mkDarwin's `identity` arg) pass their own. The home-manager profile keys on
   # idArgs.loginName, and extraSpecialArgs threads that same identity into
-  # modules/shared/home.nix. extraSpecialArgs also adds mcp-servers-nix etc.
+  # modules/home/default.nix. extraSpecialArgs also adds mcp-servers-nix etc.
   #
   # `extraHomeModules` is the public COMPOSITION HOOK for private (or third-party)
   # home-manager modules — the private layer's entrypoint: this
@@ -130,19 +130,19 @@ let
             # takes it — superhook became a plugin hook 2026-09-30 — but mcp.nix
             # does, and both are reached through this same specialArgs seam.
             kattakath-skills
-            # jsonResumeUrl: the raw resume.json URL (or null), consumed by home.nix
+            # jsonResumeUrl: the raw resume.json URL (or null), consumed by modules/home/default.nix
             # to bake into the jsonresume package as its default --url (darwin
             # home.packages; inert on the NixOS hosts).
             jsonResumeUrl
             # logoUrl: the raw logo.svg URL from the same gist (or null), consumed by
-            # home.nix to bake into the email-signature package as its default
+            # modules/home/default.nix to bake into the email-signature package as its default
             # --logo-url (darwin only; inert on the NixOS hosts).
             logoUrl
             # tokensUrl: the raw tokens.json (DTCG brand tokens) URL from the same gist
             # (or null), baked into the email-signature package as its default
             # --tokens-url (darwin only; inert on the NixOS hosts).
             tokensUrl
-            # operatorSshKey: fleet operator public key — home.nix feeds it to
+            # operatorSshKey: fleet operator public key — modules/home/default.nix feeds it to
             # programs.git.signing.allowedSigners so git can verify SSH commit sigs
             # (and the file stays in lockstep with secrets/operator-key.nix).
             operatorSshKey
@@ -161,7 +161,7 @@ let
             # with the gateway (2026-10-02), but the trap it proved is not; it is why
             # `fleet.identityArgs` is a CLOSED submodule (identity.nix).
             #
-            # home.nix derives the gitlab.com include's address from it, so no
+            # modules/home/default.nix derives the gitlab.com include's address from it, so no
             # literal address is left in that file (ADR-004 §7, inventory #3).
             googleAccount
             ;
@@ -195,7 +195,7 @@ let
           # input ever existed): the AWS CLI + `~/.aws/config.example` capsule,
           # modules/features/cloud-cli/. RAW seam for the home.packages reason.
           cloudCliModule = cloud-cli;
-          # A SOURCE PATH, not a module and not a derivation — home.nix
+          # A SOURCE PATH, not a module and not a derivation — modules/home/default.nix
           # `callPackage`s it with the HOST's pkgs so the five gitlab-tart slot
           # shims are built against `nixpkgs.config.allowUnfree` from
           # hosts/macos.nix, exactly as they were when this came from the

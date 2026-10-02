@@ -194,7 +194,7 @@ rewrites a file):
 | `nix-hardcoded-home-path` | nix | CLAUDE.md § Conventions "Paths — two axes" (runtime half) | The gate half of the [`claude-code-nix`](https://github.com/kattakath/ai/tree/main/plugins/claude-code-nix) plugin's `nix-home-path-lint` hook, which is PostToolUse and so only ever sees *Claude's* writes — a human or flake-bump commit slipped through. Matches `string_fragment` nodes only, so comments and Nix source path literals are exempt by construction rather than by heuristic. Keep the regex in sync with the hook. |
 | `launchd-bare-interpreter-arg0` | nix | [`.claude/rules/launchd-naming.md`](../.claude/rules/launchd-naming.md) | Flags `ProgramArguments[0]` / `Program` pointing at a bare `sh`/`bash`/`python3`/`node`/… so Background Task Manager can't list a fleet agent as generic persistence. Only sees units authored *here*; the three known upstream `/bin/sh` daemons live in no `.nix` file and must not be renamed. |
 | `capsule-must-not-reach-out` | nix | ADR-002's capsule boundary (§ `modules/features/`) | Scoped by `files:` to `modules/features/**`; flags a `path_expression` escaping the capsule's own directory. The file-layer half of the boundary — `checks.<system>.capsule-registry` is the option-layer half. Blind to overlays, `specialArgs` and runtime-built store paths (ADR-002 §7.6, §9.3). |
-| `shared-must-not-cross-layers` | nix | the `modules/shared/` layer boundary (`662db6a`, 2026-09-14) | The Home Manager profile may reach **down** into `packages/`, `skills/` and `claude/` — never **across** into `modules/features/`, nor **up** into `modules/parts/`, `hosts/` or `infra/`. |
+| `home-must-not-cross-layers` | nix | the `modules/home/` layer boundary (`662db6a`, 2026-09-14) | The Home Manager profile may reach **down** into `packages/`, `skills/` and `claude/` — never **across** into `modules/features/`, nor **up** into `modules/parts/`, `hosts/` or `infra/`. |
 | `activation-must-not-touch-secrets` | nix | ADR-004 §2.5 ([`secrets-recovery-and-identity-adr.md`](secrets-recovery-and-identity-adr.md)) | A `home.activation` / `system.activationScripts` / `system.userActivationScripts` string that names `secrets-{rehydrate,push,resolve,status}` or `gcloud secrets`/`gcloud auth`. Activation must never touch a secret backend; the CLIs are operator-invoked after `gcloud auth login`. Eval-time twin: `checks.aarch64-darwin.keychain-secrets-backend-inert`. |
 | `hook-json-parse-must-be-guarded` | javascript | the "never wedge a turn" invariant every `.claude/hooks/*.js` header states | An unguarded `JSON.parse` of untrusted event JSON throws and surfaces as a hook error. Scoped by `files:` to the hooks. First mechanical check those ~1.3k lines have ever had — `claude-config-lint.yml` checks frontmatter, never hook JS. |
 
@@ -229,13 +229,13 @@ the `deploy` CLI in the devShell — it is **not** a NixOS/HM module and no host
 | `remoteBuild` | `false` | **The Pi must never build.** Closures are built on the Mac / CI and `nix copy`'d, substituting from Cachix on the destination. |
 | `fastConnection` | `false` | Keeps `--substitute-on-destination`, so the Pi pulls most paths straight from Cachix instead of over the tunnel. |
 | `activationTimeout` / `confirmTimeout` | `600` / `120` | Upstream defaults are too tight for a Pi 4 over a Cloudflare Tunnel, and a timeout here does not mean "slow" — it means an unattended **rollback of a good deploy**. |
-| `hostname` | `nixpi.${domainName}` | The tunnelled name, not `nixpi.local` — see the ssh block in `modules/shared/home.nix`. |
+| `hostname` | `nixpi.${domainName}` | The tunnelled name, not `nixpi.local` — see the ssh block in `modules/home/default.nix`. |
 | `sshUser` / `profiles.system.user` | `loginName` / `root` | SSH in as the operator (keys-only), activate as root via passwordless `wheel` sudo (`modules/nixos/core.nix`), so no `interactiveSudo`. |
 
 `sshOpts` is deliberately **empty**. deploy-rs space-joins `sshOpts` into `NIX_SSHOPTS`, which
 nix then re-splits on whitespace, so a spaced `-o ProxyCommand=…` is mangled for the `nix copy`
 leg. `~/.ssh/config` is the one place a spaced `ProxyCommand` survives **both** legs — hence
-the declarative `Host nixpi.<domain>` block in `modules/shared/home.nix` (store-path
+the declarative `Host nixpi.<domain>` block in `modules/home/default.nix` (store-path
 `cloudflared`, `StrictHostKeyChecking = accept-new` because a reflash mints a new host key).
 That block replaces the old "hand-edit `~/.ssh/config`" instruction in the runbooks, which was
 unfollowable — the file is a read-only `/nix/store` symlink.
@@ -283,7 +283,7 @@ deploy-rs.lib` — deploy-rs exports `lib` for four systems, and that idiom woul
 
 Entered with `nix develop` (in the devcontainer or on a nix host). There is **no**
 `.envrc`/direnv auto-load — run `nix develop` explicitly. (`programs.direnv` + `nix-direnv` ARE
-enabled fleet-wide in `modules/shared/home.nix`; this repo alone opts out, since `2fa73b9`.)
+enabled fleet-wide in `modules/home/default.nix`; this repo alone opts out, since `2fa73b9`.)
 
 **The shell sets `CLOUDSDK_CONFIG`** to `$XDG_CONFIG_HOME/gcloud-nix-config`, so `gcloud` and any
 `tofu` run here use an account and project scoped to this repo rather than whatever is globally
@@ -429,7 +429,7 @@ they bite any future second account:
   whitelists that same error (`:326`) where `bootstrapAgent` treats it as fatal — which is
   why the per-agent `false` works at all.
 
-  The cost is upstream's per-agent design: every agent added to `modules/shared/home.nix`
+  The cost is upstream's per-agent design: every agent added to `modules/home/default.nix`
   would have to be listed again in such an account's block, or its activation starts
   aborting anew.
 
@@ -863,7 +863,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
   media CLIs and the Finder Services left for
   [`kattakath/nix-media-cli`](https://github.com/kattakath/nix-media-cli) on 2026-09-05 and came
   back in-tree on 2026-09-12 as `modules/features/media-cli/` (ADR-002 wave 5). They reach the
-  Mac as one home-manager module: `local.mediaCli.enable`, set from `home.nix` on
+  Mac as one home-manager module: `local.mediaCli.enable`, set from `modules/home/default.nix` on
   `isMacosHost`. Everything that used to be documented here — the three `QueueDirectories`
   tiers, `ProcessType = "Background"`, the `SIGSTOP`/`SIGCONT` pause, the `MAINPID` orphan
   adoption, the deliberate absence of a GUI status surface — lives with the code, in that
@@ -883,7 +883,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
     overridden it. It is now a `defaultModel` derivation argument, surfaced as
     `local.mediaCli.visionModel`.
 
-  `rclip` stays HERE (`rclipCli` in `home.nix`, with its `dontCheckRuntimeDeps` override and
+  `rclip` stays HERE (`rclipCli` in `modules/home/default.nix`, with its `dontCheckRuntimeDeps` override and
   `RCLIP_USE_ONNX_ON_MACOS`): it is a third-party search tool this repo merely installs, and
   the VECTOR half of retrieval, deliberately independent of the XMP half. It reaches the stack
   through that module's `extraSearchPackages` seam, alongside `exiftool` and `auge`.
@@ -948,7 +948,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
   **stylix was rejected on measurement, not taste** — its Ghostty target hardcodes
   `"9=${base08}" … "14=${base0C}"`, so brights collapse onto normals and 8 of 16 values come
   out wrong, for +16 lock nodes. Full reasoning: [`terminal-theme.md`](terminal-theme.md).
-- **Ghostty** (`programs.ghostty` in `home.nix`, `macos` only) — GPU-accelerated terminal,
+- **Ghostty** (`programs.ghostty` in `modules/home/default.nix`, `macos` only) — GPU-accelerated terminal,
   installed as a **Homebrew cask** because nixpkgs' `ghostty` is **Linux-only** and refuses to
   evaluate on aarch64-darwin. That is precisely the case home-manager documents for
   `package = null` ("set this on platforms where ghostty is not available"), so the cask ships
@@ -1148,7 +1148,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
     `plugins/` directory and a 5-line module until it was retired 2026-09-15, rather than
     shipping the tree here. Nothing in this repo can trip the trap today: there is no
     `plugins/` tree here either, so none of the four `source` values in
-    `modules/shared/home.nix` is a repo-relative path literal — three are `https://` git URLs
+    `modules/home/default.nix` is a repo-relative path literal — three are `https://` git URLs
     (`kattakath` among them since 2026-09-23), and one is a store path (the patched
     grok-build plugin).
   - **The activation script is now ONE `marketplace add` per store-path marketplace**
@@ -1182,7 +1182,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
   and its custom `kattakath.git.extraAllowedSignersPrincipals` option were **deleted**
   2026-09-13 in favour of upstream's own `programs.git.signing` (pinned home-manager
   `programs/git.nix:63-116`; impl `:470-506` writes `$XDG_CONFIG_HOME/git/allowed_signers` and
-  points `gpg.ssh.allowedSignersFile` at it). `modules/shared/home.nix` sets the fleet default
+  points `gpg.ssh.allowedSignersFile` at it). `modules/home/default.nix` sets the fleet default
   principal (`userEmail`); because `allowedSigners` is a `lines` option, extra identities
   simply **append** — the persona addresses `izzy@silvercreek.ai` and `hi@izzykatt.ca` are
   listed alongside it, which is how the retired nix-personal layer's principals came across
@@ -1208,7 +1208,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
   [`launchd-naming.md`](../.claude/rules/launchd-naming.md) rule, which also documents the
   three known-upstream `/bin/sh` exceptions that are NOT ours and must never be renamed.
   **The fork is GONE (2026-09-14).** It shrank to one file, then to none: the pinned
-  home-manager grew the three options it existed for, so `modules/shared/launchd-launcher.nix`
+  home-manager grew the three options it existed for, so `modules/home/launchd-launcher.nix`
   (53 lines) now just sets them — `waitForNixStore = false`, `launcher.name`, `launcher.shell`
   — and upstream's own `mutateConfig` rewrites both `Program` and `ProgramArguments`. The
   drift check that guarded the fork (`hm-launchd-drift`, which pinned the sha256 of upstream's
@@ -1257,7 +1257,7 @@ waves 5-6 absorb them).
   `local.keychainSecrets.loaderRelPath` **by reference** — that is the only thing covering
   a bash spawned by a GUI app or a launchd job, which descends from no shell at all; the
   capsule's `checks/module-evaluates.nix` pins that option's DEFAULT as a literal, so a
-  rename cannot move one half without the other. (2) `modules/shared/claude-bedrock-gate.nix`
+  rename cannot move one half without the other. (2) `modules/home/claude-bedrock-gate.nix`
   writes the same three shell-init options at `lib.mkOrder 1600` and must run AFTER this
   module's `lib.mkAfter` (= 1500), because it reads a variable this loader exports — run it
   first and it sees an unset variable, does nothing, and Claude Code silently keeps a Bedrock
@@ -1294,7 +1294,7 @@ waves 5-6 absorb them).
   `checks.<system>.local-rag-module` still pins that URI as a **literal** so a
   port/role/db rename fails there instead of silently returning zero rows, and
   `local-rag-inert` is the kill-switch gate — both switches unset must contribute nothing,
-  which is the state `nixpi`/`nixvm` are in since `modules/shared/home.nix` imports it
+  which is the state `nixpi`/`nixvm` are in since `modules/home/default.nix` imports it
   unconditionally. There is deliberately **no** wrapping `programs.localRag.enable`
   (ADR-002 §4's "two-switch regression"). It registers no packages: everything it installs is
   nixpkgs', reached through `home.packages` from inside the two modules.
@@ -1518,7 +1518,7 @@ waves 5-6 absorb them).
     apart is the *absence* of `tart`, and GitHub has no negative selector. **Widening a label
     set is free; narrowing is not** — `runs-on:` is a hard AND-match, so always: widen → verify
     live on an ONLINE runner for that scope → flip consumers one repo at a time → narrow last.
-  - Also pins `postgresql`+pgvector onto the runners' PATH (`modules/shared/home.nix`, `hiPrio`
+  - Also pins `postgresql`+pgvector onto the runners' PATH (`modules/home/default.nix`, `hiPrio`
     to resolve the duplicate `bin/psql`).
 
 - **`ollama-daemon.nix`** — `local.ollamaDaemon`: ONE machine-wide `ollama serve`, so
@@ -1539,7 +1539,7 @@ waves 5-6 absorb them).
   a `RunAtLoad` daemon whose arg0 is a store path loses the race against determinate-nixd
   mounting `/nix`, exits 78, and never self-heals. And `environmentVariables` carries the
   POWER BUDGET (`OLLAMA_MAX_LOADED_MODELS=1`, `OLLAMA_NUM_PARALLEL=1`, `OLLAMA_KEEP_ALIVE=10m`).
-  Those moved here from `services.ollama.environmentVariables` in `modules/shared/home.nix` —
+  Those moved here from `services.ollama.environmentVariables` in `modules/home/default.nix` —
   they had to, because that option only ever reaches home-manager's own agent, so the block
   went inert the moment the capsule stopped managing the server. The local-rag capsule gained
   `local.rag.ollama.manageServer` (set false) so it does not stand up a competitor on 11434.
@@ -1591,7 +1591,7 @@ waves 5-6 absorb them).
   and under `bypassPermissions`, which this fleet's VS Code extension and `claude` terminal
   profile both start in.
   - **Content = the SECRET-VALUE denies + the three `attribution` keys**, restated verbatim
-    from `modules/shared/claude-guardrails.nix`. The duplication is the point, not drift:
+    from `modules/home/claude-guardrails.nix`. The duplication is the point, not drift:
     `permissions.deny` lists from every scope COMBINE (duplicates dropped), and each scope
     reaches where the other cannot — user scope reaches the devcontainer and any clone on a
     machine this Home Manager config never touched, managed scope reaches a session whose
@@ -1841,7 +1841,7 @@ waves 5-6 absorb them).
   ever booted. Its `systemPackages` are deliberately two browsers plus a terminal: **plain
   `chromium`, not `ungoogled-chromium`** — ungoogled patches out the Chrome Web Store and
   swaps the Google search engine for a "No Search" stub (both measured in
-  `modules/shared/chromium.nix`), and nixpkgs enables Widevine only for plain chromium, so
+  `modules/home/chromium.nix`), and nixpkgs enables Widevine only for plain chromium, so
   all three cut against a guest whose point is signing into Google. `opera` is not an option
   at all: nixpkgs removed it 2025-05-19, so the name *throws* at eval on every system. Both
   browsers substitute from `cache.nixos.org` for aarch64-linux, so neither is ever built on
@@ -1960,7 +1960,7 @@ is a plain **CNAME → `kattakath.github.io` (DNS-only)** declared in
 
 **`sites/ismail-landing` stays in the tree regardless** — absent from `hostedSites` means "Caddy
 no longer serves it", not "nothing reads it": its `fonts/` subdir is LIVE, read by
-`modules/shared/next-right-thing.nix` for the übersicht widget's typography.
+`modules/home/next-right-thing.nix` for the übersicht widget's typography.
 
 One site also means the `cf-tunnel` **≤2-ingress site-free floor can never fire for it** — this
 render carries three entries (SSH + the site + the mandatory catch-all 404). That floor is an
@@ -1999,7 +1999,7 @@ nothing — hence one regex, not two calls.
 | `compose.nix` | `mkDarwin` / `mkNixos` / `mkHomeManagerModule` — **not translated** to flake-parts, kept verbatim as plain Nix functions in the freeform `flake` attr (ADR-001's blast-radius objection, honoured). Also threads each capsule in as a named specialArg. Its two composition seams (`extraHomeModules`, `hostedSites`) and the nixpi deploy runbook are written up in [`private-home-modules.md`](private-home-modules.md) — the filename is historical (the private `nix-personal` flake it was named for was retired 2026-09-15); the seams and the runbook are current. |
 | `hosts.nix` | `darwinConfigurations.macos`, `nixosConfigurations.{nixpi,nixvm}`. |
 | `packages.nix` | `perSystem.packages` + every `apps.*`. |
-| `checks.nix` | The engine's own checks, including `claude-md-budget`, `capsule-registry`, `deploy-schema`, `bedrock-gate-after-loader`, `launchd-log-rotation` (every declared launchd log reaches exactly one rotator, and never both — re-walks the composed agents itself rather than reading `logging.nix`'s own answer back), `mcp-launcher-parity` (the `nix-mcp-*` launchers this fleet builds == the servers `kattakath/skills`' plugins name, read out of the pinned input at eval time — § `modules/shared/` for the exclusions and the proof it is not vacuous), the two `determinate-daemon` halves and `nixpi-security-posture` (§ `modules/nixos/` — 22 legs, read in BOTH directions since 2026-10-01: a WIDENING of the firewall fails it, and so does REMOVING the declared LAN recovery ingress). Its one shared helper, `mkHostContract`, reports EVERY broken leg rather than the first — that behaviour, not code reuse, is the bar for reaching for it. |
+| `checks.nix` | The engine's own checks, including `claude-md-budget`, `capsule-registry`, `deploy-schema`, `bedrock-gate-after-loader`, `launchd-log-rotation` (every declared launchd log reaches exactly one rotator, and never both — re-walks the composed agents itself rather than reading `logging.nix`'s own answer back), `mcp-launcher-parity` (the `nix-mcp-*` launchers this fleet builds == the servers `kattakath/skills`' plugins name, read out of the pinned input at eval time — § `modules/home/` for the exclusions and the proof it is not vacuous), the two `determinate-daemon` halves and `nixpi-security-posture` (§ `modules/nixos/` — 22 legs, read in BOTH directions since 2026-10-01: a WIDENING of the firewall fails it, and so does REMOVING the declared LAN recovery ingress). Its one shared helper, `mkHostContract`, reports EVERY broken leg rather than the first — that behaviour, not code reuse, is the bar for reaching for it. |
 | `capsules.nix` | The capsule registry and its two internal seams — `capsuleModules` and `capsuleSources` — plus `checks.<system>.capsule-registry`. |
 | `terranix.nix` | The `cf-*` / `gcp-*` tofu builders. The `mcp-public-*` builders and the `mcp-worker-probe` package were deleted 2026-10-02 with that stack. |
 | `devshell.nix` | `devShells` + the `git-hooks.nix` wiring. |
@@ -2030,7 +2030,7 @@ record supersedes the design where they disagree.
 
 **The gate has an INWARD hole.** `files: modules/features/**` can only see a file *inside* a
 capsule reaching out; it cannot see a file *outside* naming a file *inside*. That is real —
-`modules/shared/home.nix` has to `callPackage` a `tart-vms` file with the **host's** pkgs — and is
+`modules/home/default.nix` has to `callPackage` a `tart-vms` file with the **host's** pkgs — and is
 why `capsuleSources` exists (below). ADR-002 §9.3.
 
 ### `flake-module.nix` is the only entry, and there are three seams out
@@ -2041,7 +2041,7 @@ Every capsule is entered **only** through `flake-module.nix`. From there it publ
 |---|---|---|---|
 | `flake.modules.<class>.<name>` | flake-parts' own module registry (`extras/modules.nix:32-73`) | `cloudflared-connector`, `firmware-secrets` (both NixOS) | pure reuse; the `_class` stamp comes free |
 | `capsuleModules.<class>.<name>` | `lazyAttrsOf raw` — a definition passed through **UNWRAPPED** (`modules/parts/capsules.nix`) | `keychain-secrets`, `media-cli`, `local-rag` (home-manager), `tart-vms` (darwin) | **measured, not stylistic.** `flake.modules`' element type is `types.deferredModule`, whose merge always wraps in `{ imports = [ … ]; }` (pinned nixpkgs `lib/types.nix`, `deferredModuleWith`), and flake-parts wraps again for any class but `generic`. For a NixOS module that is invisible. For a **home-manager** module it is not: `home.packages` is a LIST, merged in module-collection order = `buildEnv`'s `paths` order = **who wins a filename collision**. Routing `keychain-secrets` through `flake.modules` moved its four CLIs ahead of postgresql and `nix-bedrock-gate` and **changed `darwin-system`'s drvPath**, with byte-identical package derivations. |
-| `capsuleSources.<capsule>.<name>` | a **path**, nothing else | `tart-vms` only (`gitlab-tart.nix`) | the inward hole above: `modules/shared/home.nix` must build it with the HOST's pkgs, and publishing the path keeps `flake-module.nix` the only thing outside the capsule that names a file inside it |
+| `capsuleSources.<capsule>.<name>` | a **path**, nothing else | `tart-vms` only (`gitlab-tart.nix`) | the inward hole above: `modules/home/default.nix` must build it with the HOST's pkgs, and publishing the path keeps `flake-module.nix` the only thing outside the capsule that names a file inside it |
 
 `flake.modules` is deliberately **not** re-exported as a public flake output (`touchup.nix`) —
 the satellites published `nixosModules.*` to strangers; in-tree the only consumer is
@@ -2120,7 +2120,7 @@ to build the boundary machinery around it.
     The eval check pins that default as a **LITERAL** rather than reading the option back, so the
     assertion is not tautological.
   - `checks.aarch64-darwin.bedrock-gate-after-loader` — the **first-ever** test of the
-    `mkAfter 1500` / `mkOrder 1600` ordering dependency. `modules/shared/claude-bedrock-gate.nix`
+    `mkAfter 1500` / `mkOrder 1600` ordering dependency. `modules/home/claude-bedrock-gate.nix`
     writes the same three shell-init options at 1600 and must run **after** this loader's
     `mkAfter` (= 1500), because it READS a variable the loader exports; reversed, it sees an unset
     variable, does nothing, and Claude Code silently keeps a Bedrock route it cannot reach.
@@ -2152,7 +2152,7 @@ the one exported host (`macos`) and the stranger-identity Mac that
   `tart` / `packer` / `tart-guest-agent`) rather than riding a blanket `allowUnfree`, so a
   **fourth** unfree package arriving via a nixpkgs bump still fails the build. The darwin modules
   keep building against the HOST's pkgs.
-- **`capsuleSources.tart-vms.gitlab-tart`** — the one entry on that seam. `modules/shared/home.nix`
+- **`capsuleSources.tart-vms.gitlab-tart`** — the one entry on that seam. `modules/home/default.nix`
   `callPackage`s it with the **host's** pkgs to put five `nix-gitlab-tart-*` slot shims on `PATH`;
   a derivation from this flake's perSystem pkgs would be a different drv.
 - **`darwinStubs` STAYS.** It is the OPTION layer of the capsule boundary (ADR-002 §2), not
@@ -2176,7 +2176,7 @@ the one exported host (`macos`) and the stranger-identity Mac that
 
 ### `media-cli` (wave 5, 4,559 lines) — the LARGEST, with the narrowest live surface
 
-**One option** in `modules/shared/home.nix` is the capsule's entire live surface.
+**One option** in `modules/home/default.nix` is the capsule's entire live surface.
 
 - **Owns:** `local.mediaCli` — eleven media/photo CLIs, a durable launchd work queue
   (~1,300 lines) and four Finder right-click Services. One switch turns all of it on or off:
@@ -2203,7 +2203,7 @@ the one exported host (`macos`) and the stranger-identity Mac that
   queue"* with *"we did not"*.
 - **Checks:** six, including `media-cli-queue-state-machine` and `media-cli-inert` (an unset
   `local.mediaCli.enable` must define no agent, no session variable, no activation step and no
-  package — the state `nixpi`/`nixvm` are in, since `home.nix` imports the capsule
+  package — the state `nixpi`/`nixvm` are in, since `modules/home/default.nix` imports the capsule
   unconditionally).
 - **NOT re-published, on purpose** (ADR-002 §7.3): the satellite's 11 packages and 9 apps.
   Every CLI reaches the Mac through `home.packages`; a second perSystem-pkgs copy would be eleven
@@ -2248,7 +2248,7 @@ the one exported host (`macos`) and the stranger-identity Mac that
 `local.cloudCli.aws`: the AWS CLI plus `aws-sso-util`, and **`~/.aws/config.example` —
 placeholders only.** It NEVER writes `~/.aws/config`. That file is the human's, written by
 `aws configure sso` or by copying the example, living outside Nix and git, and it is what
-`modules/shared/claude-bedrock-gate.nix` reads at runtime.
+`modules/home/claude-bedrock-gate.nix` reads at runtime.
 
 - **Why the real file may not be declared here, even though it holds no credential.** Account
   ids, SSO start-URL ids and regions are not secrets, but they ARE **reconnaissance** — they
@@ -2392,10 +2392,10 @@ Core package set:
 - **`spotlight-launchers.nix`** — macOS-only: from-scratch `.app` bundle generator (original
   in-Nix SVG/icns icons via librsvg+libicns), in two makers. `mkLauncherApp` gives the Android
   emulator a Spotlight-visible, focus-or-launch identity (consumed by
-  `modules/shared/home.nix`'s `home.file."Applications/Android Emulator.app"`).
+  `modules/home/default.nix`'s `home.file."Applications/Android Emulator.app"`).
   `mkCommandApp` emits **one bundle per fleet operation** — the three `commandApps`
   (`Nix Activate`, `Nix Flake Check`, `Nix Open Repo`) planted by
-  `modules/shared/spotlight-actions.nix`. Three `shape`s: `terminal` opens a **Ghostty**
+  `modules/home/spotlight-actions.nix`. Three `shape`s: `terminal` opens a **Ghostty**
   window running the command (`--wait-after-command=true -e /bin/zsh -lc …`) so `activate`'s
   Touch ID sheet and the build log are both visible; `shell` opens an ordinary interactive
   Ghostty window via its own `--working-directory`; `quiet` runs straight from the launcher
@@ -2449,7 +2449,7 @@ Smaller, single-purpose CLIs:
   `fidelity-enhance.nix` — left for `kattakath/nix-media-cli` on 2026-09-05 (which is where
   the `photo-describe` → `media-describe` renaming happened) and came back on 2026-09-12 as
   `modules/features/media-cli/packages/`, with their reasoning intact in their own headers.
-  This repo consumes them as `local.mediaCli` (see § `modules/shared/` above). There is no
+  This repo consumes them as `local.mediaCli` (see § `modules/home/` above). There is no
   `nix run .#media-describe`: the capsule publishes **no** packages or apps, on purpose — the
   CLIs reach the Mac through `home.packages` and a second perSystem-pkgs copy would be eleven
   `nix flake show` rows nothing consumes. The one-line path back is in the capsule's
@@ -2940,13 +2940,13 @@ Two top-level directories that are easy to mistake for the project-scoped `.clau
 They hold the **all-projects, machine-wide** context this repo installs on `macos`:
 
 - **`claude/CLAUDE.md`** → `~/.claude/CLAUDE.md`, via `programs.claude-code.context` in
-  `modules/shared/home.nix`. That option **replaced a hand-written `home.file` shim** — the
+  `modules/home/default.nix`. That option **replaced a hand-written `home.file` shim** — the
   upstream-first outcome, not a workaround. Holds the user-level rules that apply in every
   session on this machine (AskUserQuestion-for-decisions, the evidence-backed reuse motto, diagrams as
   rendered ASCII, secret-value redaction, git authorship). The repo-root `CLAUDE.md` is
   **project**-scoped and layers on top of it.
 - **`claude/output-styles/`, `claude/agents/`, `claude/commands/`, `claude/rules/`** — the
-  **Brain Signals** kit, wired by `modules/shared/claude-brain.nix` (not `home.nix`) through
+  **Brain Signals** kit, wired by `modules/home/claude-brain.nix` (not `modules/home/default.nix`) through
   `programs.claude-code.{outputStyles,agents,commands,rules}`: the BLUF-first layered output
   style, its companion calibration rule, the `cartographer` read-only architecture subagent,
   and `/task` (goal-locked execution). Its seven `/explain`-family skills live one level up in
@@ -2957,7 +2957,7 @@ They hold the **all-projects, machine-wide** context this repo installs on `maco
   than replacing the set; the only two scalars (`settings.outputStyle`,
   `settings.alwaysThinkingEnabled`) are `lib.mkDefault`, so a plain assignment downstream wins.
   Two things it must never do, both of which would destroy that seam for everyone: route extra
-  global prose through `context` (already defined as a PATH in `home.nix` — a second path
+  global prose through `context` (already defined as a PATH in `modules/home/default.nix` — a second path
   definition is a hard eval error, not a merge; use another `rules.<name>`), or reach for the
   `rulesDir`/`agentsDir`/`commandsDir` forms (upstream asserts `rules` XOR `rulesDir`).
 
@@ -3003,7 +3003,7 @@ copies of one command is a duplicate, not a fallback.
 
 Every hook below is **project-scoped** (`.claude/settings.json`): it guards sessions rooted in
 this repo only. Two wider tiers carry the fleet-wide floor: user-scope
-`modules/shared/claude-guardrails.nix` (§ `modules/shared/`) and, above it on `macos`,
+`modules/home/claude-guardrails.nix` (§ `modules/home/`) and, above it on `macos`,
 root-owned managed scope in `modules/darwin/claude-managed-settings.nix` (§ `modules/darwin/`).
 
 - **`stop-gate.js`** — Stop gate: blocks until configs evaluate clean.
@@ -3089,13 +3089,13 @@ nothing is declared in Nix; the method lives in the `page-lab` plugin — see §
 a line there when a new flake is extracted from this repo, nothing else needs to change).
 There is **no `npx skills` CLI lockfile** any more: `skills-lock.json` was deleted 2026-10-02,
 having sat at `{"version":1,"skills":{}}` with zero consumers in Nix, CI or hooks. The CLI it
-belonged to is rejected outright (`flake.nix:275`, `modules/shared/home.nix:1499`), so the flake
+belonged to is rejected outright (`flake.nix:275`, `modules/home/default.nix:1499`), so the flake
 path below is the only lane for a global skill — do not re-add the lockfile.
 
 ### Global skills
 
 Placed at `~/.claude/skills/<name>/` declaratively by `programs.claude-code.skills`
-(`modules/shared/home.nix`, darwin-gated) on `darwin-rebuild switch`. Most are sourced from
+(`modules/home/default.nix`, darwin-gated) on `darwin-rebuild switch`. Most are sourced from
 PINNED `flake = false` inputs (`agent-skills-vercel` = vercel-labs/skills → `find-skills`;
 `agent-skills-anthropic-official` = anthropics/skills → `mcp-builder`, `webapp-testing`,
 `pdf`/`docx`/`pptx`/`xlsx`), **NOT vendored**; `nix flake update` bumps them.
@@ -3153,7 +3153,7 @@ this repo**. Do not re-create one; CLAUDE.md's "Gone on purpose — do not re-ad
 - The Brain Signals `/explain` family (`explain`, `compare`, `map`, `zoom`, `why`, `diagram`)
   ships as the **`brain-signals` plugin** from the `kattakath` marketplace, which is why it
   kept its kit-with-the-output-style property while leaving this tree: the style moved WITH the
-  skills, so neither half can drift from the other. `modules/shared/claude-brain.nix` keeps only
+  skills, so neither half can drift from the other. `modules/home/claude-brain.nix` keeps only
   what has no plugin form — the **style SELECTION** (`settings.outputStyle =
   "brain-signals:Brain Signals"`, namespaced because a plugin ships it) and the calibration
   **rule** (`rules.brain-signals-context`, since plugins carry no rules). No skills block.
@@ -3162,7 +3162,7 @@ this repo**. Do not re-create one; CLAUDE.md's "Gone on purpose — do not re-ad
 
 > **Update, 2026-09-23 — delivered as a git marketplace, not the pin.** The repo is now
 > [`github:kattakath/skills`](https://github.com/kattakath/skills) (renamed from `kattakath/ai`).
-> `home.nix` registers it as `https://github.com/kattakath/skills.git` with `autoUpdate = true`
+> `modules/home/default.nix` registers it as `https://github.com/kattakath/skills.git` with `autoUpdate = true`
 > (`local.claudePlugins.marketplaces.<name>.autoUpdate`, which renders
 > `extraKnownMarketplaces.<name>.autoUpdate`). Its plugins carry no `version`, so every commit on
 > its `main` is a release, gated by that repo's own `validate.yml`. Its top-level `skills/` are
@@ -3191,13 +3191,13 @@ update block above.)
 That repo's `.claude-plugin/marketplace.json` lists its plugins with `./plugins/<name>`
 relative sources — the shape every owner-operated marketplace on GitHub uses, measured;
 external `{{source:github,…,sha}}` entries are what *catalogs* need, and this is not one.
-`modules/shared/home.nix` declares it as the `kattakath` entry of
+`modules/home/default.nix` declares it as the `kattakath` entry of
 `local.claudePlugins.marketplaces`. The pinned-era form was `source = "${{kattakath-ai}}"` — an
 input's **store path**, which carried none of the relative-literal trap the older
 `"${{../../plugins}}"` form did, because a store path is absolute and means the same thing from
 any file in any flake. Today the source is the https URL, so neither trap applies.
 
-`modules/shared/claude-plugins.nix` contributes only the **declaration** for this marketplace:
+`modules/home/claude-plugins.nix` contributes only the **declaration** for this marketplace:
 its `extraKnownMarketplaces` entry (`{ source = "git"; url = …; autoUpdate = true; }`) and the
 `<plugin>@kattakath` keys of `enabledPlugins`. It does **not** register or install them — the
 `home.activation.claudeCodePlugins` script skips every https marketplace and serves exactly ONE
@@ -3218,7 +3218,7 @@ moves on every content bump and `plugin install` COPIES into `~/.claude/plugins/
 the re-pin a bump would serve a previous generation's content forever.
 
 Its plugins are the live list at `local.claudePlugins.marketplaces.kattakath.plugins`
-(`modules/shared/home.nix`) — **14** as of 2026-09-30, and read it rather than any prose here.
+(`modules/home/default.nix`) — **14** as of 2026-09-30, and read it rather than any prose here.
 Two of them carry write-ups worth keeping:
 
 - **`llmstxt`** — `llms.txt` authoring skill + `/llmstxt` command + a stdlib-only spec
@@ -3517,9 +3517,9 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   (ownership: dies with one capsule or not), and the four MUSTs + three forbids of a new capsule.
   **Read §6 first if you are about to move a file** — it is the table separating the
   **mechanised** half of the boundary (`capsule-must-not-reach-out`,
-  `shared-must-not-cross-layers`, `checks.*.capsule-registry` — each one FAILS A BUILD) from the
+  `home-must-not-cross-layers`, `checks.*.capsule-registry` — each one FAILS A BUILD) from the
   **convention-only** half, which is every boundary a newcomer actually asks about:
-  `darwin`/`nixos`/`shared`, and `packages/` vs a capsule's `packages/`. §7 verifies the shape
+  `darwin`/`nixos`/`home`, and `packages/` vs a capsule's `packages/`. §7 verifies the shape
   against live upstream (blueprint's one-line `packages/<pname>` contract covering both forms,
   its *"the type can be any folder name"* clause, `ryan4yin/nix-config`'s `agents/` + `.agents/`
   + `AGENTS.md` triple mirroring `claude/` + `.claude/` + `CLAUDE.md`) — **with the caveat that

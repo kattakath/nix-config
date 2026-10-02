@@ -251,7 +251,7 @@ written by hand (or restored from your own backup) — a missing one degrades si
 | File | Why it is not in Nix | Shape |
 |---|---|---|
 | `~/.aws/config` | account ids / start-URL ids are reconnaissance; every user's differs | copy `~/.aws/config.example` (written by `local.cloudCli.aws`) or `aws configure sso` |
-| `~/.config/git/silvercreek.inc`, `~/.config/git/izzykatt.inc` | personal mailboxes and a persona | `[user]` + `email` (+ `name` for the persona) — the `includes` in `modules/shared/home.nix` name them |
+| `~/.config/git/silvercreek.inc`, `~/.config/git/izzykatt.inc` | personal mailboxes and a persona | `[user]` + `email` (+ `name` for the persona) — the `includes` in `modules/home/default.nix` name them |
 | `~/.config/git/allowed_signers` | lists every mailbox you author as | `<mailbox> namespaces="git" <your ssh public key>`, one line per address; signing works without it, only VERIFYING needs it |
 | `~/.config/git/infin8.inc` | the work identity (always was hand-placed) | `[user]` + `email` |
 | the login Keychain's secrets | never in Nix | `secret set …`, or `gcloud auth login` → `secrets-rehydrate` once `local.keychainSecrets.backend.type = "gcp"` |

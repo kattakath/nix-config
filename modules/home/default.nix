@@ -137,7 +137,7 @@ let
   # the failure it causes and why the older "symlinks are fine here" note is
   # stale. Kept next to the profile NAME so the two cannot drift apart.
   grokSandboxToml = pkgs.writeText "grok-sandbox.toml" ''
-    # Managed by nix-config (modules/shared/home.nix) — do not hand-edit.
+    # Managed by nix-config (modules/home/default.nix) — do not hand-edit.
     [profiles.${grokSandboxProfile}]
     extends = "workspace"
     deny = [
@@ -392,7 +392,7 @@ in
     # and cannot run a Keychain read. See each module's header.
     ./gmail-mcp.nix # four Gmail accounts, one launcher each
     ./plugin-mcp.nix # wordpress + apify (Keychain) and postgres (loopback pgvector URI)
-    # NOTE for anything added to modules/shared/ later: THIS LIST is the only entry
+    # NOTE for anything added to modules/home/ later: THIS LIST is the only entry
     # point for that directory. A module dropped in there and not named here is
     # silently inert — `local.gmailMcp` was, until it was added.
     # Client side D: the SAME servers rendered into Claude Desktop's stateful
@@ -550,7 +550,7 @@ in
   ];
 
   # Claude Code routing telemetry collector — real Mac only (same gate
-  # as the RAG stack above). See modules/shared/claude-otel.nix and
+  # as the RAG stack above). See modules/home/claude-otel.nix and
   # the programs.claude-code.settings.env block below that points Claude Code
   # at it.
   local.claudeOtel.enable = isMacosHost;
@@ -617,7 +617,7 @@ in
   # published instead - google-photos-icon-nav is
   # https://greasyfork.org/en/scripts/595764 - and a fork-installed copy is the
   # only one that carries an `@updateURL`, so it updates itself while a
-  # materialised file never could. The option in modules/shared/chromium.nix
+  # materialised file never could. The option in modules/home/chromium.nix
   # stays: it is generic, documented, and the next private script can declare
   # itself without rebuilding the mechanism.
 
@@ -929,7 +929,7 @@ in
         # Rebuild a raster/auto-traced logo from measured construction geometry (kattakath/skills#23).
         "logo-construction-geometry"
         # The answer-shape kit: output style, the /explain family, cartographer, /task.
-        # modules/shared/claude-brain.nix selects its (namespaced) output style.
+        # modules/home/claude-brain.nix selects its (namespaced) output style.
         "brain-signals"
         # session-relay: peer-to-peer etiquette for concurrent Claude sessions — find
         # your own address, publish a calling card, read the peer roster, judge whether
@@ -1453,7 +1453,7 @@ in
 
         # Routing telemetry: export tool_decision/tool_result events (only —
         # no metrics/traces, no prompt/response content) to the local OTel
-        # Collector defined in modules/shared/claude-otel.nix, read by
+        # Collector defined in modules/home/claude-otel.nix, read by
         # /routing-review to find deterministic-vs-model-judgment hardening
         # candidates. Gated on the SAME predicate as the collector itself
         # (claude-otel.nix:43, `local.claudeOtel.enable`) — not on isMacosHost,
@@ -1863,7 +1863,7 @@ in
     # same split already used for the ungoogled-chromium cask.
     #
     # The settings deliberately MATCH the existing terminal rather than introduce
-    # a second look: 16pt is the size modules/shared/desktop-aesthetics.nix holds
+    # a second look: 16pt is the size modules/home/desktop-aesthetics.nix holds
     # Terminal.app at on every darwin host, and UbuntuMono Nerd Font is already
     # installed fleet-wide (home.packages) as the VS Code terminal face.
     # Switching terminals should cost no re-adjustment.
@@ -1888,7 +1888,7 @@ in
       # (pinned modules/programs/ghostty.nix:67, written to
       # $XDG_CONFIG_HOME/ghostty/themes/<name> at :172-179). Colours live in
       # their own file rather than inline in `settings`, which is what lets
-      # modules/shared/terminal-theme.nix be the one place they are stated —
+      # modules/home/terminal-theme.nix be the one place they are stated —
       # every value below is DERIVED, none is typed twice.
       themes.fleet = {
         inherit (config.lib.terminalTheme) background foreground;
@@ -2168,7 +2168,7 @@ in
           "chat.agent.enabled" = false;
           # -- Terminal: the fleet palette --------------------------------------
           # DERIVED, not restated. Until this was wired to
-          # modules/shared/terminal-theme.nix, seven of these sixteen slots held
+          # modules/home/terminal-theme.nix, seven of these sixteen slots held
           # PRE-LIFT Tango while Ghostty held the WCAG-corrected values — the two
           # terminals on the same machine disagreed on red, blue, magenta and
           # four of the brights. `drawBoldTextInBrightColors` below routes every

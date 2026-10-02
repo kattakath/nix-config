@@ -22,7 +22,7 @@ measurement rather than by reading the option docs.
 
 ## 2. What the fleet can express today — measured, not assumed
 
-`modules/shared/claude-plugins.nix` consumes `cfg.marketplaces.<name>.plugins` in exactly
+`modules/home/claude-plugins.nix` consumes `cfg.marketplaces.<name>.plugins` in exactly
 two places:
 
 ```
@@ -118,7 +118,7 @@ array keys such as `permissions.allow`; it does not apply here.)
 > to the official Anthropic source.
 > — *Plugins / relevance*
 
-**This repo currently declares an explicit HTTPS URL for it** (`home.nix`, the
+**This repo currently declares an explicit HTTPS URL for it** (`modules/home/default.nix`, the
 `claude-plugins-official` entry). An earlier revision of this section called that URL
 "removable" and the removal "strictly better", hedged as *not yet measured*. **It has since
 been measured, and it is false: DO NOT REMOVE IT.**
@@ -298,7 +298,7 @@ the one actionable item this ADR produced, and it is independent of the plugin q
 ### 7.3 Does the official marketplace need a source? — YES. §4d was wrong
 
 See §4d, rewritten. `source` is required for registration; the name-only form is for
-`pluginSuggestionMarketplaces` and allowlists. `home.nix` is right as it stands.
+`pluginSuggestionMarketplaces` and allowlists. `modules/home/default.nix` is right as it stands.
 
 ### 7.4 How does a managed `enabledPlugins: false` render? — NOT MEASURED, and deliberately so
 

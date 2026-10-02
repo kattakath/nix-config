@@ -1,6 +1,6 @@
 # Root-owned Claude Code MANAGED settings for `macos` — the fleet's strongest
 # agent-policy floor, one tier ABOVE the user-scope floor in
-# modules/shared/claude-guardrails.nix. It does not replace that file; the two
+# modules/home/claude-guardrails.nix. It does not replace that file; the two
 # tiers are additive, and § WHY THE DUPLICATION IS THE POINT below says why.
 #
 # WHAT MANAGED SCOPE BUYS — claimed only as far as the SHIPPED BINARY evidences
@@ -20,7 +20,7 @@
 #     settings file, and user settings, in that precedence order"; `modelPicker`,
 #     "the highest-precedence of those that defines modelPicker wins outright".
 #     None states the reverse. It is belt-and-braces regardless:
-#     modules/shared/claude-guardrails.nix sets the identical three values at user
+#     modules/home/claude-guardrails.nix sets the identical three values at user
 #     scope, so the two agree whichever one wins.
 # NOT evidence for either, though this header cited it as such: "server-managed >
 # MDM (managed plist / HKLM) > managed-settings.json". Read in context it is the
@@ -31,7 +31,7 @@
 # Either way the floor holds in a session where ~/.claude was never materialised,
 # was hand-edited, or was started under `bypassPermissions` — which this fleet's
 # VS Code extension and its `claude` terminal profile BOTH do
-# (modules/shared/home.nix).
+# (modules/home/default.nix).
 #
 # THE PATH, read out of that binary's own string table rather than from docs:
 # macOS "/Library/Application Support/ClaudeCode/managed-settings.json";
@@ -132,7 +132,7 @@
 # binary — they are unset on purpose, not for lack of a spelling.
 #
 # ── SCOPE RULE for adding an entry, one notch stricter than the user floor ────
-# A `permissions` entry must ALREADY be in modules/shared/claude-guardrails.nix,
+# A `permissions` entry must ALREADY be in modules/home/claude-guardrails.nix,
 # AND be pure "never print a secret value" or "never sign work as an AI". Nothing
 # that merely narrows a workflow — because there is NO in-session override here:
 # deny beats ask beats allow, an allow cannot carve an exception out of a deny,
@@ -273,7 +273,7 @@ let
     managedSourcesBehavior = "merge";
 
     # ── AI attribution on git artifacts: OFF (claude/CLAUDE.md § Git authorship)
-    # Byte-identical to modules/shared/claude-guardrails.nix's user-scope copy.
+    # Byte-identical to modules/home/claude-guardrails.nix's user-scope copy.
     # ALL THREE OR NOTHING, and that is upstream's rule rather than a preference:
     # once `commit` or `pr` is set, Claude Code ignores the deprecated
     # `includeCoAuthoredBy` and falls back to its DEFAULT text for whichever of
@@ -294,7 +294,7 @@ let
     permissions.deny = [
       # ── Secret VALUES reaching the transcript ──────────────────────────────
       # This list is the SECRET-VALUE group of
-      # modules/shared/claude-guardrails.nix, and nothing else. Every entry is
+      # modules/home/claude-guardrails.nix, and nothing else. Every entry is
       # fleet-wide policy already written down twice — claude/CLAUDE.md § Redact
       # ("`.age` plaintext", Keychain reads) and CLAUDE.md § Security ("Never
       # display a secret value") — and wrong in every repo, which is what earns
@@ -367,7 +367,7 @@ let
     #   "this is a policy gate only — it does NOT register marketplaces. To
     #    pre-register allowed marketplaces for users, also set
     #    extraKnownMarketplaces."
-    # That half lives in modules/shared/claude-plugins.nix. Both are required: this
+    # That half lives in modules/home/claude-plugins.nix. Both are required: this
     # list decides what MAY be added, that one decides what IS added.
     #
     # WHY THE EXACT `git` ENTRIES ARE HERE ALONGSIDE THE WILDCARDS, and do not
@@ -424,7 +424,7 @@ let
         repo = "obra/*";
       }
 
-      # The eight declared today, spelled exactly as modules/shared/home.nix
+      # The eight declared today, spelled exactly as modules/home/default.nix
       # declares them, so nothing in flight depends on the wildcard inference.
       {
         source = "git";
