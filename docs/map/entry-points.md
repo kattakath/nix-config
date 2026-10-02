@@ -156,7 +156,7 @@ rewrites a file):
 |---|---|---|---|
 | `nix-hardcoded-home-path` | nix | CLAUDE.md § Conventions "Paths — two axes" (runtime half) | The gate half of the [`claude-code-nix`](https://github.com/kattakath/ai/tree/main/plugins/claude-code-nix) plugin's `nix-home-path-lint` hook, which is PostToolUse and so only ever sees *Claude's* writes — a human or flake-bump commit slipped through. Matches `string_fragment` nodes only, so comments and Nix source path literals are exempt by construction rather than by heuristic. Keep the regex in sync with the hook. |
 | `launchd-bare-interpreter-arg0` | nix | [`.claude/rules/launchd-naming.md`](../../.claude/rules/launchd-naming.md) | Flags `ProgramArguments[0]` / `Program` pointing at a bare `sh`/`bash`/`python3`/`node`/… so Background Task Manager can't list a fleet agent as generic persistence. Only sees units authored *here*; the three known upstream `/bin/sh` daemons live in no `.nix` file and must not be renamed. |
-| `capsule-must-not-reach-out` | nix | ADR-002's capsule boundary (§ `modules/features/`) | Scoped by `files:` to `modules/features/**`; flags a `path_expression` escaping the capsule's own directory. The file-layer half of the boundary — `checks.<system>.capsule-registry` is the option-layer half. Blind to overlays, `specialArgs` and runtime-built store paths (ADR-002 §7.6, §9.3). |
+| `capsule-must-not-reach-out` | nix | ADR-002's capsule boundary ([`engine.md`](engine.md) § `modules/features/`) | Scoped by `files:` to `modules/features/**`; flags a `path_expression` escaping the capsule's own directory. The file-layer half of the boundary — `checks.<system>.capsule-registry` is the option-layer half. Blind to overlays, `specialArgs` and runtime-built store paths (ADR-002 §7.6, §9.3). |
 | `home-must-not-cross-layers` | nix | the `modules/home/` layer boundary (`662db6a`, 2026-09-14) | The Home Manager profile may reach **down** into `packages/`, `skills/` and `claude/` — never **across** into `modules/features/`, nor **up** into `modules/parts/`, `hosts/` or `infra/`. |
 | `activation-must-not-touch-secrets` | nix | ADR-004 §2.5 ([`secrets-recovery-and-identity-adr.md`](../secrets-recovery-and-identity-adr.md)) | A `home.activation` / `system.activationScripts` / `system.userActivationScripts` string that names `secrets-{rehydrate,push,resolve,status}` or `gcloud secrets`/`gcloud auth`. Activation must never touch a secret backend; the CLIs are operator-invoked after `gcloud auth login`. Eval-time twin: `checks.aarch64-darwin.keychain-secrets-backend-inert`. |
 | `hook-json-parse-must-be-guarded` | javascript | the "never wedge a turn" invariant every `.claude/hooks/*.js` header states | An unguarded `JSON.parse` of untrusted event JSON throws and surfaces as a hook error. Scoped by `files:` to the hooks. First mechanical check those ~1.3k lines have ever had — `claude-config-lint.yml` checks frontmatter, never hook JS. |
@@ -213,8 +213,16 @@ EMPTY output**, a silent failure rather than a `command not found`. And a bare `
 used to gate this (a separate checkout carrying the real `hostedSites`) was retired 2026-09-15;
 this repo's own `nixosConfigurations.nixpi` now carries the real data. `remoteBuild = false`
 still means the Pi never builds, and the caddy `Caddyfile-formatted` EPERM on Determinate's
-native Linux builder still means `nixos-rebuild --build-host nixpi` (no magic rollback) is the
-working path today, not this deploy-rs node — see `hosts/` above.
+native Linux builder still means `nixos-rebuild switch --flake .#nixpi --target-host
+ismail@nixpi.kattakath.com` (no magic rollback) is the working path today, not this deploy-rs
+node — see [`hosts.md`](hosts.md).
+
+**That is `--target-host`, NOT `--build-host`** — an earlier revision of this paragraph named
+the `--build-host nixpi` form, which is the one shape that must never run: it builds ON the Pi,
+and `.claude/hooks/pretooluse-bash-guard.js` Rule 1d (`BUILD_HOST_PI`) hard-blocks it for that
+reason. `--target-host` builds HERE and only activates there, which is why the guard
+deliberately allows it. When the Mac plans a build rather than a fetch, the Cachix closure is
+merely not warm yet — never move the build onto the Pi.
 
 Only **one** of deploy-rs' two `deployChecks` is wired into `checks.<system>`:
 

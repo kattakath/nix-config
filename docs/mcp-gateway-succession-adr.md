@@ -457,7 +457,16 @@ here, and where §13 and an earlier section disagree, §13 is what the tree does
 | `modules/parts/identity.nix:170` | tier brackets "must sum to 26", machine-control `[4]` | 27, and `[5]` |
 | `modules/shared/mcp.nix:118-119` vs `docs/mcp-gateway.md:28` | "50 processes for 25 servers" vs a table saying 26 | they disagree with each other |
 
-`serverTier` itself is correct (14 operator + 3 trusted + 10 domain = 27). Also: `CLAUDE.md:399`
-and `docs/repo-map.md:2789-2790` both still say ADR-004 is "Phase 1 of 3 shipped" while
-`docs/secrets-recovery-and-identity-adr.md:3` says all three shipped — cheap to fix in the same
-edit that adds this ADR's index rows.
+`serverTier` itself is correct (14 operator + 3 trusted + 10 domain = 27). Also: `CLAUDE.md`
+§ Documentation and [`map/docs-index.md`](map/docs-index.md) § ADRs both still say ADR-004 is
+"Phase 1 of 3 shipped" while `docs/secrets-recovery-and-identity-adr.md:3` says all three
+shipped — cheap to fix in the same edit that adds this ADR's index rows.
+
+> **Citation repaired 2026-10-02.** This paragraph used to cite `CLAUDE.md:399` and
+> `docs/repo-map.md:2789-2790`. Neither resolves: the CLAUDE.md line had moved, and
+> `docs/repo-map.md` was split into eleven `docs/map/*.md` files behind a 6.6 KB index (#800),
+> so it no longer has a line 2789 at all — the ADR list lives in `map/docs-index.md` now. The
+> two stale claims themselves are still there to fix; only the addresses were wrong. **Cite
+> documents and § sections, not line numbers** — a line number in one document aimed at another
+> rots on the first reflow and cannot be gated (`docs-links-resolve` checks link targets, never
+> line numbers).

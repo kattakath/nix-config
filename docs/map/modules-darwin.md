@@ -318,7 +318,8 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
     since 2026-10-02 there is no such file and no such server — **every** MCP server lives in a
     plugin's `.mcp.json`, which no managed file and no check here can see. ADR-003 §5's blanket
     "MCP servers stay Nix-owned" was scoped on 2026-09-30 (its §10.6) and is now **fully
-    retracted** (§ MCP after the gateway). So the case against `managed-mcp.json` is now purely
+    retracted** ([`claude.md`](claude.md) § MCP after the gateway). So the case against
+    `managed-mcp.json` is now purely
     the connector-suppression one — which is sufficient on its own.
   - **Coverage limit + how to verify:** managed settings do NOT reach an Anthropic-hosted
     cloud session (only server-managed ones do), which is a further reason the user- and

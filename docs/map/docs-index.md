@@ -16,7 +16,8 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
 - **The three MCP docs are HISTORY as of 2026-10-02 — the gateway and its Cloudflare portal are
   destroyed.** Each opens with a RETIRED header; read that header before any sentence in the body,
   which is written in the present tense of a system that no longer exists. What is live is
-  § MCP after the gateway above: servers come from an enabled plugin's `.mcp.json`, spawned per
+  [`claude.md`](claude.md) § MCP after the gateway: servers come from an enabled plugin's
+  `.mcp.json`, spawned per
   session, nothing shared.
   - [`docs/mcp-gateway.md`](../mcp-gateway.md) — **RETIRED.** The roster, the
     capabilities-vs-entries counting convention, the lane-ownership rule, and the measurements
