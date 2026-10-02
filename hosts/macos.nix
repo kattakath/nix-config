@@ -308,18 +308,18 @@ in
     home = "/Users/${loginName}";
   };
 
-  # ---- Gmail multi-account MCP (modules/shared/mcp.nix, a home-manager option
-  # — set via home-manager.users)
+  # ---- Per-session MCP launchers (modules/shared/{gmail-mcp,plugin-mcp}.nix,
+  # home-manager options — set via home-manager.users)
   # The operator's COMPLETE Gmail roster. All four are the operator's own
   # accounts under identities already public elsewhere in this very tree:
   # userEmail = ismail@kattakath.com (identityArgs) and its namesake domain;
-  # silvercreek.ai, whose production WordPress this gateway already drives
-  # (`wordpress-adapter`); and the operator's `aloshy` handle (the aloshy.ai
+  # silvercreek.ai, whose production WordPress the `wordpress` launcher below
+  # drives; and the operator's `aloshy` handle (the aloshy.ai
   # zone). The private nix-personal flake used to ADD further accounts via
   # extraHomeModules; it was fully retired 2026-09-15, and the operator chose to
   # keep only the two below from its list of seven (#524), so this list is now
   # the whole set. Anyone else's address still never belongs here — see the
-  # option's description in modules/shared/mcp.nix.
+  # option's description in modules/shared/gmail-mcp.nix.
   #
   # `publicMcpServers` is a home-manager module arg (extraSpecialArgs,
   # modules/parts/compose.nix) — NOT this file's own specialArgs — so this
@@ -331,13 +331,36 @@ in
     # land on PATH as `nix-mcp-gmail-<sanitised-address>`; the gmail plugin in
     # github:kattakath/skills names them in its own `.mcp.json`, so Claude Code spawns
     # one stdio server per account per session — nothing shared, nothing listening.
-    # The list below under `local.mcpGateway` is now inert (that gateway is disabled)
-    # and goes when mcp.nix does.
+    # This is now the ONLY list: the parallel `local.mcpGateway.gmail.accounts` went
+    # with the gateway in #734.
     local.gmailMcp.accounts = [
       "ismail@kattakath.com"
       "ismailkattakath@gmail.com"
       "izzy@silvercreek.ai"
       "aloshyakasoto@gmail.com"
+    ];
+
+    # The three CREDENTIALED servers the gateway owned that no EXISTING plugin could
+    # carry — the "wordpress, apify, … local postgres" part of the cost the purge
+    # accepted. Launchers land on PATH as `nix-mcp-<name>`; in
+    # github:kattakath/skills the new `wordpress` and `apify` plugins name theirs, and
+    # `postgres` goes to the EXISTING `rag` plugin, whose own SKILL.md already said it
+    # "runs entirely local via the postgres MCP server" — it owned this in documentation
+    # before it owned it in code.
+    #
+    # Each was checked LIVE before being declared, because a plugin for a dead endpoint
+    # is worse than no plugin (see modules/shared/plugin-mcp.nix for the probes):
+    # silvercreek.ai's REST API answers and only authentication gates it, and the
+    # pgvector store is listening on loopback. All three then completed a real MCP
+    # `initialize` through their launcher.
+    #
+    # `wordpress-adapter` is NOT here and must not be added: that is a DIFFERENT endpoint
+    # on the same site and its route is gone (404 `rest_no_route`) — the failure that
+    # darked all 25 gateway servers.
+    local.pluginMcp.servers = [
+      "wordpress"
+      "apify"
+      "postgres"
     ];
 
     # NO `local.mcpGateway.public` any more. It named which hosted servers to
