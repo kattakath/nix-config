@@ -50,13 +50,34 @@
   config,
   lib,
   pkgs,
+  loginName,
   ...
 }:
 let
+  # SCOPE IS SELECTED FROM THE CANONICAL FOUR, not retyped as one.
+  # ./launchd-sources.nix is the single enumeration of this host's launchd option
+  # surfaces; the predicate below is this mechanism's reach, stated rather than
+  # implied by naming one source and omitting three:
+  #   selfHeals  home-manager already probes and re-bootstraps its own lane, so
+  #              reconciling it would be a second mechanism for a solved problem.
+  #   domain     this script runs as root from postActivation AND from
+  #              activate-system's boot script, where no user is logged in and
+  #              `gui/<uid>` therefore does not exist. Its probe and verbs are
+  #              system-domain; a gui agent is unreachable from the boot half in
+  #              principle, not by omission.
+  # A source that is neither self-healing nor system-domain is covered by NOTHING
+  # — true of `launchd.user.agents` today. That gap is closed by MIGRATING those
+  # units to the home-manager lane (the move metube and yt-dlp-web-ui made
+  # 2026-09-22), not by widening this script's blast radius. The full argument,
+  # with the pinned upstream lines it rests on, is in ./launchd-sources.nix.
+  healable = lib.filter (s: !s.selfHeals && s.domain == "system") (
+    import ./launchd-sources.nix { inherit config loginName; }
+  );
+
   # activate-system is excluded: it is the daemon that RUNS the boot half, and it
   # is bootstrapped by launchd itself before any of this can execute.
   reconciled = lib.filter (l: l != "org.nixos.activate-system") (
-    lib.mapAttrsToList (_: d: d.serviceConfig.Label) config.launchd.daemons
+    lib.concatMap (s: lib.mapAttrsToList (_: u: u.${s.key}.Label) s.units) healable
   );
 
   # Escape hatch. A deliberate `launchctl bootout` is otherwise undone by the very
