@@ -25,7 +25,7 @@ let
   inherit (config.fleet.identityArgs) loginName;
   # The published-gateway port, for the template-consumer check below. Read from
   # config.fleet — NOT identityArgs, which is the attrset a consumer replaces.
-  inherit (config.fleet) publicMcpPort domainName;
+  inherit (config.fleet) domainName;
 
   # The ONE shared shape in this file. It was born for `determinate-daemon`,
   # which is literally the same check run against two hosts whose contracts are
@@ -233,58 +233,13 @@ in
           # terranix renders outside any host's module system and cannot read the
           # roster back, so `config.fleet.publicMcpServers` is a hand-kept mirror.
           # This makes the mirror mechanical: set equality, both directions.
-          mcp-published-parity =
-            let
-              hm = config.flake.darwinConfigurations.macos.config.home-manager.users.${loginName};
-              hosted = lib.naturalSort hm.local.mcpGateway.hostedServers;
-              published = lib.naturalSort config.fleet.publicMcpServers;
-              missing = lib.subtractLists published hosted;
-              extra = lib.subtractLists hosted published;
-              problems =
-                lib.optional (
-                  missing != [ ]
-                ) "hosted but NOT published (terranix will never register them): ${toString missing}"
-                ++ lib.optional (
-                  extra != [ ]
-                ) "published but NOT hosted (terranix registers a dead upstream): ${toString extra}";
-            in
-            pkgs.runCommand "mcp-published-parity" { } (
-              if problems == [ ] then
-                "echo 'mcp: hosted roster == fleet.publicMcpServers (${toString (lib.length hosted)} servers)' > $out"
-              else
-                ''
-                  echo "mcp-published-parity: the gateway roster and config.fleet.publicMcpServers disagree." >&2
-                  ${lib.concatMapStringsSep "\n" (x: ''echo "  ${x}" >&2'') problems}
-                  echo "" >&2
-                  echo "  Both must list every hosted server. Fix modules/parts/identity.nix" >&2
-                  echo "  or the server set in modules/shared/mcp.nix." >&2
-                  exit 1
-                ''
-            );
-
-          # The reachability arm must be sourced from the GATEWAY, never from the
-          # rendering it is checking. Until 2026-09-22 it was: `endpoints` read
-          # `local.mcpGateway.endpoints`, the 26 loopback URLs, and the check
-          # asserted every one reached Desktop. #572 deleted that option and
-          # repointed the line at `renderedServers` — the same attrset as
-          # `servers` — so `missing` became `filter (n: !(servers ? n))
-          # (attrNames servers)`, which is `[ ]` for every possible input. The
-          # arm went on reporting success while asserting nothing.
-          #
-          # There is no per-server endpoint set to compare against any more, so
-          # the invariant that replaces it is the one the collapse created: the
-          # portal URL mcp.nix builds must be what Desktop actually dials. That
-          # still crosses a module boundary, which is the whole point — a check
-          # whose two sides come from one expression can only ever pass.
           claude-desktop-config-shape =
             let
               hm = config.flake.darwinConfigurations.macos.config.home-manager.users.${loginName};
               servers = hm.local.claudeDesktop.renderedServers;
-              portalEndpoint = hm.local.mcpGateway.portalEndpoint;
               # Flatten every rendered entry's argv; the portal is an mcp-remote
               # shim, so its URL rides in `args`, not in a `url` key (Desktop's
               # schema rejects one — that is what toStdioShim exists for).
-              renderedArgs = lib.concatMap (s: s.args or [ ]) (builtins.attrValues servers);
               badShape = lib.filterAttrs (
                 _: s: !(s ? command && s ? args) || s ? url || s ? type || !(s ? env && s.env ? NIX_CONFIG_MANAGED)
               ) servers;
@@ -307,25 +262,17 @@ in
                   badShape != { }
                 ) "non-stdio or unmarked entries: ${toString (builtins.attrNames badShape)}"
                 ++
-                  # BOTH DIRECTIONS, because the right answer flipped on 2026-10-01.
+                  # DESKTOP MUST RENDER NO SERVERS. The gateway it used to dial is gone
+                  # (purged 2026-10-02, 65 Cloudflare objects), and Desktop loads no
+                  # plugins — so an empty set is the end state, not a degradation.
                   #
-                  # While the gateway exists, Desktop MUST dial its portal — that entry is
-                  # the only fleet MCP it can reach, since Desktop loads no plugins.
-                  #
-                  # Once the gateway is PURGED, zero servers is the intended end state and
-                  # the old assertion would fail the build for being correct. So the leg
-                  # inverts rather than relaxes: it now demands the set be EMPTY, which
-                  # catches the regression that actually matters — a portal entry sneaking
-                  # back in and quietly reinstating the central gateway this purge removed.
-                  # A leg deleted here would catch neither.
-                  (
-                    if hm.local.mcpGateway.enable then
-                      lib.optional (!(builtins.elem portalEndpoint renderedArgs))
-                        "Desktop dials no entry at the gateway's portalEndpoint (${portalEndpoint}) — it would start with zero fleet servers"
-                    else
-                      lib.optional (servers != { })
-                        "the gateway is purged, so Desktop must render NO servers — found: ${toString (builtins.attrNames servers)}"
-                  )
+                  # This is the leg that catches the regression worth catching: a portal
+                  # entry sneaking back in and quietly reinstating a central shared
+                  # gateway. Paired with the `claudeDesktop.enable` leg above, because an
+                  # empty set from a DISABLED module is a different claim — it means
+                  # nothing writes the file, so stale content survives unmanaged.
+                  lib.optional (servers != { })
+                    "Desktop must render NO servers — the gateway is purged — found: ${toString (builtins.attrNames servers)}"
                 ++ lib.optional (
                   servers ? desktop-commander
                 ) "desktop-commander rendered (it is a Desktop Extension already)";
@@ -333,7 +280,7 @@ in
             pkgs.runCommand "claude-desktop-config-shape" { } (
               if problems == [ ] then
                 ''
-                  echo "claude-desktop: ${toString (lib.length (builtins.attrNames servers))} stdio-shaped entries, dialling the gateway portal at ${portalEndpoint}" > "$out"
+                  echo "claude-desktop: module enabled, ${toString (lib.length (builtins.attrNames servers))} servers rendered (0 expected — the gateway is purged)" > "$out"
                 ''
               else
                 ''
@@ -453,7 +400,6 @@ in
                       # gateway at all — the original failure was a missing
                       # identityArg, not anything about publishing — so it now reads
                       # the option that replaced it.
-                      local.mcpGateway.telegram.enable = false;
                     };
                   }
                 ];
@@ -476,9 +422,13 @@ in
 
               problems =
                 # Forces publicMcpPort through the agent's argv.
+                # The gateway is PURGED, so a template consumer must inherit NO such
+                # agent. This leg used to assert the opposite (that the agent bound
+                # publicMcpPort); inverted rather than deleted, so "the gateway came
+                # back through the template path" still fails the build.
                 lib.optional (
-                  !lib.any (a: a == toString publicMcpPort) macHm.launchd.agents.mcp-gateway.config.ProgramArguments
-                ) "the gateway agent does not bind publicMcpPort for a template consumer"
+                  macHm.launchd.agents ? mcp-gateway || macHm.launchd.agents ? mcp-tunnel-connector
+                ) "a template consumer inherited an MCP gateway agent — the gateway is purged"
                 ++ lib.optional (
                   boxUsers ? ${loginName}
                 ) "mkNixos created the OPERATOR's account (${loginName}) on a consumer's host"
