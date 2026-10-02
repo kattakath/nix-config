@@ -385,11 +385,16 @@ in
     # asserts that an unset `enable` contributes nothing at all, which is the
     # state the two NixOS hosts are in.
     mediaCliModule
-    # Per-account Gmail MCP launchers on PATH for the PLUGIN lane. Separate from
-    # mcp.nix on purpose: that file is the purged gateway and is going away, while
-    # this capability survives it. See the module header for why the launcher
-    # cannot live in the plugin repo (a Keychain read).
-    ./gmail-mcp.nix
+    # THESE TWO ARE THE LIVE MCP LANE. The gateway (`mcp.nix`) was deleted in #734;
+    # these launchers are how the servers that had no plugin owner survived it. Each
+    # puts a binary on PATH that a plugin's `.mcp.json` in github:kattakath/skills names
+    # as its `command`, because that file can set `env` only to literals or passthroughs
+    # and cannot run a Keychain read. See each module's header.
+    ./gmail-mcp.nix # four Gmail accounts, one launcher each
+    ./plugin-mcp.nix # wordpress + apify (Keychain) and postgres (loopback pgvector URI)
+    # NOTE for anything added to modules/shared/ later: THIS LIST is the only entry
+    # point for that directory. A module dropped in there and not named here is
+    # silently inert — `local.gmailMcp` was, until it was added.
     # Client side D: the SAME servers rendered into Claude Desktop's stateful
     # claude_desktop_config.json (stdio shims over the gateway; merge one key).
     # Reaches Cowork through Desktop's device bridge. Gated on the gateway.
