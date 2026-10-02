@@ -222,7 +222,7 @@ archived, and this fleet's disclosure path is `SECURITY.md` at the repo root.
 
 `CACHIX_AUTH_TOKEN` lives in exactly two places — a **GitHub Actions secret** and (since
 2026-08-21) the operator's **login Keychain** — never in Nix or git; read stays public and
-tokenless on every consumer. Details in [`repo-map.md`](repo-map.md) § Binary cache.
+tokenless on every consumer. Details in [`map/infra.md`](map/infra.md) § Binary cache.
 
 ## Never display a secret value
 

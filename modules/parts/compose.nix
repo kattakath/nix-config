@@ -539,7 +539,7 @@ in
   # ---- Composition API (private flakes, local overrides) --------------------
   # The composition contract: this public flake is the engine; a private
   # stack could plug in via `extraHomeModules` without forking hosts/ (no
-  # caller does today — see docs/repo-map.md, nix-personal retired
+  # caller does today — see docs/map/engine.md, nix-personal retired
   # 2026-09-15). The terranix renderers join this same attrset from
   # modules/parts/terranix.nix — see modules/parts/lib-option.nix for why that
   # is possible at all.

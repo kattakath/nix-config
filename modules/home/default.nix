@@ -270,7 +270,7 @@ let
   # NO GATE BUILDS THE DARWIN CLOSURE (flake check and CI only evaluate it), so
   # a package override that cannot build first fails at `activate` — this one
   # did. Build it yourself: nix build .#darwinConfigurations.macos.system
-  # (docs/repo-map.md § checks, "No gate BUILDS the darwin closure").
+  # (docs/map/engine.md § `modules/parts/`, "No gate BUILDS the darwin closure").
   rclipCli = pkgs.rclip.overridePythonAttrs (_: {
     dontCheckRuntimeDeps = true;
   });
@@ -1792,8 +1792,8 @@ in
         # Declared here, not hand-edited: ~/.ssh/config is a read-only store
         # symlink this module owns, and this is the one place a spaced
         # ProxyCommand survives BOTH deploy-rs legs (ssh + `nix copy`) — the
-        # why, incl. the NIX_SSHOPTS re-splitting, is docs/repo-map.md
-        # § modules/parts/deploy.nix. cloudflared is the STORE binary, never
+        # why, incl. the NIX_SSHOPTS re-splitting, is
+        # docs/map/entry-points.md § deploy.nodes. cloudflared is the STORE binary, never
         # PATH/`/opt/homebrew`: ssh runs ProxyCommand via `/bin/sh -c` with the
         # caller's environment, and a PATH miss is an opaque "Connection closed".
         #

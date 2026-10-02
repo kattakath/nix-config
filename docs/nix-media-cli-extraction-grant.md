@@ -277,7 +277,7 @@ keychain-secrets.homeManagerModules.default
 ```
 
 The `.follows` pins protect `flake.lock`'s deliberate 60-node diet (documented in
-`docs/repo-map.md`) — a new `nix-media-cli` input should follow the identical
+`docs/map/entry-points.md` § `flake.lock`) — a new `nix-media-cli` input should follow the identical
 pattern.
 
 ---
