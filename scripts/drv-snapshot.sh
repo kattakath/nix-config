@@ -15,8 +15,15 @@
 #
 # WHY THIS IS NOT A FLAKE PACKAGE. Adding it to `packages` would add a row to
 # `nix flake show`, i.e. perturb the very baseline it exists to measure. It is a
-# dev tool, not a fleet artifact, so it stays a plain script and is shellcheck'd
-# via `nix develop -c shellcheck scripts/drv-snapshot.sh`.
+# dev tool, not a fleet artifact, so it stays a plain script.
+#
+# It is still SHELLCHECKED, by `checks.<system>.drv-snapshot-lint`
+# (modules/parts/checks.nix) — not, as this header said until 2026-10-02, by the
+# operator remembering to run `nix develop -c shellcheck` by hand. Unpackaged does
+# not have to mean ungated: that check shellchecks this file as a source path, so
+# nothing is added to `packages` and its drvPath tracks this file alone rather than
+# `self`. Expect one `checks:<system>:drv-snapshot-lint` row per system in
+# outputs.tsv below; it moves only when this file does.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
