@@ -2,8 +2,10 @@
 
 **Status:** **DECIDED 2026-10-02 — documentation of an EXISTING shape, not a redesign.** Every
 boundary in §§3-5 is the boundary the tree already has; this ADR writes it down and cites the
-precedent it follows. One consequence is **proposed and NOT yet done**: the
-`modules/shared` → `modules/home` rename (§8). Two warts are **recorded, not fixed** (§9).
+precedent it follows. Its one consequence is **DONE**: the
+`modules/shared` → `modules/home` rename (§8) landed 2026-10-02, entry point included
+(`home.nix` → `default.nix`). Of §9's warts, **§9b is fixed**; §9a and §9c stay **recorded, not
+fixed**.
 
 **Supersedes nothing.** It is the missing companion to
 [ADR-002](monoflake-capsule-adr.md), which *created* the capsule boundary and justified it
@@ -26,7 +28,7 @@ Verbatim, the operator's framing:
 
 Three concrete sub-questions follow from it:
 
-1. What belongs in `modules/darwin/` vs `modules/nixos/` vs `modules/shared/` vs
+1. What belongs in `modules/darwin/` vs `modules/nixos/` vs `modules/home/` vs
    `modules/features/` vs `modules/parts/`?
 2. Why do packages live in **two** places — top-level `packages/` *and*
    `modules/features/<name>/packages/`? When does a new package go where?
@@ -82,7 +84,7 @@ loaded as a flake module — it holds shared DATA that any layer may `import` by
 └────────────────────────────┘ └────────────────────────┘
 ```
 
-(Drawn with `modules/home/` — the §8 name. Today's tree says `modules/shared/`.)
+(`modules/home/` is now the tree's own name — §8 landed 2026-10-02.)
 Neither arrow has a reverse: the class layer never calls back into the engine, and nothing
 outside a capsule names a file inside one but `flake-module.nix`. The capsules and the class
 layer do not touch each other at all.
@@ -100,7 +102,7 @@ left unflagged by both ast-grep layer rules — each one says so in its own `fil
 **A file belongs here when** it decides *what the flake exports*. A file that decides *what a
 host runs* belongs one layer down.
 
-### 3b. `modules/{darwin,nixos,shared}/` — the class layer
+### 3b. `modules/{darwin,nixos,home}/` — the class layer
 
 Split by **module system**, not by subject matter:
 
@@ -108,12 +110,12 @@ Split by **module system**, not by subject matter:
 |---|---|---|---|
 | `modules/darwin/` | nix-darwin system modules | imported by `mkDarwin` | 10 |
 | `modules/nixos/` | NixOS system modules | imported by `mkNixos` | 4 |
-| `modules/shared/` | **home-manager** user modules | `home.nix`, imported by BOTH builders | 24 `.nix` + 2 content dirs |
+| `modules/home/` | **home-manager** user modules | `default.nix`, imported by BOTH builders | 22 `.nix` + 2 content dirs |
 
-`modules/shared/home.nix` reaches both host classes through one seam —
+`modules/home/default.nix` reaches both host classes through one seam —
 `mkHomeManagerModule` (`modules/parts/compose.nix:95`), used by `mkNixos` (`:311`) and
-`mkDarwin` (`:521`). So "shared" means *shared across host classes*, which is a **scope**, while
-its two siblings name a **class**. §8 is the consequence.
+`mkDarwin` (`:521`). The old name, `shared`, meant *shared across host classes* — a **scope**,
+while both siblings name a **class**. §8 is that consequence, and it has landed.
 
 **A file belongs here when** it configures a host and is not a whole feature. Platform
 divergence inside one of these files is a `lib.mkIf` on `stdenv.hostPlatform`, never a second
@@ -223,7 +225,7 @@ This is the section to read before moving a file.
 | Boundary | Enforced by | Fails how |
 |---|---|---|
 | A capsule may not reach **out** by path | `ast-grep/rules/capsule-must-not-reach-out.yml` — `kind: path_expression`, `regex: '\.\.'`, `files: modules/features/**`, `severity: error` | **BUILD FAILS** (`checks.<system>.ast-grep`) |
-| `modules/shared/` may not cross into `features/`, `parts/`, `hosts/`, `infra/` | `ast-grep/rules/shared-must-not-cross-layers.yml` — same node kind, `regex: '\.\..*/(features\|parts\|hosts\|infra)/'`, `severity: error` | **BUILD FAILS** (same gate) |
+| `modules/home/` may not cross into `features/`, `parts/`, `hosts/`, `infra/` | `ast-grep/rules/home-must-not-cross-layers.yml` — same node kind, `regex: '\.\..*/(features\|parts\|hosts\|infra)/'`, `severity: error` | **BUILD FAILS** (same gate) |
 | Every `modules/features/*/` directory is actually imported | `checks.<system>.capsule-registry` (`modules/parts/capsules.nix:141`) — `readDir ../features` vs `config.capsules`, both directions | **BUILD FAILS** |
 | Each capsule's own module still evaluates | the capsule's own `checks/` — all 7 have one, 10 files total | **BUILD FAILS** |
 | No hardcoded `/Users/<name>` in a Nix *value* | `ast-grep/rules/nix-hardcoded-home-path.yml` | **BUILD FAILS** |
@@ -232,7 +234,7 @@ This is the section to read before moving a file.
 | `templates/default/` is **that** path, not some other name | `checks.<system>.template-consumer` — since #765 it literally does `import ../../templates/default/flake.nix` (`modules/parts/checks.nix:459`) and builds with the template's own arguments. Before #765 it re-implemented the identity as a four-field literal and read nothing out of `templates/` at all | **BUILD FAILS** |
 | `bootstrap.sh` and `scripts/drv-snapshot.sh` stay shellcheck-clean | `checks.<system>.bootstrap-lint` (`:122`) and `drv-snapshot-lint` (`:978`, added by #763) | **BUILD FAILS** |
 | **`modules/parts/` may reach anywhere** | nothing — it is the licensed exception, named in both rules' `files:` comments | n/a |
-| **`modules/darwin/` vs `modules/nixos/` vs `modules/shared/`** | **nothing. Convention only.** | a misfiled module is caught by eval only if the option does not exist in that class |
+| **`modules/darwin/` vs `modules/nixos/` vs `modules/home/`** | **nothing. Convention only.** | a misfiled module is caught by eval only if the option does not exist in that class |
 | **`packages/` vs a capsule's `packages/`** | **nothing. Convention only.** | silently fine either way |
 | **"is this a capsule or a class-layer module?"** | **nothing. Convention only.** | silently fine either way |
 | A capsule reaching out via overlay / `specialArgs` / runtime store path | **nothing.** ADR-002 §7.6 blind spot | silently fine |
@@ -253,7 +255,7 @@ Two further asymmetries worth naming:
 - **`capsule-must-not-reach-out` is scoped to `modules/features/**`**, which leaves the
   mirror-image breach open: an *engine* or *shared* file naming a path **inside** a capsule is
   not flagged. `capsuleSources` exists precisely so the one real instance did not have to be
-  `../features/tart-vms/packages/gitlab-tart.nix` in `modules/shared/home.nix` — a line ast-grep
+  `../features/tart-vms/packages/gitlab-tart.nix` in `modules/home/default.nix` — a line ast-grep
   would not have caught. The `shared-must-not-cross-layers` rule later closed that hole for
   `shared/` specifically; for `parts/` it is open by design.
 
@@ -299,36 +301,58 @@ Two genuinely local inventions, named as such rather than claimed as precedent:
 **Consequence of §7 for this ADR's scope: no migration is proposed.** The layout is
 conventional. What was missing was the write-up.
 
-## 8. The one consequence: `modules/shared` → `modules/home`
+## 8. The one consequence: `modules/shared` → `modules/home` — DONE 2026-10-02
 
-**Proposed here, performed separately. This rename is this ADR's consequence, not a separate
-whim** — it falls directly out of §3b's table, and recording the boundary is what makes it
-visible.
+**Proposed here, performed separately — and now performed.** This rename is this ADR's
+consequence, not a separate whim: it falls directly out of §3b's table, and recording the
+boundary is what made it visible.
 
-**Why.** `shared` names a **scope** (which host classes get it) while both its siblings name a
-**class** (which module system consumes it). Blueprint's type key for exactly this tree is
-`home`. The strongest evidence is in-repo and already written down: the header of
-`ast-grep/rules/shared-must-not-cross-layers.yml` introduces the directory as
-*"`modules/shared/` the home-manager profile"* — the linter that fences the layer already calls
-it by the class name the directory does not use.
+**Why.** `shared` named a **scope** (which host classes get it) while both its siblings name a
+**class** (which module system consumes it). The strongest evidence was in-repo and already
+written down: the header of the ast-grep rule that fences the layer introduced the directory as
+*"`modules/shared/` the home-manager profile"* — the linter already called it by the class name
+the directory did not use. (The `blueprint` "type key" argument this section used to lean on is
+**withdrawn**: `blueprint` is not an input of this flake — see §9b — so it is prior art, not an
+option surface. The in-repo asymmetry carries the decision on its own.)
 
-After the rename the §3b table reads `modules/{darwin,nixos,home}`, which is blueprint's own
-triple verbatim, and the ast-grep rule's `files:` glob becomes `modules/home/**`.
+The §3b table now reads `modules/{darwin,nixos,home}`, and the ast-grep rule's `files:` glob is
+`modules/home/**`.
 
-**What the rename must carry with it** (the rename PR's checklist, not this ADR's work):
+**THE ENTRY POINT WAS RENAMED TOO:** `modules/shared/home.nix` → `modules/home/default.nix`.
+`modules/home/home.nix` would have stuttered, and `default.nix` lets the single import site be the
+**directory literal** `../home` (`modules/parts/compose.nix:210`), which Nix resolves to
+`default.nix`. Verified both ways rather than assumed: with the file present `import ./modules/home`
+yields a `lambda`; renamed away, eval fails naming `modules/home/default.nix` — loud, not silent.
 
-- the `files:` glob and the id/message of `shared-must-not-cross-layers.yml`;
-- `../shared/home.nix` in `modules/parts/compose.nix:210` — and **that is the only one left**.
-  The two `nix-cache.nix`/`nix-ld-libraries.nix` literals this list used to name were retired by
-  §9b's own move on 2026-10-02 (`modules/parts/compose.nix:299` now reads
-  `../nixos/nix-cache.nix`; `modules/nixos/core.nix:133` reads `../_lib/nix-ld-libraries.nix`
-  and `packages/devcontainer-image.nix:98` reads `../modules/_lib/nix-ld-libraries.nix`);
-- every prose reference in `CLAUDE.md`, `README.md`, `docs/repo-map.md` and the ast-grep headers;
-- **`scripts/drv-snapshot.sh --compare` must show an empty diff.** A pure rename moves code and
-  must change nothing the fleet builds; that harness is ADR-002's acceptance test and is the
-  only evidence that claim is true.
+**What the rename carried with it, and what each item would have cost if missed:**
 
-**And two files should NOT make the trip** — §9b.
+| Carried | Cost of missing it |
+|---|---|
+| the `files:` glob, the `id:` **and both filenames** of the layer rule (now `home-must-not-cross-layers`) | the glob matches **zero files**, the scan finds zero violations, the check is permanently and **silently green**, and the layer boundary stops existing. **No test in this repo catches it** — the fixtures prove the PATTERN, never the glob's scope, and that fixture file's own header says so |
+| `modules/shared/**` in `warm-nixpi-cache.yml` | home-module changes stop warming the Pi's closure → **the Pi builds**, with a symptom indistinguishable from the two documented benign cases (cache not warm; Nix's 1 h `narinfo-cache-negative-ttl` 404) |
+| `modules/shared/**` in `build-installers.yml` | `installer-latest` serves a **stale SD image** while CI is green — a bug that already happened once for exactly this reason |
+| `../shared/home.nix` in `modules/parts/compose.nix:210` → `../home` | eval failure. Loud, so this is the cheap one. It was **the only import literal left**: the `nix-cache.nix`/`nix-ld-libraries.nix` literals this list used to name were retired by §9b's own move the same day |
+| the prescriptive `grep -rn … modules/shared/home.nix …` in `.claude/rules/upstream-first.md:61` | the motto's own mechanisation **errors** instead of probing, so it degrades quietly |
+| 4 relative markdown links (`docs/repo-map.md`, `docs/terminal-theme.md`, `docs/claude-desktop-mcp.md` ×2) | dead links |
+| `docs/repo-map.md`'s two section headings + the brace-expansion file manifest; `CLAUDE.md`'s table row | the index names a directory that does not exist |
+
+**`nix-ci.yml` is immune** — it has no `paths:` filter at all.
+
+**Depth-invariant, so NOT edited:** the ~33 sibling `./x.nix` imports inside the entry point, and
+the 19 outward `../../` references from inside the directory. `modules/home/` sits at exactly the
+depth `modules/shared/` did, and nothing inside reaches deeper than `../../` (checked).
+
+**The HM imports list has no gate** — its own comment says a module dropped in there and not named
+in it is *silently inert*, so a file lost by `git mv` would be invisible. Checked by counting
+instead: `git ls-files modules/shared` = **27** before, `git ls-files modules/home` = **27** after.
+
+- **`scripts/drv-snapshot.sh --compare` must show `hosts.tsv` IDENTICAL.** A pure rename moves
+  code and must change nothing the fleet builds; that harness is ADR-002's acceptance test and is
+  the only evidence the claim is true.
+
+**The ~280 remaining comment and prose references are deliberately NOT in the rename commit.**
+They are a separate pure `s///` sweep with zero build impact; bundling them would bury the gate
+fixes in noise and make the one commit that needs real review unreviewable.
 
 ## 9. The weakest parts of the current shape
 
@@ -338,7 +362,7 @@ Blueprint's contract is `packages/<pname>(.nix|/default.nix)`. Two entries break
 
 | Entry | What it actually is, with the evidence |
 |---|---|
-| `packages/next-right-thing/` | **six shell scripts, no `default.nix`** — not a package, and not a flake output either: zero references in `modules/parts/packages.nix`. It is a *source tree*, read as `scriptDir = ../../packages/next-right-thing;` by `modules/shared/next-right-thing.nix:28`, which assembles the real derivation itself with `runCommand` |
+| `packages/next-right-thing/` | **six shell scripts, no `default.nix`** — not a package, and not a flake output either: zero references in `modules/parts/packages.nix`. It is a *source tree*, read as `scriptDir = ../../packages/next-right-thing;` by `modules/home/next-right-thing.nix:28`, which assembles the real derivation itself with `runCommand` |
 | `packages/fleet-mark.svg` | a bare asset at the directory root, `builtins.readFile`-d by a sibling (`packages/spotlight-launchers.nix:115`) |
 
 **Corroborated independently the same day.** #763's own census of tracked `.sh` files — run for a
@@ -372,9 +396,10 @@ home-manager (`home.nix` plus the 21 siblings it imports). The other two are not
 
 So the §8 rename is correct for **22 of 24** files and would actively mislead on two.
 
-**DONE 2026-10-02, as the rename's PREREQUISITE rather than part of it** — which is strictly
-better than this section first proposed: `modules/shared/` is now 22 `.nix`, all home-manager,
-so `git mv modules/shared modules/home` is a true no-op with nothing to argue about.
+**DONE 2026-10-02, as the rename's PREREQUISITE rather than part of it** — which was strictly
+better than this section first proposed: it left the directory at 22 `.nix`, all home-manager, so
+`git mv modules/shared modules/home` was a true no-op with nothing to argue about, and §8 then
+landed the same day.
 `nix-cache.nix` → `modules/nixos/nix-cache.nix`; `nix-ld-libraries.nix` →
 `modules/_lib/nix-ld-libraries.nix`; the import literals, every prose reference, and the CI path
 filters moved with them, with an `IDENTICAL` `drv-snapshot.sh --compare` as the evidence.
@@ -442,10 +467,11 @@ two-place answer as §4 with no rule written anywhere but here. Recorded, not ch
    capsule → that capsule's `packages/`; otherwise `packages/`.
 3. **A new capsule follows §5's four MUSTs** and is bound by §5's three forbids.
 4. **The shape is standard and no migration follows from this ADR** (§7).
-5. **`modules/shared` → `modules/home` is adopted as this ADR's consequence**, to be performed
-   in its own PR with §8's checklist and an empty `drv-snapshot.sh --compare` diff, carrying
-   §9b's two files to `modules/nixos/` and a `modules/_lib/`-shaped home at the same time.
-6. **§9's warts are recorded, not fixed.** Each is one PR behind the drv-snapshot harness.
+5. **`modules/shared` → `modules/home` was adopted as this ADR's consequence and is DONE**
+   (2026-10-02), in its own PR with §8's checklist and an `IDENTICAL` `hosts.tsv` from
+   `drv-snapshot.sh --compare`. §9b's two files left first, as the prerequisite, to
+   `modules/nixos/nix-cache.nix` and `modules/_lib/nix-ld-libraries.nix`.
+6. **§9a and §9c stay recorded, not fixed.** Each is one PR behind the drv-snapshot harness.
 
 ## 12. What would reopen this
 

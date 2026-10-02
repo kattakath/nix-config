@@ -207,7 +207,9 @@ let
           gitlabTartSource = config.capsuleSources.tart-vms.gitlab-tart;
         };
         users.${idArgs.loginName} = {
-          imports = [ ../shared/home.nix ] ++ extraHomeModules;
+          # `../home` is a DIRECTORY literal — Nix resolves it to
+          # modules/home/default.nix, the profile's entry point.
+          imports = [ ../home ] ++ extraHomeModules;
           home.stateVersion = "24.05";
         };
       };
