@@ -233,12 +233,49 @@ const CF_TERRANIX_DESTROY =
   /\bnix\s+run\s+["']?(?:\.|github:kattakath\/nix-config)#cf-tunnel-destroy\b/;
 
 // Rule 1c — the two ways a secret VALUE reaches stdout, and therefore this
-// session's transcript. Deliberately WHOLE-COMMAND regexes, not the
-// argv0-per-segment `segs` view every other rule uses: measured against five
-// evasion shapes, argv0 matching missed three of them — `echo $(secret reveal
-// X)`, the backtick form, and a direct `security ... -w` inside a
-// substitution — because none of those put the leaking command at a segment's
-// argv0. A whole-command match caught 5/5.
+// session's transcript.
+//
+// Matched in BOTH views this file keeps, because each sees exactly what the
+// other structurally cannot:
+//
+//   WHOLE-COMMAND, anchored at command position (CMD_POS below) — catches the
+//     substitution shapes, `echo $(secret reveal K)` and the backtick form,
+//     which splitTopLevel cannot see at all: it splits on ; | & and newlines,
+//     never on `$(`, so a substitution is INTERIOR to one segment whose argv0
+//     is `echo`. Measured against five evasion shapes when this rule was
+//     written: an argv0-per-segment match missed three of them, a
+//     whole-command match caught 5/5.
+//
+//   PER-SEGMENT, against each segment with its transparent WRAPPER PREFIX
+//     removed (unwrap() below) — catches what a prefix hides from that anchor.
+//     Measured 2026-10-02: `sudo`, `env FOO=1`, `timeout 5`, `nice`, `command`,
+//     `xargs`, `eval "…"`, `nix develop -c` and `sh -c '…'` each walked a
+//     `secret reveal` straight past the whole-command anchor, which needs
+//     start-of-string or a separator and a wrapper token is neither. For the
+//     wrapper set Claude Code's own permission matcher strips (`timeout`,
+//     `time`, `nice`, `command`, …) this hook was therefore WEAKER than the
+//     `Bash(secret reveal *)` deny rule it exists to backstop.
+//
+// Neither view replaces the other, and their union needs no shell parser.
+//
+// WHAT THIS DOES NOT CLAIM. The sentence that used to sit here read "Every
+// execution shape still matches, substitutions and backticks included." It was
+// FALSE for every wrapper prefix listed above, and it was read as fact and
+// relayed onward as the reason this hook closed the wrapper gap (2026-10-02).
+// A written claim the code does not meet is worse than a documented gap, so
+// what follows is the gap, measured rather than assumed. Still NOT matched:
+//   - a wrapper prefix stacked deeper than unwrap()'s 256-iteration bound;
+//   - a quoted payload whose quotes are BACKSLASH-ESCAPED inside an outer
+//     payload (`sh -c "sh -c 'sh -c \"…\"'"`), and anything past segments()'
+//     existing depth cap of 3;
+//   - indirection through a program this file cannot enumerate: an operator's
+//     own wrapper script, `python3 -c` reaching os.system, a shell function, a
+//     here-doc fed to a shell. Enumeration cannot finish, by construction.
+// So this is a HABIT guard, not a security boundary — the same thing upstream
+// says of a permission rule, that it "covers the invocation Claude usually
+// produces and isn't a security boundary around the program". The layers that
+// actually hold are named further down, at the rule body: the Keychain's own
+// ACL prompts, and not having the value ambient at all (`secret unbind`).
 //
 // `secret reveal` is the CLI's one printing verb (nix-keychain-secrets). It
 // exists so printing is deliberate and greppable; this rule is the grep.
@@ -247,8 +284,12 @@ const CF_TERRANIX_DESTROY =
 // `git commit -m "...secret reveal..."` and `grep 'secret reveal'` were blocked
 // as if they were leaks. This rule blocked its own commit within a minute of
 // being written, then blocked the command that tried to fix it — which is the
-// argument for command-position anchoring rather than a substring match.
-// Every execution shape still matches, substitutions and backticks included.
+// argument for command-position anchoring rather than a substring match, and
+// why FALSE POSITIVES are this rule's known failure mode. That is also why the
+// per-segment half above anchors at the START of an already-unwrapped segment
+// instead of widening CMD_POS into a "separator OR wrapper token" alternation:
+// widening a whole-command match is the substring direction that blocked this
+// rule's own carrier commit twice.
 // The separator must not be BACKSLASH-ESCAPED. A grep alternation inside a
 // quoted argument is a regex, not a pipe into a command — and it blocked a
 // search for this rule's own call sites. A real pipe is never written escaped.
@@ -412,11 +453,23 @@ function splitTopLevel(cmd) {
 // command-position over the whole string. That ordering is the fix: splitting
 // first means a wrapper quoted inside someone's prose is still part of that
 // prose's segment, so it is never mistaken for a wrapper that would RUN.
+//
+// It used to carry its OWN inline copy of the wrapper-prefix list
+// (`sudo|doas|env|exec|nohup|setsid|time|nice`), already drifted from
+// TRANSPARENT_WRAPPERS below by two names. That copy is GONE: segments() feeds
+// this regex the UNWRAPPED tail instead, so the one token walk in unwrap() is
+// the only place wrapper names are listed.
 const SHELL_DASH_C_SEG = new RegExp(
-  String.raw`^(?:(?:[A-Za-z_][A-Za-z0-9_]*=\S*|sudo|doas|env|exec|nohup|setsid|time|nice)\s+)*` +
-    String.raw`(?:\S*/)?(?:ba|z|da|k|a)?sh\s+-[a-zA-Z]*c\s+(['"])([\s\S]*)\1\s*$`,
+  String.raw`^(?:\S*/)?(?:ba|z|da|k|a)?sh\s+-[a-zA-Z]*c\s+(['"])([\s\S]*)\1\s*$`,
   "i",
 );
+// A wrapper whose whole remaining argument is ONE quoted word is the same
+// indirection by another spelling: `eval "<payload>"`,
+// `nix develop -c '<payload>'`. Same capture shape as SHELL_DASH_C_SEG (quote
+// at 1, payload at 2) so segments() can try either and read m[2] regardless.
+// Only consulted when unwrap() actually CONSUMED a prefix — a bare quoted blob
+// that was never introduced by a wrapper is data, not a payload.
+const QUOTED_PAYLOAD = /^(['"])([\s\S]*)\1$/;
 
 // The wrapper segment is KEPT as well as expanded: other rules still reason
 // about it, and the payload's own segments are appended so `segs[i]` stays
@@ -427,7 +480,8 @@ function segments(cmd, depth = 0) {
   const out = [];
   for (const seg of raw) {
     out.push(seg);
-    const m = seg.match(SHELL_DASH_C_SEG);
+    const { tail, stripped } = unwrap(seg);
+    const m = tail.match(SHELL_DASH_C_SEG) || (stripped ? tail.match(QUOTED_PAYLOAD) : null);
     if (m && m[2].trim()) out.push(...segments(m[2], depth + 1));
   }
   return out;
@@ -437,56 +491,127 @@ function segments(cmd, depth = 0) {
 // actually runs is a LATER token, not this one. `env`/`doas`/`nohup`/`setsid`
 // were missing, which hid `env nixos-rebuild … --build-host nixpi` from every
 // per-argv0 rule for the same reason `bash -c` did.
+//
+// `timeout`/`xargs`/`builtin`/`eval`/`noglob` were missing for exactly as long,
+// and measured 2026-10-02 they hid `--build-host nixpi`, a bare `wrangler` and
+// a `secret reveal` from every rule that reasons per-argv0. The first three of
+// those are also in the fixed wrapper set Claude Code's OWN permission matcher
+// strips before testing a deny rule, so their absence here made this hook
+// weaker than the `permissions.deny` entries it exists to backstop.
 const TRANSPARENT_WRAPPERS = new Set([
   "sudo",
   "doas",
   "exec",
   "command",
+  "builtin",
+  "eval",
+  "noglob",
   "time",
+  "timeout",
   "nice",
   "env",
   "nohup",
   "setsid",
   "stdbuf",
   "ionice",
+  "xargs",
 ]);
 // Wrapper flags that CONSUME the next token. Skipping the flag but not its value
 // leaves argv0 === the username (`sudo -u izzy nix …` -> "izzy"), which falls
 // through to default-approve just as silently as the wrapper itself did.
-const WRAPPER_FLAGS_WITH_VALUE = new Set(["-u", "--user", "-g", "--group", "-C", "-p", "--prompt"]);
+//
+// Add only flags that are UNAMBIGUOUS across the set above. `-I` is xargs'
+// replace-string and nothing else's; `-n` is deliberately ABSENT, because
+// `sudo -n` takes no value and consuming one would eat the real command — the
+// numeric rule below covers `nice -n 5` / `xargs -n 1` without that risk.
+const WRAPPER_FLAGS_WITH_VALUE = new Set(["-u", "--user", "-g", "--group", "-C", "-p", "--prompt", "-I"]);
+// A wrapper's own NUMERIC argument: `timeout 5`, `timeout 0.5s`, `nice -n 5`,
+// `xargs -n 1 -P 4`. Consumed only once a wrapper has been seen. Safe where a
+// value-consuming flag entry is not: no command is named `5`, so this cannot
+// swallow a real argv0.
+const WRAPPER_NUMERIC_ARG = /^\d+(?:\.\d+)?[smhd]?$/;
+// `nix … develop … -c|--command <payload>` runs the payload, so the payload is
+// argv0's real answer. Scoped to `develop` ON PURPOSE: `nix run`, `nix build`
+// and bare `nix` are commands several rules reason about by name (Rule 1d's
+// `case "nix"`, APPROVED_CLIS), and putting `nix` in the set above would hide
+// all of them.
+const NIX_DEVELOP_COMMAND =
+  /^(?:\S*\/)?nix\s+(?:\S+\s+)*?develop\b(?:\s+\S+)*?\s+(?:-c|--command)\s+/i;
 
-// First real token of a segment: skip leading VAR=val assignments, transparent
-// wrappers and those wrappers' own flags; strip any path prefix.
-function argv0(segment) {
-  const tokens = segment.split(/\s+/);
-  let i = 0;
+// Peel a segment's transparent prefix — leading VAR=val assignments, wrapper
+// names, those wrappers' own flags and numeric arguments, and a
+// `nix develop … -c` — and return what is left plus whether anything went.
+//
+// ONE token walk, THREE consumers: argv0() below, segments()' payload unwrap,
+// and Rule 1c's per-segment half. Before 2026-10-02 the first had this walk,
+// the second re-listed the wrapper names as its own inline regex, and the third
+// did not ask at all and matched the raw string — which is why a wrapper prefix
+// defeated Rule 1c completely while Rule 1d survived `sudo` but not `timeout`.
+function unwrap(segment) {
+  let s = segment.trim();
   let sawWrapper = false;
   // ONE loop, not two. `env FOO=1 cmd` interleaves an assignment with a wrapper,
   // and two sequential loops stop at the first token that is not of the kind the
   // loop they are in is scanning for.
-  while (i < tokens.length) {
-    const tok = tokens[i];
+  //
+  // Every branch below strictly SHORTENS s, so this terminates on its own. The
+  // explicit bound is belt-and-braces against a future branch that consumes
+  // nothing: a hang here is worse than a throw, since a throw at least fails
+  // OPEN immediately (superhook re-emits approve) instead of stalling the turn.
+  // 256 is far past any real command and costs nothing (measured: a 200k-char
+  // argument decides in well under a second). A wrapper stack DEEPER than that
+  // is not peeled — and is also not the failure this rule is for, which is "a
+  // printing command nobody meant to run", not a 257-deep evasion. The file
+  // header is explicit that an agent with a shell can defeat any in-CLI check.
+  for (let guard = 0; guard < 256; guard++) {
+    const nd = s.match(NIX_DEVELOP_COMMAND);
+    if (nd) {
+      s = s.slice(nd[0].length).trim();
+      sawWrapper = true;
+      continue;
+    }
+    const front = s.match(/^(\S+)\s*/);
+    if (!front) break;
+    const tok = front[1];
+    const rest = s.slice(front[0].length);
     if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(tok)) {
-      i++;
+      s = rest;
       continue;
     }
     // Path-stripped, so `/usr/bin/sudo` is skipped like a bare `sudo`. The old
     // list compared the RAW token, so an absolute path defeated it.
     if (TRANSPARENT_WRAPPERS.has(tok.split("/").pop().toLowerCase())) {
-      i++;
+      s = rest;
       sawWrapper = true;
       continue;
     }
-    // Only AFTER a wrapper: a leading `-flag` on the real command is that
-    // command's own business, and consuming it would misread argv0.
+    // Both branches below are gated on sawWrapper: a leading `-flag` or a bare
+    // number at the head of a segment is the real command's own business, and
+    // consuming it would misread argv0.
     if (sawWrapper && tok.startsWith("-")) {
-      i += WRAPPER_FLAGS_WITH_VALUE.has(tok) ? 2 : 1;
+      s = rest;
+      if (WRAPPER_FLAGS_WITH_VALUE.has(tok)) {
+        const val = s.match(/^(\S+)\s*/);
+        if (val) s = s.slice(val[0].length);
+      }
+      continue;
+    }
+    if (sawWrapper && WRAPPER_NUMERIC_ARG.test(tok)) {
+      s = rest;
       continue;
     }
     break;
   }
-  const tok = tokens[i] || "";
-  return tok.split("/").pop().toLowerCase();
+  // `s` is sliced, never re-joined, so a segment with nothing to peel comes
+  // back byte-identical but for the outer trim: prose is not rewritten before a
+  // rule reads it.
+  return { tail: s, stripped: sawWrapper };
+}
+
+// First real token of a segment, path prefix stripped.
+function argv0(segment) {
+  const head = unwrap(segment).tail.match(/^(\S+)/);
+  return head ? head[1].split("/").pop().toLowerCase() : "";
 }
 
 function main() {
@@ -513,8 +638,12 @@ function main() {
   // rawSegs keeps the FULL text of each segment (Rule 1d needs the flags, not
   // just argv0 — it matches on --build-host/--remote-build/--builders); segs is
   // the argv0-per-segment view every other rule reasons in.
-  // Same index space, so `segs[i]` is `rawSegs[i]`'s command name.
+  // tails is a THIRD view in the same index space: rawSegs[i] with its
+  // transparent wrapper prefix peeled off, so its HEAD is segs[i]. Rule 1c
+  // matches against it, because its anchor needs the real command FIRST.
+  // Same index space throughout, so `segs[i]` is `rawSegs[i]`'s command name.
   const rawSegs = segments(cmd);
+  const tails = rawSegs.map((seg) => unwrap(seg).tail);
   const segs = rawSegs.map(argv0);
   const nudges = [];
 
@@ -608,9 +737,14 @@ function main() {
   // in its own process.
   // Match against the pair-collapsed form (see unescapePairs) so an escaped
   // BACKSLASH before a real separator cannot hide the command after it.
-  const cmdEsc = unescapePairs(cmd);
-  if (SECRET_REVEAL.test(cmdEsc) || SECURITY_PRINTS_VALUE.test(cmdEsc)) {
-    const via = SECRET_REVEAL.test(cmdEsc) ? "`secret reveal`" : "`security find-generic-password -w/-g`";
+  // Two views (see the Rule 1c constants for why neither suffices alone): the
+  // whole command, and each segment with its wrapper prefix peeled off. Both
+  // are pair-collapsed first, and `tails` already includes the `sh -c`/`eval`
+  // payloads segments() appended.
+  const views = [unescapePairs(cmd), ...tails.map(unescapePairs)];
+  const leaksVia = (re) => views.some((v) => re.test(v));
+  if (leaksVia(SECRET_REVEAL) || leaksVia(SECURITY_PRINTS_VALUE)) {
+    const via = leaksVia(SECRET_REVEAL) ? "`secret reveal`" : "`security find-generic-password -w/-g`";
     emit(
       "block",
       `${via} prints a secret VALUE to stdout, which lands verbatim in this session's transcript (~/.claude/projects/**.jsonl, kept 30 days, no redaction).`,
