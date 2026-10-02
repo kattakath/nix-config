@@ -1,4 +1,26 @@
-# MCP portal hardening — the verified plan
+# MCP portal hardening — the verified plan (RETIRED 2026-10-02)
+
+> # ⛔ THE PORTAL THIS PLAN HARDENS NO LONGER EXISTS.
+>
+> Destroyed **2026-10-02** along with the whole published-MCP subsystem — 0 registrations (was
+> 27), 0 portals, 0 tunnel, `https://mcp.kattakath.com/mcp` → **403**, and
+> `infra/cloudflare/mcp-public.nix` deleted. **Items 1 and 2 shipped and are now gone with it;
+> items 0, 3 and 4 will never ship.** Do not run anything here.
+>
+> **Why it is kept rather than deleted — two findings that apply to ANY future Access policy on
+> this account, portal or not:**
+>
+> 1. **Device posture is a TRAP while zero devices are enrolled.** A `device_posture` *require*
+>    evaluates **false forever**, so adding it does not harden a tier — it takes the tier
+>    **OFFLINE**. Item 3 declined it for that reason, and the reason survives the portal.
+> 2. **Pinning the Cloudflare provider still needs a plan run to land safely** (item 0, held;
+>    ADR-004 deferred it). Unchanged for the four stacks that remain.
+>
+> A third thing is worth noting now that the subject is gone: this plan was produced by a
+> 13-agent research + adversarial-refutation pass whose first job was hunting **invented attribute
+> names**, and it marked what stayed ungrounded as **UNVERIFIED**. That method is the reusable
+> part. The plan it produced was sound; what killed the portal was a decision about architecture,
+> not a defect this pass missed.
 
 Produced 2026-09-23 by a 13-agent research + adversarial-refutation pass over
 `infra/cloudflare/mcp-public.nix`, the Cloudflare One docs and this repo's own gates.
