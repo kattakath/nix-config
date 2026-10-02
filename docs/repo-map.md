@@ -1050,14 +1050,32 @@ their own top-level section below:
   `NIX_CONFIG_MANAGED` env marker, so `preferences`, `coworkUserFilesPath`, `extraServers` and
   anything added in Desktop's UI survive an empty render. Full rationale, including the clobber
   that forced the watch agent: [`docs/claude-desktop-mcp.md`](claude-desktop-mcp.md).
-- **`claude-plugins.nix`** — `local.claudePlugins.marketplaces`, the **N-marketplace** Claude
-  Code plugin mechanism. An `attrsOf submodule` keyed by marketplace name, each carrying a
+- **`claude-plugins.nix`** — `local.claudePlugins.marketplaces` **+ `.declared`**, the
+  **N-marketplace** Claude Code plugin mechanism. An `attrsOf submodule` keyed by marketplace name, each carrying a
   `source` (a `/nix/store` path or an `https://` git URL — asserted, so an impure
   `toString ../plugins` fails loudly), a `plugins` list of BARE names, and an `autoUpdate`
   flag (https only). Install ids are derived as `<plugin>@<marketplace>`, which is what
   `settings.enabledPlugins` keys on, so a plugin's id can never drift from its marketplace
   through a typo. **A `repin` option existed until 2026-09-30** and is GONE — nothing outside
   the module ever set it, and the teardown it named is deleted (see the two bullets below).
+  - **`marketplaces.*.plugins` is a CATALOGUE and enables nothing.** It makes
+    `<plugin>@<marketplace>` resolvable; `extraKnownMarketplaces` never reads it. Adding a name
+    there merged twice and did nothing both times — #751 (`empire`, reverted in #754) and #753
+    (`silent-instruments`).
+  - **`local.claudePlugins.declared` is what turns an id on or off** (`attrsOf bool`, added
+    2026-10-02, ADR-008's `declared` lane). Full `<plugin>@<marketplace>` ids, user scope,
+    re-asserted every activation. Rendered as
+    `enabledPlugins = cfg.declared // genAttrs alwaysOnIds (_: true)` — floor last, so the
+    always-on three win the merge even without the assertion that already forbids an overlap.
+    **The invariant it preserves, which is the real content of #648:** Nix may write an
+    `enabledPlugins` key only for an id a human named ON PURPOSE — never one DERIVED from the
+    catalogue — so the jq merge in `claude-code-settings.nix` (`.[0] * $nix[0]`, right operand
+    wins per key) leaves every unnamed id, `false` included, exactly as `/plugin` wrote it.
+    Three assertions, each measured firing via `extendModules`: a malformed key, an overlap with
+    the always-on three, and a plugin absent from its own marketplace's catalogue — the last
+    skipped when the marketplace is not declared here, because `<plugin>@synced` (claude.ai
+    sync) is live and unknowable at eval. **Full ids, not bare names, for that reason.** The
+    `assured` (managed-settings) lane of ADR-008 §6 is **NOT built**.
   - **Why it exists.** This was a single-marketplace mechanism inlined in `home.nix`
     (`claudePluginIds` / `localPluginsMarketplace` / `home.activation.claudeCodePlugins`)
     until nix-personal needed a second marketplace and grew a near-verbatim 80-line COPY of
@@ -3308,12 +3326,15 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   against its real 57-tool list) and wrapping it breaches its ToS by name. §5a records why
   images go through the `grok` CLI and not `api.x.ai` — the subscription pays for one and not
   the other, and `XAI_API_KEY` silently flips the lane).
-  [`ADR-008`](docs/declarative-plugin-floor-adr.md) (**PROPOSED, no Nix written — the document
-  IS the deliverable**, at the operator's instruction). Can the fleet declare a plugin enabled
+  [`ADR-008`](docs/declarative-plugin-floor-adr.md) (**PARTIALLY ACCEPTED 2026-10-02 — read §9a
+  FIRST**: the `declared` lane is BUILT as `local.claudePlugins.declared`, the `assured`
+  managed-settings lane is NOT, and §9a tables which of §7's five open questions that split made
+  irrelevant — 1-3 all concern the managed FILE, which is untouched). Can the fleet declare a plugin enabled
   **or disabled** in VCS, restored each activation, while ad-hoc choices still survive? Today
   **no, for all but three names**: `cfg.marketplaces.*.plugins` reaches `enabledPlugins` only
   through the hardcoded `alwaysOnNames` filter, and `extraKnownMarketplaces` never reads
-  `plugins` at all — which is why **#751 merged and enabled nothing** (reverted in #754).
+  `plugins` at all — which is why **#751 merged and enabled nothing** (reverted in #754), and
+  **#753 repeated it** with `silent-instruments`, which is what forced §9a.
   Measured: Nix writes **3** of the **42** live `enabledPlugins` ids; the operator's 39 include
   **9 explicit `false`**, a value Nix cannot emit. **Read §5 first** — it names the one sentence
   in the request that cannot be built: for an id Nix declares, "assured" and "overridable in a
