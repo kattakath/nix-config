@@ -74,34 +74,26 @@ scripts/drv-snapshot.sh --compare .baseline/wave0-final   # "moved code, changed
 # Agent hygiene (LEAN/DRY/docs drift → fix → fmt → check): /hygiene  or skill nix-hygiene
 
 # Activation
-activate                                     # Activate macos, from ANY directory. `darwin-rebuild switch` that self-elevates
-                                             #   (Touch ID) and prints the flake dir + branch@rev (+ DIRTY) before it builds.
-                                             #   No --flake/#attr: modules/parts/hosts.nix plants /etc/nix-darwin/flake.nix,
-                                             #   which darwin-rebuild resolves, and the attr defaults to LocalHostName (= macos).
-                                             #   `sudo darwin-rebuild switch` works too but names nothing it is about to build.
-                                             #   That planted link is a STRING path to the MAIN checkout, so `activate` always
-                                             #   builds THAT tree's CURRENT branch — never a .claude/worktrees/* one, and never
-                                             #   `main` by default. From a worktree session READ the branch@rev it prints: work
-                                             #   already merged is ABSENT until the main checkout holds it: MERGING IS STEP 1 OF
-                                             #   2 — `git -C <main checkout> merge --ff-only origin/main` BEFORE `activate`, or
-                                             #   you rebuild the same generation and the fix reads as failed (70 min on #725,
-                                             #   3 activations on #732). The TELL is a MISSING `Activating <name>` line, so DIFF
-                                             #   the step list rather than scanning for errors. But absence of a
-                                             #   plugin or skill is NOT by itself evidence of a stale tree: activation installs
-                                             #   only STORE-PATH marketplaces, and an https marketplace's plugins arrive at the
-                                             #   NEXT session start. Only a MISSING `extraKnownMarketplaces` entry in
-                                             #   ~/.claude/settings.json points at a stale tree.
+activate                                     # Activate macos, from ANY directory — a self-elevating (Touch ID)
+                                             #   `darwin-rebuild switch` that prints the flake dir + branch@rev
+                                             #   (+ DIRTY) it is about to build. It always builds the MAIN
+                                             #   checkout's CURRENT branch, never a worktree's, so from a worktree
+                                             #   session MERGING IS STEP 1 OF 2 — `git -C <main checkout> merge
+                                             #   --ff-only origin/main` BEFORE `activate`, or you rebuild the same
+                                             #   generation and the fix reads as FAILED. The TELL is a MISSING
+                                             #   `Activating <name>` line, so DIFF the step list rather than
+                                             #   scanning for errors. Mechanism, the measured cost, and the
+                                             #   plugin/marketplace FALSE alarm: docs/repo-map.md § packages/
 nix run github:kattakath/nix-config#macos    # FIRST activation only, straight from the flake (before `activate` exists). Self-elevates.
 nixos-rebuild switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com
                                              # Activate the Pi: builds HERE (substituting the CI-warmed closure from
                                              #   Cachix), activates THERE. NEVER --build-host — the Pi must not build
                                              #   (hard-blocked by the PreToolUse guard, Rule 1d).
 nix develop -c deploy --targets .#nixpi      # Same, via deploy-rs w/ magicRollback: an unreachable Pi auto-reverts
-                                             #   instead of needing a physical SD-card pull. ALWAYS --targets (bare
-                                             #   `deploy` fans out over every node). --dry-activate to rehearse.
-                                             #   `nix develop -c` is NOT optional: deploy-rs is a flake LIB, so the
-                                             #   CLI exists only in the devShell. A bare `deploy` exits 1 with EMPTY
-                                             #   output — silent failure, not "command not found". Measured 2026-09-16.
+                                             #   instead of needing a physical SD-card pull. ALWAYS --targets: bare
+                                             #   `deploy` fans out over EVERY node. --dry-activate to rehearse.
+                                             #   `nix develop -c` is NOT optional either — outside the devShell a
+                                             #   bare `deploy` exits 1 SILENTLY. Why: docs/repo-map.md § deploy.nodes
 nix run .#nixvm                              # Build + boot the nixvm XFCE build-vm in a QEMU window (root disk PERSISTS)
 nix eval .#nixosConfigurations.nixpi.config.system.build.toplevel   # Fast single-target eval
 
@@ -207,21 +199,19 @@ the whole tree into the store — check for stray `.DS_Store`/etc. before commit
 
 **Hooks** (`.claude/hooks/`): `stop-gate.js` + `pretooluse-bash-guard.js`, plus the
 `*-digest.js` SessionStart nudges. **Neither gate is wired in `.claude/settings.json`** —
-`autostage-nix`/`nix-home-path-lint` (from `claude-code-nix@kattakath`) and, since 2026-09-30,
-`superhook`'s `Stop` + `PreToolUse:Bash` wrappers and its SessionStart digest all arrive as
-PLUGIN hooks. **Do not re-add any of them here, or each fires twice.** The superhook plugin
-finds these two scripts BY CONVENTION at `<git root>/.claude/hooks/<name>.js`, resolving the
-root itself (`${CLAUDE_PROJECT_DIR}` is the session's LAUNCH CWD, not the repo root) and
-no-opping silently where they are absent — so it is inert in every other repo. `.claude/hooks/tests/*.sh` covers BOTH hooks — three guard-rule suites plus
-`stop-gate-fail-closed.sh` — **a REQUIRED status check** (`Lint .claude config`, `claude-config-lint.yml`) — it BLOCKS a merge, it does not merely run: each asserts both halves
-(must-BLOCK and must-stay-APPROVED) and that it never throws, since a throw fails OPEN. Message
-decoder: [`docs/claude-hook-messages.md`](docs/claude-hook-messages.md).
+`superhook`'s wrappers and `claude-code-nix`'s `autostage-nix`/`nix-home-path-lint` all arrive
+as PLUGIN hooks, finding these scripts BY CONVENTION. **Do not re-add any of them here, or each
+fires TWICE.** `.claude/hooks/tests/*.sh` covers BOTH hooks and is **a REQUIRED status check**
+(`Lint .claude config`, `claude-config-lint.yml`) — it BLOCKS a merge, it does not merely run,
+because a throw fails OPEN. Mechanism:
+[`docs/repo-map.md`](docs/repo-map.md) § `.claude/hooks/`; message decoder:
+[`docs/claude-hook-messages.md`](docs/claude-hook-messages.md).
 All of the above is **project-scoped** — it guards sessions in THIS repo only. Policy that is
 wrong in EVERY repo sits in two wider tiers: user-scope `permissions.deny` in
 `modules/home/claude-guardrails.nix`, and above it the root-owned MANAGED file
-`modules/darwin/claude-managed-settings.nix` (`macos` only; secret-value denies + attribution
-keys) — a managed deny cannot be retracted by any lower scope. Deny lists from every scope
-COMBINE, so that duplication is deliberate, not drift.
+`modules/darwin/claude-managed-settings.nix` (`macos` only) — a managed deny cannot be
+retracted by any lower scope. Deny lists from every scope COMBINE, so that duplication is
+deliberate, not drift.
 
 **MCP servers — PLUGIN-LOCAL ONLY; the gateway and portal are GONE (2026-10-02).** No shared
 proxy here, no `mcp.<domainName>/mcp`, Cloudflare stack destroyed. `modules/shared/mcp.nix` and
@@ -362,48 +352,41 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   `deploy --targets` lines in § Build & Commands. **Building on the Pi is hard-blocked** by `.claude/hooks/pretooluse-bash-guard.js` (Rule 1d):
   `--build-host <pi>`, `deploy --remote-build`, `ssh <pi> nix build`, `--builders ssh://<pi>`.
   - **If the Mac plans a BUILD instead of a fetch, the cache is merely not warm yet** — or Nix
-    negatively cached a 404 (`narinfo-cache-negative-ttl`, default **1 h**), which makes a
-    warmed cache look broken. Retry with `--narinfo-cache-negative-ttl 0`; never "fix" it by
-    moving the build onto the Pi.
+    negatively cached a 404 for **1 h**, which makes a warmed cache look broken. You cannot
+    clear that from the CLI (untrusted user); wait it out, and never "fix" it by moving the
+    build onto the Pi. Detail: [`docs/repo-map.md`](docs/repo-map.md) § `hosts/`.
 - `deploy.nodes.nixpi` and the `cf-*` terranix apps all render this repo's real data directly
   now — `mkCfTunnelTofu` still **refuses** a render that would blank an already-provisioned
   tunnel (override: `CF_TUNNEL_ALLOW_SITE_FREE=1`) — that guard stays as a "do you really mean
   to destroy this" check. Bare `deploy` with no `--targets` still fans out over
   **every** node — always name the target.
 - **The edge's TLS floor and the SSH Access gate are DECLARED, not clicked.**
-  `infra/cloudflare/nixpi-tunnel.nix` owns `cloudflare_zone_setting` (ssl=strict,
-  min_tls=1.2, always_use_https, HSTS) for the SSH host's zone and every hosted site's
-  zone, plus `cloudflare_zero_trust_access_application.nixpi_ssh`. That Access app
-  **vanished once** (2026-08-20) and took `ssh` + both deploy legs with it; declaring it
-  means a rebuild restores the gate. Zones with no terranix module here (aloshy.ai,
-  etuper.com, izzykatt.ca, silvercreek.ai) are still configured out-of-band.
-- **OpenTofu state is the fragile part of the edge, not the config.** State was lost **twice**
-  to `tofu` running in whatever the CWD happened to be. Since ADR-005 five of the six share a
-  **GCS backend** (`fleet.gcpStateBucket`, versioned) **encrypted** with a Keychain passphrase
-  (`tofu:state:passphrase`) — the state PAYLOAD holds a connector token and an Access
-  service-token secret, which is why encryption is not optional and why **losing that
-  passphrase makes all state unreadable**. `gcp-foundation` alone
-  keeps **local** (still encrypted) state: it declares that bucket. Never apply before a
-  `plan` reads clean.
+  `infra/cloudflare/nixpi-tunnel.nix` owns the zone settings and
+  `cloudflare_zero_trust_access_application.nixpi_ssh`. That Access app **vanished once**
+  (2026-08-20) and took `ssh` + both deploy legs with it; declaring it means a rebuild restores
+  the gate. Zones with no terranix module here (aloshy.ai, etuper.com, izzykatt.ca,
+  silvercreek.ai) are still configured out-of-band.
+- **OpenTofu state is the fragile part of the edge, not the config** — it was lost **twice** to
+  `tofu` running in whatever the CWD happened to be. EVERY stack's state is **encrypted** with
+  one Keychain passphrase (`tofu:state:passphrase`), so **losing that passphrase makes all
+  state unreadable**. Never apply before a `plan` reads clean. Backends, and why encryption is
+  not optional: [`docs/repo-map.md`](docs/repo-map.md) § `infra/`.
 - **Magic rollback** (`deploy.nodes.nixpi.magicRollback = true`): a change that kills sshd, the
   tunnel or networking becomes a *failed deploy* — the Pi reverts **itself** unless the deployer
   reconnects and confirms. `--target-host` has no such undo. Detail: `docs/repo-map.md`.
 - `home-manager switch` activates and is hard to reverse; prefer `build` to verify, and
   `switch` only when explicitly asked. `home-manager generations` lists,
   `home-manager rollback` reverts.
-- **`nix run .#nixvm` is the only way `nixvm` is ever booted** — a `nixos-rebuild build-vm`
-  runner exposed as a flake app (XFCE desktop, native QEMU/Cocoa window on macOS, no
-  macOS-guest path, no VM config outside Nix, no builder VM and no runner on it). **Not
-  stateless:** only the Nix store image is rebuilt per boot — the ROOT disk, so `/home`, persists
-  in `$XDG_STATE_HOME/nixvm/nixvm.qcow2` until you `rm` it. The app's wrapper pins it there
-  because upstream would resolve it against YOUR CWD, i.e. a different VM per directory.
-- **aarch64-linux builds on the Mac** go to Determinate's **native Linux builder** (Apple
-  Virtualization; ephemeral VM, 1 CPU / 8 GiB). Two traps: `determinate-nixd` logged OUT of
-  FlakeHub silently kills the builder, and every build then fails as `platform mismatch`; and
-  `cp --no-preserve=mode` into `$out` EPERMs, which breaks nixpkgs' caddy `Caddyfile-formatted`
-  and so every Mac-side build of a Caddy-serving `nixpi` generation. **Never fix that by
-  building on the Pi** — CI warms the cache so the Mac substitutes instead. `memoryBytes` (not
-  `cpuCount`) is the OOM knob. Measurements, and why it is NOT a general chmod ban:
+- **`nix run .#nixvm` is the only way `nixvm` is ever booted**, and it is **NOT stateless** —
+  the ROOT disk, so `/home`, PERSISTS in `$XDG_STATE_HOME/nixvm/nixvm.qcow2` until you `rm` it
+  (only the Nix store image is rebuilt per boot). The filesystem split, and the per-CWD trap
+  the app's wrapper defeats: [`docs/repo-map.md`](docs/repo-map.md) § `hosts/`.
+- **aarch64-linux builds on the Mac** go to Determinate's **native Linux builder** (ephemeral
+  Apple-Virtualization VM). Two traps: `determinate-nixd` logged OUT of FlakeHub silently kills
+  it, and every build then fails as `platform mismatch`; and `cp --no-preserve=mode` into `$out`
+  EPERMs, which breaks every Mac-side build of a Caddy-serving `nixpi` generation. **Never fix
+  that by building on the Pi** — CI warms the cache so the Mac substitutes instead.
+  Measurements, the `memoryBytes` OOM knob, and why it is NOT a general chmod ban:
   [`docs/repo-map.md`](docs/repo-map.md) § Building aarch64-linux on the Mac.
 
 ## Documentation
