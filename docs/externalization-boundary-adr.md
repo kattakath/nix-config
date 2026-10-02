@@ -22,7 +22,7 @@ with a section here, execution wins and §10 records it.
 > the one to correct: the ownership split (§10.6) puts some servers in marketplace plugins, which
 > **Claude Code loads and Claude Desktop does not** — so the two clients no longer see the same
 > set. Nobody curates that; it falls out of which client reads plugins.
-> **Final state (2026-10-02, §10.7): the divergence is TOTAL.** The gateway and portal are
+> **Final state (2026-10-02, §10.8): the divergence is TOTAL.** The gateway and portal are
 > destroyed, every server is plugin-owned, so Claude Code has all of them and **Claude Desktop has
 > none**. The "27 entries today" count above is **0**.
 > **The boundary this ADR decides is not overturned**, but §1.4's blanket rule IS now scoped —
@@ -51,9 +51,9 @@ supplied the vocabulary and — importantly — **did not** supply the standard.
    (§3). Anything that must be *read* from `$HOME` can only be read by an activation script.
 4. **The per-surface split is decided by blast radius, not by taste** (§5): plugins are already
    runtime-owned and stay that way; skills MAY be overlaid; **MCP servers stay Nix-owned**
-   — **SCOPED 2026-09-30 (§10.6), then FULLY RETRACTED 2026-10-02 (§10.7).** The gateway that made
+   — **SCOPED 2026-09-30 (§10.6), then FULLY RETRACTED 2026-10-02 (§10.8).** The gateway that made
    Nix ownership possible is destroyed; **every** MCP server now ships in a plugin's `.mcp.json`.
-   The blast-radius *reasoning* survives intact — and §10.7 records that it argues the opposite way
+   The blast-radius *reasoning* survives intact — and §10.8 records that it argues the opposite way
    now that there is no shared process left to dark.
 5. **The seam, if built, is `local.agentOverlay`** — additive-only, read-if-present, evaluated
    never and merged at activation, a silent no-op when the directory is absent (§7).
@@ -174,13 +174,13 @@ The discriminator is not purity, it is **what happens when the resource is wrong
 **2026-09-30** and they move; the live source for plugins and skills is `modules/home/default.nix`,
 never this table (§10.1). **The servers row has no in-repo source any more** — it was
 `modules/shared/mcp.nix` / `modules/parts/identity.nix`, both of which lost it on 2026-10-02
-(§10.7); the only source now is each plugin's own `.mcp.json`, which nothing here can read.
+(§10.8); the only source now is each plugin's own `.mcp.json`, which nothing here can read.
 
 | Surface | Decision | Failure blast radius |
 |---|---|---|
 | **Plugins** (32, 4 marketplaces) | **Already runtime-owned — keep** | Claude owns mutable `~/.claude/plugins` anyway; a bad plugin is one bad plugin |
 | **Skills** (45) | **MAY be overlaid, additively** | Plain markdown. No build step, no credential, no process. Failure = one missing skill, invisible |
-| **MCP servers** (27 → **0** Nix-owned) | ~~**STAY Nix-owned**~~ — *scoped 2026-09-30 (§10.6), **RETRACTED 2026-10-02** (§10.7): the gateway is destroyed and every server is plugin-owned* | A server that exits at startup **darked the entire gateway** — every client, every server. **That blast radius no longer exists**, because the shared process does not: a plugin-owned server is spawned per session by one client and darks one session's one server. The discriminator did not change; its answer did |
+| **MCP servers** (27 → **0** Nix-owned) | ~~**STAY Nix-owned**~~ — *scoped 2026-09-30 (§10.6), **RETRACTED 2026-10-02** (§10.8): the gateway is destroyed and every server is plugin-owned* | A server that exits at startup **darked the entire gateway** — every client, every server. **That blast radius no longer exists**, because the shared process does not: a plugin-owned server is spawned per session by one client and darks one session's one server. The discriminator did not change; its answer did |
 
 The MCP row is not hypothetical. On **2026-09-14** a bumped `mcp-servers-nix` built a broken
 `mcp-server-memory`, which took the whole darwin system down; commit `ea4e755` rolled the input
@@ -196,13 +196,13 @@ Three further things the MCP rail would lose by moving:
 2. **The `public ⊆ hosted` assertion.** `local.mcpGateway.public` is checked against the hosted
    set at eval. An overlay-supplied server is not in that set at eval time, so the assertion
    silently stops covering it. (**Both the option and its successor check are gone — 2026-10-02.**
-   Nothing checks any MCP set at eval now, which is the loss §10.7 records.)
+   Nothing checks any MCP set at eval now, which is the loss §10.8 records.)
 3. **Per-client curation.** `qwen` gets 11 of 31 servers because a local qwen3-coder degrades when
    handed too many tools. That is a *harness* decision; a flat dotfolder has nowhere to put it.
    (`qwen` left the fleet 2026-09-22; see the header note.)
 
 **All three losses were incurred in full on 2026-10-02** — not traded for a better arrangement at
-this layer, but accepted as the price of having no shared MCP process. §10.7.
+this layer, but accepted as the price of having no shared MCP process. §10.8.
 
 ## 6. Most of the proposal is already implemented — the delta is one decision
 
@@ -437,7 +437,7 @@ activation script exists precisely because Nix pins that source. Read this secti
 
 
 
-### 10.7 §1.4/§5's MCP decision is FULLY RETRACTED — there is no Nix-owned MCP any more (2026-10-02)
+### 10.8 §1.4/§5's MCP decision is FULLY RETRACTED — there is no Nix-owned MCP any more (2026-10-02)
 
 §10.6 scoped *"MCP servers stay Nix-owned"* down to the servers nothing else owned, and said in as
 many words that **"the gateway does not retire"**. **It retired two days later.** The gateway and
