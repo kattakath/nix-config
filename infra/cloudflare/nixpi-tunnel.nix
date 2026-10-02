@@ -333,18 +333,94 @@ in
   # so the origin never sees a JWT. That is why modules/nixos/core.nix binds sshd
   # to loopback — the two halves are one control and neither works alone.
   #
-  # The policy is NOT declared here — it is declared in infra/cloudflare/mcp-public.nix
-  # (as a Workspace-domain rule, ADR-004 phase 3, LIVE since 2026-09-22) and referenced
-  # from THIS stack by its literal id, because a different tofu stack cannot
-  # reference that resource. One object, two stacks: a rule change applied there
-  # reaches nixpi_ssh here. (It was shared with character-mcp too until that project was
-  # decommissioned on 2026-09-14 — the reuse argument is unchanged, the example
-  # is just one fewer.)
+  # ---- (e2) The ONE policy that gates it, declared HERE as of 2026-10-02 -------
+  # It was declared in infra/cloudflare/mcp-public.nix and referenced from here by
+  # LITERAL ID, because one tofu stack cannot reference another's resource. That
+  # file was deleted 2026-10-02 with the rest of the dead MCP gateway, which left
+  # this policy live at Cloudflare and declared nowhere — the Pi's only gate, back
+  # to being clicked rather than declared, which is exactly what the 2026-08-20
+  # vanishing cost. So it moves into the stack that actually needs it.
+  #
+  # IT SURVIVED THE TEARDOWN. Measured against the API 2026-10-02, not assumed —
+  # `GET /accounts/<accountId>/access/policies/b3bd8c38-…` returned every settable
+  # field this resource declares and nothing else:
+  #   name "mcp-allow-operator" · decision "allow"
+  #   include [ { email_domain = { domain = "kattakath.com" } } ]
+  #   exclude [] · require [] · NO session_duration
+  #   reusable true · app_count 1 · updated_at 2026-09-22T15:53:39Z
+  # and `GET …/access/apps/d1fd740e-…` confirmed nixpi.kattakath.com carries
+  # exactly this one policy at precedence 1. The teardown DID destroy the three
+  # mcp tier policies and the service-token policy; two reusable policies survive
+  # account-wide and this is one of them.
+  #
+  # THE NAME STILL READS `mcp-allow-operator`, DELIBERATELY. It is an API
+  # attribute, so renaming is an in-place update and its own plan line — never
+  # bundled into the adoption below, where a diff must mean something went wrong.
+  # The Terraform resource name is local to state, so that one describes the job.
+  #
+  # OMITTED ON PURPOSE, verified against the provider's own schema docs rather
+  # than guessed: `reusable` is READ-ONLY (computed), so declaring it is an error,
+  # not a tightening. `exclude`, `require` and `session_duration` are Optional and
+  # are left out to match what mcp-public.nix declared — the configuration this
+  # account has already imported and applied once, which is better evidence than
+  # an untested variant of it. Consequence, stated rather than discovered: an
+  # omitted Optional whose state holds `[]` can print a `-> null` line. The
+  # 2026-09-22 apply recorded exactly that for `session_duration` and called it
+  # API noise. Expect up to three such lines; see step 3.
+  #
+  # ============== ADOPTION IS IMPORT-FIRST. AN APPLY ALONE IS NOT SAFE. =========
+  # A bare apply plans `+ create`, mints a SECOND policy, and leaves nixpi_ssh
+  # pinned to the old one. No wrapper guard catches it: mkCfTunnelTofu compares
+  # state-minus-render and empty-state, and a create is in neither set.
+  #
+  #   1. cd "''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-cf-tunnel"
+  #      (the pinned state dir `cf-tunnel-*` uses; do NOT run tofu elsewhere —
+  #      state has been lost twice that way)
+  #
+  #   2. secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:nixpi-tunnel -- \
+  #        tofu import \
+  #          cloudflare_zero_trust_access_policy.nixpi_ssh_operator \
+  #          726e0b2aa2bc2c6944f96a042e3c461b/b3bd8c38-e231-4203-ba6b-69fe16e498b3
+  #      (import takes `<account_id>/<policy_id>`. The account id is `accountId`
+  #      here — spelled literally above because this command runs outside Nix.)
+  #
+  #   3. secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:nixpi-tunnel -- \
+  #        nix run .#cf-tunnel-plan
+  #      ACCEPTABLE: "No changes", or `~ update in-place` on the POLICY ONLY whose
+  #        every line is `exclude`/`require`/`session_duration` going `[] -> null`.
+  #      STOP on any of these:
+  #        `+ create` on the policy        -> the import did not happen; applying
+  #                                           mints a duplicate
+  #        `-/+ replace` or `- destroy`    -> would DELETE the object nixpi_ssh
+  #                                           references and lock the Pi out
+  #        any change to `include`         -> the render disagrees with the live
+  #                                           rule; who can SSH would change
+  #        any change to nixpi_ssh itself  -> expected BEFORE the import (the
+  #                                           policy id is then unknown), and a
+  #                                           bug AFTER it
+  #
+  # NOT RUN HERE: a plan needs the Cloudflare token, the GCS backend and the state
+  # passphrase, and the operator has not authorised an Access apply. The expected
+  # output above is derived from the provider's Optional/Computed split plus this
+  # repo's own recorded 2026-09-22 plan — predicted, not measured today. That is
+  # the weakest claim on this block; step 3 is where it gets checked.
+  resource.cloudflare_zero_trust_access_policy.nixpi_ssh_operator = {
+    account_id = accountId;
+    # A DOMAIN rule, not a mailbox: every account on the Workspace domain, through
+    # the Workspace IdP pinned on the application below. That is what makes
+    # offboarding one lever — suspend the Workspace account, no Terraform change
+    # (ADR-004 phase 3, applied 2026-09-22). It is also a WIDENING over the
+    # original `email = <operator mailbox>` rule: with one human on the domain the
+    # admitted set is unchanged, with a second they are in, which is the intent.
+    name = "mcp-allow-operator";
+    decision = "allow";
+    include = [ { email_domain.domain = domainName; } ];
+  };
+
   resource.cloudflare_zero_trust_access_application.nixpi_ssh = {
     account_id = accountId;
-    # An Access application is named after what it points at — the same rule
-    # infra/cloudflare/mcp-public.nix states in full. "nixpi SSH" was prose that
-    # duplicated the Type column and had to be kept in sync by hand.
+    # An Access application is named after what it points at. "nixpi SSH" was prose
+    # that duplicated the Type column and had to be kept in sync by hand.
     name = publicHostname;
     type = "self_hosted";
     domain = publicHostname;
@@ -372,9 +448,14 @@ in
     # the API defaults to. Declaring reality keeps the plan genuinely zero-diff.
     enable_binding_cookie = false;
     options_preflight_bypass = false;
+    # A RESOURCE REFERENCE, not the literal UUID it was until 2026-10-02. The id
+    # only ever had to be hardcoded because the policy lived in a different stack;
+    # now that it is declared above, the reference is what keeps the two from
+    # drifting. The UUID survives in that block as the `tofu import` target — the
+    # one place it is still load-bearing.
     policies = [
       {
-        id = "b3bd8c38-e231-4203-ba6b-69fe16e498b3"; # mcp-allow-operator (reusable)
+        id = "\${cloudflare_zero_trust_access_policy.nixpi_ssh_operator.id}";
         precedence = 1;
       }
     ];
