@@ -177,7 +177,7 @@ let
   # (modules/parts/terranix.nix). Shape: { domain; zoneId ? null; root;
   # www ? true; ownTunnel ? false } (root = a path Caddy file_servers).
   # Formerly supplied by the private nix-personal composition flake; folded in
-  # here when that flake was retired (2026-09-15) — see docs/repo-map.md.
+  # here when that flake was retired (2026-09-15) — see docs/map/engine.md.
   hostedSites = [
     {
       domain = "snoringirl.com";
