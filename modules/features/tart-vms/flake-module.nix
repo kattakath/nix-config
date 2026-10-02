@@ -79,7 +79,7 @@
 #     adding a public alias in a wave whose acceptance test is "the surface did
 #     not move" is surface for its own sake.
 #   flake.nix's `formatter` + nixConfig -> DROPPED. This repo's treefmt.nix and
-#     modules/shared/nix-cache.nix already own both, once.
+#     modules/nixos/nix-cache.nix already own both, once.
 #   .github/, CODE_OF_CONDUCT.md, CONTRIBUTING.md, SECURITY.md, LICENSE ->
 #     NOT copied. Seven CI pipelines collapsing into one is the point of
 #     ADR-002; this repo has its own governance files and its own MIT LICENSE.

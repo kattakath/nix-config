@@ -50,6 +50,10 @@ on:
       - "hosts/nixpi.nix"
       - "modules/nixos/**"
       - "modules/shared/**"
+      # lib/nix-ld-libraries.nix — imported by modules/nixos/core.nix (`:133`) for
+      # programs.nix-ld.libraries, so it IS in this closure. It left
+      # modules/shared/ on 2026-10-02 and would otherwise match nothing here.
+      - "lib/**"
       # The flake ENGINE composes the host: modules/parts/identity.nix carries
       # config.fleet.hostedSites (the real vhost list, folded in when nix-personal
       # was retired 2026-09-15) and hosts.nix/compose.nix make the mkNixos call.
@@ -92,7 +96,7 @@ jobs:
       # every NixOS host). That package is prebuilt ONLY there — a MISS on
       # cache.nixos.org and Cachix — so without this substituter the runner
       # compiles Nix from C++ source on every warm. Same URL + key the NixOS
-      # hosts themselves use (modules/shared/nix-cache.nix). Determinate Nix
+      # hosts themselves use (modules/nixos/nix-cache.nix). Determinate Nix
       # lists it as a TRUSTED substituter but not an active one, so the line
       # is still needed.
       - uses: DeterminateSystems/determinate-nix-action@8d87e8d5e5b8a8309d4281094560f127d9a265f1 # v3.22.5

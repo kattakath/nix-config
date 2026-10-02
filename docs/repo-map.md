@@ -547,8 +547,11 @@ their own top-level section below:
 
 ### `modules/shared/`
 
-`modules/shared/{home.nix,gmail-mcp.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,ubersicht.nix,next-right-thing.nix,terminal-theme.nix,desktop-aesthetics.nix,nix-cache.nix,nix-ld-libraries.nix,launchd-launcher.nix,containers.nix,metube.nix,yt-dlp-web-ui.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,wallpaper/}`
-— the Home Manager profile loaded on every host.
+`modules/shared/{home.nix,gmail-mcp.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,ubersicht.nix,next-right-thing.nix,spotlight-actions.nix,terminal-theme.nix,desktop-aesthetics.nix,launchd-launcher.nix,containers.nix,metube.nix,yt-dlp-web-ui.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,chromium-extensions/,wallpaper/}`
+— the Home Manager profile loaded on every host, and **nothing else**: it is 22 `.nix`,
+all home-manager, since `nix-cache.nix` and `nix-ld-libraries.nix` left on 2026-10-02
+(ADR-009 §9b). This manifest also silently omitted `spotlight-actions.nix` and
+`chromium-extensions/` until the same pass.
 
 - **`home.nix`** — git/ssh-signing, zsh+starship, direnv, gh, bash, claude-code + nerd-fonts;
   darwin-only ssh/vscode blocks gated `lib.mkIf pkgs.stdenv.isDarwin`. The ssh block owns
@@ -984,8 +987,6 @@ their own top-level section below:
     state**: `home-manager rollback` does not revert `com.apple.Terminal`.
   - The **custom wallpaper** stays behind `local.desktopAesthetics.enable` (default true;
     the former `macvm` guest set it false as a visual tell).
-- **`nix-cache.nix`** — the Cachix binary-cache option (see § Binary cache below).
-- **`nix-ld-libraries.nix`** — the shared nix-ld library list.
 - **`wireguard-configs.nix`** — operator-managed WG confs synced to `~/.config/wireguard`, no
   autostart; import-only for the `WireGuard.app` GUI (the `vpn` CLI left with the `macvm`
   guest, 2026-09-05 — [`macvm-readd-runbook.md`](macvm-readd-runbook.md)).
@@ -1797,6 +1798,15 @@ waves 5-6 absorb them).
     help from off-segment; the physical console stays the last break-glass path.
   - Gated by the five second-ingress legs of `checks.<system>.nixpi-security-posture` above,
     which also join the interface list to the two other places those names are spelled.
+- **`modules/nixos/nix-cache.nix`** — the binary-cache substituters, as plain
+  `nix.settings.extra-substituters`/`extra-trusted-public-keys`: the public `kattakath` Cachix
+  cache **and** `install.determinate.systems`, which is where the prebuilt aarch64-linux
+  Determinate Nix comes from (a MISS on cache.nixos.org and on Cachix, verified 2026-09-21 —
+  without it a NixOS host would build Nix from C++ source, and **`nixpi` must never build**).
+  Wired into `mkNixos`'s module list only (`modules/parts/compose.nix:299`); the Mac gets the
+  same cache through `determinateNix.customSettings` because Determinate owns its `nix.conf`.
+  **It lived in `modules/shared/` until 2026-10-02** while its own line 3 said
+  *"NixOS-ONLY module"* — ADR-009 §9b; moved here so the directory and the header agree.
 - **`modules/nixos/desktop-vm.nix`** — opt-in `services.desktopVm.enable` (default false): a lightweight X11
   **XFCE** desktop with passwordless autologin (the `loginName` specialArg) plus QEMU/SPICE
   guest integration (`qemuGuest`, `spice-vdagentd`) for the `nixvm` sandbox.
@@ -2232,6 +2242,39 @@ placeholders only.** It NEVER writes `~/.aws/config`. That file is the human's, 
   `awscli2`/`aws-sso-util` are Linux-clean and the Pi/VM profiles must be able to enable it.
 - It is the worked example of **ADR-003's "content out, governance in"** applied to a cloud
   CLI: the flake ships the TOOL and the SHAPE, the human writes the CONTENT.
+
+## `lib/` — shared DATA, not modules
+
+One file, and the layer exists for its shape rather than its size:
+
+- **`lib/nix-ld-libraries.nix`** — `pkgs: with pkgs; [ … ]`. **Not a module** — a function
+  returning the nix-ld runtime library list that dynamically-linked NON-Nix binaries (VS Code
+  Server, prebuilt language servers, downloaded toolchains) need. **Two consumers in two
+  different layers:** `modules/nixos/core.nix:133` (`programs.nix-ld.libraries`) and
+  `packages/devcontainer-image.nix:98` (`NIX_LD_LIBRARY_PATH`/`LD_LIBRARY_PATH` baked into the
+  distroless image). Widen HERE and both follow.
+
+**Why a top-level `lib/` and not `modules/nixos/`.** It sat in `modules/shared/` until
+2026-10-02 — wrong twice over, since it is neither home-manager nor a module (ADR-009 §9b).
+`modules/nixos/` would be wrong too: the second consumer is `packages/`, and that import would
+be `packages/ → modules/nixos/`, a layer crossing this repo fences in the other direction. A
+`lib/` layer is one ANY layer may reach into, so neither consumer crosses one.
+
+**And that is a JUDGEMENT CALL, not a grepped precedent.** Measured 2026-10-02 against the
+pins: `blueprint` is **not** an input of this flake (0 hits in `flake.lock`), so ADR-009 §7's
+citation of blueprint's `lib/` key is cited precedent, not an option surface. `flake-parts` has
+a `lib/` in its own repo but declares no such option for consumers, and the closest convention
+that IS in a pinned input — `import-tree`'s dendritic guide — prescribes an underscore-prefixed
+`modules/_lib/`, which is not this. The layering paragraph above is the whole argument.
+
+**Nothing here is auto-imported.** `flake.nix:447` is `import-tree … .addPath ./modules` with
+`.match ".*/(parts/[^/]+|features/[^/]+/flake-module)\\.nix"`, so `lib/` is outside the tree
+import-tree reads at all — it is imported by hand, by the two consumers above. `treefmt` still
+formats it (its walk starts at `flake.nix` and `lib/` is in no `global.excludes` entry) and
+`ast-grep scan` still lints it (`sgconfig.yml` scopes RULES, not scanned paths). CI watches it:
+`lib/**` is a path filter in `build-devcontainer.yml`, `warm-nixpi-cache.yml` and
+`build-installers.yml` — the first of which never matched this file at all while it lived under
+`modules/shared/`, so widening the list did **not** republish the image (fixed with the move).
 
 ## `packages/`
 
@@ -3299,8 +3342,12 @@ laptop. Merge mechanics: [`auto-merge-and-merge-queue.md`](auto-merge-and-merge-
 
 ## Binary cache (Cachix)
 
-The public `kattakath` cache is consumed by every host (`modules/shared/nix-cache.nix`, wired
-in via the flake's module lists) and the devcontainer. Read is public — only the substituter
+The public `kattakath` cache is consumed by every host and the devcontainer — but by **two
+different mechanisms**, which is why its module is NixOS-only: `modules/nixos/nix-cache.nix`
+(`nix.settings`, in `mkNixos`'s module list) for the NixOS hosts, and
+`determinateNix.customSettings` in `mkDarwin` for the Mac, where Determinate owns
+`/etc/nix/nix.conf` and `nix.*` is unavailable. The URL/key literal is single-sourced for both
+from `flake.nix` via `cachixUrl`/`cachixKey`. Read is public — only the substituter
 URL + public key, **NO token on any consumer**. The write credential `CACHIX_AUTH_TOKEN` lives
 in exactly two places: a **GitHub Actions secret** (used by `cachix/cachix-action` in
 `nix-ci.yml`, `build-devcontainer.yml`, and `build-installers.yml` to push build closures) and
@@ -3430,9 +3477,11 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   §8 adopts `modules/shared` → `modules/home` as this ADR's own consequence, to be done in its
   own PR with an empty `drv-snapshot.sh --compare` diff. §9 is the honest wart list:
   `packages/next-right-thing/` holds **no package at all** (six scripts, no `default.nix`, zero
-  references in `modules/parts/packages.nix`), and 2 of `modules/shared/`'s 24 `.nix` are not
-  home-manager modules — `nix-cache.nix` calls itself *"NixOS-ONLY"* on its own line 3, and
-  `nix-ld-libraries.nix` is a `pkgs:`-taking function, not a module).
+  references in `modules/parts/packages.nix`), and 2 of `modules/shared/`'s then-24 `.nix` were
+  not home-manager modules — `nix-cache.nix` calls itself *"NixOS-ONLY"* on its own line 3, and
+  `nix-ld-libraries.nix` is a `pkgs:`-taking function, not a module. **§9b is now DONE**: those
+  two moved to `modules/nixos/nix-cache.nix` and `lib/nix-ld-libraries.nix` on 2026-10-02, so
+  the §8 rename has nothing left to mislead on.)
 - [`docs/workspace-runbook.md`](docs/workspace-runbook.md) — Workspace by hand (the provider is
   archived, ADR-005 §3.3): inventory, verify, and the delegation table no CLI can read.
 - [`docs/identity-and-offboarding.md`](docs/identity-and-offboarding.md) — the single lever:
