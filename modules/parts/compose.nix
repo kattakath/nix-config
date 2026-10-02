@@ -41,7 +41,6 @@ let
     agent-skills-litellm
     claude-plugins-official
     grok-build-plugin-cc
-    kattakath-skills
     ;
 
   # ABSORBED capsules (ADR-002 waves 3 and 4), reached through the flake's own
@@ -124,12 +123,18 @@ let
             agent-skills-litellm
             claude-plugins-official
             grok-build-plugin-cc
-            # This operator's OWN agent-resource repo (flake.nix): the page-lab-pick
-            # PATH package, AND (since the MCP catalog externalization) mcp.nix's
-            # mcpCatalog source, mcp-clients/catalog.mcp.json. home.nix no longer
-            # takes it — superhook became a plugin hook 2026-09-30 — but mcp.nix
-            # does, and both are reached through this same specialArgs seam.
-            kattakath-skills
+            # kattakath-skills is DELIBERATELY ABSENT from this seam, and that is
+            # the correction rather than an omission. It sat here until 2026-10-02
+            # with a comment naming two home-manager consumers: modules/home's
+            # superhook package, which became a plugin hook 2026-09-30, and
+            # `modules/shared/mcp.nix`'s `mcpCatalog`, which was DELETED with that
+            # module the same day. The pin is still live and still load-bearing —
+            # modules/parts/packages.nix (page-lab-pick) and modules/parts/checks.nix
+            # (page-lab, mcp-launcher-parity) — but every one of those reads
+            # `inputs.kattakath-skills` directly in the FLAKE ENGINE, where `inputs`
+            # is already in scope. None is a home-manager module, so nothing reached
+            # through here; an extraSpecialArg no module declares is dead weight that
+            # deadnix structurally cannot see (it was `inherit`ed, hence "used").
             # jsonResumeUrl: the raw resume.json URL (or null), consumed by modules/home/default.nix
             # to bake into the jsonresume package as its default --url (darwin
             # home.packages; inert on the NixOS hosts).
