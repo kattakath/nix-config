@@ -2559,6 +2559,23 @@ flake apps (an API credential must be exported first — never in Nix); `cf-tunn
 the token to stdout to be stored via `nix run .#nixpi-vault-token` into
 `secrets/cloudflared-token.age`, never written to git/store in plaintext.
 
+**`cf-tunnel-import` — run it before the next apply, once.** #737 DECLARED
+`cloudflare_zero_trust_access_policy.nixpi_ssh_operator` (the SSH gate's allow rule, previously
+owned by the deleted `mcp-public` stack) but never imported the live object, so state does not
+track it. A `cf-tunnel-plan` therefore reads `+ create`, and an apply would mint a SECOND policy
+on the gate. The import is an APP and not a documented `tofu import` line for the reason
+`mkCfAccessOrgImport` already gives: by hand it means reconstructing `TF_ENCRYPTION` in an
+interactive shell, which puts the state passphrase into the operator's shell history — the one
+secret-handling regression every wrapper in `modules/parts/terranix.nix` exists to avoid. It
+imports and stops: no plan, no apply, nothing that can write to Cloudflare.
+
+After it, `cf-tunnel-plan` must read either "No changes" or an in-place update on the POLICY
+ONLY whose every line is `exclude`/`require`/`session_duration` going `[] -> null`. **STOP** on a
+`+ create` on the policy (the import did not take), on `-/+ replace` or `- destroy` (that object
+is referenced by `nixpi_ssh` — deleting it locks the Pi out of its Access-gated ingress), or on
+any change to `include` (who may SSH would change). The full condition list lives at the
+declaration site, `infra/cloudflare/nixpi-tunnel.nix`.
+
 ### The `mcp-public` teardown — DELETED 2026-10-02, and the one object that refused to die
 
 `infra/cloudflare/mcp-public.nix` is **gone**, with its five `mcp-public-*` apps, its
