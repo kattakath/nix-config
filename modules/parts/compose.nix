@@ -260,7 +260,7 @@ let
       # but has no value". The two cannot both be set (nixpkgs forbids it), so
       # we drop the arg entirely.
       # Cachix substituter URL + trusted-PUBLIC-key (verification key, safe to
-      # expose — NOT a secret) consumed by modules/shared/nix-cache.nix;
+      # expose — NOT a secret) consumed by modules/nixos/nix-cache.nix;
       # operatorSshKey (the authorizedKeys credential) by modules/nixos/core.nix.
       # Both are NixOS-only, so they are not in mkDarwin's specialArgs.
       specialArgs = identity // {
@@ -296,7 +296,7 @@ let
         { nixpkgs.hostPlatform = system; }
         hostModule
         ../nixos/core.nix
-        ../shared/nix-cache.nix # Cachix binary cache (read)
+        ../nixos/nix-cache.nix # Cachix binary cache (read)
         # Determinate Nix on the NixOS hosts too (2026-09-21, the org-adoption
         # guide's "install Determinate Nix" step). Unlike the darwin module, this
         # one does NOT disable `nix.*`: it swaps `nix.package` for Determinate's
@@ -360,7 +360,7 @@ let
         # /etc/nix/nix.custom.conf via customSettings — NEVER hand-write
         # environment.etc."nix/nix.custom.conf" (that aborts the 2nd rebuild
         # with "custom settings in /etc/nix/nix.custom.conf, aborting
-        # activation"). Replaces ./modules/shared/nix-cache.nix here (that
+        # activation"). Replaces ./modules/nixos/nix-cache.nix here (that
         # module is now NixOS-only, since nix.settings is unavailable once
         # Determinate manages Nix).
         determinate.darwinModules.default

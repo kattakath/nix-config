@@ -100,7 +100,7 @@ let
 
   # ---- Single source of truth for the Cachix binary cache ----------------
   # The public read-only CI cache, consumed by every host. Threaded into the
-  # NixOS builder's specialArgs (modules/shared/nix-cache.nix) and into the
+  # NixOS builder's specialArgs (modules/nixos/nix-cache.nix) and into the
   # macOS host's Determinate customSettings — one literal, no duplication.
   cachixUrl = "https://${orgName}.cachix.org";
   # ---- nixpi Wi-Fi fallback ladder, ORDERED, most-preferred FIRST ---------------
