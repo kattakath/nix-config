@@ -26,6 +26,15 @@
 # WHAT IT DOES NOT DO. It cannot conjure an uplink. The fallback AP is only useful
 # while it is actually broadcasting — a phone hotspot that sleeps with no client
 # attached is not an unattended backup, and this module cannot make it one.
+#
+# NO FIELD EVIDENCE OF THIS LADDER ACTING EXISTS — do not read one into the comments
+# below. Forensics on the dead card, 2026-10-01: `nixos-rebuild list-generations` showed
+# GENERATION 1 ONLY, nixpkgs dated 09-07, while this module was born 2026-09-22 (#558).
+# No generation carrying it was ever deployed, so it cannot have run during the 8-day
+# 09-23 → 10-01 outage, and every symptom then attributed to it came from HAND EDITS made
+# over SSH to /boot/firmware/wpa_supplicant.conf. Host OBSERVATIONS below (dhcpcd's two
+# metrics, the hotspot subnet, wpa_cli's dead control socket) are real and stand; claims
+# about what this ladder DID in the field are unavailable, and none are made.
 {
   config,
   lib,
@@ -97,24 +106,40 @@ let
             ip route del default via "$rgw" dev ${cfg.wiredInterface} metric ${toString cfg.demotedMetric} 2>/dev/null || true
           fi
         fi
-        # THE CARD MAY BE UNREADABLE, AND THAT IS THE LIKELIEST REASON THIS RUNS.
-        # `writeShellApplication` bakes `set -euo pipefail`, so before this guard a
-        # failing `cmp` or `install` aborted restore() BEFORE `set_state normal` — while
-        # step 2 had already run `ip route del default`. The state file stayed
-        # `wired-demoted`, every later cycle re-entered and aborted at the same line,
-        # and nothing retried: a LAN-pingable host with NO DEFAULT ROUTE, permanently.
+        # WHY THE GUARD — and what the old form ACTUALLY cost. The record here was
+        # OVERSTATED by #717 and is corrected (2026-10-02).
+        #
+        # `writeShellApplication` bakes `set -euo pipefail`, so before this guard a failing
+        # `cmp` or `install` aborted restore() BEFORE `set_state normal`. That is the whole
+        # casualty, and it is serious on its own: the state file stayed `wired-demoted`,
+        # every later cycle re-entered step 3 and aborted at the same line, and the LADDER
+        # FROZE in that state — so step 1, the hotspot grab that is the only way back to this
+        # host once the house uplink is dead, never ran again.
+        #
+        # IT DID NOT STRAND THE HOST WITH NO DEFAULT ROUTE, which #717's title and body
+        # claimed. Two reasons, both readable in the pre-#717 revision:
+        #   * the route re-add was restore()'s FIRST statement and ended in `|| true`, so it
+        #     was always reached and could not abort the function. Never the casualty.
+        #   * step 2 deleted only the WIRED leg. dhcpcd's wlan0 default route (metric 3003,
+        #     § MEASURED below) was untouched, so a default route remained.
+        #
+        # What is genuinely only best-effort is restoring a WORKING route. That re-add was —
+        # and the `-n "$rgw"` test above still is — CONDITIONAL: the old form ran it only
+        # where `ip route show default dev <iface> | grep -q .` found NOTHING, so a route
+        # that is PRESENT BUT BLACK-HOLED skips the re-add precisely when it would help.
+        # Ending the demotion is guaranteed; a usable path out is not.
         #
         # Measured 2026-10-01, standalone, both directions: the old form exits 1 with no
-        # `set_state` reached when $WPA_CARD is absent; this form reaches
-        # `STATE=normal`, exit 0 — and still copies the card when it IS readable, so the
-        # restore it exists for is not weakened.
+        # `set_state` reached when $WPA_CARD is absent; this form reaches `STATE=normal`,
+        # exit 0 — and still copies the card when it IS readable, so the restore it exists
+        # for is not weakened. That measurement holds; only its consequence was mis-stated.
         #
         # `cmp -s` is the second trap, not just `install`: an unreadable source makes cmp
         # ERROR, which makes `! cmp` TRUE, so it entered the branch precisely when it
         # could not complete it. Hence the `-r` test leads the condition.
         #
-        # Losing the wifi conf restore is the lesser harm by a wide margin — a reboot
-        # re-reads the card anyway, whereas no default route needs physical hands.
+        # Losing the wifi conf restore is the lesser harm either way — a reboot re-reads the
+        # card anyway, whereas a frozen ladder waits for the operator to notice.
         if [ -r "$WPA_CARD" ] && ! cmp -s "$WPA_CARD" "$WPA_LIVE"; then
           install -m 0600 "$WPA_CARD" "$WPA_LIVE" \
             || echo "uplink-watchdog: could not restore $WPA_LIVE from the card" >&2
