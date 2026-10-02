@@ -314,10 +314,11 @@ triple verbatim, and the ast-grep rule's `files:` glob becomes `modules/home/**`
 **What the rename must carry with it** (the rename PR's checklist, not this ADR's work):
 
 - the `files:` glob and the id/message of `shared-must-not-cross-layers.yml`;
-- `../shared/home.nix` and `../shared/nix-cache.nix` in `modules/parts/compose.nix` (`:210`,
-  `:299`);
-- `../shared/nix-ld-libraries.nix` in `modules/nixos/core.nix:133` and
-  `../modules/shared/nix-ld-libraries.nix` in `packages/devcontainer-image.nix:98`;
+- `../shared/home.nix` in `modules/parts/compose.nix:210` — and **that is the only one left**.
+  The two `nix-cache.nix`/`nix-ld-libraries.nix` literals this list used to name were retired by
+  §9b's own move on 2026-10-02 (`modules/parts/compose.nix:299` now reads
+  `../nixos/nix-cache.nix`; `modules/nixos/core.nix:133` reads `../../lib/nix-ld-libraries.nix`
+  and `packages/devcontainer-image.nix:98` reads `../lib/nix-ld-libraries.nix`);
 - every prose reference in `CLAUDE.md`, `README.md`, `docs/repo-map.md` and the ast-grep headers;
 - **`scripts/drv-snapshot.sh --compare` must show an empty diff.** A pure rename moves code and
   must change nothing the fleet builds; that harness is ADR-002's acceptance test and is the
@@ -363,11 +364,26 @@ home-manager (`home.nix` plus the 21 siblings it imports). The other two are not
 | File | What it is, with the evidence | Where it belongs |
 |---|---|---|
 | `nix-cache.nix` | a **NixOS-only system module**. Its own line 3 says *"NixOS-ONLY module"*, and it is wired into `mkNixos`'s module list only (`modules/parts/compose.nix:299`) — the Mac routes the same cache through `determinateNix.customSettings` instead | belongs in `modules/nixos/` |
-| `nix-ld-libraries.nix` | **not a module at all** — `pkgs: with pkgs; [ … ]`, a function, consumed by `modules/nixos/core.nix:133` **and** `packages/devcontainer-image.nix:98` | blueprint's key for this is `lib/`; `ryan4yin/nix-config` likewise has a top-level `lib/` |
+| `nix-ld-libraries.nix` | **not a module at all** — `pkgs: with pkgs; [ … ]`, a function, consumed by `modules/nixos/core.nix:133` **and** `packages/devcontainer-image.nix:98` | a top-level `lib/` — see the precedent note below |
 
-So the §8 rename is correct for **22 of 24** files and would actively mislead on two. Those two
-should move *as part of* the rename, not after it: `modules/home/nix-cache.nix` would be a
-worse name than today's.
+So the §8 rename is correct for **22 of 24** files and would actively mislead on two.
+
+**DONE 2026-10-02, as the rename's PREREQUISITE rather than part of it** — which is strictly
+better than this section first proposed: `modules/shared/` is now 22 `.nix`, all home-manager,
+so `git mv modules/shared modules/home` is a true no-op with nothing to argue about.
+`nix-cache.nix` → `modules/nixos/nix-cache.nix`; `nix-ld-libraries.nix` →
+`lib/nix-ld-libraries.nix`; the three import literals, every prose reference, and the CI path
+filters moved with them, with an `IDENTICAL` `drv-snapshot.sh --compare` as the evidence.
+
+**The `lib/` destination is the operator's JUDGEMENT CALL, not a grepped precedent** — corrected
+here because this table originally cited blueprint's `lib/` key, and §7's own caveat applies to
+it. Measured 2026-10-02: `blueprint` is **not** an input of this flake (0 hits in `flake.lock`);
+`flake-parts` has a `lib/` in its own repo but declares no such option for consumers; and the
+closest convention that IS in a pinned input, `import-tree`'s dendritic guide, prescribes an
+underscore-prefixed `modules/_lib/`, not a top-level `lib/`. The argument that actually carries
+it is **layering**: the second consumer is `packages/`, so `modules/nixos/` would make that
+import `packages/ → modules/nixos/` — a crossing this repo fences in the other direction —
+whereas a `lib/` layer is one any layer may reach into.
 
 The 2 content directories (`wallpaper/` — two PNGs; `chromium-extensions/` — a `.crx` and its
 source) are a milder version of §9a: binary content inside a tree named for modules. Left alone;
