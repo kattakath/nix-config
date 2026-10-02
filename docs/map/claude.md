@@ -29,11 +29,23 @@ Claude Code spawns one stdio child PER SESSION  —  nothing shared, nothing lon
   plugin names by binary name. **`local.gmailMcp` + `packages/gmail-mcp.nix` is the live
   pattern** (four accounts, one launcher each), and `page-lab-pick` / `mcp-nixos` are the same
   arrangement for `page-lab` / `claude-code-nix`.
-- **The repo can no longer see its own MCP surface.** Nothing here reads a plugin's `.mcp.json`,
-  so no `nix flake check` leg can assert which servers exist, which answer, or that a capability
-  did not silently vanish. That is the cost the architecture accepts; the verification recipe
-  that replaces the check is in [`mcp-gateway.md`](../mcp-gateway.md) § How to verify a plugin-owned
-  server actually answers, and it is a **runtime** procedure, not a gate.
+- **The repo CAN see the credentialed half of its MCP surface — and only that half.** An earlier
+  revision of this bullet said "nothing here reads a plugin's `.mcp.json`"; that is **false**.
+  `checks.<system>.mcp-launcher-parity` (`modules/parts/checks.nix`) reads every
+  `plugins/*/.mcp.json` out of the pinned `kattakath-skills` input at EVAL time and asserts set
+  equality between the `nix-mcp-*` commands those plugins name and the launchers `macos` builds
+  — so a capability vanishing from, or appearing in, THAT lane does fail a `nix flake check`
+  leg, in both directions. What no gate can assert:
+  - **that a server ANSWERS.** Set equality is a name join, not a spawn test; the runtime recipe
+    is in [`mcp-gateway.md`](../mcp-gateway.md) § How to verify a plugin-owned server actually
+    answers, and it is a **procedure**, not a gate.
+  - **the three non-`nix-mcp-` lanes**, excluded by construction: `${CLAUDE_PLUGIN_ROOT}`-relative
+    commands (which expand only inside the owning plugin), bare nixpkgs binaries, and `npx`
+    invocations. Of the 16 servers the pinned plugins declare, 8 are out of scope this way — the
+    per-lane breakdown is in [`modules-home.md`](modules-home.md) § `gmail-mcp.nix` +
+    `plugin-mcp.nix`.
+  - **anything in a marketplace this repo does not pin.** The join covers `kattakath/skills`
+    only, and that pin lags the marketplace, which tracks HEAD.
 - **Adopting a server is still a declaration, never an imperative install.** `claude mcp add`
   and config-writing installer tools stay denied at user and managed scope
   (`claude-guardrails.nix`, `claude-managed-settings.nix`) — what changed is only *where* the
@@ -113,8 +125,10 @@ copies of one command is a duplicate, not a fallback.
 
 Every hook below is **project-scoped** (`.claude/settings.json`): it guards sessions rooted in
 this repo only. Two wider tiers carry the fleet-wide floor: user-scope
-`modules/home/claude-guardrails.nix` (§ `modules/home/`) and, above it on `macos`,
-root-owned managed scope in `modules/darwin/claude-managed-settings.nix` (§ `modules/darwin/`).
+`modules/home/claude-guardrails.nix` ([`modules-home.md`](modules-home.md) § `modules/home/`)
+and, above it on `macos`, root-owned managed scope in
+`modules/darwin/claude-managed-settings.nix`
+([`modules-darwin.md`](modules-darwin.md) § `modules/darwin/`).
 
 - **`stop-gate.js`** — Stop gate: blocks until configs evaluate clean.
 - **`pretooluse-bash-guard.js`** — `PreToolUse:Bash`: deterministic port of the
@@ -197,7 +211,8 @@ Decoder for what these hooks print: [`claude-hook-messages.md`](../claude-hook-m
 Active only when working in this repo: `nix-hygiene`, `nixpi-firmware-provision`,
 `gmail-mcp-accounts`,
 `mcp-scout`, `userscript-author` (the FLEET half only — how a script reaches this Mac now that
-nothing is declared in Nix; the method lives in the `page-lab` plugin — see § Userscripts),
+nothing is declared in Nix; the method lives in the `page-lab` plugin — see
+[`packages.md`](packages.md) § Userscripts),
 `fleet-doctor` (its own `fleet-repos.txt` manifest lists every repo in scope — add
 a line there when a new flake is extracted from this repo, nothing else needs to change).
 There is **no `npx skills` CLI lockfile** any more: `skills-lock.json` was deleted 2026-10-02,
@@ -321,7 +336,8 @@ reasoning: the store path moves on every content bump and `plugin install` COPIE
 `~/.claude/plugins/cache`, so without a re-pin a bump would serve a previous generation's
 content forever. **That premise was measured FALSE on 2026-09-30** — the cache is never read
 at load for a directory source — and the `repin` option plus its whole teardown are deleted.
-The pinned-era record stands as written; see § `claude-plugins.nix` above for what replaced it
+The pinned-era record stands as written; see [`modules-home.md`](modules-home.md)
+§ `claude-plugins.nix` for what replaced it
 (one `plugin marketplace add`, which only removes a first-session lag).
 
 `repin` here is **`false`** — it derives from `hasPrefix "/" source`, and the source is an https
@@ -342,7 +358,8 @@ Two of them carry write-ups worth keeping:
   diagnosis (performance / network / console), the `/userscript` + `/devtools` + `/pick`
   commands, and `scripts/userscript-meta-lint.sh`. That linter used to be run by
   `checks.<system>.userscripts` here and by nix-personal's twin gate; **both gates went with the
-  scripts on 2026-09-14** (§ Userscripts), so the rulebook now has exactly one consumer — the
+  scripts on 2026-09-14** ([`packages.md`](packages.md) § Userscripts), so the rulebook now has
+  exactly one consumer — the
   plugin's own users — plus Greasy Fork's own checks at upload.
   **Merged 2026-09-07 from `userscript-author` + `chrome-devtools`.** They were split on
   2026-09-06 and cross-referenced, which held only while neither needed the other mid-motion.

@@ -49,8 +49,9 @@ they bite any future second account:
   of an interactive activation**, and because a status read through a pipe
   (`activate | tail`) is the PIPE's, not the command's. That misreading is exactly how an
   earlier revision of this paragraph came to claim exit 0. It is the same family as the
-  `cmd | grep -q` trap that returns 141 on a SUCCESSFUL match under `pipefail` (§ Home Manager
-  activation): **a status taken through a pipe describes the pipe.**
+  `cmd | grep -q` trap that returns 141 on a SUCCESSFUL match under `pipefail`
+  ([`modules-home.md`](modules-home.md) § Home Manager activation): **a status taken through a
+  pipe describes the pipe.**
 
   The obvious fix is itself a trap, and this fleet hit all three rungs of it. `$PIPESTATUS`
   is a BASH array; in zsh — the login shell here — it does not exist, so **every** index
@@ -127,7 +128,8 @@ they bite any future second account:
   the app's drift-prone self-updater — the full declared/imperative boundary is
   [`open-design.md`](../open-design.md). Also imports `../modules/darwin/claude-managed-settings.nix`
   and sets `local.claudeManagedSettings.enable = true` — the root-owned Claude Code policy tier
-  (§ `modules/darwin/`); it is the only host that has one. Consequence worth recognising when it
+  ([`modules-darwin.md`](modules-darwin.md) § `modules/darwin/`); it is the only host that has
+  one. Consequence worth recognising when it
   fires: a PRE-EXISTING unowned `managed-settings.json` (an MDM payload, a hand-placed file)
   now FAILS activation with exit 2 rather than being clobbered.
 - `macvm.nix` — removed 2026-09-05 with the rest of the `macvm` Tart guest; re-add path:
@@ -211,7 +213,8 @@ It serves **`x86_64-linux` too.** The rendered `external-builders` entry names b
 and an `x86_64-linux` derivation built here returns `uname -m` = `x86_64` (measured
 2026-09-22) — a real second platform, not an idle advertisement. That is what lets
 `packages.x86_64-linux.devcontainerImage` build on this Mac and not only in CI. It does
-**not** dent the aarch64-only invariant: that claim is about **hosts** (§ The fleet), and a
+**not** dent the aarch64-only invariant: that claim is about **hosts**
+([`../repo-map.md`](../repo-map.md) § The fleet), and a
 build-only ephemeral sandbox is not one.
 
 #### It does NOT share Tart's two-guest budget

@@ -26,7 +26,8 @@ in the repo can catch that; see that fixture file's header for the measurement.
   `/opt/homebrew`) — the *only* remote path to the Pi, and what makes both deploy-rs legs work
   (`ssh` for activation + `nix copy` for the closure); see `deploy.nodes` above. Host-gated: RAG
   (ollama/pgvector) only when `networking.hostName == "macos"`. **The public-MCP-tunnel half of
-  that gate is gone** — it went with the gateway on 2026-10-02 (§ MCP after the gateway).
+  that gate is gone** — it went with the gateway on 2026-10-02
+  ([`claude.md`](claude.md) § MCP after the gateway).
   `home.packages` also carries `pandoc`/`poppler` (nixpkgs, darwin-only) — together with
   macos's `libreoffice` cask, these satisfy the docx/pptx/xlsx/pdf skills' stated runtime deps
   (LibreOffice/poppler/pandoc), a gap flagged inline at that skills block since it was first
@@ -60,7 +61,8 @@ in the repo can catch that; see that fixture file's header for the measurement.
   older `linkApps` — `~/Applications/Home Manager Apps` is a SYMLINK into `/nix/store`, which
   Spotlight does not index. Both also nest the bundles in a subfolder, and `copyApps` needs
   the App Management TCC grant (a click, per Mac).
-- **`mcp.nix`** — the fleet MCP gateway: one `mcp-proxy` hosting every server with **no plugin
+- **`mcp.nix` — DELETED 2026-10-02 (#734); this entry is a RECORD, not a live file.** What it
+  was: the fleet MCP gateway, one `mcp-proxy` hosting every server with **no plugin
   owner**, reached by every client as ONE portal connector. See
   [`mcp-gateway.md`](../mcp-gateway.md) for the roster, the counting convention (entries vs
   capabilities) and § Which lane — the 2026-09-30 ownership split that sends a skill's tool half
@@ -186,7 +188,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
     `npx -y kapture-mcp@latest bridge` at user scope — imperative and unpinned, so it can
     change under a session with no rebuild. Its declarative home is the `page-lab` plugin's
     `.mcp.json` (where `kapture` moved on 2026-09-30), **not** this repo — there is no gateway to
-    declare it in since 2026-10-02 (§ MCP after the gateway).
+    declare it in since 2026-10-02 ([`claude.md`](claude.md) § MCP after the gateway).
     (Historical note: the kapture *gateway* entry was removed 2026-08-22 along with the whole
     public-MCP-exposure subsystem; that removal was about the gateway and the Cloudflare
     tunnel, not about the tool, and this extension does not resurrect either. It outlived both
@@ -203,8 +205,8 @@ in the repo can catch that; see that fixture file's header for the measurement.
     links. `null` (e.g. `lib.mkForce null`) keeps a declaration but skips the file.
 
     **EMPTY since 2026-09-14, and kept on purpose.** No host declares a script any more —
-    every one was published to Greasy/Sleazy Fork instead (see § Userscripts below for the
-    trade). `xdg.dataFile` is gated on the attrset being non-empty, so an empty one writes
+    every one was published to Greasy/Sleazy Fork instead (see [`packages.md`](packages.md)
+    § Userscripts for the trade). `xdg.dataFile` is gated on the attrset being non-empty, so an empty one writes
     nothing at all; `enable` still sideloads Violentmonkey itself, which is what the published
     scripts install into. The option stays because it is a free seam and a private script that
     must not reach a public fork is still a real case. It remains the public/private merge
@@ -542,7 +544,8 @@ in the repo can catch that; see that fixture file's header for the measurement.
     `macos`, where a deny cannot be retracted by any lower scope and every per-key precedence
     sentence in claude-code 2.1.260 puts managed first. The two are ADDITIVE, not a
     replacement: this file is the only tier that reaches the devcontainer and machines this
-    Home Manager config never touched. See § `modules/darwin/`.
+    Home Manager config never touched. See [`modules-darwin.md`](modules-darwin.md)
+    § `modules/darwin/`.
 - **`claude-desktop.nix`** — `local.claudeDesktop`. It **still runs, and it now renders an EMPTY
   `mcpServers` block** (2026-10-02): the portal it used to dial is destroyed, and Desktop loads
   no plugins, so Desktop genuinely has **no** MCP servers. **The module stays ENABLED on
@@ -755,8 +758,8 @@ waves 5-6 absorb them).
   it against the REAL `macos` config, on all three surfaces.
 
   Reached through `modules/parts/compose.nix` as the `keychainSecretsModule` specialArg, from
-  the `capsuleModules` seam rather than `flake.modules` — see § `modules/features/` for the
-  measurement behind that. Its three darwin CLIs are still `packages`/`apps`
+  the `capsuleModules` seam rather than `flake.modules` — see [`engine.md`](engine.md)
+  § `modules/features/` for the measurement behind that. Its three darwin CLIs are still `packages`/`apps`
   (`nix run .#secret`), registered by the capsule itself; `pb-conceal` is deliberately
   installed but not published, exactly as before the absorption.
 
@@ -770,16 +773,27 @@ waves 5-6 absorb them).
   consistency and because order-insensitivity here is a property of today's contents, not of
   the class; the reasoning is in its `flake-module.nix` header.
 
-  The seam that matters is `local.rag.pgvector.databaseUri`. **Its consumer changed on
-  2026-10-02 and the Nix half of the wiring is GONE**: `modules/shared/mcp.nix` used to hand it
-  to the gateway's `postgres` MCP server as `env.DATABASE_URI`, and that was the career RAG's
-  only path to Claude Code. With no gateway, a `postgres` MCP server has to be declared in a
-  plugin's `.mcp.json`, which **nothing in this repo can see** — so the URI is now a value this
-  repo publishes and something outside it consumes. That is a real loss of coupling, stated
-  rather than papered over: the one thing that used to fail the build when the URI drifted out
-  of step with its consumer cannot see the consumer any more. `postgres` takes no credential
-  (a loopback **trust-auth** URI with no password), which is why it can live in the plugin lane
-  at all — unlike `gmail`, which needed `packages/gmail-mcp.nix`.
+  The seam that matters is `local.rag.pgvector.databaseUri`, and it has **TWO consumers, both
+  in this repo**: `modules/home/plugin-mcp.nix:110` hands it to the plugin-lane `postgres` MCP
+  launcher as `plainEnv.DATABASE_URI`, and since 2026-10-02 (#796) the capsule also exports it
+  as the `RAGDB_URI` session variable (`modules/features/local-rag/pgvector-local.nix:419`), for
+  a plain SHELL consumer that cannot read a Nix option. What changed on 2026-10-02 is **which**
+  module consumes it — not that the Nix half went away: `modules/shared/mcp.nix` used to hand it
+  to the gateway's `postgres` server as `env.DATABASE_URI`, and that file is deleted (#734).
+  `postgres` takes no credential (a loopback **trust-auth** URI with no password), which is why
+  it can live in the plugin lane at all — unlike `gmail`, which needed `packages/gmail-mcp.nix`.
+
+  **And a plugin's `.mcp.json` is NOT invisible to this repo** — the claim that it is was the
+  reasoning behind calling this a loss of coupling, and it is false.
+  `checks.<system>.mcp-launcher-parity` reads every `plugins/*/.mcp.json` out of the pinned
+  `kattakath-skills` input at EVAL time and asserts set equality between the `nix-mcp-*`
+  commands those plugins name and the launchers `macos` builds (§ `gmail-mcp.nix` +
+  `plugin-mcp.nix` above, same file). The `rag` plugin declares `postgres` →
+  `nix-mcp-postgres`, so this very server is inside that join, and `plugin-mcp.nix` ALSO asserts
+  `local.rag.pgvector.enable` whenever `postgres` is listed. What genuinely no gate can assert
+  is that the server ANSWERS at runtime, and the non-`nix-mcp-` lanes
+  (`${CLAUDE_PLUGIN_ROOT}`-relative, bare nixpkgs binaries, `npx`) are out of scope by
+  construction.
   `checks.<system>.local-rag-module` still pins that URI as a **literal** so a
   port/role/db rename fails there instead of silently returning zero rows, and
   `local-rag-inert` is the kill-switch gate — both switches unset must contribute nothing,
@@ -807,8 +821,8 @@ waves 5-6 absorb them).
   `kattakath/nix-media-cli` on 2026-09-05 and absorbed back by ADR-002 wave 5) —
   `local.mediaCli`, the eleven media CLIs + the launchd work queue + the Finder Services,
   `macos`-only because of closure size. Threaded in as `mediaCliModule` through the RAW
-  `capsuleModules` seam rather than `flake.modules` — see § `modules/features/` for the
-  measurement. Its eleven packages are deliberately **not** re-published as flake outputs
+  `capsuleModules` seam rather than `flake.modules` — see [`engine.md`](engine.md)
+  § `modules/features/` for the measurement. Its eleven packages are deliberately **not** re-published as flake outputs
   (nix-config never carried one); `checks.<system>.media-cli-packages` builds all of them, so
   the shellcheck coverage the satellite's CI had is kept.
 
