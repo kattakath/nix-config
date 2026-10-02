@@ -2258,38 +2258,62 @@ placeholders only.** It NEVER writes `~/.aws/config`. That file is the human's, 
 - It is the worked example of **ADR-003's "content out, governance in"** applied to a cloud
   CLI: the flake ships the TOOL and the SHAPE, the human writes the CONTENT.
 
-## `lib/` — shared DATA, not modules
+## `modules/_lib/` — shared DATA, not modules
 
 One file, and the layer exists for its shape rather than its size:
 
-- **`lib/nix-ld-libraries.nix`** — `pkgs: with pkgs; [ … ]`. **Not a module** — a function
+- **`modules/_lib/nix-ld-libraries.nix`** — `pkgs: with pkgs; [ … ]`. **Not a module** — a function
   returning the nix-ld runtime library list that dynamically-linked NON-Nix binaries (VS Code
   Server, prebuilt language servers, downloaded toolchains) need. **Two consumers in two
   different layers:** `modules/nixos/core.nix:133` (`programs.nix-ld.libraries`) and
   `packages/devcontainer-image.nix:98` (`NIX_LD_LIBRARY_PATH`/`LD_LIBRARY_PATH` baked into the
   distroless image). Widen HERE and both follow.
 
-**Why a top-level `lib/` and not `modules/nixos/`.** It sat in `modules/shared/` until
-2026-10-02 — wrong twice over, since it is neither home-manager nor a module (ADR-009 §9b).
-`modules/nixos/` would be wrong too: the second consumer is `packages/`, and that import would
-be `packages/ → modules/nixos/`, a layer crossing this repo fences in the other direction. A
-`lib/` layer is one ANY layer may reach into, so neither consumer crosses one.
+**Why `modules/_lib/` and not `modules/nixos/` — and not a top-level `lib/` either.** It sat in
+`modules/shared/` until 2026-10-02 — wrong twice over, since it is neither home-manager nor a
+module (ADR-009 §9b). `modules/nixos/` would be wrong too: the second consumer is `packages/`,
+and that import would be `packages/ → modules/nixos/`, a layer crossing this repo fences in the
+other direction. A `_lib/` layer is one ANY layer may reach into, so neither consumer crosses one.
 
-**And that is a JUDGEMENT CALL, not a grepped precedent.** Measured 2026-10-02 against the
-pins: `blueprint` is **not** an input of this flake (0 hits in `flake.lock`), so ADR-009 §7's
-citation of blueprint's `lib/` key is cited precedent, not an option surface. `flake-parts` has
-a `lib/` in its own repo but declares no such option for consumers, and the closest convention
-that IS in a pinned input — `import-tree`'s dendritic guide — prescribes an underscore-prefixed
-`modules/_lib/`, which is not this. The layering paragraph above is the whole argument.
+**The NAME is a pinned-input convention, not a judgement call** — which is the correction a
+one-commit stop at a top-level `lib/` earned. Measured 2026-10-02 against the pins: `blueprint`
+is **not** an input of this flake (0 hits in `flake.lock`), so ADR-009 §7's citation of
+blueprint's `lib/` key is cited precedent, not an option surface, and `flake-parts` has a `lib/`
+in its own repo but declares no such option for consumers. The convention that **is** in a pinned
+input is `import-tree`'s dendritic guide (`docs/src/content/docs/guides/dendritic.mdx`,
+§ *"The `/_` Convention"*): *"Use underscore-prefixed directories for helper code that shouldn't
+be auto-imported"*, worked example `modules/_lib/helpers.nix`. Following the pin beats a local
+argument that reached a similar place.
 
-**Nothing here is auto-imported.** `flake.nix:447` is `import-tree … .addPath ./modules` with
-`.match ".*/(parts/[^/]+|features/[^/]+/flake-module)\\.nix"`, so `lib/` is outside the tree
-import-tree reads at all — it is imported by hand, by the two consumers above. `treefmt` still
-formats it (its walk starts at `flake.nix` and `lib/` is in no `global.excludes` entry) and
-`ast-grep scan` still lints it (`sgconfig.yml` scopes RULES, not scanned paths). CI watches it:
-`lib/**` is a path filter in `build-devcontainer.yml`, `warm-nixpi-cache.yml` and
-`build-installers.yml` — the first of which never matched this file at all while it lived under
-`modules/shared/`, so widening the list did **not** republish the image (fixed with the move).
+**Nothing here is auto-imported, and the underscore does the work MECHANICALLY.** The `.match`
+regex does **not** replace import-tree's default filter — it **accumulates** with it: `.match`
+sets `filterf` (pinned `default.nix:234`), only the unused `.initFilter` sets `initf` (`:245`),
+so `initialFilter` stays `nixFilter` (`:66`) and `:68` is
+`pathFilter = compose (and filterf initialFilter) toString`. Two independent exclusions apply,
+either alone sufficient — which is what makes a file *inside* `./modules` safe rather than a new
+hazard:
+
+1. `nixFilter = andNot (hasInfix "/_") (hasSuffix ".nix")` (pinned `default.nix:64`). The path
+   relative to the walked root (`:84`) is `/_lib/nix-ld-libraries.nix` — `hasInfix "/_"` matches,
+   so the library drops it.
+2. `flake.nix:447` is `import-tree … .addPath ./modules` with
+   `.match ".*/(parts/[^/]+|features/[^/]+/flake-module)\\.nix"`. `builtins.match` must match the
+   WHOLE relative path, and `/_lib/nix-ld-libraries.nix` has neither a `parts/<file>` nor a
+   `features/<name>/flake-module` component.
+
+**Measured, because the plausible wrong answer is "the regex does it, the underscore is
+decorative".** A probe at `modules/_lib/parts/probe.nix` **does** satisfy the regex
+(`builtins.match` → `[ "parts/probe" ]`, non-null) and was still never loaded — `flake.probeMarker`
+set from it came back as no such attribute. Only mechanism 1 explains that. 2026-10-02.
+
+So it is imported by hand, by the two consumers above. `treefmt` still formats it (its walk starts
+at `flake.nix` and `modules/_lib/` is in no `global.excludes` entry) and `ast-grep scan` still
+lints it (`sgconfig.yml` scopes RULES, not scanned paths). CI watches it: `modules/_lib/**` is a
+path filter in `build-devcontainer.yml`, `warm-nixpi-cache.yml` and `build-installers.yml` — none
+of those three has a bare `modules/**` filter (every entry names a specific subdirectory), so the
+glob is load-bearing in all three rather than redundant anywhere. `build-devcontainer.yml` never
+matched this file at all while it lived under `modules/shared/`, so widening the list did **not**
+republish the image (fixed when it moved out).
 
 ## `packages/`
 
@@ -3495,7 +3519,7 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   references in `modules/parts/packages.nix`), and 2 of `modules/shared/`'s then-24 `.nix` were
   not home-manager modules — `nix-cache.nix` calls itself *"NixOS-ONLY"* on its own line 3, and
   `nix-ld-libraries.nix` is a `pkgs:`-taking function, not a module. **§9b is now DONE**: those
-  two moved to `modules/nixos/nix-cache.nix` and `lib/nix-ld-libraries.nix` on 2026-10-02, so
+  two moved to `modules/nixos/nix-cache.nix` and `modules/_lib/nix-ld-libraries.nix` on 2026-10-02, so
   the §8 rename has nothing left to mislead on.)
 - [`docs/workspace-runbook.md`](docs/workspace-runbook.md) — Workspace by hand (the provider is
   archived, ADR-005 §3.3): inventory, verify, and the delegation table no CLI can read.
