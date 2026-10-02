@@ -379,3 +379,4 @@ queue" first: add the `merge_queue` rule to the ruleset, restore `merge_group:` 
 `nix-ci.yml` and `gitleaks.yml`, and accept the second CI run.
 
 <!-- #683 collision experiment, 2026-10-02 — this branch is DISPOSABLE and will be closed unmerged. -->
+<!-- second commit, pushed concurrently with the ready toggle -->
