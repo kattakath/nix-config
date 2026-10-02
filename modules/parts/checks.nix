@@ -293,8 +293,25 @@ in
                   badShape != { }
                 ) "non-stdio or unmarked entries: ${toString (builtins.attrNames badShape)}"
                 ++
-                  lib.optional (!(builtins.elem portalEndpoint renderedArgs))
-                    "Desktop dials no entry at the gateway's portalEndpoint (${portalEndpoint}) — it would start with zero fleet servers"
+                  # BOTH DIRECTIONS, because the right answer flipped on 2026-10-01.
+                  #
+                  # While the gateway exists, Desktop MUST dial its portal — that entry is
+                  # the only fleet MCP it can reach, since Desktop loads no plugins.
+                  #
+                  # Once the gateway is PURGED, zero servers is the intended end state and
+                  # the old assertion would fail the build for being correct. So the leg
+                  # inverts rather than relaxes: it now demands the set be EMPTY, which
+                  # catches the regression that actually matters — a portal entry sneaking
+                  # back in and quietly reinstating the central gateway this purge removed.
+                  # A leg deleted here would catch neither.
+                  (
+                    if hm.local.mcpGateway.enable then
+                      lib.optional (!(builtins.elem portalEndpoint renderedArgs))
+                        "Desktop dials no entry at the gateway's portalEndpoint (${portalEndpoint}) — it would start with zero fleet servers"
+                    else
+                      lib.optional (servers != { })
+                        "the gateway is purged, so Desktop must render NO servers — found: ${toString (builtins.attrNames servers)}"
+                  )
                 ++ lib.optional (
                   servers ? desktop-commander
                 ) "desktop-commander rendered (it is a Desktop Extension already)";

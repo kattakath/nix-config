@@ -149,7 +149,25 @@ let
   # ONE entry, the portal, from the one place it is built. Was an attrset of 26
   # loopback URLs until 2026-09-22; Desktop now reaches every server through the
   # same Workspace-authenticated door as every other client.
-  gatewayServers.kattakath-portal.url = gw.portalEndpoint;
+  # THE PORTAL ENTRY EXISTS ONLY IF THE GATEWAY DOES, and as of the 2026-10-01 purge
+  # it does not. Desktop therefore renders NO MCP SERVERS AT ALL, and that is the
+  # intended end state, not an oversight:
+  #
+  #   * Desktop loads no plugins, so the plugin lane cannot reach it. Claude Code's
+  #     first-party connectors are Claude Code's, not Desktop's.
+  #   * The operator was shown that consequence on the option he chose and accepted it.
+  #
+  # WRITTEN DOWN HERE ON PURPOSE. An empty block looks like a bug to the next reader,
+  # and the obvious "fix" is to re-add a portal — which would reinstate the central
+  # shared gateway the purge removed. If Desktop needs MCP again, that is a decision to
+  # re-take, not a gap to quietly close.
+  #
+  # The merge script below strips only entries carrying OUR marker and keeps foreign
+  # ones, so an empty set leaves `preferences` and `coworkUserFilesPath` untouched
+  # rather than deleting the operator's Desktop config.
+  gatewayServers = lib.optionalAttrs gw.enable {
+    kattakath-portal.url = gw.portalEndpoint;
+  };
 
   # `stdioServers` is GONE with the servers it carried: `desktop-commander` moved
   # onto the proxy and `open-design` left the fleet, so Claude Code declares no
