@@ -19,13 +19,13 @@
 # with no clicks at all.
 #
 # The Android emulator (a bare qemu-system-aarch64 GUI process, see
-# modules/shared/home.nix's `android-emu`) has no .app of its own, so
+# modules/home/default.nix's `android-emu`) has no .app of its own, so
 # Spotlight can't find it and re-launching spawns a duplicate instead of
 # refocusing the existing window like a normal macOS app would.
 #
 # Each bundle here wraps a tiny launcher script: ask System Events whether a
 # matching process is already running — if so, bring it frontmost; if not,
-# launch it detached. Installed into ~/Applications via home.file (home.nix),
+# launch it detached. Installed into ~/Applications via home.file (modules/home/default.nix),
 # which Spotlight indexes.
 #
 # Icons are ORIGINAL geometric glyphs rendered from hand-written SVG (not a
@@ -130,7 +130,7 @@ let
   #
   # The darkest stop, not the pretty one, because a terminal ground has to carry
   # the theme's ink. Measured against `local.terminalTheme.foreground` (#FFFFFF,
-  # modules/shared/terminal-theme.nix):
+  # modules/home/terminal-theme.nix):
   #   #6b4300 -> 8.65:1   (this one; WCAG AA needs 4.5)
   #   #8a5a00 -> 5.93:1
   #   #a06a10 -> 4.60:1   — already marginal

@@ -23,7 +23,7 @@ So, concretely, do **not**:
 | Dead step | Why it fails now | Do this instead |
 |---|---|---|
 | seed from `userscripts/google-photos-icon-nav.user.js` | no `userscripts/` directory in this tree | the plugin writes the metadata block; its linter is the header's correctness proof |
-| add a line to `modules/shared/home.nix` | `scripts` is empty on purpose; nothing pins a `.user.js` | publish to Greasy/Sleazy Fork and install from the fork |
+| add a line to `modules/home/default.nix` | `scripts` is empty on purpose; nothing pins a `.user.js` | publish to Greasy/Sleazy Fork and install from the fork |
 | `nix build .#checks.aarch64-darwin.userscripts` | **that derivation does not exist** | the plugin's own `scripts/userscript-meta-lint.sh <file>` (step 5 of `page-lab:userscript`) — the same rulebook, unmoved |
 
 Pipeline today: shelf → route → measure A vs B → diff → write → plugin lint → **publish** →
@@ -31,7 +31,7 @@ install from the fork, once. **No PR to this repo**, so no `nix flake check` eit
 
 ## The Nix path is DORMANT, not deleted
 
-`local.ungoogledChromium.userScripts` is still in `modules/shared/chromium.nix` — generic,
+`local.ungoogledChromium.userScripts` is still in `modules/home/chromium.nix` — generic,
 documented, `enable` still `true` (Violentmonkey is still sideloaded), `scripts = { }` empty.
 Reviving it for a script that genuinely must not be public takes all three back **together**: a
 pinned input holding the file, one line in `scripts`, and the gate restored. Re-pointing the

@@ -47,7 +47,7 @@ let
   stateDir = "${rootDir}/state";
   videoDir = "${home}/Movies";
   audioDir = "${home}/Music";
-  # NOT `nix-metube`: modules/shared/launchd-launcher.nix already defaults
+  # NOT `nix-metube`: modules/home/launchd-launcher.nix already defaults
   # `launcher.name = "nix-${name}"` for every agent, so the arg0 the operator
   # and TCC see is `nix-metube` regardless. Naming the inner script that too
   # produced `nix-metube` exec'ing `nix-metube` — two store paths, one name.
@@ -119,8 +119,8 @@ in
   # The darwin test is NOT redundant with home-manager's own launchd assertion:
   # `launchd.enable` defaults to isDarwin, so on nixpi/nixvm the agent would
   # silently evaluate to nothing while `pkgs.callPackage` above still had to
-  # build for aarch64-linux. modules/shared/home.nix imports this file for
-  # EVERY host. House spelling: modules/shared/next-right-thing.nix:170.
+  # build for aarch64-linux. modules/home/default.nix imports this file for
+  # EVERY host. House spelling: modules/home/next-right-thing.nix:170.
   config = lib.mkIf (cfg.enable && pkgs.stdenv.hostPlatform.isDarwin) {
     launchd.agents.metube = {
       enable = true;

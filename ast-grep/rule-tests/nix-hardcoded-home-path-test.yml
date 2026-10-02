@@ -31,6 +31,15 @@ valid:
   # `home` attrpath) rather than by account name, so it survives a rename.
   - '{ users.users.izzy.home = "/Users/izzy"; }'
   - '{ home = "/Users/izzy"; }'
+  # A REPO-RELATIVE path cited inside a string (not a source literal): the
+  # `modules/home/` directory, named 2026-10-02 by the rename. Its `/home/x`
+  # tail is not a home path, and the leading guard is what spares it. Both
+  # shapes that actually occur in the tree are here — an advice `echo` in a
+  # check and a header written into a generated file.
+  - "{ script = ''\n  echo \"see modules/home/claude-guardrails.nix\" >&2\n''; }"
+  - '{ text = "# Managed by nix-config (modules/home/default.nix)"; }'
+  # The guard must not become a bypass: a real home path in the SAME fragment as
+  # a `modules/home/` mention is still caught (it is in `invalid` below).
 invalid:
   # THE TRAILING-SLASH GAP (2026-09-16). A path ending AT the home directory
   # passed the old pattern, which required a `/` after the user segment — so a
@@ -44,6 +53,16 @@ invalid:
   - |
     {
       script = ''
+        cp thing /Users/ismail/Library/Foo
+      '';
+    }
+  # THE GUARD IS NOT A BYPASS. One uninterpolated `''…''` body is a SINGLE
+  # string_fragment, so a `not.any` exemption for `modules/home/` would have
+  # silenced this whole block. The leading guard still catches the real home.
+  - |
+    {
+      script = ''
+        # see modules/home/claude-guardrails.nix
         cp thing /Users/ismail/Library/Foo
       '';
     }

@@ -6,7 +6,7 @@
 # which is all Claude Code needs to fetch a marketplace and download its
 # enabled plugins itself. WHICH marketplaces exist and which plugins come from
 # each is data, declared through `local.claudePlugins.marketplaces` — by this
-# repo (modules/shared/home.nix) and, additively, by any private layer composed
+# repo (modules/home/default.nix) and, additively, by any private layer composed
 # on top of it.
 #
 # The one imperative call left is a single `plugin marketplace add` per
@@ -220,7 +220,7 @@ in
   };
 
   # macOS only — programs.claude-code is itself isDarwin-gated in
-  # modules/shared/home.nix, so on nixpi/nixvm claude-code is a plain package
+  # modules/home/default.nix, so on nixpi/nixvm claude-code is a plain package
   # with no settings and no activation. Contributing an activation script there
   # would change those hosts' closures for no benefit.
   config = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {

@@ -136,7 +136,7 @@ of these has been moved**.
 |---|---|---|---|
 | 1 | `hosts/macos.nix:301-314` | AWS SSO start-URL id `d-…`, two 12-digit account ids, role names, regions — written into `~/.aws/config` by `programs.awscli.settings` | **Move** → local `~/.aws/config` (already the rule ADR-003 §10.3 and `repo-map.md` § bedrock-gate *claim* holds — the code contradicts the docs since the 2026-09-15 fold-in). The new `local.cloudCli.aws` capsule ships `config.example` with placeholders. |
 | 2 | `hosts/macos.nix` | four personal Gmail addresses (**`local.gmailMcp.accounts`** since 2026-10-01; was `local.mcpGateway.gmail.accounts`) | **Ask.** The comment argues they are already public elsewhere in the tree. They are still personal emails outside `identity.nix`. Options: leave (marked OPERATOR-ONLY, done), or move the list to a Keychain item / local file the module reads at launch. |
-| 3 | `modules/shared/home.nix:997-1010, 1265-1280` | three git-identity emails in `*.inc` files and in `allowedSigners` | **Ask.** Same shape as #2. The `infin8.inc` work identity is already hand-placed outside the repo (home.nix:990) — the same treatment would fit `silvercreek.inc` / `izzykatt.inc`. |
+| 3 | `modules/home/default.nix:997-1010, 1265-1280` | three git-identity emails in `*.inc` files and in `allowedSigners` | **Ask.** Same shape as #2. The `infin8.inc` work identity is already hand-placed outside the repo (home.nix:990) — the same treatment would fit `silvercreek.inc` / `izzykatt.inc`. |
 | 4 | `modules/parts/identity.nix:40` | JSON Resume gist id | **Leave** — inside `identity.nix`, now marked OPERATOR-ONLY. |
 | 5 | `modules/parts/identity.nix:100-101, 115` | Cloudflare account id, two zone ids | **Leave** — identifiers, inside `identity.nix`, marked. |
 | 6 | `infra/cloudflare/nixpi-tunnel.nix` (`mcp-public.nix` **deleted 2026-10-02**) | Access IdP UUID, reusable policy UUID | **Leave** — resource ids, not tenant ids; they are how terranix references existing account objects. (§8.4 is about the policy's *content*, not its id.) |
@@ -254,8 +254,8 @@ a run.
   `0600` file on the first activation, so nothing is lost.
 - **Git identities (inventory #3): moved, with the same adoption trick.** `silvercreek.inc`,
   `izzykatt.inc` and `allowed_signers` are hand-placed now (`adoptGitIdentityFiles` in
-  `home.nix` copies the existing symlinks out before orphan cleanup). `gitlab.inc` STAYS in
-  Nix, derived from `config.fleet.googleAccount` — no literal mailbox left in `home.nix`.
+  `modules/home/default.nix` copies the existing symlinks out before orphan cleanup). `gitlab.inc` STAYS in
+  Nix, derived from `config.fleet.googleAccount` — no literal mailbox left in `modules/home/default.nix`.
 - **Gmail account list (inventory #2): NOT moved — blocked by ADR-003, reported rather than
   forced.** It was `local.mcpGateway.gmail.accounts`, consumed at EVAL time (one launchd agent per
   address), so it could not be read from a local file without moving gateway-config generation to
@@ -263,7 +263,7 @@ a run.
   addresses stay, marked OPERATOR-ONLY; the `next-right-thing` scripts' default account aliases are
   the same content and stay with them.
   **Re-examined 2026-10-02 and the blocker is GONE — the conclusion is not.** The gateway was
-  destroyed and the option is now `local.gmailMcp.accounts` (`modules/shared/gmail-mcp.nix`), which
+  destroyed and the option is now `local.gmailMcp.accounts` (`modules/home/gmail-mcp.nix`), which
   declares **no launchd agent at all**: it puts one `nix-mcp-gmail-<alias>` launcher per address on
   PATH, and Claude Code spawns them per session. So the eval-time-launchd-agent argument no longer
   applies. What still blocks the move is narrower and worth stating precisely: the **alias is
@@ -273,7 +273,7 @@ a run.
   obsolete for a day before anyone looked.
 - **Claude Code user settings: joined the class 2026-09-22, and the class is now named.**
   `~/.claude/settings.json` was a read-only store symlink until
-  `modules/shared/claude-code-settings.nix` made it a real file that Nix merges its own keys
+  `modules/home/claude-code-settings.nix` made it a real file that Nix merges its own keys
   into on every activation. It is therefore LOCAL AND UNBACKED, exactly like `~/.aws/config`
   and the `*.inc` files above — the fourth member, not an exception.
 

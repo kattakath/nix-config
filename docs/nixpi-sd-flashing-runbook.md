@@ -253,7 +253,7 @@ ssh -o ConnectTimeout=5 ismail@nixpi.local true && echo "LAN recovery path LIVE"
 
 Remotely (e.g. travelling), over the tunnel:
 `ssh ismail@nixpi.kattakath.com` — the `ProxyCommand cloudflared access ssh --hostname
-%h` is **declarative now**, in `modules/shared/home.nix`'s `Host nixpi.kattakath.com`
+%h` is **declarative now**, in `modules/home/default.nix`'s `Host nixpi.kattakath.com`
 block (with `StrictHostKeyChecking accept-new` for exactly the fresh-key case below).
 Do **not** hand-edit `~/.ssh/config` to add it — that file is a read-only `/nix/store`
 symlink owned by Home Manager; change the module and re-activate. The physical

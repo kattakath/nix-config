@@ -42,7 +42,7 @@ in
   # Root-owned Claude Code policy at /Library/Application Support/ClaudeCode/
   # managed-settings.json — the tier that outranks user, project and `--settings`
   # scope. It carries the secret-value denies and the no-AI-attribution keys, and
-  # it ADDS to the user-scope floor in modules/shared/claude-guardrails.nix
+  # it ADDS to the user-scope floor in modules/home/claude-guardrails.nix
   # rather than replacing it (deny lists from several scopes combine); each scope
   # reaches sessions the other cannot. Setting this to `false` and re-running
   # `activate` REMOVES the file — it does not merely stop rewriting it — so the
@@ -52,7 +52,7 @@ in
   # ONE ollama for the whole machine. The per-user agent could not be shared:
   # it lives in a single login session and keeps its models in that user's home,
   # so a second account meant either a duplicate 31 GB store or a server that
-  # vanished whenever the operator logged out. `modules/shared/home.nix` sets
+  # vanished whenever the operator logged out. `modules/home/default.nix` sets
   # `local.rag.ollama.manageServer = false` so the capsule stops standing up a
   # competing one — two servers on 11434 means one wins and the other flaps.
   local.ollamaDaemon.enable = true;
@@ -308,7 +308,7 @@ in
     home = "/Users/${loginName}";
   };
 
-  # ---- Per-session MCP launchers (modules/shared/{gmail-mcp,plugin-mcp}.nix,
+  # ---- Per-session MCP launchers (modules/home/{gmail-mcp,plugin-mcp}.nix,
   # home-manager options — set via home-manager.users)
   # The operator's COMPLETE Gmail roster. All four are the operator's own
   # accounts under identities already public elsewhere in this very tree:
@@ -319,9 +319,9 @@ in
   # extraHomeModules; it was fully retired 2026-09-15, and the operator chose to
   # keep only the two below from its list of seven (#524), so this list is now
   # the whole set. Anyone else's address still never belongs here — see the
-  # option's description in modules/shared/gmail-mcp.nix.
+  # option's description in modules/home/gmail-mcp.nix.
   #
-  # A FUNCTION, not a bare attrset, matching modules/shared/home.nix's own
+  # A FUNCTION, not a bare attrset, matching modules/home/default.nix's own
   # signature: home-manager passes module args here, and the `_` keeps the door
   # open for a block below that needs one. (It was `publicMcpServers` until the
   # gateway was deleted 2026-10-02; nothing reads an arg here today.)
@@ -349,7 +349,7 @@ in
     # before it owned it in code.
     #
     # Each was checked LIVE before being declared, because a plugin for a dead endpoint
-    # is worse than no plugin (see modules/shared/plugin-mcp.nix for the probes):
+    # is worse than no plugin (see modules/home/plugin-mcp.nix for the probes):
     # silvercreek.ai's REST API answers and only authentication gates it, and the
     # pgvector store is listening on loopback. All three then completed a real MCP
     # `initialize` through their launcher.
@@ -369,7 +369,7 @@ in
     # writes ~/.aws/config.example; the real ~/.aws/config is the operator's,
     # written by `aws configure sso` / by hand, outside Nix and git. The first
     # activation after this change keeps the existing profiles: `adoptAwsConfig`
-    # (modules/shared/claude-bedrock-gate.nix) turns the leftover store symlink
+    # (modules/home/claude-bedrock-gate.nix) turns the leftover store symlink
     # into a real 0600 file instead of letting orphan cleanup delete it.
     # Claude Code's Bedrock profile is still selected at runtime with
     # `secret set AWS_PROFILE <profile>`.
@@ -444,7 +444,7 @@ in
 
     # Per-user container runtime (Colima via home-manager's services.colima),
     # replacing the docker-desktop cask whose privileged helper was bound to
-    # one username. Why/cost/migration: modules/shared/containers.nix.
+    # one username. Why/cost/migration: modules/home/containers.nix.
     local.containers.enable = true;
   };
 
@@ -508,7 +508,7 @@ in
       "pyenv"
       # `scrcpy` is NOT brewed any more (2026-09-29): nixpkgs carries it (4.1,
       # builds and substitutes on aarch64-darwin), so it moved to
-      # modules/shared/home.nix for flake.lock pinning. `adb` deliberately did
+      # modules/home/default.nix for flake.lock pinning. `adb` deliberately did
       # NOT move — the android-platform-tools cask below still owns it, because
       # mobile-mcp and android-phone both resolve that one.
       "shellcheck"
@@ -524,7 +524,7 @@ in
       # (masApps.WireGuard) ONLY. Deliberately no `wg`/`wg-quick` CLI and no `vpn`
       # operator on this host, so nothing can bring a tunnel up from a shell (a
       # botched tunnel = no-internet on the sole client Mac). Confs are synced for
-      # IMPORT into the app, never run (local.wireguardConfigs, home.nix).
+      # IMPORT into the app, never run (local.wireguardConfigs, modules/home/default.nix).
 
       "xcodes"
       "yq"
@@ -541,7 +541,7 @@ in
       # alternatives (GIMP, Krita) are deliberately not carried.
       "affinity"
       # Android SDK cmdline tools (sdkmanager/avdmanager) — backs `android-emu`
-      # (modules/shared/home.nix), which boots VIRTUAL Android emulators.
+      # (modules/home/default.nix), which boots VIRTUAL Android emulators.
       "android-commandlinetools"
       # adb/fastboot — the bridge mobile-mcp drives to automate a physical phone.
       "android-platform-tools"
@@ -551,7 +551,7 @@ in
       "claude"
       # `docker-desktop` is GONE (2026-09-16): its privileged helper bound the
       # machine-wide socket to one username. The runtime is now per-user Colima —
-      # modules/shared/containers.nix (`local.containers`); the `docker*` brews
+      # modules/home/containers.nix (`local.containers`); the `docker*` brews
       # above stay as the client.
       "dropbox"
       # escrcpy — graphical frontend for scrcpy (nixpkgs now, see the note in the
@@ -616,7 +616,7 @@ in
         postinstall = "/usr/bin/xattr -dr com.apple.quarantine /Applications/Escrcpy.app";
       }
       # Google Chrome — the DAILY browser and the holder of http/https
-      # (`local.defaultBrowser = "chrome"`, modules/shared/home.nix). It is here for
+      # (`local.defaultBrowser = "chrome"`, modules/home/default.nix). It is here for
       # exactly one reason, and it is not a preference: PASSKEYS.
       #
       # Reaching a macOS Passwords.app passkey requires the RESTRICTED entitlement
@@ -653,12 +653,12 @@ in
       # LINUX-ONLY and refuses to evaluate on aarch64-darwin, which is exactly the
       # case home-manager documents for `programs.ghostty.package = null`:
       # Homebrew ships the app, Nix owns the config. Same split as the
-      # ungoogled-chromium cask. Settings live in modules/shared/home.nix.
+      # ungoogled-chromium cask. Settings live in modules/home/default.nix.
       "ghostty"
       "iina"
       # Inkscape is gone on purpose (2026-09-15) — do not re-add.
       # LibreOffice — provides the `soffice` CLI the docx/pptx/xlsx/pdf Claude Code
-      # skills (modules/shared/home.nix programs.claude-code.skills) already hardcode
+      # skills (modules/home/default.nix programs.claude-code.skills) already hardcode
       # as their document-conversion engine. Cask (not nixpkgs libreoffice-bin)
       # because its command_wrapper execs the real Mach-O soffice binary directly —
       # nixpkgs' wrapper shells out via `open -na`, which won't block/report exit
@@ -701,7 +701,7 @@ in
       # Übersicht — desktop widgets rendered as web views behind every window.
       # Cask because it is a signed .app with no nixpkgs/home-manager packaging;
       # the ONE widget the fleet declares (a full-screen HTML file) is placed by
-      # modules/shared/ubersicht.nix (local.ubersicht.htmlWidget).
+      # modules/home/ubersicht.nix (local.ubersicht.htmlWidget).
       # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
       "ubersicht"
       # ungoogled-chromium — Chromium without the Google integration. Cask because
@@ -709,7 +709,7 @@ in
       # the plain `chromium` cask is deprecated (fails the macOS Gatekeeper check,
       # disabled 2026-09-01). Its declarative config — the sideloaded iCloud
       # Passwords extension + Apple's native-messaging host, which macOS otherwise
-      # ships to Chrome and Firefox ONLY — lives in modules/shared/chromium.nix.
+      # ships to Chrome and Firefox ONLY — lives in modules/home/chromium.nix.
       "ungoogled-chromium"
       "visual-studio-code"
       # NO DICTATION CASK HERE, ON PURPOSE — read this before adding one.

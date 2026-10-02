@@ -6,7 +6,7 @@
 # `stop-gate`, the Write|Edit secret prompt) lives in THIS repo's
 # `.claude/settings.json` — project scope. A session anywhere else (a work
 # repo, `~`) got none of it, while the VS Code extension and the `claude`
-# terminal profile start in `bypassPermissions` (home.nix). The MCP gateway was
+# terminal profile start in `bypassPermissions` (default.nix). The MCP gateway was
 # the counter-example that forced the issue: it WAS global — `mcpfinder` reached
 # every session through `programs.claude-code.mcpServers`, so its config-writing
 # tool was deny-listed here and callable everywhere else. Measured 2026-09-15.
@@ -60,7 +60,7 @@
 # `/` in USER settings anchors at ~/.claude, not `/` — the classic miswrite.
 #
 # Top-level `lib.mkIf isDarwin`, matching ./claude-brain.nix: programs.claude-code
-# is darwin-only (home.nix), and the gate keeps nixpi/nixvm byte-identical.
+# is darwin-only (default.nix), and the gate keeps nixpi/nixvm byte-identical.
 lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
   # ── AI attribution on git artifacts: OFF, as a SETTING (claude/CLAUDE.md
   #    § Git authorship) ──────────────────────────────────────────────────────
@@ -123,7 +123,7 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # arrived as `mcp__plugin_hm_<server>__<tool>`. The two spellings that lived
     # here before — a bare `mcp__mcpfinder__…` and an older, longer plugin prefix
     # — matched NOTHING, so imperative MCP adoption was ungated the whole time.
-    # modules/shared/home.nix:660 in this same repo already had it right.
+    # modules/home/default.nix:660 in this same repo already had it right.
     #
     # THAT PREFIX WENT STALE TWICE, exactly as this paragraph predicted. The
     # 2026-09-22 portal collapse made the gateway ONE Claude Code server

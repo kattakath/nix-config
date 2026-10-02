@@ -310,7 +310,7 @@ in
     # modules/launchd/launchd.nix:367, and uses it upstream in
     # modules/services/git-sync.nix:115 — so this is launchd's own file-watch
     # primitive, not a polling loop of ours. arg0 becomes
-    # nix-claude-desktop-mcp-sync via modules/shared/launchd-launcher.nix, which
+    # nix-claude-desktop-mcp-sync via modules/home/launchd-launcher.nix, which
     # is what .claude/rules/launchd-naming.md requires.
     launchd.agents.claude-desktop-mcp-sync = {
       enable = true;

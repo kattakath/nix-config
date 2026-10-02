@@ -5,7 +5,7 @@ allowed-tools: Read, Edit, Bash(cat:*), Bash(node:*), Bash(jq:*)
 
 # routing-review
 
-Run the deterministic-routing betterment loop over Claude Code's own OpenTelemetry event log (`local.claudeOtel`, `modules/shared/claude-otel.nix`). The goal: find tool/skill routing decisions that are still being approved by a human in the moment (`user_temporary`/`user_permanent`) rather than by a `PreToolUse` hook or static config, and turn recurring ones into concrete deterministic rules — the same loop that produced `pretooluse-bash-guard.js`, but continuously fed by real usage instead of memory.
+Run the deterministic-routing betterment loop over Claude Code's own OpenTelemetry event log (`local.claudeOtel`, `modules/home/claude-otel.nix`). The goal: find tool/skill routing decisions that are still being approved by a human in the moment (`user_temporary`/`user_permanent`) rather than by a `PreToolUse` hook or static config, and turn recurring ones into concrete deterministic rules — the same loop that produced `pretooluse-bash-guard.js`, but continuously fed by real usage instead of memory.
 
 ## 1. Load the log
 

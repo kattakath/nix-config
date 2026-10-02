@@ -1,7 +1,7 @@
 # Health check for the local Claude Code routing-telemetry OTel Collector
-# (modules/shared/claude-otel.nix, launchd label org.nix-community.home.
+# (modules/home/claude-otel.nix, launchd label org.nix-community.home.
 # claude-otel-collector, wrapped as nix-claude-otel-collector by
-# modules/shared/launchd-launcher.nix).
+# modules/home/launchd-launcher.nix).
 # Generic + runtime-introspecting — no Nix-time config
 # threading, just checks what's actually running/listening/on-disk right now.
 {

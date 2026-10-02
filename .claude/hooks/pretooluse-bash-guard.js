@@ -323,7 +323,7 @@ const BUILDERS_PI = new RegExp(String.raw`--(?:builders|store)[=\s]+["']?ssh(?:-
 // with no region and no profile, Claude Code can reach no model, and the agent
 // needed to fix it is the thing that just died. settings.json is a read-only
 // /nix store symlink, so it cannot be hand repaired either.
-// What CLOSES that trap is modules/shared/claude-bedrock-gate.nix, which unsets
+// What CLOSES that trap is modules/home/claude-bedrock-gate.nix, which unsets
 // the flag for a shell where no identity resolves. All this hook carries is the
 // inverse heads-up below — identity live, flag off — and it is a nudge, never a
 // block.

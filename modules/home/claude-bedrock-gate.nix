@@ -31,7 +31,7 @@
 #   is nicer than removing it: the handle stays in `secret ls`, so the toggle's
 #   existence — and its current state — remain visible.
 #   (`local.keychainSecrets` — the loader providing `secret` — is wired in
-#   modules/shared/home.nix.)
+#   modules/home/default.nix.)
 #
 # This module therefore declares NO options at all: not the toggle (above), and
 # since 2026-09-15 not the identity either (below).

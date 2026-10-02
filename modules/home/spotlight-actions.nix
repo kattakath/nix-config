@@ -57,7 +57,7 @@
 let
   isMacosHost = (osConfig.networking.hostName or "") == "macos";
 
-  # Its own callPackage rather than a value threaded from home.nix: the two
+  # Its own callPackage rather than a value threaded from default.nix: the two
   # calls are identical, so Nix realises ONE derivation, and this module stays
   # independently importable instead of depending on a binding next door.
   inherit (pkgs.callPackage ../../packages/spotlight-launchers.nix { })
@@ -67,7 +67,7 @@ let
 in
 {
   # `recursive = true` for the same reason the Android Emulator bundle uses it
-  # (modules/shared/home.nix): a symlinked .app DIRECTORY confuses
+  # (modules/home/default.nix): a symlinked .app DIRECTORY confuses
   # LaunchServices, so link the contents and leave a real directory behind.
   home.file = lib.mkIf isMacosHost (
     lib.mapAttrs' (

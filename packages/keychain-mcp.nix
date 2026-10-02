@@ -50,7 +50,7 @@
   interpreter,
   # Full argument vector for that interpreter, INCLUDING this fleet's version/interpreter
   # pins. Pins are not cosmetic: an unpinned `uvx postgres-mcp` was measured to break two
-  # different ways (see modules/shared/plugin-mcp.nix for the per-server detail).
+  # different ways (see modules/home/plugin-mcp.nix for the per-server detail).
   args,
   # ENV_VAR_NAME -> login-Keychain SERVICE id. Read with `-a $(id -un)`, the account every
   # `secret set` registers under. A missing entry warns and still starts, so the failure

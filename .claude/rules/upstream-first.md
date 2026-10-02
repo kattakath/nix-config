@@ -126,7 +126,7 @@ Step 1 could not have found it: `nh` is a package, so it appears nowhere in any 
 `modules/`. Either probe in step 2 would have surfaced it in seconds.
 
 The wrapper survived review anyway, for a reason that had already been measured and written
-down: `home.nix` deliberately sets no `programs.nh.darwinFlake` because nh's progress ticker
+down: `modules/home/default.nix` deliberately sets no `programs.nh.darwinFlake` because nh's progress ticker
 repaints ~15x/s with no off switch (`NH_NOM=0` and `NO_COLOR=1` both measured to change
 nothing), which is worse than plain `darwin-rebuild` under a pipe. That rejects nh's OUTPUT,
 not its elevation — so `activate.nix`'s header now records the comparison and names the

@@ -118,7 +118,7 @@ in
           # macvm host, 2026-09-05 — docs/macvm-readd-runbook.md.)
 
           # Health check for the local Claude Code routing-telemetry OTel
-          # Collector (local.claudeOtel, modules/shared/claude-otel.nix).
+          # Collector (local.claudeOtel, modules/home/claude-otel.nix).
           claude-otel-doctor = pkgs.callPackage ../../packages/claude-otel-doctor.nix { };
 
           # Runtime health check for every launchd unit this fleet installs:
@@ -142,7 +142,7 @@ in
           # adb from the android-platform-tools Homebrew cask (hosts/macos.nix),
           # scrcpy from PATH since it became a nixpkgs package (2026-09-29) —
           # see that package's header for why it is still not a runtimeInput.
-          # Also on PATH via home.packages, macos only (modules/shared/home.nix).
+          # Also on PATH via home.packages, macos only (modules/home/default.nix).
           android-phone = pkgs.callPackage ../../packages/android-phone.nix { };
 
           # fal.ai: the vendor's own deploy CLI (`fal`) plus `fal-gen`, a thin
@@ -322,7 +322,7 @@ in
         # `nix run .#set-secret -- KEY [VALUE]` — store a secret in the macOS
         # login Keychain (encrypted at rest) + register it for the login
         # export loop. Bare `nix run` only persists; the `set-secret` shell
-        # function (modules/shared/home.nix) also applies it to the current
+        # function (modules/home/default.nix) also applies it to the current
         # shell. Darwin-only (Keychain).
         set-secret = {
           type = "app";
@@ -333,7 +333,7 @@ in
         # `nix run .#remove-secret -- KEY` — delete KEY from the macOS login
         # Keychain and unregister it (alias for `set-secret --remove`). Bare
         # `nix run` only mutates the Keychain; the remove-secret shell function
-        # (modules/shared/home.nix) also unsets it from the current shell.
+        # (modules/home/default.nix) also unsets it from the current shell.
         remove-secret = {
           type = "app";
           program = "${config.packages.remove-secret}/bin/remove-secret";

@@ -238,7 +238,7 @@ that is a **finding**: moving another tree's branch, or committing its dirty
 files, stays in the **always confirm** column and is never an auto-fix.
 
 **Then verify the outcome, rather than trusting the clean exit.** For anything
-newly *declared* (a Claude plugin or skill in `modules/shared/home.nix`, say),
+newly *declared* (a Claude plugin or skill in `modules/home/default.nix`, say),
 the built config is what enables it, so read the activated state back — the
 `enabledPlugins` and `extraKnownMarketplaces` keys of `~/.claude/settings.json`
 — and compare to what the repo declares.

@@ -41,7 +41,7 @@
 #   2. arg0 WOULD BECOME `/bin/sh`. nix-darwin's `script` renders
 #      `ProgramArguments = [ "/bin/sh" "-c" … ]` (modules/launchd/default.nix:88-93)
 #      — the .claude/rules/launchd-naming.md violation, and the measured TCC
-#      attribution failure modules/shared/launchd-launcher.nix exists to prevent.
+#      attribution failure modules/home/launchd-launcher.nix exists to prevent.
 #      That launcher types `options.launchd.agents` only, so it cannot reach
 #      nix-darwin's lane: the wrap is not merely absent there, it is unreachable.
 #   3. THE BOOTSTRAP HAS NO UPSTREAM HOME — the options exist and DO NOTHING.
@@ -381,7 +381,7 @@ in
       # Postgres client tools (psql/createdb/…) on PATH for manual queries.
       #
       # This is the fleet's ONLY profile-level postgres, and deliberately so —
-      # `modules/shared/home.nix` carried a second, pgvector-only copy until
+      # `modules/home/default.nix` carried a second, pgvector-only copy until
       # 2026-09-16. It is `withPackages`, so `share/postgresql` carries BOTH
       # `vector.control` and `http.control`: an `initdb` from PATH can
       # `CREATE EXTENSION vector` (which a plain postgresql_16 cannot) and
@@ -392,7 +392,7 @@ in
       # the REPO-level runner (`macos-throwaway`), which runs out of this profile.
       # The ORG runners get their own copy from modules/darwin/github-runner.nix
       # and do not depend on this line. That job therefore rides on
-      # `local.rag.pgvector.enable`, which modules/shared/home.nix sets to
+      # `local.rag.pgvector.enable`, which modules/home/default.nix sets to
       # `isMacosHost` — turning it off on the Mac would break the job.
       home.packages = [ pgPkg ];
 

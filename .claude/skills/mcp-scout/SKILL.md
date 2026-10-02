@@ -127,7 +127,7 @@ TOKEN/SECRET/PASSWORD/KEY/AUTH from a plugin helper's environment.
 | The server needs | Where it goes |
 |---|---|
 | nothing secret — and a loopback **trust-auth** URI counts as nothing (e.g. `postgres`, whose `DATABASE_URI` has no password) | the plugin's `.mcp.json` alone |
-| a login-Keychain read | the plugin's `.mcp.json` **naming a `nix-*` wrapper this repo installs on PATH**. Worked example: `packages/gmail-mcp.nix` + `local.gmailMcp` (`modules/shared/gmail-mcp.nix`); same shape as `page-lab-pick` and `mcp-nixos` |
+| a login-Keychain read | the plugin's `.mcp.json` **naming a `nix-*` wrapper this repo installs on PATH**. Worked example: `packages/gmail-mcp.nix` + `local.gmailMcp` (`modules/home/gmail-mcp.nix`); same shape as `page-lab-pick` and `mcp-nixos` |
 | a flag chosen by probing at spawn time | same — a `.mcp.json` names a command, it cannot decide a flag. Put the probe *inside* the wrapper (`nix-mcp-chrome-devtools` was the precedent: it probed `/json/version` and fell back to `DevToolsActivePort`) |
 
 Keep the credential logic in the Nix wrapper and **never** duplicate it into the plugin repo — a
@@ -167,7 +167,7 @@ never a `/nix/store` path: it rotates on every rebuild and means nothing in anot
 Then:
 
 1. **If it needs a PATH package** (§2.6), add it here: `packages/<name>.nix` plus a
-   `modules/shared/<name>.nix` option that puts it on PATH, wired in `hosts/macos.nix`. Give any
+   `modules/home/<name>.nix` option that puts it on PATH, wired in `hosts/macos.nix`. Give any
    wrapper a `nix-*` `arg0` basename ([launchd-naming](../../rules/launchd-naming.md)) — that rule
    governs launchd units and a per-session stdio child declares none, but the convention keeps the
    binary identifiable, and the rule does bind any agent the package itself installs.

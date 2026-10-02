@@ -25,7 +25,7 @@
 # But the rule's grep has a blind spot, and this hit it: `nh` (nix-helper, 4.4.2,
 # already on PATH here) has `--elevation-strategy`, so the community DOES own this
 # and a modules/ grep could never see it — nh is a package, not an option. The
-# reason we still do not use it is measured, not ignorance: modules/shared/home.nix
+# reason we still do not use it is measured, not ignorance: modules/home/default.nix
 # deliberately sets NO `programs.nh.darwinFlake` pointer because nh's progress
 # ticker repaints ~15x/s with no off switch (NH_NOM=0 and NO_COLOR=1 both measured
 # to change nothing), which is worse than plain darwin-rebuild under a pipe and
