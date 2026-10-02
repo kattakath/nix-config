@@ -233,6 +233,15 @@
     enable = true;
     urlFile = "/run/heartbeat-url";
     httpPort = 80;
+    # NAMED units, not a blanket `is-system-running`. This host legitimately carries
+    # a failing `mnt-storage.mount` — two USB sticks declared `nofail` on purpose —
+    # so a blanket `degraded` check would alert forever and train everyone to ignore
+    # the heartbeat. These two are the ones whose death means "not serving":
+    # cloudflared is the only remote path in, Caddy serves the one hosted site.
+    requireUnits = [
+      "caddy.service"
+      "cloudflared-connector.service"
+    ];
   };
 
   # Wi-Fi consumer: associate wlan0 from the planted config; dhcpcd
@@ -274,6 +283,49 @@
       RestartSec = 5;
     };
   };
+
+  # ── Make a corrupt rootfs FAIL LOUD, and actually get checked ───────────────
+  # WRITTEN AFTER IT HAPPENED, 2026-10-02. This host served for 23 HOURS on an
+  # ext4 rootfs that was corrupt from its FIRST MOUNT, and nothing in this repo
+  # noticed. What the card reported once someone finally looked:
+  #
+  #   Filesystem state:      clean with errors
+  #   Last checked:          Tue Jan  1 00:00:00 1980     <- NEVER fsck'd, not once
+  #   FS Error count:        82
+  #   First error time:      Thu Jan  1 00:00:05 1970     <- epoch+5s = FIRST BOOT
+  #   First error function:  ext4_validate_block_bitmap   EFSCORRUPTED
+  #   Errors behavior:       Continue
+  #
+  # TWO INDEPENDENT KNOBS WERE WRONG, and each defeated the other's protection.
+  #
+  # 1. `fsck.repair=yes` WAS ALREADY SET AND INERT. It arrives from
+  #    raspberry-pi-nix's sd-image module and says what to do IF a check runs — it
+  #    cannot cause one. systemd only fsck's a filesystem it believes is dirty, and
+  #    this one marks itself `clean with errors`, so the check was skipped on every
+  #    boot for the card's entire life. A knob that looks like protection and is
+  #    not. `fsck.mode=force` is what makes it run.
+  #
+  #    It costs a check on every boot — slower, and worth it on a host whose only
+  #    recovery path is a 40-minute reflash with hands on the hardware.
+  #
+  # 2. `Errors behavior: Continue` let 82 errors accumulate SILENTLY. ext4's
+  #    default is to carry on and log, which is why a damaged filesystem kept
+  #    serving a website while `/mnt` was already unreadable. `errors=remount-ro`
+  #    makes the next error LOUD: the filesystem goes read-only, Caddy fails,
+  #    `local.serviceHeartbeat`'s rootfs-writable test stops pinging, and the
+  #    absence of that ping is the alert. Minutes instead of a day.
+  #
+  #    Chosen over `errors=panic` deliberately: a panic reboots into a host with no
+  #    console, which is the state this fleet cannot recover from remotely.
+  #    Read-only keeps SSH and the LAN path alive so the host can still be reached
+  #    and read.
+  #
+  # Both are DECLARATIVE here on purpose. `boot.kernelParams` is what
+  # raspberry-pi-nix renders into cmdline.txt (verified: the evaluated list matched
+  # the live card byte for byte), so this survives a reflash — unlike the hand-edit
+  # that was needed to recover this incident.
+  boot.kernelParams = [ "fsck.mode=force" ];
+  fileSystems."/".options = [ "errors=remount-ro" ];
 
   # ── Extra bulk storage ──────────────────────────────────────────────────────
   # Two USB flash sticks combined into ONE ~18 GB btrfs volume (single data
