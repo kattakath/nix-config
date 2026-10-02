@@ -1938,6 +1938,137 @@ in
           # modules/shared/chromium.nix stays, unused and documented. If a
           # script is ever declared again, restore this gate with it.
 
+          # ---- the launcher<->plugin JOIN, across the repo boundary -------------
+          #
+          # MCP servers in this fleet are declared in TWO repos BY DESIGN, and the
+          # split is right: Nix builds the launcher BINARIES (`local.pluginMcp`,
+          # `local.gmailMcp`, packages/mcpfinder-mcp.nix -> `nix-mcp-*` on PATH)
+          # because they read the login Keychain, and `github:kattakath/skills`'
+          # plugin `.mcp.json` files NAME those binaries because only a plugin can
+          # declare a server to Claude Code. Different artifacts, different repos.
+          #
+          # HALF THE JOIN WAS ALREADY MECHANICAL: modules/shared/plugin-mcp.nix types
+          # `local.pluginMcp.servers` as an ENUM, so a name this fleet cannot build
+          # fails at eval. What nothing saw is the CROSS-REPO half — that the set of
+          # `nix-mcp-*` commands the plugins name EQUALS the set this fleet builds.
+          # Both directions fail silently and in opposite ways: a plugin naming a
+          # binary nobody builds is a server that never starts, and a launcher no
+          # plugin names is a capability the operator believes is wired and is not.
+          #
+          # SCOPE IS THE `nix-mcp-` PREFIX, because the prefix IS this lane. At the
+          # pinned rev the plugins name 16 servers; the other 8 are out of scope for
+          # reasons that are structural, not an oversight:
+          #   ${CLAUDE_PLUGIN_ROOT}/…  `memory`, `chrome-devtools` — that variable
+          #                            expands ONLY inside the owning plugin, so no
+          #                            PATH binary can exist for them even in
+          #                            principle. Unportable BY CONSTRUCTION.
+          #   a bare nixpkgs binary    `mcp-nixos`, `terraform-mcp-server` — real
+          #                            binaries, installed as ordinary packages, not
+          #                            built by this fleet's launcher factory.
+          #   `npx`                    `mobile-mcp`, `macos-automator`,
+          #                            `sequential-thinking`, `kapture` — no fleet
+          #                            binary at all; the plugin downloads the server.
+          #
+          # EQUALITY, NOT CONTAINMENT — and the previous pin is why, measured rather
+          # than argued. At cc56d06 (two days old) this tree held ZERO
+          # `plugins/*/.mcp.json`; the MCP ownership split landed after it. So:
+          #   a FORWARD-containment gate ("every plugin-named command is built") would
+          #   have been VACUOUSLY GREEN over an empty left-hand set — a gate that
+          #   passes without testing anything, which is worse than no gate.
+          #   SET EQUALITY instead reports 0 declared vs 8 built and goes RED, which is
+          #   why the pin bump in this commit is load-bearing and not cosmetic.
+          #
+          # The two NON-EMPTY legs are not redundant with that. Equality alone is
+          # degenerate when BOTH sides empty (host lists cleared and layout moved at
+          # once), and — the real everyday value — a layout regression otherwise
+          # reports as "8 orphans", sending the reader to hosts/macos.nix when the
+          # fault is the pinned tree. Verified by pointing `pluginsDir` at a
+          # directory with no `.mcp.json`: three legs red, the FIRST of them naming
+          # the tree rather than the host.
+          #
+          # THE COST, stated rather than discovered: `kattakath-skills` is now
+          # load-bearing for a SECOND thing, so adding an MCP server over there needs
+          # this pin bumped here to stay green. Bounded and automatic —
+          # .github/workflows/update-flake-lock.yml bumps every input weekly and arms
+          # auto-merge on the result — so the join is re-checked on a reviewable PR
+          # rather than never. A red leg there means a plugin is ALREADY broken on
+          # this Mac (the marketplace tracks HEAD, not this pin); the stuck lockfile
+          # is the symptom, not the fault.
+          mcp-launcher-parity =
+            let
+              hm = config.flake.darwinConfigurations.macos.config.home-manager.users.${loginName};
+
+              # BUILT, read off the COMPOSED package list rather than re-deriving the
+              # naming rule — especially gmail's address sanitisation, which lives in
+              # packages/gmail-mcp.nix. A check that re-derived it would agree with a
+              # broken rule by sharing it. Derivation name == binary name for all
+              # three builders: `writeShellScriptBin` (packages/keychain-mcp.nix:78,
+              # packages/gmail-mcp.nix:68) and `writeShellApplication`
+              # (packages/mcpfinder-mcp.nix:45) each emit exactly one `$out/bin/<name>`.
+              built = lib.naturalSort (
+                lib.unique (lib.filter (lib.hasPrefix "nix-mcp-") (map (p: p.name or "") hm.home.packages))
+              );
+
+              # DECLARED, read out of the pinned tree at EVAL time — `builtins.readDir`
+              # over a realised flake input, so no import-from-derivation and no
+              # network. A plugin without an `.mcp.json` declares no server and is
+              # skipped rather than being an error: most plugins have none.
+              pluginsDir = "${inputs.kattakath-skills}/plugins";
+              commandsIn =
+                plugin:
+                let
+                  f = "${pluginsDir}/${plugin}/.mcp.json";
+                in
+                lib.optionals (builtins.pathExists f) (
+                  map (s: s.command or "") (
+                    lib.attrValues ((builtins.fromJSON (builtins.readFile f)).mcpServers or { })
+                  )
+                );
+              allCommands = lib.concatMap commandsIn (
+                lib.attrNames (lib.filterAttrs (_: t: t == "directory") (builtins.readDir pluginsDir))
+              );
+              declared = lib.naturalSort (lib.unique (lib.filter (lib.hasPrefix "nix-mcp-") allCommands));
+
+              missing = lib.subtractLists built declared;
+              orphan = lib.subtractLists declared built;
+            in
+            mkHostContract {
+              inherit pkgs;
+              name = "mcp-launcher-parity";
+              subject = "macos: the nix-mcp-* launchers and the plugins naming them are the same set";
+              expect = [
+                {
+                  name = "the pinned skills tree yields plugin MCP declarations at all (server commands read: ${toString (builtins.length allCommands)})";
+                  ok = allCommands != [ ];
+                }
+                {
+                  name = "neither side of the join is empty — plugins name ${toString (builtins.length declared)}, macos builds ${toString (builtins.length built)}";
+                  ok = declared != [ ] && built != [ ];
+                }
+                {
+                  name = "every nix-mcp-* command a plugin names is built here (missing: ${toString missing})";
+                  ok = missing == [ ];
+                }
+                {
+                  name = "every nix-mcp-* launcher is named by some plugin (orphans: ${toString orphan})";
+                  ok = orphan == [ ];
+                }
+              ];
+              advice = [
+                "A MISSING launcher means a plugin in github:kattakath/skills names a binary"
+                "this fleet does not build: that server cannot start. Add the name to"
+                "local.pluginMcp.servers / local.gmailMcp.accounts in hosts/macos.nix, or"
+                "build it as a package the way packages/mcpfinder-mcp.nix does."
+                "An ORPHAN launcher means the reverse — a binary on PATH that no plugin"
+                "declares, so the capability does not exist in any session. Either declare"
+                "the server in its owning plugin, or drop the launcher from hosts/macos.nix."
+                "An EMPTY side is never a pass: it means the pinned tree's layout moved or"
+                "the host lists were emptied, not that the two sets agree."
+                "Only the nix-mcp-* lane is in scope — CLAUDE_PLUGIN_ROOT-relative servers,"
+                "bare nixpkgs binaries and npx invocations are excluded by construction."
+              ];
+            };
+
           # CONTAINMENT ONLY, over THIS repo's own tree (#654). It used to also parse
           # page-lab's scripts and run its envelope self-test out of
           # `${inputs.kattakath-skills}`, and those two halves are GONE — not because
