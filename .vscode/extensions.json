@@ -6,7 +6,12 @@
   // because they reference nixd/nixfmt from the flake devShell — which only
   // exist inside the container, not on the nix-less host.
   //
-  // Keep this list in sync with devcontainer.json's customizations.vscode.extensions.
+  // This is NOT a mirror of devcontainer.json's customizations.vscode.extensions,
+  // and no mechanism keeps the two aligned. The four shared editor extensions are
+  // duplicated there by hand, but each side deliberately carries one the other must
+  // NOT have: remote-containers is host-only (it is what opens the container), and
+  // ms-azuretools.vscode-containers is container-only. So the lists can never be
+  // identical — on a change, check the other list by eye rather than copying it.
   "recommendations": [
     "ms-vscode-remote.remote-containers", // "Reopen in Container" — the intended entry point
     "jnoortheen.nix-ide", // Nix language support; drives the nixd LSP (in-container)
