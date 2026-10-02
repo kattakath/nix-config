@@ -61,6 +61,10 @@ directories next to each other.
 
 Five directories under `modules/`, three layers. Composition flows **down** only.
 
+A sixth directory, `modules/_lib/`, is **not** in this map and not a layer: `import-tree`'s own
+initial filter drops any path containing `/_` (pinned `default.nix:64`), so nothing there is ever
+loaded as a flake module — it holds shared DATA that any layer may `import` by hand (§9b).
+
 ```
 ┌────────────────────────────┐
 │  modules/parts/ — ENGINE   │
@@ -317,8 +321,8 @@ triple verbatim, and the ast-grep rule's `files:` glob becomes `modules/home/**`
 - `../shared/home.nix` in `modules/parts/compose.nix:210` — and **that is the only one left**.
   The two `nix-cache.nix`/`nix-ld-libraries.nix` literals this list used to name were retired by
   §9b's own move on 2026-10-02 (`modules/parts/compose.nix:299` now reads
-  `../nixos/nix-cache.nix`; `modules/nixos/core.nix:133` reads `../../lib/nix-ld-libraries.nix`
-  and `packages/devcontainer-image.nix:98` reads `../lib/nix-ld-libraries.nix`);
+  `../nixos/nix-cache.nix`; `modules/nixos/core.nix:133` reads `../_lib/nix-ld-libraries.nix`
+  and `packages/devcontainer-image.nix:98` reads `../modules/_lib/nix-ld-libraries.nix`);
 - every prose reference in `CLAUDE.md`, `README.md`, `docs/repo-map.md` and the ast-grep headers;
 - **`scripts/drv-snapshot.sh --compare` must show an empty diff.** A pure rename moves code and
   must change nothing the fleet builds; that harness is ADR-002's acceptance test and is the
@@ -364,7 +368,7 @@ home-manager (`home.nix` plus the 21 siblings it imports). The other two are not
 | File | What it is, with the evidence | Where it belongs |
 |---|---|---|
 | `nix-cache.nix` | a **NixOS-only system module**. Its own line 3 says *"NixOS-ONLY module"*, and it is wired into `mkNixos`'s module list only (`modules/parts/compose.nix:299`) — the Mac routes the same cache through `determinateNix.customSettings` instead | belongs in `modules/nixos/` |
-| `nix-ld-libraries.nix` | **not a module at all** — `pkgs: with pkgs; [ … ]`, a function, consumed by `modules/nixos/core.nix:133` **and** `packages/devcontainer-image.nix:98` | a top-level `lib/` — see the precedent note below |
+| `nix-ld-libraries.nix` | **not a module at all** — `pkgs: with pkgs; [ … ]`, a function, consumed by `modules/nixos/core.nix:133` **and** `packages/devcontainer-image.nix:98` | `modules/_lib/` — see the precedent note below |
 
 So the §8 rename is correct for **22 of 24** files and would actively mislead on two.
 
@@ -372,18 +376,41 @@ So the §8 rename is correct for **22 of 24** files and would actively mislead o
 better than this section first proposed: `modules/shared/` is now 22 `.nix`, all home-manager,
 so `git mv modules/shared modules/home` is a true no-op with nothing to argue about.
 `nix-cache.nix` → `modules/nixos/nix-cache.nix`; `nix-ld-libraries.nix` →
-`lib/nix-ld-libraries.nix`; the three import literals, every prose reference, and the CI path
+`modules/_lib/nix-ld-libraries.nix`; the import literals, every prose reference, and the CI path
 filters moved with them, with an `IDENTICAL` `drv-snapshot.sh --compare` as the evidence.
 
-**The `lib/` destination is the operator's JUDGEMENT CALL, not a grepped precedent** — corrected
-here because this table originally cited blueprint's `lib/` key, and §7's own caveat applies to
-it. Measured 2026-10-02: `blueprint` is **not** an input of this flake (0 hits in `flake.lock`);
-`flake-parts` has a `lib/` in its own repo but declares no such option for consumers; and the
-closest convention that IS in a pinned input, `import-tree`'s dendritic guide, prescribes an
-underscore-prefixed `modules/_lib/`, not a top-level `lib/`. The argument that actually carries
-it is **layering**: the second consumer is `packages/`, so `modules/nixos/` would make that
-import `packages/ → modules/nixos/` — a crossing this repo fences in the other direction —
-whereas a `lib/` layer is one any layer may reach into.
+**The destination is a PINNED-INPUT CONVENTION — corrected twice, and the second correction is
+the one that stands.** This table first cited blueprint's `lib/` key; that citation was wrong
+(`blueprint` is **not** an input of this flake — 0 hits in `flake.lock` — so §7's caveat applies,
+and `flake-parts` has a `lib/` in its own repo but declares no such option for consumers). The
+file then landed at a top-level `lib/` on a layering argument, i.e. a judgement call. It now sits
+at `modules/_lib/`, because a convention for exactly this case **is** present in an input this
+flake pins: `import-tree`'s dendritic guide
+(`docs/src/content/docs/guides/dendritic.mdx`, § *"The `/_` Convention"*) — *"Use
+underscore-prefixed directories for helper code that shouldn't be auto-imported"*, with
+`modules/_lib/helpers.nix` as the worked example. Following the pin beats a local judgement call
+that happened to reach a similar place, which is the motto's whole point.
+
+**And the underscore is MECHANICAL, not decorative** — this is §6's distinction, applied to the
+file's own location, and the one claim here that was *measured* rather than read. The flake's
+`.match` regex does **not** replace `import-tree`'s default filter, it **accumulates** with it:
+`.match` sets `filterf` (pinned `default.nix:234`) while only the unused `.initFilter` sets
+`initf` (`:245`), so `initialFilter` stays `nixFilter = andNot (hasInfix "/_") (hasSuffix ".nix")`
+(`:64`, `:66`) and `:68` conjoins the two. Both exclusions apply; either alone suffices.
+
+The plausible wrong answer — *"the regex is what excludes it, so the underscore is decorative"* —
+is refuted by a discriminating probe. A file at `modules/_lib/parts/probe.nix` **does** satisfy
+the regex (`builtins.match ".*/(parts/[^/]+|…)\.nix" "/_lib/parts/probe.nix"` → `[ "parts/probe" ]`,
+non-null), yet setting `flake.probeMarker` from it produced no such attribute: it was never
+loaded. Only `nixFilter` can account for that. Measured 2026-10-02.
+
+That is why the file sitting *inside* `./modules` — unlike at `lib/` — is safe rather than a new
+hazard, and it is a **grepped mechanism in a pinned input**, not a convention this repo merely
+honours.
+
+`modules/nixos/` stays rejected for the original reason: the second consumer is `packages/`, so
+that would make the import `packages/ → modules/nixos/`, a crossing this repo fences in the other
+direction.
 
 The 2 content directories (`wallpaper/` — two PNGs; `chromium-extensions/` — a `.crx` and its
 source) are a milder version of §9a: binary content inside a tree named for modules. Left alone;
@@ -417,7 +444,7 @@ two-place answer as §4 with no rule written anywhere but here. Recorded, not ch
 4. **The shape is standard and no migration follows from this ADR** (§7).
 5. **`modules/shared` → `modules/home` is adopted as this ADR's consequence**, to be performed
    in its own PR with §8's checklist and an empty `drv-snapshot.sh --compare` diff, carrying
-   §9b's two files to `modules/nixos/` and a `lib/`-shaped home at the same time.
+   §9b's two files to `modules/nixos/` and a `modules/_lib/`-shaped home at the same time.
 6. **§9's warts are recorded, not fixed.** Each is one PR behind the drv-snapshot harness.
 
 ## 12. What would reopen this
