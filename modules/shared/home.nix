@@ -935,6 +935,27 @@ in
         # your own address, publish a calling card, read the peer roster, judge whether
         # to act on another session's message (kattakath/skills#26).
         "session-relay"
+        # silent-instruments: the instrument layer under the verification gate pinned in
+        # programs.claude-code.skills above. That gate's step 3 is "READ: Full output, check
+        # exit code"; this is the catalogue of commands for which that step LIES — a stale
+        # ${PIPESTATUS[0]} (which in zsh is always empty, because the variable is `pipestatus`
+        # and arrays are 1-indexed), a CI run green because its only job SKIPPED, ancestry after
+        # a squash, a truncated API page with no marker in the body, a zsh `for f in $list` that
+        # iterates ONCE and exits 0. 28 entries, measured, with primary sources.
+        #
+        # WHY IT IS A PLUGIN AND NOT A nix-config RULE. The traps are repo-agnostic — they are
+        # properties of bash, zsh, git and the GitHub API, not of this tree — so the home for
+        # them is the marketplace, the same argument that moved the Nix hooks into
+        # claude-code-nix. Enabling globally is safe: its hook is PostToolUse, which has NO
+        # permission authority, so unlike a PreToolUse hook it cannot allow, deny or re-prompt
+        # anything. (A PreToolUse advisory would have had to set `permissionDecision: "allow"`,
+        # documented as "proceeds WITHOUT permission prompt" — a global hook must never be able
+        # to bypass the operator's own permission rules. That is why the event is what it is.)
+        #
+        # No linter substitutes for it: ShellCheck catches 0 of the 9 shapes that motivated it
+        # and refuses zsh outright (SC1071), and anthropics/claude-code #74888 — the zsh
+        # field-splitting case — was closed as not planned.
+        "silent-instruments"
         # empire: four agents under ONE rule — whoever reads does not write. A controller
         # (queen) with NO Write/Edit/Bash that reads, decides and dispatches; a general
         # that brings an unflaked repo to a VERIFIED flake in an isolated worktree; a
