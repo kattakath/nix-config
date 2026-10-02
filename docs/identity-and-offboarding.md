@@ -14,7 +14,7 @@ property it encodes.
 |---|---|
 | GitHub (org and personal) | signs in through Google |
 | FlakeHub / Determinate | authenticates with the Google identity — and with it the native Linux builder entitlement |
-| Cloudflare Access — MCP portal, published servers, `nixpi` SSH | the only IdP is the Workspace domain (`Kattakath Google Workspace`, type `google-apps`), measured 2026-09-20 |
+| Cloudflare Access — **`nixpi` SSH** (the MCP portal and its published servers were destroyed 2026-10-02, so SSH is the only Access-gated surface left) | the only IdP is the Workspace domain (`Kattakath Google Workspace`, type `google-apps`), measured 2026-09-20 |
 | Secrets recovery (Secret Manager → Keychain, ADR-004) | IAM on the GCP project is granted to the Workspace identity |
 
 **~~One caveat~~ — RESOLVED 2026-09-22.** `mcp-allow-operator` now allows by **`email_domain`**

@@ -6,8 +6,16 @@ per-path specifics. **Update both together** — a path that changes shape here 
 one-liner in `CLAUDE.md` refreshed too.
 
 Two sibling docs carry the surfaces that outgrew this map:
-[`mcp-gateway.md`](mcp-gateway.md) (the MCP server inventory) and
+[`mcp-gateway.md`](mcp-gateway.md) (**RETIRED 2026-10-02** — history of the MCP gateway, plus the
+lane rules and spawn-test measurements that outlived it) and
 [`secrets-and-keychain.md`](secrets-and-keychain.md) (agenix + Keychain).
+
+> **MCP, 2026-10-02 — THE GATEWAY AND ITS PORTAL ARE GONE.** Read this before acting on any MCP
+> sentence anywhere in this repo. There is no shared proxy, nothing on `127.0.0.1:8097`, no
+> `mcp.kattakath.com` portal (that hostname now answers **403**), and no
+> `modules/shared/mcp.nix`. **Every MCP server now comes from an enabled plugin's own
+> `.mcp.json`, spawned per session, nothing shared** — see § MCP after the gateway for the
+> replacement and for what the teardown measured.
 
 ## The fleet
 
@@ -547,7 +555,8 @@ their own top-level section below:
   `Host nixpi.<domain>` with the `cloudflared access ssh` `ProxyCommand` (store path, not
   `/opt/homebrew`) — the *only* remote path to the Pi, and what makes both deploy-rs legs work
   (`ssh` for activation + `nix copy` for the closure); see `deploy.nodes` above. Host-gated: RAG
-  (ollama/pgvector) + public MCP tunnel only when `networking.hostName == "macos"`.
+  (ollama/pgvector) only when `networking.hostName == "macos"`. **The public-MCP-tunnel half of
+  that gate is gone** — it went with the gateway on 2026-10-02 (§ MCP after the gateway).
   `home.packages` also carries `pandoc`/`poppler` (nixpkgs, darwin-only) — together with
   macos's `libreoffice` cask, these satisfy the docx/pptx/xlsx/pdf skills' stated runtime deps
   (LibreOffice/poppler/pandoc), a gap flagged inline at that skills block since it was first
@@ -666,10 +675,14 @@ their own top-level section below:
     **not** re-declare it — only Apple's host needs replanting. `kaptureMcp` needs no host at
     all, but its **server half is not declared here**: `~/.claude.json` runs
     `npx -y kapture-mcp@latest bridge` at user scope — imperative and unpinned, so it can
-    change under a session with no rebuild. Declaring it in `mcp.nix` is an open follow-up.
+    change under a session with no rebuild. Its declarative home is the `page-lab` plugin's
+    `.mcp.json` (where `kapture` moved on 2026-09-30), **not** this repo — there is no gateway to
+    declare it in since 2026-10-02 (§ MCP after the gateway).
     (Historical note: the kapture *gateway* entry was removed 2026-08-22 along with the whole
     public-MCP-exposure subsystem; that removal was about the gateway and the Cloudflare
-    tunnel, not about the tool, and this extension does not resurrect either.)
+    tunnel, not about the tool, and this extension does not resurrect either. It outlived both
+    the subsystem's return and its final teardown — which is the point: the extension is a
+    browser capability, never a gateway one.)
   - **`NativeMessagingHosts/com.apple.passwordmanager.json`** — Apple's own native-messaging
     manifest, re-pointed at Chromium. macOS ships it to **Chrome and Firefox only**; replanting
     it is what makes Passwords.app autofill here, and it is safe because the manifest gates on
@@ -1023,16 +1036,22 @@ their own top-level section below:
     sentence in claude-code 2.1.260 puts managed first. The two are ADDITIVE, not a
     replacement: this file is the only tier that reaches the devcontainer and machines this
     Home Manager config never touched. See § `modules/darwin/`.
-- **`claude-desktop.nix`** — `local.claudeDesktop`, **Client side D** of the MCP hub: the
-  gateway's `endpoints` plus the per-client stdio servers rendered into Claude Desktop's
-  stateful `claude_desktop_config.json`. Desktop accepts ONLY the stdio shape, so every
-  `url` becomes a pinned `mcp-remote` shim (`lib.hm.mcp.transformMcpServer` + one
-  `extraTransform`, the codex module's pattern); an activation merges ONLY `.mcpServers`
-  and ONLY entries carrying the `NIX_CONFIG_MANAGED` env marker, so hand-added servers and
-  Desktop's own keys survive. `desktop-commander` is excluded (it is a Desktop Extension
-  already). Everything here is also proxied into a linked Cowork session as
-  `mcp__remote-devices__<name>__*`. Contract held by `checks.claude-desktop-config-shape`.
-  Full rationale: [`docs/claude-desktop-mcp.md`](claude-desktop-mcp.md).
+- **`claude-desktop.nix`** — `local.claudeDesktop`. It **still runs, and it now renders an EMPTY
+  `mcpServers` block** (2026-10-02): the portal it used to dial is destroyed, and Desktop loads
+  no plugins, so Desktop genuinely has **no** MCP servers. **The module stays ENABLED on
+  purpose** — "Desktop has no MCP servers" is a state something must *write*. Switching the
+  writer off leaves whatever is on disk, which is exactly how a stale `kattakath-portal` entry
+  pointing at destroyed infrastructure survived for a day after the purge (#732). So
+  `enable = false` is the wrong lever here and an empty render is the right one, and
+  `checks.claude-desktop-config-shape` asserts BOTH halves — the module is on, and it writes
+  nothing.
+  The machinery is unchanged and still earns its keep: Desktop accepts ONLY the stdio shape, so
+  any `url` becomes a pinned `mcp-remote` shim (`lib.hm.mcp.transformMcpServer` + one
+  `extraTransform`, the codex module's pattern); an activation plus the
+  `claude-desktop-mcp-sync` watch agent merge ONLY `.mcpServers` and ONLY entries carrying the
+  `NIX_CONFIG_MANAGED` env marker, so `preferences`, `coworkUserFilesPath`, `extraServers` and
+  anything added in Desktop's UI survive an empty render. Full rationale, including the clobber
+  that forced the watch agent: [`docs/claude-desktop-mcp.md`](claude-desktop-mcp.md).
 - **`claude-plugins.nix`** — `local.claudePlugins.marketplaces`, the **N-marketplace** Claude
   Code plugin mechanism. An `attrsOf submodule` keyed by marketplace name, each carrying a
   `source` (a `/nix/store` path or an `https://` git URL — asserted, so an impure
@@ -1113,8 +1132,10 @@ their own top-level section below:
   itself lives in `/nix/store` could never run one. This is **mandatory
   for every launchd unit this repo authors**: HM user agents are auto-wrapped here, and any
   hand-written `launchd.daemons`/`launchd.agents` MUST point `arg0` at a
-  `writeShellScriptBin "nix-<activity>"` wrapper (canonical:
-  `telegramMcp`/`wpMcp`/`apifyMcp` in `mcp.nix`) — codified as the always-applied
+  `writeShellScriptBin "nix-<activity>"` wrapper (canonical today: `nix-tart-vm-<name>` and
+  `nix-tart-runner-<name>` in the `tart-vms` capsule, `nix-file-rotation-<suffix>` in
+  `modules/darwin/core.nix` — the trio this line used to name, `telegramMcp`/`wpMcp`/`apifyMcp`,
+  lived in `mcp.nix` and went with it on 2026-10-02) — codified as the always-applied
   [`launchd-naming.md`](../.claude/rules/launchd-naming.md) rule, which also documents the
   three known-upstream `/bin/sh` exceptions that are NOT ours and must never be renamed.
   **The fork is GONE (2026-09-14).** It shrank to one file, then to none: the pinned
@@ -1191,9 +1212,17 @@ waves 5-6 absorb them).
   consistency and because order-insensitivity here is a property of today's contents, not of
   the class; the reasoning is in its `flake-module.nix` header.
 
-  The seam that matters is `local.rag.pgvector.databaseUri`: `modules/shared/mcp.nix`
-  hands it to the `postgres` MCP server as `env.DATABASE_URI`, which is the career RAG's only
-  path to Claude Code. `checks.<system>.local-rag-module` pins that URI as a **literal** so a
+  The seam that matters is `local.rag.pgvector.databaseUri`. **Its consumer changed on
+  2026-10-02 and the Nix half of the wiring is GONE**: `modules/shared/mcp.nix` used to hand it
+  to the gateway's `postgres` MCP server as `env.DATABASE_URI`, and that was the career RAG's
+  only path to Claude Code. With no gateway, a `postgres` MCP server has to be declared in a
+  plugin's `.mcp.json`, which **nothing in this repo can see** — so the URI is now a value this
+  repo publishes and something outside it consumes. That is a real loss of coupling, stated
+  rather than papered over: the one thing that used to fail the build when the URI drifted out
+  of step with its consumer cannot see the consumer any more. `postgres` takes no credential
+  (a loopback **trust-auth** URI with no password), which is why it can live in the plugin lane
+  at all — unlike `gmail`, which needed `packages/gmail-mcp.nix`.
+  `checks.<system>.local-rag-module` still pins that URI as a **literal** so a
   port/role/db rename fails there instead of silently returning zero rows, and
   `local-rag-inert` is the kill-switch gate — both switches unset must contribute nothing,
   which is the state `nixpi`/`nixvm` are in since `modules/shared/home.nix` imports it
@@ -1332,7 +1361,12 @@ waves 5-6 absorb them).
   **launchd's inherited fd is O_APPEND**: measured 2026-09-22, `lsof +fg -p 61665` on the live
   `mcp-gateway` prints flags `R,W,AP` on fd **1u and 2u**, so every write seeks to EOF and a
   truncate to zero is reclaimed immediately by the same running process. `mcp-tunnel-connector`
-  (pid 832) holds its log the same way. Cost, stated up front: `copytruncate`'s man page warns
+  (pid 832) held its log the same way. **Both of those agents are gone (2026-10-02, with the MCP
+  gateway) — the MEASUREMENT is not.** It was taken on them, it generalises to every launchd
+  job this repo authors (that is the inherited-fd behaviour, not an `mcp-proxy` quirk), and the
+  mechanism it chose still rotates `cloudflared` for nixpi's tunnel and every other long-lived
+  agent. Re-measure on a current pid if you want it fresh; do not read the two dead names as a
+  reason to revisit the choice. Cost, stated up front: `copytruncate`'s man page warns
   of "a very small time slice between copying the file and truncating it, so some logging data
   might be lost" — which is exactly why the re-exec set keeps mechanism 1 instead of folding
   into one tool. Custom surface disclosed: neither pinned input ships a logrotate module
@@ -1496,10 +1530,14 @@ waves 5-6 absorb them).
     the user. Anthropic's own channel is an MDM configuration profile; this fleet has no MDM.
   - **No `managed-mcp.json` here, deliberately** — deploying that file suppresses the
     claude.ai connectors Claude Code fetches for itself unless `allowAllClaudeAiMcps` is set
-    alongside, and this fleet runs four Gmail connectors plus Drive, Calendar and Slack. For every
-    server with **no plugin owner**, MCP's source of truth stays `modules/shared/mcp.nix` — ADR-003
-    §5's blanket "MCP servers stay Nix-owned" was **scoped** on 2026-09-30 (its §10.6); the owned
-    half now lives in each plugin's `.mcp.json`, which no managed file and no check here can see.
+    alongside, and this fleet runs four Gmail connectors plus Drive, Calendar and Slack. **That
+    reason survived the gateway's death and the other one did not.** This bullet used to add that
+    "for every server with no plugin owner, MCP's source of truth stays `modules/shared/mcp.nix`";
+    since 2026-10-02 there is no such file and no such server — **every** MCP server lives in a
+    plugin's `.mcp.json`, which no managed file and no check here can see. ADR-003 §5's blanket
+    "MCP servers stay Nix-owned" was scoped on 2026-09-30 (its §10.6) and is now **fully
+    retracted** (§ MCP after the gateway). So the case against `managed-mcp.json` is now purely
+    the connector-suppression one — which is sufficient on its own.
   - **Coverage limit + how to verify:** managed settings do NOT reach an Anthropic-hosted
     cloud session (only server-managed ones do), which is a further reason the user- and
     project-scope layers stay put. `nix flake check` cannot see any of this — `/status` inside
@@ -1730,6 +1768,33 @@ waves 5-6 absorb them).
   connector watchdog:** it only ever hands the tunnel a working uplink, so it did nothing for the
   2026-10-01 outage, where the uplink was fine and `cloudflared` itself was the dead part. That
   is `lan-recovery.nix`'s job, not this one's.
+  - **CORRECTION to the #717 story — the bug froze the LADDER, it never removed the default
+    route.** PR #717's title and body say the escalation left nixpi with "NO DEFAULT ROUTE,
+    permanently". That is **false**, and it is recorded here because a PR title cannot be edited
+    while this map can. Two independent refutations, either sufficient:
+    1. The route re-add was `restore()`'s **first** statement and ended `|| true`, so the
+       `set -euo pipefail` abort could never reach it. It was unabortable.
+    2. Stronger: step 2's delete was `ip route del default dev <wiredInterface>` — **dev-scoped
+       to `end0`**. dhcpcd independently installs a SECOND default on `wlan0`, measured live on
+       the Pi at metric **3003** against `end0`'s **1002**, both from dhcpcd with no
+       configuration of ours. Deleting the wired leg therefore left a default route in place
+       throughout. **There was never a moment without one.**
+
+    **What actually broke:** `set_state normal` sits at the END of `restore()`, after the step
+    that aborted — so the state file froze at `wired-demoted` forever, every later cycle
+    re-entered step 3 and died on the same line, and **step 1, the hotspot grab, never ran
+    again.** Why the distinction is worth a paragraph and not a footnote: *"no default route"*
+    describes a host that can reach nothing and needs hands on the hardware; *"frozen ladder"*
+    describes a host that still routes fine and has silently lost its failover. At 3am those
+    send you to opposite places, and the first sends you to the SD card for nothing.
+  - **And the 2026-09-23 outage was NOT this module** — it was not even running. `nixos-rebuild
+    list-generations` on the dead card showed **generation 1 only**, nixpkgs dated **09-07**,
+    while `local.uplinkWatchdog` was born 2026-09-22 and no deploy ever landed. Every symptom
+    first blamed on the watchdog came from **hand edits made over SSH** to
+    `/boot/firmware/wpa_supplicant.conf`, including the inverted Wi-Fi priorities that actually
+    stranded the host. Blaming the module is blaming code that was not on the machine — and the
+    general rule is the one in [`false-success-signals.md`](false-success-signals.md): confirm a
+    change is DEPLOYED before attributing a symptom to it.
 
 ### NixOS modules that are not in `modules/nixos/`
 
@@ -1831,7 +1896,7 @@ nothing — hence one regex, not two calls.
 | `packages.nix` | `perSystem.packages` + every `apps.*`. |
 | `checks.nix` | The engine's own checks, including `claude-md-budget`, `capsule-registry`, `deploy-schema`, `bedrock-gate-after-loader`, `launchd-log-rotation` (every declared launchd log reaches exactly one rotator, and never both — re-walks the composed agents itself rather than reading `logging.nix`'s own answer back), the two `determinate-daemon` halves and `nixpi-security-posture` (§ `modules/nixos/` — 22 legs, read in BOTH directions since 2026-10-01: a WIDENING of the firewall fails it, and so does REMOVING the declared LAN recovery ingress). Its one shared helper, `mkHostContract`, reports EVERY broken leg rather than the first — that behaviour, not code reuse, is the bar for reaching for it. |
 | `capsules.nix` | The capsule registry and its two internal seams — `capsuleModules` and `capsuleSources` — plus `checks.<system>.capsule-registry`. |
-| `terranix.nix` | The `cf-*` / `mcp-public-*` tofu builders. |
+| `terranix.nix` | The `cf-*` / `gcp-*` tofu builders. The `mcp-public-*` builders and the `mcp-worker-probe` package were deleted 2026-10-02 with that stack. |
 | `devshell.nix` | `devShells` + the `git-hooks.nix` wiring. |
 | `deploy.nix` | `deploy.nodes.nixpi` (deploy-rs has **no** flakeModule — grepped; this stays hand-written in the freeform `flake` attr). |
 | `templates.nix` | `templates.default`. |
@@ -2048,9 +2113,13 @@ the one exported host (`macos`) and the stranger-identity Mac that
   cosine index. Ingest and retrieval are both **plain SQL**; no API key, nothing leaves the
   machine.
 - **The seam the whole wave was gated on:** `modules/shared/mcp.nix`'s
-  `env.DATABASE_URI = config.local.rag.pgvector.databaseUri`. That one string is the career
-  RAG's only path to the `postgres` MCP server, and `checks.local-rag-module` pins its value as a
-  **LITERAL**, so a port/role/db rename fails there instead of quietly returning zero rows.
+  `env.DATABASE_URI = config.local.rag.pgvector.databaseUri`. That one string was the career
+  RAG's only path to the `postgres` MCP server. **That consumer no longer exists** — `mcp.nix`
+  was deleted 2026-10-02 and a `postgres` server now has to come from a plugin's `.mcp.json`,
+  outside this repo's sight (§ MCP after the gateway). `checks.local-rag-module` still pins the
+  URI's value as a **LITERAL**, so a port/role/db rename fails there instead of quietly
+  returning zero rows — but it now guards only the *producer* side of a seam whose consumer it
+  cannot read.
 - **Layout:** the two modules sit at the capsule ROOT, not under `modules/`, so that
   `pgvector-local.nix`'s `imports = [ ./ollama-local.nix ]` stays a **sibling** path. That
   literal is load-bearing — it is how `local.rag.pgvector` single-sources
@@ -2341,16 +2410,26 @@ for the main pane, which sits at `left:0` inside it, so moving both would double
 
 ## `infra/` — terranix (Nix → OpenTofu/Terraform JSON)
 
-**Six stacks, and the split is deliberate: a stack is a blast radius, not a category.**
+**Five stacks, and the split is deliberate: a stack is a blast radius, not a category.**
 
 | Stack | State | Breaking it takes down |
 |---|---|---|
 | `cf-tunnel` | GCS `cf-tunnel/` | the Pi |
-| `mcp-public` | GCS `mcp-public/` | the MCP portal |
 | `cf-zones` | GCS `cf-zones/` | **mail** |
 | `cf-access-org` | GCS `cf-access-org/` | **every Access app at once** |
 | `gcp-budget` | GCS `gcp-budget/` | the spend alert |
 | `gcp-foundation` | **local** (still encrypted) | the bucket the others live in |
+
+> **A SIXTH stack, `mcp-public`, was DESTROYED AND DELETED on 2026-10-02.** It owned the
+> published MCP gateway's Cloudflare side — tunnel, portal, per-server registrations, Access
+> apps, service token. Two destroy runs removed **65 objects**; the API then reported **0** MCP
+> server registrations (was 27), **0** portals (was 1), **0** `mcp-public` tunnel, **0**
+> mcp/upstream Access applications, and `https://mcp.kattakath.com/mcp` answers **403**. Its
+> state object, the `mcp-public-{plan,apply,destroy,sync,token}` apps, the
+> `packages.mcp-worker-probe` helper and `fleet.publicMcpServers`/`publicMcpPort` went with it.
+> **Do not re-add a stack to publish MCP** — § MCP after the gateway says what replaced it, and
+> § The `mcp-public` teardown below records the one object that refused to die and why that
+> refusal was correct.
 
 **Run every one of these inside `nix develop`.** Not a style preference — `CLOUDSDK_CONFIG`
 scopes `gcloud`, but it does **not** scope Terraform: the Go auth library ignores it and reads
@@ -2368,12 +2447,16 @@ nix develop -c bash -c 'secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -
 
 State is the shared, versioned bucket `kattakath-tofu-state`, **encrypted** with a passphrase
 read from the login Keychain at run time via `TF_ENCRYPTION` (ADR-005 phase 1 —
-[`iac-coverage-adr.md`](iac-coverage-adr.md)). Two of these states hold secrets in plaintext
-inside the payload, which is why encryption is not optional. `gcp-foundation` keeps local state
+[`iac-coverage-adr.md`](iac-coverage-adr.md)). `cf-tunnel`'s state holds a secret in plaintext
+inside the payload (the connector token), which is why encryption is not optional — it was two
+until `mcp-public` was deleted. `gcp-foundation` keeps local state
 because it *declares* that bucket — **and it is encrypted too.** The invariant is ENCRYPTION,
-not remoteness: all **six** stacks source the same `tofuRemoteStatePrelude`
-(`modules/parts/terranix.nix`), so the passphrase can never be wired on five stacks and
-forgotten on the sixth. "Local" here says where the file sits, never that it is plaintext.
+not remoteness: **every** stack sources the same `tofuRemoteStatePrelude`
+(`modules/parts/terranix.nix`), so the passphrase can never be wired on all but one and
+forgotten on the last. "Local" here says where the file sits, never that it is plaintext.
+(That property is why the retired `mcp-public` state was safe to abandon: its payload carried a
+connector token and an Access service-token secret, and the GCS object holding them was
+encrypted at rest with the same Keychain passphrase.)
 
 ### `infra/cloudflare/zones.nix` + `infra/cloudflare/kattakath-dns.nix`
 
@@ -2382,8 +2465,11 @@ zone is declared, and the line is drawn by **ownership, not secrecy**: DNS is a 
 publishing the operator's own zone discloses nothing `dig` does not, while the other six zones
 belong to businesses that are not only his.
 
-Records owned by another stack are deliberately absent (`nixpi`, `upstream`, and `mcp`, which
-Cloudflare creates with the portal). Importing one twice is how a plan grows a destroy.
+Records owned by another stack are deliberately absent — today that is `nixpi` alone. (`upstream`
+and `mcp` used to be here as absences too: `upstream` belonged to the retired `mcp-public` stack
+and `mcp` was created by Cloudflare with the portal. Both are **destroyed**, not merely
+unmanaged, so a future render must not grow them back in order to "fix" a missing record.)
+Importing one twice is how a plan grows a destroy.
 
 Its guard is shaped for its own failure mode — a **record-count floor** — because the way this
 stack hurts you is a shrunken render silently deleting mail, not a bad tunnel. Applied via
@@ -2392,15 +2478,22 @@ stack hurts you is a shrunken render silently deleting mail, not a bad tunnel. A
 ### `infra/cloudflare/access-org.nix`
 
 The Zero Trust **organisation** — one resource, `cloudflare_zero_trust_organization`, and its
-own stack because it sits *above* the other two Cloudflare ones rather than beside them:
+own stack because it sits *above* the other Cloudflare ones rather than beside them:
 `auth_domain` is the sign-in host for **every** Access application in the account, so a bad
-apply takes out nixpi's SSH gate and the MCP portal together. One resource is not an argument
-for folding it into a neighbour; the rule keys on consequence, not line count.
+apply takes out nixpi's SSH gate along with anything else gated there. (Until 2026-10-02 the
+"anything else" was the MCP portal, which is what made this stack's blast radius legible in the
+first place; with the portal gone, nixpi's SSH app is the ONLY thing left behind this
+`auth_domain` — which makes a bad apply here *more* consequential, not less, because there is no
+longer a second victim to notice it by.) One resource is not an argument for folding it into a
+neighbour; the rule keys on consequence, not line count.
 
 **What it is for:** the login page's branding (`login_design` — logo, background, header,
-footer), which is the *only* surface in the MCP connector flow carrying the operator's mark.
-Claude renders a generic globe for every custom connector — `serverInfo.icons` exists in MCP
-spec 2025-11-25 but Claude does not read it
+footer). **Its original audience is gone**: it was the *only* surface in the MCP connector flow
+carrying the operator's mark, and there is no MCP connector flow any more. What remains is the
+sign-in page an operator sees when Access challenges them for `ssh` to the Pi, which is a real if
+much smaller surface. The measurement that justified it is kept because it is about Claude and
+Cloudflare, not about this fleet: Claude renders a generic globe for every custom connector —
+`serverInfo.icons` exists in MCP spec 2025-11-25 but Claude does not read it
 ([anthropics/claude-ai-mcp#152](https://github.com/anthropics/claude-ai-mcp/issues/152)), and
 Cloudflare's portal object has no icon field either (both measured 2026-09-22). The logo is the
 **wordmark** (512x132), not the square icon, because the login header is wide — and it is a
@@ -2468,50 +2561,69 @@ flake apps (an API credential must be exported first — never in Nix); `cf-tunn
 the token to stdout to be stored via `nix run .#nixpi-vault-token` into
 `secrets/cloudflared-token.age`, never written to git/store in plaintext.
 
-### `infra/cloudflare/mcp-public.nix`
+### The `mcp-public` teardown — DELETED 2026-10-02, and the one object that refused to die
 
-The Cloudflare half of the **published MCP gateway** — the other half is the single
-`mcp-proxy` in `modules/shared/mcp.nix`, whose whole roster is
-`config.fleet.publicMcpServers`. Built and live since 2026-09-12. There WAS a
-`local.mcpGateway.public` option selecting an opt-in subset onto a SECOND proxy; both were
-deleted on 2026-09-22 when every server became published, so one proxy hosts **every roster
-entry** — 27 today, heading for 19 then 17 as the ownership split (#657/#656) moves the
-plugin-owned servers off the gateway entirely — and
-`checks.<system>.mcp-published-parity` holds hosted == published. That parity is a **Nix-side**
-guarantee only: it cannot read a marketplace plugin's `.mcp.json`, so a name deleted from both
-lists and never declared in its plugin is a silent loss with a green build. The design note is
-[`docs/mcp-public-exposure-design.md`](mcp-public-exposure-design.md) — read its §10 first,
-which records that collapse.
+`infra/cloudflare/mcp-public.nix` is **gone**, with its five `mcp-public-*` apps, its
+`packages.mcp-worker-probe` helper, its GCS state object and its
+`fleet.publicMcpServers`/`publicMcpPort` inputs. This section is kept because the teardown
+measured things worth not re-learning, not because any of it is still operable. **There is no
+`mcp-public-plan` to run.**
 
-Renders, from ONE list: a `cloudflared` tunnel + connector for the Mac, ingress to `:8097`, the
-proxied CNAME, **one** Access application over the origin hostname, **one** `non_identity`
-service-token policy, one portal registration per published server, one `mcp`-type Access
-application per server (portal visibility), and the portal's own `mcp_portal` application
-carrying the DCR allowlist of which clients may register.
+**What it was.** The Cloudflare half of the published MCP gateway; the other half was the single
+`mcp-proxy` in `modules/shared/mcp.nix`, whose whole roster was `config.fleet.publicMcpServers`.
+Live 2026-09-12 → 2026-10-02. From ONE list it rendered a `cloudflared` tunnel + connector for
+the Mac, ingress to `:8097`, the proxied CNAME, one Access application over the origin hostname,
+one `non_identity` service-token policy, one portal registration per published server, one
+`mcp`-type Access application per server, and the portal's own `mcp_portal` application carrying
+the DCR allowlist.
 
-**Exactly two hostnames, and they do not grow per server.** `mcp.<domain>` is the portal that
-clients talk to — the only address ever handed out. `upstream.<domain>` is the origin, dialled
-only by the portal, with a service token; a browser gets 403 because the policy is
-`non_identity` and there is no login path. Remote Workers are published as Cloudflare Worker
-**routes** under that same origin (`/servers/<name>/*`), matched at the edge before the tunnel
-is consulted, so a Worker and a laptop-local process share one hostname and one `aud`.
+**What the teardown measured**, via the Cloudflare API after two destroy runs — **65 objects
+destroyed**:
 
-Three objects are required to publish one server, and missing any of them fails **silently**: the
-registration, its attachment to the portal, and its `mcp`-type Access application. A registration
-can sit at `status = "ready"` with its tools discovered and still be invisible to every client —
-and testing at the origin cannot detect it, because the origin answers `200` throughout. Verify a
-publish through `mcp.<domain>`.
+| | Before | After |
+|---|---|---|
+| MCP server registrations | 27 | **0** |
+| portals | 1 | **0** |
+| `mcp-public` tunnel | 1 | **0** |
+| mcp/upstream Access applications | several | **0** |
+| `https://mcp.kattakath.com/mcp` | the one connector every client dialled | **403** |
 
-Applied via `mcp-public-apply` / `mcp-public-destroy`, with `mcp-public-token` printing **only**
-the raw connector token for piping into `secret set`. **State is the encrypted GCS object, not a
-local file** (ADR-005 — the table above): `$XDG_STATE_HOME/nix-config-mcp-public` is the tofu
-*working* directory only, kept 0700/0600 because this stack's state is one of the two whose
-payload carries secrets — the connector token and the Access service-token secret.
-`mcp-public-apply` passes the fleet's real
-`publicMcpServers` (`config.fleet.publicMcpServers`); `mcp-public-destroy` deliberately keeps
-the `[ ]` default so tearing down the real registrations still needs the explicit
-`MCP_PUBLIC_ALLOW_EMPTY=1` override — `mkMcpPublicTofu` refuses a render that publishes 0
-servers against state that holds more than 0.
+**The instructive part: ONE object survived, and Cloudflare was right to refuse.** The Access
+policy `mcp_allow_operator` would not delete —
+`409 code 12132 "policy is being used by at least one app"` — because it is **shared with the
+`nixpi.kattakath.com` SSH Access app**. That refusal **protected the Pi's only Access-gated
+ingress**: the same class of object that vanished on 2026-08-20 and took `ssh` plus both deploy
+legs with it. Read it that way round. It is not cleanup debt and must not be "finished off" — a
+destroy that had succeeded here would have been the 2026-08-20 outage, caused deliberately.
+The general lesson, which outlives this stack: a shared Access policy means **one stack's destroy
+can reach into another stack's blast radius**, and the API-level reference count is the only
+thing standing in the way. ADR-005 §4's "a stack is a blast radius" holds for *resources a stack
+declares*, not for objects it merely shares.
+
+**Design facts that outlived the stack**, because they are about Cloudflare's model rather than
+this fleet's wiring:
+
+- **Exactly two hostnames, and they did not grow per server.** `mcp.<domain>` was the portal
+  clients talked to — the only address handed out. `upstream.<domain>` was the origin, dialled
+  only by the portal with a service token; a browser got 403 because the policy was
+  `non_identity` with no login path. Remote Workers published as Worker **routes** under that
+  same origin (`/servers/<name>/*`), matched at the edge before the tunnel, so a Worker and a
+  laptop-local process shared one hostname and one `aud`.
+- **Three objects were required to publish one server, and missing any of them failed
+  SILENTLY**: the registration, its attachment to the portal, and its `mcp`-type Access
+  application. A registration could sit at `status = "ready"` with its tools discovered and still
+  be invisible to every client — and testing at the origin could not detect it, because the
+  origin answered `200` throughout. The verification rule that came out of this is general:
+  **verify at the surface clients actually use, not at the one that is easiest to curl.**
+- The **drop guards** (`MCP_PUBLIC_ALLOW_EMPTY=1`, `MCP_PUBLIC_ALLOW_DROPS=1`) did their job to
+  the end — the final teardown needed them explicitly, which is exactly the "do you really mean
+  to destroy this" checkpoint they were built to be. `cf-tunnel`'s equivalent
+  (`CF_TUNNEL_ALLOW_SITE_FREE=1`) is unchanged and still guards the Pi.
+
+Design-doc history, now wholly retrospective:
+[`mcp-public-exposure-design.md`](mcp-public-exposure-design.md),
+[`mcp-portal-hardening-plan.md`](mcp-portal-hardening-plan.md), and
+[`mcp-gateway.md`](mcp-gateway.md) for the roster side.
 
 ## Building `aarch64-linux` on the Mac, and deploying `nixpi`
 
@@ -2601,7 +2713,47 @@ perfectly fine.)*
 
 ## Claude Code surface
 
-MCP servers have their own doc: [`mcp-gateway.md`](mcp-gateway.md).
+### MCP after the gateway — the plugin lane is the ONLY lane (2026-10-02)
+
+**Verdict first: there is no MCP infrastructure in this repo any more.** No shared proxy, nothing
+listening on `127.0.0.1:8097`, no tunnel, no portal, no `modules/shared/mcp.nix`, no
+`infra/cloudflare/mcp-public.nix`, no `local.mcpGateway.*`, no `fleet.publicMcpServers`, no
+`mcp-published-parity` check. `https://mcp.kattakath.com/mcp` answers **403**.
+
+**How a server reaches a session now:**
+
+```
+an enabled plugin's own .mcp.json      (github:kattakath/skills, or a 3rd-party marketplace)
+        │  names a command on PATH
+        v
+Claude Code spawns one stdio child PER SESSION  —  nothing shared, nothing long-lived
+        │
+        v  reaped when the session ends
+```
+
+- **Claude Code only.** Claude Desktop loads no plugins, so **Desktop has no MCP servers at
+  all** — an empty `mcpServers` block, written deliberately (see `claude-desktop.nix` above).
+  Cowork, which reaches servers through Desktop's bridge, likewise has none.
+- **A launcher that needs a Keychain read is a PATH package in this repo.** A plugin's
+  `.mcp.json` can set `env` to literals and passthroughs but cannot run
+  `security find-generic-password`, so the credential work stays in a Nix-installed wrapper the
+  plugin names by binary name. **`local.gmailMcp` + `packages/gmail-mcp.nix` is the live
+  pattern** (four accounts, one launcher each), and `page-lab-pick` / `mcp-nixos` are the same
+  arrangement for `page-lab` / `claude-code-nix`.
+- **The repo can no longer see its own MCP surface.** Nothing here reads a plugin's `.mcp.json`,
+  so no `nix flake check` leg can assert which servers exist, which answer, or that a capability
+  did not silently vanish. That is the cost the architecture accepts; the verification recipe
+  that replaces the check is in [`mcp-gateway.md`](mcp-gateway.md) § How to verify a plugin-owned
+  server actually answers, and it is a **runtime** procedure, not a gate.
+- **Adopting a server is still a declaration, never an imperative install.** `claude mcp add`
+  and config-writing installer tools stay denied at user and managed scope
+  (`claude-guardrails.nix`, `claude-managed-settings.nix`) — what changed is only *where* the
+  declaration lands: the owning plugin's repo, not this one.
+
+History, kept deliberately rather than deleted — [`mcp-gateway.md`](mcp-gateway.md) is the
+retired gateway's full record (roster, counting convention, lane-ownership rule, and the
+measurements that outlived it: the Node-20 `node:sqlite` spawn-test trap, the
+`owner/repo`-vs-https marketplace-add trap, and the 2026-09-23 call-volume split).
 
 ### `claude/` — the GLOBAL agent context (not `.claude/`)
 
@@ -2642,9 +2794,9 @@ content-hashed into the store — see `CLAUDE.md` § Code Style on the two path 
 | `/update-input` | bump one flake input + commit the lock |
 | `/pretooluse-review` | triage `Bash`/`Write\|Edit` gate REJECTIONS from the harness's own OTel `tool_decision` stream (`decision`/`source`/`hook_name`), since prompt-type hooks keep no log of their own |
 | `/remember-nix` | capture into the harness's native per-project memory store (outside the repo) |
-| `/gmail-account` | add/authenticate/remove a Gmail MCP multi-account, see [`gmail-mcp-multi-account-runbook.md`](gmail-mcp-multi-account-runbook.md) |
+| `/gmail-account` | add/authenticate/remove a Gmail MCP account — now `local.gmailMcp` + the `gmail` plugin, **not** the retired gateway; see [`gmail-mcp-multi-account-runbook.md`](gmail-mcp-multi-account-runbook.md) |
 | `/routing-review` | triage Claude Code's own OTel tool-decision log for deterministic-routing hardening candidates, see [`claude-code-observability-runbook.md`](claude-code-observability-runbook.md) |
-| `/mcp-scout` | discover → vet → DECLARATIVELY adopt an MCP server into the gateway via skill `mcp-scout`; imperative installer CLIs / config-writing install tools are never used |
+| `/mcp-scout` | discover → vet → DECLARATIVELY adopt an MCP server **into the owning plugin's `.mcp.json`** via skill `mcp-scout` (there is no gateway to adopt into since 2026-10-02); imperative installer CLIs / config-writing install tools are never used |
 | `/userscript` | measure → replay → **publish** a Violentmonkey userscript, via the `page-lab` plugin's method skill + the project skill `userscript-author` (delivery only since 2026-09-14 — nothing is declared or gated in Nix); **no selector ships that was not dumped from the live page**, and `@require`/`@resource` CDN deps are never used |
 | `/fleet-doctor` | fleet-wide consistency sweep (branches/worktrees/PRs/CI/cross-repo pins/GC/host re-activation) across every repo in `.claude/skills/fleet-doctor/fleet-repos.txt`, via skill `fleet-doctor`; composes `nix-hygiene`, `git-purity.md`, `pr-title.md` |
 
@@ -2789,7 +2941,8 @@ only difference between "someone else's skill" and "mine" is now who can push to
   that needs a capability the session may lack. Inventory first (skills, deferred MCP tools,
   `claude mcp list`, plugins, connectors, CLIs), lightest capability wins, trust tiers gate
   what may happen unattended, and adoption goes through the harness: a new MCP server is a
-  vetted record handed to `mcp-scout` in this repo, never a `claude mcp add` (which the
+  vetted record handed to `mcp-scout`, which since 2026-10-02 lands it in the owning plugin's
+  `.mcp.json` rather than in this repo — never a `claude mcp add` (which the
   `claude-guardrails.nix` floor denies anyway). Global because the need shows up in any repo.
 - **`android-phone`** — operator knowledge for `packages/android-phone.nix`, global so ADB
   sessions launched from ANY directory know the wrapper's command surface and adb footguns,
@@ -2809,7 +2962,9 @@ only difference between "someone else's skill" and "mine" is now who can push to
   **No pin bump follows** since 2026-09-23: the marketplace is an https git source with
   `autoUpdate`, so a merge on `kattakath/skills` `main` ships by itself. A `flake.lock` bump is
   needed **only** when the thing you landed is consumed through the `kattakath-skills` INPUT —
-  i.e. the `superhook` or `page-lab-pick` PATH packages, or `mcp.nix`'s `mcpCatalog`.
+  i.e. the `page-lab-pick` PATH package — **the only such consumer left.** (`superhook` became a
+  plugin hook 2026-09-30; `mcp.nix`'s `mcpCatalog` was the other, and it went with `mcp.nix` on
+  2026-10-02.)
 
 **NOTHING stays vendored** — and in particular there is **no top-level `skills/` directory in
 this repo**. Do not re-create one; CLAUDE.md's "Gone on purpose — do not re-add" covers it.
@@ -2833,7 +2988,8 @@ this repo**. Do not re-create one; CLAUDE.md's "Gone on purpose — do not re-ad
 > published as marketplace-root plugins, so the `programs.claude-code.skills` cherry-picks are
 > gone, and the Brain Signals kit moved there as the `brain-signals` plugin. The input survives
 > as `kattakath-skills`, for the `page-lab-pick` PATH package (plus its `checks.*.page-lab`
-> gate) and `mcp.nix`'s `mcpCatalog`. A plugin's `bin/` reaches the Bash tool's PATH but **not**
+> gate) — and, until 2026-10-02, `mcp.nix`'s `mcpCatalog`, which went with that module. A
+> plugin's `bin/` reaches the Bash tool's PATH but **not**
 > a hook's (measured), which is why `page-lab-pick` is still a package. `superhook` WAS the
 > second such package until 2026-09-30, on the stronger claim that a hook wrapper cannot be a
 > plugin hook at all — that claim was **measured false** (see § `.claude/hooks/` above), and it
@@ -2846,8 +3002,9 @@ flake pin**: since 2026-09-23 it is registered as the https git source
 `https://github.com/kattakath/skills.git` with `autoUpdate = true`, and it is one of **FOUR**
 marketplaces — `kattakath`, `claude-plugins-official` (https), `context7-marketplace` (https) and
 `xai-grok-build` (the one `/nix/store` path, from a patched pinned input). The `kattakath-skills`
-input survives for the `superhook` / `page-lab-pick` PATH packages and `mcp.nix`'s `mcpCatalog`
-only — never for the marketplace source. (The renamed-repo and pinned-era history is the quoted
+input survives for the `page-lab-pick` PATH package and its check **only** — never for the
+marketplace source. (It was `superhook` + `page-lab-pick` + `mcp.nix`'s `mcpCatalog`; superhook
+became a plugin hook 2026-09-30 and `mcpCatalog` died with the gateway 2026-10-02.) (The renamed-repo and pinned-era history is the quoted
 update block above.)
 
 That repo's `.claude-plugin/marketplace.json` lists its plugins with `./plugins/<name>`
@@ -2905,16 +3062,17 @@ Two of them carry write-ups worth keeping:
   **measured** fact table (`references/facts.md`) where every falsifiable claim has an ID, a
   date and a re-measure recipe — because `chrome-devtools-mcp@1.8.0` exposes **29** of the ~57
   tools its generated docs describe (those are written from `main`), so 12 of 13 Memory tools
-  do not exist yet. **The Extensions group claim above is now stale for this fleet**: as of
-  2026-09-30, `local.mcpGateway.chromeDevtools.allowExtensions` (off by default, on for
-  `macos`) passes `--categoryExtensions`, verified working in attach mode against this
-  fleet's Chrome 152 despite upstream's own `--help` claiming otherwise — the group's tools
-  DO navigate/list `chrome-extension://` pages and service workers once it is on; read that
-  option's doc in `mcp.nix` for the measurement and the security tradeoff it accepts. The MCP
-  server itself is opt-in in
-  `modules/shared/mcp.nix` (`local.mcpGateway.chromeDevtools.enable`), in ATTACH mode
-  against **Chromium** (it was Opera Air until 2026-09-21, when Opera was removed from
-  the Mac); read that option's warning before enabling it. The attach flag is
+  do not exist yet. **The Extensions group claim above is stale for this fleet — and the
+  measurement that refutes it outlived the option that carried it.** Verified 2026-09-30:
+  `--categoryExtensions` works in attach mode against this fleet's Chrome 152 despite upstream's
+  own `--help` claiming otherwise; the group's tools DO navigate/list `chrome-extension://` pages
+  and service workers once it is passed. **What is gone is the plumbing.**
+  `local.mcpGateway.chromeDevtools.*` (`.enable`, `.allowExtensions`, `.port`, `.userDataDir`)
+  lived in `modules/shared/mcp.nix`, deleted 2026-10-02 — and `chrome-devtools` itself had already
+  moved to the `page-lab` plugin on 2026-09-30, so passing that flag, and owning the security
+  tradeoff it accepts, is now that plugin's business and not this repo's. Two things still worth
+  carrying over: the server runs in ATTACH mode against **Chromium** (it was Opera Air until
+  2026-09-21, when Opera was removed from the Mac), and the attach flag had to be
   **chosen at spawn time** by the `nix-mcp-chrome-devtools` wrapper, because measured
   2026-09-07 no single upstream flag works in both modes a browser can be in: one put into
   debugging from `chrome://inspect/#remote-debugging` 404s every `/json/*` path, so
@@ -2923,7 +3081,9 @@ Two of them carry write-ups worth keeping:
   cannot. The wrapper probes `/json/version` first — authoritative when it answers, since it
   carries the live `webSocketDebuggerUrl` — and falls back to the file only when nothing
   answers, which is precisely when the file is fresh. Hence **both** a `port` (probe hint) and
-  a `userDataDir` option.
+  a `userDataDir` option — and hence the one thing the plugin lane structurally cannot reproduce:
+  a `.mcp.json` names a bare command and cannot decide a flag by probing first, so whatever
+  replaces that wrapper has to make the probe part of the command it names.
 
 **`seargraph` was deleted, not moved into that repo (2026-09-12).** It was the
 `seargraph-langgraph` subagent (LangGraph pipeline design for the private SEARGraph project:
@@ -3075,17 +3235,26 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
 
 - [`docs/repo-map.md`](docs/repo-map.md) — **the full fleet architecture**: every path, module,
   package and flake output, with the reasoning. The long form of § Navigating the Codebase.
-- [`docs/mcp-gateway.md`](docs/mcp-gateway.md) — the MCP gateway: server inventory,
-  credentials model, opt-ins, how to add one.
-- [`docs/mcp-public-exposure-design.md`](docs/mcp-public-exposure-design.md) — the published
-  gateway, behind one connector + one Access app + one service token. **Exactly two hostnames,
-  and they never grow per server.** **Read §10 first** — the two-proxy model §§1-6 describe was
-  collapsed 2026-09-22; §9 is its correction record.
-- [`docs/mcp-portal-hardening-plan.md`](docs/mcp-portal-hardening-plan.md) — the verified
-  2026-09-23 plan behind #596/#597: service-token expiry, per-server policy tiers, and the
-  **two items deliberately NOT done** — the provider pin (ADR-004 deferred it; needs a plan
-  run) and device posture (**zero enrolled devices, so a `device_posture` require evaluates
-  false forever and takes the tier OFFLINE**). Carries the apply stop-conditions.
+- **The three MCP docs are HISTORY as of 2026-10-02 — the gateway and its Cloudflare portal are
+  destroyed.** Each opens with a RETIRED header; read that header before any sentence in the body,
+  which is written in the present tense of a system that no longer exists. What is live is
+  § MCP after the gateway above: servers come from an enabled plugin's `.mcp.json`, spawned per
+  session, nothing shared.
+  - [`docs/mcp-gateway.md`](docs/mcp-gateway.md) — **RETIRED.** The roster, the
+    capabilities-vs-entries counting convention, the lane-ownership rule, and the measurements
+    that OUTLIVED the gateway and still bind the plugin lane: the Node-20 `node:sqlite`
+    spawn-test rule, the `owner/repo`-vs-https marketplace-add trap, the recipe for proving a
+    plugin-owned server actually answers, and the 2026-09-23 call-volume split.
+  - [`docs/mcp-public-exposure-design.md`](docs/mcp-public-exposure-design.md) — **RETIRED.**
+    The published gateway's design: one connector + one Access app + one service token, exactly
+    two hostnames that never grew per server, and the three-objects-per-publish silent-failure
+    trap. §10 records the 2026-09-22 two-proxy collapse, §12 the teardown.
+  - [`docs/mcp-portal-hardening-plan.md`](docs/mcp-portal-hardening-plan.md) — **RETIRED, and
+    the only one that was never fully executed.** Its surviving value is the two items it
+    deliberately did NOT do and why: the provider pin (ADR-004 deferred it) and device posture
+    — **zero enrolled devices, so a `device_posture` require evaluates false forever and takes
+    the tier OFFLINE.** That trap applies to ANY future Access policy on this account, which is
+    why the file is kept rather than deleted.
 - [`docs/rdkb-gateway-contract.md`](docs/rdkb-gateway-contract.md) — the **HTTP contract**
   of the household's Rogers CGM4981 gateway (RDK-B firmware): auth, the server-side
   lockout counter, session lifetime, CSRF, the JSON log endpoint and why entity depth
@@ -3107,11 +3276,13 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   canonical; rename + repo split deferred; §7 awaits approval, §8 the conflicts);
   [`ADR-005`](docs/iac-coverage-adr.md) (decided and **IMPLEMENTED**: Cloudflare + GCP under
   terranix, Workspace not — §8c is its doc-rot record);
-  [`ADR-006`](docs/mcp-gateway-succession-adr.md) (**name only, NOT implemented**: ContextForge is a
-  candidate for the **PORTAL layer**, NOT a successor to `mcp-proxy` — it rejects stdio outright, so
-  it sits ABOVE a bridge you keep either way. **Read §1a**: the layer it competes with is the
-  Cloudflare MCP Portal, which wins on every axis but one — per-user credential injection into a
-  local child, which no remote portal can do and which is unreachable today anyway);
+  [`ADR-006`](docs/mcp-gateway-succession-adr.md) (**MOOT since 2026-10-02 — never implemented,
+  and the question it asked no longer exists.** It weighed ContextForge as a **PORTAL-layer**
+  candidate, not as `mcp-proxy`'s successor; both the proxy and the portal are now destroyed, so
+  there is no succession to decide. Kept for the comparison itself, which is reusable if a portal
+  is ever wanted again, and for the finding that closed it: a remote portal structurally **cannot**
+  inject per-user credentials into a local child — the one axis the Cloudflare portal lost on, and
+  the exact thing `local.gmailMcp` now does by keeping the launcher local);
   [`ADR-007`](docs/agent-interop-adr.md) (decided, **partially implemented**: **ACP** — Zed's
   Agent *Client* Protocol, stdio JSON-RPC — is the rail all three agent CLIs already share, and
   `acpx` is packaged + installed. A2A was REJECTED on transport fit, with the measurement that
@@ -3136,7 +3307,9 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
 - [`docs/macvm-readd-runbook.md`](docs/macvm-readd-runbook.md) — re-adding the removed `macvm`
   Tart guest (2026-09-05); what survives in the `tart-vms` capsule.
 - [`docs/gmail-mcp-multi-account-runbook.md`](docs/gmail-mcp-multi-account-runbook.md) — TRUE
-  simultaneous multi-account Gmail + a silent-wrong-account failure mode.
+  simultaneous multi-account Gmail + a silent-wrong-account failure mode. **LIVE**, and the only
+  MCP doc that is: the four accounts moved to the plugin lane on 2026-10-01 (`local.gmailMcp` +
+  the `gmail` plugin) and the capability never went down.
 - [`docs/claude-code-observability-runbook.md`](docs/claude-code-observability-runbook.md) — local
   OTel for Claude Code's `tool_decision` telemetry + the `/routing-review` loop.
 - [`docs/claude-hook-messages.md`](docs/claude-hook-messages.md) — decoder for this repo's hook
@@ -3160,7 +3333,10 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
 - [`docs/macos-settings-surface.md`](docs/macos-settings-surface.md) — what `macos` configures
   declaratively, and the TCC/FileVault walls.
 - [`docs/mcp-gateway-accessibility-tcc.md`](docs/mcp-gateway-accessibility-tcc.md) — the one-time
-  Accessibility (TCC) grant for `macos-automator`.
+  Accessibility (TCC) grant for `macos-automator`. **Still accurate despite the gateway's death**:
+  TCC scopes the grant to `/usr/bin/osascript`, not to whatever parent spawns it, which is exactly
+  why the grant carried unchanged when the server moved to the `mac-app-send` plugin (2026-10-01).
+  The filename is the only stale thing about it.
 - [`docs/open-design.md`](docs/open-design.md) — OpenDesign's declared/imperative boundary: cask +
   updater kill-switch vs. the app's mutable state. Its MCP server left the fleet 2026-09-22.
 - [`docs/photo-system.md`](docs/photo-system.md) — photo retrieval end to end: the

@@ -106,11 +106,19 @@ failed with `failed to find Access application`, while the public sites on
 the same tunnel kept serving fine — DNS/tunnel/Caddy health doesn't imply this
 exists). Likely lost during an earlier tunnel/ingress change. If this happens
 again: Zero Trust → Access → Applications → Create → type `Self-hosted`,
-domain `nixpi.kattakath.com`, reuse the existing `mcp-allow-operator` policy
-(`email == ismail@kattakath.com`) rather than creating a new one. Worth
-eventually modeling as a real `cloudflare_zero_trust_access_application`
-resource in the terranix module so this can't silently disappear again — not
-done yet.
+domain `nixpi.kattakath.com`, reuse the existing `mcp_allow_operator` policy
+rather than creating a new one. **It still exists, and its survival is now
+documented:** when the whole `mcp-public` stack was destroyed on 2026-10-02,
+Cloudflare refused to delete this policy with `409 code 12132 "policy is being
+used by at least one app"` — that app being this SSH application. The refusal
+protected the Pi's only Access-gated ingress
+([`secrets-recovery-and-identity-adr.md`](secrets-recovery-and-identity-adr.md) §9.10).
+It allows by `email_domain` (`kattakath.com`) since 2026-09-22, not by a
+literal mailbox. **Modelling the application itself as a real
+`cloudflare_zero_trust_access_application` resource is DONE** —
+`infra/cloudflare/nixpi-tunnel.nix` owns
+`cloudflare_zero_trust_access_application.nixpi_ssh`, so a rebuild restores
+the gate rather than a dashboard click.
 
 **Do not** pass `--build-host localhost` — nixos-rebuild treats `--build-host`
 as a host to `ssh` into unconditionally, even the literal string `localhost`,

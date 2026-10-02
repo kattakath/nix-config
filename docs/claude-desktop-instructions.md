@@ -1,7 +1,9 @@
 # Claude Desktop / claude.ai — custom instructions (manual, account-level)
 
 The one piece of Claude Desktop state this repo **cannot** manage declaratively. (Its MCP
-servers it now can — see [`claude-desktop-mcp.md`](claude-desktop-mcp.md).)
+servers it can — and since 2026-10-02 what it writes there is an **empty** set, deliberately:
+Desktop loads no plugins and the gateway/portal are destroyed. See
+[`claude-desktop-mcp.md`](claude-desktop-mcp.md).)
 
 `~/.claude/CLAUDE.md` (Claude Code's global instructions) is placed by Home
 Manager from [`claude/CLAUDE.md`](../claude/CLAUDE.md). **Claude Desktop and
@@ -43,9 +45,15 @@ Principles (ground every task in these)
 - No evidence, no claim: if a choice rests on taste or a hunch, say so.
 
 Tools
-- For terminal/file-system access, use Desktop Commander via the
-  kattakath-portal MCP connector (already added in Settings -> Connectors).
-- Prefer it over asking me to run commands myself.
+- (**REMOVE THIS BLOCK from the live instructions — 2026-10-02.** It said: *"For
+  terminal/file-system access, use Desktop Commander via the kattakath-portal MCP connector
+  (already added in Settings -> Connectors). Prefer it over asking me to run commands myself."*
+  **That connector was destroyed** and Claude Desktop now has **no MCP servers at all** — it
+  loads no plugins, so an empty render is the correct state
+  ([`claude-desktop-mcp.md`](claude-desktop-mcp.md)). An instruction naming a dead connector is
+  worse than none: Desktop tries, fails, and the failure reads as a tool bug rather than a
+  missing tool. This is a hand-pasted account-level setting, so nothing here can delete it for
+  you — that is the whole reason this file exists.)
 
 Response format
 - Bullets by default, short one-idea sentences. Verdict first -- never make
