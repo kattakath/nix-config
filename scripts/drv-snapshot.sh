@@ -56,11 +56,21 @@ done
 #   formatting / ast-grep / userscripts / page-lab / pre-commit — take `self`
 #     as a source input, so their drv hash tracks the working tree, not their
 #     definition.
+#   docs-indexed / docs-links-resolve — the same, added 2026-10-02 after they
+#     made every `--compare` report REJECTED. MEASURED, not assumed: appending one
+#     comment line to packages/next-right-thing/gather.sh — a shell script neither
+#     check reads — moved all four of their rows (two checks x two systems), and
+#     their `.drv` files list `/nix/store/…-source`, the whole flake tree, as an
+#     input. So their hash tracks the working tree by construction. Narrowing the
+#     checks to read only the files they actually assert on would be the better
+#     fix and is strictly out of this harness's hands; until then, excluding them
+#     is what keeps the harness from crying wolf on every commit — #768's whole
+#     lesson, which was a clean run reporting REJECTED for weeks.
 #   apps.macos — an activation app built from `self`.
 #
 # Excluded here means "compared by NAME only": their presence and absence still
 # registers, only their hash is ignored.
-EXCLUDE_RE='^(formatting|ast-grep|userscripts|page-lab|pre-commit)$'
+EXCLUDE_RE='^(formatting|ast-grep|userscripts|page-lab|pre-commit|docs-indexed|docs-links-resolve)$'
 EXCLUDE_PKG_RE='^macos$'
 
 emit() { # emit <label> <expr>  — prints "label<TAB>drvpath" or "label<TAB>ERROR"
