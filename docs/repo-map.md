@@ -603,8 +603,6 @@ their own top-level section below:
   service id, which is where `gmail-mcp.nix` and `plugin-mcp.nix` read theirs from rather than
   re-deriving them off an upstream README — recover it with
   `git show 4f9ea50^:modules/shared/mcp.nix`, never from an upstream default.
-  Other `mcp.nix` mentions further down this document are PRE-#734 and describe the same dead
-  file; they are #734's doc-rot backlog, not live paths.
 - **`gmail-mcp.nix` + `plugin-mcp.nix`** — the LIVE MCP lane, and the whole pattern in two
   modules. Claude Code spawns a plugin-declared stdio server per session; a plugin's `.mcp.json`
   can set `env` only to literals or `${VAR}` passthroughs, so it **cannot** run a Keychain read.
