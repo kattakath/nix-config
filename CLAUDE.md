@@ -227,7 +227,7 @@ COMBINE, so that duplication is deliberate, not drift.
 proxy here, no `mcp.<domainName>/mcp`, Cloudflare stack destroyed. `mcp.nix` and
 `infra/cloudflare/mcp-public.nix` are DEAD CODE pending deletion — do not read them as live.
 Servers come from an enabled plugin's `.mcp.json`; a launcher needing a Keychain read is a PATH
-package (`local.gmailMcp`). **Claude Desktop loads no plugins, so it has NO MCP servers** — an
+package (`local.gmailMcp`, `local.pluginMcp`). **Claude Desktop loads no plugins, so it has NO MCP servers** — an
 empty block, asserted by `checks.*.claude-desktop-config-shape`.
 [`docs/mcp-gateway.md`](docs/mcp-gateway.md).
 
