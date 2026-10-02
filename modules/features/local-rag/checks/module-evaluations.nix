@@ -65,8 +65,8 @@ in
   # ceremony:
   #
   #   * `local.rag.pgvector.databaseUri` is pinned as a LITERAL. That option
-  #     is the seam modules/shared/mcp.nix hands to the `postgres` MCP server as
-  #     `env.DATABASE_URI`, i.e. the whole career RAG (`career_docs` in `ragdb`)
+  #     is the seam modules/home/plugin-mcp.nix hands to the `postgres` MCP launcher
+  #     as `DATABASE_URI`, i.e. the whole career RAG (`career_docs` in `ragdb`)
   #     reaches Claude Code through this one string. Reading the option back to
   #     build the expected value would make the assertion tautological;
   #     spelling it out means a silent change to port/role/db name fails HERE
