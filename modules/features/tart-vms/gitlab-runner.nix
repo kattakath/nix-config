@@ -43,8 +43,13 @@ let
   tartCfg = config.local.tart;
   gitlabTart = pkgs.callPackage ./packages/gitlab-tart.nix { };
 
+  # NOT `nix-gitlab-runner`: the agent below sets
+  # `launcher.name = "nix-gitlab-runner"`, so home-manager builds a launcher
+  # script of that name and THAT is the arg0 launchd execs. Naming this one the
+  # same would produce `nix-gitlab-runner` exec'ing `nix-gitlab-runner` — two
+  # store paths, one name (the trap modules/home/metube.nix records).
   runner = pkgs.writeShellApplication {
-    name = "nix-gitlab-runner";
+    name = "gitlab-runner-run";
     runtimeInputs = [
       cfg.package
       pkgs.coreutils
@@ -155,33 +160,108 @@ in
     # CLI on PATH for verify/status against the SAME rendered config.
     environment.systemPackages = [ cfg.package ];
 
+    # RE-REGISTERED BY HAND, because the lane change below dropped it.
+    # Pinned nix-darwin modules/launchd/default.nix:199 maps every
+    # `launchd.user.agents` entry into `system.requiresPrimaryUser`, and
+    # modules/system/primary-user.nix:36-59 turns that list into the guided
+    # "set system.primaryUser to the name of the user you have been using to
+    # run darwin-rebuild" assertion. Leaving `launchd.user.agents` therefore
+    # loses the MESSAGE — not the guarantee: ./slots.nix's `runnerStateDir`
+    # default still forces `config.system.primaryUserHome`, whose own default
+    # (primary-user.nix:24-25) interpolates `config.system.primaryUser` and so
+    # coerces null to a string. That is an uncatchable eval error naming an
+    # INTERNAL option, which is a worse thing for a consumer to read than
+    # upstream's own prose — so the registration is restated here rather than
+    # written off. Upstream's mechanism, upstream's message, one line.
+    system.requiresPrimaryUser = [ "local.tart.gitlabRunner" ];
+
     # Same durable-state mkdir as the GitHub lane, declared here too because
     # neither module may read the other's options (this one never declares
     # local.tart.githubRunners). `mkdir -p` is idempotent and preActivation.text is
-    # a lines option, so both declaring it merges cleanly. preActivation, not
-    # postActivation: nix-darwin runs userLaunchd — which loads this agent and
-    # opens StandardOutPath below — between the two.
+    # a lines option, so both declaring it merges cleanly. preActivation is still
+    # the right hook after the 2026-10-02 lane change, for a slightly different
+    # reason: home-manager's darwin module runs its activation (which loads this
+    # agent and opens StandardOutPath below) from `postActivation`, and pinned
+    # nix-darwin modules/system/activation-scripts.nix orders preActivation :114
+    # before postActivation :140.
     system.activationScripts.preActivation.text = lib.mkAfter ''
       sudo --user=${config.system.primaryUser} -- /bin/mkdir -p ${lib.escapeShellArg tartCfg.runnerStateDir}
     '';
 
-    launchd.user.agents.gitlab-runner = {
-      serviceConfig = {
-        ProgramArguments = [ "${runner}/bin/nix-gitlab-runner" ];
+    # ---- THE SELF-HEALING LANE (moved off launchd.user.agents 2026-10-02) ----
+    #
+    # This was `launchd.user.agents.gitlab-runner` until finding #14. Both layers
+    # put a user agent in ~/Library/LaunchAgents under gui/<uid>; only one
+    # REPAIRS it, and modules/darwin/launchd-sources.nix enumerates which:
+    # nix-darwin's activation is diff-gated in BOTH lanes (pinned nix-darwin
+    # modules/system/launchd.nix:19 and :37 wrap the bodies in
+    # `if ! diff <old> <new>`), so an UNCHANGED plist means the
+    # unload/copy/load body never runs and a unit macOS has dropped stays down.
+    # Home Manager PROBES instead: pinned home-manager
+    # modules/launchd/default.nix:445-452 takes the `cmp -s` "unchanged" branch
+    # and still asks `agentIsLoaded` (:326-331, a `launchctl print
+    # <domain>/<agentName>`), falling through to bootout + install + bootstrap on
+    # "up-to-date but not loaded".
+    #
+    # WHY FROM A nix-darwin MODULE and not a home-manager one. The precedent is
+    # modules/darwin/logging.nix:337, which declares its user tick exactly this
+    # way. It is what keeps the capsule ONE module per lane: `runnerStateDir`'s
+    # default reads nix-darwin's `config.system.primaryUserHome` (./slots.nix),
+    # the state-dir mkdir above needs `config.system.primaryUser`, and
+    # `environment.systemPackages` is a nix-darwin option — so the module has to
+    # be a nix-darwin module regardless. A second, home-manager-class module
+    # exported through `capsuleModules.homeManager` would have to re-derive this
+    # plist from an internal option, and a consumer importing only the darwin
+    # half would lose the agent SILENTLY. This way a consumer with no
+    # home-manager fails loudly on the option not existing.
+    #
+    # THE LABEL IS PINNED to its live on-disk value. Home Manager's default is
+    # `org.nix-community.home.<name>` (:114, a `lib.mkDefault`, documented at
+    # :254), which would be a DIFFERENT launchd unit — the old plist abandoned
+    # and the operator's "Allow in the Background" approval, which Background
+    # Task Management keys to the Label, silently dropped. The override is safe
+    # because the self-heal probe keys off the Label too: :165 names each plist
+    # after the unit's own Label and :426 reads `agentName` straight back out of
+    # that filename.
+    #
+    # `enable = true` IS REQUIRED and its absence is SILENT: it is a
+    # `mkEnableOption` defaulting to FALSE (:20) and `agentPlists` filters on it
+    # (:166), where `launchd.user.agents` had no such switch. An agent declared
+    # without it evaluates clean and renders NO plist at all.
+    #
+    # `waitForNixStore`/`launcher.*` are set EXPLICITLY, not left to
+    # modules/home/launchd-launcher.nix's `mkDefault`s: that module is part of
+    # THIS fleet's home profile, and a capsule may not assume its consumer loads
+    # it. Upstream's default would wrap the command in
+    # `/bin/sh -c "/bin/wait4path /nix/store && exec …"` (:112-117), i.e. a bare
+    # `sh` arg0 — what .claude/rules/launchd-naming.md forbids. With
+    # `waitForNixStore = false` the arg0 becomes a store-resident launcher named
+    # `nix-gitlab-runner` (:99-104, :119), which is the SAME basename launchd and
+    # BTM saw before this move.
+    home-manager.users.${config.system.primaryUser}.launchd.agents.gitlab-runner = {
+      enable = true;
+      waitForNixStore = false;
+      launcher = {
+        name = "nix-gitlab-runner";
+        shell = pkgs.runtimeShell;
+      };
+      config = {
+        Label = "org.nixos.gitlab-runner";
+        ProgramArguments = [ "${runner}/bin/gitlab-runner-run" ];
         RunAtLoad = true;
         # TWO GATES, because they catch different failures and neither covers
         # the other.
         #
         # Waiting for the runtime token file is launchd's job, not a shell
         # poll's: upstream option
-        # nix-darwin.launchd.user.agents.<name>.serviceConfig.KeepAlive.PathState
-        # exists (modules/launchd/launchd.nix:190 — attrsOf bool, "the job will
-        # be kept alive as long as the path exists ... the intent of this
-        # feature is that two or more jobs may create semaphores in the
-        # file-system namespace") → using it. Before the consumer materializes
-        # the token the agent simply stays down; the moment it lands launchd
-        # starts us. Restart-on-crash is unchanged — the path outlives any one
-        # `gitlab-runner run`.
+        # home-manager.launchd.agents.<name>.config.KeepAlive.PathState exists
+        # (pinned home-manager modules/launchd/launchd.nix:227 — nullOr
+        # (attrsOf bool), "the job will be kept alive as long as the path
+        # exists ... the intent of this feature is that two or more jobs may
+        # create semaphores in the file-system namespace") → using it. Before
+        # the consumer materializes the token the agent simply stays down; the
+        # moment it lands launchd starts us. Restart-on-crash is unchanged —
+        # the path outlives any one `gitlab-runner run`.
         #
         # CONTENT is not something PathState can see: an EMPTY /run/agenix
         # secret satisfies PathState and then yields a launchd-healthy agent
