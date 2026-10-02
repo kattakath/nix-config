@@ -47,6 +47,13 @@
   accountId,
   zoneId,
   hostedSites,
+  # The canonical Workspace identity (modules/parts/identity.nix's
+  # `fleet.googleAccount`), threaded by modules/parts/terranix.nix:92 under the
+  # SAME name it already uses for infra/gcp/foundation.nix — one spelling for one
+  # value. It is the notification destination below; never a literal, because a
+  # literal address in a public repo is both an identity leak and a second source
+  # of truth.
+  operatorAccount,
   ...
 }:
 let
@@ -469,6 +476,66 @@ in
   data.cloudflare_zero_trust_tunnel_cloudflared_token.nixpi = {
     account_id = accountId;
     tunnel_id = tunnelId;
+  };
+
+  # ---- (f) Tunnel health notification ----------------------------------------
+  # CLOUDFLARE OBSERVES THE TUNNEL, NOT THE PI. That is the entire point. The
+  # 2026-09-23 -> 10-01 outage ran EIGHT DAYS while `checks.*.nixpi-security-posture`
+  # was green 18/18, because every in-tree check evaluates Nix and none of them can
+  # see reachability — the check now says so itself: "THIS CHECK CANNOT TELL YOU THE
+  # PI IS UP". This alert fires from the edge, so it survives a dead userspace, a
+  # dead uplink and a dead host alike.
+  #
+  # SCHEMA VERIFIED AGAINST THE PROVIDER, NOT THE DOCS, and that distinction is
+  # load-bearing: this stack pins `>= 5.0.0` and the v4 docs describe an
+  # INCOMPATIBLE shape. v4 had `email_integration` as a BLOCK SET and `filters` as a
+  # BLOCK LIST; terranix renders a block as a JSON ARRAY, which is the wrong type for
+  # both in v5. Confirmed identical at v5.0.0, 5.5.0, 5.8.0 and 5.26.0, so no
+  # `tofu init -upgrade` is needed — which matters, because an upgrade would rewrite
+  # the lock for the whole stack.
+  #   mechanisms        SingleNestedAttribute, REQUIRED      (schema.go:128-131)
+  #   mechanisms.email  SetNestedAttribute; `id` IS the address (schema.go:132-143)
+  #   filters           SingleNestedAttribute, Optional      (schema.go:178-181)
+  #   filters.tunnel_id ListAttribute of String
+  #   alert_type enum carries "tunnel_health_event"          (schema.go:116)
+  #
+  # NO `new_status` FILTER, AND THAT IS DELIBERATE — DO NOT "TIDY IT UP".
+  # Two reasons, both measured:
+  #   1. v5 gives `filters` NO VALIDATOR (schema.go:297-301 declares only `Optional`
+  #      and `ElementType`). A mistyped status is ACCEPTED, applies clean, and then
+  #      never matches — an alert that exists, reports configured, and is dead. That
+  #      is the exact failure class this change was written to end.
+  #   2. The v4 docs compound it: they label `status` "Status to alert on", but
+  #      `status` belongs to HEALTH CHECKS. Tunnels use `new_status`. A plan written
+  #      against `status` applies cleanly and NEVER FIRES.
+  # Omitting the filter alerts on every health transition for this one tunnel, which
+  # fails LOUD instead of silent and yields a recovery notice too. One tunnel, so the
+  # ceiling is one email per real transition. Narrow it only after reading the live
+  # object back from the API.
+  #
+  # `enabled` is Optional+Computed with a provider default of true
+  # (schema.go:419-423), so omitting it would still be true. Declared anyway: "the
+  # alert was silently off" is this resource's one catastrophic failure mode, and it
+  # should be visible in the file rather than inherited.
+  #
+  # REJECTED ALTERNATIVE, with the price as the reason: a standalone Cloudflare
+  # Health Check probing a Caddy health path would need no credential on the Pi at
+  # all — strictly less machinery. It is PAID. Cloudflare's own availability table
+  # gives Free **0 checks**, Pro 10. `tunnel_health_event` is included on all Zero
+  # Trust plans. Measured 2026-10-02.
+  resource.cloudflare_notification_policy.nixpi_tunnel_health = {
+    account_id = accountId;
+    name = "${tunnelName} tunnel health";
+    alert_type = "tunnel_health_event";
+    enabled = true;
+    description = "nixpi's tunnel is its ONLY remote path in. Observed from Cloudflare's side, so it fires when the Pi cannot.";
+    # `id` IS the address for an email mechanism — the provider's own schema wording.
+    mechanisms.email = [ { id = operatorAccount; } ];
+    # A `${}` REFERENCE, not a literal id. Only this stack can produce the tunnel id,
+    # which is the whole argument for the alert living here: a separate stack would
+    # need the id as a literal, and this repo already learned where that ends —
+    # `mcp_allow_operator` was referenced by one stack and declared by none.
+    filters.tunnel_id = [ tunnelId ];
   };
 
   # ---- Outputs ---------------------------------------------------------------
