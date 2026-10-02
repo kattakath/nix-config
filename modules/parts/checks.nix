@@ -2241,6 +2241,129 @@ in
               ];
             };
 
+          # ---- the gui user agents stay in the SELF-HEALING lane -------------
+          #
+          # modules/darwin/launchd-sources.nix is the one enumeration of the four
+          # launchd option surfaces, and it records `selfHeals` per source. A
+          # `selfHeals = false; domain = "gui"` unit is covered by NEITHER repair
+          # mechanism — nix-darwin's activation is diff-gated in both its lanes,
+          # and launchd-reconcile.nix runs as root with no `gui/<uid>` to reach —
+          # so a unit macOS has dropped simply stays down until a human notices.
+          # Five units sat there; three moved to home-manager's `launchd.agents`
+          # on 2026-10-02 (modules/home/macos-user-agents.nix), where upstream
+          # owns the `launchctl print` probe. This gate is what stops them coming
+          # back, and it is keyed on the LABEL for two reasons.
+          #
+          # THE LABEL IS THE UNIT'S ON-DISK IDENTITY, and the operator's
+          # "Allow in the Background" approval in Background Task Management is
+          # keyed to it. The three literals below are therefore the artifact, not
+          # a restatement of the module: home-manager's default Label would be
+          # `org.nix-community.home.<attr>`, so the module must OVERRIDE it, and
+          # a check that re-derived the override from the module could not tell a
+          # preserved Label from a renamed one. (`launchd-log-rotation` above
+          # draws the same tripwire-not-second-copy line for its source roster.)
+          #
+          # THE LABEL IS ALSO WHAT THE PROBE USES, which is why the override is
+          # safe at all: pinned home-manager modules/launchd/default.nix:165
+          # names each plist `"${v.config.Label}.plist"` and :426 reads
+          # `agentName` straight back out of that filename, so the probe asks
+          # `launchctl print gui/<uid>/<Label>` — the real unit.
+          #
+          # `enable` IS ITS OWN LEG, and it is not redundant with the lane leg.
+          # It is a `mkEnableOption` defaulting to FALSE (:20) and `agentPlists`
+          # filters on it (:166), while `launchd.agents` — the attrset
+          # launchd-sources.nix walks — does not. nix-darwin's
+          # `launchd.user.agents` has no such switch, so a lane change that
+          # forgets it evaluates clean, renders NO plist, and would leave every
+          # label-and-lane assertion here GREEN. Measured on this migration: the
+          # first build of the three agents produced zero plists.
+          #
+          # arg0 is the last leg: `waitForNixStore = false` plus
+          # `launcher.name = "nix-<attr>"` is what makes the binary launchd execs
+          # a store-resident `nix-*` script rather than Apple's `/bin/sh`, and
+          # that attribution is what grants these two sweeps READ access to the
+          # TCC-protected ~/Desktop and ~/Downloads at all
+          # (.claude/rules/launchd-naming.md § TCC). The defaults come from
+          # modules/home/launchd-launcher.nix as `mkDefault`s, i.e. a single
+          # agent can still silently opt out of both.
+          launchd-selfheal-lane =
+            let
+              mac = config.flake.darwinConfigurations.macos.config;
+              hm = mac.home-manager.users.${loginName};
+              sources = import ../darwin/launchd-sources.nix {
+                config = mac;
+                inherit loginName;
+              };
+              labelsOf = src: map (unit: unit.${src.key}.Label) (lib.attrValues src.units);
+              healing = lib.concatMap labelsOf (lib.filter (src: src.selfHeals) sources);
+              stranded = lib.concatMap labelsOf (lib.filter (src: !src.selfHeals) sources);
+              # attribute name -> the Label it MUST keep carrying.
+              units = {
+                file-rotation-desktop = "com.kattakath.file-rotation.trash-desktop";
+                file-rotation-downloads = "com.kattakath.file-rotation.trash-downloads";
+                open-maccy = "org.nixos.open-maccy";
+              };
+              attrs = lib.attrNames units;
+              required = lib.attrValues units;
+              missing = lib.subtractLists healing required;
+              regressed = lib.intersectLists stranded required;
+              # `?` first, so a renamed attribute fails this leg instead of
+              # throwing out of the legs below it.
+              absent = lib.filter (n: !(hm.launchd.agents ? ${n} && hm.launchd.agents.${n}.enable)) attrs;
+              present = lib.filter (n: hm.launchd.agents ? ${n}) attrs;
+              mislabelled = lib.filter (n: hm.launchd.agents.${n}.config.Label != units.${n}) present;
+              waiting = lib.filter (n: hm.launchd.agents.${n}.waitForNixStore) present;
+              badLauncher = lib.filter (n: hm.launchd.agents.${n}.launcher.name != "nix-${n}") present;
+            in
+            mkHostContract {
+              inherit pkgs;
+              name = "launchd-selfheal-lane";
+              subject = "macos: the three gui user agents are in the self-healing launchd lane";
+              expect = [
+                {
+                  name = "every unit is declared AND enabled in home-manager's launchd.agents (absent or disabled: ${toString absent})";
+                  ok = absent == [ ];
+                }
+                {
+                  name = "every Label is carried by a selfHeals source (missing: ${toString missing})";
+                  ok = missing == [ ];
+                }
+                {
+                  name = "no Label is carried by a source that repairs nothing (regressed: ${toString regressed})";
+                  ok = regressed == [ ];
+                }
+                {
+                  name = "every Label is pinned to its on-disk value (renamed: ${toString mislabelled})";
+                  ok = mislabelled == [ ];
+                }
+                {
+                  name = "no unit took upstream's /bin/sh wait4path arg0 (waitForNixStore: ${toString waiting})";
+                  ok = waiting == [ ];
+                }
+                {
+                  name = "every launcher is still named nix-<attr> (wrong: ${toString badLauncher})";
+                  ok = badLauncher == [ ];
+                }
+              ];
+              # NO BACKTICKS IN THESE LINES. mkHostContract emits each one inside
+              # a double-quoted echo, so a backtick is command substitution: the
+              # first red run of this check printed "launchd.user.agents: command
+              # not found" in place of half its advice.
+              advice = [
+                "These three were nix-darwin launchd.user.agents until 2026-10-02 and"
+                "moved to modules/home/macos-user-agents.nix for home-manager's"
+                "launchctl-print self-heal. Moving one back puts it on the selfHeals ="
+                "false, domain = gui row of modules/darwin/launchd-sources.nix, which no"
+                "mechanism repairs: the unit stays down silently after macOS drops it."
+                "A RENAMED or DEFAULTED Label is a different launchd unit, so it loses the"
+                "operator's Background Task Management approval and reappears unapproved."
+                "A unit declared without enable = true renders no plist at all — the"
+                "agent is simply gone, with no eval error anywhere."
+                "A waitForNixStore = true, or a renamed launcher, makes launchd exec"
+                "Apple's /bin/sh, which TCC refuses on ~/Desktop and ~/Downloads: the two"
+                "sweeps would run, log nothing useful, and quietly do no work."
+              ];
+            };
           # NOTE: `hm-launchd-drift` lived here until 2026-09-14. It pinned the
           # sha256 of home-manager's modules/launchd/default.nix so the 560-line
           # vendored fork of that file could not silently fall behind upstream.

@@ -5,78 +5,11 @@
   lib,
   pkgs,
   loginName,
-  domainName,
   ...
 }:
 
 let
   home = config.users.users.${loginName}.home;
-  # Two SYSTEM-DEFAULT inboxes, two rotations (the launchd agents below):
-  #   folders.desktop   — ⇧⌘4/⇧⌘5 screenshots AND screen recordings (macOS's
-  #                       own default target; the real Mac sets no location
-  #                       override), swept WHOLE after 1 day.
-  #   folders.downloads — browser downloads + AirDrop (every app's default;
-  #                       nothing in this repo overrides it), swept after 7
-  #                       days of DISPOSABLE types only (media/installers/
-  #                       archives) — keepers move to Documents/Pictures/
-  #                       Movies/Music by hand.
-  # The paths themselves are the local.folders options (./user-folders.nix):
-  # unset = the macOS system default, override = the seam. Never re-derive
-  # "${home}/Downloads" inline — consume the option.
-  # Lineage: dedicated ~/Pictures/Screengrab → one all-in ~/Downloads inbox →
-  # split back onto the system defaults behind mkOption (2026-09-05).
-  folders = config.local.folders;
-  # Reverse-DNS namespace derived from the fleet domain (kattakath.com → com.kattakath)
-  # for the file-rotation launchd labels, rather than hardcoding it.
-  rdns = lib.concatStringsSep "." (lib.reverseList (lib.splitString "." domainName));
-
-  # One byte-safe hourly Trash sweep, parameterized per inbox — every
-  # deliberate choice in here is documented at the agents' definition site
-  # below (TCC arg0, Put Back cost, tool survey, U+202F filenames).
-  # `nameGlobs = null` sweeps EVERYTHING older than minAge (directories too);
-  # a list of lowercase case(1) globs restricts the sweep to matching
-  # basenames (case-insensitive via tr) and therefore SKIPS directories.
-  mkTrashSweep =
-    {
-      suffix,
-      dir,
-      minAge, # minutes
-      nameGlobs ? null,
-    }:
-    {
-      serviceConfig = {
-        Label = "${rdns}.file-rotation.trash-${suffix}";
-        ProgramArguments = [
-          "${pkgs.writeShellScriptBin "nix-file-rotation-${suffix}" ''
-            set -eu
-            /bin/mkdir -p "${home}/Library/Logs" "${home}/.Trash"
-            /usr/bin/find "${dir}" -mindepth 1 -maxdepth 1 \
-              ! -name '.DS_Store' ! -name '.localized' -mmin +${toString minAge} \
-              -exec /bin/sh -c 'for f do
-                ${
-                  lib.optionalString (nameGlobs != null) ''
-                    base="$(/usr/bin/basename "$f" | /usr/bin/tr "[:upper:]" "[:lower:]")"
-                    case "$base" in
-                      ${lib.concatStringsSep "|" nameGlobs}) ;;
-                      *) continue ;;
-                    esac
-                  ''
-                }dest="${home}/.Trash/$(/usr/bin/basename "$f")"
-                # -e also covers an existing DIRECTORY at $dest — without this,
-                # `mv dir dest/` would move it INSIDE instead of renaming.
-                if [ -e "$dest" ]; then
-                  dest="$dest.$(/bin/date +%Y%m%d%H%M%S)"
-                fi
-                /bin/mv -- "$f" "$dest"
-              done' _ {} +
-          ''}/bin/nix-file-rotation-${suffix}"
-        ];
-        StartInterval = 3600;
-        RunAtLoad = true;
-        StandardOutPath = "${home}/Library/Logs/file-rotation-trash-${suffix}.log";
-        StandardErrorPath = "${home}/Library/Logs/file-rotation-trash-${suffix}.log";
-      };
-    };
 
   # ---- Finder "Show View Options" default template (list view) --------------
   # This is the nested dict that Finder's "Use as Defaults" button writes and
@@ -335,7 +268,8 @@ in
 
       # Screen captures: deliberately NO location — macOS's own default is
       # ~/Desktop (an unset/missing location falls back there, nix-darwin#1240),
-      # and file-rotation-desktop below sweeps it daily. The location key would
+      # and file-rotation-desktop (modules/home/macos-user-agents.nix) sweeps
+      # it daily. The location key would
       # cover BOTH ⇧⌘4 screenshots and ⇧⌘5 screen *recordings* — verified
       # empirically; the .mov honors com.apple.screencapture location despite
       # Apple documenting no separate key for recordings. (The macvm guest's
@@ -417,152 +351,6 @@ in
   launchd.user.envVariables.BASH_ENV = "${home}/${
     config.home-manager.users.${loginName}.local.keychainSecrets.loaderRelPath
   }";
-
-  # ---- User agents (inbox rotations) -----------------------------------------
-  # BTM RULE: "Allow in the Background" names each item by ProgramArguments[0]
-  # basename (`sfltool dumpbtm`). Always use a `nix-<activity>` wrapper
-  # (mkTrashSweep) — never bare /bin/sh or nix-darwin `script =` (those wrap as
-  # /bin/sh -c wait4path and show as phantom "sh").
-  # The `nix-*` wrapper is also load-bearing for TCC *file access*, not just
-  # cosmetics — see docs/macos-settings-surface.md § TCC and a /nix/store arg0.
-  #
-  # ONE launch-at-login opener survives: Maccy. Slack, Mail and Messages were
-  # removed 2026-09-23 — each still raised a window at login despite `open -g
-  # -j` plus a 12s System Events re-hide loop, and the operator wants a login
-  # with no windows and no Dock churn. Maccy is LSUIElement (menu-bar only), so
-  # it never was part of that complaint and it keeps its opener.
-  #
-  # Maccy had a DIFFERENT bug: a dead menu-bar icon that swallowed the first
-  # click after login, needing a Spotlight relaunch. Cause: two launchers raced
-  # — this agent AND a System Events login item. Measured 2026-09-23: deleting
-  # that login item ALSO cleared Maccy's app-level BTM record, i.e. they were
-  # one registration seen twice, not two. This agent is now the only launcher.
-  # Do NOT re-add an `open-*` agent for a windowed app without a new decision.
-  #
-  # No hide loop here (unlike the retired Slack/Mail/Messages agents): Maccy has
-  # no window to suppress, so `open -g -j` alone is the whole job.
-  #
-  # Host scope: the rotations are **macos only**. (The
-  # historical reason the gate exists: the former macvm guest symlinked its
-  # ~/Downloads to the host's over Tart VirtioFS, and a guest-side rotation
-  # would have been destructive — mv(1) degrades to cp+rm across filesystems,
-  # copying host bytes into the guest and unlinking them on the host. The
-  # guest is gone (2026-09-05, docs/macvm-readd-runbook.md); keep the gate
-  # anyway so a re-added guest can never inherit the sweeps by accident.)
-  launchd.user.agents = lib.mkIf (config.networking.hostName == "macos") {
-    # Attr name (open-maccy) keeps the launchd Label stable so existing BTM
-    # toggle state survives. arg0 is a `nix-*` wrapper per
-    # .claude/rules/launchd-naming.md — a bare /usr/bin/open would show in
-    # "Allow in the Background" as a phantom "open".
-    open-maccy.serviceConfig = {
-      ProgramArguments = [
-        "${pkgs.writeShellScriptBin "nix-open-maccy" ''
-          set -eu
-          exec /usr/bin/open -g -j -a Maccy
-        ''}/bin/nix-open-maccy"
-      ];
-      RunAtLoad = true;
-    };
-
-    # The two inbox sweeps (mkTrashSweep above; hourly tick each; recoverable —
-    # Finder erases Trash items at 30d via FXRemoveOldTrashItems). Stock
-    # /bin + /usr/bin only (no Nix runtime).
-    #
-    # arg0 MUST stay a /nix/store `nix-*` wrapper — do NOT use `script =` or
-    # /bin/sh. Beyond BTM naming, that arg0 is what grants these agents READ
-    # access to the TCC-protected ~/Desktop and ~/Downloads at all (TCC
-    # attributes the read to the responsible binary; an unattributable store
-    # path falls through to allow, /bin/sh gets EPERM). See
-    # .claude/rules/launchd-naming.md § TCC.
-    #
-    # `-mindepth 1` is required or find would match the inbox dir itself.
-    # `.localized` (Finder's localized-folder-name marker) and `.DS_Store` are
-    # excluded: both are ancient by mtime and would be swept on the first run.
-    #
-    # The `-exec /bin/sh -c '…' _ {} +` shape is byte-safe and deliberate —
-    # screenshot filenames contain U+202F (narrow no-break space), so any
-    # "simplification" that matches on a literal shell space silently no-ops.
-    #
-    # ACCEPTED COST — Finder "Put Back" does not work on rotated items. A plain
-    # `mv` into ~/.Trash writes no ptbL/ptbN records in .Trash/.DS_Store, so the
-    # item can be dragged out but not restored to its origin. This is a
-    # JUSTIFIED exception to the repo's reuse-over-rebuild preference —
-    # off-the-shelf trash CLIs were surveyed and every one was disqualified:
-    # trash-cli / rmtrash / gtrash / rmw target the freedesktop
-    # ~/.local/share/Trash (the wrong trashcan on macOS); nixpkgs' darwin.trash
-    # drives Apple Events, so it fails from a launchd context and its upstream is
-    # 404; macos-trash is the only one that gets Put Back right and it is not in
-    # nixpkgs. Do not "fix" this by swapping in one of those.
-
-    # ~/Desktop: the capture inbox. Swept WHOLE (directories too) after 1 day —
-    # the old Screengrab cadence. A directory's mtime tracks only entry
-    # add/remove, so don't park live work on the Desktop.
-    file-rotation-desktop = mkTrashSweep {
-      suffix = "desktop";
-      dir = folders.desktop;
-      minAge = 1440;
-    };
-
-    # ~/Downloads: the browser/AirDrop inbox. Swept after 7 days, DISPOSABLE
-    # types only — media, installers/disk images, archives. Everything else
-    # (documents, folders — the typed filter never matches a directory) stays
-    # put for manual triage into Documents/Pictures/Movies/Music; that is the
-    # operator's explicit contract (2026-09-05), replacing the earlier
-    # staged-30-day sweep-everything shape.
-    file-rotation-downloads = mkTrashSweep {
-      suffix = "downloads";
-      dir = folders.downloads;
-      minAge = 10080;
-      nameGlobs = [
-        # media
-        "*.png"
-        "*.jpg"
-        "*.jpeg"
-        "*.heic"
-        "*.heif"
-        "*.gif"
-        "*.webp"
-        "*.tiff"
-        "*.tif"
-        "*.bmp"
-        "*.svg"
-        "*.mp4"
-        "*.mov"
-        "*.m4v"
-        "*.mkv"
-        "*.webm"
-        "*.avi"
-        "*.mp3"
-        "*.m4a"
-        "*.aac"
-        "*.wav"
-        "*.flac"
-        "*.aiff"
-        "*.ogg"
-        # installers / disk images
-        "*.dmg"
-        "*.pkg"
-        "*.mpkg"
-        "*.iso"
-        "*.ipsw"
-        "*.exe"
-        "*.msi"
-        "*.apk"
-        # archives
-        "*.zip"
-        "*.tar"
-        "*.gz"
-        "*.tgz"
-        "*.bz2"
-        "*.tbz2"
-        "*.xz"
-        "*.txz"
-        "*.zst"
-        "*.7z"
-        "*.rar"
-      ];
-    };
-  };
 
   system.activationScripts.postActivation.text = lib.mkIf (config.networking.hostName == "macos") ''
     # Propagate the GUI PATH (see § GUI PATH above) to Dock-launched apps.
