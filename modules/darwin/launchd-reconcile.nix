@@ -66,9 +66,11 @@ let
   #              system-domain; a gui agent is unreachable from the boot half in
   #              principle, not by omission.
   # A source that is neither self-healing nor system-domain is covered by NOTHING
-  # — true of `launchd.user.agents` today. That gap is closed by MIGRATING those
-  # units to the home-manager lane (the move metube and yt-dlp-web-ui made
-  # 2026-09-22), not by widening this script's blast radius. The full argument,
+  # — true of `launchd.user.agents` today, where the `tart-vms` capsule's two
+  # runners are all that is left. That gap is closed by MIGRATING those units to
+  # the home-manager lane (the move metube and yt-dlp-web-ui made 2026-09-22,
+  # and `open-maccy` plus the two trash sweeps on 2026-10-02), not by widening
+  # this script's blast radius. The full argument,
   # with the pinned upstream lines it rests on, is in ./launchd-sources.nix.
   healable = lib.filter (s: !s.selfHeals && s.domain == "system") (
     import ./launchd-sources.nix { inherit config loginName; }
