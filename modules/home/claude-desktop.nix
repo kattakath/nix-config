@@ -9,39 +9,40 @@
 # gateway are both DELETED (2026-10-02): `gatewayServers = { }` below means the
 # rendered block is now EMPTY, and only `extraServers` can still add an entry.
 #
-# ONE entry, not a server list. Until 2026-09-22 this rendered an attrset of one
-# loopback URL per hosted server (26 of them at the time), one shim process
-# each; everything now reaches every server through the single
-# Workspace-authenticated portal, so no count here tracks the roster and adding
-# a server changes nothing in this file.
+# ZERO entries, and that is the end state. The history, so the shape of the code
+# below makes sense: until 2026-09-22 this rendered an attrset of one loopback URL
+# per hosted server (26 of them at the time), one shim process each; the portal
+# collapse replaced all 26 with a single Workspace-authenticated entry; the
+# 2026-10-02 purge deleted the portal too. `gatewayServers = { }` below is what is
+# left, so NO count here tracks any roster and `extraServers` is the only way an
+# entry ever appears again.
 #
-# THE PLUGIN CONSEQUENCE — a plugin-owned MCP server NEVER reaches Desktop.
-# Marketplace plugins are a CLAUDE CODE surface: Claude Code loads an enabled
-# plugin's `.mcp.json` in ADDITION to the portal connector, and Desktop loads no
-# plugins at all. This file renders exactly one entry, the portal, and the portal
-# is all-or-nothing — see § DELIBERATELY NOT RENDERED below, "the portal cannot
-# serve Desktop a subset". So from the commit that deletes a server from
-# `config.fleet.publicMcpServers` and re-declares it in its owning plugin, that
-# server is CLAUDE-CODE-ONLY: silently ABSENT from Claude Desktop and from the
-# Cowork bridge, with nothing able to notice — no check in this repo can read a
-# plugin's `.mcp.json`. The operator accepted exactly that cost for the eight
-# servers moving in #657 (the decision is #658 + #657). The lane rule — who owns
-# a server, and which servers structurally cannot move — is
-# docs/mcp-gateway.md § Which lane.
+# THE PLUGIN CONSEQUENCE — a plugin-owned MCP server NEVER reaches Desktop, and
+# since the purge that is EVERY server the fleet has. Marketplace plugins are a
+# CLAUDE CODE surface: Claude Code loads an enabled plugin's `.mcp.json`, and
+# Desktop loads no plugins at all. There is no second channel left to make up the
+# difference — the connector that used to be it is destroyed infrastructure. So
+# every fleet MCP server is CLAUDE-CODE-ONLY: absent from Claude Desktop, and
+# absent from the Cowork bridge behind it. Nothing in this repo can notice, either
+# — no check here can read a plugin's `.mcp.json`. The operator accepted that cost
+# for the eight servers moving in #657 (the decision is #658 + #657) and then for
+# the rest of the roster with the purge.
 #
-# Everything Desktop loads is ALSO proxied into a linked Cowork cloud session
-# as mcp__remote-devices__<name>__* (the same path Desktop Commander and
-# Kapture take today), so this one file is what gives Cowork the fleet's
-# servers without publishing anything on the public gateway.
+# WHAT COWORK GETS FROM THIS FILE: nothing. A linked Cowork cloud session is
+# proxied whatever Desktop loads, as mcp__remote-devices__<name>__*, and this file
+# now contributes zero entries to that — whatever Desktop loads, it loads from its
+# own installed Desktop Extensions and from entries the operator added by hand, not
+# from here. This file is NOT what gives Cowork the fleet's servers; nothing is.
 #
-# THE TRANSPORT TRAP (why the portal entry is an mcp-remote shim)
+# THE TRANSPORT TRAP (why `toStdioShim` is still here with nothing to shim)
 # Desktop's parser accepts ONLY the stdio shape — {command, args, env}. A
 # `url` or `type` key fails its schema validation and the entry is dropped (or
-# the whole mcpServers block is). The portal speaks Streamable HTTP, so it is
-# wrapped in `mcp-remote` (geelen/mcp-remote: a stdio⇄Streamable-HTTP bridge),
-# pinned by version and launched by the SAME store-path npx the gateway itself
-# uses. A shim, not a server: one thin bridge process, and the OAuth handshake
-# Access requires happens inside it.
+# the whole mcpServers block is). So any `url`-shaped entry must be wrapped in
+# `mcp-remote` (geelen/mcp-remote: a stdio⇄Streamable-HTTP bridge), pinned by
+# version and launched by a store-path npx — a shim, not a server: one thin
+# bridge process, with any OAuth handshake happening inside it. The portal was
+# the one entry that needed this and it is gone; the transform stays because
+# `extraServers` still accepts a `url` entry and would hit the same parser.
 #
 # `checks.<system>.claude-desktop-config-shape` READS NO GATEWAY OPTION ANY
 # MORE: `local.mcpGateway.portalEndpoint` went with the portal on 2026-10-02
@@ -74,24 +75,28 @@
 # `programs.claude-desktop.enableMcpIntegration = true` and the shim transform
 # moves upstream with it.
 #
-# DELIBERATELY NOT RENDERED — and no longer sufficient on its own.
+# DELIBERATELY NOT RENDERED — and sufficient again, since the purge.
 #   desktop-commander is already installed in Desktop as a Desktop Extension
 #   (.mcpb, `ant.dir.gh.wonderwhy-er.desktopcommandermcp`), so this file has
-#   never rendered a second copy. `excludeServers` and the matching arm of
-#   checks.<system>.claude-desktop-config-shape still enforce that.
+#   never rendered a second copy. The arm of
+#   checks.<system>.claude-desktop-config-shape that names desktop-commander is what
+#   ENFORCES that; `excludeServers` does not — it is declared below and read by
+#   NOTHING in this module (see its own description).
 #
-#   What changed 2026-09-22: desktop-commander moved ONTO the gateway and into
-#   publicMcpServers, so Desktop now receives it through the portal entry
-#   regardless — the duplicate this exclusion was written to prevent is back, by
-#   a route the exclusion cannot see. It is one connector, all-or-nothing: the
-#   portal cannot serve Desktop a subset. Left as-is deliberately (duplicate tool
-#   names are a nuisance, not a failure, and the extension is the faster path);
-#   the fix, if it ever matters, is to uninstall the .mcpb — not to edit here.
+#   The duplicate the exclusion could not see is GONE WITH THE ROUTE THAT MADE IT.
+#   Between 2026-09-22 and the purge, desktop-commander sat on the gateway and in
+#   publicMcpServers, so Desktop received it through the all-or-nothing portal
+#   entry regardless and the exclusion was powerless. The portal is destroyed, this
+#   file renders nothing, and the .mcpb extension is once again the only copy — so
+#   `excludeServers` is correct AND currently has nothing to do.
 #
-# SCOPE: darwin only, and only when the gateway is on (the portal entry is its).
-# Gated further at activation on the Desktop support dir existing — no Desktop,
-# no stray file. Desktop reads the file at launch: restart it after a switch
-# that changes the set (the activation prints a reminder only when it did).
+# SCOPE: darwin only. Deliberately NOT gated on any gateway option — `enable`
+# briefly defaulted to `isDarwin && mcpGateway.enable`, which switched the whole
+# module off when the gateway was purged and left a stale portal entry on disk for
+# a day (see the `enable` option below). Gated further at activation on the Desktop
+# support dir existing — no Desktop, no stray file. Desktop reads the file at
+# launch: restart it after a switch that changes the set (the activation prints a
+# reminder only when it did).
 {
   pkgs,
   lib,
@@ -153,10 +158,9 @@ let
       ];
     };
 
-  # ONE entry, the portal, from the one place it is built. Was an attrset of 26
-  # loopback URLs until 2026-09-22; Desktop now reaches every server through the
-  # same Workspace-authenticated door as every other client.
-  # NO FLEET SERVERS AT ALL, and that is the end state rather than a gap.
+  # NO FLEET SERVERS AT ALL, and that is the end state rather than a gap. Was an
+  # attrset of 26 loopback URLs until 2026-09-22, then exactly one portal entry
+  # until 2026-10-02, and now empty.
   #
   # Desktop's only entry was the gateway portal, and the gateway was purged on
   # 2026-10-02 along with its Cloudflare stack. Desktop loads NO PLUGINS, so the
@@ -266,16 +270,21 @@ in
     mcpRemoteVersion = lib.mkOption {
       type = lib.types.str;
       default = "0.14.2";
-      description = "Pinned mcp-remote version used for every gateway shim (npm: mcp-remote).";
+      description = "Pinned mcp-remote version used to shim any `url`-shaped entry into Desktop's stdio-only schema (npm: mcp-remote). Nothing is rendered today, so this is only reached via `extraServers`.";
     };
 
     excludeServers = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ "desktop-commander" ];
       description = ''
-        Names from programs.claude-code.mcpServers NOT to render for Desktop.
-        desktop-commander is excluded because it is installed there as a Desktop
-        Extension already.
+        Server names not to render for Desktop. desktop-commander is the default
+        because it is installed there as a Desktop Extension already.
+
+        CURRENTLY UNCONSUMED: nothing in this module reads this list. It filtered
+        a `programs.claude-code.mcpServers`-derived set that no longer exists, and
+        `gatewayServers` is now empty, so there is nothing to filter. The
+        desktop-commander guarantee is carried by
+        `checks.<system>.claude-desktop-config-shape`, not by this option.
       '';
     };
 
@@ -284,7 +293,9 @@ in
       default = { };
       description = ''
         Additional servers for Desktop only, in the hub shape ({ url } or
-        { command, args, env }). A `url` entry is shimmed like a gateway one.
+        { command, args, env }). A `url` entry is wrapped in the pinned mcp-remote
+        shim, because Desktop's schema accepts stdio only. This is the ONLY way an
+        entry reaches Desktop now — `gatewayServers` is empty.
       '';
     };
 
