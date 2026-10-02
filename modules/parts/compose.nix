@@ -74,8 +74,6 @@ let
     jsonResumeUrl
     logoUrl
     tokensUrl
-    publicMcpServers
-    publicMcpPort
     googleAccount
     ;
 
@@ -148,31 +146,21 @@ let
             # programs.git.signing.allowedSigners so git can verify SSH commit sigs
             # (and the file stays in lockstep with secrets/operator-key.nix).
             operatorSshKey
-            # publicMcpServers: the ONE list of servers published on the public MCP
-            # gateway. The macos gateway hosts exactly this list, and
-            # modules/parts/terranix.nix renders the SAME value into the portal
-            # registrations. terranix renders outside any host's module system, so
-            # it cannot read that option back — threading the fleet value to BOTH
-            # consumers is what stops the two halves drifting into a portal entry
-            # pointing at a server the gateway does not host.
-            publicMcpServers
-            # publicMcpPort: the loopback port that gateway binds, and the port
-            # the tunnel's ingress routes to. It rides HERE, not in identityArgs,
-            # and the distinction is the whole point: identityArgs is what a
-            # consumer OVERRIDES through mkDarwin's `identity`, so anything routed
-            # through it is ABSENT the moment they pass their own. This list is
-            # fleet constants, supplied whatever identity the caller brings.
-            #
-            # It went into identityArgs on 2026-09-16 and broke exactly that way:
-            # a template consumer's documented four-field identity turned
-            # `local.mcpGateway.public = [ … ]` into "attribute 'publicMcpPort'
-            # missing", naming a symbol that appears nowhere in the template, its
-            # README or the option description — and only once they enabled the
-            # feature. Its sibling above was always here; they belong together.
-            publicMcpPort
             # googleAccount: the canonical identity (identity.nix). A FLEET constant,
-            # so it rides here rather than in identityArgs for the reason stated on
-            # publicMcpPort above — a consumer's four-field identity must keep working.
+            # so it rides HERE, not in identityArgs, and the distinction is the whole
+            # point: identityArgs is what a consumer OVERRIDES through mkDarwin's
+            # `identity`, so anything routed through it is ABSENT the moment they pass
+            # their own. This list is fleet constants, supplied whatever identity the
+            # caller brings.
+            #
+            # `publicMcpPort` went into identityArgs on 2026-09-16 and broke exactly
+            # that way: a template consumer's documented four-field identity turned a
+            # gateway option into "attribute 'publicMcpPort' missing", naming a symbol
+            # that appeared nowhere in the template, its README or the option
+            # description — and only once they enabled the feature. That field is gone
+            # with the gateway (2026-10-02), but the trap it proved is not; it is why
+            # `fleet.identityArgs` is a CLOSED submodule (identity.nix).
+            #
             # home.nix derives the gitlab.com include's address from it, so no
             # literal address is left in that file (ADR-004 §7, inventory #3).
             googleAccount

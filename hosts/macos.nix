@@ -321,10 +321,10 @@ in
   # the whole set. Anyone else's address still never belongs here — see the
   # option's description in modules/shared/gmail-mcp.nix.
   #
-  # `publicMcpServers` is a home-manager module arg (extraSpecialArgs,
-  # modules/parts/compose.nix) — NOT this file's own specialArgs — so this
-  # definition must be a function to receive it, matching
-  # modules/shared/home.nix's own signature.
+  # A FUNCTION, not a bare attrset, matching modules/shared/home.nix's own
+  # signature: home-manager passes module args here, and the `_` keeps the door
+  # open for a block below that needs one. (It was `publicMcpServers` until the
+  # gateway was deleted 2026-10-02; nothing reads an arg here today.)
   home-manager.users.${loginName} = _: {
     # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
     # The SAME four accounts, now on the plugin lane instead of the gateway. Launchers
@@ -362,15 +362,6 @@ in
       "apify"
       "postgres"
     ];
-
-    # NO `local.mcpGateway.public` any more. It named which hosted servers to
-    # ALSO run on a second proxy; since 2026-09-22 there is one proxy and every
-    # hosted server is published, so a subset is neither expressible nor wanted.
-    #
-    # `config.fleet.publicMcpServers` still exists and still feeds terranix,
-    # which renders outside any host's module system and cannot read the roster
-    # back. `checks.<system>.mcp-published-parity` asserts the two agree.
-
     # ---- AWS CLI: tool + shape, content stays local (ADR-004 phase 3) -------
     # Until 2026-09-20 this block carried `programs.awscli.settings` with two real
     # account ids and an SSO start-URL id — reconnaissance in a public repo
