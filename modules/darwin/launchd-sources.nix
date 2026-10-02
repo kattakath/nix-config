@@ -50,19 +50,45 @@
 #              upstream's own userLaunchdActivation uses), i.e. a second mechanism,
 #              not a wider filter.
 #
-# So a `selfHeals = false; domain = "gui"` source is covered by NEITHER — true
-# today of the TWO remaining `launchd.user.agents` units, both in the `tart-vms`
-# capsule (`gitlab-runner`, `tart-runner-dontsell-vm`), which has no
-# home-manager lane and whose `runnerStateDir` default reads nix-darwin's
-# `config.system.primaryUserHome`. It was FIVE until 2026-10-02. The fleet's
-# standing remedy is MIGRATION to the home-manager lane, where upstream already
-# owns the probe (metube and yt-dlp-web-ui moved 2026-09-22 for exactly this;
-# `open-maccy` and the two trash sweeps followed on 2026-10-02 into
-# modules/home/macos-user-agents.nix, Labels pinned so BTM state survived, gated
-# by `checks.<system>.launchd-selfheal-lane`; logging.nix's user tick was
-# declared there rather than in `launchd.user.agents` for the same reason, and
-# its header says so). Do not "fix" it by widening the reconciler: that
-# hand-rolls a second re-bootstrap for a lane the fleet is emptying.
+# So a `selfHeals = false; domain = "gui"` source is covered by NEITHER — and as
+# of 2026-10-02 NOTHING composed on `macos` sits there. It was FIVE. metube and
+# yt-dlp-web-ui moved 2026-09-22; `open-maccy` and the two trash sweeps followed
+# into modules/home/macos-user-agents.nix; then the two `tart-vms` CI runner
+# lanes (`gitlab-runner`, `tart-runner-<instance>`) finished the row. Labels were
+# pinned every time, so each unit kept its Background Task Management approval.
+#
+# THE TWO CI LANES WERE NOT THE HARD CASE THEY LOOKED LIKE, and this is the part
+# worth recording: the obstacle was assumed to be that the `tart-vms` capsule has
+# no home-manager lane, so a migration would have to add one. It does not have to.
+# A nix-darwin module can declare straight into
+# `home-manager.users.<primaryUser>.launchd.agents` — ./logging.nix:337 already
+# did exactly that for its own user tick — and for these two that is the only
+# correct shape, because their plists derive from nix-darwin options
+# (`local.tart.runnerStateDir` defaults off `config.system.primaryUserHome`,
+# `environment.systemPackages`, the state-dir mkdir). A second home-manager-class
+# capsule module would have had to re-derive each plist through an internal
+# option, and a consumer importing only the darwin half would have lost every
+# runner SILENTLY. Lane, not layer: what self-heals is the OPTION SURFACE a unit
+# lands on, never which file writes it.
+#
+# `checks.<system>.launchd-selfheal-lane` gates the LANE'S EMPTINESS as its first
+# leg, not just the five Labels — every per-unit leg names a unit, which is how
+# five of them accumulated here unnoticed. A new unit declared on this row now
+# fails the build.
+#
+# The last `launchd.user.agents` text left in the tree is in
+# modules/features/tart-vms/darwin.nix (`local.tart.vms.*`), and it reaches no
+# host: that module lost its only consumer when `macvm` was removed 2026-09-05,
+# and modules/parts/compose.nix inherits only the two runner lanes from the
+# capsule — so `local.tart.vms` is not even a declared option on `macos`. It is
+# the subject of docs/macvm-readd-runbook.md and moves with that re-add.
+#
+# Do not "fix" a future unit here by widening ./launchd-reconcile.nix. Both
+# bullets above say why it cannot work: nix-darwin's own activation is diff-gated
+# in BOTH lanes, so it will not re-load an unchanged plist, and the reconciler's
+# boot half runs before any login, where `gui/<uid>` does not exist at all.
+# Widening the filter hand-rolls a second re-bootstrap for a lane the fleet has
+# already emptied.
 #
 # NOT A MODULE. hosts/macos.nix imports modules/darwin/*.nix by explicit path
 # (flake.nix's import-tree only matches modules/parts/* and
