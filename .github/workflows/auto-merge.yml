@@ -36,9 +36,39 @@ on:
   pull_request:
     types: [opened, reopened, ready_for_review, synchronize]
 
+# ONE arm run per PR at a time, and NONE of them cancelled. `cancel-in-progress`
+# was `true` until 2026-10-02; it is now `false`, and the reason is that cancelling
+# an arm run can only ever LOSE work — it can never save any that matters.
+#
+# Arming is IDEMPOTENT (see the arm step's own note: re-arming an already-armed PR
+# is a no-op). So a superseded run is not redundant compute worth killing — it is a
+# run that might be the one performing the FIRST arm, and arming is server-side
+# state, not per-run state. Kill it and there may be nothing left to re-arm.
+#
+# MEASURED 2026-10-02 on #749, which is what moved this from argument to fact.
+# `gh pr ready` and a push fired 170 ms apart produced:
+#   07:56:58Z  ready_for_review  draft=false  -> arm auto-merge CANCELLED
+#   07:57:01Z  synchronize       draft=false  -> arm auto-merge success
+# The PR did end up armed, because the surviving run armed it. So this is NOT the
+# cause of #683 and must not be recorded as its fix — #683 stays open. What the run
+# proved is that the cancellation is real and that it threw away the run that would
+# otherwise have done the arming. The only thing standing between that and an
+# unarmed PR was a second event happening to arrive.
+#
+# Re-arming on a queued run is safe, verified the same day rather than assumed:
+# #737 was armed at 06:09:27Z and then force-pushed three times; every one of those
+# `synchronize` runs reported `arm auto-merge: success`, and `enabledAt` never moved.
+#
+# REJECTED ALTERNATIVE: keeping `cancel-in-progress: true` and scoping the group per
+# event action (`auto-merge-<pr>-<action>`), so rapid pushes still dedupe while
+# `ready_for_review` and `synchronize` stop cancelling each other. It is more
+# surgical and it was not chosen: the job is a ~20 s token mint plus one idempotent
+# mutation with a 5-minute timeout, so the compute this would reclaim is noise,
+# and it buys that with a group key that has to be reasoned about. A plain `false`
+# has one failure mode fewer.
 concurrency:
   group: auto-merge-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
