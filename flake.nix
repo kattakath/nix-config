@@ -385,17 +385,20 @@
       #
       # PINNED FOR TWO THINGS: `page-lab-pick` runs a plugin script as a fleet CLI
       # (a plugin's own bin/ is on the Bash tool's PATH, NOT a hook's — measured
-      # 2026-09-23 and still true), and it backs `checks.<system>.page-lab`; and,
-      # since the MCP catalog externalization, `modules/shared/mcp.nix`'s
-      # `mcpCatalog` reads this input's `mcp-clients/catalog.mcp.json` (the Nix-agnostic,
-      # standard `.mcp.json`-shaped server list — secrets never leave nix-config,
-      # only env-var NAMES cross this pin). Plugins and skills themselves are
-      # STILL NOT read from here: Claude Code fetches them from the same repo as
-      # an auto-updating git marketplace (modules/shared/home.nix), so a merge
-      # there ships without a bump here. This pin moves with the weekly
-      # update-flake-lock run — which means the MCP catalog is NOT live the
-      # instant it merges in kattakath/skills; it needs this pin bumped first,
-      # same as `page-lab-pick` always has. The `superhook` hooks are the
+      # 2026-09-23 and still true); and `checks.<system>.mcp-launcher-parity` reads
+      # every `plugins/*/.mcp.json` here to join the `nix-mcp-*` launchers this
+      # fleet BUILDS against the servers those plugins NAME — the one assertion
+      # neither repo can make alone (only env-var and Keychain-service NAMES cross
+      # this pin; no value does). `modules/shared/mcp.nix`'s `mcpCatalog` was a
+      # third reason until 2026-10-02 and died with that module.
+      #
+      # Plugins and skills themselves are STILL NOT read from here: Claude Code
+      # fetches them from the same repo as an auto-updating git marketplace
+      # (modules/shared/home.nix), so a merge there ships without a bump here.
+      # This pin moves with the weekly update-flake-lock run — which means a NEW
+      # MCP server merged in kattakath/skills is live in the next session but not
+      # yet visible to the parity gate; it needs this pin bumped first, same as
+      # `page-lab-pick` always has. The `superhook` hooks are the
       # counter-example, and the reason the distinction is worth stating: they
       # arrive through the MARKETPLACE, so a merge there ships them immediately
       # with no bump here (superhook left this pin 2026-09-30).
