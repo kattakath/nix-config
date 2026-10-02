@@ -157,6 +157,10 @@ in
         local-rag-module = checks.module-evaluates;
         local-rag-inert = checks.inert;
         local-rag-extra-dbs = checks.extra-databases;
+        # Pins the four properties nix-darwin's `services.postgresql` would move if
+        # someone adopted it for the daemon half — see ./pgvector-local.nix's
+        # UPSTREAM FIRST header and docs/local-rag-upstream-postgres-evidence.md.
+        local-rag-upstream-seam = checks.upstream-postgresql-seam;
       };
     };
 }
