@@ -1,11 +1,12 @@
 # infra/cloudflare/access-org.nix — the Zero Trust ORGANISATION, and its login page.
 #
-# WHY THIS IS ITS OWN STACK, and not a few lines added to mcp-public.nix:
+# WHY THIS IS ITS OWN STACK, and not a few lines bolted onto another:
 # a stack is a blast radius, not a category (ADR-005 §4). This object sits ABOVE
-# both Cloudflare stacks — `auth_domain` is the sign-in host for EVERY Access
-# application in the account, so breaking it takes out nixpi's SSH gate and the
-# MCP portal in the same apply. It shares no failure mode with a tunnel or with a
-# DNS record, and it must not ride in a plan whose other half is either of those.
+# every other Cloudflare stack — `auth_domain` is the sign-in host for EVERY Access
+# application in the account, so breaking it takes out nixpi's SSH gate in the same
+# apply (and took the MCP portal with it, until that stack was deleted 2026-10-02).
+# It shares no failure mode with a tunnel or with a DNS record, and it must not
+# ride in a plan whose other half is either of those.
 #
 # WHAT IT IS FOR, concretely: the login page's branding. That page is the only
 # surface in the whole connector flow that carries the operator's mark — Claude
