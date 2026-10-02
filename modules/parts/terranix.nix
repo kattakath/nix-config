@@ -69,6 +69,27 @@ let
             inherit domainName hostedSites;
             accountId = cloudflareAccountId;
             zoneId = cloudflareZoneId;
+            # The operator's Workspace account, as the DELIVERY ADDRESS for this
+            # stack's incoming `cloudflare_notification_policy`
+            # (alert_type = "tunnel_health_event"). A notification policy carries
+            # its recipients inline, so the address has to reach the render.
+            #
+            # `config.fleet.googleAccount` is the fleet's CANONICAL identity
+            # (docs/identity-and-offboarding.md) and is deliberately NOT one of the
+            # four `identityArgs`. REJECTED: an email literal in nixpi-tunnel.nix —
+            # that is a second copy of an identity this repo already holds once
+            # (the duplication this repo treats as a bug) and it would put that
+            # identity in a public repo.
+            #
+            # NOT A NEW NAME: `gcpFoundationConfig` below already threads
+            # `operatorAccount = googleAccount` into infra/gcp/foundation.nix,
+            # which takes it under exactly that name — so the five stacks keep ONE
+            # spelling for one value rather than two.
+            #
+            # ORDER IS DELIBERATE: the argument lands BEFORE its consumer exists.
+            # Module args are lazy, so an entry nothing reads is inert; the reverse
+            # order (a consumer for an argument that is not threaded) fails eval.
+            operatorAccount = googleAccount;
           };
         }
       ];
@@ -114,16 +135,35 @@ let
         pkgs.gnugrep
         pkgs.gnused
       ];
+      # SIX scopes, not four. The list below used to name only the Tunnel + three
+      # Zone groups, which has been WRONG since #737 gave this stack
+      # `cloudflare_zero_trust_access_application.nixpi_ssh` AND
+      # `…_access_policy.nixpi_ssh_operator`: a token holding only those four 403s
+      # on the policy, measured 2026-10-02 and recorded verbatim in
+      # mkCfTunnelImport below. An error message that under-states the scopes sends
+      # the operator at a 403 it already knows about, so it is a defect, not prose.
+      #
+      # PROVENANCE OF THE TWO NEW NAMES, separated from the measurement: the 403
+      # proves an Access scope is NEEDED; it does not spell the permission group.
+      # Both names are read off Cloudflare's own permission registry
+      # (developers.cloudflare.com/fundamentals/api/reference/permissions/, read
+      # 2026-10-02): "Access: Apps and Policies Edit" and "Notifications Edit",
+      # both account-scoped. Neither has been exercised with a re-scoped token yet.
       text = ''
         if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
           echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
           echo "  Use the least-privilege token, not the broad one:" >&2
           echo "    secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:nixpi-tunnel -- ${name}" >&2
-          echo "  Its scopes (verified minimal for this stack):" >&2
+          echo "  Its scopes (SIX — the two Account ones below are easy to miss):" >&2
           echo "    Account > Cloudflare Tunnel:Edit          (Personal account only)" >&2
+          echo "    Account > Access: Apps and Policies:Edit  the SSH gate + its policy (#737)" >&2
+          echo "    Account > Notifications:Edit              the tunnel-health alert policy" >&2
           echo "    Zone    > DNS:Edit                       on ${domainName} + every hosted site zone" >&2
           echo "    Zone    > Zone Settings:Edit             on the same zones" >&2
           echo "    Zone    > Dynamic URL Redirects:Edit     on the same zones (www->apex rulesets)" >&2
+          echo "  Without the Access group this stack 403s on the POLICY, not on the" >&2
+          echo "  tunnel — the token reads the tunnel token data source fine first." >&2
+          echo "  See cf-tunnel-import for the measured request and response." >&2
           exit 1
         fi
         # DURABLE STATE DIR — the root cause of losing state twice was running
@@ -1205,8 +1245,11 @@ in
       # (destroy). Provisions nixpi's remotely-managed tunnel + ingress +
       # proxied CNAME; cf-tunnel-apply additionally PRINTS the connector token to
       # be stored in the vault (`nix run .#nixpi-vault-token`) and planted on the
-      # FIRMWARE partition (never written to git/store). Token scope: Account
-      # Cloudflare Tunnel:Edit + Zone DNS:Edit on kattakath.com.
+      # FIRMWARE partition (never written to git/store). The token's scopes are
+      # enumerated in ONE place — mkCfTunnelTofu's unset-token message above. This
+      # comment carried a second, shorter copy ("Account Cloudflare Tunnel:Edit +
+      # Zone DNS:Edit") which was already missing four of the six; a pointer cannot
+      # rot out of step with the thing it points at.
       #
       # All need a live token in the environment, e.g.
       #   CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-tunnel-apply
