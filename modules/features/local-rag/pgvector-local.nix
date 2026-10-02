@@ -23,6 +23,62 @@
 # on you: point your own Postgres-backed tool (MCP server, script, whatever)
 # at it. See README.md "Security model" + "Install" for the shape.
 #
+# UPSTREAM FIRST (.claude/rules/upstream-first.md) — THE DAEMON IS HAND-ROLLED ON
+# PURPOSE. This is the citation that rule demands and that this header lacked.
+#
+#   ✅ upstream option nix-darwin `services.postgresql` EXISTS — pinned nix-darwin
+#      modules/services/postgresql/default.nix:41-275 — → NOT using it. Four
+#      measured reasons, each one a SILENT regression rather than a style call:
+#
+#   1. IT RENDERS INTO THE LANE THE FLEET IS EMPTYING. Upstream emits
+#      `launchd.user.agents.postgresql` (:335). modules/darwin/launchd-sources.nix
+#      records that source as `selfHeals = false; domain = "gui"` — reached by
+#      NEITHER home-manager's `launchctl print` probe NOR launchd-reconcile.nix
+#      (root, system-domain only). The home-manager `launchd.agents` lane this
+#      module uses is `selfHeals = true`. metube and yt-dlp-web-ui moved the OTHER
+#      way on 2026-09-22 for exactly this reason; adopting upstream walks a live
+#      database service back into the unsupervised lane.
+#   2. arg0 WOULD BECOME `/bin/sh`. nix-darwin's `script` renders
+#      `ProgramArguments = [ "/bin/sh" "-c" … ]` (modules/launchd/default.nix:88-93)
+#      — the .claude/rules/launchd-naming.md violation, and the measured TCC
+#      attribution failure modules/shared/launchd-launcher.nix exists to prevent.
+#      That launcher types `options.launchd.agents` only, so it cannot reach
+#      nix-darwin's lane: the wrap is not merely absent there, it is unreachable.
+#   3. THE BOOTSTRAP HAS NO UPSTREAM HOME — the options exist and DO NOTHING.
+#      `initialScript`, `ensureDatabases` and `ensureUsers` are declared (:118-198)
+#      and inert; upstream warns, in its own words, "Currently nix-darwin does not
+#      support postgresql initialScript, ensureDatabases, or ensureUsers"
+#      (:288-295), because they "require some sort of postStart facility, which
+#      launchd does not provide" (:283-287). So the role/db/extension/`embed()`
+#      bootstrap below stays custom whatever happens to the daemon half — which is
+#      why a PARTIAL adoption buys nothing and costs 1, 2 and 4.
+#   4. THE NO-SECRET MODEL WOULD INVERT. `superUser` is `internal` + `readOnly` =
+#      "postgres" (:265-274) and upstream runs `initdb -U ${cfg.superUser}` (:345),
+#      so the macOS login user stops being the socket superuser and the
+#      password-free `peer` admin path described above breaks outright.
+#      `authentication` IS `mkAfter` (:318), so repo rules would prepend cleanly —
+#      but the tail it appends is `host all all 127.0.0.1/32 md5` (:322): EVERY
+#      database for EVERY role over TCP. Suppressing that needs `mkForce`, which
+#      discards the `mkAfter` benefit that made the option attractive.
+#
+#   DESTRUCTIVE, had it shipped: `dataDir` defaults to
+#   `/var/lib/postgresql/${psqlSchema}` (:316), not this module's `$HOME` path, and
+#   upstream initdb's a FRESH cluster whenever `$dataDir/PG_VERSION` is absent
+#   (:340-350) after `rm -f $dataDir/*.conf` (:342). Adopting it without pinning
+#   `dataDir` leaves the live `ragdb` on disk but invisible — a total loss from
+#   every consumer's point of view, with a green build. ./checks/module-evaluations.nix
+#   pins all four properties so the swap fails a check instead of a query.
+#
+#   WHAT IS REUSED, so this is partial reuse and not a rejection of upstream:
+#   `pkgs.postgresql_16.withPackages` for pgvector + pgsql-http — the same
+#   mechanism upstream's own `extraPlugins` uses (:10-12) — and home-manager's
+#   `services.ollama` for the embed host/port (see `ollama` below).
+#
+#   RETIRE THIS WRAPPER WHEN nix-darwin grows the postStart facility its own FIXME
+#   asks for (:283) AND renders into a self-healing or reconciled lane rather than
+#   `launchd.user.agents`. Full record, with the rejected alternatives:
+#   docs/local-rag-upstream-postgres-evidence.md
+#
 # BOOTSTRAP: the run-wrapper initdb's the data dir on first launch, writes a
 # locked-down pg_hba.conf every launch (idempotent), and — once, guarded by a
 # sentinel that also tracks the bootstrap SQL's content — creates the `role` +
