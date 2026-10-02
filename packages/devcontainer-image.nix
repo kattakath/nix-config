@@ -95,7 +95,7 @@ let
   # hosts never drift — and so the NEXT foreign binary that needs zlib/openssl/
   # libGL just works with no image change. This is the ONE place the set grows,
   # instead of a per-soname shim added after each breakage.
-  nixLdLibraries = import ../modules/shared/nix-ld-libraries.nix pkgs;
+  nixLdLibraries = import ../lib/nix-ld-libraries.nix pkgs;
   nixLdLibraryPath = lib.makeLibraryPath nixLdLibraries;
 
   # Real `vscode` user only. fakeNss yields a READ-ONLY /etc/passwd — hence
@@ -257,7 +257,7 @@ dockerTools.streamLayeredImage {
     # failure class — sound for a daemon serving TRUSTED clients (trusted-users).
     # trusted-users lets vscode add substituters / import paths interactively.
     # The Cachix key is public-read (verification key, mirrored in
-    # modules/shared/nix-cache.nix) — no token baked in.
+    # modules/nixos/nix-cache.nix) — no token baked in.
     mkdir -p etc/nix
     cat > etc/nix/nix.conf <<'NIXCONF'
     experimental-features = nix-command flakes
@@ -304,7 +304,7 @@ dockerTools.streamLayeredImage {
       # Server's node, prebuilt language servers): the /lib*/ld-linux-*.so.*
       # symlink (fakeRootCommands) lets the kernel EXEC them; these vars let the
       # loader FIND their shared libs. Baking the broad SHARED library set — the
-      # same one the NixOS hosts use (modules/shared/nix-ld-libraries.nix) — means
+      # same one the NixOS hosts use (lib/nix-ld-libraries.nix) — means
       # the next foreign binary needing zlib/openssl/libGL runs with no image
       # change, ending the per-soname whack-a-mole. LD_LIBRARY_PATH mirrors
       # NIX_LD_LIBRARY_PATH because we symlink the standard loader straight to
