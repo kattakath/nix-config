@@ -82,7 +82,11 @@ activate                                     # Activate macos, from ANY director
                                              #   That planted link is a STRING path to the MAIN checkout, so `activate` always
                                              #   builds THAT tree's CURRENT branch — never a .claude/worktrees/* one, and never
                                              #   `main` by default. From a worktree session READ the branch@rev it prints: work
-                                             #   already merged is ABSENT until the main checkout holds it. But absence of a
+                                             #   already merged is ABSENT until the main checkout holds it: MERGING IS STEP 1 OF
+                                             #   2 — `git -C <main checkout> merge --ff-only origin/main` BEFORE `activate`, or
+                                             #   you rebuild the same generation and the fix reads as failed (70 min on #725,
+                                             #   3 activations on #732). The TELL is a MISSING `Activating <name>` line, so DIFF
+                                             #   the step list rather than scanning for errors. But absence of a
                                              #   plugin or skill is NOT by itself evidence of a stale tree: activation installs
                                              #   only STORE-PATH marketplaces, and an https marketplace's plugins arrive at the
                                              #   NEXT session start. Only a MISSING `extraKnownMarketplaces` entry in
@@ -175,11 +179,9 @@ One line per path; the *why* and the per-file specifics are in
 
 **Gone on purpose — do not re-add.** No `plugins/` or `skills/` tree: both live in
 `github:kattakath/skills`, installed as an **auto-updating git marketplace** (a merge there
-ships, no pin bump here) and pinned as `kattakath-skills` for the `page-lab-pick` PATH
-package and (since the MCP catalog externalization)
-`modules/shared/mcp.nix`'s `mcpCatalog` — that one input use DOES need this pin bumped, same
-as the PATH package always has; **zero userscripts** (published to Greasy
-Fork, so an installed copy self-updates). Why:
+ships, no pin bump here) and pinned as `kattakath-skills` for the `page-lab-pick` PATH package,
+which DOES need this pin bumped; **zero userscripts** (published to Greasy Fork, so an installed
+copy self-updates). Why:
 [`docs/agent-resource-externalization.md`](docs/agent-resource-externalization.md).
 
 **Commands** (`.claude/commands/`): `/eval`, `/hygiene`, `/update-input`,
@@ -221,13 +223,13 @@ wrong in EVERY repo sits in two wider tiers: user-scope `permissions.deny` in
 keys) — a managed deny cannot be retracted by any lower scope. Deny lists from every scope
 COMBINE, so that duplication is deliberate, not drift.
 
-**MCP servers — TWO permanent lanes, by ownership.** ONE `mcp-proxy` gateway
-(`modules/shared/mcp.nix`, darwin-only) on `127.0.0.1:<publicMcpPort>` hosts every server with
-**no plugin owner**; no per-client stdio ones. Clients declare ONE connector — the portal at
-`https://mcp.<domainName>/mcp` — not a server list; `checks.*.mcp-published-parity` holds
-hosted == `fleet.publicMcpServers`. No project `.mcp.json`. **Claude Code ALSO loads an enabled
-plugin's MCP servers; Claude Desktop does NOT** — it sees only the portal, so a plugin-owned
-server never reaches it. Lanes, inventory, counts: [`docs/mcp-gateway.md`](docs/mcp-gateway.md).
+**MCP servers — PLUGIN-LOCAL ONLY; the gateway and portal are GONE (2026-10-02).** No shared
+proxy here, no `mcp.<domainName>/mcp`, Cloudflare stack destroyed. `mcp.nix` and
+`infra/cloudflare/mcp-public.nix` are DEAD CODE pending deletion — do not read them as live.
+Servers come from an enabled plugin's `.mcp.json`; a launcher needing a Keychain read is a PATH
+package (`local.gmailMcp`). **Claude Desktop loads no plugins, so it has NO MCP servers** — an
+empty block, asserted by `checks.*.claude-desktop-config-shape`.
+[`docs/mcp-gateway.md`](docs/mcp-gateway.md).
 
 ## Code Style & Conventions
 
