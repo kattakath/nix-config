@@ -150,6 +150,12 @@ Worked both ways:
 - `modules/features/media-cli/packages/media-queue.nix` is the queue *for* the media CLIs. With
   `local.mediaCli.enable = false` it has nothing to queue. Capsule-owned.
 
+**This half is already stated, and this ADR builds on it rather than restating it.**
+`README.md:174` (#761) carries the *labels*: *"`packages/` Nix-built artifacts with no capsule
+owner … A capsule's own packages live under `modules/features/<name>/packages/`"*. What the
+README cannot carry, and what the rule above adds, is the **test** for deciding which of those
+two a new file is — plus the precedent that the two-form split is upstream's own.
+
 **Why this is not a wart.** It is the one shape the upstream spec names:
 numtide/blueprint's folder-structure reference writes the packages contract as a single line,
 `packages/<pname>(.nix|/default.nix)` — a flat `.nix` and a directory-with-`default.nix` are
@@ -219,6 +225,8 @@ This is the section to read before moving a file.
 | No hardcoded `/Users/<name>` in a Nix *value* | `ast-grep/rules/nix-hardcoded-home-path.yml` | **BUILD FAILS** |
 | Every `docs/*.md` is named in an index | `checks.<system>.docs-indexed` (`grep -F`, not `lib.hasInfix` — see its own header) | **BUILD FAILS** |
 | Every `hosts/*.nix` is named in an index | `checks.<system>.hosts-documented` | **BUILD FAILS** |
+| `templates/default/` is **that** path, not some other name | `checks.<system>.template-consumer` — since #765 it literally does `import ../../templates/default/flake.nix` (`modules/parts/checks.nix:459`) and builds with the template's own arguments. Before #765 it re-implemented the identity as a four-field literal and read nothing out of `templates/` at all | **BUILD FAILS** |
+| `bootstrap.sh` and `scripts/drv-snapshot.sh` stay shellcheck-clean | `checks.<system>.bootstrap-lint` (`:122`) and `drv-snapshot-lint` (`:978`, added by #763) | **BUILD FAILS** |
 | **`modules/parts/` may reach anywhere** | nothing — it is the licensed exception, named in both rules' `files:` comments | n/a |
 | **`modules/darwin/` vs `modules/nixos/` vs `modules/shared/`** | **nothing. Convention only.** | a misfiled module is caught by eval only if the option does not exist in that class |
 | **`packages/` vs a capsule's `packages/`** | **nothing. Convention only.** | silently fine either way |
@@ -259,9 +267,9 @@ the right class for justifying a *layout*, which no pinned input can validate.
 | `modules/` split many ways (`darwin`, `nixos`, `shared`, `parts`, `features`) | same file, § `modules/` | *"Where the type can be any folder name."* — heading quoted below |
 | `modules/{darwin,nixos,home}` as the names | same section | the three types it maps to outputs: *"darwin" → `darwinModules`, "home" → `homeModules`, "nixos" → `nixosModules`* |
 | one module tree per *class*, home-manager separate | `ryan4yin/nix-config` root tree | top-level `modules/` **and** `home/` as sibling trees; its own `AGENTS.md`: *"`modules/` contains system modules; `home/` contains Home Manager modules"* |
-| `templates/default/` | blueprint, § `templates/` | `templates/<name>/` … *"If no name is passed, it will look for the `default` folder."* |
+| `templates/default/` | blueprint, § `templates/` — **and, since #765, build-enforced here too** (§6) | `templates/<name>/` … *"If no name is passed, it will look for the `default` folder."* |
 | `claude/` (shipped to `$HOME`) vs `.claude/` (configures sessions here) | `ryan4yin/nix-config` root tree, verified entry-by-entry | `tree agents` **and** `tree .agents` **and** `blob AGENTS.md`, all three at root — letter-for-letter the same three-way split, down to its `AGENTS.md` saying *"Keep repository guidance here; reusable global rules live in `agents/AGENTS.md`"* |
-| `sgconfig.yml` at the repo root, rules under `ast-grep/` | the file's own header | *"Paths are relative to THIS file, which is why it must stay at the repo root"* — `ruleDirs: ./ast-grep/rules`. Mechanically required, not a style choice |
+| `sgconfig.yml` at the repo root, rules under `ast-grep/` | the file's own header, and `README.md:179` (#761) | *"Paths are relative to THIS file, which is why it must stay at the repo root"* — `ruleDirs: ./ast-grep/rules`; the README states the same mechanism from the tool's side, *"ast-grep finds it by walking UP from the working directory"*. Mechanically required, not a style choice |
 
 The two headings the first two rows point at, verbatim from blueprint's
 `docs/content/getting-started/folder_structure.md` — pipes and all, which is why they are quoted
@@ -327,6 +335,15 @@ Blueprint's contract is `packages/<pname>(.nix|/default.nix)`. Two entries break
 |---|---|
 | `packages/next-right-thing/` | **six shell scripts, no `default.nix`** — not a package, and not a flake output either: zero references in `modules/parts/packages.nix`. It is a *source tree*, read as `scriptDir = ../../packages/next-right-thing;` by `modules/shared/next-right-thing.nix:28`, which assembles the real derivation itself with `runCommand` |
 | `packages/fleet-mark.svg` | a bare asset at the directory root, `builtins.readFile`-d by a sibling (`packages/spotlight-launchers.nix:115`) |
+
+**Corroborated independently the same day.** #763's own census of tracked `.sh` files — run for a
+different reason, to fix a false claim in `bootstrap-lint`'s header — counted **15** tracked
+`.sh`, of which **two** are `readFile`'d into a `writeShellApplication` and therefore shellchecked
+by building it (`packages/design-tokens/build.sh`, `packages/email-signature/signature.sh` — i.e.
+exactly the two `packages/` directories that *do* have a `default.nix`), and **thirteen** are
+unwrapped. **Six of those thirteen are `packages/next-right-thing/{run,decide,render,art,probe,gather}.sh`**
+— a second measurement, from a different question, landing on the same finding: that directory
+holds loose scripts, not a package.
 
 This is the **weakest part of the layout**: the one directory whose name asserts a type contains
 two entries that fail it, and nothing checks. A reader who infers "everything in `packages/` is a
