@@ -267,8 +267,8 @@ The two headings the first two rows point at, verbatim from blueprint's
 here rather than inside a table cell:
 
 ```
-### `package.nix`, `formatter.nix`, `packages/<pname>(.nix|/default.nix)`
-### `modules/<type>/(<name>|<name>.nix)`
+packages/   heading:  `package.nix`, `formatter.nix`, `packages/<pname>(.nix|/default.nix)`
+modules/    heading:  `modules/<type>/(<name>|<name>.nix)`
 ```
 
 Two genuinely local inventions, named as such rather than claimed as precedent:
