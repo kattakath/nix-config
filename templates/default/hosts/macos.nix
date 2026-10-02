@@ -2,7 +2,7 @@
 # (which mkDarwin imports via `hostname = "macos"`). Same module system:
 # anything set here MERGES with the engine profile; use lib.mkForce to replace
 # an engine value outright.
-{ lib, loginName, ... }:
+{ loginName, ... }:
 {
   # No runner kill-switch is needed: `hostname = "generic-darwin"` never imports the
   # engine's runner module, so `local.macosGithubRunner` does not even exist here.
@@ -12,7 +12,6 @@
   # The engine profile's Gmail-MCP accounts belong to its operator, not you —
   # leaving them in would spawn OAuth prompts for accounts you don't own.
   home-manager.users.${loginName} = {
-    local.mcpGateway.gmail.accounts = lib.mkForce [ ];
 
     # ---- Cloud CLIs and secrets recovery — both OFF until you flip them ---------
     # `local.cloudCli.aws.enable` installs the AWS CLI + aws-sso-util and writes
