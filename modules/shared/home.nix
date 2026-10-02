@@ -381,6 +381,11 @@ in
     # state the two NixOS hosts are in.
     mediaCliModule
     ./mcp.nix # darwin-gated MCP server registry for Claude Code
+    # Per-account Gmail MCP launchers on PATH for the PLUGIN lane. Separate from
+    # mcp.nix on purpose: that file is the purged gateway and is going away, while
+    # this capability survives it. See the module header for why the launcher
+    # cannot live in the plugin repo (a Keychain read).
+    ./gmail-mcp.nix
     # Client side D: the SAME servers rendered into Claude Desktop's stateful
     # claude_desktop_config.json (stdio shims over the gateway; merge one key).
     # Reaches Cowork through Desktop's device bridge. Gated on the gateway.
