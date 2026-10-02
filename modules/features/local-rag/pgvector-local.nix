@@ -396,6 +396,28 @@ in
       # `isMacosHost` — turning it off on the Mac would break the job.
       home.packages = [ pgPkg ];
 
+      # THE SHELL-FACING HALF OF THE SAME SEAM. `databaseUri` already reaches
+      # the `postgres` MCP server as DATABASE_URI (modules/home/plugin-mcp.nix),
+      # but a plain SHELL consumer cannot read a Nix option. A private
+      # downstream repo's evidence script guards on
+      # `: "${RAGDB_URI:?…}"` and then runs `psql "$RAGDB_URI"`, and with the
+      # variable declared nowhere that guard did not fail LOUDLY — it got routed
+      # around. Measured 2026-10-02: three separate agent sessions each hit the
+      # missing variable and independently queried the `postgres` MCP directly
+      # instead, so the evidence gate existed on paper only.
+      #
+      # SAFE TO EXPORT — stated here so nobody later "hardens" it into a
+      # password file: this URI carries NO secret. `role` is scoped to exactly
+      # one database over 127.0.0.1 under `trust` auth (this file's header, and
+      # README.md § Security model). That is the whole reason it may live in a
+      # session variable at all.
+      #
+      # GATED BY CONSTRUCTION: it rides this `cfg.enable && isDarwin` block, so a
+      # disabled feature leaves RAGDB_URI UNSET rather than pointing at a dead
+      # cluster. Set-but-wrong is strictly worse than absent — the `:?` guard
+      # would pass and `psql` would then fail obscurely.
+      home.sessionVariables.RAGDB_URI = cfg.databaseUri;
+
       launchd.agents.postgres-pgvector = {
         enable = true;
         config = {
