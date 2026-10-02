@@ -380,7 +380,6 @@ in
     # asserts that an unset `enable` contributes nothing at all, which is the
     # state the two NixOS hosts are in.
     mediaCliModule
-    ./mcp.nix # darwin-gated MCP server registry for Claude Code
     # Per-account Gmail MCP launchers on PATH for the PLUGIN lane. Separate from
     # mcp.nix on purpose: that file is the purged gateway and is going away, while
     # this capability survives it. See the module header for why the launcher
@@ -1030,22 +1029,6 @@ in
   home.file."Applications/Android Emulator.app" = lib.mkIf isMacosHost {
     source = spotlightLaunchers.androidEmulatorApp;
     recursive = true;
-  };
-
-  local.mcpGateway = lib.mkIf isMacosHost {
-    # Telegram OFF since 2026-09-22, and the architecture is what turned it off.
-    #
-    # Its `initialize` advertises the `prompts` and `resources` capabilities and
-    # then answers both with `-32000 failed to unmarshal arguments`, so the portal
-    # marks the registration `error` and discovers 0 of its 5 tools. That was
-    # survivable while clients also had a loopback path — Claude Code kept the
-    # tools even though the portal did not.
-    #
-    # With every client going through the portal, "hosted but unpublished" means
-    # nothing can reach it at all, so hosting it costs a process and buys zero
-    # tools. Re-enable when chaindead/telegram-mcp either implements those methods
-    # or stops advertising them.
-    telegram.enable = false;
   };
 
   # Make Home-Manager-installed font packages discoverable by applications —
