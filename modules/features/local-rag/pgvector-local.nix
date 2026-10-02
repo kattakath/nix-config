@@ -18,10 +18,12 @@
 #     has no rights anywhere else, so a consumer's blast radius is exactly
 #     that one database.
 # The connection URI therefore carries no secret and is safe to emit into the
-# store; it is exposed read-only as `local.rag.pgvector.databaseUri`. This
-# module does NOT wire that URI into any MCP server or client itself — that's
-# on you: point your own Postgres-backed tool (MCP server, script, whatever)
-# at it. See README.md "Security model" + "Install" for the shape.
+# store; it is exposed read-only as `local.rag.pgvector.databaseUri`, which has
+# TWO consumers: modules/home/plugin-mcp.nix hands it to the `postgres` MCP
+# launcher as DATABASE_URI, and this module exports it as the RAGDB_URI session
+# variable for shell consumers (#796, see that block below). It wires no MCP
+# SERVER or client of its own — point any further Postgres-backed tool at the
+# option. See README.md "Security model" + "Install" for the shape.
 #
 # UPSTREAM FIRST (.claude/rules/upstream-first.md) — THE DAEMON IS HAND-ROLLED ON
 # PURPOSE. This is the citation that rule demands and that this header lacked.
@@ -74,9 +76,13 @@
 #   mechanism upstream's own `extraPlugins` uses (:10-12) — and home-manager's
 #   `services.ollama` for the embed host/port (see `ollama` below).
 #
-#   RETIRE THIS WRAPPER WHEN nix-darwin grows the postStart facility its own FIXME
-#   asks for (:283) AND renders into a self-healing or reconciled lane rather than
-#   `launchd.user.agents`. Full record, with the rejected alternatives:
+#   RETIRE THIS WRAPPER WHEN nix-darwin grows the postStart facility its own FIXMEs
+#   ask for — there are TWO, and both must go: the rationale one at :283 ("I didn't
+#   implement these because they require some sort of postStart facility, which
+#   launchd does not provide") and the call site at :348 ("FIXME: implement
+#   postStart"), beside the commented-out `touch "${cfg.dataDir}/.first_startup"`
+#   that a postStart would consume — AND renders into a self-healing or reconciled
+#   lane rather than `launchd.user.agents`. Full record, with the rejected alternatives:
 #   docs/local-rag-upstream-postgres-evidence.md
 #
 # BOOTSTRAP: the run-wrapper initdb's the data dir on first launch, writes a
@@ -211,9 +217,13 @@ in
       default = "postgresql://${cfg.role}@127.0.0.1:${toString cfg.port}/${cfg.db}";
       description = ''
         Loopback pgvector connection URI. The role is scoped to a single
-        database (no secret, trust auth on 127.0.0.1). Wire this into your
-        OWN Postgres-backed consumer (e.g. an MCP `postgres` server's
-        DATABASE_URI) — this module does not do that wiring for you.
+        database (no secret, trust auth on 127.0.0.1).
+
+        TWO consumers read it today, so this is a live seam and not just an
+        output: the `plugin-mcp` home module passes it to the `postgres` MCP
+        launcher as `DATABASE_URI`, and this module itself exports it as the
+        `RAGDB_URI` session variable for shell consumers (#796). Any further
+        Postgres-backed consumer of your own wires itself up from here.
       '';
     };
   };
