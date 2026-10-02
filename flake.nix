@@ -256,7 +256,8 @@
     # this diff.
     #
     # `local.rag.pgvector.databaseUri` — the seam modules/home/plugin-mcp.nix
-    # hands its `postgres` MCP launcher as `DATABASE_URI`, i.e. the whole career
+    # hands its `postgres` MCP launcher as `DATABASE_URI`, and that the capsule
+    # also exports as the RAGDB_URI session variable, i.e. the whole career
     # RAG — is unchanged and pinned as a literal by the capsule's own check.)
 
     mcp-servers-nix.url = "github:natsukium/mcp-servers-nix";
