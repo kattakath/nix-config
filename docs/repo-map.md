@@ -17,6 +17,77 @@ lane rules and spawn-test measurements that outlived it) and
 > `.mcp.json`, spawned per session, nothing shared** — see § MCP after the gateway for the
 > replacement and for what the teardown measured.
 
+## Contents
+
+Fifteen content sections, every sub-heading of every one of them listed. **`modules/` is by
+far the largest** — on its own it is over two fifths of this file, which is why its six
+sub-headings are spelled out here rather than left to a scroll.
+
+Deliberately no line numbers or byte shares: this file is edited often enough that any such
+figure would be wrong before it was useful, and nothing gates it. Hand-maintained on purpose
+too — a generated table of contents rots silently and adds a second thing to keep in sync,
+which is the opposite of what `CLAUDE.md` § Documentation is for. If you add a section, add
+its line here.
+
+- [The fleet](#the-fleet) — the four targets in one list. **Start here.**
+- [Entry points](#entry-points) — the root files, each its own sub-section:
+  [`flake.nix`](#flakenix) · [`flake.lock`](#flakelock) · [`treefmt.nix`](#treefmtnix) ·
+  [`sgconfig.yml` + `ast-grep/`](#sgconfigyml--ast-grep) ·
+  [`deploy.nodes`](#deploynodes--deploy-rs-remote-activation-magic-rollback) ·
+  [devShell](#devshell) · [`secrets/secrets.nix`](#secretssecretsnix)
+- [`hosts/`](#hosts--per-host-entry-profiles) — per-host entry profiles, including the two
+  identity-free `generic-*` ones the templates build on.
+- [`modules/`](#modules--reusable-modules-split-by-platform) — **the big one.** Split by
+  platform, and the two "not in" sub-sections are the ones people miss:
+  - [`modules/home/`](#moduleshome) — the Home Manager profile on every host
+  - [Home-Manager modules NOT in `modules/home/`](#home-manager-modules-that-are-not-in-moduleshome)
+  - [`modules/darwin/`](#modulesdarwin) — macOS system scope
+  - [`modules/nixos/`](#modulesnixos) — `nixpi` and `nixvm` system scope
+  - [NixOS modules NOT in `modules/nixos/`](#nixos-modules-that-are-not-in-modulesnixos)
+  - [Web serving on `nixpi`](#web-serving-on-nixpi)
+- [`modules/parts/`](#modulesparts--the-flake-engine) — the flake engine, one module per
+  concern, discovered by `import-tree`.
+- [`modules/features/`](#modulesfeatures--the-seven-capsules) — the seven capsules. Read
+  [the boundary is mechanical](#the-boundary-is-mechanical-not-a-convention) and
+  [the only entry + three seams out](#flake-modulenix-is-the-only-entry-and-there-are-three-seams-out)
+  before touching any of them; then
+  [`cloudflared-connector`](#cloudflared-connector-wave-3-241-lines) ·
+  [`firmware-secrets`](#firmware-secrets-wave-4-363-lines) ·
+  [`keychain-secrets`](#keychain-secrets-wave-4-1336-lines) ·
+  [`tart-vms`](#tart-vms-wave-5-3255-lines--the-most-live-surface) ·
+  [`media-cli`](#media-cli-wave-5-4559-lines--the-largest-with-the-narrowest-live-surface) ·
+  [`local-rag`](#local-rag-wave-6-473-lines--the-last-satellite) ·
+  [`cloud-cli`](#cloud-cli-born-in-tree-2026-09-20--the-one-capsule-that-was-never-a-satellite)
+- [`modules/_lib/`](#modules_lib--shared-data-not-modules) — shared **data**, not modules.
+- [`packages/`](#packages) — flake apps and packages, including `activate` and the
+  `nixpi-*` provisioning CLIs.
+- [Userscripts — REMOVED](#userscripts--removed-from-the-fleet-entirely-2026-09-14-commit-535f1ef)
+  — kept as a record of why there is no `userscripts/` tree to look for.
+- [`infra/`](#infra--terranix-nix--opentofuterraform-json) — the five terranix stacks:
+  [zones + DNS](#infracloudflarezonesnix--infracloudflarekattakath-dnsnix) ·
+  [`access-org`](#infracloudflareaccess-orgnix) ·
+  [`gcp/foundation`](#infragcpfoundationnix) · [`gcp/budget`](#infragcpbudgetnix) ·
+  [`nixpi-tunnel`](#infracloudflarenixpi-tunnelnix) · and
+  [the `mcp-public` teardown](#the-mcp-public-teardown--deleted-2026-10-02-and-the-one-object-that-refused-to-die)
+- [Building `aarch64-linux` on the Mac, and deploying `nixpi`](#building-aarch64-linux-on-the-mac-and-deploying-nixpi)
+  — [the native Linux builder](#the-native-linux-builder) and its two traps, plus
+  [what magic rollback actually buys](#what-magic-rollback-actually-buys). **Read before any
+  `nixpi` deploy.**
+- [Claude Code surface](#claude-code-surface) — second largest:
+  [MCP after the gateway](#mcp-after-the-gateway--the-plugin-lane-is-the-only-lane-2026-10-02)
+  (**read first — it supersedes every older MCP sentence**) ·
+  [`claude/` the GLOBAL context](#claude--the-global-agent-context-not-claude) ·
+  [`.claude/commands/`](#claudecommands) · [`.claude/rules/`](#clauderules--always-applied) ·
+  [`.claude/hooks/`](#claudehooks) · [`.claude/skills/`](#claudeskills--project-skills) ·
+  [Global skills](#global-skills) ·
+  [the operator's marketplace](#the-operators-marketplace-extracted-2026-09-12) ·
+  [Project memory](#project-memory)
+- [CI, release, publishing](#ci-release-publishing) — the hosted legs and
+  `warm-nixpi-cache.yml`, the workflow that keeps the Pi from ever building.
+- [Binary cache (Cachix)](#binary-cache-cachix) — shortest section in the file.
+- [Documentation index](#documentation-index--every-docsmd-annotated) — **every `docs/*.md`,
+  annotated.** The place to look when you want a document and not an architecture.
+
 ## The fleet
 
 All-in-one Nix mono-repo managing a fully declarative **aarch64-only** fleet:
