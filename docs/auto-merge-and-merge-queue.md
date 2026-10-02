@@ -131,9 +131,12 @@ read as survival was a re-arm. The net effect is the same and drafting remains t
 mitigation, but the distinction is load-bearing: a transition that must re-arm can be
 **lost**, and one that survives cannot.
 
-Measured across all four draft conversions in the visible history: `auto_merge_disabled`
-lands in the same second as `convert_to_draft` every time, and three of the four re-armed
-within ~12 s of the ready transition (#559, #737, #757). The fourth, #723, did not — its
+Measured across **every** draft conversion in #451-#789 — six of them, of which **four
+converted an already-armed PR**: on all four, `auto_merge_disabled` lands in the same second
+as `convert_to_draft`. (The other two, #675 and #673, were never armed before the
+conversion, so there was nothing to disable; both armed on a later ready transition and
+merged within 12 s.) Three of the four re-armed within ~12 s of the ready transition (#559,
+#737, #757). The fourth, #723, did not — its
 ready-transition arm run was **cancelled** by `cancel-in-progress`, since turned off
 (#750, `auto-merge.yml`'s `concurrency` block carries the argument). That is the live tail
 of #683, and [`.claude/rules/pr-title.md`](../.claude/rules/pr-title.md) carries the

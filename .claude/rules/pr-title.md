@@ -43,8 +43,8 @@ auto-merge lands a PR the moment its checks go green; there is no second run to 
 so a branch you are still pushing to can merge out from under you mid-stream (#567 lost five
 commits that way, 2026-09-22). Drafting removes that race, and costs nothing to undo:
 converting to a draft **does** drop the arming — GitHub fires `auto_merge_disabled` in the
-same second as `convert_to_draft`, 4 of 4 conversions measured — and **`ready_for_review`
-re-arms it**, as a fresh `auto_squash_enabled` ~10-12 s later.
+same second as `convert_to_draft`, on **4 of 4** conversions of an already-armed PR — and
+**`ready_for_review` re-arms it**, as a fresh `auto_squash_enabled` ~10-12 s later.
 
 **CORRECTED 2026-10-02 — and this section has now been wrong in BOTH directions.** It first
 claimed arming *survives* the draft state; the 2026-10-01 rewrite claimed `ready_for_review`
@@ -71,7 +71,7 @@ Both of the old claims are refuted at job level, not inferred:
 | What the old text said | Measured |
 |---|---|
 | a push drops the arming | **14/14** `synchronize` runs on non-draft operator PRs armed; #737 was force-pushed 3x while armed and `enabledAt` never moved |
-| `ready_for_review` does not restore it | **3 of 4** draft conversions re-armed on the ready transition (#559, #737, #757); only #723 did not, by the cancellation above. Of 5 `ready_for_review` runs with a recorded payload, 4 armed and 1 was cancelled — **zero skips** |
+| `ready_for_review` does not restore it | **3 of the 4** armed-PR conversions re-armed on the ready transition (#559, #737, #757); only #723 did not, by the cancellation above. Of 5 `ready_for_review` runs with a recorded payload, 4 armed and 1 was cancelled — **zero skips** |
 
 **#683 is still open, so glance — do not re-arm.** No draft→ready transition has happened
 since the cancellation was turned off, so its acceptance criterion (exactly one non-skipped
