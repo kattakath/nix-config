@@ -51,8 +51,11 @@ slice**, not the ceiling — §2 shows how much more is reachable.
 
 ### Custom services this repo built (launchd)
 
-- `launchd.user.agents.file-rotation-{desktop,downloads}` (`modules/darwin/core.nix`
-  `mkTrashSweep`, **macos only**) — two hourly-tick Trash sweeps:
+- `launchd.agents.file-rotation-{desktop,downloads}` (`modules/home/macos-user-agents.nix`
+  `mkTrashSweep`, **macos only**) — two hourly-tick Trash sweeps. They were nix-darwin
+  `launchd.user.agents` in `modules/darwin/core.nix` until 2026-10-02; the move is to the
+  self-healing home-manager lane and keeps their Labels
+  (`com.kattakath.file-rotation.trash-*`), so no BTM approval was lost:
   **`~/Desktop`** (the capture inbox): everything older than **1 day**, files and
   directories both. **`~/Downloads`** (the browser/AirDrop inbox): only
   **disposable types** (media / installers / archives, a lowercase-glob
@@ -324,11 +327,20 @@ depend on.
 | `file-rotation-logs` / `file-rotation-logs-system` (launchd log rotation) | **macos only** |
 | `nix-file-rotation-desktop` / `nix-file-rotation-downloads` | **macos only** (the gate protected the former `macvm` guest's VirtioFS-shared `~/Downloads` and is kept — see [`macvm-readd-runbook.md`](macvm-readd-runbook.md)) |
 
-Gate with `networking.hostName` (set in `hosts/*.nix`).
+Gate with `networking.hostName` (set in `hosts/*.nix`) — or, from a home-manager module,
+with `osConfig.networking.hostName`, which is where all three of the agents below now live.
 
 ```nix
-# core.nix pattern (GUI openers — quiet: dock/menu-bar OK, no window flash)
-open-maccy = mkNixAgent { suffix = "maccy"; app = "Maccy"; };  # → …/bin/nix-open-maccy
+# modules/home/macos-user-agents.nix (GUI opener — quiet: menu-bar only, no window)
+open-maccy = {
+  enable = true; # a mkEnableOption defaulting to FALSE; without it NO plist renders
+  config = {
+    Label = "org.nixos.open-maccy"; # pinned: home-manager would rename the unit
+    ProgramArguments = [ "${pkgs.writeShellScriptBin "open-maccy-run" "…"}/bin/open-maccy-run" ];
+    RunAtLoad = true;
+  };
+};
+# arg0 is the launcher launchd-launcher.nix derives from the ATTR name → …/bin/nix-open-maccy
 ```
 
 Each opener runs `open -g -j`, then re-hides the process via System Events for
