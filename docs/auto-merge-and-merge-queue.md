@@ -377,3 +377,5 @@ Delete `.github/workflows/auto-merge.yml` — PRs stop arming, everything else
 unchanged. To go the other way and re-add a queue, read §3 "Before re-adopting a
 queue" first: add the `merge_queue` rule to the ruleset, restore `merge_group:` to
 `nix-ci.yml` and `gitleaks.yml`, and accept the second CI run.
+
+<!-- #683 collision experiment, 2026-10-02 — this branch is DISPOSABLE and will be closed unmerged. -->
