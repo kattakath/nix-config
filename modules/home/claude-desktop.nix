@@ -43,9 +43,15 @@
 # uses. A shim, not a server: one thin bridge process, and the OAuth handshake
 # Access requires happens inside it.
 #
-# `checks.<system>.claude-desktop-config-shape` asserts the rendered argv
-# actually carries `local.mcpGateway.portalEndpoint` — two modules, one URL, so
-# a broken hub wiring fails the build instead of leaving Desktop with no servers.
+# `checks.<system>.claude-desktop-config-shape` READS NO GATEWAY OPTION ANY
+# MORE: `local.mcpGateway.portalEndpoint` went with the portal on 2026-10-02
+# and exists nowhere in the tree, under either name. It reads
+# `local.claudeDesktop.{enable,renderedServers}` (modules/parts/checks.nix) and
+# asserts four things — the module is ENABLED (a disabled writer leaves stale
+# content on disk unmanaged, which is the regression that got through), the
+# rendered set is EMPTY, `desktop-commander` is not in it, and any entry that
+# IS ever rendered is stdio-shaped ({command,args}, no url/type) and carries
+# the NIX_CONFIG_MANAGED marker. No URL is asserted because none is rendered.
 #
 # THE OWNERSHIP TRAP (why an activation merge, not home.file)
 # claude_desktop_config.json is STATEFUL and Desktop-owned: today it holds
