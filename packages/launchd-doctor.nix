@@ -20,6 +20,15 @@
 #       only removal is hand-editing disabled.<uid>.plist), so an `enabled`
 #       leftover is untouchable and printing it is noise wearing a remedy
 #   (e) fleet-shaped logs in ~/Library/Logs that no installed unit writes
+#   (f) UNBOUNDED power assertions — a `caffeinate` holding one with no release
+#       condition at all. Not a launchd unit, and the one section here that is
+#       not; it is here because a leaked wake assertion has exactly the shape
+#       this doctor exists for (invisible to `nix flake check`, visible only on
+#       the running machine) and because this fleet now TAKES such assertions:
+#       modules/darwin/github-runner.nix holds one per CI job, since a Mac with
+#       `pmset sleep 1` was killing long jobs mid-flight. A fleet that asserts
+#       needs somewhere a leak shows up, and the alternative — a second doctor
+#       for one grep — is surface for its own sake.
 #
 # (d) AND (e) SHARE A ROOT, and it is worth naming: this doctor knows what the
 # fleet DECLARES AS LAUNCHD UNITS, not everything that lives in the same
@@ -236,6 +245,38 @@ writeShellApplication {
       grep -E '/[a-z0-9]+(-[a-z0-9]+)*\.log$' | sort)
     echo "  a candidate, NOT a verdict: this compares against installed launchd"
     echo "  units only. Confirm the owning feature is gone before removing."
+    echo
+
+    # ---- (f) unbounded power assertions --------------------------------------
+    # EVERY caffeinate assertion is NAMED identically ("caffeinate command-line
+    # tool"), so the name tells you nothing about who holds it or whether it ever
+    # ends. The `Details:` line does, and it is the whole classifier — measured
+    # 2026-10-02, one line per invocation shape:
+    #
+    #   caffeinate -i              -> "asserting forever"                  LEAK
+    #   caffeinate -i -t 300       -> "asserting for 300 secs"             bounded
+    #   caffeinate -i -w <pid>     -> "asserting on behalf of Process ID …" bounded
+    #   caffeinate -i <utility>    -> "asserting on behalf of '<util>' …"   bounded
+    #
+    # Only the first has no release condition: nothing to exit, no timer, no
+    # watched pid. On a host with `pmset sleep 1` that is a Mac that never sleeps
+    # again until someone notices, which is the failure this reports.
+    #
+    # The fleet's own CI assertion is the `-w` row and is deliberately NOT
+    # flagged. Reporting bounded holders would make this section fire during
+    # every CI job — a check that cries wolf on correct behaviour gets ignored,
+    # and then so does the row that matters.
+    echo "--- unbounded power assertions (caffeinate with no release condition) ---"
+    while IFS= read -r line; do
+      echo "  UNBOUNDED  $line"
+      echo "             a caffeinate holding a wake assertion with no utility,"
+      echo "             no -t timeout and no -w pid: it ends only when killed."
+      echo "             remedy: kill that pid, then give the caller a -w/-t/utility."
+      rc=1
+    done < <(/usr/bin/pmset -g assertions |
+      grep -B3 'asserting forever' |
+      grep -oE 'pid [0-9]+\(caffeinate\): .*' || true)
+    echo "  (silent = every caffeinate assertion is bound to a process or a timer)"
     echo
 
     if [ "$rc" -ne 0 ]; then
