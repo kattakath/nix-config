@@ -106,6 +106,75 @@ Only proceed once the two sums are identical.
 
 ---
 
+## 3b. Reflashing a card that FAILED? Image it first — the write destroys the evidence
+
+**Skip this section only if the card is new or you do not care why the last one
+died.** Everything else here is reversible; a `dd` over a failed card is not.
+
+This exists because of 2026-10-02. The Pi went dark and the root cause was only
+findable from the card itself: `tune2fs -l` reported **`FS Error count: 82`**,
+**`First error time: epoch+5s`** and **`Last checked: 1980`** — the filesystem came
+off the flash *already corrupt*, which is what identified
+`packages/nixpi-provision.nix` verifying only `dd`'s byte count with no read-back
+anywhere. One premature flash would have erased the only proof.
+
+**Two things that are easy to get wrong, both corrected here:**
+
+1. **The journal is NOT RAM-only.** `hosts/nixpi.nix` sets
+   `services.journald.settings.Journal.Storage = "persistent"`, so the failing
+   boot's journal is on the card's ext4 root in `/var/log/journal`. Do not skip
+   capture believing a power-cycle already lost it.
+2. **`journalctl -b -1` is the wrong tool.** You cannot run it on a host you
+   cannot reach, and when the Pi is dark that is the whole problem. Capture happens
+   **from the card, on the Mac** — never over SSH.
+
+Rather than read a corrupt filesystem under time pressure, take one full image and
+do forensics on the copy, as many times as you like:
+
+```bash
+# 1. Identify the reader. It is NOT disk0 (that is the internal Mac SSD).
+diskutil list
+diskutil unmountDisk /dev/diskN
+
+# 2. Image the WHOLE card, raw device for speed. ~5.9 GB.
+sudo dd if=/dev/rdiskN of=~/nixpi-forensic-$(date +%Y%m%d-%H%M).img bs=4m
+#    Same golden rule as §1: this MUST print a byte count ≈ 5872025600.
+#    Ctrl-T prints progress. Returns in seconds with no count → incomplete, re-run.
+
+# 3. The FIRMWARE partition is FAT, so macOS mounts it natively. The glob picks
+#    up any cmdline.txt.bak a previous recovery's HAND-EDIT left behind.
+mkdir -p ~/nixpi-forensic-firmware
+cp -a /Volumes/FIRMWARE/cmdline.txt* ~/nixpi-forensic-firmware/
+```
+
+On that hand-edit: `hosts/nixpi.nix` now sets `boot.kernelParams` declaratively and
+notes that raspberry-pi-nix renders it into `cmdline.txt` verbatim, *"so this
+survives a reflash — unlike the hand-edit that was needed to recover this
+incident."* So a fresh card should need no firmware hand-editing at all; finding a
+`.bak` there means an earlier recovery predates #795, and the `.bak` is evidence
+rather than something to restore.
+
+Once step 2 prints its byte count, **the card is expendable** — proceed to §4.
+
+**Forensics on the image, afterwards and offline.** macOS cannot mount ext4, so
+this needs a Linux context (`nix run .#nixvm`, or a Colima container via
+`local.containers`). The three readings that diagnosed 2026-10-02:
+
+```bash
+tune2fs -l <ext4 partition>      # FS Error count, First/Last error time,
+                                 #   Last checked, and Errors behavior — the
+                                 #   superblock survives even when the fs will not mount
+journalctl -D /var/log/journal   # the persistent journal from the failing boot
+journalctl -D /var/log/journal -k | grep -i 'ext4\|EFSCORRUPTED'
+```
+
+A card whose superblock already shows a non-zero error count at first boot was
+**written** badly, not worn out — which is a flasher bug, not a hardware one. Since
+#794 `nixpi-flash` reads the card back and `cmp`s it against the image, so that
+failure mode now aborts loudly instead of reporting success.
+
+---
+
 ## 4. Flash (macOS) — the verified full-write procedure
 
 ```bash
