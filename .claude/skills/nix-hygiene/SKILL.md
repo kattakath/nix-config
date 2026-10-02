@@ -35,8 +35,11 @@ abandoned experiments, comment rot — then **fix** and **re-gate**.
 Canonical conventions + the path index: root [`CLAUDE.md`](../../../CLAUDE.md) (kept lean —
 under the 40k context-lint limit). The **full** fleet map lives in
 [`docs/repo-map.md`](../../../docs/repo-map.md), with
-[`docs/mcp-gateway.md`](../../../docs/mcp-gateway.md) and
-[`docs/secrets-and-keychain.md`](../../../docs/secrets-and-keychain.md) for those two surfaces.
+[`docs/secrets-and-keychain.md`](../../../docs/secrets-and-keychain.md) for the secrets surface.
+([`docs/mcp-gateway.md`](../../../docs/mcp-gateway.md) used to be the third — it is **history**
+since 2026-10-02: the MCP gateway, `modules/shared/mcp.nix` and the Cloudflare portal are all
+deleted. MCP now lives entirely in plugin `.mcp.json` files outside this repo, so there is no MCP
+surface here to audit except the `local.gmailMcp` launcher package.)
 Do not restate the fleet map here; open those when unsure — and when repo shape changes, fix
 **both** the CLAUDE.md one-liner and the repo-map section.
 
@@ -74,7 +77,7 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
 | `packages/` | flake apps/packages | `packages` / `apps` |
 | `docs/` | runbooks | — |
 | `.claude/` | agent skills/commands/hooks | — |
-| `infra/` | terranix | `apps` (cf-*, mcp-public-*) |
+| `infra/` | terranix | `apps` (cf-*, gcp-*; the `mcp-public-*` apps were deleted 2026-10-02) |
 | `secrets/` | agenix recipients + ciphertext | — |
 
 **Platform branching:** `lib.mkIf` in `modules/`, not copy-paste across hosts.
@@ -139,8 +142,8 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
       not hand-rolled `forAll`/`forAllSystems` boilerplate — ADR-001
       (`docs/flake-architecture-strategy-adr.md`). `nix-mcp-gateway` used to be on
       this list and is **archived** (2026-09-12, an unadopted extraction candidate —
-      the fleet's gateway is `modules/shared/mcp.nix`); do not re-add it from
-      memory. A new one scaffolded without it,
+      the fleet's own gateway was `modules/shared/mcp.nix`, itself **deleted 2026-10-02**, so
+      neither exists now); do not re-add either from memory. A new one scaffolded without it,
       or an old hand-rolled pattern creeping back in via copy-paste, is a finding.
       **`nix-config`'s own engine is no longer the exception.** ADR-001 §2 said
       "do not migrate the core engine"; ADR-002
@@ -208,7 +211,8 @@ If `nix` unavailable: `nix-instantiate --parse` on changed `.nix` + state CI-def
 
 ## Anti-patterns specific to this fleet
 
-1. **A sandbox host inheriting macos login openers / RAG / MCP gateway** — hosts stay lean.
+1. **A sandbox host inheriting macos login openers / RAG** — hosts stay lean. (The MCP gateway
+   used to be the third item here; it was deleted 2026-10-02.)
 2. **Guest file-rotation on the shared `~/Downloads`** — host-only (`mv` across
    filesystems = `cp` + `rm`, so a guest rotation destroys host files).
 4. **Putting `.utm` / IPSW / disk images in the flake.**

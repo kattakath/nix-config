@@ -1,22 +1,83 @@
-# MCP gateway — the fleet's UNOWNED servers, behind one connector
+# MCP gateway — RETIRED 2026-10-02 (history)
 
-The detail behind [`CLAUDE.md`](../CLAUDE.md) § Navigating the Codebase → `modules/shared/mcp.nix`.
-`CLAUDE.md` keeps only the pointer; the inventory and the per-server gotchas live here.
-**When you add or remove a server, update this file and `config.fleet.publicMcpServers`
-(`modules/parts/identity.nix`) — and nothing in `CLAUDE.md` (it carries no count).** Count drift
-across prose was a recurring bug, which is why the count lives in exactly one prose place and
-the roster itself is now machine-checked (see § Parity).
+> # ⛔ THIS DESCRIBES A SYSTEM THAT NO LONGER EXISTS.
+>
+> **The gateway and its Cloudflare portal were destroyed on 2026-10-02.** Everything below §
+> What still applies is written in the present tense of a dead system. **Do not act on any
+> instruction in the body of this file** — not the publishing sequence, not the opt-in
+> procedures, not "declare it in `mcp.nix`". The module, the option tree, the roster, the parity
+> check and the Cloudflare objects are all gone.
+>
+> | | |
+> |---|---|
+> | `modules/shared/mcp.nix` (1,181 lines) | **deleted** (#734) |
+> | `infra/cloudflare/mcp-public.nix` + its 5 apps + `mcp-worker-probe` | **deleted** |
+> | `local.mcpGateway.*`, `fleet.publicMcpServers`, `publicMcpPort`, `mcpCatalog` | **gone** |
+> | `checks.*.mcp-published-parity` | **gone** |
+> | Cloudflare objects destroyed, two runs | **65** |
+> | MCP server registrations / portals / `mcp-public` tunnel | 27 / 1 / 1 → **0 / 0 / 0** |
+> | mcp + upstream Access applications | **0** |
+> | `https://mcp.kattakath.com/mcp` | **403** — not a portal any more |
+> | `127.0.0.1:8097` | nothing listening; no shared proxy on this Mac |
+> | Claude Desktop's `mcpServers` | **an empty block, written deliberately** |
+>
+> **What replaced it:** every MCP server now comes from an enabled plugin's own `.mcp.json`,
+> spawned per session, nothing shared and nothing long-lived. A launcher that needs a Keychain
+> read is a PATH package in nix-config — `local.gmailMcp` + `packages/gmail-mcp.nix` is the live
+> pattern, paired with the `gmail` plugin in `github:kattakath/skills`. See
+> [`repo-map.md`](repo-map.md) § MCP after the gateway.
+>
+> **Why this file still exists rather than being deleted:** it is the only record of several
+> measurements that outlived the gateway and still bind the plugin lane. Those are hoisted into
+> § What still applies, immediately below, so nobody has to read a retired design to find a live
+> rule.
 
-> **The gateway does NOT retire; it NARROWS — decided 2026-09-30 (#658, #657).** There are two
-> permanent MCP lanes now, split by **ownership**: a server that is the tool half of a skill this
-> fleet already ships moves into that skill's marketplace plugin; **every server with no plugin
-> owner stays here, on the fleet gateway, permanently** (#658). That is a decision, not a
-> concession — see § Which lane for the rule and for the three groups that structurally cannot
-> move. The cost the operator accepted is stated in § Counting convention and in
-> `modules/shared/claude-desktop.nix`'s header: a plugin-owned server is **Claude-Code-only**,
-> silently absent from Claude Desktop and the Cowork bridge.
+## What still applies — the measurements that outlived the gateway
+
+Everything in this section is **live** under the plugin-only architecture. Everything after it is
+history.
+
+| Still-true finding | Where it is written up below | Why it still binds |
+|---|---|---|
+| **Spawn-test the exact spec against the PATH runtime BEFORE declaring.** The plugin lane gets whatever `npx` resolves to — measured fnm's **Node 20.20.2**, which lacks `node:sqlite` (arrived 22.5). `mcpfinder` was declared, died with `CONNECTION_CLOSED`, and had to be reverted across two PRs. | § Spawn-test against the PATH runtime | The plugin lane is now the ONLY lane, so this trap is no longer one lane's weakness — it is the whole surface's |
+| **A server whose runtime arrives via a nix-config package is not spawn-testable until ACTIVATED.** Merged is not enough. | same § | Unchanged, and it is exactly how `local.gmailMcp`'s launchers now reach PATH |
+| **To add a marketplace under an allowed owner, use `owner/repo`, NOT the https URL.** The shorthand creates a `github:` source that the managed `strictKnownMarketplaces` wildcard matches; the full URL creates a `git:` source and is refused as *"blocked by enterprise policy"* — an error that blames policy for a syntax problem. | § Adding a marketplace under an allowed owner | The managed allowlist is untouched by the purge |
+| **The recipe for proving a plugin-owned server actually answers** — confirm the plugin SHA refreshed, `claude mcp list` in a **fresh** process, then invoke a tool with the **plugin-lane** `--allowedTools` spelling. Judge against a criterion written *before* the test; an empty result is often the pass. | § How to verify a plugin-owned server actually answers | **This is now the ONLY verification there is.** No `nix flake check` leg can see a plugin's `.mcp.json`, so this runtime procedure replaces the parity check outright |
+| **A plugin `.mcp.json` cannot run a Keychain read** — it interpolates `${VAR}`/`${VAR:-default}`, `${user_config.KEY}` with `sensitive: true`, and `headersHelper` for remote servers, and that is all. | § Counting convention, § Which lane | It is the whole reason `packages/gmail-mcp.nix` exists |
+| **Identity-bearing rosters are not a plugin's business.** Four real Google/Workspace addresses, one process and one OAuth session each, tokens from the login Keychain. | § Which lane → the three stuck groups | Resolved by splitting it: the ADDRESSES stay in `hosts/macos.nix` (`local.gmailMcp.accounts`), the DECLARATION moved to the plugin |
+| **Call-volume measurement, 2026-09-23** (every MCP tool call across 21 days of transcripts): gateway **~3,200 / 94%**, nine claude.ai connectors **218 / 6%**, marketplace plugins **76** (Neon alone 70). | § Which lane | The baseline against which the purge's cost gets judged. It says plainly that the **94% lane is the one that was removed** — so if the plugin lane proves worse, this is the number that proves it, and nothing else measures it |
+| **Verify at the surface clients use, not the one easiest to curl.** Three Cloudflare objects were needed per published server and a missing one failed SILENTLY — the origin answered `200` throughout while the server was invisible to every client. | [`mcp-public-exposure-design.md`](mcp-public-exposure-design.md) | Generalises to any proxied/gated surface this fleet builds next |
+
+One correction to carry forward, because it is the reason a *right* answer can still be unsafe:
+this file once said `github` and `postgres` were both held back from the plugin lane because
+"each needs a Keychain credential". **That was false for `postgres`** — its `DATABASE_URI` is a
+loopback **trust-auth** URI with no password. The conclusion was right, the premise wasn't, and a
+right answer resting on a wrong reason breaks the moment someone checks the reason. It is why
+`postgres` can sit in the plugin lane today with no wrapper while `gmail` cannot.
+
+---
+
+## History — everything below this line describes the retired gateway
+
+The detail behind what `CLAUDE.md` § Navigating the Codebase used to point at as
+`modules/shared/mcp.nix`. Present tense throughout; read it as of 2026-10-01.
+
+> **Superseded. The gateway DID retire — 2026-10-02.** This block recorded the opposite decision,
+> taken 2026-09-30 (#658, #657): that the gateway would NARROW rather than retire, keeping every
+> server with no plugin owner permanently, split by **ownership** from the ones that moved into a
+> skill's marketplace plugin. It is kept verbatim-in-substance because the *rule* it introduced
+> — one owner per server — is what made the final purge thinkable two days later, and because the
+> cost it named came true in full: a plugin-owned server is **Claude-Code-only**, silently absent
+> from Claude Desktop and the Cowork bridge. Now that every server is plugin-owned, **Claude
+> Desktop has none at all.**
 
 ## Counting convention — CAPABILITIES vs ROSTER ENTRIES
+
+**HISTORY.** Both rosters this distinguishes (`local.mcpGateway.hostedServers` and
+`config.fleet.publicMcpServers`) were deleted 2026-10-02, so **every number in this section is
+now zero**. The convention is kept because the distinction itself recurs: `gmail` is still **one
+capability and four entries** under `local.gmailMcp.accounts`, and conflating the two is still
+how count drift starts.
 
 Settle this before reading any number in this repo; three docs disagreed because they mixed the
 two.
@@ -82,6 +143,9 @@ else uses: the capability count is the entry count minus the 3 gmail duplicates.
 
 ## Shape
 
+**HISTORY — none of this is running.** There is no `mcp-proxy` agent, no port bound, no portal
+and no connector. Read for the reasoning, not the topology.
+
 One `mcp-proxy` launchd agent (`modules/shared/mcp.nix`, **darwin-only**) bound to
 **`127.0.0.1:<publicMcpPort>`**, started at login, hosting **22 roster entries** today — every
 server the fleet owns, heading for 19 and then 17 as § Counting convention lays out — each at
@@ -127,7 +191,15 @@ reads no plugins, so for Desktop the gateway really is the whole world.
 
 ## Parity — the roster is checked, not remembered
 
-`checks.<system>.mcp-published-parity` asserts `local.mcpGateway.hostedServers` equals
+**HISTORY — the check is DELETED (2026-10-02), and its blind spot is now the whole picture.**
+Parity compared two Nix lists; both are gone, and nothing in this repo can read a plugin's
+`.mcp.json`. So there is **no build-time gate on the MCP surface at all** — the replacement is
+the runtime procedure in § How to verify a plugin-owned server actually answers. The paragraph
+below on *silent loss* is worth reading as a warning that has outgrown its subject: it described
+the risk of a name deleted from both lists and never declared in its plugin, which is precisely
+the shape of the final purge.
+
+`checks.<system>.mcp-published-parity` asserted `local.mcpGateway.hostedServers` equals
 `config.fleet.publicMcpServers` in **both** directions, and fails the build otherwise:
 
 - *hosted but NOT published* — the server exists and no client can ever see it.
@@ -232,7 +304,7 @@ Judge the result against a criterion written **before** the test. An empty resul
 mattered there was the **absence** of an `adb`/`ANDROID_HOME` error, which proved the plugin child
 inherits the session environment and let the gateway's Android SDK wiring be deleted rather than
 duplicated.
-## The 7 packaged servers (`mcp-servers-nix`)
+## The 7 packaged servers (`mcp-servers-nix`) — HISTORY, none are declared here any more
 
 `context7`, `fetch`, `memory`, `sequential-thinking`, `nixos`, `terraform`, `github` — pinned
 via `mcp-servers-nix.lib.mkConfig`'s `programs` block. Credentials, where needed, are read from
@@ -241,7 +313,13 @@ argv or the `/nix/store` (`context7` → `CONTEXT7_API_KEY`, `github` →
 `GITHUB_PERSONAL_ACCESS_TOKEN`; an absent key means an empty export and the server degrades
 rather than crashing).
 
-## The 15 custom stdio launchers
+## The 15 custom stdio launchers — HISTORY, none are declared here any more
+
+**The per-server gotchas are the reason this table survives** — the WordPress Application-Password
+shape, apify's switch off the hosted OAuth bridge, cloudflare's one-time browser login. Those are
+facts about the servers, not about the gateway, and whoever re-declares one in a plugin needs
+them. The hosting/publishing columns are dead.
+
 
 | Server | Notes |
 |---|---|
@@ -263,7 +341,16 @@ rather than crashing).
 
 ## Publishing — `config.fleet.publicMcpServers`
 
-There is no `local.mcpGateway.public` option any more. The roster is a fleet constant in
+> **⛔ DEAD PROCEDURE — do not follow any numbered step below.** `fleet.publicMcpServers` no longer
+> exists, `mcp-public-apply` / `mcp-public-sync` are deleted apply apps, and there is no portal to
+> re-poll. The seven-step sequence is kept for ONE transferable reason: **step 1, "declare first,
+> in the plugin, and call one of its tools before deleting anything here"** is the rule that made
+> the ownership migration survivable, and it is still how a capability should be moved between any
+> two lanes — declare-and-verify forward, delete backward, never the reverse. Step 7 ("say what
+> Desktop lost; nothing detects it") is the other survivor, and the purge is its largest instance:
+> Desktop lost **everything**, and no check noticed.
+
+There was no `local.mcpGateway.public` option by the end. The roster is a fleet constant in
 `modules/parts/identity.nix`, and it drives three things from one list: the proxy's own server
 set, the `cloudflared` connector agent (`nix-mcp-tunnel-connector`), and the Cloudflare
 registrations.
@@ -301,6 +388,15 @@ model and the three-objects-per-publish trap are in
 
 ## Opt-ins (default off)
 
+> **⛔ DEAD OPTIONS — none of these can be enabled; `local.mcpGateway` does not exist.** Two facts
+> here are still worth having. **`telegram`** advertises `prompts`/`resources` and then answers
+> `-32000` on both, which darkened portal discovery — a server-side bug that is about telegram-mcp,
+> not about this fleet, so re-adopting it anywhere needs that checked first. And the **`gmail`**
+> entry below is the one capability that SURVIVED the purge: the same four addresses, the same
+> one-process-per-account design and the same shared-OAuth-client + per-account-browser-auth
+> pattern, moved to `local.gmailMcp` + the `gmail` plugin on 2026-10-01. Read it as the spec that
+> `packages/gmail-mcp.nix` now implements.
+
 - **`telegram`** — chaindead/telegram-mcp. Needs a one-time phone auth **before** activating,
   or it darks the gateway. **Enabling it now also fails `nix flake check`**, deliberately: it
   was withdrawn from `publicMcpServers` on 2026-09-22 (it advertises `prompts`/`resources` then
@@ -331,11 +427,26 @@ model and the three-objects-per-publish trap are in
 
 ## Auth caches
 
+**Still true of the DIRECTORY, not of the gateway:** OAuth tokens cache per-machine in
+`~/.mcp-auth`, and that cache outlives the purge — a server re-declared in a plugin finds its
+existing token there rather than re-authing. The per-server notes below describe servers that are
+no longer declared anywhere in this repo.
+
 OAuth tokens cache per-machine in `~/.mcp-auth`. `cloudflare` needs a one-time browser login
 and fails gracefully headless; `apify` instead reads `APIFY_TOKEN` from the Keychain at launch
 (no OAuth) and likewise warns without darkening the gateway if the token is missing.
 
 ## Which lane — ONE OWNER PER SERVER
+
+> **TWO LANES LEFT, NOT THREE (2026-10-02).** The middle row of the table below — "this gateway"
+> — is **gone**, which collapses the rule: there is no "it stays on the gateway" answer any more.
+> A capability is either a **plugin's** `.mcp.json` (with a nix-config PATH package behind it when
+> it needs a Keychain read) or a **claude.ai connector**. The three groups below that
+> "structurally CANNOT move" all moved or died: `gmail` moved by splitting the launcher out
+> (`packages/gmail-mcp.nix`), the generic utilities simply **left the fleet**, and
+> `desktop-commander` went with them. That last outcome is the honest cost of the purge and is not
+> softened here: a dozen ownerless utilities were removed rather than rehomed, and the 94% call
+> share in the measurement below was theirs.
 
 A capability arrives one of three ways, and since 2026-09-30 the choice is **not** "gateway by
 default". It is decided by **ownership**, and the rule has exactly one question in it:
@@ -381,26 +492,52 @@ ships. `context7` is the one deliberate duplicate left — it has an owner-less 
 a plugin — because the plugin's agent and the gateway's Keychain-wired server answer different
 questions.
 
-## Adding a server
+## Adding a server — THE CURRENT PROCEDURE
 
-Always via the `mcp-scout` skill / `/mcp-scout` command: discover → vet → **pick the lane**
-(§ Which lane) → **declare**. For a gateway server that means `mcp.nix` (pinned) plus
-`config.fleet.publicMcpServers`, `.claude/settings.json` permission rules (allow read-only tools,
-deny anything that writes outside its remit), and a `nix-*` `arg0` basename for any wrapper per
-[`launchd-naming.md`](../.claude/rules/launchd-naming.md). For a plugin-owned server it means that
-plugin's `.mcp.json` in `github:kattakath/skills` and **nothing in this repo** — which also means
-no pin, no Keychain credential and no Claude Desktop. Imperative installer CLIs and
-config-writing install tools are never used in either lane.
+This section is **live**, rewritten 2026-10-02. Still via the `mcp-scout` skill / `/mcp-scout`
+command: discover → vet → **spawn-test** (§ What still applies) → **declare** → **verify it
+answers** (§ How to verify …). There is only one declaration target now:
+
+- **The owning plugin's `.mcp.json`**, in `github:kattakath/skills` or whichever marketplace owns
+  the plugin. It names a **bare command on PATH** — never a store path, which rotates every
+  rebuild and would be meaningless in another repo.
+- **Plus a nix-config PATH package, if and only if the server needs something `.mcp.json` cannot
+  express** — in practice a login-Keychain read. `packages/gmail-mcp.nix` + `local.gmailMcp` is
+  the worked example; `page-lab-pick` and `mcp-nixos` are the same shape for other plugins. Keep
+  the credential logic in the Nix wrapper, never duplicated into the plugin repo.
+- **Nothing else in this repo.** No gateway entry (there is no gateway), no
+  `fleet.publicMcpServers` (deleted), no Cloudflare registration (destroyed), no parity check
+  (deleted). `.claude/settings.json` permission rules are still worth writing — allow read-only
+  tools by name, deny anything that writes outside the server's remit.
+- `launchd-naming` does **not** apply to a per-session stdio child: it governs launchd units, and
+  the plugin lane declares none. It still applies to any agent a PATH package installs.
+
+Imperative installer CLIs and config-writing install tools are **never** used — `claude mcp add`
+and friends stay denied at user and managed scope. What the purge changed is only *where* the
+declaration lands, never that adoption is a declaration.
+
+**And accept the structural consequence before you start:** nothing in this repo can see your
+declaration, so nothing can gate it. The only proof a server works is invoking one of its tools
+in a fresh session.
 
 ## Related
 
-- [`mcp-gateway-accessibility-tcc.md`](mcp-gateway-accessibility-tcc.md) — the one-time
-  Accessibility (TCC) grant `macos-automator` needs.
-- [`gmail-mcp-multi-account-runbook.md`](gmail-mcp-multi-account-runbook.md) — multi-account
-  Gmail setup, auth, and a documented silent-wrong-account failure mode.
-- [`mcp-public-exposure-design.md`](mcp-public-exposure-design.md) — the PUBLISHED gateway's
-  design and the Cloudflare side. Read its **§10 then §11** first: the two-proxy model the body
-  describes was collapsed on 2026-09-22, and §11 is the 2026-09-30 ownership split — narrowing now
-  restores structural absence without losing the capability for Claude Code.
+- [`repo-map.md`](repo-map.md) § **MCP after the gateway** — the LIVE architecture. Start there,
+  not here.
+- [`gmail-mcp-multi-account-runbook.md`](gmail-mcp-multi-account-runbook.md) — **LIVE.**
+  Multi-account Gmail setup, auth, and a documented silent-wrong-account failure mode. The one
+  capability that crossed the purge intact.
+- [`mcp-gateway-accessibility-tcc.md`](mcp-gateway-accessibility-tcc.md) — **still accurate.** The
+  one-time Accessibility (TCC) grant `macos-automator` needs; TCC scopes it to
+  `/usr/bin/osascript`, not to the parent, which is why it carried unchanged when that server
+  moved to the `mac-app-send` plugin.
+- [`mcp-public-exposure-design.md`](mcp-public-exposure-design.md) — **RETIRED.** The published
+  gateway's Cloudflare design; §10 the 2026-09-22 two-proxy collapse, §11 the 2026-09-30 ownership
+  split, §12 the teardown.
+- [`mcp-portal-hardening-plan.md`](mcp-portal-hardening-plan.md) — **RETIRED**, and never fully
+  executed; keep it for the device-posture trap (zero enrolled devices → a `device_posture`
+  require evaluates false forever), which applies to any future Access policy here.
+- [`mcp-gateway-succession-adr.md`](mcp-gateway-succession-adr.md) (ADR-006) — **MOOT.** It asked
+  what should succeed the portal layer; there is no portal to succeed.
 - [`private-home-modules.md`](private-home-modules.md) — the `extraHomeModules`/`hostedSites`
   composition seams, and the nixpi deploy runbook.

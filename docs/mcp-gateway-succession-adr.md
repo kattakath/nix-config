@@ -1,8 +1,31 @@
 # ADR-006: IBM ContextForge is a PORTAL-layer alternative, not `mcp-proxy`'s successor
 
-**Status:** **Decided (name only). NOT implemented** — 2026-09-23. Nothing has shipped:
-`modules/shared/mcp.nix` still runs `pkgs.mcp-proxy` v0.12.0, there is no `contextforge` package,
-no second port, and no behaviour change on any host.
+> # ⛔ MOOT since 2026-10-02 — BOTH layers this ADR compares are destroyed.
+>
+> The question was *"what succeeds the portal layer?"*. **There is no portal and no `mcp-proxy`.**
+> `modules/shared/mcp.nix` is deleted, `infra/cloudflare/mcp-public.nix` is deleted,
+> `https://mcp.kattakath.com/mcp` answers **403**, and MCP servers now come from an enabled
+> plugin's own `.mcp.json`, spawned per session with nothing shared
+> ([`repo-map.md`](repo-map.md) § MCP after the gateway). **§8's side-by-side cutover cannot be
+> run** — `packages.mcp-worker-probe` was deleted with the stack, there is no `:8097` to diff
+> against, and `mcp-public.nix:461` does not exist.
+>
+> **Two things here survive the subject, which is why the file is kept:**
+>
+> - **§1a's finding, which is now load-bearing rather than theoretical.** The one axis the
+>   Cloudflare portal lost on was **per-user credential injection into a local child** — something
+>   no remote portal can do. That is exactly what `local.gmailMcp` + `packages/gmail-mcp.nix` now
+>   does by keeping the launcher local and letting the plugin name it: the Keychain read happens on
+>   this machine, in a process Claude Code spawned. The purge did not solve that problem; it
+>   stopped having the problem, by removing the remote layer.
+> - **The category error the amendment caught.** A ContextForge *gateway* federates peers that are
+>   already HTTP/SSE and **rejects stdio outright**, so it was never `mcp-proxy`'s successor — it
+>   sits ABOVE a stdio bridge you keep either way. If a portal is ever wanted again, start from
+>   that distinction rather than re-deriving it.
+
+**Status:** **MOOT — 2026-10-02.** Was **Decided (name only), NOT implemented** — 2026-09-23.
+Nothing ever shipped: `modules/shared/mcp.nix` ran `pkgs.mcp-proxy` v0.12.0 to the end, there was
+never a `contextforge` package, no second port, and no behaviour change on any host.
 
 **This ADR was amended the day it was written, and the amendment is the point.** It was drafted as
 "ContextForge succeeds `mcp-proxy`". That framing is a **category error**: a ContextForge *gateway*
@@ -318,6 +341,11 @@ the entire proving period.**
    `packages.mcp-worker-probe` already speaks raw MCP `initialize` over HTTP — point it at
    `http://127.0.0.1:8098/servers/<uuid>/mcp` and diff tool counts, startup time and per-server
    readiness against `:8097`. **No apply, no registration, no client reconfiguration.**
+   (**Unrunnable since 2026-10-02:** `packages.mcp-worker-probe` was deleted with the `mcp-public`
+   stack — it read that stack's tofu state directory, so it could not work without it — there is
+   no `mcp-gateway` agent and no `:8097`. The *technique* is what survives: a raw MCP `initialize`
+   over HTTP against both candidates, diffing tool counts and readiness, is still the right way to
+   prove one bridge against another.)
 2. **Phase 2 — cutover is one line.** `mcp-public.nix:461` `service = "http://127.0.0.1:<port>"`.
    Plan, apply. The portal URL, the 27 registrations, the service token, the DNS record and every
    client config are untouched. **Rollback is the same line reversed.**

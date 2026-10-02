@@ -141,15 +141,17 @@ for is not cosmetic** — the broad one is refused on the newest API surface:
 | Keychain entry | Scope | Bound to an env var? |
 |---|---|---|
 | `cf:cloudflare.com:nixpi-tunnel` | Account **Cloudflare Tunnel:Edit** (Personal only) + **DNS / Zone Settings / Dynamic URL Redirects :Edit** on `kattakath.com` + `snoringirl.com` | **no** — `secret exec` only |
-| `cf:cloudflare.com:mcp-public` | the **only** handle that works on `/access/ai-controls/mcp/*` — use it for every `mcp-public` render, plan, apply and verification | **no** |
-| `cf:cloudflare.com:mcp-connector` | the published gateway's tunnel connector token (a credential the connector runs with, not an API token) | **no** — read at launch by `nix-mcp-tunnel-connector` |
+| ~~`cf:cloudflare.com:mcp-public`~~ | **ORPHANED 2026-10-02.** Was the only handle that worked on `/access/ai-controls/mcp/*`; the `mcp-public` stack it served is destroyed and deleted, so it has no consumer. Safe to `secret rm` — harmless to leave, since a Keychain item with no caller does nothing | **no** |
+| ~~`cf:cloudflare.com:mcp-connector`~~ | **ORPHANED 2026-10-02.** Was the published gateway's tunnel connector token (a credential the connector ran with, not an API token). `nix-mcp-tunnel-connector` no longer exists | **no** |
 | `cf:cloudflare.com:api` | broad (both accounts, all zones) — kept for ad-hoc work | **no** (was bound, now unbound) |
 
-**Measured 2026-09-14:** `cf:cloudflare.com:api`, despite being the broad token, returns
-**403 Forbidden** on `/accounts/<id>/access/ai-controls/mcp/servers/*`. A `tofu plan` for the
-mcp-public stack therefore aborts at refresh with it. Reach for `cf:cloudflare.com:mcp-public`.
-The apps' own error text said `:api` until that date — it was wrong, and is now fixed in
-`modules/parts/terranix.nix`.
+**Measured 2026-09-14, and worth keeping although its subject is gone:** `cf:cloudflare.com:api`,
+despite being the **broad** token, returned **403 Forbidden** on
+`/accounts/<id>/access/ai-controls/mcp/servers/*`. The `mcp-public` stack was deleted 2026-10-02 so
+there is no longer a plan to abort — but the finding generalises and is the reason the split above
+exists at all: **"broad" is not a superset on Cloudflare's newest API surfaces.** A token that
+works everywhere you have tried is not evidence it works on an endpoint you have not. Expect to
+mint a narrowly scoped handle for each new surface rather than assuming `:api` covers it.
 
 `cf:cloudflare.com:dontsell-dns` was a fourth entry, scoped to `dontsell.ai` only. That zone's
 terranix module was deleted on 2026-09-14 (its apex had moved to Vercel out-of-band and the

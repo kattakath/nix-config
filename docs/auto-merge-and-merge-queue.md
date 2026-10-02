@@ -253,7 +253,8 @@ operator action on GitHub, not something any workflow in this repo performs.
 exactly as the seven above did — but for the **opposite reason**. It was never a
 satellite and never became a capsule: it was an unadopted extraction candidate, a thin
 generic `local.mcpGateway` broker module the fleet never consumed, because
-`modules/shared/mcp.nix` is and always was the fleet's own wired deployment. Nothing came
+`modules/shared/mcp.nix` was and always had been the fleet's own wired deployment. (**Both are
+gone now** — that module and the whole MCP gateway were deleted 2026-10-02.) Nothing came
 in-tree when it left, because nothing was ever taken in. `kattakath/nix-inngest` was
 archived the same day for the same reason; it never appeared in this table, having had no
 merge queue of its own. Archived, **not deleted** (ADR-002 §7.8), so both remain public
