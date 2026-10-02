@@ -409,17 +409,17 @@ in
 
     # Chrome DevTools Protocol, in ATTACH mode against Chromium. The attach flag is
     # picked at spawn time by probing /json/version — neither --browser-url nor
-    # --autoConnect works in both browser modes; see modules/shared/mcp.nix. One flag turns on BOTH the gateway server and the
-    # `nix-chromium-debug` launcher — they are gated together on purpose, so there
-    # is no state where something can reach a browser without the operator having
+    # --autoConnect works in both browser modes; that probe went to the page-lab
+    # plugin with the server, so this flag now gates only the `nix-chromium-debug`
+    # launcher. Nothing can reach a browser without the operator having
     # enabled debugging deliberately (in-browser, or via that launcher).
     #
     # Safe to leave on permanently, MEASURED 2026-09-06 rather than assumed: with
     # nothing listening on the port, the server still answers `initialize` and
     # stays alive (45s, no exit) — it only touches a browser lazily, when a tool
-    # needs one. So it does NOT dark the gateway the way a server that exits at
-    # startup would (the failure mode postgres and localAdapter warn about in
-    # modules/shared/mcp.nix). Individual tool calls simply fail until a browser
+    # needs one. That mattered while one server exiting at startup could dark the
+    # whole gateway; since 2026-10-02 every server is spawned per-session by its
+    # own plugin, so it can only cost itself. Individual tool calls simply fail until a browser
     # is listening; `devtools-doctor.sh` in the chrome-devtools plugin says which
     # of the three causes it is.
     #
@@ -429,7 +429,7 @@ in
     # control channel over a profile holding live logins. Measured 2026-09-07 on the
     # then-default Opera Air: a Chromium-family browser stores no persistent consent
     # key, so there is nothing to make it stop asking. Opera was removed from this Mac
-    # on 2026-09-21; the attach target is now Chromium (modules/shared/mcp.nix).
+    # on 2026-09-21; the attach target is now Chromium (modules/home/default-browser.nix).
     # The MCP server moved to the page-lab plugin (#657 batch 2); opening the port
     # did not, and never was an MCP concern. See local.ungoogledChromium.debugLauncher.
     local.ungoogledChromium.debugLauncher = true;
@@ -674,8 +674,9 @@ in
       # and persisting independently of OBS.app.
       "obs"
       "obsidian"
-      # OpenDesign — the local-first design-agent desktop app (Electron; its
-      # stdio MCP server is declared per-client in modules/shared/mcp.nix).
+      # OpenDesign — the local-first design-agent desktop app (Electron; this repo
+      # declares no MCP server for it any more — that left the fleet with the
+      # gateway 2026-10-02, see modules/home/claude-desktop.nix).
       # Adopts the previously hand-dragged /Applications copy: `brew bundle`
       # passes --adopt to every fresh cask install, and for an auto_updates cask
       # adoption is unconditional (no re-copy, no touch of the app's ~1GB state).

@@ -86,8 +86,9 @@ let
   isMacosHost = (osConfig.networking.hostName or "") == "macos";
 
   # android-commandlinetools Homebrew cask install prefix — single source for
-  # every ANDROID_HOME/PATH reference below (also read from modules/shared/mcp.nix
-  # via config.home.sessionVariables.ANDROID_HOME, not re-declared there).
+  # every ANDROID_HOME/PATH reference below (exported once as
+  # config.home.sessionVariables.ANDROID_HOME, which the android-phone plugin's
+  # mobile-mcp inherits from the session env rather than re-declaring).
   androidSdkRoot = "/opt/homebrew/share/android-commandlinetools";
 
   # VS Code Marketplace mirror — provided by the nix-vscode-extensions overlay,
@@ -734,8 +735,8 @@ in
         "claude-code-setup"
         # mcp-server-dev — build-mcp-server / build-mcp-app / build-mcpb skills: deployment
         # model, tool design and packaging for MCP servers. SKILLS ONLY — it registers no
-        # MCP server of its own, so it adds nothing to modules/shared/mcp.nix's catalog and
-        # cannot collide with the gateway. Complements mcp-builder (kattakath) rather than
+        # MCP server of its own, so it claims no tool namespace and cannot collide with
+        # another plugin's servers. Complements mcp-builder (kattakath) rather than
         # replacing it: this one is Anthropic's own house guidance.
         "mcp-server-dev"
         # agent-sdk-dev — /new-sdk-app plus agent-sdk-verifier-{py,ts}: scaffolds and then
@@ -821,12 +822,13 @@ in
     # subagent (sonnet — keeps fetched docs out of the main context) and
     # /context7:docs.
     #
-    # ACCEPTED COST, eyes open: the plugin's own .mcp.json registers a SECOND
-    # context7 at mcp.context7.com (headers from a node headersHelper reading
-    # CONTEXT7_API_KEY), so the fleet now has two paths to one service —
-    # mcp__plugin_hm_context7__* (the gateway's, keyed from the login Keychain,
-    # modules/shared/mcp.nix) and mcp__plugin_context7_context7__* (this one,
-    # anonymous unless CONTEXT7_API_KEY is exported into Claude Code's env).
+    # THE DUPLICATE IS GONE: the plugin's own .mcp.json registers context7 at
+    # mcp.context7.com (headers from a node headersHelper reading
+    # CONTEXT7_API_KEY). That was a SECOND path to one service while the
+    # gateway's mcp__plugin_hm_context7__* existed, keyed from the login
+    # Keychain; it died with the gateway 2026-10-02, so
+    # mcp__plugin_context7_context7__* is the only path now — anonymous unless
+    # CONTEXT7_API_KEY is exported into Claude Code's env.
     # Distinct tool namespaces, so nothing collides; the plugin was taken
     # unmodified on purpose rather than patched, to keep it a plain upstream
     # pin. Patch out the .mcp.json (the grokBuildPluginPatched pattern in the
@@ -886,8 +888,9 @@ in
         #
         # The Nix-specific half (declaring a script in home.nix, activation, the install
         # click) stays in .claude/skills/userscript-author — it is about THIS repo, not
-        # about userscripts. The MCP server page-lab drives is wired in
-        # modules/shared/mcp.nix (attach mode, opt-in, off by default).
+        # about userscripts. The MCP servers page-lab drives are declared in the plugin's
+        # own .mcp.json; this repo owns only the browser half (modules/home/chromium.nix's
+        # debugLauncher / kaptureMcp, both opt-in and off by default).
         "page-lab"
         # claude-code-nix: the two Nix PostToolUse hooks this repo used to carry in
         # .claude/hooks — auto-stage a .nix write (flakes evaluate the GIT tree, so an
