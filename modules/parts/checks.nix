@@ -2249,10 +2249,13 @@ in
           # mechanism — nix-darwin's activation is diff-gated in both its lanes,
           # and launchd-reconcile.nix runs as root with no `gui/<uid>` to reach —
           # so a unit macOS has dropped simply stays down until a human notices.
-          # Five units sat there; three moved to home-manager's `launchd.agents`
-          # on 2026-10-02 (modules/home/macos-user-agents.nix), where upstream
-          # owns the `launchctl print` probe. This gate is what stops them coming
-          # back, and it is keyed on the LABEL for two reasons.
+          # Five units sat there and ALL FIVE moved to home-manager's
+          # `launchd.agents` on 2026-10-02 — three into
+          # modules/home/macos-user-agents.nix, then the two tart-vms CI runners
+          # — so the stranded row is now EMPTY, which is what the first leg
+          # below asserts. Upstream owns the `launchctl print` probe. This gate
+          # is what stops them coming back, and the per-unit legs are keyed on
+          # the LABEL for two reasons.
           #
           # THE LABEL IS THE UNIT'S ON-DISK IDENTITY, and the operator's
           # "Allow in the Background" approval in Background Task Management is
@@ -2283,9 +2286,16 @@ in
           # a store-resident `nix-*` script rather than Apple's `/bin/sh`, and
           # that attribution is what grants these two sweeps READ access to the
           # TCC-protected ~/Desktop and ~/Downloads at all
-          # (.claude/rules/launchd-naming.md § TCC). The defaults come from
-          # modules/home/launchd-launcher.nix as `mkDefault`s, i.e. a single
-          # agent can still silently opt out of both.
+          # (.claude/rules/launchd-naming.md § TCC). For the two CI runners the
+          # same pair preserves the arg0 BASENAME across the lane change —
+          # `nix-gitlab-runner` and `nix-tart-runner-dontsell-vm` are what BTM
+          # listed before it, and those names come from `launcher.name`, not from
+          # the inner script (which is deliberately named differently, so one
+          # name does not end up on two store paths). The three macos-user-agents
+          # defaults come from modules/home/launchd-launcher.nix as `mkDefault`s,
+          # i.e. a single agent can still silently opt out of both; the capsule
+          # sets its own explicitly, because a capsule may not assume its
+          # consumer loads this fleet's home profile.
           launchd-selfheal-lane =
             let
               mac = config.flake.darwinConfigurations.macos.config;
@@ -2297,12 +2307,38 @@ in
               labelsOf = src: map (unit: unit.${src.key}.Label) (lib.attrValues src.units);
               healing = lib.concatMap labelsOf (lib.filter (src: src.selfHeals) sources);
               stranded = lib.concatMap labelsOf (lib.filter (src: !src.selfHeals) sources);
+              # The tart-vms CI lanes, moved 2026-10-02 — the LAST units on the
+              # stranded row. Both are declared from a nix-darwin module
+              # (modules/features/tart-vms/{github,gitlab}-runner.nix write
+              # `home-manager.users.<primaryUser>.launchd.agents`, the shape
+              # modules/darwin/logging.nix:337 established) because their plists
+              # derive from nix-darwin options — `local.tart.runnerStateDir`
+              # defaults off `config.system.primaryUserHome`. Lane, not layer:
+              # what self-heals is the option surface, not which file writes it.
+              #
+              # DERIVED, unlike the three below, and that is the distinction
+              # worth keeping. Their Labels are not hand-picked strings: each is
+              # nix-darwin's own former default for the attribute name
+              # (`launchd.labelPrefix` + "." + attr, pinned
+              # modules/launchd/default.nix:88), which is precisely what sits on
+              # disk and holds the BTM approval. So the invariant is the
+              # FORMULA, and a literal list here would hardcode a consumer's
+              # per-instance runner names into the fleet's checks as well.
+              # It still is not a tautology: it fails if a lane drops its
+              # explicit Label (home-manager would silently name the unit
+              # `org.nix-community.home.<attr>`) or forgets `enable`.
+              tartLanes =
+                lib.optional mac.local.tart.gitlabRunner.enable "gitlab-runner"
+                ++ map (n: "tart-runner-${n}") (
+                  lib.attrNames (lib.filterAttrs (_: r: r.enable) mac.local.tart.githubRunners)
+                );
               # attribute name -> the Label it MUST keep carrying.
               units = {
                 file-rotation-desktop = "com.kattakath.file-rotation.trash-desktop";
                 file-rotation-downloads = "com.kattakath.file-rotation.trash-downloads";
                 open-maccy = "org.nixos.open-maccy";
-              };
+              }
+              // lib.listToAttrs (map (n: lib.nameValuePair n "org.nixos.${n}") tartLanes);
               attrs = lib.attrNames units;
               required = lib.attrValues units;
               missing = lib.subtractLists healing required;
@@ -2314,12 +2350,23 @@ in
               mislabelled = lib.filter (n: hm.launchd.agents.${n}.config.Label != units.${n}) present;
               waiting = lib.filter (n: hm.launchd.agents.${n}.waitForNixStore) present;
               badLauncher = lib.filter (n: hm.launchd.agents.${n}.launcher.name != "nix-${n}") present;
+              # THE LANE ITSELF, not a roster. Every leg above names a unit, so
+              # all of them stay green for a NEW unit declared on the stranded
+              # row — which is how five of them accumulated there in the first
+              # place. As of 2026-10-02 nix-darwin's `launchd.user.agents` is
+              # EMPTY on macos, so the strongest available assertion is
+              # emptiness, and it needs no maintenance.
+              strandedGui = lib.attrNames mac.launchd.user.agents;
             in
             mkHostContract {
               inherit pkgs;
               name = "launchd-selfheal-lane";
-              subject = "macos: the three gui user agents are in the self-healing launchd lane";
+              subject = "macos: every gui user agent is in the self-healing launchd lane (${toString (lib.length (lib.attrNames units))} units)";
               expect = [
+                {
+                  name = "nix-darwin's diff-gated gui lane is empty (stranded: ${toString strandedGui})";
+                  ok = strandedGui == [ ];
+                }
                 {
                   name = "every unit is declared AND enabled in home-manager's launchd.agents (absent or disabled: ${toString absent})";
                   ok = absent == [ ];
@@ -2350,18 +2397,23 @@ in
               # first red run of this check printed "launchd.user.agents: command
               # not found" in place of half its advice.
               advice = [
-                "These three were nix-darwin launchd.user.agents until 2026-10-02 and"
-                "moved to modules/home/macos-user-agents.nix for home-manager's"
-                "launchctl-print self-heal. Moving one back puts it on the selfHeals ="
+                "All five were nix-darwin launchd.user.agents until 2026-10-02 and moved"
+                "to home-manager launchd.agents for its launchctl-print self-heal: three"
+                "in modules/home/macos-user-agents.nix, and the two CI runners in"
+                "modules/features/tart-vms/. Moving one back puts it on the selfHeals ="
                 "false, domain = gui row of modules/darwin/launchd-sources.nix, which no"
                 "mechanism repairs: the unit stays down silently after macOS drops it."
+                "The emptiness leg is the one that catches a BRAND NEW unit declared"
+                "there, which every per-unit leg below it would miss."
                 "A RENAMED or DEFAULTED Label is a different launchd unit, so it loses the"
                 "operator's Background Task Management approval and reappears unapproved."
                 "A unit declared without enable = true renders no plist at all — the"
                 "agent is simply gone, with no eval error anywhere."
                 "A waitForNixStore = true, or a renamed launcher, makes launchd exec"
                 "Apple's /bin/sh, which TCC refuses on ~/Desktop and ~/Downloads: the two"
-                "sweeps would run, log nothing useful, and quietly do no work."
+                "sweeps would run, log nothing useful, and quietly do no work. For the two"
+                "CI runners the same change costs BTM legibility instead - the operator"
+                "sees a phantom sh where nix-gitlab-runner used to be."
               ];
             };
           # NOTE: `hm-launchd-drift` lived here until 2026-09-14. It pinned the
