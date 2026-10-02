@@ -119,9 +119,26 @@ array keys such as `permissions.allow`; it does not apply here.)
 > — *Plugins / relevance*
 
 **This repo currently declares an explicit HTTPS URL for it** (`home.nix`, the
-`claude-plugins-official` entry). That appears removable, and removing it is strictly better:
-the name is bound upstream to the real source, so a declared URL is a second source of truth
-that can only ever drift or be mistyped. **Not yet measured** — see §7.
+`claude-plugins-official` entry). An earlier revision of this section called that URL
+"removable" and the removal "strictly better", hedged as *not yet measured*. **It has since
+been measured, and it is false: DO NOT REMOVE IT.**
+
+`extraKnownMarketplaces` **requires** `source`. An entry of `{}` registers nothing and yields
+`No marketplaces configured` — measured 2026-10-02 against an isolated `CLAUDE_CONFIG_DIR` by a
+peer session, and corroborated here against the live file: all **8** registered marketplaces
+carry a `source` key and none is name-only. The reference describes the value as a map from
+marketplace name to an object *with* `source`. The name-only form belongs to
+`pluginSuggestionMarketplaces` and to allowlists, not to registration.
+
+So the "second source of truth" worry is real in principle and moot in practice — there is no
+first source to defer to. Deleting that URL on the strength of the old sentence would silently
+stop the marketplace registering, which is this document's own subject matter: a declaration
+that is never read, in reverse.
+
+**Why this correction arrives here rather than in #755.** The fix was pushed after #755 had
+auto-merged, so `main` never received it and every branch cut from `main` inherited the wrong
+text. That is the race `.claude/rules/pr-title.md` records as #567 — auto-merge lands a PR the
+moment checks go green, so a branch you are still correcting can merge out from under you.
 
 ### 4e. The lockdown keys already in use
 
