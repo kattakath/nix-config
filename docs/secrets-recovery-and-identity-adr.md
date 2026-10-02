@@ -171,10 +171,16 @@ both additive:
 **Recommendation: (a).** It honours every rule already in force and still delivers the four
 verbs.
 
-### 8.3 AWS profiles are back in Nix, contradicting ADR-003 §10.3
-`repo-map.md` says `~/.aws/config` "left every repo"; `hosts/macos.nix:297` writes it with real
-account ids (inventory #1). Phase 3's `local.cloudCli.aws` is the fix; confirm the two profiles
-may leave Nix for a hand-placed `~/.aws/config` (with `config.example` as the template).
+### 8.3 AWS profiles are back in Nix, contradicting ADR-003 §10.3 — CLOSED by Phase 3
+[`externalization-boundary-adr.md`](externalization-boundary-adr.md) § 10.3 is where
+`~/.aws/config` "left every repo" is written (ADR-003, not `repo-map.md` — the earlier
+attribution here named the wrong document), and `hosts/macos.nix` did then write the file with
+real account ids (inventory #1). Phase 3's `local.cloudCli.aws` was the fix and it **shipped**:
+as of 2026-09-20 the only `programs.awscli.settings` string left in the tree is the comment in
+`hosts/macos.nix` recording its removal, there is no `sso_account_id`/`sso_start_url` anywhere
+in `hosts/macos.nix`, and the real `~/.aws/config` is hand-placed by the operator with
+`~/.aws/config.example` as the template. Verified by grep 2026-10-02 — **1 of 1** match in all
+tracked `.nix`, and that one is the comment.
 
 ### 8.4 The Access policy is an email rule, not a domain rule
 Measured 2026-09-20 via the API: reusable policy `mcp-allow-operator` (`b3bd8c38-…`) is

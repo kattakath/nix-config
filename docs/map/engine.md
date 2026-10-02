@@ -27,7 +27,7 @@ nothing — hence one regex, not two calls.
 | `compose.nix` | `mkDarwin` / `mkNixos` / `mkHomeManagerModule` — **not translated** to flake-parts, kept verbatim as plain Nix functions in the freeform `flake` attr (ADR-001's blast-radius objection, honoured). Also threads each capsule in as a named specialArg. Its two composition seams (`extraHomeModules`, `hostedSites`) and the nixpi deploy runbook are written up in [`private-home-modules.md`](../private-home-modules.md) — the filename is historical (the private `nix-personal` flake it was named for was retired 2026-09-15); the seams and the runbook are current. |
 | `hosts.nix` | `darwinConfigurations.macos`, `nixosConfigurations.{nixpi,nixvm}`. |
 | `packages.nix` | `perSystem.packages` + every `apps.*`. |
-| `checks.nix` | The engine's own checks, including `claude-md-budget`, `capsule-registry`, `deploy-schema`, `bedrock-gate-after-loader`, `launchd-log-rotation` (every declared launchd log reaches exactly one rotator, and never both — re-walks the composed agents itself rather than reading `logging.nix`'s own answer back), `mcp-launcher-parity` (the `nix-mcp-*` launchers this fleet builds == the servers `kattakath/skills`' plugins name, read out of the pinned input at eval time — § `modules/home/` for the exclusions and the proof it is not vacuous), the two `determinate-daemon` halves and `nixpi-security-posture` (§ `modules/nixos/` — 22 legs, read in BOTH directions since 2026-10-01: a WIDENING of the firewall fails it, and so does REMOVING the declared LAN recovery ingress). Its one shared helper, `mkHostContract`, reports EVERY broken leg rather than the first — that behaviour, not code reuse, is the bar for reaching for it. |
+| `checks.nix` | The engine's own checks, including `claude-md-budget`, `capsule-registry`, `deploy-schema`, `bedrock-gate-after-loader`, `launchd-log-rotation` (every declared launchd log reaches exactly one rotator, and never both — re-walks the composed agents itself rather than reading `logging.nix`'s own answer back), `mcp-launcher-parity` (the `nix-mcp-*` launchers this fleet builds == the servers `kattakath/skills`' plugins name, read out of the pinned input at eval time — [`modules-home.md`](modules-home.md) § `modules/home/` for the exclusions and the proof it is not vacuous), the two `determinate-daemon` halves and `nixpi-security-posture` ([`modules-nixos.md`](modules-nixos.md) § `modules/nixos/` — 22 legs, read in BOTH directions since 2026-10-01: a WIDENING of the firewall fails it, and so does REMOVING the declared LAN recovery ingress). Its one shared helper, `mkHostContract`, reports EVERY broken leg rather than the first — that behaviour, not code reuse, is the bar for reaching for it. |
 | `capsules.nix` | The capsule registry and its two internal seams — `capsuleModules` and `capsuleSources` — plus `checks.<system>.capsule-registry`. |
 | `terranix.nix` | The `cf-*` / `gcp-*` tofu builders. The `mcp-public-*` builders and the `mcp-worker-probe` package were deleted 2026-10-02 with that stack. |
 | `devshell.nix` | `devShells` + the `git-hooks.nix` wiring. |
@@ -246,13 +246,16 @@ the one exported host (`macos`) and the stranger-identity Mac that
   cosine index. Ingest and retrieval are both **plain SQL**; no API key, nothing leaves the
   machine.
 - **The seam the whole wave was gated on:** `modules/shared/mcp.nix`'s
-  `env.DATABASE_URI = config.local.rag.pgvector.databaseUri`. That one string was the career
-  RAG's only path to the `postgres` MCP server. **That consumer no longer exists** — `mcp.nix`
-  was deleted 2026-10-02 and a `postgres` server now has to come from a plugin's `.mcp.json`,
-  outside this repo's sight (§ MCP after the gateway). `checks.local-rag-module` still pins the
-  URI's value as a **LITERAL**, so a port/role/db rename fails there instead of quietly
-  returning zero rows — but it now guards only the *producer* side of a seam whose consumer it
-  cannot read.
+  `env.DATABASE_URI = config.local.rag.pgvector.databaseUri`. **That MODULE no longer exists —
+  the seam does, with two consumers, both in this repo.** `mcp.nix` was deleted 2026-10-02
+  (#734); `modules/home/plugin-mcp.nix:110` now hands the URI to the plugin-lane `postgres` MCP
+  launcher as `plainEnv.DATABASE_URI`, and `modules/features/local-rag/pgvector-local.nix:419`
+  exports it as the `RAGDB_URI` session variable (#796) for a shell consumer that cannot read a
+  Nix option. `checks.local-rag-module` still pins the URI's value as a **LITERAL**, so a
+  port/role/db rename fails there instead of quietly returning zero rows, and
+  `checks.mcp-launcher-parity` joins the plugin that names `nix-mcp-postgres` against the
+  launcher built here — so the consumer side is gated too, in both directions. The lane itself
+  is described in [`claude.md`](claude.md) § MCP after the gateway.
 - **Layout:** the two modules sit at the capsule ROOT, not under `modules/`, so that
   `pgvector-local.nix`'s `imports = [ ./ollama-local.nix ]` stays a **sibling** path. That
   literal is load-bearing — it is how `local.rag.pgvector` single-sources

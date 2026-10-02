@@ -19,7 +19,8 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 > mcp/upstream Access applications, and `https://mcp.kattakath.com/mcp` answers **403**. Its
 > state object, the `mcp-public-{plan,apply,destroy,sync,token}` apps, the
 > `packages.mcp-worker-probe` helper and `fleet.publicMcpServers`/`publicMcpPort` went with it.
-> **Do not re-add a stack to publish MCP** — § MCP after the gateway says what replaced it, and
+> **Do not re-add a stack to publish MCP** — [`claude.md`](claude.md) § MCP after the gateway
+> says what replaced it, and
 > § The `mcp-public` teardown below records the one object that refused to die and why that
 > refusal was correct.
 
