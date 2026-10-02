@@ -234,8 +234,20 @@ in
     enable =
       lib.mkEnableOption "rendering the fleet's MCP servers into Claude Desktop's claude_desktop_config.json"
       // {
-        default = pkgs.stdenv.hostPlatform.isDarwin && gw.enable;
-        defaultText = lib.literalExpression "pkgs.stdenv.hostPlatform.isDarwin && config.local.mcpGateway.enable";
+        # NOT gated on the gateway, and that was a REGRESSION introduced with the
+        # 2026-10-01 purge. `&& gw.enable` was here, which meant disabling the
+        # gateway disabled THIS WHOLE MODULE — so the `gatewayServers` gating added
+        # alongside it became dead code, the merge activation never ran, and
+        # claude_desktop_config.json kept naming a portal that had been DESTROYED,
+        # with the sync agent gone too so nothing would ever clean it. Measured:
+        # mcpServers still held `kattakath-portal` a day after the teardown.
+        #
+        # The module has to stay ACTIVE to render an EMPTY server set — that is the
+        # whole point of the operator's choice to keep it rather than delete it.
+        # "Desktop has no MCP servers" is a state something must write; it is not
+        # what you get by switching the writer off.
+        default = pkgs.stdenv.hostPlatform.isDarwin;
+        defaultText = lib.literalExpression "pkgs.stdenv.hostPlatform.isDarwin";
       };
 
     configFile = lib.mkOption {
