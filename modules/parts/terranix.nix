@@ -284,6 +284,90 @@ let
       + nixpkgs.lib.optionalString (action == "apply") printToken;
     };
 
+  # The cf-tunnel ADOPTION import, as an APP rather than a paragraph in a runbook
+  # — same reason cf-access-org-import is one. Doing it by hand means
+  # reconstructing `TF_ENCRYPTION` in an interactive shell, which puts the state
+  # passphrase into the operator's own history. That is the one secret-handling
+  # regression every other wrapper here exists to avoid, so it gets a wrapper too.
+  #
+  # WHAT IT ADOPTS, and why an apply alone will not do: PR #737 moved
+  # `cloudflare_zero_trust_access_policy.nixpi_ssh_operator` into
+  # infra/cloudflare/nixpi-tunnel.nix but never imported the live object. No
+  # wrapper guard catches that — mkCfTunnelTofu compares state-minus-render and
+  # empty-state, and a `+ create` is in neither set — so a bare apply mints a
+  # SECOND policy and leaves `nixpi_ssh` pinned to the old one. The full runbook,
+  # including the measured evidence that the live policy survived the mcp-public
+  # teardown, is in nixpi-tunnel.nix's §(e2).
+  #
+  # It imports and STOPS: no plan, no apply, nothing that can write to Cloudflare.
+  mkCfTunnelImport =
+    {
+      system,
+      hostedSites ? [ ],
+    }:
+    let
+      pkgs = pkgsFor system;
+      # The LIVE policy's id, a literal because it is an attribute of an object
+      # Cloudflare already created — nothing in this repo can derive it, and the
+      # whole point of an import is that state does not know it yet. The account
+      # id is NOT a literal: it is the one `cloudflareAccountId` binding every
+      # other stack renders from.
+      policyId = "b3bd8c38-e231-4203-ba6b-69fe16e498b3";
+    in
+    pkgs.writeShellApplication {
+      name = "cf-tunnel-import";
+      runtimeInputs = [
+        pkgs.opentofu
+        pkgs.coreutils
+      ];
+      text = ''
+        if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
+          echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
+          echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:nixpi-tunnel -- cf-tunnel-import" >&2
+          exit 1
+        fi
+
+        # The SAME pinned state dir the cf-tunnel-{plan,apply,destroy} wrappers
+        # use. Importing anywhere else writes the adoption into a state file those
+        # apps will never read — the wound that cost this repo its state twice.
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-cf-tunnel"
+        mkdir -p "$state_dir"
+        chmod 700 "$state_dir"
+        cd "$state_dir"
+        umask 077
+        chmod 600 terraform.tfstate terraform.tfstate.backup 2>/dev/null || true
+        echo "tofu working directory: $state_dir" >&2
+
+        rm -f config.tf.json
+        cp ${cfTunnelConfig { inherit system hostedSites; }} config.tf.json
+        chmod 600 config.tf.json
+        ${tofuRemoteStatePrelude}
+        tofu init
+
+        # Read-only at Cloudflare: an import is a GET plus a state write.
+        echo "Importing the live SSH Access policy into state (no Cloudflare writes)..." >&2
+        tofu import \
+          cloudflare_zero_trust_access_policy.nixpi_ssh_operator \
+          ${cloudflareAccountId}/${policyId}
+
+        echo "" >&2
+        echo "Imported. NEXT, and do not skip it:" >&2
+        echo "  nix run .#cf-tunnel-plan" >&2
+        echo "" >&2
+        echo "ACCEPTABLE: 'No changes', or '~ update in-place' on the POLICY ONLY," >&2
+        echo "  every line of it exclude/require/session_duration going '[] -> null'." >&2
+        echo "STOP on any of these:" >&2
+        echo "  '+ create' on the policy       -> the import did NOT happen; an apply" >&2
+        echo "                                   would mint a DUPLICATE policy" >&2
+        echo "  '-/+ replace' or '- destroy'   -> would DELETE the object nixpi_ssh" >&2
+        echo "                                   references and LOCK THE PI OUT" >&2
+        echo "  any change to 'include'        -> the render disagrees with the live" >&2
+        echo "                                   rule; who can SSH would change" >&2
+        echo "  any change to nixpi_ssh itself -> expected BEFORE this import, a BUG" >&2
+        echo "                                   after it" >&2
+      '';
+    };
+
   # ---- kattakath.com ZONE RECORDS (terranix -> OpenTofu) -------------------
   # Renders infra/cloudflare/zones.nix. The third stack; see that file's header
   # for why mail does not ride in the Pi's plan.
@@ -980,6 +1064,10 @@ in
         # not something to make routine. Do not "fix" this comment back into
         # saying destroy is unsafe: an earlier draft claimed exactly that, and it
         # would have cost a reader the safest move available at the worst moment.
+        # Same shape, same reason as cf-access-org-import below: an adoption that
+        # must happen once, in the stack's own state dir, without the passphrase
+        # passing through an interactive shell.
+        cf-tunnel-import = mkCfTunnelImport { inherit system hostedSites; };
         cf-access-org-import = mkCfAccessOrgImport { inherit system; };
         cf-access-org-plan = mkCfAccessOrgTofu {
           inherit system;
@@ -1150,6 +1238,11 @@ in
           type = "app";
           program = "${config.packages.cf-zones-plan}/bin/cf-zones-plan";
           meta.description = "Render infra/cloudflare/zones.nix (terranix) and tofu PLAN kattakath.com's DNS records — read-only, run it before cf-zones-apply (needs CLOUDFLARE_API_TOKEN)";
+        };
+        cf-tunnel-import = {
+          type = "app";
+          program = "${config.packages.cf-tunnel-import}/bin/cf-tunnel-import";
+          meta.description = "Import the EXISTING nixpi SSH Access policy into the cf-tunnel state — read-only at Cloudflare, and the mandatory first step after PR #737 declared it; without it cf-tunnel-apply mints a DUPLICATE policy and leaves the Pi's gate pinned to the old one (needs CLOUDFLARE_API_TOKEN)";
         };
         cf-access-org-import = {
           type = "app";

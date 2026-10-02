@@ -373,16 +373,16 @@ in
   # pinned to the old one. No wrapper guard catches it: mkCfTunnelTofu compares
   # state-minus-render and empty-state, and a create is in neither set.
   #
-  #   1. cd "''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-cf-tunnel"
-  #      (the pinned state dir `cf-tunnel-*` uses; do NOT run tofu elsewhere —
-  #      state has been lost twice that way)
-  #
-  #   2. secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:nixpi-tunnel -- \
-  #        tofu import \
-  #          cloudflare_zero_trust_access_policy.nixpi_ssh_operator \
-  #          726e0b2aa2bc2c6944f96a042e3c461b/b3bd8c38-e231-4203-ba6b-69fe16e498b3
-  #      (import takes `<account_id>/<policy_id>`. The account id is `accountId`
-  #      here — spelled literally above because this command runs outside Nix.)
+  #   1-2. secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:nixpi-tunnel -- \
+  #          nix run .#cf-tunnel-import
+  #      One app, not a hand-run `tofu import`: it cd's into the pinned state dir
+  #      (`nix-config-cf-tunnel` — do NOT run tofu elsewhere, state has been lost
+  #      twice that way) and reconstructs TF_ENCRYPTION from the Keychain itself.
+  #      Doing it by hand needs that passphrase in an interactive shell, i.e. in
+  #      the operator's history — the one regression every wrapper here avoids.
+  #      The import id is `<account_id>/<policy_id>`; the app renders the account
+  #      id from `cloudflareAccountId` and carries the policy id as the literal
+  #      it has to be (state does not know it yet — that is what an import is for).
   #
   #   3. secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:nixpi-tunnel -- \
   #        nix run .#cf-tunnel-plan
