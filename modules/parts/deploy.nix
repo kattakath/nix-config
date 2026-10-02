@@ -49,7 +49,7 @@ in
   # does not actually build: `.github/workflows/warm-nixpi-cache.yml` warms the
   # whole nixpi closure into Cachix on every closure change, so the Mac
   # substitutes it. The caddy `Caddyfile-formatted` EPERM on Determinate's
-  # native Linux builder (docs/repo-map.md § hosts/) therefore only bites on a
+  # native Linux builder (docs/map/hosts.md) therefore only bites on a
   # cache MISS. Building on the Pi is NOT the fallback — it is hard-blocked by
   # .claude/hooks/pretooluse-bash-guard.js Rule 1d, because a power cut during
   # an SD-card build corrupts the card.
