@@ -45,7 +45,8 @@ access** — the agent runs, logs nothing useful, and quietly does no work.
 **Caveat:** this behaviour is **undocumented by Apple** and **verified on macOS 26.6.2 only**.
 It could change in any OS update. Treat it as one more reason the `nix-*` wrapper is
 mandatory, not as a security boundary to rely on. Live example:
-`nix-file-rotation-downloads` in `modules/darwin/core.nix`.
+`nix-file-rotation-downloads` in `modules/home/macos-user-agents.nix` (it was
+`modules/darwin/core.nix` until 2026-10-02 — the lane changed, the arg0 rule did not).
 
 ## Mandatory behavior
 
@@ -71,9 +72,14 @@ mandatory, not as a security boundary to rely on. Live example:
    point `arg0` at a `pkgs.writeShellScriptBin "nix-<activity>" ''…''` wrapper, **never**
    directly at `${pkgs.bash}/bin/sh -c …` or `${python}/bin/python3 …`. Put the `exec`
    logic inside that wrapper — and NOT a `wait4path`, for the reason in item 1: it is
-   unreachable from a store-resident wrapper. Canonical examples in
-   `modules/darwin/core.nix`: `launchd.user.agents.open-maccy`, whose `arg0` is a
-   `writeShellScriptBin "nix-open-maccy"` wrapping a bare `/usr/bin/open`.
+   unreachable from a store-resident wrapper. Canonical example:
+   `modules/features/tart-vms/gitlab-runner.nix`'s `launchd.user.agents.gitlab-runner`,
+   whose `arg0` is a `writeShellScriptBin "nix-gitlab-runner"`.
+   **`modules/darwin/core.nix` used to be the example here and no longer is** — its
+   `open-maccy` and two trash sweeps moved to item 1's lane on 2026-10-02
+   (`modules/home/macos-user-agents.nix`), where the launcher supplies the `nix-*` arg0 and
+   the inner scripts are therefore named `open-maccy-run` / `file-rotation-<inbox>-sweep`.
+   The capsule's two runners are the only hand-written user agents left.
 3. **Before declaring any launchd change done**, mentally (or with the audit below) confirm
    the new unit's `arg0` basename starts with `nix-`.
 
@@ -205,9 +211,11 @@ so they form one contiguous block instead of scattering under d/d.
 Home Manager agents get this for free — `launchd.agents.<n>.launcher.name` defaults to
 `nix-<attr>` (`modules/home/launchd-launcher.nix`), so `nix-media-queue` /
 `nix-media-queue-power` and `nix-claude-desktop-mcp-sync` / `nix-claude-otel-collector`
-already sort together. The nix-darwin lane hand-rolls its wrapper, which is where a prefix gets dropped —
-`mkNixAgent` passed `suffix = "maccy"` into `nix-${suffix}` and lost the `open-` until
-2026-09-22.
+already sort together — and since 2026-10-02 the trash sweeps and the Maccy opener get it
+the same way (`modules/home/macos-user-agents.nix`). The nix-darwin lane hand-rolls its
+wrapper, which is where a prefix gets dropped — `mkNixAgent` passed `suffix = "maccy"` into
+`nix-${suffix}` and lost the `open-` until 2026-09-22. That helper is gone with the move;
+the two `tart-vms` runners are the last hand-rolled wrappers.
 
 **Two regroupings were considered and REJECTED, so they do not get re-proposed:**
 
