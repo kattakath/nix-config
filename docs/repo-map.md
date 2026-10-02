@@ -1393,10 +1393,13 @@ waves 5-6 absorb them).
   step E3 of the `fleet-doctor` skill, under **always confirm** — bootstrapping a daemon the
   operator deliberately booted out is exactly the wrong move.
 - **`logging.nix`** (macos only) — rotation for **every launchd log this fleet declares**,
-  off **four** composed sources: Home Manager `launchd.agents`, nix-darwin
-  `launchd.user.agents`, nix-darwin `launchd.agents` (system-wide `/Library/LaunchAgents` —
-  a different option, pinned `modules/launchd/default.nix:139`, unused in this tree but
-  enumerated so a first use is not silently unrotated) and `launchd.daemons`. Two mechanisms,
+  off the **four** composed sources, which it **imports from `launchd-sources.nix` rather
+  than enumerating** (2026-10-02: it was the **third** copy of that list, beside
+  `launchd-reconcile.nix` and `modules/parts/checks.nix`). **Tier is `domain`, not a fifth
+  field** — the `gui` sources are the login-user tick and the `system` source is the root
+  tick, which is how `checks.<system>.launchd-log-rotation` already read it; the mapping is
+  sound in the direction that matters, since a `launchd.daemons` unit that set `UserName`
+  would still land on the root tick, and root can truncate any owner's file. Two mechanisms,
   because macOS gives two different physics.
   **Mechanism 1 — the logs that re-exec:** `system.newsyslog.{enable,files}` (pinned
   `modules/system/newsyslog.nix:11-160`, registered `module-list.nix:45`). Upstream, and
@@ -1421,7 +1424,19 @@ waves 5-6 absorb them).
   declares in either bucket** goes to the root tick, everything else to the user tick. Without
   that rule, a path classified long-lived by a user agent but owned by root would leave the
   newsyslog set globally and land on a login-user `logrotate` that gets EPERM — covered on
-  paper, reclaiming nothing. `checks.<system>.launchd-log-rotation` asserts it independently.
+  paper, reclaiming nothing. `checks.<system>.launchd-log-rotation` asserts it independently —
+  it re-derives the daemon-declared set and compares it against the module's *answer*, so a
+  broken tier rule in `logging.nix` still goes red (verified: replacing
+  `userLongLived = lib.subtractLists daemonDeclared allLongLived` with `allLongLived` fails the
+  EPERM leg with five root-owned `/var/log` paths named).
+  **One enumeration costs one kind of detection, and the gate pays it back explicitly.** While
+  the four sources were typed in two places, dropping one made the module and the check
+  disagree and the check went red. With one file and three readers a dropped source shrinks
+  **both** sides equally — measured green on exactly that edit — so `launchd-log-rotation`
+  gained a seventh leg asserting the **roster** (the four source `name`s). Names only: the
+  `units`/`key`/`domain` mapping is deliberately **not** restated, because that mapping is the
+  part that drifts silently, whereas a name roster is either right or red. Adding a fifth
+  source is a deliberate act and must update that list.
   **Why truncation and not `pidFile` + `signal`:** the
   pinned nix-darwin module really does expose both (`newsyslog.nix:130-160`), so the option
   grep hits — but newsyslog only *delivers* a signal and the program must reopen its own path.

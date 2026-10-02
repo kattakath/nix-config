@@ -972,9 +972,21 @@ in
           #
           # NOT COVERED: that the harness WORKS. shellcheck is a syntax and
           # quoting lint; it cannot tell whether `--compare` still diffs the right
-          # files, and the personal.tsv note in the script's own header is the
-          # standing proof that it drifts semantically without any shellcheck
-          # finding. Running it is still the only test of that.
+          # files.
+          #
+          # #768 IS THE MEASUREMENT. `--compare` walked a hand-maintained list of
+          # filenames, so once nix-personal was retired and the script stopped
+          # writing `personal.tsv`, every CLEAN run reported REJECTED — for weeks,
+          # shellcheck-clean the whole time, because a wrong list of filenames is
+          # perfectly valid bash. That exemplar is now HISTORY, not a standing
+          # defect: #768 derives the set from the capture it has just taken, and a
+          # clean run prints ACCEPTED with exit 0 again.
+          #
+          # The CLASS it proved is not fixed and cannot be, which is why this note
+          # stays. A `--compare` that compared ZERO files, or diffed the capture
+          # against itself, would be exactly as shellcheck-clean as the bug above.
+          # Running the harness on a change meant to move code without changing
+          # what the fleet builds is still the only test of that.
           drv-snapshot-lint =
             pkgs.runCommand "drv-snapshot-lint" { nativeBuildInputs = [ pkgs.shellcheck ]; }
               ''
@@ -1817,6 +1829,31 @@ in
                 config = mac;
                 inherit loginName;
               };
+              # THE ROSTER ITSELF — because deduping removed the drift that used to
+              # prove it. Until modules/darwin/logging.nix was wired to that same
+              # file it carried a THIRD copy of the four sources, so dropping one
+              # made the module and this check disagree and `phantom` went red. With
+              # ONE enumeration and three readers a dropped source shrinks BOTH sides
+              # equally: measured on exactly that edit (remove the home-manager
+              # source, rebuild this check) the result was exit 0 — green over three
+              # sources. One source of truth is the right shape, but it moves the
+              # dropped-source failure from "detected by disagreement" to "not
+              # detected at all" unless the roster is asserted directly.
+              #
+              # NAMES ONLY, deliberately. The `units`/`key`/`domain` MAPPING is not
+              # restated here: that mapping is the part that drifts silently, which
+              # is the whole reason it lives in one file. A name roster cannot drift
+              # quietly — it is either right or red — the same distinction
+              # capsule-registry and docs-indexed draw between a tripwire and a
+              # second copy. Adding a fifth source is a deliberate act and must
+              # update this list; that friction is the point.
+              expectedSources = [
+                "home-manager launchd.agents"
+                "nix-darwin launchd.agents"
+                "nix-darwin launchd.daemons"
+                "nix-darwin launchd.user.agents"
+              ];
+              actualSources = lib.naturalSort (map (src: src.name) sources);
               declared = lib.unique (lib.concatMap (src: pathsIn src.units src.key) sources);
               covered = lib.unique (rot.reExecPaths ++ rot.longLivedPaths);
               uncovered = lib.subtractLists covered declared;
@@ -1838,6 +1875,10 @@ in
               name = "launchd-log-rotation";
               subject = "macos: every declared launchd log has exactly one rotator";
               expect = [
+                {
+                  name = "all four launchd option surfaces are still enumerated (found: ${toString actualSources})";
+                  ok = actualSources == expectedSources;
+                }
                 {
                   name = "no declared log path is unrotated (missing: ${toString uncovered})";
                   ok = uncovered == [ ];
@@ -1872,6 +1913,10 @@ in
                 "A path in the user tick that a daemon also declares means the tier rule"
                 "(any daemon declaration -> root tick) was bypassed: the login user cannot"
                 "truncate root's file, so the path would be covered and still never shrink."
+                "A changed ROSTER means a source left modules/darwin/launchd-sources.nix."
+                "Every other leg here shrinks with it and stays green, so this one is the"
+                "only signal: restore the source, or update the list if the surface is"
+                "genuinely gone from the pinned nix-darwin / home-manager modules."
               ];
             };
 
