@@ -3345,7 +3345,26 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   invalidate the whole shape: the docs say *gateway policy* `extraKnownMarketplaces` maps do not
   merge and are **silent** on the managed FILE. §4d is the incidental find —
   `claude-plugins-official` needs **no `source`**, its name being reserved to Anthropic's, yet
-  this repo declares an explicit URL for it. This ADR does **not** reopen #648; §3 upholds it).
+  this repo declares an explicit URL for it. This ADR does **not** reopen #648; §3 upholds it);
+  [`ADR-009`](docs/structural-boundaries-adr.md) (**DECIDED 2026-10-02 — documents the EXISTING
+  layout, proposes no migration**: the `modules/parts` → class-layer → `modules/features`
+  boundary, the one-line rule for which of the **two** `packages/` trees a new package goes in
+  (ownership: dies with one capsule or not), and the four MUSTs + three forbids of a new capsule.
+  **Read §6 first if you are about to move a file** — it is the table separating the
+  **mechanised** half of the boundary (`capsule-must-not-reach-out`,
+  `shared-must-not-cross-layers`, `checks.*.capsule-registry` — each one FAILS A BUILD) from the
+  **convention-only** half, which is every boundary a newcomer actually asks about:
+  `darwin`/`nixos`/`shared`, and `packages/` vs a capsule's `packages/`. §7 verifies the shape
+  against live upstream (blueprint's one-line `packages/<pname>` contract covering both forms,
+  its *"the type can be any folder name"* clause, `ryan4yin/nix-config`'s `agents/` + `.agents/`
+  + `AGENTS.md` triple mirroring `claude/` + `.claude/` + `CLAUDE.md`) — **with the caveat that
+  blueprint is NOT a pinned input**, so that is cited precedent, not a grepped option surface.
+  §8 adopts `modules/shared` → `modules/home` as this ADR's own consequence, to be done in its
+  own PR with an empty `drv-snapshot.sh --compare` diff. §9 is the honest wart list:
+  `packages/next-right-thing/` holds **no package at all** (six scripts, no `default.nix`, zero
+  references in `modules/parts/packages.nix`), and 2 of `modules/shared/`'s 24 `.nix` are not
+  home-manager modules — `nix-cache.nix` calls itself *"NixOS-ONLY"* on its own line 3, and
+  `nix-ld-libraries.nix` is a `pkgs:`-taking function, not a module).
 - [`docs/workspace-runbook.md`](docs/workspace-runbook.md) — Workspace by hand (the provider is
   archived, ADR-005 §3.3): inventory, verify, and the delegation table no CLI can read.
 - [`docs/identity-and-offboarding.md`](docs/identity-and-offboarding.md) — the single lever:
