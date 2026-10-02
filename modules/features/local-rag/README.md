@@ -143,13 +143,17 @@ LIMIT 8;
 
 ## Used in production
 
-This backs the `postgres` MCP server on `macos`. `modules/shared/mcp.nix` hands
-that server `local.rag.pgvector.databaseUri` as `env.DATABASE_URI` — one
-string, and the only path the career RAG (`career_docs` in `ragdb`) has to
-Claude Code. `checks/module-evaluations.nix` pins that URI as a literal so a
-port/role/db rename fails a check rather than quietly returning zero rows.
+This backs the `postgres` MCP server on `macos`. `modules/home/plugin-mcp.nix`
+hands that server `local.rag.pgvector.databaseUri` as `plainEnv.DATABASE_URI` —
+one string, and the path the career RAG (`career_docs` in `ragdb`) has to Claude
+Code's tool layer. Since 2026-10-02 it is no longer the *only* path: the same
+option is also exported as the `RAGDB_URI` session variable, for plain shell
+consumers (a `psql` script) that cannot read a Nix option.
+`checks/module-evaluations.nix` pins **both** to the same literal, so a
+port/role/db rename fails a check rather than quietly returning zero rows — or
+desyncing the two exports.
 
-The [`rag` skill](https://github.com/kattakath/ai/tree/main/skills/rag)
+The [`rag` skill](https://github.com/kattakath/skills/tree/main/plugins/rag/skills/rag)
 is how an AI coding agent
 is taught to use the resulting `embed()`/`docs` interface.
 

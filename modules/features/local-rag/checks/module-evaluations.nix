@@ -64,13 +64,17 @@ in
   # TWO ASSERTIONS CARRY MORE WEIGHT THAN THE REST, and are why this is not
   # ceremony:
   #
-  #   * `local.rag.pgvector.databaseUri` is pinned as a LITERAL. That option
-  #     is the seam modules/home/plugin-mcp.nix hands to the `postgres` MCP launcher
-  #     as `DATABASE_URI`, i.e. the whole career RAG (`career_docs` in `ragdb`)
-  #     reaches Claude Code through this one string. Reading the option back to
-  #     build the expected value would make the assertion tautological;
-  #     spelling it out means a silent change to port/role/db name fails HERE
-  #     rather than on the next query quietly returning nothing.
+  #   * `local.rag.pgvector.databaseUri` is pinned as a LITERAL, and so is the
+  #     `RAGDB_URI` session variable the module exports from it. That option is
+  #     the seam modules/home/plugin-mcp.nix hands to the `postgres` MCP launcher
+  #     as `DATABASE_URI`, i.e. the career RAG (`career_docs` in `ragdb`) reaches
+  #     Claude Code's tool layer through this one string, while RAGDB_URI is the
+  #     same string for a plain `psql` consumer that cannot read a Nix option.
+  #     Reading either option back to build the expected value would make the
+  #     assertion tautological; spelling the SAME literal out twice means a
+  #     silent change to port/role/db name fails HERE rather than on the next
+  #     query quietly returning nothing — and that the two exports cannot
+  #     DESYNC, which a hand-written second copy of the URI would do.
   #   * `launchd.agents.ollama.config.StandardOutPath` proves the log override
   #     merges onto UPSTREAM's `services.ollama` agent rather than forking it —
   #     upstream declares no StandardOutPath of its own. This is the shape that
@@ -79,7 +83,12 @@ in
   #     `nix flake check`.
   module-evaluates =
     let
-      inherit (hm.config) services launchd local;
+      inherit (hm.config)
+        services
+        launchd
+        local
+        home
+        ;
     in
     pkgs.runCommand "local-rag-eval" { } ''
       test "${pkgs.lib.boolToString services.ollama.enable}" = "true"
@@ -88,6 +97,7 @@ in
       test "${local.rag.ollama.embedModel}" = "nomic-embed-text"
       test "${toString local.rag.ollama.embedDim}" = "768"
       test "${local.rag.pgvector.databaseUri}" = "postgresql://mcp@127.0.0.1:5433/ragdb"
+      test "${home.sessionVariables.RAGDB_URI}" = "postgresql://mcp@127.0.0.1:5433/ragdb"
       test "${pkgs.lib.boolToString launchd.agents.ollama.enable}" = "true"
       # Proves the log override merges onto UPSTREAM's agent rather than
       # forking it — upstream declares no StandardOutPath of its own.
@@ -121,6 +131,11 @@ in
         || fail "launchd.agents.ollama-local-pull exists with local.rag.ollama.enable unset"
       test "${bool (c.launchd.agents ? postgres-pgvector)}" = no \
         || fail "launchd.agents.postgres-pgvector exists with local.rag.pgvector.enable unset"
+      # ABSENT, not empty. A shell consumer guards with `: "''${RAGDB_URI:?…}"`,
+      # which an empty-but-SET variable passes — `psql` would then fail
+      # obscurely against a cluster that is not running at all.
+      test "${bool (c.home.sessionVariables ? RAGDB_URI)}" = no \
+        || fail "home.sessionVariables.RAGDB_URI is set with local.rag.pgvector.enable unset"
       test "${pkgNames hmOff}" = "${pkgNames hmBare}" \
         || fail "home.packages differs from a config without this module: [${pkgNames hmOff}] vs [${pkgNames hmBare}]"
       echo ok > "$out"
