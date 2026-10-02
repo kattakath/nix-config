@@ -1776,18 +1776,12 @@ in
           # unbounded log and no build ever goes red.
           #
           # This does NOT read the module's own inputs back at it. It re-walks the
-          # FOUR composed sources here (HM agents, nix-darwin user agents,
-          # nix-darwin system-wide agents, daemons) and collects every
-          # StandardOutPath/StandardErrorPath, then asserts that set is exactly
-          # the union of what the module says it covers — and that the two buckets
-          # do not overlap, since rename+create racing copytruncate on one path is
-          # a corruption, not a redundancy.
-          #
-          # `launchd.agents` (system-wide /Library/LaunchAgents, pinned nix-darwin
-          # modules/launchd/default.nix:139) is the source that is easy to forget:
-          # it is a different option from `launchd.user.agents`, nothing in the
-          # tree uses it today, and a gate that walked only three sources would
-          # stay green on the first unit declared there.
+          # four composed sources from ../darwin/launchd-sources.nix — which is
+          # where the enumeration, and why each of the four is in it, now live —
+          # and collects every StandardOutPath/StandardErrorPath, then asserts that
+          # set is exactly the union of what the module says it covers, and that
+          # the two buckets do not overlap, since rename+create racing
+          # copytruncate on one path is a corruption, not a redundancy.
           #
           # COVERED IS NOT ENOUGH — the covering tick must also be able to WRITE
           # the file. Long-lived-wins precedence is global, so a path could leave
@@ -1814,31 +1808,26 @@ in
                     ]
                   ) (lib.attrValues attrs)
                 );
-              sources = [
-                {
-                  attrs = mac.home-manager.users.${loginName}.launchd.agents;
-                  key = "config";
-                }
-                {
-                  attrs = mac.launchd.user.agents;
-                  key = "serviceConfig";
-                }
-                {
-                  attrs = mac.launchd.agents;
-                  key = "serviceConfig";
-                }
-                {
-                  attrs = mac.launchd.daemons;
-                  key = "serviceConfig";
-                }
-              ];
-              declared = lib.unique (lib.concatMap (src: pathsIn src.attrs src.key) sources);
+              # ../darwin/launchd-sources.nix is the ONE enumeration of the four
+              # sources — the same list modules/darwin/launchd-reconcile.nix
+              # selects its scope from. Typed here as well, the two copies drift
+              # with nothing to notice: both consumers fail by DOING NOTHING, so a
+              # dropped source stays green on both sides.
+              sources = import ../darwin/launchd-sources.nix {
+                config = mac;
+                inherit loginName;
+              };
+              declared = lib.unique (lib.concatMap (src: pathsIn src.units src.key) sources);
               covered = lib.unique (rot.reExecPaths ++ rot.longLivedPaths);
               uncovered = lib.subtractLists covered declared;
               phantom = lib.subtractLists declared covered;
               overlap = lib.intersectLists rot.reExecPaths rot.longLivedPaths;
               # Tier, re-derived here rather than taken from the module.
-              daemonDeclared = pathsIn mac.launchd.daemons "serviceConfig";
+              # Derived from the same list rather than naming `launchd.daemons`
+              # again — the root tier IS the system-domain source.
+              daemonDeclared = lib.unique (
+                lib.concatMap (src: pathsIn src.units src.key) (lib.filter (src: src.domain == "system") sources)
+              );
               rootInUserTick = lib.intersectLists rot.userLongLivedPaths daemonDeclared;
               tickSets = lib.unique (rot.userLongLivedPaths ++ rot.daemonLongLivedPaths);
               unticked = lib.subtractLists tickSets rot.longLivedPaths;
