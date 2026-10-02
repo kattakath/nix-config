@@ -178,9 +178,9 @@ sites/          Two static site trees; one is Caddy-served on nixpi via config.f
 secrets/        agenix recipients + four ciphertexts (see § Secrets below) — no plaintext
 ast-grep/       Six structural-lint rules + a matching test fixture each, gated by `checks.<system>.ast-grep`. Its config must sit at the repo root as sgconfig.yml: ast-grep finds it by walking UP from the working directory
 scripts/        drv-snapshot.sh — the ADR-002 acceptance harness ("moved code, changed no build"). Deliberately not a flake package: that would add an output and perturb the baseline it measures
-docs/           Runbooks and ADRs, every file indexed and annotated in docs/repo-map.md
+docs/           Runbooks and ADRs, every file indexed and annotated in docs/map/docs-index.md; docs/map/ holds the eleven-file fleet map behind the docs/repo-map.md index
 claude/         The GLOBAL (all-projects) agent context this repo INSTALLS on macos — not config for working here. CLAUDE.md goes to ~/.claude/CLAUDE.md via programs.claude-code.context; rules/ likewise
-CLAUDE.md       Agent context for working in THIS repo (project-scoped). Under a hard 40,000-byte gate, `checks.<system>.claude-md-budget`
+CLAUDE.md       Agent context for working in THIS repo (project-scoped). Under a hard 40,000-byte gate, `checks.<system>.claude-md-budget` — which also carries a per-file ceiling for the index and every docs/map/ file
 .claude/        Repo-local Claude Code agents, commands, hooks, skills, and rules
 .worktreeinclude  Read by Claude Code itself, not by this repo: gitignored files to copy into a new worktree
 ```

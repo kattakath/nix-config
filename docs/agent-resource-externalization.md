@@ -48,7 +48,7 @@ Lock nodes at the time: **56 → 59**.
 > Greasy/Sleazy Fork** instead. The reason is the one thing extraction could not fix: this
 > pipeline **banned** `@updateURL`, so a materialised `file://` copy could never self-update,
 > while a fork-installed one does. `local.ungoogledChromium.userScripts` survives as an empty
-> option. Lock nodes 59 → 58. Details: [`repo-map.md`](repo-map.md) § Userscripts.
+> option. Lock nodes 59 → 58. Details: [`map/packages.md`](map/packages.md) § Userscripts.
 > The plugin and skill rows above are unaffected — those pins are live.
 
 ## Why this is not ADR-002 in reverse
