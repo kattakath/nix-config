@@ -56,7 +56,12 @@
     # bare would feed home-manager modules, NixOS modules and callPackage
     # functions to the FLAKE module system, which is an eval failure, not a
     # warning. The `.match` regex below is therefore mandatory, not decoration.
-    import-tree.url = "github:vic/import-tree";
+    # Owner is `denful`, not `vic`: the repo was transferred (GitHub repository id
+    # 947942931 serves both names, so the rev is unchanged) and every badge, link
+    # and CI URL in its own README now says `denful`. A 301 redirect is a courtesy,
+    # not a guarantee — name the canonical owner so a future GitHub cleanup of the
+    # old handle cannot break the discovery of EVERY module in this flake.
+    import-tree.url = "github:denful/import-tree";
 
     # Git pre-commit hooks, installed automatically on `nix develop`.
     git-hooks.url = "github:cachix/git-hooks.nix";
