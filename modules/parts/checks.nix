@@ -289,7 +289,21 @@ in
                 _: s: !(s ? command && s ? args) || s ? url || s ? type || !(s ? env && s.env ? NIX_CONFIG_MANAGED)
               ) servers;
               problems =
-                lib.optional (
+                # THE MODULE MUST BE ON, and this leg exists because its absence let a
+                # real regression through on 2026-10-01. `local.claudeDesktop.enable`
+                # briefly defaulted to `isDarwin && mcpGateway.enable`, so purging the
+                # gateway switched the whole module off — and every other leg here still
+                # PASSED, because `renderedServers` on a disabled module is an empty
+                # default and "empty" was exactly what the purged branch wanted to see.
+                #
+                # An empty set from a DISABLED module is not the same claim as an empty
+                # set RENDERED: the first means nothing writes the file, so a stale
+                # portal entry pointing at destroyed infrastructure survives forever.
+                # That is what happened — mcpServers still held `kattakath-portal` a day
+                # after the teardown, with the sync agent gone too.
+                lib.optional (!(hm.local.claudeDesktop.enable or false))
+                  "local.claudeDesktop is DISABLED — nothing renders the Desktop config, so whatever is on disk persists unmanaged"
+                ++ lib.optional (
                   badShape != { }
                 ) "non-stdio or unmarked entries: ${toString (builtins.attrNames badShape)}"
                 ++
