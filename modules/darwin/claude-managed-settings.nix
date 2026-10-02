@@ -84,8 +84,42 @@
 # Deploying that file SUPPRESSES the claude.ai connectors Claude Code fetches for
 # itself, unless `allowAllClaudeAiMcps` is set alongside it — and this fleet runs
 # four Gmail connectors plus Drive, Calendar and Slack. The MCP source of truth
-# is the localhost gateway (modules/shared/mcp.nix), and ADR-003 §5 says MCP
-# servers may not overlay. One file, one owner, no MCP.
+# is NOTHING ANY MORE: `modules/shared/mcp.nix` was DELETED 2026-10-02 along with
+# the gateway and its Cloudflare portal, and `modules/shared/` itself became
+# `modules/home/` (#775). MCP servers now come from an enabled plugin's own
+# `.mcp.json`, with a PATH launcher where one needs a Keychain read. ADR-003 §5
+# still holds: MCP servers may not overlay. One file, one owner, no MCP.
+#
+# ── WHY `merge` ALSO GUARDS THE FLOOR AGAINST BEING HOLLOWED OUT ─────────────
+# `managedSourcesBehavior = "merge"` below was set to stop a higher-ranked managed
+# source SKIPPING this file wholesale. It appears to cover a second case its author
+# did not have in mind, recorded here because it bears on which tier a deny lives in.
+#
+# `allowManagedPermissionRulesOnly` does not OVERRIDE lower-scope rules; it IGNORES
+# them — "Ignore permission rules from user, project, and local settings." THE
+# MANAGED FILE IS NOT IN THAT LIST. Under the default `first-wins` a remote source
+# would skip this file anyway, so the distinction was moot; under `merge` both apply,
+# so a deny HERE should survive a remote lock where the same deny in user scope
+# would not.
+#
+# [A] THAT LAST STEP IS AN INFERENCE, NOT A MEASUREMENT — it reads "user, project,
+# local" as an exhaustive list. What would settle it: a Team/Enterprise session with
+# that key set remotely, then checking whether a managed-FILE deny still binds. A
+# GitHub issue search on anthropics/claude-code found ZERO reports either way.
+#
+# AND IT CHANGES NOTHING BELOW. This argument was raised as a reason to promote the
+# `--force` denies into this file, and REJECTED on § WHO IS RESTRAINED's own test:
+# promoting them would mean the operator cannot force-push on repos he OWNS without
+# a root-owned edit and a rebuild, because 2.1.260 refuses the retraction outright.
+# "User scope can be switched off by an org policy" is not a weakness there — it IS
+# the override, and it is load-bearing. Read that § before proposing the same move.
+#
+# One related finding, because it is the fear that usually motivates the move and it
+# is UNFOUNDED: an org policy that ALLOWS force-push cannot defeat a user-scope deny.
+# Per the permissions docs, "if a tool is denied at any level, no other level can
+# allow it" and "deny rules from any scope are evaluated before allow rules." Only
+# the ignore-key above can drop a lower rule — which is why it is the one that
+# matters, and why it already sits in the deliberately-unset list below.
 #
 # ── SEVEN MANAGED-ONLY KEYS ARE DELIBERATELY UNSET ────────────────────────────
 # Each would be a foot-gun at this strength: `allowManagedPermissionRulesOnly`
