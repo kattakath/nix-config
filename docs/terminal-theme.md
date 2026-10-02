@@ -1,7 +1,7 @@
 # The terminal theme, held in one place
 
 Every terminal-ish surface on this fleet takes its colours and type from **one**
-module: [`modules/shared/terminal-theme.nix`](../modules/shared/terminal-theme.nix),
+module: [`modules/home/terminal-theme.nix`](../modules/home/terminal-theme.nix),
 which declares `local.terminalTheme` and publishes a derived view at
 `config.lib.terminalTheme`. Nothing else states a hex value.
 

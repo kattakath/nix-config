@@ -4,7 +4,7 @@
 >
 > The gateway and its Cloudflare portal were destroyed on 2026-10-02, and **Claude Desktop loads
 > no plugins** — so there is nothing left for it to dial.
-> [`modules/shared/claude-desktop.nix`](../modules/shared/claude-desktop.nix) now renders an
+> [`modules/home/claude-desktop.nix`](../modules/home/claude-desktop.nix) now renders an
 > **empty `mcpServers` block**, and Cowork, which reaches servers through Desktop's bridge, has
 > none either.
 >
@@ -27,7 +27,7 @@
 **The original decision (superseded as to its subject, not its mechanism): Claude Desktop is
 "Client side D" of the MCP hub.** The same connector Claude Code got — the Cloudflare MCP portal
 in front of the gateway — was rendered into Desktop's `claude_desktop_config.json` by
-[`modules/shared/claude-desktop.nix`](../modules/shared/claude-desktop.nix). Cowork got
+[`modules/home/claude-desktop.nix`](../modules/home/claude-desktop.nix). Cowork got
 them for free through Desktop's device bridge.
 
 This is the first piece of Desktop state nix-config manages;
