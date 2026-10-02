@@ -110,6 +110,25 @@ let
     # which is exactly what permissions.deny needs — the floor is reinstated
     # entire, not appended to whatever was there.
     merged=$(printf '%s' "$base" | ${pkgs.jq}/bin/jq -s --slurpfile nix ${nixSettings} '.[0] * $nix[0]')
+    # THE ONE LINE TWO CONCURRENT ACTIVATIONS CAN COLLIDE ON, and the error it
+    # produces names the symptom rather than the cause — which cost two
+    # escalations and a withdrawn rewrite spec on 2026-10-02.
+    #
+    # `install` UNLINKS the target then creates it. Two `activate` runs overlapping
+    # on this path interleave as: A unlinks, B unlinks, A creates, B creates and
+    # gets EEXIST. That surfaces as
+    #   install: cannot create regular file '~/.claude/settings.json': File exists
+    # and it reads exactly like Home Manager having lost ownership of the file. It
+    # is not. The plain file is DELIBERATE (`home.file…enable = mkForce false`
+    # below), the merge above already handles both a legacy symlink and a
+    # pre-existing plain file, and `claudeCodeSettingsReassert` already re-runs
+    # after the plugin CLI rewrites it.
+    #
+    # SO: if you see that error, check for a second activation before changing
+    # anything here. The line is correct; `install -m 600 /dev/null` is what makes
+    # the mode right BEFORE any content is written, which matters because this file
+    # holds the user-scope permissions floor. Do not "fix" it into a chmod-after
+    # write — that would open a window where the deny list is world-readable.
     run install -m 600 /dev/null "$settings"
     printf '%s\n' "$merged" > "$settings"
   '';
