@@ -1,21 +1,24 @@
 # ---- kattakath.com zone records (terranix -> OpenTofu) ---------------------
 #
-# ADR-005 phase 2. The THIRD Cloudflare stack, and the split is deliberate:
+# ADR-005 phase 2. One of three Cloudflare stacks, and the split is deliberate:
 #
-#   cf-tunnel   breaking it takes the Pi offline
-#   mcp-public  breaking it takes the MCP portal offline
-#   cf-zones    breaking it takes MAIL offline          <- this file
+#   cf-tunnel      breaking it takes the Pi offline
+#   cf-access-org  breaking it takes EVERY Access sign-in down
+#   cf-zones       breaking it takes MAIL offline       <- this file
 #
 # > A stack is a blast radius, not a category.
+#
+# (A fourth, mcp-public, took the MCP portal offline when broken. Its
+# infrastructure was destroyed and the stack deleted 2026-10-02.)
 #
 # MX, DKIM, DMARC and MTA-STS are the highest consequence-per-byte objects in the
 # account and share no failure mode with a tunnel. They must not ride in a plan
 # whose other half is a Raspberry Pi.
 #
 # Records come from `config.fleet.dnsRecords` (infra/cloudflare/kattakath-dns.nix) as DATA and
-# are rendered by one `map` — the same shape `hostedSites` and `publicMcpServers`
-# already use. Nothing about a record is computed here; this file is the renderer,
-# that file is the content.
+# are rendered by one `map` — the same shape `hostedSites` already uses. Nothing
+# about a record is computed here; this file is the renderer, that file is the
+# content.
 #
 # THIS STACK OWNS NO TUNNEL, NO ACCESS OBJECT AND NO ZONE SETTING. Zone settings
 # for kattakath.com are already declared by nixpi-tunnel.nix, and declaring them

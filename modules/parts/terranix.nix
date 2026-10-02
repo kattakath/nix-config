@@ -1,11 +1,11 @@
-# ---- terranix (Nix -> OpenTofu JSON) and the six tofu app families ----------
+# ---- terranix (Nix -> OpenTofu JSON) and the five tofu app families ---------
 #
 # Renderers + `writeShellApplication` wrappers, moved verbatim from flake.nix's
 # `let` (ADR-002 wave 2). Every guard here — the site-free refusal, the
 # unpublish refusal, the pinned 0700 state directory — is a recorded incident,
 # not hygiene; none of it is rewritten, only rehomed.
 #
-# `cfTunnelConfig` / `mcpPublicConfig` join `flake.lib`
+# `cfTunnelConfig` joins `flake.lib`
 # ALONGSIDE the builders in modules/parts/compose.nix. That is only possible
 # because `flake.lib` is declared `lazyAttrsOf raw` in
 # modules/parts/lib-option.nix — under flake-parts' freeform `types.unique`
@@ -19,8 +19,6 @@ let
     cloudflareAccountId
     cloudflareZoneId
     hostedSites
-    publicMcpServers
-    publicMcpPort
     accessOrg
     gcpBillingAccountId
     gcpBudgetAmount
@@ -69,52 +67,6 @@ let
         {
           _module.args = {
             inherit domainName hostedSites;
-            accountId = cloudflareAccountId;
-            zoneId = cloudflareZoneId;
-          };
-        }
-      ];
-    };
-
-  # ---- PUBLISHED MCP gateway (terranix -> OpenTofu) ----------------------
-  # Renders infra/cloudflare/mcp-public.nix: the Mac's own tunnel + ingress to
-  # the gateway on 127.0.0.1:<publicMcpPort>, the proxied CNAME, ONE Access
-  # application gated by a SERVICE TOKEN, and one portal registration per
-  # published server.
-  #
-  # `publicServers` IS `config.fleet.publicMcpServers`. It is passed
-  # rather than read from the darwin config because terranix renders outside
-  # any host's module system — the pairing is documented in
-  # docs/mcp-public-exposure-design.md and the mcp.nix option text. Empty (the
-  # default, and what the public apps below render) produces the tunnel and
-  # Access objects but registers NO server, so nothing is reachable.
-  mcpPublicConfig =
-    {
-      system,
-      publicServers ? [ ],
-      publicSubdomain ? "upstream",
-      # Remote MCP Workers published under the SAME origin hostname as the
-      # gateway, as Cloudflare Worker routes rather than hostnames of their
-      # own. Entry shape is documented at the module's own `externalServers`
-      # argument (infra/cloudflare/mcp-public.nix) — deliberately not
-      # restated here, so the two cannot drift.
-      externalServers ? [ ],
-    }:
-    terranix.lib.terranixConfiguration {
-      inherit system;
-      modules = [
-        ../../infra/cloudflare/mcp-public.nix
-        (tofuGcsBackend "mcp-public")
-        {
-          _module.args = {
-            inherit
-              domainName
-              googleAccount
-              publicServers
-              publicSubdomain
-              externalServers
-              publicMcpPort
-              ;
             accountId = cloudflareAccountId;
             zoneId = cloudflareZoneId;
           };
@@ -189,7 +141,7 @@ let
         # scratch — the rendered config.tf.json and the guards' address lists.
         umask 077
         # The tfstate chmod is NOT a GCS-era vestige, and this is the one line of
-        # why for all six wrappers: ADR-005 moved this stack's state to the bucket
+        # why for all five wrappers: ADR-005 moved this stack's state to the bucket
         # but did not delete the local copy tofu wrote during the migration, so a
         # `terraform.tfstate.backup` still sits in this XDG dir. Measured
         # 2026-09-22 by reading the bytes: it is ENCRYPTED, same
@@ -197,7 +149,7 @@ let
         # behind it — NOT the pre-migration plaintext an earlier draft of this
         # comment claimed. It is a redundant offline snapshot, not an exposure.
         # Only gcp-foundation still writes these files live (and its local state is
-        # encrypted too); the other five keep the line because 0600 on a stale
+        # encrypted too); the other four keep the line because 0600 on a stale
         # encrypted state costs nothing and the file is real.
         chmod 600 terraform.tfstate terraform.tfstate.backup 2>/dev/null || true
         echo "tofu working directory: $state_dir" >&2
@@ -608,10 +560,10 @@ let
       '';
     };
 
-  # Its own builder, its own state dir, its own guard — the same reasoning that
-  # kept mcp-public separate from cf-tunnel. The failure mode here is unique:
-  # this stack is ALL data and no infrastructure, so the damaging mistake is not
-  # a bad tunnel, it is a SHRUNKEN render silently deleting mail records.
+  # Its own builder, its own state dir, its own guard — one builder per stack,
+  # never a parameter on another's. The failure mode here is unique: this stack
+  # is ALL data and no infrastructure, so the damaging mistake is not a bad
+  # tunnel, it is a SHRUNKEN render silently deleting mail records.
   mkCfZonesTofu =
     {
       system,
@@ -673,8 +625,8 @@ let
           echo "WARNING: CF_ZONES_ALLOW_SHRINK=1 — proceeding under the floor." >&2
         fi
 
-        # Same three-part guard the other two stacks carry, and for the same
-        # reasons. See mkMcpPublicTofu for the full rationale on each.
+        # Same three-part guard the cf-tunnel stack carries, and for the same
+        # reasons. See mkCfTunnelTofu for the full rationale on each.
         # Unconditional, as in mkCfTunnelTofu: there is no local state left to probe.
         # ABSENT state and UNREADABLE state are different answers, and conflating
         # them either way is a wrong diagnosis. `tofu state list` exits 1 for BOTH
@@ -742,22 +694,23 @@ let
   };
 
   # ---- Remote state: the GCS backend's encryption, shared ------------------
-  # ADR-005 phase 1. The invariant is ENCRYPTION, not remoteness: all SIX stacks
+  # ADR-005 phase 1. The invariant is ENCRYPTION, not remoteness: all FIVE stacks
   # source this, including gcp-foundation, which keeps state LOCAL on purpose (it
-  # declares the bucket the other five live in) and still encrypts it. So the
+  # declares the bucket the other four live in) and still encrypts it. So the
   # encryption can never be configured on one stack and forgotten on another.
   #
-  # ENCRYPTION IS NOT OPTIONAL HERE. Two of these states hold secrets in
-  # PLAINTEXT today — the cf-tunnel connector token and the mcp-public Access
-  # service-token secret. Moving those into object storage unencrypted would take
-  # a secret that is currently 0600 on one disk and put it in a bucket. The ADR
-  # says encryption ships with the backend or the phase does not ship.
+  # ENCRYPTION IS NOT OPTIONAL HERE. One of these states holds a secret in
+  # PLAINTEXT today — the cf-tunnel connector token. (The mcp-public Access
+  # service-token secret was the second until that stack was deleted 2026-10-02.)
+  # Moving it into object storage unencrypted would take a secret that is
+  # currently 0600 on one disk and put it in a bucket. The ADR says encryption
+  # ships with the backend or the phase does not ship.
   #
   # The passphrase is read from the login Keychain at RUN TIME and handed over in
   # TF_ENCRYPTION, so the whole encryption config exists only in the process
   # environment — never in /nix/store (world-readable), never in argv, never in
   # the rendered config.tf.json. Same shape as every other secret wrapper in this
-  # repo (see modules/shared/mcp.nix).
+  # repo (see modules/shared/gmail-mcp.nix).
   #
   # LOSE THE PASSPHRASE AND THE STATE IS UNREADABLE. It lives in the login
   # Keychain as `tofu:state:passphrase`. The bucket keeps 10 versions and every
@@ -865,7 +818,7 @@ let
     };
 
   # ---- GCP billing budget (terranix -> OpenTofu) ---------------------------
-  # Renders infra/gcp/budget.nix. The SIXTH stack, and the second non-Cloudflare
+  # Renders infra/gcp/budget.nix. The FIFTH stack, and the second non-Cloudflare
   # one after gcp-foundation above: a different provider, a different credential
   # (ADC, not an API token) and a different blast radius. Mixing it into a
   # Cloudflare stack would mean one plan that can fail for two unrelated reasons.
@@ -969,516 +922,12 @@ let
       '';
     };
 
-  # writeShellApplication wrapper around `tofu <action>` for the PUBLISHED MCP
-  # gateway stack (infra/cloudflare/mcp-public.nix). Deliberately its own
-  # builder rather than a parameter on mkCfTunnelTofu: it is a different stack
-  # with its own state, and — crucially — a different failure mode, so it needs
-  # a different guard.
-  mkMcpPublicTofu =
-    {
-      system,
-      name,
-      action,
-      publicServers ? [ ],
-    }:
-    let
-      pkgs = pkgsFor system;
-      # Deliberately does NOT print the token. The nixpi app echoes its
-      # connector token to the terminal, which puts a live secret into
-      # scrollback and any transcript. Here the value is fetched by a separate
-      # `mcp-public-token` app that writes ONLY the raw token to stdout, so it
-      # can be piped straight into the Keychain and never rendered.
-      printToken = ''
-
-        echo ""
-        echo "Applied. Store the connector token WITHOUT displaying it:"
-        echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:mcp-public -- \\"
-        echo "    nix run .#mcp-public-token | secret set cf:cloudflare.com:mcp-connector"
-        echo ""
-        echo "The gateway roster is config.fleet.publicMcpServers — one list, and"
-        echo "checks.<system>.mcp-published-parity holds it equal to what the gateway"
-        echo "hosts. Activate after storing the token."
-      '';
-    in
-    pkgs.writeShellApplication {
-      inherit name;
-      # gnugrep/gnused/coreutils are the guard's, not the app's — see the twin
-      # note on the nixpi builder: a guard must not resolve its tools off the
-      # caller's ambient PATH.
-      runtimeInputs = [
-        pkgs.opentofu
-        pkgs.coreutils
-        pkgs.gnugrep
-        pkgs.gnused
-      ];
-      text = ''
-        if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
-          echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
-          echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:mcp-public -- ${name}" >&2
-          echo "  (needs Account > Cloudflare Tunnel:Edit + Access: Apps and Policies:Edit," >&2
-          echo "   Access: Service Tokens:Edit, and Zone > DNS:Edit on ${domainName})" >&2
-          echo "  NOT cf:cloudflare.com:api — measured 2026-09-14: that broad handle" >&2
-          echo "  403s on /access/ai-controls/mcp/servers/*, so tofu aborts at refresh." >&2
-          exit 1
-        fi
-
-        # Its OWN state directory — a different stack from the nixpi tunnel.
-        # 0700 + umask 077 because this state holds BOTH the connector token
-        # and the Access service-token secret.
-        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-mcp-public"
-        mkdir -p "$state_dir"
-        chmod 700 "$state_dir"
-        cd "$state_dir"
-        umask 077
-        chmod 600 terraform.tfstate terraform.tfstate.backup 2>/dev/null || true
-        echo "tofu working directory: $state_dir" >&2
-
-        rm -f config.tf.json
-        cp ${mcpPublicConfig { inherit system publicServers; }} config.tf.json
-        ${tofuRemoteStatePrelude}
-        tofu init
-
-        # GUARD — the twin of the site-free trap, shaped for THIS stack.
-        # publicServers = [ ] is correct for the FIRST apply (create the
-        # tunnel and Access objects before publishing anything). It is
-        # destructive later: applying an empty render over state that already
-        # holds registrations DELETES them, un-publishing every server while
-        # reporting success. Refuse exactly that case.
-        rendered=$(${pkgs.jq}/bin/jq '
-          [.resource.cloudflare_zero_trust_access_ai_controls_mcp_server // {} | keys[]]
-          | length' config.tf.json)
-        # `2>/dev/null … || true` FAILED OPEN. A locked, corrupt or
-        # otherwise-unreadable state produced an empty list, `in_state` read 0,
-        # and the refusal below never fired — so the one situation where you most
-        # want a refusal was the one that sailed straight through to an apply
-        # that unpublishes every server. Separate the two cases it conflated:
-        # "state says zero" and "state could not be read".
-        # Unconditional, as in mkCfTunnelTofu: there is no local state left to probe.
-        # ABSENT state and UNREADABLE state are different answers, and conflating
-        # them either way is a wrong diagnosis. `tofu state list` exits 1 for BOTH
-        # (measured against the pinned opentofu: absent state prints
-        # "No state file was found"), so discriminate on the message: absent means
-        # an empty roster and the actionable guards below, unreadable means this
-        # run genuinely cannot tell and must refuse.
-        if ! tofu state list > .state-addrs.raw 2> .state-list.err; then
-          if grep -qF "No state file was found" .state-list.err; then
-            : > .state-addrs.raw
-          else
-            echo "REFUSING: 'tofu state list' failed, so this run cannot tell whether" >&2
-            echo "  an apply would unpublish live servers. tofu said:" >&2
-            sed 's/^/    /' .state-list.err >&2
-            exit 1
-          fi
-        fi
-        in_state=$(grep -c '^cloudflare_zero_trust_access_ai_controls_mcp_server\.' \
-          .state-addrs.raw || true)
-        if [ "''${rendered:-0}" -eq 0 ] && [ "''${in_state:-0}" -gt 0 ]; then
-          echo "REFUSING: this render publishes 0 servers but state holds ''${in_state}." >&2
-          echo "  Applying would UNPUBLISH every one of them." >&2
-          echo "  This is the public tree, where publicServers defaults to [ ]." >&2
-          echo "  Pass the real list (config.fleet.publicMcpServers)," >&2
-          echo "  or override if you genuinely mean to unpublish everything:" >&2
-          echo "    MCP_PUBLIC_ALLOW_EMPTY=1 ${name}" >&2
-          [ "''${MCP_PUBLIC_ALLOW_EMPTY:-}" = "1" ] || exit 1
-          echo "WARNING: MCP_PUBLIC_ALLOW_EMPTY=1 — unpublishing all servers." >&2
-        fi
-
-        # PARTIAL loss, which the check above cannot see. It fires only when the
-        # render publishes ZERO servers, so a render that keeps three of five
-        # passes it and then deletes two registrations, their portal attachments
-        # and their Access applications — reporting success. Same delta shape as
-        # the nixpi builder, over every rendered type rather than an allow-list,
-        # for the same reason: forgetting a type here deletes silently.
-        grep -E '^cloudflare_[a-z0-9_]+\.' .state-addrs.raw \
-          | sort > .state-addrs || true
-        ${pkgs.jq}/bin/jq -r '
-          .resource // {} | to_entries[] | .key as $type
-          | .value | keys[] | $type + "." + .
-        ' config.tf.json | sort > .render-addrs
-        # EMPTY-STATE GUARD — the mirror of the drop check, and the hole it
-        # closes was found the same day the drop check shipped. The comparison
-        # above is state MINUS render, so an EMPTY state yields an empty
-        # difference and refuses nothing, while the floor check passes because
-        # the render is full. Both guards are blind to a CREATE over live infra.
-        #
-        # That is not hypothetical here: tofu state is per-USER, under this
-        # account's XDG_STATE_HOME. A second admin on this Mac has no such
-        # directory, so `tofu` from their session sees a pristine workspace and
-        # plans to create a tunnel, DNS records and Access objects that already
-        # exist. State has been lost twice before from a wrong working directory;
-        # this is the same wound through a different door.
-        #
-        # A genuine first apply is indistinguishable from that by construction —
-        # both are "no state, full render" — so this refuses BOTH and makes the
-        # first apply say so explicitly. First applies are rare and deliberate;
-        # the accident is neither.
-        render_count=$(wc -l < .render-addrs | tr -d ' ')
-        if [ ! -s .state-addrs ] && [ "''${render_count:-0}" -gt 0 ]; then
-          echo "REFUSING: state is EMPTY but this render declares ''${render_count} resource(s)." >&2
-          echo "  Working directory: $state_dir" >&2
-          echo "  Applying now would try to CREATE infrastructure that may already" >&2
-          echo "  exist, and a tofu apply has NO rollback." >&2
-          echo "  Most likely you are running as a DIFFERENT USER than the one whose" >&2
-          echo "  state holds the live stack — tofu state here is per-user." >&2
-          echo "  If this really is the first apply for this account, say so:" >&2
-          echo "    MCP_PUBLIC_ALLOW_CREATE=1 ${name}" >&2
-          [ "''${MCP_PUBLIC_ALLOW_CREATE:-}" = "1" ] || exit 1
-          echo "WARNING: MCP_PUBLIC_ALLOW_CREATE=1 set — proceeding against empty state." >&2
-        fi
-
-        dropped=$(comm -23 .state-addrs .render-addrs)
-        if [ -n "$dropped" ]; then
-          echo "REFUSING: this render DROPS objects that state already holds:" >&2
-          printf '%s\n' "$dropped" | sed 's/^/    /' >&2
-          echo "  Applying it would DELETE each of them, and a tofu apply has NO" >&2
-          echo "  rollback. Usually this means config.fleet.publicMcpServers lost a" >&2
-          echo "  name that Cloudflare still has registered." >&2
-          echo "  Override only if you genuinely mean to delete them:" >&2
-          echo "    MCP_PUBLIC_ALLOW_DROPS=1 ${name}" >&2
-          [ "''${MCP_PUBLIC_ALLOW_DROPS:-}" = "1" ] || exit 1
-          echo "WARNING: MCP_PUBLIC_ALLOW_DROPS=1 set — proceeding with the deletions." >&2
-        fi
-
-        # See the note on the nixpi builder: forwarded last, cannot weaken the
-        # guard above, which exits before reaching here.
-        tofu ${action} "$@"
-      ''
-      + nixpkgs.lib.optionalString (action == "apply") printToken;
-    };
-
-  # ---- Force the portal to re-poll every published server --------------------
-  # A CLIENT of Cloudflare's own documented endpoint, not something our proxy
-  # implements. The direction matters and is easy to get backwards: the portal is
-  # an MCP CLIENT against upstream.<domain>, so it calls `initialize`,
-  # `tools/list` and `prompts/list` on us. `/sync` is the opposite direction — WE
-  # ask Cloudflare to run that poll now instead of waiting for its own schedule.
-  #
-  #   POST /accounts/{account_id}/access/ai-controls/mcp/servers/{id}/sync
-  #   "Sync MCP Server Capabilities", NO request body
-  #   — cloudflare/api-schemas openapi.json, one of nine ai-controls/mcp paths
-  #
-  # WHY IT EXISTS HERE. Restarting the gateway takes ~33s, and mcp-proxy does not
-  # bind its socket until all 26 stdio children are spawned and handshaked
-  # (mcp_server.py: loop at :183, uvicorn.Server at :237). So the whole window is
-  # connection-REFUSED, and anything Cloudflare polls during it records
-  # `status = error` — which does NOT self-heal on the next poll in practice.
-  # Measured twice on 2026-09-22, once on telegram and once across the portal.
-  #
-  # So: activate, then run this. It converts "wait and hope the next poll is
-  # clean" into a deterministic step with an exit code.
-  #
-  # NOT a health check we invented, and deliberately not a loop that watches
-  # anything — there is no lifecycle protocol to drive (refresh/restart/health all
-  # 404). The portal's entire model is poll-and-record; this is its one lever.
-  mkMcpPublicSync =
-    { system }:
-    let
-      pkgs = pkgsFor system;
-      api = "https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/access/ai-controls/mcp/servers";
-
-      # THE REGISTRATION ID IS NOT THE SERVER NAME for four of these, and calling
-      # the wrong one is a silent 404 rather than an error. Cloudflare rejects `_`
-      # in a registration id (`7001 ID must contain lowercase letters, numbers,
-      # and hyphens only`), so infra/cloudflare/mcp-public.nix maps underscore to
-      # hyphen for the id ONLY — the gmail-<sanitized-email> names keep their
-      # underscores in the upstream URL, because that is the literal mcp-proxy
-      # path.
-      #
-      # This is the same `cfId` transform, applied to the same list, and it has to
-      # be: `publicMcpServers` holds NAMES, this endpoint addresses IDs. Found by
-      # running the app — all four gmail entries came back unreachable while the
-      # other 21 were ready.
-      registrationIds = map (nixpkgs.lib.replaceStrings [ "_" ] [ "-" ]) publicMcpServers;
-    in
-    pkgs.writeShellApplication {
-      name = "mcp-public-sync";
-      runtimeInputs = [
-        pkgs.curl
-        pkgs.jq
-        pkgs.coreutils
-      ];
-      text = ''
-        if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
-          echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
-          echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:mcp-public -- mcp-public-sync" >&2
-          echo "  (NOT cf:cloudflare.com:api — that handle 403s on /access/ai-controls/*)" >&2
-          exit 1
-        fi
-
-        ok=0
-        bad=0
-        for id in ${nixpkgs.lib.escapeShellArgs registrationIds}; do
-          # No request body: the endpoint takes path parameters only.
-          out=$(curl -sS --max-time 60 -X POST \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "${api}/$id/sync" 2>/dev/null || true)
-
-          status=$(printf '%s' "$out" | jq -r '.result.status // "unreachable"')
-          tools=$(printf '%s' "$out" | jq -r '(.result.tools // []) | length')
-
-          if [ "$status" = "ready" ]; then
-            printf '  ok     %-34s tools=%s\n' "$id" "$tools"
-            ok=$((ok + 1))
-          else
-            # error_details is documented and distinguishes the two failures that
-            # look identical from outside: `is_upstream` is literally "True = MCP
-            # server returned an error. False = couldn't reach the server". Print
-            # it, because reading it wrong cost a wrong diagnosis twice.
-            cause=$(printf '%s' "$out" | jq -r '.result.error_details.cause // .result.error // "?"')
-            up=$(printf '%s' "$out" | jq -r '.result.error_details.is_upstream // "?"')
-            printf '  FAIL   %-34s status=%s is_upstream=%s :: %s\n' "$id" "$status" "$up" "$cause"
-            bad=$((bad + 1))
-          fi
-        done
-
-        echo "----"
-        echo "synced: $ok ready, $bad not ready"
-        if [ "$bad" -gt 0 ]; then
-          echo "" >&2
-          echo "is_upstream=true  -> that SERVER answered badly. Check what it" >&2
-          echo "                     advertises in initialize: a server that claims" >&2
-          echo "                     prompts/resources and then errors on the list" >&2
-          echo "                     call fails the whole registration." >&2
-          echo "is_upstream=false -> Cloudflare could not REACH it. Check the" >&2
-          echo "                     connector and that the proxy finished starting." >&2
-          exit 1
-        fi
-      '';
-    };
-
-  # Prints ONLY the raw connector token to stdout — nothing else, no banner —
-  # so it composes: `… | secret set cf:cloudflare.com:mcp-connector`. The value
-  # never reaches a terminal, scrollback, the clipboard, or a transcript.
-  # Read-only: `tofu init` then `tofu output`, never plan or apply.
-  mkMcpPublicToken =
-    { system }:
-    let
-      pkgs = pkgsFor system;
-    in
-    pkgs.writeShellApplication {
-      name = "mcp-public-token";
-      # coreutils for the prelude's `id -un`, as in every sibling wrapper.
-      runtimeInputs = [
-        pkgs.opentofu
-        pkgs.coreutils
-      ];
-      text = ''
-        if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
-          echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
-          exit 1
-        fi
-        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-mcp-public"
-        # Gates on the RENDERED CONFIG, not on a local `terraform.tfstate`: ADR-005
-        # moved this stack's state to GCS, so that file never exists and the old
-        # gate made this app unreachable — the fleet's only non-shell path to the
-        # connector token. `tofu init` below needs config.tf.json, which
-        # mcp-public-apply leaves here.
-        if [ ! -f "$state_dir/config.tf.json" ]; then
-          echo "ERROR: no rendered config at $state_dir — run mcp-public-apply first." >&2
-          exit 1
-        fi
-        cd "$state_dir"
-        umask 077
-        # Remote state is ENCRYPTED, so reading one output needs the same prelude
-        # every other wrapper here runs. init writes to STDERR: stdout is the token.
-        ${tofuRemoteStatePrelude}
-        tofu init -input=false >&2
-        # -raw, no trailing banner: stdout is exactly the token.
-        tofu output -raw mcp_public_connector_token
-      '';
-    };
-
-  # The acceptance test the tier split is worth nothing without. It answers ONE
-  # question Cloudflare's docs do not: a per-server Access policy is documented to
-  # keep a non-matching server "hidden from the bot's tool list" — a statement
-  # about DISCOVERY. Nothing says what a `tools/call` NAMING a hidden server does.
-  # That distinction is the whole difference between a boundary and obscurity, and
-  # `modules/parts/identity.nix` is public, so every server name is already known.
-  #
-  # WHY A WRAPPER, and not two curl lines in a runbook: the worker credential
-  # lives in ENCRYPTED remote state, so reading it by hand means reconstructing
-  # TF_ENCRYPTION in an interactive shell — "the one secret-handling regression
-  # every other wrapper here exists to avoid" (see mkCfAccessOrgImport above).
-  # This reads the pair, uses it, and never prints it: stdout is server names and
-  # HTTP codes only.
-  mkMcpWorkerProbe =
-    { system }:
-    let
-      pkgs = pkgsFor system;
-    in
-    pkgs.writeShellApplication {
-      name = "mcp-worker-probe";
-      runtimeInputs = [
-        pkgs.opentofu
-        pkgs.coreutils
-        pkgs.curl
-        pkgs.jq
-      ];
-      text = ''
-        # The tool to attempt on a GATED server. Default is a READ-ONLY Gmail call
-        # on an account this operator owns, so a boundary failure costs a label
-        # list and nothing else. Override with argv[1] to probe another.
-        forbidden="''${1:-gmail-ismail-kattakath-com_ismail_kattakath_com_list_email_labels}"
-
-        if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
-          echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
-          exit 1
-        fi
-        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-mcp-public"
-        if [ ! -f "$state_dir/config.tf.json" ]; then
-          echo "ERROR: no rendered config at $state_dir — run mcp-public-apply first." >&2
-          exit 1
-        fi
-        cd "$state_dir"
-        umask 077
-
-        # The expectation is DERIVED from the rendered config, never retyped: an
-        # app carrying TWO policies is one the worker's Service Auth policy was
-        # attached to. So this cannot drift from what was actually applied.
-        expected="$(jq -r '
-          .resource.cloudflare_zero_trust_access_application
-          | to_entries
-          | map(select(.key | startswith("portal_")))
-          | map(select((.value.policies | length) == 2))
-          | map(.key | sub("^portal_"; ""))
-          | sort | .[]
-        ' config.tf.json)"
-        expected_n="$(printf '%s\n' "$expected" | grep -c . || true)"
-
-        ${tofuRemoteStatePrelude}
-        tofu init -input=false >&2
-
-        cid="$(tofu output -raw mcp_worker_client_id)"
-        csec="$(tofu output -raw mcp_worker_client_secret)"
-        if [ -z "$cid" ] || [ -z "$csec" ]; then
-          echo "The CI-worker lane is NOT applied — this is the expected state." >&2
-          echo "  It was built and RETIRED on 2026-09-23: a Service Auth policy on a" >&2
-          echo "  per-server mcp-type app grants a non-identity session access to" >&2
-          echo "  NOTHING, so the token reached zero servers. See the note in" >&2
-          echo "  infra/cloudflare/mcp-public.nix." >&2
-          echo "  This probe is kept to re-test that, should Cloudflare change it:" >&2
-          echo "  restore mcp_worker + mcp_worker_service_auth, apply, and re-run." >&2
-          exit 1
-        fi
-
-        portal="https://mcp.${domainName}/mcp"
-        hdrs="$(mktemp)"; body="$(mktemp)"
-        trap 'rm -f "$hdrs" "$body"' EXIT
-
-        # Streamable HTTP may answer as SSE; take the last `data:` payload if so.
-        payload() {
-          if head -c 1 "$1" | grep -q '{'; then cat "$1";
-          else grep '^data: ' "$1" | tail -1 | cut -c7-; fi
-        }
-
-        call() {
-          curl -sS --max-time 30 -o "$body" -D "$hdrs" -w '%{http_code}' \
-            -H "CF-Access-Client-Id: $cid" -H "CF-Access-Client-Secret: $csec" \
-            -H 'Content-Type: application/json' \
-            -H 'Accept: application/json, text/event-stream' \
-            ''${session:+-H "Mcp-Session-Id: $session"} \
-            -X POST "$portal" -d "$1"
-        }
-
-        session=""
-        echo "== step 0: initialize as the worker =="
-        code="$(call '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"mcp-worker-probe","version":"1"}}}')"
-        echo "  HTTP $code"
-        if [ "$code" != "200" ]; then
-          echo "  the worker cannot reach the portal at all — Service Auth is not on the front door." >&2
-          exit 1
-        fi
-        session="$(tr -d '\r' < "$hdrs" | awk 'tolower($1)=="mcp-session-id:"{print $2}')"
-
-        # MANDATORY, and omitting it is not a no-op: without this the portal
-        # answers tools/list with its OWN management tools and none of the
-        # upstreams, which reads exactly like "the worker can see nothing".
-        call '{"jsonrpc":"2.0","method":"notifications/initialized"}' >/dev/null
-
-        echo "== step 1: tools/list — what can the worker SEE? =="
-        code="$(call '{"jsonrpc":"2.0","id":2,"method":"tools/list"}')"
-        seen="$(payload "$body" | jq -r '[.result.tools[]?.name] | sort | .[]' 2>/dev/null || true)"
-        seen_n="$(printf '%s\n' "$seen" | grep -c . || true)"
-        echo "  HTTP $code, $seen_n tools visible"
-        echo "  worker-reachable servers per the rendered config ($expected_n):"
-        printf '%s\n' "$expected" | sed 's/^/    /'
-
-        leaked=""
-        for s in $expected; do :; done
-        while read -r t; do
-          [ -z "$t" ] && continue
-          hit=""
-          for s in $expected; do
-            case "$t" in "$s"_*) hit=1 ;; esac
-          done
-          [ -z "$hit" ] && leaked="$leaked $t"
-        done <<< "$seen"
-        if [ -n "$leaked" ]; then
-          echo "  LEAK: tools visible that belong to NO worker-tier server:$leaked"
-        else
-          echo "  OK: every visible tool belongs to a worker-tier server"
-        fi
-
-        echo "== step 1a: what does the PORTAL say this session has? =="
-        code="$(call '{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"portal_list_servers","arguments":{}}}')"
-        echo "  HTTP $code"
-        payload "$body" | jq -r '.result.content[]?.text // empty' 2>/dev/null | head -40 | sed 's/^/    /'
-
-        echo "== step 1b: can the worker TOGGLE a gated server ON? =="
-        echo "  the portal's own management tools are reachable, so the tier is"
-        echo "  only a boundary if they cannot re-enable what it excluded."
-        # Deliberately a bogus id FIRST: the error lists every server the toggle
-        # tool considers available, which is the roster this session could reach.
-        code="$(call '{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"portal_toggle_single_server","arguments":{"server_id":"__probe__","action":"enable"}}}')"
-        echo "  roster the toggle tool offers this session:"
-        payload "$body" | jq -r '.result.content[]?.text // empty' 2>/dev/null | tr ',' '\n' | sed 's/^ */    /' | head -40
-
-        # THE escalation test. `arxiv` is TRUSTED tier — deliberately NOT in the
-        # worker tier, and deliberately not a shell: if a non-identity session can
-        # switch it on, the per-server policy is decoration, and proving that with
-        # desktop-commander would be reckless.
-        echo "  attempting to ENABLE a gated server (arxiv, trusted tier):"
-        code="$(call '{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"portal_toggle_single_server","arguments":{"server_id":"arxiv","action":"enable"}}}')"
-        echo "    HTTP $code -> $(payload "$body" | jq -r '.result.content[]?.text // .error.message // empty' 2>/dev/null | head -c 200)"
-        code="$(call '{"jsonrpc":"2.0","id":11,"method":"tools/list"}')"
-        after="$(payload "$body" | jq -r '[.result.tools[]?.name] | length' 2>/dev/null || echo 0)"
-        echo "    tools visible AFTER the toggle: $after (was $seen_n)"
-        if [ "$after" -gt "$seen_n" ]; then
-          echo "    ESCALATION: a non-identity session switched on a server its policy excluded."
-        else
-          echo "    no escalation: the toggle did not widen this session."
-        fi
-
-        echo "== step 2: tools/call a GATED server — the question =="
-        echo "  target: $forbidden"
-        code="$(call "{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"$forbidden\",\"arguments\":{}}}")"
-        out="$(payload "$body")"
-        echo "  HTTP $code"
-        echo "  response: $(printf '%s' "$out" | head -c 300)"
-        echo
-        if [ "$code" = "403" ]; then
-          echo "VERDICT: BOUNDARY — Access refused the call outright (403)."
-        elif printf '%s' "$out" | jq -e '.error' >/dev/null 2>&1; then
-          echo "VERDICT: FILTERED — the portal rejected the tool (JSON-RPC error),"
-          echo "  so a gated server is not merely hidden. Read the error above to"
-          echo "  confirm it is 'unknown tool' and not a server-side argument error:"
-          echo "  a server-side error would mean the call REACHED the gated server."
-        else
-          echo "VERDICT: OBSCURITY — the call SUCCEEDED against a gated server."
-          echo "  The tier filters DISCOVERY only. Since fleet.publicMcpServers is"
-          echo "  public, hiding a name bounds nothing; the answer is the second"
-          echo "  hostname argument recorded in infra/cloudflare/mcp-public.nix."
-        fi
-      '';
-    };
-
 in
 {
   # The renderers, exported for private/external callers (see the header).
   flake.lib = {
     inherit
       cfTunnelConfig
-      mcpPublicConfig
       ;
   };
 
@@ -1489,21 +938,14 @@ in
       # packages too so `nix flake check` builds them and runs the
       # writeShellApplication shellcheck on each wrapper.
       packages = {
-        # The two oldest stacks had no plan app until 2026-09-23, which made
-        # CLAUDE.md's "*-plan first" unfollowable for the two LARGEST blast radii
-        # — the Pi's tunnel and the MCP portal. Their apply was the only look you
-        # got. Both builders already gate every apply-only side effect on
-        # `action == "apply"` (the connector-token echo), so plan is the same
-        # wrapper with the same guards and no writes.
+        # This stack had no plan app until 2026-09-23, which made CLAUDE.md's
+        # "*-plan first" unfollowable for the LARGEST blast radius — the Pi's
+        # tunnel. Its apply was the only look you got. The builder already gates
+        # every apply-only side effect on `action == "apply"` (the connector-token
+        # echo), so plan is the same wrapper with the same guards and no writes.
         cf-tunnel-plan = mkCfTunnelTofu {
           inherit system hostedSites;
           name = "cf-tunnel-plan";
-          action = "plan";
-        };
-        mcp-public-plan = mkMcpPublicTofu {
-          inherit system;
-          publicServers = publicMcpServers;
-          name = "mcp-public-plan";
           action = "plan";
         };
         cf-tunnel-apply = mkCfTunnelTofu {
@@ -1511,15 +953,6 @@ in
           name = "cf-tunnel-apply";
           action = "apply";
         };
-        mcp-public-apply = mkMcpPublicTofu {
-          inherit system;
-          publicServers = publicMcpServers;
-          name = "mcp-public-apply";
-          action = "apply";
-        };
-        mcp-public-token = mkMcpPublicToken { inherit system; };
-        mcp-worker-probe = mkMcpWorkerProbe { inherit system; };
-        mcp-public-sync = mkMcpPublicSync { inherit system; };
         cf-zones-apply = mkCfZonesTofu {
           inherit system;
           name = "cf-zones-apply";
@@ -1578,17 +1011,12 @@ in
           name = "gcp-budget-apply";
           action = "apply";
         };
-        # destroy intentionally keeps hostedSites/publicServers at their [ ]
-        # default: rendering "nothing" against non-empty state is exactly what
-        # trips the guards above, so tearing down the real stack still needs
-        # the explicit CF_TUNNEL_ALLOW_SITE_FREE=1 / MCP_PUBLIC_ALLOW_EMPTY=1
-        # override. That friction is a "do you really mean to destroy this"
-        # gate, independent of whether this repo also holds the real data.
-        mcp-public-destroy = mkMcpPublicTofu {
-          inherit system;
-          name = "mcp-public-destroy";
-          action = "destroy";
-        };
+        # destroy intentionally keeps hostedSites at its [ ] default: rendering
+        # "nothing" against non-empty state is exactly what trips the guards
+        # above, so tearing down the real stack still needs the explicit
+        # CF_TUNNEL_ALLOW_SITE_FREE=1 override. That friction is a "do you really
+        # mean to destroy this" gate, independent of whether this repo also holds
+        # the real data.
         cf-tunnel-destroy = mkCfTunnelTofu {
           inherit system;
           name = "cf-tunnel-destroy";
@@ -1599,11 +1027,15 @@ in
       # ---- Every Access service token NAMES its own expiry ---------------------
       # `duration` is Optional+Computed with a provider default of 8760h, so
       # omitting it does not mean "no expiry" — it means a one-year expiry nobody
-      # wrote down. For mcp-public that credential is the portal's ONLY one, so
-      # its lapse takes every published server dark at once.
+      # wrote down, and a silent lapse takes whatever it gates dark at once.
+      #
+      # VACUOUS TODAY, and kept anyway: mcp-public was the only stack that
+      # rendered a service token, so since its deletion (2026-10-02) this passes
+      # on zero tokens. It is a lane-keeper for the next stack that adds one —
+      # the alternative is rediscovering the 8760h default the hard way.
       #
       # Declared HERE rather than in modules/parts/checks.nix because `flake.lib`
-      # exports only two of the six renderers; the other four are in scope only
+      # exports only one of the five renderers; the other four are in scope only
       # inside this file.
       #
       # WHAT THIS CANNOT DO, so the limit is a choice and not an oversight: eval
@@ -1622,14 +1054,6 @@ in
             {
               stack = "cf-tunnel";
               cfg = (cfTunnelConfig { inherit system hostedSites; }).config;
-            }
-            {
-              stack = "mcp-public";
-              cfg =
-                (mcpPublicConfig {
-                  inherit system;
-                  publicServers = publicMcpServers;
-                }).config;
             }
             {
               stack = "cf-zones";
@@ -1673,9 +1097,8 @@ in
               echo "access-service-token-duration: a service token leaves its expiry to the provider." >&2
               ${lib.concatMapStringsSep "\n" (x: ''echo "  ${x}" >&2'') problems}
               echo "" >&2
-              echo "  The default is 8760h and it is SILENT. For mcp-public that credential" >&2
-              echo "  is the portal's only one, so its lapse takes every published server" >&2
-              echo "  dark at once, with no partial failure first." >&2
+              echo "  The default is 8760h and it is SILENT, so an undeclared window" >&2
+              echo "  lapses a year from now with no partial failure first." >&2
               echo "  Declare duration in infra/cloudflare/<stack>.nix. Changing it later is" >&2
               echo "  an in-place update, not a replacement, so it cannot rotate the secret." >&2
               exit 1
@@ -1698,20 +1121,10 @@ in
           program = "${config.packages.cf-tunnel-plan}/bin/cf-tunnel-plan";
           meta.description = "Render infra/cloudflare/nixpi-tunnel.nix (terranix) and tofu PLAN nixpi's tunnel + ingress + zone settings — read-only, run it before cf-tunnel-apply (needs CLOUDFLARE_API_TOKEN)";
         };
-        mcp-public-plan = {
-          type = "app";
-          program = "${config.packages.mcp-public-plan}/bin/mcp-public-plan";
-          meta.description = "Render infra/cloudflare/mcp-public.nix (terranix) and tofu PLAN the published MCP gateway — read-only, and unlike the apply it prints no connector token (needs CLOUDFLARE_API_TOKEN)";
-        };
         cf-tunnel-apply = {
           type = "app";
           program = "${config.packages.cf-tunnel-apply}/bin/cf-tunnel-apply";
           meta.description = "Render infra/cloudflare/nixpi-tunnel.nix (terranix), tofu apply it, and print the connector token (needs CLOUDFLARE_API_TOKEN)";
-        };
-        mcp-public-apply = {
-          type = "app";
-          program = "${config.packages.mcp-public-apply}/bin/mcp-public-apply";
-          meta.description = "Render infra/cloudflare/mcp-public.nix (terranix), tofu apply it, and print the Mac connector token (needs CLOUDFLARE_API_TOKEN)";
         };
         gcp-foundation-plan = {
           type = "app";
@@ -1757,21 +1170,6 @@ in
           type = "app";
           program = "${config.packages.cf-zones-apply}/bin/cf-zones-apply";
           meta.description = "tofu apply kattakath.com's DNS records (mail included) — refuses a shrunken render, an empty state, or any dropped record (needs CLOUDFLARE_API_TOKEN)";
-        };
-        mcp-public-sync = {
-          type = "app";
-          program = "${config.packages.mcp-public-sync}/bin/mcp-public-sync";
-          meta.description = "Ask Cloudflare to re-poll every published MCP server NOW (POST .../servers/{id}/sync) — run it after `activate`, since the proxy refuses connections for ~33s while it spawns and anything polled in that window latches status=error (needs CLOUDFLARE_API_TOKEN)";
-        };
-        mcp-public-token = {
-          type = "app";
-          program = "${config.packages.mcp-public-token}/bin/mcp-public-token";
-          meta.description = "Print ONLY the published-gateway connector token to stdout, for piping into `secret set` (needs CLOUDFLARE_API_TOKEN)";
-        };
-        mcp-public-destroy = {
-          type = "app";
-          program = "${config.packages.mcp-public-destroy}/bin/mcp-public-destroy";
-          meta.description = "tofu destroy the published MCP gateway stack — NOTE the provider cannot destroy the tunnel config or the portal registrations, which survive in the API and need deleting by hand (needs CLOUDFLARE_API_TOKEN)";
         };
         cf-tunnel-destroy = {
           type = "app";
