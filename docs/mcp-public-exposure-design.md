@@ -1,6 +1,21 @@
-# Publishing MCP servers — design note
+# Publishing MCP servers — design note (RETIRED 2026-10-02)
 
-**Status:** **BUILT and live** as of 2026-09-12. v2 rewrote a v1 that answered the wrong question
+> # ⛔ RETIRED — the published gateway was DESTROYED on 2026-10-02.
+>
+> **§12 is the teardown record; read it before anything else here.** Two destroy runs removed
+> **65** Cloudflare objects: MCP server registrations **27 → 0**, portals **1 → 0**, the
+> `mcp-public` tunnel **1 → 0**, mcp + upstream Access applications **→ 0**.
+> `https://mcp.kattakath.com/mcp` answers **403**. `infra/cloudflare/mcp-public.nix`, the five
+> `mcp-public-*` apps, `packages.mcp-worker-probe`, `modules/shared/mcp.nix` and
+> `fleet.publicMcpServers`/`publicMcpPort` are all **deleted**. Nothing in §§1-11 can be flipped
+> on, applied, or planned.
+>
+> Reading order, since this file has now been corrected three times: **§12** (teardown) →
+> **§10** (the 2026-09-22 two-proxy collapse) → **§11** (the 2026-09-30 ownership split) → the
+> body. §§1-6 describe a two-proxy architecture that stopped existing on 2026-09-22, and §11's
+> "§3 is LIVE AGAIN" was true for **two days**.
+
+**Status:** **RETIRED 2026-10-02.** Was **BUILT and live** from 2026-09-12. v2 rewrote a v1 that answered the wrong question
 (see §9); §7/§7a were revised again the same day, when `character-mcp` migrated off its own OAuth
 onto the shared service token — and again on **2026-09-14**, when `character-mcp` was
 decommissioned. **§7's external-Worker shape is still fully supported and has zero users**:
@@ -388,16 +403,22 @@ Two writers per credential file is the part that made this urgent rather than me
 duplicated servers were contending over one Gmail credential store, one Telegram session and
 one memory graph.
 
-**What is true now:** one proxy, on `publicMcpPort`; every client reaches every server through
-the portal at `https://mcp.<domainName>/mcp`; there is no `local.mcpGateway.public` option, and
-the roster is `config.fleet.publicMcpServers` with `checks.<system>.mcp-published-parity`
-enforcing hosted == published in both directions.
+**What was true as of 2026-09-22** (and read §12 for what is true now — **nothing** in this
+paragraph is): one proxy, on `publicMcpPort`; every client reached every server through
+the portal at `https://mcp.<domainName>/mcp`; there was no `local.mcpGateway.public` option, and
+the roster was `config.fleet.publicMcpServers` with `checks.<system>.mcp-published-parity`
+enforcing hosted == published in both directions. **All of it is deleted — the proxy, the port,
+the portal, the roster and the check.**
 
 **What was traded away, said plainly:** absence is no longer a boundary. Every published
 server is reachable at one hostname behind one Access gate, so the blast radius of a leaked
 service token is the whole roster — including `desktop-commander` (shell), `macos-automator`
 (arbitrary AppleScript) and four Gmail accounts. The protection is identity at the edge, not
 structural absence. Narrowing `publicMcpServers` is the only lever that restores absence.
+**Narrowed to zero, 2026-10-02 (§12).** The trade recorded here was ended by removing the thing
+traded: there is no hostname, no Access gate and no service token, so a leaked token reaches
+nothing. That is structural absence restored in full — at the cost of Claude Desktop losing every
+server and of the repo no longer being able to check its own MCP surface.
 
 **AMENDED 2026-09-30 — the second half of that sentence has REVERSED (#658, #657).** It used to
 end "and it now removes the server from *every* client rather than from the public copy only",
@@ -458,3 +479,50 @@ Keychain credential — `.mcp.json` interpolates `${ENV_VAR}` only — which is 
 altogether**, into a workshop only the person already standing in the kitchen can open. *(Where it
 breaks down: the visitor at the front door — Claude Desktop — can no longer reach the workshop at
 all. That is the whole cost, and it was accepted, not overlooked.)*
+
+
+## 12. TEARDOWN — destroyed 2026-10-02, and the one object that refused to die
+
+The whole published-MCP subsystem was destroyed and its code deleted. This section is the record;
+everything above it is history.
+
+**Measured via the Cloudflare API after two destroy runs — 65 objects destroyed:**
+
+| | Before | After |
+|---|---|---|
+| MCP server registrations | 27 | **0** |
+| portals | 1 | **0** |
+| `mcp-public` tunnel | 1 | **0** |
+| mcp + upstream Access applications | several | **0** |
+| `https://mcp.kattakath.com/mcp` | the one connector every client dialled | **403** |
+
+**ONE object survived, and Cloudflare was right to refuse it.** The Access policy
+`mcp_allow_operator` would not delete —
+`409 code 12132 "policy is being used by at least one app"` — because it is **shared with the
+`nixpi.kattakath.com` SSH Access app**. That refusal **protected the Pi's only Access-gated
+ingress**: the same class of object that vanished on 2026-08-20 and took `ssh` plus both deploy
+legs with it. **It is not cleanup debt and must not be finished off.** A destroy that had
+succeeded here would have reproduced the 2026-08-20 outage on purpose.
+
+The transferable lesson is about §3's whole frame. §3 argued a blast radius in terms of *what a
+stack declares*; a **shared** Access policy means one stack's destroy can reach into another
+stack's blast radius, and the API's reference count was the only thing standing in the way. Design
+for that next time: either give each stack its own policy, or know which objects are shared before
+you aim a destroy at them.
+
+**What §§1-11 got right, and it is worth keeping:**
+
+- **Three objects per published server, with silent failure** (§ Correction 2026-09-12) — the
+  registration, the portal attachment, and the `mcp`-type Access application. A registration could
+  read `status = "ready"` with its tools discovered and still be invisible to every client, and the
+  origin answered `200` throughout. The general rule: **verify at the surface clients use, not the
+  one that is easiest to curl.**
+- **Exactly two hostnames, never growing per server** (§ The two hostnames) — the property that
+  made the design scale at all.
+- **The drop guards worked to the end.** `MCP_PUBLIC_ALLOW_EMPTY=1` / `MCP_PUBLIC_ALLOW_DROPS=1`
+  had to be set explicitly for the final teardown, which is exactly the checkpoint they were built
+  to be. `cf-tunnel`'s `CF_TUNNEL_ALLOW_SITE_FREE=1` is unchanged and still guards the Pi.
+
+**What replaced it:** nothing at this layer. There is no portal and no plan for one — MCP servers
+come from an enabled plugin's `.mcp.json`, spawned per session, reachable only by Claude Code on
+this Mac. [`repo-map.md`](repo-map.md) § MCP after the gateway.

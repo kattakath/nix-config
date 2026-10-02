@@ -5,9 +5,11 @@ This page is the honest map of **what this repo declares** and **where declarati
 management stops** — the app is a signed, self-stateful GUI, so the boundary is real
 and deliberate, not an omission.
 
-> **⚠ The MCP half is HISTORY as of 2026-09-22.** `open-design` was removed from the fleet's
-> MCP surface entirely: there is no entry in `programs.claude-code.mcpServers` (that attrset
-> is now empty — every client reaches one portal connector instead), and `mcp.nix` declares no
+> **⚠ The MCP half is HISTORY as of 2026-09-22, doubly so since 2026-10-02.** `open-design` was
+> removed from the fleet's MCP surface entirely: there is no entry in
+> `programs.claude-code.mcpServers` (that attrset was emptied — every client reached one portal
+> connector instead, and **that portal was itself destroyed 2026-10-02**, so there is no MCP
+> gateway, no `mcp.nix` and no portal left either), and `mcp.nix` declared no
 > `open-design` server. The **cask, the updater kill-switch and the app's state boundary below
 > are all still live and still correct** — only the "MCP registration" row and § *Why the MCP
 > entry looks the way it does* describe something that no longer exists. They are kept because
@@ -20,7 +22,7 @@ and deliberate, not an omission.
 |---|---|---|
 | The app itself | `hosts/macos.nix` `homebrew.casks` | Cask `open-design`, `greedy = true`. `brew bundle` passes `--adopt` to fresh cask installs, so the pre-existing hand-dragged `/Applications` copy was adopted in place — no re-copy, no touch of the app's state. |
 | Its self-updater: **off** | `hosts/macos.nix` `launchd.user.envVariables.OD_UPDATE_ENABLED = "0"` | nix-darwin emits `launchctl setenv` at activation; Finder/Dock-launched GUI apps inherit it (same mechanism as the GUI PATH in `modules/darwin/core.nix`). Versioning belongs to brew: `greedy` opts the cask past `onActivation.upgrade = false`, and Homebrew's autobump keeps the cask current. |
-| MCP registration | `modules/shared/mcp.nix` (Client side A) | Per-client **stdio** entry in `programs.claude-code.mcpServers` — the home-manager module writes it into a managed plugin `.mcp.json`, never `~/.claude.json`. Not gateway-hosted: upstream is stdio-only and has a silent-death bug (#7273) that would dark all hosted servers. |
+| MCP registration (**gone — see the header; `mcp.nix` was itself deleted 2026-10-02**) | `modules/shared/mcp.nix` (Client side A) | Per-client **stdio** entry in `programs.claude-code.mcpServers` — the home-manager module writes it into a managed plugin `.mcp.json`, never `~/.claude.json`. Not gateway-hosted: upstream is stdio-only and has a silent-death bug (#7273) that would dark all hosted servers. |
 | Tool permissions | `.claude/settings.json` | Only the read-only tools (`list_*`, `get_*`, `search_files`) are pre-allowed; anything that writes stays prompt-gated. |
 
 ## Why the updater is disabled

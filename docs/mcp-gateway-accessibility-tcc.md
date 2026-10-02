@@ -1,7 +1,16 @@
-# MCP gateway — macOS Accessibility (TCC) for `macos-automator`
+# macOS Accessibility (TCC) for `macos-automator`
 
-The localhost MCP gateway (`modules/shared/mcp.nix`) hosts a `macos-automator`
-server that drives **System Events UI scripting** through `/usr/bin/osascript`.
+> **The filename is the only stale thing here — the grant and its reasoning are STILL CORRECT.**
+> The MCP gateway (`modules/shared/mcp.nix`) was deleted 2026-10-02, and `macos-automator` had
+> already moved to the **`mac-app-send` plugin** on 2026-10-01, where Claude Code spawns it per
+> session. **The grant carried over unchanged**, and this document explains exactly why it had to:
+> TCC attributes the grant to `/usr/bin/osascript`, **not** to whatever parent spawned it. That was
+> the whole argument of § *Why granting `/usr/bin/osascript` is the correct, rebuild-proof fix* —
+> written against a store path that rehashes every rebuild, and it generalises to a parent that
+> changes identity entirely. Substitute "the plugin's per-session child" for "the gateway" as you
+> read.
+
+`macos-automator` drives **System Events UI scripting** through `/usr/bin/osascript`.
 UI scripting is gated by macOS **Accessibility** (TCC service
 `kTCCServiceAccessibility`). Without the grant, every UI-scripting call fails
 with:
@@ -34,7 +43,7 @@ SIP-protected; there is no supported API to add an Accessibility entry, and
 
 ### Verify
 
-After granting, run the exact probe the gateway uses:
+After granting, run the probe directly (it is the same one the gateway's preflight used):
 
 ```bash
 osascript -e 'tell application "System Events" to get name of first process'
@@ -43,10 +52,13 @@ osascript -e 'tell application "System Events" to get name of first process'
 - **Granted:** prints a process name (e.g. `WindowServer`) and exits `0`.
 - **Not granted:** prints `… osascript is not allowed assistive access. (-1719)`.
 
-`darwin-rebuild switch` also runs this probe as a **non-fatal preflight** and
-prints the grant instructions (and a pointer to this doc) if — and only if — the
-grant is missing (see `home.activation.macosAutomatorAccessibilityCheck` in
-`modules/shared/mcp.nix`). It never blocks activation.
+**The activation preflight is GONE (2026-10-02).** `darwin-rebuild switch` used to run this probe
+as a **non-fatal preflight** and print the grant instructions if — and only if — the grant was
+missing (`home.activation.macosAutomatorAccessibilityCheck` in `modules/shared/mcp.nix`). It never
+blocked activation, and it went with that module. **So nothing warns you any more**: a missing grant
+now surfaces as a `-1719` error inside a session, which is the failure this preflight existed to
+pre-empt. Run the probe by hand after a fresh Mac setup — it is a step in
+[`new-mac-runbook.md`](new-mac-runbook.md) territory, not something any check can cover.
 
 ## Why granting `/usr/bin/osascript` is the correct, rebuild-proof fix
 
@@ -94,8 +106,9 @@ Two facts settle it:
 
 ## Related
 
-- `modules/shared/mcp.nix` — the gateway, the `macos-automator` server entry,
-  and the non-fatal activation preflight.
+- The **`mac-app-send` plugin** in `github:kattakath/skills` — owns the `macos-automator` server
+  entry since 2026-10-01. ~~`modules/shared/mcp.nix`~~ held it, plus the non-fatal activation
+  preflight, until both were deleted 2026-10-02.
 - The first time `macos-automator` controls *another* app (not System Events),
   macOS also shows a one-time **Automation** consent prompt — that one *is*
   promptable and needs no manual step.
