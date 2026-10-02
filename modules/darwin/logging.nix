@@ -80,19 +80,23 @@
 #       PATH, so the set must be deduped.
 # Reading both keys off the composed agents and uniq-ing makes both structural.
 #
-# FOUR SOURCES, TWO TIERS. Home Manager `launchd.agents`, nix-darwin
-# `launchd.user.agents` and nix-darwin `launchd.agents` are the user tier,
-# rotated as the login user; `launchd.daemons` is the root tier and needs its own
-# copy of the tick, because a login-user agent cannot truncate a root-owned file
-# in /var/log. This module lives at the nix-darwin layer precisely because that
-# is the only layer that can see all four.
+# FOUR SOURCES, TWO TIERS — AND THE FOUR ARE NOT ENUMERATED HERE. They live in
+# ./launchd-sources.nix, which is also where the argument for each of them is,
+# including the one that is easy to miss (nix-darwin's `launchd.agents` is a
+# DIFFERENT option from `launchd.user.agents`, nothing in this tree declares one
+# today, and a consumer that walked only three sources would stay green on the
+# first unit declared there). This module lives at the nix-darwin layer precisely
+# because that is the only layer that can see all four.
 #
-# The fourth source is easy to miss: nix-darwin's `launchd.agents` (system-wide
-# /Library/LaunchAgents, pinned modules/launchd/default.nix:139, rendered to
-# environment.launchAgents at :211) is a DIFFERENT option from
-# `launchd.user.agents` (~/Library/LaunchAgents, rendered to
-# environment.userLaunchAgents). Nothing in this tree uses it today — it is
-# enumerated anyway so a first use is not silently unrotated behind a green gate.
+# TIER IS `domain`, NOT A FIFTH FIELD. The user tick is rotated as the login user
+# and the root tick as root, and the split is exactly the `gui`/`system` split
+# that file already records — `checks.<system>.launchd-log-rotation` reads it the
+# same way, calling the root tier "the system-domain source". The mapping is
+# sound in the direction that matters: `gui/<uid>` runs as the session user, a
+# `launchd.daemons` unit runs as root, and even a daemon that set `UserName`
+# would still land on the ROOT tick, which can truncate any owner's file. A
+# `tier` attribute would restate `domain` and be the second list this dedupe
+# exists to remove.
 #
 # TIER IS DECIDED BY WHO CAN WRITE THE FILE, not by who classified it. A path
 # goes to the ROOT tick if ANY daemon declares it (root can truncate a user-owned
@@ -124,10 +128,14 @@
   ...
 }:
 let
-  hmAgents = config.home-manager.users.${loginName}.launchd.agents or { };
-  darwinUserAgents = config.launchd.user.agents or { };
-  darwinSystemAgents = config.launchd.agents or { };
-  daemons = config.launchd.daemons or { };
+  # THE ENUMERATION IS IMPORTED, NOT RETYPED. This was a third copy of the same
+  # four option surfaces — same list, same `config`/`serviceConfig` key mapping —
+  # beside the two in ./launchd-reconcile.nix and modules/parts/checks.nix. A list
+  # typed three times is three lists, and the drift is invisible here for the
+  # reason ./launchd-sources.nix states: this module's failure mode on a dropped
+  # source is DOING NOTHING, so the unit silently stops being rotated and no build
+  # goes red. `key` carries the per-layer plist attr, `domain` carries the tier.
+  sources = import ./launchd-sources.nix { inherit config loginName; };
 
   # The nix-darwin option, not a literal — modules/darwin/core.nix:13 and
   # user-folders.nix:28 already read it, and a `/Users/${loginName}` string here
@@ -166,16 +174,21 @@ let
       longLived = lib.unique (lib.concatMap (x: x.longLived) all);
     };
 
-  hmSplit = split hmAgents [ "config" ];
-  darwinUserSplit = split darwinUserAgents [ "serviceConfig" ];
-  darwinSystemSplit = split darwinSystemAgents [ "serviceConfig" ];
-  daemonSplit = split daemons [ "serviceConfig" ];
-  userSplit = {
-    reExec = lib.unique (hmSplit.reExec ++ darwinUserSplit.reExec ++ darwinSystemSplit.reExec);
-    longLived = lib.unique (
-      hmSplit.longLived ++ darwinUserSplit.longLived ++ darwinSystemSplit.longLived
-    );
-  };
+  # One split per source, merged per TIER — so adding a fifth source to
+  # ./launchd-sources.nix needs no edit here, which is the whole point of the
+  # import. `gui` is the login-user tick, `system` the root one.
+  tierSplit =
+    domain:
+    let
+      each = map (src: split src.units [ src.key ]) (lib.filter (s: s.domain == domain) sources);
+    in
+    {
+      reExec = lib.unique (lib.concatMap (x: x.reExec) each);
+      longLived = lib.unique (lib.concatMap (x: x.longLived) each);
+    };
+
+  userSplit = tierSplit "gui";
+  daemonSplit = tierSplit "system";
 
   # A path written by ANY long-lived declaration cannot be rename+create'd, even
   # if a re-exec job also writes it. Long-lived wins globally.
