@@ -66,14 +66,42 @@ in
     {
       checks =
         lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
-          # ---- bootstrap.sh is the ONE script no derivation wraps ------------
+          # ---- bootstrap.sh is the highest-stakes unwrapped script, not the ONLY one -
           #
-          # Every other script in this tree is a `writeShellApplication`, which
-          # shellchecks it at build time. `bootstrap.sh` cannot be: it runs on a
-          # Mac that has no Nix yet, so it is plain bash copied out-of-band
-          # through `curl … | bash`. That makes it the single highest-stakes
-          # unlinted file here — it runs as the user, calls sudo, and deletes an
-          # APFS volume.
+          # This header claimed until 2026-10-02 that bootstrap.sh was "the ONE
+          # script no derivation wraps" and that "every other script in this tree is
+          # a `writeShellApplication`". Both halves were false, and the second was
+          # load-bearing: it is the sentence that made a second unlinted script look
+          # impossible. Counted on 2026-10-02 — 15 tracked `.sh` files, of which
+          # exactly TWO are `builtins.readFile`d into a `writeShellApplication` and
+          # therefore shellchecked by BUILDING it (packages/design-tokens/build.sh,
+          # packages/email-signature/signature.sh). The other THIRTEEN are unwrapped:
+          #
+          #   bootstrap.sh                 gated — by this check.
+          #   scripts/drv-snapshot.sh      gated — by `drv-snapshot-lint`, in the
+          #     ungated block below. Its own header used to tell the operator to run
+          #     `nix develop -c shellcheck` BY HAND, which is not a gate.
+          #   packages/next-right-thing/{run,decide,render,art,probe,gather}.sh
+          #     UNGATED. `cp`'d into a `runCommand` libexec dir
+          #     (modules/shared/next-right-thing.nix), so the generator's own
+          #     `writeShellApplication` shellchecks the ~25-line wrapper that `exec`s
+          #     them and none of the ~1,000 lines it hands over to.
+          #   .claude/hooks/tests/*.sh (4) UNGATED. claude-config-lint.yml RUNS them;
+          #     nothing lints them.
+          #   modules/features/keychain-secrets/tests/grammar.sh
+          #     UNGATED, and it is the one that genuinely cannot be a derivation at
+          #     all: its assertions need a login Keychain the build sandbox has not
+          #     got, which its own header states.
+          #
+          # And there is no blanket fallback: treefmt.nix is REWRITE-only by design
+          # and enables no shellcheck or shfmt, so the only shellcheck this tree has
+          # is `writeShellApplication`'s, actionlint's `-shellcheck` over `run:`
+          # blocks, and the two checks named above.
+          #
+          # bootstrap.sh still earns being named first. It CANNOT be wrapped: it runs
+          # on a Mac that has no Nix yet, so it is plain bash copied out-of-band
+          # through `curl … | bash` — and it runs as the user, calls sudo, and
+          # deletes an APFS volume.
           #
           # It carried a gate until 2026-09-15 (the `key-recovery-bootstrap`
           # derivation, which went with packages/key-recovery.nix). This is that
@@ -819,6 +847,51 @@ in
             };
         }
         // {
+          # ---- Linting the acceptance harness WITHOUT packaging it ---------------
+          #
+          # scripts/drv-snapshot.sh is the second test suite (CLAUDE.md § Testing):
+          # it captures `nix flake show --json` plus every host toplevel, package and
+          # check drvPath, so a refactor can be accepted on an empty diff. It is
+          # deliberately NOT a flake package — that would add a `packages` row to the
+          # very output set it measures — and the cost of that was silence: its header
+          # told the operator to run `nix develop -c shellcheck` BY HAND, so the one
+          # script in this repo whose job is to catch unintended change was the one
+          # nothing checked.
+          #
+          # A shellcheck gate does not need a package. This is `bootstrap-lint`'s
+          # shape with the string-comparison half removed: shellcheck over a SOURCE
+          # PATH LITERAL, which copies one file into the store and builds a
+          # derivation that is not an output of anything.
+          #
+          # WHY THIS DOES NOT PERTURB THE BASELINE, which is the whole reason the
+          # script is unpackaged. The harness compares `outputs.tsv` by
+          # `<category>:<system>:<name>` -> drvPath, and keeps an explicit exclusion
+          # list for entries that "change on EVERY commit for reasons that have
+          # nothing to do with a wave" — formatting, ast-grep, pre-commit and the
+          # rest, all of which take `self` as a source input so their hash tracks the
+          # working tree. This check takes ONE FILE, not `self`: its drvPath moves
+          # only when drv-snapshot.sh itself moves. So it behaves exactly like
+          # `bootstrap-lint`, which has sat unexcluded in every baseline since the
+          # harness existed. Adding it is a one-time, named, two-row delta (one per
+          # system) — re-baseline once; do not add it to EXCLUDE_RE, which is for
+          # per-commit churn this is not.
+          #
+          # Ungated rather than darwin-only (bootstrap-lint is darwin-only because
+          # bootstrap.sh bootstraps a Mac): shellcheck's verdict on plain bash is
+          # platform-independent, and the harness is a dev tool either leg can run.
+          #
+          # NOT COVERED: that the harness WORKS. shellcheck is a syntax and
+          # quoting lint; it cannot tell whether `--compare` still diffs the right
+          # files, and the personal.tsv note in the script's own header is the
+          # standing proof that it drifts semantically without any shellcheck
+          # finding. Running it is still the only test of that.
+          drv-snapshot-lint =
+            pkgs.runCommand "drv-snapshot-lint" { nativeBuildInputs = [ pkgs.shellcheck ]; }
+              ''
+                shellcheck --shell=bash ${../../scripts/drv-snapshot.sh}
+                echo "scripts/drv-snapshot.sh is shellcheck-clean" > "$out"
+              '';
+
           # ---- The two indexes CLAUDE.md promises to keep, kept -----------------
           #
           # CLAUDE.md opens by calling itself "an index, not an encyclopedia" and
