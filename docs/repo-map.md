@@ -2941,8 +2941,10 @@ Active only when working in this repo: `nix-hygiene`, `nixpi-firmware-provision`
 nothing is declared in Nix; the method lives in the `page-lab` plugin — see § Userscripts),
 `fleet-doctor` (its own `fleet-repos.txt` manifest lists every repo in scope — add
 a line there when a new flake is extracted from this repo, nothing else needs to change).
-`skills-lock.json` (the `npx skills` CLI lockfile) pins any CLI-vendored ones (currently none —
-prefer the flake path below).
+There is **no `npx skills` CLI lockfile** any more: `skills-lock.json` was deleted 2026-10-02,
+having sat at `{"version":1,"skills":{}}` with zero consumers in Nix, CI or hooks. The CLI it
+belonged to is rejected outright (`flake.nix:275`, `modules/shared/home.nix:1499`), so the flake
+path below is the only lane for a global skill — do not re-add the lockfile.
 
 ### Global skills
 
