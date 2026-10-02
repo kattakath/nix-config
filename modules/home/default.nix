@@ -1967,7 +1967,7 @@ in
         # ---- Quick Terminal ---------------------------------------------------
         # A shell that drops over whatever is on screen. The global binding needs
         # a one-time Accessibility grant, the same wall documented for
-        # macos-automator in docs/mcp-gateway-accessibility-tcc.md.
+        # macos-automator in docs/osascript-accessibility-tcc.md.
         quick-terminal-position = "top";
 
         # ---- Splits: the FOCUSED pane is the darker one ------------------------

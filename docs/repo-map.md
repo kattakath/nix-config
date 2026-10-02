@@ -3642,11 +3642,12 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   and base16.nix were both rejected.
 - [`docs/macos-settings-surface.md`](macos-settings-surface.md) — what `macos` configures
   declaratively, and the TCC/FileVault walls.
-- [`docs/mcp-gateway-accessibility-tcc.md`](mcp-gateway-accessibility-tcc.md) — the one-time
+- [`docs/osascript-accessibility-tcc.md`](osascript-accessibility-tcc.md) — the one-time
   Accessibility (TCC) grant for `macos-automator`. **Still accurate despite the gateway's death**:
   TCC scopes the grant to `/usr/bin/osascript`, not to whatever parent spawns it, which is exactly
   why the grant carried unchanged when the server moved to the `mac-app-send` plugin (2026-10-01).
-  The filename is the only stale thing about it.
+  Renamed from `mcp-gateway-accessibility-tcc.md` on 2026-10-02 for that reason: the grant is
+  `osascript`'s, so the subsystem that happened to spawn it does not belong in the name.
 - [`docs/open-design.md`](open-design.md) — OpenDesign's declared/imperative boundary: cask +
   updater kill-switch vs. the app's mutable state. Its MCP server left the fleet 2026-09-22.
 - [`docs/photo-system.md`](photo-system.md) — photo retrieval end to end: the
