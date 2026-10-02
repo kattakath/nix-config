@@ -59,6 +59,7 @@
     # in-tree NixOS modules rather than capsules with their own flake-module.nix.
     ../modules/nixos/uplink-watchdog.nix
     ../modules/nixos/lan-recovery.nix
+    ../modules/nixos/service-heartbeat.nix
   ];
 
   # The router this host is dual-homed onto keeps its LAN alive while losing its
@@ -194,6 +195,44 @@
       before = [ "supplicant-wlan0.service" ];
       postInstall = "${pkgs.util-linux}/bin/rfkill unblock wifi || true";
     };
+    # The heartbeat monitor's ping URL — one line, no trailing newline needed.
+    #
+    # OPTIONAL (`required = false`, the default) ON PURPOSE, and this is the whole
+    # argument: aborting would brick a live server over a MONITORING credential,
+    # which is the inverse of the failure the heartbeat exists to prevent. A Pi
+    # flashed without it boots, serves, and does not heartbeat — which reads as "not
+    # verified healthy", not "down". A fresh flash therefore alerts until the URL is
+    # planted, and that is correct rather than a bug. Plant it in the same step as
+    # the connector token if you want them to arrive together.
+    #
+    # NOT cached (`cache = false`, the default). The connector token caches because
+    # losing it makes the host UNREACHABLE; losing this one merely stops the
+    # heartbeat, and the capsule's own guidance is to leave caching off for a file
+    # whose absence only degrades a feature. A second copy of a credential on disk
+    # has to earn itself.
+    #
+    # No `before`/`requiredBy`: the consumer is a TIMER, not a boot-critical service,
+    # so ordering buys nothing and `requiredBy` is precisely the mistake the
+    # connector-token comment above records.
+    heartbeat-url = {
+      source = "heartbeat-url";
+      target = "/run/heartbeat-url";
+    };
+  };
+
+  # The dead man's switch. Pings only when a local self-test passes, so the ABSENCE
+  # of a ping is the alert — and if userspace dies, systemd timers do not fire, so
+  # absence is exactly what the 2026-09-23 outage would have produced.
+  #
+  # Complements the Cloudflare tunnel-health alert rather than duplicating it: that
+  # one fires when the tunnel dies (which covers everything that kills userspace),
+  # this one covers what leaves the tunnel UP — Caddy dead, rootfs read-only.
+  # Port 80 is the one globally-open TCP port on this host (Caddy's origin), so the
+  # loopback probe matches what the firewall already admits.
+  local.serviceHeartbeat = {
+    enable = true;
+    urlFile = "/run/heartbeat-url";
+    httpPort = 80;
   };
 
   # Wi-Fi consumer: associate wlan0 from the planted config; dhcpcd
