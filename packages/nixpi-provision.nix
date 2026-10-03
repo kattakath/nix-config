@@ -31,6 +31,7 @@
   gnused,
   gawk,
   gh,
+  jq,
   orgName,
   repoName,
   # Ordered, most-preferred FIRST. Declared in modules/parts/identity.nix so the
@@ -393,6 +394,9 @@ let
       coreutils
       gnused
       gh
+      # For the provenance line below — the attestation's own JSON is the only place
+      # the bound nix-config commit exists on the operator's side.
+      jq
     ];
     text = ''
             # Fresh reflash: acquire the image → decompress → verified dd → auto-plant.
@@ -483,7 +487,16 @@ let
               # `asset…` and the flash died on its first run -- after the download, at
               # the line that was supposed to protect the write.
               echo "nixpi-flash: verifying build provenance of ''${asset}…"
-              if ! gh attestation verify "$image" --repo ${orgName}/${repoName}; then
+              # `--format json` so ONE verification serves both purposes: its EXIT STATUS is
+              # still the gate (a failure below is fatal exactly as it was before), and its
+              # payload is the only place the operator's side can learn WHICH nix-config commit
+              # these bytes are bound to. A second `verify` call just to read the JSON would
+              # re-hash 1.7 GB for nothing. The trade, stated: on SUCCESS gh now prints nothing
+              # of its own (its whole report IS the JSON we captured), which the line below
+              # replaces with strictly more information. On FAILURE gh still writes to stderr,
+              # so the diagnosis is unchanged.
+              if ! gh attestation verify "$image" --repo ${orgName}/${repoName} \
+                   --format json > "$tmp/attestation.json"; then
                 echo "" >&2
                 echo "nixpi-flash: PROVENANCE VERIFICATION FAILED for $asset." >&2
                 echo "  The asset is NOT provably built by ${orgName}/${repoName}'s" >&2
@@ -495,7 +508,46 @@ let
                 echo "  Access-gated fleet host." >&2
                 exit 1
               fi
-              echo "nixpi-flash: provenance OK"
+
+              # ---- SAY WHICH nix-config COMMIT THE ATTESTATION BINDS -------------------
+              # The signature has bound the workflow run — and through it the commit — since
+              # #697/#719, but that fact reached no human: `provenance OK` proved the bytes were
+              # OURS without ever saying which REVISION of ours. The published filename now
+              # carries `-cfg-<rev>` as well (build-installers-impl.yml), and the two are
+              # deliberately independent: a filename is a label anyone can retype, this one is
+              # signed.
+              #
+              # THE PATH WAS MEASURED, NOT GUESSED — on the live installer-latest asset
+              # (sha256:b4be766b…, run 37077094075):
+              #   .[0].verificationResult.statement.predicate.buildDefinition
+              #       .resolvedDependencies[].digest.gitCommit
+              # Two neighbours look right and are not: `externalParameters` carries only the
+              # workflow's {ref,repository,path} with NO commit anywhere in it, and
+              # `runDetails.metadata.invocationId` is the run URL, not the commit.
+              #
+              # FAIL SOFT, deliberately — the inverse trade from the gate above. Verification has
+              # ALREADY passed by the time this runs, so a missing field, a shape change in a
+              # future gh, or a truncated file must never abort a flash over a cosmetic line.
+              # Every read is guarded and "no answer" is a valid answer.
+              bound=""
+              run_id=""
+              if [ -s "$tmp/attestation.json" ]; then
+                bound=$(jq -r '[ .[0].verificationResult.statement.predicate.buildDefinition.resolvedDependencies[]?
+                                 | select(.digest.gitCommit) | .digest.gitCommit ] | first // empty' \
+                          "$tmp/attestation.json" 2>/dev/null) || bound=""
+                run_id=$(jq -r '.[0].verificationResult.statement.predicate.runDetails.metadata.invocationId // empty' \
+                          "$tmp/attestation.json" 2>/dev/null) || run_id=""
+                # .../actions/runs/<id>/attempts/<n>  ->  <id>
+                run_id="''${run_id##*/runs/}"
+                run_id="''${run_id%%/*}"
+              fi
+              if [ -n "$bound" ]; then
+                echo "nixpi-flash: provenance OK (nix-config ''${bound:0:7}, run ''${run_id:-unknown})"
+              else
+                # NOT an error, and worded so it cannot read as one: the gate above PASSED. Say
+                # the label is missing rather than implying the proof was weaker.
+                echo "nixpi-flash: provenance OK (attestation named no bound commit — cosmetic only)"
+              fi
             fi
             if [ -z "$image" ]; then
               echo "nixpi-flash: building the sdImage (needs an aarch64-linux builder — see --release)…"
