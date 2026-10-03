@@ -82,6 +82,68 @@ jobs:
         # a separate `nix log` on the runner.
         run: nix build .#packages.aarch64-linux.nixpi-sd-image --out-link result --print-build-logs
 
+      # ---- NAME THE ASSET AFTER THE nix-config COMMIT THAT BUILT IT ---------------
+      # NOTHING in the image's own filename comes from this repo. `sdImage.imageName`
+      # is `"${imageBaseName}-${system.nixos.label}-${system}.img"` (the pinned
+      # raspberry-pi-nix `sd-image/sd-image.nix:38-40` — NOT nixpkgs' newer
+      # `image.fileName`), and that label is nixpkgs' own `.version` plus the PINNED
+      # NIXPKGS commit date and short rev. Measured on revisions ec834e4 and a37c7e05:
+      # same flake.lock, DIFFERENT drvPaths, IDENTICAL imageName. Since installer-latest
+      # is a rolling slot whose "Retire stale" step below deletes the previous asset,
+      # a downloaded image's provenance was unrecoverable once it rolled.
+      #
+      # WHY THE REVISION IS APPLIED HERE AND NOT DECLARED IN NIX. Both upstream options
+      # were measured and both cost more than the filename buys:
+      #   * `system.nixos.tags = [ "cfg-<rev>" ]` feeds `system.nixos.label`, which is
+      #     in the SYSTEM CLOSURE. The nixpi toplevel drvPath moved on every tag change
+      #     (5rh1m306… -> sg54g5n6… -> 0cljs1q1…), so EVERY commit — including ones
+      #     touching nothing the Pi runs — would change the nixpi system and present as
+      #     a pending deploy.
+      #   * `sdImage.imageBaseName` leaves the toplevel alone (verified: 5rh1m306…
+      #     unchanged across two different base names) but moves the IMAGE drvPath
+      #     (yfrqi3c7… -> 69b9cgbh…) — which is precisely build-installers.yml's gate
+      #     key. That gate skipped 22 of the last 25 runs; with a per-commit rev in the
+      #     image derivation it would skip NONE, turning routine `modules/home/**` and
+      #     `modules/parts/**` pushes into full image builds plus 1.7 GB Release
+      #     re-uploads. Defeating a guard built for that exact cost, to label a file, is
+      #     a net loss.
+      # A commit is metadata about the PUBLISH, not about the content, so it belongs on
+      # the published asset rather than inside a content-addressed derivation. It also
+      # reads more honestly here: when the gate skips, the release keeps the old asset
+      # under the old commit — which IS the commit that built those bytes.
+      #
+      # THE PREFIX AND EXTENSION ARE PRESERVED, deliberately: both consumers select on
+      # them and neither changes. The retire step below matches
+      # `^nixos-sd-image-.*\.img(\.zst)?$`, and nixpi-flash matches
+      # `^nixos-sd-image-.*\.img\.zst$` then takes `sort_by(.updatedAt) | last`
+      # (packages/nixpi-provision.nix). Verified against the new shape, including the
+      # counterfactual: ordering those names LEXICALLY picks the wrong one, which is the
+      # #248 lockout — never reintroduce a lexical pick.
+      - name: Stage the image under its nix-config revision
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          imgs=(result/sd-image/*.img*)
+          if [ "${#imgs[@]}" -ne 1 ]; then
+            echo "Expected exactly one built image under result/sd-image, found ${#imgs[@]}." >&2
+            exit 1
+          fi
+          src="${imgs[0]}"
+          base="$(basename "$src")"
+          # Split at the FIRST `.img` so both `.img` and `.img.zst` round-trip. The
+          # literal `nixos-sd-image-` prefix contains no `.img`, so this cannot cut there.
+          stem="${base%%.img*}"
+          ext="${base#"$stem"}"
+          name="${stem}-cfg-${GITHUB_SHA:0:7}${ext}"
+          mkdir -p upload
+          # HARDLINK, falling back to a copy only when the link is impossible (a
+          # separately-mounted /nix, or protected_hardlinks refusing a root-owned store
+          # file). The asset is ~1.7 GB and this runner's root volume has ~14 GB free, so
+          # a copy is affordable but not free — see this file's header note on ENOSPC.
+          ln "$src" "upload/$name" 2>/dev/null || cp "$src" "upload/$name"
+          test -s "upload/$name"
+          echo "Staged $base as $name"
+
       # softprops/action-gh-release UPLOADS by filename but does not remove older
       # assets when the nixos-sd-image-*.img.zst basename changes (nixpkgs rev in
       # the name). installer-latest is a single rolling slot — leave only the new
@@ -126,7 +188,7 @@ jobs:
       - name: Attest the SD image build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: result/sd-image/*.img*
+          subject-path: upload/*.img*
 
       - name: Publish to installer-latest release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
@@ -138,7 +200,7 @@ jobs:
 
             | Asset | Architecture | Use |
             |---|---|---|
-            | `nixos-sd-image-*.img.zst` | aarch64-linux (RPi 4) | LIVE nixpi system (not an installer). `nix run github:kattakath/nix-config#nixpi-flash -- --disk /dev/diskN --release` flashes THIS + plants the token/Wi-Fi. Secret-free: token + Wi-Fi land on the FIRMWARE partition post-flash. |
+            | `nixos-sd-image-*-cfg-<rev>.img.zst` | aarch64-linux (RPi 4) | LIVE nixpi system (not an installer). The `cfg-<rev>` suffix is the nix-config commit that built it (the rest of the name is nixpkgs'). `nix run github:kattakath/nix-config#nixpi-flash -- --disk /dev/diskN --release` flashes THIS + plants the token/Wi-Fi. Secret-free: token + Wi-Fi land on the FIRMWARE partition post-flash. |
           prerelease: true
           make_latest: false
-          files: result/sd-image/*.img*
+          files: upload/*.img*
