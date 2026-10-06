@@ -117,6 +117,59 @@ in
       # There is no declarative per-key xfconf surface at this pin: nixpkgs'
       # xfce.nix only flips `programs.xfconf.enable`.
       dpi = 192;
+
+      # ---- NO LOCKSCREEN. THIS IS A LOCKOUT TRAP, NOT A PREFERENCE ----------
+      # XFCE's screensaver is ON by default upstream
+      # (nixos/modules/services/x11/desktop-managers/xfce.nix:79-83,
+      # `default = true`), which installs `xfce4-screensaver` (:166) AND sets
+      # `security.pam.services.xfce4-screensaver.unixAuth = cfg.enableScreensaver`
+      # (:249). That PAM line is what makes the unlock prompt demand a Unix
+      # password.
+      #
+      # THE TRAP: autologin (services.displayManager.autoLogin, below) + a
+      # PAM-backed locker + NO PASSWORD. Nothing in modules/nixos/ sets
+      # hashedPassword, initialPassword or mutableUsers for this account, so the
+      # guest logs itself in and then holds no credential it could unlock with.
+      # Once that screen appears with `ismail` prefilled, the session is
+      # UNPASSABLE — the only exit is killing QEMU from the host, which is a
+      # power-pull for a guest whose root qcow2 is DURABLE (hosts/nixvm.nix).
+      # Measured the hard way on 2026-10-06.
+      #
+      # TWO WAYS OUT, for whoever reads this next. Do not flip the option back
+      # on without picking one:
+      #   1. Keep the locker disabled — CHOSEN. A hand-booted local VM in a
+      #      QEMU window on an already-locked Mac gains nothing from a second
+      #      lock screen.
+      #   2. If a locker is ever genuinely wanted, SET A PASSWORD FIRST
+      #      (users.users.<n>.hashedPassword). A locker without a credential is
+      #      not security, it is a one-way door.
+      #
+      # `security.sudo.wheelNeedsPassword = false` (modules/nixos/core.nix) is
+      # UNRELATED and must stay — sudo is how the operator works in here.
+      desktopManager.xfce.enableScreensaver = false;
+
+      # SCREEN BLANKING / DPMS OFF TOO — and this one is the AGENT'S CALL, not
+      # the operator's ask; object and delete these four lines if unwanted. A VM
+      # has no battery to save, and a screen that blanks black looks exactly
+      # like the lock screen above, which is the same user-facing problem.
+      #
+      # `serverFlagsSection` is the pinned option surface for this, not a shim:
+      # grepped nixos/modules/services/x11/xserver.nix — it is a real option
+      # (:705, types.lines) whose own EXAMPLE (:708-712) is these four lines.
+      # There is no narrower upstream knob; no `services.xserver.blanking`
+      # exists anywhere in the pinned nixos/modules.
+      #
+      # HONEST LIMIT: this zeroes the X SERVER's own timers. `xfce4-power-manager`
+      # is still installed (xfce.nix:149, via powerManagement.enable = true, which
+      # evaluates TRUE here) and can drive DPMS from its own settings, which no
+      # declarative option at this pin reaches. If the screen still blanks, that
+      # is the thing to look at — in its GUI, by hand.
+      serverFlagsSection = ''
+        Option "BlankTime" "0"
+        Option "StandbyTime" "0"
+        Option "SuspendTime" "0"
+        Option "OffTime" "0"
+      '';
     };
 
     # Boot straight into the session with no credential prompt — this VM is
