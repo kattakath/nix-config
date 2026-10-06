@@ -17,6 +17,16 @@ detached. Both exit 0 having measured nothing.
 one. A self-match is indistinguishable from a hit. And `$!` is set by the shell regardless
 of whether the command it launched exists.
 
+**A PID handed down in a brief is a claim, not a fact.** 2026-10-06, a later task: the brief
+stated "nixvm QEMU is LIVE (PID 148), the operator is working in it" and told me to protect
+it. `kill -0 148` returned `no such process`, and `pgrep -x qemu-system-aarch64` found only
+the Android emulator I had just started. The VM had exited between tasks. **Re-verify any
+inherited PID before reasoning about it** — and never signal a PID you only have on
+authority. (The protective instruction was still right in shape: `pgrep -x
+qemu-system-aarch64` genuinely cannot tell the Android emulator from nixvm, since the
+emulator's binary is `.../android-commandlinetools/emulator/qemu/darwin-aarch64/qemu-system-aarch64`.
+`adb devices` distinguishes them; a bare process name does not.)
+
 **How to apply:** after any detached launch, prove liveness with a **differently shaped**
 instrument than the one that started it — `pgrep -x` plus
 `ps -ww -o command= -p <pid>` to confirm the expected *arguments* are on the live process,
