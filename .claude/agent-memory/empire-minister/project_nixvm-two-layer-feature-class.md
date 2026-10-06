@@ -19,7 +19,33 @@ nothing.** Treat this as the default shape, not a coincidence — it has caught 
 debugging either one. And never report a half-landed feature as done on a green build — see
 [[nixvm-green-build-is-not-acceptance]].
 
-## Audio specifics (shipped `2b9ccd1`, 2026-10-06, NOT boot-tested)
+## Audio: VERIFIED WORKING in a booted guest, 2026-10-06
+
+`/proc/asound/cards` → `0 [SoundCard]: virtio-snd - VirtIO SoundCard at pci/0000:00:07.0/virtio6`;
+`virtio_snd` bound with `snd_pcm`/`snd_timer`/`snd`/`soundcore`; PCM nodes `pcm0p` + `pcm0c`
+present; `wpctl status` → Device 44 `Virtio 1.0 sound (QEMU) [alsa]`, **Sink 48 default**
+`Virtio 1.0 sound (QEMU) Stereo [vol: 0.40]`, Source 52; `wpctl inspect @DEFAULT_AUDIO_SINK@`
+→ `alsa.driver_name = "virtio_snd"`; `rtkit-daemon` **active**. The `virtio-sound-pci` fallback
+to `intel-hda` was NOT needed. **Audibility is unverified — no agent has ears.**
+
+### THREE instrument traps, all of which produced a wrong answer first
+
+1. **`wpctl status` raced wireplumber by one second** and reported `Devices:` and `Sinks:` EMPTY.
+   Re-queried minutes later, both were populated. I nearly reported audio as FAILED. PipeWire is
+   **socket-activated**, so a query can be the thing that starts it — then immediately read it
+   before enumeration finishes. Query twice, seconds apart.
+2. **`pactl` is NOT on PATH** with `services.pipewire.pulse.enable` — `pulseaudio`'s CLI is not
+   in `systemPackages`, only its libs. `pactl info` exits 127, which reads like a broken stack.
+   Use **`wpctl status`**, `wpctl inspect @DEFAULT_AUDIO_SINK@`, or `pw-dump`.
+3. **`systemctl --user status pipewire` says `inactive (dead)` and that is NORMAL** — the
+   `.socket` units are what stay `active (listening)`. Check the sockets, or `ps`, not the
+   service.
+
+Also: `alsa-utils` is absent (operator declined it), so there is **no `speaker-test`** — an
+audibility check must be a browser or another player. And the default sink comes up at
+**40% volume**, which is worth checking before concluding "no sound".
+
+## Audio specifics as shipped (`2b9ccd1`)
 
 - The guest had **no card at all**: `/proc/asound/cards` absent, only generic
   `snd`/`snd_seq*`/`snd_timer` loaded. Nothing in the fleet configured audio
