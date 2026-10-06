@@ -12,3 +12,4 @@
 - [nixvm ssh on Mac loopback 2222](project_nixvm-ssh-loopback-2222.md) — THREE changes needed together (forward+bind+firewall), all in vmVariant; `host.address` is what keeps it off the LAN; core.nix untouched
 - [nixvm Retina halving + vdagent is clipboard-only](project_nixvm-retina-halving-and-vdagent-clipboard-only.md) — cocoa.m DIVIDES the framebuffer by backingScaleFactor, so resolution and dpi move as a PAIR; window resize never reflows the guest
 - [nixvm lockscreen = permanent lockout](project_nixvm-autologin-locker-lockout-trap.md) — autologin + NO password + a PAM-backed locker; xfce enableScreensaver defaults TRUE upstream. Prove absence from the CLOSURE, not the pam list
+- [nixvm: a GREEN BUILD IS NOT ACCEPTANCE](project_nixvm-green-build-is-not-acceptance.md) — two defects passed every gate and were wrong in the guest: a Modes line cannot create a mode, and useNixStoreImage silently inherits writableStore=false (which broke nix, HM and ~/.zshrc)
