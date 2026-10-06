@@ -18,6 +18,10 @@ CGFloat width = screen.width / [[self window] backingScaleFactor];
 It treats the guest framebuffer as **device** pixels and divides by the Retina factor (2 here),
 so `1440x900` arrived as a ~`720x450` **point** window — sharp, and half-size.
 
+**CORRECTED 2026-10-06 — there are THREE layers, not two, and the resolution half of this note
+was wrong until `fe2ed8c`. A `Modes` line cannot create a mode; the QEMU device decides which
+exist. Read [[nixvm-green-build-is-not-acceptance]] before acting on anything below.**
+
 **Resolution and DPI are a PAIR. Never move one alone.** `virtualisation.resolution` feeds
 `services.xserver.resolutions = mkVMOverride [ cfg.resolution ]` (`qemu-vm.nix:1508`) — an Xorg
 **mode list**, not a qemu device property. Raising it alone spreads the same point-size fonts
