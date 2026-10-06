@@ -1,43 +1,42 @@
 ---
 name: project-nixvm-wireguard-mount-not-wg-quick-option
-description: networking.wg-quick.interfaces is REJECTED for nixvm — not for autostart or private keys (it solves both) but because this repo is PUBLIC and the option re-derives peer topology into git. Confs stay opaque files.
+description: nixvm gets wireguard-tools ONLY — a conf share was built 2026-10-06 and reverted the same day at the operator's request. The wg-quick.interfaces rejection (public repo, peer topology in git) still stands.
 metadata:
   type: project
 ---
 
-`networking.wg-quick.interfaces` is **rejected** as the way to give `nixvm` the operator's
-WireGuard confs. Do not re-propose it.
+**Current state (2026-10-06, final):** `nixvm` has `wireguard-tools` + `boot.kernelModules =
+[ "wireguard" ]` inside `virtualisation.vmVariant` in `hosts/nixvm.nix`. **No conf is
+provisioned** — no share, no `environment.etc`, nothing in `/etc/wireguard`, nothing
+autostarting. The operator brings his own file and runs
+`sudo wg-quick up /path/to/conf.conf` **by full path**; the bare-name form does not work,
+because wg-quick resolves a bare name against `/etc/wireguard` and nothing populates it.
 
-**Why:** the two objections usually raised against it do **not** hold — the pinned nixpkgs'
+**A conf share was built and then reverted the same day.** `c28e746` added one read-only 9p
+`sharedDirectories` entry mounting `~/.local/share/wireguard-configs` at the guest's
+`/etc/wireguard` (plus a `nofail` boot-stall guard). It evaluated, built and passed every
+gate. The operator then changed the requirement: **wireguard installed, no conf
+provisioning.** Removed by forward edit in `bcba9f1` — deliberately **not** `git revert`,
+because the revert would have restored a comment whose central claim is measurably false.
+
+**Why:** the operator's call, not a technical failure. Do not re-propose provisioning confs
+into this VM unless he asks.
+
+**The `networking.wg-quick.interfaces` rejection still stands, and is the half worth keeping.**
+The two objections usually raised against that option do **not** hold — the pinned nixpkgs'
 `nixos/modules/services/networking/wg-quick.nix` has an `autostart` toggle (`:53`) and a
-`privateKeyFile` escape hatch (`:88`), so neither "nothing may autostart" nor "the confs hold
-private keys" disqualifies it. The real disqualifier: using it means re-expressing each conf
-as Nix **attributes** (`publicKey`, `endpoint`, `allowedIPs`), and **kattakath/nix-config is
-public**, so the operator's VPN peer topology would be in git history permanently. The private
-overlay flake that could once have hidden such values was retired 2026-09-15.
+`privateKeyFile` escape hatch (`:88`). The real disqualifier: it re-expresses each conf as Nix
+**attributes** (`publicKey`, `endpoint`, `allowedIPs`), and **kattakath/nix-config is public**,
+so the operator's VPN peer topology would be in git history permanently. The private overlay
+flake that could once have hidden such values was retired 2026-09-15. Same argument kills
+`environment.etc."wireguard/…"` — it symlinks a world-readable `/nix/store` path.
 
-The same argument kills `environment.etc."wireguard/…"` — it symlinks a world-readable
-`/nix/store` path.
+**How to apply:** if conf provisioning is ever wanted again, it is a **mount of opaque files**,
+never Nix-declared peer attributes. The mechanics are recorded in
+[[nixvm-9p-shares-work-on-darwin]] (shell-variable `source`, the `mkForce` necessity, the
+`neededForBoot`/`nofail` guard, the `mkVMOverride` priority trap) — that note is a fact about
+the host and stays true regardless of this feature.
 
-**How to apply:** confs reach a guest as **opaque files via a mount**, never parsed, evaluated
-or re-emitted by Nix. Implementation: one read-only 9p `sharedDirectories` entry at the guest's
-`/etc/wireguard` (so `wg-quick up <name>` resolves a bare name), sourced from
-`"$HOME"/.local/share/wireguard-configs` — the same operator-maintained directory
-`modules/home/wireguard-configs.nix` syncs from on darwin, keeping one source of truth.
-7 confs there as of 2026-10-06.
-
-Posture, deliberate and separate per host:
-
-- **nixvm** — `wireguard-tools` + `boot.kernelModules = [ "wireguard" ]`, both inside
-  `virtualisation.vmVariant` in `hosts/nixvm.nix` (NOT `modules/nixos/desktop-vm.nix`, which is
-  scoped "XFCE desktop + guest integration"). Nothing autostarts; operator runs
-  `sudo wg-quick up <name>` by hand.
-- **macos** — GUI-only (`masApps.WireGuard`), **no `wg`/`wg-quick` CLI on PATH, on purpose**:
-  a botched tunnel on the sole client Mac means no internet. `hosts/macos.nix` § Brews says so.
-  Leave it alone.
-
-Unproven and still unproven: that the mount actually succeeds in the guest and the 7 confs are
-visible at `/etc/wireguard`. That needs a boot; the gates only prove eval, the VM build, the
-`-virtfs` arg, and the closure.
-
-See [[nixvm-9p-shares-work-on-darwin]].
+**macos is a separate, deliberate posture:** GUI-only (`masApps.WireGuard`), **no `wg`/`wg-quick`
+CLI on PATH** — a botched tunnel on the sole client Mac means no internet.
+`hosts/macos.nix` § Brews says so. Leave it alone.
