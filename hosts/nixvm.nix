@@ -228,6 +228,64 @@
       # store image is the ONLY per-boot filesystem here; the root qcow2 is not.
       useNixStoreImage = true;
 
+      # ---- WRITABLE STORE. WITHOUT THIS, NIX IS ENTIRELY BROKEN IN THE GUEST --
+      # NOT an optimisation and not a preference — the line above silently
+      # turned nix off, through TWO layers of inherited defaults that nobody
+      # chose:
+      #   `writableStore`      default = cfg.mountHostNixStore   (qemu-vm.nix:720)
+      #   `mountHostNixStore`  default = !useNixStoreImage && !useBootLoader (:899)
+      # So `useNixStoreImage = true` forces mountHostNixStore false, which drags
+      # writableStore to FALSE by inheritance. Confirmed by evaluating this very
+      # config before the fix: writableStore = false, mountHostNixStore = false.
+      #
+      # WHAT THAT COSTS. With writableStore false, /nix/store is a BIND of
+      # /nix/.ro-store, an erofs mounted `ro` (:1448-1463, :1464-1469) — and
+      # `findmnt /nix/store` in the guest confirmed `erofs ro,relatime`. The
+      # nix-daemon then dies on its first write:
+      #   unexpected Nix daemon error: error: creating directory
+      #   "/nix/store/.links": Read-only file system
+      # With it true, the SAME stanza switches to overlayfs —
+      # lowerdir=/nix/.ro-store, upperdir=/nix/.rw-store/upper,
+      # workdir=/nix/.rw-store/work — and /nix/.rw-store is a tmpfs
+      # (writableStoreUseTmpfs defaults true, :731, mount at :1470-1474). So the
+      # per-boot-fresh-store design SURVIVES: the upper layer is RAM and is
+      # discarded every boot. Nothing durable changes.
+      #
+      # THIS VM WAS UPSTREAM'S OWN DOCUMENTED FAILING CASE, which is the
+      # strongest argument against ever "simplifying" this line away.
+      # nixos/tests/qemu-vm-store.nix declares a node
+      #   imageReadOnly = { useNixStoreImage = true; writableStore = false; }  (:26-28)
+      # and asserts `imageReadOnly.fail(build_derivation)` (:56), against
+      #   imageWritable = { useNixStoreImage = true; writableStore = true; }   (:21-23)
+      # asserted `imageWritable.succeed(build_derivation)` (:51). We had
+      # imageReadOnly's exact pair.
+      #
+      # THE FULL CAUSAL CHAIN, measured over SSH in a clean guest 2026-10-06 —
+      # it took three agents and a live shell to connect these:
+      #   read-only store -> every nix operation fails -> home-manager-ismail
+      #   .service fails on EVERY boot ("cannot open connection to remote store
+      #   'daemon'") -> ~/.zshrc and ~/.zshenv are never written -> an
+      #   interactive zsh finds no startup files -> zsh-newuser-install.
+      # The wizard was never a zsh or home-manager bug. It was this line.
+      #
+      # DETERMINATE IS NOT THE CAUSE — do not go looking there. Upstream's test
+      # fails identically with stock nix, and the daemon was healthy: it logged
+      # `accepted connection from pid 1456, user ismail (trusted)` and died only
+      # on the write. The `Authentication failure, s: Permanent` FlakeHub line in
+      # the same journal is unrelated noise (no token in a disposable guest).
+      #
+      # RULED OUT, so nobody retries them:
+      #   * `useNixStoreImage = false` + a 9p host store — loses the fresh-store
+      #     design AND exposes every store path to the macOS case-insensitive
+      #     `~nix~case~hack~` collision class, not just the one terminfo entry
+      #     already worked around below.
+      #   * swapping Determinate for upstream nix — upstream's own test proves
+      #     the daemon is irrelevant.
+      #   * skipping nix during HM activation — home-manager's `activate` calls
+      #     `nix-store --realise` and `nix-env --profile --set` unconditionally,
+      #     so this is impossible without forking home-manager.
+      writableStore = true;
+
       # NO SHARES AT ALL, and `lib.mkForce` is what keeps it that way: without
       # it upstream's own two defaults come back — `xchg` (/tmp/xchg) and
       # `shared` (/tmp/shared), the NixOS TEST driver's conveniences for passing
