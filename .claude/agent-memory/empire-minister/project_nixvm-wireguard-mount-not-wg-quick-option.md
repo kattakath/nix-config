@@ -16,7 +16,7 @@ because wg-quick resolves a bare name against `/etc/wireguard` and nothing popul
 `sharedDirectories` entry mounting `~/.local/share/wireguard-configs` at the guest's
 `/etc/wireguard` (plus a `nofail` boot-stall guard). It evaluated, built and passed every
 gate. The operator then changed the requirement: **wireguard installed, no conf
-provisioning.** Removed by forward edit in `bcba9f1` — deliberately **not** `git revert`,
+provisioning.** Removed by forward edit in `bc0bcb5` — deliberately **not** `git revert`,
 because the revert would have restored a comment whose central claim is measurably false.
 
 **Why:** the operator's call, not a technical failure. Do not re-propose provisioning confs
