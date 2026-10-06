@@ -221,6 +221,43 @@ in
     services.qemuGuest.enable = true;
     services.spice-vdagentd.enable = true;
 
+    # ---- AUDIO, GUEST HALF. The host half is hosts/nixvm.nix's qemu.options --
+    # BOTH HALVES OR SILENCE, and a green build proves neither. This stack with
+    # no QEMU audio device is silence (nothing to open); the device with no stack
+    # is silence too. Fourth two-layer feature in this VM after the clipboard,
+    # the display and SSH — the host file's audio comment carries that list.
+    #
+    # Nothing in this fleet configured audio before: `grep -rn
+    # "pipewire\|pulseaudio\|rtkit" modules/ hosts/` returned ZERO hits, and
+    # the guest had no card at all (`/proc/asound/cards` absent).
+    #
+    # `pipewire.service` shows as MASKED in a guest with this disabled — that is
+    # NixOS's normal representation of `services.pipewire.enable = false` when
+    # some package in the XFCE closure ships the units. It is not a fault and
+    # nothing should be unmasked by hand.
+    #
+    # DO NOT reach for `hardware.pulseaudio`/`services.pulseaudio`: it is renamed
+    # at this pin (mkRenamedOptionModule, pulseaudio.nix:95) and is mutually
+    # exclusive with PipeWire's pulse emulation.
+    #
+    # NO HAND-ADDED xfce4-pulseaudio-plugin OR pavucontrol. xfce.nix:150-157 adds
+    # BOTH automatically once `services.pipewire.pulse.enable` is true (it picks
+    # xfce4-pulseaudio-plugin over xfce4-volumed-pulse because this is not a
+    # noDesktop config). Verified in the built closure rather than assumed.
+    #
+    # rtkit grants realtime scheduling priority THROUGH POLKIT
+    # (org.freedesktop.RealtimeKit1). That interacts with the credential-prompt
+    # class above and comes out fine: the wheel-YES polkit rule in
+    # hosts/nixvm.nix means the request is authorised without a challenge, so
+    # this adds no new unanswerable prompt.
+    services.pipewire = {
+      enable = true;
+      alsa.enable = true;
+      pulse.enable = true;
+      wireplumber.enable = true;
+    };
+    security.rtkit.enable = true;
+
     # ---- THE CREDENTIAL-PROMPT CLASS. READ THIS BEFORE ADDING A PACKAGE -----
     # This VM autologins (above) and the account has NO PASSWORD — nothing in
     # modules/nixos/ sets hashedPassword, initialPassword or mutableUsers. So
