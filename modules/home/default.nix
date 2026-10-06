@@ -1126,17 +1126,32 @@ in
     "foundation-audit@kattakath" = true;
     "mac-app-send@kattakath" = true;
 
-    # THE ONE LINE HERE THAT CHANGES EVERY SESSION ON THIS MACHINE. `empire`'s
-    # manifest carries `settings.agent = "empire:queen"`, and a plugin's `settings`
-    # block merges into the effective settings once the plugin is ENABLED — so from
-    # the next session start the main agent wears the Queen persona with no flag.
-    # Measured against Claude Code 2.1.268 with a throwaway probe plugin.
+    # OFF since 2026-10-06, at the operator's judgement that the plugin was
+    # inefficient in use. It was the one id here that changed EVERY session on this
+    # machine: `empire`'s manifest carries `settings.agent = "empire:queen"`, and a
+    # plugin's `settings` block merges into the effective settings once the plugin is
+    # ENABLED — so while it was on, the main agent wore the Queen persona with no
+    # flag. (Measured against Claude Code 2.1.268 with a throwaway probe plugin; it
+    # was the enablement #751 believed a `plugins` entry performed — it did not, and
+    # that PR was reverted in #754.) `false` restores the normal default agent from
+    # the next session start.
     #
-    # This is the enablement #751 believed a `plugins` entry was performing. It was
-    # not; that PR was inert and was reverted in #754. Deleting this line is the
-    # whole rollback — and because `declared` is a DEFAULT rather than a lock, a
-    # session can also turn it off until the next `activate`.
-    "empire@kattakath" = true;
+    # WHY `false` AND NOT DELETING THE LINE. `declared` is an `attrsOf bool` that is
+    # re-asserted into ~/.claude/settings.json on every activation, where `false` is
+    # first-class — "`true` enables, `false` disables"
+    # (modules/home/claude-plugins.nix:190-219). Deleting the key emits NO key, and
+    # the jq merge in claude-code-settings.nix (`.[0] * $nix[0]`) then LEAVES the
+    # stale `true` the previous activation wrote. Deletion does not disable; it
+    # abandons.
+    #
+    # The catalogue entry for "empire" above STAYS. claude-plugins.nix:275-298
+    # asserts every `declared` id names a plugin present in that marketplace's
+    # `plugins` list, so removing it fails the build — and keeping it leaves the id
+    # resolvable from `/plugin` if the operator wants it back.
+    #
+    # `declared` is a DEFAULT rather than a lock, so a session can still turn it on
+    # by hand until the next `activate`.
+    "empire@kattakath" = false;
 
     # DELIBERATELY ABSENT: `brag-dossier`. It is merged in skills, but the brag
     # subsystem was removed from this repo on 2026-09-12 at the operator's request.

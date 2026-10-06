@@ -363,16 +363,31 @@ proposal. Four more ids, each the same failure `silent-instruments` had:
 Two unusable, two working-but-unreproducible. A fresh machine restored neither — which is the
 whole case for this lane, in four lines.
 
-`empire@kattakath = true` is the one entry that changes every session on this machine, via its
+`empire@kattakath = true` was the one entry that changed every session on this machine, via its
 manifest's `settings.agent`. It is the enablement **#751 believed a `plugins` entry was
-performing**; it was not, and that PR was reverted in #754. Deleting the line is the rollback.
+performing**; it was not, and that PR was reverted in #754.
+
+**Reversed 2026-10-06 — it is now `empire@kattakath = false`.** The operator judged the plugin
+inefficient in use, so the default agent is the normal one again from the next session start.
+Two mechanics that the original "deleting the line is the rollback" sentence got wrong, and
+which this doc now records instead:
+
+- **`false`, not deletion.** `declared` is re-asserted every activation, and deleting a key
+  emits NO key — the jq merge in `claude-code-settings.nix` (`.[0] * $nix[0]`) then leaves the
+  stale `true` the previous activation wrote. Deletion abandons the id; it does not disable it.
+  An explicit `false` is first-class in `enabledPlugins` and is what actually turns it off.
+- **The catalogue entry stays.** `claude-plugins.nix` asserts every `declared` id names a
+  plugin in that marketplace's `plugins` list, so dropping `"empire"` from the catalogue would
+  fail the build — and keeping it leaves the id resolvable from `/plugin`.
 
 `brag-dossier` stays **out**, though it is merged in skills: the brag subsystem was removed
 from this repo at the operator's request, and enabling the plugin would reintroduce that
 capability by the back door.
 
 Nix now writes **8** `enabledPlugins` ids where it wrote **3** — read off the rendered option,
-not inferred.
+not inferred. Since the 2026-10-06 reversal above that is still **8 ids**, seven `true` and one
+(`empire@kattakath`) `false`: a declared `false` is a written key, which is the whole reason it
+disables where a deletion would not.
 
 ## 9a. Amendment, 2026-10-02 — the `declared` lane is built, `assured` is not
 
@@ -427,6 +442,8 @@ live `false` ids are exactly that shape.
 - The nine `false` entries remain machine-local. The lane that can hold them now exists; each
   is an operator preference and moving one is a per-plugin decision, not a sweep.
 - `empire` stays unenabled — #754's reasoning is unchanged by a mechanism existing.
+  (Record of the 2026-10-02 position only. It was enabled later that day by #757, §9b, and
+  turned back off — as an explicit `false` — on 2026-10-06. §9b holds the current state.)
 
 **Upstream-first, grepped not remembered.** Pinned home-manager `7b4c5ec4`: `enabledPlugins`
 appears in **zero** files under `modules/`, and the whole `programs.claude-code` option surface
