@@ -73,13 +73,36 @@ which are complementary not redundant:
 Closure effect, measured (1539 → 1534 paths): `gnome-keyring-50.0`, its setuid
 `security-wrapper-gnome-keyring-daemon`, `gcr-3.41.2` and both `gcr-ssh-agent` units all left.
 
-## Class sweep, 2026-10-06 — the LIVE positive nobody has decided yet
+**Instance 3, 2026-10-06 (`6456c30`) — AND THE FIX SHAPE IS DIFFERENT, which is the lesson.**
+XFCE installs `polkit_gnome` as the polkit auth agent (`xfce.nix:126-127`), so a privileged
+desktop action popped an unanswerable password dialog. Fixed with
+`security.polkit.extraConfig` (`polkit.nix:65`, `types.lines`, rendered into
+`/etc/polkit-1/rules.d/10-nixos.rules` at `:182`) returning `polkit.Result.YES` for
+`isInGroup("wheel")` — in **`hosts/nixvm.nix`'s `vmVariant`**, not in `desktop-vm.nix`.
 
-**`polkit-gnome-0.105` is still in the closure** (XFCE installs it as the polkit authentication
-agent, `xfce.nix:126-127`) and **will ask for a password on a privileged desktop action.**
-Deliberately NOT disabled — polkit is a different path from sudo (covered by
-`security.sudo.wheelNeedsPassword = false`) and killing the agent could break desktop actions
-silently. **Operator's call, still open.**
+**The agent STAYS installed.** "Disable it" is the right reflex for a locker or a keyring and
+the **wrong** one for an authorisation component: removing an auth agent does not make
+privileged actions succeed, it makes them **fail silently** — no dialog, no error to act on.
+
+`adminIdentities` (`polkit.nix:86`) was checked and is **the wrong axis**: it already defaults
+to `[ "unix-group:wheel" ]` and feeds `polkit.addAdminRule` (`:178-180`), declaring who COUNTS
+as an administrator, not whether they must authenticate — which is exactly why the agent
+challenged the operator. No upstream option expresses "authorise without authenticating".
+
+Cost, accepted: any process running as the operator in this VM takes privileged desktop actions
+unchallenged — already true of `sudo` there, so the two paths now **match**. VM-only on purpose;
+the same rule on `nixpi` or `macos` would be a real weakening, and `desktop-vm.nix` is reusable
+so it must not carry it.
+
+**Scoping proof trap:** `security.polkit.extraConfig` is **NOT empty** on base nixvm or on
+nixpi — both carry a pre-existing nixpkgs `dhcpcd` set-hostname rule. The correct assertion is
+"the **wheel** rule is absent there", not "extraConfig is empty". `security.polkit` does not
+exist at all on darwin (`macos`'s `security.*` is accessibilityPrograms, enableAccessibilityAccess,
+pam, pki, sandbox, sudo).
+
+## Class sweep, 2026-10-06
+
+`polkit-gnome-0.105` remains in the closure BY DESIGN (count 1, re-confirmed after the fix).
 
 Lesser, conditional positives — present but cannot prompt for a credential that does not exist:
 `libsecret` (client lib only), `gcr-4` (library, the gcr-3 prompter is gone),
