@@ -130,9 +130,31 @@
       # a qcow2 is lazily allocated (measured 5.7 MiB of real host disk at 8192,
       # 6.9 MiB at 24576).
       diskSize = 24576;
+      # RESOLUTION AND DPI ARE A PAIR — move them together or not at all.
+      # The companion is `services.xserver.dpi = 192` in
+      # modules/nixos/desktop-vm.nix. Raising THIS alone is counter-productive:
+      # `virtualisation.resolution` drives
+      # `services.xserver.resolutions = mkVMOverride [ cfg.resolution ]`
+      # (qemu-vm.nix:1508), which is an Xorg MODE LIST, not a qemu device
+      # property — so more pixels renders the same point-size fonts across a
+      # larger framebuffer, i.e. a bigger window with SMALLER text.
+      #
+      # WHY 2x AT ALL: qemu 11.1.1's Cocoa UI treats the guest framebuffer as
+      # DEVICE pixels and divides by the window's Retina factor —
+      #   ui/cocoa.m:503  CGFloat width = screen.width / [[self window] backingScaleFactor];
+      # On this Mac that factor is 2, so 1440x900 arrived as a ~720x450 POINT
+      # window: sharp, and half-size. 2880x1800 / 2 = the intended 1440x900
+      # points, and dpi 192 (2 x 96) scales the fonts to match.
+      #
+      # 2880x1800 keeps 16:10, so fullscreen does not letterbox on the built-in
+      # panel — it WILL letterbox on a 16:9 external display.
+      #
+      # COST: 4x the pixels for an emulated GPU (virtio-gpu, no host GPU). If
+      # the desktop feels sluggish, THIS PAIR IS THE FIRST THING TO LOWER —
+      # halve both (1440x900 + dpi 96) before suspecting anything else.
       resolution = {
-        x = 1440;
-        y = 900;
+        x = 2880;
+        y = 1800;
       };
       # THE GUEST CARRIES ITS OWN STORE IMAGE.
       #
