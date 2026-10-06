@@ -744,11 +744,19 @@ in
       # click, drag and pixel scroll. Upstream still calls non-Linux unsupported, so
       # treat a regression here as expected-unsupported, not as our misconfiguration.
       #
-      # NEEDS A ONE-TIME MANUAL Accessibility GRANT and nothing declarative can do
-      # it: the plugin calls `AXIsProcessTrustedWithOptions`, and TCC consent is not
-      # expressible in Nix. Without the grant the app pairs and the touchpad panel
-      # appears, but the cursor never moves — so that symptom is the MISSING GRANT,
-      # not a broken pairing.
+      # CURSOR MOVEMENT NEEDED NO Accessibility GRANT — measured end-to-end
+      # 2026-10-06, and this comment first claimed the opposite. Paired, then swiped
+      # on the phone's Remote input panel: the Mac pointer moved 587 px / 312 px for
+      # a 550 / 300 swipe, with NOTHING granted on the Mac (the only consent given
+      # was Android's own notification permission, which the app's foreground
+      # service needs). So an unmoving cursor is NOT evidence of a missing grant —
+      # check pairing (`kdeconnect-cli -a` must say "paired and reachable") first.
+      #
+      # The grant may still gate the OTHER directions: the plugin does call
+      # `AXIsProcessTrustedWithOptions`, and clicks/keystrokes were deliberately
+      # NOT tested (a synthetic click lands on whatever is under the pointer). If
+      # those misbehave, System Settings > Privacy & Security > Accessibility is the
+      # place to look — TCC consent is not expressible in Nix either way.
       #
       # It takes NOTHING from escrcpy/scrcpy above: those drive the PHONE from this
       # Mac, this drives this MAC from the phone. Opposite directions, and it rides
