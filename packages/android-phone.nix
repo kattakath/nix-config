@@ -36,6 +36,14 @@
 #     server` when the first scan comes back empty, before treating it as a
 #     real "not found" — confirmed live 2026-08-19, was silently mistaken for
 #     a network-level mDNS block until diagnosed with `dns-sd -B`.
+#   - DEEPER than a cache: adb's DEFAULT (Bonjour) mDNS backend goes blind
+#     altogether on this Mac, and a restart does not revive it — only
+#     `ADB_MDNS_OPENSCREEN=1` does (measured 2026-10-06, both service types
+#     affected). That export is at the top of the script, and because the
+#     backend is picked by the adb SERVER at startup, the restart above is what
+#     applies it to a server someone else started. Blind discovery is the
+#     failure to suspect FIRST when `list` says "(none)" but `dns-sd -B` and
+#     `ping` both find the phone.
 #   - adb has NO "unpair"/"forget" primitive — pairing trust can only be
 #     revoked ON the device (Settings > Wireless debugging > tap device >
 #     Forget). `unpair` here is best-effort: disconnect + jump the device to
@@ -66,6 +74,19 @@ writeShellApplication {
   ];
   text = ''
     set -euo pipefail
+
+    # mDNS backend: adb ships TWO, and the default (Bonjour) goes BLIND on this Mac.
+    # Measured 2026-10-06 with a phone advertising on the LAN the whole time:
+    #
+    #   adb mdns services, default backend     -> EMPTY, twice, across a restart
+    #   adb mdns services, ADB_MDNS_OPENSCREEN -> found the device immediately
+    #   dns-sd -B (macOS native)               -> found it the whole time
+    #
+    # It is blind to BOTH service types, so `list` reported "(none)" while a phone
+    # sat there waiting, and the pairing dialog was invisible too — the operator was
+    # told nothing was discoverable. Exported rather than passed per-call because the
+    # backend is chosen by the adb SERVER at startup; see refresh_adb_server.
+    export ADB_MDNS_OPENSCREEN=1
 
     # adb: prefer the Homebrew CASK's copy, fall back to PATH — see the header, the
     # path is only knowable at runtime. scrcpy keeps the same shape even though it
@@ -121,7 +142,9 @@ writeShellApplication {
       mirror [serial] [-- scrcpy-args...]
                               start scrcpy; auto-picks the sole authorized
                               device if serial is omitted and only one exists
-      doctor                  tool paths, mDNS support, connected devices
+      doctor                  tool paths, which mDNS backend is live, adb's view
+                              vs the SYSTEM's view (they disagree when adb goes
+                              blind), and connected devices
 
     Examples:
       android-phone list
@@ -170,6 +193,11 @@ writeShellApplication {
       ' || true
     }
 
+    # Restarting is ALSO how the openscreen backend gets applied to a server this
+    # wrapper did not start: ADB_MDNS_OPENSCREEN is read by the SERVER at startup, so
+    # exporting it cannot convert one already running under Bonjour (Android Studio,
+    # a bare `adb` in another shell, or a pre-existing session all leave one behind).
+    # kill-server then start-server re-execs it with the export inherited.
     refresh_adb_server() {
       "$ADB" kill-server >/dev/null 2>&1 || true
       "$ADB" start-server >/dev/null 2>&1 || true
@@ -188,13 +216,77 @@ writeShellApplication {
     # server was restarted. Query once; if totally empty, refresh the server
     # and retry once before giving up — this is what makes `connect` (no arg)
     # actually deterministic instead of needing a manual kill-server dance.
+    #
+    # 2026-10-06: the restart ALONE was measured INSUFFICIENT — an empty list
+    # stayed empty across kill-server/start-server, and only the openscreen
+    # backend found the device. The retry survives because the restart is now
+    # what applies that backend (see refresh_adb_server), so the two work
+    # together; do not drop either half believing the other covers it.
+    # macOS's own mDNS resolver, as a SECOND instrument of a different shape. It
+    # found the phone on EVERY attempt on 2026-10-06 — including while adb's view
+    # was empty — and it is what diagnosed the blindness in the first place. Emits
+    # the same three fields mdns_raw's callers parse: instance, service type,
+    # ip:port. /usr/bin/dns-sd and /usr/bin/dscacheutil are macOS SYSTEM tools, so
+    # this is a runtime probe rather than a runtimeInputs entry — nothing to add to
+    # the closure, and nothing for nixpkgs to package.
+    #
+    # The guard is DEFENSIVE, not load-bearing: this package is macOS-only today
+    # (home.packages adds it under `lib.optionals isMacosHost`, and there is no
+    # packages.aarch64-linux.android-phone output — verified 2026-10-06, after an
+    # earlier draft of this comment claimed the opposite). It costs one `test -x`
+    # and keeps a `die` out of a non-Darwin path if that ever changes.
+    mdns_via_system() {
+      [ -x /usr/bin/dns-sd ] && [ -x /usr/bin/dscacheutil ] || return 0
+      local svc inst hostport host port ip
+      for svc in _adb-tls-connect._tcp _adb-tls-pairing._tcp; do
+        inst=$(timeout 4 /usr/bin/dns-sd -B "$svc" 2>/dev/null |
+          awk -v s="$svc." '$0 ~ s { for (j = 7; j <= NF; j++) printf "%s%s", $j, (j < NF ? " " : ""); print "" }' |
+          tail -1) || true
+        [ -n "$inst" ] || continue
+        hostport=$(timeout 5 /usr/bin/dns-sd -L "$inst" "$svc" 2>/dev/null |
+          grep -oE '[A-Za-z0-9._-]+\.local\.:[0-9]+' | tail -1) || true
+        [ -n "$hostport" ] || continue
+        host=''${hostport%%:*}
+        port=''${hostport##*:}
+        # dns-sd -G's own output is awkward to parse reliably; dscacheutil answers
+        # the same question in one field and was the form that worked when measured.
+        ip=$(/usr/bin/dscacheutil -q host -a name "''${host%.}" 2>/dev/null |
+          awk '/^ip_address:/ { print $2; exit }') || true
+        [ -n "$ip" ] || continue
+        printf '%s\t%s.\t%s:%s\n' "$inst" "$svc" "$ip" "$port"
+      done
+    }
+
+    has_services() { printf '%s' "''${1:-}" | grep -q '_adb-tls-'; }
+
     mdns_raw() {
       require_adb
-      local out
+      local out deadline
       out=$("$ADB" mdns services 2>/dev/null || true)
-      if [ -z "$out" ]; then
+
+      # Test for SERVICE LINES, never for emptiness. `adb mdns services` always
+      # prints its 32-byte "List of discovered mdns services" header (measured with
+      # od -c, 2026-10-06), so the old `[ -z "$out" ]` was never true and this whole
+      # retry was DEAD CODE — which is the real reason "the restart doesn't help"
+      # was observed: the restart never ran.
+      if ! has_services "$out"; then
         refresh_adb_server
-        out=$("$ADB" mdns services 2>/dev/null || true)
+        # Poll, because one post-restart query is a coin flip: time-to-first-service
+        # measured 0s, 13s, and once not at all within 30s across three trials. The
+        # backend has to catch the phone's next advertisement, and Wi-Fi power saving
+        # makes that sporadic.
+        deadline=$(($(date +%s) + 15))
+        while [ "$(date +%s)" -lt "$deadline" ]; do
+          out=$("$ADB" mdns services 2>/dev/null || true)
+          if has_services "$out"; then break; fi
+          "$ADB" devices >/dev/null 2>&1 || true
+        done
+      fi
+
+      # Still nothing from adb: ask the OS, which disagreed with adb every time it
+      # mattered. A disagreement here is the signal to trust, not to average.
+      if ! has_services "$out"; then
+        out=$(mdns_via_system) || true
       fi
       echo "$out"
     }
@@ -218,7 +310,13 @@ writeShellApplication {
       if [ -n "$mdns_c" ]; then
         printf '  %s\n' "$mdns_c" | while read -r addr; do
           if echo "$wireless" | grep -q "^$addr"; then continue; fi
-          echo "  $addr  (paired — run: android-phone connect $addr)"
+          # NOT "(paired)". This label is derived from the mDNS SERVICE TYPE, and
+          # _adb-tls-connect._tcp is advertised whenever Wireless debugging is ON,
+          # paired or not. Calling it "paired" was a FALSE ALL-CLEAR on 2026-10-06:
+          # trust had been revoked, the label said paired, and the real failure
+          # (needs re-pairing) was hunted as a network problem instead. Only an
+          # actual `connect` can tell the two apart.
+          echo "  $addr  (connectable — run: android-phone connect $addr; if it fails, trust was revoked and you need 'pair' with a code)"
         done
       fi
       if [ -n "$mdns_p" ]; then
@@ -227,7 +325,7 @@ writeShellApplication {
         done
       fi
       if [ -z "$mdns_c" ] && [ -z "$mdns_p" ]; then
-        echo "  (none, even after an adb server refresh — check Wireless debugging is ON and the phone is on this Wi-Fi network; manual ip:port from the device still works as a last resort)"
+        echo "  (none — after an adb server refresh, a 15s poll AND a macOS mDNS cross-check all came back empty, so this is a real not-found rather than adb's backend going blind. Check Wireless debugging is ON and the phone is on this Wi-Fi network; 'android-phone doctor' shows both views, and a manual ip:port from the device still works as a last resort)"
       fi
     }
 
@@ -258,6 +356,20 @@ writeShellApplication {
         target="$candidates"
       fi
       "$ADB" connect "$target"
+
+      # Drop adb's OWN duplicate. adb auto-connects mDNS-advertised devices under
+      # their service name, so after an explicit ip:port connect the SAME phone can
+      # appear twice — `10.0.0.250:44089` and `adb-XXXX._adb-tls-connect._tcp`. Every
+      # bare `adb shell` then dies with "adb: more than one device/emulator", which
+      # reads like a second phone is attached. Measured twice on 2026-10-06, once
+      # while reading package lists, where it silently turned real answers into
+      # "absent" for every package queried.
+      local dupe
+      dupe=$("$ADB" devices 2>/dev/null | awk '/^adb-.*_adb-tls-connect\._tcp[[:space:]]/ { print $1 }' | head -1) || true
+      if [ -n "''${dupe:-}" ]; then
+        "$ADB" disconnect "$dupe" >/dev/null 2>&1 || true
+        info "dropped adb's duplicate mDNS transport for the same device ($dupe) so bare 'adb shell' keeps working"
+      fi
     }
 
     cmd_disconnect() {
@@ -338,7 +450,26 @@ writeShellApplication {
       echo "adb:            ''${ADB:-MISSING}"
       echo "scrcpy:         ''${SCRCPY:-MISSING}"
       if [ -n "''${ADB:-}" ] && [ -x "$ADB" ]; then
-        echo "adb mdns check: $("$ADB" mdns check 2>&1 | tr '\n' ' ')"
+        # NOT `adb mdns check` — it printed "adb discovery 0.0.0" under BOTH
+        # backends while one of them was returning nothing (2026-10-06), so it
+        # cannot discriminate working discovery from blind discovery and reads as
+        # reassuring either way. `mdns services` is the real signal: a count of
+        # what was actually found, with the backend named so a zero is diagnosable.
+        # Not ''${V:+a}''${V:-b} — when V is SET, ''${V:-b} expands to V's VALUE, so that
+        # pair printed "openscreen (…)1". Measured, then written as a plain branch.
+        if [ -n "''${ADB_MDNS_OPENSCREEN:-}" ]; then
+          echo "mdns backend:   openscreen (ADB_MDNS_OPENSCREEN=$ADB_MDNS_OPENSCREEN)"
+        else
+          echo "mdns backend:   bonjour (adb default — measured BLIND on macOS; the wrapper exports openscreen, so seeing this means something unset it)"
+        fi
+        # ONE query, reused: mdns_raw can poll for up to 15s, so calling it per
+        # field would make `doctor` take a minute and report three different scans.
+        local svcs
+        svcs=$(mdns_raw)
+        echo "adb mdns view:  $(printf '%s' "$svcs" | grep -c '_adb-tls-connect\._tcp' || true) connect, $(printf '%s' "$svcs" | grep -c '_adb-tls-pairing\._tcp' || true) pairing"
+        if [ -x /usr/bin/dns-sd ]; then
+          echo "system mdns:    $(mdns_via_system | grep -c '_adb-tls-' || true) advertised (independent cross-check — if this is non-zero while the line above is 0, adb's backend is blind, not the network)"
+        fi
       fi
       echo
       cmd_list
