@@ -28,6 +28,31 @@ present; `wpctl status` → Device 44 `Virtio 1.0 sound (QEMU) [alsa]`, **Sink 4
 → `alsa.driver_name = "virtio_snd"`; `rtkit-daemon` **active**. The `virtio-sound-pci` fallback
 to `intel-hda` was NOT needed. **Audibility is unverified — no agent has ears.**
 
+### THE CAPTURE HALF IS BROKEN, and I missed it by not reading the host log
+
+QEMU printed this **four times** at launch, and I only found it afterwards because I was
+reading the GUEST and never looked at the tail of my own launch log:
+
+```
+qemu-system-aarch64: -device virtio-sound-pci,audiodev=snd0: audio: Can not open `virtio-sound.in' (no host audio driver)
+qemu-system-aarch64: audio: Can not open `virtio-sound.in' (no host audio driver)   (x3 more)
+```
+
+**Playback is fine** — the guest got a card and a default sink, and QEMU continues past this.
+What fails is the **input/capture** stream. Near-certain cause: macOS **microphone TCC**. A QEMU
+launched from a terminal has no mic grant, so coreaudio's input device cannot be opened. The
+guest still *shows* a Source (`52. Virtio 1.0 sound (QEMU) Stereo`) because the virtio device
+exposes one regardless; it just has no host backend behind it.
+
+**Not fixed** (2026-10-06 — the task in flight was docs-only). Candidate fix when it is wanted:
+give the audiodev no input voices, e.g. `-audiodev coreaudio,id=snd0,in.voices=0`, which stops
+QEMU trying to open a capture device at all. **Verify the property exists** on the pinned binary
+first (`-audiodev coreaudio,help`).
+
+**THE LESSON, and it is mine:** I verified the guest exhaustively and declared audio PASS while
+four host-side errors sat unread in the launch log I had created. **Read the host launch log as
+part of acceptance, not only the guest.** For a two-layer feature there are two logs.
+
 ### THREE instrument traps, all of which produced a wrong answer first
 
 1. **`wpctl status` raced wireplumber by one second** and reported `Devices:` and `Sinks:` EMPTY.
