@@ -571,18 +571,11 @@
       # privileged desktop action pops a password dialog. This VM's account has
       # NO password, so that dialog is another dead end.
       #
-      # THE DISTINCTION WORTH LEARNING, across all three instances:
-      #   xfce4-screensaver -> turned OFF. A missing locker just never locks.
-      #   gnome-keyring     -> turned OFF **and** its consumer pinned
-      #                        (chromium --password-store=basic), because
-      #                        Chromium auto-detects and the prompt would return.
-      #                        Chromium itself was removed 2026-10-06; the keyring
-      #                        stays off regardless, see that file.
-      #   polkit            -> LEFT ON, told not to challenge. Removing an auth
-      #                        agent does NOT make privileged actions work — it
-      #                        makes them FAIL SILENTLY, with no dialog and no
-      #                        error the operator can act on. "Disable it" is the
-      #                        wrong reflex for an authorisation component.
+      # The three-instance table and the per-instance fix shapes live ONCE, in
+      # modules/nixos/desktop-vm.nix's class block — not restated here. The part
+      # specific to polkit: it is LEFT ON and told not to challenge, because
+      # removing an auth agent makes privileged actions fail SILENTLY rather
+      # than work.
       #
       # upstream option security.polkit.extraConfig exists -> using it
       # (nixos/modules/security/polkit.nix:65, types.lines, rendered into
