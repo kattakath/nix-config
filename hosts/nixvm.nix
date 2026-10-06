@@ -121,8 +121,40 @@
       # from a QEMU window and runs no test script; it has nothing to exchange.
       sharedDirectories = lib.mkForce { };
 
-      # Guest video device X's modesetting driver binds for the desktop.
-      qemu.options = [ "-device virtio-gpu-pci" ];
+      # Guest video device X's modesetting driver binds for the desktop, plus
+      # the host half of macOS<->guest CLIPBOARD sharing.
+      #
+      # RAW QEMU ARGS ARE CORRECT HERE — do not "fix" them to an option.
+      # `virtualisation.qemu.options` is nixpkgs' own escape hatch
+      # (types.listOf types.str, default [ ], nixos/modules/virtualisation/qemu-vm.nix)
+      # and it concatenates additively, so this list is the whole device set.
+      # Grepped the pinned nixpkgs' nixos/modules/virtualisation/ for "vdagent":
+      # ZERO hits — NixOS models only the GUEST side (services.spice-vdagentd,
+      # enabled in modules/nixos/desktop-vm.nix). Nothing upstream wires the
+      # host chardev, so there is no option to prefer.
+      #
+      # How the clipboard reaches macOS: qemu 11.1.1's Cocoa UI registers a real
+      # QemuClipboardPeer named "cocoa" (ui/cocoa.m), so the native window joins
+      # QEMU's clipboard bus; `qemu-vdagent` is compiled in (confirmed with
+      # `-chardev help` on the store path this VM runs). `clipboard=on` is
+      # REQUIRED — qapi/char.json defaults it off. `name=com.redhat.spice.0` is
+      # the fixed protocol contract spice-vdagent listens on, not a free choice.
+      #
+      # TEXT ONLY. The Cocoa peer carries no image or file clipboard.
+      #
+      # The virtserialport deliberately carries NO explicit `bus=`. Measured
+      # 2026-10-06 against this exact qemu store path, with virtio-gpu-pci also
+      # enumerated: both the explicit `bus=virtio-serial0.0` form and this
+      # implicit one start cleanly, and `info qtree` shows the implicit port
+      # landing on `bus: virtio-serial-bus.0` with chardev=vdagent0 and
+      # name=com.redhat.spice.0. Implicit wins on fewer assumptions — it needs
+      # no device id and no guess at the bus alias QEMU derives from it.
+      qemu.options = [
+        "-device virtio-gpu-pci"
+        "-chardev qemu-vdagent,id=vdagent0,name=vdagent,clipboard=on"
+        "-device virtio-serial-pci"
+        "-device virtserialport,chardev=vdagent0,name=com.redhat.spice.0"
+      ];
       # NOTE: no explicit `-display` flag — QEMU on macOS defaults to a native
       # Cocoa window. On a Linux host you'd add `-display gtk` here instead.
     };
