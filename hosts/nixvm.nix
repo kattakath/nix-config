@@ -370,6 +370,40 @@
         "-chardev qemu-vdagent,id=vdagent0,name=vdagent,clipboard=on"
         "-device virtio-serial-pci"
         "-device virtserialport,chardev=vdagent0,name=com.redhat.spice.0"
+        # ---- AUDIO, HOST HALF. The guest half is in desktop-vm.nix ----------
+        # BOTH HALVES OR SILENCE. There was no sound card in the guest AT ALL
+        # (`/proc/asound/cards` did not exist; only the generic snd/snd_seq/
+        # snd_timer modules were loaded), because nothing had ever given QEMU an
+        # audio device. Adding the guest's PipeWire stack alone would also be
+        # silence — it would have nothing to open.
+        #
+        # THIS IS THE FOURTH TWO-LAYER FEATURE IN THIS VM, and the pattern is
+        # worth naming because each time the config looked complete and built
+        # green with one half missing: the CLIPBOARD (host chardev here + guest
+        # spice-vdagentd there), the DISPLAY (host xres/yres here + guest
+        # dpi/Xft.dpi there), SSH (host forwardPorts here + guest bind and
+        # firewall there), and now AUDIO. CHECK BOTH SIDES FIRST.
+        #
+        # grepped nixos/modules/virtualisation/qemu-vm.nix for audio/soundhw/
+        # audiodev — ZERO hits in 1,559 lines -> no upstream option owns QEMU
+        # audio -> raw qemu.options justified, same escape hatch and the same
+        # additive concatenation as the vdagent lines above.
+        #
+        # `coreaudio` IS COMPILED IN: `-audiodev help` on the exact pinned
+        # binary lists none, coreaudio, dbus, spice, wav. It is the only one of
+        # those that reaches the Mac's speakers.
+        #
+        # WHY virtio-sound-pci AND NOT intel-hda: paravirtualised, and ONE
+        # device instead of a controller plus a separate `hda-duplex` codec —
+        # which matches every other choice in this list (virtio-gpu-pci,
+        # virtio-serial-pci). `-device help` confirms `virtio-sound-pci`
+        # (alias `virtio-sound`) exists at 11.1.1. THE NAMED FALLBACK, if
+        # `snd_virtio` does not bind in a booted guest, is the legacy pair:
+        #   "-device intel-hda" "-device hda-duplex,audiodev=snd0"
+        # The guest kernel has CONFIG_SND_VIRTIO=m and CONFIG_SND_HDA_INTEL=m,
+        # so either driver is available; only a boot can say which binds.
+        "-audiodev coreaudio,id=snd0"
+        "-device virtio-sound-pci,audiodev=snd0"
       ];
       # NOTE: no explicit `-display` flag — QEMU on macOS defaults to a native
       # Cocoa window. On a Linux host you'd add `-display gtk` here instead.
