@@ -216,6 +216,42 @@ in
     services.qemuGuest.enable = true;
     services.spice-vdagentd.enable = true;
 
+    # ---- THE CREDENTIAL-PROMPT CLASS. READ THIS BEFORE ADDING A PACKAGE -----
+    # This VM autologins (above) and the account has NO PASSWORD — nothing in
+    # modules/nixos/ sets hashedPassword, initialPassword or mutableUsers. So
+    # ANY component that wants to store a secret, unlock a keyring, or
+    # authenticate an action will prompt for a credential that CANNOT EXIST,
+    # and a modal dialog with no valid answer is a dead end whose only exit is
+    # killing QEMU from the host — a power-pull for a durable qcow2.
+    #
+    # It is a CLASS, not a list of bugs. Two instances hit so far, both from
+    # upstream defaults nobody opted into:
+    #   1. xfce4-screensaver  -> lock screen, no password to unlock.
+    #      FIX SHAPE: turn the component off (enableScreensaver = false, above).
+    #   2. gnome-keyring      -> Chromium found a Secret Service and asked to
+    #      "Choose password for new keyring".
+    #      FIX SHAPE: turn the component off AND make the consumer explicit,
+    #      because auto-detection means the prompt returns the moment anything
+    #      re-provides the service.
+    #
+    # WHEN ADDING A DESKTOP PACKAGE HERE, ask: can it prompt for a password,
+    # PIN or passphrase? If yes, either disable it or configure it to a
+    # credential-free mode. Grep the closure, not the option list — a package
+    # that is absent cannot prompt, and a PAM stanza with no binary is inert.
+    #
+    # STILL PRESENT AND NOT DISABLED, reported rather than fixed (2026-10-06):
+    # `polkit-gnome` (the polkit authentication agent XFCE installs,
+    # xfce.nix:126-127). It WILL ask for a password on a privileged desktop
+    # action. Left alone deliberately — polkit is a different path from sudo
+    # (which is covered by security.sudo.wheelNeedsPassword = false in
+    # modules/nixos/core.nix) and disabling the agent could break desktop
+    # actions silently. Operator's call, not the agent's.
+    #
+    # upstream option services.gnome.gnome-keyring.enable exists -> using it
+    # (xfce.nix:230 sets it `mkDefault true`, so a plain `false` here wins on
+    # priority — verified by evaluating it, not assumed, so no mkForce needed).
+    services.gnome.gnome-keyring.enable = false;
+
     # A couple of niceties so the desktop isn't bare on first boot. Both
     # browsers substitute for aarch64-linux, so neither is ever built on the
     # 1-CPU Linux builder. `chromium` and NOT `ungoogled-chromium`: ungoogled
@@ -226,7 +262,27 @@ in
     # `opera` is not a choice at all: nixpkgs removed it 2025-05-19
     # (aliases.nix:1932), so the name throws at eval on every system.
     environment.systemPackages = with pkgs; [
-      chromium
+      # `--password-store=basic` is BELT AND BRACES with the keyring being off
+      # above, and both are wanted. Chromium AUTO-DETECTS its backend: with no
+      # Secret Service present it already falls back to plaintext, but the
+      # moment anything re-provides one — a package added here, an upstream
+      # default changing — the "Choose password for new keyring" dialog comes
+      # straight back. The flag pins the behaviour instead of inferring it.
+      #
+      # NO UPSTREAM OPTION OWNS THIS. Grepped the pinned nixos/modules:
+      # `programs.chromium` is POLICY-only (extraOpts / extraOptsRecommended /
+      # initialPrefs write JSON into chromium/policies/, chromium.nix:166-188)
+      # and `--password-store` is a command-line switch with no policy
+      # equivalent. `commandLineArgs` exists only on `programs.google-chrome`
+      # (google-chrome.nix:26), a different package. So the package override is
+      # the lane — and unlike tor-browser at the top of this file, `.override`
+      # IS reachable here: `commandLineArgs ? ""` is a real argument of
+      # chromium's default.nix (:34), appended with `--add-flags` (:142).
+      #
+      # COST: this is a distinct derivation from the cached `chromium`, but
+      # only the makeWrapper phase differs, so it is a cheap rebuild of the
+      # wrapper rather than of the browser.
+      (chromium.override { commandLineArgs = "--password-store=basic"; })
       firefox
       xfce4-terminal
       # Alpha-channel aarch64 build, supplied by the overlay at the top of this
