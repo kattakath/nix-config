@@ -730,6 +730,31 @@ in
       "gpgfrontend"
       "iina"
       # Inkscape is gone on purpose (2026-09-15) — do not re-add.
+      # KDE Connect — the phone-as-TRACKPAD/keyboard for this Mac (its "Virtual
+      # touchpad" panel). A CASK because nixpkgs' `kdePackages.kdeconnect-kde` is
+      # Linux+FreeBSD in `meta.platforms` and does not evaluate on aarch64-darwin;
+      # the cask ships 26.08.1, the SAME version, arm64-only, macOS >= 13. Same
+      # Homebrew-app/Nix-config split as the ghostty and ungoogled-chromium casks.
+      #
+      # THE macOS BACKEND IS REAL, verified in upstream source (2026-10-06), not
+      # inferred from the download page: plugins/mousepad/CMakeLists.txt gates
+      # `macosremoteinput.mm` behind `if (APPLE)` and links CoreGraphics +
+      # ApplicationServices + Cocoa, and that file posts genuine system-wide events
+      # via `CGEventPost(kCGHIDEventTap, …)` — click, double-click, right/middle
+      # click, drag and pixel scroll. Upstream still calls non-Linux unsupported, so
+      # treat a regression here as expected-unsupported, not as our misconfiguration.
+      #
+      # NEEDS A ONE-TIME MANUAL Accessibility GRANT and nothing declarative can do
+      # it: the plugin calls `AXIsProcessTrustedWithOptions`, and TCC consent is not
+      # expressible in Nix. Without the grant the app pairs and the touchpad panel
+      # appears, but the cursor never moves — so that symptom is the MISSING GRANT,
+      # not a broken pairing.
+      #
+      # It takes NOTHING from escrcpy/scrcpy above: those drive the PHONE from this
+      # Mac, this drives this MAC from the phone. Opposite directions, and it rides
+      # its own port (1716), never adb — so `android-phone` pairing state is
+      # irrelevant to whether this works.
+      "kde-connect"
       # LibreOffice — provides the `soffice` CLI the docx/pptx/xlsx/pdf Claude Code
       # skills (modules/home/default.nix programs.claude-code.skills) already hardcode
       # as their document-conversion engine. Cask (not nixpkgs libreoffice-bin)
