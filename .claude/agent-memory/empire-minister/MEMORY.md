@@ -1,5 +1,7 @@
 # Minister memory index — kattakath/nix-config
 
+- [empire learnings land in the skills repo](project_empire-plugin-landed-learnings.md) — agent prompt text lives in `kattakath/skills` plugins/empire; reaching this fleet needs a SECOND PR (the pin bump). Its conventions, gates and the backticked-name curation trap
+
 - [acpx pnpm 12 fetchDeps break](project_acpx-pnpm12-fetchdeps-break.md) — #809's nixpkgs bump moved pnpm 11.25.0→12.3.4; pnpm 12's `links/` farm feeds JSONC to fetchDeps' jq loop, killing `activate`
 - [Worktree guard refuses runtime paths](feedback_worktree-guard-refuses-runtime-paths.md) — `nix eval`, `$VAR` into find, and `sh -c` from xargs are all blocked; write a script file and run it by literal path
 - [nixvm initrd case-hack blocker](project_nixvm-initrd-case-hack-blocker.md) — FIXED by disabling one initrd terminfo entry; the mechanism (case-insensitive store + case-hack leaking into the Linux builder) is still live for other paths
