@@ -30,6 +30,26 @@ pinned binary — `qemu-system-aarch64 -device virtio-gpu-pci,help` lists
 exactly the measured guest resolution**, which is what proved the device owns it. `edid=on` is
 also default, so the EDID advertises xres/yres as preferred.
 
+### `xres`/`yres` WORKED and the mode was STILL rejected — hsync out of range
+
+Boot-tested 2026-10-06 with `-device virtio-gpu-pci,xres=2880,yres=1800`:
+
+```
+(II) modeset(0): Not using mode "2880x1800" (hsync out of range)
+(II) modeset(0): Output Virtual-1 using initial mode 1920x1440 +0+0
+```
+
+So there is a **FOURTH** gate nobody had named: even once the device advertises a mode, Xorg's
+modesetting driver validates it against the EDID's **sync-frequency limits** and will drop it.
+`xres`/`yres` did their job (2880x1800 appears in the probed list, as a *rejected* entry) — the
+generated EDID's hsync range does not admit it.
+
+Result moved 1280x800 → **1920x1440**, which is **4:3** and so letterboxes a 16:10 window. Not
+the target, not a regression either. **Unresolved at time of writing.** The known-good
+candidates are modes that survived validation: `1920x1200` (16:10, no device flag needed) or
+`3840x2160` (16:9). Do NOT assume a bigger `xres`/`yres` will stick — validate in a booted
+guest.
+
 ### THREE independent display layers — fixing one leaves the others
 
 | Layer | Owner | Measured state |
@@ -95,6 +115,18 @@ calls `nix-store --realise` and `nix-env --profile --set` unconditionally).
 chromium's wrapper carries `password-store=basic`; the polkit YES-for-wheel rule is in
 `/etc/polkit-1/rules.d/10-nixos.rules` with `polkit-gnome` running; **both** `spice-vdagentd`
 and `spice-vdagent` running.
+
+## `sudo poweroff` does NOT bring QEMU down on this VM
+
+Measured 2026-10-06. `ssh … sudo poweroff` returned **0**, the guest genuinely went down
+(sshd dead — `Connection timed out during banner exchange`), and **QEMU stayed alive for 60 s+**
+holding the qcow2 write lock, process state `S`. Neither `-no-shutdown` nor `-no-reboot` is in
+its argv. SIGTERM then ended it in **~2 s**.
+
+**How to apply:** a graceful guest shutdown is still worth doing (services stop, filesystems
+flush, no stale profile locks), but **always follow it with a bounded poll and a SIGTERM
+fallback** — and confirm the process is gone with `pgrep -x` + `lsof` on the qcow2 before
+relaunching, or the new VM hits the write lock.
 
 ## Instrument trap recorded
 
