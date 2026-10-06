@@ -159,6 +159,29 @@
       # advertises xres/yres as the preferred mode and the Modes line then has
       # something to select. Set in `qemu.options` below, NOT here.
       #
+      # LAYER 1b — ADVERTISING IS NOT ENOUGH. A FOURTH GATE: VALIDATION.
+      # Boot-tested with xres=2880,yres=1800 and the guest came up at 1920x1440:
+      #   (II) modeset(0): Not using mode "2880x1800" (hsync out of range)
+      #   (II) modeset(0): Output Virtual-1 using initial mode 1920x1440 +0+0
+      # So xres/yres DID advertise the mode — it is in the probed list, as a
+      # REJECTED entry — and modesetting then dropped it against the EDID's own
+      # sync-frequency limits. 2880x1800 is simply not reachable on this device.
+      #
+      # 1920x1200 IS: it appeared in the probed list, with no "Not using mode"
+      # line, under BOTH EDIDs measured today. It is 16:10, matching the Mac's
+      # panel, so fullscreen does not letterbox. (1920x1440 — what the failed
+      # attempt fell back to — is 4:3 and does.)
+      #
+      # xres/yres ARE KEPT, set to the same 1920x1200, and that is deliberate
+      # rather than redundant. The failed attempt measured something important:
+      # when the Modes line names an unavailable mode, X does NOT fall back to
+      # the next entry in Modes — it picks from the EDID itself (it chose
+      # 1920x1440, which Modes never mentioned). Setting xres/yres makes
+      # 1920x1200 the EDID's PREFERRED mode, so the outcome no longer depends on
+      # the Modes-selection path at all. RETIRE THEM only if a booted guest
+      # shows the same 1920x1200 with the properties removed — untested, and
+      # this is not the file to guess in.
+      #
       # LAYER 2 — the X SERVER's DPI. `services.xserver.dpi = 192` in
       # modules/nixos/desktop-vm.nix. This one WORKS: the guest's Xorg log says
       #   (++) modeset(0): DPI set to (192, 192)
@@ -179,24 +202,35 @@
       # is a MANUAL step: XFCE Settings -> Appearance -> Fonts -> Custom DPI,
       # or `xfconf-query -c xsettings -p /Xft/DPI -s 192`.
       #
-      # WHY 2x AT ALL: qemu 11.1.1's Cocoa UI treats the guest framebuffer as
-      # DEVICE pixels and divides by the window's Retina factor —
+      # WHY DPI 192 AND NOT A VALUE SCALED TO THE RESOLUTION — this is the part
+      # that is easy to get wrong, and "proportional to the resolution" is the
+      # wrong model. qemu's Cocoa UI sizes the WINDOW in points by dividing the
+      # framebuffer by the Retina factor —
       #   ui/cocoa.m:503  CGFloat width = screen.width / [[self window] backingScaleFactor];
-      # On this Mac that factor is 2, so 1440x900 arrived as a ~720x450 POINT
-      # window: sharp, and half-size. 2880x1800 / 2 = the intended 1440x900
-      # points, and dpi 192 (2 x 96) scales the fonts to match.
+      # — and multiplies straight back for the framebuffer (:564-565). With a
+      # factor of 2 that makes ONE GUEST PIXEL EXACTLY ONE MAC DEVICE PIXEL, at
+      # every resolution. So the framebuffer size changes how much AREA the
+      # desktop has, and not how big the text is.
       #
-      # 2880x1800 keeps 16:10, so fullscreen does not letterbox on the built-in
-      # panel — it WILL letterbox on a 16:9 external display.
+      # Text size therefore depends only on the DPI. A 12pt font at dpi D is
+      # 12*D/72 guest pixels = the same number of Mac device pixels; native
+      # macOS renders 12pt as 16 points = 32 device pixels on a 2x screen, so
+      # D = 32*72/12 = 192. The arithmetic matches what the operator saw: at the
+      # old 1440x900 with no dpi set (96), 12pt came out 16 device px = 8 points
+      # against a native 16 — exactly "half size". A value scaled to the
+      # resolution, e.g. 128, would land at ~10.7 points and still read small.
       #
-      # COST: 4x the pixels for an emulated GPU (virtio-gpu, no host GPU). If
-      # the desktop feels sluggish, LOWER ALL THREE LAYERS TOGETHER — and if a
-      # non-advertised mode is ever wanted again, remember the fallback that was
-      # NOT needed here: 1920x1200 is already on the device's list and is also
-      # 16:10, so it needs no xres/yres at all.
+      # AREA IS THE REAL COST OF 1920x1200. The window is 960x600 POINTS, where
+      # 2880x1800 would have been 1440x900. 2880x1800 is unreachable on this
+      # device (LAYER 1b), so this is the price of a mode that validates. The
+      # only bigger validated modes are 16:9 (3840x2160 -> 1920x1080 points),
+      # which would letterbox the 16:10 panel.
+      #
+      # If the desktop feels sluggish, lower the resolution — but leave DPI at
+      # 192, because it is set by the Retina pixel-doubling and not by the mode.
       resolution = {
-        x = 2880;
-        y = 1800;
+        x = 1920;
+        y = 1200;
       };
       # THE GUEST CARRIES ITS OWN STORE IMAGE.
       #
@@ -332,7 +366,7 @@
       # the full three-layer story; this is LAYER 1, and without it the Xorg
       # `Modes` line has no 2880x1800 to select.
       qemu.options = [
-        "-device virtio-gpu-pci,xres=2880,yres=1800"
+        "-device virtio-gpu-pci,xres=1920,yres=1200"
         "-chardev qemu-vdagent,id=vdagent0,name=vdagent,clipboard=on"
         "-device virtio-serial-pci"
         "-device virtserialport,chardev=vdagent0,name=com.redhat.spice.0"

@@ -96,14 +96,19 @@ in
       desktopManager.xfce.enable = true;
       displayManager.lightdm.enable = true;
 
-      # THE OTHER HALF OF A PAIR — see hosts/nixvm.nix's
-      # `virtualisation.resolution` (2880x1800), which carries the full
-      # derivation. Short version: qemu's Cocoa UI divides the guest
-      # framebuffer by the Mac's Retina factor of 2 (ui/cocoa.m:503), so the
-      # resolution is doubled to land at the intended point size — and
-      # `virtualisation.resolution` only feeds `services.xserver.resolutions`
-      # (an Xorg MODE LIST, qemu-vm.nix:1508), so without a matching DPI the
-      # same fonts just spread over 4x the pixels and read SMALLER.
+      # ONE OF THREE DISPLAY LAYERS — hosts/nixvm.nix's
+      # `virtualisation.resolution` block carries the full derivation and the
+      # measurements. Short version: qemu's Cocoa UI divides the framebuffer by
+      # the Mac's Retina factor of 2 (ui/cocoa.m:503) and multiplies back for
+      # the framebuffer (:564-565), so one guest pixel is one Mac DEVICE pixel
+      # at every resolution.
+      #
+      # THAT IS WHY 192 IS NOT TIED TO THE RESOLUTION, and why it did not change
+      # when the mode dropped from 2880x1800 to 1920x1200 (2026-10-06). A 12pt
+      # font at dpi D occupies 12*D/72 device pixels; native macOS puts 12pt at
+      # 32 device pixels on a 2x screen, so D = 192 regardless of the mode. The
+      # resolution buys desktop AREA, not text size. Scaling DPI with the
+      # resolution is the intuitive move and it is wrong — it under-sizes text.
       #
       # It lives HERE rather than in hosts/nixvm.nix because this module
       # already owns the whole `services.xserver` block and is gated on
