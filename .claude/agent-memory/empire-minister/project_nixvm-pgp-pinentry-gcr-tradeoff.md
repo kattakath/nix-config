@@ -90,3 +90,22 @@ printed list.
 
 `~/.gnupg` would live on the durable **unencrypted** qcow2 and dies with a wipe — any key must
 be exported by the operator.
+
+## Boot-verified 2026-10-06, and ONE MORE INSTRUMENT TRAP
+
+`gpg (GnuPG) 2.4.9`; `gpa`, `gpg`, `gpgconf` all on PATH; and the authoritative proof that the
+override took — **`/etc/gnupg/gpg-agent.conf`**:
+
+```
+pinentry-program /nix/store/xsb5y8z8f5ky6qy8r2s189q8bpybiqdf-pinentry-gnome3-1.3.2/bin/pinentry
+```
+
+**`gpgconf --list-components` IS THE WRONG INSTRUMENT.** Its pinentry line reads
+`pinentry:Passphrase Entry:/nix/store/…-gnupg-2.4.9/bin/pinentry` — gnupg's **compiled-in
+default**, not the configured program. That path **does not even exist on disk** (`ls` → No such
+file). Reading it as the answer would have reported the wrong pinentry. Read
+`/etc/gnupg/gpg-agent.conf` instead (there is no `~/.gnupg/gpg-agent.conf`).
+
+Deliberately NOT run, and do not run them in a verification pass: `gpg --clearsign`,
+`--full-generate-key`, or anything else that opens a **blocking modal passphrase dialog** on the
+operator's screen. Checking the binaries and the conf file is sufficient.
