@@ -1,13 +1,23 @@
 ---
 name: nixvm-pgp-pinentry-gcr-tradeoff
-description: BLOCKED 2026-10-06, nothing shipped. pinentry-gtk2 is REMOVED at this pin and every GUI pinentry either brings gcr-3 back (gnome3) or Qt (qt); gpa also drags avahi+openldap, contradicting the brief.
+description: SHIPPED 2026-10-06 (5fa443e) as gpa + gpg-agent + XFCE's default pinentry-gnome3; gcr-3 is back ON PURPOSE. pinentry-gtk2 is a throwing alias stub, and gpa/seahorse both carry avahi+openldap.
 metadata:
   type: project
 ---
 
-**Status: BLOCKED, nothing committed.** The planned nixvm OpenPGP change —
-`gpa` + `programs.gnupg.agent.enable = true` + `pinentryPackage = pkgs.pinentry-gtk2` — cannot
-be shipped as specified. Awaiting an operator decision.
+**Status: SHIPPED** in `5fa443e` as `gpa` + `programs.gnupg.agent.enable = true` and **no
+`pinentryPackage` assignment** — `xfce.nix:169`'s `mkDefault pkgs.pinentry-gnome3` already
+resolves here (verified: `pinentryPackage.pname`, and the rendered `pinentry-program` points
+into `pinentry-gnome3-1.3.2`). The original brief specified `pinentry-gtk2`, which does not
+exist; that instruction was dropped.
+
+**`gcr-3` IS BACK, DELIBERATELY. Do not remove it.** It left with gnome-keyring because the
+keyring DAEMON produced a dialog the passwordless account could not answer. A GPG passphrase
+prompt has a **valid answer** — the credential the operator sets at key generation — so it fails
+the credential-prompt-class test in [[nixvm-autologin-locker-lockout-trap]] and stays. `gcr-4`
+was already present and is unrelated. Closure delta measured: **1535 -> 1544 paths**
+(`gpa-0.11.0`, `gnupg-2.4.9` + 3 doc outputs, `pinentry-gnome3-1.3.2`, `gcr-3.41.2`,
+`libsecret-0.21.7`).
 
 ## `pinentry-gtk2` does not exist at this pin
 
@@ -58,11 +68,25 @@ Do not repeat the "gpa avoids the keyserver deps" claim; it does not.
 - SSH→PGP conversion remains impossible at this pin; a fresh keypair is generated in the guest
   and the operator's SSH key is not involved.
 
-## Open decision
+## Decision taken: gnome3, and gpa kept
 
-Pick one: accept `gcr-3` returning (gnome3, simplest), try `pinentry-egui` (smallest, needs a
-boot test), take Qt, or drop the GUI prompt (curses — breaks a desktop passphrase prompt).
-Also unresolved: whether `gpa` is still the GUI given its avahi/LDAP closure.
+`seahorse` measured the same way for the comparison the brief got wrong:
+
+| | paths | carries |
+|---|---|---|
+| `gpa` | **126** | avahi 1, openldap 1, gtk+3 1 |
+| `seahorse` | **145** | avahi 1, openldap 1, gtk+3 1, **libsecret 1** |
+
+Both carry avahi + openldap, so "seahorse is the heavy one because of keyserver deps" is false.
+`gpa` kept on two measured grounds: 19 fewer paths, and it is **not a libsecret front-end** —
+browsing the Secret Service is half of seahorse's reason to exist and is dead here with
+gnome-keyring off. `kleopatra` stays rejected and that one is genuinely heavy (KF6/Qt6 +
+akonadi, which defaults to MariaDB).
+
+**Instrument trap, mine:** `grep -c -- "-gcr-3-"` returned **0** while `gcr-3.41.2` was in the
+closure — the store path has no trailing dash after the version-leading `3`. The pattern must be
+`-gcr-3` (no trailing delimiter). A zero from a name-grep is worth cross-checking against the
+printed list.
 
 `~/.gnupg` would live on the durable **unencrypted** qcow2 and dies with a wipe — any key must
 be exported by the operator.
