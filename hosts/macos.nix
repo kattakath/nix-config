@@ -491,6 +491,28 @@ in
       # (the tart-vms capsule's gitlab-runner.nix). After activating, retire
       # the brew copy once: `brew services stop gitlab-runner`.
       "glab"
+      # GnuPG — BREWED, NOT nixpkgs, and that inverts this repo's usual instinct
+      # on purpose. See the `gpgfrontend` cask below for the full reasoning; the
+      # short version is that the cask hard-depends on this formula
+      # (`depends_on formula: "gnupg"`), so brew's gnupg is the fleet's GnuPG on
+      # this host and the ONLY one.
+      #
+      # DO NOT ADD A SECOND ONE. No `pkgs.gnupg`, no `pkgs.pinentry_mac`, no
+      # home-manager `programs.gpg` or `services.gpg-agent`. Two GnuPG stacks
+      # share one `~/.gnupg` and then which `gpg-agent` and which pinentry you
+      # get is a startup-order lottery — whichever daemon bound the sockets
+      # first wins, and it is not deterministic across logins.
+      #
+      # REVISIT ONLY IF a Nix-BUILT job needs a pinned gnupg. The fix then is
+      # `GNUPGHOME` isolation for that job, NOT a second stack sharing the
+      # operator's home.
+      #
+      # Version gate, 2026-10-06: `brew info gnupg` → stable **2.5.24**, not
+      # deprecated, not disabled; aliases gnupg@2.5/gpg/gpg2. That is the
+      # CURRENT branch — gnupg.org's own EOL table lists 2.2 as EOL 2024-12-31,
+      # 2.4 as EOL 2026-06-30, and 2.5/2.6 as "tba", and gnupg.org's current
+      # stable is 2.5.24 exactly. It also brings its own `pinentry`.
+      "gnupg"
       "go"
       "graphviz"
       # link = false → don't symlink into the brew prefix.
@@ -655,6 +677,57 @@ in
       # Homebrew ships the app, Nix owns the config. Same split as the
       # ungoogled-chromium cask. Settings live in modules/home/default.nix.
       "ghostty"
+      # GpgFrontend 2.2.2 — the OpenPGP GUI, after every other option was
+      # measured and failed. BARE STRING: the cask declares NO `auto_updates`
+      # (API: `auto_updates: null`), so `greedy` is not even applicable — that
+      # flag only opts an auto-updating cask back into upgrades past
+      # `onActivation.upgrade = false` (modules/darwin/homebrew.nix:42), and
+      # `open-design` remains the only documented updater pathology here.
+      #
+      # IT PULLS BREW'S GnuPG, AND THAT IS THE POINT, not a cost:
+      # `depends_on {formula: ["gnupg"], macos: {">=": ["13"]}}`. The objection
+      # "this forces a second gnupg" only holds if a NIX-managed gnupg also
+      # exists — and we deliberately add none, so brew's becomes the single
+      # source of truth. See the `gnupg` brew above for the do-not list.
+      #
+      # ARM64 VERIFIED BY MEASUREMENT, NOT BY READING THE VARIATIONS TABLE —
+      # and the table would have misled. `brew --cache --cask gpgfrontend` on
+      # this machine (macOS 27.0.1-arm64) resolves to
+      #   GpgFrontend-2.2.2-macos-26.dmg
+      # with NO `-intel` suffix, i.e. the Apple Silicon build: there is no
+      # `arm64_golden_gate` variation, so arm64 falls through to the default
+      # URL, while the unprefixed `golden_gate` key is the x86_64 one. Reading
+      # that key alone suggests an Intel download; the resolver disagrees.
+      # This mattered: `arch -x86_64 /usr/bin/true` fails with "Bad CPU type"
+      # and `oahd` is not running, so there is NO Rosetta on this Mac — an Intel
+      # artifact would have been unusable, not merely slow.
+      #
+      # WHY EVERY ALTERNATIVE LOST, 2026-10-06, so none is re-attempted:
+      #   * `gpg-suite` / `gpg-suite-no-mail` — ABANDONED. Latest release is
+      #     2023.3 dated 2023-07-23 per GPGTools' OWN release notes, and the
+      #     cask string matches upstream exactly, so it is NOT Homebrew lag. It
+      #     bundles GnuPG 2.2.41 — a branch EOL since 2024-12-31. A stale
+      #     wrapper around a stale GnuPG is the one shape a crypto tool may not
+      #     have.
+      #   * `pkgs.gpa` — CRASHES ON LAUNCH on aarch64-darwin, operator-confirmed
+      #     on screen ("gpa quit unexpectedly"). Instruments agreed: absent from
+      #     System Events' windowed-process list, runningboard logged
+      #     `running-NotVisible`, process dead at 26 s with an EMPTY log. It is
+      #     also unwrapped (no `GDK_PIXBUF_MODULE_FILE`), the classic darwin
+      #     GTK3 failure, though it emitted no error to prove that.
+      #   * `seahorse`, `kleopatra` / `kdePackages.kleopatra`, `keybase-gui` — no
+      #     `aarch64-darwin` in `meta.platforms`. Not a runtime question.
+      #
+      # upstream-first: nixpkgs' darwin GUI options are EXHAUSTED — gpa is the
+      # only one that builds for aarch64-darwin and it crashes; the rest are
+      # Linux-only — and GpgFrontend has no nixpkgs packaging on this platform
+      # at all. The cask + formula pair is the only route, so there is no
+      # upstream option to prefer.
+      #
+      # GIT SIGNING IS UNAFFECTED: this fleet signs commits in SSH format
+      # (`gpg.format = "ssh"`, modules/home/default.nix), so no gpg-agent or
+      # pinentry here can touch commit signing. Do not "fix" that non-problem.
+      "gpgfrontend"
       "iina"
       # Inkscape is gone on purpose (2026-09-15) — do not re-add.
       # LibreOffice — provides the `soffice` CLI the docx/pptx/xlsx/pdf Claude Code
