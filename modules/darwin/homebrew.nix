@@ -13,6 +13,17 @@
 # claude-code cask, 6 font casks, pandoc, poppler, and `mas` — see
 # modules/home/default.nix, and modules/darwin/core.nix for `mas` (which the
 # fleet already consumed as `pkgs.mas` from xcode-license.nix's activation).
+#
+# THE ONE DELIBERATE INVERSION OF THAT PRINCIPLE: `gnupg` IS brewed (2026-10-06).
+# The `gpgfrontend` cask hard-depends on the brew FORMULA, and two GnuPG stacks
+# sharing one `~/.gnupg` make which `gpg-agent`/pinentry you get a startup-order
+# lottery — so exactly one stack wins, and here it is Homebrew's. Measured:
+# brew's gnupg is 2.5.24 (gnupg.org's current stable) while nixpkgs' at this pin
+# is 2.4.9, past its 2026-06-30 EOL. Full reasoning and the rejected
+# alternatives live with the entries in hosts/macos.nix — do not duplicate it
+# here, and do not "clean up" the brew entry without reading it. Revisit only if
+# a Nix-BUILT job needs a pinned gnupg; the fix then is `GNUPGHOME` isolation for
+# that job, not two stacks sharing the operator's home.
 _:
 
 {
