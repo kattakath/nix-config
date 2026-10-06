@@ -699,6 +699,39 @@ in
       # rockymadden/slack-cli webhook-poster, not this tool.
       "slack-cli"
       "telegram"
+      # Tor Browser 15.0.24 — BARE STRING, no greedy, and that is the default
+      # shape here rather than an omission. `auto_updates true` + `depends_on
+      # :macos`, installed from ONE universal tor-browser-macos-15.0.24.dmg:
+      # native Apple Silicon, no Rosetta, no arch-split url. `google-chrome`
+      # above is the precedent for exactly this (a normal auto_updates cask,
+      # bare string). `greedy` in this repo is reserved for a DOCUMENTED
+      # PATHOLOGY — `open-design`'s in-app updater relaunching through a path
+      # that produced a measured version split (see its comment and
+      # docs/open-design.md) — and no such issue is known for Tor Browser.
+      #
+      # THAT ABSENCE IS ASSUMED, NOT VERIFIED. The check that would settle it:
+      # if the installed `Tor Browser.app`'s CFBundleShortVersionString ever
+      # drifts BELOW what `brew info --cask tor-browser` calls current, the
+      # in-app updater is winning and this needs `greedy = true`.
+      #
+      # `conflicts_with cask: "tor-browser@alpha"` — stable and alpha cannot
+      # coexist on this Mac, so do not add the alpha cask alongside.
+      #
+      # WHY A CASK AND NOT NIXPKGS, and the contrast worth knowing: upstream
+      # ships ONE unsuffixed universal .dmg for macOS but only -x86_64/-i686
+      # tarballs for Linux, so stable Tor Browser has Apple Silicon support on
+      # macOS and NONE on Linux. That asymmetry is why `nixvm` needs an
+      # overlay onto the 16.0a13 ALPHA (modules/nixos/desktop-vm.nix, which
+      # carries the full derivation) while this host needs only a cask.
+      #
+      # grepped the pinned nixpkgs for a Darwin route — none exists:
+      # pkgs/by-name/to/tor-browser/package.nix:107 declares `sources` with
+      # only x86_64-linux (:108) and i686-linux (:118), and
+      # `meta.platforms = lib.attrNames sources` (:345), so there is no Darwin
+      # packaging at ANY arch at this pin. The cask is the off-the-shelf
+      # community mechanism; re-deriving dmg extraction and codesign handling in
+      # Nix is the hand-rolled path the motto weighs against.
+      "tor-browser"
       # Übersicht — desktop widgets rendered as web views behind every window.
       # Cask because it is a signed .app with no nixpkgs/home-manager packaging;
       # the ONE widget the fleet declares (a full-screen HTML file) is placed by
