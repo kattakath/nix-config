@@ -20,8 +20,13 @@
 # The runner's QEMU is macOS-native (host.pkgs = aarch64-darwin, set in flake.nix);
 # the aarch64-linux guest closure builds on the native Linux builder or is
 # substituted from Cachix.
+# ARGS SHRANK ON 2026-10-06 and `nix fmt` did it, not a human: removing
+# `pkgs.wireguard-tools` left `pkgs` unused, and `lib` had already become unused
+# when the vmVariant turned into a module FUNCTION with its own `{ config, lib,
+# ... }`. treefmt runs `deadnix --edit` (treefmt.nix:24), which prunes unused
+# bindings automatically — so do not re-add either arg by hand expecting to use
+# it at this level; take it in the inner function instead.
 {
-  pkgs,
   darwinPkgs,
   loginName,
   ...
@@ -453,28 +458,33 @@
         # Cocoa window. On a Linux host you'd add `-display gtk` here instead.
       };
 
-      # ---- WireGuard: TOOLS ONLY ----------------------------------------------
-      # The CLI is present and nothing else is: no conf is provisioned (no share,
-      # no environment.etc, nothing in /etc/wireguard) and nothing autostarts — no
-      # systemd unit, no wg-quick service, no activation script touches a tunnel.
-      # The operator brings his own file and runs it BY FULL PATH:
-      # `sudo wg-quick up /path/to/conf.conf`. The bare-name form does not work
-      # here, because wg-quick resolves a bare name against /etc/wireguard and
-      # nothing populates it.
+      # ---- WireGuard: ADDED AND REMOVED THE SAME DAY (2026-10-06) ----------
+      # It WAS here: `environment.systemPackages = [ pkgs.wireguard-tools ]` plus
+      # `boot.kernelModules = [ "wireguard" ]`, tools-only with no conf ever
+      # provisioned (the conf-share version was built and reverted earlier the
+      # same day). Both lines are gone now that this VM went HEADLESS and its
+      # purpose narrowed — operator's call. Nothing replaced them.
       #
-      # Lives HERE and not in modules/nixos/desktop-vm.nix because that module is
-      # scoped "XFCE desktop + guest integration" and WireGuard is neither — and
-      # inside `virtualisation.vmVariant` it reaches nothing else: this file is
-      # imported only by nixvm's own mkNixos call and the vmVariant layer applies
-      # only to `system.build.vm`, so neither `nixpi` nor `macos` nor even nixvm's
-      # base toplevel sees it. macos stays GUI-only with no wg CLI on purpose
-      # (hosts/macos.nix, § Brews).
+      # `boot.kernelModules` and `environment.systemPackages` are not merely
+      # emptied, they are ABSENT here: `wireguard` and `wireguard-tools` were the
+      # only entries this file contributed. `atkbd` and `loop` still show up in
+      # the evaluated `boot.kernelModules` and are UPSTREAM's
+      # (nixos/modules/system/boot/kernel.nix) — zero occurrences in this repo —
+      # so they were deliberately left alone.
       #
-      # The kernel module is listed because we are NOT using NixOS's wg-quick
-      # unit, which is what would otherwise `modprobe wireguard` defensively.
-      # The guest kernel is 6.x, so `wireguard` is in-tree.
-      environment.systemPackages = [ pkgs.wireguard-tools ];
-      boot.kernelModules = [ "wireguard" ];
+      # WHY SOMEONE WILL WANT TO RE-ADD THIS, and why they should read on first:
+      # hosts/macos.nix (§ Brews) deliberately ships NO `wg`/`wg-quick` CLI,
+      # because a botched tunnel means no internet on the SOLE client Mac — confs
+      # are synced for IMPORT into the GUI app and never run from a shell. That
+      # rationale is still live, so "put WireGuard in the VM instead" is the
+      # natural next thought. It was tried here and dropped; this is not an
+      # oversight and the Mac's posture is not the reason to redo it.
+      #
+      # KNOCK-ON, recorded honestly: WireGuard was the main thing in this guest
+      # that needed a REAL KERNEL — an in-tree module plus NET_ADMIN. With it
+      # gone, nothing obviously left here requires a VM rather than a container.
+      # A substrate comparison is in flight as of this date; this comment does
+      # not decide it, it just connects the two for whoever reads next.
 
       # ---- SSH from the Mac: 127.0.0.1:2222 -> guest 22 ------------------------
       # `ssh -p 2222 ismail@localhost` from the Mac. The operator's key is already
