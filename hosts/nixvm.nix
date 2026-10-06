@@ -130,14 +130,54 @@
       # a qcow2 is lazily allocated (measured 5.7 MiB of real host disk at 8192,
       # 6.9 MiB at 24576).
       diskSize = 24576;
-      # RESOLUTION AND DPI ARE A PAIR — move them together or not at all.
-      # The companion is `services.xserver.dpi = 192` in
-      # modules/nixos/desktop-vm.nix. Raising THIS alone is counter-productive:
-      # `virtualisation.resolution` drives
+      # ---- RESOLUTION: THREE INDEPENDENT LAYERS, measured 2026-10-06 --------
+      # A GREEN BUILD IS NOT ACCEPTANCE FOR THIS BLOCK. The previous attempt
+      # evaluated correctly, built green, and the guest still came up at
+      # 1280x800. Only `xrandr` inside a booted guest proves anything here.
+      #
+      # LAYER 1 — the QEMU DEVICE decides which modes EXIST.
+      # `virtualisation.resolution` feeds
       # `services.xserver.resolutions = mkVMOverride [ cfg.resolution ]`
-      # (qemu-vm.nix:1508), which is an Xorg MODE LIST, not a qemu device
-      # property — so more pixels renders the same point-size fonts across a
-      # larger framebuffer, i.e. a bigger window with SMALLER text.
+      # (qemu-vm.nix:1508), which renders `Modes "2880x1800"` into the Xorg
+      # Screen section. A `Modes` line SELECTS from what the output advertises;
+      # IT CANNOT CREATE A MODE. Measured in the guest: the conf did contain
+      # `Modes "2880x1800"` at all three depths, and Xorg still logged
+      #   (II) modeset(0): Output Virtual-1 using initial mode 1280x800 +0+0
+      # because the probed list held 5120x2160, 3840x2160, 1920x1200, 1440x900
+      # and more, but NO 2880x1800.
+      #
+      # THAT ASYMMETRY IS WHY THE OLD VALUE "WORKED" AND THE NEW ONE DID NOT:
+      # 1440x900 happens to be on the virtio-gpu's list; 2880x1800 is not.
+      # Nothing about the Nix config changed quality — one number was in the
+      # hardware's table and the other was not, silently.
+      #
+      # THE FIX IS ON THE DEVICE, and `-device virtio-gpu-pci,help` on the exact
+      # pinned qemu is the proof: `xres=<uint32> (default: 1280)` and
+      # `yres=<uint32> (default: 800)`. Those defaults are EXACTLY the 1280x800
+      # the guest booted at — the resolution was the device default all along,
+      # never an Xorg decision. `edid=on` is also default, so the generated EDID
+      # advertises xres/yres as the preferred mode and the Modes line then has
+      # something to select. Set in `qemu.options` below, NOT here.
+      #
+      # LAYER 2 — the X SERVER's DPI. `services.xserver.dpi = 192` in
+      # modules/nixos/desktop-vm.nix. This one WORKS: the guest's Xorg log says
+      #   (++) modeset(0): DPI set to (192, 192)
+      # (`(++)` = from the command line). Keep it paired with the resolution:
+      # resolution alone spreads the same point-size fonts over more pixels, so
+      # a bigger window with SMALLER text.
+      #
+      # LAYER 3 — XFCE's Xft.dpi, AND IT OVERRIDES LAYER 2 FOR EVERY GTK APP.
+      # Measured in the guest: `xrdb -query` reports `Xft.dpi: 96`. XFCE's
+      # xsettings daemon sets it and GTK obeys it, so apps render at 96 no
+      # matter what the X server was told. Nothing in the pinned nixpkgs can
+      # set it (programs/xfconf.nix declares ONLY `enable` — re-read 2026-10-06,
+      # 32 lines, no per-key surface). The pinned HOME-MANAGER does have
+      # `xfconf.settings` (modules/misc/xfconf.nix:96, applied by xfconf-query
+      # at :138) — that is the declarative route, but it is NOT taken here yet:
+      # it belongs in the cross-host modules/home/ profile and would need
+      # host-gating, and HM activation has to work first. Until then this layer
+      # is a MANUAL step: XFCE Settings -> Appearance -> Fonts -> Custom DPI,
+      # or `xfconf-query -c xsettings -p /Xft/DPI -s 192`.
       #
       # WHY 2x AT ALL: qemu 11.1.1's Cocoa UI treats the guest framebuffer as
       # DEVICE pixels and divides by the window's Retina factor —
@@ -150,8 +190,10 @@
       # panel — it WILL letterbox on a 16:9 external display.
       #
       # COST: 4x the pixels for an emulated GPU (virtio-gpu, no host GPU). If
-      # the desktop feels sluggish, THIS PAIR IS THE FIRST THING TO LOWER —
-      # halve both (1440x900 + dpi 96) before suspecting anything else.
+      # the desktop feels sluggish, LOWER ALL THREE LAYERS TOGETHER — and if a
+      # non-advertised mode is ever wanted again, remember the fallback that was
+      # NOT needed here: 1920x1200 is already on the device's list and is also
+      # 16:10, so it needs no xres/yres at all.
       resolution = {
         x = 2880;
         y = 1800;
@@ -222,8 +264,17 @@
       # landing on `bus: virtio-serial-bus.0` with chardev=vdagent0 and
       # name=com.redhat.spice.0. Implicit wins on fewer assumptions — it needs
       # no device id and no guess at the bus alias QEMU derives from it.
+      # `xres`/`yres` ARE REAL PROPERTIES of this device — verified against the
+      # exact pinned binary, not assumed:
+      #   $ qemu-system-aarch64 -device virtio-gpu-pci,help
+      #     xres=<uint32>  -  (default: 1280)
+      #     yres=<uint32>  -  (default: 800)
+      # Those defaults were the measured guest resolution, which is what proved
+      # the device — not Xorg — owns this. See the `resolution` block above for
+      # the full three-layer story; this is LAYER 1, and without it the Xorg
+      # `Modes` line has no 2880x1800 to select.
       qemu.options = [
-        "-device virtio-gpu-pci"
+        "-device virtio-gpu-pci,xres=2880,yres=1800"
         "-chardev qemu-vdagent,id=vdagent0,name=vdagent,clipboard=on"
         "-device virtio-serial-pci"
         "-device virtserialport,chardev=vdagent0,name=com.redhat.spice.0"
