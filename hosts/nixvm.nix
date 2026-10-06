@@ -515,6 +515,8 @@
     #   gnome-keyring     -> turned OFF **and** its consumer pinned
     #                        (chromium --password-store=basic), because
     #                        Chromium auto-detects and the prompt would return.
+    #                        Chromium itself was removed 2026-10-06; the keyring
+    #                        stays off regardless, see that file.
     #   polkit            -> LEFT ON, told not to challenge. Removing an auth
     #                        agent does NOT make privileged actions work — it
     #                        makes them FAIL SILENTLY, with no dialog and no
