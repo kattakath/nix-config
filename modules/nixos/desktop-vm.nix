@@ -275,6 +275,12 @@ in
     #      FIX SHAPE: turn the component off AND make the consumer explicit,
     #      because auto-detection means the prompt returns the moment anything
     #      re-provides the service.
+    #      NOTE: the consumer is GONE — Chromium was removed 2026-10-06 at the
+    #      operator's request, and with it the `--password-store=basic` pin.
+    #      gnome-keyring STAYS OFF anyway: the reason was never "Chromium is
+    #      installed", it is that no component here may demand a password the
+    #      account does not have. Firefox, the browser now, keeps its own
+    #      key4.db and never touches the Secret Service.
     #
     # WHEN ADDING A DESKTOP PACKAGE HERE, ask: can it prompt for a password,
     # PIN or passphrase? If yes, either disable it or configure it to a
@@ -357,13 +363,19 @@ in
     # rest. The operator must export/back up any key he cares about.
     programs.gnupg.agent.enable = true;
 
-    # A couple of niceties so the desktop isn't bare on first boot. Both
-    # browsers substitute for aarch64-linux, so neither is ever built on the
-    # 1-CPU Linux builder. `chromium` and NOT `ungoogled-chromium`: ungoogled
-    # patches out the Chrome Web Store and rewrites the Google search engine
-    # into a "No Search" stub (both measured in modules/home/chromium.nix),
-    # and nixpkgs enables Widevine only for plain chromium (common.nix:913) —
-    # all three cut against a desktop whose point is signing into Google.
+    # A couple of niceties so the desktop isn't bare on first boot.
+    #
+    # CHROMIUM WAS REMOVED 2026-10-06, OPERATOR'S CALL. It was never an XFCE
+    # default — `grep -c chromium` in the pinned xfce.nix is 0, so this module
+    # was its only source and taking it out leaves the guest with none. Do not
+    # re-add it as a "the desktop should have Chrome too" convenience; it was
+    # asked for by name to go. The old note here weighed `chromium` against
+    # `ungoogled-chromium` (Web Store removed, search rewritten to a "No Search"
+    # stub, Widevine only on plain chromium) — that comparison is moot now and
+    # is kept only in modules/home/chromium.nix, which is the MAC's browser and
+    # is untouched by this.
+    #
+    # `firefox` is the browser and the default handler (xdg.mime below).
     # `opera` is not a choice at all: nixpkgs removed it 2025-05-19
     # (aliases.nix:1932), so the name throws at eval on every system.
     environment.systemPackages = with pkgs; [
@@ -371,27 +383,11 @@ in
       # seahorse and kleopatra on measured closures; see the gpg-agent block
       # above for both numbers and the reasoning.
       gpa
-      # `--password-store=basic` is BELT AND BRACES with the keyring being off
-      # above, and both are wanted. Chromium AUTO-DETECTS its backend: with no
-      # Secret Service present it already falls back to plaintext, but the
-      # moment anything re-provides one — a package added here, an upstream
-      # default changing — the "Choose password for new keyring" dialog comes
-      # straight back. The flag pins the behaviour instead of inferring it.
-      #
-      # NO UPSTREAM OPTION OWNS THIS. Grepped the pinned nixos/modules:
-      # `programs.chromium` is POLICY-only (extraOpts / extraOptsRecommended /
-      # initialPrefs write JSON into chromium/policies/, chromium.nix:166-188)
-      # and `--password-store` is a command-line switch with no policy
-      # equivalent. `commandLineArgs` exists only on `programs.google-chrome`
-      # (google-chrome.nix:26), a different package. So the package override is
-      # the lane — and unlike tor-browser at the top of this file, `.override`
-      # IS reachable here: `commandLineArgs ? ""` is a real argument of
-      # chromium's default.nix (:34), appended with `--add-flags` (:142).
-      #
-      # COST: this is a distinct derivation from the cached `chromium`, but
-      # only the makeWrapper phase differs, so it is a cheap rebuild of the
-      # wrapper rather than of the browser.
-      (chromium.override { commandLineArgs = "--password-store=basic"; })
+      # Substitutes for aarch64-linux, so it is never built on the 1-CPU Linux
+      # builder. Firefox does NOT use the Secret Service for its password store
+      # (it keeps its own key4.db), so removing Chromium also removed the only
+      # consumer that could have resurrected the keyring prompt — there is no
+      # equivalent of `--password-store=basic` to carry over here.
       firefox
       xfce4-terminal
       # Alpha-channel aarch64 build, supplied by the overlay at the top of this
@@ -400,5 +396,27 @@ in
       # Determinate's native Linux builder on every store-image rebuild.
       tor-browser
     ];
+
+    # FIREFOX IS THE DEFAULT HANDLER, declaratively. With Chromium gone Firefox
+    # would probably win by being the only general browser installed, but
+    # "probably" is how `tor-browser` ends up owning http:// — it ships a
+    # .desktop with the same MIME types, and which one an un-set
+    # mimeapps.list resolves to is alphabetical luck.
+    #
+    # upstream option xdg.mime.defaultApplications exists -> using it
+    # (nixos/modules/config/xdg/mime.nix:47, whose own example is this exact
+    # shape). No hand-written ~/.config/mimeapps.list, no xdg-settings call in
+    # an activation script.
+    #
+    # TOR BROWSER STAYS INSTALLED and is deliberately NOT a handler: it is
+    # launched on purpose, not by clicking a link in another app, and routing
+    # arbitrary link-opens through Tor is both slow and a fingerprinting own-goal.
+    xdg.mime.defaultApplications = {
+      "text/html" = "firefox.desktop";
+      "x-scheme-handler/http" = "firefox.desktop";
+      "x-scheme-handler/https" = "firefox.desktop";
+      "x-scheme-handler/about" = "firefox.desktop";
+      "x-scheme-handler/unknown" = "firefox.desktop";
+    };
   };
 }
