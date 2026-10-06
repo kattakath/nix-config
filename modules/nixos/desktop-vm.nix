@@ -54,6 +54,15 @@ in
     # Guest integrations: qemu-guest-agent (host<->guest control) and
     # spice-vdagent (clipboard sharing + auto display-resize when the QEMU
     # window is resized).
+    #
+    # The per-session CLIENT (`spice-vdagent`, no trailing d) needs no wiring
+    # here: the pinned services.spice-vdagentd module puts `pkgs.spice-vdagent`
+    # in environment.systemPackages, that package ships
+    # `etc/xdg/autostart/spice-vdagent.desktop`, config/system-path.nix links
+    # `/etc/xdg` into the system profile unconditionally, and `xdg.autostart`
+    # defaults to true — so xfce4-session starts it from XDG_CONFIG_DIRS.
+    # Operator's tell inside the guest: `ps aux | grep spice-vdagent` shows BOTH
+    # processes. Only one means the client did not start.
     services.qemuGuest.enable = true;
     services.spice-vdagentd.enable = true;
 
