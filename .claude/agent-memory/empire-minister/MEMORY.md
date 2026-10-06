@@ -8,4 +8,4 @@
 - [Resolve the REAL nixpkgs lock node](feedback_resolve-the-real-nixpkgs-lock-node.md) — the node named `nixpkgs` is transitive here; the root's is `nixpkgs_2` (26.11). Reading the wrong one invalidated a whole research lane
 - [Detached launch and process proof](feedback_detached-launch-and-process-proof.md) — macOS has NO `setsid`, and `pgrep -f` matches your own monitor shell; both faked a running VM. Use nohup+disown and `pgrep -x`
 - [nixvm 9p shares DO work on darwin](project_nixvm-9p-shares-work-on-darwin.md) — the old `virtiofsd is Linux-only` comment forbade a feature for a year; `useVirtiofs` is `isLinux`, so darwin falls back to `-virtfs` 9p
-- [nixvm wireguard: mount, not wg-quick option](project_nixvm-wireguard-mount-not-wg-quick-option.md) — the option solves autostart AND private keys; it loses because this repo is PUBLIC and it re-derives peer topology into git. macOS stays GUI-only
+- [nixvm wireguard: TOOLS ONLY](project_nixvm-wireguard-mount-not-wg-quick-option.md) — conf share built then reverted 2026-10-06 (operator's call); the wg-quick.interfaces rejection still stands (public repo, peer topology in git). macOS stays GUI-only
