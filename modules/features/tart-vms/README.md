@@ -39,8 +39,73 @@ and no personal data is ever baked into a disk you might publish.
 
 ## Prerequisites
 
-- **macOS on Apple Silicon** (Tart drives Apple's Virtualization.framework;
-  there is no Intel or Linux path).
+- **macOS on Apple Silicon** — Tart drives Apple's Virtualization.framework, so
+  there is no Intel path.
+
+  > **CORRECTED 2026-10-06.** This line used to read "there is no Intel or Linux
+  > path". **The Linux half was false**, and it was not harmless: it propagated
+  > into a wrong "tart is the wrong tool / zero Linux pipeline" conclusion the
+  > same day, which the operator caught. Everything below is measured.
+  >
+  > **THIS CAPSULE does not do Linux. `tart` DOES.** Two different statements;
+  > collapsing them is precisely what went wrong.
+  >
+  > **This capsule is still macOS-only — re-verified:** zero occurrences of
+  > "linux" in `packages/tart-vm.nix`, `darwin.nix`, `github-runner.nix`,
+  > `gitlab-runner.nix`, `flake-module.nix` and `slots.nix`; `create` runs
+  > `tart create --from-ipsw=` and nothing else (`packages/tart-vm.nix:202`);
+  > `pull`/`bake`/`bootstrap` assume a macOS setup user (`admin`/`admin` → Setup
+  > Assistant / SSH). That is a real, deliberate limit of the wiring here.
+  >
+  > **What `tart` itself supports** — measured against the PINNED BINARY, which
+  > is the authority here: nixpkgs packages a release tarball, not the Swift
+  > sources (`pkgs/by-name/ta/tart/package.nix:20`), so upstream Swift line
+  > numbers cannot be checked from this pin. `tart --version` → **2.37.0**:
+  >
+  > ```
+  > $ tart create --help
+  > USAGE: tart create <name> [--from-ipsw <path>] [--linux] [--disk-size …] [--disk-format …]
+  >   --linux                 create a Linux VM
+  >   --disk-format <…>       Disk image format (values: raw, asif; default: raw)
+  > $ tart run --help
+  >   --disk <path[:options]> … e.g. --disk="ubuntu.iso:ro", --disk="/dev/disk0"
+  > ```
+  >
+  > So a Linux guest is first-class in `tart`: `--linux` creates the VM, `--disk`
+  > attaches an installer ISO or a block device, the default disk format is
+  > **raw**, and prebuilt images live at
+  > `ghcr.io/cirruslabs/{ubuntu,debian,fedora}`.
+  >
+  > **A NixOS-under-tart path, sized honestly — "a day with one unverified
+  > step".** Build a raw EFI aarch64 image with stock
+  > `nixos/lib/make-disk-image.nix` (`format ? "raw"` at `:174`,
+  > `partitionTableType` accepting `"efi"` at `:206-210` — the same primitive
+  > `nixpi`'s `sdImage` already uses), then place it as the VM directory's
+  > `disk.img`. **Two real frictions:** `tart import` takes **only** a compressed
+  > `.tvm` produced by `tart export` (its own `--help` says so), so no raw-image
+  > import is documented; and whether a NixOS systemd-boot EFI image boots under
+  > Apple's minimal `VZEFIBootLoader` is **untested here**. Neither trivial nor
+  > impossible.
+  >
+  > **nixpkgs already ships an in-tree alternative, a THIRD codebase** —
+  > `pkgs.vzvm` (verified present: `vzvm-1.0.0`) with
+  > `nixos/modules/virtualisation/vz-vm.nix`, which boots `toplevel/kernel` +
+  > `toplevel/initrd` and a `cmdline` directly (`:60-62`): **no EFI, no boot disk
+  > image.** It does still take a raw data disk for the writable store
+  > (`virtualisation.vz.diskImage`, `:178`), so "no disk at all" would overstate
+  > it. Independent of both tart and Determinate's builder — worth knowing so
+  > anyone evaluating "Linux on Virtualization.framework" sees all three options.
+  >
+  > **And this Mac already runs a Linux guest on Virtualization.framework in
+  > production** — Determinate's native Linux builder
+  > (`modules/parts/compose.nix`, with its post-activation
+  > `determinate-nixd version | grep native-linux-builder` probe). The pattern is
+  > proven on this exact hardware, which is the fact the old line contradicted.
+  >
+  > (No URL needed fixing. Upstream moved `cirruslabs/tart` →
+  > `github.com/openai/tart`, which is what nixpkgs fetches, but this README
+  > never linked the tart repo — the `cirruslabs/*` links below are the packer
+  > plugin, image templates and guest agent, all still cirruslabs' own.)
 - **Nix** with flakes enabled.
 - Disk space under `~/.tart/` — VM disks and IPSWs live there, **never** in
   the Nix store or this repo.
