@@ -232,5 +232,75 @@
     # The guest kernel is 6.x, so `wireguard` is in-tree.
     environment.systemPackages = [ pkgs.wireguard-tools ];
     boot.kernelModules = [ "wireguard" ];
+
+    # ---- SSH from the Mac: 127.0.0.1:2222 -> guest 22 ------------------------
+    # `ssh -p 2222 ismail@localhost` from the Mac. The operator's key is already
+    # in the guest (modules/parts/hosts.nix passes operatorSshKey to nixvm) and
+    # auth stays KEY-ONLY: modules/nixos/core.nix sets PasswordAuthentication
+    # and KbdInteractiveAuthentication false and PermitRootLogin "no", and
+    # nothing here relaxes any of them.
+    #
+    # ALL THREE CHANGES ARE REQUIRED TOGETHER. Each one alone is inert:
+    #   1. The forward alone fails on the BIND. QEMU's SLiRP delivers a
+    #      hostfwd to the guest's NIC address (10.0.2.15 under user-mode
+    #      networking), and core.nix binds sshd to 127.0.0.1 + ::1 only — an
+    #      sshd on loopback never sees a packet addressed to the NIC.
+    #   2. The widened bind alone fails on the FIREWALL. core.nix sets
+    #      `openssh.openFirewall = false` and the base firewall opens no TCP
+    #      port globally, so a correctly-bound sshd still gets the SYN dropped.
+    #   3. The open port alone forwards nothing — there is no listener on the
+    #      Mac without the hostfwd.
+    #
+    # WHY HERE AND NOT IN core.nix: that module's default is what keeps nixvm's
+    # BASE toplevel — the thing `nix flake check` builds, and the thing every
+    # `lib.mkNixos` consumer inherits — loopback-only. Its own comment says "do
+    # not relax it HERE" for exactly that reason. `virtualisation.vmVariant`
+    # applies only to `system.build.vm`, so this reaches the hand-booted QEMU
+    # runner and nothing else: not the base config, not `nixpi`, not a consumer.
+    #
+    # EXPOSURE IS THE MAC'S LOOPBACK ONLY. `host.address = "127.0.0.1"` is
+    # emitted verbatim into the qemu arg (`hostfwd=${proto}:${host.address}:…`,
+    # qemu-vm.nix:1264), so SLiRP binds that address alone — nothing on the LAN
+    # can reach port 2222. Leaving `host.address` at its `""` default would bind
+    # every Mac interface, which is NOT what was approved. The widened guest
+    # bind is harmless on its own merits too: the guest's only NIC is a SLiRP
+    # user-mode device with no route in except this one forward.
+    #
+    # KNOWN ANNOYANCE — deleting the qcow2 regenerates the guest host key, so
+    # the next `ssh -p 2222 localhost` warns REMOTE HOST IDENTIFICATION HAS
+    # CHANGED. Fix: `ssh-keygen -R "[localhost]:2222"` to drop the stale entry
+    # from ~/.ssh/known_hosts. Deliberately NO Mac-side ~/.ssh/config entry for
+    # this host — that is a different layer and was not asked for.
+    #
+    # upstream option virtualisation.forwardPorts exists -> using it
+    # (qemu-vm.nix:632, host.address at :659). No hand-rolled -netdev/hostfwd.
+    virtualisation.forwardPorts = [
+      {
+        from = "host";
+        proto = "tcp";
+        host = {
+          address = "127.0.0.1";
+          port = 2222;
+        };
+        guest.port = 22;
+      }
+    ];
+
+    # mkForce on BOTH, because core.nix ASSIGNS both (not mkDefault) — a plain
+    # definition here would be a conflict, not an override. `openFirewall` is
+    # the upstream knob core.nix itself names as the supported way to control
+    # this (its comment at :52-57), so it is preferred over hand-adding
+    # `networking.firewall.allowedTCPPorts = [ 22 ]`: sshd's own module derives
+    # the port list from `cfg.ports`, which stays correct if the port ever moves.
+    # IPv4 wildcard ONLY, and deliberately not the `0.0.0.0` + `::` pair nixpi
+    # uses: QEMU's SLiRP forwards IPv4 exclusively ("Currently QEMU supports
+    # only IPv4 forwarding", qemu-vm.nix forwardPorts description), so a v6
+    # bind here would listen for traffic that cannot arrive. Nothing in this
+    # guest dials localhost:22 over v6 either. `port` is omitted on purpose —
+    # see core.nix:73-82 for the `ListenAddress ::1:22` parse trap that costs.
+    services.openssh.listenAddresses = lib.mkForce [
+      { addr = "0.0.0.0"; }
+    ];
+    services.openssh.openFirewall = lib.mkForce true;
   };
 }
