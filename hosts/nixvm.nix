@@ -324,5 +324,57 @@
       { addr = "0.0.0.0"; }
     ];
     services.openssh.openFirewall = lib.mkForce true;
+
+    # ---- polkit: wheel acts unchallenged, MIRRORING sudo --------------------
+    # THIRD instance of the credential-prompt class documented in
+    # modules/nixos/desktop-vm.nix — and the one handled DIFFERENTLY. XFCE
+    # installs `polkit_gnome` as the polkit authentication agent
+    # (nixos/modules/services/x11/desktop-managers/xfce.nix:126-127), so a
+    # privileged desktop action pops a password dialog. This VM's account has
+    # NO password, so that dialog is another dead end.
+    #
+    # THE DISTINCTION WORTH LEARNING, across all three instances:
+    #   xfce4-screensaver -> turned OFF. A missing locker just never locks.
+    #   gnome-keyring     -> turned OFF **and** its consumer pinned
+    #                        (chromium --password-store=basic), because
+    #                        Chromium auto-detects and the prompt would return.
+    #   polkit            -> LEFT ON, told not to challenge. Removing an auth
+    #                        agent does NOT make privileged actions work — it
+    #                        makes them FAIL SILENTLY, with no dialog and no
+    #                        error the operator can act on. "Disable it" is the
+    #                        wrong reflex for an authorisation component.
+    #
+    # upstream option security.polkit.extraConfig exists -> using it
+    # (nixos/modules/security/polkit.nix:65, types.lines, rendered into
+    # /etc/polkit-1/rules.d/10-nixos.rules at :182).
+    #
+    # A NARROWER OPTION EXISTS AND IS THE WRONG AXIS: `adminIdentities` (:86)
+    # already defaults to `[ "unix-group:wheel" ]` and feeds
+    # `polkit.addAdminRule` (:178-180). It declares WHO COUNTS as an
+    # administrator, not whether they must authenticate — so wheel is already
+    # the admin identity here, which is precisely why the agent challenges the
+    # operator. No upstream option expresses "authorise without authenticating";
+    # a JS rule returning YES is polkit's own documented mechanism for it
+    # (the option's example shows the same shape).
+    #
+    # COST, stated plainly: any process running as the operator's user in this
+    # VM can take privileged desktop actions unchallenged. That is ALREADY true
+    # of `sudo` here — `security.sudo.wheelNeedsPassword = false`
+    # (modules/nixos/core.nix) — so the two paths now MATCH instead of one
+    # being open and the other being an unanswerable prompt. Not a new hole;
+    # a consistent one.
+    #
+    # DELIBERATELY VM-ONLY. It lives in this host's `vmVariant`, not in
+    # modules/nixos/core.nix and not in desktop-vm.nix: the same rule on
+    # `nixpi` (an internet-facing live server) or on `macos` would be a REAL
+    # weakening, and desktop-vm.nix is a reusable module whose other consumers
+    # must not silently inherit a security posture chosen for a disposable VM.
+    # `polkit_gnome` stays installed — this removes its need to ask, not the
+    # agent that asks.
+    security.polkit.extraConfig = ''
+      polkit.addRule(function(action, subject) {
+        if (subject.isInGroup("wheel")) { return polkit.Result.YES; }
+      });
+    '';
   };
 }
