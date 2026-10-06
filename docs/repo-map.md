@@ -58,7 +58,8 @@ All-in-one Nix mono-repo managing a fully declarative **aarch64-only** fleet:
   over a Cloudflare Tunnel connector + Caddy, serving its real sites directly
   (`config.fleet.hostedSites`, `modules/parts/identity.nix` — **one** today, `snoringirl.com`).
 - **`nixvm`** (aarch64-linux) — a disposable NixOS dev VM materialised **only** as
-  `nix run .#nixvm` (a build-vm XFCE desktop — no installed VM, no builder, no runner). Its
+  `nix run .#nixvm` (**headless** since 2026-10-06 — no installed VM, no builder, no runner;
+  the XFCE stack is one flag away). Reached over SSH on `127.0.0.1:2222`. Its
   Nix *store* is rebuilt per boot; its *root* disk is a qcow2 that **PERSISTS** until deleted.
 - A matching **Devcontainer** image.
 
