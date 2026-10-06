@@ -31,6 +31,65 @@ in
   options.local.desktopVm.enable = lib.mkEnableOption "lightweight XFCE desktop + guest integration for the nixvm sandbox";
 
   config = lib.mkIf cfg.enable {
+    # ---- tor-browser on aarch64-linux, from the ALPHA channel --------------
+    # SCOPED ON PURPOSE: this overlay sits inside `mkIf cfg.enable`, and
+    # `local.desktopVm.enable` is set ONLY inside hosts/nixvm.nix's
+    # `virtualisation.vmVariant`. So it reaches neither `nixpi` (the live Pi,
+    # whose closure must stay lean) nor `macos`, nor even nixvm's base toplevel.
+    #
+    # WHY an overlay at all: the pinned nixpkgs' tor-browser THROWS at eval on
+    # aarch64-linux — `src = sources.${stdenv.hostPlatform.system} or (throw
+    # "unsupported system: ...")` — because upstream STABLE (15.0.23 here) ships
+    # no aarch64 Linux tarball. `tor-browser-bundle-bin` is a hard alias throw,
+    # not an alternative. nixpkgs will not package the aarch64 build until
+    # 16.0 goes stable (NixOS/nixpkgs#491286, still open), so there is no
+    # upstream option, package or flake to prefer — this is the one lane.
+    #
+    # WHY overrideAttrs and NOT `.override { sources = ...; }`: `sources` is a
+    # `let` binding inside package.nix, not a function argument, so it is not
+    # overridable. Replacing `src` directly is the only reachable surface — and
+    # it means `meta.platforms` (`lib.attrNames sources`) must be widened by
+    # hand or nixpkgs refuses the host platform.
+    #
+    # THE ALPHA MOVED torrc-defaults. 16.0a13's tarball has
+    # `TorBrowser/Tor/torrc-defaults` and `TorBrowser/Tor/geoip{,6}` where 15.x
+    # had `TorBrowser/Data/Tor/...` (verified by `tar tf` on the fetched
+    # tarball). The stock buildPhase's `--replace-fail` would abort on the
+    # missing file, so the path prefix is rewritten in the phase text — one
+    # substitution covers all four uses (substituteInPlace, the
+    # torrc-defaults_path lockPref, and both GeoIP lines).
+    #
+    # Everything else in that derivation is arch-generic (autoPatchelfHook +
+    # a makeWrapper LD_LIBRARY_PATH), which is why this works at all.
+    #
+    # KNOWN COSMETIC ROT: `meta.changelog` is baked from the let-bound 15.0.x
+    # version and still points at the maint-15.0 branch.
+    #
+    # BUMPING: alpha releases are short-lived and dist.torproject.org keeps only
+    # the current one, so a stale pin here becomes a 404 fetch. Re-point version
+    # + hash from https://dist.torproject.org/torbrowser/ when that happens, and
+    # DELETE this whole block once nixpkgs ships 16.0 stable with aarch64.
+    nixpkgs.overlays = [
+      (_final: prev: {
+        tor-browser = prev.tor-browser.overrideAttrs (old: {
+          version = "16.0a13";
+          src = prev.fetchurl {
+            urls = [
+              "https://dist.torproject.org/torbrowser/16.0a13/tor-browser-linux-aarch64-16.0a13.tar.xz"
+              "https://archive.torproject.org/tor-package-archive/torbrowser/16.0a13/tor-browser-linux-aarch64-16.0a13.tar.xz"
+            ];
+            hash = "sha256-TboDPnxfsA+NI/tUEqCCXNE67lZdMfyEsynQknrGzPc=";
+          };
+          buildPhase =
+            builtins.replaceStrings [ "TorBrowser/Data/Tor/" ] [ "TorBrowser/Tor/" ]
+              old.buildPhase;
+          meta = old.meta // {
+            platforms = old.meta.platforms ++ [ "aarch64-linux" ];
+          };
+        });
+      })
+    ];
+
     # X11 + XFCE. modesetting binds QEMU's virtio-gpu with no host GPU needed.
     services.xserver = {
       enable = true;
@@ -79,6 +138,11 @@ in
       chromium
       firefox
       xfce4-terminal
+      # Alpha-channel aarch64 build, supplied by the overlay at the top of this
+      # module. Unlike the other two it does NOT substitute — the derivation
+      # sets preferLocalBuild/allowSubstitutes=false — so it is built on
+      # Determinate's native Linux builder on every store-image rebuild.
+      tor-browser
     ];
   };
 }
