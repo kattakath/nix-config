@@ -391,6 +391,12 @@ in
     # puts a binary on PATH that a plugin's `.mcp.json` in github:kattakath/skills names
     # as its `command`, because that file can set `env` only to literals or passthroughs
     # and cannot run a Keychain read. See each module's header.
+    # LAYER 3 of nixvm's display: XFCE's Xft.dpi, which overrides the X server's
+    # own -dpi for every GTK app (measured 96 in the booted guest). Internally
+    # gated on `osConfig.networking.hostName == "nixvm"` — mandatory, not tidy:
+    # home-manager's xfconf module asserts lib.platforms.linux, so a non-empty
+    # `settings` on macos is a build FAILURE. See the file's header.
+    ./xfce-xsettings.nix
     ./gmail-mcp.nix # four Gmail accounts, one launcher each
     ./plugin-mcp.nix # wordpress + apify (Keychain) and postgres (loopback pgvector URI)
     # NOTE for anything added to modules/home/ later: THIS LIST is the only entry
