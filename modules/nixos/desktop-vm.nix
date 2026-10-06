@@ -267,6 +267,59 @@ in
     # priority — verified by evaluating it, not assumed, so no mkForce needed).
     services.gnome.gnome-keyring.enable = false;
 
+    # ---- OpenPGP: gpa + gpg-agent. NOT a fourth instance of the class above --
+    # A GPG KEY PASSPHRASE PROMPT HAS A VALID ANSWER. That is the whole
+    # distinction, and it is why this does not belong in the list above: the
+    # locker, the keyring and the polkit agent all demanded the Unix password of
+    # an account that HAS none. A passphrase is a credential the operator
+    # deliberately sets at key generation, so the prompt is answerable and
+    # wanted. Do not "fix" this by disabling the agent.
+    #
+    # gcr-3 COMES BACK, AND THAT IS ACCEPTED — NOT OVERLOOKED. Enabling the
+    # agent pulls `pinentry-gnome3`, whose closure carries `gcr-3` + `libsecret`
+    # (measured: 129 paths, gcr-3 = 1). gcr-3 left this VM with gnome-keyring
+    # because the KEYRING DAEMON produced the unanswerable dialog — not because
+    # the library is unwanted. As a pinentry dependency it renders an answerable
+    # passphrase prompt, so it fails the test above and stays. (`gcr-4` was
+    # already in the closure for unrelated reasons and never went anywhere.)
+    # A hygiene pass that sees gcr-3 and removes it will break the only way to
+    # type a passphrase in this desktop.
+    #
+    # NO `pinentryPackage` ASSIGNMENT ON PURPOSE. `xfce.nix:169` already sets
+    # `programs.gnupg.agent.pinentryPackage = mkDefault pkgs.pinentry-gnome3`,
+    # and it resolves to exactly that here (verified: `pinentryPackage.pname` is
+    # `pinentry-gnome3` even with the agent still disabled). A redundant
+    # assignment would only hide where the value comes from. NOTE
+    # `pkgs.pinentry-gtk2` IS NOT AN OPTION — the attribute still exists in
+    # `attrNames` but THROWS ("removed as it depended on the deprecated GTK2
+    # engine"), so a probe that only lists names will wrongly report it present.
+    # Measured alternatives, all GUI-capable: pinentry-qt 181 paths (+Qt),
+    # pinentry-egui 22 paths (gcr-free, but unverified under XFCE);
+    # pinentry-curses/-tty need a tty and cannot prompt in a desktop session.
+    #
+    # WHY gpa — MEASURED, both closures the same way, 2026-10-06:
+    #   gpa       126 paths   avahi=1 openldap=1 gtk+3=1
+    #   seahorse  145 paths   avahi=1 openldap=1 gtk+3=1 libsecret=1
+    # The usual story that seahorse is heavy because of Avahi/OpenLDAP keyserver
+    # lookups is WRONG — gpa carries both too (gpgme pulls them). gpa wins on
+    # two measured grounds instead: 19 fewer paths, and it is not a libsecret
+    # front-end. seahorse's reason to exist is browsing the Secret Service,
+    # which is exactly what `gnome-keyring.enable = false` above removed, so
+    # half of it would be dead here. `kleopatra` was rejected separately and
+    # that one does stand on weight: KF6/Qt6 plus akonadi, which defaults to
+    # MariaDB.
+    #
+    # THE OPERATOR'S SSH KEY IS NOT HIS PGP KEY, and cannot become one. A fresh
+    # keypair is generated in the guest. There is no conversion path at this pin:
+    # `pem2openpgp` is RSA-only (his key is ed25519), no `ssh2openpgp` binary
+    # exists, and Sequoia's `sq` has no SSH-import subcommand. Do not copy the
+    # SSH key anywhere.
+    #
+    # `~/.gnupg` LIVES ON THE DURABLE, UNENCRYPTED qcow2 (hosts/nixvm.nix), so
+    # it survives reboots and DIES WITH A WIPE — and it is not encrypted at
+    # rest. The operator must export/back up any key he cares about.
+    programs.gnupg.agent.enable = true;
+
     # A couple of niceties so the desktop isn't bare on first boot. Both
     # browsers substitute for aarch64-linux, so neither is ever built on the
     # 1-CPU Linux builder. `chromium` and NOT `ungoogled-chromium`: ungoogled
@@ -277,6 +330,10 @@ in
     # `opera` is not a choice at all: nixpkgs removed it 2025-05-19
     # (aliases.nix:1932), so the name throws at eval on every system.
     environment.systemPackages = with pkgs; [
+      # OpenPGP GUI — key generation, signing, keyring browsing. Chosen over
+      # seahorse and kleopatra on measured closures; see the gpg-agent block
+      # above for both numbers and the reasoning.
+      gpa
       # `--password-store=basic` is BELT AND BRACES with the keyring being off
       # above, and both are wanted. Chromium AUTO-DETECTS its backend: with no
       # Secret Service present it already falls back to plaintext, but the
