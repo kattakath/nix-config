@@ -365,6 +365,33 @@
       # the device — not Xorg — owns this. See the `resolution` block above for
       # the full three-layer story; this is LAYER 1, and without it the Xorg
       # `Modes` line has no 2880x1800 to select.
+      # ---- USB PASSTHROUGH: NOT AVAILABLE — decided 2026-10-06, do not re-attempt
+      # NO `qemu.options` LINE FIXES THIS. That is the whole point of the note:
+      # `usb-host` IS compiled in (the binary links libusb-1.0.30 and carries
+      # host-libusb.c strings — a real backend, not a stub), but libusb on macOS
+      # can only capture a WHOLE device and needs an Apple CAPTURE ENTITLEMENT to
+      # detach a kernel driver. Apple's class drivers claim mass storage, HID,
+      # audio, video and CDC-serial, i.e. everything worth forwarding.
+      # QEMU's one FIDO-specific escape hatch is absent in this build, measured:
+      # `-device u2f-passthru,help` -> "Device 'u2f-passthru' not found".
+      # USB/IP is structurally impossible host-side: `usbipd-mac`'s DriverKit
+      # USB-transport entitlement was DENIED by Apple 2026-02-25 (redirected to
+      # the *import* entitlement, the opposite capability), and nixpkgs' `usbip`
+      # is the Linux CLIENT half only, built from kernel.src.
+      # VirtualHere ($49) is the obvious-looking cheap fix and does NOT work: its
+      # macOS server excludes HID, audio, video and Bluetooth by Apple policy
+      # post-10.15, and a YubiKey's HID interface — the device that prompted the
+      # ask — specifically fails.
+      # The only working routes LEAVE QEMU: Parallels (~$100, field-proven
+      # YubiKey->Linux on Apple Silicon) or UTM (free; PR #7877 merged
+      # 2026-09-18 on macOS 27's VZUSBPassthroughDevice, but issue #7914
+      # `VZErrorDomain error -6` on any device assign was open at writing).
+      # A move keeps the NixOS guest, sshd, the HM profile and the PGP stack, and
+      # LOSES `nix run .#nixvm`, every QEMU-specific audio/display/clipboard
+      # option below, and the declarative `vmVariant` round-trip.
+      # OPERATOR'S DECISION 2026-10-06: keep nixvm as it is, accept no USB.
+      # (GPG and SSH specifically need no passthrough — see the memory note
+      # `nixvm-usb-passthrough-closed` for the agent-socket RemoteForward recipe.)
       qemu.options = [
         "-device virtio-gpu-pci,xres=1920,yres=1200"
         "-chardev qemu-vdagent,id=vdagent0,name=vdagent,clipboard=on"
