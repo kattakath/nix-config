@@ -165,8 +165,17 @@ they bite any future second account:
       (same reason `--builders`/`--max-jobs 0` are ignored). Wait it out, or add the operator to
       `determinateNix.customSettings.trusted-users`.
 - **`nixvm.nix`** — a SLIM, unprovisioned aarch64-linux dev VM: no disko, no runner, no
-  install; materialised only as the graphical `nix run .#nixvm` build-vm, whose guest builds
+  install; materialised only as the `nix run .#nixvm` build-vm, whose guest builds
   locally on the native Linux builder or substitutes from Cachix.
+
+  **HEADLESS since 2026-10-06.** `local.desktopVm.enable = false`, so XFCE, firefox,
+  tor-browser, pipewire/rtkit, spice-vdagent and the GUI-only QEMU args (clipboard, audio,
+  `xres`/`yres`) are all gated behind that ONE flag — flip it to `true` and the whole stack
+  returns. The reason is on the Mac: the `tor-browser` cask now carries stable Tor there, which
+  was most of what the desktop existed for, and going headless retired a fragile alpha pin.
+  Access is SSH on `127.0.0.1:2222` (host `forwardPorts` + an sshd bind and firewall port, all
+  inside `vmVariant`), with `services.getty.autologinUser` on the console as break-glass —
+  the account has no password, so an un-autologged getty would be an unanswerable prompt.
 
   **Disposable, NOT ephemeral — and the split is per-filesystem.** `useNixStoreImage = true`
   makes the guest's Nix *store* an erofs image rebuilt into `$TMPDIR` on every boot, so store
@@ -191,12 +200,14 @@ they bite any future second account:
 
   `diskImage = null` would make the root a tmpfs and the VM truly stateless (nixpkgs' own
   option doc: *"the VM's state will not be persistent"*). Deliberately not done — a dev VM
-  that loses your scratch work on reboot is the wrong default; it would also put the whole
-  desktop session in guest RAM.
+  that loses your scratch work on reboot is the wrong default.
 
   The **base** (non-`vmVariant`) config has no `virtualisation.diskImage` at all, because
   qemu-vm.nix is imported only by the VM variant. It exists purely so the toplevel evaluates
-  in CI and `build.vm` has a coherent substrate; there is no headless `nixvm` you can boot.
+  in CI and `build.vm` has a coherent substrate — it is still not something you can boot. (That
+  sentence used to read "there is no headless `nixvm` you can boot", which inverted after
+  2026-10-06: the **build-vm** is now headless. The base config remains unbootable; the
+  distinction is base-vs-vmVariant, not graphical-vs-headless.)
 
 ## Building `aarch64-linux` on the Mac, and deploying `nixpi`
 

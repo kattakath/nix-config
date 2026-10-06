@@ -191,12 +191,15 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   same cache through `determinateNix.customSettings` because Determinate owns its `nix.conf`.
   **It lived in `modules/shared/` until 2026-10-02** while its own line 3 said
   *"NixOS-ONLY module"* — ADR-009 §9b; moved here so the directory and the header agree.
-- **`modules/nixos/desktop-vm.nix`** — opt-in `services.desktopVm.enable` (default false): a lightweight X11
+- **`modules/nixos/desktop-vm.nix`** — opt-in **`local.desktopVm.enable`** (default false; the
+  `services.*` spelling this line carried until 2026-10-06 never existed — `local.*` is a
+  fleet-private namespace, and the module's own header says why): a lightweight X11
   **XFCE** desktop with passwordless autologin (the `loginName` specialArg) plus QEMU/SPICE
   guest integration (`qemuGuest`, `spice-vdagentd`) for the `nixvm` sandbox.
-  `hosts/nixvm.nix` enables it **only inside `virtualisation.vmVariant`**, so the desktop
-  materialises for the graphical `nix run .#nixvm` / `build-vm` path — the sole way `nixvm` is
-  ever booted. Its `systemPackages` are deliberately two browsers plus a terminal: **plain
+  **NOTHING ENABLES IT SINCE 2026-10-06**: `hosts/nixvm.nix` sets it `false`, so `nixvm` boots
+  HEADLESS and every binding here is inert. That host also gates its GUI-only QEMU args on the
+  same flag, so one line restores the whole stack. Do not delete this module as unreferenced —
+  it is the other half of that switch. Its `systemPackages` are deliberately two browsers plus a terminal: **plain
   `chromium`, not `ungoogled-chromium`** — ungoogled patches out the Chrome Web Store and
   swaps the Google search engine for a "No Search" stub (both measured in
   `modules/home/chromium.nix`), and nixpkgs enables Widevine only for plain chromium, so
