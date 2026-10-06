@@ -30,7 +30,27 @@ pinned binary — `qemu-system-aarch64 -device virtio-gpu-pci,help` lists
 exactly the measured guest resolution**, which is what proved the device owns it. `edid=on` is
 also default, so the EDID advertises xres/yres as preferred.
 
-### `xres`/`yres` WORKED and the mode was STILL rejected — hsync out of range
+### RESOLVED 2026-10-06: 1920x1200 + dpi 192 + Xft.dpi 192, all three verified in the guest
+
+Final, boot-verified state: `xrandr` → `current 1920 x 1200`, the mode marked `59.88*+`
+(current **and** preferred); Xorg log `using initial mode 1920x1200` and
+`(++) DPI set to (192, 192)`; `xrdb -query` → `Xft.dpi: 192` and
+`xfconf-query -c xsettings -p /Xft/DPI` → `192`.
+
+**DPI is NOT scaled to the resolution.** qemu's Cocoa UI divides the framebuffer by the Retina
+factor for the window (`ui/cocoa.m:503`) and multiplies back for the framebuffer (`:564-565`),
+so one guest pixel is one Mac **device** pixel at every mode. A 12pt font at dpi D is `12*D/72`
+device pixels and native macOS puts 12pt at 32, so **D = 192 regardless of the mode** — which
+also reproduces the original complaint (96 dpi → 8 points against a native 16, "half size"). A
+resolution-proportional value such as 128 lands near 10.7 points and still reads small. The
+resolution buys **area**: 1920x1200 → a 960x600 **point** window.
+
+**A rejection line for the WORKING mode is normal.** The log still contains
+`Not using mode "1920x1200" (hsync out of range)` **and** uses 1920x1200 — there are 9 Modeline
+entries for that resolution at different refresh rates and X drops some while accepting one.
+Do not read a single "Not using mode" grep hit as failure; check `using initial mode`.
+
+### How it got there — `xres`/`yres` WORKED and 2880x1800 was STILL rejected
 
 Boot-tested 2026-10-06 with `-device virtio-gpu-pci,xres=2880,yres=1800`:
 
@@ -116,17 +136,33 @@ chromium's wrapper carries `password-store=basic`; the polkit YES-for-wheel rule
 `/etc/polkit-1/rules.d/10-nixos.rules` with `polkit-gnome` running; **both** `spice-vdagentd`
 and `spice-vdagent` running.
 
-## `sudo poweroff` does NOT bring QEMU down on this VM
+## `sudo poweroff` sometimes leaves QEMU alive — INTERMITTENT, 1 of 2
 
-Measured 2026-10-06. `ssh … sudo poweroff` returned **0**, the guest genuinely went down
-(sshd dead — `Connection timed out during banner exchange`), and **QEMU stayed alive for 60 s+**
-holding the qcow2 write lock, process state `S`. Neither `-no-shutdown` nor `-no-reboot` is in
-its argv. SIGTERM then ended it in **~2 s**.
+**Corrected the same day I claimed it.** First measurement: `sudo poweroff` returned 0, the
+guest went down (sshd dead — `Connection timed out during banner exchange`) and **QEMU stayed
+alive 60 s+** holding the qcow2 write lock, state `S`; SIGTERM ended it in ~2 s. I wrote that up
+as "does not bring QEMU down". **Second measurement, same VM, same command: QEMU exited on its
+own after ~2 s.** So it is **intermittent (1 of 2)**, not deterministic — probably a wedge late
+in shutdown, not a missing feature. Neither `-no-shutdown` nor `-no-reboot` is in its argv.
 
-**How to apply:** a graceful guest shutdown is still worth doing (services stop, filesystems
-flush, no stale profile locks), but **always follow it with a bounded poll and a SIGTERM
-fallback** — and confirm the process is gone with `pgrep -x` + `lsof` on the qcow2 before
-relaunching, or the new VM hits the write lock.
+**How to apply:** always use the graceful shutdown (services stop, filesystems flush, no stale
+profile locks), then **a bounded poll plus a SIGTERM fallback** — and confirm the process is
+gone with `pgrep -x` **and** `lsof` on the qcow2 before relaunching, or the new VM hits the
+write lock. Do not describe the wedge as guaranteed; n=2.
+
+## Every store write triggers a full auto-GC against a 1.9 GB tmpfs
+
+Measured after `writableStore = true`. Both `nix-store --realise` and `nix-store --add` printed:
+
+```
+running auto-GC to free 8697573376 bytes
+waiting for the big garbage collector lock...
+```
+
+`min-free`/`max-free` are evaluated against the **overlay's tmpfs upper** (1.9 GB), so nix
+thinks it must free 8.7 GB on every write. The writes **succeed** — this is not a failure — but
+expect a GC pass per operation, which will make building anything in the guest slow.
+**Deliberately not fixed** (2026-10-06, operator's call); recorded so it is not rediscovered.
 
 ## Instrument trap recorded
 
