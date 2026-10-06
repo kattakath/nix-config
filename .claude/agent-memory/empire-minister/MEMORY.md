@@ -9,3 +9,6 @@
 - [Detached launch and process proof](feedback_detached-launch-and-process-proof.md) — macOS has NO `setsid`, and `pgrep -f` matches your own monitor shell; both faked a running VM. Use nohup+disown and `pgrep -x`
 - [nixvm 9p shares DO work on darwin](project_nixvm-9p-shares-work-on-darwin.md) — the old `virtiofsd is Linux-only` comment forbade a feature for a year; `useVirtiofs` is `isLinux`, so darwin falls back to `-virtfs` 9p
 - [nixvm wireguard: TOOLS ONLY](project_nixvm-wireguard-mount-not-wg-quick-option.md) — conf share built then reverted 2026-10-06 (operator's call); the wg-quick.interfaces rejection still stands (public repo, peer topology in git). macOS stays GUI-only
+- [nixvm ssh on Mac loopback 2222](project_nixvm-ssh-loopback-2222.md) — THREE changes needed together (forward+bind+firewall), all in vmVariant; `host.address` is what keeps it off the LAN; core.nix untouched
+- [nixvm Retina halving + vdagent is clipboard-only](project_nixvm-retina-halving-and-vdagent-clipboard-only.md) — cocoa.m DIVIDES the framebuffer by backingScaleFactor, so resolution and dpi move as a PAIR; window resize never reflows the guest
+- [nixvm lockscreen = permanent lockout](project_nixvm-autologin-locker-lockout-trap.md) — autologin + NO password + a PAM-backed locker; xfce enableScreensaver defaults TRUE upstream. Prove absence from the CLOSURE, not the pam list
