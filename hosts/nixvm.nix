@@ -130,107 +130,65 @@
       # a qcow2 is lazily allocated (measured 5.7 MiB of real host disk at 8192,
       # 6.9 MiB at 24576).
       diskSize = 24576;
-      # ---- RESOLUTION: THREE INDEPENDENT LAYERS, measured 2026-10-06 --------
-      # A GREEN BUILD IS NOT ACCEPTANCE FOR THIS BLOCK. The previous attempt
-      # evaluated correctly, built green, and the guest still came up at
-      # 1280x800. Only `xrandr` inside a booted guest proves anything here.
+      # ---- RESOLUTION: 1920x1440. THE MODE LIST IS A FIXED TABLE -----------
+      # A GREEN BUILD IS NOT ACCEPTANCE HERE. Only `xrandr` inside a booted
+      # guest is; this block has been wrong twice on a green build.
       #
-      # LAYER 1 — the QEMU DEVICE decides which modes EXIST.
-      # `virtualisation.resolution` feeds
-      # `services.xserver.resolutions = mkVMOverride [ cfg.resolution ]`
-      # (qemu-vm.nix:1508), which renders `Modes "2880x1800"` into the Xorg
-      # Screen section. A `Modes` line SELECTS from what the output advertises;
-      # IT CANNOT CREATE A MODE. Measured in the guest: the conf did contain
-      # `Modes "2880x1800"` at all three depths, and Xorg still logged
-      #   (II) modeset(0): Output Virtual-1 using initial mode 1280x800 +0+0
-      # because the probed list held 5120x2160, 3840x2160, 1920x1200, 1440x900
-      # and more, but NO 2880x1800.
+      # WHY AN ARBITRARY NUMBER CANNOT WORK, which is the counter-intuitive part:
+      # QEMU's EDID generator carries a HARDCODED 23-ENTRY `modes[]` TABLE
+      # (hw/display/edid-generate.c:14-45). `xres`/`yres` do NOT add to it —
+      # they only build the single "preferred timing" DTD, from a formula whose
+      # own source comment says it will "pull some realistic looking timings out
+      # of thin air" (:68-82).
       #
-      # THAT ASYMMETRY IS WHY THE OLD VALUE "WORKED" AND THE NEW ONE DID NOT:
-      # 1440x900 happens to be on the virtio-gpu's list; 2880x1800 is not.
-      # Nothing about the Nix config changed quality — one number was in the
-      # hardware's table and the other was not, silently.
+      # AND THAT FORMULA IS ITSELF OUT OF RANGE. Proof from this VM's own log,
+      # one boot, both lines present:
+      #   (II) Not using mode "1920x1200" (hsync out of range)
+      #   (II) Output Virtual-1 using initial mode 1920x1200 +0+0
+      # The configured mode survived only because it is ALSO a table entry,
+      # where Xorg computes proper VESA timings itself. The DTD was discarded.
       #
-      # THE FIX IS ON THE DEVICE, and `-device virtio-gpu-pci,help` on the exact
-      # pinned qemu is the proof: `xres=<uint32> (default: 1280)` and
-      # `yres=<uint32> (default: 800)`. Those defaults are EXACTLY the 1280x800
-      # the guest booted at — the resolution was the device default all along,
-      # never an Xorg decision. `edid=on` is also default, so the generated EDID
-      # advertises xres/yres as the preferred mode and the Modes line then has
-      # something to select. Set in `qemu.options` below, NOT here.
+      # HENCE THE ASYMMETRY: 2880x1800 FAILED and the LARGER 3840x2160 PASSES,
+      # purely because one is in the table and the other is not. It was never
+      # about size. Pick from the table or do not pick.
       #
-      # LAYER 1b — ADVERTISING IS NOT ENOUGH. A FOURTH GATE: VALIDATION.
-      # Boot-tested with xres=2880,yres=1800 and the guest came up at 1920x1440:
-      #   (II) modeset(0): Not using mode "2880x1800" (hsync out of range)
-      #   (II) modeset(0): Output Virtual-1 using initial mode 1920x1440 +0+0
-      # So xres/yres DID advertise the mode — it is in the probed list, as a
-      # REJECTED entry — and modesetting then dropped it against the EDID's own
-      # sync-frequency limits. 2880x1800 is simply not reachable on this device.
+      # THE SYNC CEILING IS NOT QEMU'S AND NOT mkForce-ABLE. Pinned nixpkgs
+      # qemu-vm.nix:1510-1512 injects `HorizSync 30-140` / `VertRefresh 50-160`
+      # through `services.xserver.monitorSection` at mkVMOverride — PRIORITY 10,
+      # higher than mkForce's 50 — so a naive mkForce to widen it loses silently.
       #
-      # 1920x1200 IS: it appeared in the probed list, with no "Not using mode"
-      # line, under BOTH EDIDs measured today. It is 16:10, matching the Mac's
-      # panel, so fullscreen does not letterbox. (1920x1440 — what the failed
-      # attempt fell back to — is 4:3 and does.)
+      # DECLINED 2026-10-06, OPERATOR'S CALL, recorded so it is not rediscovered:
+      # `services.xserver.deviceSection` IS normal-priority at this pin, so
+      #   Option "ModeValidation" "NoMaxPClkCheck,AllowNonEdidModes"
+      # would disable the gate and unlock arbitrary modes — including 3024x1964,
+      # the operator's exact panel, a 1512x982-point window at ~2.1x this area.
+      # He declined it today as untested, not as wrong. Take it up knowingly.
       #
-      # xres/yres ARE KEPT, set to the same 1920x1200, and that is deliberate
-      # rather than redundant. The failed attempt measured something important:
-      # when the Modes line names an unavailable mode, X does NOT fall back to
-      # the next entry in Modes — it picks from the EDID itself (it chose
-      # 1920x1440, which Modes never mentioned). Setting xres/yres makes
-      # 1920x1200 the EDID's PREFERRED mode, so the outcome no longer depends on
-      # the Modes-selection path at all. RETIRE THEM only if a booted guest
-      # shows the same 1920x1200 with the properties removed — untested, and
-      # this is not the file to guess in.
+      # THE ARITHMETIC. On this Retina panel the Cocoa UI halves the framebuffer
+      # for the window (ui/cocoa.m:503) and doubles back for the framebuffer
+      # (:564-565), so WINDOW POINTS = GUEST PIXELS / 2 and one guest pixel is
+      # one Mac device pixel. His panel is 3024x1964 native = 1512x982 points.
+      # 1920x1440 -> 960x720 points: the largest-area table entry that fits.
+      # 2560x1080 ties on area and loses on shape — 540pt tall is cramped.
       #
-      # LAYER 2 — the X SERVER's DPI. `services.xserver.dpi = 192` in
-      # modules/nixos/desktop-vm.nix. This one WORKS: the guest's Xorg log says
-      #   (++) modeset(0): DPI set to (192, 192)
-      # (`(++)` = from the command line). Keep it paired with the resolution:
-      # resolution alone spreads the same point-size fonts over more pixels, so
-      # a bigger window with SMALLER text.
+      # DPI STAYS 192 AT BOTH LAYERS — `services.xserver.dpi` in
+      # modules/nixos/desktop-vm.nix and the HM `xfconf` Xft/DPI. DO NOT scale
+      # them with the resolution. `backingScaleFactor = 2` is fixed by the
+      # physical panel, so text size depends on that factor alone and NEVER on
+      # the mode; this change is AREA ONLY. The instinct to pick a
+      # "proportionate" DPI was wrong twice today.
       #
-      # LAYER 3 — XFCE's Xft.dpi, AND IT OVERRIDES LAYER 2 FOR EVERY GTK APP.
-      # Measured in the guest: `xrdb -query` reports `Xft.dpi: 96`. XFCE's
-      # xsettings daemon sets it and GTK obeys it, so apps render at 96 no
-      # matter what the X server was told. Nothing in the pinned nixpkgs can
-      # set it (programs/xfconf.nix declares ONLY `enable` — re-read 2026-10-06,
-      # 32 lines, no per-key surface). The pinned HOME-MANAGER does have
-      # `xfconf.settings` (modules/misc/xfconf.nix:96, applied by xfconf-query
-      # at :138) — that is the declarative route, but it is NOT taken here yet:
-      # it belongs in the cross-host modules/home/ profile and would need
-      # host-gating, and HM activation has to work first. Until then this layer
-      # is a MANUAL step: XFCE Settings -> Appearance -> Fonts -> Custom DPI,
-      # or `xfconf-query -c xsettings -p /Xft/DPI -s 192`.
-      #
-      # WHY DPI 192 AND NOT A VALUE SCALED TO THE RESOLUTION — this is the part
-      # that is easy to get wrong, and "proportional to the resolution" is the
-      # wrong model. qemu's Cocoa UI sizes the WINDOW in points by dividing the
-      # framebuffer by the Retina factor —
-      #   ui/cocoa.m:503  CGFloat width = screen.width / [[self window] backingScaleFactor];
-      # — and multiplies straight back for the framebuffer (:564-565). With a
-      # factor of 2 that makes ONE GUEST PIXEL EXACTLY ONE MAC DEVICE PIXEL, at
-      # every resolution. So the framebuffer size changes how much AREA the
-      # desktop has, and not how big the text is.
-      #
-      # Text size therefore depends only on the DPI. A 12pt font at dpi D is
-      # 12*D/72 guest pixels = the same number of Mac device pixels; native
-      # macOS renders 12pt as 16 points = 32 device pixels on a 2x screen, so
-      # D = 32*72/12 = 192. The arithmetic matches what the operator saw: at the
-      # old 1440x900 with no dpi set (96), 12pt came out 16 device px = 8 points
-      # against a native 16 — exactly "half size". A value scaled to the
-      # resolution, e.g. 128, would land at ~10.7 points and still read small.
-      #
-      # AREA IS THE REAL COST OF 1920x1200. The window is 960x600 POINTS, where
-      # 2880x1800 would have been 1440x900. 2880x1800 is unreachable on this
-      # device (LAYER 1b), so this is the price of a mode that validates. The
-      # only bigger validated modes are 16:9 (3840x2160 -> 1920x1080 points),
-      # which would letterbox the 16:10 panel.
-      #
-      # If the desktop feels sluggish, lower the resolution — but leave DPI at
-      # 192, because it is set by the Retina pixel-doubling and not by the mode.
+      # A PERSISTED USER SETTING CAN OVERRIDE ALL OF THIS. XFCE writes
+      # ~/.config/xfce4/xfconf/xfce-perchannel-xml/displays.xml on the durable
+      # qcow2 and xfsettingsd re-applies it at login, keyed by an EDID HASH — so
+      # changing xres/yres changes the EDID, changes the hash, and ORPHANS the
+      # saved profile. Measured 2026-10-06: that file already pinned
+      # `Resolution = 1920x1440` (he had set it by hand), which is why this value
+      # was chosen. If a future change to this number appears to do nothing,
+      # that file is why.
       resolution = {
         x = 1920;
-        y = 1200;
+        y = 1440;
       };
       # THE GUEST CARRIES ITS OWN STORE IMAGE.
       #
@@ -393,7 +351,7 @@
       # (GPG and SSH specifically need no passthrough — see the memory note
       # `nixvm-usb-passthrough-closed` for the agent-socket RemoteForward recipe.)
       qemu.options = [
-        "-device virtio-gpu-pci,xres=1920,yres=1200"
+        "-device virtio-gpu-pci,xres=1920,yres=1440"
         "-chardev qemu-vdagent,id=vdagent0,name=vdagent,clipboard=on"
         "-device virtio-serial-pci"
         "-device virtserialport,chardev=vdagent0,name=com.redhat.spice.0"
