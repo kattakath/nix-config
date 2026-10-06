@@ -1,9 +1,13 @@
 # Optional lightweight desktop for the nixvm dev VM — X11 + XFCE with passwordless
-# autologin and QEMU/SPICE guest integration. Opt-in via `local.desktopVm.enable`;
-# hosts/nixvm.nix enables it ONLY inside `virtualisation.vmVariant`, so the XFCE
-# desktop materialises for the graphical `build-vm` / `nix run .#nixvm` path,
-# while the base nixvm toplevel (which exists only as the build-vm eval substrate,
-# see hosts/nixvm.nix) stays headless/minimal.
+# autologin and QEMU/SPICE guest integration. Opt-in via `local.desktopVm.enable`.
+#
+# NOTHING ENABLES IT TODAY. hosts/nixvm.nix sets `local.desktopVm.enable = false`
+# (2026-10-06, operator's decision — stable Tor Browser moved to the Mac as a
+# cask, which was most of this desktop's purpose), so every `config` binding
+# below is inert and this whole file is dormant-but-ready. That host file also
+# gates its GUI-only QEMU args on the same flag, so ONE line there restores the
+# entire stack, host side included. Do NOT delete this module to "clean up"
+# unreferenced code — it is the other half of that switch.
 #
 # XFCE is the VM-friendliest DE: it runs on X11 (renders on QEMU's virtio-gpu
 # via the `modesetting` driver with no host GPU passthrough) and is light enough
