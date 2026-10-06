@@ -1502,6 +1502,30 @@ in
         inputNeededNotifEnabled = true;
         agentPushNotifEnabled = true;
 
+        # AGENT TEAMS backend. `teammateMode` is a real top-level settings key in
+        # claude-code 2.1.278 — the binary declares it as
+        # `teammateMode: z(reo).optional().describe("How spawned teammates execute
+        # (tmux, iterm2, in-process, auto)")`, enum tmux|iterm2|in-process|auto.
+        # "tmux" is chosen over the three alternatives on measured grounds:
+        #   - iterm2  — IMPOSSIBLE here. The backend requires both an iTerm2 host
+        #     and the `it2` CLI; this host is Ghostty (TERM_PROGRAM=ghostty) and
+        #     `it2` is not on PATH, so the binary's own error path fires.
+        #   - auto    — resolves to in-process on this host. The selection log is
+        #     "[BackendRegistry] Selected: tmux (running inside tmux session)", i.e.
+        #     auto takes the pane backend only when ALREADY inside tmux. Claude is
+        #     launched from a bare Ghostty window, so auto never picks panes.
+        #   - in-process — works (the takeoff-ai team on 2026-10-06 ran this way,
+        #     ~/.claude/teams/session-9aa658ae/config.json, backendType
+        #     "in-process") but the binary refuses background agents from an
+        #     in-process teammate: "In-process teammates cannot spawn background
+        #     agents", and a pane teammate also cannot run a plugin's run-time
+        #     registered agent type. Panes give each teammate a real attachable
+        #     terminal; tmux 3.7c is already on PATH from this flake.
+        # Explicit, not auto: the fallback is a RUNTIME decision, and an implicit
+        # downgrade to in-process is exactly the silent drift this file avoids
+        # elsewhere (see the `tui` note above for the same failure shape).
+        teammateMode = "tmux";
+
         # Routing telemetry: export tool_decision/tool_result events (only —
         # no metrics/traces, no prompt/response content) to the local OTel
         # Collector defined in modules/home/claude-otel.nix, read by
@@ -1536,6 +1560,30 @@ in
           # `pending_permission`, `plan_mode`, and `early_conversation`
           # (first turn). Every one of them returns silently.
           CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION = "true";
+
+          # AGENT TEAMS (named, persistent, mutually-messaging teammates — the
+          # Agent tool gains a `name` param and SendMessage addresses them) are
+          # gated behind THIS env var and nothing else. Read at the source,
+          # claude-code 2.1.278:
+          #
+          #   function t(){return process.argv.includes("--agent-teams")}
+          #   function Qr(){if(!a.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS&&!t())
+          #     return!1;if(!P("tengu_amber_flint",!0))return!1;return!0}
+          #
+          # So there are two switches on paper and ONE that works: the
+          # `--agent-teams` argv form is unreachable, because commander rejects
+          # the unknown option before that check runs — measured 2026-10-06,
+          # `claude --agent-teams -p …` exits with
+          # "error: unknown option '--agent-teams'". The env var is the only
+          # usable door; `tengu_amber_flint` is a server-side gate that defaults
+          # to true and is not settable here.
+          # Precedent that settings.env DOES feed this gate (it is not read
+          # before settings load): the Infin8 takeoff-ai repo sets the same var
+          # in its project .claude/settings.json, and that session wrote
+          # ~/.claude/teams/session-9aa658ae/config.json at 13:21 on 2026-10-06.
+          # Declared user-level rather than per-repo so there is ONE copy — a
+          # second project-local copy would drift from this one.
+          CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1";
         }
         // lib.optionalAttrs config.local.claudeOtel.enable {
           CLAUDE_CODE_ENABLE_TELEMETRY = "1";
