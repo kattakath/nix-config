@@ -20,7 +20,12 @@
 # The runner's QEMU is macOS-native (host.pkgs = aarch64-darwin, set in flake.nix);
 # the aarch64-linux guest closure builds on the native Linux builder or is
 # substituted from Cachix.
-{ lib, darwinPkgs, ... }:
+{
+  lib,
+  pkgs,
+  darwinPkgs,
+  ...
+}:
 {
   imports = [ ../modules/nixos/desktop-vm.nix ];
 
@@ -129,34 +134,106 @@
         x = 1440;
         y = 900;
       };
-      # THE GUEST GETS ITS OWN STORE IMAGE, and that is forced by the host being
-      # macOS. nixpkgs' qemu-vm.nix replaced 9p with virtiofs, and the generated
-      # runner calls `hostPkgs.virtiofsd` for every share it creates. hostPkgs
-      # here is aarch64-darwin (set above, so the QEMU window is native Cocoa),
-      # and virtiofsd is Linux-only - nixpkgs refuses to evaluate it for
-      # aarch64-darwin, which failed `nix flake check` on apps.*.nixvm with
-      # "not available on the requested hostPlatform".
+      # THE GUEST CARRIES ITS OWN STORE IMAGE.
       #
-      # The share it wanted was the HOST NIX STORE: mountHostNixStore defaults to
-      # `!useNixStoreImage && !useBootLoader`, i.e. true. Mounting a macOS host's
-      # store into a Linux guest only ever worked over 9p; with 9p gone there is
-      # no version of that which works, so the guest carries its own store image
-      # instead. Setting this flips mountHostNixStore's default to false, no
-      # share is created, and virtiofsd is never forced.
+      # CORRECTION 2026-10-06 — the reason recorded here until today was WRONG,
+      # and it was wrong in a way that forbade a feature. It said nixpkgs had
+      # replaced 9p with virtiofs for every share and that `hostPkgs.virtiofsd`
+      # is Linux-only, so NO share can exist on a macOS host. The second half is
+      # true; the first is not. At the pinned nixpkgs (44a91898)
+      # nixos/modules/virtualisation/qemu-vm.nix:27 reads
+      #     useVirtiofs = hostPkgs.stdenv.hostPlatform.isLinux;
+      # which is FALSE here, so shares fall back to `-virtfs local,…` 9p (:1309)
+      # plus a guest mount with `fsType = "9p"` (:1405). Measured against the
+      # qemu store path this runner executes: `-fsdev local,id=x help` lists the
+      # security models and `-device help` lists virtio-9p-pci. SHARES WORK ON
+      # THIS HOST — sharedDirectories below now uses one.
+      #
+      # So this setting stays, for a narrower and honest reason: it is the
+      # configuration this VM is measured booting with, and it also flips
+      # `mountHostNixStore`'s default (`!useNixStoreImage && !useBootLoader`) to
+      # false. Mounting a macOS host's /nix/store into an aarch64-linux guest
+      # over 9p has never been tried here — this is an untested alternative left
+      # unadopted, NOT a claim that it cannot work.
       #
       # Cost: the image holds the closure rather than borrowing the host's, so
       # `nix run .#nixvm` builds more. It builds on the native Linux builder or
-      # substitutes from Cachix - the right trade for a hand-booted dev VM. This
+      # substitutes from Cachix — the right trade for a hand-booted dev VM. This
       # store image is the ONLY per-boot filesystem here; the root qcow2 is not.
       useNixStoreImage = true;
 
-      # The store was not the only share. qemu-vm.nix also ships two by default -
-      # `xchg` (/tmp/xchg) and `shared` (/tmp/shared) - the NixOS TEST driver's
-      # conveniences for passing files between a test script and its guest. Each
-      # one is a virtiofs share and therefore another `hostPkgs.virtiofsd`, so
-      # dropping the store mount alone still failed. This VM is booted by hand
-      # from a QEMU window and runs no test script; it has nothing to exchange.
-      sharedDirectories = lib.mkForce { };
+      # ONE share: the operator's WireGuard confs, READ-ONLY at the guest's
+      # /etc/wireguard, which is the directory `wg-quick up <name>` resolves a
+      # BARE interface name against.
+      #
+      # `lib.mkForce` IS LOAD-BEARING — do not drop it. Without it upstream's own
+      # two defaults come back: `xchg` (/tmp/xchg) and `shared` (/tmp/shared),
+      # the NixOS TEST driver's conveniences for passing files between a test
+      # script and its guest (qemu-vm.nix:1235-1250). This VM is booted by hand
+      # from a QEMU window, runs no test script, and has nothing to exchange.
+      #
+      # `source` is `types.str` and upstream's own description says it "can be a
+      # shell variable" (:588) — its own `xchg` default is literally
+      # `"$TMPDIR"/xchg`. The value is interpolated UNQUOTED into the generated
+      # runner script's qemu command line (:360), so `$HOME` expands on the Mac
+      # at launch. Pointing at the operator-maintained source directory keeps ONE
+      # source of truth with the Darwin side: modules/home/wireguard-configs.nix
+      # syncs into ~/.config/wireguard FROM this very directory.
+      #
+      # WHY A MOUNT AND NOT `networking.wg-quick.interfaces`:
+      # grepped the pinned nixpkgs' nixos/modules/services/networking/wg-quick.nix
+      # — the option DOES exist, and the two objections usually raised against it
+      # do not survive reading it: it has an `autostart` toggle (:53) and a
+      # `privateKeyFile` escape hatch (:88), so neither "nothing may autostart"
+      # nor "the confs hold private keys" disqualifies it.
+      #
+      # The disqualifier is different: using it means re-expressing each conf as
+      # Nix ATTRIBUTES — publicKey, endpoint, allowedIPs — and THIS REPO IS
+      # PUBLIC, so the VPN peer topology would land in git history permanently
+      # and irretrievably. The private overlay flake that could once have held
+      # such values was retired 2026-09-15, so there is nowhere to hide it.
+      # Confs therefore stay OPAQUE FILES reached by a mount: nothing here
+      # parses, evaluates or re-emits their content, and no byte of them enters
+      # /nix/store. (`environment.etc."wireguard/…"` is the same trap — it
+      # symlinks a world-readable store path, so it is ruled out too.)
+      #
+      # Read-only on both sides: `writable = false` emits `readonly=on` in the
+      # -virtfs arg (:1310) and `ro` in the guest mount options (:1418). 9p
+      # `security_model=none` serves as the host user who owns the files, so the
+      # mode-600 confs are readable in the guest by root — which is who
+      # `wg-quick` runs as anyway. Expect host uids (501) in the guest's `ls -l`.
+      sharedDirectories = lib.mkForce {
+        wireguard = {
+          source = ''"$HOME"/.local/share/wireguard-configs'';
+          target = "/etc/wireguard";
+          writable = false;
+        };
+      };
+
+      # BOOT-STALL GUARD. Every sharedDirectories entry gets
+      # `neededForBoot = true` (qemu-vm.nix:1406), so if the host source
+      # directory is ever absent, renamed or moved, the guest can stall in the
+      # emergency shell with no console the operator wants to debug. `nofail`
+      # makes the mount best-effort instead: no confs, but a VM that boots.
+      #
+      # It is appended HERE, to `virtualisation.fileSystems`, and not to
+      # `fileSystems` — qemu-vm.nix:1396 publishes the latter wrapped in
+      # `mkVMOverride` (priority 10), and list merging keeps only the
+      # highest-priority definitions, so a normal-priority append to
+      # `fileSystems` would be silently DISCARDED rather than concatenated.
+      # `virtualisation.fileSystems` is declared as `options.fileSystems` (:463)
+      # and merges at normal priority with upstream's own definition, which is
+      # why no mkForce/mkAfter is needed.
+      #
+      # IT WORKS BECAUSE THIS INITRD IS SYSTEMD'S. neededForBoot also stamps
+      # `x-initrd.mount` on the mount, and the SCRIPTED stage-1 would not honour
+      # `nofail` at all — stage-1-init.sh strips every `x-` option and its
+      # mountFS calls `fail` (an emergency shell) when `mount` returns non-zero.
+      # systemd-fstab-generator is what reads `nofail` and makes the unit
+      # best-effort, and `boot.initrd.systemd.enable` evaluates TRUE here
+      # (measured on this config, 2026-10-06). If that ever flips back to the
+      # scripted initrd, this guard silently stops guarding.
+      fileSystems."/etc/wireguard".options = [ "nofail" ];
 
       # Guest video device X's modesetting driver binds for the desktop, plus
       # the host half of macOS<->guest CLIPBOARD sharing.
@@ -195,5 +272,29 @@
       # NOTE: no explicit `-display` flag — QEMU on macOS defaults to a native
       # Cocoa window. On a Linux host you'd add `-display gtk` here instead.
     };
+
+    # ---- WireGuard: TOOLS PRESENT, NOTHING RUNNING ---------------------------
+    # Lives HERE and not in modules/nixos/desktop-vm.nix because that module is
+    # scoped "XFCE desktop + guest integration" and WireGuard is neither — and
+    # because inside `virtualisation.vmVariant` it reaches nothing else: this
+    # file is imported only by nixvm's own mkNixos call, and the vmVariant layer
+    # applies only to `system.build.vm`, so neither `nixpi` (the live Pi, whose
+    # closure must stay lean) nor `macos` nor even nixvm's base toplevel sees it.
+    #
+    # macos is DELIBERATELY UNTOUCHED: it manages WireGuard through the GUI app
+    # only, with no wg/wg-quick CLI on PATH, so no shell there can bring a
+    # tunnel up on the sole client Mac (hosts/macos.nix, § Brews).
+    #
+    # NOTHING AUTOSTARTS, ON PURPOSE. No systemd unit, no wg-quick service, no
+    # activation script touches a tunnel — `networking.wg-quick.interfaces` is
+    # ruled out for the reason recorded above, and nothing replaces it. The
+    # confs are simply PRESENT at /etc/wireguard and the operator brings one up
+    # by hand: `sudo wg-quick up <name>` (a bare interface name; see the share).
+    #
+    # The kernel module is listed because we are NOT using NixOS's wg-quick
+    # unit, which is what would otherwise `modprobe wireguard` defensively
+    # (wg-quick.nix). The guest kernel is 6.x, so `wireguard` is in-tree.
+    environment.systemPackages = [ pkgs.wireguard-tools ];
+    boot.kernelModules = [ "wireguard" ];
   };
 }
