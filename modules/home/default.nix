@@ -396,6 +396,11 @@ in
     # gated on `osConfig.networking.hostName == "nixvm"` — mandatory, not tidy:
     # home-manager's xfconf module asserts lib.platforms.linux, so a non-empty
     # `settings` on macos is a build FAILURE. See the file's header.
+    # Keeps the Tor Browser profile out of Time Machine (the cask lives in
+    # hosts/macos.nix). Internally gated on hostName == "macos" — tmutil exists
+    # on no Linux host. PRE-EMPTIVE: there is no TM destination configured today;
+    # see the file's header for what it does and does NOT cover.
+    ./tor-browser-backup-exclusion.nix
     ./xfce-xsettings.nix
     ./gmail-mcp.nix # four Gmail accounts, one launcher each
     ./plugin-mcp.nix # wordpress + apify (Keychain) and postgres (loopback pgvector URI)
