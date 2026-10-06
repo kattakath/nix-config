@@ -75,3 +75,27 @@ over it to name the offending file. The file the real build died on is the one l
 phase.
 
 See [[worktree-guard-refuses-runtime-paths]].
+
+## RESOLVED 2026-10-06 (commit `e3f4add`)
+
+`packages/acpx.nix` now wraps the `fetchPnpmDeps` call in `.overrideAttrs` adding
+`preFixup = "rm -rf $storePath/{v3,v10,v11}/links"`. `preFixup` is the right slot because
+the pinned fetchDeps' custom `fixupPhase` string *opens* with `runHook preFixup` (read out
+of the drv's own `env.fixupPhase`), so the prune lands before the jq loop.
+
+New hash: `sha256-NS2ZPj+Aj1OIP4+Ekcphd7Yy1Q1s1zvU3vILnYPOGAc=`
+(was `sha256-IwhKoL4W0ukJ3TBjLZm6fcqd8+0rx4FvVfVcJ0zVkI0=`, a pnpm-11 store).
+
+**Proven, not assumed: dropping `links/` from the archive does NOT break use-time
+install.** `nix build .#darwinConfigurations.macos.system` built `acpx-0.19.3.drv`
+green — `pnpmConfigHook` + `pnpm install --offline` rebuild the hardlink farm from
+`files/` + `index.db`. This was the only real risk in the approach.
+
+**Rejected alternatives, do not retry:**
+- a nixpkgs overlay patching `fetch-pnpm-deps` — operator called it fleet-wide drift for
+  one package's bug.
+- making the jq loop tolerant (lax jq / shadowed `jq` wrapper) — a laxer loop still
+  *rewrites* 769 dependency files, where the prune makes the loop a no-op. Strictly less
+  blast radius for the same outcome.
+
+Retire the override when `fetcherVersion = 5` reaches the pinned nixpkgs.
