@@ -95,6 +95,28 @@ in
       enable = true;
       desktopManager.xfce.enable = true;
       displayManager.lightdm.enable = true;
+
+      # THE OTHER HALF OF A PAIR — see hosts/nixvm.nix's
+      # `virtualisation.resolution` (2880x1800), which carries the full
+      # derivation. Short version: qemu's Cocoa UI divides the guest
+      # framebuffer by the Mac's Retina factor of 2 (ui/cocoa.m:503), so the
+      # resolution is doubled to land at the intended point size — and
+      # `virtualisation.resolution` only feeds `services.xserver.resolutions`
+      # (an Xorg MODE LIST, qemu-vm.nix:1508), so without a matching DPI the
+      # same fonts just spread over 4x the pixels and read SMALLER.
+      #
+      # It lives HERE rather than in hosts/nixvm.nix because this module
+      # already owns the whole `services.xserver` block and is gated on
+      # `local.desktopVm.enable`, which only nixvm's vmVariant sets — so the
+      # knob sits with the X server it configures and reaches nothing else.
+      #
+      # 192 = 2 x Xorg's 96 dpi default. This covers the X server and anything
+      # that reads its DPI; INDIVIDUAL APPS that still render small need the
+      # one remaining lever, which is MANUAL — XFCE Settings -> Appearance ->
+      # Fonts -> Custom DPI, or `xfconf-query -c xsettings -p /Xft/DPI -s 192`.
+      # There is no declarative per-key xfconf surface at this pin: nixpkgs'
+      # xfce.nix only flips `programs.xfconf.enable`.
+      dpi = 192;
     };
 
     # Boot straight into the session with no credential prompt — this VM is
@@ -111,8 +133,24 @@ in
     };
 
     # Guest integrations: qemu-guest-agent (host<->guest control) and
-    # spice-vdagent (clipboard sharing + auto display-resize when the QEMU
-    # window is resized).
+    # spice-vdagent — CLIPBOARD ONLY.
+    #
+    # CORRECTED 2026-10-06. This comment used to claim spice-vdagent also gave
+    # "auto display-resize when the QEMU window is resized". It does not, with
+    # the `qemu-vdagent` chardev this VM uses (hosts/nixvm.nix's qemu.options).
+    # Read in the pinned qemu 11.1.1 source, `ui/vdagent.c`:
+    # `vdagent_chr_recv_msg` (:732) switches on exactly SIX message types —
+    # `VD_AGENT_ANNOUNCE_CAPABILITIES` (:737) and the four
+    # `VD_AGENT_CLIPBOARD{,_GRAB,_REQUEST,_RELEASE}` (:740-743) — and ends
+    # `default: break;` (:748). `VD_AGENT_MONITORS_CONFIG` and
+    # `VD_AGENT_DISPLAY_CONFIG` appear ONLY in the `msg_name[]` trace table
+    # (:95, :98) and are never a case, so they fall through unhandled.
+    #
+    # CONSEQUENCE, stated plainly: dragging or fullscreening the QEMU window
+    # will NEVER reflow the guest desktop. The guest keeps whatever mode Xorg
+    # was given at start. That is precisely why the fix for a too-small desktop
+    # is the declarative resolution/DPI pair above and in hosts/nixvm.nix, not
+    # a resize gesture that nothing on either side implements.
     #
     # The per-session CLIENT (`spice-vdagent`, no trailing d) needs no wiring
     # here: the pinned services.spice-vdagentd module puts `pkgs.spice-vdagent`
