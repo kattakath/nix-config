@@ -239,13 +239,23 @@ in
     # credential-free mode. Grep the closure, not the option list — a package
     # that is absent cannot prompt, and a PAM stanza with no binary is inert.
     #
-    # STILL PRESENT AND NOT DISABLED, reported rather than fixed (2026-10-06):
-    # `polkit-gnome` (the polkit authentication agent XFCE installs,
-    # xfce.nix:126-127). It WILL ask for a password on a privileged desktop
-    # action. Left alone deliberately — polkit is a different path from sudo
-    # (which is covered by security.sudo.wheelNeedsPassword = false in
-    # modules/nixos/core.nix) and disabling the agent could break desktop
-    # actions silently. Operator's call, not the agent's.
+    #   3. polkit's auth agent -> `polkit_gnome` (XFCE installs it,
+    #      xfce.nix:126-127) asks for a password on a privileged desktop
+    #      action.
+    #      FIX SHAPE: LEAVE IT ON and tell it not to challenge — a
+    #      `security.polkit.extraConfig` rule returning YES for the wheel
+    #      group, which MIRRORS the sudo posture already set by
+    #      security.sudo.wheelNeedsPassword = false in modules/nixos/core.nix.
+    #      It lives in hosts/nixvm.nix's `virtualisation.vmVariant`, NOT here,
+    #      precisely because this module is reusable: another consumer enabling
+    #      `local.desktopVm` must not silently inherit a security posture
+    #      chosen for a disposable VM. The full rationale and its cost are at
+    #      that code site.
+    #
+    # THAT THIRD FIX SHAPE IS THE LESSON. "Disable it" is the right reflex for
+    # a locker or a keyring and the WRONG one for an authorisation component:
+    # removing an auth agent does not make privileged actions succeed, it makes
+    # them fail SILENTLY, with no dialog and no error to act on.
     #
     # upstream option services.gnome.gnome-keyring.enable exists -> using it
     # (xfce.nix:230 sets it `mkDefault true`, so a plain `false` here wins on
