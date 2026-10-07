@@ -61,7 +61,31 @@
 #
 # Top-level `lib.mkIf isDarwin`, matching ./claude-brain.nix: programs.claude-code
 # is darwin-only (default.nix), and the gate keeps nixpi/nixvm byte-identical.
+let
+  # The secret-path COORDINATES, shared with the Seatbelt fence in ./plugin-mcp.nix
+  # so the two layers cannot drift. See that file for why this is data rather than
+  # a second copy of the rules, and why a match-based derivation was rejected.
+  secretReadPaths = import ../_lib/secret-read-paths.nix;
+
+  # `//` is Claude's ABSOLUTE spelling and `~/` its home-relative one; `/**`
+  # makes it a subtree. A Read deny also blocks Edit and Write.
+  secretReadDenies =
+    map (p: "Read(/${p}/**)") secretReadPaths.absolute
+    ++ map (p: "Read(~/${p}/**)") secretReadPaths.underHome;
+in
 lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
+  # The ONE failure mode this file's own commentary names as worse than a weak
+  # floor: a rule list that is well-formed and EMPTY, which nothing reports. The
+  # paths now arrive from another file, so make the vacuum a BUILD error instead
+  # of a silent one. Cheap, and it is the condition under which deriving these
+  # rules is safe at all.
+  assertions = [
+    {
+      assertion = secretReadDenies != [ ];
+      message = "modules/_lib/secret-read-paths.nix yielded no Read denies — the secret-path floor in claude-guardrails.nix would be silently empty.";
+    }
+  ];
+
   # ── AI attribution on git artifacts: OFF, as a SETTING (claude/CLAUDE.md
   #    § Git authorship) ──────────────────────────────────────────────────────
   # That section forbids a `Co-Authored-By: Claude` trailer on commits and a
@@ -213,10 +237,20 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # still load-bearing — the rule only dies when the FILE cannot exist, which is
     # the test the mcpfinder note above applies to a tool NAME. Delete it after
     # deleting the directory, in that order, never the reverse.
-    "Read(//run/agenix/**)"
-    "Read(~/.local/state/nix-config-cf-tunnel/**)"
-    "Read(~/.local/state/nix-config-mcp-public/**)"
-    "Read(~/.aws/sso/cache/**)"
+    #
+    # THE PATHS MOVED OUT, THE RULES DID NOT. These four `Read(...)` globs are
+    # now rendered from modules/_lib/secret-read-paths.nix, because a second
+    # enforcement layer needs the same coordinates in a spelling a glob cannot
+    # express: the macOS Seatbelt profile that fences desktop-commander
+    # (./plugin-mcp.nix) wants `(subpath "/abs/path")`. Data with two renderers,
+    # not two lists — and the `assertions` at the top of this file makes an empty
+    # render a build error, which is the objection the group above raises about
+    # its managed-settings twin. The RENDER also widened the agenix rule from one
+    # spelling to four, because `/run` is a symlink on darwin and a `Read()` glob
+    # does not resolve one; that file carries the measurement.
+  ]
+  ++ secretReadDenies
+  ++ [
     # `agenix -d FILE` was the one shape in this family still open, and it is
     # the bluntest of them: it prints an age ciphertext's PLAINTEXT straight
     # into the transcript. Fleet-wide policy already forbids it in two places —

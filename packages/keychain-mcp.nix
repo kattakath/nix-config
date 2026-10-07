@@ -64,6 +64,25 @@
   # and a hardcoded /Users/<name> in a .nix VALUE is what
   # ast-grep/rules/no-hardcoded-home-paths.yml rejects.
   homeDirectory,
+  # A macOS Seatbelt profile (`.sb`) to run the server UNDER, or null for the three
+  # servers that need no fence. A store path, so the profile itself is unwritable by
+  # the thing it confines — which is the whole point: desktop-commander's own README
+  # says `allowedDirectories` "only restricts filesystem operations, not terminal
+  # commands" and its SECURITY.md calls directory restrictions "guardrails, not
+  # sandboxing", so the boundary has to be the OS.
+  #
+  # WHY `sandboxProfile` AND NOT A GENERIC `wrapper`. A free-form command prefix on a
+  # factory whose whole job is "export credentials, then exec" is an invitation to run
+  # the next thing through it for an unrelated reason. This parameter can only ever add
+  # a fence, and the type says so.
+  #
+  # `/usr/bin/sandbox-exec` is DEPRECATED by Apple and still the mechanism Claude
+  # Code's own sandbox uses. MEASURED PRESENT AND WORKING on this host (Darwin 27.0.0,
+  # 2026-10-07): the binary exists, a profile with `(allow default)` + `(deny
+  # file-write*)` + a re-allow list parses, and writes outside the allow list fail
+  # `Operation not permitted` while writes inside succeed. Verified by the ABSENCE of
+  # the denied artifact afterwards, not by the exit code alone.
+  sandboxProfile ? null,
 }:
 let
   runtime =
@@ -103,5 +122,11 @@ writeShellScriptBin "nix-mcp-${name}" ''
   # finds it.
   export PATH=${lib.escapeShellArg "${runtime}/bin"}:"$PATH"
 
-  exec ${command} ${lib.concatMapStringsSep " " lib.escapeShellArg args}
+  # The fence wraps the interpreter, not the other way round: everything the server
+  # forks — and `start_process` forking a shell is the point of desktop-commander —
+  # inherits the sandbox, because Seatbelt is a per-process attribute children keep.
+  # Putting it inside the server would fence nothing.
+  exec ${
+    lib.optionalString (sandboxProfile != null) "/usr/bin/sandbox-exec -f ${sandboxProfile} "
+  }${command} ${lib.concatMapStringsSep " " lib.escapeShellArg args}
 ''
