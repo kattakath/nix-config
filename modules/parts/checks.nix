@@ -1782,6 +1782,72 @@ in
                 ''
             );
 
+          # THE SCRIPTED INITRD IS ON AN UPSTREAM DEADLINE, AND NOTHING GATED IT.
+          #
+          # hosts/nixpi.nix forces `boot.initrd.systemd.enable = false` because
+          # systemd stage-1 HANGS mounting /sysroot on the raspberry-pi-nix
+          # `linux-rpi` kernel — the Pi never reaches stage-2. Measured 2026-10-07
+          # against the PINNED nixpkgs (26.11.20260920.44a9189), not from memory:
+          #
+          #   nixos/modules/system/boot/stage-1.nix:733 raises
+          #     "Scripted initrd is deprecated and scheduled for removal in 26.11"
+          #   nixos/doc/manual/release-notes/rl-2605.section.md:7 is the cited note.
+          #
+          # The release it is scheduled to be removed IN is the release this tree is
+          # ALREADY pinned to, and the option is still fully present in this revision
+          # (no mkRemovedOptionModule for it anywhere in nixos/modules). So removal
+          # lands on some future bump, and the only question that matters is whether
+          # it lands LOUD or SILENT. Nothing in the pin answers that, which is why
+          # this is a check and not another paragraph in hosts/nixpi.nix.
+          #
+          # WHAT THE TWO LEGS ACTUALLY COVER, and what they do not:
+          #
+          #   leg 1  the option still exists. Largely DEFENSIVE: an outright removal
+          #          makes hosts/nixpi.nix's own `mkForce` throw "option does not
+          #          exist" during module evaluation, so nixosConfigurations.nixpi
+          #          goes red before this check is ever reached. Kept because a leg
+          #          that costs nothing should not depend on that ordering holding.
+          #   leg 2  it still resolves to FALSE here. Catches a default flip, a
+          #          mkForce that stops winning, or an edit that simply drops the
+          #          line — the quiet shapes.
+          #
+          #   NOT COVERED: upstream keeping the option as an accepted NO-OP. Then
+          #   `false` still reads back as false, both legs pass, and the Pi silently
+          #   gets systemd stage-1. No eval-time fact distinguishes that case, so it
+          #   is named here rather than papered over — the tell would be a deploy
+          #   that never comes back, and magicRollback is what has to catch it.
+          #
+          # Ungated for the same reason as the two checks above: the edit that breaks
+          # it is made on the Mac, so Linux-gating would let `/eval` pass clean.
+          nixpi-initrd-posture =
+            let
+              pi = config.flake.nixosConfigurations.nixpi.config;
+              sd = pi.boot.initrd.systemd or { };
+            in
+            mkHostContract {
+              inherit pkgs;
+              name = "nixpi-initrd-posture";
+              subject = "nixpi: the scripted initrd is still offered AND still selected";
+              expect = [
+                {
+                  name = "boot.initrd.systemd.enable still EXISTS — the scripted path has not been removed upstream";
+                  ok = sd ? enable;
+                }
+                {
+                  name = "it resolves to false on nixpi — stage-1 is still the scripted one";
+                  ok = (sd.enable or null) == false;
+                }
+              ];
+              advice = [
+                "nixpkgs scheduled the scripted initrd for removal in 26.11 — rl-2605.section.md:7."
+                "hosts/nixpi.nix forces it off because systemd stage-1 hangs on the linux-rpi kernel."
+                "Do NOT make this green by deleting that mkForce: the Pi stops booting, and the only"
+                "recovery is hands on the hardware plus a reflash of roughly 40 minutes."
+                "Either hold nixpi on a nixpkgs revision that still ships the scripted path, or migrate"
+                "stage-1 ON the hardware and confirm a real boot before changing anything here."
+              ];
+            };
+
           nixpi-security-posture =
             let
               pi = config.flake.nixosConfigurations.nixpi.config;
