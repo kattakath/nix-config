@@ -123,6 +123,47 @@ let
     ;; planted config.json is what guarantees the directory exists.
     (deny file-write* (subpath "${homeDirectory}/.claude-server-commander"))
 
+    ;; ---- the agent's own POLICY files, inside the writable root -----------
+    ;; THE ESCALATION THIS CLOSES, and it is the half that needs no activation.
+    ;; ~/Developer holds this repo, so a fenced agent can edit the source of its
+    ;; own fence — but that needs an authenticated `darwin-rebuild`, which makes
+    ;; it a review problem. A repo's `.claude/` needs NO such step: Claude Code
+    ;; reads hooks and settings straight from the working tree, so an edit there
+    ;; is live in the next session with no human in the loop. That is the
+    ;; CVE-assigned shape (CVE-2026-48124 / GHSA-pc9j-3qc2-95wv, CVSS 8.5 — an
+    ;; agent writing `.claude` hooks that then execute outside the sandbox).
+    ;;
+    ;; PRECEDENT, not invention. Claude Code's own Bash sandbox does exactly
+    ;; this, and states the reason: "A command that could edit those files could
+    ;; grant itself permissions, or add a hook or MCP server that Claude Code
+    ;; runs outside the sandbox." Its deny is unconditional — "There is no way to
+    ;; exempt one of these paths". OpenAI Codex marks `.git` and `.codex`
+    ;; read-only inside each writable root the same way. Neither enumerates
+    ;; per-project allowlists; both carve holes inside ONE allow root, which is
+    ;; why this is three regexes rather than a list of projects.
+    ;;
+    ;; FILE PATTERNS, NOT THE WHOLE `.claude` TREE — and that is load-bearing, not
+    ;; fastidiousness: worktrees live at `.claude/worktrees/<name>`, so a blanket
+    ;; `.claude` deny would make every worktree read-only and break the exact
+    ;; case this server exists for. Depth-agnostic regexes instead keep a
+    ;; worktree's source writable while still denying the copy of `.claude`
+    ;; INSIDE it. MEASURED 2026-10-07, all nine cases: settings.json,
+    ;; settings.local.json, hooks/, agents/, .mcp.json and a worktree's own
+    ;; nested .claude/hooks all denied; repo/src, worktree/src and
+    ;; .claude/memory/ all still writable.
+    ;;
+    ;; Scoped under ~/Developer deliberately. A bare `/\.mcp\.json$` would also
+    ;; match inside ~/.npm, where npx EXTRACTS packages — a package shipping its
+    ;; own .mcp.json would then fail to unpack.
+    ;;
+    ;; CLAUDE.md is deliberately NOT here: it is instructions rather than code
+    ;; Claude Code executes, and editing it is ordinary work this server should
+    ;; be able to do. `.claude/memory/` likewise — notes, not policy.
+    (deny file-write*
+      (regex #"^${homeDirectory}/Developer/.*/\.claude/settings[^/]*\.json$")
+      (regex #"^${homeDirectory}/Developer/.*/\.claude/(hooks|agents|commands|skills)/")
+      (regex #"^${homeDirectory}/Developer/.*/\.mcp\.json$"))
+
     ;; ---- reads: the secret paths -----------------------------------------
     ;; Rendered from modules/_lib/secret-read-paths.nix — the same data
     ;; ./claude-guardrails.nix renders into its `Read(...)` denies, so the two
