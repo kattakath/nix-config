@@ -357,10 +357,17 @@ in
     # `wordpress-adapter` is NOT here and must not be added: that is a DIFFERENT endpoint
     # on the same site and its route is gone (404 `rest_no_route`) — the failure that
     # darked all 25 gateway servers.
+    # `desktop-commander` is the odd one out: no credential, declared for its
+    # Seatbelt FENCE (modules/home/plugin-mcp.nix renders the profile). It is the
+    # escape hatch for a worktree-isolated session whose worktree was deleted —
+    # Bash refuses every call there, and this runs commands outside that tool.
+    # The gap that buys: it also routes around every Bash-TEXT deny in
+    # claude-guardrails.nix, which the fence cannot reproduce. Accepted 2026-10-07.
     local.pluginMcp.servers = [
       "wordpress"
       "apify"
       "postgres"
+      "desktop-commander"
     ];
     # ---- AWS CLI: tool + shape, content stays local (ADR-004 phase 3) -------
     # Until 2026-09-20 this block carried `programs.awscli.settings` with two real
