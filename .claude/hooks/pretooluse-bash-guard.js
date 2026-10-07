@@ -30,29 +30,59 @@
  *
  * RULE NUMBERING — the "4 rules" above are the ORIGIN SET, not the current one.
  * Rules 1-4 are what the retired prompt gate carried and what this file first
- * ported; every number since is an addition made here. The code implements SIX
+ * ported; every number since is an addition made here. The code implements FIVE
  * rules today: Rule 1 (Cloudflare API — terranix apply/destroy, wrangler,
  * api.cloudflare.com), Rule 1c (printing a secret VALUE), Rule 1d (building ON
- * nixpi), Rule 2 (Cloudflare docs fetches), Rule 3 (desktop-commander nudge) and
- * Rule 4 (default approve + the approved-CLI allowlist). Rule 1b was added after
+ * nixpi), Rule 2 (Cloudflare docs fetches) and Rule 4 (default approve + the
+ * approved-CLI allowlist). Rule 3 was REMOVED 2026-10-07 (see below); its number
+ * is left unused so the removal stays legible. Rule 1b was added after
  * the port and retired 2026-09-15 (see below). Numbers and letters are frozen
  * once assigned — a retired one is never reused — so every rule keeps the name
  * its test cases in .claude/hooks/tests/ and the incident notes already use.
  *
- * POLICY CHANGE, not just a mechanical port: Rule 3 (desktop-commander) is a
- * TOOL-PREFERENCE nudge, not a safety concern — nothing bad happens if `find`
- * runs directly instead of via the MCP tool. The old hook enforced it as a hard
- * per-call BLOCK anyway, which is the majority of the observed friction. Here it
- * downgrades to a non-blocking systemMessage nudge (RULE3_BLOCKING = false
- * below) — Claude still gets pointed at the MCP tool, but a routine lookup never
- * halts a turn for it. Rules 1/2 (Cloudflare API calls / billed or mutating)
- * keep their hard block: those genuinely warrant stopping. Flip RULE3_BLOCKING
- * to `true` to restore the old hard-block behavior for Rule 3 if preferred.
+ * RULE 3 IS GONE (2026-10-07), AND ITS REASONING IS THE LESSON. It nudged a bare
+ * `ls`/`find`/`stat`/`ps`/`kill` toward `mcp__desktop-commander__*`, on the
+ * argument — quoted from the text this replaces — that it was "a TOOL-PREFERENCE
+ * nudge, not a safety concern: nothing bad happens if `find` runs directly
+ * instead of via the MCP tool."
+ *
+ * That was true when desktop-commander was a gateway server. It is now FALSE IN
+ * THE OTHER DIRECTION, and the rule had quietly become the opposite of a
+ * guardrail. Going through the MCP tool routes around THIS hook, around every
+ * other PreToolUse hook, and around the whole permission system — `start_process`
+ * is not the Bash tool, which is the entire reason the server was re-adopted as
+ * an escape hatch for a Bash-locked session (modules/home/plugin-mcp.nix). So the
+ * nudge was steering routine work off the guarded path for no benefit.
+ *
+ * It was also naming a tool that cannot exist. Plugin MCP tools are
+ * `mcp__plugin_<plugin>_<server>__<tool>`, so the live prefix is
+ * `mcp__plugin_desktop-commander_desktop-commander__*` — the third time a
+ * hardcoded MCP prefix in this fleet went stale (claude-guardrails.nix records
+ * the first two), and a rule pointing at a non-existent tool is not a weak rule
+ * but no rule.
+ *
+ * MEASURED LIVE before removal: `{"tool_name":"Bash","tool_input":{"command":"ls
+ * -l /tmp"}}` piped into this file returned
+ * `{"decision":"approve","systemMessage":"`ls` used standalone — prefer
+ * mcp__desktop-commander__* …"}`. It was firing, via superhook's by-convention
+ * discovery, on some of the most common commands there are. It also had ZERO test
+ * coverage, alone among the rules here — the one rule nothing asserted was the one
+ * that had inverted.
+ *
+ * THE OPPOSITE RULE LIVES IN THE PLUGIN, NOT HERE, and that is forced rather than
+ * chosen: superhook's PreToolUse matcher is `"Bash"`, so this file is only ever
+ * handed Bash calls and structurally cannot see an MCP tool. The desktop-commander
+ * plugin in github:kattakath/skills carries its own PreToolUse hook matching its
+ * own tools — the plugin that introduces the risk owns the mitigation, and it then
+ * works in every repo instead of only in this one.
+ *
+ * Rules 1/2 (Cloudflare API calls / billed or mutating) keep their hard block:
+ * those genuinely warrant stopping.
  *
  * POLICY CHANGE (2026-08-19, izzykatt.ca redirect-rule task): the plain "raw
  * request to api.cloudflare.com" sub-check of Rule 1 downgrades to a
- * non-blocking nudge (RULE1_API_HOST_BLOCKING = false below), same shape as
- * Rule 3. Reason: mcp__cloudflare__execute's OAuth grant was confirmed (live
+ * non-blocking nudge (RULE1_API_HOST_BLOCKING = false below) — the same
+ * nudge-not-block shape the since-removed Rule 3 used. Reason: mcp__cloudflare__execute's OAuth grant was confirmed (live
  * 9109 Unauthorized on both Rulesets and Page Rules writes, even after a full
  * reconnect) to NOT include WAF/Rulesets/Page-Rules write access — a limit of
  * Cloudflare's own official MCP app, not a fixable per-session scope — so the
@@ -125,14 +155,13 @@
 "use strict";
 const fs = require("node:fs");
 
-const RULE3_BLOCKING = false; // see POLICY CHANGE above; true = restore old hard block
 const RULE1_API_HOST_BLOCKING = false; // see 2026-08-19 POLICY CHANGE above; true = restore hard block
 const RULE1_TERRANIX_APPLY_BLOCKING = false; // see 2026-09-22 POLICY CHANGE above; true = restore hard block
 // NOTE: `-destroy` is NOT covered by that flag and stays hard-blocked unconditionally.
 
-// Rule 4's allowlist — also the Rule 3 exemption set (a raw ls/find/stat/ps/kill
-// riding alongside one of these in a compound command is "part of a larger
-// approved-CLI script", not someone reaching for a raw tool as their primary).
+// Rule 4's allowlist. It used to double as Rule 3's exemption set; that rule is
+// gone, so this is now only the list whose presence makes a command "a known CLI
+// invocation" for the default-approve path.
 const APPROVED_CLIS = new Set([
   "git",
   "nix",
@@ -180,8 +209,6 @@ const APPROVED_CLIS = new Set([
   "bash",
   "zsh",
 ]);
-
-const DESKTOP_COMMANDER_TOOLS = new Set(["ls", "find", "stat", "ps", "kill"]);
 
 // Rule 1: terranix apply/destroy apps that mutate Cloudflare infra via the API.
 //
@@ -630,8 +657,7 @@ function main() {
   const cmd = String((payload.tool_input && payload.tool_input.command) || "");
   if (!cmd.trim()) emit("approve");
 
-  // Computed once, reused by both the wrangler check (Rule 1) and the
-  // desktop-commander nudge (Rule 3) — argv0() strips path prefixes, so
+  // Computed once for the wrangler check (Rule 1) — argv0() strips path prefixes, so
   // `/opt/homebrew/bin/wrangler` and `./wrangler` are caught the same as a
   // bare `wrangler` (a raw-string regex previously missed both — 2026-08-19
   // push-review finding).
@@ -798,17 +824,9 @@ function main() {
     }
   }
 
-  // ---- Rule 3: desktop-commander tool-preference nudge ----
-  const hasRawTool = segs.some((a) => DESKTOP_COMMANDER_TOOLS.has(a));
-  const hasApprovedCli = segs.some((a) => APPROVED_CLIS.has(a));
-  if (hasRawTool && !hasApprovedCli) {
-    const which = segs.find((a) => DESKTOP_COMMANDER_TOOLS.has(a));
-    const nudge = `\`${which}\` used standalone — prefer mcp__desktop-commander__* for file/process listing when convenient.`;
-    if (RULE3_BLOCKING) {
-      emit("block", nudge, nudge);
-    }
-    nudges.push(nudge);
-  }
+  // ---- Rule 3: REMOVED 2026-10-07 — it pointed the wrong way. See the header. ----
+  // Do not re-add a nudge toward an MCP file/process tool from here. Going through
+  // one bypasses this hook, and the rule numbering keeps the gap visible on purpose.
 
   // ---- Rule 4: default approve (with any accumulated non-blocking nudges) ----
   if (nudges.length) {
