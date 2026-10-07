@@ -42,6 +42,7 @@ the cheap, regenerable one is left to a tool like [`rclip`](https://github.com/y
 | `media-fix-extension` | rename files whose extension lies about their content |
 | `media-transcode` | re-encode editor-hostile codecs (VP9-in-MP4, AV1) to H.264+AAC |
 | `media-extract-audio` | pull the audio track out of a video |
+| `media-gif [--budget 1M] [--square] [--max-seconds N]` | a looping GIF from a short video, walking a measured quality ladder until it fits the byte budget |
 | `media enqueue` / `media-enqueue` | hand the same work to the queue and return at once |
 | `media queue [status\|top\|pause\|resume]` | inspect and control the queue |
 
