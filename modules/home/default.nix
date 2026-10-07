@@ -137,6 +137,24 @@ let
   # (verified with a canary `touch`, which succeeded). So the profile leans on a
   # kernel-enforced `deny` list for the paths that actually matter. Retire this patch once xAI
   # resolves symlinked runtime-socket deny paths instead of refusing to start.
+  #
+  # NAME DISAMBIGUATION (2026-10-07). This is a GROK sandbox profile — grok's own config
+  # concept, a `[profiles.<name>]` table in ~/.grok/sandbox.toml with bases like
+  # `read-only`/`strict`/`workspace`/`devbox`. It is NOT the macOS Seatbelt profile this
+  # repo also generates now (./plugin-mcp.nix renders a `.sb` for desktop-commander), and
+  # the two are configured in completely different languages.
+  #
+  # Worth a comment rather than a rename, for two reasons. First, "sandbox profile" is
+  # grok's OWN vocabulary, so renaming away from it would diverge from the thing being
+  # configured. Second, the confusion is SUBSTANTIVE and not merely lexical: both are agent
+  # sandboxes, and both deny by path — the paragraphs above describe grok's as
+  # kernel-enforced too. A /hygiene audit on 2026-10-07 read this binding as a second
+  # Seatbelt generator and had to check the source to find out otherwise.
+  #
+  # That near-miss is also what produced the real fix: the two now share ONE credential-path
+  # inventory (modules/_lib/secret-read-paths.nix), because the audit found this profile
+  # denying ~/.ssh while the newer Seatbelt fence left the operator's agenix identity
+  # readable. Two sandboxes, two languages, one list of paths that matter.
   grokSandboxProfile = "nix-agent-workspace";
 
   # The sandbox profile's CONTENT, as a store file. It is copied to
