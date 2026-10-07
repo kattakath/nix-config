@@ -319,7 +319,27 @@ let
       # Host-decrypted agenix plaintext on macos, plus the two OpenTofu state
       # dirs holding a tunnel connector token (and an Access service-token
       # secret) in plaintext. A Read deny also blocks Edit/Write.
+      #
+      # FOUR AGENIX SPELLINGS, NOT ONE (2026-10-07). `/run` is a SYMLINK on
+      # darwin — measured that day: `/run -> private/var/run` and
+      # `/run/agenix -> /run/agenix.d/1`. A `Read()` glob matches the path TEXT
+      # a tool call carries and does NOT resolve a symlink, so the single
+      # `//run/agenix/**` rule that stood here never covered a read spelled
+      # `/private/var/run/agenix.d/1/…` — the real file. The other three close
+      # that, and they are a WIDENING of this floor, not a restatement of it.
+      #
+      # The twin list in modules/home/claude-guardrails.nix renders these from
+      # modules/_lib/secret-read-paths.nix. This copy stays HAND-WRITTEN on the
+      # "RESTATED, NOT DERIVED" rule above, which is about not deriving a floor
+      # from something that can silently match nothing — and the
+      # `claude-managed-settings` check is what makes the duplication safe: it
+      # FAILED THE BUILD when the guardrails half gained these three and this
+      # half did not. The cost the note above calls "real and accepted" is
+      # exactly that build failure, working as designed.
       "Read(//run/agenix/**)"
+      "Read(//run/agenix.d/**)"
+      "Read(//private/var/run/agenix/**)"
+      "Read(//private/var/run/agenix.d/**)"
       "Read(~/.local/state/nix-config-cf-tunnel/**)"
       "Read(~/.local/state/nix-config-mcp-public/**)"
       "Read(~/.aws/sso/cache/**)"

@@ -994,6 +994,23 @@ in
         # and refuses zsh outright (SC1071), and anthropics/claude-code #74888 — the zsh
         # field-splitting case — was closed as not planned.
         "silent-instruments"
+
+        # Shell + filesystem tools that run OUTSIDE Claude Code's Bash tool, which is
+        # the one thing they are for: a worktree-isolated session whose worktree was
+        # DELETED refuses every Bash call, spawned agents inherit the lock, and
+        # `start_process` is not that tool. PROPHYLAXIS, NOT A RESCUE — MCP servers load
+        # at session start, so an already-locked session never picks it up.
+        #
+        # Safe to have at all only because of the FENCE: ./plugin-mcp.nix renders a macOS
+        # Seatbelt profile into the store and the launcher execs `sandbox-exec -f` around
+        # the server, so every shell it forks inherits it. The server's OWN
+        # allowedDirectories is not a boundary — upstream's SECURITY.md says so, and an
+        # empty list means every path is allowed.
+        #
+        # ENABLED BELOW, not merely catalogued. Listing a name here makes the id
+        # RESOLVABLE and enables nothing (#751/#754 learned that the hard way), so the
+        # `declared` entry is what actually turns it on.
+        "desktop-commander"
       ];
     };
 
@@ -1125,6 +1142,18 @@ in
     "prior-art-recon@kattakath" = true;
     "foundation-audit@kattakath" = true;
     "mac-app-send@kattakath" = true;
+
+    # The Seatbelt-fenced shell/filesystem server — see the `desktop-commander` entry
+    # in the kattakath catalogue above. It is HERE, and not left to a `/plugin` click,
+    # for exactly the reason the four lines above record: a clicked toggle made two
+    # plugins "working-but-unreproducible", and a fresh machine restored neither. This
+    # one is the escape hatch for a session that cannot run a command, so discovering
+    # on a fresh Mac that the hatch was never enabled is the worst possible time.
+    #
+    # Measured 2026-10-07, which is why this line exists: after the plugin merged and
+    # the launcher was on PATH, ~/.claude/settings.json held 45 enabledPlugins ids and
+    # desktop-commander was NOT among them — the capability was installed and unusable.
+    "desktop-commander@kattakath" = true;
 
     # OFF since 2026-10-06, at the operator's judgement that the plugin was
     # inefficient in use. It was the one id here that changed EVERY session on this
