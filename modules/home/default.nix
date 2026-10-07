@@ -81,6 +81,13 @@
   ...
 }:
 let
+  # The credential-path inventory grok's sandbox deny list renders from. Shared
+  # with the desktop-commander Seatbelt fence (./plugin-mcp.nix) and with the
+  # Claude Read() floor (./claude-guardrails.nix) so three mechanisms cannot hold
+  # three quietly different views of one fact — which is exactly what they did
+  # until 2026-10-07. That file carries the per-layer price table.
+  secretReadPaths = import ../_lib/secret-read-paths.nix;
+
   # Real client Mac vs Tart sandbox (hosts/*/networking.hostName). Used to keep
   # heavy darwin-only agents (RAG stack, MCP public tunnel extras) off any sandbox host.
   isMacosHost = (osConfig.networking.hostName or "") == "macos";
@@ -142,13 +149,19 @@ let
     [profiles.${grokSandboxProfile}]
     extends = "workspace"
     deny = [
-      "${config.home.homeDirectory}/.ssh",
-      "${config.home.homeDirectory}/.aws",
-      "${config.home.homeDirectory}/.docker",
-      "${config.home.homeDirectory}/.config/gh",
-      "**/*.pem",
-      "**/*.age",
-      "**/.env",
+    ${
+      # RENDERED from modules/_lib/secret-read-paths.nix, not hand-listed, since
+      # 2026-10-07. It was a third independent copy of "paths an agent must not
+      # read" — and a /hygiene audit found it was the STRICTEST of the three while
+      # the newest (desktop-commander's Seatbelt fence) left ~/.ssh readable.
+      # Sharing the inventory is what makes that divergence visible; grok still
+      # gets the WIDE list because its sandbox has no file-level granularity, and
+      # that asymmetry is priced in that file's table.
+      lib.concatMapStringsSep "\n" (
+        d: "      \"${config.home.homeDirectory}/${d}\","
+      ) secretReadPaths.agentCredentialDirs
+    }
+    ${lib.concatMapStringsSep "\n" (g: "      \"**/${g}\",") secretReadPaths.agentCredentialGlobs}
     ]
   '';
   grokBuildPluginPatched = pkgs.runCommand "grok-build-plugin-cc-patched" { } ''
