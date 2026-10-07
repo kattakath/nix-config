@@ -182,6 +182,7 @@
           for bin in ${graph.media-fix-extension}/bin/media-fix-extension \
                      ${graph.media-transcode}/bin/media-transcode \
                      ${graph.media-extract-audio}/bin/media-extract-audio \
+                     ${graph.media-gif}/bin/media-gif \
                      ${graph.media-fix}/bin/media-fix \
                      ${graph.media-describe}/bin/media-describe \
                      ${graph.media-queue}/bin/media-worker \
