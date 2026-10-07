@@ -59,4 +59,75 @@
     ".local/state/nix-config-mcp-public"
     ".aws/sso/cache"
   ];
+
+  # ── The WIDER credential inventory, and the per-layer divergence ──────────
+  #
+  # WHY A SECOND TIER EXISTS. The lists above are denied at EVERY layer, because
+  # nothing legitimate reads them. These are different: they hold credentials, but
+  # some of them are also read by tools the fleet needs working. So each layer
+  # takes the subset it can AFFORD, and the point of putting them here is that the
+  # divergence is then visible in one file instead of being two lists that
+  # silently disagree.
+  #
+  # THEY SILENTLY DISAGREED, which is why this tier was added (2026-10-07). A
+  # /hygiene audit found `grok`'s sandbox.toml denying ~/.ssh while the
+  # desktop-commander Seatbelt fence left it READABLE — and `~/.ssh/id_ed25519` is
+  # the agenix OPERATOR identity (secrets/secrets.nix), the key
+  # `cloudflared-token.age` is encrypted to ALONE. Two mechanisms, one fact, no
+  # shared source, and the newer one was the weaker.
+  #
+  # EVERY ROW BELOW IS PRICED. Measured 2026-10-07 against the built profile, each
+  # rejection isolated against a control rather than assumed:
+  #
+  #   rule                     fence?  why
+  #   ~/.ssh/id_* (not .pub)   YES     free — SSH git ls-remote and `gh auth
+  #                                    status` both still work, because ssh reads
+  #                                    the key from the agent, not the file
+  #   ~/.docker                YES     free
+  #   **/*.pem, **/.env        YES     free
+  #   **/*.age                 NO      BREAKS `nix flake check` — evaluation reads
+  #                                    the ciphertexts. Isolated: dropping only
+  #                                    this rule makes the check pass again, and
+  #                                    the base fence passes too. Accepted,
+  #                                    because the KEY deny above already makes a
+  #                                    ciphertext useless on its own.
+  #   ~/.config/gh             NO      BREAKS `gh auth status`
+  #   ~/.aws (whole)           NO      blocks ~/.aws/config, which this fleet
+  #                                    documents reading; `.aws/sso/cache` is
+  #                                    already denied at every layer above
+  #
+  # grok's sandbox has no file-level granularity, so it denies whole directories.
+  # That is why it gets the wide list and Seatbelt gets the priced subset.
+
+  # Home-relative credential DIRECTORIES. grok denies all of these outright.
+  agentCredentialDirs = [
+    ".ssh"
+    ".aws"
+    ".docker"
+    ".config/gh"
+  ];
+
+  # Basename patterns at any depth. grok renders them `**/<glob>`.
+  agentCredentialGlobs = [
+    "*.pem"
+    "*.age"
+    ".env"
+  ];
+
+  # The Seatbelt subset, per the priced table above. Deliberately NOT derived by
+  # filtering the two lists above — a filter would go empty on a reword, the same
+  # objection claude-guardrails.nix records. These are stated, and each omission
+  # has its reason in the table.
+  fence = {
+    # Whole directories the fence can deny for free.
+    denyDirs = [ ".docker" ];
+    # Private key MATERIAL inside ~/.ssh. The public half is re-allowed by the
+    # renderer (last-match-wins), since `id_[^/]*` matches `id_x.pub` too.
+    privateKeyDir = ".ssh";
+    # Basename patterns the fence can afford — `*.age` is absent ON PURPOSE.
+    denyGlobs = [
+      "*.pem"
+      ".env"
+    ];
+  };
 }
