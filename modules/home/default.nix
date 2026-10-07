@@ -1074,6 +1074,11 @@ in
         # RESOLVABLE and enables nothing (#751/#754 learned that the hard way), so the
         # `declared` entry is what actually turns it on.
         "desktop-commander"
+        # Short video → looping GIF to a byte budget → Tenor/GIPHY over the Chrome
+        # DevTools Protocol (kattakath/skills#72). Its encoder is `media-gif` in this
+        # repo's media-cli capsule (#818); the plugin ships none of its own. ENABLED
+        # BELOW, for the same reason as desktop-commander.
+        "gif-meme"
       ];
     };
 
@@ -1217,6 +1222,12 @@ in
     # the launcher was on PATH, ~/.claude/settings.json held 45 enabledPlugins ids and
     # desktop-commander was NOT among them — the capability was installed and unusable.
     "desktop-commander@kattakath" = true;
+
+    # gif-meme (kattakath/skills#72): the recurring short-video → looping-GIF →
+    # Tenor/GIPHY flow, harvested 2026-10-07. Declared here rather than clicked so a
+    # fresh machine gets it with `media-gif` (media-cli capsule, #818) — the skill
+    # calls that command by name and is useless without it.
+    "gif-meme@kattakath" = true;
 
     # OFF since 2026-10-06, at the operator's judgement that the plugin was
     # inefficient in use. It was the one id here that changed EVERY session on this
