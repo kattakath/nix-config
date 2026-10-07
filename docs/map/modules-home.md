@@ -36,6 +36,15 @@ in the repo can catch that; see that fixture file's header for the measurement.
   `packages/spotlight-launchers.nix`, macos-only). The nine COMMAND bundles from the same
   package land via `./spotlight-actions.nix` instead — a separate module so the mapping is
   one `mapAttrs'` rather than nine more `home.file` lines here.
+  **Claude Code AGENT TEAMS is enabled here, in two halves that must both be set** —
+  `teammateMode = "tmux"` in the settings block (a real top-level settings key, so it goes
+  through `claude-code-settings.nix`'s layering like any other) and
+  `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"` in the session environment. The env var is the
+  gate and the mode is the backend: with the var unset the feature stays off whatever
+  `teammateMode` says, which is why neither half is meaningful alone. Spawned teammates
+  therefore run as **tmux panes** rather than in-process, so a session that uses them wants a
+  tmux-capable terminal. `EXPERIMENTAL` is upstream's word, not ours — the flag can disappear
+  under a `claude-code` bump, and nothing here pins it.
 - **`spotlight-actions.nix`** — macos-only: maps `spotlight-launchers`' `commandApps` **and**
   `aliasApps` into `~/Applications/<name>.app`. The one alias is **`Terminal`**, which opens
   Ghostty, and it works on the bundle's own NAME — verified: `mdfind` for an app named
