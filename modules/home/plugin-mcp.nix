@@ -175,9 +175,50 @@ let
         secretReadPaths.absolute ++ map (p: "${homeDirectory}/${p}") secretReadPaths.underHome
       )
     })
+
+    ;; ---- credential material the fence can deny FOR FREE ------------------
+    ;; The tier above is denied at every layer. This one is the priced subset of
+    ;; the wider credential inventory — see modules/_lib/secret-read-paths.nix for
+    ;; the per-rule table, including the two rules deliberately NOT here
+    ;; (`**/*.age` breaks `nix flake check`; `~/.config/gh` breaks `gh auth
+    ;; status`, both isolated against controls).
+    ;;
+    ;; THE ONE THAT MATTERS MOST is the private key. `~/.ssh/id_ed25519` is the
+    ;; agenix OPERATOR identity and `cloudflared-token.age` is encrypted to it
+    ;; alone, so leaving it readable meant the fence denied the DECRYPTED output
+    ;; (/run/agenix) while handing over the means to decrypt the ciphertext
+    ;; independently — and the ciphertexts live in `secrets/` inside the writable
+    ;; root. Denying the key is what makes a readable ciphertext harmless.
+    ;; MEASURED free: SSH `git ls-remote` and `gh auth status` both still work,
+    ;; because ssh takes the key from the agent rather than reading the file.
+    (deny file-read*
+    ${lib.concatMapStringsSep "\n" (
+      d: "  (subpath ${builtins.toJSON "${homeDirectory}/${d}"})"
+    ) secretReadPaths.fence.denyDirs}
+      (regex #"^${reEsc homeDirectory}/${reEsc secretReadPaths.fence.privateKeyDir}/id_[^/]*$")
+    ${
+      lib.concatMapStringsSep "\n" (g: "  (regex #\"/${globToRe g}$\")") secretReadPaths.fence.denyGlobs
+    })
+
+    ;; Re-allow the PUBLIC half — `id_[^/]*` above matches `id_x.pub` too, and the
+    ;; pubkey is not a secret (it is committed, as secrets/operator-key.nix).
+    ;; Last-match-wins is what makes this re-allow work at all.
+    (allow file-read*
+      (regex #"^${reEsc homeDirectory}/${reEsc secretReadPaths.fence.privateKeyDir}/id_[^/]*\.pub$"))
   '';
 
   secretReadPaths = import ../_lib/secret-read-paths.nix;
+
+  # SBPL regex helpers. Both exist because the first render of the credential
+  # block was WRONG in two ways that only reading the generated .sb revealed:
+  #   `lib.replaceStrings … "\\\\."` emitted `\\.` — a literal backslash followed
+  #   by any char — so the `*.pem` rule matched NOTHING. A deny that matches
+  #   nothing is not a weak rule but no rule, the third time that shape has
+  #   appeared in this fleet.
+  #   `${privateKeyDir}` interpolated `.ssh` raw, leaving `.` as "any character".
+  # Escape dots FIRST, then expand `*`, since `[^/]*` contains no dot of its own.
+  reEsc = lib.replaceStrings [ "." ] [ "\\." ];
+  globToRe = g: lib.replaceStrings [ "*" ] [ "[^/]*" ] (reEsc g);
 
   # The config desktop-commander would otherwise write for itself, declared.
   #
