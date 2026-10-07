@@ -48,6 +48,7 @@ let
   media-fix-extension = callPackage ./packages/media-fix-extension.nix { };
   media-transcode = callPackage ./packages/media-transcode.nix { };
   media-extract-audio = callPackage ./packages/media-extract-audio.nix { };
+  media-gif = callPackage ./packages/media-gif.nix { };
   media-fix = callPackage ./packages/media-fix.nix { inherit media-fix-extension media-transcode; };
   media-describe = callPackage ./packages/media-describe.nix (
     { inherit media-fix-extension; } // describeArgs
@@ -68,6 +69,7 @@ let
     inherit
       media-transcode
       media-extract-audio
+      media-gif
       media-fix-extension
       media-fix
       media-describe
@@ -80,6 +82,7 @@ in
     media-fix-extension
     media-transcode
     media-extract-audio
+    media-gif
     media-fix
     media-describe
     media-queue
