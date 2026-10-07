@@ -92,6 +92,38 @@ let
   # heavy darwin-only agents (RAG stack, MCP public tunnel extras) off any sandbox host.
   isMacosHost = (osConfig.networking.hostName or "") == "macos";
 
+  # The Infin8 org's checkout root — ONE source for the three things keyed on it:
+  # the git work identity (`programs.git.includes`), the folder-wide agent context
+  # (the `home.file` CLAUDE.md) and the Slack routing hook. `home.file` keys are
+  # home-relative, hence the two forms.
+  infin8RelDir = "Developer/github.com/Infin8-Information-Technologies";
+  infin8Root = "${config.home.homeDirectory}/${infin8RelDir}";
+
+  # Slack workspace routing for Claude Code, by folder — the agent analogue of the
+  # gitdir include above. Measured 2026-10-07: the `slack` plugin (mcp.slack.com) is
+  # signed in to Silver Creek, the claude.ai Slack connector to Infin8 IT, and both
+  # work in one session. A SECOND plugin server cannot carry Infin8: Claude Code
+  # "stores OAuth sign-ins per endpoint" (code.claude.com/docs/en/mcp), and both would
+  # be https://mcp.slack.com/mcp — one token, one Slack workspace. So the connector
+  # serves Infin8 folders and this PreToolUse hook keeps the plugin out of them.
+  # The connector is named by BEHAVIOUR, not by its server id: the id is account-
+  # specific (this repo is public) and changes if the connector is ever re-added.
+  # Fail-OPEN by design: unparseable input exits non-zero, which Claude Code treats
+  # as a non-blocking hook error — routing, not a security boundary.
+  slackWorkspaceRoute = pkgs.writeShellApplication {
+    name = "claude-slack-workspace-route";
+    runtimeInputs = [ pkgs.jq ];
+    text = ''
+      cwd=$(jq -r '.cwd // empty')
+      case "$cwd/" in
+        "${infin8Root}/"*)
+          jq -n --arg reason "This folder is Infin8 IT, and the slack plugin is signed in to Silver Creek. Use the claude.ai Slack connector instead: the slack_* tools whose prefix is NOT mcp__plugin_slack_slack__ (its slack_read_user_profile shows the Infin8 IT organization)." \
+            '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: $reason}}'
+          ;;
+      esac
+    '';
+  };
+
   # android-commandlinetools Homebrew cask install prefix — single source for
   # every ANDROID_HOME/PATH reference below (exported once as
   # config.home.sessionVariables.ANDROID_HOME, which the android-phone plugin's
@@ -1481,6 +1513,31 @@ in
     	email = ${googleAccount}
   '';
 
+  # ---- Infin8 folder: Claude Code context + Slack routing ----------------------
+  # Claude Code loads every CLAUDE.md "in the directory hierarchy above the working
+  # directory" at launch (code.claude.com/docs/en/memory), so ONE file at the org
+  # root reaches every clone and worktree under it, present and future — no per-repo
+  # edit, and nothing added to the team-shared repos themselves. The hook
+  # (`slackWorkspaceRoute`, let-block) is the enforcement; this file is the intent.
+  # Mac only: it is the sole host with ~/Developer checkouts.
+  home.file."${infin8RelDir}/CLAUDE.md" = lib.mkIf isMacosHost {
+    text = ''
+      # Infin8 Information Technologies: folder-wide agent context
+
+      Placed by Home Manager (`kattakath/nix-config`, `modules/home/default.nix`).
+      Every Claude Code session under this folder loads it.
+
+      ## Slack: use the Infin8 IT workspace
+
+      - Use the **claude.ai Slack connector**: the `slack_*` tools whose prefix is
+        **not** `mcp__plugin_slack_slack__`. Its `slack_read_user_profile` shows the
+        **Infin8 IT** organization.
+      - **Never** use the `slack` plugin (`mcp__plugin_slack_slack__*`) here. It is
+        signed in to **Silver Creek**. A PreToolUse hook denies it under this folder.
+      - If no connector Slack tools are loaded, say so. Do not fall back to the plugin.
+    '';
+  };
+
   # ---- Home Manager program modules --------------------------------------------
   programs = {
     # Let Home Manager manage itself.
@@ -1525,6 +1582,26 @@ in
       # the identical darwin gate — same target, one fewer duplicate-home.file
       # collision risk.
       context = ../../claude/CLAUDE.md;
+
+      # Slack workspace routing by folder: deny the Silver Creek `slack` plugin under
+      # the Infin8 root. The why is at `slackWorkspaceRoute` (let-block); the intent
+      # Claude reads is the Infin8 `home.file` CLAUDE.md. Same isMacosHost gate as it.
+      # This is the FIRST `settings.hooks` in the Nix floor, and ./claude-code-settings.nix
+      # merges arrays WHOLESALE (jq `*`): a PreToolUse hook added by hand to
+      # ~/.claude/settings.json is replaced at the next rebuild — declare it here instead.
+      # (Measured 2026-10-07: the live file had no `hooks` key, so nothing was lost.)
+      settings.hooks.PreToolUse = lib.mkIf isMacosHost [
+        {
+          matcher = "mcp__plugin_slack_slack__.*";
+          hooks = [
+            {
+              type = "command";
+              command = lib.getExe slackWorkspaceRoute;
+              timeout = 10;
+            }
+          ];
+        }
+      ];
 
       # Marketplaces and `settings.enabledPlugins` are NOT declared here — the
       # marketplace set is DATA (`local.claudePlugins.marketplaces` above) and its
@@ -1799,7 +1876,7 @@ in
       # silent no-op. Paths absolute under $HOME.
       includes = [
         {
-          condition = "gitdir:${config.home.homeDirectory}/Developer/github.com/Infin8-Information-Technologies/";
+          condition = "gitdir:${infin8Root}/";
           path = "${config.home.homeDirectory}/.config/git/infin8.inc";
         }
         # Both orgs author as the same SilverCreek identity: dontsell-ai is the agency,
