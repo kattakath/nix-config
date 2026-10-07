@@ -103,7 +103,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
       Derivation name == binary name for all three builders (`writeShellScriptBin` in
       `packages/keychain-mcp.nix` + `packages/gmail-mcp.nix`, `writeShellApplication` in
       `packages/mcpfinder-mcp.nix`), each emitting exactly one `$out/bin/<name>`.
-    - **Scope is the `nix-mcp-` prefix, and the exclusions are structural.** Of the 16 servers
+    - **Scope is the `nix-mcp-` prefix, and the exclusions are structural.** Of the 17 servers
       the plugins declare, 8 are out of this lane: `memory` and `chrome-devtools` are
       `${CLAUDE_PLUGIN_ROOT}`-relative, which expands **only** inside the owning plugin, so no
       PATH binary can exist for them even in principle; `mcp-nixos` and `terraform-mcp-server`
@@ -134,10 +134,21 @@ in the repo can catch that; see that fixture file's header for the measurement.
     (`packages/gmail-mcp.nix` — its own file because it materialises an OAuth keys FILE with
     `umask 077` set BEFORE creation, and derives a per-account `--tool-prefix`).
   - `local.pluginMcp.servers` → `nix-mcp-{wordpress,apify,postgres}`, the three CREDENTIALED
-    servers the purge left homeless. One generic `packages/keychain-mcp.nix` builds all three —
+    servers the purge left homeless, **plus `nix-mcp-desktop-commander` since 2026-10-07 (#811)**.
+    One generic `packages/keychain-mcp.nix` builds all four —
     it is the extracted form of the gateway's own `mkGeneratedStdio`, so there is no second copy
     of "export N variables, exec a pinned interpreter". It writes NO file, so it needs no umask;
     credentials reach the server through its environment, never argv.
+
+    **The fourth one is NOT credentialed, and that is the point.** `desktop-commander` reads no
+    secret at all; it is a PATH package because a plugin's `.mcp.json` cannot run
+    `sandbox-exec -f <profile>` any more than it can run a Keychain read. So the factory grew a
+    `sandboxProfile` parameter rather than a generic command prefix — the launcher execs
+    `/usr/bin/sandbox-exec` around the interpreter, and Seatbelt is inherited by every process
+    the server forks (measured with a grandchild). The profile is rendered by `plugin-mcp.nix`
+    into the store, so the thing it confines cannot rewrite it, and the server's own
+    `allowedDirectories` is explicitly NOT the boundary — upstream's SECURITY.md calls directory
+    restrictions "guardrails, not sandboxing", and an empty list means every path is allowed.
   - Secret handles (NAMES only; values stay in the login Keychain): `mcp:apify.com:token`,
     `mcp:silvercreek.ai:wp_url` / `:wp_user` / `:wp_app_password`. `postgres` needs none — its
     `DATABASE_URI` is the local-rag capsule's `local.rag.pgvector.databaseUri`, loopback `trust`

@@ -41,7 +41,7 @@ Claude Code spawns one stdio child PER SESSION  —  nothing shared, nothing lon
     answers, and it is a **procedure**, not a gate.
   - **the three non-`nix-mcp-` lanes**, excluded by construction: `${CLAUDE_PLUGIN_ROOT}`-relative
     commands (which expand only inside the owning plugin), bare nixpkgs binaries, and `npx`
-    invocations. Of the 16 servers the pinned plugins declare, 8 are out of scope this way — the
+    invocations. Of the 17 servers the pinned plugins declare, 8 are out of scope this way — the
     per-lane breakdown is in [`modules-home.md`](modules-home.md) § `gmail-mcp.nix` +
     `plugin-mcp.nix`.
   - **anything in a marketplace this repo does not pin.** The join covers `kattakath/skills`
@@ -132,9 +132,18 @@ and, above it on `macos`, root-owned managed scope in
 
 - **`stop-gate.js`** — Stop gate: blocks until configs evaluate clean.
 - **`pretooluse-bash-guard.js`** — `PreToolUse:Bash`: deterministic port of the
-  Cloudflare-API-call / Cloudflare-docs / desktop-commander-nudge / approved-CLI policy that
+  Cloudflare-API-call / Cloudflare-docs / approved-CLI policy that
   used to live as a `type: "prompt"` LLM-judged hook; see the file header for the 2026-08-19
-  incident that motivated the switch. Also carries **Rule 1c** (a `secret reveal` /
+  incident that motivated the switch. **Rule 3 — a nudge toward `mcp__desktop-commander__*`
+  for file/process listing — was DELETED 2026-10-07 (#812), and the reason is worth knowing:
+  it had inverted.** It was written when desktop-commander was one server behind the gateway,
+  on the argument that tool preference "is not a safety concern". Once the server was re-adopted
+  as the deliberate way AROUND the Bash tool, going through it bypassed this very hook, so the
+  nudge was steering routine work off the guarded path. It also named a prefix that cannot
+  exist (plugin tools are `mcp__plugin_<plugin>_<server>__<tool>`) and was the ONLY rule here
+  with no test coverage — which is how it inverted unnoticed. The opposite rule now lives in the
+  desktop-commander plugin, because superhook registers this hook with matcher `"Bash"` and it
+  therefore cannot see an MCP tool at all. Also carries **Rule 1c** (a `secret reveal` /
   `security …-w` that would print a secret VALUE into the transcript) and **Rule 1d** (any shape
   that BUILDS on nixpi — `--build-host <pi>`, `deploy --remote-build`, `ssh <pi> nix build`,
   `--builders ssh://<pi>`; the `--target-host` form is deliberately allowed, since it builds
