@@ -9,6 +9,7 @@
 #                                          about its content
 #   media-transcode <file>...              re-encode editor-hostile video
 #   media-extract-audio [--mp3|…] <file>…  pull out the audio track
+#   media-gif [--budget 1M] <video>        looping GIF that fits a byte budget
 #
 # THE NAMING SCHEME: one domain prefix, verb first, flat. `media` is the domain
 # word and stays bare, because a dispatcher named for its domain is the standard
@@ -107,6 +108,7 @@
   callPackage,
   media-transcode ? callPackage ./media-transcode.nix { },
   media-extract-audio ? callPackage ./media-extract-audio.nix { },
+  media-gif ? callPackage ./media-gif.nix { },
   media-fix-extension ? callPackage ./media-fix-extension.nix { },
   media-fix ? callPackage ./media-fix.nix { },
   media-describe ? callPackage ./media-describe.nix { },
@@ -117,13 +119,14 @@ symlinkJoin {
   paths = [
     media-transcode
     media-extract-audio
+    media-gif
     media-fix-extension
     media-fix
     media-describe
     media
   ];
   meta = {
-    description = "Local media-file CLIs: media-transcode (re-encode editor-hostile video), media-extract-audio (pull out the audio track) media-fix-extension (rename files whose extension lies about their content), media-fix (repair a media file by class) and media-describe (write an image's description/keywords into its own XMP)";
+    description = "Local media-file CLIs: media-transcode (re-encode editor-hostile video), media-extract-audio (pull out the audio track), media-gif (looping GIF from a short video, to a byte budget), media-fix-extension (rename files whose extension lies about their content), media-fix (repair a media file by class) and media-describe (write an image's description/keywords into its own XMP)";
     # `media`, not the first member alphabetically. The bundle's entry point is
     # the dispatcher — that is what `nix run` on this package should give you.
     mainProgram = "media";
