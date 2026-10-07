@@ -2799,7 +2799,7 @@ in
           # plugin names is a capability the operator believes is wired and is not.
           #
           # SCOPE IS THE `nix-mcp-` PREFIX, because the prefix IS this lane. At the
-          # pinned rev the plugins name 16 servers; the other 8 are out of scope for
+          # pinned rev the plugins name 17 servers; the other 8 are out of scope for
           # reasons that are structural, not an oversight:
           #   ${CLAUDE_PLUGIN_ROOT}/…  `memory`, `chrome-devtools` — that variable
           #                            expands ONLY inside the owning plugin, so no

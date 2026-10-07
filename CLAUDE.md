@@ -219,8 +219,9 @@ deliberate, not drift.
 proxy here, no `mcp.<domainName>/mcp`, Cloudflare stack destroyed. `modules/shared/mcp.nix` and
 `infra/cloudflare/mcp-public.nix` are DELETED (#734, #737) — if a doc still describes them
 as live, the doc is stale, not the code.
-Servers come from an enabled plugin's `.mcp.json`; a launcher needing a Keychain read is a PATH
-package (`local.gmailMcp`, `local.pluginMcp`). **Claude Desktop loads no plugins, so it has NO MCP servers** — an
+Servers come from an enabled plugin's `.mcp.json`; a launcher doing what a JSON file CANNOT — a
+Keychain read, or `sandbox-exec -f` — is a PATH package (`local.gmailMcp`, `local.pluginMcp`;
+`desktop-commander` is the fenced, credential-FREE case). **Claude Desktop loads no plugins, so it has NO MCP servers** — an
 empty block, asserted by `checks.*.claude-desktop-config-shape`.
 [`docs/mcp-gateway.md`](docs/mcp-gateway.md).
 
