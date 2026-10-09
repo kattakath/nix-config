@@ -99,7 +99,7 @@ jobs:
       # hosts themselves use (modules/nixos/nix-cache.nix). Determinate Nix
       # lists it as a TRUSTED substituter but not an active one, so the line
       # is still needed.
-      - uses: DeterminateSystems/determinate-nix-action@8d87e8d5e5b8a8309d4281094560f127d9a265f1 # v3.22.5
+      - uses: DeterminateSystems/determinate-nix-action@4d65ea9cab522b6d9f29a170aed23ededc1b27af # v3.23.0
         with:
           extra-conf: |
             extra-substituters = https://kattakath.cachix.org https://install.determinate.systems
