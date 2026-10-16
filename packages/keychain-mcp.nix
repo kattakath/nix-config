@@ -47,6 +47,10 @@
   name,
   # "npx" or "uvx" — the two the catalog's stdio entries use. Resolved to a store path
   # here, mirroring the purged gateway's `resolveCatalogCommand`.
+  # OR a Nix-built server package (one with `meta.mainProgram`), exec'd directly with
+  # `args`. Added 2026-10-16 for slack-mcp-server, which nixpkgs does not ship and npm
+  # only wraps a prebuilt Go binary; building it here keeps the server inside the closure
+  # while reusing this factory's Keychain read instead of a sixth copy of it.
   interpreter,
   # Full argument vector for that interpreter, INCLUDING this fleet's version/interpreter
   # pins. Pins are not cosmetic: an unpinned `uvx postgres-mcp` was measured to break two
@@ -85,14 +89,17 @@
   sandboxProfile ? null,
 }:
 let
+  isPackage = lib.isDerivation interpreter;
   runtime =
-    if interpreter == "npx" then
+    if isPackage then
+      interpreter
+    else if interpreter == "npx" then
       nodejs
     else if interpreter == "uvx" then
       uv
     else
-      throw "packages/keychain-mcp.nix: unknown interpreter '${interpreter}' for ${name} (only npx/uvx are resolved; anything else needs its own launcher, same as gmail)";
-  command = lib.getExe' runtime interpreter;
+      throw "packages/keychain-mcp.nix: unknown interpreter '${interpreter}' for ${name} (only npx/uvx or a Nix-built package are resolved; anything else needs its own launcher, same as gmail)";
+  command = if isPackage then lib.getExe interpreter else lib.getExe' runtime interpreter;
 in
 writeShellScriptBin "nix-mcp-${name}" ''
   set -u
