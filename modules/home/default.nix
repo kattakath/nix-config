@@ -186,6 +186,86 @@ let
     '';
   };
 
+  # AWS account routing for Claude Code, by folder — the same split as
+  # `slackWorkspaceRoute`, for the same reason: two plugin servers, one name each.
+  #   `aws-core@claude-plugins-official`  mcp__plugin_aws-core_aws-mcp__*    UNSIGNED
+  #   `aws-infin8@kattakath`              mcp__plugin_aws-infin8_aws-mcp__*  Infin8 SSO
+  # Both run the same pinned proxy (mcp-proxy-for-aws-cli==1.7.0). aws-core passes
+  # `--skip-auth`, so its AWS calls are unsigned; aws-infin8 passes
+  # `--profile infin8-takeoff-sdlc infin8it-takeoff-prod` (sdlc default, prod only by
+  # an explicit `aws_profile`), measured 2026-10-16 returning AdministratorAccess in
+  # each account. Under the Infin8 root aws-core's server is denied with a redirect, so
+  # the model never reaches for the unsigned twin; outside it aws-infin8 is denied, so
+  # production admin is not one tool call away from an unrelated project. Fail-OPEN
+  # like the Slack hook: routing, not a security boundary.
+  awsAccountRoute = pkgs.writeShellApplication {
+    name = "claude-aws-account-route";
+    runtimeInputs = [ pkgs.jq ];
+    text = ''
+      input=$(cat)
+      cwd=$(jq -r '.cwd // empty' <<<"$input")
+      tool=$(jq -r '.tool_name // empty' <<<"$input")
+      deny() {
+        jq -n --arg reason "$1" \
+          '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: $reason}}'
+      }
+      in_infin8=false
+      case "$cwd/" in "${infin8Root}/"*) in_infin8=true ;; esac
+      case "$tool" in
+        mcp__plugin_aws-core_aws-mcp__*)
+          if $in_infin8; then
+            deny "aws-core's AWS MCP server runs with --skip-auth, so its AWS calls are unsigned. Under the Infin8 folder use the same tool from aws-infin8 instead: prefix mcp__plugin_aws-infin8_aws-mcp__ (SDLC by default; pass aws_profile=infin8it-takeoff-prod for production)."
+          fi
+          ;;
+        mcp__plugin_aws-infin8_*)
+          if ! $in_infin8; then
+            deny "aws-infin8 holds Infin8 IT AdministratorAccess (SDLC and production) and is only for folders under ${infin8Root}."
+          fi
+          ;;
+      esac
+    '';
+  };
+
+  # Infin8 AWS SSO freshness, at SessionStart under the Infin8 root only. Both
+  # profiles share ONE Identity Center session (`sso-session infin8`), whose lifetime
+  # is set in Identity Center (7 days interactive, read 2026-10-16) — role credentials
+  # refresh on their own inside it, so the only thing that can lapse is that session.
+  # This checks both profiles in parallel with `sts get-caller-identity` (the CLI reads
+  # its own cache; nothing here reads a token) and tells the agent which one is stale
+  # and the one command that fixes it. Silent outside the root, and silent-on-success
+  # apart from one line, so it costs a session nothing but ~1-2 s of STS round trips.
+  infin8AwsSsoCheck = pkgs.writeShellApplication {
+    name = "claude-infin8-aws-sso-check";
+    runtimeInputs = [
+      pkgs.jq
+      pkgs.awscli2
+      pkgs.coreutils
+    ];
+    text = ''
+      input=$(cat)
+      cwd=$(jq -r '.cwd // empty' <<<"$input")
+      case "$cwd/" in "${infin8Root}/"*) ;; *) exit 0 ;; esac
+      tmp=$(mktemp -d)
+      trap 'rm -rf "$tmp"' EXIT
+      profiles=(infin8-takeoff-sdlc infin8it-takeoff-prod)
+      for p in "''${profiles[@]}"; do
+        ( timeout 15 aws sts get-caller-identity --profile "$p" \
+            --query Arn --output text >"$tmp/$p" 2>/dev/null || echo FAIL >"$tmp/$p" ) &
+      done
+      wait
+      ok=() stale=()
+      for p in "''${profiles[@]}"; do
+        if grep -q '^arn:aws:sts::.*AdministratorAccess' "$tmp/$p"; then ok+=("$p"); else stale+=("$p"); fi
+      done
+      if [ "''${#stale[@]}" -eq 0 ]; then
+        msg="Infin8 AWS SSO: OK, AdministratorAccess on ''${ok[*]} (aws-infin8 MCP is signed)."
+      else
+        msg="Infin8 AWS SSO: STALE for ''${stale[*]}. The aws-infin8 MCP server and the aws CLI will fail for those profiles. Fix: run \`aws sso login --sso-session infin8\` yourself (it opens the browser for the operator), then re-check with \`aws sts get-caller-identity --profile <p>\`."
+      fi
+      jq -n --arg m "$msg" '{hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: $m}}'
+    '';
+  };
+
   # android-commandlinetools Homebrew cask install prefix — single source for
   # every ANDROID_HOME/PATH reference below (exported once as
   # config.home.sessionVariables.ANDROID_HOME, which the android-phone plugin's
@@ -822,6 +902,26 @@ in
         # RESEND_API_KEY from the Keychain — the two are independent auth paths to the same
         # Resend account (used by dontsell-ai/app's outbound/inbound email).
         "resend"
+        # AWS's OFFICIAL plugins (git-subdir of aws/agent-toolkit-for-aws and
+        # awslabs/agent-plugins, pinned by the marketplace sha). Read at those shas
+        # 2026-10-16, not from the descriptions:
+        #   aws-core          17 AWS skills + a secret-safety PreToolUse hook + `aws-mcp`,
+        #                     the AWS MCP Server proxy pinned at ==1.7.0 but run with
+        #                     --skip-auth: docs/skill tools work, AWS API calls are
+        #                     UNSIGNED. The signed twin is `aws-infin8@kattakath`, and
+        #                     `awsAccountRoute` (let-block) denies this one under the
+        #                     Infin8 root so the model never picks the unsigned server.
+        #   aws-serverless    7 Lambda/SAM/Step Functions skills + a SAM-validate
+        #                     PostToolUse hook + `awslabs.aws-serverless-mcp-server@latest
+        #                     --allow-write`. UNPINNED (PyPI @latest at every spawn) and
+        #                     write-enabled; enabled at the operator's call 2026-10-16.
+        #                     It uses the default credential chain, and ~/.aws/config has
+        #                     no default profile, so its AWS calls are unauthenticated.
+        #   databases-on-aws  one skill (Aurora DSQL only), the public awsknowledge docs
+        #                     server, and two servers shipped `disabled: true`.
+        "aws-core"
+        "aws-serverless"
+        "databases-on-aws"
         # Anthropic first-party skill-creator: drafts a skill, runs with/without-skill evals
         # and optimizes its description so it triggers. kattakath/skills' `harvest` hands its
         # drafting and testing step to it (kattakath/skills#10) and keeps triage, stripping
@@ -1131,6 +1231,12 @@ in
         # `slack-infin8` instead, so each workspace is one plugin prefix for the routing hook.
         "slack-silvercreek"
 
+        # aws-infin8 (kattakath/skills#77): the AWS MCP Server, SIGNED with the Infin8 IT
+        # SSO profiles — `infin8-takeoff-sdlc` by default, `infin8it-takeoff-prod` only by
+        # an explicit `aws_profile`. The same pinned proxy as aws-core's, minus --skip-auth.
+        # Infin8-root only, by `awsAccountRoute`; SSO freshness by `infin8AwsSsoCheck`.
+        "aws-infin8"
+
         # Shell + filesystem tools that run OUTSIDE Claude Code's Bash tool, which is
         # the one thing they are for: a worktree-isolated session whose worktree was
         # DELETED refuses every Bash call, spawned agents inherit the lock, and
@@ -1312,6 +1418,16 @@ in
     # slack-silvercreek: Silver Creek's user-token posting server, `nix-mcp-slack-silvercreek`
     # (modules/home/plugin-mcp.nix). Allowed outside the Infin8 root, denied under it.
     "slack-silvercreek@kattakath" = true;
+
+    # AWS, decided by the operator 2026-10-16: AdministratorAccess on the Infin8 SDLC and
+    # production accounts, through MCP, under the Infin8 root. aws-infin8 is the signed
+    # server; the three official plugins bring the skills (catalogue entries above say
+    # what each one really ships). Declared, not clicked, for the reason the block above
+    # records: a clicked toggle does not survive a fresh machine.
+    "aws-infin8@kattakath" = true;
+    "aws-core@claude-plugins-official" = true;
+    "aws-serverless@claude-plugins-official" = true;
+    "databases-on-aws@claude-plugins-official" = true;
 
     # OFF since 2026-10-06, at the operator's judgement that the plugin was
     # inefficient in use. It was the one id here that changed EVERY session on this
@@ -1633,6 +1749,19 @@ in
       - **Never** use the `slack` plugin (`mcp__plugin_slack_slack__*`) here. It is signed
         in to **Silver Creek**. A PreToolUse hook denies it under this folder (and denies
         `slack-infin8` outside it).
+
+      ## AWS: use the `aws-infin8` MCP server (AdministratorAccess, SSO)
+
+      - Tools prefixed `mcp__plugin_aws-infin8_aws-mcp__` are signed with Identity
+        Center SSO. **SDLC (`infin8-takeoff-sdlc`) is the default**; production needs an
+        explicit `aws_profile: "infin8it-takeoff-prod"` on the call.
+      - **Never** use `mcp__plugin_aws-core_aws-mcp__*` here: it runs `--skip-auth`, so its
+        AWS calls are unsigned. A PreToolUse hook denies it under this folder (and denies
+        `aws-infin8` outside it). aws-core's **skills** are fine to use.
+      - The `aws` CLI uses the same two profiles. A SessionStart hook reports whether
+        both are fresh. If either is STALE, run `aws sso login --sso-session infin8`
+        yourself; it opens the browser for the operator. The Identity Center session lasts
+        7 days, and role credentials refresh on their own inside it.
     '';
   };
 
@@ -1708,6 +1837,32 @@ in
               type = "command";
               command = lib.getExe slackNoFooter;
               timeout = 10;
+            }
+          ];
+        }
+        # AWS account routing by folder: the signed aws-infin8 server only under the
+        # Infin8 root, aws-core's unsigned one never there. Why: `awsAccountRoute`.
+        {
+          matcher = "^mcp__plugin_aws-(infin8|core)_aws-mcp__.*";
+          hooks = [
+            {
+              type = "command";
+              command = lib.getExe awsAccountRoute;
+              timeout = 10;
+            }
+          ];
+        }
+      ];
+
+      # Infin8 AWS SSO freshness at session start, under the Infin8 root only. Why:
+      # `infin8AwsSsoCheck` (let-block). Same wholesale-merge caveat as PreToolUse above.
+      settings.hooks.SessionStart = lib.mkIf isMacosHost [
+        {
+          hooks = [
+            {
+              type = "command";
+              command = lib.getExe infin8AwsSsoCheck;
+              timeout = 40;
             }
           ];
         }
