@@ -100,25 +100,43 @@ let
   infin8Root = "${config.home.homeDirectory}/${infin8RelDir}";
 
   # Slack workspace routing for Claude Code, by folder — the agent analogue of the
-  # gitdir include above. Measured 2026-10-07: the `slack` plugin (mcp.slack.com) is
-  # signed in to Silver Creek, the claude.ai Slack connector to Infin8 IT, and both
-  # work in one session. A SECOND plugin server cannot carry Infin8: Claude Code
-  # "stores OAuth sign-ins per endpoint" (code.claude.com/docs/en/mcp), and both would
-  # be https://mcp.slack.com/mcp — one token, one Slack workspace. So the connector
-  # serves Infin8 folders and this PreToolUse hook keeps the plugin out of them.
-  # The connector is named by BEHAVIOUR, not by its server id: the id is account-
-  # specific (this repo is public) and changes if the connector is ever re-added.
+  # gitdir include above. Two plugin servers, two Slack sign-ins:
+  #   `slack@claude-plugins-official`  mcp__plugin_slack_slack__*        Silver Creek
+  #   `slack-infin8@kattakath`         mcp__plugin_slack-infin8_slack__* Infin8 IT
+  # Both point at https://mcp.slack.com/mcp with the same OAuth client. That works
+  # because Claude Code keys an MCP sign-in by SERVER NAME plus a config hash, not by
+  # URL — read at the source, 2.1.295: `function zl(e,n){… sha256({type,url,headers})
+  # .substring(0,16); return `${e}|${s}`}` builds the `mcpOAuth` key. (The 2026-10-07
+  # note here said "one token per endpoint", from the docs' wording; the code says
+  # otherwise, and the second plugin exists because of it.)
+  # This PreToolUse hook enforces the folder split both ways: the Silver Creek plugin
+  # is denied under the Infin8 root, the Infin8 plugin everywhere else. The claude.ai
+  # Slack connector is also Infin8 IT and stays allowed under the root.
   # Fail-OPEN by design: unparseable input exits non-zero, which Claude Code treats
   # as a non-blocking hook error — routing, not a security boundary.
   slackWorkspaceRoute = pkgs.writeShellApplication {
     name = "claude-slack-workspace-route";
     runtimeInputs = [ pkgs.jq ];
     text = ''
-      cwd=$(jq -r '.cwd // empty')
-      case "$cwd/" in
-        "${infin8Root}/"*)
-          jq -n --arg reason "This folder is Infin8 IT, and the slack plugin is signed in to Silver Creek. Use the claude.ai Slack connector instead: the slack_* tools whose prefix is NOT mcp__plugin_slack_slack__ (its slack_read_user_profile shows the Infin8 IT organization)." \
-            '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: $reason}}'
+      input=$(cat)
+      cwd=$(jq -r '.cwd // empty' <<<"$input")
+      tool=$(jq -r '.tool_name // empty' <<<"$input")
+      deny() {
+        jq -n --arg reason "$1" \
+          '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: $reason}}'
+      }
+      in_infin8=false
+      case "$cwd/" in "${infin8Root}/"*) in_infin8=true ;; esac
+      case "$tool" in
+        mcp__plugin_slack_slack__*)
+          if $in_infin8; then
+            deny "This folder is Infin8 IT, and the slack plugin is signed in to Silver Creek. Use the Infin8 IT sign-in instead: the same tool with the prefix mcp__plugin_slack-infin8_slack__ (or the claude.ai Slack connector)."
+          fi
+          ;;
+        mcp__plugin_slack-infin8_slack__*)
+          if ! $in_infin8; then
+            deny "slack-infin8 is the Infin8 IT workspace and is only for folders under ${infin8Root}. Here, use the slack plugin (mcp__plugin_slack_slack__)."
+          fi
           ;;
       esac
     '';
@@ -1058,6 +1076,12 @@ in
         # field-splitting case — was closed as not planned.
         "silent-instruments"
 
+        # slack-infin8: a second mcp.slack.com sign-in, for the Infin8 IT workspace, next to
+        # the official `slack` plugin's Silver Creek one. Which folder may use which is the
+        # PreToolUse hook at `slackWorkspaceRoute` (let-block), which says why two
+        # sign-ins to one URL can coexist.
+        "slack-infin8"
+
         # Shell + filesystem tools that run OUTSIDE Claude Code's Bash tool, which is
         # the one thing they are for: a worktree-isolated session whose worktree was
         # DELETED refuses every Bash call, spawned agents inherit the lock, and
@@ -1228,6 +1252,13 @@ in
     # fresh machine gets it with `media-gif` (media-cli capsule, #818) — the skill
     # calls that command by name and is useless without it.
     "gif-meme@kattakath" = true;
+
+    # slack-infin8: the Infin8 IT Slack sign-in (infin8-it.slack.com). Declared, not
+    # clicked, because the folder-routing hook (`slackWorkspaceRoute`) denies the Silver
+    # Creek `slack` plugin under the Infin8 root: without this id enabled, Infin8 folders
+    # would have no plugin Slack at all. Sign-in is a one-time `/mcp` OAuth as
+    # ismailk@infin8it.ca; the token lives in Claude Code's own store, not in Nix.
+    "slack-infin8@kattakath" = true;
 
     # OFF since 2026-10-06, at the operator's judgement that the plugin was
     # inefficient in use. It was the one id here that changed EVERY session on this
@@ -1538,14 +1569,17 @@ in
       Placed by Home Manager (`kattakath/nix-config`, `modules/home/default.nix`).
       Every Claude Code session under this folder loads it.
 
-      ## Slack: use the Infin8 IT workspace
+      ## Slack: use the Infin8 IT workspace (infin8-it.slack.com)
 
-      - Use the **claude.ai Slack connector**: the `slack_*` tools whose prefix is
-        **not** `mcp__plugin_slack_slack__`. Its `slack_read_user_profile` shows the
-        **Infin8 IT** organization.
-      - **Never** use the `slack` plugin (`mcp__plugin_slack_slack__*`) here. It is
-        signed in to **Silver Creek**. A PreToolUse hook denies it under this folder.
-      - If no connector Slack tools are loaded, say so. Do not fall back to the plugin.
+      - Use the **`slack-infin8` plugin**: tools prefixed `mcp__plugin_slack-infin8_slack__`.
+        It is signed in to **Infin8 IT**; check with its `slack_read_user_profile`.
+        Not signed in yet? Run `/mcp`, pick `plugin:slack-infin8:slack`, Authenticate,
+        and choose infin8-it.slack.com as `ismailk@infin8it.ca`.
+      - The **claude.ai Slack connector** (`slack_*` tools with neither plugin prefix) is
+        also Infin8 IT and is fine to use.
+      - **Never** use the `slack` plugin (`mcp__plugin_slack_slack__*`) here. It is signed
+        in to **Silver Creek**. A PreToolUse hook denies it under this folder (and denies
+        `slack-infin8` outside it).
     '';
   };
 
@@ -1603,7 +1637,7 @@ in
       # (Measured 2026-10-07: the live file had no `hooks` key, so nothing was lost.)
       settings.hooks.PreToolUse = lib.mkIf isMacosHost [
         {
-          matcher = "mcp__plugin_slack_slack__.*";
+          matcher = "mcp__plugin_slack(-infin8)?_slack__.*";
           hooks = [
             {
               type = "command";
