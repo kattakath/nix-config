@@ -100,25 +100,43 @@ let
   clientRoot = "${config.home.homeDirectory}/${clientRoot}";
 
   # Slack workspace routing for Claude Code, by folder — the agent analogue of the
-  # gitdir include above. Measured 2026-10-07: the `slack` plugin (mcp.slack.com) is
-  # signed in to REDACTED, the claude.ai Slack connector to REDACTED IT, and both
-  # work in one session. A SECOND plugin server cannot carry REDACTED: Claude Code
-  # "stores OAuth sign-ins per endpoint" (code.claude.com/docs/en/mcp), and both would
-  # be https://mcp.slack.com/mcp — one token, one Slack workspace. So the connector
-  # serves REDACTED folders and this PreToolUse hook keeps the plugin out of them.
-  # The connector is named by BEHAVIOUR, not by its server id: the id is account-
-  # specific (this repo is public) and changes if the connector is ever re-added.
+  # gitdir include above. Two plugin servers, two Slack sign-ins:
+  #   `slack@claude-plugins-official`  mcp__plugin_slack_slack__*        REDACTED
+  #   `REDACTED@kattakath`         mcp__plugin_REDACTED_slack__* REDACTED IT
+  # Both point at https://mcp.slack.com/mcp with the same OAuth client. That works
+  # because Claude Code keys an MCP sign-in by SERVER NAME plus a config hash, not by
+  # URL — read at the source, 2.1.295: `function zl(e,n){… sha256({type,url,headers})
+  # .substring(0,16); return `${e}|${s}`}` builds the `mcpOAuth` key. (The 2026-10-07
+  # note here said "one token per endpoint", from the docs' wording; the code says
+  # otherwise, and the second plugin exists because of it.)
+  # This PreToolUse hook enforces the folder split both ways: the REDACTED plugin
+  # is denied under the REDACTED root, the REDACTED plugin everywhere else. The claude.ai
+  # Slack connector is also REDACTED IT and stays allowed under the root.
   # Fail-OPEN by design: unparseable input exits non-zero, which Claude Code treats
   # as a non-blocking hook error — routing, not a security boundary.
   slackWorkspaceRoute = pkgs.writeShellApplication {
     name = "claude-slack-workspace-route";
     runtimeInputs = [ pkgs.jq ];
     text = ''
-      cwd=$(jq -r '.cwd // empty')
-      case "$cwd/" in
-        "${clientRoot}/"*)
-          jq -n --arg reason "This folder is REDACTED IT, and the slack plugin is signed in to REDACTED Use the claude.ai Slack connector instead: the slack_* tools whose prefix is NOT mcp__plugin_slack_slack__ (its slack_read_user_profile shows the REDACTED IT organization)." \
-            '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: $reason}}'
+      input=$(cat)
+      cwd=$(jq -r '.cwd // empty' <<<"$input")
+      tool=$(jq -r '.tool_name // empty' <<<"$input")
+      deny() {
+        jq -n --arg reason "$1" \
+          '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: $reason}}'
+      }
+      in_client=false
+      case "$cwd/" in "${clientRoot}/"*) in_client=true ;; esac
+      case "$tool" in
+        mcp__plugin_slack_slack__*)
+          if $in_client; then
+            deny "This folder is REDACTED IT, and the slack plugin is signed in to REDACTED Use the REDACTED IT sign-in instead: the same tool with the prefix mcp__plugin_REDACTED_slack__ (or the claude.ai Slack connector)."
+          fi
+          ;;
+        mcp__plugin_REDACTED_slack__*)
+          if ! $in_client; then
+            deny "REDACTED is the REDACTED IT workspace and is only for folders under ${clientRoot}. Here, use the slack plugin (mcp__plugin_slack_slack__)."
+          fi
           ;;
       esac
     '';
@@ -1058,6 +1076,12 @@ in
         # field-splitting case — was closed as not planned.
         "silent-instruments"
 
+        # REDACTED: a second mcp.slack.com sign-in, for the REDACTED IT workspace, next to
+        # the official `slack` plugin's REDACTED one. Which folder may use which is the
+        # PreToolUse hook at `slackWorkspaceRoute` (let-block), which says why two
+        # sign-ins to one URL can coexist.
+        "REDACTED"
+
         # Shell + filesystem tools that run OUTSIDE Claude Code's Bash tool, which is
         # the one thing they are for: a worktree-isolated session whose worktree was
         # DELETED refuses every Bash call, spawned agents inherit the lock, and
@@ -1228,6 +1252,13 @@ in
     # fresh machine gets it with `media-gif` (media-cli capsule, #818) — the skill
     # calls that command by name and is useless without it.
     "gif-meme@kattakath" = true;
+
+    # REDACTED: the REDACTED IT Slack sign-in (REDACTED). Declared, not
+    # clicked, because the folder-routing hook (`slackWorkspaceRoute`) denies the Silver
+    # Creek `slack` plugin under the REDACTED root: without this id enabled, REDACTED folders
+    # would have no plugin Slack at all. Sign-in is a one-time `/mcp` OAuth as
+    # REDACTED; the token lives in Claude Code's own store, not in Nix.
+    "REDACTED@kattakath" = true;
 
     # OFF since 2026-10-06, at the operator's judgement that the plugin was
     # inefficient in use. It was the one id here that changed EVERY session on this
@@ -1538,14 +1569,17 @@ in
       Placed by Home Manager (`kattakath/nix-config`, `modules/home/default.nix`).
       Every Claude Code session under this folder loads it.
 
-      ## Slack: use the REDACTED IT workspace
+      ## Slack: use the REDACTED IT workspace (REDACTED)
 
-      - Use the **claude.ai Slack connector**: the `slack_*` tools whose prefix is
-        **not** `mcp__plugin_slack_slack__`. Its `slack_read_user_profile` shows the
-        **REDACTED IT** organization.
-      - **Never** use the `slack` plugin (`mcp__plugin_slack_slack__*`) here. It is
-        signed in to **REDACTED**. A PreToolUse hook denies it under this folder.
-      - If no connector Slack tools are loaded, say so. Do not fall back to the plugin.
+      - Use the **`REDACTED` plugin**: tools prefixed `mcp__plugin_REDACTED_slack__`.
+        It is signed in to **REDACTED IT**; check with its `slack_read_user_profile`.
+        Not signed in yet? Run `/mcp`, pick `plugin:REDACTED:slack`, Authenticate,
+        and choose REDACTED as `REDACTED`.
+      - The **claude.ai Slack connector** (`slack_*` tools with neither plugin prefix) is
+        also REDACTED IT and is fine to use.
+      - **Never** use the `slack` plugin (`mcp__plugin_slack_slack__*`) here. It is signed
+        in to **REDACTED**. A PreToolUse hook denies it under this folder (and denies
+        `REDACTED` outside it).
     '';
   };
 
@@ -1603,7 +1637,7 @@ in
       # (Measured 2026-10-07: the live file had no `hooks` key, so nothing was lost.)
       settings.hooks.PreToolUse = lib.mkIf isMacosHost [
         {
-          matcher = "mcp__plugin_slack_slack__.*";
+          matcher = "mcp__plugin_slack(-REDACTED)?_slack__.*";
           hooks = [
             {
               type = "command";
