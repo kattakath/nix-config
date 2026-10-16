@@ -392,7 +392,32 @@ let
       ];
       sandboxProfile = desktopCommanderProfile;
     };
-  };
+  }
+  # Slack, posting as the operator: one server per workspace, each with its own user
+  # token (xoxp), so a post carries no `Sent using Claude` footer (see
+  # packages/slack-mcp-server.nix for why the hosted server cannot do this). The plugin
+  # that names each binary is the plugin for that workspace (`slack-infin8`,
+  # `slack-silvercreek` in github:kattakath/skills), so the Infin8/Silver Creek folder
+  # routing hook in ./default.nix covers these by plugin prefix.
+  #
+  # Posting to every channel and every upstream tool are the operator's choices
+  # (2026-10-16), over a channel allowlist and a post-only tool set. Per-workspace
+  # caches cannot collide: upstream keys them by team id (pkg/provider/api.go:706).
+  // lib.genAttrs [ "slack-infin8" "slack-silvercreek" ] (
+    name:
+    let
+      host = if name == "slack-infin8" then "infin8-it.slack.com" else "silvercreekinsights.slack.com";
+    in
+    {
+      interpreter = pkgs.callPackage ../../packages/slack-mcp-server.nix { };
+      args = [
+        "--transport"
+        "stdio"
+      ];
+      keychainEnv.SLACK_MCP_XOXP_TOKEN = "mcp:${host}:xoxp";
+      plainEnv.SLACK_MCP_ADD_MESSAGE_TOOL = "true";
+    }
+  );
 in
 {
   options.local.pluginMcp.servers = lib.mkOption {
@@ -413,7 +438,8 @@ in
       identity, not fleet shape — a template consumer wants the mechanism without
       inheriting someone else's WordPress site or Apify billing.
 
-      Credentials come from the login Keychain at launch (`wordpress`, `apify`), so no
+      Credentials come from the login Keychain at launch (`wordpress`, `apify`, the two
+      `slack-*` user tokens), so no
       secret is in the store or in this list. `postgres` needs none — its URI is
       loopback `trust` — and neither does `desktop-commander`, which is here for its
       Seatbelt fence rather than for a credential.
