@@ -1239,6 +1239,12 @@ in
         # REDACTED only, by `awsAccountRoute`; SSO freshness by `clientRoot`.
         "REDACTED"
 
+        # github-gh (kattakath/skills#78): github/github-mcp-server, all toolsets, on the
+        # gh CLI's own token via the `nix-mcp-github` launcher (./plugin-mcp.nix). One
+        # GitHub credential for gh and MCP; the official `github` plugin would need a PAT
+        # in Claude Code's own environment instead.
+        "github-gh"
+
         # Shell + filesystem tools that run OUTSIDE Claude Code's Bash tool, which is
         # the one thing they are for: a worktree-isolated session whose worktree was
         # DELETED refuses every Bash call, spawned agents inherit the lock, and
@@ -1427,6 +1433,8 @@ in
     # what each one really ships). Declared, not clicked, for the reason the block above
     # records: a clicked toggle does not survive a fresh machine.
     "REDACTED@kattakath" = true;
+    # GitHub over MCP with gh's token and scopes (operator decision 2026-10-16).
+    "github-gh@kattakath" = true;
     "aws-core@claude-plugins-official" = true;
     "aws-serverless@claude-plugins-official" = true;
     # OFF, 2026-10-16, the same day it went on. Its `.mcp.json` ships `aurora-dsql` and
@@ -1770,6 +1778,16 @@ in
         both are fresh. If either is STALE, run `aws sso login --sso-session REDACTED`
         yourself; it opens the browser for the operator. The Identity Center session lasts
         7 days, and role credentials refresh on their own inside it.
+
+      ## GitHub: `gh` and the `github-gh` MCP server share one token
+
+      - MCP tools prefixed `mcp__plugin_github-gh_github__` run github-mcp-server (all
+        toolsets) on `gh auth token`, so they have exactly gh's user and scopes.
+      - In the `REDACTED` org the operator is a **Member**, not an
+        Owner (sole Owner: REDACTED). Repo role: **admin on `REDACTED`** (plus
+        `REDACTED`, `design-system`, `REDACTED`), read on most others.
+      - On REDACTED, admins bypass the `main`, `release/*` and `hotfix/*` rulesets but
+        **not** `develop` or the `v*` tag ruleset: land develop changes through a PR.
     '';
   };
 
@@ -1782,7 +1800,7 @@ in
   # the Cowork bridge. That was asked for; it is written here so nobody mistakes it
   # for the Claude Code setup, which IS folder-fenced. uvx by store path: Desktop
   # spawns servers with launchd's PATH, which has no Nix profile on it. The
-  # `claude-desktop-config-shape` check allows this one name and no other.
+  # `claude-desktop-config-shape` check allows this name and `github`, no other.
   local.claudeDesktop.extraServers = lib.mkIf isMacosHost {
     REDACTED = {
       command = lib.getExe' pkgs.uv "uvx";
@@ -1796,6 +1814,15 @@ in
         "us-east-1"
         "--disable-telemetry"
       ];
+    };
+    # GitHub, the same launcher Claude Code's `github-gh` plugin names (plugin-mcp.nix,
+    # `github`): github-mcp-server with the gh CLI's token, all toolsets, write-capable.
+    # By absolute profile path for the same launchd-PATH reason as uvx above. Through
+    # /usr/bin/env because the renderer drops an EMPTY `args`, and the shape check then
+    # rejects the entry as non-stdio (measured: "non-stdio or unmarked entries: github").
+    github = {
+      command = "/usr/bin/env";
+      args = [ "${config.home.profileDirectory}/bin/nix-mcp-github" ];
     };
   };
 
