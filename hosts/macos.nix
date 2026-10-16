@@ -368,6 +368,10 @@ in
       "apify"
       "postgres"
       "desktop-commander"
+      # Post as the operator with a user token, so Slack adds no `Sent using Claude`
+      # footer. Tokens: `secret set mcp:<workspace>.slack.com:xoxp`. 2026-10-16.
+      "slack-infin8"
+      "slack-silvercreek"
     ];
     # ---- AWS CLI: tool + shape, content stays local (ADR-004 phase 3) -------
     # Until 2026-09-20 this block carried `programs.awscli.settings` with two real

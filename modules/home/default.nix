@@ -103,6 +103,10 @@ let
   # gitdir include above. Two plugin servers, two Slack sign-ins:
   #   `slack@claude-plugins-official`  mcp__plugin_slack_slack__*        Silver Creek
   #   `slack-infin8@kattakath`         mcp__plugin_slack-infin8_slack__* Infin8 IT
+  # plus one user-token POSTING server per workspace (modules/home/plugin-mcp.nix,
+  # `slack-*`), carried by a plugin of that workspace so this hook routes it by prefix:
+  #   `slack-infin8@kattakath`         mcp__plugin_slack-infin8_post__*       Infin8 IT
+  #   `slack-silvercreek@kattakath`    mcp__plugin_slack-silvercreek_post__*  Silver Creek
   # Both point at https://mcp.slack.com/mcp with the same OAuth client. That works
   # because Claude Code keys an MCP sign-in by SERVER NAME plus a config hash, not by
   # URL — read at the source, 2.1.295: `function zl(e,n){… sha256({type,url,headers})
@@ -128,12 +132,12 @@ let
       in_infin8=false
       case "$cwd/" in "${infin8Root}/"*) in_infin8=true ;; esac
       case "$tool" in
-        mcp__plugin_slack_slack__*)
+        mcp__plugin_slack_slack__* | mcp__plugin_slack-silvercreek_*)
           if $in_infin8; then
             deny "This folder is Infin8 IT, and the slack plugin is signed in to Silver Creek. Use the Infin8 IT sign-in instead: the same tool with the prefix mcp__plugin_slack-infin8_slack__ (or the claude.ai Slack connector)."
           fi
           ;;
-        mcp__plugin_slack-infin8_slack__*)
+        mcp__plugin_slack-infin8_*)
           if ! $in_infin8; then
             deny "slack-infin8 is the Infin8 IT workspace and is only for folders under ${infin8Root}. Here, use the slack plugin (mcp__plugin_slack_slack__)."
           fi
@@ -1122,6 +1126,11 @@ in
         # sign-ins to one URL can coexist.
         "slack-infin8"
 
+        # slack-silvercreek: Silver Creek's user-token POSTING server (no hosted sign-in;
+        # that stays on the official `slack` plugin). Infin8 IT's posting server rides in
+        # `slack-infin8` instead, so each workspace is one plugin prefix for the routing hook.
+        "slack-silvercreek"
+
         # Shell + filesystem tools that run OUTSIDE Claude Code's Bash tool, which is
         # the one thing they are for: a worktree-isolated session whose worktree was
         # DELETED refuses every Bash call, spawned agents inherit the lock, and
@@ -1299,6 +1308,10 @@ in
     # would have no plugin Slack at all. Sign-in is a one-time `/mcp` OAuth as
     # ismailk@infin8it.ca; the token lives in Claude Code's own store, not in Nix.
     "slack-infin8@kattakath" = true;
+
+    # slack-silvercreek: Silver Creek's user-token posting server, `nix-mcp-slack-silvercreek`
+    # (modules/home/plugin-mcp.nix). Allowed outside the Infin8 root, denied under it.
+    "slack-silvercreek@kattakath" = true;
 
     # OFF since 2026-10-06, at the operator's judgement that the plugin was
     # inefficient in use. It was the one id here that changed EVERY session on this
@@ -1677,7 +1690,7 @@ in
       # (Measured 2026-10-07: the live file had no `hooks` key, so nothing was lost.)
       settings.hooks.PreToolUse = lib.mkIf isMacosHost [
         {
-          matcher = "mcp__plugin_slack(-infin8)?_slack__.*";
+          matcher = "^mcp__plugin_slack(_slack|-infin8_[^_]+|-silvercreek_[^_]+)__.*";
           hooks = [
             {
               type = "command";
