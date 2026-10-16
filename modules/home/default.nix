@@ -918,7 +918,9 @@ in
         #                     It uses the default credential chain, and ~/.aws/config has
         #                     no default profile, so its AWS calls are unauthenticated.
         #   databases-on-aws  one skill (Aurora DSQL only), the public awsknowledge docs
-        #                     server, and two servers shipped `disabled: true`.
+        #                     server, and two servers shipped `disabled: true` that Claude
+        #                     Code starts anyway. Catalogued but declared OFF (see
+        #                     `declared` below).
         "aws-core"
         "aws-serverless"
         "databases-on-aws"
@@ -1427,7 +1429,13 @@ in
     "REDACTED@kattakath" = true;
     "aws-core@claude-plugins-official" = true;
     "aws-serverless@claude-plugins-official" = true;
-    "databases-on-aws@claude-plugins-official" = true;
+    # OFF, 2026-10-16, the same day it went on. Its `.mcp.json` ships `aurora-dsql` and
+    # `cloudwatch` as `"disabled": true`, and Claude Code IGNORES that key: `claude mcp
+    # list` showed both Connected, i.e. two more unpinned `@latest` PyPI servers per
+    # session, `cloudwatch` with a literal placeholder AWS_PROFILE. Its one skill is
+    # Aurora DSQL, which nothing here uses. `false`, not a deleted line, so a session
+    # that turns it back on is undone at the next activation.
+    "databases-on-aws@claude-plugins-official" = false;
 
     # OFF since 2026-10-06, at the operator's judgement that the plugin was
     # inefficient in use. It was the one id here that changed EVERY session on this
