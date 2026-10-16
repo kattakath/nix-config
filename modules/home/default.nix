@@ -142,6 +142,46 @@ let
     '';
   };
 
+  # No "Sent using Claude" footer on Slack posts, for EVERY Slack MCP (both plugins and
+  # the claude.ai connector). Slack's hosted MCP server (mcp.slack.com) appends
+  # `*Sent using* <@U…|Claude>` to every message it posts. It is server-side, has no
+  # opt-out (slackapi/slack-skills-plugin#25, open), and is a real @-mention, so it can
+  # also wake the Claude app in a channel. Seen 2026-10-16 on a DM sent through
+  # REDACTED. The one path without it: a DRAFT (`slack_send_message_draft`), which
+  # the user sends from Slack as their own message. So this denies the posting tools
+  # with that redirect:
+  #   slack_send_message, slack_schedule_message  always
+  #   slack_complete_file_upload                  only with an initial_comment (the
+  #                                               comment is posted as a footed message)
+  # Escape hatch for a post that should go out directly (e.g. an automation that may
+  # carry the footer): run Claude Code with SLACK_ALLOW_SENT_USING_CLAUDE=1.
+  # Fail-OPEN like the routing hook: a non-zero exit is a non-blocking hook error.
+  slackNoFooter = pkgs.writeShellApplication {
+    name = "claude-slack-no-footer";
+    runtimeInputs = [ pkgs.jq ];
+    text = ''
+      if [ "''${SLACK_ALLOW_SENT_USING_CLAUDE:-}" = 1 ]; then exit 0; fi
+      input=$(cat)
+      tool=$(jq -r '.tool_name // empty' <<<"$input")
+      deny() {
+        jq -n --arg reason "$1" \
+          '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: $reason}}'
+      }
+      why="Slack's hosted MCP server appends a '*Sent using* @Claude' mention to every message it posts (server-side, no opt-out: slackapi/slack-skills-plugin#25)."
+      case "$tool" in
+        mcp__*__slack_send_message|mcp__*__slack_schedule_message)
+          deny "$why Use slack_send_message_draft from the same server instead, with the same channel_id, message and thread_ts: the user sends it from Slack as their own message, with no footer. Tell the user the draft is waiting. (Override for one session: SLACK_ALLOW_SENT_USING_CLAUDE=1.)"
+          ;;
+        mcp__*__slack_complete_file_upload)
+          comment=$(jq -r '.tool_input.initial_comment // empty' <<<"$input")
+          if [ -n "$comment" ]; then
+            deny "$why initial_comment is posted as a footed message. Finalize the upload WITHOUT initial_comment, then put the text in a draft (slack_send_message_draft, same channel) for the user to send."
+          fi
+          ;;
+      esac
+    '';
+  };
+
   # android-commandlinetools Homebrew cask install prefix — single source for
   # every ANDROID_HOME/PATH reference below (exported once as
   # config.home.sessionVariables.ANDROID_HOME, which the android-phone plugin's
@@ -1642,6 +1682,18 @@ in
             {
               type = "command";
               command = lib.getExe slackWorkspaceRoute;
+              timeout = 10;
+            }
+          ];
+        }
+        # No "Sent using Claude" footer, on every Slack MCP: both plugins and the claude.ai
+        # connector (`mcp__<id>__slack_*`). The why is at `slackNoFooter` (let-block).
+        {
+          matcher = "^mcp__.+__slack_(send_message|schedule_message|complete_file_upload)$";
+          hooks = [
+            {
+              type = "command";
+              command = lib.getExe slackNoFooter;
               timeout = 10;
             }
           ];
