@@ -1773,6 +1773,32 @@ in
     '';
   };
 
+  # ---- Claude Desktop: the REDACTED AWS server --------------------------------------
+  # The same server as `REDACTED@kattakath` (kattakath/skills#77), rendered for
+  # Desktop because Desktop loads no plugins (./claude-desktop.nix says why that is the
+  # only lane). Operator decision 2026-10-16: BOTH profiles, sdlc default and prod via
+  # `aws_profile`. Desktop has no working directory, so `awsAccountRoute` cannot fence
+  # it: production AdministratorAccess is reachable from every Desktop chat and from
+  # the Cowork bridge. That was asked for; it is written here so nobody mistakes it
+  # for the Claude Code setup, which IS folder-fenced. uvx by store path: Desktop
+  # spawns servers with launchd's PATH, which has no Nix profile on it. The
+  # `claude-desktop-config-shape` check allows this one name and no other.
+  local.claudeDesktop.extraServers = lib.mkIf isMacosHost {
+    REDACTED = {
+      command = lib.getExe' pkgs.uv "uvx";
+      args = [
+        "mcp-proxy-for-aws-cli==1.7.0"
+        "https://aws-mcp.us-east-1.api.aws/mcp"
+        "--profile"
+        "REDACTED"
+        "REDACTED"
+        "--region"
+        "us-east-1"
+        "--disable-telemetry"
+      ];
+    };
+  };
+
   # ---- Home Manager program modules --------------------------------------------
   programs = {
     # Let Home Manager manage itself.
