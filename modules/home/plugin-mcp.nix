@@ -403,6 +403,22 @@ let
   # Posting to every channel and every upstream tool are the operator's choices
   # (2026-10-16), over a channel allowlist and a post-only tool set. Per-workspace
   # caches cannot collide: upstream keys them by team id (pkg/provider/api.go:706).
+  # GitHub's official MCP server (github/github-mcp-server, nixpkgs-pinned — no npx/uvx
+  # download at spawn), authenticated with the gh CLI's own token via `ghTokenEnv`, so
+  # its reach is exactly gh's: the same user, the same scopes. `--toolsets all` and no
+  # `--read-only`: the operator asked for maximum privilege (2026-10-16). Not folder-
+  # routed — gh itself works in every folder, and this is the same credential.
+  // {
+    github = {
+      interpreter = pkgs.github-mcp-server;
+      args = [
+        "stdio"
+        "--toolsets"
+        "all"
+      ];
+      ghTokenEnv = "GITHUB_PERSONAL_ACCESS_TOKEN";
+    };
+  }
   // lib.genAttrs [ "REDACTED" "REDACTED" ] (
     name:
     let
