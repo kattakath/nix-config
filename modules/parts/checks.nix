@@ -450,13 +450,26 @@ in
                   # empty set from a DISABLED module is a different claim — it means
                   # nothing writes the file, so stale content survives unmanaged.
                   #
-                  # ONE NAMED EXCEPTION since 2026-10-16: `REDACTED`, a stdio server
+                  # TWO NAMED EXCEPTIONS since 2026-10-16: `REDACTED` and `github`, stdio servers
                   # declared in modules/home/default.nix (operator decision, the why is
                   # there). An allowlist by NAME, not "any stdio entry", so a portal or
                   # gateway entry still fails here exactly as before.
-                  lib.optional (removeAttrs servers [ "REDACTED" ] != { })
-                    "Desktop must render no servers but REDACTED — the gateway is purged — found: ${
-                      toString (builtins.attrNames (removeAttrs servers [ "REDACTED" ]))
+                  lib.optional
+                    (
+                      removeAttrs servers [
+                        "REDACTED"
+                        "github"
+                      ] != { }
+                    )
+                    "Desktop must render no servers but REDACTED and github — the gateway is purged — found: ${
+                      toString (
+                        builtins.attrNames (
+                          removeAttrs servers [
+                            "REDACTED"
+                            "github"
+                          ]
+                        )
+                      )
                     }"
                 ++ lib.optional (
                   servers ? desktop-commander
@@ -465,7 +478,7 @@ in
             pkgs.runCommand "claude-desktop-config-shape" { } (
               if problems == [ ] then
                 ''
-                  echo "claude-desktop: module enabled, ${toString (lib.length (builtins.attrNames servers))} servers rendered (only REDACTED allowed — the gateway is purged)" > "$out"
+                  echo "claude-desktop: module enabled, ${toString (lib.length (builtins.attrNames servers))} servers rendered (only REDACTED and github allowed — the gateway is purged)" > "$out"
                 ''
               else
                 ''
