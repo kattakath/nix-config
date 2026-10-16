@@ -103,6 +103,10 @@ let
   # gitdir include above. Two plugin servers, two Slack sign-ins:
   #   `slack@claude-plugins-official`  mcp__plugin_slack_slack__*        REDACTED
   #   `REDACTED@kattakath`         mcp__plugin_REDACTED_slack__* REDACTED IT
+  # plus one user-token POSTING server per workspace (modules/home/plugin-mcp.nix,
+  # `slack-*`), carried by a plugin of that workspace so this hook routes it by prefix:
+  #   `REDACTED@kattakath`         mcp__plugin_REDACTED_post__*       REDACTED IT
+  #   `REDACTED@kattakath`    mcp__plugin_REDACTED_post__*  REDACTED
   # Both point at https://mcp.slack.com/mcp with the same OAuth client. That works
   # because Claude Code keys an MCP sign-in by SERVER NAME plus a config hash, not by
   # URL — read at the source, 2.1.295: `function zl(e,n){… sha256({type,url,headers})
@@ -128,12 +132,12 @@ let
       in_client=false
       case "$cwd/" in "${clientRoot}/"*) in_client=true ;; esac
       case "$tool" in
-        mcp__plugin_slack_slack__*)
+        mcp__plugin_slack_slack__* | mcp__plugin_REDACTED_*)
           if $in_client; then
             deny "This folder is REDACTED IT, and the slack plugin is signed in to REDACTED Use the REDACTED IT sign-in instead: the same tool with the prefix mcp__plugin_REDACTED_slack__ (or the claude.ai Slack connector)."
           fi
           ;;
-        mcp__plugin_REDACTED_slack__*)
+        mcp__plugin_REDACTED_*)
           if ! $in_client; then
             deny "REDACTED is the REDACTED IT workspace and is only for folders under ${clientRoot}. Here, use the slack plugin (mcp__plugin_slack_slack__)."
           fi
@@ -1122,6 +1126,11 @@ in
         # sign-ins to one URL can coexist.
         "REDACTED"
 
+        # REDACTED: REDACTED's user-token POSTING server (no hosted sign-in;
+        # that stays on the official `slack` plugin). REDACTED IT's posting server rides in
+        # `REDACTED` instead, so each workspace is one plugin prefix for the routing hook.
+        "REDACTED"
+
         # Shell + filesystem tools that run OUTSIDE Claude Code's Bash tool, which is
         # the one thing they are for: a worktree-isolated session whose worktree was
         # DELETED refuses every Bash call, spawned agents inherit the lock, and
@@ -1298,6 +1307,10 @@ in
     # Creek `slack` plugin under the REDACTED root: without this id enabled, REDACTED folders
     # would have no plugin Slack at all. Sign-in is a one-time `/mcp` OAuth as
     # REDACTED; the token lives in Claude Code's own store, not in Nix.
+    "REDACTED@kattakath" = true;
+
+    # REDACTED: REDACTED's user-token posting server, `REDACTED`
+    # (modules/home/plugin-mcp.nix). Allowed outside the REDACTED root, denied under it.
     "REDACTED@kattakath" = true;
 
     # OFF since 2026-10-06, at the operator's judgement that the plugin was
@@ -1677,7 +1690,7 @@ in
       # (Measured 2026-10-07: the live file had no `hooks` key, so nothing was lost.)
       settings.hooks.PreToolUse = lib.mkIf isMacosHost [
         {
-          matcher = "mcp__plugin_slack(-REDACTED)?_slack__.*";
+          matcher = "^mcp__plugin_slack(_slack|-REDACTED[^_]+|-REDACTED[^_]+)__.*";
           hooks = [
             {
               type = "command";
