@@ -449,8 +449,15 @@ in
                   # gateway. Paired with the `claudeDesktop.enable` leg above, because an
                   # empty set from a DISABLED module is a different claim — it means
                   # nothing writes the file, so stale content survives unmanaged.
-                  lib.optional (servers != { })
-                    "Desktop must render NO servers — the gateway is purged — found: ${toString (builtins.attrNames servers)}"
+                  #
+                  # ONE NAMED EXCEPTION since 2026-10-16: `aws-infin8`, a stdio server
+                  # declared in modules/home/default.nix (operator decision, the why is
+                  # there). An allowlist by NAME, not "any stdio entry", so a portal or
+                  # gateway entry still fails here exactly as before.
+                  lib.optional (removeAttrs servers [ "aws-infin8" ] != { })
+                    "Desktop must render no servers but aws-infin8 — the gateway is purged — found: ${
+                      toString (builtins.attrNames (removeAttrs servers [ "aws-infin8" ]))
+                    }"
                 ++ lib.optional (
                   servers ? desktop-commander
                 ) "desktop-commander rendered (it is a Desktop Extension already)";
@@ -458,7 +465,7 @@ in
             pkgs.runCommand "claude-desktop-config-shape" { } (
               if problems == [ ] then
                 ''
-                  echo "claude-desktop: module enabled, ${toString (lib.length (builtins.attrNames servers))} servers rendered (0 expected — the gateway is purged)" > "$out"
+                  echo "claude-desktop: module enabled, ${toString (lib.length (builtins.attrNames servers))} servers rendered (only aws-infin8 allowed — the gateway is purged)" > "$out"
                 ''
               else
                 ''
