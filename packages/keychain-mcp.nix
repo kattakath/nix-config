@@ -40,6 +40,7 @@
   writeShellScriptBin,
   nodejs,
   uv,
+  gh,
 }:
 {
   # Server id. Becomes the binary name `nix-mcp-<name>` — the string a plugin's
@@ -87,6 +88,13 @@
   # `Operation not permitted` while writes inside succeed. Verified by the ABSENCE of
   # the denied artifact afterwards, not by the exit code alone.
   sandboxProfile ? null,
+  # ENV_VAR_NAME to fill from `gh auth token` at launch, or null. Added 2026-10-16 for
+  # the GitHub MCP server: the gh CLI already holds the operator's OAuth token (in the
+  # Keychain, under gh's own encoding), so reading it through gh keeps ONE GitHub
+  # credential — widen gh's scopes and the server follows — instead of minting a second
+  # PAT to store and rotate. Narrow on purpose, like `sandboxProfile`: it can only run
+  # `gh auth token`, never an arbitrary command.
+  ghTokenEnv ? null,
 }:
 let
   isPackage = lib.isDerivation interpreter;
@@ -118,6 +126,12 @@ writeShellScriptBin "nix-mcp-${name}" ''
   ${lib.concatStringsSep "\n" (
     lib.mapAttrsToList (var: value: "export ${var}=${lib.escapeShellArg value}") plainEnv
   )}
+  ${lib.optionalString (ghTokenEnv != null) ''
+    export ${ghTokenEnv}="$(${lib.getExe gh} auth token 2>/dev/null || true)"
+    if [ -z "${"$" + ghTokenEnv}" ]; then
+      echo "nix-mcp-${name}: \`gh auth token\` returned nothing; run \`gh auth login\`." >&2
+    fi
+  ''}
 
   # Pinned: a plugin-spawned process and a launchd one do not agree on HOME, and both
   # npx and uvx keep their package caches under it.
