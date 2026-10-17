@@ -274,6 +274,12 @@ in
         "x-scheme-handler/http" = "firefox.desktop";
         "x-scheme-handler/https" = "firefox.desktop";
       };
+      # Tor Browser on aarch64 exists only on the ALPHA channel; the overlay and
+      # every reason for it live once, in modules/_lib/tor-browser-alpha.nix.
+      # PLAN A of the browser decision (2026-10-17): Firefox + this alpha, kept
+      # only if the alpha proves usable here — otherwise Brave alone.
+      nixpkgs.overlays = [ (import ../modules/_lib/tor-browser-alpha.nix) ];
+
       # GNOME Web would be a second browser nobody chose; GNOME Tour is the
       # first-login welcome window (seen on the first boot), the same first-run
       # class as gnome-initial-setup above.
@@ -296,6 +302,7 @@ in
 
       environment.systemPackages = with pkgs; [
         firefox
+        tor-browser
         gpa
         yubikey-manager
         # Tools only: configs are imported by hand (GNOME Settings -> VPN) and
