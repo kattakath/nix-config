@@ -191,7 +191,7 @@ across four activations that each reported success. Report only; every remedy ne
 nix run .#launchd-doctor        # exit 1 = findings; LAUNCHD_DOCTOR_WARN_KB tunes the log threshold
 ```
 
-It prints **five** `--- … ---` sections carrying **six** kinds of finding — the section and
+It prints **six** `--- … ---` sections carrying **seven** kinds of finding — the section and
 finding counts are not the same number, and `--- loaded ---` alone reports two. Read the
 section column, not the row count:
 
@@ -203,6 +203,7 @@ section column, not the row count:
 | `--- log size ---` | a log over `LAUNCHD_DOCTOR_WARN_KB` | **investigate — NOT routine since 2026-09-22** | every declared launchd log now reaches a rotator (`modules/darwin/logging.nix`): `system.newsyslog` rename+create for the jobs that re-exec, hourly `logrotate --copytruncate` for the long-lived `KeepAlive` ones, which newsyslog by design can never reclaim. An oversized log therefore means a **broken rotator**, not physics — check the two ticks are in their domains (`launchctl print gui/$UID/org.nix-community.home.file-rotation-logs`, `sudo launchctl print system/org.nixos.file-rotation-logs-system`), then their own logs and state files (`~/.local/state/logrotate/agents.state`, `/var/lib/logrotate/daemons.state`) |
 | `--- launchd disabled-DB orphans ---` | a disabled-DB key with no plist | cosmetic **only while it reads `enabled`** | a stale `disabled` key makes a later `bootstrap` of that label fail with **error 119** — clear it before blaming the plist |
 | `--- orphan logs in ~/Library/Logs ---` | a log no installed unit writes | cosmetic | litter from a removed feature; delete only when sure the feature is gone |
+| `--- unbounded power assertions ---` | `UNBOUNDED` — a `caffeinate` with no utility, `-t` or `-w` | **act now** — on a `pmset sleep 1` host the Mac never sleeps again | kill that pid, then give its caller a `-w`/`-t`/utility. Not a launchd unit; it lives here since #760 made the CI runners hold a wake assertion per job (the `-w` form, deliberately not flagged) |
 
 **Never bootstrap in `fix` mode without asking.** It is under **always confirm**: starting a
 daemon the operator deliberately booted out is exactly the wrong move, and
