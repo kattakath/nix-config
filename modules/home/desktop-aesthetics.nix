@@ -75,7 +75,9 @@ in
       # touching every profile — hence the loop.
       #
       # Driven through Terminal's own AppleScript API, not a `defaults`/PlistBuddy
-      # write: `font size` is a read/write integer on the `settings set` class (see
+      # write — which rules out home-manager's `targets.darwin.defaults` too, since it
+      # runs `/usr/bin/defaults import` (home-manager/modules/targets/darwin/user-defaults/default.nix:21):
+      # `font size` is a read/write integer on the `settings set` class (see
       # Terminal.sdef — only `id` is `access="r"`), and letting Terminal do the write is
       # the ONLY way it persists. Terminal owns com.apple.Terminal and rewrites it from
       # memory while running, so a direct plist edit gets clobbered.
