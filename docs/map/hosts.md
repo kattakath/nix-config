@@ -131,7 +131,14 @@ they bite any future second account:
   ([`modules-darwin.md`](modules-darwin.md) § `modules/darwin/`); it is the only host that has
   one. Consequence worth recognising when it
   fires: a PRE-EXISTING unowned `managed-settings.json` (an MDM payload, a hand-placed file)
-  now FAILS activation with exit 2 rather than being clobbered.
+  now FAILS activation with exit 2 rather than being clobbered. **GnuPG is ONE stack, all
+  Homebrew** — brew `gnupg` + brew `pinentry-mac`, with `~/.gnupg/gpg-agent.conf` written by
+  `home.file` (`pinentry-program` + `no-allow-external-cache`); no Nix gnupg, no Home Manager
+  `programs.gpg`/`services.gpg-agent`. The do-not list and the measured traps live in the
+  `hosts/macos.nix` comments, not here. The one to recognise: a mistyped agent option makes
+  `gpg-agent` REFUSE TO START while `gpgconf --check-options` still passes (#832 → #834), so prove
+  a change by starting the agent on it. `~/.gnupg/gpg.conf` (`encrypt-to` self) stays hand-placed —
+  [`new-mac-runbook.md`](../new-mac-runbook.md) § Hand-placed files.
 - `macvm.nix` — removed 2026-09-05 with the rest of the `macvm` Tart guest; re-add path:
   [`macvm-readd-runbook.md`](../macvm-readd-runbook.md).
 - **`nixpi.nix`** — Pi 4, LIVE: boot fixes + cloudflared + upstream `services.caddy`. Its
