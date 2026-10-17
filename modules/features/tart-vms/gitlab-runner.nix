@@ -183,7 +183,8 @@ in
     # reason: home-manager's darwin module runs its activation (which loads this
     # agent and opens StandardOutPath below) from `postActivation`, and pinned
     # nix-darwin modules/system/activation-scripts.nix orders preActivation :114
-    # before postActivation :140.
+    # before postActivation :140. upstream-first: grepped pinned nix-darwin modules/
+    # for tmpfiles|createDirector — 0 hits, no declarative directory option → custom.
     system.activationScripts.preActivation.text = lib.mkAfter ''
       sudo --user=${config.system.primaryUser} -- /bin/mkdir -p ${lib.escapeShellArg tartCfg.runnerStateDir}
     '';

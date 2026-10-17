@@ -238,7 +238,8 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # the test the mcpfinder note above applies to a tool NAME. Delete it after
     # deleting the directory, in that order, never the reverse.
     #
-    # THE PATHS MOVED OUT, THE RULES DID NOT. These four `Read(...)` globs are
+    # THE PATHS MOVED OUT, THE RULES DID NOT. These `Read(...)` globs (seven: four
+    # agenix spellings plus three under home) are
     # now rendered from modules/_lib/secret-read-paths.nix, because a second
     # enforcement layer needs the same coordinates in a spelling a glob cannot
     # express: the macOS Seatbelt profile that fences desktop-commander

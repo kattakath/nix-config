@@ -41,7 +41,7 @@ must reach both systems' configurations) emits
 `strategy.matrix: ${{ fromJSON(needs.legs.outputs.matrix) }}`. Legs therefore come FROM hosts:
 a leg owning **zero** hosts is structurally impossible, and the reachable failure is the
 inverse — a HOST no leg claims hard-fails `legs` with *add its runner to this lookup*. Today
-that reproduces the old hard-coded lists exactly (aarch64-linux → `nixpi`+`nixvm`,
+that reproduces the old hard-coded lists exactly (aarch64-linux → `nixpi`+`nixvm`, plus `nixos` since #850;
 aarch64-darwin → `macos`), but a host added to `modules/parts/hosts.nix` now either lands on an
 existing leg or stops CI until someone names its runner; previously it was silently untested
 until someone remembered this file. It runs as ONE job, not a step inside each leg, because the

@@ -395,29 +395,16 @@ in
           # happening, and a future hub change (a new transport key, an upstream
           # transformMcpServer that stops stripping `type`) would break it
           # without any eval error. So: read the REAL rendering from the macos
-          # config and assert its shape, plus the two agreements the module
-          # makes with the rest of the tree — every gateway endpoint is present
-          # (parity with Claude Code is the whole point), and desktop-commander
+          # config and assert its shape, plus the module's agreements with the rest
+          # of the tree: only the named servers are rendered, and desktop-commander
           # is not (it is a Desktop Extension already; twice = 20 duplicate tools).
-          # The check that replaces two deleted assertions, and catches the
-          # direction they could not.
-          #
-          # `local.mcpGateway.public` used to name a SUBSET to publish, and an
-          # assertion refused a name the gateway did not host. It could not refuse
-          # the opposite — a newly HOSTED server nobody remembered to publish —
-          # which is exactly the silent failure worth guarding once "publish
-          # everything" became the rule.
-          #
-          # terranix renders outside any host's module system and cannot read the
-          # roster back, so `config.fleet.publicMcpServers` is a hand-kept mirror.
-          # This makes the mirror mechanical: set equality, both directions.
           claude-desktop-config-shape =
             let
               hm = config.flake.darwinConfigurations.macos.config.home-manager.users.${loginName};
               servers = hm.local.claudeDesktop.renderedServers;
-              # Flatten every rendered entry's argv; the portal is an mcp-remote
-              # shim, so its URL rides in `args`, not in a `url` key (Desktop's
-              # schema rejects one — that is what toStdioShim exists for).
+              # A `url` entry (REDACTED) is an mcp-remote shim, so its URL
+              # rides in `args`, not in a `url` key (Desktop's schema rejects one —
+              # that is what toStdioShim exists for).
               badShape = lib.filterAttrs (
                 _: s: !(s ? command && s ? args) || s ? url || s ? type || !(s ? env && s.env ? NIX_CONFIG_MANAGED)
               ) servers;
@@ -440,9 +427,9 @@ in
                   badShape != { }
                 ) "non-stdio or unmarked entries: ${toString (builtins.attrNames badShape)}"
                 ++
-                  # DESKTOP MUST RENDER NO SERVERS. The gateway it used to dial is gone
-                  # (purged 2026-10-02, 65 Cloudflare objects), and Desktop loads no
-                  # plugins — so an empty set is the end state, not a degradation.
+                  # DESKTOP RENDERS ONLY THE NAMED SERVERS. The gateway it used to dial is
+                  # gone (purged 2026-10-02, 65 Cloudflare objects), and Desktop loads no
+                  # plugins.
                   #
                   # This is the leg that catches the regression worth catching: a portal
                   # entry sneaking back in and quietly reinstating a central shared
@@ -486,7 +473,7 @@ in
                 ''
                   echo "claude-desktop-config-shape: the Desktop rendering broke its contract." >&2
                   ${lib.concatStringsSep "\n" (map (p: ''echo "  ✘ ${p}" >&2'') problems)}
-                  echo "See modules/home/claude-desktop.nix (toStdioShim / excludeServers)." >&2
+                  echo "See modules/home/claude-desktop.nix (toStdioShim, extraServers)." >&2
                   exit 1
                 ''
             );
@@ -2869,13 +2856,6 @@ in
                 "sees a phantom sh where nix-gitlab-runner used to be."
               ];
             };
-          # NOTE: `hm-launchd-drift` lived here until 2026-09-14. It pinned the
-          # sha256 of home-manager's modules/launchd/default.nix so the 560-line
-          # vendored fork of that file could not silently fall behind upstream.
-          # Both retired together: home-manager 87c391f added
-          # `launchd.agents.<name>.launcher.{name,shell}`, which expresses what the
-          # fork existed to do, so modules/home/launchd-launcher.nix now sets
-          # three upstream options instead. There is nothing vendored left to drift.
 
           # Structural lint (ast-grep). A CHECK, deliberately not a treefmt
           # formatter: treefmt-nix ships no ast-grep program, and the pre-commit

@@ -33,9 +33,12 @@ in the repo can catch that; see that fixture file's header for the measurement.
   (LibreOffice/poppler/pandoc), a gap flagged inline at that skills block since it was first
   wired. Also declares a Spotlight-visible, focus-or-launch `.app` bundle for the Android
   emulator (`home.file."Applications/Android Emulator.app"`, backed by
-  `packages/spotlight-launchers.nix`, macos-only). The nine COMMAND bundles from the same
+  `packages/spotlight-launchers.nix`, macos-only). The four COMMAND bundles from the same
   package land via `./spotlight-actions.nix` instead — a separate module so the mapping is
-  one `mapAttrs'` rather than nine more `home.file` lines here.
+  one `mapAttrs'` rather than four more `home.file` lines here. **qBittorrent** is planted the
+  same `recursive = true` way (`home.file."Applications/qBittorrent.app"`, from nixpkgs): NOT the
+  Homebrew cask, which Homebrew DISABLED on 2026-09-01 for failing Gatekeeper, and NOT
+  `home.packages`, whose `Home Manager Apps` symlink Spotlight does not index.
   **Claude Code AGENT TEAMS is enabled here, in two halves that must both be set** —
   `teammateMode = "tmux"` in the settings block (a real top-level settings key, so it goes
   through `claude-code-settings.nix`'s layering like any other) and
@@ -568,15 +571,13 @@ in the repo can catch that; see that fixture file's header for the measurement.
     replacement: this file is the only tier that reaches the devcontainer and machines this
     Home Manager config never touched. See [`modules-darwin.md`](modules-darwin.md)
     § `modules/darwin/`.
-- **`claude-desktop.nix`** — `local.claudeDesktop`. It **still runs, and it now renders an EMPTY
-  `mcpServers` block** (2026-10-02): the portal it used to dial is destroyed, and Desktop loads
-  no plugins, so Desktop genuinely has **no** MCP servers. **The module stays ENABLED on
-  purpose** — "Desktop has no MCP servers" is a state something must *write*. Switching the
-  writer off leaves whatever is on disk, which is exactly how a stale `kattakath-portal` entry
-  pointing at destroyed infrastructure survived for a day after the purge (#732). So
-  `enable = false` is the wrong lever here and an empty render is the right one, and
-  `checks.claude-desktop-config-shape` asserts BOTH halves — the module is on, and it writes
-  nothing.
+- **`claude-desktop.nix`** — `local.claudeDesktop`. Desktop loads no plugins, so its ONLY lane is
+  `extraServers`: `REDACTED`, `github` and `REDACTED` since 2026-10-16 (the gateway portal
+  it used to dial was destroyed 2026-10-02). **The module stays ENABLED on purpose** — the set
+  Desktop should see is a state something must *write*. Switching the writer off leaves whatever
+  is on disk, which is exactly how a stale `kattakath-portal` entry pointing at destroyed
+  infrastructure survived for a day after the purge (#732). `checks.claude-desktop-config-shape`
+  asserts the module is on and renders exactly those three names.
   The machinery is unchanged and still earns its keep: Desktop accepts ONLY the stdio shape, so
   any `url` becomes a pinned `mcp-remote` shim (`lib.hm.mcp.transformMcpServer` + one
   `extraTransform`, the codex module's pattern); an activation plus the

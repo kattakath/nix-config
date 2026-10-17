@@ -1405,10 +1405,10 @@ in
       plugins = [ ];
     };
 
-    # anthropics/skills (no LICENSE file — source-available), input
-    # `agent-skills-anthropic-official`. Its `document-skills` plugin bundles the
-    # four document skills declared below (pdf/docx/pptx/xlsx) as ONE unit, and
-    # `example-skills` carries mcp-builder + webapp-testing. DISTINCT from
+    # anthropics/skills (no LICENSE file — source-available), a marketplace only —
+    # there is no flake input for it. Its `document-skills` plugin bundles the four
+    # document skills (pdf/docx/pptx/xlsx) as ONE unit, and `example-skills`
+    # carries mcp-builder + webapp-testing. DISTINCT from
     # `claude-plugins-official` above (anthropics/claude-plugins-official) — two
     # different Anthropic repos, two different marketplaces.
     anthropic-agent-skills = {
@@ -1701,13 +1701,13 @@ in
       nixosVm # `nixos-vm create|start|stop|status|ssh|destroy --yes` — the long-lived nixos UTM guest (packages/nixos-vm.nix); on PATH so the "NixOS VM" Spotlight launcher can run `nixos-vm start`
       pkgs.scrcpy # mirror/control a PHYSICAL Android phone. Was the `scrcpy` BREW until 2026-09-29 (hosts/macos.nix records the move). Its nixpkgs wrapper prepends its OWN android-tools adb to PATH for its own process only — so it drives adb 37.0.0 while mobile-mcp/android-phone use the cask's 37.0.1. Harmless: both speak protocol 1.0.41, so they share one adb server instead of killing each other's. `adb` itself stays on the cask
     ]
-    # GitLab-CI slot shims (the tart-vms capsule's gitlab-tart): on PATH so
-    # ~/.gitlab-runner/config.toml can reference the STABLE
+    # GitLab-CI slot shims (the tart-vms capsule's gitlab-tart): on PATH so the
+    # runner's config.toml can reference the STABLE
     # /etc/profiles/per-user/<user>/bin/nix-gitlab-tart-* paths — GC-rooted
     # by the profile and upgraded in place, unlike bare /nix/store paths from
     # `nix run` output (which garbage-collect out from under the runner).
     # The executor VMs share the local.tart.githubRunners two-guest slot budget; the
-    # token-bearing config.toml itself stays imperative (hosts/macos.nix).
+    # config.toml itself is rendered at agent start (tart-vms/gitlab-runner.nix).
     ++ lib.optionals isMacosHost (
       builtins.attrValues {
         inherit (pkgs.callPackage gitlabTartSource { })
@@ -2201,20 +2201,11 @@ in
         # servers + the live Cloudflare Tunnel/terranix stack. `cloudflare-one` covers Access/Tunnel.
         cloudflare = "${agent-skills-cloudflare}/skills/cloudflare";
         cloudflare-one = "${agent-skills-cloudflare}/skills/cloudflare-one";
-        # Anthropic official (source-available): mcp-builder is generic tool-design
-        # guidance for AUTHORING an MCP server, not a driver for any server this fleet
-        # runs; webapp-testing is self-contained (writes native Python Playwright
-        # scripts that launch their own headless chromium) — no MCP server of ours
-        # backs it. Neither is backed by the deleted gateway, and neither needs to be.
-        # Anthropic document skills: pair with the Google Drive connector (fetch → edit → store).
-        # NOTE heavy runtime deps: pandoc + poppler now come from nixpkgs (home.packages
-        # above); LibreOffice/soffice comes from the macos-only Homebrew cask
-        # (hosts/macos.nix) since nixpkgs libreoffice-bin cannot reliably block on
-        # headless --convert-to. qpdf and the skills' own pip/npm deps (pypdf,
-        # openpyxl, docx, pptxgenjs, …) remain undeclared/ambient — a separate,
-        # larger follow-up. Any darwin host inherits this same skills block (gated on
-        # stdenv.hostPlatform.isDarwin, not hostName == "macos") but does NOT get the libreoffice
-        # cask — soffice is absent there; a known, accepted asymmetry for now.
+        # The Anthropic skills (mcp-builder, webapp-testing, pdf/docx/pptx/xlsx) are NOT
+        # here: they arrive from the `anthropic-agent-skills` marketplace above. Their
+        # heavy runtime deps still live in this repo: pandoc + poppler from nixpkgs
+        # (home.packages above), LibreOffice/soffice from the macos-only Homebrew cask
+        # (nixpkgs libreoffice-bin cannot reliably block on headless --convert-to).
         # Community (MIT, 10.9k★): senior-Postgres skill — pairs with the `postgres` MCP + pgvector RAG.
         postgres-pro = "${agent-skills-jeffallan}/skills/postgres-pro";
         # Community (MIT): AppleScript/JXA foundation — pairs with the `macos-automator` MCP server.
@@ -2992,6 +2983,9 @@ in
     # cleanup would delete it. A no-op on a machine where the file is already real
     # or absent, so it is safe to leave in place forever (and it is what a
     # template consumer's fresh Mac hits: absent → nothing).
+    # upstream-first: grepped home-manager/modules/lib/file-type.nix — home.file has no
+    # copy/mutable mode (enable/target/text/source/executable/recursive/ignorelinks/
+    # onChange/force only) → custom; the same holds for grokSandboxProfile below.
     adoptGitIdentityFiles = lib.hm.dag.entryBetween [ "linkGeneration" ] [ "writeBoundary" ] ''
       hmFiles="$(readlink -e ${builtins.storeDir})/*-home-manager-files/*"
       for f in "$HOME/.config/git/REDACTED" "$HOME/.config/git/izzykatt.inc" \
