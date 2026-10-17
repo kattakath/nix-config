@@ -318,9 +318,11 @@ in
         tor-browser
         gpa
         yubikey-manager
-        # Tools only: configs are imported by hand (GNOME Settings -> VPN) and
-        # no key ever enters Nix. NetworkManager speaks WireGuard natively.
-        wireguard-tools
+        # No wireguard-tools: WireGuard needs nothing installed here.
+        # NetworkManager 1.58 speaks it natively (no VPN plugin in the closure)
+        # and GNOME Settings -> VPN offers "WireGuard" and "Import from file…"
+        # on its own — verified on this guest, 2026-10-17. Configs are imported
+        # by hand, so no key ever enters Nix.
       ];
 
       # ---- Shared folder: Mac ~/Shared -> /mnt/host ----------------------------
