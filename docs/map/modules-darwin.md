@@ -30,7 +30,12 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 - **`homebrew.nix`** — the declarative Homebrew **framework**: owns only
   `enable`/`onActivation` with `cleanup = "uninstall"`/`taps`. The actual
   `brews`/`casks`/`masApps` lists live **per host** in `hosts/<host>.nix` so each darwin
-  host carries its own app set.
+  host carries its own app set. **A formula Homebrew MIGRATES to a cask breaks activation:** the
+  stale `brews` entry fails `brew bundle`, which aborts the whole `darwin-rebuild switch`
+  (`vercel-cli` → cask `vercel`, 2026-10-17, #833). Moving the entry to `casks` is the fix — but on
+  that switch `cleanup = "uninstall"` removed the leftover formula keg and the cask's `vercel`
+  binary went missing from PATH with it. One `brew reinstall --cask vercel` relinked it; check the
+  binary after any such move.
 - **`launchd-reconcile.nix`** — option-free. Brings back a `launchd.daemons` unit that has left
   the system domain, at the next activation **and** the next boot. Exists because nix-darwin's
   launchd activation is **diff-gated** (`modules/system/launchd.nix:19`): an unchanged plist means
