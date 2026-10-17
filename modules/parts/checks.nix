@@ -1648,7 +1648,7 @@ in
           #     catches an edit that re-enables one without the other.
           #
           # The TCP leg pins [ 80 ] rather than [ ], because that is the truth:
-          # hosts/nixpi.nix:234 opens the Caddy ORIGIN port (443 omitted — TLS
+          # hosts/nixpi.nix's allowedTCPPorts opens the Caddy ORIGIN port (443 omitted — TLS
           # terminates at Cloudflare's edge) and core.nix:100's [ ] MERGES with
           # it. Port 80 is therefore genuinely reachable on the LAN today; this
           # check's job is to make WIDENING that list loud, not to bless its
@@ -1966,7 +1966,7 @@ in
               bt = pi.hardware.bluetooth or { };
               btUnits = lib.filter (n: n == "bluetooth") (lib.attrNames (pi.systemd.services or { }));
 
-              caddyOrigin = [ 80 ]; # hosts/nixpi.nix:245
+              caddyOrigin = [ 80 ]; # hosts/nixpi.nix networking.firewall.allowedTCPPorts
             in
             mkHostContract {
               inherit pkgs;
