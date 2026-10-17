@@ -735,7 +735,7 @@ in
       # measured and failed. BARE STRING: the cask declares NO `auto_updates`
       # (API: `auto_updates: null`), so `greedy` is not even applicable — that
       # flag only opts an auto-updating cask back into upgrades past
-      # `onActivation.upgrade = false` (modules/darwin/homebrew.nix:42), and
+      # `onActivation.upgrade = false` (modules/darwin/homebrew.nix), and
       # `open-design` remains the only documented updater pathology here.
       #
       # IT PULLS BREW'S GnuPG, AND THAT IS THE POINT, not a cost:

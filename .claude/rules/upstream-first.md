@@ -121,7 +121,7 @@ grep was run and was correct: nix-darwin removed sudo self-elevation in its 2025
 migration and owns no option that restores it. The wrapper got written.
 
 `nh` (nix-helper) has `--elevation-strategy`. It does exactly this, it is maintained upstream,
-**and it was already installed on this Mac and on `PATH`** — `modules/home/default.nix:1420`.
+**and it was already installed on this Mac and on `PATH`** — `programs.nh` in `modules/home/default.nix`.
 Step 1 could not have found it: `nh` is a package, so it appears nowhere in any input's
 `modules/`. Either probe in step 2 would have surfaced it in seconds.
 
