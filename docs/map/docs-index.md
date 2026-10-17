@@ -134,7 +134,8 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   operator's plugins, skills and userscripts left while the seven satellites came back, and the
   rule it turned on: **a gate must move with the content it gates.**
 - [`docs/nixpi-sd-flashing-runbook.md`](../nixpi-sd-flashing-runbook.md) — flashing the `nixpi`
-  SD card (full verified `dd` write).
+  SD card (full verified `dd` write), f3-testing a new card first (a verified write cannot catch
+  a fake-capacity card), and re-capping the live fake card after every reflash.
 - [`docs/new-mac-runbook.md`](../new-mac-runbook.md) — standing up `macos` from a wiped
   Mac (no key recovery: rotate, don't transport); also the manual steps Nix can't do.
 - [`docs/macvm-readd-runbook.md`](../macvm-readd-runbook.md) — re-adding the removed `macvm`
