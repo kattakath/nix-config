@@ -37,9 +37,10 @@ _:
   # `programs.mdsh` — executes marked shell blocks to refresh a document in place.
   # The pinned module defaults to `includes = [ "README.md" ]` (treefmt-nix
   # programs/mdsh.nix:9) and treefmt globs match at ANY DEPTH, so one line would
-  # run `bash -c` over every vendored `skills/*/README.md` and
-  # `plugins/*/README.md` — third-party content this fleet's own rules class as
-  # data, never instructions — during a local `nix fmt`, as the operator.
+  # run `bash -c` over every README.md in the tree, during a local `nix fmt`, as
+  # the operator. Today those are the capsules' own; when `skills/` and
+  # `plugins/` were vendored here (both now live in github:kattakath/skills) it
+  # would have been third-party content this fleet's rules class as data.
   #
   # Both arrive in their own change, with an explicit allowlist and, for mdsh, a
   # single canary block. See docs/monoflake-capsule-adr.md §4.
@@ -59,16 +60,6 @@ _:
       "result"
       "result-*"
       "*.md"
-
-      # VENDORED THIRD-PARTY TREES — no formatter of ours may rewrite these.
-      # `skills/` holds forks of upstream Claude skills kept deliberately close to
-      # their originals, and `plugins/` is a publishable marketplace. A formatter
-      # touching either turns "a fork with one patch" into "a fork with one patch
-      # and 300 whitespace changes", which is how a drift diff stops being
-      # readable. This is also the precondition for ever enabling a markdown
-      # rewriter — see the note above.
-      "skills/**"
-      "plugins/**"
 
       # Generated per-wave by scripts/drv-snapshot.sh, never authored (gitignored).
       ".baseline/**"
