@@ -335,11 +335,18 @@ in
         # by hand, so no key ever enters Nix.
       ];
 
-      # ---- Shared folder: Mac ~/Shared -> /mnt/host ----------------------------
+      # ---- Shared folder: Mac ~/Shared -> /mnt/host (and ~/Shared) -------------
       # UTM's VirtFS (9p, mount tag `share`, security_model=mapped-xattr).
       # Options follow UTM's Linux guest docs; automount + nofail so a VM
       # started without the share configured still boots.
-      fileSystems."/mnt/host" = {
+      #
+      # TWO LAYERS, because the raw 9p mount was READ-ONLY in practice
+      # (measured 2026-10-17): Mac files surface with the Mac's uid 501, the
+      # guest user is uid 1000, so every write hit "permission denied". UTM's
+      # Linux guest docs name bindfs for exactly this uid remap. The raw mount
+      # sits out of the way; bindfs re-presents it owned by the operator, and
+      # the real write still lands on the Mac as the Mac user (QEMU's process).
+      fileSystems."/mnt/.utm-share" = {
         device = "share";
         fsType = "9p";
         options = [
@@ -349,6 +356,27 @@ in
           "x-systemd.automount"
         ];
       };
+      fileSystems."/mnt/host" = {
+        device = "/mnt/.utm-share";
+        fsType = "fuse.bindfs";
+        depends = [ "/mnt/.utm-share" ];
+        options = [
+          "force-user=${loginName}"
+          "force-group=users"
+          # A root-owned FUSE mount is invisible to other users without it.
+          "allow_other"
+          "nofail"
+          "x-systemd.automount"
+        ];
+      };
+      # mount(8) finds `mount.fuse.bindfs` through system.fsPackages — the
+      # pinned nixpkgs' filesystems module puts that list on the system path.
+      system.fsPackages = [ pkgs.bindfs ];
+      # ~/Shared in the guest too, so Files shows it in the home folder exactly
+      # where the Mac keeps it.
+      systemd.tmpfiles.rules = [
+        "L+ ${config.users.users.${loginName}.home}/Shared - - - - /mnt/host"
+      ];
 
       # ---- The disk image (built from the SEED variant above) ------------------
       # upstream-first: grepped nixpkgs/nixos/modules/image for qemu/qcow2/efi
