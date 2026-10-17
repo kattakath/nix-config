@@ -1,25 +1,23 @@
 # Claude Desktop / Cowork — MCP (2026-09-15, rewritten 2026-10-02)
 
-> # ⚠ CURRENT STATE: Claude Desktop has **NO MCP SERVERS**, and that is deliberate.
+> # ⚠ CURRENT STATE (2026-10-16): Claude Desktop has **THREE** MCP servers — `aws-infin8`, `github`, `stripe-infin8`.
 >
 > The gateway and its Cloudflare portal were destroyed on 2026-10-02, and **Claude Desktop loads
-> no plugins** — so there is nothing left for it to dial.
-> [`modules/home/claude-desktop.nix`](../modules/home/claude-desktop.nix) now renders an
-> **empty `mcpServers` block**, and Cowork, which reaches servers through Desktop's bridge, has
-> none either.
+> no plugins**, so no plugin-owned server reaches it or the Cowork bridge behind it. The three
+> above arrive through `local.claudeDesktop.extraServers` (`modules/home/default.nix`), the ONLY
+> lane; `stripe-infin8` is a `url` entry and goes through the `mcp-remote` shim.
+> `checks.aarch64-darwin.claude-desktop-config-shape` asserts the module is enabled and that
+> exactly those three names are rendered.
 >
-> **The module stays ENABLED. Do not "clean it up" by switching it off.** *"Desktop has no MCP
-> servers"* is a state something must **write**. A disabled module writes nothing, which leaves
+> **The module stays ENABLED. Do not "clean it up" by switching it off.** The set Desktop should
+> see is a state something must **write**. A disabled module writes nothing, which leaves
 > whatever is already on disk — and that is not hypothetical: for a full day after the purge a
 > stale `kattakath-portal` entry pointing at **destroyed** infrastructure survived exactly that
 > way, because the first attempt set `enable = false` instead of emptying the render (#732).
-> An empty set from an *enabled* writer and an empty set from a *disabled* one are different
-> claims, and only the first is true here. `checks.aarch64-darwin.claude-desktop-config-shape`
-> asserts both halves: the module is on, **and** it renders nothing.
 >
-> The merge still protects foreign state: `preferences`, `coworkUserFilesPath`, `extraServers`
-> and anything a human added in Desktop's UI survive an empty render, because only entries
-> carrying the `NIX_CONFIG_MANAGED` marker are ever touched.
+> The merge still protects foreign state: `preferences`, `coworkUserFilesPath` and anything a
+> human added in Desktop's UI survive every render, because only entries carrying the
+> `NIX_CONFIG_MANAGED` marker are ever touched.
 >
 > **Everything below is the design record**, including the clobber that forced the watch agent —
 > which is still live machinery and still the reason this module is not a one-line activation.
@@ -157,5 +155,4 @@ not error, it disappears from the app.
 |---|---|---|
 | `local.claudeDesktop.enable` | darwin (**no longer gated on a gateway** — there isn't one) | off on a Mac without Desktop. **Not** the way to express "no servers": see the header |
 | `.mcpRemoteVersion` | pinned | deliberate bump, here, not `@latest` |
-| `.excludeServers` | `[ "desktop-commander" ]` | another server later installed as a Desktop Extension |
 | `.extraServers` | `{}` | a Desktop-only server (hub shape; `url` is shimmed) |

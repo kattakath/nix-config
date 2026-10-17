@@ -1,7 +1,7 @@
 # Credentialed stdio-MCP launchers on PATH, for the PLUGIN lane.
 #
 # WHY THIS MODULE EXISTS. The MCP gateway was purged from macOS
-# (`local.mcpGateway.enable = false`). Most of its servers had a plugin owner already and
+# (modules/shared/mcp.nix, deleted 2026-10-02). Most of its servers had a plugin owner already and
 # went home with it; three CREDENTIALED ones did not, and the operator chose to keep the
 # capability rather than let it go dark:
 #

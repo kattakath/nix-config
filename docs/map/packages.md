@@ -95,8 +95,8 @@ Core package set:
   in-Nix SVG/icns icons via librsvg+libicns), in two makers. `mkLauncherApp` gives the Android
   emulator a Spotlight-visible, focus-or-launch identity (consumed by
   `modules/home/default.nix`'s `home.file."Applications/Android Emulator.app"`).
-  `mkCommandApp` emits **one bundle per fleet operation** — the three `commandApps`
-  (`Nix Activate`, `Nix Flake Check`, `Nix Open Repo`) planted by
+  `mkCommandApp` emits **one bundle per fleet operation** — the four `commandApps`
+  (`Nix Activate`, `Nix Flake Check`, `Nix Open Repo`, `NixOS VM`) planted by
   `modules/home/spotlight-actions.nix`. Three `shape`s: `terminal` opens a **Ghostty**
   window running the command (`--wait-after-command=true -e /bin/zsh -lc …`) so `activate`'s
   Touch ID sheet and the build log are both visible; `shell` opens an ordinary interactive
@@ -182,14 +182,14 @@ Smaller, single-purpose CLIs:
   land at `ui/dist/metube/browser`, the path `app/main.py` actually serves. Python deps come
   from nixpkgs rather than `uv sync`: the app is a handful of imports and the lockfile would
   pull a SECOND yt-dlp. `deno`, `ffmpeg` and `aria2` are on PATH because yt-dlp looks them up
-  by name. Consumed by `modules/darwin/metube.nix`.
+  by name. Consumed by `modules/home/metube.nix`.
 - **`yt-dlp-web-ui.nix`** — yt-dlp-web-ui v4 from source, because every easier route is
   broken: the upstream flake's `systems` list is x86_64-linux only, its Nix still calls
   `buildGo123Module` and passes the `-host`/`-port` flags v4 removed (`main.go` takes only
   `-conf`), the published release binaries are Linux ELF, and Docker Hub has no `:v4` tag
   while `latest` ships a yt-dlp too old for YouTube. v4 `//go:embed`s the UI, so the frontend
   is built and copied into the tree before `go build`. Consumed by
-  `modules/darwin/yt-dlp-web-ui.nix`.
+  `modules/home/yt-dlp-web-ui.nix`.
 - **`page-lab-pick.nix`** — the `page-lab` plugin's two-way element picker as a fleet CLI. It
   exists for ONE reason: Node 20 here has no global `WebSocket`, so the raw-CDP client must
   either re-exec with `--experimental-websocket` or run on Node 22+ — pinning `nodejs_22`
@@ -197,12 +197,23 @@ Smaller, single-purpose CLIs:
   plugin's `scripts/pick-element.mjs` under `node` still works); this is the reproducible
   entry point. Deliberately **not** a launchd agent and never automatic: arming a picker
   swallows the next click on every armed tab, so it stays an explicit act with a visible
-  start and a guaranteed disarm. Its plugin tree is the pinned `kattakath/ai` flake input,
+  start and a guaranteed disarm. Its plugin tree is the pinned `kattakath-skills` flake input,
   passed in by `modules/parts/packages.nix` with no default, so a missing pin is an eval
   error rather than a silent fallback.
 - **`claude-otel-doctor.nix`** — health check for the `local.claudeOtel` collector (launchd
   agent, OTLP port, events-file freshness). See
   [`claude-code-observability-runbook.md`](../claude-code-observability-runbook.md).
+- **`claude-state-gc.nix`** — reports, and with `--prune` removes, the Claude Code runtime state
+  no rebuild touches (orphaned plugin cache versions, interrupted-update clones). DRY RUN by
+  default, never prunes transcripts; a CLI rather than a check or activation step because all
+  of it is a property of the running machine.
+- **`slack-mcp-server.nix`** — korotovsky/slack-mcp-server built from source at a pinned tag,
+  launched by `modules/home/plugin-mcp.nix`. It posts with the operator's OWN user token, so a
+  message carries no `*Sent using* Claude` footer — which Slack's hosted MCP appends with no
+  opt-out (2026-10-16).
+- **`nixos-vm.nix`** — the `nixos-vm` CLI for the `nixos` UTM desktop host
+  (create / switch / restart …); the `NixOS VM` Spotlight bundle runs `nixos-vm start`. Documented
+  with the host in [`hosts.md`](hosts.md).
 - **`resend-cli.nix`** — the official Resend CLI, not yet in nixpkgs so `npx`-wrapped and
   version-pinned same as `mcp-wordpress`/`telegram-mcp`; injects `RESEND_API_KEY` from the
   login Keychain at run time — wired only via `home.packages`, no matching flake app. The
