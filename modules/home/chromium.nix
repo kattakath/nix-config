@@ -512,35 +512,37 @@ in
     # and the Apple Passwords native host. It should exist for a session, on
     # purpose, and die with the window — never come back at boot.
     home.packages = lib.mkIf cfg.debugLauncher [
-      (pkgs.writeShellScriptBin "nix-chromium-debug" ''
-        set -euo pipefail
-        # 9222 is the de-facto default every CDP client assumes. Bound to 127.0.0.1
-        # only — never expose or forward it; that turns a local-only debugging
-        # channel into a remote one.
-        port="''${1:-9222}"
+      (pkgs.writeShellApplication {
+        name = "nix-chromium-debug";
+        text = ''
+          # 9222 is the de-facto default every CDP client assumes. Bound to 127.0.0.1
+          # only — never expose or forward it; that turns a local-only debugging
+          # channel into a remote one.
+          port="''${1:-9222}"
 
-        # Relaunching while the same profile is already running silently reuses the
-        # existing process and the port never opens — indistinguishable from the
-        # flag being ignored, and it cost real debugging time to learn. Refuse
-        # instead of producing a browser that looks right and is not.
-        if /usr/bin/pgrep -x "Chromium" >/dev/null 2>&1; then
-          echo "nix-chromium-debug: Chromium is already running." >&2
-          echo "  --remote-debugging-port is a STARTUP flag, so it cannot be added to" >&2
-          echo "  this process. Either quit Chromium completely and re-run, or leave it" >&2
-          echo "  running and turn debugging on in-browser at chrome://inspect/#remote-debugging" >&2
-          echo "  — that needs no relaunch, and the server finds the port it picks." >&2
-          exit 1
-        fi
+          # Relaunching while the same profile is already running silently reuses the
+          # existing process and the port never opens — indistinguishable from the
+          # flag being ignored, and it cost real debugging time to learn. Refuse
+          # instead of producing a browser that looks right and is not.
+          if /usr/bin/pgrep -x "Chromium" >/dev/null 2>&1; then
+            echo "nix-chromium-debug: Chromium is already running." >&2
+            echo "  --remote-debugging-port is a STARTUP flag, so it cannot be added to" >&2
+            echo "  this process. Either quit Chromium completely and re-run, or leave it" >&2
+            echo "  running and turn debugging on in-browser at chrome://inspect/#remote-debugging" >&2
+            echo "  — that needs no relaunch, and the server finds the port it picks." >&2
+            exit 1
+          fi
 
-        echo "nix-chromium-debug: opening CDP on 127.0.0.1:$port" >&2
-        echo "  WARNING: any local process can now drive this browser and read its" >&2
-        echo "  pages, cookies and session state. Quit Chromium when you are done." >&2
-        # `-g`: launch without stealing focus — the window still opens (unlike
-        # `-j`, which hides it outright), it just does not jump to the front.
-        # A debug session driven by an agent should not fight the operator for
-        # the foreground on every new tab it opens.
-        exec /usr/bin/open -g -na "Chromium" --args "--remote-debugging-port=$port"
-      '')
+          echo "nix-chromium-debug: opening CDP on 127.0.0.1:$port" >&2
+          echo "  WARNING: any local process can now drive this browser and read its" >&2
+          echo "  pages, cookies and session state. Quit Chromium when you are done." >&2
+          # `-g`: launch without stealing focus — the window still opens (unlike
+          # `-j`, which hides it outright), it just does not jump to the front.
+          # A debug session driven by an agent should not fight the operator for
+          # the foreground on every new tab it opens.
+          exec /usr/bin/open -g -na "Chromium" --args "--remote-debugging-port=$port"
+        '';
+      })
     ];
 
     programs.chromium = {
