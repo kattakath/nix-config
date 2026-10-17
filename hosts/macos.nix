@@ -38,7 +38,6 @@ in
     ../modules/darwin/logging.nix
     ../modules/darwin/ollama-daemon.nix
     ../modules/darwin/clat-guard.nix
-    ../modules/darwin/vpn-only-apps.nix
   ];
 
   # Root-owned Claude Code policy at /Library/Application Support/ClaudeCode/
@@ -77,27 +76,6 @@ in
   # Undo macOS 27 turning on CLAT46 where no NAT64 exists (IPv4 dead, IPv6 fine).
   # Why and the measurements: modules/darwin/clat-guard.nix. 2026-10-16.
   local.clatGuard.enable = true;
-
-  # Per-app VPN kill switch: these two reach the network ONLY through a
-  # WireGuard tunnel and are refused when none is up. Launch them from Spotlight
-  # as "<name> (VPN)" — opening the app any other way bypasses it. Mechanism and
-  # measurements: modules/darwin/vpn-only-apps.nix. 2026-10-17.
-  local.vpnOnlyApps = {
-    enable = true;
-    # Every tunnel in ~/.config/wireguard has its Address in here (7 of 7).
-    tunnelSubnets = [ "10.34.0.0/16" ];
-    apps = {
-      # From nixpkgs, NOT the cask: Homebrew DISABLED `qbittorrent` on
-      # 2026-09-01 (fails Gatekeeper). This launcher is its only Spotlight entry.
-      "qBittorrent (VPN)" = {
-        executable = "${pkgs.qbittorrent}/Applications/qbittorrent.app/Contents/MacOS/qbittorrent";
-        icns = "${pkgs.qbittorrent}/Applications/qbittorrent.app/Contents/Resources/qbittorrent_mac.icns";
-      };
-      # The `tor-browser` cask below; its own "Tor Browser" Spotlight entry still
-      # exists and is NOT guarded. This one wears the fleet mark to tell them apart.
-      "Tor Browser (VPN)".executable = "/Applications/Tor Browser.app/Contents/MacOS/firefox";
-    };
-  };
 
   # `local.ytDlpWebUi` and `local.meTube` used to be enabled here, at DARWIN
   # scope. Both are Home Manager modules since 2026-09-22 — their enables moved
