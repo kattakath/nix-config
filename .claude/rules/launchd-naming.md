@@ -187,8 +187,8 @@ for p in "$HOME"/Library/LaunchAgents/*.plist /Library/LaunchAgents/*.plist /Lib
 done
 ```
 
-**Expected hits, in full** — this audit prints **eight** `BARE-INTERP` lines on `macos`
-today from the **seven** rows below, and every one of them is fine. Seven rows, eight lines: the
+**Expected hits, in full** — this audit prints **nine** `BARE-INTERP` lines on `macos`
+today from the **eight** rows below, and every one of them is fine. Eight rows, nine lines: the
 runner row is a glob, one line per instance — count the rows and you will come up one short.
 
 | Label | Why it is `/bin/sh` |
@@ -200,6 +200,7 @@ runner row is a glob, one line per instance — count the rows and you will come
 | `org.nixos.ollama` | **ours, and deliberate** — same exception (`local.ollamaDaemon`, 2026-09-15). A `RunAtLoad` daemon serving from a store path; it runs as root against `/var/lib/ollama` and reads none of the TCC folders, so only BTM legibility is lost and the process after `exec` is still `ollama`. |
 | `org.nixos.ollama-metal-guard` | **ours, and deliberate** — same exception and the same module (`modules/darwin/ollama-daemon.nix`'s `launchd.daemons.ollama-metal-guard`). It was live on disk but missing from this table until 2026-09-22, which is how the prose count read "six" against a seven-line audit. |
 | `org.nixos.file-rotation-logs-system` | **ours, and deliberate — as of 2026-09-29.** It was NOT `sh` before, and that was the bug: a `RunAtLoad` daemon with a `/nix/store` `ProgramArguments[0]` sat at `runs = 1, exit 78 EX_CONFIG, job state = spawn failed`, so the root log rotator never ran once and `/var/log/ollama-daemon.log` reached 16 MB. Switched to `launchd.daemons.<name>.command` (`modules/darwin/logging.nix`). Root daemon writing `/var/log`; reads no TCC folder, so only BTM legibility is lost. |
+| `org.nixos.clat-guard` | **ours, and deliberate — as of 2026-10-16.** Same exception (`local.clatGuard`, `modules/darwin/clat-guard.nix`, which copies the ollama metal guard's shape): a `RunAtLoad` root daemon on a 30 s `StartInterval` that undoes a spurious CLAT46 (464XLAT) on dual-stack Wi-Fi. It reads no TCC folder, so only BTM legibility is lost, and the process after `exec` is `nix-clat-guard`. Missing from this table until the 2026-10-17 hygiene pass counted nine lines against eight. |
 
 ## `arg0` carries the GROUPING, because the Label does not
 
