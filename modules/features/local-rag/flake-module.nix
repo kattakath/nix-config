@@ -19,7 +19,7 @@
 # ---- WHAT MOVED, AND WHAT DID NOT ------------------------------------------
 #   modules/ollama-local.nix    -> ./ollama-local.nix     BYTE-IDENTICAL
 #   modules/pgvector-local.nix  -> ./pgvector-local.nix   BYTE-IDENTICAL
-#     The two stay ADJACENT because pgvector-local.nix:51 does
+#     The two stay ADJACENT because pgvector-local.nix does
 #     `imports = [ ./ollama-local.nix ]` — that relative literal is the whole
 #     reason `local.rag.pgvector` can single-source `embedModel`/`embedDim`
 #     from `local.rag.ollama` even when a consumer imports only the
