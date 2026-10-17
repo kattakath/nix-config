@@ -1306,6 +1306,11 @@ in
         # repo's media-cli capsule (#818); the plugin ships none of its own. ENABLED
         # BELOW, for the same reason as desktop-commander.
         "gif-meme"
+        # GnuPG from an agent with no TTY (kattakath/skills#81): passphrase via a real
+        # terminal window, plaintext only on the clipboard, answers proved from the
+        # packets. Its fleet adapter names this repo's brew gnupg and the keychain-
+        # secrets lane (set-secret / secrets-push). ENABLED BELOW.
+        "pgp-ops"
       ];
     };
 
@@ -1455,6 +1460,11 @@ in
     # fresh machine gets it with `media-gif` (media-cli capsule, #818) — the skill
     # calls that command by name and is useless without it.
     "gif-meme@kattakath" = true;
+
+    # pgp-ops (kattakath/skills#81): the recurring PGP decrypt-to-clipboard / encrypt-
+    # to-recipient / key-backup flow, harvested 2026-10-17. Declared, not clicked, so a
+    # fresh machine has it alongside the brew GnuPG and keychain-secrets lane it names.
+    "pgp-ops@kattakath" = true;
 
     # REDACTED: the REDACTED IT Slack sign-in (REDACTED). Declared, not
     # clicked, because the folder-routing hook (`slackWorkspaceRoute`) denies the Silver
