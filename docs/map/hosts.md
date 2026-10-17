@@ -144,6 +144,14 @@ they bite any future second account:
 - **`nixpi.nix`** — Pi 4, LIVE: boot fixes + cloudflared + upstream `services.caddy`. Its
   `sdImage` is prebuilt in CI and published to the `installer-latest` release, since it bakes
   no secrets.
+  - **No IPv6 temporary addresses** (`networking.tempAddresses = "disabled"`, since 2026-10-17).
+    dhcpcd hands SLAAC to the kernel with `mngtmpaddr`, so link churn kept minting temporaries
+    (on re-add and on pre-expiry regeneration), and each one outlived its base for its full
+    ≤7-day lifetime. `wlan0` reached **371** addresses, each one also an avahi record. The kernel's
+    `ipv6_create_tempaddr()` refuses when `use_tempaddr <= 0` (Linux v6.6 `addrconf.c:1349`). The option alone only reaches interfaces at ADD (a udev
+    rule), so the host also sets the per-interface `use_tempaddr` keys that nixpkgs emits for
+    declared interfaces. `systemd-sysctl` re-applies those at switch, so a deploy takes effect
+    without a reboot.
   - ⚠ **The Mac's native Linux builder cannot build this host's `etc` closure.** Upstream's
     caddy module formats the generated Caddyfile in a `Caddyfile-formatted` derivation whose
     build command is `cp --no-preserve=mode <Caddyfile> $out/Caddyfile`, and **`cp
