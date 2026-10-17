@@ -77,7 +77,9 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   property of the running machine rather than the evaluated config: **declared but not loaded**
   (plus non-zero last-exit, which catches the exit-78 boot/mount class), **loaded but not
   declared**, unrotated log growth, and the litter left by removed features in launchd's
-  disabled DB and `~/Library/Logs`.
+  disabled DB and `~/Library/Logs`. A sixth section, not about launchd at all, flags an
+  **unbounded** `caffeinate` wake assertion (no utility, `-t` or `-w`) — added with #760, once
+  the CI runners started holding one per job.
   The **loaded-but-not-declared** half is the inverse of the first and needs its own check.
   nix-darwin retires a user agent by scanning `/run/current-system/user/Library/LaunchAgents`
   and deleting whatever the new generation lacks (`modules/system/launchd.nix:150-161`) — a
