@@ -7,9 +7,10 @@
 # only and no port but Caddy's 80 open, a dead connector means the host is
 # unreachable by EVERY route. Recovery was a physical SD reflash, ~40 minutes,
 # with hands on the hardware — the one thing the remotely-managed design exists
-# to avoid. uplink-watchdog.nix:118-121 already wrote this gap down from the
+# to avoid. uplink-watchdog.nix had already written this gap down from the
 # other side ("sshd is loopback-bound and the Cloudflare tunnel needs working
-# internet, so a dead uplink means no LAN path either"); this module closes it.
+# internet, so a dead uplink means no LAN path either" — reworded 2026-10-17 once
+# this module existed); this module closes it.
 #
 # WHY THE SCOPE IS AN INTERFACE AND NOT A SUBNET. nixpi is dual-homed onto one
 # router (end0 wired, wlan0 on its SSID) and fails over to a PHONE HOTSPOT when

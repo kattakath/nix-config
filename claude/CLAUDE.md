@@ -46,9 +46,10 @@ answer, not a polite one — it moves your work onto him. The order is fixed:
    The `--force-with-lease` carve-out is spelled out above rather than left to the
    "re-read the file" instruction because that instruction **measurably failed**: on
    2026-09-29 two independent sessions both told Ismail force-push was denied, each
-   quoting this summary line instead of opening `claude-guardrails.nix:223-229`, whose
-   own comment keeps the lease form allowed as "the safe way to update an agent's own
-   rebased PR branch". Both then handed him a command to paste — the exact outcome
+   quoting this summary line instead of opening the `git push --force` deny block in
+   `claude-guardrails.nix` (`grep -n force-with-lease` finds it — a line number here
+   rotted once already), whose own comment keeps the lease form allowed as "the safe way
+   to update an agent's own rebased PR branch". Both then handed him a command to paste — the exact outcome
    rule 1 exists to prevent. A condensed list of *categories* is a pointer, not the
    policy: before telling him something is forbidden, open the mechanism and quote it.
 
