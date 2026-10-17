@@ -33,7 +33,7 @@
 # at runtime would behave differently depending on who spawned it.
 {
   lib,
-  writeShellScriptBin,
+  writeShellApplication,
   nodejs,
 }:
 {
@@ -65,40 +65,45 @@ let
   );
   npx = lib.getExe' nodejs "npx";
 in
-writeShellScriptBin "nix-mcp-gmail-${alias}" ''
-  set -u
+# writeShellApplication for the build-time shellcheck; `bashOptions` keeps the exact `set -u`
+# this launcher always ran under — the default errexit would abort a launch the missing-
+# Keychain branch below is meant to let through with a warning.
+writeShellApplication {
+  name = "nix-mcp-gmail-${alias}";
+  bashOptions = [ "nounset" ];
+  text = ''
+    # 077 BEFORE the file exists, not chmod after. The previous inline version wrote the
+    # oauth keys and THEN chmod'd them, which leaves a window where a file containing the
+    # OAuth client secret is readable by anyone on the box. Narrow, but free to close.
+    umask 077
 
-  # 077 BEFORE the file exists, not chmod after. The previous inline version wrote the
-  # oauth keys and THEN chmod'd them, which leaves a window where a file containing the
-  # OAuth client secret is readable by anyone on the box. Narrow, but free to close.
-  umask 077
+    dir="${homeDirectory}/.gmail-mcp"
+    mkdir -p "$dir"
 
-  dir="${homeDirectory}/.gmail-mcp"
-  mkdir -p "$dir"
+    client_id="$(/usr/bin/security find-generic-password -a "$(id -un)" -s GMAIL_OAUTH_CLIENT_ID -w 2>/dev/null || true)"
+    client_secret="$(/usr/bin/security find-generic-password -a "$(id -un)" -s GMAIL_OAUTH_CLIENT_SECRET -w 2>/dev/null || true)"
+    if [ -z "$client_id" ] || [ -z "$client_secret" ]; then
+      echo "nix-mcp-gmail-${alias}: GMAIL_OAUTH_CLIENT_ID / GMAIL_OAUTH_CLIENT_SECRET are not in the login Keychain." >&2
+      echo "  Set them with: secret set GMAIL_OAUTH_CLIENT_ID   (and _SECRET)" >&2
+      echo "  Tools will fail until both exist; this launcher still starts so the failure is visible to the client." >&2
+    fi
 
-  client_id="$(/usr/bin/security find-generic-password -a "$(id -un)" -s GMAIL_OAUTH_CLIENT_ID -w 2>/dev/null || true)"
-  client_secret="$(/usr/bin/security find-generic-password -a "$(id -un)" -s GMAIL_OAUTH_CLIENT_SECRET -w 2>/dev/null || true)"
-  if [ -z "$client_id" ] || [ -z "$client_secret" ]; then
-    echo "nix-mcp-gmail-${alias}: GMAIL_OAUTH_CLIENT_ID / GMAIL_OAUTH_CLIENT_SECRET are not in the login Keychain." >&2
-    echo "  Set them with: secret set GMAIL_OAUTH_CLIENT_ID   (and _SECRET)" >&2
-    echo "  Tools will fail until both exist; this launcher still starts so the failure is visible to the client." >&2
-  fi
+    # printf, not a heredoc: a heredoc inside a Nix indented string has to be de-indented
+    # to column 0 or the terminator never matches, which makes the whole block fragile to
+    # reformatting. printf also quotes the substitutions properly.
+    oauth_keys="$dir/gcp-oauth.keys.json"
+    printf '{"installed":{"client_id":"%s","client_secret":"%s","redirect_uris":["http://localhost"]}}\n' \
+      "$client_id" "$client_secret" > "$oauth_keys"
 
-  # printf, not a heredoc: a heredoc inside a Nix indented string has to be de-indented
-  # to column 0 or the terminator never matches, which makes the whole block fragile to
-  # reformatting. printf also quotes the substitutions properly.
-  oauth_keys="$dir/gcp-oauth.keys.json"
-  printf '{"installed":{"client_id":"%s","client_secret":"%s","redirect_uris":["http://localhost"]}}\n' \
-    "$client_id" "$client_secret" > "$oauth_keys"
+    export GMAIL_OAUTH_PATH="$oauth_keys"
+    export GMAIL_CREDENTIALS_PATH="$dir/credentials-${alias}.json"
+    # The server writes its token cache relative to HOME; launchd and a plugin-spawned
+    # process do not agree on HOME, so it is pinned.
+    export HOME="${homeDirectory}"
 
-  export GMAIL_OAUTH_PATH="$oauth_keys"
-  export GMAIL_CREDENTIALS_PATH="$dir/credentials-${alias}.json"
-  # The server writes its token cache relative to HOME; launchd and a plugin-spawned
-  # process do not agree on HOME, so it is pinned.
-  export HOME="${homeDirectory}"
-
-  # FIRST RUN NEEDS A BROWSER, once per account:
-  #   GMAIL_OAUTH_PATH=$oauth_keys GMAIL_CREDENTIALS_PATH=$GMAIL_CREDENTIALS_PATH \
-  #     ${npx} -y @artymclabin/gmail-mcp auth
-  exec ${npx} -y @artymclabin/gmail-mcp --tool-prefix=${alias}_
-''
+    # FIRST RUN NEEDS A BROWSER, once per account:
+    #   GMAIL_OAUTH_PATH=$oauth_keys GMAIL_CREDENTIALS_PATH=$GMAIL_CREDENTIALS_PATH \
+    #     ${npx} -y @artymclabin/gmail-mcp auth
+    exec ${npx} -y @artymclabin/gmail-mcp --tool-prefix=${alias}_
+  '';
+}
