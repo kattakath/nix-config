@@ -192,7 +192,7 @@ let
   #   `aws-infin8@kattakath`              mcp__plugin_aws-infin8_aws-mcp__*  Infin8 SSO
   # Both run the same pinned proxy (mcp-proxy-for-aws-cli==1.7.0). aws-core passes
   # `--skip-auth`, so its AWS calls are unsigned; aws-infin8 passes
-  # `--profile infin8-takeoff-sdlc infin8it-takeoff-prod` (sdlc default, prod only by
+  # `--profile infin8-takeoff-development infin8-takeoff-production` (development default, production only by
   # an explicit `aws_profile`), measured 2026-10-16 returning AdministratorAccess in
   # each account. Under the Infin8 root aws-core's server is denied with a redirect, so
   # the model never reaches for the unsigned twin; outside it aws-infin8 is denied, so
@@ -214,12 +214,12 @@ let
       case "$tool" in
         mcp__plugin_aws-core_aws-mcp__*)
           if $in_infin8; then
-            deny "aws-core's AWS MCP server runs with --skip-auth, so its AWS calls are unsigned. Under the Infin8 folder use the same tool from aws-infin8 instead: prefix mcp__plugin_aws-infin8_aws-mcp__ (SDLC by default; pass aws_profile=infin8it-takeoff-prod for production)."
+            deny "aws-core's AWS MCP server runs with --skip-auth, so its AWS calls are unsigned. Under the Infin8 folder use the same tool from aws-infin8 instead: prefix mcp__plugin_aws-infin8_aws-mcp__ (development by default; pass aws_profile=infin8-takeoff-production for production)."
           fi
           ;;
         mcp__plugin_aws-infin8_*)
           if ! $in_infin8; then
-            deny "aws-infin8 holds Infin8 IT AdministratorAccess (SDLC and production) and is only for folders under ${infin8Root}."
+            deny "aws-infin8 holds Infin8 IT AdministratorAccess (development and production) and is only for folders under ${infin8Root}."
           fi
           ;;
       esac
@@ -247,7 +247,7 @@ let
       case "$cwd/" in "${infin8Root}/"*) ;; *) exit 0 ;; esac
       tmp=$(mktemp -d)
       trap 'rm -rf "$tmp"' EXIT
-      profiles=(infin8-takeoff-sdlc infin8it-takeoff-prod)
+      profiles=(infin8-takeoff-development infin8-takeoff-production)
       for p in "''${profiles[@]}"; do
         ( timeout 15 aws sts get-caller-identity --profile "$p" \
             --query Arn --output text >"$tmp/$p" 2>/dev/null || echo FAIL >"$tmp/$p" ) &
@@ -1234,7 +1234,7 @@ in
         "slack-silvercreek"
 
         # aws-infin8 (kattakath/skills#77): the AWS MCP Server, SIGNED with the Infin8 IT
-        # SSO profiles — `infin8-takeoff-sdlc` by default, `infin8it-takeoff-prod` only by
+        # SSO profiles — `infin8-takeoff-development` by default, `infin8-takeoff-production` only by
         # an explicit `aws_profile`. The same pinned proxy as aws-core's, minus --skip-auth.
         # Infin8-root only, by `awsAccountRoute`; SSO freshness by `infin8AwsSsoCheck`.
         "aws-infin8"
@@ -1427,7 +1427,7 @@ in
     # (modules/home/plugin-mcp.nix). Allowed outside the Infin8 root, denied under it.
     "slack-silvercreek@kattakath" = true;
 
-    # AWS, decided by the operator 2026-10-16: AdministratorAccess on the Infin8 SDLC and
+    # AWS, decided by the operator 2026-10-16: AdministratorAccess on the Infin8 development and
     # production accounts, through MCP, under the Infin8 root. aws-infin8 is the signed
     # server; the three official plugins bring the skills (catalogue entries above say
     # what each one really ships). Declared, not clicked, for the reason the block above
@@ -1769,8 +1769,14 @@ in
       ## AWS: use the `aws-infin8` MCP server (AdministratorAccess, SSO)
 
       - Tools prefixed `mcp__plugin_aws-infin8_aws-mcp__` are signed with Identity
-        Center SSO. **SDLC (`infin8-takeoff-sdlc`) is the default**; production needs an
-        explicit `aws_profile: "infin8it-takeoff-prod"` on the call.
+        Center SSO. **development (`infin8-takeoff-development`) is the default**; production needs an
+        explicit `aws_profile: "infin8-takeoff-production"` on the call.
+      - **Canonical AWS names:** one string per account, used as Organizations account name,
+        IAM alias and CLI profile, named for the ONE environment it hosts and spelled like
+        the app's environments: `infin8-takeoff-development` (319826235970),
+        `infin8-takeoff-production` (996122083124). `SDLC`/`Prod` are OU names only (AWS
+        Organizations OU best practices). `infin8-takeoff-sdlc`, `infin8it-takeoff-prod`,
+        `infin8-takeoff-prod` and `infin8it` are legacy aliases: never use them in new code.
       - **Never** use `mcp__plugin_aws-core_aws-mcp__*` here: it runs `--skip-auth`, so its
         AWS calls are unsigned. A PreToolUse hook denies it under this folder (and denies
         `aws-infin8` outside it). aws-core's **skills** are fine to use.
@@ -1794,7 +1800,7 @@ in
   # ---- Claude Desktop: the Infin8 AWS server --------------------------------------
   # The same server as `aws-infin8@kattakath` (kattakath/skills#77), rendered for
   # Desktop because Desktop loads no plugins (./claude-desktop.nix says why that is the
-  # only lane). Operator decision 2026-10-16: BOTH profiles, sdlc default and prod via
+  # only lane). Operator decision 2026-10-16: BOTH profiles, development default and production via
   # `aws_profile`. Desktop has no working directory, so `awsAccountRoute` cannot fence
   # it: production AdministratorAccess is reachable from every Desktop chat and from
   # the Cowork bridge. That was asked for; it is written here so nobody mistakes it
@@ -1808,8 +1814,8 @@ in
         "mcp-proxy-for-aws-cli==1.7.0"
         "https://aws-mcp.us-east-1.api.aws/mcp"
         "--profile"
-        "infin8-takeoff-sdlc"
-        "infin8it-takeoff-prod"
+        "infin8-takeoff-development"
+        "infin8-takeoff-production"
         "--region"
         "us-east-1"
         "--disable-telemetry"
