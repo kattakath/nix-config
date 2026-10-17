@@ -27,14 +27,27 @@
 # while it is actually broadcasting — a phone hotspot that sleeps with no client
 # attached is not an unattended backup, and this module cannot make it one.
 #
-# NO FIELD EVIDENCE OF THIS LADDER ACTING EXISTS — do not read one into the comments
-# below. Forensics on the dead card, 2026-10-01: `nixos-rebuild list-generations` showed
-# GENERATION 1 ONLY, nixpkgs dated 09-07, while this module was born 2026-09-22 (#558).
-# No generation carrying it was ever deployed, so it cannot have run during the 8-day
-# 09-23 → 10-01 outage, and every symptom then attributed to it came from HAND EDITS made
-# over SSH to /boot/firmware/wpa_supplicant.conf. Host OBSERVATIONS below (dhcpcd's two
-# metrics, the hotspot subnet, wpa_cli's dead control socket) are real and stand; claims
-# about what this ladder DID in the field are unavailable, and none are made.
+# FIELD RECORD — the first one, 2026-10-15/16, and it was a FALSE ALARM that ran 38 h.
+# (Before it there was none: the 09-23 → 10-01 outage predates any deployed generation
+# carrying this module, so nothing then can be attributed to it.) At 02:37Z on 10-15
+# the router's WAN reset: the tunnel dropped on both families and the router withdrew
+# its IPv6 default (RA lifetime 0). IPv6 came back within minutes; IPv4 egress did
+# NOT, so the tunnel re-registered over IPv6 (11 of 11 registrations, v6) and logged
+# 0 errors in most hours. timesyncd tells the same story: 8 IPv4 NTP servers timed
+# out, then the first IPv6 one answered. But this probe was IPv4 literals ONLY, so
+# it read "uplink down" for 38 h and ran the ladder 401 times, one cycle every ~5.5
+# min: 801 supplicant restarts and 2,417 wlan0 carrier losses, all against an
+# uplink the tunnel was already using. That churn also drove two downstream
+# failures, avahi renaming the host `nixpi-3` and 371 IPv6 temporaries piling up
+# (hosts/nixpi.nix). It ended at 17:04Z on 10-16, the same minute wlan0 joined the
+# `aloshy` hotspot and the tunnel registered over IPv4 again. IPv4's default stays on
+# end0, so the router's IPv4 had probably just returned; cause vs coincidence is open.
+# Router-side IPv4 death is consistent with every Pi-side signal; the gateway's own
+# log was not pulled.
+#
+# Hence: the probe tests BOTH families, and healthy means ANY of them reaches the
+# internet. That is the question that matters, because cloudflared runs with no
+# --edge-ip-version, and its default is `auto` (cloudflared 2026.9.1 `tunnel --help`).
 {
   config,
   lib,
@@ -54,11 +67,15 @@ let
     name = "uplink-probe";
     runtimeInputs = [ pkgs.curl ];
     text = ''
-      # Two targets, because one provider having a bad minute is not an outage.
+      # Two providers per family, because one having a bad minute is not an outage,
+      # and BOTH families, because the tunnel uses whichever works (header). The
+      # first answer wins; only all of them failing counts as down.
       # -k: we are proving reachability, not identity; a captive portal that
       # answers with its own cert should still count as NOT having internet, so
       # the status code is checked too.
-      for t in ${lib.concatStringsSep " " cfg.probeTargets}; do
+      # Quoted per target: an IPv6 literal's brackets are a glob character class in an
+      # unquoted `for` list (shellcheck SC2102 caught it at build time).
+      for t in ${lib.concatMapStringsSep " " lib.escapeShellArg cfg.probeTargets}; do
         code=$(curl -sk --max-time ${toString cfg.probeTimeout} -o /dev/null -w '%{http_code}' "https://$t/" || true)
         case "$code" in
           2* | 3*) exit 0 ;;
@@ -77,6 +94,10 @@ let
       gnugrep
       gawk
       coreutils
+      # `cmp` lives HERE, not in coreutils. Without it every restore() logged
+      # "cmp: command not found" (401 of 401 in the 10-15/16 storm), and `! cmp` then
+      # read TRUE, so each one re-installed the card and restarted the supplicant.
+      diffutils
     ];
     text = ''
       STATE=/run/uplink-watchdog.state
@@ -136,7 +157,11 @@ let
         #
         # `cmp -s` is the second trap, not just `install`: an unreadable source makes cmp
         # ERROR, which makes `! cmp` TRUE, so it entered the branch precisely when it
-        # could not complete it. Hence the `-r` test leads the condition.
+        # could not complete it. Hence the `-r` test leads the condition. A MISSING cmp
+        # errors the same way, and that is the one that actually fired in the field:
+        # diffutils was absent from runtimeInputs until 2026-10-17. With cmp present, and
+        # nothing rewriting the runtime conf since 09-23, this branch restarts the
+        # supplicant only when the card really differs.
         #
         # Losing the wifi conf restore is the lesser harm either way — a reboot re-reads the
         # card anyway, whereas a frozen ladder waits for the operator to notice.
@@ -178,9 +203,9 @@ let
           # this host: it is a PHONE HOTSPOT on mobile data, brought up BY HAND when
           # the house link dies. Its appearance is therefore not a spare AP, it is an
           # emergency beacon — the operator turning it on IS the signal, and the only
-          # remaining way to reach this host at all (sshd is loopback-bound and the
-          # Cloudflare tunnel needs working internet, so a dead uplink means no LAN
-          # path either). Grabbing it must be the FIRST thing tried, not the second.
+          # remaining way to reach this host from OFF the house LAN (the Cloudflare
+          # tunnel needs working internet; local.lanRecovery's sshd answers only from
+          # the same segment). Grabbing it must be the FIRST thing tried, not the second.
           #
           # WHY A RESTART IS REQUIRED AND A PRIORITY IS NOT ENOUGH: `priority=` is
           # consulted at (RE)ASSOCIATION time only. A supplicant already associated to
@@ -228,10 +253,15 @@ let
             | awk '{for (i = 1; i < NF; i++) if ($i == "metric") print $(i + 1); exit}')
           if [ -n "$dgw" ]; then
             printf '%s' "''${dmet:-1002}" > "$PREVMETRIC"
-            if ip route add default via "$dgw" dev ${cfg.wiredInterface} metric ${toString cfg.demotedMetric} 2>/dev/null; then
+            # ip's error is KEPT, not discarded. This add failed on 398 of 401 cycles in
+            # the 10-15/16 storm and the reason is unknowable because stderr went to
+            # /dev/null. Separately, a `metric 1001002` route left by restore() was
+            # still present on 10-17 (PREVMETRIC held the same value), so the
+            # demote/restore pair can leave residue. The next run will say why.
+            if err=$(ip route add default via "$dgw" dev ${cfg.wiredInterface} metric ${toString cfg.demotedMetric} 2>&1); then
               ip route del default via "$dgw" dev ${cfg.wiredInterface} metric "''${dmet:-1002}" 2>/dev/null || true
             else
-              echo "uplink-watchdog: could not add the demoted route; leaving the wired leg preferred" >&2
+              echo "uplink-watchdog: could not add the demoted route (''${err:-no error text}); leaving the wired leg preferred" >&2
             fi
           else
             echo "uplink-watchdog: no wired default route to demote" >&2
@@ -305,8 +335,16 @@ in
       default = [
         "1.1.1.1"
         "8.8.8.8"
+        "[2606:4700:4700::1111]"
+        "[2001:4860:4860::8888]"
       ];
-      description = "Addresses (not names — DNS may be the thing that is broken) probed over HTTPS.";
+      description = ''
+        Addresses (not names — DNS may be the thing that is broken) probed over HTTPS
+        as `https://<target>/`, so an IPv6 literal carries its brackets. ANY target
+        answering means healthy. Both families are listed because the tunnel connects
+        over whichever works, and an IPv4-only list ran the ladder for 38 h on
+        2026-10-15/16 while the tunnel sat healthy on IPv6 (header).
+      '';
     };
 
     probeTimeout = lib.mkOption {
