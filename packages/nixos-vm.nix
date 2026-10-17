@@ -87,7 +87,13 @@ let
         DownscalingFilter = "Linear";
         DynamicResolution = true;
         Hardware = "virtio-gpu-gl-pci";
-        NativeResolution = false;
+        # UTM's "Retina Mode". It makes UTM request the window size in PIXELS
+        # rather than points and draw at the screen's backing scale (UTM
+        # VMDisplayQemuMetalWindowController.swift, updateGuestResolution).
+        # Operator-tested 2026-10-17: at the same 1440x900 @ 100% guest
+        # settings it looks better than with it off. The guest config sets no
+        # scaling-factor (hosts/nixos.nix says why), so this is the one knob.
+        NativeResolution = true;
         UpscalingFilter = "Nearest";
       }
     ];
