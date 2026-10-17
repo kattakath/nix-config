@@ -1692,7 +1692,7 @@ in
     # /etc/profiles/per-user/<user>/bin/nix-gitlab-tart-* paths — GC-rooted
     # by the profile and upgraded in place, unlike bare /nix/store paths from
     # `nix run` output (which garbage-collect out from under the runner).
-    # The executor VMs share the local.tart.runners two-guest slot budget; the
+    # The executor VMs share the local.tart.githubRunners two-guest slot budget; the
     # token-bearing config.toml itself stays imperative (hosts/macos.nix).
     ++ lib.optionals isMacosHost (
       builtins.attrValues {
