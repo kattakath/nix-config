@@ -14,12 +14,15 @@ Not one model with exceptions: three, each owning a different place a secret has
 |---|---|---|---|
 | **agenix** (`secrets/*.age`) | host-bound material a NixOS or macOS *system* needs at activation — runner App keys, the GitLab token | an SSH host key (+ the operator key) | re-issue from the vendor; re-encrypt |
 | **Firmware-partition planting** (`local.firmwareProvisioning`) | what `nixpi` needs *before* it has a host key at all — the tunnel token, Wi-Fi | the SD card's FAT `FIRMWARE` partition | `nixpi-flash` / `nixpi-provision` plant it again |
-| **Secret Manager → login Keychain** (`local.keychainSecrets.backend`, ADR-004) | the operator's *personal* tokens, injected into every shell | the operator's Google identity; the Keychain is a fast local cache | `gcloud auth login` → `secrets-rehydrate` — shipped, **off by default** (`backend.type = "none"` until the operator flips it) |
+| **Secret Manager → login Keychain** (`local.keychainSecrets.backend`, ADR-004) | the operator's *personal* tokens, injected into every shell | the operator's Google identity; the Keychain is a fast local cache | `gcloud auth login` → `secrets-rehydrate` — off by default (`backend.type = "none"`); **`macos` runs `"gcp"` since 2026-10-17** (#826) |
 
 The first two are unchanged by ADR-004 and never will be touched by `secrets-*`: agenix stays
-the Pi/firmware side's owner. Only the third gains a durable source of truth — and only once
-`backend.type = "gcp"` is set; until then the login Keychain is its ONLY copy, so back it up
-independently before wiping a Mac. The four commands (`secrets-status`, `secrets-rehydrate`,
+the Pi/firmware side's owner. Only the third gains a durable source of truth, and only on a
+host with `backend.type = "gcp"` — `macos` since 2026-10-17. Without it the login Keychain is the
+ONLY copy. Even with it, the durable copy holds only what `secrets-push` has pushed, so run
+`secrets-status` before wiping a Mac. Run every `secrets-*` command with
+`CLOUDSDK_CONFIG=~/.config/gcloud-nix-config`, where the canonical Google account is active (the
+`hosts/macos.nix` comment says why). The four commands (`secrets-status`, `secrets-rehydrate`,
 `secrets-push`, `secrets-resolve`), the `mode = "reference"` export and the annotation-based
 mapping are documented in the capsule's README § Backend; the rule that activation never calls
 any of them is `ast-grep/rules/activation-must-not-touch-secrets.yml`.
