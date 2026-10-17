@@ -99,8 +99,10 @@ in
       # DELIBERATE stop is not a failure — so the connector stays down and the Pi
       # is unreachable until someone power-cycles it by hand.
       # Measured 2026-09-16: that is exactly how both hosted sites went to HTTP
-      # 530 with no remote way back in (sshd is loopback-bound and
-      # `allowedTCPPorts = [ ]`, so this connector is the only door).
+      # 530 with no remote way back in (sshd was loopback-bound then and
+      # `allowedTCPPorts = [ ]`, so this connector was the only door). The LAN
+      # recovery ingress (2026-10-01) adds a second, same-segment-only door;
+      # every REMOTE deploy still rides this connector.
       # Upstream option, not a custom mechanism — nixos/lib/systemd-unit-options.nix:548.
       # nixpkgs' own sshd takes the same precaution for the same reason
       # (services/networking/ssh/sshd.nix:829, `stopIfChanged = false`).
