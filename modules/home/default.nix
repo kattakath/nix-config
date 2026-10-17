@@ -1555,6 +1555,18 @@ in
     recursive = true;
   };
 
+  # qBittorrent — FOSS torrent client, picked over Transmission for its
+  # network-interface binding (VPN kill-switch), built-in search and RSS rules.
+  # From nixpkgs, NOT the cask: Homebrew DISABLED `qbittorrent` on 2026-09-01
+  # (fails Gatekeeper), so `brew bundle` errors on it. Planted like the bundle
+  # above rather than via home.packages, because linkApps' "Home Manager Apps"
+  # is a symlink into /nix/store that Spotlight does not index
+  # (modules/home/spotlight-actions.nix has the full copyApps comparison).
+  home.file."Applications/qBittorrent.app" = lib.mkIf isMacosHost {
+    source = "${pkgs.qbittorrent}/Applications/qbittorrent.app";
+    recursive = true;
+  };
+
   # Make Home-Manager-installed font packages discoverable by applications —
   # LINUX ONLY. On macOS this is NOT what makes fonts visible: pinned
   # home-manager targets/darwin/fonts.nix already rsyncs every package's

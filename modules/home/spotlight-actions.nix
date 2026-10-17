@@ -10,10 +10,7 @@
 #                 Info.plist, but that is a Homebrew cask and editing it would
 #                 be clobbered by the next upgrade AND break its code signature.
 #
-#   vpnOnlyApps — `qBittorrent (VPN)`, `Tor Browser (VPN)`: launch an app under
-#                 the per-app VPN kill switch (modules/darwin/vpn-only-apps.nix).
-#
-# All three merge into one `home.file` map below — same placement rules, same gate.
+# The two merge into one `home.file` map below — same placement rules, same gate.
 #
 # WHY NOT SPOTLIGHT'S "ACTIONS" LANE (the one macOS 26 added, and the one people
 # reach for first): it is fed only by App Intents — a Swift-only framework
@@ -66,24 +63,7 @@ let
   inherit (pkgs.callPackage ../../packages/spotlight-launchers.nix { })
     commandApps
     aliasApps
-    mkVpnOnlyApp
     ;
-
-  # The per-app VPN kill switch's launchers. The darwin module owns the list
-  # (it also writes the sudoers rule for exactly these binaries); this side only
-  # turns each entry into a bundle.
-  vpnOnly = osConfig.local.vpnOnlyApps or { enable = false; };
-  vpnOnlyApps = lib.optionalAttrs vpnOnly.enable (
-    lib.mapAttrs (
-      name: app:
-      mkVpnOnlyApp {
-        inherit name;
-        inherit (app) executable icns;
-        inherit (vpnOnly) group;
-        bundleId = "com.kattakath.vpn-only.${lib.replaceStrings [ " " ] [ "-" ] (lib.toLower name)}";
-      }
-    ) vpnOnly.apps
-  );
 in
 {
   # `recursive = true` for the same reason the Android Emulator bundle uses it
@@ -96,6 +76,6 @@ in
         source = app;
         recursive = true;
       }
-    ) (commandApps // aliasApps // vpnOnlyApps)
+    ) (commandApps // aliasApps)
   );
 }
