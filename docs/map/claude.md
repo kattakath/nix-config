@@ -226,7 +226,8 @@ nothing is declared in Nix; the method lives in the `page-lab` plugin — see
 a line there when a new flake is extracted from this repo, nothing else needs to change).
 There is **no `npx skills` CLI lockfile** any more: `skills-lock.json` was deleted 2026-10-02,
 having sat at `{"version":1,"skills":{}}` with zero consumers in Nix, CI or hooks. The CLI it
-belonged to is rejected outright (`flake.nix:275`, `modules/home/default.nix:1499`), so the flake
+belonged to is rejected outright (the `agent-skills-vercel` input's comment in `flake.nix`, and
+`programs.claude-code.skills` in `modules/home/default.nix`), so the flake
 path below is the only lane for a global skill — do not re-add the lockfile.
 
 ### Global skills

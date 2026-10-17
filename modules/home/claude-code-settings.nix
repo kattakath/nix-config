@@ -17,7 +17,7 @@
 # so upstream-first comes back EMPTY and this module is warranted.
 #
 # The operator hits this as: they cannot change the Bedrock model.
-# claude-bedrock-gate.nix:48-50 already records the chicken-and-egg — the agent
+# claude-bedrock-gate.nix already records the chicken-and-egg — the agent
 # needed to diagnose it is the one that just lost its model, and settings.json is
 # read-only under /nix so it cannot be hand-repaired.
 #
@@ -70,7 +70,7 @@ let
   # Nix's OWN keys, rendered from the very option every other module already
   # writes to (claude-guardrails.nix, claude-plugins.nix, claude-otel.nix,
   # claude-bedrock-gate.nix). Intercepting the RENDERING rather than the option
-  # means no module has to change and checks.nix:567 keeps reading the same path.
+  # means no module has to change and checks.nix's `userDeny` keeps reading the same path.
   nixSettings = (pkgs.formats.json { }).generate "claude-code-nix-settings.json" (
     config.programs.claude-code.settings
     // {

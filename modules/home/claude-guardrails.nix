@@ -147,7 +147,7 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # arrived as `mcp__plugin_hm_<server>__<tool>`. The two spellings that lived
     # here before — a bare `mcp__mcpfinder__…` and an older, longer plugin prefix
     # — matched NOTHING, so imperative MCP adoption was ungated the whole time.
-    # modules/home/default.nix:660 in this same repo already had it right.
+    # modules/home/default.nix in this same repo already had it right at the time.
     #
     # THAT PREFIX WENT STALE TWICE, exactly as this paragraph predicted. The
     # 2026-09-22 portal collapse made the gateway ONE Claude Code server
