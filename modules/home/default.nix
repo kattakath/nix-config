@@ -192,7 +192,7 @@ let
   #   `REDACTED@kattakath`              mcp__plugin_REDACTED_aws-mcp__*  REDACTED SSO
   # Both run the same pinned proxy (mcp-proxy-for-aws-cli==1.7.0). aws-core passes
   # `--skip-auth`, so its AWS calls are unsigned; REDACTED passes
-  # `--profile REDACTED REDACTED` (sdlc default, prod only by
+  # `--profile REDACTED REDACTED` (development default, production only by
   # an explicit `aws_profile`), measured 2026-10-16 returning AdministratorAccess in
   # each account. Under the REDACTED root aws-core's server is denied with a redirect, so
   # the model never reaches for the unsigned twin; outside it REDACTED is denied, so
@@ -214,12 +214,12 @@ let
       case "$tool" in
         mcp__plugin_aws-core_aws-mcp__*)
           if $in_client; then
-            deny "aws-core's AWS MCP server runs with --skip-auth, so its AWS calls are unsigned. Under the REDACTED folder use the same tool from REDACTED instead: prefix mcp__plugin_REDACTED_aws-mcp__ (SDLC by default; pass aws_profile=REDACTED for production)."
+            deny "aws-core's AWS MCP server runs with --skip-auth, so its AWS calls are unsigned. Under the REDACTED folder use the same tool from REDACTED instead: prefix mcp__plugin_REDACTED_aws-mcp__ (development by default; pass aws_profile=REDACTED for production)."
           fi
           ;;
         mcp__plugin_REDACTED_*)
           if ! $in_client; then
-            deny "REDACTED holds REDACTED IT AdministratorAccess (SDLC and production) and is only for folders under ${clientRoot}."
+            deny "REDACTED holds REDACTED IT AdministratorAccess (development and production) and is only for folders under ${clientRoot}."
           fi
           ;;
       esac
@@ -1427,7 +1427,7 @@ in
     # (modules/home/plugin-mcp.nix). Allowed outside the REDACTED root, denied under it.
     "REDACTED@kattakath" = true;
 
-    # AWS, decided by the operator 2026-10-16: AdministratorAccess on the REDACTED SDLC and
+    # AWS, decided by the operator 2026-10-16: AdministratorAccess on the REDACTED development and
     # production accounts, through MCP, under the REDACTED root. REDACTED is the signed
     # server; the three official plugins bring the skills (catalogue entries above say
     # what each one really ships). Declared, not clicked, for the reason the block above
@@ -1769,8 +1769,14 @@ in
       ## AWS: use the `REDACTED` MCP server (AdministratorAccess, SSO)
 
       - Tools prefixed `mcp__plugin_REDACTED_aws-mcp__` are signed with Identity
-        Center SSO. **SDLC (`REDACTED`) is the default**; production needs an
+        Center SSO. **development (`REDACTED`) is the default**; production needs an
         explicit `aws_profile: "REDACTED"` on the call.
+      - **Canonical AWS names:** one string per account, used as Organizations account name,
+        IAM alias and CLI profile, named for the ONE environment it hosts and spelled like
+        the app's environments: `REDACTED` (REDACTED),
+        `REDACTED` (REDACTED). `SDLC`/`Prod` are OU names only (AWS
+        Organizations OU best practices). `REDACTED`, `REDACTED`,
+        `REDACTED` and `REDACTED` are legacy aliases: never use them in new code.
       - **Never** use `mcp__plugin_aws-core_aws-mcp__*` here: it runs `--skip-auth`, so its
         AWS calls are unsigned. A PreToolUse hook denies it under this folder (and denies
         `REDACTED` outside it). aws-core's **skills** are fine to use.
@@ -1794,7 +1800,7 @@ in
   # ---- Claude Desktop: the REDACTED AWS server --------------------------------------
   # The same server as `REDACTED@kattakath` (kattakath/skills#77), rendered for
   # Desktop because Desktop loads no plugins (./claude-desktop.nix says why that is the
-  # only lane). Operator decision 2026-10-16: BOTH profiles, sdlc default and prod via
+  # only lane). Operator decision 2026-10-16: BOTH profiles, development default and production via
   # `aws_profile`. Desktop has no working directory, so `awsAccountRoute` cannot fence
   # it: production AdministratorAccess is reachable from every Desktop chat and from
   # the Cowork bridge. That was asked for; it is written here so nobody mistakes it
