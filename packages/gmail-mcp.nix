@@ -1,18 +1,9 @@
 # ONE per-account Gmail MCP launcher.
 #
-# HONEST STATE OF THE DUPLICATION, 2026-10-01: `modules/shared/mcp.nix` still contains an
-# inline `mkGmailMcp` with the same logic. It is INERT — that module's gateway is disabled
-# (`local.mcpGateway.enable = false`), so nothing builds it — and it goes when the gateway
-# code is deleted, which must wait until the Cloudflare side has been destroyed through
-# terranix. Until then this file is the LIVE copy and that one is dead weight. Saying so
-# is better than claiming a single source of truth that does not yet exist.
-#
-# WHY A PACKAGE RATHER THAN AN INLINE `let` IN A MODULE. It has two consumers now: the
-# `local.gmailMcp` module that puts these on PATH for the PLUGIN lane, and (until it is
-# deleted) `modules/shared/mcp.nix`'s gateway. Inlining it in either would make the other
-# a copy — and a second copy of credential-handling code is the exact shape the repo
-# motto calls "a bug with a delayed fuse". Extracted 2026-10-01 when the gateway was
-# purged and the plugin lane needed the same launcher.
+# The ONE copy of this credential-handling logic: built by `local.gmailMcp`
+# (modules/home/gmail-mcp.nix), which puts one launcher per account on PATH for the
+# `gmail` plugin. Extracted 2026-10-01 from the gateway, whose inline twin went with
+# modules/shared/mcp.nix on 2026-10-02.
 #
 # WHAT IT DOES, and why none of it can live in the plugin instead:
 #   * reads GMAIL_OAUTH_CLIENT_ID / GMAIL_OAUTH_CLIENT_SECRET from the login Keychain at

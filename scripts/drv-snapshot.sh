@@ -91,11 +91,19 @@ capture() {
     | python3 -c 'import json,sys;json.dump(json.load(sys.stdin),sys.stdout,indent=1,sort_keys=True)' \
     > "$dir/flake-show.json"
 
+  # EVERY host the flake exports, enumerated rather than listed: a hard-coded
+  # list silently skipped `nixos` when #850 added it, so a code move that changed
+  # that host would have compared clean.
   echo "  host toplevels ..." >&2
   {
-    emit "darwin:macos" 'let f = builtins.getFlake (toString '"$REPO"'); in f.darwinConfigurations.macos.config.system.build.toplevel.drvPath'
-    emit "nixos:nixpi"  'let f = builtins.getFlake (toString '"$REPO"'); in f.nixosConfigurations.nixpi.config.system.build.toplevel.drvPath'
-    emit "nixos:nixvm"  'let f = builtins.getFlake (toString '"$REPO"'); in f.nixosConfigurations.nixvm.config.system.build.toplevel.drvPath'
+    local kind attr host
+    for kind in darwin nixos; do
+      attr="${kind}Configurations"
+      for host in $(cd "$REPO" && nix eval --json ".#${attr}" --apply builtins.attrNames 2>/dev/null \
+        | python3 -c 'import json,sys;print("\n".join(json.load(sys.stdin)))'); do
+        emit "${kind}:${host}" 'let f = builtins.getFlake (toString '"$REPO"'); in f.'"$attr"'.'"$host"'.config.system.build.toplevel.drvPath'
+      done
+    done
   } | sort > "$dir/hosts.tsv"
 
   echo "  packages / checks ..." >&2
