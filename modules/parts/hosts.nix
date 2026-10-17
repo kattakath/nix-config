@@ -114,6 +114,16 @@ in
       inherit operatorSshKey;
     };
 
+    # Long-lived GNOME desktop guest under UTM's QEMU backend (virgl). Unlike
+    # nixvm it is a real disk-backed host: `nixos-vm create` (packages/
+    # nixos-vm.nix) builds it once from system.build.image, then it is updated
+    # with `nixos-rebuild --target-host` like any other host.
+    "nixos" = mkNixos {
+      system = "aarch64-linux";
+      hostname = "nixos";
+      inherit operatorSshKey;
+    };
+
     # (There is no separate `nixpi-installer`. The LIVE `nixpi` sdImage above
     # IS the flashable artifact — it bakes NO secrets (the tunnel token + Wi-Fi
     # are planted on the FAT FIRMWARE partition post-flash by nixpi-flash), so

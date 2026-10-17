@@ -223,6 +223,34 @@ they bite any future second account:
   sentence used to read "there is no headless `nixvm` you can boot", which inverted after
   2026-10-06: the **build-vm** is now headless. The base config remains unbootable; the
   distinction is base-vs-vmVariant, not graphical-vs-headless.)
+- **`nixos.nix`** — a **long-lived GNOME desktop guest** under **UTM's QEMU backend**
+  (`virtio-gpu-gl-pci` + virgl). A real disk-backed host, driven from the Mac by `nixos-vm`
+  (`packages/nixos-vm.nix`; also the **"NixOS VM"** Spotlight entry):
+  - `create` — builds the image (or `--image`), writes the UTM bundle at
+    `${XDG_DATA_HOME:-~/.local/share}/utm/nixos.utm` (fixed UUID/MAC, 64 GiB qcow2), registers
+    it, shares `~/Shared` via UTM's `update registry` AppleScript, boots it, runs the first
+    `switch`. REFUSES if the bundle exists.
+  - `switch` — `nixos-rebuild switch --flake <flake>#nixos --target-host nixos.local --sudo`;
+    `<flake>` defaults to what `/etc/nix-darwin/flake.nix` resolves to (the MAIN checkout's
+    current branch, like `activate`), or `--flake` / `NIXOS_VM_FLAKE`.
+  - `start` / `stop` / `status` / `ssh` / `destroy --yes`, and **`restart`** (stop, wait, start).
+    **Never reboot from inside the guest** — measured: it hangs on a black screen, off the
+    network; suspected (not proven) QEMU's `virtio_gpu_gl_reset` (cf. QEMU issue 1860).
+
+  **SEED, THEN SWITCH.** The image carries only `local.nixosGuest.seed` (an `extendModules`
+  variant: boot, SSH, guest agent). The full 6.7 GiB closure cannot be staged: systemd-repart
+  works in `$NIX_BUILD_TOP`, the Determinate builder's **RAM tmpfs**. Even the 1.5 GiB seed needs
+  the builder at **16 GiB** (`hosts/macos.nix`; a running daemon keeps the old size until
+  `launchctl kickstart -k system/systems.determinate.nix-daemon`).
+
+  **Verified 2026-10-17 (operator-tested):** seed boot, SSH via mDNS, first switch, root grown to
+  62 G, Wayland at 2×, `~/Shared`, **clipboard both ways**, **security key + WebAuthn**, **Tor
+  Browser alpha** (overlay shared with `nixvm`: `modules/_lib/tor-browser-alpha.nix`).
+
+  Every other measured why lives in `hosts/nixos.nix`'s comments — UTM over Tart/`vzvm`
+  (llvmpipe, broken virtio-sound), `image.repart` over `qemu-efi` (needs `kvm`), stock Firefox
+  (the `programs.firefox` wrapper EPERMs on the builder), the GNOME 50 `spice-vdagent` client
+  that nothing starts, `lanRecovery` on `eth0`, and the no-password prompt class.
 
 ## Building `aarch64-linux` on the Mac, and deploying `nixpi`
 

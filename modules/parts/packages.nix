@@ -145,6 +145,13 @@ in
           # Also on PATH via home.packages, macos only (modules/home/default.nix).
           android-phone = pkgs.callPackage ../../packages/android-phone.nix { };
 
+          # `nixos-vm` — create and drive the long-lived `nixos` guest as a UTM
+          # (QEMU backend) VM. Unlike `nixvm` above it IS a package: the guest
+          # image is resolved at `create` time (`nix build` of
+          # nixosConfigurations.nixos's image, or --image), never embedded, so
+          # the flake check builds only this script. See packages/nixos-vm.nix.
+          nixos-vm = pkgs.callPackage ../../packages/nixos-vm.nix { };
+
           # fal.ai: the vendor's own deploy CLI (`fal`) plus `fal-gen`, a thin
           # inference wrapper the vendor does not ship. Ephemeral uv
           # environments, the same shape as fidelity-enhance and jobspy, because
@@ -317,6 +324,13 @@ in
           type = "app";
           program = "${config.packages.android-phone}/bin/android-phone";
           meta.description = "ADB operator: android-phone list|pair|connect|disconnect|unpair|tcpip|wireless|mirror|doctor";
+        };
+
+        # The long-lived nixos UTM guest (packages/nixos-vm.nix).
+        nixos-vm = {
+          type = "app";
+          program = "${config.packages.nixos-vm}/bin/nixos-vm";
+          meta.description = "Create and drive the long-lived nixos UTM guest: nixos-vm create|switch|start|stop|status|ssh|destroy --yes";
         };
 
         # `nix run .#set-secret -- KEY [VALUE]` — store a secret in the macOS

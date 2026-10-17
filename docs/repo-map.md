@@ -61,6 +61,10 @@ All-in-one Nix mono-repo managing a fully declarative **aarch64-only** fleet:
   `nix run .#nixvm` (**headless** since 2026-10-06 — no installed VM, no builder, no runner;
   the XFCE stack is one flag away). Reached over SSH on `127.0.0.1:2222`. Its
   Nix *store* is rebuilt per boot; its *root* disk is a qcow2 that **PERSISTS** until deleted.
+- **`nixos`** (aarch64-linux) — a **long-lived GNOME desktop guest** under **UTM**'s QEMU
+  backend (virgl GPU acceleration). Created once from a Nix-built disk image by
+  `nixos-vm create`, then updated with `nixos-rebuild --target-host`; SSH as `nixos.local`.
+  Why UTM and not Tart/`nixvm`: [`map/hosts.md`](map/hosts.md) § `nixos.nix`.
 - A matching **Devcontainer** image.
 
 (The `macvm` Tart guest was removed 2026-09-05 — re-add path + what survives in the
