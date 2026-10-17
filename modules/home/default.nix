@@ -1835,7 +1835,13 @@ in
       - Accounts: **Infin8 - Estim8** `acct_1TbREi11NDGhkuPl` (production, live webhook;
         operator role Developer-level: full API, no team admin) and **Infin8 Information
         Technologies Inc.** `acct_1TFyEjP4UuHunD3I` (operator role: sandboxes only).
-      - Stripe CLI: use `--project-name infin8-production` for production; the CLI's
+      - **MCP reach (authorized 2026-10-16, Write):** the three Inc. sandboxes only —
+        Takeoff Local `acct_1UIsnw0sGCtN93vy`, Infin8 TakeOff `acct_1TMOvh1BlkRVg5PT`,
+        Inc. sandbox `acct_1TFyEs1dhHLR4dmu`. Estim8 production cannot be authorized for
+        MCP with the operator's role (needs Administrator); use the CLI for production.
+      - Stripe CLI: use `--project-name infin8-production` for production (live + test
+        keys, expire 2027-01-15); put flags AFTER the subcommand
+        (`stripe get /v1/balance --live --project-name infin8-production`). The CLI's
         `default` project is a different login.
 
       ## GitHub: `gh` and the `github-gh` MCP server share one token
