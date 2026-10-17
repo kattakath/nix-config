@@ -23,7 +23,10 @@
 # pseudo-interface renders with no `-i` at all. Nothing here names an address.
 # The entry point is mDNS (`ssh ismail@nixpi.local`), already published by
 # avahi with UDP 5353 already open in core.nix — so the recovery path needs no
-# address written down anywhere, on either side.
+# address written down anywhere, on either side. The NAME is published from the
+# wired interface only (hosts/nixpi.nix, since 2026-10-17 — two interfaces on one
+# LAN made avahi rename itself to nixpi-3), so with the cable out the port still
+# opens on wlan0 but is reached by its DHCP address, not by name.
 #
 # UPSTREAM FIRST (grepped the pinned nixpkgs 2026-10-01). OpenSSH has no
 # bind-to-interface keyword, so the per-interface scope cannot live in sshd_config

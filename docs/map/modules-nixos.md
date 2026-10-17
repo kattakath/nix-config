@@ -144,6 +144,12 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   `networking.firewall.interfaces.<iface>.allowedTCPPorts = services.openssh.ports` for each
   declared interface. Entry point is **mDNS** — `ssh ismail@nixpi.local`, already published by
   avahi with UDP 5353 already open in `core.nix` — so no address is written down on either side.
+  - **The NAME is published from `end0` ONLY** (`services.avahi.allowInterfaces`, `hosts/nixpi.nix`,
+    since 2026-10-17). With both interfaces on one LAN, avahi lost a probe race against **itself**
+    after a router blip and renamed the host `nixpi-3` — and avahi never reverts, so `nixpi.local`
+    stayed dead. This is upstream bug avahi#117 (open), and `allow-interfaces` is its maintainer's
+    workaround. **Cost:** with the cable out, sshd still answers on `wlan0`, but by IP, not by
+    name. `nixpi-security-posture` pins avahi to `local.uplinkWatchdog.wiredInterface`.
   - **The scope is an INTERFACE, not a subnet, and that is the design.** nixpi is dual-homed onto
     one router (`end0` wired, `wlan0` on its SSID) and fails over to a phone HOTSPOT on a
     different, DHCP-assigned subnet, so a rule written against `10.0.0.0/24` is dead in the state

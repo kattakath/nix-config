@@ -291,7 +291,8 @@ Insert the card and power the Pi with an adequate supply (**5V / 3A** — see §
 - **The green ACT LED should stay active / blink through boot** (disk + kernel
   activity), not flicker once and die. A single flicker → dark is the
   truncated-write signature (§6).
-- Once up, the host publishes `nixpi.local` over mDNS (avahi). Because a fresh
+- Once up, the host publishes `nixpi.local` over mDNS (avahi) — from the WIRED port
+  only, so the name needs the cable in (`hosts/nixpi.nix`). Because a fresh
   flash **reuses the `nixpi.local` name with a brand-new host key**, clear the
   stale entry before the first SSH or it aborts with a host-identification
   warning:
