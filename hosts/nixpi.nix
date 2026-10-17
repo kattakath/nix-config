@@ -146,6 +146,41 @@
 
   networking.useDHCP = true;
 
+  # NO IPv6 TEMPORARY ADDRESSES. Privacy extensions (RFC 4941) hide a CLIENT from
+  # tracking; a server named in DNS gains nothing from them — and here they piled up.
+  # dhcpcd adds each interface's SLAAC address with `mngtmpaddr`, so the KERNEL mints
+  # temporaries from it — on every re-add and on every pre-expiry regeneration — and
+  # a temporary outlives its base being deleted unless the delete carries
+  # IFA_F_MANAGETEMPADDR (Linux v6.6 addrconf.c:2583, :4594, :3063). So link churn
+  # piles them up for their full valid lifetime (up to 7 days). Measured 2026-10-17:
+  # wlan0 held 371 IPv6 addresses (369 temporary, 275 deprecated). Distinct new ones
+  # per day tracked the churn: 10-15, 109 base re-adds -> 111; 10-16, 72 re-adds and
+  # 1,073 carrier losses -> 181. That was during a watchdog storm that bounced wlan0
+  # 2,417 times in two days, and every one of them was also an avahi record.
+  #
+  # The off switch is exact: ipv6_create_tempaddr() refuses when use_tempaddr <= 0
+  # (addrconf.c:1349), and all three creation paths go through it.
+  #
+  # upstream-first: `networking.tempAddresses` (pinned nixpkgs
+  # network-interfaces.nix:1700). It writes only `default.use_tempaddr` plus a udev
+  # rule that fires on interface ADD, so it would not reach the LIVE end0/wlan0 until
+  # a reboot. The per-interface keys below are what nixpkgs itself emits for a
+  # DECLARED interface (network-interfaces.nix:1795-1804), and systemd-sysctl
+  # re-applies them at switch (sysctl.nix:107 restartTriggers). Declaring
+  # networking.interfaces instead would add scripted link units to a live host.
+  # The names are the two this host spells for its watchdog and supplicant, the same
+  # set `nixpi-security-posture` joins against.
+  #
+  # Cost: outbound IPv6 now leaves from the stable SLAAC address, which dhcpcd builds
+  # from the MAC (EUI-64), or from the DHCPv6 /128. Temporaries already minted age out
+  # within their valid lifetime, or at the next reboot.
+  networking.tempAddresses = "disabled";
+  boot.kernel.sysctl = lib.listToAttrs (
+    map (i: lib.nameValuePair "net.ipv6.conf.${i}.use_tempaddr" 0) (
+      [ config.local.uplinkWatchdog.wiredInterface ] ++ lib.attrNames config.networking.supplicant
+    )
+  );
+
   raspberry-pi-nix = {
     board = "bcm2711";
   };
