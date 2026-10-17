@@ -2,7 +2,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `modules/darwin/`
 
-`modules/darwin/{core.nix,user-folders.nix,homebrew.nix,nix-homebrew.nix,xcode-license.nix,launchd-reconcile.nix,logging.nix,github-runner.nix,ollama-daemon.nix,clat-guard.nix,vpn-only-apps.nix,claude-managed-settings.nix,launchd-sources.nix}`
+`modules/darwin/{core.nix,user-folders.nix,homebrew.nix,nix-homebrew.nix,xcode-license.nix,launchd-reconcile.nix,logging.nix,github-runner.nix,ollama-daemon.nix,clat-guard.nix,claude-managed-settings.nix,launchd-sources.nix}`
 
 - **`core.nix`** — macOS system defaults (dock/finder/NSGlobalDomain, Touch ID for sudo,
   `stateVersion = 5`), plus the GUI `PATH`/`BASH_ENV` `launchd.user.envVariables` and the
@@ -245,18 +245,6 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   it. It copies the ollama metal guard's shape, so it is one of the boot-ordering `/bin/sh` rows in
   [`launchd-naming.md`](../../.claude/rules/launchd-naming.md). The file header carries the diagnosis
   (no PREF64, no option 108, no `ipv4only.arpa` AAAA) and the upstream-first grep.
-- **`vpn-only-apps.nix`** (macos only, `local.vpnOnlyApps`, since 2026-10-17) — a **per-app VPN
-  kill switch** for qBittorrent and Tor Browser. pf cannot match an application, but it can match
-  the socket's **group**, so each app runs with egid `nix-vpn-only` (gid 600) and one anchor,
-  `com.apple/050.nix-vpn-only`, lets that group send TCP/UDP only FROM a tunnel address
-  (`tunnelSubnets`) or over loopback. The pass rule keys on source address, not `utunN`, because
-  the WireGuard app picks a different utun per connect. Launch is a Spotlight bundle
-  (`"<name> (VPN)"`, from `packages/spotlight-launchers.nix`'s `mkVpnOnlyApp`) running `sudo -n
-  -u <self> -g nix-vpn-only <binary>` under a NOPASSWD rule for exactly those binaries; opening
-  the app any OTHER way is unguarded. A 30 s root guard re-enables pf and reloads the anchor if
-  anything flushed them, so it is a boot-ordering `/bin/sh` row in
-  [`launchd-naming.md`](../../.claude/rules/launchd-naming.md). Gaps, in the header: ICMP, and DNS
-  resolved by `mDNSResponder` outside the group.
 - **`metube.nix`** / **`yt-dlp-web-ui.nix`** — `local.meTube` and `local.ytDlpWebUi`, the two
   local download web UIs, each ONE launchd **user agent** bound to **127.0.0.1** and each
   built from source in `packages/` (neither is in nixpkgs). Both are on in `hosts/macos.nix`.
