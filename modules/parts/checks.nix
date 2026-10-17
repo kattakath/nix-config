@@ -1582,7 +1582,9 @@ in
           # positives (a reflowed line blames to a later commit). A lint needs only
           # the tree and cannot cry wolf on a correct citation, because there are
           # no correct ones left to make. Rejected too: ast-grep (it cannot resolve
-          # a path against the tree, and does not parse markdown) and docref, the
+          # a path against the tree, and does not parse markdown), Semgrep (its
+          # generic mode matches comments, but it cannot resolve a path either and
+          # is not in this fleet), and docref, the
           # one off-the-shelf tool found for this (it hashes symbols into a
           # lockfile, has no Nix support, and is what naming the construct does by
           # hand).
