@@ -55,7 +55,7 @@
   ...
 }:
 let
-  isMacosHost = (osConfig.networking.hostName or "") == "macos";
+  isMacosHost = import ../_lib/is-macos-host.nix osConfig;
 
   # Its own callPackage rather than a value threaded from default.nix: the two
   # calls are identical, so Nix realises ONE derivation, and this module stays

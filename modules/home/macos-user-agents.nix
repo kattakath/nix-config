@@ -49,7 +49,7 @@
   ...
 }:
 let
-  isMacosHost = (osConfig.networking.hostName or "") == "macos";
+  isMacosHost = import ../_lib/is-macos-host.nix osConfig;
   home = config.home.homeDirectory;
 
   # Two SYSTEM-DEFAULT inboxes, two rotations (the agents below):
