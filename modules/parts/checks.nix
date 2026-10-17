@@ -450,7 +450,7 @@ in
                   # empty set from a DISABLED module is a different claim — it means
                   # nothing writes the file, so stale content survives unmanaged.
                   #
-                  # TWO NAMED EXCEPTIONS since 2026-10-16: `aws-infin8` and `github`, stdio servers
+                  # THREE NAMED EXCEPTIONS since 2026-10-16: `aws-infin8`, `github`, `stripe-infin8`, stdio servers
                   # declared in modules/home/default.nix (operator decision, the why is
                   # there). An allowlist by NAME, not "any stdio entry", so a portal or
                   # gateway entry still fails here exactly as before.
@@ -459,14 +459,16 @@ in
                       removeAttrs servers [
                         "aws-infin8"
                         "github"
+                        "stripe-infin8"
                       ] != { }
                     )
-                    "Desktop must render no servers but aws-infin8 and github — the gateway is purged — found: ${
+                    "Desktop must render no servers but aws-infin8, github and stripe-infin8 — the gateway is purged — found: ${
                       toString (
                         builtins.attrNames (
                           removeAttrs servers [
                             "aws-infin8"
                             "github"
+                            "stripe-infin8"
                           ]
                         )
                       )
@@ -478,7 +480,7 @@ in
             pkgs.runCommand "claude-desktop-config-shape" { } (
               if problems == [ ] then
                 ''
-                  echo "claude-desktop: module enabled, ${toString (lib.length (builtins.attrNames servers))} servers rendered (only aws-infin8 and github allowed — the gateway is purged)" > "$out"
+                  echo "claude-desktop: module enabled, ${toString (lib.length (builtins.attrNames servers))} servers rendered (only aws-infin8, github and stripe-infin8 allowed — the gateway is purged)" > "$out"
                 ''
               else
                 ''
