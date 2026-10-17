@@ -78,15 +78,14 @@ in
   # Why and the measurements: modules/darwin/clat-guard.nix. 2026-10-16.
   local.clatGuard.enable = true;
 
-  # Per-app VPN split tunnel + kill switch: these two go through a WireGuard
-  # tunnel while every other app stays on the normal connection, and they are
-  # refused if the tunnel is down. The tunnels are every *.conf that
-  # local.wireguardConfigs syncs (sing-box's urltest picks one), so do not bring
-  # the SAME conf up in the WireGuard app at the same time. Launch them from
-  # Spotlight as "<name> (VPN)" — opening the app any other way bypasses it.
-  # Mechanism and measurements: modules/darwin/vpn-only-apps.nix. 2026-10-17.
+  # Per-app VPN kill switch: these two reach the network ONLY through a
+  # WireGuard tunnel and are refused when none is up. Launch them from Spotlight
+  # as "<name> (VPN)" — opening the app any other way bypasses it. Mechanism and
+  # measurements: modules/darwin/vpn-only-apps.nix. 2026-10-17.
   local.vpnOnlyApps = {
     enable = true;
+    # Every tunnel in ~/.config/wireguard has its Address in here (7 of 7).
+    tunnelSubnets = [ "10.34.0.0/16" ];
     apps = {
       # From nixpkgs, NOT the cask: Homebrew DISABLED `qbittorrent` on
       # 2026-09-01 (fails Gatekeeper). This launcher is its only Spotlight entry.
@@ -639,14 +638,11 @@ in
       "switchaudio-osx"
       "tree"
       "wget"
-      # NB: no `wireguard-tools` here — no `wg`/`wg-quick` CLI and no `vpn`
-      # operator on this host, so nothing can bring a FULL tunnel up from a shell (a
-      # botched tunnel = no-internet on the sole client Mac). Whole-Mac tunnels are
-      # the GUI's (masApps.WireGuard). The one exception, since 2026-10-17, is
-      # local.vpnOnlyApps' sing-box daemon, which reads the same synced confs for a
-      # PER-APP split tunnel; its TUN does take the default route, so if it HANGS
-      # every app loses internet — `sudo launchctl bootout system/org.nixos.vpn-only-sing-box`
-      # is the undo. (A crash removes its routes; measured.)
+      # NB: no `wireguard-tools` here — macos manages WireGuard through the GUI
+      # (masApps.WireGuard) ONLY. Deliberately no `wg`/`wg-quick` CLI and no `vpn`
+      # operator on this host, so nothing can bring a tunnel up from a shell (a
+      # botched tunnel = no-internet on the sole client Mac). Confs are synced for
+      # IMPORT into the app, never run (local.wireguardConfigs, modules/home/default.nix).
 
       "xcodes"
       "yq"
@@ -1001,14 +997,14 @@ in
     # `homebrew.onActivation.cleanup = "uninstall"` (modules/darwin/homebrew.nix),
     # stays — the fix is to declare, not to stop cleaning.
     masApps = {
-      # Official client is App Store–only (no Homebrew cask). This GUI is how
-      # macos brings up a WHOLE-MAC tunnel — no CLI tools, no vpn operator. The
-      # user imports a synced conf and connects manually in-app. The per-app split
-      # tunnel (local.vpnOnlyApps, sing-box) is the one thing that starts at boot.
+      # Official client is App Store–only (no Homebrew cask). This GUI is the
+      # ONLY way macos touches WireGuard — no CLI tools, no vpn operator. The
+      # user imports a synced conf and connects manually in-app; nothing here
+      # (or on activation) ever starts a tunnel.
       WireGuard = 1451685025;
       # Display My IP — public IP + country in the menu bar, with a notification
       # when it changes. The companion to masApps.WireGuard above: because that
-      # GUI is the only way a whole-Mac tunnel comes up here (no `wg`, no `vpn` operator),
+      # GUI is the only way a tunnel comes up here (no `wg`, no `vpn` operator),
       # no shell can answer "is the tunnel actually up?" — this makes the answer
       # permanently visible. Free, and App Store–only like WireGuard itself.
       # https://apps.apple.com/ca/app/display-my-ip/id1493408723
