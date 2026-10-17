@@ -163,10 +163,10 @@ in
           #
           # Since 2026-09-16 it also asserts the ONE invariant bootstrap.sh shares
           # with the flake. bootstrap.sh computes the clone directory from
-          # `--flake` (`$HOME/Developer/github.com/$FLAKE_OWNER/$FLAKE_REPO`,
-          # :144) while modules/parts/hosts.nix:19 computes the
+          # `--flake` (`$HOME/Developer/github.com/$FLAKE_OWNER/$FLAKE_REPO`)
+          # while modules/parts/hosts.nix's `operatorFlakeRelPath` computes the
           # /etc/nix-darwin symlink target from config.fleet's orgName/repoName —
-          # two independent derivations of one path. hosts.nix:16 states the
+          # two independent derivations of one path. hosts.nix's comment states the
           # consequence itself: the symlink "silently dangles if they ever
           # disagree", activation still SUCCEEDS, and `darwin-rebuild` then
           # ignores the broken link. So `activate`, the documented everyday
@@ -575,7 +575,7 @@ in
           #   · `nix flake check`'s built-in templates schema validates that
           #     `templates.default.path` is a path and `description` is a string. It
           #     never evaluates the scaffolded flake.
-          #   · templates/default/flake.nix:10 pins `inputs.nix-config.url =
+          #   · templates/default/flake.nix pins `inputs.nix-config.url =
           #     "github:kattakath/nix-config"`, i.e. PUBLISHED main. Evaluating it as
           #     a flake would therefore test whatever is already released, not the
           #     working tree — the one thing a merge gate must not do.
@@ -1564,6 +1564,121 @@ in
                 echo "markdown links: $total examined across ${toString (lib.length mdFiles)} tracked files, every relative target resolves" > "$out"
               '';
 
+          # ---- no LINE NUMBERS into this repo's own files, in living text --------
+          #
+          # A `path:N` citation into a file this repo edits stops pointing at what
+          # it names the moment that file grows above line N, and nothing notices.
+          # Measured 2026-10-17 over the whole tree: of 146 citations that resolve
+          # to a tracked file, 75 no longer held the text they cited (54 moved, 21
+          # rewritten away) — including the global CLAUDE.md, which sent every
+          # session to the wrong lines of claude-guardrails.nix for the
+          # `--force-with-lease` carve-out. #839 and #840 re-pointed them at the
+          # construct each one names (an option, a binding, a block), which cannot
+          # drift by line. This gate keeps it that way.
+          #
+          # A FORBID lint, not a drift detector. Detecting drift needs the commit a
+          # citation was written at, and the build sandbox has no git history; the
+          # blame-based instrument that found the 75 also produced snapshot false
+          # positives (a reflowed line blames to a later commit). A lint needs only
+          # the tree and cannot cry wolf on a correct citation, because there are
+          # no correct ones left to make. Rejected too: ast-grep (it cannot resolve
+          # a path against the tree, and does not parse markdown) and docref, the
+          # one off-the-shelf tool found for this (it hashes symbols into a
+          # lockfile, has no Nix support, and is what naming the construct does by
+          # hand).
+          #
+          # `P:N` is IN-REPO when P, as written, names a tracked file: from the
+          # root, from the citing file's directory, or (no slash) as a basename
+          # exactly one tracked file carries. Citing a PINNED input stays allowed
+          # and is told apart by leading with the input's name —
+          # `home-manager/modules/launchd/default.nix:411`, `nix-darwin/flake.nix:59`
+          # — which no tracked path starts with. That is not a suppression marker;
+          # it answers "which default.nix?", which a bare basename never did.
+          #
+          # Living text is every tracked .nix/.md/.js/.sh/.yml EXCEPT the as-of
+          # records: ADRs, studies, plans and the retired mcp-* docs, where a
+          # pointer into code that has since moved is the expected state, and
+          # .claude/agent-memory. Bare `:N` continuations and the second half of
+          # an `:N-M` range are not parsed; the first number of a range is.
+          #
+          # The scanner runs on two fixtures BEFORE the tree — one citation that
+          # must be flagged and one input-qualified citation that must not — so it
+          # cannot rot into a green check that matches nothing. A zero count of
+          # examined citations is fatal for the same reason.
+          line-refs-cite-constructs =
+            pkgs.runCommand "line-refs-cite-constructs"
+              {
+                nativeBuildInputs = [
+                  pkgs.findutils
+                  pkgs.gnugrep
+                  pkgs.gawk
+                  pkgs.coreutils
+                ];
+              }
+              ''
+                set -euo pipefail
+
+                # scan ROOT -> stdout: "<file>:<line>: <citation>" per in-repo
+                # line citation; stderr's last line: the count of citations seen.
+                scan() (
+                  cd "$1"
+                  files="$TMPDIR/files.$$"
+                  uniq_base="$TMPDIR/uniq.$$"
+                  find . -type f -printf '%P\n' | LC_ALL=C sort > "$files"
+                  awk -F/ '{print $NF}' "$files" | LC_ALL=C sort | uniq -u > "$uniq_base"
+                  seen=0
+                  while IFS= read -r f; do
+                    d=$(dirname "$f")
+                    while IFS= read -r hit; do
+                      seen=$((seen + 1))
+                      ln=''${hit%%:*}
+                      tok=''${hit#*:}
+                      p=''${tok%:*}
+                      p=''${p#./}
+                      if [ -f "$p" ] || [ -f "$d/$p" ] \
+                        || { [ "''${p#*/}" = "$p" ] && grep -qxF -- "$p" "$uniq_base"; }; then
+                        echo "$f:$ln: $tok"
+                      fi
+                    done < <(grep -noP '(?<![A-Za-z0-9_./-])[A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:nix|js|sh|ya?ml|md|py|json|toml):[0-9]+' "$f" || true)
+                  done < <(grep -E '\.(nix|md|js|sh|ya?ml)$' "$files" \
+                    | grep -vE '^(docs/[^/]*-adr\.md|docs/[^/]*study[^/]*\.md|docs/[^/]*-plan\.md|docs/mcp-[^/]*\.md|\.claude/agent-memory/.*)$')
+                  echo "$seen" >&2
+                )
+
+                fx="$TMPDIR/fixture"
+                mkdir -p "$fx/a" "$fx/y"
+                echo x > "$fx/y/z.nix"
+                printf '# see y/z.nix:3\n' > "$fx/a/bad.nix"
+                printf '# see nix-darwin/y/z.nix:3\n' > "$fx/a/ok.nix"
+                got=$(scan "$fx" 2>/dev/null)
+                if [ "$got" != "a/bad.nix:1: y/z.nix:3" ]; then
+                  echo "line-refs-cite-constructs: the scanner failed its own fixture." >&2
+                  echo "  want exactly: a/bad.nix:1: y/z.nix:3" >&2
+                  echo "  got:          ''${got:-<nothing>}" >&2
+                  exit 1
+                fi
+
+                hits=$(scan ${self} 2> "$TMPDIR/seen")
+                seen=$(tail -n1 "$TMPDIR/seen")
+                if [ "$seen" -eq 0 ]; then
+                  echo "line-refs-cite-constructs: examined 0 citations in the tree, so NOTHING was checked." >&2
+                  exit 1
+                fi
+                if [ -n "$hits" ]; then
+                  echo "line-refs-cite-constructs: line-number citations into this repo's OWN files." >&2
+                  printf '%s\n' "$hits" | sed 's/^/  /' >&2
+                  echo "" >&2
+                  echo "A line number into a file this repo edits points at the wrong line as soon as" >&2
+                  echo "that file changes above it. Cite the construct instead: the option, binding" >&2
+                  echo "or block (e.g. \"hosts/macos.nix's homebrew.casks\"), which grep finds forever." >&2
+                  echo "Citing a PINNED input is fine: lead the path with the input's name, e.g." >&2
+                  echo "home-manager/modules/launchd/default.nix:411 or nix-darwin/flake.nix:59." >&2
+                  echo "As-of records (ADRs, studies, plans, retired mcp-* docs) are not scanned." >&2
+                  exit 1
+                fi
+                echo "file:line citations: $seen examined in living text, none into this repo's own files" > "$out"
+              '';
+
           # ---- nixpi's security posture, which until now only PROSE held ------
           #
           # modules/nixos/core.nix's services.openssh block carries three careful paragraphs on why
@@ -2304,7 +2419,7 @@ in
           # NO `self`: every row is a path LITERAL, so the derivation is
           # content-addressed per file and stays a meaningful drv-snapshot row
           # (the two docs checks above take `self` and had to be excluded from
-          # --compare for exactly that reason — scripts/drv-snapshot.sh:59).
+          # --compare for exactly that reason — scripts/drv-snapshot.sh's EXCLUDE_RE).
           #
           # COVERAGE IS ASSERTED IN BOTH DIRECTIONS, because a budget gate that
           # silently ignores a new file is worse than no gate — the lesson
@@ -2647,7 +2762,7 @@ in
               # stranded row. Both are declared from a nix-darwin module
               # (modules/features/tart-vms/{github,gitlab}-runner.nix write
               # `home-manager.users.<primaryUser>.launchd.agents`, the shape
-              # modules/darwin/logging.nix:337 established) because their plists
+              # modules/darwin/logging.nix's `file-rotation-logs` established) because their plists
               # derive from nix-darwin options — `local.tart.runnerStateDir`
               # defaults off `config.system.primaryUserHome`. Lane, not layer:
               # what self-heals is the option surface, not which file writes it.
@@ -2880,8 +2995,8 @@ in
               # packages/gmail-mcp.nix. A check that re-derived it would agree with a
               # broken rule by sharing it. Derivation name == binary name for all
               # three builders: `writeShellScriptBin` (packages/keychain-mcp.nix,
-              # packages/gmail-mcp.nix:68) and `writeShellApplication`
-              # (packages/mcpfinder-mcp.nix:45) each emit exactly one `$out/bin/<name>`.
+              # packages/gmail-mcp.nix) and `writeShellApplication`
+              # (packages/mcpfinder-mcp.nix) each emit exactly one `$out/bin/<name>`.
               built = lib.naturalSort (
                 lib.unique (lib.filter (lib.hasPrefix "nix-mcp-") (map (p: p.name or "") hm.home.packages))
               );

@@ -59,7 +59,7 @@ foreign-system children come back `{"filtered": true}` (measured), so classifica
 silently follow the RUNNER's arch; and upstream Nix emits the flat legacy shape with no
 `inventory` key, which parses to ZERO rows (probed). Both fail the job loudly, so a revert to
 `cachix/install-nix-action` cannot quietly ship a fleet with no legs. The empty-attrs test
-inside a leg survives as the belt to that derivation's braces (`nix-ci.yml:272-275`) and is a
+inside a leg survives as the belt to that derivation's braces (the `legs` empty-leg guard in `nix-ci.yml`) and is a
 hard failure, never the old `if: matrix.eval-attrs != ''` skip, which made a vacuous leg go
 green while testing nothing. `required-checks` accordingly `needs: [legs, build]` and fails on
 **`'skipped'`** as well — a failed `legs` does not fail `build`, it SKIPS it, and skipped is
