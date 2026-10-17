@@ -157,12 +157,15 @@ writeShellApplication {
       else
         flakeArgs=(--flake "$dir#$attr")
         echo "activate: flake $dir#$attr"
-        localName=$(/usr/sbin/scutil --get LocalHostName 2>/dev/null || true)
-        if [ "$localName" != "$attr" ]; then
-          echo "activate:   LocalHostName is '$localName', not '$attr' — macOS renames it on a" >&2
-          echo "activate:   .local (mDNS) name clash. A bare darwin-rebuild would look for" >&2
-          echo "activate:   darwinConfigurations.$localName; this run uses HostName instead." >&2
-        fi
+      fi
+      # Machine state, not the path chosen, so it prints for an explicit
+      # `--flake` too: one without `#attr` still falls to darwin-rebuild's own
+      # LocalHostName default and still dies on the clash.
+      localName=$(/usr/sbin/scutil --get LocalHostName 2>/dev/null || true)
+      if [ "$localName" != "$attr" ]; then
+        echo "activate:   LocalHostName is '$localName', not '$attr' — macOS renames it on a" >&2
+        echo "activate:   .local (mDNS) name clash. darwin-rebuild's own default (bare, or a" >&2
+        echo "activate:   --flake with no #attr) would look for darwinConfigurations.$localName." >&2
       fi
       if git -C "$dir" rev-parse --git-dir >/dev/null 2>&1; then
         branch=$(git -C "$dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')
