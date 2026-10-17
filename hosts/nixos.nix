@@ -275,6 +275,11 @@ in
             "org/gnome/desktop/screensaver".lock-enabled = false;
             "org/gnome/desktop/session".idle-delay = lib.gvariant.mkUint32 0;
             "org/gnome/settings-daemon/plugins/power".sleep-inactive-ac-type = "nothing";
+            # ONE desktop: no dynamic workspaces (operator's call, 2026-10-17).
+            # Still a default — Settings -> Multitasking can change it back.
+            "org/gnome/mutter".dynamic-workspaces = false;
+            # dconf needs the GVariant type spelled out: num-workspaces is `i`.
+            "org/gnome/desktop/wm/preferences".num-workspaces = lib.gvariant.mkInt32 1;
           };
         }
       ];
