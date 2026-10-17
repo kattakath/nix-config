@@ -393,6 +393,15 @@ in
     # `secret set AWS_PROFILE <profile>`.
     local.cloudCli.aws.enable = true;
 
+    # ADR-004's durable copy, switched on: GCP Secret Manager behind the Keychain.
+    # backend.project stays null (a project id is reconnaissance in a public repo);
+    # the secrets-* CLIs read the project and identity from gcloud at runtime, so
+    # run them with CLOUDSDK_CONFIG=~/.config/gcloud-nix-config — the repo-scoped
+    # config `nix develop` uses, where the canonical googleAccount is active. The
+    # global gcloud config may hold a client identity; never push under it.
+    # The API itself is enabled by infra/gcp/foundation.nix.
+    local.keychainSecrets.backend.type = "gcp";
+
     # ---- Infin8 LiteLLM proxy — REMOVED 2026-09-29 -------------------------
     # `OPENAI_BASE_URL` + `OPENAI_API_BASE` pointed at https://ai.infin8it.ca/v1.
     # That host is GONE: `dig ai.infin8it.ca` returns zero A-records and a request
