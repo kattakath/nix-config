@@ -402,6 +402,20 @@ in
     # The API itself is enabled by infra/gcp/foundation.nix.
     local.keychainSecrets.backend.type = "gcp";
 
+    # gpg-agent: the GUI pinentry, and NO "Save in Keychain". Written the way
+    # home-manager's own services.gpg-agent writes it (home.file at
+    # modules/services/gpg-agent.nix:352) WITHOUT adopting that module — its agent
+    # is the second stack the gnupg brew comment forbids. No key id here, so this
+    # is safe in a public repo (unlike gpg.conf's encrypt-to, which stays local).
+    #   no-allow-external-password-cache: pinentry-mac's Keychain checkbox would let
+    #   every later decrypt run silently, from ANY process, forever — including an
+    #   agent's — which defeats the human-present premise of the pgp-ops workflow.
+    # The running agent reads this on `gpgconf --reload gpg-agent` or its next start.
+    home.file.".gnupg/gpg-agent.conf".text = ''
+      pinentry-program ${config.homebrew.prefix}/bin/pinentry-mac
+      no-allow-external-password-cache
+    '';
+
     # ---- REDACTED LiteLLM proxy — REMOVED 2026-09-29 -------------------------
     # `OPENAI_BASE_URL` + `OPENAI_API_BASE` pointed at https://REDACTED/v1.
     # That host is GONE: `dig REDACTED` returns zero A-records and a request
@@ -525,7 +539,8 @@ in
       # this host and the ONLY one.
       #
       # DO NOT ADD A SECOND ONE. No `pkgs.gnupg`, no `pkgs.pinentry_mac`, no
-      # home-manager `programs.gpg` or `services.gpg-agent`. Two GnuPG stacks
+      # home-manager `programs.gpg` or `services.gpg-agent`. (Brew's pinentry-mac
+      # below is NOT a second stack: same Homebrew, and only gpg-agent.conf names it.) Two GnuPG stacks
       # share one `~/.gnupg` and then which `gpg-agent` and which pinentry you
       # get is a startup-order lottery — whichever daemon bound the sockets
       # first wins, and it is not deterministic across logins.
@@ -554,6 +569,14 @@ in
       "ncdu"
       "neonctl" # Neon DB CLI (https://neon.tech/docs/reference/neon-cli)
       "ocrmypdf"
+      # GUI pinentry for the brewed GnuPG above — the SAME Homebrew stack, so not the
+      # "second GnuPG" the gnupg comment forbids (that is `pkgs.pinentry_mac` plus a
+      # Nix gpg-agent). Brew's gnupg ships curses/tty pinentry only, which cannot
+      # prompt from a process with no terminal — Claude Code's Bash tool, launchd —
+      # so every decrypt needed a terminal window. pinentry-mac is a native dialog.
+      # Wired by `pinentry-program` in ~/.gnupg/gpg-agent.conf (home-manager block),
+      # the exact line brew's own caveat prints.
+      "pinentry-mac"
       "pyenv"
       # `scrcpy` is NOT brewed any more (2026-09-29): nixpkgs carries it (4.1,
       # builds and substitutes on aarch64-darwin), so it moved to
