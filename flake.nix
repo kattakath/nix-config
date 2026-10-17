@@ -83,11 +83,12 @@
     # source inputs (rpi-linux-*, rpi-firmware*, libcamera, libpisp, rpicam-apps), out
     # of 62 nodes total.
     #
-    # WHY IT STAYS: the bcm2711 sdImage builder — hosts/nixpi.nix:41 imports
+    # WHY IT STAYS: the bcm2711 sdImage builder — hosts/nixpi.nix imports
     # `nixosModules.sd-image`, and nixos-hardware has none. (Grepped its raspberry-pi/
     # tree 2026-09-21: the only `sdImage` hits are a README line and
-    # common/firmware.nix.) And hosts/nixpi.nix:53 and :62 carry two mkForce
-    # workarounds written specifically against linux-rpi's behaviour (tpm2
+    # common/firmware.nix.) And hosts/nixpi.nix carries two mkForce workarounds
+    # (`boot.initrd.systemd.tpm2.enable`, `boot.initrd.systemd.enable`) written
+    # specifically against linux-rpi's behaviour (tpm2
     # modules-shrunk failure; systemd-initrd stage-1 hang), which a kernel swap would
     # invalidate rather than inherit.
     #
