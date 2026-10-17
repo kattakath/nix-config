@@ -89,33 +89,39 @@ let
   # were absent) — so the disabled DB cannot serve as this signal.
   holdDir = "/etc/nix-darwin/launchd-hold";
 
-  reconcile = pkgs.writeShellScript "nix-launchd-reconcile" ''
-    # Every launchctl line is `|| true`: this text is spliced into activate-system's
-    # boot script, which runs under `set -e`, and one "already loaded" would abort
-    # the etc/keyboard activation that follows it.
-    for label in ${lib.escapeShellArgs reconciled}; do
-      [ -e ${lib.escapeShellArg holdDir}/"$label" ] && continue
-      plist="/Library/LaunchDaemons/$label.plist"
-      [ -f "$plist" ] || continue
-      if ! /bin/launchctl print "system/$label" >/dev/null 2>&1; then
-        echo "launchd-reconcile: $label is not in the system domain — bootstrapping" >&2
-        /bin/launchctl enable "system/$label" || true
-        /bin/launchctl bootstrap system "$plist" || true
-      fi
-    done
-    exit 0
-  '';
+  # writeShellApplication (ShellCheck + `set -euo pipefail`), and the implied -e is
+  # safe here by construction: every launchctl is `|| true`, the `[ … ] && continue`
+  # / `|| continue` tests are exempt from -e, there is no pipe, and it ends `exit 0`.
+  reconcile = pkgs.writeShellApplication {
+    name = "nix-launchd-reconcile";
+    text = ''
+      # Every launchctl line is `|| true`: this runs from activate-system's boot
+      # script, which runs under `set -e`, and one "already loaded" would abort
+      # the etc/keyboard activation that follows it.
+      for label in ${lib.escapeShellArgs reconciled}; do
+        [ -e ${lib.escapeShellArg holdDir}/"$label" ] && continue
+        plist="/Library/LaunchDaemons/$label.plist"
+        [ -f "$plist" ] || continue
+        if ! /bin/launchctl print "system/$label" >/dev/null 2>&1; then
+          echo "launchd-reconcile: $label is not in the system domain — bootstrapping" >&2
+          /bin/launchctl enable "system/$label" || true
+          /bin/launchctl bootstrap system "$plist" || true
+        fi
+      done
+      exit 0
+    '';
+  };
 in
 {
   config = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # SWITCH coverage.
     system.activationScripts.postActivation.text = lib.mkAfter ''
-      ${reconcile}
+      ${lib.getExe reconcile}
     '';
 
     # BOOT coverage — merged into upstream's own RunAtLoad daemon.
     launchd.daemons.activate-system.script = lib.mkAfter ''
-      ${reconcile}
+      ${lib.getExe reconcile}
     '';
   };
 }

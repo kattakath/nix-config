@@ -111,29 +111,36 @@ let
       config = {
         Label = "${rdns}.file-rotation.trash-${suffix}";
         ProgramArguments = [
-          "${pkgs.writeShellScriptBin "file-rotation-${suffix}-sweep" ''
-            set -eu
-            /bin/mkdir -p "${home}/Library/Logs" "${home}/.Trash"
-            /usr/bin/find "${dir}" -mindepth 1 -maxdepth 1 \
-              ! -name '.DS_Store' ! -name '.localized' -mmin +${toString minAge} \
-              -exec /bin/sh -c 'for f do
-                ${
-                  lib.optionalString (nameGlobs != null) ''
-                    base="$(/usr/bin/basename "$f" | /usr/bin/tr "[:upper:]" "[:lower:]")"
-                    case "$base" in
-                      ${lib.concatStringsSep "|" nameGlobs}) ;;
-                      *) continue ;;
-                    esac
-                  ''
-                }dest="${home}/.Trash/$(/usr/bin/basename "$f")"
-                # -e also covers an existing DIRECTORY at $dest — without this,
-                # `mv dir dest/` would move it INSIDE instead of renaming.
-                if [ -e "$dest" ]; then
-                  dest="$dest.$(/bin/date +%Y%m%d%H%M%S)"
-                fi
-                /bin/mv -- "$f" "$dest"
-              done' _ {} +
-          ''}/bin/file-rotation-${suffix}-sweep"
+          "${
+            pkgs.writeShellApplication {
+              name = "file-rotation-${suffix}-sweep";
+              # SC2016: the single-quoted `/bin/sh -c '…'` body is MEANT to expand in
+              # that inner shell (per file from `find -exec … +`), not this one.
+              excludeShellChecks = [ "SC2016" ];
+              text = ''
+                /bin/mkdir -p "${home}/Library/Logs" "${home}/.Trash"
+                /usr/bin/find "${dir}" -mindepth 1 -maxdepth 1 \
+                  ! -name '.DS_Store' ! -name '.localized' -mmin +${toString minAge} \
+                  -exec /bin/sh -c 'for f do
+                    ${
+                      lib.optionalString (nameGlobs != null) ''
+                        base="$(/usr/bin/basename "$f" | /usr/bin/tr "[:upper:]" "[:lower:]")"
+                        case "$base" in
+                          ${lib.concatStringsSep "|" nameGlobs}) ;;
+                          *) continue ;;
+                        esac
+                      ''
+                    }dest="${home}/.Trash/$(/usr/bin/basename "$f")"
+                    # -e also covers an existing DIRECTORY at $dest — without this,
+                    # `mv dir dest/` would move it INSIDE instead of renaming.
+                    if [ -e "$dest" ]; then
+                      dest="$dest.$(/bin/date +%Y%m%d%H%M%S)"
+                    fi
+                    /bin/mv -- "$f" "$dest"
+                  done' _ {} +
+              '';
+            }
+          }/bin/file-rotation-${suffix}-sweep"
         ];
         StartInterval = 3600;
         RunAtLoad = true;

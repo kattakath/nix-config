@@ -113,29 +113,38 @@ let
   # Container entrypoint: start the root nix-daemon (idempotent) then exec the
   # command. Plain backgrounded process, no systemd — the standard container
   # pattern, mirroring devcontainers/features/nix's nix-entrypoint.sh.
-  entrypoint = pkgs.writeShellScript "nix-daemon-entrypoint" ''
-    socket=/nix/var/nix/daemon-socket/socket
-    # LIVENESS, not mere presence: a crashed daemon leaves the socket INODE behind,
-    # so the old `[ ! -S socket ]` file test saw a dead socket, skipped the restart,
-    # and every client then got "Connection refused". Probe an actual store ping
-    # (the same liveness check the CI smoke test uses); a stale inode fails it and
-    # we reclaim it before rebinding.
-    daemon_alive() {
-      [ -S "$socket" ] && NIX_REMOTE=daemon ${pkgs.nix}/bin/nix store ping >/dev/null 2>&1
-    }
-    if ! daemon_alive; then
-      rm -f "$socket"
-      # CRITICAL: the image sets NIX_REMOTE=daemon for CLIENTS, but the daemon
-      # itself must NOT inherit it — otherwise it opens a RemoteStore pointing at
-      # its own socket and proxies to itself (binds the socket, then resets every
-      # request → "Connection reset by peer"). Run the daemon with NIX_REMOTE
-      # empty so it drives the LOCAL store directly.
-      NIX_REMOTE= ${pkgs.nix}/bin/nix-daemon > /tmp/nix-daemon.log 2>&1 &
-      # Bounded wait until it actually LISTENS (not merely until the file appears).
-      for _ in $(seq 1 50); do daemon_alive && break; done
-    fi
-    exec "$@"
-  '';
+  #
+  # writeShellApplication for ShellCheck, with `bashOptions = [ ]` ON PURPOSE: this
+  # script never ran under `set -e`, and its bounded wait loop ends on a failing
+  # `daemon_alive && break`. Adding errexit to a container entrypoint that cannot be
+  # exercised from the Mac is a behaviour change, not hygiene.
+  entrypoint = pkgs.writeShellApplication {
+    name = "nix-daemon-entrypoint";
+    bashOptions = [ ];
+    text = ''
+      socket=/nix/var/nix/daemon-socket/socket
+      # LIVENESS, not mere presence: a crashed daemon leaves the socket INODE behind,
+      # so the old `[ ! -S socket ]` file test saw a dead socket, skipped the restart,
+      # and every client then got "Connection refused". Probe an actual store ping
+      # (the same liveness check the CI smoke test uses); a stale inode fails it and
+      # we reclaim it before rebinding.
+      daemon_alive() {
+        [ -S "$socket" ] && NIX_REMOTE=daemon ${pkgs.nix}/bin/nix store ping >/dev/null 2>&1
+      }
+      if ! daemon_alive; then
+        rm -f "$socket"
+        # CRITICAL: the image sets NIX_REMOTE=daemon for CLIENTS, but the daemon
+        # itself must NOT inherit it — otherwise it opens a RemoteStore pointing at
+        # its own socket and proxies to itself (binds the socket, then resets every
+        # request → "Connection reset by peer"). Run the daemon with NIX_REMOTE
+        # empty so it drives the LOCAL store directly.
+        NIX_REMOTE=''' ${pkgs.nix}/bin/nix-daemon > /tmp/nix-daemon.log 2>&1 &
+        # Bounded wait until it actually LISTENS (not merely until the file appears).
+        for _ in $(seq 1 50); do daemon_alive && break; done
+      fi
+      exec "$@"
+    '';
+  };
 in
 dockerTools.streamLayeredImage {
   name = "nix-config-devcontainer";
@@ -279,7 +288,7 @@ dockerTools.streamLayeredImage {
     # Entrypoint starts the daemon, then execs Cmd. Requires overrideCommand:false
     # in devcontainer.json so VS Code respects this entrypoint; Cmd = a keepalive
     # so the container stays up for `docker exec` sessions.
-    Entrypoint = [ "${entrypoint}" ];
+    Entrypoint = [ (lib.getExe entrypoint) ];
     Cmd = [
       "${pkgs.coreutils}/bin/sleep"
       "infinity"
