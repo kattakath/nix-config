@@ -51,6 +51,21 @@ in
   # kill switch is real. Every key's justification lives in that module's header.
   local.claudeManagedSettings.enable = true;
 
+  # The native Linux builder's /build is the VM's RAM tmpfs (measured: `/` and
+  # /tmp are tmpfs, no block device; tmpfs gets half the RAM). The default
+  # 8 GiB VM leaves ~3.9 GiB, and building the `nixos` guest's seed disk image
+  # (hosts/nixos.nix) stages a 1.5 GiB closure, the ext4 filesystem and the raw
+  # image there at once — "No space left on device" at every size tried.
+  # 16 GiB is the upstream knob for exactly this (the engine's comment in
+  # modules/parts/compose.nix names memoryBytes as the OOM lever). Apple
+  # Virtualization backs guest RAM lazily, so an idle or small build costs
+  # little; cpuCount is left at upstream's default, as its option text asks.
+  # Activation rewrites /etc/determinate/config.json but the RUNNING daemon keeps
+  # the old size until restarted (measured: `nix config show external-builders`
+  # still said 8 GiB) — `sudo launchctl kickstart -k
+  # system/systems.determinate.nix-daemon` applies it.
+  determinateNix.determinateNixd.builder.memoryBytes = 16 * 1024 * 1024 * 1024;
+
   # ONE ollama for the whole machine. The per-user agent could not be shared:
   # it lives in a single login session and keeps its models in that user's home,
   # so a second account meant either a duplicate 31 GB store or a server that
@@ -927,7 +942,11 @@ in
       # ships to Chrome and Firefox ONLY — lives in modules/home/chromium.nix.
       "ungoogled-chromium"
       # UTM — QEMU+virgl GUI VMs; Tart/Apple VZ failed the NixOS desktop R&D
-      # (llvmpipe only, broken virtio-sound), UTM passed (2026-10-17).
+      # (llvmpipe only, broken virtio-sound), UTM passed (2026-10-17). A CASK:
+      # nixpkgs' `utm` is a stale 4.7.5, before the virgl/Venus work. Its three
+      # app prefs (Vulkan off, CoreAudio, Cmd/Ctrl swap) are applied by
+      # `nixos-vm create` — packages/nixos-vm.nix says why each, and why they
+      # cannot be activation-time `CustomUserPreferences` (TCC container).
       "utm"
       # Vercel CLI (`vercel`) — deploy/manage Vercel projects. A CASK, not the
       # `vercel-cli` formula: Homebrew migrated it from homebrew/core to

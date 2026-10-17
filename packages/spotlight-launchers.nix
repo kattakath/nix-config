@@ -579,5 +579,15 @@ in
       bundleId = "com.kattakath.nix-open-repo";
       shape = "shell";
     };
+
+    # Boots the long-lived nixos UTM guest; UTM itself opens the VM window, so
+    # the Ghostty window only carries utmctl's exit status. `nixos-vm` is on
+    # PATH via home.packages (modules/home/default.nix, macos only).
+    "NixOS VM" = mkCommandApp {
+      name = "NixOS VM";
+      bundleId = "com.kattakath.nixos-vm";
+      command = "nixos-vm start";
+      usesFlakeDir = false;
+    };
   };
 }
