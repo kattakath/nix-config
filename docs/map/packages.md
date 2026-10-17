@@ -62,9 +62,17 @@ Core package set:
 - **`activate.nix`** — macOS-only: `activate`, a `darwin-rebuild switch` that re-execs under
   `sudo -H` (Touch ID) instead of dying with "system activation must now be run as root", and
   names the flake dir + `branch@rev` (with `(DIRTY)`) before elevating. Needs no `--flake` or
-  `#attr` because `modules/parts/hosts.nix` plants `/etc/nix-darwin/flake.nix`, which
-  `darwin-rebuild` resolves, and the attr defaults to `LocalHostName` (= `macos`).
-  `sudo darwin-rebuild switch` works too, but names nothing it is about to build.
+  `#attr` from you: the tree is `/etc/nix-darwin/flake.nix`, which `modules/parts/hosts.nix`
+  plants, and `activate` passes `--flake <tree>#<scutil --get HostName>` itself. An explicit
+  `--flake`/`--no-flake` is passed through untouched.
+
+  **HostName, NOT `LocalHostName` — darwin-rebuild's own default, which macOS rewrites.** On a
+  `.local` (mDNS) name clash mDNSResponder renames `LocalHostName` to `macos-2`, and a bare
+  `sudo darwin-rebuild switch` then dies with "does not provide attribute
+  `darwinConfigurations.macos-2`". It does **not** self-heal while the clash lasts: nix-darwin
+  re-sets the name on every activation, and mDNSResponder renames it back ~0.9 s later (11/11
+  cycles logged, 2026-10-16/17, the last one this fix's own proof run). The rival that time was this Mac's **own KDE Connect**
+  answering `macos.local` with a stale IP. `activate` prints a line when the two names differ.
 
   **It always builds the MAIN checkout, never the worktree you are sitting in — and that is
   CLAUDE.md § Build & Commands' "MERGING IS STEP 1 OF 2".** The planted link is a **STRING**
