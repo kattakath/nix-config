@@ -77,8 +77,9 @@ scripts/drv-snapshot.sh --compare .baseline/wave0-final   # "moved code, changed
 
 # Activation
 activate                                     # Activate macos, from ANY directory — a self-elevating (Touch ID)
-                                             #   `darwin-rebuild switch` that prints the flake dir + branch@rev
-                                             #   (+ DIRTY) it is about to build. It always builds the MAIN
+                                             #   `darwin-rebuild switch` that prints the flake dir#attr + branch@rev
+                                             #   (+ DIRTY) it is about to build. attr = HostName, NOT LocalHostName
+                                             #   (mDNS renames that to `macos-2` on a .local clash). It always builds the MAIN
                                              #   checkout's CURRENT branch, never a worktree's, so from a worktree
                                              #   session MERGING IS STEP 1 OF 2 — `git -C <main checkout> merge
                                              #   --ff-only origin/main` BEFORE `activate`, or you rebuild the same
