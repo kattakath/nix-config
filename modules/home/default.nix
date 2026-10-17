@@ -1835,7 +1835,13 @@ in
       - Accounts: **REDACTED - Estim8** `REDACTED` (production, live webhook;
         operator role Developer-level: full API, no team admin) and **REDACTED Information
         Technologies Inc.** `REDACTED` (operator role: sandboxes only).
-      - Stripe CLI: use `--project-name REDACTED` for production; the CLI's
+      - **MCP reach (authorized 2026-10-16, Write):** the three Inc. sandboxes only —
+        REDACTED Local `REDACTED`, REDACTED REDACTED `REDACTED`,
+        Inc. sandbox `REDACTED`. Estim8 production cannot be authorized for
+        MCP with the operator's role (needs Administrator); use the CLI for production.
+      - Stripe CLI: use `--project-name REDACTED` for production (live + test
+        keys, expire 2027-01-15); put flags AFTER the subcommand
+        (`stripe get /v1/balance --live --project-name REDACTED`). The CLI's
         `default` project is a different login.
 
       ## GitHub: `gh` and the `github-gh` MCP server share one token
