@@ -590,7 +590,6 @@ in
       "swiftlint" # lint stage — SwiftLint --strict gate (GitLab CI)
       "switchaudio-osx"
       "tree"
-      "vercel-cli" # Vercel CLI (`vercel`) — deploy/manage Vercel projects
       "wget"
       # NB: no `wireguard-tools` here — macos manages WireGuard through the GUI
       # (masApps.WireGuard) ONLY. Deliberately no `wg`/`wg-quick` CLI and no `vpn`
@@ -913,6 +912,11 @@ in
       # Passwords extension + Apple's native-messaging host, which macOS otherwise
       # ships to Chrome and Firefox ONLY — lives in modules/home/chromium.nix.
       "ungoogled-chromium"
+      # Vercel CLI (`vercel`) — deploy/manage Vercel projects. A CASK, not the
+      # `vercel-cli` formula: Homebrew migrated it from homebrew/core to
+      # homebrew/cask/vercel, and a brews entry naming the dead formula fails
+      # `brew bundle`, which aborts the whole activation (measured 2026-10-17).
+      "vercel"
       "visual-studio-code"
       # NO DICTATION CASK HERE, ON PURPOSE — read this before adding one.
       # `voiceink` was declared and reverted the same day (#550, #552). The trap
