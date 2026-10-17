@@ -180,6 +180,8 @@ let
       bundleId,
       icns,
       launcher,
+      # LSBackgroundOnly: the launcher stays running but never gets a Dock icon.
+      backgroundOnly ? false,
     }:
     # grepped nixpkgs for a .app-bundle generator — `pkgs.writeDarwinBundle`
     # EXISTS (all-packages.nix:913) → custom anyway, because reading its
@@ -208,7 +210,7 @@ let
         <key>CFBundlePackageType</key><string>APPL</string>
         <key>CFBundleShortVersionString</key><string>1.0</string>
         <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
-        <key>LSMinimumSystemVersion</key><string>11.0</string>
+        <key>LSMinimumSystemVersion</key><string>11.0</string>${lib.optionalString backgroundOnly "\n  <key>LSBackgroundOnly</key><true/>"}
       </dict>
       </plist>
       PLIST
@@ -463,8 +465,13 @@ let
   # A launcher that starts an app under the per-app VPN kill switch's group
   # (modules/darwin/vpn-only-apps.nix). It must exec the BINARY, never
   # `open -a`: LaunchServices starts the app itself, so the group would be lost.
-  # Detached like mkLauncherApp, so this bundle does not sit in the Dock as a
-  # second, frozen copy of the app while it runs.
+  # The launcher EXECs sudo and stays the app's parent for as long as it runs,
+  # instead of detaching like mkLauncherApp. Measured 2026-10-17: with
+  # `nohup … & disown`, and again with a POSIX setsid() first, the app died
+  # seconds after the launcher exited ("Catching signal: SIGTERM") — launchd
+  # reaps what the job it started leaves behind, and a new session does not take
+  # a process out of the job. LSBackgroundOnly keeps the live launcher out of the
+  # Dock, so only the app's own icon shows.
   mkVpnOnlyApp =
     {
       name,
@@ -480,9 +487,8 @@ let
         text = ''
           log_dir="$HOME/Library/Logs"
           mkdir -p "$log_dir"
-          nohup /usr/bin/sudo -n -u "$(id -un)" -g ${lib.escapeShellArg group} -- \
-            ${lib.escapeShellArg executable} >"$log_dir/${name}-launch.log" 2>&1 &
-          disown
+          exec /usr/bin/sudo -n -u "$(id -un)" -g ${lib.escapeShellArg group} -- \
+            ${lib.escapeShellArg executable} </dev/null >"$log_dir/${name}-launch.log" 2>&1
         '';
       };
     in
@@ -494,6 +500,7 @@ let
         launcher
         ;
       icns = if icns == null then fleetMarkIcns else icns;
+      backgroundOnly = true;
     };
 
 in
