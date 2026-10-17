@@ -168,10 +168,62 @@ journalctl -D /var/log/journal   # the persistent journal from the failing boot
 journalctl -D /var/log/journal -k | grep -i 'ext4\|EFSCORRUPTED'
 ```
 
-A card whose superblock already shows a non-zero error count at first boot was
-**written** badly, not worn out — which is a flasher bug, not a hardware one. Since
-#794 `nixpi-flash` reads the card back and `cmp`s it against the image, so that
-failure mode now aborts loudly instead of reporting success.
+A card whose superblock already shows a non-zero error count at first boot was either
+**written** badly or is **fake-capacity**: first boot's `resize2fs` writes block-group
+metadata across the card's whole *claimed* size, and a fake card loses everything past its
+real edge — the same `ext4_validate_block_bitmap` / `EFSCORRUPTED` signature. Since #794
+`nixpi-flash` reads the card back and `cmp`s it against the image, so a bad *write* now
+aborts loudly instead of reporting success — but the read-back covers only the image's
+bytes, so it can never catch a bad *card*. That is §3c's job.
+
+**The 2026-10-02 "flasher bug" verdict is probably wrong (inferred, not proven).** That card
+reported 33,554,432,000 bytes, was reflashed and put back, and is the card that §3c's f3 run
+showed holding only 15.2 GiB on 2026-10-17. Run §3c before blaming the flasher.
+
+---
+
+## 3c. Test the CARD before trusting it — a verified write is not a healthy card
+
+**Do this for every card that is new to nixpi.** A verified flash (§1, and `nixpi-flash`'s
+read-back) proves only that the image's ~4.9 GB landed. It says nothing about the rest of the
+card — and nixpi's first boot grows root to the size the card *claims* (raspberry-pi-nix's
+`sdImage.expandOnBoot`, default `true`). A fake-capacity card accepts every write past its
+real size and hands back garbage later, so the image verifies clean, first boot works, and
+ext4 corrupts on some later boot once data lands past the real edge.
+
+**Measured 2026-10-17** on nixpi's own "32 GB" card, which the kernel names
+`mmcblk0: mmc0:0001 asdfg 31.3 GiB` (a placeholder product name, no brand's model code):
+`f3read` reported `Data OK: 15.20 GB` and `Data LOST: 16.01 GB`, every lost sector
+*Corrupted* and none *Overwritten* (so no wrap-around). The first bad sector is LBA
+31,948,800 — exactly 15,600 MiB, a round number, which points at a programmed limit rather
+than wear. A GC plus a reboot then left root with a block-bitmap checksum mismatch.
+
+f3 (nixpkgs `f3`) is the off-the-shelf test. On macOS only `f3write`/`f3read` build —
+`f3probe`/`f3fix` do not. It **erases the card**:
+
+```bash
+diskutil list                                   # find the card — NOT disk0
+diskutil eraseDisk ExFAT F3TEST MBR diskN       # one volume across the whole card
+sudo mdutil -i off /Volumes/F3TEST              # f3's docs: Spotlight indexing skews the run
+F3=$(nix build --no-link --print-out-paths nixpkgs#f3 | head -1)/bin
+"$F3/f3write" -p 1 /Volumes/F3TEST              # fills the card; live %, MB/s and ETA
+diskutil eject diskN                            # then PHYSICALLY pull the card and reinsert it
+"$F3/f3read" -p 1 /Volumes/F3TEST               # PASS = Data LOST is zero
+```
+
+- **The physical reinsert is not optional.** macOS lacks `posix_fadvise(DONTNEED)`, so f3
+  cannot drop the cache itself, and f3's docs say to disconnect and reconnect between the two
+  steps. Sanity check: `f3read` runs at tens of MB/s on an SD card; a read in the GB/s range
+  is coming from the Mac's RAM, not the card.
+- **Cost, measured on the 32 GB card:** `f3write` ~34 min at ~16 MB/s, `f3read` ~26 min at
+  ~21 MB/s. Steady speed throughout is itself a good sign; a failing card tends to slow or
+  stall.
+- **Is it stuck?** `-p 1` is f3's own report. For an independent one, run
+  `iostat -d -w 5 diskN` in a second terminal: it prints the card's real throughput, and a
+  sustained `0.00` MB/s while f3 is still running is a stall.
+- **A FAIL is not repairable.** No software fixes a fake or failing card; `f3fix` (Linux-only)
+  only shrinks the partition to the real size. Use a different card, or, if you must keep this
+  one, cap it below the bad region (§4c).
 
 ---
 
@@ -241,6 +293,24 @@ the plant step loses its controlling terminal, and `nixpi-provision`'s "age prom
 **The write still succeeded**; only the plant was skipped, so re-plant onto the mounted card
 with the commands below rather than re-flashing. Run `nixpi-flash` in a real foreground TTY.
 
+⚠ **`READ-BACK MISMATCH` at `char 8390660` is a known FALSE alarm on macOS** (fix deferred).
+macOS auto-mounts `FIRMWARE` the moment `dd` finishes and writes `.fseventsd` and
+`.Spotlight-V100` into it, so the read-back compares a card macOS has just touched against the
+pristine image; byte 8,390,660 is 2,052 bytes into `FIRMWARE` (which starts at 8,388,608). It
+reproduced on both 2026-10-17 flashes. It aborts **before** the plant, so confirm the write
+yourself and then run `nixpi-provision` (below). A mismatch at any OTHER offset is real —
+believe it. Confirmations that can come back red:
+
+- **Root:** `e2fsck -n -f /dev/diskNs2` (nixpkgs `e2fsprogs.bin`) must exit 0, and
+  `dumpe2fs -h` must show `Mount count: 0` / `Last mount time: n/a` (an untouched image). For
+  bytes, hash the root partition on both sides with **measured** byte counts — slice the image
+  stream with `tail -c`/`head -c`, never BSD `dd count=` (on a pipe it counts short reads as
+  records and silently returns less).
+- **FIRMWARE:** `dd` a copy of `/dev/rdiskNs1`, extract it and the image's FAT with mtools
+  (`mcopy -s -i <copy> '::*' <dir>`), and `diff -rq` the two trees; the only extras allowed are
+  `.fseventsd` and `.Spotlight-V100`. Don't `mount -t msdos` instead — on macOS 27 the msdosfs
+  kext is refused ("Bad code signature"), and a diff of two empty mount points passes.
+
 **Or plant onto an already-flashed, mounted card:**
 
 ```bash
@@ -281,13 +351,90 @@ If you skip planting, the Pi still boots and is reachable on the LAN (`nixpi.loc
 but the Cloudflare tunnel stays down — no `ssh nixpi` and no hosted site — until you
 plant the token and reboot.
 
+---
+
+## 4c. Reflashing the CAPPED card — redo the cap before first boot
+
+nixpi's current card is the fake one from §3c, **kept in service by operator choice** with
+root capped below its bad region:
+
+| Partition | Start LBA | Sectors | Role |
+|---|---|---|---|
+| p1 `FIRMWARE` | 16,384 | 262,144 | from the image, untouched |
+| p2 `NIXOS_SD` | 278,528 | 29,081,600 | root, **ends at 14 GiB** — 1,600 MiB below the first bad LBA, 31,948,800 |
+| p3, type `0xda` | 29,360,128 | 36,175,872 | **fence** to the card's claimed end (65,536,000 sectors). Never format or mount it |
+
+**Every reflash undoes this.** `dd` writes the image's own MBR (p2 ≈ 4.9 GB, then free
+space), and the next first boot grows root across the whole claimed 31 GiB, straight back into
+the bad region. So after §4 and §4b, **before the card goes back in the Pi**, rewrite sector 0.
+
+**Why a fence, not a config option.** raspberry-pi-nix's first-boot step (its
+`boot.postBootCommands`) runs `echo ",+," | sfdisk -N$partNum` to grow root into the free
+space after it, then `resize2fs`, then `nix-store --load-db`. With p3 right after p2 there is
+nothing to grow into: `sfdisk` exits 0 and changes nothing (tested on nixpi's own util-linux
+2.42.3, and observed on the Pi on 2026-10-17), and `resize2fs` fills the capped partition.
+**Do NOT use `sdImage.expandOnBoot = false`.** The same `mkIf` gates `nix-store --load-db`,
+so the store would be left unregistered, and a later GC would treat all of it as garbage.
+
+```bash
+diskutil unmountDisk /dev/diskN
+sudo /bin/dd if=/dev/rdiskN of=/tmp/mbr-old.bin bs=512 count=1   # sector 0 = the MBR
+
+# Build the capped MBR with nixpi's OWN sfdisk (an aarch64-linux build, which Determinate's
+# native Linux builder runs). Only sector 0 of the sparse file is ever used.
+cat > /tmp/mbr-cap.nix <<'EOF'
+{ flake, mbr }:
+let pkgs = (builtins.getFlake flake).nixosConfigurations.nixpi.pkgs; in
+pkgs.runCommand "nixpi-mbr-cap" { nativeBuildInputs = [ pkgs.util-linux ]; } ''
+  set -eu
+  truncate -s 33554432000 card.img
+  dd if=${mbr} of=card.img bs=512 count=1 conv=notrunc status=none
+  sfdisk -d card.img | grep -q 'card.img2 : start=      278528,'
+  echo ',29081600' | sfdisk -q -N2 --no-reread card.img
+  echo 'start=29360128, size=36175872, type=da' | sfdisk -q --append --no-reread card.img
+  sfdisk -d card.img > capped.txt
+  echo ',+,' | sfdisk -q -N2 --no-reread card.img
+  sfdisk -d card.img | cmp - capped.txt
+  mkdir "$out"; cp capped.txt "$out/"
+  dd if=card.img of="$out/mbr-new.bin" bs=512 count=1 status=none
+''
+EOF
+nix build --impure -o /tmp/mbr-cap -f /tmp/mbr-cap.nix --argstr flake "$PWD" --arg mbr /tmp/mbr-old.bin
+
+# Only partition entries 2 and 3 may differ: 0-based offsets inside 462-493. The disk
+# signature (440-443), entry 1 and the boot signature (510-511) must not appear.
+cmp -l /tmp/mbr-old.bin /tmp/mbr-cap/mbr-new.bin | awk '{print $1 - 1}' | tr '\n' ' '
+sudo /bin/dd if=/tmp/mbr-cap/mbr-new.bin of=/dev/rdiskN bs=512 count=1
+sudo /bin/dd if=/dev/rdiskN bs=512 count=1 2>/dev/null | cmp - /tmp/mbr-cap/mbr-new.bin && echo "MBR written"
+diskutil list /dev/diskN        # expect: Linux 14.9 GB, then 0xDA 18.5 GB
+```
+
+What the build asserts, so a wrong input fails it rather than producing a bad table: the
+card's p2 starts at the image's LBA 278,528 (an all-zero MBR is refused), and replaying the
+exact first-boot `sfdisk` leaves the capped table unchanged. Run it from the repo root
+(`$PWD` is the flake). Its output on 2026-10-17 was byte-identical to the MBR now live on the
+card.
+
+**After first boot**, confirm the cap held and the store registered:
+
+```bash
+ssh ismail@nixpi.local 'lsblk /dev/mmcblk0; df -h /; ls /nix-path-registration; nix-store -q --hash /run/current-system'
+# expect: p2 13.9G + p3 17.3G, / = 14G, "No such file" (first boot ran to completion), a sha256
+```
+
+The numbers above are **this card's**. A different fake card needs its own: take the edge from
+`f3read`'s `Data OK` (plus the ~40 MB of exFAT overhead in front of the data), cap at least
+1 GiB below it, and size p3 to the card's reported sector count.
+
 ## 5. First-boot expectations (don't mistake a slow-but-healthy boot for failure)
 
 Insert the card and power the Pi with an adequate supply (**5V / 3A** — see §6).
 
 - **First boot takes ~60-90s**, longer than steady-state reboots, because the
-  root filesystem auto-expands to fill the card and fresh SSH host keys are
-  generated on first boot.
+  root filesystem auto-expands to fill the card (on the capped card, to the end of p2 —
+  §4c) and fresh SSH host keys are generated on first boot. Measured 2026-10-17 on the
+  capped card: tunnel serving within 2 min 15 s of the card leaving the Mac — an upper
+  bound, since it includes moving the card to the Pi.
 - **The green ACT LED should stay active / blink through boot** (disk + kernel
   activity), not flicker once and die. A single flicker → dark is the
   truncated-write signature (§6).
@@ -350,6 +497,7 @@ is not.)
 |---|---|---|
 | Green ACT flickers **once** then goes DARK; Ethernet link LED is up but there is **no DHCP lease / no SSH / no mDNS** | **Truncated SD write** (by far the most common). The FAT boot partition read fine (the flicker), but the ext4 root is half-written so the kernel hangs on `rootwait`. | **Re-flash with a verified full write** (§4) — confirm the ~5.6 GB `dd` byte count this time. Only if a *verified* full write still hangs, suspect the scripted-initrd fix (next row). |
 | Green ACT blinks normally for a while, then boot stalls with root never mounting (only visible on serial, or as "up but never reachable" after a *known-good* full write) | **systemd-initrd stage-1 hang** — the `linux-rpi` 6.6.x kernel wedges mounting `/sysroot` under systemd stage-1. The fix (`boot.initrd.systemd.enable = lib.mkForce false`) lives in `hosts/nixpi.nix`; a config change that reintroduces systemd-initrd will hang here. | Confirm `hosts/nixpi.nix` still forces scripted initrd (§8); rebuild the image and re-flash. |
+| A verified flash boots and serves fine, then root is **corrupt after a later reboot** (e2fsck: block-bitmap checksum mismatch), or first boot logs `EFSCORRUPTED` | **Fake-capacity card.** The image fits below its real edge, so the flash verifies; writes past the edge (first boot's `resize2fs`, store growth, a GC, the persistent journal) vanish | **f3-test the card** (§3c). On a FAIL, use another card or cap it (§4c) |
 | Green ACT **never blinks at all**; only the **red** power LED is on | Firmware can't read the card at all — the Pi never even loads the bootloader off FAT. | Check **power (needs a solid 5V/3A supply — undervoltage is a classic cause), the SD slot, and the card itself** (reseat / try another card). |
 
 ---
