@@ -33,11 +33,19 @@
 # its elevation — so if the ticker is ever fixable, this wrapper is the thing to
 # retire, keeping only the three diagnostics below that nh has no equivalent for.
 #
-# Deliberately generic: no repo path, no hostname, no `--flake`. A bare
-# `darwin-rebuild switch` resolves the flake through /etc/nix-darwin and the
-# attribute through `scutil --get LocalHostName`, so this works on any darwin
-# host in the fleet. Extra arguments are forwarded, so `activate --flake .#macos`
-# or `activate --show-trace` still work.
+# Deliberately generic: no repo path and no hostname baked in. Both halves of
+# the flake reference are read at RUNTIME from where a bare `darwin-rebuild
+# switch` reads them — the tree from /etc/nix-darwin/flake.nix, the attribute
+# from scutil — with ONE substitution: `HostName`, not `LocalHostName` (why: the
+# comment above `attr=` below). So this works on any darwin host in the fleet.
+# Extra arguments are forwarded, and an explicit `--flake` or `--no-flake` wins:
+# it is passed through untouched, so `activate --flake .#macos` still works.
+#
+# upstream-first, for passing `#attr` ourselves: grepped the pinned nix-darwin
+# pkgs/nix-tools/darwin-rebuild.sh — the attribute comes ONLY from `#attr` or
+# `scutil --get LocalHostName` (:165-171); no HostName path, env var or option.
+# On the tool axis `nh darwin switch -H <host>` does own this, and is rejected
+# for the same measured ticker reason as above.
 {
   writeShellApplication,
   coreutils,
@@ -58,13 +66,19 @@ writeShellApplication {
     # the check below reports, arrived at from the other direction. Measured
     # here 2026-09-15: two `--dry-run` invocations advanced the profile two
     # generations without ever repointing /run/current-system.
+    explicitFlake=""
     for arg in "$@"; do
-      if [ "$arg" = "--dry-run" ]; then
-        echo "activate: --dry-run does NOT rehearse a switch — darwin-rebuild applies it to the" >&2
-        echo "activate:   BUILD only, then sets the profile and activates anyway." >&2
-        echo "activate:   To rehearse, build without activating:  darwin-rebuild build" >&2
-        exit 2
-      fi
+      case "$arg" in
+        --dry-run)
+          echo "activate: --dry-run does NOT rehearse a switch — darwin-rebuild applies it to the" >&2
+          echo "activate:   BUILD only, then sets the profile and activates anyway." >&2
+          echo "activate:   To rehearse, build without activating:  darwin-rebuild build" >&2
+          exit 2
+          ;;
+        # darwin-rebuild.sh:84-89 parses only these two-token spellings (no
+        # `--flake=`), so a literal match is the whole detection.
+        --flake | --no-flake) explicitFlake=1 ;;
+      esac
     done
 
     rebuild=/run/current-system/sw/bin/darwin-rebuild
@@ -119,17 +133,41 @@ writeShellApplication {
       echo "activate:   re-activate once WITH --flake to repair the link." >&2
     fi
 
+    flakeArgs=()
     if [ -e /etc/nix-darwin/flake.nix ]; then
       dir=$(dirname "$(readlink -f /etc/nix-darwin/flake.nix)")
-      # Name the ATTRIBUTE too, not just the tree. A bare rebuild resolves it from
-      # `scutil --get LocalHostName`, which macOS can change at RUNTIME on an mDNS
-      # collision (two hosts claiming one .local name) — nix-darwin re-forces the
-      # declared name every activation, so it self-heals, but in the window
-      # between, the bare form fails with `attribute 'darwinConfigurations.<other>'
-      # missing` and nothing on screen explains why. Printing it costs nothing and
-      # makes that failure legible. NOT verified here: this fleet has one Mac, so
-      # there is nothing to collide with.
-      echo "activate: flake $dir#$(/usr/sbin/scutil --get LocalHostName)"
+      # The ATTRIBUTE comes from HostName, not LocalHostName — measured, not
+      # assumed. macOS rewrites LocalHostName at RUNTIME when another responder
+      # answers for the same `.local` name (`macos` -> `macos-2`), and a bare
+      # darwin-rebuild then dies with "does not provide attribute
+      # 'darwinConfigurations.macos-2'". It does NOT self-heal while the clash is
+      # live: nix-darwin re-runs `scutil --set LocalHostName` on EVERY activation
+      # (pinned modules/networking/default.nix:195-197, not diff-gated), and
+      # mDNSResponder re-probes, hits the clash and renames it back ~0.9 s later —
+      # 12 of 12 set->rename cycles in the system log, 2026-10-16/17. HostName and
+      # ComputerName stayed `macos` throughout: mDNSResponder only ever rewrites
+      # LocalHostName. The rival that time was THIS Mac's own KDE Connect,
+      # announcing `macos.local` with a stale IP (0 of 1 renamed once it was
+      # stopped; hosts/macos.nix, at the cask) — a clash needs no second Mac.
+      # LocalHostName (darwin-rebuild's own default) is the fallback only when
+      # HostName is unset, as on a consumer of hosts/generic-darwin.nix that
+      # declares no networking.hostName.
+      attr=$(/usr/sbin/scutil --get HostName 2>/dev/null) || attr=$(/usr/sbin/scutil --get LocalHostName)
+      if [ -n "$explicitFlake" ]; then
+        echo "activate: flake from your --flake/--no-flake, passed through as given"
+      else
+        flakeArgs=(--flake "$dir#$attr")
+        echo "activate: flake $dir#$attr"
+      fi
+      # Machine state, not the path chosen, so it prints for an explicit
+      # `--flake` too: one without `#attr` still falls to darwin-rebuild's own
+      # LocalHostName default and still dies on the clash.
+      localName=$(/usr/sbin/scutil --get LocalHostName 2>/dev/null || true)
+      if [ "$localName" != "$attr" ]; then
+        echo "activate:   LocalHostName is '$localName', not '$attr' — macOS renames it on a" >&2
+        echo "activate:   .local (mDNS) name clash. darwin-rebuild's own default (bare, or a" >&2
+        echo "activate:   --flake with no #attr) would look for darwinConfigurations.$localName." >&2
+      fi
       if git -C "$dir" rev-parse --git-dir >/dev/null 2>&1; then
         branch=$(git -C "$dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')
         rev=$(git -C "$dir" rev-parse --short HEAD 2>/dev/null || echo '?')
@@ -140,8 +178,8 @@ writeShellApplication {
     fi
 
     if [ "$(id -u)" -eq 0 ]; then
-      exec "$rebuild" switch "$@"
+      exec "$rebuild" switch "''${flakeArgs[@]}" "$@"
     fi
-    exec /usr/bin/sudo -H "$rebuild" switch "$@"
+    exec /usr/bin/sudo -H "$rebuild" switch "''${flakeArgs[@]}" "$@"
   '';
 }

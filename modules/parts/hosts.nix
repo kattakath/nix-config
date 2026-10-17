@@ -53,8 +53,11 @@ in
             # Makes a bare `sudo darwin-rebuild switch` work — no --flake, no
             # #attr, no cd. Upstream takes `dirname $(readlink -f
             # /etc/nix-darwin/flake.nix)` as the flake and defaults the
-            # attribute to `scutil --get LocalHostName`, which is already
-            # `macos` here. A plain STRING source is the load-bearing part: a
+            # attribute to `scutil --get LocalHostName`, which is `macos` here
+            # EXCEPT while mDNS has renamed it on a `.local` clash (`macos-2`,
+            # 2026-10-17) — so `activate` passes `#<HostName>` itself, and
+            # the bare darwin-rebuild form fails until the clash is gone
+            # (packages/activate.nix). A plain STRING source is the load-bearing part: a
             # path literal would copy a frozen snapshot into the store, while a
             # string symlinks the live tree, so a rebuild sees edits.
             environment.etc."nix-darwin/flake.nix".source = "${

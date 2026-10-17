@@ -789,6 +789,18 @@ in
       # Mac, this drives this MAC from the phone. Opposite directions, and it rides
       # its own port (1716), never adb — so `android-phone` pairing state is
       # irrelevant to whether this works.
+      #
+      # IT CLAIMS THIS MAC'S `.local` NAME — the cause of LocalHostName `macos-2`.
+      # On macOS 26.08.x always runs its OWN mDNS responder (upstream
+      # core/backends/lan/lanlinkprovider.cpp:59-62, whose TODO is to use the system
+      # API instead) and publishes `<hostname>.local` A/AAAA beside mDNSResponder's
+      # (mdnsh_wrapper.cpp:645). When those differ, mDNSResponder loses its probe
+      # and renames `macos` -> `macos-2`. Its IPv4 snapshot goes stale on a network
+      # change it misses (it served 10.0.0.204 for days), and its AAAA is the first
+      # IPv6 it finds — utun0's link-local, even straight after a restart (both
+      # captured 2026-10-17). Measured: 12 of 12 activations renamed while it ran,
+      # 0 of 1 with it stopped. No setting or env var turns its mDNS off.
+      # `activate` is immune either way (packages/activate.nix).
       "kde-connect"
       # LibreOffice — provides the `soffice` CLI the docx/pptx/xlsx/pdf Claude Code
       # skills (modules/home/default.nix programs.claude-code.skills) already hardcode
