@@ -847,9 +847,6 @@ in
         greedy = true;
       }
       "proton-drive"
-      # qBittorrent — FOSS torrent client; picked over Transmission for its
-      # network-interface binding (VPN kill-switch), built-in search and RSS rules.
-      "qbittorrent"
       "raspberry-pi-imager"
       "slack"
       # Slack's official CLI for building/deploying Slack apps (docs.slack.dev/tools/slack-cli).
