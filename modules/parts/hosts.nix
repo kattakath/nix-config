@@ -26,6 +26,9 @@ let
   # ever disagree. Owner and repo come from config.fleet so an org or repo rename
   # moves both halves together.
   operatorFlakeRelPath = "Developer/github.com/${orgName}/${repoName}/flake.nix";
+
+  # This flake's own package outputs, for the operator-only extraModules below.
+  flakePackages = config.flake.packages;
 in
 {
   # ---- macOS system configurations ---------------------------------------
@@ -63,6 +66,18 @@ in
             environment.etc."nix-darwin/flake.nix".source = "${
               config.users.users.${loginName}.home
             }/${operatorFlakeRelPath}";
+          }
+        )
+        # `page-lab-pick` on PATH: the page-lab plugin's hooks cannot see a plugin's
+        # own bin/, so the picker has to be a PATH binary. It is built from the
+        # pinned `kattakath-skills` input, which only the engine can reach, hence
+        # here and not hosts/macos.nix. Shared lane, like grok/acpx.
+        (
+          { pkgs, ... }:
+          {
+            environment.systemPackages = [
+              flakePackages.${pkgs.stdenv.hostPlatform.system}.page-lab-pick
+            ];
           }
         )
       ];
