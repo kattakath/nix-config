@@ -292,6 +292,8 @@ in
     # `mkdir -p` is idempotent, so the GitLab lane declaring the same line is
     # harmless — and each lane must declare it itself, since this module is
     # the only one here that knows local.tart.githubRunners exists.
+    # upstream-first: grepped pinned nix-darwin modules/ for tmpfiles|createDirector —
+    # 0 hits, no declarative directory option → custom.
     system.activationScripts.preActivation.text = lib.mkAfter ''
       sudo --user=${config.system.primaryUser} -- /bin/mkdir -p ${lib.escapeShellArg cfg.runnerStateDir}
     '';

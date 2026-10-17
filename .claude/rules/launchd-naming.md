@@ -69,17 +69,18 @@ mandatory, not as a security boundary to rely on. Live example:
    launchd retry the failed exec), not with a wait4path line that cannot run.
 2. **Any launchd unit you hand-write** — a nix-darwin `launchd.user.agents` or
    `launchd.daemons` entry, which the launcher in item 1 does NOT reach — MUST
-   point `arg0` at a `pkgs.writeShellScriptBin "nix-<activity>" ''…''` wrapper, **never**
-   directly at `${pkgs.bash}/bin/sh -c …` or `${python}/bin/python3 …`. Put the `exec`
-   logic inside that wrapper — and NOT a `wait4path`, for the reason in item 1: it is
-   unreachable from a store-resident wrapper. Canonical example:
-   `modules/features/tart-vms/gitlab-runner.nix`'s `launchd.user.agents.gitlab-runner`,
-   whose `arg0` is a `writeShellScriptBin "nix-gitlab-runner"`.
-   **`modules/darwin/core.nix` used to be the example here and no longer is** — its
-   `open-maccy` and two trash sweeps moved to item 1's lane on 2026-10-02
+   point `arg0` at a `nix-<activity>` wrapper (`pkgs.writeShellScriptBin`, or
+   `pkgs.writeShellApplication` when the body is more than an `exec` and deserves
+   ShellCheck), **never** directly at `${pkgs.bash}/bin/sh -c …` or
+   `${python}/bin/python3 …`. Put the `exec` logic inside that wrapper — and NOT a
+   `wait4path`, for the reason in item 1: it is unreachable from a store-resident wrapper.
+   Canonical example — and the ONLY hand-written user agent left:
+   `modules/features/tart-vms/darwin.nix`'s `launchd.user.agents.tart-vm-<name>`, whose
+   `arg0` is a `writeShellScriptBin "nix-tart-vm-<name>"`. Both CI runner lanes
+   (`tart-vms/gitlab-runner.nix`, `github-runner.nix`) moved to item 1's home-manager lane
+   on 2026-10-02, as did `modules/darwin/core.nix`'s `open-maccy` and two trash sweeps
    (`modules/home/macos-user-agents.nix`), where the launcher supplies the `nix-*` arg0 and
    the inner scripts are therefore named `open-maccy-run` / `file-rotation-<inbox>-sweep`.
-   The capsule's two runners are the only hand-written user agents left.
 3. **Before declaring any launchd change done**, mentally (or with the audit below) confirm
    the new unit's `arg0` basename starts with `nix-`.
 
@@ -196,7 +197,7 @@ runner row is a glob, one line per instance — count the rows and you will come
 | `org.nixos.activate-system` | upstream nix-darwin (§ Known upstream exceptions) |
 | `org.nixos.activate-agenix` | upstream agenix (§ Known upstream exceptions) |
 | `systems.determinate.nix-installer.nix-hook` | the Determinate installer (§ Known upstream exceptions) |
-| `org.nixos.github-runner-macos-*` | **ours, and deliberate** — the boot-ordering exception above. **This row is `local.macosGithubRunner.count` lines, not one** — today `…-dontsell-ai-01` and `…-02`, which is where the seventh line comes from. |
+| `org.nixos.github-runner-macos-*` | **ours, and deliberate** — the boot-ordering exception above. **This row is `local.macosGithubRunner.count` lines, not one** — today `…-dontsell-ai-01` and `…-02`, which is why the lines outnumber the rows by one. |
 | `org.nixos.ollama` | **ours, and deliberate** — same exception (`local.ollamaDaemon`, 2026-09-15). A `RunAtLoad` daemon serving from a store path; it runs as root against `/var/lib/ollama` and reads none of the TCC folders, so only BTM legibility is lost and the process after `exec` is still `ollama`. |
 | `org.nixos.ollama-metal-guard` | **ours, and deliberate** — same exception and the same module (`modules/darwin/ollama-daemon.nix`'s `launchd.daemons.ollama-metal-guard`). It was live on disk but missing from this table until 2026-09-22, which is how the prose count read "six" against a seven-line audit. |
 | `org.nixos.file-rotation-logs-system` | **ours, and deliberate — as of 2026-09-29.** It was NOT `sh` before, and that was the bug: a `RunAtLoad` daemon with a `/nix/store` `ProgramArguments[0]` sat at `runs = 1, exit 78 EX_CONFIG, job state = spawn failed`, so the root log rotator never ran once and `/var/log/ollama-daemon.log` reached 16 MB. Switched to `launchd.daemons.<name>.command` (`modules/darwin/logging.nix`). Root daemon writing `/var/log`; reads no TCC folder, so only BTM legibility is lost. |
@@ -216,7 +217,7 @@ already sort together — and since 2026-10-02 the trash sweeps and the Maccy op
 the same way (`modules/home/macos-user-agents.nix`). The nix-darwin lane hand-rolls its
 wrapper, which is where a prefix gets dropped — `mkNixAgent` passed `suffix = "maccy"` into
 `nix-${suffix}` and lost the `open-` until 2026-09-22. That helper is gone with the move;
-the two `tart-vms` runners are the last hand-rolled wrappers.
+`tart-vms/darwin.nix`'s `nix-tart-vm-<name>` is the last hand-rolled wrapper.
 
 **Two regroupings were considered and REJECTED, so they do not get re-proposed:**
 
