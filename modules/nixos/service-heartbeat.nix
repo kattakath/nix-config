@@ -235,7 +235,7 @@ in
       serviceConfig = {
         Type = "oneshot";
         ExecStart = "${heartbeat}/bin/service-heartbeat";
-        # Short oneshot with a hard timeout, matching uplink-watchdog.nix:366 — a
+        # Short oneshot with a hard timeout, matching uplink-watchdog.nix's TimeoutStartSec — a
         # hung probe dies rather than wedging the timer. It would fail toward
         # alerting anyway, but a wedged unit is worse to diagnose than a dead one.
         TimeoutStartSec = "60s";
