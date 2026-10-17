@@ -91,8 +91,8 @@
 # old spelling was fixed EXCEPT two, which live inside `''…''` SHELL SCRIPT
 # BODIES and therefore reach the built derivation:
 #
-#   packages/tart-runner.nix:473   "computed in modules/github-runner.nix"
-#   packages/gitlab-tart.nix:75-76 "(modules/gitlab-runner.nix)" /
+#   packages/tart-runner.nix   "computed in modules/github-runner.nix"
+#   packages/gitlab-tart.nix   "(modules/gitlab-runner.nix)" /
 #                                  "MUST track modules/slots.nix's default"
 #
 # Editing either changes the script text, hence the drv, hence `home.packages`,

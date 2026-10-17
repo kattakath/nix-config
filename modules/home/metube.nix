@@ -16,9 +16,8 @@
 # launchd-reconcile.nix covers `launchd.daemons` ONLY, so a nix-darwin user
 # agent that has fallen out of its launchd domain is never re-bootstrapped.
 # Home Manager probes with `launchctl print` and re-bootstraps an
-# up-to-date-but-not-loaded agent (pinned home-manager modules/launchd/
-# default.nix:411-419) — which is why 22 HM agents survived the 2026-09-22
-# outage while the system tier did not (launchd-reconcile.nix:8-11).
+# up-to-date-but-not-loaded agent (pinned home-manager/modules/launchd/default.nix:411-419) — which is why 22 HM agents survived the 2026-09-22
+# outage while the system tier did not (launchd-reconcile.nix's header).
 #
 # The move renames the Label `org.nixos.metube` -> `org.nix-community.home.metube`.
 # nix-darwin unloads and removes any user-agent plist the new generation lacks
@@ -120,7 +119,7 @@ in
   # `launchd.enable` defaults to isDarwin, so on nixpi/nixvm the agent would
   # silently evaluate to nothing while `pkgs.callPackage` above still had to
   # build for aarch64-linux. modules/home/default.nix imports this file for
-  # EVERY host. House spelling: modules/home/next-right-thing.nix:170.
+  # EVERY host. House spelling: the same gate in modules/home/next-right-thing.nix.
   config = lib.mkIf (cfg.enable && pkgs.stdenv.hostPlatform.isDarwin) {
     launchd.agents.metube = {
       enable = true;

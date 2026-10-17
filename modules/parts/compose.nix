@@ -235,7 +235,7 @@ let
       # for a caller with no connection to this fleet evaluated to
       # `users.users.ismail` present, holding the OPERATOR'S ssh-ed25519 public
       # key as its sole authorized key, with `loginName` in
-      # `nix.settings.trusted-users` (modules/nixos/core.nix:18-21, :34) and
+      # `nix.settings.trusted-users` (modules/nixos/core.nix) and
       # `wheel`. `lib.mkNixos` is a real flake output and flakehub-publish.yml
       # publishes this flake with `visibility: public`.
       #

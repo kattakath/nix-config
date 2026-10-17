@@ -252,6 +252,9 @@ empty block, asserted by `checks.*.claude-desktop-config-shape`.
   `flake.lock`.
 - **Comments explain why, not what.** No "we tried X then Y" narratives unless they prevent a
   known footgun (one sentence max).
+- **Cite the construct, never a line, in this repo's own files** — 75 of 146 `path:N` citations had
+  drifted (2026-10-17). A pinned input may keep its line, led by the input's name
+  (`home-manager/modules/…:N`). Gated: `checks.<system>.line-refs-cite-constructs`.
 
 ## Security
 
