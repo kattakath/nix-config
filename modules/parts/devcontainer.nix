@@ -12,8 +12,8 @@
 # x86_64 `apps`, silently, because flake-parts transposes every perSystem output
 # over `systems` (modules/transposition.nix:100-110). Nothing would fail; the
 # flake would just start claiming outputs no runner builds and no host uses.
-# That is precisely the risk the pre-flake-parts comment at flake.nix:518-535
-# was written against, and it is why the two lists stayed separate here.
+# That is precisely the risk a comment in the pre-flake-parts flake.nix (before ADR-002
+# wave 2) was written against, and it is why the two lists stayed separate here.
 {
   config,
   inputs,

@@ -14,7 +14,7 @@ Both renamed together (ADR-009 §8): `shared` named a SCOPE while every sibling
 (`darwin`, `nixos`, `parts`, `features`) names a CLASS, and once the two
 non-home-manager files left there was nothing left for the scope name to cover.
 `default.nix` is what lets the one import site be the directory literal
-`../home` (`modules/parts/compose.nix:210`). **The `ast-grep` rule moved in the
+`../home` (`imports = [ ../home ]` in `modules/parts/compose.nix`). **The `ast-grep` rule moved in the
 same commit** — `files: 'modules/home/**'`, rule and fixtures renamed to
 `home-must-not-cross-layers` — because a glob left pointing at the old path
 matches zero files and the layer boundary stops existing with CI green. Nothing
@@ -171,7 +171,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
   cask; this module contributes only the files Chromium reads out of its user-data dir, via
   upstream HM `programs.chromium` (no custom shell), plus two recommended-level policies. The
   LaunchServices default-browser claim is NOT here any more — it left with `local.defaultBrowser`
-  when Chromium stopped being the default (`chromium.nix:10`). Five surfaces, five sideloaded
+  when Chromium stopped being the default (`chromium.nix`'s header). Five surfaces, five sideloaded
   extensions:
   - **`External Extensions/<id>.json`** — pinned `fetchurl` CRXes installed as
     `external_crx` + `external_version`. The Web Store `external_update_url` is **dead** here
@@ -796,7 +796,7 @@ waves 5-6 absorb them).
   The seam that matters is `local.rag.pgvector.databaseUri`, and it has **TWO consumers, both
   in this repo**: `modules/home/plugin-mcp.nix`'s `plainEnv.DATABASE_URI` hands it to the plugin-lane `postgres` MCP
   launcher as `plainEnv.DATABASE_URI`, and since 2026-10-02 (#796) the capsule also exports it
-  as the `RAGDB_URI` session variable (`modules/features/local-rag/pgvector-local.nix:419`), for
+  as the `RAGDB_URI` session variable (`modules/features/local-rag/pgvector-local.nix`), for
   a plain SHELL consumer that cannot read a Nix option. What changed on 2026-10-02 is **which**
   module consumes it — not that the Nix half went away: `modules/shared/mcp.nix` used to hand it
   to the gateway's `postgres` server as `env.DATABASE_URI`, and that file is deleted (#734).

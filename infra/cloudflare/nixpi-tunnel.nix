@@ -48,7 +48,7 @@
   zoneId,
   hostedSites,
   # The canonical Workspace identity (modules/parts/identity.nix's
-  # `fleet.googleAccount`), threaded by modules/parts/terranix.nix:92 under the
+  # `fleet.googleAccount`), threaded by modules/parts/terranix.nix's `googleAccount` arg under the
   # SAME name it already uses for infra/gcp/foundation.nix — one spelling for one
   # value. It is the notification destination below; never a literal, because a
   # literal address in a public repo is both an identity leak and a second source

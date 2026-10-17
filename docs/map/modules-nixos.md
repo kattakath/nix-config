@@ -193,7 +193,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   cache **and** `install.determinate.systems`, which is where the prebuilt aarch64-linux
   Determinate Nix comes from (a MISS on cache.nixos.org and on Cachix, verified 2026-09-21 —
   without it a NixOS host would build Nix from C++ source, and **`nixpi` must never build**).
-  Wired into `mkNixos`'s module list only (`modules/parts/compose.nix:299`); the Mac gets the
+  Wired into `mkNixos`'s module list only (`modules/parts/compose.nix`); the Mac gets the
   same cache through `determinateNix.customSettings` because Determinate owns its `nix.conf`.
   **It lived in `modules/shared/` until 2026-10-02** while its own line 3 said
   *"NixOS-ONLY module"* — ADR-009 §9b; moved here so the directory and the header agree.

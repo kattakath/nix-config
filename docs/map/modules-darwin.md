@@ -47,7 +47,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   lanes — with them. The preserved launchd ring held 24k `org.nix` lines across four activations
   that day and, for those three labels, only `Could not find job with label …`; never a spawn.
   `launchctl load`'s exit code is documented as meaningless, so each of those activations reported
-  success. `ollama-daemon.nix:212` records the same class costing 10h52m earlier.
+  success. `ollama-daemon.nix`'s header records the same class costing 10h52m earlier.
   **Two hooks, deliberately.** `postActivation` covers `darwin-rebuild switch` — *not*
   `activationScripts.launchd` (upstream `openssh.nix:115`'s phase), because
   `activation-scripts.nix:128-140` orders `launchd → userLaunchd → … → postActivation` and
