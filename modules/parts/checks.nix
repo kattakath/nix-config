@@ -130,7 +130,7 @@ in
           #     stronger evidence than a lint. Shellcheck was then run over them to
           #     see whether it adds anything on top, and it does not: its ONLY finding
           #     across the four is three SC2016 "expressions don't expand in single
-          #     quotes" in rule1c-secret-egress.sh:22-25 — every one a FALSE POSITIVE
+          #     quotes" in rule1c-secret-egress.sh's single-quoted `ck` cases — every one a FALSE POSITIVE
           #     by construction, because those single quotes hold the literal command
           #     text the guard is being asked to judge (`ck block 'echo $(secret
           #     reveal K)'`) and expanding them would mean running it. Zero real
@@ -1566,7 +1566,7 @@ in
 
           # ---- nixpi's security posture, which until now only PROSE held ------
           #
-          # modules/nixos/core.nix:46-102 carries three careful paragraphs on why
+          # modules/nixos/core.nix's services.openssh block carries three careful paragraphs on why
           # sshd binds loopback only, why `openFirewall = false` is the knob that
           # actually keeps 22 shut, and why the TCP allow-list stays tiny. A
           # comment cannot fail a build. Every one of those lines is a one-token
@@ -2879,7 +2879,7 @@ in
               # naming rule — especially gmail's address sanitisation, which lives in
               # packages/gmail-mcp.nix. A check that re-derived it would agree with a
               # broken rule by sharing it. Derivation name == binary name for all
-              # three builders: `writeShellScriptBin` (packages/keychain-mcp.nix:78,
+              # three builders: `writeShellScriptBin` (packages/keychain-mcp.nix,
               # packages/gmail-mcp.nix:68) and `writeShellApplication`
               # (packages/mcpfinder-mcp.nix:45) each emit exactly one `$out/bin/<name>`.
               built = lib.naturalSort (

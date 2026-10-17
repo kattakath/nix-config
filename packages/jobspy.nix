@@ -16,7 +16,7 @@
 # not against a version. A frozen pin here means silent breakage the day LinkedIn or
 # Indeed changes markup, with a lock bump as the only remedy; floating means the fix
 # arrives with the next run. Consistent with design-tokens/build.sh's floating
-# `style-dictionary@^4`, and deliberately UNLIKE resend-cli.nix:31, which pins exactly
+# `style-dictionary@^4`, and deliberately UNLIKE resend-cli.nix, which pins exactly
 # because it talks to a versioned API rather than to scraped markup.
 #
 #   jobspy --search "principal engineer" --location "Toronto, ON" \
