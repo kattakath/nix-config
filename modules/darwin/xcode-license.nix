@@ -35,7 +35,8 @@
 # *immediately before* the brew-bundle body (activation order is fixed in
 # nix-darwin: … → mas → homebrew → postActivation).
 #
-# Scoped to `networking.hostName == "macos"`.
+# Scoped by DATA, not by name: active only on a host that declares
+# `homebrew.masApps.Xcode`, which is the one thing this module acts on.
 {
   config,
   lib,
@@ -46,13 +47,13 @@ let
   cfg = config.homebrew;
   # Present only when the host declares Xcode in masApps (hosts/macos.nix).
   xcodeMasId = cfg.masApps.Xcode or null;
-  enabled = cfg.enable && config.networking.hostName == "macos";
+  enabled = cfg.enable && xcodeMasId != null;
 in
 {
   config = lib.mkIf enabled {
     programs.mas = {
       enable = true;
-      packages = lib.optionalAttrs (xcodeMasId != null) { Xcode = xcodeMasId; };
+      packages.Xcode = xcodeMasId;
       # Never `mas update` at activation — see the header.
       update = false;
     };
