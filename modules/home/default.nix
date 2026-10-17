@@ -1646,6 +1646,12 @@ in
       # aarch64-darwin; it went with `modules/shared/mcp.nix` on 2026-10-02 and
       # nothing here replaces it. Measured on 3.0.1: plain `pkgs.mcp-nixos` builds
       # clean, so the override was stale before it was deleted.
+      # qBittorrent — FOSS torrent client, picked over Transmission for its
+      # network-interface binding (VPN kill-switch), built-in search and RSS rules.
+      # From nixpkgs, NOT the cask: Homebrew DISABLED `qbittorrent` on 2026-09-01
+      # (fails Gatekeeper), so `brew bundle` errors on it. nixpkgs ships the same
+      # 5.2.3, cached for aarch64-darwin.
+      qbittorrent
       mcp-nixos # `mcp-nixos` — grounded, READ-ONLY NixOS/nixpkgs option+package lookup; no token
       # Same PREREQUISITE shape as mcp-nixos above, for #657 batch 2.
       #
