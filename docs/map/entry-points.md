@@ -24,7 +24,7 @@ rather than borrowed from an arbitrary satellite anchor. **There are no satellit
 Exports:
 
 - `darwinConfigurations."macos"` (aarch64-darwin).
-- `nixosConfigurations."nixpi"` / `"nixvm"` (aarch64-linux) — `nixvm` is the disposable GUI dev
+- `nixosConfigurations."nixpi"` / `"nixvm"` / `"nixos"` (aarch64-linux) — `nixos` is the UTM GNOME desktop (see `hosts.md`); `nixvm` is the disposable HEADLESS dev
   VM, materialised only via `nix run .#nixvm`. The exported base (non-`vmVariant`) toplevel is
   an EVAL SUBSTRATE only — it carries no `virtualisation.diskImage` and is never booted.
 - `packages` / `devShells` / `checks` / `formatter` per system via flake-parts' `perSystem`

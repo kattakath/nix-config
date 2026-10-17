@@ -1,7 +1,7 @@
 # Per-account Gmail MCP launchers on PATH, for the PLUGIN lane.
 #
 # WHY THIS MODULE EXISTS. The 2026-10-01 purge removed the central MCP gateway from
-# macOS (`local.mcpGateway.enable = false`), and these four launchers lived inside it —
+# macOS (deleted with modules/shared/mcp.nix on 2026-10-02), and these launchers lived inside it —
 # so `gmail` would have gone dark with no replacement. The operator chose to keep the
 # capability and give it a plugin home.
 #

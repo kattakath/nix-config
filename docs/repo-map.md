@@ -39,7 +39,7 @@ ceiling of its own, so the budget table is not a thing you can forget.
 | [`map/hosts.md`](map/hosts.md) | `hosts/` per-host entry profiles, including the two identity-free `generic-*` ones the templates build on — **plus building `aarch64-linux` on the Mac and deploying `nixpi`**: the native Linux builder and its two traps, and what magic rollback actually buys. **Read before any `nixpi` deploy.** |
 | [`map/modules-home.md`](map/modules-home.md) | `modules/home/` — the Home Manager profile on every host — **and the Home-Manager modules that are NOT in it.** The largest of these files. |
 | [`map/modules-darwin.md`](map/modules-darwin.md) | `modules/darwin/` — macOS system scope. |
-| [`map/modules-nixos.md`](map/modules-nixos.md) | `modules/nixos/` — `nixpi` and `nixvm` system scope — the NixOS modules **not** in it, and web serving on `nixpi`. |
+| [`map/modules-nixos.md`](map/modules-nixos.md) | `modules/nixos/` — `nixpi`, `nixvm` and `nixos` system scope — the NixOS modules **not** in it, and web serving on `nixpi`. |
 | [`map/engine.md`](map/engine.md) | `modules/parts/` (the flake engine) · `modules/features/` (the seven capsules — read the mechanical boundary and the only-entry/three-seams sections before touching any) · `modules/_lib/` (shared **data**, not modules). |
 | [`map/packages.md`](map/packages.md) | `packages/` — flake apps and packages, including `activate` and the `nixpi-*` provisioning CLIs — plus the record of why there is no `userscripts/` tree to look for. |
 | [`map/infra.md`](map/infra.md) | `infra/` — the five terranix stacks (zones + DNS, `access-org`, `gcp/foundation`, `gcp/budget`, `nixpi-tunnel`) and the `mcp-public` teardown — plus the Cachix binary cache. |

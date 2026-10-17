@@ -3,12 +3,12 @@
 # the terminal. Not yet packaged in nixpkgs (checked 2026-08-21: `nix search nixpkgs
 # resend-cli` -> no hits, only the unrelated python `resend` SDK), so this is an `npx`
 # runtime-fetch wrapper — same convention as the other unpackaged npm CLIs here
-# (mcp-wordpress via wpMcp, telegram-mcp), pinned to a fixed version for reproducibility.
+# (see packages/keychain-mcp.nix), pinned to a fixed version for reproducibility.
 #
 # AUTH: the CLI's own documented priority is `--api-key` flag > `RESEND_API_KEY` env var >
 # saved `resend login` credentials (resend.com/docs/cli). This wrapper injects
 # RESEND_API_KEY from the login Keychain at RUN TIME (never in argv/git/store — same
-# pattern as obs-fb-setup's FB_PERSISTENT_STREAM_KEY / apifyMcp's APIFY_TOKEN in mcp.nix),
+# pattern as obs-fb-setup's FB_PERSISTENT_STREAM_KEY and packages/keychain-mcp.nix),
 # so every invocation is non-interactively authenticated with no browser OAuth step and no
 # on-disk credential file. The same secret is already used by dontsell-ai/app's Resend
 # integration (Vercel env `RESEND_API_KEY`, sourced from this same Keychain entry).

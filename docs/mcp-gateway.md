@@ -19,7 +19,7 @@
 > | mcp + upstream Access applications | **0** |
 > | `https://mcp.kattakath.com/mcp` | **403** — not a portal any more |
 > | `127.0.0.1:8097` | nothing listening; no shared proxy on this Mac |
-> | Claude Desktop's `mcpServers` | **an empty block, written deliberately** |
+> | Claude Desktop's `mcpServers` | **an empty block, written deliberately** (as of the purge; three `extraServers` since 2026-10-16) |
 >
 > **What replaced it:** every MCP server now comes from an enabled plugin's own `.mcp.json`,
 > spawned per session, nothing shared and nothing long-lived. A launcher that needs a Keychain
