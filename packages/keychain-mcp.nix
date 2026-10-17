@@ -37,7 +37,7 @@
 # agent's PATH; a plugin-spawned launcher has no such PATH control, so it sets its own.
 {
   lib,
-  writeShellScriptBin,
+  writeShellApplication,
   nodejs,
   uv,
   gh,
@@ -109,45 +109,54 @@ let
       throw "packages/keychain-mcp.nix: unknown interpreter '${interpreter}' for ${name} (only npx/uvx or a Nix-built package are resolved; anything else needs its own launcher, same as gmail)";
   command = if isPackage then lib.getExe interpreter else lib.getExe' runtime interpreter;
 in
-writeShellScriptBin "nix-mcp-${name}" ''
-  set -u
+# writeShellApplication rather than writeShellScriptBin, for the build-time shellcheck these
+# credential launchers had no gate for. `bashOptions` keeps EXACTLY the `set -u` they always
+# ran under, not the default errexit + pipefail: a missing Keychain entry must WARN and still
+# start (keychainEnv above), so nothing here may abort the launch. SC2155 ("declare and
+# assign separately") is excluded because masking each read's status is the design — the
+# `|| true` discards it, and the `[ -z ]` test that follows is the real check.
+writeShellApplication {
+  name = "nix-mcp-${name}";
+  bashOptions = [ "nounset" ];
+  excludeShellChecks = [ "SC2155" ];
+  text = ''
+    ${lib.concatStringsSep "\n" (
+      lib.mapAttrsToList (var: service: ''
+        export ${var}="$(/usr/bin/security find-generic-password -a "$(id -un)" -s ${lib.escapeShellArg service} -w 2>/dev/null || true)"
+        if [ -z "${"$" + var}" ]; then
+          echo "nix-mcp-${name}: ${var} is not in the login Keychain (service ${service})." >&2
+          echo "  Set it with: secret set ${service} <value>" >&2
+          echo "  Tools will fail until it exists; this launcher still starts so the failure is visible to the client." >&2
+        fi
+      '') keychainEnv
+    )}
 
-  ${lib.concatStringsSep "\n" (
-    lib.mapAttrsToList (var: service: ''
-      export ${var}="$(/usr/bin/security find-generic-password -a "$(id -un)" -s ${lib.escapeShellArg service} -w 2>/dev/null || true)"
-      if [ -z "${"$" + var}" ]; then
-        echo "nix-mcp-${name}: ${var} is not in the login Keychain (service ${service})." >&2
-        echo "  Set it with: secret set ${service} <value>" >&2
-        echo "  Tools will fail until it exists; this launcher still starts so the failure is visible to the client." >&2
+    ${lib.concatStringsSep "\n" (
+      lib.mapAttrsToList (var: value: "export ${var}=${lib.escapeShellArg value}") plainEnv
+    )}
+    ${lib.optionalString (ghTokenEnv != null) ''
+      export ${ghTokenEnv}="$(${lib.getExe gh} auth token 2>/dev/null || true)"
+      if [ -z "${"$" + ghTokenEnv}" ]; then
+        echo "nix-mcp-${name}: \`gh auth token\` returned nothing; run \`gh auth login\`." >&2
       fi
-    '') keychainEnv
-  )}
+    ''}
 
-  ${lib.concatStringsSep "\n" (
-    lib.mapAttrsToList (var: value: "export ${var}=${lib.escapeShellArg value}") plainEnv
-  )}
-  ${lib.optionalString (ghTokenEnv != null) ''
-    export ${ghTokenEnv}="$(${lib.getExe gh} auth token 2>/dev/null || true)"
-    if [ -z "${"$" + ghTokenEnv}" ]; then
-      echo "nix-mcp-${name}: \`gh auth token\` returned nothing; run \`gh auth login\`." >&2
-    fi
-  ''}
+    # Pinned: a plugin-spawned process and a launchd one do not agree on HOME, and both
+    # npx and uvx keep their package caches under it.
+    export HOME=${lib.escapeShellArg homeDirectory}
 
-  # Pinned: a plugin-spawned process and a launchd one do not agree on HOME, and both
-  # npx and uvx keep their package caches under it.
-  export HOME=${lib.escapeShellArg homeDirectory}
+    # PREPENDED, not replaced: the downloaded server's own `#!/usr/bin/env node` shebang
+    # resolves here instead of in the caller's fnm shim (see the header's measurement).
+    # Prepend rather than overwrite so a server that shells out to something ordinary still
+    # finds it.
+    export PATH=${lib.escapeShellArg "${runtime}/bin"}:"$PATH"
 
-  # PREPENDED, not replaced: the downloaded server's own `#!/usr/bin/env node` shebang
-  # resolves here instead of in the caller's fnm shim (see the header's measurement).
-  # Prepend rather than overwrite so a server that shells out to something ordinary still
-  # finds it.
-  export PATH=${lib.escapeShellArg "${runtime}/bin"}:"$PATH"
-
-  # The fence wraps the interpreter, not the other way round: everything the server
-  # forks — and `start_process` forking a shell is the point of desktop-commander —
-  # inherits the sandbox, because Seatbelt is a per-process attribute children keep.
-  # Putting it inside the server would fence nothing.
-  exec ${
-    lib.optionalString (sandboxProfile != null) "/usr/bin/sandbox-exec -f ${sandboxProfile} "
-  }${command} ${lib.concatMapStringsSep " " lib.escapeShellArg args}
-''
+    # The fence wraps the interpreter, not the other way round: everything the server
+    # forks — and `start_process` forking a shell is the point of desktop-commander —
+    # inherits the sandbox, because Seatbelt is a per-process attribute children keep.
+    # Putting it inside the server would fence nothing.
+    exec ${
+      lib.optionalString (sandboxProfile != null) "/usr/bin/sandbox-exec -f ${sandboxProfile} "
+    }${command} ${lib.concatMapStringsSep " " lib.escapeShellArg args}
+  '';
+}
