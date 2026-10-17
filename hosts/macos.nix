@@ -900,6 +900,9 @@ in
       # Passwords extension + Apple's native-messaging host, which macOS otherwise
       # ships to Chrome and Firefox ONLY — lives in modules/home/chromium.nix.
       "ungoogled-chromium"
+      # UTM — QEMU+virgl GUI VMs; Tart/Apple VZ failed the NixOS desktop R&D
+      # (llvmpipe only, broken virtio-sound), UTM passed (2026-10-17).
+      "utm"
       # Vercel CLI (`vercel`) — deploy/manage Vercel projects. A CASK, not the
       # `vercel-cli` formula: Homebrew migrated it from homebrew/core to
       # homebrew/cask/vercel, and a brews entry naming the dead formula fails
