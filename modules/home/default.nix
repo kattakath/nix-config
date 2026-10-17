@@ -226,6 +226,41 @@ let
     '';
   };
 
+  # Stripe account routing by folder — the third instance of the Slack/AWS split.
+  #   `stripe@claude-plugins-official`  mcp__plugin_stripe_stripe__*         other login
+  #   `REDACTED@kattakath`         mcp__plugin_REDACTED_stripe__*  REDACTED IT
+  # Both are mcp.stripe.com with OAuth; REDACTED adds `?workspace=REDACTED` so
+  # Claude Code keeps a separate token and does not drop it as a duplicate
+  # (kattakath/skills#80; same 401 + resource_metadata for both URLs, measured
+  # 2026-10-16). Fail-OPEN like the other two: routing, not a security boundary.
+  stripeAccountRoute = pkgs.writeShellApplication {
+    name = "claude-stripe-account-route";
+    runtimeInputs = [ pkgs.jq ];
+    text = ''
+      input=$(cat)
+      cwd=$(jq -r '.cwd // empty' <<<"$input")
+      tool=$(jq -r '.tool_name // empty' <<<"$input")
+      deny() {
+        jq -n --arg reason "$1" \
+          '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: $reason}}'
+      }
+      in_client=false
+      case "$cwd/" in "${clientRoot}/"*) in_client=true ;; esac
+      case "$tool" in
+        mcp__plugin_stripe_stripe__*)
+          if $in_client; then
+            deny "This folder is REDACTED IT, and the stripe plugin is signed in to a different Stripe login. Use the same tool with the prefix mcp__plugin_REDACTED_stripe__ instead."
+          fi
+          ;;
+        mcp__plugin_REDACTED_*)
+          if ! $in_client; then
+            deny "REDACTED is the REDACTED IT Stripe login and is only for folders under ${clientRoot}. Here, use the stripe plugin (mcp__plugin_stripe_stripe__)."
+          fi
+          ;;
+      esac
+    '';
+  };
+
   # REDACTED AWS SSO freshness, at SessionStart under the REDACTED root only. Both
   # profiles share ONE Identity Center session (`sso-session REDACTED`), whose lifetime
   # is set in Identity Center (7 days interactive, read 2026-10-16) — role credentials
@@ -1245,6 +1280,11 @@ in
         # in Claude Code's own environment instead.
         "github-gh"
 
+        # REDACTED (kattakath/skills#80): a second mcp.stripe.com OAuth sign-in for
+        # the REDACTED IT Stripe login, next to the official `stripe` plugin's. Folder
+        # routing: `stripeAccountRoute` (let-block).
+        "REDACTED"
+
         # Shell + filesystem tools that run OUTSIDE Claude Code's Bash tool, which is
         # the one thing they are for: a worktree-isolated session whose worktree was
         # DELETED refuses every Bash call, spawned agents inherit the lock, and
@@ -1435,6 +1475,8 @@ in
     "REDACTED@kattakath" = true;
     # GitHub over MCP with gh's token and scopes (operator decision 2026-10-16).
     "github-gh@kattakath" = true;
+    # The REDACTED IT Stripe sign-in; one-time `/mcp` OAuth. Operator decision 2026-10-16.
+    "REDACTED@kattakath" = true;
     "aws-core@claude-plugins-official" = true;
     "aws-serverless@claude-plugins-official" = true;
     # OFF, 2026-10-16, the same day it went on. Its `.mcp.json` ships `aurora-dsql` and
@@ -1785,6 +1827,17 @@ in
         yourself; it opens the browser for the operator. The Identity Center session lasts
         7 days, and role credentials refresh on their own inside it.
 
+      ## Stripe: use the `REDACTED` plugin
+
+      - Tools prefixed `mcp__plugin_REDACTED_stripe__` are the REDACTED IT Stripe
+        sign-in. **Never** use `mcp__plugin_stripe_stripe__*` here: it is a different
+        Stripe login, and a PreToolUse hook denies it under this folder.
+      - Accounts: **REDACTED - Estim8** `REDACTED` (production, live webhook;
+        operator role Developer-level: full API, no team admin) and **REDACTED Information
+        Technologies Inc.** `REDACTED` (operator role: sandboxes only).
+      - Stripe CLI: use `--project-name REDACTED` for production; the CLI's
+        `default` project is a different login.
+
       ## GitHub: `gh` and the `github-gh` MCP server share one token
 
       - MCP tools prefixed `mcp__plugin_github-gh_github__` run github-mcp-server (all
@@ -1806,7 +1859,7 @@ in
   # the Cowork bridge. That was asked for; it is written here so nobody mistakes it
   # for the Claude Code setup, which IS folder-fenced. uvx by store path: Desktop
   # spawns servers with launchd's PATH, which has no Nix profile on it. The
-  # `claude-desktop-config-shape` check allows this name and `github`, no other.
+  # `claude-desktop-config-shape` check allows this name, `github` and `REDACTED`, no other.
   local.claudeDesktop.extraServers = lib.mkIf isMacosHost {
     REDACTED = {
       command = lib.getExe' pkgs.uv "uvx";
@@ -1826,6 +1879,12 @@ in
     # By absolute profile path for the same launchd-PATH reason as uvx above. Through
     # /usr/bin/env because the renderer drops an EMPTY `args`, and the shape check then
     # rejects the entry as non-stdio (measured: "non-stdio or unmarked entries: github").
+    # Stripe, the REDACTED IT sign-in (same URL as the REDACTED plugin). A `url`
+    # entry: the module wraps it in the pinned mcp-remote shim, whose OAuth handshake
+    # opens the browser on first use. Like REDACTED here, NOT folder-fenced.
+    REDACTED = {
+      url = "https://mcp.stripe.com/?workspace=REDACTED";
+    };
     github = {
       command = "/usr/bin/env";
       args = [ "${config.home.profileDirectory}/bin/nix-mcp-github" ];
@@ -1915,6 +1974,17 @@ in
             {
               type = "command";
               command = lib.getExe awsAccountRoute;
+              timeout = 10;
+            }
+          ];
+        }
+        # Stripe login routing by folder. Why: `stripeAccountRoute`.
+        {
+          matcher = "^mcp__plugin_stripe(-REDACTED)?_stripe__.*";
+          hooks = [
+            {
+              type = "command";
+              command = lib.getExe stripeAccountRoute;
               timeout = 10;
             }
           ];
