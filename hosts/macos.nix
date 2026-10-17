@@ -37,6 +37,7 @@ in
     ../modules/darwin/launchd-reconcile.nix
     ../modules/darwin/logging.nix
     ../modules/darwin/ollama-daemon.nix
+    ../modules/darwin/clat-guard.nix
   ];
 
   # Root-owned Claude Code policy at /Library/Application Support/ClaudeCode/
@@ -56,6 +57,10 @@ in
   # `local.rag.ollama.manageServer = false` so the capsule stops standing up a
   # competing one — two servers on 11434 means one wins and the other flaps.
   local.ollamaDaemon.enable = true;
+
+  # Undo macOS 27 turning on CLAT46 where no NAT64 exists (IPv4 dead, IPv6 fine).
+  # Why and the measurements: modules/darwin/clat-guard.nix. 2026-10-16.
+  local.clatGuard.enable = true;
 
   # `local.ytDlpWebUi` and `local.meTube` used to be enabled here, at DARWIN
   # scope. Both are Home Manager modules since 2026-09-22 — their enables moved
