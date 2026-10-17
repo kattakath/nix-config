@@ -352,7 +352,9 @@ in
     config.home-manager.users.${loginName}.local.keychainSecrets.loaderRelPath
   }";
 
-  system.activationScripts.postActivation.text = lib.mkIf (config.networking.hostName == "macos") ''
+  # No hostname gate: the GUI PATH it refreshes is set on EVERY darwin host this
+  # module reaches (generic-darwin included), so every one needs the refresh.
+  system.activationScripts.postActivation.text = ''
     # Propagate the GUI PATH (see § GUI PATH above) to Dock-launched apps.
     # macOS gives a launched app the LAUNCHING process's environment, so an
     # app opened from the Dock inherits Dock's snapshot — not the current
