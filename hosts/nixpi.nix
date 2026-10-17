@@ -28,6 +28,7 @@
 # directly at `nixpi.local` from the LAN (keys-only, no password, both ways).
 # Physical console (getty) is the independent break-glass path.
 {
+  config,
   lib,
   pkgs,
   hostedSites,
@@ -91,6 +92,25 @@
       "wlan0"
     ];
   };
+
+  # ONE mDNS NAME: avahi publishes `nixpi.local` from the wired port ONLY. With
+  # both interfaces on one LAN, avahi can lose a probe race against ITSELF and
+  # rename the host — measured 2026-10-17: a router blip dropped both links, end0
+  # (00:06:19Z) and wlan0 (00:06:22Z) re-joined and re-probed, and at 00:06:27Z it
+  # logged "Host name conflict" twice and became `nixpi-3`. avahi never reverts, so
+  # `nixpi.local` — the LAN ingress's entry point — stayed dead until a restart.
+  # One event in 52 end0 re-joins since 2026-10-02: rare, but permanent.
+  #
+  # upstream-first: avahi#117 ("Spurious name conflicts", OPEN), whose maintainer
+  # names `allow-interfaces` as the workaround; it is upstream's own
+  # `services.avahi.allowInterfaces` (pinned nixpkgs avahi-daemon.nix:116). The
+  # name comes from the watchdog's option, not a fourth literal, and
+  # `nixpi-security-posture` pins the pairing.
+  #
+  # THE COST, accepted: with end0 down and wlan0 on the LAN, `nixpi.local` does not
+  # resolve. sshd still answers on wlan0 (lanRecovery above), by its DHCP address.
+  # The watchdog's failover moves wlan0, never end0, so the name stays up through it.
+  services.avahi.allowInterfaces = [ config.local.uplinkWatchdog.wiredInterface ];
 
   # NixOS defaults to a VOLATILE journal (wiped on reboot). The uplink-watchdog's
   # probe/escalate/restore trail is the best timestamp source for dating a router
