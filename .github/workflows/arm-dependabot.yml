@@ -17,8 +17,8 @@
 #
 # REJECTED 2 — arm with `GITHUB_TOKEN` instead. A merge attributed to GITHUB_TOKEN
 # raises no further workflow events, which silently kills `flakehub-publish.yml` on
-# that push. `auto-merge.yml:22-30` calls that this repo's "single most important
-# detail"; trading a publish for a merge is not a fix.
+# that push. docs/auto-merge-and-merge-queue.md calls that this repo's "single most
+# important detail"; trading a publish for a merge is not a fix.
 #
 # REJECTED 3 — copy the App key into a Dependabot secret. This is GitHub's own
 # documented workaround and it creates a SECOND copy of one private key that must
@@ -26,7 +26,7 @@
 # a delayed fuse.
 #
 # SO: a scheduled run, which is not a Dependabot event, keeps Actions secrets and can
-# mint the App token exactly as `update-flake-lock.yml:57-61` does. Same shape as that
+# mint the App token exactly as `update-flake-lock.yml`'s `app-token` step does. Same shape as that
 # file's own arming step (`:128-134`), and for the same stated reason: arming from a
 # scheduled job a fork can never reach, rather than loosening a guard whose job is to
 # keep fork PRs away from the App-token step.
