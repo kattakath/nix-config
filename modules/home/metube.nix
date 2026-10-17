@@ -50,53 +50,57 @@ let
   # `launcher.name = "nix-${name}"` for every agent, so the arg0 the operator
   # and TCC see is `nix-metube` regardless. Naming the inner script that too
   # produced `nix-metube` exec'ing `nix-metube` — two store paths, one name.
-  runner = pkgs.writeShellScriptBin "metube-run" ''
-    set -eu
-    mkdir -p ${lib.escapeShellArg videoDir} ${lib.escapeShellArg audioDir} \
-      ${lib.escapeShellArg stateDir} ${lib.escapeShellArg "${rootDir}/tmp"}
-    # State files from the first layout sat next to the downloads directory.
-    legacy=${lib.escapeShellArg rootDir}
-    for name in completed.json queue.json pending.json subscriptions.json cookies.txt; do
-      if [ -f "$legacy/$name" ] && [ ! -e ${lib.escapeShellArg stateDir}/"$name" ]; then
-        mv "$legacy/$name" ${lib.escapeShellArg stateDir}/"$name"
+  # writeShellApplication for ShellCheck; its implied `set -euo pipefail` only adds
+  # pipefail to the `set -eu` this always had, and there is no pipe below.
+  runner = pkgs.writeShellApplication {
+    name = "metube-run";
+    text = ''
+      mkdir -p ${lib.escapeShellArg videoDir} ${lib.escapeShellArg audioDir} \
+        ${lib.escapeShellArg stateDir} ${lib.escapeShellArg "${rootDir}/tmp"}
+      # State files from the first layout sat next to the downloads directory.
+      legacy=${lib.escapeShellArg rootDir}
+      for name in completed.json queue.json pending.json subscriptions.json cookies.txt; do
+        if [ -f "$legacy/$name" ] && [ ! -e ${lib.escapeShellArg stateDir}/"$name" ]; then
+          mv "$legacy/$name" ${lib.escapeShellArg stateDir}/"$name"
+        fi
+      done
+      # Media from that layout. Move once, and do not overwrite a file already
+      # in Movies or Music.
+      old=${lib.escapeShellArg "${rootDir}/downloads"}
+      audio=${lib.escapeShellArg audioDir}
+      video=${lib.escapeShellArg videoDir}
+      if [ -d "$old" ]; then
+        find "$old" -maxdepth 1 -type f \( \
+          -iname '*.mp3' -o -iname '*.m4a' -o -iname '*.opus' -o -iname '*.flac' \
+          -o -iname '*.wav' -o -iname '*.aac' -o -iname '*.ogg' \
+          \) -exec sh -c 'dest="$1/$(basename "$2")"; [ -e "$dest" ] || mv "$2" "$dest"' _ "$audio" {} \;
+        find "$old" -maxdepth 1 -type f \( \
+          -iname '*.mp4' -o -iname '*.mkv' -o -iname '*.webm' -o -iname '*.mov' \
+          \) -exec sh -c 'dest="$1/$(basename "$2")"; [ -e "$dest" ] || mv "$2" "$dest"' _ "$video" {} \;
       fi
-    done
-    # Media from that layout. Move once, and do not overwrite a file already
-    # in Movies or Music.
-    old=${lib.escapeShellArg "${rootDir}/downloads"}
-    audio=${lib.escapeShellArg audioDir}
-    video=${lib.escapeShellArg videoDir}
-    if [ -d "$old" ]; then
-      find "$old" -maxdepth 1 -type f \( \
-        -iname '*.mp3' -o -iname '*.m4a' -o -iname '*.opus' -o -iname '*.flac' \
-        -o -iname '*.wav' -o -iname '*.aac' -o -iname '*.ogg' \
-        \) -exec sh -c 'dest="$1/$(basename "$2")"; [ -e "$dest" ] || mv "$2" "$dest"' _ "$audio" {} \;
-      find "$old" -maxdepth 1 -type f \( \
-        -iname '*.mp4' -o -iname '*.mkv' -o -iname '*.webm' -o -iname '*.mov' \
-        \) -exec sh -c 'dest="$1/$(basename "$2")"; [ -e "$dest" ] || mv "$2" "$dest"' _ "$video" {} \;
-    fi
-    export HOST=127.0.0.1
-    export PORT=${toString cfg.port}
-    export DOWNLOAD_DIR=${lib.escapeShellArg videoDir}
-    export AUDIO_DOWNLOAD_DIR=${lib.escapeShellArg audioDir}
-    export STATE_DIR=${lib.escapeShellArg stateDir}
-    export TEMP_DIR=${lib.escapeShellArg "${rootDir}/tmp"}
-    export CORS_ALLOWED_ORIGINS='*'
-    export MAX_CONCURRENT_DOWNLOADS=${toString cfg.maxConcurrentDownloads}
-    # Age-gated YouTube needs a signed-in browser session. This is the
-    # Chromium profile the extension runs in. A one-element list is what
-    # yt-dlp's cookiesfrombrowser parser accepts. The secret stays in the
-    # browser's cookie store; the first download may raise a Keychain prompt
-    # for "Chromium Safe Storage".
-    export YTDL_OPTIONS=${
-      lib.escapeShellArg (
-        builtins.toJSON {
-          cookiesfrombrowser = [ "chromium" ];
-        }
-      )
-    }
-    exec ${lib.getExe pkg}
-  '';
+      export HOST=127.0.0.1
+      export PORT=${toString cfg.port}
+      export DOWNLOAD_DIR=${lib.escapeShellArg videoDir}
+      export AUDIO_DOWNLOAD_DIR=${lib.escapeShellArg audioDir}
+      export STATE_DIR=${lib.escapeShellArg stateDir}
+      export TEMP_DIR=${lib.escapeShellArg "${rootDir}/tmp"}
+      export CORS_ALLOWED_ORIGINS='*'
+      export MAX_CONCURRENT_DOWNLOADS=${toString cfg.maxConcurrentDownloads}
+      # Age-gated YouTube needs a signed-in browser session. This is the
+      # Chromium profile the extension runs in. A one-element list is what
+      # yt-dlp's cookiesfrombrowser parser accepts. The secret stays in the
+      # browser's cookie store; the first download may raise a Keychain prompt
+      # for "Chromium Safe Storage".
+      export YTDL_OPTIONS=${
+        lib.escapeShellArg (
+          builtins.toJSON {
+            cookiesfrombrowser = [ "chromium" ];
+          }
+        )
+      }
+      exec ${lib.getExe pkg}
+    '';
+  };
 in
 {
   options.local.meTube = {
