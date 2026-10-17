@@ -103,7 +103,10 @@ let
         printf '%s\t%s\n' "$(tok_service "$t")" "$(tok_env "$t")"
       done
     }
-    bound_env() { index_rows | awk -F'\t' -v s="$1" '$1==s {print $2; exit}'; }
+    # awk must DRAIN the pipe, not `exit` on the match: an early exit leaves index_rows
+    # writing into a closed pipe, SIGPIPE + pipefail kill the script with 141 and no
+    # message, and only the LAST indexed item ever survived (measured 2026-10-17).
+    bound_env() { index_rows | awk -F'\t' -v s="$1" '$1==s && !f {print $2; f=1}'; }
 
     # ---- the local manifest: SERVICE  REF  MODE  ENV  (tab-separated, 0600) --------------
     manifest_get() { # manifest_get SERVICE COLUMN(2..4)
