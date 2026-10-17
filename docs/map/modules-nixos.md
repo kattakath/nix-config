@@ -290,6 +290,15 @@ Both are in-tree capsules (`modules/features/`), and both are threaded into
 `hosts/nixpi.nix` through `mkNixos` specialArgs as an already-resolved MODULE — never as a
 flake, and never imported by path from the host.
 
+- **`modules/nixos/service-heartbeat.nix`** — `local.serviceHeartbeat`, on `nixpi` only: a
+  **dead man's switch** for "still SERVING", not "powered". A systemd timer pings an external
+  check (URL read at runtime from `urlFile`, so no endpoint reaches the store) only after a
+  loopback self-test passes: the local web server answers on `httpPort` and every unit in
+  `requireUnits` (nixpi: `caddy.service`, `cloudflared-connector.service`) is active. The
+  ALERT is the missing ping, which is why it is the right shape for the 2026-09-23 → 10-01
+  outage (userspace dead, kernel up, ICMP answering): with userspace dead the timer cannot
+  fire. Every failure of the pinger fails toward alerting. It complements Cloudflare's tunnel
+  alert, covering what leaves the tunnel up.
 - **`modules/features/cloudflared-connector/`** (an IN-TREE CAPSULE, not an input — it was
   the `nix-cloudflared-connector` flake until ADR-002 wave 3 absorbed it) — opt-in
   `local.cloudflaredConnector.enable`
