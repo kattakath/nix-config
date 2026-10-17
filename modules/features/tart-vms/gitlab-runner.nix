@@ -6,7 +6,7 @@
 # modules/services/gitlab-runner.nix): it runs a launchd DAEMON under a
 # dedicated `gitlab-runner` service user, and Tart guests can only boot in the
 # GUI login user's session (Virtualization.framework needs the unlocked
-# data-protection keychain — same constraint as local.tart.runners); its `script =`
+# data-protection keychain — same constraint as local.tart.githubRunners); its `script =`
 # also execs a bare-`sh` arg0, and its registration flow is the legacy
 # REGISTRATION_TOKEN model, not the modern glrt- authentication token.
 #
@@ -58,7 +58,7 @@ let
       umask 077
 
       # Slot-semaphore knobs for the nix-gitlab-tart-* shims (inherited by the
-      # custom-executor children); shared with the GitHub local.tart.runners lane.
+      # custom-executor children); shared with the GitHub local.tart.githubRunners lane.
       export TR_SLOTS_DIR=${lib.escapeShellArg "${tartCfg.runnerStateDir}/slots"}
       export TR_SLOTS_MAX=${toString tartCfg.runnerSlots}
 
