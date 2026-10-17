@@ -321,7 +321,10 @@ in
     };
   };
 
-  config = lib.mkIf (config.networking.hostName == "macos") {
+  # No hostname gate: only hosts/macos.nix imports this module, so the import IS
+  # the scope. A `hostName == "macos"` test here only hid it from a template Mac
+  # that chose to import it.
+  config = {
     system.newsyslog = {
       enable = true;
       files.nix-fleet =
