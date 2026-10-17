@@ -43,7 +43,7 @@
     # The nixpkgs-lib line is upstream-blessed, not a hack: `terranix` already
     # carries exactly this follows, and flake-parts documents the override with a
     # 23.05 floor our nixpkgs.lib clears by three years. Note nixpkgs-lib CANNOT be
-    # `follows = ""` — flake-parts does `inherit (nixpkgs-lib) lib` (flake.nix:11),
+    # `follows = ""` — flake-parts does `inherit (nixpkgs-lib) lib` (flake-parts/flake.nix:11),
     # so rebinding the name to THIS flake makes it `lib` of a thing with no `lib`.
     flake-parts.url = "github:hercules-ci/flake-parts";
     flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";

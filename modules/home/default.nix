@@ -1510,12 +1510,12 @@ in
     # WHY `false` AND NOT DELETING THE LINE. `declared` is an `attrsOf bool` that is
     # re-asserted into ~/.claude/settings.json on every activation, where `false` is
     # first-class — "`true` enables, `false` disables"
-    # (modules/home/claude-plugins.nix:190-219). Deleting the key emits NO key, and
+    # (the `local.claudePlugins.declared` option in modules/home/claude-plugins.nix). Deleting the key emits NO key, and
     # the jq merge in claude-code-settings.nix (`.[0] * $nix[0]`) then LEAVES the
     # stale `true` the previous activation wrote. Deletion does not disable; it
     # abandons.
     #
-    # The catalogue entry for "empire" above STAYS. claude-plugins.nix:275-298
+    # The catalogue entry for "empire" above STAYS. An assertion in claude-plugins.nix
     # asserts every `declared` id names a plugin present in that marketplace's
     # `plugins` list, so removing it fails the build — and keeping it leaves the id
     # resolvable from `/plugin` if the operator wants it back.
@@ -1945,7 +1945,7 @@ in
       #
       # upstream option home-manager.programs.claude-code.context exists → using it
       # (modules/programs/claude-code/options.nix:133, `either lines path`;
-      # impl default.nix:319-322 writes `"''${cfg.configDir}/CLAUDE.md".source`
+      # impl home-manager/modules/programs/claude-code/default.nix:319-322 writes `"''${cfg.configDir}/CLAUDE.md".source`
       # for a path value, and configDir defaults to ~/.claude at options.nix:61).
       # This replaced a hand-written `home.file.".claude/CLAUDE.md"` shim under
       # the identical darwin gate — same target, one fewer duplicate-home.file
@@ -2086,7 +2086,7 @@ in
         # Collector defined in modules/home/claude-otel.nix, read by
         # /routing-review to find deterministic-vs-model-judgment hardening
         # candidates. Gated on the SAME predicate as the collector itself
-        # (claude-otel.nix:43, `local.claudeOtel.enable`) — not on isMacosHost,
+        # (claude-otel.nix's `local.claudeOtel.enable`) — not on isMacosHost,
         # which is a DIFFERENT predicate: an account with the collector off but
         # isMacosHost true would keep exporting into a collector that is not
         # running, and its own /routing-review would read nothing.

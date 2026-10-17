@@ -16,7 +16,7 @@
 # else is declared here: flake-parts ships that for `nixosConfigurations`, and
 # `darwinConfigurations` comes from nix-darwin's own flake-parts module (pinned
 # nix-darwin flake-module.nix:6-10, exported as `flakeModules.default` at
-# flake.nix:59) which modules/parts/hosts.nix imports. A second declaration
+# nix-darwin/flake.nix:59) which modules/parts/hosts.nix imports. A second declaration
 # here was a duplicate — removed 2026-09-13.
 #
 # Leaving these undeclared is the single most expensive mistake available in a

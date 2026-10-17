@@ -9,8 +9,7 @@
 #
 # THE DEFECT, and it is UPSTREAM's design rather than a local mistake. The pinned
 # home-manager's `programs.claude-code` renders settings.json with
-# `install -Dm444` into the store and symlinks it (modules/programs/claude-code/
-# default.nix:295-316). Mode 444, in /nix/store: the app cannot persist anything
+# `install -Dm444` into the store and symlinks it (home-manager/modules/programs/claude-code/default.nix:295-316). Mode 444, in /nix/store: the app cannot persist anything
 # the UI writes, and a rebuild reverts it. Reading options.nix in full — enable,
 # finalPackage, enableMcpIntegration, configDir, settings, context, plugins,
 # marketplaces, skills, lspServers, mcpServers — there is NO mutability option,

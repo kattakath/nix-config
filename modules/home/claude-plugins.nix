@@ -368,7 +368,7 @@ in
     #                    plugin both of the repo's guards are simply absent. #648 made
     #                    this member conditional on #651 landing as D1; #651 is closed
     #                    and #673 merged, so it is now unconditional.
-    #   brain-signals    `claude-brain.nix:34` declares an output style that only this
+    #   brain-signals    `claude-brain.nix`'s `outputStyle` declares a style that only this
     #                    plugin supplies. Dropping it was considered and declined.
     #
     # Everything else is the operator's to toggle, and the toggle now PERSISTS. A
