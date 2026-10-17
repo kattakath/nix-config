@@ -137,8 +137,8 @@ let
   # goes red. `key` carries the per-layer plist attr, `domain` carries the tier.
   sources = import ./launchd-sources.nix { inherit config loginName; };
 
-  # The nix-darwin option, not a literal — modules/darwin/core.nix:13 and
-  # user-folders.nix:28 already read it, and a `/Users/${loginName}` string here
+  # The nix-darwin option, not a literal — modules/darwin/core.nix and
+  # user-folders.nix already read it, and a `/Users/${loginName}` string here
   # would be the hardcoded-home anti-pattern CLAUDE.md § Conventions rejects
   # (and one ast-grep/rules/nix-hardcoded-home-path.yml structurally cannot see,
   # because the interpolation splits the string_fragment).
@@ -245,7 +245,7 @@ let
   # writeShellApplication, not writeShellScriptBin: `runtimeInputs` bakes gzip
   # onto PATH, and a launchd job starts with a near-empty one. logrotate shells
   # out to gzip for `compress`, so without this the rotation silently stops
-  # compressing. (pgvector-local.nix:246-248 uses the same idiom for the same
+  # compressing. (pgvector-local.nix's `runScript` uses the same idiom for the same
   # reason.)
   #
   # `binName` is separate from `name` because the two ticks sit in different

@@ -250,7 +250,7 @@ the one exported host (`macos`) and the stranger-identity Mac that
 - **The seam the whole wave was gated on:** `modules/shared/mcp.nix`'s
   `env.DATABASE_URI = config.local.rag.pgvector.databaseUri`. **That MODULE no longer exists —
   the seam does, with two consumers, both in this repo.** `mcp.nix` was deleted 2026-10-02
-  (#734); `modules/home/plugin-mcp.nix:110` now hands the URI to the plugin-lane `postgres` MCP
+  (#734); `modules/home/plugin-mcp.nix`'s `plainEnv.DATABASE_URI` now hands the URI to the plugin-lane `postgres` MCP
   launcher as `plainEnv.DATABASE_URI`, and `modules/features/local-rag/pgvector-local.nix:419`
   exports it as the `RAGDB_URI` session variable (#796) for a shell consumer that cannot read a
   Nix option. `checks.local-rag-module` still pins the URI's value as a **LITERAL**, so a

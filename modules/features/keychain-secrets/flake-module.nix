@@ -10,7 +10,7 @@
 # they were not for cloudflared-connector / firmware-secrets:
 #
 #   * `local.keychainSecrets.loaderRelPath` is preserved BYTE-IDENTICAL
-#     (option name, type and default). modules/darwin/core.nix:497 derives
+#     (option name, type and default). modules/darwin/core.nix derives
 #     `launchd.user.envVariables.BASH_ENV` from it BY REFERENCE, which is the
 #     only thing closing the $BASH_ENV gap for a GUI/launchd-spawned bash. A
 #     rename there is a silent loss of secrets for every non-shell-descended

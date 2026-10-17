@@ -67,8 +67,9 @@
 #     exist and undoes itself by reversing a diff, so it can neither create a
 #     whole new JSON file nor later remove one.
 #   · system.defaults.CustomSystemPreferences writes through `defaults` into a
-#     preferences DOMAIN, not a JSON file at a path. modules/darwin/core.nix:638
-#     already records this exact limitation for Docker's settings-store.
+#     preferences DOMAIN, not a JSON file at a path. modules/darwin/core.nix
+#     recorded this exact limitation for Docker's settings-store until #580
+#     removed Docker (2026-09-22).
 #   · Anthropic's own MDM channel (a com.anthropic.claudecode configuration
 #     profile under /Library/Managed Preferences/) needs an MDM to install the
 #     profile. This fleet has no MDM.
