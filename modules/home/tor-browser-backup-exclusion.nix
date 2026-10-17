@@ -65,7 +65,7 @@ let
   # `osConfig ? { }` with the `or ""` fallback matches those siblings — this
   # module must still evaluate where there is no darwin/NixOS parent (the
   # standalone-HM path in checks), and an unknown host simply gets nothing.
-  isMacosHost = (osConfig.networking.hostName or "") == "macos";
+  isMacosHost = import ../_lib/is-macos-host.nix osConfig;
 
   # Built from config.home.homeDirectory, never a /Users/<name> literal in a Nix
   # value (ast-grep nix-hardcoded-home-path enforces this).

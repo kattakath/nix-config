@@ -90,7 +90,7 @@ let
 
   # Real client Mac vs Tart sandbox (hosts/*/networking.hostName). Used to keep
   # heavy darwin-only agents (RAG stack, MCP public tunnel extras) off any sandbox host.
-  isMacosHost = (osConfig.networking.hostName or "") == "macos";
+  isMacosHost = import ../_lib/is-macos-host.nix osConfig;
 
   # Fonts are rendered by the machine with the SCREEN, never by an SSH target:
   # tmux/starship glyphs on nixpi are drawn by the client's terminal. So fonts go
