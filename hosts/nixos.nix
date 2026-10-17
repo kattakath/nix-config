@@ -255,9 +255,14 @@ in
           settings = {
             "org/gnome/desktop/interface" = {
               color-scheme = "prefer-dark";
-              # Retina: mutter takes a non-zero global scaling factor over its
-              # own per-monitor guess, which picked 1x (tiny text) under Tart.
-              scaling-factor = lib.gvariant.mkUint32 2;
+              # NO `scaling-factor` here, on purpose. A forced 2 assumed a
+              # Retina-PIXEL framebuffer (true under Tart); UTM with
+              # NativeResolution = false hands the guest the window's size in
+              # macOS POINTS instead (full screen on this Mac: 1440x900), so 2x
+              # turned it into a 720x450 desktop, and a forced 4K mode to
+              # compensate gave a double mouse pointer (operator-tested
+              # 2026-10-17). Unset (0 = automatic), mutter picks 1x for that
+              # size — the 1440x900 @ 100% the operator settled on.
             };
             # Natural scrolling to match the Mac. UTM's pointer may enumerate as
             # a mouse, which GNOME defaults to traditional scrolling, so set
