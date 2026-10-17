@@ -246,22 +246,17 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   [`launchd-naming.md`](../../.claude/rules/launchd-naming.md). The file header carries the diagnosis
   (no PREF64, no option 108, no `ipv4only.arpa` AAAA) and the upstream-first grep.
 - **`vpn-only-apps.nix`** (macos only, `local.vpnOnlyApps`, since 2026-10-17) — a **per-app VPN
-  split tunnel + kill switch** for qBittorrent and Tor Browser; every other app stays on the normal
-  connection. **Split:** a root **sing-box** daemon runs a TUN whose `process_path_regex` rule
-  sends anything inside the listed app BUNDLES to a `urltest` group of WireGuard endpoints — one
-  per `*.conf` in `wireguardDir` (default: where `local.wireguardConfigs` syncs them), keys piped
-  in at start, never on disk or in the store — and everything else `direct`. **Lock:** pf cannot
-  match an application, but it can match the socket's **group**, so each app runs with egid
-  `nix-vpn-only` (gid 600) and one anchor, `com.apple/050.nix-vpn-only`, lets that group send
-  TCP/UDP only FROM sing-box's TUN subnet or over loopback — sing-box down means refused, not
-  leaked. While sing-box is UP pf cannot tell VPN from direct, so the BUNDLE-path rule is what
-  keeps a child process (`tor`, `plugin-container`) on the tunnel. Launch is a Spotlight bundle
+  kill switch** for qBittorrent and Tor Browser. pf cannot match an application, but it can match
+  the socket's **group**, so each app runs with egid `nix-vpn-only` (gid 600) and one anchor,
+  `com.apple/050.nix-vpn-only`, lets that group send TCP/UDP only FROM a tunnel address
+  (`tunnelSubnets`) or over loopback. The pass rule keys on source address, not `utunN`, because
+  the WireGuard app picks a different utun per connect. Launch is a Spotlight bundle
   (`"<name> (VPN)"`, from `packages/spotlight-launchers.nix`'s `mkVpnOnlyApp`) running `sudo -n
   -u <self> -g nix-vpn-only <binary>` under a NOPASSWD rule for exactly those binaries; opening
   the app any OTHER way is unguarded. A 30 s root guard re-enables pf and reloads the anchor if
-  anything flushed them; it and the sing-box daemon are boot-ordering `/bin/sh` rows in
-  [`launchd-naming.md`](../../.claude/rules/launchd-naming.md). Gaps, in the header: ICMP, DNS
-  resolved by `mDNSResponder` outside the rule, and IPv6 (refused, the TUN is IPv4-only).
+  anything flushed them, so it is a boot-ordering `/bin/sh` row in
+  [`launchd-naming.md`](../../.claude/rules/launchd-naming.md). Gaps, in the header: ICMP, and DNS
+  resolved by `mDNSResponder` outside the group.
 - **`metube.nix`** / **`yt-dlp-web-ui.nix`** — `local.meTube` and `local.ytDlpWebUi`, the two
   local download web UIs, each ONE launchd **user agent** bound to **127.0.0.1** and each
   built from source in `packages/` (neither is in nixpkgs). Both are on in `hosts/macos.nix`.
