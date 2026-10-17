@@ -203,11 +203,24 @@ in
       # longer manages session services", and no client process). So nobody
       # started it. A user unit on graphical-session.target is how GNOME 50
       # runs session services; `-x` keeps it in the foreground for systemd.
+      #
+      # ORDERED AFTER THE SHELL, not just graphical-session.target: started that
+      # early, the agent found the monitor but never received a resize, so the
+      # guest stayed at 1280x800 under a full-screen Retina window (measured
+      # 2026-10-17); `systemctl --user restart spice-vdagent` once the session
+      # was up made resizes flow at once. That is mutter issue 1856 (autologin
+      # + Wayland: spice-vdagent misses mutter's DisplayConfig). In GNOME 50 the
+      # shell is `org.gnome.Shell@user.service`, and
+      # gnome-session-initialized.target is reached after it.
       systemd.user.services.spice-vdagent = {
         description = "SPICE session agent (clipboard, dynamic resolution)";
-        wantedBy = [ "graphical-session.target" ];
+        wantedBy = [ "gnome-session-initialized.target" ];
         partOf = [ "graphical-session.target" ];
-        after = [ "graphical-session.target" ];
+        after = [
+          "graphical-session.target"
+          "org.gnome.Shell@user.service"
+          "gnome-session-initialized.target"
+        ];
         serviceConfig = {
           ExecStart = "${pkgs.spice-vdagent}/bin/spice-vdagent -x";
           Restart = "on-failure";
