@@ -44,6 +44,8 @@ let
   services = {
     "billingbudgets.googleapis.com" = "the spend alert (infra/gcp/budget.nix)";
     "iamcredentials.googleapis.com" = "service-account impersonation, how tofu authenticates";
+    "secretmanager.googleapis.com" =
+      "the keychain-secrets durable copy (ADR-004, docs/secrets-recovery-and-identity-adr.md §9.3)";
     "storage.googleapis.com" = "the OpenTofu state bucket below";
   };
 in
