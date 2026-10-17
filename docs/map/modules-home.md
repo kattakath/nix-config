@@ -794,7 +794,7 @@ waves 5-6 absorb them).
   the class; the reasoning is in its `flake-module.nix` header.
 
   The seam that matters is `local.rag.pgvector.databaseUri`, and it has **TWO consumers, both
-  in this repo**: `modules/home/plugin-mcp.nix:110` hands it to the plugin-lane `postgres` MCP
+  in this repo**: `modules/home/plugin-mcp.nix`'s `plainEnv.DATABASE_URI` hands it to the plugin-lane `postgres` MCP
   launcher as `plainEnv.DATABASE_URI`, and since 2026-10-02 (#796) the capsule also exports it
   as the `RAGDB_URI` session variable (`modules/features/local-rag/pgvector-local.nix:419`), for
   a plain SHELL consumer that cannot read a Nix option. What changed on 2026-10-02 is **which**

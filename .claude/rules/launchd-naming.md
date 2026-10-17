@@ -222,7 +222,7 @@ the two `tart-vms` runners are the last hand-rolled wrappers.
 - **The CI runners** (`nix-gitlab-runner`, `nix-tart-runner-*`, `nix-github-runner-macos-*` →
   `nix-runner-*`). It looks like the same one-token rename and is not:
   `nix-gitlab-runner` also names a **state directory**, `~/.config/nix-gitlab-runner`,
-  rendered at agent start (`modules/features/tart-vms/gitlab-runner.nix:75`), so the rename
+  rendered at agent start (`modules/features/tart-vms/gitlab-runner.nix`'s `confDir`), so the rename
   is a migration inside a capsule. And the two `github-runner-macos-*` daemons show as `sh`
   in BTM regardless (the boot-ordering exception above), so renaming their inner binary is
   invisible there. Cost is real, benefit is alphabetical adjacency among ~25 rows.
