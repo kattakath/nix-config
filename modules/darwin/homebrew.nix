@@ -15,9 +15,10 @@
 # fleet already consumed as `pkgs.mas` from xcode-license.nix's activation).
 #
 # THE ONE DELIBERATE INVERSION OF THAT PRINCIPLE: `gnupg` IS brewed (2026-10-06).
-# The `gpgfrontend` cask hard-depends on the brew FORMULA, and two GnuPG stacks
-# sharing one `~/.gnupg` make which `gpg-agent`/pinentry you get a startup-order
-# lottery — so exactly one stack wins, and here it is Homebrew's. Measured:
+# Two GnuPG stacks sharing one `~/.gnupg` make which `gpg-agent`/pinentry you get
+# a startup-order lottery — so exactly one stack wins, and here it is Homebrew's
+# (it holds the operator's keyring; the `gpgfrontend` cask that first pulled it
+# in was removed 2026-10-17). Measured:
 # brew's gnupg is 2.5.24 (gnupg.org's current stable) while nixpkgs' at this pin
 # is 2.4.9, past its 2026-06-30 EOL. Full reasoning and the rejected
 # alternatives live with the entries in hosts/macos.nix — do not duplicate it
