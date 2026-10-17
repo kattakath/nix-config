@@ -223,6 +223,58 @@ they bite any future second account:
   sentence used to read "there is no headless `nixvm` you can boot", which inverted after
   2026-10-06: the **build-vm** is now headless. The base config remains unbootable; the
   distinction is base-vs-vmVariant, not graphical-vs-headless.)
+- **`nixos.nix`** — a **long-lived GNOME desktop guest** run by **UTM's QEMU backend**
+  (`virtio-gpu-gl-pci` + virgl → ANGLE → Metal). Unlike `nixvm` it is a real disk-backed
+  host, managed from the Mac by `nixos-vm` (`packages/nixos-vm.nix`; also the **"NixOS VM"**
+  Spotlight entry, which runs `nixos-vm start`):
+  - `nixos-vm create` — builds `system.build.image` (or takes `--image`), writes the UTM bundle
+    to `${XDG_DATA_HOME:-~/.local/share}/utm/nixos.utm` with a fixed UUID and MAC, converts the
+    raw image to a 64 GiB qcow2, registers it with `open -a UTM`, points the share at
+    `~/Shared` through UTM's `update registry` AppleScript command, boots it, waits for SSH and
+    runs the first switch. It REFUSES if the bundle exists — this is a long-lived disk.
+  - `nixos-vm switch` — `nixos-rebuild switch --flake <flake>#nixos --target-host nixos.local
+    --sudo`; the normal update path. `<flake>` defaults to the checkout `/etc/nix-darwin/flake.nix`
+    resolves to (the MAIN checkout's current branch, like `activate`), overridable with
+    `--flake` / `NIXOS_VM_FLAKE`.
+  - `start` / `stop` / `status` / `ssh` / `destroy --yes`.
+
+  **SEED, THEN SWITCH.** The image carries only a seed variant (`local.nixosGuest.seed`, built
+  with `extendModules` — the `vmVariant` mechanism): boot, SSH, guest agent, no desktop, no Home
+  Manager. Measured: the full closure is **6.7 GiB**, and systemd-repart stages it AND writes the
+  image inside `$NIX_BUILD_TOP`, which on the Determinate builder is the VM's **RAM tmpfs** —
+  `No space left on device`. Even the 1.5 GiB seed needed the builder raised to **16 GiB**
+  (`determinateNix.determinateNixd.builder.memoryBytes`, `hosts/macos.nix`; a running daemon
+  keeps the old size until `launchctl kickstart -k system/systems.determinate.nix-daemon`).
+
+  **Why UTM (R&D 2026-10-17, measured):** under Apple Virtualization (Tart, `vzvm`) a Linux
+  guest renders with **llvmpipe** only and virtio-sound stalls (host log `VirtioSoundDevice:
+  Bad io message`, guest `virtio_snd … (0x00000104) timeout`); `nixvm`'s QEMU Cocoa window is
+  2D virtio-gpu. The stock GNOME ISO under UTM reported a virgl renderer, followed window
+  resizes and played 1080p video cleanly. nixpkgs' `utm` is a stale 4.7.5, so the app is the
+  `utm` Homebrew cask (5.0.x carries the virgl/Venus work). UTM's own default **Vulkan (Venus)
+  path breaks Linux desktops** per its 5.0.x release notes — the app pref `QEMUVulkanDriver = 1`
+  turns it off; app prefs are only writable from outside while UTM has never launched, or
+  with Full Disk Access, because the sandbox container is TCC-protected after first launch.
+
+  **The disk image, and why it is not nixpkgs' `qemu-efi` image.** `image.modules.qemu-efi`
+  builds through `make-disk-image` → `vmTools.runInLinuxVM`, which requires the `kvm` system
+  feature — this Mac's Determinate builder advertises none. `image.repart` builds with
+  fakeroot, so it builds here. In the pinned 26.11 it is **opt-in** (`image.repart.enable`).
+  The image boots once with a Unified Kernel Image on the ESP (nixpkgs' appliance-repart test
+  layout, `sectorSize = 512` because OVMF/EDK2 rejects 4096), and becomes REBUILDABLE through a
+  `register-nix-paths` unit copied from nixpkgs' sd-image module — the same mechanism that lets
+  `nixpi`, also never installed by an installer, take `nixos-rebuild`. systemd-boot takes the
+  ESP over on the first switch. Root grows into the 64 GiB qcow2 via `boot.growPartition` +
+  `autoResize`. UTM passes no `format=` to QEMU (it probes), and a probed raw image gets block-0
+  writes restricted, so the CLI converts to **qcow2**.
+
+  **Reachable by design, not by default.** `modules/nixos/core.nix` binds sshd to loopback and
+  opens no port; this host reuses `local.lanRecovery` on `eth0` (classic naming on purpose:
+  predictable names differ per hypervisor, and a wrong name fails open). GNOME 50 is
+  **Wayland-only** — the pinned gdm module removed `gdm.wayland = false` — so the SPICE
+  clipboard has no X11 fallback. The account has no password, so GNOME's keyring and first-run
+  wizard are off and a polkit rule mirrors `wheelNeedsPassword = false` (the prompt class
+  `modules/nixos/desktop-vm.nix` documents).
 
 ## Building `aarch64-linux` on the Mac, and deploying `nixpi`
 
