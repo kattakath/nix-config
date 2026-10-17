@@ -460,46 +460,8 @@ let
       icns = fleetMarkIcns;
     };
 
-  # A launcher that starts an app under the per-app VPN kill switch's group
-  # (modules/darwin/vpn-only-apps.nix). It must exec the BINARY, never
-  # `open -a`: LaunchServices starts the app itself, so the group would be lost.
-  # Detached like mkLauncherApp, so this bundle does not sit in the Dock as a
-  # second, frozen copy of the app while it runs.
-  mkVpnOnlyApp =
-    {
-      name,
-      bundleId,
-      executable,
-      group,
-      icns ? null,
-    }:
-    let
-      slug = lib.replaceStrings [ " " ] [ "-" ] (lib.toLower name);
-      launcher = writeShellApplication {
-        name = "launcher";
-        text = ''
-          log_dir="$HOME/Library/Logs"
-          mkdir -p "$log_dir"
-          nohup /usr/bin/sudo -n -u "$(id -un)" -g ${lib.escapeShellArg group} -- \
-            ${lib.escapeShellArg executable} >"$log_dir/${name}-launch.log" 2>&1 &
-          disown
-        '';
-      };
-    in
-    mkAppBundle {
-      inherit
-        name
-        slug
-        bundleId
-        launcher
-        ;
-      icns = if icns == null then fleetMarkIcns else icns;
-    };
-
 in
 {
-  inherit mkVpnOnlyApp;
-
   androidEmulatorApp = mkLauncherApp {
     name = "Android Emulator";
     bundleId = "com.kattakath.android-emulator";
