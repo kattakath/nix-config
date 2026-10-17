@@ -144,10 +144,11 @@ writeShellApplication {
       # live: nix-darwin re-runs `scutil --set LocalHostName` on EVERY activation
       # (pinned modules/networking/default.nix:195-197, not diff-gated), and
       # mDNSResponder re-probes, hits the clash and renames it back ~0.9 s later —
-      # 11 of 11 set->rename cycles in the system log, 2026-10-16/17. HostName and
+      # 12 of 12 set->rename cycles in the system log, 2026-10-16/17. HostName and
       # ComputerName stayed `macos` throughout: mDNSResponder only ever rewrites
       # LocalHostName. The rival that time was THIS Mac's own KDE Connect,
-      # announcing `macos.local` with a stale IP — a clash needs no second Mac.
+      # announcing `macos.local` with a stale IP (0 of 1 renamed once it was
+      # stopped; hosts/macos.nix, at the cask) — a clash needs no second Mac.
       # LocalHostName (darwin-rebuild's own default) is the fallback only when
       # HostName is unset, as on a consumer of hosts/generic-darwin.nix that
       # declares no networking.hostName.

@@ -70,9 +70,10 @@ Core package set:
   `.local` (mDNS) name clash mDNSResponder renames `LocalHostName` to `macos-2`, and a bare
   `sudo darwin-rebuild switch` then dies with "does not provide attribute
   `darwinConfigurations.macos-2`". It does **not** self-heal while the clash lasts: nix-darwin
-  re-sets the name on every activation, and mDNSResponder renames it back ~0.9 s later (11/11
-  cycles logged, 2026-10-16/17, the last one this fix's own proof run). The rival that time was this Mac's **own KDE Connect**
-  answering `macos.local` with a stale IP. `activate` prints a line when the two names differ.
+  re-sets the name on every activation, and mDNSResponder renames it back ~0.9 s later (12/12
+  cycles logged, 2026-10-16/17, the last two this fix's own proof runs). The rival that time was this Mac's **own KDE Connect**
+  answering `macos.local` with a stale IP — **0 of 1** renamed once it was stopped. Why it clashes,
+  and why no setting stops it: the comment at the `kde-connect` cask in `hosts/macos.nix`. `activate` prints a line when the two names differ.
 
   **It always builds the MAIN checkout, never the worktree you are sitting in — and that is
   CLAUDE.md § Build & Commands' "MERGING IS STEP 1 OF 2".** The planted link is a **STRING**
