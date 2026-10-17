@@ -204,7 +204,7 @@ in
     # "up-to-date but not loaded".
     #
     # WHY FROM A nix-darwin MODULE and not a home-manager one. The precedent is
-    # modules/darwin/logging.nix:337, which declares its user tick exactly this
+    # modules/darwin/logging.nix's `file-rotation-logs`, which declares its user tick exactly this
     # way. It is what keeps the capsule ONE module per lane: `runnerStateDir`'s
     # default reads nix-darwin's `config.system.primaryUserHome` (./slots.nix),
     # the state-dir mkdir above needs `config.system.primaryUser`, and

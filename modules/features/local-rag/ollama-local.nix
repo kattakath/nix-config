@@ -159,7 +159,7 @@ in
       #
       # KeepAlive.SuccessfulExit = false is launchd's "restart until it exits 0",
       # which is exactly the semantic wanted, and the same Lego media-cli's queue
-      # already uses (modules/features/media-cli/module.nix:315). ThrottleInterval
+      # already uses (modules/features/media-cli/module.nix's `KeepAlive.SuccessfulExit = false`). ThrottleInterval
       # raises launchd's flat ~10s respawn floor to a minute, because a model pull
       # is not something to retry ten times a minute. The poll at :104 STAYS: it is
       # what makes the common case succeed in a single spawn, so removing it would

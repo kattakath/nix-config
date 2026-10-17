@@ -136,8 +136,8 @@ let
   # and it is the right seam for THIS lane specifically because the runner runs
   # ON THE HOST here, so a hook's assertion is a HOST assertion. The Tart lane
   # cannot use a hook at all — its Runner.Listener runs inside a macOS GUEST
-  # (modules/features/tart-vms/packages/tart-runner.nix:705, `exec
-  # ./bin/Runner.Listener run` inside a heredoc piped to `guest_ssh` at :707) —
+  # (modules/features/tart-vms/packages/tart-runner.nix, `exec
+  # ./bin/Runner.Listener run` inside a heredoc piped to `guest_ssh`) —
   # so a hook there would caffeinate a disposable VM and leave the host free to
   # sleep. That lane is NOT fixed here: whether Virtualization.framework takes
   # its own assertion while a guest runs is unmeasured, and a fix built on a

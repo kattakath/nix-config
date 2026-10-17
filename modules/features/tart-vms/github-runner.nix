@@ -312,7 +312,7 @@ in
     # <domain>/<agentName>`), then boots out, installs and bootstraps.
     #
     # Declared from THIS nix-darwin module (precedent:
-    # modules/darwin/logging.nix:337) rather than from a second,
+    # modules/darwin/logging.nix's `file-rotation-logs` agent) rather than from a second,
     # home-manager-class capsule module: the per-instance plist is derived from
     # `local.tart.githubRunners` and from ./slots.nix's `runnerStateDir`, whose
     # default reads nix-darwin's `config.system.primaryUserHome`, so the module

@@ -23,7 +23,7 @@
 # ARGS SHRANK ON 2026-10-06 and `nix fmt` did it, not a human: removing
 # `pkgs.wireguard-tools` left `pkgs` unused, and `lib` had already become unused
 # when the vmVariant turned into a module FUNCTION with its own `{ config, lib,
-# ... }`. treefmt runs `deadnix --edit` (treefmt.nix:24), which prunes unused
+# ... }`. treefmt runs `deadnix --edit` (treefmt.nix's `deadnix.enable`), which prunes unused
 # bindings automatically — so do not re-add either arg by hand expecting to use
 # it at this level; take it in the inner function instead.
 {
