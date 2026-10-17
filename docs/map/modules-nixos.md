@@ -224,14 +224,15 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   scripted networking, and nothing under `services/networking/` does connectivity-based
   failover), so the probe-and-escalate loop is genuinely ours and deliberately small. It
   probes the DEFAULT ROUTE (never a specific interface — `curl --interface wlan0` fails
-  whenever wlan0 does not own the route, reporting a healthy link as dead) against two IP
-  literals, since DNS may be the broken thing. After `failuresBeforeAction` consecutive
-  failures a three-step ladder runs, each step verified by the next probe rather than
-  assumed: **demote the wired default route** → **invert the Wi-Fi priorities onto the
-  fallback network** → **restore the shipped configuration** and start over. Everything is
-  written to the RUNTIME `wpa_supplicant.conf` only; the card's copy on the FAT `FIRMWARE`
-  partition stays the source of truth, so the worst case of any escalation is one supplicant
-  restart, and a reboot undoes it. Gated by `checks.<system>.uplink-watchdog-paths-agree`,
+  whenever wlan0 does not own the route, reporting a healthy link as dead) against IP literals
+  of **both families** — two IPv4, two IPv6 — and **any** answer means healthy, because DNS
+  may be the broken thing and the tunnel connects over whichever family works. After
+  `failuresBeforeAction` consecutive failures a three-step ladder runs, each step verified by
+  the next probe rather than assumed: **restart the supplicant** (re-scan, so a broadcasting
+  hotspot wins on `priority=`) → **demote the wired default route** by metric →
+  **restore the shipped configuration** and start over. Since 2026-09-23 nothing rewrites the
+  RUNTIME `wpa_supplicant.conf`; the card's copy on the FAT `FIRMWARE` partition stays the
+  source of truth, and a reboot undoes any escalation. Gated by `checks.<system>.uplink-watchdog-paths-agree`,
   which fails if the watchdog and `local.firmwareProvisioning.files.wifi` stop naming the
   same runtime file, planted filename, or ordered-before unit — and, since 2026-10-01, if either
   of those interface names stops matching `local.lanRecovery.interfaces`. **It cannot conjure an
@@ -240,6 +241,21 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   connector watchdog:** it only ever hands the tunnel a working uplink, so it did nothing for the
   2026-10-01 outage, where the uplink was fine and `cloudflared` itself was the dead part. That
   is `lan-recovery.nix`'s job, not this one's.
+  - **FIELD RECORD, 2026-10-15/16 — a 38-hour false alarm, and why the probe is dual-stack.**
+    The router's WAN reset at 02:37Z on 10-15. IPv6 came back within minutes and IPv4 egress
+    did not, so the tunnel re-registered over IPv6 (11 of 11) and stayed quiet. The probe was
+    IPv4-only at the time, so it read "down" for 38 h and ran **401 ladder cycles**: **801
+    supplicant restarts** and **2,417 `wlan0` carrier losses**, for nothing. That churn also
+    caused avahi's `nixpi-3` rename and the IPv6 temporary pile-up (`hosts/nixpi.nix`). The
+    storm ended at 17:04Z on 10-16, the same minute `wlan0` joined the `aloshy` hotspot and the
+    tunnel registered over IPv4 again (cause vs coincidence not separated). The same window
+    exposed two ladder defects, fixed or instrumented 2026-10-17:
+    - `cmp` was missing from `runtimeInputs`: 401/401 restores logged "command not found" and
+      restarted the supplicant needlessly.
+    - Step 2's demotion failed on 398/401 cycles, with `ip`'s error discarded. It is now logged.
+    A `metric 1001002` route left behind by `restore()` was still present afterwards.
+    Router-side IPv4 death is consistent with every Pi-side signal (timesyncd: 8 IPv4 NTP
+    servers timed out, then the first IPv6 one answered); the gateway's own log was not pulled.
   - **CORRECTION to the #717 story — the bug froze the LADDER, it never removed the default
     route.** PR #717's title and body say the escalation left nixpi with "NO DEFAULT ROUTE,
     permanently". That is **false**, and it is recorded here because a PR title cannot be edited
