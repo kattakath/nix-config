@@ -12,7 +12,8 @@ description: >
 # nix-hygiene
 
 **Floor (already automated):** `nix fmt` / treefmt (nixfmt + statix + deadnix),
-ast-grep structural lint (`checks.<system>.ast-grep`), Stop gate + `/eval`
+ast-grep structural lint (`checks.<system>.ast-grep`), the `path:N` citation lint
+(`checks.<system>.line-refs-cite-constructs`), Stop gate + `/eval`
 (`git add` → `nix flake check`), CI `nix-ci.yml`.
 
 **The ast-grep floor is SIX rules, and every one `severity: error` — a match FAILS the
@@ -117,6 +118,9 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
 - [ ] Comments explain **why**, not restate the code.
 - [ ] Remove "we tried X then Y" experiment narratives unless they prevent a known footgun (one sentence max).
 - [ ] `docs/*-runbook.md` and skill frontmatter match current commands.
+- [ ] Do NOT hand-sweep `path:N` citations into this repo's own files — the
+      `line-refs-cite-constructs` check already fails on them. The as-of records it skips
+      (ADRs, studies, plans, retired `mcp-*` docs) keep their old numbers on purpose.
 - [ ] CLAUDE.md skill/command lists (§ Navigating the Codebase) include this skill after add,
       and `docs/map/claude.md` describes it.
 
