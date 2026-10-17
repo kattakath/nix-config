@@ -2,7 +2,7 @@
 # gitlab-tart-executor (ephemeral Tart VM per GitLab CI job, custom-executor
 # interface) packaged from its release binary — nixpkgs carries it nowhere —
 # plus SLOT SHIMS that make its VMs share the host's two-macOS-guest budget
-# with the GitHub local.tart.runners controllers (packages/tart-slots.nix is the
+# with the GitHub local.tart.githubRunners controllers (packages/tart-slots.nix is the
 # single protocol; the executor itself knows nothing about slots).
 #
 # Shim contract (gitlab-runner config.toml [runners.custom] points at these):
