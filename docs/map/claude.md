@@ -20,9 +20,9 @@ Claude Code spawns one stdio child PER SESSION  —  nothing shared, nothing lon
         v  reaped when the session ends
 ```
 
-- **Claude Code only.** Claude Desktop loads no plugins, so **Desktop has no MCP servers at
-  all** — an empty `mcpServers` block, written deliberately (see `claude-desktop.nix` above).
-  Cowork, which reaches servers through Desktop's bridge, likewise has none.
+- **Claude Code only.** Claude Desktop loads no plugins, so **no plugin server reaches Desktop**
+  or the Cowork bridge behind it. Desktop's only lane is `local.claudeDesktop.extraServers`
+  (`REDACTED`, `github`, `REDACTED` since 2026-10-16; see `claude-desktop.nix`).
 - **A launcher that needs a Keychain read is a PATH package in this repo.** A plugin's
   `.mcp.json` can set `env` to literals and passthroughs but cannot run
   `security find-generic-password`, so the credential work stays in a Nix-installed wrapper the
@@ -67,21 +67,15 @@ They hold the **all-projects, machine-wide** context this repo installs on `maco
   session on this machine (AskUserQuestion-for-decisions, the evidence-backed reuse motto, diagrams as
   rendered ASCII, secret-value redaction, git authorship). The repo-root `CLAUDE.md` is
   **project**-scoped and layers on top of it.
-- **`claude/output-styles/`, `claude/agents/`, `claude/commands/`, `claude/rules/`** — the
-  **Brain Signals** kit, wired by `modules/home/claude-brain.nix` (not `modules/home/default.nix`) through
-  `programs.claude-code.{outputStyles,agents,commands,rules}`: the BLUF-first layered output
-  style, its companion calibration rule, the `cartographer` read-only architecture subagent,
-  and `/task` (goal-locked execution). Its seven `/explain`-family skills live one level up in
-  top-level `skills/` — see § Global skills. MOVED HERE from the private nix-personal flake
-  2026-09-12: `claude/CLAUDE.md` already carried the same ADHD/dyslexia answer-shape rule in
-  prose, so the rule and the mechanism that satisfies it now live together and cannot drift.
-  Every option it writes is `attrsOf`-merging, so a private layer or a fork ADDS entries rather
-  than replacing the set; the only two scalars (`settings.outputStyle`,
-  `settings.alwaysThinkingEnabled`) are `lib.mkDefault`, so a plain assignment downstream wins.
-  Two things it must never do, both of which would destroy that seam for everyone: route extra
-  global prose through `context` (already defined as a PATH in `modules/home/default.nix` — a second path
-  definition is a hard eval error, not a merge; use another `rules.<name>`), or reach for the
-  `rulesDir`/`agentsDir`/`commandsDir` forms (upstream asserts `rules` XOR `rulesDir`).
+- **`claude/rules/brain-signals-context.md`** — the ONE piece of the **Brain Signals** kit left in
+  this tree, wired by `modules/home/claude-brain.nix` as `programs.claude-code.rules.brain-signals-context`
+  (plugins carry no rules). The output style, the `cartographer` subagent, `/task` and the
+  `/explain` family all ship as the **`brain-signals` plugin** since 2026-09-23; `claude-brain.nix`
+  keeps only this rule plus the style SELECTION (`settings.outputStyle`, `lib.mkDefault`, so a plain
+  assignment downstream wins). Two things it must never do: route extra global prose through
+  `context` (already defined as a PATH in `modules/home/default.nix` — a second path definition is
+  a hard eval error, not a merge; use another `rules.<name>`), or reach for the `rulesDir` form
+  (upstream asserts `rules` XOR `rulesDir`).
 
 Both are source-path literals (`../../claude/CLAUDE.md`), so they are repo-relative and
 content-hashed into the store — see `CLAUDE.md` § Code Style on the two path axes.
@@ -120,6 +114,12 @@ copies of one command is a duplicate, not a fallback.
   the known upstream `/bin/sh` exceptions (`org.nixos.activate-system`,
   `org.nixos.activate-agenix`, `systems.determinate.nix-installer.nix-hook`) that are NOT ours
   and must not be renamed.
+- [`upstream-first.md`](../../.claude/rules/upstream-first.md) — grep the PINNED input's option
+  surface before writing custom Nix, and cite the result; for a CLI or wrapper, also check whether
+  a community TOOL already owns it (an option grep cannot see a package).
+- [`store-copied-trees.md`](../../.claude/rules/store-copied-trees.md) — scoped to `sites/**`: a
+  directory path literal copies the whole tree into the store, so check for stray `.DS_Store` and
+  the like before committing.
 
 ### `.claude/hooks/`
 
@@ -206,7 +206,7 @@ and, above it on `macos`, root-owned managed scope in
 - **`fleet-doctor-digest.js`** — SessionStart nudge when `/fleet-doctor` hasn't run in a while;
   reads only a local timestamp, no network/git calls, so it stays fast on every session start.
 - **`autostage-nix`** — PostToolUse git-purity net. EXTRACTED 2026-09-12 to the
-  [`claude-code-nix`](https://github.com/kattakath/ai/tree/main/plugins/claude-code-nix) plugin; it arrives as a
+  [`claude-code-nix`](https://github.com/kattakath/skills/tree/main/plugins/claude-code-nix) plugin; it arrives as a
   plugin hook, which is why `.claude/settings.json` no longer lists it (keeping both would
   fire it twice).
 - **`nix-home-path-lint`** — same plugin, same extraction. PostToolUse, `.nix` only: flags a hardcoded
@@ -234,9 +234,10 @@ path below is the only lane for a global skill — do not re-add the lockfile.
 
 Placed at `~/.claude/skills/<name>/` declaratively by `programs.claude-code.skills`
 (`modules/home/default.nix`, darwin-gated) on `darwin-rebuild switch`. Most are sourced from
-PINNED `flake = false` inputs (`agent-skills-vercel` = vercel-labs/skills → `find-skills`;
-`agent-skills-anthropic-official` = anthropics/skills → `mcp-builder`, `webapp-testing`,
-`pdf`/`docx`/`pptx`/`xlsx`), **NOT vendored**; `nix flake update` bumps them.
+PINNED `flake = false` inputs (e.g. `agent-skills-vercel` = vercel-labs/skills → `find-skills`),
+**NOT vendored**; `nix flake update` bumps them. anthropics/skills (`mcp-builder`,
+`webapp-testing`, `pdf`/`docx`/`pptx`/`xlsx`) is NOT an input any more: it is the
+`anthropic-agent-skills` marketplace in `local.claudePlugins.marketplaces`.
 
 The `agent-skills-anthropic` input (anthropics/claude-code → plugin-dev + hookify authoring
 skills) was REMOVED 2026-09-29. Those eight skills now arrive as the `plugin-dev` and `hookify`
@@ -361,7 +362,7 @@ Its plugins are the live list at `local.claudePlugins.marketplaces.kattakath.plu
 Two of them carry write-ups worth keeping:
 
 - **`llmstxt`** — `llms.txt` authoring skill + `/llmstxt` command + a stdlib-only spec
-  linter; see the plugin's own `README.md` in [`kattakath/ai`](https://github.com/kattakath/ai).
+  linter; see the plugin's own `README.md` in [`kattakath/skills`](https://github.com/kattakath/skills/tree/main/plugins/llmstxt).
 - **`page-lab`** — userscript authoring AND live-page diagnosis in one unit: the
   measure-before-you-select method, four browser probes, the pre-vetted code patterns, the
   Greasy Fork rulebook, the GM_* portability matrix, a two-way element **picker**, CDP
@@ -432,9 +433,9 @@ plain attrset, so both already take N. The operator's `ismailkattakath/ai` and
 experiment has no business being always-on global context on the working Mac. Add one
 when it has earned that, or scope it to a project instead.
 
-A **skill** that needs no command/hook/MCP/agent surface belongs in
-[`kattakath/ai`](https://github.com/kattakath/ai)'s `skills/`, not in a plugin —
-reach for a plugin only when the unit is more than a skill. An agent for ONE project belongs
+Everything in [`kattakath/skills`](https://github.com/kattakath/skills) is a plugin under
+`plugins/` (33 as of 2026-10-17, no bare `skills/` tree) — a lone skill ships as a one-skill
+plugin, as `gif-meme` does. An agent for ONE project belongs
 in that project's `.claude/agents/`, per the seargraph record above.
 
 ### Project memory

@@ -9,7 +9,7 @@
 # NOT run the `settings` sub-linter: cclint's bundled schema (0.2.x) only knows
 # the { "type": "command" } hook shape and rejects { "type": "prompt" } hooks,
 # which are a current, supported Claude Code feature that .claude/settings.json
-# uses (PreToolUse/SubagentStop validators). Running `settings` would fail the
+# uses (its PreToolUse Write|Edit validator). Running `settings` would fail the
 # gate on a linter false positive. Editor-side validation of settings.json is
 # instead provided by its "$schema" key (json.schemastore.org). Revisit and add
 # `cclint settings` here once upstream recognizes prompt hooks.
@@ -51,7 +51,8 @@ jobs:
           npx --yes @carlrannaberg/cclint@0.2.10 commands --fail-on error
           npx --yes @carlrannaberg/cclint@0.2.10 context  --fail-on error
 
-      # The PreToolUse guard's own case suites. They were ORPHANED until
+      # The case suites for BOTH hooks — the PreToolUse bash guard (rule1*) and the
+      # Stop gate (stop-gate-fail-closed). The guard's were ORPHANED until
       # 2026-09-15 — written, committed, and run by nothing — which is how the
       # guard came to throw ReferenceError on every call and fail OPEN (a
       # retired rule's code outlived its constants) with no gate noticing.
@@ -60,7 +61,7 @@ jobs:
       # (a crash fails open, so "approve" alone is not proof of health).
       # Node is already set up above; the suites need only node + python3,
       # both present on ubuntu-24.04.
-      - name: Run the PreToolUse guard's case suites
+      - name: Run the hook case suites
         run: |
           for t in .claude/hooks/tests/*.sh; do
             echo "── $t"
