@@ -92,6 +92,14 @@ let
   # heavy darwin-only agents (RAG stack, MCP public tunnel extras) off any sandbox host.
   isMacosHost = (osConfig.networking.hostName or "") == "macos";
 
+  # Fonts are rendered by the machine with the SCREEN, never by an SSH target:
+  # tmux/starship glyphs on nixpi are drawn by the client's terminal. So fonts go
+  # where something can display them — any Mac, or nixvm with its GUI switched on
+  # (`local.desktopVm`, imported only there, hence the `or false`). Measured
+  # 2026-10-17: the three below were ~269 MiB of nixpi's SD-card closure, with
+  # fontconfig indexing 164 faces and no display service on the host to use one.
+  wantsFonts = pkgs.stdenv.hostPlatform.isDarwin || (osConfig.local.desktopVm.enable or false);
+
   # The REDACTED org's checkout root — ONE source for the three things keyed on it:
   # the git work identity (`programs.git.includes`), the folder-wide agent context
   # (the `home.file` CLAUDE.md) and the Slack routing hook. `home.file` keys are
@@ -1553,7 +1561,7 @@ in
   # a no-op there either: fontconfig.nix:315-350 is not platform-gated, so it
   # was adding two dummy packages and running `fc-cache -f` on every darwin
   # profile build for nothing.
-  fonts.fontconfig.enable = pkgs.stdenv.hostPlatform.isLinux;
+  fonts.fontconfig.enable = pkgs.stdenv.hostPlatform.isLinux && wantsFonts;
 
   # PERSONAL, cross-host packages only — tools wanted on EVERY machine, not
   # project toolchains (those live in each repo's own devShell). claude-code is
@@ -1563,8 +1571,9 @@ in
   # modules below (listing them here too would be a buildEnv /bin collision).
   #
   # Fonts: the two Nerd Fonts wired to VS Code settings, plus Inter as a general
-  # proportional UI face. nixpkgs unstable uses the per-font `nerd-fonts.<name>`
-  # attrs (24.05+ restructure), not the old `(nerdfonts.override { ... })`.
+  # proportional UI face — appended below behind `wantsFonts`, not in this shared
+  # list. nixpkgs unstable uses the per-font `nerd-fonts.<name>` attrs (24.05+
+  # restructure), not the old `(nerdfonts.override { ... })`.
   home.packages =
     with pkgs;
     [
@@ -1575,10 +1584,6 @@ in
       # it emits the same OSC 10/11/12 but also wraps them for tmux passthrough
       # and swaps to iTerm2's \033]Ph form, neither of which a bare printf does.
       theme-sh
-      # fonts
-      nerd-fonts.jetbrains-mono # "JetBrainsMono Nerd Font" — VS Code editor font (pairs with the JetBrains theme)
-      nerd-fonts.ubuntu-mono # "UbuntuMono Nerd Font" — VS Code terminal font (matches the devcontainer)
-      inter # "Inter" — proportional UI font; no Nerd Font variant exists (NF only patches monospace fonts), so this is the plain upstream package
       # Postgres lives in the local-rag capsule, NOT here. See pgvector-local.nix's
       # `pgPkg` — it is what puts a pgvector-capable postgresql_16 in this profile.
       # (A second `hiPrio (postgresql_16.withPackages [ pgvector ])` used to sit here
@@ -1595,6 +1600,12 @@ in
     # hosts we don't enable that module, so install the bare CLI here instead.
     # Avoids a buildEnv /bin collision.
     ++ lib.optionals (!stdenv.hostPlatform.isDarwin) [ claudeCode ]
+    # Fonts only where they can be rendered (`wantsFonts`, above).
+    ++ lib.optionals wantsFonts [
+      nerd-fonts.jetbrains-mono # "JetBrainsMono Nerd Font" — VS Code editor font (pairs with the JetBrains theme)
+      nerd-fonts.ubuntu-mono # "UbuntuMono Nerd Font" — VS Code terminal font (matches the devcontainer)
+      inter # "Inter" — proportional UI font; no Nerd Font variant exists (NF only patches monospace fonts), so this is the plain upstream package
+    ]
     # secret/set-secret/remove-secret now come from local.keychainSecrets
     # (the keychain-secrets capsule's HM module), not this list.
     ++ lib.optionals stdenv.hostPlatform.isDarwin [
