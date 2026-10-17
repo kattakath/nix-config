@@ -53,7 +53,7 @@ and no personal data is ever baked into a disk you might publish.
   > **This capsule is still macOS-only — re-verified:** zero occurrences of
   > "linux" in `packages/tart-vm.nix`, `darwin.nix`, `github-runner.nix`,
   > `gitlab-runner.nix`, `flake-module.nix` and `slots.nix`; `create` runs
-  > `tart create --from-ipsw=` and nothing else (`packages/tart-vm.nix:202`);
+  > `tart create --from-ipsw=` and nothing else (`cmd_create` in `packages/tart-vm.nix`);
   > `pull`/`bake`/`bootstrap` assume a macOS setup user (`admin`/`admin` → Setup
   > Assistant / SSH). That is a real, deliberate limit of the wiring here.
   >

@@ -27,7 +27,7 @@ nothing — hence one regex, not two calls.
 | `compose.nix` | `mkDarwin` / `mkNixos` / `mkHomeManagerModule` — **not translated** to flake-parts, kept verbatim as plain Nix functions in the freeform `flake` attr (ADR-001's blast-radius objection, honoured). Also threads each capsule in as a named specialArg. Its two composition seams (`extraHomeModules`, `hostedSites`) and the nixpi deploy runbook are written up in [`private-home-modules.md`](../private-home-modules.md) — the filename is historical (the private `nix-personal` flake it was named for was retired 2026-09-15); the seams and the runbook are current. |
 | `hosts.nix` | `darwinConfigurations.macos`, `nixosConfigurations.{nixpi,nixvm}`. |
 | `packages.nix` | `perSystem.packages` + every `apps.*`. |
-| `checks.nix` | The engine's own checks, including `claude-md-budget`, `capsule-registry`, `deploy-schema`, `bedrock-gate-after-loader`, `launchd-log-rotation` (every declared launchd log reaches exactly one rotator, and never both — re-walks the composed agents itself rather than reading `logging.nix`'s own answer back), `mcp-launcher-parity` (the `nix-mcp-*` launchers this fleet builds == the servers `kattakath/skills`' plugins name, read out of the pinned input at eval time — [`modules-home.md`](modules-home.md) § `modules/home/` for the exclusions and the proof it is not vacuous), the two `determinate-daemon` halves and `nixpi-security-posture` ([`modules-nixos.md`](modules-nixos.md) § `modules/nixos/` — 22 legs, read in BOTH directions since 2026-10-01: a WIDENING of the firewall fails it, and so does REMOVING the declared LAN recovery ingress). Its one shared helper, `mkHostContract`, reports EVERY broken leg rather than the first — that behaviour, not code reuse, is the bar for reaching for it. |
+| `checks.nix` | The engine's own checks, including `claude-md-budget`, `capsule-registry`, `deploy-schema`, `line-refs-cite-constructs` (no `path:N` citation into this repo's OWN files in living text — name the option, binding or block; a pinned input's citation leads with the input's name; ADRs, studies, plans and the retired `mcp-*` docs are as-of records and not scanned. 75 of 146 such citations had drifted when it landed, 2026-10-17), `bedrock-gate-after-loader`, `launchd-log-rotation` (every declared launchd log reaches exactly one rotator, and never both — re-walks the composed agents itself rather than reading `logging.nix`'s own answer back), `mcp-launcher-parity` (the `nix-mcp-*` launchers this fleet builds == the servers `kattakath/skills`' plugins name, read out of the pinned input at eval time — [`modules-home.md`](modules-home.md) § `modules/home/` for the exclusions and the proof it is not vacuous), the two `determinate-daemon` halves and `nixpi-security-posture` ([`modules-nixos.md`](modules-nixos.md) § `modules/nixos/` — 22 legs, read in BOTH directions since 2026-10-01: a WIDENING of the firewall fails it, and so does REMOVING the declared LAN recovery ingress). Its one shared helper, `mkHostContract`, reports EVERY broken leg rather than the first — that behaviour, not code reuse, is the bar for reaching for it. |
 | `capsules.nix` | The capsule registry and its two internal seams — `capsuleModules` and `capsuleSources` — plus `checks.<system>.capsule-registry`. |
 | `terranix.nix` | The `cf-*` / `gcp-*` tofu builders. The `mcp-public-*` builders and the `mcp-worker-probe` package were deleted 2026-10-02 with that stack. |
 | `devshell.nix` | `devShells` + the `git-hooks.nix` wiring. |
@@ -199,8 +199,8 @@ the one exported host (`macos`) and the stranger-identity Mac that
   [`macvm-readd-runbook.md`](../macvm-readd-runbook.md)'s step 1 *is* that module. Its re-add step is
   now a `compose.nix` line, not a re-added input.
 - **Two stale `modules/…` references survive** inside `''…''` shell script bodies
-  (`modules/features/tart-vms/packages/tart-runner.nix:473`,
-  `modules/features/tart-vms/packages/gitlab-tart.nix:75`). Fixing them changes the script
+  (`modules/features/tart-vms/packages/tart-runner.nix` and
+  `modules/features/tart-vms/packages/gitlab-tart.nix`). Fixing them changes the script
   text → the drv → `darwin-system`, so they are **recorded** in `flake-module.nix`'s header
   rather than silently rotting.
 
@@ -251,7 +251,7 @@ the one exported host (`macos`) and the stranger-identity Mac that
   `env.DATABASE_URI = config.local.rag.pgvector.databaseUri`. **That MODULE no longer exists —
   the seam does, with two consumers, both in this repo.** `mcp.nix` was deleted 2026-10-02
   (#734); `modules/home/plugin-mcp.nix`'s `plainEnv.DATABASE_URI` now hands the URI to the plugin-lane `postgres` MCP
-  launcher as `plainEnv.DATABASE_URI`, and `modules/features/local-rag/pgvector-local.nix:419`
+  launcher as `plainEnv.DATABASE_URI`, and `modules/features/local-rag/pgvector-local.nix`
   exports it as the `RAGDB_URI` session variable (#796) for a shell consumer that cannot read a
   Nix option. `checks.local-rag-module` still pins the URI's value as a **LITERAL**, so a
   port/role/db rename fails there instead of quietly returning zero rows, and
@@ -309,8 +309,8 @@ One file, and the layer exists for its shape rather than its size:
 - **`modules/_lib/nix-ld-libraries.nix`** — `pkgs: with pkgs; [ … ]`. **Not a module** — a function
   returning the nix-ld runtime library list that dynamically-linked NON-Nix binaries (VS Code
   Server, prebuilt language servers, downloaded toolchains) need. **Two consumers in two
-  different layers:** `modules/nixos/core.nix:133` (`programs.nix-ld.libraries`) and
-  `packages/devcontainer-image.nix:98` (`NIX_LD_LIBRARY_PATH`/`LD_LIBRARY_PATH` baked into the
+  different layers:** `modules/nixos/core.nix` (`programs.nix-ld.libraries`) and
+  `packages/devcontainer-image.nix` (`NIX_LD_LIBRARY_PATH`/`LD_LIBRARY_PATH` baked into the
   distroless image). Widen HERE and both follow.
 
 **Why `modules/_lib/` and not `modules/nixos/` — and not a top-level `lib/` either.** It sat in
@@ -340,7 +340,7 @@ hazard:
 1. `nixFilter = andNot (hasInfix "/_") (hasSuffix ".nix")` (pinned `default.nix:64`). The path
    relative to the walked root (`:84`) is `/_lib/nix-ld-libraries.nix` — `hasInfix "/_"` matches,
    so the library drops it.
-2. `flake.nix:447` is `import-tree … .addPath ./modules` with
+2. The `import-tree` call in `flake.nix` is `import-tree … .addPath ./modules` with
    `.match ".*/(parts/[^/]+|features/[^/]+/flake-module)\\.nix"`. `builtins.match` must match the
    WHOLE relative path, and `/_lib/nix-ld-libraries.nix` has neither a `parts/<file>` nor a
    `features/<name>/flake-module` component.

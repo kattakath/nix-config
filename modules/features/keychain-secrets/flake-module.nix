@@ -76,7 +76,7 @@
 # is upstream's own registry for "modules published by the flake". The class
 # name `homeManager` is not invented either: it is the exact `_class` string the
 # pinned home-manager stamps on its own `homeModules` option
-# (home-manager flake-module.nix:33), so a module registered here is accepted
+# (home-manager/flake-module.nix:33), so a module registered here is accepted
 # anywhere a home-manager module is. It is NOT re-exported as a public flake
 # output — modules/parts/touchup.nix owns that decision and the one-line path
 # back.

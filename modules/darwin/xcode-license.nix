@@ -22,7 +22,7 @@
 #   Two traps: `programs.mas.update` defaults TRUE (:178-185) and would run
 #   `mas update` on every activation, so it is forced off here — versions belong
 #   to the operator (modules/darwin/homebrew.nix); and Xcode must ALSO stay in
-#   `homebrew.masApps`, or brew bundle's cleanup uninstalls it (homebrew.nix:196).
+#   `homebrew.masApps`, or brew bundle's cleanup uninstalls it (nix-darwin/modules/homebrew.nix:196).
 #   LICENCE — grepped nix-darwin/modules for `license accept|xcodebuild`: nothing
 #   beyond the App Store id examples, so acceptance stays custom, injected into
 #   nix-darwin's own activation ordering rather than a new hook.
