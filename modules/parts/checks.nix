@@ -1915,6 +1915,14 @@ in
                   ++ lib.attrNames (pi.networking.supplicant or { })
                 )
               );
+              # mDNS is the LAN ingress's ENTRY POINT (`nixpi.local`), and it is
+              # scoped to the wired interface alone: two interfaces on one LAN make
+              # avahi lose a probe race against itself and rename the host for good
+              # (measured 2026-10-17, avahi#117 — hosts/nixpi.nix). `or null` so a
+              # vanished option reads as broken rather than throwing.
+              avahi = pi.services.avahi or { };
+              avahiIfaces = avahi.allowInterfaces or null;
+              wiredIface = pi.local.uplinkWatchdog.wiredInterface or null;
               addrs = map (a: a.addr or null) listen;
               addrsWellFormed = !(lib.elem null addrs);
 
@@ -2033,6 +2041,10 @@ in
                 {
                   name = "those interface names match the ones the watchdog and the supplicants independently spell";
                   ok = lanIfaces != null && lanIfaces == namedIfaces;
+                }
+                {
+                  name = "avahi is ON and publishes on EXACTLY the wired interface — a second LAN interface makes it rename itself (avahi#117)";
+                  ok = (avahi.enable or false) && wiredIface != null && avahiIfaces == [ wiredIface ];
                 }
                 {
                   name = "each LAN interface opens EXACTLY the sshd port, and nothing else on any protocol";
