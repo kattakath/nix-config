@@ -132,9 +132,11 @@ to build the boundary machinery around it.
   `refsRelPath`, four new packages (`secrets-status`, `secrets-rehydrate`, `secrets-push`,
   `secrets-resolve` — `modules/features/keychain-secrets/packages/secrets-backend.nix`, config read at RUNTIME so the perSystem
   packages and the module install the same drvs) and one new check
-  (`keychain-secrets-backend-inert`). With `backend.type = "none"` (the default, and what
-  `macos` runs today) the loader, `home.activation` and the `darwin-system` drv were measured
-  byte-identical to the pre-ADR-004 tree and no CLI is installed. README § Backend.
+  (`keychain-secrets-backend-inert`). With `backend.type = "none"` (the default) the loader,
+  `home.activation` and the `darwin-system` drv were measured byte-identical to the pre-ADR-004
+  tree and no CLI is installed. **`macos` runs `backend.type = "gcp"` since 2026-10-17** (#826,
+  `hosts/macos.nix`), with the Secret Manager API enabled by `infra/gcp/foundation.nix`.
+  README § Backend.
 - **Seam:** `capsuleModules.homeManager.keychain-secrets` (the raw seam; this is the capsule whose
   measurement produced it).
 - **Checks:** `keychain-secrets-module` and `keychain-secrets-clis` (the satellite's four package

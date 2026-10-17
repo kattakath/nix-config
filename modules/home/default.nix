@@ -2199,7 +2199,7 @@ in
         # Root-level SKILL.md, so the whole repo is the skill dir.
         excalidraw-diagram = "${agent-skills-excalidraw}";
         # OFFICIAL Vercel Labs (vercel-labs/agent-skills): drives the `vercel` CLI
-        # (hosts/macos.nix Homebrew `vercel-cli`) for non-interactive / token auth —
+        # (hosts/macos.nix Homebrew cask `vercel`) for non-interactive / token auth —
         # the deploy/manage counterpart to the CLI itself. Cherry-picked (one skill).
         vercel-cli-with-tokens = "${agent-skills-vercel-agent}/skills/vercel-cli-with-tokens";
         # OFFICIAL Vercel Workflow SDK (vercel/workflow, Apache-2.0): the three USER-facing
