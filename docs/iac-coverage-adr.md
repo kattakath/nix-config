@@ -243,7 +243,9 @@ the worst possible moment, during an offboarding.
 
 **What GCP covers today** (`infra/gcp/foundation.nix`, phase 3): enabled APIs, service accounts,
 IAM bindings, and the state bucket — 3.2 *was* revisited, and the bucket is declared here rather
-than at Cloudflare. **Still not declared:** Secret Manager (ADR-004's durable store).
+than at Cloudflare. Secret Manager's **API** is declared there too (2026-10-17, for ADR-004's
+durable store); the secrets themselves are written by `secrets-push`, never by Terraform — a
+declared secret would put its value in state.
 
 **Blocked:** the survey could not run — `gcloud` returned `Reauthentication failed. cannot prompt
 during non-interactive execution`. Active accounts are `ismail@kattakath.com` (project

@@ -271,11 +271,12 @@ empty block, asserted by `checks.*.claude-desktop-config-shape`.
   `secret <set|reveal|rm|ls|exec|copy|fp|bind|unbind|adopt|load>` (there is **no `secret get`** —
   printing a value is opt-in via `reveal`); no secret *names* live in `.nix` either (the Keychain index is
   authoritative). Servers/CLIs read them at launch via `passwordCommand`-style wrappers, so no
-  value ever reaches argv or the store. **Durable copy (ADR-004, off by default):**
+  value ever reaches argv or the store. **Durable copy (ADR-004; ON for `macos` since 2026-10-17):**
   `local.keychainSecrets.backend.type = "gcp"` adds `secrets-{status,rehydrate,push,resolve}` over
   GCP Secret Manager — operator-invoked after `gcloud auth login`, **never by activation**
-  (`ast-grep/rules/activation-must-not-touch-secrets.yml`). Project id is read from `gcloud`
-  at runtime, never a Nix string.
+  (`ast-grep/rules/activation-must-not-touch-secrets.yml`). Project id AND identity are read from
+  `gcloud` at runtime, never a Nix string — so run them with `CLOUDSDK_CONFIG=~/.config/gcloud-nix-config`;
+  the global gcloud config can hold a client account.
 - **Never display a secret value** — using one is fine, echoing/logging/committing it is not.
 - Mechanism, history, and the two documented loader footguns:
   [`docs/secrets-and-keychain.md`](docs/secrets-and-keychain.md).

@@ -3,9 +3,9 @@
 **Status:** **Decided and IMPLEMENTED — all three phases shipped** 2026-09-20 (Phase 1 docs and
 markers; Phase 2 the `keychain-secrets` extension; Phase 3 the `cloud-cli` capsule, the
 `googleAccount` binding, the inventory moves, the template, and the Access-policy DRAFT). §9 is
-the execution record. Two things are deliberately still the operator's: `backend.type` is
-`"none"` on `macos` (flip it after enabling the Secret Manager API), and the Access-policy change
-is declared but **not applied** (§9.10).
+the execution record. `backend.type` is `"gcp"` on `macos` since 2026-10-17, once the Secret
+Manager API was declared in `infra/gcp/foundation.nix` (§9.3). One thing is deliberately still the
+operator's: the Access-policy change is declared but **not applied** (§9.10).
 
 **Read §9 before trusting §§1-8.** It records what Phase 2's execution found the design (and
 the brief it came from) got wrong. Where §9 and an earlier section disagree, §9 is what the
@@ -231,7 +231,9 @@ list` **prompted** ("enable and retry? y/N") from inside `secrets-rehydrate`, th
 nothing, and the command reported `0 written` with exit 0. Every gcloud call now runs
 `--quiet`, and listing goes through one `list_remote` that dies with gcloud's own error line.
 The same run established the **operator action Phase 2 cannot take**: enable
-`secretmanager.googleapis.com` on the project (console link is in the error text).
+`secretmanager.googleapis.com` on the project (console link is in the error text). **Done
+2026-10-17, declaratively** — an entry in `infra/gcp/foundation.nix`'s `services`, applied with
+`gcp-foundation-apply`, not a console click.
 
 ### 9.4 No delete-then-add
 The brief specified "delete-then-add, since `security` cannot update in place". The capsule's
