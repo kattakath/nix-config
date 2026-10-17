@@ -541,10 +541,12 @@ in
       # the brew copy once: `brew services stop gitlab-runner`.
       "glab"
       # GnuPG — BREWED, NOT nixpkgs, and that inverts this repo's usual instinct
-      # on purpose. See the `gpgfrontend` cask below for the full reasoning; the
-      # short version is that the cask hard-depends on this formula
-      # (`depends_on formula: "gnupg"`), so brew's gnupg is the fleet's GnuPG on
-      # this host and the ONLY one.
+      # on purpose. It was first brewed (2026-10-06) because the `gpgfrontend`
+      # cask hard-depended on it; that cask is gone (see the tombstone in `casks`
+      # below), but brew's gnupg stays as the fleet's GnuPG on this host and the
+      # ONLY one: it is the stack that holds the operator's keyring in ~/.gnupg
+      # and that the pgp-ops plugin drives, and it is the current stable branch
+      # where nixpkgs' is past EOL (version gate below).
       #
       # DO NOT ADD A SECOND ONE. No `pkgs.gnupg`, no `pkgs.pinentry_mac`, no
       # home-manager `programs.gpg` or `services.gpg-agent`. (Brew's pinentry-mac
@@ -734,32 +736,13 @@ in
       # Homebrew ships the app, Nix owns the config. Same split as the
       # ungoogled-chromium cask. Settings live in modules/home/default.nix.
       "ghostty"
-      # GpgFrontend 2.2.2 — the OpenPGP GUI, after every other option was
-      # measured and failed. BARE STRING: the cask declares NO `auto_updates`
-      # (API: `auto_updates: null`), so `greedy` is not even applicable — that
-      # flag only opts an auto-updating cask back into upgrades past
-      # `onActivation.upgrade = false` (modules/darwin/homebrew.nix), and
-      # `open-design` remains the only documented updater pathology here.
+      # NO OpenPGP GUI on this Mac — by design, do not re-add one. GpgFrontend
+      # (cask, 2026-10-06) was REMOVED 2026-10-17 on the operator's verdict that
+      # it is too hard to use; OpenPGP work goes through the pgp-ops plugin, with
+      # pinentry-mac (brews above) as the passphrase dialog.
       #
-      # IT PULLS BREW'S GnuPG, AND THAT IS THE POINT, not a cost:
-      # `depends_on {formula: ["gnupg"], macos: {">=": ["13"]}}`. The objection
-      # "this forces a second gnupg" only holds if a NIX-managed gnupg also
-      # exists — and we deliberately add none, so brew's becomes the single
-      # source of truth. See the `gnupg` brew above for the do-not list.
-      #
-      # ARM64 VERIFIED BY MEASUREMENT, NOT BY READING THE VARIATIONS TABLE —
-      # and the table would have misled. `brew --cache --cask gpgfrontend` on
-      # this machine (macOS 27.0.1-arm64) resolves to
-      #   GpgFrontend-2.2.2-macos-26.dmg
-      # with NO `-intel` suffix, i.e. the Apple Silicon build: there is no
-      # `arm64_golden_gate` variation, so arm64 falls through to the default
-      # URL, while the unprefixed `golden_gate` key is the x86_64 one. Reading
-      # that key alone suggests an Intel download; the resolver disagrees.
-      # This mattered: `arch -x86_64 /usr/bin/true` fails with "Bad CPU type"
-      # and `oahd` is not running, so there is NO Rosetta on this Mac — an Intel
-      # artifact would have been unusable, not merely slow.
-      #
-      # WHY EVERY ALTERNATIVE LOST, 2026-10-06, so none is re-attempted:
+      # Every other GUI was already measured and lost, 2026-10-06, so none is
+      # re-attempted either:
       #   * `gpg-suite` / `gpg-suite-no-mail` — ABANDONED. Latest release is
       #     2023.3 dated 2023-07-23 per GPGTools' OWN release notes, and the
       #     cask string matches upstream exactly, so it is NOT Homebrew lag. It
@@ -777,14 +760,11 @@ in
       #
       # upstream-first: nixpkgs' darwin GUI options are EXHAUSTED — gpa is the
       # only one that builds for aarch64-darwin and it crashes; the rest are
-      # Linux-only — and GpgFrontend has no nixpkgs packaging on this platform
-      # at all. The cask + formula pair is the only route, so there is no
-      # upstream option to prefer.
+      # Linux-only. With GpgFrontend rejected too, there is no GUI left to try.
       #
       # GIT SIGNING IS UNAFFECTED: this fleet signs commits in SSH format
       # (`gpg.format = "ssh"`, modules/home/default.nix), so no gpg-agent or
       # pinentry here can touch commit signing. Do not "fix" that non-problem.
-      "gpgfrontend"
       "iina"
       # Inkscape is gone on purpose (2026-09-15) — do not re-add.
       # KDE Connect — the phone-as-TRACKPAD/keyboard for this Mac (its "Virtual
