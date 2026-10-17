@@ -134,7 +134,7 @@ let
   # first is the house AP and the rest are fallbacks.
   #
   # WHY THIS LIST HAS TO LIVE HERE. The generator could always emit multiple blocks
-  # (packages/nixpi-provision.nix:304 ranks them), but with no declared roster its
+  # (packages/nixpi-provision.nix ranks them), but with no declared roster its
   # default was "whatever Wi-Fi THIS MAC happens to be on right now". So the fallback
   # ladder existed only as whatever arguments a human typed, and the 2026-10-01 reflash
   # erased it — the two-network config on the old card had only ever been HAND-EDITED

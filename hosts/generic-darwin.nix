@@ -26,7 +26,7 @@
   # The one thing genuinely required of a darwin host rather than chosen by it:
   # `modules/darwin/core.nix` is the system layer every Mac needs (stateVersion,
   # primaryUser, /etc, launchd, GUI PATH). The engine deliberately does NOT put it
-  # in mkDarwin's base list — `hosts/macos.nix:30` imports it too — so a host
+  # in mkDarwin's base list — `hosts/macos.nix` imports it too — so a host
   # profile is the thing that opts a Mac into the system layer at all.
   imports = [ ../modules/darwin/core.nix ];
 
