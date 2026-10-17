@@ -2,7 +2,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `modules/darwin/`
 
-`modules/darwin/{core.nix,user-folders.nix,homebrew.nix,nix-homebrew.nix,xcode-license.nix,launchd-reconcile.nix,logging.nix,github-runner.nix,ollama-daemon.nix,claude-managed-settings.nix}`
+`modules/darwin/{core.nix,user-folders.nix,homebrew.nix,nix-homebrew.nix,xcode-license.nix,launchd-reconcile.nix,logging.nix,github-runner.nix,ollama-daemon.nix,clat-guard.nix,claude-managed-settings.nix,launchd-sources.nix}`
 
 - **`core.nix`** — macOS system defaults (dock/finder/NSGlobalDomain, Touch ID for sudo,
   `stateVersion = 5`), plus the GUI `PATH`/`BASH_ENV` `launchd.user.envVariables` and the
@@ -237,6 +237,14 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   went inert the moment the capsule stopped managing the server. The local-rag capsule gained
   `local.rag.ollama.manageServer` (set false) so it does not stand up a competitor on 11434.
 
+- **`clat-guard.nix`** (macos only, `local.clatGuard`, since 2026-10-16) — undoes macOS
+  switching on **CLAT46 / 464XLAT** by itself on dual-stack Wi-Fi with no NAT64 behind it, which
+  sends every IPv4 packet into a translator that goes nowhere (IPv4-only hosts time out while IPv6
+  ones work). Every 30 s a root `launchd.daemons` unit makes two `scutil` reads and acts only on
+  that state, by the `networksetup -setv6off` / `-setv6automatic` bounce that was measured to clear
+  it. It copies the ollama metal guard's shape, so it is one of the boot-ordering `/bin/sh` rows in
+  [`launchd-naming.md`](../../.claude/rules/launchd-naming.md). The file header carries the diagnosis
+  (no PREF64, no option 108, no `ipv4only.arpa` AAAA) and the upstream-first grep.
 - **`metube.nix`** / **`yt-dlp-web-ui.nix`** — `local.meTube` and `local.ytDlpWebUi`, the two
   local download web UIs, each ONE launchd **user agent** bound to **127.0.0.1** and each
   built from source in `packages/` (neither is in nixpkgs). Both are on in `hosts/macos.nix`.
