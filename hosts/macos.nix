@@ -407,13 +407,18 @@ in
     # modules/services/gpg-agent.nix:352) WITHOUT adopting that module — its agent
     # is the second stack the gnupg brew comment forbids. No key id here, so this
     # is safe in a public repo (unlike gpg.conf's encrypt-to, which stays local).
-    #   no-allow-external-password-cache: pinentry-mac's Keychain checkbox would let
-    #   every later decrypt run silently, from ANY process, forever — including an
+    #   no-allow-external-cache: pinentry-mac's Keychain checkbox would let every
+    #   later decrypt run silently, from ANY process, forever — including an
     #   agent's — which defeats the human-present premise of the pgp-ops workflow.
+    #   The name is EXACT and was got wrong once: #832 shipped
+    #   `no-allow-external-password-cache`, which gpg-agent rejects as "invalid
+    #   option" and REFUSES TO START with (exit 2) — while `gpgconf --check-options`
+    #   still passes the file. Prove a change by starting gpg-agent on it, not by
+    #   that check. Measured 2026-10-17, GnuPG 2.5.24.
     # The running agent reads this on `gpgconf --reload gpg-agent` or its next start.
     home.file.".gnupg/gpg-agent.conf".text = ''
       pinentry-program ${config.homebrew.prefix}/bin/pinentry-mac
-      no-allow-external-password-cache
+      no-allow-external-cache
     '';
 
     # ---- REDACTED LiteLLM proxy — REMOVED 2026-09-29 -------------------------
