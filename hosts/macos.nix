@@ -916,7 +916,11 @@ in
       # ships to Chrome and Firefox ONLY — lives in modules/home/chromium.nix.
       "ungoogled-chromium"
       # UTM — QEMU+virgl GUI VMs; Tart/Apple VZ failed the NixOS desktop R&D
-      # (llvmpipe only, broken virtio-sound), UTM passed (2026-10-17).
+      # (llvmpipe only, broken virtio-sound), UTM passed (2026-10-17). A CASK:
+      # nixpkgs' `utm` is a stale 4.7.5, before the virgl/Venus work. Its three
+      # app prefs (Vulkan off, CoreAudio, Cmd/Ctrl swap) are applied by
+      # `nixos-vm create` — packages/nixos-vm.nix says why each, and why they
+      # cannot be activation-time `CustomUserPreferences` (TCC container).
       "utm"
       # Vercel CLI (`vercel`) — deploy/manage Vercel projects. A CASK, not the
       # `vercel-cli` formula: Homebrew migrated it from homebrew/core to

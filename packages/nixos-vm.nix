@@ -201,6 +201,8 @@ writeShellApplication {
         "                nixos-rebuild switch --flake PATH#nixos --target-host $host --sudo." \
         "  start | stop | status" \
         "                utmctl on the VM's fixed UUID ($uuid)." \
+        "  restart       Cold restart (stop, wait, start). Use this, NOT Restart inside" \
+        "                GNOME: an in-guest reboot hangs on a black screen." \
         "  ssh [ARGS...] ssh $host (guest user = your Mac login name)." \
         "  destroy --yes Stop, unregister from UTM and DELETE the bundle and its disk." \
         "  help          This text." \
@@ -288,7 +290,28 @@ writeShellApplication {
       trap - EXIT
       echo "nixos-vm: wrote $bundle (config.plist + Data/${diskName}, ${diskSize})"
 
-      # (3) Register the bundle IN PLACE, keeping its UUID (measured 2026-10-17).
+      # (3a) UTM APP prefs — global, not per-VM, so not in config.plist. Each
+      # was measured on 2026-10-17:
+      #   QEMUVulkanDriver=1 (Disabled): UTM 5.0.x's own release notes say its
+      #     default Vulkan/Venus path breaks Linux desktop rendering; with it off
+      #     QEMU gets virtio-gpu-gl without venus=true and GNOME renders on virgl.
+      #   QEMUSoundBackend=2 (CoreAudio): output straight to macOS, no SPICE audio.
+      #   IsCtrlCmdSwapped=true: Cmd+C/Cmd+V reach the guest as Ctrl+C/Ctrl+V.
+      # BEST-EFFORT: after UTM's first launch its sandbox container is
+      # TCC-protected and `defaults write` fails without Full Disk Access
+      # ("Could not write domain"), so a failure prints the manual fix rather
+      # than aborting a create that is otherwise fine.
+      if /usr/bin/defaults write com.utmapp.UTM QEMUVulkanDriver -int 1 2>/dev/null &&
+        /usr/bin/defaults write com.utmapp.UTM QEMUSoundBackend -int 2 2>/dev/null &&
+        /usr/bin/defaults write com.utmapp.UTM IsCtrlCmdSwapped -bool true 2>/dev/null; then
+        echo "nixos-vm: UTM prefs set (Vulkan off, CoreAudio, Cmd/Ctrl swapped)"
+      else
+        echo "nixos-vm: could not write UTM's prefs (its container is TCC-protected)." >&2
+        echo "          Set them once in UTM > Settings: Vulkan Driver = Disabled," >&2
+        echo "          Sound Backend = CoreAudio, and swap Control and Command." >&2
+      fi
+
+      # (3b) Register the bundle IN PLACE, keeping its UUID (measured 2026-10-17).
       mkdir -p "$share_dir"
       /usr/bin/open -a UTM "$bundle"
       local i
@@ -376,6 +399,21 @@ writeShellApplication {
       start | stop | status)
         need_utm
         exec "$utmctl" "$sub" "$uuid" "$@"
+        ;;
+      # A COLD restart. Rebooting from INSIDE the guest hung on a black screen
+      # with the guest off the network (measured 2026-10-17), while stop +
+      # start came up cleanly; the suspected cause is QEMU's virtio-gpu-gl
+      # reset path destroying the renderer (the same reset behind QEMU issue
+      # 1860's black screen after guest S3). So restart = stop, wait, start.
+      restart)
+        need_utm
+        "$utmctl" stop "$uuid"
+        for _ in $(seq 1 30); do
+          [ "$("$utmctl" status "$uuid")" = "stopped" ] && break
+          sleep 2
+        done
+        [ "$("$utmctl" status "$uuid")" = "stopped" ] || die "did not stop within 60s — 'nixos-vm stop' again, or quit it from UTM."
+        exec "$utmctl" start "$uuid"
         ;;
       ssh) exec /usr/bin/ssh "$host" "$@" ;;
       destroy) cmd_destroy "$@" ;;
